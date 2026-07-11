@@ -18,6 +18,10 @@
             Total 0.879 kg (v1: 0.93 kg).
          5. Joint offsets unchanged: hip-roll -36, roll->pitch 50, thigh 90,
             shin 90 (all confirmed buildable with the real servo dimensions).
+         6. CAD-true inertia: explicit <inertial> per body, computed from the
+            printed-part STL meshes (cad/stl/, PLA rho*0.90) plus servo/battery/
+            board boxes at their CAD positions (sim/build_v2_inertia.py; box
+            geoms remain for collision/visuals, masses kept as documentation).
        Joint ranges and actuator model unchanged. -->
   <compiler angle="degree" autolimits="true"/>
   <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
@@ -40,21 +44,26 @@
 
     <body name="torso" pos="0 0 0.283">
       <freejoint/>
+      <inertial pos="0 0 -0.0005" quat="-0.4999 0.5001 0.5001 -0.4999" mass="0.344" diaginertia="2.7325e-04 2.8653e-04 3.6978e-04"/>
       <geom name="torso" type="box" size="0.023 0.052 0.036" mass="0.344" rgba="0.80 0.82 0.85 1"/>
       <site name="imu" pos="0 0 0"/>
 
       <!-- ================= LEFT LEG ================= -->
       <body name="L_hip" pos="0 0.028 -0.036">
         <joint name="L_hip_roll" axis="1 0 0" range="-25 25"/>
+        <inertial pos="-0.0010 0.0001 -0.0213" quat="-0.4367 0.2117 0.8367 0.2538" mass="0.029" diaginertia="1.0289e-05 1.1641e-05 1.1900e-05"/>
         <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1"/>
         <body name="L_thigh" pos="0 0 -0.05">
           <joint name="L_hip_pitch" axis="0 1 0" range="-60 60"/>
+        <inertial pos="-0.0010 0.0002 -0.0234" quat="0.7141 -0.0024 -0.7000 0.0056" mass="0.077" diaginertia="1.7646e-05 4.9547e-05 5.8062e-05"/>
           <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1"/>
           <body name="L_shin" pos="0 0 -0.09">
             <joint name="L_knee" axis="0 1 0" range="-95 5"/>
+        <inertial pos="-0.0010 0.0002 -0.0234" quat="0.7141 -0.0024 -0.7000 0.0056" mass="0.077" diaginertia="1.7646e-05 4.9547e-05 5.8062e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1"/>
             <body name="L_foot" pos="0 0 -0.09">
               <joint name="L_ankle" axis="0 1 0" range="-40 40"/>
+        <inertial pos="-0.0029 0 -0.0048" quat="0.9971 -0.0001 0.0766 -0.0001" mass="0.091" diaginertia="2.0063e-05 5.9610e-05 6.8819e-05"/>
               <geom name="L_sole" type="box" pos="0.010 0 -0.0129" size="0.048 0.026 0.004"
                     contype="1" conaffinity="1" mass="0.091" rgba="0.75 0.77 0.80 1" friction="1 0.02 0.001"/>
             </body>
@@ -65,15 +74,19 @@
       <!-- ================= RIGHT LEG ================= -->
       <body name="R_hip" pos="0 -0.028 -0.036">
         <joint name="R_hip_roll" axis="1 0 0" range="-25 25"/>
+        <inertial pos="-0.0010 0.0001 -0.0213" quat="-0.4367 0.2117 0.8367 0.2538" mass="0.029" diaginertia="1.0289e-05 1.1641e-05 1.1900e-05"/>
         <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1"/>
         <body name="R_thigh" pos="0 0 -0.05">
           <joint name="R_hip_pitch" axis="0 1 0" range="-60 60"/>
+        <inertial pos="-0.0010 0.0002 -0.0234" quat="0.7141 -0.0024 -0.7000 0.0056" mass="0.077" diaginertia="1.7646e-05 4.9547e-05 5.8062e-05"/>
           <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1"/>
           <body name="R_shin" pos="0 0 -0.09">
             <joint name="R_knee" axis="0 1 0" range="-95 5"/>
+        <inertial pos="-0.0010 0.0002 -0.0234" quat="0.7141 -0.0024 -0.7000 0.0056" mass="0.077" diaginertia="1.7646e-05 4.9547e-05 5.8062e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1"/>
             <body name="R_foot" pos="0 0 -0.09">
               <joint name="R_ankle" axis="0 1 0" range="-40 40"/>
+        <inertial pos="-0.0029 0 -0.0048" quat="0.9971 -0.0001 0.0766 -0.0001" mass="0.091" diaginertia="2.0063e-05 5.9610e-05 6.8819e-05"/>
               <geom name="R_sole" type="box" pos="0.010 0 -0.0129" size="0.048 0.026 0.004"
                     contype="1" conaffinity="1" mass="0.091" rgba="0.75 0.77 0.80 1" friction="1 0.02 0.001"/>
             </body>

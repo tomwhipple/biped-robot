@@ -9,3 +9,4 @@ torch==2.13.0
 tqdm==4.68.4
 build123d>=0.11
 imageio-ffmpeg
+trimesh          # mesh inertia for bimo_biped_v2 (sim/build_v2_inertia.py)

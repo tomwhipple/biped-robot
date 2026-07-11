@@ -12,6 +12,7 @@ Usage:
 """
 from __future__ import annotations
 import argparse
+import json
 import os
 
 import numpy as np
@@ -22,11 +23,31 @@ from walker_env import BimoWalkerEnv
 
 RUNS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
 
+# env_config.json keys that describe the *plant* (model + actuator + objective)
+# rather than reward shaping -- these must carry over into the eval env so each
+# run is evaluated on the physics it was trained with. Reward weights stay at
+# env defaults, as before (returns across runs are then comparable).
+_PLANT_KEYS = ("xml_path", "actuator_model", "supply_voltage",
+               "servo_kp", "servo_kd", "payload_mass", "payload_max",
+               "dash", "dash_distance", "dash_hold")
 
-def load(run_dir, render_mode=None, terrain_amplitude=0.0, terrain_smoothness=0.15):
-    env = DummyVecEnv([lambda: BimoWalkerEnv(
-        render_mode=render_mode, terrain_amplitude=terrain_amplitude,
-        terrain_smoothness=terrain_smoothness)])
+
+def run_env_kwargs(run_dir, **overrides):
+    """Eval-env kwargs for a run: its saved plant config (env_config.json,
+    written by train_ppo) overlaid with any explicit CLI overrides. Old runs
+    have no config file -> original defaults (old xml, ideal actuators)."""
+    kw = {}
+    cfg_path = os.path.join(run_dir, "env_config.json")
+    if os.path.exists(cfg_path):
+        with open(cfg_path) as f:
+            cfg = json.load(f)
+        kw = {k: cfg[k] for k in _PLANT_KEYS if k in cfg}
+    kw.update({k: v for k, v in overrides.items() if v is not None})
+    return kw
+
+
+def load(run_dir, render_mode=None, **env_kwargs):
+    env = DummyVecEnv([lambda: BimoWalkerEnv(render_mode=render_mode, **env_kwargs)])
     stats = os.path.join(run_dir, "vecnormalize.pkl")
     if os.path.exists(stats):
         env = VecNormalize.load(stats, env)
@@ -44,6 +65,18 @@ def main():
     p.add_argument("--terrain-amplitude", type=float, default=0.0,
                    help="evaluate on procedural terrain with this bump height (m)")
     p.add_argument("--terrain-smoothness", type=float, default=0.15)
+    p.add_argument("--xml", default=None,
+                   help="override the MJCF file (default: the run's env_config)")
+    p.add_argument("--actuator-model", default=None, choices=["ideal", "sts3215"],
+                   help="override the actuator model (default: the run's env_config)")
+    p.add_argument("--voltage", type=float, default=None,
+                   help="override servo supply voltage (default: the run's env_config)")
+    p.add_argument("--dash", action="store_true",
+                   help="evaluate in dash mode (2 m + 1 s upright finish) and "
+                        "report dash metrics, even for a non-dash-trained run")
+    p.add_argument("--payload", type=float, default=None,
+                   help="evaluate with this FIXED torso-top payload mass (kg), "
+                        "overriding the run's payload config (e.g. 0 or 0.154)")
     p.add_argument("--gif-name", default="walk.gif",
                    help="output gif filename (under the run dir)")
     args = p.parse_args()
@@ -52,13 +85,24 @@ def main():
     if not os.path.exists(os.path.join(run_dir, "model.zip")):
         raise SystemExit(f"No trained model at {run_dir}/model.zip -- run train_ppo.py first.")
 
+    xml = args.xml
+    if xml and not os.path.isabs(xml):
+        xml = os.path.join(os.path.dirname(os.path.abspath(__file__)), xml)
+    env_kwargs = run_env_kwargs(
+        run_dir, xml_path=xml, actuator_model=args.actuator_model,
+        supply_voltage=args.voltage, dash=True if args.dash else None)
+    if args.payload is not None:      # fixed-payload eval: kill any random draw
+        env_kwargs["payload_mass"] = args.payload
+        env_kwargs["payload_max"] = None
+    print("eval env:", env_kwargs or "(original defaults)")
     model, env = load(run_dir, render_mode="rgb_array" if args.render else None,
                       terrain_amplitude=args.terrain_amplitude,
-                      terrain_smoothness=args.terrain_smoothness)
+                      terrain_smoothness=args.terrain_smoothness, **env_kwargs)
     base = env.venv.envs[0] if isinstance(env, VecNormalize) else env.envs[0]
 
     returns, distances, lengths, survived = [], [], [], []
     dsup_steps, total_steps, airs = 0, 0, []
+    dash_wins, dash_times = 0, []
     frames = []
     max_steps = base.max_steps
     for ep in range(args.episodes):
@@ -85,7 +129,11 @@ def main():
         distances.append(last.get("x", 0.0) * 1000)   # mm
         lengths.append(steps)
         total_steps += steps
-        survived.append(trunc or steps >= max_steps)
+        if last.get("dash_success", False):
+            dash_wins += 1
+            dash_times.append(last["time_to_2m"])
+        survived.append(trunc or steps >= max_steps
+                        or last.get("dash_success", False))
 
     returns, distances, lengths = np.array(returns), np.array(distances), np.array(lengths)
     speed = distances / 1000.0 / (lengths * base.control_dt)   # m/s per episode
@@ -101,14 +149,29 @@ def main():
     print(f"double-support: {dsup_steps / max(total_steps, 1):8.0%} of steps")
     print(f"swing time    : {np.mean(airs) if airs else 0.0:8.2f} s mean "
           f"({len(airs)} touchdowns)")
+    if getattr(base, "dash", False):
+        med = np.median(dash_times) if dash_times else float("nan")
+        best = min(dash_times) if dash_times else float("nan")
+        print(f"dash (2 m + upright {base.dash_hold:.0f}s): "
+              f"{dash_wins}/{args.episodes} confirmed finishes, "
+              f"time-to-2m median {med:.2f}s  best {best:.2f}s")
     print(f"(standing baseline: length {max_steps}, dist ~0mm. Short length + big "
           f"dist => lunge/fall, not a gait.)")
 
     if args.render and frames:
         import imageio.v2 as imageio
         out = os.path.join(run_dir, args.gif_name)
-        imageio.mimsave(out, frames, fps=50)
+        imageio.mimsave(out, frames, fps=50, loop=0)   # loop=0 -> loop forever
         print(f"rendered {len(frames)} frames -> {out}")
+        # also emit a QuickTime-friendly .mov (macOS Preview doesn't animate gifs)
+        import subprocess
+        import sys
+        gif2mov = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "..", "tools", "gif2mov.py")
+        try:
+            subprocess.run([sys.executable, gif2mov, out], check=True)
+        except (OSError, subprocess.CalledProcessError) as e:
+            print(f"(gif2mov failed: {e} -- gif is still fine)")
 
     env.close()
 

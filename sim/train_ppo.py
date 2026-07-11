@@ -18,6 +18,7 @@ Outputs (under sim/runs/ppo_baseline/):
 """
 from __future__ import annotations
 import argparse
+import json
 import os
 
 from stable_baselines3 import PPO
@@ -37,6 +38,30 @@ def main():
     p.add_argument("--n-envs", type=int, default=4, help="parallel envs")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--run-name", default="ppo_baseline", help="subdir under runs/")
+    # -- model / actuator -----------------------------------------------------
+    p.add_argument("--xml", default=None,
+                   help="MJCF file (default: bimo_biped.xml; use bimo_biped_v2.xml "
+                        "for the CAD-true model). Relative paths resolve in sim/.")
+    p.add_argument("--actuator-model", default="ideal", choices=["ideal", "sts3215"],
+                   help="'sts3215' = PD torque clamped to the servo torque-speed "
+                        "envelope at --voltage; 'ideal' = original position servos")
+    p.add_argument("--voltage", type=float, default=7.4,
+                   help="servo supply voltage (7.4=2S, 11.1=3S, 12=bench supply)")
+    p.add_argument("--servo-kp", type=float, default=12.0)
+    p.add_argument("--servo-kd", type=float, default=0.25)
+    # -- torso-top camera payload (GoPro MAX 360 = 0.154 kg) -------------------
+    p.add_argument("--payload", type=float, default=0.0,
+                   help="fixed torso-top payload mass in kg (0.154 = GoPro MAX)")
+    p.add_argument("--payload-max", type=float, default=None,
+                   help="per-episode payload drawn uniform(0, this) kg -- one "
+                        "policy for camera-on and camera-off (e.g. 0.17)")
+    # -- 2 m dash objective ---------------------------------------------------
+    p.add_argument("--dash", action="store_true",
+                   help="episode succeeds on crossing 2 m + staying upright 1 s")
+    p.add_argument("--w-time", type=float, default=0.0,
+                   help="per-step time penalty (dash urgency)")
+    p.add_argument("--finish-bonus", type=float, default=0.0,
+                   help="one-off reward on a confirmed upright finish")
     # -- reward-shaping knobs (forwarded to BimoWalkerEnv) --------------------
     p.add_argument("--w-forward", type=float, default=1.5)
     p.add_argument("--target-speed", type=float, default=None,
@@ -90,7 +115,16 @@ def main():
     run_dir = os.path.join(RUNS, args.run_name)
     os.makedirs(run_dir, exist_ok=True)
 
-    env_kwargs = dict(
+    env_kwargs = dict()
+    if args.xml:
+        xml = args.xml if os.path.isabs(args.xml) else \
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), args.xml)
+        env_kwargs["xml_path"] = xml
+    env_kwargs.update(
+        actuator_model=args.actuator_model, supply_voltage=args.voltage,
+        servo_kp=args.servo_kp, servo_kd=args.servo_kd,
+        payload_mass=args.payload, payload_max=args.payload_max,
+        dash=args.dash, w_time=args.w_time, finish_bonus=args.finish_bonus,
         w_forward=args.w_forward, target_speed=args.target_speed,
         w_upright=args.w_upright, alive_bonus=args.alive, w_height=args.w_height,
         w_energy=args.w_energy, w_action_rate=args.w_action_rate,
@@ -105,6 +139,11 @@ def main():
         push_force=args.push_force, push_prob=args.push_prob,
     )
     print("env config:", env_kwargs)
+    # Persist the env config so eval_policy/compare_runs automatically evaluate
+    # each run on the model/actuator it was trained with (old runs have no
+    # config file and fall back to the original defaults).
+    with open(os.path.join(run_dir, "env_config.json"), "w") as f:
+        json.dump(env_kwargs, f, indent=2)
 
     # BimoWalkerEnv is importable, so SubprocVecEnv (spawn) can pickle it by
     # reference; env_kwargs (a plain dict) ship the config to each worker.

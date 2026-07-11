@@ -250,6 +250,80 @@ robustness remains open (unchanged from the DR section above). Terrain height
 is NOT observed by the policy (blind proprioceptive walking) — an exteroceptive
 height-scan obs is the natural next step for rougher ground.
 
+### Buildable-robot retrain: CAD-true model, real actuators, camera payload, 2 m dash (2026-07-11)
+
+Retrained everything on the **buildable robot**: `sim/bimo_biped_v2.xml` (CAD-true
+masses/geometry) with an **honest STS3215 actuator model**, a **GoPro MAX 360
+camera payload** option, and a **timed 2 m dash** objective. All env additions are
+opt-in constructor kwargs / CLI flags defaulting to old behavior (verified
+bit-exact on flat/terrain/DR reward traces; `smoke_test.py` and a `terrain_v4`
+re-eval reproduce). Each training run now writes `runs/<name>/env_config.json`;
+`eval_policy.py`/`compare_runs.py` read it so every run is automatically
+evaluated on the model/actuator it was trained with (old runs -> old xml + ideal
+actuators; overrides: `--xml --actuator-model --voltage --payload --dash`).
+
+**v2 model (`bimo_biped_v2.xml`):** validated — same joint/qpos layout, sensors
+and sole geoms as v1; total 0.892 kg; settles standing at z=0.2827 (nominal
+0.283). Now carries **CAD-true per-body inertia**: explicit `<inertial>` per
+body computed by `sim/build_v2_inertia.py` from the printed-part STL meshes
+(`cad/stl/`, PLA rho x0.90 print factor) plus servo/battery/board boxes at their
+CAD positions, scaled to the mass rollup (screws/wiring pro-rata). Box geoms
+remain for collision/visuals. `bimo_biped.xml` untouched (old runs reproduce).
+
+**Actuator model (`actuator_model="sts3215"`):** torque computed per sim substep
+as PD on the commanded angle, `tau = kp (target - q) - kd qdot`, then magnitude-
+clamped to the DC-motor torque-speed envelope `|tau| <= stall x max(0, 1 -
+|qdot|/w_noload)`; applied via `qfrc_applied` with the MJCF position actuators
+silenced. Datasheet numbers (Waveshare ST3215 wiki, checked 2026-07-11): **30
+kg.cm = 2.94 N.m stall and 0.222 s/60deg = 4.71 rad/s no-load, both @ 12 V;
+rated input 6-12.6 V** (2S and 3S LiPo both in-spec). Stall and no-load speed
+scale linearly with voltage: **7.4 V -> 1.81 N.m / 2.91 rad/s; 11.1 V -> 2.72
+N.m / 4.36 rad/s**. Fitted **kp=12, kd=0.25 N.m/rad**, and in sts3215 mode the
+joint damping drops 0.6 -> **0.1** N.m.s/rad — the 0.6 was a stability proxy for
+the ideal servo and double-counts motor losses the no-load speed already
+includes (at 3 rad/s it alone would eat the whole stall torque). Step-response
+check: 60 deg step @ 7.4 V reaches 90% in 0.394 s vs the 0.360 s envelope
+minimum, ~1.4% overshoot — fast and slightly damped, servo-like. Under DR the
+servo params randomize per episode: kp/kd +/-20% (gain_range), stall/no-load
++/-15% (servo_range).
+
+**The old gait was unbuildable — design feedback:** measured on its own env,
+`terrain_v4` demands **median |tau| = 3.0 N.m (the ideal clamp) at median joint
+speeds of 4.3-4.4 rad/s** on hip/knee/ankle. A real STS3215 at that speed
+delivers ~0.2 N.m *at 12 V* and nothing at 7.4 V — the ideal-servo policies were
+exploiting infinite bandwidth, and zero-shot transfer to the sts3215 model
+collapses in <1.5 s at any voltage. Every deployable policy must train against
+the envelope.
+
+**7.4 V (2S) feasibility verdict: YES for walking, with a speed cost.** At 7.4 V
+the robot stands (also with the 154 g camera), and a from-scratch retrain
+(`v2_scratch_7v4`) walks **16/16 full 10 s episodes at 0.45 m/s** with a clean
+0.28 s stride and 2% double-support — a more grounded, upright gait than the
+11.1 V jog (the envelope itself regularizes the gait). The warm-start from
+`terrain_v4` could NOT restructure (0.35 m/s, falls at ~3 s, plateaued —
+same lesson as gait_v1/v2: big plant changes need from-scratch). At **11.1 V
+(3S)** the warm-start *does* adapt (10/12, 0.63 m/s) because the envelope is
+~2.3x roomier. **Recommendation: 2S works and is the safer servo-rated choice
+(wiki: 6-12.6 V), but the dash is ~1.8x slower; if dash time matters, move the
+electronics bay to 3S (11.1 V) — in-spec for the servo.**
+
+**Camera payload (`payload_mass` / `payload_max`):** GoPro MAX 360, **154 g,
+64x69x25 mm box, CG +0.08 m above the torso center** (tower plate 0.319 m +
+folding-finger mount), MJCF-patched as a welded child body with real box
+inertia; `payload_max` re-draws the mass uniform(0, max) each episode so one
+policy covers camera-on/off. It is a ~17% mass increase at the very top:
+zero-shot on the no-payload 7.4 V walker costs survival (16/16 -> 7/12);
+payload DR in the hardening stage recovers it (see table).
+
+**2 m dash (`dash=True`):** success = torso x >= 2.0 m **and still upright 1.0 s
+after crossing** (a dive across the line never finishes); time-to-2m recorded at
+the crossing; truncation still 10 s. Reward = the same dense shaped gait reward
++ per-step time penalty (`--w-time 0.1`) + finish bonus (`--finish-bonus 25`)
+on a *confirmed* finish only; forward term stays capped (`--target-speed`
+0.8 @ 7.4 V / 1.0 @ 11.1 V) so the lunge exploit stays dead.
+`eval_policy`/`compare_runs --dash` report confirmed-finish rate and median/
+best time-to-2m.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
@@ -293,10 +367,14 @@ internal parts set non-colliding (feet-only contact); IMU `site` on torso for or
       with a few thousand parallel envs. Target: a stable forward gait.
 - [ ] **Domain randomization** (required for sim-to-real): friction, link mass ±15%,
       actuator latency, random shove forces.
-- [ ] **Swap box geoms for real CAD meshes** — export STL from the parametric parts,
-      load as MJCF collision/visual meshes, for accurate inertia and contact.
-- [ ] **Realistic actuator model** — add velocity limit + backlash and match the STS3215
-      torque/speed curve (currently an ideal position servo capped at ±3 N·m).
+- [x] **Accurate inertia from CAD meshes** — DONE for inertia: `bimo_biped_v2.xml`
+      now has explicit per-body `<inertial>` from the STL meshes + component boxes
+      (`sim/build_v2_inertia.py`). Collision/visual geoms are still boxes; mesh
+      *contact* geometry remains open (soles are boxes — probably fine).
+- [x] **Realistic actuator model** — DONE: `actuator_model="sts3215"` = PD torque
+      clamped to the voltage-scaled STS3215 torque-speed envelope (see the
+      buildable-robot retrain section). Backlash + serial-bus latency still open
+      (env has an `action_latency` knob as a proxy).
 - [ ] **Measure & set real masses/inertias** once physical parts exist.
 - [ ] **CAD → printable:** take ONE joint (e.g. the knee bracket joining two servos) from
       massing block to a real printable STEP/STL with horn spline, heat-set bosses, and
@@ -307,9 +385,11 @@ internal parts set non-colliding (feet-only contact); IMU `site` on torso for or
 
 ### Known limitations / caveats
 - Massing CAD ≠ printable geometry.
-- Sim inertias are approximate (uniform-density boxes, not meshes).
+- v1 (`bimo_biped.xml`) inertias are approximate boxes; v2 has mesh-derived
+  inertia but still box *contact* geometry.
 - No self-collision between internal parts (feet-only contact) — revisit when adding meshes.
-- Actuator is idealized; real STS3215 has finite speed, latency, and backlash.
+- v1 actuator is idealized; the sts3215 model adds the torque-speed envelope but
+  not backlash or serial-bus latency (use `action_latency` as a proxy).
 
 ## 9. References
 

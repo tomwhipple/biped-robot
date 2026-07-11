@@ -25,6 +25,14 @@ Terrain : optional procedural heightfield (terrain_amplitude > 0). The flat
           time; height data is re-randomized every reset (smoothed uniform
           noise with a flattened spawn pad). Default (0.0) keeps the original
           flat-plane model byte-for-byte.
+Actuator: actuator_model="sts3215" replaces the ideal MJCF position servos
+          with a PD torque controller clamped to the STS3215 DC-motor
+          torque-speed envelope, scaled to supply_voltage (2S=7.4 V default).
+          Default "ideal" reproduces every old run bit-exactly.
+Dash    : dash=True adds the 2 m dash objective -- the episode succeeds
+          (terminates with finish_bonus) only when torso x >= dash_distance
+          AND the robot is still upright dash_hold seconds later; time-to-2m
+          is reported in info. Off by default.
 """
 from __future__ import annotations
 import os
@@ -39,6 +47,19 @@ _XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bimo_biped.xml"
 # qpos/qvel layout: freejoint (7 pos+quat / 6 vel) then the 8 hinge joints.
 _JQPOS = slice(7, 15)   # 8 actuated-joint positions
 _JQVEL = slice(6, 14)   # 8 actuated-joint velocities
+
+# -- STS3215 servo datasheet numbers (Waveshare ST3215 wiki, checked 2026-07-11:
+# https://www.waveshare.com/wiki/ST3215_Servo). "High torque, up to 30kg.cm@12V"
+# and "No load Speed: 0.222sec/60deg (45RPM) @12V"; input voltage 6-12.6 V, so a
+# 2S (7.4 V) or 3S (11.1 V) LiPo is in-spec. Stall torque and no-load speed are
+# scaled linearly with supply voltage (standard DC-motor approximation).
+_STS_STALL_12V = 2.94                       # N*m  (30 kg*cm)
+_STS_NOLOAD_12V = np.deg2rad(60.0) / 0.222  # 4.712 rad/s
+
+# -- torso-top payload: GoPro MAX 360 camera, 154 g incl. battery, ~64 wide x
+# 69 tall x 25 deep (mm), CG ~45 mm above the tower top plate with the folding
+# finger mount => ~+0.08 m above the torso center. Box inertia via the compiler.
+_PAYLOAD_REF = 0.154   # kg -- reference (real camera) mass for inertia scaling
 
 # -- heightfield terrain constants -------------------------------------------
 # Grid spans x in [cx-rx, cx+rx], y in [-ry, ry]; ~2 cm cells (feet are 8.4 cm
@@ -86,6 +107,29 @@ class BimoWalkerEnv(gym.Env):
         w_lateral: float = 0.0,        # penalty on lateral vel + y drift
         w_yaw: float = 0.0,            # penalty on heading error + yaw rate
         w_pitch_rate: float = 0.0,     # penalty on torso roll/pitch rates
+        # -- actuator model ("ideal" -> original MJCF position servos) ----------
+        actuator_model: str = "ideal", # "ideal" | "sts3215" (torque-speed limited)
+        supply_voltage: float = 7.4,   # V; stall torque + no-load speed scale ~V/12
+        servo_kp: float = 12.0,        # sts3215 PD gain, N*m/rad (see fit note)
+        servo_kd: float = 0.25,        # sts3215 PD damping, N*m*s/rad
+        servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
+        servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
+        # the MJCF's 0.6 N*m*s/rad was a stability proxy for the ideal servo and
+        # double-counts motor losses the datasheet no-load speed already includes
+        # (it alone would eat the whole stall torque at ~3 rad/s). 0.1 leaves a
+        # small bearing/gear-mesh loss. Fit check: 60 deg step @7.4 V reaches 90%
+        # in 0.394 s (envelope-limited minimum 0.360 s), ~1.4% overshoot.
+        # -- torso-top payload (GoPro MAX 360: 154 g, ~64x69x25 mm, CG ~45 mm
+        # above the tower top plate => ~+0.08 m above the torso center) ---------
+        payload_mass: float = 0.0,     # fixed payload mass (kg); 0 = none
+        payload_max: float | None = None,  # if set, per-episode mass drawn
+        # uniform(0, payload_max) -- one policy handles camera-on AND camera-off
+        # -- 2 m dash objective (off by default) --------------------------------
+        dash: bool = False,            # success = cross dash_distance AND stay
+        dash_distance: float = 2.0,    # upright for dash_hold s after crossing
+        dash_hold: float = 1.0,        # (kills the dive-across-the-line exploit)
+        w_time: float = 0.0,           # per-step time penalty (dash urgency)
+        finish_bonus: float = 0.0,     # one-off reward on a confirmed finish
         # -- procedural terrain (0.0 -> original flat plane) --------------------
         terrain_amplitude: float = 0.0,   # max bump height (m); 0.01 is serious
         terrain_smoothness: float = 0.15, # bump feature size (m)
@@ -128,14 +172,61 @@ class BimoWalkerEnv(gym.Env):
         self.action_latency = action_latency
         self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
         self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
+        self.payload_mass = payload_mass
+        self.payload_max = payload_max
+        xml_src = None
         if terrain_amplitude > 0:
             # Patch the flat-plane MJCF into a heightfield variant at load time
             # (single source of truth: no duplicated terrain XML to drift).
-            self.model = mujoco.MjModel.from_xml_string(
-                self._terrain_xml(xml_path, terrain_amplitude))
+            xml_src = self._terrain_xml(xml_path, terrain_amplitude)
+        if payload_mass > 0 or payload_max:
+            # Torso-top camera payload, also MJCF-patched (default: no payload,
+            # model byte-for-byte identical). Compile with the reference camera
+            # mass when randomizing so the nominal inertia is the real camera's.
+            if xml_src is None:
+                with open(xml_path) as f:
+                    xml_src = f.read()
+            xml_src = self._payload_xml(
+                xml_src, payload_mass if payload_mass > 0 else _PAYLOAD_REF)
+        if xml_src is not None:
+            self.model = mujoco.MjModel.from_xml_string(xml_src)
         else:
             self.model = mujoco.MjModel.from_xml_path(xml_path)
         self.data = mujoco.MjData(self.model)
+        self._payload_bid = (self.model.body("payload").id
+                             if (payload_mass > 0 or payload_max) else None)
+
+        # Realistic actuator model: torque is computed here (PD on the commanded
+        # angle) and clamped to the DC-motor torque-speed envelope -- available
+        # torque falls linearly from stall at zero speed to zero at no-load
+        # speed (magnitude clamped symmetrically). The MJCF position actuators
+        # are silenced (gain/bias zeroed) and torque enters via qfrc_applied.
+        # This MUST happen before the nominal-parameter snapshot below, so DR
+        # re-derives from the silenced actuators, not the ideal ones.
+        self.actuator_model = actuator_model
+        self.supply_voltage = supply_voltage
+        if actuator_model == "sts3215":
+            v = supply_voltage / 12.0
+            # [kp, kd, stall torque, no-load speed] -- DR rescales from nominal
+            self._nom_servo = np.array([servo_kp, servo_kd,
+                                        _STS_STALL_12V * v, _STS_NOLOAD_12V * v])
+            self._servo = self._nom_servo.copy()
+            self.model.actuator_gainprm[:] = 0.0
+            self.model.actuator_biasprm[:] = 0.0
+            self.model.dof_damping[_JQVEL] = servo_joint_damping
+        elif actuator_model == "ideal":
+            self._nom_servo = None
+            self._servo = None
+        else:
+            raise ValueError(f"unknown actuator_model {actuator_model!r}")
+        self.servo_range = servo_range
+        self._servo_tau = np.zeros(8)
+
+        self.dash = dash
+        self.dash_distance = dash_distance
+        self.dash_hold = dash_hold
+        self.w_time = w_time
+        self.finish_bonus = finish_bonus
 
         # Nominal dynamics parameters, snapshotted so each reset re-randomizes
         # from the originals rather than compounding noise across episodes.
@@ -207,6 +298,20 @@ class BimoWalkerEnv(gym.Env):
             raise ValueError(f"expected exactly one floor geom in {xml_path}, found {n}")
         return patched.replace("<worldbody>", asset + "<worldbody>", 1)
 
+    @staticmethod
+    def _payload_xml(xml: str, mass: float) -> str:
+        """Insert the camera payload as its own (jointless, i.e. welded) child
+        body of the torso, so its mass/inertia stay separately addressable at
+        runtime for per-episode payload randomization."""
+        body = ('<body name="payload" pos="0 0 0.08">'
+                f'<geom name="payload" type="box" size="0.0125 0.032 0.0345" '
+                f'mass="{mass}" rgba="0.85 0.45 0.20 0.9"/></body>')
+        patched, n = re.subn(r'(<site name="imu"[^>]*/>)', lambda m: m.group(1) + body,
+                             xml, count=1)
+        if n != 1:
+            raise ValueError("expected exactly one imu site to anchor the payload")
+        return patched
+
     def _generate_terrain(self):
         """Re-randomize the heightfield: smoothed uniform noise, normalized to
         [0,1] (world height = data * amplitude), with the spawn area flattened
@@ -275,8 +380,17 @@ class BimoWalkerEnv(gym.Env):
         m.geom_friction[self._floor_gid, 0] = self._nom_friction[self._floor_gid, 0] * ff
         gf = rng.uniform(1 - self.gain_range, 1 + self.gain_range)
         # Position actuator: gainprm[0]=kp, biasprm[1]=-kp -- scale both together.
+        # (Under actuator_model="sts3215" the MJCF actuators are zeroed, so this
+        # is a no-op there; the servo parameters are randomized instead.)
         m.actuator_gainprm[:] = self._nom_gain * gf
         m.actuator_biasprm[:] = self._nom_bias * gf
+        if self._servo is not None:
+            # kp/kd follow the actuator-gain range (+/-20% default); the motor
+            # envelope (stall torque, no-load speed) gets its own +/-15% range.
+            sf = np.concatenate([
+                rng.uniform(1 - self.gain_range, 1 + self.gain_range, size=2),
+                rng.uniform(1 - self.servo_range, 1 + self.servo_range, size=2)])
+            self._servo = self._nom_servo * sf
 
     def _obs(self) -> np.ndarray:
         d = self.data
@@ -300,6 +414,15 @@ class BimoWalkerEnv(gym.Env):
         super().reset(seed=seed)
         if self.domain_rand:
             self._randomize_dynamics()
+        if self._payload_bid is not None and self.payload_max:
+            # per-episode payload draw (after DR, which rewrites all body
+            # masses from nominal): uniform 0..payload_max, inertia scaled
+            # with mass (fixed geometry). 0 kg = camera off; welded body, so
+            # zero mass is numerically safe.
+            mp = self.np_random.uniform(0.0, self.payload_max)
+            self.model.body_mass[self._payload_bid] = mp
+            self.model.body_inertia[self._payload_bid] = \
+                self._nom_inertia[self._payload_bid] * (mp / _PAYLOAD_REF)
         if self.terrain_amplitude > 0:
             self._generate_terrain()   # before mj_resetData; CPU collisions read it live
         mujoco.mj_resetData(self.model, self.data)
@@ -313,6 +436,8 @@ class BimoWalkerEnv(gym.Env):
         # action-latency buffer: past ctrl targets, applied `action_latency` steps late
         self._ctrl_buf = [self._default.copy() for _ in range(self.action_latency + 1)]
         self._air_time[:] = 0.0
+        self._servo_tau[:] = 0.0
+        self._cross_t = None    # dash: time the torso first crossed dash_distance
         self._step_i = 0
         return self._obs(), {}
 
@@ -334,6 +459,15 @@ class BimoWalkerEnv(gym.Env):
 
         x_before = float(self.data.qpos[0])
         for _ in range(self.n_substeps):
+            if self._servo is not None:
+                # PD on the commanded angle, clamped each substep to the
+                # DC-motor torque-speed envelope (linear stall -> no-load).
+                kp, kd, stall, w0 = self._servo
+                q = self.data.qpos[_JQPOS]
+                qd = self.data.qvel[_JQVEL]
+                cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
+                self._servo_tau = np.clip(kp * (target - q) - kd * qd, -cap, cap)
+                self.data.qfrc_applied[_JQVEL] = self._servo_tau
             mujoco.mj_step(self.model, self.data)
         x_after = float(self.data.qpos[0])
 
@@ -350,7 +484,10 @@ class BimoWalkerEnv(gym.Env):
         # positive velocity) can't out-earn a steady gait -- the classic exploit.
         fwd_term = fwd_vel if self.target_speed is None else min(fwd_vel, self.target_speed)
         # energy ~ actuator force * joint velocity; action-rate penalizes jitter
-        energy = float(np.sum(np.abs(d.actuator_force) * np.abs(d.qvel[_JQVEL])))
+        # (under the sts3215 model the MJCF actuators are silent, so use the
+        # torque we actually applied)
+        force = self._servo_tau if self._servo is not None else d.actuator_force
+        energy = float(np.sum(np.abs(force) * np.abs(d.qvel[_JQVEL])))
         action_rate = float(np.sum((action - self._prev_action) ** 2))
 
         reward = (
@@ -397,14 +534,30 @@ class BimoWalkerEnv(gym.Env):
         self._prev_action[:] = action
         self._step_i += 1
 
-        terminated = (height < 0.18) or (up_z < 0.4)
+        fell = (height < 0.18) or (up_z < 0.4)
+        # -- 2 m dash: success only if, after crossing the line, the robot is
+        # still upright dash_hold seconds later. A dive that crosses the line
+        # and faceplants therefore never finishes -- it just falls.
+        dash_success = False
+        if self.dash:
+            reward -= self.w_time
+            t_now = self._step_i * self.control_dt
+            if self._cross_t is None and x_after >= self.dash_distance:
+                self._cross_t = t_now              # clock stops at the crossing
+            if (not fell and self._cross_t is not None
+                    and t_now - self._cross_t >= self.dash_hold):
+                dash_success = True                # confirmed upright finish
+                reward += self.finish_bonus
+
+        terminated = fell or dash_success
         truncated = self._step_i >= self.max_steps
-        if terminated:
+        if fell:
             reward -= self.fall_cost
 
         info = {"fwd_vel": fwd_vel, "height": height, "up_z": up_z, "x": x_after,
                 "double_support": double_support, "single_support": single_support,
-                "touchdown_air": touchdown_air}
+                "touchdown_air": touchdown_air, "dash_success": dash_success,
+                "time_to_2m": float("nan") if self._cross_t is None else self._cross_t}
         return self._obs(), float(reward), terminated, truncated, info
 
     def render(self):
