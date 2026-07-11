@@ -8,3 +8,4 @@ tensorboard==2.21.0
 torch==2.13.0
 tqdm==4.68.4
 build123d>=0.11
+imageio-ffmpeg

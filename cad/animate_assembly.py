@@ -127,8 +127,16 @@ for f in range(total):
     r.update_scene(d, cam)
     frames.append(r.render().copy())
 
-path = os.path.join(OUT, "assembly_flyin.gif")
-imageio.mimwrite(path, frames, fps=FPS, loop=0)
+gif = os.path.join(OUT, "assembly_flyin.gif")
+imageio.mimwrite(gif, frames, fps=FPS, loop=0)     # for embedding in the report
+mov = os.path.join(OUT, "assembly_flyin.mov")      # for local viewing (Preview
+import subprocess, imageio_ffmpeg                  # doesn't animate GIFs)
+subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-i", gif,
+                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                "-c:v", "libx264", "-crf", "20", "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart", mov],
+               check=True, capture_output=True)
 shutil.rmtree(TMP)
-print(f"wrote {path}  ({total} frames @ {FPS} fps, "
-      f"{os.path.getsize(path) // 1024} KB)")
+for path in (gif, mov):
+    print(f"wrote {path}  ({total} frames @ {FPS} fps, "
+          f"{os.path.getsize(path) // 1024} KB)")
