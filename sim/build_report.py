@@ -1,16 +1,17 @@
 """Rebuild the training-log report page (sim/runs/night_summary.html).
 
 Run:  .venv/bin/python sim/build_report.py
-Needs: gifs under sim/runs/<run>/ and cad/renders/assembly_mujoco.png
-(regenerate the latter with .venv/bin/python cad/render_assembly.py).
+Needs: gifs under sim/runs/<run>/ and cad/renders/ (regenerate the CAD images
+with cad/render_assembly.py and cad/animate_assembly.py).
 The page is self-contained (base64 images) and is what gets published as the
-claude.ai artifact after each training round."""
+claude.ai artifact after each training round.
+"""
 import os, base64, io
 import numpy as np
 import imageio.v2 as imageio
 
 os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__))))
-CAD_RENDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'cad', 'renders', 'assembly_mujoco.png')
+CAD_RENDERS = os.path.join(os.path.dirname(os.getcwd()), 'cad', 'renders')
 
 def strip_from_gif(path, n=8, factor=4):
     frames = imageio.mimread(path, memtest=False)
@@ -24,19 +25,22 @@ def to_data_uri(arr):
     imageio.imwrite(buf, arr, format='png')
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
-hero    = to_data_uri(strip_from_gif('runs/terrain_v4/walk_terrain15mm.gif'))
+hero    = to_data_uri(strip_from_gif('runs/dash_11v1_hard/dash.gif'))
+dash7   = to_data_uri(strip_from_gif('runs/dash_7v4_hard/dash.gif'))
 stride  = to_data_uri(strip_from_gif('runs/terrain_v4/walk.gif'))
 shuffle = to_data_uri(strip_from_gif('runs/shaped_v6/walk.gif'))
 lunge   = to_data_uri(strip_from_gif('runs/ppo_baseline/walk.gif', n=7))
+flyin   = to_data_uri(strip_from_gif(
+    os.path.join(CAD_RENDERS, 'assembly_flyin.gif'), n=7, factor=3))
 
-cad = imageio.imread(CAD_RENDER)[..., :3]
-cad = cad[10:700, 200:700]            # tight crop around the robot
-cad_uri = to_data_uri(cad)
+cad = imageio.imread(os.path.join(CAD_RENDERS, 'assembly_mujoco.png'))[..., :3]
+cad_uri = to_data_uri(cad[30:680, 230:670])       # tight crop around the robot
 
 n_runs = len([d for d in os.listdir('runs')
               if os.path.exists(os.path.join('runs', d, 'model.zip'))])
-for k, v in [('hero', hero), ('stride', stride), ('shuffle', shuffle),
-             ('lunge', lunge), ('cad', cad_uri)]:
+for k, v in [('hero', hero), ('dash7', dash7), ('stride', stride),
+             ('shuffle', shuffle), ('lunge', lunge), ('flyin', flyin),
+             ('cad', cad_uri)]:
     print(k, len(v) // 1024, 'KB')
 print('runs:', n_runs)
 
@@ -114,8 +118,8 @@ ol.timeline > li:last-child::after {{ display:none; }}
 .tag {{ font-family:var(--mono); font-size:11px; padding:2px 7px; border-radius:5px;
   background:var(--accent-soft); color:var(--accent); letter-spacing:.03em; white-space:nowrap; }}
 .tblwrap {{ overflow-x:auto; border:1px solid var(--border); border-radius:12px; margin:8px 0 6px; }}
-table {{ border-collapse:collapse; width:100%; font-size:14.5px; min-width:560px; }}
-th,td {{ text-align:left; padding:12px 16px; border-bottom:1px solid var(--border); }}
+table {{ border-collapse:collapse; width:100%; font-size:14.5px; min-width:620px; }}
+th,td {{ text-align:left; padding:12px 14px; border-bottom:1px solid var(--border); }}
 thead th {{ font-family:var(--mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
   color:var(--muted); font-weight:600; }}
 tbody tr:last-child td {{ border-bottom:none; }}
@@ -126,7 +130,7 @@ td.name b {{ color:var(--accent); }}
 .pill.g {{ background:color-mix(in srgb,var(--good) 16%,transparent); color:var(--good); }}
 .pill.a {{ background:color-mix(in srgb,var(--warn) 18%,transparent); color:var(--warn); }}
 .pill.r {{ background:color-mix(in srgb,var(--bad) 16%,transparent); color:var(--bad); }}
-.cadgrid {{ display:grid; grid-template-columns:minmax(0,320px) 1fr; gap:24px; align-items:center; }}
+.cadgrid {{ display:grid; grid-template-columns:minmax(0,300px) 1fr; gap:24px; align-items:center; }}
 @media (max-width:680px) {{ .cadgrid {{ grid-template-columns:1fr; }} }}
 .cadgrid img {{ width:100%; display:block; border:1px solid var(--border); border-radius:10px; }}
 ul.plain {{ margin:0; padding-left:20px; }}
@@ -137,148 +141,152 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 </style>
 
 <div class="wrap">
-  <p class="eyebrow">MuJoCo · PPO · training log · day 2</p>
-  <h1>First it walked. Now it strides.</h1>
-  <p class="lede">Night one produced a robust but shuffling walk. Day two rewrote
-  the objective around gait quality — feet that actually lift — and pulled the
-  ground out from under it with procedurally rough terrain. The robot came back
-  50% faster, stepping cleanly over 15&nbsp;mm bumps. It also has a printable
-  body now.</p>
+  <p class="eyebrow">MuJoCo · PPO · training log · day 3</p>
+  <h1>It sprints on honest muscles now.</h1>
+  <p class="lede">Day three gave the simulation the real servos' torque limits —
+  and discovered the old gait was physically impossible: it demanded torque no
+  STS3215 can deliver at any voltage. Retrained inside the true motor envelope,
+  on the CAD-true body, the robot dashes 2&nbsp;m in 2.7&nbsp;s — GoPro on its
+  head, bumps underfoot, 16/16.</p>
   <div class="meta">
     <span>2026·07·09 → 07·11</span><span>8× parallel envs · CPU</span>
     <span>{n_runs} trained policies</span>
   </div>
 
   <div class="kpis">
-    <div class="kpi"><div class="v" style="color:var(--accent)">terrain_v4</div><div class="k">recommended policy</div></div>
-    <div class="kpi"><div class="v">0.79<span style="font-size:15px"> m/s</span></div><div class="k">was 0.53 — speed cap unchanged</div></div>
-    <div class="kpi"><div class="v">20/24</div><div class="k">survives 15 mm rough ground</div></div>
-    <div class="kpi"><div class="v">0.28<span style="font-size:15px"> s</span></div><div class="k">foot swing · was 0.11 s shuffle</div></div>
+    <div class="kpi"><div class="v" style="color:var(--accent)">2.72<span style="font-size:15px"> s</span></div><div class="k">median 2 m dash · 11.1 V</div></div>
+    <div class="kpi"><div class="v">16/16</div><div class="k">finishes · even with GoPro + bumps</div></div>
+    <div class="kpi"><div class="v">2S ok</div><div class="k">7.4 V walks too — 1.7× slower</div></div>
+    <div class="kpi"><div class="v">1.04<span style="font-size:15px"> kg</span></div><div class="k">CAD-true body incl. camera</div></div>
   </div>
 
   <figure style="margin-top:34px">
-    <img class="film" src="{hero}" alt="Filmstrip of the biped striding across procedurally generated rough terrain">
-    <figcaption>terrain_v4 · one 10-second episode on ±15 mm procedurally generated ground — regenerated every episode, never seen twice</figcaption>
+    <img class="film" src="{hero}" alt="Filmstrip of the biped sprinting 2 meters with a GoPro mounted on top">
+    <figcaption>dash_11v1_hard · 2 m dash under real STS3215 torque limits (11.1 V) — a finish only counts if it's still upright 1 s after the line</figcaption>
   </figure>
 
-  <h2><span class="n">01</span> The shuffle became a stride</h2>
-  <p>The night-one gait survived everything but looked wrong: 0.11 s foot swings,
-  feet skating in ground contact 14% of the time in double support. The fix was
-  not more speed reward — the forward-velocity cap never moved from 0.5 m/s.
-  Two new shaping terms did it: a <b>feet-air-time reward</b> (touchdowns pay in
-  proportion to how long the foot was airborne, so shuffle-taps score negative)
-  and a <b>single-support bonus</b>. Walking properly turned out to be the fast
-  way to walk: speed rose to 0.79 m/s on its own.</p>
-  <div class="duo">
-    <figure>
-      <img class="film" src="{shuffle}" alt="Filmstrip of the old shuffling gait">
-      <figcaption>before — shaped_v6 · feet skate, torso bobs · 0.53 m/s</figcaption>
-    </figure>
-    <figure>
-      <img class="film" src="{stride}" alt="Filmstrip of the new clean striding gait">
-      <figcaption>after — terrain_v4 on flat ground · clear foot lift, alternating stride · 0.79 m/s</figcaption>
-    </figure>
-  </div>
-  <p class="muted">One negative result worth keeping: fine-tuning from the old
-  policy could not escape the shuffle — its optimum was too deep. The stride only
-  appeared when training restarted from scratch with the gait terms in place.</p>
+  <h2><span class="n">01</span> The reckoning: the old gait was unbuildable</h2>
+  <p>Until now the sim's actuators were idealized position servos — infinitely
+  strong. Day three replaced them with the real thing: PD control clamped to the
+  STS3215's torque–speed envelope (2.94 N·m stall tapering to zero at no-load
+  speed, scaled by supply voltage; parameters fitted to a servo-like step
+  response, then randomized in training). Verdict on the old champion:
+  <b>terrain_v4 demanded ~3 N·m at 4.4 rad/s — outside the motor's envelope at
+  any voltage</b>. Dropped onto honest actuators it collapses within 1.5 s.
+  Warm-starting couldn't fix it (same lesson as the shuffle); training from
+  scratch inside the envelope could.</p>
 
-  <h2><span class="n">02</span> Rough ground</h2>
-  <p>The floor is now a MuJoCo heightfield, resampled from smoothed noise at
-  every reset, with fall detection measured against the local ground surface
-  instead of world height. Training walked a curriculum from 5 mm to mixed
-  0–12 mm bumps. For a 34 cm robot, 15 mm is roughly a human stepping on
-  unseen 8 cm rubble — blind, since the policy has no terrain sensing yet.</p>
+  <h2><span class="n">02</span> The battery verdict: 2S works, 3S wins</h2>
+  <p>Same dash task, two supply voltages (16 episodes each; a finish = crossing
+  2 m and standing upright 1 s later):</p>
   <div class="tblwrap">
     <table>
-      <thead><tr><th>Policy</th><th>Flat</th><th>10 mm terrain</th><th>15 mm terrain</th><th>Speed</th></tr></thead>
+      <thead><tr><th>Policy</th><th>V</th><th>Flat</th><th>Median dash</th><th>+GoPro 154 g</th><th>10 mm bumps</th><th>GoPro + bumps</th><th>Model-error DR</th></tr></thead>
       <tbody>
-        <tr><td class="name">shaped_v6 <span class="muted">night 1</span></td>
-          <td><span class="pill g">23/24</span></td><td><span class="pill a">15/24</span></td><td class="muted">—</td><td>0.53 m/s</td></tr>
-        <tr><td class="name">gait_v6 <span class="muted">stride, flat-only</span></td>
-          <td><span class="pill g">24/24</span></td><td><span class="pill r">0/24</span></td><td class="muted">—</td><td>0.83 m/s</td></tr>
-        <tr><td class="name"><b>terrain_v4</b> <span class="muted">stride + terrain</span></td>
-          <td><span class="pill g">22/24</span></td><td><span class="pill g">20/24</span></td><td><span class="pill g">20/24</span></td><td>0.79 m/s</td></tr>
+        <tr><td class="name"><b>dash_11v1_hard</b></td><td>11.1</td>
+          <td><span class="pill g">16/16</span></td><td>2.72 s</td>
+          <td><span class="pill g">16/16</span></td><td><span class="pill g">16/16</span></td>
+          <td><span class="pill g">16/16</span></td><td><span class="pill g">16/16</span></td></tr>
+        <tr><td class="name">dash_7v4_hard</td><td>7.4</td>
+          <td><span class="pill g">16/16</span></td><td>4.36 s</td>
+          <td><span class="pill g">15/16</span></td><td><span class="pill g">16/16</span></td>
+          <td><span class="pill a">12/16</span></td><td><span class="pill g">16/16</span></td></tr>
       </tbody>
     </table>
   </div>
-  <p class="muted" style="margin-top:10px">terrain_v4 also keeps the night-one
-  model-error insurance: 20/24 on 10 mm terrain under ±15% mass, ±40% friction,
-  ±20% actuator-gain randomization.</p>
+  <figure style="margin:18px 0 6px">
+    <img class="film" src="{dash7}" alt="Filmstrip of the 7.4-volt dash gait">
+    <figcaption>dash_7v4_hard · the 2S gait — slower but grounded (no flight phase), arguably the better first-hardware candidate</figcaption>
+  </figure>
+  <p class="muted" style="margin-top:12px">Both voltages are in the servo's rated
+  6–12.6 V range. The current CAD assumes a 2S battery: viable, but
+  camera + rough ground together is its edge (12/16), and the dash takes 1.7×
+  longer. Moving the battery bay to 3S buys full robustness and 2.7 s dashes —
+  a decision to make before printing the tower.</p>
 
-  <h2><span class="n">03</span> It has a body now</h2>
+  <h2><span class="n">03</span> The camera rides on top</h2>
   <div class="card">
     <div class="cadgrid">
-      <img src="{cad_uri}" alt="Rendered CAD assembly of the printable biped standing on a checkered floor">
+      <img src="{cad_uri}" alt="CAD assembly render with the GoPro MAX mounted on top of the torso">
       <div>
-        <p style="margin-bottom:10px">A complete printable part set, generated as
-        parametric code-CAD from measured STS3215 servo geometry: <b>6 unique
-        parts, 12 prints</b>, all support-free and print-bed-checked,
-        ≈ 0.88 kg assembled.</p>
+        <p style="margin-bottom:10px">A GoPro MAX (154 g) now mounts on a printable
+        three-prong base atop the tower — a bolt-on <b>crash fuse</b> that shears
+        before the tower does. The driver board moved inside; total
+        1043 g, CG +29 mm. The policy trains with the payload randomized 0–170 g,
+        so <b>one policy handles camera-on and camera-off</b>.</p>
         <ul class="plain" style="font-size:15px">
-          <li><b>No bearings needed</b> — the servo's rear idler disc shares the
-          horn's bolt pattern, so every joint is supported on both sides.</li>
-          <li>30 joint-sweep interference checks pass across the full range of
-          motion (four real collisions found and fixed along the way).</li>
-          <li>STLs for the slicer, STEP files (incl. a full <code>assembly.step</code>)
-          for FreeCAD, BOM &amp; print settings in <code>cad/README.md</code>.</li>
+          <li>Slots 3.2 mm — test-fit the MAX's fingers before printing everything.</li>
+          <li>All 30 joint-sweep interference checks still pass.</li>
         </ul>
       </div>
     </div>
+    <figure style="margin-top:18px">
+      <img class="film" src="{flyin}" alt="Frames from the fly-in assembly animation">
+      <figcaption>assembly fly-in — every part approaches along its real insertion path (full animation: cad/renders/assembly_flyin.mov)</figcaption>
+    </figure>
   </div>
 
-  <h2><span class="n">04</span> Day 1, condensed — how it learned to walk</h2>
+  <h2><span class="n">04</span> How it got here</h2>
   <ol class="timeline">
     <li>
       <h3>A Gymnasium env around the MuJoCo model</h3>
-      <p>36-dim observation, 8 target-angle actions as a residual around the
-      standing pose (so a zero policy stands, not crouches). Reward: forward
-      velocity + upright + alive − energy − jitter.</p>
-      <span class="tag">walker_env.py</span>
+      <p>36-dim observation, actions as residual target angles around the
+      standing pose. Reward: forward velocity + upright + alive − energy − jitter.</p>
+      <span class="tag">day 1 · walker_env.py</span>
     </li>
     <li>
       <h3>Baseline PPO found the cheat, not the gait</h3>
-      <p>With an uncapped forward reward, the fastest way to earn it is to dive.
-      The policy learned to faceplant forward — 1.3 m in one lunge, then falls.</p>
+      <p>Uncapped forward reward → a 1.3 m faceplant dive. Fixed by capping
+      rewarded speed so a steady gait out-earns a lunge; domain randomization
+      then hardened the walk against ±15% model error.</p>
       <figure style="margin:4px 0 12px">
         <img class="film" src="{lunge}" alt="Filmstrip of the robot lunging forward and falling">
         <figcaption>ppo_baseline · a forward dive, not a walk</figcaption>
       </figure>
-      <span class="tag">the exploit</span>
+      <span class="tag">day 1 · shaped_v2 → v6</span>
     </li>
     <li>
-      <h3>Cap the forward reward → a real walk emerges</h3>
-      <p>Rewarding speed only up to a target makes a steady gait out-earn a
-      dive. An alternating-leg walk appeared and survived full episodes.</p>
-      <span class="tag">shaped_v2</span>
+      <h3>The shuffle became a stride</h3>
+      <p>Feet-air-time + single-support shaping restructured the gait (speed
+      rose 0.53→0.79 m/s with the cap unchanged), and a per-episode procedural
+      heightfield made it hold up on ±15 mm rough ground.</p>
+      <div class="duo" style="margin:4px 0 12px">
+        <figure><img class="film" src="{shuffle}" alt="Old shuffling gait">
+          <figcaption>before — shaped_v6 shuffle</figcaption></figure>
+        <figure><img class="film" src="{stride}" alt="New striding gait">
+          <figcaption>after — terrain_v4 stride</figcaption></figure>
+      </div>
+      <span class="tag">day 2 · gait_v6 → terrain_v4</span>
     </li>
     <li>
-      <h3>Domain randomization → robust to a wrong robot</h3>
-      <p>Mass ±15%, friction ±40%, actuator gain ±20%, randomized every episode:
-      a perfect nominal gait that also survives under model error — the
-      reality-gap insurance sim-to-real needs.</p>
-      <span class="tag">shaped_v4 → v6</span>
+      <h3>Honest muscles, real body, a stopwatch</h3>
+      <p>CAD-true masses and mesh-derived inertia, the STS3215 torque–speed
+      envelope, the GoPro payload, and the timed 2 m dash — the policies above.</p>
+      <span class="tag">day 3 · dash_11v1_hard / dash_7v4_hard</span>
     </li>
   </ol>
 
   <h2><span class="n">05</span> Open items</h2>
   <div class="card accent">
     <ul class="plain" style="margin:0">
-      <li><b>The stride is technically a jog</b> — double support ≈ 0%, so there's
-      a brief flight phase. Real STS3215s may not track it; a grounded re-tune
-      (shorter air-time target or a flight penalty) is cheap if hardware says so.</li>
-      <li><b>The policy is terrain-blind.</b> Proprioception only — beyond ~15 mm
-      it will need a height-scan observation, which pairs naturally with the
-      planned goal-seeking stage (waypoint in the observation, progress reward).</li>
-      <li><b>Repeated shoves remain unsolved</b> from night one: needs a realistic
-      push model plus a balance-recovery reward, still a design decision.</li>
+      <li><b>Control-latency fragility is the new top risk:</b> both hardened
+      policies fail 0/16 with one 20 ms control-step of action delay, and a
+      quick latency-DR fine-tune didn't fix it. Real bus latency is likely
+      2–5 ms, so the test is pessimistic — needs sub-step latency modeling
+      before drawing hardware conclusions.</li>
+      <li><b>2S or 3S</b> — the battery-bay decision above, before printing the tower.</li>
+      <li><b>The 11.1 V gait still jogs</b> (flight phase); the grounded 7.4 V
+      gait is the more sim-to-real-plausible first candidate.</li>
+      <li><b>Repeated shoves</b> remain unsolved (unchanged from day 1).</li>
     </ul>
   </div>
 
   <hr class="rule">
-  <p class="muted" style="font-size:14px">Reproduce: <code>cd sim &amp;&amp; python eval_policy.py --run-name terrain_v4 --render --terrain-amplitude 0.015</code>
-  · rank runs with <code>python compare_runs.py</code> · full write-up in <code>DESIGN.md</code> ·
-  CAD in <code>cad/</code> (open <code>step/assembly.step</code> in FreeCAD).</p>
+  <p class="muted" style="font-size:14px">Every animation also exists as .mov next
+  to its gif (macOS Preview doesn't animate gifs). Reproduce:
+  <code>cd sim &amp;&amp; python eval_policy.py --run-name dash_11v1_hard --render</code>
+  · rank runs with <code>python compare_runs.py</code> · full write-up in
+  <code>DESIGN.md</code> · CAD in <code>cad/</code> (assembly.step, fly-in mov).</p>
 </div>
 """
 

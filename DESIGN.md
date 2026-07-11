@@ -1,6 +1,6 @@
 # Bimo-like Biped — Design & Simulation Working Doc
 
-**Status:** CAD massing model + MuJoCo physics validation complete (Stage 0–1). CPU RL baseline done incl. gait-quality shaping + uneven-terrain curriculum (Stage 2b, recommended policy `terrain_v4`). Printable part set done (build123d, `cad/`, interference-checked; proposed CAD-true model `sim/bimo_biped_v2.xml`). Nothing printed yet; sim-to-real not started.
+**Status:** CAD massing model + MuJoCo physics validation complete (Stage 0–1). CPU RL baseline done incl. gait-quality shaping + uneven-terrain curriculum (Stage 2b). Printable part set done (build123d, `cad/`, interference-checked). **Buildable-robot retrain done:** CAD-true model `sim/bimo_biped_v2.xml` (mesh inertia) + honest STS3215 torque-speed actuator model + camera payload + 2 m dash — recommended policies `dash_11v1_hard` (3S, 2 m in ~2.7 s) / `dash_7v4_hard` (2S, ~4.4 s). Nothing printed yet; sim-to-real not started.
 **Last updated:** 2026-07-11
 **Owner:** Tom
 
@@ -324,6 +324,47 @@ on a *confirmed* finish only; forward term stays capped (`--target-speed`
 `eval_policy`/`compare_runs --dash` report confirmed-finish rate and median/
 best time-to-2m.
 
+**Training curriculum (all on v2 + sts3215):** base gait (warm-start at 11.1 V;
+**from scratch at 7.4 V** after the warm-start stalled) -> dash fine-tune
+(+time penalty/finish bonus, lr 1e-4) -> hardening (model-error DR + servo-param
+DR + camera-payload DR 0..170 g + mixed 0-8 mm terrain with 25% flat workers,
+lr 5e-5). Dash results (16 episodes, deterministic; "finishes" = crossed 2 m
+and stood 1 s; `compare_runs.py --dash`):
+
+| policy | V | finishes (flat) | med t2m | speed | cam 154 g | 10 mm terrain | cam+terrain |
+|---|---|---|---|---|---|---|---|
+| v2_scratch_7v4 (base walk) | 7.4 | 16/16 | 4.52 s | 0.45 | 7/12 surv | — | — |
+| dash_7v4 | 7.4 | 16/16 | 4.26 s | 0.47 | — | — | — |
+| **dash_7v4_hard** | 7.4 | **16/16** | **4.36 s** | 0.46 | 15/16 | 16/16 | 12/16 |
+| v2_adapt_11v1 (base walk) | 11.1 | 14/16 | 3.22 s | 0.63 | — | — | — |
+| dash_11v1 | 11.1 | 16/16 | 2.62 s | 0.81 | — | — | — |
+| **dash_11v1_hard** | 11.1 | **16/16** | **2.72 s** | 0.78 | **16/16 (2.65 s)** | **16/16 (2.94 s)** | **16/16 (2.89 s)** |
+
+Both hardened policies also hold **16/16 under model-error DR** (mass/friction
+±, servo kp/kd ±20%, stall/no-load ±15%; no shoves). Gifs: `runs/dash_7v4_hard/
+dash.gif` and `runs/dash_11v1_hard/dash.gif` (camera on), plus `walk.gif` in
+`v2_scratch_7v4` / `v2_adapt_11v1` for the base gaits. The 7.4 V gait is
+visibly more upright/grounded (2% double-support, 0.28 s swing) than the
+11.1 V jog (0% double-support, 0.23 s) — the envelope regularizes it.
+
+**Recommended policy: `dash_11v1_hard`** if the electronics move to a 3S pack —
+2 m in ~2.7 s, camera on or off, 10 mm terrain, perfect in every eval cell.
+On the current 2S design, **`dash_7v4_hard`** — 2 m in ~4.4 s and still 16/16
+on terrain, but the camera+terrain combination drops to 12/16: at 7.4 V the
+envelope leaves little margin, so treat 2S+camera+rough ground as the design's
+edge. (Speed-only alternative: `dash_11v1` for a clean-floor demo.)
+
+**Open questions:** (1) *Action latency*: both hardened policies drop to 0/16
+with one control step (20 ms) of action delay, and a 5M-step latency-DR
+fine-tune (`dash_11v1_lat1`) did not fix it (it kept its no-latency skill,
+16/16 @ 2.90 s, but still 0/16 with delay) — same lesson as shaped_v3: latency
+must enter the curriculum from scratch, not by fine-tune. Note 20 ms is
+pessimistic (whole-control-step quantization; the real 1 Mbps bus + 50 Hz loop
+is ~2-5 ms), so the right next step is sub-step latency modeling in the env
+before concluding the robot needs it. (2) Repeated shoves remain unsolved
+(unchanged). (3) The 11.1 V gait still has a flight phase; the 7.4 V gait is
+the more sim-to-real-plausible one to try first on hardware.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
@@ -344,13 +385,16 @@ internal parts set non-colliding (feet-only contact); IMU `site` on torso for or
 - **Stage 0 — CAD massing:** DONE (concept only).
 - **Stage 1 — Physics validation (MuJoCo):** DONE.
 - **Stage 2a — Gymnasium RL env (CPU MuJoCo):** DONE. `sim/walker_env.py` + smoke test.
-- **Stage 2b — Train PPO:** CPU baseline DONE, then extended with gait-quality
-  shaping + procedural terrain (see "Gait quality + uneven terrain"). Recommended
-  policy: **`terrain_v4`** — clean 0.28 s-swing alternating stride at ~0.8 m/s,
-  22/24 flat / 20/24 on 10–15 mm bumpy terrain, robust to ±15% mass/±40%
-  friction/±20% gain. (`shaped_v6` superseded.) **Open:** repeated-shove
-  robustness (needs a recovery-reward design decision — see DR section); the
-  gait has a flight phase (jog-like) — may need re-tuning for real servos.
+- **Stage 2b — Train PPO:** CPU baseline DONE, then gait-quality shaping +
+  procedural terrain (`terrain_v4`), then the **buildable-robot retrain** (see
+  that section): CAD-true `bimo_biped_v2.xml` + STS3215 torque-speed actuator
+  model + camera payload + 2 m dash. Recommended: **`dash_11v1_hard`** (3S,
+  2 m in ~2.7 s, 16/16 in every cell incl. camera + 10 mm terrain) or
+  **`dash_7v4_hard`** on the current 2S design (~4.4 s). `terrain_v4` and all
+  ideal-actuator policies are physically unbuildable (they demand ~3 N·m at
+  4.4 rad/s — outside the servo envelope at any voltage). **Open:** action-
+  latency robustness (0/16 with 20 ms whole-step delay; needs sub-step latency
+  modeling or a from-scratch latency curriculum), repeated shoves (unchanged).
   Next: port the env+reward to MJX on the RTX 4070 for scale/speed.
 - **Stage 3 — Sim-to-real:** system-ID the real servos, export ONNX policy, deploy on RP2040/SBC.
 
