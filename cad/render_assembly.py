@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "renders")
 os.makedirs(OUT, exist_ok=True)
 
-printed, servos = [], []
+printed, servos, camera = [], [], []
 
 
 def collect(c):
@@ -26,6 +26,8 @@ def collect(c):
             collect(ch)
         elif ch.label.startswith("servo"):
             servos.append(ch)
+        elif ch.label.startswith("camera"):
+            camera.append(ch)
         else:
             printed.append(ch)
 
@@ -33,8 +35,10 @@ def collect(c):
 collect(A.robot)
 mesh_printed = os.path.join(OUT, "_printed.stl")
 mesh_servos = os.path.join(OUT, "_servos.stl")
+mesh_camera = os.path.join(OUT, "_camera.stl")
 export_stl(Compound(children=printed), mesh_printed)
 export_stl(Compound(children=servos), mesh_servos)
+export_stl(Compound(children=camera), mesh_camera)
 
 XML = f"""
 <mujoco>
@@ -46,6 +50,7 @@ XML = f"""
              rgb1="0.93 0.94 0.96" rgb2="0.80 0.83 0.88" width="256" height="256"/>
     <mesh name="printed" file="{mesh_printed}" scale="0.001 0.001 0.001"/>
     <mesh name="servos" file="{mesh_servos}" scale="0.001 0.001 0.001"/>
+    <mesh name="camera" file="{mesh_camera}" scale="0.001 0.001 0.001"/>
     <texture name="grid" type="2d" builtin="checker" rgb1="0.90 0.91 0.93"
              rgb2="0.84 0.86 0.89" width="512" height="512"/>
     <material name="floor" texture="grid" texrepeat="12 12"/>
@@ -57,6 +62,8 @@ XML = f"""
           rgba="0.80 0.82 0.86 1"/>
     <geom type="mesh" mesh="servos" contype="0" conaffinity="0"
           rgba="0.22 0.23 0.27 1"/>
+    <geom type="mesh" mesh="camera" contype="0" conaffinity="0"
+          rgba="0.10 0.10 0.12 1"/>
   </worldbody>
 </mujoco>
 """
@@ -66,11 +73,11 @@ mujoco.mj_forward(m, d)
 r = mujoco.Renderer(m, height=720, width=880)
 cam = mujoco.MjvCamera()
 mujoco.mjv_defaultCamera(cam)
-cam.lookat[:] = [0.01, 0.0, 0.165]
-cam.distance, cam.azimuth, cam.elevation = 0.62, 155, -8
+cam.lookat[:] = [0.01, 0.0, 0.20]
+cam.distance, cam.azimuth, cam.elevation = 0.74, 155, -8
 r.update_scene(d, cam)
 path = os.path.join(OUT, "assembly_mujoco.png")
 imageio.imwrite(path, r.render())
-for tmp in (mesh_printed, mesh_servos):
+for tmp in (mesh_printed, mesh_servos, mesh_camera):
     os.remove(tmp)
 print("wrote", path)

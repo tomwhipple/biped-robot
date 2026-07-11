@@ -246,11 +246,13 @@ def foot():
 
 # ---------------------------------------------------------------- tower
 def tower():
-    """Electronics tower: two long side walls + top plate carrying the driver
-    board; battery lies on the pelvis deck inside, velcro-strapped through the
-    wall slots. Feet tabs screw down into the deck heat-sets (access holes in
-    the top plate). Local frame: z=0 at deck top. Print: upside down (top
-    plate on the bed).
+    """Electronics tower. The GoPro base bolts on top (4x M3 into bosses under
+    the plate); the driver board hangs INSIDE, face down on standoffs under the
+    top plate (screwed M2.5 from below); battery lies on the pelvis deck,
+    velcro-strapped through the wall slots. Feet tabs screw down into the deck
+    heat-sets (access holes in the top plate). Local frame: z=0 at deck top.
+    Print: upside down (top plate on the bed) - the standoffs/bosses under the
+    plate print upward, still support-free.
     """
     hx = D.TOWER_W / 2                               # walls are X-normal, 21
     hy = D.TOWER_L / 2                               # spans Y like the deck, 48
@@ -261,19 +263,56 @@ def tower():
         # battery strap slots
         for sy in (24, -24):
             p -= box(s * (hx - D.WALL) - 1, s * hx + 1, sy - 7, sy + 7, 4, 7)
-        # feet tabs (inward) + 45 deg gusset wedge to the wall
+        # feet tabs (inward) + 45 deg gusset wedge to the wall (sized for the
+        # 154 g camera cantilevered ~85 mm above: a 10 g side hit ~ 1.3 N*m
+        # -> ~25 N per screw, well inside heat-set / tab capacity with gussets)
         for sy in (D.TOWER_FOOT_Y, -D.TOWER_FOOT_Y):
-            p += box(s * (hx - D.WALL - 8.5), s * hx, sy - 6, sy + 6, 0, 3)
-            p += box(s * (hx - D.WALL - 3), s * hx, sy - 6, sy + 6, 3, 9)
-            p -= cyl_z(D.M3_CLEAR / 2, -1, 10, s * D.TOWER_FOOT_X, sy)
+            p += box(s * (hx - D.WALL - 8.5), s * hx, sy - 6, sy + 6, 0, 4)
+            p += box(s * (hx - D.WALL - 6), s * hx, sy - 6, sy + 6, 4, 12)
+            p -= cyl_z(D.M3_CLEAR / 2, -1, 13, s * D.TOWER_FOOT_X, sy)
             p -= cyl_z(3.2, zt0 - 6, zt1 + 1, s * D.TOWER_FOOT_X, sy)  # driver access
-    # driver board pilots (M2.5 self-tap) + wire holes
+    # driver board standoffs under the plate (board face-down, M2.5 from below)
     bx, by = D.BOARD_HOLES[1] / 2, D.BOARD_HOLES[0] / 2
     for sx in (bx, -bx):
         for sy in (by, -by):
-            p -= cyl_z(D.M25_TAP / 2, zt0 - 1, zt1 + 1, sx, sy)
+            p += cyl_z(3.5, zt0 - D.BOARD_STANDOFF, zt0, sx, sy)
+            p -= cyl_z(D.M25_TAP / 2, zt0 - D.BOARD_STANDOFF - 1, zt1 - 1, sx, sy)
+    # GoPro base screw bosses (M3 self-tap from above, through-pilots)
+    gx, gy = D.GP_SCREW_XY
+    for sx in (gx, -gx):
+        for sy in (gy, -gy):
+            p += cyl_z(4.0, zt0 - 3, zt0, sx, sy)
+            p -= cyl_z(D.CASE_SCREW_PILOT / 2, zt0 - 4, zt1 + 1, sx, sy)
+    # wire / vent holes (clear of the 30 x 24 GoPro base footprint)
     for sy in (20, -20):
         p -= cyl_z(5, zt0 - 1, zt1 + 1, 0, sy)
+    return p
+
+
+# ---------------------------------------------------------------- gopro_base
+def gopro_base():
+    """GoPro three-prong mount base for the camera's folding two-finger mount.
+    Prongs stacked along Y => lens axis fore-aft (X). Dimensions follow the
+    GoProScad standard (see dimensions.py). Bolts to the tower top with 4x M3
+    self-tappers; the stock M5 thumbscrew clamps the camera. Local frame: z=0
+    at the base bottom (tower top plane). Print: base down, prongs up (this is
+    the standard, proven orientation for printed GoPro mounts; use PETG or
+    100%-infill PLA). Separate part on purpose: it is the crash fuse.
+    """
+    hx, hy = D.GP_BASE_X / 2, D.GP_BASE_Y / 2
+    zb = D.GP_BASE_T
+    zh = zb + D.GP_HOLE_H                            # M5 hole center, 13.5
+    p = box(-hx, hx, -hy, hy, 0, zb)
+    pitch = D.GP_PRONG_T + D.GP_SLOT                 # 6.2
+    for cy in (-pitch, 0.0, pitch):
+        y0, y1 = cy - D.GP_PRONG_T / 2, cy + D.GP_PRONG_T / 2
+        p += box(-D.GP_PRONG_OD / 2, D.GP_PRONG_OD / 2, y0, y1, zb, zh)
+        p += cyl_y(D.GP_PRONG_OD / 2, y0, y1, 0, zh)
+    p -= cyl_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh)
+    gx, gy = D.GP_SCREW_XY
+    for sx in (gx, -gx):
+        for sy in (gy, -gy):
+            p -= cyl_z(D.M3_CLEAR / 2, -1, zb + 1, sx, sy)
     return p
 
 
@@ -286,6 +325,7 @@ PARTS = [
     ("leg_link", leg_link, 4, "on its back: web face on bed"),
     ("foot", foot, 2, "sole down"),
     ("tower", tower, 1, "upside down: top plate on bed"),
+    ("gopro_base", gopro_base, 1, "base down, prongs up (PETG or 100% infill)"),
 ]
 
 
@@ -307,12 +347,13 @@ def main():
               f"{bb.size.Z:6.1f} mm  vol {vol:6.1f} cm3  ~{mass:5.1f} g  "
               f"{'BED-OK' if fits else '** TOO BIG **'}  [{orient}]")
 
-    servos, batt, board, fasteners, tpu = 8 * D.SERVO_MASS, 110.0, 20.0, 45.0, 16.0
+    servos, batt, board, fasteners, tpu = 8 * D.SERVO_MASS, 110.0, 20.0, 47.0, 16.0
     total = print_mass + servos + batt + board + fasteners + tpu
     print(f"\nprinted plastic ~{print_mass:.0f} g   servos {servos:.0f} g   "
           f"battery {batt:.0f} g   board {board:.0f} g   fasteners {fasteners:.0f} g"
           f"   TPU pads {tpu:.0f} g")
-    print(f"TOTAL ROBOT ~{total:.0f} g   (sim model: 930 g)")
+    print(f"TOTAL ROBOT ~{total:.0f} g   (+{D.CAM_MASS:.0f} g GoPro MAX = "
+          f"{total + D.CAM_MASS:.0f} g)   (sim model: 930 g)")
     print(f"\nheights: ankle {D.ANKLE_Z:.1f}  knee {D.KNEE_Z:.1f}  "
           f"hip-pitch {D.HIP_PITCH_Z:.1f}  hip-roll {D.HIP_ROLL_Z:.1f}  "
           f"torso-center {D.TORSO_CENTER_Z:.1f}  top {D.TOP_Z:.1f} mm")
@@ -320,15 +361,32 @@ def main():
     # segment mass rollup for the sim update
     m = {n: r[4] for n, r in ((row[0], row) for row in rows)}
     seg = {
-        "torso": m["pelvis"] + m["tower"] + 2 * D.SERVO_MASS + batt + board + 25,
+        "torso": m["pelvis"] + m["tower"] + m["gopro_base"]
+                 + 2 * D.SERVO_MASS + batt + board + 27,
         "hip(roll link)": m["yoke_roll"] + m["yoke_pitch"] + 5,
         "thigh": m["leg_link"] + D.SERVO_MASS + 4,
         "shin": m["leg_link"] + D.SERVO_MASS + 4,
         "foot": m["foot"] + D.SERVO_MASS + tpu / 2 + 4,
     }
-    print("\nsegment masses for sim v2 (g):")
+    print("\nsegment masses for sim v2 (g):  [camera +154 g on torso when mounted]")
     for k, v in seg.items():
         print(f"  {k:16s} {v:6.1f}")
+
+    # standing CG estimate (approximate segment CG heights, mm above ground)
+    cam_z = D.TOP_Z + D.GP_BASE_T + D.GP_HOLE_H + 6 + D.CAM_BODY[2] / 2  # ~373
+    items = [
+        (m["pelvis"], 265), (m["tower"], 303), (m["gopro_base"], D.TOP_Z + 3),
+        (batt, 295), (board, 308), (2 * D.SERVO_MASS, 262), (27, 290),
+        (2 * (m["yoke_roll"] + m["yoke_pitch"] + 5), 225),
+        (2 * (m["leg_link"] + D.SERVO_MASS + 4), 175),
+        (2 * (m["leg_link"] + D.SERVO_MASS + 4), 85),
+        (2 * (m["foot"] + D.SERVO_MASS + tpu / 2 + 4), 12),
+    ]
+    mt = sum(w for w, _ in items)
+    cg = sum(w * z for w, z in items) / mt
+    cg_cam = (sum(w * z for w, z in items) + D.CAM_MASS * cam_z) / (mt + D.CAM_MASS)
+    print(f"\nstanding CG ~{cg:.0f} mm; with camera ~{cg_cam:.0f} mm "
+          f"(+{cg_cam - cg:.0f} mm, camera CG ~{cam_z:.0f} mm)")
 
 
 if __name__ == "__main__":

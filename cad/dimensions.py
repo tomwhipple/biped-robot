@@ -153,15 +153,41 @@ FOOT_WALL_T = 2.4       # thin: shin-fork horn arm passes 0.4 outside it
 ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+0.5 TPU proud)
 
 # ----------------------------------------------------------------------------
-# torso tower (electronics: driver board on top, battery on deck under it)
+# torso tower (electronics inside: board hangs face-down on standoffs under
+# the top plate -- the top now carries the GoPro mount; battery on the deck)
 # ----------------------------------------------------------------------------
 TOWER_L = 96.0
 TOWER_W = 42.0
 TOWER_H = 32.0          # deck top .. tower top
 TOWER_TOP_T = 3.5
 # driver board: Waveshare Bus-Servo Driver (ESP32) ~65 x 30 -- VERIFY yours!
-BOARD_HOLES = (58.0, 24.0)     # hole pattern (x span, y span), M2.5 self-tap
+BOARD_HOLES = (58.0, 24.0)     # hole pattern (y span, x span), M2.5 self-tap
+BOARD_STANDOFF = 6.0           # under-plate standoff height (clears the GoPro
+                               # screw bosses by 3 mm; battery below gets ~1 mm)
 BATT = (75.0, 35.0, 16.0)      # 2S 450-1000 mAh LiPo envelope, velcro-strapped
+
+# ----------------------------------------------------------------------------
+# GoPro three-prong mount (separate bolt-on part `gopro_base` on the tower top
+# -- printable upright with zero overhangs, and it is a sacrificial crash fuse).
+# Prong geometry follows the proven GoProScad standard
+# (github.com/ridercz/GoProScad: legs 3.0 thick, O15 round top, M5 hole
+# centered 7.5 below the top, leg height 17, 3-leg stack 3+slot+3+slot+3).
+# Slot width 3.2 (~2.95 mm camera fingers + 0.25 fit) per spec; GoProScad
+# ships 3.5 -- if the GoPro MAX fingers bind, ream or set GP_SLOT=3.5, reprint.
+# Camera: original GoPro MAX 360, 154 g, ~64 x 69 x 25 mm body, built-in
+# folding two-finger mount; prongs stacked along Y => lens axis fore-aft.
+# ----------------------------------------------------------------------------
+GP_PRONG_T = 3.0
+GP_SLOT = 3.2
+GP_STACK = 3 * GP_PRONG_T + 2 * GP_SLOT   # 15.4 across
+GP_PRONG_OD = 15.0
+GP_LEG_H = 17.0                # base top -> prong top
+GP_HOLE_D = 5.5                # M5 + 0.5 print tolerance
+GP_HOLE_H = GP_LEG_H - GP_PRONG_OD / 2    # 9.5 above the base top
+GP_BASE_X, GP_BASE_Y, GP_BASE_T = 30.0, 24.0, 4.0
+GP_SCREW_XY = (11.0, 8.5)      # 4x M3 self-tap into bosses under the tower top
+CAM_MASS = 154.0               # g, incl. battery
+CAM_BODY = (25.0, 64.0, 69.0)  # X depth (lens axis fore-aft), Y width, Z height
 
 # ----------------------------------------------------------------------------
 # assembly heights (sole ground contact = 0); torso center Zc for reference

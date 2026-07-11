@@ -20,6 +20,23 @@ DECK_TOP_Z = D.DECK_BOT_Z + D.DECK_T          # pelvis/tower local z=0 lives her
 COL_PRINT = Color(0.82, 0.84, 0.87)
 COL_SERVO = Color(0.25, 0.26, 0.30)
 COL_FOOT = Color(0.70, 0.72, 0.78)
+COL_CAM = Color(0.10, 0.10, 0.12)
+
+TOWER_TOP_Z = DECK_TOP_Z + D.TOWER_H
+
+
+def camera_mock():
+    """GoPro MAX 360 stand-in: body box + two folded mount fingers reaching
+    into the gopro_base slots (bottom of body ~6 above the M5 hole center)."""
+    hole_z = D.GP_BASE_T + D.GP_HOLE_H               # above the tower top
+    bot = hole_z + 6.0
+    dx, dy, dz = D.CAM_BODY
+    body = parts.box(-dx / 2, dx / 2, -dy / 2, dy / 2, bot, bot + dz)
+    fingers = None
+    for cy in (-(D.GP_PRONG_T + D.GP_SLOT) / 2, (D.GP_PRONG_T + D.GP_SLOT) / 2):
+        f = parts.box(-6, 6, cy - 1.45, cy + 1.45, hole_z - 6, bot + 1)
+        fingers = f if fingers is None else fingers + f
+    return body + fingers
 
 
 def piece(label, color, solid):
@@ -49,6 +66,8 @@ def leg(y, tag):
 robot = Compound(label="bimo_biped", children=[
     piece("pelvis", COL_PRINT, Pos(0, 0, DECK_TOP_Z) * parts.pelvis()),
     piece("tower", COL_PRINT, Pos(0, 0, DECK_TOP_Z) * parts.tower()),
+    piece("gopro_base", COL_PRINT, Pos(0, 0, TOWER_TOP_Z) * parts.gopro_base()),
+    piece("camera_gopro_max_mock", COL_CAM, Pos(0, 0, TOWER_TOP_Z) * camera_mock()),
     leg(D.HIP_SEP / 2, "L"),
     leg(-D.HIP_SEP / 2, "R"),
 ])
@@ -58,5 +77,7 @@ path = os.path.join(OUT, "assembly.step")
 export_step(robot, path)
 bb = robot.bounding_box()
 print(f"assembly -> {path}")
+cam_top = D.TOP_Z + D.GP_BASE_T + D.GP_HOLE_H + 6 + D.CAM_BODY[2]
 print(f"bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}"
-      f"  z {bb.min.Z:.1f}..{bb.max.Z:.1f}  (expect ~0..{D.TOP_Z:.0f} tall)")
+      f"  z {bb.min.Z:.1f}..{bb.max.Z:.1f}  "
+      f"(expect ~0..{D.TOP_Z:.0f} structure, ~{cam_top:.0f} incl. camera)")
