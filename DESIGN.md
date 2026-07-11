@@ -1,7 +1,7 @@
 # Bimo-like Biped — Design & Simulation Working Doc
 
-**Status:** CAD massing model + MuJoCo physics validation complete (Stage 0–1). Not yet printable; RL and sim-to-real not started.
-**Last updated:** 2026-07-09
+**Status:** CAD massing model + MuJoCo physics validation complete (Stage 0–1). CPU RL baseline done incl. gait-quality shaping + uneven-terrain curriculum (Stage 2b, recommended policy `terrain_v4`). Printable part set done (build123d, `cad/`, interference-checked; proposed CAD-true model `sim/bimo_biped_v2.xml`). Nothing printed yet; sim-to-real not started.
+**Last updated:** 2026-07-11
 **Owner:** Tom
 
 ---
@@ -39,17 +39,11 @@ physics model** used to validate the mechanism *before* committing to printed pa
 
 ## 3. Folder contents
 
-```
-robot/
-├── DESIGN.md                 # this file
-├── cad/
-│   ├── bimo_like_biped.scad  # parametric OpenSCAD massing model (8 servos, articulated)
-│   └── renders/              # v2_hero / v2_front / v2_side / v2_stride .png
-└── sim/
-    ├── bimo_biped.xml        # MuJoCo MJCF physics model (matches the CAD layout)
-    ├── sim_biped.py          # headless sim: coordinated squat + diagnostics + render
-    └── renders/              # mj_squat.gif, mj_deep.png, mj_stand.png
-```
+See the directory tree in [README.md](README.md) — kept in one place so it can't
+drift. Highlights: `cad/` is the parametric printable design (build123d;
+`dimensions.py` is the single source of truth), `sim/` is the MuJoCo env + PPO
+training/eval/report tooling, `sim/runs/` (gitignored) holds trained policies.
+`requirements.txt` pins all deps.
 
 ## 4. Current state — what works
 
@@ -76,11 +70,185 @@ Camera note (learned the hard way): `--camera=…,90,0,0,…` = **side** view, `
 
 ### MuJoCo (physics sim)
 ```bash
-pip install mujoco imageio
-MUJOCO_GL=osmesa python3 sim/sim_biped.py        # headless (Linux server)
+pip install -r requirements.txt                   # mujoco, gymnasium, imageio, numpy
+MUJOCO_GL=osmesa python3 sim/sim_biped.py        # headless squat (Linux server only)
 # On the Mac (native GL, interactive) — drag joints, push the robot:
 python -m mujoco.viewer                           # then open sim/bimo_biped.xml
 ```
+Note: `MUJOCO_GL=osmesa` is Linux-only headless rendering; on the Mac omit it
+(native GL). The RL env below steps physics without rendering, so it needs no GL.
+
+### RL env (Stage 2a — Gymnasium)
+```bash
+cd sim && python smoke_test.py                    # validate the env end-to-end
+```
+Env: 36-dim obs (joint qpos/qvel, torso up-vector, torso lin/ang vel, prev
+action, height, phase clock); 8-dim action = residual target angles around the
+standing pose (action 0 == stand); reward = forward-vel + upright + alive −
+energy − action-rate; terminate on height < 0.18 m or up-vector z < 0.4.
+Smoke test confirms a zero policy stands 500 steps upright and bad policies fall.
+
+### RL training (Stage 2b — SB3 PPO CPU baseline)
+```bash
+cd sim
+# baseline (uncapped forward reward):
+python train_ppo.py --steps 1000000 --n-envs 8 --run-name ppo_baseline
+# shaped (capped forward + posture + fall penalty) -- reward knobs are CLI flags:
+python train_ppo.py --steps 2000000 --n-envs 8 --run-name shaped_v1 \
+  --w-forward 1.5 --target-speed 0.4 --w-upright 0.8 --alive 0.15 \
+  --w-height 0.3 --fall-cost 3.0
+python eval_policy.py --run-name shaped_v1 --episodes 10 --render
+tensorboard --logdir runs                          # compare runs side by side
+```
+SB3 PPO on CPU proves the reward produces a *sustained* gait before the MJX/GPU
+port. Actions = residual angles around stand; VecNormalize on obs+reward. Each
+run writes to `runs/<run-name>/` (model, vecnormalize.pkl, tensorboard, walk.gif).
+Success = high episode length (survives the 10 s truncation) **and** forward
+distance — not distance alone.
+
+**Finding (baseline, 1M steps):** uncapped forward reward is exploitable — the
+policy learned to **lunge/faceplant forward** (~1.3 m at 0.68 m/s, then falls;
+0/10 episodes survived the full 10 s). Fix: `--target-speed` caps the forward
+term so a one-step dive can't out-earn a steady gait; `--w-height`/`--fall-cost`
+reward staying upright. `eval_policy.py` now reports episode length + survival
+rate + avg speed so a lunge is distinguishable from a walk; `compare_runs.py`
+ranks all runs and classifies each (lunge / walk-then-falls / stands / walks).
+
+**Result (shaped_v1, 2M steps, capped 0.4 m/s + posture + fall penalty):** a real
+**alternating-leg walking gait** emerged — ~2.9 m over ~6 s at a controlled
+0.46 m/s (episode length 317/500 vs baseline 109). It still tips before the 10 s
+truncation (0/10 full survival), and training had not plateaued, so `shaped_v2`
+extends the same config to 5M steps to push toward robust full-episode survival.
+
+**Result (shaped_v2, 5M steps, same reward):** **robust forward walk achieved.**
+Survives **11/12** full 10 s episodes, walking **~4.6 m at 0.48 m/s** with a clean
+upright alternating-leg gait (`runs/shaped_v2/walk.gif`, `strip.png`). This meets
+the Stage-2b CPU-baseline goal — the env + reward produce a stable gait, so the
+MJX/GPU port is now worth doing. Reward config is the shaped_v1/v2 flag set above.
+
+### Domain randomization (sim-to-real hardening)
+`walker_env.py` supports opt-in DR (`--domain-rand`): per-episode randomization of
+body mass+inertia (±15%), floor friction (±40%), actuator gain (±20%), optional
+action latency, and random horizontal torso shoves. The flat-ground shaped_v2
+policy is **brittle** under this — survival drops 11/12 → 6/12 (mass/friction/gain)
+→ **1/12 with shoves** — which is exactly the reality gap DR closes.
+
+`train_ppo.py --init-from <run>` warm-starts from a saved policy+normalizer, so we
+use a **curriculum**: learn to walk on flat ground first (shaped_v2), then
+fine-tune under DR rather than relearning to walk while being shoved.
+
+**Failed attempt (shaped_v3):** warm-start + *full* DR at once (12 N shoves ≈ 1.3×
+body weight, ~1/s, + action latency) **destroyed the gait** — catastrophic
+forgetting, nominal survival 11/12 → 0/12, training episode length collapsed to
+~84. Lesson: too-hard DR from a warm start unlearns the skill. Shove default
+lowered to 5 N @ 1% and the curriculum split into stages with a low fine-tune LR:
+```bash
+# stage 1 (shaped_v4): harden vs model error (mass/friction/gain), NO shoves, gentle LR
+python train_ppo.py --steps 4000000 --n-envs 8 --run-name shaped_v4 \
+  --init-from shaped_v2 --domain-rand --push-force 0 --lr 0.0001 \
+  --w-forward 1.5 --target-speed 0.4 --w-upright 0.8 --alive 0.15 \
+  --w-height 0.3 --fall-cost 3.0
+# stage 2: warm-start from shaped_v4 and add gentle shoves (--push-force 3/5)
+```
+Check robustness with `python compare_runs.py --dr` (evaluates under DR + shoves).
+
+**Robustness gauntlet** (survival over 16 episodes; nominal / model-error DR /
+DR+shoves+latency @ 5 N):
+
+| policy | nominal | model-error DR | DR + shoves + latency |
+|---|---|---|---|
+| shaped_v2 (flat ground) | 14/16 | 16/16 | 0/16 |
+| shaped_v4 (v2 + DR, no shoves) | 16/16 | 16/16 | 0/16 |
+| shaped_v5 (v4 + harsh shoves+lat) | 14/16 | 8/16 | 0/16 (dist 2× v4) |
+| **shaped_v6 (v4 + gentle shoves)** | **16/16** | **16/16** | 0/16 |
+
+**Conclusion (recommended policy = `shaped_v6`):** a perfect nominal gait
+(16/16, ~5.3 m at 0.52 m/s) that is **fully robust to ±15% mass / ±40% friction /
+±20% gain** model error — a genuinely sim-to-real-relevant result. Two shove-
+hardening attempts did **not** crack robustness to *repeated* random shoves:
+harsh shoves (v5) bought partial recovery (2× distance under shoves) but hurt the
+clean gait and model-error robustness; gentle shoves (v6) preserved the gait but
+taught no recovery. **Open question flagged for review:** surviving repeated
+shoves needs a design decision — a realistic shove magnitude/cadence, and likely
+a *balance-recovery* reward term rather than bare survival — not more of the same
+fine-tuning. **Use `shaped_v6` as the MJX-port baseline.**
+
+### Gait quality + uneven terrain (Stage 2b continued, 2026-07-10)
+
+Two problems with `shaped_v6`: the gait *looked* wrong (quick shuffly steps —
+measured mean swing time only **0.11 s** vs the ~0.25 s of a deliberate stride),
+and it fell on even **5 mm** bumps (6/16 survival). Fixed both with gait-quality
+reward terms + a procedural-terrain curriculum. All new knobs are constructor
+kwargs on `BimoWalkerEnv` with **default 0 / off, so every old run reproduces
+exactly** (verified: bit-identical rewards on flat ground with defaults).
+
+**Terrain (env):** `terrain_amplitude` (max bump height, m) swaps the flat plane
+for a MuJoCo **heightfield** at model-load time (the MJCF is patched in-memory;
+`bimo_biped.xml` unchanged). Height data = smoothed uniform noise
+(`terrain_smoothness` = feature size, m), re-randomized **every reset** — on CPU
+MuJoCo, collisions read `model.hfield_data` live, so rewriting it before
+`mj_resetData` suffices (verified: a +20 mm plateau written directly into
+`hfield_data` raised the resting torso by exactly +20 mm without recompiling).
+A smoothstep-flattened spawn pad keeps episode starts level.
+`terrain_amplitude_min` draws a per-episode amplitude in `[min, max]` (built-in
+difficulty mixing); `--terrain-mix` (train_ppo) makes a fraction of the parallel
+workers use the original flat plane, because **hfield and plane contacts differ
+subtly** — a policy trained only on hfields measurably degrades on the plane
+(9/16 plane vs 14/16 on a flat hfield) until it trains on both. Termination and
+the height observation now use **height above local ground** (bilinear hfield
+lookup) instead of world z, so slopes don't falsely terminate; on flat ground
+this is numerically identical to before.
+
+**Gait shaping (env, all CLI flags):** `w_feet_air` — legged_gym-style feet
+air-time reward: on each touchdown, `min(swing, air_time_target) − 0.5·target`,
+so swings shorter than half the target *cost* reward (kills shuffle-taps) and
+hopping isn't incentivized (capped); `w_single_support` — per-step bonus when
+exactly one foot has contact; `w_lateral` — |lateral vel| + drift penalty;
+`w_yaw` — heading + yaw-rate penalty; `w_pitch_rate` — torso roll/pitch-rate
+penalty. Foot contact is detected from the contact list against the sole geoms
+(soles are the only colliding robot geoms). `eval_policy.py`/`compare_runs.py`
+now report **double-support %** and **mean swing time**, and take
+`--terrain-amplitude` for terrain evaluation.
+
+**What worked / didn't (training loop):** warm-starting `shaped_v6` with gait
+terms (gait_v1/v2) could NOT escape the shuffle local optimum — swing time
+stayed 0.11 s. **From scratch with gait shaping baked in** (gait_v3b → v4,
+w_feet_air 20, single-support 0.3, target_speed 0.5) restructured the gait
+completely: swing 0.27 s, double-support ~0%, and — although the forward term is
+still capped at 0.5 m/s — the air-time/single-support rewards push a faster,
+more dynamic stride (~0.8 m/s). Speed was raised by *shaping*, not by uncapping
+the forward term, so the lunge exploit stays dead. DR fine-tune (gait_v6) kept
+16/16 under ±15% mass/±40% friction/±20% gain. Terrain curriculum: 5 mm fixed
+(terrain_v1) → mixed 0–12 mm (terrain_v2) → mixed 0–15 mm + 25% flat-plane
+workers (terrain_v3) → 10M-step low-LR consolidation (terrain_v4).
+
+**Results** (24 episodes each; survival / distance / speed; dsup = double-support
+fraction, swing = mean per-step swing time; `compare_runs.py --terrain-amplitude`):
+
+| policy | flat | 10 mm terrain | 15 mm terrain | dsup | swing |
+|---|---|---|---|---|---|
+| shaped_v6 (old best) | 23/24, 5.1 m @ 0.53 | 15/24, 3.8 m | — | 14% | 0.11 s |
+| gait_v6 (clean gait, flat-only) | **24/24, 8.3 m @ 0.83** | 0/24 | — | 0% | 0.28 s |
+| terrain_v3 | 21/24, 7.3 m @ 0.77 | 21/24, 7.4 m @ 0.80 | 18/24 | 0% | 0.28 s |
+| **terrain_v4 (recommended)** | **22/24, 7.6 m @ 0.79** | **20/24, 7.6 m @ 0.81** | **20/24, 7.6 m @ 0.81** | 0% | 0.28 s |
+
+`terrain_v4` also keeps model-error DR robustness: 22/24 flat / 20/24 on 10 mm
+terrain under ±15% mass / ±40% friction / ±20% gain. Compared to `shaped_v6` it
+is ~55% faster, replaces the 0.11 s shuffle with a clear 0.28 s alternating
+stride (see `runs/terrain_v4/walk.gif`, `walk_terrain10mm.gif`,
+`walk_terrain15mm.gif`, and `runs/gait_v6/walk.gif` for the flat specialist),
+and survives 15 mm bumps — half the foot length — most episodes.
+**Use `terrain_v4` as the new baseline; `gait_v6` if flat-ground speed is all
+that matters.** Training throughput note: this machine trains ~12k env-steps/s
+(8 workers), so 8–10M-step runs finish in ~10–15 min — iterate freely.
+
+**Caveats / open questions:** the new gait has a flight phase (double-support
+~0%), i.e. it is closer to a jog than a walk — real STS3215 servos may not
+track it; if sim-to-real needs a grounded walk, re-tune with a both-feet-down
+allowance (e.g. lower air_time_target, add a flight penalty). Repeated-shove
+robustness remains open (unchanged from the DR section above). Terrain height
+is NOT observed by the policy (blind proprioceptive walking) — an exteroceptive
+height-scan obs is the natural next step for rougher ground.
 
 ## 6. Design parameters (source of truth)
 
@@ -101,15 +269,26 @@ internal parts set non-colliding (feet-only contact); IMU `site` on torso for or
 
 - **Stage 0 — CAD massing:** DONE (concept only).
 - **Stage 1 — Physics validation (MuJoCo):** DONE.
-- **Stage 2 — RL walking:** NEXT. Gymnasium env + PPO via MJX on the RTX 4070.
+- **Stage 2a — Gymnasium RL env (CPU MuJoCo):** DONE. `sim/walker_env.py` + smoke test.
+- **Stage 2b — Train PPO:** CPU baseline DONE, then extended with gait-quality
+  shaping + procedural terrain (see "Gait quality + uneven terrain"). Recommended
+  policy: **`terrain_v4`** — clean 0.28 s-swing alternating stride at ~0.8 m/s,
+  22/24 flat / 20/24 on 10–15 mm bumpy terrain, robust to ±15% mass/±40%
+  friction/±20% gain. (`shaped_v6` superseded.) **Open:** repeated-shove
+  robustness (needs a recovery-reward design decision — see DR section); the
+  gait has a flight phase (jog-like) — may need re-tuning for real servos.
+  Next: port the env+reward to MJX on the RTX 4070 for scale/speed.
 - **Stage 3 — Sim-to-real:** system-ID the real servos, export ONNX policy, deploy on RP2040/SBC.
 
 ## 8. TODO — known next steps (start here)
 
-- [ ] **Stage 2a — Build the Gymnasium env** around `sim/bimo_biped.xml`.
-      Obs: joint qpos + qvel, torso quaternion/up-vector (IMU site), optional foot contacts.
-      Action: 8 target joint angles. Reward: forward velocity + upright + alive
-      − energy − action-rate. Terminate on torso height < 0.18 m or large tilt.
+- [x] **Stage 2a — Build the Gymnasium env** around `sim/bimo_biped.xml`. DONE —
+      `sim/walker_env.py`. Obs: joint qpos + qvel, torso up-vector, torso lin/ang
+      vel, prev action, height, phase clock. Action: 8 residual target angles
+      (action 0 == standing pose). Reward: forward vel + upright + alive − energy
+      − action-rate. Terminate on height < 0.18 m or up-vector z < 0.4. Foot-
+      contact obs still optional/TODO. Smoke test: zero policy stands upright 500
+      steps; random/scripted fall (correct reward gradient).
 - [ ] **Stage 2b — Port to MJX (JAX)** and train PPO (Brax PPO or RSL-RL) on the RTX 4070
       with a few thousand parallel envs. Target: a stable forward gait.
 - [ ] **Domain randomization** (required for sim-to-real): friction, link mass ±15%,

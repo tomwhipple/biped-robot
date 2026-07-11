@@ -1,0 +1,432 @@
+"""Stage-2a: Gymnasium environment for the Bimo-like biped (CPU MuJoCo).
+
+Wraps sim/bimo_biped.xml as a standard RL env so a policy can learn to walk
+forward. Kept deliberately framework-light (plain MuJoCo, no MJX) so it runs on
+the Mac for fast iteration; the reward/obs design carries over to the MJX port
+(Stage 2b) unchanged.
+
+Env contract (Gymnasium >=1.0):
+    obs, info              = env.reset(seed=...)
+    obs, rew, term, trunc, info = env.step(action)
+
+Action  : 8 target joint angles, normalized to [-1, 1] (mapped to each joint's
+          physical range). Written to the position actuators.
+Obs (36): joint qpos (8), joint qvel (8), torso up-vector (3), torso linear
+          vel (3), torso angular vel (3), previous action (8), plus torso
+          height (1) and a phase clock sin/cos (2)  -> stable, Markov-ish state.
+Reward  : forward velocity + upright + alive - energy - action-rate,
+          plus optional gait-quality terms (feet air-time, single-support,
+          lateral/yaw drift, torso rate) that default to 0 so old runs reproduce.
+Terminate: torso falls (height above local ground < 0.18 m) or tips over
+          (up-vector z < 0.4). On flat ground local ground z == 0, so this is
+          identical to the original world-z check.
+Terrain : optional procedural heightfield (terrain_amplitude > 0). The flat
+          plane in bimo_biped.xml is swapped for an hfield geom at model-load
+          time; height data is re-randomized every reset (smoothed uniform
+          noise with a flattened spawn pad). Default (0.0) keeps the original
+          flat-plane model byte-for-byte.
+"""
+from __future__ import annotations
+import os
+import re
+import numpy as np
+import mujoco
+import gymnasium as gym
+from gymnasium import spaces
+
+_XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bimo_biped.xml")
+
+# qpos/qvel layout: freejoint (7 pos+quat / 6 vel) then the 8 hinge joints.
+_JQPOS = slice(7, 15)   # 8 actuated-joint positions
+_JQVEL = slice(6, 14)   # 8 actuated-joint velocities
+
+# -- heightfield terrain constants -------------------------------------------
+# Grid spans x in [cx-rx, cx+rx], y in [-ry, ry]; ~2 cm cells (feet are 8.4 cm
+# long, so bumps are resolved well below foot scale). Long axis points +x so a
+# full 10 s episode at >1 m/s stays on the field.
+_HF_NROW, _HF_NCOL = 100, 600            # y rows, x cols
+_HF_RX, _HF_RY, _HF_CX = 6.0, 1.0, 4.5   # meters: field spans x -1.5..10.5
+
+
+def _gauss_smooth(field: np.ndarray, sigma: float) -> np.ndarray:
+    """Separable Gaussian blur (reflect-padded), sigma in cells. Pure numpy so
+    we don't add a scipy dependency for one filter."""
+    if sigma < 0.5:
+        return field
+    r = max(1, int(3 * sigma))
+    x = np.arange(-r, r + 1)
+    k = np.exp(-0.5 * (x / sigma) ** 2)
+    k /= k.sum()
+    conv = lambda v: np.convolve(np.pad(v, r, mode="reflect"), k, "valid")
+    return np.apply_along_axis(conv, 0, np.apply_along_axis(conv, 1, field))
+
+
+class BimoWalkerEnv(gym.Env):
+    metadata = {"render_modes": ["rgb_array"], "render_fps": 50}
+
+    def __init__(
+        self,
+        xml_path: str = _XML,
+        control_hz: float = 50.0,
+        episode_seconds: float = 10.0,
+        render_mode: str | None = None,
+        # -- reward shaping (override to iterate without editing step()) --------
+        w_forward: float = 1.5,        # weight on forward velocity
+        target_speed: float | None = None,  # cap fwd-vel reward here (m/s); None = uncapped
+        w_upright: float = 0.5,        # weight on torso up-vector z
+        alive_bonus: float = 0.1,      # per-step reward for not terminating
+        w_height: float = 0.0,         # penalty on |height - nominal| (posture)
+        w_energy: float = 0.002,       # penalty on actuator work
+        w_action_rate: float = 0.05,   # penalty on action jitter
+        fall_cost: float = 1.0,        # one-off penalty on termination
+        # -- gait-quality shaping (all default 0 -> old reward reproduces) ------
+        w_feet_air: float = 0.0,       # reward per-foot swing time on touchdown
+        air_time_target: float = 0.3,  # cap the rewarded swing duration (s)
+        w_single_support: float = 0.0, # per-step reward when exactly 1 foot down
+        w_lateral: float = 0.0,        # penalty on lateral vel + y drift
+        w_yaw: float = 0.0,            # penalty on heading error + yaw rate
+        w_pitch_rate: float = 0.0,     # penalty on torso roll/pitch rates
+        # -- procedural terrain (0.0 -> original flat plane) --------------------
+        terrain_amplitude: float = 0.0,   # max bump height (m); 0.01 is serious
+        terrain_smoothness: float = 0.15, # bump feature size (m)
+        terrain_amplitude_min: float | None = None,  # if set, per-episode bump
+        # height is drawn uniform(min, amplitude) -- mixes easy/hard episodes
+        # (a built-in curriculum) instead of every episode at max roughness
+        # -- domain randomization (sim-to-real hardening; off by default) -------
+        domain_rand: bool = False,     # master switch for mass/friction/gain DR
+        mass_range: float = 0.15,      # per-body mass+inertia scale +/- this
+        friction_range: float = 0.4,   # floor sliding friction scale +/- this
+        gain_range: float = 0.2,       # actuator kp scale +/- this
+        action_latency: int = 0,       # control-step delay on applied action
+        push_prob: float | None = None,  # per-control-step shove chance (None=auto w/ DR)
+        push_force: float | None = None, # shove magnitude (N); 0 disables, None=auto w/ DR
+    ):
+        super().__init__()
+        self.w_forward = w_forward
+        self.target_speed = target_speed
+        self.w_upright = w_upright
+        self.alive_bonus = alive_bonus
+        self.w_height = w_height
+        self.w_energy = w_energy
+        self.w_action_rate = w_action_rate
+        self.fall_cost = fall_cost
+        self.w_feet_air = w_feet_air
+        self.air_time_target = air_time_target
+        self.w_single_support = w_single_support
+        self.w_lateral = w_lateral
+        self.w_yaw = w_yaw
+        self.w_pitch_rate = w_pitch_rate
+        self.terrain_amplitude = terrain_amplitude
+        self.terrain_smoothness = terrain_smoothness
+        self.terrain_amplitude_min = terrain_amplitude_min
+        self.domain_rand = domain_rand
+        self.mass_range = mass_range
+        self.friction_range = friction_range
+        self.gain_range = gain_range
+        # Shoves: auto-enable a *gentle* default with DR unless set explicitly.
+        # None => auto; an explicit 0 disables (distinct from "unset").
+        self.action_latency = action_latency
+        self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
+        self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
+        if terrain_amplitude > 0:
+            # Patch the flat-plane MJCF into a heightfield variant at load time
+            # (single source of truth: no duplicated terrain XML to drift).
+            self.model = mujoco.MjModel.from_xml_string(
+                self._terrain_xml(xml_path, terrain_amplitude))
+        else:
+            self.model = mujoco.MjModel.from_xml_path(xml_path)
+        self.data = mujoco.MjData(self.model)
+
+        # Nominal dynamics parameters, snapshotted so each reset re-randomizes
+        # from the originals rather than compounding noise across episodes.
+        self._nom_mass = self.model.body_mass.copy()
+        self._nom_inertia = self.model.body_inertia.copy()
+        self._nom_friction = self.model.geom_friction.copy()
+        self._nom_gain = self.model.actuator_gainprm.copy()
+        self._nom_bias = self.model.actuator_biasprm.copy()
+        self._floor_gid = self.model.geom("floor").id
+        self._torso_bid = self.model.body("torso").id
+        self._sole_gids = (self.model.geom("L_sole").id, self.model.geom("R_sole").id)
+
+        # Terrain bookkeeping: cached (nrow, ncol) height grid in [0,1] for the
+        # ground-height lookup, and a dirty flag so render() re-uploads the
+        # hfield to the GPU after each re-randomization.
+        self._hf_grid = None
+        self._terrain_dirty = False
+
+        self.sim_dt = self.model.opt.timestep                 # 0.002 s
+        self.n_substeps = max(1, round((1.0 / control_hz) / self.sim_dt))
+        self.control_dt = self.n_substeps * self.sim_dt        # ~0.02 s
+        self.max_steps = int(episode_seconds / self.control_dt)
+
+        # Per-joint actuator ranges (radians). Actions are a residual around the
+        # nominal standing pose (qpos0, all-zeros here) so that action 0 == stand
+        # -- the standard locomotion-RL convention. Without this, action 0 maps to
+        # each joint's range midpoint (a deep knee crouch) and the robot topples.
+        jnt = self.model.actuator_trnid[:, 0]
+        self._lo = self.model.jnt_range[jnt, 0].copy()
+        self._hi = self.model.jnt_range[jnt, 1].copy()
+        self._default = self.model.qpos0[_JQPOS].copy()        # standing pose
+        self._scale = 0.5 * (self._hi - self._lo)              # per-joint residual
+
+        self._up_id = self.model.sensor("torso_up").adr[0]
+        self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
+
+        self.action_space = spaces.Box(-1.0, 1.0, shape=(8,), dtype=np.float32)
+        obs_dim = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2
+        self.observation_space = spaces.Box(
+            -np.inf, np.inf, shape=(obs_dim,), dtype=np.float32
+        )
+
+        self.render_mode = render_mode
+        self._renderer = None
+        self._prev_action = np.zeros(8, dtype=np.float32)
+        self._air_time = np.zeros(2)   # per-foot time since last ground contact
+        self._step_i = 0
+
+    # -- helpers -----------------------------------------------------------
+    def _action_to_ctrl(self, action: np.ndarray) -> np.ndarray:
+        action = np.clip(action, -1.0, 1.0)
+        return np.clip(self._default + self._scale * action, self._lo, self._hi)
+
+    # -- terrain -------------------------------------------------------------
+    @staticmethod
+    def _terrain_xml(xml_path: str, amplitude: float) -> str:
+        """Return the MJCF with the flat floor plane replaced by an hfield geom
+        (same name 'floor' so friction DR keeps working) plus its asset."""
+        with open(xml_path) as f:
+            xml = f.read()
+        asset = (f'<asset><hfield name="terrain" nrow="{_HF_NROW}" '
+                 f'ncol="{_HF_NCOL}" size="{_HF_RX} {_HF_RY} {amplitude} 0.1"/>'
+                 f'</asset>\n  ')
+        geom = (f'<geom name="floor" type="hfield" hfield="terrain" '
+                f'pos="{_HF_CX} 0 0" contype="1" conaffinity="1" '
+                f'rgba="0.83 0.86 0.90 1" friction="1 0.02 0.001"/>')
+        patched, n = re.subn(r'<geom name="floor"[^>]*?/>', geom, xml, flags=re.S)
+        if n != 1:
+            raise ValueError(f"expected exactly one floor geom in {xml_path}, found {n}")
+        return patched.replace("<worldbody>", asset + "<worldbody>", 1)
+
+    def _generate_terrain(self):
+        """Re-randomize the heightfield: smoothed uniform noise, normalized to
+        [0,1] (world height = data * amplitude), with the spawn area flattened
+        to 0 and a smoothstep ramp so the robot starts on level ground.
+        On CPU MuJoCo, collisions read model.hfield_data directly each step, so
+        rewriting it before mj_resetData is sufficient (verified by test)."""
+        dx = 2 * _HF_RX / (_HF_NCOL - 1)
+        field = self.np_random.uniform(0.0, 1.0, (_HF_NROW, _HF_NCOL))
+        field = _gauss_smooth(field, self.terrain_smoothness / dx)
+        field -= field.min()
+        field /= max(float(np.ptp(field)), 1e-9)
+        # flat pad within |x| < 0.3 m of spawn, full roughness beyond 0.9 m
+        x_world = (_HF_CX - _HF_RX) + np.arange(_HF_NCOL) * dx
+        t = np.clip((np.abs(x_world) - 0.3) / 0.6, 0.0, 1.0)
+        field *= (t * t * (3.0 - 2.0 * t))[None, :]
+        if self.terrain_amplitude_min is not None:
+            # per-episode difficulty draw: scale bump height down from the max
+            # (hfield size[2] stays terrain_amplitude; data is in [0, scale])
+            ep_amp = self.np_random.uniform(self.terrain_amplitude_min,
+                                            self.terrain_amplitude)
+            field *= ep_amp / self.terrain_amplitude
+        self.model.hfield_data[:] = field.ravel()
+        self._hf_grid = field
+        self._terrain_dirty = True
+
+    def _ground_z(self, x: float, y: float) -> float:
+        """Terrain height (m) under world point (x, y); 0 on the flat plane or
+        off the field. Bilinear interpolation of the cached grid."""
+        if self._hf_grid is None:
+            return 0.0
+        c = (x - (_HF_CX - _HF_RX)) / (2 * _HF_RX) * (_HF_NCOL - 1)
+        r = (y + _HF_RY) / (2 * _HF_RY) * (_HF_NROW - 1)
+        if not (0.0 <= c <= _HF_NCOL - 1 and 0.0 <= r <= _HF_NROW - 1):
+            return 0.0
+        c0, r0 = int(c), int(r)
+        c1, r1 = min(c0 + 1, _HF_NCOL - 1), min(r0 + 1, _HF_NROW - 1)
+        fc, fr = c - c0, r - r0
+        g = self._hf_grid
+        h = ((1 - fr) * ((1 - fc) * g[r0, c0] + fc * g[r0, c1])
+             + fr * ((1 - fc) * g[r1, c0] + fc * g[r1, c1]))
+        return float(h) * self.terrain_amplitude
+
+    def _foot_contacts(self) -> tuple[bool, bool]:
+        """(left, right) sole-in-contact flags. The soles are the only geoms
+        with collisions enabled besides the floor, so any contact involving a
+        sole geom is ground contact."""
+        n = self.data.ncon
+        if n == 0:
+            return False, False
+        g1 = self.data.contact.geom1[:n]
+        g2 = self.data.contact.geom2[:n]
+        lid, rid = self._sole_gids
+        return (bool(np.any((g1 == lid) | (g2 == lid))),
+                bool(np.any((g1 == rid) | (g2 == rid))))
+
+    def _randomize_dynamics(self):
+        """Re-sample mass/inertia, floor friction, and actuator gain from nominal.
+        Called on reset so the policy must be robust to model error -- the reason
+        DR is required before sim-to-real. All draws are re-derived from the
+        stored nominals, never compounded."""
+        rng, m = self.np_random, self.model
+        mf = rng.uniform(1 - self.mass_range, 1 + self.mass_range, size=m.nbody)
+        m.body_mass[:] = self._nom_mass * mf
+        m.body_inertia[:] = self._nom_inertia * mf[:, None]
+        ff = rng.uniform(1 - self.friction_range, 1 + self.friction_range)
+        m.geom_friction[self._floor_gid, 0] = self._nom_friction[self._floor_gid, 0] * ff
+        gf = rng.uniform(1 - self.gain_range, 1 + self.gain_range)
+        # Position actuator: gainprm[0]=kp, biasprm[1]=-kp -- scale both together.
+        m.actuator_gainprm[:] = self._nom_gain * gf
+        m.actuator_biasprm[:] = self._nom_bias * gf
+
+    def _obs(self) -> np.ndarray:
+        d = self.data
+        up = d.sensordata[self._up_id : self._up_id + 3]
+        phase = 2 * np.pi * (self._step_i / self.max_steps)
+        return np.concatenate([
+            d.qpos[_JQPOS],                    # 8 joint angles
+            d.qvel[_JQVEL],                    # 8 joint velocities
+            up,                                # 3 torso up-vector
+            d.qvel[0:3],                       # 3 torso linear velocity
+            d.qvel[3:6],                       # 3 torso angular velocity
+            self._prev_action,                 # 8 last action
+            # torso height above *local ground* (== world z on flat ground, so
+            # flat-ground policies see the exact same observation as before)
+            [d.qpos[2] - self._ground_z(d.qpos[0], d.qpos[1])],
+            [np.sin(phase), np.cos(phase)],    # 2 phase clock
+        ]).astype(np.float32)
+
+    # -- gym API -----------------------------------------------------------
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)
+        if self.domain_rand:
+            self._randomize_dynamics()
+        if self.terrain_amplitude > 0:
+            self._generate_terrain()   # before mj_resetData; CPU collisions read it live
+        mujoco.mj_resetData(self.model, self.data)
+        # small noise so the policy can't memorize one trajectory
+        self.data.qpos[:] = self.model.qpos0
+        self.data.qpos[_JQPOS] += self.np_random.uniform(-0.03, 0.03, size=8)
+        self.data.qvel[:] = self.np_random.uniform(-0.02, 0.02, size=self.model.nv)
+        self.data.ctrl[:] = self._default
+        mujoco.mj_forward(self.model, self.data)
+        self._prev_action[:] = 0.0
+        # action-latency buffer: past ctrl targets, applied `action_latency` steps late
+        self._ctrl_buf = [self._default.copy() for _ in range(self.action_latency + 1)]
+        self._air_time[:] = 0.0
+        self._step_i = 0
+        return self._obs(), {}
+
+    def step(self, action):
+        action = np.asarray(action, dtype=np.float32)
+        target = self._action_to_ctrl(action)
+        if self.action_latency:                       # apply a delayed target
+            self._ctrl_buf.append(target)
+            target = self._ctrl_buf.pop(0)
+        self.data.ctrl[:] = target
+
+        # Random shove: apply a horizontal force to the torso for this control
+        # step (models an unexpected push -- key for a robust real-world gait).
+        self.data.xfrc_applied[self._torso_bid, :] = 0.0
+        if self.push_force and self.np_random.uniform() < self.push_prob:
+            ang = self.np_random.uniform(0, 2 * np.pi)
+            self.data.xfrc_applied[self._torso_bid, 0] = self.push_force * np.cos(ang)
+            self.data.xfrc_applied[self._torso_bid, 1] = self.push_force * np.sin(ang)
+
+        x_before = float(self.data.qpos[0])
+        for _ in range(self.n_substeps):
+            mujoco.mj_step(self.model, self.data)
+        x_after = float(self.data.qpos[0])
+
+        d = self.data
+        up_z = float(d.sensordata[self._up_id + 2])
+        # height above *local ground* -- on terrain, world z rises/falls with the
+        # surface, so the fall check and posture term must be terrain-relative
+        # (otherwise walking uphill/downhill falsely terminates). On the flat
+        # plane _ground_z() is 0 and this is exactly the original world-z height.
+        height = float(d.qpos[2]) - self._ground_z(float(d.qpos[0]), float(d.qpos[1]))
+
+        fwd_vel = (x_after - x_before) / self.control_dt
+        # Cap the forward term at target_speed so a lunge/faceplant (a big one-step
+        # positive velocity) can't out-earn a steady gait -- the classic exploit.
+        fwd_term = fwd_vel if self.target_speed is None else min(fwd_vel, self.target_speed)
+        # energy ~ actuator force * joint velocity; action-rate penalizes jitter
+        energy = float(np.sum(np.abs(d.actuator_force) * np.abs(d.qvel[_JQVEL])))
+        action_rate = float(np.sum((action - self._prev_action) ** 2))
+
+        reward = (
+            self.w_forward * fwd_term                     # go forward (primary)
+            + self.w_upright * up_z                       # stay upright
+            + self.alive_bonus                            # alive bonus
+            - self.w_height * abs(height - self._nominal_h)  # hold posture
+            - self.w_energy * energy                      # be efficient
+            - self.w_action_rate * action_rate            # be smooth
+        )
+
+        # -- gait-quality shaping (all weights default 0 -> no-op) -----------
+        con_l, con_r = self._foot_contacts()
+        touchdown_air = 0.0   # summed swing durations of feet that just landed
+        for f, con in enumerate((con_l, con_r)):
+            if con:
+                if self._air_time[f] > 0.0:
+                    touchdown_air += self._air_time[f]
+                    # legged_gym-style: on touchdown, reward the swing duration,
+                    # capped at air_time_target (no hopping incentive), minus a
+                    # baseline of half the target so quick shuffle taps score
+                    # *negative* -- the gradient pushes toward deliberate swings.
+                    reward += self.w_feet_air * (
+                        min(self._air_time[f], self.air_time_target)
+                        - 0.5 * self.air_time_target)
+                self._air_time[f] = 0.0
+            else:
+                self._air_time[f] += self.control_dt
+        single_support = con_l != con_r
+        double_support = con_l and con_r
+        if self.w_single_support:
+            reward += self.w_single_support * float(single_support)
+        if self.w_lateral:      # walk straight: lateral speed + sideways drift
+            reward -= self.w_lateral * (abs(float(d.qvel[1]))
+                                        + 0.5 * abs(float(d.qpos[1])))
+        if self.w_yaw:          # face +x: heading error + yaw rate
+            qw, qx, qy, qz = d.qpos[3:7]
+            yaw = np.arctan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
+            reward -= self.w_yaw * (abs(float(yaw)) + 0.1 * abs(float(d.qvel[5])))
+        if self.w_pitch_rate:   # calm torso: roll + pitch angular rates
+            reward -= self.w_pitch_rate * (abs(float(d.qvel[3]))
+                                           + abs(float(d.qvel[4])))
+
+        self._prev_action[:] = action
+        self._step_i += 1
+
+        terminated = (height < 0.18) or (up_z < 0.4)
+        truncated = self._step_i >= self.max_steps
+        if terminated:
+            reward -= self.fall_cost
+
+        info = {"fwd_vel": fwd_vel, "height": height, "up_z": up_z, "x": x_after,
+                "double_support": double_support, "single_support": single_support,
+                "touchdown_air": touchdown_air}
+        return self._obs(), float(reward), terminated, truncated, info
+
+    def render(self):
+        if self.render_mode != "rgb_array":
+            return None
+        if self._renderer is not None and self._terrain_dirty:
+            # hfield data changed since the renderer uploaded it to the GPU --
+            # recreate the renderer so the drawn terrain matches the physics.
+            self._renderer.close()
+            self._renderer = None
+        if self._renderer is None:
+            self._renderer = mujoco.Renderer(self.model, height=480, width=640)
+            self._terrain_dirty = False
+        cam = mujoco.MjvCamera()
+        mujoco.mjv_defaultCamera(cam)
+        ground = self._ground_z(float(self.data.qpos[0]), 0.0)
+        cam.lookat[:] = [float(self.data.qpos[0]), 0.0, 0.14 + ground]
+        cam.distance, cam.azimuth, cam.elevation = 0.9, 135, -12
+        self._renderer.update_scene(self.data, cam)
+        return self._renderer.render()
+
+    def close(self):
+        if self._renderer is not None:
+            self._renderer.close()
+            self._renderer = None

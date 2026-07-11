@@ -1,0 +1,101 @@
+<mujoco model="bimo_like_biped_v2">
+  <!-- PROPOSED update matching the realized CAD (cad/parts.py, cad/dimensions.py).
+       Differences vs bimo_biped.xml (v1):
+         1. Torso center 0.280 -> 0.283 m (ankle axis is 16.9 mm above ground:
+            the STS3215 lies on its side in the foot, axis at half its 24.72 mm
+            width above the pocket floor; v1 assumed 14 mm).
+         2. Foot sole 96 x 52 x 8 mm, center 10 mm ahead of the ankle
+            (v1: 84 x 48 x 12 at +12) - matches the printed foot + TPU pad.
+         3. Head geom removed: no head is built; electronics tower stays within
+            the torso box envelope. Its mass is folded into the torso.
+         4. Explicit masses from the CAD mass rollup + measured servo mass
+            (55 g each), instead of tuned densities:
+              torso 344 g (pelvis+tower prints, 2 roll servos, 2S LiPo 110 g,
+                           driver board 20 g, wiring/screws)
+              hip link 29 g (yoke_roll + yoke_pitch + screws)
+              thigh/shin 77 g each (servo + leg_link + screws)
+              foot 91 g (servo + foot print + TPU pad + screws)
+            Total 0.879 kg (v1: 0.93 kg).
+         5. Joint offsets unchanged: hip-roll -36, roll->pitch 50, thigh 90,
+            shin 90 (all confirmed buildable with the real servo dimensions).
+       Joint ranges and actuator model unchanged. -->
+  <compiler angle="degree" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+
+  <visual>
+    <global offwidth="900" offheight="1100"/>
+    <headlight diffuse="0.7 0.7 0.7" ambient="0.35 0.35 0.35"/>
+  </visual>
+
+  <default>
+    <joint type="hinge" damping="0.6" armature="0.008" frictionloss="0.02" limited="true"/>
+    <position kp="40" forcerange="-3 3"/>          <!-- STS3215 ~2.9 N*m stall -->
+    <geom contype="0" conaffinity="0"/>            <!-- internal parts don't self-collide -->
+  </default>
+
+  <worldbody>
+    <light pos="0.6 0.4 1.5" dir="-0.4 -0.3 -1" directional="true"/>
+    <geom name="floor" type="plane" size="3 3 0.1" contype="1" conaffinity="1"
+          rgba="0.83 0.86 0.90 1" friction="1 0.02 0.001"/>
+
+    <body name="torso" pos="0 0 0.283">
+      <freejoint/>
+      <geom name="torso" type="box" size="0.023 0.052 0.036" mass="0.344" rgba="0.80 0.82 0.85 1"/>
+      <site name="imu" pos="0 0 0"/>
+
+      <!-- ================= LEFT LEG ================= -->
+      <body name="L_hip" pos="0 0.028 -0.036">
+        <joint name="L_hip_roll" axis="1 0 0" range="-25 25"/>
+        <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1"/>
+        <body name="L_thigh" pos="0 0 -0.05">
+          <joint name="L_hip_pitch" axis="0 1 0" range="-60 60"/>
+          <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1"/>
+          <body name="L_shin" pos="0 0 -0.09">
+            <joint name="L_knee" axis="0 1 0" range="-95 5"/>
+            <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1"/>
+            <body name="L_foot" pos="0 0 -0.09">
+              <joint name="L_ankle" axis="0 1 0" range="-40 40"/>
+              <geom name="L_sole" type="box" pos="0.010 0 -0.0129" size="0.048 0.026 0.004"
+                    contype="1" conaffinity="1" mass="0.091" rgba="0.75 0.77 0.80 1" friction="1 0.02 0.001"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- ================= RIGHT LEG ================= -->
+      <body name="R_hip" pos="0 -0.028 -0.036">
+        <joint name="R_hip_roll" axis="1 0 0" range="-25 25"/>
+        <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1"/>
+        <body name="R_thigh" pos="0 0 -0.05">
+          <joint name="R_hip_pitch" axis="0 1 0" range="-60 60"/>
+          <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1"/>
+          <body name="R_shin" pos="0 0 -0.09">
+            <joint name="R_knee" axis="0 1 0" range="-95 5"/>
+            <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1"/>
+            <body name="R_foot" pos="0 0 -0.09">
+              <joint name="R_ankle" axis="0 1 0" range="-40 40"/>
+              <geom name="R_sole" type="box" pos="0.010 0 -0.0129" size="0.048 0.026 0.004"
+                    contype="1" conaffinity="1" mass="0.091" rgba="0.75 0.77 0.80 1" friction="1 0.02 0.001"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="L_hip_roll"  joint="L_hip_roll"/>
+    <position name="L_hip_pitch" joint="L_hip_pitch"/>
+    <position name="L_knee"      joint="L_knee"/>
+    <position name="L_ankle"     joint="L_ankle"/>
+    <position name="R_hip_roll"  joint="R_hip_roll"/>
+    <position name="R_hip_pitch" joint="R_hip_pitch"/>
+    <position name="R_knee"      joint="R_knee"/>
+    <position name="R_ankle"     joint="R_ankle"/>
+  </actuator>
+
+  <sensor>
+    <framezaxis objtype="site" objname="imu" name="torso_up"/>
+    <framepos   objtype="site" objname="imu" name="torso_pos"/>
+  </sensor>
+</mujoco>

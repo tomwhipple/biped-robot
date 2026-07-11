@@ -1,0 +1,18 @@
+# Python venv (direnv-activated)
+.venv/
+__pycache__/
+*.pyc
+
+# Local env / secrets
+.env
+
+# Training artifacts (keep the published report page)
+sim/runs/*
+!sim/runs/night_summary.html
+
+# macOS
+.DS_Store
+
+# OpenSCAD/MuJoCo scratch renders written next to scripts
+sim/*.gif
+sim/*.png
