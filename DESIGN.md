@@ -553,6 +553,56 @@ obs the sim models with estimator error), or more payload-focused training
 (fixed-154 g fine-tune / wider DR). Either way this run moves sim-to-real
 from "impossible obs" to "one weak column."
 
+### Command-conditioned locomotion: stop solved, turn partial (2026-07-12)
+
+Directive: the robot must do more than run straight — it must stop and turn.
+The dash objective was retired for `command_mode`: the policy observes a
+commanded (forward velocity, yaw rate) — resampled every 2.5–4.5 s within
+episodes, 30 % stand commands, 15 % pivot-in-place — and is rewarded through
+exp tracking kernels (legged_gym-style). This removes the terminal-finish
+structure that all three dash_stop exploits fed on: stopping is practiced
+continuously from the first minute of training. All runs on the
+hardware-realizable observation set (obs 38 = encoders + noisy IMU + the
+2 command channels). `set_command()` is the hook for scenario evals and the
+future goal-seeking/teleop layers.
+
+Iteration log (each committed):
+1. *Eval harness bug*: raw commands written into VecNormalize-normalized
+   obs — a stand command read as "walk at the mean speed". The first "0/8
+   everywhere" was the harness, not the policy.
+2. *Yaw bias*: the identical-parts legs (every horn +Y) walk with a free
+   left yaw (+0.6 rad/s); at w_track_w=1 the policy paid the tracking tax
+   and kept it. Rebalanced to 2.0, kernel σ 0.5→0.4.
+3. *Missing pivots*: the command sampler never issued (v=0, w≠0); with no
+   hip-yaw joint, pivoting is this morphology's easiest turn. Now 15 % of
+   commands.
+
+**Capability matrix — `cmd_11v1c` (flat, from scratch, 14M):**
+
+| scenario | result |
+|---|---|
+| stand 8 s on command | **8/8, 4 cm drift** (also 8/8 hardened w/ GoPro + 4 ms latency) |
+| stop from walking | works at moderate speed; the 0.8 m/s scenario falls *pre-line* (sustained near-max commands are the fragility, not braking) |
+| pivot in place | both signs correct: +36°/−18° per 3 s commanded ±86° (≈0.21 / 0.10 rad/s authority — left cheap, right fights the gait bias) |
+| turn while walking | left only (+38°); right ≈ 0 |
+| velocity tracking | clean at ≤0.6 m/s (probe: cmd 0.6 → 0.55) |
+
+**The stop problem is solved** — as a *skill*: zero-command standing is
+rock-solid from any start, including under full DR. What failed overnight
+as a terminal objective fell out of the command formulation in one training
+run.
+
+**Honest regressions/opens:** (1) the DR hardening stage
+(`cmd_11v1c_hard`) collapsed walking (1/16 survive 10 s, 67 % double
+support) while making standing bulletproof — under DR, standing is the
+safest reward source and the policy retreated to it; command-mode hardening
+needs a curriculum (terrain/payload ramp) or DR-scaled tracking weights.
+(2) Right-turn authority is ~half of left — morphological; options are a
+mirrored horn on one leg (mechanical) or letting the future goal-seeking
+planner cost turns asymmetrically. (3) Sustained near-max speed commands
+topple the policy; either train longer holds or cap the command envelope in
+deployment. Videos: dash_stop/turn/pivot .gif/.mov in both run dirs.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

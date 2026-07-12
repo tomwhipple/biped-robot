@@ -287,13 +287,21 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       GoPro fixed at 154 g</b> — the realizable policy's one weak column.
       Fix candidates: an on-ESP32 velocity estimator fed as an observation,
       or payload-focused training.</li>
-      <li><b>Stop-and-stand is an open problem:</b> three from-scratch
-      attempts each found a new reward exploit (loiter past the line;
-      sprint-and-dive; slow-approach-then-fall) — all documented in
-      DESIGN.md with the shaping fixes that closed the first two. Halting a
-      biped is a capture-step skill this curriculum doesn't teach; next
-      lever is reference-state initialization near the line, plus the same
-      velocity estimate.</li>
+      <li><s><b>Stop-and-stand is an open problem.</b></s> <b>Solved</b> — by
+      changing the question. Three dash_stop attempts each found a new
+      reward exploit (all documented in DESIGN.md); the fix was retiring the
+      finish-line structure for <b>command-conditioned locomotion</b>
+      (track a commanded velocity + yaw rate, where zero = stand). The
+      command policy stands on command 8/8 with ~4 cm drift, from any
+      start, even hardened with GoPro + latency. It also gives first
+      <b>turning</b> capability: pivots track both directions
+      (≈0.2 rad/s left / 0.1 right — the identical-parts gait turns left
+      for free), walking turns left-only so far.</li>
+      <li><b>Command-mode opens:</b> DR hardening collapsed <i>walking</i>
+      (the policy retreats to standing, the safest reward under DR) — needs
+      a difficulty curriculum; sustained near-max speed commands topple it;
+      right-turn authority is half of left (morphological: consider a
+      mirrored horn, or plan asymmetric turns).</li>
       <li><b>The 11.1 V gait still jogs</b> (flight phase); the grounded 7.4 V
       gait is the more sim-to-real-plausible first candidate.</li>
       <li><b>Repeated shoves</b> remain unsolved (unchanged from day 1).</li>
