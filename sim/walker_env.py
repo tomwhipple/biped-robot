@@ -134,6 +134,13 @@ class BimoWalkerEnv(gym.Env):
         # forward reward flips to a brake-and-stand term and the gait-shaping
         # bonuses (feet-air, single-support) switch off.
         stand_speed: float = 0.15,     # m/s planar speed that counts as standing
+        w_time_stop: float = 1.5,      # EXTRA per-step time penalty once the
+        # line is crossed (dash_stop only). Sized to beat the ~1.1/step that
+        # alive+upright farm: without it, loitering past the line to
+        # truncation out-earns the finish bonus (observed: dash_11v1_real
+        # crossed then walked circles for 7 s, 0/16). With it, every
+        # non-finishing post-cross step is net-negative and confirming the
+        # stand ASAP is the only profitable move.
         w_time: float = 0.0,           # per-step time penalty (dash urgency)
         finish_bonus: float = 0.0,     # one-off reward on a confirmed finish
         # -- procedural terrain (0.0 -> original flat plane) --------------------
@@ -264,6 +271,7 @@ class BimoWalkerEnv(gym.Env):
         self.dash_hold = dash_hold
         self.dash_stop = dash_stop
         self.stand_speed = stand_speed
+        self.w_time_stop = w_time_stop
         self.w_time = w_time
         self.finish_bonus = finish_bonus
 
@@ -596,9 +604,14 @@ class BimoWalkerEnv(gym.Env):
         if braking:
             planar = float(np.hypot(d.qvel[0], d.qvel[1]))
             cap = 1.0 if self.target_speed is None else self.target_speed
-            primary = self.w_forward * max(0.0, cap - planar)
+            # sharp ramp: full credit only near standstill, zero above
+            # 3x stand_speed -- "slow walking" earns (almost) nothing
+            primary = self.w_forward * cap * float(
+                np.clip(1.0 - planar / (3.0 * self.stand_speed), 0.0, 1.0))
+            reward_time_stop = self.w_time_stop
         else:
             primary = self.w_forward * fwd_term
+            reward_time_stop = 0.0
 
         reward = (
             primary                                       # go forward / brake
@@ -607,6 +620,7 @@ class BimoWalkerEnv(gym.Env):
             - self.w_height * abs(height - self._nominal_h)  # hold posture
             - self.w_energy * energy                      # be efficient
             - self.w_action_rate * action_rate            # be smooth
+            - reward_time_stop                            # post-cross urgency
         )
 
         # -- gait-quality shaping (all weights default 0 -> no-op) -----------

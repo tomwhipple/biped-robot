@@ -66,6 +66,9 @@ def main():
                         "zeroed, IMU noise/bias DR on up-vector + gyro")
     p.add_argument("--imu-noise", type=float, default=1.0,
                    help="scale on the IMU misalignment/bias/noise DR")
+    p.add_argument("--w-time-stop", type=float, default=1.5,
+                   help="extra per-step penalty after crossing (dash_stop): "
+                        "makes loitering past the line net-negative")
     p.add_argument("--w-time", type=float, default=0.0,
                    help="per-step time penalty (dash urgency)")
     p.add_argument("--finish-bonus", type=float, default=0.0,
@@ -140,7 +143,8 @@ def main():
         payload_mass=args.payload, payload_max=args.payload_max,
         dash=args.dash, dash_stop=args.dash_stop,
         imu_obs=args.imu_obs, imu_noise=args.imu_noise,
-        w_time=args.w_time, finish_bonus=args.finish_bonus,
+        w_time=args.w_time, w_time_stop=args.w_time_stop,
+        finish_bonus=args.finish_bonus,
         w_forward=args.w_forward, target_speed=args.target_speed,
         w_upright=args.w_upright, alive_bonus=args.alive, w_height=args.w_height,
         w_energy=args.w_energy, w_action_rate=args.w_action_rate,
