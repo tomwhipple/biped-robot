@@ -271,10 +271,13 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <h2><span class="n">05</span> Open items</h2>
   <div class="card accent">
     <ul class="plain" style="margin:0">
-      <li><b>Control latency:</b> the pessimistic whole-step (20 ms) delay test
-      broke both policies; sub-step modeling + latency-DR fine-tunes exist on
-      disk (dash_11v1_hardlat: 16/16, median 2.72 s at 4 ms latency + GoPro on
-      the 3S-inertia model) — final write-up still owed.</li>
+      <li><s><b>Control latency</b> — the day-3 top risk.</s> Closed: the 0/16
+      collapse was an artifact of a doubled whole-step delay; with sub-step
+      modeling, realistic 2–5 ms latency barely registers. Latency-DR
+      fine-tunes (<b>dash_11v1_hardlat</b>: 30/32, median 2.72 s at 4 ms +
+      GoPro; <b>dash_7v4_hardlat</b>: 32/32, 4.50 s) push the cliff to
+      ~10–14 ms — beyond that it's a firmware call (run the loop on the
+      ESP32), not a training problem. Details in DESIGN.md §sub-step latency.</li>
       <li><s><b>2S or 3S</b> — the battery-bay decision above.</s> Decided: 3S,
       bay reworked for tool-free swap, order unblocked.</li>
       <li><b>The 11.1 V gait still jogs</b> (flight phase); the grounded 7.4 V

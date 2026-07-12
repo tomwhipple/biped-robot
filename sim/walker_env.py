@@ -142,6 +142,16 @@ class BimoWalkerEnv(gym.Env):
         friction_range: float = 0.4,   # floor sliding friction scale +/- this
         gain_range: float = 0.2,       # actuator kp scale +/- this
         action_latency: int = 0,       # control-step delay on applied action
+        # -- sub-step action latency: real bus/control latency is a few ms, far
+        # finer than the 20 ms control step (the coarse action_latency above).
+        # The first round(latency_ms / sim_dt) physics substeps of each control
+        # step run with the PREVIOUS target still applied, then the new target
+        # takes over. Composes with action_latency for delays > one step.
+        latency_ms: float = 0.0,       # fixed sub-step latency, 0..20 ms
+        latency_ms_max: float | None = None,  # if set, per-episode latency is
+        # drawn uniform(latency_ms, latency_ms_max) -- built-in latency DR
+        latency_jitter_ms: float = 0.0,  # per-control-step +/- jitter around
+        # the episode latency (real bus timing is not constant)
         push_prob: float | None = None,  # per-control-step shove chance (None=auto w/ DR)
         push_force: float | None = None, # shove magnitude (N); 0 disables, None=auto w/ DR
     ):
@@ -170,6 +180,9 @@ class BimoWalkerEnv(gym.Env):
         # Shoves: auto-enable a *gentle* default with DR unless set explicitly.
         # None => auto; an explicit 0 disables (distinct from "unset").
         self.action_latency = action_latency
+        self.latency_ms = latency_ms
+        self.latency_ms_max = latency_ms_max
+        self.latency_jitter_ms = latency_jitter_ms
         self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
         self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
         self.payload_mass = payload_mass
@@ -435,6 +448,15 @@ class BimoWalkerEnv(gym.Env):
         self._prev_action[:] = 0.0
         # action-latency buffer: past ctrl targets, applied `action_latency` steps late
         self._ctrl_buf = [self._default.copy() for _ in range(self.action_latency + 1)]
+        # sub-step latency: per-episode draw (only draws RNG when enabled, so
+        # disabled runs consume the identical random stream as before) and the
+        # target that was in force before this control step (= stand at reset)
+        if self.latency_ms_max is not None:
+            self._lat_ms_ep = float(self.np_random.uniform(self.latency_ms,
+                                                           self.latency_ms_max))
+        else:
+            self._lat_ms_ep = self.latency_ms
+        self._last_target = self._default.copy()
         self._air_time[:] = 0.0
         self._servo_tau[:] = 0.0
         self._cross_t = None    # dash: time the torso first crossed dash_distance
@@ -457,8 +479,20 @@ class BimoWalkerEnv(gym.Env):
             self.data.xfrc_applied[self._torso_bid, 0] = self.push_force * np.cos(ang)
             self.data.xfrc_applied[self._torso_bid, 1] = self.push_force * np.sin(ang)
 
+        # Sub-step latency: the first lat_k substeps still run on the previous
+        # control target (lat_k = 0 when the feature is off -> path identical).
+        lat_k = 0
+        if self._lat_ms_ep > 0.0 or self.latency_jitter_ms > 0.0:
+            ms = self._lat_ms_ep
+            if self.latency_jitter_ms > 0.0:
+                ms += self.np_random.uniform(-self.latency_jitter_ms,
+                                             self.latency_jitter_ms)
+            ms = float(np.clip(ms, 0.0, self.control_dt * 1000.0))
+            lat_k = min(int(round(ms / (self.sim_dt * 1000.0))), self.n_substeps)
+
         x_before = float(self.data.qpos[0])
-        for _ in range(self.n_substeps):
+        for i in range(self.n_substeps):
+            cur = self._last_target if i < lat_k else target
             if self._servo is not None:
                 # PD on the commanded angle, clamped each substep to the
                 # DC-motor torque-speed envelope (linear stall -> no-load).
@@ -466,9 +500,14 @@ class BimoWalkerEnv(gym.Env):
                 q = self.data.qpos[_JQPOS]
                 qd = self.data.qvel[_JQVEL]
                 cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
-                self._servo_tau = np.clip(kp * (target - q) - kd * qd, -cap, cap)
+                self._servo_tau = np.clip(kp * (cur - q) - kd * qd, -cap, cap)
                 self.data.qfrc_applied[_JQVEL] = self._servo_tau
+            elif lat_k:
+                # ideal position actuators read data.ctrl -- hold the previous
+                # target for the first lat_k substeps, then switch
+                self.data.ctrl[:] = cur
             mujoco.mj_step(self.model, self.data)
+        self._last_target = target
         x_after = float(self.data.qpos[0])
 
         d = self.data

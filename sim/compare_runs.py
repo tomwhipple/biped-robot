@@ -21,13 +21,17 @@ RUNS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
 
 
 def eval_run(run_dir, episodes, dr=False, terrain=0.0, terrain_smoothness=0.15,
-             fixed_payload=None, **overrides):
+             fixed_payload=None, fixed_latency_ms=None, **overrides):
     # plant config (xml/actuator/dash) follows the run's env_config.json --
     # old runs on the old xml + ideal actuators, new runs on what they trained on
     env_kwargs = run_env_kwargs(run_dir, **overrides)
     if fixed_payload is not None:     # fixed-payload eval: kill any random draw
         env_kwargs["payload_mass"] = fixed_payload
         env_kwargs["payload_max"] = None
+    if fixed_latency_ms is not None:  # fixed-latency eval: kill any random draw
+        env_kwargs["latency_ms"] = fixed_latency_ms
+        env_kwargs["latency_ms_max"] = None
+        env_kwargs["latency_jitter_ms"] = 0.0
     env = DummyVecEnv([lambda: BimoWalkerEnv(
         domain_rand=dr, action_latency=1 if dr else 0,
         terrain_amplitude=terrain, terrain_smoothness=terrain_smoothness,
@@ -116,6 +120,8 @@ def main():
                    help="override servo supply voltage for all runs")
     p.add_argument("--payload", type=float, default=None,
                    help="evaluate all runs with this FIXED payload mass (kg)")
+    p.add_argument("--latency-ms", type=float, default=None,
+                   help="evaluate all runs with this FIXED sub-step latency (ms)")
     args = p.parse_args()
     xml = args.xml
     if xml and not os.path.isabs(xml):
@@ -147,7 +153,8 @@ def main():
         r = eval_run(os.path.join(RUNS, name), args.episodes, dr=args.dr,
                      terrain=args.terrain_amplitude,
                      terrain_smoothness=args.terrain_smoothness,
-                     fixed_payload=args.payload, **overrides)
+                     fixed_payload=args.payload,
+                     fixed_latency_ms=args.latency_ms, **overrides)
         dash_col = (f" {r['dash_wins']:2d}/{r['episodes']:<3d} "
                     f"{r['dash_med']:5.2f}s {r['dash_best']:5.2f}s") if args.dash else ""
         print(f"{name:16s} {r['length']:5.0f}/{r['max_steps']:<4d} "

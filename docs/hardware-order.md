@@ -2,8 +2,8 @@
 
 *Status 2026-07-11. Goal: everything needed for the first physical build.
 Sim validation state: gaits verified under real STS3215 torque limits at both
-battery voltages; sub-step control-latency validation in progress (worst case
-changes firmware plans, not this parts list).*
+battery voltages; sub-step control-latency validated and hardened (DESIGN.md
+§sub-step latency) — nothing on this parts list changed.*
 
 ## ✅ DECIDED 2026-07-11: 3S (11.1 V)
 
@@ -23,7 +23,7 @@ GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 - **Sim**: torso inertia rebuilt for the 3S pack (78 g vs the old 110 g 2S
   estimate, correct orientation); dash policies re-evaluated on the updated
   model: `dash_11v1_hard` 16/16 confirmed finishes, median 2.67 s (GoPro on);
-  `dash_11v1_hardlat` 16/16, median 2.72 s (GoPro + 4 ms latency).
+  `dash_11v1_hardlat` 30/32, median 2.72 s (GoPro + 4 ms latency).
 - 2S remains a fallback: everything still runs at 7.4 V, policies exist for it.
 
 ## Bill of materials
@@ -96,11 +96,13 @@ diagram, servo ID map, current budget, and bring-up checklist:
 driver board; one 3-pin bus daisy-chained per leg (IDs 1–4 left, 5–8 right,
 matching the sim's action order); GoPro unpowered by the robot.
 
-## What the in-flight latency work validates
+## Latency: closed ✅ (was the last open architecture assumption)
 
-The serial-bus control loop (laptop → ESP32 driver → 8-servo daisy chain at
-50 Hz) is the one architecture assumption not yet closed: policies trained
-before sub-step latency modeling failed under a full 20 ms delay. Real bus
-latency is ~2–5 ms; the current sim run measures the true cliff and hardens
-the policies. Worst case it changes *where the control loop runs* (the ESP32
-already in the BOM can run it closer to the metal) — not what to buy.
+The serial-bus control loop (ESP32 driver → 8-servo daisy chain at 50 Hz) is
+validated: sub-step latency modeling found the real cliff (the earlier 0/16
+collapse was a doubled whole-step-delay artifact), and latency-DR fine-tunes
+(`dash_11v1_hardlat` 30/32 @ 2.72 s with GoPro + 4 ms; `dash_7v4_hardlat`
+32/32 @ 4.50 s) hold to ~10–14 ms — 2–3× the expected 2–5 ms bus latency.
+Firmware plan of record: run the 50 Hz loop **on the ESP32** (already in the
+BOM) rather than round-tripping through USB/WiFi. Nothing to buy either way.
+Full sweep tables: DESIGN.md §sub-step latency.

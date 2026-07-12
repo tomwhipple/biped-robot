@@ -354,16 +354,80 @@ on terrain, but the camera+terrain combination drops to 12/16: at 7.4 V the
 envelope leaves little margin, so treat 2S+camera+rough ground as the design's
 edge. (Speed-only alternative: `dash_11v1` for a clean-floor demo.)
 
-**Open questions:** (1) *Action latency*: both hardened policies drop to 0/16
-with one control step (20 ms) of action delay, and a 5M-step latency-DR
-fine-tune (`dash_11v1_lat1`) did not fix it (it kept its no-latency skill,
-16/16 @ 2.90 s, but still 0/16 with delay) — same lesson as shaped_v3: latency
-must enter the curriculum from scratch, not by fine-tune. Note 20 ms is
-pessimistic (whole-control-step quantization; the real 1 Mbps bus + 50 Hz loop
-is ~2-5 ms), so the right next step is sub-step latency modeling in the env
-before concluding the robot needs it. (2) Repeated shoves remain unsolved
+**Open questions:** (1) *Action latency* — resolved by sub-step latency
+modeling, see the next section. (2) Repeated shoves remain unsolved
 (unchanged). (3) The 11.1 V gait still has a flight phase; the 7.4 V gait is
 the more sim-to-real-plausible one to try first on hardware.
+
+### Sub-step action latency: the cliff, located and hardened (2026-07-11)
+
+The first latency result above ("0/16 with one 20 ms control step of delay",
+and a failed whole-step latency fine-tune `dash_11v1_lat1`) turned out to be
+doubly pessimistic. First, the coarse `action_latency` knob has a pre-existing
+off-by-one — its delay buffer is initialized with `latency+1` entries and
+appends before popping, so **`action_latency=1` is really a 40 ms (two-step)
+delay** (kept as-is for old-run reproducibility; use `latency_ms` instead).
+Second, real latency on this robot (1 Mbps serial bus + 50 Hz loop) is ~2-5 ms,
+far below one control step.
+
+**Env:** new `latency_ms` (float, 0-20): the first `round(latency_ms / 2 ms)`
+physics substeps of each control step run with the *previous* target still
+applied, then the new one takes over. Verified: default 0 is bit-exact with
+old behavior; `latency_ms=20` is physics-identical to an exact one-step delay.
+`latency_ms_max` draws per-episode latency uniform(latency_ms, max) — built-in
+latency DR; `latency_jitter_ms` adds per-control-step +/- jitter (bus timing
+isn't constant). Composes with `action_latency` for delays > 20 ms. Train
+flags `--latency-ms/--latency-ms-max/--latency-jitter-ms`; eval override
+`--latency-ms` in eval_policy/compare_runs.
+
+**Zero-shot latency sweep** (16 eps, confirmed finishes / median t2m, flat,
+no payload):
+
+| latency | dash_11v1_hard | dash_7v4_hard |
+|---|---|---|
+| 0 ms | 16/16, 2.70 s | 16/16, 4.36 s |
+| 2 ms | 16/16, 2.70 s | 16/16, 4.40 s |
+| 4 ms | 16/16, 2.74 s | 16/16, 4.42 s |
+| 6 ms | 11/16, 2.84 s | 16/16, 4.45 s |
+| 10 ms | 0/16 | 9/16, 4.68 s |
+| 14 ms | 0/16 | 4/16, 4.89 s |
+| 20 ms | 0/16 | 0/16 |
+
+So the fragility was largely an artifact of the coarse, doubled step delay: at
+realistic 2-5 ms both policies are essentially unaffected. The slower 7.4 V
+gait tolerates ~2x the delay of the 11.1 V jog, as expected. The 11.1 V cliff
+(6-10 ms) still sat uncomfortably close to reality, so both policies got a
+latency-DR fine-tune (per-episode uniform 0-10 ms + 1 ms per-step jitter, full
+payload/terrain/model-error DR stack retained, lr 5e-5, 6M steps) ->
+`dash_11v1_hardlat` / `dash_7v4_hardlat`. This time the warm start *worked* —
+unlike the whole-step attempt, 0-10 ms of smooth sub-step delay is close
+enough to the parent's regime to adapt to rather than restructure around.
+Same sweep on the hardened pair (16 eps; these and all numbers below are on
+the updated 3S-inertia model):
+
+| latency | dash_11v1_hardlat | dash_7v4_hardlat |
+|---|---|---|
+| 0 ms | 16/16, 2.92 s | 16/16, 4.43 s |
+| 4 ms | 16/16, 2.84 s | 16/16, 4.38 s |
+| 6 ms | 16/16, 2.87 s | 16/16, 4.43 s |
+| 10 ms | 10/16, 2.95 s | 13/16, 4.54 s |
+| 14 ms | 0/16 | 9/16, 4.90 s |
+| 20 ms | 0/16 | 1/16, 5.26 s |
+
+The cliff moved out by roughly a control-tick's worth at both voltages
+(11.1 V: failing at 10 ms -> failing at 14; 7.4 V: marginal at 10 ms -> still
+walking at 14), for a small flat-out speed tax vs the parents (2.92 s vs
+2.70 s at zero latency). Headline check at the realistic operating point,
+GoPro mounted, 4 ms latency, 32 episodes: **dash_11v1_hardlat 30/32, median
+2.72 s; dash_7v4_hardlat 32/32, median 4.50 s.**
+
+**Verdict for hardware:** at the expected 2-5 ms bus latency every current
+policy works; ship the `hardlat` pair for ~2x margin. The residual exposure
+is a control path slower than ~10 ms — which is a firmware decision, not a
+training one: run the 50 Hz loop on the ESP32 next to the 1 Mbaud bus rather
+than round-tripping through USB/WiFi (docs/wiring.md quantifies why: an
+8-servo command + readback cycle at 115200 baud eats most of a 20 ms tick on
+its own). No parts change either way.
 
 ## 6. Design parameters (source of truth)
 

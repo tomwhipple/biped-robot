@@ -101,6 +101,12 @@ def main():
     p.add_argument("--domain-rand", action="store_true",
                    help="randomize mass/friction/gain + shoves each episode")
     p.add_argument("--action-latency", type=int, default=0, help="control-step action delay")
+    p.add_argument("--latency-ms", type=float, default=0.0,
+                   help="sub-step action latency in ms (0..20; real bus is ~2-5)")
+    p.add_argument("--latency-ms-max", type=float, default=None,
+                   help="per-episode latency drawn uniform(latency-ms, this) -- latency DR")
+    p.add_argument("--latency-jitter-ms", type=float, default=0.0,
+                   help="per-control-step latency jitter, +/- this many ms")
     p.add_argument("--push-force", type=float, default=None,
                    help="shove magnitude N; 0 disables shoves (None=auto with DR)")
     p.add_argument("--push-prob", type=float, default=None,
@@ -136,6 +142,8 @@ def main():
         terrain_smoothness=args.terrain_smoothness,
         terrain_amplitude_min=args.terrain_amplitude_min,
         domain_rand=args.domain_rand, action_latency=args.action_latency,
+        latency_ms=args.latency_ms, latency_ms_max=args.latency_ms_max,
+        latency_jitter_ms=args.latency_jitter_ms,
         push_force=args.push_force, push_prob=args.push_prob,
     )
     print("env config:", env_kwargs)

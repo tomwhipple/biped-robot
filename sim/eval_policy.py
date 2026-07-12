@@ -77,6 +77,9 @@ def main():
     p.add_argument("--payload", type=float, default=None,
                    help="evaluate with this FIXED torso-top payload mass (kg), "
                         "overriding the run's payload config (e.g. 0 or 0.154)")
+    p.add_argument("--latency-ms", type=float, default=None,
+                   help="evaluate with this FIXED sub-step action latency (ms), "
+                        "overriding any latency DR in the run's config")
     p.add_argument("--gif-name", default="walk.gif",
                    help="output gif filename (under the run dir)")
     args = p.parse_args()
@@ -94,6 +97,10 @@ def main():
     if args.payload is not None:      # fixed-payload eval: kill any random draw
         env_kwargs["payload_mass"] = args.payload
         env_kwargs["payload_max"] = None
+    if args.latency_ms is not None:   # fixed-latency eval: kill any random draw
+        env_kwargs["latency_ms"] = args.latency_ms
+        env_kwargs["latency_ms_max"] = None
+        env_kwargs["latency_jitter_ms"] = 0.0
     print("eval env:", env_kwargs or "(original defaults)")
     model, env = load(run_dir, render_mode="rgb_array" if args.render else None,
                       terrain_amplitude=args.terrain_amplitude,
