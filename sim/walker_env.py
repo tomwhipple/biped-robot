@@ -504,9 +504,17 @@ class BimoWalkerEnv(gym.Env):
         return np.concatenate(parts).astype(np.float32)
 
     def _sample_command(self):
-        """New (vx, yaw-rate) command; 'stand still' with cmd_stand_prob."""
-        if self.np_random.uniform() < self.cmd_stand_prob:
+        """New (vx, yaw-rate) command. Mix: stand / pivot-in-place / walk
+        (straight or turning). Pivot commands matter: with no hip-yaw joint,
+        pivoting is this morphology's easiest turn -- leaving it out of the
+        training distribution left cmd_11v1/b unable to track yaw at all."""
+        u = float(self.np_random.uniform())
+        if u < self.cmd_stand_prob:
             self._cmd = np.zeros(2)
+        elif u < self.cmd_stand_prob + 0.15:
+            w = float(self.np_random.uniform(0.3, self.cmd_w_range))
+            self._cmd = np.array([0.0, w if self.np_random.uniform() < 0.5
+                                  else -w])
         else:
             v = float(self.np_random.uniform(*self.cmd_v_range))
             w = (float(self.np_random.uniform(-self.cmd_w_range,

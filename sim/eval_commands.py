@@ -74,6 +74,10 @@ def scen_turn(t, base):
     return (0.5, 0.8) if t < 3.0 else (0.5, -0.8)
 
 
+def scen_pivot(t, base):
+    return (0.0, 0.8) if t < 3.0 else (0.0, -0.8)
+
+
 def scen_stand(t, base):
     return (0.0, 0.0)
 
@@ -121,27 +125,28 @@ def main():
           + (f"  t2m {np.median(t2m):.2f}s  brake {np.median(tstop):.2f}s"
              if tstop else ""))
 
-    # -- turn ---------------------------------------------------------------
-    wins, sweeps = 0, []
-    for ep in range(args.episodes):
-        trace, frames = rollout(model, env, scen_turn, max_s=6.0,
-                                render=args.render and ep == 0)
-        fell = trace[-1]["up_z"] < 0.4 or trace[-1]["height"] < 0.18
-        half = min(150, len(trace))
-        got_l = sum(s["wz"] for s in trace[:half]) * 0.02
-        got_r = sum(s["wz"] for s in trace[half:]) * 0.02
-        want_l = 0.8 * min(3.0, len(trace) * 0.02)
-        want_r = -0.8 * max(0.0, len(trace) * 0.02 - 3.0)
-        ok = (not fell and len(trace) * 0.02 > 5.5
-              and got_l >= 0.6 * want_l and got_r <= 0.6 * want_r)
-        wins += ok
-        sweeps.append((np.degrees(got_l), np.degrees(got_r)))
-        if args.render and ep == 0 and frames:
-            save(frames, run_dir, "turn")
-    m = np.median(np.array(sweeps), axis=0)
-    print(f"  turn      : {wins}/{args.episodes} tracked both turns "
-          f"(median sweep {m[0]:+.0f} deg then {m[1]:+.0f} deg; "
-          f"commanded +137/-137)")
+    # -- turn / pivot ---------------------------------------------------------
+    for name, scen in (("turn", scen_turn), ("pivot", scen_pivot)):
+        wins, sweeps = 0, []
+        for ep in range(args.episodes):
+            trace, frames = rollout(model, env, scen, max_s=6.0,
+                                    render=args.render and ep == 0)
+            fell = trace[-1]["up_z"] < 0.4 or trace[-1]["height"] < 0.18
+            half = min(150, len(trace))
+            got_l = sum(s["wz"] for s in trace[:half]) * 0.02
+            got_r = sum(s["wz"] for s in trace[half:]) * 0.02
+            want_l = 0.8 * min(3.0, len(trace) * 0.02)
+            want_r = -0.8 * max(0.0, len(trace) * 0.02 - 3.0)
+            ok = (not fell and len(trace) * 0.02 > 5.5
+                  and got_l >= 0.6 * want_l and got_r <= 0.6 * want_r)
+            wins += ok
+            sweeps.append((np.degrees(got_l), np.degrees(got_r)))
+            if args.render and ep == 0 and frames:
+                save(frames, run_dir, name)
+        m = np.median(np.array(sweeps), axis=0)
+        print(f"  {name:9s} : {wins}/{args.episodes} tracked both ways "
+              f"(median sweep {m[0]:+.0f} deg then {m[1]:+.0f} deg; "
+              f"commanded +137/-137)")
 
     # -- stand --------------------------------------------------------------
     wins, drifts = 0, []
