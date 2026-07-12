@@ -55,6 +55,11 @@
   </default>
 
   <asset>
+    <!-- checker floor: the render camera tracks the torso, so an untextured
+         plane makes the dash look like running in place -->
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.87 0.89 0.92"
+             rgb2="0.77 0.80 0.85" width="512" height="512"/>
+    <material name="floor_mat" texture="grid" texrepeat="24 24" texuniform="true"/>
     <mesh name="pelvis"     file="pelvis.stl"     scale="0.001 0.001 0.001"/>
     <mesh name="tower"      file="tower.stl"      scale="0.001 0.001 0.001"/>
     <mesh name="gopro_base" file="gopro_base.stl" scale="0.001 0.001 0.001"/>
@@ -67,7 +72,7 @@
   <worldbody>
     <light pos="0.6 0.4 1.5" dir="-0.4 -0.3 -1" directional="true"/>
     <geom name="floor" type="plane" size="3 3 0.1" contype="1" conaffinity="3"
-          rgba="0.83 0.86 0.90 1" friction="1 0.02 0.001"/>
+          material="floor_mat" friction="1 0.02 0.001"/>
 
     <body name="torso" pos="0 0 0.283">
       <freejoint/>

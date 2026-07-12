@@ -310,9 +310,13 @@ class BimoWalkerEnv(gym.Env):
         asset = (f'<asset><hfield name="terrain" nrow="{_HF_NROW}" '
                  f'ncol="{_HF_NCOL}" size="{_HF_RX} {_HF_RY} {amplitude} 0.1"/>'
                  f'</asset>\n  ')
+        # keep the original floor's appearance (v2 has a checker material,
+        # v1 a plain rgba) so terrain runs give the same motion cues
+        orig = re.search(r'<geom name="floor"[^>]*?/>', xml, flags=re.S)
+        look = re.search(r'(material="[^"]+"|rgba="[^"]+")', orig.group(0)) if orig else None
         geom = (f'<geom name="floor" type="hfield" hfield="terrain" '
                 f'pos="{_HF_CX} 0 0" contype="1" conaffinity="3" '
-                f'rgba="0.83 0.86 0.90 1" friction="1 0.02 0.001"/>')
+                f'{look.group(1) if look else ""} friction="1 0.02 0.001"/>')
         patched, n = re.subn(r'<geom name="floor"[^>]*?/>', geom, xml, flags=re.S)
         if n != 1:
             raise ValueError(f"expected exactly one floor geom in {xml_path}, found {n}")
