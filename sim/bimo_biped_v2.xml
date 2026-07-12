@@ -10,7 +10,7 @@
             the torso box envelope. Its mass is folded into the torso.
          4. Explicit masses from the CAD mass rollup + measured servo mass
             (55 g each), instead of tuned densities:
-              torso 323.5 g (pelvis+tower prints, 2 roll servos, 3S LiPo 78 g,
+              torso 319.5 g (pelvis+tower prints, 2 roll servos, 3S LiPo 74 g,
                            driver board 20 g, wiring/screws)
               hip link 29 g (yoke_roll + yoke_pitch + screws)
               thigh/shin 77 g each (servo + leg_link + screws)
@@ -27,7 +27,7 @@
           floor via their convex hulls (contype 2 vs floor conaffinity 3), so
           falls, knee strikes and shin-fork grazes on bumps are physical --
           but NOT with the soles/each other (sole-floor contact is unchanged:
-          the flat box exactly matches the real TPU pad; foot mesh is
+          the flat box is sized to the real 90 x 46 TPU pad; foot mesh is
           visual-only to avoid doubling that contact). Legacy segment boxes
           moved to group 3 (hidden, non-colliding, masses documentation-only:
           real inertia is the explicit <inertial> per body). -->
@@ -76,7 +76,7 @@
 
     <body name="torso" pos="0 0 0.283">
       <freejoint/>
-      <inertial pos="0.0001 0 -0.0005" quat="0.5006 -0.4992 -0.4984 0.5018" mass="0.3235" diaginertia="2.4938e-04 2.7123e-04 4.2450e-04"/>
+      <inertial pos="0.0001 0 -0.0007" quat="0.5007 -0.4991 -0.4982 0.5019" mass="0.3195" diaginertia="2.4839e-04 2.6960e-04 4.2243e-04"/>
       <geom name="torso" type="box" size="0.023 0.052 0.036" mass="0.344" rgba="0.80 0.82 0.85 1" group="3"/>
       <geom class="cad" mesh="pelvis" pos="0 0 0.00411"/>
       <geom class="cad" mesh="tower" pos="0 0 0.00411"/>
@@ -108,8 +108,8 @@
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
             <body name="L_foot" pos="0 0 -0.09">
               <joint name="L_ankle" axis="0 1 0" range="-40 40"/>
-        <inertial pos="-0.0029 0 -0.0048" quat="0.9971 -0.0001 0.0766 -0.0001" mass="0.091" diaginertia="2.0063e-05 5.9610e-05 6.8819e-05"/>
-              <geom name="L_sole" type="box" pos="0.010 0 -0.0129" size="0.048 0.026 0.004"
+        <inertial pos="-0.0031 0 -0.0051" quat="0.9967 0 0.0810 -0.0001" mass="0.091" diaginertia="1.9786e-05 5.8177e-05 6.6432e-05"/>
+              <geom name="L_sole" type="box" pos="0.010 0 -0.0129" size="0.045 0.023 0.004"
                     contype="1" conaffinity="1" mass="0.091" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001"/>
               <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
               <geom class="servo" type="box" pos="-0.0125 0 0" size="0.02261 0.01735 0.01236"/>
@@ -139,8 +139,8 @@
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
             <body name="R_foot" pos="0 0 -0.09">
               <joint name="R_ankle" axis="0 1 0" range="-40 40"/>
-        <inertial pos="-0.0029 0 -0.0048" quat="0.9971 -0.0001 0.0766 -0.0001" mass="0.091" diaginertia="2.0063e-05 5.9610e-05 6.8819e-05"/>
-              <geom name="R_sole" type="box" pos="0.010 0 -0.0129" size="0.048 0.026 0.004"
+        <inertial pos="-0.0031 0 -0.0051" quat="0.9967 0 0.0810 -0.0001" mass="0.091" diaginertia="1.9786e-05 5.8177e-05 6.6432e-05"/>
+              <geom name="R_sole" type="box" pos="0.010 0 -0.0129" size="0.045 0.023 0.004"
                     contype="1" conaffinity="1" mass="0.091" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001"/>
               <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
               <geom class="servo" type="box" pos="-0.0125 0 0" size="0.02261 0.01735 0.01236"/>

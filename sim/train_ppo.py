@@ -126,6 +126,12 @@ def main():
                    help="per-episode latency drawn uniform(latency-ms, this) -- latency DR")
     p.add_argument("--latency-jitter-ms", type=float, default=0.0,
                    help="per-control-step latency jitter, +/- this many ms")
+    p.add_argument("--backlash-deg", type=float, default=0.0,
+                   help="gear backlash deadzone (STS3215 measures ~0.5-1.0)")
+    p.add_argument("--backlash-deg-max", type=float, default=None,
+                   help="per-episode backlash drawn uniform(backlash-deg, this)")
+    p.add_argument("--fall-height", type=float, default=0.18)
+    p.add_argument("--fall-up-z", type=float, default=0.4)
     p.add_argument("--push-force", type=float, default=None,
                    help="shove magnitude N; 0 disables shoves (None=auto with DR)")
     p.add_argument("--push-prob", type=float, default=None,
@@ -154,6 +160,8 @@ def main():
         cmd_v_range=(0.3, args.cmd_v_max), cmd_w_range=args.cmd_w_range,
         w_track_w=args.w_track_w, cmd_stand_prob=args.cmd_stand_prob,
         imu_obs=args.imu_obs, imu_noise=args.imu_noise,
+        backlash_deg=args.backlash_deg, backlash_deg_max=args.backlash_deg_max,
+        fall_height=args.fall_height, fall_up_z=args.fall_up_z,
         w_time=args.w_time, w_time_stop=args.w_time_stop,
         finish_bonus=args.finish_bonus,
         w_forward=args.w_forward, target_speed=args.target_speed,

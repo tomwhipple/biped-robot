@@ -165,6 +165,15 @@ class BimoWalkerEnv(gym.Env):
         # drawn uniform(latency_ms, latency_ms_max) -- built-in latency DR
         latency_jitter_ms: float = 0.0,  # per-control-step +/- jitter around
         # the episode latency (real bus timing is not constant)
+        backlash_deg: float = 0.0,     # gear backlash as a +/-b/2 deadzone on
+        # the PD position error (issues #6/#13: STS3215 geartrains measure
+        # ~0.5-1.0 deg of lash). 0 = legacy behavior, bit-exact.
+        backlash_deg_max: float | None = None,  # per-episode draw
+        # uniform(backlash_deg, max) -- backlash DR
+        fall_height: float = 0.18,     # terminate below this torso height (m)
+        fall_up_z: float = 0.4,        # terminate below this up-vector z
+        # (issue #10: 0.4 = 66 deg lean is generous; kept as the default for
+        # legacy-run reproducibility -- tighten per-run for future training)
         push_prob: float | None = None,  # per-control-step shove chance (None=auto w/ DR)
         push_force: float | None = None, # shove magnitude (N); 0 disables, None=auto w/ DR
         # -- command-conditioned locomotion (2026-07-12) -------------------------
@@ -218,6 +227,11 @@ class BimoWalkerEnv(gym.Env):
         self.latency_ms = latency_ms
         self.latency_ms_max = latency_ms_max
         self.latency_jitter_ms = latency_jitter_ms
+        self.backlash_deg = backlash_deg
+        self.backlash_deg_max = backlash_deg_max
+        self._lash_rad = np.deg2rad(backlash_deg)
+        self.fall_height = fall_height
+        self.fall_up_z = fall_up_z
         self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
         self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
         self.payload_mass = payload_mass
@@ -565,6 +579,9 @@ class BimoWalkerEnv(gym.Env):
                                                            self.latency_ms_max))
         else:
             self._lat_ms_ep = self.latency_ms
+        if self.backlash_deg_max is not None:
+            self._lash_rad = np.deg2rad(float(self.np_random.uniform(
+                self.backlash_deg, self.backlash_deg_max)))
         self._last_target = self._default.copy()
         self._air_time[:] = 0.0
         self._servo_tau[:] = 0.0
@@ -624,7 +641,13 @@ class BimoWalkerEnv(gym.Env):
                 q = self.data.qpos[_JQPOS]
                 qd = self.data.qvel[_JQVEL]
                 cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
-                self._servo_tau = np.clip(kp * (cur - q) - kd * qd, -cap, cap)
+                err = cur - q
+                if self._lash_rad > 0.0:
+                    # gear backlash: +/-lash/2 deadzone on the position error
+                    # (inside the lash the output gear floats -- no P torque)
+                    err = np.sign(err) * np.maximum(
+                        np.abs(err) - 0.5 * self._lash_rad, 0.0)
+                self._servo_tau = np.clip(kp * err - kd * qd, -cap, cap)
                 self.data.qfrc_applied[_JQVEL] = self._servo_tau
             elif lat_k:
                 # ideal position actuators read data.ctrl -- hold the previous
@@ -760,7 +783,7 @@ class BimoWalkerEnv(gym.Env):
         self._prev_action[:] = action
         self._step_i += 1
 
-        fell = (height < 0.18) or (up_z < 0.4)
+        fell = (height < self.fall_height) or (up_z < self.fall_up_z)
         # -- 2 m dash: success only if, after crossing the line, the robot is
         # still upright dash_hold seconds later. A dive that crosses the line
         # and faceplants therefore never finishes -- it just falls.

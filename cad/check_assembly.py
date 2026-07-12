@@ -100,4 +100,30 @@ for ang in (0, 40, -40):
     ok &= check(f"shin link at ankle {ang:+d} vs ankle servo", vol(sl, ankle_sv))
 ok &= check("ankle servo vs foot (contact only)", vol(ft, ankle_sv))
 
+print("== multi-axis worst cases (issue #4: 1-DOF sweeps miss combined poses) ==")
+# Chain in the KNEE frame: thigh leg_link above (origin = knee axis via its
+# lower joint at -LINK_DROP... we place the thigh link so its LOWER joint sits
+# at the origin), shin leg_link rotated by the knee angle, foot + ankle servo
+# rotated by knee THEN ankle. Non-adjacent pairs (thigh vs foot, knee servo vs
+# foot) only close in when BOTH joints fold -- exactly what the 1-DOF sweeps
+# never tried.
+thigh_ll = Pos(0, 0, D.LINK_DROP) * parts.leg_link()   # lower joint at origin
+for k in (-95, -60):
+    shin_frame = Rot(0, k, 0)
+    for a in (-40, 0, 40):
+        foot_frame = shin_frame * Pos(0, 0, -D.LINK_DROP) * Rot(0, a, 0)
+        ft2 = foot_frame * Pos(0, 0, -ankle_z) * parts.foot()
+        asv2 = foot_frame * Rot(0, 90, 0) * servo_mock_y()
+        ok &= check(f"knee {k:+d} ankle {a:+d}: thigh link vs foot",
+                    vol(thigh_ll, ft2))
+        ok &= check(f"knee {k:+d} ankle {a:+d}: thigh link vs ankle servo",
+                    vol(thigh_ll, asv2))
+# hip_pitch + knee: the upper-joint arms (worst-case fork profile from the
+# 1-DOF block) vs the SHIN when both hip and knee fold mid-stride
+for h, k in ((60, -95), (60, -60), (-60, -95), (-60, -60)):
+    arms2 = Rot(0, h, 0) * (arm_h + arm_i)
+    shin2 = Rot(0, h, 0) * Pos(0, 0, -D.LINK_DROP) * Rot(0, k, 0) * parts.leg_link()
+    ok &= check(f"hip {h:+d} knee {k:+d}: upper arms vs shin link",
+                vol(arms2, shin2))
+
 print("\nALL CLEAR" if ok else "\nINTERFERENCES FOUND — fix before printing")

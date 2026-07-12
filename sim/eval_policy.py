@@ -31,6 +31,7 @@ _PLANT_KEYS = ("xml_path", "actuator_model", "supply_voltage",
                "servo_kp", "servo_kd", "payload_mass", "payload_max",
                "dash", "dash_distance", "dash_hold", "dash_stop",
                "stand_speed", "imu_obs", "imu_noise", "command_mode",
+               "backlash_deg", "backlash_deg_max", "fall_height", "fall_up_z",
                "cmd_stand_prob", "w_track_v", "w_track_w")
 
 

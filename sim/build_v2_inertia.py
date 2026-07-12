@@ -99,9 +99,11 @@ torso = combine([
     box_part(D.SERVO_MASS, (0, -D.HIP_SEP/2, D.HIP_ROLL_Z - D.TORSO_CENTER_Z - SV_ZMID_Y),
              (SV_T, SV_W, SV_L)),
     # 3S 850 mAh pack on deck (long axis along y, seated toward -x)
-    box_part(78.0, (-1.0, 0, dz_deck + 9.25), (30.0, 67.0, 18.5)),
+    # actual purchased pack: Zeee 3S 850 = 74 g (issue #2); pigtail is in
+    # the wiring bucket
+    box_part(74.0, (-1.0, 0, dz_deck + 9.25), (30.0, 67.0, 18.5)),
     box_part(20.0, (0, 0, dz_deck + D.TOWER_H + 2.5), (65, 30, 5)),  # driver board
-], total=323.5)
+], total=319.5)
 
 # ---- hip (frame at HIP_ROLL_Z) ----------------------------------------------
 hip = combine([
@@ -119,7 +121,12 @@ leg = combine([leg_servo, link])
 # ankle servo: Rot(0,90,0) * servo_mock_y -> length along x (rear -35.11..+10.11)
 foot = combine([
     box_part(D.SERVO_MASS, (SV_ZMID_Y, 0, 0), (SV_L, SV_T, SV_W)),
-    mesh_part("foot", D.TPU_PROUD - D.ANKLE_Z, mass=91.0 - D.SERVO_MASS),  # print+TPU+screws
+    # printed foot + 4 screws at the mesh COM ...
+    mesh_part("foot", D.TPU_PROUD - D.ANKLE_Z, mass=91.0 - D.SERVO_MASS - 8.0),
+    # ... and the 8 g TPU pad where it actually sits: a 90 x 46 x 2 sheet
+    # at the very bottom of the sole (issue #7 - it was previously lumped
+    # at the mesh COM, ~3 mm too high)
+    box_part(8.0, (10.0, 0, 1.0 - D.ANKLE_Z), (90.0, 46.0, 2.0)),
 ])
 
 print("torso z-offset check: deck top local z =", dz_deck)

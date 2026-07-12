@@ -15,15 +15,23 @@ live in [DESIGN.md](DESIGN.md).
 
 ## Where it stands
 
-- **Simulation & RL** — a Gymnasium env wraps the MuJoCo model; PPO
-  (Stable-Baselines3, CPU) trains it to walk. The recommended policy
-  **`terrain_v4`** strides at ~0.79 m/s with a clean alternating gait, survives
-  procedurally generated rough ground up to ±15 mm bumps, and is robust to
-  ±15% mass / ±40% friction / ±20% actuator-gain model error.
-- **Printable CAD** — a complete parametric part set (build123d): 6 unique
-  parts, 12 prints, support-free, ~248 g of plastic, verified by 30
-  joint-sweep interference checks. No bearings needed: the STS3215's rear
-  idler disc supports every joint's far side. BOM and print settings in
+- **Simulation & RL** — a Gymnasium env wraps the CAD-true MuJoCo model
+  (mesh visuals + contacts, measured inertia, honest STS3215 torque–speed
+  actuators, sub-step latency, IMU-realizable observations); PPO
+  (Stable-Baselines3, CPU) trains it. Recommended policies (all v2 model):
+  **`dash_11v1_hardlat`** — the benchmark runner: 2 m dash in ~2.7 s,
+  16/16 with the GoPro payload on rough ground at realistic control
+  latency; **`dash_11v1_imu_hard`** / **`cmd_11v1c`** — the sim-to-real
+  candidates (encoders + noisy IMU observations only; the command policy
+  also stands on command and pivots). Historical single-skill policies
+  (`terrain_v4` etc.) predate the honest actuator model — see DESIGN.md
+  for the full lineage and per-policy gauntlets.
+- **Printable CAD** — a complete parametric part set (build123d): 7 unique
+  parts, 13 prints, support-free, ~257 g of plastic, verified by 46
+  interference checks including multi-axis worst-case poses (knee+ankle
+  folded, hip+knee mid-stride). The STS3215's rear idler disc closes every
+  joint's far side (alignment comes from the 4× M3 pattern, not the boss —
+  see cad/README.md). BOM and print settings in
   [cad/README.md](cad/README.md).
 - **Visual training log** — `sim/runs/night_summary.html` (self-contained
   page with gait filmstrips), rebuilt after every training round by

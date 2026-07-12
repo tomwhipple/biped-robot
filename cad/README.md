@@ -24,10 +24,17 @@ cad/
 
 Servo dimensions were taken from the **official Waveshare ST3215 STEP model and
 2D drawing** (measured programmatically, not eyeballed) — sources in the
-`dimensions.py` docstring. Every joint is supported on **both** sides: the servo's
+`dimensions.py` docstring. Every joint is closed on **both** sides: the servo's
 metal horn (Ø19.2, 4× M3 on a Ø14 bolt circle) on one side and its built-in
 free-spinning **rear idler disc** (same Ø19.2 / 4× M3 pattern, recessed in a Ø25
-opening) on the other — no extra bearings needed.
+opening) on the other — no extra bearings needed. Two honest caveats on the
+idler side (issue #5): the printed Ø19 boss inside the Ø25 recess is a
+**locator, not a precision seat** (~3 mm radial clearance) — concentricity
+comes from the 4× M3 pattern, so *snug the idler screws with the joint at
+mechanical zero and check runout before final torque*; and the idler disc's
+molded M3 threads carry the far-side bending shear — inspect them after the
+first hours of walking, and if they wear, the upgrade path is a shoulder
+bolt through the disc or a thin 19×27 washer-bearing under the arm.
 
 ## Part list (13 prints, 7 unique)
 
@@ -41,8 +48,8 @@ opening) on the other — no extra bearings needed.
 | `tower` | 1 | 45 × 96 × 37 | 37 g | electronics: driver board hangs face-down on standoffs INSIDE; 3S battery tilt-loads through the rear-wall window onto the deck (tool-free swap: peel belt, tug ribbon); GoPro bosses on top |
 | `gopro_base` | 1 | 30 × 24 × 21 | 5 g | GoPro three-prong mount, bolts to the tower top (crash fuse — cheap to reprint) |
 
-Printed plastic ≈ 257 g. Total robot ≈ **0.86 kg** bare, **1.01 kg with the
-GoPro MAX** (8 servos 440 g, 3S LiPo ~78 g, board ~20 g, fasteners ~47 g,
+Printed plastic ≈ 257 g. Total robot ≈ **0.85 kg** bare, **1.01 kg with the
+GoPro MAX** (8 servos 440 g, 3S LiPo 74 g, board ~20 g, fasteners ~47 g,
 TPU 16 g, camera 154 g). Heights: ankle 16.9, knee 106.9, hip-pitch 196.9,
 hip-roll 246.9, torso top 324 mm, camera CG ≈ 378 mm. Standing CG rises from
 ≈ 168 mm (bare) to ≈ 200 mm with the camera (**+31 mm**) — expect gait retuning.

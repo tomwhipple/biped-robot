@@ -603,6 +603,52 @@ planner cost turns asymmetrically. (3) Sustained near-max speed commands
 topple the policy; either train longer holds or cap the command envelope in
 deployment. Videos: dash_stop/turn/pivot .gif/.mov in both run dirs.
 
+### External review response (2026-07-12, GitHub issues #2–#13)
+
+An external review filed 12 issues. Dispositions:
+
+- **#2 battery mass (P0, fixed):** sim/CAD used 78 g vs the actual 74 g Zeee
+  pack. Corrected everywhere (rollup, inertia script, XML — torso is now
+  319.5 g); the pigtail lives in the wiring bucket, stated explicitly.
+- **#3 sole ≠ TPU pad (P0, fixed):** the contact box was the full 96 × 52
+  sole; the real contact is the 90 × 46 pad. Sole boxes resized to the pad
+  (−25 % patch area); recommended policies re-verified on the corrected
+  contact (numbers below).
+- **#4 1-DOF sweeps (P0, fixed):** check_assembly gained 16 multi-axis
+  worst-case checks — knee −95/−60 × ankle ±40/0 against the thigh link and
+  ankle servo, hip ±60 × knee −95/−60 arms-vs-shin. All clear (46 checks
+  total).
+- **#7 TPU pad COM (P1, fixed):** the 8 g pad is now modeled where it sits
+  (bottom of the sole) instead of lumped at the foot mesh COM.
+- **#8 README vs DESIGN recommendation (P1, fixed):** README now names the
+  current v2 policies and marks terrain_v4 as pre-honest-actuator history.
+- **#6/#13 actuator model gaps (P1/P2, partially fixed):** gear backlash is
+  now modeled — a ±b/2 deadzone on the PD position error, `backlash_deg`
+  (+ per-episode DR via `backlash_deg_max`; STS3215-class is 0.5–1.0°).
+  Voltage sag is *implicitly* covered: the existing ±15 % stall/no-load DR
+  spans an effective 9.4–12.8 V supply, wider than a 3S sag band. NOT yet
+  modeled: thermal derating (torque fade over minutes) — flagged for the
+  endurance round, it can't matter for a 3 s dash.
+- **#5 idler boss (P1, documented):** correct observation — the Ø19 boss in
+  the Ø25 recess is a locator, not a seat; alignment is the M3 pattern.
+  cad/README now says so, with an assembly procedure note (snug at
+  mechanical zero, check runout) and the upgrade path if the disc's molded
+  threads wear.
+- **#10 fall threshold (P2, parametrized):** `fall_height`/`fall_up_z` are
+  now env params; defaults keep legacy semantics for reproducibility,
+  tighten per-run for future training.
+- **#9 operating-condition DR (P1, mostly covered/roadmap):** friction DR
+  (±40 %) spans indoor surfaces; the torque DR spans battery sag (above);
+  backlash DR added. Open: thermal, long-horizon battery fade.
+- **#11 terrain-blind (P2, roadmap):** known gap since day 2 — the plan
+  remains a height-scan observation once locomotion basics are closed.
+- **#12 tower gussets / camera dynamics (P2, documented):** the stepped
+  gussets print inverted with ≤3 mm overhang per step (within printer
+  guidance; verify on the first tower print). Dynamic camera loads are
+  bounded by the fall case, not the gait (~1–2 g deceleration ≈ 0.3 N·m at
+  the tower feet vs the 1.3 N·m design case already carried); the
+  gopro_base remains the sacrificial fuse by design.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
