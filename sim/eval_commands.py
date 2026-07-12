@@ -31,6 +31,17 @@ def base_env(env):
     return env.venv.envs[0] if hasattr(env, "venv") else env.envs[0]
 
 
+def norm_cmd(env, cmd):
+    """Normalize raw command values the way VecNormalize would (the obs we
+    patch is already normalized -- writing raw values made a 'stand' command
+    read as 'walk at the training-mean speed')."""
+    if hasattr(env, "obs_rms"):
+        m = env.obs_rms.mean[-2:]
+        s = np.sqrt(env.obs_rms.var[-2:] + 1e-8)
+        return np.clip((np.asarray(cmd) - m) / s, -10, 10)
+    return np.asarray(cmd)
+
+
 def rollout(model, env, script, max_s=10.0, render=False):
     """script(t, base) -> (v, w) command for time t; returns trace + frames."""
     base = base_env(env)
@@ -40,7 +51,7 @@ def rollout(model, env, script, max_s=10.0, render=False):
         t = i * base.control_dt
         v, w = script(t, base)
         base.set_command(v, w)
-        obs[0, -2:] = base._cmd  # keep the *current* obs consistent too
+        obs[0, -2:] = norm_cmd(env, base._cmd)
         action, _ = model.predict(obs, deterministic=True)
         obs, _, dones, infos = env.step(action)
         trace.append(infos[0])

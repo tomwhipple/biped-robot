@@ -675,8 +675,10 @@ class BimoWalkerEnv(gym.Env):
             primary = (
                 self.w_track_v * float(np.exp(-((vx_body - self._cmd[0])
                                                 / 0.25) ** 2))
+                # sigma 0.4: at 0.5 the left-yaw gait bias of the identical-
+                # parts legs was cheaper to keep than to track out (cmd_11v1)
                 + self.w_track_w * float(np.exp(-((wz_rate - self._cmd[1])
-                                                  / 0.5) ** 2)))
+                                                  / 0.4) ** 2)))
             reward_time_stop = 0.0
         elif braking:
             planar = float(np.hypot(d.qvel[0], d.qvel[1]))
