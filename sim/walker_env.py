@@ -202,6 +202,13 @@ class BimoWalkerEnv(gym.Env):
             xml_src = self._payload_xml(
                 xml_src, payload_mass if payload_mass > 0 else _PAYLOAD_REF)
         if xml_src is not None:
+            # from_xml_string resolves a relative meshdir against the CWD, not
+            # the source file -- absolutize it against the XML's own directory
+            xml_src = re.sub(
+                r'meshdir="([^"]+)"',
+                lambda m: 'meshdir="' + os.path.normpath(os.path.join(
+                    os.path.dirname(os.path.abspath(xml_path)), m.group(1))) + '"',
+                xml_src)
             self.model = mujoco.MjModel.from_xml_string(xml_src)
         else:
             self.model = mujoco.MjModel.from_xml_path(xml_path)
@@ -304,7 +311,7 @@ class BimoWalkerEnv(gym.Env):
                  f'ncol="{_HF_NCOL}" size="{_HF_RX} {_HF_RY} {amplitude} 0.1"/>'
                  f'</asset>\n  ')
         geom = (f'<geom name="floor" type="hfield" hfield="terrain" '
-                f'pos="{_HF_CX} 0 0" contype="1" conaffinity="1" '
+                f'pos="{_HF_CX} 0 0" contype="1" conaffinity="3" '
                 f'rgba="0.83 0.86 0.90 1" friction="1 0.02 0.001"/>')
         patched, n = re.subn(r'<geom name="floor"[^>]*?/>', geom, xml, flags=re.S)
         if n != 1:
@@ -318,7 +325,8 @@ class BimoWalkerEnv(gym.Env):
         runtime for per-episode payload randomization."""
         body = ('<body name="payload" pos="0 0 0.08">'
                 f'<geom name="payload" type="box" size="0.0125 0.032 0.0345" '
-                f'mass="{mass}" rgba="0.85 0.45 0.20 0.9"/></body>')
+                f'mass="{mass}" contype="2" conaffinity="0" '
+                f'rgba="0.12 0.12 0.14 1"/></body>')
         patched, n = re.subn(r'(<site name="imu"[^>]*/>)', lambda m: m.group(1) + body,
                              xml, count=1)
         if n != 1:

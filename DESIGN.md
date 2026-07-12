@@ -429,6 +429,26 @@ than round-tripping through USB/WiFi (docs/wiring.md quantifies why: an
 8-servo command + readback cycle at 115200 baud eats most of a 20 ms tick on
 its own). No parts change either way.
 
+### CAD meshes in the sim: real shapes, real contacts (2026-07-11)
+
+The v2 model looked nothing like the CAD (segment boxes), and — more
+importantly — only the sole boxes could touch the ground: a fallen robot's
+body passed through the floor, and shin-fork/knee strikes on bumps were
+non-events. Now the printed-part STLs (`cad/stl/`, via `meshdir`) are geoms
+on every body: they render as the real robot and their convex hulls collide
+with the floor (`contype 2` vs floor `conaffinity 3`), so falls and part
+strikes are physical. Deliberately unchanged: foot-ground contact still goes
+through the flat sole box (it exactly matches the real TPU pad; the foot mesh
+is visual-only to avoid doubling that contact), and parts still don't
+self-collide. Legacy boxes moved to render-group 3 (hidden). The payload box
+is now GoPro-dark and floor-collidable. Cost: ~10 % flat, ~15 % on terrain
+(hull-vs-hfield). Verification: standing contact set is exactly
+{L_sole, R_sole}, and the gauntlet is statistically unchanged on the new
+physics (dash_11v1_hard 16/16 @ 2.68 s GoPro; dash_11v1_hardlat 32/32 @
+2.72 s and dash_7v4_hardlat 31/32 @ 4.52 s at GoPro + 4 ms) — the hulls
+don't graze in nominal gaits, which is itself a useful clearance check.
+All dash videos re-rendered with the real geometry.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
