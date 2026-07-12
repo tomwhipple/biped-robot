@@ -128,6 +128,12 @@ class BimoWalkerEnv(gym.Env):
         dash: bool = False,            # success = cross dash_distance AND stay
         dash_distance: float = 2.0,    # upright for dash_hold s after crossing
         dash_hold: float = 1.0,        # (kills the dive-across-the-line exploit)
+        dash_stop: bool = False,       # stricter finish: after crossing, come to
+        # a STANDSTILL -- planar speed < stand_speed continuously for dash_hold s
+        # while upright (a jog-through no longer finishes). Post-cross, the
+        # forward reward flips to a brake-and-stand term and the gait-shaping
+        # bonuses (feet-air, single-support) switch off.
+        stand_speed: float = 0.15,     # m/s planar speed that counts as standing
         w_time: float = 0.0,           # per-step time penalty (dash urgency)
         finish_bonus: float = 0.0,     # one-off reward on a confirmed finish
         # -- procedural terrain (0.0 -> original flat plane) --------------------
@@ -154,6 +160,13 @@ class BimoWalkerEnv(gym.Env):
         # the episode latency (real bus timing is not constant)
         push_prob: float | None = None,  # per-control-step shove chance (None=auto w/ DR)
         push_force: float | None = None, # shove magnitude (N); 0 disables, None=auto w/ DR
+        # -- hardware-realizable observations (sensing audit 2026-07-11) --------
+        imu_obs: bool = False,         # torso linear velocity + height are ZEROED
+        # (the real robot has no sensor for them; obs stays 36-wide so warm
+        # starts still work), and up-vector/gyro become IMU-like: per-episode
+        # mounting misalignment + gyro bias, per-step noise (BNO085-class
+        # magnitudes) -- applied only when domain_rand is on.
+        imu_noise: float = 1.0,        # scale on IMU misalignment/bias/noise DR
     ):
         super().__init__()
         self.w_forward = w_forward
@@ -187,6 +200,10 @@ class BimoWalkerEnv(gym.Env):
         self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
         self.payload_mass = payload_mass
         self.payload_max = payload_max
+        self.imu_obs = imu_obs
+        self.imu_noise = imu_noise
+        self._imu_R = np.eye(3)          # per-episode mounting misalignment
+        self._imu_gyro_bias = np.zeros(3)
         xml_src = None
         if terrain_amplitude > 0:
             # Patch the flat-plane MJCF into a heightfield variant at load time
@@ -245,6 +262,8 @@ class BimoWalkerEnv(gym.Env):
         self.dash = dash
         self.dash_distance = dash_distance
         self.dash_hold = dash_hold
+        self.dash_stop = dash_stop
+        self.stand_speed = stand_speed
         self.w_time = w_time
         self.finish_bonus = finish_bonus
 
@@ -420,17 +439,32 @@ class BimoWalkerEnv(gym.Env):
     def _obs(self) -> np.ndarray:
         d = self.data
         up = d.sensordata[self._up_id : self._up_id + 3]
+        gyro = d.qvel[3:6]
+        linvel = d.qvel[0:3]
+        height = d.qpos[2] - self._ground_z(d.qpos[0], d.qpos[1])
+        if self.imu_obs:
+            # what the real robot can sense: attitude + rates via the IMU
+            # (misaligned, biased, noisy under DR); linear velocity and height
+            # have no sensor -> zeroed (obs stays 36-wide for warm starts)
+            noisy = self.domain_rand and self.imu_noise > 0.0
+            up = self._imu_R @ up
+            gyro = gyro + self._imu_gyro_bias
+            if noisy:
+                up = up + self.np_random.normal(0.0, 0.01 * self.imu_noise, 3)
+                gyro = gyro + self.np_random.normal(0.0, 0.03 * self.imu_noise, 3)
+            linvel = np.zeros(3)
+            height = 0.0
         phase = 2 * np.pi * (self._step_i / self.max_steps)
         return np.concatenate([
             d.qpos[_JQPOS],                    # 8 joint angles
             d.qvel[_JQVEL],                    # 8 joint velocities
             up,                                # 3 torso up-vector
-            d.qvel[0:3],                       # 3 torso linear velocity
-            d.qvel[3:6],                       # 3 torso angular velocity
+            linvel,                            # 3 torso linear velocity
+            gyro,                              # 3 torso angular velocity
             self._prev_action,                 # 8 last action
             # torso height above *local ground* (== world z on flat ground, so
             # flat-ground policies see the exact same observation as before)
-            [d.qpos[2] - self._ground_z(d.qpos[0], d.qpos[1])],
+            [height],
             [np.sin(phase), np.cos(phase)],    # 2 phase clock
         ]).astype(np.float32)
 
@@ -472,6 +506,19 @@ class BimoWalkerEnv(gym.Env):
         self._air_time[:] = 0.0
         self._servo_tau[:] = 0.0
         self._cross_t = None    # dash: time the torso first crossed dash_distance
+        self._stand_t = None    # dash_stop: start of the current standstill
+        # IMU DR: per-episode mounting misalignment (small random rotation) and
+        # gyro bias, BNO085-class magnitudes scaled by imu_noise. Only draws
+        # RNG when enabled, so other runs keep their exact random streams.
+        if self.imu_obs and self.domain_rand and self.imu_noise > 0.0:
+            ang = self.np_random.normal(0.0, np.deg2rad(2.0)) * self.imu_noise
+            ax = self.np_random.normal(size=3)
+            ax /= np.linalg.norm(ax) + 1e-9
+            k = np.array([[0, -ax[2], ax[1]], [ax[2], 0, -ax[0]],
+                          [-ax[1], ax[0], 0]])
+            self._imu_R = np.eye(3) + np.sin(ang) * k + (1 - np.cos(ang)) * k @ k
+            self._imu_gyro_bias = (self.np_random.uniform(-0.03, 0.03, 3)
+                                   * self.imu_noise)
         self._step_i = 0
         return self._obs(), {}
 
@@ -541,8 +588,20 @@ class BimoWalkerEnv(gym.Env):
         energy = float(np.sum(np.abs(force) * np.abs(d.qvel[_JQVEL])))
         action_rate = float(np.sum((action - self._prev_action) ** 2))
 
+        # dash_stop: once the line is crossed the mission changes -- the primary
+        # term flips from "go forward" to "brake to a standstill" (same scale:
+        # standing earns what running at the cap earned, so crossing is never
+        # disincentivized) and the gait-shaping bonuses below switch off.
+        braking = self.dash and self.dash_stop and self._cross_t is not None
+        if braking:
+            planar = float(np.hypot(d.qvel[0], d.qvel[1]))
+            cap = 1.0 if self.target_speed is None else self.target_speed
+            primary = self.w_forward * max(0.0, cap - planar)
+        else:
+            primary = self.w_forward * fwd_term
+
         reward = (
-            self.w_forward * fwd_term                     # go forward (primary)
+            primary                                       # go forward / brake
             + self.w_upright * up_z                       # stay upright
             + self.alive_bonus                            # alive bonus
             - self.w_height * abs(height - self._nominal_h)  # hold posture
@@ -561,15 +620,16 @@ class BimoWalkerEnv(gym.Env):
                     # capped at air_time_target (no hopping incentive), minus a
                     # baseline of half the target so quick shuffle taps score
                     # *negative* -- the gradient pushes toward deliberate swings.
-                    reward += self.w_feet_air * (
-                        min(self._air_time[f], self.air_time_target)
-                        - 0.5 * self.air_time_target)
+                    if not braking:
+                        reward += self.w_feet_air * (
+                            min(self._air_time[f], self.air_time_target)
+                            - 0.5 * self.air_time_target)
                 self._air_time[f] = 0.0
             else:
                 self._air_time[f] += self.control_dt
         single_support = con_l != con_r
         double_support = con_l and con_r
-        if self.w_single_support:
+        if self.w_single_support and not braking:
             reward += self.w_single_support * float(single_support)
         if self.w_lateral:      # walk straight: lateral speed + sideways drift
             reward -= self.w_lateral * (abs(float(d.qvel[1]))
@@ -595,7 +655,22 @@ class BimoWalkerEnv(gym.Env):
             t_now = self._step_i * self.control_dt
             if self._cross_t is None and x_after >= self.dash_distance:
                 self._cross_t = t_now              # clock stops at the crossing
-            if (not fell and self._cross_t is not None
+            if self.dash_stop:
+                # confirmed finish = a sustained STANDSTILL past the line:
+                # planar speed under stand_speed for dash_hold s, upright the
+                # whole time (a jog-through or a stumbling stop doesn't count)
+                standing = (not fell and self._cross_t is not None
+                            and float(np.hypot(d.qvel[0], d.qvel[1]))
+                            < self.stand_speed)
+                if standing:
+                    if self._stand_t is None:
+                        self._stand_t = t_now      # standstill clock starts
+                    if t_now - self._stand_t >= self.dash_hold:
+                        dash_success = True        # confirmed standing finish
+                        reward += self.finish_bonus
+                else:
+                    self._stand_t = None           # moved/fell -> restart clock
+            elif (not fell and self._cross_t is not None
                     and t_now - self._cross_t >= self.dash_hold):
                 dash_success = True                # confirmed upright finish
                 reward += self.finish_bonus

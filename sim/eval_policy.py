@@ -29,7 +29,8 @@ RUNS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
 # env defaults, as before (returns across runs are then comparable).
 _PLANT_KEYS = ("xml_path", "actuator_model", "supply_voltage",
                "servo_kp", "servo_kd", "payload_mass", "payload_max",
-               "dash", "dash_distance", "dash_hold")
+               "dash", "dash_distance", "dash_hold", "dash_stop",
+               "stand_speed", "imu_obs", "imu_noise")
 
 
 def run_env_kwargs(run_dir, **overrides):

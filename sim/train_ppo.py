@@ -58,6 +58,14 @@ def main():
     # -- 2 m dash objective ---------------------------------------------------
     p.add_argument("--dash", action="store_true",
                    help="episode succeeds on crossing 2 m + staying upright 1 s")
+    p.add_argument("--dash-stop", action="store_true",
+                   help="stricter finish: must come to a standstill past the "
+                        "line (planar speed < 0.15 m/s for 1 s)")
+    p.add_argument("--imu-obs", action="store_true",
+                   help="hardware-realizable observations: linvel/height "
+                        "zeroed, IMU noise/bias DR on up-vector + gyro")
+    p.add_argument("--imu-noise", type=float, default=1.0,
+                   help="scale on the IMU misalignment/bias/noise DR")
     p.add_argument("--w-time", type=float, default=0.0,
                    help="per-step time penalty (dash urgency)")
     p.add_argument("--finish-bonus", type=float, default=0.0,
@@ -130,7 +138,9 @@ def main():
         actuator_model=args.actuator_model, supply_voltage=args.voltage,
         servo_kp=args.servo_kp, servo_kd=args.servo_kd,
         payload_mass=args.payload, payload_max=args.payload_max,
-        dash=args.dash, w_time=args.w_time, finish_bonus=args.finish_bonus,
+        dash=args.dash, dash_stop=args.dash_stop,
+        imu_obs=args.imu_obs, imu_noise=args.imu_noise,
+        w_time=args.w_time, finish_bonus=args.finish_bonus,
         w_forward=args.w_forward, target_speed=args.target_speed,
         w_upright=args.w_upright, alive_bonus=args.alive, w_height=args.w_height,
         w_energy=args.w_energy, w_action_rate=args.w_action_rate,
