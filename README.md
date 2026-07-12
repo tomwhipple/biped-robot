@@ -19,7 +19,7 @@ live in [DESIGN.md](DESIGN.md).
   (mesh visuals + contacts, measured inertia, honest STS3215 torque–speed
   actuators, sub-step latency, IMU-realizable observations); PPO
   (Stable-Baselines3, CPU) trains it. Recommended policies (all v2 model):
-  **`dash_11v1_hardlat`** — the benchmark runner: 2 m dash in ~2.7 s,
+  **`dash_11v1_hardlat3`** — the benchmark runner: 2 m dash in ~2.7 s,
   16/16 with the GoPro payload on rough ground at realistic control
   latency; **`dash_11v1_imu_hard`** / **`cmd_11v1c`** — the sim-to-real
   candidates (encoders + noisy IMU observations only; the command policy

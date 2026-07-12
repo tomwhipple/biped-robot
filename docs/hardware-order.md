@@ -23,7 +23,7 @@ GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 - **Sim**: torso inertia rebuilt for the 3S pack (78 g vs the old 110 g 2S
   estimate, correct orientation); dash policies re-evaluated on the updated
   model: `dash_11v1_hard` 16/16 confirmed finishes, median 2.67 s (GoPro on);
-  `dash_11v1_hardlat` 30/32, median 2.72 s (GoPro + 4 ms latency).
+  `dash_11v1_hardlat3` 28/32, median 2.72 s (GoPro + 4 ms latency, pad-true contact + backlash DR per review #3/#13).
 - 2S remains a fallback: everything still runs at 7.4 V, policies exist for it.
 
 ## Bill of materials
@@ -102,7 +102,7 @@ matching the sim's action order); GoPro unpowered by the robot.
 The serial-bus control loop (ESP32 driver → 8-servo daisy chain at 50 Hz) is
 validated: sub-step latency modeling found the real cliff (the earlier 0/16
 collapse was a doubled whole-step-delay artifact), and latency-DR fine-tunes
-(`dash_11v1_hardlat` 30/32 @ 2.72 s with GoPro + 4 ms; `dash_7v4_hardlat`
+(`dash_11v1_hardlat3` 28/32 @ 2.72 s with GoPro + 4 ms on pad-true contact + backlash; `dash_7v4_hardlat`
 32/32 @ 4.50 s) hold to ~10–14 ms — 2–3× the expected 2–5 ms bus latency.
 Firmware plan of record: run the 50 Hz loop **on the ESP32** (already in the
 BOM) rather than round-tripping through USB/WiFi. Nothing to buy either way.

@@ -274,7 +274,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       <li><s><b>Control latency</b> — the day-3 top risk.</s> Closed: the 0/16
       collapse was an artifact of a doubled whole-step delay; with sub-step
       modeling, realistic 2–5 ms latency barely registers. Latency-DR
-      fine-tunes (<b>dash_11v1_hardlat</b>: 30/32, median 2.72 s at 4 ms +
+      fine-tunes (<b>dash_11v1_hardlat3</b>: 28/32, median 2.72 s at 4 ms +
       GoPro; <b>dash_7v4_hardlat</b>: 32/32, 4.50 s) push the cliff to
       ~10–14 ms — beyond that it's a firmware call (run the loop on the
       ESP32), not a training problem. Details in DESIGN.md §sub-step latency.</li>

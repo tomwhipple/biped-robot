@@ -610,10 +610,16 @@ An external review filed 12 issues. Dispositions:
 - **#2 battery mass (P0, fixed):** sim/CAD used 78 g vs the actual 74 g Zeee
   pack. Corrected everywhere (rollup, inertia script, XML — torso is now
   319.5 g); the pigtail lives in the wiring bucket, stated explicitly.
-- **#3 sole ≠ TPU pad (P0, fixed):** the contact box was the full 96 × 52
-  sole; the real contact is the 90 × 46 pad. Sole boxes resized to the pad
-  (−25 % patch area); recommended policies re-verified on the corrected
-  contact (numbers below).
+- **#3 sole ≠ TPU pad (P0, fixed — and it mattered):** the contact box was
+  the full 96 × 52 sole; the real contact is the 90 × 46 pad. Sole boxes
+  resized (−25 % patch area). Re-verification: `dash_11v1_hard` holds
+  (15/16 @ 2.66 s GoPro) but **`dash_11v1_hardlat` collapsed to 2/16** —
+  its latency robustness was partly leaning on the oversized patch. Repair
+  fine-tunes on the corrected physics (which also add 0.3–1.0° backlash DR)
+  recover it: **`dash_11v1_hardlat3`** is the new recommended benchmark —
+  GoPro + 4 ms rebuilt from 2/16 → **28/32 @ 2.72 s** (11M repair steps
+  total), flat 16/16 at 0 and 6 ms. The old 30/32 was earned on easier
+  physics; these are the honest numbers now.
 - **#4 1-DOF sweeps (P0, fixed):** check_assembly gained 16 multi-axis
   worst-case checks — knee −95/−60 × ankle ±40/0 against the thigh link and
   ankle servo, hip ±60 × knee −95/−60 arms-vs-shin. All clear (46 checks
