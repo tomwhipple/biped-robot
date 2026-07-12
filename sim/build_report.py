@@ -156,7 +156,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <div class="kpis">
     <div class="kpi"><div class="v" style="color:var(--accent)">2.72<span style="font-size:15px"> s</span></div><div class="k">median 2 m dash · 11.1 V</div></div>
     <div class="kpi"><div class="v">16/16</div><div class="k">finishes · even with GoPro + bumps</div></div>
-    <div class="kpi"><div class="v">2S ok</div><div class="k">7.4 V walks too — 1.7× slower</div></div>
+    <div class="kpi"><div class="v">3S ✓</div><div class="k">decided · swap-window battery bay</div></div>
     <div class="kpi"><div class="v">1.04<span style="font-size:15px"> kg</span></div><div class="k">CAD-true body incl. camera</div></div>
   </div>
 
@@ -176,7 +176,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   Warm-starting couldn't fix it (same lesson as the shuffle); training from
   scratch inside the envelope could.</p>
 
-  <h2><span class="n">02</span> The battery verdict: 2S works, 3S wins</h2>
+  <h2><span class="n">02</span> The battery verdict: 2S works, 3S wins — <b>3S it is</b></h2>
   <p>Same dash task, two supply voltages (16 episodes each; a finish = crossing
   2 m and standing upright 1 s later):</p>
   <div class="tblwrap">
@@ -198,11 +198,13 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     <img class="film" src="{dash7}" alt="Filmstrip of the 7.4-volt dash gait">
     <figcaption>dash_7v4_hard · the 2S gait — slower but grounded (no flight phase), arguably the better first-hardware candidate</figcaption>
   </figure>
-  <p class="muted" style="margin-top:12px">Both voltages are in the servo's rated
-  6–12.6 V range. The current CAD assumes a 2S battery: viable, but
-  camera + rough ground together is its edge (12/16), and the dash takes 1.7×
-  longer. Moving the battery bay to 3S buys full robustness and 2.7 s dashes —
-  a decision to make before printing the tower.</p>
+  <p class="muted" style="margin-top:12px"><b>Decision made 07·11: 3S.</b> The
+  tower was reworked around it — a Zeee 3S 850 mAh pack (74 g, XT30) now
+  tilt-loads through a window in the rear wall for tool-free swaps (peel the
+  belt, tug the ribbon; the fly-in animation below shows the pack passing
+  through the window). Torso inertia was rebuilt for the lighter pack and the
+  dash policies re-verified on it: 16/16, median 2.67 s with the GoPro on.
+  2S remains a tested fallback at every level.</p>
 
   <h2><span class="n">03</span> The camera rides on top</h2>
   <div class="card">
@@ -269,12 +271,12 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <h2><span class="n">05</span> Open items</h2>
   <div class="card accent">
     <ul class="plain" style="margin:0">
-      <li><b>Control-latency fragility is the new top risk:</b> both hardened
-      policies fail 0/16 with one 20 ms control-step of action delay, and a
-      quick latency-DR fine-tune didn't fix it. Real bus latency is likely
-      2–5 ms, so the test is pessimistic — needs sub-step latency modeling
-      before drawing hardware conclusions.</li>
-      <li><b>2S or 3S</b> — the battery-bay decision above, before printing the tower.</li>
+      <li><b>Control latency:</b> the pessimistic whole-step (20 ms) delay test
+      broke both policies; sub-step modeling + latency-DR fine-tunes exist on
+      disk (dash_11v1_hardlat: 16/16, median 2.72 s at 4 ms latency + GoPro on
+      the 3S-inertia model) — final write-up still owed.</li>
+      <li><s><b>2S or 3S</b> — the battery-bay decision above.</s> Decided: 3S,
+      bay reworked for tool-free swap, order unblocked.</li>
       <li><b>The 11.1 V gait still jogs</b> (flight phase); the grounded 7.4 V
       gait is the more sim-to-real-plausible first candidate.</li>
       <li><b>Repeated shoves</b> remain unsolved (unchanged from day 1).</li>

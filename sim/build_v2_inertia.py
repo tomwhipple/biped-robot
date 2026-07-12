@@ -98,9 +98,10 @@ torso = combine([
              (SV_T, SV_W, SV_L)),
     box_part(D.SERVO_MASS, (0, -D.HIP_SEP/2, D.HIP_ROLL_Z - D.TORSO_CENTER_Z - SV_ZMID_Y),
              (SV_T, SV_W, SV_L)),
-    box_part(110.0, (0, 0, dz_deck + D.BATT[2]/2), D.BATT),        # 2S LiPo on deck
+    # 3S 850 mAh pack on deck (long axis along y, seated toward -x)
+    box_part(78.0, (-1.0, 0, dz_deck + 9.25), (30.0, 67.0, 18.5)),
     box_part(20.0, (0, 0, dz_deck + D.TOWER_H + 2.5), (65, 30, 5)),  # driver board
-], total=344.0)
+], total=323.5)
 
 # ---- hip (frame at HIP_ROLL_Z) ----------------------------------------------
 hip = combine([

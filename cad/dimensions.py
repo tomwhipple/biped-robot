@@ -158,14 +158,21 @@ ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+0.5 TPU p
 # ----------------------------------------------------------------------------
 TOWER_L = 96.0
 TOWER_W = 42.0
-TOWER_H = 32.0          # deck top .. tower top
+TOWER_H = 37.0          # deck top .. tower top (+5 over v1: 3S headroom, see BATT)
 TOWER_TOP_T = 3.5
 # driver board: Waveshare "Servo Driver with ESP32", 65 x 30, holes O2.75 on
 # a 58 x 23 grid (wiki spec 2026-07 -- still verify on the real board)
 BOARD_HOLES = (58.0, 23.0)     # hole pattern (y span, x span), M2.5 self-tap
 BOARD_STANDOFF = 6.0           # under-plate standoff height (clears the GoPro
-                               # screw bosses by 3 mm; battery below gets ~1 mm)
-BATT = (75.0, 35.0, 16.0)      # 2S 450-1000 mAh LiPo envelope, velcro-strapped
+                               # screw bosses by 3 mm; battery below gets ~2 mm)
+# battery: DECIDED 3S (2026-07-11 gauntlet verdict). Sized for the Zeee 3S
+# 850 mAh 100C XT30 (67 x 30 x 18.5, 74 g); envelope adds fit + pad headroom.
+# Pack side-loads through a window in the -X tower wall (tool-free swap: peel
+# strap, tug pull-ribbon) -- if you buy a different pack, edit BATT and
+# reprint the tower; everything below derives from it.
+BATT = (68.0, 31.0, 20.0)      # y length, x width, z height (envelope)
+BATT_SEAT_X = -17.0            # pack outer (-x) face when seated: 1.4 inside
+                               # the wall inner face, so the strap can preload
 
 # ----------------------------------------------------------------------------
 # GoPro three-prong mount (separate bolt-on part `gopro_base` on the tower top

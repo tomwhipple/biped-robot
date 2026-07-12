@@ -5,23 +5,26 @@ Sim validation state: gaits verified under real STS3215 torque limits at both
 battery voltages; sub-step control-latency validation in progress (worst case
 changes firmware plans, not this parts list).*
 
-## ⚠️ The one decision that gates the order: 2S vs 3S
+## ✅ DECIDED 2026-07-11: 3S (11.1 V)
 
-Vendor listings split the STS3215 into **7.4 V (19.5 kg·cm)** and **12 V
-(30 kg·cm)** classes; the **Waveshare ST3215 is rated 6–12.6 V** and covers
-both — and it's the exact unit our CAD was measured from (official STEP file).
-**Buy the Waveshare ST3215** and the servo works at either voltage; the battery
-choice then sets performance:
+The gauntlet numbers that drove it (2 m dash median **2.72 s** vs 4.36 s;
+GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 
-| | 2S (7.4 V) — current CAD | 3S (11.1 V) — recommended |
-|---|---|---|
-| 2 m dash (median) | 4.36 s | **2.72 s** |
-| GoPro + rough ground | 12/16 | **16/16** |
-| Gait style | grounded (hardware-friendlier) | jog-like flight phase |
-| CAD impact | none | battery bay +~10 mm (small edit) |
-
-**Recommendation: 3S**, based on the sim gauntlet — but 2S is viable if you
-prefer the safer gait and zero CAD changes. Both policies exist either way.
+- **Battery**: [Zeee 3S 850 mAh 100C XT30 2-pack](https://www.amazon.com/dp/B08H5GD35D)
+  (67 × 30 × 18.5 mm, 74 g each) — two packs = hot-swap. ✅ ordered/orderable.
+- **CAD**: tower reworked for tool-free swap — the pack now side-loads
+  through a window in the rear tower wall (no more unscrewing the tower to
+  reach it): tilt in over the sill, it seats on far-wall rails between the
+  foot-tab gussets; a 20 mm hook-loop belt around the tower (guide ribs) closes
+  the window, and a ribbon under the pack is the pull-tab. Tower +5 mm tall
+  for headroom (`TOWER_H` 32→37); envelope is parametric (`BATT` in
+  `cad/dimensions.py`) — different pack, one edit, reprint.
+- **Servos**: unchanged — the 12 V-class ST3215 (6–12.6 V) was already the pick.
+- **Sim**: torso inertia rebuilt for the 3S pack (78 g vs the old 110 g 2S
+  estimate, correct orientation); dash policies re-evaluated on the updated
+  model: `dash_11v1_hard` 16/16 confirmed finishes, median 2.67 s (GoPro on);
+  `dash_11v1_hardlat` 16/16, median 2.72 s (GoPro + 4 ms latency).
+- 2S remains a fallback: everything still runs at 7.4 V, policies exist for it.
 
 ## Bill of materials
 
@@ -29,7 +32,8 @@ prefer the safer gait and zero CAD changes. Both policies exist either way.
 |---|---|---|---|---|
 | **Servos** | Waveshare ST3215, **12 V version** (6–12.6 V, 30 kg·cm @ 12 V, magnetic encoder) — *not* the $16.99 "7.4 V" version, which is rated 4–7.4 V and forecloses 3S | 8 + 1–2 spares | $21.99 ea [Waveshare direct](https://www.waveshare.com/st3215-servo.htm) → ~$176 + spares | ✅ **Ready to order** — sim-validated at both voltages; CAD built from its STEP |
 | **Driver board** | Waveshare "Servo Driver with ESP32" (65 × 30 mm, 6–12.6 V in — 2S *and* 3S direct per Waveshare docs, WiFi/BLE) | 1 | $24.99 [Amazon](https://www.amazon.com/dp/B0CFY34BX5) / [direct](https://www.waveshare.com/servo-driver-with-esp32.htm) | ✅ Ready — holes Ø2.75 on 58 × 23 per wiki, now in `cad/dimensions.py`; still verify on arrival **before printing the tower** |
-| **Battery** | 3S 11.1 V LiPo 650–1000 mAh, XT30 (or 2S per decision above) — not JST-terminated packs (JST ≈ 3 A, too small) | 2 | ~$15–25 ea | ⏳ **Blocked on 2S/3S call**; if 3S, I resize the bay first |
+| **Battery** | Zeee 3S 850 mAh 11.1 V 100C XT30 (2-pack) — the pack the bay is dimensioned for | 2 | ~$30/2-pack [Amazon](https://www.amazon.com/dp/B08H5GD35D) | ✅ **Ready — decision made** (3S, swap-window bay in CAD) |
+| Battery belt + ribbon | 20 mm hook-loop strap ~250 mm + pull ribbon (battery retention/extraction) | 1 | ~$5 (or scrap velcro) | ✅ Ready |
 | Power switch | inline XT30 rocker/slide switch (battery → board) | 1 | ~$8 | ✅ Ready |
 | Balance charger | 2S–3S LiPo charger (skip if owned) | 1 | ~$30 | check what you own |
 | **Fastener kit** | M3 heat-set inserts (~20), M3×6/8/10 machine, M3 self-tap, M2.5×8 (board), washers | 1 kit | ~$25 | ✅ Ready |
@@ -80,13 +84,15 @@ robot + ~$74 filament + $219 printer ≈ **$620–670 all-in from zero**.
 3. **Driver board holes** vs the CAD's 58 × 24 mm guess → then print tower.
 4. **GoPro finger fit**: print `gopro_base` alone first (~20 min) and test the
    3.2 mm slots against the MAX's fingers (`GP_SLOT = 3.5` fallback).
-5. **Board component height** (<4 mm on down-facing side) and battery ≤16 mm
-   tall (2S bay) — re-check envelope if 3S.
+5. **Board component height** (<4 mm on down-facing side) and the Zeee pack
+   ≤ the 68 × 31 × 20 mm bay envelope — test the window swap (tilt in over the
+   2.5 mm sill) with the real pack before final assembly.
 
 ## Wiring
 
-Full wiring/circuit diagram, servo ID map, current budget, and bring-up
-checklist: [docs/wiring.md](wiring.md). Short version: battery → switch →
+Pin-level circuit diagram (connectors, nets, wire colors), system block
+diagram, servo ID map, current budget, and bring-up checklist:
+[docs/wiring.md](wiring.md). Short version: battery → switch →
 driver board; one 3-pin bus daisy-chained per leg (IDs 1–4 left, 5–8 right,
 matching the sim's action order); GoPro unpowered by the robot.
 

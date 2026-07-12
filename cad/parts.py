@@ -248,11 +248,16 @@ def foot():
 def tower():
     """Electronics tower. The GoPro base bolts on top (4x M3 into bosses under
     the plate); the driver board hangs INSIDE, face down on standoffs under the
-    top plate (screwed M2.5 from below); battery lies on the pelvis deck,
-    velcro-strapped through the wall slots. Feet tabs screw down into the deck
-    heat-sets (access holes in the top plate). Local frame: z=0 at deck top.
-    Print: upside down (top plate on the bed) - the standoffs/bosses under the
-    plate print upward, still support-free.
+    top plate (screwed M2.5 from below). The 3S battery swaps tool-free: it
+    tilt-loads through a window in the -x wall onto the pelvis deck, seats
+    against far-wall rail stubs (dash x-loads) between the feet-tab gussets
+    (y-location), behind the window sill (x shear-stop); a 20 mm hook-loop
+    belt around the tower (guide ribs set its height) closes the window for
+    tumbles, and a ribbon under the pack is the pull-tab. Feet tabs screw down
+    into the deck heat-sets (access holes in the top plate). Local frame: z=0
+    at deck top. Print: upside down (top plate on the bed) - standoffs/bosses
+    print upward and the battery window opens toward the print top, so still
+    support-free.
     """
     hx = D.TOWER_W / 2                               # walls are X-normal, 21
     hy = D.TOWER_L / 2                               # spans Y like the deck, 48
@@ -260,9 +265,6 @@ def tower():
     p = box(-hx, hx, -hy, hy, zt0, zt1)
     for s in (1, -1):
         p += box(s * (hx - D.WALL), s * hx, -hy, hy, 0, zt0 + 1)
-        # battery strap slots
-        for sy in (24, -24):
-            p -= box(s * (hx - D.WALL) - 1, s * hx + 1, sy - 7, sy + 7, 4, 7)
         # feet tabs (inward) + 45 deg gusset wedge to the wall (sized for the
         # 154 g camera cantilevered ~85 mm above: a 10 g side hit ~ 1.3 N*m
         # -> ~25 N per screw, well inside heat-set / tab capacity with gussets)
@@ -271,6 +273,21 @@ def tower():
             p += box(s * (hx - D.WALL - 6), s * hx, sy - 6, sy + 6, 4, 12)
             p -= cyl_z(D.M3_CLEAR / 2, -1, 13, s * D.TOWER_FOOT_X, sy)
             p -= cyl_z(3.2, zt0 - 6, zt1 + 1, s * D.TOWER_FOOT_X, sy)  # driver access
+    # battery window in the -x wall: sill 2.5 (tilt the pack in over it),
+    # opening = envelope height, posts at the ends keep the feet tabs
+    bw = D.BATT[0] / 2 + 1.0
+    p -= box(-hx - 1, -hx + D.WALL + 1, -bw, bw, 2.5, D.BATT[2] + 2.5)
+    # far-wall rail stubs: seat the pack inner face, stepped for the inverted
+    # print like the feet tabs
+    seat_in = D.BATT_SEAT_X + D.BATT[1]              # pack inner (+x) face, 14
+    for sy in (-20, 16):
+        p += box(seat_in, hx - D.WALL, sy - 6, sy + 6, 0, 12)
+        p += box(seat_in + 1.3, hx - D.WALL, sy - 6, sy + 6, 12, 15)
+    # belt guide ribs: +x wall full-width, -x wall on the window posts
+    for rz in (D.BATT[2] - 8, D.BATT[2] + 3):
+        p += box(hx, hx + 1.5, -22, 22, rz, rz + 1.5)
+        for sy in (1, -1):
+            p += box(-hx - 1.5, -hx, sy * (bw + 1), sy * (hy - 1), rz, rz + 1.5)
     # driver board standoffs under the plate (board face-down, M2.5 from below)
     bx, by = D.BOARD_HOLES[1] / 2, D.BOARD_HOLES[0] / 2
     for sx in (bx, -bx):
@@ -347,7 +364,7 @@ def main():
               f"{bb.size.Z:6.1f} mm  vol {vol:6.1f} cm3  ~{mass:5.1f} g  "
               f"{'BED-OK' if fits else '** TOO BIG **'}  [{orient}]")
 
-    servos, batt, board, fasteners, tpu = 8 * D.SERVO_MASS, 110.0, 20.0, 47.0, 16.0
+    servos, batt, board, fasteners, tpu = 8 * D.SERVO_MASS, 78.0, 20.0, 47.0, 16.0
     total = print_mass + servos + batt + board + fasteners + tpu
     print(f"\nprinted plastic ~{print_mass:.0f} g   servos {servos:.0f} g   "
           f"battery {batt:.0f} g   board {board:.0f} g   fasteners {fasteners:.0f} g"
@@ -375,8 +392,8 @@ def main():
     # standing CG estimate (approximate segment CG heights, mm above ground)
     cam_z = D.TOP_Z + D.GP_BASE_T + D.GP_HOLE_H + 6 + D.CAM_BODY[2] / 2  # ~373
     items = [
-        (m["pelvis"], 265), (m["tower"], 303), (m["gopro_base"], D.TOP_Z + 3),
-        (batt, 295), (board, 308), (2 * D.SERVO_MASS, 262), (27, 290),
+        (m["pelvis"], 265), (m["tower"], 306), (m["gopro_base"], D.TOP_Z + 3),
+        (batt, 297), (board, 313), (2 * D.SERVO_MASS, 262), (27, 290),
         (2 * (m["yoke_roll"] + m["yoke_pitch"] + 5), 225),
         (2 * (m["leg_link"] + D.SERVO_MASS + 4), 175),
         (2 * (m["leg_link"] + D.SERVO_MASS + 4), 85),

@@ -26,35 +26,39 @@ OUT = os.path.join(HERE, "renders")
 TMP = os.path.join(OUT, "_anim")
 os.makedirs(TMP, exist_ok=True)
 
-# label prefix -> (assembly stage, insertion vector in mm, world frame)
+# label prefix -> (insertion vector in mm world frame, extra delay in frames
+# before this stage starts -- the battery waits for the tower to finish so the
+# swap window pass is actually demonstrated, not raced)
 PLAN = [
-    ("pelvis",          (0, 0, 120)),   # chassis lowered in from above
-    ("servo_hip_roll",  (0, 0, -80)),   # slides UP into the pelvis bay
-    ("yoke_roll",       (0, 0, -60)),   # clevis up over the roll servo
-    ("yoke_pitch",      (0, 0, -60)),   # bolts to the roll flange from below
-    ("servo_hip_pitch", (0, 0, -60)),   # thigh servo up into the pitch clevis
-    ("link_thigh",      (80, 0, 0)),    # grip channel slides on from the front
-    ("servo_knee",      (0, 0, -60)),   # up into the thigh fork
-    ("link_shin",       (80, 0, 0)),    # grip channel from the front
-    ("servo_ankle",     (0, 0, -60)),   # up into the shin fork
-    ("foot",            (0, 0, -60)),   # sole rises to pocket the ankle servo
-    ("tower",           (0, 0, 120)),   # drops onto the deck bosses
-    ("gopro_base",      (0, 0, 90)),    # drops onto the tower-top bosses
-    ("camera",          (0, 0, 90)),    # fingers drop into the prongs
+    ("pelvis",          (0, 0, 120), 0),   # chassis lowered in from above
+    ("servo_hip_roll",  (0, 0, -80), 0),   # slides UP into the pelvis bay
+    ("yoke_roll",       (0, 0, -60), 0),   # clevis up over the roll servo
+    ("yoke_pitch",      (0, 0, -60), 0),   # bolts to the roll flange from below
+    ("servo_hip_pitch", (0, 0, -60), 0),   # thigh servo up into the pitch clevis
+    ("link_thigh",      (80, 0, 0), 0),    # grip channel slides on from the front
+    ("servo_knee",      (0, 0, -60), 0),   # up into the thigh fork
+    ("link_shin",       (80, 0, 0), 0),    # grip channel from the front
+    ("servo_ankle",     (0, 0, -60), 0),   # up into the shin fork
+    ("foot",            (0, 0, -60), 0),   # sole rises to pocket the ankle servo
+    ("tower",           (0, 0, 120), 0),   # drops onto the deck bosses
+    ("battery",         (-90, 0, 0), 18),  # 3S pack through the -x wall window
+    ("gopro_base",      (0, 0, 90), 0),    # drops onto the tower-top bosses
+    ("camera",          (0, 0, 90), 0),    # fingers drop into the prongs
 ]
 COLOR = {"servo": (0.22, 0.23, 0.27, 1), "camera": (0.10, 0.10, 0.12, 1),
+         "battery": (0.16, 0.30, 0.55, 1),
          "foot": (0.70, 0.72, 0.78, 1), "": (0.80, 0.82, 0.86, 1)}
 
 
 def stage_of(label):
-    for i, (prefix, vec) in enumerate(PLAN):
+    for i, (prefix, vec, _) in enumerate(PLAN):
         if label.startswith(prefix):
             return i, np.array(vec) / 1000.0
     raise KeyError(f"no insertion plan for part '{label}' — extend PLAN")
 
 
 def color_of(label):
-    for prefix in ("servo", "camera", "foot"):
+    for prefix in ("servo", "camera", "battery", "foot"):
         if label.startswith(prefix):
             return COLOR[prefix]
     return COLOR[""]
@@ -108,22 +112,35 @@ d = mujoco.MjData(m)
 mocap = {n: m.body(n).mocapid[0] for n, *_ in parts}
 
 FPS, INTRO, STAGGER, TRAVEL, HOLD = 16, 8, 9, 24, 20
-total = INTRO + STAGGER * (len(PLAN) - 1) + TRAVEL + HOLD
+START = []                                           # per-stage start frame
+acc = INTRO
+for i, (_, _, extra) in enumerate(PLAN):
+    acc += (STAGGER if i else 0) + extra
+    START.append(acc)
+total = START[-1] + TRAVEL + HOLD
+BATT_START = START[[p for p, _, _ in PLAN].index("battery")]
 r = mujoco.Renderer(m, height=460, width=560)
 cam = mujoco.MjvCamera()
 mujoco.mjv_defaultCamera(cam)
 cam.lookat[:] = [0.01, 0.0, 0.185]
 cam.distance, cam.elevation = 0.80, -10
 
+
+def smoothstep(t):
+    t = np.clip(t, 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
 frames = []
 for f in range(total):
     for n, stage, vec, _, _ in parts:
-        t = (f - INTRO - stage * STAGGER) / TRAVEL
-        t = np.clip(t, 0.0, 1.0)
-        ease = t * t * (3 - 2 * t)                   # smoothstep
+        ease = smoothstep((f - START[stage]) / TRAVEL)
         d.mocap_pos[mocap[n]] = (1 - ease) * vec
     mujoco.mj_forward(m, d)
-    cam.azimuth = 140 + 30 * f / total               # slow orbit for depth cues
+    # slow orbit for depth cues, plus a swing to the -x side just before the
+    # battery stage so the swap-window pass is on camera
+    cam.azimuth = (140 + 30 * f / total
+                   + 180 * smoothstep((f - (BATT_START - 22)) / 24))
     r.update_scene(d, cam)
     frames.append(r.render().copy())
 

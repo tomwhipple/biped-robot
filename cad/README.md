@@ -38,14 +38,14 @@ opening) on the other — no extra bearings needed.
 | `yoke_pitch` | 2 | 32 × 45 × 42 | 12 g | clevis on thigh-servo horn/idler, bolts under `yoke_roll` rotated 90° (hip universal joint) |
 | `leg_link` | 4 | 28 × 45 × 99 | 18 g | thigh **and** shin (same part): grips a servo case, forks 90 mm down to the next servo's horn/idler |
 | `foot` | 2 | 96 × 52 × 30 | 24 g | sole + ankle-servo pocket + rear retention walls + TPU pad recess |
-| `tower` | 1 | 42 × 96 × 32 | 36 g | electronics: driver board hangs face-down on standoffs INSIDE, battery strapped on the deck below it; GoPro bosses on top |
+| `tower` | 1 | 45 × 96 × 37 | 37 g | electronics: driver board hangs face-down on standoffs INSIDE; 3S battery tilt-loads through the rear-wall window onto the deck (tool-free swap: peel belt, tug ribbon); GoPro bosses on top |
 | `gopro_base` | 1 | 30 × 24 × 21 | 5 g | GoPro three-prong mount, bolts to the tower top (crash fuse — cheap to reprint) |
 
-Printed plastic ≈ 256 g. Total robot ≈ **0.89 kg** bare, **1.04 kg with the
-GoPro MAX** (8 servos 440 g, 2S LiPo ~110 g, board ~20 g, fasteners ~47 g,
+Printed plastic ≈ 257 g. Total robot ≈ **0.86 kg** bare, **1.01 kg with the
+GoPro MAX** (8 servos 440 g, 3S LiPo ~78 g, board ~20 g, fasteners ~47 g,
 TPU 16 g, camera 154 g). Heights: ankle 16.9, knee 106.9, hip-pitch 196.9,
-hip-roll 246.9, torso top 319 mm, camera CG ≈ 373 mm. Standing CG rises from
-≈ 172 mm (bare) to ≈ 201 mm with the camera (**+29 mm**) — expect gait retuning.
+hip-roll 246.9, torso top 324 mm, camera CG ≈ 378 mm. Standing CG rises from
+≈ 168 mm (bare) to ≈ 200 mm with the camera (**+31 mm**) — expect gait retuning.
 
 ### GoPro mount (`gopro_base`)
 
@@ -67,9 +67,10 @@ legs are translations, not mirrors.
 
 | item | qty | notes |
 |---|---|---|
-| Feetech STS3215 (7.4 V version) | 8 | 30 kg·cm@12 V class; includes metal horn + idler disc + M3×6 screws |
-| Waveshare Bus Servo Adapter / Servo Driver (ESP32) | 1 | hole pattern in `dimensions.py::BOARD_HOLES` is a 58×24 guess for the ESP32 driver — **verify against your board before printing the tower** |
-| 2S LiPo 7.4 V, 450–1000 mAh | 1 | ≤ 75 × 35 × 16 mm envelope, velcro strap through tower slots |
+| Waveshare ST3215, 12 V version (6–12.6 V) | 8 | 30 kg·cm@12 V; includes metal horn + idler disc + M3×6 screws; do NOT buy the 4–7.4 V class (see docs/hardware-order.md) |
+| Waveshare Servo Driver with ESP32 | 1 | 65 × 30 mm; `dimensions.py::BOARD_HOLES` = published Ø2.75 @ 58 × 23 — **still verify against your board before printing the tower** |
+| Zeee 3S 850 mAh 100C XT30 (2-pack) | 2 | 67 × 30 × 18.5 mm, 74 g; bay is parametric on `BATT` — different pack, edit + reprint tower |
+| 20 mm hook-loop strap ~250 mm + pull ribbon | 1 | battery belt (rides in the tower guide ribs) + extraction tab under the pack |
 | M3×6 button head | 32 | horn pads (4 per joint × 8) — servo kits include some |
 | M3×8 button head + M3 thin washer | 24 | idler pads at hip-pitch, knee, ankle (4 × 6 joints); washer stops the tip short of the gears |
 | M3×10 button head | 16 | yoke_roll idler arms (4 × 2, through the long boss) + hip flange bolts (4 × 2) |
@@ -119,9 +120,12 @@ perimeter-only), 30–40 % infill, no supports needed:
    idler arm boss through the rear wall slot into the idler disc (4× M3×10).
 7. **Torso**: press 4 inserts into the deck bosses; screw the driver board
    face-down onto the standoffs under the tower top (4× M2.5×8 from below,
-   connectors toward an open end) BEFORE bolting the tower down; strap the
-   battery on the deck under the board; bolt the tower down (4× M3 through the
-   feet tabs — driver access holes are in the top plate). Screw the
+   connectors toward an open end) BEFORE bolting the tower down; bolt the
+   tower down (4× M3 through the feet tabs — driver access holes are in the
+   top plate). Lay the pull ribbon across the deck, tilt the battery in
+   through the rear-wall window (over the sill, onto the far-wall rails),
+   and close the hook-loop belt around the tower in its guide ribs — the
+   battery goes in LAST and swaps without touching a screw. Screw the
    `gopro_base` onto the top bosses (4× M3×8); the camera clamps with its
    M5 thumbscrew, lens fore-aft.
 8. **Wiring**: daisy chain — board → both roll servos (connectors are inside the
@@ -137,7 +141,10 @@ perimeter-only), 30–40 % infill, no supports needed:
   confirm screws don't bottom against the gear behind the disc.
 - **Driver board**: exact model + hole pattern (`BOARD_HOLES`) — it now hangs
   inside the tower; confirm its component heights (< ~4 mm toward the battery)
-  and that a 16 mm-tall battery still leaves ~1 mm under the board.
+  and that the 18.5 mm-tall pack still leaves ~2 mm under the board.
+- **Battery swap fit**: test-fit the real Zeee pack through the window before
+  final assembly — sill height 2.5 mm, opening sized to the `BATT` envelope
+  (68 × 20); a puffier pack means editing `BATT` and reprinting the tower.
 - **GoPro fit**: measure your MAX's finger thickness — slots are printed 3.2 mm
   (GoProScad standard is 3.5); confirm the folded-finger depth clears the
   17 mm prong height, and that 154 g up top (+29 mm CG) is retrained/retuned

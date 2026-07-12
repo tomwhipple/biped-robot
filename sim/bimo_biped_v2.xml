@@ -10,7 +10,7 @@
             the torso box envelope. Its mass is folded into the torso.
          4. Explicit masses from the CAD mass rollup + measured servo mass
             (55 g each), instead of tuned densities:
-              torso 344 g (pelvis+tower prints, 2 roll servos, 2S LiPo 110 g,
+              torso 323.5 g (pelvis+tower prints, 2 roll servos, 3S LiPo 78 g,
                            driver board 20 g, wiring/screws)
               hip link 29 g (yoke_roll + yoke_pitch + screws)
               thigh/shin 77 g each (servo + leg_link + screws)
@@ -44,7 +44,7 @@
 
     <body name="torso" pos="0 0 0.283">
       <freejoint/>
-      <inertial pos="0 0 -0.0005" quat="-0.4999 0.5001 0.5001 -0.4999" mass="0.344" diaginertia="2.7325e-04 2.8653e-04 3.6978e-04"/>
+      <inertial pos="0.0001 0 -0.0005" quat="0.5006 -0.4992 -0.4984 0.5018" mass="0.3235" diaginertia="2.4938e-04 2.7123e-04 4.2450e-04"/>
       <geom name="torso" type="box" size="0.023 0.052 0.036" mass="0.344" rgba="0.80 0.82 0.85 1"/>
       <site name="imu" pos="0 0 0"/>
 

@@ -73,7 +73,7 @@ robot/
 │   ├── cad-and-printer-recommendations.md   # CAD software & 3D printer picks
 │   ├── hardware-order.md         # order checklist + 2S/3S decision + reconciliation
 │   ├── bom-sourced.md            # sourced BOM: live links & prices (reconciled)
-│   └── wiring.md                 # wiring diagram, servo ID map, bring-up checklist
+│   └── wiring.md                 # circuit + block diagrams, servo IDs, bring-up
 ├── cad/                          # parametric CAD (code is the source of truth)
 │   ├── dimensions.py             # every dimension, incl. measured STS3215 data
 │   ├── parts.py                  # the 6 printable parts -> stl/ + mass/bed checks

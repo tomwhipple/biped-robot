@@ -21,6 +21,7 @@ COL_PRINT = Color(0.82, 0.84, 0.87)
 COL_SERVO = Color(0.25, 0.26, 0.30)
 COL_FOOT = Color(0.70, 0.72, 0.78)
 COL_CAM = Color(0.10, 0.10, 0.12)
+COL_BATT = Color(0.16, 0.30, 0.55)
 
 TOWER_TOP_Z = DECK_TOP_Z + D.TOWER_H
 
@@ -37,6 +38,13 @@ def camera_mock():
         f = parts.box(-6, 6, cy - 1.45, cy + 1.45, hole_z - 6, bot + 1)
         fingers = f if fingers is None else fingers + f
     return body + fingers
+
+
+def battery_mock():
+    """Zeee 3S 850 pack (67 x 30 x 18.5) seated on the deck: outer face at
+    BATT_SEAT_X, inner face on the far-wall rails."""
+    x0 = D.BATT_SEAT_X + (D.BATT[1] - 30.0)          # actual pack, not envelope
+    return parts.box(x0, x0 + 30.0, -33.5, 33.5, 0, 18.5)
 
 
 def piece(label, color, solid):
@@ -66,6 +74,7 @@ def leg(y, tag):
 robot = Compound(label="bimo_biped", children=[
     piece("pelvis", COL_PRINT, Pos(0, 0, DECK_TOP_Z) * parts.pelvis()),
     piece("tower", COL_PRINT, Pos(0, 0, DECK_TOP_Z) * parts.tower()),
+    piece("battery_3s_mock", COL_BATT, Pos(0, 0, DECK_TOP_Z) * battery_mock()),
     piece("gopro_base", COL_PRINT, Pos(0, 0, TOWER_TOP_Z) * parts.gopro_base()),
     piece("camera_gopro_max_mock", COL_CAM, Pos(0, 0, TOWER_TOP_Z) * camera_mock()),
     leg(D.HIP_SEP / 2, "L"),

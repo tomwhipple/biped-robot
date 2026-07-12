@@ -4,6 +4,12 @@
 the entire harness is the servo leads that ship in the box plus one XT30
 pigtail and a switch.*
 
+**Circuit diagram** (pin-level: connectors, nets, wire colors):
+
+![Circuit diagram](circuit-diagram.svg)
+
+**System block diagram** (physical layout view of the same thing):
+
 ![Wiring diagram](wiring-diagram.svg)
 
 ## Power path
@@ -15,6 +21,11 @@ pigtail and a switch.*
                                             passed straight through to all 8)
 ```
 
+- The battery is the [Zeee 3S 850 mAh 100C XT30](https://www.amazon.com/dp/B08H5GD35D)
+  (decided 2026-07-11; a 2-pack, so one charges while one flies). It swaps
+  tool-free through the window in the rear tower wall: peel the belt, tug the
+  pull-ribbon, tilt the pack out; reverse to insert (lead-end toward whichever
+  y-pocket the XT30 pigtail lives in).
 - The **Servo Driver with ESP32** accepts 6–12.6 V, so it runs directly from
   2S (7.4 V) or 3S (11.1 V, 12.6 V fully charged) — no regulator needed. Its
   logic is powered from an onboard buck; the servo bus carries raw battery
@@ -30,9 +41,14 @@ pigtail and a switch.*
 
 ## Servo bus
 
-- 3-pin daisy chain (V+, GND, DATA), half-duplex TTL at **1 Mbaud**
-  (driver board UART1, GPIO 18/19). Every ST3215 has two identical ports,
-  so chains just hop case to case with the included 150 mm leads.
+- 3-pin daisy chain, half-duplex TTL at **1 Mbaud** (driver board UART1,
+  GPIO 18/19). Pin order on every connector (Molex-5264-style): **1 GND
+  (black) · 2 V+ (red) · 3 DATA (white/blue)**. Every ST3215 has two
+  identical, internally-paralleled ports, so chains just hop case to case
+  with the included 150 mm leads.
+- Per-servo current (12 V class): **2.7 A stall, 0.18 A idle** — the ~10 A
+  transient budget in the circuit diagram comes from 2–3 joints near stall
+  simultaneously in the gauntlet's worst gaits.
 - The board's two bus ports are **electrically the same bus** — we use one
   per leg purely for cable routing:
   - **Port A → left leg**: ID 1 hip roll → ID 2 hip pitch → ID 3 knee → ID 4 ankle
