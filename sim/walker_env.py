@@ -167,6 +167,21 @@ class BimoWalkerEnv(gym.Env):
         # the episode latency (real bus timing is not constant)
         push_prob: float | None = None,  # per-control-step shove chance (None=auto w/ DR)
         push_force: float | None = None, # shove magnitude (N); 0 disables, None=auto w/ DR
+        # -- command-conditioned locomotion (2026-07-12) -------------------------
+        # The successor to the dash objective: the policy observes a commanded
+        # body-frame forward velocity + yaw rate (resampled mid-episode,
+        # including zero = stand still) and is rewarded for TRACKING it.
+        # Stopping and turning become continuously-practiced behaviors instead
+        # of a terminal event -- which is what made the dash_stop objective
+        # exploitable three different ways (see DESIGN.md). Obs grows by 2
+        # (the command), so command policies don't warm-start from dash ones.
+        command_mode: bool = False,
+        cmd_v_range: tuple = (0.3, 1.0),   # forward-speed command draw (m/s)
+        cmd_w_range: float = 1.0,          # |yaw-rate| command bound (rad/s)
+        cmd_stand_prob: float = 0.3,       # chance a command is "stand still"
+        cmd_resample_s: tuple = (2.5, 4.5),  # seconds between command changes
+        w_track_v: float = 2.0,        # velocity-tracking reward (exp kernel)
+        w_track_w: float = 1.0,        # yaw-rate-tracking reward (exp kernel)
         # -- hardware-realizable observations (sensing audit 2026-07-11) --------
         imu_obs: bool = False,         # torso linear velocity + height are ZEROED
         # (the real robot has no sensor for them; obs stays 36-wide so warm
@@ -207,6 +222,15 @@ class BimoWalkerEnv(gym.Env):
         self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
         self.payload_mass = payload_mass
         self.payload_max = payload_max
+        self.command_mode = command_mode
+        self.cmd_v_range = cmd_v_range
+        self.cmd_w_range = cmd_w_range
+        self.cmd_stand_prob = cmd_stand_prob
+        self.cmd_resample_s = cmd_resample_s
+        self.w_track_v = w_track_v
+        self.w_track_w = w_track_w
+        self._cmd = np.zeros(2)        # (vx_body m/s, yaw rate rad/s)
+        self._cmd_next = 0
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
         self._imu_R = np.eye(3)          # per-episode mounting misalignment
@@ -311,7 +335,7 @@ class BimoWalkerEnv(gym.Env):
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
 
         self.action_space = spaces.Box(-1.0, 1.0, shape=(8,), dtype=np.float32)
-        obs_dim = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2
+        obs_dim = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2 + (2 if command_mode else 0)
         self.observation_space = spaces.Box(
             -np.inf, np.inf, shape=(obs_dim,), dtype=np.float32
         )
@@ -463,7 +487,7 @@ class BimoWalkerEnv(gym.Env):
             linvel = np.zeros(3)
             height = 0.0
         phase = 2 * np.pi * (self._step_i / self.max_steps)
-        return np.concatenate([
+        parts = [
             d.qpos[_JQPOS],                    # 8 joint angles
             d.qvel[_JQVEL],                    # 8 joint velocities
             up,                                # 3 torso up-vector
@@ -474,7 +498,30 @@ class BimoWalkerEnv(gym.Env):
             # flat-ground policies see the exact same observation as before)
             [height],
             [np.sin(phase), np.cos(phase)],    # 2 phase clock
-        ]).astype(np.float32)
+        ]
+        if self.command_mode:
+            parts.append(self._cmd)            # 2 commanded (vx, yaw rate)
+        return np.concatenate(parts).astype(np.float32)
+
+    def _sample_command(self):
+        """New (vx, yaw-rate) command; 'stand still' with cmd_stand_prob."""
+        if self.np_random.uniform() < self.cmd_stand_prob:
+            self._cmd = np.zeros(2)
+        else:
+            v = float(self.np_random.uniform(*self.cmd_v_range))
+            w = (float(self.np_random.uniform(-self.cmd_w_range,
+                                              self.cmd_w_range))
+                 if self.np_random.uniform() < 0.6 else 0.0)
+            self._cmd = np.array([v, w])
+        lo, hi = self.cmd_resample_s
+        self._cmd_next = self._step_i + int(
+            self.np_random.uniform(lo, hi) / self.control_dt)
+
+    def set_command(self, v: float, w: float):
+        """External command override (scenario evals / future teleop or
+        goal-seeking layers). Disables auto-resampling until the next reset."""
+        self._cmd = np.array([float(v), float(w)])
+        self._cmd_next = 10 ** 9
 
     # -- gym API -----------------------------------------------------------
     def reset(self, *, seed=None, options=None):
@@ -515,6 +562,8 @@ class BimoWalkerEnv(gym.Env):
         self._servo_tau[:] = 0.0
         self._cross_t = None    # dash: time the torso first crossed dash_distance
         self._stand_t = None    # dash_stop: start of the current standstill
+        if self.command_mode:
+            self._sample_command()
         # IMU DR: per-episode mounting misalignment (small random rotation) and
         # gyro bias, BNO085-class magnitudes scaled by imu_noise. Only draws
         # RNG when enabled, so other runs keep their exact random streams.
@@ -610,7 +659,26 @@ class BimoWalkerEnv(gym.Env):
         # standing earns what running at the cap earned, so crossing is never
         # disincentivized) and the gait-shaping bonuses below switch off.
         braking = self.dash and self.dash_stop and self._cross_t is not None
-        if braking:
+        vx_body = wz_rate = 0.0
+        if self.command_mode:
+            # track the commanded body-frame velocity + yaw rate (exp kernels,
+            # legged_gym-style). A zero command makes standing the primary
+            # reward -- stopping is practiced continuously, not a terminal
+            # event, which is what made the dash_stop objective exploitable.
+            qw, qx, qy, qz = d.qpos[3:7]
+            yaw = np.arctan2(2 * (qw * qz + qx * qy),
+                             1 - 2 * (qy * qy + qz * qz))
+            cth, sth = np.cos(yaw), np.sin(yaw)
+            vx_body = cth * float(d.qvel[0]) + sth * float(d.qvel[1])
+            vy_body = -sth * float(d.qvel[0]) + cth * float(d.qvel[1])
+            wz_rate = float(d.qvel[5])
+            primary = (
+                self.w_track_v * float(np.exp(-((vx_body - self._cmd[0])
+                                                / 0.25) ** 2))
+                + self.w_track_w * float(np.exp(-((wz_rate - self._cmd[1])
+                                                  / 0.5) ** 2)))
+            reward_time_stop = 0.0
+        elif braking:
             planar = float(np.hypot(d.qvel[0], d.qvel[1]))
             cap = 1.0 if self.target_speed is None else self.target_speed
             # sharp ramp: full credit only near standstill, zero above
@@ -621,6 +689,11 @@ class BimoWalkerEnv(gym.Env):
         else:
             primary = self.w_forward * fwd_term
             reward_time_stop = 0.0
+        # gait shaping is for locomotion: off while braking, and off under a
+        # stand-still command (double support is rewarded instead, below)
+        cmd_moving = (not self.command_mode) or abs(self._cmd[0]) > 0.05 \
+            or abs(self._cmd[1]) > 0.05
+        shaping_on = cmd_moving and not braking
 
         reward = (
             primary                                       # go forward / brake
@@ -643,7 +716,7 @@ class BimoWalkerEnv(gym.Env):
                     # capped at air_time_target (no hopping incentive), minus a
                     # baseline of half the target so quick shuffle taps score
                     # *negative* -- the gradient pushes toward deliberate swings.
-                    if not braking:
+                    if shaping_on:
                         reward += self.w_feet_air * (
                             min(self._air_time[f], self.air_time_target)
                             - 0.5 * self.air_time_target)
@@ -652,13 +725,22 @@ class BimoWalkerEnv(gym.Env):
                 self._air_time[f] += self.control_dt
         single_support = con_l != con_r
         double_support = con_l and con_r
-        if self.w_single_support and not braking:
-            reward += self.w_single_support * float(single_support)
-        if self.w_lateral:      # walk straight: lateral speed + sideways drift
-            reward -= self.w_lateral * (abs(float(d.qvel[1]))
-                                        + 0.5 * abs(float(d.qpos[1])))
-        if self.w_yaw:          # face +x: heading error + yaw rate
-            qw, qx, qy, qz = d.qpos[3:7]
+        if self.w_single_support:
+            if shaping_on:
+                reward += self.w_single_support * float(single_support)
+            elif self.command_mode and not cmd_moving:
+                # under a stand command, plant both feet
+                reward += self.w_single_support * float(double_support)
+        if self.w_lateral:
+            if self.command_mode:
+                # body-frame side-slip (world drift is meaningless when the
+                # command says turn); vy_body computed in the tracking block
+                reward -= self.w_lateral * abs(vy_body)
+            else:   # walk straight: lateral speed + sideways drift
+                reward -= self.w_lateral * (abs(float(d.qvel[1]))
+                                            + 0.5 * abs(float(d.qpos[1])))
+        if self.w_yaw and not self.command_mode:  # face +x (yaw-rate tracking
+            qw, qx, qy, qz = d.qpos[3:7]          # replaces this in cmd mode)
             yaw = np.arctan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
             reward -= self.w_yaw * (abs(float(yaw)) + 0.1 * abs(float(d.qvel[5])))
         if self.w_pitch_rate:   # calm torso: roll + pitch angular rates
@@ -713,6 +795,14 @@ class BimoWalkerEnv(gym.Env):
                 "double_support": double_support, "single_support": single_support,
                 "touchdown_air": touchdown_air, "dash_success": dash_success,
                 "time_to_2m": float("nan") if self._cross_t is None else self._cross_t}
+        if self.command_mode:
+            info.update(cmd_v=float(self._cmd[0]), cmd_w=float(self._cmd[1]),
+                        vx_body=vx_body, wz=wz_rate,
+                        y=float(d.qpos[1]))
+            # resample AFTER the reward (which graded the command the policy
+            # saw); the returned obs carries the new command
+            if self._step_i >= self._cmd_next:
+                self._sample_command()
         return self._obs(), float(reward), terminated, truncated, info
 
     def render(self):
