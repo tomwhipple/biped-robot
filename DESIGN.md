@@ -481,6 +481,46 @@ without an input usually learn to compensate; these were trained with it and
 never had to. Same playbook as actuators and latency: model it honestly,
 then train inside it. Tool: `sim/ablate_obs.py`.
 
+### The stop-and-stand objective: three exploits and an open problem (2026-07-12)
+
+Review of the dash video showed the "finish" was a jog-through — the criterion
+(upright 1 s past the line) never asked for a stop. New `dash_stop` mode:
+success = planar speed < 0.15 m/s continuously for 1 s past the line, upright
+throughout; post-cross the reward flips from "go" to "brake and stand". Four
+runs overnight, all at 11.1 V on the honest-actuator model with
+hardware-realizable observations (`imu_obs`):
+
+1. **Fine-tune from dash_11v1_hardlat** (`dash_11v1_stop`, 6M): kept sprinting
+   through the line, 0/16. Third confirmation that behavior restructuring
+   needs from-scratch training.
+2. **From scratch, attempt 1** (`dash_11v1_real`, 10M): *loiter exploit* —
+   post-cross, near-standing farmed ~1–2.5/step for the remaining ~7 s
+   (~470 total) vs +25-and-episode-ends for finishing. Crossed slowly, then
+   walked circles to truncation, 0/16. Fix: sharp brake ramp (credit only
+   near standstill) + `w_time_stop` 1.5/step post-cross penalty, making
+   every non-finishing step net-negative.
+3. **Attempt 2** (`dash_11v1_real2`, 10M): *sprint-and-dive exploit* —
+   braking from a 0.8 m/s sprint was never successfully explored (every
+   attempt falls, costing the same as diving), so it dove at the line;
+   0/16, all post-cross falls at ~2.7 s. Fix: approach taper (speed cap
+   ramps down over the last 0.7 m, floor 0.3×) + 3× fall cost past the line.
+4. **Attempt 3** (`dash_11v1_real3`, 10M): the shaping worked as intended —
+   slow approach (0.58 m/s avg), crosses right at the line — and it *still*
+   falls trying to halt: 0/16, episodes end ~1 s past the line.
+
+Post-mortem: halting a dynamically-balancing biped is a capture-step skill
+this curriculum never teaches, and there is a confound — all attempts also
+ran with `imu_obs`, i.e. **no torso linear-velocity feedback**, exactly the
+channel the ablation showed the policies lean on hardest. Braking blind to
+your own speed is plausibly the real blocker. Next steps (in order of
+promise): (a) isolate the confound — train stop with FULL observations; if
+it works, the answer is a velocity estimate on the ESP32 (integrate IMU +
+kinematics) or a recurrent policy, not more reward shaping; (b) reference-
+state initialization (start episodes mid-walk near the line so braking is
+densely explored); (c) a stand-and-balance curriculum stage before walking.
+The overnight run `dash_11v1_imu` tests the other half of the decomposition:
+the proven jog-through dash objective on realizable observations.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
