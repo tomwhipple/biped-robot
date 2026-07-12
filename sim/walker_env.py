@@ -588,7 +588,16 @@ class BimoWalkerEnv(gym.Env):
         fwd_vel = (x_after - x_before) / self.control_dt
         # Cap the forward term at target_speed so a lunge/faceplant (a big one-step
         # positive velocity) can't out-earn a steady gait -- the classic exploit.
-        fwd_term = fwd_vel if self.target_speed is None else min(fwd_vel, self.target_speed)
+        cap_speed = self.target_speed
+        if (self.dash and self.dash_stop and self._cross_t is None
+                and cap_speed is not None):
+            # approach taper: the speed cap ramps down over the last 0.7 m
+            # before the line, so the policy ARRIVES slow enough that braking
+            # to a standstill is a small, discoverable step (a full-sprint
+            # arrival makes every brake attempt a fall)
+            dist_left = self.dash_distance - float(d.qpos[0])
+            cap_speed = cap_speed * float(np.clip(dist_left / 0.7, 0.3, 1.0))
+        fwd_term = fwd_vel if cap_speed is None else min(fwd_vel, cap_speed)
         # energy ~ actuator force * joint velocity; action-rate penalizes jitter
         # (under the sts3215 model the MJCF actuators are silent, so use the
         # torque we actually applied)
@@ -692,7 +701,13 @@ class BimoWalkerEnv(gym.Env):
         terminated = fell or dash_success
         truncated = self._step_i >= self.max_steps
         if fell:
-            reward -= self.fall_cost
+            # dash_stop: falling PAST the line costs 3x -- otherwise "sprint
+            # and dive at the line" is the least-bad explored policy (braking
+            # attempts that fall cost the same as diving, and the standing
+            # payoff is never sampled; observed in dash_11v1_real2, 0/16 all
+            # by post-cross falls)
+            reward -= self.fall_cost * (
+                3.0 if (self.dash_stop and self._cross_t is not None) else 1.0)
 
         info = {"fwd_vel": fwd_vel, "height": height, "up_z": up_z, "x": x_after,
                 "double_support": double_support, "single_support": single_support,
