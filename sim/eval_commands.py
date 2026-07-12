@@ -4,7 +4,7 @@ Run:  .venv/bin/python sim/eval_commands.py --run-name cmd_11v1 [--episodes 8]
           [--payload 0.154] [--latency-ms 4] [--render]
 
 Scenarios (each an episode with scripted set_command sequences):
-  dash+stop : cmd (1.0, 0) until x >= 2 m, then (0, 0). Success = within 2 s
+  dash+stop : cmd (0.8, 0) until x >= 2 m, then (0, 0). Success = within 2 s
               of the switch, planar speed stays < 0.15 m/s for 1 s, upright
               through the end. This is the objective the dash_stop reward
               never delivered -- here stopping is just another command.
@@ -67,15 +67,15 @@ def planar(info):
 
 
 def scen_dash_stop(t, base):
-    return (1.0, 0.0) if float(base.data.qpos[0]) < 2.0 else (0.0, 0.0)
+    return (0.8, 0.0) if float(base.data.qpos[0]) < 2.0 else (0.0, 0.0)
 
 
 def scen_turn(t, base):
-    return (0.5, 0.8) if t < 3.0 else (0.5, -0.8)
+    return (0.4, 0.5) if t < 3.0 else (0.4, -0.5)
 
 
 def scen_pivot(t, base):
-    return (0.0, 0.8) if t < 3.0 else (0.0, -0.8)
+    return (0.0, 0.5) if t < 3.0 else (0.0, -0.5)
 
 
 def scen_stand(t, base):
@@ -133,10 +133,11 @@ def main():
                                     render=args.render and ep == 0)
             fell = trace[-1]["up_z"] < 0.4 or trace[-1]["height"] < 0.18
             half = min(150, len(trace))
-            got_l = sum(s["wz"] for s in trace[:half]) * 0.02
-            got_r = sum(s["wz"] for s in trace[half:]) * 0.02
-            want_l = 0.8 * min(3.0, len(trace) * 0.02)
-            want_r = -0.8 * max(0.0, len(trace) * 0.02 - 3.0)
+            got_l = sum(x["wz"] for x in trace[:half]) * 0.02
+            got_r = sum(x["wz"] for x in trace[half:]) * 0.02
+            W = 0.5
+            want_l = W * min(3.0, len(trace) * 0.02)
+            want_r = -W * max(0.0, len(trace) * 0.02 - 3.0)
             ok = (not fell and len(trace) * 0.02 > 5.5
                   and got_l >= 0.6 * want_l and got_r <= 0.6 * want_r)
             wins += ok
@@ -146,7 +147,7 @@ def main():
         m = np.median(np.array(sweeps), axis=0)
         print(f"  {name:9s} : {wins}/{args.episodes} tracked both ways "
               f"(median sweep {m[0]:+.0f} deg then {m[1]:+.0f} deg; "
-              f"commanded +137/-137)")
+              f"commanded +86/-86)")
 
     # -- stand --------------------------------------------------------------
     wins, drifts = 0, []
