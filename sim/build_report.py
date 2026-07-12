@@ -280,6 +280,20 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       ESP32), not a training problem. Details in DESIGN.md §sub-step latency.</li>
       <li><s><b>2S or 3S</b> — the battery-bay decision above.</s> Decided: 3S,
       bay reworked for tool-free swap, order unblocked.</li>
+      <li><b>Overnight (day 4):</b> the robot got its real sensor suite in sim.
+      <b>dash_11v1_imu_hard</b> runs on encoders + a noisy BNO085 IMU only
+      (no torso velocity/height — nothing measures them): 16/16 @ 2.28 s
+      flat, 15/16 on terrain and at 6 ms latency, but <b>8–9/16 with the
+      GoPro fixed at 154 g</b> — the realizable policy's one weak column.
+      Fix candidates: an on-ESP32 velocity estimator fed as an observation,
+      or payload-focused training.</li>
+      <li><b>Stop-and-stand is an open problem:</b> three from-scratch
+      attempts each found a new reward exploit (loiter past the line;
+      sprint-and-dive; slow-approach-then-fall) — all documented in
+      DESIGN.md with the shaping fixes that closed the first two. Halting a
+      biped is a capture-step skill this curriculum doesn't teach; next
+      lever is reference-state initialization near the line, plus the same
+      velocity estimate.</li>
       <li><b>The 11.1 V gait still jogs</b> (flight phase); the grounded 7.4 V
       gait is the more sim-to-real-plausible first candidate.</li>
       <li><b>Repeated shoves</b> remain unsolved (unchanged from day 1).</li>

@@ -521,6 +521,38 @@ densely explored); (c) a stand-and-balance curriculum stage before walking.
 The overnight run `dash_11v1_imu` tests the other half of the decomposition:
 the proven jog-through dash objective on realizable observations.
 
+### Hardware-realizable observations: the dash transfers (2026-07-12)
+
+The decomposition test after the stop campaign: train the *proven* dash
+objective from scratch on `imu_obs` — 8 joint angles + 8 joint velocities
+(servo encoders), noisy/biased up-vector + gyro (BNO085 model), previous
+action, phase clock; **torso linear velocity and height zeroed** (no sensor
+exists). This is the first policy the physical robot could actually execute.
+
+- **`dash_11v1_imu`** (flat, 10M from scratch): **16/16, median 2.28 s** —
+  faster than the full-state champion (2.67 s). Losing the unmeasurable
+  channels does not block locomotion; the earlier ablation collapse was
+  overfitting to inputs the policy happened to have, not true dependence.
+- **`dash_11v1_imu_hard`** (+ full DR: terrain, payload 0–170 g, model error,
+  0–10 ms latency, IMU noise; 8M warm-started): mixed gauntlet —
+
+| condition | result |
+|---|---|
+| terrain + payload DR (training dist.) | 15/16, 2.46 s |
+| GoPro fixed 154 g | **8/16**, 2.39 s |
+| GoPro + 4 ms latency | **9/16**, 2.36 s |
+| 6 ms latency | 15/16, 2.48 s |
+| 10 ms latency | 10/16, 2.59 s |
+
+Terrain and latency robustness carried over, but the **max-payload column is
+the realizable policy's weak spot** (~8–9/16 vs the full-state policy's
+16/16): without linear-velocity feedback, the tail of the payload range is
+hard. The two candidate fixes are the same as for stopping — a velocity
+estimate computed on the ESP32 (IMU integration + leg kinematics, fed as an
+obs the sim models with estimator error), or more payload-focused training
+(fixed-154 g fine-tune / wider DR). Either way this run moves sim-to-real
+from "impossible obs" to "one weak column."
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
