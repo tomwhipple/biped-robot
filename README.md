@@ -70,7 +70,10 @@ robot/
 ├── requirements.txt              # pinned Python deps (MuJoCo, SB3, build123d, ...)
 ├── .envrc                        # direnv: auto-activate .venv
 ├── docs/
-│   └── cad-and-printer-recommendations.md   # CAD software & 3D printer picks
+│   ├── cad-and-printer-recommendations.md   # CAD software & 3D printer picks
+│   ├── hardware-order.md         # order checklist + 2S/3S decision + reconciliation
+│   ├── bom-sourced.md            # sourced BOM: live links & prices (reconciled)
+│   └── wiring.md                 # wiring diagram, servo ID map, bring-up checklist
 ├── cad/                          # parametric CAD (code is the source of truth)
 │   ├── dimensions.py             # every dimension, incl. measured STS3215 data
 │   ├── parts.py                  # the 6 printable parts -> stl/ + mass/bed checks

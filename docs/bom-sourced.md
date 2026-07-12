@@ -12,9 +12,9 @@ order also there.
 
 | # | Component | Qty | Product | Unit Price | Extended | Source | Notes |
 |---|-----------|-----|---------|-----------|----------|--------|-------|
-| 1 | Feetech STS3215 servo | 8 | ST3215 Series Serial Bus Servo (30 kg·cm@12 V) | $21.99 | $175.92 | [Waveshare](https://www.waveshare.com/st3215-servo.htm) | **Best price found.** Waveshare direct: $21.99 (30 kg@12V) or $16.99 (19.5 kg@7.4V). Amazon alt: [B0FMY17QRT](https://www.amazon.com/dp/B0FMY17QRT) ($24.35, 7.4V) or [B0FGNTDV3Y](https://www.amazon.com/dp/B0FGNTDV3Y) ($29.99, 12V). Amazon 6-pack [B0FQHCV9GP](https://www.amazon.com/dp/B0FQHCV9GP) ($134.99). |
-| 2 | Waveshare ESP32 Bus Servo Driver | 1 | Serial Bus Servo Driver HAT (ESP32) | $18.99 | $18.99 | [Waveshare](https://www.waveshare.com/bus-servo-driver-hat-a.htm) | **Best price found.** Waveshare direct: $18.99. Amazon alt: [B09SZ41RJW](https://www.amazon.com/dp/B09SZ41RJW) ($24.99). Also: [Serial Bus Servo Driver Board](https://www.waveshare.com/bus-servo-adapter-a.htm) ($4.99, no ESP32 — bare driver only). |
-| 3 | 2S LiPo 7.4 V, 450–1000 mAh | 1 | 2S LiPo 7.4 V 1000 mAh 35C (JST) | $18.99 | $18.99 | [Amazon](https://www.amazon.com/dp/B0FFBB59TM) | ⚠️ Verify dims ≤ 75×35×16 mm before ordering. Alt: [OVONIC 2-pack](https://www.amazon.com/dp/B07CVBJ3SL) ($23.99). |
+| 1 | Feetech STS3215 servo | 8 (+1–2 spares) | ST3215 Series Serial Bus Servo (**30 kg·cm@12 V version**) | $21.99 | $175.92 | [Waveshare](https://www.waveshare.com/st3215-servo.htm) | ⚠️ **Buy the 12 V version only.** The $16.99 "7.4 V" class is rated **4–7.4 V** and cannot run on 3S — the sim-recommended battery ([hardware-order.md](hardware-order.md)). The 12 V version is rated 6–12.6 V and works at either voltage. Amazon alt: [B0FGNTDV3Y](https://www.amazon.com/dp/B0FGNTDV3Y) ($29.99, 12V). |
+| 2 | Waveshare ESP32 Bus Servo Driver | 1 | **Servo Driver with ESP32** (65 × 30 mm) | $24.99 | $24.99 | [Waveshare](https://www.waveshare.com/servo-driver-with-esp32.htm) / [Amazon B0CFY34BX5](https://www.amazon.com/dp/B0CFY34BX5) | ⚠️ **Corrected — the previously listed [Bus Servo Driver HAT (A)](https://www.waveshare.com/bus-servo-driver-hat-a.htm) ($18.99) is the wrong board**: it's a Raspberry-Pi HAT (65 × 57 mm — doesn't fit the tower, which is built for the 65 × 30 board) and takes 9–25 V (can't run from 2S at all). The Servo Driver with ESP32 is 6–12.6 V (2S *and* 3S direct per Waveshare docs), holes Ø2.75 on 58 × 23 — matches `cad/dimensions.py`. |
+| 3 | LiPo battery (2S **or 3S** — see hardware-order.md) | 1–2 | 3S 11.1 V 650–1000 mAh **XT30/XT60** (recommended), or 2S 7.4 V | ~$19 | ~$19–38 | [2S example](https://www.amazon.com/dp/B0FFBB59TM) | ⚠️ **Gated on the 2S/3S decision** (sim recommends 3S: 2.72 s dash, 16/16 gauntlet). Avoid JST-connector packs — JST-RCY is good for ~3 A and 8 servos can transiently pull far more; want XT30. Verify dims ≤ 75×35×16 mm (2S bay); 3S needs the bay resized ~+10 mm first. |
 | 4 | Bambu Lab A1 mini 3D printer | 1 | Bambu Lab A1 mini + LED Lamp Kit | $219.00 | $219.00 | [Amazon](https://www.amazon.com/dp/B0GQMJ8QQT) | 180×180×180 mm build. AMS lite combo: [B0CRYZWJLG](https://www.amazon.com/dp/B0CRYZWJLG) ($349). Direct: [bambulab.com](https://bambulab.com). |
 | 5 | PLA filament 1 kg | 1 | Bambu Lab PLA 1.75 mm 1 kg (Jade White) | $28.00 | $28.00 | [Amazon](https://www.amazon.com/dp/B0CGQYRSNT) | RFID-enabled for A1 mini auto-settings. Black: [B0CGR29R63](https://www.amazon.com/dp/B0CGR29R63) ($28.60). |
 | 6 | PETG filament 1 kg | 1 | Bambu Lab PETG Translucent 1.75 mm 1 kg | $30.15 | $30.15 | [Amazon](https://www.amazon.com/dp/B0F68FKRWH) | With reusable spool. Refill-only (no spool): [B0FRQ9VX2K](https://www.amazon.com/dp/B0FRQ9VX2K) ($23.99). |
@@ -36,20 +36,29 @@ order also there.
 
 | Category | Estimated Cost |
 |----------|---------------|
-| Electronics (servos + driver + battery) | $213.90 |
+| Electronics (8 servos + driver + battery) | ~$220 |
+| Servo spares (1–2 recommended) | $22–44 |
 | 3D printer | $219.00 |
 | Filament (PLA + PETG + TPU) | $74.14 |
 | Hardware (screws, inserts, thumbscrew, sheet, zip ties) | $59.14 |
-| **Total Estimated** | **~$566.18** |
+| **Total Estimated** | **~$595–615** |
 
-### Servo cost optimization
+**Not yet on this list** (from [hardware-order.md](hardware-order.md)): 2S–3S
+balance charger (~$30, skip if owned), XT30 pigtail + heat-shrink + inline
+power switch (~$10), 2 longer servo extension leads for hip→board runs.
+Also note items 7 and 16 are redundant — foot pads are *printed* TPU
+(item 7); the silicone sheet (item 16, $15.59) can be dropped unless you want
+a fallback. The KADRICK kit is socket-cap, not button-head — check head
+clearance at the idler screws before relying on it there.
 
-Waveshare direct is the best servo price: $21.99 each for the 30 kg@12V
-version, or $16.99 for the 7.4V version (matches the BOM's 7.4V operating
-point). 8× at $16.99 = **$135.92** — cheaper than the Amazon 6-pack option.
+### Servo cost optimization — ~~retracted~~
 
-Using Waveshare 7.4V servos ($16.99 × 8 = $135.92) + Waveshare driver ($18.99)
-+ battery ($18.99) = **$173.90 electronics**, bringing the total to **~$526**.
+~~Using Waveshare 7.4V servos ($16.99 × 8 = $135.92) saves ~$40.~~
+**Don't**: the 7.4 V class is rated **4–7.4 V only** (per Waveshare's own
+listing), so it permanently forecloses the 3S option that the sim gauntlet
+recommends (2.72 s vs 4.36 s dash; 16/16 vs 12/16 with the GoPro on rough
+ground — see [hardware-order.md](hardware-order.md)). The $40 delta buys the
+ability to choose the battery later. Buy 8 + 1–2 spares of the 12 V version.
 
 ---
 

@@ -160,8 +160,9 @@ TOWER_L = 96.0
 TOWER_W = 42.0
 TOWER_H = 32.0          # deck top .. tower top
 TOWER_TOP_T = 3.5
-# driver board: Waveshare Bus-Servo Driver (ESP32) ~65 x 30 -- VERIFY yours!
-BOARD_HOLES = (58.0, 24.0)     # hole pattern (y span, x span), M2.5 self-tap
+# driver board: Waveshare "Servo Driver with ESP32", 65 x 30, holes O2.75 on
+# a 58 x 23 grid (wiki spec 2026-07 -- still verify on the real board)
+BOARD_HOLES = (58.0, 23.0)     # hole pattern (y span, x span), M2.5 self-tap
 BOARD_STANDOFF = 6.0           # under-plate standoff height (clears the GoPro
                                # screw bosses by 3 mm; battery below gets ~1 mm)
 BATT = (75.0, 35.0, 16.0)      # 2S 450-1000 mAh LiPo envelope, velcro-strapped
