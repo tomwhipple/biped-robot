@@ -70,7 +70,7 @@
     <text x="450" y="380" text-anchor="middle" font-size="10" font-weight="bold" fill="#1f2937">ESP32-WROOM-32</text>
     <text x="450" y="396" text-anchor="middle" font-size="8.5" fill="#4b5563">UART0: GPIO1/3 ↔ USB-C (115200)</text>
     <text x="450" y="409" text-anchor="middle" font-size="8.5" fill="#4b5563">UART1: GPIO19 TX / GPIO18 RX</text>
-    <text x="450" y="422" text-anchor="middle" font-size="8.5" fill="#4b5563">I2C: GPIO21/22 → OLED</text>
+    <text x="450" y="422" text-anchor="middle" font-size="8.5" fill="#4b5563">I2C: GPIO21/22 → OLED + IMU</text>
     <text x="450" y="435" text-anchor="middle" font-size="8.5" fill="#4b5563">GPIO23 → RGB LEDs</text>
     <rect x="540" y="380" width="130" height="50" rx="4" fill="#ffffff" stroke="#93c5fd"/>
     <text x="605" y="399" text-anchor="middle" font-size="9" fill="#1f2937">half-duplex TTL</text>
@@ -117,6 +117,15 @@
     <text x="450" y="613" text-anchor="middle" font-size="9" fill="#4b5563">USB-C</text>
     <line x1="450" y1="450" x2="450" y2="600" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3"/>
   </g>
+
+  <!-- IMU breakout on the I2C bus (separate board, mounted on the tower deck) -->
+  <rect x="495" y="625" width="160" height="72" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="575" y="643" text-anchor="middle" font-size="10" font-weight="bold" fill="#4c1d95">U2 · BNO085 IMU</text>
+  <text x="575" y="657" text-anchor="middle" font-size="8.5" fill="#5b21b6">addr 0x4A · fusion on-chip</text>
+  <text x="575" y="670" text-anchor="middle" font-size="8.5" fill="#5b21b6">4 wires: 3V3 · GND · SDA 21 · SCL 22</text>
+  <text x="575" y="683" text-anchor="middle" font-size="8.5" fill="#5b21b6">→ up-vector + gyro @ 100 Hz</text>
+  <line x1="575" y1="600" x2="575" y2="625" stroke="#7c3aed" stroke-width="2"/>
+  <text x="583" y="617" font-size="8.5" fill="#7c3aed">I2C</text>
   <path d="M450 618 C 450 660, 340 660, 300 660" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="5 3"/>
   <text x="160" y="655" font-size="10" fill="#6b7280">laptop: flash / serial bridge @ 115200</text>
   <text x="160" y="669" font-size="10" fill="#6b7280">(runtime control = WiFi or on-board loop)</text>

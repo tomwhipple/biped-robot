@@ -29,6 +29,7 @@ order also there.
 | 15 | M3 screw + heat-set insert kit | 1 | KADRICK 420 pcs M3 Heat Set Inserts Kit | $15.99 | $15.99 | [Amazon](https://www.amazon.com/dp/B0GYRQG7F2) | **Covers items 8, 9, 10, 12.** M3×6–30 mm socket cap screws, brass inserts, nuts, washers, installation tip, hex key. |
 | 16 | TPU sheet 2 mm | 2 | BENECREAT 2-pc Silicone Rubber Sheet 2 mm | $15.59 | $15.59 | [Amazon](https://www.amazon.com/dp/B08P7P69WQ) | 2 sheets. Cut to 90×46 mm for foot pads. Silicone rubber ≈ TPU functionally. |
 | 17 | Zip ties 2.5 mm | ~10 | Zip Ties 2.5 mm×200 mm 100 pc | $3.99 | $3.99 | [Amazon](https://www.amazon.com/dp/B0GR52PRHF) | 100 pcs (~10 needed). Black nylon, 30 lb. |
+| 18 | 9-DOF IMU | 1 | Adafruit BNO085 breakout (STEMMA QT) | $24.95 | $24.95 | [Adafruit 4754](https://www.adafruit.com/product/4754) | Torso attitude feedback for the control loop (up-vector + gyro, sensor fusion on-chip); 4-wire I2C to the ESP32. Cheap alt/spare: MPU-6050 "GY-521" (~$5, needs a Madgwick/complementary filter in firmware). |
 
 ---
 
@@ -36,12 +37,12 @@ order also there.
 
 | Category | Estimated Cost |
 |----------|---------------|
-| Electronics (8 servos + driver + battery) | ~$220 |
+| Electronics (8 servos + driver + battery + IMU) | ~$245 |
 | Servo spares (1–2 recommended) | $22–44 |
 | 3D printer | $219.00 |
 | Filament (PLA + PETG + TPU) | $74.14 |
 | Hardware (screws, inserts, thumbscrew, sheet, zip ties) | $59.14 |
-| **Total Estimated** | **~$595–615** |
+| **Total Estimated** | **~$620–640** |
 
 **Not yet on this list** (from [hardware-order.md](hardware-order.md)): 2S–3S
 balance charger (~$30, skip if owned), XT30 pigtail + heat-shrink + inline

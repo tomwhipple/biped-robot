@@ -63,6 +63,19 @@ pigtail and a switch.*
   longest run — verify the 150 mm leads reach with the service loop, else
   use the two extension leads on the order list.
 
+## IMU (torso attitude feedback)
+
+- **BNO085 breakout** on the ESP32's I2C bus (GPIO 21 SDA / 22 SCL — shared
+  with the OLED; the BNO085 defaults to address 0x4A, no conflict). 4 wires:
+  3V3, GND, SDA, SCL. Mount flat on the tower deck near the board, axes
+  aligned to the robot frame (+x forward).
+- Why: the policy's observation vector needs the torso **up-vector and
+  angular velocity** — servo encoders only cover the 8 joints. The BNO085
+  does sensor fusion on-chip and outputs the orientation quaternion directly
+  at 100+ Hz, so the ESP32's 50 Hz loop just reads it.
+- Torso *linear velocity* and *height* have no direct sensor — see the
+  observation-ablation results in DESIGN.md for how much they matter.
+
 ## Control path (and where latency lives)
 
 | Link | Rate | Role |

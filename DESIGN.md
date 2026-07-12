@@ -449,6 +449,38 @@ physics (dash_11v1_hard 16/16 @ 2.68 s GoPro; dash_11v1_hardlat 32/32 @
 don't graze in nominal gaits, which is itself a useful clearance check.
 All dash videos re-rendered with the real geometry.
 
+### Sensing gap: the policy observes things the robot can't measure (2026-07-11)
+
+Question from hardware review: "does the design include accelerometers?" It
+didn't — and the audit of `_obs()` against the parts list found a real gap.
+The 36-value observation vector maps to hardware as: 16 joint angles/vels →
+ST3215 magnetic encoders ✅; torso up-vector + angular velocity → **needs an
+IMU, which was not in the BOM** (now added: BNO085, fusion on-chip, on the
+ESP32's I2C bus); torso linear velocity + terrain-relative height → **no
+direct sensor exists**; prev-action + phase → software.
+
+Zero-shot observation ablation (mask = freeze at the training mean;
+dash_11v1_hardlat, GoPro + 4 ms, 16 eps):
+
+| masked | result |
+|---|---|
+| nothing (baseline) | 14/16, 2.78 s |
+| linear velocity (3) | 0/16 |
+| height (1) | 0/16 |
+| linvel + height ("IMU-only" build) | 0/16 |
+| up + gyro + linvel + height (no IMU) | 0/16 |
+
+Two conclusions. (1) The IMU is *necessary* — attitude feedback is
+non-negotiable. (2) It is *not sufficient*: the current policies are brittle
+to losing even the unmeasurable channels, so **the next training round must
+use a hardware-realizable observation set** — encoders + IMU (+ prev action
++ phase), with linear velocity and height either dropped or replaced by an
+on-ESP32 estimate — plus IMU realism (noise/bias/mounting DR). Caveat: this
+masking is a lower bound, not a verdict on feasibility — policies *trained*
+without an input usually learn to compensate; these were trained with it and
+never had to. Same playbook as actuators and latency: model it honestly,
+then train inside it. Tool: `sim/ablate_obs.py`.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
