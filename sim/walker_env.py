@@ -725,13 +725,17 @@ class BimoWalkerEnv(gym.Env):
             vx_body = cth * float(d.qvel[0]) + sth * float(d.qvel[1])
             vy_body = -sth * float(d.qvel[0]) + cth * float(d.qvel[1])
             wz_rate = float(d.qvel[5])
+            # kernel widths: sigma 0.5 matches the legged_gym reference
+            # exp(-err^2/0.25). The first five command runs used sigma 0.25 --
+            # HALF the reference width -- which pays ~nothing (0.003) for
+            # attempting to walk from standstill vs 0.24 at reference width.
+            # Plausibly the root cause of "stands great, won't walk"
+            # (found 2026-07-13 when even a pinned-command walk expert froze).
             primary = (
                 self.w_track_v * float(np.exp(-((vx_body - self._cmd[0])
-                                                / 0.25) ** 2))
-                # sigma 0.4: at 0.5 the left-yaw gait bias of the identical-
-                # parts legs was cheaper to keep than to track out (cmd_11v1)
+                                                / 0.5) ** 2))
                 + self.w_track_w * float(np.exp(-((wz_rate - self._cmd[1])
-                                                  / 0.4) ** 2)))
+                                                  / 0.5) ** 2)))
             reward_time_stop = 0.0
         elif braking:
             planar = float(np.hypot(d.qvel[0], d.qvel[1]))
