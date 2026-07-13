@@ -115,7 +115,7 @@ def main():
     dash_wins, dash_times = 0, []
     frames = []
     max_steps = base.max_steps
-    wobble_sq, act_rate, prev_a = [], [], None
+    wobble_sq, act_rate, watts, prev_a = [], [], [], None
     for ep in range(args.episodes):
         obs = env.reset()
         done = False
@@ -130,6 +130,7 @@ def main():
             # every gauntlet while visibly trembling)
             wobble_sq.append(float(base.data.qvel[3])**2
                              + float(base.data.qvel[4])**2)
+            watts.append(infos[0].get("power_w", 0.0))
             if prev_a is not None:
                 act_rate.append(float(np.sum((action - prev_a) ** 2)))
             prev_a = action.copy()
@@ -166,6 +167,10 @@ def main():
     print(f"avg fwd speed : {speed.mean():8.2f} m/s")
     print(f"torso wobble  : {np.sqrt(np.mean(wobble_sq)):8.2f} rad/s RMS roll+pitch rate  (smoothness; <1 calm, >2 visibly shaky)")
     print(f"action rate   : {np.mean(act_rate):8.3f} mean sum-sq action delta (policy jitter)")
+    if any(watts):
+        pw = np.mean(watts) + 2.5     # + board/electronics idle
+        print(f"servo power   : {np.mean(watts):8.1f} W mean electrical "
+              f"(+2.5 W idle -> ~{9.4 / pw * 60:.0f} min on the 3S 850 mAh pack)")
     # gait quality: double-support fraction ~1.0 => shuffle (feet never lift);
     # a clean alternating stride is ~0.2-0.5 with swing times near 0.2-0.3 s.
     print(f"double-support: {dsup_steps / max(total_steps, 1):8.0%} of steps")

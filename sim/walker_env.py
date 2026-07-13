@@ -191,6 +191,12 @@ class BimoWalkerEnv(gym.Env):
         cmd_resample_s: tuple = (2.5, 4.5),  # seconds between command changes
         w_track_v: float = 2.0,        # velocity-tracking reward (exp kernel)
         w_track_w: float = 1.0,        # yaw-rate-tracking reward (exp kernel)
+        w_power: float = 0.0,          # electrical-power penalty (W). Unlike
+        # w_energy (mechanical |tau*w|), this prices what drains the battery:
+        # P = sum(max(tau*w, 0) + K_CU * tau^2) -- the tau^2 copper loss means
+        # HOLDING torque costs watts at zero motion (a stiff, trembling stand
+        # is expensive; a relaxed one is cheap). K_CU from ST3215 stall:
+        # ~32 W electrical at 2.94 N*m stall, zero mechanical -> 3.75 W/(N*m)^2.
         # -- hardware-realizable observations (sensing audit 2026-07-11) --------
         imu_obs: bool = False,         # torso linear velocity + height are ZEROED
         # (the real robot has no sensor for them; obs stays 36-wide so warm
@@ -243,6 +249,8 @@ class BimoWalkerEnv(gym.Env):
         self.cmd_resample_s = cmd_resample_s
         self.w_track_v = w_track_v
         self.w_track_w = w_track_w
+        self.w_power = w_power
+        self._K_CU = 3.75              # W/(N*m)^2, ST3215 stall calibration
         self._cmd = np.zeros(2)        # (vx_body m/s, yaw rate rad/s)
         self._cmd_next = 0
         self.imu_obs = imu_obs
@@ -684,6 +692,11 @@ class BimoWalkerEnv(gym.Env):
         force = self._servo_tau if self._servo is not None else d.actuator_force
         energy = float(np.sum(np.abs(force) * np.abs(d.qvel[_JQVEL])))
         action_rate = float(np.sum((action - self._prev_action) ** 2))
+        # electrical power draw (W): driven mechanical work + copper losses.
+        # Computed always (cheap, reported in info); penalized only if w_power.
+        qd_j = np.asarray(d.qvel[_JQVEL])
+        power_w = float(np.sum(np.maximum(np.asarray(force) * qd_j, 0.0)
+                               + self._K_CU * np.asarray(force) ** 2))
 
         # dash_stop: once the line is crossed the mission changes -- the primary
         # term flips from "go forward" to "brake to a standstill" (same scale:
@@ -735,6 +748,7 @@ class BimoWalkerEnv(gym.Env):
             - self.w_height * abs(height - self._nominal_h)  # hold posture
             - self.w_energy * energy                      # be efficient
             - self.w_action_rate * action_rate            # be smooth
+            - self.w_power * power_w                      # battery-life cost
             - reward_time_stop                            # post-cross urgency
         )
 
@@ -827,6 +841,7 @@ class BimoWalkerEnv(gym.Env):
         info = {"fwd_vel": fwd_vel, "height": height, "up_z": up_z, "x": x_after,
                 "double_support": double_support, "single_support": single_support,
                 "touchdown_air": touchdown_air, "dash_success": dash_success,
+                "power_w": power_w,
                 "time_to_2m": float("nan") if self._cross_t is None else self._cross_t}
         if self.command_mode:
             info.update(cmd_v=float(self._cmd[0]), cmd_w=float(self._cmd[1]),

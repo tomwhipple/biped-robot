@@ -77,6 +77,10 @@ def main():
     p.add_argument("--cmd-stand-prob", type=float, default=0.3)
     p.add_argument("--cmd-v-max", type=float, default=1.0)
     p.add_argument("--cmd-w-range", type=float, default=1.0)
+    p.add_argument("--cmd-hold-min", type=float, default=2.5)
+    p.add_argument("--cmd-hold-max", type=float, default=4.5)
+    p.add_argument("--w-power", type=float, default=0.0,
+                   help="electrical-power penalty (see walker_env)")
     p.add_argument("--w-time", type=float, default=0.0,
                    help="per-step time penalty (dash urgency)")
     p.add_argument("--finish-bonus", type=float, default=0.0,
@@ -158,6 +162,8 @@ def main():
         dash=args.dash, dash_stop=args.dash_stop,
         command_mode=args.command_mode, w_track_v=args.w_track_v,
         cmd_v_range=(0.3, args.cmd_v_max), cmd_w_range=args.cmd_w_range,
+        cmd_resample_s=(args.cmd_hold_min, args.cmd_hold_max),
+        w_power=args.w_power,
         w_track_w=args.w_track_w, cmd_stand_prob=args.cmd_stand_prob,
         imu_obs=args.imu_obs, imu_noise=args.imu_noise,
         backlash_deg=args.backlash_deg, backlash_deg_max=args.backlash_deg_max,
