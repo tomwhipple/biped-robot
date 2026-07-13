@@ -655,6 +655,46 @@ An external review filed 12 issues. Dispositions:
   the tower feet vs the 1.3 N·m design case already carried); the
   gopro_base remains the sacrificial fuse by design.
 
+### Smoothness + power round: the honest wall (2026-07-13)
+
+Video review caught what task metrics can't: the gaits are visibly shaky
+(quantified: the benchmark dash policy runs at **1.9 rad/s RMS** torso
+roll+pitch) — and the new electrical power model (P = Σ max(τω,0) +
+3.75·τ², calibrated to the ST3215 stall point; every eval now prints watts
+and pack runtime) priced it: **36 W ≈ 15 min on the 3S pack**. A training
+round targeted both, with wobble and watts as acceptance criteria.
+
+| run | recipe | result |
+|---|---|---|
+| dash_11v1_hardlat3 (baseline) | dash objective | walks 16/16, wobble 1.90, **36.0 W** (~15 min) |
+| cmd_11v2 | 5× smoothness + power 0.015 | **froze**: stand 8/8 @ 1 cm, wobble 1.19, **6.3 W (~64 min)** — but 1/16 walking |
+| cmd_11v2c | softened (0.15/0.008) | 2/16 walking, wobble 1.54, **54.7 W** — a struggling policy burns *more* |
+| cmd_11v3a | walk-biased command mix (stand 10 %) | most walking engagement (0.36 m/s, 39 % double-support) but 0/16 survival, 43.9 W |
+
+Findings. (1) **The power term works and the plant permits efficiency**:
+6.3 W standing proves 30–60 min runtimes are physically available; the
+τ²-copper-loss term correctly punishes the stiff trembling stance. (2)
+**Efficiency follows competence, not penalties**: the policies that fight
+for balance burn 44–55 W regardless of the penalty. (3) **Command-
+conditioned *walking* on the honest plant is past what 12–14M CPU PPO
+steps deliver.** Five stage-S attempts across two rounds, spanning
+penalty scales and command mixes, all produce excellent standing and
+fragile walking — while the single-behavior dash lineage walks 16/16 on
+the same plant. Conditional skill families are simply a harder learning
+problem than one behavior.
+
+Paths forward, in order of expected value (none executed — this round is
+closed): **(a) per-skill experts + distillation** — working experts
+already exist for run (dash lineage) and stand (cmd_11v2); train a
+turn expert, then distill into one command-conditioned policy instead of
+learning all skills jointly from scratch. **(b) MJX/GPU scale** — the
+roadmap's original plan; 100M+ steps with bigger nets is the standard
+recipe for command-conditioned locomotion and CPU PPO is 10–50× short.
+**(c) Mechanical**: a mirrored-horn leg to remove the yaw bias that taxes
+every turn. **Hardware takeaway now**: budget ~10–15 min of active runtime
+per pack at current gait quality (hot-swap bay + 2-pack already covers
+this); efficient gaits can triple it later.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

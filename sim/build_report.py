@@ -297,11 +297,18 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       <b>turning</b> capability: pivots track both directions
       (≈0.2 rad/s left / 0.1 right — the identical-parts gait turns left
       for free), walking turns left-only so far.</li>
-      <li><b>Command-mode opens:</b> DR hardening collapsed <i>walking</i>
-      (the policy retreats to standing, the safest reward under DR) — needs
-      a difficulty curriculum; sustained near-max speed commands topple it;
-      right-turn authority is half of left (morphological: consider a
-      mirrored horn, or plan asymmetric turns).</li>
+      <li><b>Command-mode walking hit an honest wall</b> (day 5): five
+      from-scratch attempts across penalty scales and command mixes all
+      yield excellent standing (best: 8/8, 1 cm drift, <b>6.3 W ≈ 64 min
+      of battery</b>) and fragile walking — while the single-behavior dash
+      lineage walks 16/16 on the same plant. New eval metrics (torso
+      wobble RMS, electrical watts + runtime) came out of a video review:
+      the dash gait measures 1.9 rad/s wobble and <b>36 W ≈ 15 min</b>.
+      Efficiency follows competence — struggling policies burn 44–55 W
+      regardless of penalties. Paths forward, by expected value: distill
+      existing per-skill experts (run + stand already work) into one
+      conditioned policy; MJX/GPU scale (CPU PPO is 10–50× short of the
+      standard recipe); mirrored-horn leg for the yaw bias.</li>
       <li><b>The 11.1 V gait still jogs</b> (flight phase); the grounded 7.4 V
       gait is the more sim-to-real-plausible first candidate.</li>
       <li><b>Repeated shoves</b> remain unsolved (unchanged from day 1).</li>
