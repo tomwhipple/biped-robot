@@ -695,6 +695,39 @@ every turn. **Hardware takeaway now**: budget ~10–15 min of active runtime
 per pack at current gait quality (hot-swap bay + 2-pack already covers
 this); efficient gaits can triple it later.
 
+### Distillation round: killed by the walk expert; kernel bug found (2026-07-13)
+
+Plan: train single-behavior experts (walk / stand / pivot-L / pivot-R,
+command channels pinned via `cmd_fixed`) and DAgger-distill them into one
+command-conditioned student (`sim/distill.py`, ready and committed). The
+stand expert already existed (cmd_11v2). The chain died at step one, twice
+— and the first failure surfaced a genuine bug:
+
+- **Kernel-width bug (found, fixed, insufficient):** the tracking kernels
+  were `exp(-(err/0.25)²)` — HALF the legged_gym reference width
+  `exp(-err²/0.25)`. From standstill with a 0.6 m/s command the narrow
+  kernel pays 0.003 for attempting to walk (reference: 0.24) while standing
+  collects ~1.1/step — a reward landscape that predicts exactly the five
+  observed "stands great, won't walk" results. Fixed (σ = 0.5 both kernels).
+- **exp_walk (σ 0.25): 0/16, falls at 1.2 s. exp_walk2 (σ 0.5): 0/16,
+  falls at 0.9 s.** The kernel bug was real but not sufficient. Failure
+  mode (from rendered frames): an aggressive lunge-like first stride that
+  pitches into collapse — it never finds a rhythm.
+
+Differential vs the dash lineage (which walks 16/16 from scratch on the
+same plant): the dash reward is *dense linear* progress (`w_forward ·
+min(v, cap)` — any forward motion pays immediately) with time pressure;
+and the dash from-scratch runs trained **without** the power penalty and
+**without** backlash. The untested variables are therefore (a) the
+penalty stack (power + backlash + smoothness) during from-scratch gait
+discovery, and (b) tracking-kernel vs dense-progress reward shape. One
+25-minute ablation — `exp_walk3` with the penalties stripped — would
+assign blame cleanly; not run (session training budget spent).
+
+Distillation remains the right architecture *once a walk expert exists*
+(stand + pivot alone are insufficient to distill). Status: paused at a
+clean decision point, not abandoned.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
