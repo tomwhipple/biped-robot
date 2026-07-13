@@ -728,6 +728,23 @@ Distillation remains the right architecture *once a walk expert exists*
 (stand + pivot alone are insufficient to distill). Status: paused at a
 clean decision point, not abandoned.
 
+**Reframing discovery (2026-07-13 evening): NO policy has ever walked
+10 seconds.** exp_walk4 (dense reward, penalties stripped) also failed
+(0/16 @ 1.7 s) — which prompted testing the champions with the finish
+line removed: `dash_11v1_imu` falls at a median **3.7 s**,
+`dash_11v1_hardlat3` at **5.1 s**. Dash episodes terminate ~1 s after
+the 2 m line, so *sustained* walking was never in any curriculum — the
+dash masked it, and every exp_walk "failure" was judged against a bar
+nothing meets. The four ablations (kernel width, penalty stack, reward
+shape) were all fighting the wrong variable: the missing ingredient is
+**horizon**. Next experiment (running): `exp_walk5` — fine-tune the best
+gait (hardlat3, already 5.1 s) with dash OFF, 10 s episodes, walking-pace
+target (0.7 m/s), full DR. Horizon extension of an existing behavior is
+adaptation, the kind of warm start that has worked every time here.
+Hardware implication if it holds: v1 demos are 2 m bursts until sustained
+walking lands; if exp_walk5 sustains, it becomes both the walk teacher
+for distillation and the first continuous-walking policy.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
