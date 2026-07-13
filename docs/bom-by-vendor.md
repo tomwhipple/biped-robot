@@ -6,6 +6,9 @@ change.*
 
 Robot: ~34 cm, ~0.9 kg 3D-printed biped, 8× Feetech STS3215 serial-bus servos.
 
+> **The 3D printer and filament are now a separate one-time order** —
+> see [`printer-order.md`](printer-order.md). This file is robot parts only.
+
 ---
 
 ## Waveshare
@@ -28,17 +31,13 @@ slower than Amazon Prime — check lead time. Amazon alternates: servo
 | Component | Qty | Product | Unit | Extended | Link |
 |---|---|---|---|---|---|
 | 3S LiPo battery | 1 (2-pack) | Zeee Premium 3S 850 mAh 11.1 V 100C XT30, 2-pack (67 × 30 × 18.5 mm, 74 g) | ~$30 | ~$30.00 | [B08H5GD35D](https://www.amazon.com/dp/B08H5GD35D) |
-| 3D printer | 1 | Bambu Lab A1 mini + LED Lamp Kit (180³ mm build) | $219.00 | $219.00 | [B0GQMJ8QQT](https://www.amazon.com/dp/B0GQMJ8QQT) |
-| PLA filament 1 kg | 1 | Bambu Lab PLA 1.75 mm, Jade White (RFID auto-settings) | $28.00 | $28.00 | [B0CGQYRSNT](https://www.amazon.com/dp/B0CGQYRSNT) |
-| PETG filament 1 kg | 1 | Bambu Lab PETG Translucent 1.75 mm (with spool) | $30.15 | $30.15 | [B0F68FKRWH](https://www.amazon.com/dp/B0F68FKRWH) |
-| TPU filament 500 g | 1 | Geeetech TPU 1.75 mm 500 g, Shore 95A | $15.99 | $15.99 | [B0DG8BZL6L](https://www.amazon.com/dp/B0DG8BZL6L) |
 | M3 screw + heat-set insert kit | 1 | KADRICK 420 pc M3 kit — covers M3×6–30 screws, brass inserts, nuts, washers | $15.99 | $15.99 | [B0GYRQG7F2](https://www.amazon.com/dp/B0GYRQG7F2) |
 | M3×8 self-tapping screws | 52 (100 pc) | M3×8 Self-Tapping SS, flat head hex (incl. drive bit) | $8.28 | $8.28 | [B0F9XYX9BQ](https://www.amazon.com/dp/B0F9XYX9BQ) |
 | M2.5×8 self-tapping screws | 4 (50 pc) | uxcell M2.5×8 self-tapping, 304 SS | $8.07 | $8.07 | [B01KXTTSCI](https://www.amazon.com/dp/B01KXTTSCI) |
 | M5×20 GoPro thumbscrew | 1 (pair) | M5 handle thumb screws, stainless, GoPro Hero 4–13 | $7.22 | $7.22 | [B0BCJRFCLX](https://www.amazon.com/dp/B0BCJRFCLX) |
 | TPU / silicone sheet 2 mm | 2 | BENECREAT silicone rubber sheet — foot pads (optional; see note) | $15.59 | $15.59 | [B08P7P69WQ](https://www.amazon.com/dp/B08P7P69WQ) |
 | Zip ties 2.5 mm | ~10 (100 pc) | 2.5 × 200 mm black nylon, 30 lb | $3.99 | $3.99 | [B0GR52PRHF](https://www.amazon.com/dp/B0GR52PRHF) |
-| **Amazon subtotal** | | | | **~$382.28** | |
+| **Amazon subtotal** | | | | **~$89.14** | |
 
 ---
 
@@ -58,12 +57,13 @@ Cheap spare/alt: MPU-6050 "GY-521" (~$5, needs a filter in firmware).
 | Vendor | Extended |
 |---|---|
 | Waveshare | $200.91 |
-| Amazon | ~$382.28 |
+| Amazon | ~$89.14 |
 | Adafruit | $24.95 |
-| **Total** | **~$608** |
+| **Robot total** | **~$315** |
 
-Servo spares (1–2 × $21.99) and the printer ($219) are the big swing items.
-Robot only, excluding printer: **~$389**.
+Servo spares (1–2 × $21.99) are the main swing item. The 3D printer + filament
+(~$413) is a separate one-time order — see [`printer-order.md`](printer-order.md).
+All-in from zero (robot + printer order): **~$728**.
 
 ---
 
@@ -78,7 +78,8 @@ Robot only, excluding printer: **~$389**.
   washers, and heat-set inserts (originally 4 separate line items). It is
   socket-cap, not button-head — check head clearance at the idler screws.
 - **Redundant foot-pad material.** Foot pads are *printed* TPU (the TPU
-  filament). The silicone sheet is a fallback and can be dropped (–$15.59).
+  filament in [`printer-order.md`](printer-order.md)). The silicone sheet above
+  is a fallback and can be dropped (–$15.59).
 - **Not yet sourced / not vendor-grouped here:** 2S–3S balance charger (~$30,
   skip if owned), XT30 pigtail + heat-shrink + inline power switch (~$10),
   2 longer servo extension leads (hip→board), battery belt + pull ribbon (~$5
