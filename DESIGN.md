@@ -766,6 +766,34 @@ attempted. The day's instrumentation (wobble RMS, electrical watts,
 runtime) and the kernel/penalty/reward ablation record all carry forward
 regardless.
 
+### Stage 2b begun: MJX port, parity-tested (2026-07-13, later that night)
+
+Path (1) chosen. Infrastructure: **Mira** (`ssh mira`, RTX 4070 Ti 12 GB,
+32 cores) benchmarks at **639k physics steps/s** at batch 4096 on the real
+v2 model — ~200× the CPU rig, a 100M-step run in ~1–2 h. (A RunPod account
+is set up and funded as burst capacity; secure-cloud A5000 at $0.27/hr
+worked, community 4090s were out of stock. All pods deleted after testing.)
+
+`sim/mjx/env_mjx.py` ports the command-conditioned env to pure JAX:
+per-substep PD + torque-speed envelope + backlash deadzone + sub-step
+latency, imu_obs, tracking kernels (σ=0.5) with the cmd_dense option, all
+penalty/shaping terms, per-episode DR for servo gains / latency / backlash /
+IMU error / pushes, batch-level (per-parallel-env) DR for mass / friction /
+payload. Terrain and the dash objective are deliberately not ported.
+
+`sim/mjx/parity_test.py` gates the port (all PASS, float64):
+- **Airborne arithmetic** (latency 6 ms + backlash 0.5° active): worst
+  |Δqpos| 8e-12 — actuator model, rewards, obs are exact.
+- **Grounded stance** (matched contact manifolds): worst |Δqpos| 1e-11.
+- **Known divergence, documented:** MJX's colliders prune contact points
+  outside a 1 mm skin of the deepest penetration
+  (`mjx/_src/collision_convex.py`); CPU MuJoCo keeps every penetrating
+  corner. Manifolds differ at tilted-impact transients (66% match at gait
+  amplitude, 100% in settled stance) — trajectories therefore diverge
+  chaotically at impacts, like any tiny perturbation. Mitigation: DR plus
+  the standing rule that **every MJX-trained policy is refereed by the CPU
+  eval harness** before being believed.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
