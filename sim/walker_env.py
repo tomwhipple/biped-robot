@@ -193,6 +193,12 @@ class BimoWalkerEnv(gym.Env):
         # whole run: single-behavior EXPERT training for distillation (the
         # command obs channels stay present but constant, so experts share
         # the student's observation space)
+        cmd_dense: bool = False,       # dense-progress velocity reward for
+        # moving commands: w_track_v * min(vx, cmd_v)/cmd_v -- the dash-style
+        # any-progress-pays gradient that demonstrably teaches walking on
+        # this plant, instead of the exp kernel (which pays ~nothing until
+        # you're already near the commanded speed). Stand commands and the
+        # yaw term keep the kernel.
         w_track_v: float = 2.0,        # velocity-tracking reward (exp kernel)
         w_track_w: float = 1.0,        # yaw-rate-tracking reward (exp kernel)
         w_power: float = 0.0,          # electrical-power penalty (W). Unlike
@@ -252,6 +258,7 @@ class BimoWalkerEnv(gym.Env):
         self.cmd_stand_prob = cmd_stand_prob
         self.cmd_resample_s = cmd_resample_s
         self.cmd_fixed = cmd_fixed
+        self.cmd_dense = cmd_dense
         self.w_track_v = w_track_v
         self.w_track_w = w_track_w
         self.w_power = w_power
@@ -731,11 +738,14 @@ class BimoWalkerEnv(gym.Env):
             # attempting to walk from standstill vs 0.24 at reference width.
             # Plausibly the root cause of "stands great, won't walk"
             # (found 2026-07-13 when even a pinned-command walk expert froze).
-            primary = (
-                self.w_track_v * float(np.exp(-((vx_body - self._cmd[0])
-                                                / 0.5) ** 2))
-                + self.w_track_w * float(np.exp(-((wz_rate - self._cmd[1])
-                                                  / 0.5) ** 2)))
+            if self.cmd_dense and self._cmd[0] > 0.05:
+                # any forward progress pays immediately, capped at the command
+                v_term = self.w_track_v * min(vx_body, self._cmd[0]) / self._cmd[0]
+            else:
+                v_term = self.w_track_v * float(np.exp(
+                    -((vx_body - self._cmd[0]) / 0.5) ** 2))
+            primary = v_term + self.w_track_w * float(
+                np.exp(-((wz_rate - self._cmd[1]) / 0.5) ** 2))
             reward_time_stop = 0.0
         elif braking:
             planar = float(np.hypot(d.qvel[0], d.qvel[1]))

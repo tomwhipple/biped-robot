@@ -80,6 +80,8 @@ def main():
     p.add_argument("--cmd-fixed", type=float, nargs=2, default=None,
                    metavar=("V", "W"),
                    help="pin the command (expert training for distillation)")
+    p.add_argument("--cmd-dense", action="store_true",
+                   help="dense-progress velocity reward for moving commands")
     p.add_argument("--cmd-hold-min", type=float, default=2.5)
     p.add_argument("--cmd-hold-max", type=float, default=4.5)
     p.add_argument("--w-power", type=float, default=0.0,
@@ -167,6 +169,7 @@ def main():
         cmd_v_range=(0.3, args.cmd_v_max), cmd_w_range=args.cmd_w_range,
         cmd_resample_s=(args.cmd_hold_min, args.cmd_hold_max),
         cmd_fixed=tuple(args.cmd_fixed) if args.cmd_fixed else None,
+        cmd_dense=args.cmd_dense,
         w_power=args.w_power,
         w_track_w=args.w_track_w, cmd_stand_prob=args.cmd_stand_prob,
         imu_obs=args.imu_obs, imu_noise=args.imu_noise,
