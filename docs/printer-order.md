@@ -31,17 +31,23 @@ Alternatives and the one thing it *can't* do are covered below.
 | Item | Product | Qty | Est. price | Link |
 |---|---|---|---|---|
 | **3D printer** | FlashForge **Adventurer 5M Pro** — enclosed CoreXY, 220³ mm, 280 °C hotend, HEPA+carbon, 600 mm/s | 1 | **$449** | [FlashForge](https://www.flashforge.com/products/adventurer-5m-pro-3d-printer) · [Amazon B0CH4RG161](https://www.amazon.com/dp/B0CH4RG161) |
-| **PLA** 1 kg | 1.75 mm — **prototyping / most robot parts** (stiff, easy). Polymaker PolyLite/PolyTerra, Overture, or FlashForge | 1 | ~$22 | [Amazon search](https://www.amazon.com/s?k=polymaker+polylite+pla+1.75mm) |
-| **PETG** 1 kg | 1.75 mm — **final servo brackets** (tough, mild heat resistance). Overture or Polymaker PolyLite | 1 | ~$25 | [Amazon search](https://www.amazon.com/s?k=overture+petg+1.75mm) |
-| **TPU 95A** 500 g | 1.75 mm — **foot soles / grip pads** (Shore 95A). SainSmart, Overture, or Polymaker PolyFlex | 1 | ~$18 | [Amazon search](https://www.amazon.com/s?k=tpu+95a+1.75mm+filament) |
-| 99% Isopropyl alcohol + lint-free wipes | Degrease the PEI plate between prints — finger oils are the #1 cause of adhesion failures | 1 | ~$12 | [Amazon search](https://www.amazon.com/s?k=99%25+isopropyl+alcohol) |
-| **Ready-to-print subtotal** | | | **~$526** | |
+| **PLA** 1 kg | 1.75 mm — **prototyping / most robot parts** (stiff, easy). Overture PLA (color selectable on the listing) | 1 | ~$22 | [Amazon B0CPJ4QSPK](https://www.amazon.com/dp/B0CPJ4QSPK) |
+| **PETG** 1 kg | 1.75 mm — **final servo brackets** (tough, mild heat). Overture PETG (color selectable) | 1 | ~$25 | [Amazon B0991YSBDG](https://www.amazon.com/dp/B0991YSBDG) |
+| **TPU 95A** 1 kg | 1.75 mm — **foot soles / grip pads** (Shore 95A; 500 g would do, 1 kg is the standard roll). SainSmart 95A | 1 | ~$24 | [Amazon B0GTZ79H4X](https://www.amazon.com/dp/B0GTZ79H4X) |
+| 99% Isopropyl alcohol (16 oz) | Degrease the PEI plate between prints — finger oils are the #1 adhesion-failure cause | 1 | ~$9 | [Amazon B07NFSFBXQ](https://www.amazon.com/dp/B07NFSFBXQ) |
+| **Ready-to-print subtotal** | | | **~$530** | |
+
+> **🛒 One-click cart** (printer + filament + IPA): paste this into a browser to
+> pre-load the cart, then *Save for Later* for a wishlist —
+> `https://www.amazon.com/gp/aws/cart/add.html?ASIN.1=B0CH4RG161&Quantity.1=1&ASIN.2=B0CPJ4QSPK&Quantity.2=1&ASIN.3=B0991YSBDG&Quantity.3=1&ASIN.4=B0GTZ79H4X&Quantity.4=1&ASIN.5=B07NFSFBXQ&Quantity.5=1`
+> This uses Amazon's legacy bulk-add endpoint; if it doesn't load, use the
+> per-item links in the tables instead.
 
 Filament is **brand-agnostic** on purpose — no RFID lock means any reputable
-1.75 mm spool works; the brands above are proven picks, not requirements. The
-*materials* (PLA / PETG / TPU 95A) are what the robot's design calls for. Buy a
-second PLA roll if you expect to iterate the prototype heavily (~0.9 kg of
-plastic per full robot).
+1.75 mm spool works; the pinned listings are proven picks, not requirements, and
+**color is selectable on each Amazon listing**. The *materials* (PLA / PETG /
+TPU 95A) are what the robot's design calls for. Buy a second PLA roll if you
+expect to iterate the prototype heavily (~0.9 kg of plastic per full robot).
 
 > **Buying check:** confirm the listing says **"5M Pro"** and shows the
 > *enclosed* body — FlashForge also sells the open-frame base **5M** (~$239)
@@ -60,7 +66,7 @@ robot). So you don't need glue, basic tools, or a spool holder in the order.
 
 | Item | Why | Est. price |
 |---|---|---|
-| **Digital calipers** | Verify printed dimensions against the CAD — the robot has tight tolerances (heat-set bosses, servo mounts, 3.2 mm GoPro slots per `docs/hardware-order.md`) | ~$25 |
+| ~~Digital calipers~~ — **owned** ✅ | Verify printed dimensions against the CAD — the robot has tight tolerances (heat-set bosses, servo mounts, 3.2 mm GoPro slots per `docs/hardware-order.md`) | — |
 | Flush cutters | Snip filament and supports cleanly (if not in the included kit) | ~$8 |
 | Spare PEI build plate | Dedicate one plate to PETG so you're not constantly re-gluing | ~$20 |
 | Desiccant + sealable bags | Keep TPU/PETG dry between prints (both absorb water) | ~$12 |
