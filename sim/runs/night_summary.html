@@ -104,7 +104,7 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   head, bumps underfoot, 16/16.</p>
   <div class="meta">
     <span>2026·07·09 → 07·11</span><span>8× parallel envs · CPU</span>
-    <span>43 trained policies</span>
+    <span>49 trained policies</span>
   </div>
 
   <div class="kpis">
@@ -251,6 +251,15 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
       <b>turning</b> capability: pivots track both directions
       (≈0.2 rad/s left / 0.1 right — the identical-parts gait turns left
       for free), walking turns left-only so far.</li>
+      <li><b>Day-5 evening reframe: NO policy has ever walked 10 s.</b>
+      Dash episodes end ~1 s past the line, so sustained walking was never
+      in any curriculum — champions fall at 3.7–5.1 s with the finish line
+      removed. Eight targeted runs (kernel-width fix, penalty ablation,
+      dense reward, two horizon fine-tunes) all fell short; horizon
+      fine-tunes actively degraded the parent (stale value function).
+      Verdict: scale is the binding constraint — MJX/GPU port is the next
+      sim move, bigger feet the cheap CAD insurance. The 2 m dash burst
+      remains solid and is the hardware-v1 demo.</li>
       <li><b>Command-mode walking hit an honest wall</b> (day 5): five
       from-scratch attempts across penalty scales and command mixes all
       yield excellent standing (best: 8/8, 1 cm drift, <b>6.3 W ≈ 64 min

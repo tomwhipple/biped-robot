@@ -745,6 +745,27 @@ Hardware implication if it holds: v1 demos are 2 m bursts until sustained
 walking lands; if exp_walk5 sustains, it becomes both the walk teacher
 for distillation and the first continuous-walking policy.
 
+**Verdict (2026-07-13 night): sustained walking is the confirmed wall at
+CPU scale.** Both horizon fine-tunes *degraded* the parent —
+exp_walk5 (slower target, two variables changed) fell at 2.3 s and
+exp_walk6 (horizon-only, single variable) at 1.8 s, versus the parent's
+5.1 s — the dash-calibrated value function (short episodes + finish
+bonus) produces wrong advantages under the new objective and corrupts
+the gait before adapting. Day totals: 5 from-scratch variants (kernel
+width ×2, penalties on/off, dense reward) and 3 fine-tune variants, all
+short of 10 s. What stands: **2 m dash bursts are solid and validated**
+(the hardware-v1 demo), stand-on-command is solid, pivots are real but
+weak. Recommended next moves, in order: **(1) MJX/GPU port** — sustained
+command-conditioned locomotion at 100M+ steps is the standard recipe and
+every signal says scale is the binding constraint; **(2) bigger feet in
+CAD** — the pad-true contact is 90 × 46 mm under a 1 kg, 32 cm-CG robot;
+a modest sole enlargement is cheap static-margin insurance and one
+parameter in `dimensions.py`; **(3) fresh-value-head fine-tuning**
+(reset the critic when the objective changes) if more CPU rounds are
+attempted. The day's instrumentation (wobble RMS, electrical watts,
+runtime) and the kernel/penalty/reward ablation record all carry forward
+regardless.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
