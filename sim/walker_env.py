@@ -189,6 +189,10 @@ class BimoWalkerEnv(gym.Env):
         cmd_w_range: float = 1.0,          # |yaw-rate| command bound (rad/s)
         cmd_stand_prob: float = 0.3,       # chance a command is "stand still"
         cmd_resample_s: tuple = (2.5, 4.5),  # seconds between command changes
+        cmd_fixed: tuple | None = None,  # pin the command to (v, w) for the
+        # whole run: single-behavior EXPERT training for distillation (the
+        # command obs channels stay present but constant, so experts share
+        # the student's observation space)
         w_track_v: float = 2.0,        # velocity-tracking reward (exp kernel)
         w_track_w: float = 1.0,        # yaw-rate-tracking reward (exp kernel)
         w_power: float = 0.0,          # electrical-power penalty (W). Unlike
@@ -247,6 +251,7 @@ class BimoWalkerEnv(gym.Env):
         self.cmd_w_range = cmd_w_range
         self.cmd_stand_prob = cmd_stand_prob
         self.cmd_resample_s = cmd_resample_s
+        self.cmd_fixed = cmd_fixed
         self.w_track_v = w_track_v
         self.w_track_w = w_track_w
         self.w_power = w_power
@@ -530,6 +535,10 @@ class BimoWalkerEnv(gym.Env):
         (straight or turning). Pivot commands matter: with no hip-yaw joint,
         pivoting is this morphology's easiest turn -- leaving it out of the
         training distribution left cmd_11v1/b unable to track yaw at all."""
+        if self.cmd_fixed is not None:
+            self._cmd = np.asarray(self.cmd_fixed, dtype=float)
+            self._cmd_next = 10 ** 9
+            return
         u = float(self.np_random.uniform())
         if u < self.cmd_stand_prob:
             self._cmd = np.zeros(2)
