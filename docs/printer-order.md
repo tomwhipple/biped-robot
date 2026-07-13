@@ -30,7 +30,7 @@ Alternatives and the one thing it *can't* do are covered below.
 
 | Item | Product | Qty | Est. price | Link |
 |---|---|---|---|---|
-| **3D printer** | FlashForge **Adventurer 5M Pro** — enclosed CoreXY, 220³ mm, 280 °C hotend, HEPA+carbon, 600 mm/s | 1 | **$449** | [FlashForge](https://www.flashforge.com/products/adventurer-5m-pro-3d-printer) · [Amazon](https://www.amazon.com/s?k=flashforge+adventurer+5m+pro) |
+| **3D printer** | FlashForge **Adventurer 5M Pro** — enclosed CoreXY, 220³ mm, 280 °C hotend, HEPA+carbon, 600 mm/s | 1 | **$449** | [FlashForge](https://www.flashforge.com/products/adventurer-5m-pro-3d-printer) · [Amazon B0CH4RG161](https://www.amazon.com/dp/B0CH4RG161) |
 | PLA filament 1 kg | Any brand, 1.75 mm (structural prototyping) | 1 | ~$20–28 | [Amazon B0CGQYRSNT](https://www.amazon.com/dp/B0CGQYRSNT) (Bambu ex.) |
 | PETG filament 1 kg | Any brand, 1.75 mm (final servo brackets) | 1 | ~$20–30 | [Amazon B0F68FKRWH](https://www.amazon.com/dp/B0F68FKRWH) (Bambu ex.) |
 | TPU filament 500 g | Shore 95A, 1.75 mm (foot pads) | 1 | ~$16 | [Amazon B0DG8BZL6L](https://www.amazon.com/dp/B0DG8BZL6L) (Geeetech) |
@@ -38,6 +38,12 @@ Alternatives and the one thing it *can't* do are covered below.
 
 Filament is **brand-agnostic** here on purpose — no RFID lock means any spool
 works; the Amazon links are just concrete examples, not required brands.
+
+> **Buying check:** confirm the listing says **"5M Pro"** and shows the
+> *enclosed* body — FlashForge also sells the open-frame base **5M** (~$239)
+> under near-identical naming, and the enclosure is exactly what you need for
+> ASA/PA-CF. Also watch for **bundles** that pad the ~$449 price with
+> filament/accessories. Verified ASIN for the bare 5M Pro: `B0CH4RG161`.
 
 ### Add-ons for when the outdoor / drone projects actually start
 *(not needed for the robot — buy when you reach these materials)*
