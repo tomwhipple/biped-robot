@@ -115,14 +115,24 @@ def main():
     dash_wins, dash_times = 0, []
     frames = []
     max_steps = base.max_steps
+    wobble_sq, act_rate, prev_a = [], [], None
     for ep in range(args.episodes):
         obs = env.reset()
         done = False
         ep_ret, steps, last = 0.0, 0, {}
         trunc = False
+        prev_a = None
         while not done:
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, dones, infos = env.step(action)
+            # motion-quality metrics (issue raised in video review 2026-07-13:
+            # task success does not measure smoothness -- a policy can pass
+            # every gauntlet while visibly trembling)
+            wobble_sq.append(float(base.data.qvel[3])**2
+                             + float(base.data.qvel[4])**2)
+            if prev_a is not None:
+                act_rate.append(float(np.sum((action - prev_a) ** 2)))
+            prev_a = action.copy()
             ep_ret += float(reward[0])
             last = infos[0]
             steps += 1
@@ -154,6 +164,8 @@ def main():
           f"({lengths.mean()*base.control_dt:.1f}s)")
     print(f"survived full : {sum(survived)}/{args.episodes}  (reached 10s truncation)")
     print(f"avg fwd speed : {speed.mean():8.2f} m/s")
+    print(f"torso wobble  : {np.sqrt(np.mean(wobble_sq)):8.2f} rad/s RMS roll+pitch rate  (smoothness; <1 calm, >2 visibly shaky)")
+    print(f"action rate   : {np.mean(act_rate):8.3f} mean sum-sq action delta (policy jitter)")
     # gait quality: double-support fraction ~1.0 => shuffle (feet never lift);
     # a clean alternating stride is ~0.2-0.5 with swing times near 0.2-0.3 s.
     print(f"double-support: {dsup_steps / max(total_steps, 1):8.0%} of steps")
