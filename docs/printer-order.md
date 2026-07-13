@@ -31,19 +31,44 @@ Alternatives and the one thing it *can't* do are covered below.
 | Item | Product | Qty | Est. price | Link |
 |---|---|---|---|---|
 | **3D printer** | FlashForge **Adventurer 5M Pro** — enclosed CoreXY, 220³ mm, 280 °C hotend, HEPA+carbon, 600 mm/s | 1 | **$449** | [FlashForge](https://www.flashforge.com/products/adventurer-5m-pro-3d-printer) · [Amazon B0CH4RG161](https://www.amazon.com/dp/B0CH4RG161) |
-| PLA filament 1 kg | Any brand, 1.75 mm (structural prototyping) | 1 | ~$20–28 | [Amazon B0CGQYRSNT](https://www.amazon.com/dp/B0CGQYRSNT) (Bambu ex.) |
-| PETG filament 1 kg | Any brand, 1.75 mm (final servo brackets) | 1 | ~$20–30 | [Amazon B0F68FKRWH](https://www.amazon.com/dp/B0F68FKRWH) (Bambu ex.) |
-| TPU filament 500 g | Shore 95A, 1.75 mm (foot pads) | 1 | ~$16 | [Amazon B0DG8BZL6L](https://www.amazon.com/dp/B0DG8BZL6L) (Geeetech) |
-| **Order subtotal (robot-ready)** | | | **~$523** | |
+| **PLA** 1 kg | 1.75 mm — **prototyping / most robot parts** (stiff, easy). Polymaker PolyLite/PolyTerra, Overture, or FlashForge | 1 | ~$22 | [Amazon search](https://www.amazon.com/s?k=polymaker+polylite+pla+1.75mm) |
+| **PETG** 1 kg | 1.75 mm — **final servo brackets** (tough, mild heat resistance). Overture or Polymaker PolyLite | 1 | ~$25 | [Amazon search](https://www.amazon.com/s?k=overture+petg+1.75mm) |
+| **TPU 95A** 500 g | 1.75 mm — **foot soles / grip pads** (Shore 95A). SainSmart, Overture, or Polymaker PolyFlex | 1 | ~$18 | [Amazon search](https://www.amazon.com/s?k=tpu+95a+1.75mm+filament) |
+| 99% Isopropyl alcohol + lint-free wipes | Degrease the PEI plate between prints — finger oils are the #1 cause of adhesion failures | 1 | ~$12 | [Amazon search](https://www.amazon.com/s?k=99%25+isopropyl+alcohol) |
+| **Ready-to-print subtotal** | | | **~$526** | |
 
-Filament is **brand-agnostic** here on purpose — no RFID lock means any spool
-works; the Amazon links are just concrete examples, not required brands.
+Filament is **brand-agnostic** on purpose — no RFID lock means any reputable
+1.75 mm spool works; the brands above are proven picks, not requirements. The
+*materials* (PLA / PETG / TPU 95A) are what the robot's design calls for. Buy a
+second PLA roll if you expect to iterate the prototype heavily (~0.9 kg of
+plastic per full robot).
 
 > **Buying check:** confirm the listing says **"5M Pro"** and shows the
 > *enclosed* body — FlashForge also sells the open-frame base **5M** (~$239)
 > under near-identical naming, and the enclosure is exactly what you need for
 > ASA/PA-CF. Also watch for **bundles** that pad the ~$449 price with
 > filament/accessories. Verified ASIN for the bare 5M Pro: `B0CH4RG161`.
+
+### Already in the box — don't re-buy
+The 5M Pro ships with: the **PEI build plate**, **FlashForge glue** (use it as a
+release layer under PETG — PETG bonds hard to bare PEI), a **tool kit** (hex
+keys, scraper, grease), a **spare quick-swap nozzle**, the **spool holder**, a
+**USB stick**, and a **250 g PLA sample** (enough for a first test print, not the
+robot). So you don't need glue, basic tools, or a spool holder in the order.
+
+### Recommended tools (not included; strongly advised for this project)
+
+| Item | Why | Est. price |
+|---|---|---|
+| **Digital calipers** | Verify printed dimensions against the CAD — the robot has tight tolerances (heat-set bosses, servo mounts, 3.2 mm GoPro slots per `docs/hardware-order.md`) | ~$25 |
+| Flush cutters | Snip filament and supports cleanly (if not in the included kit) | ~$8 |
+| Spare PEI build plate | Dedicate one plate to PETG so you're not constantly re-gluing | ~$20 |
+| Desiccant + sealable bags | Keep TPU/PETG dry between prints (both absorb water) | ~$12 |
+
+> **For robot *assembly* (not printing):** the brass heat-set inserts in
+> [`bom-by-vendor.md`](bom-by-vendor.md) are installed with a **soldering iron +
+> conical/insert tip** (~$20 if you don't already own one). Not needed to print,
+> but needed to build.
 
 ### Add-ons for when the outdoor / drone projects actually start
 *(not needed for the robot — buy when you reach these materials)*
