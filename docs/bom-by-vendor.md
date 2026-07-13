@@ -61,10 +61,10 @@ Cheap spare/alt: MPU-6050 "GY-521" (~$5, needs a filter in firmware).
 | Adafruit | $24.95 |
 | **Robot total** | **~$315** |
 
-Servo spares (1–2 × $21.99) are the main swing item. The 3D printer + filament
-(~$523, FlashForge 5M Pro) is a separate one-time order — see
-[`printer-order.md`](printer-order.md).
-All-in from zero (robot + printer order): **~$838**.
+Servo spares (1–2 × $21.99) are the main swing item. The 3D printer + filament +
+start-up consumables (~$526, FlashForge 5M Pro) is a separate one-time order —
+see [`printer-order.md`](printer-order.md).
+All-in from zero (robot + printer order): **~$841**.
 
 ---
 
