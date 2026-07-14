@@ -217,6 +217,19 @@ class BimoWalkerEnv(gym.Env):
         w_recover_h: float = 1.0,
         w_recover_up: float = 0.8,
         stand_bonus: float = 1.0,
+        # -- action mapping (2026-07-14) -----------------------------------------
+        # "legacy": target = default + 0.5*(hi-lo)*a -- a symmetric band that
+        # CANNOT reach the far side of asymmetric ranges (the knee, -95..+5,
+        # was capped at -50 deg for every policy ever trained -- found by the
+        # get-up study's dangle test). "full": piecewise-linear residual that
+        # reaches both true limits; action 0 is still the standing pose.
+        action_map: str = "legacy",
+        # -- hip-pitch flexion override (get-up study, 2026-07-14) ---------------
+        # The study's static path analysis: a CoM-over-soles sit->stand needs
+        # >= 95 deg of hip FLEXION (flexion is negative on this model); the
+        # CAD yoke currently stops at 60. Set e.g. 110.0 to train/eval with
+        # the widened range before the yoke is redesigned. None = XML truth.
+        hip_flex_deg: float | None = None,
         # -- hardware-realizable observations (sensing audit 2026-07-11) --------
         imu_obs: bool = False,         # torso linear velocity + height are ZEROED
         # (the real robot has no sensor for them; obs stays 36-wide so warm
@@ -380,6 +393,13 @@ class BimoWalkerEnv(gym.Env):
         # -- the standard locomotion-RL convention. Without this, action 0 maps to
         # each joint's range midpoint (a deep knee crouch) and the robot topples.
         jnt = self.model.actuator_trnid[:, 0]
+        if hip_flex_deg is not None:
+            self.model.jnt_range[jnt[1], 0] = -np.deg2rad(hip_flex_deg)
+            self.model.jnt_range[jnt[5], 0] = -np.deg2rad(hip_flex_deg)
+        self.hip_flex_deg = hip_flex_deg
+        if action_map not in ("legacy", "full"):
+            raise ValueError(f"unknown action_map {action_map!r}")
+        self.action_map = action_map
         self._lo = self.model.jnt_range[jnt, 0].copy()
         self._hi = self.model.jnt_range[jnt, 1].copy()
         self._default = self.model.qpos0[_JQPOS].copy()        # standing pose
@@ -403,6 +423,11 @@ class BimoWalkerEnv(gym.Env):
     # -- helpers -----------------------------------------------------------
     def _action_to_ctrl(self, action: np.ndarray) -> np.ndarray:
         action = np.clip(action, -1.0, 1.0)
+        if self.action_map == "full":
+            # piecewise-linear: full range on both sides, action 0 = stand
+            span = np.where(action >= 0.0, self._hi - self._default,
+                            self._default - self._lo)
+            return self._default + span * action
         return np.clip(self._default + self._scale * action, self._lo, self._hi)
 
     # -- terrain -------------------------------------------------------------

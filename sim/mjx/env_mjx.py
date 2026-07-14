@@ -183,6 +183,9 @@ class BimoMJXEnv:
         w_recover_h: float = 1.0,      # height progress term
         w_recover_up: float = 0.8,     # uprightness term
         stand_bonus: float = 1.0,      # per-step, when upright+tall+still
+        # -- see walker_env.py for both (kept arithmetically identical) ---------
+        action_map: str = "legacy",    # "full" reaches asymmetric limits
+        hip_flex_deg: float | None = None,   # widen hip FLEXION (deg)
     ):
         self.mj_model = _prep_model(
             xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
@@ -198,6 +201,14 @@ class BimoMJXEnv:
         self.max_steps = int(episode_seconds / self.control_dt)
 
         jnt = m.actuator_trnid[:, 0]
+        if hip_flex_deg is not None:
+            m.jnt_range[jnt[1], 0] = -np.deg2rad(hip_flex_deg)
+            m.jnt_range[jnt[5], 0] = -np.deg2rad(hip_flex_deg)
+            self.model = mjx.put_model(m)      # re-upload patched ranges
+        if action_map not in ("legacy", "full"):
+            raise ValueError(f"unknown action_map {action_map!r}")
+        self.action_map = action_map
+        self.hip_flex_deg = hip_flex_deg
         self._lo = jp.asarray(m.jnt_range[jnt, 0])
         self._hi = jp.asarray(m.jnt_range[jnt, 1])
         self._default = jp.asarray(m.qpos0[_JQ0:_JQ1])
@@ -442,8 +453,13 @@ class BimoMJXEnv:
         rng, r_push_u, r_push_a, r_jit, r_obs, r_cmd = jax.random.split(
             state.rng, 6)
         action = jp.clip(action, -1.0, 1.0)
-        target = jp.clip(self._default + self._scale * action,
-                         self._lo, self._hi)
+        if self.action_map == "full":
+            span = jp.where(action >= 0.0, self._hi - self._default,
+                            self._default - self._lo)
+            target = self._default + span * action
+        else:
+            target = jp.clip(self._default + self._scale * action,
+                             self._lo, self._hi)
 
         # random shove, held for the whole control step (matches CPU env)
         push_on = (jax.random.uniform(r_push_u) < self.push_prob) & (

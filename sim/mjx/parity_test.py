@@ -52,6 +52,7 @@ SHARED = dict(
     w_track_v=2.0, w_track_w=1.0,
     latency_ms=6.0, backlash_deg=0.5,
     cmd_fixed=(0.6, 0.0), imu_obs=False,
+    action_map="full", hip_flex_deg=110.0,   # the get-up study additions
 )
 
 cpu = BimoWalkerEnv(xml_path=XML, actuator_model="sts3215",
@@ -61,16 +62,20 @@ step_mjx = jax.jit(gpu.step)
 
 
 def sync(state, cpu):
-    d = state.data.replace(qpos=jp.asarray(cpu.data.qpos),
-                           qvel=jp.asarray(cpu.data.qvel))
+    # np.array copies everywhere: jp.asarray can alias numpy buffers
+    # zero-copy on the CPU backend, and the CPU env mutates _prev_action
+    # and _air_time IN PLACE during step -- an aliased array silently reads
+    # post-step values inside the later jit call (cost: hours of debugging).
+    d = state.data.replace(qpos=jp.asarray(np.array(cpu.data.qpos)),
+                           qvel=jp.asarray(np.array(cpu.data.qvel)))
     d = mjx.forward(gpu.model, d)
     return state._replace(
         data=d,
-        prev_action=jp.asarray(cpu._prev_action),
-        last_target=jp.asarray(cpu._last_target),
+        prev_action=jp.asarray(np.array(cpu._prev_action)),
+        last_target=jp.asarray(np.array(cpu._last_target)),
         step_i=jp.asarray(cpu._step_i, dtype=jp.int32),
-        air_time=jp.asarray(cpu._air_time),
-        cmd=jp.asarray(cpu._cmd),
+        air_time=jp.asarray(np.array(cpu._air_time)),
+        cmd=jp.asarray(np.array(cpu._cmd)),
     )
 
 
@@ -174,14 +179,14 @@ for t in range(80):
         cpu_g.data.qvel[:] = 0.0          # (heap dynamics divergence is the
         _mj.mj_forward(cpu_g.model, cpu_g.data)   # documented manifold caveat)
     a = (_SPLAY + 0.3 * np.sin(0.3 * t + np.arange(8))).astype(np.float32)
-    d = sg.data.replace(qpos=jp.asarray(cpu_g.data.qpos),
-                        qvel=jp.asarray(cpu_g.data.qvel))
+    d = sg.data.replace(qpos=jp.asarray(np.array(cpu_g.data.qpos)),
+                        qvel=jp.asarray(np.array(cpu_g.data.qvel)))
     d = mjx.forward(gpu_g.model, d)
-    sg = sg._replace(data=d, prev_action=jp.asarray(cpu_g._prev_action),
-                     last_target=jp.asarray(cpu_g._last_target),
+    sg = sg._replace(data=d, prev_action=jp.asarray(np.array(cpu_g._prev_action)),
+                     last_target=jp.asarray(np.array(cpu_g._last_target)),
                      step_i=jp.asarray(cpu_g._step_i, dtype=jp.int32),
-                     air_time=jp.asarray(cpu_g._air_time),
-                     cmd=jp.asarray(cpu_g._cmd))
+                     air_time=jp.asarray(np.array(cpu_g._air_time)),
+                     cmd=jp.asarray(np.array(cpu_g._cmd)))
     obs_c, r_c, term_c, trunc_c, info_c = cpu_g.step(a)
     sg = step_g(sg, jp.asarray(a))
     if term_c:

@@ -865,6 +865,36 @@ a run that could not succeed. Infra: `infra/runpod/run_train.sh` is the
 standing launcher (policy: anything longer than a few minutes runs on
 RunPod, Mira is dev/smoke only).
 
+### Hip-pitch study: the number is 95° — and two bugs fell out (2026-07-14)
+
+`sim/getup_study.py` (scripted-motion + static-path analysis, decision:
+keep hip-60 as backup tag `v1-hip60-backup`, figure out the hip):
+
+1. **Action-mapping bug (material, affects everything):** the residual
+   action mapping (`default + 0.5*(hi-lo)*a`) is a symmetric band that
+   cannot reach the far side of asymmetric joint ranges — **the knee
+   (−95..+5°) was capped at −50° for every policy ever trained.** Walking
+   never needed the deep half; get-up does. Fixed as `action_map="full"`
+   (piecewise-linear, action 0 = stand, reaches both limits; "legacy"
+   stays default so old runs reproduce).
+2. **Sign note:** hip *flexion* is NEGATIVE on this model; the RL sit
+   parks at −59°, pressed against the −60° stop.
+3. **The kinematic answer:** a connected quasi-static sit→stand path
+   (CoM within ±20 mm of sole center, feet flat, real masses + GoPro)
+   exists iff hip flexion ≥ **95°** and provably not at ≤90° (BFS over
+   the feasible (knee,hip) grid). The path: pike-up — knees extend under
+   the folded torso first, torso unfolds last. **CAD target: −110°/+60°**
+   (95° + margin). `hip_flex_deg` env param widens the range in sim ahead
+   of the yoke redesign.
+4. Open-loop scripted execution reaches the loaded squat but topples
+   during the rise (foot-skate / no closed-loop balance) — dynamic
+   validation delegated to RL retrain (`mjx_getup_v2`: hip 110 + full
+   mapping), which has IMU feedback.
+5. Test-harness bug worth remembering: `jp.asarray(numpy_buf)` can alias
+   zero-copy on the CPU backend; the CPU env mutates `_prev_action` /
+   `_air_time` in place → the parity sync silently read post-step values.
+   Fixed with explicit copies.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

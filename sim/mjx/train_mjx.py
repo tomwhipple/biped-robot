@@ -137,6 +137,9 @@ def main():
     p.add_argument("--payload", type=float, default=0.154)   # GoPro on
     p.add_argument("--getup", action="store_true",
                    help="fall-recovery objective instead of command tracking")
+    p.add_argument("--action-map", default="legacy", choices=["legacy", "full"])
+    p.add_argument("--hip-flex", type=float, default=None,
+                   help="widen hip flexion to this many degrees (study: >=95)")
     args = p.parse_args()
 
     # env config: the exp_walk reward shape (the day-5 tuned set), full-length
@@ -156,6 +159,7 @@ def main():
         cmd_resample_s=(2.5, 4.5), cmd_dense=args.cmd_dense,
         w_track_v=2.0, w_track_w=2.0,
         imu_obs=True, imu_noise=1.0,
+        action_map=args.action_map, hip_flex_deg=args.hip_flex,
     )
     if args.getup:
         # recovery objective: gait shaping off (crawling/rolling is fine),
