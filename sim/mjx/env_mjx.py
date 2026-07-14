@@ -297,19 +297,9 @@ class BimoMJXEnv:
             cmd,
         ]).astype(jp.float32)
 
-    # -- api -------------------------------------------------------------------
-    def reset(self, rng: jax.Array) -> State:
-        (rng, r_q, r_v, r_lat, r_lash, r_servo, r_cmd, r_ang, r_ax, r_bias,
-         r_obs) = jax.random.split(rng, 11)
-        qpos = self._qpos0.at[_JQ0:_JQ1].add(
-            jax.random.uniform(r_q, (8,), minval=-0.03, maxval=0.03))
-        qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
-                                  minval=-0.02, maxval=0.02)
-        data = mjx.make_data(self.model)
-        data = data.replace(qpos=qpos, qvel=qvel,
-                            ctrl=jp.zeros(self.mj_model.nu) + self._default)
-        data = mjx.forward(self.model, data)
-
+    # -- per-episode draws (shared by reset and reseed) -------------------------
+    def _draw_episode(self, rng: jax.Array):
+        r_lat, r_lash, r_servo, r_ang, r_ax, r_bias = jax.random.split(rng, 6)
         if self.latency_ms_max is not None:
             lat_ms = jax.random.uniform(r_lat, minval=self.latency_ms,
                                         maxval=self.latency_ms_max)
@@ -343,19 +333,55 @@ class BimoMJXEnv:
         else:
             imu_R = jp.eye(3)
             imu_bias = jp.zeros(3)
+        return servo, lat_ms, lash, imu_R, imu_bias
+
+    _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
+                    "track_v_err", "track_w_err")
+
+    # -- api -------------------------------------------------------------------
+    def reset(self, rng: jax.Array) -> State:
+        rng, r_q, r_v, r_ep, r_cmd, r_obs = jax.random.split(rng, 6)
+        qpos = self._qpos0.at[_JQ0:_JQ1].add(
+            jax.random.uniform(r_q, (8,), minval=-0.03, maxval=0.03))
+        qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
+                                  minval=-0.02, maxval=0.02)
+        data = mjx.make_data(self.model)
+        data = data.replace(qpos=qpos, qvel=qvel,
+                            ctrl=jp.zeros(self.mj_model.nu) + self._default)
+        data = mjx.forward(self.model, data)
+        servo, lat_ms, lash, imu_R, imu_bias = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next = self._sample_cmd(r_cmd, step_i)
         prev_action = jp.zeros(8, dtype=jp.float32)
         obs = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias, r_obs)
-        metrics = {k: jp.zeros(()) for k in
-                   ("power_w", "vx_body", "wz", "height", "up_z", "fell",
-                    "track_v_err", "track_w_err")}
+        metrics = {k: jp.zeros(()) for k in self._METRIC_KEYS}
         return State(data=data, obs=obs, reward=jp.zeros(()),
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
                      last_target=self._default.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2), cmd=cmd,
                      cmd_next=cmd_next, servo=servo, lat_ms=lat_ms, lash=lash,
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
+
+    def reseed(self, first: State, rng: jax.Array) -> State:
+        """Fresh episode that REUSES the cached first physics state (brax-style
+        cheap auto-reset: no make_data/forward) but re-draws every per-episode
+        quantity -- command, servo gains, latency, backlash, IMU error -- so
+        episode-level DR diversity survives auto-resetting."""
+        rng, r_ep, r_cmd, r_obs = jax.random.split(rng, 4)
+        servo, lat_ms, lash, imu_R, imu_bias = self._draw_episode(r_ep)
+        step_i = jp.zeros((), dtype=jp.int32)
+        cmd, cmd_next = self._sample_cmd(r_cmd, step_i)
+        prev_action = jp.zeros(8, dtype=jp.float32)
+        obs = self._obs(first.data, prev_action, cmd, step_i, imu_R, imu_bias,
+                        r_obs)
+        metrics = {k: jp.zeros(()) for k in self._METRIC_KEYS}
+        return first._replace(
+            obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
+            prev_action=prev_action,
+            last_target=self._default.astype(jp.float32), step_i=step_i,
+            air_time=jp.zeros(2), cmd=cmd, cmd_next=cmd_next, servo=servo,
+            lat_ms=lat_ms, lash=lash, imu_R=imu_R, imu_bias=imu_bias,
+            metrics=metrics)
 
     def step(self, state: State, action: jax.Array) -> State:
         m = self.model
