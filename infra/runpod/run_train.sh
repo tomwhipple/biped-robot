@@ -77,15 +77,18 @@ rsync -aq -e "ssh ${SSH_BASE[*]} -p $PORT" \
   "$REPO/cad/stl" "root@$IP:/root/robot/cad/" \
   --rsync-path="mkdir -p /root/robot/cad && rsync"
 
-echo "=== installing deps (jax[cuda12] + mjx + brax) ==="
-ssh_t 600 "${SSH_BASE[@]}" -p "$PORT" "root@$IP" \
-  "pip install -q --break-system-packages 'jax[cuda12]' mujoco mujoco-mjx brax 2>&1 | tail -2; \
-   python3 -c 'import jax; print(\"jax\", jax.__version__, jax.devices())'"
+echo "=== installing deps in a venv (system python is PEP-668-managed) ==="
+ssh_t 900 "${SSH_BASE[@]}" -p "$PORT" "root@$IP" \
+  "python3 -m venv /root/venv && /root/venv/bin/pip install -q --upgrade pip && \
+   /root/venv/bin/pip install -q 'jax[cuda12]' mujoco mujoco-mjx brax 2>&1 | tail -2; \
+   /root/venv/bin/python -c 'import jax; print(\"jax\", jax.__version__, jax.devices())'"
 
 echo "=== launching training: $* ==="
+# </dev/null so the nohup'd child doesn't inherit the ssh socket (ssh would
+# otherwise hang open until the training process exits)
 ssh_t 60 "${SSH_BASE[@]}" -p "$PORT" "root@$IP" \
   "mkdir -p /root/robot/sim/runs && cd /root/robot/sim/mjx && \
-   XLA_PYTHON_CLIENT_MEM_FRACTION=0.85 nohup python3 train_mjx.py $* \
-   > /root/robot/sim/runs/train.log 2>&1 & echo \"launched pid \$!\""
+   XLA_PYTHON_CLIENT_MEM_FRACTION=0.85 nohup /root/venv/bin/python train_mjx.py $* \
+   > /root/robot/sim/runs/train.log 2>&1 < /dev/null & echo \"launched pid \$!\""
 echo ">>> training started on $GPU_GOT ($POD_ID). Poll:"
 echo "    source infra/runpod/.last_pod && ssh -i $SSHK -p \$PORT root@\$IP 'tail -3 /root/robot/sim/runs/train.log'"
