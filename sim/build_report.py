@@ -28,15 +28,16 @@ def to_data_uri(arr):
 hero    = to_data_uri(strip_from_gif('runs/dash_11v1_hard/dash.gif'))
 dash7   = to_data_uri(strip_from_gif('runs/dash_7v4_hard/dash.gif'))
 stride  = to_data_uri(strip_from_gif('runs/terrain_v4/walk.gif'))
-shuffle = to_data_uri(strip_from_gif('runs/shaped_v6/walk.gif'))
-lunge   = to_data_uri(strip_from_gif('runs/ppo_baseline/walk.gif', n=7))
+shuffle = to_data_uri(strip_from_gif('runs/shaped_v6/walk.gif', n=6, factor=6))
+lunge   = to_data_uri(strip_from_gif('runs/ppo_baseline/walk.gif', n=6, factor=6))
 flyin   = to_data_uri(strip_from_gif(
     os.path.join(CAD_RENDERS, 'assembly_flyin.gif'), n=7, factor=3))
 # CPU-referee takes of the MJX-trained policy (mp4; mimread handles them)
-mjxwalk  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_walk.mp4'))
-mjxturn  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_turn.mp4'))
-mjxstand = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_stand.mp4'))
-mjxpivot = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_pivot_l.mp4'))
+mjxwalk  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_walk.mp4', factor=5))
+mjxturn  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_turn.mp4', factor=5))
+mjxstand = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_stand.mp4', factor=5))
+mjxpivot = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_pivot_l.mp4', factor=5))
+getup    = to_data_uri(strip_from_gif('runs/mjx_getup_v1/ref_getup.mp4', n=6, factor=6))
 
 cad = imageio.imread(os.path.join(CAD_RENDERS, 'assembly_mujoco.png'))[..., :3]
 cad_uri = to_data_uri(cad[30:680, 230:670])       # tight crop around the robot
@@ -46,7 +47,7 @@ n_runs = len([d for d in os.listdir('runs')
 for k, v in [('hero', hero), ('dash7', dash7), ('stride', stride),
              ('shuffle', shuffle), ('lunge', lunge), ('flyin', flyin),
              ('cad', cad_uri), ('mjxwalk', mjxwalk), ('mjxturn', mjxturn),
-             ('mjxstand', mjxstand), ('mjxpivot', mjxpivot)]:
+             ('mjxstand', mjxstand), ('mjxpivot', mjxpivot), ('getup', getup)]:
     print(k, len(v) // 1024, 'KB')
 print('runs:', n_runs)
 
@@ -211,7 +212,28 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   next reward iteration); pivot turn-rate authority still to be quantified.
   Full details in DESIGN.md §Stage 2b.</p>
 
-  <h2><span class="n">02</span> The reckoning: the old gait was unbuildable</h2>
+  <h2><span class="n">02</span> It sits up — and that's a design finding</h2>
+  <p>New scenario: get up after a fall. Trained from 2048 settled ragdoll
+  falls (no fall termination; reward = height + uprightness progress + a
+  standing bonus). The run was <b>stopped at 100M steps by a pre-agreed
+  rule</b>: reward had plateaued for 30M+ steps while the standing metric
+  never left zero. The policy's answer, verified by the CPU referee (0/8
+  recoveries): from any fall it reorganizes into a stable <b>sit</b> in
+  about a second — then waits, motionless, at 0.9 W.</p>
+  <figure style="margin:18px 0 6px">
+    <img class="film" src="{getup}" alt="Filmstrip: the fallen robot props itself into a seated position and stays there">
+    <figcaption>mjx_getup_v1 · best of 8 referee takes — a reliable sit-up, never a stand-up</figcaption>
+  </figure>
+  <p>The diagnosis is kinematic, not a training failure: sit → stand means
+  moving the CoM from behind the heels to over the feet, and with no arms,
+  hip pitch capped at ±60° (the torso can't fold over the knees), and
+  2.7 N·m servos (no dynamic rock-and-catch at this mass), that transfer
+  has no reachable path — a static sweep shows the target crouch is stable
+  at every hip angle; only the transfer is missing. <b>Decision pending:</b>
+  widen hip-pitch to ~100–120° in CAD (verify with a scripted-motion study
+  first), or ship hardware v1 without self-recovery.</p>
+
+  <h2><span class="n">03</span> The reckoning: the old gait was unbuildable</h2>
   <p>Until now the sim's actuators were idealized position servos — infinitely
   strong. Day three replaced them with the real thing: PD control clamped to the
   STS3215's torque–speed envelope (2.94 N·m stall tapering to zero at no-load
@@ -222,7 +244,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   Warm-starting couldn't fix it (same lesson as the shuffle); training from
   scratch inside the envelope could.</p>
 
-  <h2><span class="n">03</span> The battery verdict: 2S works, 3S wins — <b>3S it is</b></h2>
+  <h2><span class="n">04</span> The battery verdict: 2S works, 3S wins — <b>3S it is</b></h2>
   <p>Same dash task, two supply voltages (16 episodes each; a finish = crossing
   2 m and standing upright 1 s later):</p>
   <div class="tblwrap">
@@ -252,7 +274,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   dash policies re-verified on it: 16/16, median 2.67 s with the GoPro on.
   2S remains a tested fallback at every level.</p>
 
-  <h2><span class="n">04</span> The camera rides on top</h2>
+  <h2><span class="n">05</span> The camera rides on top</h2>
   <div class="card">
     <div class="cadgrid">
       <img src="{cad_uri}" alt="CAD assembly render with the GoPro MAX mounted on top of the torso">
@@ -274,7 +296,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     </figure>
   </div>
 
-  <h2><span class="n">05</span> How it got here</h2>
+  <h2><span class="n">06</span> How it got here</h2>
   <ol class="timeline">
     <li>
       <h3>A Gymnasium env around the MuJoCo model</h3>
@@ -332,7 +354,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     </li>
   </ol>
 
-  <h2><span class="n">06</span> Open items</h2>
+  <h2><span class="n">07</span> Open items</h2>
   <div class="card accent">
     <ul class="plain" style="margin:0">
       <li><s><b>Control latency</b> — the day-3 top risk.</s> Closed: the 0/16

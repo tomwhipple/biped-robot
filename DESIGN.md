@@ -826,6 +826,45 @@ term or tighter yaw kernel is the next reward iteration), and pivot
 authority should be quantified vs the CPU-era weakness. Cost of the run:
 electricity.
 
+### Get-up experiment: the robot sits up — and that's the ceiling (2026-07-14)
+
+New scenario (user request): recover from a fall. `getup=True` in both
+engines (parity block 2b): episodes start from settled ragdoll falls, no
+fall termination, recovery reward = height + uprightness progress + a
+standing bonus. MJX keeps the cad-mesh floor contacts in this mode — a
+fallen robot rests on its hulls; the parity test caught that the stripped
+model had nothing holding the torso off the floor.
+
+**Result: negative, with a clean diagnosis.** `mjx_getup_v1` (RunPod A40,
+stopped at 100M steps by the pre-agreed rule — reward plateaued ~310 for
+30M+ steps, `standing` never left ~0): from any fall the policy reliably
+reorganizes into a stable **sit** (torso ~50°, legs forward) within ~1 s,
+then parks at 0.9 W. CPU referee: 0/8 recoveries, same behavior. It
+climbed the reward exactly as far as the kinematics allow.
+
+**Why it can't finish:** sit → stand requires moving the CoM from behind
+the heels to over the feet. With no arms, hip pitch capped at ±60°
+(torso can't fold over the knees), and 2.7 N·m servos (not enough to
+rock-and-catch dynamically at this mass), the transfer has no
+statically-stable path. A static sweep with the real model shows deep
+crouches are stable at every hip angle once the feet are loaded (CoM
++35..66 mm past the heel) — the missing link is only the transfer.
+
+**Options (decision pending):**
+1. **Widen hip-pitch flexion** (60° → ~100–120°) — yoke/horn redesign in
+   CAD; the human-style no-arms getup. Verify with a scripted-motion
+   feasibility study BEFORE committing the CAD change: hand-author the
+   sit→crouch motion at candidate ranges in sim, find the minimum.
+2. **Accept no self-recovery for hardware v1** — falls get a human reset;
+   revisit after v1 walks on real ground.
+3. Exotic props (push off the GoPro tower, etc.) — not pursued; adds
+   fragile contact-rich behavior on real hardware.
+
+Costs: ~$2.40 of A40 time; the early-stop rule saved ~2.7 h / ~$1.20 of
+a run that could not succeed. Infra: `infra/runpod/run_train.sh` is the
+standing launcher (policy: anything longer than a few minutes runs on
+RunPod, Mira is dev/smoke only).
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
