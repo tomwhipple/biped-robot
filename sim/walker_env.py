@@ -207,6 +207,16 @@ class BimoWalkerEnv(gym.Env):
         # HOLDING torque costs watts at zero motion (a stiff, trembling stand
         # is expensive; a relaxed one is cheap). K_CU from ST3215 stall:
         # ~32 W electrical at 2.94 N*m stall, zero mechanical -> 3.75 W/(N*m)^2.
+        # -- get-up mode (fall recovery, 2026-07-14; matches sim/mjx) -----------
+        # Episodes start from a settled ragdoll fall; NO fall termination
+        # (being down is the task). Primary reward (requires command_mode,
+        # command pinned to (0,0) so the obs layout matches the command
+        # family): height progress + uprightness + a standing bonus.
+        getup: bool = False,
+        getup_settle_s: float = 0.4,
+        w_recover_h: float = 1.0,
+        w_recover_up: float = 0.8,
+        stand_bonus: float = 1.0,
         # -- hardware-realizable observations (sensing audit 2026-07-11) --------
         imu_obs: bool = False,         # torso linear velocity + height are ZEROED
         # (the real robot has no sensor for them; obs stays 36-wide so warm
@@ -252,6 +262,16 @@ class BimoWalkerEnv(gym.Env):
         self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
         self.payload_mass = payload_mass
         self.payload_max = payload_max
+        self.getup = getup
+        self._getup_settle = max(1, round(getup_settle_s / 0.002))
+        self.w_recover_h = w_recover_h
+        self.w_recover_up = w_recover_up
+        self.stand_bonus = stand_bonus
+        if getup:
+            if not command_mode:
+                raise ValueError("getup mode requires command_mode "
+                                 "(obs layout compatibility)")
+            cmd_fixed = (0.0, 0.0)
         self.command_mode = command_mode
         self.cmd_v_range = cmd_v_range
         self.cmd_w_range = cmd_w_range
@@ -586,12 +606,33 @@ class BimoWalkerEnv(gym.Env):
         if self.terrain_amplitude > 0:
             self._generate_terrain()   # before mj_resetData; CPU collisions read it live
         mujoco.mj_resetData(self.model, self.data)
-        # small noise so the policy can't memorize one trajectory
-        self.data.qpos[:] = self.model.qpos0
-        self.data.qpos[_JQPOS] += self.np_random.uniform(-0.03, 0.03, size=8)
-        self.data.qvel[:] = self.np_random.uniform(-0.02, 0.02, size=self.model.nv)
-        self.data.ctrl[:] = self._default
-        mujoco.mj_forward(self.model, self.data)
+        if self.getup:
+            # settled ragdoll fall: random orientation + joints, dropped from
+            # 0.35 m, stepped torque-free (matches sim/mjx/_fallen_data)
+            u1, u2, u3 = self.np_random.uniform(size=3)
+            tp = 2 * np.pi
+            quat = np.array([np.sqrt(u1) * np.cos(tp * u3),
+                             np.sqrt(1 - u1) * np.sin(tp * u2),
+                             np.sqrt(1 - u1) * np.cos(tp * u2),
+                             np.sqrt(u1) * np.sin(tp * u3)])
+            joints = np.clip(self._default + self.np_random.uniform(
+                -0.6, 0.6, size=8) * self._scale, self._lo, self._hi)
+            self.data.qpos[:] = self.model.qpos0
+            self.data.qpos[2] = 0.35
+            self.data.qpos[3:7] = quat
+            self.data.qpos[_JQPOS] = joints
+            self.data.qvel[:] = 0.0
+            self.data.ctrl[:] = self._default
+            for _ in range(self._getup_settle):
+                mujoco.mj_step(self.model, self.data)
+            mujoco.mj_forward(self.model, self.data)
+        else:
+            # small noise so the policy can't memorize one trajectory
+            self.data.qpos[:] = self.model.qpos0
+            self.data.qpos[_JQPOS] += self.np_random.uniform(-0.03, 0.03, size=8)
+            self.data.qvel[:] = self.np_random.uniform(-0.02, 0.02, size=self.model.nv)
+            self.data.ctrl[:] = self._default
+            mujoco.mj_forward(self.model, self.data)
         self._prev_action[:] = 0.0
         # action-latency buffer: past ctrl targets, applied `action_latency` steps late
         self._ctrl_buf = [self._default.copy() for _ in range(self.action_latency + 1)]
@@ -738,14 +779,27 @@ class BimoWalkerEnv(gym.Env):
             # attempting to walk from standstill vs 0.24 at reference width.
             # Plausibly the root cause of "stands great, won't walk"
             # (found 2026-07-13 when even a pinned-command walk expert froze).
-            if self.cmd_dense and self._cmd[0] > 0.05:
+            if self.getup:
+                # recovery primary (matches sim/mjx): height + uprightness
+                # progress, standing bonus (half for up, half for still)
+                planar_g = float(np.hypot(d.qvel[0], d.qvel[1]))
+                standing = float((height > 0.85 * self._nominal_h)
+                                 and (up_z > 0.9))
+                still = float(np.exp(-((planar_g / 0.2) ** 2)))
+                primary = (self.w_recover_h
+                           * float(np.clip(height / self._nominal_h, 0.0, 1.0))
+                           + self.w_recover_up * 0.5 * (up_z + 1.0)
+                           + self.stand_bonus * standing * (0.5 + 0.5 * still))
+            elif self.cmd_dense and self._cmd[0] > 0.05:
                 # any forward progress pays immediately, capped at the command
                 v_term = self.w_track_v * min(vx_body, self._cmd[0]) / self._cmd[0]
+                primary = v_term + self.w_track_w * float(
+                    np.exp(-((wz_rate - self._cmd[1]) / 0.5) ** 2))
             else:
                 v_term = self.w_track_v * float(np.exp(
                     -((vx_body - self._cmd[0]) / 0.5) ** 2))
-            primary = v_term + self.w_track_w * float(
-                np.exp(-((wz_rate - self._cmd[1]) / 0.5) ** 2))
+                primary = v_term + self.w_track_w * float(
+                    np.exp(-((wz_rate - self._cmd[1]) / 0.5) ** 2))
             reward_time_stop = 0.0
         elif braking:
             planar = float(np.hypot(d.qvel[0], d.qvel[1]))
@@ -850,9 +904,9 @@ class BimoWalkerEnv(gym.Env):
                 dash_success = True                # confirmed upright finish
                 reward += self.finish_bonus
 
-        terminated = fell or dash_success
+        terminated = (fell or dash_success) and not self.getup
         truncated = self._step_i >= self.max_steps
-        if fell:
+        if fell and not self.getup:
             # dash_stop: falling PAST the line costs 3x -- otherwise "sprint
             # and dive at the line" is the least-bad explored policy (braking
             # attempts that fall cost the same as diving, and the standing
@@ -865,6 +919,8 @@ class BimoWalkerEnv(gym.Env):
                 "double_support": double_support, "single_support": single_support,
                 "touchdown_air": touchdown_air, "dash_success": dash_success,
                 "power_w": power_w,
+                "standing": float((height > 0.85 * self._nominal_h)
+                                  and (up_z > 0.9)),
                 "time_to_2m": float("nan") if self._cross_t is None else self._cross_t}
         if self.command_mode:
             info.update(cmd_v=float(self._cmd[0]), cmd_w=float(self._cmd[1]),

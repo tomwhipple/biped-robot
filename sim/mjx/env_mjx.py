@@ -73,11 +73,16 @@ class State(NamedTuple):
 
 
 def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
-                ) -> mujoco.MjModel:
-    """Load the v2 MJCF patched for MJX: absolute meshdir, cad meshes made
-    contact-free (sole boxes are the true contact geometry), optional welded
+                mesh_floor: bool = False) -> mujoco.MjModel:
+    """Load the v2 MJCF patched for MJX: absolute meshdir, optional welded
     payload body, MJCF position actuators silenced (torque enters via
-    qfrc_applied, exactly like the CPU sts3215 path)."""
+    qfrc_applied, exactly like the CPU sts3215 path).
+
+    mesh_floor=False strips the cad-mesh floor contacts (sole boxes are the
+    true contact geometry when upright -- cheaper). Get-up mode REQUIRES
+    mesh_floor=True: a fallen robot rests on its torso/leg hulls, and both
+    engines collide meshes via their convex hulls, so keeping the pairs makes
+    the engines physically equivalent on the ground too."""
     with open(xml_path) as f:
         xml = f.read()
     xml = re.sub(
@@ -85,9 +90,10 @@ def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
         lambda m: 'meshdir="' + os.path.normpath(os.path.join(
             os.path.dirname(os.path.abspath(xml_path)), m.group(1))) + '"',
         xml)
-    xml = re.sub(
-        r'(<default class="cad">\s*<geom[^>]*?)contype="\d+" conaffinity="\d+"',
-        r'\1contype="0" conaffinity="0"', xml)
+    if not mesh_floor:
+        xml = re.sub(
+            r'(<default class="cad">\s*<geom[^>]*?)contype="\d+" conaffinity="\d+"',
+            r'\1contype="0" conaffinity="0"', xml)
     if payload:
         body = ('<body name="payload" pos="0 0 0.08">'
                 f'<geom name="payload" type="box" size="0.0125 0.032 0.0345" '
@@ -163,9 +169,24 @@ class BimoMJXEnv:
         # -- observations ---------------------------------------------------------
         imu_obs: bool = True,
         imu_noise: float = 1.0,
+        # -- get-up mode (fall recovery) -------------------------------------------
+        # Episodes START from a settled ragdoll fall (random orientation +
+        # joints, dropped and settled for getup_settle_s); there is NO fall
+        # termination -- being down is the task, not the failure. The primary
+        # reward swaps to recovery progress: height toward nominal + torso
+        # uprightness, plus a standing bonus (upright AND tall AND still)
+        # that makes a held stand the absorbing goal. Command channels are
+        # pinned to (0,0), so the obs layout stays identical to command mode
+        # (a future unified policy can read get-up as "stand, but fallen").
+        getup: bool = False,
+        getup_settle_s: float = 0.4,   # ragdoll settle time at reset
+        w_recover_h: float = 1.0,      # height progress term
+        w_recover_up: float = 0.8,     # uprightness term
+        stand_bonus: float = 1.0,      # per-step, when upright+tall+still
     ):
         self.mj_model = _prep_model(
-            xml_path, payload_mass > 0 or payload_dr, servo_joint_damping)
+            xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
+            mesh_floor=getup)
         if payload_mass > 0:
             self.mj_model.body_mass[self.mj_model.body("payload").id] = payload_mass
         self.model = mjx.put_model(self.mj_model)
@@ -221,12 +242,17 @@ class BimoMJXEnv:
         self.cmd_w_range = cmd_w_range
         self.cmd_stand_prob = cmd_stand_prob
         self.cmd_resample_s = cmd_resample_s
-        self.cmd_fixed = cmd_fixed
+        self.cmd_fixed = (0.0, 0.0) if getup else cmd_fixed
         self.cmd_dense = cmd_dense
         self.w_track_v = w_track_v
         self.w_track_w = w_track_w
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
+        self.getup = getup
+        self.getup_settle = max(1, round(getup_settle_s / self.sim_dt))
+        self.w_recover_h = w_recover_h
+        self.w_recover_up = w_recover_up
+        self.stand_bonus = stand_bonus
 
         self.action_size = 8
         self.obs_size = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2 + 2   # 38, command mode
@@ -336,19 +362,47 @@ class BimoMJXEnv:
         return servo, lat_ms, lash, imu_R, imu_bias
 
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
-                    "track_v_err", "track_w_err")
+                    "track_v_err", "track_w_err", "standing")
+
+    def _fallen_data(self, r_q):
+        """Settled ragdoll fall: random orientation + joints, dropped from
+        0.35 m, stepped torque-free for getup_settle -- a natural heap."""
+        r_o, r_j = jax.random.split(r_q)
+        u1, u2, u3 = jax.random.uniform(r_o, (3,))
+        quat = jp.array([jp.sqrt(u1) * jp.cos(2 * jp.pi * u3),
+                         jp.sqrt(1 - u1) * jp.sin(2 * jp.pi * u2),
+                         jp.sqrt(1 - u1) * jp.cos(2 * jp.pi * u2),
+                         jp.sqrt(u1) * jp.sin(2 * jp.pi * u3)])
+        joints = jp.clip(
+            self._default + jax.random.uniform(r_j, (8,), minval=-0.6,
+                                               maxval=0.6)
+            * self._scale, self._lo, self._hi)
+        qpos = (self._qpos0.at[2].set(0.35).at[3:7].set(quat)
+                .at[_JQ0:_JQ1].set(joints))
+        data = mjx.make_data(self.model)
+        data = data.replace(qpos=qpos,
+                            ctrl=jp.zeros(self.mj_model.nu) + self._default)
+
+        def fall(d, _):
+            return mjx.step(self.model, d), None
+
+        data, _ = jax.lax.scan(fall, data, None, length=self.getup_settle)
+        return mjx.forward(self.model, data)
 
     # -- api -------------------------------------------------------------------
     def reset(self, rng: jax.Array) -> State:
         rng, r_q, r_v, r_ep, r_cmd, r_obs = jax.random.split(rng, 6)
-        qpos = self._qpos0.at[_JQ0:_JQ1].add(
-            jax.random.uniform(r_q, (8,), minval=-0.03, maxval=0.03))
-        qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
-                                  minval=-0.02, maxval=0.02)
-        data = mjx.make_data(self.model)
-        data = data.replace(qpos=qpos, qvel=qvel,
-                            ctrl=jp.zeros(self.mj_model.nu) + self._default)
-        data = mjx.forward(self.model, data)
+        if self.getup:
+            data = self._fallen_data(r_q)
+        else:
+            qpos = self._qpos0.at[_JQ0:_JQ1].add(
+                jax.random.uniform(r_q, (8,), minval=-0.03, maxval=0.03))
+            qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
+                                      minval=-0.02, maxval=0.02)
+            data = mjx.make_data(self.model)
+            data = data.replace(qpos=qpos, qvel=qvel,
+                                ctrl=jp.zeros(self.mj_model.nu) + self._default)
+            data = mjx.forward(self.model, data)
         servo, lat_ms, lash, imu_R, imu_bias = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next = self._sample_cmd(r_cmd, step_i)
@@ -449,14 +503,28 @@ class BimoMJXEnv:
         vy_body = -sth * data.qvel[0] + cth * data.qvel[1]
         wz = data.qvel[5]
         cmd_v, cmd_w = state.cmd[0], state.cmd[1]
-        v_kernel = self.w_track_v * jp.exp(-((vx_body - cmd_v) / 0.5) ** 2)
-        if self.cmd_dense:
-            v_dense = self.w_track_v * jp.minimum(vx_body, cmd_v) / jp.maximum(
-                cmd_v, 1e-9)
-            v_term = jp.where(cmd_v > 0.05, v_dense, v_kernel)
+        planar = jp.sqrt(data.qvel[0] ** 2 + data.qvel[1] ** 2)
+        standing = ((height > 0.85 * self._nominal_h)
+                    & (up_z > 0.9)).astype(jp.float32)
+        if self.getup:
+            # recovery: dense progress toward tall + upright, then a standing
+            # bonus (half for being up, half for being STILL up there) that
+            # makes a held stand the absorbing goal instead of thrashing
+            still = jp.exp(-((planar / 0.2) ** 2))
+            primary = (self.w_recover_h * jp.clip(height / self._nominal_h,
+                                                  0.0, 1.0)
+                       + self.w_recover_up * 0.5 * (up_z + 1.0)
+                       + self.stand_bonus * standing * (0.5 + 0.5 * still))
         else:
-            v_term = v_kernel
-        primary = v_term + self.w_track_w * jp.exp(-((wz - cmd_w) / 0.5) ** 2)
+            v_kernel = self.w_track_v * jp.exp(-((vx_body - cmd_v) / 0.5) ** 2)
+            if self.cmd_dense:
+                v_dense = self.w_track_v * jp.minimum(
+                    vx_body, cmd_v) / jp.maximum(cmd_v, 1e-9)
+                v_term = jp.where(cmd_v > 0.05, v_dense, v_kernel)
+            else:
+                v_term = v_kernel
+            primary = v_term + self.w_track_w * jp.exp(
+                -((wz - cmd_w) / 0.5) ** 2)
 
         reward = (primary
                   + self.w_upright * up_z
@@ -490,7 +558,11 @@ class BimoMJXEnv:
 
         step_i = state.step_i + 1
         fell = (height < self.fall_height) | (up_z < self.fall_up_z)
-        reward = reward - self.fall_cost * fell.astype(jp.float32)
+        if self.getup:
+            done_flag = jp.zeros(())          # being down IS the task
+        else:
+            reward = reward - self.fall_cost * fell.astype(jp.float32)
+            done_flag = fell.astype(jp.float32)
 
         # resample AFTER the reward graded the command the policy saw
         new_cmd, new_next = self._sample_cmd(r_cmd, step_i)
@@ -505,9 +577,10 @@ class BimoMJXEnv:
             "height": height, "up_z": up_z, "fell": fell.astype(jp.float32),
             "track_v_err": jp.abs(vx_body - cmd_v),
             "track_w_err": jp.abs(wz - cmd_w),
+            "standing": standing,
         }
         return State(data=data, obs=obs, reward=reward,
-                     done=fell.astype(jp.float32), rng=rng,
+                     done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
                      last_target=target, step_i=step_i, air_time=air_time,
                      cmd=cmd, cmd_next=cmd_next, servo=state.servo,

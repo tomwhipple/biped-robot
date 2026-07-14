@@ -75,6 +75,10 @@ def sync(state, cpu):
 
 
 def _mjx_ncon(state):
+    return _mjx_ncon_of(state)
+
+
+def _mjx_ncon_of(state):
     cc = (state.data._impl.contact if hasattr(state.data, "_impl")
           else state.data.contact)
     return int(np.sum(np.asarray(cc.dist) < 0))
@@ -148,6 +152,52 @@ ok2 = run_block(
     lambda env: None, dict(qpos=1e-6, qvel=1e-4, reward=1e-3, obs=1e-3),
     matched_only=True, min_frac=0.5)
 
+# -- 2b. get-up mode: recovery-reward arithmetic from fallen states -----------
+cpu_g = BimoWalkerEnv(xml_path=XML, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False, getup=True,
+                      supply_voltage=11.1, w_energy=0.002, w_action_rate=0.15,
+                      w_power=0.008, w_pitch_rate=0.1, w_upright=0.0,
+                      alive_bonus=0.0, imu_obs=False)
+gpu_g = BimoMJXEnv(xml_path=XML, domain_rand=False, getup=True,
+                   supply_voltage=11.1, w_energy=0.002, w_action_rate=0.15,
+                   w_power=0.008, w_pitch_rate=0.1, w_upright=0.0,
+                   alive_bonus=0.0, imu_obs=False)
+step_g = jax.jit(gpu_g.step)
+obs_c, _ = cpu_g.reset(seed=3)
+sg = gpu_g.reset(jax.random.PRNGKey(3))
+worst_r = worst_o = 0.0
+used_g = 0
+import mujoco as _mj
+for t in range(80):
+    if t % 20 == 0:      # hoist: recovery reward has no contact terms, so
+        cpu_g.data.qpos[2] = 1.5          # gate its arithmetic contact-free
+        cpu_g.data.qvel[:] = 0.0          # (heap dynamics divergence is the
+        _mj.mj_forward(cpu_g.model, cpu_g.data)   # documented manifold caveat)
+    a = (_SPLAY + 0.3 * np.sin(0.3 * t + np.arange(8))).astype(np.float32)
+    d = sg.data.replace(qpos=jp.asarray(cpu_g.data.qpos),
+                        qvel=jp.asarray(cpu_g.data.qvel))
+    d = mjx.forward(gpu_g.model, d)
+    sg = sg._replace(data=d, prev_action=jp.asarray(cpu_g._prev_action),
+                     last_target=jp.asarray(cpu_g._last_target),
+                     step_i=jp.asarray(cpu_g._step_i, dtype=jp.int32),
+                     air_time=jp.asarray(cpu_g._air_time),
+                     cmd=jp.asarray(cpu_g._cmd))
+    obs_c, r_c, term_c, trunc_c, info_c = cpu_g.step(a)
+    sg = step_g(sg, jp.asarray(a))
+    if term_c:
+        raise SystemExit("getup CPU env terminated -- must never happen")
+    if float(sg.done) != 0.0:
+        raise SystemExit("getup MJX env set done -- must never happen")
+    if cpu_g.data.ncon != 0:
+        continue                          # airborne-only gate
+    used_g += 1
+    worst_r = max(worst_r, abs(float(sg.reward) - r_c))
+    worst_o = max(worst_o, float(np.max(np.abs(np.asarray(sg.obs) - obs_c))))
+ok3 = used_g >= 40 and worst_r < 1e-5 and worst_o < 1e-5
+print(f"== 2b. get-up recovery-reward arithmetic (contact-free): "
+      f"{'PASS' if ok3 else 'FAIL'} ({used_g}/80 airborne steps) ==")
+print(f"   worst |dreward| = {worst_r:.2e}  worst |dobs| = {worst_o:.2e}")
+
 # -- 3. gait-amplitude manifold statistics (informational, no gate) -----------
 print("== 3. gait-amplitude contact-manifold statistics (informational) ==")
 obs_c, _ = cpu.reset(seed=7)
@@ -172,5 +222,5 @@ print("   (mismatches = tilted/deep penetration where MJX's 1 mm-skin")
 print("    manifold pruning drops corners CPU keeps -- impact transients.")
 print("    Settled stance manifolds are identical. Referee: CPU evals.)")
 
-print("\nPARITY:", "PASS" if (ok1 and ok2) else "FAIL")
-sys.exit(0 if (ok1 and ok2) else 1)
+print("\nPARITY:", "PASS" if (ok1 and ok2 and ok3) else "FAIL")
+sys.exit(0 if (ok1 and ok2 and ok3) else 1)

@@ -77,8 +77,30 @@ def make_env(cfg, seed_payload=True):
         backlash_deg=0.5, backlash_deg_max=1.0,
         w_track_v=cfg.get("w_track_v", 2.0),
         w_track_w=cfg.get("w_track_w", 2.0),
+        getup=cfg.get("getup", False),
+        episode_seconds=cfg.get("episode_seconds", 10.0),
         render_mode="rgb_array",
     )
+
+
+def rollout_getup(env, act, seed, record=False):
+    """Fall-recovery episode: recovered = standing (tall + upright) held for
+    a continuous second at any point; also reports time to first such hold."""
+    obs, _ = env.reset(seed=seed)
+    frames = []
+    hold, t_stand, pw = 0, None, []
+    for t in range(env.max_steps):
+        a = act(obs)
+        obs, r, term, trunc, info = env.step(a)
+        pw.append(info["power_w"])
+        hold = hold + 1 if info["standing"] > 0.5 else 0
+        if hold >= 50 and t_stand is None:
+            t_stand = (t + 1) * env.control_dt - 1.0   # start of the hold
+        if record and t % 2 == 0:
+            frames.append(env.render())
+    return dict(recovered=t_stand is not None,
+                t_stand=float("nan") if t_stand is None else t_stand,
+                power_w=float(np.mean(pw)), frames=frames)
 
 
 def rollout(env, act, v, w, seed, record=False):
@@ -123,6 +145,33 @@ def main():
     run_dir = os.path.join(RUNS, args.run)
     act, cfg = load_policy(run_dir)
     env = make_env(cfg)
+
+    if cfg.get("getup"):
+        print(f"CPU referee (GET-UP): {args.run}  "
+              f"({args.episodes} ragdoll-fall starts, {env.max_steps * env.control_dt:.0f} s "
+              f"to recover; recovered = stand held 1 s)")
+        rs = [rollout_getup(env, act, seed=100 * i + 7)
+              for i in range(args.episodes)]
+        n_rec = sum(r["recovered"] for r in rs)
+        ts = [r["t_stand"] for r in rs if r["recovered"]]
+        print(f"recovered {n_rec}/{args.episodes}"
+              + (f"  median time-to-stand {np.median(ts):.2f}s" if ts else "")
+              + f"  median watts {np.median([r['power_w'] for r in rs]):.1f}")
+        if args.video:
+            order = sorted(range(len(rs)),
+                           key=lambda i: (not rs[i]["recovered"],
+                                          rs[i]["t_stand"]))
+            r = rollout_getup(env, act, seed=100 * order[0] + 7, record=True)
+            import imageio
+            path = os.path.join(run_dir, "ref_getup.mp4")
+            imageio.mimsave(path, r["frames"], fps=25)
+            print(f"video -> {path}  (best of {args.episodes} takes)")
+        with open(os.path.join(run_dir, "referee.json"), "w") as f:
+            json.dump({"getup": {"recovered": f"{n_rec}/{args.episodes}",
+                                 "t_stand_median": float(np.median(ts)) if ts else None,
+                                 "watts": float(np.median([r["power_w"] for r in rs]))}},
+                      f, indent=2)
+        return
 
     print(f"CPU referee: {args.run}  (GoPro {cfg.get('payload_mass', 0.154)*1000:.0f} g, "
           f"latency 0-8 ms, backlash 0.5-1.0 deg, IMU-noise DR, "
