@@ -32,6 +32,11 @@ shuffle = to_data_uri(strip_from_gif('runs/shaped_v6/walk.gif'))
 lunge   = to_data_uri(strip_from_gif('runs/ppo_baseline/walk.gif', n=7))
 flyin   = to_data_uri(strip_from_gif(
     os.path.join(CAD_RENDERS, 'assembly_flyin.gif'), n=7, factor=3))
+# CPU-referee takes of the MJX-trained policy (mp4; mimread handles them)
+mjxwalk  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_walk.mp4'))
+mjxturn  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_turn.mp4'))
+mjxstand = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_stand.mp4'))
+mjxpivot = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_pivot_l.mp4'))
 
 cad = imageio.imread(os.path.join(CAD_RENDERS, 'assembly_mujoco.png'))[..., :3]
 cad_uri = to_data_uri(cad[30:680, 230:670])       # tight crop around the robot
@@ -40,7 +45,8 @@ n_runs = len([d for d in os.listdir('runs')
               if os.path.exists(os.path.join('runs', d, 'model.zip'))])
 for k, v in [('hero', hero), ('dash7', dash7), ('stride', stride),
              ('shuffle', shuffle), ('lunge', lunge), ('flyin', flyin),
-             ('cad', cad_uri)]:
+             ('cad', cad_uri), ('mjxwalk', mjxwalk), ('mjxturn', mjxturn),
+             ('mjxstand', mjxstand), ('mjxpivot', mjxpivot)]:
     print(k, len(v) // 1024, 'KB')
 print('runs:', n_runs)
 
@@ -141,31 +147,71 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 </style>
 
 <div class="wrap">
-  <p class="eyebrow">MuJoCo · PPO · training log · day 3</p>
-  <h1>It sprints on honest muscles now.</h1>
-  <p class="lede">Day three gave the simulation the real servos' torque limits —
-  and discovered the old gait was physically impossible: it demanded torque no
-  STS3215 can deliver at any voltage. Retrained inside the true motor envelope,
-  on the CAD-true body, the robot dashes 2&nbsp;m in 2.7&nbsp;s — GoPro on its
-  head, bumps underfoot, 16/16.</p>
+  <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · day 5</p>
+  <h1>It walks. Ten seconds, and it can be told what to do.</h1>
+  <p class="lede">Five days of CPU training could sprint but never walk —
+  no policy survived 10&nbsp;s, and day 5 proved the missing ingredient was
+  scale. Tonight's first GPU run (150M steps in 2h18m on a desk-side RTX
+  4070&nbsp;Ti) produced <b>one policy that walks, turns, pivots, and stands
+  on command</b> — with the GoPro mounted, 0–8 ms latency, gear backlash,
+  and IMU-only sensing, verified in the CPU engine it wasn't trained in.</p>
   <div class="meta">
-    <span>2026·07·09 → 07·11</span><span>8× parallel envs · CPU</span>
-    <span>{n_runs} trained policies</span>
+    <span>2026·07·09 → 07·13</span><span>2048× parallel envs · GPU</span>
+    <span>{n_runs} CPU policies + 1 that ends the era</span>
   </div>
 
   <div class="kpis">
-    <div class="kpi"><div class="v" style="color:var(--accent)">2.72<span style="font-size:15px"> s</span></div><div class="k">median 2 m dash · 11.1 V</div></div>
-    <div class="kpi"><div class="v">16/16</div><div class="k">finishes · even with GoPro + bumps</div></div>
-    <div class="kpi"><div class="v">3S ✓</div><div class="k">decided · swap-window battery bay</div></div>
-    <div class="kpi"><div class="v">1.04<span style="font-size:15px"> kg</span></div><div class="k">CAD-true body incl. camera</div></div>
+    <div class="kpi"><div class="v" style="color:var(--accent)">10.0<span style="font-size:15px"> s</span></div><div class="k">sustained walk · the old wall</div></div>
+    <div class="kpi"><div class="v">6/6</div><div class="k">command scenarios pass CPU referee</div></div>
+    <div class="kpi"><div class="v">150M</div><div class="k">steps · 2h18m · ~19× all of day 5</div></div>
+    <div class="kpi"><div class="v">5.2<span style="font-size:15px"> W</span></div><div class="k">commanded stand · ~110 min battery</div></div>
   </div>
 
   <figure style="margin-top:34px">
-    <img class="film" src="{hero}" alt="Filmstrip of the biped sprinting 2 meters with a GoPro mounted on top">
-    <figcaption>dash_11v1_hard · 2 m dash under real STS3215 torque limits (11.1 V) — a finish only counts if it's still upright 1 s after the line</figcaption>
+    <img class="film" src="{mjxwalk}" alt="Filmstrip of the biped walking steadily for ten seconds with a GoPro mounted on top">
+    <figcaption>mjx_cmd_v1 · commanded 0.6 m/s walk, full 10 s — CPU-referee take (best of 8; 7/8 seeds survive), GoPro + latency + backlash + IMU-noise DR</figcaption>
   </figure>
 
-  <h2><span class="n">01</span> The reckoning: the old gait was unbuildable</h2>
+  <h2><span class="n">01</span> The wall came down at scale</h2>
+  <p>The day-5 diagnosis said sustained walking was a <i>training-scale</i>
+  problem, not a reward problem. Tested tonight: the same reward family and the
+  same plant, ported to MJX (JAX) and trained with brax PPO at 2048 parallel
+  robots on Mira's RTX 4070&nbsp;Ti — <b>150M steps in 2h18m</b>, versus ~8M
+  overnight on the CPU rig. Hard mode from step zero: realizable IMU-only
+  observations, 0–8 ms latency, 0.5–1° backlash, servo-gain error, random
+  shoves, GoPro payload. Mean episode length rose 36 → 465/500 with no
+  curriculum and no warm start.</p>
+  <p>Trust rule: MJX numbers are never the claim. The port is parity-tested
+  against the CPU engine (per-step physics exact to 1e-11; one documented
+  contact-manifold difference at impact transients), and every policy is
+  re-evaluated by the <b>CPU referee</b> — the engine every previous result
+  lived in — under the conditions of the claim. 8 seeds per scenario, 10 s
+  episodes:</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Command</th><th>Survive 10 s</th><th>Speed err</th><th>Wobble RMS</th><th>Servo draw</th></tr></thead>
+      <tbody>
+        <tr><td class="name"><b>walk 0.6 m/s</b></td><td><span class="pill g">7/8</span></td><td>0.12 m/s</td><td>0.73 rad/s · calm</td><td>19.4 W</td></tr>
+        <tr><td class="name">walk 0.35 m/s</td><td><span class="pill g">8/8</span></td><td>0.06 m/s</td><td>0.58</td><td>14.5 W</td></tr>
+        <tr><td class="name">stand</td><td><span class="pill g">8/8</span></td><td>0.01 m/s</td><td>0.06</td><td>5.2 W</td></tr>
+        <tr><td class="name">pivot left / right</td><td><span class="pill g">16/16</span></td><td>—</td><td>0.08</td><td>2–7 W</td></tr>
+        <tr><td class="name">walking turn 0.4 + 0.4 rad/s</td><td><span class="pill g">8/8</span></td><td>0.09 m/s</td><td>0.66</td><td>15.5 W</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="duo" style="margin:18px 0 6px">
+    <figure><img class="film" src="{mjxturn}" alt="Filmstrip of a walking left turn">
+      <figcaption>commanded walking turn (0.4 m/s, +0.4 rad/s) — turning while walking, first time in the project</figcaption></figure>
+    <figure><img class="film" src="{mjxstand}" alt="Filmstrip of a motionless commanded stand">
+      <figcaption>commanded stand — 8/8, ~zero drift, 5.2 W (a relaxed stand, not a trembling one)</figcaption></figure>
+  </div>
+  <p class="muted">One policy does all of it — the per-skill expert +
+  distillation plan is retired. Soft spots, named: one walk seed in eight
+  falls; heading wanders during straight walks (loose yaw-rate tracking,
+  next reward iteration); pivot turn-rate authority still to be quantified.
+  Full details in DESIGN.md §Stage 2b.</p>
+
+  <h2><span class="n">02</span> The reckoning: the old gait was unbuildable</h2>
   <p>Until now the sim's actuators were idealized position servos — infinitely
   strong. Day three replaced them with the real thing: PD control clamped to the
   STS3215's torque–speed envelope (2.94 N·m stall tapering to zero at no-load
@@ -176,7 +222,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   Warm-starting couldn't fix it (same lesson as the shuffle); training from
   scratch inside the envelope could.</p>
 
-  <h2><span class="n">02</span> The battery verdict: 2S works, 3S wins — <b>3S it is</b></h2>
+  <h2><span class="n">03</span> The battery verdict: 2S works, 3S wins — <b>3S it is</b></h2>
   <p>Same dash task, two supply voltages (16 episodes each; a finish = crossing
   2 m and standing upright 1 s later):</p>
   <div class="tblwrap">
@@ -206,7 +252,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   dash policies re-verified on it: 16/16, median 2.67 s with the GoPro on.
   2S remains a tested fallback at every level.</p>
 
-  <h2><span class="n">03</span> The camera rides on top</h2>
+  <h2><span class="n">04</span> The camera rides on top</h2>
   <div class="card">
     <div class="cadgrid">
       <img src="{cad_uri}" alt="CAD assembly render with the GoPro MAX mounted on top of the torso">
@@ -228,7 +274,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     </figure>
   </div>
 
-  <h2><span class="n">04</span> How it got here</h2>
+  <h2><span class="n">05</span> How it got here</h2>
   <ol class="timeline">
     <li>
       <h3>A Gymnasium env around the MuJoCo model</h3>
@@ -266,9 +312,27 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       envelope, the GoPro payload, and the timed 2 m dash — the policies above.</p>
       <span class="tag">day 3 · dash_11v1_hard / dash_7v4_hard</span>
     </li>
+    <li>
+      <h3>Real senses, commands, and an honest reckoning</h3>
+      <p>The robot lost every sensor it doesn't own (IMU-only observations),
+      gained a command interface (velocity + yaw rate, zero = stand), survived
+      an external review (pad-true feet, backlash, power metering) — and then
+      a reframe landed: dash episodes end 1 s past the line, so <b>no policy
+      had ever practiced walking 10 s</b>. Eight CPU runs failed to fix it;
+      the write-up called scale the binding constraint.</p>
+      <span class="tag">day 4–5 · imu_hard / cmd_11v2 / the wall</span>
+    </li>
+    <li>
+      <h3>MJX at 2048 robots: the wall comes down</h3>
+      <p>The env ported to JAX (parity 1e-11 vs the CPU engine), brax PPO on
+      the RTX 4070 Ti, 150M hardened steps in 2h18m — and the first policy
+      that walks, turns, pivots, and stands on command, confirmed by the CPU
+      referee. Scale was the whole story.</p>
+      <span class="tag">day 5 night · sim/mjx · mjx_cmd_v1</span>
+    </li>
   </ol>
 
-  <h2><span class="n">05</span> Open items</h2>
+  <h2><span class="n">06</span> Open items</h2>
   <div class="card accent">
     <ul class="plain" style="margin:0">
       <li><s><b>Control latency</b> — the day-3 top risk.</s> Closed: the 0/16
@@ -297,27 +361,19 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       <b>turning</b> capability: pivots track both directions
       (≈0.2 rad/s left / 0.1 right — the identical-parts gait turns left
       for free), walking turns left-only so far.</li>
-      <li><b>Day-5 evening reframe: NO policy has ever walked 10 s.</b>
-      Dash episodes end ~1 s past the line, so sustained walking was never
-      in any curriculum — champions fall at 3.7–5.1 s with the finish line
-      removed. Eight targeted runs (kernel-width fix, penalty ablation,
-      dense reward, two horizon fine-tunes) all fell short; horizon
-      fine-tunes actively degraded the parent (stale value function).
-      Verdict: scale is the binding constraint — MJX/GPU port is the next
-      sim move, bigger feet the cheap CAD insurance. The 2 m dash burst
-      remains solid and is the hardware-v1 demo.</li>
-      <li><b>Command-mode walking hit an honest wall</b> (day 5): five
-      from-scratch attempts across penalty scales and command mixes all
-      yield excellent standing (best: 8/8, 1 cm drift, <b>6.3 W ≈ 64 min
-      of battery</b>) and fragile walking — while the single-behavior dash
-      lineage walks 16/16 on the same plant. New eval metrics (torso
-      wobble RMS, electrical watts + runtime) came out of a video review:
-      the dash gait measures 1.9 rad/s wobble and <b>36 W ≈ 15 min</b>.
-      Efficiency follows competence — struggling policies burn 44–55 W
-      regardless of penalties. Paths forward, by expected value: distill
-      existing per-skill experts (run + stand already work) into one
-      conditioned policy; MJX/GPU scale (CPU PPO is 10–50× short of the
-      standard recipe); mirrored-horn leg for the yaw bias.</li>
+      <li><s><b>Day-5 evening reframe: NO policy has ever walked 10 s.</b></s>
+      <b>Resolved the same night</b> — the scale hypothesis was correct.
+      mjx_cmd_v1 (150M GPU steps) walks the full 10 s and passes all six
+      command scenarios in the CPU referee (section 01). Bigger feet are now
+      optional insurance rather than a blocker; the 2 m dash remains the
+      snappiest hardware demo.</li>
+      <li><s><b>Command-mode walking hit an honest wall</b> (day 5).</s>
+      <b>Resolved by scale</b>; the distillation plan is retired — one
+      GPU-trained policy handles the whole command family. The day's
+      metrics stack (wobble RMS, electrical watts) carried forward and
+      referees every new policy. New soft spots to work: 1/8 walk-seed
+      fall, wandering heading on straight walks (yaw kernel or heading
+      term), pivot turn-rate authority unquantified.</li>
       <li><b>The 11.1 V gait still jogs</b> (flight phase); the grounded 7.4 V
       gait is the more sim-to-real-plausible first candidate.</li>
       <li><b>Repeated shoves</b> remain unsolved (unchanged from day 1).</li>
@@ -325,11 +381,11 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   </div>
 
   <hr class="rule">
-  <p class="muted" style="font-size:14px">Every animation also exists as .mov next
-  to its gif (macOS Preview doesn't animate gifs). Reproduce:
-  <code>cd sim &amp;&amp; python eval_policy.py --run-name dash_11v1_hard --render</code>
-  · rank runs with <code>python compare_runs.py</code> · full write-up in
-  <code>DESIGN.md</code> · CAD in <code>cad/</code> (assembly.step, fly-in mov).</p>
+  <p class="muted" style="font-size:14px">Every animation also exists as .mov/.mp4 next
+  to its gif (macOS Preview doesn't animate gifs). Reproduce the headline:
+  <code>cd sim &amp;&amp; python mjx/eval_ref.py --run mjx_cmd_v1 --video</code>
+  · CPU-era policies: <code>python eval_policy.py --run-name dash_11v1_hard --render</code>
+  · full write-up in <code>DESIGN.md</code> · CAD in <code>cad/</code>.</p>
 </div>
 """
 

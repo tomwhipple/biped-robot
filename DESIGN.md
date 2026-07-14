@@ -794,6 +794,38 @@ payload. Terrain and the dash objective are deliberately not ported.
   the standing rule that **every MJX-trained policy is refereed by the CPU
   eval harness** before being believed.
 
+### THE WALL IS DOWN: sustained walking, CPU-verified (2026-07-13 night)
+
+**`mjx_cmd_v1`** — first GPU-scale run, and the first policy in this
+project to walk 10 seconds. brax PPO on Mira, **150M steps in 2h18m**
+(2048 parallel envs), the exp_walk reward shape, 10 s episodes, hardened
+from step 0: imu_obs + IMU-error DR, latency 0–8 ms + 1 ms jitter,
+backlash 0.5–1.0°, servo-gain DR, shoves, GoPro 154 g. Training curve:
+mean episode length 36 → **465/500** steps, monotone, no plateau tricks.
+
+**CPU referee** (the real gate — `eval_ref.py`, CPU MuJoCo, matched
+conditions, 8 seeds/scenario, 10 s episodes):
+
+| scenario | survive | alive_s | vx_err | wobble RMS | watts |
+|---|---|---|---|---|---|
+| walk 0.6  | **7/8** | 10.0 | 0.12 | 0.73 (calm) | 19.4 |
+| slow 0.35 | **8/8** | 10.0 | 0.06 | 0.58 | 14.5 |
+| stand     | **8/8** | 10.0 | 0.01 | 0.06 | 5.2 |
+| pivot L   | **8/8** | 10.0 | —    | 0.08 | 6.8 |
+| pivot R   | **8/8** | 10.0 | —    | 0.08 | 2.0 |
+| turn 0.4/+0.4 | **8/8** | 10.0 | 0.09 | 0.66 | 15.5 |
+
+One policy does all six behaviors — no distillation needed. The
+sim-to-sim gap (MJX contact manifolds → CPU) did not break transfer; DR
+covered it, as designed. Day-5's diagnosis (training scale was the
+binding constraint) is confirmed by construction: same reward family,
+same plant, ~19× the steps, hard mode throughout, and the wall fell on
+the first attempt. Remaining soft spots: 1/8 walk-seed fall, yaw-rate
+tracking is loose (|wz| err ~0.4–0.5 — heading wanders; a heading-error
+term or tighter yaw kernel is the next reward iteration), and pivot
+authority should be quantified vs the CPU-era weakness. Cost of the run:
+electricity.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
