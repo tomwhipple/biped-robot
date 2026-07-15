@@ -59,6 +59,14 @@ def teardrop_y(r, y0, y1, x, z):
     return bore + (diamond & keep)
 
 
+def wedge_y(pts_xz, y0, y1):
+    """Triangular (or any polygon) prism: a profile of (x, z) points extruded
+    thin along Y into the band [y0, y1]. Used for the heel-tab base gussets."""
+    lo, hi = (y0, y1) if y0 < y1 else (y1, y0)
+    s = extrude(Plane.XZ * Polygon(*pts_xz, align=None), amount=(hi - lo))
+    return Pos(0, hi, 0) * s                          # extrude runs -Y -> shift up
+
+
 def bcd_y(y0, y1, x, z):
     """4x M3 clearance holes (horn/idler bolt circle) along Y at pad (x, z)."""
     r = D.BCD / 2
@@ -229,15 +237,14 @@ def foot():
     """Sole plate + ankle-servo pocket. Local frame: ankle axis vertical
     projection at origin, +X = toe, z=0 at the sole bottom. Servo lies on its
     side (horn +Y), output end forward at +10.11, cable end at the heel.
-    Retention: 4x M3 through the two rear walls into the case holes + front
-    end stop. TPU pad glued in the bottom recess. Print: sole down. Qty 2.
+    Retention: 4x M3 through the two rear tabs into the case holes + front
+    end stop. Sole underside is FLAT (no bridge); glue a thin TPU/rubber pad on.
+    The heel tabs are lengthened + base-gusseted (one snapped in testing).
+    Print: sole down. Qty 2.
     """
     x0, x1 = -D.FOOT_HEEL, D.FOOT_L - D.FOOT_HEEL   # -38 .. +58
     w = D.FOOT_W / 2
-    p = box(x0, x1, -w, w, 0, D.FOOT_T)
-    # TPU pad recess (bottom)
-    p -= box(x0 + D.PAD_INSET, x1 - D.PAD_INSET, -w + D.PAD_INSET, w - D.PAD_INSET,
-             -1, D.PAD_RECESS)
+    p = box(x0, x1, -w, w, 0, D.FOOT_T)             # FLAT underside (pad glued on)
     # servo pocket (top)
     px0 = -D.SV_AXIS_FROM_REAR - D.FIT
     px1 = D.SV_AXIS_FROM_OUT_END + D.FIT
@@ -247,11 +254,16 @@ def foot():
     # ankle axis: 16.36 - 12 = 4.36 -> relieve to 3.5 for 0.8 clearance)
     for sy0, sy1 in ((17.4, 24.1), (-24.1, -17.4)):
         p -= box(-13, 13, sy0, sy1, 3.5, D.FOOT_T + 1)
-    # rear retention walls + front end stop
+    # rear retention tabs (lengthened aft + heel-side base gusset) + front stop
     wx0, wx1 = D.FOOT_WALL_X
     zp = D.FOOT_T - D.FOOT_POCKET_D                  # pocket floor, 4.0
+    zr = D.FOOT_T                                    # gusset root = sole top, 6.0
+    aL, aH = D.FOOT_WALL_GUSSET_AFT                  # aft buttress (heel side)
     for s in (1, -1):
-        p += box(wx0, wx1, s * py, s * (py + D.FOOT_WALL_T), zp, zp + D.FOOT_WALL_H)
+        yb0, yb1 = s * py, s * (py + D.FOOT_WALL_T)  # tab Y band (2.4 thick)
+        p += box(wx0, wx1, yb0, yb1, zp, zp + D.FOOT_WALL_H)
+        # aft buttress: vertical face on the tab, sloped face up (support-free)
+        p += wedge_y([(wx0, zr), (wx0 - aL, zr), (wx0, zr + aH)], yb0, yb1)
     p += box(px1, px1 + D.WALL, -py, py, zp, zp + 8)
     # retention screw holes: horn face row 29.0 (+Y), idler face row 32.75 (-Y)
     for zh in (2.11, 22.61):

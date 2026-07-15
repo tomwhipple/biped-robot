@@ -44,7 +44,7 @@ bolt through the disc or a thin 19×27 washer-bearing under the arm.
 | `yoke_roll` | 2 | 48 × 34 × 32 | 12 g | clevis on roll-servo horn/idler, flange down |
 | `yoke_pitch` | 2 | 32 × 45 × 42 | 12 g | clevis on thigh-servo horn/idler, bolts under `yoke_roll` rotated 90° (hip universal joint) |
 | `leg_link` | 4 | 28 × 45 × 99 | 18 g | thigh **and** shin (same part): grips a servo case, forks 90 mm down to the next servo's horn/idler |
-| `foot` | 2 | 96 × 52 × 30 | 24 g | sole + ankle-servo pocket + rear retention walls + TPU pad recess |
+| `foot` | 2 | 100 × 52 × 30 | 33 g | flat sole + ankle-servo pocket + reinforced rear retention tabs (glued rubber sole pad) |
 | `tower` | 1 | 45 × 96 × 37 | 37 g | electronics: driver board hangs face-down on standoffs INSIDE; 3S battery tilt-loads through the rear-wall window onto the deck (tool-free swap: peel belt, tug ribbon); GoPro bosses on top |
 | `gopro_base` | 1 | 30 × 24 × 21 | 5 g | GoPro three-prong mount, bolts to the tower top (crash fuse — cheap to reprint) |
 
@@ -86,7 +86,7 @@ legs are translations, not mirrors.
 | M3×8 self-tapping | 4 | gopro_base down into the tower-top bosses |
 | M5×20 GoPro thumbscrew | 1 | or use the camera's own folding-mount screw |
 | M2.5×8 self-tapping | 4 | driver board, from below into the standoffs under the tower top |
-| TPU sheet 2 mm (or printed TPU pad 90 × 46) | 2 | glued into the foot sole recess, sits 0.5 mm proud |
+| Self-adhesive rubber sole pad (~0.5 mm) | 2 | stick onto the flat foot underside, trim to fit; keep thin so stance height is unchanged |
 | zip ties 2.5 mm | ~10 | cable dressing through leg_link web holes |
 
 Servo case mounting holes measure Ø3.5 in the vendor STEP; the community

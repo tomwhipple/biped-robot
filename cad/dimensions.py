@@ -140,17 +140,29 @@ FORK_NARROW_X = -10.5   # slab back edge below FORK_WIDE_Z (front edge +12)
 # ----------------------------------------------------------------------------
 # foot
 # ----------------------------------------------------------------------------
-FOOT_L = 96.0           # fore-aft;  ankle axis 38 from the heel edge
+FOOT_L = 100.0          # fore-aft;  ankle axis 42 from the heel edge (heel
+                        # extended +4 to give the retention tabs a longer, aft-
+                        # gusseted root -- fore is blocked by the shin-fork sweep)
 FOOT_W = 52.0
 FOOT_T = 6.0
-FOOT_HEEL = 38.0        # ankle axis to rear edge (case rear end at -35.11)
+FOOT_HEEL = 42.0        # ankle axis to rear edge (case rear end at -35.11)
 FOOT_POCKET_D = 2.0     # servo lies in this recess
-PAD_RECESS = 1.5        # TPU sole pad recess (pad 2.0 thick -> 0.5 proud)
-PAD_INSET = 3.0
-FOOT_WALL_X = (-36.5, -26.0)   # rear retention walls (cover holes at -29/-32.75)
+# Sole underside is now FLAT (no pad recess): the old 90x46 pad pocket bridged a
+# 46 mm span printed sole-down and sagged badly in PETG. The TPU/rubber pad is
+# glued to the flat underside instead. Keep it THIN (~0.5 mm == TPU_PROUD) so
+# stance height is unchanged; a thicker pad raises the robot by (thickness-0.5).
+FOOT_WALL_X = (-40.0, -26.0)   # rear retention tabs; lengthened AFT -36.5 -> -40
+                        # (+3.5 mm root toward the heel). Fore stays at -26: the
+                        # shin fork sweeps forward of that at ankle -40 (relief
+                        # slots). Still covers the case holes at -29/-32.75.
 FOOT_WALL_H = 26.0
-FOOT_WALL_T = 2.4       # thin: shin-fork horn arm passes 0.4 outside it
-ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+0.5 TPU proud)
+FOOT_WALL_T = 2.4       # thin: shin-fork horn arm passes 0.4 outside it (LOCKED:
+                        # cannot thicken outward -> reinforce via length + aft gusset)
+# aft base buttress on each tab (heel side, clear of the fork sweep), thin in Y
+# like the tab. Its sloped face is a TOP surface printing sole-down, so any
+# steepness is support-free. Ends at the heel edge (-42).
+FOOT_WALL_GUSSET_AFT = (2.0, 18.0)  # aft buttress (x-run toward heel, z-height)
+ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+pad proud)
 
 # ----------------------------------------------------------------------------
 # torso tower (electronics inside: board hangs face-down on standoffs under

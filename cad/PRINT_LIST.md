@@ -30,15 +30,23 @@ Two things to watch when you print PETG:
 | `yoke_roll` | 2 | PETG | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
 | `yoke_pitch` | 2 | PETG | 30–40 % | flange face on bed, arms up | ⚠️ **HOLD — being redesigned** (hip-angle revisit) |
 | `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed | ⚠️ **verify before printing** (2 of 4 are thighs, on the hip-pitch joint) |
-| `foot` | 2 | PETG | 30–40 % | sole down | ✅ ready |
+| `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v2** (flat sole + reinforced tabs) |
 | `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ✅ ready |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
-| TPU foot pad (90 × 46 × 2 mm) | 2 | **TPU** | — | flat | ✅ ready (or cut from TPU sheet) |
+| Sole pad (self-adhesive rubber) | 2 | rubber | — | trim to fit | 🛒 on order (stick onto flat sole) |
 
 `leg_link` ×4 = 2 thighs + 2 shins (identical part). `gopro_base` is the
 sacrificial crash fuse — the M5 clamp squeezes across layer lines, so PETG is
-especially warranted there (already printed, noticeably more solid). TPU pads
-glue into the foot sole recess and sit 0.5 mm proud.
+especially warranted there (already printed, noticeably more solid).
+
+**Foot v2 (2026-07-15):** the first foot print sagged badly on the underside —
+the old TPU-pad recess bridged a 46 mm span printed sole-down. Fixed by making
+the **sole flat** (no recess; stick a thin self-adhesive rubber pad on, trimmed
+to fit) and **reinforcing the heel retention tabs** (one snapped in handling):
+tabs lengthened toward the heel (heel +4 mm → foot now 100 mm long) with a 45°
+aft base buttress. Fore is unchanged — the shin fork sweeps that zone. `foot`
+is now ~33 g, bbox 100 × 52 × 30 mm; ankle height unchanged. Re-run of
+`check_assembly.py` is ALL CLEAR.
 
 ## ⚠️ Hip-angle revisit — what's in flux
 
