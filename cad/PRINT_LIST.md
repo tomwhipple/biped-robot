@@ -42,7 +42,7 @@ Two things to watch when you print PETG:
 | `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v3.1** (v3 heel bulkhead + sole enlarged 100 → 116 for the get-up corridor) |
 | `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ✅ ready (sill/rib chamfers — see audit) |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
-| Sole pad (self-adhesive rubber) | 2 | rubber | — | trim to fit | 🛒 on order (stick onto flat sole) |
+| Sole pad | 2 | 1/16" self-adhesive silicone sheet ([B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK), 2× 6"×6") | — | cut 106 × 46 mm, stick onto flat sole (one sheet yields both + a spare strip) | 🛒 ordered |
 
 `leg_link` ×4 = 2 thighs + 2 shins (identical part). `gopro_base` is the
 sacrificial crash fuse — the M5 clamp squeezes across layer lines, so PETG is
@@ -65,8 +65,10 @@ pad, and the pike needs ≥95° hip flexion). Two changes:
 
 - **`foot` sole enlarged 100 → 116 mm** fore-aft, heel-biased (heel 42 → 52,
   toe 58 → 64; the rise tips *backward*): ~42 g, bbox 116 × 52 × 30 mm. Walls,
-  tabs, bulkhead, and ankle height unchanged. The rubber pad grows with it
-  (106 × 46 — re-trim the on-order pads or reorder).
+  tabs, bulkhead, and ankle height unchanged. The pad grows with it: cut
+  106 × 46 mm from the 1/16" self-adhesive silicone sheet (see pad row); its
+  full 1.6 mm rides proud of the flat sole (stance +1.1 mm vs the old 0.5
+  assumption — `TPU_PROUD`, propagated to sim).
 - **`yoke_pitch` idler arm redesigned**: the old full-width arm plate capped
   hip flexion at ~105° (the thigh link's idler grip plate shares its Y band
   and sweeps into it). Now a Ø28 hub + riser plate routed through the unswept

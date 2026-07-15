@@ -240,8 +240,11 @@ CAM_BODY = (25.0, 64.0, 69.0)  # X depth (lens axis fore-aft), Y width, Z height
 # ----------------------------------------------------------------------------
 # assembly heights (sole ground contact = 0); torso center Zc for reference
 # ----------------------------------------------------------------------------
-TPU_PROUD = 0.5
-ANKLE_Z = ANKLE_AXIS_ABOVE_SOLE + TPU_PROUD          # 16.86
+TPU_PROUD = 1.6         # actual pad: 1/16" self-adhesive silicone sheet, cut
+                        # to 106 x 46 (Amazon B0FJ8TBMQK, 2x 6"x6" sheets --
+                        # one sheet yields both pads). Full thickness is proud
+                        # of the FLAT sole, so stance height carries all 1.6.
+ANKLE_Z = ANKLE_AXIS_ABOVE_SOLE + TPU_PROUD          # 17.96
 KNEE_Z = ANKLE_Z + SHIN                              # 106.86
 HIP_PITCH_Z = KNEE_Z + THIGH                         # 196.86
 HIP_ROLL_Z = HIP_PITCH_Z + ROLL_TO_PITCH             # 246.86

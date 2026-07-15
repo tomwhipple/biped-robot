@@ -1064,7 +1064,10 @@ vs yoke_roll and the pelvis at roll 0/±25 — ALL CLEAR.
 width stays 52 — the rise fails *backward* and lateral wasn't the failure
 mode). Rise corridor grows from ±20 mm on the 90 mm pad to roughly ±28 mm
 on the 106 mm pad, most of it behind the heels where the pike tips. Foot
-segment 91 → 110.1 g (print ~42 g, pad 9.5 g).
+segment 91 → 110.4 g (print ~42 g, pad 9.8 g). Pads are cut from 1/16"
+self-adhesive silicone sheet (B0FJ8TBMQK; one 6"×6" sheet does both feet) —
+`TPU_PROUD` 0.5 → 1.6, so stance rises 1.1 mm; propagated to the sim sole
+boxes and heights.
 
 **Propagated:** XML hip range −110/+60 (walker_env's `hip_flex_deg=110` is
 now a no-op, older runs unaffected), sole contact boxes 106 × 46 at the
@@ -1075,9 +1078,11 @@ sweep video (`sim/renders/rom_sweep.mov` — the finale now shows the
 hip-110 pike fold) regenerated. Per PR #19: the G10/FR4 0.125" sole-plate
 order trigger ("if enlargement lands") is now live — user's call.
 
-**Next:** print yoke_pitch ×2 + foot ×2 (v3.1) + re-trim/reorder pads, and
-one more RL get-up round on the new plant (option (b) in parallel — cheap
-on Mira).
+**Next:** print yoke_pitch ×2 + foot ×2 (v3.1) in PETG, cut the 106 × 46
+silicone pads, and one more RL get-up round on the new plant (option (b)
+in parallel — cheap on Mira). Note: the feet already printed at 100 mm are
+fine for bench bring-up, but policies trained on this plant expect the
+116 mm soles.
 
 ## 6. Design parameters (source of truth)
 

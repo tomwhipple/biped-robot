@@ -108,9 +108,9 @@
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
             <body name="L_foot" pos="0 0 -0.09">
               <joint name="L_ankle" axis="0 1 0" range="-40 40"/>
-        <inertial pos="-0.0041 0 -0.0064" quat="0.9985 0 0.0555 0" mass="0.1101" diaginertia="2.5365e-05 9.1657e-05 1.0177e-04"/>
-              <geom name="L_sole" type="box" pos="0.008 0 -0.0129" size="0.053 0.023 0.004"
-                    contype="1" conaffinity="1" mass="0.1101" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001"/>
+        <inertial pos="-0.0041 0 -0.0065" quat="0.9984 0 0.0567 0" mass="0.1104" diaginertia="2.5659e-05 9.2264e-05 1.0219e-04"/>
+              <geom name="L_sole" type="box" pos="0.008 0 -0.0140" size="0.053 0.023 0.004"
+                    contype="1" conaffinity="1" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001"/>
               <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
               <geom class="servo" type="box" pos="-0.0125 0 0" size="0.02261 0.01735 0.01236"/>
             </body>
@@ -139,9 +139,9 @@
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
             <body name="R_foot" pos="0 0 -0.09">
               <joint name="R_ankle" axis="0 1 0" range="-40 40"/>
-        <inertial pos="-0.0041 0 -0.0064" quat="0.9985 0 0.0555 0" mass="0.1101" diaginertia="2.5365e-05 9.1657e-05 1.0177e-04"/>
-              <geom name="R_sole" type="box" pos="0.008 0 -0.0129" size="0.053 0.023 0.004"
-                    contype="1" conaffinity="1" mass="0.1101" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001"/>
+        <inertial pos="-0.0041 0 -0.0065" quat="0.9984 0 0.0567 0" mass="0.1104" diaginertia="2.5659e-05 9.2264e-05 1.0219e-04"/>
+              <geom name="R_sole" type="box" pos="0.008 0 -0.0140" size="0.053 0.023 0.004"
+                    contype="1" conaffinity="1" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001"/>
               <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
               <geom class="servo" type="box" pos="-0.0125 0 0" size="0.02261 0.01735 0.01236"/>
             </body>

@@ -504,8 +504,9 @@ def main():
 
     # battery = the actual purchased pack (Zeee 3S 850: 74 g); its pigtail
     # lives in the wiring/misc bucket, not here (issue #2)
-    # TPU pads: 2x 106 x 46 x 2 sheets (track the enlarged sole, was 2x 8 g)
-    servos, batt, board, fasteners, tpu = 8 * D.SERVO_MASS, 74.0, 20.0, 47.0, 19.0
+    # sole pads: 2x 106 x 46 cut from 1/16" self-adhesive silicone sheet
+    # (B0FJ8TBMQK); ~9.8 g each
+    servos, batt, board, fasteners, tpu = 8 * D.SERVO_MASS, 74.0, 20.0, 47.0, 19.6
     total = print_mass + servos + batt + board + fasteners + tpu
     print(f"\nprinted plastic ~{print_mass:.0f} g   servos {servos:.0f} g   "
           f"battery {batt:.0f} g   board {board:.0f} g   fasteners {fasteners:.0f} g"

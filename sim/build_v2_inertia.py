@@ -117,18 +117,18 @@ leg_servo = box_part(D.SERVO_MASS, (0, 0, SV_ZMID_Y), (SV_W, SV_T, SV_L))
 link = mesh_part("leg_link", 0.0, mass=77.9 - D.SERVO_MASS)   # ~23 g w/ screws
 leg = combine([leg_servo, link])
 
-# ---- foot (frame at the ankle axis, ANKLE_Z = 16.86) -------------------------
+# ---- foot (frame at the ankle axis, ANKLE_Z = 17.96) -------------------------
 # ankle servo: Rot(0,90,0) * servo_mock_y -> length along x (rear -35.11..+10.11)
 foot = combine([
     box_part(D.SERVO_MASS, (SV_ZMID_Y, 0, 0), (SV_L, SV_T, SV_W)),
-    # printed foot + 4 screws at the mesh COM (segment 110.1 g, 2026-07-15
+    # printed foot + 4 screws at the mesh COM (segment 110.4 g, 2026-07-15
     # sole enlargement 100 -> 116 for the get-up rise corridor) ...
-    mesh_part("foot", D.TPU_PROUD - D.ANKLE_Z, mass=110.1 - D.SERVO_MASS - 9.5),
-    # ... and the 9.5 g TPU pad where it actually sits: a 106 x 46 x 2 sheet
-    # at the very bottom of the sole (issue #7 - it was previously lumped
-    # at the mesh COM, ~3 mm too high). Pad tracks the sole with the same
-    # 7 mm heel / 3 mm toe insets: spans x -45..+61 -> center +8.
-    box_part(9.5, (8.0, 0, 1.0 - D.ANKLE_Z), (106.0, 46.0, 2.0)),
+    mesh_part("foot", D.TPU_PROUD - D.ANKLE_Z, mass=110.4 - D.SERVO_MASS - 9.8),
+    # ... and the 9.8 g silicone pad where it actually sits: a 106 x 46 x 1.6
+    # self-adhesive sheet (B0FJ8TBMQK) at the very bottom of the sole (issue
+    # #7 - it was previously lumped at the mesh COM, ~3 mm too high). Pad
+    # tracks the sole with the same 7 mm heel / 3 mm toe insets: x -45..+61.
+    box_part(9.8, (8.0, 0, 0.8 - D.ANKLE_Z), (106.0, 46.0, 1.6)),
 ])
 
 print("torso z-offset check: deck top local z =", dz_deck)
