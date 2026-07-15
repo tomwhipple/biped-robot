@@ -43,6 +43,22 @@ def cyl_z(r, z0, z1, x, y):
     return Pos(x, y, (z0 + z1) / 2) * Cylinder(r, abs(z1 - z0))
 
 
+def teardrop_y(r, y0, y1, x, z):
+    """Self-supporting horizontal hole (axis along Y): a round bore plus a 45 deg
+    roof peak, so a horizontal hole prints without a bridged (sagging) top.
+    Peak apex sits r*sqrt(2) above the bore center; walls never exceed 45 deg.
+    Returns the SOLID void to subtract (bore + roof), not a hole in a part."""
+    ymid = (y0 + y1) / 2
+    L = abs(y1 - y0)
+    bore = cyl_y(r, y0, y1, x, z)
+    # A square of side 2r rotated 45 deg about Y peaks at (0, r*sqrt(2)); clip it
+    # to |dx| <= r and to above the bore center so it only adds the top peak
+    # (its 45 deg faces meet the circle exactly at the tangent points).
+    diamond = Pos(x, ymid, z) * Rot(0, 45, 0) * Box(2 * r, L, 2 * r)
+    keep = box(x - r, x + r, y0, y1, z, z + 2 * r)
+    return bore + (diamond & keep)
+
+
 def bcd_y(y0, y1, x, z):
     """4x M3 clearance holes (horn/idler bolt circle) along Y at pad (x, z)."""
     r = D.BCD / 2
@@ -325,7 +341,10 @@ def gopro_base():
         y0, y1 = cy - D.GP_PRONG_T / 2, cy + D.GP_PRONG_T / 2
         p += box(-D.GP_PRONG_OD / 2, D.GP_PRONG_OD / 2, y0, y1, zb, zh)
         p += cyl_y(D.GP_PRONG_OD / 2, y0, y1, 0, zh)
-    p -= cyl_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh)
+    if D.GP_HOLE_TEARDROP:
+        p -= teardrop_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh)
+    else:
+        p -= cyl_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh)
     gx, gy = D.GP_SCREW_XY
     for sx in (gx, -gx):
         for sy in (gy, -gy):
