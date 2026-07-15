@@ -192,6 +192,12 @@ GP_PRONG_OD = 15.0
 GP_LEG_H = 17.0                # base top -> prong top
 GP_HOLE_D = 5.5                # M5 + 0.5 print tolerance
 GP_HOLE_H = GP_LEG_H - GP_PRONG_OD / 2    # 9.5 above the base top
+# The M5 clamp bore is horizontal in the print orientation (base down), so its
+# top arc bridges -> weak, sag-prone strands exactly where the thumbscrew clamps
+# across the layers. Teardrop the bore (45 deg self-supporting roof peak) so no
+# layer overhangs > 45 deg. The screw is a clearance fit, so the added void
+# above the bolt is harmless. Set False for a plain round bore.
+GP_HOLE_TEARDROP = True
 GP_BASE_X, GP_BASE_Y, GP_BASE_T = 30.0, 24.0, 4.0
 GP_SCREW_XY = (11.0, 8.5)      # 4x M3 self-tap into bosses under the tower top
 CAM_MASS = 154.0               # g, incl. battery
