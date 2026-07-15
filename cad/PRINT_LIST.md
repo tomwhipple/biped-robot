@@ -7,10 +7,17 @@
 ## Global print settings
 
 **PETG for the whole robot** (0.4 mm nozzle, 0.2 mm layers, 3 perimeters — every
-wall ≥ 2.4 mm is perimeter-only — 30–40 % infill, **no supports**; every part has
-a support-free orientation, see table). PETG chosen for its toughness and impact
-resistance — the right call for a machine that falls repeatedly during get-up
-training, and confirmed noticeably more solid on the `gopro_base` test print.
+wall ≥ 2.4 mm is perimeter-only — 30–40 % infill, **no slicer supports**; every
+part is support-free in its listed orientation, and this is now *verified
+geometrically*, not asserted: `check_printability.py` audits every STL in its
+print orientation for bridges, >45° overhangs, floating islands and skimpy
+first-layer contact, and must print `ALL PARTS PRINT CLEAN` before printing —
+run it like `check_assembly.py` after any CAD change. (The first foot print's
+46 mm sagged bridge and three other would-be failures — pelvis, tower,
+leg_link, below — are exactly what it catches.) PETG chosen for its toughness
+and impact resistance — the right call for a machine that falls repeatedly
+during get-up training, and confirmed noticeably more solid on the
+`gopro_base` test print.
 
 Two things to watch when you print PETG:
 - **Tolerances.** The design uses generous drop-in fits (`FIT = 0.30`), but PETG
@@ -26,12 +33,12 @@ Two things to watch when you print PETG:
 
 | Part | Copies | Material | Infill | Orientation | Status |
 |---|---|---|---|---|---|
-| `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ✅ ready — *secondary* hip-angle check |
+| `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ✅ ready (bosses removed — see audit) — *secondary* hip-angle check |
 | `yoke_roll` | 2 | PETG | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
 | `yoke_pitch` | 2 | PETG | 30–40 % | flange face on bed, arms up | ⚠️ **HOLD — being redesigned** (hip-angle revisit) |
-| `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed | ⚠️ **verify before printing** (2 of 4 are thighs, on the hip-pitch joint) |
-| `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v2** (flat sole + reinforced tabs) |
-| `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ✅ ready |
+| `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ⚠️ **verify before printing** (2 of 4 are thighs, on the hip-pitch joint) |
+| `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v3** (heel bulkhead ties the tabs into a channel) |
+| `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ✅ ready (sill/rib chamfers — see audit) |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
 | Sole pad (self-adhesive rubber) | 2 | rubber | — | trim to fit | 🛒 on order (stick onto flat sole) |
 
@@ -39,14 +46,38 @@ Two things to watch when you print PETG:
 sacrificial crash fuse — the M5 clamp squeezes across layer lines, so PETG is
 especially warranted there (already printed, noticeably more solid).
 
-**Foot v2 (2026-07-15):** the first foot print sagged badly on the underside —
-the old TPU-pad recess bridged a 46 mm span printed sole-down. Fixed by making
-the **sole flat** (no recess; stick a thin self-adhesive rubber pad on, trimmed
-to fit) and **reinforcing the heel retention tabs** (one snapped in handling):
-tabs lengthened toward the heel (heel +4 mm → foot now 100 mm long) with a 45°
-aft base buttress. Fore is unchanged — the shin fork sweeps that zone. `foot`
-is now ~33 g, bbox 100 × 52 × 30 mm; ankle height unchanged. Re-run of
-`check_assembly.py` is ALL CLEAR.
+**Foot v3 (2026-07-15):** v1 taught two lessons — the TPU-pad recess ceiling
+bridged 46 mm and sagged (fixed in v2 by the **flat sole**, kept in v3: stick a
+thin self-adhesive rubber pad on, trimmed to fit), and a heel retention tab
+snapped **across layer lines under a lateral knock**. v2's aft gusset only
+stiffened the blades fore-aft, so v3 ties the two tabs into a **heel bulkhead**
+behind the servo (U-channel; cable window opens at the top for the rear-exit
+servo cable) plus one full-width aft buttress. Every added face is vertical —
+nothing new bridges. `foot` is ~36 g, bbox 100 × 52 × 30 mm; ankle height
+unchanged; retention screw bores are teardropped. `check_assembly.py` ALL
+CLEAR, `check_printability.py` clean. Render: `renders/foot_v3.png`.
+
+**Printability audit (2026-07-15, `check_printability.py`):** three parts that
+were marked "ready" would have failed exactly like the first foot:
+
+- **`pelvis`** — printed deck-down it stood on its four raised tower bosses,
+  holding the *entire first layer* 2 mm in the air (the bosses also overlapped
+  the tower feet tabs). Bosses deleted; heat-set pilots now run through the
+  deck into the bay-cheek material below (thread depth intact). Tower now
+  seats flush.
+- **`tower`** — the battery-window sill printed as a 70 mm single-wall bridge,
+  and the belt-guide ribs as drooping square ledges. The sill top is now a 45°
+  ramp (full 2.5 mm retention lip kept on the outer face) and each rib carries
+  a 45° chamfer on its print-underside. All self-supporting now.
+- **`leg_link`** — the narrow fork slabs float 4.7 mm above the bed for their
+  last 50 mm (they *cannot* reach the bed: that volume is swept by the foot
+  walls / servo case top at joint extremes). The exported
+  **`leg_link_print.stl`** adds three break-away fins (0.2 mm separation gap)
+  under the slabs and idler-boss rim — **slice that file**, then peel the fins
+  out; `leg_link.stl` stays clean for the sim meshes and assembly checks.
+- All horizontal M3 bores (servo-case screws, horn/idler bolt circles, foot
+  retention) are now **teardropped** toward each part's print-up direction, so
+  no bore top bridges (the `gopro_base` M5 fix, applied everywhere).
 
 ## ⚠️ Hip-angle revisit — what's in flux
 

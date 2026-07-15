@@ -927,6 +927,65 @@ parallel.
    `_air_time` in place → the parity sync silently read post-step values.
    Fixed with explicit copies.
 
+### Foot v3 + the printability gate (2026-07-15)
+
+The first printed foot failed twice — its pad-recess ceiling bridged 46 mm and
+sagged, and a heel tab snapped off in handling — and the v2 rework (flat sole,
+aft-gusseted tabs, `6080d12`) was judged **not viable**: the gusset lives in
+the same thin 2.4 mm Y-plane as the tab, so it stiffens the blade fore-aft
+while the actual failure was a *lateral* knock breaking the tab across its
+horizontal layer lines. The blade was still a blade.
+
+**Foot v3** keeps v2's flat sole (that part was right) and attacks the real
+mode: a **heel bulkhead** joins the two tabs behind the servo case, closing
+each free-standing blade into an L/U-channel section — stiff both ways, and
+the layer-bond root is no longer the only load path. The bulkhead gets an
+open-top **cable window** (16 mm, matching the pelvis deck cutout: ST3215
+cables exit the rear end face), one full-width aft buttress replaces the two
+per-tab wedges, and the retention bores are teardropped. Every added face is
+vertical: nothing new bridges. Foot is ~36 g; ankle height unchanged;
+`check_assembly.py` ALL CLEAR. Envelope note: tab thickness stays LOCKED at
+2.4 (shin-fork passes 0.4 outside), so *sections*, not thickness, were the
+only way to add strength.
+
+**The systemic fix — `cad/check_printability.py`.** Nothing in the pipeline
+verified that parts *print*: `check_assembly.py` proves they fit, and the
+print list asserted "no supports; every part has a support-free orientation"
+untested. The new gate loads each STL, rotates it into its actual print
+orientation, and classifies every down-facing facet cluster (>45°) by a
+perimeter ray test: CEILING (bridge — fails past 8 mm span), LEDGE (droops
+past 1.2 mm reach), ISLAND (floating start — always fails), bore-top
+(teardrop candidate), plus a first-layer-contact check. It found three
+would-have-failed prints among parts marked "ready":
+
+1. **pelvis** stood on its four Ø9 tower bosses — the entire 46×104 first
+   layer floated 2 mm above the bed (and the bosses overlapped the tower feet
+   tabs — a latent assembly bug). Bosses deleted; heat-set pilots go through
+   the deck into the bay-cheek walls.
+2. **tower**: the battery-window sill printed (inverted) as a 70 mm
+   single-wall bridge; belt-guide ribs as square drooping ledges. Sill top is
+   now a 45° ramp (outer 2.5 mm retention lip intact); ribs carry 45°
+   chamfers on their print-undersides.
+3. **leg_link**: the narrow fork slabs float 4.7 mm over the bed for 50 mm —
+   and *can't* be extended down, that volume is swept by the foot walls and
+   ankle-servo case at joint extremes (why `FORK_NARROW_X` exists). Solution:
+   `leg_link_print.stl` carries three break-away fins (0.2 mm separation gap,
+   2.4 mm interface width — a 0.8 mm first cut left the strip edges drooping
+   >45°, caught by the audit) while `leg_link.stl` stays clean for sim meshes
+   and assembly checks.
+
+Also swept in: all horizontal M3 bores teardropped toward each part's
+print-up direction (the `gopro_base` M5 lesson, applied everywhere), and a
+real bug in `wedge_y` — it assumed `extrude()` runs −Y from `Plane.XZ` when
+it actually runs +Y, so the v2 foot gussets had silently landed 2.4 mm
+outside their tab bands. The direction is now measured, not assumed.
+
+Sheet-metal alternative: evaluated in `docs/sheetcut-eval.md` (draft PR #19).
+Verdict: printed v3 first (free, same-day); order bent 5052 L-brackets + an
+aluminum sole (~$50–80, ~1 week) only if a v3 tab fails again or the
+get-up-corridor sole enlargement is adopted — an Al sole is mass-neutral
+against an enlarged PETG print and drops CoM ~6 mm.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

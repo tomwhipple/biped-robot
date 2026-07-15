@@ -115,7 +115,11 @@ BAY_WALL_DROP = 41.0    # walls hang this far below the deck; roll-axis bore is 
 BAY_BORE = 22.5         # clearance bore around case boss / idler boss in bay walls
 BAY_CHEEK_GAP = 0.3
 TOWER_FOOT_X = 14.0     # tower feet / deck heat-set positions
-TOWER_FOOT_Y = 42.0     # lands over the bay cheek walls (extra thread depth)
+TOWER_FOOT_Y = 42.0     # lands over the bay cheek walls: heat-set pilots run
+                        # through the 5 mm deck into cheek-wall material below
+                        # (no raised bosses -- printed deck-top-down, bosses put
+                        # the whole first layer 2 mm in the air, and they
+                        # overlapped the tower feet tabs)
 
 # ----------------------------------------------------------------------------
 # leg link (thigh and shin are the SAME part)
@@ -157,10 +161,20 @@ FOOT_WALL_X = (-40.0, -26.0)   # rear retention tabs; lengthened AFT -36.5 -> -4
                         # slots). Still covers the case holes at -29/-32.75.
 FOOT_WALL_H = 26.0
 FOOT_WALL_T = 2.4       # thin: shin-fork horn arm passes 0.4 outside it (LOCKED:
-                        # cannot thicken outward -> reinforce via length + aft gusset)
-# aft base buttress on each tab (heel side, clear of the fork sweep), thin in Y
-# like the tab. Its sloped face is a TOP surface printing sole-down, so any
-# steepness is support-free. Ends at the heel edge (-42).
+                        # cannot thicken outward -> reinforce via the bulkhead)
+# v3: heel bulkhead between the tab aft ends. v2's free-standing 2.4 mm blades
+# snapped across layer lines under a LATERAL knock (the aft gusset only helped
+# fore-aft); the bulkhead closes each blade into an L/U-channel section, which
+# is stiff in both directions and unloads the layer-bond root. All faces
+# vertical -> adds nothing for the printer to bridge. Inner face 1.1 clear of
+# the servo case rear end (-35.11 - FIT).
+FOOT_BULK_X = (-40.0, -36.5)
+FOOT_CABLE_W = 16.0     # cable window in the bulkhead, open at the top: the
+FOOT_CABLE_Z = 8.0      # servo cable exits the rear END face (same connector
+                        # zone the pelvis deck cutout clears: center +/-8)
+# aft base buttress (heel side, clear of the fork sweep): ONE full-width wedge
+# bracing both tabs + the bulkhead. Its sloped face is a TOP surface printing
+# sole-down, so any steepness is support-free. Ends at the heel edge (-42).
 FOOT_WALL_GUSSET_AFT = (2.0, 18.0)  # aft buttress (x-run toward heel, z-height)
 ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+pad proud)
 
