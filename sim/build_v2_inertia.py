@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import dimensions as D
 
 STL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cad", "stl")
-PLA = D.PLA_RHO * D.PRINT_MASS_FACTOR      # g/mm^3 effective printed density
+PLA = D.FILAMENT_RHO * D.PRINT_MASS_FACTOR  # g/mm^3 effective printed density (PETG)
 
 
 def mesh_part(name, dz, mass=None):

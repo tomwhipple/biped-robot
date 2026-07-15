@@ -376,7 +376,7 @@ def main():
         dims = sorted((bb.size.X, bb.size.Y, bb.size.Z))
         fits = dims[0] <= 250 and dims[1] <= D.BED and dims[2] <= D.BED
         vol = part.volume / 1000.0                     # cm^3
-        mass = part.volume * D.PLA_RHO * D.PRINT_MASS_FACTOR
+        mass = part.volume * D.FILAMENT_RHO * D.PRINT_MASS_FACTOR
         print_mass += mass * qty
         rows.append((name, qty, bb.size, vol, mass, fits, orient))
         print(f"{name:11s} x{qty}  bbox {bb.size.X:6.1f} x {bb.size.Y:6.1f} x "
