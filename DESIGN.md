@@ -1115,7 +1115,10 @@ internal parts set non-colliding (feet-only contact); IMU `site` on torso for or
   latency robustness (0/16 with 20 ms whole-step delay; needs sub-step latency
   modeling or a from-scratch latency curriculum), repeated shoves (unchanged).
   Next: port the env+reward to MJX on the RTX 4070 for scale/speed.
-- **Stage 3 — Sim-to-real:** system-ID the real servos, export ONNX policy, deploy on RP2040/SBC.
+- **Stage 3 — Sim-to-real:** system-ID the real servos, export ONNX policy, deploy on the
+  ESP32 (docs/wiring.md; *not* an RP2040/SBC — that was an early sketch). The wireless
+  command channel it runs under is specified and sim-verified in
+  [docs/control-channel.md](docs/control-channel.md).
 
 ## 8. TODO — known next steps (start here)
 
@@ -1144,7 +1147,14 @@ internal parts set non-colliding (feet-only contact); IMU `site` on torso for or
       clearances; test-print to dial in tolerance (~0.3–0.4 mm on moving fits).
 - [ ] **Verify joint axis directions/signs** against a real assembly before trusting any gait.
 - [ ] **Sim-to-real plan:** system-identification protocol for the STS3215 (torque, speed,
-      latency), ONNX export, and deploy pipeline to the RP2040 + SBC.
+      latency), ONNX export, and deploy pipeline to the **ESP32** (the board on the order
+      sheet; earlier drafts said RP2040 + SBC).
+- [ ] **Firmware:** port `link/protocol.py`'s decode + `Watchdog` to C on the ESP32 and run
+      the 50 Hz policy loop beside the servo bus. The protocol itself is already specified
+      and exercised against MuJoCo over real UDP — see [docs/control-channel.md](docs/control-channel.md).
+- [ ] **Odometry:** the goal-seeking commander needs a pose estimate the robot cannot yet
+      produce (the BNO085 gives attitude only). Today `link.sources.GoalSource` is fed
+      ground truth by the sim; on hardware that gap is unfilled.
 
 ### Known limitations / caveats
 - Massing CAD ≠ printable geometry.
