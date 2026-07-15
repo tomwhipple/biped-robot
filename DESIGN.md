@@ -927,6 +927,163 @@ parallel.
    `_air_time` in place → the parity sync silently read post-step values.
    Fixed with explicit copies.
 
+### Foot v3 + the printability gate (2026-07-15)
+
+The first printed foot failed twice — its pad-recess ceiling bridged 46 mm and
+sagged, and a heel tab snapped off in handling — and the v2 rework (flat sole,
+aft-gusseted tabs, `6080d12`) was judged **not viable**: the gusset lives in
+the same thin 2.4 mm Y-plane as the tab, so it stiffens the blade fore-aft
+while the actual failure was a *lateral* knock breaking the tab across its
+horizontal layer lines. The blade was still a blade.
+
+**Foot v3** keeps v2's flat sole (that part was right) and attacks the real
+mode: a **heel bulkhead** joins the two tabs behind the servo case, closing
+each free-standing blade into an L/U-channel section — stiff both ways, and
+the layer-bond root is no longer the only load path. The bulkhead gets an
+open-top **cable window** (16 mm, matching the pelvis deck cutout: ST3215
+cables exit the rear end face), one full-width aft buttress replaces the two
+per-tab wedges, and the retention bores are teardropped. Every added face is
+vertical: nothing new bridges. Foot is ~36 g; ankle height unchanged;
+`check_assembly.py` ALL CLEAR. Envelope note: tab thickness stays LOCKED at
+2.4 (shin-fork passes 0.4 outside), so *sections*, not thickness, were the
+only way to add strength.
+
+**The systemic fix — `cad/check_printability.py`.** Nothing in the pipeline
+verified that parts *print*: `check_assembly.py` proves they fit, and the
+print list asserted "no supports; every part has a support-free orientation"
+untested. The new gate loads each STL, rotates it into its actual print
+orientation, and classifies every down-facing facet cluster (>45°) by a
+perimeter ray test: CEILING (bridge — fails past 8 mm span), LEDGE (droops
+past 1.2 mm reach), ISLAND (floating start — always fails), bore-top
+(teardrop candidate), plus a first-layer-contact check. It found three
+would-have-failed prints among parts marked "ready":
+
+1. **pelvis** stood on its four Ø9 tower bosses — the entire 46×104 first
+   layer floated 2 mm above the bed (and the bosses overlapped the tower feet
+   tabs — a latent assembly bug). Bosses deleted; heat-set pilots go through
+   the deck into the bay-cheek walls.
+2. **tower**: the battery-window sill printed (inverted) as a 70 mm
+   single-wall bridge; belt-guide ribs as square drooping ledges. Sill top is
+   now a 45° ramp (outer 2.5 mm retention lip intact); ribs carry 45°
+   chamfers on their print-undersides.
+3. **leg_link**: the narrow fork slabs float 4.7 mm over the bed for 50 mm —
+   and *can't* be extended down, that volume is swept by the foot walls and
+   ankle-servo case at joint extremes (why `FORK_NARROW_X` exists). Solution:
+   `leg_link_print.stl` carries three break-away fins (0.2 mm separation gap,
+   2.4 mm interface width — a 0.8 mm first cut left the strip edges drooping
+   >45°, caught by the audit) while `leg_link.stl` stays clean for sim meshes
+   and assembly checks.
+
+Also swept in: all horizontal M3 bores teardropped toward each part's
+print-up direction (the `gopro_base` M5 lesson, applied everywhere), and a
+real bug in `wedge_y` — it assumed `extrude()` runs −Y from `Plane.XZ` when
+it actually runs +Y, so the v2 foot gussets had silently landed 2.4 mm
+outside their tab bands. The direction is now measured, not assumed.
+
+Post-script (same day): the user spotted a single-filament wall inside the
+v3 cable window — a **boolean-order bug**: the full-width buttress was
+unioned *after* the window cut, re-filling the window band with a wedge that
+tapers to zero (the cut depth was irrelevant; any fix to it produced
+byte-identical junk). Fixed by cutting the window last, clear through the
+heel edge. The audit grew a **THIN check** to catch this class: an inward
+ray from each facet measures local wall thickness, flagging blades under
+0.85 mm (two perimeters) — but only where the exit face is near-parallel
+(dot < −0.8), so 45° chamfer and gusset tips, which print fine, don't
+false-flag (the tower sill did until that filter). Verified: the check
+catches the bad foot, and the full part set is clean.
+
+Post-script 2 (same day): the user then caught the teardrop roofs
+**piercing part edges / leaving paper shells** — the full roof reaches
+r·√2 above the bore center vs r for the round hole it replaced, and holes
+placed with round-hole margins couldn't afford the extra 0.7 mm: leg_link's
++10.25 case screws poked through the grip-plate edge (12.65 vs 12.36), and
+the peak-side bolt-circle hole grazed every Ø19 idler boss at 0.1 mm
+(9.40 vs 9.50 — flakes, doesn't print). Fix: **capped teardrops** are now
+the default — the 45° roof truncates at the round bore's own top
+(center + r, a 0.83r ≈ 1.4 mm flat mini-bridge), so the void *never exceeds
+the round-hole envelope*: no new pierce or sliver is geometrically possible,
+while the bridged span still drops 3.4 → 1.4 mm. Full peaks only by explicit
+`full=True` where clearance is proven (gopro_base M5, which stays
+byte-identical). All flagged shells probed 100 % solid after the change;
+both gates pass. (Why the THIN check missed the 0.1 mm boss shells: curved
+shell over a 45° roof — exit faces aren't near-parallel, and the area is
+under the area floor. The capped envelope kills the class by
+construction, which is the better guarantee anyway.)
+
+Post-script 3 (same day): next user catch — **hole-to-edge webs down to a
+single filament**. The +10.25 case screws in leg_link's grip plates ended
+0.41 mm from the plate front edge (edge = case half-width 12.36, holes fixed
+by the servo's pattern — a v1-era sliver, screw heads overhung the edge
+too), and the Ø14-BC bolt holes sat 0.8 / 0.3 mm from the Ø9 / Ø10
+center-screw reliefs on every joint pad. Since the holes can't move, the
+material did: grip plates widened to 13.2 (web 1.25, heads fully seated),
+center reliefs shrunk to Ø8 (webs 1.3; still 1.1 mm slack over the ~Ø5.7
+recessed center screw — verify on the real horn/idler). The THIN audit now
+**grid-samples large facets** (barycentric points, area-weighted) instead of
+centroid-only — a web beside a hole lives on a big face whose centroid is
+far away, which is exactly how these evaded the first version. Confirmed it
+flags all four webs pre-fix and nothing post-fix; both gates pass.
+Separately verified all exported meshes are watertight/manifold (0 bad
+edges) — the visible "seams" through holes are CSG face boundaries on a
+continuous surface, not defects.
+
+Sheet-metal alternative: evaluated in `docs/sheetcut-eval.md` (draft PR #19).
+Verdict: printed v3 first (free, same-day); order bent 5052 L-brackets + an
+aluminum sole (~$50–80, ~1 week) only if a v3 tab fails again or the
+get-up-corridor sole enlargement is adopted — an Al sole is mass-neutral
+against an enlarged PETG print and drops CoM ~6 mm.
+
+### Get-up option (a) executed: hip −110°/+60° + enlarged soles (2026-07-15)
+
+The decision point closed as (a). What the sim had been *simulating* since
+the hip-pitch study (`hip_flex_deg=110`) is now what the CAD *builds* and
+the XML defaults to.
+
+**What actually limited the hip.** Not the servo, not the flange: a fine
+CSG sweep (leg_link + servo mock vs yoke_pitch, 5° steps) shows first
+contact at **±105°** — the thigh leg_link's idler-side grip plate and web
+share the idler yoke arm's Y band (−20.35..−18 of −21..−18; the horn side
+has no overlap — that's the 0.7 mm plate/prong gap), and the grip plate's
+top-front corner (r = 20.75 mm off the axis) sweeps into the arm plate's
+front edge. The XML's old ±60° was simply a conservative margin under the
+unexamined 105.
+
+**Fix (yoke_pitch idler arm only).** The thigh sweep across −115..+65 only
+occupies angles ≤65° (front) and ≥166° (rear) at radii ≥16 mm, leaving the
+top-rear sector dead. The idler arm is now a **Ø28 hub disc** (2 mm under
+the r=16 swing floor) **+ riser plate** (x −14..+4) through that dead
+sector: front edge clears flexion to ~129°, rear edge clears extension to
+~97°. The hub's front-upper quadrant is cut to a **45° face** so the disc
+prints support-free flange-down (its print-underside); bolt rims keep
+≥1.3 mm past the cut. Horn arm unchanged. `check_assembly` now sweeps the
+**full thigh assembly** (leg_link + servo, not just the servo) at
+0/−60/−95/−105/−110/−115/+60/+65 vs yoke_pitch, plus deep-flexion checks
+vs yoke_roll and the pelvis at roll 0/±25 — ALL CLEAR.
+
+**Soles enlarged 100 → 116 mm, heel-biased** (heel 42 → 52, toe 58 → 64;
+width stays 52 — the rise fails *backward* and lateral wasn't the failure
+mode). Rise corridor grows from ±20 mm on the 90 mm pad to roughly ±28 mm
+on the 106 mm pad, most of it behind the heels where the pike tips. Foot
+segment 91 → 110.4 g (print ~42 g, pad 9.8 g). Pads are cut from 1/16"
+self-adhesive silicone sheet (B0FJ8TBMQK; one 6"×6" sheet does both feet) —
+`TPU_PROUD` 0.5 → 1.6, so stance rises 1.1 mm; propagated to the sim sole
+boxes and heights.
+
+**Propagated:** XML hip range −110/+60 (walker_env's `hip_flex_deg=110` is
+now a no-op, older runs unaffected), sole contact boxes 106 × 46 at the
+pad-true inset, CAD-true inertials rebaked for every body
+(`build_v2_inertia.py`), smoke test stands 500/500. Both gates green; all
+STL/STEP/assembly artifacts, fly-in, assembly-step figures, and the ROM
+sweep video (`sim/renders/rom_sweep.mov` — the finale now shows the
+hip-110 pike fold) regenerated. Per PR #19: the G10/FR4 0.125" sole-plate
+order trigger ("if enlargement lands") is now live — user's call.
+
+**Next:** print yoke_pitch ×2 + foot ×2 (v3.1) in PETG, cut the 106 × 46
+silicone pads, and one more RL get-up round on the new plant (option (b)
+in parallel — cheap on Mira). Note: the feet already printed at 100 mm are
+fine for bench bring-up, but policies trained on this plant expect the
+116 mm soles.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

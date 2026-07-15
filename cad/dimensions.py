@@ -49,8 +49,12 @@ SV_GRIP_SPAN = SV_HORN_FACE - SV_IDLER_FACE   # 37.25 (drawing-confirmed)
 BCD = 14.0
 PAD_HOLE = 3.4          # M3 clearance in printed pads
 PAD_D = 24.0            # printed pad (arm end) diameter
-HORN_CENTER_RELIEF_D = 9.0   # relief over the (recessed) horn center screw
-IDLER_CENTER_RELIEF_D = 10.0
+HORN_CENTER_RELIEF_D = 8.0   # relief over the (recessed) horn center screw.
+IDLER_CENTER_RELIEF_D = 8.0  # Both sized so the web to the O14-BC M3 holes
+                        # stays printable: gap = 7 - relief_r - 1.7. At the
+                        # old O9/O10 it was 0.8/0.3 mm (flakes); O8 gives 1.3.
+                        # Center screw head is ~O5.7 recessed -> 1.1 mm slack.
+                        # VERIFY on the real horn/idler disc before final print.
 
 # case mounting hole rows (distance behind the output axis; lateral +/-10.25)
 CASE_HOLES_TOP = (8.30, 29.00)     # horn-side face
@@ -115,7 +119,11 @@ BAY_WALL_DROP = 41.0    # walls hang this far below the deck; roll-axis bore is 
 BAY_BORE = 22.5         # clearance bore around case boss / idler boss in bay walls
 BAY_CHEEK_GAP = 0.3
 TOWER_FOOT_X = 14.0     # tower feet / deck heat-set positions
-TOWER_FOOT_Y = 42.0     # lands over the bay cheek walls (extra thread depth)
+TOWER_FOOT_Y = 42.0     # lands over the bay cheek walls: heat-set pilots run
+                        # through the 5 mm deck into cheek-wall material below
+                        # (no raised bosses -- printed deck-top-down, bosses put
+                        # the whole first layer 2 mm in the air, and they
+                        # overlapped the tower feet tabs)
 
 # ----------------------------------------------------------------------------
 # leg link (thigh and shin are the SAME part)
@@ -140,12 +148,16 @@ FORK_NARROW_X = -10.5   # slab back edge below FORK_WIDE_Z (front edge +12)
 # ----------------------------------------------------------------------------
 # foot
 # ----------------------------------------------------------------------------
-FOOT_L = 100.0          # fore-aft;  ankle axis 42 from the heel edge (heel
-                        # extended +4 to give the retention tabs a longer, aft-
-                        # gusseted root -- fore is blocked by the shin-fork sweep)
+FOOT_L = 116.0          # fore-aft; enlarged 100 -> 116 for the get-up rise
+                        # corridor (DESIGN 2026-07-15): the pike-up tips BACKWARD
+                        # mid-rise and the corridor was +/-20 mm CoP on the old
+                        # 90 mm pad, so growth is heel-biased (heel +10, toe +6).
+                        # Width stays 52: lateral wasn't the failure mode and the
+                        # shin-fork sweep bounds the wall band anyway.
 FOOT_W = 52.0
 FOOT_T = 6.0
-FOOT_HEEL = 42.0        # ankle axis to rear edge (case rear end at -35.11)
+FOOT_HEEL = 52.0        # ankle axis to rear edge (case rear end at -35.11;
+                        # was 42 -- see FOOT_L note)
 FOOT_POCKET_D = 2.0     # servo lies in this recess
 # Sole underside is now FLAT (no pad recess): the old 90x46 pad pocket bridged a
 # 46 mm span printed sole-down and sagged badly in PETG. The TPU/rubber pad is
@@ -157,10 +169,20 @@ FOOT_WALL_X = (-40.0, -26.0)   # rear retention tabs; lengthened AFT -36.5 -> -4
                         # slots). Still covers the case holes at -29/-32.75.
 FOOT_WALL_H = 26.0
 FOOT_WALL_T = 2.4       # thin: shin-fork horn arm passes 0.4 outside it (LOCKED:
-                        # cannot thicken outward -> reinforce via length + aft gusset)
-# aft base buttress on each tab (heel side, clear of the fork sweep), thin in Y
-# like the tab. Its sloped face is a TOP surface printing sole-down, so any
-# steepness is support-free. Ends at the heel edge (-42).
+                        # cannot thicken outward -> reinforce via the bulkhead)
+# v3: heel bulkhead between the tab aft ends. v2's free-standing 2.4 mm blades
+# snapped across layer lines under a LATERAL knock (the aft gusset only helped
+# fore-aft); the bulkhead closes each blade into an L/U-channel section, which
+# is stiff in both directions and unloads the layer-bond root. All faces
+# vertical -> adds nothing for the printer to bridge. Inner face 1.1 clear of
+# the servo case rear end (-35.11 - FIT).
+FOOT_BULK_X = (-40.0, -36.5)
+FOOT_CABLE_W = 16.0     # cable window in the bulkhead, open at the top: the
+FOOT_CABLE_Z = 8.0      # servo cable exits the rear END face (same connector
+                        # zone the pelvis deck cutout clears: center +/-8)
+# aft base buttress (heel side, clear of the fork sweep): ONE full-width wedge
+# bracing both tabs + the bulkhead. Its sloped face is a TOP surface printing
+# sole-down, so any steepness is support-free. Ends at the heel edge (-42).
 FOOT_WALL_GUSSET_AFT = (2.0, 18.0)  # aft buttress (x-run toward heel, z-height)
 ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+pad proud)
 
@@ -218,8 +240,11 @@ CAM_BODY = (25.0, 64.0, 69.0)  # X depth (lens axis fore-aft), Y width, Z height
 # ----------------------------------------------------------------------------
 # assembly heights (sole ground contact = 0); torso center Zc for reference
 # ----------------------------------------------------------------------------
-TPU_PROUD = 0.5
-ANKLE_Z = ANKLE_AXIS_ABOVE_SOLE + TPU_PROUD          # 16.86
+TPU_PROUD = 1.6         # actual pad: 1/16" self-adhesive silicone sheet, cut
+                        # to 106 x 46 (Amazon B0FJ8TBMQK, 2x 6"x6" sheets --
+                        # one sheet yields both pads). Full thickness is proud
+                        # of the FLAT sole, so stance height carries all 1.6.
+ANKLE_Z = ANKLE_AXIS_ABOVE_SOLE + TPU_PROUD          # 17.96
 KNEE_Z = ANKLE_Z + SHIN                              # 106.86
 HIP_PITCH_Z = KNEE_Z + THIGH                         # 196.86
 HIP_ROLL_Z = HIP_PITCH_Z + ROLL_TO_PITCH             # 246.86

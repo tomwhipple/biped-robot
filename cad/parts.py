@@ -43,40 +43,64 @@ def cyl_z(r, z0, z1, x, y):
     return Pos(x, y, (z0 + z1) / 2) * Cylinder(r, abs(z1 - z0))
 
 
-def teardrop_y(r, y0, y1, x, z):
-    """Self-supporting horizontal hole (axis along Y): a round bore plus a 45 deg
-    roof peak, so a horizontal hole prints without a bridged (sagging) top.
-    Peak apex sits r*sqrt(2) above the bore center; walls never exceed 45 deg.
-    Returns the SOLID void to subtract (bore + roof), not a hole in a part."""
-    ymid = (y0 + y1) / 2
+def teardrop_y(r, y0, y1, x, z, roll=0, full=False):
+    """Self-supporting horizontal hole (axis along Y): a round bore plus a
+    45 deg roof, so a horizontal hole prints without a bridged (sagging) top.
+    Returns the SOLID void to subtract (bore + roof), not a hole in a part.
+    `roll` spins the roof about the bore axis toward the part's PRINT-up
+    direction: 0 = +z (parts printed model-up), 90 = +x (leg_link prints
+    web-down, print-up = model +x), 180 = -z (parts modeled upside-down vs
+    their print, e.g. yoke_pitch).
+    Default is CAPPED: the roof is truncated at the round bore's own top
+    (center + r), leaving a 2r*(sqrt(2)-1) ~ 0.83r flat mini-bridge. The void
+    then never reaches past the round hole it replaces -- a full r*sqrt(2)
+    peak pierced plate edges and left ~0.1 mm shells on the O19 idler bosses
+    wherever holes were placed with round-hole margins. Pass full=True only
+    where clearance above the hole is proven (e.g. gopro_base M5)."""
     L = abs(y1 - y0)
-    bore = cyl_y(r, y0, y1, x, z)
-    # A square of side 2r rotated 45 deg about Y peaks at (0, r*sqrt(2)); clip it
-    # to |dx| <= r and to above the bore center so it only adds the top peak
+    bore = Rot(90, 0, 0) * Cylinder(r, L)
+    # A square of side 2r rotated 45 deg about Y peaks at (0, r*sqrt(2)); clip
+    # it to |dx| <= r and above the bore center so it only adds the top roof
     # (its 45 deg faces meet the circle exactly at the tangent points).
-    diamond = Pos(x, ymid, z) * Rot(0, 45, 0) * Box(2 * r, L, 2 * r)
-    keep = box(x - r, x + r, y0, y1, z, z + 2 * r)
-    return bore + (diamond & keep)
+    diamond = Rot(0, 45, 0) * Box(2 * r, L, 2 * r)
+    keep = box(-r, r, -L / 2, L / 2, 0, 2 * r if full else r)
+    return Pos(x, (y0 + y1) / 2, z) * Rot(0, roll, 0) * (bore + (diamond & keep))
+
+
+def teardrop_x(r, x0, x1, y, z, roll=0, full=False):
+    """teardrop_y's sibling with the bore along X. roll about the bore axis:
+    0 = peak +z, 180 = peak -z (pelvis prints deck-top-down)."""
+    L = abs(x1 - x0)
+    bore = Rot(0, 90, 0) * Cylinder(r, L)
+    diamond = Rot(45, 0, 0) * Box(L, 2 * r, 2 * r)
+    keep = box(-L / 2, L / 2, -r, r, 0, 2 * r if full else r)
+    return Pos((x0 + x1) / 2, y, z) * Rot(roll, 0, 0) * (bore + (diamond & keep))
 
 
 def wedge_y(pts_xz, y0, y1):
     """Triangular (or any polygon) prism: a profile of (x, z) points extruded
-    thin along Y into the band [y0, y1]. Used for the heel-tab base gussets."""
+    thin along Y into the band [y0, y1]. Used for gussets and print chamfers.
+    NOTE: don't assume which way extrude() runs from Plane.XZ -- measure and
+    shift, so the prism lands exactly in [y0, y1] on any build123d version
+    (the old +Pos(0, hi, 0) guess put the v2 foot gussets 2.4 mm outside
+    their tab bands without anything catching it)."""
     lo, hi = (y0, y1) if y0 < y1 else (y1, y0)
     s = extrude(Plane.XZ * Polygon(*pts_xz, align=None), amount=(hi - lo))
-    return Pos(0, hi, 0) * s                          # extrude runs -Y -> shift up
+    return Pos(0, lo - s.bounding_box().min.Y, 0) * s
 
 
-def bcd_y(y0, y1, x, z):
-    """4x M3 clearance holes (horn/idler bolt circle) along Y at pad (x, z)."""
+def bcd_y(y0, y1, x, z, roll=0):
+    """4x M3 clearance holes (horn/idler bolt circle) along Y at pad (x, z).
+    Teardropped (roll = print-up, see teardrop_y): these bores are horizontal
+    in every part's print orientation, and a sagged bore top binds the bolt."""
     r = D.BCD / 2
-    return [cyl_y(D.PAD_HOLE / 2, y0, y1, x + dx, z + dz)
+    return [teardrop_y(D.PAD_HOLE / 2, y0, y1, x + dx, z + dz, roll)
             for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r))]
 
 
-def bcd_x(x0, x1, y, z):
+def bcd_x(x0, x1, y, z, roll=0):
     r = D.BCD / 2
-    return [cyl_x(D.PAD_HOLE / 2, x0, x1, y + dy, z + dz)
+    return [teardrop_x(D.PAD_HOLE / 2, x0, x1, y + dy, z + dz, roll)
             for dy, dz in ((r, 0), (-r, 0), (0, r), (0, -r))]
 
 
@@ -123,9 +147,25 @@ def yoke_pitch():
 
     p = box(-D.YOKE_FLANGE_X / 2, D.YOKE_FLANGE_X / 2, iy0, hy1, zf1, zf0)
     p += box(-12, 12, hy0, hy1, 0, zf1) + cyl_y(D.PAD_D / 2, hy0, hy1, 0, 0)
-    p += box(-12, 12, iy0, iy1, 0, zf1) + cyl_y(D.PAD_D / 2, iy0, iy1, 0, 0)
+    # idler arm: NOT the horn arm's full-width plate. That plate capped hip
+    # flexion at ~105 deg: the thigh leg_link's idler grip plate + web share
+    # this arm's Y band (-20.35..-18 of -21..-18), and the grip plate's top
+    # front corner (r=20.75 off the axis) sweeps into the plate front edge.
+    # Get-up needs -110 (>=95 kinematic bound + margin, DESIGN 2026-07-14).
+    # The thigh sweep only covers angles <=65 deg (front) and >=166 deg
+    # (rear) at r>=16, so the arm is a hub disc r14 (2.0 under the r=16
+    # swing floor) plus a riser plate through the top-rear dead sector:
+    # front edge x=4 -> flexion clears to ~129 deg, rear edge x=-14 ->
+    # extension clears to ~97 deg. The hub's front-upper quadrant is cut to
+    # a 45 deg face off the riser edge: printed flange-down this is the
+    # disc's print-underside, and the face keeps it support-free (bolt rims
+    # stay >=1.3 mm past the cut).
+    hub = cyl_y(14.0, iy0, iy1, 0, 0)
+    hub -= wedge_y([(4, 10), (14, 0), (17, 0), (17, 15), (4, 15)],
+                   iy0 - 1, iy1 + 1)
+    p += hub + box(-14, 4, iy0, iy1, 9, zf1)
     p += cyl_y(D.IDLER_BOSS_D / 2, D.SV_IDLER_FACE, iy1, 0, 0)   # boss 1.2
-    for h in bcd_y(D.SV_IDLER_FACE - 1, hy1 + 1, 0, 0):
+    for h in bcd_y(D.SV_IDLER_FACE - 1, hy1 + 1, 0, 0, roll=180):
         p -= h
     p -= cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, 0)
     p -= cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 1, D.SV_IDLER_FACE + 0.7, 0, 0)
@@ -136,22 +176,33 @@ def yoke_pitch():
 
 
 # ---------------------------------------------------------------- leg_link
-def leg_link():
+def leg_link(print_fins=False):
     """Thigh / shin link (same part, qty 4). Local frame: upper joint axis ==
     Y axis at origin (this is the gripped servo's horn axis); the servo hangs
     below (top end +10.11, bottom -35.11); +X = robot forward; the lower fork
     grips the NEXT servo's horn (+Y) / idler (-Y) at z = -90.
-    Print: lying on the back web (web face on the bed).
+    Print: lying on the back web (web face on the bed), from
+    leg_link_print.stl -- print_fins=True adds break-away support fins under
+    the narrow fork slabs and pad rims, which otherwise float 4.7 mm above
+    the bed with nothing beneath them (check_printability ISLAND/LEDGE; the
+    fork CANNOT reach the bed there -- that volume is swept by the foot walls
+    and the servo case top at joint extremes). Snap the fins out after
+    printing; they are not part of the working geometry, so the plain STL
+    (sim meshes, assembly checks, renders) never includes them.
     """
     t = D.GRIP_PLATE_T
     drop = -D.LINK_DROP
     web_x1 = -12.36 - D.WEB_GAP                     # web inner face (cable gap)
     web_x0 = web_x1 - 2.4                           # web outer face, -15.16
-    # --- grip channel on the servo case (plates reach the web outer face)
-    p = box(web_x0, 12.36, D.SV_TOPFACE, D.SV_TOPFACE + t, D.GRIP_BOT, D.GRIP_TOP_HORN)
+    # --- grip channel on the servo case (plates reach the web outer face).
+    # Front edge 13.2, not the case half-width 12.36: the +10.25 case screws
+    # end 11.95 from center, and a 12.36 edge left a 0.41 mm web past the
+    # hole (single filament -- flakes off) with the screw head overhanging.
+    grip_x1 = 13.2
+    p = box(web_x0, grip_x1, D.SV_TOPFACE, D.SV_TOPFACE + t, D.GRIP_BOT, D.GRIP_TOP_HORN)
     # relief around the O19.6 output boss / horn skirt (they spin vs this plate)
     p -= cyl_y(D.GRIP_HORN_RELIEF, D.SV_TOPFACE - 1, D.SV_TOPFACE + t + 1, 0, 0)
-    p += box(web_x0, 12.36, -D.SV_TOPFACE - D.PLATE, -D.SV_TOPFACE,
+    p += box(web_x0, grip_x1, -D.SV_TOPFACE - D.PLATE, -D.SV_TOPFACE,
              D.GRIP_BOT, D.GRIP_TOP_IDLER)
     p += box(web_x0, web_x1, -D.SV_TOPFACE - D.PLATE, D.SV_TOPFACE + t,
              D.WEB_END, D.WEB_TOP)
@@ -166,16 +217,17 @@ def leg_link():
     # jog block joining horn grip plate (out at 19.75) to fork plate (21.45+)
     p += box(web_x0, 12, D.SV_TOPFACE, hy1, -36.5, -33)
     p += box(web_x0, 12, iy0, -D.SV_TOPFACE, -36.5, -33)
-    # --- holes: case grip screws (M3 into the servo case holes)
+    # --- holes: case grip screws (M3 into the servo case holes); teardropped
+    # with the peak +x (this part prints web-down, print-up = model +x)
     for zrow in D.CASE_HOLES_TOP:                 # horn-side face rows
         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-            p -= cyl_y(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1,
-                       D.SV_TOPFACE + t + 1, lx, -zrow)
+            p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1,
+                            D.SV_TOPFACE + t + 1, lx, -zrow, roll=90)
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):   # idler face: row 32.75 only
-        p -= cyl_y(D.CASE_SCREW_CLEAR / 2, -D.SV_TOPFACE - D.PLATE - 1,
-                   -D.SV_TOPFACE + 1, lx, -D.CASE_HOLES_BOT[1])
+        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, -D.SV_TOPFACE - D.PLATE - 1,
+                        -D.SV_TOPFACE + 1, lx, -D.CASE_HOLES_BOT[1], roll=90)
     # --- holes: lower joint pads
-    for h in bcd_y(D.SV_IDLER_FACE - 1, hy1 + 1, 0, drop):
+    for h in bcd_y(D.SV_IDLER_FACE - 1, hy1 + 1, 0, drop, roll=90):
         p -= h
     p -= cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, drop)
     p -= cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 1,
@@ -184,6 +236,21 @@ def leg_link():
     for z in (-40, -52):
         for ly in (7, -7):
             p -= cyl_x(2.25, web_x0 - 1, web_x1 + 1, ly, z)
+    if print_fins:
+        # break-away print supports: walls from the bed to 0.2 under the
+        # floating faces (0.2 = PETG-safe separation gap, so they peel off
+        # after printing). 2.4 of the 3.0 mm slab width is backed -- a
+        # narrower fin leaves the strip edges drooping past 45 deg.
+        for yc in (hy0 + D.PLATE / 2, iy0 + D.PLATE / 2):   # fork slab bands
+            fin = box(web_x0, D.FORK_NARROW_X - 0.20, yc - 1.2, yc + 1.2,
+                      drop - 11.0, -53.0)
+            fin -= cyl_y(D.PAD_D / 2 + 0.20, yc - 2, yc + 2, 0, drop)
+            p += fin
+        # idler-boss rim (O19 x 1.2 ring inboard of the idler arm plate)
+        fin = box(web_x0, -D.IDLER_BOSS_D / 2 - 0.20, -17.9, -17.0,
+                  drop - 8.0, drop + 8.0)
+        fin -= cyl_y(D.IDLER_BOSS_D / 2 + 0.20, -18.5, -16.5, 0, drop)
+        p += fin
     return p
 
 
@@ -211,22 +278,26 @@ def pelvis():
         # axis bore: downward-open U-slot in both walls
         p -= cyl_x(D.BAY_BORE / 2, -21, 21, by, za)
         p -= box(-21, 21, by - D.BAY_BORE / 2, by + D.BAY_BORE / 2, zw - 1, za)
-        # servo retention screws (M3 through wall into case holes)
+        # servo retention screws (M3 through wall into case holes); teardropped
+        # with the peak -z: printed deck-top-down these bores are horizontal
         for zrow in D.CASE_HOLES_TOP:               # front wall (horn face)
             for s in (1, -1):
-                p -= cyl_x(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1, 21,
-                           by + s * D.CASE_HOLE_LAT, za + zrow)
+                p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1, 21,
+                                by + s * D.CASE_HOLE_LAT, za + zrow, roll=180)
         for zrow in D.CASE_HOLES_BOT:               # rear wall (idler face)
             for s in (1, -1):
-                p -= cyl_x(D.CASE_SCREW_CLEAR / 2, -21, -D.SV_TOPFACE + 1,
-                           by + s * D.CASE_HOLE_LAT, za + zrow)
+                p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, -21, -D.SV_TOPFACE + 1,
+                                by + s * D.CASE_HOLE_LAT, za + zrow, roll=180)
         # deck cutout over the bay: servo cable connectors are on the top end
         p -= box(-11, 11, by - 8, by + 8, zd - 1, 1)
-    # tower mounting: raised bosses + heat-set pilots (land over the cheeks)
+    # tower mounting: heat-set pilots straight into the deck (NO raised bosses:
+    # printed deck-top-down they held the entire first layer 2 mm off the bed
+    # -- check_printability ISLAND -- and they overlapped the tower feet tabs).
+    # Thread depth = 5 mm deck + cheek-wall material below (feet land over the
+    # cheeks), comfortably > the 6 mm insert.
     for sx in (D.TOWER_FOOT_X, -D.TOWER_FOOT_X):
         for sy in (D.TOWER_FOOT_Y, -D.TOWER_FOOT_Y):
-            p += cyl_z(4.5, 0, 2, sx, sy)
-            p -= cyl_z(D.HEATSET_D / 2, 2 - D.HEATSET_L, 2, sx, sy)
+            p -= cyl_z(D.HEATSET_D / 2, -D.HEATSET_L, 0.01, sx, sy)
     # center lightening / wire window
     p -= box(-11, 11, -12, 12, zd - 1, 1)
     return p
@@ -239,8 +310,11 @@ def foot():
     side (horn +Y), output end forward at +10.11, cable end at the heel.
     Retention: 4x M3 through the two rear tabs into the case holes + front
     end stop. Sole underside is FLAT (no bridge); glue a thin TPU/rubber pad on.
-    The heel tabs are lengthened + base-gusseted (one snapped in testing).
-    Print: sole down. Qty 2.
+    v3 heel: the two retention tabs are tied into a heel BULKHEAD behind the
+    servo (cable window on top), closing each free-standing blade into a
+    channel section -- v2's lone blades snapped across layer lines under a
+    lateral knock, which the aft gusset alone never addressed. Every added
+    face is vertical, so nothing new bridges. Print: sole down. Qty 2.
     """
     x0, x1 = -D.FOOT_HEEL, D.FOOT_L - D.FOOT_HEEL   # -38 .. +58
     w = D.FOOT_W / 2
@@ -254,21 +328,36 @@ def foot():
     # ankle axis: 16.36 - 12 = 4.36 -> relieve to 3.5 for 0.8 clearance)
     for sy0, sy1 in ((17.4, 24.1), (-24.1, -17.4)):
         p -= box(-13, 13, sy0, sy1, 3.5, D.FOOT_T + 1)
-    # rear retention tabs (lengthened aft + heel-side base gusset) + front stop
+    # rear retention tabs + heel bulkhead (U-channel) + front stop
     wx0, wx1 = D.FOOT_WALL_X
+    bx0, bx1 = D.FOOT_BULK_X
     zp = D.FOOT_T - D.FOOT_POCKET_D                  # pocket floor, 4.0
     zr = D.FOOT_T                                    # gusset root = sole top, 6.0
     aL, aH = D.FOOT_WALL_GUSSET_AFT                  # aft buttress (heel side)
     for s in (1, -1):
         yb0, yb1 = s * py, s * (py + D.FOOT_WALL_T)  # tab Y band (2.4 thick)
         p += box(wx0, wx1, yb0, yb1, zp, zp + D.FOOT_WALL_H)
-        # aft buttress: vertical face on the tab, sloped face up (support-free)
-        p += wedge_y([(wx0, zr), (wx0 - aL, zr), (wx0, zr + aH)], yb0, yb1)
+    # bulkhead between the tab aft ends
+    p += box(bx0, bx1, -py, py, zp, zp + D.FOOT_WALL_H)
+    # one full-width aft buttress bracing tabs + bulkhead together: vertical
+    # face against them, sloped face up (support-free), ends at the heel edge
+    p += wedge_y([(wx0, zr), (wx0 - aL, zr), (wx0, zr + aH)],
+                 -(py + D.FOOT_WALL_T), py + D.FOOT_WALL_T)
+    # cable window, cut LAST and clear through the heel edge so it opens
+    # bulkhead AND buttress (the servo cable exits the rear END face and
+    # routes out over the heel). Cutting before the buttress union -- or not
+    # deep enough -- leaves a taper of the buttress standing inside the
+    # window, thinning to a single filament: check_printability THIN.
+    p -= box(-D.FOOT_HEEL - 1, bx1 + 1, -D.FOOT_CABLE_W / 2, D.FOOT_CABLE_W / 2,
+             D.FOOT_CABLE_Z, zp + D.FOOT_WALL_H + 1)
     p += box(px1, px1 + D.WALL, -py, py, zp, zp + 8)
-    # retention screw holes: horn face row 29.0 (+Y), idler face row 32.75 (-Y)
+    # retention screw holes: horn face row 29.0 (+Y), idler face row 32.75 (-Y);
+    # teardropped (horizontal bores printed sole-down, peak +z)
     for zh in (2.11, 22.61):
-        p -= cyl_y(D.M3_CLEAR / 2, py - 1, py + D.FOOT_WALL_T + 1, -29.0, zp + zh)
-        p -= cyl_y(D.M3_CLEAR / 2, -py - D.FOOT_WALL_T - 1, -py + 1, -32.75, zp + zh)
+        p -= teardrop_y(D.M3_CLEAR / 2, py - 1, py + D.FOOT_WALL_T + 1,
+                        -29.0, zp + zh)
+        p -= teardrop_y(D.M3_CLEAR / 2, -py - D.FOOT_WALL_T - 1, -py + 1,
+                        -32.75, zp + zh)
     return p
 
 
@@ -302,20 +391,33 @@ def tower():
             p -= cyl_z(D.M3_CLEAR / 2, -1, 13, s * D.TOWER_FOOT_X, sy)
             p -= cyl_z(3.2, zt0 - 6, zt1 + 1, s * D.TOWER_FOOT_X, sy)  # driver access
     # battery window in the -x wall: sill 2.5 (tilt the pack in over it),
-    # opening = envelope height, posts at the ends keep the feet tabs
+    # opening = envelope height, posts at the ends keep the feet tabs.
+    # The sill TOP is a 45 deg ramp descending inward: printed upside down a
+    # flat sill top is a 70 mm single-wall bridge over the window
+    # (check_printability CEILING) -- the ramp prints as a normal 45 deg
+    # overhang. The outer face keeps the full 2.5 lip, so retention holds.
     bw = D.BATT[0] / 2 + 1.0
     p -= box(-hx - 1, -hx + D.WALL + 1, -bw, bw, 2.5, D.BATT[2] + 2.5)
+    p -= wedge_y([(-hx - 0.1, 2.5), (-hx + D.WALL, -0.1), (-hx + D.WALL, 2.5)],
+                 -bw, bw)
     # far-wall rail stubs: seat the pack inner face, stepped for the inverted
     # print like the feet tabs
     seat_in = D.BATT_SEAT_X + D.BATT[1]              # pack inner (+x) face, 14
     for sy in (-20, 16):
         p += box(seat_in, hx - D.WALL, sy - 6, sy + 6, 0, 12)
         p += box(seat_in + 1.3, hx - D.WALL, sy - 6, sy + 6, 12, 15)
-    # belt guide ribs: +x wall full-width, -x wall on the window posts
+    # belt guide ribs: +x wall full-width, -x wall on the window posts. Each
+    # rib carries a 45 deg chamfer wedge on its model-TOP face: upside down
+    # that face is the rib's print-underside, and a square 1.5 mm ledge
+    # droops (check_printability LEDGE) -- the wedge makes it self-supporting.
     for rz in (D.BATT[2] - 8, D.BATT[2] + 3):
         p += box(hx, hx + 1.5, -22, 22, rz, rz + 1.5)
+        p += wedge_y([(hx, rz + 1.5), (hx + 1.5, rz + 1.5), (hx, rz + 3.0)],
+                     -22, 22)
         for sy in (1, -1):
             p += box(-hx - 1.5, -hx, sy * (bw + 1), sy * (hy - 1), rz, rz + 1.5)
+            p += wedge_y([(-hx, rz + 1.5), (-hx - 1.5, rz + 1.5),
+                          (-hx, rz + 3.0)], sy * (bw + 1), sy * (hy - 1))
     # driver board standoffs under the plate (board face-down, M2.5 from below)
     bx, by = D.BOARD_HOLES[1] / 2, D.BOARD_HOLES[0] / 2
     for sx in (bx, -bx):
@@ -354,7 +456,8 @@ def gopro_base():
         p += box(-D.GP_PRONG_OD / 2, D.GP_PRONG_OD / 2, y0, y1, zb, zh)
         p += cyl_y(D.GP_PRONG_OD / 2, y0, y1, 0, zh)
     if D.GP_HOLE_TEARDROP:
-        p -= teardrop_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh)
+        # full peak: proven clearance (printed), keeps the part byte-stable
+        p -= teardrop_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh, full=True)
     else:
         p -= cyl_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh)
     gx, gy = D.GP_SCREW_XY
@@ -370,7 +473,8 @@ PARTS = [
     ("pelvis", pelvis, 1, "upside down: deck top on bed, bay walls rise"),
     ("yoke_roll", yoke_roll, 2, "flange face on bed, arms up"),
     ("yoke_pitch", yoke_pitch, 2, "flange face on bed, arms up"),
-    ("leg_link", leg_link, 4, "on its back: web face on bed"),
+    ("leg_link", leg_link, 4, "on its back: web face on bed "
+     "(print leg_link_print.stl: break-away fins under the fork slabs)"),
     ("foot", foot, 2, "sole down"),
     ("tower", tower, 1, "upside down: top plate on bed"),
     ("gopro_base", gopro_base, 1, "base down, prongs up (PETG or 100% infill)"),
@@ -384,6 +488,9 @@ def main():
         part = fn()
         path = os.path.join(OUT, f"{name}.stl")
         export_stl(part, path)
+        if name == "leg_link":       # print variant with break-away fins; the
+            export_stl(leg_link(print_fins=True),   # plain STL stays clean for
+                       os.path.join(OUT, "leg_link_print.stl"))  # sim meshes
         bb = part.bounding_box()
         dims = sorted((bb.size.X, bb.size.Y, bb.size.Z))
         fits = dims[0] <= 250 and dims[1] <= D.BED and dims[2] <= D.BED
@@ -397,7 +504,9 @@ def main():
 
     # battery = the actual purchased pack (Zeee 3S 850: 74 g); its pigtail
     # lives in the wiring/misc bucket, not here (issue #2)
-    servos, batt, board, fasteners, tpu = 8 * D.SERVO_MASS, 74.0, 20.0, 47.0, 16.0
+    # sole pads: 2x 106 x 46 cut from 1/16" self-adhesive silicone sheet
+    # (B0FJ8TBMQK); ~9.8 g each
+    servos, batt, board, fasteners, tpu = 8 * D.SERVO_MASS, 74.0, 20.0, 47.0, 19.6
     total = print_mass + servos + batt + board + fasteners + tpu
     print(f"\nprinted plastic ~{print_mass:.0f} g   servos {servos:.0f} g   "
           f"battery {batt:.0f} g   board {board:.0f} g   fasteners {fasteners:.0f} g"

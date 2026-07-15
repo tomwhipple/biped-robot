@@ -44,15 +44,15 @@ bolt through the disc or a thin 19×27 washer-bearing under the arm.
 | `yoke_roll` | 2 | 48 × 34 × 32 | 12 g | clevis on roll-servo horn/idler, flange down |
 | `yoke_pitch` | 2 | 32 × 45 × 42 | 12 g | clevis on thigh-servo horn/idler, bolts under `yoke_roll` rotated 90° (hip universal joint) |
 | `leg_link` | 4 | 28 × 45 × 99 | 18 g | thigh **and** shin (same part): grips a servo case, forks 90 mm down to the next servo's horn/idler |
-| `foot` | 2 | 100 × 52 × 30 | 33 g | flat sole + ankle-servo pocket + reinforced rear retention tabs (glued rubber sole pad) |
+| `foot` | 2 | 100 × 52 × 30 | 36 g | flat sole + ankle-servo pocket + heel bulkhead tying the retention tabs into a U-channel (glued rubber sole pad) |
 | `tower` | 1 | 45 × 96 × 37 | 37 g | electronics: driver board hangs face-down on standoffs INSIDE; 3S battery tilt-loads through the rear-wall window onto the deck (tool-free swap: peel belt, tug ribbon); GoPro bosses on top |
 | `gopro_base` | 1 | 30 × 24 × 21 | 5 g | GoPro three-prong mount, bolts to the tower top (crash fuse — cheap to reprint) |
 
-Printed plastic ≈ 257 g. Total robot ≈ **0.85 kg** bare, **1.01 kg with the
-GoPro MAX** (8 servos 440 g, 3S LiPo 74 g, board ~20 g, fasteners ~47 g,
+Printed plastic ≈ 286 g (PETG). Total robot ≈ **0.88 kg** bare, **1.04 kg with
+the GoPro MAX** (8 servos 440 g, 3S LiPo 74 g, board ~20 g, fasteners ~47 g,
 TPU 16 g, camera 154 g). Heights: ankle 16.9, knee 106.9, hip-pitch 196.9,
 hip-roll 246.9, torso top 324 mm, camera CG ≈ 378 mm. Standing CG rises from
-≈ 168 mm (bare) to ≈ 200 mm with the camera (**+31 mm**) — expect gait retuning.
+≈ 164 mm (bare) to ≈ 195 mm with the camera (**+31 mm**) — expect gait retuning.
 
 ### GoPro mount (`gopro_base`)
 
@@ -97,18 +97,29 @@ self-tappers in the pelvis/foot walls (clearance holes are parametric).
 ## Print settings
 
 PLA or PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters (all walls ≥ 2.4 mm are
-perimeter-only), 30–40 % infill, no supports needed:
+perimeter-only), 30–40 % infill, no slicer supports needed — and this is now
+**verified geometrically** by `check_printability.py`, which audits every STL
+in its print orientation for bridges / >45° overhangs / floating starts and
+must report `ALL PARTS PRINT CLEAN` (run it alongside `check_assembly.py`
+after any CAD change):
 
 | part | orientation | note |
 |---|---|---|
-| pelvis | upside-down (deck top on bed) | bay walls print vertically; bore is a downward-open slot |
+| pelvis | upside-down (deck top on bed) | bay walls print vertically; bore is a downward-open slot; deck top is flush (no bosses) so the first layer is the whole deck face |
 | yoke_roll / yoke_pitch | flange face on bed | arms vertical → layer lines ⟂ arm bending is avoided; idler boss prints as a short horizontal stub (1–4 mm) — slight underside droop is cosmetic, the seat face prints clean |
-| leg_link | on its back (web on bed) | strongest orientation for fore-aft bending; bosses as above |
-| foot | sole down | |
-| tower | upside-down (top plate on bed) | feet tabs have 45° gussets (enlarged for the camera load); board standoffs and GoPro bosses print upward from the plate — still support-free |
+| leg_link | on its back (web on bed) | strongest orientation for fore-aft bending; **slice `leg_link_print.stl`** — it adds 3 break-away fins under the fork slabs, which float 4.7 mm above the bed (the swept joint envelope forbids solid material there); peel the fins out after printing |
+| foot | sole down | heel tabs, bulkhead and buttress are vertical faces or top-side slopes — nothing bridges |
+| tower | upside-down (top plate on bed) | feet tabs have 45° gussets (enlarged for the camera load); board standoffs and GoPro bosses print upward from the plate; battery-window sill and belt-rib print-undersides are 45°-chamfered — still support-free |
 | gopro_base | base down, prongs up | standard orientation for printed GoPro mounts; use PETG or 100 % infill PLA — the M5 clamp squeezes across layer lines |
 
+All horizontal M3 bores are teardropped toward each part's print-up direction
+(self-supporting 45° bore roofs — no sagged strands where screws clamp).
+
 ## Assembly order
+
+**Illustrated step-by-step guide: [docs/assembly.md](../docs/assembly.md)**
+(one figure per step, rendered from the CAD by `render_assembly_steps.py` —
+regenerate after any CAD change). Condensed order:
 
 1. **Servos**: set IDs 1–8 and center all servos (position 2048) *before* assembly.
    Bolt the metal horn on each servo at center with its spline screw.

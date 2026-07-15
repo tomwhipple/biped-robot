@@ -83,10 +83,23 @@ for by in (D.HIP_SEP / 2,):
         ok &= check(f"hip assy at roll {ang:+d} vs pelvis", vol(pv, hip))
         ok &= check(f"hip assy at roll {ang:+d} vs roll servo", vol(hip, roll_sv))
 
-print("== yoke_pitch vs thigh servo swinging +/-60 ==")
-for ang in (0, 60, -60):
-    sv = Rot(0, ang, 0) * servo_mock_y()
-    ok &= check(f"thigh servo at {ang:+d} deg", vol(yp, sv))
+print("== yoke_pitch vs thigh (leg_link + servo), hip -110/+60 (+5 margin) ==")
+# flexion is NEGATIVE here (knee swings toward +x). The full leg_link rides
+# in this sweep: its idler grip plate / web share the idler arm's Y band,
+# and THEY (not the servo) set the mechanical limit.
+thigh_assy = ll + servo_mock_y()
+for ang in (0, -60, -95, -105, -110, -115, 60, 65):
+    sv = Rot(0, ang, 0) * thigh_assy
+    ok &= check(f"thigh assy at hip {ang:+d} deg", vol(yp, sv))
+print("== deep flexion vs the stage above (yoke_roll, pelvis, roll servo) ==")
+for ang in (-110, -115):
+    th = Pos(0, 0, -D.ROLL_TO_PITCH) * Rot(0, ang, 0) * thigh_assy
+    ok &= check(f"thigh at hip {ang:+d} vs yoke_roll", vol(yr, th))
+    for roll in (0, 25, -25):
+        hip_deep = Pos(0, D.HIP_SEP / 2, -D.DECK_T - D.SV_AXIS_FROM_REAR) \
+            * Rot(roll, 0, 0) * th
+        ok &= check(f"thigh at hip {ang:+d} roll {roll:+d} vs pelvis",
+                    vol(pv, hip_deep))
 
 print("== foot + ankle servo vs shin link at ankle -40..+40 ==")
 ft = parts.foot()
