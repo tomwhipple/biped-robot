@@ -15,6 +15,17 @@ physically does not fit the locked 2.4 mm tab envelope — bent brackets remain
 a metal-only option. The printed foot v3 (heel bulkhead, on main as `4c39a7c`)
 stays the first line of defense either way.
 
+## Status update (2026-07-15, evening)
+
+The trigger named below **has fired**: the sole enlargement landed on main
+(`6834fc0` — 116 × 52 heel-biased, with the hip −110° yoke revision). The
+G10/FR4 0.125" sole order is therefore live as an *option*: cut to the new
+116 × 52 outline, ~43 g each (vs ~42 g printed PETG at 6 mm). Note the
+current build decision is printed-PETG soles + 1/16" self-adhesive silicone
+pads (`b4f22bc`), so G10 remains an upgrade path, not a blocker. The yoke
+flange "mid-redesign" caveat in the table also resolved: the hip revision
+changed only the idler arm, not the flange — the yoke stays printed.
+
 ## Decision table
 
 | Part | Demonstrated problem | Best sheet option | Verdict | Why (one line) |
