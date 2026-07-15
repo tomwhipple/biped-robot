@@ -890,6 +890,38 @@ keep hip-60 as backup tag `v1-hip60-backup`, figure out the hip):
    during the rise (foot-skate / no closed-loop balance) — dynamic
    validation delegated to RL retrain (`mjx_getup_v2`: hip 110 + full
    mapping), which has IMU feedback.
+
+### Get-up v2/v3 verdicts: kneel achieved; the rise is a balance corridor
+(2026-07-14, evening)
+
+**v2** (hip 110 + full action map, stopped at 63M by rule): the ceiling
+moved — from any fall the policy rises to an **upright kneel** and parks
+(v1's ceiling was a reclined sit). The referee's "0/8" is the standing
+height bar (kneel pelvis ~0.10 m vs 0.24 required). Diagnosis: the
+uprightness reward made the kneel absorbing — the pike to standing
+requires folding the torso DOWN through up_z≈0 first (a reward valley on
+the only feasible path).
+
+**v3** (height-gated uprightness + reverse curriculum with kneel/squat
+starts, stopped at 63M by rule): reward climbing but `standing` still ~0
+— even squat-started episodes don't convert.
+
+**Probes that close the file on physics scapegoats:** torque along the
+pike path peaks at **1.08 N·m** of 2.72 available (not torque-bound);
+scripted rise fails identically at 1×/2×/4× floor friction (not
+friction-bound). The failure is always the same: tips backward mid-pike.
+**Conclusion: the rise corridor is real (kinematics say ≥95° hip) but
+NARROW — ±20 mm CoP on a 90 mm foot — and crossing it needs active
+balance control plus, ideally, a wider corridor.**
+
+**Decision point (user):** (a) proceed with the yoke redesign at
+−110°/+60° (the 95° bound is necessary regardless of everything else)
+AND enlarge the sole pads (already the day-5 recommendation; directly
+widens the get-up corridor and helps walking robustness) then one more
+RL round on the new plant; (b) resume/extend v3-style training longer
+(cheap on Mira; reward was still climbing); (c) park get-up, ship v1
+with manual reset. Recommendation: (a), with (b) essentially free in
+parallel.
 5. Test-harness bug worth remembering: `jp.asarray(numpy_buf)` can alias
    zero-copy on the CPU backend; the CPU env mutates `_prev_action` /
    `_air_time` in place → the parity sync silently read post-step values.

@@ -38,6 +38,7 @@ mjxturn  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_turn.mp4', factor=5))
 mjxstand = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_stand.mp4', factor=5))
 mjxpivot = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_pivot_l.mp4', factor=5))
 getup    = to_data_uri(strip_from_gif('runs/mjx_getup_v1/ref_getup.mp4', n=6, factor=6))
+getup2   = to_data_uri(strip_from_gif('runs/mjx_getup_v2/ref_getup.mp4', n=6, factor=6))
 
 cad = imageio.imread(os.path.join(CAD_RENDERS, 'assembly_mujoco.png'))[..., :3]
 cad_uri = to_data_uri(cad[30:680, 230:670])       # tight crop around the robot
@@ -47,7 +48,8 @@ n_runs = len([d for d in os.listdir('runs')
 for k, v in [('hero', hero), ('dash7', dash7), ('stride', stride),
              ('shuffle', shuffle), ('lunge', lunge), ('flyin', flyin),
              ('cad', cad_uri), ('mjxwalk', mjxwalk), ('mjxturn', mjxturn),
-             ('mjxstand', mjxstand), ('mjxpivot', mjxpivot), ('getup', getup)]:
+             ('mjxstand', mjxstand), ('mjxpivot', mjxpivot), ('getup', getup),
+             ('getup2', getup2)]:
     print(k, len(v) // 1024, 'KB')
 print('runs:', n_runs)
 
@@ -224,14 +226,25 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     <img class="film" src="{getup}" alt="Filmstrip: the fallen robot props itself into a seated position and stays there">
     <figcaption>mjx_getup_v1 · best of 8 referee takes — a reliable sit-up, never a stand-up</figcaption>
   </figure>
-  <p>The diagnosis is kinematic, not a training failure: sit → stand means
-  moving the CoM from behind the heels to over the feet, and with no arms,
-  hip pitch capped at ±60° (the torso can't fold over the knees), and
-  2.7 N·m servos (no dynamic rock-and-catch at this mass), that transfer
-  has no reachable path — a static sweep shows the target crouch is stable
-  at every hip angle; only the transfer is missing. <b>Decision pending:</b>
-  widen hip-pitch to ~100–120° in CAD (verify with a scripted-motion study
-  first), or ship hardware v1 without self-recovery.</p>
+  <p>The follow-up study made it precise — and found a bug that had
+  handicapped every policy ever trained: the action mapping couldn't reach
+  the deep half of the knee's range (capped at −50° of −95°). With that
+  fixed and the joint-limit question answered by static path analysis
+  (<b>a balanced sit→stand exists at ≥95° of hip flexion, provably not at
+  ≤90°</b> — the current yoke stops at 60°), a retrain at 110° moved the
+  ceiling:</p>
+  <figure style="margin:18px 0 6px">
+    <img class="film" src="{getup2}" alt="Filmstrip: the fallen robot rises to an upright kneel and holds">
+    <figcaption>mjx_getup_v2 (hip 110°, full action range) · best of 8 referee takes — rises from any fall to an upright <b>kneel</b> and holds; v1's ceiling was the sit</figcaption>
+  </figure>
+  <p>The remaining gap is the last 14 cm: the pike from kneel/squat to
+  standing traverses a <b>±20 mm balance corridor</b> on a 90 mm foot.
+  Probes cleared the physics suspects (peak torque 1.08 of 2.72 N·m
+  available; failure identical at 1–4× floor friction) — it's a
+  closed-loop balance problem, plus a corridor that bigger sole pads would
+  widen directly. <b>Decision pending:</b> yoke redesign to −110°/+60°
+  (the 95° bound stands regardless) + larger feet + one more training
+  round, or ship v1 with manual reset after falls.</p>
 
   <h2><span class="n">03</span> The reckoning: the old gait was unbuildable</h2>
   <p>Until now the sim's actuators were idealized position servos — infinitely
