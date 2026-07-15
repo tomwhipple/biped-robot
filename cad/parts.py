@@ -147,7 +147,23 @@ def yoke_pitch():
 
     p = box(-D.YOKE_FLANGE_X / 2, D.YOKE_FLANGE_X / 2, iy0, hy1, zf1, zf0)
     p += box(-12, 12, hy0, hy1, 0, zf1) + cyl_y(D.PAD_D / 2, hy0, hy1, 0, 0)
-    p += box(-12, 12, iy0, iy1, 0, zf1) + cyl_y(D.PAD_D / 2, iy0, iy1, 0, 0)
+    # idler arm: NOT the horn arm's full-width plate. That plate capped hip
+    # flexion at ~105 deg: the thigh leg_link's idler grip plate + web share
+    # this arm's Y band (-20.35..-18 of -21..-18), and the grip plate's top
+    # front corner (r=20.75 off the axis) sweeps into the plate front edge.
+    # Get-up needs -110 (>=95 kinematic bound + margin, DESIGN 2026-07-14).
+    # The thigh sweep only covers angles <=65 deg (front) and >=166 deg
+    # (rear) at r>=16, so the arm is a hub disc r14 (2.0 under the r=16
+    # swing floor) plus a riser plate through the top-rear dead sector:
+    # front edge x=4 -> flexion clears to ~129 deg, rear edge x=-14 ->
+    # extension clears to ~97 deg. The hub's front-upper quadrant is cut to
+    # a 45 deg face off the riser edge: printed flange-down this is the
+    # disc's print-underside, and the face keeps it support-free (bolt rims
+    # stay >=1.3 mm past the cut).
+    hub = cyl_y(14.0, iy0, iy1, 0, 0)
+    hub -= wedge_y([(4, 10), (14, 0), (17, 0), (17, 15), (4, 15)],
+                   iy0 - 1, iy1 + 1)
+    p += hub + box(-14, 4, iy0, iy1, 9, zf1)
     p += cyl_y(D.IDLER_BOSS_D / 2, D.SV_IDLER_FACE, iy1, 0, 0)   # boss 1.2
     for h in bcd_y(D.SV_IDLER_FACE - 1, hy1 + 1, 0, 0, roll=180):
         p -= h
@@ -488,9 +504,11 @@ def main():
 
     # battery = worst case of the 3S 850 XT30 field the bay now fits (~80 g,
     # see dimensions.BATT); the flat Zeee is 74 g. Its pigtail
-    # lives in the wiring/misc bucket, not here (issue #2)
+    # lives in the wiring/misc bucket, not here (issue #2).
+    # sole pads: 2x 106 x 46 cut from 1/16" self-adhesive silicone sheet
+    # (B0FJ8TBMQK); ~9.8 g each
     servos, batt, board, fasteners, tpu = (8 * D.SERVO_MASS, D.BATT_PACK_MASS,
-                                           20.0, 47.0, 16.0)
+                                           20.0, 47.0, 19.6)
     total = print_mass + servos + batt + board + fasteners + tpu
     print(f"\nprinted plastic ~{print_mass:.0f} g   servos {servos:.0f} g   "
           f"battery {batt:.0f} g   board {board:.0f} g   fasteners {fasteners:.0f} g"

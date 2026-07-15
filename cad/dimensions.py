@@ -148,12 +148,16 @@ FORK_NARROW_X = -10.5   # slab back edge below FORK_WIDE_Z (front edge +12)
 # ----------------------------------------------------------------------------
 # foot
 # ----------------------------------------------------------------------------
-FOOT_L = 100.0          # fore-aft;  ankle axis 42 from the heel edge (heel
-                        # extended +4 to give the retention tabs a longer, aft-
-                        # gusseted root -- fore is blocked by the shin-fork sweep)
+FOOT_L = 116.0          # fore-aft; enlarged 100 -> 116 for the get-up rise
+                        # corridor (DESIGN 2026-07-15): the pike-up tips BACKWARD
+                        # mid-rise and the corridor was +/-20 mm CoP on the old
+                        # 90 mm pad, so growth is heel-biased (heel +10, toe +6).
+                        # Width stays 52: lateral wasn't the failure mode and the
+                        # shin-fork sweep bounds the wall band anyway.
 FOOT_W = 52.0
 FOOT_T = 6.0
-FOOT_HEEL = 42.0        # ankle axis to rear edge (case rear end at -35.11)
+FOOT_HEEL = 52.0        # ankle axis to rear edge (case rear end at -35.11;
+                        # was 42 -- see FOOT_L note)
 FOOT_POCKET_D = 2.0     # servo lies in this recess
 # Sole underside is now FLAT (no pad recess): the old 90x46 pad pocket bridged a
 # 46 mm span printed sole-down and sagged badly in PETG. The TPU/rubber pad is
@@ -254,8 +258,11 @@ CAM_BODY = (25.0, 64.0, 69.0)  # X depth (lens axis fore-aft), Y width, Z height
 # ----------------------------------------------------------------------------
 # assembly heights (sole ground contact = 0); torso center Zc for reference
 # ----------------------------------------------------------------------------
-TPU_PROUD = 0.5
-ANKLE_Z = ANKLE_AXIS_ABOVE_SOLE + TPU_PROUD          # 16.86
+TPU_PROUD = 1.6         # actual pad: 1/16" self-adhesive silicone sheet, cut
+                        # to 106 x 46 (Amazon B0FJ8TBMQK, 2x 6"x6" sheets --
+                        # one sheet yields both pads). Full thickness is proud
+                        # of the FLAT sole, so stance height carries all 1.6.
+ANKLE_Z = ANKLE_AXIS_ABOVE_SOLE + TPU_PROUD          # 17.96
 KNEE_Z = ANKLE_Z + SHIN                              # 106.86
 HIP_PITCH_Z = KNEE_Z + THIGH                         # 196.86
 HIP_ROLL_Z = HIP_PITCH_Z + ROLL_TO_PITCH             # 246.86
