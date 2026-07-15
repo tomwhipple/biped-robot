@@ -6,27 +6,30 @@
 
 ## Global print settings
 
-PLA **or** PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters (every wall ≥ 2.4 mm
-is perimeter-only), 30–40 % infill, **no supports** — every part has a
-support-free orientation (see table). PLA is fine structurally; PETG buys heat/
-impact margin if you have it.
+**PLA for the whole robot** (0.4 mm nozzle, 0.2 mm layers, 3 perimeters — every
+wall ≥ 2.4 mm is perimeter-only — 30–40 % infill, **no supports**; every part has
+a support-free orientation, see table). PLA is fine structurally for every part.
+PETG is an *optional* upgrade if you already have it (a little more heat/impact
+margin) — not required anywhere. The only part with a real material preference is
+`gopro_base`, and it's satisfied by **PLA at 100 % infill** (see its row).
 
 ## Parts to print
 
 | Part | Copies | Material | Infill | Orientation | Status |
 |---|---|---|---|---|---|
-| `pelvis` | 1 | PLA / PETG | 30–40 % | upside-down, deck top on bed | ✅ ready — *secondary* hip-angle check |
-| `yoke_roll` | 2 | PLA / PETG | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
-| `yoke_pitch` | 2 | PLA / PETG | 30–40 % | flange face on bed, arms up | ⚠️ **HOLD — being redesigned** (hip-angle revisit) |
-| `leg_link` | 4 | PLA / PETG | 30–40 % | on its back, web face on bed | ⚠️ **verify before printing** (2 of 4 are thighs, on the hip-pitch joint) |
-| `foot` | 2 | PLA / PETG | 30–40 % | sole down | ✅ ready |
-| `tower` | 1 | PLA / PETG | 30–40 % | upside-down, top plate on bed | ✅ ready |
-| `gopro_base` | 1 | **PETG or 100 % infill PLA** | 100 % if PLA | base down, prongs up | ✅ ready |
+| `pelvis` | 1 | PLA | 30–40 % | upside-down, deck top on bed | ✅ ready — *secondary* hip-angle check |
+| `yoke_roll` | 2 | PLA | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
+| `yoke_pitch` | 2 | PLA | 30–40 % | flange face on bed, arms up | ⚠️ **HOLD — being redesigned** (hip-angle revisit) |
+| `leg_link` | 4 | PLA | 30–40 % | on its back, web face on bed | ⚠️ **verify before printing** (2 of 4 are thighs, on the hip-pitch joint) |
+| `foot` | 2 | PLA | 30–40 % | sole down | ✅ ready |
+| `tower` | 1 | PLA | 30–40 % | upside-down, top plate on bed | ✅ ready |
+| `gopro_base` | 1 | PLA (**100 % infill**) | 100 % | base down, prongs up | ✅ ready |
 | TPU foot pad (90 × 46 × 2 mm) | 2 | **TPU** | — | flat | ✅ ready (or cut from TPU sheet) |
 
 `leg_link` ×4 = 2 thighs + 2 shins (identical part). `gopro_base` is the
-sacrificial crash fuse — the M5 clamp squeezes across layer lines, so it needs
-PETG or solid PLA. TPU pads glue into the foot sole recess and sit 0.5 mm proud.
+sacrificial crash fuse — the M5 clamp squeezes across layer lines, so print it
+**PLA at 100 % infill** (or PETG if you have it). TPU pads glue into the foot
+sole recess and sit 0.5 mm proud.
 
 ## ⚠️ Hip-angle revisit — what's in flux
 
