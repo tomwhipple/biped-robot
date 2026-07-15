@@ -117,6 +117,10 @@ All horizontal M3 bores are teardropped toward each part's print-up direction
 
 ## Assembly order
 
+**Illustrated step-by-step guide: [docs/assembly.md](../docs/assembly.md)**
+(one figure per step, rendered from the CAD by `render_assembly_steps.py` —
+regenerate after any CAD change). Condensed order:
+
 1. **Servos**: set IDs 1–8 and center all servos (position 2048) *before* assembly.
    Bolt the metal horn on each servo at center with its spline screw.
 2. **Feet**: drop the ankle servo into the pocket (output end forward, cable aft),
