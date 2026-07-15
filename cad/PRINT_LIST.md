@@ -6,31 +6,38 @@
 
 ## Global print settings
 
-**PLA for the whole robot** (0.4 mm nozzle, 0.2 mm layers, 3 perimeters — every
+**PETG for the whole robot** (0.4 mm nozzle, 0.2 mm layers, 3 perimeters — every
 wall ≥ 2.4 mm is perimeter-only — 30–40 % infill, **no supports**; every part has
-a support-free orientation, see table). PLA is fine structurally for every part.
-PETG is an *optional* upgrade if you already have it (a little more heat/impact
-margin) — not required anywhere. The only part with a real material preference is
-`gopro_base`, and it's satisfied by **PLA at 100 % infill** (see its row).
+a support-free orientation, see table). PETG chosen for its toughness and impact
+resistance — the right call for a machine that falls repeatedly during get-up
+training, and confirmed noticeably more solid on the `gopro_base` test print.
+
+Two things to watch when you print PETG:
+- **Tolerances.** The design uses generous drop-in fits (`FIT = 0.30`), but PETG
+  runs hotter and strings more than PLA. Check the snug interfaces on the first
+  parts — servo pockets (`foot`), idler bosses (Ø19 into the Ø25 recess), and the
+  GoPro slots (3.2 mm) — and tune flow / dial in a size test if anything binds.
+- **Mass.** PETG (~1.27 g/cm³) is ~2–3 % denser than the PLA the mass rollup in
+  `parts.py` assumes (~257 g plastic → ~+6 g). Negligible for the structure, but
+  note the printed-mass and CG figures in the docs are PLA-based.
 
 ## Parts to print
 
 | Part | Copies | Material | Infill | Orientation | Status |
 |---|---|---|---|---|---|
-| `pelvis` | 1 | PLA | 30–40 % | upside-down, deck top on bed | ✅ ready — *secondary* hip-angle check |
-| `yoke_roll` | 2 | PLA | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
-| `yoke_pitch` | 2 | PLA | 30–40 % | flange face on bed, arms up | ⚠️ **HOLD — being redesigned** (hip-angle revisit) |
-| `leg_link` | 4 | PLA | 30–40 % | on its back, web face on bed | ⚠️ **verify before printing** (2 of 4 are thighs, on the hip-pitch joint) |
-| `foot` | 2 | PLA | 30–40 % | sole down | ✅ ready |
-| `tower` | 1 | PLA | 30–40 % | upside-down, top plate on bed | ✅ ready |
-| `gopro_base` | 1 | **PETG** (or PLA @ 100 %) | — | base down, prongs up | ✅ printed in PETG |
+| `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ✅ ready — *secondary* hip-angle check |
+| `yoke_roll` | 2 | PETG | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
+| `yoke_pitch` | 2 | PETG | 30–40 % | flange face on bed, arms up | ⚠️ **HOLD — being redesigned** (hip-angle revisit) |
+| `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed | ⚠️ **verify before printing** (2 of 4 are thighs, on the hip-pitch joint) |
+| `foot` | 2 | PETG | 30–40 % | sole down | ✅ ready |
+| `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ✅ ready |
+| `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
 | TPU foot pad (90 × 46 × 2 mm) | 2 | **TPU** | — | flat | ✅ ready (or cut from TPU sheet) |
 
 `leg_link` ×4 = 2 thighs + 2 shins (identical part). `gopro_base` is the
 sacrificial crash fuse — the M5 clamp squeezes across layer lines, so PETG is
-the preferred material (**printed in PETG — noticeably more solid**); PLA at
-100 % infill is the fallback. TPU pads glue into the foot sole recess and sit
-0.5 mm proud.
+especially warranted there (already printed, noticeably more solid). TPU pads
+glue into the foot sole recess and sit 0.5 mm proud.
 
 ## ⚠️ Hip-angle revisit — what's in flux
 
