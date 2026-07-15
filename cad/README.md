@@ -49,10 +49,10 @@ bolt through the disc or a thin 19×27 washer-bearing under the arm.
 | `gopro_base` | 1 | 30 × 24 × 21 | 5 g | GoPro three-prong mount, bolts to the tower top (crash fuse — cheap to reprint) |
 
 Printed plastic ≈ 286 g (PETG). Total robot ≈ **0.88 kg** bare, **1.04 kg with
-the GoPro MAX** (8 servos 440 g, 3S LiPo 74 g, board ~20 g, fasteners ~47 g,
+the GoPro MAX** (8 servos 440 g, 3S LiPo ~80 g, board ~20 g, fasteners ~47 g,
 TPU 16 g, camera 154 g). Heights: ankle 16.9, knee 106.9, hip-pitch 196.9,
-hip-roll 246.9, torso top 324 mm, camera CG ≈ 378 mm. Standing CG rises from
-≈ 164 mm (bare) to ≈ 195 mm with the camera (**+31 mm**) — expect gait retuning.
+hip-roll 246.9, torso top 330.5 mm, camera CG ≈ 384 mm. Standing CG rises from
+≈ 165 mm (bare) to ≈ 197 mm with the camera (**+32 mm**) — expect gait retuning.
 
 ### GoPro mount (`gopro_base`)
 
@@ -76,7 +76,7 @@ legs are translations, not mirrors.
 |---|---|---|
 | Waveshare ST3215, 12 V version (6–12.6 V) | 8 | 30 kg·cm@12 V; includes metal horn + idler disc + M3×6 screws; do NOT buy the 4–7.4 V class (see docs/hardware-order.md) |
 | Waveshare Servo Driver with ESP32 | 1 | 65 × 30 mm; `dimensions.py::BOARD_HOLES` = published Ø2.75 @ 58 × 23 — **still verify against your board before printing the tower** |
-| Zeee 3S 850 mAh 100C XT30 (2-pack) | 2 | 67 × 30 × 18.5 mm, 74 g; bay is parametric on `BATT` — different pack, edit + reprint tower |
+| 3S 850 mAh XT30 pack (2-pack) | 2 | BOM pick Tattu 45C, 60 × 30 × 22 mm, 76 g. Bay envelope `BATT` = 68 × 31 × 26.5 is a superset of the 3S 850 field (see `docs/bom-by-vendor.md` fit table); mocks/inertia model the worst case `BATT_PACK` = 62 × 30 × 25, 80 g. Taller pack → edit `BATT` + reprint tower |
 | 20 mm hook-loop strap ~250 mm + pull ribbon | 1 | battery belt (rides in the tower guide ribs) + extraction tab under the pack |
 | M3×6 button head | 32 | horn pads (4 per joint × 8) — servo kits include some |
 | M3×8 button head + M3 thin washer | 24 | idler pads at hip-pitch, knee, ankle (4 × 6 joints); washer stops the tip short of the gears |
@@ -158,11 +158,14 @@ regenerate after any CAD change). Condensed order:
 - **Idler screw length**: M3×8 + washer assumes the disc's 3.35 mm thread depth;
   confirm screws don't bottom against the gear behind the disc.
 - **Driver board**: exact model + hole pattern (`BOARD_HOLES`) — it now hangs
-  inside the tower; confirm its component heights (< ~4 mm toward the battery)
-  and that the 18.5 mm-tall pack still leaves ~2 mm under the board.
-- **Battery swap fit**: test-fit the real Zeee pack through the window before
-  final assembly — sill height 2.5 mm, opening sized to the `BATT` envelope
-  (68 × 20); a puffier pack means editing `BATT` and reprinting the tower.
+  inside the tower; confirm its component heights (< ~4 mm toward the battery).
+  That 4 mm assumption is what sets the 3.5 mm clearance to a 26.5 mm pack
+  (`TOWER_H = BATT[2] + 13.5 + 3.5`); taller underside parts eat it directly.
+- **Battery swap fit**: test-fit the real pack through the window before final
+  assembly — sill height 2.5 mm, opening sized to the `BATT` envelope
+  (68 × 26.5); a pack taller than 26.5 means editing `BATT` and reprinting the
+  tower. Short packs (59–62 mm vs the 68 mm bay) have up to 8 mm of Y slop —
+  confirm the belt + ribbon actually restrain it, or add a shim.
 - **GoPro fit**: measure your MAX's finger thickness — slots are printed 3.2 mm
   (GoProScad standard is 3.5); confirm the folded-finger depth clears the
   17 mm prong height, and that 154 g up top (+29 mm CG) is retrained/retuned

@@ -41,7 +41,7 @@ settings in the [print list](../cad/PRINT_LIST.md)):
 
 **Everything else:** 8× ST3215 servos (12 V version) with their horns, idler
 discs and included screws/leads · Waveshare Servo Driver with ESP32 · BNO085
-IMU breakout · Zeee 3S 850 XT30 pack · XT30 pigtail + inline switch · 20 mm
+IMU breakout · 3S 850 XT30 pack · XT30 pigtail + inline switch · 20 mm
 hook-loop belt ~250 mm + pull ribbon · 2 self-adhesive rubber sole pads
 (~0.5 mm, trimmed to ~90×46) · zip ties. Full list with links:
 [BOM](bom-sourced.md).
@@ -249,6 +249,6 @@ the extension leads from the order list.
 
 ![Completed robot](assembly/step12_complete.png)
 
-*Assembled: ~34 cm to the tower top, ~0.88 kg bare / ~1.04 kg with the
+*Assembled: ~33 cm to the tower top, ~0.89 kg bare / ~1.05 kg with the
 camera. Cross-check any step against the fly-in animation:
 [`assembly_flyin.mov`](../cad/renders/assembly_flyin.mov).*

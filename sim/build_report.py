@@ -280,7 +280,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     <figcaption>dash_7v4_hard · the 2S gait — slower but grounded (no flight phase), arguably the better first-hardware candidate</figcaption>
   </figure>
   <p class="muted" style="margin-top:12px"><b>Decision made 07·11: 3S.</b> The
-  tower was reworked around it — a Zeee 3S 850 mAh pack (74 g, XT30) now
+  tower was reworked around it — a 3S 850 mAh pack (~80 g, XT30) now
   tilt-loads through a window in the rear wall for tool-free swaps (peel the
   belt, tug the ribbon; the fly-in animation below shows the pack passing
   through the window). Torso inertia was rebuilt for the lighter pack and the
