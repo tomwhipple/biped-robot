@@ -140,6 +140,8 @@ def main():
     p.add_argument("--action-map", default="legacy", choices=["legacy", "full"])
     p.add_argument("--hip-flex", type=float, default=None,
                    help="widen hip flexion to this many degrees (study: >=95)")
+    p.add_argument("--getup-mix", default="1,0,0",
+                   help="getup reset mix: ragdoll,kneel,squat fractions")
     args = p.parse_args()
 
     # env config: the exp_walk reward shape (the day-5 tuned set), full-length
@@ -170,6 +172,7 @@ def main():
             w_feet_air=0.0, w_single_support=0.0, w_lateral=0.0,
             w_pitch_rate=0.1, w_action_rate=0.15, w_power=0.008,
             w_recover_h=1.0, w_recover_up=0.8, stand_bonus=1.0,
+            getup_start_mix=tuple(float(x) for x in args.getup_mix.split(",")),
         )
     env = BimoMJXEnv(**env_kw)
     episode_length = env.max_steps

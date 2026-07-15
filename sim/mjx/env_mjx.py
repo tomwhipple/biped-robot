@@ -181,8 +181,17 @@ class BimoMJXEnv:
         getup: bool = False,
         getup_settle_s: float = 0.4,   # ragdoll settle time at reset
         w_recover_h: float = 1.0,      # height progress term
-        w_recover_up: float = 0.8,     # uprightness term
+        w_recover_up: float = 0.8,     # uprightness term. GATED on height
+        # (v3): paying for a vertical torso at pelvis height ~0.1 made the
+        # upright KNEEL an absorbing local optimum -- the pike transfer to
+        # standing requires the torso to fold DOWN first (reward valley).
+        # The term now scales in over pelvis height 0.12->0.20 m.
         stand_bonus: float = 1.0,      # per-step, when upright+tall+still
+        getup_start_mix: tuple = (1.0, 0.0, 0.0),   # reset-state mix:
+        # (ragdoll fall, upright kneel, feet-loaded squat). Reverse
+        # curriculum for v3: seeding episodes near the goal teaches the
+        # rise backward from standing; the fall->kneel part is already
+        # learned. Referee evals keep (1,0,0) -- the CLAIM is fall recovery.
         # -- see walker_env.py for both (kept arithmetically identical) ---------
         action_map: str = "legacy",    # "full" reaches asymmetric limits
         hip_flex_deg: float | None = None,   # widen hip FLEXION (deg)
@@ -264,6 +273,7 @@ class BimoMJXEnv:
         self.w_recover_h = w_recover_h
         self.w_recover_up = w_recover_up
         self.stand_bonus = stand_bonus
+        self.getup_start_mix = getup_start_mix
 
         self.action_size = 8
         self.obs_size = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2 + 2   # 38, command mode
@@ -375,10 +385,23 @@ class BimoMJXEnv:
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
 
+    def _settle(self, qpos, n):
+        data = mjx.make_data(self.model)
+        data = data.replace(qpos=qpos,
+                            ctrl=jp.zeros(self.mj_model.nu) + self._default)
+
+        def fall(d, _):
+            return mjx.step(self.model, d), None
+
+        data, _ = jax.lax.scan(fall, data, None, length=n)
+        return mjx.forward(self.model, data)
+
     def _fallen_data(self, r_q):
-        """Settled ragdoll fall: random orientation + joints, dropped from
-        0.35 m, stepped torque-free for getup_settle -- a natural heap."""
-        r_o, r_j = jax.random.split(r_q)
+        """Settled start for get-up mode. Mix (getup_start_mix): ragdoll fall
+        (random orientation + joints, dropped from 0.35 m) / upright kneel /
+        feet-loaded deep squat -- the latter two are the reverse-curriculum
+        seeds (learn the rise backward from near the goal)."""
+        r_m, r_o, r_j = jax.random.split(r_q, 3)
         u1, u2, u3 = jax.random.uniform(r_o, (3,))
         quat = jp.array([jp.sqrt(u1) * jp.cos(2 * jp.pi * u3),
                          jp.sqrt(1 - u1) * jp.sin(2 * jp.pi * u2),
@@ -388,17 +411,39 @@ class BimoMJXEnv:
             self._default + jax.random.uniform(r_j, (8,), minval=-0.6,
                                                maxval=0.6)
             * self._scale, self._lo, self._hi)
-        qpos = (self._qpos0.at[2].set(0.35).at[3:7].set(quat)
-                .at[_JQ0:_JQ1].set(joints))
-        data = mjx.make_data(self.model)
-        data = data.replace(qpos=qpos,
-                            ctrl=jp.zeros(self.mj_model.nu) + self._default)
+        q_rag = (self._qpos0.at[2].set(0.35).at[3:7].set(quat)
+                 .at[_JQ0:_JQ1].set(joints))
+        p_rag, p_kneel, _ = self.getup_start_mix
+        if p_rag >= 1.0:
+            return self._settle(q_rag, self.getup_settle)
+        # kneel: torso vertical, knees folded, shins on the ground
+        j_kneel = jp.zeros(8).at[jp.array([1, 5])].set(-0.2) \
+                             .at[jp.array([2, 6])].set(-1.62) \
+                             .at[jp.array([3, 7])].set(-0.6)
+        j_kneel = jp.clip(j_kneel, self._lo, self._hi)
+        q_kneel = self._qpos0.at[2].set(0.13).at[_JQ0:_JQ1].set(j_kneel)
+        # deep squat, feet flat, torso folded (the study's rise-path start)
+        j_squat = jp.zeros(8).at[jp.array([1, 5])].set(self._lo[1] + 0.05) \
+                             .at[jp.array([2, 6])].set(-1.62) \
+                             .at[jp.array([3, 7])].set(0.65)
+        j_squat = jp.clip(j_squat, self._lo, self._hi)
+        ang = 0.55                     # pitch forward so the soles sit flat
+        q_squat = (self._qpos0.at[2].set(0.10)
+                   .at[3:7].set(jp.array([jp.cos(ang / 2), 0.0,
+                                          jp.sin(ang / 2), 0.0]))
+                   .at[_JQ0:_JQ1].set(j_squat))
+        d_rag = self._settle(q_rag, self.getup_settle)
+        d_kneel = self._settle(q_kneel, 50)
+        d_squat = self._settle(q_squat, 50)
+        u = jax.random.uniform(r_m)
+        pick_kneel = (u >= p_rag) & (u < p_rag + p_kneel)
+        pick_squat = u >= p_rag + p_kneel
 
-        def fall(d, _):
-            return mjx.step(self.model, d), None
+        def sel(a, b, c):
+            out = jp.where(pick_kneel, b, a)
+            return jp.where(pick_squat, c, out)
 
-        data, _ = jax.lax.scan(fall, data, None, length=self.getup_settle)
-        return mjx.forward(self.model, data)
+        return jax.tree_util.tree_map(sel, d_rag, d_kneel, d_squat)
 
     # -- api -------------------------------------------------------------------
     def reset(self, rng: jax.Array) -> State:
@@ -525,11 +570,16 @@ class BimoMJXEnv:
         if self.getup:
             # recovery: dense progress toward tall + upright, then a standing
             # bonus (half for being up, half for being STILL up there) that
-            # makes a held stand the absorbing goal instead of thrashing
+            # makes a held stand the absorbing goal instead of thrashing.
+            # The uprightness term is GATED on pelvis height (v3): a vertical
+            # torso at kneel height must NOT pay, or the kneel becomes the
+            # absorbing state (v2's ceiling) -- the pike to standing requires
+            # folding the torso down through up_z ~ 0 first.
             still = jp.exp(-((planar / 0.2) ** 2))
+            up_gate = jp.clip((height - 0.12) / 0.08, 0.0, 1.0)
             primary = (self.w_recover_h * jp.clip(height / self._nominal_h,
                                                   0.0, 1.0)
-                       + self.w_recover_up * 0.5 * (up_z + 1.0)
+                       + self.w_recover_up * 0.5 * (up_z + 1.0) * up_gate
                        + self.stand_bonus * standing * (0.5 + 0.5 * still))
         else:
             v_kernel = self.w_track_v * jp.exp(-((vx_body - cmd_v) / 0.5) ** 2)

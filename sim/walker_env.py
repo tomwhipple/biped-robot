@@ -805,15 +805,18 @@ class BimoWalkerEnv(gym.Env):
             # Plausibly the root cause of "stands great, won't walk"
             # (found 2026-07-13 when even a pinned-command walk expert froze).
             if self.getup:
-                # recovery primary (matches sim/mjx): height + uprightness
-                # progress, standing bonus (half for up, half for still)
+                # recovery primary (matches sim/mjx): height + HEIGHT-GATED
+                # uprightness progress, standing bonus (half up, half still).
+                # The gate keeps the upright kneel from being an absorbing
+                # local optimum (see env_mjx.py / DESIGN.md get-up v3).
                 planar_g = float(np.hypot(d.qvel[0], d.qvel[1]))
                 standing = float((height > 0.85 * self._nominal_h)
                                  and (up_z > 0.9))
                 still = float(np.exp(-((planar_g / 0.2) ** 2)))
+                up_gate = float(np.clip((height - 0.12) / 0.08, 0.0, 1.0))
                 primary = (self.w_recover_h
                            * float(np.clip(height / self._nominal_h, 0.0, 1.0))
-                           + self.w_recover_up * 0.5 * (up_z + 1.0)
+                           + self.w_recover_up * 0.5 * (up_z + 1.0) * up_gate
                            + self.stand_bonus * standing * (0.5 + 0.5 * still))
             elif self.cmd_dense and self._cmd[0] > 0.05:
                 # any forward progress pays immediately, capped at the command
