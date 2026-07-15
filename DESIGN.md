@@ -992,6 +992,24 @@ ray from each facet measures local wall thickness, flagging blades under
 false-flag (the tower sill did until that filter). Verified: the check
 catches the bad foot, and the full part set is clean.
 
+Post-script 2 (same day): the user then caught the teardrop roofs
+**piercing part edges / leaving paper shells** — the full roof reaches
+r·√2 above the bore center vs r for the round hole it replaced, and holes
+placed with round-hole margins couldn't afford the extra 0.7 mm: leg_link's
++10.25 case screws poked through the grip-plate edge (12.65 vs 12.36), and
+the peak-side bolt-circle hole grazed every Ø19 idler boss at 0.1 mm
+(9.40 vs 9.50 — flakes, doesn't print). Fix: **capped teardrops** are now
+the default — the 45° roof truncates at the round bore's own top
+(center + r, a 0.83r ≈ 1.4 mm flat mini-bridge), so the void *never exceeds
+the round-hole envelope*: no new pierce or sliver is geometrically possible,
+while the bridged span still drops 3.4 → 1.4 mm. Full peaks only by explicit
+`full=True` where clearance is proven (gopro_base M5, which stays
+byte-identical). All flagged shells probed 100 % solid after the change;
+both gates pass. (Why the THIN check missed the 0.1 mm boss shells: curved
+shell over a 45° roof — exit faces aren't near-parallel, and the area is
+under the 15 mm² floor. The capped envelope kills the class by
+construction, which is the better guarantee anyway.)
+
 Sheet-metal alternative: evaluated in `docs/sheetcut-eval.md` (draft PR #19).
 Verdict: printed v3 first (free, same-day); order bent 5052 L-brackets + an
 aluminum sole (~$50–80, ~1 week) only if a v3 tab fails again or the

@@ -43,32 +43,37 @@ def cyl_z(r, z0, z1, x, y):
     return Pos(x, y, (z0 + z1) / 2) * Cylinder(r, abs(z1 - z0))
 
 
-def teardrop_y(r, y0, y1, x, z, roll=0):
-    """Self-supporting horizontal hole (axis along Y): a round bore plus a 45 deg
-    roof peak, so a horizontal hole prints without a bridged (sagging) top.
-    Peak apex sits r*sqrt(2) above the bore center; walls never exceed 45 deg.
+def teardrop_y(r, y0, y1, x, z, roll=0, full=False):
+    """Self-supporting horizontal hole (axis along Y): a round bore plus a
+    45 deg roof, so a horizontal hole prints without a bridged (sagging) top.
     Returns the SOLID void to subtract (bore + roof), not a hole in a part.
-    `roll` spins the peak about the bore axis toward the part's PRINT-up
+    `roll` spins the roof about the bore axis toward the part's PRINT-up
     direction: 0 = +z (parts printed model-up), 90 = +x (leg_link prints
     web-down, print-up = model +x), 180 = -z (parts modeled upside-down vs
-    their print, e.g. yoke_pitch)."""
+    their print, e.g. yoke_pitch).
+    Default is CAPPED: the roof is truncated at the round bore's own top
+    (center + r), leaving a 2r*(sqrt(2)-1) ~ 0.83r flat mini-bridge. The void
+    then never reaches past the round hole it replaces -- a full r*sqrt(2)
+    peak pierced plate edges and left ~0.1 mm shells on the O19 idler bosses
+    wherever holes were placed with round-hole margins. Pass full=True only
+    where clearance above the hole is proven (e.g. gopro_base M5)."""
     L = abs(y1 - y0)
     bore = Rot(90, 0, 0) * Cylinder(r, L)
-    # A square of side 2r rotated 45 deg about Y peaks at (0, r*sqrt(2)); clip it
-    # to |dx| <= r and to above the bore center so it only adds the top peak
+    # A square of side 2r rotated 45 deg about Y peaks at (0, r*sqrt(2)); clip
+    # it to |dx| <= r and above the bore center so it only adds the top roof
     # (its 45 deg faces meet the circle exactly at the tangent points).
     diamond = Rot(0, 45, 0) * Box(2 * r, L, 2 * r)
-    keep = box(-r, r, -L / 2, L / 2, 0, 2 * r)
+    keep = box(-r, r, -L / 2, L / 2, 0, 2 * r if full else r)
     return Pos(x, (y0 + y1) / 2, z) * Rot(0, roll, 0) * (bore + (diamond & keep))
 
 
-def teardrop_x(r, x0, x1, y, z, roll=0):
+def teardrop_x(r, x0, x1, y, z, roll=0, full=False):
     """teardrop_y's sibling with the bore along X. roll about the bore axis:
     0 = peak +z, 180 = peak -z (pelvis prints deck-top-down)."""
     L = abs(x1 - x0)
     bore = Rot(0, 90, 0) * Cylinder(r, L)
     diamond = Rot(45, 0, 0) * Box(L, 2 * r, 2 * r)
-    keep = box(-L / 2, L / 2, -r, r, 0, 2 * r)
+    keep = box(-L / 2, L / 2, -r, r, 0, 2 * r if full else r)
     return Pos((x0 + x1) / 2, y, z) * Rot(roll, 0, 0) * (bore + (diamond & keep))
 
 
@@ -431,7 +436,8 @@ def gopro_base():
         p += box(-D.GP_PRONG_OD / 2, D.GP_PRONG_OD / 2, y0, y1, zb, zh)
         p += cyl_y(D.GP_PRONG_OD / 2, y0, y1, 0, zh)
     if D.GP_HOLE_TEARDROP:
-        p -= teardrop_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh)
+        # full peak: proven clearance (printed), keeps the part byte-stable
+        p -= teardrop_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh, full=True)
     else:
         p -= cyl_y(D.GP_HOLE_D / 2, -hy - 1, hy + 1, 0, zh)
     gx, gy = D.GP_SCREW_XY
