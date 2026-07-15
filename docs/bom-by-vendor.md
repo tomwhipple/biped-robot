@@ -30,7 +30,7 @@ slower than Amazon Prime — check lead time. Amazon alternates: servo
 
 | Component | Qty | Product | Unit | Extended | Link |
 |---|---|---|---|---|---|
-| 3S LiPo battery | 1 (2-pack) | Tattu 3S 850 mAh 11.1 V 45C XT30, 2-pack (60 × 30 × 22 mm, 76 g) — or any pack in the bay's fit table below | ~$30 | ~$30.00 | [B0BWRR3FFP](https://www.amazon.com/dp/B0BWRR3FFP) |
+| 3S LiPo battery | 2 | Tattu 850 mAh 11.1 V 75C 3S1P XT30 (60 × 30 × 23 mm, 80 g) — or any pack meeting the spec filter below | ~$15 | ~$30.00 | [search](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) · ASIN [B07218SB7L](https://www.amazon.com/dp/B07218SB7L) |
 | M3 screw + heat-set insert kit | 1 | KADRICK 420 pc M3 kit — covers M3×6–30 screws, brass inserts, nuts, washers | $15.99 | $15.99 | [B0GYRQG7F2](https://www.amazon.com/dp/B0GYRQG7F2) |
 | M3×8 self-tapping screws | 52 (100 pc) | M3×8 Self-Tapping SS, flat head hex (incl. drive bit) | $8.28 | $8.28 | [B0F9XYX9BQ](https://www.amazon.com/dp/B0F9XYX9BQ) |
 | M2.5×8 self-tapping screws | 4 (50 pc) | uxcell M2.5×8 self-tapping, 304 SS | $8.07 | $8.07 | [B01KXTTSCI](https://www.amazon.com/dp/B01KXTTSCI) |
@@ -81,24 +81,27 @@ All-in from zero (robot + printer order): **~$845**.
   [B0F5W67S56](https://www.amazon.com/dp/B0F5W67S56), and
   [B09SZ41RJW](https://www.amazon.com/dp/B09SZ41RJW) — buy whichever is cheapest
   and in stock; prefer a title that states "6~12V" and "SC, ST Series".
-- **Battery: buy to the fit table, not to one ASIN.** The bay was originally cut
-  for the Zeee 3S 850 (67 × 30 × 18.5, 74 g), which went unavailable on Amazon —
-  and every other 3S 850 is stubbier but *taller*, so nothing dropped in. The bay
-  is now sized (`BATT` in `cad/dimensions.py`) to swallow the whole field.
-  **Height is the binding axis**; check it first:
+- **Battery: buy to the spec filter, not to an ASIN.** The bay was originally cut
+  for the Zeee 3S 850 (67 × 30 × 18.5, 74 g), which went unavailable — and every
+  other 3S 850 is stubbier but *taller*, so nothing dropped in. The bay is now
+  sized (`BATT` in `cad/dimensions.py`) to swallow the whole class. **Any pack
+  meeting all four of these fits, no CAD change:**
 
-  | Pack | ASIN | L × W × H (mm) | Mass | H slack |
-  | --- | --- | --- | --- | --- |
-  | Tattu 45C (2-pk) **← BOM pick** | [B0BWRR3FFP](https://www.amazon.com/dp/B0BWRR3FFP) | 60 × 30 × 22 | 76 g | 4.5 |
-  | Ovonic 80C (2-pk) | [B09CTSCWYM](https://www.amazon.com/dp/B09CTSCWYM) | 59 × 29.7 × 22.9 | 74 g | 3.6 |
-  | Tattu 75C | [B07218SB7L](https://www.amazon.com/dp/B07218SB7L) | 59 × 30 × 24 | ~80 g | 2.5 |
-  | CNHL 70C (2-pk) | [B0C4PQRTYG](https://www.amazon.com/dp/B0C4PQRTYG) | 62 × 30 × 25 | ~80 g | 1.5 |
-  | Zeee 100C (original) | *direct only* | 67 × 30 × 18.5 | 74 g | 8.0 |
+  | | requirement | why |
+  | --- | --- | --- |
+  | chemistry | **3S, 11.1 V** — *not* 11.4 V HV | LiHV charges to 13.05 V, over the ST3215's 12.6 V ceiling |
+  | connector | **XT30** | not JST / EC5 / XT60; the pigtail assumes it |
+  | height | **≤ 26.5 mm** | binding axis — 3.5 mm board clearance above |
+  | footprint | **≤ 68 (L) × 31 mm (W)** | bay envelope; L runs laterally |
 
-  Must be **3S / 11.1 V** and **XT30** (not JST, not EC5, not XT60). Anything
-  taller than 26.5 mm needs `BATT` edited and the tower reprinted. Short packs
-  (59–62 mm) leave up to 8 mm of length slop — the belt takes it up; shim if it
-  rattles.
+  BOM pick is the **Tattu 850 mAh 75C** (60 × 30 × 23 mm, 80 g) — specs
+  cross-checked against three independent stockists, and its 80 g is the mass
+  the sim models (`BATT_PACK_MASS`). Ovonic 80C (60 × 30 × 24, 76 g) and CNHL
+  70C (62 × 30 × 25, ~80 g) also fit. **Amazon ASINs for these packs churn**
+  (the Zeee's went dead mid-project) — prefer the search link in the table and
+  apply the filter above. Short packs (59–62 mm) leave up to 8 mm of *lateral*
+  slop; shim it (see `DESIGN.md`, "Battery bay widened") — the sim assumes the
+  pack is centered and cannot represent it moving.
 - **Fastener consolidation.** The KADRICK kit covers all M3 button-head screws,
   washers, and heat-set inserts (originally 4 separate line items). It is
   socket-cap, not button-head — check head clearance at the idler screws.

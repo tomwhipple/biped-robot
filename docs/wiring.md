@@ -22,9 +22,10 @@ pigtail and a switch.*
 ```
 
 - The battery is a 3S 850 mAh XT30 pack — BOM pick
-  [Tattu 45C](https://www.amazon.com/dp/B0BWRR3FFP) (decided 2026-07-11,
-  re-sourced 2026-07-15; a 2-pack, so one charges while one flies). Any pack in
-  the `bom-by-vendor.md` fit table works. It swaps
+  [Tattu 75C](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) (decided
+  2026-07-11, re-sourced 2026-07-15; buy two, so one charges while one flies).
+  Any pack passing the `bom-by-vendor.md` spec filter works — **11.1 V, not
+  11.4 V HV**, which would exceed the servos' 12.6 V ceiling. It swaps
   tool-free through the window in the rear tower wall: peel the belt, tug the
   pull-ribbon, tilt the pack out; reverse to insert (lead-end toward whichever
   y-pocket the XT30 pigtail lives in).

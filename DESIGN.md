@@ -1132,8 +1132,53 @@ it now derives from the real face-down standoff plane. And `battery_mock()` in
 pack fit. Both the mock and the inertia box now read `BATT_PACK` (62 × 30 × 25,
 80 g — the worst case of the field), so there is one source of truth.
 
-Open: short packs (59–62 mm) have up to 8 mm of Y slop in the 68 mm bay; the
-belt + ribbon should take it up, but that wants a real test-fit or a shim.
+**Policy impact: none.** `dash_11v1_hardlat3` re-evaluated on both plants
+(GoPro + 4 ms, 32 episodes):
+
+| | old (319.5 g) | new (327.8 g) |
+| --- | --- | --- |
+| dash finishes | 32/32, median 2.85 s | 30/32, median **2.70 s** |
+| torso wobble | 1.96 rad/s RMS | **1.88** |
+| DR + shoves | 0/16 | 0/16 |
+
+30/32 vs 32/32 is inside noise at n=32, and the new plant is *faster and
+smoother*, consistent with +8.3 g being +0.9% on a policy that trains under
+±15 % mass DR. No repair fine-tune needed. The DR+shoves column is 0/16 on
+both — identical, so no regression, but it was already floored (see the
+robustness gauntlet above); this change neither caused nor fixed it.
+
+Note `eval_policy.py` defaults to the `xml_path` baked into each run's
+`env_config.json` (an absolute path into the main checkout), so re-running
+these without an explicit `--xml` silently measures the *old* plant.
+
+**Open — battery restraint (the pack must not move).** Short packs (59–62 mm)
+have up to 8 mm of slop in the 68 mm bay, and `BATT[0]` runs along **y —
+the lateral axis**. That is the robot's weak plane: the sole is 90 mm fore-aft
+but only 46 mm wide, and at 56 mm hip separation the single-support polygon's
+inner edge sits 5 mm off centerline, so the nominal CoM is already outside the
+stance foot. An unrestrained 80 g pack (9 % of robot mass) would give (a) a
+permanent ~0.37 mm lateral CoM bias if it settles off-centre — `build_v2_inertia`
+models it centred at y=0 and nothing enforces that — and (b) gait-phase-locked
+wall impacts (~10-15 % of the 5 N test-shove impulse, but every step rather than
+1 % random).
+
+The sim **cannot represent this**: the pack is a massless visual geom whose mass
+is baked into the torso `<inertial>`, and DR scales `body_inertia` by the same
+scalar as mass while never touching `body_ipos` — so torso CoM position is
+randomized by exactly zero in every rollout. Precedent for taking this
+seriously: issue #3, where an oversized contact patch silently propped up a
+policy's robustness and correcting it collapsed `dash_11v1_hardlat` 30/32 → 2/16.
+
+Decision (2026-07-15): restrain mechanically with foam and/or two symmetric
+printed shims of `(BATT[0] - BATT_PACK[0])/2` — symmetric so the pack is
+*centred*, making the sim's y=0 assumption true by construction rather than
+merely assumed. Sims proceed on the assumption the pack does not move.
+Not yet designed; the shim part and a real test-fit are outstanding.
+
+Also outstanding: the belt guide ribs derive from `BATT[2]` (envelope), so they
+moved to z=18.5/29.5. For a 23-25 mm pack the lower belt still crosses it, but
+for a flat 18.5 mm pack the belt now sits at its top edge and restrains little —
+the ribs arguably want to track `BATT_PACK[2]` instead.
 
 ## 9. References
 
