@@ -49,8 +49,12 @@ SV_GRIP_SPAN = SV_HORN_FACE - SV_IDLER_FACE   # 37.25 (drawing-confirmed)
 BCD = 14.0
 PAD_HOLE = 3.4          # M3 clearance in printed pads
 PAD_D = 24.0            # printed pad (arm end) diameter
-HORN_CENTER_RELIEF_D = 9.0   # relief over the (recessed) horn center screw
-IDLER_CENTER_RELIEF_D = 10.0
+HORN_CENTER_RELIEF_D = 8.0   # relief over the (recessed) horn center screw.
+IDLER_CENTER_RELIEF_D = 8.0  # Both sized so the web to the O14-BC M3 holes
+                        # stays printable: gap = 7 - relief_r - 1.7. At the
+                        # old O9/O10 it was 0.8/0.3 mm (flakes); O8 gives 1.3.
+                        # Center screw head is ~O5.7 recessed -> 1.1 mm slack.
+                        # VERIFY on the real horn/idler disc before final print.
 
 # case mounting hole rows (distance behind the output axis; lateral +/-10.25)
 CASE_HOLES_TOP = (8.30, 29.00)     # horn-side face

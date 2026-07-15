@@ -68,7 +68,8 @@ LEDGE_OK = 1.2                            # unsupported ledge reach that's fine
 ISLAND_AREA_OK = 3.0                      # mm^2 of floating facets we ignore
 CONTACT_MIN_FRAC = 0.25                   # first layer >= this of footprint
 THIN_WALL = 0.85                          # < ~2 perimeters -> single strand
-THIN_AREA_OK = 15.0                       # ignore tiny knife-edge tips (mm^2)
+THIN_AREA_OK = 4.0                        # ignore tiny knife-edge tips (mm^2,
+                                          # of estimated thin-zone area)
 
 
 def load_stl(path):
@@ -226,22 +227,35 @@ def audit(name, verbose=True):
             mark = "**" if bad else "  "
             print(f"  {mark}{kind:8s} {desc}")
 
-    # thin walls: inward ray from each facet centroid; local thickness = exit
+    # thin walls: inward rays from each facet; local thickness = exit
     # distance. Only count exits through a near-PARALLEL far face (a true
     # two-sided blade) -- a 45 deg chamfer/gusset tip also exits quickly, but
     # through an angled face, and prints fine (perimeter steps up the slope).
-    order = np.argsort(area)[::-1][:1500]
+    # Large facets get a barycentric sample GRID, not just the centroid: a
+    # thin web between a hole and a part edge lives on a big flat face whose
+    # centroid is nowhere near the hole (how the 0.4 mm leg_link plate-edge
+    # webs slipped through a centroid-only pass).
     unit = (n.T / area2).T
-    normals = unit[order]
-    tdist, tidx = ray_dist(cen[order] - normals * 0.02, -normals, tri,
-                           return_idx=True)
-    close = tdist < THIN_WALL
-    facing = np.einsum("ij,ij->i", normals[close],
-                       unit[tidx[close]]) < -0.8
-    thin = order[np.where(close)[0][facing]]
+    BARY = np.array([[1, 1, 1], [4, 1, 1], [1, 4, 1], [1, 1, 4],
+                     [2, 2, 1], [2, 1, 2], [1, 2, 2], [7, 2, 1], [2, 7, 1],
+                     [1, 2, 7], [7, 1, 2], [1, 7, 2], [2, 1, 7]], float)
+    BARY /= BARY.sum(axis=1, keepdims=True)
+    order = np.argsort(area)[::-1][:3000]
+    thin_frac = np.zeros(len(tri))
+    for i in order:
+        k = int(np.clip(area[i] / 2.0, 1, len(BARY)))
+        pts = BARY[:k] @ tri[i] - unit[i] * 0.02
+        d, j = ray_dist(pts, np.broadcast_to(-unit[i], (k, 3)), tri,
+                        return_idx=True)
+        hit = d < THIN_WALL
+        if hit.any():
+            par = np.einsum("ij,ij->i", np.broadcast_to(unit[i], (k, 3))[hit],
+                            unit[j[hit]]) < -0.8
+            thin_frac[i] = par.sum() / k
+    thin = np.where(thin_frac > 0)[0]
     for grp in clusters(thin, tri):
         g = np.array(grp)
-        ga = area[g].sum()
+        ga = (area[g] * thin_frac[g]).sum()       # est. area of the thin zone
         if ga < THIN_AREA_OK:
             continue
         lo = tri[g].reshape(-1, 3).min(axis=0)

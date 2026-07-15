@@ -178,11 +178,15 @@ def leg_link(print_fins=False):
     drop = -D.LINK_DROP
     web_x1 = -12.36 - D.WEB_GAP                     # web inner face (cable gap)
     web_x0 = web_x1 - 2.4                           # web outer face, -15.16
-    # --- grip channel on the servo case (plates reach the web outer face)
-    p = box(web_x0, 12.36, D.SV_TOPFACE, D.SV_TOPFACE + t, D.GRIP_BOT, D.GRIP_TOP_HORN)
+    # --- grip channel on the servo case (plates reach the web outer face).
+    # Front edge 13.2, not the case half-width 12.36: the +10.25 case screws
+    # end 11.95 from center, and a 12.36 edge left a 0.41 mm web past the
+    # hole (single filament -- flakes off) with the screw head overhanging.
+    grip_x1 = 13.2
+    p = box(web_x0, grip_x1, D.SV_TOPFACE, D.SV_TOPFACE + t, D.GRIP_BOT, D.GRIP_TOP_HORN)
     # relief around the O19.6 output boss / horn skirt (they spin vs this plate)
     p -= cyl_y(D.GRIP_HORN_RELIEF, D.SV_TOPFACE - 1, D.SV_TOPFACE + t + 1, 0, 0)
-    p += box(web_x0, 12.36, -D.SV_TOPFACE - D.PLATE, -D.SV_TOPFACE,
+    p += box(web_x0, grip_x1, -D.SV_TOPFACE - D.PLATE, -D.SV_TOPFACE,
              D.GRIP_BOT, D.GRIP_TOP_IDLER)
     p += box(web_x0, web_x1, -D.SV_TOPFACE - D.PLATE, D.SV_TOPFACE + t,
              D.WEB_END, D.WEB_TOP)

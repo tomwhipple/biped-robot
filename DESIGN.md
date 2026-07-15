@@ -1007,8 +1007,25 @@ while the bridged span still drops 3.4 → 1.4 mm. Full peaks only by explicit
 byte-identical). All flagged shells probed 100 % solid after the change;
 both gates pass. (Why the THIN check missed the 0.1 mm boss shells: curved
 shell over a 45° roof — exit faces aren't near-parallel, and the area is
-under the 15 mm² floor. The capped envelope kills the class by
+under the area floor. The capped envelope kills the class by
 construction, which is the better guarantee anyway.)
+
+Post-script 3 (same day): next user catch — **hole-to-edge webs down to a
+single filament**. The +10.25 case screws in leg_link's grip plates ended
+0.41 mm from the plate front edge (edge = case half-width 12.36, holes fixed
+by the servo's pattern — a v1-era sliver, screw heads overhung the edge
+too), and the Ø14-BC bolt holes sat 0.8 / 0.3 mm from the Ø9 / Ø10
+center-screw reliefs on every joint pad. Since the holes can't move, the
+material did: grip plates widened to 13.2 (web 1.25, heads fully seated),
+center reliefs shrunk to Ø8 (webs 1.3; still 1.1 mm slack over the ~Ø5.7
+recessed center screw — verify on the real horn/idler). The THIN audit now
+**grid-samples large facets** (barycentric points, area-weighted) instead of
+centroid-only — a web beside a hole lives on a big face whose centroid is
+far away, which is exactly how these evaded the first version. Confirmed it
+flags all four webs pre-fix and nothing post-fix; both gates pass.
+Separately verified all exported meshes are watertight/manifold (0 bad
+edges) — the visible "seams" through holes are CSG face boundaries on a
+continuous surface, not defects.
 
 Sheet-metal alternative: evaluated in `docs/sheetcut-eval.md` (draft PR #19).
 Verdict: printed v3 first (free, same-day); order bent 5052 L-brackets + an
