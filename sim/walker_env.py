@@ -356,6 +356,7 @@ class BimoWalkerEnv(gym.Env):
             raise ValueError(f"unknown actuator_model {actuator_model!r}")
         self.servo_range = servo_range
         self._servo_tau = np.zeros(8)
+        self._torque_on = True         # see set_torque_enabled()
 
         self.dash = dash
         self.dash_distance = dash_distance
@@ -609,10 +610,44 @@ class BimoWalkerEnv(gym.Env):
             self.np_random.uniform(lo, hi) / self.control_dt)
 
     def set_command(self, v: float, w: float):
-        """External command override (scenario evals / future teleop or
-        goal-seeking layers). Disables auto-resampling until the next reset."""
+        """External command override (scenario evals / teleop or goal-seeking
+        layers -- see link/). Disables auto-resampling until the next reset."""
         self._cmd = np.array([float(v), float(w)])
         self._cmd_next = 10 ** 9
+
+    def set_torque_enabled(self, on: bool):
+        """Release / re-engage servo torque, both actuator models.
+
+        The hardware analogue is the STS3215's torque-enable register (the
+        "Release" step in docs/wiring.md's bring-up checklist), and the
+        wireless link's watchdog needs it: a link dead for seconds must not
+        leave eight servos cooking at stall to hold a pose nobody is asking
+        for. Limp is the safe state off-link -- the robot is 28 cm tall and
+        falls better than it overheats.
+
+        Note the ideal-actuator path edits model gains, which a reset under
+        domain_rand re-randomizes from nominal (i.e. re-enables). The link
+        agent re-asserts this every tick, so it does not drift.
+        """
+        on = bool(on)
+        if on == self._torque_on:
+            return
+        self._torque_on = on
+        if self.actuator_model == "ideal":
+            if on:
+                # Restore what was there, NOT _nom_gain: under DR this episode
+                # is running scaled gains, and re-engaging must not silently
+                # hand the policy a different plant than it fell asleep on.
+                self.model.actuator_gainprm[:] = self._held_gain
+                self.model.actuator_biasprm[:] = self._held_bias
+            else:
+                # Silence the MJCF position actuators the same way the sts3215
+                # model silences them permanently at construction.
+                self._held_gain = self.model.actuator_gainprm.copy()
+                self._held_bias = self.model.actuator_biasprm.copy()
+                self.model.actuator_gainprm[:] = 0.0
+                self.model.actuator_biasprm[:] = 0.0
+        # sts3215 torque is recomputed per substep in step(), gated on the flag.
 
     # -- gym API -----------------------------------------------------------
     def reset(self, *, seed=None, options=None):
@@ -738,6 +773,8 @@ class BimoWalkerEnv(gym.Env):
                     err = np.sign(err) * np.maximum(
                         np.abs(err) - 0.5 * self._lash_rad, 0.0)
                 self._servo_tau = np.clip(kp * err - kd * qd, -cap, cap)
+                if not self._torque_on:      # released servos: limp, no hold
+                    self._servo_tau = np.zeros(8)
                 self.data.qfrc_applied[_JQVEL] = self._servo_tau
             elif lat_k:
                 # ideal position actuators read data.ctrl -- hold the previous

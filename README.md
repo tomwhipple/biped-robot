@@ -33,6 +33,15 @@ live in [DESIGN.md](DESIGN.md).
   joint's far side (alignment comes from the 4× M3 pattern, not the boss —
   see cad/README.md). BOM and print settings in
   [cad/README.md](cad/README.md).
+- **Wireless command channel** — the robot is untethered by design: the
+  50 Hz policy loop runs on the ESP32, so the radio carries only
+  `(vx, yaw_rate)` intent at 20 Hz (14 bytes) and USB-C is for flashing
+  only. A lost link decays to the zero command — a *trained* stand, not a
+  bolted-on emergency pose — then releases torque after 5 s. Protocol and
+  failsafe are specified in `link/`, exercised against MuJoCo over real UDP
+  by `sim/udp_agent.py` (30 % packet loss is invisible), and drivable by
+  script, gamepad, or goal-seeker. No parts change.
+  See [docs/control-channel.md](docs/control-channel.md).
 - **Visual training log** — `sim/runs/night_summary.html` (self-contained
   page with gait filmstrips), rebuilt after every training round by
   `sim/build_report.py`.
@@ -57,8 +66,15 @@ python compare_runs.py                                 # rank all trained runs
 # train something new (see --help for reward/DR/terrain/warm-start flags)
 python train_ppo.py --steps 2_000_000 --n-envs 8 --run-name my_run
 
+# drive a policy over the real command protocol (two shells; ctrl-C to stop).
+# --host 127.0.0.1 talks to the sim twin; a robot's IP talks to the robot.
+cd .. && python sim/udp_agent.py --run-name cmd_11v1 --render
+python link/commander.py --host 127.0.0.1 --source gamepad
+python link/commander.py --host 127.0.0.1 --source script --script square
+python -m pytest tests/ -q             # protocol, watchdog, sources, torque
+
 # regenerate CAD outputs after editing cad/dimensions.py
-cd .. && python cad/parts.py            # STLs + bed-fit/mass checks
+python cad/parts.py                     # STLs + bed-fit/mass checks
 python cad/check_assembly.py            # joint-sweep interference checks
 python cad/export_step.py               # STEP solids for FreeCAD/Onshape
 python cad/export_assembly.py           # assembled-robot STEP
@@ -81,7 +97,13 @@ robot/
 │   ├── cad-and-printer-recommendations.md   # CAD software & 3D printer picks
 │   ├── hardware-order.md         # order checklist + 2S/3S decision + reconciliation
 │   ├── bom-sourced.md            # sourced BOM: live links & prices (reconciled)
-│   └── wiring.md                 # circuit + block diagrams, servo IDs, bring-up
+│   ├── wiring.md                 # circuit + block diagrams, servo IDs, bring-up
+│   └── control-channel.md        # wireless command link: protocol, failsafe, firmware port
+├── link/                         # the wireless command channel (laptop side)
+│   ├── protocol.py               # wire format + Watchdog (the firmware reference)
+│   ├── sources.py                # command sources: script / gamepad / goal-seeker
+│   └── commander.py              # streams (vx, yaw) intent to the robot over UDP
+├── tests/                        # pytest: protocol, watchdog, sources, torque release
 ├── cad/                          # parametric CAD (code is the source of truth)
 │   ├── dimensions.py             # every dimension, incl. measured STS3215 data
 │   ├── parts.py                  # the 6 printable parts -> stl/ + mass/bed checks
@@ -103,6 +125,9 @@ robot/
     ├── train_ppo.py              # SB3 PPO trainer (reward/DR/terrain/warm-start flags)
     ├── eval_policy.py            # metrics + gif rendering for a trained run
     ├── compare_runs.py           # evaluate & classify every run in a table
+    ├── eval_commands.py          # scenario evals for command-conditioned policies
+    ├── udp_agent.py              # sim twin of the on-robot command listener
+    ├── render_link_demo.py       # the link-failsafe figure in docs/control-channel.md
     ├── build_report.py           # rebuild runs/night_summary.html (visual log)
     ├── renders/                  # Stage-1 sim renders
     └── runs/                     # (gitignored) trained policies, logs, gifs

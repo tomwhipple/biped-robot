@@ -83,7 +83,7 @@ pigtail and a switch.*
 
 | Link | Rate | Role |
 |---|---|---|
-| Laptop ↔ ESP32 WiFi | 802.11n | development: telemetry, web UI, remote policy |
+| Laptop ↔ ESP32 WiFi | 20 Hz cmd / 10 Hz telemetry | **the control channel**: high-level `(vx, yaw_rate)` intent + telemetry — [control-channel.md](control-channel.md) |
 | Laptop ↔ USB-C (UART0) | 115200 | flashing, serial bridge, tethered debug |
 | ESP32 ↔ servos (UART1) | 1,000,000 | position commands + state readback |
 
@@ -91,9 +91,18 @@ The latency work in DESIGN.md bears directly on this: at 115200 baud a full
 8-servo command + state readback cycle eats most of a 20 ms control tick,
 and WiFi adds jitter on top. The servo bus itself at 1 Mbaud is ~10× faster
 than the link to the laptop. So the plan of record is the one the latency
-sims validated: **run the 50 Hz policy loop on the ESP32** (or at minimum
-raise UART0 baud), keeping laptop links for telemetry only. No parts change
-either way — the ESP32 on the order sheet does both jobs.
+sims validated: **run the 50 Hz policy loop on the ESP32**. No parts change —
+the ESP32 on the order sheet does both jobs.
+
+That decision is also what makes the robot **untethered**: with the policy
+loop on-board, the radio never carries joint angles. It carries only the
+`(vx, yaw_rate)` command the policy already consumes, 14 bytes at 20 Hz, so a
+dropped packet costs staleness rather than a bad servo target — and a link
+that goes quiet decays to the zero command, which is a *trained* stand
+(`cmd_stand_prob`), not a bolted-on emergency pose. USB-C is for flashing and
+debug; nothing about operating the robot needs it. Protocol, failsafe
+timings, and the sim-verified loss measurements are in
+[control-channel.md](control-channel.md).
 
 ## Bring-up checklist
 
@@ -102,3 +111,8 @@ either way — the ESP32 on the order sheet does both jobs.
 3. Chain one leg at a time; confirm enumeration count on the OLED.
 4. Torque-off ("Release") all servos, assemble, then use "Set Middle
    Position" at the CAD-neutral pose before first powered stand.
+5. Bring up the command link before the first walk: with the robot on a
+   stand (feet off the floor), run `link/commander.py --host <ip> --source
+   script --script stand` and confirm telemetry comes back, then walk the
+   watchdog through its states — kill the commander and check the servos
+   release ~5 s later. [control-channel.md](control-channel.md).
