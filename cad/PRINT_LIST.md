@@ -17,9 +17,10 @@ Two things to watch when you print PETG:
   runs hotter and strings more than PLA. Check the snug interfaces on the first
   parts — servo pockets (`foot`), idler bosses (Ø19 into the Ø25 recess), and the
   GoPro slots (3.2 mm) — and tune flow / dial in a size test if anything binds.
-- **Mass.** PETG (~1.27 g/cm³) is ~2–3 % denser than the PLA the mass rollup in
-  `parts.py` assumes (~257 g plastic → ~+6 g). Negligible for the structure, but
-  note the printed-mass and CG figures in the docs are PLA-based.
+- **Mass.** PETG (~1.27 g/cm³) is ~2–3 % denser than PLA. The mass rollup now
+  uses the PETG density (`dimensions.py::FILAMENT_RHO = 1.27e-3`): printed plastic
+  ~263 g (was ~257 g in PLA), total robot ~860 g. `parts.py` and the sim inertia
+  builder (`sim/build_v2_inertia.py`) both reflect this.
 
 ## Parts to print
 

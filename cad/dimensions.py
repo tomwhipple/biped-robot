@@ -209,7 +209,9 @@ DECK_BOT_Z = HIP_ROLL_Z + SV_AXIS_FROM_REAR          # 282.0 (servo top end)
 TORSO_CENTER_Z = HIP_ROLL_Z + 36.0                   # 282.9 (sim: 280)
 TOP_Z = DECK_BOT_Z + DECK_T + TOWER_H                # 319.0 overall
 
-PLA_RHO = 1.24e-3       # g/mm^3
+# Filament density for mass/inertia estimates. Robot is printed in PETG
+# (~1.27 g/mm^3); PLA would be 1.24e-3 if you switch back.
+FILAMENT_RHO = 1.27e-3  # g/mm^3 (PETG)
 PRINT_MASS_FACTOR = 0.90  # thin-walled parts print near-solid; grid infill on thick
 
 BED = 220.0             # print bed (square)
