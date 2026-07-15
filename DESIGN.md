@@ -1033,6 +1033,52 @@ aluminum sole (~$50–80, ~1 week) only if a v3 tab fails again or the
 get-up-corridor sole enlargement is adopted — an Al sole is mass-neutral
 against an enlarged PETG print and drops CoM ~6 mm.
 
+### Get-up option (a) executed: hip −110°/+60° + enlarged soles (2026-07-15)
+
+The decision point closed as (a). What the sim had been *simulating* since
+the hip-pitch study (`hip_flex_deg=110`) is now what the CAD *builds* and
+the XML defaults to.
+
+**What actually limited the hip.** Not the servo, not the flange: a fine
+CSG sweep (leg_link + servo mock vs yoke_pitch, 5° steps) shows first
+contact at **±105°** — the thigh leg_link's idler-side grip plate and web
+share the idler yoke arm's Y band (−20.35..−18 of −21..−18; the horn side
+has no overlap — that's the 0.7 mm plate/prong gap), and the grip plate's
+top-front corner (r = 20.75 mm off the axis) sweeps into the arm plate's
+front edge. The XML's old ±60° was simply a conservative margin under the
+unexamined 105.
+
+**Fix (yoke_pitch idler arm only).** The thigh sweep across −115..+65 only
+occupies angles ≤65° (front) and ≥166° (rear) at radii ≥16 mm, leaving the
+top-rear sector dead. The idler arm is now a **Ø28 hub disc** (2 mm under
+the r=16 swing floor) **+ riser plate** (x −14..+4) through that dead
+sector: front edge clears flexion to ~129°, rear edge clears extension to
+~97°. The hub's front-upper quadrant is cut to a **45° face** so the disc
+prints support-free flange-down (its print-underside); bolt rims keep
+≥1.3 mm past the cut. Horn arm unchanged. `check_assembly` now sweeps the
+**full thigh assembly** (leg_link + servo, not just the servo) at
+0/−60/−95/−105/−110/−115/+60/+65 vs yoke_pitch, plus deep-flexion checks
+vs yoke_roll and the pelvis at roll 0/±25 — ALL CLEAR.
+
+**Soles enlarged 100 → 116 mm, heel-biased** (heel 42 → 52, toe 58 → 64;
+width stays 52 — the rise fails *backward* and lateral wasn't the failure
+mode). Rise corridor grows from ±20 mm on the 90 mm pad to roughly ±28 mm
+on the 106 mm pad, most of it behind the heels where the pike tips. Foot
+segment 91 → 110.1 g (print ~42 g, pad 9.5 g).
+
+**Propagated:** XML hip range −110/+60 (walker_env's `hip_flex_deg=110` is
+now a no-op, older runs unaffected), sole contact boxes 106 × 46 at the
+pad-true inset, CAD-true inertials rebaked for every body
+(`build_v2_inertia.py`), smoke test stands 500/500. Both gates green; all
+STL/STEP/assembly artifacts, fly-in, assembly-step figures, and the ROM
+sweep video (`sim/renders/rom_sweep.mov` — the finale now shows the
+hip-110 pike fold) regenerated. Per PR #19: the G10/FR4 0.125" sole-plate
+order trigger ("if enlargement lands") is now live — user's call.
+
+**Next:** print yoke_pitch ×2 + foot ×2 (v3.1) + re-trim/reorder pads, and
+one more RL get-up round on the new plant (option (b) in parallel — cheap
+on Mira).
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

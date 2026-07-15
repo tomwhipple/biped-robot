@@ -25,10 +25,11 @@ Two things to watch when you print PETG:
   runs hotter and strings more than PLA. Check the snug interfaces on the first
   parts — servo pockets (`foot`), idler bosses (Ø19 into the Ø25 recess), and the
   GoPro slots (3.2 mm) — and tune flow / dial in a size test if anything binds.
-- **Mass.** PETG (~1.27 g/cm³) is ~2–3 % denser than PLA. The mass rollup now
-  uses the PETG density (`dimensions.py::FILAMENT_RHO = 1.27e-3`): printed plastic
-  ~263 g (was ~257 g in PLA), total robot ~860 g. `parts.py` and the sim inertia
-  builder (`sim/build_v2_inertia.py`) both reflect this.
+- **Mass.** PETG (~1.27 g/cm³) is ~2–3 % denser than PLA. The mass rollup uses
+  the PETG density (`dimensions.py::FILAMENT_RHO = 1.27e-3`): printed plastic
+  ~298 g, total robot ~898 g (+154 g GoPro) after foot v3.1 + the yoke_pitch
+  hip-110 revision. `parts.py` and the sim inertia builder
+  (`sim/build_v2_inertia.py`) both reflect this.
 
 ## Parts to print
 
@@ -36,9 +37,9 @@ Two things to watch when you print PETG:
 |---|---|---|---|---|---|
 | `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ✅ ready (bosses removed — see audit) — *secondary* hip-angle check |
 | `yoke_roll` | 2 | PETG | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
-| `yoke_pitch` | 2 | PETG | 30–40 % | flange face on bed, arms up | ⚠️ **HOLD — being redesigned** (hip-angle revisit) |
-| `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ⚠️ **verify before printing** (2 of 4 are thighs, on the hip-pitch joint) |
-| `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v3** (heel bulkhead ties the tabs into a channel) |
+| `yoke_pitch` | 2 | PETG | 30–40 % | flange face on bed, arms up | ♻️ **revised for hip −110°** (idler arm → hub + riser; HOLD lifted) |
+| `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ✅ ready (hip-angle question settled by the yoke_pitch revision) |
+| `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v3.1** (v3 heel bulkhead + sole enlarged 100 → 116 for the get-up corridor) |
 | `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ✅ ready (sill/rib chamfers — see audit) |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
 | Sole pad (self-adhesive rubber) | 2 | rubber | — | trim to fit | 🛒 on order (stick onto flat sole) |
@@ -54,9 +55,24 @@ snapped **across layer lines under a lateral knock**. v2's aft gusset only
 stiffened the blades fore-aft, so v3 ties the two tabs into a **heel bulkhead**
 behind the servo (U-channel; cable window opens at the top for the rear-exit
 servo cable) plus one full-width aft buttress. Every added face is vertical —
-nothing new bridges. `foot` is ~36 g, bbox 100 × 52 × 30 mm; ankle height
-unchanged; retention screw bores are teardropped. `check_assembly.py` ALL
-CLEAR, `check_printability.py` clean. Render: `renders/foot_v3.png`.
+nothing new bridges. Retention screw bores are teardropped; ankle height
+unchanged. `check_assembly.py` ALL CLEAR, `check_printability.py` clean.
+Render: `renders/foot_v3.png`.
+
+**Foot v3.1 + yoke_pitch hip-110 revision (2026-07-15, later):** the get-up
+decision landed (DESIGN: rise corridor is real but ±20 mm on the old 90 mm
+pad, and the pike needs ≥95° hip flexion). Two changes:
+
+- **`foot` sole enlarged 100 → 116 mm** fore-aft, heel-biased (heel 42 → 52,
+  toe 58 → 64; the rise tips *backward*): ~42 g, bbox 116 × 52 × 30 mm. Walls,
+  tabs, bulkhead, and ankle height unchanged. The rubber pad grows with it
+  (106 × 46 — re-trim the on-order pads or reorder).
+- **`yoke_pitch` idler arm redesigned**: the old full-width arm plate capped
+  hip flexion at ~105° (the thigh link's idler grip plate shares its Y band
+  and sweeps into it). Now a Ø28 hub + riser plate routed through the unswept
+  top-rear sector, with a 45° print chamfer on the hub's front-upper quadrant
+  (support-free flange-down). Clears −115°/+65° with the full leg_link in the
+  sweep; horn arm unchanged. Render: `renders/yoke_pitch_v2.png`.
 
 **Printability audit (2026-07-15, `check_printability.py`):** three parts that
 were marked "ready" would have failed exactly like the first foot:

@@ -110,10 +110,10 @@ def main():
     # combined envelope: crouch -> extend -> forward reach -> back reach
     keyposes = [  # hip_roll, hip_pitch, knee, ankle (L; R mirrors roll)
         (0, 0, 0, 0),
-        (18, -60, -95, 40),     # deep crouch, legs spread
+        (18, -110, -95, 40),    # get-up pike: torso folded over the knees
         (0, 0, 0, 0),
-        (0, 60, -20, -40),      # forward reach
-        (0, -60, -5, 20),       # back reach
+        (0, 60, -20, -40),      # hip extension reach
+        (0, -60, -5, 20),       # flexion, knees straight
         (0, 0, 0, 0),
     ]
     seg = int(1.0 * FPS)
