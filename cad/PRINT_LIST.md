@@ -23,13 +23,14 @@ margin) — not required anywhere. The only part with a real material preference
 | `leg_link` | 4 | PLA | 30–40 % | on its back, web face on bed | ⚠️ **verify before printing** (2 of 4 are thighs, on the hip-pitch joint) |
 | `foot` | 2 | PLA | 30–40 % | sole down | ✅ ready |
 | `tower` | 1 | PLA | 30–40 % | upside-down, top plate on bed | ✅ ready |
-| `gopro_base` | 1 | PLA (**100 % infill**) | 100 % | base down, prongs up | ✅ ready |
+| `gopro_base` | 1 | **PETG** (or PLA @ 100 %) | — | base down, prongs up | ✅ printed in PETG |
 | TPU foot pad (90 × 46 × 2 mm) | 2 | **TPU** | — | flat | ✅ ready (or cut from TPU sheet) |
 
 `leg_link` ×4 = 2 thighs + 2 shins (identical part). `gopro_base` is the
-sacrificial crash fuse — the M5 clamp squeezes across layer lines, so print it
-**PLA at 100 % infill** (or PETG if you have it). TPU pads glue into the foot
-sole recess and sit 0.5 mm proud.
+sacrificial crash fuse — the M5 clamp squeezes across layer lines, so PETG is
+the preferred material (**printed in PETG — noticeably more solid**); PLA at
+100 % infill is the fallback. TPU pads glue into the foot sole recess and sit
+0.5 mm proud.
 
 ## ⚠️ Hip-angle revisit — what's in flux
 
