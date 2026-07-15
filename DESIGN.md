@@ -610,6 +610,7 @@ An external review filed 12 issues. Dispositions:
 - **#2 battery mass (P0, fixed):** sim/CAD used 78 g vs the actual 74 g Zeee
   pack. Corrected everywhere (rollup, inertia script, XML — torso is now
   319.5 g); the pigtail lives in the wiring bucket, stated explicitly.
+  *(Superseded 2026-07-15 — see "Battery bay widened" below: torso 327.8 g.)*
 - **#3 sole ≠ TPU pad (P0, fixed — and it mattered):** the contact box was
   the full 96 × 52 sole; the real contact is the 90 × 46 pad. Sole boxes
   resized (−25 % patch area). Re-verification: `dash_11v1_hard` holds
@@ -1163,6 +1164,82 @@ internal parts set non-colliding (feet-only contact); IMU `site` on torso for or
 - No self-collision between internal parts (feet-only contact) — revisit when adding meshes.
 - v1 actuator is idealized; the sts3215 model adds the torque-speed envelope but
   not backlash or serial-bus latency (use `action_latency` as a proxy).
+
+### Battery bay widened to the 3S 850 field (2026-07-15)
+
+The bay was cut for one specific pack — the Zeee 3S 850 (67 × 30 × 18.5, 74 g) —
+which is now unavailable on Amazon (direct-only, US stock out). That turned out
+to be a **single-supplier dependency**: the Zeee is long-and-flat at 18.5 mm,
+while every other 3S 850 on the market is stubby-and-tall at 22–25 mm, so
+nothing was a drop-in. Height, not capacity, is the binding axis.
+
+Fix: size the envelope to the whole field rather than one SKU.
+`BATT` 68 × 31 × 20 → **68 × 31 × 26.5** (tallest pack 25 + 1.5 fit/pad), which
+required `TOWER_H` 37 → **43.5** to hold the derived stack
+(`TOWER_H = BATT[2] + 13.5 + 3.5`, where 13.5 = top plate + standoff + ~4 mm
+board components). Board-to-pack clearance is **unchanged at 3.5 mm** — the
+growth went into the tower, not into the margin. Length stayed 68 so the flat
+Zeee still seats if it returns.
+
+Consequences: tower top 324 → **330.5 mm**, robot ~884 → **~892 g** (+6 g pack
+worst case, +2 g taller print), torso 319.5 → **327.8 g**, standing CG 164 →
+**165 mm** (197 with camera). Gates re-run clean: `check_assembly` ALL CLEAR,
+`check_printability` all parts clean, fly-in re-rendered.
+
+Also fixed while here: `build_v2_inertia.py` placed the 20 g driver-board box at
+`TOWER_H + 2.5` — *above* the tower — stale from when the board mounted on top;
+it now derives from the real face-down standoff plane. And `battery_mock()` in
+`export_assembly.py` hardcoded 67 × 30 × 18.5, so the fly-in was proving the old
+pack fit. Both the mock and the inertia box now read `BATT_PACK` (62 × 30 × 25,
+80 g — the worst case of the field), so there is one source of truth.
+
+**Policy impact: none.** `dash_11v1_hardlat3` re-evaluated on both plants
+(GoPro + 4 ms, 32 episodes):
+
+| | old (319.5 g) | new (327.8 g) |
+| --- | --- | --- |
+| dash finishes | 32/32, median 2.85 s | 30/32, median **2.70 s** |
+| torso wobble | 1.96 rad/s RMS | **1.88** |
+| DR + shoves | 0/16 | 0/16 |
+
+30/32 vs 32/32 is inside noise at n=32, and the new plant is *faster and
+smoother*, consistent with +8.3 g being +0.9% on a policy that trains under
+±15 % mass DR. No repair fine-tune needed. The DR+shoves column is 0/16 on
+both — identical, so no regression, but it was already floored (see the
+robustness gauntlet above); this change neither caused nor fixed it.
+
+Note `eval_policy.py` defaults to the `xml_path` baked into each run's
+`env_config.json` (an absolute path into the main checkout), so re-running
+these without an explicit `--xml` silently measures the *old* plant.
+
+**Open — battery restraint (the pack must not move).** Short packs (59–62 mm)
+have up to 8 mm of slop in the 68 mm bay, and `BATT[0]` runs along **y —
+the lateral axis**. That is the robot's weak plane: the sole is 90 mm fore-aft
+but only 46 mm wide, and at 56 mm hip separation the single-support polygon's
+inner edge sits 5 mm off centerline, so the nominal CoM is already outside the
+stance foot. An unrestrained 80 g pack (9 % of robot mass) would give (a) a
+permanent ~0.37 mm lateral CoM bias if it settles off-centre — `build_v2_inertia`
+models it centred at y=0 and nothing enforces that — and (b) gait-phase-locked
+wall impacts (~10-15 % of the 5 N test-shove impulse, but every step rather than
+1 % random).
+
+The sim **cannot represent this**: the pack is a massless visual geom whose mass
+is baked into the torso `<inertial>`, and DR scales `body_inertia` by the same
+scalar as mass while never touching `body_ipos` — so torso CoM position is
+randomized by exactly zero in every rollout. Precedent for taking this
+seriously: issue #3, where an oversized contact patch silently propped up a
+policy's robustness and correcting it collapsed `dash_11v1_hardlat` 30/32 → 2/16.
+
+Decision (2026-07-15): restrain mechanically with foam and/or two symmetric
+printed shims of `(BATT[0] - BATT_PACK[0])/2` — symmetric so the pack is
+*centred*, making the sim's y=0 assumption true by construction rather than
+merely assumed. Sims proceed on the assumption the pack does not move.
+Not yet designed; the shim part and a real test-fit are outstanding.
+
+Also outstanding: the belt guide ribs derive from `BATT[2]` (envelope), so they
+moved to z=18.5/29.5. For a 23-25 mm pack the lower belt still crosses it, but
+for a flat 18.5 mm pack the belt now sits at its top edge and restrains little —
+the ribs arguably want to track `BATT_PACK[2]` instead.
 
 ## 9. References
 

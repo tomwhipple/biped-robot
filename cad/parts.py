@@ -502,11 +502,13 @@ def main():
               f"{bb.size.Z:6.1f} mm  vol {vol:6.1f} cm3  ~{mass:5.1f} g  "
               f"{'BED-OK' if fits else '** TOO BIG **'}  [{orient}]")
 
-    # battery = the actual purchased pack (Zeee 3S 850: 74 g); its pigtail
-    # lives in the wiring/misc bucket, not here (issue #2)
+    # battery = worst case of the 3S 850 XT30 field the bay now fits (~80 g,
+    # see dimensions.BATT); the flat Zeee is 74 g. Its pigtail
+    # lives in the wiring/misc bucket, not here (issue #2).
     # sole pads: 2x 106 x 46 cut from 1/16" self-adhesive silicone sheet
     # (B0FJ8TBMQK); ~9.8 g each
-    servos, batt, board, fasteners, tpu = 8 * D.SERVO_MASS, 74.0, 20.0, 47.0, 19.6
+    servos, batt, board, fasteners, tpu = (8 * D.SERVO_MASS, D.BATT_PACK_MASS,
+                                           20.0, 47.0, 19.6)
     total = print_mass + servos + batt + board + fasteners + tpu
     print(f"\nprinted plastic ~{print_mass:.0f} g   servos {servos:.0f} g   "
           f"battery {batt:.0f} g   board {board:.0f} g   fasteners {fasteners:.0f} g"

@@ -192,19 +192,37 @@ ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+pad proud
 # ----------------------------------------------------------------------------
 TOWER_L = 96.0
 TOWER_W = 42.0
-TOWER_H = 37.0          # deck top .. tower top (+5 over v1: 3S headroom, see BATT)
+TOWER_H = 43.5          # deck top .. tower top. Pack sits on the deck, so the
+                        # board underside (TOWER_H - TOWER_TOP_T - BOARD_STANDOFF
+                        # - ~4 component) must clear BATT[2]: TOWER_H = BATT[2]
+                        # + 13.5 + 3.5 gap. +6.5 over the Zeee-only bay.
 TOWER_TOP_T = 3.5
 # driver board: Waveshare "Servo Driver with ESP32", 65 x 30, holes O2.75 on
 # a 58 x 23 grid (wiki spec 2026-07 -- still verify on the real board)
 BOARD_HOLES = (58.0, 23.0)     # hole pattern (y span, x span), M2.5 self-tap
 BOARD_STANDOFF = 6.0           # under-plate standoff height (clears the GoPro
                                # screw bosses by 3 mm; battery below gets ~2 mm)
-# battery: DECIDED 3S (2026-07-11 gauntlet verdict). Sized for the Zeee 3S
-# 850 mAh 100C XT30 (67 x 30 x 18.5, 74 g); envelope adds fit + pad headroom.
-# Pack side-loads through a window in the -X tower wall (tool-free swap: peel
-# strap, tug pull-ribbon) -- if you buy a different pack, edit BATT and
-# reprint the tower; everything below derives from it.
-BATT = (68.0, 31.0, 20.0)      # y length, x width, z height (envelope)
+# battery: DECIDED 3S (2026-07-11 gauntlet verdict). Envelope is a SUPERSET of
+# the 3S 850 mAh XT30 field, not one pack -- the Zeee (67 x 30 x 18.5, 74 g)
+# it was originally cut for went unavailable, and every other pack in the class
+# is stubbier but taller. Measured 2026-07-15:
+#   Zeee   100C  67 x 30   x 18.5   74 g   (original; direct-only, US stock out)
+#   Tattu   45C  60 x 30   x 22     76 g   B0BWRR3FFP (2-pack, XT30)
+#   Ovonic  80C  59 x 29.7 x 22.9   74 g   B09CTSCWYM (2-pack, XT30)
+#   Tattu   75C  59 x 30   x 24    ~80 g   B07218SB7L
+#   CNHL    70C  62 x 30   x 25    ~80 g   B0C4PQRTYG (2-pack, XT30)
+# Height is the binding axis, so BATT[2] = 25 (tallest) + 1.5 fit/pad headroom;
+# length stays 68 to keep the flat Zeee seatable if it ever returns. Short packs
+# (59-62) leave up to 8 mm of Y slop -- the belt + ribbon takes it up; shim if
+# it rattles. Pack side-loads through a window in the -X tower wall (tool-free
+# swap: peel strap, tug pull-ribbon). Everything below derives from BATT: edit
+# it and reprint the tower.
+BATT = (68.0, 31.0, 26.5)      # y length, x width, z height (envelope)
+# The specific pack modeled in the mocks / sim inertia: worst case of the field
+# above (CNHL 70C) so fit-checks and COM are conservative. A flatter, lighter
+# pack only gains clearance and lowers COM. Keep BATT >= BATT_PACK.
+BATT_PACK = (62.0, 30.0, 25.0)  # y length, x width, z height (actual pack)
+BATT_PACK_MASS = 80.0           # g
 BATT_SEAT_X = -17.0            # pack outer (-x) face when seated: 1.4 inside
                                # the wall inner face, so the strap can preload
 

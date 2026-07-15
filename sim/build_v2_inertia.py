@@ -98,12 +98,21 @@ torso = combine([
              (SV_T, SV_W, SV_L)),
     box_part(D.SERVO_MASS, (0, -D.HIP_SEP/2, D.HIP_ROLL_Z - D.TORSO_CENTER_Z - SV_ZMID_Y),
              (SV_T, SV_W, SV_L)),
-    # 3S 850 mAh pack on deck (long axis along y, seated toward -x)
-    # actual purchased pack: Zeee 3S 850 = 74 g (issue #2); pigtail is in
-    # the wiring bucket
-    box_part(74.0, (-1.0, 0, dz_deck + 9.25), (30.0, 67.0, 18.5)),
-    box_part(20.0, (0, 0, dz_deck + D.TOWER_H + 2.5), (65, 30, 5)),  # driver board
-], total=319.5)
+    # 3S 850 mAh pack on deck (long axis along y, seated toward -x). The bay is
+    # a superset of the XT30 850 field (see dimensions.BATT), so model the
+    # worst case for mass+height: CNHL 70C 62 x 30 x 25, ~80 g. A lighter/flatter
+    # pack (Zeee 74 g x 18.5) only lowers torso COM. Pigtail is in the wiring
+    # bucket.
+    box_part(D.BATT_PACK_MASS, (-1.0, 0, dz_deck + D.BATT_PACK[2] / 2),
+             (D.BATT_PACK[1], D.BATT_PACK[0], D.BATT_PACK[2])),
+    # driver board: hangs face-down on standoffs UNDER the top plate, so its
+    # PCB plane is TOWER_H - TOWER_TOP_T - BOARD_STANDOFF and the 5 mm mock
+    # box hangs below that. (Was TOWER_H + 2.5 -- stale from when the board
+    # mounted on top of the tower; see cad/README.md:66-68.)
+    box_part(20.0, (0, 0, dz_deck + D.TOWER_H - D.TOWER_TOP_T
+                    - D.BOARD_STANDOFF - 2.5), (65, 30, 5)),
+], total=327.8)   # +8.3 over the Zeee bay: +6 g pack (74->80 worst case),
+                  # +2.3 g taller tower print (TOWER_H 37 -> 43.5)
 
 # ---- hip (frame at HIP_ROLL_Z) ----------------------------------------------
 hip = combine([

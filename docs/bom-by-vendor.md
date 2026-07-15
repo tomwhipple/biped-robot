@@ -30,7 +30,7 @@ slower than Amazon Prime — check lead time. Amazon alternates: servo
 
 | Component                      | Qty          | Product                                                                     | Unit   | Extended    | Link                                               |
 | ------------------------------ | ------------ | --------------------------------------------------------------------------- | ------ | ----------- | -------------------------------------------------- |
-| 3S LiPo battery                | 1 (2-pack)   | Zeee Premium 3S 850 mAh 11.1 V 100C XT30, 2-pack (67 × 30 × 18.5 mm, 74 g)  | ~$30   | ~$30.00     | [B08H5GD35D](https://www.amazon.com/dp/B08H5GD35D) |
+| 3S LiPo battery                | 2            | Tattu 850 mAh 11.1 V 75C 3S1P XT30 (60 × 30 × 23 mm, 80 g) — or any pack meeting the spec filter below | ~$15 | ~$30.00 | [search](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) · ASIN [B07218SB7L](https://www.amazon.com/dp/B07218SB7L) |
 | M3 screw + heat-set insert kit | 1            | KADRICK 420 pc M3 kit — covers M3×6–30 screws, brass inserts, nuts, washers | $15.99 | $15.99      | [B0GYRQG7F2](https://www.amazon.com/dp/B0GYRQG7F2) |
 | M3×8 self-tapping screws       | 52 (100 pc)  | M3×8 Self-Tapping SS, flat head hex (incl. drive bit)                       | $8.28  | $8.28       | [B0F9XYX9BQ](https://www.amazon.com/dp/B0F9XYX9BQ) |
 | M2.5×8 self-tapping screws     | 4 (50 pc)    | uxcell M2.5×8 self-tapping, 304 SS                                          | $8.07  | $8.07       | [B01KXTTSCI](https://www.amazon.com/dp/B01KXTTSCI) |
@@ -75,6 +75,33 @@ All-in from zero (robot + printer order): **~$845**.
   the sim-recommended 3S battery.
 - **Driver board.** Use the "Servo Driver with ESP32" (65 × 30 mm), *not* the
   Bus Servo Driver HAT (A) — that Pi HAT is the wrong size and 9–25 V input.
+  Waveshare also sells PCA9685-based boards that drive *PWM* servos — those
+  cannot talk to ST/SC bus servos at all. On Amazon the same board is listed as
+  [B0CFY34BX5](https://www.amazon.com/dp/B0CFY34BX5),
+  [B0F5W67S56](https://www.amazon.com/dp/B0F5W67S56), and
+  [B09SZ41RJW](https://www.amazon.com/dp/B09SZ41RJW) — buy whichever is cheapest
+  and in stock; prefer a title that states "6~12V" and "SC, ST Series".
+- **Battery: buy to the spec filter, not to an ASIN.** The bay was originally cut
+  for the Zeee 3S 850 (67 × 30 × 18.5, 74 g), which went unavailable — and every
+  other 3S 850 is stubbier but *taller*, so nothing dropped in. The bay is now
+  sized (`BATT` in `cad/dimensions.py`) to swallow the whole class. **Any pack
+  meeting all four of these fits, no CAD change:**
+
+  | | requirement | why |
+  | --- | --- | --- |
+  | chemistry | **3S, 11.1 V** — *not* 11.4 V HV | LiHV charges to 13.05 V, over the ST3215's 12.6 V ceiling |
+  | connector | **XT30** | not JST / EC5 / XT60; the pigtail assumes it |
+  | height | **≤ 26.5 mm** | binding axis — 3.5 mm board clearance above |
+  | footprint | **≤ 68 (L) × 31 mm (W)** | bay envelope; L runs laterally |
+
+  BOM pick is the **Tattu 850 mAh 75C** (60 × 30 × 23 mm, 80 g) — specs
+  cross-checked against three independent stockists, and its 80 g is the mass
+  the sim models (`BATT_PACK_MASS`). Ovonic 80C (60 × 30 × 24, 76 g) and CNHL
+  70C (62 × 30 × 25, ~80 g) also fit. **Amazon ASINs for these packs churn**
+  (the Zeee's went dead mid-project) — prefer the search link in the table and
+  apply the filter above. Short packs (59–62 mm) leave up to 8 mm of *lateral*
+  slop; shim it (see `DESIGN.md`, "Battery bay widened") — the sim assumes the
+  pack is centered and cannot represent it moving.
 - **Fastener consolidation.** The KADRICK kit covers all M3 button-head screws,
   washers, and heat-set inserts (originally 4 separate line items). It is
   socket-cap, not button-head — check head clearance at the idler screws.

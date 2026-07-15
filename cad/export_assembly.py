@@ -41,10 +41,12 @@ def camera_mock():
 
 
 def battery_mock():
-    """Zeee 3S 850 pack (67 x 30 x 18.5) seated on the deck: outer face at
-    BATT_SEAT_X, inner face on the far-wall rails."""
-    x0 = D.BATT_SEAT_X + (D.BATT[1] - 30.0)          # actual pack, not envelope
-    return parts.box(x0, x0 + 30.0, -33.5, 33.5, 0, 18.5)
+    """The modeled 3S 850 pack (D.BATT_PACK) seated on the deck: outer face at
+    BATT_SEAT_X, inner face toward the far-wall rails. Follows BATT_PACK rather
+    than the BATT envelope, so the fly-in proves the real pack inserts."""
+    ly, wx, hz = D.BATT_PACK
+    x0 = D.BATT_SEAT_X + (D.BATT[1] - wx)
+    return parts.box(x0, x0 + wx, -ly / 2, ly / 2, 0, hz)
 
 
 def piece(label, color, solid):

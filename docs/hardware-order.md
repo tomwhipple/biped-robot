@@ -10,15 +10,17 @@ battery voltages; sub-step control-latency validated and hardened (DESIGN.md
 The gauntlet numbers that drove it (2 m dash median **2.72 s** vs 4.36 s;
 GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 
-- **Battery**: [Zeee 3S 850 mAh 100C XT30 2-pack](https://www.amazon.com/dp/B08H5GD35D)
+- **Battery**: 2× [Tattu 850 mAh 3S 75C XT30](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30)
+  (or any pack passing the `bom-by-vendor.md` spec filter — the bay takes the class)
   (67 × 30 × 18.5 mm, 74 g each) — two packs = hot-swap. ✅ ordered/orderable.
 - **CAD**: tower reworked for tool-free swap — the pack now side-loads
   through a window in the rear tower wall (no more unscrewing the tower to
   reach it): tilt in over the sill, it seats on far-wall rails between the
   foot-tab gussets; a 20 mm hook-loop belt around the tower (guide ribs) closes
-  the window, and a ribbon under the pack is the pull-tab. Tower +5 mm tall
-  for headroom (`TOWER_H` 32→37); envelope is parametric (`BATT` in
-  `cad/dimensions.py`) — different pack, one edit, reprint.
+  the window, and a ribbon under the pack is the pull-tab. Tower grew for
+  headroom (`TOWER_H` 32→37→43.5; the last +6.5 on 2026-07-15 widened the bay
+  from the one flat Zeee pack to the whole 3S 850 XT30 field). Envelope is
+  parametric (`BATT` in `cad/dimensions.py`) — taller pack, one edit, reprint.
 - **Servos**: unchanged — the 12 V-class ST3215 (6–12.6 V) was already the pick.
 - **Sim**: torso inertia rebuilt for the 3S pack (78 g vs the old 110 g 2S
   estimate, correct orientation); dash policies re-evaluated on the updated
@@ -32,7 +34,7 @@ GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 |---|---|---|---|---|
 | **Servos** | Waveshare ST3215, **12 V version** (6–12.6 V, 30 kg·cm @ 12 V, magnetic encoder) — *not* the $16.99 "7.4 V" version, which is rated 4–7.4 V and forecloses 3S | 8 + 1–2 spares | $21.99 ea [Waveshare direct](https://www.waveshare.com/st3215-servo.htm) → ~$176 + spares | ✅ **Ready to order** — sim-validated at both voltages; CAD built from its STEP |
 | **Driver board** | Waveshare "Servo Driver with ESP32" (65 × 30 mm, 6–12.6 V in — 2S *and* 3S direct per Waveshare docs, WiFi/BLE) | 1 | $24.99 [Amazon](https://www.amazon.com/dp/B0CFY34BX5) / [direct](https://www.waveshare.com/servo-driver-with-esp32.htm) | ✅ Ready — holes Ø2.75 on 58 × 23 per wiki, now in `cad/dimensions.py`; still verify on arrival **before printing the tower** |
-| **Battery** | Zeee 3S 850 mAh 11.1 V 100C XT30 (2-pack) — the pack the bay is dimensioned for | 2 | ~$30/2-pack [Amazon](https://www.amazon.com/dp/B08H5GD35D) | ✅ **Ready — decision made** (3S, swap-window bay in CAD) |
+| **Battery** | Tattu 850 mAh 11.1 V 75C 3S1P XT30 (60 × 30 × 23, 80 g) — bay fits the whole 3S 850 XT30 class, not just this one; **11.1 V not 11.4 V HV** | 2 | ~$15 ea [search](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) | ✅ **Ready — decision made** (3S, swap-window bay in CAD) |
 | Battery belt + ribbon | 20 mm hook-loop strap ~250 mm + pull ribbon (battery retention/extraction) | 1 | ~$5 (or scrap velcro) | ✅ Ready |
 | Power switch | inline XT30 rocker/slide switch (battery → board) | 1 | ~$8 | ✅ Ready |
 | **IMU** | Adafruit BNO085 9-DOF breakout (on-chip sensor fusion → up-vector + gyro directly; I2C/Qwiic, shares the ESP32's OLED bus) | 1 (+1 MPU-6050 as cheap spare/alt) | ~$25 ([Adafruit 4754](https://www.adafruit.com/product/4754)) + ~$5 | ✅ Ready — **closes the sensing gap**: the policy consumes torso attitude + angular velocity that nothing else on this list measures (servo encoders only cover joints) |
@@ -85,9 +87,11 @@ robot + ~$74 filament + $219 printer ≈ **$620–670 all-in from zero**.
 3. **Driver board holes** vs the CAD's 58 × 24 mm guess → then print tower.
 4. **GoPro finger fit**: print `gopro_base` alone first (~20 min) and test the
    3.2 mm slots against the MAX's fingers (`GP_SLOT = 3.5` fallback).
-5. **Board component height** (<4 mm on down-facing side) and the Zeee pack
-   ≤ the 68 × 31 × 20 mm bay envelope — test the window swap (tilt in over the
-   2.5 mm sill) with the real pack before final assembly.
+5. **Board component height** (<4 mm on down-facing side) — this sets the
+   3.5 mm board-to-pack clearance, so a board with taller underside parts eats
+   into it. Confirm your pack ≤ the 68 × 31 × 26.5 mm bay envelope and test the
+   window swap (tilt in over the 2.5 mm sill) with the real pack before final
+   assembly.
 
 ## Wiring
 
