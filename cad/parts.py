@@ -312,15 +312,19 @@ def foot():
     for s in (1, -1):
         yb0, yb1 = s * py, s * (py + D.FOOT_WALL_T)  # tab Y band (2.4 thick)
         p += box(wx0, wx1, yb0, yb1, zp, zp + D.FOOT_WALL_H)
-    # bulkhead between the tab aft ends, cable window open at the top (the
-    # servo cable exits the rear END face and routes out over the heel)
+    # bulkhead between the tab aft ends
     p += box(bx0, bx1, -py, py, zp, zp + D.FOOT_WALL_H)
-    p -= box(bx0 - 1, bx1 + 1, -D.FOOT_CABLE_W / 2, D.FOOT_CABLE_W / 2,
-             D.FOOT_CABLE_Z, zp + D.FOOT_WALL_H + 1)
     # one full-width aft buttress bracing tabs + bulkhead together: vertical
     # face against them, sloped face up (support-free), ends at the heel edge
     p += wedge_y([(wx0, zr), (wx0 - aL, zr), (wx0, zr + aH)],
                  -(py + D.FOOT_WALL_T), py + D.FOOT_WALL_T)
+    # cable window, cut LAST and clear through the heel edge so it opens
+    # bulkhead AND buttress (the servo cable exits the rear END face and
+    # routes out over the heel). Cutting before the buttress union -- or not
+    # deep enough -- leaves a taper of the buttress standing inside the
+    # window, thinning to a single filament: check_printability THIN.
+    p -= box(-D.FOOT_HEEL - 1, bx1 + 1, -D.FOOT_CABLE_W / 2, D.FOOT_CABLE_W / 2,
+             D.FOOT_CABLE_Z, zp + D.FOOT_WALL_H + 1)
     p += box(px1, px1 + D.WALL, -py, py, zp, zp + 8)
     # retention screw holes: horn face row 29.0 (+Y), idler face row 32.75 (-Y);
     # teardropped (horizontal bores printed sole-down, peak +z)

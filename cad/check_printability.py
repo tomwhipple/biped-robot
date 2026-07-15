@@ -19,6 +19,9 @@ classified by how their surroundings support them (perimeter ray test):
   bore-top small horizontal-hole roof -> note: teardrop it
   CONTACT  first-layer area much smaller than the part footprint (part
            standing on pins/bosses)
+  THIN     wall thinner than ~2 perimeters (local thickness measured by an
+           inward ray from each facet) -> prints as a single strand, breaks
+           (the foot v3 cable window once left a 0.8 mm boolean sliver)
 
 Run:  .venv/bin/python cad/check_printability.py          # all parts
       .venv/bin/python cad/check_printability.py foot     # one part
@@ -64,6 +67,8 @@ BORE_NOTE = 5.0                           # small bore tops: note, don't fail
 LEDGE_OK = 1.2                            # unsupported ledge reach that's fine
 ISLAND_AREA_OK = 3.0                      # mm^2 of floating facets we ignore
 CONTACT_MIN_FRAC = 0.25                   # first layer >= this of footprint
+THIN_WALL = 0.85                          # < ~2 perimeters -> single strand
+THIN_AREA_OK = 15.0                       # ignore tiny knife-edge tips (mm^2)
 
 
 def load_stl(path):
@@ -117,26 +122,33 @@ def clusters(idx, tris, tol=1e-3):
     return list(groups.values())
 
 
-def ray_down_dist(points, tris):
-    """For each point, distance straight down to the nearest triangle below
-    (np.inf if none). Brute-force Moller-Trumbore, vectorized over triangles."""
+def ray_dist(points, dirs, tris, return_idx=False):
+    """For each point, distance along its ray direction to the nearest
+    triangle (np.inf if none). Brute-force Moller-Trumbore over triangles.
+    With return_idx, also returns the index of the hit triangle (-1 = miss)."""
     v0, v1, v2 = tris[:, 0], tris[:, 1], tris[:, 2]
     e1, e2 = v1 - v0, v2 - v0
-    d = np.array([0.0, 0.0, -1.0])
-    h = np.cross(d, e2)                          # (M,3)
-    a = np.einsum("ij,ij->i", e1, h)
-    ok0 = np.abs(a) > 1e-12
     out = np.full(len(points), np.inf)
-    for pi, p in enumerate(points):
+    idx = np.full(len(points), -1)
+    for pi, (p, d) in enumerate(zip(points, dirs)):
+        h = np.cross(d, e2)
+        a = np.einsum("ij,ij->i", e1, h)
+        ok0 = np.abs(a) > 1e-12
         s = p - v0
         u = np.einsum("ij,ij->i", s, h) / np.where(ok0, a, 1.0)
         q = np.cross(s, e1)
-        v = q[:, 2] * -1.0 / np.where(ok0, a, 1.0)
+        v = q @ d / np.where(ok0, a, 1.0)
         t = np.einsum("ij,ij->i", e2, q) / np.where(ok0, a, 1.0)
         hit = ok0 & (u >= -1e-9) & (v >= -1e-9) & (u + v <= 1 + 1e-9) & (t > 0.05)
         if hit.any():
-            out[pi] = t[hit].min()
-    return out
+            j = np.where(hit)[0][np.argmin(t[hit])]
+            out[pi], idx[pi] = t[j], j
+    return (out, idx) if return_idx else out
+
+
+def ray_down_dist(points, tris):
+    dirs = np.broadcast_to([0.0, 0.0, -1.0], (len(points), 3))
+    return ray_dist(points, dirs, tris)
 
 
 def audit(name, verbose=True):
@@ -213,6 +225,32 @@ def audit(name, verbose=True):
         if verbose or bad:
             mark = "**" if bad else "  "
             print(f"  {mark}{kind:8s} {desc}")
+
+    # thin walls: inward ray from each facet centroid; local thickness = exit
+    # distance. Only count exits through a near-PARALLEL far face (a true
+    # two-sided blade) -- a 45 deg chamfer/gusset tip also exits quickly, but
+    # through an angled face, and prints fine (perimeter steps up the slope).
+    order = np.argsort(area)[::-1][:1500]
+    unit = (n.T / area2).T
+    normals = unit[order]
+    tdist, tidx = ray_dist(cen[order] - normals * 0.02, -normals, tri,
+                           return_idx=True)
+    close = tdist < THIN_WALL
+    facing = np.einsum("ij,ij->i", normals[close],
+                       unit[tidx[close]]) < -0.8
+    thin = order[np.where(close)[0][facing]]
+    for grp in clusters(thin, tri):
+        g = np.array(grp)
+        ga = area[g].sum()
+        if ga < THIN_AREA_OK:
+            continue
+        lo = tri[g].reshape(-1, 3).min(axis=0)
+        hi = tri[g].reshape(-1, 3).max(axis=0)
+        desc = (f"{ga:6.0f} mm2  wall < {THIN_WALL} mm  around "
+                f"({(lo[0]+hi[0])/2:.0f}, {(lo[1]+hi[1])/2:.0f}, "
+                f"{(lo[2]+hi[2])/2:.0f})")
+        findings.append(("THIN", ga, desc))
+        print(f"  **THIN     {desc}")
 
     if not findings:
         print("  PASS")

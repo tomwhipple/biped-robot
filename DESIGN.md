@@ -980,6 +980,18 @@ real bug in `wedge_y` — it assumed `extrude()` runs −Y from `Plane.XZ` when
 it actually runs +Y, so the v2 foot gussets had silently landed 2.4 mm
 outside their tab bands. The direction is now measured, not assumed.
 
+Post-script (same day): the user spotted a single-filament wall inside the
+v3 cable window — a **boolean-order bug**: the full-width buttress was
+unioned *after* the window cut, re-filling the window band with a wedge that
+tapers to zero (the cut depth was irrelevant; any fix to it produced
+byte-identical junk). Fixed by cutting the window last, clear through the
+heel edge. The audit grew a **THIN check** to catch this class: an inward
+ray from each facet measures local wall thickness, flagging blades under
+0.85 mm (two perimeters) — but only where the exit face is near-parallel
+(dot < −0.8), so 45° chamfer and gusset tips, which print fine, don't
+false-flag (the tower sill did until that filter). Verified: the check
+catches the bad foot, and the full part set is clean.
+
 Sheet-metal alternative: evaluated in `docs/sheetcut-eval.md` (draft PR #19).
 Verdict: printed v3 first (free, same-day); order bent 5052 L-brackets + an
 aluminum sole (~$50–80, ~1 week) only if a v3 tab fails again or the

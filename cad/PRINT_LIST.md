@@ -10,8 +10,9 @@
 wall ≥ 2.4 mm is perimeter-only — 30–40 % infill, **no slicer supports**; every
 part is support-free in its listed orientation, and this is now *verified
 geometrically*, not asserted: `check_printability.py` audits every STL in its
-print orientation for bridges, >45° overhangs, floating islands and skimpy
-first-layer contact, and must print `ALL PARTS PRINT CLEAN` before printing —
+print orientation for bridges, >45° overhangs, floating islands, skimpy
+first-layer contact and sub-perimeter thin walls, and must print
+`ALL PARTS PRINT CLEAN` before printing —
 run it like `check_assembly.py` after any CAD change. (The first foot print's
 46 mm sagged bridge and three other would-be failures — pelvis, tower,
 leg_link, below — are exactly what it catches.) PETG chosen for its toughness
