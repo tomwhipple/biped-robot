@@ -123,7 +123,8 @@ hip = combine([
 # ---- thigh / shin (frame at the upper joint axis) ----------------------------
 # servo_mock_y: axis +Y, case z -35.11..+10.11, x +/-12.36, y +/-17.35
 leg_servo = box_part(D.SERVO_MASS, (0, 0, SV_ZMID_Y), (SV_W, SV_T, SV_L))
-link = mesh_part("leg_link", 0.0, mass=77.9 - D.SERVO_MASS)   # ~23 g w/ screws
+link = mesh_part("leg_link", 0.0, mass=78.6 - D.SERVO_MASS)   # ~24 g w/ screws
+# (78.6 = 2026-07-15 rollup after the flush idler edge + filled horn slot)
 leg = combine([leg_servo, link])
 
 # ---- foot (frame at the ankle axis, ANKLE_Z = 17.96) -------------------------

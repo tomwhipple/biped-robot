@@ -27,9 +27,10 @@ Two things to watch when you print PETG:
   GoPro slots (3.2 mm) — and tune flow / dial in a size test if anything binds.
 - **Mass.** PETG (~1.27 g/cm³) is ~2–3 % denser than PLA. The mass rollup uses
   the PETG density (`dimensions.py::FILAMENT_RHO = 1.27e-3`): printed plastic
-  ~298 g, total robot ~898 g (+154 g GoPro) after foot v3.1 + the yoke_pitch
-  hip-110 revision. `parts.py` and the sim inertia builder
-  (`sim/build_v2_inertia.py`) both reflect this.
+  ~303 g, total robot ~910 g (+154 g GoPro) after foot v3.1, the yoke_pitch
+  hip-110 revision, the battery-bay tower, and the leg_link v2 cleanup.
+  `parts.py` and the sim inertia builder (`sim/build_v2_inertia.py`) both
+  reflect this.
 
 ## Parts to print
 
@@ -38,7 +39,7 @@ Two things to watch when you print PETG:
 | `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ✅ ready (bosses removed — see audit) — *secondary* hip-angle check |
 | `yoke_roll` | 2 | PETG | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
 | `yoke_pitch` | 2 | PETG | 30–40 % | flange face on bed, arms up | ♻️ **revised for hip −110°** (idler arm → hub + riser; HOLD lifted) |
-| `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ✅ ready (hip-angle question settled by the yoke_pitch revision) |
+| `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ♻️ **revised v2** (print-review cleanup: idler-side edge flush, dead 0.7 mm slot by the horn fork filled; +0.7 g). *Cosmetic/stiffness only — the already-printed v1 fits and works identically* |
 | `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v3.1** (v3 heel bulkhead + sole enlarged 100 → 116 for the get-up corridor) |
 | `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ✅ ready (sill/rib chamfers — see audit) |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |

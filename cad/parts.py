@@ -194,6 +194,8 @@ def leg_link(print_fins=False):
     drop = -D.LINK_DROP
     web_x1 = -12.36 - D.WEB_GAP                     # web inner face (cable gap)
     web_x0 = web_x1 - 2.4                           # web outer face, -15.16
+    hy0, hy1 = D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE          # 20.45..23.45
+    iy1, iy0 = D.IDLER_ARM_INNER, D.IDLER_ARM_INNER - D.PLATE    # -18..-21
     # --- grip channel on the servo case (plates reach the web outer face).
     # Front edge 13.2, not the case half-width 12.36: the +10.25 case screws
     # end 11.95 from center, and a 12.36 edge left a 0.41 mm web past the
@@ -202,15 +204,23 @@ def leg_link(print_fins=False):
     p = box(web_x0, grip_x1, D.SV_TOPFACE, D.SV_TOPFACE + t, D.GRIP_BOT, D.GRIP_TOP_HORN)
     # relief around the O19.6 output boss / horn skirt (they spin vs this plate)
     p -= cyl_y(D.GRIP_HORN_RELIEF, D.SV_TOPFACE - 1, D.SV_TOPFACE + t + 1, 0, 0)
-    p += box(web_x0, grip_x1, -D.SV_TOPFACE - D.PLATE, -D.SV_TOPFACE,
-             D.GRIP_BOT, D.GRIP_TOP_IDLER)
-    p += box(web_x0, web_x1, -D.SV_TOPFACE - D.PLATE, D.SV_TOPFACE + t,
-             D.WEB_END, D.WEB_TOP)
-    # --- fork arms down to the next servo (wide near the web, narrow below)
-    hy0, hy1 = D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE          # 20.45..23.45
-    iy1, iy0 = D.IDLER_ARM_INNER, D.IDLER_ARM_INNER - D.PLATE    # -18..-21
-    for a0, a1 in ((hy0, hy1), (iy0, iy1)):
-        p += box(web_x0, 12, a0, a1, D.FORK_WIDE_Z, -33)
+    # idler grip plate and web run OUT to iy0 (-21), flush with the fork idler
+    # plate / jog block outer face -- the natural -20.35 (case face + PLATE)
+    # left a 0.65 step in the side silhouette at FORK_WIDE_Z for no reason
+    # (print-review feedback 2026-07-15). The extra 0.65 stays in the already-
+    # cleared swing band: same x-z footprint, and the y band -21..-18 overlap
+    # with the yoke idler hub/riser (r >= 16 floor) and the chained link's
+    # fork plate predates this (see yoke_pitch idler-arm comment).
+    p += box(web_x0, grip_x1, iy0, -D.SV_TOPFACE, D.GRIP_BOT, D.GRIP_TOP_IDLER)
+    p += box(web_x0, web_x1, iy0, D.SV_TOPFACE + t, D.WEB_END, D.WEB_TOP)
+    # --- fork arms down to the next servo (wide near the web, narrow below).
+    # The wide horn-side section starts at the web/grip edge (19.75), not the
+    # horn face (20.45): the 0.7 band is only a running clearance where the
+    # NEXT link's grip plate sweeps it, and that sweep (r <= 39 about the
+    # lower axis) never rises past z ~ -72 -- above that the 0.7 slot between
+    # web edge and fork plate was dead air, so it is solid (same feedback).
+    for a0, a1, wide0 in ((hy0, hy1, D.SV_TOPFACE + t), (iy0, iy1, iy0)):
+        p += box(web_x0, 12, wide0, a1, D.FORK_WIDE_Z, -33)
         p += box(D.FORK_NARROW_X, 12, a0, a1, drop, D.FORK_WIDE_Z)
         p += cyl_y(D.PAD_D / 2, a0, a1, 0, drop)
     p += cyl_y(D.IDLER_BOSS_D / 2, D.SV_IDLER_FACE, iy1, 0, drop)

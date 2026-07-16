@@ -1085,6 +1085,23 @@ in parallel — cheap on Mira). Note: the feet already printed at 100 mm are
 fine for bench bring-up, but policies trained on this plant expect the
 116 mm soles.
 
+### leg_link v2 cleanup from first-print review (2026-07-15)
+
+User's annotated review of the printed leg_link flagged three things on the
+back web. (1) The four Ø4.5 web holes are the **zip-tie anchors** for the
+servo cable raceway — functional, kept. (2) The idler-side silhouette had a
+0.65 mm step at `FORK_WIDE_Z`: the web/grip plate ended at the natural
+−20.35 (case face + PLATE) while the fork plate/jog block sit at −21. Web
+and idler grip plate now run flush to −21 (same x-z swing footprint, so all
+sweep clearances hold). (3) The 0.7 mm slot between the web edge (19.75)
+and the horn fork plate (20.45) over z −50…−36.5 was dead air — the
+chained link's grip-plate sweep that motivates the 0.7 band tops out at
+z ≈ −72 — and is now solid (the wide fork section starts at the web edge).
+Verified by point-in-solid probes; both gates ALL CLEAR / PRINT CLEAN;
++0.7 g per link (segment 77.9 → 78.6 g), inertials rebaked, smoke test
+stands 500/500. The printed v1 link fits and works identically — no reprint
+needed; v2 is the one to slice from now on.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

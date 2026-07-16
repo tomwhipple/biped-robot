@@ -13,7 +13,7 @@
               torso 327.8 g (pelvis+tower prints, 2 roll servos, 3S LiPo 80 g,
                            driver board 20 g, wiring/screws)
               hip link 29 g (yoke_roll + yoke_pitch + screws)
-              thigh/shin 77 g each (servo + leg_link + screws)
+              thigh/shin 79 g each (servo + leg_link + screws)
               foot 91 g (servo + foot print + TPU pad + screws)
             Total 0.879 kg (v1: 0.93 kg).
          5. Joint offsets unchanged: hip-roll -36, roll->pitch 50, thigh 90,
@@ -96,13 +96,13 @@
         <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
         <body name="L_thigh" pos="0 0 -0.05">
           <joint name="L_hip_pitch" axis="0 1 0" range="-110 60"/>
-        <inertial pos="-0.0010 0.0002 -0.0237" quat="0.7139 -0.0025 -0.7002 0.0052" mass="0.0779" diaginertia="1.8044e-05 5.0895e-05 5.9643e-05"/>
+        <inertial pos="-0.0010 0.0002 -0.0237" quat="0.7140 -0.0013 -0.7001 0.0038" mass="0.0786" diaginertia="1.8391e-05 5.0980e-05 5.9985e-05"/>
           <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
           <body name="L_shin" pos="0 0 -0.09">
             <joint name="L_knee" axis="0 1 0" range="-95 5"/>
-        <inertial pos="-0.0010 0.0002 -0.0237" quat="0.7139 -0.0025 -0.7002 0.0052" mass="0.0779" diaginertia="1.8044e-05 5.0895e-05 5.9643e-05"/>
+        <inertial pos="-0.0010 0.0002 -0.0237" quat="0.7140 -0.0013 -0.7001 0.0038" mass="0.0786" diaginertia="1.8391e-05 5.0980e-05 5.9985e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
@@ -127,13 +127,13 @@
         <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
         <body name="R_thigh" pos="0 0 -0.05">
           <joint name="R_hip_pitch" axis="0 1 0" range="-110 60"/>
-        <inertial pos="-0.0010 0.0002 -0.0237" quat="0.7139 -0.0025 -0.7002 0.0052" mass="0.0779" diaginertia="1.8044e-05 5.0895e-05 5.9643e-05"/>
+        <inertial pos="-0.0010 0.0002 -0.0237" quat="0.7140 -0.0013 -0.7001 0.0038" mass="0.0786" diaginertia="1.8391e-05 5.0980e-05 5.9985e-05"/>
           <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
           <body name="R_shin" pos="0 0 -0.09">
             <joint name="R_knee" axis="0 1 0" range="-95 5"/>
-        <inertial pos="-0.0010 0.0002 -0.0237" quat="0.7139 -0.0025 -0.7002 0.0052" mass="0.0779" diaginertia="1.8044e-05 5.0895e-05 5.9643e-05"/>
+        <inertial pos="-0.0010 0.0002 -0.0237" quat="0.7140 -0.0013 -0.7001 0.0038" mass="0.0786" diaginertia="1.8391e-05 5.0980e-05 5.9985e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
