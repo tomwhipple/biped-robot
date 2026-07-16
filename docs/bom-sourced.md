@@ -30,6 +30,9 @@ order also there.
 | 16 | TPU sheet 2 mm | 2 | BENECREAT 2-pc Silicone Rubber Sheet 2 mm | $15.59 | $15.59 | [Amazon](https://www.amazon.com/dp/B08P7P69WQ) | 2 sheets. Cut to 90×46 mm for foot pads. Silicone rubber ≈ TPU functionally. |
 | 17 | Zip ties 2.5 mm | ~10 | Zip Ties 2.5 mm×200 mm 100 pc | $3.99 | $3.99 | [Amazon](https://www.amazon.com/dp/B0GR52PRHF) | 100 pcs (~10 needed). Black nylon, 30 lb. |
 | 18 | 9-DOF IMU | 1 | Adafruit BNO085 breakout (STEMMA QT) | $24.95 | $24.95 | [Adafruit 4754](https://www.adafruit.com/product/4754) | Torso attitude feedback for the control loop (up-vector + gyro, sensor fusion on-chip); 4-wire I2C to the ESP32. Cheap alt/spare: MPU-6050 "GY-521" (~$5, needs a Madgwick/complementary filter in firmware). |
+| 19 | Servo bus extension leads, 3-pin ≥200 mm | 2 (+2 spares) | Feetech/Waveshare 3-pin bus servo cable, 200–300 mm | ~$1–2 | ~$8 | [search](https://www.amazon.com/s?k=feetech+3+pin+servo+cable+200mm) · [Waveshare](https://www.waveshare.com/product/robotics/accessories.htm) | For the **hip-roll → hip-pitch** hop (one per leg): worst-pose routed path is **170 mm** (measured in `cad/dress.py` across the full ROM incl. slack loop), so the 150 mm leads that ship with the servos are too short *there and only there*. ≥200 mm gives ~18 % flex margin; if only 300 mm is stocked, zip-tie the excess at the thigh raceway anchors. Every other hop fits a stock 150 mm lead (see [wiring.md](wiring.md)). |
+| 20 | XT30 pigtail + inline switch + heat-shrink | 1 set | XT30 pigtail (mates the pack lead) → inline switch → bare ends into the board's screw terminal | ~$10 | ~$10 | [search](https://www.amazon.com/s?k=xt30+pigtail+connector+inline+switch) | Battery → power switch → driver-board screw terminal. Routed run is only ~30 mm, so any short pigtail works; 20 AWG or thicker (bus transient budget ~10 A). |
+| 21 | IMU cable, JST-SH 4-pin → male jumpers | 1 | Adafruit STEMMA QT / Qwiic to male headers, 150 mm | $0.95 | $0.95 | [Adafruit 4209](https://www.adafruit.com/product/4209) | BNO085 → ESP32 GPIO 21/22 + 3V3/GND. The driver board has no STEMMA jack, so this (or 4 soldered wires) bridges it. IMU mounts on the deck next to the board — 150 mm is ample. |
 
 ---
 
@@ -42,12 +45,12 @@ order also there.
 | 3D printer | $219.00 |
 | Filament (PLA + PETG + TPU) | $74.14 |
 | Hardware (screws, inserts, thumbscrew, sheet, zip ties) | $59.14 |
-| **Total Estimated** | **~$620–640** |
+| Wiring (bus extensions, XT30 pigtail + switch, IMU cable) | ~$19 |
+| **Total Estimated** | **~$640–660** |
 
 **Not yet on this list** (from [hardware-order.md](hardware-order.md)): 2S–3S
-balance charger (~$30, skip if owned), XT30 pigtail + heat-shrink + inline
-power switch (~$10), 2 longer servo extension leads for hip→board runs.
-Also note items 7 and 16 are redundant — foot pads are *printed* TPU
+balance charger (~$30, skip if owned) and a USB-C **data** cable for
+flashing/debug (skip if owned). Also note items 7 and 16 are redundant — foot pads are *printed* TPU
 (item 7); the silicone sheet (item 16, $15.59) can be dropped unless you want
 a fallback. The KADRICK kit is socket-cap, not button-head — check head
 clearance at the idler screws before relying on it there.
@@ -96,7 +99,10 @@ ability to choose the battery later. Buy 8 + 1–2 spares of the 12 V version.
 - **Driver board**: exact model + hole pattern (`BOARD_HOLES` in `dimensions.py`)
   — confirm component heights and battery clearance.
 - **GoPro fit**: measure your MAX's finger thickness — slots are 3.2 mm.
-- **Cable service loops**: verify lengths with real 150 mm leads; extension
-  cables may be needed shin→ankle.
+- **Cable service loops**: routed worst-pose lengths measured in `cad/dress.py`
+  (2026-07-16) — hip-roll→hip-pitch 170 mm (**needs the item-19 extensions**),
+  hip-pitch→knee 111 mm, knee→ankle 82 mm, board→hip-roll 33 mm; all but the
+  first fit the stock 150 mm leads with ≥25 % slack. Confirm the shipped lead
+  length really is 150 mm when the servos arrive.
 - **Foot pad material**: TPU sheet vs printed TPU vs adhesive rubber; friction
   should roughly match sim (μ ≈ 1.0).

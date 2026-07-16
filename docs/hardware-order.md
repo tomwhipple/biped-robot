@@ -41,7 +41,7 @@ GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 | Balance charger | 2S–3S LiPo charger (skip if owned) | 1 | ~$30 | check what you own |
 | **Fastener kit** | M3 heat-set inserts (~20), M3×6/8/10 machine, M3 self-tap, M2.5×8 (board), washers | 1 kit | ~$25 | ✅ Ready |
 | Filament | PLA (prototype), PETG (final structural), TPU 95A (foot pads) | 1 ea | ~$55 | ✅ Ready |
-| Wiring | XT30 pigtail, heat-shrink; servo leads (150 mm) ship with servos — 2 longer extensions handy for hip→board | — | ~$10 | ✅ Ready |
+| Wiring | XT30 pigtail + inline switch, heat-shrink; servo leads (150 mm) ship with servos — 2× ≥200 mm extensions **required** for the hip-roll→hip-pitch hops (worst-pose routed 170 mm, measured in `cad/dress.py`); IMU cable JST-SH→jumpers | — | ~$19 | ✅ Ready ([itemized](bom-sourced.md), items 19–21) |
 | GoPro MAX + M5 thumbscrew | camera + its own mounting screw | — | owned | ✅ |
 | 3D printer | Bambu Lab A1 mini (see docs/cad-and-printer-recommendations.md) | 1 | ~$199–219 | if not already ordered |
 

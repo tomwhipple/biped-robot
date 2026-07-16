@@ -62,9 +62,20 @@ pigtail and a switch.*
 - Servos ship with ID 1: at bring-up, connect **one at a time** and assign
   IDs via the board's web UI (AP mode, `192.168.4.1`), then chain them.
   Two same-ID servos on the bus fail to enumerate.
-- Hip-roll servos sit closest to the board; the shin→ankle hop is the
-  longest run — verify the 150 mm leads reach with the service loop, else
-  use the two extension leads on the order list.
+- **Segment lengths** (worst pose over the full ROM, measured on the routed
+  paths in `cad/dress.py`, slack loops included — 2026-07-16):
+
+  | Hop | Worst routed | Lead |
+  |---|---|---|
+  | board → hip-roll | 33 mm | stock 150 mm (coil excess in the tower) |
+  | hip-roll → hip-pitch | **170 mm** | **≥200 mm extension required** (BOM item 19) — crosses both the roll and hip-pitch joints; longest at the knee-flexion pose |
+  | hip-pitch → knee | 111 mm | stock 150 mm (~35 % slack) |
+  | knee → ankle | 82 mm | stock 150 mm (worst at ankle −40°) |
+
+  The routed paths already include the service loops, so the stock-lead
+  margins above are true flex margin, not taut-string numbers. An earlier
+  guess here that shin→ankle was the long run was wrong — it's the shortest
+  joint-crossing hop.
 
 ## IMU (torso attitude feedback)
 
