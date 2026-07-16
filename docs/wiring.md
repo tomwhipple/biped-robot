@@ -12,6 +12,9 @@ pigtail and a switch.*
 
 ![Wiring diagram](wiring-diagram.svg)
 
+**Connector field guide** (photos, pinouts, counts, measured hop lengths):
+[connector-guide.html](connector-guide.html) — self-contained, open in a browser.
+
 ## Power path
 
 ```
