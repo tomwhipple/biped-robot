@@ -16,3 +16,10 @@ sim/runs/*
 # OpenSCAD/MuJoCo scratch renders written next to scripts
 sim/*.gif
 sim/*.png
+
+# Rendered movie/animation artifacts (large binaries; regenerate from the
+# render scripts instead of committing them)
+*.mov
+*.mp4
+*.webm
+**/renders/*.gif
