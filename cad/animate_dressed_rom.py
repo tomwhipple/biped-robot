@@ -4,17 +4,24 @@ segments are RE-SWEPT each frame from the posed attachment points, so the
 wiring visibly follows the legs instead of tearing off.
 
 Run:  .venv/bin/python cad/animate_dressed_rom.py
-      -> cad/renders/dressed_rom.mov   (h264, no gif -- user preference)
+      -> cad/renders/dressed_rom.mov        (orbiting 3/4 view, h264, no gif)
+
+      .venv/bin/python cad/animate_dressed_rom.py --back
+      -> cad/renders/dressed_rom_back.mov   (camera locked on the rear the
+         whole time so the cable raceways stay in frame -- you watch exactly
+         where each red servo lead moves as the joints sweep)
 
 Kinematic pose demo like sim/render_rom.py (base fixed in the world, no
 dynamics; both legs posed identically, same-sign roll so the legs never
 pass through each other). Rigid parts export ONCE and are posed per frame
 via body pos/quat; only the 6 joint-crossing cables rebuild per frame.
 """
+import multiprocessing
 import os
 import shutil
 import struct
 import subprocess
+import sys
 import numpy as np
 import mujoco
 import imageio.v2 as imageio
@@ -149,32 +156,8 @@ def label_frame(img, text):
     return np.asarray(im)
 
 
-def main():
-    leaves = collect_leaves()
-    frames_spec = timeline()
-    total = len(frames_spec)
-    print(f"{total} frames, {len(leaves)} rigid+cable leaves")
-
-    rigid_assets, rigid_bodies = [], []
-    for bname, (labels, _) in BODIES.items():
-        geoms = []
-        for lb in labels:
-            stl, c = leaves[lb]
-            rigid_assets.append(
-                f'<mesh name="{lb}" file="{stl}" scale="0.001 0.001 0.001"/>')
-            geoms.append(f'<geom type="mesh" mesh="{lb}" contype="0" '
-                         f'conaffinity="0" rgba="{c[0]} {c[1]} {c[2]} 1"/>')
-        rigid_bodies.append(f'<body name="{bname}" mocap="true">'
-                            + "".join(geoms) + "</body>")
-    cable_assets, cable_geoms = [], []
-    for lb in CABLE_LABELS:
-        stl, c = leaves[lb]
-        cable_assets.append(
-            f'<mesh name="{lb}" file="{stl}" scale="0.001 0.001 0.001"/>')
-        cable_geoms.append(f'<geom type="mesh" mesh="{lb}" contype="0" '
-                           f'conaffinity="0" rgba="{c[0]} {c[1]} {c[2]} 1"/>')
-
-    xml = f"""<mujoco>
+def build_xml(rigid_assets, rigid_bodies, cable_assets, cable_geoms):
+    return f"""<mujoco>
       <compiler meshdir="."/>
       <visual><headlight ambient="0.5 0.5 0.52" diffuse="0.45 0.45 0.45"/>
         <global offwidth="{W}" offheight="{H}"/>
@@ -196,58 +179,134 @@ def main():
       </worldbody>
     </mujoco>"""
 
+
+# ------------------------------------------------------------ parallel render
+# The per-frame cost is dominated by OCC cable sweeps + a full MuJoCo recompile
+# (the cable meshes change shape every frame, so the model can't be reused).
+# Frames are independent, so we fan them out across processes. Rigid part STLs
+# are exported ONCE by the parent and read-only shared; each worker sweeps its
+# own cables into a private dir so filenames never collide.
+_WK = {}   # per-process render context, populated by _init_worker
+
+
+def _init_worker(leaves, rigid_assets, rigid_bodies, back_view, total):
+    cdir = os.path.join(TMP, f"w{os.getpid()}")
+    os.makedirs(cdir, exist_ok=True)
+    _WK.update(leaves=leaves, rigid_assets=rigid_assets,
+               rigid_bodies=rigid_bodies, back_view=back_view,
+               total=total, cdir=cdir)
+
+
+def _render_frame(job):
+    """Render one frame; returns (index, rgb array). Runs in a worker or,
+    for jobs==1, in the main process after _init_worker was called once."""
+    i, ang, text = job
+    roll, hip, knee, ankle = ang
+    leaves = _WK["leaves"]
+    cdir = _WK["cdir"]
+
+    cable_assets, cable_geoms = [], []
+    for tag, ly in (("L", D.HIP_SEP / 2), ("R", -D.HIP_SEP / 2)):
+        segs = dress.leg_cables(ly, roll, hip, knee, ankle)
+        chained = None
+        for k, (s, seg) in enumerate(zip(("hip", "thigh", "shin"), segs)):
+            lb = f"{tag}_cable_{s}"
+            path = os.path.join(cdir, f"{lb}.stl")
+            export_stl(seg, path)
+            if not stl_ok(path):
+                # OCC sweep produced an unloadable tessellation for this pose
+                # -- rebuild this leg's cables as segment chains.
+                if chained is None:
+                    chained = dress.leg_cables(ly, roll, hip, knee, ankle,
+                                               chain=True)
+                export_stl(chained[k], path)
+                assert stl_ok(path), f"frame {i} {lb} unexportable"
+            c = leaves[lb][1]
+            cable_assets.append(
+                f'<mesh name="{lb}" file="{path}" scale="0.001 0.001 0.001"/>')
+            cable_geoms.append(f'<geom type="mesh" mesh="{lb}" contype="0" '
+                               f'conaffinity="0" rgba="{c[0]} {c[1]} {c[2]} 1"/>')
+
+    xml = build_xml(_WK["rigid_assets"], _WK["rigid_bodies"],
+                    cable_assets, cable_geoms)
+    m = mujoco.MjModel.from_xml_string(xml)
+    d = mujoco.MjData(m)
+    for tag, ly in (("L", D.HIP_SEP / 2), ("R", -D.HIP_SEP / 2)):
+        fr = dress.leg_frames(ly, roll, hip, knee, ankle)
+        for bname, (_, key) in BODIES.items():
+            if key is None or not bname.startswith(tag):
+                continue
+            M = fr[key]
+            mid = m.body(bname).mocapid[0]
+            d.mocap_pos[mid] = M[:3, 3] / 1000.0
+            d.mocap_quat[mid] = mat2quat(M[:3, :3])
+    mujoco.mj_forward(m, d)
+
     cam = mujoco.MjvCamera()
     mujoco.mjv_defaultCamera(cam)
     cam.lookat[:] = [0.0, 0.0, 0.18]
     cam.distance, cam.elevation = 0.92, -12
+    # Rear cable raceways face -X; azimuth 0 puts the camera dead-on behind the
+    # robot so every red servo lead stays in frame. Orbit otherwise.
+    cam.azimuth = 0 if _WK["back_view"] else 150 + 110 * i / _WK["total"]
 
-    frames = []
-    renderer = None
-    for i, (ang, text) in enumerate(frames_spec):
-        roll, hip, knee, ankle = ang
-        # re-sweep the joint-crossing cables for this pose (same filenames,
-        # so the compiled model picks them up on rebuild)
-        for tag, ly in (("L", D.HIP_SEP / 2), ("R", -D.HIP_SEP / 2)):
-            segs = dress.leg_cables(ly, roll, hip, knee, ankle)
-            chained = None
-            for k, (s, seg) in enumerate(zip(("hip", "thigh", "shin"), segs)):
-                path = os.path.join(TMP, f"{tag}_cable_{s}.stl")
-                export_stl(seg, path)
-                if not stl_ok(path):
-                    # OCC sweep produced an unloadable tessellation for this
-                    # pose -- rebuild this leg's cables as segment chains
-                    if chained is None:
-                        chained = dress.leg_cables(ly, roll, hip, knee,
-                                                   ankle, chain=True)
-                    export_stl(chained[k], path)
-                    assert stl_ok(path), f"frame {i} {tag}_{s} unexportable"
-        m = mujoco.MjModel.from_xml_string(xml)
-        d = mujoco.MjData(m)
-        for tag, ly in (("L", D.HIP_SEP / 2), ("R", -D.HIP_SEP / 2)):
-            fr = dress.leg_frames(ly, roll, hip, knee, ankle)
-            for bname, (_, key) in BODIES.items():
-                if key is None or not bname.startswith(tag):
-                    continue
-                M = fr[key]
-                mid = m.body(bname).mocapid[0]
-                d.mocap_pos[mid] = M[:3, 3] / 1000.0
-                d.mocap_quat[mid] = mat2quat(M[:3, :3])
-        mujoco.mj_forward(m, d)
-        if renderer is None:
-            renderer = mujoco.Renderer(m, height=H, width=W)
-        else:
-            renderer.close()
-            renderer = mujoco.Renderer(m, height=H, width=W)
-        cam.azimuth = 150 + 110 * i / total
-        renderer.update_scene(d, cam)
-        frames.append(label_frame(renderer.render().copy(), text))
-        if i % 20 == 0:
-            print(f"  frame {i}/{total}")
+    renderer = mujoco.Renderer(m, height=H, width=W)
+    renderer.update_scene(d, cam)
+    out = label_frame(renderer.render().copy(), text)
     renderer.close()
+    return i, out
+
+
+def main(back_view=False, jobs=None):
+    if jobs is None:
+        jobs = max(1, (os.cpu_count() or 4) - 2)
+    leaves = collect_leaves()
+    frames_spec = timeline()
+    total = len(frames_spec)
+
+    rigid_assets, rigid_bodies = [], []
+    for bname, (labels, _) in BODIES.items():
+        geoms = []
+        for lb in labels:
+            stl, c = leaves[lb]
+            rigid_assets.append(
+                f'<mesh name="{lb}" file="{stl}" scale="0.001 0.001 0.001"/>')
+            geoms.append(f'<geom type="mesh" mesh="{lb}" contype="0" '
+                         f'conaffinity="0" rgba="{c[0]} {c[1]} {c[2]} 1"/>')
+        rigid_bodies.append(f'<body name="{bname}" mocap="true">'
+                            + "".join(geoms) + "</body>")
+
+    jobs = min(jobs, total)
+    print(f"{total} frames, {len(leaves)} rigid+cable leaves, {jobs} worker(s)")
+    init_args = (leaves, rigid_assets, rigid_bodies, back_view, total)
+    jobspec = [(i, ang, text) for i, (ang, text) in enumerate(frames_spec)]
+
+    frames = [None] * total
+    done = 0
+    if jobs == 1:
+        _init_worker(*init_args)
+        for job in jobspec:
+            i, arr = _render_frame(job)
+            frames[i] = arr
+            done += 1
+            if done % 20 == 0 or done == total:
+                print(f"  frame {done}/{total}")
+    else:
+        # 'spawn' gives each worker a clean GL/OCC state (fork + GL is unsafe
+        # on macOS). Workers stream results back as they finish.
+        ctx = multiprocessing.get_context("spawn")
+        with ctx.Pool(jobs, initializer=_init_worker,
+                      initargs=init_args) as pool:
+            for i, arr in pool.imap_unordered(_render_frame, jobspec):
+                frames[i] = arr
+                done += 1
+                if done % 20 == 0 or done == total:
+                    print(f"  frame {done}/{total}")
 
     tmp_mp4 = os.path.join(TMP, "raw.mp4")
     imageio.mimwrite(tmp_mp4, frames, fps=FPS, codec="libx264", quality=8)
-    mov = os.path.join(OUT, "dressed_rom.mov")
+    mov = os.path.join(OUT, "dressed_rom_back.mov" if back_view
+                       else "dressed_rom.mov")
     subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-i", tmp_mp4,
                     "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
                     "-c:v", "libx264", "-crf", "20", "-pix_fmt", "yuv420p",
@@ -259,4 +318,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    jobs = None
+    for a in sys.argv:
+        if a.startswith("--jobs="):
+            jobs = int(a.split("=", 1)[1])
+    main(back_view="--back" in sys.argv, jobs=jobs)
