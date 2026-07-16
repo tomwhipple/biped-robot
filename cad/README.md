@@ -10,9 +10,12 @@ cad/
 ├── check_assembly.py  # boolean interference checks over the full joint ranges
 ├── export_step.py     # per-part STEP exports (cad/step/)
 ├── export_assembly.py # assembled robot -> cad/step/assembly.step (+ camera mock)
+├── dress.py           # posable dressed robot: + cables, zip ties, board, pigtail
+├── export_assembly_full.py  # dressed robot -> step/assembly_full.step + stills
+├── animate_dressed_rom.py   # leg ROM video with the wiring following the joints
 ├── render_assembly.py # PNG render of the assembly via MuJoCo
 ├── stl/               # exported STLs (one per unique part)
-├── step/              # exported STEPs + assembly.step
+├── step/              # exported STEPs + assembly.step / assembly_full.step
 └── bimo_like_biped.scad  # (older massing concept, superseded by parts.py)
 ```
 
@@ -20,7 +23,18 @@ cad/
 ../.venv/bin/python parts.py            # build + export + verify (bed fit, masses, CG)
 ../.venv/bin/python check_assembly.py   # must print ALL CLEAR
 ../.venv/bin/python export_step.py && ../.venv/bin/python export_assembly.py
+../.venv/bin/python export_assembly_full.py   # dressed: wiring/board/battery mocks
 ```
+
+`assembly_full.step` is the "approximate complete" model: everything in
+`assembly.step` plus mock dress — driver board under the tower top, battery,
+XT30 pigtail, per-leg servo daisy-chain cables (splines through the real
+ST3215 rear-end connector positions, tied to the web raceways with zip-tie
+mocks). Approximate by design: wire paths are plausible, not catalog-exact;
+IMU and power switch are not placed yet (mounts undesigned). The cable
+segments regenerate from the posed joint frames, so `dress.dressed_robot(
+roll, hip, knee, ankle)` and the ROM video show the wiring following the
+legs rather than a rigid cable tearing off.
 
 Servo dimensions were taken from the **official Waveshare ST3215 STEP model and
 2D drawing** (measured programmatically, not eyeballed) — sources in the
