@@ -223,7 +223,15 @@ def leg_link(print_fins=False):
         p += box(web_x0, 12, wide0, a1, D.FORK_WIDE_Z, -33)
         p += box(D.FORK_NARROW_X, 12, a0, a1, drop, D.FORK_WIDE_Z)
         p += cyl_y(D.PAD_D / 2, a0, a1, 0, drop)
-    p += cyl_y(D.IDLER_BOSS_D / 2, D.SV_IDLER_FACE, iy1, 0, drop)
+    # idler boss: OD tapered ~51 deg (Ø19 at the arm face -> Ø16 at the tip)
+    # so its print-underside band never exceeds 45 deg -- it used to need a
+    # break-away fin wedged 0.1 mm from the arm plate (unremovable, print
+    # feedback 2026-07-16). The OD is a loose locator (~3 mm radial slack in
+    # the Ø25 recess); concentricity comes from the screw pattern, so the
+    # taper costs nothing.
+    p += Pos(0, (D.SV_IDLER_FACE + iy1) / 2, drop) * Rot(90, 0, 0) * Cone(
+        D.IDLER_BOSS_D / 2 - 1.5, D.IDLER_BOSS_D / 2,
+        abs(iy1 - D.SV_IDLER_FACE))
     # jog block joining horn grip plate (out at 19.75) to fork plate (21.45+)
     p += box(web_x0, 12, D.SV_TOPFACE, hy1, -36.5, -33)
     p += box(web_x0, 12, iy0, -D.SV_TOPFACE, -36.5, -33)
@@ -242,25 +250,50 @@ def leg_link(print_fins=False):
     p -= cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, drop)
     p -= cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 1,
                D.SV_IDLER_FACE + 0.7, 0, drop)
-    # --- zip-tie holes in the web (servo cable runs down the back)
+    # --- cable window through the web: the servo's rear ports sit INBOARD
+    # of the web (case end, z ~ -36) while the raceway runs down the web's
+    # OUTER face -- without an opening every joint-crossing cable pierced
+    # the plastic (print-review feedback 2026-07-16; dress.py measured
+    # 27-74 mm3 of cable/web intersection per segment). 9 x 11 passes a
+    # 3-pin plug; both the OUT cable (down to the raceway) and the incoming
+    # IN cable (up into the port) share it.
+    p -= box(web_x0 - 1, web_x1 + 1, -4.5, 4.5, -48, -37)
+    # --- zip-tie holes in the web (servo cable runs down the back); at +-9
+    # so the window keeps a >=2 mm ligament to each hole -- the -40 pair
+    # straddles the window and captures the cables right at the exit
     for z in (-40, -52):
-        for ly in (7, -7):
+        for ly in (9, -9):
             p -= cyl_x(2.25, web_x0 - 1, web_x1 + 1, ly, z)
     if print_fins:
-        # break-away print supports: walls from the bed to 0.2 under the
-        # floating faces (0.2 = PETG-safe separation gap, so they peel off
-        # after printing). 2.4 of the 3.0 mm slab width is backed -- a
-        # narrower fin leaves the strip edges drooping past 45 deg.
-        for yc in (hy0 + D.PLATE / 2, iy0 + D.PLATE / 2):   # fork slab bands
-            fin = box(web_x0, D.FORK_NARROW_X - 0.20, yc - 1.2, yc + 1.2,
-                      drop - 11.0, -53.0)
-            fin -= cyl_y(D.PAD_D / 2 + 0.20, yc - 2, yc + 2, 0, drop)
+        # break-away print supports under the narrow fork slabs, redesigned
+        # from the first print (feedback 2026-07-16: full-length walls at a
+        # 0.2 gap half-fused and were boxed in at the ends -- "almost
+        # impossible to remove"):
+        #  - 0.35 separation gap (0.2 half-welds in PETG)
+        #  - toothed top: ~4 mm contact islands instead of a 31 mm weld line
+        #  - a grab flange along the bed edge poking 3 mm past the slab
+        #    face, so pliers get a purchase to peel the fin outward
+        #  - z trimmed to the slab's actually-unsupported band (-85..-54):
+        #    past the pad tangent the pad's own curve prints fine 3 mm off
+        #    the bed, and the wide fork section starts at -50
+        #  - the old idler-boss rim fin is DELETED: it sat 0.1 mm from the
+        #    arm plate (unremovable); the boss OD is a loose locator
+        #    (~3 mm radial slack), so its 1.2 mm underside ledge drooping
+        #    slightly is cosmetic -- and 1.2 is exactly LEDGE_OK
+        for yc, sgn in ((hy0 + D.PLATE / 2, 1), (iy0 + D.PLATE / 2, -1)):
+            # z -96..-54: ends flush under the pad's bottom tangent (its
+            # flattest, saggiest arc) instead of running past the part end
+            # -- the old fin's -101 tail supported nothing (feedback item 3)
+            fin = box(web_x0, D.FORK_NARROW_X - 0.35, yc - 1.2, yc + 1.2,
+                      -96.0, -54.0)
+            fin -= cyl_y(D.PAD_D / 2 + 0.35, yc - 2, yc + 2, 0, drop)
+            for zt in (-92, -84, -76, -68, -60):     # teeth: 5 on / 3 off
+                fin -= box(D.FORK_NARROW_X - 1.85, D.FORK_NARROW_X + 0.1,
+                           yc - 2, yc + 2, zt, zt + 3)
+            # grab flange: first 1.5 mm of print, reaching past the slab
+            fin += box(web_x0, web_x0 + 1.5, min(yc - 1.2, sgn * (abs(yc) + 4.3)),
+                       max(yc + 1.2, sgn * (abs(yc) + 4.3)), -96.0, -54.0)
             p += fin
-        # idler-boss rim (O19 x 1.2 ring inboard of the idler arm plate)
-        fin = box(web_x0, -D.IDLER_BOSS_D / 2 - 0.20, -17.9, -17.0,
-                  drop - 8.0, drop + 8.0)
-        fin -= cyl_y(D.IDLER_BOSS_D / 2 + 0.20, -18.5, -16.5, 0, drop)
-        p += fin
     return p
 
 

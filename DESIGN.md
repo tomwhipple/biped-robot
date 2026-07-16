@@ -1160,6 +1160,37 @@ pilot floors), and the gopro stack + camera rose 3 mm everywhere in CAD
 + gopro_base (~13 g of top-of-tower accessories) are still outside the sim
 torso inertial, same bucket as the +154 g camera adjustment.
 
+### leg_link v3 — cable window + removable fins (2026-07-16 print review)
+
+Second slice/print review of the leg_link raised three things; all landed:
+
+1. **Cable window.** The servo's rear ports sit inboard of the back web
+   while the raceway runs down its outer face — the dressed model measured
+   **27–74 mm³ of cable-through-plastic per segment** because there was no
+   opening. The web now has a 9 × 11 window at (y 0, z −48…−37) — sized to
+   pass a 3-pin plug — and the zip-tie holes moved to ±9 so the −40 pair
+   straddles the exit. `dress.py` reroutes every joint-crossing segment
+   through the windows (frame-following waypoints riding the outer face and
+   wrapping the knee corner; slack bows along posed outward bisectors), and
+   the cable∩link check now reads ≤1 mm³ (surface graze at the tie line)
+   across neutral, knee −95, pike, hip ±extremes, and roll+knee.
+2. **Break-away fins were unremovable.** The 48 mm fin walls half-fused at
+   their 0.2 mm gaps and were boxed in at the ends; the idler-boss rim fin
+   sat 0.1 mm from the arm plate. Fins rebuilt: 0.35 gap, toothed contact
+   (5 on / 3 off), a bed-level grab flange poking 2.8 mm past the slab face
+   for plier purchase, z trimmed to the actually-unsupported band (−96…−54,
+   ending under the pad's bottom tangent instead of running past the part).
+   The boss fin is **deleted outright**: the boss OD is now a ~51° cone
+   (Ø19 at the arm face → Ø16 tip), self-supporting in print — it's a loose
+   locator (~3 mm radial slack), so the taper costs nothing.
+3. **No support past the pad end** (feedback item 3) — the old fin tail to
+   −101 supported nothing and printed as a floating pedestal.
+
+Both gates pass; thigh/shin inertials rebaked (78.6 g, window −0.3 g
+against the cone's +0.3 g). The window is functional, not cosmetic:
+**printed v1/v2 links want a reprint** when convenient, else the leads
+detour around the web's bottom edge.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

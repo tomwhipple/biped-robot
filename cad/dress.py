@@ -156,30 +156,52 @@ def leg_cables(ly, roll, hip, knee, ankle, chain=False):
         base = {"thigh": ZP, "shin": ZK, "foot": D.ANKLE_Z}[name]
         return pt(f[name], (p[0], p[1] + ly, p[2] + base))
 
-    # B: deck cutout plug -> over the deck rear edge -> hip-pitch rear ports
+    # Every crossing between a rear port (inboard, x -5/-11) and the outer
+    # raceway (x -17) threads the web's 9 x 11 CABLE WINDOW at (y 0,
+    # z -48..-37) -- before the window existed the cables pierced the web
+    # (27-74 mm3 measured per segment, print-review feedback 2026-07-16).
+    def win_in(name):                    # outside face -> window -> IN port
+        return [loc(name, (-17.5, 0, -17)), loc(name, (-17.0, 0, -27)),
+                loc(name, (-16.8, 0, -36)), loc(name, (-13.5, 0, -42.5)),
+                loc(name, (-6.5, 0, -41)), loc(name, (-5, 0, -36.8))]
+
+    # B: deck cutout plug -> over the deck rear edge -> down the web outer
+    # face -> through the thigh window -> hip-pitch IN port
     b0 = np.array([-9, ly, D.DECK_BOT_Z + 1.5])
     b1 = np.array([-9, ly, DTOP + 3])
     b2 = np.array([-26, ly, DTOP + 0.5])
     b3 = np.array([-28, ly, DTOP - 14])
-    b5 = loc("thigh", (-5, 0, -43))                  # hang below the ports
-    b6 = loc("thigh", (-5, 0, -36.3))                # IN port (rear end face)
-    b4 = (b3 + b5) / 2 + np.array([-6, 0, 0])        # dynamic slack
-    seg_b = cable([b0, b1, b2, b3, b4, b5, b6], chain=chain)
+    def outn(name):                      # world direction of the frame's -x
+        n = -f[name][:3, 0]
+        return n / np.linalg.norm(n)
 
-    # C: hip-pitch OUT port -> thigh raceway -> knee servo rear ports
-    c0 = loc("thigh", (-11, 0, -36.3))
-    c1 = loc("thigh", (-14, 0, -41))
-    tth = [pt(f["thigh"], (RACE_X, ly, ZP + z)) for z in (-44, TIE_Z[1], -57)]
-    c2 = loc("shin", (-15, 0, -26))                  # hug the knee case back
-    c3 = loc("shin", (-5, 0, -42))                   # loop under the end face
-    c4 = loc("shin", (-5, 0, -36.3))                 # IN port
-    mid = (tth[-1] + c2) / 2 + np.array([-4, 0, 0])
-    seg_c = cable([c0, c1] + tth + [mid, c2, c3, c4], chain=chain)
+    bw = win_in("thigh")
+    # dynamic slack: bow along the bisector of world -x and the thigh's
+    # posed outward normal (a fixed world -x cut into the link at hip -110)
+    nb = outn("thigh") + np.array([-1.0, 0, 0])
+    b4 = (b3 + bw[0]) / 2 + 8 * nb / np.linalg.norm(nb)
+    seg_b = cable([b0, b1, b2, b3, b4] + bw, chain=chain)
 
-    # D: knee OUT port -> shin raceway -> ankle rear end (heel window)
-    d0 = loc("shin", (-11, 0, -36.3))
-    d1 = loc("shin", (-14, 0, -41))
-    tsh = [pt(f["shin"], (RACE_X, ly, ZK + z)) for z in (-44, TIE_Z[1], -56)]
+    # C: hip-pitch OUT port -> out through the thigh window -> raceway ->
+    # in through the SHIN window -> knee IN port
+    c0 = loc("thigh", (-11, 0, -36.6))
+    c1 = loc("thigh", (-13.5, 0, -42.5))
+    tth = [pt(f["thigh"], (RACE_X, ly, ZP + z)) for z in (-46, TIE_Z[1], -57)]
+    # ride the thigh's outer face all the way to the knee corner: at knee
+    # -95 the free span otherwise cuts through the thigh's fork end
+    tth += [pt(f["thigh"], (RACE_X, ly, ZP + z)) for z in (-74, -88)]
+    cw = win_in("shin")
+    # slack bows along the knee's outward bisector so a folded knee
+    # (-95) doesn't pull the span through either link
+    nc = outn("thigh") + outn("shin")
+    mid = (tth[-1] + cw[0]) / 2 + 7 * nc / np.linalg.norm(nc)
+    seg_c = cable([c0, c1] + tth + [mid] + cw, chain=chain)
+
+    # D: knee OUT port -> out through the shin window -> shin raceway ->
+    # ankle rear end (heel window)
+    d0 = loc("shin", (-11, 0, -36.6))
+    d1 = loc("shin", (-13.5, 0, -42.5))
+    tsh = [pt(f["shin"], (RACE_X, ly, ZK + z)) for z in (-46, TIE_Z[1], -56)]
     d2 = loc("foot", (-30, 0, 13))                   # dive toward the heel
     d3 = loc("foot", (-36.3, 0, 1))                  # plug at the rear end
     mid = (tsh[-1] + d2) / 2 + np.array([-3, 0, 2])
