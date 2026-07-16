@@ -123,7 +123,7 @@ after any CAD change):
 | yoke_roll / yoke_pitch | flange face on bed | arms vertical → layer lines ⟂ arm bending is avoided; idler boss prints as a short horizontal stub (1–4 mm) — slight underside droop is cosmetic, the seat face prints clean |
 | leg_link | on its back (web on bed) | strongest orientation for fore-aft bending; **slice `leg_link_print.stl`** — it adds 3 break-away fins under the fork slabs, which float 4.7 mm above the bed (the swept joint envelope forbids solid material there); peel the fins out after printing |
 | foot | sole down | heel tabs, bulkhead and buttress are vertical faces or top-side slopes — nothing bridges |
-| tower | upside-down (top plate on bed) | **slice `tower_print.stl`** — it adds 4 break-away posts in the battery window that catch the 70 mm sill lip (snap out through the window). Feet-tab gussets and battery-rail stubs are true ≥45° wedges, sill ramp 49°, belt-rib undersides chamfered; the only remaining ceilings are the Ø6.6 feet-screw counterbores (normal short bridges) |
+| tower | upside-down (top plate on bed) | fully support-free: the battery window is **open to the deck** (no sill — the belt retains the pack; 45° corner detents park it), feet-tab gussets and rail stubs are true ≥45° wedges, belt-rib undersides chamfered. Only ceilings: the Ø6.6 feet-screw counterbores (normal short bridges) |
 | gopro_base | base down, prongs up | standard orientation for printed GoPro mounts; use PETG or 100 % infill PLA — the M5 clamp squeezes across layer lines |
 
 All horizontal M3 bores are teardropped toward each part's print-up direction

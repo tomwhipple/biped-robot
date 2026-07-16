@@ -1102,29 +1102,40 @@ Verified by point-in-solid probes; both gates ALL CLEAR / PRINT CLEAN;
 stands 500/500. The printed v1 link fits and works identically — no reprint
 needed; v2 is the one to slice from now on.
 
-### tower print revision from slice review (2026-07-16)
+### tower print revision from slice reviews (2026-07-16)
 
 Slicing the (still unprinted) tower showed bridging and unsupported
 overhangs the first printability pass had missed: the feet-tab gussets were
 flat-topped boxes — printed upside down, a 6 mm ceiling floating 31 mm over
 the interior — the battery-rail stubs only stepped 1.3 mm per ledge, and the
 window-sill ramp measured 44°, one degree past the 45° threshold, so the
-whole 70 mm sill band sliced as overhang. Fixes, all inside `parts.tower()`:
-gussets and rail stubs are now true ≥45° wedges (the gusset docstring had
-claimed a wedge all along; the wedge braces the tab exactly as the box did),
-the sill ramp cut was deepened to 49° keeping the full 2.5 mm outer
-retention lip, and the feet screws now seat directly on the tabs through
-Ø6.6 head wells in the wedges (per `docs/assembly.md`: 4× M3 into the deck
-inserts, unchanged). `check_printability` CEILING count: 13 → 4, the
-remainder being those Ø6.6 counterbore roofs (≤8 mm bridges, standard).
-Because the sill lip's free edge still starts 41 mm above the bed, a new
-**`tower_print.stl`** (`tower(print_supports=True)`) grows four 1.6 mm
-break-away posts in the window, 0.25 mm shy of the lip — snap them out
-through the window before assembly; `tower.stl` stays clean for sim/assembly.
-Battery seated fit is exact (0 mm³ intersection) and tilt-in clearance
-improved (the wedge faces recede with height where the steps barely did).
+whole 70 mm sill band sliced as overhang. Gussets and rail stubs became true
+≥45° wedges (the gusset docstring had claimed a wedge all along; it braces
+the tab exactly as the box did), and the feet screws now seat directly on
+the tabs through Ø6.6 head wells in the wedges (per `docs/assembly.md`:
+4× M3 into the deck inserts, unchanged).
+
+The sill itself went through three designs in one review cycle — steeper
+ramp + plain break-away posts (posts missed: the lip's underside was a knife
+edge whose first ~1 mm of layers are sub-nozzle slivers the slicer drops, so
+the *printed* lip floated ~1 mm above any support placed under the *modeled*
+surface), then 45°-fan support trees under a flat 1.2 mm lip band — before
+the right question ended it: **the horizontal member isn't needed**. The
+hook-loop belt was always the battery's tumble/dash retention; the sill only
+parked the pack while the belt was off. The window is now open to the deck
+and two 2.5 mm **corner detents** (45° wedges off the window posts,
+self-supporting inverted) do the parking. The pack tilts in over them as it
+did over the sill; seated fit is exact (0 mm³).
+
+Net: `check_printability` CEILING count 13 → 4, and a full OrcaSlicer PETG
+slice confirms the four Ø6.6 counterbore roofs are the *only*
+bridge/overhang blocks in the g-code (≈5 h 19 m, ~17 min faster than with
+the sill). No print-variant STL needed — slice `tower.stl` upside down.
 Torso inertial rebaked (327.8 g, unchanged mass, 3rd-digit inertia shift);
 stand test 500/500. The tower had not been printed yet — nothing to redo.
+Cost of the open window: the −x wall is a U instead of a closed frame —
+acceptable, the +x wall is intact and wall loads are small (the camera
+moment goes through the feet tabs, whose gussets grew in this same pass).
 
 ## 6. Design parameters (source of truth)
 

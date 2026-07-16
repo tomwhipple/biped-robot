@@ -36,7 +36,7 @@ settings in the [print list](../cad/PRINT_LIST.md)):
 | `yoke_pitch` | 2 | ⚠️ on hold (hip redesign) |
 | `leg_link` | 4 | 2 thighs (⚠️ hold) + 2 shins — **slice `leg_link_print.stl`** and peel the 3 break-away fins after printing |
 | `foot` | 2 | v3 (heel bulkhead), sole down |
-| `tower` | 1 | print top-plate down — **slice `tower_print.stl`** and snap the 4 window posts out before assembly |
+| `tower` | 1 | print top-plate down (support-free — the battery window is open to the deck) |
 | `gopro_base` | 1 | prongs up; the sacrificial crash fuse |
 
 **Everything else:** 8× ST3215 servos (12 V version) with their horns, idler
@@ -198,9 +198,11 @@ Offer each completed leg up to its roll servo, clevis over the servo:
 ![Battery entering through the rear tower window](assembly/step09_battery.png)
 
 Lay the pull ribbon across the deck first. Tilt the 3S pack in through the
-rear-wall window — over the 2.5 mm sill, onto the far-wall rails — **lead end
-toward the XT30 pigtail's pocket**. Close the 20 mm hook-loop belt around the
-tower in its guide ribs. To swap: peel the belt, tug the ribbon, tilt out.
+rear-wall window — over the two 2.5 mm corner detents, onto the far-wall
+rails — **lead end toward the XT30 pigtail's pocket**. Close the 20 mm
+hook-loop belt around the tower in its guide ribs: **the belt is the
+retention** (the window has no sill — the detents only park the pack while
+the belt is off). To swap: peel the belt, tug the ribbon, tilt out.
 No screws, ever.
 
 ## 11. GoPro mount + camera

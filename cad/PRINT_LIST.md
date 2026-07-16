@@ -41,7 +41,7 @@ Two things to watch when you print PETG:
 | `yoke_pitch` | 2 | PETG | 30–40 % | flange face on bed, arms up | ♻️ **revised for hip −110°** (idler arm → hub + riser; HOLD lifted) |
 | `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ♻️ **revised v2** (print-review cleanup: idler-side edge flush, dead 0.7 mm slot by the horn fork filled; +0.7 g). *Cosmetic/stiffness only — the already-printed v1 fits and works identically* |
 | `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v3.1** (v3 heel bulkhead + sole enlarged 100 → 116 for the get-up corridor) |
-| `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed — **slice `tower_print.stl`** | ♻️ **revised for print** (2026-07-16 slice review: feet-tab gussets and battery-rail stubs are now true ≥45° wedges — the old stepped boxes left flat 6 mm ceilings drooping over the interior; sill ramp steepened 44°→49°; `tower_print.stl` adds 4 break-away posts in the battery window that catch the 70 mm sill lip — snap them out through the window before assembly. Feet screws now seat on the tabs through Ø6.6 wells) |
+| `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ♻️ **revised for print, support-free** (2026-07-16 slice reviews: feet-tab gussets and battery-rail stubs are now true ≥45° wedges — the old stepped boxes left flat 6 mm ceilings drooping over the interior; the **window sill was deleted** — it printed as a 70 mm member 41 mm up in mid-air, and the hook-loop belt is the real battery retention; two 45° corner detents park the pack instead. Feet screws now seat on the tabs through Ø6.6 wells — the only remaining bridges. ~5h19m PETG) |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
 | Sole pad | 2 | 1/16" self-adhesive silicone sheet ([B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK), 2× 6"×6") | — | cut 106 × 46 mm, stick onto flat sole (one sheet yields both + a spare strip) | 🛒 ordered |
 
@@ -98,18 +98,21 @@ were marked "ready" would have failed exactly like the first foot:
   is now 3.0 (fails the old geometry, no false positive on any current part) and
   sub-threshold zones print as `thin-note` instead of vanishing.
 - **`tower`** — the battery-window sill printed as a 70 mm single-wall bridge,
-  and the belt-guide ribs as drooping square ledges. The sill top is now a 45°
-  ramp (full 2.5 mm retention lip kept on the outer face) and each rib carries
-  a 45° chamfer on its print-underside. **Second slice review (2026-07-16)**
+  and the belt-guide ribs as drooping square ledges. A first fix ramped the
+  sill top 45° and chamfered the ribs. **Second slice review (2026-07-16)**
   caught what that pass missed: the feet-tab *gussets* were still flat-topped
   boxes (6 mm ceilings 31 mm up, over nothing), the battery-rail stubs only
   stepped 1.3 mm per ledge, and the sill ramp measured 44° — one degree under
   the printable threshold, so slicers painted the whole 70 mm band as
-  overhang. Gussets and stubs are now true ≥45° wedges (`check_printability`
-  CEILING count 13 → 4; the 4 left are Ø6.6 screw-head counterbores, standard
-  bridging), the ramp is 49°, and **`tower_print.stl`** grows four 1.6 mm
-  break-away posts in the window (0.25 mm gap) that catch the sill lip edge —
-  slice that file, snap the posts out through the window.
+  overhang. Gussets and stubs became true ≥45° wedges; break-away support
+  trees for the sill were designed, sliced, and then made obsolete by the
+  real question (*is the member even needed?*): **the sill is deleted**. The
+  hook-loop belt was always the battery's tumble retention — the sill only
+  parked the pack while the belt was off, and two 45° corner detents growing
+  off the window posts do that support-free. `check_printability` CEILING
+  count 13 → 4; the four left are the Ø6.6 feet-screw counterbores (standard
+  short bridges), confirmed as the *only* bridge/overhang blocks in the
+  sliced g-code. No `tower_print.stl` needed — slice `tower.stl` upside down.
 - **`leg_link`** — the narrow fork slabs float 4.7 mm above the bed for their
   last 50 mm (they *cannot* reach the bed: that volume is swept by the foot
   walls / servo case top at joint extremes). The exported
