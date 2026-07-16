@@ -1186,12 +1186,16 @@ Second slice/print review of the leg_link raised three things; all landed:
    slabs are **solid to the web face** everywhere else — "make it solid",
    the feedback's own words: the horn slab is a full-depth blade
    (z −92…−50) and the idler side fills both sides of the lobe. The 16 mm
-   idler stretch left over is anchored on solid at BOTH ends and prints as
-   a plain 3 mm-wide ribbon bridge — no support (chamfers to shrink it land
-   inside the swept lobe, verified; `check_printability` gained a BEAM
-   class for end-anchored ribbons ≤4 mm wide, allowed to 20 mm). The only
-   break-away pieces left are two 4 mm pad stubs under the pad tangents,
-   standing in the open at the fork tips. The boss fin's job is likewise
+   idler stretch left over is anchored on solid at BOTH ends; a bare ribbon
+   bridge was rejected in review, so two **island posts** (2.4 × 3, 0.35
+   under the slab) break it into 2/2.5/5.5 mm hops. Every break-away piece
+   — the two posts plus two 4 mm pad stubs under the pad tangents — is a
+   verified SEPARATE first-layer island (≥1 mm clear at the bed, no brim):
+   attached to nothing, they lift off with a fingernail. That island rule
+   is the design principle this whole review converged on: a breakaway
+   sharing first-layer plastic with the part has no break line, no matter
+   what happens above the bed. (`check_printability` keeps the BEAM class
+   for end-anchored ribbons ≤4 mm wide, allowed to 20 mm.) The boss fin's job is likewise
    geometry now: the boss OD is a ~51° cone (Ø19 → Ø16 tip),
    self-supporting — it's a loose locator (~3 mm radial slack), so the
    taper costs nothing. +0.9 g/link; the solid blades stiffen the fork.

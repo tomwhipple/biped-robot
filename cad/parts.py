@@ -300,6 +300,15 @@ def leg_link(print_fins=False):
             stub += box(web_x0, web_x0 + 1.5, min(yc - 1.2, sgn * (abs(yc) + 4.3)),
                         max(yc + 1.2, sgn * (abs(yc) + 4.3)), -97.0, -92.8)
             p += stub
+        # island posts under the idler ribbon (print review 2026-07-16: the
+        # bare 16 mm bridge was rejected): two 2.4 x 3 columns, 0.35 under
+        # the slab, >=1 mm clear of the web (-58) and the solid fills (-70,
+        # -54) at bed level -- separate first-layer islands like the pad
+        # stubs, attached to nothing; the remaining bridge spans are
+        # 2 / 2.5 / 5.5 mm.
+        yc = iy0 + D.PLATE / 2
+        for z0, z1 in ((-68.0, -65.0), (-62.5, -59.5)):
+            p += box(web_x0, D.FORK_NARROW_X - 0.35, yc - 1.2, yc + 1.2, z0, z1)
     return p
 
 
