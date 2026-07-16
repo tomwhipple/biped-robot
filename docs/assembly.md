@@ -26,7 +26,7 @@ Companion docs: [print list](../cad/PRINT_LIST.md) ·
 
 ## 0. What you need
 
-**Printed parts** (13 prints, 7 unique — PETG, no supports; orientations and
+**Printed parts** (14 prints, 8 unique — PETG, no supports; orientations and
 settings in the [print list](../cad/PRINT_LIST.md)):
 
 | Part | Qty | Note |
@@ -38,9 +38,10 @@ settings in the [print list](../cad/PRINT_LIST.md)):
 | `foot` | 2 | v3 (heel bulkhead), sole down |
 | `tower` | 1 | print top-plate down (support-free — the battery window is open to the deck) |
 | `gopro_base` | 1 | prongs up; the sacrificial crash fuse |
+| `imu_carrier` | 1 | flat, bosses up; sandwiches under the gopro_base |
 
 **Everything else:** 8× ST3215 servos (12 V version) with their horns, idler
-discs and included screws/leads · Waveshare Servo Driver with ESP32 · BNO085
+discs and included screws/leads · Waveshare Servo Driver with ESP32 · BNO055
 IMU breakout · 3S 850 XT30 pack · XT30 pigtail + inline switch · 20 mm
 hook-loop belt ~250 mm + pull ribbon · 2 self-adhesive rubber sole pads
 (~0.5 mm, trimmed to ~90×46) · zip ties. Full list with links:
@@ -53,9 +54,10 @@ hook-loop belt ~250 mm + pull ribbon · 2 self-adhesive rubber sole pads
 | M3×6 button/socket head | 32 | horn pads, 4 per joint × 8 joints |
 | M3×8 + thin washer | 24 | idler pads at hip-pitch, knee, ankle (4 × 6) |
 | M3×10 | 16 | yoke_roll idler arms (4×2) + hip flange bolts into inserts (4×2) |
-| M3×8 self-tapping | 52 | case grips: 6 per leg_link (24), 8 per pelvis bay (16), 4 per foot (8), 4 gopro_base |
+| M3×8 self-tapping | 52 | case grips: 6 per leg_link (24), 8 per pelvis bay (16), 4 per foot (8) |
 | M3 heat-set insert Ø4.6 | 12 | 4 per yoke_pitch flange (8) + 4 pelvis deck (tower) |
-| M2.5×8 self-tapping | 4 | driver board onto tower standoffs |
+| M2.5×8 self-tapping | 8 | driver board onto tower standoffs (4) + BNO055 onto the imu_carrier bosses (4) |
+| M3×12 self-tapping | 4 | gopro_base + imu_carrier stack into the tower-top bosses |
 | M5×20 thumbscrew | 1 | camera clamp (or the GoPro's own) |
 
 **Tools:** soldering iron with heat-set tip, M3/M2.5 hex drivers, small
@@ -200,23 +202,27 @@ self-tappers** (orange in the figure) through the board's corner holes into
 the standoffs; the holes sit on the 58 × 23 mm pattern. Snug only — they
 thread into plastic.
 
-### 9b. IMU — foam tape on the top plate, rear
+### 9b. IMU carrier — bench prep
 
-![BNO085 onto its tape pad at the rear of the top plate](assembly/step08b_imu.png)
+![Exploded stack: carrier onto the tower bosses, BNO055 + M2.5 screws, gopro_base + M3×12 on top](assembly/step08b_imu.png)
 
-The BNO085 (25.4 × 17.8) doesn't fit any interior flat — every clear strip
-inside the tower is under 13 mm — so it mounts **on top of the plate at the
-rear** with double-sided foam tape (pad ≈ 16 × 20 mm, shown gray):
+The BNO055 breakout rides a printed **`imu_carrier`** that sandwiches
+between the tower top and the `gopro_base` on the **same four screws** (now
+**M3×12** — the stack grew 3 mm). No tape anywhere. On the bench, before
+the tower goes on:
 
-- Footprint: **centered on x, long axis on y**, rear edge 3 mm proud of the
-  plate (x ±8.9, y −25.6…−51 in tower frame). That spot clears the vent
-  hole, the feet-screw access wells, and the GoPro base.
-- No screws — tape only (the breakout weighs ~3 g). Press firmly for 10 s.
-- **Axes**: the silkscreen **+X arrow points to the robot's left (+y)**;
-  firmware axis remap: `x_r = −y_imu`, `y_r = +x_imu`, `z_r = z_imu`.
-- Cable: JST-SH into either end jack, over the rear edge, down the open
-  rear end of the tower to the ESP32 headers
-  (3V3/GND/SDA GPIO21/SCL GPIO22 — shared with the OLED, no conflict).
+1. Solder the breakout's header (comes loose in the bag), pins **down**,
+   on the edge that will face the **rear**.
+2. Screw the BNO055 onto the carrier's four bosses, component side up:
+   **4× M2.5×8 self-tap** into the printed pilots (pattern 21.59 × 15.24 —
+   the classic 26.67 × 20.32 board; the carrier note in
+   `cad/dimensions.py` has the swap for the STEMMA QT variant). Snug only.
+3. Wire 4× female-female jumpers: 3V3 / GND / SDA / SCL, hanging off the
+   rear header edge.
+4. **Axes**: mounted long-axis-on-x; at bring-up set the BNO055
+   `AXIS_MAP_CONFIG`/`AXIS_MAP_SIGN` to whichever standard placement (P0–P7)
+   matches the silkscreen arrows against the robot frame (+x forward,
+   +z up). I2C address **0x28** (no conflict with the OLED at 0x3C).
 
 ### 9c. Tower down, power in
 
@@ -226,6 +232,9 @@ rear** with double-sided foam tape (pad ≈ 16 × 20 mm, shown gray):
    (one at each corner, x ±14 y ±42).
 2. Route the XT30 pigtail + inline switch to the board's power input now,
    while the tower interior is still easy to reach.
+3. Plug the IMU's four jumpers onto the board's headers now too
+   (3V3/GND/SDA GPIO21/SCL GPIO22) and leave their free ends poking out of
+   the tower's open rear end — the carrier arrives in step 11.
 
 ## 10. Battery — goes in LAST, swaps tool-free
 
@@ -245,11 +254,16 @@ No screws, ever.
 |---|---|
 | ![gopro_base onto the tower](assembly/step10_gopro_base.png) | ![camera dropping into the prongs](assembly/step11_camera.png) |
 
-Screw the `gopro_base` onto the tower-top bosses (4× M3×8 self-tappers). Fold
-the camera's two mount fingers down into the 3.2 mm slots and clamp with the
-M5×20 thumbscrew (or the camera's own), **lens axis fore-aft**. If the
-fingers bind, ream the slots (`GP_SLOT = 3.5` fallback). This part is the
-deliberate crash fuse — cheap to reprint, so let it break instead of the tower.
+Stack, in order: the **`imu_carrier`** (tongue rearward, IMU already on it
+from step 9b — connect its jumpers hanging from the rear end first), then
+the `gopro_base` on top, and drive **4× M3×12 self-tappers** through both
+into the tower-top bosses (the old M3×8 is too short with the 3 mm carrier
+in the stack). Fold the camera's two mount fingers down into the 3.2 mm
+slots and clamp with the M5×20 thumbscrew (or the camera's own), **lens
+axis fore-aft**. If the fingers bind, ream the slots (`GP_SLOT = 3.5`
+fallback). The gopro_base is the deliberate crash fuse — cheap to reprint,
+so let it break instead of the tower (the carrier hides under it, out of
+the crash path).
 
 ## 12. Wiring
 

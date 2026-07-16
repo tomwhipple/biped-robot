@@ -263,6 +263,26 @@ GP_HOLE_H = GP_LEG_H - GP_PRONG_OD / 2    # 9.5 above the base top
 GP_HOLE_TEARDROP = True
 GP_BASE_X, GP_BASE_Y, GP_BASE_T = 30.0, 24.0, 4.0
 GP_SCREW_XY = (11.0, 8.5)      # 4x M3 self-tap into bosses under the tower top
+
+# BNO055 IMU + its carrier plate. The ordered part (2026-07-16, Amazon
+# B0GVK81HXR) is the CLASSIC Adafruit BNO055 breakout (2472 layout: solder
+# header, no STEMMA jacks) -- outline/holes measured from Adafruit's Eagle
+# .brd (Adafruit-BNO055-Breakout-PCB @ master, "Adafruit BNO055.brd"; the
+# STEMMA QT variant is 25.4 wide with holes at 20.32 x 15.24 -- reprint the
+# carrier with these two lines swapped if the board in hand has JST jacks).
+# The carrier sandwiches between the tower top and gopro_base on the SAME
+# 4 screws (now M3x12: +3 mm of carrier in the stack) and cantilevers a
+# tongue rearward that the IMU screws onto -- no interior tower flat fits
+# the breakout (all <13 mm) and tape mounting was rejected (2026-07-16).
+IMU_PCB = (26.67, 20.32, 1.6)  # breakout outline x, y, pcb thickness
+IMU_HOLES = (21.59, 15.24)     # mounting-hole pattern (x, y), 4x Ø2.5 plated
+IMU_CY = -25.0                 # IMU center y on the tongue (x centered): holes
+                               # clear the feet-screw wells at (+-14, +-42)
+IMU_CARRIER_T = 3.0            # carrier plate thickness
+IMU_BOSS_H = 4.5               # boss height: M2.5x8 through the 1.6 pcb needs
+                               # 6.4 blind; boss+plate = 7.5 with a 0.4 floor;
+                               # also clears the soldered header pins under
+                               # the pcb (~3 mm proud)
 CAM_MASS = 154.0               # g, incl. battery
 CAM_BODY = (25.0, 64.0, 69.0)  # X depth (lens axis fore-aft), Y width, Z height
 

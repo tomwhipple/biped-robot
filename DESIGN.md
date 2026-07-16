@@ -1137,6 +1137,29 @@ Cost of the open window: the −x wall is a U instead of a closed frame —
 acceptable, the +x wall is intact and wall loads are small (the camera
 moment goes through the feet tabs, whose gussets grew in this same pass).
 
+### imu_carrier — screwed IMU mount, and the BNO085→BNO055 swap (2026-07-16)
+
+Tape-mounting the IMU was rejected; the replacement is a printed
+**`imu_carrier`** that sandwiches between the tower top and the gopro_base
+on the **same four mounting bosses** (screws grow M3×8 → M3×12 for the 3 mm
+plate) and cantilevers a tongue rearward with four M2.5 bosses the breakout
+screws onto. Interior mounting stays impossible — every clear flat inside
+the tower is <13 mm against a >20 mm board — but the carrier needs no tower
+change, so the freshly printed tower stands.
+
+The ordered IMU (Amazon B0GVK81HXR) turned out to be the **classic BNO055
+breakout**, not the BOM's BNO085/STEMMA pick: outline 26.67 × 20.32, holes
+**21.59 × 15.24** Ø2.5 (taken from Adafruit's own Eagle .brd, not eyeballed;
+the STEMMA variant's 20.32 × 15.24 swap is noted in `dimensions.py`), solder
+header instead of JST (4× F-F jumpers now, BOM item 21), I2C 0x28, same
+on-chip fusion at 100 Hz so the control plan is unchanged. Carrier bosses
+clear the feet-screw wells by construction; the stack is verified
+zero-intersection, both gates pass (`thin-note`s are the intentional 0.4 mm
+pilot floors), and the gopro stack + camera rose 3 mm everywhere in CAD
+(assembly/dressed models, step figures). Honest omission: the carrier + IMU
++ gopro_base (~13 g of top-of-tower accessories) are still outside the sim
+torso inertial, same bucket as the +154 g camera adjustment.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

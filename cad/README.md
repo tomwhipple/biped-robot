@@ -31,9 +31,9 @@ cad/
 XT30 pigtail, per-leg servo daisy-chain cables (splines through the real
 ST3215 rear-end connector positions, tied to the web raceways with zip-tie
 mocks). Approximate by design: wire paths are plausible, not catalog-exact.
-The IMU's placement is now specified (foam-tape pad on the top-plate rear —
-`docs/assembly.md` §9b, figures from `render_electronics_steps.py`) though it
-isn't in the dressed model yet; the power switch mount is still undesigned.
+The BNO055 IMU now rides its printed `imu_carrier` under the gopro_base and
+IS in the model (`docs/assembly.md` §9b, figures from
+`render_electronics_steps.py`); the power switch mount is still undesigned.
 The cable
 segments regenerate from the posed joint frames, so `dress.dressed_robot(
 roll, hip, knee, ankle)` and the ROM video show the wiring following the
@@ -53,7 +53,7 @@ molded M3 threads carry the far-side bending shear — inspect them after the
 first hours of walking, and if they wear, the upgrade path is a shoulder
 bolt through the disc or a thin 19×27 washer-bearing under the arm.
 
-## Part list (13 prints, 7 unique)
+## Part list (14 prints, 8 unique)
 
 | part | qty | bbox (mm) | ~mass | role |
 |---|---|---|---|---|
@@ -64,6 +64,7 @@ bolt through the disc or a thin 19×27 washer-bearing under the arm.
 | `foot` | 2 | 100 × 52 × 30 | 36 g | flat sole + ankle-servo pocket + heel bulkhead tying the retention tabs into a U-channel (glued rubber sole pad) |
 | `tower` | 1 | 45 × 96 × 43.5 | 39 g | electronics: driver board hangs face-down on standoffs INSIDE; 3S battery tilt-loads through the rear-wall window onto the deck (tool-free swap: peel belt, tug ribbon); GoPro bosses on top |
 | `gopro_base` | 1 | 30 × 24 × 21 | 5 g | GoPro three-prong mount, bolts to the tower top (crash fuse — cheap to reprint) |
+| `imu_carrier` | 1 | 30 × 48.5 × 7.5 | 5 g | BNO055 carrier between the tower top and gopro_base — same 4 screws (M3×12); IMU screws to bosses on its true 21.59 × 15.24 hole pattern, jumpers drop down the tower's open rear end |
 
 Printed plastic ≈ 286 g (PETG). Total robot ≈ **0.88 kg** bare, **1.04 kg with
 the GoPro MAX** (8 servos 440 g, 3S LiPo ~80 g, board ~20 g, fasteners ~47 g,
@@ -80,7 +81,8 @@ the base top, 17 mm legs. Slots are **3.2 mm** (≈0.25 mm clearance on ~2.95 mm
 camera fingers) — snugger than GoProScad's 3.5 mm; if your camera's fingers
 bind, ream the slots or set `GP_SLOT = 3.5` in `dimensions.py` and reprint.
 Clamp with the camera's own thumbscrew or any M5×20. The base bolts down with
-4× M3×8 self-tappers into bosses under the tower top plate; the driver board
+4× M3×12 self-tappers through the `imu_carrier` beneath it into bosses under
+the tower top plate; the driver board
 moved inside the tower (face-down on 6 mm standoffs) to make room and lower
 the electronics CG.
 
@@ -92,6 +94,7 @@ legs are translations, not mirrors.
 | item | qty | notes |
 |---|---|---|
 | Waveshare ST3215, 12 V version (6–12.6 V) | 8 | 30 kg·cm@12 V; includes metal horn + idler disc + M3×6 screws; do NOT buy the 4–7.4 V class (see docs/hardware-order.md) |
+| BNO055 IMU breakout (ordered: Amazon B0GVK81HXR, classic layout) | 1 | mounts on the printed imu_carrier; 4× F-F jumpers to the ESP32 |
 | Waveshare Servo Driver with ESP32 | 1 | 65 × 30 mm; `dimensions.py::BOARD_HOLES` = published Ø2.75 @ 58 × 23 — **still verify against your board before printing the tower** |
 | 3S 850 mAh XT30 pack (2-pack) | 2 | BOM pick Tattu 45C, 60 × 30 × 22 mm, 76 g. Bay envelope `BATT` = 68 × 31 × 26.5 is a superset of the 3S 850 field (see `docs/bom-by-vendor.md` fit table); mocks/inertia model the worst case `BATT_PACK` = 62 × 30 × 25, 80 g. Taller pack → edit `BATT` + reprint tower |
 | 20 mm hook-loop strap ~250 mm + pull ribbon | 1 | battery belt (rides in the tower guide ribs) + extraction tab under the pack |
@@ -100,9 +103,9 @@ legs are translations, not mirrors.
 | M3×10 button head | 16 | yoke_roll idler arms (4 × 2, through the long boss) + hip flange bolts (4 × 2) |
 | M3×8 self-tapping (or machine after M3-tapping the case) | 48 | case grips: 6 per leg_link (24), 8 per pelvis bay (16), 4 per foot (8) |
 | M3 heat-set insert (Ø4.6 × 4–6) | 12 | 4 per yoke_pitch flange (8) + 4 in the pelvis deck for the tower |
-| M3×8 self-tapping | 4 | gopro_base down into the tower-top bosses |
+| M3×12 self-tapping | 4 | gopro_base + imu_carrier stack down into the tower-top bosses |
 | M5×20 GoPro thumbscrew | 1 | or use the camera's own folding-mount screw |
-| M2.5×8 self-tapping | 4 | driver board, from below into the standoffs under the tower top |
+| M2.5×8 self-tapping | 8 | driver board, from below into the standoffs under the tower top (4) + BNO055 onto the imu_carrier bosses (4) |
 | Self-adhesive rubber sole pad (~0.5 mm) | 2 | stick onto the flat foot underside, trim to fit; keep thin so stance height is unchanged |
 | zip ties 2.5 mm | ~10 | cable dressing through leg_link web holes |
 
@@ -128,6 +131,7 @@ after any CAD change):
 | foot | sole down | heel tabs, bulkhead and buttress are vertical faces or top-side slopes — nothing bridges |
 | tower | upside-down (top plate on bed) | fully support-free: the battery window is **open to the deck** (no sill — the belt retains the pack; 45° corner detents park it), feet-tab gussets and rail stubs are true ≥45° wedges, belt-rib undersides chamfered. Only ceilings: the Ø6.6 feet-screw counterbores (normal short bridges) |
 | gopro_base | base down, prongs up | standard orientation for printed GoPro mounts; use PETG or 100 % infill PLA — the M5 clamp squeezes across layer lines |
+| imu_carrier | flat on bed, bosses up | trivial print; the only notes are the intentional 0.4 mm pilot floors under the M2.5 bosses |
 
 All horizontal M3 bores are teardropped toward each part's print-up direction
 (self-supporting 45° bore roofs — no sagged strands where screws clamp).

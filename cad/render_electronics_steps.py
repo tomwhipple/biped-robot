@@ -70,16 +70,24 @@ def screw_m25(x, y, dz=0.0):
 
 
 def imu_pieces(dz=0.0):
-    """BNO085 breakout mock at its tape pad: top plate REAR, long axis on y,
-    x -8.9..8.9, y -51..-25.6 (3 mm proud of the rear edge), robot frame."""
-    zp = D.TOWER_H + 1.0 + dz                    # pcb bottom (on 1 mm tape)
-    cy = -38.3                                   # pad center y
-    ch = [piece("imu_pcb", ORANGE, Pos(0, cy, zp + 0.8) * Box(17.8, 25.4, 1.6))]
-    ch.append(piece("imu_chip", PART, Pos(0, cy, zp + 1.6 + 0.6) * Box(5, 4.5, 1.2)))
-    for e in (1, -1):                            # JST-SH jacks on the short ends
-        ch.append(piece("imu_jack", PART,
-                        Pos(0, cy + e * 10.5, zp + 1.6 + 1.4) * Box(7, 4, 2.8)))
+    """BNO055 breakout mock (classic 2472 outline) seated on the carrier
+    bosses, robot frame; chip up, solder-header edge rearward."""
+    zp = D.TOWER_H + D.IMU_CARRIER_T + D.IMU_BOSS_H + dz
+    cy = D.IMU_CY
+    w, l, t = D.IMU_PCB
+    ch = [piece("imu_pcb", PCB, Pos(0, cy, zp + t / 2) * Box(w, l, t))]
+    ch.append(piece("imu_chip", PART, Pos(0, cy, zp + t + 0.7) * Box(5.4, 4.5, 1.4)))
+    ch.append(piece("imu_hdr", PART,                       # header, rear edge
+                    Pos(0, cy - l / 2 + 1.3, zp + t + 1.2) * Box(22, 2.5, 2.4)))
     return ch
+
+
+def screw_m3x12(x, y, dz=0.0):
+    """M3x12 self-tap for the gopro/carrier stack, robot frame, tip down."""
+    zh = D.TOWER_H + D.IMU_CARRIER_T + D.GP_BASE_T + dz    # head seat
+    s = Pos(x, y, zh - 6) * Cylinder(1.5, 12)
+    s += Pos(x, y, zh + 1) * Cylinder(2.7, 2)
+    return s
 
 
 def render(children, path, views, lookat, dist, px=880):
@@ -134,14 +142,28 @@ def main():
     render(ch, os.path.join(OUT, "step08a_board.png"),
            [(140, -25), (90, -75)], lookat=(0, 0, 0.045), dist=0.30)
 
-    # -- step08b: IMU tape pad on the top plate rear (robot frame)
+    # -- step08b: IMU carrier stack, exploded (robot frame): carrier on the
+    # tower bosses, BNO055 + 4x M2.5x8 above it, gopro_base + 4x M3x12 on top
     ch = [piece("tower", PRINT, parts.tower())]
     ch += board_pieces()                          # board already mounted
-    ch.append(piece("tape", TAPE,
-                    Pos(0, -38.3, D.TOWER_H + 0.5) * Box(16, 20, 1)))
-    ch += imu_pieces(dz=26)
+    ch.append(piece("imu_carrier", ORANGE,
+                    Pos(0, 0, D.TOWER_H + 14) * parts.imu_carrier()))
+    ch += imu_pieces(dz=34)
+    bx, by = D.IMU_HOLES[0] / 2, D.IMU_HOLES[1] / 2
+    for sx in (bx, -bx):
+        for sy in (D.IMU_CY + by, D.IMU_CY - by):
+            ch.append(piece("m25", PART, screw_m25(sx, sy, dz=D.TOWER_H
+                            + D.IMU_CARRIER_T + D.IMU_BOSS_H + 50
+                            - (ZT0 - D.BOARD_STANDOFF - 1.6))))
+    ch.append(piece("gopro_base", PRINT,
+                    Pos(0, 0, D.TOWER_H + D.IMU_CARRIER_T + 62)
+                    * parts.gopro_base()))
+    gx, gy = D.GP_SCREW_XY
+    for sx in (gx, -gx):
+        for sy in (gy, -gy):
+            ch.append(piece("m3", ORANGE, screw_m3x12(sx, sy, dz=84)))
     render(ch, os.path.join(OUT, "step08b_imu.png"),
-           [(215, -20), (270, -65)], lookat=(0, -0.02, 0.048), dist=0.30)
+           [(215, -12), (270, -35)], lookat=(0, 0, 0.075), dist=0.42)
     shutil.rmtree(TMP, ignore_errors=True)
 
 

@@ -54,6 +54,7 @@ ORIENT = {
     "foot": (IDENT, "sole down"),
     "tower": (RX180, "upside down: top plate on bed"),
     "gopro_base": (IDENT, "base down, prongs up"),
+    "imu_carrier": (IDENT, "flat on bed, bosses up"),
 }
 
 # what actually goes to the slicer, where that differs from <name>.stl

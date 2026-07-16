@@ -43,7 +43,8 @@ FPS, W, H = 14, 640, 520
 BODIES = {
     "torso": (["pelvis", "tower", "battery_3s_mock", "board_pcb_mock",
                "board_parts_mock", "pigtail_xt30", "cable_board_L",
-               "cable_board_R", "gopro_base", "camera_gopro_max_mock",
+               "cable_board_R", "imu_carrier", "imu_bno055_mock",
+               "gopro_base", "camera_gopro_max_mock",
                "L_servo_hip_roll", "R_servo_hip_roll"], None),
 }
 for tag in ("L", "R"):

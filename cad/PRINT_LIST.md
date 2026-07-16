@@ -1,6 +1,6 @@
 # Print list — Bimo-like biped
 
-**13 plastic prints (7 unique parts) + 2 TPU foot pads.** Generated from
+**14 plastic prints (8 unique parts) + 2 TPU foot pads.** Generated from
 `cad/parts.py` / `cad/dimensions.py`. Export STLs with
 `../.venv/bin/python parts.py` (writes `cad/stl/*.stl`).
 
@@ -27,7 +27,7 @@ Two things to watch when you print PETG:
   GoPro slots (3.2 mm) — and tune flow / dial in a size test if anything binds.
 - **Mass.** PETG (~1.27 g/cm³) is ~2–3 % denser than PLA. The mass rollup uses
   the PETG density (`dimensions.py::FILAMENT_RHO = 1.27e-3`): printed plastic
-  ~303 g, total robot ~910 g (+154 g GoPro) after foot v3.1, the yoke_pitch
+  ~307 g, total robot ~914 g (+154 g GoPro) after foot v3.1, the yoke_pitch
   hip-110 revision, the battery-bay tower, and the leg_link v2 cleanup.
   `parts.py` and the sim inertia builder (`sim/build_v2_inertia.py`) both
   reflect this.
@@ -43,6 +43,7 @@ Two things to watch when you print PETG:
 | `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v3.1** (v3 heel bulkhead + sole enlarged 100 → 116 for the get-up corridor) |
 | `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ♻️ **revised for print, support-free** (2026-07-16 slice reviews: feet-tab gussets and battery-rail stubs are now true ≥45° wedges — the old stepped boxes left flat 6 mm ceilings drooping over the interior; the **window sill was deleted** — it printed as a 70 mm member 41 mm up in mid-air, and the hook-loop belt is the real battery retention; two 45° corner detents park the pack instead. Feet screws now seat on the tabs through Ø6.6 wells — the only remaining bridges. ~5h19m PETG) |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
+| `imu_carrier` | 1 | PETG | 30–40 % | flat on bed, bosses up | 🆕 **new part (2026-07-16)** — BNO055 carrier between tower top and gopro_base (same 4 screws → M3×12); bosses on the board's true 21.59 × 15.24 hole pattern; ~5 g, ~30 min |
 | Sole pad | 2 | 1/16" self-adhesive silicone sheet ([B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK), 2× 6"×6") | — | cut 106 × 46 mm, stick onto flat sole (one sheet yields both + a spare strip) | 🛒 ordered |
 
 `leg_link` ×4 = 2 thighs + 2 shins (identical part). `gopro_base` is the

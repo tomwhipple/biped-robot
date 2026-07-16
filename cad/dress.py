@@ -253,10 +253,20 @@ def dressed_robot(roll=0.0, hip=0.0, knee=0.0, ankle=0.0):
         A.piece("pigtail_xt30", COL_WIRE, pigtail()),
         A.piece("cable_board_L", COL_WIRE, torso_cable(D.HIP_SEP / 2)),
         A.piece("cable_board_R", COL_WIRE, torso_cable(-D.HIP_SEP / 2)),
+        A.piece("imu_carrier", A.COL_PRINT,
+                Pos(0, 0, A.TOWER_TOP_Z) * parts.imu_carrier()),
+        A.piece("imu_bno055_mock", COL_PCB,
+                Pos(0, D.IMU_CY,
+                    A.TOWER_TOP_Z + D.IMU_CARRIER_T + D.IMU_BOSS_H)
+                * parts.box(-D.IMU_PCB[0] / 2, D.IMU_PCB[0] / 2,
+                            -D.IMU_PCB[1] / 2, D.IMU_PCB[1] / 2,
+                            0, D.IMU_PCB[2])),
         A.piece("gopro_base", A.COL_PRINT,
-                Pos(0, 0, A.TOWER_TOP_Z) * parts.gopro_base()),
+                Pos(0, 0, A.TOWER_TOP_Z + D.IMU_CARRIER_T)
+                * parts.gopro_base()),
         A.piece("camera_gopro_max_mock", A.COL_CAM,
-                Pos(0, 0, A.TOWER_TOP_Z) * A.camera_mock()),
+                Pos(0, 0, A.TOWER_TOP_Z + D.IMU_CARRIER_T)
+                * A.camera_mock()),
         dressed_leg(D.HIP_SEP / 2, "L", roll, hip, knee, ankle),
         dressed_leg(-D.HIP_SEP / 2, "R", roll, hip, knee, ankle),
     ])

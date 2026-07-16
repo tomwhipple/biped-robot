@@ -37,11 +37,11 @@ GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 | **Battery** | Tattu 850 mAh 11.1 V 75C 3S1P XT30 (60 × 30 × 23, 80 g) — bay fits the whole 3S 850 XT30 class, not just this one; **11.1 V not 11.4 V HV** | 2 | ~$15 ea [search](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) | ✅ **Ready — decision made** (3S, swap-window bay in CAD) |
 | Battery belt + ribbon | 20 mm hook-loop strap ~250 mm + pull ribbon (battery retention/extraction) | 1 | ~$5 (or scrap velcro) | ✅ Ready |
 | Power switch | inline XT30 rocker/slide switch (battery → board) | 1 | ~$8 | ✅ Ready |
-| **IMU** | Adafruit BNO085 9-DOF breakout (on-chip sensor fusion → up-vector + gyro directly; I2C/Qwiic, shares the ESP32's OLED bus) | 1 (+1 MPU-6050 as cheap spare/alt) | ~$25 ([Adafruit 4754](https://www.adafruit.com/product/4754)) + ~$5 | ✅ Ready — **closes the sensing gap**: the policy consumes torso attitude + angular velocity that nothing else on this list measures (servo encoders only cover joints) |
+| **IMU** | **BNO055 breakout — ordered** ([B0GVK81HXR](https://www.amazon.com/dp/B0GVK81HXR); classic Adafruit layout, solder header, I2C 0x28, shares the ESP32's OLED bus; mounts on the printed `imu_carrier` under the gopro_base) | 1 | ~$30 | ✅ **Ordered 2026-07-16** — closes the sensing gap: the policy consumes torso attitude + angular velocity that nothing else on this list measures |
 | Balance charger | 2S–3S LiPo charger (skip if owned) | 1 | ~$30 | check what you own |
 | **Fastener kit** | M3 heat-set inserts (~20), M3×6/8/10 machine, M3 self-tap, M2.5×8 (board), washers | 1 kit | ~$25 | ✅ Ready |
 | Filament | PLA (prototype), PETG (final structural), TPU 95A (foot pads) | 1 ea | ~$55 | ✅ Ready |
-| Wiring | XT30 pigtail + inline switch, heat-shrink; servo leads (150 mm) ship with servos — 2× ≥200 mm extensions **required** for the hip-roll→hip-pitch hops (worst-pose routed 170 mm, measured in `cad/dress.py`); IMU cable JST-SH→jumpers | — | ~$19 | ✅ Ready ([itemized](bom-sourced.md), items 19–21) |
+| Wiring | XT30 pigtail + inline switch, heat-shrink; servo leads (150 mm) ship with servos — 2× ≥200 mm extensions **required** for the hip-roll→hip-pitch hops (worst-pose routed 170 mm, measured in `cad/dress.py`); IMU wiring = 4× F-F dupont jumpers (BNO055 solder header) | — | ~$19 | ✅ Ready ([itemized](bom-sourced.md), items 19–21) |
 | GoPro MAX + M5 thumbscrew | camera + its own mounting screw | — | owned | ✅ |
 | 3D printer | Bambu Lab A1 mini (see docs/cad-and-printer-recommendations.md) | 1 | ~$199–219 | if not already ordered |
 

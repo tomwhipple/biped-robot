@@ -86,17 +86,20 @@ pigtail and a switch.*
 
 ## IMU (torso attitude feedback)
 
-- **BNO085 breakout** on the ESP32's I2C bus (GPIO 21 SDA / 22 SCL — shared
-  with the OLED; the BNO085 defaults to address 0x4A, no conflict). 4 wires:
-  3V3, GND, SDA, SCL. Mounts **on top of the tower's top plate at the rear**
-  (foam tape, long axis on y — no interior flat fits the 25.4 × 17.8 board;
-  see [assembly.md §9b](assembly.md) for the exact footprint). Silkscreen
-  +X arrow points robot-left (+y); firmware remap `x_r = −y_imu`,
-  `y_r = +x_imu`, `z_r = z_imu`.
+- **BNO055 breakout** (the part actually ordered 2026-07-16 — classic
+  Adafruit layout, solder header, no STEMMA jacks) on the ESP32's I2C bus
+  (GPIO 21 SDA / 22 SCL — shared with the OLED; BNO055 address **0x28**, no
+  conflict with the OLED's 0x3C). 4× female-female jumpers: 3V3, GND, SDA,
+  SCL. Mounts on the printed **`imu_carrier`** sandwiched between the tower
+  top and the gopro_base on the same 4 screws (now M3×12): 4× M2.5×8 into
+  bosses on the board's true 21.59 × 15.24 hole pattern — see
+  [assembly.md §9b](assembly.md). Mounted long-axis-on-x; set the BNO055's
+  `AXIS_MAP_CONFIG`/`AXIS_MAP_SIGN` (standard placements P0–P7) to match
+  the silkscreen arrows to the robot frame (+x forward, +z up) at bring-up.
 - Why: the policy's observation vector needs the torso **up-vector and
-  angular velocity** — servo encoders only cover the 8 joints. The BNO085
+  angular velocity** — servo encoders only cover the 8 joints. The BNO055
   does sensor fusion on-chip and outputs the orientation quaternion directly
-  at 100+ Hz, so the ESP32's 50 Hz loop just reads it.
+  at 100 Hz, so the ESP32's 50 Hz loop just reads it.
 - Torso *linear velocity* and *height* have no direct sensor — see the
   observation-ablation results in DESIGN.md for how much they matter.
 

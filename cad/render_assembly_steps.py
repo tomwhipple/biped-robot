@@ -36,8 +36,8 @@ HIDE = np.array([0.0, 0.0, 8.0])          # parked far above every camera frame
 # whole leg subassembly, proximal to distal (base labels, both legs match)
 LEG = ["yoke_roll", "yoke_pitch", "servo_hip_pitch", "link_thigh",
        "servo_knee", "link_shin", "servo_ankle", "foot"]
-ALL = ["pelvis", "tower", "battery_3s_mock", "gopro_base",
-       "camera_gopro_max_mock"] + LEG
+ALL = ["pelvis", "tower", "battery_3s_mock", "imu_carrier", "imu_bno055_mock",
+       "gopro_base", "camera_gopro_max_mock"] + LEG
 
 # exploded-view offsets (mm) = the fly-in insertion vectors, exaggerated
 EXPLODE = {"pelvis": (0, 0, 110), "servo_hip_roll": (0, 0, -75),
@@ -46,7 +46,8 @@ EXPLODE = {"pelvis": (0, 0, 110), "servo_hip_roll": (0, 0, -75),
            "servo_knee": (0, 0, -55), "link_shin": (85, 0, 20),
            "servo_ankle": (0, 0, -30), "foot": (0, 0, -55),
            "tower": (0, 0, 165), "battery_3s_mock": (-95, 0, 165),
-           "gopro_base": (0, 0, 205), "camera_gopro_max_mock": (0, 0, 250)}
+           "imu_carrier": (0, 0, 185), "imu_bno055_mock": (0, 0, 210),
+           "gopro_base": (0, 0, 235), "camera_gopro_max_mock": (0, 0, 280)}
 
 # (file, placed base-labels, {incoming base-label: offset mm},
 #  (lookat y, lookat z, distance, azimuth, elevation), name-prefix filter)
@@ -76,9 +77,10 @@ FIGS = [
      {"battery_3s_mock": (-85, 0, 0)}, (0.0, 0.30, 0.44, 320, -8), None),
     ("step10_gopro_base", ["pelvis", "servo_hip_roll", "tower",
                            "battery_3s_mock"] + LEG,
-     {"gopro_base": (0, 0, 55)}, (0.0, 0.325, 0.34, 140, -6), None),
+     {"imu_carrier": (0, 0, 40), "imu_bno055_mock": (0, 0, 55),
+      "gopro_base": (0, 0, 75)}, (0.0, 0.325, 0.34, 140, -6), None),
     ("step11_camera", ["pelvis", "servo_hip_roll", "tower", "battery_3s_mock",
-                       "gopro_base"] + LEG,
+                       "imu_carrier", "imu_bno055_mock", "gopro_base"] + LEG,
      {"camera_gopro_max_mock": (0, 0, 75)}, (0.0, 0.345, 0.58, 140, -6), None),
     ("step12_complete", ALL + ["servo_hip_roll"], {},
      (0.0, 0.20, 0.78, 155, -8), None),

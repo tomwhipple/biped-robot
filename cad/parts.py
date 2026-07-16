@@ -495,6 +495,38 @@ def gopro_base():
     return p
 
 
+# ---------------------------------------------------------------- imu_carrier
+def imu_carrier():
+    """BNO055 carrier: a plate between the tower top and gopro_base, clamped
+    by the SAME 4x M3 (now M3x12 -- the stack grew by IMU_CARRIER_T), with a
+    rear tongue the breakout screws onto: 4x M2.5x8 self-tap into bosses on
+    the true Adafruit hole pattern (IMU_HOLES, from their Eagle .brd). The
+    IMU rides component-side up, long axis on robot x, solder-header edge
+    rearward: jumpers drop down the open rear end of the tower (or through
+    the Ø10 tongue hole + tower vent at (0, -20)) to the driver board. Set
+    the BNO055's AXIS_MAP_CONFIG to match the silkscreen orientation at
+    bring-up. Local frame: z=0 on the tower top plane. Print: flat on the
+    bed, bosses up -- support-free. ~5 g PETG.
+    """
+    hx, hy = D.GP_BASE_X / 2, D.GP_BASE_Y / 2        # gopro pad 15, 12
+    T = D.IMU_CARRIER_T
+    tx = D.IMU_PCB[0] / 2 + 1.3                      # tongue half-width 14.0
+    ty = D.IMU_CY - D.IMU_PCB[1] / 2 - 1.3           # rear edge -37.7
+    p = box(-hx, hx, -hy, hy, 0, T)                  # pad under gopro_base
+    p += box(-tx, tx, ty, -hy + 2, 0, T)             # tongue (merged 2 into pad)
+    gx, gy = D.GP_SCREW_XY
+    for sx in (gx, -gx):                             # shared M3x12 through-holes
+        for sy in (gy, -gy):
+            p -= cyl_z(D.M3_CLEAR / 2, -1, T + 1, sx, sy)
+    p -= cyl_z(5.0, -1, T + 1, 0, -20)               # cable hole over the vent
+    bx, by = D.IMU_HOLES[0] / 2, D.IMU_HOLES[1] / 2
+    for sx in (bx, -bx):                             # IMU bosses + M2.5 pilots
+        for sy in (D.IMU_CY + by, D.IMU_CY - by):
+            p += cyl_z(3.0, T, T + D.IMU_BOSS_H, sx, sy)
+            p -= cyl_z(D.M25_TAP / 2, 0.4, T + D.IMU_BOSS_H + 0.1, sx, sy)
+    return p
+
+
 # ---------------------------------------------------------------- build all
 PARTS = [
     # name, builder, qty, print orientation note
@@ -507,6 +539,7 @@ PARTS = [
     ("tower", tower, 1, "upside down: top plate on bed (support-free: "
      "open window, no sill)"),
     ("gopro_base", gopro_base, 1, "base down, prongs up (PETG or 100% infill)"),
+    ("imu_carrier", imu_carrier, 1, "flat on bed, bosses up"),
 ]
 
 

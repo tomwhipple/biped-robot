@@ -42,6 +42,7 @@ PLAN = [
     ("foot",            (0, 0, -60), 0),   # sole rises to pocket the ankle servo
     ("tower",           (0, 0, 120), 0),   # drops onto the deck bosses
     ("battery",         (-90, 0, 0), 18),  # 3S pack through the -x wall window
+    ("imu",             (0, 0, 90), 0),    # carrier + IMU under the gopro base
     ("gopro_base",      (0, 0, 90), 0),    # drops onto the tower-top bosses
     ("camera",          (0, 0, 90), 0),    # fingers drop into the prongs
 ]

@@ -77,8 +77,16 @@ robot = Compound(label="bimo_biped", children=[
     piece("pelvis", COL_PRINT, Pos(0, 0, DECK_TOP_Z) * parts.pelvis()),
     piece("tower", COL_PRINT, Pos(0, 0, DECK_TOP_Z) * parts.tower()),
     piece("battery_3s_mock", COL_BATT, Pos(0, 0, DECK_TOP_Z) * battery_mock()),
-    piece("gopro_base", COL_PRINT, Pos(0, 0, TOWER_TOP_Z) * parts.gopro_base()),
-    piece("camera_gopro_max_mock", COL_CAM, Pos(0, 0, TOWER_TOP_Z) * camera_mock()),
+    piece("imu_carrier", COL_PRINT, Pos(0, 0, TOWER_TOP_Z) * parts.imu_carrier()),
+    piece("imu_bno055_mock", COL_CAM,
+          Pos(0, D.IMU_CY, TOWER_TOP_Z + D.IMU_CARRIER_T + D.IMU_BOSS_H)
+          * parts.box(-D.IMU_PCB[0] / 2, D.IMU_PCB[0] / 2, -D.IMU_PCB[1] / 2,
+                      D.IMU_PCB[1] / 2, 0, D.IMU_PCB[2])),
+    # gopro stack rides IMU_CARRIER_T higher: the carrier is under the base
+    piece("gopro_base", COL_PRINT,
+          Pos(0, 0, TOWER_TOP_Z + D.IMU_CARRIER_T) * parts.gopro_base()),
+    piece("camera_gopro_max_mock", COL_CAM,
+          Pos(0, 0, TOWER_TOP_Z + D.IMU_CARRIER_T) * camera_mock()),
     leg(D.HIP_SEP / 2, "L"),
     leg(-D.HIP_SEP / 2, "R"),
 ])
@@ -88,7 +96,8 @@ path = os.path.join(OUT, "assembly.step")
 export_step(robot, path)
 bb = robot.bounding_box()
 print(f"assembly -> {path}")
-cam_top = D.TOP_Z + D.GP_BASE_T + D.GP_HOLE_H + 6 + D.CAM_BODY[2]
+cam_top = (D.TOP_Z + D.IMU_CARRIER_T + D.GP_BASE_T + D.GP_HOLE_H + 6
+           + D.CAM_BODY[2])
 print(f"bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}"
       f"  z {bb.min.Z:.1f}..{bb.max.Z:.1f}  "
       f"(expect ~0..{D.TOP_Z:.0f} structure, ~{cam_top:.0f} incl. camera)")
