@@ -57,7 +57,7 @@ ORIENT = {
 }
 
 # what actually goes to the slicer, where that differs from <name>.stl
-PRINT_STL = {"leg_link": "leg_link_print.stl"}
+PRINT_STL = {"leg_link": "leg_link_print.stl", "tower": "tower_print.stl"}
 
 COS45 = np.cos(np.radians(45.0))          # facet is a >45 deg overhang if
                                           # nz < -COS45 (straight down = -1)

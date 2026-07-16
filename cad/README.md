@@ -59,7 +59,7 @@ bolt through the disc or a thin 19×27 washer-bearing under the arm.
 | `yoke_pitch` | 2 | 32 × 45 × 42 | 12 g | clevis on thigh-servo horn/idler, bolts under `yoke_roll` rotated 90° (hip universal joint) |
 | `leg_link` | 4 | 28 × 45 × 99 | 18 g | thigh **and** shin (same part): grips a servo case, forks 90 mm down to the next servo's horn/idler |
 | `foot` | 2 | 100 × 52 × 30 | 36 g | flat sole + ankle-servo pocket + heel bulkhead tying the retention tabs into a U-channel (glued rubber sole pad) |
-| `tower` | 1 | 45 × 96 × 37 | 37 g | electronics: driver board hangs face-down on standoffs INSIDE; 3S battery tilt-loads through the rear-wall window onto the deck (tool-free swap: peel belt, tug ribbon); GoPro bosses on top |
+| `tower` | 1 | 45 × 96 × 43.5 | 39 g | electronics: driver board hangs face-down on standoffs INSIDE; 3S battery tilt-loads through the rear-wall window onto the deck (tool-free swap: peel belt, tug ribbon); GoPro bosses on top |
 | `gopro_base` | 1 | 30 × 24 × 21 | 5 g | GoPro three-prong mount, bolts to the tower top (crash fuse — cheap to reprint) |
 
 Printed plastic ≈ 286 g (PETG). Total robot ≈ **0.88 kg** bare, **1.04 kg with
@@ -123,7 +123,7 @@ after any CAD change):
 | yoke_roll / yoke_pitch | flange face on bed | arms vertical → layer lines ⟂ arm bending is avoided; idler boss prints as a short horizontal stub (1–4 mm) — slight underside droop is cosmetic, the seat face prints clean |
 | leg_link | on its back (web on bed) | strongest orientation for fore-aft bending; **slice `leg_link_print.stl`** — it adds 3 break-away fins under the fork slabs, which float 4.7 mm above the bed (the swept joint envelope forbids solid material there); peel the fins out after printing |
 | foot | sole down | heel tabs, bulkhead and buttress are vertical faces or top-side slopes — nothing bridges |
-| tower | upside-down (top plate on bed) | feet tabs have 45° gussets (enlarged for the camera load); board standoffs and GoPro bosses print upward from the plate; battery-window sill and belt-rib print-undersides are 45°-chamfered — still support-free |
+| tower | upside-down (top plate on bed) | **slice `tower_print.stl`** — it adds 4 break-away posts in the battery window that catch the 70 mm sill lip (snap out through the window). Feet-tab gussets and battery-rail stubs are true ≥45° wedges, sill ramp 49°, belt-rib undersides chamfered; the only remaining ceilings are the Ø6.6 feet-screw counterbores (normal short bridges) |
 | gopro_base | base down, prongs up | standard orientation for printed GoPro mounts; use PETG or 100 % infill PLA — the M5 clamp squeezes across layer lines |
 
 All horizontal M3 bores are teardropped toward each part's print-up direction

@@ -1102,6 +1102,30 @@ Verified by point-in-solid probes; both gates ALL CLEAR / PRINT CLEAN;
 stands 500/500. The printed v1 link fits and works identically — no reprint
 needed; v2 is the one to slice from now on.
 
+### tower print revision from slice review (2026-07-16)
+
+Slicing the (still unprinted) tower showed bridging and unsupported
+overhangs the first printability pass had missed: the feet-tab gussets were
+flat-topped boxes — printed upside down, a 6 mm ceiling floating 31 mm over
+the interior — the battery-rail stubs only stepped 1.3 mm per ledge, and the
+window-sill ramp measured 44°, one degree past the 45° threshold, so the
+whole 70 mm sill band sliced as overhang. Fixes, all inside `parts.tower()`:
+gussets and rail stubs are now true ≥45° wedges (the gusset docstring had
+claimed a wedge all along; the wedge braces the tab exactly as the box did),
+the sill ramp cut was deepened to 49° keeping the full 2.5 mm outer
+retention lip, and the feet screws now seat directly on the tabs through
+Ø6.6 head wells in the wedges (per `docs/assembly.md`: 4× M3 into the deck
+inserts, unchanged). `check_printability` CEILING count: 13 → 4, the
+remainder being those Ø6.6 counterbore roofs (≤8 mm bridges, standard).
+Because the sill lip's free edge still starts 41 mm above the bed, a new
+**`tower_print.stl`** (`tower(print_supports=True)`) grows four 1.6 mm
+break-away posts in the window, 0.25 mm shy of the lip — snap them out
+through the window before assembly; `tower.stl` stays clean for sim/assembly.
+Battery seated fit is exact (0 mm³ intersection) and tilt-in clearance
+improved (the wedge faces recede with height where the steps barely did).
+Torso inertial rebaked (327.8 g, unchanged mass, 3rd-digit inertia shift);
+stand test 500/500. The tower had not been printed yet — nothing to redo.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

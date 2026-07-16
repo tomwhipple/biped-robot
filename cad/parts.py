@@ -372,7 +372,7 @@ def foot():
 
 
 # ---------------------------------------------------------------- tower
-def tower():
+def tower(print_supports=False):
     """Electronics tower. The GoPro base bolts on top (4x M3 into bosses under
     the plate); the driver board hangs INSIDE, face down on standoffs under the
     top plate (screwed M2.5 from below). The 3S battery swaps tool-free: it
@@ -382,9 +382,11 @@ def tower():
     belt around the tower (guide ribs set its height) closes the window for
     tumbles, and a ribbon under the pack is the pull-tab. Feet tabs screw down
     into the deck heat-sets (access holes in the top plate). Local frame: z=0
-    at deck top. Print: upside down (top plate on the bed) - standoffs/bosses
-    print upward and the battery window opens toward the print top, so still
-    support-free.
+    at deck top. Print: upside down (top plate on the bed). Gussets, rail
+    stubs, and the sill ramp are true >=45 deg wedges so the inverted print
+    has no flat ceilings (first print showed the old stepped boxes drooping --
+    2026-07-16); tower_print.stl (print_supports=True) additionally grows
+    break-away posts in the battery window that catch the sill lip edge.
     """
     hx = D.TOWER_W / 2                               # walls are X-normal, 21
     hy = D.TOWER_L / 2                               # spans Y like the deck, 48
@@ -397,8 +399,17 @@ def tower():
         # -> ~25 N per screw, well inside heat-set / tab capacity with gussets)
         for sy in (D.TOWER_FOOT_Y, -D.TOWER_FOOT_Y):
             p += box(s * (hx - D.WALL - 8.5), s * hx, sy - 6, sy + 6, 0, 4)
-            p += box(s * (hx - D.WALL - 6), s * hx, sy - 6, sy + 6, 4, 12)
-            p -= cyl_z(D.M3_CLEAR / 2, -1, 13, s * D.TOWER_FOOT_X, sy)
+            # gusset: a real 46 deg wedge, tab inner edge to the wall. Upside
+            # down its underside is the hypotenuse (self-supporting); the old
+            # stepped box left flat 6 and 2.5 mm ledges drooping over the
+            # interior (first-print review 2026-07-16).
+            p += wedge_y([(s * (hx - D.WALL - 8.5), 4.0),
+                          (s * (hx - D.WALL), 4.0),
+                          (s * (hx - D.WALL), 13.0)], sy - 6, sy + 6)
+            p -= cyl_z(D.M3_CLEAR / 2, -1, 3.9, s * D.TOWER_FOOT_X, sy)
+            # head + driver well through the wedge: screw head seats on the
+            # tab itself (Ø6.6 clears an M3 button/socket head)
+            p -= cyl_z(3.3, 3.9, 13.1, s * D.TOWER_FOOT_X, sy)
             p -= cyl_z(3.2, zt0 - 6, zt1 + 1, s * D.TOWER_FOOT_X, sy)  # driver access
     # battery window in the -x wall: sill 2.5 (tilt the pack in over it),
     # opening = envelope height, posts at the ends keep the feet tabs.
@@ -408,14 +419,17 @@ def tower():
     # overhang. The outer face keeps the full 2.5 lip, so retention holds.
     bw = D.BATT[0] / 2 + 1.0
     p -= box(-hx - 1, -hx + D.WALL + 1, -bw, bw, 2.5, D.BATT[2] + 2.5)
-    p -= wedge_y([(-hx - 0.1, 2.5), (-hx + D.WALL, -0.1), (-hx + D.WALL, 2.5)],
+    # ramp cut extended below z=0 so the surviving ramp face is ~49 deg, not
+    # the 44 deg the old -0.1 apex left (slicers painted it as overhang)
+    p -= wedge_y([(-hx - 0.1, 2.5), (-hx + D.WALL, -0.6), (-hx + D.WALL, 2.5)],
                  -bw, bw)
-    # far-wall rail stubs: seat the pack inner face, stepped for the inverted
-    # print like the feet tabs
+    # far-wall rail stubs: seat the pack inner face; wedge top prints
+    # self-supporting upside down (the old 1.3 mm steps still drooped)
     seat_in = D.BATT_SEAT_X + D.BATT[1]              # pack inner (+x) face, 14
     for sy in (-20, 16):
         p += box(seat_in, hx - D.WALL, sy - 6, sy + 6, 0, 12)
-        p += box(seat_in + 1.3, hx - D.WALL, sy - 6, sy + 6, 12, 15)
+        p += wedge_y([(seat_in, 12.0), (hx - D.WALL, 12.0),
+                      (hx - D.WALL, 16.9)], sy - 6, sy + 6)
     # belt guide ribs: +x wall full-width, -x wall on the window posts. Each
     # rib carries a 45 deg chamfer wedge on its model-TOP face: upside down
     # that face is the rib's print-underside, and a square 1.5 mm ledge
@@ -443,6 +457,15 @@ def tower():
     # wire / vent holes (clear of the 30 x 24 GoPro base footprint)
     for sy in (20, -20):
         p -= cyl_z(5, zt0 - 1, zt1 + 1, 0, sy)
+    if print_supports:
+        # tower_print.stl only -- break-away posts for the inverted print.
+        # The window sill lip is a 70 mm single-wall 49 deg band ~41 mm above
+        # the bed; four 1.6 mm posts grow off the window's top face (a
+        # print-up face) and stop 0.25 mm short of the lip so its free edge
+        # can't droop. Snap them out through the window before assembly.
+        for sy in (-26.0, -9.0, 9.0, 26.0):
+            p += box(-hx, -hx + D.WALL, sy - 0.8, sy + 0.8,
+                     2.75, D.BATT[2] + 2.5)
     return p
 
 
@@ -486,7 +509,8 @@ PARTS = [
     ("leg_link", leg_link, 4, "on its back: web face on bed "
      "(print leg_link_print.stl: break-away fins under the fork slabs)"),
     ("foot", foot, 2, "sole down"),
-    ("tower", tower, 1, "upside down: top plate on bed"),
+    ("tower", tower, 1, "upside down: top plate on bed "
+     "(print tower_print.stl: break-away posts under the window sill)"),
     ("gopro_base", gopro_base, 1, "base down, prongs up (PETG or 100% infill)"),
 ]
 
@@ -501,6 +525,9 @@ def main():
         if name == "leg_link":       # print variant with break-away fins; the
             export_stl(leg_link(print_fins=True),   # plain STL stays clean for
                        os.path.join(OUT, "leg_link_print.stl"))  # sim meshes
+        if name == "tower":          # print variant: break-away sill posts
+            export_stl(tower(print_supports=True),
+                       os.path.join(OUT, "tower_print.stl"))
         bb = part.bounding_box()
         dims = sorted((bb.size.X, bb.size.Y, bb.size.Z))
         fits = dims[0] <= 250 and dims[1] <= D.BED and dims[2] <= D.BED

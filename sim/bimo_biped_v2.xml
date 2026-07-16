@@ -76,7 +76,7 @@
 
     <body name="torso" pos="0 0 0.283">
       <freejoint/>
-      <inertial pos="0.0002 -0.0000 0.0007" quat="0.5006 -0.4992 -0.4966 0.5036" mass="0.3278" diaginertia="2.6345e-04 2.7068e-04 4.3558e-04"/>
+      <inertial pos="0.0002 -0.0000 0.0006" quat="0.5001 -0.4997 -0.4961 0.5041" mass="0.3278" diaginertia="2.6422e-04 2.6973e-04 4.3534e-04"/>
       <geom name="torso" type="box" size="0.023 0.052 0.036" mass="0.344" rgba="0.80 0.82 0.85 1" group="3"/>
       <geom class="cad" mesh="pelvis" pos="0 0 0.00411"/>
       <geom class="cad" mesh="tower" pos="0 0 0.00411"/>

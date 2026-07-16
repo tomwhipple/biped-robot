@@ -36,7 +36,7 @@ settings in the [print list](../cad/PRINT_LIST.md)):
 | `yoke_pitch` | 2 | ⚠️ on hold (hip redesign) |
 | `leg_link` | 4 | 2 thighs (⚠️ hold) + 2 shins — **slice `leg_link_print.stl`** and peel the 3 break-away fins after printing |
 | `foot` | 2 | v3 (heel bulkhead), sole down |
-| `tower` | 1 | print top-plate down |
+| `tower` | 1 | print top-plate down — **slice `tower_print.stl`** and snap the 4 window posts out before assembly |
 | `gopro_base` | 1 | prongs up; the sacrificial crash fuse |
 
 **Everything else:** 8× ST3215 servos (12 V version) with their horns, idler
