@@ -96,13 +96,13 @@
         <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
         <body name="L_thigh" pos="0 0 -0.05">
           <joint name="L_hip_pitch" axis="0 1 0" range="-110 60"/>
-        <inertial pos="-0.0010 0.0004 -0.0239" quat="0.6973 -0.0011 0.7167 0.0140" mass="0.0786" diaginertia="1.8591e-05 5.1847e-05 6.1043e-05"/>
+        <inertial pos="-0.0011 0.0003 -0.0241" quat="0.7186 0.0063 -0.6954 0.0026" mass="0.0786" diaginertia="1.8626e-05 5.2580e-05 6.1786e-05"/>
           <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
           <body name="L_shin" pos="0 0 -0.09">
             <joint name="L_knee" axis="0 1 0" range="-95 5"/>
-        <inertial pos="-0.0010 0.0004 -0.0239" quat="0.6973 -0.0011 0.7167 0.0140" mass="0.0786" diaginertia="1.8591e-05 5.1847e-05 6.1043e-05"/>
+        <inertial pos="-0.0011 0.0003 -0.0241" quat="0.7186 0.0063 -0.6954 0.0026" mass="0.0786" diaginertia="1.8626e-05 5.2580e-05 6.1786e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
@@ -127,13 +127,13 @@
         <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
         <body name="R_thigh" pos="0 0 -0.05">
           <joint name="R_hip_pitch" axis="0 1 0" range="-110 60"/>
-        <inertial pos="-0.0010 0.0004 -0.0239" quat="0.6973 -0.0011 0.7167 0.0140" mass="0.0786" diaginertia="1.8591e-05 5.1847e-05 6.1043e-05"/>
+        <inertial pos="-0.0011 0.0003 -0.0241" quat="0.7186 0.0063 -0.6954 0.0026" mass="0.0786" diaginertia="1.8626e-05 5.2580e-05 6.1786e-05"/>
           <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
           <body name="R_shin" pos="0 0 -0.09">
             <joint name="R_knee" axis="0 1 0" range="-95 5"/>
-        <inertial pos="-0.0010 0.0004 -0.0239" quat="0.6973 -0.0011 0.7167 0.0140" mass="0.0786" diaginertia="1.8591e-05 5.1847e-05 6.1043e-05"/>
+        <inertial pos="-0.0011 0.0003 -0.0241" quat="0.7186 0.0063 -0.6954 0.0026" mass="0.0786" diaginertia="1.8626e-05 5.2580e-05 6.1786e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>

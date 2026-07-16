@@ -232,7 +232,14 @@ def leg_link(print_fins=False):
     # break-away fin problem shrinks to one short free-ended fin + two
     # finger-snap pad stubs (in leg_link_print.stl below).
     p += box(web_x0, D.FORK_NARROW_X, hy0, hy1, -92, D.FORK_WIDE_Z)
+    # idler side: the corner lobe's union is exactly z -68.4..-55.6, so
+    # solid fills BOTH sides of it (1.6 mm margins); the 16 mm stretch
+    # left between the fills prints as a 3 mm-wide end-anchored ribbon
+    # bridge -- no support at all (fin-under-slab was rejected 3x in
+    # print review; 45-deg chamfers shrinking the span land inside the
+    # swept lobe, verified).
     p += box(web_x0, D.FORK_NARROW_X, iy0, iy1, -54, D.FORK_WIDE_Z)
+    p += box(web_x0, D.FORK_NARROW_X, iy0, iy1, -92, -70)
     # idler boss: OD tapered ~51 deg (Ø19 at the arm face -> Ø16 at the tip)
     # so its print-underside band never exceeds 45 deg -- it used to need a
     # break-away fin wedged 0.1 mm from the arm plate (unremovable, print
@@ -275,25 +282,17 @@ def leg_link(print_fins=False):
         for ly in (9, -9):
             p -= cyl_x(2.25, web_x0 - 1, web_x1 + 1, ly, z)
     if print_fins:
-        # break-away print supports, round 3 (feedback 2026-07-16 x2: the
-        # v1 full-length walls half-fused at 0.2 gaps and were boxed in;
-        # v3's were still judged trapped). With the permanent slab backing
-        # above, only THREE small pieces remain, all with open ends:
-        # 1. idler fin, z -92..-56 (the foot's corner sweep forbids
-        #    permanent material there): 0.35 gap, contact teeth, bed
-        #    flange past the slab face, straight free ends -- no pad
-        #    cradle hooking it in place.
-        yc = iy0 + D.PLATE / 2
-        fin = box(web_x0, D.FORK_NARROW_X - 0.35, yc - 1.2, yc + 1.2,
-                  -92.0, -56.0)
-        for zt in (-88, -80, -72, -64):              # teeth: 5 on / 3 off
-            fin -= box(D.FORK_NARROW_X - 1.85, D.FORK_NARROW_X + 0.1,
-                       yc - 2, yc + 2, zt, zt + 3)
-        fin += box(web_x0, web_x0 + 1.5, -23.8, yc + 1.2, -92.0, -56.0)
-        p += fin
-        # 2./3. pad stubs, z -97..-92.8: 4 mm pillars under each pad's
-        # bottom tangent (permanent material is foot-swept below -93);
-        # freestanding with a bed foot, they snap out with fingers.
+        # break-away print supports, final round (2026-07-16: fin-under-slab
+        # was rejected three times -- every variant is trapped under the
+        # slab it supports). There are NO fins anymore. With the permanent
+        # backing above, the idler slab's only unsupported stretch
+        # (z -84..-54) is anchored at BOTH ends -- solid stub one side, the
+        # pad body the other -- and prints as a plain 3 mm-wide bridge, the
+        # same class the slicer already rates trivial. The only break-away
+        # pieces left are two 4 mm pad stubs under the pads' bottom
+        # tangents (permanent material is foot-swept below -93): they stand
+        # at the fork tips, in the open past the part's end, and snap out
+        # with fingers.
         for yc, sgn in ((hy0 + D.PLATE / 2, 1), (iy0 + D.PLATE / 2, -1)):
             stub = box(web_x0, D.FORK_NARROW_X - 0.35, yc - 1.2, yc + 1.2,
                        -97.0, -92.8)

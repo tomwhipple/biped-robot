@@ -66,6 +66,8 @@ Z_FIRST = 0.30                            # first-layer band above the bed
 BRIDGE_OK = 8.0                           # PETG bridges this span fine (mm)
 BORE_NOTE = 5.0                           # small bore tops: note, don't fail
 LEDGE_OK = 1.2                            # unsupported ledge reach that's fine
+RIBBON_W = 4.0                            # "ribbon" = strip narrower than this
+BEAM_OK = 20.0                            # end-anchored ribbon span that's fine
 ISLAND_AREA_OK = 3.0                      # mm^2 of floating facets we ignore
 CONTACT_MIN_FRAC = 0.25                   # first layer >= this of footprint
 THIN_WALL = 0.85                          # < ~2 perimeters -> single strand
@@ -167,6 +169,19 @@ def ray_down_dist(points, tris):
     return ray_dist(points, dirs, tris)
 
 
+def _ends_anchored(ring, sx, sy, tris):
+    """True if the perimeter ring is anchored at BOTH extremes of the
+    cluster's long axis (the signature of an end-anchored ribbon bridge).
+    The ring is 16 samples starting at +x (angle 0), CCW."""
+    ends = (0, 8) if sx >= sy else (4, 12)          # +axis / -axis indices
+    hit = np.isfinite(ray_down_dist(ring, tris))
+    ok = True
+    for e in ends:
+        idx = [(e - 1) % 16, e, (e + 1) % 16]
+        ok &= hit[idx].any()
+    return ok
+
+
 def audit(name, verbose=True):
     rot, note = ORIENT[name]
     fname = PRINT_STL.get(name, name + ".stl")
@@ -227,6 +242,16 @@ def audit(name, verbose=True):
         elif fs >= 0.75:
             kind, bad = "CEILING", span > BRIDGE_OK
             extra = "roof of a through-void"
+        elif fs >= 0.25 and span <= RIBBON_W and _ends_anchored(
+                ring, sx, sy, tri):
+            # end-anchored ribbon: a narrow strip whose SHORT sides are
+            # free but whose two long-axis ends land on solid -- the
+            # slicer bridges it lengthwise (leg_link idler slab,
+            # 2026-07-16: 3 x 16 mm between the sweep-limited solid
+            # fills; PETG ribbons this narrow bridge cleanly well past
+            # the general 8 mm rule)
+            kind, bad = "BEAM", long_span > BEAM_OK
+            extra = f"end-anchored ribbon, {long_span:.0f} mm between anchors"
         elif fs >= 0.25:
             kind, bad = "LEDGE", span > LEDGE_OK
             extra = f"anchored one side ({100 * fs:.0f}% ring)"
