@@ -41,8 +41,12 @@ pigtail and a switch.*
   gauntlet shows only 2–3 joints near peak torque simultaneously, so budget
   ~10 A transient. XT30 (30 A) and 20 AWG battery leads are comfortable;
   this is why JST-terminated packs (~3 A) are ruled out.
-- The board's OLED shows measured bus voltage — the low-battery check.
-  Land the robot by **10.5 V on 3S** (3.5 V/cell) / 7.0 V on 2S.
+- The board's OLED shows measured bus voltage — but it faces the deck once
+  the board is mounted, so it's a **bench-side** tool (bring-up, servo IDs).
+  In operation the low-battery check is the bus voltage in the 10 Hz radio
+  telemetry ([control-channel.md](control-channel.md)). Land the robot by
+  **10.5 V on 3S** (3.5 V/cell) / 7.0 V on 2S. (A tower viewing window for
+  the OLED is filed as a future improvement.)
 - GoPro MAX is self-powered; zero wiring to the robot.
 
 ## Servo bus
@@ -84,8 +88,11 @@ pigtail and a switch.*
 
 - **BNO085 breakout** on the ESP32's I2C bus (GPIO 21 SDA / 22 SCL — shared
   with the OLED; the BNO085 defaults to address 0x4A, no conflict). 4 wires:
-  3V3, GND, SDA, SCL. Mount flat on the tower deck near the board, axes
-  aligned to the robot frame (+x forward).
+  3V3, GND, SDA, SCL. Mounts **on top of the tower's top plate at the rear**
+  (foam tape, long axis on y — no interior flat fits the 25.4 × 17.8 board;
+  see [assembly.md §9b](assembly.md) for the exact footprint). Silkscreen
+  +X arrow points robot-left (+y); firmware remap `x_r = −y_imu`,
+  `y_r = +x_imu`, `z_r = z_imu`.
 - Why: the policy's observation vector needs the torso **up-vector and
   angular velocity** — servo encoders only cover the 8 joints. The BNO085
   does sensor fusion on-chip and outputs the orientation quaternion directly

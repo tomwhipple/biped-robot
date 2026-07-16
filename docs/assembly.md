@@ -181,16 +181,50 @@ Offer each completed leg up to its roll servo, clevis over the servo:
 
 ![Tower dropping onto the pelvis deck](assembly/step08_tower.png)
 
-**Board first, tower second** — the board is unreachable once the tower is on:
+**Bench bring-up first, board second, tower third** — the board is
+unreachable once the tower is on, and its OLED is unreadable once it's
+mounted (face-down), so anything that needs the display happens on the
+bench **before** this step: bare-board power-up, web UI check, and servo ID
+assignment ([wiring.md](wiring.md) checklist). In operation the same bus
+voltage arrives in the radio telemetry — the OLED is a bench tool.
+(A viewing window for it is filed as a future tower improvement.)
 
-1. Screw the driver board **face-down** onto the standoffs under the tower's
-   top plate, 4× M2.5×8 from below, connectors toward an open end (driver
-   access holes are in the top plate).
-2. Mount the BNO085 IMU flat on the tower deck near the board, **axes aligned
-   to the robot frame (+X forward)**; 4 wires to the ESP32's I2C
-   (3V3/GND/SDA GPIO21/SCL GPIO22 — shared with the OLED, no address conflict).
-3. Bolt the tower down: 4× M3 through the feet tabs into the deck inserts.
-4. Route the XT30 pigtail + inline switch to the board's power input now,
+### 9a. Driver board — 4× M2.5×8 into the standoffs
+
+![Driver board into the inverted tower, four M2.5 screws](assembly/step08a_board.png)
+
+With the tower **upside down on the bench** (as it comes off the printer),
+drop the board in **components up** — that's face-*down* once the tower is
+righted — USB-C/connector edges toward the open ends. Drive **4× M2.5×8
+self-tappers** (orange in the figure) through the board's corner holes into
+the standoffs; the holes sit on the 58 × 23 mm pattern. Snug only — they
+thread into plastic.
+
+### 9b. IMU — foam tape on the top plate, rear
+
+![BNO085 onto its tape pad at the rear of the top plate](assembly/step08b_imu.png)
+
+The BNO085 (25.4 × 17.8) doesn't fit any interior flat — every clear strip
+inside the tower is under 13 mm — so it mounts **on top of the plate at the
+rear** with double-sided foam tape (pad ≈ 16 × 20 mm, shown gray):
+
+- Footprint: **centered on x, long axis on y**, rear edge 3 mm proud of the
+  plate (x ±8.9, y −25.6…−51 in tower frame). That spot clears the vent
+  hole, the feet-screw access wells, and the GoPro base.
+- No screws — tape only (the breakout weighs ~3 g). Press firmly for 10 s.
+- **Axes**: the silkscreen **+X arrow points to the robot's left (+y)**;
+  firmware axis remap: `x_r = −y_imu`, `y_r = +x_imu`, `z_r = z_imu`.
+- Cable: JST-SH into either end jack, over the rear edge, down the open
+  rear end of the tower to the ESP32 headers
+  (3V3/GND/SDA GPIO21/SCL GPIO22 — shared with the OLED, no conflict).
+
+### 9c. Tower down, power in
+
+1. Bolt the tower: **4× M3×10** through the feet tabs into the deck inserts.
+   The heads seat down inside the Ø6.6 wells in the gusset wedges — drive
+   them with a long hex key through the Ø6.4 access holes in the top plate
+   (one at each corner, x ±14 y ±42).
+2. Route the XT30 pigtail + inline switch to the board's power input now,
    while the tower interior is still easy to reach.
 
 ## 10. Battery — goes in LAST, swaps tool-free

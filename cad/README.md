@@ -30,8 +30,11 @@ cad/
 `assembly.step` plus mock dress — driver board under the tower top, battery,
 XT30 pigtail, per-leg servo daisy-chain cables (splines through the real
 ST3215 rear-end connector positions, tied to the web raceways with zip-tie
-mocks). Approximate by design: wire paths are plausible, not catalog-exact;
-IMU and power switch are not placed yet (mounts undesigned). The cable
+mocks). Approximate by design: wire paths are plausible, not catalog-exact.
+The IMU's placement is now specified (foam-tape pad on the top-plate rear —
+`docs/assembly.md` §9b, figures from `render_electronics_steps.py`) though it
+isn't in the dressed model yet; the power switch mount is still undesigned.
+The cable
 segments regenerate from the posed joint frames, so `dress.dressed_robot(
 roll, hip, knee, ankle)` and the ROM video show the wiring following the
 legs rather than a rigid cable tearing off.
