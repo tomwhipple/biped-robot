@@ -116,7 +116,18 @@ DECK_W = 46.0           # fore-aft (X in sim)
 DECK_T = 5.0
 BAY_WALL_DROP = 41.0    # walls hang this far below the deck; roll-axis bore is a
                         # downward-open U-slot (servo slides up into the bay)
-BAY_BORE = 22.5         # clearance bore around case boss / idler boss in bay walls
+# Clearance bore around case boss / idler boss in the bay walls. Sized off the
+# O19.6 case output boss (the larger of the two -- the yoke idler boss is O19.0)
+# at the SAME 0.5 radial slip the leg_link grip plate already proves on that
+# boss (GRIP_HORN_RELIEF = 10.3). Was 22.5 (1.45 radial), which is slack the
+# wall cannot afford: the case screw row at 8.30 behind the axis sits only
+# hypot(10.25, 8.30) = 13.19 from the axis, so an O3.4 clearance hole reaches
+# in to r 11.49 and a 11.25 bore left a 0.24 mm web -- under one extrusion, and
+# the slicer merged hole and bore into a sliver (print review 2026-07-15).
+# 10.3 restores a 1.19 mm web, matching leg_link against the same hole row.
+# LOCKED: do not grow past ~20.9 without moving that screw row (it is on the
+# servo, so it cannot move) or dropping it.
+BAY_BORE = SV_BOSS_D + 1.0      # 20.6
 BAY_CHEEK_GAP = 0.3
 TOWER_FOOT_X = 14.0     # tower feet / deck heat-set positions
 TOWER_FOOT_Y = 42.0     # lands over the bay cheek walls: heat-set pilots run

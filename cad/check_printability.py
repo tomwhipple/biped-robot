@@ -68,8 +68,22 @@ LEDGE_OK = 1.2                            # unsupported ledge reach that's fine
 ISLAND_AREA_OK = 3.0                      # mm^2 of floating facets we ignore
 CONTACT_MIN_FRAC = 0.25                   # first layer >= this of footprint
 THIN_WALL = 0.85                          # < ~2 perimeters -> single strand
-THIN_AREA_OK = 4.0                        # ignore tiny knife-edge tips (mm^2,
-                                          # of estimated thin-zone area)
+THIN_AREA_OK = 3.0                        # ignore tiny knife-edge tips (mm^2,
+                                          # of estimated thin-zone area). Was
+                                          # 4.0, which sat just above a REAL
+                                          # defect: the pelvis bay walls left a
+                                          # 0.24 mm web between each case-screw
+                                          # hole and the roll-axis bore, and the
+                                          # ray pass measured all 16 of them at
+                                          # 3.65 mm2 -- every one dismissed as a
+                                          # knife edge, part PASSed, and it took
+                                          # a human eye on the sliced preview to
+                                          # catch (2026-07-15). 3.0 fails that
+                                          # geometry with no false positive on
+                                          # any current part. Sub-threshold zones
+                                          # now print as `thin-note` rather than
+                                          # vanishing, so the next near-miss is
+                                          # at least visible before it prints.
 
 
 def load_stl(path):
@@ -256,13 +270,14 @@ def audit(name, verbose=True):
     for grp in clusters(thin, tri):
         g = np.array(grp)
         ga = (area[g] * thin_frac[g]).sum()       # est. area of the thin zone
-        if ga < THIN_AREA_OK:
-            continue
         lo = tri[g].reshape(-1, 3).min(axis=0)
         hi = tri[g].reshape(-1, 3).max(axis=0)
-        desc = (f"{ga:6.0f} mm2  wall < {THIN_WALL} mm  around "
+        desc = (f"{ga:6.1f} mm2  wall < {THIN_WALL} mm  around "
                 f"({(lo[0]+hi[0])/2:.0f}, {(lo[1]+hi[1])/2:.0f}, "
                 f"{(lo[2]+hi[2])/2:.0f})")
+        if ga < THIN_AREA_OK:
+            print(f"    thin-note {desc}")   # NOT silent: see THIN_AREA_OK
+            continue
         findings.append(("THIN", ga, desc))
         print(f"  **THIN     {desc}")
 

@@ -85,6 +85,18 @@ were marked "ready" would have failed exactly like the first foot:
   the tower feet tabs). Bosses deleted; heat-set pilots now run through the
   deck into the bay-cheek material below (thread depth intact). Tower now
   seats flush.
+- **`pelvis` (second pass, print review)** — each bay wall left a **0.24 mm**
+  web between the 8.30 case-screw hole and the roll-axis U-slot: under one
+  extrusion, so the slicer merged hole and bore into a sliver. `BAY_BORE` was
+  Ø22.5 (1.45 mm radial slack on a Ø19.6 boss) while the screw row sits only
+  13.19 mm from the axis. Bore is now `SV_BOSS_D + 1.0` = **Ø20.6** — the same
+  0.5 mm radial slip `leg_link` already proves against that boss — restoring a
+  **1.19 mm** web. Boss clearance and the full servo slide-up re-verified at
+  0.00 mm³. Before/after: `renders/pelvis_bay_web.png`.
+  **`check_printability.py` PASSed this** — it measured all 16 slivers at
+  3.65 mm² and dropped every one under the 4.0 mm² knife-edge filter. Threshold
+  is now 3.0 (fails the old geometry, no false positive on any current part) and
+  sub-threshold zones print as `thin-note` instead of vanishing.
 - **`tower`** — the battery-window sill printed as a 70 mm single-wall bridge,
   and the belt-guide ribs as drooping square ledges. The sill top is now a 45°
   ramp (full 2.5 mm retention lip kept on the outer face) and each rib carries
