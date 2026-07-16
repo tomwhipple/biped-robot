@@ -223,6 +223,16 @@ def leg_link(print_fins=False):
         p += box(web_x0, 12, wide0, a1, D.FORK_WIDE_Z, -33)
         p += box(D.FORK_NARROW_X, 12, a0, a1, drop, D.FORK_WIDE_Z)
         p += cyl_y(D.PAD_D / 2, a0, a1, 0, drop)
+    # --- permanent slab backing ("make it solid" -- print feedback
+    # 2026-07-16). Foot-sweep mapping at ankle +-45 shows the swept volume
+    # in the slab bands is ONLY: below z -93 (both sides, heel passing
+    # under the axis) and -- idler side -- up to z -55.6 (wall corner at
+    # -45 deg). Everything else fills to the web face for free: the horn
+    # slab becomes a full-depth blade, the idler side gets a stub, and the
+    # break-away fin problem shrinks to one short free-ended fin + two
+    # finger-snap pad stubs (in leg_link_print.stl below).
+    p += box(web_x0, D.FORK_NARROW_X, hy0, hy1, -92, D.FORK_WIDE_Z)
+    p += box(web_x0, D.FORK_NARROW_X, iy0, iy1, -54, D.FORK_WIDE_Z)
     # idler boss: OD tapered ~51 deg (Ø19 at the arm face -> Ø16 at the tip)
     # so its print-underside band never exceeds 45 deg -- it used to need a
     # break-away fin wedged 0.1 mm from the arm plate (unremovable, print
@@ -265,35 +275,32 @@ def leg_link(print_fins=False):
         for ly in (9, -9):
             p -= cyl_x(2.25, web_x0 - 1, web_x1 + 1, ly, z)
     if print_fins:
-        # break-away print supports under the narrow fork slabs, redesigned
-        # from the first print (feedback 2026-07-16: full-length walls at a
-        # 0.2 gap half-fused and were boxed in at the ends -- "almost
-        # impossible to remove"):
-        #  - 0.35 separation gap (0.2 half-welds in PETG)
-        #  - toothed top: ~4 mm contact islands instead of a 31 mm weld line
-        #  - a grab flange along the bed edge poking 3 mm past the slab
-        #    face, so pliers get a purchase to peel the fin outward
-        #  - z trimmed to the slab's actually-unsupported band (-85..-54):
-        #    past the pad tangent the pad's own curve prints fine 3 mm off
-        #    the bed, and the wide fork section starts at -50
-        #  - the old idler-boss rim fin is DELETED: it sat 0.1 mm from the
-        #    arm plate (unremovable); the boss OD is a loose locator
-        #    (~3 mm radial slack), so its 1.2 mm underside ledge drooping
-        #    slightly is cosmetic -- and 1.2 is exactly LEDGE_OK
+        # break-away print supports, round 3 (feedback 2026-07-16 x2: the
+        # v1 full-length walls half-fused at 0.2 gaps and were boxed in;
+        # v3's were still judged trapped). With the permanent slab backing
+        # above, only THREE small pieces remain, all with open ends:
+        # 1. idler fin, z -92..-56 (the foot's corner sweep forbids
+        #    permanent material there): 0.35 gap, contact teeth, bed
+        #    flange past the slab face, straight free ends -- no pad
+        #    cradle hooking it in place.
+        yc = iy0 + D.PLATE / 2
+        fin = box(web_x0, D.FORK_NARROW_X - 0.35, yc - 1.2, yc + 1.2,
+                  -92.0, -56.0)
+        for zt in (-88, -80, -72, -64):              # teeth: 5 on / 3 off
+            fin -= box(D.FORK_NARROW_X - 1.85, D.FORK_NARROW_X + 0.1,
+                       yc - 2, yc + 2, zt, zt + 3)
+        fin += box(web_x0, web_x0 + 1.5, -23.8, yc + 1.2, -92.0, -56.0)
+        p += fin
+        # 2./3. pad stubs, z -97..-92.8: 4 mm pillars under each pad's
+        # bottom tangent (permanent material is foot-swept below -93);
+        # freestanding with a bed foot, they snap out with fingers.
         for yc, sgn in ((hy0 + D.PLATE / 2, 1), (iy0 + D.PLATE / 2, -1)):
-            # z -96..-54: ends flush under the pad's bottom tangent (its
-            # flattest, saggiest arc) instead of running past the part end
-            # -- the old fin's -101 tail supported nothing (feedback item 3)
-            fin = box(web_x0, D.FORK_NARROW_X - 0.35, yc - 1.2, yc + 1.2,
-                      -96.0, -54.0)
-            fin -= cyl_y(D.PAD_D / 2 + 0.35, yc - 2, yc + 2, 0, drop)
-            for zt in (-92, -84, -76, -68, -60):     # teeth: 5 on / 3 off
-                fin -= box(D.FORK_NARROW_X - 1.85, D.FORK_NARROW_X + 0.1,
-                           yc - 2, yc + 2, zt, zt + 3)
-            # grab flange: first 1.5 mm of print, reaching past the slab
-            fin += box(web_x0, web_x0 + 1.5, min(yc - 1.2, sgn * (abs(yc) + 4.3)),
-                       max(yc + 1.2, sgn * (abs(yc) + 4.3)), -96.0, -54.0)
-            p += fin
+            stub = box(web_x0, D.FORK_NARROW_X - 0.35, yc - 1.2, yc + 1.2,
+                       -97.0, -92.8)
+            stub -= cyl_y(D.PAD_D / 2 + 0.35, yc - 2, yc + 2, 0, drop)
+            stub += box(web_x0, web_x0 + 1.5, min(yc - 1.2, sgn * (abs(yc) + 4.3)),
+                        max(yc + 1.2, sgn * (abs(yc) + 4.3)), -97.0, -92.8)
+            p += stub
     return p
 
 

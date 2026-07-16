@@ -1176,13 +1176,19 @@ Second slice/print review of the leg_link raised three things; all landed:
    across neutral, knee −95, pike, hip ±extremes, and roll+knee.
 2. **Break-away fins were unremovable.** The 48 mm fin walls half-fused at
    their 0.2 mm gaps and were boxed in at the ends; the idler-boss rim fin
-   sat 0.1 mm from the arm plate. Fins rebuilt: 0.35 gap, toothed contact
-   (5 on / 3 off), a bed-level grab flange poking 2.8 mm past the slab face
-   for plier purchase, z trimmed to the actually-unsupported band (−96…−54,
-   ending under the pad's bottom tangent instead of running past the part).
-   The boss fin is **deleted outright**: the boss OD is now a ~51° cone
-   (Ø19 at the arm face → Ø16 tip), self-supporting in print — it's a loose
-   locator (~3 mm radial slack), so the taper costs nothing.
+   sat 0.1 mm from the arm plate. First rebuild (0.35 gap, teeth, grab
+   flange) was still judged trapped — the real fix came from re-mapping the
+   foot sweep at ankle ±45°: the swept volume in the slab bands is only
+   below z −93 (heel passing under the axis) plus, idler side, up to −55.6
+   (wall corner). So the slabs are now **solid to the web face** everywhere
+   else — "make it solid", the feedback's own words: the horn slab is a
+   full-depth blade (z −92…−50), the idler side a stub above −54 — and the
+   break-away set shrank to one short free-ended toothed fin (idler,
+   −92…−56, no pad cradle hooking it) plus two 4 mm finger-snap stubs under
+   the pad tangents. The boss fin is **deleted outright**: the boss OD is
+   now a ~51° cone (Ø19 at the arm face → Ø16 tip), self-supporting — it's
+   a loose locator (~3 mm radial slack), so the taper costs nothing.
+   +0.6 g/link; the solid horn blade also stiffens the fork.
 3. **No support past the pad end** (feedback item 3) — the old fin tail to
    −101 supported nothing and printed as a floating pedestal.
 
