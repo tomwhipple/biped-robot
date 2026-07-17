@@ -62,8 +62,11 @@ class State(NamedTuple):
     last_target: jax.Array    # (8,) target in force before this control step
     step_i: jax.Array         # ()
     air_time: jax.Array       # (2,) per-foot swing clocks
-    cmd: jax.Array            # (2,) commanded (vx m/s, yaw rate rad/s)
+    cmd: jax.Array            # (2,) commanded (vx m/s, yaw rate rad/s), or (7,)
+                              # in ext_cmd mode (vx, vy, wz, crouch, lift, fx, fz)
     cmd_next: jax.Array       # ()  step index of the next command resample
+    traj: jax.Array           # (3,) swing-foot circle draw: radius, omega, phase0
+    traj_on: jax.Array        # ()  1.0 while the current command evolves c5/c6
     servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
     lash: jax.Array           # ()  per-episode backlash (rad)
@@ -73,7 +76,8 @@ class State(NamedTuple):
 
 
 def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
-                mesh_floor: bool = False) -> mujoco.MjModel:
+                mesh_floor: bool = False,
+                payload_cg_z: float = 0.08) -> mujoco.MjModel:
     """Load the v2 MJCF patched for MJX: absolute meshdir, optional welded
     payload body, MJCF position actuators silenced (torque enters via
     qfrc_applied, exactly like the CPU sts3215 path).
@@ -95,7 +99,7 @@ def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
             r'(<default class="cad">\s*<geom[^>]*?)contype="\d+" conaffinity="\d+"',
             r'\1contype="0" conaffinity="0"', xml)
     if payload:
-        body = ('<body name="payload" pos="0 0 0.08">'
+        body = (f'<body name="payload" pos="0 0 {payload_cg_z}">'
                 f'<geom name="payload" type="box" size="0.0125 0.032 0.0345" '
                 f'mass="{_PAYLOAD_REF}" contype="0" conaffinity="0" '
                 f'rgba="0.12 0.12 0.14 1"/></body>')
@@ -166,6 +170,32 @@ class BimoMJXEnv:
         cmd_dense: bool = False,
         w_track_v: float = 2.0,
         w_track_w: float = 1.0,
+        # -- precision command mode (2026-07-17) ---------------------------------
+        # 7-channel commands: (vx, vy, wz, crouch height frac, foot-lift,
+        # swing-foot dx, swing-foot dz). Adds the precision skills: sidestep
+        # (vy), backward walk (negative vx), crouch (height tracking), one-leg
+        # balance (lift = -1 left / +1 right), and swing-foot trajectory
+        # tracking (c5/c6 driven along a per-episode circle while lifted --
+        # "make circles in the air"). Off by default: obs stays (38,), old
+        # runs bit-exact.
+        ext_cmd: bool = False,
+        cmd_vy_range: float = 0.25,           # |vy| sidestep command bound (m/s)
+        cmd_back_range: tuple = (-0.4, -0.15),  # backward-walk vx draw (m/s)
+        crouch_range: tuple = (0.6, 0.9),     # crouch-command height fractions
+        lift_height: float = 0.06,            # nominal lifted-foot rise (m)
+        w_track_h: float = 0.0,               # height-tracking kernel weight
+        w_lift: float = 0.0,                  # correct one-foot contact pattern
+        w_track_foot: float = 0.0,            # swing-foot target kernel weight
+        foot_sigma: float = 0.03,             # foot kernel width (m)
+        traj_radius: tuple = (0.02, 0.05),    # air-circle radius draw (m)
+        traj_period: tuple = (1.5, 3.5),      # air-circle period draw (s)
+        ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),  # command mix: stand,
+        # crouch, balance, air-circle, pivot; remainder = walk (fwd/back/side)
+        # -- payload CG above torso center (m). 0.08 = the 2026-07-11 spec
+        # (tower top plate then at 319 mm); the current stack (battery-bay
+        # tower + imu_carrier) puts the camera CG at 0.0945. Default keeps
+        # old runs' plants byte-identical.
+        payload_cg_z: float = 0.08,
         # -- observations ---------------------------------------------------------
         imu_obs: bool = True,
         imu_noise: float = 1.0,
@@ -196,9 +226,11 @@ class BimoMJXEnv:
         action_map: str = "legacy",    # "full" reaches asymmetric limits
         hip_flex_deg: float | None = None,   # widen hip FLEXION (deg)
     ):
+        if getup and ext_cmd:
+            raise ValueError("getup and ext_cmd are separate objectives")
         self.mj_model = _prep_model(
             xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
-            mesh_floor=getup)
+            mesh_floor=getup, payload_cg_z=payload_cg_z)
         if payload_mass > 0:
             self.mj_model.body_mass[self.mj_model.body("payload").id] = payload_mass
         self.model = mjx.put_model(self.mj_model)
@@ -266,6 +298,18 @@ class BimoMJXEnv:
         self.cmd_dense = cmd_dense
         self.w_track_v = w_track_v
         self.w_track_w = w_track_w
+        self.ext_cmd = ext_cmd
+        self.cmd_vy_range = cmd_vy_range
+        self.cmd_back_range = cmd_back_range
+        self.crouch_range = crouch_range
+        self.lift_height = lift_height
+        self.w_track_h = w_track_h
+        self.w_lift = w_lift
+        self.w_track_foot = w_track_foot
+        self.foot_sigma = foot_sigma
+        self.traj_radius = traj_radius
+        self.traj_period = traj_period
+        self.ext_mix = ext_mix
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
         self.getup = getup
@@ -276,15 +320,35 @@ class BimoMJXEnv:
         self.getup_start_mix = getup_start_mix
 
         self.action_size = 8
-        self.obs_size = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2 + 2   # 38, command mode
+        # 36 core + command channels: 38 legacy, 43 ext
+        self.obs_size = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2 + (7 if ext_cmd else 2)
+        # swing-foot reference: standing sole centers relative to the torso
+        # (computed once on the CPU model at qpos0 -- yaw 0, so this is already
+        # the body frame). The lifted-foot target = this + (dx, 0, lift+dz).
+        d0 = mujoco.MjData(m)
+        d0.qpos[:] = m.qpos0
+        mujoco.mj_forward(m, d0)
+        self._foot_rel0 = jp.asarray(np.stack([
+            d0.geom_xpos[self._sole_gids[0]] - d0.xpos[self._torso_bid],
+            d0.geom_xpos[self._sole_gids[1]] - d0.xpos[self._torso_bid]]),
+            dtype=jp.float32)
+        self._metric_keys = self._METRIC_KEYS + (
+            ("height_err", "foot_err", "lift_ok", "vy_body")
+            if ext_cmd else ())
 
     # -- pieces ---------------------------------------------------------------
     def _sample_cmd(self, rng: jax.Array, step_i: jax.Array):
-        """(cmd, cmd_next): stand / pivot-in-place / walk mix, exactly the CPU
-        distribution (draws are made unconditionally -- fixed RNG shape)."""
+        """(cmd, cmd_next, traj_on): stand / pivot-in-place / walk mix, exactly
+        the CPU distribution (draws are made unconditionally -- fixed RNG
+        shape). traj_on flags an ext_cmd air-circle command (c5/c6 evolve)."""
         if self.cmd_fixed is not None:
-            return (jp.asarray(self.cmd_fixed, dtype=jp.float32),
-                    jp.asarray(10 ** 9, dtype=jp.int32))
+            cmd = jp.asarray(self.cmd_fixed, dtype=jp.float32)
+            want = 7 if self.ext_cmd else 2
+            if cmd.shape[0] != want:
+                raise ValueError(f"cmd_fixed needs {want} channels")
+            return cmd, jp.asarray(10 ** 9, dtype=jp.int32), jp.zeros(())
+        if self.ext_cmd:
+            return self._sample_cmd_ext(rng, step_i)
         ru, rw, rs, rv, rp, rww, rh = jax.random.split(rng, 7)
         u = jax.random.uniform(ru)
         w_piv = jax.random.uniform(rw, minval=0.3, maxval=self.cmd_w_range)
@@ -303,7 +367,76 @@ class BimoMJXEnv:
         hold = jax.random.uniform(rh, minval=self.cmd_resample_s[0],
                                   maxval=self.cmd_resample_s[1])
         return (cmd.astype(jp.float32),
-                step_i + (hold / self.control_dt).astype(jp.int32))
+                step_i + (hold / self.control_dt).astype(jp.int32),
+                jp.zeros(()))
+
+    def _sample_cmd_ext(self, rng: jax.Array, step_i: jax.Array):
+        """7-channel precision command draw. Mix (ext_mix): stand / crouch /
+        one-leg balance / air-circle / pivot; remainder walks (15% backward,
+        15% pure sidestep, 70% forward with the legacy 60%-turning draw).
+        30% of balance commands add a shallow single-leg crouch (0.8-0.95).
+        All draws unconditional -- fixed RNG shape for jit."""
+        rs = jax.random.split(rng, 13)
+        u = jax.random.uniform(rs[0])
+        p_stand, p_crouch, p_bal, p_traj, p_piv = self.ext_mix
+        t1 = p_stand
+        t2 = t1 + p_crouch
+        t3 = t2 + p_bal
+        t4 = t3 + p_traj
+        t5 = t4 + p_piv
+        m_crouch = (u >= t1) & (u < t2)
+        m_bal = (u >= t2) & (u < t3)
+        m_traj = (u >= t3) & (u < t4)
+        m_piv = (u >= t4) & (u < t5)
+        m_walk = u >= t5
+        crouch = jax.random.uniform(rs[1], minval=self.crouch_range[0],
+                                    maxval=self.crouch_range[1])
+        side = jp.where(jax.random.uniform(rs[2]) < 0.5, 1.0, -1.0)
+        w_piv = side * jax.random.uniform(rs[3], minval=0.3,
+                                          maxval=self.cmd_w_range)
+        uw = jax.random.uniform(rs[4])
+        vx_f = jax.random.uniform(rs[5], minval=self.cmd_v_range[0],
+                                  maxval=self.cmd_v_range[1])
+        vx_b = jax.random.uniform(rs[6], minval=self.cmd_back_range[0],
+                                  maxval=self.cmd_back_range[1])
+        vy_s = side * jax.random.uniform(rs[7], minval=0.1,
+                                         maxval=self.cmd_vy_range)
+        wz_f = jp.where(
+            jax.random.uniform(rs[8]) < 0.6,
+            jax.random.uniform(rs[9], minval=-self.cmd_w_range,
+                               maxval=self.cmd_w_range), 0.0)
+        bal_dip = jax.random.uniform(rs[10], minval=0.8, maxval=0.95)
+        bal_crouch = jax.random.uniform(rs[11]) < 0.3
+        wk_back = uw < 0.15
+        wk_side = (uw >= 0.15) & (uw < 0.30)
+        vx = jp.where(m_walk,
+                      jp.where(wk_back, vx_b, jp.where(wk_side, 0.0, vx_f)),
+                      0.0)
+        vy = jp.where(m_walk & wk_side, vy_s, 0.0)
+        wz = (jp.where(m_walk & ~(wk_back | wk_side), wz_f, 0.0)
+              + jp.where(m_piv, w_piv, 0.0))
+        lifted = m_bal | m_traj
+        ch = jp.where(m_crouch, crouch,
+                      jp.where(m_bal & bal_crouch, bal_dip, 1.0))
+        lift = jp.where(lifted, side, 0.0)
+        cmd = jp.stack([vx, vy, wz, ch, lift,
+                        jp.zeros(()), jp.zeros(())]).astype(jp.float32)
+        hold = jax.random.uniform(rs[12], minval=self.cmd_resample_s[0],
+                                  maxval=self.cmd_resample_s[1])
+        return (cmd, step_i + (hold / self.control_dt).astype(jp.int32),
+                m_traj.astype(jp.float32))
+
+    def _draw_traj(self, rng: jax.Array) -> jax.Array:
+        """Per-episode air-circle parameters (radius, signed omega, phase)."""
+        r1, r2, r3, r4 = jax.random.split(rng, 4)
+        rad = jax.random.uniform(r1, minval=self.traj_radius[0],
+                                 maxval=self.traj_radius[1])
+        per = jax.random.uniform(r2, minval=self.traj_period[0],
+                                 maxval=self.traj_period[1])
+        omega = (2 * jp.pi / per) * jp.where(
+            jax.random.uniform(r3) < 0.5, 1.0, -1.0)
+        phase0 = jax.random.uniform(r4, maxval=2 * jp.pi)
+        return jp.stack([rad, omega, phase0])
 
     def _foot_contacts(self, data) -> jax.Array:
         """(2,) bool: sole-in-contact flags from the MJX contact set."""
@@ -461,15 +594,21 @@ class BimoMJXEnv:
             data = mjx.forward(self.model, data)
         servo, lat_ms, lash, imu_R, imu_bias = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
-        cmd, cmd_next = self._sample_cmd(r_cmd, step_i)
+        cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i)
+        if self.ext_cmd:
+            rng, r_traj = jax.random.split(rng)
+            traj = self._draw_traj(r_traj)
+        else:
+            traj = jp.zeros(3)
         prev_action = jp.zeros(8, dtype=jp.float32)
         obs = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias, r_obs)
-        metrics = {k: jp.zeros(()) for k in self._METRIC_KEYS}
+        metrics = {k: jp.zeros(()) for k in self._metric_keys}
         return State(data=data, obs=obs, reward=jp.zeros(()),
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
                      last_target=self._default.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2), cmd=cmd,
-                     cmd_next=cmd_next, servo=servo, lat_ms=lat_ms, lash=lash,
+                     cmd_next=cmd_next, traj=traj, traj_on=traj_on,
+                     servo=servo, lat_ms=lat_ms, lash=lash,
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
     def reseed(self, first: State, rng: jax.Array) -> State:
@@ -480,16 +619,22 @@ class BimoMJXEnv:
         rng, r_ep, r_cmd, r_obs = jax.random.split(rng, 4)
         servo, lat_ms, lash, imu_R, imu_bias = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
-        cmd, cmd_next = self._sample_cmd(r_cmd, step_i)
+        cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i)
+        if self.ext_cmd:
+            rng, r_traj = jax.random.split(rng)
+            traj = self._draw_traj(r_traj)
+        else:
+            traj = jp.zeros(3)
         prev_action = jp.zeros(8, dtype=jp.float32)
         obs = self._obs(first.data, prev_action, cmd, step_i, imu_R, imu_bias,
                         r_obs)
-        metrics = {k: jp.zeros(()) for k in self._METRIC_KEYS}
+        metrics = {k: jp.zeros(()) for k in self._metric_keys}
         return first._replace(
             obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
             prev_action=prev_action,
             last_target=self._default.astype(jp.float32), step_i=step_i,
-            air_time=jp.zeros(2), cmd=cmd, cmd_next=cmd_next, servo=servo,
+            air_time=jp.zeros(2), cmd=cmd, cmd_next=cmd_next, traj=traj,
+            traj_on=traj_on, servo=servo,
             lat_ms=lat_ms, lash=lash, imu_R=imu_R, imu_bias=imu_bias,
             metrics=metrics)
 
@@ -581,6 +726,17 @@ class BimoMJXEnv:
                                                   0.0, 1.0)
                        + self.w_recover_up * 0.5 * (up_z + 1.0) * up_gate
                        + self.stand_bonus * standing * (0.5 + 0.5 * still))
+        elif self.ext_cmd:
+            # precision tracking: joint 2D velocity kernel (vx AND vy -- a
+            # sidestep command is a first-class target, not side-slip), yaw
+            # kernel, and a height kernel against the commanded crouch.
+            cmd_vy, cmd_h = state.cmd[1], state.cmd[3]
+            v_term = self.w_track_v * jp.exp(
+                -((vx_body - cmd_v) ** 2 + (vy_body - cmd_vy) ** 2) / 0.25)
+            w_term = self.w_track_w * jp.exp(-((wz - cmd_w) / 0.5) ** 2)
+            h_term = self.w_track_h * jp.exp(
+                -(((height - cmd_h * self._nominal_h) / 0.04) ** 2))
+            primary = v_term + w_term + h_term
         else:
             v_kernel = self.w_track_v * jp.exp(-((vx_body - cmd_v) / 0.5) ** 2)
             if self.cmd_dense:
@@ -592,10 +748,13 @@ class BimoMJXEnv:
             primary = v_term + self.w_track_w * jp.exp(
                 -((wz - cmd_w) / 0.5) ** 2)
 
+        # posture reference: the commanded crouch height in ext mode
+        h_ref = (state.cmd[3] * self._nominal_h if self.ext_cmd
+                 else self._nominal_h)
         reward = (primary
                   + self.w_upright * up_z
                   + self.alive_bonus
-                  - self.w_height * jp.abs(height - self._nominal_h)
+                  - self.w_height * jp.abs(height - h_ref)
                   - self.w_energy * energy
                   - self.w_action_rate * action_rate
                   - self.w_power * power_w)
@@ -603,6 +762,36 @@ class BimoMJXEnv:
         # gait shaping: on for moving commands, double-support bonus for stand
         cmd_moving = (jp.abs(cmd_v) > 0.05) | (jp.abs(cmd_w) > 0.05)
         con = self._foot_contacts(data)           # (2,) bool
+        lifted = jp.zeros((), dtype=bool)
+        foot_err = jp.zeros(())
+        lift_ok = jp.zeros(())
+        if self.ext_cmd:
+            # one-leg modes: lift = -1 (left) / +1 (right). Reward the correct
+            # contact pattern (stance foot down, swing foot up) and track the
+            # commanded swing-foot target (base hang pose + (dx, 0, dz)) in
+            # the torso-yaw frame -- this is what "circles in the air" grades.
+            cmd_lift = state.cmd[4]
+            lifted = jp.abs(cmd_lift) > 0.5
+            is_r = cmd_lift > 0.0
+            con_swing = jp.where(is_r, con[1], con[0])
+            con_stance = jp.where(is_r, con[0], con[1])
+            lift_ok = (lifted & ~con_swing & con_stance).astype(jp.float32)
+            reward += self.w_lift * lift_ok
+            sole_w = jp.where(is_r, data.geom_xpos[self._sole_gids[1]],
+                              data.geom_xpos[self._sole_gids[0]])
+            rel_w = sole_w - data.xpos[self._torso_bid]
+            rel = jp.stack([cth * rel_w[0] + sth * rel_w[1],
+                            -sth * rel_w[0] + cth * rel_w[1],
+                            rel_w[2]])
+            base = jp.where(is_r, self._foot_rel0[1], self._foot_rel0[0])
+            tgt = base + jp.stack([state.cmd[5], jp.zeros(()),
+                                   self.lift_height + state.cmd[6]])
+            foot_err = jp.linalg.norm(rel - tgt)
+            reward += (self.w_track_foot * lifted.astype(jp.float32)
+                       * jp.exp(-((foot_err / self.foot_sigma) ** 2)))
+            # a lifted command is a balance task, not locomotion: gait shaping
+            # off; a sidestep command (vy) is locomotion like any other
+            cmd_moving = (cmd_moving | (jp.abs(state.cmd[1]) > 0.05)) & ~lifted
         landed = con & (state.air_time > 0.0)
         if self.w_feet_air:
             reward += jp.where(cmd_moving, self.w_feet_air * jp.sum(
@@ -613,17 +802,27 @@ class BimoMJXEnv:
         single = con[0] != con[1]
         double = con[0] & con[1]
         if self.w_single_support:
+            # while lifted, single support IS the commanded state (the generic
+            # stand-command double-support bonus would fight the lift reward)
+            stand_ss = jp.where(lifted, single.astype(jp.float32),
+                                double.astype(jp.float32))
             reward += jp.where(
                 cmd_moving, self.w_single_support * single.astype(jp.float32),
-                self.w_single_support * double.astype(jp.float32))
+                self.w_single_support * stand_ss)
         if self.w_lateral:
-            reward -= self.w_lateral * jp.abs(vy_body)
+            # ext mode: vy is a tracked command channel, penalize the ERROR
+            vy_ref = state.cmd[1] if self.ext_cmd else 0.0
+            reward -= self.w_lateral * jp.abs(vy_body - vy_ref)
         if self.w_pitch_rate:
             reward -= self.w_pitch_rate * (jp.abs(data.qvel[3])
                                            + jp.abs(data.qvel[4]))
 
         step_i = state.step_i + 1
-        fell = (height < self.fall_height) | (up_z < self.fall_up_z)
+        # ext mode: the fall floor tracks the commanded crouch (a commanded
+        # 0.6-height crouch is 0.17 m -- below the legacy 0.18 fall line)
+        fall_h = (self.fall_height * state.cmd[3] if self.ext_cmd
+                  else self.fall_height)
+        fell = (height < fall_h) | (up_z < self.fall_up_z)
         if self.getup:
             done_flag = jp.zeros(())          # being down IS the task
         else:
@@ -631,10 +830,21 @@ class BimoMJXEnv:
             done_flag = fell.astype(jp.float32)
 
         # resample AFTER the reward graded the command the policy saw
-        new_cmd, new_next = self._sample_cmd(r_cmd, step_i)
+        new_cmd, new_next, new_traj_on = self._sample_cmd(r_cmd, step_i)
         resample = step_i >= state.cmd_next
         cmd = jp.where(resample, new_cmd, state.cmd)
         cmd_next = jp.where(resample, new_next, state.cmd_next)
+        traj_on = jp.where(resample, new_traj_on, state.traj_on)
+        if self.ext_cmd:
+            # air-circle commands: c5/c6 ride the per-episode circle every
+            # step (the policy sees a continuously moving foot target). Only
+            # when traj_on -- other commands keep their c5/c6 (a scripted
+            # eval may pin a fixed foot target via cmd_fixed).
+            th = (state.traj[2] + state.traj[1]
+                  * step_i.astype(jp.float32) * self.control_dt)
+            evolved = (cmd.at[5].set(state.traj[0] * jp.cos(th))
+                       .at[6].set(state.traj[0] * jp.sin(th)))
+            cmd = jp.where(traj_on > 0, evolved, cmd)
 
         obs = self._obs(data, action, cmd, step_i, state.imu_R,
                         state.imu_bias, r_obs)
@@ -645,11 +855,18 @@ class BimoMJXEnv:
             "track_w_err": jp.abs(wz - cmd_w),
             "standing": standing,
         }
+        if self.ext_cmd:
+            metrics.update(
+                height_err=jp.abs(height - h_ref),
+                foot_err=lifted.astype(jp.float32) * foot_err,
+                lift_ok=lift_ok,
+                vy_body=vy_body)
         return State(data=data, obs=obs, reward=reward,
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
                      last_target=target, step_i=step_i, air_time=air_time,
-                     cmd=cmd, cmd_next=cmd_next, servo=state.servo,
+                     cmd=cmd, cmd_next=cmd_next, traj=state.traj,
+                     traj_on=traj_on, servo=state.servo,
                      lat_ms=state.lat_ms, lash=state.lash, imu_R=state.imu_R,
                      imu_bias=state.imu_bias, metrics=metrics)
 

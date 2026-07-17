@@ -138,6 +138,14 @@ def main():
     p.add_argument("--getup", action="store_true",
                    help="fall-recovery objective instead of command tracking")
     p.add_argument("--action-map", default="legacy", choices=["legacy", "full"])
+    p.add_argument("--precision", action="store_true",
+                   help="7-channel precision command curriculum (ext_cmd): "
+                        "sidestep, backward, crouch, one-leg balance, air "
+                        "circles; severe fall cost; as-built plant default")
+    p.add_argument("--xml", default=None,
+                   help="plant override (default: v2; precision default: "
+                        "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
+    p.add_argument("--fall-cost", type=float, default=None)
     p.add_argument("--hip-flex", type=float, default=None,
                    help="widen hip flexion to this many degrees (study: >=95)")
     p.add_argument("--getup-mix", default="1,0,0",
@@ -163,6 +171,22 @@ def main():
         imu_obs=True, imu_noise=1.0,
         action_map=args.action_map, hip_flex_deg=args.hip_flex,
     )
+    if args.precision:
+        # precision round (2026-07-17): the 7 user skills as one command-
+        # conditioned policy, trained on the AS-BUILT plant (100 mm printed
+        # feet) with the true camera CG. Falls are severely penalized
+        # (fall_cost 10 on top of episode termination).
+        env_kw.update(
+            ext_cmd=True,
+            w_track_h=1.0, w_lift=1.0, w_track_foot=1.0,
+            fall_cost=10.0,
+            payload_cg_z=0.0945,
+            xml_path=os.path.join(HERE, "..", "bimo_biped_v2_asbuilt.xml"),
+        )
+    if args.xml:
+        env_kw["xml_path"] = args.xml
+    if args.fall_cost is not None:
+        env_kw["fall_cost"] = args.fall_cost
     if args.getup:
         # recovery objective: gait shaping off (crawling/rolling is fine),
         # recovery terms carry the gradient; shorter episodes; same hardening
@@ -183,6 +207,11 @@ def main():
     with open(os.path.join(out, "config.json"), "w") as f:
         cfg = {k: (list(v) if isinstance(v, tuple) else v)
                for k, v in env_kw.items()}
+        if "xml_path" in cfg:
+            # store the basename: the run may train on a remote host whose
+            # absolute path means nothing locally -- eval harnesses resolve
+            # the basename against the local sim/ directory
+            cfg["xml_path"] = os.path.basename(cfg["xml_path"])
         cfg.update(train=vars(args))
         json.dump(cfg, f, indent=2)
     log_path = os.path.join(out, "progress.jsonl")

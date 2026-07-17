@@ -61,14 +61,15 @@ gpu = BimoMJXEnv(xml_path=XML, domain_rand=False, **SHARED)
 step_mjx = jax.jit(gpu.step)
 
 
-def sync(state, cpu):
+def sync(state, cpu, gpu_env=None):
     # np.array copies everywhere: jp.asarray can alias numpy buffers
     # zero-copy on the CPU backend, and the CPU env mutates _prev_action
     # and _air_time IN PLACE during step -- an aliased array silently reads
     # post-step values inside the later jit call (cost: hours of debugging).
+    gpu_env = gpu if gpu_env is None else gpu_env
     d = state.data.replace(qpos=jp.asarray(np.array(cpu.data.qpos)),
                            qvel=jp.asarray(np.array(cpu.data.qvel)))
-    d = mjx.forward(gpu.model, d)
+    d = mjx.forward(gpu_env.model, d)
     return state._replace(
         data=d,
         prev_action=jp.asarray(np.array(cpu._prev_action)),
@@ -76,6 +77,8 @@ def sync(state, cpu):
         step_i=jp.asarray(cpu._step_i, dtype=jp.int32),
         air_time=jp.asarray(np.array(cpu._air_time)),
         cmd=jp.asarray(np.array(cpu._cmd)),
+        traj=jp.asarray(np.array(cpu._traj)),
+        traj_on=jp.asarray(1.0 if cpu._traj_on else 0.0),
     )
 
 
@@ -90,31 +93,32 @@ def _mjx_ncon_of(state):
 
 
 def run_block(name, n_steps, act_fn, prep_cpu, gates, matched_only=False,
-              min_frac=0.8):
-    obs_c, _ = cpu.reset(seed=0)
-    prep_cpu(cpu)
-    state = gpu.reset(jax.random.PRNGKey(0))
+              min_frac=0.8, envs=None):
+    cpu_e, gpu_e, step_e = envs if envs is not None else (cpu, gpu, step_mjx)
+    obs_c, _ = cpu_e.reset(seed=0)
+    prep_cpu(cpu_e)
+    state = gpu_e.reset(jax.random.PRNGKey(0))
     worst = dict(qpos=0.0, qvel=0.0, reward=0.0, obs=0.0)
     used = skipped = 0
     for t in range(n_steps):
         a = act_fn(t)
-        state = sync(state, cpu)
-        obs_c, r_c, term_c, trunc_c, _ = cpu.step(a)
-        state = step_mjx(state, jp.asarray(a))
-        if matched_only and cpu.data.ncon != _mjx_ncon(state):
+        state = sync(state, cpu_e, gpu_e)
+        obs_c, r_c, term_c, trunc_c, _ = cpu_e.step(a)
+        state = step_e(state, jp.asarray(a))
+        if matched_only and cpu_e.data.ncon != _mjx_ncon(state):
             skipped += 1     # manifold mismatch: regime this block can't gate
             continue
         used += 1
         worst["qpos"] = max(worst["qpos"], float(np.max(np.abs(
-            np.asarray(state.data.qpos[7:15]) - cpu.data.qpos[7:15]))))
+            np.asarray(state.data.qpos[7:15]) - cpu_e.data.qpos[7:15]))))
         worst["qvel"] = max(worst["qvel"], float(np.max(np.abs(
-            np.asarray(state.data.qvel[6:14]) - cpu.data.qvel[6:14]))))
+            np.asarray(state.data.qvel[6:14]) - cpu_e.data.qvel[6:14]))))
         worst["reward"] = max(worst["reward"], abs(float(state.reward) - r_c))
         worst["obs"] = max(worst["obs"], float(np.max(np.abs(
             np.asarray(state.obs) - obs_c))))
         if trunc_c:
-            obs_c, _ = cpu.reset(seed=1000 + t)
-            prep_cpu(cpu)
+            obs_c, _ = cpu_e.reset(seed=1000 + t)
+            prep_cpu(cpu_e)
     enough = used >= min_frac * n_steps
     ok = enough and all(worst[k] < gates[k] for k in gates)
     print(f"== {name}: {'PASS' if ok else 'FAIL'} "
@@ -203,6 +207,44 @@ print(f"== 2b. get-up recovery-reward arithmetic (contact-free): "
       f"{'PASS' if ok3 else 'FAIL'} ({used_g}/80 airborne steps) ==")
 print(f"   worst |dreward| = {worst_r:.2e}  worst |dobs| = {worst_o:.2e}")
 
+# -- 2c/2d. ext_cmd precision mode (2026-07-17) --------------------------------
+# 2c airborne: gates the new kernel arithmetic (2D velocity, height-vs-crouch,
+# swing-foot target) with a fixed one-leg command carrying a foot offset.
+# 2d grounded stance: gates the lift contact-pattern term (lift_ok) and the
+# crouch-scaled fall floor in the matched-manifold regime.
+EXT = dict(
+    supply_voltage=11.1, w_energy=0.002, w_action_rate=0.05, w_power=0.02,
+    w_feet_air=0.1, w_single_support=0.05, w_lateral=0.5, w_pitch_rate=0.05,
+    w_track_v=2.0, w_track_w=2.0, w_track_h=1.0, w_lift=1.0, w_track_foot=1.0,
+    latency_ms=6.0, backlash_deg=0.5, ext_cmd=True, fall_cost=10.0,
+    cmd_fixed=(0.0, 0.0, 0.0, 0.9, -1.0, 0.01, 0.02), imu_obs=False,
+    action_map="full", hip_flex_deg=110.0,
+)
+cpu_e = BimoWalkerEnv(xml_path=XML, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False, **EXT)
+gpu_e = BimoMJXEnv(xml_path=XML, domain_rand=False, **EXT)
+step_e = jax.jit(gpu_e.step)
+
+
+class AirActsExt:
+    def __call__(self, t):
+        if t % 20 == 0:
+            hoist(cpu_e)
+        return (_SPLAY + 0.3 * np.sin(0.35 * t + np.arange(8) * 0.7)
+                ).astype(np.float32)
+
+ok_e1 = run_block(
+    "2c. ext_cmd airborne arithmetic (lift -1, foot target, crouch 0.9)",
+    100, AirActsExt(), hoist,
+    dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+    envs=(cpu_e, gpu_e, step_e))
+
+ok_e2 = run_block(
+    "2d. ext_cmd grounded stance (lift_ok pattern, matched manifolds)", 100,
+    lambda t: (0.05 * np.sin(0.25 * t + np.arange(8))).astype(np.float32),
+    lambda env: None, dict(qpos=1e-6, qvel=1e-4, reward=1e-3, obs=1e-3),
+    matched_only=True, min_frac=0.5, envs=(cpu_e, gpu_e, step_e))
+
 # -- 3. gait-amplitude manifold statistics (informational, no gate) -----------
 print("== 3. gait-amplitude contact-manifold statistics (informational) ==")
 obs_c, _ = cpu.reset(seed=7)
@@ -227,5 +269,6 @@ print("   (mismatches = tilted/deep penetration where MJX's 1 mm-skin")
 print("    manifold pruning drops corners CPU keeps -- impact transients.")
 print("    Settled stance manifolds are identical. Referee: CPU evals.)")
 
-print("\nPARITY:", "PASS" if (ok1 and ok2 and ok3) else "FAIL")
-sys.exit(0 if (ok1 and ok2 and ok3) else 1)
+ok_all = ok1 and ok2 and ok3 and ok_e1 and ok_e2
+print("\nPARITY:", "PASS" if ok_all else "FAIL")
+sys.exit(0 if ok_all else 1)

@@ -201,6 +201,25 @@ class BimoWalkerEnv(gym.Env):
         # yaw term keep the kernel.
         w_track_v: float = 2.0,        # velocity-tracking reward (exp kernel)
         w_track_w: float = 1.0,        # yaw-rate-tracking reward (exp kernel)
+        # -- precision command mode (2026-07-17; arithmetic mirrors sim/mjx) ----
+        # 7-channel commands (vx, vy, wz, crouch height frac, foot-lift,
+        # swing-foot dx, dz): sidestep, backward walk, crouch, one-leg
+        # balance, air circles. Requires command_mode. obs grows to 43.
+        ext_cmd: bool = False,
+        cmd_vy_range: float = 0.25,
+        cmd_back_range: tuple = (-0.4, -0.15),
+        crouch_range: tuple = (0.6, 0.9),
+        lift_height: float = 0.06,
+        w_track_h: float = 0.0,        # height-tracking kernel weight
+        w_lift: float = 0.0,           # correct one-foot contact pattern
+        w_track_foot: float = 0.0,     # swing-foot target kernel weight
+        foot_sigma: float = 0.03,
+        traj_radius: tuple = (0.02, 0.05),
+        traj_period: tuple = (1.5, 3.5),
+        ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),
+        # payload CG height above torso center (m); 0.08 = 2026-07-11 spec,
+        # 0.0945 = current stack (battery-bay tower + imu_carrier + gopro_base)
+        payload_cg_z: float = 0.08,
         w_power: float = 0.0,          # electrical-power penalty (W). Unlike
         # w_energy (mechanical |tau*w|), this prices what drains the battery:
         # P = sum(max(tau*w, 0) + K_CU * tau^2) -- the tau^2 copper loss means
@@ -284,7 +303,11 @@ class BimoWalkerEnv(gym.Env):
             if not command_mode:
                 raise ValueError("getup mode requires command_mode "
                                  "(obs layout compatibility)")
+            if ext_cmd:
+                raise ValueError("getup and ext_cmd are separate objectives")
             cmd_fixed = (0.0, 0.0)
+        if ext_cmd and not command_mode:
+            raise ValueError("ext_cmd requires command_mode")
         self.command_mode = command_mode
         self.cmd_v_range = cmd_v_range
         self.cmd_w_range = cmd_w_range
@@ -294,10 +317,28 @@ class BimoWalkerEnv(gym.Env):
         self.cmd_dense = cmd_dense
         self.w_track_v = w_track_v
         self.w_track_w = w_track_w
+        self.ext_cmd = ext_cmd
+        self.cmd_vy_range = cmd_vy_range
+        self.cmd_back_range = cmd_back_range
+        self.crouch_range = crouch_range
+        self.lift_height = lift_height
+        self.w_track_h = w_track_h
+        self.w_lift = w_lift
+        self.w_track_foot = w_track_foot
+        self.foot_sigma = foot_sigma
+        self.traj_radius = traj_radius
+        self.traj_period = traj_period
+        self.ext_mix = ext_mix
+        self.payload_cg_z = payload_cg_z
         self.w_power = w_power
         self._K_CU = 3.75              # W/(N*m)^2, ST3215 stall calibration
-        self._cmd = np.zeros(2)        # (vx_body m/s, yaw rate rad/s)
+        self._ncmd = 7 if ext_cmd else 2
+        self._cmd = np.zeros(self._ncmd)  # (vx, wz) or 7-channel ext
+        if ext_cmd:
+            self._cmd[3] = 1.0            # crouch channel: 1 = full height
         self._cmd_next = 0
+        self._traj = np.zeros(3)       # air-circle: radius, omega, phase0
+        self._traj_on = False
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
         self._imu_R = np.eye(3)          # per-episode mounting misalignment
@@ -315,7 +356,8 @@ class BimoWalkerEnv(gym.Env):
                 with open(xml_path) as f:
                     xml_src = f.read()
             xml_src = self._payload_xml(
-                xml_src, payload_mass if payload_mass > 0 else _PAYLOAD_REF)
+                xml_src, payload_mass if payload_mass > 0 else _PAYLOAD_REF,
+                payload_cg_z)
         if xml_src is not None:
             # from_xml_string resolves a relative meshdir against the CWD, not
             # the source file -- absolutize it against the XML's own directory
@@ -408,9 +450,20 @@ class BimoWalkerEnv(gym.Env):
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
+        if ext_cmd:
+            # swing-foot reference: standing sole centers relative to the
+            # torso at qpos0 (yaw 0 -> already the body frame); matches
+            # sim/mjx/env_mjx.py _foot_rel0 exactly.
+            d0 = mujoco.MjData(self.model)
+            d0.qpos[:] = self.model.qpos0
+            mujoco.mj_forward(self.model, d0)
+            self._foot_rel0 = np.stack([
+                d0.geom_xpos[self._sole_gids[0]] - d0.xpos[self._torso_bid],
+                d0.geom_xpos[self._sole_gids[1]] - d0.xpos[self._torso_bid]])
 
         self.action_space = spaces.Box(-1.0, 1.0, shape=(8,), dtype=np.float32)
-        obs_dim = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2 + (2 if command_mode else 0)
+        obs_dim = (8 + 8 + 3 + 3 + 3 + 8 + 1 + 2
+                   + (self._ncmd if command_mode else 0))
         self.observation_space = spaces.Box(
             -np.inf, np.inf, shape=(obs_dim,), dtype=np.float32
         )
@@ -454,11 +507,11 @@ class BimoWalkerEnv(gym.Env):
         return patched.replace("<worldbody>", asset + "<worldbody>", 1)
 
     @staticmethod
-    def _payload_xml(xml: str, mass: float) -> str:
+    def _payload_xml(xml: str, mass: float, cg_z: float = 0.08) -> str:
         """Insert the camera payload as its own (jointless, i.e. welded) child
         body of the torso, so its mass/inertia stay separately addressable at
         runtime for per-episode payload randomization."""
-        body = ('<body name="payload" pos="0 0 0.08">'
+        body = (f'<body name="payload" pos="0 0 {cg_z}">'
                 f'<geom name="payload" type="box" size="0.0125 0.032 0.0345" '
                 f'mass="{mass}" contype="2" conaffinity="0" '
                 f'rgba="0.12 0.12 0.14 1"/></body>')
@@ -590,7 +643,13 @@ class BimoWalkerEnv(gym.Env):
         training distribution left cmd_11v1/b unable to track yaw at all."""
         if self.cmd_fixed is not None:
             self._cmd = np.asarray(self.cmd_fixed, dtype=float)
+            if len(self._cmd) != self._ncmd:
+                raise ValueError(f"cmd_fixed needs {self._ncmd} channels")
             self._cmd_next = 10 ** 9
+            self._traj_on = False
+            return
+        if self.ext_cmd:
+            self._sample_command_ext()
             return
         u = float(self.np_random.uniform())
         if u < self.cmd_stand_prob:
@@ -609,11 +668,59 @@ class BimoWalkerEnv(gym.Env):
         self._cmd_next = self._step_i + int(
             self.np_random.uniform(lo, hi) / self.control_dt)
 
-    def set_command(self, v: float, w: float):
+    def _sample_command_ext(self):
+        """7-channel precision command draw; mirrors sim/mjx _sample_cmd_ext
+        (same mix and ranges; RNG streams differ by construction)."""
+        rng = self.np_random
+        u = float(rng.uniform())
+        p_stand, p_crouch, p_bal, p_traj, p_piv = self.ext_mix
+        t = np.cumsum([p_stand, p_crouch, p_bal, p_traj, p_piv])
+        cmd = np.zeros(7)
+        cmd[3] = 1.0
+        self._traj_on = False
+        if u < t[0]:
+            pass                                       # stand
+        elif u < t[1]:                                 # crouch hold
+            cmd[3] = float(rng.uniform(*self.crouch_range))
+        elif u < t[3]:                                 # one-leg balance/circle
+            cmd[4] = 1.0 if rng.uniform() < 0.5 else -1.0
+            if u < t[2]:
+                if rng.uniform() < 0.3:                # shallow single-leg dip
+                    cmd[3] = float(rng.uniform(0.8, 0.95))
+            else:
+                self._traj_on = True                   # air circle (c5/c6 ride)
+        elif u < t[4]:                                 # pivot in place
+            w = float(rng.uniform(0.3, self.cmd_w_range))
+            cmd[2] = w if rng.uniform() < 0.5 else -w
+        else:                                          # walk fwd / back / side
+            uw = float(rng.uniform())
+            if uw < 0.15:
+                cmd[0] = float(rng.uniform(*self.cmd_back_range))
+            elif uw < 0.30:
+                vy = float(rng.uniform(0.1, self.cmd_vy_range))
+                cmd[1] = vy if rng.uniform() < 0.5 else -vy
+            else:
+                cmd[0] = float(rng.uniform(*self.cmd_v_range))
+                if rng.uniform() < 0.6:
+                    cmd[2] = float(rng.uniform(-self.cmd_w_range,
+                                               self.cmd_w_range))
+        self._cmd = cmd
+        lo, hi = self.cmd_resample_s
+        self._cmd_next = self._step_i + int(
+            self.np_random.uniform(lo, hi) / self.control_dt)
+
+    def set_command(self, *chans: float):
         """External command override (scenario evals / teleop or goal-seeking
-        layers -- see link/). Disables auto-resampling until the next reset."""
-        self._cmd = np.array([float(v), float(w)])
+        layers -- see link/). Disables auto-resampling until the next reset.
+        Legacy envs take (v, w); ext_cmd envs take up to 7 channels (vx, vy,
+        wz, crouch, lift, foot_dx, foot_dz) -- omitted trailing channels
+        default to (0, 0, 0, 1, 0, 0, 0). NOTE the channel meaning shift:
+        channel 1 is yaw rate on legacy envs but vy on ext envs."""
+        base = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])[:self._ncmd]
+        base[:len(chans)] = [float(c) for c in chans]
+        self._cmd = base
         self._cmd_next = 10 ** 9
+        self._traj_on = False
 
     def set_torque_enabled(self, on: bool):
         """Release / re-engage servo torque, both actuator models.
@@ -714,6 +821,14 @@ class BimoWalkerEnv(gym.Env):
         self._stand_t = None    # dash_stop: start of the current standstill
         if self.command_mode:
             self._sample_command()
+        if self.ext_cmd:
+            # per-episode air-circle parameters (mirrors sim/mjx _draw_traj)
+            rad = float(self.np_random.uniform(*self.traj_radius))
+            per = float(self.np_random.uniform(*self.traj_period))
+            omega = (2 * np.pi / per) * (1.0 if self.np_random.uniform() < 0.5
+                                         else -1.0)
+            self._traj = np.array([rad, omega,
+                                   float(self.np_random.uniform(0, 2 * np.pi))])
         # IMU DR: per-episode mounting misalignment (small random rotation) and
         # gyro bias, BNO085-class magnitudes scaled by imu_noise. Only draws
         # RNG when enabled, so other runs keep their exact random streams.
@@ -855,6 +970,17 @@ class BimoWalkerEnv(gym.Env):
                            * float(np.clip(height / self._nominal_h, 0.0, 1.0))
                            + self.w_recover_up * 0.5 * (up_z + 1.0) * up_gate
                            + self.stand_bonus * standing * (0.5 + 0.5 * still))
+            elif self.ext_cmd:
+                # precision tracking (mirrors sim/mjx): joint 2D velocity
+                # kernel, yaw kernel, height kernel vs the commanded crouch
+                v_term = self.w_track_v * float(np.exp(
+                    -((vx_body - self._cmd[0]) ** 2
+                      + (vy_body - self._cmd[1]) ** 2) / 0.25))
+                w_term = self.w_track_w * float(np.exp(
+                    -((wz_rate - self._cmd[2]) / 0.5) ** 2))
+                h_term = self.w_track_h * float(np.exp(
+                    -(((height - self._cmd[3] * self._nominal_h) / 0.04) ** 2)))
+                primary = v_term + w_term + h_term
             elif self.cmd_dense and self._cmd[0] > 0.05:
                 # any forward progress pays immediately, capped at the command
                 v_term = self.w_track_v * min(vx_body, self._cmd[0]) / self._cmd[0]
@@ -879,15 +1005,23 @@ class BimoWalkerEnv(gym.Env):
             reward_time_stop = 0.0
         # gait shaping is for locomotion: off while braking, and off under a
         # stand-still command (double support is rewarded instead, below)
+        lifted = self.ext_cmd and abs(float(self._cmd[4])) > 0.5
         cmd_moving = (not self.command_mode) or abs(self._cmd[0]) > 0.05 \
             or abs(self._cmd[1]) > 0.05
+        if self.ext_cmd:
+            # a lifted command is a balance task, not locomotion
+            cmd_moving = (abs(self._cmd[0]) > 0.05 or abs(self._cmd[1]) > 0.05
+                          or abs(self._cmd[2]) > 0.05) and not lifted
         shaping_on = cmd_moving and not braking
+        # posture reference: the commanded crouch height in ext mode
+        h_ref = (self._cmd[3] * self._nominal_h if self.ext_cmd
+                 else self._nominal_h)
 
         reward = (
             primary                                       # go forward / brake
             + self.w_upright * up_z                       # stay upright
             + self.alive_bonus                            # alive bonus
-            - self.w_height * abs(height - self._nominal_h)  # hold posture
+            - self.w_height * abs(height - h_ref)         # hold posture
             - self.w_energy * energy                      # be efficient
             - self.w_action_rate * action_rate            # be smooth
             - self.w_power * power_w                      # battery-life cost
@@ -914,14 +1048,40 @@ class BimoWalkerEnv(gym.Env):
                 self._air_time[f] += self.control_dt
         single_support = con_l != con_r
         double_support = con_l and con_r
+        foot_err = 0.0
+        lift_ok = 0.0
+        if self.ext_cmd:
+            # one-leg modes (mirrors sim/mjx): reward the correct contact
+            # pattern and track the commanded swing-foot target in the
+            # torso-yaw frame
+            is_r = float(self._cmd[4]) > 0.0
+            con_swing = con_r if is_r else con_l
+            con_stance = con_l if is_r else con_r
+            lift_ok = float(lifted and (not con_swing) and con_stance)
+            reward += self.w_lift * lift_ok
+            gid = self._sole_gids[1 if is_r else 0]
+            rel_w = d.geom_xpos[gid] - d.xpos[self._torso_bid]
+            rel = np.array([cth * rel_w[0] + sth * rel_w[1],
+                            -sth * rel_w[0] + cth * rel_w[1], rel_w[2]])
+            base = self._foot_rel0[1 if is_r else 0]
+            tgt = base + np.array([self._cmd[5], 0.0,
+                                   self.lift_height + self._cmd[6]])
+            foot_err = float(np.linalg.norm(rel - tgt))
+            reward += (self.w_track_foot * float(lifted)
+                       * float(np.exp(-((foot_err / self.foot_sigma) ** 2))))
         if self.w_single_support:
             if shaping_on:
                 reward += self.w_single_support * float(single_support)
             elif self.command_mode and not cmd_moving:
-                # under a stand command, plant both feet
-                reward += self.w_single_support * float(double_support)
+                # under a stand command, plant both feet -- unless a foot is
+                # commanded lifted, in which case single support IS the task
+                reward += self.w_single_support * float(
+                    single_support if lifted else double_support)
         if self.w_lateral:
-            if self.command_mode:
+            if self.ext_cmd:
+                # vy is a tracked command channel: penalize the ERROR
+                reward -= self.w_lateral * abs(vy_body - float(self._cmd[1]))
+            elif self.command_mode:
                 # body-frame side-slip (world drift is meaningless when the
                 # command says turn); vy_body computed in the tracking block
                 reward -= self.w_lateral * abs(vy_body)
@@ -939,7 +1099,11 @@ class BimoWalkerEnv(gym.Env):
         self._prev_action[:] = action
         self._step_i += 1
 
-        fell = (height < self.fall_height) or (up_z < self.fall_up_z)
+        # ext mode: the fall floor tracks the commanded crouch (a commanded
+        # 0.6-height crouch is 0.17 m -- below the legacy 0.18 fall line)
+        fall_h = (self.fall_height * float(self._cmd[3]) if self.ext_cmd
+                  else self.fall_height)
+        fell = (height < fall_h) or (up_z < self.fall_up_z)
         # -- 2 m dash: success only if, after crossing the line, the robot is
         # still upright dash_hold seconds later. A dive that crosses the line
         # and faceplants therefore never finishes -- it just falls.
@@ -991,10 +1155,27 @@ class BimoWalkerEnv(gym.Env):
             info.update(cmd_v=float(self._cmd[0]), cmd_w=float(self._cmd[1]),
                         vx_body=vx_body, wz=wz_rate,
                         y=float(d.qpos[1]))
+            if self.ext_cmd:
+                info.update(cmd_w=float(self._cmd[2]),
+                            cmd_vy=float(self._cmd[1]),
+                            cmd_h=float(self._cmd[3]),
+                            cmd_lift=float(self._cmd[4]),
+                            vy_body=vy_body,
+                            height_err=abs(height - h_ref),
+                            foot_err=float(lifted) * foot_err,
+                            lift_ok=lift_ok)
             # resample AFTER the reward (which graded the command the policy
             # saw); the returned obs carries the new command
             if self._step_i >= self._cmd_next:
                 self._sample_command()
+            if self.ext_cmd and self._traj_on:
+                # air-circle commands: c5/c6 ride the per-episode circle every
+                # step (mirrors sim/mjx -- uses the post-increment step index).
+                # Other commands keep their c5/c6 (set_command may pin one).
+                th = (self._traj[2]
+                      + self._traj[1] * self._step_i * self.control_dt)
+                self._cmd[5] = self._traj[0] * np.cos(th)
+                self._cmd[6] = self._traj[0] * np.sin(th)
         return self._obs(), float(reward), terminated, truncated, info
 
     def render(self):

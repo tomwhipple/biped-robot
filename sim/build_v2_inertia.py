@@ -111,8 +111,17 @@ torso = combine([
     # mounted on top of the tower; see cad/README.md:66-68.)
     box_part(20.0, (0, 0, dz_deck + D.TOWER_H - D.TOWER_TOP_T
                     - D.BOARD_STANDOFF - 2.5), (65, 30, 5)),
-], total=327.8)   # +8.3 over the Zeee bay: +6 g pack (74->80 worst case),
-                  # +2.3 g taller tower print (TOWER_H 37 -> 43.5)
+    # tower-top accessory stack (2026-07-17, closing the imu_carrier section's
+    # "honest omission"): both STLs have z=0 at their mounting plane. The
+    # carrier sandwiches on the tower top; gopro_base sits on the carrier.
+    mesh_part("imu_carrier", dz_deck + D.TOWER_H),
+    mesh_part("gopro_base", dz_deck + D.TOWER_H + D.IMU_CARRIER_T),
+    # BNO055 breakout on the carrier tongue bosses (pcb + header ~3 g)
+    box_part(3.0, (0, D.IMU_CY, dz_deck + D.TOWER_H + D.IMU_CARRIER_T
+                   + D.IMU_BOSS_H + 0.8), (D.IMU_PCB[0], D.IMU_PCB[1], 4.0)),
+], total=341.8)   # 327.8 (2026-07-15 bay rollup) + 14.0 accessories:
+                  # carrier 5.0 + gopro_base 5.2 + BNO055 3.0 + screw delta 0.8
+                  # (4x M3x8->12 and 4x M2.5x8, pro-rata like all fasteners)
 
 # ---- hip (frame at HIP_ROLL_Z) ----------------------------------------------
 hip = combine([
