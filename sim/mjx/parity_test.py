@@ -103,9 +103,18 @@ def run_block(name, n_steps, act_fn, prep_cpu, gates, matched_only=False,
     for t in range(n_steps):
         a = act_fn(t)
         state = sync(state, cpu_e, gpu_e)
+        # matched_only screens on the SYNCED (pre-step) manifold: that is the
+        # manifold the step's contact forces are computed from. Screening on
+        # post-step ncon (the original code) misses steps where the engines
+        # disagree pre-step but re-converge post-step -- found 2026-07-17 when
+        # the silicone-pad sole drop (b4f22bc) deepened the settling transient
+        # enough that MJX's 1 mm-skin collider kept a 0.05 mm grazing corner
+        # CPU's box-plane collider omits, at exactly one force-carrying step.
+        pre_cpu_ncon = cpu_e.data.ncon
+        pre_mjx_ncon = _mjx_ncon(state)
         obs_c, r_c, term_c, trunc_c, _ = cpu_e.step(a)
         state = step_e(state, jp.asarray(a))
-        if matched_only and cpu_e.data.ncon != _mjx_ncon(state):
+        if matched_only and pre_cpu_ncon != pre_mjx_ncon:
             skipped += 1     # manifold mismatch: regime this block can't gate
             continue
         used += 1

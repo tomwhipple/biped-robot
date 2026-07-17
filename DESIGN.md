@@ -1245,12 +1245,20 @@ below landed and is parity/bit-exactness gated; training round 1 follows.
   for all seven skills + smoothness panel (wobble RMS, watts, cost of
   transport, foot slip, L/R swing symmetry). Return-to-start scenarios use
   ground-truth odometry (sim-only; the hardware odometry gap stands).
-- **Found while extending the parity gate: block 2 (grounded stance) FAILS
-  at clean HEAD** — |Δqpos| 1.3e-4/step vs the 1e-11 recorded 2026-07-13;
-  airborne arithmetic still exact, contact counts still match. Pre-existing
-  regression (suspects: sole-box/backlash-era commits or a mujoco/mjx
-  package bump), diagnosis in progress. Mitigation unchanged: every claim
-  is CPU-refereed.
+- **Parity block-2 "regression": found, diagnosed, fixed (test bug, not
+  physics).** Grounded stance failed at clean HEAD (|Δqpos| 1.3e-4 vs the
+  1e-11 recorded 2026-07-13). Root cause chain: the silicone-pad sole drop
+  (`b4f22bc`, z −0.0129 → −0.0140 — physically correct, kept) deepened the
+  settling transient; at exactly one step MJX's 1 mm-skin collider keeps an
+  L_sole corner grazing at −0.05 mm that CPU's box-plane collider omits, so
+  that step's contact forces differ; the block's `matched_only` guard
+  compared POST-step contact counts (which re-converge, 8==8) while the
+  step's forces come from the PRE-step (synced) manifold — the guard never
+  fired. Exonerated by probe table: the 116 mm sole widening (1.05e-11
+  with HEAD code) and package drift (the 07-13 commit passes at 9.4e-12 on
+  today's venv). Fix: screen on the synced pre-step manifold. Full suite
+  now PASSES: grounded 1.04e-11 (75/100 steps gated in), airborne 8.5e-12,
+  ext blocks identical.
 
 ## 6. Design parameters (source of truth)
 
