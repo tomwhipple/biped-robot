@@ -709,6 +709,11 @@ class BimoMJXEnv:
         vy_body = -sth * data.qvel[0] + cth * data.qvel[1]
         wz = data.qvel[5]
         cmd_v, cmd_w = state.cmd[0], state.cmd[1]
+        if self.ext_cmd:
+            # 7-channel layout: yaw rate lives in c2 (c1 is vy). Without this
+            # the yaw kernel silently tracked the SIDESTEP channel -- caught
+            # by parity block 2e's non-zero fixed command (2026-07-17).
+            cmd_w = state.cmd[2]
         planar = jp.sqrt(data.qvel[0] ** 2 + data.qvel[1] ** 2)
         standing = ((height > 0.85 * self._nominal_h)
                     & (up_z > 0.9)).astype(jp.float32)
@@ -730,11 +735,31 @@ class BimoMJXEnv:
             # precision tracking: joint 2D velocity kernel (vx AND vy -- a
             # sidestep command is a first-class target, not side-slip), yaw
             # kernel, and a height kernel against the commanded crouch.
+            # cmd_dense (round-2 fix): under a moving velocity command the
+            # kernel pays 1.05/step for STANDING (sigma 0.5 at cmd 0.4) --
+            # precision_v1 farmed that plus the full yaw+height kernels into
+            # a 5.4/step do-nothing optimum (0 falls, 0 motion). The dense
+            # term is the dash-lineage gradient: velocity PROJECTED on the
+            # commanded direction, capped at the command, zero for standing,
+            # negative for moving the wrong way.
             cmd_vy, cmd_h = state.cmd[1], state.cmd[3]
-            v_term = self.w_track_v * jp.exp(
+            sp_cmd = jp.sqrt(cmd_v ** 2 + cmd_vy ** 2)
+            v_kernel = self.w_track_v * jp.exp(
                 -((vx_body - cmd_v) ** 2 + (vy_body - cmd_vy) ** 2) / 0.25)
+            if self.cmd_dense:
+                v_par = (vx_body * cmd_v + vy_body * cmd_vy) / jp.maximum(
+                    sp_cmd, 1e-9)
+                v_dense = self.w_track_v * jp.clip(
+                    v_par / jp.maximum(sp_cmd, 1e-9), -1.0, 1.0)
+                v_term = jp.where(sp_cmd > 0.05, v_dense, v_kernel)
+            else:
+                v_term = v_kernel
             w_term = self.w_track_w * jp.exp(-((wz - cmd_w) / 0.5) ** 2)
-            h_term = self.w_track_h * jp.exp(
+            # height kernel at full weight only when no motion is commanded
+            # (its full 1.0/step was part of the do-nothing income)
+            h_gate = jp.where((sp_cmd > 0.05) | (jp.abs(cmd_w) > 0.05),
+                              0.3, 1.0)
+            h_term = self.w_track_h * h_gate * jp.exp(
                 -(((height - cmd_h * self._nominal_h) / 0.04) ** 2))
             primary = v_term + w_term + h_term
         else:
@@ -790,7 +815,8 @@ class BimoMJXEnv:
             reward += (self.w_track_foot * lifted.astype(jp.float32)
                        * jp.exp(-((foot_err / self.foot_sigma) ** 2)))
             # a lifted command is a balance task, not locomotion: gait shaping
-            # off; a sidestep command (vy) is locomotion like any other
+            # off; a sidestep command (vy) is locomotion like any other.
+            # (cmd_moving already covers c0 and c2 via cmd_v/cmd_w.)
             cmd_moving = (cmd_moving | (jp.abs(state.cmd[1]) > 0.05)) & ~lifted
         landed = con & (state.air_time > 0.0)
         if self.w_feet_air:

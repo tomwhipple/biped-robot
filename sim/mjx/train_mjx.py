@@ -182,6 +182,9 @@ def main():
             fall_cost=10.0,
             payload_cg_z=0.0945,
             xml_path=os.path.join(HERE, "..", "bimo_biped_v2_asbuilt.xml"),
+            # dense directional progress: without it precision_v1 converged
+            # to a 0-falls/0-motion standing optimum (kernels pay standers)
+            cmd_dense=True,
         )
     if args.xml:
         env_kw["xml_path"] = args.xml

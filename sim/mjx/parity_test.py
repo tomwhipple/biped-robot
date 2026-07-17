@@ -254,6 +254,29 @@ ok_e2 = run_block(
     lambda env: None, dict(qpos=1e-6, qvel=1e-4, reward=1e-3, obs=1e-3),
     matched_only=True, min_frac=0.5, envs=(cpu_e, gpu_e, step_e))
 
+# -- 2e. ext_cmd dense-progress arithmetic (moving command, airborne) ---------
+EXT_D = dict(EXT)
+EXT_D.update(cmd_dense=True,
+             cmd_fixed=(0.3, -0.1, 0.2, 0.85, 0.0, 0.0, 0.0))
+cpu_d = BimoWalkerEnv(xml_path=XML, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False, **EXT_D)
+gpu_d = BimoMJXEnv(xml_path=XML, domain_rand=False, **EXT_D)
+step_d = jax.jit(gpu_d.step)
+
+
+class AirActsExtD:
+    def __call__(self, t):
+        if t % 20 == 0:
+            hoist(cpu_d)
+        return (_SPLAY + 0.3 * np.sin(0.35 * t + np.arange(8) * 0.7)
+                ).astype(np.float32)
+
+ok_e3 = run_block(
+    "2e. ext_cmd dense progress (cmd 0.3,-0.1,0.2, crouch 0.85, airborne)",
+    100, AirActsExtD(), hoist,
+    dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+    envs=(cpu_d, gpu_d, step_d))
+
 # -- 3. gait-amplitude manifold statistics (informational, no gate) -----------
 print("== 3. gait-amplitude contact-manifold statistics (informational) ==")
 obs_c, _ = cpu.reset(seed=7)
@@ -278,6 +301,6 @@ print("   (mismatches = tilted/deep penetration where MJX's 1 mm-skin")
 print("    manifold pruning drops corners CPU keeps -- impact transients.")
 print("    Settled stance manifolds are identical. Referee: CPU evals.)")
 
-ok_all = ok1 and ok2 and ok3 and ok_e1 and ok_e2
+ok_all = ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3
 print("\nPARITY:", "PASS" if ok_all else "FAIL")
 sys.exit(0 if ok_all else 1)

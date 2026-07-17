@@ -972,13 +972,26 @@ class BimoWalkerEnv(gym.Env):
                            + self.stand_bonus * standing * (0.5 + 0.5 * still))
             elif self.ext_cmd:
                 # precision tracking (mirrors sim/mjx): joint 2D velocity
-                # kernel, yaw kernel, height kernel vs the commanded crouch
-                v_term = self.w_track_v * float(np.exp(
+                # kernel, yaw kernel, height kernel vs the commanded crouch.
+                # cmd_dense = round-2 fix for the precision_v1 do-nothing
+                # optimum: dense directional progress under moving commands
+                # (see env_mjx.py for the economics).
+                sp_cmd = float(np.hypot(self._cmd[0], self._cmd[1]))
+                v_kernel = self.w_track_v * float(np.exp(
                     -((vx_body - self._cmd[0]) ** 2
                       + (vy_body - self._cmd[1]) ** 2) / 0.25))
+                if self.cmd_dense and sp_cmd > 0.05:
+                    v_par = (vx_body * self._cmd[0]
+                             + vy_body * self._cmd[1]) / max(sp_cmd, 1e-9)
+                    v_term = self.w_track_v * float(np.clip(
+                        v_par / max(sp_cmd, 1e-9), -1.0, 1.0))
+                else:
+                    v_term = v_kernel
                 w_term = self.w_track_w * float(np.exp(
                     -((wz_rate - self._cmd[2]) / 0.5) ** 2))
-                h_term = self.w_track_h * float(np.exp(
+                h_gate = (0.3 if (sp_cmd > 0.05
+                                  or abs(self._cmd[2]) > 0.05) else 1.0)
+                h_term = self.w_track_h * h_gate * float(np.exp(
                     -(((height - self._cmd[3] * self._nominal_h) / 0.04) ** 2)))
                 primary = v_term + w_term + h_term
             elif self.cmd_dense and self._cmd[0] > 0.05:

@@ -462,7 +462,12 @@ def scen_circle_return():
                                     for r in circ]))
         else:
             radius = float("nan")
-        success = (not fell) and ret_err < 0.35
+        # radius gate: standing still trivially "returns to start" -- the
+        # precision_v1 scorecard's only locomotion "pass" was exactly that.
+        # Require the trajectory to actually sweep a circle (commanded
+        # radius = v/w = 0.5 m; accept >= 0.3 m mean excursion).
+        success = ((not fell) and ret_err < 0.35
+                   and not math.isnan(radius) and radius >= 0.3)
         return dict(success=success,
                     metrics=dict(return_err=ret_err, radius=radius),
                     headline=f"ret {ret_err*100:.0f}cm r={radius:.2f}m")
