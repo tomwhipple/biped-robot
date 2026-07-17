@@ -1260,6 +1260,46 @@ below landed and is parity/bit-exactness gated; training round 1 follows.
   now PASSES: grounded 1.04e-11 (75/100 steps gated in), airborne 8.5e-12,
   ext blocks identical.
 
+### Precision rounds 1-2: the do-nothing optimum, then first skills (2026-07-17)
+
+**Round 1 (`precision_v1`, 150M, RunPod 4090, ~$1.7):** a perfect
+cautionary tale for "severely penalize falling" — the policy achieved ZERO
+falls in 112 referee episodes by NEVER MOVING. Stand 8/8 (1.6 cm drift),
+everything else 0/8: walk/sidestep/backward commands ignored at standing
+watts, crouch ignored (hErr 85 mm), balance half-lifts (~50 % contact).
+Economics: with sigma-0.5 kernels + the height kernel + upright/alive, a
+stander under a 0.4 m/s command banked ~5.4/step ≈ 84 % of perfect
+tracking, risk-free. (Archived: `runs/precision_v1_frozen`.)
+
+**Round-2 fixes** (committed `7d4e659`): dense directional progress
+(velocity projected on the commanded direction, capped at the command —
+zero for standing, negative against it; the dash-lineage gradient), height
+kernel gated to 0.3x under motion commands, and a REAL BUG found by the
+new parity block 2e: MJX unpacked the yaw command from channel 1 (legacy
+2-ch layout), so in ext mode the yaw kernel tracked the SIDESTEP channel —
+round 1 never rewarded pivots at all. Also: eval `circle_return` now
+requires >=0.3 m actual excursion (standing had "returned to start" 8/8).
+
+**Round 2 (`precision_v2`, 300M, RunPod RTX 4000 Ada, ~$1.9):** motion is
+back — **line_1m 4/8 at t=2.1 s** (0.48 m/s, clean stops), balance
+lifted-contact 57→28-37 %, air-circle tracking err 66 mm, and it attempts
+every skill (falls 30 % — it tries). Still failing: sidestep/backward
+(0/8, never reach), crouch (ignores height, hErr 81 mm), return-to-start
+(1.05-2.67 m off). Training was NOT converged (reward +5 % over the final
+10M steps) → the standard verdict applies: scale, same objective.
+
+**Compute policy (user, final form):** RunPod retired after round 2.
+Training runs on **Mira nightly: cron 23:00 start (waits for free VRAM —
+never evicts ollama; a resident model is not a veto, big ones just fail
+the >=10 GB gate until they self-unload), no new starts after 05:00, hard
+stop 07:00** (SIGTERM-safe: params checkpoint at every eval). Arm:
+`infra/night_arm.sh`, collect: `infra/night_collect.sh`.
+`train_mjx --init-from` (brax restore_params, validated) carries a
+checkpoint across nights. **Round 3 armed for tonight: warm-start from
+precision_v2, +450M steps on the same objective.** The montage reel
+(`sim/mjx/render_precision_reel.py` → `sim/renders/precision_reel_*.mov`,
+honest PASS/FAIL captions per take) is the per-round visual artifact.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
