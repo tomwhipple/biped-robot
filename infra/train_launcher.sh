@@ -108,21 +108,29 @@ else
       REASON="could not parse nvidia-smi output from mira"
     else
       FREE=$((MEM_TOTAL - MEM_USED))
+      # Resident ollama models are NOT a veto (user, 2026-07-17): nvidia-smi's
+      # free number already accounts for them, so a small resident model (e.g.
+      # nomic-embed, ~0.9 GB) coexists with training fine. A big one (llama3.2
+      # -vision, ~9 GB) fails the free-VRAM gate below on its own. Only note
+      # the consequence: while training holds ~10.4 GB, a LATER attempt to
+      # load a big ollama model falls back to CPU inference until the run ends.
       OLLAMA_MODEL="$(printf '%s\n' "$OLLAMA_LINES" | awk 'NF{print $1; exit}')"
-      if [[ -n "$OLLAMA_MODEL" ]]; then
-        echo "!!! mira has an ollama model loaded: $OLLAMA_MODEL"
-        echo "    hint: ssh mira 'ollama stop $OLLAMA_MODEL' would free it"
-        DECISION="runpod"
-        REASON="ollama model '$OLLAMA_MODEL' loaded on mira"
-      elif [[ "$UTIL" -ge 20 ]]; then
+      if [[ "$UTIL" -ge 20 ]]; then
         DECISION="runpod"
         REASON="mira gpu util ${UTIL}% >= 20%"
       elif [[ "$FREE" -lt 10000 ]]; then
         DECISION="runpod"
         REASON="mira free vram ${FREE}MiB < 10000MiB"
+        if [[ -n "$OLLAMA_MODEL" ]]; then
+          REASON+=" (ollama '$OLLAMA_MODEL' resident; 'ssh mira \"ollama stop $OLLAMA_MODEL\"' frees it)"
+        fi
       else
         DECISION="mira"
-        REASON="mira idle: util=${UTIL}% free=${FREE}MiB, no ollama model loaded"
+        REASON="mira idle: util=${UTIL}% free=${FREE}MiB"
+        if [[ -n "$OLLAMA_MODEL" ]]; then
+          echo ">>> note: ollama '$OLLAMA_MODEL' stays resident alongside training;"
+          echo "    big-model loads during the run will fall back to CPU inference"
+        fi
       fi
     fi
   fi
