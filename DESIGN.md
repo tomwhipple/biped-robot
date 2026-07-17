@@ -1207,6 +1207,51 @@ against the cone's +0.3 g). The window is functional, not cosmetic:
 **printed v1/v2 links want a reprint** when convenient, else the leads
 detour around the web's bottom edge.
 
+### Precision curriculum round: infrastructure (2026-07-17)
+
+Directive: "we've been trying to run before we walk" — a skill round focused
+on *control*: one-leg balance (10 s each), air circles with a lifted foot,
+a straight 1 m line, circle/square return-to-start, 0.5 m sidestep, 1 m
+backward walk, crouches (both/each leg). Full spec + acceptance criteria:
+[docs/precision-curriculum.md](docs/precision-curriculum.md). Everything
+below landed and is parity/bit-exactness gated; training round 1 follows.
+
+- **`ext_cmd` mode, both engines** (obs 38→43): 7-channel commands (vx incl.
+  backward, vy, wz, crouch height fraction, one-leg lift ±1, swing-foot
+  (dx,dz) target; per-episode air-circle generator drives (dx,dz) when the
+  command mix picks it). 2-D velocity kernel, height kernel vs commanded
+  crouch, lift contact-pattern + swing-foot-target kernels. Fall cost 10
+  ("severely penalize falling"), fall line scales with commanded crouch.
+  Legacy paths bit-exact vs HEAD; parity gates 2c (airborne ext arithmetic,
+  8e-12) and 2d (grounded ext stance) added.
+- **Plant truth — the sim now trains the robot AS PRINTED, GoPro on:**
+  `bimo_biped_v2_asbuilt.xml` = printed 100 mm foot v3 (90×46 pad boxes,
+  102.8 g segment, `foot_asbuilt.stl` from 191777e) because the 116 mm
+  get-up soles exist only in CAD (user: "we're running with the 100×50
+  feet"). Torso inertial rebaked WITH the tower-top accessory stack
+  (imu_carrier 5.0 g + BNO055 3.0 g + gopro_base 5.2 g + fasteners 0.8 g →
+  341.8 g; closes that section's honest omission). New `payload_cg_z`
+  param: GoPro CG at the true +0.0945 m (battery-bay tower +11.5 mm +
+  carrier +3 mm over the 0.08 spec); old runs keep 0.08. Robot 921 g bare.
+- **Compute policy (supersedes "RunPod for everything"): Mira's 4070 when
+  idle, RunPod otherwise.** `infra/train_launcher.sh` decides (util <20%,
+  ≥10 GB free, AND no ollama model loaded — ollama on Mira serves the email
+  agent and routinely holds VRAM); `infra/watch_train.sh` polls to
+  completion, pulls params, tears down RunPod pods, runs the referee;
+  `infra/precision_round.sh` chains it all: **one command per training
+  round, one completion message** (also the token-lean iteration loop —
+  per round the agent reads only `sim/runs/<out>/scorecard.{json,md}`).
+- **Referee: `sim/mjx/eval_precision.py`** — scripted CPU-referee scenarios
+  for all seven skills + smoothness panel (wobble RMS, watts, cost of
+  transport, foot slip, L/R swing symmetry). Return-to-start scenarios use
+  ground-truth odometry (sim-only; the hardware odometry gap stands).
+- **Found while extending the parity gate: block 2 (grounded stance) FAILS
+  at clean HEAD** — |Δqpos| 1.3e-4/step vs the 1e-11 recorded 2026-07-13;
+  airborne arithmetic still exact, contact counts still match. Pre-existing
+  regression (suspects: sole-box/backlash-era commits or a mujoco/mjx
+  package bump), diagnosis in progress. Mitigation unchanged: every claim
+  is CPU-refereed.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

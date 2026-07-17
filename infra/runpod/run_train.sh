@@ -72,6 +72,7 @@ echo ">>> endpoint saved to infra/runpod/.last_pod"
 echo "=== syncing code ==="
 rsync -aq -e "ssh ${SSH_BASE[*]} -p $PORT" \
   "$REPO/sim/mjx" "$REPO/sim/walker_env.py" "$REPO/sim/bimo_biped_v2.xml" \
+  "$REPO/sim/bimo_biped_v2_asbuilt.xml" \
   "root@$IP:/root/robot/sim/" --rsync-path="mkdir -p /root/robot/sim && rsync"
 rsync -aq -e "ssh ${SSH_BASE[*]} -p $PORT" \
   "$REPO/cad/stl" "root@$IP:/root/robot/cad/" \
