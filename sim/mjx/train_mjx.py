@@ -146,6 +146,10 @@ def main():
                    help="plant override (default: v2; precision default: "
                         "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
     p.add_argument("--fall-cost", type=float, default=None)
+    p.add_argument("--init-from", default=None,
+                   help="warm-start from sim/runs/<name>/params.pkl (same "
+                        "objective only -- objective changes need from-"
+                        "scratch, a lesson learned three times over)")
     p.add_argument("--hip-flex", type=float, default=None,
                    help="widen hip flexion to this many degrees (study: >=95)")
     p.add_argument("--getup-mix", default="1,0,0",
@@ -236,8 +240,15 @@ def main():
         with open(os.path.join(out, "params.pkl"), "wb") as f:
             pickle.dump(params, f)   # (normalizer, policy, value)
 
+    restore = None
+    if args.init_from:
+        with open(os.path.join(RUNS, args.init_from, "params.pkl"), "rb") as f:
+            restore = pickle.load(f)
+        print(f"warm-starting from {args.init_from}/params.pkl")
+
     train_fn = functools.partial(
         ppo.train,
+        restore_params=restore,
         num_timesteps=args.steps,
         num_evals=args.num_evals,
         episode_length=episode_length,
