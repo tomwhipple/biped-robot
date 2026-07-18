@@ -18,6 +18,7 @@ PY="$BASE/.venv/bin/python"
 # no new starts after 05:00 (hard stop is 07:00)
 WAIT_UNTIL=$(date -d '05:00' +%s)
 (( WAIT_UNTIL <= $(date +%s) )) && WAIT_UNTIL=$((WAIT_UNTIL + 86400))
+IDLE_STREAK=0
 while :; do
   LINE=$(nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total \
          --format=csv,noheader,nounits | head -1 | tr -d ',')
@@ -26,6 +27,23 @@ while :; do
   if (( UTIL < 20 && FREE >= 10000 )); then
     echo "$(date +%H:%M) gpu free (util=${UTIL}% free=${FREE}MiB) -- go"
     break
+  fi
+  # idle-but-squatted: a resident ollama model with a long keep_alive can
+  # hold VRAM ALL night (2026-07-17 skipped 23:00-05:00 exactly this way,
+  # util ~0% throughout). After two consecutive idle samples (~10 min
+  # apart), unload idle models -- `ollama stop` on an IDLE model is
+  # harmless (it auto-reloads on the next request); active inference
+  # (util >= 5%) resets the streak and is never touched.
+  if (( UTIL < 5 )); then IDLE_STREAK=$((IDLE_STREAK + 1)); else IDLE_STREAK=0; fi
+  if (( IDLE_STREAK >= 2 )); then
+    while read -r M; do
+      [[ -n "$M" ]] || continue
+      echo "$(date +%H:%M) unloading idle ollama model $M (auto-reloads on demand)"
+      ollama stop "$M" 2>/dev/null || true
+    done < <(ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}')
+    IDLE_STREAK=0
+    sleep 30
+    continue
   fi
   if (( $(date +%s) > WAIT_UNTIL )); then
     echo "SKIPPED tonight: gpu busy through the wait window" \
