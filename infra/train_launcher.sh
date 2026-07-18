@@ -167,7 +167,7 @@ run_mira() {
     echo "--- [dry-run] would rsync to mira:~/code/robot-mjx/ (relative layout):"
     echo "    sim/mjx sim/walker_env.py sim/bimo_biped_v2.xml sim/bimo_biped_v2_asbuilt.xml cad/stl"
     echo "--- [dry-run] would launch on mira:"
-    echo "    cd ~/code/robot-mjx/sim/mjx && XLA_PYTHON_CLIENT_MEM_FRACTION=0.85 nohup $pybin train_mjx.py $TRAIN_ARGS_STR > ~/code/robot-mjx/sim/runs/train.log 2>&1 < /dev/null &"
+    echo "    cd ~/code/robot-mjx/sim/mjx && XLA_PYTHON_CLIENT_MEM_FRACTION=0.90 nohup $pybin train_mjx.py $TRAIN_ARGS_STR > ~/code/robot-mjx/sim/runs/train.log 2>&1 < /dev/null &"
     echo "--- [dry-run] would write $LAST_TRAIN with HOST=mira, PID=<pid>, OUT=$OUT, PYBIN=$pybin"
     return 0
   fi
@@ -183,7 +183,7 @@ run_mira() {
   local launch_out pid
   launch_out=$(ssh_t 60 -o ConnectTimeout=8 -o BatchMode=yes mira "
     mkdir -p $MIRA_REMOTE/sim/runs && cd $MIRA_REMOTE/sim/mjx && \
-    XLA_PYTHON_CLIENT_MEM_FRACTION=0.85 nohup $pybin train_mjx.py $TRAIN_ARGS_STR \
+    XLA_PYTHON_CLIENT_MEM_FRACTION=0.90 nohup $pybin train_mjx.py $TRAIN_ARGS_STR \
     > $MIRA_REMOTE/sim/runs/train.log 2>&1 < /dev/null & echo LAUNCHED_PID=\$!
   ")
   pid="$(printf '%s\n' "$launch_out" | sed -n 's/.*LAUNCHED_PID=//p' | tail -1)"

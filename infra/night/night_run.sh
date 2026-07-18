@@ -71,7 +71,7 @@ fi
 mv "$N/args" "$N/args.running"
 mkdir -p "$BASE/sim/runs"
 cd "$BASE/sim/mjx"
-XLA_PYTHON_CLIENT_MEM_FRACTION=0.85 nohup "$PY" train_mjx.py $ARGS \
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.90 nohup "$PY" train_mjx.py $ARGS \
   > "$BASE/sim/runs/train.log" 2>&1 < /dev/null &
 PID=$!
 { echo "PID=$PID"; echo "OUT=$OUT"; echo "STARTED=$(date +%s)"
