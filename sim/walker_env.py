@@ -217,6 +217,12 @@ class BimoWalkerEnv(gym.Env):
         traj_radius: tuple = (0.02, 0.05),
         traj_period: tuple = (1.5, 3.5),
         ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),
+        lift_clear: float = 0.03,      # lifted-foot min clearance (m); the
+        # lift reward pays only >= this above the standing sole height
+        recover_mix: float = 0.0,      # fraction of episodes starting from a
+        # settled ragdoll fall: recovery reward while down, command pinned
+        # to stand, no fall termination until the first achieved stand
+        # (mirrors sim/mjx; single-leg-crouch mix removed same date)
         # payload CG height above torso center (m); 0.08 = 2026-07-11 spec,
         # 0.0945 = current stack (battery-bay tower + imu_carrier + gopro_base)
         payload_cg_z: float = 0.08,
@@ -329,6 +335,10 @@ class BimoWalkerEnv(gym.Env):
         self.traj_radius = traj_radius
         self.traj_period = traj_period
         self.ext_mix = ext_mix
+        self.lift_clear = lift_clear
+        self.recover_mix = recover_mix
+        self._recover_ep = False       # this episode started fallen
+        self._recovered = True         # first stand achieved (or normal ep)
         self.payload_cg_z = payload_cg_z
         self.w_power = w_power
         self._K_CU = 3.75              # W/(N*m)^2, ST3215 stall calibration
@@ -460,6 +470,8 @@ class BimoWalkerEnv(gym.Env):
             self._foot_rel0 = np.stack([
                 d0.geom_xpos[self._sole_gids[0]] - d0.xpos[self._torso_bid],
                 d0.geom_xpos[self._sole_gids[1]] - d0.xpos[self._torso_bid]])
+            # standing sole-center height: lift clearance reference
+            self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
 
         self.action_space = spaces.Box(-1.0, 1.0, shape=(8,), dtype=np.float32)
         obs_dim = (8 + 8 + 3 + 3 + 3 + 8 + 1 + 2
@@ -684,10 +696,7 @@ class BimoWalkerEnv(gym.Env):
             cmd[3] = float(rng.uniform(*self.crouch_range))
         elif u < t[3]:                                 # one-leg balance/circle
             cmd[4] = 1.0 if rng.uniform() < 0.5 else -1.0
-            if u < t[2]:
-                if rng.uniform() < 0.3:                # shallow single-leg dip
-                    cmd[3] = float(rng.uniform(0.8, 0.95))
-            else:
+            if u >= t[2]:
                 self._traj_on = True                   # air circle (c5/c6 ride)
         elif u < t[4]:                                 # pivot in place
             w = float(rng.uniform(0.3, self.cmd_w_range))
@@ -773,7 +782,13 @@ class BimoWalkerEnv(gym.Env):
         if self.terrain_amplitude > 0:
             self._generate_terrain()   # before mj_resetData; CPU collisions read it live
         mujoco.mj_resetData(self.model, self.data)
-        if self.getup:
+        self._recover_ep = False
+        self._recovered = True
+        if self.ext_cmd and self.recover_mix > 0:
+            self._recover_ep = bool(self.np_random.uniform()
+                                    < self.recover_mix)
+            self._recovered = not self._recover_ep
+        if self.getup or self._recover_ep:
             # settled ragdoll fall: random orientation + joints, dropped from
             # 0.35 m, stepped torque-free (matches sim/mjx/_fallen_data)
             u1, u2, u3 = self.np_random.uniform(size=3)
@@ -821,6 +836,11 @@ class BimoWalkerEnv(gym.Env):
         self._stand_t = None    # dash_stop: start of the current standstill
         if self.command_mode:
             self._sample_command()
+        if self._recover_ep:
+            # recovery episode: stand command pinned for the whole episode
+            self._cmd = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+            self._cmd_next = 10 ** 9
+            self._traj_on = False
         if self.ext_cmd:
             # per-episode air-circle parameters (mirrors sim/mjx _draw_traj)
             rad = float(self.np_random.uniform(*self.traj_radius))
@@ -994,6 +1014,18 @@ class BimoWalkerEnv(gym.Env):
                 h_term = self.w_track_h * h_gate * float(np.exp(
                     -(((height - self._cmd[3] * self._nominal_h) / 0.04) ** 2)))
                 primary = v_term + w_term + h_term
+                if self.recover_mix > 0 and not self._recovered:
+                    # down in a recovery episode: getup-style recovery is
+                    # the primary until the first stand (mirrors sim/mjx)
+                    planar_g = float(np.hypot(d.qvel[0], d.qvel[1]))
+                    standing_r = float((height > 0.85 * self._nominal_h)
+                                       and (up_z > 0.9))
+                    still = float(np.exp(-((planar_g / 0.2) ** 2)))
+                    up_gate = float(np.clip((height - 0.12) / 0.08, 0.0, 1.0))
+                    primary = (1.0 * float(np.clip(height / self._nominal_h,
+                                                   0.0, 1.0))
+                               + 0.8 * 0.5 * (up_z + 1.0) * up_gate
+                               + 1.0 * standing_r * (0.5 + 0.5 * still))
             elif self.cmd_dense and self._cmd[0] > 0.05:
                 # any forward progress pays immediately, capped at the command
                 v_term = self.w_track_v * min(vx_body, self._cmd[0]) / self._cmd[0]
@@ -1070,9 +1102,13 @@ class BimoWalkerEnv(gym.Env):
             is_r = float(self._cmd[4]) > 0.0
             con_swing = con_r if is_r else con_l
             con_stance = con_l if is_r else con_r
-            lift_ok = float(lifted and (not con_swing) and con_stance)
-            reward += self.w_lift * lift_ok
             gid = self._sole_gids[1 if is_r else 0]
+            # lift pays only with real clearance (>= lift_clear above the
+            # standing sole height; mirrors sim/mjx)
+            foot_clear = float(d.geom_xpos[gid][2]) - self._sole_z0
+            lift_ok = float(lifted and (not con_swing) and con_stance
+                            and foot_clear >= self.lift_clear)
+            reward += self.w_lift * lift_ok
             rel_w = d.geom_xpos[gid] - d.xpos[self._torso_bid]
             rel = np.array([cth * rel_w[0] + sth * rel_w[1],
                             -sth * rel_w[0] + cth * rel_w[1], rel_w[2]])
@@ -1117,6 +1153,14 @@ class BimoWalkerEnv(gym.Env):
         fall_h = (self.fall_height * float(self._cmd[3]) if self.ext_cmd
                   else self.fall_height)
         fell = (height < fall_h) or (up_z < self.fall_up_z)
+        if self.ext_cmd and self.recover_mix > 0:
+            # recovery episodes: no fall termination while down; the first
+            # achieved stand arms normal rules (pre-step flag gates, then
+            # update -- mirrors sim/mjx)
+            if not self._recovered:
+                fell = False
+                if (height > 0.85 * self._nominal_h) and (up_z > 0.9):
+                    self._recovered = True
         # -- 2 m dash: success only if, after crossing the line, the robot is
         # still upright dash_hold seconds later. A dive that crosses the line
         # and faceplants therefore never finishes -- it just falls.
@@ -1176,7 +1220,9 @@ class BimoWalkerEnv(gym.Env):
                             vy_body=vy_body,
                             height_err=abs(height - h_ref),
                             foot_err=float(lifted) * foot_err,
-                            lift_ok=lift_ok)
+                            foot_clear=float(lifted) * foot_clear,
+                            lift_ok=lift_ok,
+                            recovered=float(self._recovered))
             # resample AFTER the reward (which graded the command the policy
             # saw); the returned obs carries the new command
             if self._step_i >= self._cmd_next:
@@ -1204,8 +1250,11 @@ class BimoWalkerEnv(gym.Env):
             self._terrain_dirty = False
         cam = mujoco.MjvCamera()
         mujoco.mjv_defaultCamera(cam)
-        ground = self._ground_z(float(self.data.qpos[0]), 0.0)
-        cam.lookat[:] = [float(self.data.qpos[0]), 0.0, 0.14 + ground]
+        # track the torso in BOTH planar axes -- sidestep/turn maneuvers walk
+        # out of a forward-only frame (user feedback 2026-07-18)
+        x, y = float(self.data.qpos[0]), float(self.data.qpos[1])
+        ground = self._ground_z(x, y)
+        cam.lookat[:] = [x, y, 0.14 + ground]
         cam.distance, cam.azimuth, cam.elevation = 0.9, 135, -12
         self._renderer.update_scene(self.data, cam)
         return self._renderer.render()

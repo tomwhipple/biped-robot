@@ -79,6 +79,8 @@ def sync(state, cpu, gpu_env=None):
         cmd=jp.asarray(np.array(cpu._cmd)),
         traj=jp.asarray(np.array(cpu._traj)),
         traj_on=jp.asarray(1.0 if cpu._traj_on else 0.0),
+        recover_slot=jp.asarray(1.0 if cpu._recover_ep else 0.0),
+        recovered=jp.asarray(1.0 if cpu._recovered else 0.0),
     )
 
 
@@ -277,6 +279,65 @@ ok_e3 = run_block(
     dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
     envs=(cpu_d, gpu_d, step_d))
 
+# -- 2f. ext_cmd recovery-from-fallen arithmetic (contact-free) ----------------
+# Gates the recovery-primary reward + recovered-flag/termination gating that
+# recover_mix adds to ext mode (2026-07-18). Same airborne-only screening as
+# block 2b: fallen/heap contact manifolds are the documented divergence.
+EXT_R = dict(EXT)
+EXT_R.pop("cmd_fixed")
+EXT_R.update(recover_mix=1.0, cmd_dense=True)
+cpu_r = BimoWalkerEnv(xml_path=XML, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False, **EXT_R)
+gpu_r = BimoMJXEnv(xml_path=XML, domain_rand=False, **EXT_R)
+step_r = jax.jit(gpu_r.step)
+obs_c, _ = cpu_r.reset(seed=5)
+sr = gpu_r.reset(jax.random.PRNGKey(5))
+worst_rr = worst_ro = 0.0
+used_r = 0
+saw_down = saw_up = False
+for t in range(80):
+    if t % 20 == 0:
+        # mid-range joints + tilted torso at height: exercises the
+        # height/up_gate/standing branches of the recovery reward WITHOUT
+        # riding joint limits (the ragdoll clip parks joints exactly on
+        # their limit rows -- limit constraints are solver territory, the
+        # same divergence class as contacts, so this block avoids them)
+        ang = 0.3 + 0.5 * (t / 80.0) * np.pi
+        cpu_r.data.qpos[:] = cpu_r.model.qpos0
+        cpu_r.data.qpos[2] = 1.5
+        cpu_r.data.qpos[3:7] = [np.cos(ang / 2), 0.0, np.sin(ang / 2), 0.0]
+        cpu_r.data.qvel[:] = 0.0
+        _mj.mj_forward(cpu_r.model, cpu_r.data)
+    # alternate the gated phase: first half graded while "down" (recovery
+    # primary; the flag is re-forced each step because a hoisted torso
+    # trivially satisfies the stand test), second half with the flag set
+    cpu_r._recovered = (t >= 40)   # force the phase under test each step
+    pre_rec = cpu_r._recovered
+    a = (_SPLAY + 0.3 * np.sin(0.3 * t + np.arange(8))).astype(np.float32)
+    sr = sync(sr, cpu_r, gpu_r)
+    obs_c, r_c, term_c, trunc_c, info_c = cpu_r.step(a)
+    sr = step_r(sr, jp.asarray(a))
+    saw_down |= not pre_rec
+    saw_up |= pre_rec
+    n_lim = int(np.sum(np.asarray(cpu_r.data.efc_type[:cpu_r.data.nefc])
+                       == int(_mj.mjtConstraint.mjCNSTR_LIMIT_JOINT)))
+    if cpu_r.data.ncon != 0 or _mjx_ncon(sr) != 0 or n_lim != 0:
+        # contact-free AND limit-free gate: active joint-LIMIT rows are
+        # solver territory -- the same engine-divergence class as contact
+        # manifolds (an early ragdoll variant of this block rode its limits
+        # and diverged ~1.6% in gyro). Friction-loss rows are fine (always
+        # active, arithmetically identical -- block 1 passes over them).
+        continue
+    used_r += 1
+    worst_rr = max(worst_rr, abs(float(sr.reward) - r_c))
+    worst_ro = max(worst_ro, float(np.max(np.abs(np.asarray(sr.obs) - obs_c))))
+ok_e4 = used_r >= 40 and saw_down and saw_up and worst_rr < 1e-5 \
+    and worst_ro < 1e-5
+print(f"== 2f. ext_cmd recovery arithmetic (contact-free): "
+      f"{'PASS' if ok_e4 else 'FAIL'} ({used_r}/80 airborne, "
+      f"down+up phases={saw_down and saw_up}) ==")
+print(f"   worst |dreward| = {worst_rr:.2e}  worst |dobs| = {worst_ro:.2e}")
+
 # -- 3. gait-amplitude manifold statistics (informational, no gate) -----------
 print("== 3. gait-amplitude contact-manifold statistics (informational) ==")
 obs_c, _ = cpu.reset(seed=7)
@@ -301,6 +362,6 @@ print("   (mismatches = tilted/deep penetration where MJX's 1 mm-skin")
 print("    manifold pruning drops corners CPU keeps -- impact transients.")
 print("    Settled stance manifolds are identical. Referee: CPU evals.)")
 
-ok_all = ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3
+ok_all = ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3 and ok_e4
 print("\nPARITY:", "PASS" if ok_all else "FAIL")
 sys.exit(0 if ok_all else 1)

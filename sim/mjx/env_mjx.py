@@ -67,6 +67,9 @@ class State(NamedTuple):
     cmd_next: jax.Array       # ()  step index of the next command resample
     traj: jax.Array           # (3,) swing-foot circle draw: radius, omega, phase0
     traj_on: jax.Array        # ()  1.0 while the current command evolves c5/c6
+    recover_slot: jax.Array   # ()  1.0 = this env slot starts episodes fallen
+    recovered: jax.Array      # ()  0.0 while down (no fall termination); flips
+                              # to 1.0 at the first achieved stand
     servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
     lash: jax.Array           # ()  per-episode backlash (rad)
@@ -191,6 +194,15 @@ class BimoMJXEnv:
         traj_period: tuple = (1.5, 3.5),      # air-circle period draw (s)
         ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),  # command mix: stand,
         # crouch, balance, air-circle, pivot; remainder = walk (fwd/back/side)
+        lift_clear: float = 0.03,   # lifted-foot min clearance (m) above its
+        # standing sole height for the lift reward to pay (user 2026-07-18:
+        # "at least 3 cm off the ground" -- a 2 mm hover no longer counts)
+        recover_mix: float = 0.0,   # fraction of env slots whose episodes
+        # START from a settled ragdoll fall (recovery-from-fallen skill,
+        # user 2026-07-18). While down: getup-style recovery reward, command
+        # pinned to stand, NO fall termination; after the first achieved
+        # stand the episode continues under normal rules. Slots are fixed
+        # across auto-resets (brax cached-first-state pattern, like batch DR).
         # -- payload CG above torso center (m). 0.08 = the 2026-07-11 spec
         # (tower top plate then at 319 mm); the current stack (battery-bay
         # tower + imu_carrier) puts the camera CG at 0.0945. Default keeps
@@ -228,9 +240,12 @@ class BimoMJXEnv:
     ):
         if getup and ext_cmd:
             raise ValueError("getup and ext_cmd are separate objectives")
+        # recovery episodes rest the fallen robot on its CAD hulls -- both
+        # engines must collide meshes with the floor (same rule as getup)
         self.mj_model = _prep_model(
             xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
-            mesh_floor=getup, payload_cg_z=payload_cg_z)
+            mesh_floor=getup or (ext_cmd and recover_mix > 0),
+            payload_cg_z=payload_cg_z)
         if payload_mass > 0:
             self.mj_model.body_mass[self.mj_model.body("payload").id] = payload_mass
         self.model = mjx.put_model(self.mj_model)
@@ -310,6 +325,8 @@ class BimoMJXEnv:
         self.traj_radius = traj_radius
         self.traj_period = traj_period
         self.ext_mix = ext_mix
+        self.lift_clear = lift_clear
+        self.recover_mix = recover_mix
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
         self.getup = getup
@@ -332,8 +349,12 @@ class BimoMJXEnv:
             d0.geom_xpos[self._sole_gids[0]] - d0.xpos[self._torso_bid],
             d0.geom_xpos[self._sole_gids[1]] - d0.xpos[self._torso_bid]]),
             dtype=jp.float32)
+        # standing sole-center world height: lift clearance is measured
+        # against this (flat ground -- terrain is not in the ext curriculum)
+        self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
         self._metric_keys = self._METRIC_KEYS + (
-            ("height_err", "foot_err", "lift_ok", "vy_body")
+            ("height_err", "foot_err", "foot_clear", "lift_ok", "vy_body",
+             "recovered")
             if ext_cmd else ())
 
     # -- pieces ---------------------------------------------------------------
@@ -374,7 +395,7 @@ class BimoMJXEnv:
         """7-channel precision command draw. Mix (ext_mix): stand / crouch /
         one-leg balance / air-circle / pivot; remainder walks (15% backward,
         15% pure sidestep, 70% forward with the legacy 60%-turning draw).
-        30% of balance commands add a shallow single-leg crouch (0.8-0.95).
+        (Single-leg crouch dropped from the mix 2026-07-18, user call.)
         All draws unconditional -- fixed RNG shape for jit."""
         rs = jax.random.split(rng, 13)
         u = jax.random.uniform(rs[0])
@@ -405,8 +426,6 @@ class BimoMJXEnv:
             jax.random.uniform(rs[8]) < 0.6,
             jax.random.uniform(rs[9], minval=-self.cmd_w_range,
                                maxval=self.cmd_w_range), 0.0)
-        bal_dip = jax.random.uniform(rs[10], minval=0.8, maxval=0.95)
-        bal_crouch = jax.random.uniform(rs[11]) < 0.3
         wk_back = uw < 0.15
         wk_side = (uw >= 0.15) & (uw < 0.30)
         vx = jp.where(m_walk,
@@ -416,8 +435,7 @@ class BimoMJXEnv:
         wz = (jp.where(m_walk & ~(wk_back | wk_side), wz_f, 0.0)
               + jp.where(m_piv, w_piv, 0.0))
         lifted = m_bal | m_traj
-        ch = jp.where(m_crouch, crouch,
-                      jp.where(m_bal & bal_crouch, bal_dip, 1.0))
+        ch = jp.where(m_crouch, crouch, 1.0)
         lift = jp.where(lifted, side, 0.0)
         cmd = jp.stack([vx, vy, wz, ch, lift,
                         jp.zeros(()), jp.zeros(())]).astype(jp.float32)
@@ -581,8 +599,30 @@ class BimoMJXEnv:
     # -- api -------------------------------------------------------------------
     def reset(self, rng: jax.Array) -> State:
         rng, r_q, r_v, r_ep, r_cmd, r_obs = jax.random.split(rng, 6)
+        recover_slot = jp.zeros(())
         if self.getup:
             data = self._fallen_data(r_q)
+        elif self.ext_cmd and self.recover_mix > 0:
+            # recovery slot draw: this env's episodes start from a settled
+            # ragdoll fall (slot membership is FIXED across the trainer's
+            # cached-first-state auto-resets -- the batch carries the mix)
+            rng, r_mix = jax.random.split(rng)
+            recover_slot = (jax.random.uniform(r_mix)
+                            < self.recover_mix).astype(jp.float32)
+            qpos = self._qpos0.at[_JQ0:_JQ1].add(
+                jax.random.uniform(r_q, (8,), minval=-0.03, maxval=0.03))
+            qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
+                                      minval=-0.02, maxval=0.02)
+            d_up = mjx.make_data(self.model)
+            d_up = d_up.replace(qpos=qpos, qvel=qvel,
+                                ctrl=jp.zeros(self.mj_model.nu) + self._default)
+            d_up = mjx.forward(self.model, d_up)
+            d_dn = self._fallen_data(jax.random.fold_in(r_q, 1))
+
+            def pick(a, b):
+                return jp.where(recover_slot > 0, a, b)
+
+            data = jax.tree_util.tree_map(pick, d_dn, d_up)
         else:
             qpos = self._qpos0.at[_JQ0:_JQ1].add(
                 jax.random.uniform(r_q, (8,), minval=-0.03, maxval=0.03))
@@ -596,6 +636,15 @@ class BimoMJXEnv:
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i)
         if self.ext_cmd:
+            # recovery episodes: command pinned to STAND for the whole
+            # episode (get up, then hold; locomotion-after-recovery is a
+            # later curriculum stage)
+            stand = jp.zeros(7).at[3].set(1.0).astype(jp.float32)
+            cmd = jp.where(recover_slot > 0, stand, cmd)
+            cmd_next = jp.where(recover_slot > 0,
+                                jp.asarray(10 ** 9, dtype=jp.int32), cmd_next)
+            traj_on = jp.where(recover_slot > 0, 0.0, traj_on)
+        if self.ext_cmd:
             rng, r_traj = jax.random.split(rng)
             traj = self._draw_traj(r_traj)
         else:
@@ -608,6 +657,8 @@ class BimoMJXEnv:
                      last_target=self._default.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2), cmd=cmd,
                      cmd_next=cmd_next, traj=traj, traj_on=traj_on,
+                     recover_slot=recover_slot,
+                     recovered=1.0 - recover_slot,
                      servo=servo, lat_ms=lat_ms, lash=lash,
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
@@ -623,6 +674,13 @@ class BimoMJXEnv:
         if self.ext_cmd:
             rng, r_traj = jax.random.split(rng)
             traj = self._draw_traj(r_traj)
+            # recovery slots keep their fallen cached-first-state: re-pin the
+            # stand command and reset the recovered flag each episode
+            stand = jp.zeros(7).at[3].set(1.0).astype(jp.float32)
+            cmd = jp.where(first.recover_slot > 0, stand, cmd)
+            cmd_next = jp.where(first.recover_slot > 0,
+                                jp.asarray(10 ** 9, dtype=jp.int32), cmd_next)
+            traj_on = jp.where(first.recover_slot > 0, 0.0, traj_on)
         else:
             traj = jp.zeros(3)
         prev_action = jp.zeros(8, dtype=jp.float32)
@@ -634,7 +692,8 @@ class BimoMJXEnv:
             prev_action=prev_action,
             last_target=self._default.astype(jp.float32), step_i=step_i,
             air_time=jp.zeros(2), cmd=cmd, cmd_next=cmd_next, traj=traj,
-            traj_on=traj_on, servo=servo,
+            traj_on=traj_on, recover_slot=first.recover_slot,
+            recovered=1.0 - first.recover_slot, servo=servo,
             lat_ms=lat_ms, lash=lash, imu_R=imu_R, imu_bias=imu_bias,
             metrics=metrics)
 
@@ -762,6 +821,19 @@ class BimoMJXEnv:
             h_term = self.w_track_h * h_gate * jp.exp(
                 -(((height - cmd_h * self._nominal_h) / 0.04) ** 2))
             primary = v_term + w_term + h_term
+            if self.recover_mix > 0:
+                # while DOWN in a recovery episode: getup-style shaped
+                # recovery is the primary (height progress + height-gated
+                # uprightness + standing bonus; arithmetic mirrors getup
+                # mode) -- tracking terms resume once recovered
+                still = jp.exp(-((planar / 0.2) ** 2))
+                up_gate = jp.clip((height - 0.12) / 0.08, 0.0, 1.0)
+                rec_primary = (1.0 * jp.clip(height / self._nominal_h,
+                                             0.0, 1.0)
+                               + 0.8 * 0.5 * (up_z + 1.0) * up_gate
+                               + 1.0 * standing * (0.5 + 0.5 * still))
+                primary = jp.where(state.recovered < 0.5, rec_primary,
+                                   primary)
         else:
             v_kernel = self.w_track_v * jp.exp(-((vx_body - cmd_v) / 0.5) ** 2)
             if self.cmd_dense:
@@ -789,6 +861,7 @@ class BimoMJXEnv:
         con = self._foot_contacts(data)           # (2,) bool
         lifted = jp.zeros((), dtype=bool)
         foot_err = jp.zeros(())
+        foot_clear = jp.zeros(())
         lift_ok = jp.zeros(())
         if self.ext_cmd:
             # one-leg modes: lift = -1 (left) / +1 (right). Reward the correct
@@ -800,10 +873,14 @@ class BimoMJXEnv:
             is_r = cmd_lift > 0.0
             con_swing = jp.where(is_r, con[1], con[0])
             con_stance = jp.where(is_r, con[0], con[1])
-            lift_ok = (lifted & ~con_swing & con_stance).astype(jp.float32)
-            reward += self.w_lift * lift_ok
             sole_w = jp.where(is_r, data.geom_xpos[self._sole_gids[1]],
                               data.geom_xpos[self._sole_gids[0]])
+            # lift pays only with real clearance: swing sole >= lift_clear
+            # above its standing height (a 2 mm hover is not a lift)
+            foot_clear = sole_w[2] - self._sole_z0
+            lift_ok = (lifted & ~con_swing & con_stance
+                       & (foot_clear >= self.lift_clear)).astype(jp.float32)
+            reward += self.w_lift * lift_ok
             rel_w = sole_w - data.xpos[self._torso_bid]
             rel = jp.stack([cth * rel_w[0] + sth * rel_w[1],
                             -sth * rel_w[0] + cth * rel_w[1],
@@ -849,6 +926,13 @@ class BimoMJXEnv:
         fall_h = (self.fall_height * state.cmd[3] if self.ext_cmd
                   else self.fall_height)
         fell = (height < fall_h) | (up_z < self.fall_up_z)
+        recovered = state.recovered
+        if self.ext_cmd and self.recover_mix > 0:
+            # while down, being fallen is the TASK, not the failure; the
+            # first achieved stand arms normal fall rules for the rest of
+            # the episode (graded on the pre-step flag, updated after)
+            fell = fell & (state.recovered > 0.5)
+            recovered = jp.maximum(state.recovered, standing)
         if self.getup:
             done_flag = jp.zeros(())          # being down IS the task
         else:
@@ -885,14 +969,17 @@ class BimoMJXEnv:
             metrics.update(
                 height_err=jp.abs(height - h_ref),
                 foot_err=lifted.astype(jp.float32) * foot_err,
+                foot_clear=lifted.astype(jp.float32) * foot_clear,
                 lift_ok=lift_ok,
-                vy_body=vy_body)
+                vy_body=vy_body,
+                recovered=recovered)
         return State(data=data, obs=obs, reward=reward,
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
                      last_target=target, step_i=step_i, air_time=air_time,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,
-                     traj_on=traj_on, servo=state.servo,
+                     traj_on=traj_on, recover_slot=state.recover_slot,
+                     recovered=recovered, servo=state.servo,
                      lat_ms=state.lat_ms, lash=state.lash, imu_R=state.imu_R,
                      imu_bias=state.imu_bias, metrics=metrics)
 

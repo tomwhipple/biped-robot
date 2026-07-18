@@ -75,9 +75,10 @@ def load_policy(run_dir, obs_size, act_size=8):
     return act
 
 
-def make_env(cfg, episode_seconds, nominal, xml):
+def make_env(cfg, episode_seconds, nominal, xml, extra=None):
     """Eval env: ext_cmd precision plant mirroring config.json construction,
-    but pinned to the hardware-claim conditions (or --nominal clean plant)."""
+    but pinned to the hardware-claim conditions (or --nominal clean plant).
+    extra: per-scenario env overrides (e.g. recover_mix=1.0)."""
     kw = {k: v for k, v in cfg.items() if k in _ENV_PARAMS}
     kw.update(
         xml_path=xml, command_mode=True, ext_cmd=True,
@@ -85,6 +86,12 @@ def make_env(cfg, episode_seconds, nominal, xml):
         payload_mass=0.154, payload_max=None,
         episode_seconds=episode_seconds, render_mode="rgb_array",
     )
+    # eval-time default: recovery machinery off unless a scenario asks;
+    # training-time recover_mix in the config must not leak into e.g.
+    # the balance scenarios (fallen resets would break every script)
+    kw["recover_mix"] = 0.0
+    if extra:
+        kw.update(extra)
     if nominal:
         kw.update(domain_rand=False, latency_ms=0.0, latency_ms_max=None,
                   latency_jitter_ms=0.0, backlash_deg=0.0, backlash_deg_max=None)
@@ -160,7 +167,9 @@ class Driver:
             wob2=float(d.qvel[3] ** 2 + d.qvel[4] ** 2),
             watts=float(info["power_w"]), height=float(info["height"]),
             up_z=float(info["up_z"]), con_l=cl, con_r=cr,
-            foot_err=float(info["foot_err"])))
+            foot_err=float(info["foot_err"]),
+            foot_clear=float(info.get("foot_clear", 0.0)),
+            recovered=float(info.get("recovered", 1.0))))
         if self.record and len(self.rows) % 3 == 0:
             self.frames.append(env.render())
         if term:
@@ -259,14 +268,19 @@ def scen_balance(side):
         lift_win = _win(rows, 1.0, 11.0)
         judge_win = _win(rows, 2.0, 11.0)           # skip first 1 s of lift
         contact = _frac(judge_win, _swing_key(side))
+        # user criterion (2026-07-18): the lifted foot must be >= 3 cm off
+        # the ground -- grade the fraction of the window with real clearance
+        clear = (np.mean([r["foot_clear"] >= 0.03 for r in judge_win])
+                 if judge_win else float("nan"))
         drift = _drift_rms(lift_win)
         wob = _wob(lift_win)
         watts = _mean(lift_win, "watts")
-        success = (not fell) and contact < 0.05
+        success = ((not fell) and contact < 0.05
+                   and not math.isnan(clear) and clear >= 0.90)
         return dict(success=success,
-                    metrics=dict(lifted_contact=contact, drift_rms=drift,
-                                 wobble=wob, watts=watts),
-                    headline=f"contact {contact*100:.1f}%")
+                    metrics=dict(lifted_contact=contact, clear_frac=clear,
+                                 drift_rms=drift, wobble=wob, watts=watts),
+                    headline=f"clear {clear*100:.0f}%")
     return build, evaluate
 
 
@@ -293,10 +307,13 @@ def scen_circle_air(side):
         circ = _win(rows, 2.5, 7.5)
         touchdown = _frac(circ, _swing_key(side))
         foot_err = _mean(circ, "foot_err")
-        success = (not fell) and touchdown < 0.10
+        clear = (np.mean([r["foot_clear"] >= 0.03 for r in circ])
+                 if circ else float("nan"))
+        success = ((not fell) and touchdown < 0.10
+                   and not math.isnan(clear) and clear >= 0.80)
         return dict(success=success,
                     metrics=dict(foot_err=foot_err, touchdown_frac=touchdown,
-                                 lifted_contact=touchdown),
+                                 lifted_contact=touchdown, clear_frac=clear),
                     headline=f"trkErr {foot_err*1000:.0f}mm")
     return build, evaluate
 
@@ -524,6 +541,32 @@ def scen_crouch_leg(side):
     return build, evaluate
 
 
+def scen_recover_fallen():
+    """Start from a settled ragdoll fall (env recover_mix=1.0); command is
+    stand. Success = first stand within 6 s AND still tall at the end."""
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        t_up = next((r["t"] for r in rows if r["recovered"] > 0.5), None)
+        hold = _win(rows, 9.0, 12.0)
+        held = _mean(hold, "height") if hold else float("nan")
+        success = bool((not fell) and t_up is not None and t_up <= 6.0
+                       and hold and held >= 0.85 * N)
+        return dict(success=success,
+                    metrics=dict(
+                        time_to_stand=(t_up if t_up is not None
+                                       else float("nan")),
+                        end_height=held),
+                    headline=(f"up in {t_up:.1f}s" if t_up is not None
+                              else "no-stand"))
+    return build, evaluate
+
+
 def scen_stand_10s():
     def build():
         ev = {}
@@ -548,38 +591,43 @@ def scen_stand_10s():
 
 # name -> (episode_seconds, factory, is_locomotion)
 def _registry():
+    # (single-leg crouch scenarios removed 2026-07-18, user call;
+    # scen_crouch_leg kept in source for reference only)
     reg = {}
     for s in ("L", "R"):
         reg[f"balance_{s}"] = (12.0, scen_balance(s), False)
         reg[f"circle_air_{s}"] = (12.0, scen_circle_air(s), False)
         reg[f"sidestep_{s}"] = (12.0, scen_sidestep(s), True)
-        reg[f"crouch_leg_{s}"] = (10.0, scen_crouch_leg(s), False)
     reg["line_1m"] = (14.0, scen_line_1m(), True)
     reg["backward_1m"] = (14.0, scen_backward_1m(), True)
     reg["square_return"] = (45.0, scen_square_return(), True)
     reg["circle_return"] = (16.0, scen_circle_return(), True)
     reg["crouch_hold"] = (10.0, scen_crouch_hold(), False)
+    reg["recover_fallen"] = (12.0, scen_recover_fallen(), False)
     reg["stand_10s"] = (11.0, scen_stand_10s(), False)
     return reg
 
 
+# per-scenario env overrides (env_cache keys on this too)
+ENV_EXTRA = {"recover_fallen": dict(recover_mix=1.0)}
+
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
          "square_return", "circle_return", "crouch_hold",
-         "crouch_leg_L", "crouch_leg_R", "stand_10s"]
+         "recover_fallen", "stand_10s"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
 HEADLINE = {
-    "balance": ("lifted_contact", lambda v: f"contact {v*100:.1f}%"),
+    "balance": ("clear_frac", lambda v: f"clear {v*100:.0f}%"),
     "circle_air": ("foot_err", lambda v: f"trkErr {v*1000:.0f}mm"),
+    "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "line_1m": ("time_to_1m", lambda v: f"t={v:.1f}s"),
     "backward_1m": ("time", lambda v: f"t={v:.1f}s"),
     "sidestep": ("time", lambda v: f"t={v:.1f}s"),
     "square_return": ("return_err", lambda v: f"ret {v*100:.0f}cm"),
     "circle_return": ("return_err", lambda v: f"ret {v*100:.0f}cm"),
     "crouch_hold": ("height_err", lambda v: f"hErr {v*1000:.0f}mm"),
-    "crouch_leg": ("lifted_contact", lambda v: f"contact {v*100:.1f}%"),
     "stand_10s": ("drift", lambda v: f"drift {v*100:.1f}cm"),
 }
 
@@ -647,13 +695,15 @@ def main():
         if unknown:
             print(f"warning: unknown scenarios ignored: {unknown}", file=sys.stderr)
 
-    # one env per distinct episode length (payload recompiles the model)
+    # one env per distinct (episode length, scenario override) pair
     env_cache = {}
 
-    def get_env(secs):
-        if secs not in env_cache:
-            env_cache[secs] = make_env(cfg, secs, args.nominal, xml)
-        return env_cache[secs]
+    def get_env(secs, name=""):
+        key = (secs, name if name in ENV_EXTRA else "")
+        if key not in env_cache:
+            env_cache[key] = make_env(cfg, secs, args.nominal, xml,
+                                      extra=ENV_EXTRA.get(key[1]))
+        return env_cache[key]
 
     obs_size = get_env(12.0).observation_space.shape[0]
     mass = float(get_env(12.0).model.body_mass.sum())
@@ -675,7 +725,7 @@ def main():
 
     for name in names:
         secs, factory, is_loco = reg[name]
-        env = get_env(secs)
+        env = get_env(secs, name)
         results = [run_one(env, act, factory, seed=100 * i + 7,
                            record=(args.render and i == 0), N=N, mass=mass)
                    for i in range(args.episodes)]

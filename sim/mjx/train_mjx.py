@@ -189,6 +189,10 @@ def main():
             # dense directional progress: without it precision_v1 converged
             # to a 0-falls/0-motion standing optimum (kernels pay standers)
             cmd_dense=True,
+            # user feedback 2026-07-18: lifted foot must clear 3 cm (env
+            # default lift_clear=0.03 applies); 15% of env slots practice
+            # recovery-from-fallen; single-leg crouch removed from the mix
+            recover_mix=0.15,
         )
     if args.xml:
         env_kw["xml_path"] = args.xml

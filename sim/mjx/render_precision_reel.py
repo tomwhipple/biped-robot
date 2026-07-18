@@ -42,8 +42,7 @@ TITLES = {
     "square_return": "Walk a 1 m square, return to start",
     "circle_return": "Walk a circle, return to start",
     "crouch_hold": "Crouch to 70% height + recover",
-    "crouch_leg_L": "Single-leg crouch (lift LEFT)",
-    "crouch_leg_R": "Single-leg crouch (lift RIGHT)",
+    "recover_fallen": "Recover from a fall + stand up",
     "stand_10s": "Stand still - 10 s",
 }
 
@@ -112,10 +111,12 @@ def main():
 
     env_cache = {}
 
-    def get_env(secs):
-        if secs not in env_cache:
-            env_cache[secs] = ep.make_env(cfg, secs, args.nominal, xml)
-        return env_cache[secs]
+    def get_env(secs, name=""):
+        key = (secs, name if name in ep.ENV_EXTRA else "")
+        if key not in env_cache:
+            env_cache[key] = ep.make_env(cfg, secs, args.nominal, xml,
+                                         extra=ep.ENV_EXTRA.get(key[1]))
+        return env_cache[key]
 
     obs_size = get_env(12.0).observation_space.shape[0]
     mass = float(get_env(12.0).model.body_mass.sum())
@@ -133,7 +134,7 @@ def main():
     passes = 0
     for k, name in enumerate(names):
         secs, factory, _ = reg[name]
-        env = get_env(secs)
+        env = get_env(secs, name)
         # probe for a passing seed (no rendering: cheap), fallback non-fall
         chosen, fallback = None, None
         for i in range(args.seeds):
