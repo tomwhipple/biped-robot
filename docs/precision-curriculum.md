@@ -13,13 +13,20 @@ and GPU-scale command-conditioning (mjx_cmd_v1) is the proven recipe.
 
 | # | skill | command encoding | eval scenario (eval_precision.py) | success |
 |---|---|---|---|---|
-| 1 | balance on one leg ≥10 s (each) | lift = −1 (L) / +1 (R), vels 0 | `balance_L/R` | no fall, lifted-foot contact <5% over 10 s |
-| 2 | circles in the air with one leg | lift ±1 + foot (dx,dz) driven on a circle | `circle_air_L/R` | no fall, <10% touchdown while circling, foot-tracking RMS |
+| 1 | balance on one leg ≥10 s (each) | lift = −1 (L) / +1 (R), vels 0 | `balance_L/R` | no fall, contact <5%, **≥3 cm clearance ≥90% of the window** (2026-07-18) |
+| 2 | circles in the air with one leg | lift ±1 + foot (dx,dz) driven on a circle | `circle_air_L/R` | no fall, <10% touchdown, clearance ≥80%, foot-tracking RMS |
 | 3 | walk a straight 1 m line | vx 0.4, stand at x≥1 | `line_1m` | ≤8 s, \|y\|<0.15 at the line, stops within 0.30 m |
-| 4 | circle/square, return to start | closed-loop waypoints (square) / constant (vx,wz) (circle) | `square_return`, `circle_return` | return error <0.25 m / <0.35 m |
+| 4 | circle/square, return to start | closed-loop waypoints (square) / constant (vx,wz) (circle) | `square_return`, `circle_return` | return error <0.25 m / <0.35 m (+ real ≥0.3 m excursion) |
 | 5 | side-step 0.5 m | vy ±0.2 | `sidestep_L/R` | ≥0.45 m lateral in 6 s, \|x\| drift <0.20 |
 | 6 | walk backwards 1 m | vx −0.3 | `backward_1m` | reaches −1 m, \|y\|<0.20, settles |
-| 7 | crouch (both legs / each leg) | crouch channel 0.6–1.0 (× nominal height); + lift for one-leg | `crouch_hold`, `crouch_leg_L/R` | height within 3.5 cm of target, no fall |
+| 7 | crouch (both legs) | crouch channel 0.6–1.0 (× nominal height) | `crouch_hold` | height within 3.5 cm of target, no fall. *(Single-leg crouch removed 2026-07-18, user call.)* |
+| 8 | **recover from a fall** (added 2026-07-18) | 15% of training episodes start from a settled ragdoll; recovery reward until first stand, then normal rules; command = stand | `recover_fallen` | first stand ≤6 s, still tall at episode end |
+
+**Pass/fail vs continuous:** both. Pass/fail is a threshold for the
+at-a-glance table; every scenario also records continuous metrics per seed
+(endpoint error, tracking error, clearance %, drift RMS, time-to-target,
+time-to-stand) aggregated mean+worst in `scorecard.json`, and the training
+signal itself is purely continuous (tracking kernels + dense progress).
 
 ## Command interface (`ext_cmd=True`, both engines)
 

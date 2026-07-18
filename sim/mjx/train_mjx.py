@@ -146,6 +146,10 @@ def main():
                    help="plant override (default: v2; precision default: "
                         "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
     p.add_argument("--fall-cost", type=float, default=None)
+    p.add_argument("--w-pitch-rate", type=float, default=None,
+                   help="override torso roll/pitch-rate penalty (smoothness)")
+    p.add_argument("--w-action-rate", type=float, default=None)
+    p.add_argument("--w-power", type=float, default=None)
     p.add_argument("--init-from", default=None,
                    help="warm-start from sim/runs/<name>/params.pkl (same "
                         "objective only -- objective changes need from-"
@@ -198,6 +202,12 @@ def main():
         env_kw["xml_path"] = args.xml
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
+    if args.w_pitch_rate is not None:
+        env_kw["w_pitch_rate"] = args.w_pitch_rate
+    if args.w_action_rate is not None:
+        env_kw["w_action_rate"] = args.w_action_rate
+    if args.w_power is not None:
+        env_kw["w_power"] = args.w_power
     if args.getup:
         # recovery objective: gait shaping off (crawling/rolling is fine),
         # recovery terms carry the gradient; shorter episodes; same hardening
