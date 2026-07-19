@@ -67,6 +67,8 @@ class State(NamedTuple):
     cmd_next: jax.Array       # ()  step index of the next command resample
     traj: jax.Array           # (3,) swing-foot circle draw: radius, omega, phase0
     traj_on: jax.Array        # ()  1.0 while the current command evolves c5/c6
+    last_air: jax.Array       # (2,) last completed swing duration per foot
+                              # (gait-symmetry penalty compares L vs R)
     recover_slot: jax.Array   # ()  1.0 = this env slot starts episodes fallen
     recovered: jax.Array      # ()  0.0 while down (no fall termination); flips
                               # to 1.0 at the first achieved stand
@@ -189,14 +191,26 @@ class BimoMJXEnv:
         w_track_h: float = 0.0,               # height-tracking kernel weight
         w_lift: float = 0.0,                  # correct one-foot contact pattern
         w_track_foot: float = 0.0,            # swing-foot target kernel weight
-        foot_sigma: float = 0.03,             # foot kernel width (m)
+        foot_sigma: float = 0.06,             # foot kernel width (m). Was
+        # 0.03: at precision_v4's ~15 cm foot error a 3 cm kernel pays ~0
+        # gradient -- the 2026-07-13 kernel-width lesson, third occurrence.
+        # Old runs' config.json recorded their trained value.
         traj_radius: tuple = (0.02, 0.05),    # air-circle radius draw (m)
         traj_period: tuple = (1.5, 3.5),      # air-circle period draw (s)
         ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),  # command mix: stand,
         # crouch, balance, air-circle, pivot; remainder = walk (fwd/back/side)
+        w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
+        # |this swing duration - the OTHER foot's last swing| (user
+        # 2026-07-19: "work on the symmetry of motion in walking gaits";
+        # mechanical root cause is the identical-parts yaw bias, this is
+        # the software counterweight)
         lift_clear: float = 0.03,   # lifted-foot min clearance (m) above its
         # standing sole height for the lift reward to pay (user 2026-07-18:
         # "at least 3 cm off the ground" -- a 2 mm hover no longer counts)
+        recover_start_mix: tuple = (1.0, 0.0, 0.0),   # recovery-slot start
+        # states: (ragdoll, upright kneel, feet-loaded squat) -- the getup
+        # reverse curriculum, applied to ext recovery slots (2026-07-19).
+        # The CPU referee always grades ragdoll starts (the CLAIM).
         recover_mix: float = 0.0,   # fraction of env slots whose episodes
         # START from a settled ragdoll fall (recovery-from-fallen skill,
         # user 2026-07-18). While down: getup-style recovery reward, command
@@ -325,8 +339,12 @@ class BimoMJXEnv:
         self.traj_radius = traj_radius
         self.traj_period = traj_period
         self.ext_mix = ext_mix
+        self.w_symmetry = w_symmetry
         self.lift_clear = lift_clear
         self.recover_mix = recover_mix
+        if ext_cmd:
+            # ext recovery slots reuse _fallen_data's start-state machinery
+            self.getup_start_mix = recover_start_mix
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
         self.getup = getup
@@ -655,7 +673,8 @@ class BimoMJXEnv:
         return State(data=data, obs=obs, reward=jp.zeros(()),
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
                      last_target=self._default.astype(jp.float32),
-                     step_i=step_i, air_time=jp.zeros(2), cmd=cmd,
+                     step_i=step_i, air_time=jp.zeros(2),
+                     last_air=jp.zeros(2), cmd=cmd,
                      cmd_next=cmd_next, traj=traj, traj_on=traj_on,
                      recover_slot=recover_slot,
                      recovered=1.0 - recover_slot,
@@ -691,7 +710,8 @@ class BimoMJXEnv:
             obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
             prev_action=prev_action,
             last_target=self._default.astype(jp.float32), step_i=step_i,
-            air_time=jp.zeros(2), cmd=cmd, cmd_next=cmd_next, traj=traj,
+            air_time=jp.zeros(2), last_air=jp.zeros(2),
+            cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
             recovered=1.0 - first.recover_slot, servo=servo,
             lat_ms=lat_ms, lash=lash, imu_R=imu_R, imu_bias=imu_bias,
@@ -914,6 +934,16 @@ class BimoMJXEnv:
                 jp.where(landed,
                          jp.minimum(state.air_time, self.air_time_target)
                          - 0.5 * self.air_time_target, 0.0)), 0.0)
+        # gait symmetry: on touchdown, penalize the swing-duration mismatch
+        # vs the OTHER foot's last completed swing (locomotion commands only)
+        last_air = state.last_air
+        if self.w_symmetry:
+            other_last = jp.stack([state.last_air[1], state.last_air[0]])
+            sym_valid = landed & (other_last > 0.0)
+            reward -= jp.where(cmd_moving, self.w_symmetry * jp.sum(
+                jp.where(sym_valid,
+                         jp.abs(state.air_time - other_last), 0.0)), 0.0)
+        last_air = jp.where(landed, state.air_time, state.last_air)
         air_time = jp.where(con, 0.0, state.air_time + self.control_dt)
         single = con[0] != con[1]
         double = con[0] & con[1]
@@ -990,6 +1020,7 @@ class BimoMJXEnv:
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
                      last_target=target, step_i=step_i, air_time=air_time,
+                     last_air=last_air,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,
                      traj_on=traj_on, recover_slot=state.recover_slot,
                      recovered=recovered, servo=state.servo,

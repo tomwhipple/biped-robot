@@ -213,10 +213,13 @@ class BimoWalkerEnv(gym.Env):
         w_track_h: float = 0.0,        # height-tracking kernel weight
         w_lift: float = 0.0,           # correct one-foot contact pattern
         w_track_foot: float = 0.0,     # swing-foot target kernel weight
-        foot_sigma: float = 0.03,
+        foot_sigma: float = 0.06,      # widened 0.03 -> 0.06 with sim/mjx
+        # (a 3 cm kernel pays ~0 gradient at v4's ~15 cm foot error)
         traj_radius: tuple = (0.02, 0.05),
         traj_period: tuple = (1.5, 3.5),
         ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),
+        w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
+        # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         lift_clear: float = 0.03,      # lifted-foot min clearance (m); the
         # lift reward pays only >= this above the standing sole height
         recover_mix: float = 0.0,      # fraction of episodes starting from a
@@ -335,6 +338,8 @@ class BimoWalkerEnv(gym.Env):
         self.traj_radius = traj_radius
         self.traj_period = traj_period
         self.ext_mix = ext_mix
+        self.w_symmetry = w_symmetry
+        self._last_air = np.zeros(2)
         self.lift_clear = lift_clear
         self.recover_mix = recover_mix
         self._recover_ep = False       # this episode started fallen
@@ -831,6 +836,7 @@ class BimoWalkerEnv(gym.Env):
                 self.backlash_deg, self.backlash_deg_max)))
         self._last_target = self._default.copy()
         self._air_time[:] = 0.0
+        self._last_air[:] = 0.0
         self._servo_tau[:] = 0.0
         self._cross_t = None    # dash: time the torso first crossed dash_distance
         self._stand_t = None    # dash_stop: start of the current standstill
@@ -1116,6 +1122,12 @@ class BimoWalkerEnv(gym.Env):
                         reward += self.w_feet_air * (
                             min(self._air_time[f], self.air_time_target)
                             - 0.5 * self.air_time_target)
+                        # gait symmetry: mismatch vs the OTHER foot's last
+                        # completed swing (mirrors sim/mjx)
+                        if self.w_symmetry and self._last_air[1 - f] > 0.0:
+                            reward -= self.w_symmetry * abs(
+                                self._air_time[f] - self._last_air[1 - f])
+                    self._last_air[f] = self._air_time[f]
                 self._air_time[f] = 0.0
             else:
                 self._air_time[f] += self.control_dt
@@ -1229,6 +1241,12 @@ class BimoWalkerEnv(gym.Env):
                             height_err=abs(height - h_ref),
                             foot_err=float(lifted) * foot_err,
                             foot_clear=float(lifted) * foot_clear,
+                            # achieved swing-foot offset from the hang pose
+                            # (comparable to commanded c5/c6; referee traces
+                            # the actual circle from these)
+                            foot_dx=float(rel[0] - base[0]),
+                            foot_dz=float(rel[2] - base[2]
+                                          - self.lift_height),
                             lift_ok=lift_ok,
                             recovered=float(self._recovered))
             # resample AFTER the reward (which graded the command the policy

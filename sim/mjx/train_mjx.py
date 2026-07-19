@@ -197,6 +197,11 @@ def main():
             # default lift_clear=0.03 applies); 15% of env slots practice
             # recovery-from-fallen; single-leg crouch removed from the mix
             recover_mix=0.15,
+            # user feedback 2026-07-19: gait-symmetry pressure + reverse
+            # curriculum for the recovery slots (ragdoll/kneel/squat starts;
+            # the referee still grades pure ragdoll)
+            w_symmetry=1.0,
+            recover_start_mix=(0.4, 0.3, 0.3),
         )
     if args.xml:
         env_kw["xml_path"] = args.xml

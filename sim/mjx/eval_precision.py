@@ -169,6 +169,8 @@ class Driver:
             up_z=float(info["up_z"]), con_l=cl, con_r=cr,
             foot_err=float(info["foot_err"]),
             foot_clear=float(info.get("foot_clear", 0.0)),
+            foot_dx=float(info.get("foot_dx", float("nan"))),
+            foot_dz=float(info.get("foot_dz", float("nan"))),
             recovered=float(info.get("recovered", 1.0))))
         if self.record and len(self.rows) % 3 == 0:
             self.frames.append(env.render())
@@ -275,8 +277,11 @@ def scen_balance(side):
         drift = _drift_rms(lift_win)
         wob = _wob(lift_win)
         watts = _mean(lift_win, "watts")
+        # sensible minimums (user 2026-07-19): balancing also means STAYING
+        # put -- a hop-around that keeps the foot up is not a balance
         success = ((not fell) and contact < 0.05
-                   and not math.isnan(clear) and clear >= 0.90)
+                   and not math.isnan(clear) and clear >= 0.90
+                   and not math.isnan(drift) and drift < 0.10)
         return dict(success=success,
                     metrics=dict(lifted_contact=contact, clear_frac=clear,
                                  drift_rms=drift, wobble=wob, watts=watts),
@@ -309,12 +314,32 @@ def scen_circle_air(side):
         foot_err = _mean(circ, "foot_err")
         clear = (np.mean([r["foot_clear"] >= 0.03 for r in circ])
                  if circ else float("nan"))
+        # sensible minimums (user 2026-07-19): the foot must actually TRACE
+        # a circle -- >= 3 cm mean radius around its own centroid AND at
+        # least one full sweep. (precision_v4 'passed' with 12-19 cm
+        # tracking error: lifted and hovering, barely circling.)
+        r_traced = float("nan")
+        sweep = 0.0
+        pts = [(r["foot_dx"], r["foot_dz"]) for r in circ
+               if not math.isnan(r["foot_dx"])]
+        if len(pts) >= 10:
+            p = np.asarray(pts)
+            c = p.mean(axis=0)
+            d = p - c
+            r_traced = float(np.hypot(d[:, 0], d[:, 1]).mean())
+            ang = np.unwrap(np.arctan2(d[:, 1], d[:, 0]))
+            sweep = float(abs(ang[-1] - ang[0]))
         success = ((not fell) and touchdown < 0.10
-                   and not math.isnan(clear) and clear >= 0.80)
+                   and not math.isnan(clear) and clear >= 0.80
+                   and not math.isnan(r_traced) and r_traced >= 0.03
+                   and sweep >= 2 * math.pi)
         return dict(success=success,
                     metrics=dict(foot_err=foot_err, touchdown_frac=touchdown,
-                                 lifted_contact=touchdown, clear_frac=clear),
-                    headline=f"trkErr {foot_err*1000:.0f}mm")
+                                 lifted_contact=touchdown, clear_frac=clear,
+                                 traced_radius=r_traced,
+                                 sweep_turns=sweep / (2 * math.pi)),
+                    headline=f"r={r_traced*100:.1f}cm" if not math.isnan(
+                        r_traced) else "n/a")
     return build, evaluate
 
 
@@ -620,7 +645,7 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
 # from the across-seed MEAN of that metric
 HEADLINE = {
     "balance": ("clear_frac", lambda v: f"clear {v*100:.0f}%"),
-    "circle_air": ("foot_err", lambda v: f"trkErr {v*1000:.0f}mm"),
+    "circle_air": ("traced_radius", lambda v: f"r={v*100:.1f}cm"),
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "line_1m": ("time_to_1m", lambda v: f"t={v:.1f}s"),
     "backward_1m": ("time", lambda v: f"t={v:.1f}s"),
@@ -817,6 +842,9 @@ def main():
                f"slip {summary['foot_slip_mean']*100:.1f} cm/s")
     if cot is not None:
         overall += f"; CoT {cot:.1f}"
+    sym = summary["symmetry_locomotion"]
+    if sym is not None:
+        overall += f"; gait asym {sym*100:.0f}%"
     lines.append(overall)
     md = "\n".join(lines) + "\n"
     with open(os.path.join(run_dir, "scorecard.md"), "w") as f:
