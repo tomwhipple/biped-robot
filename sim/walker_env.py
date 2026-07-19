@@ -1011,9 +1011,37 @@ class BimoWalkerEnv(gym.Env):
                     -((wz_rate - self._cmd[2]) / 0.5) ** 2))
                 h_gate = (0.3 if (sp_cmd > 0.05
                                   or abs(self._cmd[2]) > 0.05) else 1.0)
-                h_term = self.w_track_h * h_gate * float(np.exp(
+                h_norm = float(np.exp(
                     -(((height - self._cmd[3] * self._nominal_h) / 0.04) ** 2)))
-                primary = v_term + w_term + h_term
+                h_term = self.w_track_h * h_gate * h_norm
+                # one-leg geometry pre-reward (mirrors sim/mjx): contact
+                # pattern + clearance + swing-foot target kernel
+                con_l, con_r = self._foot_contacts()
+                lifted = abs(float(self._cmd[4])) > 0.5
+                is_r = float(self._cmd[4]) > 0.0
+                con_swing = con_r if is_r else con_l
+                con_stance = con_l if is_r else con_r
+                gid = self._sole_gids[1 if is_r else 0]
+                foot_clear = float(d.geom_xpos[gid][2]) - self._sole_z0
+                lift_ok = float(lifted and (not con_swing) and con_stance
+                                and foot_clear >= self.lift_clear)
+                rel_w = d.geom_xpos[gid] - d.xpos[self._torso_bid]
+                rel = np.array([cth * rel_w[0] + sth * rel_w[1],
+                                -sth * rel_w[0] + cth * rel_w[1], rel_w[2]])
+                base = self._foot_rel0[1 if is_r else 0]
+                tgt = base + np.array([self._cmd[5], 0.0,
+                                       self.lift_height + self._cmd[6]])
+                foot_err = float(np.linalg.norm(rel - tgt))
+                foot_kernel = float(lifted) * float(np.exp(
+                    -((foot_err / self.foot_sigma) ** 2)))
+                # skill-compliance gate (round 4, mirrors sim/mjx): under a
+                # skill command the velocity/yaw kernels pay in proportion
+                # to the skill being DONE (precision_v3 stood through them)
+                crouching = (not lifted) and float(self._cmd[3]) < 0.97
+                g_skill = (0.2 + 0.8 * lift_ok) if lifted else 1.0
+                if crouching:
+                    g_skill = 0.2 + 0.8 * h_norm
+                primary = g_skill * (v_term + w_term) + h_term
                 if self.recover_mix > 0 and not self._recovered:
                     # down in a recovery episode: getup-style recovery is
                     # the primary until the first stand (mirrors sim/mjx)
@@ -1093,31 +1121,11 @@ class BimoWalkerEnv(gym.Env):
                 self._air_time[f] += self.control_dt
         single_support = con_l != con_r
         double_support = con_l and con_r
-        foot_err = 0.0
-        lift_ok = 0.0
         if self.ext_cmd:
-            # one-leg modes (mirrors sim/mjx): reward the correct contact
-            # pattern and track the commanded swing-foot target in the
-            # torso-yaw frame
-            is_r = float(self._cmd[4]) > 0.0
-            con_swing = con_r if is_r else con_l
-            con_stance = con_l if is_r else con_r
-            gid = self._sole_gids[1 if is_r else 0]
-            # lift pays only with real clearance (>= lift_clear above the
-            # standing sole height; mirrors sim/mjx)
-            foot_clear = float(d.geom_xpos[gid][2]) - self._sole_z0
-            lift_ok = float(lifted and (not con_swing) and con_stance
-                            and foot_clear >= self.lift_clear)
+            # lift + swing-foot rewards (geometry computed pre-reward in the
+            # command block, mirrors sim/mjx)
             reward += self.w_lift * lift_ok
-            rel_w = d.geom_xpos[gid] - d.xpos[self._torso_bid]
-            rel = np.array([cth * rel_w[0] + sth * rel_w[1],
-                            -sth * rel_w[0] + cth * rel_w[1], rel_w[2]])
-            base = self._foot_rel0[1 if is_r else 0]
-            tgt = base + np.array([self._cmd[5], 0.0,
-                                   self.lift_height + self._cmd[6]])
-            foot_err = float(np.linalg.norm(rel - tgt))
-            reward += (self.w_track_foot * float(lifted)
-                       * float(np.exp(-((foot_err / self.foot_sigma) ** 2))))
+            reward += self.w_track_foot * foot_kernel
         if self.w_single_support:
             if shaping_on:
                 reward += self.w_single_support * float(single_support)

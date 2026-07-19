@@ -776,6 +776,39 @@ class BimoMJXEnv:
         planar = jp.sqrt(data.qvel[0] ** 2 + data.qvel[1] ** 2)
         standing = ((height > 0.85 * self._nominal_h)
                     & (up_z > 0.9)).astype(jp.float32)
+        # foot contacts + one-leg geometry BEFORE the reward: the round-4
+        # skill-compliance gate prices the tracking kernels by lift_ok
+        con = self._foot_contacts(data)           # (2,) bool
+        lifted = jp.zeros((), dtype=bool)
+        foot_err = jp.zeros(())
+        foot_clear = jp.zeros(())
+        lift_ok = jp.zeros(())
+        foot_kernel = jp.zeros(())
+        if self.ext_cmd:
+            # one-leg modes: lift = -1 (left) / +1 (right). Correct contact
+            # pattern (stance down, swing up, >= lift_clear clearance) and
+            # the swing-foot target kernel in the torso-yaw frame.
+            cmd_lift = state.cmd[4]
+            lifted = jp.abs(cmd_lift) > 0.5
+            is_r = cmd_lift > 0.0
+            con_swing = jp.where(is_r, con[1], con[0])
+            con_stance = jp.where(is_r, con[0], con[1])
+            sole_w = jp.where(is_r, data.geom_xpos[self._sole_gids[1]],
+                              data.geom_xpos[self._sole_gids[0]])
+            foot_clear = sole_w[2] - self._sole_z0
+            lift_ok = (lifted & ~con_swing & con_stance
+                       & (foot_clear >= self.lift_clear)).astype(jp.float32)
+            rel_w = sole_w - data.xpos[self._torso_bid]
+            rel = jp.stack([cth * rel_w[0] + sth * rel_w[1],
+                            -sth * rel_w[0] + cth * rel_w[1],
+                            rel_w[2]])
+            base = jp.where(is_r, self._foot_rel0[1], self._foot_rel0[0])
+            tgt = base + jp.stack([state.cmd[5], jp.zeros(()),
+                                   self.lift_height + state.cmd[6]])
+            foot_err = jp.linalg.norm(rel - tgt)
+            foot_kernel = (lifted.astype(jp.float32)
+                           * jp.exp(-((foot_err / self.foot_sigma) ** 2)))
+
         if self.getup:
             # recovery: dense progress toward tall + upright, then a standing
             # bonus (half for being up, half for being STILL up there) that
@@ -818,9 +851,18 @@ class BimoMJXEnv:
             # (its full 1.0/step was part of the do-nothing income)
             h_gate = jp.where((sp_cmd > 0.05) | (jp.abs(cmd_w) > 0.05),
                               0.3, 1.0)
-            h_term = self.w_track_h * h_gate * jp.exp(
+            h_norm = jp.exp(
                 -(((height - cmd_h * self._nominal_h) / 0.04) ** 2))
-            primary = v_term + w_term + h_term
+            h_term = self.w_track_h * h_gate * h_norm
+            # skill-compliance gate (round 4): precision_v3 answered lift/
+            # crouch commands with calm standing -- the velocity/yaw kernels
+            # paid ~4/step for vels=0 regardless. Under a skill command they
+            # now pay in proportion to the skill being DONE (floor 0.2 keeps
+            # a gradient toward stillness while learning the skill).
+            crouching = (~lifted) & (cmd_h < 0.97)
+            g_skill = jp.where(lifted, 0.2 + 0.8 * lift_ok, 1.0)
+            g_skill = jp.where(crouching, 0.2 + 0.8 * h_norm, g_skill)
+            primary = g_skill * (v_term + w_term) + h_term
             if self.recover_mix > 0:
                 # while DOWN in a recovery episode: getup-style shaped
                 # recovery is the primary (height progress + height-gated
@@ -858,39 +900,10 @@ class BimoMJXEnv:
 
         # gait shaping: on for moving commands, double-support bonus for stand
         cmd_moving = (jp.abs(cmd_v) > 0.05) | (jp.abs(cmd_w) > 0.05)
-        con = self._foot_contacts(data)           # (2,) bool
-        lifted = jp.zeros((), dtype=bool)
-        foot_err = jp.zeros(())
-        foot_clear = jp.zeros(())
-        lift_ok = jp.zeros(())
         if self.ext_cmd:
-            # one-leg modes: lift = -1 (left) / +1 (right). Reward the correct
-            # contact pattern (stance foot down, swing foot up) and track the
-            # commanded swing-foot target (base hang pose + (dx, 0, dz)) in
-            # the torso-yaw frame -- this is what "circles in the air" grades.
-            cmd_lift = state.cmd[4]
-            lifted = jp.abs(cmd_lift) > 0.5
-            is_r = cmd_lift > 0.0
-            con_swing = jp.where(is_r, con[1], con[0])
-            con_stance = jp.where(is_r, con[0], con[1])
-            sole_w = jp.where(is_r, data.geom_xpos[self._sole_gids[1]],
-                              data.geom_xpos[self._sole_gids[0]])
-            # lift pays only with real clearance: swing sole >= lift_clear
-            # above its standing height (a 2 mm hover is not a lift)
-            foot_clear = sole_w[2] - self._sole_z0
-            lift_ok = (lifted & ~con_swing & con_stance
-                       & (foot_clear >= self.lift_clear)).astype(jp.float32)
+            # lift + swing-foot rewards (geometry computed pre-reward above)
             reward += self.w_lift * lift_ok
-            rel_w = sole_w - data.xpos[self._torso_bid]
-            rel = jp.stack([cth * rel_w[0] + sth * rel_w[1],
-                            -sth * rel_w[0] + cth * rel_w[1],
-                            rel_w[2]])
-            base = jp.where(is_r, self._foot_rel0[1], self._foot_rel0[0])
-            tgt = base + jp.stack([state.cmd[5], jp.zeros(()),
-                                   self.lift_height + state.cmd[6]])
-            foot_err = jp.linalg.norm(rel - tgt)
-            reward += (self.w_track_foot * lifted.astype(jp.float32)
-                       * jp.exp(-((foot_err / self.foot_sigma) ** 2)))
+            reward += self.w_track_foot * foot_kernel
             # a lifted command is a balance task, not locomotion: gait shaping
             # off; a sidestep command (vy) is locomotion like any other.
             # (cmd_moving already covers c0 and c2 via cmd_v/cmd_w.)
