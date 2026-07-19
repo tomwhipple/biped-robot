@@ -1300,6 +1300,31 @@ precision_v2, +450M steps on the same objective.** The montage reel
 (`sim/mjx/render_precision_reel.py` → `sim/renders/precision_reel_*.mov`,
 honest PASS/FAIL captions per take) is the per-round visual artifact.
 
+### Precision rounds 3-4: skills unlock via compliance gating (2026-07-18/19)
+
+Full narrative + current scorecard:
+[docs/precision-progress.md](docs/precision-progress.md). Summary:
+
+- **User feedback round (2026-07-18):** camera tracks both planar axes;
+  single-leg crouch dropped; **recovery-from-fallen integrated into the
+  ext_cmd policy** (15% ragdoll-start episodes, recovery reward until first
+  stand, no fall termination while down; parity gate 2f — which surfaced
+  that ragdoll poses ride JOINT-LIMIT constraint rows, engine-divergent
+  like contact manifolds, now screened); **lift requires ≥3 cm clearance**
+  (v2's "balance" was a 2 mm hover — caught immediately by the new metric).
+- **Round 3 (precision_v3, 400M, first Mira-daytime run; OOM'd at 2048
+  envs with mesh-floor colliders on 12 GB → 1024 envs, XLA 0.90):** calm +
+  walking (line 5/8 @ 2.0 s, wobble 0.24, CoT 2.5) but skill commands
+  answered with standing — kernels paid ~4/step for vels=0 under any
+  command. The round-1 disease, localized.
+- **Round 4 fix — skill-compliance gate:** under lift/crouch commands the
+  velocity/yaw kernels pay ×(0.2 + 0.8·compliance). First overnight-window
+  run (282M, 23:00-07:00 cron, validated end-to-end incl. idle-ollama
+  unload): **balance_L/R 5/8 at 92-94% real clearance, air circles 5-6/8,
+  line_1m 8/8, overall seed-pass 13 → 37/104.** Recovery attempts hard
+  (13 W) but no stand yet; sidestep/backward/turn-tracking remain open.
+  Tonight continues v4 (same objective, warm-start).
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
