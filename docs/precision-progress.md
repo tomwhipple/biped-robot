@@ -47,9 +47,18 @@ IMU-only observations.
 
 **Overall: 37/104 seed-pass (2 scenarios clean), falls 29%.** Read with the
 caveat that falls/wobble rose *because the policy now attempts everything* —
-v3's calm came partly from dodging the hard skills. Training was
-window-capped at 282M of 400M with the curve still moving; tonight
-continues it.
+v3's calm came partly from dodging the hard skills.
+
+**Post-audit correction (2026-07-19, user feedback):** the circle_air
+"passes" above were too generous — the referee never required the foot to
+actually *trace* the circle. Re-graded with real minimums (≥3 cm traced
+radius + a full sweep; balance also gains a 10 cm drift bound), the circles
+FAIL: the foot traces ~4.5 cm of wander but doesn't complete sweeps.
+Training round 5 (tonight) attacks this with a widened foot-target kernel
+(3→6 cm — the narrow kernel paid no gradient at v4's foot error), plus a
+new gait-symmetry penalty (L/R swing-duration matching) and a reverse
+curriculum for recovery (kneel/squat/ragdoll starts in training; the
+referee still grades pure ragdoll).
 
 ## The smoothness/stability story (user concern 2026-07-18: "very shaky")
 
