@@ -582,7 +582,9 @@ class BimoMJXEnv:
             * self._scale, self._lo, self._hi)
         q_rag = (self._qpos0.at[2].set(0.35).at[3:7].set(quat)
                  .at[_JQ0:_JQ1].set(joints))
-        p_rag, p_kneel, _ = self.getup_start_mix
+        mix = tuple(self.getup_start_mix)
+        mix = mix + (0.0,) * (4 - len(mix))   # (ragdoll, kneel, squat, sit)
+        p_rag, p_kneel, p_squat, p_sit = mix
         if p_rag >= 1.0:
             return self._settle(q_rag, self.getup_settle)
         # kneel: torso vertical, knees folded, shins on the ground
@@ -601,18 +603,33 @@ class BimoMJXEnv:
                    .at[3:7].set(jp.array([jp.cos(ang / 2), 0.0,
                                           jp.sin(ang / 2), 0.0]))
                    .at[_JQ0:_JQ1].set(j_squat))
+        # sit (user 2026-07-19, "start the get up from a sitting position"):
+        # pelvis down, legs straight forward, torso slightly reclined -- the
+        # pose the original getup RL converged to naturally, and the start
+        # of the study's pike-up rise path.
+        j_sit = jp.zeros(8).at[jp.array([1, 5])].set(-1.40) \
+                           .at[jp.array([2, 6])].set(-0.10)
+        j_sit = jp.clip(j_sit, self._lo, self._hi)
+        ang_s = -0.30                  # lean back ~17 deg
+        q_sit = (self._qpos0.at[2].set(0.10)
+                 .at[3:7].set(jp.array([jp.cos(ang_s / 2), 0.0,
+                                        jp.sin(ang_s / 2), 0.0]))
+                 .at[_JQ0:_JQ1].set(j_sit))
         d_rag = self._settle(q_rag, self.getup_settle)
         d_kneel = self._settle(q_kneel, 50)
         d_squat = self._settle(q_squat, 50)
+        d_sit = self._settle(q_sit, 50)
         u = jax.random.uniform(r_m)
         pick_kneel = (u >= p_rag) & (u < p_rag + p_kneel)
-        pick_squat = u >= p_rag + p_kneel
+        pick_squat = (u >= p_rag + p_kneel) & (u < p_rag + p_kneel + p_squat)
+        pick_sit = u >= p_rag + p_kneel + p_squat
 
-        def sel(a, b, c):
+        def sel(a, b, c, s):
             out = jp.where(pick_kneel, b, a)
-            return jp.where(pick_squat, c, out)
+            out = jp.where(pick_squat, c, out)
+            return jp.where(pick_sit, s, out)
 
-        return jax.tree_util.tree_map(sel, d_rag, d_kneel, d_squat)
+        return jax.tree_util.tree_map(sel, d_rag, d_kneel, d_squat, d_sit)
 
     # -- api -------------------------------------------------------------------
     def reset(self, rng: jax.Array) -> State:

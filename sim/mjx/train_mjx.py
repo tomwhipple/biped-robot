@@ -201,7 +201,10 @@ def main():
             # curriculum for the recovery slots (ragdoll/kneel/squat starts;
             # the referee still grades pure ragdoll)
             w_symmetry=1.0,
-            recover_start_mix=(0.4, 0.3, 0.3),
+            # sit-first reverse curriculum (user 2026-07-19): the sit is
+            # where fallen robots naturally end up AND the start of the
+            # study's rise path -- make it the dominant training start
+            recover_start_mix=(0.2, 0.2, 0.2, 0.4),
         )
     if args.xml:
         env_kw["xml_path"] = args.xml

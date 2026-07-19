@@ -226,6 +226,9 @@ class BimoWalkerEnv(gym.Env):
         # settled ragdoll fall: recovery reward while down, command pinned
         # to stand, no fall termination until the first achieved stand
         # (mirrors sim/mjx; single-leg-crouch mix removed same date)
+        recover_start_mix: tuple = (1.0, 0.0, 0.0, 0.0),  # recovery-episode
+        # start states (ragdoll, kneel, squat, sit) -- reverse curriculum;
+        # poses mirror sim/mjx/_fallen_data. Referee scenarios pin this.
         # payload CG height above torso center (m); 0.08 = 2026-07-11 spec,
         # 0.0945 = current stack (battery-bay tower + imu_carrier + gopro_base)
         payload_cg_z: float = 0.08,
@@ -342,6 +345,7 @@ class BimoWalkerEnv(gym.Env):
         self._last_air = np.zeros(2)
         self.lift_clear = lift_clear
         self.recover_mix = recover_mix
+        self.recover_start_mix = recover_start_mix
         self._recover_ep = False       # this episode started fallen
         self._recovered = True         # first stand achieved (or normal ep)
         self.payload_cg_z = payload_cg_z
@@ -794,23 +798,61 @@ class BimoWalkerEnv(gym.Env):
                                     < self.recover_mix)
             self._recovered = not self._recover_ep
         if self.getup or self._recover_ep:
-            # settled ragdoll fall: random orientation + joints, dropped from
-            # 0.35 m, stepped torque-free (matches sim/mjx/_fallen_data)
-            u1, u2, u3 = self.np_random.uniform(size=3)
-            tp = 2 * np.pi
-            quat = np.array([np.sqrt(u1) * np.cos(tp * u3),
-                             np.sqrt(1 - u1) * np.sin(tp * u2),
-                             np.sqrt(1 - u1) * np.cos(tp * u2),
-                             np.sqrt(u1) * np.sin(tp * u3)])
-            joints = np.clip(self._default + self.np_random.uniform(
-                -0.6, 0.6, size=8) * self._scale, self._lo, self._hi)
+            # start-state draw for recovery episodes (getup mode stays pure
+            # ragdoll -- that is the graded claim). Poses mirror
+            # sim/mjx/_fallen_data exactly.
+            kind = "ragdoll"
+            if self._recover_ep:
+                mix = tuple(self.recover_start_mix) + (0.0,) * 4
+                u = float(self.np_random.uniform())
+                if u < mix[0]:
+                    kind = "ragdoll"
+                elif u < mix[0] + mix[1]:
+                    kind = "kneel"
+                elif u < mix[0] + mix[1] + mix[2]:
+                    kind = "squat"
+                else:
+                    kind = "sit"
             self.data.qpos[:] = self.model.qpos0
-            self.data.qpos[2] = 0.35
-            self.data.qpos[3:7] = quat
-            self.data.qpos[_JQPOS] = joints
             self.data.qvel[:] = 0.0
+            settle_n = 50
+            j = np.zeros(8)
+            if kind == "ragdoll":
+                u1, u2, u3 = self.np_random.uniform(size=3)
+                tp = 2 * np.pi
+                quat = np.array([np.sqrt(u1) * np.cos(tp * u3),
+                                 np.sqrt(1 - u1) * np.sin(tp * u2),
+                                 np.sqrt(1 - u1) * np.cos(tp * u2),
+                                 np.sqrt(u1) * np.sin(tp * u3)])
+                joints = np.clip(self._default + self.np_random.uniform(
+                    -0.6, 0.6, size=8) * self._scale, self._lo, self._hi)
+                self.data.qpos[2] = 0.35
+                self.data.qpos[3:7] = quat
+                self.data.qpos[_JQPOS] = joints
+                settle_n = self._getup_settle
+            elif kind == "kneel":
+                j[[1, 5]] = -0.2
+                j[[2, 6]] = -1.62
+                j[[3, 7]] = -0.6
+                self.data.qpos[2] = 0.13
+                self.data.qpos[_JQPOS] = np.clip(j, self._lo, self._hi)
+            elif kind == "squat":
+                j[[1, 5]] = self._lo[1] + 0.05
+                j[[2, 6]] = -1.62
+                j[[3, 7]] = 0.65
+                ang = 0.55
+                self.data.qpos[2] = 0.10
+                self.data.qpos[3:7] = [np.cos(ang / 2), 0, np.sin(ang / 2), 0]
+                self.data.qpos[_JQPOS] = np.clip(j, self._lo, self._hi)
+            else:                      # sit: legs forward, torso reclined
+                j[[1, 5]] = -1.40
+                j[[2, 6]] = -0.10
+                ang = -0.30
+                self.data.qpos[2] = 0.10
+                self.data.qpos[3:7] = [np.cos(ang / 2), 0, np.sin(ang / 2), 0]
+                self.data.qpos[_JQPOS] = np.clip(j, self._lo, self._hi)
             self.data.ctrl[:] = self._default
-            for _ in range(self._getup_settle):
+            for _ in range(settle_n):
                 mujoco.mj_step(self.model, self.data)
             mujoco.mj_forward(self.model, self.data)
         else:

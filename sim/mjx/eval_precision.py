@@ -566,9 +566,11 @@ def scen_crouch_leg(side):
     return build, evaluate
 
 
-def scen_recover_fallen():
-    """Start from a settled ragdoll fall (env recover_mix=1.0); command is
-    stand. Success = first stand within 6 s AND still tall at the end."""
+def scen_recover_fallen(deadline=6.0):
+    """Start fallen (env recover_mix=1.0; start pose set per-scenario via
+    ENV_EXTRA -- ragdoll for the full claim, sit for the curriculum stage);
+    command is stand. Success = first stand within the deadline AND still
+    tall at the end."""
     def build():
         ev = {}
 
@@ -580,7 +582,7 @@ def scen_recover_fallen():
         t_up = next((r["t"] for r in rows if r["recovered"] > 0.5), None)
         hold = _win(rows, 9.0, 12.0)
         held = _mean(hold, "height") if hold else float("nan")
-        success = bool((not fell) and t_up is not None and t_up <= 6.0
+        success = bool((not fell) and t_up is not None and t_up <= deadline
                        and hold and held >= 0.85 * N)
         return dict(success=success,
                     metrics=dict(
@@ -628,18 +630,26 @@ def _registry():
     reg["square_return"] = (45.0, scen_square_return(), True)
     reg["circle_return"] = (16.0, scen_circle_return(), True)
     reg["crouch_hold"] = (10.0, scen_crouch_hold(), False)
+    # sit -> stand: the curriculum stage (user 2026-07-19); shorter deadline
+    # since the hard part (getting onto the feet) starts closer to done
+    reg["recover_sit"] = (12.0, scen_recover_fallen(deadline=5.0), False)
     reg["recover_fallen"] = (12.0, scen_recover_fallen(), False)
     reg["stand_10s"] = (11.0, scen_stand_10s(), False)
     return reg
 
 
 # per-scenario env overrides (env_cache keys on this too)
-ENV_EXTRA = {"recover_fallen": dict(recover_mix=1.0)}
+ENV_EXTRA = {
+    "recover_fallen": dict(recover_mix=1.0,
+                           recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
+    "recover_sit": dict(recover_mix=1.0,
+                        recover_start_mix=(0.0, 0.0, 0.0, 1.0)),
+}
 
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
          "square_return", "circle_return", "crouch_hold",
-         "recover_fallen", "stand_10s"]
+         "recover_sit", "recover_fallen", "stand_10s"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
@@ -647,6 +657,7 @@ HEADLINE = {
     "balance": ("clear_frac", lambda v: f"clear {v*100:.0f}%"),
     "circle_air": ("traced_radius", lambda v: f"r={v*100:.1f}cm"),
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
+    "recover_sit": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "line_1m": ("time_to_1m", lambda v: f"t={v:.1f}s"),
     "backward_1m": ("time", lambda v: f"t={v:.1f}s"),
     "sidestep": ("time", lambda v: f"t={v:.1f}s"),

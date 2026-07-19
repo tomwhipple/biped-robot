@@ -42,6 +42,7 @@ TITLES = {
     "square_return": "Walk a 1 m square, return to start",
     "circle_return": "Walk a circle, return to start",
     "crouch_hold": "Crouch to 70% height + recover",
+    "recover_sit": "Stand up from sitting",
     "recover_fallen": "Recover from a fall + stand up",
     "stand_10s": "Stand still - 10 s",
 }
