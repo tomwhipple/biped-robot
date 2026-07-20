@@ -222,6 +222,21 @@ class BimoWalkerEnv(gym.Env):
         walk_submix: tuple = (0.15, 0.15),  # of walks: (backward, sidestep)
         w_foot_cross: float = 0.0,     # feet-crossing guard (mirrors sim/mjx)
         sway_vy: float = 0.12,         # sway-command vy amplitude (m/s)
+        # -- plan-v2 Phase A terms (2026-07-20; mirror sim/mjx, default off) ---
+        gait_clock: bool = False,
+        w_feet_phase: float = 0.0,
+        swing_height: float = 0.06,
+        feet_phase_s2: float = 0.004,
+        w_feet_slip: float = 0.0,
+        w_orientation: float = 0.0,
+        w_ang_vel_xy: float = 0.0,
+        w_pose: float = 0.0,
+        w_dof_limits: float = 0.0,
+        push_kick: bool = False,
+        kick_range: tuple = (0.1, 1.0),
+        obs_hist_len: int = 1,
+        joint_frictionloss: float = 0.0,
+        joint_armature: float = 0.0,
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         lift_clear: float = 0.03,      # lifted-foot min clearance (m); the
@@ -348,6 +363,21 @@ class BimoWalkerEnv(gym.Env):
         self.walk_submix = walk_submix
         self.w_foot_cross = w_foot_cross
         self.sway_vy = sway_vy
+        self.gait_clock = gait_clock
+        self.w_feet_phase = w_feet_phase
+        self.swing_height = swing_height
+        self.feet_phase_s2 = feet_phase_s2
+        self.w_feet_slip = w_feet_slip
+        self.w_orientation = w_orientation
+        self.w_ang_vel_xy = w_ang_vel_xy
+        self.w_pose = w_pose
+        self.w_dof_limits = w_dof_limits
+        self.push_kick = push_kick
+        self.kick_range = kick_range
+        self.obs_hist_len = max(1, int(obs_hist_len))
+        self._gait_freq = 0.0
+        self._gait_phase = 0.0
+        self._obs_hist = []
         self.w_symmetry = w_symmetry
         self._last_air = np.zeros(2)
         self.lift_clear = lift_clear
@@ -476,10 +506,19 @@ class BimoWalkerEnv(gym.Env):
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
-        if ext_cmd:
-            # swing-foot reference: standing sole centers relative to the
-            # torso at qpos0 (yaw 0 -> already the body frame); matches
-            # sim/mjx/env_mjx.py _foot_rel0 exactly.
+        if joint_frictionloss > 0:
+            self.model.dof_frictionloss[_JQVEL] = joint_frictionloss
+        if joint_armature > 0:
+            self.model.dof_armature[_JQVEL] = joint_armature
+        self._foot_bids = (self.model.body("L_foot").id,
+                           self.model.body("R_foot").id)
+        _jr = self.model.jnt_range[self.model.actuator_trnid[:, 0]]
+        _mid = 0.5 * (_jr[:, 0] + _jr[:, 1])
+        _half = 0.5 * (_jr[:, 1] - _jr[:, 0])
+        self._soft_lo = _mid - 0.9 * _half
+        self._soft_hi = _mid + 0.9 * _half
+        if True:   # sole/foot reference constants (used by ext skills AND
+            # the plan-v2 feet-phase reward)
             d0 = mujoco.MjData(self.model)
             d0.qpos[:] = self.model.qpos0
             mujoco.mj_forward(self.model, d0)
@@ -490,8 +529,9 @@ class BimoWalkerEnv(gym.Env):
             self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
 
         self.action_space = spaces.Box(-1.0, 1.0, shape=(8,), dtype=np.float32)
-        obs_dim = (8 + 8 + 3 + 3 + 3 + 8 + 1 + 2
-                   + (self._ncmd if command_mode else 0))
+        self.obs_frame = (8 + 8 + 3 + 3 + 3 + 8 + 1 + 2
+                          + (self._ncmd if command_mode else 0))
+        obs_dim = self.obs_frame * self.obs_hist_len
         self.observation_space = spaces.Box(
             -np.inf, np.inf, shape=(obs_dim,), dtype=np.float32
         )
@@ -647,7 +687,10 @@ class BimoWalkerEnv(gym.Env):
                 gyro = gyro + self.np_random.normal(0.0, 0.03 * self.imu_noise, 3)
             linvel = np.zeros(3)
             height = 0.0
-        phase = 2 * np.pi * (self._step_i / self.max_steps)
+        if self.gait_clock:
+            phase = self._gait_phase
+        else:
+            phase = 2 * np.pi * (self._step_i / self.max_steps)
         parts = [
             d.qpos[_JQPOS],                    # 8 joint angles
             d.qvel[_JQVEL],                    # 8 joint velocities
@@ -662,7 +705,11 @@ class BimoWalkerEnv(gym.Env):
         ]
         if self.command_mode:
             parts.append(self._cmd)            # 2 commanded (vx, yaw rate)
-        return np.concatenate(parts).astype(np.float32)
+        frame = np.concatenate(parts).astype(np.float32)
+        if self.obs_hist_len > 1:
+            # pure read: history is updated explicitly in reset()/step()
+            return np.concatenate([frame] + list(self._obs_hist))
+        return frame
 
     def _sample_command(self):
         """New (vx, yaw-rate) command. Mix: stand / pivot-in-place / walk
@@ -921,6 +968,14 @@ class BimoWalkerEnv(gym.Env):
             self._imu_gyro_bias = (self.np_random.uniform(-0.03, 0.03, 3)
                                    * self.imu_noise)
         self._step_i = 0
+        if self.gait_clock:
+            self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
+            self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
+        if self.obs_hist_len > 1:
+            self._obs_hist = []
+            first = self._obs()                # frame only (hist empty)
+            self._obs_hist = [first.copy()
+                              for _ in range(self.obs_hist_len - 1)]
         return self._obs(), {}
 
     def step(self, action):
@@ -934,7 +989,14 @@ class BimoWalkerEnv(gym.Env):
         # Random shove: apply a horizontal force to the torso for this control
         # step (models an unexpected push -- key for a robust real-world gait).
         self.data.xfrc_applied[self._torso_bid, :] = 0.0
-        if self.push_force and self.np_random.uniform() < self.push_prob:
+        if self.push_kick:
+            # velocity-kick perturbation (plan v2, Playground style)
+            if self.np_random.uniform() < self.push_prob:
+                ang = self.np_random.uniform(0, 2 * np.pi)
+                mag = float(self.np_random.uniform(*self.kick_range))
+                self.data.qvel[0] += mag * np.cos(ang)
+                self.data.qvel[1] += mag * np.sin(ang)
+        elif self.push_force and self.np_random.uniform() < self.push_prob:
             ang = self.np_random.uniform(0, 2 * np.pi)
             self.data.xfrc_applied[self._torso_bid, 0] = self.push_force * np.cos(ang)
             self.data.xfrc_applied[self._torso_bid, 1] = self.push_force * np.sin(ang)
@@ -1218,6 +1280,47 @@ class BimoWalkerEnv(gym.Env):
             reward -= self.w_pitch_rate * (abs(float(d.qvel[3]))
                                            + abs(float(d.qvel[4])))
 
+        # -- plan-v2 Phase A terms (mirror sim/mjx; defaults off) --------------
+        if self.gait_clock:
+            self._gait_phase = float(
+                (self._gait_phase + 2 * np.pi * self.control_dt
+                 * self._gait_freq + np.pi) % (2 * np.pi) - np.pi)
+        if self.w_feet_phase:
+            rz_l = self.swing_height * max(0.0, float(np.sin(self._gait_phase)))
+            rz_r = self.swing_height * max(0.0, float(-np.sin(self._gait_phase)))
+            z_l = float(d.geom_xpos[self._sole_gids[0]][2]) - self._sole_z0
+            z_r = float(d.geom_xpos[self._sole_gids[1]][2]) - self._sole_z0
+            if cmd_moving:
+                reward += self.w_feet_phase * float(np.exp(
+                    -((z_l - rz_l) ** 2 + (z_r - rz_r) ** 2)
+                    / self.feet_phase_s2))
+        if self.w_feet_slip:
+            v_l = d.cvel[self._foot_bids[0], 3:5]
+            v_r = d.cvel[self._foot_bids[1], 3:5]
+            reward -= self.w_feet_slip * (
+                float(con_l) * float(np.sqrt(np.sum(v_l ** 2) + 1e-12))
+                + float(con_r) * float(np.sqrt(np.sum(v_r ** 2) + 1e-12)))
+        if self.w_orientation:
+            upv = d.sensordata[self._up_id:self._up_id + 3]
+            reward -= self.w_orientation * float(upv[0] ** 2 + upv[1] ** 2)
+        if self.w_ang_vel_xy:
+            reward -= self.w_ang_vel_xy * float(d.qvel[3] ** 2
+                                                + d.qvel[4] ** 2)
+        if self.w_pose:
+            if self.ext_cmd:
+                pose_gate = float((not lifted)
+                                  and float(self._cmd[3]) >= 0.97
+                                  and self._recovered)
+            else:
+                pose_gate = 1.0
+            reward -= (self.w_pose * pose_gate
+                       * float(np.sum((d.qpos[_JQPOS] - self._default) ** 2)))
+        if self.w_dof_limits:
+            q = d.qpos[_JQPOS]
+            out = (np.maximum(self._soft_lo - q, 0.0)
+                   + np.maximum(q - self._soft_hi, 0.0))
+            reward -= self.w_dof_limits * float(np.sum(out))
+
         self._prev_action[:] = action
         self._step_i += 1
 
@@ -1321,7 +1424,11 @@ class BimoWalkerEnv(gym.Env):
                     self._cmd[6] = self._traj[0] * abs(np.sin(th))
                 elif self._traj_on == 3.0:
                     self._cmd[1] = self.sway_vy * np.sin(th)
-        return self._obs(), float(reward), terminated, truncated, info
+        obs_out = self._obs()
+        if self.obs_hist_len > 1:
+            self._obs_hist = ([obs_out[:self.obs_frame].copy()]
+                              + self._obs_hist[:-1])
+        return obs_out, float(reward), terminated, truncated, info
 
     def render(self):
         if self.render_mode != "rgb_array":

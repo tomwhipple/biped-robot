@@ -69,6 +69,10 @@ class State(NamedTuple):
     traj_on: jax.Array        # ()  1.0 while the current command evolves c5/c6
     last_air: jax.Array       # (2,) last completed swing duration per foot
                               # (gait-symmetry penalty compares L vs R)
+    gait_freq: jax.Array      # ()  per-episode gait-clock frequency (Hz)
+    gait_phase: jax.Array     # ()  running clock phase in [-pi, pi)
+    obs_hist: jax.Array       # (hist-1, frame) previous obs frames (newest
+                              # first); zeros-shaped (0, frame) when hist=1
     recover_slot: jax.Array   # ()  1.0 = this env slot starts episodes fallen
     recovered: jax.Array      # ()  0.0 while down (no fall termination); flips
                               # to 1.0 at the first achieved stand
@@ -211,6 +215,37 @@ class BimoMJXEnv:
         sway_vy: float = 0.12,        # sway-command vy amplitude (m/s)
         walk_submix: tuple = (0.15, 0.15),    # of walk commands: (backward,
         # sidestep) fractions; remainder walks forward with the turning draw
+        # -- plan-v2 Phase A terms (2026-07-20, MuJoCo Playground recipes) ------
+        # Numbers from the Playground biped envs (T1 / Berkeley Humanoid),
+        # adapted to our 0.34 m scale. All default OFF -> old runs bit-exact.
+        gait_clock: bool = False,   # per-episode gait clock (freq U(1.25,
+        # 1.75) Hz) replaces the episode-fraction phase in the obs; feet are
+        # half a cycle apart (left = phase, right = phase + pi)
+        w_feet_phase: float = 0.0,  # exp(-sum((foot_z - rz(phase))^2)/s2):
+        # periodic swing-height targets -- Playground's strongest gait term
+        swing_height: float = 0.06, # rz peak (m; Playground 0.10-0.12 on
+        # 0.5-0.8 m robots, scaled to our 0.34 m)
+        feet_phase_s2: float = 0.004,   # kernel denominator (their 0.01
+        # at swing 0.1 -> 0.004 at swing 0.06)
+        w_feet_slip: float = 0.0,   # -w * sum(|foot vel xy| * contact):
+        # anti-skating (their -0.25)
+        w_orientation: float = 0.0,  # -w * (up_x^2 + up_y^2): quadratic
+        # tilt cost (their -1.0)
+        w_ang_vel_xy: float = 0.0,  # -w * sum(w_xy^2) (their -0.15)
+        w_pose: float = 0.0,        # -w * sum((q - q_default)^2), gated to
+        # plain locomotion/stand commands (fights skills otherwise)
+        w_dof_limits: float = 0.0,  # -w * soft-limit violation (90% range)
+        push_kick: bool = False,    # velocity-kick pushes (qvel += U(kick)
+        # in a random direction) instead of force pushes -- Playground style
+        kick_range: tuple = (0.1, 1.0),   # m/s
+        obs_hist_len: int = 1,      # stacked obs frames (3 = Playground/
+        # Open-Duck-style short history; changes obs size!)
+        joint_frictionloss: float = 0.0,   # Coulomb friction per leg DOF
+        # (N*m). Open Duck's BAM fit for the STS3215: friction_base ~0.05.
+        # Genuinely missing from our model (the torque-speed envelope covers
+        # viscous/back-EMF losses, NOT stiction). 0 = legacy exact.
+        joint_armature: float = 0.0,       # reflected rotor inertia per leg
+        # DOF (kg*m^2). BAM fit ~0.028 -- significant against our light legs.
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
         # 2026-07-19: "work on the symmetry of motion in walking gaits";
@@ -272,6 +307,10 @@ class BimoMJXEnv:
             xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
             mesh_floor=getup or (ext_cmd and recover_mix > 0),
             payload_cg_z=payload_cg_z)
+        if joint_frictionloss > 0:
+            self.mj_model.dof_frictionloss[_JV0:_JV1] = joint_frictionloss
+        if joint_armature > 0:
+            self.mj_model.dof_armature[_JV0:_JV1] = joint_armature
         if payload_mass > 0:
             self.mj_model.body_mass[self.mj_model.body("payload").id] = payload_mass
         self.model = mjx.put_model(self.mj_model)
@@ -354,6 +393,18 @@ class BimoMJXEnv:
         self.walk_submix = walk_submix
         self.w_foot_cross = w_foot_cross
         self.sway_vy = sway_vy
+        self.gait_clock = gait_clock
+        self.w_feet_phase = w_feet_phase
+        self.swing_height = swing_height
+        self.feet_phase_s2 = feet_phase_s2
+        self.w_feet_slip = w_feet_slip
+        self.w_orientation = w_orientation
+        self.w_ang_vel_xy = w_ang_vel_xy
+        self.w_pose = w_pose
+        self.w_dof_limits = w_dof_limits
+        self.push_kick = push_kick
+        self.kick_range = kick_range
+        self.obs_hist_len = max(1, int(obs_hist_len))
         self.w_symmetry = w_symmetry
         self.lift_clear = lift_clear
         self.recover_mix = recover_mix
@@ -370,8 +421,19 @@ class BimoMJXEnv:
         self.getup_start_mix = getup_start_mix
 
         self.action_size = 8
-        # 36 core + command channels: 38 legacy, 43 ext
-        self.obs_size = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2 + (7 if ext_cmd else 2)
+        # 36 core + command channels: 38 legacy, 43 ext; obs history stacks
+        # obs_frame x hist (newest first)
+        self.obs_frame = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2 + (7 if ext_cmd else 2)
+        self.obs_size = self.obs_frame * self.obs_hist_len
+        # foot BODY ids for slip velocities (cvel linear part)
+        self._foot_bids = (m.body("L_foot").id, m.body("R_foot").id)
+        # soft joint limits (90% of range) for the dof-limit penalty
+        _mid = 0.5 * (np.asarray(m.jnt_range[jnt, 0])
+                      + np.asarray(m.jnt_range[jnt, 1]))
+        _half = 0.5 * (np.asarray(m.jnt_range[jnt, 1])
+                       - np.asarray(m.jnt_range[jnt, 0]))
+        self._soft_lo = jp.asarray(_mid - 0.9 * _half)
+        self._soft_hi = jp.asarray(_mid + 0.9 * _half)
         # swing-foot reference: standing sole centers relative to the torso
         # (computed once on the CPU model at qpos0 -- yaw 0, so this is already
         # the body frame). The lifted-foot target = this + (dx, 0, lift+dz).
@@ -509,7 +571,7 @@ class BimoMJXEnv:
         return jp.stack(out)
 
     def _obs(self, data, prev_action, cmd, step_i, imu_R, imu_bias,
-             rng: jax.Array) -> jax.Array:
+             rng: jax.Array, gait_phase=None) -> jax.Array:
         up = data.sensordata[self._up_adr:self._up_adr + 3]
         gyro = data.qvel[3:6]
         linvel = data.qvel[0:3]
@@ -524,7 +586,10 @@ class BimoMJXEnv:
                 gyro = gyro + 0.03 * self.imu_noise * jax.random.normal(r2, (3,))
             linvel = jp.zeros(3)
             height = jp.zeros(())
-        phase = 2 * jp.pi * (step_i.astype(jp.float32) / self.max_steps)
+        if self.gait_clock:
+            phase = gait_phase        # per-episode gait clock (plan v2)
+        else:
+            phase = 2 * jp.pi * (step_i.astype(jp.float32) / self.max_steps)
         return jp.concatenate([
             data.qpos[_JQ0:_JQ1],
             data.qvel[_JV0:_JV1],
@@ -708,14 +773,28 @@ class BimoMJXEnv:
             traj = self._draw_traj(r_traj)
         else:
             traj = jp.zeros(3)
+        if self.gait_clock:
+            rng, r_gf, r_gp = jax.random.split(rng, 3)
+            gait_freq = jax.random.uniform(r_gf, minval=1.25, maxval=1.75)
+            gait_phase = jax.random.uniform(r_gp, minval=-jp.pi, maxval=jp.pi)
+        else:
+            gait_freq = jp.zeros(())
+            gait_phase = jp.zeros(())
         prev_action = jp.zeros(8, dtype=jp.float32)
-        obs = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias, r_obs)
+        frame = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias,
+                          r_obs, gait_phase)
+        obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
+            if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
+        obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
+               if self.obs_hist_len > 1 else frame)
         metrics = {k: jp.zeros(()) for k in self._metric_keys}
         return State(data=data, obs=obs, reward=jp.zeros(()),
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
                      last_target=self._default.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2),
-                     last_air=jp.zeros(2), cmd=cmd,
+                     last_air=jp.zeros(2),
+                     gait_freq=gait_freq, gait_phase=gait_phase,
+                     obs_hist=obs_hist, cmd=cmd,
                      cmd_next=cmd_next, traj=traj, traj_on=traj_on,
                      recover_slot=recover_slot,
                      recovered=1.0 - recover_slot,
@@ -743,15 +822,27 @@ class BimoMJXEnv:
             traj_on = jp.where(first.recover_slot > 0, 0.0, traj_on)
         else:
             traj = jp.zeros(3)
+        if self.gait_clock:
+            rng, r_gf, r_gp = jax.random.split(rng, 3)
+            gait_freq = jax.random.uniform(r_gf, minval=1.25, maxval=1.75)
+            gait_phase = jax.random.uniform(r_gp, minval=-jp.pi, maxval=jp.pi)
+        else:
+            gait_freq = jp.zeros(())
+            gait_phase = jp.zeros(())
         prev_action = jp.zeros(8, dtype=jp.float32)
-        obs = self._obs(first.data, prev_action, cmd, step_i, imu_R, imu_bias,
-                        r_obs)
+        frame = self._obs(first.data, prev_action, cmd, step_i, imu_R,
+                          imu_bias, r_obs, gait_phase)
+        obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
+            if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
+        obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
+               if self.obs_hist_len > 1 else frame)
         metrics = {k: jp.zeros(()) for k in self._metric_keys}
         return first._replace(
             obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
             prev_action=prev_action,
             last_target=self._default.astype(jp.float32), step_i=step_i,
             air_time=jp.zeros(2), last_air=jp.zeros(2),
+            gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
             recovered=1.0 - first.recover_slot, servo=servo,
@@ -771,16 +862,28 @@ class BimoMJXEnv:
             target = jp.clip(self._default + self._scale * action,
                              self._lo, self._hi)
 
-        # random shove, held for the whole control step (matches CPU env)
-        push_on = (jax.random.uniform(r_push_u) < self.push_prob) & (
-            self.push_force > 0.0)
         ang = jax.random.uniform(r_push_a, maxval=2 * jp.pi)
-        xfrc = jp.zeros((self.mj_model.nbody, 6))
-        xfrc = xfrc.at[self._torso_bid, 0].set(
-            jp.where(push_on, self.push_force * jp.cos(ang), 0.0))
-        xfrc = xfrc.at[self._torso_bid, 1].set(
-            jp.where(push_on, self.push_force * jp.sin(ang), 0.0))
-        data = state.data.replace(xfrc_applied=xfrc)
+        if self.push_kick:
+            # velocity-kick perturbation (Playground style): an instantaneous
+            # horizontal delta-v instead of a held force
+            push_on = jax.random.uniform(r_push_u) < self.push_prob
+            mag = jax.random.uniform(jax.random.fold_in(r_push_a, 1),
+                                     minval=self.kick_range[0],
+                                     maxval=self.kick_range[1])
+            kick = jp.where(push_on, mag, 0.0)
+            data = state.data.replace(
+                qvel=state.data.qvel.at[0].add(kick * jp.cos(ang))
+                                    .at[1].add(kick * jp.sin(ang)))
+        else:
+            # random shove, held for the whole control step (matches CPU env)
+            push_on = (jax.random.uniform(r_push_u) < self.push_prob) & (
+                self.push_force > 0.0)
+            xfrc = jp.zeros((self.mj_model.nbody, 6))
+            xfrc = xfrc.at[self._torso_bid, 0].set(
+                jp.where(push_on, self.push_force * jp.cos(ang), 0.0))
+            xfrc = xfrc.at[self._torso_bid, 1].set(
+                jp.where(push_on, self.push_force * jp.sin(ang), 0.0))
+            data = state.data.replace(xfrc_applied=xfrc)
 
         # sub-step latency: first lat_k substeps run on the previous target
         ms = state.lat_ms
@@ -983,6 +1086,50 @@ class BimoMJXEnv:
                 jp.where(landed,
                          jp.minimum(state.air_time, self.air_time_target)
                          - 0.5 * self.air_time_target, 0.0)), 0.0)
+        # plan-v2 Phase A terms (all default-off) -----------------------------
+        gait_phase = state.gait_phase
+        if self.gait_clock:
+            gait_phase = jp.mod(state.gait_phase + 2 * jp.pi * self.control_dt
+                                * state.gait_freq + jp.pi,
+                                2 * jp.pi) - jp.pi
+        if self.w_feet_phase:
+            # periodic swing-height targets: feet half a cycle apart
+            # (left swings on sin(phase) > 0, right on the opposite half)
+            rz_l = self.swing_height * jp.clip(jp.sin(gait_phase), 0.0, None)
+            rz_r = self.swing_height * jp.clip(-jp.sin(gait_phase), 0.0, None)
+            z_l = data.geom_xpos[self._sole_gids[0]][2] - self._sole_z0
+            z_r = data.geom_xpos[self._sole_gids[1]][2] - self._sole_z0
+            r_phase = jp.exp(-((z_l - rz_l) ** 2 + (z_r - rz_r) ** 2)
+                             / self.feet_phase_s2)
+            reward += jp.where(cmd_moving, self.w_feet_phase * r_phase, 0.0)
+        if self.w_feet_slip:
+            v_l = data.cvel[self._foot_bids[0], 3:5]
+            v_r = data.cvel[self._foot_bids[1], 3:5]
+            slip = (con[0] * jp.sqrt(jp.sum(v_l ** 2) + 1e-12)
+                    + con[1] * jp.sqrt(jp.sum(v_r ** 2) + 1e-12))
+            reward -= self.w_feet_slip * slip
+        if self.w_orientation:
+            upv = data.sensordata[self._up_adr:self._up_adr + 3]
+            reward -= self.w_orientation * (upv[0] ** 2 + upv[1] ** 2)
+        if self.w_ang_vel_xy:
+            reward -= self.w_ang_vel_xy * (data.qvel[3] ** 2
+                                           + data.qvel[4] ** 2)
+        if self.w_pose:
+            # posture regularization only under plain locomotion/stand
+            # commands with recovery complete (fights skills otherwise)
+            if self.ext_cmd:
+                pose_gate = ((~lifted) & (state.cmd[3] >= 0.97)
+                             & (state.recovered > 0.5)).astype(jp.float32)
+            else:
+                pose_gate = 1.0
+            reward -= (self.w_pose * pose_gate
+                       * jp.sum((data.qpos[_JQ0:_JQ1] - self._default) ** 2))
+        if self.w_dof_limits:
+            q = data.qpos[_JQ0:_JQ1]
+            out = (jp.maximum(self._soft_lo - q, 0.0)
+                   + jp.maximum(q - self._soft_hi, 0.0))
+            reward -= self.w_dof_limits * jp.sum(out)
+
         # gait symmetry: on touchdown, penalize the swing-duration mismatch
         # vs the OTHER foot's last completed swing (locomotion commands only)
         last_air = state.last_air
@@ -1056,8 +1203,15 @@ class BimoMJXEnv:
             cmd = jp.where(traj_on == 2.0, march, cmd)
             cmd = jp.where(traj_on == 3.0, sway, cmd)
 
-        obs = self._obs(data, action, cmd, step_i, state.imu_R,
-                        state.imu_bias, r_obs)
+        frame = self._obs(data, action, cmd, step_i, state.imu_R,
+                          state.imu_bias, r_obs, gait_phase)
+        if self.obs_hist_len > 1:
+            obs = jp.concatenate([frame, state.obs_hist.reshape(-1)])
+            obs_hist = jp.concatenate(
+                [frame[None], state.obs_hist[:-1]], axis=0)
+        else:
+            obs = frame
+            obs_hist = state.obs_hist
         metrics = {
             "power_w": power_w, "vx_body": vx_body, "wz": wz,
             "height": height, "up_z": up_z, "fell": fell.astype(jp.float32),
@@ -1079,6 +1233,8 @@ class BimoMJXEnv:
                      prev_action=action.astype(jp.float32),
                      last_target=target, step_i=step_i, air_time=air_time,
                      last_air=last_air,
+                     gait_freq=state.gait_freq, gait_phase=gait_phase,
+                     obs_hist=obs_hist,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,
                      traj_on=traj_on, recover_slot=state.recover_slot,
                      recovered=recovered, servo=state.servo,

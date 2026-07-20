@@ -167,6 +167,8 @@ def main():
     p.add_argument("--getup-mix", default="1,0,0",
                    help="getup reset mix: ragdoll,kneel,squat fractions")
     args = p.parse_args()
+    if args.precision and args.entropy == 1e-2:
+        args.entropy = 0.005          # Playground's biped setting (plan v2)
 
     # env config: the exp_walk reward shape (the day-5 tuned set), full-length
     # episodes, hardened from step 0 (imu_obs + latency/backlash/push DR)
@@ -216,6 +218,14 @@ def main():
             # articulation exercises + feet-crossing guard (user 2026-07-20)
             ext_mix=(0.15, 0.08, 0.12, 0.10, 0.08, 0.10, 0.07),
             w_foot_cross=0.5,
+            # plan-v2 Phase A (docs/training-plan-v2.md): Playground-recipe
+            # terms + Open Duck BAM servo constants + obs history
+            gait_clock=True, w_feet_phase=1.0, swing_height=0.06,
+            w_feet_slip=0.25, w_orientation=1.0, w_ang_vel_xy=0.15,
+            w_pose=0.3, w_dof_limits=1.0,
+            push_kick=True, obs_hist_len=3,
+            joint_frictionloss=0.05, joint_armature=0.028,
+            w_feet_air=5.0, w_pitch_rate=0.1,
         )
     if args.xml:
         env_kw["xml_path"] = args.xml
@@ -305,8 +315,11 @@ def main():
         reward_scaling=1.0,
         network_factory=functools.partial(
             ppo_networks.make_ppo_networks,
-            policy_hidden_layer_sizes=(128, 128),
-            value_hidden_layer_sizes=(256, 256)),
+            # plan-v2: Playground's proven biped sizes for precision runs
+            policy_hidden_layer_sizes=((512, 256, 128) if args.precision
+                                       else (128, 128)),
+            value_hidden_layer_sizes=((512, 256, 128) if args.precision
+                                      else (256, 256))),
         seed=args.seed,
         wrap_env=False,
         policy_params_fn=save_ckpt,
