@@ -1,6 +1,24 @@
 # Precision curriculum — progress report
 
-**Updated:** 2026-07-19 morning (after round 4's overnight run)
+**Updated:** 2026-07-20 morning (after round 5's overnight run)
+
+## Round 5 (precision_v5, +280M warm-started overnight; sit curriculum,
+## symmetry penalty, widened foot kernel, honest circle minimums)
+
+| scenario | v4 | v5 | note |
+|---|---|---|---|
+| balance_L/R | 5/8, 5/8 | **6/8, 6/8** | 95–98% clearance held 10 s |
+| line_1m | 8/8 @ 2.2 s | **8/8 @ 1.9 s** | faster AND cleaner |
+| stand_10s | 8/8 @ 2.9 cm | **8/8 @ 1.3 cm** | best drift yet |
+| crouch_hold | hErr 61 mm | **44 mm** | closing on the 35 mm bar |
+| circle_air | (bogus passes) | 0/8, traced r=2.0 cm | now honestly graded: real circles forming but under-amplitude (commanded 4 cm) |
+| recover_sit | 0/8 (baseline) | 0/8 | sit curriculum's first night; not yet |
+| recover_fallen | 0/8 | 1/8 "up in 0.4 s" | a lucky near-upright ragdoll settle, not a true rise — treat as 0 |
+| sidestep / backward / turns | 0/8 | 0/8 | still the stubborn block |
+| gait asymmetry | (unmeasured) | 56% | first measurement; symmetry penalty just landed |
+
+Overall: 29/112 under the *stricter* criteria (v4's 37 included bogus circle
+passes). Falls 17%, wobble 0.43, CoT 3.9.
 **Charter:** "We've been trying to run before we walk." Seven user-specified
 precision skills, one command-conditioned policy, severe fall penalties, and
 honest referee scenarios for each skill. Spec: [precision-curriculum.md](precision-curriculum.md).
