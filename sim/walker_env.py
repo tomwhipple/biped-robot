@@ -218,6 +218,7 @@ class BimoWalkerEnv(gym.Env):
         traj_radius: tuple = (0.02, 0.05),
         traj_period: tuple = (1.5, 3.5),
         ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),
+        walk_submix: tuple = (0.15, 0.15),  # of walks: (backward, sidestep)
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         lift_clear: float = 0.03,      # lifted-foot min clearance (m); the
@@ -341,6 +342,7 @@ class BimoWalkerEnv(gym.Env):
         self.traj_radius = traj_radius
         self.traj_period = traj_period
         self.ext_mix = ext_mix
+        self.walk_submix = walk_submix
         self.w_symmetry = w_symmetry
         self._last_air = np.zeros(2)
         self.lift_clear = lift_clear
@@ -712,9 +714,10 @@ class BimoWalkerEnv(gym.Env):
             cmd[2] = w if rng.uniform() < 0.5 else -w
         else:                                          # walk fwd / back / side
             uw = float(rng.uniform())
-            if uw < 0.15:
+            p_back, p_side = self.walk_submix
+            if uw < p_back:
                 cmd[0] = float(rng.uniform(*self.cmd_back_range))
-            elif uw < 0.30:
+            elif uw < p_back + p_side:
                 vy = float(rng.uniform(0.1, self.cmd_vy_range))
                 cmd[1] = vy if rng.uniform() < 0.5 else -vy
             else:

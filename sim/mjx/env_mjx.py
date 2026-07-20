@@ -199,6 +199,8 @@ class BimoMJXEnv:
         traj_period: tuple = (1.5, 3.5),      # air-circle period draw (s)
         ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),  # command mix: stand,
         # crouch, balance, air-circle, pivot; remainder = walk (fwd/back/side)
+        walk_submix: tuple = (0.15, 0.15),    # of walk commands: (backward,
+        # sidestep) fractions; remainder walks forward with the turning draw
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
         # 2026-07-19: "work on the symmetry of motion in walking gaits";
@@ -339,6 +341,7 @@ class BimoMJXEnv:
         self.traj_radius = traj_radius
         self.traj_period = traj_period
         self.ext_mix = ext_mix
+        self.walk_submix = walk_submix
         self.w_symmetry = w_symmetry
         self.lift_clear = lift_clear
         self.recover_mix = recover_mix
@@ -444,8 +447,9 @@ class BimoMJXEnv:
             jax.random.uniform(rs[8]) < 0.6,
             jax.random.uniform(rs[9], minval=-self.cmd_w_range,
                                maxval=self.cmd_w_range), 0.0)
-        wk_back = uw < 0.15
-        wk_side = (uw >= 0.15) & (uw < 0.30)
+        p_back, p_side = self.walk_submix
+        wk_back = uw < p_back
+        wk_side = (uw >= p_back) & (uw < p_back + p_side)
         vx = jp.where(m_walk,
                       jp.where(wk_back, vx_b, jp.where(wk_side, 0.0, vx_f)),
                       0.0)

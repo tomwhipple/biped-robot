@@ -146,6 +146,9 @@ def main():
                    help="plant override (default: v2; precision default: "
                         "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
     p.add_argument("--fall-cost", type=float, default=None)
+    p.add_argument("--walk-submix", default=None,
+                   help="backward,sidestep fractions of walk commands, "
+                        "e.g. 0.25,0.30")
     p.add_argument("--recover-mix", type=float, default=None,
                    help="override the fraction of recovery-start episodes "
                         "(1.0 = a dedicated recovery expert)")
@@ -215,6 +218,9 @@ def main():
         env_kw["xml_path"] = args.xml
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
+    if args.walk_submix is not None:
+        env_kw["walk_submix"] = tuple(
+            float(x) for x in args.walk_submix.split(","))
     if args.recover_mix is not None:
         env_kw["recover_mix"] = args.recover_mix
     if args.recover_start_mix is not None:
