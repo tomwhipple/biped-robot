@@ -146,6 +146,11 @@ def main():
                    help="plant override (default: v2; precision default: "
                         "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
     p.add_argument("--fall-cost", type=float, default=None)
+    p.add_argument("--recover-mix", type=float, default=None,
+                   help="override the fraction of recovery-start episodes "
+                        "(1.0 = a dedicated recovery expert)")
+    p.add_argument("--recover-start-mix", default=None,
+                   help="ragdoll,kneel,squat,sit fractions, e.g. 0.2,0.2,0.2,0.4")
     p.add_argument("--w-pitch-rate", type=float, default=None,
                    help="override torso roll/pitch-rate penalty (smoothness)")
     p.add_argument("--w-action-rate", type=float, default=None)
@@ -210,6 +215,11 @@ def main():
         env_kw["xml_path"] = args.xml
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
+    if args.recover_mix is not None:
+        env_kw["recover_mix"] = args.recover_mix
+    if args.recover_start_mix is not None:
+        env_kw["recover_start_mix"] = tuple(
+            float(x) for x in args.recover_start_mix.split(","))
     if args.w_pitch_rate is not None:
         env_kw["w_pitch_rate"] = args.w_pitch_rate
     if args.w_action_rate is not None:

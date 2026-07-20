@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Nightly training-window runner. Lives ON MIRA (~/code/robot-mjx/night/),
-# fired by cron at 23:00. One-shot: runs only if infra/night_arm.sh left an
+# fired by cron at 22:00. One-shot: runs only if infra/night_arm.sh left an
 # armed args file. POLICY (user, 2026-07-17): train on Mira nightly instead
-# of RunPod -- may START any time 23:00-05:00, HARD STOP 07:00. Never evict
+# of RunPod -- may START any time 22:00-05:00, HARD STOP 07:00. Never evict
 # ollama: WAIT for the GPU to free up (ollama auto-unloads idle models
 # after ~5 min); if it never frees by 05:00, skip the night rather than
 # OOM at launch or kill someone's in-flight inference.
@@ -29,7 +29,7 @@ while :; do
     break
   fi
   # idle-but-squatted: a resident ollama model with a long keep_alive can
-  # hold VRAM ALL night (2026-07-17 skipped 23:00-05:00 exactly this way,
+  # hold VRAM ALL night (2026-07-17 skipped 22:00-05:00 exactly this way,
   # util ~0% throughout). After two consecutive idle samples (~10 min
   # apart), unload idle models -- `ollama stop` on an IDLE model is
   # harmless (it auto-reloads on the next request); active inference
