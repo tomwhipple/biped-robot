@@ -1325,6 +1325,25 @@ Full narrative + current scorecard:
   (13 W) but no stand yet; sidestep/backward/turn-tracking remain open.
   Tonight continues v4 (same objective, warm-start).
 
+### Research-first replan (2026-07-20): stop re-inventing the wheel
+
+User directive after the Xiaomi review: research before more GPU nights.
+Three deep-dives (Playground source extraction, AMP/get-up literature,
+small-biped sim-to-real survey) produced
+[docs/training-plan-v2.md](docs/training-plan-v2.md). Highlights: Open Duck
+Mini (same STS3215 servos, same MJX+brax stack, sim-to-real WORKS) uses
+procedural reference-gait imitation, not AMP — our route to natural gait;
+IMU-only command-conditioned obs is the field standard (no onboard velocity
+estimator needed — the "odometry gap" dissolves for locomotion); Playground
+supplies exact missing reward terms (gait-phase clock, feet slip/clearance,
+quadratic orientation, pose/limit regularization) + asymmetric privileged
+critic; get-up needs head-height + rise-jerk terms + HumanUP's two-stage
+stretched-reference recipe; Open Duck's BAM-identified STS3215 params to
+cross-check ours. Tonight's queued runs (feet twins + v6) were preempted —
+they'd have trained techniques the plan replaces. Our servo/latency/
+backlash/IMU DR modeling and the CPU-referee rule survive review as ahead
+of the surveyed field.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
