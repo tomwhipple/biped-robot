@@ -27,7 +27,16 @@ printf "%s\n0 22 * * * %s\n0 7 * * * %s\n" "$TAB" \
   "$HOME/code/robot-mjx/night/night_stop.sh" | crontab -
 crontab -l | grep night_'
 
-echo "=== arming: $* ==="
-printf '%s\n' "$*" | ssh mira 'cat > code/robot-mjx/night/args'
-echo ">>> armed. night_run fires at 22:00, waits for a free GPU (no new"
-echo ">>> starts after 05:00), hard stop 07:00; collect with infra/night_collect.sh"
+OUT="job"
+prev=""
+for a in "$@"; do
+  [[ "$prev" == "--out" ]] && OUT="$a"
+  [[ "$a" == --out=* ]] && OUT="${a#--out=}"
+  prev="$a"
+done
+QN="$(date +%m%d%H%M%S)-$OUT"
+echo "=== queueing $QN: $* ==="
+printf '%s\n' "$*" | ssh mira "mkdir -p code/robot-mjx/night/queue && cat > code/robot-mjx/night/queue/$QN"
+echo ">>> tonight's queue (runs in this order from 22:00; no starts after"
+echo ">>> 05:00, hard stop 07:00; collect with infra/night_collect.sh):"
+ssh mira 'ls code/robot-mjx/night/queue | grep -v "^done$"'

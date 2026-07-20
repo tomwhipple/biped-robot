@@ -8,6 +8,7 @@ N="$HOME/code/robot-mjx/night"
 exec >> "$N/night.log" 2>&1
 [[ -f "$N/state" ]] || exit 0
 PID=$(sed -n 's/^PID=\([0-9]*\)$/\1/p' "$N/state")
+OUT=$(sed -n 's/^OUT=//p' "$N/state")
 if [[ -n "$PID" ]] && kill -0 "$PID" 2>/dev/null; then
   echo "$(date) 07:00 hard stop: SIGTERM $PID (last eval checkpoint stands)"
   kill "$PID" 2>/dev/null
@@ -16,5 +17,4 @@ if [[ -n "$PID" ]] && kill -0 "$PID" 2>/dev/null; then
 else
   echo "$(date) 07:00 check: training already finished"
 fi
-mv -f "$N/state" "$N/state.done"
-mv -f "$N/args.running" "$N/args.done" 2>/dev/null || true
+mv -f "$N/state" "$N/state.done.${OUT:-unknown}"
