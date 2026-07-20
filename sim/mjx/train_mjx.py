@@ -213,6 +213,9 @@ def main():
             # where fallen robots naturally end up AND the start of the
             # study's rise path -- make it the dominant training start
             recover_start_mix=(0.2, 0.2, 0.2, 0.4),
+            # articulation exercises + feet-crossing guard (user 2026-07-20)
+            ext_mix=(0.15, 0.08, 0.12, 0.10, 0.08, 0.10, 0.07),
+            w_foot_cross=0.5,
         )
     if args.xml:
         env_kw["xml_path"] = args.xml

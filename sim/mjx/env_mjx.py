@@ -198,7 +198,17 @@ class BimoMJXEnv:
         traj_radius: tuple = (0.02, 0.05),    # air-circle radius draw (m)
         traj_period: tuple = (1.5, 3.5),      # air-circle period draw (s)
         ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),  # command mix: stand,
-        # crouch, balance, air-circle, pivot; remainder = walk (fwd/back/side)
+        # crouch, balance, air-circle, pivot[, march, sway]; remainder =
+        # walk (fwd/back/side). 5-tuples mean no march/sway (legacy).
+        # march = alternating leg lifts with a foot-height bob (knee
+        # articulation); sway = standing lateral weight-shift tracking an
+        # oscillating vy (hip-roll articulation). User request 2026-07-20:
+        # "not a lot of motion in the knees or sideways in the hips."
+        w_foot_cross: float = 0.0,    # penalty when the soles' torso-frame
+        # lateral separation closes below sole width + 5 mm -- the leg
+        # meshes don't self-collide, so only the reward keeps the feet from
+        # visually occupying the same space (video review 2026-07-20)
+        sway_vy: float = 0.12,        # sway-command vy amplitude (m/s)
         walk_submix: tuple = (0.15, 0.15),    # of walk commands: (backward,
         # sidestep) fractions; remainder walks forward with the turning draw
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
@@ -340,8 +350,10 @@ class BimoMJXEnv:
         self.foot_sigma = foot_sigma
         self.traj_radius = traj_radius
         self.traj_period = traj_period
-        self.ext_mix = ext_mix
+        self.ext_mix = tuple(ext_mix) + (0.0,) * (7 - len(ext_mix))
         self.walk_submix = walk_submix
+        self.w_foot_cross = w_foot_cross
+        self.sway_vy = sway_vy
         self.w_symmetry = w_symmetry
         self.lift_clear = lift_clear
         self.recover_mix = recover_mix
@@ -374,8 +386,8 @@ class BimoMJXEnv:
         # against this (flat ground -- terrain is not in the ext curriculum)
         self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
         self._metric_keys = self._METRIC_KEYS + (
-            ("height_err", "foot_err", "foot_clear", "lift_ok", "vy_body",
-             "recovered")
+            ("height_err", "foot_err", "foot_clear", "foot_sep", "lift_ok",
+             "vy_body", "recovered")
             if ext_cmd else ())
 
     # -- pieces ---------------------------------------------------------------
@@ -420,17 +432,21 @@ class BimoMJXEnv:
         All draws unconditional -- fixed RNG shape for jit."""
         rs = jax.random.split(rng, 13)
         u = jax.random.uniform(rs[0])
-        p_stand, p_crouch, p_bal, p_traj, p_piv = self.ext_mix
+        p_stand, p_crouch, p_bal, p_traj, p_piv, p_march, p_sway = self.ext_mix
         t1 = p_stand
         t2 = t1 + p_crouch
         t3 = t2 + p_bal
         t4 = t3 + p_traj
         t5 = t4 + p_piv
+        t6 = t5 + p_march
+        t7 = t6 + p_sway
         m_crouch = (u >= t1) & (u < t2)
         m_bal = (u >= t2) & (u < t3)
         m_traj = (u >= t3) & (u < t4)
         m_piv = (u >= t4) & (u < t5)
-        m_walk = u >= t5
+        m_march = (u >= t5) & (u < t6)
+        m_sway = (u >= t6) & (u < t7)
+        m_walk = u >= t7
         crouch = jax.random.uniform(rs[1], minval=self.crouch_range[0],
                                     maxval=self.crouch_range[1])
         side = jp.where(jax.random.uniform(rs[2]) < 0.5, 1.0, -1.0)
@@ -463,8 +479,12 @@ class BimoMJXEnv:
                         jp.zeros(()), jp.zeros(())]).astype(jp.float32)
         hold = jax.random.uniform(rs[12], minval=self.cmd_resample_s[0],
                                   maxval=self.cmd_resample_s[1])
+        # trajectory mode code: 0 off, 1 foot-circle, 2 march, 3 sway
+        mode = (m_traj.astype(jp.float32) * 1.0
+                + m_march.astype(jp.float32) * 2.0
+                + m_sway.astype(jp.float32) * 3.0)
         return (cmd, step_i + (hold / self.control_dt).astype(jp.int32),
-                m_traj.astype(jp.float32))
+                mode)
 
     def _draw_traj(self, rng: jax.Array) -> jax.Array:
         """Per-episode air-circle parameters (radius, signed omega, phase)."""
@@ -607,17 +627,17 @@ class BimoMJXEnv:
                    .at[3:7].set(jp.array([jp.cos(ang / 2), 0.0,
                                           jp.sin(ang / 2), 0.0]))
                    .at[_JQ0:_JQ1].set(j_squat))
-        # sit (user 2026-07-19, "start the get up from a sitting position"):
-        # pelvis down, legs straight forward, torso slightly reclined -- the
-        # pose the original getup RL converged to naturally, and the start
-        # of the study's pike-up rise path.
-        j_sit = jp.zeros(8).at[jp.array([1, 5])].set(-1.40) \
-                           .at[jp.array([2, 6])].set(-0.10)
+        # sit (user 2026-07-19/20 spec): TORSO POINTING UP, waist bent 90
+        # deg, feet & legs straight out front. Hip roll splays the feet a
+        # few cm apart so the (non-self-colliding) leg meshes can never
+        # render overlapped -- video review caught them merging. Verified
+        # by sim/mjx/check_sit_pose.py (upright, stable, feet separated).
+        j_sit = jp.zeros(8).at[jp.array([1, 5])].set(-1.57) \
+                           .at[jp.array([2, 6])].set(-0.09) \
+                           .at[jp.array([0])].set(0.10) \
+                           .at[jp.array([4])].set(-0.10)
         j_sit = jp.clip(j_sit, self._lo, self._hi)
-        ang_s = -0.30                  # lean back ~17 deg
-        q_sit = (self._qpos0.at[2].set(0.10)
-                 .at[3:7].set(jp.array([jp.cos(ang_s / 2), 0.0,
-                                        jp.sin(ang_s / 2), 0.0]))
+        q_sit = (self._qpos0.at[2].set(0.08)
                  .at[_JQ0:_JQ1].set(j_sit))
         d_rag = self._settle(q_rag, self.getup_settle)
         d_kneel = self._settle(q_kneel, 50)
@@ -849,6 +869,13 @@ class BimoMJXEnv:
             foot_err = jp.linalg.norm(rel - tgt)
             foot_kernel = (lifted.astype(jp.float32)
                            * jp.exp(-((foot_err / self.foot_sigma) ** 2)))
+            # feet-crossing guard: torso-frame lateral separation of the two
+            # sole centers must stay >= sole width + 5 mm
+            pL = data.geom_xpos[self._sole_gids[0]] - data.xpos[self._torso_bid]
+            pR = data.geom_xpos[self._sole_gids[1]] - data.xpos[self._torso_bid]
+            y_sep = jp.abs((-sth * pL[0] + cth * pL[1])
+                           - (-sth * pR[0] + cth * pR[1]))
+            cross_frac = jp.clip((0.051 - y_sep) / 0.051, 0.0, 1.0)
 
         if self.getup:
             # recovery: dense progress toward tall + upright, then a standing
@@ -945,6 +972,7 @@ class BimoMJXEnv:
             # lift + swing-foot rewards (geometry computed pre-reward above)
             reward += self.w_lift * lift_ok
             reward += self.w_track_foot * foot_kernel
+            reward -= self.w_foot_cross * cross_frac
             # a lifted command is a balance task, not locomotion: gait shaping
             # off; a sidestep command (vy) is locomotion like any other.
             # (cmd_moving already covers c0 and c2 via cmd_v/cmd_w.)
@@ -1010,15 +1038,23 @@ class BimoMJXEnv:
         cmd_next = jp.where(resample, new_next, state.cmd_next)
         traj_on = jp.where(resample, new_traj_on, state.traj_on)
         if self.ext_cmd:
-            # air-circle commands: c5/c6 ride the per-episode circle every
-            # step (the policy sees a continuously moving foot target). Only
-            # when traj_on -- other commands keep their c5/c6 (a scripted
-            # eval may pin a fixed foot target via cmd_fixed).
+            # trajectory-mode command evolution (traj_on carries the mode:
+            # 0 off, 1 foot-circle, 2 march, 3 sway); scripted evals that
+            # pin commands via cmd_fixed keep mode 0 and are untouched.
             th = (state.traj[2] + state.traj[1]
                   * step_i.astype(jp.float32) * self.control_dt)
-            evolved = (cmd.at[5].set(state.traj[0] * jp.cos(th))
-                       .at[6].set(state.traj[0] * jp.sin(th)))
-            cmd = jp.where(traj_on > 0, evolved, cmd)
+            circle = (cmd.at[5].set(state.traj[0] * jp.cos(th))
+                      .at[6].set(state.traj[0] * jp.sin(th)))
+            # march: alternate the lifted leg each half period; the foot
+            # target bobs 0..radius above the nominal lift height
+            march = (cmd.at[4].set(jp.where(jp.sin(th) >= 0, 1.0, -1.0))
+                     .at[5].set(0.0)
+                     .at[6].set(state.traj[0] * jp.abs(jp.sin(th))))
+            # sway: standing lateral weight-shift via an oscillating vy
+            sway = cmd.at[1].set(self.sway_vy * jp.sin(th))
+            cmd = jp.where(traj_on == 1.0, circle, cmd)
+            cmd = jp.where(traj_on == 2.0, march, cmd)
+            cmd = jp.where(traj_on == 3.0, sway, cmd)
 
         obs = self._obs(data, action, cmd, step_i, state.imu_R,
                         state.imu_bias, r_obs)
@@ -1034,6 +1070,7 @@ class BimoMJXEnv:
                 height_err=jp.abs(height - h_ref),
                 foot_err=lifted.astype(jp.float32) * foot_err,
                 foot_clear=lifted.astype(jp.float32) * foot_clear,
+                foot_sep=y_sep,
                 lift_ok=lift_ok,
                 vy_body=vy_body,
                 recovered=recovered)

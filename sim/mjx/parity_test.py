@@ -79,7 +79,7 @@ def sync(state, cpu, gpu_env=None):
         last_air=jp.asarray(np.array(cpu._last_air)),
         cmd=jp.asarray(np.array(cpu._cmd)),
         traj=jp.asarray(np.array(cpu._traj)),
-        traj_on=jp.asarray(1.0 if cpu._traj_on else 0.0),
+        traj_on=jp.asarray(float(cpu._traj_on)),
         recover_slot=jp.asarray(1.0 if cpu._recover_ep else 0.0),
         recovered=jp.asarray(1.0 if cpu._recovered else 0.0),
     )

@@ -217,8 +217,11 @@ class BimoWalkerEnv(gym.Env):
         # (a 3 cm kernel pays ~0 gradient at v4's ~15 cm foot error)
         traj_radius: tuple = (0.02, 0.05),
         traj_period: tuple = (1.5, 3.5),
-        ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),
+        ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),  # stand, crouch,
+        # balance, circle, pivot[, march, sway]; 5-tuple = no march/sway
         walk_submix: tuple = (0.15, 0.15),  # of walks: (backward, sidestep)
+        w_foot_cross: float = 0.0,     # feet-crossing guard (mirrors sim/mjx)
+        sway_vy: float = 0.12,         # sway-command vy amplitude (m/s)
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         lift_clear: float = 0.03,      # lifted-foot min clearance (m); the
@@ -341,8 +344,10 @@ class BimoWalkerEnv(gym.Env):
         self.foot_sigma = foot_sigma
         self.traj_radius = traj_radius
         self.traj_period = traj_period
-        self.ext_mix = ext_mix
+        self.ext_mix = tuple(ext_mix) + (0.0,) * (7 - len(ext_mix))
         self.walk_submix = walk_submix
+        self.w_foot_cross = w_foot_cross
+        self.sway_vy = sway_vy
         self.w_symmetry = w_symmetry
         self._last_air = np.zeros(2)
         self.lift_clear = lift_clear
@@ -359,7 +364,7 @@ class BimoWalkerEnv(gym.Env):
             self._cmd[3] = 1.0            # crouch channel: 1 = full height
         self._cmd_next = 0
         self._traj = np.zeros(3)       # air-circle: radius, omega, phase0
-        self._traj_on = False
+        self._traj_on = 0.0            # trajectory mode (0/1/2/3)
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
         self._imu_R = np.eye(3)          # per-episode mounting misalignment
@@ -669,7 +674,7 @@ class BimoWalkerEnv(gym.Env):
             if len(self._cmd) != self._ncmd:
                 raise ValueError(f"cmd_fixed needs {self._ncmd} channels")
             self._cmd_next = 10 ** 9
-            self._traj_on = False
+            self._traj_on = 0.0
             return
         if self.ext_cmd:
             self._sample_command_ext()
@@ -696,11 +701,10 @@ class BimoWalkerEnv(gym.Env):
         (same mix and ranges; RNG streams differ by construction)."""
         rng = self.np_random
         u = float(rng.uniform())
-        p_stand, p_crouch, p_bal, p_traj, p_piv = self.ext_mix
-        t = np.cumsum([p_stand, p_crouch, p_bal, p_traj, p_piv])
-        cmd = np.zeros(7)
+        t = np.cumsum(self.ext_mix)    # stand, crouch, bal, circle, pivot,
+        cmd = np.zeros(7)              # march, sway; remainder = walk
         cmd[3] = 1.0
-        self._traj_on = False
+        self._traj_on = 0.0            # mode: 0 off, 1 circle, 2 march, 3 sway
         if u < t[0]:
             pass                                       # stand
         elif u < t[1]:                                 # crouch hold
@@ -708,10 +712,14 @@ class BimoWalkerEnv(gym.Env):
         elif u < t[3]:                                 # one-leg balance/circle
             cmd[4] = 1.0 if rng.uniform() < 0.5 else -1.0
             if u >= t[2]:
-                self._traj_on = True                   # air circle (c5/c6 ride)
+                self._traj_on = 1.0                    # air circle (c5/c6 ride)
         elif u < t[4]:                                 # pivot in place
             w = float(rng.uniform(0.3, self.cmd_w_range))
             cmd[2] = w if rng.uniform() < 0.5 else -w
+        elif u < t[5]:                                 # march in place
+            self._traj_on = 2.0
+        elif u < t[6]:                                 # lateral sway
+            self._traj_on = 3.0
         else:                                          # walk fwd / back / side
             uw = float(rng.uniform())
             p_back, p_side = self.walk_submix
@@ -741,7 +749,7 @@ class BimoWalkerEnv(gym.Env):
         base[:len(chans)] = [float(c) for c in chans]
         self._cmd = base
         self._cmd_next = 10 ** 9
-        self._traj_on = False
+        self._traj_on = 0.0
 
     def set_torque_enabled(self, on: bool):
         """Release / re-engage servo torque, both actuator models.
@@ -847,12 +855,12 @@ class BimoWalkerEnv(gym.Env):
                 self.data.qpos[2] = 0.10
                 self.data.qpos[3:7] = [np.cos(ang / 2), 0, np.sin(ang / 2), 0]
                 self.data.qpos[_JQPOS] = np.clip(j, self._lo, self._hi)
-            else:                      # sit: legs forward, torso reclined
-                j[[1, 5]] = -1.40
-                j[[2, 6]] = -0.10
-                ang = -0.30
-                self.data.qpos[2] = 0.10
-                self.data.qpos[3:7] = [np.cos(ang / 2), 0, np.sin(ang / 2), 0]
+            else:                      # sit: torso UP, waist 90 deg, legs
+                j[[1, 5]] = -1.57      # out front, feet splayed apart
+                j[[2, 6]] = -0.09      # (mirrors sim/mjx; verified by
+                j[0] = 0.10            # check_sit_pose.py)
+                j[4] = -0.10
+                self.data.qpos[2] = 0.08
                 self.data.qpos[_JQPOS] = np.clip(j, self._lo, self._hi)
             self.data.ctrl[:] = self._default
             for _ in range(settle_n):
@@ -891,7 +899,7 @@ class BimoWalkerEnv(gym.Env):
             # recovery episode: stand command pinned for the whole episode
             self._cmd = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
             self._cmd_next = 10 ** 9
-            self._traj_on = False
+            self._traj_on = 0.0
         if self.ext_cmd:
             # per-episode air-circle parameters (mirrors sim/mjx _draw_traj)
             rad = float(self.np_random.uniform(*self.traj_radius))
@@ -1299,13 +1307,20 @@ class BimoWalkerEnv(gym.Env):
             if self._step_i >= self._cmd_next:
                 self._sample_command()
             if self.ext_cmd and self._traj_on:
-                # air-circle commands: c5/c6 ride the per-episode circle every
-                # step (mirrors sim/mjx -- uses the post-increment step index).
-                # Other commands keep their c5/c6 (set_command may pin one).
+                # trajectory-mode evolution (mirrors sim/mjx): 1 = foot
+                # circle, 2 = march (alternating lifts + height bob),
+                # 3 = lateral sway. Pinned commands keep mode 0.
                 th = (self._traj[2]
                       + self._traj[1] * self._step_i * self.control_dt)
-                self._cmd[5] = self._traj[0] * np.cos(th)
-                self._cmd[6] = self._traj[0] * np.sin(th)
+                if self._traj_on == 1.0:
+                    self._cmd[5] = self._traj[0] * np.cos(th)
+                    self._cmd[6] = self._traj[0] * np.sin(th)
+                elif self._traj_on == 2.0:
+                    self._cmd[4] = 1.0 if np.sin(th) >= 0 else -1.0
+                    self._cmd[5] = 0.0
+                    self._cmd[6] = self._traj[0] * abs(np.sin(th))
+                elif self._traj_on == 3.0:
+                    self._cmd[1] = self.sway_vy * np.sin(th)
         return self._obs(), float(reward), terminated, truncated, info
 
     def render(self):

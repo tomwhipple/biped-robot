@@ -171,6 +171,7 @@ class Driver:
             foot_clear=float(info.get("foot_clear", 0.0)),
             foot_dx=float(info.get("foot_dx", float("nan"))),
             foot_dz=float(info.get("foot_dz", float("nan"))),
+            cmd_lift=float(info.get("cmd_lift", 0.0)),
             recovered=float(info.get("recovered", 1.0))))
         if self.record and len(self.rows) % 3 == 0:
             self.frames.append(env.render())
@@ -594,6 +595,81 @@ def scen_recover_fallen(deadline=6.0):
     return build, evaluate
 
 
+def scen_march():
+    """March in place: alternating leg lifts every 0.7 s with a height bob
+    (knee-articulation exercise, user 2026-07-20). Success: >= 3 clean
+    lifted intervals PER LEG (clearance >= 3 cm), no fall, stays put."""
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            if t < 1.0:
+                return (0, 0, 0, 1, 0)
+            phase = (t - 1.0) % 1.4
+            lift = -1 if phase < 0.7 else 1
+            bob = 0.03 * abs(math.sin(math.pi * (phase % 0.7) / 0.7))
+            return (0, 0, 0, 1, lift, 0, bob)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        win = _win(rows, 1.0, 9.4)                 # 6 full L/R cycles
+        drift = _drift_rms(win)
+        # count clean lifted intervals per side: consecutive stretches of
+        # >= 0.3 s with the commanded swing foot clear >= 3 cm
+        clean = {"L": 0, "R": 0}
+        run_len = 0
+        prev_side = None
+        for r in win:
+            side = "L" if r["cmd_lift"] < -0.5 else (
+                "R" if r["cmd_lift"] > 0.5 else None)
+            good = side is not None and r["foot_clear"] >= 0.03
+            if good and side == prev_side:
+                run_len += 1
+            else:
+                if prev_side and run_len >= 5:      # 5 rows ~ 0.3 s
+                    clean[prev_side] += 1
+                run_len = 1 if good else 0
+            prev_side = side if good else None
+        if prev_side and run_len >= 5:
+            clean[prev_side] += 1
+        success = ((not fell) and clean["L"] >= 3 and clean["R"] >= 3
+                   and not math.isnan(drift) and drift < 0.15)
+        return dict(success=success,
+                    metrics=dict(clean_lifts_l=clean["L"],
+                                 clean_lifts_r=clean["R"], drift_rms=drift),
+                    headline=f"lifts {clean['L']}L/{clean['R']}R")
+    return build, evaluate
+
+
+def scen_sway():
+    """Lateral sway: track vy = 0.12 sin(2 pi t / 1.6) for 6 s with both
+    feet planted-ish (hip-roll exercise). Success: lateral pelvis
+    oscillation amplitude >= 2 cm, net drift < 0.15 m, no fall."""
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            if t < 1.0:
+                return (0, 0, 0, 1, 0)
+            if t < 7.0:
+                vy = 0.12 * math.sin(2 * math.pi * (t - 1.0) / 1.6)
+                return (0, vy, 0, 1, 0)
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        win = _win(rows, 1.0, 7.0)
+        ys = [r["y"] for r in win]
+        amp = (max(ys) - min(ys)) / 2 if ys else float("nan")
+        drift = abs(ys[-1] - ys[0]) if ys else float("nan")
+        success = ((not fell) and not math.isnan(amp) and amp >= 0.02
+                   and drift < 0.15)
+        return dict(success=success,
+                    metrics=dict(sway_amp=amp, net_drift=drift),
+                    headline=f"amp {amp*100:.1f}cm")
+    return build, evaluate
+
+
 def scen_stand_10s():
     def build():
         ev = {}
@@ -630,6 +706,8 @@ def _registry():
     reg["square_return"] = (45.0, scen_square_return(), True)
     reg["circle_return"] = (16.0, scen_circle_return(), True)
     reg["crouch_hold"] = (10.0, scen_crouch_hold(), False)
+    reg["march_in_place"] = (11.0, scen_march(), False)
+    reg["hip_sway"] = (9.0, scen_sway(), False)
     # sit -> stand: the curriculum stage (user 2026-07-19); shorter deadline
     # since the hard part (getting onto the feet) starts closer to done
     reg["recover_sit"] = (12.0, scen_recover_fallen(deadline=5.0), False)
@@ -647,6 +725,7 @@ ENV_EXTRA = {
 }
 
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
+         "march_in_place", "hip_sway",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
          "square_return", "circle_return", "crouch_hold",
          "recover_sit", "recover_fallen", "stand_10s"]
@@ -664,6 +743,8 @@ HEADLINE = {
     "square_return": ("return_err", lambda v: f"ret {v*100:.0f}cm"),
     "circle_return": ("return_err", lambda v: f"ret {v*100:.0f}cm"),
     "crouch_hold": ("height_err", lambda v: f"hErr {v*1000:.0f}mm"),
+    "march_in_place": ("clean_lifts_l", lambda v: f"{v:.0f} clean lifts/leg"),
+    "hip_sway": ("sway_amp", lambda v: f"amp {v*100:.1f}cm"),
     "stand_10s": ("drift", lambda v: f"drift {v*100:.1f}cm"),
 }
 
