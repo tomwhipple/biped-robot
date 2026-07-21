@@ -26,6 +26,25 @@ START_DEADLINE=$(date -d '05:00' +%s)
 END_HARD=$(date -d '07:00' +%s)
 (( END_HARD <= $(date +%s) )) && END_HARD=$((END_HARD + 86400))
 
+
+restore_ollama() {
+  # user rule (2026-07-21): every time training finishes, restart ollama.
+  # No passwordless sudo on mira -> try a true service restart, else re-warm
+  # the usual models onto the freed GPU via the API (the service itself was
+  # never stopped; only its models were unloaded).
+  echo "$(date +%H:%M) restoring ollama after training"
+  if sudo -n systemctl restart ollama 2>/dev/null; then
+    echo "  ollama service restarted"
+    return
+  fi
+  curl -s -m 180 localhost:11434/api/generate \
+       -d '{"model":"llama3.2-vision:latest"}' >/dev/null 2>&1 || true
+  curl -s -m 60 localhost:11434/api/embed \
+       -d '{"model":"nomic-embed-text:latest","input":"warmup"}' \
+       >/dev/null 2>&1 || true
+  echo "  ollama models re-warmed via API (no passwordless sudo)"
+}
+
 wait_gpu() {   # 0 = free; 1 = start deadline passed while waiting
   local IDLE_STREAK=0 LINE UTIL USED TOTAL FREE M
   while :; do
@@ -97,5 +116,6 @@ for JOB in $(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort); do
   fi
   echo "$(date +%H:%M) $JOB finished"
   mv -f "$N/state" "$N/state.done.$OUT"
+  restore_ollama
 done
 echo "$(date) night_run loop done"

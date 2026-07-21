@@ -18,3 +18,14 @@ else
   echo "$(date) 07:00 check: training already finished"
 fi
 mv -f "$N/state" "$N/state.done.${OUT:-unknown}"
+# user rule (2026-07-21): restart/re-warm ollama after training ends
+if ! sudo -n systemctl restart ollama 2>/dev/null; then
+  curl -s -m 180 localhost:11434/api/generate \
+       -d '{"model":"llama3.2-vision:latest"}' >/dev/null 2>&1 || true
+  curl -s -m 60 localhost:11434/api/embed \
+       -d '{"model":"nomic-embed-text:latest","input":"warmup"}' \
+       >/dev/null 2>&1 || true
+  echo "$(date) ollama models re-warmed"
+else
+  echo "$(date) ollama service restarted"
+fi
