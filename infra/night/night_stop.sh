@@ -18,3 +18,21 @@ else
   echo "$(date) 07:00 check: training already finished"
 fi
 mv -f "$N/state" "$N/state.done.${OUT:-unknown}"
+# migrate any CPU-stranded ollama model back to the freed GPU (see
+# night_run.sh restore_ollama for the why)
+STRANDED=$(curl -s -m 10 localhost:11434/api/ps | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for m in d.get('models', []):
+    if m.get('size_vram', 0) < m.get('size', 1):
+        print(m['name'])
+" 2>/dev/null)
+for M in $STRANDED; do
+  echo "$(date) migrating CPU-stranded ollama model $M back to GPU"
+  ollama stop "$M" 2>/dev/null || true
+  curl -s -m 300 localhost:11434/api/generate -d "{\"model\":\"$M\"}" \
+    >/dev/null 2>&1 || true
+done

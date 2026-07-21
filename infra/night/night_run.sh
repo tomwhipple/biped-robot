@@ -26,6 +26,33 @@ START_DEADLINE=$(date -d '05:00' +%s)
 END_HARD=$(date -d '07:00' +%s)
 (( END_HARD <= $(date +%s) )) && END_HARD=$((END_HARD + 86400))
 
+
+restore_ollama() {
+  # A model that ollama loads WHILE training holds the GPU falls back to
+  # CPU inference and STAYS there after the GPU frees (ollama never
+  # migrates a loaded model) -- the user's LLM then "takes forever" until
+  # something forces a reload. Fix (user problem report 2026-07-21):
+  # detect models not fully resident in VRAM, unload them, and re-warm --
+  # the reload lands on the freed GPU. No service restart needed.
+  local STRANDED M
+  STRANDED=$(curl -s -m 10 localhost:11434/api/ps | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for m in d.get('models', []):
+    if m.get('size_vram', 0) < m.get('size', 1):
+        print(m['name'])
+" 2>/dev/null)
+  for M in $STRANDED; do
+    echo "$(date +%H:%M) migrating CPU-stranded ollama model $M back to GPU"
+    ollama stop "$M" 2>/dev/null || true
+    curl -s -m 300 localhost:11434/api/generate -d "{\"model\":\"$M\"}" \
+      >/dev/null 2>&1 || true
+  done
+}
+
 wait_gpu() {   # 0 = free; 1 = start deadline passed while waiting
   local IDLE_STREAK=0 LINE UTIL USED TOTAL FREE M
   while :; do
@@ -97,5 +124,6 @@ for JOB in $(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort); do
   fi
   echo "$(date +%H:%M) $JOB finished"
   mv -f "$N/state" "$N/state.done.$OUT"
+  restore_ollama
 done
 echo "$(date) night_run loop done"
