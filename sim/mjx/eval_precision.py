@@ -57,14 +57,28 @@ _ENV_PARAMS = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
 # =====================================================================
 #  policy + env loading (mirrors eval_ref.py)
 # =====================================================================
+def _hidden_sizes(net_params, fallback):
+    """Derive MLP hidden sizes from checkpoint param shapes (brax names all
+    layers hidden_i; the last one is the output layer). Robust across runs
+    with different --precision network configurations."""
+    try:
+        layers = net_params["params"]
+        ks = sorted((k for k in layers if k.startswith("hidden_")),
+                    key=lambda k: int(k.split("_")[1]))
+        return tuple(int(layers[k]["kernel"].shape[1]) for k in ks[:-1])
+    except Exception:
+        return fallback
+
+
 def load_policy(run_dir, obs_size, act_size=8):
     with open(os.path.join(run_dir, "params.pkl"), "rb") as f:
         params = pickle.load(f)
     net = ppo_networks.make_ppo_networks(
         observation_size=obs_size, action_size=act_size,
         preprocess_observations_fn=running_statistics.normalize,
-        policy_hidden_layer_sizes=(128, 128),
-        value_hidden_layer_sizes=(256, 256))
+        policy_hidden_layer_sizes=_hidden_sizes(params[1], (128, 128)),
+        value_hidden_layer_sizes=(_hidden_sizes(params[2], (256, 256))
+                                  if len(params) > 2 else (256, 256)))
     make_policy = ppo_networks.make_inference_fn(net)
     policy = jax.jit(make_policy((params[0], params[1]), deterministic=True))
     rng = jax.random.PRNGKey(0)
@@ -98,6 +112,13 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None):
     else:
         kw.update(domain_rand=True, latency_ms=4.0, latency_ms_max=None,
                   latency_jitter_ms=0.0, backlash_deg=0.7, backlash_deg_max=None)
+    # hardware-claim pushes are pinned to the HISTORICAL standard (gentle 5 N
+    # force shoves @1%) regardless of what the run trained with -- v7/v7b
+    # trained with strong velocity kicks and inheriting those into the eval
+    # made their scorecards incomparably harsher than v1-v6 (falls 88% under
+    # inherited 1 m/s kicks vs 0% nominal, found 2026-07-22)
+    kw.update(push_kick=False, push_force=5.0 if not nominal else 0.0,
+              push_prob=0.01 if not nominal else 0.0)
     return BimoWalkerEnv(**kw)
 
 

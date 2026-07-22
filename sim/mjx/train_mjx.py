@@ -146,6 +146,10 @@ def main():
                    help="plant override (default: v2; precision default: "
                         "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
     p.add_argument("--fall-cost", type=float, default=None)
+    p.add_argument("--kick-range", default=None,
+                   help="velocity-kick magnitudes, e.g. 0.05,0.3 (m/s)")
+    p.add_argument("--push-prob", type=float, default=None,
+                   help="per-step perturbation probability")
     p.add_argument("--walk-submix", default=None,
                    help="backward,sidestep fractions of walk commands, "
                         "e.g. 0.25,0.30")
@@ -231,6 +235,11 @@ def main():
         env_kw["xml_path"] = args.xml
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
+    if args.kick_range is not None:
+        env_kw["kick_range"] = tuple(
+            float(x) for x in args.kick_range.split(","))
+    if args.push_prob is not None:
+        env_kw["push_prob"] = args.push_prob
     if args.walk_submix is not None:
         env_kw["walk_submix"] = tuple(
             float(x) for x in args.walk_submix.split(","))
