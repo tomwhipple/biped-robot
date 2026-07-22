@@ -80,6 +80,38 @@ telemetry, CLI** — communicates with core 1 via a single-slot command
 mailbox (latest-wins) and a telemetry queue. Nothing on core 0 can block
 the loop.
 
+### FreeRTOS usage (brief)
+
+ESP-IDF *is* a FreeRTOS application — the dual-core SMP FreeRTOS fork is
+the substrate under everything (WiFi stack included). We use it
+deliberately and minimally:
+
+- **Tasks (all created once at init, statically allocated):**
+  `ctrl` (core 1, highest app priority — the entire §1 loop),
+  `link` (core 0, blocks on the UDP socket, decodes commands),
+  `housekeeping` (core 0, low priority — telemetry drain, CLI, voltage).
+  WiFi/LwIP tasks are IDF-managed and stay on core 0, so nothing they do
+  can preempt `ctrl` on core 1.
+- **Tick pacing:** a hardware `esp_timer` fires every 20 ms and sends a
+  **direct-to-task notification** to `ctrl` (`vTaskNotifyGiveFromISR`) —
+  the task blocks on `ulTaskNotifyTake`, giving jitter of microseconds,
+  not scheduler ticks. `ctrl` timestamps each wake and logs any overrun.
+- **Inter-core traffic:** the command mailbox is a **length-1 queue
+  written with `xQueueOverwrite`** (latest command wins; stale commands
+  can never pile up), read non-blocking by `ctrl` each tick. Telemetry
+  goes the other way through a drop-oldest ring buffer; the watchdog
+  liveness stamp is a single `std::atomic<uint32_t>` tick count. **No
+  mutexes anywhere in the control path** — every shared object has one
+  writer.
+- **Supervision:** the IDF Task Watchdog is armed on `ctrl`; a tick
+  overrunning ~2 periods trips torque-release before reset, and the
+  link-watchdog (protocol-level, from control-channel.md) is checked
+  inside `ctrl` itself so its timeout action runs in the loop that owns
+  the bus.
+- **Not used:** dynamic task creation after init, software timers in the
+  control path, `vTaskDelay` for pacing (drifts), or core-0 work of any
+  kind that holds a resource `ctrl` needs.
+
 ## 5. Modules
 
 ```mermaid
