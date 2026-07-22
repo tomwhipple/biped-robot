@@ -77,3 +77,16 @@ procedure; slicer-mass cross-check (already our practice).
 - The pre-research feet-comparison runs (would have tested sit→stand under
   a recovery reward we now know is missing decisive terms).
 - Any onboard linear-velocity estimator work for locomotion.
+
+## Amendment (2026-07-22, progress review): specialist policies
+
+Adopted after the user's progress review: the single do-everything policy
+is split into THREE specialists sharing one env/obs format (deployment
+switches on command type): **loco** (walk/backward/sidestep/turn/pivot/
+stand, with the Phase B procedural-gait mimic reward), **skills**
+(balance/circles/march/sway/crouch), **getup** (recovery-only + rise-jerk
+penalty). Nights now run 3-4 ~110M diagnostic experiments instead of one
+400M shot; scorecards auto-filter to each family's scenarios. precision_v7b
+remains the best unified policy (47/128) and warm-starts the skills/getup
+specialists. First specialist night: loco_v1 (mimic) vs loco_v1_ctrl
+(no-mimic ablation), skills_v1, getup_v1.
