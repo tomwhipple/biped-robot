@@ -745,6 +745,16 @@ ENV_EXTRA = {
                         recover_start_mix=(0.0, 0.0, 0.0, 1.0)),
 }
 
+# specialist-family scenario filters (progress review 2026-07-22): a run
+# whose config records train.family gets scored only on its own scenarios
+FAMILY_SCENARIOS = {
+    "loco": ["line_1m", "backward_1m", "sidestep_L", "sidestep_R",
+             "square_return", "circle_return", "stand_10s"],
+    "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
+               "march_in_place", "hip_sway", "crouch_hold", "stand_10s"],
+    "getup": ["recover_sit", "recover_fallen"],
+}
+
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "march_in_place", "hip_sway",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
@@ -826,6 +836,10 @@ def main():
 
     reg = _registry()
     names = ORDER
+    fam = (cfg.get("train", {}) or {}).get("family", "all")
+    if not args.scenarios and fam in FAMILY_SCENARIOS:
+        names = [n for n in ORDER if n in FAMILY_SCENARIOS[fam]]
+        print(f"[family={fam}] scoring {len(names)} scenarios")
     if args.scenarios:
         want = [s.strip() for s in args.scenarios.split(",") if s.strip()]
         names = [n for n in ORDER if n in want]

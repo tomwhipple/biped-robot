@@ -237,6 +237,10 @@ class BimoWalkerEnv(gym.Env):
         obs_hist_len: int = 1,
         joint_frictionloss: float = 0.0,
         joint_armature: float = 0.0,
+        w_mimic: float = 0.0,          # procedural-gait imitation (Phase B;
+        # mirrors sim/mjx _mimic_ref exactly -- requires gait_clock)
+        mimic_s2: float = 0.72,
+        w_rise_dofvel: float = 0.0,    # rise jerk control (recovery only)
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         lift_clear: float = 0.03,      # lifted-foot min clearance (m); the
@@ -375,6 +379,11 @@ class BimoWalkerEnv(gym.Env):
         self.push_kick = push_kick
         self.kick_range = kick_range
         self.obs_hist_len = max(1, int(obs_hist_len))
+        self.w_mimic = w_mimic
+        self.mimic_s2 = mimic_s2
+        self.w_rise_dofvel = w_rise_dofvel
+        if w_mimic > 0 and not gait_clock:
+            raise ValueError("w_mimic requires gait_clock")
         self._gait_freq = 0.0
         self._gait_phase = 0.0
         self._obs_hist = []
@@ -710,6 +719,29 @@ class BimoWalkerEnv(gym.Env):
             # pure read: history is updated explicitly in reset()/step()
             return np.concatenate([frame] + list(self._obs_hist))
         return frame
+
+    def _mimic_ref(self, cmd, phase, freq):
+        """Numpy mirror of sim/mjx BimoMJXEnv._mimic_ref (parity-gated)."""
+        f = max(float(freq), 0.5)
+        d = self._default
+        s, c = np.sin(phase), np.cos(phase)
+        sw = np.array([max(0.0, s), max(0.0, -s)])
+        xn = np.array([-c, c])
+        A = np.clip(1.4 * (cmd[0] + np.array([-1.0, 1.0]) * 0.028 * cmd[2])
+                    / f, -0.45, 0.45)
+        B = float(np.clip(1.1 * cmd[1] / f, -0.3, 0.3))
+        hp0 = np.array([d[1], d[5]])
+        kn0 = np.array([d[2], d[6]])
+        hipP = hp0 - A * xn
+        # knee swing-bend scales with commanded activity: zero command ->
+        # the reference IS the standing pose (no knee pumping)
+        mag = min(1.0, (float(np.max(np.abs(A))) + abs(B)) / 0.35)
+        knee = kn0 - 0.55 * mag * sw
+        roll = np.array([d[0], d[4]]) + B * xn
+        ank = np.array([d[3], d[7]]) - (hipP - hp0) - (knee - kn0)
+        q = np.array([roll[0], hipP[0], knee[0], ank[0],
+                      roll[1], hipP[1], knee[1], ank[1]])
+        return np.clip(q, self._lo, self._hi)
 
     def _sample_command(self):
         """New (vx, yaw-rate) command. Mix: stand / pivot-in-place / walk
@@ -1320,6 +1352,19 @@ class BimoWalkerEnv(gym.Env):
             out = (np.maximum(self._soft_lo - q, 0.0)
                    + np.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * float(np.sum(out))
+        if self.w_mimic:
+            q_ref = self._mimic_ref(self._cmd, self._gait_phase,
+                                    self._gait_freq)
+            dq = np.asarray(d.qpos[_JQPOS]) - q_ref
+            mim_gate = 1.0
+            if self.ext_cmd:
+                mim_gate = float((not lifted) and self._recovered)
+            reward += (self.w_mimic * mim_gate
+                       * float(np.exp(-np.sum(dq ** 2) / self.mimic_s2)))
+        if self.w_rise_dofvel and self.ext_cmd and self.recover_mix > 0:
+            if not self._recovered:
+                reward -= self.w_rise_dofvel * float(np.sum(
+                    np.asarray(d.qvel[_JQVEL]) ** 2))
 
         self._prev_action[:] = action
         self._step_i += 1

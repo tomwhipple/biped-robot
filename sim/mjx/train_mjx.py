@@ -146,6 +146,12 @@ def main():
                    help="plant override (default: v2; precision default: "
                         "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
     p.add_argument("--fall-cost", type=float, default=None)
+    p.add_argument("--family", choices=["all", "loco", "skills", "getup"],
+                   default="all",
+                   help="specialist policy family (plan v2 / progress "
+                        "review 2026-07-22): restricts the command mix so "
+                        "each policy masters one skill family")
+    p.add_argument("--w-mimic", type=float, default=None)
     p.add_argument("--kick-range", default=None,
                    help="velocity-kick magnitudes, e.g. 0.05,0.3 (m/s)")
     p.add_argument("--push-prob", type=float, default=None,
@@ -235,6 +241,21 @@ def main():
         env_kw["xml_path"] = args.xml
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
+    if args.family == "loco":
+        # locomotion specialist: walk/backward/sidestep/turn/pivot/stand,
+        # with the Phase B procedural-gait imitation prior
+        env_kw.update(ext_mix=(0.20, 0.0, 0.0, 0.0, 0.15, 0.0, 0.0),
+                      walk_submix=(0.25, 0.30), recover_mix=0.0,
+                      w_mimic=1.5)
+    elif args.family == "skills":
+        # balance-family specialist: stand/crouch/one-leg/circles/march/sway
+        # (mix sums to 1.0 -> walk commands never drawn)
+        env_kw.update(ext_mix=(0.15, 0.15, 0.25, 0.20, 0.0, 0.15, 0.10),
+                      recover_mix=0.0)
+    elif args.family == "getup":
+        env_kw.update(recover_mix=1.0, w_rise_dofvel=0.002)
+    if args.w_mimic is not None:
+        env_kw["w_mimic"] = args.w_mimic
     if args.kick_range is not None:
         env_kw["kick_range"] = tuple(
             float(x) for x in args.kick_range.split(","))

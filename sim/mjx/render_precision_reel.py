@@ -108,6 +108,9 @@ def main():
 
     reg = ep._registry()
     names = ep.ORDER
+    fam = (cfg.get("train", {}) or {}).get("family", "all")
+    if not args.scenarios and fam in ep.FAMILY_SCENARIOS:
+        names = [n for n in ep.ORDER if n in ep.FAMILY_SCENARIOS[fam]]
     if args.scenarios:
         want = [s.strip() for s in args.scenarios.split(",")]
         names = [n for n in ep.ORDER if n in want]

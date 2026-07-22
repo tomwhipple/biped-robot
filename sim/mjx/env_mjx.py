@@ -246,6 +246,19 @@ class BimoMJXEnv:
         # viscous/back-EMF losses, NOT stiction). 0 = legacy exact.
         joint_armature: float = 0.0,       # reflected rotor inertia per leg
         # DOF (kg*m^2). BAM fit ~0.028 -- significant against our light legs.
+        # -- plan-v2 Phase B: procedural gait imitation (Open Duck pattern) ----
+        w_mimic: float = 0.0,       # exp(-sum((q - q_ref)^2)/mimic_s2) toward
+        # a joint-space reference gait generated from (vx, vy, wz, gait
+        # phase): sinusoidal stride/roll amplitudes scaled by command/freq,
+        # knee bend during swing, level ankle. At zero command the reference
+        # IS the standing pose, so the term is continuous across commands.
+        # Backward/turning references exist BY CONSTRUCTION -- the two
+        # locomotion skills reward shaping never cracked. Requires
+        # gait_clock. (Proven recipe: Open Duck Mini, same servos.)
+        mimic_s2: float = 0.72,     # kernel denominator (~(0.3 rad)^2 * 8)
+        w_rise_dofvel: float = 0.0,  # joint-velocity penalty while DOWN in a
+        # recovery episode (HumanUP/utra: jerk control during the rise is
+        # what makes get-up hardware-deployable)
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
         # 2026-07-19: "work on the symmetry of motion in walking gaits";
@@ -405,6 +418,11 @@ class BimoMJXEnv:
         self.push_kick = push_kick
         self.kick_range = kick_range
         self.obs_hist_len = max(1, int(obs_hist_len))
+        self.w_mimic = w_mimic
+        self.mimic_s2 = mimic_s2
+        self.w_rise_dofvel = w_rise_dofvel
+        if w_mimic > 0 and not gait_clock:
+            raise ValueError("w_mimic requires gait_clock")
         self.w_symmetry = w_symmetry
         self.lift_clear = lift_clear
         self.recover_mix = recover_mix
@@ -547,6 +565,35 @@ class BimoMJXEnv:
                 + m_sway.astype(jp.float32) * 3.0)
         return (cmd, step_i + (hold / self.control_dt).astype(jp.int32),
                 mode)
+
+    def _mimic_ref(self, cmd, phase, freq):
+        """Joint-space procedural gait reference (plan-v2 Phase B).
+        Stride amplitude ~ KX*v_leg/f (foot excursion ~0.18 m leg * A matches
+        v/(4f) per half-cycle at KX=1.4); turning = differential stride via
+        v_leg = vx -/+ hip_half_sep*wz; sidestep = lateral roll oscillation;
+        knee bends 0.55 rad during its swing half; ankle keeps the sole
+        level. At zero command the reference equals the standing pose.
+        Mirrored EXACTLY in walker_env.py (parity-gated)."""
+        f = jp.maximum(freq, 0.5)
+        d = self._default
+        s, c = jp.sin(phase), jp.cos(phase)
+        sw = jp.stack([jp.clip(s, 0.0, None), jp.clip(-s, 0.0, None)])
+        xn = jp.stack([-c, c])                 # foot fore-aft normal (L, R)
+        A = jp.clip(1.4 * (cmd[0] + jp.array([-1.0, 1.0]) * 0.028 * cmd[2])
+                    / f, -0.45, 0.45)
+        B = jp.clip(1.1 * cmd[1] / f, -0.3, 0.3)
+        hp0 = jp.stack([d[1], d[5]])
+        kn0 = jp.stack([d[2], d[6]])
+        hipP = hp0 - A * xn
+        # knee swing-bend scales with commanded activity: zero command ->
+        # the reference IS the standing pose (no knee pumping)
+        mag = jp.minimum(1.0, (jp.max(jp.abs(A)) + jp.abs(B)) / 0.35)
+        knee = kn0 - 0.55 * mag * sw
+        roll = jp.stack([d[0], d[4]]) + B * xn
+        ank = jp.stack([d[3], d[7]]) - (hipP - hp0) - (knee - kn0)
+        q = jp.stack([roll[0], hipP[0], knee[0], ank[0],
+                      roll[1], hipP[1], knee[1], ank[1]])
+        return jp.clip(q, self._lo, self._hi)
 
     def _draw_traj(self, rng: jax.Array) -> jax.Array:
         """Per-episode air-circle parameters (radius, signed omega, phase)."""
@@ -1129,6 +1176,20 @@ class BimoMJXEnv:
             out = (jp.maximum(self._soft_lo - q, 0.0)
                    + jp.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * jp.sum(out)
+        if self.w_mimic:
+            q_ref = self._mimic_ref(state.cmd, gait_phase, state.gait_freq)
+            dq = data.qpos[_JQ0:_JQ1] - q_ref
+            mim_gate = 1.0
+            if self.ext_cmd:
+                mim_gate = ((~lifted) & (state.recovered > 0.5)
+                            ).astype(jp.float32)
+            reward += (self.w_mimic * mim_gate
+                       * jp.exp(-jp.sum(dq ** 2) / self.mimic_s2))
+        if self.w_rise_dofvel and self.ext_cmd and self.recover_mix > 0:
+            # jerk control during the rise (HumanUP/utra lesson)
+            reward -= (self.w_rise_dofvel
+                       * jp.where(state.recovered < 0.5, 1.0, 0.0)
+                       * jp.sum(qd_j ** 2))
 
         # gait symmetry: on touchdown, penalize the swing-duration mismatch
         # vs the OTHER foot's last completed swing (locomotion commands only)

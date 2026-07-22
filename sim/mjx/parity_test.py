@@ -237,6 +237,7 @@ EXT = dict(
     gait_clock=True, w_feet_phase=1.0, w_feet_slip=0.25, w_orientation=1.0,
     w_ang_vel_xy=0.15, w_pose=0.5, w_dof_limits=1.0, obs_hist_len=3,
     joint_frictionloss=0.05, joint_armature=0.028,
+    w_mimic=1.0,   # Phase B imitation arithmetic under gate (2026-07-22)
     latency_ms=6.0, backlash_deg=0.5, ext_cmd=True, fall_cost=10.0,
     cmd_fixed=(0.0, 0.0, 0.0, 0.9, -1.0, 0.01, 0.02), imu_obs=False,
     action_map="full", hip_flex_deg=110.0,
@@ -295,7 +296,7 @@ ok_e3 = run_block(
 # block 2b: fallen/heap contact manifolds are the documented divergence.
 EXT_R = dict(EXT)
 EXT_R.pop("cmd_fixed")
-EXT_R.update(recover_mix=1.0, cmd_dense=True)
+EXT_R.update(recover_mix=1.0, cmd_dense=True, w_rise_dofvel=0.002)
 cpu_r = BimoWalkerEnv(xml_path=XML, actuator_model="sts3215",
                       command_mode=True, domain_rand=False, **EXT_R)
 gpu_r = BimoMJXEnv(xml_path=XML, domain_rand=False, **EXT_R)
