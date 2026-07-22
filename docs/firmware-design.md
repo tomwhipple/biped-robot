@@ -13,7 +13,7 @@ The board runs the robot. Once per **20 ms tick (50 Hz)** it must:
 
 1. read all 8 servo positions (+ velocities derived or read) off the
    1 Mbaud Feetech bus,
-2. read the BNO055 (fused orientation → gravity vector, plus gyro rates),
+2. read the BNO085 (fused orientation → gravity vector, plus gyro rates),
 3. assemble the policy observation exactly as the simulator defines it,
 4. run the policy network,
 5. write 8 position targets back to the bus (sync write),
@@ -29,7 +29,7 @@ at full rate.
 
 | Option | Verdict | Why |
 |---|---|---|
-| **C++17 (ESP-IDF)** | **chosen** | First-class on ESP-IDF; the vendor ecosystem we want to reuse (Waveshare's ST3215/SCServo servo library, most BNO055 drivers) is already C++; zero-cost abstractions fit a hard-real-time loop (namespaces, `std::array`, templates for the MLP dims — no heap needed); single toolchain, no glue. |
+| **C++17 (ESP-IDF)** | **chosen** | First-class on ESP-IDF; the vendor ecosystem we want to reuse (Waveshare's ST3215/SCServo servo library, the Adafruit BNO08x/sh2 driver) is already C++; zero-cost abstractions fit a hard-real-time loop (namespaces, `std::array`, templates for the MLP dims — no heap needed); single toolchain, no glue. |
 | C | viable fallback | Everything works, but we'd hand-roll abstractions C++ gives free, and we'd wrap the C++ servo lib anyway. Used at the boundary where ESP-IDF APIs are C. |
 | Rust (esp-rs) | rejected for v1 | Genuinely maturing, but: Xtensa needs Espressif's forked toolchain; every driver we'd otherwise reuse (SCServo, BNO055) would be rewritten; and our safety story is dominated by *timing* and *torque-release semantics*, not memory bugs — the loop is small, statically allocated, and heap-free after init, which mutes Rust's core advantage. Worth revisiting if the firmware grows past ~5 kLOC. |
 | Go (TinyGo) | rejected | No mature ESP32/Xtensa support, and a garbage collector inside a 20 ms hard loop is disqualifying regardless. |
@@ -67,7 +67,7 @@ vendor snippets get ported into thin IDF components.
 | Step | Budget | Notes |
 |---|---|---|
 | Sync-read 8 servo positions | ~3.5 ms | one SYNC READ transaction + replies @1 Mbaud |
-| BNO055 read (quat + gyro) | ~1.0 ms | 2 burst reads @400 kHz |
+| BNO085 read (SH-2 reports) | ~1.0 ms | rotation vector + gyro @400 kHz I2C |
 | Obs assembly + history push | ~0.1 ms | pure math |
 | Policy inference | ~2–4 ms | see §6 sizing |
 | Sync-write 8 targets | ~0.7 ms | one SYNC WRITE, no replies |
@@ -87,7 +87,7 @@ graph LR
   RC[UDP link + watchdog<br/>core 0] -->|command mailbox| LOOP
   subgraph core 1 - 50 Hz loop
     BUS[Feetech bus driver] --> OBS[Obs assembler<br/>129-dim + history + gait clock]
-    IMU[BNO055 driver] --> OBS
+    IMU[BNO085 driver] --> OBS
     OBS --> NET[MLP inference<br/>static weights]
     NET --> BUS
     SAFE[Safety: watchdog, fall detect,<br/>voltage floor => torque release] --- LOOP((tick))
