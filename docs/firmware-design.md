@@ -50,7 +50,16 @@ vendor snippets get ported into thin IDF components.
   SRAM, no PSRAM assumed**, single-precision HW FPU, dual LX6 cores.
 - Feetech STS3215 bus @ 1 Mbaud half-duplex on one UART (board has the
   direction circuitry).
-- BNO055 on I2C @ 400 kHz, addr 0x28, fusion on-chip (100 Hz).
+- **IMU: GY-BNO085 (Teyleten, Amazon B0CL26J81F)** — user decision
+  2026-07-22, replacing the earlier BNO055. Same on-chip fusion role but a
+  DIFFERENT protocol: **SH-2 sensor-hub** (not a register map), I2C addr
+  0x4A/0x4B @ 400 kHz, rotation-vector + calibrated-gyro reports at up to
+  400 Hz. Driver: CEVA's reference `sh2` C library (as wrapped by the
+  Adafruit BNO08x port) as an IDF component. Simpler fallback if SH-2
+  fights us: **UART-RVC mode** (fixed 100 Hz yaw/pitch/roll stream,
+  trivial parsing) — but it omits the gravity vector's full quaternion, so
+  SH-2 is the primary plan. Board outline/holes unverified until the part
+  arrives (carrier reprint expected — see cad/dimensions.py TODO).
 - WiFi UDP for the command link (the protocol in control-channel.md).
 
 ## 4. The 20 ms tick budget (from wiring.md's analysis)
@@ -90,7 +99,8 @@ graph LR
 - **bus/**: Feetech SCS protocol — SYNC WRITE targets, SYNC READ positions,
   torque enable/release register broadcast, per-servo error flags. Port of
   Waveshare's C++ library into an IDF component with our timing.
-- **imu/**: BNO055 init (NDOF fusion mode), gravity-vector + gyro reads,
+- **imu/**: BNO085 via SH-2 (game-rotation-vector + calibrated gyro
+  reports), converted to the gravity vector + rates the obs needs;
   mounting-offset rotation applied from calibration (the Open Duck runtime
   applies a hand-measured mounting offset at deploy — plan for the same).
 - **obs/**: byte-exact reimplementation of the simulator's `_obs()` frame

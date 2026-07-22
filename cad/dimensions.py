@@ -264,6 +264,12 @@ GP_HOLE_TEARDROP = True
 GP_BASE_X, GP_BASE_Y, GP_BASE_T = 30.0, 24.0, 4.0
 GP_SCREW_XY = (11.0, 8.5)      # 4x M3 self-tap into bosses under the tower top
 
+# TODO (2026-07-22): IMU is now the GY-BNO085 (Teyleten, B0CL26J81F) -- a
+# THIRD board outline. The constants below still describe the classic
+# BNO055 breakout that the current printed carrier fits. MEASURE the
+# GY-BNO085's outline + hole pattern on arrival, update IMU_PCB/IMU_HOLES,
+# and reprint imu_carrier (both gates must re-pass). Firmware side already
+# targets the BNO085 (SH-2) -- see docs/firmware-design.md.
 # BNO055 IMU + its carrier plate. The ordered part (2026-07-16, Amazon
 # B0GVK81HXR) is the CLASSIC Adafruit BNO055 breakout (2472 layout: solder
 # header, no STEMMA jacks) -- outline/holes measured from Adafruit's Eagle
