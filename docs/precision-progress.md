@@ -155,3 +155,17 @@ swing-time symmetry.
 - Sidestep and backward gaits — attempted, not yet converged.
 - Odometry: return-to-start evals use sim ground truth; the hardware has no
   pose estimate yet (known gap, DESIGN §8).
+
+## Found 2026-07-22 (user question about knee usage): the legacy knee cap
+
+All precision rounds trained with the LEGACY action mapping, which cannot
+command the knee past -50 deg of its -95 deg range (the symmetric-band bug
+the get-up study documented -- and fixed with action_map="full" -- but the
+precision lineage never adopted). Two consequences: (1) knee-shy gaits --
+foot clearance was being achieved by hip-hike/circumduction because deep
+knee flexion was literally unreachable; (2) **recovery episodes could never
+command kneeling-depth knee angles (~-93 deg)** -- a strong candidate for
+why recovery-to-stand refused to converge across four rounds. Fix: tonight's
+from-scratch specialists (loco_v1, loco_v1_ctrl, getup_v1) train with the
+full mapping; skills_v1 stays legacy for its v7b warm-start and migrates at
+its next from-scratch round.
