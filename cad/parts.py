@@ -349,25 +349,26 @@ def yaw_carrier():
         for s in (1, -1):
             p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, -21, -D.SV_TOPFACE + 1,
                             s * D.CASE_HOLE_LAT, za + zrow, roll=180)
-    # yaw-horn bolt circle (4x M3 into the horn disc) + centre-screw relief.
+    # yaw-horn bolts: 3x M3 into the horn disc (the REAR bolt at (-7,0) is
+    # DROPPED so the cable channel below can reach forward to uncap the roll
+    # connector -- see the WIRE_CHASE_2 / YAW_CH_FRONT note). + centre relief.
     # Bores are VERTICAL in the print (part flipped, Z stays Z) -> plain holes.
     r = D.BCD / 2
-    for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
+    for dx, dz in ((r, 0), (0, r), (0, -r)):
         p -= cyl_z(D.PAD_HOLE / 2, zc - 1, 1, dx, dz)
     p -= cyl_z(D.HORN_CENTER_RELIEF_D / 2, zc - 1, 1, 0, 0)
-    # roll-servo cable CHANNEL: the roll servo's connectors are on its top/cable
-    # end (at the bay ceiling). This channel is open at the ceiling AND cut
-    # rearward THROUGH the rear wall's top 8 mm, so (a) the yaw->roll lead drops
-    # in from above (the passage from over the carrier into the roll bay the
-    # review asked for) and (b) the roll->pitch lead exits rearward-outside and
-    # runs down the thigh. Passes 2 bundles (WIRE_CHASE_2). Behind the rearmost
-    # horn bolt (x=-7) and inboard of the rear retention screws (y +/-10.25).
-    # Front corners rounded (r2) -- the yaw->roll lead sweeps across this
-    # opening as the carrier yaws +/-45 deg, so no sharp shear edge bears on it.
+    # roll-servo cable CHANNEL: the roll servo's connectors point UP out of the
+    # bay ceiling; this channel opens the ceiling over them (forward to
+    # YAW_CH_FRONT) AND cuts rearward THROUGH the rear wall's top 8 mm, so
+    # (a) the connectors are UNCAPPED (a solid plate would crush them -- the
+    # plate->yaw-case gap is only 3.1 mm), (b) the yaw->roll lead drops in from
+    # above (the over-the-carrier passage the review asked for), and (c) the
+    # roll->pitch lead exits rearward and runs down the thigh. Passes 2 bundles
+    # (WIRE_CHASE_2). Keeps a >=1.5 mm ligament to the two side horn bolts
+    # (x=0, y=+/-7, forward of the channel) and to the rear retention screws
+    # (y +/-10.25, outboard of the y+/-7 channel).
     cw2 = D.WIRE_CHASE_2 / 2
-    p -= box(-21, -10.5, -cw2, cw2, zc - 8, 1)
-    for sy in (cw2, -cw2):
-        p -= cyl_z(2.0, zc - 8, 1, -10.5, sy)
+    p -= box(-21, D.YAW_CH_FRONT, -cw2, cw2, zc - 8, 1)
     return p
 
 

@@ -1,0 +1,5 @@
+HOST=mira
+PID=1906043
+OUT=sitstand_bigfeet
+PYBIN=~/code/robot-mjx/.venv/bin/python
+STARTED=1784559238

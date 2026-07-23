@@ -70,27 +70,41 @@ def scene_before(pelvis_mesh):
 
 
 def scene_wiring():
-    """Hip stack (pelvis-local frame, deck top = 0) + mock daisy-chain leads
-    through the new openings, for a semi-transparent route view."""
+    """Full hip-region assembly (pelvis-local frame, deck top = 0): pelvis +
+    tower + board mock + both yaw servos + carriers + roll servos, with mock
+    daisy-chain leads (board -> yaw -> roll -> down the leg) routed through the
+    real openings, for a semi-transparent route view. Board port -> center wire
+    window -> under-deck (inboard of the flat yaw case) -> behind the case to
+    its rear port -> down into the carrier channel -> roll connector -> out and
+    down the thigh."""
     printed, servos, cables = [], [], []
     printed.append(parts.pelvis())
+    printed.append(parts.tower())
     yhz = D.YAW_HORN_FACE_Z
     rollz = yhz + D.CARRIER_ROLL_AXIS
     ceilz = yhz + D.CARRIER_ROLL_CEIL          # roll connector (bay ceiling)
+    # board mock: face-down slab under the tower top
+    pcb_top = D.TOWER_H - D.TOWER_TOP_T - D.BOARD_STANDOFF
+    board = parts.box(-15, 15, -32.5, 32.5, pcb_top - 1.6, pcb_top)
+    servos.append(board)
     for by in (D.HIP_SEP / 2, -D.HIP_SEP / 2):
+        s = 1 if by > 0 else -1
         ymid = D.YAW_IDLER_FACE_Z - D.SV_TOPFACE
         servos.append(Pos(0, by, ymid) * CA.servo_mock_z())
         printed.append(Pos(0, by, yhz) * parts.yaw_carrier())
         servos.append(Pos(0, by, rollz) * CA.servo_mock_x())
-        yc = -20                                # yaw rear-port height (pelvis z)
-        # board -> hip-yaw: down the deck rear chase to the yaw rear port
-        cables.append(tube([(-8, by * 0.7, 22), (-22, by, 8), (-36, by, 1),
-                            (-36.5, by, -8), (-36, by, yc)]))
-        # hip-yaw -> hip-roll: down into the carrier rear channel to the top port
-        cables.append(tube([(-36, by, yc), (-30, by, -34), (-20, by, yhz - 2),
-                            (-14, by, ceilz)]))
-        # hip-roll -> hip-pitch: back out the channel and down the thigh
-        cables.append(tube([(-14, by, ceilz), (-21, by, -52), (-22, by, -70)]))
+        port = (-35.0, by, -20)                 # yaw rear port (below the collar)
+        yin = s * 10                            # inboard y (clear of the case)
+        # board -> hip-yaw: down through the CENTER WIRE WINDOW, under the deck
+        # inboard of the flat yaw case, behind the case to its rear port
+        cables.append(tube([(-6, s*8, pcb_top-3), (-7, s*8, 2), (-8, yin, -7),
+                            (-22, yin, -12), (-34, yin, -15), (-38, s*13, -17),
+                            (-38, by, -18), port]))
+        # hip-yaw -> hip-roll: behind the case, down into the carrier channel
+        cables.append(tube([port, (-38, by, -32), (-30, by, -42),
+                            (-16, by, yhz + 1), (-13, by, ceilz + 1)]))
+        # hip-roll -> hip-pitch: out the carrier channel, down the thigh
+        cables.append(tube([(-13, by, ceilz + 1), (-21, by, -52), (-22, by, -74)]))
     return printed, servos, cables
 
 
@@ -126,7 +140,7 @@ def render(printed_stl, servo_stl, extra_stl, out, zc):
     return imageio.imread(out)
 
 
-def render_wire(printed_stl, servo_stl, cable_stl, out, zc):
+def render_wire(printed_stl, servo_stl, cable_stl, out, zc, az=210, dist=0.34):
     xml = f"""
     <mujoco>
       <visual><headlight ambient="0.55 0.55 0.57" diffuse="0.5 0.5 0.5"/>
@@ -152,7 +166,7 @@ def render_wire(printed_stl, servo_stl, cable_stl, out, zc):
     cam = mujoco.MjvCamera()
     mujoco.mjv_defaultCamera(cam)
     cam.lookat[:] = [-0.01, 0.0, zc]
-    cam.distance, cam.azimuth, cam.elevation = 0.30, 210, -14   # rear 3/4
+    cam.distance, cam.azimuth, cam.elevation = dist, az, -14
     r.update_scene(d, cam)
     imageio.imwrite(out, r.render())
 
@@ -167,7 +181,11 @@ def main():
     export_stl(Compound(children=pr), wp)
     export_stl(Compound(children=sv), ws)
     export_stl(Compound(children=ca), wc)
-    render_wire(wp, ws, wc, os.path.join(OUT, "hip_yaw_wiring.png"), -0.030)
+    # two angles: rear 3/4 (shows the deck crossing + port) and front 3/4
+    render_wire(wp, ws, wc, os.path.join(OUT, "hip_yaw_wiring.png"), 0.006,
+                az=210, dist=0.42)
+    render_wire(wp, ws, wc, os.path.join(OUT, "hip_yaw_wiring_front.png"), 0.006,
+                az=40, dist=0.42)
     for f in (wp, ws, wc):
         os.remove(f)
     # AFTER

@@ -19,10 +19,10 @@ order also there.
 | 5 | PLA filament 1 kg | 1 | Bambu Lab PLA 1.75 mm 1 kg (Jade White) | $28.00 | $28.00 | [Amazon](https://www.amazon.com/dp/B0CGQYRSNT) | RFID-enabled for A1 mini auto-settings. Black: [B0CGR29R63](https://www.amazon.com/dp/B0CGR29R63) ($28.60). |
 | 6 | PETG filament 1 kg | 1 | Bambu Lab PETG Translucent 1.75 mm 1 kg | $30.15 | $30.15 | [Amazon](https://www.amazon.com/dp/B0F68FKRWH) | With reusable spool. Refill-only (no spool): [B0FRQ9VX2K](https://www.amazon.com/dp/B0FRQ9VX2K) ($23.99). |
 | 7 | TPU filament 500 g | 1 | Geeetech TPU 1.75 mm 500 g Shore 95A | $15.99 | $15.99 | [Amazon](https://www.amazon.com/dp/B0DG8BZL6L) | Bambu TPU is 1 kg only ($42.99, [B0GG283YLZ](https://www.amazon.com/dp/B0GG283YLZ)). |
-| 8 | M3×6 button head screws | 32 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes M3×6/8/10/12/16/20/25/30 mm. |
+| 8 | M3×6 button head screws | 0 | *not needed — horn screws ship with the servos* | — | — | — | v3yaw audit 2026-07-23: the 38 M3×6 used are the ST3215s' own bundled horn screws (10×4 on hand, 2 spare). Kit still has M3×6 if any strip. |
 | 9 | M3×8 button head + M3 thin washers | 24 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes nuts & washers. |
-| 10 | M3×10 button head screws | 16 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes M3×6/8/10/12/16/20/25/30 mm. |
-| 11 | M3×8 self-tapping screws | 52 | 100 pc M3×8 mm Self-Tapping SS, Flat Head Hex | $8.28 | $8.28 | [Amazon](https://www.amazon.com/dp/B0F9XYX9BQ) | 100 pcs (52 needed). Includes drive bit. Alt: [520pc assortment](https://www.amazon.com/dp/B0BPM8J5F5) ($7.99). |
+| 10 | M3×10 button head screws | 20 | *Covered by KADRICK kit (item 15)* | — | — | — | Was 16 — never counted the 4 tower-feet bolts (assembly §9c, found in the 2026-07-23 fastener itemization). Kit includes M3×6/8/10/12/16/20/25/30 mm. |
+| 11 | M3×8 self-tapping screws | 56 | 100 pc M3×8 mm Self-Tapping SS, Flat Head Hex | $8.28 | $8.28 | [Amazon](https://www.amazon.com/dp/B0F9XYX9BQ) | 100 pcs (56 needed: v3yaw adds 8 yaw-stator + the old itemization under-summed; see assembly.md §0). Includes drive bit. Alt: [520pc assortment](https://www.amazon.com/dp/B0BPM8J5F5) ($7.99). |
 | 12 | M3 heat-set inserts (Ø4.6×4–6 mm) | 12 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes brass heat-set inserts. |
 | 13 | M5×20 GoPro thumbscrew | 1 | M5 Handle Thumb Screws (pair, GoPro) | $7.22 | $7.22 | [Amazon](https://www.amazon.com/dp/B0BCJRFCLX) | Pair; only 1 needed. Stainless, GoPro Hero 4–13. |
 | 14 | M2.5×8 self-tapping screws | 8 | uxcell 50 pc M2.5×8 mm Self-Tapping | $8.07 | $8.07 | [Amazon](https://www.amazon.com/dp/B01KXTTSCI) | 50 pcs (8 needed: 4 driver board + 4 BNO055→imu_carrier). 304 SS. |

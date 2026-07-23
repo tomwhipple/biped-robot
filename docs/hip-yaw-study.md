@@ -179,7 +179,7 @@ daisy-chain is board → **hip-yaw → hip-roll** → pitch → knee → ankle:
 |---|---|---|
 | board → hip-yaw | tower rear → onto the deck rear tab → down behind the yaw case | **pelvis rear wire chase (NEW)** — 12 mm (`WIRE_CHASE_1`) vertical slot at x −39.0…−35.1 (behind the case rear face), cut through the rear deck tab **and** the collar rear wall, z +1…−10; sits between the −32.75 stator screws (y ±10.25), clearing them 4.25 mm. 1 bundle + plug |
 | hip-yaw → hip-roll | yaw rear port → down the open gap below the collar (z −9…−42.8) → into the carrier | passes through **open air** (the gap between collar bottom and carrier top) — no material crossing |
-| into/out of the roll bay | yaw→roll lead drops in from above; roll→pitch lead exits rearward-down the thigh | **carrier rear cable channel (NEW)** — 14 mm (`WIRE_CHASE_2`) wide, open at the ceiling **and** through the rear wall's top 8 mm (x −21…−10.5, z +1…−11), front corners rounded r2. Behind the horn bolts (x −7), 1.55 mm ligament to the roll retention screws (y ±10.25). 2 bundles (daisy in + out) |
+| into/out of the roll bay | yaw→roll lead drops in from above; roll→pitch lead exits rearward-down the thigh | **carrier rear cable channel (NEW)** — 14 mm (`WIRE_CHASE_2`) wide, open at the ceiling **and** through the rear wall's top 8 mm. 2 bundles. *(Widened forward to `YAW_CH_FRONT` = −6 and the rear horn bolt dropped in rev 2 below, to uncap the roll connector.)* |
 | roll → pitch → knee → ankle | down the leg | **UNCHANGED** — the leg_link web windows (9×11) + foot cable window carry it, exactly as on the 8-DOF robot |
 
 **Yaw-sweep (service loop).** The yaw→roll lead is the only lead crossing the
@@ -195,6 +195,50 @@ board→hip-roll hop is now board→hip-yaw→hip-roll, two hops).
 `check_assembly.py` ALL CLEAR (openings added no interference). The first cut
 of the carrier channel at 16 mm left a 0.55 mm sliver against the retention
 screw hole — narrowed to 14 mm (`WIRE_CHASE_2`) for a 1.55 mm ligament.
+
+### Wiring routing — full-assembly audit (2026-07-23, rev 2)
+
+Review pushed back ("still might need cable holes... can't see the deck
+chase"). Did a definitive audit against the FULL assembly (pelvis + tower +
+board + both yaw servos + carriers), not the pelvis alone. Method: section the
+solids at the chase coordinates (point-in-solid), and route candidate harness
+tubes for every hop and measure where they pierce material. Renders:
+`renders/hip_yaw_wiring.png` (rear ¾) and `hip_yaw_wiring_front.png` (front ¾),
+semi-transparent, red tubes board→thigh.
+
+**Existing chases — verified PRESENT.** Point-in-solid confirms material is
+*absent* inside both the pelvis rear chase and the carrier channel and *present*
+just beside them. The deck chase reads as invisible only because it is a thin
+(3.9 mm) slot tucked behind the case under the rear tab — it is really there.
+
+**Real gap found + fixed (the review was right):** the hip-roll servo's cable
+connectors point UP out of the bay ceiling, and the carrier's yaw-horn plate
+capped them — a connector block hit the solid plate at 15–183 mm³ across the
+cable-end face (the plate→yaw-case gap is only 3.1 mm and the plate centre is
+under the Ø19.2 horn). **Fix:** drop the rear-most of the 4 yaw-horn bolts and
+open the carrier cable channel forward to `YAW_CH_FRONT` = −6, uncapping the
+rear-of-face connectors (where the ST3215 pair actually sits — they can't be at
+centre, the horn is there). Post-fix the connector clears at 0 mm³ for every
+rear position; 3× M3 on the Ø14 circle still carries the ~0.3 N·m yaw torque.
+
+**Every deck-plane crossing (audited, printed parts CLEAR):**
+
+| Lead | Crosses the deck plane at | Hole |
+|---|---|---|
+| board → hip-yaw_L / _R | **centre wire window** (x ±11, y ±12) — clear of the flat yaw cases, which sit outboard at y 15.6–40.4; then under-deck *inboard* of the case and *behind* it to the rear port (below the collar, in open air). The rear chase is an alternate relief crossing at the port. | centre window (existing) + rear chase |
+| hip-yaw → hip-roll | entirely BELOW the deck (open gap → carrier channel) | carrier channel |
+| hip-roll → pitch → knee → ankle | down the leg | leg_link windows + foot window (unchanged) |
+| **yaw_L ↔ yaw_R** | **no such hop** — the board has two bus ports, one chain per leg (wiring.md §Servo bus), so there is no cross-deck hop between the seats and no cross-channel is needed | — |
+| battery XT30, IMU jumpers, board power | **all inside the tower** (pack on the deck → board; IMU on the tower-top carrier → down the tower's open rear) — confirmed, no deck crossing | — |
+
+Routed tubes pierce **no printed part** (pelvis/tower/carrier all 0); the only
+grazes are against the servo-case *exterior* (the lead lying on the servo, as
+intended). Both check scripts pass after the carrier change: printability CLEAN,
+assembly ALL CLEAR (yaw 0/±45° re-confirmed unchanged).
+
+Open item for `wiring.md` (main thread — not in my file set): the segment table
+still lists the 8-DOF "board→hip-roll" hop; it becomes board→hip-yaw→hip-roll
+with a ~15 mm service loop at the yaw joint, and the board now needs ID 1 = yaw.
 
 ### Open questions for the user
 

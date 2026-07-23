@@ -228,6 +228,22 @@ WIRE_CHASE_1 = 12.0      # slot width for 1 bundle+plug with grommet margin
 WIRE_CHASE_2 = 14.0      # slot width for 2 bundles (daisy in + out at a servo);
                          # +/-7 keeps a 1.55 mm ligament to the roll retention
                          # screw hole at y +/-10.25 in the carrier rear wall
+# The hip-ROLL servo's cable connectors point UP out of the bay ceiling, right
+# where the carrier's yaw-horn plate sits -- a SOLID plate caps them (the plate
+# is 3 mm thick, the gap above it to the yaw-case underside is only 3.1 mm, and
+# the plate centre is taken by the O19.2 horn). The ST3215 pair sits on the REAR
+# of the cable-end face (the cable exits toward the daisy), so the carrier's
+# rear cable channel is opened forward to YAW_CH_FRONT to uncap them, and the
+# rear-most of the 4 yaw-horn bolts is DROPPED so the channel can reach that far
+# (3x M3 on the O14 circle is ample for the ~0.3 N*m yaw torque). A connector at
+# the rear then pokes up through the opened ceiling into the 3.1 mm gap and the
+# lead routes out. Wire audit 2026-07-23. (Verified with a connector-block
+# clearance sweep across the cable-end face.)
+YAW_CH_FRONT = -6.0      # carrier rear cable channel reaches this far forward:
+                         # covers the roll connectors (which sit at x < -9.6,
+                         # off the O19.2 horn) while keeping a 2 mm wall to the
+                         # O8 centre relief (edge at -4) and to the side horn
+                         # bolts (x=0, y=+/-7)
 
 # ----------------------------------------------------------------------------
 # leg link (thigh and shin are the SAME part)

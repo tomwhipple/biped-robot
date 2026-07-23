@@ -57,18 +57,34 @@ hook-loop belt ~250 mm + pull ribbon · 2 self-adhesive rubber sole pads
 (~0.5 mm, trimmed to ~90×46) · zip ties. Full list with links:
 [BOM](bom-sourced.md).
 
-**Fasteners** (all counts robot-total):
+### Fasteners & heat-set inserts
 
-| Fastener | Qty | Where |
-|---|---|---|
-| M3×6 button/socket head | 40 | horn pads, 4 per joint × 8 leg joints (32) + 4 per `yaw_carrier` onto the yaw horn (8) |
-| M3×8 + thin washer | 24 | idler pads at hip-pitch, knee, ankle (4 × 6) |
-| M3×10 | 16 | yoke_roll idler arms (4×2) + hip flange bolts into inserts (4×2) |
-| M3×8 self-tapping | 56 | case grips: 6 per leg_link (24), 8 per carrier bay (16), 4 per foot (8) + 4 per yaw servo down through the deck into the case idler rows (8) |
-| M3 heat-set insert Ø4.6 | 12 | 4 per yoke_pitch flange (8) + 4 pelvis deck (tower) |
-| M2.5×8 self-tapping | 8 | driver board onto tower standoffs (4) + BNO055 onto the imu_carrier bosses (4) |
-| M3×12 self-tapping | 4 | gopro_base + imu_carrier stack into the tower-top bosses |
-| M5×20 thumbscrew | 1 | camera clamp (or the GoPro's own) |
+Every screw in the robot, robot-total counts, what it threads into, and which
+steps consume it. Totals reconcile with the per-step callouts below (each step
+also states its own fasteners inline). **Every joint bolt is driven with the
+servo at mechanical zero** (see §1).
+
+| Fastener | Qty | Threads into | Consumed in |
+|---|---|---|---|
+| **M3×6** button head *(the servos' own horn screws)* | 38 used (40 bundled) | the servo's metal **horn disc** — M3 on the Ø14 bolt circle: 4× per horn everywhere except the yaw horns, which take **3×** (the rear-most position is the carrier's cable channel — wiring audit 2026-07-23). Bundled with each ST3215 (10 × 4 = 40 on hand → 2 spares). | §5 (knee + ankle horns, 16), §6 (hip-pitch horn, 8), §7b (yaw carriers onto the yaw horns, 6), §8 (hip-roll horn, 8) |
+| **M3×8** button head **+ thin washer** | 24 | the servo's free-spinning **idler disc** — same Ø14 circle; the washer stops the tip short of the disc's 3.35 mm thread. | §5 (knee + ankle idlers, 16), §6 (hip-pitch idler, 8) |
+| **M3×10** button head | **20** | ⚠ three jobs: the hip-roll **idler disc** reached through the bay-wall slot by the long boss (8); the **yoke_pitch flange heat-sets** that make the hip universal (8); and the **deck heat-sets** the tower feet pull down onto (4). | §6 (flange → inserts, 8), §8 (roll idler, 8), §9c (tower feet → inserts, 4) |
+| **M3×8 self-tapping** | 56 | printed Ø3.4 clearances into the **servo case's Ø3.5 holes** (glass-filled nylon, community-tapped M3 — see verify-on-arrival). | §3 (feet, 8), §4 (leg_link grips, 24), §7a (yaw stators down through the deck, 8), §7c (roll servos into the carriers, 16) |
+| **M3×12 self-tapping** | 4 | Ø2.8 pilots in the **tower-top bosses**, through the `imu_carrier` + `gopro_base` stack (the M3×8 is too short with the 3 mm carrier added). | §11 |
+| **M2.5×8 self-tapping** | 8 | Ø2.2 printed pilots — 4 in the tower standoffs, 4 in the `imu_carrier` bosses. | §9a (driver board, 4), §9b (BNO055, 4) |
+| **M3 heat-set insert** (Ø4.6 pilot, ~5 mm) | 12 | brass inserts **pressed into printed plastic** to receive the M3×10 machine screws above. | **installed in §2**: 8 in the two `yoke_pitch` flanges, 4 in the `pelvis` deck |
+| **M5×20 thumbscrew** | 1 | the GoPro three-prong clamp bore (or use the camera's own thumbscrew). | §11 |
+| servo spline/center screw | 10 | each servo's output shaft — holds the metal horn on (bundled with the servo). | §1 |
+
+Notes: the **40 M3×6 are the servos' included horn screws**; only the idler
+(M3×8+washer / M3×10), self-tapping, M2.5 and heat-set hardware is separately
+sourced (the KADRICK M3 kit covers the machine screws, washers and inserts —
+[BOM](bom-sourced.md) items 8–15). The self-tapping counts (56× M3×8, 4× M3×12,
+8× M2.5×8) come from the dedicated self-tap packs. **Heat-set inserts total 12**
+— see §2 for where and how.
+
+> The [BOM](bom-sourced.md) still lists the pre-yaw counts (32 M3×6, 52 M3×8
+> self-tap, 16 M3×10). The v3yaw truth is **40 / 56 / 20** — order accordingly.
 
 **Tools:** soldering iron with heat-set tip, M3/M2.5 hex drivers, small
 phillips/hex bit for self-tappers.
@@ -106,29 +122,41 @@ this happens before any plastic goes on:
    firmware map matching it. The 9/10 IDs above are a convenient default (yaw
    servos wire last on each bus), not yet pinned to a sim slot.
 3. Center every servo (**position 2048** / "Set Middle Position").
-4. Bolt the metal horn onto each servo **at center** with its spline screw.
-   Every joint is later assembled at this mechanical zero = the CAD neutral
-   standing pose; a horn clocked off-center becomes a permanent joint offset.
+4. Bolt the metal horn onto each servo **at center** with its **included
+   spline/center screw** (10 servos → 10 screws; the 4 M3×6 that clamp a
+   printed part to each horn face come later, in the joint steps). Every joint
+   is later assembled at this mechanical zero = the CAD neutral standing pose;
+   a horn clocked off-center becomes a permanent joint offset.
 
 **Orientation rule for everything below:** the two legs are *translations,
 not mirrors* — identical parts, and **every pitch-joint horn faces +Y (robot
 left)**. Build two identical legs; nothing is handed.
 
-## 2. Heat-set inserts (12)
+## 2. Heat-set inserts (12) — bench work, before any joint
 
-Press with the soldering iron, flush and square:
+All 12 are **M3 brass inserts** (Ø4.6 pilot, ~5 mm). Press each with a
+soldering-iron heat-set tip until the surface sits **flush and square** —
+melt, seat, let it cool before loading. Every one receives an **M3×10**
+machine screw later.
 
-- 4 into each `yoke_pitch` flange (8 total) — the hip flange bolts land here.
-- 4 into the pelvis deck (through-deck pilots into the bay-cheek material) —
-  the tower feet bolt here.
+- **8 into the two `yoke_pitch` flanges** (4 each) — on the ±10 mm bolt square,
+  pressed from the **flange top face** (the face that mates `yoke_roll`). The
+  hip universal-joint bolts (§6) thread down into these.
+- **4 into the `pelvis` deck** — pressed from the **deck top face** at
+  (x ±14, y ±42), no raised bosses; the pilots run straight down through the
+  5 mm deck into the **yaw-seat collar side-wall** material below (~9 mm total
+  engagement). The tower feet (§9c) pull down onto these. *(v3yaw: same x/y
+  positions as before, but they now thread into the yaw-seat collars — the old
+  hip-roll bay cheeks are gone.)*
 
 ## 3. Feet ×2
 
 ![Ankle servo into the foot pocket](assembly/step01_foot_servo.png)
 
 Drop the ankle servo into the foot pocket: **output end forward, cable aft**
-— the cable exits through the window in the heel bulkhead. 4× M3×8
-self-tappers through the rear retention tabs into the case holes. Stick the
+— the cable exits through the window in the heel bulkhead. **4× M3×8
+self-tapping** (2 per rear tab) through the two heel retention tabs into the
+ankle servo's Ø3.5 case holes (horn-face row −29, idler-face row −32.75). Stick the
 rubber sole pad onto the flat underside (trim to fit; keep it ~0.5 mm thin —
 a thicker pad raises the whole robot).
 
@@ -138,9 +166,10 @@ a thicker pad raises the whole robot).
 
 `leg_link` is both thigh and shin (same part). Slide the grip channel onto
 the servo case **from the front**, just below the horn — the horn-side plate
-has a circular relief that clears the Ø19.6 output boss. 6× M3×8 self-tappers
-into the case holes. The shin grips the **knee** servo; the thigh grips the
-**hip-pitch** servo.
+has a circular relief that clears the Ø19.6 output boss. **6× M3×8 self-tapping**
+per link — 4 on the horn-side face (rows 8.3 / 29), 2 on the idler face (row
+32.75) — into the servo case's Ø3.5 holes. The shin grips the **knee** servo;
+the thigh grips the **hip-pitch** servo.
 
 ## 5. Close each joint — fork to horn + idler
 
@@ -150,10 +179,12 @@ The link's fork closes on the *next* servo's output on **both** sides — metal
 horn on +Y, free-spinning idler disc on −Y (same Ø14 bolt circle; no extra
 bearings):
 
-1. **Horn side first**: 4× M3×6 into the horn, with the servo at center and
-   the limb at the CAD-neutral pose. Check the mechanical zero before moving on.
-2. **Idler side**: 4× M3×8 **+ thin washer** (stops the tip short of the
-   gear behind the disc). The printed Ø19 boss inside the Ø25 recess is a
+1. **Horn side first**: **4× M3×6 into the horn** (Ø14 bolt circle) — use the
+   servo's **own bundled M3×6**, with the servo at center and the limb at the
+   CAD-neutral pose. Check the mechanical zero before moving on.
+2. **Idler side**: **4× M3×8 + thin washer** into the idler disc (same Ø14
+   circle; the washer stops the tip short of the gear behind the disc). The
+   printed Ø19 boss inside the Ø25 recess is a
    locator, not a precision seat — concentricity comes from the screw
    pattern, so **snug the idler screws with the joint at mechanical zero and
    check runout before final torque**.
@@ -168,11 +199,11 @@ servo), both legs.
 | ![yoke_pitch onto thigh servo](assembly/step04_yoke_pitch.png) | ![yoke_roll onto yoke_pitch](assembly/step05_yoke_roll.png) |
 
 1. `yoke_pitch` is a clevis over the hip-pitch (thigh) servo's horn + idler:
-   same pattern as step 5 — 4× M3×6 horn side, 4× M3×8+washer idler side,
-   horn first at mechanical zero.
+   same pattern as §5 — **4× M3×6** (servo's own) horn side, **4× M3×8 + washer**
+   idler side, horn first at mechanical zero.
 2. `yoke_roll` bolts on top of the `yoke_pitch` flange, **rotated 90°**
-   (that crossing is the hip universal joint): 4× M3×10 into the heat-set
-   inserts.
+   (that crossing is the hip universal joint): **4× M3×10 into the 4 heat-set
+   inserts** you pressed into this flange in §2.
 
 ## 7. Pelvis — the hip-yaw stack (v3yaw)
 
@@ -190,8 +221,9 @@ length fore-aft** (output/near end forward at +10, cable end aft over the deck
 rear edge). Press it **up** into its collar on the deck underside — the collar
 wraps the top of the case and keys it against the yaw reaction torque. The
 idler-side case face lands flat on the deck. Fix the stator with **4× M3×8
-self-tappers down through the deck** (and the local rear tab) into the
-idler-side case-hole rows. Route the yaw cable out the rear end face.
+self-tapping down through the deck** into the idler-side case-hole rows — 2 into
+row 8.30 (through the deck), 2 into row 32.75 (through the local rear tab that
+overhangs the case cable end). Route the yaw cable out the rear end face.
 
 ### 7b. Carriers onto the yaw horns
 
@@ -199,8 +231,11 @@ idler-side case-hole rows. Route the yaw cable out the rear end face.
 
 With each yaw servo at **mechanical zero** (centered horn), offer the
 `yaw_carrier` up so its horn plate mates the horn disc and its roll bay opens
-downward. **4× M3×6 into the yaw horn** (Ø14 bolt circle) — horn-only, no idler
-side at this axis (see the [study](hip-yaw-study.md#6-as-designed-cad-2026-07-23)
+downward. **3× M3×6 into the yaw horn** (Ø14 bolt circle — the yaw servo's own
+bundled M3×6; the rear-most of the 4 horn positions is deliberately open —
+that's the cable channel that clears the roll servo's up-facing connectors,
+wiring audit 2026-07-23) — horn-only, no idler side at this axis (see the
+[study](hip-yaw-study.md#6-as-designed-cad-2026-07-23)
 for why). Confirm the carrier is square before torquing — a clocked carrier
 becomes a permanent yaw offset.
 
@@ -211,8 +246,8 @@ becomes a permanent yaw offset.
 The carrier's roll bay is the **same downward-open U-slot** as the old pelvis
 bay, just relocated: slide each hip-roll servo **up** into it — **output end
 down, horn facing forward, cable up through the rear slot in the carrier
-ceiling**. 8× M3×8 self-tappers per bay, through the bay walls into the case
-holes.
+ceiling**. **8× M3×8 self-tapping per bay** — 4 through the front (horn) wall,
+4 through the rear (idler) wall — into the roll servo's Ø3.5 case holes.
 
 ## 8. Legs onto the carriers
 
@@ -221,10 +256,11 @@ holes.
 Offer each completed leg up to its roll servo (now carried under the pelvis on
 the yaw stack), clevis over the servo:
 
-- **Front**: yoke_roll horn arm to the roll-servo horn, 4× M3×6 — at
-  mechanical zero, leg hanging straight.
+- **Front**: yoke_roll horn arm to the roll-servo horn, **4× M3×6** (servo's
+  own) — at mechanical zero, leg hanging straight.
 - **Rear**: the idler arm's long boss reaches through the bay's rear-wall slot
-  into the idler disc, 4× M3×10. Same snug-at-zero, check-runout drill.
+  into the idler disc, **4× M3×10** (the extra length spans the long boss). Same
+  snug-at-zero, check-runout drill.
 
 ## 9. Electronics + tower
 
@@ -273,10 +309,10 @@ the tower goes on:
 
 ### 9c. Tower down, power in
 
-1. Bolt the tower: **4× M3×10** through the feet tabs into the deck inserts.
-   The heads seat down inside the Ø6.6 wells in the gusset wedges — drive
-   them with a long hex key through the Ø6.4 access holes in the top plate
-   (one at each corner, x ±14 y ±42).
+1. Bolt the tower: **4× M3×10** through the feet tabs into the **4 deck
+   heat-set inserts from §2**. The heads seat down inside the Ø6.6 wells in the
+   gusset wedges — drive them with a long hex key through the Ø6.4 access holes
+   in the top plate (one at each corner, x ±14 y ±42).
 2. Route the XT30 pigtail + inline switch to the board's power input now,
    while the tower interior is still easy to reach.
 3. Plug the IMU's four jumpers onto the board's headers now too
@@ -303,10 +339,10 @@ No screws, ever.
 
 Stack, in order: the **`imu_carrier`** (tongue rearward, IMU already on it
 from step 9b — connect its jumpers hanging from the rear end first), then
-the `gopro_base` on top, and drive **4× M3×12 self-tappers** through both
-into the tower-top bosses (the old M3×8 is too short with the 3 mm carrier
-in the stack). Fold the camera's two mount fingers down into the 3.2 mm
-slots and clamp with the M5×20 thumbscrew (or the camera's own), **lens
+the `gopro_base` on top, and drive **4× M3×12 self-tapping** through both
+into the four tower-top bosses (Ø2.8 pilots — the old M3×8 is too short with
+the 3 mm carrier in the stack). Fold the camera's two mount fingers down into
+the 3.2 mm slots and clamp with the **1× M5×20 thumbscrew** (or the camera's own), **lens
 axis fore-aft**. If the fingers bind, ream the slots (`GP_SLOT = 3.5`
 fallback). The gopro_base is the deliberate crash fuse — cheap to reprint,
 so let it break instead of the tower (the carrier hides under it, out of

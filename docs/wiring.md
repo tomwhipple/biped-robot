@@ -74,8 +74,8 @@ pigtail and a switch.*
 
   | Hop | Worst routed | Lead |
   |---|---|---|
-  | board → hip-yaw | ~45 mm (down the pelvis rear wire chase, `WIRE_CHASE_1`) | stock 150 mm (coil excess in the tower) |
-  | hip-yaw → hip-roll | ~55 mm incl. the ~15 mm service loop across the ±45° yaw sweep (open rear gap, then the carrier rear channel `WIRE_CHASE_2`) | stock 150 mm |
+  | board → hip-yaw | ~45 mm (down through the deck CENTER WINDOW, inboard of the yaw case, to its rear port; the rear chase `WIRE_CHASE_1` is the alternate/relief crossing) | stock 150 mm (coil excess in the tower) |
+  | hip-yaw → hip-roll | ~55 mm incl. the ~15 mm service loop across the ±45° yaw sweep (open rear gap, then the carrier cable channel `WIRE_CHASE_2`, opened forward to clear the roll servo's up-facing connectors) | stock 150 mm |
   | hip-roll → hip-pitch | **170 mm** | **≥200 mm extension required** (BOM item 19) — crosses both the roll and hip-pitch joints; longest at the knee-flexion pose |
   | hip-pitch → knee | 111 mm | stock 150 mm (~35 % slack) |
   | knee → ankle | 82 mm | stock 150 mm (worst at ankle −40°) |
