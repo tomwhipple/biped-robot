@@ -53,9 +53,14 @@ or from the GUI: **Macro → Macros… → add `freecad_articulate.py` → Execu
 **Assembly** workbench, then either **drag any part** with the mouse (the
 solver keeps every joint honest and stops each axis at its limit) or
 double-click a joint in the tree and type an angle. The neutral pose is the
-CAD standing pose (feet on the ground). *(FreeCAD prints ~20 benign
-"invalid Reference" warnings on open — a PartDesign migration quirk that
-doesn't apply to these LCS joints; they solve and pose fine.)*
+CAD standing pose (feet on the ground). The macro injects a `GuiDocument.xml`
+(view state + fitted isometric camera) so the file opens visible even though it
+was built headless. *(FreeCAD prints ~20 benign "invalid Reference" warnings on
+open — a PartDesign migration quirk that doesn't apply to these LCS joints; they
+solve and pose fine.)*
+
+If a future FreeCAD version still opens with hidden parts: **select-all in the
+tree → press Space → View ▸ Fit All**.
 
 `assembly_full.step` is the "approximate complete" model: everything in
 `assembly.step` plus mock dress — driver board under the tower top, battery,

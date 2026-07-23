@@ -33,6 +33,12 @@ either (a) drag any part with the mouse -- the solver keeps every joint honest
 and stops each axis at its limit -- or (b) double-click a joint in the tree and
 type an angle.  Ground stays put; the chain follows.
 
+The file opens VISIBLE with a fitted isometric view: because console-mode
+FreeCAD writes no GuiDocument.xml, this macro injects one after saving (a
+ViewProvider per object -- printed parts + containers shown, the auto-generated
+Origin datum planes hidden -- plus a saved camera).  If a future FreeCAD ever
+still opens with hidden parts: select-all in the tree, press Space, View > Fit All.
+
 Robustness notes
 ----------------
 * STEP files are found by name (case-insensitive) under ``step/`` next to this
@@ -50,6 +56,7 @@ Robustness notes
 """
 import os
 import sys
+import zipfile
 
 import FreeCAD as App
 import Part
@@ -135,6 +142,98 @@ def revolute(doc, jg, name, a_part, a_lcs, b_part, b_lcs, amin, amax):
     return j
 
 
+# ------------------------------------------------------ GUI visibility injection
+# freecadcmd (console mode) writes NO GuiDocument.xml, so the GUI opens the file
+# with every object hidden and no fitted camera -- it "looks empty".  We inject a
+# minimal-but-valid GuiDocument.xml (FreeCAD 1.1 schema) after saving: a
+# ViewProvider per persisted object, geometry + containers visible, the auto-made
+# Origin datum planes/axes/points hidden, plus a fitted isometric camera.
+
+# Objects that must be visible; App::Part / Assembly / JointGroup are CONTAINERS
+# whose visibility gates their children, so they must be on too.
+_VISIBLE_TYPES = {
+    "Part::Feature",
+    "App::Part",
+    "Assembly::AssemblyObject",
+    "Assembly::JointGroup",
+}
+
+
+def _isometric_camera(center, dist=1300.0, height=560.0):
+    """Coin OrthographicCamera settings string for a fitted isometric view."""
+    n = App.Vector(1, -1, 1)
+    n.normalize()                                    # camera offset from focal
+    up = App.Vector(0, 0, 1)
+    zc = n                                           # camera looks down its -Z
+    yc = up - zc * up.dot(zc)
+    yc.normalize()
+    xc = yc.cross(zc)
+    rot = App.Rotation(App.Matrix(
+        xc.x, yc.x, zc.x, 0,
+        xc.y, yc.y, zc.y, 0,
+        xc.z, yc.z, zc.z, 0,
+        0, 0, 0, 1))
+    ax, ang = rot.Axis, rot.Angle
+    pos = center + n * dist
+    near, far = dist - 600.0, dist + 600.0
+    body = (
+        "OrthographicCamera {\n"
+        "  viewportMapping ADJUST_CAMERA\n"
+        "  position %.5f %.5f %.5f\n"
+        "  orientation %.8f %.8f %.8f  %.7f\n"
+        "  nearDistance %.5f\n"
+        "  farDistance %.5f\n"
+        "  aspectRatio 1\n"
+        "  focalDistance %.5f\n"
+        "  height %.5f\n\n}\n" % (
+            pos.x, pos.y, pos.z, ax.x, ax.y, ax.z, ang,
+            near, far, dist, height))
+    return body.replace("&", "&amp;").replace("<", "&lt;").replace(
+        ">", "&gt;").replace('"', "&quot;").replace("\n", "&#10;")
+
+
+def _gui_document_xml(objects, camera_settings):
+    """objects = [(name, typeid), ...]."""
+    rows = []
+    for name, typeid in objects:
+        vis = "true" if typeid in _VISIBLE_TYPES else "false"
+        rows.append(
+            '        <ViewProvider name="%s" expanded="0">\n'
+            '            <Properties Count="1" TransientCount="0">\n'
+            '                <Property name="Visibility" type="App::PropertyBool" status="1">\n'
+            '                    <Bool value="%s"/>\n'
+            '                </Property>\n'
+            '            </Properties>\n'
+            '        </ViewProvider>' % (name, vis))
+    return (
+        "<?xml version='1.0' encoding='utf-8'?>\n"
+        "<!-- FreeCAD GuiDocument, injected by freecad_articulate.py -->\n"
+        '<Document SchemaVersion="1">\n'
+        '    <ViewProviderData Count="%d">\n%s\n    </ViewProviderData>\n'
+        '    <Camera settings="%s"/>\n'
+        "</Document>\n" % (len(objects), "\n".join(rows), camera_settings))
+
+
+def inject_gui_document(fcstd_path, doc):
+    """Add/replace GuiDocument.xml inside the saved .FCStd zip (idempotent)."""
+    objects = [(o.Name, o.TypeId) for o in doc.Objects]
+    # centre the camera on the standing model (feet ~0, tower top ~400)
+    cam = _isometric_camera(App.Vector(0.0, 0.0, 200.0))
+    xml = _gui_document_xml(objects, cam)
+    tmp = fcstd_path + ".tmp"
+    with zipfile.ZipFile(fcstd_path, "r") as zin, \
+            zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            if item.filename == "GuiDocument.xml":      # drop old -> idempotent
+                continue
+            zout.writestr(item, zin.read(item.filename))
+        zout.writestr("GuiDocument.xml", xml)
+    os.replace(tmp, fcstd_path)
+    n_vis = sum(1 for _, t in objects if t in _VISIBLE_TYPES)
+    print("injected GuiDocument.xml: %d ViewProviders (%d visible)"
+          % (len(objects), n_vis))
+
+
 # --------------------------------------------------------------------------- build
 def build():
     doc = App.newDocument("bimo_v3yaw_articulated")
@@ -205,6 +304,8 @@ def build():
 
     out = os.path.join(STEP, "bimo_v3yaw_articulated.FCStd")
     doc.saveAs(out)
+    # console mode saves no GuiDocument.xml -> inject one so it opens VISIBLE
+    inject_gui_document(out, doc)
     n_joints = sum(1 for o in doc.Objects if o.Name.startswith(
         ("hip_", "knee_", "ankle_")))
     print("wrote %s  (%d revolute joints)" % (out, n_joints))
