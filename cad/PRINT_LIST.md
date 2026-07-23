@@ -21,6 +21,30 @@
 > between the two carriers 6.2 mm at ±45°), `check_printability.py` clean.
 > Render: `renders/hip_yaw_beforeafter.png`.
 
+> **Design-review fixes (2026-07-23, second pass):** three part corrections
+> from user review of the exploded drawings + FreeCAD model:
+> 1. **Idler bolt circle now drills THROUGH** on `leg_link`, `yoke_roll`,
+>    `yoke_pitch` (was a modeling bug — the bore started at the disc face and
+>    never reached the outer plate; the bolted-idler intent is original, see
+>    the BOM's idler washers). Existing prints: **hand-drill Ø3.4 at the 4
+>    BCD positions** (the blind recesses on the servo-facing side locate the
+>    drill). Future prints are correct as exported. `IDLER_BOSS_D` grew
+>    19→20 for web thickness — existing 19 mm-boss prints remain usable.
+> 2. **`leg_link` idler fork gains a cable notch** (rounded, x −12.5…−4,
+>    z −49…−37) for the gripped servo's lead — **cannot be added by hand**;
+>    printed thighs/shins work only until you route that lead. **Reprint
+>    recommended: `leg_link` ×4** (slice `leg_link_print.stl`).
+> 3. **`foot` gains top-side screw-head divots** over the low ankle-screw
+>    row (driver path was blocked by the sole shelf). Hand-carving is
+>    possible but ugly; **reprint recommended: `foot` ×2** (sole pad
+>    adhesive area unchanged).
+> `yoke_pitch` was already on hold for the −110° recut — its reprint picks
+> up the idler through-holes automatically. Checks after all three:
+> `check_printability.py` ALL PARTS PRINT CLEAN, `check_assembly.py` ALL
+> CLEAR. Renders: `renders/yoke_roll_idler.png`,
+> `renders/leg_link_idler_notch.png`, `renders/foot_divot.png` +
+> `_driver.png`.
+
 ## Global print settings
 
 **PETG for the whole robot** (0.4 mm nozzle, 0.2 mm layers, 3 perimeters — every

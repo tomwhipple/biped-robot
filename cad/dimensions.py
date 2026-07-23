@@ -85,7 +85,14 @@ M25_TAP = 2.2           # M2.5 self-tap pilot (electronics board)
 # ----------------------------------------------------------------------------
 HORN_BOSS_D = 16.5
 HORN_BOSS_H = 1.0       # yokes only
-IDLER_BOSS_D = 19.0
+IDLER_BOSS_D = 20.0     # was 19.0. Grown 2026-07-23 when the idler bolt circle
+                        # was finally drilled THROUGH (see parts.py bugfix): the
+                        # 4x O3.4 clearance holes on the O14 circle reach r8.7,
+                        # leaving only 0.8 mm to an O19 boss OD (sub-2-perimeter,
+                        # check_printability THIN). O20 restores a 1.3 mm web and
+                        # still slips through the LOCKED BAY_BORE 20.6 U-slot at
+                        # the yoke_roll idler arm (0.3 mm/side == FIT). Do not
+                        # grow past ~20.3 without revisiting BAY_BORE.
 IDLER_ARM_INNER = -18.0                    # arm plate inner face (from servo mid)
 IDLER_BOSS_H = IDLER_ARM_INNER - SV_IDLER_FACE  # 1.2
 
@@ -256,6 +263,24 @@ GRIP_TOP_HORN = -3.0    # top edge of horn-side grip plate (below upper axis);
 GRIP_HORN_RELIEF = 10.3 # ...with a circular relief around the O19.6 case boss
 GRIP_TOP_IDLER = -16.0  # idler side must clear the upper yoke arm sweep (R12+4)
 GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
+# The gripped servo's cable/connector exits the case BOTTOM END toward the idler
+# (-Y) side, but the idler grip plate + jog block + idler fork wall that side
+# solid from z-16 down past the case bottom (user report / probe 2026-07-23: a
+# lead routed down the idler side cut 171 mm3 into the plate). Notch the idler
+# side at the cable end for a 3-wire JST lead + plug. Sits BELOW the idler case
+# screw (z-32.75) and far ABOVE the (now through-drilled) lower bolt circle
+# (z-90) and boss, so it weakens neither; over the modelled port x-band (-5..-11).
+LINK_IDLER_NOTCH_X = (-12.5, -4.0)    # x span of the notch (over the ports);
+                                      # narrow (8.5 mm) so the idler fork arm
+                                      # keeps ~19 of its 27 mm width for load
+LINK_IDLER_NOTCH_Z = (-49.0, -37.0)   # z band: starts just BELOW the crowded
+                                      # servo-bottom / jog-block / idler-case-
+                                      # screw cluster (z -33..-36.5) so it cuts
+                                      # no sub-perimeter sliver there, down to
+                                      # near the fork wide/narrow break. Clears
+                                      # the connector plug + lead (which hang
+                                      # below the case bottom -35.11)
+LINK_CABLE_R = 2.0                     # rounded notch corners (no shear on lead)
 WEB_GAP = 0.4
 WEB_TOP = -16.0         # clears the upper joint's fork arms folding to 95 deg
 WEB_END = -58.0         # web stops 32 above the lower axis: clears the foot
@@ -304,6 +329,20 @@ FOOT_CABLE_Z = 8.0      # servo cable exits the rear END face (same connector
 # bracing both tabs + the bulkhead. Its sloped face is a TOP surface printing
 # sole-down, so any steepness is support-free. Ends at the heel edge (-42).
 FOOT_WALL_GUSSET_AFT = (2.0, 18.0)  # aft buttress (x-run toward heel, z-height)
+# ankle-servo retention (assembly.md §3, 4x M3x8 self-tap through the tabs into
+# the case rows -29 / -32.75). The rows sit at z = pocket-floor + {2.11, 22.61}
+# = 6.11 (LOW) and 26.61 (HIGH). The LOW head lands right at the sole top
+# (FOOT_T = 6) and the sole extends FOOT_W/2 OUTBOARD of the tabs -- a 6 mm
+# shelf that blocks both the head and the Y-driver (probe 2026-07-23; user
+# report). Divot: relieve that shelf TOP over each LOW screw down to
+# FOOT_DIVOT_FLOOR, from the tab outer face out through the sole edge. The pad
+# still bonds to the FULL flat z=0 underside -- the divot is top-side only, so
+# adhesive area is unchanged. Prints sole-down = an upward-open pocket (no
+# bridge). The HIGH row clears the sole and needs no divot.
+FOOT_DIVOT_HW = 5.5     # divot half-length along X (M3 button O5.7 + driver +
+                        # margin so the hex driver seats square on the head)
+FOOT_DIVOT_FLOOR = 2.0  # sole left under the divot (pad backs it from below);
+                        # clears the driver socket down to z~2.6 at the z6.11 row
 ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+pad proud)
 
 # ----------------------------------------------------------------------------

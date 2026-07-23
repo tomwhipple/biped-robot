@@ -122,8 +122,13 @@ def yoke_roll():
     # idler arm: plate + long boss reaching through the bay-wall slot
     p += box(ix0, ix1, -12, 12, zf0, 0) + cyl_x(D.PAD_D / 2, ix0, ix1, 0, 0)
     p += cyl_x(D.IDLER_BOSS_D / 2, D.SV_IDLER_FACE, ix1, 0, 0)        # boss 4.15
-    # holes
-    for h in bcd_x(D.SV_IDLER_FACE - 1, hx1 + 1, 0, 0):
+    # holes: ONE bore per bolt-circle position, drilled from the idler-arm OUTER
+    # face (ix0) clear through to past the horn plate (hx1). BUGFIX 2026-07-23:
+    # this started at SV_IDLER_FACE-1 (the disc face), leaving the idler arm's
+    # outer plate + long boss SOLID -- the 4x M3x10 idler-disc screws the BOM
+    # buys ("through the long boss") were un-fittable. Now the idler bolt circle
+    # is a true clearance through-hole. (Same fix in yoke_pitch and leg_link.)
+    for h in bcd_x(ix0 - 1, hx1 + 1, 0, 0):
         p -= h
     p -= cyl_x(D.HORN_CENTER_RELIEF_D / 2, D.SV_HORN_FACE - 1, hx1 + 1, 0, 0)
     p -= cyl_x(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 1, D.SV_IDLER_FACE + 0.7, 0, 0)
@@ -165,7 +170,10 @@ def yoke_pitch():
                    iy0 - 1, iy1 + 1)
     p += hub + box(-14, 4, iy0, iy1, 9, zf1)
     p += cyl_y(D.IDLER_BOSS_D / 2, D.SV_IDLER_FACE, iy1, 0, 0)   # boss 1.2
-    for h in bcd_y(D.SV_IDLER_FACE - 1, hy1 + 1, 0, 0, roll=180):
+    # idler bolt circle drilled from the arm OUTER face (iy0) through to the horn
+    # side -- BUGFIX 2026-07-23 (was SV_IDLER_FACE-1, leaving the outer plate
+    # solid; see yoke_roll). Makes the 4x M3x8+washer idler screws fittable.
+    for h in bcd_y(iy0 - 1, hy1 + 1, 0, 0, roll=180):
         p -= h
     p -= cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, 0)
     p -= cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 1, D.SV_IDLER_FACE + 0.7, 0, 0)
@@ -262,7 +270,13 @@ def leg_link(print_fins=False):
         p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, -D.SV_TOPFACE - D.PLATE - 1,
                         -D.SV_TOPFACE + 1, lx, -D.CASE_HOLES_BOT[1], roll=90)
     # --- holes: lower joint pads
-    for h in bcd_y(D.SV_IDLER_FACE - 1, hy1 + 1, 0, drop, roll=90):
+    # idler bolt circle drilled from the fork OUTER face (iy0) through to the
+    # horn side -- BUGFIX 2026-07-23 (was SV_IDLER_FACE-1, leaving the idler fork
+    # plate solid so the 4x M3x8+washer idler-disc screws could not be fitted;
+    # see yoke_roll). Already-printed links have a SOLID outer face (no pilot):
+    # hand-drill on the O14 BCD marked off the idler boss centre, or from a
+    # printed jig locating on the boss.
+    for h in bcd_y(iy0 - 1, hy1 + 1, 0, drop, roll=90):
         p -= h
     p -= cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, drop)
     p -= cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 1,
@@ -275,6 +289,22 @@ def leg_link(print_fins=False):
     # 3-pin plug; both the OUT cable (down to the raceway) and the incoming
     # IN cable (up into the port) share it.
     p -= box(web_x0 - 1, web_x1 + 1, -4.5, 4.5, -48, -37)
+    # --- idler-side cable-access notch: the gripped servo's connector faces the
+    # idler side and the idler grip plate / jog block / fork wall it off (see
+    # dimensions.LINK_IDLER_NOTCH_*). Open that wall at the cable end for the
+    # JST lead + plug; rounded corners so the lead doesn't chafe. Clear of the
+    # idler case screw (z-32.75) and the lower bolt circle (z-90).
+    xn0, xn1 = D.LINK_IDLER_NOTCH_X
+    zn0, zn1 = D.LINK_IDLER_NOTCH_Z
+    # rounded-corner slot (cylinders INSET so they only soften the box corners,
+    # never extend the opening -- an over-hanging round left a sub-perimeter
+    # sliver against the jog block, check_printability THIN 2026-07-23)
+    r = D.LINK_CABLE_R
+    p -= box(xn0, xn1, iy0 - 1, -D.SV_TOPFACE + 1, zn0 + r, zn1 - r)
+    p -= box(xn0 + r, xn1 - r, iy0 - 1, -D.SV_TOPFACE + 1, zn0, zn1)
+    for xc in (xn0 + r, xn1 - r):
+        for zc in (zn0 + r, zn1 - r):
+            p -= cyl_y(r, iy0 - 1, -D.SV_TOPFACE + 1, xc, zc)
     # --- zip-tie holes in the web (servo cable runs down the back); at +-9
     # so the window keeps a >=2 mm ligament to each hole -- the -40 pair
     # straddles the window and captures the cables right at the exit
@@ -488,6 +518,17 @@ def foot():
                         -29.0, zp + zh)
         p -= teardrop_y(D.M3_CLEAR / 2, -py - D.FOOT_WALL_T - 1, -py + 1,
                         -32.75, zp + zh)
+    # driver-access DIVOTS for the LOW retention row (z = zp+2.11 = 6.11, at the
+    # sole top): the sole shelf outboard of the tabs blocks the head + Y-driver
+    # (user report / probe 2026-07-23). Relieve the shelf TOP over each low screw
+    # from the tab outer face out through the sole edge, down to FOOT_DIVOT_FLOOR
+    # -- the pad still bonds to the full z=0 underside. The HIGH row is clear.
+    for xh, ysgn in ((-29.0, 1), (-32.75, -1)):
+        yface = ysgn * (py + D.FOOT_WALL_T)          # tab outer (head-seat) face
+        yedge = ysgn * (D.FOOT_W / 2 + 1)            # just past the sole edge
+        p -= box(xh - D.FOOT_DIVOT_HW, xh + D.FOOT_DIVOT_HW,
+                 min(yface, yedge), max(yface, yedge),
+                 D.FOOT_DIVOT_FLOOR, D.FOOT_T + 1)
     return p
 
 

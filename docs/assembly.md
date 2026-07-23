@@ -11,14 +11,14 @@ Companion docs: [print list](../cad/PRINT_LIST.md) ·
 [BOM with links/prices](bom-sourced.md) · [hardware order + verify-on-arrival](hardware-order.md) ·
 [wiring & bring-up](wiring.md) · [CAD readme](../cad/README.md)
 
-| Exploded | Complete |
-|---|---|
+| Exploded                                       | Complete                                           |
+| ---------------------------------------------- | -------------------------------------------------- |
 | ![Exploded view](assembly/step00_exploded.png) | ![Complete assembly](assembly/step12_complete.png) |
 
 **Master exploded drawing** (isometric, generated from the CAD by
 `cad/render_exploded_drawing.py`):
 
-![Master exploded engineering drawing of the v3yaw biped](assembly/exploded_full.png)
+<img title="" src="assembly/exploded_full.png" alt="Master exploded engineering drawing of the v3yaw biped" width="855">
 
 > ⚠️ **Hip redesign in flight (2026-07-15).** The get-up study fixed the CAD
 > target at **−110°/+60° hip-pitch flexion**; `yoke_pitch` is being re-cut for
@@ -43,17 +43,17 @@ Companion docs: [print list](../cad/PRINT_LIST.md) ·
 **Printed parts** (16 prints, 9 unique — PETG, no supports; orientations and
 settings in the [print list](../cad/PRINT_LIST.md)):
 
-| Part | Qty | Note |
-|---|---|---|
-| `pelvis` | 1 | v3yaw: deck + two flat yaw-servo seats (no bays); print deck-top down |
-| `yaw_carrier` | 2 | bolts to the yaw-servo horn, carries the hip-roll bay; horn-plate face on bed, bay walls rise |
-| `yoke_roll` | 2 | flange on bed |
-| `yoke_pitch` | 2 | ⚠️ on hold (hip redesign) |
-| `leg_link` | 4 | 2 thighs (⚠️ hold) + 2 shins — **slice `leg_link_print.stl`** and peel the 3 break-away fins after printing |
-| `foot` | 2 | v3 (heel bulkhead), sole down |
-| `tower` | 1 | print top-plate down (support-free — the battery window is open to the deck) |
-| `gopro_base` | 1 | prongs up; the sacrificial crash fuse |
-| `imu_carrier` | 1 | flat, bosses up; sandwiches under the gopro_base |
+| Part          | Qty | Note                                                                                                        |
+| ------------- | --- | ----------------------------------------------------------------------------------------------------------- |
+| `pelvis`      | 1   | v3yaw: deck + two flat yaw-servo seats (no bays); print deck-top down                                       |
+| `yaw_carrier` | 2   | bolts to the yaw-servo horn, carries the hip-roll bay; horn-plate face on bed, bay walls rise               |
+| `yoke_roll`   | 2   | flange on bed                                                                                               |
+| `yoke_pitch`  | 2   | ⚠️ on hold (hip redesign)                                                                                   |
+| `leg_link`    | 4   | 2 thighs (⚠️ hold) + 2 shins — **slice `leg_link_print.stl`** and peel the 3 break-away fins after printing |
+| `foot`        | 2   | v3 (heel bulkhead), sole down                                                                               |
+| `tower`       | 1   | print top-plate down (support-free — the battery window is open to the deck)                                |
+| `gopro_base`  | 1   | prongs up; the sacrificial crash fuse                                                                       |
+| `imu_carrier` | 1   | flat, bosses up; sandwiches under the gopro_base                                                            |
 
 **Everything else:** 10× ST3215 servos (12 V version — 8 leg + 2 hip-yaw) with
 their horns, idler discs and included screws/leads · Waveshare Servo Driver with ESP32 · BNO055
@@ -69,17 +69,17 @@ steps consume it. Totals reconcile with the per-step callouts below (each step
 also states its own fasteners inline). **Every joint bolt is driven with the
 servo at mechanical zero** (see §1).
 
-| Fastener | Qty | Threads into | Consumed in |
-|---|---|---|---|
-| **M3×6** button head *(the servos' own horn screws)* | 38 used (40 bundled) | the servo's metal **horn disc** — M3 on the Ø14 bolt circle: 4× per horn everywhere except the yaw horns, which take **3×** (the rear-most position is the carrier's cable channel — wiring audit 2026-07-23). Bundled with each ST3215 (10 × 4 = 40 on hand → 2 spares). | §5 (knee + ankle horns, 16), §6 (hip-pitch horn, 8), §7b (yaw carriers onto the yaw horns, 6), §8 (hip-roll horn, 8) |
-| **M3×8** button head **+ thin washer** | 24 ⚠ | the servo's free-spinning **idler disc** — same Ø14 circle; washer stops the tip short of the 3.35 mm thread. **⚠ Not fittable as modeled** — the fork/yoke idler arms have no through-holes yet (see Anatomy note); pending a `parts.py` fix. | §5 (knee + ankle idlers, 16), §6 (hip-pitch idler, 8) |
-| **M3×10** button head | **20** | three jobs: the hip-roll **idler disc** reached through the bay-wall slot by the long boss (8 ⚠ *same idler-hole caveat*); the **yoke_pitch flange heat-sets** that make the hip universal (8); and the **deck heat-sets** the tower feet pull down onto (4). | §6 (flange → inserts, 8), §8 (roll idler, 8), §9c (tower feet → inserts, 4) |
-| **M3×8 self-tapping** | 56 | printed Ø3.4 clearances into the **servo case's Ø3.5 holes** (glass-filled nylon, community-tapped M3 — see verify-on-arrival). | §3 (feet, 8), §4 (leg_link grips, 24), §7a (yaw stators down through the deck, 8), §7c (roll servos into the carriers, 16) |
-| **M3×12 self-tapping** | 4 | Ø2.8 pilots in the **tower-top bosses**, through the `imu_carrier` + `gopro_base` stack (the M3×8 is too short with the 3 mm carrier added). | §11 |
-| **M2.5×8 self-tapping** | 8 | Ø2.2 printed pilots — 4 in the tower standoffs, 4 in the `imu_carrier` bosses. | §9a (driver board, 4), §9b (BNO055, 4) |
-| **M3 heat-set insert** (Ø4.6 pilot, ~5 mm) | 12 | brass inserts **pressed into printed plastic** to receive the M3×10 machine screws above. | **installed in §2**: 8 in the two `yoke_pitch` flanges, 4 in the `pelvis` deck |
-| **M5×20 thumbscrew** | 1 | the GoPro three-prong clamp bore (or use the camera's own thumbscrew). | §11 |
-| servo spline/center screw | 10 | each servo's output shaft — holds the metal horn on (bundled with the servo). | §1 |
+| Fastener                                             | Qty                  | Threads into                                                                                                                                                                                                                                                              | Consumed in                                                                                                                |
+| ---------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **M3×6** button head *(the servos' own horn screws)* | 38 used (40 bundled) | the servo's metal **horn disc** — M3 on the Ø14 bolt circle: 4× per horn everywhere except the yaw horns, which take **3×** (the rear-most position is the carrier's cable channel — wiring audit 2026-07-23). Bundled with each ST3215 (10 × 4 = 40 on hand → 2 spares). | §5 (knee + ankle horns, 16), §6 (hip-pitch horn, 8), §7b (yaw carriers onto the yaw horns, 6), §8 (hip-roll horn, 8)       |
+| **M3×8** button head **+ thin washer**               | 24                   | the servo's free-spinning **idler disc** — same Ø14 circle; washer stops the tip short of the 3.35 mm thread. *(Pre-2026-07-23 prints: hand-drill the Ø3.4 idler holes through the arm — see Anatomy note.)*                            | §5 (knee + ankle idlers, 16), §6 (hip-pitch idler, 8)                                                                      |
+| **M3×10** button head                                | **20**               | three jobs: the hip-roll **idler disc** reached through the bay-wall slot by the long boss (8; pre-2026-07-23 prints need the idler holes drilled through, per §5); the **yoke_pitch flange heat-sets** that make the hip universal (8); and the **deck heat-sets** the tower feet pull down onto (4).             | §6 (flange → inserts, 8), §8 (roll idler, 8), §9c (tower feet → inserts, 4)                                                |
+| **M3×8 self-tapping**                                | 56                   | printed Ø3.4 clearances into the **servo case's Ø3.5 holes** (glass-filled nylon, community-tapped M3 — see verify-on-arrival).                                                                                                                                           | §3 (feet, 8), §4 (leg_link grips, 24), §7a (yaw stators down through the deck, 8), §7c (roll servos into the carriers, 16) |
+| **M3×12 self-tapping**                               | 4                    | Ø2.8 pilots in the **tower-top bosses**, through the `imu_carrier` + `gopro_base` stack (the M3×8 is too short with the 3 mm carrier added).                                                                                                                              | §11                                                                                                                        |
+| **M2.5×8 self-tapping**                              | 8                    | Ø2.2 printed pilots — 4 in the tower standoffs, 4 in the `imu_carrier` bosses.                                                                                                                                                                                            | §9a (driver board, 4), §9b (BNO055, 4)                                                                                     |
+| **M3 heat-set insert** (Ø4.6 pilot, ~5 mm)           | 12                   | brass inserts **pressed into printed plastic** to receive the M3×10 machine screws above.                                                                                                                                                                                 | **installed in §2**: 8 in the two `yoke_pitch` flanges, 4 in the `pelvis` deck                                             |
+| **M5×20 thumbscrew**                                 | 1                    | the GoPro three-prong clamp bore (or use the camera's own thumbscrew).                                                                                                                                                                                                    | §11                                                                                                                        |
+| servo spline/center screw                            | 10                   | each servo's output shaft — holds the metal horn on (bundled with the servo).                                                                                                                                                                                             | §1                                                                                                                         |
 
 Notes: the **40 M3×6 are the servos' included horn screws**; only the idler
 (M3×8+washer / M3×10), self-tapping, M2.5 and heat-set hardware is separately
@@ -110,23 +110,26 @@ this happens before any plastic goes on:
 
 1. Bench-power the bare driver board, confirm OLED + web UI (AP mode,
    `192.168.4.1`).
+
 2. Connect servos **one at a time**, assign IDs, and label each case:
-
+   
    | Left leg (bus port A) | Right leg (bus port B) |
-   |---|---|
-   | 1 hip roll | 5 hip roll |
-   | 2 hip pitch | 6 hip pitch |
-   | 3 knee | 7 knee |
-   | 4 ankle | 8 ankle |
-   | 9 hip yaw | 10 hip yaw |
-
+   | --------------------- | ---------------------- |
+   | 1 hip roll            | 5 hip roll             |
+   | 2 hip pitch           | 6 hip pitch            |
+   | 3 knee                | 7 knee                 |
+   | 4 ankle               | 8 ankle                |
+   | 9 hip yaw             | 10 hip yaw             |
+   
    The 1–8 order matches the current 8-DOF sim action vector
    (`sim/walker_env.py`) — no permutation table in firmware. **Hip yaw (9/10)
    is the new v3yaw axis**; append it in whatever slot the v3yaw sim
    (`bimo_biped_v3yaw.xml`) action vector uses when that lands, and keep the
    firmware map matching it. The 9/10 IDs above are a convenient default (yaw
    servos wire last on each bus), not yet pinned to a sim slot.
+
 3. Center every servo (**position 2048** / "Set Middle Position").
+
 4. Bolt the metal horn onto each servo **at center** with its **included
    spline/center screw** (10 servos → 10 screws; the 4 M3×6 that clamp a
    printed part to each horn face come later, in the joint steps). Every joint
@@ -161,9 +164,13 @@ machine screw later.
 Drop the ankle servo into the foot pocket: **output end forward, cable aft**
 — the cable exits through the window in the heel bulkhead. **4× M3×8
 self-tapping** (2 per rear tab) through the two heel retention tabs into the
-ankle servo's Ø3.5 case holes (horn-face row −29, idler-face row −32.75). Stick the
+ankle servo's Ø3.5 case holes (horn-face row −29, idler-face row −32.75). The
+**low screw row drives through the top-side divots** in the sole shelf
+(design-review fix 2026-07-23 — pre-fix feet block the driver on the low
+row; reprint or hand-carve). Stick the
 rubber sole pad onto the flat underside (trim to fit; keep it ~0.5 mm thin —
-a thicker pad raises the whole robot).
+a thicker pad raises the whole robot; the divots are top-side only, so the
+adhesive area is unchanged).
 
 ## Anatomy of a typical joint (both sides of the servo)
 
@@ -185,18 +192,13 @@ holes on both faces**. Two different printed parts meet at each servo:
    servo's Ø3.5 case holes — 4 on the horn-side face, 2 on the idler face. This
    holds the servo body — the fixed side (§4).
 
-> ⚠ **Known CAD issue — idler side is not yet bolt-ready (verified 2026-07-23).**
-> The servo's idler disc *has* the Ø14 four-bolt pattern, and the intent (per
-> `cad/dimensions.py`) is to bolt the fork to it for a two-sided, bearingless
-> joint. **But the printed `leg_link` fork and both yokes currently have no
-> through-holes on the idler-arm outer face** — only blind reliefs and a loose
-> Ø19 locator boss on the *servo-facing* side (measured: material is solid where
-> a bolt would enter). So as the parts stand you **cannot** fit the idler
-> screws; the joint is horn-bolted with an idler pilot only. This needs a
-> `parts.py` fix (drill the idler bolt circle through to the outer face) or an
-> explicit "horn-only" design decision. Until then, treat the "4× M3×8 + washer
-> idler" line as **pending** — see the [BOM note](bom-sourced.md) and the
-> flagged rows in [§0](#fasteners--heat-set-inserts).
+> **Idler side is bolted too** (both faces). The idler disc has the same Ø14
+> four-bolt pattern, and the fork bolts to it for a two-sided, bearingless
+> joint: **4× M3×8 + thin washer** into the idler disc. *(Decided 2026-07-23:
+> through-holes are the design intent. `leg_link`/yoke prints made **before**
+> that date have the idler bolt-circle only relieved on the servo-facing side —
+> **hand-drill the Ø3.4 idler holes through the outer face** on those, or
+> reprint from the corrected CAD.)*
 
 > **Always at mechanical zero.** Drive the horn-side screws *first*, with the
 > servo centered (§1) and the limb in the CAD-neutral pose. A screw driven
@@ -227,12 +229,10 @@ bearings):
 1. **Horn side first**: **4× M3×6 into the horn** (Ø14 bolt circle) — use the
    servo's **own bundled M3×6**, with the servo at center and the limb at the
    CAD-neutral pose. Check the mechanical zero before moving on.
-2. **Idler side** — ⚠ **currently blocked, see the Anatomy note above**: the
-   intent is **4× M3×8 + thin washer** into the idler disc (same Ø14 circle;
-   the washer stops the tip short of the gear behind the disc), but the printed
-   fork has **no through-holes on the idler-arm outer face** yet, so this can't
-   be fitted until `parts.py` is reconciled. For now the fork seats on the idler
-   by its **locator boss** only. The printed Ø19 boss inside the Ø25 recess is a
+2. **Idler side**: **4× M3×8 + thin washer** into the idler disc (same Ø14
+   circle; the washer stops the tip short of the gear behind the disc). *(Pre-
+   2026-07-23 prints: drill the Ø3.4 idler holes through the arm's outer face
+   first — see the Anatomy note.)* The printed Ø19 boss inside the Ø25 recess is a
    locator, not a precision seat — concentricity comes from the screw
    pattern, so **snug the idler screws with the joint at mechanical zero and
    check runout before final torque**.
@@ -242,14 +242,14 @@ servo), both legs.
 
 ## 6. Hip yokes — the universal joint
 
-| yoke_pitch onto the thigh servo | yoke_roll on top, rotated 90° |
-|---|---|
+| yoke_pitch onto the thigh servo                                | yoke_roll on top, rotated 90°                               |
+| -------------------------------------------------------------- | ----------------------------------------------------------- |
 | ![yoke_pitch onto thigh servo](assembly/step04_yoke_pitch.png) | ![yoke_roll onto yoke_pitch](assembly/step05_yoke_roll.png) |
 
 1. `yoke_pitch` is a clevis over the hip-pitch (thigh) servo's horn + idler:
    same pattern as §5 — **4× M3×6** (servo's own) horn side, **4× M3×8 + washer**
-   idler side (⚠ same idler-hole issue as §5 — idler screws pending a `parts.py`
-   fix), horn first at mechanical zero.
+   idler side (pre-2026-07-23 prints need the idler holes drilled through, as
+   in §5), horn first at mechanical zero.
 2. `yoke_roll` bolts on top of the `yoke_pitch` flange, **rotated 90°**
    (that crossing is the hip universal joint): **4× M3×10 into the 4 heat-set
    inserts** you pressed into this flange in §2.
@@ -384,8 +384,8 @@ No screws, ever.
 
 ## 11. GoPro mount + camera
 
-| gopro_base onto the tower top | Camera into the prongs |
-|---|---|
+| gopro_base onto the tower top                                | Camera into the prongs                                         |
+| ------------------------------------------------------------ | -------------------------------------------------------------- |
 | ![gopro_base onto the tower](assembly/step10_gopro_base.png) | ![camera dropping into the prongs](assembly/step11_camera.png) |
 
 Stack, in order: the **`imu_carrier`** (tongue rearward, IMU already on it
@@ -417,18 +417,20 @@ the extension leads from the order list.
 ## 13. First power-up
 
 1. OLED shows bus voltage; both legs should enumerate as IDs 1–4 / 5–8.
+
 2. **Torque-off ("Release") all servos**, stand the robot in the CAD-neutral
    pose, then "Set Middle Position" — this pins mechanical zero = sim zero.
+
 3. Verify each joint's direction against the sim before trusting any gait,
    at low torque limit and slow speed. Ranges (`sim/bimo_biped_v2.xml`):
-
-   | Joint | Range | Sign gotcha |
-   |---|---|---|
-   | hip yaw | ±45° | v3yaw; turn strides only need ±20–30° |
-   | hip roll | ±25° | |
-   | hip pitch | −60/+60° (→ −110/+60° after redesign) | **flexion is NEGATIVE** |
-   | knee | −95/+5° | deep half is the get-up range |
-   | ankle | ±40° | |
+   
+   | Joint     | Range                                 | Sign gotcha                           |
+   | --------- | ------------------------------------- | ------------------------------------- |
+   | hip yaw   | ±45°                                  | v3yaw; turn strides only need ±20–30° |
+   | hip roll  | ±25°                                  |                                       |
+   | hip pitch | −60/+60° (→ −110/+60° after redesign) | **flexion is NEGATIVE**               |
+   | knee      | −95/+5°                               | deep half is the get-up range         |
+   | ankle     | ±40°                                  |                                       |
 
 4. Land the robot by **10.5 V** on the OLED (3.5 V/cell).
 
