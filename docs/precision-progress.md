@@ -23,6 +23,28 @@ Loco caveat: energetically loud — 44–50 W everywhere including stand
 110M policy simply hasn't been through the calm-down the 1.4B-step lineage
 got. Smoothness fine-tune queued.
 
+**User feedback on loco_v1 (2026-07-23) and what landed for it:**
+
+1. *"Raise the foot by bending the knee, keeping the CG static — not by
+   sticking out a leg."* Correct diagnosis: lifts were hip-flexion because
+   (a) every skills policy trained under the legacy knee cap (−50° of −95°
+   reachable — knee-flexion lifts mechanically impossible) and (b) nothing
+   charged for CG excursion. Landed: **CoM-over-stance-foot kernel**
+   (w_com_stance 0.75, σ=4 cm, active while lifted) in the skills preset;
+   the referee's balance scenarios now record the continuous CoM-offset
+   metric.
+2. *"Work on turning to face a different direction."* Kinematics truth:
+   **no hip-yaw joint exists** (hip roll/pitch, knee, ankle per leg) — no
+   V-stance, no heel-to-heel; facing changes only via friction-pivot
+   stepping on the 90×46 mm silicone pads. New `turn_180` referee scenario
+   measured loco_v1 at **8° of a commanded 180°** (hErr 172°, no falls —
+   it simply ignores yaw). Root cause: rate kernels forgive chronic
+   under-turning. Landed: **heading integrator** (commanded wz integrates
+   into a target facing; error accumulates until paid back; restarts at
+   current yaw on command resample) → loco_v3 tonight at w_heading 1.0.
+   If the reward fix isn't enough, the options go mechanical
+   (lower-torsion pads or a hip-yaw servo).
+
 **Fixes landed for night 2 (2026-07-23):** recovery height RATCHET —
 while down, only NEW height above the episode best pays (200/m, one-time,
 bounded), plus stand bonus and −0.7/step time pressure sized to cancel the

@@ -83,6 +83,7 @@ def sync(state, cpu, gpu_env=None):
         recover_slot=jp.asarray(1.0 if cpu._recover_ep else 0.0),
         recovered=jp.asarray(1.0 if cpu._recovered else 0.0),
         best_h=jp.asarray(float(cpu._best_h)),
+        head_ref=jp.asarray(float(cpu._head_ref)),
         gait_freq=jp.asarray(float(cpu._gait_freq)),
         gait_phase=jp.asarray(float(cpu._gait_phase)),
         obs_hist=(jp.asarray(np.array(cpu._obs_hist))
@@ -239,6 +240,9 @@ EXT = dict(
     w_ang_vel_xy=0.15, w_pose=0.5, w_dof_limits=1.0, obs_hist_len=3,
     joint_frictionloss=0.05, joint_armature=0.028,
     w_mimic=1.0,   # Phase B imitation arithmetic under gate (2026-07-22)
+    w_com_stance=0.75, w_heading=1.0,   # knee-lift CoM + heading integrator
+    # arithmetic under gate (2026-07-23; cmd_fixed lifts, so the CoM kernel
+    # is live; heading kernel live in blocks 2d/2e via nonzero wz commands)
     latency_ms=6.0, backlash_deg=0.5, ext_cmd=True, fall_cost=10.0,
     cmd_fixed=(0.0, 0.0, 0.0, 0.9, -1.0, 0.01, 0.02), imu_obs=False,
     action_map="full", hip_flex_deg=110.0,

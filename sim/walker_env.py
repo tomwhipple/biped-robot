@@ -243,6 +243,12 @@ class BimoWalkerEnv(gym.Env):
         w_rise_dofvel: float = 0.0,    # rise jerk control (recovery only)
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
+        w_com_stance: float = 0.0,     # while lifted: CoM-over-stance-foot
+                                       # kernel (mirrors sim/mjx -- knee-
+                                       # flexion lifts keep the CG planted)
+        com_sigma: float = 0.04,       # CoM-offset kernel width (m)
+        w_heading: float = 0.0,        # integrated-heading kernel weight
+                                       # (mirrors sim/mjx heading integrator)
         lift_clear: float = 0.03,      # lifted-foot min clearance (m); the
         # lift reward pays only >= this above the standing sole height
         recover_mix: float = 0.0,      # fraction of episodes starting from a
@@ -388,6 +394,9 @@ class BimoWalkerEnv(gym.Env):
         self._gait_phase = 0.0
         self._obs_hist = []
         self.w_symmetry = w_symmetry
+        self.w_com_stance = w_com_stance
+        self.com_sigma = com_sigma
+        self.w_heading = w_heading
         self._last_air = np.zeros(2)
         self.lift_clear = lift_clear
         self.recover_mix = recover_mix
@@ -956,6 +965,11 @@ class BimoWalkerEnv(gym.Env):
         # recovery height ratchet: episode-best torso height (mirrors sim/mjx
         # State.best_h; only NEW height above this pays while down)
         self._best_h = float(self.data.qpos[2])
+        # heading integrator reference (mirrors sim/mjx State.head_ref)
+        q = self.data.qpos[3:7]
+        self._head_ref = float(np.arctan2(
+            2 * (q[0] * q[3] + q[1] * q[2]),
+            1 - 2 * (q[2] * q[2] + q[3] * q[3])))
         # action-latency buffer: past ctrl targets, applied `action_latency` steps late
         self._ctrl_buf = [self._default.copy() for _ in range(self.action_latency + 1)]
         # sub-step latency: per-episode draw (only draws RNG when enabled, so
@@ -1165,6 +1179,14 @@ class BimoWalkerEnv(gym.Env):
                     v_term = v_kernel
                 w_term = self.w_track_w * float(np.exp(
                     -((wz_rate - self._cmd[2]) / 0.5) ** 2))
+                # integrated-heading kernel (mirrors sim/mjx): facing error
+                # vs the integrated commanded heading, inside the gated
+                # primary like the rate kernel
+                ref_now = self._head_ref + float(self._cmd[2]) * self.control_dt
+                head_err = float(np.arctan2(np.sin(yaw - ref_now),
+                                            np.cos(yaw - ref_now)))
+                w_term = w_term + self.w_heading * float(np.exp(
+                    -((head_err / 0.25) ** 2)))
                 h_gate = (0.3 if (sp_cmd > 0.05
                                   or abs(self._cmd[2]) > 0.05) else 1.0)
                 h_norm = float(np.exp(
@@ -1190,6 +1212,16 @@ class BimoWalkerEnv(gym.Env):
                 foot_err = float(np.linalg.norm(rel - tgt))
                 foot_kernel = float(lifted) * float(np.exp(
                     -((foot_err / self.foot_sigma) ** 2)))
+                # CoM-over-stance-foot kernel (mirrors sim/mjx): pay for
+                # keeping the whole-robot CoM planted over the support sole
+                # while a lift is commanded (knee-flexion lifts)
+                com = d.subtree_com[self._torso_bid]
+                stance_gid = self._sole_gids[0 if is_r else 1]
+                stance_w = d.geom_xpos[stance_gid]
+                com_off = float(np.sqrt((com[0] - stance_w[0]) ** 2
+                                        + (com[1] - stance_w[1]) ** 2
+                                        + 1e-12))
+                com_kernel = float(np.exp(-((com_off / self.com_sigma) ** 2)))
                 # skill-compliance gate (round 4, mirrors sim/mjx): under a
                 # skill command the velocity/yaw kernels pay in proportion
                 # to the skill being DONE (precision_v3 stood through them)
@@ -1289,6 +1321,7 @@ class BimoWalkerEnv(gym.Env):
             # command block, mirrors sim/mjx)
             reward += self.w_lift * lift_ok
             reward += self.w_track_foot * foot_kernel
+            reward += self.w_com_stance * float(lifted) * com_kernel
         if self.w_single_support:
             if shaping_on:
                 reward += self.w_single_support * float(single_support)
@@ -1456,10 +1489,20 @@ class BimoWalkerEnv(gym.Env):
                             foot_dz=float(rel[2] - base[2]
                                           - self.lift_height),
                             lift_ok=lift_ok,
-                            recovered=float(self._recovered))
+                            recovered=float(self._recovered),
+                            com_stance=float(lifted) * com_off,
+                            head_err=abs(head_err))
+            # heading reference: advance by the GRADED command's yaw rate,
+            # wrap, restart at the current facing on resample (mirrors
+            # sim/mjx: yaw rate lives in c2 ext / c1 legacy)
+            self._head_ref += (float(self._cmd[2]) if self.ext_cmd
+                               else float(self._cmd[1])) * self.control_dt
+            self._head_ref = float(np.arctan2(np.sin(self._head_ref),
+                                              np.cos(self._head_ref)))
             # resample AFTER the reward (which graded the command the policy
             # saw); the returned obs carries the new command
             if self._step_i >= self._cmd_next:
+                self._head_ref = yaw
                 self._sample_command()
             if self.ext_cmd and self._traj_on:
                 # trajectory-mode evolution (mirrors sim/mjx): 1 = foot

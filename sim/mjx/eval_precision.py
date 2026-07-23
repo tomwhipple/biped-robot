@@ -193,6 +193,7 @@ class Driver:
             foot_dx=float(info.get("foot_dx", float("nan"))),
             foot_dz=float(info.get("foot_dz", float("nan"))),
             cmd_lift=float(info.get("cmd_lift", 0.0)),
+            com_stance=float(info.get("com_stance", float("nan"))),
             recovered=float(info.get("recovered", 1.0))))
         if self.record and len(self.rows) % 3 == 0:
             self.frames.append(env.render())
@@ -299,6 +300,12 @@ def scen_balance(side):
         drift = _drift_rms(lift_win)
         wob = _wob(lift_win)
         watts = _mean(lift_win, "watts")
+        # knee-articulation quality (user 2026-07-23): planar CoM offset
+        # from the stance sole -- a knee-flexion lift keeps this small, a
+        # stuck-out leg lurches the CG forward. Continuous metric only for
+        # now (the training kernel targets it; threshold once we see the
+        # achievable range).
+        com_off = _mean(judge_win, "com_stance")
         # sensible minimums (user 2026-07-19): balancing also means STAYING
         # put -- a hop-around that keeps the foot up is not a balance
         success = ((not fell) and contact < 0.05
@@ -306,7 +313,8 @@ def scen_balance(side):
                    and not math.isnan(drift) and drift < 0.10)
         return dict(success=success,
                     metrics=dict(lifted_contact=contact, clear_frac=clear,
-                                 drift_rms=drift, wobble=wob, watts=watts),
+                                 drift_rms=drift, wobble=wob, watts=watts,
+                                 com_off=com_off),
                     headline=f"clear {clear*100:.0f}%")
     return build, evaluate
 
@@ -713,6 +721,52 @@ def scen_stand_10s():
     return build, evaluate
 
 
+def scen_turn_180():
+    """Turn in place to face backward, then hold (user 2026-07-23: 'work on
+    turning to face a different direction'). No hip-yaw joint exists, so
+    this grades friction-pivot stepping: commanded wz=0.7 for pi/0.7 s
+    (exactly 180 deg), then stand. Minimums: final facing within 15 deg of
+    reversed AND stays in place (max 0.3 m excursion) AND no fall."""
+    w_cmd = 0.7
+    turn_t = math.pi / w_cmd                        # ~4.49 s
+
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            if t < 1.0:
+                return (0, 0, 0, 1, 0)
+            if "yaw0" not in ev:
+                ev["yaw0"] = gt["yaw"]
+                ev["x0"], ev["y0"] = gt["x"], gt["y"]
+            if t - 1.0 < turn_t:
+                return (0, 0, w_cmd, 1, 0)
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        final = rows[-1] if rows else None
+        yaw0 = ev.get("yaw0", 0.0)
+        x0, y0 = ev.get("x0", 0.0), ev.get("y0", 0.0)
+        turned = _wrap(final["yaw"] - yaw0) if final else float("nan")
+        head_err = abs(_wrap(turned - math.pi)) if final else float("nan")
+        after = _win(rows, 1.0, 1e9)
+        exc = (max(math.hypot(r["x"] - x0, r["y"] - y0) for r in after)
+               if after else float("nan"))
+        success = ((not fell) and not math.isnan(head_err)
+                   and head_err <= math.radians(15.0) and exc <= 0.3)
+        return dict(success=success,
+                    metrics=dict(head_err_deg=math.degrees(head_err)
+                                 if not math.isnan(head_err) else None,
+                                 turned_deg=math.degrees(turned)
+                                 if not math.isnan(turned) else None,
+                                 excursion=exc),
+                    headline=(f"hErr {math.degrees(head_err):.0f}deg "
+                              f"exc {exc*100:.0f}cm"
+                              if not math.isnan(head_err) else "n/a"))
+    return build, evaluate
+
+
 # name -> (episode_seconds, factory, is_locomotion)
 def _registry():
     # (single-leg crouch scenarios removed 2026-07-18, user call;
@@ -726,6 +780,7 @@ def _registry():
     reg["backward_1m"] = (14.0, scen_backward_1m(), True)
     reg["square_return"] = (45.0, scen_square_return(), True)
     reg["circle_return"] = (16.0, scen_circle_return(), True)
+    reg["turn_180"] = (10.0, scen_turn_180(), True)
     reg["crouch_hold"] = (10.0, scen_crouch_hold(), False)
     reg["march_in_place"] = (11.0, scen_march(), False)
     reg["hip_sway"] = (9.0, scen_sway(), False)
@@ -749,7 +804,7 @@ ENV_EXTRA = {
 # whose config records train.family gets scored only on its own scenarios
 FAMILY_SCENARIOS = {
     "loco": ["line_1m", "backward_1m", "sidestep_L", "sidestep_R",
-             "square_return", "circle_return", "stand_10s"],
+             "turn_180", "square_return", "circle_return", "stand_10s"],
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
                "march_in_place", "hip_sway", "crouch_hold", "stand_10s"],
     "getup": ["recover_sit", "recover_fallen"],
@@ -758,7 +813,7 @@ FAMILY_SCENARIOS = {
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "march_in_place", "hip_sway",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
-         "square_return", "circle_return", "crouch_hold",
+         "turn_180", "square_return", "circle_return", "crouch_hold",
          "recover_sit", "recover_fallen", "stand_10s"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
@@ -771,6 +826,7 @@ HEADLINE = {
     "line_1m": ("time_to_1m", lambda v: f"t={v:.1f}s"),
     "backward_1m": ("time", lambda v: f"t={v:.1f}s"),
     "sidestep": ("time", lambda v: f"t={v:.1f}s"),
+    "turn_180": ("head_err_deg", lambda v: f"hErr {v:.0f}deg"),
     "square_return": ("return_err", lambda v: f"ret {v*100:.0f}cm"),
     "circle_return": ("return_err", lambda v: f"ret {v*100:.0f}cm"),
     "crouch_hold": ("height_err", lambda v: f"hErr {v*1000:.0f}mm"),

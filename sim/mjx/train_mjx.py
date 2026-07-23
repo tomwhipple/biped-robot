@@ -168,6 +168,12 @@ def main():
                    help="override torso roll/pitch-rate penalty (smoothness)")
     p.add_argument("--w-action-rate", type=float, default=None)
     p.add_argument("--w-power", type=float, default=None)
+    p.add_argument("--w-heading", type=float, default=None,
+                   help="integrated-heading kernel weight (turn-to-face "
+                        "authority; loco family experiment 2026-07-23)")
+    p.add_argument("--w-com-stance", type=float, default=None,
+                   help="CoM-over-stance-foot kernel while lifted "
+                        "(knee-flexion balance lifts)")
     p.add_argument("--init-from", default=None,
                    help="warm-start from sim/runs/<name>/params.pkl (same "
                         "objective only -- objective changes need from-"
@@ -251,7 +257,10 @@ def main():
         # balance-family specialist: stand/crouch/one-leg/circles/march/sway
         # (mix sums to 1.0 -> walk commands never drawn)
         env_kw.update(ext_mix=(0.15, 0.15, 0.25, 0.20, 0.0, 0.15, 0.10),
-                      recover_mix=0.0)
+                      recover_mix=0.0,
+                      # knee-flexion balance lifts (user 2026-07-23): pay
+                      # for CoM planted over the support foot while lifted
+                      w_com_stance=0.75)
     elif args.family == "getup":
         env_kw.update(recover_mix=1.0, w_rise_dofvel=0.002)
     if args.w_mimic is not None:
@@ -275,6 +284,10 @@ def main():
         env_kw["w_action_rate"] = args.w_action_rate
     if args.w_power is not None:
         env_kw["w_power"] = args.w_power
+    if args.w_heading is not None:
+        env_kw["w_heading"] = args.w_heading
+    if args.w_com_stance is not None:
+        env_kw["w_com_stance"] = args.w_com_stance
     if args.getup:
         # recovery objective: gait shaping off (crawling/rolling is fine),
         # recovery terms carry the gradient; shorter episodes; same hardening

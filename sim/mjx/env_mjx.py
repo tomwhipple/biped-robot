@@ -79,12 +79,22 @@ class State(NamedTuple):
     best_h: jax.Array         # ()  episode-best torso height: the recovery
                               # ratchet pays only for NEW height above this
                               # (static height income was a do-nothing optimum)
+    head_ref: jax.Array       # ()  integrated commanded heading (rad): under-
+                              # turning accumulates facing error the policy
+                              # must pay back (rate kernels forgave it)
     servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
     lash: jax.Array           # ()  per-episode backlash (rad)
     imu_R: jax.Array          # (3,3) mounting misalignment
     imu_bias: jax.Array       # (3,) gyro bias
     metrics: dict[str, jax.Array]
+
+
+def _quat_yaw(q):
+    """Torso yaw from a wxyz quaternion (identical arithmetic to the CPU
+    referee's -- the heading integrator depends on it matching)."""
+    qw, qx, qy, qz = q[0], q[1], q[2], q[3]
+    return jp.arctan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
 
 
 def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
@@ -270,6 +280,18 @@ class BimoMJXEnv:
         lift_clear: float = 0.03,   # lifted-foot min clearance (m) above its
         # standing sole height for the lift reward to pay (user 2026-07-18:
         # "at least 3 cm off the ground" -- a 2 mm hover no longer counts)
+        w_com_stance: float = 0.0,  # while lifted: CoM-over-stance-foot
+        # kernel (user 2026-07-23: raise the foot by BENDING THE KNEE,
+        # keeping the CG static -- not by sticking the leg out, which
+        # shifts the CG forward). Pays for planted balance; the knee-lift
+        # is the cheapest compliant posture.
+        com_sigma: float = 0.04,    # CoM-offset kernel width (m)
+        w_heading: float = 0.0,     # integrated-heading kernel: cmd yaw rate
+        # integrates into a target FACING; under-turning accumulates error
+        # (rate kernels forgave chronic half-authority turns -- the
+        # square/circle return failure, user 2026-07-23: "work on turning
+        # to face a different direction"). Resets to current yaw on
+        # command resample; inside the g_skill-gated primary.
         recover_start_mix: tuple = (1.0, 0.0, 0.0),   # recovery-slot start
         # states: (ragdoll, upright kneel, feet-loaded squat) -- the getup
         # reverse curriculum, applied to ext recovery slots (2026-07-19).
@@ -428,6 +450,9 @@ class BimoMJXEnv:
             raise ValueError("w_mimic requires gait_clock")
         self.w_symmetry = w_symmetry
         self.lift_clear = lift_clear
+        self.w_com_stance = w_com_stance
+        self.com_sigma = com_sigma
+        self.w_heading = w_heading
         self.recover_mix = recover_mix
         if ext_cmd:
             # ext recovery slots reuse _fallen_data's start-state machinery
@@ -470,7 +495,7 @@ class BimoMJXEnv:
         self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
         self._metric_keys = self._METRIC_KEYS + (
             ("height_err", "foot_err", "foot_clear", "foot_sep", "lift_ok",
-             "vy_body", "recovered")
+             "vy_body", "recovered", "com_stance", "head_err")
             if ext_cmd else ())
 
     # -- pieces ---------------------------------------------------------------
@@ -849,6 +874,7 @@ class BimoMJXEnv:
                      recover_slot=recover_slot,
                      recovered=1.0 - recover_slot,
                      best_h=data.qpos[2],
+                     head_ref=_quat_yaw(data.qpos[3:7]),
                      servo=servo, lat_ms=lat_ms, lash=lash,
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
@@ -897,7 +923,8 @@ class BimoMJXEnv:
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
             recovered=1.0 - first.recover_slot,
-            best_h=first.data.qpos[2], servo=servo,
+            best_h=first.data.qpos[2],
+            head_ref=_quat_yaw(first.data.qpos[3:7]), servo=servo,
             lat_ms=lat_ms, lash=lash, imu_R=imu_R, imu_bias=imu_bias,
             metrics=metrics)
 
@@ -976,9 +1003,7 @@ class BimoMJXEnv:
         power_w = jp.sum(jp.maximum(tau * qd_j, 0.0) + _K_CU * tau ** 2)
 
         # command tracking (exp kernels sigma=0.5; cmd_dense option)
-        qw, qx, qy, qz = (data.qpos[3], data.qpos[4], data.qpos[5],
-                          data.qpos[6])
-        yaw = jp.arctan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
+        yaw = _quat_yaw(data.qpos[3:7])
         cth, sth = jp.cos(yaw), jp.sin(yaw)
         vx_body = cth * data.qvel[0] + sth * data.qvel[1]
         vy_body = -sth * data.qvel[0] + cth * data.qvel[1]
@@ -1000,6 +1025,9 @@ class BimoMJXEnv:
         foot_clear = jp.zeros(())
         lift_ok = jp.zeros(())
         foot_kernel = jp.zeros(())
+        com_off = jp.zeros(())
+        com_kernel = jp.zeros(())
+        head_err = jp.zeros(())
         if self.ext_cmd:
             # one-leg modes: lift = -1 (left) / +1 (right). Correct contact
             # pattern (stance down, swing up, >= lift_clear clearance) and
@@ -1031,6 +1059,17 @@ class BimoMJXEnv:
             y_sep = jp.abs((-sth * pL[0] + cth * pL[1])
                            - (-sth * pR[0] + cth * pR[1]))
             cross_frac = jp.clip((0.051 - y_sep) / 0.051, 0.0, 1.0)
+            # CoM-over-stance-foot kernel (user 2026-07-23): pay for keeping
+            # the whole-robot CoM planted over the support sole while a lift
+            # is commanded -- the knee-flexion lift (thigh vertical, shank
+            # folds back) is then the cheapest compliant posture, and the
+            # stick-the-leg-out lift (CG lurches forward) is expensive.
+            com = data.subtree_com[self._torso_bid]
+            stance_w = jp.where(is_r, data.geom_xpos[self._sole_gids[0]],
+                                data.geom_xpos[self._sole_gids[1]])
+            com_off = jp.sqrt((com[0] - stance_w[0]) ** 2
+                              + (com[1] - stance_w[1]) ** 2 + 1e-12)
+            com_kernel = jp.exp(-((com_off / self.com_sigma) ** 2))
 
         if self.getup:
             # recovery: dense progress toward tall + upright, then a standing
@@ -1070,6 +1109,15 @@ class BimoMJXEnv:
             else:
                 v_term = v_kernel
             w_term = self.w_track_w * jp.exp(-((wz - cmd_w) / 0.5) ** 2)
+            # integrated-heading kernel: the rate kernel forgives chronic
+            # under-turning (each step's shortfall is graded fresh); the
+            # integrator makes facing error accumulate until paid back.
+            # Sits inside the g_skill-gated primary like the rate kernel.
+            ref_now = state.head_ref + cmd_w * self.control_dt
+            head_err = jp.arctan2(jp.sin(yaw - ref_now),
+                                  jp.cos(yaw - ref_now))
+            w_term = w_term + self.w_heading * jp.exp(
+                -((head_err / 0.25) ** 2))
             # height kernel at full weight only when no motion is commanded
             # (its full 1.0/step was part of the do-nothing income)
             h_gate = jp.where((sp_cmd > 0.05) | (jp.abs(cmd_w) > 0.05),
@@ -1131,6 +1179,8 @@ class BimoMJXEnv:
             reward += self.w_lift * lift_ok
             reward += self.w_track_foot * foot_kernel
             reward -= self.w_foot_cross * cross_frac
+            reward += (self.w_com_stance * lifted.astype(jp.float32)
+                       * com_kernel)
             # a lifted command is a balance task, not locomotion: gait shaping
             # off; a sidestep command (vy) is locomotion like any other.
             # (cmd_moving already covers c0 and c2 via cmd_v/cmd_w.)
@@ -1250,6 +1300,12 @@ class BimoMJXEnv:
         # resample AFTER the reward graded the command the policy saw
         new_cmd, new_next, new_traj_on = self._sample_cmd(r_cmd, step_i)
         resample = step_i >= state.cmd_next
+        # heading reference: advance by the GRADED command's yaw rate
+        # (wrapped); a fresh command restarts the integrator at the current
+        # facing so old debt isn't carried across command boundaries
+        head_ref = state.head_ref + cmd_w * self.control_dt
+        head_ref = jp.arctan2(jp.sin(head_ref), jp.cos(head_ref))
+        head_ref = jp.where(resample, yaw, head_ref)
         cmd = jp.where(resample, new_cmd, state.cmd)
         cmd_next = jp.where(resample, new_next, state.cmd_next)
         traj_on = jp.where(resample, new_traj_on, state.traj_on)
@@ -1296,7 +1352,9 @@ class BimoMJXEnv:
                 foot_sep=y_sep,
                 lift_ok=lift_ok,
                 vy_body=vy_body,
-                recovered=recovered)
+                recovered=recovered,
+                com_stance=lifted.astype(jp.float32) * com_off,
+                head_err=jp.abs(head_err))
         return State(data=data, obs=obs, reward=reward,
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
@@ -1308,6 +1366,7 @@ class BimoMJXEnv:
                      traj_on=traj_on, recover_slot=state.recover_slot,
                      recovered=recovered,
                      best_h=jp.maximum(state.best_h, height),
+                     head_ref=head_ref,
                      servo=state.servo,
                      lat_ms=state.lat_ms, lash=state.lash, imu_R=state.imu_R,
                      imu_bias=state.imu_bias, metrics=metrics)
