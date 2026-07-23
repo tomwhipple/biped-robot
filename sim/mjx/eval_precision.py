@@ -914,9 +914,10 @@ def main():
         return env_cache[key]
 
     obs_size = get_env(12.0).observation_space.shape[0]
+    act_size = get_env(12.0).action_space.shape[0]
     mass = float(get_env(12.0).model.body_mass.sum())
     N = float(get_env(12.0)._nominal_h)
-    act = load_policy(run_dir, obs_size)
+    act = load_policy(run_dir, obs_size, act_size)
 
     cond = "nominal (no DR)" if args.nominal else \
         "hardware-claim (GoPro 154 g, 4 ms latency, 0.7 deg backlash, DR, IMU obs)"

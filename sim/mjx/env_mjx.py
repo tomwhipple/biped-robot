@@ -41,9 +41,18 @@ from mujoco import mjx
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _XML = os.path.join(_HERE, "..", "bimo_biped_v2.xml")
 
-# qpos/qvel layout: freejoint (7 pos+quat / 6 vel) then the 8 hinge joints.
-_JQ0, _JQ1 = 7, 15
-_JV0, _JV1 = 6, 14
+
+def _actuated_slices(m):
+    """(qpos_lo, qpos_hi, qvel_lo, qvel_hi) spanning the actuated hinge joints,
+    derived from the model's actuator transmission targets (free joint
+    excluded). The joints are a contiguous chain after the freejoint, so
+    min..max+1 covers exactly them -- works for the 8-DOF plant AND the
+    10-DOF hip-yaw plant with no literals."""
+    jnt = m.actuator_trnid[:, 0]
+    qadr = m.jnt_qposadr[jnt]
+    vadr = m.jnt_dofadr[jnt]
+    return (int(qadr.min()), int(qadr.max()) + 1,
+            int(vadr.min()), int(vadr.max()) + 1)
 
 _STS_STALL_12V = 2.94                        # N*m  (30 kg*cm @12V)
 _STS_NOLOAD_12V = float(np.deg2rad(60.0) / 0.222)   # 4.712 rad/s @12V
@@ -58,8 +67,8 @@ class State(NamedTuple):
     reward: jax.Array
     done: jax.Array
     rng: jax.Array
-    prev_action: jax.Array    # (8,)
-    last_target: jax.Array    # (8,) target in force before this control step
+    prev_action: jax.Array    # (n_act,)
+    last_target: jax.Array    # (n_act,) target in force before this control step
     step_i: jax.Array         # ()
     air_time: jax.Array       # (2,) per-foot swing clocks
     cmd: jax.Array            # (2,) commanded (vx m/s, yaw rate rad/s), or (7,)
@@ -132,7 +141,8 @@ def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
     m = mujoco.MjModel.from_xml_string(xml)
     m.actuator_gainprm[:] = 0.0
     m.actuator_biasprm[:] = 0.0
-    m.dof_damping[_JV0:_JV1] = servo_joint_damping
+    _, _, jv0, jv1 = _actuated_slices(m)
+    m.dof_damping[jv0:jv1] = servo_joint_damping
     return m
 
 
@@ -345,10 +355,16 @@ class BimoMJXEnv:
             xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
             mesh_floor=getup or (ext_cmd and recover_mix > 0),
             payload_cg_z=payload_cg_z)
+        # actuated-joint layout, derived from the model (NOT literals) so the
+        # 8-DOF and 10-DOF hip-yaw plants both work
+        (self._jq0, self._jq1, self._jv0,
+         self._jv1) = _actuated_slices(self.mj_model)
+        self._nq_act = self._jq1 - self._jq0
         if joint_frictionloss > 0:
-            self.mj_model.dof_frictionloss[_JV0:_JV1] = joint_frictionloss
+            self.mj_model.dof_frictionloss[self._jv0:self._jv1] = \
+                joint_frictionloss
         if joint_armature > 0:
-            self.mj_model.dof_armature[_JV0:_JV1] = joint_armature
+            self.mj_model.dof_armature[self._jv0:self._jv1] = joint_armature
         if payload_mass > 0:
             self.mj_model.body_mass[self.mj_model.body("payload").id] = payload_mass
         self.model = mjx.put_model(self.mj_model)
@@ -360,9 +376,22 @@ class BimoMJXEnv:
         self.max_steps = int(episode_seconds / self.control_dt)
 
         jnt = m.actuator_trnid[:, 0]
+        # name-based index maps (action/slice order == actuator order ==
+        # qpos-address order by XML construction). Per-leg role -> action
+        # index; hip_yaw is None on the 8-DOF plant, present on v3yaw.
+        self._act_names = [m.joint(int(j)).name for j in jnt]
+        self._jname2i = {n: i for i, n in enumerate(self._act_names)}
+        _roles = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle")
+        self._legL = {r: self._jname2i.get(f"L_{r}") for r in _roles}
+        self._legR = {r: self._jname2i.get(f"R_{r}") for r in _roles}
+        self._i_roll = jp.array([self._legL["hip_roll"], self._legR["hip_roll"]])
+        self._i_pitch = jp.array([self._legL["hip_pitch"],
+                                  self._legR["hip_pitch"]])
+        self._i_knee = jp.array([self._legL["knee"], self._legR["knee"]])
+        self._i_ankle = jp.array([self._legL["ankle"], self._legR["ankle"]])
         if hip_flex_deg is not None:
-            m.jnt_range[jnt[1], 0] = -np.deg2rad(hip_flex_deg)
-            m.jnt_range[jnt[5], 0] = -np.deg2rad(hip_flex_deg)
+            for i in (self._jname2i["L_hip_pitch"], self._jname2i["R_hip_pitch"]):
+                m.jnt_range[jnt[i], 0] = -np.deg2rad(hip_flex_deg)
             self.model = mjx.put_model(m)      # re-upload patched ranges
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
@@ -370,7 +399,7 @@ class BimoMJXEnv:
         self.hip_flex_deg = hip_flex_deg
         self._lo = jp.asarray(m.jnt_range[jnt, 0])
         self._hi = jp.asarray(m.jnt_range[jnt, 1])
-        self._default = jp.asarray(m.qpos0[_JQ0:_JQ1])
+        self._default = jp.asarray(m.qpos0[self._jq0:self._jq1])
         self._scale = 0.5 * (self._hi - self._lo)
         self._qpos0 = jp.asarray(m.qpos0)
 
@@ -466,10 +495,12 @@ class BimoMJXEnv:
         self.stand_bonus = stand_bonus
         self.getup_start_mix = getup_start_mix
 
-        self.action_size = 8
-        # 36 core + command channels: 38 legacy, 43 ext; obs history stacks
-        # obs_frame x hist (newest first)
-        self.obs_frame = 8 + 8 + 3 + 3 + 3 + 8 + 1 + 2 + (7 if ext_cmd else 2)
+        self.action_size = self._nq_act
+        # per-joint blocks (qpos, qvel, prev_action) scale with the joint
+        # count; the rest is fixed. 8-DOF: 38 legacy / 43 ext; 10-DOF hip-yaw:
+        # 44 legacy / 49 ext. obs history stacks obs_frame x hist (newest first)
+        self.obs_frame = (3 * self._nq_act + 3 + 3 + 3 + 1 + 2
+                          + (7 if ext_cmd else 2))
         self.obs_size = self.obs_frame * self.obs_hist_len
         # foot BODY ids for slip velocities (cvel linear part)
         self._foot_bids = (m.body("L_foot").id, m.body("R_foot").id)
@@ -610,17 +641,19 @@ class BimoMJXEnv:
         A = jp.clip(1.4 * (cmd[0] + jp.array([-1.0, 1.0]) * 0.028 * cmd[2])
                     / f, -0.45, 0.45)
         B = jp.clip(1.1 * cmd[1] / f, -0.3, 0.3)
-        hp0 = jp.stack([d[1], d[5]])
-        kn0 = jp.stack([d[2], d[6]])
+        hp0 = d[self._i_pitch]                  # hip-pitch defaults (L, R)
+        kn0 = d[self._i_knee]
         hipP = hp0 - A * xn
         # knee swing-bend scales with commanded activity: zero command ->
         # the reference IS the standing pose (no knee pumping)
         mag = jp.minimum(1.0, (jp.max(jp.abs(A)) + jp.abs(B)) / 0.35)
         knee = kn0 - 0.55 * mag * sw
-        roll = jp.stack([d[0], d[4]]) + B * xn
-        ank = jp.stack([d[3], d[7]]) - (hipP - hp0) - (knee - kn0)
-        q = jp.stack([roll[0], hipP[0], knee[0], ank[0],
-                      roll[1], hipP[1], knee[1], ank[1]])
+        roll = d[self._i_roll] + B * xn
+        ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
+        # scatter the per-leg references onto the standing pose; any hip_yaw
+        # joints stay at their default (0.0) -> neutral regularization
+        q = (d.at[self._i_roll].set(roll).at[self._i_pitch].set(hipP)
+             .at[self._i_knee].set(knee).at[self._i_ankle].set(ank))
         return jp.clip(q, self._lo, self._hi)
 
     def _draw_traj(self, rng: jax.Array) -> jax.Array:
@@ -666,8 +699,8 @@ class BimoMJXEnv:
         else:
             phase = 2 * jp.pi * (step_i.astype(jp.float32) / self.max_steps)
         return jp.concatenate([
-            data.qpos[_JQ0:_JQ1],
-            data.qvel[_JV0:_JV1],
+            data.qpos[self._jq0:self._jq1],
+            data.qvel[self._jv0:self._jv1],
             up,
             linvel,
             gyro,
@@ -741,44 +774,46 @@ class BimoMJXEnv:
                          jp.sqrt(1 - u1) * jp.cos(2 * jp.pi * u2),
                          jp.sqrt(u1) * jp.sin(2 * jp.pi * u3)])
         joints = jp.clip(
-            self._default + jax.random.uniform(r_j, (8,), minval=-0.6,
-                                               maxval=0.6)
+            self._default + jax.random.uniform(r_j, (self._nq_act,),
+                                               minval=-0.6, maxval=0.6)
             * self._scale, self._lo, self._hi)
         q_rag = (self._qpos0.at[2].set(0.35).at[3:7].set(quat)
-                 .at[_JQ0:_JQ1].set(joints))
+                 .at[self._jq0:self._jq1].set(joints))
         mix = tuple(self.getup_start_mix)
         mix = mix + (0.0,) * (4 - len(mix))   # (ragdoll, kneel, squat, sit)
         p_rag, p_kneel, p_squat, p_sit = mix
         if p_rag >= 1.0:
             return self._settle(q_rag, self.getup_settle)
         # kneel: torso vertical, knees folded, shins on the ground
-        j_kneel = jp.zeros(8).at[jp.array([1, 5])].set(-0.2) \
-                             .at[jp.array([2, 6])].set(-1.62) \
-                             .at[jp.array([3, 7])].set(-0.6)
+        j_kneel = jp.zeros(self._nq_act).at[self._i_pitch].set(-0.2) \
+                             .at[self._i_knee].set(-1.62) \
+                             .at[self._i_ankle].set(-0.6)
         j_kneel = jp.clip(j_kneel, self._lo, self._hi)
-        q_kneel = self._qpos0.at[2].set(0.13).at[_JQ0:_JQ1].set(j_kneel)
+        q_kneel = self._qpos0.at[2].set(0.13).at[self._jq0:self._jq1].set(
+            j_kneel)
         # deep squat, feet flat, torso folded (the study's rise-path start)
-        j_squat = jp.zeros(8).at[jp.array([1, 5])].set(self._lo[1] + 0.05) \
-                             .at[jp.array([2, 6])].set(-1.62) \
-                             .at[jp.array([3, 7])].set(0.65)
+        j_squat = jp.zeros(self._nq_act).at[self._i_pitch].set(
+                                 self._lo[self._legL["hip_pitch"]] + 0.05) \
+                             .at[self._i_knee].set(-1.62) \
+                             .at[self._i_ankle].set(0.65)
         j_squat = jp.clip(j_squat, self._lo, self._hi)
         ang = 0.55                     # pitch forward so the soles sit flat
         q_squat = (self._qpos0.at[2].set(0.10)
                    .at[3:7].set(jp.array([jp.cos(ang / 2), 0.0,
                                           jp.sin(ang / 2), 0.0]))
-                   .at[_JQ0:_JQ1].set(j_squat))
+                   .at[self._jq0:self._jq1].set(j_squat))
         # sit (user 2026-07-19/20 spec): TORSO POINTING UP, waist bent 90
         # deg, feet & legs straight out front. Hip roll splays the feet a
         # few cm apart so the (non-self-colliding) leg meshes can never
         # render overlapped -- video review caught them merging. Verified
         # by sim/mjx/check_sit_pose.py (upright, stable, feet separated).
-        j_sit = jp.zeros(8).at[jp.array([1, 5])].set(-1.57) \
-                           .at[jp.array([2, 6])].set(-0.09) \
-                           .at[jp.array([0])].set(0.10) \
-                           .at[jp.array([4])].set(-0.10)
+        j_sit = jp.zeros(self._nq_act).at[self._i_pitch].set(-1.57) \
+                           .at[self._i_knee].set(-0.09) \
+                           .at[jp.array([self._legL["hip_roll"]])].set(0.10) \
+                           .at[jp.array([self._legR["hip_roll"]])].set(-0.10)
         j_sit = jp.clip(j_sit, self._lo, self._hi)
         q_sit = (self._qpos0.at[2].set(0.08)
-                 .at[_JQ0:_JQ1].set(j_sit))
+                 .at[self._jq0:self._jq1].set(j_sit))
         d_rag = self._settle(q_rag, self.getup_settle)
         d_kneel = self._settle(q_kneel, 50)
         d_squat = self._settle(q_squat, 50)
@@ -808,8 +843,9 @@ class BimoMJXEnv:
             rng, r_mix = jax.random.split(rng)
             recover_slot = (jax.random.uniform(r_mix)
                             < self.recover_mix).astype(jp.float32)
-            qpos = self._qpos0.at[_JQ0:_JQ1].add(
-                jax.random.uniform(r_q, (8,), minval=-0.03, maxval=0.03))
+            qpos = self._qpos0.at[self._jq0:self._jq1].add(
+                jax.random.uniform(r_q, (self._nq_act,), minval=-0.03,
+                                   maxval=0.03))
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
             d_up = mjx.make_data(self.model)
@@ -823,8 +859,9 @@ class BimoMJXEnv:
 
             data = jax.tree_util.tree_map(pick, d_dn, d_up)
         else:
-            qpos = self._qpos0.at[_JQ0:_JQ1].add(
-                jax.random.uniform(r_q, (8,), minval=-0.03, maxval=0.03))
+            qpos = self._qpos0.at[self._jq0:self._jq1].add(
+                jax.random.uniform(r_q, (self._nq_act,), minval=-0.03,
+                                   maxval=0.03))
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
             data = mjx.make_data(self.model)
@@ -855,7 +892,7 @@ class BimoMJXEnv:
         else:
             gait_freq = jp.zeros(())
             gait_phase = jp.zeros(())
-        prev_action = jp.zeros(8, dtype=jp.float32)
+        prev_action = jp.zeros(self._nq_act, dtype=jp.float32)
         frame = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias,
                           r_obs, gait_phase)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
@@ -906,7 +943,7 @@ class BimoMJXEnv:
         else:
             gait_freq = jp.zeros(())
             gait_phase = jp.zeros(())
-        prev_action = jp.zeros(8, dtype=jp.float32)
+        prev_action = jp.zeros(self._nq_act, dtype=jp.float32)
         frame = self._obs(first.data, prev_action, cmd, step_i, imu_R,
                           imu_bias, r_obs, gait_phase)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
@@ -981,23 +1018,24 @@ class BimoMJXEnv:
         def substep(carry, i):
             d, _ = carry
             cur = jp.where(i < lat_k, last_target, target)
-            q = d.qpos[_JQ0:_JQ1]
-            qd = d.qvel[_JV0:_JV1]
+            q = d.qpos[self._jq0:self._jq1]
+            qd = d.qvel[self._jv0:self._jv1]
             cap = stall * jp.clip(1.0 - jp.abs(qd) / w0, 0.0, 1.0)
             err = cur - q
             err = jp.sign(err) * jp.maximum(jp.abs(err) - 0.5 * lash, 0.0)
             tau = jp.clip(kp * err - kd * qd, -cap, cap)
             d = d.replace(qfrc_applied=jp.zeros(self.mj_model.nv
-                                                ).at[_JV0:_JV1].set(tau))
+                                                ).at[self._jv0:self._jv1].set(tau))
             d = mjx.step(m, d)
             return (d, tau), None
 
         (data, tau), _ = jax.lax.scan(
-            substep, (data, jp.zeros(8)), jp.arange(self.n_substeps))
+            substep, (data, jp.zeros(self._nq_act)),
+            jp.arange(self.n_substeps))
 
         up_z = data.sensordata[self._up_adr + 2]
         height = data.qpos[2]                     # flat ground: ground_z == 0
-        qd_j = data.qvel[_JV0:_JV1]
+        qd_j = data.qvel[self._jv0:self._jv1]
         energy = jp.sum(jp.abs(tau) * jp.abs(qd_j))
         action_rate = jp.sum((action - state.prev_action) ** 2)
         power_w = jp.sum(jp.maximum(tau * qd_j, 0.0) + _K_CU * tau ** 2)
@@ -1228,15 +1266,16 @@ class BimoMJXEnv:
             else:
                 pose_gate = 1.0
             reward -= (self.w_pose * pose_gate
-                       * jp.sum((data.qpos[_JQ0:_JQ1] - self._default) ** 2))
+                       * jp.sum((data.qpos[self._jq0:self._jq1]
+                                 - self._default) ** 2))
         if self.w_dof_limits:
-            q = data.qpos[_JQ0:_JQ1]
+            q = data.qpos[self._jq0:self._jq1]
             out = (jp.maximum(self._soft_lo - q, 0.0)
                    + jp.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * jp.sum(out)
         if self.w_mimic:
             q_ref = self._mimic_ref(state.cmd, gait_phase, state.gait_freq)
-            dq = data.qpos[_JQ0:_JQ1] - q_ref
+            dq = data.qpos[self._jq0:self._jq1] - q_ref
             mim_gate = 1.0
             if self.ext_cmd:
                 mim_gate = ((~lifted) & (state.recovered > 0.5)

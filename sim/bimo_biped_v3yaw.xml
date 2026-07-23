@@ -1,0 +1,228 @@
+<!-- HIP-YAW 10-DOF variant of bimo_biped_v2_asbuilt.xml (2026-07-23,
+     morphology A/B for docs/hip-yaw-study.md). Two changes vs the as-built
+     plant:
+       1. A hip-yaw joint per side (yaw-first stack, Open Duck arrangement):
+          a new L_hip_yaw / R_hip_yaw hinge (axis 0 0 1, range +/-45 deg,
+          same joint-default class) mounted on the pelvis ABOVE the roll
+          servo, carrying the unchanged roll->pitch->knee->ankle leg chain.
+          The moving carrier body holds a 0.0775 kg box (carrier print + the
+          roll servo, which relocates onto the carrier -- "yaw_carrier"
+          segment = carrier + roll servo, 77.5 g/leg per CAD parts.py, §6);
+          group 3, non-colliding. Its mass is SPRUNG on the pelvis side of
+          the roll joint, so leg inertia and the swing dynamics every gait
+          learned stay close. The two deck-mounted yaw servos (0.055 kg each)
+          do NOT rotate with the joint -- they add to the torso; since the
+          roll servos vacate the torso for the carriers, this is a
+          mass-neutral swap (both 55 g), so the torso inertial is kept as-is.
+          Two more position actuators (same class/gains) drive the joints.
+       -- TRUE stack height 40.8 mm (YAW_STACK_DROP, CAD final 2026-07-23,
+          §6): the two servos cannot nest about the shared vertical axis, so
+          the second stacks in full. Standing height grows accordingly:
+          torso z 0.283 -> 0.324 (+0.041 m; the earlier +0.028 was the
+          optimistic study estimate). The hip-yaw joint plane lands at world
+          z ~0.288 (CAD HIP_YAW_Z ~286 mm); the leg geometry BELOW the yaw
+          joint is unchanged (hip-roll origin stays at world z 0.247). Envs
+          derive the standing height and the joint count/layout from the
+          model, so the taller 10-DOF plant works with no code literals.
+       2. Torsional sole/floor friction ON (condim="4" on L_sole/R_sole and
+          the floor), same as bimo_biped_v2_asbuilt_torsion.xml -- both arms
+          of the A/B run on the honest, twist-resisting plant.
+     Masses/inertia for the carrier segment are APPROXIMATED (single box),
+     pending a full inertia rollup. Everything else identical to as-built. -->
+<!-- AS-BUILT variant of bimo_biped_v2.xml (2026-07-17): the robot as
+     physically printed TODAY -- foot v3 with the 100 mm sole (90 x 46 mm
+     pad-true contact boxes, 102.8 g/foot segment) instead of the CAD-current
+     116 mm get-up soles (106 x 46, 110.4 g). Torso carries the tower-top
+     accessory stack (imu_carrier + BNO055 + gopro_base, 341.8 g). Everything
+     else identical to bimo_biped_v2.xml. Regenerate the foot numbers with
+     build_v2_inertia.py against cad/stl/foot_asbuilt.stl (extracted from git
+     191777e, the last 100 mm foot rev). Train precision policies HERE until
+     the v3.1 feet are printed, then switch back. -->
+<mujoco model="bimo_like_biped_v2">
+  <!-- PROPOSED update matching the realized CAD (cad/parts.py, cad/dimensions.py).
+       Differences vs bimo_biped.xml (v1):
+         1. Torso center 0.280 -> 0.283 m (ankle axis is 16.9 mm above ground:
+            the STS3215 lies on its side in the foot, axis at half its 24.72 mm
+            width above the pocket floor; v1 assumed 14 mm).
+         2. Foot sole 96 x 52 x 8 mm, center 10 mm ahead of the ankle
+            (v1: 84 x 48 x 12 at +12) - matches the printed foot + TPU pad.
+         3. Head geom removed: no head is built; electronics tower stays within
+            the torso box envelope. Its mass is folded into the torso.
+         4. Explicit masses from the CAD mass rollup + measured servo mass
+            (55 g each), instead of tuned densities:
+              torso 341.8 g (pelvis+tower prints, 2 roll servos, 3S LiPo 80 g,
+              tower-top imu_carrier+BNO055+gopro_base 14 g,
+                           driver board 20 g, wiring/screws)
+              hip link 29 g (yoke_roll + yoke_pitch + screws)
+              thigh/shin 79 g each (servo + leg_link + screws)
+              foot 91 g (servo + foot print + TPU pad + screws)
+            Total 0.879 kg (v1: 0.93 kg).
+         5. Joint offsets unchanged: hip-roll -36, roll->pitch 50, thigh 90,
+            shin 90 (all confirmed buildable with the real servo dimensions).
+         6. CAD-true inertia: explicit <inertial> per body, computed from the
+            printed-part STL meshes (cad/stl/, PLA rho*0.90) plus servo/battery/
+            board boxes at their CAD positions (sim/build_v2_inertia.py; box
+            geoms remain for collision/visuals, masses kept as documentation).
+       Joint ranges and actuator model unchanged.
+       7. CAD meshes (cad/stl/) as geoms: class "cad" parts collide with the
+          floor via their convex hulls (contype 2 vs floor conaffinity 3), so
+          falls, knee strikes and shin-fork grazes on bumps are physical --
+          but NOT with the soles/each other (sole-floor contact is unchanged:
+          the flat box is sized to the real 90 x 46 TPU pad; foot mesh is
+          visual-only to avoid doubling that contact). Legacy segment boxes
+          moved to group 3 (hidden, non-colliding, masses documentation-only:
+          real inertia is the explicit <inertial> per body). -->
+  <compiler angle="degree" autolimits="true" meshdir="../cad/stl"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+
+  <visual>
+    <global offwidth="900" offheight="1100"/>
+    <headlight diffuse="0.7 0.7 0.7" ambient="0.35 0.35 0.35"/>
+  </visual>
+
+  <default>
+    <joint type="hinge" damping="0.6" armature="0.008" frictionloss="0.02" limited="true"/>
+    <position kp="40" forcerange="-3 3"/>          <!-- STS3215 ~2.9 N*m stall -->
+    <geom contype="0" conaffinity="0"/>            <!-- internal parts don't self-collide -->
+    <default class="cad">
+      <geom type="mesh" contype="2" conaffinity="0" group="1" rgba="0.82 0.84 0.87 1"/>
+    </default>
+    <default class="cadvis">
+      <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.82 0.84 0.87 1"/>
+    </default>
+    <default class="servo">
+      <geom contype="2" conaffinity="0" group="1" rgba="0.22 0.23 0.27 1"/>
+    </default>
+  </default>
+
+  <asset>
+    <!-- checker floor: the render camera tracks the torso, so an untextured
+         plane makes the dash look like running in place -->
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.87 0.89 0.92"
+             rgb2="0.77 0.80 0.85" width="512" height="512"/>
+    <material name="floor_mat" texture="grid" texrepeat="24 24" texuniform="true"/>
+    <mesh name="pelvis"     file="pelvis.stl"     scale="0.001 0.001 0.001"/>
+    <mesh name="tower"      file="tower.stl"      scale="0.001 0.001 0.001"/>
+    <mesh name="gopro_base" file="gopro_base.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="yoke_roll"  file="yoke_roll.stl"  scale="0.001 0.001 0.001"/>
+    <mesh name="yoke_pitch" file="yoke_pitch.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="leg_link"   file="leg_link.stl"   scale="0.001 0.001 0.001"/>
+    <mesh name="foot"       file="foot_asbuilt.stl"       scale="0.001 0.001 0.001"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0.6 0.4 1.5" dir="-0.4 -0.3 -1" directional="true"/>
+    <geom name="floor" type="plane" size="3 3 0.1" contype="1" conaffinity="3"
+          material="floor_mat" friction="1 0.02 0.001" condim="4"/>
+
+    <body name="torso" pos="0 0 0.324">   <!-- +0.041 m: YAW_STACK_DROP 40.8 mm -->
+      <freejoint/>
+      <inertial pos="0.0002 -0.0005 0.0029" quat="0.7041 0.0847 -0.6999 -0.0853" mass="0.3418" diaginertia="2.7267e-04 3.0642e-04 4.7889e-04"/>
+      <geom name="torso" type="box" size="0.023 0.052 0.036" mass="0.344" rgba="0.80 0.82 0.85 1" group="3"/>
+      <geom class="cad" mesh="pelvis" pos="0 0 0.00411"/>
+      <geom class="cad" mesh="tower" pos="0 0 0.00411"/>
+      <geom class="cad" mesh="gopro_base" pos="0 0 0.04761"/>
+      <geom name="servo_L_roll" class="servo" type="box" pos="0 0.028 -0.02346" size="0.01735 0.01236 0.02261"/>
+      <geom name="servo_R_roll" class="servo" type="box" pos="0 -0.028 -0.02346" size="0.01735 0.01236 0.02261"/>
+      <geom name="battery" type="box" pos="-0.001 0 0.01661" size="0.015 0.031 0.0125"
+            group="1" rgba="0.16 0.30 0.55 1"/>
+      <site name="imu" pos="0 0 0"/>
+
+      <!-- ================= LEFT LEG ================= -->
+      <!-- hip-yaw carrier (yaw-first): vertical-axis hinge on the pelvis.
+           The 0.0775 kg box is the yaw_carrier segment (carrier print + the
+           roll servo, which now rides on the carrier); the 40.8 mm stack
+           raises the torso but leaves the roll->ankle geometry below
+           unchanged (hip-roll origin at world z 0.247). -->
+      <body name="L_hip_yaw" pos="0 0.028 -0.036">
+        <joint name="L_hip_yaw" axis="0 0 1" range="-45 45"/>
+        <geom name="carrier_L" type="box" pos="0 0 -0.022" size="0.0125 0.0225 0.0175" mass="0.0775" group="3" rgba="0.22 0.23 0.27 1"/>
+      <body name="L_hip" pos="0 0 -0.041">
+        <joint name="L_hip_roll" axis="1 0 0" range="-25 25"/>
+        <inertial pos="-0.0013 0.0002 -0.0215" quat="0.7520 0.3454 0.4665 -0.3123" mass="0.0296" diaginertia="1.0690e-05 1.2121e-05 1.2719e-05"/>
+        <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1" group="3"/>
+        <geom class="cad" mesh="yoke_roll"/>
+        <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
+        <body name="L_thigh" pos="0 0 -0.05">
+          <joint name="L_hip_pitch" axis="0 1 0" range="-110 60"/>
+        <inertial pos="-0.0011 0.0003 -0.0241" quat="0.7186 0.0063 -0.6954 0.0026" mass="0.0786" diaginertia="1.8626e-05 5.2580e-05 6.1786e-05"/>
+          <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
+          <geom class="cad" mesh="leg_link"/>
+          <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
+          <body name="L_shin" pos="0 0 -0.09">
+            <joint name="L_knee" axis="0 1 0" range="-95 5"/>
+        <inertial pos="-0.0011 0.0003 -0.0241" quat="0.7186 0.0063 -0.6954 0.0026" mass="0.0786" diaginertia="1.8626e-05 5.2580e-05 6.1786e-05"/>
+            <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
+          <geom class="cad" mesh="leg_link"/>
+          <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
+            <body name="L_foot" pos="0 0 -0.09">
+              <joint name="L_ankle" axis="0 1 0" range="-40 40"/>
+        <inertial pos="-0.0039 0 -0.0059" quat="0.9970 0 0.0770 0" mass="0.1028" diaginertia="2.3140e-05 7.1397e-05 8.0567e-05"/>
+              <geom name="L_sole" type="box" pos="0.010 0 -0.0140" size="0.045 0.023 0.004"
+                    contype="1" conaffinity="1" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001" condim="4"/>
+              <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
+              <geom class="servo" type="box" pos="-0.0125 0 0" size="0.02261 0.01735 0.01236"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      </body>   <!-- L_hip_yaw -->
+
+      <!-- ================= RIGHT LEG ================= -->
+      <body name="R_hip_yaw" pos="0 -0.028 -0.036">
+        <joint name="R_hip_yaw" axis="0 0 1" range="-45 45"/>
+        <geom name="carrier_R" type="box" pos="0 0 -0.022" size="0.0125 0.0225 0.0175" mass="0.0775" group="3" rgba="0.22 0.23 0.27 1"/>
+      <body name="R_hip" pos="0 0 -0.041">
+        <joint name="R_hip_roll" axis="1 0 0" range="-25 25"/>
+        <inertial pos="-0.0013 0.0002 -0.0215" quat="0.7520 0.3454 0.4665 -0.3123" mass="0.0296" diaginertia="1.0690e-05 1.2121e-05 1.2719e-05"/>
+        <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1" group="3"/>
+        <geom class="cad" mesh="yoke_roll"/>
+        <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
+        <body name="R_thigh" pos="0 0 -0.05">
+          <joint name="R_hip_pitch" axis="0 1 0" range="-110 60"/>
+        <inertial pos="-0.0011 0.0003 -0.0241" quat="0.7186 0.0063 -0.6954 0.0026" mass="0.0786" diaginertia="1.8626e-05 5.2580e-05 6.1786e-05"/>
+          <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
+          <geom class="cad" mesh="leg_link"/>
+          <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
+          <body name="R_shin" pos="0 0 -0.09">
+            <joint name="R_knee" axis="0 1 0" range="-95 5"/>
+        <inertial pos="-0.0011 0.0003 -0.0241" quat="0.7186 0.0063 -0.6954 0.0026" mass="0.0786" diaginertia="1.8626e-05 5.2580e-05 6.1786e-05"/>
+            <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
+          <geom class="cad" mesh="leg_link"/>
+          <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
+            <body name="R_foot" pos="0 0 -0.09">
+              <joint name="R_ankle" axis="0 1 0" range="-40 40"/>
+        <inertial pos="-0.0039 0 -0.0059" quat="0.9970 0 0.0770 0" mass="0.1028" diaginertia="2.3140e-05 7.1397e-05 8.0567e-05"/>
+              <geom name="R_sole" type="box" pos="0.010 0 -0.0140" size="0.045 0.023 0.004"
+                    contype="1" conaffinity="1" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001" condim="4"/>
+              <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
+              <geom class="servo" type="box" pos="-0.0125 0 0" size="0.02261 0.01735 0.01236"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      </body>   <!-- R_hip_yaw -->
+    </body>
+  </worldbody>
+
+  <!-- actuators listed in joint-tree (qpos-address) order so the action
+       vector, qpos slice and default pose all share one index layout:
+       [L_yaw, L_roll, L_pitch, L_knee, L_ankle, R_yaw, R_roll, ...] -->
+  <actuator>
+    <position name="L_hip_yaw"   joint="L_hip_yaw"/>
+    <position name="L_hip_roll"  joint="L_hip_roll"/>
+    <position name="L_hip_pitch" joint="L_hip_pitch"/>
+    <position name="L_knee"      joint="L_knee"/>
+    <position name="L_ankle"     joint="L_ankle"/>
+    <position name="R_hip_yaw"   joint="R_hip_yaw"/>
+    <position name="R_hip_roll"  joint="R_hip_roll"/>
+    <position name="R_hip_pitch" joint="R_hip_pitch"/>
+    <position name="R_knee"      joint="R_knee"/>
+    <position name="R_ankle"     joint="R_ankle"/>
+  </actuator>
+
+  <sensor>
+    <framezaxis objtype="site" objname="imu" name="torso_up"/>
+    <framepos   objtype="site" objname="imu" name="torso_pos"/>
+  </sensor>
+</mujoco>

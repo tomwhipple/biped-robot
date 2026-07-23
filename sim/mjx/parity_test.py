@@ -104,6 +104,9 @@ def _mjx_ncon_of(state):
 def run_block(name, n_steps, act_fn, prep_cpu, gates, matched_only=False,
               min_frac=0.8, envs=None):
     cpu_e, gpu_e, step_e = envs if envs is not None else (cpu, gpu, step_mjx)
+    # actuated qpos/qvel slices derived from the env (8-DOF -> [7:15]/[6:14];
+    # 10-DOF hip-yaw -> [7:17]/[6:16]) so the gate works on either plant
+    jq, jv = cpu_e._jqpos, cpu_e._jqvel
     obs_c, _ = cpu_e.reset(seed=0)
     prep_cpu(cpu_e)
     state = gpu_e.reset(jax.random.PRNGKey(0))
@@ -128,9 +131,9 @@ def run_block(name, n_steps, act_fn, prep_cpu, gates, matched_only=False,
             continue
         used += 1
         worst["qpos"] = max(worst["qpos"], float(np.max(np.abs(
-            np.asarray(state.data.qpos[7:15]) - cpu_e.data.qpos[7:15]))))
+            np.asarray(state.data.qpos)[jq] - cpu_e.data.qpos[jq]))))
         worst["qvel"] = max(worst["qvel"], float(np.max(np.abs(
-            np.asarray(state.data.qvel[6:14]) - cpu_e.data.qvel[6:14]))))
+            np.asarray(state.data.qvel)[jv] - cpu_e.data.qvel[jv]))))
         worst["reward"] = max(worst["reward"], abs(float(state.reward) - r_c))
         worst["obs"] = max(worst["obs"], float(np.max(np.abs(
             np.asarray(state.obs) - obs_c))))
@@ -354,6 +357,40 @@ print(f"== 2f. ext_cmd recovery arithmetic (contact-free): "
       f"down+up phases={saw_down and saw_up}) ==")
 print(f"   worst |dreward| = {worst_rr:.2e}  worst |dobs| = {worst_ro:.2e}")
 
+# -- 2g. hip-yaw (10-DOF) plant: contact-free ext_cmd arithmetic --------------
+# Morphology-A/B plant bimo_biped_v3yaw.xml adds a hip-yaw joint per side (10
+# actuated joints, taller torso). Same airborne dense-progress pattern as 2e
+# -- a fixed nonzero command INCLUDING wz -- proving the joint-count/layout
+# parameterization is arithmetically identical between the CPU referee and MJX
+# on the 10-DOF plant (the 8-DOF gates above prove the 8-DOF path stays
+# bit-exact). Airborne so the manifold caveat never applies; kept fast.
+XML_YAW = os.path.join(HERE, "..", "bimo_biped_v3yaw.xml")
+EXT_Y = dict(EXT)
+EXT_Y.update(cmd_dense=True,
+             cmd_fixed=(0.3, -0.1, 0.2, 0.85, 0.0, 0.0, 0.0))
+cpu_y = BimoWalkerEnv(xml_path=XML_YAW, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False, **EXT_Y)
+gpu_y = BimoMJXEnv(xml_path=XML_YAW, domain_rand=False, **EXT_Y)
+step_y = jax.jit(gpu_y.step)
+_n_act_y = cpu_y._nq_act
+_splay_y = np.zeros(_n_act_y)                 # hip-roll splay keeps feet apart
+_splay_y[cpu_y._legL["hip_roll"]] = 0.5
+_splay_y[cpu_y._legR["hip_roll"]] = -0.5
+
+
+class AirActsYaw:
+    def __call__(self, t):
+        if t % 20 == 0:
+            hoist(cpu_y)
+        return (_splay_y + 0.3 * np.sin(0.35 * t + np.arange(_n_act_y) * 0.7)
+                ).astype(np.float32)
+
+ok_e5 = run_block(
+    "2g. hip-yaw 10-DOF ext_cmd airborne arithmetic (cmd 0.3,-0.1,0.2, wz)",
+    100, AirActsYaw(), hoist,
+    dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+    envs=(cpu_y, gpu_y, step_y))
+
 # -- 3. gait-amplitude manifold statistics (informational, no gate) -----------
 print("== 3. gait-amplitude contact-manifold statistics (informational) ==")
 obs_c, _ = cpu.reset(seed=7)
@@ -378,6 +415,7 @@ print("   (mismatches = tilted/deep penetration where MJX's 1 mm-skin")
 print("    manifold pruning drops corners CPU keeps -- impact transients.")
 print("    Settled stance manifolds are identical. Referee: CPU evals.)")
 
-ok_all = ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3 and ok_e4
+ok_all = (ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3 and ok_e4
+          and ok_e5)
 print("\nPARITY:", "PASS" if ok_all else "FAIL")
 sys.exit(0 if ok_all else 1)

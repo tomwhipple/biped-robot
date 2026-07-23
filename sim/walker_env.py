@@ -44,9 +44,10 @@ from gymnasium import spaces
 
 _XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bimo_biped.xml")
 
-# qpos/qvel layout: freejoint (7 pos+quat / 6 vel) then the 8 hinge joints.
-_JQPOS = slice(7, 15)   # 8 actuated-joint positions
-_JQVEL = slice(6, 14)   # 8 actuated-joint velocities
+# qpos/qvel layout: freejoint (7 pos+quat / 6 vel) then the hinge joints. The
+# actuated-joint slices/index maps are derived per-instance from the loaded
+# model (self._jqpos / self._jqvel / self._legL / self._legR), so both the
+# 8-DOF plant and the 10-DOF hip-yaw plant work with no literals here.
 
 # -- STS3215 servo datasheet numbers (Waveshare ST3215 wiki, checked 2026-07-11:
 # https://www.waveshare.com/wiki/ST3215_Servo). "High torque, up to 30kg.cm@12V"
@@ -447,6 +448,29 @@ class BimoWalkerEnv(gym.Env):
         self._payload_bid = (self.model.body("payload").id
                              if (payload_mass > 0 or payload_max) else None)
 
+        # Actuated-joint layout, derived from the model (NOT literals) so the
+        # 8-DOF and 10-DOF hip-yaw plants both work. Action/slice order ==
+        # actuator order == qpos-address order by XML construction.
+        _jnt = self.model.actuator_trnid[:, 0]
+        _qadr = self.model.jnt_qposadr[_jnt]
+        _vadr = self.model.jnt_dofadr[_jnt]
+        self._jq0, self._jq1 = int(_qadr.min()), int(_qadr.max()) + 1
+        self._jv0, self._jv1 = int(_vadr.min()), int(_vadr.max()) + 1
+        self._nq_act = self._jq1 - self._jq0
+        self._jqpos = slice(self._jq0, self._jq1)
+        self._jqvel = slice(self._jv0, self._jv1)
+        self._act_names = [self.model.joint(int(j)).name for j in _jnt]
+        self._jname2i = {n: i for i, n in enumerate(self._act_names)}
+        _roles = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle")
+        self._legL = {r: self._jname2i.get(f"L_{r}") for r in _roles}
+        self._legR = {r: self._jname2i.get(f"R_{r}") for r in _roles}
+        # per-role (L, R) action-index pairs (hip_yaw absent on the 8-DOF plant)
+        self._i_roll = np.array([self._legL["hip_roll"], self._legR["hip_roll"]])
+        self._i_pitch = np.array([self._legL["hip_pitch"],
+                                  self._legR["hip_pitch"]])
+        self._i_knee = np.array([self._legL["knee"], self._legR["knee"]])
+        self._i_ankle = np.array([self._legL["ankle"], self._legR["ankle"]])
+
         # Realistic actuator model: torque is computed here (PD on the commanded
         # angle) and clamped to the DC-motor torque-speed envelope -- available
         # torque falls linearly from stall at zero speed to zero at no-load
@@ -464,14 +488,14 @@ class BimoWalkerEnv(gym.Env):
             self._servo = self._nom_servo.copy()
             self.model.actuator_gainprm[:] = 0.0
             self.model.actuator_biasprm[:] = 0.0
-            self.model.dof_damping[_JQVEL] = servo_joint_damping
+            self.model.dof_damping[self._jqvel] = servo_joint_damping
         elif actuator_model == "ideal":
             self._nom_servo = None
             self._servo = None
         else:
             raise ValueError(f"unknown actuator_model {actuator_model!r}")
         self.servo_range = servo_range
-        self._servo_tau = np.zeros(8)
+        self._servo_tau = np.zeros(self._nq_act)
         self._torque_on = True         # see set_torque_enabled()
 
         self.dash = dash
@@ -511,23 +535,23 @@ class BimoWalkerEnv(gym.Env):
         # each joint's range midpoint (a deep knee crouch) and the robot topples.
         jnt = self.model.actuator_trnid[:, 0]
         if hip_flex_deg is not None:
-            self.model.jnt_range[jnt[1], 0] = -np.deg2rad(hip_flex_deg)
-            self.model.jnt_range[jnt[5], 0] = -np.deg2rad(hip_flex_deg)
+            for i in (self._jname2i["L_hip_pitch"], self._jname2i["R_hip_pitch"]):
+                self.model.jnt_range[jnt[i], 0] = -np.deg2rad(hip_flex_deg)
         self.hip_flex_deg = hip_flex_deg
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
         self._lo = self.model.jnt_range[jnt, 0].copy()
         self._hi = self.model.jnt_range[jnt, 1].copy()
-        self._default = self.model.qpos0[_JQPOS].copy()        # standing pose
+        self._default = self.model.qpos0[self._jqpos].copy()        # standing pose
         self._scale = 0.5 * (self._hi - self._lo)              # per-joint residual
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
         if joint_frictionloss > 0:
-            self.model.dof_frictionloss[_JQVEL] = joint_frictionloss
+            self.model.dof_frictionloss[self._jqvel] = joint_frictionloss
         if joint_armature > 0:
-            self.model.dof_armature[_JQVEL] = joint_armature
+            self.model.dof_armature[self._jqvel] = joint_armature
         self._foot_bids = (self.model.body("L_foot").id,
                            self.model.body("R_foot").id)
         _jr = self.model.jnt_range[self.model.actuator_trnid[:, 0]]
@@ -546,8 +570,11 @@ class BimoWalkerEnv(gym.Env):
             # standing sole-center height: lift clearance reference
             self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
 
-        self.action_space = spaces.Box(-1.0, 1.0, shape=(8,), dtype=np.float32)
-        self.obs_frame = (8 + 8 + 3 + 3 + 3 + 8 + 1 + 2
+        self.action_space = spaces.Box(-1.0, 1.0, shape=(self._nq_act,),
+                                       dtype=np.float32)
+        # per-joint blocks (qpos, qvel, prev_action) scale with the joint
+        # count; the rest is fixed. 8-DOF: 36 + ncmd; 10-DOF hip-yaw: 42 + ncmd
+        self.obs_frame = (3 * self._nq_act + 3 + 3 + 3 + 1 + 2
                           + (self._ncmd if command_mode else 0))
         obs_dim = self.obs_frame * self.obs_hist_len
         self.observation_space = spaces.Box(
@@ -556,7 +583,7 @@ class BimoWalkerEnv(gym.Env):
 
         self.render_mode = render_mode
         self._renderer = None
-        self._prev_action = np.zeros(8, dtype=np.float32)
+        self._prev_action = np.zeros(self._nq_act, dtype=np.float32)
         self._air_time = np.zeros(2)   # per-foot time since last ground contact
         self._step_i = 0
 
@@ -710,8 +737,8 @@ class BimoWalkerEnv(gym.Env):
         else:
             phase = 2 * np.pi * (self._step_i / self.max_steps)
         parts = [
-            d.qpos[_JQPOS],                    # 8 joint angles
-            d.qvel[_JQVEL],                    # 8 joint velocities
+            d.qpos[self._jqpos],                    # 8 joint angles
+            d.qvel[self._jqvel],                    # 8 joint velocities
             up,                                # 3 torso up-vector
             linvel,                            # 3 torso linear velocity
             gyro,                              # 3 torso angular velocity
@@ -739,17 +766,22 @@ class BimoWalkerEnv(gym.Env):
         A = np.clip(1.4 * (cmd[0] + np.array([-1.0, 1.0]) * 0.028 * cmd[2])
                     / f, -0.45, 0.45)
         B = float(np.clip(1.1 * cmd[1] / f, -0.3, 0.3))
-        hp0 = np.array([d[1], d[5]])
-        kn0 = np.array([d[2], d[6]])
+        hp0 = d[self._i_pitch]                  # hip-pitch defaults (L, R)
+        kn0 = d[self._i_knee]
         hipP = hp0 - A * xn
         # knee swing-bend scales with commanded activity: zero command ->
         # the reference IS the standing pose (no knee pumping)
         mag = min(1.0, (float(np.max(np.abs(A))) + abs(B)) / 0.35)
         knee = kn0 - 0.55 * mag * sw
-        roll = np.array([d[0], d[4]]) + B * xn
-        ank = np.array([d[3], d[7]]) - (hipP - hp0) - (knee - kn0)
-        q = np.array([roll[0], hipP[0], knee[0], ank[0],
-                      roll[1], hipP[1], knee[1], ank[1]])
+        roll = d[self._i_roll] + B * xn
+        ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
+        # scatter the per-leg references onto the standing pose; any hip_yaw
+        # joints stay at their default (0.0) -> neutral regularization
+        q = d.copy()
+        q[self._i_roll] = roll
+        q[self._i_pitch] = hipP
+        q[self._i_knee] = knee
+        q[self._i_ankle] = ank
         return np.clip(q, self._lo, self._hi)
 
     def _sample_command(self):
@@ -915,7 +947,8 @@ class BimoWalkerEnv(gym.Env):
             self.data.qpos[:] = self.model.qpos0
             self.data.qvel[:] = 0.0
             settle_n = 50
-            j = np.zeros(8)
+            # named-joint pose builders (any hip_yaw joints stay at 0)
+            j = np.zeros(self._nq_act)
             if kind == "ragdoll":
                 u1, u2, u3 = self.np_random.uniform(size=3)
                 tp = 2 * np.pi
@@ -924,32 +957,33 @@ class BimoWalkerEnv(gym.Env):
                                  np.sqrt(1 - u1) * np.cos(tp * u2),
                                  np.sqrt(u1) * np.sin(tp * u3)])
                 joints = np.clip(self._default + self.np_random.uniform(
-                    -0.6, 0.6, size=8) * self._scale, self._lo, self._hi)
+                    -0.6, 0.6, size=self._nq_act) * self._scale,
+                    self._lo, self._hi)
                 self.data.qpos[2] = 0.35
                 self.data.qpos[3:7] = quat
-                self.data.qpos[_JQPOS] = joints
+                self.data.qpos[self._jqpos] = joints
                 settle_n = self._getup_settle
             elif kind == "kneel":
-                j[[1, 5]] = -0.2
-                j[[2, 6]] = -1.62
-                j[[3, 7]] = -0.6
+                j[self._i_pitch] = -0.2
+                j[self._i_knee] = -1.62
+                j[self._i_ankle] = -0.6
                 self.data.qpos[2] = 0.13
-                self.data.qpos[_JQPOS] = np.clip(j, self._lo, self._hi)
+                self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)
             elif kind == "squat":
-                j[[1, 5]] = self._lo[1] + 0.05
-                j[[2, 6]] = -1.62
-                j[[3, 7]] = 0.65
+                j[self._i_pitch] = self._lo[self._legL["hip_pitch"]] + 0.05
+                j[self._i_knee] = -1.62
+                j[self._i_ankle] = 0.65
                 ang = 0.55
                 self.data.qpos[2] = 0.10
                 self.data.qpos[3:7] = [np.cos(ang / 2), 0, np.sin(ang / 2), 0]
-                self.data.qpos[_JQPOS] = np.clip(j, self._lo, self._hi)
+                self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)
             else:                      # sit: torso UP, waist 90 deg, legs
-                j[[1, 5]] = -1.57      # out front, feet splayed apart
-                j[[2, 6]] = -0.09      # (mirrors sim/mjx; verified by
-                j[0] = 0.10            # check_sit_pose.py)
-                j[4] = -0.10
+                j[self._i_pitch] = -1.57   # out front, feet splayed apart
+                j[self._i_knee] = -0.09    # (mirrors sim/mjx; verified by
+                j[self._legL["hip_roll"]] = 0.10    # check_sit_pose.py)
+                j[self._legR["hip_roll"]] = -0.10
                 self.data.qpos[2] = 0.08
-                self.data.qpos[_JQPOS] = np.clip(j, self._lo, self._hi)
+                self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)
             self.data.ctrl[:] = self._default
             for _ in range(settle_n):
                 mujoco.mj_step(self.model, self.data)
@@ -957,7 +991,8 @@ class BimoWalkerEnv(gym.Env):
         else:
             # small noise so the policy can't memorize one trajectory
             self.data.qpos[:] = self.model.qpos0
-            self.data.qpos[_JQPOS] += self.np_random.uniform(-0.03, 0.03, size=8)
+            self.data.qpos[self._jqpos] += self.np_random.uniform(
+                -0.03, 0.03, size=self._nq_act)
             self.data.qvel[:] = self.np_random.uniform(-0.02, 0.02, size=self.model.nv)
             self.data.ctrl[:] = self._default
             mujoco.mj_forward(self.model, self.data)
@@ -1068,8 +1103,8 @@ class BimoWalkerEnv(gym.Env):
                 # PD on the commanded angle, clamped each substep to the
                 # DC-motor torque-speed envelope (linear stall -> no-load).
                 kp, kd, stall, w0 = self._servo
-                q = self.data.qpos[_JQPOS]
-                qd = self.data.qvel[_JQVEL]
+                q = self.data.qpos[self._jqpos]
+                qd = self.data.qvel[self._jqvel]
                 cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
                 err = cur - q
                 if self._lash_rad > 0.0:
@@ -1079,8 +1114,8 @@ class BimoWalkerEnv(gym.Env):
                         np.abs(err) - 0.5 * self._lash_rad, 0.0)
                 self._servo_tau = np.clip(kp * err - kd * qd, -cap, cap)
                 if not self._torque_on:      # released servos: limp, no hold
-                    self._servo_tau = np.zeros(8)
-                self.data.qfrc_applied[_JQVEL] = self._servo_tau
+                    self._servo_tau = np.zeros(self._nq_act)
+                self.data.qfrc_applied[self._jqvel] = self._servo_tau
             elif lat_k:
                 # ideal position actuators read data.ctrl -- hold the previous
                 # target for the first lat_k substeps, then switch
@@ -1114,11 +1149,11 @@ class BimoWalkerEnv(gym.Env):
         # (under the sts3215 model the MJCF actuators are silent, so use the
         # torque we actually applied)
         force = self._servo_tau if self._servo is not None else d.actuator_force
-        energy = float(np.sum(np.abs(force) * np.abs(d.qvel[_JQVEL])))
+        energy = float(np.sum(np.abs(force) * np.abs(d.qvel[self._jqvel])))
         action_rate = float(np.sum((action - self._prev_action) ** 2))
         # electrical power draw (W): driven mechanical work + copper losses.
         # Computed always (cheap, reported in info); penalized only if w_power.
-        qd_j = np.asarray(d.qvel[_JQVEL])
+        qd_j = np.asarray(d.qvel[self._jqvel])
         power_w = float(np.sum(np.maximum(np.asarray(force) * qd_j, 0.0)
                                + self._K_CU * np.asarray(force) ** 2))
 
@@ -1383,16 +1418,16 @@ class BimoWalkerEnv(gym.Env):
             else:
                 pose_gate = 1.0
             reward -= (self.w_pose * pose_gate
-                       * float(np.sum((d.qpos[_JQPOS] - self._default) ** 2)))
+                       * float(np.sum((d.qpos[self._jqpos] - self._default) ** 2)))
         if self.w_dof_limits:
-            q = d.qpos[_JQPOS]
+            q = d.qpos[self._jqpos]
             out = (np.maximum(self._soft_lo - q, 0.0)
                    + np.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * float(np.sum(out))
         if self.w_mimic:
             q_ref = self._mimic_ref(self._cmd, self._gait_phase,
                                     self._gait_freq)
-            dq = np.asarray(d.qpos[_JQPOS]) - q_ref
+            dq = np.asarray(d.qpos[self._jqpos]) - q_ref
             mim_gate = 1.0
             if self.ext_cmd:
                 mim_gate = float((not lifted) and self._recovered)
@@ -1401,7 +1436,7 @@ class BimoWalkerEnv(gym.Env):
         if self.w_rise_dofvel and self.ext_cmd and self.recover_mix > 0:
             if not self._recovered:
                 reward -= self.w_rise_dofvel * float(np.sum(
-                    np.asarray(d.qvel[_JQVEL]) ** 2))
+                    np.asarray(d.qvel[self._jqvel]) ** 2))
 
         self._prev_action[:] = action
         self._step_i += 1
