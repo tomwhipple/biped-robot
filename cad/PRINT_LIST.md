@@ -30,10 +30,13 @@
 >    BCD positions** (the blind recesses on the servo-facing side locate the
 >    drill). Future prints are correct as exported. `IDLER_BOSS_D` grew
 >    19→20 for web thickness — existing 19 mm-boss prints remain usable.
-> 2. **`leg_link` idler fork gains a cable notch** (rounded, x −12.5…−4,
->    z −49…−37) for the gripped servo's lead — **cannot be added by hand**;
->    printed thighs/shins work only until you route that lead. **Reprint
->    recommended: `leg_link` ×4** (slice `leg_link_print.stl`).
+> 2. ~~leg_link cable notch~~ **REVERTED after user challenge** — the
+>    cutout was based on a wrong routing assumption (the gripped servo's
+>    lead uses the web window → back raceway, not the idler face), and a
+>    full ankle-ROM sweep shows the ankle lead's connector clears the shin
+>    fork by ~10 mm even at toes-pointed (now a permanent check_assembly
+>    gate). The fork plate is solid again; `leg_link` needs **no reprint
+>    for cable reasons** — only the item-1 idler holes, which hand-drill.
 > 3. **`foot` gains top-side screw-head divots** over the low ankle-screw
 >    row (driver path was blocked by the sole shelf). Hand-carving is
 >    possible but ugly; **reprint recommended: `foot` ×2** (sole pad
