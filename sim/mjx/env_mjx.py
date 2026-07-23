@@ -76,6 +76,9 @@ class State(NamedTuple):
     recover_slot: jax.Array   # ()  1.0 = this env slot starts episodes fallen
     recovered: jax.Array      # ()  0.0 while down (no fall termination); flips
                               # to 1.0 at the first achieved stand
+    best_h: jax.Array         # ()  episode-best torso height: the recovery
+                              # ratchet pays only for NEW height above this
+                              # (static height income was a do-nothing optimum)
     servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
     lash: jax.Array           # ()  per-episode backlash (rad)
@@ -845,6 +848,7 @@ class BimoMJXEnv:
                      cmd_next=cmd_next, traj=traj, traj_on=traj_on,
                      recover_slot=recover_slot,
                      recovered=1.0 - recover_slot,
+                     best_h=data.qpos[2],
                      servo=servo, lat_ms=lat_ms, lash=lash,
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
@@ -892,7 +896,8 @@ class BimoMJXEnv:
             gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
-            recovered=1.0 - first.recover_slot, servo=servo,
+            recovered=1.0 - first.recover_slot,
+            best_h=first.data.qpos[2], servo=servo,
             lat_ms=lat_ms, lash=lash, imu_R=imu_R, imu_bias=imu_bias,
             metrics=metrics)
 
@@ -1082,16 +1087,19 @@ class BimoMJXEnv:
             g_skill = jp.where(crouching, 0.2 + 0.8 * h_norm, g_skill)
             primary = g_skill * (v_term + w_term) + h_term
             if self.recover_mix > 0:
-                # while DOWN in a recovery episode: getup-style shaped
-                # recovery is the primary (height progress + height-gated
-                # uprightness + standing bonus; arithmetic mirrors getup
-                # mode) -- tracking terms resume once recovered
+                # while DOWN in a recovery episode: height RATCHET is the
+                # primary -- only NEW height above the episode best pays
+                # (getup_v1 lesson: absolute height paid ~0.33/step for
+                # sitting motionless, a do-nothing optimum worth ~165/ep;
+                # the ratchet pays a bounded one-time sum for the rise and
+                # zero for holding any pose), plus the standing bonus and
+                # time pressure sized to cancel the upright+alive income a
+                # settled non-riser collects (0.5*up_z + 0.1 <= 0.6)
                 still = jp.exp(-((planar / 0.2) ** 2))
-                up_gate = jp.clip((height - 0.12) / 0.08, 0.0, 1.0)
-                rec_primary = (1.0 * jp.clip(height / self._nominal_h,
-                                             0.0, 1.0)
-                               + 0.8 * 0.5 * (up_z + 1.0) * up_gate
-                               + 1.0 * standing * (0.5 + 0.5 * still))
+                h_gain = jp.maximum(height - state.best_h, 0.0)
+                rec_primary = (200.0 * h_gain
+                               + 1.0 * standing * (0.5 + 0.5 * still)
+                               - 0.7)
                 primary = jp.where(state.recovered < 0.5, rec_primary,
                                    primary)
         else:
@@ -1298,7 +1306,9 @@ class BimoMJXEnv:
                      obs_hist=obs_hist,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,
                      traj_on=traj_on, recover_slot=state.recover_slot,
-                     recovered=recovered, servo=state.servo,
+                     recovered=recovered,
+                     best_h=jp.maximum(state.best_h, height),
+                     servo=state.servo,
                      lat_ms=state.lat_ms, lash=state.lash, imu_R=state.imu_R,
                      imu_bias=state.imu_bias, metrics=metrics)
 

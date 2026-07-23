@@ -1,6 +1,36 @@
 # Precision curriculum — progress report
 
-**Updated:** 2026-07-20 morning (after round 5's overnight run)
+**Updated:** 2026-07-23 morning (after specialists night 1)
+
+## Round 6 (specialists night 1: loco_v1 / skills_v1 / getup_v1 / loco_v1_ctrl,
+## 110M steps each, all four completed inside the window)
+
+First night of the specialist-policy split (plan v2 amendment). All jobs
+from scratch except skills_v1 (warm-started from precision_v7b); loco/getup
+jobs used the FULL action map (the legacy knee cap finding, 2026-07-22).
+
+**Headline: backward walking passed for the first time in six rounds** —
+loco_v1 7/8 (0/8 in every prior round), sidestep 7–8/8, line 6/8.
+
+| verdict question | answer |
+|---|---|
+| imitation vs ablation | **Tied on passes (36 vs 37/56), imitation wins robustness**: falls 2% vs 16%, slip 1.3 vs 2.5 cm/s, line 2.6 s vs 3.4 s. Keep the mimic prior. |
+| specialists vs unified | **Loco: decisive win** (the walk-family block broke open). **Skills: regression** — 24/64 vs v7b's home-turf results; balance_L collapsed to 0/8 (54% clearance) while balance_R is 7/8 at 100% — the L/R asymmetry sharpened. The v7b warm-start + legacy map lineage looks tapped out. |
+| does the full knee map produce a rise | **No — and the referee found out why.** getup_v1 idles at 1.4–3 W even under nominal conditions (0/16). Two root causes found in code review: (1) the recovery reward paid ~0.33/step of *absolute-height* income for sitting motionless (~165/episode — matches the observed 127 training reward almost exactly; the do-nothing optimum, recovery edition); (2) `recover_start_mix` defaulted to pure ragdoll, so the referee's sit start was never trained. |
+
+Loco caveat: energetically loud — 44–50 W everywhere including stand
+(v7b lineage: 3–5 W). Not a preset bug (weights identical); a from-scratch
+110M policy simply hasn't been through the calm-down the 1.4B-step lineage
+got. Smoothness fine-tune queued.
+
+**Fixes landed for night 2 (2026-07-23):** recovery height RATCHET —
+while down, only NEW height above the episode best pays (200/m, one-time,
+bounded), plus stand bonus and −0.7/step time pressure sized to cancel the
+upright+alive income of a settled non-riser. Sitting still now nets
+−0.64/step (verified). Mirrored in the CPU referee, parity-gated.
+getup_v2 also trains the full start mix (ragdoll/kneel/squat/sit
+0.3/0.2/0.2/0.3). loco_v2 = smoothness fine-tune from loco_v1
+(w_power 0.008→0.03, w_action_rate 0.15→0.3).
 
 ## Round 5 (precision_v5, +280M warm-started overnight; sit curriculum,
 ## symmetry penalty, widened foot kernel, honest circle minimums)

@@ -953,6 +953,9 @@ class BimoWalkerEnv(gym.Env):
             self.data.ctrl[:] = self._default
             mujoco.mj_forward(self.model, self.data)
         self._prev_action[:] = 0.0
+        # recovery height ratchet: episode-best torso height (mirrors sim/mjx
+        # State.best_h; only NEW height above this pays while down)
+        self._best_h = float(self.data.qpos[2])
         # action-latency buffer: past ctrl targets, applied `action_latency` steps late
         self._ctrl_buf = [self._default.copy() for _ in range(self.action_latency + 1)]
         # sub-step latency: per-episode draw (only draws RNG when enabled, so
@@ -1196,17 +1199,18 @@ class BimoWalkerEnv(gym.Env):
                     g_skill = 0.2 + 0.8 * h_norm
                 primary = g_skill * (v_term + w_term) + h_term
                 if self.recover_mix > 0 and not self._recovered:
-                    # down in a recovery episode: getup-style recovery is
-                    # the primary until the first stand (mirrors sim/mjx)
+                    # down in a recovery episode: height RATCHET is the
+                    # primary until the first stand (mirrors sim/mjx --
+                    # only NEW height above the episode best pays; static
+                    # height income was a do-nothing optimum, getup_v1)
                     planar_g = float(np.hypot(d.qvel[0], d.qvel[1]))
                     standing_r = float((height > 0.85 * self._nominal_h)
                                        and (up_z > 0.9))
                     still = float(np.exp(-((planar_g / 0.2) ** 2)))
-                    up_gate = float(np.clip((height - 0.12) / 0.08, 0.0, 1.0))
-                    primary = (1.0 * float(np.clip(height / self._nominal_h,
-                                                   0.0, 1.0))
-                               + 0.8 * 0.5 * (up_z + 1.0) * up_gate
-                               + 1.0 * standing_r * (0.5 + 0.5 * still))
+                    h_gain = max(height - self._best_h, 0.0)
+                    primary = (200.0 * h_gain
+                               + 1.0 * standing_r * (0.5 + 0.5 * still)
+                               - 0.7)
             elif self.cmd_dense and self._cmd[0] > 0.05:
                 # any forward progress pays immediately, capped at the command
                 v_term = self.w_track_v * min(vx_body, self._cmd[0]) / self._cmd[0]
@@ -1368,6 +1372,9 @@ class BimoWalkerEnv(gym.Env):
 
         self._prev_action[:] = action
         self._step_i += 1
+        # ratchet update AFTER grading (mirrors sim/mjx: reward uses the
+        # pre-step best, the returned state carries the new best)
+        self._best_h = max(self._best_h, height)
 
         # ext mode: the fall floor tracks the commanded crouch (a commanded
         # 0.6-height crouch is 0.17 m -- below the legacy 0.18 fall line)
