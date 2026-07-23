@@ -165,6 +165,37 @@ stator rigidity + a tolerance stack. **User sign-off wanted here** (see below).
   in the pelvis frame; well clear of the deck edges (deck ±23 X, ±52 Y) and the
   other leg.
 
+### Wiring routing (design-review fix, 2026-07-23)
+
+Review caught it: "wires pass through the servo mounts without a hole." The
+flat yaw cases sit on the deck underside *exactly where the old per-bay deck
+cutouts were*, and those cutouts were deleted with the bays — so the
+board→first-servo lead and the roll-servo cable had no passage. Fixed with two
+new openings (constants `WIRE_*` in `dimensions.py`; render
+`renders/hip_yaw_wiring.png`, semi-transparent, leads in red). The v3yaw
+daisy-chain is board → **hip-yaw → hip-roll** → pitch → knee → ankle:
+
+| Segment | Route | Opening (size, passes) |
+|---|---|---|
+| board → hip-yaw | tower rear → onto the deck rear tab → down behind the yaw case | **pelvis rear wire chase (NEW)** — 12 mm (`WIRE_CHASE_1`) vertical slot at x −39.0…−35.1 (behind the case rear face), cut through the rear deck tab **and** the collar rear wall, z +1…−10; sits between the −32.75 stator screws (y ±10.25), clearing them 4.25 mm. 1 bundle + plug |
+| hip-yaw → hip-roll | yaw rear port → down the open gap below the collar (z −9…−42.8) → into the carrier | passes through **open air** (the gap between collar bottom and carrier top) — no material crossing |
+| into/out of the roll bay | yaw→roll lead drops in from above; roll→pitch lead exits rearward-down the thigh | **carrier rear cable channel (NEW)** — 14 mm (`WIRE_CHASE_2`) wide, open at the ceiling **and** through the rear wall's top 8 mm (x −21…−10.5, z +1…−11), front corners rounded r2. Behind the horn bolts (x −7), 1.55 mm ligament to the roll retention screws (y ±10.25). 2 bundles (daisy in + out) |
+| roll → pitch → knee → ankle | down the leg | **UNCHANGED** — the leg_link web windows (9×11) + foot cable window carry it, exactly as on the 8-DOF robot |
+
+**Yaw-sweep (service loop).** The yaw→roll lead is the only lead crossing the
+new joint. Its slack lives in the open rear gap (z −9…−42.8), which
+`check_assembly.py` proves clear through the whole 0/±45° sweep (carrier vs yaw
+servo = 0.00 mm³). The carrier channel's front corners are rounded so no sharp
+shear edge bears on the lead as the channel rotates under the fixed yaw port.
+Assembly note: fit a rubber grommet in the deck chase and leave a ~15 mm
+service loop at the yaw joint (add it to the `wiring.md` segment table — the
+board→hip-roll hop is now board→hip-yaw→hip-roll, two hops).
+
+**Checks after the cuts:** `check_printability.py` PASS (pelvis + yaw_carrier);
+`check_assembly.py` ALL CLEAR (openings added no interference). The first cut
+of the carrier channel at 16 mm left a 0.55 mm sliver against the retention
+screw hole — narrowed to 14 mm (`WIRE_CHASE_2`) for a 1.55 mm ligament.
+
 ### Open questions for the user
 
 1. **Stack height 41 vs 28 mm.** Confirm the taller robot is acceptable

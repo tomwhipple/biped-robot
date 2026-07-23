@@ -1,7 +1,8 @@
 # Printable CAD — Bimo-like biped
 
 Parametric CAD in Python ([build123d](https://build123d.readthedocs.io/)), realizing the
-kinematics of `sim/bimo_biped.xml` with 8× Feetech STS3215 bus servos.
+kinematics of `sim/bimo_biped.xml` with **10× Feetech STS3215** bus servos
+(v3yaw: 8 leg + 2 hip-yaw — see [hip-yaw study](../docs/hip-yaw-study.md)).
 
 ```
 cad/
@@ -14,8 +15,12 @@ cad/
 ├── export_assembly_full.py  # dressed robot -> step/assembly_full.step + stills
 ├── animate_dressed_rom.py   # leg ROM video with the wiring following the joints
 ├── render_assembly.py # PNG render of the assembly via MuJoCo
+├── render_assembly_steps.py  # per-step figures for docs/assembly.md
+├── animate_assembly.py # fly-in feasibility animation (real insertion paths)
+├── freecad_articulate.py  # build the POSEABLE FreeCAD assembly (10 revolute joints)
 ├── stl/               # exported STLs (one per unique part)
 ├── step/              # exported STEPs + assembly.step / assembly_full.step
+│                      #   + bimo_v3yaw_articulated.FCStd (poseable)
 └── bimo_like_biped.scad  # (older massing concept, superseded by parts.py)
 ```
 
@@ -24,7 +29,33 @@ cad/
 ../.venv/bin/python check_assembly.py   # must print ALL CLEAR
 ../.venv/bin/python export_step.py && ../.venv/bin/python export_assembly.py
 ../.venv/bin/python export_assembly_full.py   # dressed: wiring/board/battery mocks
+../.venv/bin/python render_assembly_steps.py  # refresh docs/assembly.md figures
+../.venv/bin/python animate_assembly.py       # fly-in animation (gif+mov, gitignored)
 ```
+
+## Pose it in FreeCAD (10-DOF articulated assembly)
+
+`freecad_articulate.py` builds an **Assembly-workbench** model you can drag
+through its full range of motion — one **Revolute** joint per axis, with the
+sim's limits baked in (hip yaw ±45°, hip roll ±25°, hip pitch −110/+60°, knee
+−95/+5°, ankle ±40°). The torso is grounded; both legs share the same part
+STEPs. Build it (STEPs must exist — run `export_step.py` first):
+
+```bash
+# macOS (adjust the path on Linux/Windows to your freecadcmd)
+/Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd cad/freecad_articulate.py
+# -> cad/step/bimo_v3yaw_articulated.FCStd
+```
+
+or from the GUI: **Macro → Macros… → add `freecad_articulate.py` → Execute**.
+
+**To pose it:** open `cad/step/bimo_v3yaw_articulated.FCStd`, switch to the
+**Assembly** workbench, then either **drag any part** with the mouse (the
+solver keeps every joint honest and stops each axis at its limit) or
+double-click a joint in the tree and type an angle. The neutral pose is the
+CAD standing pose (feet on the ground). *(FreeCAD prints ~20 benign
+"invalid Reference" warnings on open — a PartDesign migration quirk that
+doesn't apply to these LCS joints; they solve and pose fine.)*
 
 `assembly_full.step` is the "approximate complete" model: everything in
 `assembly.step` plus mock dress — driver board under the tower top, battery,

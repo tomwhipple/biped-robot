@@ -33,7 +33,7 @@ import parts
 import check_assembly as CA
 import export_assembly as A
 
-DTOP = D.DECK_BOT_Z + D.DECK_T                    # deck top, world z
+DTOP = A.DECK_TOP_Z                              # v3yaw deck top, world z
 PCB_TOP = DTOP + D.TOWER_H - D.TOWER_TOP_T - D.BOARD_STANDOFF
 PCB_T = 1.6
 
@@ -232,6 +232,13 @@ def dressed_leg(ly, tag, roll=0.0, hip=0.0, knee=0.0, ankle=0.0):
     at = lambda z: Pos(0, ly, z)
     segs = leg_cables(ly, roll, hip, knee, ankle)
     ch = [
+        # v3yaw hip-yaw stack (torso-fixed at neutral yaw): flat yaw servo under
+        # the deck + carrier on its horn, holding the roll bay. Not articulated
+        # here (dress poses roll/hip/knee/ankle only), so both sit static.
+        A.piece("servo_hip_yaw", A.COL_SERVO,
+                Pos(0, ly, D.HIP_YAW_Z + D.SV_HORN_FACE) * CA.servo_mock_z()),
+        A.piece("yaw_carrier", A.COL_PRINT,
+                Pos(0, ly, D.HIP_YAW_Z) * parts.yaw_carrier()),
         A.piece("servo_hip_roll", A.COL_SERVO,
                 at(D.HIP_ROLL_Z) * CA.servo_mock_x()),
         A.piece("yoke_roll", A.COL_PRINT,

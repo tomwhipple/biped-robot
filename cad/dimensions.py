@@ -210,6 +210,25 @@ YAW_STACK_DROP = ROLL_BELOW_DECK_YAW - ROLL_BELOW_DECK_OLD  # 40.80 mm
 
 YAW_SWEEP = 45.0                   # design yaw half-range each way (deg)
 
+# --- wire routing (v3yaw harness) ------------------------------------------
+# Bus daisy-chain, 10 servos over 2 legs (design review 2026-07-23: the flat
+# yaw cases sit on the deck underside exactly where the old per-bay deck
+# cutouts were, so those are deleted and REPLACED by the openings below --
+# without them the board->yaw lead and the roll-servo cable have no passage
+# and pierce the deck / collar).
+#   board (tower) --[deck rear chase]--> hip-YAW rear-end port (faces -X, below
+#     the deck rear overhang) --[open gap]--> hip-ROLL top port (in the carrier
+#     bay) --[carrier rear channel]--> down the leg (pitch->knee->ankle use the
+#     UNCHANGED leg_link web windows + foot cable window).
+# Each ST3215 lead is a 3-wire JST bundle; a daisy pass at a servo carries 2
+# bundles (the incoming + the outgoing lead).
+WIRE_BUNDLE = 5.0        # one 3-wire ST3215 lead bundle, outer dia
+WIRE_PLUG_W = 9.0        # ST3215 JST housing width (assemble connector-first)
+WIRE_CHASE_1 = 12.0      # slot width for 1 bundle+plug with grommet margin
+WIRE_CHASE_2 = 14.0      # slot width for 2 bundles (daisy in + out at a servo);
+                         # +/-7 keeps a 1.55 mm ligament to the roll retention
+                         # screw hole at y +/-10.25 in the carrier rear wall
+
 # ----------------------------------------------------------------------------
 # leg link (thigh and shin are the SAME part)
 #   grips the upper servo's case below its horn (which is the upper joint) and

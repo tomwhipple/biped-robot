@@ -355,10 +355,19 @@ def yaw_carrier():
     for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
         p -= cyl_z(D.PAD_HOLE / 2, zc - 1, 1, dx, dz)
     p -= cyl_z(D.HORN_CENTER_RELIEF_D / 2, zc - 1, 1, 0, 0)
-    # roll-servo cable exit: a slot at the REAR of the ceiling (the roll servo's
-    # connector is on its top/cable end). Kept behind the rearmost horn bolt
-    # (x=-7, hole edge -8.7) so a >=1.8 mm ligament stays to it.
-    p -= box(-17.5, -10.5, -7, 7, zc - 1, 1)
+    # roll-servo cable CHANNEL: the roll servo's connectors are on its top/cable
+    # end (at the bay ceiling). This channel is open at the ceiling AND cut
+    # rearward THROUGH the rear wall's top 8 mm, so (a) the yaw->roll lead drops
+    # in from above (the passage from over the carrier into the roll bay the
+    # review asked for) and (b) the roll->pitch lead exits rearward-outside and
+    # runs down the thigh. Passes 2 bundles (WIRE_CHASE_2). Behind the rearmost
+    # horn bolt (x=-7) and inboard of the rear retention screws (y +/-10.25).
+    # Front corners rounded (r2) -- the yaw->roll lead sweeps across this
+    # opening as the carrier yaws +/-45 deg, so no sharp shear edge bears on it.
+    cw2 = D.WIRE_CHASE_2 / 2
+    p -= box(-21, -10.5, -cw2, cw2, zc - 8, 1)
+    for sy in (cw2, -cw2):
+        p -= cyl_z(2.0, zc - 8, 1, -10.5, sy)
     return p
 
 
@@ -401,8 +410,16 @@ def pelvis():
             for s in (1, -1):
                 p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zd - 1, 1,
                            -xrow, by + s * D.CASE_HOLE_LAT)
-        # cable clearance at the rear case end (yaw cable exits the rear face)
-        p -= box(cx0 - w - 1, cx0 + 2, by - 7, by + 7, zseat - 1, zd + 0.01)
+        # board -> hip-yaw WIRE CHASE: a vertical slot BEHIND the yaw case rear
+        # face, cut clear through the rear deck tab AND the collar rear wall, so
+        # the board lead drops from the tower rear onto the tab and down to the
+        # yaw servo's rear-end connector (which faces -X, in the open gap below
+        # the collar). Sits BETWEEN the -32.75 stator screws (y = by +/-10.25),
+        # so the WIRE_CHASE_1/2 = +/-6 slot clears them by 4.25 mm. Passes one
+        # bundle+plug; the outgoing yaw->roll lead drops on down the same open
+        # gap into the carrier. (This replaces the deleted per-bay deck cutout.)
+        cw = D.WIRE_CHASE_1 / 2
+        p -= box(cx0 - w - 1, D.YAW_CASE_X_REAR, by - cw, by + cw, zseat - 1, 1)
     # tower mounting: heat-set pilots straight down through the deck into the
     # collar side-wall material below (feet land at |y|=42 over the side walls).
     # No raised bosses (they held the first layer off the bed -- audit

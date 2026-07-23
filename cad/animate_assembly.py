@@ -31,7 +31,9 @@ os.makedirs(TMP, exist_ok=True)
 # swap window pass is actually demonstrated, not raced)
 PLAN = [
     ("pelvis",          (0, 0, 120), 0),   # chassis lowered in from above
-    ("servo_hip_roll",  (0, 0, -80), 0),   # slides UP into the pelvis bay
+    ("servo_hip_yaw",   (0, 0, -70), 0),   # presses UP against the deck underside
+    ("yaw_carrier",     (0, 0, -70), 4),   # bolts UP onto the yaw horn
+    ("servo_hip_roll",  (0, 0, -80), 0),   # slides UP into the carrier U-slot
     ("yoke_roll",       (0, 0, -60), 0),   # clevis up over the roll servo
     ("yoke_pitch",      (0, 0, -60), 0),   # bolts to the roll flange from below
     ("servo_hip_pitch", (0, 0, -60), 0),   # thigh servo up into the pitch clevis

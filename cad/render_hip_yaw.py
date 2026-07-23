@@ -20,6 +20,23 @@ import dimensions as D
 import parts
 import check_assembly as CA
 
+from build123d import Cylinder, Sphere, Plane
+
+
+def tube(pts, r=1.8):
+    """Mock lead through points: cylinder+sphere chain (no OCC sweep)."""
+    out = None
+    for a, b in zip(pts[:-1], pts[1:]):
+        a, b = np.asarray(a, float), np.asarray(b, float)
+        d = b - a
+        n = float(np.linalg.norm(d))
+        if n < 1e-6:
+            continue
+        seg = Plane(origin=tuple((a + b) / 2), z_dir=tuple(d / n)) * Cylinder(r, n)
+        seg += Pos(*b) * Sphere(r)
+        out = seg if out is None else out + seg
+    return (Pos(*np.asarray(pts[0], float)) * Sphere(r)) + out
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "renders")
 BEFORE_PELVIS = "/tmp/pelvis_before.stl"     # git show HEAD:cad/stl/pelvis.stl
@@ -50,6 +67,31 @@ def scene_before(pelvis_mesh):
         servos.append(Pos(0, by, rz) * CA.servo_mock_x())
         printed.append(yoke_at(rz, by))
     return printed, servos, pelvis_mesh
+
+
+def scene_wiring():
+    """Hip stack (pelvis-local frame, deck top = 0) + mock daisy-chain leads
+    through the new openings, for a semi-transparent route view."""
+    printed, servos, cables = [], [], []
+    printed.append(parts.pelvis())
+    yhz = D.YAW_HORN_FACE_Z
+    rollz = yhz + D.CARRIER_ROLL_AXIS
+    ceilz = yhz + D.CARRIER_ROLL_CEIL          # roll connector (bay ceiling)
+    for by in (D.HIP_SEP / 2, -D.HIP_SEP / 2):
+        ymid = D.YAW_IDLER_FACE_Z - D.SV_TOPFACE
+        servos.append(Pos(0, by, ymid) * CA.servo_mock_z())
+        printed.append(Pos(0, by, yhz) * parts.yaw_carrier())
+        servos.append(Pos(0, by, rollz) * CA.servo_mock_x())
+        yc = -20                                # yaw rear-port height (pelvis z)
+        # board -> hip-yaw: down the deck rear chase to the yaw rear port
+        cables.append(tube([(-8, by * 0.7, 22), (-22, by, 8), (-36, by, 1),
+                            (-36.5, by, -8), (-36, by, yc)]))
+        # hip-yaw -> hip-roll: down into the carrier rear channel to the top port
+        cables.append(tube([(-36, by, yc), (-30, by, -34), (-20, by, yhz - 2),
+                            (-14, by, ceilz)]))
+        # hip-roll -> hip-pitch: back out the channel and down the thigh
+        cables.append(tube([(-14, by, ceilz), (-21, by, -52), (-22, by, -70)]))
+    return printed, servos, cables
 
 
 def render(printed_stl, servo_stl, extra_stl, out, zc):
@@ -84,8 +126,50 @@ def render(printed_stl, servo_stl, extra_stl, out, zc):
     return imageio.imread(out)
 
 
+def render_wire(printed_stl, servo_stl, cable_stl, out, zc):
+    xml = f"""
+    <mujoco>
+      <visual><headlight ambient="0.55 0.55 0.57" diffuse="0.5 0.5 0.5"/>
+        <global offwidth="760" offheight="760"/><quality shadowsize="4096"/></visual>
+      <asset>
+        <texture name="sky" type="skybox" builtin="gradient"
+                 rgb1="0.96 0.97 0.98" rgb2="0.86 0.89 0.93" width="256" height="256"/>
+        <mesh name="printed" file="{printed_stl}" scale="0.001 0.001 0.001"/>
+        <mesh name="servos" file="{servo_stl}" scale="0.001 0.001 0.001"/>
+        <mesh name="cables" file="{cable_stl}" scale="0.001 0.001 0.001"/>
+      </asset>
+      <worldbody>
+        <light pos="0.2 -0.5 0.6" dir="-0.2 0.5 -0.8" castshadow="false"/>
+        <geom type="mesh" mesh="printed" contype="0" conaffinity="0" rgba="0.72 0.76 0.82 0.30"/>
+        <geom type="mesh" mesh="servos" contype="0" conaffinity="0" rgba="0.25 0.26 0.30 0.34"/>
+        <geom type="mesh" mesh="cables" contype="0" conaffinity="0" rgba="0.80 0.12 0.10 1"/>
+      </worldbody>
+    </mujoco>"""
+    m = mujoco.MjModel.from_xml_string(xml)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    r = mujoco.Renderer(m, height=760, width=760)
+    cam = mujoco.MjvCamera()
+    mujoco.mjv_defaultCamera(cam)
+    cam.lookat[:] = [-0.01, 0.0, zc]
+    cam.distance, cam.azimuth, cam.elevation = 0.30, 210, -14   # rear 3/4
+    r.update_scene(d, cam)
+    imageio.imwrite(out, r.render())
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    # WIRING (semi-transparent, shows leads through the new openings)
+    pr, sv, ca = scene_wiring()
+    wp = os.path.join(OUT, "_w_pr.stl")
+    ws = os.path.join(OUT, "_w_sv.stl")
+    wc = os.path.join(OUT, "_w_ca.stl")
+    export_stl(Compound(children=pr), wp)
+    export_stl(Compound(children=sv), ws)
+    export_stl(Compound(children=ca), wc)
+    render_wire(wp, ws, wc, os.path.join(OUT, "hip_yaw_wiring.png"), -0.030)
+    for f in (wp, ws, wc):
+        os.remove(f)
     # AFTER
     pr, sv = scene_after()
     ap, as_ = os.path.join(OUT, "_a_pr.stl"), os.path.join(OUT, "_a_sv.stl")

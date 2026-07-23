@@ -74,10 +74,18 @@ pigtail and a switch.*
 
   | Hop | Worst routed | Lead |
   |---|---|---|
-  | board → hip-roll | 33 mm | stock 150 mm (coil excess in the tower) |
+  | board → hip-yaw | ~45 mm (down the pelvis rear wire chase, `WIRE_CHASE_1`) | stock 150 mm (coil excess in the tower) |
+  | hip-yaw → hip-roll | ~55 mm incl. the ~15 mm service loop across the ±45° yaw sweep (open rear gap, then the carrier rear channel `WIRE_CHASE_2`) | stock 150 mm |
   | hip-roll → hip-pitch | **170 mm** | **≥200 mm extension required** (BOM item 19) — crosses both the roll and hip-pitch joints; longest at the knee-flexion pose |
   | hip-pitch → knee | 111 mm | stock 150 mm (~35 % slack) |
   | knee → ankle | 82 mm | stock 150 mm (worst at ankle −40°) |
+
+  (v3yaw 2026-07-23: the old "board → hip-roll 33 mm" hop became the two
+  hops above when hip yaw entered the chain — see docs/hip-yaw-study.md §6
+  for the routing openings. The two ~mm figures are estimates from the
+  chase/channel geometry in cad/dimensions.py; re-measure via dress.py
+  routed paths before ordering leads. Bus grows to 10 servos, IDs 9/10 =
+  L/R hip yaw; sync-read 3.5 → ~4.3 ms, still inside the 20 ms tick.)
 
   The routed paths already include the service loops, so the stock-lead
   margins above are true flex margin, not taut-string numbers. An earlier

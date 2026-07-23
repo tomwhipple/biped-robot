@@ -36,18 +36,21 @@ HIDE = np.array([0.0, 0.0, 8.0])          # parked far above every camera frame
 # whole leg subassembly, proximal to distal (base labels, both legs match)
 LEG = ["yoke_roll", "yoke_pitch", "servo_hip_pitch", "link_thigh",
        "servo_knee", "link_shin", "servo_ankle", "foot"]
+# v3yaw hip-yaw stack (x2): yaw servo under the deck + carrier on its horn
+YAW = ["servo_hip_yaw", "yaw_carrier"]
 ALL = ["pelvis", "tower", "battery_3s_mock", "imu_carrier", "imu_bno055_mock",
-       "gopro_base", "camera_gopro_max_mock"] + LEG
+       "gopro_base", "camera_gopro_max_mock"] + YAW + LEG
 
 # exploded-view offsets (mm) = the fly-in insertion vectors, exaggerated
-EXPLODE = {"pelvis": (0, 0, 110), "servo_hip_roll": (0, 0, -75),
-           "yoke_roll": (0, 0, -55), "yoke_pitch": (0, 0, -110),
-           "servo_hip_pitch": (0, 0, -80), "link_thigh": (85, 0, -25),
-           "servo_knee": (0, 0, -55), "link_shin": (85, 0, 20),
-           "servo_ankle": (0, 0, -30), "foot": (0, 0, -55),
-           "tower": (0, 0, 165), "battery_3s_mock": (-95, 0, 165),
-           "imu_carrier": (0, 0, 185), "imu_bno055_mock": (0, 0, 210),
-           "gopro_base": (0, 0, 235), "camera_gopro_max_mock": (0, 0, 280)}
+EXPLODE = {"pelvis": (0, 0, 120), "servo_hip_yaw": (0, 0, 40),
+           "yaw_carrier": (0, 0, -30), "servo_hip_roll": (0, 0, -95),
+           "yoke_roll": (0, 0, -70), "yoke_pitch": (0, 0, -125),
+           "servo_hip_pitch": (0, 0, -95), "link_thigh": (85, 0, -40),
+           "servo_knee": (0, 0, -70), "link_shin": (85, 0, 5),
+           "servo_ankle": (0, 0, -45), "foot": (0, 0, -70),
+           "tower": (0, 0, 175), "battery_3s_mock": (-95, 0, 175),
+           "imu_carrier": (0, 0, 195), "imu_bno055_mock": (0, 0, 220),
+           "gopro_base": (0, 0, 245), "camera_gopro_max_mock": (0, 0, 290)}
 
 # (file, placed base-labels, {incoming base-label: offset mm},
 #  (lookat y, lookat z, distance, azimuth, elevation), name-prefix filter)
@@ -67,23 +70,30 @@ FIGS = [
      {"yoke_pitch": (0, 0, 50)}, (0.028, 0.215, 0.28, 130, -8), L),
     ("step05_yoke_roll", ["yoke_pitch", "servo_hip_pitch", "link_thigh"],
      {"yoke_roll": (0, 0, 50)}, (0.028, 0.235, 0.28, 130, -8), L),
-    ("step06_roll_servos", ["pelvis"], {"servo_hip_roll": (0, 0, -70)},
-     (0.0, 0.245, 0.38, 140, -22), None),
-    ("step07_legs_to_pelvis", ["pelvis", "servo_hip_roll"],
-     {b: (0, 0, -55) for b in LEG}, (0.0, 0.16, 0.62, 140, -10), None),
-    ("step08_tower", ["pelvis", "servo_hip_roll"] + LEG,
-     {"tower": (0, 0, 85)}, (0.0, 0.28, 0.50, 140, -8), None),
-    ("step09_battery", ["pelvis", "servo_hip_roll", "tower"] + LEG,
-     {"battery_3s_mock": (-85, 0, 0)}, (0.0, 0.30, 0.44, 320, -8), None),
-    ("step10_gopro_base", ["pelvis", "servo_hip_roll", "tower",
-                           "battery_3s_mock"] + LEG,
+    # v3yaw pelvis sequence: yaw servos seat UP under the deck, carriers bolt UP
+    # onto the yaw horns, roll servos slide UP into the carrier U-slots.
+    ("step06_yaw_servos", ["pelvis"], {"servo_hip_yaw": (0, 0, -55)},
+     (0.0, 0.30, 0.40, 140, 12), None),
+    ("step06a_carriers", ["pelvis", "servo_hip_yaw"],
+     {"yaw_carrier": (0, 0, -70)}, (0.0, 0.275, 0.44, 140, 4), None),
+    ("step06b_roll_servos", ["pelvis"] + YAW,
+     {"servo_hip_roll": (0, 0, -70)}, (0.0, 0.255, 0.46, 140, -12), None),
+    ("step07_legs_to_pelvis", ["pelvis"] + YAW + ["servo_hip_roll"],
+     {b: (0, 0, -55) for b in LEG}, (0.0, 0.19, 0.66, 140, -10), None),
+    ("step08_tower", ["pelvis"] + YAW + ["servo_hip_roll"] + LEG,
+     {"tower": (0, 0, 85)}, (0.0, 0.32, 0.54, 140, -8), None),
+    ("step09_battery", ["pelvis"] + YAW + ["servo_hip_roll", "tower"] + LEG,
+     {"battery_3s_mock": (-85, 0, 0)}, (0.0, 0.34, 0.48, 320, -8), None),
+    ("step10_gopro_base",
+     ["pelvis"] + YAW + ["servo_hip_roll", "tower", "battery_3s_mock"] + LEG,
      {"imu_carrier": (0, 0, 40), "imu_bno055_mock": (0, 0, 55),
-      "gopro_base": (0, 0, 75)}, (0.0, 0.325, 0.34, 140, -6), None),
-    ("step11_camera", ["pelvis", "servo_hip_roll", "tower", "battery_3s_mock",
-                       "imu_carrier", "imu_bno055_mock", "gopro_base"] + LEG,
-     {"camera_gopro_max_mock": (0, 0, 75)}, (0.0, 0.345, 0.58, 140, -6), None),
+      "gopro_base": (0, 0, 75)}, (0.0, 0.365, 0.36, 140, -6), None),
+    ("step11_camera",
+     ["pelvis"] + YAW + ["servo_hip_roll", "tower", "battery_3s_mock",
+                         "imu_carrier", "imu_bno055_mock", "gopro_base"] + LEG,
+     {"camera_gopro_max_mock": (0, 0, 75)}, (0.0, 0.385, 0.60, 140, -6), None),
     ("step12_complete", ALL + ["servo_hip_roll"], {},
-     (0.0, 0.20, 0.78, 155, -8), None),
+     (0.0, 0.22, 0.82, 155, -8), None),
 ]
 
 

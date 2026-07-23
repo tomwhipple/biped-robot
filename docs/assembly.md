@@ -22,16 +22,26 @@ Companion docs: [print list](../cad/PRINT_LIST.md) ·
 > Everything else in this guide is final geometry. The joint steps are
 > identical either way; only the yoke part changes.
 
+> 🆕 **Hip yaw added (v3yaw, 2026-07-23).** The robot now has **10 servos**:
+> a tenth axis per hip — a **hip-yaw** servo that lies flat under the deck with
+> a printed **`yaw_carrier`** bolted to its horn, and the whole hip-roll bay
+> (unchanged geometry) now hangs off the carrier instead of the pelvis. The
+> `pelvis` lost its bays and gained two flat yaw-servo seats. Everything above
+> the hip rises **+41 mm** (`YAW_STACK_DROP`). See the
+> [hip-yaw study](hip-yaw-study.md#6-as-designed-cad-2026-07-23) and the new
+> **§7** below; the leg build (steps 1–6) is untouched.
+
 ---
 
 ## 0. What you need
 
-**Printed parts** (14 prints, 8 unique — PETG, no supports; orientations and
+**Printed parts** (16 prints, 9 unique — PETG, no supports; orientations and
 settings in the [print list](../cad/PRINT_LIST.md)):
 
 | Part | Qty | Note |
 |---|---|---|
-| `pelvis` | 1 | print deck-top down |
+| `pelvis` | 1 | v3yaw: deck + two flat yaw-servo seats (no bays); print deck-top down |
+| `yaw_carrier` | 2 | bolts to the yaw-servo horn, carries the hip-roll bay; horn-plate face on bed, bay walls rise |
 | `yoke_roll` | 2 | flange on bed |
 | `yoke_pitch` | 2 | ⚠️ on hold (hip redesign) |
 | `leg_link` | 4 | 2 thighs (⚠️ hold) + 2 shins — **slice `leg_link_print.stl`** and peel the 3 break-away fins after printing |
@@ -40,8 +50,8 @@ settings in the [print list](../cad/PRINT_LIST.md)):
 | `gopro_base` | 1 | prongs up; the sacrificial crash fuse |
 | `imu_carrier` | 1 | flat, bosses up; sandwiches under the gopro_base |
 
-**Everything else:** 8× ST3215 servos (12 V version) with their horns, idler
-discs and included screws/leads · Waveshare Servo Driver with ESP32 · BNO055
+**Everything else:** 10× ST3215 servos (12 V version — 8 leg + 2 hip-yaw) with
+their horns, idler discs and included screws/leads · Waveshare Servo Driver with ESP32 · BNO055
 IMU breakout · 3S 850 XT30 pack · XT30 pigtail + inline switch · 20 mm
 hook-loop belt ~250 mm + pull ribbon · 2 self-adhesive rubber sole pads
 (~0.5 mm, trimmed to ~90×46) · zip ties. Full list with links:
@@ -51,10 +61,10 @@ hook-loop belt ~250 mm + pull ribbon · 2 self-adhesive rubber sole pads
 
 | Fastener | Qty | Where |
 |---|---|---|
-| M3×6 button/socket head | 32 | horn pads, 4 per joint × 8 joints |
+| M3×6 button/socket head | 40 | horn pads, 4 per joint × 8 leg joints (32) + 4 per `yaw_carrier` onto the yaw horn (8) |
 | M3×8 + thin washer | 24 | idler pads at hip-pitch, knee, ankle (4 × 6) |
 | M3×10 | 16 | yoke_roll idler arms (4×2) + hip flange bolts into inserts (4×2) |
-| M3×8 self-tapping | 52 | case grips: 6 per leg_link (24), 8 per pelvis bay (16), 4 per foot (8) |
+| M3×8 self-tapping | 56 | case grips: 6 per leg_link (24), 8 per carrier bay (16), 4 per foot (8) + 4 per yaw servo down through the deck into the case idler rows (8) |
 | M3 heat-set insert Ø4.6 | 12 | 4 per yoke_pitch flange (8) + 4 pelvis deck (tower) |
 | M2.5×8 self-tapping | 8 | driver board onto tower standoffs (4) + BNO055 onto the imu_carrier bosses (4) |
 | M3×12 self-tapping | 4 | gopro_base + imu_carrier stack into the tower-top bosses |
@@ -87,9 +97,14 @@ this happens before any plastic goes on:
    | 2 hip pitch | 6 hip pitch |
    | 3 knee | 7 knee |
    | 4 ankle | 8 ankle |
+   | 9 hip yaw | 10 hip yaw |
 
-   This order matches the sim's action vector (`sim/walker_env.py`) — no
-   permutation table in firmware.
+   The 1–8 order matches the current 8-DOF sim action vector
+   (`sim/walker_env.py`) — no permutation table in firmware. **Hip yaw (9/10)
+   is the new v3yaw axis**; append it in whatever slot the v3yaw sim
+   (`bimo_biped_v3yaw.xml`) action vector uses when that lands, and keep the
+   firmware map matching it. The 9/10 IDs above are a convenient default (yaw
+   servos wire last on each bus), not yet pinned to a sim slot.
 3. Center every servo (**position 2048** / "Set Middle Position").
 4. Bolt the metal horn onto each servo **at center** with its spline screw.
    Every joint is later assembled at this mechanical zero = the CAD neutral
@@ -159,20 +174,52 @@ servo), both legs.
    (that crossing is the hip universal joint): 4× M3×10 into the heat-set
    inserts.
 
-## 7. Pelvis — hip-roll servos slide UP into the bays
+## 7. Pelvis — the hip-yaw stack (v3yaw)
 
-![Hip-roll servos rising into the pelvis bays](assembly/step06_roll_servos.png)
+Everything below builds **upward** under the deck: yaw servo first, then its
+carrier, then the roll servo into the carrier. Do both hips (×2). Working with
+the pelvis **upside down** (deck top on the bench) makes every insertion a
+downward drop and every screw run vertical.
 
-The bay bore is a downward-open U-slot: slide each hip-roll servo **up** into
-its bay — **output end down, horn facing forward, cable up through the deck
-cutout**. 8× M3×8 self-tappers per bay, through the bay walls into the case
+### 7a. Yaw servos seat against the deck underside
+
+![Yaw servos pressing up under the deck seats](assembly/step06_yaw_servos.png)
+
+Each yaw servo lies **flat**, output axis **vertical, horn DOWN**, its **case
+length fore-aft** (output/near end forward at +10, cable end aft over the deck
+rear edge). Press it **up** into its collar on the deck underside — the collar
+wraps the top of the case and keys it against the yaw reaction torque. The
+idler-side case face lands flat on the deck. Fix the stator with **4× M3×8
+self-tappers down through the deck** (and the local rear tab) into the
+idler-side case-hole rows. Route the yaw cable out the rear end face.
+
+### 7b. Carriers onto the yaw horns
+
+![yaw_carrier bolting up onto the yaw horn](assembly/step06a_carriers.png)
+
+With each yaw servo at **mechanical zero** (centered horn), offer the
+`yaw_carrier` up so its horn plate mates the horn disc and its roll bay opens
+downward. **4× M3×6 into the yaw horn** (Ø14 bolt circle) — horn-only, no idler
+side at this axis (see the [study](hip-yaw-study.md#6-as-designed-cad-2026-07-23)
+for why). Confirm the carrier is square before torquing — a clocked carrier
+becomes a permanent yaw offset.
+
+### 7c. Hip-roll servos slide UP into the carrier bays
+
+![Hip-roll servos rising into the carrier bays](assembly/step06b_roll_servos.png)
+
+The carrier's roll bay is the **same downward-open U-slot** as the old pelvis
+bay, just relocated: slide each hip-roll servo **up** into it — **output end
+down, horn facing forward, cable up through the rear slot in the carrier
+ceiling**. 8× M3×8 self-tappers per bay, through the bay walls into the case
 holes.
 
-## 8. Legs onto the pelvis
+## 8. Legs onto the carriers
 
 ![Leg subassemblies rising onto the roll servos](assembly/step07_legs_to_pelvis.png)
 
-Offer each completed leg up to its roll servo, clevis over the servo:
+Offer each completed leg up to its roll servo (now carried under the pelvis on
+the yaw stack), clevis over the servo:
 
 - **Front**: yoke_roll horn arm to the roll-servo horn, 4× M3×6 — at
   mechanical zero, leg hanging straight.
@@ -290,6 +337,7 @@ the extension leads from the order list.
 
    | Joint | Range | Sign gotcha |
    |---|---|---|
+   | hip yaw | ±45° | v3yaw; turn strides only need ±20–30° |
    | hip roll | ±25° | |
    | hip pitch | −60/+60° (→ −110/+60° after redesign) | **flexion is NEGATIVE** |
    | knee | −95/+5° | deep half is the get-up range |
@@ -299,6 +347,6 @@ the extension leads from the order list.
 
 ![Completed robot](assembly/step12_complete.png)
 
-*Assembled: ~33 cm to the tower top, ~0.89 kg bare / ~1.05 kg with the
+*Assembled (v3yaw): ~37 cm to the tower top, ~1.05 kg bare / ~1.2 kg with the
 camera. Cross-check any step against the fly-in animation:
 [`assembly_flyin.mov`](../cad/renders/assembly_flyin.mov).*

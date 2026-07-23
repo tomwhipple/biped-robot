@@ -15,7 +15,10 @@ import check_assembly as CA
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "step")
 
-DECK_TOP_Z = D.DECK_BOT_Z + D.DECK_T          # pelvis/tower local z=0 lives here
+# v3yaw stack: the yaw servo + carrier are inserted BETWEEN the hip-roll axis
+# and the deck, so everything from the deck up rises by YAW_STACK_DROP. The deck
+# top (pelvis/tower local z=0) sits ROLL_BELOW_DECK_YAW above the roll axis.
+DECK_TOP_Z = D.HIP_ROLL_Z + D.ROLL_BELOW_DECK_YAW   # 327.77 world = deck top
 
 COL_PRINT = Color(0.82, 0.84, 0.87)
 COL_SERVO = Color(0.25, 0.26, 0.30)
@@ -60,6 +63,13 @@ def leg(y, tag):
     mirrors; every pitch horn faces +Y)."""
     at = lambda z: Pos(0, y, z)
     return Compound(label=f"leg_{tag}", children=[
+        # v3yaw hip-yaw stack: the yaw servo lies flat under the deck (horn DOWN,
+        # vertical output axis) and the carrier bolts to its horn and holds the
+        # roll bay. Yaw horn face == carrier local z=0 at HIP_YAW_Z; the roll
+        # servo (below) rides in the carrier bay at HIP_ROLL_Z, unchanged.
+        piece("servo_hip_yaw", COL_SERVO,
+              Pos(0, y, D.HIP_YAW_Z + D.SV_HORN_FACE) * CA.servo_mock_z()),
+        piece("yaw_carrier", COL_PRINT, Pos(0, y, D.HIP_YAW_Z) * parts.yaw_carrier()),
         piece("servo_hip_roll", COL_SERVO, at(D.HIP_ROLL_Z) * CA.servo_mock_x()),
         piece("yoke_roll", COL_PRINT, at(D.HIP_ROLL_Z) * parts.yoke_roll()),
         piece("yoke_pitch", COL_PRINT, at(D.HIP_PITCH_Z) * parts.yoke_pitch()),
@@ -96,8 +106,8 @@ path = os.path.join(OUT, "assembly.step")
 export_step(robot, path)
 bb = robot.bounding_box()
 print(f"assembly -> {path}")
-cam_top = (D.TOP_Z + D.IMU_CARRIER_T + D.GP_BASE_T + D.GP_HOLE_H + 6
+cam_top = (D.TOP_Z_YAW + D.IMU_CARRIER_T + D.GP_BASE_T + D.GP_HOLE_H + 6
            + D.CAM_BODY[2])
 print(f"bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}"
       f"  z {bb.min.Z:.1f}..{bb.max.Z:.1f}  "
-      f"(expect ~0..{D.TOP_Z:.0f} structure, ~{cam_top:.0f} incl. camera)")
+      f"(expect ~0..{D.TOP_Z_YAW:.0f} structure, ~{cam_top:.0f} incl. camera)")

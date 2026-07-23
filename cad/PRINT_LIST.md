@@ -13,7 +13,10 @@
 > — the roll servo, yokes, leg_link, shin, foot are all UNCHANGED and are NOT
 > reprinted). Obsolete: **the old `pelvis` only** (its bays live on the carrier
 > now). BOM adds **2× STS3215** (10 total) and a longer stator-screw set; the
-> tower/deck heat-set pattern is preserved. `check_assembly.py` ALL CLEAR (yaw
+> tower/deck heat-set pattern is preserved. Both parts carry new **wire
+> openings** (design-review fix): a rear wire chase in the `pelvis` for the
+> board→yaw lead and a rear cable channel in `yaw_carrier` for the roll servo /
+> yaw-joint crossing — see `docs/hip-yaw-study.md` §6. `check_assembly.py` ALL CLEAR (yaw
 > 0/±45° sweep + roll ±25° both proven against the carrier; inward-yaw gap
 > between the two carriers 6.2 mm at ±45°), `check_printability.py` clean.
 > Render: `renders/hip_yaw_beforeafter.png`.
