@@ -244,7 +244,10 @@ def main():
             w_feet_air=5.0, w_pitch_rate=0.1,
         )
     if args.xml:
-        env_kw["xml_path"] = args.xml
+        # accept a bare basename (resolved against sim/, where the plants
+        # live) or an explicit path -- night-queue args use basenames
+        env_kw["xml_path"] = (args.xml if os.path.exists(args.xml)
+                              else os.path.join(HERE, "..", args.xml))
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":

@@ -14,6 +14,14 @@ set -uo pipefail
 BASE="$HOME/code/robot-mjx"
 N="$BASE/night"
 exec >> "$N/night.log" 2>&1
+# single-instance guard: an early manual start (user 2026-07-23 "start the
+# simulations now") must not collide with the 22:00 cron firing a second
+# runner over the same queue
+exec 9>"$N/.runner.lock"
+if ! flock -n 9; then
+  echo "=== $(date) night_run: another runner holds the lock; exiting ==="
+  exit 0
+fi
 echo "=== $(date) night_run ==="
 PY="$BASE/.venv/bin/python"
 [[ -x "$PY" ]] || { echo "!!! no venv python at $PY"; exit 1; }
