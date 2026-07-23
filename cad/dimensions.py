@@ -263,24 +263,9 @@ GRIP_TOP_HORN = -3.0    # top edge of horn-side grip plate (below upper axis);
 GRIP_HORN_RELIEF = 10.3 # ...with a circular relief around the O19.6 case boss
 GRIP_TOP_IDLER = -16.0  # idler side must clear the upper yoke arm sweep (R12+4)
 GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
-# The gripped servo's cable/connector exits the case BOTTOM END toward the idler
-# (-Y) side, but the idler grip plate + jog block + idler fork wall that side
-# solid from z-16 down past the case bottom (user report / probe 2026-07-23: a
-# lead routed down the idler side cut 171 mm3 into the plate). Notch the idler
-# side at the cable end for a 3-wire JST lead + plug. Sits BELOW the idler case
-# screw (z-32.75) and far ABOVE the (now through-drilled) lower bolt circle
-# (z-90) and boss, so it weakens neither; over the modelled port x-band (-5..-11).
-LINK_IDLER_NOTCH_X = (-12.5, -4.0)    # x span of the notch (over the ports);
-                                      # narrow (8.5 mm) so the idler fork arm
-                                      # keeps ~19 of its 27 mm width for load
-LINK_IDLER_NOTCH_Z = (-49.0, -37.0)   # z band: starts just BELOW the crowded
-                                      # servo-bottom / jog-block / idler-case-
-                                      # screw cluster (z -33..-36.5) so it cuts
-                                      # no sub-perimeter sliver there, down to
-                                      # near the fork wide/narrow break. Clears
-                                      # the connector plug + lead (which hang
-                                      # below the case bottom -35.11)
-LINK_CABLE_R = 2.0                     # rounded notch corners (no shear on lead)
+# (An idler-side cable-notch constant set lived here 2026-07-23 and was removed
+# the same day -- the sweep analysis showed no ankle-cable interference with the
+# fork, ~10 mm clearance at toes-pointed; see parts.py leg_link note.)
 WEB_GAP = 0.4
 WEB_TOP = -16.0         # clears the upper joint's fork arms folding to 95 deg
 WEB_END = -58.0         # web stops 32 above the lower axis: clears the foot

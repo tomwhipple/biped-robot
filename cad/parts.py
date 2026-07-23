@@ -289,22 +289,14 @@ def leg_link(print_fins=False):
     # 3-pin plug; both the OUT cable (down to the raceway) and the incoming
     # IN cable (up into the port) share it.
     p -= box(web_x0 - 1, web_x1 + 1, -4.5, 4.5, -48, -37)
-    # --- idler-side cable-access notch: the gripped servo's connector faces the
-    # idler side and the idler grip plate / jog block / fork wall it off (see
-    # dimensions.LINK_IDLER_NOTCH_*). Open that wall at the cable end for the
-    # JST lead + plug; rounded corners so the lead doesn't chafe. Clear of the
-    # idler case screw (z-32.75) and the lower bolt circle (z-90).
-    xn0, xn1 = D.LINK_IDLER_NOTCH_X
-    zn0, zn1 = D.LINK_IDLER_NOTCH_Z
-    # rounded-corner slot (cylinders INSET so they only soften the box corners,
-    # never extend the opening -- an over-hanging round left a sub-perimeter
-    # sliver against the jog block, check_printability THIN 2026-07-23)
-    r = D.LINK_CABLE_R
-    p -= box(xn0, xn1, iy0 - 1, -D.SV_TOPFACE + 1, zn0 + r, zn1 - r)
-    p -= box(xn0 + r, xn1 - r, iy0 - 1, -D.SV_TOPFACE + 1, zn0, zn1)
-    for xc in (xn0 + r, xn1 - r):
-        for zc in (zn0 + r, zn1 - r):
-            p -= cyl_y(r, iy0 - 1, -D.SV_TOPFACE + 1, xc, zc)
+    # NOTE (2026-07-23): an idler-side cable "notch" was briefly added here on a
+    # bad assumption (a lead routed DOWN the idler exterior). It was removed --
+    # the gripped servo's lead routes via this web window to the back raceway
+    # (assembly.md), not the idler face, and a sweep analysis of the ANKLE
+    # servo's heel connector through the full ankle ROM (0/+-40, toes-pointed =
+    # +40) shows ~10 mm clearance to this fork, 0 mm3 interference even with an
+    # oversized connector block. No notch needed; don't cut a hole in this
+    # load-bearing fork plate speculatively. See check_assembly ankle-cable block.
     # --- zip-tie holes in the web (servo cable runs down the back); at +-9
     # so the window keeps a >=2 mm ligament to each hole -- the -40 pair
     # straddles the window and captures the cables right at the exit

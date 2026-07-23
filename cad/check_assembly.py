@@ -152,6 +152,18 @@ for ang in (0, 40, -40):
     ok &= check(f"shin link at ankle {ang:+d} vs ankle servo", vol(sl, ankle_sv))
 ok &= check("ankle servo vs foot (contact only)", vol(ft, ankle_sv))
 
+print("== ankle-servo CABLE connector vs shin fork through ankle ROM ==")
+# The lead plugs into the ankle servo's cable-end (the HEEL end face, X=-35.11).
+# As the ankle rotates the foot+servo, that connector sweeps; the concern is it
+# fouling the shin fork's idler plate at toes-pointed (ankle +40, toe down).
+# Mock the connector+plug generously (full case width/height, protruding past
+# the heel face) and require 0 mm3 across the ROM -- there is ~10 mm clearance
+# (design review 2026-07-23; a speculative fork notch was removed after this).
+ankle_conn = Pos(0, 0, ankle_z) * parts.box(-45, -33, -12.36, 12.36, -12.36, 12.36)
+for ang in (0, 40, -40):
+    sl = Pos(0, 0, ankle_z) * Rot(0, ang, 0) * Pos(0, 0, D.LINK_DROP) * parts.leg_link()
+    ok &= check(f"ankle connector vs shin fork at ankle {ang:+d}", vol(sl, ankle_conn))
+
 print("== multi-axis worst cases (issue #4: 1-DOF sweeps miss combined poses) ==")
 # Chain in the KNEE frame: thigh leg_link above (origin = knee axis via its
 # lower joint at -LINK_DROP... we place the thigh link so its LOWER joint sits
