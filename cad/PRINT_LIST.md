@@ -1,8 +1,22 @@
 # Print list — Bimo-like biped
 
-**14 plastic prints (8 unique parts) + 2 TPU foot pads.** Generated from
+**16 plastic prints (9 unique parts) + 2 TPU foot pads.** Generated from
 `cad/parts.py` / `cad/dimensions.py`. Export STLs with
 `../.venv/bin/python parts.py` (writes `cad/stl/*.stl`).
+
+> **v3yaw (2026-07-23):** hip-yaw added — one STS3215 per leg, flat under the
+> deck, vertical axis, horn down (see `docs/hip-yaw-study.md`). Two changes to
+> the print queue: **`pelvis` is redesigned and must be reprinted** (the hanging
+> roll bays are gone; it now carries two flat yaw-servo seats + a rigid,
+> deck-bolted stator mount), and **`yaw_carrier` ×2 is a new part** that takes
+> over the hip-roll bay geometry (same `BAY_BORE`/`BAY_WALL_DROP`/cheeks/U-slot
+> — the roll servo, yokes, leg_link, shin, foot are all UNCHANGED and are NOT
+> reprinted). Obsolete: **the old `pelvis` only** (its bays live on the carrier
+> now). BOM adds **2× STS3215** (10 total) and a longer stator-screw set; the
+> tower/deck heat-set pattern is preserved. `check_assembly.py` ALL CLEAR (yaw
+> 0/±45° sweep + roll ±25° both proven against the carrier; inward-yaw gap
+> between the two carriers 6.2 mm at ±45°), `check_printability.py` clean.
+> Render: `renders/hip_yaw_beforeafter.png`.
 
 ## Global print settings
 
@@ -36,7 +50,8 @@ Two things to watch when you print PETG:
 
 | Part | Copies | Material | Infill | Orientation | Status |
 |---|---|---|---|---|---|
-| `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ✅ ready (bosses removed — see audit) — *secondary* hip-angle check |
+| `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ♻️ **redesigned for v3yaw** (roll bays → two flat yaw-servo seats + deck-bolted stator mount; deck/tower pattern kept; grows ~15 mm rearward for the case overhang → bbox 61 × 104 × 9). ~32 g |
+| `yaw_carrier` | 2 | PETG | 30–40 % | horn-plate face on bed, bay walls rise | 🆕 **new part (v3yaw)** — bolts to the yaw horn, carries the (unchanged) hip-roll bay. Prints exactly like the old pelvis bay (walls vertical, U-slot upward-open, teardropped case screws). ~17.5 g each |
 | `yoke_roll` | 2 | PETG | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
 | `yoke_pitch` | 2 | PETG | 30–40 % | flange face on bed, arms up | ♻️ **revised for hip −110°** (idler arm → hub + riser; HOLD lifted) |
 | `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ♻️ **revised v3** (2026-07-16 print review, two passes: 9×11 **cable window** through the web — before it every joint-crossing cable pierced the plastic — zip-tie holes at ±9 straddling it; idler boss OD tapered 51°; and the fork slabs are now **solid to the web face** wherever the foot sweep allows (mapped at ankle ±45°: horn side fully; idler side except the corner-sweep lobe at z −68.4…−55.6, whose 16 mm gap is broken up by **two island posts** into 2/2.5/5.5 mm bridge hops). **There are no fins at all** — the only break-away pieces are two 4 mm pad stubs at the fork tips plus those two posts, all verified as SEPARATE first-layer islands (≥1 mm clear, attached to nothing — they lift off with a fingernail). Slice preview: `renders/leg_link_print_slice.png`. *The window is functional: reprint v1/v2 links when convenient* |
@@ -152,8 +167,9 @@ roll-only, shins) is unaffected by the hip-angle work and safe to print now.
 
 | Print now | Copies | Hold for hip redesign | Copies |
 |---|---|---|---|
-| `pelvis` | 1 | `yoke_pitch` | 2 |
-| `yoke_roll` | 2 | `leg_link` (thighs) | 2 |
+| `pelvis` (v3yaw reprint) | 1 | `yoke_pitch` | 2 |
+| `yaw_carrier` (v3yaw new) | 2 | `leg_link` (thighs) | 2 |
+| `yoke_roll` | 2 | | |
 | `leg_link` (shins) | 2 | | |
 | `foot` | 2 | | |
 | `tower` | 1 | | |

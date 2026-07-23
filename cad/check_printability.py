@@ -48,6 +48,7 @@ IDENT = np.eye(3)
 ORIENT = {
     # name: (rotation, note)  -- keep in sync with parts.PARTS
     "pelvis": (RX180, "upside down: deck top on bed"),
+    "yaw_carrier": (RX180, "horn-plate face on bed, bay walls rise"),
     "yoke_roll": (IDENT, "flange face on bed, arms up"),
     "yoke_pitch": (RX180, "flange face on bed (modeled flipped)"),
     "leg_link": (RY_XUP, "on its back: web face on bed"),

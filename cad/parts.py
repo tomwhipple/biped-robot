@@ -312,51 +312,105 @@ def leg_link(print_fins=False):
     return p
 
 
+# ---------------------------------------------------------------- yaw_carrier
+def yaw_carrier():
+    """Hip-yaw carrier (v3yaw, qty 2). Bolts to the yaw-servo HORN (below the
+    deck) and carries the hip-roll bay that used to hang off the pelvis. Local
+    frame: yaw axis == Z through origin, z=0 at the horn mounting face (top),
+    +X = robot forward = roll-servo output side, +Z toward the servo. The roll
+    bay hangs below (roll axis at CARRIER_ROLL_AXIS); the roll servo slides UP
+    into it exactly as it did into the old pelvis bay (output end down, horn
+    forward, 8x M3 through the walls) -- BAY_BORE / BAY_WALL_DROP / cheeks /
+    U-slot are unchanged, just relocated. Print: like the old pelvis bay --
+    horn-plate face on the bed, walls rise (RX180), U-slot prints upward-open.
+    """
+    zc = D.CARRIER_ROLL_CEIL                         # -3.0 bay ceiling/plate bot
+    za = D.CARRIER_ROLL_AXIS                         # -38.11 roll axis
+    zw = zc - D.BAY_WALL_DROP                        # -44.0 wall bottoms
+    cy0 = 12.36 + D.BAY_CHEEK_GAP                    # cheek inner face offset
+    hw = cy0 + D.WALL                                # bay half width in Y, 15.26
+    # horn mount plate (== bay ceiling): spans the bay footprint, z [zc, 0]
+    p = box(-19.95, 19.95, -hw, hw, zc, 0)
+    # roll bay walls (identical to the old pelvis bay, centered at y=0)
+    p += box(D.SV_TOPFACE, 19.95, -hw, hw, zw, zc)          # front (horn +X)
+    p += box(-19.95, -D.SV_TOPFACE, -hw, hw, zw, zc)        # rear (idler -X)
+    for s in (1, -1):
+        p += box(-D.SV_TOPFACE, D.SV_TOPFACE, s * cy0, s * (cy0 + D.WALL),
+                 zw, zc)                                     # cheeks
+    # axis bore: downward-open U-slot in both walls (servo slides up)
+    p -= cyl_x(D.BAY_BORE / 2, -21, 21, 0, za)
+    p -= box(-21, 21, -D.BAY_BORE / 2, D.BAY_BORE / 2, zw - 1, za)
+    # roll-servo retention screws (teardrop peak -z, printed ceiling-on-bed)
+    for zrow in D.CASE_HOLES_TOP:                    # front wall (horn face)
+        for s in (1, -1):
+            p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1, 21,
+                            s * D.CASE_HOLE_LAT, za + zrow, roll=180)
+    for zrow in D.CASE_HOLES_BOT:                    # rear wall (idler face)
+        for s in (1, -1):
+            p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, -21, -D.SV_TOPFACE + 1,
+                            s * D.CASE_HOLE_LAT, za + zrow, roll=180)
+    # yaw-horn bolt circle (4x M3 into the horn disc) + centre-screw relief.
+    # Bores are VERTICAL in the print (part flipped, Z stays Z) -> plain holes.
+    r = D.BCD / 2
+    for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
+        p -= cyl_z(D.PAD_HOLE / 2, zc - 1, 1, dx, dz)
+    p -= cyl_z(D.HORN_CENTER_RELIEF_D / 2, zc - 1, 1, 0, 0)
+    # roll-servo cable exit: a slot at the REAR of the ceiling (the roll servo's
+    # connector is on its top/cable end). Kept behind the rearmost horn bolt
+    # (x=-7, hole edge -8.7) so a >=1.8 mm ligament stays to it.
+    p -= box(-17.5, -10.5, -7, 7, zc - 1, 1)
+    return p
+
+
 # ---------------------------------------------------------------- pelvis
 def pelvis():
-    """Deck + two hanging bays for the hip-roll servos. Local frame: deck top
-    at z=0, robot forward = +X, bays at y = +/-28. Roll axes at z = -45.11.
-    The roll servos slide UP into the bays (output end down, horn forward,
-    cables exit through the deck cutouts) and take 8x M3 each through the walls.
-    Print: upside down (deck top face on the bed), bays rise as walls.
+    """Deck + two flat yaw-servo seats (v3yaw). Local frame: deck top at z=0,
+    robot forward = +X, legs at y = +/-28. The yaw servos lie FLAT under the
+    deck (length along X, vertical output axis, horn down, idler-side case face
+    against the deck underside); a collar wraps the top of each case (keys its
+    reaction torque, locates it) and 4x M3 pass DOWN through the deck into the
+    idler-side case holes to fix the stator. The hanging roll bays are GONE --
+    they moved onto `yaw_carrier`. Deck footprint (DECK_L x DECK_W), the tower
+    heat-set pattern (TOWER_FOOT_X/Y) and the centre wire window are preserved;
+    a local rear tab under each seat carries the -32.75 stator-screw row (the
+    case cable end overhangs the deck rear edge). Print: upside down (deck top
+    face on the bed), collars rise as walls -- like the old pelvis.
     """
-    zd = -D.DECK_T
-    zw = zd - D.BAY_WALL_DROP                       # wall bottoms, -46
-    za = zd - D.SV_AXIS_FROM_REAR                   # roll axis height, -40.11
+    zd = -D.DECK_T                                  # -5 deck bottom
+    zseat = zd - D.YAW_SEAT_DROP                    # -9 collar bottom
     p = box(-D.DECK_W / 2, D.DECK_W / 2, -D.DECK_L / 2, D.DECK_L / 2, zd, 0)
+    cx0 = D.YAW_CASE_X_REAR - D.YAW_SEAT_GAP        # -35.41 collar rear inner
+    cx1 = D.YAW_CASE_X_FRONT + D.YAW_SEAT_GAP       # +10.41 collar front inner
+    cyw = 12.36 + D.YAW_SEAT_GAP                     # 12.66 case half width + fit
+    w = D.YAW_SEAT_WALL
     for by in (D.HIP_SEP / 2, -D.HIP_SEP / 2):
-        cy0 = 12.36 + D.BAY_CHEEK_GAP               # cheek inner face offset
-        # front (horn-side) / rear (idler-side) walls on the case faces
-        p += box(D.SV_TOPFACE, 19.95, by - cy0 - D.WALL, by + cy0 + D.WALL, zw, zd)
-        p += box(-19.95, -D.SV_TOPFACE, by - cy0 - D.WALL, by + cy0 + D.WALL, zw, zd)
-        # cheek walls (across the servo width)
+        # rear local deck tab: gives the -32.75 stator screws deck material to
+        # thread into (the case cable end sits behind the deck rear edge -23)
+        p += box(cx0 - w, -D.DECK_W / 2, by - cyw - w, by + cyw + w, zd, 0)
+        # yaw-case collar: front / rear walls (X-normal) + side walls (Y-normal)
+        p += box(cx0 - w, cx0, by - cyw - w, by + cyw + w, zseat, zd)   # rear
+        p += box(cx1, cx1 + w, by - cyw - w, by + cyw + w, zseat, zd)   # front
         for s in (1, -1):
-            p += box(-D.SV_TOPFACE, D.SV_TOPFACE, by + s * cy0,
-                     by + s * (cy0 + D.WALL), zw, zd)
-        # axis bore: downward-open U-slot in both walls
-        p -= cyl_x(D.BAY_BORE / 2, -21, 21, by, za)
-        p -= box(-21, 21, by - D.BAY_BORE / 2, by + D.BAY_BORE / 2, zw - 1, za)
-        # servo retention screws (M3 through wall into case holes); teardropped
-        # with the peak -z: printed deck-top-down these bores are horizontal
-        for zrow in D.CASE_HOLES_TOP:               # front wall (horn face)
+            # side walls run forward to YAW_FOOT_REACH so the +x tower feet land
+            # on collar material (the -x feet already sit over the case span)
+            p += box(cx0, D.YAW_FOOT_REACH, by + s * cyw, by + s * (cyw + w),
+                     zseat, zd)
+        # stator screws: 4x M3 DOWN through the deck (+ rear tab) into the
+        # idler-side case face rows (8.30 and 32.75 behind the axis). Vertical.
+        for xrow in D.YAW_CASE_HOLES_IDLER:
             for s in (1, -1):
-                p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1, 21,
-                                by + s * D.CASE_HOLE_LAT, za + zrow, roll=180)
-        for zrow in D.CASE_HOLES_BOT:               # rear wall (idler face)
-            for s in (1, -1):
-                p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, -21, -D.SV_TOPFACE + 1,
-                                by + s * D.CASE_HOLE_LAT, za + zrow, roll=180)
-        # deck cutout over the bay: servo cable connectors are on the top end
-        p -= box(-11, 11, by - 8, by + 8, zd - 1, 1)
-    # tower mounting: heat-set pilots straight into the deck (NO raised bosses:
-    # printed deck-top-down they held the entire first layer 2 mm off the bed
-    # -- check_printability ISLAND -- and they overlapped the tower feet tabs).
-    # Thread depth = 5 mm deck + cheek-wall material below (feet land over the
-    # cheeks), comfortably > the 6 mm insert.
+                p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zd - 1, 1,
+                           -xrow, by + s * D.CASE_HOLE_LAT)
+        # cable clearance at the rear case end (yaw cable exits the rear face)
+        p -= box(cx0 - w - 1, cx0 + 2, by - 7, by + 7, zseat - 1, zd + 0.01)
+    # tower mounting: heat-set pilots straight down through the deck into the
+    # collar side-wall material below (feet land at |y|=42 over the side walls).
+    # No raised bosses (they held the first layer off the bed -- audit
+    # 2026-07-15). Thread depth = 5 mm deck + 4 mm collar wall = 9 mm > insert.
     for sx in (D.TOWER_FOOT_X, -D.TOWER_FOOT_X):
         for sy in (D.TOWER_FOOT_Y, -D.TOWER_FOOT_Y):
             p -= cyl_z(D.HEATSET_D / 2, -D.HEATSET_L, 0.01, sx, sy)
-    # center lightening / wire window
+    # center lightening / wire riser window (leg + yaw cables rise to the tower)
     p -= box(-11, 11, -12, 12, zd - 1, 1)
     return p
 
@@ -578,7 +632,8 @@ def imu_carrier():
 # ---------------------------------------------------------------- build all
 PARTS = [
     # name, builder, qty, print orientation note
-    ("pelvis", pelvis, 1, "upside down: deck top on bed, bay walls rise"),
+    ("pelvis", pelvis, 1, "upside down: deck top on bed, collars rise"),
+    ("yaw_carrier", yaw_carrier, 2, "horn-plate face on bed, bay walls rise"),
     ("yoke_roll", yoke_roll, 2, "flange face on bed, arms up"),
     ("yoke_pitch", yoke_pitch, 2, "flange face on bed, arms up"),
     ("leg_link", leg_link, 4, "on its back: web face on bed "
@@ -617,31 +672,38 @@ def main():
     # lives in the wiring/misc bucket, not here (issue #2).
     # sole pads: 2x 106 x 46 cut from 1/16" self-adhesive silicone sheet
     # (B0FJ8TBMQK); ~9.8 g each
-    servos, batt, board, fasteners, tpu = (8 * D.SERVO_MASS, D.BATT_PACK_MASS,
-                                           20.0, 47.0, 19.6)
+    servos, batt, board, fasteners, tpu = (10 * D.SERVO_MASS, D.BATT_PACK_MASS,
+                                           20.0, 55.0, 19.6)   # v3yaw: 10 servos
     total = print_mass + servos + batt + board + fasteners + tpu
-    print(f"\nprinted plastic ~{print_mass:.0f} g   servos {servos:.0f} g   "
+    print(f"\nprinted plastic ~{print_mass:.0f} g   servos {servos:.0f} g (10)   "
           f"battery {batt:.0f} g   board {board:.0f} g   fasteners {fasteners:.0f} g"
           f"   TPU pads {tpu:.0f} g")
     print(f"TOTAL ROBOT ~{total:.0f} g   (+{D.CAM_MASS:.0f} g GoPro MAX = "
-          f"{total + D.CAM_MASS:.0f} g)   (sim model: 930 g)")
+          f"{total + D.CAM_MASS:.0f} g)")
     print(f"\nheights: ankle {D.ANKLE_Z:.1f}  knee {D.KNEE_Z:.1f}  "
           f"hip-pitch {D.HIP_PITCH_Z:.1f}  hip-roll {D.HIP_ROLL_Z:.1f}  "
+          f"hip-yaw {D.HIP_YAW_Z:.1f}  deck-bot(yaw) {D.DECK_BOT_Z_YAW:.1f}  "
+          f"top(yaw) {D.TOP_Z_YAW:.1f} mm  "
           f"torso-center {D.TORSO_CENTER_Z:.1f}  top {D.TOP_Z:.1f} mm")
 
     # segment mass rollup for the sim update
     m = {n: r[4] for n, r in ((row[0], row) for row in rows)}
+    # v3yaw: the 2 YAW servos sit in the pelvis (torso); each carrier + its ROLL
+    # servo hang on the leg (a new hip-yaw segment above the roll link).
     seg = {
         "torso": m["pelvis"] + m["tower"] + m["gopro_base"]
                  + 2 * D.SERVO_MASS + batt + board + 27,
+        "yaw carrier": m["yaw_carrier"] + D.SERVO_MASS + 5,
         "hip(roll link)": m["yoke_roll"] + m["yoke_pitch"] + 5,
         "thigh": m["leg_link"] + D.SERVO_MASS + 4,
         "shin": m["leg_link"] + D.SERVO_MASS + 4,
         "foot": m["foot"] + D.SERVO_MASS + tpu / 2 + 4,
     }
-    print("\nsegment masses for sim v2 (g):  [camera +154 g on torso when mounted]")
+    print("\nsegment masses for sim v3yaw (g):  [camera +154 g on torso mounted]")
     for k, v in seg.items():
-        print(f"  {k:16s} {v:6.1f}")
+        print(f"  {k:16s} {v:6.1f}  (x2 legs)" if k != "torso" else
+              f"  {k:16s} {v:6.1f}")
+    print(f"  yaw stack drop {D.YAW_STACK_DROP:.1f} mm  (study estimated ~28)")
 
     # standing CG estimate (approximate segment CG heights, mm above ground)
     cam_z = D.TOP_Z + D.GP_BASE_T + D.GP_HOLE_H + 6 + D.CAM_BODY[2] / 2  # ~373

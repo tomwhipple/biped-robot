@@ -137,6 +137,80 @@ TOWER_FOOT_Y = 42.0     # lands over the bay cheek walls: heat-set pilots run
                         # overlapped the tower feet tabs)
 
 # ----------------------------------------------------------------------------
+# HIP YAW (v3yaw variant) -- one STS3215 per leg, lying FLAT under the deck
+# with its output axis VERTICAL and the horn pointing DOWN. A printed
+# `yaw_carrier` bolts to the horn and carries the hip-roll bay that used to
+# hang off the pelvis. The roll-bay geometry is UNCHANGED (same BAY_BORE,
+# BAY_WALL_DROP, BAY_CHEEK_GAP, cheek walls, U-slot, CASE_HOLES retention) --
+# it just moves from `pelvis` onto `yaw_carrier`.  See docs/hip-yaw-study.md.
+#
+# Servo orientation: case LENGTH along X (fore-aft), width (24.72) along Y,
+# case thickness (34.70) along the vertical output axis.  Length-along-Y also
+# fits (the two 45.22 servos leave 56-45.22 = 10.8 mm between them at HIP_SEP),
+# but it crowds the 104 mm deck ends and puts the cable ends across the
+# centre; length-along-X keeps the narrow 24.72 face across Y (clears the other
+# leg easily) and routes both cables straight out the rear.  Output (near) end
+# forward at +SV_AXIS_FROM_OUT_END; cable (far) end rearward.  Vertical output
+# axis at each leg centre (x=0, y=+/-HIP_SEP/2).
+#
+# Vertical placement (pelvis frame: deck top = 0, deck bottom = -DECK_T): the
+# idler-side case face is pressed flat to the deck underside and the case is
+# bolted to the deck THROUGH that face (the idler-side hole rows), so the deck
+# is the yaw stator bracket.  The horn face therefore hangs SV_GRIP_SPAN below.
+YAW_IDLER_FACE_Z = -DECK_T                          # -5.00  case idler-side face
+YAW_IDLER_DISC_Z = YAW_IDLER_FACE_Z - 0.55          # -5.55  idler disc (0.55 in)
+YAW_HORN_FACE_Z = YAW_IDLER_DISC_Z - SV_GRIP_SPAN   # -42.80 horn mounting face
+YAW_CASE_BOT_Z = YAW_IDLER_FACE_Z - SV_CASE_T       # -39.70 horn-side case face
+YAW_CASE_X_FRONT = SV_AXIS_FROM_OUT_END             # +10.11 output end (front)
+YAW_CASE_X_REAR = -SV_AXIS_FROM_REAR                # -35.11 cable end (rear)
+
+# GRIP DECISION -- HORN-ONLY (single-sided).  Bolting the stator to the deck
+# uses the idler-side case face, which is the same face the carrier would need
+# to reach to grip the idler disc, so the two are mutually exclusive at this
+# axis.  We take the rigid deck-bolted stator (4x M3 into the idler-side rows)
+# and drive the carrier off the horn alone -- the Open Duck Mini arrangement
+# for this exact servo and leg.  The both-sides alternative (float the stator
+# on a keyed pocket, grip both discs, deck counterbore for the idler arm) buys
+# a second bearing at the cost of stator rigidity + a tolerance stack; it is
+# the flagged v3.1 upgrade if bench testing shows output-shaft bending play.
+# See docs/hip-yaw-study.md "as-designed".
+YAW_CARRIER_PLATE = PLATE          # 3.0 horn mount plate (== every joint arm).
+                                   # Sits flat on the O19.2 horn disc; only the
+                                   # recessed centre screw needs a relief
+                                   # (HORN_CENTER_RELIEF_D, as the yokes use).
+YAW_FOOT_REACH = 16.0              # the yaw seat side walls run forward to here
+                                   # so the +x tower-foot heat-sets (x=14) land
+                                   # in collar material (the -x feet already sit
+                                   # over the case span); keeps TOWER_FOOT_X/Y.
+
+# deck seat: a shallow collar hanging off the deck underside that wraps the top
+# of each yaw case (keys it against reaction torque + locates it) and a
+# rearward tab so all four idler-side screws (rows 8.30 AND 32.75 behind the
+# axis, i.e. x = -8.30 and -35.11+2.36... the 32.75 row sits at x=-32.75, 9.8 mm
+# behind the deck rear edge -23) land in deck material.
+YAW_SEAT_DROP = 4.0                # collar reaches this far below the deck
+YAW_SEAT_GAP = FIT                 # 0.30 slip fit of case into the collar
+YAW_SEAT_WALL = WALL               # 2.6 collar wall thickness (== standard wall)
+YAW_CASE_HOLES_IDLER = CASE_HOLES_BOT   # (8.30, 32.75) idler-side rows -> stator
+
+# carrier-borne hip-roll bay, re-referenced to the carrier's own frame (horn
+# face = z 0, +Z toward the servo).  The horn plate top mates the yaw horn; the
+# roll bay hangs below, roll axis SV_AXIS_FROM_REAR under the bay ceiling (roll
+# servo output end DOWN, cable end UP -- exactly as in the old pelvis bay).
+CARRIER_ROLL_CEIL = -YAW_CARRIER_PLATE                     # -3.00 bay ceiling
+CARRIER_ROLL_AXIS = CARRIER_ROLL_CEIL - SV_AXIS_FROM_REAR  # -38.11 roll axis
+
+# --- yaw stack drop (the honest number; the study estimated ~25-30 mm) ---
+# The hip-roll axis moves from (DECK_T + SV_AXIS_FROM_REAR) below the deck top
+# to (yaw grip span + carrier plate + recess) deeper.  The drop is the gap
+# between the old and new roll-axis planes, all arithmetic:
+ROLL_BELOW_DECK_OLD = DECK_T + SV_AXIS_FROM_REAR            # 40.11 (8-DOF build)
+ROLL_BELOW_DECK_YAW = -(YAW_HORN_FACE_Z + CARRIER_ROLL_AXIS)  # 80.91 (v3yaw)
+YAW_STACK_DROP = ROLL_BELOW_DECK_YAW - ROLL_BELOW_DECK_OLD  # 40.80 mm
+
+YAW_SWEEP = 45.0                   # design yaw half-range each way (deg)
+
+# ----------------------------------------------------------------------------
 # leg link (thigh and shin are the SAME part)
 #   grips the upper servo's case below its horn (which is the upper joint) and
 #   forks down to the next servo's horn+idler, DROP = 90 between axes.
@@ -306,6 +380,15 @@ HIP_ROLL_Z = HIP_PITCH_Z + ROLL_TO_PITCH             # 246.86
 DECK_BOT_Z = HIP_ROLL_Z + SV_AXIS_FROM_REAR          # 282.0 (servo top end)
 TORSO_CENTER_Z = HIP_ROLL_Z + 36.0                   # 282.9 (sim: 280)
 TOP_Z = DECK_BOT_Z + DECK_T + TOWER_H                # 319.0 overall
+
+# v3yaw variant: the LEG is unchanged, so ANKLE..HIP_ROLL heights above ground
+# are unchanged; the yaw servo + carrier are inserted BETWEEN the roll axis and
+# the deck, so everything from the deck up rises by YAW_STACK_DROP.  The hip-yaw
+# "joint plane" is the horn face, CARRIER_ROLL_AXIS above the roll axis.
+HIP_YAW_Z = HIP_ROLL_Z - CARRIER_ROLL_AXIS           # 284.97 (yaw horn face)
+DECK_BOT_Z_YAW = HIP_ROLL_Z + ROLL_BELOW_DECK_YAW    # 327.77 (deck bottom)
+TORSO_CENTER_Z_YAW = TORSO_CENTER_Z + YAW_STACK_DROP  # 323.7
+TOP_Z_YAW = TOP_Z + YAW_STACK_DROP                   # 359.8 overall (v3yaw)
 
 # Filament density for mass/inertia estimates. Robot is printed in PETG
 # (~1.27 g/mm^3); PLA would be 1.24e-3 if you switch back.

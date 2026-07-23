@@ -103,3 +103,89 @@ servo count sections update (no architectural change).
 The whole-design answer: **no redesign cascade.** Pelvis + one new bracket,
 a taller robot by ~3 cm, +15% mass, two more bus IDs, and a sim refactor we
 were going to need for any future DOF change anyway.
+
+## 6. As-designed (CAD, 2026-07-23)
+
+The change is cut in `cad/dimensions.py` + `cad/parts.py`: `pelvis` redesigned,
+`yaw_carrier` ×2 new; roll servo, yokes, `leg_link`, shin, foot **untouched**.
+`check_assembly.py` ALL CLEAR, `check_printability.py` clean, both parts print
+support-free on the AD5M Pro. Render: `cad/renders/hip_yaw_beforeafter.png`
+(dark = servos; the yaw pair seats under the deck, the hip line drops onto the
+new carriers). Part renders: `renders/yaw_carrier.png`, `renders/pelvis_yaw.png`.
+
+**Geometry chosen.** Each yaw servo lies flat under the deck, **length fore-aft
+(X)**, width across (Y), vertical output axis at the leg centre, **horn DOWN**,
+idler-side case face pressed to the deck underside. `yaw_carrier` bolts to the
+horn below and carries the old roll bay verbatim (same `BAY_BORE` 20.6,
+`BAY_WALL_DROP` 41, cheeks, U-slot, 8× case screws). The roll servo slides up
+into the carrier exactly as it did into the pelvis.
+
+**True stack height — 40.8 mm, NOT ~28.** The hip-roll axis drops from
+`DECK_T + SV_AXIS_FROM_REAR` = 40.11 mm below the deck top to 80.91 mm below it
+(`ROLL_BELOW_DECK_YAW`), a **`YAW_STACK_DROP` = 40.8 mm** rise of everything
+above the roll joint. The study's 25–30 mm was optimistic: the drop is the
+servo's own horn-to-idler grip span (`SV_GRIP_SPAN` 37.25) + the carrier horn
+plate + the idler recess — the two servos cannot nest (their XY footprints
+coincide about the shared vertical axis), so the second servo stacks in full.
+- Standing structure top rises 330.5 → **371 mm** (`TOP_Z_YAW`); hip-yaw joint
+  plane (horn face) `HIP_YAW_Z` ≈ 286 mm; deck bottom `DECK_BOT_Z_YAW` ≈ 328 mm.
+- **Action for the sim sibling:** set `bimo_biped_v3yaw.xml`'s torso raise to
+  **+41 mm, not +28 mm** (or accept a 13 mm standing-height error). All the
+  v3yaw height constants are in `dimensions.py` (`HIP_YAW_Z`, `DECK_BOT_Z_YAW`,
+  `TORSO_CENTER_Z_YAW`, `TOP_Z_YAW`, `YAW_STACK_DROP`).
+
+**Mass (printed, PETG).** `pelvis` 47 → 32 g (bays left); `yaw_carrier` 17.5 g
+×2. Printed plastic 307 → **329 g** (+22 g). With the two spare STS3215
+(+110 g) and fasteners, **total robot ≈ 914 → 1054 g (+140 g, +15%)** — dead on
+the §4 estimate. Segment masses for the sim are printed by `parts.py` (new
+`yaw carrier` segment = carrier + roll servo, 77.5 g/leg; the two yaw servos
+add to the torso).
+
+**Idler-grip decision — HORN-ONLY (single-sided), by geometry.** Bolting the
+stator to the deck uses the idler-side case face, which is the *same* face a
+both-sides carrier would need to reach to grip the idler disc — the two are
+mutually exclusive at a deck-mounted vertical axis. We took the **rigid,
+deck-bolted stator** (4× M3 into the idler-side rows, torque keyed by a collar)
+and drive the carrier off the horn alone. This is Open Duck Mini's proven
+arrangement for this exact servo/leg. **The both-sides option is deferred, not
+rejected:** it would float the stator on a keyed pocket, grip both discs, and
+add a deck counterbore for the idler arm — a second bearing at the cost of
+stator rigidity + a tolerance stack. **User sign-off wanted here** (see below).
+
+**Sweep-clearance proof (`check_assembly.py`, all booleans 0.00 mm³).**
+- Yaw carrier + its roll servo at **0 / +45 / −45°** vs the pelvis deck **and**
+  vs the fixed yaw servo: no interference (the carrier rides 3–6 mm below the
+  yaw case throughout the sweep).
+- **Both carriers yawed inward 45° simultaneously** (worst mutual approach):
+  facing-envelope gap **6.2 mm** — positive, so ±45° is mechanically clear at
+  HIP_SEP = 56. (Turn strides need ±20–30°, so this is comfortable margin.)
+- Roll ±25° and deep hip flexion −110/−115° re-proven against the **carrier**
+  (identical bay geometry) — ALL CLEAR, matching the old pelvis-bay result.
+- Carrier envelope: bbox X −20..+20.5, Y (from axis) 12.7..43.3, Z −91..−42.8
+  in the pelvis frame; well clear of the deck edges (deck ±23 X, ±52 Y) and the
+  other leg.
+
+### Open questions for the user
+
+1. **Stack height 41 vs 28 mm.** Confirm the taller robot is acceptable
+   (standing ~34 → ~38 cm) and have the sim use +41 mm. If 41 mm is too tall,
+   the only lever is a lower-profile yaw actuator — the STS3215 grip span is
+   fixed at 37.25 mm and sets the floor.
+2. **Horn-only vs both-sides idler grip.** Sign off on single-sided (simplest,
+   most rigid stator, Open Duck precedent) or ask for the both-sides v3.1
+   (second bearing for the cantilevered leg). Recommendation: **print and bench
+   the horn-only carrier first**; add the idler bracket only if the output shaft
+   shows bending play under leg load.
+3. **Pelvis grew ~15 mm rearward** (bbox 61 mm fore-aft) to cover the yaw case
+   cable-end overhang and its −32.75 stator-screw row. Confirm nothing on the
+   deck rear (wiring, switch) fouls the local rear tab, or move the yaw servo
+   output-end rearward to overhang the front instead.
+4. **Yaw + roll cable routing.** The roll-servo cable exits up through a rear
+   slot in the carrier ceiling next to the yaw horn; the yaw-servo cable exits
+   its rear end face over the deck rear edge; both then rise through the deck
+   centre window. Verify with real 150 mm leads — a yaw-crossing service loop
+   (±45°) is new and may need an extension.
+5. **Stator hold.** 4× M3 into the idler-side case face + a 4 mm collar is the
+   mount; confirm the case's Ø3.5 holes take M3 self-tappers (the standing BOM
+   question) before committing, since the stator now carries the full leg load
+   in bending, not just the roll reaction.

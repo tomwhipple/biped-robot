@@ -12,8 +12,8 @@ import parts
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "step")
 os.makedirs(OUT, exist_ok=True)
 
-for name in ("pelvis", "yoke_roll", "yoke_pitch", "leg_link", "foot", "tower",
-              "gopro_base", "imu_carrier"):
+for name in ("pelvis", "yaw_carrier", "yoke_roll", "yoke_pitch", "leg_link",
+              "foot", "tower", "gopro_base", "imu_carrier"):
     solid = getattr(parts, name)()
     path = os.path.join(OUT, f"{name}.step")
     export_step(solid, path)
