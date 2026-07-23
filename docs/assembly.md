@@ -15,6 +15,11 @@ Companion docs: [print list](../cad/PRINT_LIST.md) ·
 |---|---|
 | ![Exploded view](assembly/step00_exploded.png) | ![Complete assembly](assembly/step12_complete.png) |
 
+**Master exploded drawing** (isometric, generated from the CAD by
+`cad/render_exploded_drawing.py`):
+
+![Master exploded engineering drawing of the v3yaw biped](assembly/exploded_full.png)
+
 > ⚠️ **Hip redesign in flight (2026-07-15).** The get-up study fixed the CAD
 > target at **−110°/+60° hip-pitch flexion**; `yoke_pitch` is being re-cut for
 > it and is on **HOLD** — don't print the final pair, and hold the 2 thigh
@@ -67,8 +72,8 @@ servo at mechanical zero** (see §1).
 | Fastener | Qty | Threads into | Consumed in |
 |---|---|---|---|
 | **M3×6** button head *(the servos' own horn screws)* | 38 used (40 bundled) | the servo's metal **horn disc** — M3 on the Ø14 bolt circle: 4× per horn everywhere except the yaw horns, which take **3×** (the rear-most position is the carrier's cable channel — wiring audit 2026-07-23). Bundled with each ST3215 (10 × 4 = 40 on hand → 2 spares). | §5 (knee + ankle horns, 16), §6 (hip-pitch horn, 8), §7b (yaw carriers onto the yaw horns, 6), §8 (hip-roll horn, 8) |
-| **M3×8** button head **+ thin washer** | 24 | the servo's free-spinning **idler disc** — same Ø14 circle; the washer stops the tip short of the disc's 3.35 mm thread. | §5 (knee + ankle idlers, 16), §6 (hip-pitch idler, 8) |
-| **M3×10** button head | **20** | ⚠ three jobs: the hip-roll **idler disc** reached through the bay-wall slot by the long boss (8); the **yoke_pitch flange heat-sets** that make the hip universal (8); and the **deck heat-sets** the tower feet pull down onto (4). | §6 (flange → inserts, 8), §8 (roll idler, 8), §9c (tower feet → inserts, 4) |
+| **M3×8** button head **+ thin washer** | 24 ⚠ | the servo's free-spinning **idler disc** — same Ø14 circle; washer stops the tip short of the 3.35 mm thread. **⚠ Not fittable as modeled** — the fork/yoke idler arms have no through-holes yet (see Anatomy note); pending a `parts.py` fix. | §5 (knee + ankle idlers, 16), §6 (hip-pitch idler, 8) |
+| **M3×10** button head | **20** | three jobs: the hip-roll **idler disc** reached through the bay-wall slot by the long boss (8 ⚠ *same idler-hole caveat*); the **yoke_pitch flange heat-sets** that make the hip universal (8); and the **deck heat-sets** the tower feet pull down onto (4). | §6 (flange → inserts, 8), §8 (roll idler, 8), §9c (tower feet → inserts, 4) |
 | **M3×8 self-tapping** | 56 | printed Ø3.4 clearances into the **servo case's Ø3.5 holes** (glass-filled nylon, community-tapped M3 — see verify-on-arrival). | §3 (feet, 8), §4 (leg_link grips, 24), §7a (yaw stators down through the deck, 8), §7c (roll servos into the carriers, 16) |
 | **M3×12 self-tapping** | 4 | Ø2.8 pilots in the **tower-top bosses**, through the `imu_carrier` + `gopro_base` stack (the M3×8 is too short with the 3 mm carrier added). | §11 |
 | **M2.5×8 self-tapping** | 8 | Ø2.2 printed pilots — 4 in the tower standoffs, 4 in the `imu_carrier` bosses. | §9a (driver board, 4), §9b (BNO055, 4) |
@@ -164,31 +169,41 @@ a thicker pad raises the whole robot).
 
 *Read this once — it's the same pattern at every leg joint (hip pitch, knee,
 ankle), and it answers "shouldn't there be mounting holes on **both** sides of
-the servo?" Yes — there are, and both get used.*
+the servo?"*
 
-![How one joint goes together — the servo is the axle, one link forks onto the horn + idler, the other grips the case](assembly/joint_anatomy.svg)
+![Exploded engineering drawing of a typical leg joint (knee): the servo, its fork link, the horn screws, and the idler-side locator boss](assembly/exploded_joint.png)
 
-**The servo is the axle.** Each STS3215 carries the joint on *both* ends of its
+**The servo is the axle.** Each STS3215 carries a joint on *both* ends of its
 output shaft — a driven metal **horn** on one face and a **free-spinning idler
-disc** on the opposite face, on the *same* Ø14 four-bolt circle. Bolting the
-moving link to **both** discs braces the joint on two supports, so no separate
-bearing is needed. Two different printed parts meet at each servo:
+disc** on the opposite face (same Ø14 four-bolt circle) — plus **case mounting
+holes on both faces**. Two different printed parts meet at each servo:
 
-1. **The distal link forks onto the OUTPUT** (both discs): **4× M3×6** into the
-   horn (the servo's own screws) **+ 4× M3×8 + washer** into the idler disc.
-   This link rotates with the horn — it *is* the moving side of the joint (§5).
+1. **The distal link forks onto the OUTPUT.** Horn side: **4× M3×6** into the
+   horn (the servo's own screws). This link rotates with the horn — the moving
+   side of the joint (§5).
 2. **The proximal link clamps the CASE**: **6× M3×8 self-tapping** into the
    servo's Ø3.5 case holes — 4 on the horn-side face, 2 on the idler face. This
-   link holds the servo body — the fixed side (§4).
+   holds the servo body — the fixed side (§4).
 
-So every servo really is fastened on both ends, by two parts — nothing is
-missing. Concretely at the **knee**: the **thigh** forks onto the knee servo's
-horn + idler; the **shin** grips the knee servo's case. The steps below build
-exactly this, distal-to-proximal.
+> ⚠ **Known CAD issue — idler side is not yet bolt-ready (verified 2026-07-23).**
+> The servo's idler disc *has* the Ø14 four-bolt pattern, and the intent (per
+> `cad/dimensions.py`) is to bolt the fork to it for a two-sided, bearingless
+> joint. **But the printed `leg_link` fork and both yokes currently have no
+> through-holes on the idler-arm outer face** — only blind reliefs and a loose
+> Ø19 locator boss on the *servo-facing* side (measured: material is solid where
+> a bolt would enter). So as the parts stand you **cannot** fit the idler
+> screws; the joint is horn-bolted with an idler pilot only. This needs a
+> `parts.py` fix (drill the idler bolt circle through to the outer face) or an
+> explicit "horn-only" design decision. Until then, treat the "4× M3×8 + washer
+> idler" line as **pending** — see the [BOM note](bom-sourced.md) and the
+> flagged rows in [§0](#fasteners--heat-set-inserts).
 
 > **Always at mechanical zero.** Drive the horn-side screws *first*, with the
-> servo centered (§1) and the limb in the CAD-neutral pose; then the idler side.
-> A screw driven off-center becomes a permanent joint offset.
+> servo centered (§1) and the limb in the CAD-neutral pose. A screw driven
+> off-center becomes a permanent joint offset.
+
+*(A simpler colour schematic of the same idea is kept at
+[`joint_anatomy.svg`](assembly/joint_anatomy.svg).)*
 
 ## 4. Leg links ×4 — grip a servo case
 
@@ -212,9 +227,12 @@ bearings):
 1. **Horn side first**: **4× M3×6 into the horn** (Ø14 bolt circle) — use the
    servo's **own bundled M3×6**, with the servo at center and the limb at the
    CAD-neutral pose. Check the mechanical zero before moving on.
-2. **Idler side**: **4× M3×8 + thin washer** into the idler disc (same Ø14
-   circle; the washer stops the tip short of the gear behind the disc). The
-   printed Ø19 boss inside the Ø25 recess is a
+2. **Idler side** — ⚠ **currently blocked, see the Anatomy note above**: the
+   intent is **4× M3×8 + thin washer** into the idler disc (same Ø14 circle;
+   the washer stops the tip short of the gear behind the disc), but the printed
+   fork has **no through-holes on the idler-arm outer face** yet, so this can't
+   be fitted until `parts.py` is reconciled. For now the fork seats on the idler
+   by its **locator boss** only. The printed Ø19 boss inside the Ø25 recess is a
    locator, not a precision seat — concentricity comes from the screw
    pattern, so **snug the idler screws with the joint at mechanical zero and
    check runout before final torque**.
@@ -230,7 +248,8 @@ servo), both legs.
 
 1. `yoke_pitch` is a clevis over the hip-pitch (thigh) servo's horn + idler:
    same pattern as §5 — **4× M3×6** (servo's own) horn side, **4× M3×8 + washer**
-   idler side, horn first at mechanical zero.
+   idler side (⚠ same idler-hole issue as §5 — idler screws pending a `parts.py`
+   fix), horn first at mechanical zero.
 2. `yoke_roll` bolts on top of the `yoke_pitch` flange, **rotated 90°**
    (that crossing is the hip universal joint): **4× M3×10 into the 4 heat-set
    inserts** you pressed into this flange in §2.
@@ -241,6 +260,8 @@ Everything below builds **upward** under the deck: yaw servo first, then its
 carrier, then the roll servo into the carrier. Do both hips (×2). Working with
 the pelvis **upside down** (deck top on the bench) makes every insertion a
 downward drop and every screw run vertical.
+
+![Exploded engineering drawing of the v3yaw hip-yaw stack: deck, yaw servo, carrier, roll servo, and their screws](assembly/exploded_hip_yaw.png)
 
 ### 7a. Yaw servos seat against the deck underside
 
