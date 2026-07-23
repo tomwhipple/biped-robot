@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="960" height="640" rx="16" fill="#ffffff" stroke="#d0d4da" stroke-width="1.5"/>
+
+  <text x="480" y="40" text-anchor="middle" font-size="23" font-weight="700" fill="#212529">Anatomy of a typical joint — the servo is the axle</text>
+  <text x="480" y="66" text-anchor="middle" font-size="15" fill="#495057">One link forks onto the OUTPUT (bolted on BOTH ends: driven horn + free idler); the other link clamps the CASE.</text>
+
+  <!-- ================= main exploded axial view ================= -->
+  <!-- output axis -->
+  <line x1="70" y1="230" x2="890" y2="230" stroke="#868e96" stroke-width="2" stroke-dasharray="8 6"/>
+  <polygon points="70,230 84,224 84,236" fill="#868e96"/>
+  <polygon points="890,230 876,224 876,236" fill="#868e96"/>
+  <text x="70" y="212" font-size="12" fill="#868e96">output axis</text>
+
+  <!-- rotation arc -->
+  <path d="M 372 168 A 130 60 0 0 1 608 168" fill="none" stroke="#f08c00" stroke-width="2.5"/>
+  <polygon points="608,168 596,158 600,172" fill="#f08c00"/>
+  <text x="490" y="150" text-anchor="middle" font-size="14" font-weight="600" fill="#e8590c">&#8635; the two links rotate here = the JOINT (e.g. knee)</text>
+
+  <!-- servo body (case) -->
+  <rect x="428" y="168" width="104" height="150" rx="8" fill="#495057"/>
+  <rect x="428" y="168" width="104" height="150" rx="8" fill="none" stroke="#212529" stroke-width="1.5"/>
+  <text x="480" y="246" text-anchor="middle" font-size="14" font-weight="700" fill="#f1f3f5">STS3215</text>
+  <text x="480" y="264" text-anchor="middle" font-size="11" fill="#ced4da">(case)</text>
+
+  <!-- HORN disc (left face, driven) -->
+  <g>
+    <circle cx="300" cy="230" r="44" fill="#2f9e44" stroke="#1b5e2a" stroke-width="2"/>
+    <circle cx="300" cy="204" r="4.5" fill="#eaf7ec" stroke="#1b5e2a"/>
+    <circle cx="300" cy="256" r="4.5" fill="#eaf7ec" stroke="#1b5e2a"/>
+    <circle cx="274" cy="230" r="4.5" fill="#eaf7ec" stroke="#1b5e2a"/>
+    <circle cx="326" cy="230" r="4.5" fill="#eaf7ec" stroke="#1b5e2a"/>
+    <circle cx="300" cy="230" r="5" fill="#1b5e2a"/>
+    <text x="300" y="300" text-anchor="middle" font-size="13" font-weight="700" fill="#2f9e44">HORN</text>
+    <text x="300" y="316" text-anchor="middle" font-size="11" fill="#495057">driven output</text>
+  </g>
+
+  <!-- IDLER disc (right face, free) -->
+  <g>
+    <circle cx="660" cy="230" r="44" fill="#1c7ed6" stroke="#0b4d8f" stroke-width="2"/>
+    <circle cx="660" cy="204" r="4.5" fill="#e7f1fb" stroke="#0b4d8f"/>
+    <circle cx="660" cy="256" r="4.5" fill="#e7f1fb" stroke="#0b4d8f"/>
+    <circle cx="634" cy="230" r="4.5" fill="#e7f1fb" stroke="#0b4d8f"/>
+    <circle cx="686" cy="230" r="4.5" fill="#e7f1fb" stroke="#0b4d8f"/>
+    <circle cx="660" cy="230" r="5" fill="#0b4d8f"/>
+    <text x="660" y="300" text-anchor="middle" font-size="13" font-weight="700" fill="#1c7ed6">IDLER disc</text>
+    <text x="660" y="316" text-anchor="middle" font-size="11" fill="#495057">free-spinning</text>
+  </g>
+
+  <!-- left fork plate -->
+  <g>
+    <circle cx="140" cy="230" r="40" fill="#ced4da" stroke="#495057" stroke-width="2"/>
+    <circle cx="140" cy="206" r="4" fill="#fff" stroke="#495057"/>
+    <circle cx="140" cy="254" r="4" fill="#fff" stroke="#495057"/>
+    <circle cx="116" cy="230" r="4" fill="#fff" stroke="#495057"/>
+    <circle cx="164" cy="230" r="4" fill="#fff" stroke="#495057"/>
+    <text x="140" y="300" text-anchor="middle" font-size="12" font-weight="600" fill="#343a40">fork plate</text>
+    <text x="140" y="315" text-anchor="middle" font-size="11" fill="#495057">horn side</text>
+  </g>
+
+  <!-- right fork plate -->
+  <g>
+    <circle cx="820" cy="230" r="40" fill="#ced4da" stroke="#495057" stroke-width="2"/>
+    <circle cx="820" cy="206" r="4" fill="#fff" stroke="#495057"/>
+    <circle cx="820" cy="254" r="4" fill="#fff" stroke="#495057"/>
+    <circle cx="796" cy="230" r="4" fill="#fff" stroke="#495057"/>
+    <circle cx="844" cy="230" r="4" fill="#fff" stroke="#495057"/>
+    <text x="820" y="300" text-anchor="middle" font-size="12" font-weight="600" fill="#343a40">fork plate</text>
+    <text x="820" y="315" text-anchor="middle" font-size="11" fill="#495057">idler side</text>
+  </g>
+
+  <!-- fork "one part" brace over the top -->
+  <path d="M 140 176 C 140 96, 820 96, 820 176" fill="none" stroke="#adb5bd" stroke-width="2" stroke-dasharray="5 5"/>
+  <text x="480" y="92" text-anchor="middle" font-size="12.5" fill="#495057">the two plates are ONE printed part — the fork on the distal link (thigh) · it rotates with the horn</text>
+
+  <!-- bolt callouts -->
+  <text x="220" y="352" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2f9e44">4&#215; M3&#215;6  &#8594; horn</text>
+  <text x="220" y="368" text-anchor="middle" font-size="11" fill="#868e96">(servo's own screws)</text>
+  <text x="740" y="352" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1c7ed6">4&#215; M3&#215;8 + washer &#8594; idler</text>
+  <text x="740" y="368" text-anchor="middle" font-size="11" fill="#868e96">washer stops the tip short</text>
+
+  <!-- ================= divider ================= -->
+  <line x1="40" y1="398" x2="920" y2="398" stroke="#e9ecef" stroke-width="1.5"/>
+
+  <!-- ================= case-grip inset (bottom-right) ================= -->
+  <text x="690" y="430" text-anchor="middle" font-size="14" font-weight="700" fill="#212529">Meanwhile, the OTHER link grips the case</text>
+  <!-- top-view of case with grip plates on both faces -->
+  <rect x="612" y="452" width="156" height="120" rx="8" fill="#495057" stroke="#212529" stroke-width="1.5"/>
+  <text x="690" y="516" text-anchor="middle" font-size="12" fill="#f1f3f5">servo case</text>
+  <!-- grip plates hugging both faces -->
+  <rect x="596" y="452" width="14" height="120" rx="3" fill="#f08c00" stroke="#9c4a00"/>
+  <rect x="770" y="452" width="14" height="120" rx="3" fill="#f08c00" stroke="#9c4a00"/>
+  <!-- case holes: 4 on near face, 2 on far face -->
+  <circle cx="603" cy="468" r="4" fill="#fff" stroke="#9c4a00"/>
+  <circle cx="603" cy="496" r="4" fill="#fff" stroke="#9c4a00"/>
+  <circle cx="603" cy="524" r="4" fill="#fff" stroke="#9c4a00"/>
+  <circle cx="603" cy="552" r="4" fill="#fff" stroke="#9c4a00"/>
+  <circle cx="777" cy="496" r="4" fill="#fff" stroke="#9c4a00"/>
+  <circle cx="777" cy="528" r="4" fill="#fff" stroke="#9c4a00"/>
+  <text x="690" y="596" text-anchor="middle" font-size="12" font-weight="600" fill="#e8590c">6&#215; M3&#215;8 self-tap into the case's &#216;3.5 holes</text>
+  <text x="690" y="612" text-anchor="middle" font-size="11" fill="#868e96">(both faces) — this link is the proximal one (shin)</text>
+
+  <!-- ================= the answer text (bottom-left) ================= -->
+  <text x="52" y="432" font-size="14" font-weight="700" fill="#212529">Both sides bolted — on purpose</text>
+  <text x="52" y="458" font-size="13" fill="#343a40">The output has a driven <tspan font-weight="700" fill="#2f9e44">horn</tspan> on one face and a free</text>
+  <text x="52" y="477" font-size="13" fill="#343a40"><tspan font-weight="700" fill="#1c7ed6">idler disc</tspan> on the opposite face — the SAME Ø14 pattern.</text>
+  <text x="52" y="496" font-size="13" fill="#343a40">Bolting the fork to <tspan font-weight="700">both</tspan> carries the joint on two</text>
+  <text x="52" y="515" font-size="13" fill="#343a40">supports, so no separate bearing is needed.</text>
+  <text x="52" y="541" font-size="13" fill="#343a40">The case has its own mounting holes (both faces) that</text>
+  <text x="52" y="560" font-size="13" fill="#343a40">the <tspan font-weight="700" fill="#e8590c">other link clamps</tspan>. Nothing is missing — every</text>
+  <text x="52" y="579" font-size="13" fill="#343a40">servo is fastened on both ends, by two different parts.</text>
+
+  <text x="480" y="632" text-anchor="middle" font-size="10.5" fill="#adb5bd">Schematic — not to scale. Dimensions in cad/dimensions.py.</text>
+</svg>

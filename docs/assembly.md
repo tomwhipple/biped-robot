@@ -160,6 +160,36 @@ ankle servo's Ø3.5 case holes (horn-face row −29, idler-face row −32.75). S
 rubber sole pad onto the flat underside (trim to fit; keep it ~0.5 mm thin —
 a thicker pad raises the whole robot).
 
+## Anatomy of a typical joint (both sides of the servo)
+
+*Read this once — it's the same pattern at every leg joint (hip pitch, knee,
+ankle), and it answers "shouldn't there be mounting holes on **both** sides of
+the servo?" Yes — there are, and both get used.*
+
+![How one joint goes together — the servo is the axle, one link forks onto the horn + idler, the other grips the case](assembly/joint_anatomy.svg)
+
+**The servo is the axle.** Each STS3215 carries the joint on *both* ends of its
+output shaft — a driven metal **horn** on one face and a **free-spinning idler
+disc** on the opposite face, on the *same* Ø14 four-bolt circle. Bolting the
+moving link to **both** discs braces the joint on two supports, so no separate
+bearing is needed. Two different printed parts meet at each servo:
+
+1. **The distal link forks onto the OUTPUT** (both discs): **4× M3×6** into the
+   horn (the servo's own screws) **+ 4× M3×8 + washer** into the idler disc.
+   This link rotates with the horn — it *is* the moving side of the joint (§5).
+2. **The proximal link clamps the CASE**: **6× M3×8 self-tapping** into the
+   servo's Ø3.5 case holes — 4 on the horn-side face, 2 on the idler face. This
+   link holds the servo body — the fixed side (§4).
+
+So every servo really is fastened on both ends, by two parts — nothing is
+missing. Concretely at the **knee**: the **thigh** forks onto the knee servo's
+horn + idler; the **shin** grips the knee servo's case. The steps below build
+exactly this, distal-to-proximal.
+
+> **Always at mechanical zero.** Drive the horn-side screws *first*, with the
+> servo centered (§1) and the limb in the CAD-neutral pose; then the idler side.
+> A screw driven off-center becomes a permanent joint offset.
+
 ## 4. Leg links ×4 — grip a servo case
 
 ![Leg link sliding onto the servo case](assembly/step02_link_on_case.png)
