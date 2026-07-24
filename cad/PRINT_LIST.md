@@ -16,9 +16,14 @@
 > tower/deck heat-set pattern is preserved. Both parts carry new **connector
 > openings** (corrected 2026-07-24 — the STS3215's two ports are on the
 > idler-side face beside the disc, so the earlier chases aimed at nothing): a
-> **deck hole** in the `pelvis` over each yaw servo's up-facing ports, and an
-> **extended rear-wall opening** in `yaw_carrier` at the roll servo's port band
-> (`SV_CONN` in dimensions.py) — see `docs/hip-yaw-study.md` §6. `check_assembly.py` ALL CLEAR (yaw
+> **deck hole** in the `pelvis` over each yaw servo's up-facing ports (plus a
+> Ø21.5 disc/post pocket + 4× stator pads — the seat is not flat), and a
+> **rear-wall window** in `yaw_carrier` at the measured trench band
+> (`SV_CONN` in dimensions.py, from the vendor STEP) — see
+> `docs/hip-yaw-study.md` §6 rev 3b. Idler-arm center reliefs in
+> `yoke_roll`/`yoke_pitch`/`leg_link` deepened to through-bores for the servo's
+> free-hub post (existing prints: only drill the Ø8 center deeper if the arm
+> stands off the disc when bolting). `check_assembly.py` ALL CLEAR (yaw
 > 0/±45° sweep + roll ±25° both proven against the carrier; inward-yaw gap
 > between the two carriers 6.2 mm at ±45°), `check_printability.py` clean.
 > Render: `renders/hip_yaw_beforeafter.png`.

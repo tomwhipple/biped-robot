@@ -274,10 +274,13 @@ wraps the top of the case and keys it against the yaw reaction torque. The
 idler-side case face lands flat on the deck. Fix the stator with **4× M3×8
 self-tapping down through the deck** into the idler-side case-hole rows — 2 into
 row 8.30 (through the deck), 2 into row 32.75 (through the local rear tab that
-overhangs the case cable end). The servo's **two bus ports face UP** (they sit
-on the idler-side face beside the disc) and poke into the **connector hole
-through the deck** over each seat — plug the board lead and the yaw→roll lead
-in **down through that hole from above** (connector correction 2026-07-24).
+overhangs the case cable end). The seat is **not flat** (measured from the
+vendor STEP + a physical servo, 2026-07-24): a **Ø21.5 pocket** in the deck
+underside clears the rotating idler disc and its free-hub post, four **Ø7
+pads** descend to land on the recessed stator screw bosses, and the servo's
+**two bus ports face UP** out of their trench (12–16 mm behind the axis) into
+the **connector hole through the deck** — plug the board lead and the
+yaw→roll lead in **down through that hole from above**.
 
 ### 7b. Carriers onto the yaw horns
 
@@ -299,11 +302,13 @@ becomes a permanent yaw offset.
 
 The carrier's roll bay is the **same downward-open U-slot** as the old pelvis
 bay, just relocated: slide each hip-roll servo **up** into it — **output end
-down, horn facing forward**. Its two bus ports then stick **rearward out of the
-opened rear wall, beside the idler disc** — plug both leads there and route
-them out the open bay rear (connector correction 2026-07-24; the old ceiling
-slot is gone). **8× M3×8 self-tapping per bay** — 4 through the front (horn)
-wall, 4 through the rear (idler) wall — into the roll servo's Ø3.5 case holes.
+down, horn facing forward**. Its two bus ports then face **rearward through
+the window in the rear wall** (the measured connector trench, 12–16 mm above
+the roll axis, just above the idler-disc bore) — plug both leads there and
+route them out the open bay rear (connector correction 2026-07-24; the old
+ceiling slot is gone). **8× M3×8 self-tapping per bay** — 4 through the front
+(horn) wall, 4 through the rear (idler) wall — into the roll servo's Ø3.5
+case holes.
 
 ## 8. Legs onto the carriers
 

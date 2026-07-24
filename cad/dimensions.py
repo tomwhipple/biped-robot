@@ -165,6 +165,14 @@ TOWER_FOOT_Y = 42.0     # lands over the bay cheek walls: heat-set pilots run
 # bolted to the deck THROUGH that face (the idler-side hole rows), so the deck
 # is the yaw stator bracket.  The horn face therefore hangs SV_GRIP_SPAN below.
 YAW_IDLER_FACE_Z = -DECK_T                          # -5.00  case idler-side face
+# NOTE 2026-07-24: the Waveshare vendor STEP shows the idler disc 0.27 mm PROUD
+# of the slab plane (not 0.55 recessed) -- but the 0.55-recessed constants are
+# validated by the assembled 8-DOF robot (idler bosses reach 1.2 mm IN and the
+# joints close), so the STEP's disc is likely modeled floating off its seat.
+# Keeping the validated arithmetic; the deck's disc/hub pocket (1.3 deep)
+# clears the disc + free-hub post under EITHER reading. Measure the real disc
+# stand-off with calipers at yaw assembly; if it is proud, the stack shortens
+# ~0.8 mm (harmless -- the carrier hangs on the horn).
 YAW_IDLER_DISC_Z = YAW_IDLER_FACE_Z - 0.55          # -5.55  idler disc (0.55 in)
 YAW_HORN_FACE_Z = YAW_IDLER_DISC_Z - SV_GRIP_SPAN   # -42.80 horn mounting face
 YAW_CASE_BOT_Z = YAW_IDLER_FACE_Z - SV_CASE_T       # -39.70 horn-side case face
@@ -217,35 +225,43 @@ YAW_STACK_DROP = ROLL_BELOW_DECK_YAW - ROLL_BELOW_DECK_OLD  # 40.80 mm
 
 YAW_SWEEP = 45.0                   # design yaw half-range each way (deg)
 
-# --- STS3215 daisy-chain connectors (GROUND-TRUTH CORRECTION 2026-07-24) ------
-# The two 3-pin Molex-5264 sockets (housing ~12 x 6 mm each) are on the
-# IDLER-side case face (the one OPPOSITE the horn), side by side NEXT TO THE
-# IDLER DISC -- NOT on the far cable-END face that earlier passes (and the
-# obsolete pelvis "connectors on the top end" cutout, and the foot heel window)
-# assumed. Sources: the user's physical servo, and the repo's own
-# docs/connector-guide.html ("Servo end face opposite the horn: both ports live
-# behind this slot"). No online Feetech/Waveshare dimensional drawing pins the
-# exact mm offset (Waveshare wiki 403s, manuals omit it, the STEP wasn't
-# re-measured for it) -- the offsets below are inferred from the case geometry
-# and MUST be confirmed on a real servo before final prints. Position is given
-# on the idler face relative to the output axis, measured along the case LENGTH
-# toward the CABLE end (there is SV_AXIS_FROM_REAR=35.11 mm of case that way vs
-# 10.11 the other; the disc O19.2/r9.6 blocks the near band).
-SV_CONN_L = (11.0, 25.0)   # length band of the connector pair, axis->cable-end
-SV_CONN_HW = 7.0           # half-width across the case (two sockets side by side;
-                           # 7 keeps a 1.55 mm ligament to the carrier's roll
-                           # retention screw holes at y +/-10.25)
-SV_CONN_PROUD = 7.0        # plugged housing stand-off from the idler face
-WIRE_BUNDLE = 5.0          # one 3-wire ST3215 lead bundle, outer dia
-WIRE_PLUG_W = 9.0          # ST3215 JST housing width (assemble connector-first)
-# Consequences (re-audit): the hip-ROLL servo in the carrier has its idler face
-# REARWARD (-X) so its connectors sit beside the disc in the bay's rear wall --
-# already opened by the U-slot at the disc, extended a little toward the cable
-# end (up) for the housings.  The old WIRE_CHASE_2 channel at the bay CEILING
-# aligned with nothing (connectors are ~35 mm lower, at the disc) and is deleted;
-# with it gone the yaw-horn bolt count goes back to 4.  The hip-YAW servo in the
-# pelvis has its idler face UP against the deck, so its connectors need a deck
-# HOLE straight up to the board (replaces the old rear chase WIRE_CHASE_1).
+# --- STS3215 idler-face ground truth (MEASURED 2026-07-24) -------------------
+# Sources, in agreement: the user's physical servo (photo IMG_5698), the
+# Waveshare vendor STEP (files.waveshare.com upload 5/59 ST3215-3D.zip,
+# z-buffer measured), and the vendor 2D drawing (0/08 ST3215-2D.zip).  All
+# positions are on the IDLER-side case face, axis-relative, + toward the CABLE
+# end; heights are relative to the SLAB PLANE = the outermost flat of the case
+# (the raised rectangle between trench and cable end) = what SV_TOPFACE/
+# SV_CASE_T already measure, i.e. the surface a mount actually touches.
+#   feature                       length band     width      height vs slab
+#   idler disc (ROTATES!)         O19.2 at axis   --         +0.27 PROUD
+#   idler hub screws (ROTATE!)    ~O8   at axis   --         +0.82 PROUD
+#   connector TRENCH (2 sockets   11.75..16.35    +/-10.9    floor -4.78
+#     side by side ACROSS the                                (sockets open
+#     width, opening out of the                               outward)
+#     face, in the trench)
+#   cover slab (the datum)        19.6..29.5      +/-9       0
+#   stator screw bosses           rows 8.30/32.75 +/-10.25   -1.78 (recessed)
+# CONSEQUENCES: (1) any mount that presses this face flat needs a CLEARANCE
+# POCKET over the disc+hub (they rotate -- clamping them binds the joint) and
+# lands on the slab + 1.78 mm pads at the screw bosses; (2) connector openings
+# belong over the TRENCH band 11.75..16.35, nearly full case width -- not the
+# earlier guessed 11..25 x +/-7 band, and never the cable-END face.
+SV_IDLER_DISC_PROUD = 0.27  # disc face above the slab plane PER VENDOR STEP --
+                            # contradicts the validated SV_IDLER_FACE (0.55
+                            # recessed); see the YAW_IDLER_DISC_Z note. The
+                            # free-hub post protrusion (+0.82 in the STEP) is
+                            # corroborated by the user's photo either way.
+SV_IDLER_HUB_PROUD = 0.82   # hub/disc screws above the slab plane (rotate)
+SV_IDLER_BOSS_RECESS = 1.78 # stator screw bosses below the slab plane (STEP);
+                            # seat pads use 1.5 -- under-reach is harmless,
+                            # over-reach would tip the case. Measure on a servo.
+SEAT_PAD_H = 1.5            # pelvis yaw-seat stator pad height (see above)
+SV_CONN_L = (11.75, 16.35)  # trench band along the length, axis->cable-end
+SV_CONN_HW = 10.9           # trench half-width (sockets span most of it)
+SV_CONN_FLOOR = 4.78        # trench floor below the slab plane
+WIRE_BUNDLE = 5.0           # one 3-wire ST3215 lead bundle, outer dia
+WIRE_PLUG_W = 9.0           # ST3215 JST housing width (assemble connector-first)
 
 # ----------------------------------------------------------------------------
 # leg link (thigh and shin are the SAME part)

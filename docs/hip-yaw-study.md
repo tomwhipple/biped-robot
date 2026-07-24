@@ -288,6 +288,22 @@ confirmed on a real servo before final prints**). Consequences:
   `check_assembly.py` ALL CLEAR; renders `renders/hip_yaw_wiring.png` /
   `_front.png` re-drawn with leads at the true ports.
 
+**Rev 3b — measured from the vendor STEP + user photo (2026-07-24 PM).** The
+servos arrived; the user's photo showed the first-pass "beside the disc"
+window was still wrong. Downloaded the Waveshare ST3215 STEP + 2D drawing and
+z-buffer-measured the idler face (constants `SV_IDLER_*`/`SV_CONN_*`):
+connector **trench at 11.75–16.35 mm behind the axis, ±10.9 wide, 4.78 deep**,
+sockets opening out of the face; stator screw bosses **1.78 recessed**; idler
+disc/free-hub post at/proud of the slab plane (STEP says +0.27/+0.82 vs the
+validated 0.55-recessed disc — STEP disc likely floating; kept the validated
+stack arithmetic). Consequences cut: pelvis seat = Ø21.5 disc/post **pocket** +
+4× Ø7 stator **pads** (1.5 tall) + relocated deck hole; carrier rear-wall
+**window** at the trench band; idler-arm **center reliefs deepened to
+through-bores** in yoke_roll/yoke_pitch/leg_link (post Ø6.1 can reach 1.37 past
+the disc face — the old 1 mm relief could land the arm on the post; existing
+prints: only drill deeper if the arm stands off when bolting). Servo mocks in
+`check_assembly.py` now model the measured face; everything re-checked CLEAN.
+
 ### Open questions for the user
 
 1. **Stack height 41 vs 28 mm.** Confirm the taller robot is acceptable

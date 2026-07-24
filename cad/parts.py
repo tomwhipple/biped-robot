@@ -131,7 +131,10 @@ def yoke_roll():
     for h in bcd_x(ix0 - 1, hx1 + 1, 0, 0):
         p -= h
     p -= cyl_x(D.HORN_CENTER_RELIEF_D / 2, D.SV_HORN_FACE - 1, hx1 + 1, 0, 0)
-    p -= cyl_x(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 1, D.SV_IDLER_FACE + 0.7, 0, 0)
+    # relief deepened to a through-bore 2026-07-24: the servo's free-hub
+    # post is O6.1 and reaches up to 1.37 past the disc face (vendor-STEP
+    # worst case) -- the old 1 mm-deep relief could land the arm on the post
+    p -= cyl_x(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 6, D.SV_IDLER_FACE + 0.7, 0, 0)
     b = D.YOKE_BOLT_SQ / 2
     for sx, sy in ((b, b), (b, -b), (-b, b), (-b, -b)):
         p -= cyl_z(D.M3_CLEAR / 2, zf1 - 1, zf0 + 1, sx, sy)
@@ -176,7 +179,8 @@ def yoke_pitch():
     for h in bcd_y(iy0 - 1, hy1 + 1, 0, 0, roll=180):
         p -= h
     p -= cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, 0)
-    p -= cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 1, D.SV_IDLER_FACE + 0.7, 0, 0)
+    # through-bore relief for the O6.1 free-hub post (see yoke_roll note)
+    p -= cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 6, D.SV_IDLER_FACE + 0.7, 0, 0)
     b = D.YOKE_BOLT_SQ / 2
     for sx, sy in ((b, b), (b, -b), (-b, b), (-b, -b)):
         p -= cyl_z(D.HEATSET_D / 2, zf1 - 1, zf0 + 1, sx, sy)    # heat-set M3
@@ -279,7 +283,8 @@ def leg_link(print_fins=False):
     for h in bcd_y(iy0 - 1, hy1 + 1, 0, drop, roll=90):
         p -= h
     p -= cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, drop)
-    p -= cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 1,
+    # through-bore relief for the O6.1 free-hub post (see yoke_roll note)
+    p -= cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 6,
                D.SV_IDLER_FACE + 0.7, 0, drop)
     # --- cable window through the web: the servo's rear ports sit INBOARD
     # of the web (case end, z ~ -36) while the raceway runs down the web's
@@ -379,17 +384,15 @@ def yaw_carrier():
     for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
         p -= cyl_z(D.PAD_HOLE / 2, zc - 1, 1, dx, dz)
     p -= cyl_z(D.HORN_CENTER_RELIEF_D / 2, zc - 1, 1, 0, 0)
-    # roll-servo CONNECTOR clearance: the two idler-face sockets sit beside the
-    # idler disc (at the roll axis, in the REAR wall) offset toward the cable end
-    # (up). The U-slot already opens the rear wall AT the disc; extend it up over
-    # the SV_CONN band so the housings + plugs clear, then the leads route out
-    # the open bay rear. This REPLACES the deleted ceiling channel (which sat
-    # ~35 mm too high). Y within the U-slot width; the cut runs from the AXIS up
-    # (not from SV_CONN_L[0]) so it merges with the bore circle -- stopping at
-    # the band's lower edge left a <0.85 mm crescent against the bore crown
-    # (r 10.3 vs edge at +10).
-    p -= box(-21, -D.SV_TOPFACE + 1, -D.SV_CONN_HW, D.SV_CONN_HW,
-             za, za + D.SV_CONN_L[1] + 1)
+    # roll-servo CONNECTOR window, over the MEASURED trench (SV_CONN: band
+    # 11.75..16.35 above the roll axis, nearly full case width; sockets open
+    # OUT of the idler face = rearward here). Plugs + leads pass through the
+    # rear wall and route out the open bay rear. Bottom edge za+11.3 leaves a
+    # 1.0 mm full-width bar to the bore crown (za+10.3) and 1.25 mm to the
+    # za+8.30 retention screw bores; width +/-11.4 clears the sockets and
+    # keeps 3.86 mm posts to the wall edges (+/-15.26).
+    p -= box(-21, -D.SV_TOPFACE + 1, -D.SV_CONN_HW - 0.5, D.SV_CONN_HW + 0.5,
+             za + D.SV_CONN_L[0] - 0.45, za + D.SV_CONN_L[1] + 1.0)
     return p
 
 
@@ -432,15 +435,35 @@ def pelvis():
             for s in (1, -1):
                 p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zd - 1, 1,
                            -xrow, by + s * D.CASE_HOLE_LAT)
-        # yaw CONNECTOR deck HOLE: the yaw servo's idler face is UP against the
-        # deck, so its two sockets (beside the idler disc, offset toward the
-        # cable end = -X) point UP into the deck. Cut a hole straight through the
-        # deck over them so the housings + plugs pass up to the board and the
-        # lead routes to it (this REPLACES the old rear chase, which aimed at a
-        # non-existent rear-end-face port). Between the two idler stator-screw
-        # rows (-8.30 and -32.75) and clear of them in Y (+/-SV_CONN_HW < 10.25).
-        p -= box(-D.SV_CONN_L[1], -D.SV_CONN_L[0], by - D.SV_CONN_HW,
-                 by + D.SV_CONN_HW, zseat - 1, 1)
+        # --- idler-face interface, from the measured SV_IDLER/SV_CONN truth ---
+        # (1) disc + hub CLEARANCE POCKET: the idler disc (O19.2, +0.27 proud)
+        # and its hub screws (+0.82) ROTATE with the output -- clamping them
+        # against a flat deck binds the yaw joint. Pocket them 1.3 deep.
+        p -= cyl_z(21.5 / 2, zd, zd + 1.3, 0, by)
+        # (2) stator screw PADS: the 4 screw bosses sit ~1.78 BELOW the slab
+        # plane the deck touches (vendor STEP), so bare screws would bow the
+        # case. O7 pads descend SEAT_PAD_H=1.5 (deliberate under-reach) to
+        # near-land on the bosses (rows -8.30 / -32.75, y +/-10.25), then the
+        # screw clearance is re-drilled through them (the deck bores above
+        # were cut before the pads existed).
+        for xrow in D.YAW_CASE_HOLES_IDLER:
+            for s in (1, -1):
+                p += cyl_z(3.5, zd - D.SEAT_PAD_H, zd,
+                           -xrow, by + s * D.CASE_HOLE_LAT)
+                p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zd - D.SEAT_PAD_H - 0.1, 1,
+                           -xrow, by + s * D.CASE_HOLE_LAT)
+        # (3) yaw CONNECTOR deck HOLE, over the measured trench (11.75..16.35
+        # behind the axis): the two sockets open UP out of the face; plugs +
+        # leads pass through the deck to the board. 0.6 mm margin lengthwise
+        # (1.1 mm ligament to the -8.30 screw bores); width capped at +/-10.5
+        # (not the full +/-10.9 trench) to keep 1.2 mm to the tower heat-set
+        # pilots at (+/-14, +/-42) -- the sockets span well under +/-9.
+        p -= box(-D.SV_CONN_L[1] - 1.0, -D.SV_CONN_L[0] + 0.6,
+                 by - 10.5, by + 10.5, zseat - 1, 1)
+        # merge the hole into the pocket across the centre band -- the crescent
+        # web between the circle edge and the hole edge is <0.85 mm for
+        # |dy| < ~4 and would flag as unprintable
+        p -= box(-D.SV_CONN_L[0] + 0.5, -10.0, by - 4.5, by + 4.5, zd, zd + 1.3)
     # tower mounting: heat-set pilots straight down through the deck into the
     # collar side-wall material below (feet land at |y|=42 over the side walls).
     # No raised bosses (they held the first layer off the bed -- audit

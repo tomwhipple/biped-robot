@@ -99,8 +99,8 @@ def scene_wiring():
         # true connector positions (SV_CONN): the yaw plugs poke UP through the
         # deck hole (x -25..-11 over the seat); the roll plugs stick REARWARD
         # out of the carrier's opened rear wall at the connector band
-        yaw_port = (-18.0, by, 0.0)             # in the deck hole, at deck level
-        roll_port = (-24.0, by, rollz + 18)     # rear of carrier, mid conn band
+        yaw_port = (-14.0, by, 0.0)             # deck hole over the conn trench
+        roll_port = (-21.0, by, rollz + 14)     # rear wall window, mid trench
         # board -> hip-yaw: down the tower, along the deck top, into the hole
         cables.append(tube([(-6, s*8, pcb_top-3), (-7, s*8, 4),
                             (-13, by, 3), yaw_port]))

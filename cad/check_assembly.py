@@ -22,10 +22,17 @@ def servo_mock_y():
 
 def servo_mock_x():
     """Roll servo: output axis +X, body length along Z (output end DOWN):
-    axis at z=0, top end +35.11, bottom -10.11."""
+    axis at z=0, top end +35.11, bottom -10.11. Idler face (-X) carries the
+    measured SV_CONN trench and the free-hub post at its STEP-worst-case
+    protrusion (must stay inside the bay bore)."""
     case = parts.box(D.SV_BOTFACE, D.SV_TOPFACE, -12.36, 12.36,
                      -D.SV_AXIS_FROM_OUT_END, D.SV_AXIS_FROM_REAR)
     case -= parts.cyl_x(D.SV_IDLER_RECESS_D / 2, D.SV_BOTFACE - 0.01,
+                        D.SV_IDLER_FACE, 0, 0)
+    case -= parts.box(D.SV_BOTFACE - 0.01, D.SV_BOTFACE + D.SV_CONN_FLOOR,
+                      -D.SV_CONN_HW, D.SV_CONN_HW,
+                      D.SV_CONN_L[0], D.SV_CONN_L[1])
+    case += parts.cyl_x(3.05, D.SV_BOTFACE - D.SV_IDLER_HUB_PROUD,
                         D.SV_IDLER_FACE, 0, 0)
     horn = parts.cyl_x(D.SV_BOSS_D / 2, D.SV_TOPFACE, D.SV_HORN_FACE, 0, 0)
     return case + horn
@@ -34,11 +41,21 @@ def servo_mock_x():
 def servo_mock_z():
     """Yaw servo (v3yaw): output axis VERTICAL, horn DOWN. Case length along X
     (YAW_CASE_X_REAR..FRONT), width along Y, thickness along Z. Origin at the
-    output axis on the case mid-plane; idler-side (recessed O25) face UP, horn
+    output axis on the case mid-plane; idler-side face UP (recessed O25 disc
+    well, measured SV_CONN trench, stator-boss recesses, and the free-hub post
+    at its STEP-worst-case protrusion -- the deck pocket must clear it), horn
     boss DOWN."""
     case = parts.box(D.YAW_CASE_X_REAR, D.YAW_CASE_X_FRONT, -12.36, 12.36,
                      D.SV_BOTFACE, D.SV_TOPFACE)
     case -= parts.cyl_z(D.SV_IDLER_RECESS_D / 2, 16.80, D.SV_TOPFACE + 0.01, 0, 0)
+    case -= parts.box(-D.SV_CONN_L[1], -D.SV_CONN_L[0],
+                      -D.SV_CONN_HW, D.SV_CONN_HW,
+                      D.SV_TOPFACE - D.SV_CONN_FLOOR, D.SV_TOPFACE + 0.01)
+    for xrow in D.YAW_CASE_HOLES_IDLER:            # stator screw boss recesses
+        for s in (1, -1):
+            case -= parts.cyl_z(3.7, D.SV_TOPFACE - D.SV_IDLER_BOSS_RECESS,
+                                D.SV_TOPFACE + 0.01, -xrow, s * D.CASE_HOLE_LAT)
+    case += parts.cyl_z(3.05, 16.80, D.SV_TOPFACE + D.SV_IDLER_HUB_PROUD, 0, 0)
     horn = parts.cyl_z(D.SV_BOSS_D / 2, -D.SV_HORN_FACE, D.SV_BOTFACE, 0, 0)
     return case + horn
 
