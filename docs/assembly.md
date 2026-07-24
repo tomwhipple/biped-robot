@@ -71,7 +71,7 @@ servo at mechanical zero** (see §1).
 
 | Fastener                                             | Qty                  | Threads into                                                                                                                                                                                                                                                              | Consumed in                                                                                                                |
 | ---------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **M3×6** button head *(the servos' own horn screws)* | 38 used (40 bundled) | the servo's metal **horn disc** — M3 on the Ø14 bolt circle: 4× per horn everywhere except the yaw horns, which take **3×** (the rear-most position is the carrier's cable channel — wiring audit 2026-07-23). Bundled with each ST3215 (10 × 4 = 40 on hand → 2 spares). | §5 (knee + ankle horns, 16), §6 (hip-pitch horn, 8), §7b (yaw carriers onto the yaw horns, 6), §8 (hip-roll horn, 8)       |
+| **M3×6** button head *(the servos' own horn screws)* | 40 used (40 bundled) | the servo's metal **horn disc** — M3 on the Ø14 bolt circle, **4× per horn everywhere** (the yaw horns went back to 4× after the 2026-07-24 connector correction — the "cable channel" the dropped rear bolt served aligned with nothing). Bundled with each ST3215 (10 × 4 = 40 on hand → 0 spares). | §5 (knee + ankle horns, 16), §6 (hip-pitch horn, 8), §7b (yaw carriers onto the yaw horns, 8), §8 (hip-roll horn, 8)       |
 | **M3×8** button head **+ thin washer**               | 24                   | the servo's free-spinning **idler disc** — same Ø14 circle; washer stops the tip short of the 3.35 mm thread. *(Pre-2026-07-23 prints: hand-drill the Ø3.4 idler holes through the arm — see Anatomy note.)*                            | §5 (knee + ankle idlers, 16), §6 (hip-pitch idler, 8)                                                                      |
 | **M3×10** button head                                | **20**               | three jobs: the hip-roll **idler disc** reached through the bay-wall slot by the long boss (8; pre-2026-07-23 prints need the idler holes drilled through, per §5); the **yoke_pitch flange heat-sets** that make the hip universal (8); and the **deck heat-sets** the tower feet pull down onto (4).             | §6 (flange → inserts, 8), §8 (roll idler, 8), §9c (tower feet → inserts, 4)                                                |
 | **M3×8 self-tapping**                                | 56                   | printed Ø3.4 clearances into the **servo case's Ø3.5 holes** (glass-filled nylon, community-tapped M3 — see verify-on-arrival).                                                                                                                                           | §3 (feet, 8), §4 (leg_link grips, 24), §7a (yaw stators down through the deck, 8), §7c (roll servos into the carriers, 16) |
@@ -274,7 +274,10 @@ wraps the top of the case and keys it against the yaw reaction torque. The
 idler-side case face lands flat on the deck. Fix the stator with **4× M3×8
 self-tapping down through the deck** into the idler-side case-hole rows — 2 into
 row 8.30 (through the deck), 2 into row 32.75 (through the local rear tab that
-overhangs the case cable end). Route the yaw cable out the rear end face.
+overhangs the case cable end). The servo's **two bus ports face UP** (they sit
+on the idler-side face beside the disc) and poke into the **connector hole
+through the deck** over each seat — plug the board lead and the yaw→roll lead
+in **down through that hole from above** (connector correction 2026-07-24).
 
 ### 7b. Carriers onto the yaw horns
 
@@ -282,10 +285,10 @@ overhangs the case cable end). Route the yaw cable out the rear end face.
 
 With each yaw servo at **mechanical zero** (centered horn), offer the
 `yaw_carrier` up so its horn plate mates the horn disc and its roll bay opens
-downward. **3× M3×6 into the yaw horn** (Ø14 bolt circle — the yaw servo's own
-bundled M3×6; the rear-most of the 4 horn positions is deliberately open —
-that's the cable channel that clears the roll servo's up-facing connectors,
-wiring audit 2026-07-23) — horn-only, no idler side at this axis (see the
+downward. **4× M3×6 into the yaw horn** (Ø14 bolt circle — the yaw servo's own
+bundled M3×6; connector correction 2026-07-24: the roll servo's ports are on
+its idler face beside the disc, NOT under the horn plate, so the rear bolt
+position is back in use) — horn-only, no idler side at this axis (see the
 [study](hip-yaw-study.md#6-as-designed-cad-2026-07-23)
 for why). Confirm the carrier is square before torquing — a clocked carrier
 becomes a permanent yaw offset.
@@ -296,9 +299,11 @@ becomes a permanent yaw offset.
 
 The carrier's roll bay is the **same downward-open U-slot** as the old pelvis
 bay, just relocated: slide each hip-roll servo **up** into it — **output end
-down, horn facing forward, cable up through the rear slot in the carrier
-ceiling**. **8× M3×8 self-tapping per bay** — 4 through the front (horn) wall,
-4 through the rear (idler) wall — into the roll servo's Ø3.5 case holes.
+down, horn facing forward**. Its two bus ports then stick **rearward out of the
+opened rear wall, beside the idler disc** — plug both leads there and route
+them out the open bay rear (connector correction 2026-07-24; the old ceiling
+slot is gone). **8× M3×8 self-tapping per bay** — 4 through the front (horn)
+wall, 4 through the rear (idler) wall — into the roll servo's Ø3.5 case holes.
 
 ## 8. Legs onto the carriers
 

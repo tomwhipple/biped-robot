@@ -74,17 +74,20 @@ pigtail and a switch.*
 
   | Hop | Worst routed | Lead |
   |---|---|---|
-  | board → hip-yaw | ~45 mm (down through the deck CENTER WINDOW, inboard of the yaw case, to its rear port; the rear chase `WIRE_CHASE_1` is the alternate/relief crossing) | stock 150 mm (coil excess in the tower) |
-  | hip-yaw → hip-roll | ~55 mm incl. the ~15 mm service loop across the ±45° yaw sweep (open rear gap, then the carrier cable channel `WIRE_CHASE_2`, opened forward to clear the roll servo's up-facing connectors) | stock 150 mm |
+  | board → hip-yaw | ~50 mm (straight down from the tower into the yaw **connector deck hole** over each seat — the servo's two idler-face plugs poke UP through it; connector correction 2026-07-24) | stock 150 mm (coil excess in the tower) |
+  | hip-yaw → hip-roll | ~85 mm incl. the ~15 mm service loop across the ±45° yaw sweep (back out the same deck hole, over the deck rear edge, down the back to the roll plugs sticking rearward out of the carrier's opened rear wall at the `SV_CONN` band) | stock 150 mm |
   | hip-roll → hip-pitch | **170 mm** | **≥200 mm extension required** (BOM item 19) — crosses both the roll and hip-pitch joints; longest at the knee-flexion pose |
   | hip-pitch → knee | 111 mm | stock 150 mm (~35 % slack) |
   | knee → ankle | 82 mm | stock 150 mm (worst at ankle −40°) |
 
   (v3yaw 2026-07-23: the old "board → hip-roll 33 mm" hop became the two
   hops above when hip yaw entered the chain — see docs/hip-yaw-study.md §6
-  for the routing openings. The two ~mm figures are estimates from the
-  chase/channel geometry in cad/dimensions.py; re-measure via dress.py
-  routed paths before ordering leads. Bus grows to 10 servos, IDs 9/10 =
+  for the routing openings, corrected 2026-07-24 when the STS3215's ports
+  were confirmed on the idler-side face beside the disc (`SV_CONN` in
+  cad/dimensions.py; the old `WIRE_CHASE_1/2` cuts aimed at ports that
+  don't exist and are deleted). The two ~mm figures are estimates from
+  that geometry; re-measure via dress.py routed paths — and confirm the
+  exact port offset on a physical servo — before ordering leads. Bus grows to 10 servos, IDs 9/10 =
   L/R hip yaw; sync-read 3.5 → ~4.3 ms, still inside the 20 ms tick.)
 
   The routed paths already include the service loops, so the stock-lead

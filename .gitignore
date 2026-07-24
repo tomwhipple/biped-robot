@@ -25,3 +25,4 @@ sim/*.png
 **/renders/*.gif
 infra/.last_train
 infra/runpod/.last_pod
+cad/step/*.FCBak

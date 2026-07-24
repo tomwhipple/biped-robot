@@ -261,6 +261,33 @@ Open item for `wiring.md` (main thread — not in my file set): the segment tabl
 still lists the 8-DOF "board→hip-roll" hop; it becomes board→hip-yaw→hip-roll
 with a ~15 mm service loop at the yaw joint, and the board now needs ID 1 = yaw.
 
+### Wiring routing — connector ground-truth correction (2026-07-24, rev 3 — SUPERSEDES the rev 1/2 routing above)
+
+The user inspected a physical STS3215: its **two Molex-5264 bus ports sit side
+by side on the IDLER-side case face, next to the idler disc** — not on the far
+cable-END face that revs 1–2 assumed (the repo's own
+`docs/connector-guide.html`, built from the physical servos, says the same:
+"end face opposite the horn"; a dimensioned drawing could not be found online,
+so the exact offset is modeled as `SV_CONN_*` in `dimensions.py` and **must be
+confirmed on a real servo before final prints**). Consequences:
+
+- **`WIRE_CHASE_2` aligned with nothing** — the roll servo's ports are at the
+  roll AXIS in the carrier's rear wall, ~35 mm below the ceiling channel
+  (modeled overlap: 0 mm³). The channel is **deleted**, the **4th yaw-horn bolt
+  is restored**, and the rear-wall U-slot opening is extended over the `SV_CONN`
+  band instead (merged down into the bore to kill a <0.85 mm crescent).
+- **`WIRE_CHASE_1` aimed at a non-existent rear-end port** — replaced by a
+  **hole through the deck** over each yaw servo's up-facing ports (idler face
+  sits against the deck underside); the board lead now plugs straight down
+  through the deck, and the yaw→roll lead climbs back out the same hole, over
+  the deck rear edge, down to the carrier's rear-wall ports.
+- The same cable-END-face assumption is baked into the **foot** heel window and
+  the leg_link web-window sizing — both designed before servos arrived, never
+  validated. Re-audit against a physical servo on arrival before any reprint.
+- Checks after the correction: `check_printability.py` ALL PARTS PRINT CLEAN,
+  `check_assembly.py` ALL CLEAR; renders `renders/hip_yaw_wiring.png` /
+  `_front.png` re-drawn with leads at the true ports.
+
 ### Open questions for the user
 
 1. **Stack height 41 vs 28 mm.** Confirm the taller robot is acceptable
@@ -276,11 +303,10 @@ with a ~15 mm service loop at the yaw joint, and the board now needs ID 1 = yaw.
    cable-end overhang and its −32.75 stator-screw row. Confirm nothing on the
    deck rear (wiring, switch) fouls the local rear tab, or move the yaw servo
    output-end rearward to overhang the front instead.
-4. **Yaw + roll cable routing.** The roll-servo cable exits up through a rear
-   slot in the carrier ceiling next to the yaw horn; the yaw-servo cable exits
-   its rear end face over the deck rear edge; both then rise through the deck
-   centre window. Verify with real 150 mm leads — a yaw-crossing service loop
-   (±45°) is new and may need an extension.
+4. **Yaw + roll cable routing** *(routing updated in rev 3 above)*: the yaw
+   ports plug down through the deck hole; the roll ports plug rearward at the
+   carrier's rear wall. Verify with real 150 mm leads — a yaw-crossing service
+   loop (±45°) is new and may need an extension.
 5. **Stator hold.** 4× M3 into the idler-side case face + a 4 mm collar is the
    mount; confirm the case's Ø3.5 holes take M3 self-tappers (the standing BOM
    question) before committing, since the stator now carries the full leg load

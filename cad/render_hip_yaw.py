@@ -73,10 +73,13 @@ def scene_wiring():
     """Full hip-region assembly (pelvis-local frame, deck top = 0): pelvis +
     tower + board mock + both yaw servos + carriers + roll servos, with mock
     daisy-chain leads (board -> yaw -> roll -> down the leg) routed through the
-    real openings, for a semi-transparent route view. Board port -> center wire
-    window -> under-deck (inboard of the flat yaw case) -> behind the case to
-    its rear port -> down into the carrier channel -> roll connector -> out and
-    down the thigh."""
+    real openings, for a semi-transparent route view. The STS3215's two sockets
+    sit on the IDLER-side face beside the disc (SV_CONN ground truth), so: board
+    port -> down to the deck -> into the yaw CONNECTOR DECK HOLE (the plugs poke
+    up through it) -> the yaw->roll lead climbs back out the same hole, over the
+    deck rear edge and down the back -> the roll plugs sticking rearward out of
+    the carrier's opened rear wall at the connector band -> out and down the
+    thigh."""
     printed, servos, cables = [], [], []
     printed.append(parts.pelvis())
     printed.append(parts.tower())
@@ -93,18 +96,20 @@ def scene_wiring():
         servos.append(Pos(0, by, ymid) * CA.servo_mock_z())
         printed.append(Pos(0, by, yhz) * parts.yaw_carrier())
         servos.append(Pos(0, by, rollz) * CA.servo_mock_x())
-        port = (-35.0, by, -20)                 # yaw rear port (below the collar)
-        yin = s * 10                            # inboard y (clear of the case)
-        # board -> hip-yaw: down through the CENTER WIRE WINDOW, under the deck
-        # inboard of the flat yaw case, behind the case to its rear port
-        cables.append(tube([(-6, s*8, pcb_top-3), (-7, s*8, 2), (-8, yin, -7),
-                            (-22, yin, -12), (-34, yin, -15), (-38, s*13, -17),
-                            (-38, by, -18), port]))
-        # hip-yaw -> hip-roll: behind the case, down into the carrier channel
-        cables.append(tube([port, (-38, by, -32), (-30, by, -42),
-                            (-16, by, yhz + 1), (-13, by, ceilz + 1)]))
-        # hip-roll -> hip-pitch: out the carrier channel, down the thigh
-        cables.append(tube([(-13, by, ceilz + 1), (-21, by, -52), (-22, by, -74)]))
+        # true connector positions (SV_CONN): the yaw plugs poke UP through the
+        # deck hole (x -25..-11 over the seat); the roll plugs stick REARWARD
+        # out of the carrier's opened rear wall at the connector band
+        yaw_port = (-18.0, by, 0.0)             # in the deck hole, at deck level
+        roll_port = (-24.0, by, rollz + 18)     # rear of carrier, mid conn band
+        # board -> hip-yaw: down the tower, along the deck top, into the hole
+        cables.append(tube([(-6, s*8, pcb_top-3), (-7, s*8, 4),
+                            (-13, by, 3), yaw_port]))
+        # hip-yaw -> hip-roll: back out of the deck hole, over the deck rear
+        # edge, down the back, into the roll plugs at the rear wall
+        cables.append(tube([yaw_port, (-24, by, 2), (-34, by, -2),
+                            (-36, by, -30), (-32, by, rollz + 22), roll_port]))
+        # hip-roll -> hip-pitch: out the open bay rear, down the thigh
+        cables.append(tube([roll_port, (-27, by, rollz + 4), (-22, by, -95)]))
     return printed, servos, cables
 
 

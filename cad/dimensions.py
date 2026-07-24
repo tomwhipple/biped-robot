@@ -217,40 +217,35 @@ YAW_STACK_DROP = ROLL_BELOW_DECK_YAW - ROLL_BELOW_DECK_OLD  # 40.80 mm
 
 YAW_SWEEP = 45.0                   # design yaw half-range each way (deg)
 
-# --- wire routing (v3yaw harness) ------------------------------------------
-# Bus daisy-chain, 10 servos over 2 legs (design review 2026-07-23: the flat
-# yaw cases sit on the deck underside exactly where the old per-bay deck
-# cutouts were, so those are deleted and REPLACED by the openings below --
-# without them the board->yaw lead and the roll-servo cable have no passage
-# and pierce the deck / collar).
-#   board (tower) --[deck rear chase]--> hip-YAW rear-end port (faces -X, below
-#     the deck rear overhang) --[open gap]--> hip-ROLL top port (in the carrier
-#     bay) --[carrier rear channel]--> down the leg (pitch->knee->ankle use the
-#     UNCHANGED leg_link web windows + foot cable window).
-# Each ST3215 lead is a 3-wire JST bundle; a daisy pass at a servo carries 2
-# bundles (the incoming + the outgoing lead).
-WIRE_BUNDLE = 5.0        # one 3-wire ST3215 lead bundle, outer dia
-WIRE_PLUG_W = 9.0        # ST3215 JST housing width (assemble connector-first)
-WIRE_CHASE_1 = 12.0      # slot width for 1 bundle+plug with grommet margin
-WIRE_CHASE_2 = 14.0      # slot width for 2 bundles (daisy in + out at a servo);
-                         # +/-7 keeps a 1.55 mm ligament to the roll retention
-                         # screw hole at y +/-10.25 in the carrier rear wall
-# The hip-ROLL servo's cable connectors point UP out of the bay ceiling, right
-# where the carrier's yaw-horn plate sits -- a SOLID plate caps them (the plate
-# is 3 mm thick, the gap above it to the yaw-case underside is only 3.1 mm, and
-# the plate centre is taken by the O19.2 horn). The ST3215 pair sits on the REAR
-# of the cable-end face (the cable exits toward the daisy), so the carrier's
-# rear cable channel is opened forward to YAW_CH_FRONT to uncap them, and the
-# rear-most of the 4 yaw-horn bolts is DROPPED so the channel can reach that far
-# (3x M3 on the O14 circle is ample for the ~0.3 N*m yaw torque). A connector at
-# the rear then pokes up through the opened ceiling into the 3.1 mm gap and the
-# lead routes out. Wire audit 2026-07-23. (Verified with a connector-block
-# clearance sweep across the cable-end face.)
-YAW_CH_FRONT = -6.0      # carrier rear cable channel reaches this far forward:
-                         # covers the roll connectors (which sit at x < -9.6,
-                         # off the O19.2 horn) while keeping a 2 mm wall to the
-                         # O8 centre relief (edge at -4) and to the side horn
-                         # bolts (x=0, y=+/-7)
+# --- STS3215 daisy-chain connectors (GROUND-TRUTH CORRECTION 2026-07-24) ------
+# The two 3-pin Molex-5264 sockets (housing ~12 x 6 mm each) are on the
+# IDLER-side case face (the one OPPOSITE the horn), side by side NEXT TO THE
+# IDLER DISC -- NOT on the far cable-END face that earlier passes (and the
+# obsolete pelvis "connectors on the top end" cutout, and the foot heel window)
+# assumed. Sources: the user's physical servo, and the repo's own
+# docs/connector-guide.html ("Servo end face opposite the horn: both ports live
+# behind this slot"). No online Feetech/Waveshare dimensional drawing pins the
+# exact mm offset (Waveshare wiki 403s, manuals omit it, the STEP wasn't
+# re-measured for it) -- the offsets below are inferred from the case geometry
+# and MUST be confirmed on a real servo before final prints. Position is given
+# on the idler face relative to the output axis, measured along the case LENGTH
+# toward the CABLE end (there is SV_AXIS_FROM_REAR=35.11 mm of case that way vs
+# 10.11 the other; the disc O19.2/r9.6 blocks the near band).
+SV_CONN_L = (11.0, 25.0)   # length band of the connector pair, axis->cable-end
+SV_CONN_HW = 7.0           # half-width across the case (two sockets side by side;
+                           # 7 keeps a 1.55 mm ligament to the carrier's roll
+                           # retention screw holes at y +/-10.25)
+SV_CONN_PROUD = 7.0        # plugged housing stand-off from the idler face
+WIRE_BUNDLE = 5.0          # one 3-wire ST3215 lead bundle, outer dia
+WIRE_PLUG_W = 9.0          # ST3215 JST housing width (assemble connector-first)
+# Consequences (re-audit): the hip-ROLL servo in the carrier has its idler face
+# REARWARD (-X) so its connectors sit beside the disc in the bay's rear wall --
+# already opened by the U-slot at the disc, extended a little toward the cable
+# end (up) for the housings.  The old WIRE_CHASE_2 channel at the bay CEILING
+# aligned with nothing (connectors are ~35 mm lower, at the disc) and is deleted;
+# with it gone the yaw-horn bolt count goes back to 4.  The hip-YAW servo in the
+# pelvis has its idler face UP against the deck, so its connectors need a deck
+# HOLE straight up to the board (replaces the old rear chase WIRE_CHASE_1).
 
 # ----------------------------------------------------------------------------
 # leg link (thigh and shin are the SAME part)
@@ -307,9 +302,13 @@ FOOT_WALL_T = 2.4       # thin: shin-fork horn arm passes 0.4 outside it (LOCKED
 # vertical -> adds nothing for the printer to bridge. Inner face 1.1 clear of
 # the servo case rear end (-35.11 - FIT).
 FOOT_BULK_X = (-40.0, -36.5)
-FOOT_CABLE_W = 16.0     # cable window in the bulkhead, open at the top: the
-FOOT_CABLE_Z = 8.0      # servo cable exits the rear END face (same connector
-                        # zone the pelvis deck cutout clears: center +/-8)
+# CAVEAT (2026-07-24, SV_CONN correction): this window assumes the cable exits
+# the rear END face, but the STS3215's ports are actually on the IDLER-side
+# face beside the disc (see the SV_CONN note). The foot is a shipped print and
+# was never validated against a real servo -- re-audit whether the ankle lead
+# reaches this window when servos arrive, before any reprint.
+FOOT_CABLE_W = 16.0     # cable window in the bulkhead, open at the top
+FOOT_CABLE_Z = 8.0
 # aft base buttress (heel side, clear of the fork sweep): ONE full-width wedge
 # bracing both tabs + the bulkhead. Its sloped face is a TOP surface printing
 # sole-down, so any steepness is support-free. Ends at the heel edge (-42).

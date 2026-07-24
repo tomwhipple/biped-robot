@@ -280,6 +280,83 @@ def fastener_svg(cx, cy, ux, uy, f, kind, count, L):
     return out
 
 
+# ------------------------------------------------ fastener alignment rays
+# A thin dash-dot ray riding each fastener's projected axis (lighter than the
+# main explosion centerlines): from just beyond the glyph's outer/head end,
+# through the glyph body, ending past the tip so it visibly enters the part at
+# its hole -- exactly like the alignment rays on a production exploded sheet.
+RAY_DASH = "8 3 1.5 3"
+
+# Muted-but-distinct, printable-on-white palette keyed by fastener group.  The
+# matching callout leader (or balloon ring on the master) is tinted the same hue
+# so every ray is traceable to its callout at a glance.  Part linework and the
+# main explosion centerlines stay black.
+FGROUP_COLOR = {
+    "screw":   "#2563b8",   # blue        — machine (button-head) screws
+    "idler":   "#0d9488",   # teal        — idler-disc screws (ride with washers)
+    "washer":  "#0d9488",   # teal        — thin washers
+    "selftap": "#d9531e",   # orange-red  — self-tappers
+    "heatset": "#7c3aed",   # purple      — heat-set inserts
+    "spline":  "#159141",   # green       — disc / spline centre screws
+    "thumb":   "#b8860b",   # goldenrod   — M5 thumbscrew
+}
+
+
+def _fgroup(name, kind):
+    """Map a fastener spec to its colour group.  Idler-disc machine screws share
+    the washers' teal (they seat on the same axis); everything else keys on kind."""
+    if kind in ("washer", "selftap", "heatset", "spline", "thumb"):
+        return "washer" if kind == "washer" else kind
+    n = (name or "").lower()           # screw family: split idler screws out
+    if "idler" in n or n.startswith("is") or n.startswith("ri"):
+        return "idler"
+    return "screw"
+
+
+def fgroup_color(name, kind):
+    return FGROUP_COLOR.get(_fgroup(name, kind), "#6b6b6b")
+
+
+def _glyph_extent(kind, f, L):
+    """Axial half-extents (t_head<0 outward, t_tip>0 toward the part) of a glyph,
+    matching the geometry drawn in fastener_svg.  None => axis into the page."""
+    if f < 0.33:                       # head-on: axis ~ view normal, no axial ray
+        return None
+    g = GSIZE.get(kind, 16)
+    if kind == "washer":
+        cosn = max(0.26, math.sqrt(max(0.0, 1 - f * f)))
+        return -0.66 * g * cosn, 0.66 * g * cosn
+    if kind == "heatset":
+        return -0.5 * g, 0.5 * g
+    if kind == "thumb":
+        return -0.9 * g, 3.1 * g
+    if kind == "spline":
+        return -0.34 * g, 1.5 * g
+    Hh = 0.46 * g                      # screw / self-tap
+    return -Hh, _clamp(g * (1.5 + 0.11 * L), 1.9 * g, 3.5 * g)
+
+
+def fastener_ray(cx, cy, ux, uy, f, kind, L, color="#6b6b6b", min_px=30):
+    """SVG dash-dot alignment ray for one fastener glyph seated at (cx,cy) with
+    head->tip unit screen vector (ux,uy).  None if the axis points into the page
+    or the projected ray is too short to read (declutter)."""
+    ext = _glyph_extent(kind, f, L)
+    if ext is None:
+        return None
+    t_head, t_tip = ext
+    # Spline / centre screws mount the horn & idler discs onto the servo output
+    # shaft -> carry their ray on toward that shaft; the rest just enter the hole.
+    tip_ext = 58 if kind == "spline" else 24
+    t0, t1 = t_head - 6, t_tip + tip_ext
+    x0, y0 = cx + t0 * ux, cy + t0 * uy
+    x1, y1 = cx + t1 * ux, cy + t1 * uy
+    if math.hypot(x1 - x0, y1 - y0) < min_px:
+        return None
+    return ('<path d="M %.2f %.2f L %.2f %.2f" stroke="%s" '
+            'stroke-width="0.5" stroke-dasharray="%s" fill="none" '
+            'stroke-linecap="round"/>' % (x0, y0, x1, y1, color, RAY_DASH))
+
+
 # ------------------------------------------------------------------- SVG sheet
 def emit(parts_polys, thin_polys, fdata, centerlines, callouts, balloons,
          item_table, caption, out_svg, sheet=(1360, 900), table_mode="right",
@@ -330,6 +407,19 @@ def emit(parts_polys, thin_polys, fdata, centerlines, callouts, balloons,
     for x0, y0, x1, y1 in centerlines:
         el.append('<path d="M %.2f %.2f L %.2f %.2f" stroke="#111" stroke-width="0.7" '
                   'stroke-dasharray="12 4 2 4" fill="none"/>' % (X(x0), Y(y0), X(x1), Y(y1)))
+
+    # ---- per-fastener alignment rays (BENEATH the part linework so they never
+    # obscure an edge; colour-keyed to the fastener group and its callout) ----
+    for name, u, v, au, av, f, kind, count, L in fdata:
+        cx, cy = X(u), Y(v)
+        hs = math.hypot(au, -av)
+        if hs < 1e-6:
+            continue                          # axis into the page -> no useful ray
+        ux, uy = -au / hs, av / hs            # head->tip; Y is flipped
+        ray = fastener_ray(cx, cy, ux, uy, f, kind, L, color=fgroup_color(name, kind))
+        if ray:
+            el.append(ray)
+
     for _, pls in parts_polys:
         el.append(path(pls, 1.1))
     for _, pls in thin_polys:
@@ -352,28 +442,28 @@ def emit(parts_polys, thin_polys, fdata, centerlines, callouts, balloons,
         cur = dt + 4
         tx = dl - 12 if side == "L" else dr + 12
         anchor = "end" if side == "L" else "start"
-        for gx, gy, lines, _ in grp:
+        for gx, gy, lines, _, col in grp:
             bh = len(lines) * 14.5 + 14
             ty = min(max(cur, Y(gy) - len(lines) * 7), db - bh)
             cur = ty + bh
-            el.append('<circle cx="%.2f" cy="%.2f" r="2.1" fill="#111"/>' % (X(gx), Y(gy)))
-            el.append('<path d="M %.2f %.2f L %.2f %.2f L %.2f %.2f" stroke="#111" '
-                      'stroke-width="0.7" fill="none"/>'
-                      % (X(gx), Y(gy), tx + (10 if side == "L" else -10), ty + 4, tx, ty + 4))
+            el.append('<circle cx="%.2f" cy="%.2f" r="2.1" fill="%s"/>' % (X(gx), Y(gy), col))
+            el.append('<path d="M %.2f %.2f L %.2f %.2f L %.2f %.2f" stroke="%s" '
+                      'stroke-width="0.9" fill="none"/>'
+                      % (X(gx), Y(gy), tx + (10 if side == "L" else -10), ty + 4, tx, ty + 4, col))
             for i, ln in enumerate(lines):
                 el.append('<text x="%.2f" y="%.2f" font-size="12.5" font-weight="%s" '
                           'text-anchor="%s" fill="#111">%s</text>'
                           % (tx, ty + 4 + i * 14.5, "700" if i == 0 else "400", anchor, esc(ln)))
 
     # ---- numbered balloons (circle + item no, short leader) ----
-    for gx, gy, num, ang in balloons:
+    for gx, gy, num, ang, col in balloons:
         bx = X(gx) + 34 * math.cos(math.radians(ang))
         by = Y(gy) - 34 * math.sin(math.radians(ang))
-        el.append('<path d="M %.2f %.2f L %.2f %.2f" stroke="#111" stroke-width="0.7" '
-                  'fill="none"/>' % (X(gx), Y(gy), bx, by))
-        el.append('<circle cx="%.2f" cy="%.2f" r="2.0" fill="#111"/>' % (X(gx), Y(gy)))
-        el.append('<circle cx="%.2f" cy="%.2f" r="11" fill="#fff" stroke="#111" '
-                  'stroke-width="1.1"/>' % (bx, by))
+        el.append('<path d="M %.2f %.2f L %.2f %.2f" stroke="%s" stroke-width="0.7" '
+                  'fill="none"/>' % (X(gx), Y(gy), bx, by, col))
+        el.append('<circle cx="%.2f" cy="%.2f" r="2.0" fill="%s"/>' % (X(gx), Y(gy), col))
+        el.append('<circle cx="%.2f" cy="%.2f" r="11" fill="#fff" stroke="%s" '
+                  'stroke-width="%.1f"/>' % (bx, by, col, 1.6 if col != "#111" else 1.1))
         el.append('<text x="%.2f" y="%.2f" font-size="12" font-weight="700" '
                   'text-anchor="middle" fill="#111">%s</text>' % (bx, by + 4.2, num))
 
@@ -469,9 +559,12 @@ def render(items, centerlines_3d, caption, out_name, callouts_raw=(),
         centroids[name] = (u, v)
         fdata.append((name, u, v, au, av, f, kind, count, L))
 
-    callouts = [(centroids[t][0], centroids[t][1], lines, side)
+    # callout/balloon targeting a fastener is tinted its ray colour; parts -> black
+    fcolor = {name: fgroup_color(name, kind)
+              for name, _, ax, kind, count, L in fasteners}
+    callouts = [(centroids[t][0], centroids[t][1], lines, side, fcolor.get(t, "#111"))
                 for t, lines, side in callouts_raw if t in centroids]
-    balloons = [(centroids[t][0], centroids[t][1], num, ang)
+    balloons = [(centroids[t][0], centroids[t][1], num, ang, fcolor.get(t, "#111"))
                 for t, num, ang in balloon_defs if t in centroids]
     centerlines = [proj2d(*a) + proj2d(*b) for a, b in centerlines_3d]
     return emit(parts_polys, thin_polys, fdata, centerlines, callouts, balloons,
@@ -529,8 +622,8 @@ def hip_yaw():
     fasteners = [
         # 4X M3×8 self-tap yaw stators, down through the deck (exploded up)
         ("ys", (-D.YAW_CASE_HOLES_IDLER[0], by + D.CASE_HOLE_LAT, DECK + 46), "z+", "selftap", 4, 8),
-        # 3X M3×6 carrier -> yaw horn (rear position = cable channel, open)
-        ("ch", (0, by + r, D.HIP_YAW_Z - 22), "z-", "screw", 3, 6),
+        # 4X M3×6 carrier -> yaw horn (O14 circle)
+        ("ch", (0, by + r, D.HIP_YAW_Z - 22), "z-", "screw", 4, 6),
         ("yaw_spline", (0, by, D.HIP_YAW_Z - 40), "z-", "spline", 1, 4),
         # 8X M3×8 self-tap roll servo into the carrier bay walls (exploded sideways)
         ("rb", (0, by + D.CASE_HOLE_LAT + 26, D.HIP_YAW_Z + D.CARRIER_ROLL_AXIS + 4),
@@ -542,7 +635,7 @@ def hip_yaw():
         ("ys", ["4X M3×8 SELF-TAP", "down through deck ->", "case idler rows"], "L"),
         ("YAW SERVO", ["YAW SERVO  STS3215", "flat, horn DOWN"], "R"),
         ("yaw_idler", ["YAW IDLER DISC", "(against deck)"], "R"),
-        ("ch", ["3X M3×6 -> yaw horn", "rear position = the", "cable channel (open)"], "R"),
+        ("ch", ["4X M3×6 -> yaw horn", "(O14 bolt circle)"], "R"),
         ("YAW_CARRIER", ["YAW_CARRIER", "holds the roll bay"], "L"),
         ("rb", ["8X M3×8 SELF-TAP", "roll servo into the", "carrier bay walls"], "R"),
         ("ROLL SERVO", ["ROLL SERVO  STS3215", "slides UP into carrier"], "L"),
@@ -611,8 +704,8 @@ def full():
                           "x-", "screw", 4, 10))
         fasteners.append(("spr%d" % s, (D.SV_HORN_FACE + 52, y, D.HIP_ROLL_Z),
                           "x+", "spline", 1, 4))
-        # hip-yaw: 3X carrier->horn (rear = cable channel) + spline
-        fasteners.append(("ch%d" % s, (0, y + r, D.HIP_YAW_Z - 22), "z-", "screw", 3, 6))
+        # hip-yaw: 4X carrier->horn + spline
+        fasteners.append(("ch%d" % s, (0, y + r, D.HIP_YAW_Z - 22), "z-", "screw", 4, 6))
         fasteners.append(("spy%d" % s, (0, y, D.HIP_YAW_Z - 40), "z-", "spline", 1, 4))
         # yoke_pitch flange heat-sets (4) + M3×10 flange bolts (4)
         fasteners.append(("hs%d" % s, (12, y + 12, D.HIP_PITCH_Z + 40), "z+", "heatset", 4, 0))
@@ -657,7 +750,7 @@ def full():
         ("21", "4", "M3×10 button — tower feet -> deck"),
         ("22", "4", "M3×12 self-tap — gopro/imu stack"),
         ("23", "1", "M5×20 thumbscrew — camera"),
-        ("24", "6", "M3×6 button — yaw carriers (3× ea)"),
+        ("24", "8", "M3×6 button — yaw carriers (4× ea)"),
         ("25", "10", "servo spline/centre screw"),
         ("26", "8", "M2.5×8 self-tap — board + IMU"),
     ]

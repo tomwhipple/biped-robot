@@ -371,26 +371,25 @@ def yaw_carrier():
         for s in (1, -1):
             p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, -21, -D.SV_TOPFACE + 1,
                             s * D.CASE_HOLE_LAT, za + zrow, roll=180)
-    # yaw-horn bolts: 3x M3 into the horn disc (the REAR bolt at (-7,0) is
-    # DROPPED so the cable channel below can reach forward to uncap the roll
-    # connector -- see the WIRE_CHASE_2 / YAW_CH_FRONT note). + centre relief.
-    # Bores are VERTICAL in the print (part flipped, Z stays Z) -> plain holes.
+    # yaw-horn bolts: 4x M3 into the horn disc (O14 circle). Bores are VERTICAL
+    # in the print (part flipped, Z stays Z) -> plain holes. (The rear bolt was
+    # briefly dropped for a ceiling cable channel that turned out to align with
+    # nothing -- see the SV_CONN note -- so it is restored.)
     r = D.BCD / 2
-    for dx, dz in ((r, 0), (0, r), (0, -r)):
+    for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
         p -= cyl_z(D.PAD_HOLE / 2, zc - 1, 1, dx, dz)
     p -= cyl_z(D.HORN_CENTER_RELIEF_D / 2, zc - 1, 1, 0, 0)
-    # roll-servo cable CHANNEL: the roll servo's connectors point UP out of the
-    # bay ceiling; this channel opens the ceiling over them (forward to
-    # YAW_CH_FRONT) AND cuts rearward THROUGH the rear wall's top 8 mm, so
-    # (a) the connectors are UNCAPPED (a solid plate would crush them -- the
-    # plate->yaw-case gap is only 3.1 mm), (b) the yaw->roll lead drops in from
-    # above (the over-the-carrier passage the review asked for), and (c) the
-    # roll->pitch lead exits rearward and runs down the thigh. Passes 2 bundles
-    # (WIRE_CHASE_2). Keeps a >=1.5 mm ligament to the two side horn bolts
-    # (x=0, y=+/-7, forward of the channel) and to the rear retention screws
-    # (y +/-10.25, outboard of the y+/-7 channel).
-    cw2 = D.WIRE_CHASE_2 / 2
-    p -= box(-21, D.YAW_CH_FRONT, -cw2, cw2, zc - 8, 1)
+    # roll-servo CONNECTOR clearance: the two idler-face sockets sit beside the
+    # idler disc (at the roll axis, in the REAR wall) offset toward the cable end
+    # (up). The U-slot already opens the rear wall AT the disc; extend it up over
+    # the SV_CONN band so the housings + plugs clear, then the leads route out
+    # the open bay rear. This REPLACES the deleted ceiling channel (which sat
+    # ~35 mm too high). Y within the U-slot width; the cut runs from the AXIS up
+    # (not from SV_CONN_L[0]) so it merges with the bore circle -- stopping at
+    # the band's lower edge left a <0.85 mm crescent against the bore crown
+    # (r 10.3 vs edge at +10).
+    p -= box(-21, -D.SV_TOPFACE + 1, -D.SV_CONN_HW, D.SV_CONN_HW,
+             za, za + D.SV_CONN_L[1] + 1)
     return p
 
 
@@ -433,16 +432,15 @@ def pelvis():
             for s in (1, -1):
                 p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zd - 1, 1,
                            -xrow, by + s * D.CASE_HOLE_LAT)
-        # board -> hip-yaw WIRE CHASE: a vertical slot BEHIND the yaw case rear
-        # face, cut clear through the rear deck tab AND the collar rear wall, so
-        # the board lead drops from the tower rear onto the tab and down to the
-        # yaw servo's rear-end connector (which faces -X, in the open gap below
-        # the collar). Sits BETWEEN the -32.75 stator screws (y = by +/-10.25),
-        # so the WIRE_CHASE_1/2 = +/-6 slot clears them by 4.25 mm. Passes one
-        # bundle+plug; the outgoing yaw->roll lead drops on down the same open
-        # gap into the carrier. (This replaces the deleted per-bay deck cutout.)
-        cw = D.WIRE_CHASE_1 / 2
-        p -= box(cx0 - w - 1, D.YAW_CASE_X_REAR, by - cw, by + cw, zseat - 1, 1)
+        # yaw CONNECTOR deck HOLE: the yaw servo's idler face is UP against the
+        # deck, so its two sockets (beside the idler disc, offset toward the
+        # cable end = -X) point UP into the deck. Cut a hole straight through the
+        # deck over them so the housings + plugs pass up to the board and the
+        # lead routes to it (this REPLACES the old rear chase, which aimed at a
+        # non-existent rear-end-face port). Between the two idler stator-screw
+        # rows (-8.30 and -32.75) and clear of them in Y (+/-SV_CONN_HW < 10.25).
+        p -= box(-D.SV_CONN_L[1], -D.SV_CONN_L[0], by - D.SV_CONN_HW,
+                 by + D.SV_CONN_HW, zseat - 1, 1)
     # tower mounting: heat-set pilots straight down through the deck into the
     # collar side-wall material below (feet land at |y|=42 over the side walls).
     # No raised bosses (they held the first layer off the bed -- audit
