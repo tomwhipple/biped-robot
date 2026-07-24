@@ -215,7 +215,11 @@ def main():
             w_track_h=1.0, w_lift=1.0, w_track_foot=1.0,
             fall_cost=10.0,
             payload_cg_z=0.0945,
-            xml_path=os.path.join(HERE, "..", "bimo_biped_v2_asbuilt.xml"),
+            # DEFAULT PLANT = the 10-DOF hip-yaw robot (user 2026-07-24:
+            # "assume the 10-dof with the new pelvis for all simulations
+            # going forward" -- the A/B verdict made yaw the build target).
+            # 8-DOF plants remain available via --xml for legacy referees.
+            xml_path=os.path.join(HERE, "..", "bimo_biped_v3yaw.xml"),
             # dense directional progress: without it precision_v1 converged
             # to a 0-falls/0-motion standing optimum (kernels pay standers)
             cmd_dense=True,
