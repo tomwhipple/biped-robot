@@ -90,6 +90,27 @@ servo count sections update (no architectural change).
 
 **Print queue:** pelvis reprint + 2 carriers; everything else printed stays.
 
+## 5a. VERDICT (morphology A/B, overnight 2026-07-23→24) — **yaw wins, decisively**
+
+Same recipe (loco family, heading integrator w=1.0, full action map, 110M
+from scratch), same honest torsional friction (condim=4), 8 seeds/scenario
+on the CPU referee:
+
+| scenario | 8-DOF control (loco_v3t) | 10-DOF yaw (loco_v4yaw) |
+|---|---|---|
+| turn_180 | 1/8, hErr 59° | **7/8, hErr 10°** |
+| square_return | 0/8, ret 126 cm | **5/8, ret 55 cm** |
+| circle_return | 0/8, ret 287 cm | **2/8, ret 47 cm** (first passes ever) |
+| overall | 36/64 | **53/64** |
+
+Turning is a morphology problem, not a training problem: the best-effort
+8-DOF policy under the heading integrator still misses a 180° turn by 59°
+on average; the yaw plant nails it to 10° and unlocks the return-to-start
+block. The 63 W from-scratch energy is the known pre-fine-tune loudness
+(+15% mass); loco_v2's fine-tune template (44→5.8 W) is queued as
+loco_v4yaw_s. **The print decision gate is passed** — pelvis + carriers
+await the user's §6 sign-offs.
+
 ## 5. Evidence plan (this week)
 
 1. **Tonight (armed):** loco_v3 = heading integrator on current 8-DOF —

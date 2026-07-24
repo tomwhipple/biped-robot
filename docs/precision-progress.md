@@ -1,6 +1,23 @@
 # Precision curriculum — progress report
 
-**Updated:** 2026-07-23 morning (after specialists night 1)
+**Updated:** 2026-07-24 early morning (specialists night 2 — the early-start
+night: user authorized a 17:52 start and overnight autonomous iteration)
+
+## Round 7 (night 2): loco_v2 record + THE HIP-YAW A/B VERDICT
+
+Six jobs planned, five ran (loco_v3 dropped mid-night as superseded by the
+torsion arm), two improvement rounds designed+verified+queued overnight:
+
+| run | result | verdict |
+|---|---|---|
+| getup_v2 (ratchet) | 0/16, 2–6 W; training converged to −332/ep = the exact sit-still floor | Economics fixed but PPO never FINDS the rise → **getup_v3 armed**: staged-rise reference (tuck→plant→squat→stand, 4 s script, w=2.0), parity-gated |
+| skills_v2 (CoM kernel, from scratch) | 9/64; balance clearance 0% — never lifts | **CoM kernel loophole**: paid 0.75/step for leaning with both feet planted; now clearance-gated → **skills_v3 armed** (160M, from scratch) |
+| loco_v2 (smoothness fine-tune) | **42/64, watts 44→5.8, stand 0.3 W, CoT 5.7; square_return 3/8 (first ever), turn hErr 97°** | The fine-tune template is proven: loud from-scratch → penalty-weighted polish |
+| loco_v3t (8-DOF+torsion+heading) | 36/64; turn_180 1/8 @ 59° | Heading integrator works (172→59°) but 8-DOF turning plateaus far from the bar |
+| **loco_v4yaw (10-DOF)** | **53/64; turn_180 7/8 @ 10°; square 5/8 @ 55 cm; circle 2/8 @ 47 cm** | **HIP YAW WINS DECISIVELY** — see hip-yaw-study.md §5a. Print gate passed. |
+
+Tomorrow night queued: getup_v3 → loco_v4yaw_s (yaw + smoothness fine-tune)
+→ skills_v3.
 
 ## Round 6 (specialists night 1: loco_v1 / skills_v1 / getup_v1 / loco_v1_ctrl,
 ## 110M steps each, all four completed inside the window)
