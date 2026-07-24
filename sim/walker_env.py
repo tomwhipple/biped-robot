@@ -1384,7 +1384,10 @@ class BimoWalkerEnv(gym.Env):
             # command block, mirrors sim/mjx)
             reward += self.w_lift * lift_ok
             reward += self.w_track_foot * foot_kernel
-            reward += self.w_com_stance * float(lifted) * com_kernel
+            # clearance-gated (mirrors sim/mjx -- skills_v2 leaning loophole)
+            reward += (self.w_com_stance * float(lifted) * com_kernel
+                       * float(np.clip(foot_clear / self.lift_clear,
+                                       0.0, 1.0)))
         if self.w_single_support:
             if shaping_on:
                 reward += self.w_single_support * float(single_support)

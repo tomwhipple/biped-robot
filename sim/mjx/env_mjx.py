@@ -1255,8 +1255,15 @@ class BimoMJXEnv:
             reward += self.w_lift * lift_ok
             reward += self.w_track_foot * foot_kernel
             reward -= self.w_foot_cross * cross_frac
+            # clearance-gated (skills_v2 lesson): ungated, the CoM kernel
+            # paid 0.75/step for leaning onto the stance foot with BOTH
+            # feet planted -- a partial do-nothing income that beat ever
+            # lifting (balance clearance 0%). Now it scales with the swing
+            # foot actually coming up, so the CoM shaping only pays as the
+            # lift it is meant to shape happens.
             reward += (self.w_com_stance * lifted.astype(jp.float32)
-                       * com_kernel)
+                       * com_kernel
+                       * jp.clip(foot_clear / self.lift_clear, 0.0, 1.0))
             # a lifted command is a balance task, not locomotion: gait shaping
             # off; a sidestep command (vy) is locomotion like any other.
             # (cmd_moving already covers c0 and c2 via cmd_v/cmd_w.)
