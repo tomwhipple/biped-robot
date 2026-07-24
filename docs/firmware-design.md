@@ -149,6 +149,20 @@ graph LR
 - **safety/**: link-watchdog timeout ⇒ torque release; tilt beyond the
   policy's trained envelope ⇒ (v1) torque release, (later) switch to the
   getup specialist; pack-voltage floor ⇒ release + beep.
+- **idle torque-off (power saving):** when the command is *stand still* and the
+  robot has been quiet for a short debounce, **release servo torque** to stop
+  the standing servos drawing hold current, then **re-engage** on the next
+  motion command or on a disturbance (wake-on-command, or wake-on-IMU-delta:
+  a tilt/gyro excursion past a small threshold re-asserts torque and hands
+  back to the loco policy). The CPU referee's `stand_off` scenario says this
+  is feasible in sim — the biped stays standing on passive joint friction
+  alone with drift < 10 cm and essentially zero electrical draw (vs ~0.3 W
+  holding powered). **Caveat — measured-on-arrival:** the sim models the
+  unpowered STS3215 as a raised joint frictionloss (`off_frictionloss`, est.
+  0.35 N·m from the ~1:345 gear-train class); feasibility flips *off* below
+  ~0.25 N·m, so the real unpowered backdrive friction **must be measured when
+  the servos arrive** before trusting the idle. Fold it into the on-target
+  bring-up (§7) torque-release drills.
 - **cal/**: NVS-stored per-servo zero offsets + IMU mounting quaternion;
   a guided calibration CLI over USB serial (ToddlerBot's zero-point lesson).
 

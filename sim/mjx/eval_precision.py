@@ -145,6 +145,10 @@ class Driver:
         self.dt = env.control_dt
         obs, _ = env.reset(seed=seed)
         self.obs = obs
+        # Green floor marker at the episode's start position (harmless in every
+        # scenario; the visible "did it return?" cue for square_return /
+        # circle_return / turn_180 / stand). Purely a render decoration.
+        env.mark_xy = (float(env.data.qpos[0]), float(env.data.qpos[1]))
         self.fell = False
         self.frames = []
         self.rows = []
@@ -721,6 +725,51 @@ def scen_stand_10s():
     return build, evaluate
 
 
+def scen_stand_off():
+    """Torque-off standing (user 2026-07-23: 'stand still with the servos
+    powered off to conserve power'). Settle 1.5 s powered, then RELEASE servo
+    torque (set_torque_enabled(False)) for the rest of the episode. Grade:
+    still standing at the end (height/up_z) AND drift < 0.10 m from where the
+    torque was cut. Continuous metrics contrast powered vs off wobble and
+    confirm the power story (watts_off ~ 0). The passive resistance while off
+    is env.off_frictionloss -- an ESTIMATE of unpowered STS3215 backdrive
+    friction (see the sensitivity sweep in the report)."""
+    cut_t = 1.5
+
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            env = ev["_env"]
+            if t >= cut_t and env._torque_on:
+                env.set_torque_enabled(False)      # release: limp servos
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        powered = _win(rows, 0.0, cut_t)
+        off = [r for r in rows if r["t"] >= cut_t]
+        # reference = torso planar position at the instant torque was cut
+        ref = next(((r["x"], r["y"]) for r in rows if r["t"] >= cut_t),
+                   (rows[0]["x"], rows[0]["y"]) if rows else (0.0, 0.0))
+        drift = (max(math.hypot(r["x"] - ref[0], r["y"] - ref[1]) for r in off)
+                 if off else float("nan"))
+        t_end = rows[-1]["t"] if rows else 0.0
+        end_win = _win(rows, t_end - 1.0, 1e9)          # last 1 s
+        end_h = _mean(end_win, "height")
+        end_up = _mean(end_win, "up_z")
+        standing = (not fell) and not math.isnan(end_h) and end_h >= 0.85 * N \
+            and not math.isnan(end_up) and end_up >= 0.9
+        success = bool(standing and not math.isnan(drift) and drift < 0.10)
+        return dict(success=success,
+                    metrics=dict(drift=drift, end_height=end_h, end_up=end_up,
+                                 wob_powered=_wob(powered), wob_off=_wob(off),
+                                 watts_off=_mean(off, "watts")),
+                    headline=f"drift {drift*100:.1f}cm" if not math.isnan(drift)
+                    else "n/a")
+    return build, evaluate
+
+
 def scen_turn_180():
     """Turn in place to face backward, then hold (user 2026-07-23: 'work on
     turning to face a different direction'). No hip-yaw joint exists, so
@@ -789,6 +838,8 @@ def _registry():
     reg["recover_sit"] = (12.0, scen_recover_fallen(deadline=5.0), False)
     reg["recover_fallen"] = (12.0, scen_recover_fallen(), False)
     reg["stand_10s"] = (11.0, scen_stand_10s(), False)
+    # torque-off idle: 1.5 s powered settle + 8 s released (user 2026-07-23)
+    reg["stand_off"] = (9.5, scen_stand_off(), False)
     return reg
 
 
@@ -804,7 +855,8 @@ ENV_EXTRA = {
 # whose config records train.family gets scored only on its own scenarios
 FAMILY_SCENARIOS = {
     "loco": ["line_1m", "backward_1m", "sidestep_L", "sidestep_R",
-             "turn_180", "square_return", "circle_return", "stand_10s"],
+             "turn_180", "square_return", "circle_return", "stand_10s",
+             "stand_off"],
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
                "march_in_place", "hip_sway", "crouch_hold", "stand_10s"],
     "getup": ["recover_sit", "recover_fallen"],
@@ -814,7 +866,7 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "march_in_place", "hip_sway",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
          "turn_180", "square_return", "circle_return", "crouch_hold",
-         "recover_sit", "recover_fallen", "stand_10s"]
+         "recover_sit", "recover_fallen", "stand_10s", "stand_off"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
@@ -833,6 +885,7 @@ HEADLINE = {
     "march_in_place": ("clean_lifts_l", lambda v: f"{v:.0f} clean lifts/leg"),
     "hip_sway": ("sway_amp", lambda v: f"amp {v*100:.1f}cm"),
     "stand_10s": ("drift", lambda v: f"drift {v*100:.1f}cm"),
+    "stand_off": ("drift", lambda v: f"drift {v*100:.1f}cm"),
 }
 
 
@@ -857,6 +910,7 @@ def _agg(vals):
 def run_one(env, act, factory, seed, record, N, mass):
     build, evaluate = factory
     ctrl, ev = build()
+    ev["_env"] = env          # scenarios that drive the env directly (torque-off)
     drv = Driver(env, act, seed, record)
     gt = drv.initial_gt()
     for step in range(env.max_steps):

@@ -47,6 +47,7 @@ TITLES = {
     "recover_sit": "Stand up from sitting",
     "recover_fallen": "Recover from a fall + stand up",
     "stand_10s": "Stand still - 10 s",
+    "stand_off": "Stand still, servos OFF (torque released)",
 }
 
 BAR_H = 44          # caption bar height (px)

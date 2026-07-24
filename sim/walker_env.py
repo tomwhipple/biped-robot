@@ -238,6 +238,19 @@ class BimoWalkerEnv(gym.Env):
         obs_hist_len: int = 1,
         joint_frictionloss: float = 0.0,
         joint_armature: float = 0.0,
+        # -- torque-off standing (eval-only power-saving idle) ------------------
+        # When servo torque is released (set_torque_enabled(False)) the joints'
+        # static friction is raised to off_frictionloss for the duration.
+        # Rationale: joint_frictionloss (0.05 N*m) was BAM-identified for the
+        # POWERED STS3215 and reflects gear-mesh + bearing drag while the motor
+        # is driving. A POWERED-OFF STS3215 is much harder to backdrive: the
+        # ~1:345 metal gear train reflects the rotor's detent/cogging torque and
+        # coulomb friction to the output, so the static breakaway is a sizeable
+        # fraction of rated output (30 kg*cm = 2.94 N*m @12V). 0.35 N*m ~= 12% of
+        # stall is a plausible unpowered breakaway, but it is an ESTIMATE from
+        # the gear-train class, not a measurement -- must be measured on the real
+        # servos when they arrive (see the sensitivity sweep in eval_precision).
+        off_frictionloss: float = 0.35,
         w_mimic: float = 0.0,          # procedural-gait imitation (Phase B;
         # mirrors sim/mjx _mimic_ref exactly -- requires gait_clock)
         mimic_s2: float = 0.72,
@@ -504,6 +517,8 @@ class BimoWalkerEnv(gym.Env):
         self.servo_range = servo_range
         self._servo_tau = np.zeros(self._nq_act)
         self._torque_on = True         # see set_torque_enabled()
+        self.off_frictionloss = off_frictionloss
+        self._held_frictionloss = None  # saved joint frictionloss while released
 
         self.dash = dash
         self.dash_distance = dash_distance
@@ -590,6 +605,11 @@ class BimoWalkerEnv(gym.Env):
 
         self.render_mode = render_mode
         self._renderer = None
+        # Optional decorative floor marker (green square) at a stored (x, y);
+        # None = off. Drawn as a non-colliding mjvGeom in render() so it needs
+        # no XML/model change and cannot touch physics. Set e.g. to the
+        # episode's start position so a "return to start" is visually gradeable.
+        self.mark_xy = None
         self._prev_action = np.zeros(self._nq_act, dtype=np.float32)
         self._air_time = np.zeros(2)   # per-foot time since last ground contact
         self._step_i = 0
@@ -917,6 +937,18 @@ class BimoWalkerEnv(gym.Env):
         if on == self._torque_on:
             return
         self._torque_on = on
+        # Passive static friction bump while released (both actuator models):
+        # a powered-off STS3215 resists backdriving far more than the powered
+        # BAM-fit frictionloss. dof_frictionloss is untouched by DR, so the
+        # saved value restores cleanly on re-engage.
+        if on:
+            if self._held_frictionloss is not None:
+                self.model.dof_frictionloss[self._jqvel] = self._held_frictionloss
+                self._held_frictionloss = None
+        else:
+            self._held_frictionloss = \
+                self.model.dof_frictionloss[self._jqvel].copy()
+            self.model.dof_frictionloss[self._jqvel] = self.off_frictionloss
         if self.actuator_model == "ideal":
             if on:
                 # Restore what was there, NOT _nom_gain: under DR this episode
@@ -936,6 +968,11 @@ class BimoWalkerEnv(gym.Env):
     # -- gym API -----------------------------------------------------------
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
+        # Every episode starts powered: the torque-off idle is cut mid-episode
+        # by set_torque_enabled(False), and a cached/reused env must not inherit
+        # a released state (and its raised frictionloss) from a prior episode.
+        if not self._torque_on:
+            self.set_torque_enabled(True)
         if self.domain_rand:
             self._randomize_dynamics()
         if self._payload_bid is not None and self.payload_max:
@@ -1618,6 +1655,23 @@ class BimoWalkerEnv(gym.Env):
         cam.lookat[:] = [x, y, 0.14 + ground]
         cam.distance, cam.azimuth, cam.elevation = 0.9, 135, -12
         self._renderer.update_scene(self.data, cam)
+        # Decorative floor marker: a flat, semi-transparent green square at the
+        # stored (x, y), drawn just above the floor. Appended AFTER scene update
+        # as a decor geom -> purely visual, never enters physics.
+        if self.mark_xy is not None:
+            scn = self._renderer.scene
+            if scn.ngeom < scn.maxgeom:
+                mx, my = float(self.mark_xy[0]), float(self.mark_xy[1])
+                mz = self._ground_z(mx, my) + 0.002
+                g = scn.geoms[scn.ngeom]
+                mujoco.mjv_initGeom(
+                    g, mujoco.mjtGeom.mjGEOM_BOX,
+                    np.array([0.06, 0.06, 0.002]),      # 12x12 cm, 4 mm thick
+                    np.array([mx, my, mz]),
+                    np.eye(3).ravel(),
+                    np.array([0.2, 0.8, 0.2, 0.5], dtype=np.float32))
+                g.category = int(mujoco.mjtCatBit.mjCAT_DECOR)
+                scn.ngeom += 1
         return self._renderer.render()
 
     def close(self):
