@@ -265,7 +265,9 @@ def main():
                       # for CoM planted over the support foot while lifted
                       w_com_stance=0.75)
     elif args.family == "getup":
-        env_kw.update(recover_mix=1.0, w_rise_dofvel=0.002)
+        # w_rise_ref (getup_v3): the ratchet fixed the economics but PPO
+        # never FOUND the rise -- dense staged-reference guidance added
+        env_kw.update(recover_mix=1.0, w_rise_dofvel=0.002, w_rise_ref=2.0)
     if args.w_mimic is not None:
         env_kw["w_mimic"] = args.w_mimic
     if args.kick_range is not None:

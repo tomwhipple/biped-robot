@@ -242,6 +242,10 @@ class BimoWalkerEnv(gym.Env):
         # mirrors sim/mjx _mimic_ref exactly -- requires gait_clock)
         mimic_s2: float = 0.72,
         w_rise_dofvel: float = 0.0,    # rise jerk control (recovery only)
+        w_rise_ref: float = 0.0,       # staged-rise reference kernel while
+                                       # down (mirrors sim/mjx _rise_ref)
+        rise_secs: float = 4.0,
+        rise_ref_s2: float = 2.0,
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         w_com_stance: float = 0.0,     # while lifted: CoM-over-stance-foot
@@ -389,6 +393,9 @@ class BimoWalkerEnv(gym.Env):
         self.w_mimic = w_mimic
         self.mimic_s2 = mimic_s2
         self.w_rise_dofvel = w_rise_dofvel
+        self.w_rise_ref = w_rise_ref
+        self.rise_secs = rise_secs
+        self.rise_ref_s2 = rise_ref_s2
         if w_mimic > 0 and not gait_clock:
             raise ValueError("w_mimic requires gait_clock")
         self._gait_freq = 0.0
@@ -755,6 +762,27 @@ class BimoWalkerEnv(gym.Env):
             # pure read: history is updated explicitly in reset()/step()
             return np.concatenate([frame] + list(self._obs_hist))
         return frame
+
+    def _rise_ref(self, t_s):
+        """Numpy mirror of sim/mjx BimoMJXEnv._rise_ref (parity-gated)."""
+        d = self._default
+        stages = np.array([
+            [-1.85, -1.60, 0.60],
+            [-1.55, -1.55, 0.30],
+            [-1.00, -1.10, 0.15],
+        ])
+        stand = np.array([d[self._i_pitch][0], d[self._i_knee][0],
+                          d[self._i_ankle][0]])
+        keys = np.concatenate([stages, stand[None]], axis=0)
+        u = float(np.clip(t_s / self.rise_secs, 0.0, 1.0)) * 3.0
+        i0 = int(np.clip(np.floor(u), 0, 2))
+        w = u - i0
+        tgt = keys[i0] * (1.0 - w) + keys[i0 + 1] * w
+        q = d.copy()
+        q[self._i_pitch] = tgt[0]
+        q[self._i_knee] = tgt[1]
+        q[self._i_ankle] = tgt[2]
+        return np.clip(q, self._lo, self._hi)
 
     def _mimic_ref(self, cmd, phase, freq):
         """Numpy mirror of sim/mjx BimoMJXEnv._mimic_ref (parity-gated)."""
@@ -1437,6 +1465,13 @@ class BimoWalkerEnv(gym.Env):
             if not self._recovered:
                 reward -= self.w_rise_dofvel * float(np.sum(
                     np.asarray(d.qvel[self._jqvel]) ** 2))
+        if self.w_rise_ref and self.ext_cmd and self.recover_mix > 0:
+            if not self._recovered:
+                # staged-rise reference (mirrors sim/mjx _rise_ref exactly)
+                q_rr = self._rise_ref(self._step_i * self.control_dt)
+                dq_rr = np.asarray(d.qpos[self._jqpos]) - q_rr
+                reward += self.w_rise_ref * float(np.exp(
+                    -np.sum(dq_rr ** 2) / self.rise_ref_s2))
 
         self._prev_action[:] = action
         self._step_i += 1

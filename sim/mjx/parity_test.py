@@ -304,7 +304,8 @@ ok_e3 = run_block(
 # block 2b: fallen/heap contact manifolds are the documented divergence.
 EXT_R = dict(EXT)
 EXT_R.pop("cmd_fixed")
-EXT_R.update(recover_mix=1.0, cmd_dense=True, w_rise_dofvel=0.002)
+EXT_R.update(recover_mix=1.0, cmd_dense=True, w_rise_dofvel=0.002,
+             w_rise_ref=2.0)   # staged-rise reference arithmetic under gate
 cpu_r = BimoWalkerEnv(xml_path=XML, actuator_model="sts3215",
                       command_mode=True, domain_rand=False, **EXT_R)
 gpu_r = BimoMJXEnv(xml_path=XML, domain_rand=False, **EXT_R)

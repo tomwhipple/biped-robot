@@ -282,6 +282,16 @@ class BimoMJXEnv:
         w_rise_dofvel: float = 0.0,  # joint-velocity penalty while DOWN in a
         # recovery episode (HumanUP/utra: jerk control during the rise is
         # what makes get-up hardware-deployable)
+        w_rise_ref: float = 0.0,    # staged-rise reference kernel while DOWN
+        # (getup_v2 lesson: the ratchet fixed the economics -- sitting still
+        # now nets -0.7/step -- but PPO exploration NEVER FINDS the rise
+        # from a settled start; training converged to the exact sit-still
+        # floor. Dense guidance through a scripted joint-space rise is the
+        # field-standard fix: tuck heels -> plant feet under pelvis -> deep
+        # squat -> stand, piecewise-linear over rise_secs. Time-based phase,
+        # like the gait clock.)
+        rise_secs: float = 4.0,     # scripted rise duration
+        rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
         # 2026-07-19: "work on the symmetry of motion in walking gaits";
@@ -475,6 +485,9 @@ class BimoMJXEnv:
         self.w_mimic = w_mimic
         self.mimic_s2 = mimic_s2
         self.w_rise_dofvel = w_rise_dofvel
+        self.w_rise_ref = w_rise_ref
+        self.rise_secs = rise_secs
+        self.rise_ref_s2 = rise_ref_s2
         if w_mimic > 0 and not gait_clock:
             raise ValueError("w_mimic requires gait_clock")
         self.w_symmetry = w_symmetry
@@ -624,6 +637,31 @@ class BimoMJXEnv:
                 + m_sway.astype(jp.float32) * 3.0)
         return (cmd, step_i + (hold / self.control_dt).astype(jp.int32),
                 mode)
+
+    def _rise_ref(self, t_s):
+        """Scripted joint-space rise for recovery episodes (getup_v3): piecewise
+        -linear through tuck -> plant -> squat -> stand over rise_secs, then
+        holds the standing pose. Time-based phase from episode start (recovery
+        episodes begin DOWN at t=0 with the command pinned to stand). Symmetric
+        L/R, roll/yaw at default. Mirrored EXACTLY in walker_env.py."""
+        d = self._default
+        # stage targets (hip_pitch, knee, ankle) inside the joint limits
+        # (-1.92..1.05 / -1.66..0.087 / +-0.70)
+        stages = jp.array([
+            [-1.85, -1.60, 0.60],   # tuck: heels to butt, toes down
+            [-1.55, -1.55, 0.30],   # plant: weight rocks onto the feet
+            [-1.00, -1.10, 0.15],   # deep squat, torso coming up
+        ])
+        stand = jp.stack([d[self._i_pitch][0], d[self._i_knee][0],
+                          d[self._i_ankle][0]])
+        keys = jp.concatenate([stages, stand[None]], axis=0)      # (4,3)
+        u = jp.clip(t_s / self.rise_secs, 0.0, 1.0) * 3.0         # 3 segments
+        i0 = jp.clip(jp.floor(u).astype(jp.int32), 0, 2)
+        w = u - i0.astype(jp.float32)
+        tgt = keys[i0] * (1.0 - w) + keys[i0 + 1] * w             # (3,)
+        q = (d.at[self._i_pitch].set(tgt[0]).at[self._i_knee].set(tgt[1])
+             .at[self._i_ankle].set(tgt[2]))
+        return jp.clip(q, self._lo, self._hi)
 
     def _mimic_ref(self, cmd, phase, freq):
         """Joint-space procedural gait reference (plan-v2 Phase B).
@@ -1287,6 +1325,15 @@ class BimoMJXEnv:
             reward -= (self.w_rise_dofvel
                        * jp.where(state.recovered < 0.5, 1.0, 0.0)
                        * jp.sum(qd_j ** 2))
+        if self.w_rise_ref and self.ext_cmd and self.recover_mix > 0:
+            # staged-rise reference while DOWN (getup_v3): dense guidance
+            # toward the scripted tuck->plant->squat->stand trajectory
+            q_rr = self._rise_ref(state.step_i.astype(jp.float32)
+                                  * self.control_dt)
+            dq_rr = data.qpos[self._jq0:self._jq1] - q_rr
+            reward += (self.w_rise_ref
+                       * jp.where(state.recovered < 0.5, 1.0, 0.0)
+                       * jp.exp(-jp.sum(dq_rr ** 2) / self.rise_ref_s2))
 
         # gait symmetry: on touchdown, penalize the swing-duration mismatch
         # vs the OTHER foot's last completed swing (locomotion commands only)
