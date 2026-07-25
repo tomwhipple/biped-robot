@@ -324,3 +324,11 @@ alone under-rewards). skills_v4: new w_foot_under=0.75 (tight horizontal
 kernel on the raised foot, clearance-gated) so lifts must come from KNEE
 flexion, not a swung-out leg (user feedback). Reels now trim trailing
 standstill to ~2 s (user request). Parity 8/8 with both terms gated.
+
+**loco_v5t (turn_emph fine-tune, 60 M): 64/72 — new deployable-best on
+robustness.** Ties v4yaw_s on pass count but falls 8%→**0%**, watts
+5.9→4.2 (CoT 4.6), wobble 0.35→0.28. circle_return: error 46→37 cm and
+19.3→12.3 W but 3/8 passes — the residual failure is return-to-point
+accuracy, not turning ability (square_return stays 8/8 @ 8 cm). Verdict:
+command-distribution surgery is done; circle-scale return accuracy is a
+goal-conditioning problem (the planned next abstraction layer).
