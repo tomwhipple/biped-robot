@@ -84,6 +84,7 @@ def sync(state, cpu, gpu_env=None):
         recovered=jp.asarray(1.0 if cpu._recovered else 0.0),
         best_h=jp.asarray(float(cpu._best_h)),
         head_ref=jp.asarray(float(cpu._head_ref)),
+        rise_t0=jp.asarray(float(cpu._rise_t0)),
         gait_freq=jp.asarray(float(cpu._gait_freq)),
         gait_phase=jp.asarray(float(cpu._gait_phase)),
         obs_hist=(jp.asarray(np.array(cpu._obs_hist))

@@ -783,6 +783,17 @@ class BimoWalkerEnv(gym.Env):
             return np.concatenate([frame] + list(self._obs_hist))
         return frame
 
+    def _phase_cmd(self):
+        """Numpy mirror of sim/mjx _phase_cmd (getup_v4, parity-gated): on
+        recovery episodes expose the rise-schedule phase through command
+        channel c5 (0..1 over the scripted rise, held at 1 once recovered)."""
+        if not (self.ext_cmd and self.w_rise_ref and self._recover_ep):
+            return
+        phase = float(np.clip(
+            (self._rise_t0 + self._step_i * self.control_dt)
+            / self.rise_secs, 0.0, 1.0))
+        self._cmd[5] = max(phase, 1.0 if self._recovered else 0.0)
+
     def _rise_ref(self, t_s):
         """Numpy mirror of sim/mjx BimoMJXEnv._rise_ref (parity-gated)."""
         d = self._default
@@ -989,6 +1000,7 @@ class BimoWalkerEnv(gym.Env):
         mujoco.mj_resetData(self.model, self.data)
         self._recover_ep = False
         self._recovered = True
+        self._rise_t0 = 0.0            # rise-phase offset (mirrors State.rise_t0)
         if self.ext_cmd and self.recover_mix > 0:
             self._recover_ep = bool(self.np_random.uniform()
                                     < self.recover_mix)
@@ -1034,6 +1046,9 @@ class BimoWalkerEnv(gym.Env):
                 j[self._i_ankle] = -0.6
                 self.data.qpos[2] = 0.13
                 self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)
+                # getup_v4: a kneel start is already weight-on-feet -- enter
+                # the rise schedule at the plant stage (mirrors _fallen_data)
+                self._rise_t0 = self.rise_secs / 3.0
             elif kind == "squat":
                 j[self._i_pitch] = self._lo[self._legL["hip_pitch"]] + 0.05
                 j[self._i_knee] = -1.62
@@ -1117,6 +1132,7 @@ class BimoWalkerEnv(gym.Env):
             self._imu_gyro_bias = (self.np_random.uniform(-0.03, 0.03, 3)
                                    * self.imu_noise)
         self._step_i = 0
+        self._phase_cmd()
         if self.gait_clock:
             self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
@@ -1508,7 +1524,8 @@ class BimoWalkerEnv(gym.Env):
         if self.w_rise_ref and self.ext_cmd and self.recover_mix > 0:
             if not self._recovered:
                 # staged-rise reference (mirrors sim/mjx _rise_ref exactly)
-                q_rr = self._rise_ref(self._step_i * self.control_dt)
+                q_rr = self._rise_ref(self._rise_t0
+                                      + self._step_i * self.control_dt)
                 dq_rr = np.asarray(d.qpos[self._jqpos]) - q_rr
                 reward += self.w_rise_ref * float(np.exp(
                     -np.sum(dq_rr ** 2) / self.rise_ref_s2))
@@ -1629,6 +1646,7 @@ class BimoWalkerEnv(gym.Env):
                     self._cmd[6] = self._traj[0] * abs(np.sin(th))
                 elif self._traj_on == 3.0:
                     self._cmd[1] = self.sway_vy * np.sin(th)
+        self._phase_cmd()
         obs_out = self._obs()
         if self.obs_hist_len > 1:
             self._obs_hist = ([obs_out[:self.obs_frame].copy()]

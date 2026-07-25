@@ -238,3 +238,37 @@ why recovery-to-stand refused to converge across four rounds. Fix: tonight's
 from-scratch specialists (loco_v1, loco_v1_ctrl, getup_v1) train with the
 full mapping; skills_v1 stays legacy for its v7b warm-start and migrates at
 its next from-scratch round.
+
+## Night 3 (2026-07-24→25, early start 17:17): first 10-DOF specialist round
+
+All jobs on the v3yaw plant (user policy 2026-07-24). Queue: getup_v3 →
+loco_v4yaw_s (smoothness fine-tune on the A/B-winning loco_v4yaw) →
+skills_v3 (clearance-gated CoM kernel). A locale-collation bug in the night
+runner's queue sort launched skills before loco; caught at +3 min, swapped
+(runner now sorts under LC_ALL=C).
+
+**getup_v3 (staged-rise reference): 0/16 — third consecutive getup failure.**
+Referee: recover_sit 0/8, recover_fallen 0/8; falls 0%, watts 1.0 — the
+converged behavior is again "hold still". The training curve is damning:
+`eval/episode_height` never exceeded ~0.20 m (sitting height) in 110 M
+steps; reward improved −1335 → −82 purely by shrinking penalties. Reel:
+`sim/renders/precision_reel_getup_v3.mov`.
+
+**Diagnosis.** The v3 reference is time-indexed from episode start, but
+(1) the policy has **no clock anywhere in its obs** — it cannot track a
+time schedule it cannot see; and (2) the reference is **misaligned with the
+reverse-curriculum starts**: a kneel start (weight already on feet) is paid
+by the exp kernel to collapse *back into the t=0 tuck*. The exp kernel is
+near-zero at ragdoll distances, so from most starts the guidance gradient
+is flat and the height ratchet alone has to carry discovery — it doesn't.
+
+**getup_v4 (implemented tonight, parity-gated):** (a) rise-schedule phase
+exposed to the policy via command channel c5 (foot_dx — zero on recovery
+episodes otherwise): ramps 0..1 over `rise_secs`, holds 1 once recovered;
+(b) per-start phase offset `State.rise_t0` — kneel starts enter the
+schedule at the plant stage (1/3) instead of being dragged backward; the
+squat start already *is* the reference's t=0 tuck (t0=0), ragdoll/sit
+must reach it (t0=0); (c) start mix rebalanced toward the rise path:
+ragdoll/kneel/squat/sit = 0.2/0.2/0.3/0.3. No obs-layout change — other
+families are untouched (phase injects only when `w_rise_ref > 0` on
+recovery episodes). Queued for the next free GPU window.

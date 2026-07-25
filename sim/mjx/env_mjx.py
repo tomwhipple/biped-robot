@@ -91,6 +91,10 @@ class State(NamedTuple):
     head_ref: jax.Array       # ()  integrated commanded heading (rad): under-
                               # turning accumulates facing error the policy
                               # must pay back (rate kernels forgave it)
+    rise_t0: jax.Array        # ()  rise-reference phase offset (s) set by the
+                              # start pose (getup_v4): a kneel start begins
+                              # 1/3 into the schedule instead of being pulled
+                              # BACK to the tuck the t=0 reference demands
     servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
     lash: jax.Array           # ()  per-episode backlash (rad)
@@ -663,6 +667,17 @@ class BimoMJXEnv:
              .at[self._i_ankle].set(tgt[2]))
         return jp.clip(q, self._lo, self._hi)
 
+    def _phase_cmd(self, cmd, recover_slot, recovered, rise_t0, step_i):
+        """getup_v4: expose the rise-schedule phase to the policy through the
+        foot_dx command channel c5 (zero on recovery episodes otherwise) --
+        v3 asked the policy to track a time-indexed reference with no clock
+        anywhere in the obs. Ramps 0..1 over the scripted rise, holds 1.0
+        once recovered. Mirrored EXACTLY in walker_env.py."""
+        phase = jp.clip((rise_t0 + step_i.astype(jp.float32) * self.control_dt)
+                        / self.rise_secs, 0.0, 1.0)
+        phase = jp.maximum(phase, recovered)
+        return jp.where(recover_slot > 0, cmd.at[5].set(phase), cmd)
+
     def _mimic_ref(self, cmd, phase, freq):
         """Joint-space procedural gait reference (plan-v2 Phase B).
         Stride amplitude ~ KX*v_leg/f (foot excursion ~0.18 m leg * A matches
@@ -821,7 +836,7 @@ class BimoMJXEnv:
         mix = mix + (0.0,) * (4 - len(mix))   # (ragdoll, kneel, squat, sit)
         p_rag, p_kneel, p_squat, p_sit = mix
         if p_rag >= 1.0:
-            return self._settle(q_rag, self.getup_settle)
+            return self._settle(q_rag, self.getup_settle), jp.zeros(())
         # kneel: torso vertical, knees folded, shins on the ground
         j_kneel = jp.zeros(self._nq_act).at[self._i_pitch].set(-0.2) \
                              .at[self._i_knee].set(-1.62) \
@@ -866,14 +881,20 @@ class BimoMJXEnv:
             out = jp.where(pick_squat, c, out)
             return jp.where(pick_sit, s, out)
 
-        return jax.tree_util.tree_map(sel, d_rag, d_kneel, d_squat, d_sit)
+        # rise-phase offset per start (getup_v4): the SQUAT start equals the
+        # reference's t=0 tuck (and rag/sit must first reach it) -> 0; the
+        # KNEEL start is already weight-on-feet -> enter at the plant stage
+        # (1/3) instead of being paid to collapse back into the tuck
+        t0 = jp.where(pick_kneel, self.rise_secs / 3.0, 0.0)
+        return jax.tree_util.tree_map(sel, d_rag, d_kneel, d_squat, d_sit), t0
 
     # -- api -------------------------------------------------------------------
     def reset(self, rng: jax.Array) -> State:
         rng, r_q, r_v, r_ep, r_cmd, r_obs = jax.random.split(rng, 6)
         recover_slot = jp.zeros(())
+        rise_t0 = jp.zeros(())
         if self.getup:
-            data = self._fallen_data(r_q)
+            data, rise_t0 = self._fallen_data(r_q)
         elif self.ext_cmd and self.recover_mix > 0:
             # recovery slot draw: this env's episodes start from a settled
             # ragdoll fall (slot membership is FIXED across the trainer's
@@ -890,12 +911,13 @@ class BimoMJXEnv:
             d_up = d_up.replace(qpos=qpos, qvel=qvel,
                                 ctrl=jp.zeros(self.mj_model.nu) + self._default)
             d_up = mjx.forward(self.model, d_up)
-            d_dn = self._fallen_data(jax.random.fold_in(r_q, 1))
+            d_dn, t0_dn = self._fallen_data(jax.random.fold_in(r_q, 1))
 
             def pick(a, b):
                 return jp.where(recover_slot > 0, a, b)
 
             data = jax.tree_util.tree_map(pick, d_dn, d_up)
+            rise_t0 = jp.where(recover_slot > 0, t0_dn, 0.0)
         else:
             qpos = self._qpos0.at[self._jq0:self._jq1].add(
                 jax.random.uniform(r_q, (self._nq_act,), minval=-0.03,
@@ -931,6 +953,9 @@ class BimoMJXEnv:
             gait_freq = jp.zeros(())
             gait_phase = jp.zeros(())
         prev_action = jp.zeros(self._nq_act, dtype=jp.float32)
+        if self.ext_cmd and self.w_rise_ref:
+            cmd = self._phase_cmd(cmd, recover_slot, 1.0 - recover_slot,
+                                  rise_t0, step_i)
         frame = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias,
                           r_obs, gait_phase)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
@@ -949,7 +974,7 @@ class BimoMJXEnv:
                      recover_slot=recover_slot,
                      recovered=1.0 - recover_slot,
                      best_h=data.qpos[2],
-                     head_ref=_quat_yaw(data.qpos[3:7]),
+                     head_ref=_quat_yaw(data.qpos[3:7]), rise_t0=rise_t0,
                      servo=servo, lat_ms=lat_ms, lash=lash,
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
@@ -982,6 +1007,10 @@ class BimoMJXEnv:
             gait_freq = jp.zeros(())
             gait_phase = jp.zeros(())
         prev_action = jp.zeros(self._nq_act, dtype=jp.float32)
+        if self.ext_cmd and self.w_rise_ref:
+            cmd = self._phase_cmd(cmd, first.recover_slot,
+                                  1.0 - first.recover_slot, first.rise_t0,
+                                  step_i)
         frame = self._obs(first.data, prev_action, cmd, step_i, imu_R,
                           imu_bias, r_obs, gait_phase)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
@@ -1335,7 +1364,8 @@ class BimoMJXEnv:
         if self.w_rise_ref and self.ext_cmd and self.recover_mix > 0:
             # staged-rise reference while DOWN (getup_v3): dense guidance
             # toward the scripted tuck->plant->squat->stand trajectory
-            q_rr = self._rise_ref(state.step_i.astype(jp.float32)
+            q_rr = self._rise_ref(state.rise_t0
+                                  + state.step_i.astype(jp.float32)
                                   * self.control_dt)
             dq_rr = data.qpos[self._jq0:self._jq1] - q_rr
             reward += (self.w_rise_ref
@@ -1421,6 +1451,9 @@ class BimoMJXEnv:
             cmd = jp.where(traj_on == 2.0, march, cmd)
             cmd = jp.where(traj_on == 3.0, sway, cmd)
 
+        if self.ext_cmd and self.w_rise_ref and self.recover_mix > 0:
+            cmd = self._phase_cmd(cmd, state.recover_slot, recovered,
+                                  state.rise_t0, step_i)
         frame = self._obs(data, action, cmd, step_i, state.imu_R,
                           state.imu_bias, r_obs, gait_phase)
         if self.obs_hist_len > 1:
@@ -1459,7 +1492,7 @@ class BimoMJXEnv:
                      traj_on=traj_on, recover_slot=state.recover_slot,
                      recovered=recovered,
                      best_h=jp.maximum(state.best_h, height),
-                     head_ref=head_ref,
+                     head_ref=head_ref, rise_t0=state.rise_t0,
                      servo=state.servo,
                      lat_ms=state.lat_ms, lash=state.lash, imu_R=state.imu_R,
                      imu_bias=state.imu_bias, metrics=metrics)
