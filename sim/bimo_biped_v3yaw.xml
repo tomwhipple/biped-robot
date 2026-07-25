@@ -108,6 +108,7 @@
     <mesh name="yoke_pitch" file="yoke_pitch.stl" scale="0.001 0.001 0.001"/>
     <mesh name="leg_link"   file="leg_link.stl"   scale="0.001 0.001 0.001"/>
     <mesh name="foot"       file="foot_asbuilt.stl"       scale="0.001 0.001 0.001"/>
+    <mesh name="yaw_carrier" file="yaw_carrier.stl" scale="0.001 0.001 0.001"/>
   </asset>
 
   <worldbody>
@@ -137,6 +138,11 @@
       <body name="L_hip_yaw" pos="0 0.028 -0.036">
         <joint name="L_hip_yaw" axis="0 0 1" range="-45 45"/>
         <geom name="carrier_L" type="box" pos="0 0 -0.022" size="0.0125 0.0225 0.0175" mass="0.0775" group="3" rgba="0.22 0.23 0.27 1"/>
+        <!-- visual-only (cadvis + mass 0: no collision/inertia change vs the
+             plant the night-3 policies trained on) -- the carrier segment
+             rendered as a floating gap before -->
+        <geom class="cadvis" mesh="yaw_carrier" pos="0 0 -0.0029" mass="0"/>
+        <geom type="box" pos="0 0 -0.0285" size="0.01735 0.01236 0.02261" group="1" rgba="0.22 0.23 0.27 1" mass="0"/>
       <body name="L_hip" pos="0 0 -0.041">
         <joint name="L_hip_roll" axis="1 0 0" range="-25 25"/>
         <inertial pos="-0.0013 0.0002 -0.0215" quat="0.7520 0.3454 0.4665 -0.3123" mass="0.0296" diaginertia="1.0690e-05 1.2121e-05 1.2719e-05"/>
@@ -172,6 +178,11 @@
       <body name="R_hip_yaw" pos="0 -0.028 -0.036">
         <joint name="R_hip_yaw" axis="0 0 1" range="-45 45"/>
         <geom name="carrier_R" type="box" pos="0 0 -0.022" size="0.0125 0.0225 0.0175" mass="0.0775" group="3" rgba="0.22 0.23 0.27 1"/>
+        <!-- visual-only (cadvis + mass 0: no collision/inertia change vs the
+             plant the night-3 policies trained on) -- the carrier segment
+             rendered as a floating gap before -->
+        <geom class="cadvis" mesh="yaw_carrier" pos="0 0 -0.0029" mass="0"/>
+        <geom type="box" pos="0 0 -0.0285" size="0.01735 0.01236 0.02261" group="1" rgba="0.22 0.23 0.27 1" mass="0"/>
       <body name="R_hip" pos="0 0 -0.041">
         <joint name="R_hip_roll" axis="1 0 0" range="-25 25"/>
         <inertial pos="-0.0013 0.0002 -0.0215" quat="0.7520 0.3454 0.4665 -0.3123" mass="0.0296" diaginertia="1.0690e-05 1.2121e-05 1.2719e-05"/>
