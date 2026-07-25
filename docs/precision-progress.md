@@ -272,3 +272,16 @@ must reach it (t0=0); (c) start mix rebalanced toward the rise path:
 ragdoll/kneel/squat/sit = 0.2/0.2/0.3/0.3. No obs-layout change — other
 families are untouched (phase injects only when `w_rise_ref > 0` on
 recovery episodes). Queued for the next free GPU window.
+
+**loco_v4yaw_s (smoothness fine-tune on the A/B winner, +w_power 0.03,
++w_action_rate 0.3, warm-started): 64/72 — new deployable-best on v3yaw.**
+Finished in ~2.5 h (warm start). vs loco_v4yaw: pass rate 83→89%, overall
+watts **63.6→5.9** (CoT 57.8→5.7, a 10× efficiency gain for free), gait
+asym 17→14%. The user's three feedback items now grade: turning —
+turn_180 **8/8 @ 7°** (was 7/8 @ 10°), square_return **8/8 @ 7 cm**;
+standing wobble — 0.06 rad/s @ 0.8 W (stand_10s 8/8, drift 1.4 cm);
+torque-off standing — stand_off 5/8 @ 0.2 W (drift 13.9 cm). Remaining
+weak spots: circle_return 4/8 @ 46 cm / 19.3 W (improved from 2/8 @
+55.6 W but still the hardest scenario — continuous turn-while-walk), and
+stand_off release transients. Reel:
+`sim/renders/precision_reel_loco_v4yaw_s.mov`.
