@@ -297,3 +297,10 @@ r≈1–3 cm), crouch_hold 0/8 (hErr 95 mm), hip_sway 3/8. Finished the full
 the c5/c6 foot-target channels train on air-circle commands 12% of
 episodes — likely needs a dedicated foot-tracking kernel weight bump or a
 skills fine-tune with a larger traj share.
+
+**getup_v4 (phase-visible aligned reference, hard-stopped 07:00 at ~50 M of
+110 M): 0/16 at the half-run checkpoint, but the failure mode changed** —
+watts 1.0→3.8, slip 1.6 cm/s (it moves and works the schedule instead of
+holding still), eval height creeping 20→22 cm (v3 *declined* to 17), and
+reward still climbing at the cut (−5, vs v3's −82 plateau). Finisher
+`getup_v4b` (+60 M warm-start) queued ahead of loco_v5t for night 4.
