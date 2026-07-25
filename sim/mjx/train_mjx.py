@@ -168,6 +168,9 @@ def main():
                    help="override torso roll/pitch-rate penalty (smoothness)")
     p.add_argument("--w-action-rate", type=float, default=None)
     p.add_argument("--w-power", type=float, default=None)
+    p.add_argument("--turn-emph", action="store_true",
+                   help="sustained-turn command emphasis (loco_v5t): 85% of "
+                        "forward walks turn, |wz| floored at 0.25 rad/s")
     p.add_argument("--w-heading", type=float, default=None,
                    help="integrated-heading kernel weight (turn-to-face "
                         "authority; loco family experiment 2026-07-23)")
@@ -295,6 +298,8 @@ def main():
         env_kw["w_power"] = args.w_power
     if args.w_heading is not None:
         env_kw["w_heading"] = args.w_heading
+    if args.turn_emph:
+        env_kw["turn_emph"] = True
     if args.w_com_stance is not None:
         env_kw["w_com_stance"] = args.w_com_stance
     if args.getup:

@@ -221,6 +221,7 @@ class BimoWalkerEnv(gym.Env):
         ext_mix: tuple = (0.20, 0.08, 0.15, 0.12, 0.10),  # stand, crouch,
         # balance, circle, pivot[, march, sway]; 5-tuple = no march/sway
         walk_submix: tuple = (0.15, 0.15),  # of walks: (backward, sidestep)
+        turn_emph: bool = False,       # mirrors sim/mjx turn_emph (loco_v5t)
         w_foot_cross: float = 0.0,     # feet-crossing guard (mirrors sim/mjx)
         sway_vy: float = 0.12,         # sway-command vy amplitude (m/s)
         # -- plan-v2 Phase A terms (2026-07-20; mirror sim/mjx, default off) ---
@@ -389,6 +390,7 @@ class BimoWalkerEnv(gym.Env):
         self.traj_period = traj_period
         self.ext_mix = tuple(ext_mix) + (0.0,) * (7 - len(ext_mix))
         self.walk_submix = walk_submix
+        self.turn_emph = turn_emph
         self.w_foot_cross = w_foot_cross
         self.sway_vy = sway_vy
         self.gait_clock = gait_clock
@@ -909,9 +911,14 @@ class BimoWalkerEnv(gym.Env):
                 cmd[1] = vy if rng.uniform() < 0.5 else -vy
             else:
                 cmd[0] = float(rng.uniform(*self.cmd_v_range))
-                if rng.uniform() < 0.6:
-                    cmd[2] = float(rng.uniform(-self.cmd_w_range,
-                                               self.cmd_w_range))
+                if rng.uniform() < (0.85 if self.turn_emph else 0.6):
+                    wz = float(rng.uniform(-self.cmd_w_range,
+                                           self.cmd_w_range))
+                    if self.turn_emph:   # mirrors sim/mjx: |wz| floored 0.25
+                        wz = float(np.sign(wz)) * (
+                            0.25 + abs(wz) * (self.cmd_w_range - 0.25)
+                            / self.cmd_w_range)
+                    cmd[2] = wz
         self._cmd = cmd
         lo, hi = self.cmd_resample_s
         self._cmd_next = self._step_i + int(

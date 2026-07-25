@@ -242,6 +242,8 @@ class BimoMJXEnv:
         sway_vy: float = 0.12,        # sway-command vy amplitude (m/s)
         walk_submix: tuple = (0.15, 0.15),    # of walk commands: (backward,
         # sidestep) fractions; remainder walks forward with the turning draw
+        turn_emph: bool = False,    # sustained-turn emphasis (loco_v5t): 85%
+                                    # of forward walks turn, |wz| floored 0.25
         # -- plan-v2 Phase A terms (2026-07-20, MuJoCo Playground recipes) ------
         # Numbers from the Playground biped envs (T1 / Berkeley Humanoid),
         # adapted to our 0.34 m scale. All default OFF -> old runs bit-exact.
@@ -472,6 +474,7 @@ class BimoMJXEnv:
         self.traj_period = traj_period
         self.ext_mix = tuple(ext_mix) + (0.0,) * (7 - len(ext_mix))
         self.walk_submix = walk_submix
+        self.turn_emph = turn_emph
         self.w_foot_cross = w_foot_cross
         self.sway_vy = sway_vy
         self.gait_clock = gait_clock
@@ -615,10 +618,18 @@ class BimoMJXEnv:
                                   maxval=self.cmd_back_range[1])
         vy_s = side * jax.random.uniform(rs[7], minval=0.1,
                                          maxval=self.cmd_vy_range)
+        wz_raw = jax.random.uniform(rs[9], minval=-self.cmd_w_range,
+                                    maxval=self.cmd_w_range)
+        if self.turn_emph:
+            # loco_v5t: sustained-turn emphasis -- 85% of forward walks turn,
+            # magnitude floored at 0.25 rad/s (uniform-over-range made hard
+            # turn-while-walk rare; circle_return was the weak scenario)
+            wz_raw = jp.sign(wz_raw) * (0.25 + jp.abs(wz_raw)
+                                        * (self.cmd_w_range - 0.25)
+                                        / self.cmd_w_range)
         wz_f = jp.where(
-            jax.random.uniform(rs[8]) < 0.6,
-            jax.random.uniform(rs[9], minval=-self.cmd_w_range,
-                               maxval=self.cmd_w_range), 0.0)
+            jax.random.uniform(rs[8]) < (0.85 if self.turn_emph else 0.6),
+            wz_raw, 0.0)
         p_back, p_side = self.walk_submix
         wk_back = uw < p_back
         wk_side = (uw >= p_back) & (uw < p_back + p_side)
