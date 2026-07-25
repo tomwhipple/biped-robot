@@ -285,3 +285,15 @@ weak spots: circle_return 4/8 @ 46 cm / 19.3 W (improved from 2/8 @
 55.6 W but still the hardest scenario — continuous turn-while-walk), and
 stand_off release transients. Reel:
 `sim/renders/precision_reel_loco_v4yaw_s.mov`.
+
+**skills_v3 (clearance-gated CoM kernel, 160 M): 26/64 vs skills_v2's 9/64
+— the gate killed the leaning loophole.** One-leg balance: balance_L 6/8 @
+95% clearance, balance_R 8/8 @ 100% (v2: 0/8 + 0/8 at **0%** clearance —
+it leaned onto the stance foot with both feet planted). March 4 clean
+lifts/leg (v2: 2). Still failing: circle_air 0/8 (foot-trajectory tracking
+r≈1–3 cm), crouch_hold 0/8 (hErr 95 mm), hip_sway 3/8. Finished the full
+160 M in 3.6 h (queue-order swap cost nothing). Reel:
+`sim/renders/precision_reel_skills_v3.mov`. Next lever for the air skills:
+the c5/c6 foot-target channels train on air-circle commands 12% of
+episodes — likely needs a dedicated foot-tracking kernel weight bump or a
+skills fine-tune with a larger traj share.
