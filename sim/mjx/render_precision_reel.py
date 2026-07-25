@@ -161,6 +161,16 @@ def main():
         passes += res["success"]
         headline = res.get("headline", "")
         frames = res["frames"]
+        # trim trailing standstill to ~2 s (user 2026-07-25): find the last
+        # frame with visible motion (pixel delta) and keep 2 s beyond it
+        if len(frames) > 3:
+            deltas = [float(np.mean(np.abs(frames[j].astype(np.int16)
+                                           - frames[j - 1].astype(np.int16))))
+                      for j in range(1, len(frames))]
+            thr = 1.0
+            last_mv = max((j for j, dl in enumerate(deltas, 1) if dl > thr),
+                          default=len(frames) - 1)
+            frames = frames[:min(len(frames), last_mv + int(2.0 * 50 / 3))]
         title = TITLES.get(name, name)
         print(f"[{k+1:2d}/{len(names)}] {name:14s} seed {seed_i} {verdict} "
               f"{headline}  ({len(frames)} frames)", flush=True)

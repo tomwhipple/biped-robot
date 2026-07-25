@@ -304,3 +304,23 @@ watts 1.0→3.8, slip 1.6 cm/s (it moves and works the schedule instead of
 holding still), eval height creeping 20→22 cm (v3 *declined* to 17), and
 reward still climbing at the cut (−5, vs v3's −82 plateau). Finisher
 `getup_v4b` (+60 M warm-start) queued ahead of loco_v5t for night 4.
+
+## Getup feasibility study (2026-07-25 daytime, sim/mjx/scripted_getup.py)
+
+Hand-authored open-loop schedules through the CPU referee, instrumented
+with CoM-vs-foot telemetry. Findings: (1) **quasi-static rises are
+impossible from the sit** — folding the knees lifts the feet into the air
+(foot_z → 0.20 m) while the butt carries the weight; with no arms there is
+no static weight-transfer path, so the v1–v4 staged reference was asking
+for an infeasible motion. (2) The **deep-tuck crouch is statically
+stable** (CoM lands 3–4 cm ahead of the foot centers) — the rise from a
+loaded crouch is fine; only the ground→crouch transfer needs momentum.
+(3) A human-style momentum rock (roll back, tuck, snap hips) gets upright
+over the feet but toppled back in a 27-combo timing grid — open-loop
+tuning is the wrong tool; a feedback policy should close it. **getup_v5:**
+w_rise_ref cut 2.0→0.5 (hint, not master), new w_up_vel=2.0 (positive
+root vertical velocity while down — pays the momentum burst the ratchet
+alone under-rewards). skills_v4: new w_foot_under=0.75 (tight horizontal
+kernel on the raised foot, clearance-gated) so lifts must come from KNEE
+flexion, not a swung-out leg (user feedback). Reels now trim trailing
+standstill to ~2 s (user request). Parity 8/8 with both terms gated.

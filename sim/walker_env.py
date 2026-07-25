@@ -262,6 +262,8 @@ class BimoWalkerEnv(gym.Env):
         rise_ref_s2: float = 2.0,
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
+        w_foot_under: float = 0.0,     # mirrors sim/mjx w_foot_under
+        w_up_vel: float = 0.0,         # mirrors sim/mjx w_up_vel (getup_v5)
         w_com_stance: float = 0.0,     # while lifted: CoM-over-stance-foot
                                        # kernel (mirrors sim/mjx -- knee-
                                        # flexion lifts keep the CG planted)
@@ -418,6 +420,8 @@ class BimoWalkerEnv(gym.Env):
         self._obs_hist = []
         self.w_symmetry = w_symmetry
         self.w_com_stance = w_com_stance
+        self.w_foot_under = w_foot_under
+        self.w_up_vel = w_up_vel
         self.com_sigma = com_sigma
         self.w_heading = w_heading
         self._last_air = np.zeros(2)
@@ -1335,6 +1339,12 @@ class BimoWalkerEnv(gym.Env):
                 foot_err = float(np.linalg.norm(rel - tgt))
                 foot_kernel = float(lifted) * float(np.exp(
                     -((foot_err / self.foot_sigma) ** 2)))
+                # tight horizontal foot-under kernel (mirrors sim/mjx)
+                d_xy2 = (rel[0] - tgt[0]) ** 2 + (rel[1] - tgt[1]) ** 2
+                foot_under = (float(lifted)
+                              * float(np.clip(foot_clear / self.lift_clear,
+                                              0.0, 1.0))
+                              * float(np.exp(-d_xy2 / (0.03 ** 2))))
                 # CoM-over-stance-foot kernel (mirrors sim/mjx): pay for
                 # keeping the whole-robot CoM planted over the support sole
                 # while a lift is commanded (knee-flexion lifts)
@@ -1448,6 +1458,8 @@ class BimoWalkerEnv(gym.Env):
             reward += (self.w_com_stance * float(lifted) * com_kernel
                        * float(np.clip(foot_clear / self.lift_clear,
                                        0.0, 1.0)))
+            if self.w_foot_under:
+                reward += self.w_foot_under * foot_under
         if self.w_single_support:
             if shaping_on:
                 reward += self.w_single_support * float(single_support)
@@ -1536,6 +1548,10 @@ class BimoWalkerEnv(gym.Env):
                 dq_rr = np.asarray(d.qpos[self._jqpos]) - q_rr
                 reward += self.w_rise_ref * float(np.exp(
                     -np.sum(dq_rr ** 2) / self.rise_ref_s2))
+        if self.w_up_vel and self.ext_cmd and self.recover_mix > 0:
+            # getup_v5 momentum incentive (mirrors sim/mjx)
+            if not self._recovered:
+                reward += self.w_up_vel * float(np.clip(d.qvel[2], 0.0, 0.5))
 
         self._prev_action[:] = action
         self._step_i += 1

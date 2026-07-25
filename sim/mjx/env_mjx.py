@@ -306,6 +306,15 @@ class BimoMJXEnv:
         lift_clear: float = 0.03,   # lifted-foot min clearance (m) above its
         # standing sole height for the lift reward to pay (user 2026-07-18:
         # "at least 3 cm off the ground" -- a 2 mm hover no longer counts)
+        w_foot_under: float = 0.0,  # while lifted: keep the RAISED foot
+                                    # horizontally under its commanded spot
+                                    # (tight sigma) -- clearance must come
+                                    # from KNEE flexion, not a leg swung out
+                                    # (user knee-articulation feedback)
+        w_up_vel: float = 0.0,      # while down: pay positive root vertical
+                                    # velocity (momentum-friendly getup_v5 --
+                                    # the quasi-static reference is unreachable
+                                    # from sit, see scripted_getup.py)
         w_com_stance: float = 0.0,  # while lifted: CoM-over-stance-foot
         # kernel (user 2026-07-23: raise the foot by BENDING THE KNEE,
         # keeping the CG static -- not by sticking the leg out, which
@@ -500,6 +509,8 @@ class BimoMJXEnv:
         self.w_symmetry = w_symmetry
         self.lift_clear = lift_clear
         self.w_com_stance = w_com_stance
+        self.w_foot_under = w_foot_under
+        self.w_up_vel = w_up_vel
         self.com_sigma = com_sigma
         self.w_heading = w_heading
         self.recover_mix = recover_mix
@@ -1168,6 +1179,16 @@ class BimoMJXEnv:
             foot_err = jp.linalg.norm(rel - tgt)
             foot_kernel = (lifted.astype(jp.float32)
                            * jp.exp(-((foot_err / self.foot_sigma) ** 2)))
+            if self.w_foot_under:
+                # tight horizontal kernel on the raised foot (sigma 0.03 vs
+                # the loose foot_sigma): clearance gained by swinging the leg
+                # out earns ~nothing; only a knee-flexion lift with the foot
+                # under its commanded spot pays. Clearance-gated like the
+                # CoM kernel so planted feet cannot farm it.
+                d_xy2 = (rel[0] - tgt[0]) ** 2 + (rel[1] - tgt[1]) ** 2
+                foot_under = (lifted.astype(jp.float32)
+                              * jp.clip(foot_clear / self.lift_clear, 0.0, 1.0)
+                              * jp.exp(-d_xy2 / (0.03 ** 2)))
             # feet-crossing guard: torso-frame lateral separation of the two
             # sole centers must stay >= sole width + 5 mm
             pL = data.geom_xpos[self._sole_gids[0]] - data.xpos[self._torso_bid]
@@ -1382,6 +1403,15 @@ class BimoMJXEnv:
             reward += (self.w_rise_ref
                        * jp.where(state.recovered < 0.5, 1.0, 0.0)
                        * jp.exp(-jp.sum(dq_rr ** 2) / self.rise_ref_s2))
+        if self.w_up_vel and self.ext_cmd and self.recover_mix > 0:
+            # getup_v5: momentum-friendly rise incentive -- positive root
+            # vertical velocity pays while down (capped; the height ratchet
+            # already prevents static-height farming)
+            reward += (self.w_up_vel
+                       * jp.where(state.recovered < 0.5, 1.0, 0.0)
+                       * jp.clip(data.qvel[2], 0.0, 0.5))
+        if self.w_foot_under and self.ext_cmd:
+            reward += self.w_foot_under * foot_under
 
         # gait symmetry: on touchdown, penalize the swing-duration mismatch
         # vs the OTHER foot's last completed swing (locomotion commands only)

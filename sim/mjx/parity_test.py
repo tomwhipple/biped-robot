@@ -245,6 +245,7 @@ EXT = dict(
     joint_frictionloss=0.05, joint_armature=0.028,
     w_mimic=1.0,   # Phase B imitation arithmetic under gate (2026-07-22)
     w_com_stance=0.75, w_heading=1.0,   # knee-lift CoM + heading integrator
+    w_foot_under=0.75,                  # raised-foot-under-hip kernel (skills_v4)
     # arithmetic under gate (2026-07-23; cmd_fixed lifts, so the CoM kernel
     # is live; heading kernel live in blocks 2d/2e via nonzero wz commands)
     latency_ms=6.0, backlash_deg=0.5, ext_cmd=True, fall_cost=10.0,
@@ -306,7 +307,8 @@ ok_e3 = run_block(
 EXT_R = dict(EXT)
 EXT_R.pop("cmd_fixed")
 EXT_R.update(recover_mix=1.0, cmd_dense=True, w_rise_dofvel=0.002,
-             w_rise_ref=2.0)   # staged-rise reference arithmetic under gate
+             w_rise_ref=2.0,   # staged-rise reference arithmetic under gate
+             w_up_vel=2.0)     # getup_v5 momentum incentive under gate
 cpu_r = BimoWalkerEnv(xml_path=XML, actuator_model="sts3215",
                       command_mode=True, domain_rand=False, **EXT_R)
 gpu_r = BimoMJXEnv(xml_path=XML, domain_rand=False, **EXT_R)

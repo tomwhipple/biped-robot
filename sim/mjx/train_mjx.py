@@ -168,6 +168,12 @@ def main():
                    help="override torso roll/pitch-rate penalty (smoothness)")
     p.add_argument("--w-action-rate", type=float, default=None)
     p.add_argument("--w-power", type=float, default=None)
+    p.add_argument("--w-foot-under", type=float, default=None,
+                   help="raised-foot-under-hip kernel (knee-flexion lifts)")
+    p.add_argument("--w-up-vel", type=float, default=None,
+                   help="momentum-friendly rise incentive while down")
+    p.add_argument("--w-rise-ref", type=float, default=None,
+                   help="override the staged-rise reference weight")
     p.add_argument("--turn-emph", action="store_true",
                    help="sustained-turn command emphasis (loco_v5t): 85% of "
                         "forward walks turn, |wz| floored at 0.25 rad/s")
@@ -300,6 +306,12 @@ def main():
         env_kw["w_heading"] = args.w_heading
     if args.turn_emph:
         env_kw["turn_emph"] = True
+    if args.w_foot_under is not None:
+        env_kw["w_foot_under"] = args.w_foot_under
+    if args.w_up_vel is not None:
+        env_kw["w_up_vel"] = args.w_up_vel
+    if args.w_rise_ref is not None:
+        env_kw["w_rise_ref"] = args.w_rise_ref
     if args.w_com_stance is not None:
         env_kw["w_com_stance"] = args.w_com_stance
     if args.getup:
