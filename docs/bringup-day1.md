@@ -101,26 +101,63 @@ yaw pair.)
 Assign **from the top down (10 → 1)**, so you never transiently create a
 second ID 1 while a servo already at ID 1 is on the bench nearby.
 
+### Use `tools/servo_tool.py`, not the web UI
+
+**The vendor web UI cannot do this job** — see the box below for why. Instead,
+put the board into its USB↔bus bridge mode once per power cycle and drive the
+servos directly:
+
+```
+# on the board's WiFi (ESP32_DEV / 12345678), once per power-up:
+.venv/bin/python tools/servo_tool.py bridge on     # OLED reads SERIAL_FORWARDING
+
+# then everything over USB — exact values, no clicking:
+.venv/bin/python tools/servo_tool.py scan
+.venv/bin/python tools/servo_tool.py setid 1 9
+.venv/bin/python tools/servo_tool.py move 9 2048
+```
+
 For each servo:
 
-- [ ] Board off. Connect this servo alone to bus port A.
-- [ ] Board on. Web UI: `ID Select +/-` until the active ID is **1** (the
-  
-      factory ID) and the UI reports the servo responding.
-- [ ] `ID to Set +/-` until it reads the target ID.
-- [ ] **`Set New ID`**. The change is written to servo EEPROM and survives
-  
-      power-off.
-- [ ] Verify: `ID Select` to the new ID → servo responds. `ID Select` to 1 →
-  
-      nothing.
-- [ ] Nudge it with the position control and watch it move. This is also
-  
-      your free DOA test — do it now, not during assembly.
+- [ ] Board off. Connect this servo alone to bus port A. Board on.
+- [ ] `servo_tool.py scan` → exactly one servo, at ID **1** (the factory ID).
+- [ ] `servo_tool.py info 1` → if `angle limits` is not `0 .. 4095`, run
+      `servo_tool.py fixrange 1` (the vendor UI clamps ST3215s to SC range).
+- [ ] `servo_tool.py setid 1 <target>` — refuses if the target ID is already
+      live, and verifies the servo answers on the new ID before reporting
+      success. Written to EEPROM, survives power-off.
+- [ ] `servo_tool.py move <target> 2048` then `move <target> 1400` — the DOA
+      test, at the correct 0–4095 full scale.
 - [ ] **Label the case** with the ID *and* the joint name, in marker, on the
-  
       flat face you'll still be able to read after assembly.
 - [ ] Board off. Next servo.
+
+> ### ⚠️ Why the vendor web UI fails here (root cause, from its source)
+>
+> Read out of Waveshare's own
+> [firmware source](https://github.com/waveshare/Servo-Driver-with-ESP32):
+>
+> 1. **It is built for the wrong servo family.** `STSCTRL.h:15` has
+>    `SERVO_TYPE_SELECT = 2` — **SC series**, `ServoDigitalRange = 1023`. The
+>    ST3215 is **ST series, range 4095**. The commented-out lines right below
+>    are the ST settings the vendor didn't enable. So "Position+" commands
+>    ~1003 counts on a servo that has 4095 — about a quarter of travel, which
+>    is exactly the "doesn't do much" symptom.
+> 2. **The ID field moves ±1 per click** (`servotoSet += 1`, wrapping at 250),
+>    so reaching 9 means nine clicks with no overshoot — and one overshoot
+>    costs 240 more clicks to wrap around.
+> 3. **`setMode(id, 0)` in SC mode writes SC angle limits (20…1003) to
+>    registers 9/11** — which the ST series uses for the *same* purpose. Any
+>    ST3215 that has been through the UI's mode button is now clamped to ~24 %
+>    of its travel. `servo_tool.py fixrange <id>` puts registers 9/11 back to
+>    0…4095 and mode to 0. **Check every servo you touched with the UI.**
+>
+> The tool sidesteps all three by using the vendor firmware's own
+> `SERIAL_FORWARDING` mode (`BOARD_DEV.h:157`), a byte-for-byte USB↔bus
+> bridge, and speaking the real Feetech ST protocol from the laptop. Its
+> packet encoder is checked against the worked examples in Feetech's protocol
+> manual — the same golden vectors the firmware's C++ bus layer passes.
+> **Nothing is flashed; the vendor firmware is untouched.**
 
 Keep a tally here as you go — DOAs and surprises:
 

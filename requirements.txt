@@ -12,3 +12,4 @@ imageio-ffmpeg
 trimesh          # mesh inertia for bimo_biped_v2 (sim/build_v2_inertia.py)
 pytest           # tests/
 pygame           # optional: gamepad command source (link/sources.py)
+pyserial        # tools/servo_tool.py (ST3215 bench tool over the USB bridge)
