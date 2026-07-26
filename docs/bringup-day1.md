@@ -221,8 +221,8 @@ Keep a tally here as you go — DOAs and surprises:
 
 | ID  | Joint       | Assigned | Moves | Notes |
 | --- | ----------- | -------- | ----- | ----- |
-| 1   | L hip roll  | ☐        | ☐     |       |
-| 2   | L hip pitch | ☐        | ☐     |       |
+| 1   | L hip roll  | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 27 °C — factory ID, no reassignment needed, err 0x00. |
+| 2   | L hip pitch | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 28 °C, err 0x00. |
 | 3   | L knee      | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 28 °C, err 0x00. |
 | 4   | L ankle     | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 27 °C, err 0x00. |
 | 5   | R hip roll  | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 28 °C, err 0x00. |
