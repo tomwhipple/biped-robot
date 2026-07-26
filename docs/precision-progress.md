@@ -352,3 +352,15 @@ states (qpos+qvel, no settle — the near-catch instant the scripted rocks
 kept reaching before toppling backward), 30% of starts; mix
 0.15/0.1/0.2/0.25/0.3 rag/kneel/squat/sit/catch; w_rise_ref 0.5 hint;
 no w_up_vel. Parity 8/8 with catch starts exercised.
+
+**skills_v4 (w_foot_under): 29/64 — march_in_place 1/8 → 6/8 (6 clean
+lifts/leg), balance holds 6/8+8/8 @ 98–100% clearance.** Knee-usage probe
+(balance_L, seed 107): lifted-knee mean deviation 0.81 rad — the knee
+works hard — but hip-pitch deviates 1.44 rad: the learned lift is a
+HIGH-KNEE (thigh up, foot kept under the hip = CG-static, the kernel's
+goal) rather than a heel-flick (thigh vertical, shin folds back). A pure
+heel-flick puts the foot slightly BEHIND the hip, which w_foot_under
+mildly punishes. If the heel-flick look is wanted: add a lifted-leg
+hip-pitch deviation penalty (skills_v5 candidate, user's call).
+hip_sway regressed 3/8→1/8 (kernel unrelated to sway; likely fine-tune
+noise). crouch_hold/circle_air still 0/8.
