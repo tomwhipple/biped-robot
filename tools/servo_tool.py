@@ -2,51 +2,61 @@
 
 WHY THIS EXISTS
 ---------------
-The Waveshare board ships with demo firmware whose web UI cannot do the job:
+Setting IDs through the vendor web UI by hand did not work: the "ID to Set"
+field is an up/down counter with no set-to-value control, and in a browser it
+was observed jumping ~10 per click, making exact targets like 9 unreachable.
 
-1. **It is built for the wrong servo family.** `STSCTRL.h` in the vendor
-   source has `SERVO_TYPE_SELECT = 2` (SC series, `ServoDigitalRange =
-   1023`); the ST3215 is the ST series, range **4095**. So the UI's
-   "Position+" commands ~1003 counts on a servo that has 4095 -- about a
-   quarter of travel, which reads as "the buttons don't do much".
-2. **The ID field only moves +/-1 per click** (`servotoSet += 1`, wrapping at
-   250), so landing exactly on 9 or 10 means not overshooting once across
-   nine clicks -- and an overshoot means clicking 240 more times to wrap.
-3. **`setMode(id, 0)` in SC mode writes SC angle limits (20..1003) to
-   registers 9/11** -- which the ST series uses for the *same* purpose. An
-   ST3215 that has been through it is clamped to ~24 % of its travel until
-   those registers are put back. `fixrange` below undoes exactly that.
+Measured on the real board 2026-07-26, the firmware itself steps by **1**
+(`ID to Set` went 30 -> 31 -> 30 over two `/cmd` calls), and the served page's
+handler is byte-identical to the published source. So the jump is client-side
+-- a click delivered repeatedly -- and the HTTP API is perfectly usable as
+long as something issues an *exact* number of calls. That is what
+`http-setid` does, and it needs no USB cable and no flashing.
 
-Rather than fight it, this drives the servos with the real Feetech STS
-protocol from the laptop. The vendor firmware has an undocumented-in-the-wiki
-**`SERIAL_FORWARDING`** mode (`BOARD_DEV.h:157`) that bridges USB serial to
-the 1 Mbaud servo bus byte-for-byte; `activeCtrl(14)` turns it on and
-`activeCtrl(15)` turns it off, both reachable over HTTP. So:
+CAUTION: **the firmware on the board is not the published source.** Anything
+below cited from GitHub is a guide, not ground truth; prefer what the board
+actually reports. (Known-good from live measurement: `/cmd` executes and then
+closes the socket *without* an HTTP response; `/readID` serves the previous
+scan result until an async rescan actually begins.)
+
+The serial path exists for what HTTP cannot reach -- raw registers. The
+vendor firmware has a **`SERIAL_FORWARDING`** mode (`BOARD_DEV.h:157`)
+bridging USB serial to the 1 Mbaud servo bus byte-for-byte, toggled by
+`activeCtrl(14/15)` over HTTP:
 
     laptop --USB 115200--> ESP32 (dumb bridge) --1 Mbaud--> servo bus
 
-Nothing is flashed. The vendor firmware stays exactly as it is.
+That gives arbitrary register reads/writes, which is the only way to *verify*
+a servo's mode and angle limits rather than trust a button. It matters because
+the UI's "Set Servo Mode" calls `setMode(id, 0)`, and in the published source
+that writes SC-series angle limits (20..1003) into registers 9/11 -- which the
+ST series uses for the same purpose, clamping an ST3215 to ~24 % of travel.
+Whether this build does that is **unverified**; `info` will say, and
+`fixrange` repairs it either way.
 
-Protocol facts, all verified against the vendor's own library rather than
-assumed: ST series is **little-endian** (`SMS_STS.cpp`: `End = 0`; SC series
-is `End = 1`), checksum is `~(id + len + inst + params) & 0xFF`, and "set
-middle" is a write of **128** to the torque-enable register 40.
+Nothing here flashes anything. The vendor firmware stays as it is.
+
+Protocol facts, verified against the vendor's own library rather than assumed:
+ST series is **little-endian** (`SMS_STS.cpp`: `End = 0`; SC is `End = 1`),
+checksum is `~(id + len + inst + params) & 0xFF`, and "set middle" is a write
+of **128** to torque-enable register 40. The packet encoder is checked against
+the worked examples in Feetech's protocol manual.
 
 USAGE
 -----
-    # one-time per power cycle: put the board into bridge mode (needs WiFi)
-    .venv/bin/python tools/servo_tool.py bridge on
+    # WiFi only (ESP32_DEV / 12345678) -- no USB needed:
+    .venv/bin/python tools/servo_tool.py state
+    .venv/bin/python tools/servo_tool.py http-setid 9 --yes
 
-    # then everything else runs over USB
+    # with USB attached, for raw register access:
+    .venv/bin/python tools/servo_tool.py bridge on
     .venv/bin/python tools/servo_tool.py scan
-    .venv/bin/python tools/servo_tool.py info 1
-    .venv/bin/python tools/servo_tool.py setid 1 9
+    .venv/bin/python tools/servo_tool.py info 9
+    .venv/bin/python tools/servo_tool.py fixrange 9      # mode 0 + 0..4095
     .venv/bin/python tools/servo_tool.py move 9 2048
-    .venv/bin/python tools/servo_tool.py fixrange 9
     .venv/bin/python tools/servo_tool.py bridge off
 
-Join the board's WiFi (`ESP32_DEV` / `12345678`) for `bridge`; the USB cable
-carries everything else. See docs/bringup-day1.md.
+See docs/bringup-day1.md.
 """
 from __future__ import annotations
 
@@ -54,6 +64,8 @@ import argparse
 import glob
 import sys
 import time
+import http.client
+import urllib.error
 import urllib.request
 
 try:
@@ -93,11 +105,59 @@ def board_cmd(cmd_t: int, cmd_i: int, timeout: float = 4.0) -> None:
     """GET /cmd -- the handler reads four POSITIONAL args (CONNECT.h:189).
 
     cmd_t=0 -> activeID(cmd_i)   (relative step through the discovered list)
-    cmd_t=1 -> activeCtrl(cmd_i) (the action table; 14/15 = bridge on/off)
+    cmd_t=1 -> activeCtrl(cmd_i) (the action table below)
     cmd_t=9 -> rescan the bus
+
+    activeCtrl actions used here: 9/10 = servotoSet +/-1, 16 = commit that
+    value as the active servo's new ID, 14/15 = USB<->bus bridge on/off.
+
+    NOTE: the handler executes the action and returns WITHOUT calling
+    server.send(), so the ESP32 closes the socket with no HTTP response at
+    all. curl shrugs; urllib raises RemoteDisconnected. The command has
+    already run by then, so an empty reply is success, not failure.
     """
-    url = f"{BOARD_HTTP}/cmd?a={cmd_t}&b={cmd_i}&c=0&d=0"
-    urllib.request.urlopen(url, timeout=timeout).read()
+    url = f"{BOARD_HTTP}/cmd?inputT={cmd_t}&inputI={cmd_i}&inputA=0&inputB=0"
+    try:
+        urllib.request.urlopen(url, timeout=timeout).read()
+    except http.client.RemoteDisconnected:
+        pass
+    except urllib.error.URLError as e:
+        if not isinstance(e.reason, http.client.RemoteDisconnected):
+            raise
+
+
+def board_get(path: str, timeout: float = 6.0) -> str:
+    return urllib.request.urlopen(f"{BOARD_HTTP}/{path}",
+                                  timeout=timeout).read().decode("utf-8", "replace")
+
+
+def board_status() -> dict:
+    """Parse /readSTS into the handful of fields we actually act on."""
+    raw = board_get("readSTS")
+    out = {"raw": raw}
+    for key, field in (("Active ID:", "active_id"), ("ID to Set:", "to_set"),
+                       ("Position:", "position")):
+        i = raw.find(key)
+        if i >= 0:
+            digits = ""
+            for ch in raw[i + len(key):]:
+                if ch.isdigit() or (ch == "-" and not digits):
+                    digits += ch
+                else:
+                    break
+            if digits:
+                out[field] = int(digits)
+    out["motor_mode"] = "Motor Mode" in raw
+    out["torque_on"] = "Torque On" in raw
+    return out
+
+
+def board_ids() -> list[int]:
+    """Discovered servo IDs. handleID prints them space-separated (CONNECT.h:125)."""
+    raw = board_get("readID")
+    if "Searching" in raw:
+        return []
+    return [int(t) for t in raw.replace("ID:", " ").split() if t.isdigit()]
 
 
 # =====================================================================
@@ -333,6 +393,101 @@ def cmd_middle(bus: Bus, args) -> int:
     return 0
 
 
+def cmd_httpsetid(args) -> int:
+    """Set a servo ID over WiFi only -- no USB, no bridge, no flashing.
+
+    The web UI's ID field is an up/down counter (`servotoSet`, +/-1 per call,
+    wrapping at 250) with no set-to-value command, so a browser that delivers
+    a click more than once makes exact targets unreachable by hand. Issuing an
+    exact number of calls does not have that problem.
+    """
+    target = args.target
+    if not 0 <= target <= 253:
+        sys.exit("ID must be 0-253")
+
+    ids = board_ids()
+    if not ids:
+        print("no servos discovered -- press Start Searching, or check power.")
+        return 1
+    if len(ids) > 1:
+        print(f"refusing: {len(ids)} servos on the bus {ids}. Connect exactly "
+              f"one when changing IDs -- the board writes to whichever is "
+              f"'active', and duplicates cannot be told apart afterwards.")
+        return 1
+    old = ids[0]
+    if old == target:
+        print(f"already ID {target}; nothing to do.")
+        return 0
+
+    st = board_status()
+    cur = st.get("to_set")
+    if cur is None:
+        print(f"could not parse 'ID to Set' from /readSTS:\n  {st['raw']}")
+        return 1
+    print(f"one servo on the bus at ID {old}; staging value is {cur}, want {target}")
+
+    # walk servotoSet to the target with an exact call count, verifying as we
+    # go -- if the board's step size is ever not 1, this stops instead of
+    # silently landing somewhere else
+    action = 9 if target > cur else 10
+    steps = abs(target - cur)
+    for _ in range(steps):
+        board_cmd(1, action)
+    time.sleep(0.3)
+    now = board_status().get("to_set")
+    if now != target:
+        print(f"staging value is {now}, expected {target} after {steps} calls "
+              f"-- aborting before the write. (Step size is not 1?)")
+        return 1
+    print(f"staged: ID to Set = {now}")
+
+    if not args.yes:
+        print(f"\nWould write ID {old} -> {target} to EEPROM. Re-run with --yes.")
+        return 0
+
+    board_cmd(1, 16)                     # setID(active, servotoSet)
+    time.sleep(0.4)
+    board_cmd(9, 0)                      # rescan; listID is stale after a change
+
+    # The rescan is ASYNCHRONOUS. Until it actually starts, handleID keeps
+    # serving the PREVIOUS list -- so polling immediately reads the old ID and
+    # reports a false failure. Wait for the "Searching..." phase to appear and
+    # then clear before believing anything.
+    saw_searching = False
+    ids = []
+    for _ in range(50):
+        time.sleep(0.4)
+        raw = board_get("readID")
+        if "Searching" in raw:
+            saw_searching = True
+            continue
+        if saw_searching:
+            ids = board_ids()
+            break
+    else:
+        time.sleep(2.0)                  # never caught the transition; settle
+        ids = board_ids()
+    if ids == [target]:
+        print(f"ID {old} -> {target}  (EEPROM, survives power-off). Bus now {ids}.")
+        return 0
+    print(f"after rescan the bus reads {ids}, expected [{target}].")
+    return 1
+
+
+def cmd_state(args) -> int:
+    st = board_status()
+    print(f"bus              {board_ids()}")
+    print(f"active servo     {st.get('active_id')}")
+    print(f"position         {st.get('position')}")
+    print(f"mode             {'MOTOR (step/continuous)' if st['motor_mode'] else 'servo (position)'}")
+    print(f"torque           {'on' if st['torque_on'] else 'off'}")
+    print(f"staged ID to Set {st.get('to_set')}")
+    if st["motor_mode"]:
+        print("\n  ** Motor Mode is why position commands look dead. It needs to be\n"
+              "     servo/position mode before any DOA test means anything.")
+    return 0
+
+
 def cmd_bridge(args) -> int:
     """Flip SERIAL_FORWARDING on the vendor firmware over HTTP."""
     action = 14 if args.state == "on" else 15
@@ -356,6 +511,13 @@ def main() -> int:
 
     s = sub.add_parser("bridge", help="turn the board's USB<->bus bridge on/off (HTTP)")
     s.add_argument("state", choices=["on", "off"])
+
+    s = sub.add_parser("state", help="what the board reports right now (HTTP, no USB)")
+
+    s = sub.add_parser("http-setid",
+                       help="set the ID over WiFi only -- no USB, no bridge")
+    s.add_argument("target", type=int)
+    s.add_argument("--yes", action="store_true", help="actually write EEPROM")
 
     s = sub.add_parser("scan", help="ping a range of IDs")
     s.add_argument("--range", type=int, nargs=2, default=(0, 20), metavar=("LO", "HI"))
@@ -387,8 +549,13 @@ def main() -> int:
 
     args = p.parse_args()
 
+    # HTTP-only commands: these need the board's WiFi, not the USB cable
     if args.cmd == "bridge":
         return cmd_bridge(args)
+    if args.cmd == "state":
+        return cmd_state(args)
+    if args.cmd == "http-setid":
+        return cmd_httpsetid(args)
 
     bus = Bus(find_port(args.port))
     try:
