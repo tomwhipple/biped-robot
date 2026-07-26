@@ -117,7 +117,7 @@ def run(start="sit", seed=0, render=None, save_ref=None, hold_s=2.0):
             "fallen": FALLEN_KEYS}[start]
     total_s = keys[-1][0] + hold_s
     n = int(total_s / env.control_dt)
-    frames, qpos_log = [], []
+    frames, qpos_log, qvel_log = [], [], []
     for i in range(n):
         t = i * env.control_dt
         tgt = target_at(env, keys, t)
@@ -130,6 +130,7 @@ def run(start="sit", seed=0, render=None, save_ref=None, hold_s=2.0):
             mujoco.mj_step(env.model, env.data)
         env._step_i += 1
         qpos_log.append(env.data.qpos.copy())
+        qvel_log.append(env.data.qvel.copy())
         if i % int(0.4 / env.control_dt) == 0:
             import mujoco as _mj
             com = env.data.subtree_com[1]      # whole-robot CoM (root body 1)
@@ -155,7 +156,7 @@ def run(start="sit", seed=0, render=None, save_ref=None, hold_s=2.0):
         np.savez(save_ref, qpos=np.array(qpos_log),
                  control_dt=env.control_dt, start=start)
         print("reference ->", save_ref)
-    return stood
+    return stood, np.array(qpos_log), np.array(qvel_log)
 
 
 if __name__ == "__main__":
@@ -168,6 +169,6 @@ if __name__ == "__main__":
     args = ap.parse_args()
     wins = sum(run(args.start, seed=s,
                    render=(args.render if s == 0 else None),
-                   save_ref=(args.save_ref if s == 0 else None))
+                   save_ref=(args.save_ref if s == 0 else None))[0]
                for s in range(args.seeds))
     print(f"{wins}/{args.seeds} seeds stood up")

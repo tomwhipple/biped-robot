@@ -524,7 +524,22 @@ class BimoMJXEnv:
         self.w_recover_h = w_recover_h
         self.w_recover_up = w_recover_up
         self.stand_bonus = stand_bonus
-        self.getup_start_mix = getup_start_mix
+        if not ext_cmd:
+            # BUG FOUND 2026-07-25: this assignment used to run UNCONDITIONALLY
+            # and clobbered the ext-recovery recover_start_mix passthrough set
+            # above -- getup_v3/v4/v5 all trained from PURE RAGDOLL starts, the
+            # reverse-curriculum mix silently ignored (the CLI arg landed in
+            # config.json but never in the env)
+            self.getup_start_mix = getup_start_mix
+        # getup_v6: dynamic near-catch RSI states (qpos+qvel WITH momentum)
+        # harvested from the scripted momentum rock -- see scripted_getup.py
+        _cs = os.path.join(os.path.dirname(xml_path), "getup_catch_states.npz")
+        if os.path.exists(_cs):
+            _z = np.load(_cs)
+            self._catch_qpos = jp.asarray(_z["qpos"], dtype=jp.float32)
+            self._catch_qvel = jp.asarray(_z["qvel"], dtype=jp.float32)
+        else:
+            self._catch_qpos = None
 
         self.action_size = self._nq_act
         # per-joint blocks (qpos, qvel, prev_action) scale with the joint
@@ -855,8 +870,8 @@ class BimoMJXEnv:
         q_rag = (self._qpos0.at[2].set(0.35).at[3:7].set(quat)
                  .at[self._jq0:self._jq1].set(joints))
         mix = tuple(self.getup_start_mix)
-        mix = mix + (0.0,) * (4 - len(mix))   # (ragdoll, kneel, squat, sit)
-        p_rag, p_kneel, p_squat, p_sit = mix
+        mix = mix + (0.0,) * (5 - len(mix))   # (rag, kneel, squat, sit, catch)
+        p_rag, p_kneel, p_squat, p_sit, p_catch = mix
         if p_rag >= 1.0:
             return self._settle(q_rag, self.getup_settle), jp.zeros(())
         # kneel: torso vertical, knees folded, shins on the ground
@@ -894,21 +909,50 @@ class BimoMJXEnv:
         d_squat = self._settle(q_squat, 50)
         d_sit = self._settle(q_sit, 50)
         u = jax.random.uniform(r_m)
-        pick_kneel = (u >= p_rag) & (u < p_rag + p_kneel)
-        pick_squat = (u >= p_rag + p_kneel) & (u < p_rag + p_kneel + p_squat)
-        pick_sit = u >= p_rag + p_kneel + p_squat
+        t_k = p_rag + p_kneel
+        t_sq = t_k + p_squat
+        t_st = t_sq + p_sit
+        pick_kneel = (u >= p_rag) & (u < t_k)
+        pick_squat = (u >= t_k) & (u < t_sq)
+        pick_sit = (u >= t_sq) & (u < t_st)
+        pick_catch = u >= t_st
+        # getup_v6 catch start: a harvested mid-rock state with its VELOCITY
+        # (momentum preserved -- no settle). Row drawn per episode.
+        if p_catch > 0 and self._catch_qpos is not None:
+            r_c = jax.random.fold_in(r_m, 7)
+            row = jax.random.randint(r_c, (), 0, self._catch_qpos.shape[0])
+            d_cat = mjx.make_data(self.model)
+            d_cat = d_cat.replace(qpos=self._catch_qpos[row].astype(jp.float64)
+                                  if d_cat.qpos.dtype == jp.float64
+                                  else self._catch_qpos[row],
+                                  qvel=self._catch_qvel[row].astype(
+                                      d_cat.qvel.dtype),
+                                  ctrl=jp.zeros(self.mj_model.nu)
+                                  + self._default)
+            d_cat = mjx.forward(self.model, d_cat)
+        else:
+            d_cat = None
 
-        def sel(a, b, c, s):
+        def sel(a, b, c, s, t):
             out = jp.where(pick_kneel, b, a)
             out = jp.where(pick_squat, c, out)
-            return jp.where(pick_sit, s, out)
+            out = jp.where(pick_sit, s, out)
+            return out if t is None else jp.where(pick_catch, t, out)
 
-        # rise-phase offset per start (getup_v4): the SQUAT start equals the
-        # reference's t=0 tuck (and rag/sit must first reach it) -> 0; the
-        # KNEEL start is already weight-on-feet -> enter at the plant stage
-        # (1/3) instead of being paid to collapse back into the tuck
-        t0 = jp.where(pick_kneel, self.rise_secs / 3.0, 0.0)
-        return jax.tree_util.tree_map(sel, d_rag, d_kneel, d_squat, d_sit), t0
+        def sel4(a, b, c, s):
+            return sel(a, b, c, s, None)
+
+        # rise-phase offsets (getup_v4/v6): squat start == the reference's
+        # t=0 tuck (and rag/sit must reach it) -> 0; kneel and the dynamic
+        # catch enter at the plant stage (1/3)
+        t0 = jp.where(pick_kneel | pick_catch, self.rise_secs / 3.0, 0.0)
+        if d_cat is not None:
+            data = jax.tree_util.tree_map(
+                lambda a, b, c, s, t: sel(a, b, c, s, t),
+                d_rag, d_kneel, d_squat, d_sit, d_cat)
+        else:
+            data = jax.tree_util.tree_map(sel4, d_rag, d_kneel, d_squat, d_sit)
+        return data, t0
 
     # -- api -------------------------------------------------------------------
     def reset(self, rng: jax.Array) -> State:

@@ -393,6 +393,8 @@ class BimoWalkerEnv(gym.Env):
         self.ext_mix = tuple(ext_mix) + (0.0,) * (7 - len(ext_mix))
         self.walk_submix = walk_submix
         self.turn_emph = turn_emph
+        _cs = os.path.join(os.path.dirname(xml_path), "getup_catch_states.npz")
+        self._catch_states = np.load(_cs) if os.path.exists(_cs) else None
         self.w_foot_cross = w_foot_cross
         self.sway_vy = sway_vy
         self.gait_clock = gait_clock
@@ -1022,7 +1024,7 @@ class BimoWalkerEnv(gym.Env):
             # sim/mjx/_fallen_data exactly.
             kind = "ragdoll"
             if self._recover_ep:
-                mix = tuple(self.recover_start_mix) + (0.0,) * 4
+                mix = tuple(self.recover_start_mix) + (0.0,) * 5
                 u = float(self.np_random.uniform())
                 if u < mix[0]:
                     kind = "ragdoll"
@@ -1030,8 +1032,10 @@ class BimoWalkerEnv(gym.Env):
                     kind = "kneel"
                 elif u < mix[0] + mix[1] + mix[2]:
                     kind = "squat"
-                else:
+                elif u < mix[0] + mix[1] + mix[2] + mix[3]:
                     kind = "sit"
+                else:
+                    kind = "catch"
             self.data.qpos[:] = self.model.qpos0
             self.data.qvel[:] = 0.0
             settle_n = 50
@@ -1068,6 +1072,13 @@ class BimoWalkerEnv(gym.Env):
                 self.data.qpos[2] = 0.10
                 self.data.qpos[3:7] = [np.cos(ang / 2), 0, np.sin(ang / 2), 0]
                 self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)
+            elif kind == "catch":      # getup_v6: harvested mid-rock state
+                z = self._catch_states
+                row = int(self.np_random.integers(z["qpos"].shape[0]))
+                self.data.qpos[:] = z["qpos"][row]
+                self.data.qvel[:] = z["qvel"][row]
+                settle_n = 0           # momentum IS the start state
+                self._rise_t0 = self.rise_secs / 3.0
             else:                      # sit: torso UP, waist 90 deg, legs
                 j[self._i_pitch] = -1.57   # out front, feet splayed apart
                 j[self._i_knee] = -0.09    # (mirrors sim/mjx; verified by

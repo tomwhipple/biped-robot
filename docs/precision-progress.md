@@ -332,3 +332,23 @@ robustness.** Ties v4yaw_s on pass count but falls 8%→**0%**, watts
 accuracy, not turning ability (square_return stays 8/8 @ 8 cm). Verdict:
 command-distribution surgery is done; circle-scale return accuracy is a
 goal-conditioning problem (the planned next abstraction layer).
+
+**getup_v5 (momentum incentive): 0/16 — the w_up_vel term was farmed by
+rocking cycles** (positive vertical velocity pays every up-phase of an
+oscillation with no net rise; wobble 0.51, watts 5.3, height plateau
+23 cm, late reward oscillating). Removed for v6 — the height ratchet is
+the correct "net new height only" signal.
+
+**BUG (found while wiring v6): `getup_start_mix` clobbered the ext-mode
+`recover_start_mix` passthrough** — an unconditional default assignment
+7 lines below the conditional one. Consequence: **getup_v3, v4, and v5
+all trained from PURE RAGDOLL starts**; the reverse-curriculum mix in
+their configs never reached the env. Every conclusion about "the
+curriculum not helping" was untested until now.
+
+**getup_v6 (queued): the first honest curriculum run** — fixed mix
+passthrough; new 5th start type `catch`: 4 harvested mid-momentum-rock
+states (qpos+qvel, no settle — the near-catch instant the scripted rocks
+kept reaching before toppling backward), 30% of starts; mix
+0.15/0.1/0.2/0.25/0.3 rag/kneel/squat/sit/catch; w_rise_ref 0.5 hint;
+no w_up_vel. Parity 8/8 with catch starts exercised.
