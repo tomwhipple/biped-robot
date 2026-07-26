@@ -1,0 +1,36 @@
+# Defaults for the ESP32-WROOM-32 class module on the Waveshare servo board.
+# `idf.py set-target esp32` merges these into sdkconfig (which is gitignored).
+
+CONFIG_IDF_TARGET="esp32"
+
+# 240 MHz: the tick budget in firmware-design section 4 assumes it.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# Dual core, and core 1 belongs to the control task.
+CONFIG_FREERTOS_UNICORE=n
+# 1 kHz tick so a pdMS_TO_TICKS(1) UART timeout means 1 ms, not 10.
+CONFIG_FREERTOS_HZ=1000
+CONFIG_FREERTOS_SUPPORT_STATIC_ALLOCATION=y
+
+# No exceptions, no RTTI (also enforced in CMakeLists.txt).
+CONFIG_COMPILER_CXX_EXCEPTIONS=n
+CONFIG_COMPILER_CXX_RTTI=n
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+# Task watchdog on the control task. One second is ~50 missed ticks: long
+# enough that a slow bench command is not a reset, short enough to matter.
+CONFIG_ESP_TASK_WDT_INIT=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=1
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n
+
+# 4 MB flash, no PSRAM -- matches the vendor's own mandated build settings.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_SPIRAM=n
+
+# Console stays on UART0 for the boot banner; app_main silences the logger
+# before the link starts so log text cannot interleave with binary frames.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200

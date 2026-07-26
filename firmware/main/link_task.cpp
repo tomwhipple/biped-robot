@@ -1,0 +1,150 @@
+// Core-0 tasks: the tethered command link and housekeeping.
+//
+// v1 carries the protocol over UART0 (the USB tether). That is the must-have
+// path -- docs/control-channel.md specifies identical framing over UDP and
+// UART0, so adding the WiFi socket later is a second producer into the same
+// mailbox, not a second protocol. See firmware/README.md for the v2 seam.
+#include "link_task.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#include "board.h"
+#include "cli.h"
+#include "driver/uart.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
+#include "linkproto/framing.h"
+#include "linkproto/protocol.h"
+#include "shared.h"
+
+namespace robot {
+namespace {
+
+constexpr int kLinkStackWords = 3072;
+constexpr int kHouseStackWords = 4096;
+constexpr size_t kCliLineMax = 96;
+constexpr int kCliQueueLen = 4;
+
+StackType_t g_link_stack[kLinkStackWords];
+StaticTask_t g_link_tcb;
+StackType_t g_house_stack[kHouseStackWords];
+StaticTask_t g_house_tcb;
+
+// Static queue storage: no heap after init.
+struct CliLine { char text[kCliLineMax]; };
+uint8_t g_cli_storage[kCliQueueLen * sizeof(CliLine)];
+StaticQueue_t g_cli_qbuf;
+QueueHandle_t g_cli_queue = nullptr;
+
+uint8_t g_cmd_storage[sizeof(CommandMsg)];
+StaticQueue_t g_cmd_qbuf;
+
+linkproto::Demux g_demux;
+
+void uartSay(const char* s) {
+    uart_write_bytes(board::kHostUart, s, strlen(s));
+}
+
+void linkTask(void*) {
+    uint8_t rx[64];
+    for (;;) {
+        const int n = uart_read_bytes(board::kHostUart, rx, sizeof rx,
+                                      pdMS_TO_TICKS(20));
+        if (n <= 0) continue;
+        for (int i = 0; i < n; ++i) {
+            switch (g_demux.push(rx[i])) {
+                case linkproto::Demux::Event::kFrame: {
+                    linkproto::Command pkt{};
+                    if (linkproto::decodeCommand(g_demux.frame(),
+                                                 linkproto::kCmdLen, pkt) !=
+                        linkproto::Err::kOk) {
+                        break;    // CRC did its job; drop it silently
+                    }
+                    CommandMsg msg;
+                    msg.cmd = pkt;
+                    msg.rx_ms =
+                        static_cast<float>(esp_timer_get_time()) / 1000.0f;
+                    // Latest wins: a stale command must never queue up behind
+                    // a late tick (firmware-design section 4).
+                    xQueueOverwrite(g_cmd_mailbox, &msg);
+                    break;
+                }
+                case linkproto::Demux::Event::kLine: {
+                    CliLine line;
+                    strncpy(line.text, g_demux.line(), kCliLineMax - 1);
+                    line.text[kCliLineMax - 1] = 0;
+                    // Drop, do not block: the link path must never wait on the
+                    // CLI consumer.
+                    xQueueSend(g_cli_queue, &line, 0);
+                    break;
+                }
+                case linkproto::Demux::Event::kOverflow:
+                    uartSay("line too long\r\n");
+                    break;
+                case linkproto::Demux::Event::kNone:
+                    break;
+            }
+        }
+    }
+}
+
+void houseTask(void*) {
+    cli::banner(&uartSay);
+    TickType_t next_tlm = xTaskGetTickCount();
+    for (;;) {
+        CliLine line;
+        while (xQueueReceive(g_cli_queue, &line, 0) == pdTRUE) {
+            cli::execute(line.text, &uartSay);
+        }
+
+        // 10 Hz telemetry, back up the same tether the commands came down.
+        if (xTaskGetTickCount() >= next_tlm) {
+            next_tlm += pdMS_TO_TICKS(100);
+            if (g_mode_request.load() == Mode::kRun) {
+                linkproto::Telemetry t{};
+                t.seq_echo = g_telemetry.seq_echo.load();
+                t.state = static_cast<linkproto::LinkState>(
+                    g_telemetry.state.load());
+                t.vbat_v = g_telemetry.vbat_mv.load() / 1000.0f;
+                t.up_z = g_telemetry.up_z.load();
+                t.vx_est = g_telemetry.vx_est.load();
+                t.wz_est = g_telemetry.wz_est.load();
+                // The wire field is 8 bits (one bit per servo ID 1-8); the
+                // 10-DOF plant has two more joints, so the hip-yaw faults are
+                // folded into the top bits. Widening the frame is a protocol
+                // change and therefore a link/protocol.py change first.
+                const uint16_t f = g_telemetry.servo_err.load();
+                t.servo_err = static_cast<uint8_t>(f & 0xFF) |
+                              static_cast<uint8_t>((f >> 8) & 0x03);
+                t.loop_late_pct = g_telemetry.loop_late_pct.load();
+                uint8_t wire[linkproto::kTlmLen];
+                linkproto::encodeTelemetry(wire, t);
+                uart_write_bytes(board::kHostUart,
+                                 reinterpret_cast<const char*>(wire),
+                                 linkproto::kTlmLen);
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+}  // namespace
+
+void startLinkTask() {
+    g_cmd_mailbox = xQueueCreateStatic(1, sizeof(CommandMsg), g_cmd_storage,
+                                       &g_cmd_qbuf);
+    g_cli_queue = xQueueCreateStatic(kCliQueueLen, sizeof(CliLine),
+                                     g_cli_storage, &g_cli_qbuf);
+    xTaskCreateStaticPinnedToCore(linkTask, "link", kLinkStackWords, nullptr,
+                                  5, g_link_stack, &g_link_tcb, 0);
+}
+
+void startHousekeepingTask() {
+    xTaskCreateStaticPinnedToCore(houseTask, "housekeeping", kHouseStackWords,
+                                  nullptr, 2, g_house_stack, &g_house_tcb, 0);
+}
+
+}  // namespace robot

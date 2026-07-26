@@ -194,6 +194,45 @@ referee before it is ever flashed.
    servo → 8-servo sync loop timing capture → IMU cal → torque-release
    drills → policy loop with props off the ground → floor.
 
+## 7b. Changelog — decisions made while building v1 (2026-07-26)
+
+The firmware skeleton now exists (`firmware/`, see its README for what is real
+vs. scaffolded). Five things in this document turned out to be wrong or
+under-specified; recorded here rather than silently edited above.
+
+- **Pinout confirmed** against Waveshare's schematic, user manual and firmware
+  source (URLs in `firmware/main/board.h`): servo bus is UART1 at 1 Mbaud with
+  **GPIO 18 = RX, GPIO 19 = TX**; I2C is GPIO 21/22 at 0x3C for a 128×32
+  SSD1306. Two corrections to wiring.md: the half-duplex direction is switched
+  **in hardware** (a PNP off the TX line drives the transceiver OE pins — there
+  is no direction GPIO), and **there is no IMU and no battery-voltage ADC on
+  the board**. Pack voltage therefore comes from a servo's register 62 at 0.1 V
+  resolution, and the BNO085 is an external breakout sharing the OLED's pins.
+- **Joint count is 10, not 8.** All sims run on `bimo_biped_v3yaw.xml`, so the
+  obs, action vector and bus map are 10-wide. It is a compile-time constant in
+  a generated header (`obs/obs_spec.h` from `tools/gen_obs_spec.py`), not a
+  literal. wiring.md's "maps to IDs 1–8 with no permutation table" no longer
+  holds: the sim's action order starts at `L_hip_yaw` (index 0) but that servo
+  is bus ID 9, so there **is** a permutation and it is generated and tested.
+- **Obs is 147-dim, not 129** — §5's figure predates the plant change. The
+  deployed `loco_v5t` frame is 49 wide (10 q + 10 dq + 3 up + 3 linvel + 3 gyro
+  + 10 prev-action + 1 height + 2 phase + 7 ext-cmd) × 3 history frames. Torso
+  linear velocity and height are hard zeros, matching the `imu_obs=True`
+  training config.
+- **§5's "tanh/identity activations to match brax exactly" is wrong.** brax's
+  `make_ppo_networks` defaults to **`linen.swish`** for hidden layers; the
+  output layer is linear and `2 × action_size` wide (mean ‖ log-std), and the
+  only tanh is `NormalTanhDistribution.mode() = tanh(mean)` at inference. The C
+  port implements that, checked against numpy golden vectors.
+- **§6 stands, and it is the v1 blocker for the policy.** The deployed net is
+  (512, 256, 128); the firmware ships a placeholder weights header at the real
+  147→…→20 widths so the forward pass and its test harness are real code. The
+  distillation + `sim/export_policy.py` are the v2 seam.
+- **Bus ownership** is not in §4: the bring-up CLI lives on core 0 but needs
+  the bus. Rather than a mutex in the control path, the board boots into a
+  `bench` mode where `ctrl` releases torque and gives up the bus, and `run`
+  hands it back. Single owner at all times, no lock.
+
 ## 8. Open questions
 
 - Exact Waveshare SKU on the BOM → confirm SRAM/PSRAM and UART wiring.
