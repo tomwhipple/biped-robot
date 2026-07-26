@@ -9,3 +9,6 @@ dependencies.lock
 host/build/
 *.o
 *.d
+
+# vendor flash backup (4 MB binary, never commit -- regenerate with esptool read_flash)
+vendor-backup/

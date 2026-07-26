@@ -4,12 +4,37 @@
 [wiring.md](wiring.md) §Bring-up checklist (the short form) and
 [firmware-design.md](firmware-design.md) §7 (what happens after this).*
 
-**Do this whole page on the STOCK VENDOR FIRMWARE, before flashing anything
-of ours.** The board ships with a demo firmware whose web UI already does ID
-assignment, middle-position calibration and torque release. Flashing our
-firmware overwrites it. Our firmware's own bring-up CLI is being written now
-but is not the tool for today — get 8–10 labelled servos out of the box
-first, then flash.
+> ## ⚑ SUPERSEDED, 2026-07-26 — we flashed. Use the USB CLI.
+>
+> This page originally said to do all of bring-up on the stock vendor
+> firmware and flash afterwards. **That advice was wrong and is withdrawn.**
+> It assumed the vendor web UI was a usable tool; it is not — it byte-swaps
+> every 16-bit value it exchanges with an ST3215 and corrupts angle limits
+> (measured, boxed below). It also cannot be driven without rejoining the
+> board's WiFi after every power cycle.
+>
+> Our firmware is flashed and **verified on hardware**. Bring-up is now one
+> USB cable and no WiFi:
+>
+> ```
+> .venv/bin/python -m serial.tools.miniterm /dev/cu.usbserial-0001 115200
+> ```
+>
+> ```
+> scan                     ping IDs 0-253, report position/voltage/faults
+> id <old> <new>           assign an ID (EEPROM, one servo on the bus)
+> pos <id>                 position, speed, load, voltage, temp, faults
+> move <id> <ticks> [ms]   2048 == middle, 4096 ticks per revolution
+> release [id] | torque [id]
+> middle <id>              latch the current angle as 2048
+> volt | stat | run | bench
+> ```
+>
+> The stock image is backed up at `firmware/vendor-backup/` if it is ever
+> needed again — see the README there for the restore command.
+>
+> Sections 2–3 below still describe the vendor UI. Kept for the measurements
+> and the root-cause analysis, not as instructions.
 
 Vendor facts confirmed 2026-07-26 from Waveshare's docs (sources at bottom):
 
