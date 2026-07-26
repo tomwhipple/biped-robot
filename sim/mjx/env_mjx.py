@@ -531,15 +531,20 @@ class BimoMJXEnv:
             # reverse-curriculum mix silently ignored (the CLI arg landed in
             # config.json but never in the env)
             self.getup_start_mix = getup_start_mix
-        # getup_v6: dynamic near-catch RSI states (qpos+qvel WITH momentum)
-        # harvested from the scripted momentum rock -- see scripted_getup.py
+        # getup_v6/v7: RSI state bank (qpos+qvel WITH momentum, no settle).
+        # v6 held near-catch rock states; v7 holds states along the winnable
+        # kneel-rise corridor (harvest_rise_states.py). Optional per-row "t0"
+        # aligns each state with its rise-reference phase.
         _cs = os.path.join(os.path.dirname(xml_path), "getup_catch_states.npz")
         if os.path.exists(_cs):
             _z = np.load(_cs)
             self._catch_qpos = jp.asarray(_z["qpos"], dtype=jp.float32)
             self._catch_qvel = jp.asarray(_z["qvel"], dtype=jp.float32)
+            self._catch_t0 = (jp.asarray(_z["t0"], dtype=jp.float32)
+                              if "t0" in _z.files else None)
         else:
             self._catch_qpos = None
+            self._catch_t0 = None
 
         self.action_size = self._nq_act
         # per-joint blocks (qpos, qvel, prev_action) scale with the joint
@@ -680,18 +685,27 @@ class BimoMJXEnv:
                 mode)
 
     def _rise_ref(self, t_s):
-        """Scripted joint-space rise for recovery episodes (getup_v3): piecewise
-        -linear through tuck -> plant -> squat -> stand over rise_secs, then
-        holds the standing pose. Time-based phase from episode start (recovery
-        episodes begin DOWN at t=0 with the command pinned to stand). Symmetric
-        L/R, roll/yaw at default. Mirrored EXACTLY in walker_env.py."""
+        """Scripted joint-space rise for recovery episodes: piecewise-linear
+        through kneel -> hips-over-knees -> jackknife -> stand over rise_secs,
+        then holds the standing pose. getup_v7: the old tuck->plant->deep-squat
+        path is INFEASIBLE -- at max hip fold + knee flexion the CoM sits 9 cm
+        behind the foot centers, so the deep squat tips backward under any
+        extension (open-loop study 2026-07-26) and the reference was pulling
+        the policy into that trap (v6 froze just short of the tip-over). The
+        kneel corridor keeps weight on the shins+insteps support polygon --
+        the one ground->stand path the v6 policy already climbs 3/3.
+        Time-based phase from episode start (recovery episodes begin DOWN at
+        t=0 with the command pinned to stand). Symmetric L/R, roll/yaw at
+        default. Mirrored EXACTLY in walker_env.py."""
         d = self._default
         # stage targets (hip_pitch, knee, ankle) inside the joint limits
         # (-1.92..1.05 / -1.66..0.087 / +-0.70)
         stages = jp.array([
-            [-1.85, -1.60, 0.60],   # tuck: heels to butt, toes down
-            [-1.55, -1.55, 0.30],   # plant: weight rocks onto the feet
-            [-1.00, -1.10, 0.15],   # deep squat, torso coming up
+            [-1.92, -1.62, -0.55],  # ball/child's pose: shins+insteps down
+            [-0.20, -1.62, -0.60],  # high-kneel: torso vertical on the knees
+                                    # (statically stable at h 0.23 -- 71% up)
+            [-0.80, -0.80, 0.10],   # knees extend, hips flex to keep the CoM
+                                    # forward while the soles plant
         ])
         stand = jp.stack([d[self._i_pitch][0], d[self._i_knee][0],
                           d[self._i_ankle][0]])
@@ -841,10 +855,17 @@ class BimoMJXEnv:
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
 
-    def _settle(self, qpos, n):
+    def _settle(self, qpos, n, ctrl=None):
+        # ctrl: servo targets HELD during the settle. Default = stand pose --
+        # correct for ragdoll (limp-ish drop) but WRONG for staged poses:
+        # getup_v7 found the "kneel" start settling under stand-drive to
+        # h 0.28 > the 0.275 recovered threshold, so every kneel episode
+        # started recovered=1 and trained nothing. Staged starts must settle
+        # holding their OWN pose.
         data = mjx.make_data(self.model)
         data = data.replace(qpos=qpos,
-                            ctrl=jp.zeros(self.mj_model.nu) + self._default)
+                            ctrl=jp.zeros(self.mj_model.nu)
+                            + (self._default if ctrl is None else ctrl))
 
         def fall(d, _):
             return mjx.step(self.model, d), None
@@ -904,10 +925,13 @@ class BimoMJXEnv:
         j_sit = jp.clip(j_sit, self._lo, self._hi)
         q_sit = (self._qpos0.at[2].set(0.08)
                  .at[self._jq0:self._jq1].set(j_sit))
+        # staged poses settle 1.0 s: the kneel bounces off the shins to
+        # h 0.277 (2 mm ABOVE the recovered threshold -> instant-recovered
+        # episode) at 0.25 s before drooping to its true 0.23 static height
         d_rag = self._settle(q_rag, self.getup_settle)
-        d_kneel = self._settle(q_kneel, 50)
-        d_squat = self._settle(q_squat, 50)
-        d_sit = self._settle(q_sit, 50)
+        d_kneel = self._settle(q_kneel, 200, ctrl=j_kneel)
+        d_squat = self._settle(q_squat, 200, ctrl=j_squat)
+        d_sit = self._settle(q_sit, 200, ctrl=j_sit)
         u = jax.random.uniform(r_m)
         t_k = p_rag + p_kneel
         t_sq = t_k + p_squat
@@ -916,11 +940,14 @@ class BimoMJXEnv:
         pick_squat = (u >= t_k) & (u < t_sq)
         pick_sit = (u >= t_sq) & (u < t_st)
         pick_catch = u >= t_st
-        # getup_v6 catch start: a harvested mid-rock state with its VELOCITY
+        # bank start (v6 "catch"): a harvested state with its VELOCITY
         # (momentum preserved -- no settle). Row drawn per episode.
+        t0_bank = jp.asarray(self.rise_secs / 3.0)
         if p_catch > 0 and self._catch_qpos is not None:
             r_c = jax.random.fold_in(r_m, 7)
             row = jax.random.randint(r_c, (), 0, self._catch_qpos.shape[0])
+            if self._catch_t0 is not None:
+                t0_bank = self._catch_t0[row]
             d_cat = mjx.make_data(self.model)
             d_cat = d_cat.replace(qpos=self._catch_qpos[row].astype(jp.float64)
                                   if d_cat.qpos.dtype == jp.float64
@@ -942,10 +969,11 @@ class BimoMJXEnv:
         def sel4(a, b, c, s):
             return sel(a, b, c, s, None)
 
-        # rise-phase offsets (getup_v4/v6): squat start == the reference's
-        # t=0 tuck (and rag/sit must reach it) -> 0; kneel and the dynamic
-        # catch enter at the plant stage (1/3)
-        t0 = jp.where(pick_kneel | pick_catch, self.rise_secs / 3.0, 0.0)
+        # rise-phase offsets (getup_v7): kneel start == reference stage 1
+        # (high-kneel) -> rise_secs/3; rag/sit enter at the ball (0); bank
+        # rows carry their own harvested phase (fallback: stage 1)
+        t0 = jp.where(pick_catch, t0_bank,
+                      jp.where(pick_kneel, self.rise_secs / 3.0, 0.0))
         if d_cat is not None:
             data = jax.tree_util.tree_map(
                 lambda a, b, c, s, t: sel(a, b, c, s, t),

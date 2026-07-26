@@ -364,3 +364,75 @@ mildly punishes. If the heel-flick look is wanted: add a lifted-leg
 hip-pitch deviation penalty (skills_v5 candidate, user's call).
 hip_sway regressed 3/8→1/8 (kernel unrelated to sway; likely fine-tune
 noise). crouch_hold/circle_air still 0/8.
+
+## Day 5 (2026-07-26): getup_v6 0/16 — but the diagnosis finally lands
+
+**getup_v6 referee: 0/16 (recover_sit 0/8, recover_fallen 0/8), falls 0%,
+wobble 0.18 (was 0.51), watts 4.0.** The oscillation farming is gone; the
+policy went *passive* instead. Sixth straight zero — so the day went to
+per-start-kind probes (scratch `probe_getup_v6.py`) instead of a seventh
+reward tweak. Every start kind fails differently, and each failure
+exposed a false assumption baked into the whole getup lineage:
+
+| start | v6 policy behavior | root cause found |
+|---|---|---|
+| kneel | "stands" 3/3 (h 0.28→0.31) | start was ALREADY standing (see below) |
+| squat | freezes at h 0.14 forever | pose is a physical trap (see below) |
+| sit | freezes at h 0.14–0.17 | no feasible corridor was ever on offer |
+| catch | collapses backward to lying | catch target = the squat trap |
+| ragdoll | stays flat | ditto |
+
+**Finding 1 — the deep squat is INFEASIBLE, and the reference walked the
+policy into it.** Open-loop study: at max hip fold + max knee flexion the
+whole-robot CoM sits **9 cm behind the foot centers**; every extension
+from the deep squat tips backward (0/4 seeds, and the same backward-tip
+kills scripted kneel/fallen finishes). `_rise_ref`'s
+tuck→plant→deep-squat schedule — inherited from getup_v3 — was a guided
+tour into the trap; v6's freeze at h 0.135 is the policy stopping just
+short of the tip-over the reference asks for. The momentum-rock "catch in
+a deep squat" strategy (night-4 feasibility study) dies with it: a
+perfect catch lands in a pose that cannot hold. 50% of v6's start mix
+(squat 20% + catch 30%) trained an unwinnable task.
+
+**Finding 2 — the "kneel" start was standing all along.** Staged starts
+settled with `ctrl = default` (the STAND pose), i.e. the servos drove
+toward standing during the settle: the kneel start entered the episode at
+h 0.277 — 2 mm ABOVE the 0.85·nominal recovered threshold — so every
+kneel episode began `recovered=1` and produced **zero recovery training
+signal**. The v6 "kneel wins" in the probe are the policy holding a
+near-stand it was spawned into. No training episode ever started in a
+stable ground pose with the recovery reward active and a feasible gap to
+close. That — not reward economics (the 200/unit ratchet + −0.7/step
+time pressure were already right) — is why six rounds produced no riser.
+
+**Finding 3 — the high-kneel is the missing rung.** Holding the kneel
+POSE (not the stand pose) settles into a statically stable torso-vertical
+kneel at **h 0.225 = 69% of standing height**, comfortably below the
+recovered threshold. From there the gap to "recovered" is ~5 cm and the
+support polygon (shins+insteps) is the one that works. A naive
+snap-to-default from the static high-kneel falls forward — the finish
+needs feedback — but that is exactly the kind of gap PPO closes when the
+start state is honest.
+
+**getup_v7 (queued, 9996): the corridor rebuild.**
+- `_rise_ref` rewritten: ball/child's-pose → high-kneel → knees-extend
+  (the feasible corridor), replacing tuck→plant→deep-squat.
+- Staged starts settle 1.0 s holding their OWN pose (`_settle` grew a
+  `ctrl` arg; CPU mirror identical): kneel 0.225, squat 0.136, sit 0.142
+  — all honestly DOWN now.
+- RSI bank rebuilt (`harvest_rise_states.py`, replaces the 4 rock states):
+  48 settled stable rows — 26 ball/child's-pose (t0=0) + 22 jittered
+  high-kneels (t0=rise/3) — each carrying its reference phase in a new
+  npz `t0` column both envs read. Half-lunge rung attempted and dropped:
+  0/60 jitters statically stable (honest negative; the lunge transfer is
+  feedback's job).
+- Start mix 0.25/0.25/0/0.25/0.25 rag/kneel/–/sit/bank; squat retired.
+  w_rise_ref 0.5 → 1.0 (the hint now points somewhere feasible).
+- Parity 8/8 PASS after every change (ran twice).
+
+Expectation ladder for v7: bank/kneel starts must stop being 0% —
+that's the honest test of the corridor. sit/rag remain hard (the
+sit→kneel transition needs a tip-and-roll no reference expresses); if
+v7 rises from the kneel rungs but not from sit, the next move is
+banking policy rollout states along whatever partial progress v7 shows,
+not another reward term.

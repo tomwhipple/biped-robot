@@ -806,9 +806,9 @@ class BimoWalkerEnv(gym.Env):
         """Numpy mirror of sim/mjx BimoMJXEnv._rise_ref (parity-gated)."""
         d = self._default
         stages = np.array([
-            [-1.85, -1.60, 0.60],
-            [-1.55, -1.55, 0.30],
-            [-1.00, -1.10, 0.15],
+            [-1.92, -1.62, -0.55],
+            [-0.20, -1.62, -0.60],
+            [-0.80, -0.80, 0.10],
         ])
         stand = np.array([d[self._i_pitch][0], d[self._i_knee][0],
                           d[self._i_ankle][0]])
@@ -1038,7 +1038,10 @@ class BimoWalkerEnv(gym.Env):
                     kind = "catch"
             self.data.qpos[:] = self.model.qpos0
             self.data.qvel[:] = 0.0
-            settle_n = 50
+            # staged poses settle 1.0 s holding their own pose (getup_v7):
+            # at 0.25 s the kneel is mid-bounce at h 0.277, 2 mm above the
+            # recovered threshold -- the episode began instantly recovered
+            settle_n = 200
             # named-joint pose builders (any hip_yaw joints stay at 0)
             j = np.zeros(self._nq_act)
             if kind == "ragdoll":
@@ -1061,8 +1064,7 @@ class BimoWalkerEnv(gym.Env):
                 j[self._i_ankle] = -0.6
                 self.data.qpos[2] = 0.13
                 self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)
-                # getup_v4: a kneel start is already weight-on-feet -- enter
-                # the rise schedule at the plant stage (mirrors _fallen_data)
+                # getup_v7: kneel start == reference stage 1 (high-kneel)
                 self._rise_t0 = self.rise_secs / 3.0
             elif kind == "squat":
                 j[self._i_pitch] = self._lo[self._legL["hip_pitch"]] + 0.05
@@ -1072,13 +1074,14 @@ class BimoWalkerEnv(gym.Env):
                 self.data.qpos[2] = 0.10
                 self.data.qpos[3:7] = [np.cos(ang / 2), 0, np.sin(ang / 2), 0]
                 self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)
-            elif kind == "catch":      # getup_v6: harvested mid-rock state
+            elif kind == "catch":      # v6/v7: harvested RSI bank state
                 z = self._catch_states
                 row = int(self.np_random.integers(z["qpos"].shape[0]))
                 self.data.qpos[:] = z["qpos"][row]
                 self.data.qvel[:] = z["qvel"][row]
                 settle_n = 0           # momentum IS the start state
-                self._rise_t0 = self.rise_secs / 3.0
+                self._rise_t0 = (float(z["t0"][row]) if "t0" in z.files
+                                 else self.rise_secs / 3.0)
             else:                      # sit: torso UP, waist 90 deg, legs
                 j[self._i_pitch] = -1.57   # out front, feet splayed apart
                 j[self._i_knee] = -0.09    # (mirrors sim/mjx; verified by
@@ -1086,7 +1089,13 @@ class BimoWalkerEnv(gym.Env):
                 j[self._legR["hip_roll"]] = -0.10
                 self.data.qpos[2] = 0.08
                 self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)
-            self.data.ctrl[:] = self._default
+            # getup_v7: staged poses settle holding their OWN pose (mirrors
+            # sim/mjx _settle ctrl arg) -- under stand-drive the kneel start
+            # settled to h 0.28 > the recovered threshold, so every kneel
+            # episode began recovered=1 and trained nothing
+            self.data.ctrl[:] = (np.clip(j, self._lo, self._hi)
+                                 if kind in ("kneel", "squat", "sit")
+                                 else self._default)
             for _ in range(settle_n):
                 mujoco.mj_step(self.model, self.data)
             mujoco.mj_forward(self.model, self.data)
