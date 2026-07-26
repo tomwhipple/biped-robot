@@ -1354,7 +1354,13 @@ class BimoMJXEnv:
                 # settled non-riser collects (0.5*up_z + 0.1 <= 0.6)
                 still = jp.exp(-((planar / 0.2) ** 2))
                 h_gain = jp.maximum(height - state.best_h, 0.0)
+                # getup_v8: relative height income while down (mirrors
+                # walker_env; capped below the bleed) -- the one-way ratchet
+                # alone made every parking height pay alike and v7 descended
+                # from the high-kneel to park at h 0.14
                 rec_primary = (200.0 * h_gain
+                               + 0.6 * jp.minimum(height / self._nominal_h,
+                                                  1.0)
                                + 1.0 * standing * (0.5 + 0.5 * still)
                                - 0.7)
                 primary = jp.where(state.recovered < 0.5, rec_primary,

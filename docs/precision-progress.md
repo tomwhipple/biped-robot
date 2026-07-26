@@ -436,3 +436,42 @@ sit→kneel transition needs a tip-and-roll no reference expresses); if
 v7 rises from the kneel rungs but not from sit, the next move is
 banking policy rollout states along whatever partial progress v7 shows,
 not another reward term.
+
+## Day 5 cont. (2026-07-26): getup_v7 0/16 — the corridor works, the finish doesn't
+
+**getup_v7 referee: 0/16, falls 0%, wobble 0.18, watts 4.2.** But the
+per-start probe shows real movement: **ball bank starts CLIMB to the
+high-kneel (h 0.09 → 0.22–0.23)** — the rebuilt corridor is learned —
+and then every start kind, including the true high-kneel itself,
+descends to a common parked pose at h 0.14 and stays. Training telemetry
+explains both behaviors at once: **`eval/episode_recovered` ≈ 0 for the
+entire 110M steps.** Not one training episode ever reached standing, so
+the value function has zero evidence standing pays; the −0.7/step bleed
+reads as unavoidable background and the policy optimizes comfort.
+Two mechanisms:
+
+1. **The finish is an exploration wall.** The bank's top rung (static
+   high-kneel) is still ~1 s of coordinated knee-extend + balance-catch
+   from the threshold. PPO exploration never completes it, so the income
+   side of the reward stays invisible. (Torque is NOT the wall: the
+   commanded stand-drive from the kneel pose demonstrably lifts h
+   0.13 → 0.277; only the final balance catch fails open-loop.)
+2. **Parking is price-free.** The ratchet is one-way, so once best_h is
+   collected, h 0.14 and h 0.23 pay identically — the policy descends
+   from the high-kneel because nothing says stay up.
+
+**getup_v8 (queued 15:24, running): finish rows + height-holding income.**
+- Bank grew a `snap` rung: 60 rows sampled along commanded rises of the
+  jittered kneel poses — a slow servo-ramp band (h 0.225–0.24, small vz)
+  plus the ballistic drop-flight sampled every step (h 0.21–0.271, vz up
+  to 1.6; the 0.24–0.27 band lasts <50 ms and needed per-step sampling).
+  Top rows are 0.05–0.5 s from the recovered threshold with the servos
+  already driving standward — close enough for exploration to cross,
+  flip `recovered`, and finally light the income signal. Bank now 142
+  rows (60 ball / 22 kneel / 60 snap stratified by height), bank share
+  raised to 40% of starts.
+- **Relative height income while down**: rec_primary += 0.6·h/nominal
+  (max 0.5/step, still < the 0.7 bleed → do-nothing stays net-negative;
+  unlike getup_v1's absolute-height income this is bounded away from
+  farming). Holding the high-kneel now beats parking low.
+- Parity 8/8 PASS (2f exercises the new arithmetic).

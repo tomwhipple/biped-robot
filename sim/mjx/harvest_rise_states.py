@@ -4,11 +4,20 @@ rise-reference phase t0.
 
 Corridor (open-loop study 2026-07-26, docs/precision-progress.md):
   ball/child's pose (t0=0) -> high-kneel (t0=rise/3, h 0.23, stable)
-  -> half-lunge (t0=rise/2) -> stand.
+  -> snap rows (t0=rise/3..rise) -> stand.
 The deep-squat path tips backward (CoM 9 cm behind the feet at max fold)
 and is banked nowhere. Rows are settled holding their OWN pose (qvel ~ 0);
 a stability gate drops anything that drifts. Ladder poses are jittered so
 the bank is a corridor, not a point set.
+
+Snap rows (getup_v8): v7 climbed ball -> high-kneel but never crossed the
+last 5 cm -- training `recovered` stayed ~0 for 110M steps, so the value
+function had no evidence standing pays. These rows are sampled along the
+stand-drive snap from the settled high-kneel (ctrl=default), which climbs
+h 0.225 -> 0.27+ WITH upward momentum (torque is sufficient; only the
+final balance catch fails open-loop). Kept strictly below the recovered
+threshold: RSI from here is 0.2-0.5 s from the goal, close enough for
+exploration to finish the job and light up the income signal.
 
 Run from sim/mjx:
   ../../.venv/bin/python harvest_rise_states.py --out ../getup_catch_states.npz
@@ -98,8 +107,35 @@ def bank(tag, t0, qpos_init, pose):
     return 1
 
 
+def snap_rows(qpos_init, qvel_init, kneel_pose, h_cap, ramp_s=1.0,
+              h_lo=0.15, per_s=0.05):
+    """Ramp servo targets kneel -> default over ramp_s; sample every 50 ms
+    while strictly below the recovered threshold, rising or holding only.
+    Called twice per kneel jitter: from the SETTLED kneel (slow-rise band,
+    h 0.225-0.24, small vz) and from the raw drop (whose impact bounce is
+    a ballistic flight through h 0.21 at vz ~1.5 -- the exact mid-flight
+    of the v6 settle trajectory whose endpoint the v6 policy proved
+    holdable)."""
+    pose = np.clip(kneel_pose, env._lo, env._hi)
+    out, per = [], max(1, int(per_s / env.model.opt.timestep))
+    env.data.qpos[:] = qpos_init
+    env.data.qvel[:] = qvel_init
+    env.data.ctrl[:] = pose
+    mujoco.mj_forward(env.model, env.data)
+    for i in range(int((ramp_s + 0.4) / env.model.opt.timestep)):
+        w = min(i * env.model.opt.timestep / ramp_s, 1.0)
+        env.data.ctrl[:] = pose * (1 - w) + env._default * w
+        mujoco.mj_step(env.model, env.data)
+        h = float(env.data.qpos[2])
+        if h >= h_cap:
+            break
+        if i % per == 0 and env.data.qvel[2] > -0.05 and h > h_lo:
+            out.append((env.data.qpos.copy(), env.data.qvel.copy(), h))
+    return out
+
+
 R = args.rise_secs
-kept = {"ball": 0, "kneel": 0, "lunge": 0}
+kept = {"ball": 0, "kneel": 0, "lunge": 0, "snap": 0}
 for i in range(args.jitters):
     dj = rng.uniform(-0.12, 0.12, size=3)
     # ball / child's pose: reached from a prone fold; settle the folded pose
@@ -112,7 +148,27 @@ for i in range(args.jitters):
     kneel = pose_vec(-0.20 + dj[0], -1.62 + abs(dj[1]) * 0.3,
                      -0.60 + dj[2] * 0.3,
                      yaw=dj[0] * 0.8, roll=dj[1] * 0.4)
-    kept["kneel"] += bank("kneel", R / 3.0, qpos_base(0.13), kneel)
+    got = bank("kneel", R / 3.0, qpos_base(0.13), kneel)
+    kept["kneel"] += got
+    if got and i % 2 == 0:
+        # finish rung: states along commanded rises of THIS jittered kneel
+        # pose, phase-mapped by height across the last stretch
+        h_cap = 0.85 * env._nominal_h - 0.004
+        kq, kv = rows[-1]
+        drop = qpos_base(0.13)
+        drop[env._jqpos] = np.clip(kneel, env._lo, env._hi)
+        # settled slow-rise band sampled at 50 ms; ballistic drop flight
+        # sampled EVERY step (the 0.24-0.27 band lasts < 50 ms)
+        starts = [(kq, kv, 0.20, 0.05),
+                  (drop, np.zeros_like(kv), 0.21, 0.005)]
+        for q0, v0, h_lo, per_s in starts:
+            for qp, qv, h in snap_rows(q0, v0, kneel, h_cap, h_lo=h_lo,
+                                       per_s=per_s):
+                frac = np.clip((h - 0.15) / (h_cap - 0.15), 0.0, 1.0)
+                rows.append((qp, qv))
+                t0s.append(R / 3.0 + frac * (R * 2.0 / 3.0))
+                tags.append("snap")
+                kept["snap"] += 1
     # half-lunge: one foot planted ahead, other knee down (human no-hands
     # getup transfer pose); alternate the lead leg
     lead = "L" if i % 2 == 0 else "R"

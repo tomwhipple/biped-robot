@@ -1393,7 +1393,13 @@ class BimoWalkerEnv(gym.Env):
                                        and (up_z > 0.9))
                     still = float(np.exp(-((planar_g / 0.2) ** 2)))
                     h_gain = max(height - self._best_h, 0.0)
+                    # getup_v8: RELATIVE height income while down (0.6 * h/N,
+                    # max 0.5/step < the 0.7 bleed, so do-nothing stays
+                    # net-negative) -- v7 descended from the high-kneel to
+                    # park at h 0.14 because the one-way ratchet made all
+                    # parking spots pay alike; holding HIGH must beat low
                     primary = (200.0 * h_gain
+                               + 0.6 * min(height / self._nominal_h, 1.0)
                                + 1.0 * standing_r * (0.5 + 0.5 * still)
                                - 0.7)
             elif self.cmd_dense and self._cmd[0] > 0.05:
