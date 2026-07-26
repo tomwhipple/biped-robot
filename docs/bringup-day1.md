@@ -232,6 +232,43 @@ Keep a tally here as you go — DOAs and surprises:
 | 9   | L hip yaw   | ✅        | ✅     | 2026-07-26: set from factory ID 1 over WiFi. Angle limits were corrupted (5120..60163) by the UI's Set Servo Mode; `fixrange` restored 0..4095. Tracks 600/2048/3500 to ±3 counts, 12.0 V. |
 | 10  | R hip yaw   | ✅        | ✅     | 2026-07-26. First web-UI attempt did not stick (came back as ID 1); reassigned over the USB CLI and **confirmed across a servo power cycle**. 200→3900 clean, ±3 ticks. |
 
+## 3b. Full-chain result, 2026-07-26 — 10 of 10 ✅
+
+All ten servos on one bus, via the flashed firmware's `ping` (no argument),
+which checks exactly the IDs the policy expects, **in action order**:
+
+```
+L_hip_yaw    id  9  ok      R_hip_yaw    id 10  ok
+L_hip_roll   id  1  ok      R_hip_roll   id  5  ok
+L_hip_pitch  id  2  ok      R_hip_pitch  id  6  ok
+L_knee       id  3  ok      R_knee       id  7  ok
+L_ankle      id  4  ok      R_ankle      id  8  ok
+10 of 10 present            bus 12.0 V
+```
+
+That ordering is the first hardware confirmation of
+`obs::kServoId = {9,1,2,3,4,10,5,6,7,8}` — the permutation wiring.md wrongly
+called an identity. Bus voltage fell only 12.0 → 11.9 V worst-case with all
+ten powered, consistent with the ~0.85 A mean in
+[wiring.md § Power path](wiring.md).
+
+### The duplicate-ID signature, worth recognising
+
+An earlier run of this same test read **8 of 10**, with ID 9 missing and ID 1
+answering intermittently (3/10 pings), returning `bad-reply` and a nonsense
+`0.0 V`. That was **not** a loose connector — it was **two servos both
+answering as ID 1**, because servo 9's assignment (made through the vendor
+web UI) had silently reverted.
+
+Mechanism, from the vendor library: **SCSCL locks EEPROM at register 48, the
+ST series at 55.** The SC-build firmware's "unlock" therefore never unlocked
+anything on an ST3215, so ID writes through it did not persist — and it left
+a stray value in reg 48, the torque limit. Our firmware uses 55, and all ten
+assignments made through it have held.
+
+**If a chained servo is intermittent with garbage reads, suspect a duplicate
+ID before suspecting the wiring.**
+
 ## 3. Chain test, one leg at a time
 
 - [ ] Board off. Chain IDs 1→2→3→4 off port A (each ST3215 has two
