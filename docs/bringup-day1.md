@@ -13,33 +13,37 @@ first, then flash.
 
 Vendor facts confirmed 2026-07-26 from Waveshare's docs (sources at bottom):
 
-| | |
-|---|---|
-| Power in | **6–12.6 V DC**, 5.5 × 2.1 mm barrel jack, **5 A max through the board** |
-| WiFi AP | SSID `ESP32_DEV`, password `12345678` |
-| Web UI | <http://192.168.4.1> — **use Chrome** |
-| USB serial | 115200 baud |
-| Power-on servo scan | IDs **0–20** (our map tops out at 10 — no `MAX_ID` edit needed) |
+|                     |                                                                          |
+| ------------------- | ------------------------------------------------------------------------ |
+| Power in            | **6–12.6 V DC**, 5.5 × 2.1 mm barrel jack, **5 A max through the board** |
+| WiFi AP             | SSID `ESP32_DEV`, password `12345678`                                    |
+| Web UI              | <http://192.168.4.1> — **use Chrome**                                    |
+| USB serial          | 115200 baud                                                              |
+| Power-on servo scan | IDs **0–20** (our map tops out at 10 — no `MAX_ID` edit needed)          |
 
 ---
 
 ## 0. Before power — verify the part (10 min, unblocks a print)
 
 - [ ] Confirm the silkscreen actually reads **"Servo Driver with ESP32"**,
+  
       65 × 30 mm. If it says **"Bus Servo Driver HAT (A)"** (65 × 57 mm), it
       is the wrong board — 9–25 V in, Pi form factor, won't fit the tower.
       See [hardware-order.md](hardware-order.md) caveat 2.
 - [ ] **Caliper the 4 mounting holes**: hole Ø and the two centre-to-centre
+  
       spans. CAD currently assumes **Ø2.75 on 58 × 23 mm** (`BOARD_HOLES` in
       `cad/dimensions.py`), which is a wiki figure, not a measurement. This
       is open question 3 in [hardware-order.md](hardware-order.md) and it
       **gates printing the tower** — measure it now, not after.
 - [ ] Confirm power in is the **DC-044 5.5 × 2.1 barrel jack (CN1) and
+  
       nothing else** — the schematic shows no screw terminal, so the XT30
       pigtail needs a **barrel plug, centre positive**. The board's other
       3-pin header (H1, XH1.25) is 5 V / GND / **LED-OUT**, an output for
       addressable LEDs; don't feed the pack into it.
 - [ ] Caliper the servo bus connector pitch and confirm the pin order on the
+  
       board matches the servo leads: **1 GND (black) · 2 V+ (red) · 3 DATA**.
 
 ## 1. First power, bare board (no servos)
@@ -53,6 +57,7 @@ of smoke.
 - [ ] Laptop → WiFi → `ESP32_DEV` / `12345678`.
 - [ ] Chrome → <http://192.168.4.1>. UI loads.
 - [ ] Read bus voltage on the OLED and in the UI; sanity-check it against
+  
       what the bench supply says. That reading is what the 10 Hz telemetry
       will report later, so a constant offset is worth knowing now.
 
@@ -69,13 +74,13 @@ Raise the bench limit to **~2 A** for this step (one servo, unloaded, idles
 
 Target map — **unchanged, keep assigning to this**:
 
-| ID | Joint | | ID | Joint |
-|---|---|---|---|---|
-| 1 | L hip roll | | 5 | R hip roll |
-| 2 | L hip pitch | | 6 | R hip pitch |
-| 3 | L knee | | 7 | R knee |
-| 4 | L ankle | | 8 | R ankle |
-| 9 | L hip yaw | | 10 | R hip yaw |
+| ID  | Joint       |     | ID  | Joint       |
+| --- | ----------- | --- | --- | ----------- |
+| 1   | L hip roll  |     | 5   | R hip roll  |
+| 2   | L hip pitch |     | 6   | R hip pitch |
+| 3   | L knee      |     | 7   | R knee      |
+| 4   | L ankle     |     | 8   | R ankle     |
+| 9   | L hip yaw   |     | 10  | R hip yaw   |
 
 (9/10 are the v3yaw plant's hip yaws — the current plant of record is
 10-DOF. If only 8 servos are in hand, assign 1–8 and leave 9/10 for the
@@ -100,38 +105,45 @@ For each servo:
 
 - [ ] Board off. Connect this servo alone to bus port A.
 - [ ] Board on. Web UI: `ID Select +/-` until the active ID is **1** (the
+  
       factory ID) and the UI reports the servo responding.
 - [ ] `ID to Set +/-` until it reads the target ID.
 - [ ] **`Set New ID`**. The change is written to servo EEPROM and survives
+  
       power-off.
 - [ ] Verify: `ID Select` to the new ID → servo responds. `ID Select` to 1 →
+  
       nothing.
 - [ ] Nudge it with the position control and watch it move. This is also
+  
       your free DOA test — do it now, not during assembly.
 - [ ] **Label the case** with the ID *and* the joint name, in marker, on the
+  
       flat face you'll still be able to read after assembly.
 - [ ] Board off. Next servo.
 
 Keep a tally here as you go — DOAs and surprises:
 
-| ID | Joint | Assigned | Moves | Notes |
-|---|---|---|---|---|
-| 1 | L hip roll | ☐ | ☐ | |
-| 2 | L hip pitch | ☐ | ☐ | |
-| 3 | L knee | ☐ | ☐ | |
-| 4 | L ankle | ☐ | ☐ | |
-| 5 | R hip roll | ☐ | ☐ | |
-| 6 | R hip pitch | ☐ | ☐ | |
-| 7 | R knee | ☐ | ☐ | |
-| 8 | R ankle | ☐ | ☐ | |
-| 9 | L hip yaw | ☐ | ☐ | |
-| 10 | R hip yaw | ☐ | ☐ | |
+| ID  | Joint       | Assigned | Moves | Notes |
+| --- | ----------- | -------- | ----- | ----- |
+| 1   | L hip roll  | ☐        | ☐     |       |
+| 2   | L hip pitch | ☐        | ☐     |       |
+| 3   | L knee      | ☐        | ☐     |       |
+| 4   | L ankle     | ☐        | ☐     |       |
+| 5   | R hip roll  | ☐        | ☐     |       |
+| 6   | R hip pitch | ☐        | ☐     |       |
+| 7   | R knee      | ☐        | ☐     |       |
+| 8   | R ankle     | ☐        | ☐     |       |
+| 9   | L hip yaw   | ☐        | ☐     |       |
+| 10  | R hip yaw   | ☐        | ☐     |       |
 
 ## 3. Chain test, one leg at a time
 
 - [ ] Board off. Chain IDs 1→2→3→4 off port A (each ST3215 has two
+  
       internally-paralleled ports, so it's case-to-case hops).
 - [ ] Board on, limit ~3 A. Confirm the scan enumerates **exactly 4** servos
+  
       at the expected IDs.
 - [ ] Repeat for 5→6→7→8 on port B. Then both legs together: **8 enumerate.**
 - [ ] Then add 9/10 if present: **10 enumerate.**
@@ -143,15 +155,18 @@ Missing servo ⇒ suspect the lead or a duplicate ID, in that order.
 Both feed sim decisions and are far easier now than after assembly.
 
 - [ ] **Unpowered backdrive friction.** Release torque and measure the torque
+  
       needed to backdrive a joint (a spring scale at a known lever arm is
       enough). [firmware-design.md](firmware-design.md) §5 "idle torque-off"
       estimates 0.35 N·m from the gear class, and the feature's feasibility
       **flips off below ~0.25 N·m** — so this number decides whether idle
       torque-off ships at all.
 - [ ] **Servo case thread**: M3 self-tapping, tapped M3, or M4? Vendor STEP
+  
       shows Ø3.5. Open question 1 in [bom-sourced.md](bom-sourced.md); it
       decides the horn/bracket screws.
-- [ ] While you're at it, confirm the connector ports really are on the
+- [x] While you're at it, confirm the connector ports really are on the
+  
       **idler-side face beside the disc** (`SV_CONN`, corrected 2026-07-24
       from the vendor STEP) — the yaw carrier's wire openings are cut for
       that geometry.
@@ -189,25 +204,27 @@ one leg per board port rather than all 8–10 off a single port.
 Two follow-ups, neither blocking today:
 
 - [ ] Add a low-ESR **470–1000 µF** cap across servo V+/GND at the board.
+  
       The `6-12V` net has only 10 µF + 0.1 µF of local bulk; a 6.8 A step
       currently gets sourced all the way through the pack leads and jack.
 - [ ] **Bench-verify the peak** with an inline shunt or clamp meter during
+  
       the first walks. The table above is sim-derived, not measured.
 
 ## Confirmed from the schematic (2026-07-26)
 
 Worth having on hand — and now feeding the firmware build:
 
-| | |
-|---|---|
-| Servo bus UART | **U1TXD = IO19, U1RXD = IO18** (matches wiring.md's "GPIO 18/19") |
+|                       |                                                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Servo bus UART        | **U1TXD = IO19, U1RXD = IO18** (matches wiring.md's "GPIO 18/19")                                                                                      |
 | Half-duplex direction | `TXEN` gates **U3 SN74LVC1G126** + **U4 SN74LVC1G125**, driven via a PNP (Q1) off U1TXD — the direction circuitry is on the board, we just assert TXEN |
-| I2C | **SDA = IO21, SCL = IO22** (matches wiring.md) |
-| OLED | SSD1306, **0.91″ 128 × 32** |
-| Status LEDs | 2× **WS2812B** on-board (L1, L2), plus an external WS2812 output on H1 |
-| USB | **CP2102** (needs the CP210x driver on macOS), auto-program circuit via DTR/RTS |
-| Logic rails | U5 buck → 5 V → AMS1117-3.3 → 3V3 |
-| Bus voltage sense | R18 560 K / R19 4.7 K divider → ADC. **Voltage only, no current sense.** |
+| I2C                   | **SDA = IO21, SCL = IO22** (matches wiring.md)                                                                                                         |
+| OLED                  | SSD1306, **0.91″ 128 × 32**                                                                                                                            |
+| Status LEDs           | 2× **WS2812B** on-board (L1, L2), plus an external WS2812 output on H1                                                                                 |
+| USB                   | **CP2102** (needs the CP210x driver on macOS), auto-program circuit via DTR/RTS                                                                        |
+| Logic rails           | U5 buck → 5 V → AMS1117-3.3 → 3V3                                                                                                                      |
+| Bus voltage sense     | R18 560 K / R19 4.7 K divider → ADC. **Voltage only, no current sense.**                                                                               |
 
 ## Sources
 

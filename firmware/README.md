@@ -5,9 +5,28 @@ Wire protocol: [docs/control-channel.md](../docs/control-channel.md). Electrical
 [docs/wiring.md](../docs/wiring.md).*
 
 **Nothing here has been flashed.** The board is on the bench running Waveshare's
-stock firmware, and flashing is a deliberate, user-gated step. What is proven
-today is the host test suite; the ESP-IDF project has never been compiled,
-because ESP-IDF is not installed on the development laptop.
+stock firmware, and flashing is a deliberate, user-gated step. Note that
+flashing **overwrites the vendor web UI** used to assign servo IDs — finish
+[docs/bringup-day1.md](../docs/bringup-day1.md) §2 first (the CLI's `id`
+command can redo it, but the web UI is easier while it's there).
+
+Two independent gates, both green as of 2026-07-26:
+
+| gate | command | status |
+|---|---|---|
+| host unit tests | `make -C firmware/host test` | 1866 checks, 0 failures |
+| target build | `. ~/esp/esp-idf/export.sh && idf.py -C firmware build` | links, 0 warnings |
+
+The target build is ESP-IDF **v5.4** on macos-arm64 (`~/esp/esp-idf`,
+toolchains in `~/.espressif`). It produces a 0x3cce0-byte image — **76 % of
+the app partition free**, so §6's distilled policy weights have plenty of
+room. Two environment gotchas, both hit and fixed on first run:
+
+- `export.sh` and `install.sh` **refuse to run inside a Python virtualenv**.
+  This repo's `.venv` is usually active, so unset `VIRTUAL_ENV` and drop
+  `.venv/bin` from `PATH` first.
+- ninja is not installed; the build goes through cmake's `Unix Makefiles`
+  generator. `brew install ninja` if you want the faster incremental builds.
 
 ## Build and test on the host (this is the gate)
 
@@ -27,9 +46,8 @@ ALL GREEN
 ```
 
 There is a `CMakeLists.txt` beside the Makefile for CI (`cmake -S . -B build &&
-cmake --build build && ctest --test-dir build`), but cmake is not installed on
-this laptop, so **the Makefile is the verified path** and the CMake file is
-unproven. Keep them in step.
+cmake --build build && ctest --test-dir build`). The Makefile is still the
+routinely-exercised path; keep the two in step.
 
 Regenerate every committed golden vector and generated header from the sim:
 
@@ -37,15 +55,19 @@ Regenerate every committed golden vector and generated header from the sim:
 make -C firmware/host vectors     # or run the three tools/ scripts directly
 ```
 
-## Build and flash for the board (documented, not executed)
+## Build and flash for the board (build executed; flash not)
 
 ```
-. $IDF_PATH/export.sh
-cd firmware
-idf.py set-target esp32
-idf.py build
-idf.py -p /dev/cu.usbserial-XXXX flash monitor
+env -u VIRTUAL_ENV bash        # export.sh will not run inside a virtualenv
+. ~/esp/esp-idf/export.sh
+idf.py -C firmware set-target esp32
+idf.py -C firmware build       # <- verified 2026-07-26, 0 warnings
+idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor   # <- NOT run
 ```
+
+The board enumerates over its **CP2102**, so the port is `/dev/cu.usbserial-*`
+and the [CP210x driver](https://files.waveshare.com/wiki/common/CP210x_USB_TO_UART.zip)
+may be needed on macOS.
 
 Before anyone runs that last line: it **overwrites the vendor firmware**,
 including the web UI at `192.168.4.1` that bring-up currently uses to set servo
