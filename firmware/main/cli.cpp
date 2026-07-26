@@ -11,10 +11,25 @@
 #include "scsbus/bus.h"
 #include "shared.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 namespace cli {
 namespace {
 
 char g_line[128];      // one owner (the housekeeping task), no heap
+
+// Settle time between writing an ID and re-checking it.
+//
+// A servo assigned ID 10 through the vendor web UI came back as ID 1 on
+// 2026-07-26; the same assignment through this path survived a power cycle.
+// That is n=1 each way and the mechanism is NOT established -- a too-early
+// power cut, a repeated "Set New ID" against a stale listID, and the vendor's
+// LockEprom() addressing the new ID rather than the old all fit the evidence,
+// and the last of those is what this code does too. So do not read this delay
+// as a diagnosis. The verify below is the part that actually earns its keep:
+// whatever the cause, a lost ID stops being silent.
+constexpr int kEepromCommitMs = 2000;
 
 const char* statusName(scsbus::Status s) {
     switch (s) {
@@ -135,7 +150,23 @@ void cmdId(Sink out, int argc, char** argv) {
     }
     const scsbus::Status st = bus->setId(static_cast<uint8_t>(a),
                                          static_cast<uint8_t>(b));
-    say(out, "id %ld -> %ld: %s\r\n", a, b, statusName(st));
+    if (st != scsbus::Status::kOk) {
+        say(out, "id %ld -> %ld: %s\r\n", a, b, statusName(st));
+        return;
+    }
+    // An ID write that reports ok has still only reached the EEPROM cell, not
+    // committed it. Cutting power inside that window loses the change silently
+    // -- exactly how a servo set through the vendor web UI came back as ID 1
+    // on 2026-07-26. Hold, then prove the servo answers to the new ID before
+    // saying anything reassuring, so nobody unplugs on the strength of "ok".
+    vTaskDelay(pdMS_TO_TICKS(kEepromCommitMs));
+    if (!bus->ping(static_cast<uint8_t>(b))) {
+        say(out, "id %ld -> %ld: WROTE BUT DID NOT VERIFY -- rescan before "
+                 "trusting it\r\n", a, b);
+        return;
+    }
+    say(out, "id %ld -> %ld: ok, verified after commit -- safe to power down\r\n",
+        a, b);
 }
 
 void cmdPos(Sink out, int argc, char** argv) {
