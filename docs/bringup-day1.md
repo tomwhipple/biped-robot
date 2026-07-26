@@ -286,13 +286,44 @@ Missing servo ⇒ suspect the lead or a duplicate ID, in that order.
 
 Both feed sim decisions and are far easier now than after assembly.
 
-- [ ] **Unpowered backdrive friction.** Release torque and measure the torque
-  
-      needed to backdrive a joint (a spring scale at a known lever arm is
-      enough). [firmware-design.md](firmware-design.md) §5 "idle torque-off"
-      estimates 0.35 N·m from the gear class, and the feature's feasibility
-      **flips off below ~0.25 N·m** — so this number decides whether idle
-      torque-off ships at all.
+- [x] **Powered friction, measured electronically 2026-07-26.** Commanding a
+      steady 200 steps/s sweep on an unloaded servo and reading the load
+      register (reg 60) gives a tight, repeatable figure across four units:
+
+      | id | n | speed | median \|load\| | p10 | p90 |
+      |---|---|---|---|---|---|
+      | 1 | 21 | 200 | 76 | 72 | 80 |
+      | 3 | 21 | 200 | 80 | 72 | 80 |
+      | 6 | 21 | 200 | 80 | 76 | 88 |
+      | 8 | 28 | 200 | 80 | 72 | 80 |
+
+      Load is 0–1000 = 0–100 % of max torque, so ~80 → **8.0 % of the 2.94 N·m
+      stall ≈ 0.235 N·m**. Reproduce with `move <id> 3600 0 200` while polling
+      `pos <id>`; a `move` without an explicit steps/s slews at ~3000 steps/s
+      and measures acceleration transients instead.
+
+- [ ] **Unpowered backdrive friction — still needs a spring scale.** The
+      number above is **powered** friction (motor driving *through* the
+      gearbox). The sim's `off_frictionloss` models the joint with torque
+      **off**, being driven backwards, and back-driving a ~1:345 reduction is
+      far less efficient than forward-driving it — so 0.235 N·m is a **lower
+      bound**, not the answer. It is close enough to the threshold to matter:
+      [firmware-design.md](firmware-design.md) §5 estimates 0.35 N·m and idle
+      torque-off **flips infeasible below ~0.25 N·m**.
+
+      The five-minute bench test, with the arithmetic pre-done:
+      1. `release <id>` so the joint is unpowered.
+      2. Bolt a horn with a rod giving a **50 mm** lever from the shaft axis.
+      3. Pull perpendicular with a spring scale until it rotates *steadily*
+         (breakaway, not a jerk). Read the force.
+      4. Torque = F × 0.05 m.
+
+      | scale reads | joint torque | verdict |
+      |---|---|---|
+      | < 510 gf (5.0 N) | < 0.25 N·m | **idle torque-off is not feasible** |
+      | ~714 gf (7.0 N) | 0.35 N·m | matches the sim's estimate |
+
+      Do it while the servos are loose — it is far harder once they are in legs.
 - [ ] **Servo case thread**: M3 self-tapping, tapped M3, or M4? Vendor STEP
   
       shows Ø3.5. Open question 1 in [bom-sourced.md](bom-sourced.md); it

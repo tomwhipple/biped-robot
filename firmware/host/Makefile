@@ -60,7 +60,10 @@ $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
 $(BUILD)/test_scsbus: test_scsbus.cpp $(SRC_SCS) test_util.h | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
-$(BUILD)/test_obs: test_obs.cpp $(SRC_OBS) $(SPEC_H) \
+# cal_store.cpp lives in main/ but its pack/unpack half is plain data and
+# compiles off-target (the NVS half is behind #ifdef ESP_PLATFORM), so the
+# calibration blob is covered by the hardware-free gate like everything else.
+$(BUILD)/test_obs: test_obs.cpp $(SRC_OBS) ../main/cal_store.cpp $(SPEC_H) \
                    vectors/obs_vectors.h test_util.h | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 

@@ -15,6 +15,8 @@
 #include "imu/imu.h"
 #include "link_task.h"
 #include "nvs_flash.h"
+
+#include "cal_store.h"
 #include "policy/mlp.h"
 #include "scs_port_idf.h"
 #include "shared.h"
@@ -80,11 +82,19 @@ extern "C" void app_main(void) {
     g_bus = &g_bus_obj;
     g_imu.init();
 
+    // Restore servo calibration before anything can command a position. A
+    // missing blob is the normal first-boot path -- defaults (zero 2048,
+    // dir +1) are what a freshly "Set Middle Position"-ed servo gives you --
+    // but `cal` reports which of the two you are running on, because the
+    // difference is invisible until a leg moves the wrong way.
+    g_cal_from_nvs = calLoad(calibration());
+
     // Bench mode, torque off: docs/wiring.md's bring-up order starts with a
     // released bus, and a board that wakes up holding a pose is a board that
     // cooks servos while you are still plugging things in.
     g_bus->torqueEnable(scsbus::kBroadcastId, false);
 
+    ESP_LOGI(kTag, "cal: %s", g_cal_from_nvs ? "restored from NVS" : "DEFAULTS");
     ESP_LOGI(kTag, "bus %d baud on GPIO %d/%d, %d joints, obs %d, policy %s",
              board::kServoBaud, static_cast<int>(board::kServoTx),
              static_cast<int>(board::kServoRx), obs::kNumJoints, obs::kObsDim,

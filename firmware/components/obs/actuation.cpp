@@ -7,6 +7,7 @@ namespace {
 constexpr float kTwoPi = 6.283185307179586f;
 constexpr float kStepsPerRev = 4096.0f;
 constexpr float kRadPerStep = kTwoPi / kStepsPerRev;
+constexpr int32_t kMaxSteps = 4095;   // ST3215 encoder full scale
 
 float clamp1(float x) { return x < -1.0f ? -1.0f : (x > 1.0f ? 1.0f : x); }
 }  // namespace
@@ -36,7 +37,16 @@ int32_t angleToSteps(int joint, float rad, const Calibration& cal) {
     if (rad < kJointLo[joint]) rad = kJointLo[joint];
     if (rad > kJointHi[joint]) rad = kJointHi[joint];
     const float ticks = rad / kRadPerStep * static_cast<float>(cal.dir[joint]);
-    return cal.zero_steps[joint] + static_cast<int32_t>(lrintf(ticks));
+    int32_t steps = cal.zero_steps[joint] + static_cast<int32_t>(lrintf(ticks));
+    // Second guard, in the steps domain. The clamp above bounds the ANGLE, but
+    // a wrong zero_steps (miscalibration, or NVS restored from a different
+    // build of the robot) still shifts the result off the encoder's 0..4095
+    // range -- and a target the servo cannot reach is a horn parked against a
+    // hard stop drawing stall current. Clamping is the safe failure: the joint
+    // sits at its extreme instead of cooking.
+    if (steps < 0) steps = 0;
+    if (steps > kMaxSteps) steps = kMaxSteps;
+    return steps;
 }
 
 float stepsToAngle(int joint, int32_t steps, const Calibration& cal) {

@@ -9,6 +9,7 @@
 #include "obs/obs_spec.h"
 #include "policy/mlp.h"
 #include "scsbus/bus.h"
+#include "cal_store.h"
 #include "shared.h"
 
 #include "freertos/FreeRTOS.h"
@@ -195,6 +196,12 @@ void cmdMove(Sink out, int argc, char** argv) {
     const long id = num(argv[1]);
     const long ticks = num(argv[2], 2048);
     const long ms = argc >= 4 ? num(argv[3], 0) : 0;
+    // Optional 5th arg: goal SPEED in steps/s (register 46). Without it the
+    // servo slews at maximum and the goal-time argument is effectively
+    // ignored -- measured 2026-07-26 at ~3000 steps/s for a "9000 ms" move.
+    // A commanded speed is what makes a slow constant-velocity sweep (and so
+    // a friction measurement) possible at all.
+    const long spd = argc >= 5 ? num(argv[4], 0) : 0;
     if (ticks < 0 || ticks > 4095) {
         out("ticks must be 0-4095 (2048 == middle)\r\n");
         return;
@@ -202,9 +209,10 @@ void cmdMove(Sink out, int argc, char** argv) {
     const uint8_t ids[1] = {static_cast<uint8_t>(id)};
     const int32_t tgt[1] = {static_cast<int32_t>(ticks)};
     const scsbus::Status st = bus->syncWritePositions(
-        ids, tgt, 1, static_cast<uint16_t>(ms), 0, 0);
-    say(out, "move id %ld -> %ld ticks over %ld ms: %s\r\n", id, ticks, ms,
-        statusName(st));
+        ids, tgt, 1, static_cast<uint16_t>(ms),
+        static_cast<uint16_t>(spd), 0);
+    say(out, "move id %ld -> %ld ticks, %ld ms, spd %ld: %s\r\n", id, ticks,
+        ms, spd, statusName(st));
 }
 
 void cmdTorque(Sink out, int argc, char** argv, bool on) {
@@ -256,6 +264,95 @@ void cmdMode(Sink out, bool run) {
             : "benched -- control loop released torque and gave up the bus\r\n");
 }
 
+
+// -- calibration -----------------------------------------------------------
+//
+// Two mechanisms exist and they are NOT interchangeable; docs/bringup-day1.md
+// records the split:
+//   `middle <id>`  writes the SERVO's own offset (reg 40 <- 128). Coarse zero,
+//                  lives in the servo's EEPROM, travels with the servo, and
+//                  survives reflashing the board.
+//   `cal ...`      writes the FIRMWARE's offset (NVS). Fine trim on top, plus
+//                  the per-joint direction sign, which the servo cannot
+//                  express at all.
+// Use `middle` first at the CAD-neutral pose, then `cal zero` to absorb the
+// residual the horn splines cannot -- the ST3215 horn seats on discrete teeth,
+// so a purely mechanical zero is never exact.
+void cmdCal(Sink out, int argc, char** argv) {
+    obs::Calibration& cal = robot::calibration();
+    if (argc < 2 || !strcmp(argv[1], "show")) {
+        for (int j = 0; j < obs::kNumJoints; ++j) {
+            say(out, "  %-12s id %2d  zero %4ld  dir %+d\r\n",
+                obs::kJointNames[j], obs::kServoId[j],
+                static_cast<long>(cal.zero_steps[j]), cal.dir[j]);
+        }
+        say(out, "%s\r\n", robot::g_cal_from_nvs
+                                ? "loaded from NVS at boot"
+                                : "DEFAULTS -- nothing stored (cal save)");
+        return;
+    }
+    if (!strcmp(argv[1], "zero")) {
+        scsbus::Bus* bus = claimBus(out);
+        if (!bus) return;
+        // Latch wherever the joints are RIGHT NOW as angle zero. Only correct
+        // when the robot is physically held at the CAD-neutral pose.
+        const long only = argc >= 3 ? num(argv[2], -1) : -1;
+        int done = 0;
+        for (int j = 0; j < obs::kNumJoints; ++j) {
+            if (only >= 0 && j != only) continue;
+            int32_t pos = 0;
+            if (bus->readPosition(obs::kServoId[j], pos) !=
+                scsbus::Status::kOk) {
+                say(out, "  %-12s NO REPLY -- left unchanged\r\n",
+                    obs::kJointNames[j]);
+                continue;
+            }
+            cal.zero_steps[j] = pos;
+            ++done;
+            say(out, "  %-12s zero <- %ld\r\n", obs::kJointNames[j],
+                static_cast<long>(pos));
+        }
+        say(out, "%d joint(s) zeroed -- NOT saved yet, run `cal save`\r\n",
+            done);
+        return;
+    }
+    if (!strcmp(argv[1], "dir") && argc >= 4) {
+        if (!claimBus(out)) return;           // writer-vs-ctrl-reader guard
+        const long j = num(argv[2], -1), d = num(argv[3], 0);
+        if (j < 0 || j >= obs::kNumJoints || (d != 1 && d != -1)) {
+            out("usage: cal dir <joint 0-9> <1|-1>\r\n");
+            return;
+        }
+        cal.dir[j] = static_cast<int8_t>(d);
+        say(out, "%s dir <- %+ld -- run `cal save`\r\n",
+            obs::kJointNames[j], d);
+        return;
+    }
+    if (!strcmp(argv[1], "save")) {
+        const bool ok = robot::calSave(cal);
+        robot::g_cal_from_nvs = ok;
+        say(out, "cal save: %s\r\n", ok ? "ok" : "FAILED");
+        return;
+    }
+    if (!strcmp(argv[1], "load")) {
+        if (!claimBus(out)) return;
+        obs::Calibration fresh;
+        const bool ok = robot::calLoad(fresh);
+        if (ok) { cal = fresh; robot::g_cal_from_nvs = true; }
+        say(out, "cal load: %s\r\n", ok ? "ok" : "nothing stored");
+        return;
+    }
+    if (!strcmp(argv[1], "reset")) {
+        if (!claimBus(out)) return;
+        cal = obs::Calibration();
+        robot::calErase();
+        robot::g_cal_from_nvs = false;
+        out("cal reset to defaults (zero 2048, dir +1) and erased\r\n");
+        return;
+    }
+    out("usage: cal [show] | zero [joint] | dir <joint> <1|-1> | save | load | reset\r\n");
+}
+
 void cmdStat(Sink out) {
     say(out, "ticks %lu  late %lu (%u%%)  worst %lu us  state %u  "
              "servo_err 0x%04X\r\n",
@@ -286,10 +383,11 @@ void banner(Sink out) {
     out("  ping [id]            no id = check exactly the policy's servos\r\n");
     out("  id <old> <new>       assign a servo ID (EEPROM, one servo on the bus)\r\n");
     out("  pos <id>             position, speed, load, voltage, temp, faults\r\n");
-    out("  move <id> <ticks> [ms]   2048 == middle, 4096 ticks per revolution\r\n");
+    out("  move <id> <ticks> [ms] [steps/s]   2048 == middle, 4096 ticks/rev\r\n");
     out("  release [id] | torque [id]   no id = broadcast\r\n");
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
     out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");
+    out("  cal [show|zero|dir|save|load|reset]   servo zero + direction (NVS)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  stat                 tick timing and fault counters\r\n");
 }
@@ -315,6 +413,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "volt")) cmdVolt(out);
     else if (!strcmp(c, "run")) cmdMode(out, true);
     else if (!strcmp(c, "bench")) cmdMode(out, false);
+    else if (!strcmp(c, "cal")) cmdCal(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);
     else out("? (try `help`)\r\n");
 }

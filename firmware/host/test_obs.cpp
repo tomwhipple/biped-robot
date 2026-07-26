@@ -212,6 +212,82 @@ void testImuMaths() {
 
 }  // namespace
 
+// -- calibration persistence + the steps clamp -----------------------------
+// The blob format is plain data, so it is testable here even though the NVS
+// side of cal_store only compiles under ESP-IDF.
+#include "../main/cal_store.h"
+
+void testCalBlob() {
+    obs::Calibration cal;
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        cal.zero_steps[i] = 1000 + i * 37;
+        cal.dir[i] = (i % 3 == 0) ? -1 : 1;
+    }
+    robot::CalBlob blob{};
+    robot::calPack(cal, blob);
+
+    obs::Calibration back;
+    CHECK(robot::calUnpack(blob, back));   // round-trip unpack succeeds
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        CHECK(back.zero_steps[i] == cal.zero_steps[i]);   // zero survives
+        CHECK(back.dir[i] == cal.dir[i]);   // dir survives
+    }
+
+    // Every rejection path must leave the destination untouched, so a bad
+    // blob falls back to defaults instead of half-applying.
+    obs::Calibration guard;
+    const int32_t sentinel = guard.zero_steps[0];
+
+    robot::CalBlob bad = blob;
+    bad.crc ^= 0xFFu;
+    CHECK(!robot::calUnpack(bad, guard));   // corrupt CRC rejected
+    CHECK(guard.zero_steps[0] == sentinel);   // rejected blob did not mutate
+
+    bad = blob; bad.magic = 0xDEADBEEF;
+    CHECK(!robot::calUnpack(bad, guard));   // wrong magic rejected
+
+    bad = blob; bad.version = 99;
+    CHECK(!robot::calUnpack(bad, guard));   // wrong version rejected
+
+    // The 8-DOF -> 10-DOF plant change is exactly why joints is stored.
+    bad = blob; bad.joints = 8;
+    robot::calPack(cal, bad); bad.joints = 8;
+    bad.crc = robot::calCrc32(&bad, sizeof bad - sizeof bad.crc);
+    CHECK(!robot::calUnpack(bad, guard));   // joint-count mismatch rejected
+
+    bad = blob; bad.zero_steps[2] = 9999;
+    bad.crc = robot::calCrc32(&bad, sizeof bad - sizeof bad.crc);
+    CHECK(!robot::calUnpack(bad, guard));   // out-of-range zero rejected
+
+    bad = blob; bad.dir[1] = 7;
+    bad.crc = robot::calCrc32(&bad, sizeof bad - sizeof bad.crc);
+    CHECK(!robot::calUnpack(bad, guard));   // invalid dir rejected
+
+    CHECK(robot::calCrc32("123456789", 9) == 0xCBF43926u);   // CRC-32 matches the standard check value
+}
+
+void testStepsClamp() {
+    // A wrong zero_steps must not produce a target off the encoder range --
+    // that is a horn parked on a hard stop drawing stall current.
+    obs::Calibration cal;
+    for (int i = 0; i < obs::kNumJoints; ++i) cal.zero_steps[i] = 4090;
+    float angles[obs::kNumJoints];
+    float act[obs::kNumJoints];
+    for (int i = 0; i < obs::kNumJoints; ++i) act[i] = 1.0f;
+    obs::actionToAngles(act, angles);
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        const int32_t st = obs::angleToSteps(i, angles[i], cal);
+        CHECK(st >= 0 && st <= 4095);   // clamped high-side zero stays in range
+    }
+    for (int i = 0; i < obs::kNumJoints; ++i) cal.zero_steps[i] = 5;
+    for (int i = 0; i < obs::kNumJoints; ++i) act[i] = -1.0f;
+    obs::actionToAngles(act, angles);
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        const int32_t st = obs::angleToSteps(i, angles[i], cal);
+        CHECK(st >= 0 && st <= 4095);   // clamped low-side zero stays in range
+    }
+}
+
 int main() {
     testSpecMatchesVectors();
     testServoIdMapIsAPermutation();
@@ -222,5 +298,7 @@ int main() {
     testAngleToSteps();
     testVelocityEstimator();
     testImuMaths();
+    testCalBlob();
+    testStepsClamp();
     return testutil::report("obs");
 }

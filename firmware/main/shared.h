@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "linkproto/protocol.h"
+#include "obs/actuation.h"
 #include "obs/obs_spec.h"
 #include "scsbus/bus.h"
 
@@ -73,6 +74,17 @@ extern TelemetrySnapshot g_telemetry;
 // The bus object itself: constructed once in app_main, used by ctrl during a
 // run and by the CLI while benched. See g_mode_request for the handover rule.
 extern scsbus::Bus* g_bus;
+
+// Live servo calibration, owned by the control task and restored from NVS at
+// boot. `ctrl` only ever READS it; the CLI is the sole writer, and every
+// mutating `cal` subcommand requires bench mode -- in that state ctrl has
+// already handed back the bus and returns before touching g_cal, so there is
+// no cross-core race and no mutex in the control path.
+obs::Calibration& calibration();
+
+// True when boot found a valid blob in NVS. Shown by `cal` so nobody mistakes
+// freshly-defaulted values for a real calibration.
+extern bool g_cal_from_nvs;
 
 // Servo IDs in policy-action order, from the generated obs spec.
 inline const uint8_t* servoIds() { return obs::kServoId; }

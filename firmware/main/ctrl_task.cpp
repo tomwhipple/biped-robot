@@ -252,6 +252,9 @@ void ctrlTask(void*) {
 
 }  // namespace
 
+bool g_cal_from_nvs = false;
+obs::Calibration& calibration() { return g_cal; }
+
 void startCtrlTask(imu::Imu& imu) {
     g_imu = &imu;
     memset(g_prev_action, 0, sizeof g_prev_action);
