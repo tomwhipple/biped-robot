@@ -112,9 +112,15 @@ it is an output, not an alternative power inlet. Do not feed the pack into it.
   per leg purely for cable routing:
   - **Port A → left leg**: ID 1 hip roll → ID 2 hip pitch → ID 3 knee → ID 4 ankle
   - **Port B → right leg**: ID 5 hip roll → ID 6 hip pitch → ID 7 knee → ID 8 ankle
-- ID order matches the sim's joint order in `sim/walker_env.py`
-  (left leg then right, proximal to distal), so the policy's action vector
-  maps to IDs 1–8 with no permutation table.
+- **ID order needs a permutation table** (corrected 2026-07-26 — this
+  previously claimed the action vector "maps to IDs 1–8 with no permutation
+  table", which was true only on the retired 8-DOF plant). On the deployed
+  10-DOF v3yaw plant the sim's action order is
+  `[L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, R_hip_yaw, R_hip_roll,
+  R_hip_pitch, R_knee, R_ankle]` — action 0 is bus **ID 9**, not ID 1. The
+  physical ID map above is unchanged; the firmware carries
+  `obs::kServoId = {9,1,2,3,4,10,5,6,7,8}`, generated from the sim and
+  covered by the host tests, so the two can't drift by hand.
 - Servos ship with ID 1: at bring-up, connect **one at a time** and assign
   IDs via the board's web UI (AP mode, `192.168.4.1`), then chain them.
   Two same-ID servos on the bus fail to enumerate.

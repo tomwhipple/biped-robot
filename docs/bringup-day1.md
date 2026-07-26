@@ -67,8 +67,7 @@ at a time, and **power off the board between swaps** (don't hot-plug the bus).
 Raise the bench limit to **~2 A** for this step (one servo, unloaded, idles
 ~0.18 A and moves well under 1 A).
 
-Target map — matches the sim's joint order in `sim/walker_env.py`, so the
-policy's action vector maps straight onto IDs with no permutation table:
+Target map — **unchanged, keep assigning to this**:
 
 | ID | Joint | | ID | Joint |
 |---|---|---|---|---|
@@ -81,6 +80,18 @@ policy's action vector maps straight onto IDs with no permutation table:
 (9/10 are the v3yaw plant's hip yaws — the current plant of record is
 10-DOF. If only 8 servos are in hand, assign 1–8 and leave 9/10 for the
 yaw pair.)
+
+> **Correction 2026-07-26.** [wiring.md](wiring.md) claimed this map means
+> "the policy's action vector maps to IDs 1–8 with no permutation table."
+> That was true on the retired 8-DOF plant and is **false on the deployed
+> 10-DOF v3yaw plant**: the sim's action order is
+> `[L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, R_hip_yaw, …]`, so
+> action 0 is the servo we call bus ID **9**. **Nothing about the physical
+> assignment changes** — the firmware carries a generated, tested permutation
+> (`obs::kServoId = {9,1,2,3,4,10,5,6,7,8}`). Keep labelling to the table
+> above. Renumbering to make the mapping an identity was considered and
+> rejected: it would invalidate wiring.md, assembly.md and the connector
+> guide to save a lookup table that is generated from the sim anyway.
 
 Assign **from the top down (10 → 1)**, so you never transiently create a
 second ID 1 while a servo already at ID 1 is on the bench nearby.
