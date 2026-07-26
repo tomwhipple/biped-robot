@@ -295,6 +295,28 @@ Worth having on hand — and now feeding the firmware build:
 | USB                   | **CP2102** (needs the CP210x driver on macOS), auto-program circuit via DTR/RTS                                                                        |
 | Logic rails           | U5 buck → 5 V → AMS1117-3.3 → 3V3                                                                                                                      |
 | Bus voltage sense     | R18 560 K / R19 4.7 K divider → ADC. **Voltage only, no current sense.**                                                                               |
+| Power rails           | **Two, and only one reaches the servos** — see below.                                                                                                  |
+
+### The board boots on USB alone. The servos do not.
+
+```
+USB VBUS ──|D3|──┐
+                 ├── 5 V ── AMS1117 ── 3V3    ESP32, OLED, WS2812, web UI
+CN1 6-12V ─U5buck─|D1|──┘
+
+CN1 6-12V ─────────────────────────────────── H2/H3 pin 2 = servo bus V+
+```
+
+Logic 5 V is **diode-OR'd** between USB VBUS and the buck output, so a USB
+cable alone lights the ESP32, the OLED and the web UI — everything *looks*
+alive while the bus scan finds nothing and every servo appears dead. Servo V+
+sits on the raw `6-12V` net from CN1 alone, and nothing feeds that net from
+USB (the diodes point *into* the 5 V rail, not out of it).
+
+**So the barrel jack is required whenever servos are involved.** Both supplies
+connected at once is fine — the diode-OR prevents back-feed. Confirm a live
+bus with the `voltage` line of `servo_tool.py info`: that figure is read out of
+the servo, so it proves the V+ rail rather than just the logic.
 
 ## Sources
 
