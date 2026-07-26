@@ -27,6 +27,17 @@
 > 0/±45° sweep + roll ±25° both proven against the carrier; inward-yaw gap
 > between the two carriers 6.2 mm at ±45°), `check_printability.py` clean.
 > Render: `renders/hip_yaw_beforeafter.png`.
+>
+> **2026-07-26 — the carrier's cable window needs a breakout, and the audit
+> was blind to it.** `check_printability.py` measured that window's ceiling
+> across its SHORT side (2.6 mm, the wall thickness) and passed it; that side
+> is open on *both* faces, so nothing bridges across it and the real span is
+> the 22.8 mm long way. The rule "a bridge fails across its short side" only
+> holds when the short sides are anchored — now tested (`_sides_anchored`),
+> and a window cut clean through a wall is re-read as a BEAM over its long
+> span. The un-propped carrier fails that check at 23 mm; the audit now reads
+> `yaw_carrier_print.stl`, whose breakout passes at 4.9 mm hops. No other
+> part changed verdict.
 
 > **Design-review fixes (2026-07-23, second pass):** three part corrections
 > from user review of the exploded drawings + FreeCAD model:
@@ -88,7 +99,7 @@ Two things to watch when you print PETG:
 | Part | Copies | Material | Infill | Orientation | Status |
 |---|---|---|---|---|---|
 | `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ♻️ **redesigned for v3yaw** (roll bays → two flat yaw-servo seats + deck-bolted stator mount; deck/tower pattern kept; grows ~15 mm rearward for the case overhang → bbox 61 × 104 × 9). ~32 g |
-| `yaw_carrier` | 2 | PETG | 30–40 % | horn-plate face on bed, bay walls rise | 🆕 **new part (v3yaw)** — bolts to the yaw horn, carries the (unchanged) hip-roll bay. Prints exactly like the old pelvis bay (walls vertical, U-slot upward-open, teardropped case screws). ~17.5 g each |
+| `yaw_carrier` | 2 | PETG | 30–40 % | horn-plate face on bed, bay walls rise — **slice `yaw_carrier_print.stl`** | 🆕 **new part (v3yaw)** — bolts to the yaw horn, carries the (unchanged) hip-roll bay. Prints like the old pelvis bay (walls vertical, U-slot upward-open, teardropped case screws) with one addition: the rear-wall **cable window needs a breakout** (2026-07-26). Printed horn-plate-down its ceiling is the 1.0 mm bar between the window and the bore crown — 2.6 × 22.8 mm of bare bridge with the U-slot void directly above, so no infill and no next layer to iron it flat. **Three break-away columns** split it into four 4.95 mm hops; each stands on the window sill and meets the bar through a 1.0 mm neck (body inset 0.2 mm from both wall faces for blade access). Snip/twist them out and trim the nubs flush enough to clear the plug bodies — nothing seats on that bar. Figure: `renders/yaw_carrier_breakout.png`. ~17.5 g each |
 | `yoke_roll` | 2 | PETG | 30–40 % | flange face on bed, arms up | ✅ ready — *secondary* hip-angle check |
 | `yoke_pitch` | 2 | PETG | 30–40 % | flange face on bed, arms up | ♻️ **revised for hip −110°** (idler arm → hub + riser; HOLD lifted) |
 | `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ♻️ **revised v3** (2026-07-16 print review, two passes: 9×11 **cable window** through the web — before it every joint-crossing cable pierced the plastic — zip-tie holes at ±9 straddling it; idler boss OD tapered 51°; and the fork slabs are now **solid to the web face** wherever the foot sweep allows (mapped at ankle ±45°: horn side fully; idler side except the corner-sweep lobe at z −68.4…−55.6, whose 16 mm gap is broken up by **two island posts** into 2/2.5/5.5 mm bridge hops). **There are no fins at all** — the only break-away pieces are two 4 mm pad stubs at the fork tips plus those two posts, all verified as SEPARATE first-layer islands (≥1 mm clear, attached to nothing — they lift off with a fingernail). Slice preview: `renders/leg_link_print_slice.png`. *The window is functional: reprint v1/v2 links when convenient* |

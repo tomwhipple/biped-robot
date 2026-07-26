@@ -30,6 +30,16 @@ def main():
     ap.add_argument("--views", default="iso,bottom,back")
     ap.add_argument("--out", default=None)
     ap.add_argument("--px", type=int, default=640)
+    ap.add_argument("--zoom", type=float, default=2.6,
+                    help="camera distance in bounding-sphere radii; drop it "
+                         "to ~1 for a close-up (e.g. a window's supports)")
+    ap.add_argument("--lookat", default=None, metavar="X,Y,Z",
+                    help="aim point in the PART's own mm coordinates "
+                         "(parts.py frame), not the view-name default")
+    ap.add_argument("--view-dir", default=None, metavar="X,Y,Z",
+                    help="direction the camera looks ALONG, in part mm coords "
+                         "(e.g. 1,0,0 to face the -X wall). Renders one frame "
+                         "and ignores --views.")
     args = ap.parse_args()
 
     path = args.stl if args.stl.endswith(".stl") else \
@@ -52,17 +62,37 @@ def main():
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
 
-    # frame the mesh: center + distance from its bounding sphere
+    # frame the mesh: center + distance from its bounding sphere. NOTE the
+    # compiler re-frames each mesh asset onto its own centre of mass and
+    # principal axes (mesh_pos / mesh_quat) -- mesh_vert comes back in THAT
+    # frame -- but it also folds the inverse into geom_pos/geom_quat, so the
+    # part still renders in its parts.py coordinates. Map the centroid back,
+    # or the camera aims at a point up to a part-radius off (it framed
+    # yaw_carrier 18 mm high, clipping the bay off the bottom of the strip).
     m = model.mesh(0)
     v = model.mesh_vert[m.vertadr[0]:m.vertadr[0] + m.vertnum[0]]
-    center, radius = v.mean(0), np.linalg.norm(v - v.mean(0), axis=1).max()
+    radius = np.linalg.norm(v - v.mean(0), axis=1).max()
+    center = np.zeros(3)
+    mujoco.mju_rotVecQuat(center, v.mean(0), model.mesh_quat[0])
+    center += model.mesh_pos[0]
+
+    if args.lookat:                        # part mm -> world is just a scale
+        center = np.array([float(t) for t in args.lookat.split(",")]) / 1000.0
+    views = args.views.split(",")
+    if args.view_dir:
+        f = np.array([float(t) for t in args.view_dir.split(",")], float)
+        f /= np.linalg.norm(f)
+        # measured: forward = (cos el cos az, cos el sin az, sin el), camera at
+        # lookat - distance * forward
+        views = [(np.degrees(np.arctan2(f[1], f[0])),
+                  np.degrees(np.arcsin(np.clip(f[2], -1, 1))))]
 
     ren = mujoco.Renderer(model, args.px, args.px)
     frames = []
-    for vn in args.views.split(","):
-        az, el = VIEWS[vn]
+    for vn in views:
+        az, el = VIEWS[vn] if isinstance(vn, str) else vn
         cam = mujoco.MjvCamera()
-        cam.lookat, cam.distance = center, 2.6 * radius
+        cam.lookat, cam.distance = center, args.zoom * radius
         cam.azimuth, cam.elevation = az, el
         ren.update_scene(data, cam)
         frames.append(ren.render())
