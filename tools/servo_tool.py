@@ -358,9 +358,26 @@ def cmd_move(bus: Bus, args) -> int:
                + (0).to_bytes(2, "little")
                + int(args.speed).to_bytes(2, "little"))
     bus.write(sid, REG_GOAL_ACC, payload)
-    time.sleep(args.settle)
-    print(f"ID {sid} -> {pos}   (now at {bus.read_word(sid, REG_PRESENT_POSITION)})")
-    return 0
+
+    # Poll until the position stops changing rather than sleeping a guess --
+    # a 1000-step move at 600 steps/s takes ~1.7 s, so any fixed delay short
+    # of that reports a mid-flight reading and looks like a tracking failure.
+    last, still, now = None, 0, None
+    deadline = time.time() + args.timeout
+    while time.time() < deadline:
+        time.sleep(0.15)
+        now = bus.read_word(sid, REG_PRESENT_POSITION)
+        if now is None:
+            continue
+        still = still + 1 if (last is not None and abs(now - last) <= 2) else 0
+        last = now
+        if still >= 3:
+            break
+    err = None if now is None else abs(now - pos)
+    verdict = "ok" if (err is not None and err <= 10) else "DID NOT REACH TARGET"
+    print(f"ID {sid} -> {pos}   settled at {now}"
+          + (f"  (err {err})  {verdict}" if err is not None else "  (no readback)"))
+    return 0 if verdict == "ok" else 1
 
 
 def cmd_torque(bus: Bus, args) -> int:
@@ -537,7 +554,8 @@ def main() -> int:
     s.add_argument("position", type=int)
     s.add_argument("--speed", type=int, default=600)
     s.add_argument("--acc", type=int, default=50)
-    s.add_argument("--settle", type=float, default=0.8)
+    s.add_argument("--timeout", type=float, default=8.0,
+                   help="max seconds to wait for the move to settle")
 
     s = sub.add_parser("torque", help="enable/release torque")
     s.add_argument("state", choices=["on", "off"])

@@ -132,7 +132,40 @@ For each servo:
       flat face you'll still be able to read after assembly.
 - [ ] Board off. Next servo.
 
-> ### ⚠️ Why the vendor web UI fails here (root cause, from its source)
+> ### 🔴 The vendor firmware talks to ST3215s with the bytes reversed
+>
+> **Measured on the bench 2026-07-26, not inferred.** The board runs the
+> **SC-series** build. `SCSCL` sets `End = 1` (big-endian); `SMS_STS` sets
+> `End = 0` (little-endian). The ST3215 is ST series — so **every 16-bit
+> value the board exchanges with these servos has its two bytes swapped.**
+>
+> Confirmed two independent ways on servo ID 9:
+>
+> | | board (big-endian) | read correctly (little-endian) |
+> |---|---|---|
+> | present position | 772 (`03 04`) | **1027** (`04 03`) |
+> | angle limits after "Set Servo Mode" | wrote 20, 1003 | **5120, 60163** |
+>
+> `20 = 0x0014` sent big-endian arrives as `0x1400` = 5120; `1003 = 0x03EB`
+> arrives as `0xEB03` = 60163. Both predicted before reading, both exact.
+>
+> **What follows from this:**
+>
+> - ✅ **8-bit registers are safe through the web UI** — byte order cannot
+>   corrupt a single byte. That means **ID** (reg 5), **mode** (33) and
+>   **torque** (40). `http-setid` is therefore trustworthy, and it needs no
+>   USB cable.
+> - ❌ **Every 16-bit value is garbage** in both directions: position, speed,
+>   and angle limits. Do not trust a position the UI reports, and do not use
+>   its Position± / Middle / Set Servo Mode buttons on an ST3215.
+> - ⚠️ **"Set Servo Mode" corrupts the angle limits.** Any servo that has met
+>   that button is clamped by junk values until `fixrange` repairs it. Check
+>   every servo with `info` before it goes into a leg.
+>
+> The servo itself is fine — none of this damages hardware, and ID 9 tracked
+> 600 / 2048 / 3500 to within ±3 counts after repair.
+
+> ### ⚠️ Secondary: the UI's other quirks (from its source)
 >
 > Read out of Waveshare's own
 > [firmware source](https://github.com/waveshare/Servo-Driver-with-ESP32):
@@ -171,8 +204,8 @@ Keep a tally here as you go — DOAs and surprises:
 | 6   | R hip pitch | ☐        | ☐     |       |
 | 7   | R knee      | ☐        | ☐     |       |
 | 8   | R ankle     | ☐        | ☐     |       |
-| 9   | L hip yaw   | ☐        | ☐     |       |
-| 10  | R hip yaw   | ☐        | ☐     |       |
+| 9   | L hip yaw   | ✅        | ✅     | 2026-07-26: set from factory ID 1 over WiFi. Angle limits were corrupted (5120..60163) by the UI's Set Servo Mode; `fixrange` restored 0..4095. Tracks 600/2048/3500 to ±3 counts, 12.0 V. |
+| 10  | R hip yaw   | ✅        | ☐     | set earlier via the web UI. **Run `info 10` — if it met "Set Servo Mode" its angle limits need `fixrange`.** |
 
 ## 3. Chain test, one leg at a time
 
