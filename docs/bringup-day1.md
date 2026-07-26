@@ -223,10 +223,10 @@ Keep a tally here as you go — DOAs and surprises:
 | --- | ----------- | -------- | ----- | ----- |
 | 1   | L hip roll  | ☐        | ☐     |       |
 | 2   | L hip pitch | ☐        | ☐     |       |
-| 3   | L knee      | ☐        | ☐     |       |
-| 4   | L ankle     | ☐        | ☐     |       |
-| 5   | R hip roll  | ☐        | ☐     |       |
-| 6   | R hip pitch | ☐        | ☐     |       |
+| 3   | L knee      | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 28 °C, err 0x00. |
+| 4   | L ankle     | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 27 °C, err 0x00. |
+| 5   | R hip roll  | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 28 °C, err 0x00. |
+| 6   | R hip pitch | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 29 °C, err 0x00. |
 | 7   | R knee      | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 26 °C, err 0x00. |
 | 8   | R ankle     | ✅        | ✅     | 2026-07-26, USB CLI. 200→3900 clean, ±3 ticks, 30 °C, err 0x00. |
 | 9   | L hip yaw   | ✅        | ✅     | 2026-07-26: set from factory ID 1 over WiFi. Angle limits were corrupted (5120..60163) by the UI's Set Servo Mode; `fixrange` restored 0..4095. Tracks 600/2048/3500 to ±3 counts, 12.0 V. |
