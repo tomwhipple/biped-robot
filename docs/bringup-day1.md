@@ -34,9 +34,11 @@ Vendor facts confirmed 2026-07-26 from Waveshare's docs (sources at bottom):
       `cad/dimensions.py`), which is a wiki figure, not a measurement. This
       is open question 3 in [hardware-order.md](hardware-order.md) and it
       **gates printing the tower** — measure it now, not after.
-- [ ] Note whether power is barrel-jack only or barrel jack **+** screw
-      terminal. [wiring.md](wiring.md) assumes a screw terminal is available
-      for the XT30 pigtail; if it's jack-only we need a jack pigtail instead.
+- [ ] Confirm power in is the **DC-044 5.5 × 2.1 barrel jack (CN1) and
+      nothing else** — the schematic shows no screw terminal, so the XT30
+      pigtail needs a **barrel plug, centre positive**. The board's other
+      3-pin header (H1, XH1.25) is 5 V / GND / **LED-OUT**, an output for
+      addressable LEDs; don't feed the pack into it.
 - [ ] Caliper the servo bus connector pitch and confirm the pin order on the
       board matches the servo leads: **1 GND (black) · 2 V+ (red) · 3 DATA**.
 
@@ -153,23 +155,52 @@ Both feed sim decisions and are far easier now than after assembly.
 
 ---
 
-## ⚠️ Finding: the board's 5 A ceiling vs. our 10 A budget
+## Resolved: the 5 A rating vs. our 10 A budget — no action needed
 
-Waveshare rates this board at **5 A max**, and warns that with many servos
-you should "power them in separate groups." [wiring.md](wiring.md) budgets
-**~10 A transient** (2–3 joints near stall simultaneously in the gait
-gauntlet's worst cases), sized on XT30 + 20 AWG.
+Both halves turned out to be wrong in our favour. Detail in
+[wiring.md § Power path](wiring.md); the short version:
 
-Nothing in this page's steps goes near that — one servo at a time draws
-under an amp. But before the first powered stand we need to resolve it:
-either the servo-bus V+ rail is a passthrough that isn't actually gated by
-the 5 A figure (plausible — the figure may be the barrel jack / onboard
-regulator), or the bus V+ needs to be fed from the pack directly and the
-board only fed logic power. **Verify against the board's schematic before
-the first floor test**, and update wiring.md's circuit diagram either way.
+- **The board's servo V+ is a bare passthrough.** Waveshare's schematic puts
+  CN1 (the barrel jack) and both servo headers on the same `6-12V` net, with
+  **no fuse, sense resistor, e-fuse or protection FET** between them. So the
+  5 A is the jack's and the copper's thermal rating — there is nothing that
+  can trip, and no current sensing on the board at all.
+- **Our 10 A was a hand estimate and it was high.** `sim/current_budget.py`
+  now computes it from the env's stall-calibrated electrical model:
+  **6.8 A peak, 5.0 A p99, 1.4 A RMS, 0.85 A mean** across the whole gait
+  gauntlet. RMS is what heats copper, and 1.4 A is ~3.5× under the rating.
+
+The one real constraint left is the **daisy chain**: the first lead in each
+leg carries that whole leg — 4.0 A peak, ~0.7 A RMS through one 3-pin
+contact. Fine on RMS, over a 5264 contact's ~3 A on peak. It's why we run
+one leg per board port rather than all 8–10 off a single port.
+
+Two follow-ups, neither blocking today:
+
+- [ ] Add a low-ESR **470–1000 µF** cap across servo V+/GND at the board.
+      The `6-12V` net has only 10 µF + 0.1 µF of local bulk; a 6.8 A step
+      currently gets sourced all the way through the pack leads and jack.
+- [ ] **Bench-verify the peak** with an inline shunt or clamp meter during
+      the first walks. The table above is sim-derived, not measured.
+
+## Confirmed from the schematic (2026-07-26)
+
+Worth having on hand — and now feeding the firmware build:
+
+| | |
+|---|---|
+| Servo bus UART | **U1TXD = IO19, U1RXD = IO18** (matches wiring.md's "GPIO 18/19") |
+| Half-duplex direction | `TXEN` gates **U3 SN74LVC1G126** + **U4 SN74LVC1G125**, driven via a PNP (Q1) off U1TXD — the direction circuitry is on the board, we just assert TXEN |
+| I2C | **SDA = IO21, SCL = IO22** (matches wiring.md) |
+| OLED | SSD1306, **0.91″ 128 × 32** |
+| Status LEDs | 2× **WS2812B** on-board (L1, L2), plus an external WS2812 output on H1 |
+| USB | **CP2102** (needs the CP210x driver on macOS), auto-program circuit via DTR/RTS |
+| Logic rails | U5 buck → 5 V → AMS1117-3.3 → 3V3 |
+| Bus voltage sense | R18 560 K / R19 4.7 K divider → ADC. **Voltage only, no current sense.** |
 
 ## Sources
 
 - [Servo Driver with ESP32 — product usage](https://docs.waveshare.com/Servo_Driver_with_ESP32/Product-Use)
 - [Servo Driver with ESP32 — wiki](https://www.waveshare.com/wiki/Servo_Driver_with_ESP32)
 - [ST3215 Servo user manual (PDF)](https://files.waveshare.com/upload/f/f4/ST3215_Servo_User_Manual.pdf)
+- [Servo Driver with ESP32 schematic (PDF)](https://files.waveshare.com/wiki/Servo-Driver-with-ESP32/Servo_Driver_with_ESP32.pdf) — the source for the power-path and pinout findings above

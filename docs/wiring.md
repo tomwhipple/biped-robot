@@ -18,11 +18,19 @@ pigtail and a switch.*
 ## Power path
 
 ```
-3S LiPo (XT30) ── inline switch ── screw terminal / DC 5.5×2.1 on driver board
-                                        │
-                                        └── servo bus V+ (battery voltage,
-                                            passed straight through to all 8)
+3S LiPo (XT30) ── inline switch ── CN1, DC-044 5.5×2.1 barrel jack
+                                        │   (the board's ONLY power input)
+                                        ├── U5 buck ── 5 V ── AMS1117 ── 3V3 logic
+                                        └── H2 / H3 pin 2 = servo bus V+
+                                            (same `6-12V` net, straight through)
 ```
+
+**Pigtail correction, 2026-07-26:** this doc previously said "screw terminal /
+DC 5.5×2.1". The schematic shows **no screw terminal** — CN1 is the only power
+input. The XT30 pigtail must therefore terminate in a **5.5 × 2.1 mm barrel
+plug** (centre positive: CN1 pin 4 = VCC, pins 2/3 = GND). The board's other
+3-pin header, H1 (XH1.25), is **5 V / GND / LED-OUT** for addressable LEDs —
+it is an output, not an alternative power inlet. Do not feed the pack into it.
 
 - The battery is a 3S 850 mAh XT30 pack — BOM pick
   [Tattu 75C](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) (decided
@@ -37,10 +45,51 @@ pigtail and a switch.*
   logic is powered from an onboard buck; the servo bus carries raw battery
   voltage, which is what sets torque (the whole 2S/3S performance story in
   [hardware-order.md](hardware-order.md)).
-- **Current sizing**: each ST3215 can pull ~2.5–3 A at stall; the gait
-  gauntlet shows only 2–3 joints near peak torque simultaneously, so budget
-  ~10 A transient. XT30 (30 A) and 20 AWG battery leads are comfortable;
-  this is why JST-terminated packs (~3 A) are ruled out.
+- **Current sizing** (revised 2026-07-26 — the old "~10 A transient" was a
+  hand estimate of "2–3 joints near stall"; it is now computed). The env's
+  electrical model is calibrated to the ST3215 stall point (`_K_CU` =
+  3.75 W/(N·m)², i.e. 2.94 N·m → ~32 W → 2.9 A at 11.1 V), so bus current is
+  just watts over volts. `sim/current_budget.py` runs the referee's scenarios
+  and reports the distribution — `loco_v5t`, 10 joints, 11.1 V, hardware-claim
+  DR, 3 eps × 6 scenarios:
+
+  | | peak | p99 | **RMS** | mean |
+  |---|---|---|---|---|
+  | whole bus | 6.8 A | 5.0 A | **1.4 A** | 0.85 A |
+  | worst single leg | 4.0 A | — | ~0.7 A | — |
+  | worst single joint | 3.0 A | — | — | — |
+
+  **RMS is the number that sizes copper and contacts**; the 6.8 A peaks are
+  millisecond gait transients that heat nothing. So: the real peak is ~1.5×
+  *lower* than the old estimate, and sustained draw is ~7× lower again.
+  XT30 (30 A) and 20 AWG are hugely comfortable; JST-terminated packs (~3 A)
+  stay ruled out on peak. Regenerate with
+  `.venv/bin/python sim/current_budget.py --run loco_v5t`.
+- **Does 6.8 A peak hurt the 5 A-rated driver board? No — the servo V+ is a
+  bare passthrough.** Confirmed from Waveshare's
+  [schematic](https://files.waveshare.com/wiki/Servo-Driver-with-ESP32/Servo_Driver_with_ESP32.pdf)
+  (read 2026-07-26): CN1 (DC-044 5.5×2.1) VCC and both servo headers H2/H3
+  pin 2 sit on the same `6-12V` net. **No fuse, no polyfuse, no e-fuse, no
+  sense resistor, no INA219, no protection FET anywhere in that path** — the
+  only other loads on the net are the U5 buck's Vin (logic) and C17/C22/C23.
+  So there is nothing to trip: the 5 A is the barrel jack's and the copper's
+  thermal rating, and 1.4 A RMS sits ~3.5× under it. (The board's voltage
+  readout is an R18 560 K / R19 4.7 K divider into an ADC — **voltage only,
+  no current sensing on this board at all**, which is why telemetry reports
+  millivolts and not amps.)
+- **The tighter constraint is the daisy chain, and it is not the board's
+  fault.** Each 3-pin lead carries the current of every servo downstream of
+  it, so the first lead in a leg sees the whole leg: **4.0 A peak, ~0.7 A
+  RMS**. Molex-5264-class contacts are ~3 A; the peak is over that, the RMS
+  is well under. Fine as built, but it is why the two board ports are used
+  one-per-leg (halving both) rather than chaining all 8–10 off one port —
+  a routing choice that is now also an electrical one.
+- **Recommended cheap insurance**: a low-ESR **470–1000 µF** electrolytic
+  across servo V+/GND at the board. The 6-12V net carries only 10 µF + 0.1 µF
+  of local bulk, so a 6.8 A step is sourced through the pack leads and jack;
+  a bulk cap sources it locally, cutting rail sag and the transient the jack
+  actually sees. **Bench-verify** the peak with an inline shunt or clamp
+  during the first walks — the table above is sim-derived, not measured.
 - The board's OLED shows measured bus voltage — but it faces the deck once
   the board is mounted, so it's a **bench-side** tool (bring-up, servo IDs).
   In operation the low-battery check is the bus voltage in the 10 Hz radio
