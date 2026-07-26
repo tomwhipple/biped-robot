@@ -24,6 +24,11 @@ constexpr size_t kMaxPacket = 8 + kMaxServos * 8 + 8;
 // The 15-byte contiguous feedback block at kRegPresentPosition.
 constexpr size_t kFeedbackLen = 15;
 
+// Bytes in one SYNC READ status reply: FF FF id len err <kFeedbackLen> chk.
+// Needed so a reader can ask the UART for exactly what is still outstanding --
+// asking for more blocks until the timeout even when the data has arrived.
+constexpr size_t kSyncReplyLen = 6 + kFeedbackLen;
+
 uint8_t checksum(const uint8_t* buf, size_t len);
 
 // -- request builders ------------------------------------------------------

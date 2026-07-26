@@ -138,7 +138,17 @@ Status Bus::syncReadFeedback(const uint8_t* ids, size_t n, Feedback* out,
         const uint64_t now = port_.nowUs();
         if (now >= deadline) break;
         if (have >= sizeof rx_) break;
-        have += port_.read(rx_ + have, sizeof rx_ - have,
+        // Ask for exactly the bytes still outstanding, not the whole buffer.
+        // uart_read_bytes() returns when it has the requested count OR the
+        // timeout expires -- so requesting more than will ever arrive turns
+        // every read into a full-timeout sleep. That was the whole of the
+        // 29.9 ms measured in a 20 ms tick on 2026-07-26: the ten replies
+        // landed in ~1.4 ms and we then blocked on an already-full buffer.
+        const size_t outstanding = (n - answered) * kSyncReplyLen;
+        size_t want = outstanding > have ? outstanding - have : 1;
+        const size_t space = sizeof rx_ - have;
+        if (want > space) want = space;
+        have += port_.read(rx_ + have, want,
                            static_cast<uint32_t>(deadline - now));
     }
     return answered ? Status::kOk : Status::kTimeout;

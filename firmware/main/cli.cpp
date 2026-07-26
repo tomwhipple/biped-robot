@@ -265,6 +265,14 @@ void cmdStat(Sink out) {
         static_cast<unsigned long>(robot::g_telemetry.worst_tick_us.load()),
         static_cast<unsigned>(robot::g_telemetry.state.load()),
         static_cast<unsigned>(robot::g_telemetry.servo_err.load()));
+    say(out, "  phases us: read %lu  imu %lu  obs %lu  net %lu  write %lu  "
+             "other %lu\r\n",
+        static_cast<unsigned long>(robot::g_telemetry.us_read.load()),
+        static_cast<unsigned long>(robot::g_telemetry.us_imu.load()),
+        static_cast<unsigned long>(robot::g_telemetry.us_obs.load()),
+        static_cast<unsigned long>(robot::g_telemetry.us_net.load()),
+        static_cast<unsigned long>(robot::g_telemetry.us_write.load()),
+        static_cast<unsigned long>(robot::g_telemetry.us_other.load()));
     say(out, "policy: %s, %d joints, obs %d, run %s\r\n",
         policy::kWeightsArePlaceholder ? "PLACEHOLDER WEIGHTS" : "exported",
         obs::kNumJoints, obs::kObsDim, obs::kRunName);

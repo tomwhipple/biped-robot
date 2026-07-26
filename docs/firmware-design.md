@@ -64,15 +64,48 @@ vendor snippets get ported into thin IDF components.
 
 ## 4. The 20 ms tick budget (from wiring.md's analysis)
 
-| Step | Budget | Notes |
-|---|---|---|
-| Sync-read 8 servo positions | ~3.5 ms | one SYNC READ transaction + replies @1 Mbaud |
-| BNO085 read (SH-2 reports) | ~1.0 ms | rotation vector + gyro @400 kHz I2C |
-| Obs assembly + history push | ~0.1 ms | pure math |
-| Policy inference | ~2–4 ms | see §6 sizing |
-| Sync-write 8 targets | ~0.7 ms | one SYNC WRITE, no replies |
-| Link service + watchdog | ~0.2 ms | drain UDP queue, stamp liveness |
-| **Total** | **~8–10 ms** | ~2× headroom in the 20 ms tick |
+| Step | Budget | **Measured 2026-07-26** | Notes |
+|---|---|---|---|
+| Sync-read servo positions | ~3.5 ms (8) / ~4.3 ms (10) | **2.80 ms** | one SYNC READ transaction + replies @1 Mbaud, 10 servos |
+| BNO085 read (SH-2 reports) | ~1.0 ms | *0.01 ms (stub)* | no IMU fitted yet — this line is still an estimate |
+| Obs assembly + history push | ~0.1 ms | **0.02 ms** | pure math |
+| Policy inference | ~2–4 ms | **0.88 ms** | placeholder 147→32→32→20; see caveat below |
+| Sync-write targets | ~0.7 ms | **0.07 ms** | one SYNC WRITE, no replies |
+| Link service + watchdog | ~0.2 ms | **0.07 ms** | drain mailbox, stamp liveness |
+| **Total** | **~8–10 ms** | **3.9 ms typ / 4.58 ms worst** | 40 s soak, 3922 ticks, **0 late**, servo_err 0x0000 |
+
+The budget was pessimistic almost everywhere; real headroom in the 20 ms tick
+is ~4.4×, not ~2×.
+
+**Two caveats on that number.**
+
+1. **Inference will grow.** 0.88 ms is the *placeholder* net (147→32→32→20,
+   ~6.4 k MACs). §6's recommended distilled 128×128 is ~37.8 k MACs — roughly
+   6× — so expect ~5 ms and a ~8 ms total. Still inside budget, but the
+   4.4× headroom becomes ~2.5×. Worth re-measuring the moment real weights
+   exist. (0.88 ms for 6.4 k MACs on a 240 MHz FPU is itself ~30× slower than
+   one-MAC-per-cycle, which suggests the weights are being fetched from flash
+   through the cache rather than sitting in IRAM — an easy win if inference
+   ever becomes the binding constraint.)
+2. **The IMU line is untested.** Nothing is fitted, so the stub returns
+   instantly; the ~1.0 ms estimate stands unverified.
+
+### The bug this table replaced
+
+The first hardware run measured **29.9 ms** for the sync read alone — a 32 ms
+tick against a 20 ms period, every tick late, and yet `servo_err 0x0000`.
+
+`Bus::syncReadFeedback` asked `port_.read()` for *the whole remaining buffer*,
+and `uart_read_bytes()` returns only when it has the requested count or the
+timeout expires. The request could never be satisfied, so every read slept out
+its full `reply_timeout_us × n` = 30 ms deadline — while the ten replies had
+actually landed in ~1.4 ms and parsed fine, which is exactly why no fault bit
+was ever set. The fix is to request only the bytes still outstanding
+(`(n - answered) * kSyncReplyLen`), capped by buffer space.
+
+**The lesson generalises:** a phase that always costs the same as its timeout
+is not slow, it is waiting on a condition that cannot occur. Per-phase timing
+found this in one run after a session of guessing at it.
 
 Core split: **core 1 = control task only** (pinned, highest priority,
 tick-timer driven, owns bus + I2C). **Core 0 = WiFi stack, UDP link,

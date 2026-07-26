@@ -154,9 +154,12 @@ void ctrlTask(void*) {
         const linkproto::LinkState state = g_dog.state(now_ms);
 
         // -- sense ---------------------------------------------------------
+        const int64_t t_read0 = esp_timer_get_time();
         const uint16_t faults = readJoints(obs::kControlDt);
+        const int64_t t_read1 = esp_timer_get_time();
         imu::Sample s{};
         if (g_imu) g_imu->read(s);
+        const int64_t t_imu1 = esp_timer_get_time();
 
         // Pack voltage rides in on the servo feedback -- the board has no ADC.
         if (++volt_poll >= 50) {
@@ -194,6 +197,7 @@ void ctrlTask(void*) {
         in.cmd[0] = vx;
         in.cmd[2] = wz;
         if (obs::kNumCmd > 3) in.cmd[3] = 1.0f;
+        const int64_t t_obs0 = esp_timer_get_time();
         obs::assembleFrame(in, g_frame);
         if (!g_primed) {
             g_hist.fill(g_frame);
@@ -202,7 +206,9 @@ void ctrlTask(void*) {
         g_hist.build(g_frame, g_obs);
 
         // -- act -----------------------------------------------------------
+        const int64_t t_obs1 = esp_timer_get_time();
         policy::forward(g_obs, g_action);
+        const int64_t t_net1 = esp_timer_get_time();
         g_hist.push(g_frame);
         memcpy(g_prev_action, g_action, sizeof g_prev_action);
 
@@ -211,10 +217,12 @@ void ctrlTask(void*) {
         for (int i = 0; i < obs::kNumJoints; ++i) {
             g_target_steps[i] = obs::angleToSteps(i, angle[i], g_cal);
         }
+        const int64_t t_wr0 = esp_timer_get_time();
         if (g_bus) {
             g_bus->syncWritePositions(servoIds(), g_target_steps,
                                       obs::kNumJoints);
         }
+        const int64_t t_wr1 = esp_timer_get_time();
 
         // -- account -------------------------------------------------------
         const uint32_t took =
@@ -224,6 +232,20 @@ void ctrlTask(void*) {
             // Two periods in one tick means we are not in control any more.
             releaseAll();
         }
+        const uint32_t us_read = static_cast<uint32_t>(t_read1 - t_read0);
+        const uint32_t us_imu = static_cast<uint32_t>(t_imu1 - t_read1);
+        const uint32_t us_obs = static_cast<uint32_t>(t_obs1 - t_obs0);
+        const uint32_t us_net = static_cast<uint32_t>(t_net1 - t_obs1);
+        const uint32_t us_write = static_cast<uint32_t>(t_wr1 - t_wr0);
+        g_telemetry.us_read.store(us_read);
+        g_telemetry.us_imu.store(us_imu);
+        g_telemetry.us_obs.store(us_obs);
+        g_telemetry.us_net.store(us_net);
+        g_telemetry.us_write.store(us_write);
+        g_telemetry.us_other.store(
+            took > (us_read + us_imu + us_obs + us_net + us_write)
+                ? took - (us_read + us_imu + us_obs + us_net + us_write)
+                : 0u);
         publish(state, faults, s.up[2], vbat_dv, took);
     }
 }

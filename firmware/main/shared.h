@@ -56,6 +56,17 @@ struct TelemetrySnapshot {
     std::atomic<uint32_t> ticks{0};
     std::atomic<uint32_t> overruns{0};
     std::atomic<uint32_t> worst_tick_us{0};
+
+    // Per-phase tick cost, last completed tick (us). firmware-design section 4
+    // budgeted the whole tick at ~8-10 ms; the first hardware run measured 32
+    // ms with every tick late and no servo faults, which none of the budget
+    // lines explains. These say where it actually goes instead of guessing.
+    std::atomic<uint32_t> us_read{0};    // sync-read 10 servos
+    std::atomic<uint32_t> us_imu{0};     // IMU sample (stub today)
+    std::atomic<uint32_t> us_obs{0};     // obs assembly + history
+    std::atomic<uint32_t> us_net{0};     // policy forward
+    std::atomic<uint32_t> us_write{0};   // sync-write targets
+    std::atomic<uint32_t> us_other{0};   // tick total minus the above
 };
 extern TelemetrySnapshot g_telemetry;
 
