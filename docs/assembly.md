@@ -46,7 +46,7 @@ settings in the [print list](../cad/PRINT_LIST.md)):
 | Part          | Qty | Note                                                                                                        |
 | ------------- | --- | ----------------------------------------------------------------------------------------------------------- |
 | `pelvis`      | 1   | v3yaw: deck + two flat yaw-servo seats (no bays); print deck-top down                                       |
-| `yaw_carrier` | 2   | bolts to the yaw-servo horn, carries the hip-roll bay; horn-plate face on bed, bay walls rise               |
+| `yaw_carrier` | 2   | bolts to the yaw-servo horn, carries the hip-roll bay; horn-plate face on bed, bay walls rise — **slice `yaw_carrier_print.stl`** and snap the 3 break-away columns out of the cable window |
 | `yoke_roll`   | 2   | flange on bed                                                                                               |
 | `yoke_pitch`  | 2   | ⚠️ on hold (hip redesign)                                                                                   |
 | `leg_link`    | 4   | 2 thighs (⚠️ hold) + 2 shins — **slice `leg_link_print.stl`** and peel the 3 break-away fins after printing |
@@ -306,7 +306,16 @@ down, horn facing forward**. Its two bus ports then face **rearward through
 the window in the rear wall** (the measured connector trench, 12–16 mm above
 the roll axis, just above the idler-disc bore) — plug both leads there and
 route them out the open bay rear (connector correction 2026-07-24; the old
-ceiling slot is gone). **8× M3×8 self-tapping per bay** — 4 through the front
+ceiling slot is gone).
+
+> **Clear the window first.** `yaw_carrier_print.stl` prints with **three
+> break-away columns** across that window: printed horn-plate-down the window's
+> ceiling is a 1 mm bar bridging 22.8 mm with the U-slot void above it, so it
+> needs propping. Snip or twist the columns out and trim the nubs flush enough
+> to clear the plug bodies — nothing seats on that bar. If a carrier came off
+> the plain `yaw_carrier.stl`, check that bar for sag before plugging in.
+
+**8× M3×8 self-tapping per bay** — 4 through the front
 (horn) wall, 4 through the rear (idler) wall — into the roll servo's Ø3.5
 case holes.
 

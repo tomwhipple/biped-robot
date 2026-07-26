@@ -340,7 +340,7 @@ def leg_link(print_fins=False):
 
 
 # ---------------------------------------------------------------- yaw_carrier
-def yaw_carrier():
+def yaw_carrier(print_fins=False):
     """Hip-yaw carrier (v3yaw, qty 2). Bolts to the yaw-servo HORN (below the
     deck) and carries the hip-roll bay that used to hang off the pelvis. Local
     frame: yaw axis == Z through origin, z=0 at the horn mounting face (top),
@@ -350,6 +350,9 @@ def yaw_carrier():
     forward, 8x M3 through the walls) -- BAY_BORE / BAY_WALL_DROP / cheeks /
     U-slot are unchanged, just relocated. Print: like the old pelvis bay --
     horn-plate face on the bed, walls rise (RX180), U-slot prints upward-open.
+    SLICE yaw_carrier_print.stl -- print_fins=True adds the break-away breakout
+    that carries the connector window's ceiling bar (see below). The plain STL
+    stays clean for sim meshes and assembly checks.
     """
     zc = D.CARRIER_ROLL_CEIL                         # -3.0 bay ceiling/plate bot
     za = D.CARRIER_ROLL_AXIS                         # -38.11 roll axis
@@ -393,6 +396,40 @@ def yaw_carrier():
     # keeps 3.86 mm posts to the wall edges (+/-15.26).
     p -= box(-21, -D.SV_TOPFACE + 1, -D.SV_CONN_HW - 0.5, D.SV_CONN_HW + 0.5,
              za + D.SV_CONN_L[0] - 0.45, za + D.SV_CONN_L[1] + 1.0)
+    if print_fins:
+        # break-away BREAKOUT under the connector window (2026-07-26). Printed
+        # horn-plate-down, that window's print-CEILING is the 1.0 mm bar named
+        # above: a 2.6 x 22.8 mm strip carrying nothing but itself, anchored
+        # only at the +/-11.4..15.26 posts, with the U-slot void directly over
+        # it so no wall backfills the span. 22.8 mm of bare 1 mm PETG bridge is
+        # ~3x the 8 mm rule and the same class as the 16 mm leg_link ribbon the
+        # 2026-07-16 print review rejected. (check_printability read the SHORT
+        # side -- 2.6 mm, the wall thickness -- and passed it; that side is open
+        # on BOTH faces, so nothing bridges across it. Fixed there too, see
+        # _sides_anchored.) Three columns split it into four 4.95 mm bridges,
+        # well inside the rule -- worth the extra piece on a bar this thin (1 mm
+        # of bare perimeter with the U-slot void above it, so no infill and no
+        # next layer to iron it flat). They stand on the window sill and fuse to
+        # the bar through 1.0 mm necks, full wall depth so the ceiling face
+        # parts cleanly; the 2.4 mm body is inset 0.2 mm from each wall face so
+        # a blade gets behind it. NOTE the spacing is set by the NECK, not the
+        # body -- the neck is what interrupts the bridge. Snip or twist them out
+        # before the roll servo goes in; nothing seats on this bar, so the nubs
+        # only need trimming flush enough to clear the plug bodies.
+        wl = za + D.SV_CONN_L[0] - 0.45          # -26.81, window lower edge
+        wu = za + D.SV_CONN_L[1] + 1.0           # -20.76, window upper edge
+        hwin = D.SV_CONN_HW + 0.5                # 11.40, window half width
+        body, neck, nh = 2.4, 1.0, 1.0           # body / neck width, neck rise
+        n = 3                                    # columns
+        span = (2 * hwin - n * neck) / (n + 1)   # 4.95 mm bridge left per gap
+        for i in range(n):
+            yc = -hwin + (i + 1) * span + (i + 0.5) * neck   # -5.95, 0, +5.95
+            for w, inset, z0, z1 in (
+                    (neck, 0.0, wl, wl + nh),           # neck onto the bar
+                    (body, 0.2, wl + nh, wu - nh),      # body (blade relief)
+                    (neck, 0.0, wu - nh, wu)):          # neck onto the sill
+                p += box(-19.95 + inset, -D.SV_TOPFACE - inset,
+                         yc - w / 2, yc + w / 2, z0, z1)
     return p
 
 
@@ -705,7 +742,8 @@ def imu_carrier():
 PARTS = [
     # name, builder, qty, print orientation note
     ("pelvis", pelvis, 1, "upside down: deck top on bed, collars rise"),
-    ("yaw_carrier", yaw_carrier, 2, "horn-plate face on bed, bay walls rise"),
+    ("yaw_carrier", yaw_carrier, 2, "horn-plate face on bed, bay walls rise "
+     "(print yaw_carrier_print.stl: break-away breakout in the cable window)"),
     ("yoke_roll", yoke_roll, 2, "flange face on bed, arms up"),
     ("yoke_pitch", yoke_pitch, 2, "flange face on bed, arms up"),
     ("leg_link", leg_link, 4, "on its back: web face on bed "
@@ -728,6 +766,9 @@ def main():
         if name == "leg_link":       # print variant with break-away fins; the
             export_stl(leg_link(print_fins=True),   # plain STL stays clean for
                        os.path.join(OUT, "leg_link_print.stl"))  # sim meshes
+        if name == "yaw_carrier":    # ...ditto: the breakout that holds up the
+            export_stl(yaw_carrier(print_fins=True),   # connector-window bar
+                       os.path.join(OUT, "yaw_carrier_print.stl"))
         bb = part.bounding_box()
         dims = sorted((bb.size.X, bb.size.Y, bb.size.Z))
         fits = dims[0] <= 250 and dims[1] <= D.BED and dims[2] <= D.BED

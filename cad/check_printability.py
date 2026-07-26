@@ -59,7 +59,8 @@ ORIENT = {
 }
 
 # what actually goes to the slicer, where that differs from <name>.stl
-PRINT_STL = {"leg_link": "leg_link_print.stl"}
+PRINT_STL = {"leg_link": "leg_link_print.stl",
+             "yaw_carrier": "yaw_carrier_print.stl"}
 
 COS45 = np.cos(np.radians(45.0))          # facet is a >45 deg overhang if
                                           # nz < -COS45 (straight down = -1)
@@ -183,6 +184,22 @@ def _ends_anchored(ring, sx, sy, tris):
     return ok
 
 
+def _sides_anchored(ring, sx, sy, tris, depth):
+    """True if the ring is anchored at both extremes of the cluster's SHORT
+    axis, ON THE SAME FLOOR the cluster sits over (within 1.5x the cavity
+    depth + 1 mm). This is what makes "a bridge fails across its SHORT side"
+    legal: a window cut clean THROUGH a wall fails it -- its short sides are
+    open air on one face and, on the other, whatever happens to lie 20 mm
+    further down inside the part. Nothing there carries a bridge across the
+    wall thickness, so such a strip really spans the LONG way (yaw_carrier
+    connector window, 2026-07-26: 2.6 x 22.8 mm read as a 2.6 mm bridge and
+    passed clean -- it is a lone 1 mm bar over 22.8 mm of air)."""
+    ends = (4, 12) if sx >= sy else (0, 8)      # perpendicular to _ends_anchored
+    dist = ray_down_dist(ring, tris)
+    near = np.isfinite(dist) & (dist <= 1.5 * depth + 1.0)
+    return all(near[[(e - 1) % 16, e, (e + 1) % 16]].any() for e in ends)
+
+
 def audit(name, verbose=True):
     rot, note = ORIENT[name]
     fname = PRINT_STL.get(name, name + ".stl")
@@ -240,6 +257,13 @@ def audit(name, verbose=True):
         if supported:
             kind, bad = "CEILING", span > BRIDGE_OK
             extra = f"over {depth:.1f} mm cavity"
+            if span <= RIBBON_W and not _sides_anchored(ring, sx, sy, tri,
+                                                        depth):
+                # narrow strip whose SHORT sides are open -- a window cut
+                # through a wall. The slicer can only span it the long way.
+                kind, bad = "BEAM", long_span > BEAM_OK
+                extra = (f"through-wall strip, {long_span:.0f} mm between "
+                         f"anchors")
         elif fs >= 0.75:
             kind, bad = "CEILING", span > BRIDGE_OK
             extra = "roof of a through-void"
