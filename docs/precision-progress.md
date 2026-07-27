@@ -475,3 +475,39 @@ Two mechanisms:
   unlike getup_v1's absolute-height income this is bounded away from
   farming). Holding the high-kneel now beats parking low.
 - Parity 8/8 PASS (2f exercises the new arithmetic).
+
+## Day 5 night (2026-07-26): getup_v8 — the income signal finally lights
+
+Infrastructure first: v8 crashed twice at launch (cuSolver / CUDA OOM) —
+both times a race against the night runner's own "migrate ollama back to
+GPU" step; the 90% XLA preallocation needs ~10.4 GiB + CUDA context and
+the runner's launch gate accepted 10.0 GiB free. Gate raised to 11.5 GiB
+and idle ollama models unloaded before relaunch; third attempt ran the
+full 5.1 h cleanly.
+
+**Referee: 0/16 (unchanged). Training: transformed.**
+`eval/episode_recovered` 2–5 across the whole run (v7: ~0) with an
+upward trend, and episode reward crossed POSITIVE (+80 vs v7's −210) —
+training episodes reach standing routinely now, so the value function
+finally has evidence the stand pays. The probe shows the new frontier:
+
+- **From the top snap rows (h 0.26) the policy reaches standing height
+  (hmax 0.34 = 105% nominal) — then falls.** The finish is discovered;
+  the HOLD is not yet. Falls after recovery now terminate with fall_cost,
+  so the pressure points the right way.
+- kneel/sit/squat still park at h 0.14 — the value gradient has not yet
+  propagated down the ladder (expected: the income only just lit).
+
+**getup_v8b (queued): pure continuation** — warm-start from v8 params
+(`--init-from getup_v8`), identical config, +110M steps. No new
+mechanisms; isolates "more training after the income lit" as the sole
+variable. If v8b holds the stand from snap/kneel rungs but sit/rag stay
+parked, the next bank refresh harvests v8b's own partial rises (real
+policy states, not scripted ones) as the mid-ladder.
+
+Also from today's bench thread (docs/bringup-day1.md): all 10 servos
+ID'd and chain-verified — but the sim-relevant dynamics numbers
+(backdrive friction, true stall, step response) are still unmeasured, so
+the actuator model stays datasheet+fit. Backdrive friction is the one to
+take before assembly: torque-off standing flips infeasible below
+0.25 N·m (sim estimate 0.35).
