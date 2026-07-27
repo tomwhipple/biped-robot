@@ -147,6 +147,25 @@ for yaw in (0, 45, -45):
 ok &= check("both carriers yawed inward 45 vs each other",
             vol(yaw_stack(D.HIP_SEP / 2, -45), yaw_stack(-D.HIP_SEP / 2, 45)))
 
+print("== yaw-horn SCREW HEADS vs the roll servo inside the bay ==")
+# The 4x yaw-horn bolts pass UP through the carrier's mount plate into the horn
+# disc, so their HEADS sit proud of the bay ceiling -- pointing straight at the
+# roll servo's rear face. Before CARRIER_ROLL_HEAD_CLEAR the servo was flush
+# against that ceiling (0.00 mm gap) and the heads buried 168 mm3 into it.
+# Nothing caught it: every other check here compares PRINTED PARTS, and a
+# fastener that only exists as a symbol in the drawings is invisible to them.
+_HEAD_D, _HEAD_H = 5.7, 1.65                       # M3 button head
+_roll_sv = Pos(0, 0, D.CARRIER_ROLL_AXIS) * servo_mock_x()
+_heads = None
+for _dx, _dy in ((D.BCD/2, 0), (-D.BCD/2, 0), (0, D.BCD/2), (0, -D.BCD/2)):
+    _h = Pos(_dx, _dy, D.CARRIER_ROLL_CEIL - _HEAD_H/2) * Cylinder(_HEAD_D/2, _HEAD_H)
+    _heads = _h if _heads is None else _heads + _h
+ok &= check("4X yaw-horn screw heads vs roll servo", vol(_heads, _roll_sv))
+_gap = D.CARRIER_ROLL_CEIL - _roll_sv.bounding_box().max.Z
+print(f"  {'servo-top to bay-ceiling gap':58s} {_gap:8.2f} mm   "
+      f"{'OK' if _gap >= _HEAD_H else '** TOO TIGHT **'}")
+ok &= _gap >= _HEAD_H
+
 print("== yoke_pitch vs thigh (leg_link + servo), hip -110/+60 (+5 margin) ==")
 # flexion is NEGATIVE here (knee swings toward +x). The full leg_link rides
 # in this sweep: its idler grip plate / web share the idler arm's Y band,

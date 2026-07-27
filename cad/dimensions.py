@@ -213,7 +213,16 @@ YAW_CASE_HOLES_IDLER = CASE_HOLES_BOT   # (8.30, 32.75) idler-side rows -> stato
 # roll bay hangs below, roll axis SV_AXIS_FROM_REAR under the bay ceiling (roll
 # servo output end DOWN, cable end UP -- exactly as in the old pelvis bay).
 CARRIER_ROLL_CEIL = -YAW_CARRIER_PLATE                     # -3.00 bay ceiling
-CARRIER_ROLL_AXIS = CARRIER_ROLL_CEIL - SV_AXIS_FROM_REAR  # -38.11 roll axis
+# Screw-head clearance inside the bay (user, 2026-07-27). The 4x yaw-horn
+# bolts pass UP through the mount plate into the horn disc, so their HEADS sit
+# proud of the bay ceiling -- straight into the roll servo's rear face, which
+# was flush against that ceiling with a 0.00 mm gap. Measured clash 168 mm3.
+# 2.0 rather than the 1.5 first suggested: the modelled M3 button head is
+# 1.65 mm tall, so 1.5 would still touch by 0.15. If the servo's own bundled
+# horn screws turn out to have a lower head, this is the one line to change.
+CARRIER_ROLL_HEAD_CLEAR = 2.0
+CARRIER_ROLL_AXIS = (CARRIER_ROLL_CEIL - CARRIER_ROLL_HEAD_CLEAR
+                     - SV_AXIS_FROM_REAR)              # -40.11 roll axis
 
 # --- yaw stack drop (the honest number; the study estimated ~25-30 mm) ---
 # The hip-roll axis moves from (DECK_T + SV_AXIS_FROM_REAR) below the deck top
