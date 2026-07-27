@@ -73,10 +73,18 @@ it is an output, not an alternative power inlet. Do not feed the pack into it.
   sense resistor, no INA219, no protection FET anywhere in that path** — the
   only other loads on the net are the U5 buck's Vin (logic) and C17/C22/C23.
   So there is nothing to trip: the 5 A is the barrel jack's and the copper's
-  thermal rating, and 1.4 A RMS sits ~3.5× under it. (The board's voltage
-  readout is an R18 560 K / R19 4.7 K divider into an ADC — **voltage only,
-  no current sensing on this board at all**, which is why telemetry reports
-  millivolts and not amps.)
+  thermal rating, and 1.4 A RMS sits ~3.5× under it. **There is no current
+  sensing on this board at all**, which is why telemetry reports volts and
+  not amps.
+- **Correction 2026-07-27 — there is no voltage ADC either.** This doc
+  previously credited the board with an "R18 560 K / R19 4.7 K divider into an
+  ADC". `firmware/main/board.h` establishes otherwise, and it is the grounded
+  account: **every ADC-capable pin is unconnected, the vendor firmware contains
+  no `analogRead()`, and the "V:" on the board's OLED is the SERVO's own
+  reported voltage** (STS register 62, 0.1 V units). So the robot's only
+  pack-voltage sense is the servo bus, at 0.1 V resolution. That is adequate
+  against the thresholds below, but note what it implies: **lose the bus and
+  you lose the voltage reading too** — the two are not independent.
 - **The tighter constraint is the daisy chain, and it is not the board's
   fault.** Each 3-pin lead carries the current of every servo downstream of
   it, so the first lead in a leg sees the whole leg: **4.0 A peak, ~0.7 A
@@ -97,6 +105,80 @@ it is an output, not an alternative power inlet. Do not feed the pack into it.
   **10.5 V on 3S** (3.5 V/cell) / 7.0 V on 2S. (A tower viewing window for
   the OLED is filed as a future improvement.)
 - GoPro MAX is self-powered; zero wiring to the robot.
+
+## Battery protection
+
+*Added 2026-07-27.* The question "do we need to guard against overdraw?" has
+three separate answers, and only one of them was a real gap.
+
+**Overcurrent: no guard needed.** The current budget above is computed, not
+estimated: 1.4 A RMS against a 5 A jack rating. There is no operating
+scenario that overdraws this pack. Nothing to add.
+
+**Overvoltage: handled by BOM discipline.** 11.1 V nominal, never 11.4 V HV —
+a charged HV 3S is 13.05 V against the servos' 12.6 V ceiling. This is a
+purchasing rule, enforced by the [spec filter](bom-by-vendor.md#notes--caveats),
+not by a circuit.
+
+**Over-discharge: this was the gap, and it is now closed in firmware.** Three
+facts stack up badly:
+
+- A Tattu-class RC LiPo has **no protection circuit inside it** (unlike a
+  protected 18650). A smart charger protects the charge direction only.
+- The STS3215's own under-voltage flag trips near its ~6 V operating floor —
+  far below the ~9 V (3.0 V/cell) where a 3S pack takes permanent damage. The
+  servos will cheerfully drain the pack to destruction.
+- Nothing in the power path has a fuse, polyfuse, e-fuse, or protection FET.
+
+So the only thing that can stop a discharge is the control loop.
+`firmware/components/battguard/` is that supervisor. It is pure (injected
+clock, like `linkproto::Watchdog`), so its behaviour is asserted on the host in
+`firmware/host/test_battguard.cpp` rather than discovered on a ruined pack:
+
+| level | 3S | 2S | what the robot does |
+|---|---|---|---|
+| `ok` | > 10.5 V | > 7.0 V | normal operation |
+| `warn` | ≤ 10.5 V | ≤ 7.0 V | telemetry flag only — **you** land it |
+| `vland` | ≤ 9.9 V | ≤ 6.6 V | stops travelling, crouches to the trained floor over 1.5 s |
+| `vsafe` | — | — | torque off, **latched** |
+
+Design points that are load-bearing:
+
+- **Debounced, not instantaneous.** A trip needs 25 consecutive control ticks
+  (0.5 s at 50 Hz) below the line. The 6.8 A gait transients above sag the rail
+  through the pack leads and the barrel jack; a bare comparator would false-fire
+  mid-stride.
+- **Latched, and it must be.** An unloaded flat 3S rebounds well above 10.5 V
+  within seconds of torque dropping. A guard that cleared on recovery would sit
+  the robot down, watch the rail recover, stand it back up, and cycle until the
+  cells were ruined. Clearing it takes a pack swap plus `batt reset` (bench
+  mode) or a reboot.
+- **The landing stays in-distribution.** It ramps the crouch-height command to
+  `walker_env`'s `crouch_range[0]` (0.6) — the lowest stance the deployed policy
+  was actually trained to hold — rather than cutting torque and letting a
+  standing biped topple. It also zeroes vx/wz, so an operator holding a live
+  walk command cannot override it.
+- **A dropped bus frame is not 0 V.** Voltage arrives on servo feedback, so a
+  tick where no servo answered reports 0; the guard treats that as "no data"
+  and neither counts it nor clears the count.
+- **It is not independent of the bus.** Per the correction above, the voltage
+  sense *is* the servo bus. This is the argument for the hardware alarm below
+  rather than against the firmware guard.
+
+**Still recommended in hardware** — see
+[bom-supplemental.md](bom-supplemental.md) for the shopping list:
+
+- A **balance-lead low-voltage alarm** (~$5). This is the one to buy first. It
+  is independent of the firmware — it still sounds if the ESP32 hangs or the
+  servo bus drops, which is also how the guard goes blind. It also monitors
+  **per cell**, which pack voltage cannot: one weak cell can sit at 2.9 V while
+  the pack still reads a healthy 10.6 V.
+- An **inline fuse** (10–15 A) in the XT30 pigtail. Not for operating current —
+  for the dead-short case, where an 850 mAh 75C pack can deliver ~60 A into a
+  pinched or chafed lead. A robot that falls over repeatedly, with servo leads
+  under strain, is exactly where that happens.
+- The **470–1000 µF bulk cap** already recommended above. It cuts rail sag under
+  the 6.8 A step, which incidentally makes the guard's trip less twitchy.
 
 ## Servo bus
 

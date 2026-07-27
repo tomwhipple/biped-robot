@@ -58,6 +58,11 @@ enum class LinkState : uint8_t {
     kStand = 1,
     kRelax = 2,
     kEstop = 3,
+    // Pack under-voltage, latched by battguard::Guard. Unlike every state
+    // above, these are decided by the ROBOT and no command clears them.
+    kLowBattLand = 4,   // crouching down under control on a flat pack
+    kLowBattSafe = 5,   // crouch finished, torque off, and it stays off
+    kMaxState = kLowBattSafe,
 };
 
 struct Command {

@@ -6,6 +6,7 @@
 #pragma once
 #include <atomic>
 
+#include "battguard/guard.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "linkproto/protocol.h"
@@ -85,6 +86,13 @@ obs::Calibration& calibration();
 // True when boot found a valid blob in NVS. Shown by `cal` so nobody mistakes
 // freshly-defaulted values for a real calibration.
 extern bool g_cal_from_nvs;
+
+// The pack under-voltage guard, owned and written by the control task. The
+// CLI's `batt` reads it (a torn read is a human-facing report, same rule as
+// TelemetrySnapshot) and `batt reset` WRITES it -- which is why that one is
+// bench-only, exactly like the mutating `cal` subcommands: in bench mode ctrl
+// returns before touching the guard, so there is no cross-core race.
+battguard::Guard& battGuard();
 
 // Servo IDs in policy-action order, from the generated obs spec.
 inline const uint8_t* servoIds() { return obs::kServoId; }

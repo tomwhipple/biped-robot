@@ -65,10 +65,17 @@ class ProtocolError(ValueError):
 
 
 class LinkState(Enum):
+    # The wire encoding is this declaration order (see _TLM_STATES), so new
+    # members go on the END and existing ones never move. Values stay <= 5
+    # characters: commander.py's status line formats them "{:5s}".
     LIVE = "live"          # fresh command, tracking it
     STAND = "stand"        # link stale -> zero command, policy holds a stand
     RELAX = "relax"        # link long dead -> torque off, robot settles
     ESTOP = "estop"        # operator-latched torque release
+    # Pack under-voltage, robot-latched (firmware battguard::Guard). Nothing
+    # the operator sends clears these -- only a pack swap and a reboot.
+    VLAND = "vland"        # confirmed flat pack: crouching down under control
+    VSAFE = "vsafe"        # crouch finished, torque off, and it stays off
 
 
 class Command(NamedTuple):

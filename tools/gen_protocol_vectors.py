@@ -59,6 +59,11 @@ TLM_CASES = [
     (7, P.LinkState.RELAX, 7.35, -0.2, -0.75, 0.4, 0xFF, 100),
     (2 ** 32 - 1, P.LinkState.ESTOP, 0.0, 0.0, 0.0, 0.0, 0x81, 255),
     (11, P.LinkState.LIVE, 12.6005, 0.9995, 0.0625, -0.1875, 0x02, 7),
+    # The robot-latched under-voltage states. Included so the C++ port's
+    # decodeTelemetry range check is diffed against the real top-of-enum
+    # rather than against whichever value it was written for.
+    (500, P.LinkState.VLAND, 9.9, 0.97, 0.0, 0.0, 0x00, 4),
+    (501, P.LinkState.VSAFE, 9.8, 0.31, 0.0, 0.0, 0x00, 4),
 ]
 
 # -- watchdog script --------------------------------------------------------

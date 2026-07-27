@@ -118,7 +118,9 @@ Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
     if (buf[0] != kMagicTlm[0] || buf[1] != kMagicTlm[1]) return Err::kBadMagic;
     if (buf[2] != kVersion) return Err::kBadVersion;
     if (get16(buf + 18) != crc16Ccitt(buf, 18)) return Err::kBadCrc;
-    if (buf[3] > static_cast<uint8_t>(LinkState::kEstop)) return Err::kBadState;
+    if (buf[3] > static_cast<uint8_t>(LinkState::kMaxState)) {
+        return Err::kBadState;
+    }
     out.state = static_cast<LinkState>(buf[3]);
     out.seq_echo = get32(buf + 4);
     out.vbat_v = get16(buf + 8) / 1000.0f;
