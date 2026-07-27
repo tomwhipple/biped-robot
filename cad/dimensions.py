@@ -433,29 +433,47 @@ GP_SCREW_XY = (11.0, 8.5)      # 4x M3 self-tap into bosses under the tower top
 # rotation using the dimension we trust, and snap tabs retain it. For an IMU
 # that is the better mount regardless -- repeatable seating matters more than
 # screw count, because any shift corrupts the gravity vector the policy reads.
-IMU_PCB = (15.5, 25.4, 0.8)    # outline x (across pads), y (along pads), thickness
-                               # thickness is from the vendor spec, UNVERIFIED --
-                               # measure before trusting the pocket depth
+IMU_PCB = (15.5, 25.4, 1.63)   # outline x (across pads), y (along pads), thickness
+                               # 1.63 MEASURED 2026-07-27 (vendor spec said 0.8)
 IMU_POCKET_CLEAR = 0.35        # per-side clearance: FDM walls come in ~0.2 proud
-IMU_POCKET_D = 1.4             # pocket depth, measured down from the plate top
-IMU_LIP_OVER = 0.7             # how far the retaining lips overhang the pcb
-IMU_LIP_GAP = 0.5              # vertical play between pcb top and lip underside.
-                               # This IS the assembly mechanism: nothing flexes.
-                               # The board slides in from the open rear end,
-                               # rides over the floor stop, and drops behind it.
-IMU_LIP_T = 0.8                # lip thickness (stands proud of the plate)
-IMU_STOP_H = 0.35              # floor stop at the open end, < IMU_LIP_GAP so the
-                               # board can pass over it and still be captured
-IMU_SOLDER_SLOT = 3.2          # through-slot under the pad row: clears solder
-                               # fillets AND doubles as the wire exit
-IMU_CY = -25.0                 # IMU center y on the tongue (x centered): clears
-                               # the feet-screw wells at (+-14, +-42)
-IMU_CARRIER_T = 3.0            # carrier plate thickness
+IMU_POCKET_D = 1.85            # pocket depth = pcb + 0.22, so screws clamp the
+                               # board, not the pocket rim
 
-# PCB underside height above the carrier's z=0 plane. Replaces IMU_BOSS_H: the
-# board now sits DOWN IN a pocket rather than up on 4.5 mm bosses, so the IMU
-# rides ~5.9 mm lower than the retired BNO055 mount.
-IMU_PCB_Z = IMU_CARRIER_T - IMU_POCKET_D
+# Screw pattern, recovered from the 2026-07-27 photo by perspective-correcting
+# it: the board outline is known (15.5 x 25.4), so fitting its four edges gives
+# a homography that maps pixels to millimetres and removes the camera angle
+# entirely. Two independent corner estimates (extreme points vs fitted edges)
+# agreed to ~0.25 mm:
+#     x from pad edge   13.04 / 12.90     -> 12.90
+#     y spacing         20.92 / 20.67     -> 20.80
+#     hole diameter      3.24 /  3.15     ->  3.15
+# Treated as symmetric in y (the 0.25 mm offset the measurement showed is
+# inside its own error, and a manufactured board will be symmetric).
+IMU_SCREW_X = 12.90 - 15.5 / 2  # +5.15 from board centre, toward castellations
+IMU_SCREW_DY = 20.80 / 2        # +/-10.40 from board centre
+IMU_SCREW_HOLE_D = 3.15         # the board's own hole -- 0.3 mm radial slack on
+                                # an M2.5, which is exactly the point: the
+                                # POCKET locates, the SCREWS only clamp, so a
+                                # 0.25 mm error in this pattern is absorbed.
+
+IMU_TONGUE_T = 5.5             # tongue is thicker than the 3.0 pad: the pocket
+                               # floor must still be thick enough to tap. Grows
+                               # UPWARD so the part still prints flat, pocket up.
+IMU_SOLDER_SLOT = 3.4          # through-slot under the pad row: clears soldered
+                               # pin tails on the underside AND is the wire exit.
+                               # Runs the full length and out the rear -- a slot
+                               # stopping short would foul the tails.
+IMU_CY = -27.5                 # IMU center y on the tongue (x centered). Moved
+                               # back from -25.0 on 2026-07-27: the tongue is
+                               # now raised to IMU_TONGUE_T and the pocket has
+                               # to sit entirely behind gopro_base's footprint
+                               # (y >= -12), which the old centre did not.
+                               # x half-width 9.7 still clears the feet-screw
+                               # wells at (+-14, +-42).
+IMU_CARRIER_T = 3.0            # carrier PAD thickness (the M3x12 stack)
+
+# PCB underside height above the carrier's z=0 plane.
+IMU_PCB_Z = IMU_TONGUE_T - IMU_POCKET_D
 
 CAM_MASS = 154.0               # g, incl. battery
 CAM_BODY = (25.0, 64.0, 69.0)  # X depth (lens axis fore-aft), Y width, Z height
