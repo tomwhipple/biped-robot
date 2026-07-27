@@ -89,7 +89,7 @@ robot = Compound(label="bimo_biped", children=[
     piece("battery_3s_mock", COL_BATT, Pos(0, 0, DECK_TOP_Z) * battery_mock()),
     piece("imu_carrier", COL_PRINT, Pos(0, 0, TOWER_TOP_Z) * parts.imu_carrier()),
     piece("imu_bno055_mock", COL_CAM,
-          Pos(0, D.IMU_CY, TOWER_TOP_Z + D.IMU_CARRIER_T + D.IMU_BOSS_H)
+          Pos(0, D.IMU_CY, TOWER_TOP_Z + D.IMU_PCB_Z)
           * parts.box(-D.IMU_PCB[0] / 2, D.IMU_PCB[0] / 2, -D.IMU_PCB[1] / 2,
                       D.IMU_PCB[1] / 2, 0, D.IMU_PCB[2])),
     # gopro stack rides IMU_CARRIER_T higher: the carrier is under the base

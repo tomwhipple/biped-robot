@@ -69,16 +69,19 @@ def screw_m25(x, y, dz=0.0):
     return s
 
 
-def imu_pieces(dz=0.0):
-    """BNO055 breakout mock (classic 2472 outline) seated on the carrier
-    bosses, robot frame; chip up, solder-header edge rearward."""
-    zp = D.TOWER_H + D.IMU_CARRIER_T + D.IMU_BOSS_H + dz
-    cy = D.IMU_CY
+def imu_pieces(dz=0.0, dy=0.0):
+    """GY-BNO08X mock seated in the carrier pocket, robot frame. Chip up; the
+    10-pad row runs along the -x LONG edge (not the rear short edge -- that was
+    the retired BNO055's layout), header soldered pointing UP so the underside
+    stays flat against the pocket floor. dy slides it along the insertion axis
+    for the filmstrip."""
+    zp = D.TOWER_H + D.IMU_PCB_Z + dz
+    cy = D.IMU_CY + dy
     w, l, t = D.IMU_PCB
     ch = [piece("imu_pcb", PCB, Pos(0, cy, zp + t / 2) * Box(w, l, t))]
-    ch.append(piece("imu_chip", PART, Pos(0, cy, zp + t + 0.7) * Box(5.4, 4.5, 1.4)))
-    ch.append(piece("imu_hdr", PART,                       # header, rear edge
-                    Pos(0, cy - l / 2 + 1.3, zp + t + 1.2) * Box(22, 2.5, 2.4)))
+    ch.append(piece("imu_chip", PART, Pos(1.0, cy, zp + t + 0.7) * Box(5.4, 4.5, 1.4)))
+    ch.append(piece("imu_hdr", PART,                       # 10 pads, -x edge
+                    Pos(-w / 2 + 1.3, cy, zp + t + 1.2) * Box(2.5, 22.9, 2.4)))
     return ch
 
 
@@ -143,18 +146,15 @@ def main():
            [(140, -25), (90, -75)], lookat=(0, 0, 0.045), dist=0.30)
 
     # -- step08b: IMU carrier stack, exploded (robot frame): carrier on the
-    # tower bosses, BNO055 + 4x M2.5x8 above it, gopro_base + 4x M3x12 on top
+    # tower bosses, GY-BNO08X slid into its pocket, gopro_base + 4x M3x12 on
+    # top. No IMU screws: the board is captured by the pocket lips (2026-07-27
+    # redesign -- the real breakout has only two holes and no trustworthy
+    # measurement of where they are, so the carrier locates on the outline).
     ch = [piece("tower", PRINT, parts.tower())]
     ch += board_pieces()                          # board already mounted
     ch.append(piece("imu_carrier", ORANGE,
                     Pos(0, 0, D.TOWER_H + 14) * parts.imu_carrier()))
     ch += imu_pieces(dz=34)
-    bx, by = D.IMU_HOLES[0] / 2, D.IMU_HOLES[1] / 2
-    for sx in (bx, -bx):
-        for sy in (D.IMU_CY + by, D.IMU_CY - by):
-            ch.append(piece("m25", PART, screw_m25(sx, sy, dz=D.TOWER_H
-                            + D.IMU_CARRIER_T + D.IMU_BOSS_H + 50
-                            - (ZT0 - D.BOARD_STANDOFF - 1.6))))
     ch.append(piece("gopro_base", PRINT,
                     Pos(0, 0, D.TOWER_H + D.IMU_CARRIER_T + 62)
                     * parts.gopro_base()))

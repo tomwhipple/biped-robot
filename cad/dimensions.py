@@ -414,31 +414,49 @@ GP_HOLE_TEARDROP = True
 GP_BASE_X, GP_BASE_Y, GP_BASE_T = 30.0, 24.0, 4.0
 GP_SCREW_XY = (11.0, 8.5)      # 4x M3 self-tap into bosses under the tower top
 
-# TODO (2026-07-22): IMU is now the GY-BNO085 (Teyleten, B0CL26J81F) -- a
-# THIRD board outline. The constants below still describe the classic
-# BNO055 breakout that the current printed carrier fits. MEASURE the
-# GY-BNO085's outline + hole pattern on arrival, update IMU_PCB/IMU_HOLES,
-# and reprint imu_carrier (both gates must re-pass). Firmware side already
-# targets the BNO085 (SH-2) -- see docs/firmware-design.md.
-# BNO055 IMU + its carrier plate. The ordered part (2026-07-16, Amazon
-# B0GVK81HXR) is the CLASSIC Adafruit BNO055 breakout (2472 layout: solder
-# header, no STEMMA jacks) -- outline/holes measured from Adafruit's Eagle
-# .brd (Adafruit-BNO055-Breakout-PCB @ master, "Adafruit BNO055.brd"; the
-# STEMMA QT variant is 25.4 wide with holes at 20.32 x 15.24 -- reprint the
-# carrier with these two lines swapped if the board in hand has JST jacks).
-# The carrier sandwiches between the tower top and gopro_base on the SAME
-# 4 screws (now M3x12: +3 mm of carrier in the stack) and cantilevers a
-# tongue rearward that the IMU screws onto -- no interior tower flat fits
-# the breakout (all <13 mm) and tape mounting was rejected (2026-07-16).
-IMU_PCB = (26.67, 20.32, 1.6)  # breakout outline x, y, pcb thickness
-IMU_HOLES = (21.59, 15.24)     # mounting-hole pattern (x, y), 4x Ø2.5 plated
-IMU_CY = -25.0                 # IMU center y on the tongue (x centered): holes
-                               # clear the feet-screw wells at (+-14, +-42)
+# IMU: GY-BNO08X breakout (Amazon B0CL26J81F), photographed 2026-07-27.
+# BNO080/085 family -> SH-2, which is what the firmware already targets.
+#
+# It is NOT the board the old carrier was built for. The retired BNO055
+# breakout was 26.67 x 20.32 with FOUR mounting holes on a 21.59 x 15.24
+# rectangle; this one is smaller, thinner, and has only TWO holes, both
+# hard against the castellated edge.
+#
+# We deliberately do NOT model those two holes. The only photo available is
+# at an angle, so hole positions read out of it carry ~+/-1 mm -- far worse
+# than the ~0.3 mm a screw boss needs, and a boss designed from a bad number
+# is a part that does not fit. The outline, by contrast, is trustworthy from
+# two independent checks: 10 pads at 2.54 mm pitch span 22.86 mm plus edge
+# margin ~= 25.4, and the photo's aspect ratio 0.60 matches 15.5/25.4 = 0.61.
+#
+# So the carrier LOCATES ON THE OUTLINE: a pocket constrains x, y and
+# rotation using the dimension we trust, and snap tabs retain it. For an IMU
+# that is the better mount regardless -- repeatable seating matters more than
+# screw count, because any shift corrupts the gravity vector the policy reads.
+IMU_PCB = (15.5, 25.4, 0.8)    # outline x (across pads), y (along pads), thickness
+                               # thickness is from the vendor spec, UNVERIFIED --
+                               # measure before trusting the pocket depth
+IMU_POCKET_CLEAR = 0.35        # per-side clearance: FDM walls come in ~0.2 proud
+IMU_POCKET_D = 1.4             # pocket depth, measured down from the plate top
+IMU_LIP_OVER = 0.7             # how far the retaining lips overhang the pcb
+IMU_LIP_GAP = 0.5              # vertical play between pcb top and lip underside.
+                               # This IS the assembly mechanism: nothing flexes.
+                               # The board slides in from the open rear end,
+                               # rides over the floor stop, and drops behind it.
+IMU_LIP_T = 0.8                # lip thickness (stands proud of the plate)
+IMU_STOP_H = 0.35              # floor stop at the open end, < IMU_LIP_GAP so the
+                               # board can pass over it and still be captured
+IMU_SOLDER_SLOT = 3.2          # through-slot under the pad row: clears solder
+                               # fillets AND doubles as the wire exit
+IMU_CY = -25.0                 # IMU center y on the tongue (x centered): clears
+                               # the feet-screw wells at (+-14, +-42)
 IMU_CARRIER_T = 3.0            # carrier plate thickness
-IMU_BOSS_H = 4.5               # boss height: M2.5x8 through the 1.6 pcb needs
-                               # 6.4 blind; boss+plate = 7.5 with a 0.4 floor;
-                               # also clears the soldered header pins under
-                               # the pcb (~3 mm proud)
+
+# PCB underside height above the carrier's z=0 plane. Replaces IMU_BOSS_H: the
+# board now sits DOWN IN a pocket rather than up on 4.5 mm bosses, so the IMU
+# rides ~5.9 mm lower than the retired BNO055 mount.
+IMU_PCB_Z = IMU_CARRIER_T - IMU_POCKET_D
+
 CAM_MASS = 154.0               # g, incl. battery
 CAM_BODY = (25.0, 64.0, 69.0)  # X depth (lens axis fore-aft), Y width, Z height
 

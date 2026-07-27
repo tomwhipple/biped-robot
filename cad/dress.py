@@ -286,7 +286,7 @@ def dressed_robot(roll=0.0, hip=0.0, knee=0.0, ankle=0.0):
                 Pos(0, 0, A.TOWER_TOP_Z) * parts.imu_carrier()),
         A.piece("imu_bno055_mock", COL_PCB,
                 Pos(0, D.IMU_CY,
-                    A.TOWER_TOP_Z + D.IMU_CARRIER_T + D.IMU_BOSS_H)
+                    A.TOWER_TOP_Z + D.IMU_PCB_Z)
                 * parts.box(-D.IMU_PCB[0] / 2, D.IMU_PCB[0] / 2,
                             -D.IMU_PCB[1] / 2, D.IMU_PCB[1] / 2,
                             0, D.IMU_PCB[2])),

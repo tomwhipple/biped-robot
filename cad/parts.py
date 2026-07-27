@@ -708,33 +708,67 @@ def gopro_base():
 
 # ---------------------------------------------------------------- imu_carrier
 def imu_carrier():
-    """BNO055 carrier: a plate between the tower top and gopro_base, clamped
-    by the SAME 4x M3 (now M3x12 -- the stack grew by IMU_CARRIER_T), with a
-    rear tongue the breakout screws onto: 4x M2.5x8 self-tap into bosses on
-    the true Adafruit hole pattern (IMU_HOLES, from their Eagle .brd). The
-    IMU rides component-side up, long axis on robot x, solder-header edge
-    rearward: jumpers drop down the open rear end of the tower (or through
-    the Ø10 tongue hole + tower vent at (0, -20)) to the driver board. Set
-    the BNO055's AXIS_MAP_CONFIG to match the silkscreen orientation at
-    bring-up. Local frame: z=0 on the tower top plane. Print: flat on the
-    bed, bosses up -- support-free. ~5 g PETG.
+    """GY-BNO08X carrier: a plate between the tower top and gopro_base, clamped
+    by the SAME 4x M3x12, with a rear tongue carrying the IMU.
+
+    The board is LOCATED ON ITS OUTLINE, not its holes. It has only two
+    mounting holes and the sole photo of it is at an angle, so hole positions
+    read out of it carry ~+/-1 mm -- far worse than a screw boss needs. The
+    25.4 x 15.5 outline, by contrast, is confirmed twice over (10 pads at
+    2.54 pitch, and the photo's aspect ratio). A pocket on that outline fixes
+    x, y AND rotation, which is what an IMU actually needs: repeatable seating,
+    because any shift corrupts the gravity vector the policy reads.
+
+    Assembly has no flexing parts. The pocket is open at the rear; the board
+    slides in along +y, rides over a 0.35 mm floor stop, and drops behind it,
+    captured under two lips with IMU_LIP_GAP of headroom. To remove it, press
+    down at the rear and slide out.
+
+    Pads face -x with a through-slot beneath them: solder fillets clear, and
+    the same slot is the wire exit down the open rear of the tower. Solder the
+    header pointing UP (away from the carrier) so the underside stays flat.
+
+    Local frame: z=0 on the tower top plane. Print flat on the bed, pocket up
+    -- support-free; the lips are 0.7 mm overhangs at the very top. ~5 g PETG.
     """
     hx, hy = D.GP_BASE_X / 2, D.GP_BASE_Y / 2        # gopro pad 15, 12
     T = D.IMU_CARRIER_T
-    tx = D.IMU_PCB[0] / 2 + 1.3                      # tongue half-width 14.0
-    ty = D.IMU_CY - D.IMU_PCB[1] / 2 - 1.3           # rear edge -37.7
+    px, py, pt = D.IMU_PCB                           # 15.5, 25.4, 0.8
+    c = D.IMU_POCKET_CLEAR
+    ox, oy = px / 2 + c, py / 2 + c                  # pocket half-extents
+    wall = 1.6                                       # pocket wall thickness
+    tx = ox + wall                                   # tongue half-width
+    ty = D.IMU_CY - oy                               # tongue rear edge (open end)
+
     p = box(-hx, hx, -hy, hy, 0, T)                  # pad under gopro_base
-    p += box(-tx, tx, ty, -hy + 2, 0, T)             # tongue (merged 2 into pad)
+    p += box(-tx, tx, ty, -hy + 2, 0, T)             # tongue, merged into pad
     gx, gy = D.GP_SCREW_XY
     for sx in (gx, -gx):                             # shared M3x12 through-holes
         for sy in (gy, -gy):
             p -= cyl_z(D.M3_CLEAR / 2, -1, T + 1, sx, sy)
-    p -= cyl_z(5.0, -1, T + 1, 0, -20)               # cable hole over the vent
-    bx, by = D.IMU_HOLES[0] / 2, D.IMU_HOLES[1] / 2
-    for sx in (bx, -bx):                             # IMU bosses + M2.5 pilots
-        for sy in (D.IMU_CY + by, D.IMU_CY - by):
-            p += cyl_z(3.0, T, T + D.IMU_BOSS_H, sx, sy)
-            p -= cyl_z(D.M25_TAP / 2, 0.4, T + D.IMU_BOSS_H + 0.1, sx, sy)
+
+    # Pocket, open at the rear (-y): cut clean through the tongue's rear edge
+    # so the board slides in rather than having to be pressed past anything.
+    floor = T - D.IMU_POCKET_D
+    p -= box(-ox, ox, D.IMU_CY - oy, D.IMU_CY + oy, floor, T + 1)
+    p -= box(-ox, ox, ty - 1, D.IMU_CY, floor, T + 1)
+
+    # Through-slot under the pad row (-x edge): solder relief + wire exit.
+    p -= box(-ox, -ox + D.IMU_SOLDER_SLOT, D.IMU_CY - oy + 1.0,
+             D.IMU_CY + oy - 1.0, -1, floor + 0.1)
+
+    # Retaining lips along the two long edges, overhanging inward above the
+    # board with IMU_LIP_GAP of headroom.
+    lz0 = floor + pt + D.IMU_LIP_GAP
+    lz1 = lz0 + D.IMU_LIP_T
+    for sx in (1, -1):
+        p += box(sx * (ox - D.IMU_LIP_OVER), sx * (ox + wall),
+                 D.IMU_CY - oy, D.IMU_CY + oy, lz0, lz1)
+
+    # Floor stop at the open end: the board rides over it going in and is
+    # trapped behind it. Lower than IMU_LIP_GAP by design.
+    p += box(-ox + 1.0, ox - 1.0, D.IMU_CY - oy - 1.2, D.IMU_CY - oy,
+             floor, floor + D.IMU_STOP_H)
     return p
 
 
@@ -752,7 +786,7 @@ PARTS = [
     ("tower", tower, 1, "upside down: top plate on bed (support-free: "
      "open window, no sill)"),
     ("gopro_base", gopro_base, 1, "base down, prongs up (PETG or 100% infill)"),
-    ("imu_carrier", imu_carrier, 1, "flat on bed, bosses up"),
+    ("imu_carrier", imu_carrier, 1, "flat on bed, pocket up (support-free)"),
 ]
 
 
