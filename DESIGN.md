@@ -6,6 +6,30 @@
 
 ---
 
+## 0. Working process — commit to main, no PRs
+
+**This repo does not use pull requests for physical parts or documentation.** CAD, STLs,
+print list, BOM, assembly/design docs and reports go **straight to `main`** — no branch,
+no PR, no review queue.
+
+The real review gate here is physical — a part that prints and fits, a bench measurement —
+not a diff read on GitHub. Tom is the only reviewer, so a PR only delays the file reaching
+the checkout he slices and builds from.
+
+What replaces review is the repo's own gates. Run them *before* committing, and report what
+they said:
+
+| gate | covers |
+|---|---|
+| `python cad/check_assembly.py` | interference / clearance across the assembly |
+| `python cad/check_printability.py` | bridges, ceilings, first-layer contact, per part |
+| `cd firmware/host && make test` | firmware logic under ASan/UBSan |
+| `python -m pytest tests/` | sim + link protocol |
+
+Keep local `main` in sync with `origin/main` — fetch and merge before working, push after.
+Regenerated artifacts (STLs) are rebuilt from source with `python cad/parts.py` rather than
+merged as binaries.
+
 ## 1. Goal
 
 Build a custom, small (~34 cm), 3D-printed **bipedal robot** using an LLM-assisted
