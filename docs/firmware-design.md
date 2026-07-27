@@ -193,8 +193,19 @@ graph LR
   holding powered). **Caveat — measured-on-arrival:** the sim models the
   unpowered STS3215 as a raised joint frictionloss (`off_frictionloss`, est.
   0.35 N·m from the ~1:345 gear-train class); feasibility flips *off* below
-feasibility flips *off* below ~0.25 N·m. **Status 2026-07-27: v1 ships with idle torque-off DISABLED.** Powered friction measured 0.235 N·m (8.0 % of stall, four servos, steady 200 steps/s) — a lower bound on the unpowered backdrive figure, and too close to the threshold to call. The deciding test is the assembled robot's own `stand_off`: stand it, release torque, see whether it holds. See docs/bringup-day1.md §4. Fold it into the on-target
-  bring-up (§7) torque-release drills.
+  ~0.25 N·m.
+
+  **Status 2026-07-27: v1 ships with idle torque-off DISABLED.** Powered
+  friction measured **0.235 N·m** (8.0 % of stall; four servos, steady
+  200 steps/s, tight spread). That is a *lower bound* on the unpowered
+  backdrive figure — back-driving a ~1:345 reduction is far less efficient
+  than forward-driving it — and it sits too close to the 0.25 N·m threshold
+  to call either way. No bench tools for the spring-scale test, and none are
+  needed: the deciding experiment is this scenario itself, run on the
+  assembled robot. Stand it up, release torque, watch. Holds ⇒ ship the
+  feature; collapses or drifts > 10 cm ⇒ do not. The robot's own ~0.9 kg
+  applies exactly the joint torques in question. Fold it into the on-target
+  bring-up (§7) torque-release drills; see docs/bringup-day1.md §4.
 - **cal/**: NVS-stored per-servo zero offsets + IMU mounting quaternion;
   a guided calibration CLI over USB serial (ToddlerBot's zero-point lesson).
 
