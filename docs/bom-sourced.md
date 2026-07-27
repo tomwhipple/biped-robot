@@ -19,20 +19,20 @@ order also there.
 | 5 | PLA filament 1 kg | 1 | Bambu Lab PLA 1.75 mm 1 kg (Jade White) | $28.00 | $28.00 | [Amazon](https://www.amazon.com/dp/B0CGQYRSNT) | RFID-enabled for A1 mini auto-settings. Black: [B0CGR29R63](https://www.amazon.com/dp/B0CGR29R63) ($28.60). |
 | 6 | PETG filament 1 kg | 1 | Bambu Lab PETG Translucent 1.75 mm 1 kg | $30.15 | $30.15 | [Amazon](https://www.amazon.com/dp/B0F68FKRWH) | With reusable spool. Refill-only (no spool): [B0FRQ9VX2K](https://www.amazon.com/dp/B0FRQ9VX2K) ($23.99). |
 | 7 | TPU filament 500 g | 1 | Geeetech TPU 1.75 mm 500 g Shore 95A | $15.99 | $15.99 | [Amazon](https://www.amazon.com/dp/B0DG8BZL6L) | Bambu TPU is 1 kg only ($42.99, [B0GG283YLZ](https://www.amazon.com/dp/B0GG283YLZ)). |
-| 8 | M3×6 button head screws | 0 | *not needed — horn screws ship with the servos* | — | — | — | v3yaw audit 2026-07-23: the 38 M3×6 used are the ST3215s' own bundled horn screws (10×4 on hand, 2 spare). Kit still has M3×6 if any strip. |
+| 8 | M3×6 button head screws | 32 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes M3×6/8/10/12/16/20/25/30 mm. |
 | 9 | M3×8 button head + M3 thin washers | 24 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes nuts & washers. |
-| 10 | M3×10 button head screws | 20 | *Covered by KADRICK kit (item 15)* | — | — | — | Was 16 — never counted the 4 tower-feet bolts (assembly §9c, found in the 2026-07-23 fastener itemization). Kit includes M3×6/8/10/12/16/20/25/30 mm. |
-| 11 | M3×8 self-tapping screws | 56 | 100 pc M3×8 mm Self-Tapping SS, Flat Head Hex | $8.28 | $8.28 | [Amazon](https://www.amazon.com/dp/B0F9XYX9BQ) | 100 pcs (56 needed: v3yaw adds 8 yaw-stator + the old itemization under-summed; see assembly.md §0). Includes drive bit. Alt: [520pc assortment](https://www.amazon.com/dp/B0BPM8J5F5) ($7.99). |
+| 10 | M3×10 button head screws | 16 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes M3×6/8/10/12/16/20/25/30 mm. |
+| 11 | M3×8 self-tapping screws | 52 | 100 pc M3×8 mm Self-Tapping SS, Flat Head Hex | $8.28 | $8.28 | [Amazon](https://www.amazon.com/dp/B0F9XYX9BQ) | 100 pcs (52 needed). Includes drive bit. Alt: [520pc assortment](https://www.amazon.com/dp/B0BPM8J5F5) ($7.99). |
 | 12 | M3 heat-set inserts (Ø4.6×4–6 mm) | 12 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes brass heat-set inserts. |
 | 13 | M5×20 GoPro thumbscrew | 1 | M5 Handle Thumb Screws (pair, GoPro) | $7.22 | $7.22 | [Amazon](https://www.amazon.com/dp/B0BCJRFCLX) | Pair; only 1 needed. Stainless, GoPro Hero 4–13. |
-| 14 | M2.5×8 self-tapping screws | 8 | uxcell 50 pc M2.5×8 mm Self-Tapping | $8.07 | $8.07 | [Amazon](https://www.amazon.com/dp/B01KXTTSCI) | 50 pcs (8 needed: 4 driver board + 4 BNO055→imu_carrier). 304 SS. |
+| 14 | M2.5×8 self-tapping screws | 4 | uxcell 50 pc M2.5×8 mm Self-Tapping | $8.07 | $8.07 | [Amazon](https://www.amazon.com/dp/B01KXTTSCI) | 50 pcs (4 needed). 304 SS. |
 | 15 | M3 screw + heat-set insert kit | 1 | KADRICK 420 pcs M3 Heat Set Inserts Kit | $15.99 | $15.99 | [Amazon](https://www.amazon.com/dp/B0GYRQG7F2) | **Covers items 8, 9, 10, 12.** M3×6–30 mm socket cap screws, brass inserts, nuts, washers, installation tip, hex key. |
 | 16 | TPU sheet 2 mm | 2 | BENECREAT 2-pc Silicone Rubber Sheet 2 mm | $15.59 | $15.59 | [Amazon](https://www.amazon.com/dp/B08P7P69WQ) | 2 sheets. Cut to 90×46 mm for foot pads. Silicone rubber ≈ TPU functionally. |
 | 17 | Zip ties 2.5 mm | ~10 | Zip Ties 2.5 mm×200 mm 100 pc | $3.99 | $3.99 | [Amazon](https://www.amazon.com/dp/B0GR52PRHF) | 100 pcs (~10 needed). Black nylon, 30 lb. |
-| 18 | 9-DOF IMU | 1 | **BNO055 breakout (ordered 2026-07-16)** — classic Adafruit layout, solder header | ~$30 | ~$30 | [B0GVK81HXR](https://www.amazon.com/dp/B0GVK81HXR) | ✅ Ordered. Torso attitude feedback (up-vector + gyro, sensor fusion on-chip, quaternion @100 Hz); 4-wire I2C at 0x28. Board 26.67×20.32, holes 21.59×15.24 Ø2.5 (from Adafruit's Eagle brd) — the printed `imu_carrier` is cut to this pattern. Supersedes the BNO085/4754 pick (either works; carrier would need the STEMMA-variant hole swap noted in `cad/dimensions.py`). |
+| 18 | 9-DOF IMU | 1 | Teyleten Robot GY-BNO085 9DOF AHRS module | $20.99 | $20.99 | [Amazon B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F) | **Actual part ordered** (2026-07-16). BNO085 chip (Hillcrest Labs CEVA SH-2 fusion on-chip). Same IC as the planned Adafruit #4754 breakout but ~$4 cheaper; I2C/SPI/UART/UART-RVC interfaces. Datasheet: [`datasheets/BNO085_BNO080_datasheet.pdf`](../datasheets/BNO085_BNO080_datasheet.pdf) (Hillcrest Labs BNO08X v1.16, 59pp). Note: non-STEMMA breakout — pin headers instead of JST-SH jack, so item 21 cable may need swapping for jumper wires. |
 | 19 | Servo bus extension leads, 3-pin ≥200 mm | 2 (+2 spares) | Feetech/Waveshare 3-pin bus servo cable, 200–300 mm | ~$1–2 | ~$8 | [search](https://www.amazon.com/s?k=feetech+3+pin+servo+cable+200mm) · [Waveshare](https://www.waveshare.com/product/robotics/accessories.htm) | For the **hip-roll → hip-pitch** hop (one per leg): worst-pose routed path is **170 mm** (measured in `cad/dress.py` across the full ROM incl. slack loop), so the 150 mm leads that ship with the servos are too short *there and only there*. ≥200 mm gives ~18 % flex margin; if only 300 mm is stocked, zip-tie the excess at the thigh raceway anchors. Every other hop fits a stock 150 mm lead (see [wiring.md](wiring.md)). |
 | 20 | XT30 pigtail + inline switch + heat-shrink | 1 set | XT30 pigtail (mates the pack lead) → inline switch → bare ends into the board's screw terminal | ~$10 | ~$10 | [search](https://www.amazon.com/s?k=xt30+pigtail+connector+inline+switch) | Battery → power switch → driver-board screw terminal. Routed run is only ~30 mm, so any short pigtail works; 20 AWG or thicker (bus transient budget ~10 A). |
-| 21 | IMU jumpers, female-female | 4 | any 10–20 cm F-F dupont jumpers | ~$0 | ~$0 | [search](https://www.amazon.com/s?k=female+female+dupont+jumper+wires) | BNO055 header → ESP32 GPIO 21/22 + 3V3/GND (the ordered classic BNO055 has a solder header, not JST — the previously listed Adafruit 4209 JST cable no longer applies). Usually already in the parts bin. |
+| 21 | IMU cable, JST-SH 4-pin → male jumpers | 1 | Adafruit STEMMA QT / Qwiic to male headers, 150 mm | $0.95 | $0.95 | [Adafruit 4209](https://www.adafruit.com/product/4209) | BNO085 → ESP32 GPIO 21/22 + 3V3/GND. The driver board has no STEMMA jack, so this (or 4 soldered wires) bridges it. IMU mounts on the deck next to the board — 150 mm is ample. |
 
 ---
 
@@ -53,9 +53,7 @@ balance charger (~$30, skip if owned) and a USB-C **data** cable for
 flashing/debug (skip if owned). Also note items 7 and 16 are redundant — foot pads are *printed* TPU
 (item 7); the silicone sheet (item 16, $15.59) can be dropped unless you want
 a fallback. The KADRICK kit is socket-cap, not button-head — check head
-clearance at the idler screws before relying on it there. The gopro_base +
-imu_carrier stack needs **4× M3×12 self-tapping** — the ordered 100-pc M3×8
-box (item 11) doesn't cover it, its 520-pc assortment alt does.
+clearance at the idler screws before relying on it there.
 
 ### Servo cost optimization — ~~retracted~~
 
@@ -98,7 +96,7 @@ ability to choose the battery later. Buy 8 + 1–2 spares of the 12 V version.
 - **Servo case thread**: M3 self-tap vs tap vs M4 — measure a real case.
 - **Idler screw length**: M3×8 + washer assumes 3.35 mm thread depth; confirm
   screws don't bottom against the gear.
-- ~~**Driver board**: exact model + hole pattern (`BOARD_HOLES` in `dimensions.py`)~~ — **closed 2026-07-27**, test-fitted to the printed tower
+- **Driver board**: exact model + hole pattern (`BOARD_HOLES` in `dimensions.py`)
   — confirm component heights and battery clearance.
 - **GoPro fit**: measure your MAX's finger thickness — slots are 3.2 mm.
 - **Cable service loops**: routed worst-pose lengths measured in `cad/dress.py`

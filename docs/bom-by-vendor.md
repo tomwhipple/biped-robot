@@ -37,16 +37,17 @@ slower than Amazon Prime — check lead time. Amazon alternates: servo
 | M5×20 GoPro thumbscrew         | 1 (pair)     | M5 handle thumb screws, stainless, GoPro Hero 4–13                          | $7.22  | $7.22       | [B0BCJRFCLX](https://www.amazon.com/dp/B0BCJRFCLX) |
 | Sole pad sheet 1/16"           | 1 (2-pack)   | Self-adhesive silicone rubber sheet, 2× 6"×6" — cut two 106 × 46 mm pads (one sheet does both feet; 2nd sheet = spares) | — | — | [B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK) |
 | Zip ties 2.5 mm                | ~10 (100 pc) | 2.5 × 200 mm black nylon, 30 lb                                             | $3.99  | $3.99       | [B0GR52PRHF](https://www.amazon.com/dp/B0GR52PRHF) |
-| **Amazon subtotal**            |              |                                                                             |        | **~$89.14** |                                                    |
+| 9-DOF IMU                      | 1            | Teyleten Robot GY-BNO085 9DOF AHRS (BNO085 chip, CEVA SH-2 fusion — actual part ordered 2026-07-16) | $20.99 | $20.99 | [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F) |
+| **Amazon subtotal**            |              |                                                                             |        | **~$110.13** |                                                    |
 
 ---
 
-## Adafruit
+## ~~Adafruit~~ → moved to Amazon
 
-| Component             | Qty | Product                                                                 | Unit   | Extended   | Link                                                   |
-| --------------------- | --- | ----------------------------------------------------------------------- | ------ | ---------- | ------------------------------------------------------ |
-| 9-DOF IMU             | 1   | Adafruit BNO085 breakout (STEMMA QT, on-chip fusion → up-vector + gyro) | $24.95 | $24.95     | [Adafruit 4754](https://www.adafruit.com/product/4754) |
-| **Adafruit subtotal** |     |                                                                         |        | **$24.95** |                                                        |
+The IMU was originally planned as an Adafruit BNO085 breakout (#4754, $24.95).
+Actual order: Teyleten Robot GY-BNO085 via Amazon [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F)
+($20.99) — same BNO085 IC, ~$4 cheaper. Datasheet in
+[`datasheets/BNO085_BNO080_datasheet.pdf`](../datasheets/BNO085_BNO080_datasheet.pdf).
 
 Cheap spare/alt: MPU-6050 "GY-521" (~$5, needs a filter in firmware).
 
@@ -57,9 +58,8 @@ Cheap spare/alt: MPU-6050 "GY-521" (~$5, needs a filter in firmware).
 | Vendor          | Extended  |
 | --------------- | --------- |
 | Waveshare       | $200.91   |
-| Amazon          | ~$89.14   |
-| Adafruit        | $24.95    |
-| **Robot total** | **~$315** |
+| Amazon          | ~$110.13  |
+| **Robot total** | **~$311** |
 
 Servo spares (1–2 × $21.99) are the main swing item. The 3D printer + filament +
 start-up consumables (~$530, FlashForge 5M Pro) is a separate one-time order —
