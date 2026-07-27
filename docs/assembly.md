@@ -74,7 +74,8 @@ servo at mechanical zero** (see §1).
 | **M3×6** button head *(the servos' own horn screws)* | 40 used (40 bundled) | the servo's metal **horn disc** — M3 on the Ø14 bolt circle, **4× per horn everywhere** (the yaw horns went back to 4× after the 2026-07-24 connector correction — the "cable channel" the dropped rear bolt served aligned with nothing). Bundled with each ST3215 (10 × 4 = 40 on hand → 0 spares). | §5 (knee + ankle horns, 16), §6 (hip-pitch horn, 8), §7b (yaw carriers onto the yaw horns, 8), §8 (hip-roll horn, 8)       |
 | **M3×8** button head **+ thin washer**               | 24                   | the servo's free-spinning **idler disc** — same Ø14 circle; washer stops the tip short of the 3.35 mm thread. *(Pre-2026-07-23 prints: hand-drill the Ø3.4 idler holes through the arm — see Anatomy note.)*                            | §5 (knee + ankle idlers, 16), §6 (hip-pitch idler, 8)                                                                      |
 | **M3×10** button head                                | **20**               | three jobs: the hip-roll **idler disc** reached through the bay-wall slot by the long boss (8; pre-2026-07-23 prints need the idler holes drilled through, per §5); the **yoke_pitch flange heat-sets** that make the hip universal (8); and the **deck heat-sets** the tower feet pull down onto (4).             | §6 (flange → inserts, 8), §8 (roll idler, 8), §9c (tower feet → inserts, 4)                                                |
-| **M3×8 self-tapping**                                | 56                   | printed Ø3.4 clearances into the **servo case's Ø3.5 holes** (glass-filled nylon, community-tapped M3 — see verify-on-arrival).                                                                                                                                           | §3 (feet, 8), §4 (leg_link grips, 24), §7a (yaw stators down through the deck, 8), §7c (roll servos into the carriers, 16) |
+| **M2.5×8 FLAT-head self-tapping** *(countersunk, to buy)* | **32**          | printed Ø2.9 clearances into the **servo case holes** — heads sit **flush** in 90° countersinks. **BENCH TRUTH 2026-07-28: the case holes take M2.5, not the M3 previously listed** ("3 mm is too wide"). Flush is mandatory here: proud heads on the grip plates rode the sweeping yoke/fork arms and skewed the links.  | §3 (feet, 8), §4 (leg_link grips, 24)                                                                                      |
+| **M2.5×8 pan-head self-tapping** *(uxcell B01KXTTSCI, 50 on hand)* | 24     | printed Ø2.9 clearances into the **servo case holes**, where the head lives in free space or a counterbore (the 8 deck stators sink sub-flush — the battery sits on them).                                                                                                | §7a (yaw stators down through the deck, 8), §7c (roll servos into the carriers, 16)                                        |
 | **M3×12 self-tapping**                               | 4                    | Ø2.8 pilots in the **tower-top bosses**, through the `imu_carrier` + `gopro_base` stack (the M3×8 is too short with the 3 mm carrier added).                                                                                                                              | §11                                                                                                                        |
 | **M2.5×8 self-tapping**                              | 8                    | Ø2.2 printed pilots — 4 in the tower standoffs, 4 in the `imu_carrier` bosses.                                                                                                                                                                                            | §9a (driver board, 4), §9b (BNO055, 4)                                                                                     |
 | **M3 heat-set insert** (Ø4.6 pilot, ~5 mm)           | 12                   | brass inserts **pressed into printed plastic** to receive the M3×10 machine screws above.                                                                                                                                                                                 | **installed in §2**: 8 in the two `yoke_pitch` flanges, 4 in the `pelvis` deck                                             |
@@ -84,19 +85,23 @@ servo at mechanical zero** (see §1).
 Notes: the **40 M3×6 are the servos' included horn screws**; only the idler
 (M3×8+washer / M3×10), self-tapping, M2.5 and heat-set hardware is separately
 sourced (the KADRICK M3 kit covers the machine screws, washers and inserts —
-[BOM](bom-sourced.md) items 8–15). The self-tapping counts (56× M3×8, 4× M3×12,
-8× M2.5×8) come from the dedicated self-tap packs. **Heat-set inserts total 12**
-— see §2 for where and how.
+[BOM](bom-sourced.md) items 8–15). Case self-tappers are **M2.5** (bench truth
+2026-07-28): 24 pan heads come from the uxcell B01KXTTSCI pack already on
+hand; the **32 flat-head M2.5×8 self-tappers must still be bought** (any
+90°-countersunk stainless pack). The old 56× M3×8 self-tap line is RETIRED —
+M3 does not fit the case holes. **Heat-set inserts total 12** — see §2.
 
 > The [BOM](bom-sourced.md) still lists the pre-yaw counts (32 M3×6, 52 M3×8
-> self-tap, 16 M3×10). The v3yaw truth is **40 / 56 / 20** — order accordingly.
+> self-tap, 16 M3×10). The v3yaw truth is **40 M3×6 / 20 M3×10 / 32 flat +
+> 24 pan M2.5×8 self-tap** — order accordingly.
 
-**Tools:** soldering iron with heat-set tip, M3/M2.5 hex drivers, small
-phillips/hex bit for self-tappers.
+**Tools:** soldering iron with heat-set tip, M3/M2.5 hex drivers, PH1
+Phillips for the M2.5 self-tappers.
 
 **Before committing plastic or torque**, run the verify-on-arrival checks from
 [hardware-order.md](hardware-order.md#verify-on-arrival-before-committing-plastic):
-servo case holes really take M3 self-tappers; idler screws don't bottom
+~~servo case holes really take M3 self-tappers~~ **RESOLVED 2026-07-28: they
+don't — the case holes take M2.5** (uxcell M2.5×8 driven on the bench); idler screws don't bottom
 (M3×8 + washer assumes the disc's 3.35 mm thread depth); driver-board holes
 match the tower (Ø2.75 on 58×23); GoPro fingers fit the 3.2 mm slots (print
 `gopro_base` alone first); the real battery passes the tower window.
@@ -162,9 +167,10 @@ machine screw later.
 ![Ankle servo into the foot pocket](assembly/step01_foot_servo.png)
 
 Drop the ankle servo into the foot pocket: **output end forward, cable aft**
-— the cable exits through the window in the heel bulkhead. **4× M3×8
-self-tapping** (2 per rear tab) through the two heel retention tabs into the
-ankle servo's Ø3.5 case holes (horn-face row −29, idler-face row −32.75). The
+— the cable exits through the window in the heel bulkhead. **4× M2.5×8
+FLAT-head self-tapping** (2 per rear tab), heads flush in the tab
+countersinks, through the two heel retention tabs into the
+ankle servo's case holes (horn-face row −29, idler-face row −32.75). The
 **low screw row drives through the top-side divots** in the sole shelf
 (design-review fix 2026-07-23 — pre-fix feet block the driver on the low
 row; reprint or hand-carve). Stick the
@@ -188,9 +194,10 @@ holes on both faces**. Two different printed parts meet at each servo:
 1. **The distal link forks onto the OUTPUT.** Horn side: **4× M3×6** into the
    horn (the servo's own screws). This link rotates with the horn — the moving
    side of the joint (§5).
-2. **The proximal link clamps the CASE**: **6× M3×8 self-tapping** into the
-   servo's Ø3.5 case holes — 4 on the horn-side face, 2 on the idler face. This
-   holds the servo body — the fixed side (§4).
+2. **The proximal link clamps the CASE**: **6× M2.5×8 flat-head self-tapping**
+   into the servo's case holes — 4 on the horn-side face, 2 on the idler face,
+   all heads FLUSH in countersinks. This holds the servo body — the fixed
+   side (§4).
 
 > **Idler side is bolted too** (both faces). The idler disc has the same Ø14
 > four-bolt pattern, and the fork bolts to it for a two-sided, bearingless
@@ -213,10 +220,13 @@ holes on both faces**. Two different printed parts meet at each servo:
 
 `leg_link` is both thigh and shin (same part). Slide the grip channel onto
 the servo case **from the front**, just below the horn — the horn-side plate
-has a circular relief that clears the Ø19.6 output boss. **6× M3×8 self-tapping**
-per link — 4 on the horn-side face (rows 8.3 / 29), 2 on the idler face (row
-32.75) — into the servo case's Ø3.5 holes. The shin grips the **knee** servo;
-the thigh grips the **hip-pitch** servo.
+has a circular relief that clears the Ø19.6 output boss. **6× M2.5×8 FLAT-head
+self-tapping** per link — 4 on the horn-side face (rows 8.3 / 29), 2 on the
+idler face (row 32.75) — heads FLUSH in the countersinks. Flush is not
+cosmetic: the yoke/fork arm of the joint above sweeps 0.7 mm off the
+horn-plate face, and proud pan heads there skewed the links on the bench
+(2026-07-28). The shin grips the **knee** servo; the thigh grips the
+**hip-pitch** servo.
 
 ## 5. Close each joint — fork to horn + idler
 
@@ -271,8 +281,9 @@ Each yaw servo lies **flat**, output axis **vertical, horn DOWN**, its **case
 length fore-aft** (output/near end forward at +10, cable end aft over the deck
 rear edge). Press it **up** into its collar on the deck underside — the collar
 wraps the top of the case and keys it against the yaw reaction torque. The
-idler-side case face lands flat on the deck. Fix the stator with **4× M3×8
-self-tapping down through the deck** into the idler-side case-hole rows — 2 into
+idler-side case face lands flat on the deck. Fix the stator with **4× M2.5×8
+pan self-tapping down through the deck** (heads sink into the deck-top
+counterbores — the battery sits on that surface) into the idler-side case-hole rows — 2 into
 row 8.30 (through the deck), 2 into row 32.75 (through the local rear tab that
 overhangs the case cable end). The seat is **not flat** (measured from the
 vendor STEP + a physical servo, 2026-07-24): a **Ø21.5 pocket** in the deck
@@ -315,9 +326,10 @@ ceiling slot is gone).
 > to clear the plug bodies — nothing seats on that bar. If a carrier came off
 > the plain `yaw_carrier.stl`, check that bar for sag before plugging in.
 
-**8× M3×8 self-tapping per bay** — 4 through the front
-(horn) wall, 4 through the rear (idler) wall — into the roll servo's Ø3.5
-case holes.
+**8× M2.5×8 pan self-tapping per bay** — 4 through the front
+(horn) wall, 4 through the rear (idler) wall — into the roll servo's
+case holes (heads proud of the walls; the audit clears them through the
+full roll ROM).
 
 ## 8. Legs onto the carriers
 

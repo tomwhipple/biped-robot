@@ -77,8 +77,36 @@ IDLER_CENTER_RELIEF_D = 7.5
 CASE_HOLES_TOP = (8.30, 29.00)     # horn-side face
 CASE_HOLES_BOT = (8.30, 32.75)     # idler-side face
 CASE_HOLE_LAT = 10.25
-CASE_SCREW_PILOT = 2.8             # in printed part: M3 self-tap clearance-ish
-CASE_SCREW_CLEAR = 3.4             # where the screw just passes through
+# Case-mount screws -- BENCH TRUTH 2026-07-28: the ST3215 case holes take
+# M2.5, NOT the M3 the community wiki suggested ("3mm is too wide of a
+# screw" -- user, after driving them). Sourced: uxcell M2.5x8 pan-head
+# Phillips self-tapping, stainless (Amazon B01KXTTSCI, 50 pcs).
+# Head treatment splits by where the head lives:
+#   PAN, proud       -- free space beside the head (foot tabs, carrier walls)
+#   PAN, counterbored-- thick material available (pelvis deck: battery sits
+#                       on the deck top, so the stator heads sink sub-flush)
+#   FLAT, FLUSH (90 deg countersink) -- the leg_link GRIP plates. A pan head
+#     there is geometrically unrecoverable: the yoke/fork arm of the joint
+#     above sweeps 0.70 mm off the horn-plate face (measured overlap up to
+#     25.5 mm3 from hip +/-60 deg on -- the bench "link skew"), and sinking a
+#     2.0 mm pan head under a 0.5 buffer leaves a <0.8 mm web (unprintable).
+#     A flat head sits flush: 0.70 mm running buffer, >=1.15 mm wall left.
+#     HARDWARE: 24x M2.5x8 FLAT-head self-tappers to buy (not yet on hand).
+CASE_SCREW_PILOT = 2.05            # M2.5 self-tap pilot in printed plastic
+CASE_SCREW_CLEAR = 2.9             # where the screw just passes through
+CASE_HEAD_D = 5.0                  # pan head dia (uxcell class)
+CASE_HEAD_H = 2.0                  # pan head height, DESIGN MAX -- measure;
+                                   # DIN 7985 M2.5 is 1.80, ISO 7045 ~1.95
+CASE_FLAT_D = 4.7                  # M2.5 flat (countersunk) head dia, 90 deg
+CASE_CS_D = 5.4                    # countersink mouth: flat head 4.7 + 0.7
+CASE_CS_DEPTH = (CASE_CS_D - CASE_SCREW_CLEAR) / 2   # 1.25 (90 deg cone)
+DECK_CB_D = CASE_HEAD_D + 0.8      # 5.8 deck-top counterbore over pan heads
+DECK_CB_DEPTH = CASE_HEAD_H + 0.3  # 2.3: head 0.3 sub-flush under the battery
+M3_ST_PILOT = 2.8                  # M3 self-tap pilot (tower gopro bosses)
+# other fastener heads (for the head-clearance audit + STEP fastener models)
+M3_HEAD_D, M3_HEAD_H = 5.7, 1.65   # M3 button head (KADRICK kit + servo M3x6)
+M3_WASHER_D, M3_WASHER_T = 7.0, 0.5  # thin washer under the idler M3x8
+M25_HEAD_D, M25_HEAD_H = 4.5, 1.7  # M2.5 machine pan (driver board / IMU)
 
 SERVO_MASS = 55.0       # g
 
@@ -532,5 +560,19 @@ TOP_Z_YAW = TOP_Z + YAW_STACK_DROP                   # 359.8 overall (v3yaw)
 # (~1.27 g/mm^3); PLA would be 1.24e-3 if you switch back.
 FILAMENT_RHO = 1.27e-3  # g/mm^3 (PETG)
 PRINT_MASS_FACTOR = 0.90  # thin-walled parts print near-solid; grid infill on thick
+
+# ----------------------------------------------------------------------------
+# joint ranges of motion, deg (SOURCE: sim/bimo_biped_v3yaw.xml joint ranges --
+# the plant policy trains against these, so CAD must clear them). Interference
+# checks probe BOTH extremes of every joint and require SWEEP_BUFFER of air
+# between relatively-moving bodies (user call 2026-07-28).
+ROM = {
+    "hip_yaw": (-45.0, 45.0),
+    "hip_roll": (-25.0, 25.0),
+    "hip_pitch": (-110.0, 60.0),
+    "knee": (-95.0, 5.0),
+    "ankle": (-40.0, 40.0),
+}
+SWEEP_BUFFER = 0.5      # mm of clearance required at the ROM extremes
 
 BED = 220.0             # print bed (square)

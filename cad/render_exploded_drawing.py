@@ -23,7 +23,8 @@ Run:
 
 Excluded (electronic, per spec): wires / leads / zip-ties. Counts reconcile with
 the docs/assembly.md §0 fastener table (M3×6 = 38 used, idler M3×8+washer = 24,
-M3×10 = 20, M3×8 self-tap = 56, M3×12 = 4, M2.5×8 = 8, heat-set = 12, M5×20 = 1,
+M3×10 = 20, M2.5×8 flat self-tap = 32, M2.5×8 pan self-tap = 24, M3×12 = 4,
+M2.5×8 machine = 8, heat-set = 12, M5×20 = 1,
 spline = 10, rubber pad = 2).
 
 Idler-side screws are drawn as NORMAL hardware: through-holes are the confirmed
@@ -590,7 +591,7 @@ def joint():
         # both exploded well clear of the fork plate into open space
         ("washer", (0, D.SV_IDLER_FACE - 48, r), "y-", "washer", 1, 0),
         ("idlerscrew", (0, D.SV_IDLER_FACE - 62, r), "y-", "screw", 4, 8),
-        # 6X M3×8 self-tap case grips (into the adjacent link)
+        # 6X M2.5×8 FLAT self-tap case grips (flush; into the adjacent link)
         ("casegrip", (D.CASE_HOLE_LAT, D.SV_TOPFACE + 24, -8.3), "y+", "selftap", 6, 8),
     ]
     cl = [((0, -60, 0), (0, 90, 0)), ((-40, 0, 0), (128, 0, 0))]
@@ -601,7 +602,7 @@ def joint():
         ("spline", ["SPLINE SCREW", "horn onto shaft (§1)"], "R"),
         ("idlerscrew", ["4X M3×8 + WASHER", "into the idler disc", "(same Ø14 pattern)"], "L"),
         ("idler_disc", ["IDLER DISC", "free-spinning; same", "Ø14 pattern"], "L"),
-        ("casegrip", ["6X M3×8 SELF-TAP", "case grip (into the", "adjacent link)"], "R"),
+        ("casegrip", ["6X M2.5×8 FLAT S-TAP", "case grip, heads FLUSH", "(bench skew fix)"], "R"),
     ]
     return render(items, cl, "FIGURE J — TYPICAL LEG JOINT (KNEE)  ·  all hardware",
                   "exploded_joint.svg", callouts_raw=callouts, fasteners=fasteners)
@@ -620,24 +621,24 @@ def hip_yaw():
     ]
     r = D.BCD / 2
     fasteners = [
-        # 4X M3×8 self-tap yaw stators, down through the deck (exploded up)
+        # 4X M2.5×8 pan self-tap yaw stators, down through the deck (exploded up)
         ("ys", (-D.YAW_CASE_HOLES_IDLER[0], by + D.CASE_HOLE_LAT, DECK + 46), "z+", "selftap", 4, 8),
         # 4X M3×6 carrier -> yaw horn (O14 circle)
         ("ch", (0, by + r, D.HIP_YAW_Z - 22), "z-", "screw", 4, 6),
         ("yaw_spline", (0, by, D.HIP_YAW_Z - 40), "z-", "spline", 1, 4),
-        # 8X M3×8 self-tap roll servo into the carrier bay walls (exploded sideways)
+        # 8X M2.5×8 pan self-tap roll servo into the carrier bay walls (exploded sideways)
         ("rb", (0, by + D.CASE_HOLE_LAT + 26, D.HIP_YAW_Z + D.CARRIER_ROLL_AXIS + 4),
          "y+", "selftap", 8, 8),
     ]
     cl = [((0, by, D.HIP_ROLL_Z - 120), (0, by, DECK + 92))]
     callouts = [
         ("PELVIS", ["PELVIS", "deck + 2 flat yaw seats"], "L"),
-        ("ys", ["4X M3×8 SELF-TAP", "down through deck ->", "case idler rows"], "L"),
+        ("ys", ["4X M2.5×8 PAN S-TAP", "down through deck ->", "case idler rows"], "L"),
         ("YAW SERVO", ["YAW SERVO  STS3215", "flat, horn DOWN"], "R"),
         ("yaw_idler", ["YAW IDLER DISC", "(against deck)"], "R"),
         ("ch", ["4X M3×6 -> yaw horn", "(O14 bolt circle)"], "R"),
         ("YAW_CARRIER", ["YAW_CARRIER", "holds the roll bay"], "L"),
-        ("rb", ["8X M3×8 SELF-TAP", "roll servo into the", "carrier bay walls"], "R"),
+        ("rb", ["8X M2.5×8 PAN S-TAP", "roll servo into the", "carrier bay walls"], "R"),
         ("ROLL SERVO", ["ROLL SERVO  STS3215", "slides UP into carrier"], "L"),
     ]
     return render(items, cl, "FIGURE Y — HIP-YAW STACK (v3yaw)  ·  all hardware",
@@ -690,11 +691,11 @@ def upper_leg():
     cl = [((0, by, D.KNEE_Z - 312), (0, by, DECK + 112))]
     callouts = [
         ("PELVIS", ["PELVIS", "deck + flat yaw seat"], "L"),
-        ("ys", ["4X M3x8 SELF-TAP", "deck -> yaw case"], "L"),
+        ("ys", ["4X M2.5x8 PAN S-TAP", "deck -> yaw case"], "L"),
         ("YAW SERVO", ["HIP YAW  STS3215", "flat, horn DOWN"], "R"),
         ("ch", ["4X M3x6 -> yaw horn"], "R"),
         ("YAW_CARRIER", ["YAW_CARRIER", "carries the roll bay"], "L"),
-        ("rb", ["8X M3x8 SELF-TAP", "roll servo -> bay walls"], "R"),
+        ("rb", ["8X M2.5x8 PAN S-TAP", "roll servo -> bay walls"], "R"),
         ("ROLL SERVO", ["HIP ROLL  STS3215", "slides UP into carrier"], "L"),
         ("YOKE_ROLL", ["YOKE_ROLL", "roll horn+idler ->", "flange onto yoke_pitch"], "R"),
         ("fl", ["4X M3x10 -> HEAT-SETS", "yoke_roll flange down", "into yoke_pitch"], "R"),
@@ -810,7 +811,8 @@ def full():
         ("15", "24", "M3 thin washer (idler)"),
         ("16", "8", "M3×6 button — hip-roll horns"),
         ("17", "8", "M3×10 button — hip-roll idler"),
-        ("18", "56", "M3×8 self-tap — case grips + stators"),
+        ("18", "32", "M2.5×8 FLAT self-tap — grips + feet (flush)"),
+        ("18b", "24", "M2.5×8 pan self-tap — stators + bay walls"),
         ("19", "12", "M3 heat-set insert (Ø4.6)"),
         ("20", "8", "M3×10 button — yoke flange -> inserts"),
         ("21", "4", "M3×10 button — tower feet -> deck"),

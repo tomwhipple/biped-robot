@@ -8,7 +8,10 @@ kinematics of `sim/bimo_biped.xml` with **10× Feetech STS3215** bus servos
 cad/
 ├── dimensions.py      # ALL dimensions (single source of truth) + servo datasheet notes
 ├── parts.py           # part builders; exports STLs + STEPs + BOTH assemblies
+├── fasteners.py       # every screw as a solid, in its host part's frame --
+│                      #   feeds the head-clearance audit AND the assembly STEPs
 ├── check_assembly.py  # boolean interference checks over the full joint ranges
+│                      #   (both ROM extremes + 0.5 mm sweep buffer, screws aboard)
 ├── export_step.py     # DEPRECATED shim -> parts.py (which now writes STEPs too)
 ├── export_assembly.py # assembled robot -> cad/step/assembly.step (+ camera mock)
 ├── dress.py           # posable dressed robot: + cables, zip ties, board, pigtail

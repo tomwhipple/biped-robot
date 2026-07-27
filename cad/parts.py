@@ -96,6 +96,18 @@ def wedge_y(pts_xz, y0, y1):
     return Pos(0, lo - s.bounding_box().min.Y, 0) * s
 
 
+def csk_y(x, z, y_face, sign):
+    """90-deg countersink void for an M2.5 FLAT-head self-tapper (CASE_CS_D
+    mouth), mouth on the face at y_face opening toward sign*Y, apex meeting
+    the CASE_SCREW_CLEAR bore at CASE_CS_DEPTH. 0.3 overshoot past the face.
+    45-deg walls: prints self-supporting even as a horizontal bore."""
+    h = D.CASE_CS_DEPTH + 0.3
+    rot = Rot(-90, 0, 0) if sign > 0 else Rot(90, 0, 0)
+    mid = y_face + sign * (0.3 - h / 2)
+    return Pos(x, mid, z) * rot * Cone(D.CASE_SCREW_CLEAR / 2,
+                                       D.CASE_CS_D / 2 + 0.3, h)
+
+
 def bcd_y(y0, y1, x, z, roll=0):
     """4x M3 clearance holes (horn/idler bolt circle) along Y at pad (x, z).
     Teardropped (roll = print-up, see teardrop_y): these bores are horizontal
@@ -271,15 +283,22 @@ def leg_link(print_fins=False):
     # jog block joining horn grip plate (out at 19.75) to fork plate (21.45+)
     p += box(web_x0, 12, D.SV_TOPFACE, hy1, -36.5, -33)
     p += box(web_x0, 12, iy0, -D.SV_TOPFACE, -36.5, -33)
-    # --- holes: case grip screws (M3 into the servo case holes); teardropped
-    # with the peak +x (this part prints web-down, print-up = model +x)
+    # --- holes: case grip screws (M2.5 FLAT-head self-tap into the servo case
+    # holes -- bench truth 2026-07-28, M3 is too wide); teardropped with the
+    # peak +x (this part prints web-down, print-up = model +x). Every grip
+    # hole is COUNTERSUNK so the head sits FLUSH: the yoke/fork arm of the
+    # joint above sweeps just 0.70 mm off the horn-plate outer face, and a
+    # proud pan head there rode the arm and skewed the link on the bench
+    # (25.5 mm3 overlap from hip +/-60 deg on -- see check_assembly).
     for zrow in D.CASE_HOLES_TOP:                 # horn-side face rows
         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
             p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1,
                             D.SV_TOPFACE + t + 1, lx, -zrow, roll=90)
+            p -= csk_y(lx, -zrow, D.SV_TOPFACE + t, +1)
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):   # idler face: row 32.75 only
         p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, -D.SV_TOPFACE - D.PLATE - 1,
                         -D.SV_TOPFACE + 1, lx, -D.CASE_HOLES_BOT[1], roll=90)
+        p -= csk_y(lx, -D.CASE_HOLES_BOT[1], iy0, -1)
     # --- holes: lower joint pads
     # idler bolt circle drilled from the fork OUTER face (iy0) through to the
     # horn side -- BUGFIX 2026-07-23 (was SV_IDLER_FACE-1, leaving the idler fork
@@ -354,7 +373,7 @@ def yaw_carrier(print_fins=False):
     +X = robot forward = roll-servo output side, +Z toward the servo. The roll
     bay hangs below (roll axis at CARRIER_ROLL_AXIS); the roll servo slides UP
     into it exactly as it did into the old pelvis bay (output end down, horn
-    forward, 8x M3 through the walls) -- BAY_BORE / BAY_WALL_DROP / cheeks /
+    forward, 8x M2.5 through the walls) -- BAY_BORE / BAY_WALL_DROP / cheeks /
     U-slot are unchanged, just relocated. Print: like the old pelvis bay --
     horn-plate face on the bed, walls rise (RX180), U-slot prints upward-open.
     SLICE yaw_carrier_print.stl -- print_fins=True adds the break-away breakout
@@ -473,11 +492,17 @@ def pelvis():
             # on collar material (the -x feet already sit over the case span)
             p += box(cx0, D.YAW_FOOT_REACH, by + s * cyw, by + s * (cyw + w),
                      zseat, zd)
-        # stator screws: 4x M3 DOWN through the deck (+ rear tab) into the
-        # idler-side case face rows (8.30 and 32.75 behind the axis). Vertical.
+        # stator screws: 4x M2.5 pan self-tap DOWN through the deck (+ rear
+        # tab) into the idler-side case face rows (8.30 and 32.75 behind the
+        # axis). Vertical. COUNTERBORED from the deck top: the battery pack
+        # sits flat on the deck and its footprint covers the -8.30 row heads
+        # (audit 2026-07-28) -- sink all 8 sub-flush. Printed deck-top-down,
+        # the O5.8 -> O2.9 step is a standard short counterbore bridge.
         for xrow in D.YAW_CASE_HOLES_IDLER:
             for s in (1, -1):
                 p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zd - 1, 1,
+                           -xrow, by + s * D.CASE_HOLE_LAT)
+                p -= cyl_z(D.DECK_CB_D / 2, -D.DECK_CB_DEPTH, 1,
                            -xrow, by + s * D.CASE_HOLE_LAT)
         # --- idler-face interface, from the measured SV_IDLER/SV_CONN truth ---
         # (1) disc + hub CLEARANCE POCKET: the idler disc (O19.2, +0.27 proud)
@@ -525,7 +550,7 @@ def foot():
     """Sole plate + ankle-servo pocket. Local frame: ankle axis vertical
     projection at origin, +X = toe, z=0 at the sole bottom. Servo lies on its
     side (horn +Y), output end forward at +10.11, cable end at the heel.
-    Retention: 4x M3 through the two rear tabs into the case holes + front
+    Retention: 4x M2.5 through the two rear tabs into the case holes + front
     end stop. Sole underside is FLAT (no bridge); glue a thin TPU/rubber pad on.
     v3 heel: the two retention tabs are tied into a heel BULKHEAD behind the
     servo (cable window on top), closing each free-standing blade into a
@@ -567,14 +592,23 @@ def foot():
     # window, thinning to a single filament: check_printability THIN.
     p -= box(-D.FOOT_HEEL - 1, bx1 + 1, -D.FOOT_CABLE_W / 2, D.FOOT_CABLE_W / 2,
              D.FOOT_CABLE_Z, zp + D.FOOT_WALL_H + 1)
-    p += box(px1, px1 + D.WALL, -py, py, zp, zp + 8)
+    # front end stop: +/-15 spans the whole 24.72 case but stops 3.0 short of
+    # the fork idler plate's y=-18 plane -- full pocket width (+/-17.65) left
+    # only 0.35 to the fork's front corner at ankle +40 (audit 2026-07-28)
+    p += box(px1, px1 + D.WALL, -15.0, 15.0, zp, zp + 8)
     # retention screw holes: horn face row 29.0 (+Y), idler face row 32.75 (-Y);
-    # teardropped (horizontal bores printed sole-down, peak +z)
+    # M2.5 FLAT-head self-tap (bench truth 2026-07-28: the case holes take
+    # M2.5, not M3); teardropped (horizontal bores printed sole-down, peak +z).
+    # COUNTERSUNK flush: a proud pan head on the +Y tab was exactly tangent to
+    # the shin fork blade at ankle -40 (audit 2026-07-28) -- same class as the
+    # leg_link skew. The divots stay: the driver still needs them (LOW row).
     for zh in (2.11, 22.61):
-        p -= teardrop_y(D.M3_CLEAR / 2, py - 1, py + D.FOOT_WALL_T + 1,
+        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, py - 1, py + D.FOOT_WALL_T + 1,
                         -29.0, zp + zh)
-        p -= teardrop_y(D.M3_CLEAR / 2, -py - D.FOOT_WALL_T - 1, -py + 1,
+        p -= csk_y(-29.0, zp + zh, py + D.FOOT_WALL_T, +1)
+        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, -py - D.FOOT_WALL_T - 1, -py + 1,
                         -32.75, zp + zh)
+        p -= csk_y(-32.75, zp + zh, -py - D.FOOT_WALL_T, -1)
     # driver-access DIVOTS for the LOW retention row (z = zp+2.11 = 6.11, at the
     # sole top): the sole shelf outboard of the tabs blocks the head + Y-driver
     # (user report / probe 2026-07-23). Relieve the shelf TOP over each low screw
@@ -675,7 +709,7 @@ def tower():
     for sx in (gx, -gx):
         for sy in (gy, -gy):
             p += cyl_z(4.0, zt0 - 3, zt0, sx, sy)
-            p -= cyl_z(D.CASE_SCREW_PILOT / 2, zt0 - 4, zt1 + 1, sx, sy)
+            p -= cyl_z(D.M3_ST_PILOT / 2, zt0 - 4, zt1 + 1, sx, sy)
     # wire / vent holes (clear of the 30 x 24 GoPro base footprint)
     for sy in (20, -20):
         p -= cyl_z(5, zt0 - 1, zt1 + 1, 0, sy)

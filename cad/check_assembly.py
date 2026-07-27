@@ -6,6 +6,7 @@ Run:  .venv/bin/python cad/check_assembly.py
 from build123d import *
 import dimensions as D
 import parts
+import fasteners as F
 
 
 def servo_mock_y():
@@ -78,6 +79,18 @@ def require(label, v, floor_mm3):
     return v >= floor_mm3
 
 
+def clearance(label, a, b, need=D.SWEEP_BUFFER):
+    """Minimum distance between two bodies that MOVE relative to each other:
+    volume==0 only proves they don't overlap, not that they'd survive print
+    tolerance + joint play. ROM extremes get SWEEP_BUFFER of real air (user
+    call 2026-07-28). Designed FITS (boss-in-bore, seat collars) are exempt
+    -- a slip fit is supposed to be closer than the buffer."""
+    d = a.distance_to(b)
+    print(f"  {label:58s} {d:8.2f} mm   "
+          f"{'OK' if d >= need else '** UNDER BUFFER **'}")
+    return d >= need
+
+
 
 def main():
     """Run every interference check. Behind a main() since 2026-07-27: this
@@ -129,6 +142,18 @@ def main():
         hip = Pos(0, 0, roll_axis) * Rot(ang, 0, 0) * hip
         ok &= check(f"hip assy at roll {ang:+d} vs carrier", vol(yc, hip))
         ok &= check(f"hip assy at roll {ang:+d} vs roll servo", vol(hip, roll_sv))
+    # buffer at the roll ROM extremes. The yoke_roll idler boss is EXCLUDED:
+    # its 0.3 radial slip in the bay bore is the designed bearing fit, and a
+    # 0.5 buffer would (correctly, uselessly) flag it. Everything else --
+    # arms, flange, screws, the carried yoke_pitch -- gets the full buffer.
+    yr_nb = yr - parts.cyl_x(10.5, -20.96, -16.7, 0, 0)
+    hip_pr = yr_nb + F.disc_screws_x() + F.flange_bolts() \
+        + Pos(0, 0, -D.ROLL_TO_PITCH) * (yp + F.disc_screws_y())
+    carrier_scr = yc + F.yaw_carrier_screws()
+    for ang in D.ROM["hip_roll"]:
+        ok &= clearance(f"buffer: roll {ang:+.0f}: hip stack vs carrier+screws",
+                        carrier_scr,
+                        Pos(0, 0, roll_axis) * Rot(ang, 0, 0) * hip_pr)
 
     print("== HIP YAW (v3yaw): yaw servo + carrier + roll servo vs pelvis / other leg ==")
     YAW_MID = D.YAW_IDLER_FACE_Z - D.SV_TOPFACE          # -22.35, mock mid in pelvis frame
@@ -152,62 +177,93 @@ def main():
     # both carriers yawed INWARD (worst mutual approach at the design +/-45 sweep)
     ok &= check("both carriers yawed inward 45 vs each other",
                 vol(yaw_stack(D.HIP_SEP / 2, -45), yaw_stack(-D.HIP_SEP / 2, 45)))
+    # buffer at the yaw ROM extremes, wall-screw heads aboard (the yaw servo
+    # is excluded: the carrier plate CONTACTS its horn face by design)
+    def yaw_stack_scr(by, yaw):
+        c = yc + F.yaw_carrier_screws() \
+            + Pos(0, 0, D.CARRIER_ROLL_AXIS) * servo_mock_x()
+        return Pos(0, by, D.YAW_HORN_FACE_Z) * Rot(0, 0, yaw) * c
+    pv_scr = pv + F.deck_stator_screws()
+    for yaw in D.ROM["hip_yaw"]:
+        ok &= clearance(f"buffer: yaw {yaw:+.0f}: carrier stack vs pelvis",
+                        pv_scr, yaw_stack_scr(D.HIP_SEP / 2, yaw))
+    ok &= clearance("buffer: both stacks yawed inward 45",
+                    yaw_stack_scr(D.HIP_SEP / 2, -45),
+                    yaw_stack_scr(-D.HIP_SEP / 2, 45))
 
-    print("== servo CASE-SCREW HEADS vs the yokes that sit beside them ==")
-    # The servo's 6 case-grip screws stand 1.65 mm proud of its case faces at
-    # radius hypot(10.25, 8.30) = 13.19 -- so their heads reach IN to radius 10.34.
-    # Anything centred on the joint axis and wider than that fouls them. PAD_D was
-    # 24 (radius 12) and buried 1.66 mm into them: 18.92 mm3 on yoke_pitch's drive
-    # side, 7.45 mm3 on yoke_roll's. Found on the bench 2026-07-27, not here.
-    #
-    # Only the SIX FITTED screws are modelled (leg_link's grips: both horn-face
-    # rows, plus idler-face row CASE_HOLES_BOT[1]) -- the servo has other case
-    # holes that take no screw, and counting those invents clashes. leg_link
-    # itself is excluded: the screws pass THROUGH it, so its heads sit on its
-    # outer face by design.
-    _HD, _HH = 5.7, 1.65
-    def _case_heads(axis):
-        h = None
-        for row in D.CASE_HOLES_TOP:                       # horn face, heads out
-            for lat in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-                c = (Pos(lat, D.SV_HORN_FACE + _HH/2, -row) * Rot(90, 0, 0) if axis == "y"
-                     else Pos(D.SV_HORN_FACE + _HH/2, lat, row) * Rot(0, 90, 0)) \
-                    * Cylinder(_HD/2, _HH)
-                h = c if h is None else h + c
-        for lat in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):    # idler face, one row
-            c = (Pos(lat, D.SV_IDLER_FACE - _HH/2, -D.CASE_HOLES_BOT[1]) * Rot(90, 0, 0)
-                 if axis == "y"
-                 else Pos(D.SV_IDLER_FACE - _HH/2, lat, D.CASE_HOLES_BOT[1]) * Rot(0, 90, 0)) \
-                * Cylinder(_HD/2, _HH)
-            h = h + c
-        return h
-    ok &= check("yoke_pitch vs the 6 fitted case-screw heads",
-                vol(parts.yoke_pitch(), _case_heads("y")))
-    ok &= check("yoke_roll vs the 6 fitted case-screw heads",
-                vol(parts.yoke_roll(), _case_heads("x")))
-    _pad_r, _head_in = D.PAD_D / 2, 13.19 - _HD / 2
-    print(f"  {'pad radius under the case-screw head reach':58s} {_pad_r:8.2f} mm   "
-          f"{'OK' if _pad_r <= _head_in else '** TOO WIDE **'}")
-    ok &= _pad_r <= _head_in
+    print("== FASTENERS seated in their own parts (recesses swallow the heads) ==")
+    # Every screw is now a real solid (fasteners.py) placed in its host part's
+    # frame. A screw fully swallowed by its clearance hole + countersink /
+    # counterbore intersects its host at 0 mm3 -- so this one boolean per part
+    # verifies hole diameters, countersink depths AND counterbore depths at
+    # once. History: fasteners used to exist only as symbols in the docs, and
+    # that blindness cost three bench finds (yaw-horn heads vs roll servo,
+    # PAD_D vs grip heads, and the 2026-07-28 leg-link skew below).
+    grip = F.leg_link_screws()
+    ok &= check("leg_link vs its 6 flush grip screws", vol(ll, grip))
+    ok &= check("pelvis vs 8 counterbored stator screws", vol(pv, F.deck_stator_screws()))
+    ok &= check("yaw_carrier vs its 12 screws", vol(yc, F.yaw_carrier_screws()))
+    ok &= check("yoke_pitch vs its 8 disc screws", vol(yp, F.disc_screws_y()))
+    ok &= check("yoke_roll vs disc screws + flange bolts",
+                vol(yr, F.disc_screws_x()) + vol(yr, F.flange_bolts()))
+    ft = parts.foot()
+    ok &= check("foot vs its 4 tab screws", vol(ft, F.foot_screws()))
+    ok &= check("tower vs feet + board screws", vol(parts.tower(), F.tower_screws()))
+    # deck-top counterbore must sink the pan head sub-flush: the battery pack
+    # sits flat on the deck and its footprint covers the -8.30 stator row
+    _batt = parts.box(D.BATT_SEAT_X, D.BATT_SEAT_X + D.BATT[1],
+                      -D.BATT[0] / 2, D.BATT[0] / 2, 0, D.BATT[2])
+    ok &= check("battery footprint vs stator screw heads",
+                vol(_batt, F.deck_stator_screws()))
+    _sink = D.DECK_CB_DEPTH - D.CASE_HEAD_H
+    print(f"  {'stator head below deck top (cb depth - head height)':58s} "
+          f"{_sink:8.2f} mm   {'OK' if _sink >= 0.2 else '** PROUD **'}")
+    ok &= _sink >= 0.2
 
-    print("== yaw-horn SCREW HEADS vs the roll servo inside the bay ==")
-    # The 4x yaw-horn bolts pass UP through the carrier's mount plate into the horn
-    # disc, so their HEADS sit proud of the bay ceiling -- pointing straight at the
-    # roll servo's rear face. Before CARRIER_ROLL_HEAD_CLEAR the servo was flush
-    # against that ceiling (0.00 mm gap) and the heads buried 168 mm3 into it.
-    # Nothing caught it: every other check here compares PRINTED PARTS, and a
-    # fastener that only exists as a symbol in the drawings is invisible to them.
-    _HEAD_D, _HEAD_H = 5.7, 1.65                       # M3 button head
+    print("== GRIP-SCREW HEADS vs the arms that sweep them (the bench skew) ==")
+    # 2026-07-28 bench find: the thigh links SKEWED on their servos. Cause: a
+    # proud pan head (O5.0 x 2.0) on the horn grip plate sits in the 0.70 mm
+    # band the yoke/fork arm above sweeps through -- overlap reached 25.5 mm3
+    # from hip +/-60 deg on, so the arm rode the heads and pried the link
+    # sideways. Fix: 90-deg countersinks + M2.5 FLAT-head self-tappers, heads
+    # flush; these checks hold the whole ROM plus the SWEEP_BUFFER.
+    lo, hi = D.ROM["hip_pitch"]
+    for ang in (lo, -95, -60, 0, hi):
+        ok &= check(f"grip screws at hip {ang:+.0f} vs yoke_pitch",
+                    vol(yp, Rot(0, ang, 0) * grip))
+    for ang in (lo, hi):
+        ok &= clearance(f"buffer: grip screws at hip {ang:+.0f} vs yoke_pitch",
+                        yp, Rot(0, ang, 0) * grip)
+    # same story one joint down: the thigh's fork arms sweep the SHIN's grip
+    # screws through the knee ROM (worst-case fork profile from the arm block)
+    knee_arms = arm_h + arm_i + F.disc_screws_y()
+    for ang in D.ROM["knee"]:
+        ok &= check(f"grip screws at knee {ang:+.0f} vs fork arms+discs",
+                    vol(Rot(0, ang, 0) * knee_arms, grip))
+        ok &= clearance(f"buffer: knee {ang:+.0f} arms+discs vs shin+grip",
+                        Rot(0, ang, 0) * knee_arms, ll + grip)
+
+    print("== yaw-horn + flange SCREW HEADS vs the roll servo ==")
+    # The 4x yaw-horn bolts pass UP through the carrier's mount plate into the
+    # horn disc, so their HEADS sit proud of the bay ceiling -- pointing at the
+    # roll servo's rear face (the original CARRIER_ROLL_HEAD_CLEAR find: the
+    # servo used to sit flush against that ceiling and the heads buried 168 mm3
+    # into it). The flange bolts point up at the servo's output end similarly.
+    # heads only: the WALL screws' shanks intentionally thread into the case
     _roll_sv = Pos(0, 0, D.CARRIER_ROLL_AXIS) * servo_mock_x()
-    _heads = None
-    for _dx, _dy in ((D.BCD/2, 0), (-D.BCD/2, 0), (0, D.BCD/2), (0, -D.BCD/2)):
-        _h = Pos(_dx, _dy, D.CARRIER_ROLL_CEIL - _HEAD_H/2) * Cylinder(_HEAD_D/2, _HEAD_H)
-        _heads = _h if _heads is None else _heads + _h
-    ok &= check("4X yaw-horn screw heads vs roll servo", vol(_heads, _roll_sv))
+    ok &= check("yaw-horn screws vs roll servo", vol(F.yaw_horn_screws(), _roll_sv))
     _gap = D.CARRIER_ROLL_CEIL - _roll_sv.bounding_box().max.Z
     print(f"  {'servo-top to bay-ceiling gap':58s} {_gap:8.2f} mm   "
-          f"{'OK' if _gap >= _HEAD_H else '** TOO TIGHT **'}")
-    ok &= _gap >= _HEAD_H
+          f"{'OK' if _gap >= D.M3_HEAD_H else '** TOO TIGHT **'}")
+    ok &= _gap >= D.M3_HEAD_H
+    ok &= clearance("buffer: flange bolt heads vs roll servo",
+                    F.flange_bolts(), servo_mock_x())
+    # carrier WALL screw pan heads reach IN to radius 13.19 - 5.0/2 = 10.69
+    # about the roll axis; the yoke_roll pads (r PAD_D/2) spin just inside them
+    _pad_r, _head_in = D.PAD_D / 2, 13.19 - D.CASE_HEAD_D / 2
+    print(f"  {'yoke pad radius under the wall-screw head reach':58s} "
+          f"{_pad_r:8.2f} mm   {'OK' if _pad_r <= _head_in else '** TOO WIDE **'}")
+    ok &= _pad_r <= _head_in
 
     print("== yoke_pitch vs thigh (leg_link + servo), hip -110/+60 (+5 margin) ==")
     # flexion is NEGATIVE here (knee swings toward +x). The full leg_link rides
@@ -217,6 +273,12 @@ def main():
     for ang in (0, -60, -95, -105, -110, -115, 60, 65):
         sv = Rot(0, ang, 0) * thigh_assy
         ok &= check(f"thigh assy at hip {ang:+d} deg", vol(yp, sv))
+    # buffer at the ROM extremes, printed+screws only (the servo is excluded:
+    # its discs CONTACT the yoke pads by design -- that's the bolted bearing)
+    yp_scr = yp + F.disc_screws_y()
+    for ang in D.ROM["hip_pitch"]:
+        ok &= clearance(f"buffer: hip {ang:+.0f}: yoke+discs vs thigh+grip",
+                        yp_scr, Rot(0, ang, 0) * (ll + grip))
     print("== deep flexion vs the stage above (yoke_roll, yaw_carrier, roll servo) ==")
     # v3yaw: the stage above the hip is the carrier (its roll bay), not the pelvis.
     for ang in (-110, -115):
@@ -228,7 +290,6 @@ def main():
                         vol(yc, hip_deep))
 
     print("== foot + ankle servo vs shin link at ankle -40..+40 ==")
-    ft = parts.foot()
     ankle_z = D.FOOT_T - D.FOOT_POCKET_D + 12.36        # 16.36 above sole bottom
     ankle_sv = Pos(0, 0, ankle_z) * Rot(0, 0, 0) * (
         # ankle servo: axis Y, length along X (output end forward +10.11), lying flat
@@ -238,6 +299,16 @@ def main():
         ok &= check(f"shin link at ankle {ang:+d} vs foot", vol(ft, sl))
         ok &= check(f"shin link at ankle {ang:+d} vs ankle servo", vol(sl, ankle_sv))
     ok &= check("ankle servo vs foot (contact only)", vol(ft, ankle_sv))
+    # buffer at the ankle ROM extremes, with every fastener aboard. need=0.35,
+    # not SWEEP_BUFFER: the fork horn arm passes 0.40 outside the foot wall by
+    # LOCKED design (FOOT_WALL_T comment) -- that band caps the achievable
+    # buffer at this joint and 0.5 would flag settled geometry.
+    shin_stack = Pos(0, 0, D.LINK_DROP) * (ll + grip) + F.disc_screws_y()
+    ft_scr = ft + F.foot_screws()
+    for ang in D.ROM["ankle"]:
+        ok &= clearance(f"buffer: ankle {ang:+.0f}: foot+screws vs shin+screws",
+                        Pos(0, 0, ankle_z) * Rot(0, ang, 0) * shin_stack,
+                        ft_scr, need=0.35)
 
     print("== ankle-servo CABLE connector vs shin fork through ankle ROM ==")
     # The lead plugs into the ankle servo's cable-end (the HEEL end face, X=-35.11).

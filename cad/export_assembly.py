@@ -11,6 +11,7 @@ import os
 from build123d import Pos, Rot, Compound, Color, export_step
 import dimensions as D
 import parts
+import fasteners as F
 import check_assembly as CA
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "step")
@@ -25,6 +26,7 @@ COL_SERVO = Color(0.25, 0.26, 0.30)
 COL_FOOT = Color(0.70, 0.72, 0.78)
 COL_CAM = Color(0.10, 0.10, 0.12)
 COL_BATT = Color(0.16, 0.30, 0.55)
+COL_STEEL = Color(0.55, 0.57, 0.62)     # fasteners (fasteners.py solids)
 
 TOWER_TOP_Z = DECK_TOP_Z + D.TOWER_H
 
@@ -80,6 +82,18 @@ def leg(y, tag):
         piece("servo_ankle", COL_SERVO,
               at(D.ANKLE_Z) * Rot(0, 90, 0) * CA.servo_mock_y()),
         piece("foot", COL_FOOT, at(D.TPU_PROUD) * parts.foot()),
+        # fasteners (fasteners.py; same frames as the parts they ride with)
+        piece("screws_yaw_stack", COL_STEEL,
+              Pos(0, y, D.HIP_YAW_Z) * F.yaw_carrier_screws()),
+        piece("screws_hip_roll", COL_STEEL, at(D.HIP_ROLL_Z) * F.disc_screws_x()),
+        piece("screws_flange", COL_STEEL, at(D.HIP_ROLL_Z) * F.flange_bolts()),
+        piece("screws_hip_pitch", COL_STEEL, at(D.HIP_PITCH_Z) * F.disc_screws_y()),
+        piece("screws_thigh_grip", COL_STEEL,
+              at(D.HIP_PITCH_Z) * F.leg_link_screws()),
+        piece("screws_knee", COL_STEEL, at(D.KNEE_Z) * F.disc_screws_y()),
+        piece("screws_shin_grip", COL_STEEL, at(D.KNEE_Z) * F.leg_link_screws()),
+        piece("screws_ankle", COL_STEEL, at(D.ANKLE_Z) * F.disc_screws_y()),
+        piece("screws_foot", COL_STEEL, at(D.TPU_PROUD) * F.foot_screws()),
     ])
 
 
@@ -97,6 +111,10 @@ robot = Compound(label="bimo_biped", children=[
           Pos(0, 0, TOWER_TOP_Z + D.IMU_CARRIER_T) * parts.gopro_base()),
     piece("camera_gopro_max_mock", COL_CAM,
           Pos(0, 0, TOWER_TOP_Z + D.IMU_CARRIER_T) * camera_mock()),
+    piece("screws_deck", COL_STEEL, Pos(0, 0, DECK_TOP_Z) * F.deck_stator_screws()),
+    piece("screws_tower", COL_STEEL, Pos(0, 0, DECK_TOP_Z) * F.tower_screws()),
+    piece("screws_head_stack", COL_STEEL,
+          Pos(0, 0, TOWER_TOP_Z) * F.head_stack_screws()),
     leg(D.HIP_SEP / 2, "L"),
     leg(-D.HIP_SEP / 2, "R"),
 ])

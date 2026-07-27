@@ -30,6 +30,7 @@ from build123d import (Pos, Rot, Compound, Color, Circle, Cylinder, Plane,
 
 import dimensions as D
 import parts
+import fasteners as F
 import check_assembly as CA
 import export_assembly as A
 
@@ -256,6 +257,25 @@ def dressed_leg(ly, tag, roll=0.0, hip=0.0, knee=0.0, ankle=0.0):
         A.piece("servo_ankle", A.COL_SERVO,
                 L["foot"] * at(D.ANKLE_Z) * Rot(0, 90, 0) * CA.servo_mock_y()),
         A.piece("foot", A.COL_FOOT, L["foot"] * at(D.TPU_PROUD) * parts.foot()),
+        # fasteners ride the same pose transforms as their host parts
+        A.piece("screws_yaw_stack", A.COL_STEEL,
+                Pos(0, ly, D.HIP_YAW_Z) * F.yaw_carrier_screws()),
+        A.piece("screws_hip_roll", A.COL_STEEL,
+                L["yoke"] * at(D.HIP_ROLL_Z) * F.disc_screws_x()),
+        A.piece("screws_flange", A.COL_STEEL,
+                L["yoke"] * at(D.HIP_ROLL_Z) * F.flange_bolts()),
+        A.piece("screws_hip_pitch", A.COL_STEEL,
+                L["yoke"] * at(D.HIP_PITCH_Z) * F.disc_screws_y()),
+        A.piece("screws_thigh_grip", A.COL_STEEL,
+                L["thigh"] * at(D.HIP_PITCH_Z) * F.leg_link_screws()),
+        A.piece("screws_knee", A.COL_STEEL,
+                L["thigh"] * at(D.KNEE_Z) * F.disc_screws_y()),
+        A.piece("screws_shin_grip", A.COL_STEEL,
+                L["shin"] * at(D.KNEE_Z) * F.leg_link_screws()),
+        A.piece("screws_ankle", A.COL_STEEL,
+                L["shin"] * at(D.ANKLE_Z) * F.disc_screws_y()),
+        A.piece("screws_foot", A.COL_STEEL,
+                L["foot"] * at(D.TPU_PROUD) * F.foot_screws()),
         A.piece("cable_hip", COL_WIRE, segs[0]),
         A.piece("cable_thigh", COL_WIRE, segs[1]),
         A.piece("cable_shin", COL_WIRE, segs[2]),
@@ -296,6 +316,12 @@ def dressed_robot(roll=0.0, hip=0.0, knee=0.0, ankle=0.0):
         A.piece("camera_gopro_max_mock", A.COL_CAM,
                 Pos(0, 0, A.TOWER_TOP_Z + D.IMU_CARRIER_T)
                 * A.camera_mock()),
+        A.piece("screws_deck", A.COL_STEEL,
+                Pos(0, 0, DTOP) * F.deck_stator_screws()),
+        A.piece("screws_tower", A.COL_STEEL,
+                Pos(0, 0, DTOP) * F.tower_screws()),
+        A.piece("screws_head_stack", A.COL_STEEL,
+                Pos(0, 0, A.TOWER_TOP_Z) * F.head_stack_screws()),
         dressed_leg(D.HIP_SEP / 2, "L", roll, hip, knee, ankle),
         dressed_leg(-D.HIP_SEP / 2, "R", roll, hip, knee, ankle),
     ])
