@@ -70,6 +70,14 @@ def check(label, v, tol=1.0):
     return v <= tol
 
 
+def require(label, v, floor_mm3):
+    """Inverse of check(): material that MUST be present. A pocket that has
+    quietly lost its floor, or a screw boss with nothing to tap into, is just
+    as broken as a collision and check() would call it OK."""
+    print(f"  {label:58s} {v:8.2f} mm3  {'OK' if v >= floor_mm3 else '** MISSING **'}")
+    return v >= floor_mm3
+
+
 ok = True
 print("== leg_link vs its own (gripped) servo ==")
 ll = parts.leg_link()
@@ -206,5 +214,40 @@ for h, k in ((60, -95), (60, -60), (-60, -95), (-60, -60)):
     shin2 = Rot(0, h, 0) * Pos(0, 0, -D.LINK_DROP) * Rot(0, k, 0) * parts.leg_link()
     ok &= check(f"hip {h:+d} knee {k:+d}: upper arms vs shin link",
                 vol(arms2, shin2))
+
+print("== HEAD STACK: tower top / imu_carrier / gopro_base / IMU board ==")
+# Added 2026-07-27 after a real miss: raising the carrier tongue drove 2.5 mm
+# of material up into gopro_base and this script said ALL CLEAR, because it
+# only ever looked at leg kinematics. Everything above the pelvis was unchecked.
+carrier = parts.imu_carrier()
+gopro = Pos(0, 0, D.IMU_CARRIER_T) * parts.gopro_base()   # seats on the 3 mm pad
+tower_at_top = Pos(0, 0, -D.TOWER_H) * parts.tower()      # carrier z=0 = tower top
+ok &= check("imu_carrier vs gopro_base", vol(carrier, gopro))
+ok &= check("imu_carrier vs tower", vol(carrier, tower_at_top))
+ok &= check("gopro_base vs tower", vol(gopro, tower_at_top))
+
+# The IMU itself, seated in its pocket.
+_px, _py, _pt = D.IMU_PCB
+imu_pcb = Pos(0, D.IMU_CY, D.IMU_PCB_Z + _pt / 2) * Box(_px, _py, _pt)
+ok &= check("GY-BNO08X seated vs imu_carrier", vol(carrier, imu_pcb))
+ok &= check("GY-BNO08X seated vs gopro_base", vol(imu_pcb, gopro))
+ok &= require("pocket floor under the IMU",
+              vol(carrier, Pos(0, D.IMU_CY, D.IMU_PCB_Z - 0.5)
+                  * Box(_px * 0.8, _py * 0.8, 0.8)), 20.0)
+
+# Both M2.5 pilots must be open, and there must be wall left around them to tap.
+for _sy in (D.IMU_CY + D.IMU_SCREW_DY, D.IMU_CY - D.IMU_SCREW_DY):
+    ok &= check(f"M2.5 pilot bore clear at y{_sy:+.1f}",
+                vol(carrier, Pos(D.IMU_SCREW_X, _sy, D.IMU_PCB_Z - 1.0)
+                    * Cylinder(D.M25_TAP / 2, 2.0)))
+    ok &= require(f"tappable material round pilot y{_sy:+.1f}",
+                  vol(carrier, Pos(D.IMU_SCREW_X, _sy, D.IMU_PCB_Z - 1.5)
+                      * (Cylinder(2.6, 2.4) - Cylinder(D.M25_TAP / 2, 3.0))), 15.0)
+
+# Soldered header tails hang below the board along the pad row and must have a
+# clear run out the rear -- a slot that stops short fouls them on insertion.
+ok &= check("pin-tail slot clear along the pad row",
+            vol(carrier, Pos(-_px / 2 + 1.27, D.IMU_CY - _py / 2 - 3,
+                             D.IMU_PCB_Z - 1.0) * Box(1.6, _py + 8, 2.0)))
 
 print("\nALL CLEAR" if ok else "\nINTERFERENCES FOUND — fix before printing")
