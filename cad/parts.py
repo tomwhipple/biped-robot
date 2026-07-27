@@ -21,6 +21,13 @@ from build123d import *
 import dimensions as D
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stl")
+# STEP is exported alongside every STL, from the SAME solid in the same run.
+# They used to be separate commands (cad/export_step.py) and the STEPs drifted:
+# on 2026-07-27 every per-part STEP was three days stale, predating the
+# imu_carrier redesign, the yaw-carrier clearance and that day's pad changes --
+# so anyone opening one in FreeCAD was measuring superseded geometry. Coupling
+# them here makes that impossible.
+STEP_OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "step")
 
 
 # ---------------------------------------------------------------- helpers
@@ -788,17 +795,22 @@ PARTS = [
 
 def main():
     os.makedirs(OUT, exist_ok=True)
+    os.makedirs(STEP_OUT, exist_ok=True)
     rows, print_mass = [], 0.0
     for name, fn, qty, orient in PARTS:
         part = fn()
         path = os.path.join(OUT, f"{name}.stl")
         export_stl(part, path)
+        # exact BREP solid for FreeCAD/Onshape, same solid, same run
+        export_step(part, os.path.join(STEP_OUT, f"{name}.step"))
         if name == "leg_link":       # print variant with break-away fins; the
-            export_stl(leg_link(print_fins=True),   # plain STL stays clean for
-                       os.path.join(OUT, "leg_link_print.stl"))  # sim meshes
+            lp = leg_link(print_fins=True)           # plain STL stays clean for
+            export_stl(lp, os.path.join(OUT, "leg_link_print.stl"))  # sim meshes
+            export_step(lp, os.path.join(STEP_OUT, "leg_link_print.step"))
         if name == "yaw_carrier":    # ...ditto: the breakout that holds up the
-            export_stl(yaw_carrier(print_fins=True),   # connector-window bar
-                       os.path.join(OUT, "yaw_carrier_print.stl"))
+            yp = yaw_carrier(print_fins=True)        # connector-window bar
+            export_stl(yp, os.path.join(OUT, "yaw_carrier_print.stl"))
+            export_step(yp, os.path.join(STEP_OUT, "yaw_carrier_print.step"))
         bb = part.bounding_box()
         dims = sorted((bb.size.X, bb.size.Y, bb.size.Z))
         fits = dims[0] <= 250 and dims[1] <= D.BED and dims[2] <= D.BED
@@ -809,6 +821,9 @@ def main():
         print(f"{name:11s} x{qty}  bbox {bb.size.X:6.1f} x {bb.size.Y:6.1f} x "
               f"{bb.size.Z:6.1f} mm  vol {vol:6.1f} cm3  ~{mass:5.1f} g  "
               f"{'BED-OK' if fits else '** TOO BIG **'}  [{orient}]")
+
+    print(f"\nexported {len(PARTS)} parts + 2 print variants -> "
+          f"{os.path.relpath(OUT)}/*.stl AND {os.path.relpath(STEP_OUT)}/*.step")
 
     # battery = worst case of the 3S 850 XT30 field the bay now fits (~80 g,
     # see dimensions.BATT); the flat Zeee is 74 g. Its pigtail

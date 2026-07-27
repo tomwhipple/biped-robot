@@ -7,9 +7,9 @@ kinematics of `sim/bimo_biped.xml` with **10× Feetech STS3215** bus servos
 ```
 cad/
 ├── dimensions.py      # ALL dimensions (single source of truth) + servo datasheet notes
-├── parts.py           # part builders; run it to export STLs + mass/bed report
+├── parts.py           # part builders; exports STLs AND STEPs + mass/bed report
 ├── check_assembly.py  # boolean interference checks over the full joint ranges
-├── export_step.py     # per-part STEP exports (cad/step/)
+├── export_step.py     # DEPRECATED shim -> parts.py (which now writes STEPs too)
 ├── export_assembly.py # assembled robot -> cad/step/assembly.step (+ camera mock)
 ├── dress.py           # posable dressed robot: + cables, zip ties, board, pigtail
 ├── export_assembly_full.py  # dressed robot -> step/assembly_full.step + stills
@@ -27,7 +27,7 @@ cad/
 ```bash
 ../.venv/bin/python parts.py            # build + export + verify (bed fit, masses, CG)
 ../.venv/bin/python check_assembly.py   # must print ALL CLEAR
-../.venv/bin/python export_step.py && ../.venv/bin/python export_assembly.py
+../.venv/bin/python export_assembly.py   # STEPs come from parts.py above
 ../.venv/bin/python export_assembly_full.py   # dressed: wiring/board/battery mocks
 ../.venv/bin/python render_assembly_steps.py  # refresh docs/assembly.md figures
 ../.venv/bin/python animate_assembly.py       # fly-in animation (gif+mov, gitignored)
@@ -39,7 +39,7 @@ cad/
 through its full range of motion — one **Revolute** joint per axis, with the
 sim's limits baked in (hip yaw ±45°, hip roll ±25°, hip pitch −110/+60°, knee
 −95/+5°, ankle ±40°). The torso is grounded; both legs share the same part
-STEPs. Build it (STEPs must exist — run `export_step.py` first):
+STEPs. Build it (STEPs must exist — run `parts.py` first):
 
 ```bash
 # macOS (adjust the path on Linux/Windows to your freecadcmd)

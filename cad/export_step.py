@@ -1,20 +1,15 @@
-"""Export every printable part as STEP (exact solids for FreeCAD/Onshape).
+"""Per-part STEP exports.
 
-Run:  .venv/bin/python cad/export_step.py   -> cad/step/*.step
+DEPRECATED as a separate step since 2026-07-27: `parts.py` now writes the STEP
+beside every STL, from the same solid in the same run. Keeping a second export
+path is exactly how the STEPs went three days stale while the STLs were current
+-- so this script just delegates rather than re-implementing the loop.
 
-STLs (cad/stl/) are for slicing; STEP is for inspection/editing -- FreeCAD opens
-them as real BREP solids you can measure, section, and modify.
+Run:  .venv/bin/python cad/parts.py     (exports cad/stl/*.stl AND cad/step/*.step)
 """
-import os
-from build123d import export_step
 import parts
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "step")
-os.makedirs(OUT, exist_ok=True)
-
-for name in ("pelvis", "yaw_carrier", "yoke_roll", "yoke_pitch", "leg_link",
-              "foot", "tower", "gopro_base", "imu_carrier"):
-    solid = getattr(parts, name)()
-    path = os.path.join(OUT, f"{name}.step")
-    export_step(solid, path)
-    print(f"{name:12s} -> {path}")
+if __name__ == "__main__":
+    print(__doc__.strip().splitlines()[2])
+    print("delegating to parts.main() ...\n")
+    parts.main()
