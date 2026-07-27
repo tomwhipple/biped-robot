@@ -18,8 +18,8 @@ Dash-dot centerlines, numbered balloon callouts + an ITEM/QTY/DESCRIPTION table
 callouts (joint / hip-yaw).  Feet-DOWN, camera above the horizon, off-centre.
 
 Run:
-  .venv/bin/python cad/render_exploded_drawing.py joint|hip_yaw|full|all
-  -> docs/assembly/exploded_{joint,hip_yaw,full}.svg (+ .png)
+  .venv/bin/python cad/render_exploded_drawing.py joint|hip_yaw|upper_leg|full|all
+  -> docs/assembly/exploded_{joint,hip_yaw,upper_leg,full}.svg (+ .png)
 
 Excluded (electronic, per spec): wires / leads / zip-ties. Counts reconcile with
 the docs/assembly.md §0 fastener table (M3×6 = 38 used, idler M3×8+washer = 24,
@@ -644,6 +644,64 @@ def hip_yaw():
                   "exploded_hip_yaw.svg", callouts_raw=callouts, fasteners=fasteners)
 
 
+# ============================================================== UPPER LEG (knee->pelvis)
+def upper_leg():
+    """One leg from the KNEE up through pitch, roll and yaw into the pelvis.
+
+    Positions come straight from export_assembly.leg() -- same Z heights, same
+    servo mocks -- so this cannot drift from the real assembly. Only the explode
+    offsets are drawing-specific.
+    """
+    by = 0.0
+    at = lambda z, dz=0.0: Pos(0, by, z + dz)
+    DECK = D.HIP_ROLL_Z + D.ROLL_BELOW_DECK_YAW
+    items = [
+        ("PELVIS", Pos(0, by, DECK + 96) * parts.pelvis(), False),
+        ("YAW SERVO", at(D.HIP_YAW_Z + D.SV_HORN_FACE, 44) * CA.servo_mock_z(), False),
+        ("yaw_idler", at(D.HIP_YAW_Z + D.SV_GRIP_SPAN, 26) * disc(), False),
+        ("YAW_CARRIER", at(D.HIP_YAW_Z, -14) * parts.yaw_carrier(), False),
+        ("ROLL SERVO", at(D.HIP_ROLL_Z, -58) * CA.servo_mock_x(), False),
+        ("YOKE_ROLL", at(D.HIP_ROLL_Z, -104) * parts.yoke_roll(), False),
+        ("YOKE_PITCH", at(D.HIP_PITCH_Z, -150) * parts.yoke_pitch(), False),
+        ("PITCH SERVO", at(D.HIP_PITCH_Z, -196) * CA.servo_mock_y(), False),
+        ("LINK_THIGH", at(D.HIP_PITCH_Z, -244) * parts.leg_link(), False),
+        ("KNEE SERVO", at(D.KNEE_Z, -290) * CA.servo_mock_y(), False),
+    ]
+    r = D.BCD / 2
+    fasteners = [
+        ("ys", (-D.YAW_CASE_HOLES_IDLER[0], by + D.CASE_HOLE_LAT, DECK + 66),
+         "z+", "selftap", 4, 8),
+        ("ch", (0, by + r, D.HIP_YAW_Z + 6), "z-", "screw", 4, 6),
+        ("rb", (0, by + D.CASE_HOLE_LAT + 26,
+                D.HIP_YAW_Z + D.CARRIER_ROLL_AXIS - 30), "y+", "selftap", 8, 8),
+        ("rh", (0, by + r, D.HIP_ROLL_Z - 82), "y+", "screw", 4, 6),
+        ("ph", (0, by + r, D.HIP_PITCH_Z - 172), "y+", "screw", 4, 6),
+        ("pg", (D.CASE_HOLE_LAT, by + D.SV_TOPFACE + 22, D.HIP_PITCH_Z - 220),
+         "y+", "selftap", 6, 8),
+        ("kg", (D.CASE_HOLE_LAT, by + D.SV_TOPFACE + 22, D.KNEE_Z - 268),
+         "y+", "selftap", 6, 8),
+    ]
+    cl = [((0, by, D.KNEE_Z - 312), (0, by, DECK + 112))]
+    callouts = [
+        ("PELVIS", ["PELVIS", "deck + flat yaw seat"], "L"),
+        ("ys", ["4X M3x8 SELF-TAP", "deck -> yaw case"], "L"),
+        ("YAW SERVO", ["HIP YAW  STS3215", "flat, horn DOWN"], "R"),
+        ("ch", ["4X M3x6 -> yaw horn"], "R"),
+        ("YAW_CARRIER", ["YAW_CARRIER", "carries the roll bay"], "L"),
+        ("rb", ["8X M3x8 SELF-TAP", "roll servo -> bay walls"], "R"),
+        ("ROLL SERVO", ["HIP ROLL  STS3215", "slides UP into carrier"], "L"),
+        ("YOKE_ROLL", ["YOKE_ROLL", "roll horn -> pitch case"], "R"),
+        ("YOKE_PITCH", ["YOKE_PITCH", "pitch axis carrier"], "L"),
+        ("PITCH SERVO", ["HIP PITCH  STS3215"], "R"),
+        ("LINK_THIGH", ["LINK_THIGH  (leg_link)", "hip pitch -> knee"], "L"),
+        ("KNEE SERVO", ["KNEE  STS3215", "case gripped by thigh"], "R"),
+    ]
+    return render(items, cl,
+                  "FIGURE U - UPPER LEG: KNEE THROUGH HIP TO PELVIS  ·  all hardware",
+                  "exploded_upper_leg.svg", callouts_raw=callouts,
+                  fasteners=fasteners)
+
+
 # ==================================================================== FULL master
 def full():
     import export_assembly as A
@@ -761,7 +819,8 @@ def full():
                   label_counts=False)
 
 
-DRAWINGS = {"joint": joint, "hip_yaw": hip_yaw, "full": full}
+DRAWINGS = {"joint": joint, "hip_yaw": hip_yaw, "upper_leg": upper_leg,
+            "full": full}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
