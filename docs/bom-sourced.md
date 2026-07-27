@@ -98,7 +98,7 @@ ability to choose the battery later. Buy 8 + 1–2 spares of the 12 V version.
 - **Servo case thread**: M3 self-tap vs tap vs M4 — measure a real case.
 - **Idler screw length**: M3×8 + washer assumes 3.35 mm thread depth; confirm
   screws don't bottom against the gear.
-- **Driver board**: exact model + hole pattern (`BOARD_HOLES` in `dimensions.py`)
+- ~~**Driver board**: exact model + hole pattern (`BOARD_HOLES` in `dimensions.py`)~~ — **closed 2026-07-27**, test-fitted to the printed tower
   — confirm component heights and battery clearance.
 - **GoPro fit**: measure your MAX's finger thickness — slots are 3.2 mm.
 - **Cable service loops**: routed worst-pose lengths measured in `cad/dress.py`

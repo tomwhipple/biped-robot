@@ -33,7 +33,7 @@ GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 | Item | Spec | Qty | Est. cost | Status |
 |---|---|---|---|---|
 | **Servos** | Waveshare ST3215, **12 V version** (6–12.6 V, 30 kg·cm @ 12 V, magnetic encoder) — *not* the $16.99 "7.4 V" version, which is rated 4–7.4 V and forecloses 3S | 8 + 1–2 spares | $21.99 ea [Waveshare direct](https://www.waveshare.com/st3215-servo.htm) → ~$176 + spares | ✅ **Ready to order** — sim-validated at both voltages; CAD built from its STEP |
-| **Driver board** | Waveshare "Servo Driver with ESP32" (65 × 30 mm, 6–12.6 V in — 2S *and* 3S direct per Waveshare docs, WiFi/BLE) | 1 | $24.99 [Amazon](https://www.amazon.com/dp/B0CFY34BX5) / [direct](https://www.waveshare.com/servo-driver-with-esp32.htm) | ✅ Ready — holes Ø2.75 on 58 × 23 per wiki, now in `cad/dimensions.py`; still verify on arrival **before printing the tower** |
+| **Driver board** | Waveshare "Servo Driver with ESP32" (65 × 30 mm, 6–12.6 V in — 2S *and* 3S direct per Waveshare docs, WiFi/BLE) | 1 | $24.99 [Amazon](https://www.amazon.com/dp/B0CFY34BX5) / [direct](https://www.waveshare.com/servo-driver-with-esp32.htm) | ✅ Ready — holes Ø2.75 on 58 × 23 — **verified 2026-07-27 by test-fit, all four screws landed in the printed tower** |
 | **Battery** | Tattu 850 mAh 11.1 V 75C 3S1P XT30 (60 × 30 × 23, 80 g) — bay fits the whole 3S 850 XT30 class, not just this one; **11.1 V not 11.4 V HV** | 2 | ~$15 ea [search](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) | ✅ **Ready — decision made** (3S, swap-window bay in CAD) |
 | Battery belt + ribbon | 20 mm hook-loop strap ~250 mm + pull ribbon (battery retention/extraction) | 1 | ~$5 (or scrap velcro) | ✅ Ready |
 | Power switch | inline XT30 rocker/slide switch (battery → board) | 1 | ~$8 | ✅ Ready |
@@ -84,7 +84,7 @@ robot + ~$74 filament + $219 printer ≈ **$620–670 all-in from zero**.
 1. **Servo case holes**: tapped M3 or needs M4? (vendor STEP shows Ø3.5 —
    community self-taps M3; `cad/dimensions.py` parameterizes this).
 2. **Idler screw depth**: M3×8 + washer assumed; confirm no bottoming.
-3. **Driver board holes** vs the CAD's 58 × 24 mm guess → then print tower.
+3. ~~**Driver board holes** vs the CAD's 58 × 24 mm guess → then print tower.~~ **Closed 2026-07-27**: the board test-fits the printed tower, all four screws land. `BOARD_HOLES = (58.0, 23.0)` confirmed.
 4. **GoPro finger fit**: print `gopro_base` alone first (~20 min) and test the
    3.2 mm slots against the MAX's fingers (`GP_SLOT = 3.5` fallback).
 5. **Board component height** (<4 mm on down-facing side) — this sets the

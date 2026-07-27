@@ -55,12 +55,10 @@ Vendor facts confirmed 2026-07-26 from Waveshare's docs (sources at bottom):
       65 × 30 mm. If it says **"Bus Servo Driver HAT (A)"** (65 × 57 mm), it
       is the wrong board — 9–25 V in, Pi form factor, won't fit the tower.
       See [hardware-order.md](hardware-order.md) caveat 2.
-- [ ] **Caliper the 4 mounting holes**: hole Ø and the two centre-to-centre
-  
-      spans. CAD currently assumes **Ø2.75 on 58 × 23 mm** (`BOARD_HOLES` in
-      `cad/dimensions.py`), which is a wiki figure, not a measurement. This
-      is open question 3 in [hardware-order.md](hardware-order.md) and it
-      **gates printing the tower** — measure it now, not after.
+- [x] **Mounting holes — VERIFIED 2026-07-27.** The board test-fits the
+      printed tower with all four screws landing, which checks both spans and
+      the hole diameter together. `BOARD_HOLES = (58.0, 23.0)`, Ø2.75, stands
+      as published. No calipers needed after all.
 - [ ] Confirm power in is the **DC-044 5.5 × 2.1 barrel jack (CN1) and
   
       nothing else** — the schematic shows no screw terminal, so the XT30

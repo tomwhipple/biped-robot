@@ -357,7 +357,9 @@ TOWER_H = 43.5          # deck top .. tower top. Pack sits on the deck, so the
                         # + 13.5 + 3.5 gap. +6.5 over the Zeee-only bay.
 TOWER_TOP_T = 3.5
 # driver board: Waveshare "Servo Driver with ESP32", 65 x 30, holes O2.75 on
-# a 58 x 23 grid (wiki spec 2026-07 -- still verify on the real board)
+# a 58 x 23 grid. VERIFIED 2026-07-27 by test-fit: the real board dropped onto
+# the printed tower and all four screws landed -- which checks both spans and
+# the hole diameter at once, more tightly than calipers would.
 BOARD_HOLES = (58.0, 23.0)     # hole pattern (y span, x span), M2.5 self-tap
 BOARD_STANDOFF = 6.0           # under-plate standoff height (clears the GoPro
                                # screw bosses by 3 mm; battery below gets ~2 mm)
