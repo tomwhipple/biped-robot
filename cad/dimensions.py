@@ -48,9 +48,29 @@ SV_GRIP_SPAN = SV_HORN_FACE - SV_IDLER_FACE   # 37.25 (drawing-confirmed)
 # horn/idler disc screw pattern: 4x M3 threaded on O14 bolt circle
 BCD = 14.0
 PAD_HOLE = 3.4          # M3 clearance in printed pads
-PAD_D = 24.0            # printed pad (arm end) diameter
+# Disc-bolt pad OD. 24.0 -> 20.0 on 2026-07-27 (user found it on the bench).
+# The pad is centred on the joint axis, and the SERVO'S OWN case screws sit at
+# radius hypot(CASE_HOLE_LAT, CASE_HOLES_x[0]) = 13.19 with 5.7 heads standing
+# 1.65 proud of each case face -- so their heads reach IN to radius 10.34, and
+# a 12.0 pad radius buried 1.66 mm into them. Measured: 18.92 mm3 on
+# yoke_pitch's drive side, 7.45 mm3 on yoke_roll's.
+# 10.0 clears by 0.34 and still leaves 1.3 mm of rim outboard of the O14 bolt
+# circle -- the same rim minimum yoke_pitch's hub cut already works to.
+PAD_D = 20.0
 HORN_CENTER_RELIEF_D = 8.0   # relief over the (recessed) horn center screw.
-IDLER_CENTER_RELIEF_D = 8.0  # Both sized so the web to the O14-BC M3 holes
+# Central relief on EVERY idler arm (yoke_roll, yoke_pitch, leg_link): clears
+# the servo's free-hub post AND the screw retaining the idler wheel on it
+# (user, 2026-07-27 -- all joints). 8.0 -> 9.6, capped there: the 4x M3
+# clearance holes on the O14 circle reach in to radius 5.3, so a 4.8 relief
+# radius keeps 0.9 mm of web between relief and bolt hole -- just above the
+# 0.85 mm wall the printability checker calls THIN. That is the binding limit,
+# and it is TIGHT: the 4x M3 clearance holes reach in to radius 5.3, so the
+# relief cannot pass O8.8 without either thinning that web below printable or
+# (past O10.6) merging with the holes and costing the disc screws their
+# inboard bearing surface. If the idler-wheel screw head is wider than 8.8,
+# a round relief cannot grow to fit it -- the bolt circle has to move, or the
+# relief has to become a cloverleaf that only widens between the bolt holes.
+IDLER_CENTER_RELIEF_D = 8.8
                         # stays printable: gap = 7 - relief_r - 1.7. At the
                         # old O9/O10 it was 0.8/0.3 mm (flakes); O8 gives 1.3.
                         # Center screw head is ~O5.7 recessed -> 1.1 mm slack.

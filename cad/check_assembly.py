@@ -147,6 +147,43 @@ for yaw in (0, 45, -45):
 ok &= check("both carriers yawed inward 45 vs each other",
             vol(yaw_stack(D.HIP_SEP / 2, -45), yaw_stack(-D.HIP_SEP / 2, 45)))
 
+print("== servo CASE-SCREW HEADS vs the yokes that sit beside them ==")
+# The servo's 6 case-grip screws stand 1.65 mm proud of its case faces at
+# radius hypot(10.25, 8.30) = 13.19 -- so their heads reach IN to radius 10.34.
+# Anything centred on the joint axis and wider than that fouls them. PAD_D was
+# 24 (radius 12) and buried 1.66 mm into them: 18.92 mm3 on yoke_pitch's drive
+# side, 7.45 mm3 on yoke_roll's. Found on the bench 2026-07-27, not here.
+#
+# Only the SIX FITTED screws are modelled (leg_link's grips: both horn-face
+# rows, plus idler-face row CASE_HOLES_BOT[1]) -- the servo has other case
+# holes that take no screw, and counting those invents clashes. leg_link
+# itself is excluded: the screws pass THROUGH it, so its heads sit on its
+# outer face by design.
+_HD, _HH = 5.7, 1.65
+def _case_heads(axis):
+    h = None
+    for row in D.CASE_HOLES_TOP:                       # horn face, heads out
+        for lat in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
+            c = (Pos(lat, D.SV_HORN_FACE + _HH/2, -row) * Rot(90, 0, 0) if axis == "y"
+                 else Pos(D.SV_HORN_FACE + _HH/2, lat, row) * Rot(0, 90, 0)) \
+                * Cylinder(_HD/2, _HH)
+            h = c if h is None else h + c
+    for lat in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):    # idler face, one row
+        c = (Pos(lat, D.SV_IDLER_FACE - _HH/2, -D.CASE_HOLES_BOT[1]) * Rot(90, 0, 0)
+             if axis == "y"
+             else Pos(D.SV_IDLER_FACE - _HH/2, lat, D.CASE_HOLES_BOT[1]) * Rot(0, 90, 0)) \
+            * Cylinder(_HD/2, _HH)
+        h = h + c
+    return h
+ok &= check("yoke_pitch vs the 6 fitted case-screw heads",
+            vol(parts.yoke_pitch(), _case_heads("y")))
+ok &= check("yoke_roll vs the 6 fitted case-screw heads",
+            vol(parts.yoke_roll(), _case_heads("x")))
+_pad_r, _head_in = D.PAD_D / 2, 13.19 - _HD / 2
+print(f"  {'pad radius under the case-screw head reach':58s} {_pad_r:8.2f} mm   "
+      f"{'OK' if _pad_r <= _head_in else '** TOO WIDE **'}")
+ok &= _pad_r <= _head_in
+
 print("== yaw-horn SCREW HEADS vs the roll servo inside the bay ==")
 # The 4x yaw-horn bolts pass UP through the carrier's mount plate into the horn
 # disc, so their HEADS sit proud of the bay ceiling -- pointing straight at the
