@@ -511,3 +511,31 @@ ID'd and chain-verified — but the sim-relevant dynamics numbers
 the actuator model stays datasheet+fit. Backdrive friction is the one to
 take before assembly: torque-off standing flips infeasible below
 0.25 N·m (sim estimate 0.35).
+
+## Day 6 early (2026-07-27): v8b flat — and the v8 "breakthrough" was a farm
+
+**getup_v8b (warm-start continuation): referee 0/16, probe IDENTICAL to
+v8.** Training metrics kept climbing (recovered 4→7, reward +114) while
+the deterministic policy didn't move — the classic smell of an exploit.
+Rendering the one probe rollout that "stands" (bank row at h 0.26)
+settled it in 0.32 s of video: the policy is a PASSENGER. The snap row's
+launch momentum coasts it ballistically through standing height (0.337);
+recovered flips on the instantaneous height crossing at t=0.02 s; the
+ratchet pays ~+15 for altitude the policy didn't earn; the feet slide
+out; the fall-after-recover rule terminates the episode at t=0.32 s.
+Net-positive income in a third of a second with zero skill — the top
+bank rows were a farming loop, and "recovered 4–7" was ballistic flips,
+not standing.
+
+**getup_v9 (queued, warm from v8b): two structural rules, no new
+rewards.**
+1. **recovered requires a HELD stand** — stand_hold_n = 0.5 s of
+   consecutive standing steps (new `stand_streak` State field + CPU
+   mirror). A ballistic crossing no longer flips anything.
+2. **Recovery episodes never terminate on falls** (pre- OR post-recover)
+   — the farm's exit door closes: a flop now means living with the
+   −0.7/step bleed for the rest of the episode, and every fall is a free
+   in-episode retry of the rise. Income flows only while actually
+   standing still.
+
+Parity 8/8 PASS (2f exercises the recovery arithmetic on both sides).

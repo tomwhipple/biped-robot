@@ -432,6 +432,7 @@ class BimoWalkerEnv(gym.Env):
         self.recover_start_mix = recover_start_mix
         self._recover_ep = False       # this episode started fallen
         self._recovered = True         # first stand achieved (or normal ep)
+        self._stand_streak = 0.0       # consecutive standing steps (getup_v9)
         self.payload_cg_z = payload_cg_z
         self.w_power = w_power
         self._K_CU = 3.75              # W/(N*m)^2, ST3215 stall calibration
@@ -557,6 +558,9 @@ class BimoWalkerEnv(gym.Env):
         self.sim_dt = self.model.opt.timestep                 # 0.002 s
         self.n_substeps = max(1, round((1.0 / control_hz) / self.sim_dt))
         self.control_dt = self.n_substeps * self.sim_dt        # ~0.02 s
+        # getup_v9: held-stand requirement for the recovered flip (mirrors
+        # sim/mjx stand_hold_n)
+        self._stand_hold_n = max(1, round(0.5 / self.control_dt))
         self.max_steps = int(episode_seconds / self.control_dt)
 
         # Per-joint actuator ranges (radians). Actions are a residual around the
@@ -1013,6 +1017,7 @@ class BimoWalkerEnv(gym.Env):
         mujoco.mj_resetData(self.model, self.data)
         self._recover_ep = False
         self._recovered = True
+        self._stand_streak = 0.0       # mirrors State.stand_streak
         self._rise_t0 = 0.0            # rise-phase offset (mirrors State.rise_t0)
         if self.ext_cmd and self.recover_mix > 0:
             self._recover_ep = bool(self.np_random.uniform()
@@ -1590,14 +1595,21 @@ class BimoWalkerEnv(gym.Env):
         fall_h = (self.fall_height * float(self._cmd[3]) if self.ext_cmd
                   else self.fall_height)
         fell = (height < fall_h) or (up_z < self.fall_up_z)
-        if self.ext_cmd and self.recover_mix > 0:
-            # recovery episodes: no fall termination while down; the first
-            # achieved stand arms normal rules (pre-step flag gates, then
-            # update -- mirrors sim/mjx)
-            if not self._recovered:
-                fell = False
-                if (height > 0.85 * self._nominal_h) and (up_z > 0.9):
-                    self._recovered = True
+        if self.ext_cmd and self.recover_mix > 0 and self._recover_ep:
+            # getup_v9 (mirrors sim/mjx): recovery episodes NEVER terminate
+            # on falls -- pre-recover the fall is the task, post-recover a
+            # fall just loses the standing income and the rise is
+            # re-practiced in the same episode. recovered requires a HELD
+            # stand (stand_hold_n consecutive standing steps), not an
+            # instantaneous crossing (ballistic bank starts farmed the flip
+            # mid-flight). Pre-step flag gates the reward; update after.
+            fell = False
+            if (height > 0.85 * self._nominal_h) and (up_z > 0.9):
+                self._stand_streak += 1.0
+            else:
+                self._stand_streak = 0.0
+            if self._stand_streak >= self._stand_hold_n:
+                self._recovered = True
         # -- 2 m dash: success only if, after crossing the line, the robot is
         # still upright dash_hold seconds later. A dive that crosses the line
         # and faceplants therefore never finishes -- it just falls.

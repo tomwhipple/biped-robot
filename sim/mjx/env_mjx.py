@@ -84,7 +84,12 @@ class State(NamedTuple):
                               # first); zeros-shaped (0, frame) when hist=1
     recover_slot: jax.Array   # ()  1.0 = this env slot starts episodes fallen
     recovered: jax.Array      # ()  0.0 while down (no fall termination); flips
-                              # to 1.0 at the first achieved stand
+                              # to 1.0 at the first HELD stand (getup_v9:
+                              # stand_streak >= stand_hold_n, not an instant
+                              # height crossing -- ballistic bank starts were
+                              # farming the flip mid-flight)
+    stand_streak: jax.Array   # ()  consecutive standing steps (recovery
+                              # episodes; resets to 0 on any non-standing step)
     best_h: jax.Array         # ()  episode-best torso height: the recovery
                               # ratchet pays only for NEW height above this
                               # (static height income was a do-nothing optimum)
@@ -503,6 +508,10 @@ class BimoMJXEnv:
         self.w_rise_dofvel = w_rise_dofvel
         self.w_rise_ref = w_rise_ref
         self.rise_secs = rise_secs
+        # getup_v9: a stand only counts as "recovered" after this many
+        # CONSECUTIVE standing steps (0.5 s) -- an instantaneous crossing
+        # was farmable by ballistic bank starts
+        self.stand_hold_n = max(1, round(0.5 / self.control_dt))
         self.rise_ref_s2 = rise_ref_s2
         if w_mimic > 0 and not gait_clock:
             raise ValueError("w_mimic requires gait_clock")
@@ -1067,6 +1076,7 @@ class BimoMJXEnv:
                      cmd_next=cmd_next, traj=traj, traj_on=traj_on,
                      recover_slot=recover_slot,
                      recovered=1.0 - recover_slot,
+                     stand_streak=jp.zeros(()),
                      best_h=data.qpos[2],
                      head_ref=_quat_yaw(data.qpos[3:7]), rise_t0=rise_t0,
                      servo=servo, lat_ms=lat_ms, lash=lash,
@@ -1121,6 +1131,7 @@ class BimoMJXEnv:
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
             recovered=1.0 - first.recover_slot,
+            stand_streak=jp.zeros(()),
             best_h=first.data.qpos[2],
             head_ref=_quat_yaw(first.data.qpos[3:7]), servo=servo,
             lat_ms=lat_ms, lash=lash, imu_R=imu_R, imu_bias=imu_bias,
@@ -1527,12 +1538,24 @@ class BimoMJXEnv:
                   else self.fall_height)
         fell = (height < fall_h) | (up_z < self.fall_up_z)
         recovered = state.recovered
+        stand_streak = state.stand_streak
         if self.ext_cmd and self.recover_mix > 0:
-            # while down, being fallen is the TASK, not the failure; the
-            # first achieved stand arms normal fall rules for the rest of
-            # the episode (graded on the pre-step flag, updated after)
-            fell = fell & (state.recovered > 0.5)
-            recovered = jp.maximum(state.recovered, standing)
+            # getup_v9: recovery episodes NEVER terminate on falls -- while
+            # down the fall is the task, and post-recover a fall just loses
+            # the standing income and the rise is re-practiced in the same
+            # episode. (The old post-recover termination let ballistic bank
+            # starts farm ratchet income and exit in 0.3 s.) recovered now
+            # requires a HELD stand -- stand_hold_n consecutive standing
+            # steps -- not an instantaneous height crossing mid-flight.
+            fell = fell & (state.recover_slot < 0.5)
+            stand_streak = jp.where(state.recover_slot > 0.5,
+                                    jp.where(standing > 0.5,
+                                             state.stand_streak + 1.0,
+                                             jp.zeros(())),
+                                    jp.zeros(()))
+            recovered = jp.maximum(
+                state.recovered,
+                (stand_streak >= self.stand_hold_n).astype(jp.float32))
         if self.getup:
             done_flag = jp.zeros(())          # being down IS the task
         else:
@@ -1609,7 +1632,7 @@ class BimoMJXEnv:
                      obs_hist=obs_hist,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,
                      traj_on=traj_on, recover_slot=state.recover_slot,
-                     recovered=recovered,
+                     recovered=recovered, stand_streak=stand_streak,
                      best_h=jp.maximum(state.best_h, height),
                      head_ref=head_ref, rise_t0=state.rise_t0,
                      servo=state.servo,
