@@ -6,6 +6,8 @@
 <path d="M 686.17 258.46 L 686.17 183.92" stroke="#2563b8" stroke-width="0.5" stroke-dasharray="8 3 1.5 3" fill="none" stroke-linecap="round"/>
 <path d="M 728.52 340.67 L 655.98 315.27" stroke="#d9531e" stroke-width="0.5" stroke-dasharray="8 3 1.5 3" fill="none" stroke-linecap="round"/>
 <path d="M 699.22 385.90 L 628.86 361.27" stroke="#2563b8" stroke-width="0.5" stroke-dasharray="8 3 1.5 3" fill="none" stroke-linecap="round"/>
+<path d="M 689.20 449.56 L 689.20 367.54" stroke="#2563b8" stroke-width="0.5" stroke-dasharray="8 3 1.5 3" fill="none" stroke-linecap="round"/>
+<path d="M 669.01 456.97 L 669.01 386.81" stroke="#2563b8" stroke-width="0.5" stroke-dasharray="8 3 1.5 3" fill="none" stroke-linecap="round"/>
 <path d="M 699.22 535.28 L 628.86 510.64" stroke="#2563b8" stroke-width="0.5" stroke-dasharray="8 3 1.5 3" fill="none" stroke-linecap="round"/>
 <path d="M 724.40 603.02 L 651.86 577.62" stroke="#d9531e" stroke-width="0.5" stroke-dasharray="8 3 1.5 3" fill="none" stroke-linecap="round"/>
 <path d="M 724.40 750.26 L 651.86 724.87" stroke="#d9531e" stroke-width="0.5" stroke-dasharray="8 3 1.5 3" fill="none" stroke-linecap="round"/>
@@ -45,6 +47,16 @@
 <path d="M 660.15 375.64 L 660.04 368.76" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
 <path d="M 654.26 373.58 L 654.15 366.70" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
 <text x="710.29" y="392.77" font-size="9.5" font-weight="700" text-anchor="middle" fill="#111">4X</text>
+<path d="M 680.70 435.74 L 680.99 437.76 L 681.84 439.65 L 683.19 441.27 L 684.95 442.51 L 687.00 443.29 L 689.20 443.56 L 691.40 443.29 L 693.45 442.51 L 695.21 441.27 L 696.56 439.65 L 697.41 437.76 L 697.70 435.74 L 692.43 435.74 L 692.43 391.54 L 685.97 391.54 L 685.97 435.74 Z" fill="#fff" stroke="#111" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 685.97 411.43 L 692.43 409.05" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
+<path d="M 685.97 403.92 L 692.43 401.54" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
+<path d="M 685.97 396.40 L 692.43 394.02" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
+<text x="689.20" y="464.29" font-size="9.5" font-weight="700" text-anchor="middle" fill="#111">4X</text>
+<path d="M 661.01 443.61 L 661.29 445.52 L 662.09 447.29 L 663.36 448.81 L 665.01 449.98 L 666.94 450.72 L 669.01 450.97 L 671.08 450.72 L 673.01 449.98 L 674.67 448.81 L 675.94 447.29 L 676.74 445.52 L 677.01 443.61 L 672.05 443.61 L 672.05 410.81 L 665.97 410.81 L 665.97 443.61 Z" fill="#fff" stroke="#111" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 665.97 425.57 L 672.05 423.33" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
+<path d="M 665.97 419.99 L 672.05 417.75" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
+<path d="M 665.97 414.42 L 672.05 412.18" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
+<text x="669.01" y="471.01" font-size="9.5" font-weight="700" text-anchor="middle" fill="#111">4X</text>
 <path d="M 683.36 538.73 L 685.37 539.13 L 687.43 538.95 L 689.40 538.21 L 691.16 536.96 L 692.57 535.28 L 693.55 533.29 L 694.03 531.13 L 693.97 528.94 L 693.38 526.86 L 692.29 525.05 L 690.79 523.63 L 688.98 522.69 L 687.24 527.66 L 652.58 515.53 L 650.45 521.62 L 685.10 533.76 Z" fill="#fff" stroke="#111" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 666.04 527.08 L 665.93 520.20" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
 <path d="M 660.15 525.02 L 660.04 518.14" stroke="#111" stroke-width="0.85" fill="none" stroke-linecap="round"/>
@@ -82,10 +94,16 @@
 <path d="M 671.29 357.27 L 234.00 347.27 L 224.00 347.27" stroke="#111" stroke-width="0.9" fill="none"/>
 <text x="224.00" y="347.27" font-size="12.5" font-weight="700" text-anchor="end" fill="#111">HIP ROLL  STS3215</text>
 <text x="224.00" y="361.77" font-size="12.5" font-weight="400" text-anchor="end" fill="#111">slides UP into carrier</text>
+<circle cx="669.01" cy="443.61" r="2.1" fill="#2563b8"/>
+<path d="M 669.01 443.61 L 234.00 426.61 L 224.00 426.61" stroke="#2563b8" stroke-width="0.9" fill="none"/>
+<text x="224.00" y="426.61" font-size="12.5" font-weight="700" text-anchor="end" fill="#111">4X M3 HEAT-SET</text>
+<text x="224.00" y="441.11" font-size="12.5" font-weight="400" text-anchor="end" fill="#111">pressed into the</text>
+<text x="224.00" y="455.61" font-size="12.5" font-weight="400" text-anchor="end" fill="#111">yoke_pitch flange (§2)</text>
 <circle cx="678.92" cy="497.00" r="2.1" fill="#111"/>
-<path d="M 678.92 497.00 L 234.00 487.00 L 224.00 487.00" stroke="#111" stroke-width="0.9" fill="none"/>
-<text x="224.00" y="487.00" font-size="12.5" font-weight="700" text-anchor="end" fill="#111">YOKE_PITCH</text>
-<text x="224.00" y="501.50" font-size="12.5" font-weight="400" text-anchor="end" fill="#111">pitch axis carrier</text>
+<path d="M 678.92 497.00 L 234.00 484.11 L 224.00 484.11" stroke="#111" stroke-width="0.9" fill="none"/>
+<text x="224.00" y="484.11" font-size="12.5" font-weight="700" text-anchor="end" fill="#111">YOKE_PITCH</text>
+<text x="224.00" y="498.61" font-size="12.5" font-weight="400" text-anchor="end" fill="#111">bolts on ROTATED 90° --</text>
+<text x="224.00" y="513.11" font-size="12.5" font-weight="400" text-anchor="end" fill="#111">that is the universal joint</text>
 <circle cx="680.37" cy="673.27" r="2.1" fill="#111"/>
 <path d="M 680.37 673.27 L 234.00 663.27 L 224.00 663.27" stroke="#111" stroke-width="0.9" fill="none"/>
 <text x="224.00" y="663.27" font-size="12.5" font-weight="700" text-anchor="end" fill="#111">LINK_THIGH  (leg_link)</text>
@@ -102,9 +120,15 @@
 <text x="1136.00" y="326.18" font-size="12.5" font-weight="700" text-anchor="start" fill="#111">8X M3x8 SELF-TAP</text>
 <text x="1136.00" y="340.68" font-size="12.5" font-weight="400" text-anchor="start" fill="#111">roll servo -&gt; bay walls</text>
 <circle cx="679.82" cy="405.85" r="2.1" fill="#111"/>
-<path d="M 679.82 405.85 L 1126.00 395.85 L 1136.00 395.85" stroke="#111" stroke-width="0.9" fill="none"/>
-<text x="1136.00" y="395.85" font-size="12.5" font-weight="700" text-anchor="start" fill="#111">YOKE_ROLL</text>
-<text x="1136.00" y="410.35" font-size="12.5" font-weight="400" text-anchor="start" fill="#111">roll horn -&gt; pitch case</text>
+<path d="M 679.82 405.85 L 1126.00 388.85 L 1136.00 388.85" stroke="#111" stroke-width="0.9" fill="none"/>
+<text x="1136.00" y="388.85" font-size="12.5" font-weight="700" text-anchor="start" fill="#111">YOKE_ROLL</text>
+<text x="1136.00" y="403.35" font-size="12.5" font-weight="400" text-anchor="start" fill="#111">roll horn+idler -&gt;</text>
+<text x="1136.00" y="417.85" font-size="12.5" font-weight="400" text-anchor="start" fill="#111">flange onto yoke_pitch</text>
+<circle cx="689.20" cy="435.74" r="2.1" fill="#2563b8"/>
+<path d="M 689.20 435.74 L 1126.00 446.35 L 1136.00 446.35" stroke="#2563b8" stroke-width="0.9" fill="none"/>
+<text x="1136.00" y="446.35" font-size="12.5" font-weight="700" text-anchor="start" fill="#111">4X M3x10 -&gt; HEAT-SETS</text>
+<text x="1136.00" y="460.85" font-size="12.5" font-weight="400" text-anchor="start" fill="#111">yoke_roll flange down</text>
+<text x="1136.00" y="475.35" font-size="12.5" font-weight="400" text-anchor="start" fill="#111">into yoke_pitch</text>
 <circle cx="689.04" cy="558.41" r="2.1" fill="#111"/>
 <path d="M 689.04 558.41 L 1126.00 555.41 L 1136.00 555.41" stroke="#111" stroke-width="0.9" fill="none"/>
 <text x="1136.00" y="555.41" font-size="12.5" font-weight="700" text-anchor="start" fill="#111">HIP PITCH  STS3215</text>
