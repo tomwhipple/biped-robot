@@ -32,21 +32,34 @@ def _flat_head_y(x, z, y_face, sign):
 
 
 # --------------------------------------------------------------- leg links
-def leg_link_screws():
+def leg_link_screws(pan_heads=False):
     """6x M2.5x8 FLAT-head self-tap gripping the servo case (leg_link frame:
     upper joint axis == Y at origin). Heads sit FLUSH in the grip-plate
-    countersinks -- see the leg_link comment / bench skew of 2026-07-28."""
+    countersinks -- see the leg_link comment / bench skew of 2026-07-28.
+
+    pan_heads=True models the AS-FITTED bench hardware instead (uxcell pan
+    heads, O5.0 x 2.0 PROUD of the plate faces) -- for demonstrating why the
+    links skew: the horn-side heads stand in the 0.70 mm band the yoke/fork
+    arm sweeps. Never use for the design-intent checks."""
     s = []
     seat = D.SV_TOPFACE + D.GRIP_PLATE_T              # 19.75 horn plate outer
     for zrow in D.CASE_HOLES_TOP:
         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
             s.append(parts.cyl_y(1.25, seat - 8.0, seat - 0.9, lx, -zrow))
-            s.append(_flat_head_y(lx, -zrow, seat, +1))
+            if pan_heads:
+                s.append(parts.cyl_y(D.CASE_HEAD_D / 2, seat,
+                                     seat + D.CASE_HEAD_H, lx, -zrow))
+            else:
+                s.append(_flat_head_y(lx, -zrow, seat, +1))
     iy0 = D.IDLER_ARM_INNER - D.PLATE                 # -21 idler plate outer
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
         s.append(parts.cyl_y(1.25, iy0 + 0.9, iy0 + 8.0,
                              lx, -D.CASE_HOLES_BOT[1]))
-        s.append(_flat_head_y(lx, -D.CASE_HOLES_BOT[1], iy0, -1))
+        if pan_heads:
+            s.append(parts.cyl_y(D.CASE_HEAD_D / 2, iy0 - D.CASE_HEAD_H, iy0,
+                                 lx, -D.CASE_HOLES_BOT[1]))
+        else:
+            s.append(_flat_head_y(lx, -D.CASE_HOLES_BOT[1], iy0, -1))
     return _fuse(s)
 
 
