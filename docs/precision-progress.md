@@ -539,3 +539,25 @@ rewards.**
    standing still.
 
 Parity 8/8 PASS (2f exercises the recovery arithmetic on both sides).
+
+## Day 6 morning (2026-07-27): v9 partial honest, v10 fresh
+
+**getup_v9 (66M of 110M, night_stop took it at 07:00): referee 0/16,
+recovered honestly 0.00 all run** — the farm is dead (v8b showed 4–7
+from ballistic flips). Mean episode height +22% over v8b (the policy
+lives higher under the height income), but the deterministic probe is
+unchanged: parks at 0.14 from every start.
+
+**The blocker exposed by the training log: entropy ≈ 0.06.** The warm
+chain (v8→v8b→v9) carried a nearly-deterministic policy into rules that
+now require *discovering* a held stand — with almost no exploration
+left to discover it with. Warm-starting preserved the corridor skill
+AND the parked habit AND the collapsed entropy.
+
+**getup_v10 (launched 07:01): fresh weights under the honest rules** —
+no init-from, entropy 0.005→0.01, all v9 machinery (kneel-corridor
+reference, 142-row bank incl. finish rows, relative height income,
+held-stand recovered, no-termination recovery episodes). This is the
+clean end-to-end test of the rebuilt curriculum. Runner race fixed too:
+post-unload recheck 30 s→5 s (a 3 am vision workload was reloading
+llama3.2-vision faster than the runner could claim the GPU).
