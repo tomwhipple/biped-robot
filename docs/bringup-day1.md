@@ -302,28 +302,32 @@ Both feed sim decisions and are far easier now than after assembly.
       `pos <id>`; a `move` without an explicit steps/s slews at ~3000 steps/s
       and measures acceleration transients instead.
 
-- [ ] **Unpowered backdrive friction — still needs a spring scale.** The
-      number above is **powered** friction (motor driving *through* the
+- [~] **Unpowered backdrive friction — DEFERRED 2026-07-27, no bench tools.**
+      The number above is **powered** friction (motor driving *through* the
       gearbox). The sim's `off_frictionloss` models the joint with torque
       **off**, being driven backwards, and back-driving a ~1:345 reduction is
       far less efficient than forward-driving it — so 0.235 N·m is a **lower
-      bound**, not the answer. It is close enough to the threshold to matter:
-      [firmware-design.md](firmware-design.md) §5 estimates 0.35 N·m and idle
-      torque-off **flips infeasible below ~0.25 N·m**.
+      bound**, not the answer. Against
+      [firmware-design.md](firmware-design.md) §5's 0.35 N·m estimate and the
+      ~0.25 N·m threshold where idle torque-off flips infeasible, that is
+      "probably marginal, cannot call it".
 
-      The five-minute bench test, with the arithmetic pre-done:
-      1. `release <id>` so the joint is unpowered.
-      2. Bolt a horn with a rod giving a **50 mm** lever from the shaft axis.
-      3. Pull perpendicular with a spring scale until it rotates *steadily*
-         (breakaway, not a jerk). Read the force.
-      4. Torque = F × 0.05 m.
+      **Deferred rather than dropped, because the assembled robot answers it
+      for free.** The question idle torque-off actually asks is the sim's
+      `stand_off` scenario — *does the biped stay standing on passive joint
+      friction alone?* With the robot built: stand it up, `release`, watch.
+      Holds ⇒ friction is sufficient and the feature ships. Collapses or
+      drifts > 10 cm ⇒ it does not. No spring scale, no lever arm; the
+      robot's own ~0.9 kg is the known load, applying exactly the joint
+      torques the feature has to survive.
 
-      | scale reads | joint torque | verdict |
-      |---|---|---|
-      | < 510 gf (5.0 N) | < 0.25 N·m | **idle torque-off is not feasible** |
-      | ~714 gf (7.0 N) | 0.35 N·m | matches the sim's estimate |
+      Nothing depends on this in the meantime: idle torque-off is a
+      power-saving feature, not on the path to walking. **Ship v1 with it
+      off**, and let the standing test decide.
 
-      Do it while the servos are loose — it is far harder once they are in legs.
+      *(If it is ever wanted before assembly: a kitchen scale works — press a
+      50 mm lever onto it until the joint turns; 510 gf ⇒ 0.25 N·m.)*
+
 - [ ] **Servo case thread**: M3 self-tapping, tapped M3, or M4? Vendor STEP
   
       shows Ø3.5. Open question 1 in [bom-sourced.md](bom-sourced.md); it
