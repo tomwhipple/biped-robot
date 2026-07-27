@@ -87,7 +87,8 @@ def render(robot, path, views, px=640):
     print(f"wrote {path}")
 
 
-if __name__ == "__main__":
+def main():
+
     os.makedirs(STEP_OUT, exist_ok=True)
     robot = dress.dressed_robot()
     path = os.path.join(STEP_OUT, "assembly_full.step")
@@ -101,3 +102,6 @@ if __name__ == "__main__":
     pike = dress.dressed_robot(hip=-110, knee=-95, ankle=40)
     render(pike, os.path.join(REN_OUT, "assembly_full_pike.png"),
            [(160, -12), (250, -18)])
+
+if __name__ == "__main__":
+    main()

@@ -880,5 +880,26 @@ def main():
           f"(+{cg_cam - cg:.0f} mm, camera CG ~{cam_z:.0f} mm)")
 
 
+def export_assemblies():
+    """assembly.step + assembly_full.step, from the geometry just exported.
+
+    Chained here (user, 2026-07-27) for the same reason STEP was: they are
+    built from the same parts and go stale the moment someone changes a
+    dimension and only runs parts.py. Imported lazily -- both modules import
+    parts, so a top-level import would be circular.
+    """
+    import export_assembly
+    import export_assembly_full
+    export_assembly.main()
+    export_assembly_full.main()
+
+
 if __name__ == "__main__":
+    import sys
     main()
+    # ~55 s of the run is the two assemblies; --no-assembly skips them while
+    # iterating on a single part. The default is to keep everything current.
+    if "--no-assembly" in sys.argv:
+        print("\n(--no-assembly: assembly.step / assembly_full.step NOT refreshed)")
+    else:
+        export_assemblies()

@@ -101,13 +101,25 @@ robot = Compound(label="bimo_biped", children=[
     leg(-D.HIP_SEP / 2, "R"),
 ])
 
-os.makedirs(OUT, exist_ok=True)
-path = os.path.join(OUT, "assembly.step")
-export_step(robot, path)
-bb = robot.bounding_box()
-print(f"assembly -> {path}")
-cam_top = (D.TOP_Z_YAW + D.IMU_CARRIER_T + D.GP_BASE_T + D.GP_HOLE_H + 6
-           + D.CAM_BODY[2])
-print(f"bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}"
-      f"  z {bb.min.Z:.1f}..{bb.max.Z:.1f}  "
-      f"(expect ~0..{D.TOP_Z_YAW:.0f} structure, ~{cam_top:.0f} incl. camera)")
+def main():
+    """Write cad/step/assembly.step.
+
+    Behind a main() since 2026-07-27: this used to run at IMPORT time, so every
+    render script that only wanted `piece` (render_electronics_steps,
+    render_exploded_drawing) silently paid a ~17 s assembly export just to get
+    at a helper. `robot` stays module-level -- those scripts do read it.
+    """
+    os.makedirs(OUT, exist_ok=True)
+    path = os.path.join(OUT, "assembly.step")
+    export_step(robot, path)
+    bb = robot.bounding_box()
+    print(f"assembly -> {path}")
+    cam_top = (D.TOP_Z_YAW + D.IMU_CARRIER_T + D.GP_BASE_T + D.GP_HOLE_H + 6
+               + D.CAM_BODY[2])
+    print(f"bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}"
+          f"  z {bb.min.Z:.1f}..{bb.max.Z:.1f}  "
+          f"(expect ~0..{D.TOP_Z_YAW:.0f} structure, ~{cam_top:.0f} incl. camera)")
+
+
+if __name__ == "__main__":
+    main()

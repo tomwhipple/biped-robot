@@ -7,7 +7,7 @@ kinematics of `sim/bimo_biped.xml` with **10× Feetech STS3215** bus servos
 ```
 cad/
 ├── dimensions.py      # ALL dimensions (single source of truth) + servo datasheet notes
-├── parts.py           # part builders; exports STLs AND STEPs + mass/bed report
+├── parts.py           # part builders; exports STLs + STEPs + BOTH assemblies
 ├── check_assembly.py  # boolean interference checks over the full joint ranges
 ├── export_step.py     # DEPRECATED shim -> parts.py (which now writes STEPs too)
 ├── export_assembly.py # assembled robot -> cad/step/assembly.step (+ camera mock)
@@ -25,9 +25,10 @@ cad/
 ```
 
 ```bash
-../.venv/bin/python parts.py            # build + export + verify (bed fit, masses, CG)
+../.venv/bin/python parts.py            # STLs + STEPs + assembly.step + assembly_full.step
+../.venv/bin/python parts.py --no-assembly   # skip the ~55 s assemblies while iterating
 ../.venv/bin/python check_assembly.py   # must print ALL CLEAR
-../.venv/bin/python export_assembly.py   # STEPs come from parts.py above
+# (export_assembly.py / export_assembly_full.py still run standalone if wanted)
 ../.venv/bin/python export_assembly_full.py   # dressed: wiring/board/battery mocks
 ../.venv/bin/python render_assembly_steps.py  # refresh docs/assembly.md figures
 ../.venv/bin/python animate_assembly.py       # fly-in animation (gif+mov, gitignored)
