@@ -7,6 +7,7 @@
 
 #include <string.h>
 
+#include "battguard/guard.h"
 #include "esp_attr.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
@@ -35,6 +36,7 @@ esp_timer_handle_t g_tick_timer = nullptr;
 // Loop-owned state. Single writer, never shared.
 imu::Imu* g_imu = nullptr;
 linkproto::Watchdog g_dog;
+battguard::Guard g_batt;
 obs::Calibration g_cal;
 obs::History g_hist;
 obs::GaitClock g_clock(1.5f);
@@ -119,7 +121,6 @@ void publish(linkproto::LinkState st, uint16_t faults, float up_z,
 void ctrlTask(void*) {
     esp_task_wdt_add(nullptr);
     uint8_t vbat_dv = 0;
-    int volt_poll = 0;
 
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -161,20 +162,35 @@ void ctrlTask(void*) {
         if (g_imu) g_imu->read(s);
         const int64_t t_imu1 = esp_timer_get_time();
 
-        // Pack voltage rides in on the servo feedback -- the board has no ADC.
-        if (++volt_poll >= 50) {
-            volt_poll = 0;
-            for (int i = 0; i < obs::kNumJoints; ++i) {
-                if (g_fb_ok[i]) { vbat_dv = g_fb[i].voltage_dv; break; }
-            }
+        // Pack voltage rides in on the servo feedback -- the board has no ADC
+        // (main/board.h). It is already sitting in g_fb every tick, so the
+        // guard is fed every tick and does its own debouncing in ticks; the
+        // old 1 Hz decimation bought nothing and only slowed the trip.
+        // 0 == "no servo answered", which the guard must not read as 0 volts.
+        uint8_t fresh_dv = 0;
+        for (int i = 0; i < obs::kNumJoints; ++i) {
+            if (g_fb_ok[i]) { fresh_dv = g_fb[i].voltage_dv; break; }
         }
+        if (fresh_dv != 0) vbat_dv = fresh_dv;
+        g_batt.update(fresh_dv, now_ms);
 
         // -- safety --------------------------------------------------------
-        const bool limp = (state == linkproto::LinkState::kRelax ||
+        // The pack guard outranks the link: an operator holding a live command
+        // cannot keep the robot walking on a flat pack, and once the guard has
+        // released torque nothing here re-engages it (the state is latched
+        // inside the guard, so the `if (!g_torque_on) engageAll()` below is
+        // unreachable while it holds).
+        const bool batt_limp = g_batt.torqueMustRelease();
+        const linkproto::LinkState rep_state =
+            g_batt.latched() ? (batt_limp ? linkproto::LinkState::kLowBattSafe
+                                          : linkproto::LinkState::kLowBattLand)
+                             : state;
+        const bool limp = (batt_limp ||
+                           state == linkproto::LinkState::kRelax ||
                            state == linkproto::LinkState::kEstop);
         if (limp) {
             if (g_torque_on) releaseAll();
-            publish(state, faults, s.up[2], vbat_dv,
+            publish(rep_state, faults, s.up[2], vbat_dv,
                     static_cast<uint32_t>(esp_timer_get_time() - t0));
             continue;
         }
@@ -183,6 +199,8 @@ void ctrlTask(void*) {
         // -- observe -------------------------------------------------------
         float vx = 0.0f, wz = 0.0f;
         g_dog.command(now_ms, vx, wz);
+        // Landing on a flat pack: stop travelling, whatever was commanded.
+        if (g_batt.latched()) { vx = 0.0f; wz = 0.0f; }
         g_clock.advance(obs::kControlDt);
 
         obs::Inputs in{};
@@ -196,7 +214,11 @@ void ctrlTask(void*) {
         // lift, foot_dx, foot_dz -- defaults (0,0,0,1,0,0,0).
         in.cmd[0] = vx;
         in.cmd[2] = wz;
-        if (obs::kNumCmd > 3) in.cmd[3] = 1.0f;
+        // Crouch height. 1.0 (full height) until the pack guard trips, then a
+        // ramp down to walker_env's crouch_range[0] -- the lowest stance the
+        // policy was actually trained to hold, so the landing stays inside the
+        // training distribution instead of inventing a pose on a sagging rail.
+        if (obs::kNumCmd > 3) in.cmd[3] = g_batt.crouch();
         const int64_t t_obs0 = esp_timer_get_time();
         obs::assembleFrame(in, g_frame);
         if (!g_primed) {
@@ -246,7 +268,7 @@ void ctrlTask(void*) {
             took > (us_read + us_imu + us_obs + us_net + us_write)
                 ? took - (us_read + us_imu + us_obs + us_net + us_write)
                 : 0u);
-        publish(state, faults, s.up[2], vbat_dv, took);
+        publish(rep_state, faults, s.up[2], vbat_dv, took);
     }
 }
 
@@ -254,6 +276,7 @@ void ctrlTask(void*) {
 
 bool g_cal_from_nvs = false;
 obs::Calibration& calibration() { return g_cal; }
+battguard::Guard& battGuard() { return g_batt; }
 
 void startCtrlTask(imu::Imu& imu) {
     g_imu = &imu;

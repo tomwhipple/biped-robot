@@ -21,7 +21,8 @@ CXXFLAGS  = -std=c++17 -O1 -g \
             -I$(COMPONENTS)/linkproto/include \
             -I$(COMPONENTS)/obs/include \
             -I$(COMPONENTS)/policy/include \
-            -I$(COMPONENTS)/imu/include
+            -I$(COMPONENTS)/imu/include \
+            -I$(COMPONENTS)/battguard/include
 
 SAN      ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 CXXFLAGS += $(SAN)
@@ -36,8 +37,9 @@ SRC_LINK  = $(COMPONENTS)/linkproto/protocol.cpp \
 SRC_OBS   = $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/imu/imu.cpp
 SRC_POL   = $(COMPONENTS)/policy/mlp.cpp
+SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 
-TESTS = test_protocol test_scsbus test_obs test_policy
+TESTS = test_protocol test_scsbus test_obs test_policy test_battguard
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
 
 .PHONY: all test clean vectors
@@ -69,6 +71,9 @@ $(BUILD)/test_obs: test_obs.cpp $(SRC_OBS) ../main/cal_store.cpp $(SPEC_H) \
 
 $(BUILD)/test_policy: test_policy.cpp $(SRC_POL) $(SPEC_H) $(WEIGHTS_H) \
                       vectors/policy_vectors.h test_util.h | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+$(BUILD)/test_battguard: test_battguard.cpp $(SRC_BATT) test_util.h | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD):

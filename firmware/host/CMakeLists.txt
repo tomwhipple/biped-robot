@@ -23,7 +23,8 @@ include_directories(
     ${COMPONENTS}/linkproto/include
     ${COMPONENTS}/obs/include
     ${COMPONENTS}/policy/include
-    ${COMPONENTS}/imu/include)
+    ${COMPONENTS}/imu/include
+    ${COMPONENTS}/battguard/include)
 
 enable_testing()
 
@@ -47,3 +48,5 @@ bimo_test(test_obs test_obs.cpp
           ${COMPONENTS}/imu/imu.cpp)
 
 bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp)
+
+bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)

@@ -103,6 +103,10 @@ def run(run_dir, render=False, duration=None, port=CMD_PORT,
             last_state = state
         v, w = dog.command(now_ms)
         base.set_command(v, w)
+        # The twin never emits LinkState.VLAND / VSAFE: those come from the
+        # firmware's battguard::Guard, and supply_voltage here is a fixed plant
+        # parameter (it scales the torque-speed envelope), not a pack that
+        # discharges. Nothing to guard in sim -- see docs/wiring.md.
         base.set_torque_enabled(state not in (LinkState.RELAX,
                                               LinkState.ESTOP))
         obs[0, -2:] = norm_cmd(env, base._cmd)

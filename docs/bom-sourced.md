@@ -6,6 +6,12 @@ Robot: ~34 cm, ~0.9 kg 3D-printed biped, 8× Feetech STS3215 serial-bus servos.
 BOM source: [`cad/README.md`](../cad/README.md). Print settings and assembly
 order also there.
 
+> **Battery protection parts are in [`bom-supplemental.md`](bom-supplemental.md)**
+> (added 2026-07-27): a balance-lead low-voltage alarm, an inline fuse, the bulk
+> cap, and a watt meter. The robot works without them — that file exists because
+> nothing in this BOM's power path has any protection in it, and an RC LiPo has
+> none inside it either. ~$31 for the protection tier.
+
 ---
 
 ## Consolidated BOM

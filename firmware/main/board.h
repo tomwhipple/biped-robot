@@ -78,6 +78,12 @@ constexpr gpio_num_t kBootButton = GPIO_NUM_0;
 // -- power limits (docs/wiring.md) -----------------------------------------
 // Board input 6-12.6 V, fed straight through to the servo rail. Land the robot
 // at 3.5 V/cell: 10.5 V on 3S, 7.0 V on 2S.
+//
+// These are the ADVISORY thresholds -- what a human is told to do. The robot
+// enforces its own in battguard::kWarn3S / kLand3S (decivolts, because the
+// sense is the servos' register 62). They must agree: kWarn3S == 105 is this
+// same 10.5 V. battguard is pure and cannot include this header, so the link
+// is this comment.
 constexpr float kLandVoltage3s = 10.5f;
 constexpr float kLandVoltage2s = 7.0f;
 

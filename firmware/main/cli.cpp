@@ -255,7 +255,50 @@ void cmdVolt(Sink out) {
     if (!n) { out("no servo answered\r\n"); return; }
     const double v = sum / 10.0 / n;
     say(out, "bus %.1f V (mean of %d servos, 0.1 V resolution)%s\r\n", v, n,
-        v <= 10.5 ? "  *** LAND THE ROBOT (3S floor) ***" : "");
+        v * 10.0 <= battguard::kWarn3S
+            ? "  *** LAND THE ROBOT (3S floor) ***" : "");
+}
+
+// The pack guard. Read-only unless `batt reset` -- see shared.h battGuard()
+// for why the write half is bench-only.
+void cmdBatt(Sink out, int argc, char** argv) {
+    battguard::Guard& g = robot::battGuard();
+    if (argc >= 2 && !strcmp(argv[1], "reset")) {
+        // Bench-mode gate, same rule as the mutating `cal` subcommands: this
+        // WRITES state the control task owns, and only in bench mode is ctrl
+        // guaranteed to return before touching it. Checked directly rather
+        // than via claimBus() because this needs the mode, not the bus.
+        if (robot::g_mode_request.load() != robot::Mode::kBench ||
+            robot::g_ctrl_owns_bus.load()) {
+            out("busy: the control loop owns the guard -- `bench` first\r\n");
+            return;
+        }
+        g.reset();
+        out("pack guard cleared -- do this ONLY after swapping in a fresh "
+            "pack\r\n");
+        return;
+    }
+    const char* lvl = "?";
+    switch (g.level()) {
+        case battguard::Level::kOk: lvl = "ok"; break;
+        case battguard::Level::kWarn: lvl = "WARN (land it)"; break;
+        case battguard::Level::kLanding: lvl = "LANDING (crouching)"; break;
+        case battguard::Level::kSafe: lvl = "SAFE (torque off, latched)"; break;
+    }
+    say(out, "pack %s -- last %.1f V, warn %.1f V, land %.1f V\r\n", lvl,
+        g.lastDv() / 10.0, g.warnDv() / 10.0, g.landDv() / 10.0);
+    say(out, "  %d/%d consecutive ticks below the land line, crouch cmd "
+             "%.2f\r\n",
+        g.belowTicks(), battguard::kConfirmTicks,
+        static_cast<double>(g.crouch()));
+    if (g.latched()) {
+        out("  LATCHED. Swap the pack, then `batt reset` (bench mode) or "
+            "reboot.\r\n");
+    }
+    if (g.lastDv() == 0) {
+        out("  (no reading yet -- voltage arrives on servo feedback, so the "
+            "loop must have run)\r\n");
+    }
 }
 
 void cmdMode(Sink out, bool run) {
@@ -387,6 +430,7 @@ void banner(Sink out) {
     out("  release [id] | torque [id]   no id = broadcast\r\n");
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
     out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");
+    out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
     out("  cal [show|zero|dir|save|load|reset]   servo zero + direction (NVS)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  stat                 tick timing and fault counters\r\n");
@@ -411,6 +455,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "torque")) cmdTorque(out, argc, argv, true);
     else if (!strcmp(c, "middle")) cmdMiddle(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
+    else if (!strcmp(c, "batt")) cmdBatt(out, argc, argv);
     else if (!strcmp(c, "run")) cmdMode(out, true);
     else if (!strcmp(c, "bench")) cmdMode(out, false);
     else if (!strcmp(c, "cal")) cmdCal(out, argc, argv);

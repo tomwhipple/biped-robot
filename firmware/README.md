@@ -216,6 +216,13 @@ Where this contradicts our docs (all recorded in
   **49 per frame × 3 frames = 147**.
 - Pack voltage cannot be read on the board; it comes off a servo's register 62
   at 0.1 V resolution, which is still adequate for wiring.md's 10.5 V floor.
+  `docs/wiring.md` credited the board with an ADC divider until 2026-07-27;
+  `main/board.h` is the correct account and the doc now says so.
+- `components/battguard/` is the pack's only over-discharge protection — an RC
+  LiPo has no protection circuit and the servos' own under-voltage flag sits
+  ~3 V/cell too low to help. It is pure and host-tested; the thresholds and the
+  reasoning are in `docs/wiring.md` "Battery protection". `batt` on the CLI
+  shows its state, `batt reset` clears a latched trip (bench mode only).
 
 ## On-target bring-up order (when the user decides to flash)
 

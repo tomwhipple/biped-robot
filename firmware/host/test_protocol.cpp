@@ -34,6 +34,8 @@ const char* stateName(LinkState s) {
         case LinkState::kStand: return "kStand";
         case LinkState::kRelax: return "kRelax";
         case LinkState::kEstop: return "kEstop";
+        case LinkState::kLowBattLand: return "kLowBattLand";
+        case LinkState::kLowBattSafe: return "kLowBattSafe";
     }
     return "?";
 }

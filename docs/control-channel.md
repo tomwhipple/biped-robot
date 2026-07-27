@@ -84,6 +84,14 @@ than slept through.
 | `STAND` | no valid frame for 250 ms | command `(0,0)` — the trained stand |
 | `RELAX` | no valid frame for 5 s | **torque off**; servos release |
 | `ESTOP` | operator flag; latching | torque off immediately |
+| `VLAND` | pack ≤ 9.9 V for 0.5 s | stop travelling, crouch down under control |
+| `VSAFE` | 1.5 s after `VLAND` | **torque off**, latched until a pack swap |
+
+The first four come from the watchdog and describe the *link*. The last two
+come from `battguard::Guard` and describe the *pack* — they are decided by the
+robot, outrank anything the operator sends, and no command clears them (see
+[wiring.md](wiring.md#battery-protection)). They are appended to the enum, so
+the existing four keep their wire encoding.
 
 - **250 ms** is 5 missed packets at 20 Hz — long enough that one ordinary
   WiFi hiccup is invisible, short enough that a runaway is brief.
