@@ -561,3 +561,26 @@ held-stand recovered, no-termination recovery episodes). This is the
 clean end-to-end test of the rebuilt curriculum. Runner race fixed too:
 post-unload recheck 30 s→5 s (a 3 am vision workload was reloading
 llama3.2-vision faster than the runner could claim the GPU).
+
+## Day 6 midday (2026-07-27): getup_v10 — first honest held stands (in training)
+
+**getup_v10 (fresh, entropy 0.01, honest rules): referee 0/16, but the
+training curve is the first genuine one in the lineage** — recovered
+(now = HELD-stand steps only) climbed 0 → 7 → 33 → 52 by 91M steps,
+reward −332 → +158. Final eval dipped to 18.6 (std 148 — the metric is
+a few full-episode holds among many zeros, so eval noise is huge).
+
+Where the stands actually are (deterministic + stochastic CPU probes):
+the policy can sometimes CATCH AND HOLD from top bank rows (h 0.26 with
+upward velocity — one CPU draw held 0.28 s; MJX evals hold whole
+episodes from these), but the static high-kneel rise is still
+undiscovered — every kneel start still parks at 0.14. The MJX-vs-CPU
+"gap" was sample size: 40% of 128 MJX eval envs draw bank rows and ~40%
+of the bank is the top band; 4 CPU probe seeds rarely land there.
+
+**getup_v10b (running 12:09): consolidation** — warm from v10, entropy
+back to 0.005, same everything. The bet: the catch-and-hold at the top
+band consolidates deterministic, then value propagates down band by
+band (0.24 → 0.22 → static kneel). If v10b consolidates the top but
+doesn't propagate, next bank refresh harvests v10b's own successful
+hold trajectories (real policy states) as intermediate rungs.
