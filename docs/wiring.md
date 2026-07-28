@@ -273,11 +273,34 @@ See [firmware-design.md §3](firmware-design.md). `assembly.md` §9b and
   re-checked 2026-07-28): the board's only connectors are **CN1** (barrel),
   **H1** (5V / GND / **LED-OUT**, the WS2812B expansion output), **H2/H3**
   (servo bus) and USB-C. None of them expose I2C or 3V3, and no GPIO is broken
-  out. The practical tap is the **ESP-32S module's castellated pads**. H1 pins
-  1–2 are the one solder-free 5 V + GND source, usable for `VIN` *only* if a
-  bench check confirms the carrier regulates it — pin 3 is LED data, not I2C.
+  out. H1 pins 1–2 are the one solder-free 5 V + GND source, usable for `VIN`
+  *only* if a bench check confirms the carrier regulates it — **pin 3 is the
+  output of the second WS2812B, not a GPIO**, so it cannot carry a signal.
   (`connector-guide.html` says the jumpers plug onto "the board's GPIO header";
   no such header exists, and that card needs the same correction.)
+
+- **The solder targets are the ESP-32S module's castellated pads**, on the
+  **back** of the board (the same face as the PH1.25-3P LED seat — the front
+  carries the OLED, USB-C, barrel jack and both servo ports):
+
+  ![Waveshare schematic, M1 module, with the four solder pads marked](imu-solder-pads.png)
+
+  | Net | Module pin | Name     |
+  | --- | ---------- | -------- |
+  | SDA | **33**     | `GPIO21` |
+  | SCL | **36**     | `GPIO22` |
+  | GND | **38**     | `GND`    |
+  | 3V3 | **2**      | `VDD33`  |
+
+  33 / 36 / 38 are on one edge within six pads of each other; pin 2 is on the
+  opposite edge. **Minimum job is two joints** — SDA and SCL — if `VIN` and GND
+  come off H1 instead.
+
+- **Identify the pads with a meter, not by counting.** Before soldering, buzz
+  continuity from the candidate pad to a known point: SDA and SCL each go to
+  the OLED and to their 4.7 kΩ pull-up (**R16** = SCL, **R17** = SDA, both to
+  3V3), and GND to the barrel jack sleeve. Miscounting pads puts 3V3 on a
+  flash pin.
 
 - **Do not add pull-ups.** The board already pulls SDA/SCL up to 3V3 with
   4.7 kΩ beside the OLED. Address **0x4A** (SA0 low) or 0x4B (SA0 high) — no
