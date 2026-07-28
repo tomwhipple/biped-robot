@@ -633,6 +633,33 @@ def foot():
     # the fork idler plate's y=-18 plane -- full pocket width (+/-17.65) left
     # only 0.35 to the fork's front corner at ankle +40 (audit 2026-07-28)
     p += box(px1, px1 + D.WALL, -15.0, 15.0, zp, zp + 8)
+    # FRONT retention bosses at the case's 8.30 hole row -- the row nearest the
+    # output end, i.e. right beside the rotor. Without them the case is held only
+    # at the heel tabs and levers against the sole; these pick up the LOW lateral
+    # hole (z 6.11) so the tie-down is close to the sole where the flex is.
+    # Deliberately SHORT (top 10.0 vs the heel tabs' 30.0): the shin fork sweeps
+    # this region, and a full-height wall here would not survive ankle travel.
+    # HORN SIDE ONLY. The idler side cannot take one: the shin fork's idler
+    # plate occupies y -18..-21 through the whole ankle sweep, which is exactly
+    # where a -Y boss would stand (47.6 mm3 at ankle -40, and fouling even at
+    # neutral). On the horn side the fork clears from y 20.45, leaving 0.4 mm.
+    fb = -D.FOOT_FRONT_BOSS_X
+    for s in (1,):
+        p += box(fb - D.FOOT_FRONT_BOSS_HW, fb + D.FOOT_FRONT_BOSS_HW,
+                 s * py, s * (py + D.FOOT_WALL_T), zp, D.FOOT_FRONT_BOSS_TOP)
+    # ...and carve its inner corner back to follow the ROTOR. The horn disc
+    # sweeps O19.2 about the ankle axis from y 18.35 out, so any boss material
+    # out there has to stay off that circle -- the first cut of this boss buried
+    # 13.7 mm3 in it. A matching arc is the detent; the screw at (x -8.30,
+    # z 6.11) sits at r 13.2, well outside it.
+    p -= cyl_y(D.FOOT_ROTOR_CLEAR_R, py - 0.01, py + D.FOOT_WALL_T + 0.01,
+               0, D.ANKLE_Z - D.TPU_PROUD)
+    for s in (1,):
+        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2,
+                        s * (py - 1) if s > 0 else s * (py + D.FOOT_WALL_T + 1),
+                        s * (py + D.FOOT_WALL_T + 1) if s > 0 else s * (py - 1),
+                        fb, zp + 2.11)
+        p -= csk_y(fb, zp + 2.11, s * (py + D.FOOT_WALL_T), s)
     # retention screw holes: horn face row 29.0 (+Y), idler face row 32.75 (-Y);
     # M2.5 FLAT-head self-tap (bench truth 2026-07-28: the case holes take
     # M2.5, not M3); teardropped (horizontal bores printed sole-down, peak +z).
@@ -651,12 +678,13 @@ def foot():
     # (user report / probe 2026-07-23). Relieve the shelf TOP over each low screw
     # from the tab outer face out through the sole edge, down to FOOT_DIVOT_FLOOR
     # -- the pad still bonds to the full z=0 underside. The HIGH row is clear.
+    # ROUNDED (user 2026-07-28): a scallop centred on the sole edge reads with
+    # the rounded toe/heel and has no corners to catch. Centring on the edge is
+    # what keeps it a bite rather than a slot; see FOOT_DIVOT_R for the sizing
+    # constraint (the arc must not pinch shut at the tab face).
     for xh, ysgn in ((-29.0, 1), (-32.75, -1)):
-        yface = ysgn * (py + D.FOOT_WALL_T)          # tab outer (head-seat) face
-        yedge = ysgn * (D.FOOT_W / 2 + 1)            # just past the sole edge
-        p -= box(xh - D.FOOT_DIVOT_HW, xh + D.FOOT_DIVOT_HW,
-                 min(yface, yedge), max(yface, yedge),
-                 D.FOOT_DIVOT_FLOOR, D.FOOT_T + 1)
+        p -= cyl_z(D.FOOT_DIVOT_R, D.FOOT_DIVOT_FLOOR, D.FOOT_T + 1,
+                   xh, ysgn * D.FOOT_W / 2)
     # DETENT for the ankle servo's horn-side RIB (same defect as leg_link, found
     # 2026-07-28 once the mock carried the rib). The servo lies on its side here,
     # so Rot(0,90,0) maps the rib to x = -34.26..-8.73, y from SV_TOPFACE up

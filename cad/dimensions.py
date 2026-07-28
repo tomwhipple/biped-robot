@@ -364,6 +364,19 @@ FOOT_TOE_R = 14.0
 # 10 mm clear of the heel edge, and the cable window (y +/-8) stays inside the
 # straight centre section, so nothing structural rides on the removed corners.
 FOOT_HEEL_R = 14.0
+# Driver-access divots rounded to match (user, 2026-07-28): a scallop centred on
+# the sole edge instead of a rectangular notch. R must be >= 6.9 or the arc
+# pinches at the tab face and strangles the driver -- at 7.0 the opening is
+# 7.4 mm at the head (was 11.0 square) and 14.0 mm at the edge.
+FOOT_DIVOT_R = 7.0
+# Front (rotor-adjacent) retention bosses. The servo case's 8.30 hole row sits
+# right behind the output end; the foot only ever used the far rows, leaving the
+# case cantilevered off the heel tabs. These tie it down at the LOW lateral hole
+# (z 6.11), close to the sole, which is where case-to-sole flex shows up.
+FOOT_FRONT_BOSS_X = 8.30      # case row, behind the axis (== CASE_HOLES_TOP[0])
+FOOT_FRONT_BOSS_HW = 4.5      # boss half-length along x
+FOOT_FRONT_BOSS_TOP = 10.0    # boss top, clears the csk mouth over z 6.11
+FOOT_ROTOR_CLEAR_R = 10.0     # keep the boss off the O19.2 horn disc (r 9.6)
 GRIP_TOP_IDLER = -16.0  # idler side must clear the upper yoke arm sweep (R12+4)
 GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
 # (An idler-side cable-notch constant set lived here 2026-07-23 and was removed
