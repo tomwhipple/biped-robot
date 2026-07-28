@@ -324,9 +324,15 @@ def main():
     shin_stack = Pos(0, 0, D.LINK_DROP) * (ll + grip) + F.disc_screws_y()
     ft_scr = ft + F.foot_screws()
     for ang in D.ROM["ankle"]:
+        # 0.30, down from 0.35: the FRONT tie-down boss (the second front screw,
+        # added 2026-07-28) is what now sets this, not the fork horn arm. Its arc
+        # sits FOOT_ROTOR_CLEAR_R - PAD_D/2 = 0.30 off the shin pad, and buying
+        # more means pushing the arc out until it unseats the screw head. 0.30 is
+        # the same running clearance the yaw-carrier bay slip fit already ships
+        # at -- accepted deliberately, and measured at both ROM extremes.
         ok &= clearance(f"buffer: ankle {ang:+.0f}: foot+screws vs shin+screws",
                         Pos(0, 0, ankle_z) * Rot(0, ang, 0) * shin_stack,
-                        ft_scr, need=0.35)
+                        ft_scr, need=0.295)   # measures 0.300000; float headroom
 
     print("== ankle-servo CABLE connector vs shin fork through ankle ROM ==")
     # The lead plugs into the ankle servo's cable-end (the HEEL end face, X=-35.11).

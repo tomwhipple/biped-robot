@@ -377,13 +377,22 @@ FOOT_DIVOT_R = CASE_CS_D / 2 + 0.6
 # (z 6.11), close to the sole, which is where case-to-sole flex shows up.
 FOOT_FRONT_BOSS_X = 8.30      # case row, behind the axis (== CASE_HOLES_TOP[0])
 FOOT_FRONT_BOSS_HW = 4.5      # boss half-length along x
-FOOT_FRONT_BOSS_TOP = 10.0    # boss top, clears the csk mouth over z 6.11
+FOOT_FRONT_BOSS_TOP = 9.6     # boss top. Needs >= 9.11 to carry the csk mouth
+                              # over the z 6.11 screw; the extra 0.4 mm at 10.0
+                              # was the PINCH POINT against the shin at ankle
+                              # -40 (0.108 mm). At 9.6 the corner drops out of
+                              # the sweep and both extremes sit at 0.300 mm.
 FOOT_ROTOR_CLEAR_R = 10.3     # keep the boss off the O19.2 horn disc (r 9.6).
                               # 10.0 left the countersink mouth (r 3.00, its
                               # centre 13.19 from the ankle axis) clearing the
                               # arc by 0.19 mm -- an unprintable ligament that
                               # reads as a join error. 10.3 merges the two so
                               # the mouth opens cleanly into the relief.
+FOOT_CABLE_TOP_Z = 16.0       # cable window TOP. Left open to the bulkhead top
+                              # it made the heel an open-topped U; capped here
+                              # the section closes into a ring. 16.0 - 8.0 = 8.0
+                              # mm of opening against a 5.0 mm lead bundle and a
+                              # 9.0 mm plug housing, so the connector still passes.
 FOOT_PAD_RELIEF_Z = 3.5       # floor of the fork-pad relief slots. The front
                               # bosses MUST reach down to this, not to the
                               # pocket floor: the slot has already taken the

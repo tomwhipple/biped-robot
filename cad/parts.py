@@ -657,8 +657,14 @@ def foot():
     # routes out over the heel). Cutting before the buttress union -- or not
     # deep enough -- leaves a taper of the buttress standing inside the
     # window, thinning to a single filament: check_printability THIN.
+    # ...and STOP the window short of the top (user, 2026-07-28). Running it out
+    # through z 31 left the bulkhead and buttress as an open-topped U -- two legs
+    # either side of the slot, free to splay. Capping at FOOT_CABLE_TOP_Z closes
+    # the section into a ring, which is the whole point of the v3 bulkhead, and
+    # still leaves a 16.0 x 8.0 mm hole -- the ST3215 plug is 9.0 x 5.0, so it
+    # threads through. The cap is a flat bridge over 16 mm: no support needed.
     p -= box(-D.FOOT_HEEL - 1, bx1 + 1, -D.FOOT_CABLE_W / 2, D.FOOT_CABLE_W / 2,
-             D.FOOT_CABLE_Z, zp + D.FOOT_WALL_H + 1)
+             D.FOOT_CABLE_Z, D.FOOT_CABLE_TOP_Z)
     # front end stop: +/-15 spans the whole 24.72 case but stops 3.0 short of
     # the fork idler plate's y=-18 plane -- full pocket width (+/-17.65) left
     # only 0.35 to the fork's front corner at ankle +40 (audit 2026-07-28)
@@ -682,7 +688,7 @@ def foot():
     # and unseats the screw head. R 10.3 keeps the head but leaves only 0.11 mm
     # to the shin. Head seat or shin clearance -- not both, so it stays off.
     fb = -D.FOOT_FRONT_BOSS_X
-    for s in (1,):
+    for s in (1, -1):
         p += box(fb - D.FOOT_FRONT_BOSS_HW, fb + D.FOOT_FRONT_BOSS_HW,
                  s * py, s * (py + D.FOOT_WALL_T),
                  D.FOOT_PAD_RELIEF_Z, D.FOOT_FRONT_BOSS_TOP)
@@ -694,7 +700,7 @@ def foot():
     p -= cyl_y(D.FOOT_ROTOR_CLEAR_R,
                -(py + D.FOOT_WALL_T + 0.01), py + D.FOOT_WALL_T + 0.01,
                0, D.ANKLE_Z - D.TPU_PROUD)
-    for s in (1,):
+    for s in (1, -1):
         p -= teardrop_y(D.CASE_SCREW_CLEAR / 2,
                         s * (py - 1) if s > 0 else s * (py + D.FOOT_WALL_T + 1),
                         s * (py + D.FOOT_WALL_T + 1) if s > 0 else s * (py - 1),
@@ -725,7 +731,7 @@ def foot():
     # screw needs one too -- it is the same head at the same height, just further
     # forward. Only the LOW row needs relieving; the high row clears the sole.
     for xh, ysgn in ((-29.0, 1), (-32.75, -1),
-                     (-D.FOOT_FRONT_BOSS_X, 1)):
+                     (-D.FOOT_FRONT_BOSS_X, 1), (-D.FOOT_FRONT_BOSS_X, -1)):
         yface = ysgn * (py + D.FOOT_WALL_T)          # tab outer (head-seat) face
         yedge = ysgn * (D.FOOT_W / 2 + 1)            # just past the sole edge
         p -= cyl_y(D.FOOT_DIVOT_R, min(yface, yedge), max(yface, yedge),
