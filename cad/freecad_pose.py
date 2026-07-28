@@ -207,7 +207,11 @@ def show_panel(doc):
     class PosePanel(QtWidgets.QWidget):
         def __init__(self, doc):
             super(PosePanel, self).__init__()
-            self.doc = doc
+            # Hold the NAME, not the document: closing and reopening the file
+            # leaves a cached document object deleted, and every slider then
+            # silently does nothing (the C++ object is gone). Re-resolve per
+            # action instead -- see document().
+            self.doc_name = doc.Name
             self.setWindowTitle("bimo pose")
             self.setWindowFlags(QtCore.Qt.Tool)
             grid = QtWidgets.QGridLayout(self)
@@ -247,12 +251,30 @@ def show_panel(doc):
             return dict((k, float(s.value()))
                         for k, s in self.sliders.items())
 
+        def document(self):
+            """The live articulated document, re-resolved every time. Returns
+            None (and says so) if the file was closed out from under us."""
+            doc = App.listDocuments().get(self.doc_name)
+            if doc is None:
+                try:                           # reopened under another name?
+                    doc = _doc()
+                    self.doc_name = doc.Name
+                except Exception:                        # noqa: BLE001
+                    self.status.setText(
+                        "no articulated document open -- reopen the .FCStd, "
+                        "then reopen this panel")
+                    return None
+            return doc
+
         def repose(self):
+            doc = self.document()
+            if doc is None:
+                return
             a = self.angles()
             for k, v in a.items():
                 self.readouts[k].setText("%+d deg" % int(v))
-            apply_pose(self.doc, a, mirror=self.mirror.isChecked())
-            clear_collisions(self.doc)         # stale red bodies would lie
+            apply_pose(doc, a, mirror=self.mirror.isChecked())
+            clear_collisions(doc)              # stale red bodies would lie
             self.status.setText("posed -- press Check collisions")
             try:
                 Gui.updateGui()                # repaint mid-drag
@@ -260,7 +282,10 @@ def show_panel(doc):
                 pass
 
         def check(self):
-            rows = check_collisions(self.doc)
+            doc = self.document()
+            if doc is None:
+                return
+            rows = check_collisions(doc)
             hits = [r for r in rows if r[1]]
             if hits:
                 self.status.setText(
