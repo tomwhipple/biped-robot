@@ -283,6 +283,19 @@ def leg_link(print_fins=False):
     # jog block joining horn grip plate (out at 19.75) to fork plate (21.45+)
     p += box(web_x0, 12, D.SV_TOPFACE, hy1, -36.5, -33)
     p += box(web_x0, 12, iy0, -D.SV_TOPFACE, -36.5, -33)
+    # DETENT for the servo's horn-side RIB (measured off cad/vendor/ST3215.step,
+    # 2026-07-28). The rib stands 1.13 mm proud of the case top face right under
+    # the horn grip plate, so without this pocket the plate lands on the rib
+    # instead of the case and the link ROCKS -- confirmed on the bench.
+    # Cut LAST: the jog block above re-fills the cable end of it (z -36.5..-33),
+    # so cutting with the grip plate left a 14 mm3 sliver of the rib still
+    # buried. The plate seats on the case either side of the pocket, and the
+    # M2.5 grip screws at +/-10.25 clamp OUTSIDE the +/-7.42 rib band, so the
+    # clamp load path is untouched.
+    p -= box(-D.SV_HORN_RIB_HW - D.RIB_RELIEF_CLR, D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR,
+             D.SV_TOPFACE - 0.01, D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
+             -D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR,
+             -D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR)
     # --- holes: case grip screws (M2.5 FLAT-head self-tap into the servo case
     # holes -- bench truth 2026-07-28, M3 is too wide); teardropped with the
     # peak +x (this part prints web-down, print-up = model +x). Every grip

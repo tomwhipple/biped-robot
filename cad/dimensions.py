@@ -350,6 +350,12 @@ LINK_DROP = 90.0        # == THIGH == SHIN
 GRIP_PLATE_T = 2.4
 GRIP_TOP_HORN = -3.0    # top edge of horn-side grip plate (below upper axis);
 GRIP_HORN_RELIEF = 10.3 # ...with a circular relief around the O19.6 case boss
+# Rib detent in the horn-side grip plate (see leg_link). Depth clearance is what
+# guarantees the plate lands on the CASE, not on the rib; 0.30 over a 1.13 rib
+# leaves GRIP_PLATE_T - 1.43 = 0.97 mm of plate over the pocket, which spans
+# between the two screw rails rather than carrying clamp load.
+RIB_RELIEF_CLR = 0.4          # footprint clearance each side of the rib
+RIB_RELIEF_DEPTH_CLR = 0.3    # air above the rib crest
 GRIP_TOP_IDLER = -16.0  # idler side must clear the upper yoke arm sweep (R12+4)
 GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
 # (An idler-side cable-notch constant set lived here 2026-07-23 and was removed
