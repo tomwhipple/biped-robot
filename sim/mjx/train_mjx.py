@@ -134,6 +134,10 @@ def main():
     p.add_argument("--num-evals", type=int, default=20)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--cmd-dense", action="store_true")
+    p.add_argument("--cmd-v-range", default="0.3,1.0",
+                   help="forward-speed command range, m/s (loco_v6: "
+                        "0.05,1.0 teaches the creep band the goal-homing "
+                        "outer loop needs)")
     p.add_argument("--discovery", action="store_true",
                    help="stage-1 clean-physics discovery: no DR/payload/"
                         "latency/backlash/pushes (stage 2 re-hardens)")
@@ -211,7 +215,8 @@ def main():
         domain_rand=True,
         latency_ms=0.0, latency_ms_max=8.0, latency_jitter_ms=1.0,
         backlash_deg=0.5, backlash_deg_max=1.0,
-        cmd_v_range=(0.3, 1.0), cmd_w_range=1.0, cmd_stand_prob=0.3,
+        cmd_v_range=tuple(float(x) for x in args.cmd_v_range.split(",")),
+        cmd_w_range=1.0, cmd_stand_prob=0.3,
         cmd_resample_s=(2.5, 4.5), cmd_dense=args.cmd_dense,
         w_track_v=2.0, w_track_w=2.0,
         imu_obs=True, imu_noise=1.0,

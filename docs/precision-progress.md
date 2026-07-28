@@ -647,3 +647,24 @@ self-recovery for now — assist to kneel by hand on hardware, the servo
 stand-drive covers the rest. GPU nights return to locomotion and the
 goal-conditioning layer. The imitation build stays documented above as
 the revival path if it's ever wanted.
+
+## Day 7 (2026-07-28): goal layer, first evidence — closed-loop homing 2x
+
+Getup parked (user call); task #15 opened: goal-conditioning. First
+experiment before any training: a CLOSED-LOOP outer controller (P on
+bearing/distance, omnidirectional body-frame creep inside 0.3 m, 5 cm
+stand latch) wrapped around the untouched loco_v5t policy, evaluated on
+the circle_return task with ground-truth position.
+
+**Result: 6/8 vs the open-loop baseline's 3/8, zero falls; both misses
+by <= 3 cm.** Two design facts fall out:
+1. Goal-seeking may not need a goal-conditioned POLICY at all — an
+   outer command loop + odometry might be the whole layer.
+2. The residual is low-speed tracking: `cmd_v_range=(0.3, 1.0)` means
+   the policy has NEVER trained below 0.3 m/s; the homing creep
+   (0.08–0.25) ran outside the training distribution entirely.
+
+**loco_v6creep (queued for tonight's 22:00 cron): warm from loco_v5t,
+`--cmd-v-range 0.05,1.0`** (new train_mjx flag) — teach the creep band,
+then re-run the homing eval. Open deployment question for the goal
+layer: position source on hardware (IMU odometry drift vs GoPro).
