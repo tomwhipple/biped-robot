@@ -20,18 +20,34 @@ rotation limits baked in (EnableAngleMin/Max):
     knee     -95..+5   ankle    +/-40
 
 The torso is grounded; both legs are built from the same part STEPs
-(`cad/step/*.step`, re-exported by `export_step.py`) placed at the world
-positions in `cad/dimensions.py`.  Servo bodies are intentionally omitted --
-the printed skeleton is what you pose to check range of motion.
+(`cad/step/*.step`, re-exported by `parts.py`) placed at the world positions in
+`cad/dimensions.py`.  Since 2026-07-28 every body also carries its MODELED
+FASTENERS (`step/screws_*.step`, from `fasteners.py`) -- without them the file
+poses a skeleton that can't collide the way the hardware does.  Servo bodies
+are intentionally omitted: the disc faces touch them by design, so they'd only
+add false hits.
 
     -> cad/step/bimo_v3yaw_articulated.FCStd
+    BIMO_PAN_HEADS=1 -> ..._PANHEADS.FCStd  (grip screws = the AS-FITTED uxcell
+    pan heads that skew the links, instead of the flush countersunk flat heads)
 
 How to POSE it
 --------------
 Open the .FCStd in the FreeCAD GUI, switch to the **Assembly** workbench, then
-either (a) drag any part with the mouse -- the solver keeps every joint honest
-and stops each axis at its limit -- or (b) double-click a joint in the tree and
-type an angle.  Ground stays put; the chain follows.
+either
+
+  (a) DRAG a part with the mouse -- the solver keeps every joint honest and
+      stops each axis at its ROM limit.  Ground stays put, the chain follows;
+      Esc/undo puts it back.
+  (b) run `cad/freecad_pose.py` (Macro -> Macros...) for a slider panel: five
+      sliders drive both legs to exact angles, and "Check collisions" paints
+      any interference solid RED in the tree.  This is the repeatable way --
+      dragging is for feel, sliders are for evidence.
+
+Note that a plain Revolute joint has NO driving angle property in FreeCAD 1.1
+(its `Angle` field belongs to the Angle joint type), which is why (b) sets the
+rigid bodies' placements from the same kinematics `export_pose.py` uses rather
+than asking the solver for an angle.
 
 The file opens VISIBLE with a fitted isometric view: because console-mode
 FreeCAD writes no GuiDocument.xml, this macro injects one after saving (a
@@ -74,6 +90,12 @@ sys.path.insert(0, HERE)
 import dimensions as D                  # pure-python constants, safe under FreeCAD
 
 REVOLUTE = JointObject.JointTypes.index("Revolute")   # == 1
+
+# BIMO_PAN_HEADS=1 builds the AS-FITTED bench state (proud uxcell pan heads on
+# the leg-link grip plates) instead of the design-intent flush flat heads.
+PAN_HEADS = os.environ.get("BIMO_PAN_HEADS", "") not in ("", "0", "false")
+GRIP = "screws_grip_pan" if PAN_HEADS else "screws_grip"
+DOC_NAME = "bimo_v3yaw_articulated" + ("_PANHEADS" if PAN_HEADS else "")
 
 # JCS orientation: a Revolute joint spins about its coordinate system's LOCAL Z.
 # Build a rotation that points local Z along each real axis.
@@ -236,19 +258,22 @@ def inject_gui_document(fcstd_path, doc):
 
 # --------------------------------------------------------------------------- build
 def build():
-    doc = App.newDocument("bimo_v3yaw_articulated")
+    doc = App.newDocument(DOC_NAME)
     asm = doc.addObject("Assembly::AssemblyObject", "Assembly")
 
     P = App.Placement
     V = App.Vector
     I = App.Rotation()
 
-    # ---- torso (grounded): all the deck-up printed parts ----
+    # ---- torso (grounded): all the deck-up printed parts + their screws ----
     torso = body(doc, asm, "torso", [
         ("pelvis",      P(V(0, 0, DECK_TOP_Z), I)),
         ("tower",       P(V(0, 0, DECK_TOP_Z), I)),
         ("imu_carrier", P(V(0, 0, TOWER_TOP_Z), I)),
         ("gopro_base",  P(V(0, 0, TOWER_TOP_Z + D.IMU_CARRIER_T), I)),
+        ("screws_deck",       P(V(0, 0, DECK_TOP_Z), I)),
+        ("screws_tower",      P(V(0, 0, DECK_TOP_Z), I)),
+        ("screws_head_stack", P(V(0, 0, TOWER_TOP_Z), I)),
     ])
 
     jg = doc.addObject("Assembly::JointGroup", "Joints")
@@ -260,18 +285,33 @@ def build():
 
     # ---- one leg, mirrored by lateral offset y ----
     def leg(tag, y):
-        yaw = body(doc, asm, "yaw_%s" % tag,
-                   [("yaw_carrier", P(V(0, y, D.HIP_YAW_Z), I))])
-        roll = body(doc, asm, "roll_%s" % tag, [
-            ("yoke_roll",  P(V(0, y, D.HIP_ROLL_Z), I)),
-            ("yoke_pitch", P(V(0, y, D.HIP_PITCH_Z), I)),
+        # each body carries the fasteners that RIDE it (same grouping as
+        # export_pose.py's stages): the horn-side discs move with the driven
+        # link, the idler-side hardware stays with the frame that holds it.
+        yaw = body(doc, asm, "yaw_%s" % tag, [
+            ("yaw_carrier",        P(V(0, y, D.HIP_YAW_Z), I)),
+            ("screws_yaw_carrier", P(V(0, y, D.HIP_YAW_Z), I)),
         ])
-        thigh = body(doc, asm, "thigh_%s" % tag,
-                     [("leg_link", P(V(0, y, D.HIP_PITCH_Z), I))])
-        shin = body(doc, asm, "shin_%s" % tag,
-                    [("leg_link", P(V(0, y, D.KNEE_Z), I))])
-        foot = body(doc, asm, "foot_%s" % tag,
-                    [("foot", P(V(0, y, D.TPU_PROUD), I))])
+        roll = body(doc, asm, "roll_%s" % tag, [
+            ("yoke_roll",     P(V(0, y, D.HIP_ROLL_Z), I)),
+            ("screws_roll",   P(V(0, y, D.HIP_ROLL_Z), I)),
+            ("yoke_pitch",    P(V(0, y, D.HIP_PITCH_Z), I)),
+            ("screws_disc_y", P(V(0, y, D.HIP_PITCH_Z), I)),
+        ])
+        thigh = body(doc, asm, "thigh_%s" % tag, [
+            ("leg_link",      P(V(0, y, D.HIP_PITCH_Z), I)),
+            (GRIP,            P(V(0, y, D.HIP_PITCH_Z), I)),
+            ("screws_disc_y", P(V(0, y, D.KNEE_Z), I)),
+        ])
+        shin = body(doc, asm, "shin_%s" % tag, [
+            ("leg_link",      P(V(0, y, D.KNEE_Z), I)),
+            (GRIP,            P(V(0, y, D.KNEE_Z), I)),
+            ("screws_disc_y", P(V(0, y, D.ANKLE_Z), I)),
+        ])
+        foot = body(doc, asm, "foot_%s" % tag, [
+            ("foot",        P(V(0, y, D.TPU_PROUD), I)),
+            ("screws_foot", P(V(0, y, D.TPU_PROUD), I)),
+        ])
 
         # joint coordinate systems, one pair per axis (same world axis on both
         # bodies -> pre-coincident, so the assembled/neutral pose is preserved)
@@ -302,7 +342,7 @@ def build():
     except Exception as exc:                       # noqa: BLE001 -- report, don't crash
         print("solve warning:", repr(exc))
 
-    out = os.path.join(STEP, "bimo_v3yaw_articulated.FCStd")
+    out = os.path.join(STEP, DOC_NAME + ".FCStd")
     doc.saveAs(out)
     # console mode saves no GuiDocument.xml -> inject one so it opens VISIBLE
     inject_gui_document(out, doc)

@@ -21,14 +21,18 @@ cad/
 ├── render_assembly_steps.py  # per-step figures for docs/assembly.md
 ├── animate_assembly.py # fly-in feasibility animation (real insertion paths)
 ├── freecad_articulate.py  # build the POSEABLE FreeCAD assembly (10 revolute joints)
+├── freecad_pose.py    # FreeCAD macro: joint sliders + red collision bodies
+├── export_pose.py     # one frozen articulated pose -> step/poses/*.step
 ├── stl/               # exported STLs (one per unique part)
 ├── step/              # exported STEPs + assembly.step / assembly_full.step
-│                      #   + bimo_v3yaw_articulated.FCStd (poseable)
+│                      #   + screws_*.step (fastener groups, for FreeCAD)
+│                      #   + bimo_v3yaw_articulated[_PANHEADS].FCStd (poseable)
 └── bimo_like_biped.scad  # (older massing concept, superseded by parts.py)
 ```
 
 ```bash
 ../.venv/bin/python parts.py            # STLs + STEPs + assembly.step + assembly_full.step
+../.venv/bin/python fasteners.py        # step/screws_*.step (fastener groups for FreeCAD)
 ../.venv/bin/python parts.py --no-assembly   # skip the ~55 s assemblies while iterating
 ../.venv/bin/python check_assembly.py   # must print ALL CLEAR
 # (export_assembly.py / export_assembly_full.py still run standalone if wanted)
@@ -43,21 +47,48 @@ cad/
 through its full range of motion — one **Revolute** joint per axis, with the
 sim's limits baked in (hip yaw ±45°, hip roll ±25°, hip pitch −110/+60°, knee
 −95/+5°, ankle ±40°). The torso is grounded; both legs share the same part
-STEPs. Build it (STEPs must exist — run `parts.py` first):
+STEPs, and since 2026-07-28 every body also carries its **modeled fasteners**
+(`step/screws_*.step`) — the screw heads are what actually collide. Build it
+(STEPs must exist — run `parts.py` then `fasteners.py` first):
 
 ```bash
 # macOS (adjust the path on Linux/Windows to your freecadcmd)
 /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd cad/freecad_articulate.py
 # -> cad/step/bimo_v3yaw_articulated.FCStd
+BIMO_PAN_HEADS=1 ... freecadcmd cad/freecad_articulate.py
+# -> ..._PANHEADS.FCStd: the AS-FITTED proud pan heads instead of flush flat ones
 ```
 
 or from the GUI: **Macro → Macros… → add `freecad_articulate.py` → Execute**.
 
-**To pose it:** open `cad/step/bimo_v3yaw_articulated.FCStd`, switch to the
-**Assembly** workbench, then either **drag any part** with the mouse (the
-solver keeps every joint honest and stops each axis at its limit) or
-double-click a joint in the tree and type an angle. The neutral pose is the
-CAD standing pose (feet on the ground). The macro injects a `GuiDocument.xml`
+### To pose it
+
+Open `cad/step/bimo_v3yaw_articulated.FCStd` and switch to the **Assembly**
+workbench. Two ways to move the joints:
+
+1. **Drag a part** with the mouse — the solver keeps every joint honest and
+   stops each axis at its ROM limit. Good for feel; undo puts it back.
+2. **Run `freecad_pose.py`** (Macro → Macros… → Execute) for a slider panel:
+   one slider per axis, clamped to the ROM, driving both legs live — plus a
+   **Check collisions** button that boolean-intersects every moving pair at the
+   current pose (however you got there) and drops a solid **red `COLLIDE_*`
+   body** in the tree wherever parts actually overlap. Gaps print to the Report
+   view, tightest first. Batch/headless equivalent:
+   `BIMO_POSE="hip=-60,knee=-95" freecadcmd cad/freecad_pose.py`.
+
+A plain Revolute joint has **no driving angle** in FreeCAD 1.1 (the `Angle`
+field belongs to the *Angle* joint type), so the slider panel sets the rigid
+bodies' placements from the same kinematics `export_pose.py` uses rather than
+asking the solver for an angle.
+
+Reading the gap table: **0.30 mm** carrier-vs-yoke is the designed bay-bore
+slip fit and **0.40 mm** shin-vs-foot at the ankle extremes is the locked
+fork/wall band — both intentional. The one that matters on the bench is
+**yoke-vs-thigh: 0.70 mm** with flush flat heads, and a hard collision
+(10.7 mm³ per leg at hip −60°) in the `_PANHEADS` file.
+
+The neutral pose is the CAD standing pose (feet on the ground). The macro
+injects a `GuiDocument.xml`
 (view state + fitted isometric camera) so the file opens visible even though it
 was built headless. *(FreeCAD prints ~20 benign "invalid Reference" warnings on
 open — a PartDesign migration quirk that doesn't apply to these LCS joints; they
