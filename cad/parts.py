@@ -653,8 +653,13 @@ def foot():
     p += wedge_y([(wx0, zr), (wx0 - aL, zr), (wx0, zr + aH)],
                  -(py + D.FOOT_WALL_T), py + D.FOOT_WALL_T)
     # cable window, cut LAST and clear through the heel edge so it opens
-    # bulkhead AND buttress (the servo cable exits the rear END face and
-    # routes out over the heel). Cutting before the buttress union -- or not
+    # bulkhead AND buttress.
+    # NOTE 2026-07-28: the premise here is WRONG and needs revisiting. The lead
+    # does NOT exit the rear END face -- SV_CONN (measured off the vendor STEP)
+    # puts the sockets on the IDLER-SIDE FACE, x -11.75..-16.35, i.e. out the
+    # side about a third of the way along the foot. This window is still a
+    # legitimate rearward raceway once the lead is out, but it is not where the
+    # lead leaves the servo, and the routing has not been re-derived. Cutting before the buttress union -- or not
     # deep enough -- leaves a taper of the buttress standing inside the
     # window, thinning to a single filament: check_printability THIN.
     # ...and STOP the window short of the top (user, 2026-07-28). Running it out
@@ -687,6 +692,15 @@ def foot():
     # the countersink mouth (centre 13.19 from the axis, flat head radius 2.35)
     # and unseats the screw head. R 10.3 keeps the head but leaves only 0.11 mm
     # to the shin. Head seat or shin clearance -- not both, so it stays off.
+    # BOTH SIDES. Note what the -Y boss shares space with: SV_CONN puts the
+    # servo's sockets on the IDLER FACE, trench band x -11.75..-16.35 (measured
+    # off cad/vendor/ST3215.step -- NOT the heel end face, whatever the old cable
+    # comments said). The boss's rear corner reaches x -12.80, i.e. 1.05 mm into
+    # that band, and no size escapes it: the countersink mouth must reach -11.30,
+    # so clearing the trench needs HW < 3.45 while keeping a rim round the mouth
+    # needs HW > 3.0. USER CALL 2026-07-28: keep the screw -- the lead is
+    # flexible and will route around the boss. Plug the connector BEFORE the foot
+    # goes on; there is no room to work it in afterwards.
     fb = -D.FOOT_FRONT_BOSS_X
     for s in (1, -1):
         p += box(fb - D.FOOT_FRONT_BOSS_HW, fb + D.FOOT_FRONT_BOSS_HW,

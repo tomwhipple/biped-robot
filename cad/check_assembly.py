@@ -335,12 +335,20 @@ def main():
                         ft_scr, need=0.295)   # measures 0.300000; float headroom
 
     print("== ankle-servo CABLE connector vs shin fork through ankle ROM ==")
-    # The lead plugs into the ankle servo's cable-end (the HEEL end face, X=-35.11).
-    # As the ankle rotates the foot+servo, that connector sweeps; the concern is it
-    # fouling the shin fork's idler plate at toes-pointed (ankle +40, toe down).
-    # Mock the connector+plug generously (full case width/height, protruding past
-    # the heel face) and require 0 mm3 across the ROM -- there is ~10 mm clearance
-    # (design review 2026-07-23; a speculative fork notch was removed after this).
+    # WRONG PREMISE, 2026-07-28 (user: "the servo cables connect next to the idler
+    # wheel, not at the heel"). This mocked the plug on the HEEL END FACE, which
+    # dimensions.py's measured SV_CONN block explicitly rules out -- the sockets
+    # open out of the IDLER-SIDE FACE, in the trench band SV_CONN_L (11.75..16.35
+    # behind the axis), "never the cable-END face". So this check has been proving
+    # clearance in a place the connector never occupies, which is why it did not
+    # catch a front boss being put straight over the real one.
+    #
+    # The heel mock is kept for now because it is still a real swept volume, but
+    # it is NOT the connector, and the idler-face plug is NOT yet checked against
+    # the shin fork. On the numbers that pair looks tight: the plug protrudes from
+    # y -17.35 while the fork's idler plate sits at y -18..-21, both at r ~15 from
+    # the ankle axis. Needs the physical part to settle how far the housing stands
+    # proud before it can be modelled honestly -- see cad/README.md.
     ankle_conn = Pos(0, 0, ankle_z) * parts.box(-45, -33, -12.36, 12.36, -12.36, 12.36)
     for ang in (0, 40, -40):
         sl = Pos(0, 0, ankle_z) * Rot(0, ang, 0) * Pos(0, 0, D.LINK_DROP) * parts.leg_link()
