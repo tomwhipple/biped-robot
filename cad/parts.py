@@ -616,8 +616,14 @@ def foot():
     for s in (1, -1):
         yb0, yb1 = s * py, s * (py + D.FOOT_WALL_T)  # tab Y band (2.4 thick)
         p += box(wx0, wx1, yb0, yb1, zp, zp + D.FOOT_WALL_H)
-    # bulkhead between the tab aft ends
-    p += box(bx0, bx1, -py, py, zp, zp + D.FOOT_WALL_H)
+    # bulkhead between the tab aft ends. Runs out to the tab OUTER faces, not
+    # just the pocket width: stopping at +/-py made it die into the tabs' inner
+    # faces, leaving each tab's outer 2.4 mm band tied only by the 2 mm aft
+    # buttress wedge. Full width closes tabs + bulkhead into a continuous
+    # channel section behind the servo (user, 2026-07-28). Still all vertical
+    # faces, so nothing new bridges.
+    p += box(bx0, bx1, -(py + D.FOOT_WALL_T), py + D.FOOT_WALL_T,
+             zp, zp + D.FOOT_WALL_H)
     # one full-width aft buttress bracing tabs + bulkhead together: vertical
     # face against them, sloped face up (support-free), ends at the heel edge
     p += wedge_y([(wx0, zr), (wx0 - aL, zr), (wx0, zr + aH)],
@@ -678,13 +684,17 @@ def foot():
     # (user report / probe 2026-07-23). Relieve the shelf TOP over each low screw
     # from the tab outer face out through the sole edge, down to FOOT_DIVOT_FLOOR
     # -- the pad still bonds to the full z=0 underside. The HIGH row is clear.
-    # ROUNDED (user 2026-07-28): a scallop centred on the sole edge reads with
-    # the rounded toe/heel and has no corners to catch. Centring on the edge is
-    # what keeps it a bite rather than a slot; see FOOT_DIVOT_R for the sizing
-    # constraint (the arc must not pinch shut at the tab face).
-    for xh, ysgn in ((-29.0, 1), (-32.75, -1)):
-        p -= cyl_z(D.FOOT_DIVOT_R, D.FOOT_DIVOT_FLOOR, D.FOOT_T + 1,
-                   xh, ysgn * D.FOOT_W / 2)
+    # CO-AXIAL WITH THE SCREW (user 2026-07-28): bore the relief along the screw
+    # axis, head radius + margin, from the tab outer face out through the sole
+    # edge. The screw sits at z 6.11 and the sole top is 6.0, so the channel only
+    # bites 3.19 mm into the shelf and leaves 2.81 mm under it. The FRONT boss
+    # screw needs one too -- it is the same head at the same height, just further
+    # forward. Only the LOW row needs relieving; the high row clears the sole.
+    for xh, ysgn in ((-29.0, 1), (-32.75, -1), (-D.FOOT_FRONT_BOSS_X, 1)):
+        yface = ysgn * (py + D.FOOT_WALL_T)          # tab outer (head-seat) face
+        yedge = ysgn * (D.FOOT_W / 2 + 1)            # just past the sole edge
+        p -= cyl_y(D.FOOT_DIVOT_R, min(yface, yedge), max(yface, yedge),
+                   xh, zp + 2.11)
     # DETENT for the ankle servo's horn-side RIB (same defect as leg_link, found
     # 2026-07-28 once the mock carried the rib). The servo lies on its side here,
     # so Rot(0,90,0) maps the rib to x = -34.26..-8.73, y from SV_TOPFACE up

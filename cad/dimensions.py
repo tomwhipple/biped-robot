@@ -364,11 +364,13 @@ FOOT_TOE_R = 14.0
 # 10 mm clear of the heel edge, and the cable window (y +/-8) stays inside the
 # straight centre section, so nothing structural rides on the removed corners.
 FOOT_HEEL_R = 14.0
-# Driver-access divots rounded to match (user, 2026-07-28): a scallop centred on
-# the sole edge instead of a rectangular notch. R must be >= 6.9 or the arc
-# pinches at the tab face and strangles the driver -- at 7.0 the opening is
-# 7.4 mm at the head (was 11.0 square) and 14.0 mm at the edge.
-FOOT_DIVOT_R = 7.0
+# Driver-access divots (user, 2026-07-28): a round channel CO-AXIAL WITH THE
+# SCREW -- bored along the screw axis, not scalloped down from the sole edge --
+# so the relief follows the driver instead of hacking a notch out of the plan
+# silhouette. Sized to the head plus margin and nothing more: the countersink
+# mouth is CASE_CS_D, so 2.70 + 0.60 = 3.30. That leaves 2.81 mm of sole under
+# the channel, MORE than the 2.0 the old rectangular notch left.
+FOOT_DIVOT_R = CASE_CS_D / 2 + 0.6
 # Front (rotor-adjacent) retention bosses. The servo case's 8.30 hole row sits
 # right behind the output end; the foot only ever used the far rows, leaving the
 # case cantilevered off the heel tabs. These tie it down at the LOW lateral hole
