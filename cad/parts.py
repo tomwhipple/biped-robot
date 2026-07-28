@@ -347,6 +347,18 @@ def leg_link(print_fins=False):
     for z in (-40, -52):
         for ly in (9, -9):
             p -= cyl_x(2.25, web_x0 - 1, web_x1 + 1, ly, z)
+    # --- trim everything BELOW the lower joint axis back to the pad radius.
+    # The slab filled to z -92 while the fork starts at the axis (z -90), so a
+    # 2 mm lip hung below with four sharp vertical arrises at x -10.50 (y -21,
+    # -18, +20.45, +23.45) sitting at r 10.69 -- outside the PAD_D/2 = 10.0 pad
+    # they hang off. Material below the axis carries nothing (the leg runs
+    # UPWARD from here) but it is the first thing to swing into the mating part,
+    # so it costs joint travel for free. Cutting back to the pad circle removes
+    # the corners entirely and leaves the sub-axis silhouette exactly the pad
+    # (user, 2026-07-28). Must precede the print fins: those stubs live below
+    # -92.8 outside the pad and are meant to survive this.
+    _below = box(-40, 40, -40, 40, -200, drop)
+    p -= _below - cyl_y(D.PAD_D / 2, -40, 40, 0, drop)
     if print_fins:
         # break-away print supports, final round (2026-07-16: fin-under-slab
         # was rejected three times -- every variant is trapped under the
