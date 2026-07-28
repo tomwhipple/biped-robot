@@ -27,3 +27,6 @@ infra/.last_train
 infra/runpod/.last_pod
 cad/step/*.FCBak
 cad/step/poses/
+
+# animate_assembly.py writes and deletes these per run
+cad/renders/_anim/
