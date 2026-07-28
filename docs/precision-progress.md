@@ -611,3 +611,33 @@ the corridor curriculum produce a deterministic kneel→stand at all? If
 yes → v12 re-hardens from it. If no → the reward/curriculum design is
 wrong at a deeper level than conditions, and the next stop is AMP-style
 reference imitation (LocoMuJoCo mocap) rather than more shaping.
+
+## Day 7 morning (2026-07-28): getup_v11 — the decisive negative
+
+**Clean-physics discovery run: recovered 0.00 for all 110M steps.** No
+DR, no payload, no latency/backlash, no pushes, honest rules, corridor
+reference, finish rows, entropy 0.01 — and not one held stand. The
+pre-registered decision rule resolves: **the reward/curriculum design
+itself does not produce standing; the hardening was never the blocker.**
+
+The v10-vs-v11 comparison adds a sharp irony: hardened v10 reached 52
+held-stand steps because push_kick VELOCITY KICKS were tossing the
+robot near standing — free exploration the policy never had to learn.
+Clean physics removed that accidental scaffold and the parked optimum
+was found faster (reward +252 by 20M) and never left.
+
+**Where this leaves the getup effort after 12 rounds / ~1.3B steps:**
+shaping + RSI + honest gates found and fixed six real bugs/exploits and
+mapped the feasible corridor, but PPO exploration cannot bridge the
+final dynamic maneuver (kneel -> balance-catch -> hold) from income
+signals alone. The literature answer is reference imitation: a
+DeepMimic-style phase-indexed TRACKING objective (pose + velocity,
+dominant weight) over a retimed kneel-corridor trajectory, with RSI
+along it — the env already has the machinery stubs (w_mimic/_mimic_ref
+for gait, w_rise_ref pose kernel, per-row bank t0). That is a Phase-B
+build, and a strategy fork worth a human call:
+  (a) build getup imitation (env work: mimic-style rise tracking with
+      velocity terms; ~a day of build + validation), or
+  (b) park getup as "assist to kneel, servo-snap the rest" for now and
+      return GPU nights to locomotion/goal-conditioning, where the
+      pipeline is demonstrably productive (loco_v5t 64/72 deployable).
