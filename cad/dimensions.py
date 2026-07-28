@@ -378,7 +378,17 @@ FOOT_DIVOT_R = CASE_CS_D / 2 + 0.6
 FOOT_FRONT_BOSS_X = 8.30      # case row, behind the axis (== CASE_HOLES_TOP[0])
 FOOT_FRONT_BOSS_HW = 4.5      # boss half-length along x
 FOOT_FRONT_BOSS_TOP = 10.0    # boss top, clears the csk mouth over z 6.11
-FOOT_ROTOR_CLEAR_R = 10.0     # keep the boss off the O19.2 horn disc (r 9.6)
+FOOT_ROTOR_CLEAR_R = 10.3     # keep the boss off the O19.2 horn disc (r 9.6).
+                              # 10.0 left the countersink mouth (r 3.00, its
+                              # centre 13.19 from the ankle axis) clearing the
+                              # arc by 0.19 mm -- an unprintable ligament that
+                              # reads as a join error. 10.3 merges the two so
+                              # the mouth opens cleanly into the relief.
+FOOT_PAD_RELIEF_Z = 3.5       # floor of the fork-pad relief slots. The front
+                              # bosses MUST reach down to this, not to the
+                              # pocket floor: the slot has already taken the
+                              # sole away above it, and a boss starting at 4.0
+                              # floated free (81 mm3 detached solid).
 # leg_link lower-joint corner cuts (user sketch, 2026-07-28). Measured about the
 # lower axis, the fork profile steps from the PAD_D/2 = 10.0 pad straight out to
 # r 12.0 at 0 deg (front edge) and r 15.0 at 180 deg (rear web face) -- two sharp

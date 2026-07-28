@@ -673,16 +673,26 @@ def foot():
     # plate occupies y -18..-21 through the whole ankle sweep, which is exactly
     # where a -Y boss would stand (47.6 mm3 at ankle -40, and fouling even at
     # neutral). On the horn side the fork clears from y 20.45, leaving 0.4 mm.
+    # HORN SIDE ONLY -- see the note above: the idler side is measured, not
+    # assumed. A mirrored boss clears the shin outright (0.00 mm3 at every ankle
+    # angle once the rotor arc trims it), but the CLEARANCE is the problem: the
+    # gap to the shin is set purely by FOOT_ROTOR_CLEAR_R, and reaching the
+    # 0.40 mm this joint already runs at needs R ~10.9, which cuts 0.9 mm into
+    # the countersink mouth (centre 13.19 from the axis, flat head radius 2.35)
+    # and unseats the screw head. R 10.3 keeps the head but leaves only 0.11 mm
+    # to the shin. Head seat or shin clearance -- not both, so it stays off.
     fb = -D.FOOT_FRONT_BOSS_X
     for s in (1,):
         p += box(fb - D.FOOT_FRONT_BOSS_HW, fb + D.FOOT_FRONT_BOSS_HW,
-                 s * py, s * (py + D.FOOT_WALL_T), zp, D.FOOT_FRONT_BOSS_TOP)
+                 s * py, s * (py + D.FOOT_WALL_T),
+                 D.FOOT_PAD_RELIEF_Z, D.FOOT_FRONT_BOSS_TOP)
     # ...and carve its inner corner back to follow the ROTOR. The horn disc
     # sweeps O19.2 about the ankle axis from y 18.35 out, so any boss material
     # out there has to stay off that circle -- the first cut of this boss buried
     # 13.7 mm3 in it. A matching arc is the detent; the screw at (x -8.30,
     # z 6.11) sits at r 13.2, well outside it.
-    p -= cyl_y(D.FOOT_ROTOR_CLEAR_R, py - 0.01, py + D.FOOT_WALL_T + 0.01,
+    p -= cyl_y(D.FOOT_ROTOR_CLEAR_R,
+               -(py + D.FOOT_WALL_T + 0.01), py + D.FOOT_WALL_T + 0.01,
                0, D.ANKLE_Z - D.TPU_PROUD)
     for s in (1,):
         p -= teardrop_y(D.CASE_SCREW_CLEAR / 2,
@@ -714,7 +724,8 @@ def foot():
     # bites 3.19 mm into the shelf and leaves 2.81 mm under it. The FRONT boss
     # screw needs one too -- it is the same head at the same height, just further
     # forward. Only the LOW row needs relieving; the high row clears the sole.
-    for xh, ysgn in ((-29.0, 1), (-32.75, -1), (-D.FOOT_FRONT_BOSS_X, 1)):
+    for xh, ysgn in ((-29.0, 1), (-32.75, -1),
+                     (-D.FOOT_FRONT_BOSS_X, 1)):
         yface = ysgn * (py + D.FOOT_WALL_T)          # tab outer (head-seat) face
         yedge = ysgn * (D.FOOT_W / 2 + 1)            # just past the sole edge
         p -= cyl_y(D.FOOT_DIVOT_R, min(yface, yedge), max(yface, yedge),
