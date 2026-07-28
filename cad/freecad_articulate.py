@@ -41,24 +41,44 @@ How to POSE it
 Open the .FCStd in the FreeCAD GUI, switch to the **Assembly** workbench, then
 either
 
-  (a) DRAG a part with the mouse -- the solver keeps every joint honest and
-      stops each axis at its ROM limit.  Ground stays put, the chain follows;
-      Esc/undo puts it back.
-  (b) run `cad/freecad_pose.py` (Macro -> Macros...) for a slider panel: five
+  (a) DOUBLE-CLICK "Assembly" in the tree to ACTIVATE it, then DRAG a part with
+      the mouse -- the solver keeps every joint honest and stops each axis at
+      its ROM limit.  Ground stays put, the chain follows; Esc/undo puts it
+      back.  Activating is not optional: with no active assembly the drag does
+      nothing at all, and activation only works once freecad_gui_ready.py has
+      run on the file (see below).
+  (b) Assembly -> Simulation (needs the assembly active): give a joint a
+      formula like `-1.2*time`, generate, and play it back -- FreeCAD's own
+      motion feature, and the only built-in way to WATCH a joint sweep.
+  (c) run `cad/freecad_pose.py` (Macro -> Macros...) for a slider panel: five
       sliders drive both legs to exact angles, and "Check collisions" paints
       any interference solid RED in the tree.  This is the repeatable way --
       dragging is for feel, sliders are for evidence.
 
-Note that a plain Revolute joint has NO driving angle property in FreeCAD 1.1
-(its `Angle` field belongs to the Angle joint type), which is why (b) sets the
-rigid bodies' placements from the same kinematics `export_pose.py` uses rather
-than asking the solver for an angle.
+Note that a plain Revolute joint has NO driving angle property in FreeCAD 1.1:
+its `Angle` field exists but belongs to the Angle joint type and is INERT for a
+Revolute -- which is why (c) sets the rigid bodies' placements from the same
+kinematics `export_pose.py` uses rather than asking the solver for an angle.
+Worse, WRITING that field on a Revolute joint drops every joint out of
+`Assembly.Joints` for the rest of the session (the assembly then reports zero
+joints and solves trivially); reopen the document to recover.
 
 The file opens VISIBLE with a fitted isometric view: because console-mode
 FreeCAD writes no GuiDocument.xml, this macro injects one after saving (a
 ViewProvider per object -- printed parts + containers shown, the auto-generated
 Origin datum planes hidden -- plus a saved camera).  If a future FreeCAD ever
 still opens with hidden parts: select-all in the tree, press Space, View > Fit All.
+
+!! AFTER EVERY HEADLESS REBUILD, RUN `cad/freecad_gui_ready.py` IN THE GUI !!
+The injected ViewProviders carry only `Visibility`, so each joint's
+ViewObject.Proxy is the placeholder integer 1 rather than a real
+Assembly.JointObject.ViewProviderJoint.  The joints and the solver are fine
+either way, but ACTIVATING the assembly (double-clicking it -- the prerequisite
+for dragging a link and for the Simulation command) calls
+`redrawJointPlacements` on those view providers and dies with
+`AttributeError: 'int' object has no attribute 'redrawJointPlacements'`.
+freecad_gui_ready.py attaches the real ones and re-saves; it needs FreeCADGui,
+so it cannot be folded into this console-mode build.
 
 Robustness notes
 ----------------
