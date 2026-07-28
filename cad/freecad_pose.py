@@ -20,7 +20,10 @@ limits; the sliders are just the repeatable way to hit an exact pose.
 CURRENT POSE (however you got there -- sliders or mouse) and, for each pair
 that actually overlaps, drops a solid RED `COLLIDE_<a>_<b>` body into the tree
 at the overlap. No red bodies == no interference. Gaps are printed to the
-Report view (View -> Panels -> Report view), smallest first.
+Report view (View -> Panels -> Report view), smallest first. The servo mocks in
+the file are EXCLUDED from that math (see SERVO_MARK): they are there so the
+tree looks like the machine, but the discs seat against their cases by design,
+so scoring them would report a hard hit on every joint at every pose.
 
 Headless self-test / batch use:
     BIMO_POSE="hip=-60,knee=-95" \
@@ -57,10 +60,14 @@ JOINTS = [                              # (key, label, ROM lo, ROM hi)
 ]
 
 # relatively-moving body pairs, by body-name stem (same set export_pose.py and
-# check_assembly.py watch). Servos are absent from the file by design.
+# check_assembly.py watch).
 PAIRS = [("yaw", "roll"), ("roll", "thigh"), ("thigh", "shin"),
          ("shin", "foot"), ("roll", "shin"), ("thigh", "foot"),
          ("yaw", "thigh")]
+# Servo mocks DO live in the file (freecad_articulate.py names them
+# `<body>__servo_*`), but they are drawn-for-context only -- world_shape drops
+# them so the printed-part clearances stay the numbers we sign off on.
+SERVO_MARK = "__servo"
 MIN_VOL = 0.5                           # mm3 -- below this is boolean noise
 RED = (1.0, 0.05, 0.05)
 
@@ -99,9 +106,14 @@ def apply_pose(doc, angles, mirror=True):
 
 # ------------------------------------------------------------ collisions
 def world_shape(part):
-    """Compound of a rigid body's solids at their CURRENT world placement."""
+    """Compound of a rigid body's PRINTED+FASTENER solids at their CURRENT world
+    placement. Servo mocks are skipped: the discs seat against the servo cases
+    by design, so counting them would report a hard collision on every joint at
+    every pose and drown the real hits."""
     shapes = []
     for obj in part.Group:
+        if SERVO_MARK in obj.Name:                 # context geometry, not evidence
+            continue
         shp = getattr(obj, "Shape", None)
         if shp is None or shp.isNull():
             continue

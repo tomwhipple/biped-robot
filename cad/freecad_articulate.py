@@ -23,9 +23,14 @@ The torso is grounded; both legs are built from the same part STEPs
 (`cad/step/*.step`, re-exported by `parts.py`) placed at the world positions in
 `cad/dimensions.py`.  Since 2026-07-28 every body also carries its MODELED
 FASTENERS (`step/screws_*.step`, from `fasteners.py`) -- without them the file
-poses a skeleton that can't collide the way the hardware does.  Servo bodies
-are intentionally omitted: the disc faces touch them by design, so they'd only
-add false hits.
+poses a skeleton that can't collide the way the hardware does -- and its SERVO
+MOCKS (`step/servo_*.step`, from `servos.py`), so the file shows the machine
+rather than a printed-parts skeleton.
+
+The servos ride the same bodies `dress.py` hangs them on, so they pose with the
+chain.  They are context, NOT collision evidence: the disc faces touch the
+cases by design, so `freecad_pose.py` skips any child named `*__servo_*` when
+it intersects bodies.  Add a servo to a body here and it stays exempt.
 
     -> cad/step/bimo_v3yaw_articulated.FCStd
     BIMO_PAN_HEADS=1 -> ..._PANHEADS.FCStd  (grip screws = the AS-FITTED uxcell
@@ -125,16 +130,24 @@ def read_shape(name):
     return shp
 
 
+def add_member(doc, part, step_name, plc):
+    """Put one STEP solid into an existing rigid body at a world placement.
+    The `<body>__<step>` name is what freecad_pose.py reads to tell printed
+    parts and fasteners (collision evidence) from servo mocks (context)."""
+    feat = doc.addObject("Part::Feature", "%s__%s" % (part.Name, step_name))
+    feat.Shape = read_shape(step_name)
+    feat.Placement = plc
+    part.addObject(feat)
+    return feat
+
+
 def body(doc, asm, name, members):
     """One rigid body = an App::Part (identity placement) holding each printed
     solid at its world placement. `members` = [(step_name, App.Placement), ...].
     The whole App::Part is what the joint solver moves."""
     part = doc.addObject("App::Part", name)
     for step_name, plc in members:
-        feat = doc.addObject("Part::Feature", "%s__%s" % (name, step_name))
-        feat.Shape = read_shape(step_name)
-        feat.Placement = plc
-        part.addObject(feat)
+        add_member(doc, part, step_name, plc)
     asm.addObject(part)
     return part
 
@@ -312,6 +325,15 @@ def build():
             ("foot",        P(V(0, y, D.TPU_PROUD), I)),
             ("screws_foot", P(V(0, y, D.TPU_PROUD), I)),
         ])
+
+        # servo mocks -- same body and same joint-local frame as dress.py, so
+        # each case rides the link it is bolted to and poses with the chain.
+        # The yaw servo is torso-fixed (its horn drives the carrier below it).
+        add_member(doc, torso, "servo_yaw",   P(V(0, y, D.HIP_YAW_Z), I))
+        add_member(doc, yaw,   "servo_roll",  P(V(0, y, D.HIP_ROLL_Z), I))
+        add_member(doc, thigh, "servo_pitch", P(V(0, y, D.HIP_PITCH_Z), I))
+        add_member(doc, shin,  "servo_pitch", P(V(0, y, D.KNEE_Z), I))
+        add_member(doc, foot,  "servo_ankle", P(V(0, y, D.ANKLE_Z), I))
 
         # joint coordinate systems, one pair per axis (same world axis on both
         # bodies -> pre-coincident, so the assembled/neutral pose is preserved)
