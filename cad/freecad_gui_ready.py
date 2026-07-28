@@ -41,12 +41,16 @@ import JointObject
 
 
 def _doc():
-    """The articulated document: the active one if it is an assembly."""
+    """The articulated document: the active one if it is an assembly, else any
+    open assembly (so this still works with scratch documents in the session)."""
     d = App.ActiveDocument
-    if d is None or d.getObject("Assembly") is None:
-        raise RuntimeError(
-            "open an articulated .FCStd first (cad/step/bimo_v3yaw_*.FCStd)")
-    return d
+    if d is not None and d.getObject("Assembly") is not None:
+        return d
+    for other in App.listDocuments().values():
+        if other.getObject("Assembly") is not None and other.getObject("thigh_L"):
+            return other
+    raise RuntimeError(
+        "open an articulated .FCStd first (cad/step/bimo_v3yaw_*.FCStd)")
 
 
 def attach_joint_view_providers(doc):
@@ -76,9 +80,34 @@ def attach_joint_view_providers(doc):
     return fixed
 
 
+# COL_SERVO from export_assembly.py, so the poseable file reads like the renders
+SERVO_RGB = (0.25, 0.26, 0.30)
+PRINTED_RGB = (0.80, 0.82, 0.86)
+
+
+def colour_servos(doc):
+    """Dark servo cases, light printed parts -- the servo mocks are context, and
+    at the default single grey they read as structure. Returns how many it set."""
+    n = 0
+    for obj in doc.Objects:
+        vobj = getattr(obj, "ViewObject", None)
+        if vobj is None or not hasattr(vobj, "ShapeColor"):
+            continue
+        if "__servo" in obj.Name:
+            vobj.ShapeColor = SERVO_RGB
+            vobj.DiffuseColor = [SERVO_RGB]
+            n += 1
+        elif "__" in obj.Name:                        # printed part / fastener
+            vobj.ShapeColor = PRINTED_RGB
+            vobj.DiffuseColor = [PRINTED_RGB]
+    return n
+
+
 def main():
     doc = _doc()
     fixed = attach_joint_view_providers(doc)
+    n_col = colour_servos(doc)
+    App.Console.PrintMessage("gui-ready: coloured %d servo mock(s)\n" % n_col)
     doc.recompute()
     if fixed:
         doc.save()
