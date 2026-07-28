@@ -314,6 +314,30 @@ SEAT_PAD_H = 1.5            # pelvis yaw-seat stator pad height (see above)
 SV_CONN_L = (11.75, 16.35)  # trench band along the length, axis->cable-end
 SV_CONN_HW = 10.9           # trench half-width (sockets span most of it)
 SV_CONN_FLOOR = 4.78        # trench floor below the slab plane
+
+# --- STS3215 features MEASURED OFF cad/vendor/ST3215.step (2026-07-28) --------
+# Booleaned in FreeCAD's OCC against the vendor solid aligned to the mock frame
+# (output axis at origin, axis +Y, horn +Y); build123d mis-handles the
+# transformed vendor compound and cannot be trusted for this.  User confirmed
+# the horn-side structure is real: "the vendor .step is correct".
+#
+# HORN-SIDE RIB: a raised boss on the CABLE half of the horn-side case face.
+# Anything that clamps this face flat rides up on it unless it is relieved --
+# it is the reason leg_link overlaps the real servo by ~299 mm3.
+SV_HORN_RIB_HW = 7.42       # half-width across the case (x); +/-7.09 for the
+                            # first 0.75 mm, widening to +/-7.42 near the top
+SV_HORN_RIB_L = (8.73, 34.26)   # band along the length, axis -> CABLE end
+SV_HORN_RIB_H = 1.13        # proud of SV_TOPFACE (top at +18.48)
+#
+# IDLER HUB: the free-hub post inside the O25 recess. It ROTATES with the joint,
+# so a mount must never touch it.  Reaches exactly flush with SV_BOTFACE, i.e.
+# 0.55 proud of the idler disc face -- NOT the 0.82 that SV_IDLER_HUB_PROUD
+# claims relative to a different datum.
+SV_IDLER_HUB_HW = 3.24      # half-width; fills SV_BOTFACE .. SV_IDLER_FACE
+#
+# The vendor solid has NO O19.6 output boss: on-axis is EMPTY from SV_TOPFACE up
+# to +18.35, where the O19.2 horn disc starts and runs to SV_HORN_FACE. The
+# mocks keep a solid SV_BOSS_D column through that gap, which is conservative.
 WIRE_BUNDLE = 5.0           # one 3-wire ST3215 lead bundle, outer dia
 WIRE_PLUG_W = 9.0           # ST3215 JST housing width (assemble connector-first)
 

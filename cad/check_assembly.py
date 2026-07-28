@@ -12,11 +12,22 @@ import fasteners as F
 def servo_mock_y():
     """Servo with output axis along +Y at origin (leg pitch joints).
     Body length along Z: top end +10.11, bottom -35.11; horn cylinder and the
-    O25 x 0.55 idler recess (which our idler bosses reach into) included."""
+    O25 x 0.55 idler recess (which our idler bosses reach into) included.
+
+    Carries the two vendor-STEP features the earlier block-and-recess mock left
+    out (2026-07-28): the HORN-SIDE RIB on the cable half, and the rotating
+    IDLER HUB inside the recess. Without them this mock reported clearance where
+    the real servo interferes -- leg_link overlaps the rib by ~299 mm3."""
     case = parts.box(-12.36, 12.36, D.SV_BOTFACE, D.SV_TOPFACE,
                      -D.SV_AXIS_FROM_REAR, D.SV_AXIS_FROM_OUT_END)
     case -= parts.cyl_y(D.SV_IDLER_RECESS_D / 2, D.SV_BOTFACE - 0.01,
                         D.SV_IDLER_FACE, 0, 0)
+    # horn-side rib: cable end is -Z in this frame
+    case += parts.box(-D.SV_HORN_RIB_HW, D.SV_HORN_RIB_HW,
+                      D.SV_TOPFACE, D.SV_TOPFACE + D.SV_HORN_RIB_H,
+                      -D.SV_HORN_RIB_L[1], -D.SV_HORN_RIB_L[0])
+    # rotating free hub, flush out to the case bottom plane
+    case += parts.cyl_y(D.SV_IDLER_HUB_HW, D.SV_BOTFACE, D.SV_IDLER_FACE, 0, 0)
     horn = parts.cyl_y(D.SV_BOSS_D / 2, D.SV_TOPFACE, D.SV_HORN_FACE, 0, 0)
     return case + horn
 
@@ -33,8 +44,11 @@ def servo_mock_x():
     case -= parts.box(D.SV_BOTFACE - 0.01, D.SV_BOTFACE + D.SV_CONN_FLOOR,
                       -D.SV_CONN_HW, D.SV_CONN_HW,
                       D.SV_CONN_L[0], D.SV_CONN_L[1])
-    case += parts.cyl_x(3.05, D.SV_BOTFACE - D.SV_IDLER_HUB_PROUD,
-                        D.SV_IDLER_FACE, 0, 0)
+    case += parts.cyl_x(D.SV_IDLER_HUB_HW, D.SV_BOTFACE, D.SV_IDLER_FACE, 0, 0)
+    # horn-side rib: in this frame the cable end is +Z
+    case += parts.box(D.SV_TOPFACE, D.SV_TOPFACE + D.SV_HORN_RIB_H,
+                      -D.SV_HORN_RIB_HW, D.SV_HORN_RIB_HW,
+                      D.SV_HORN_RIB_L[0], D.SV_HORN_RIB_L[1])
     horn = parts.cyl_x(D.SV_BOSS_D / 2, D.SV_TOPFACE, D.SV_HORN_FACE, 0, 0)
     return case + horn
 
@@ -56,7 +70,11 @@ def servo_mock_z():
         for s in (1, -1):
             case -= parts.cyl_z(3.7, D.SV_TOPFACE - D.SV_IDLER_BOSS_RECESS,
                                 D.SV_TOPFACE + 0.01, -xrow, s * D.CASE_HOLE_LAT)
-    case += parts.cyl_z(3.05, 16.80, D.SV_TOPFACE + D.SV_IDLER_HUB_PROUD, 0, 0)
+    case += parts.cyl_z(D.SV_IDLER_HUB_HW, 16.80, D.SV_TOPFACE, 0, 0)
+    # horn-side rib: for the yaw mock the horn side is -Z and the cable end -X
+    case += parts.box(-D.SV_HORN_RIB_L[1], -D.SV_HORN_RIB_L[0],
+                      -D.SV_HORN_RIB_HW, D.SV_HORN_RIB_HW,
+                      D.SV_BOTFACE - D.SV_HORN_RIB_H, D.SV_BOTFACE)
     horn = parts.cyl_z(D.SV_BOSS_D / 2, -D.SV_HORN_FACE, D.SV_BOTFACE, 0, 0)
     return case + horn
 
