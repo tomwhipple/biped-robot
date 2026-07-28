@@ -134,6 +134,9 @@ def main():
     p.add_argument("--num-evals", type=int, default=20)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--cmd-dense", action="store_true")
+    p.add_argument("--discovery", action="store_true",
+                   help="stage-1 clean-physics discovery: no DR/payload/"
+                        "latency/backlash/pushes (stage 2 re-hardens)")
     p.add_argument("--payload", type=float, default=0.154)   # GoPro on
     p.add_argument("--getup", action="store_true",
                    help="fall-recovery objective instead of command tracking")
@@ -288,6 +291,17 @@ def main():
             float(x) for x in args.kick_range.split(","))
     if args.push_prob is not None:
         env_kw["push_prob"] = args.push_prob
+    if args.discovery:
+        # getup_v11: stage-1 DISCOVERY physics (unified-humanoid-getup
+        # recipe): strip DR, payload, latency, backlash and pushes so the
+        # skill can be FOUND at all; stage 2 warm-starts from the result
+        # and layers the hardware-claim conditions back on. 11 rounds of
+        # discovery-under-full-hardening produced parked local optima.
+        env_kw.update(domain_rand=False, payload_mass=0.0,
+                      latency_ms=0.0, latency_ms_max=None,
+                      latency_jitter_ms=0.0,
+                      backlash_deg=0.0, backlash_deg_max=None,
+                      push_kick=False, push_prob=0.0)
     if args.walk_submix is not None:
         env_kw["walk_submix"] = tuple(
             float(x) for x in args.walk_submix.split(","))

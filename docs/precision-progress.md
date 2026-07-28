@@ -584,3 +584,30 @@ band consolidates deterministic, then value propagates down band by
 band (0.24 → 0.22 → static kneel). If v10b consolidates the top but
 doesn't propagate, next bank refresh harvests v10b's own successful
 hold trajectories (real policy states) as intermediate rungs.
+
+## Day 7 night (2026-07-28): v10b regresses — pivot to two-stage discovery
+
+**getup_v10b (consolidation, entropy 0.005): referee 0/16, and worse —
+recovered climbed to 44 by 30M then COLLAPSED to 0 from 71M on.** The
+deterministic probe lost even v10's ballistic top-row catch. Reward
+stayed +60..130 with zero held stands: ratchet + height income +
+sub-0.5 s standing blips pay fine without ever holding, and the hold
+itself is fragile enough under full DR that PPO drifted back to the
+parked mode. Consolidation consolidated the wrong thing.
+
+**The 11-round pattern, honestly:** discovery keeps failing UNDER FULL
+HARDENING — every getup run trained with DR + 154 g payload + latency +
+backlash + kicks from step 0, because the referee demands them at eval.
+The literature recipe (unified-humanoid-getup, catalogued in the
+research pass) splits this: stage 1 discovers the skill in CLEAN
+physics, stage 2 warm-starts and layers the hardening back. Discovery
+difficulty and robustness were never supposed to be bought together.
+
+**getup_v11 (queued): stage-1 discovery** — new `--discovery` flag in
+train_mjx (no DR, no payload, no latency/backlash, no pushes; env code
+untouched, parity unaffected), fresh weights, entropy 0.01, all v9/v10
+machinery intact. Success test: does clean physics + honest rules +
+the corridor curriculum produce a deterministic kneel→stand at all? If
+yes → v12 re-hardens from it. If no → the reward/curriculum design is
+wrong at a deeper level than conditions, and the next stop is AMP-style
+reference imitation (LocoMuJoCo mocap) rather than more shaping.
