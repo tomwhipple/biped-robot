@@ -6,7 +6,7 @@ pigtail and a switch.*
 
 **Circuit diagram** (pin-level: connectors, nets, wire colors):
 
-![Circuit diagram](circuit-diagram.svg)
+<img src="circuit-diagram.svg" title="" alt="Circuit diagram" width="1112">
 
 **System block diagram** (physical layout view of the same thing):
 
@@ -40,11 +40,13 @@ it is an output, not an alternative power inlet. Do not feed the pack into it.
   tool-free through the window in the rear tower wall: peel the belt, tug the
   pull-ribbon, tilt the pack out; reverse to insert (lead-end toward whichever
   y-pocket the XT30 pigtail lives in).
+
 - The **Servo Driver with ESP32** accepts 6–12.6 V, so it runs directly from
   2S (7.4 V) or 3S (11.1 V, 12.6 V fully charged) — no regulator needed. Its
   logic is powered from an onboard buck; the servo bus carries raw battery
   voltage, which is what sets torque (the whole 2S/3S performance story in
   [hardware-order.md](hardware-order.md)).
+
 - **Current sizing** (revised 2026-07-26 — the old "~10 A transient" was a
   hand estimate of "2–3 joints near stall"; it is now computed). The env's
   electrical model is calibrated to the ST3215 stall point (`_K_CU` =
@@ -52,19 +54,20 @@ it is an output, not an alternative power inlet. Do not feed the pack into it.
   just watts over volts. `sim/current_budget.py` runs the referee's scenarios
   and reports the distribution — `loco_v5t`, 10 joints, 11.1 V, hardware-claim
   DR, 3 eps × 6 scenarios:
-
-  | | peak | p99 | **RMS** | mean |
-  |---|---|---|---|---|
-  | whole bus | 6.8 A | 5.0 A | **1.4 A** | 0.85 A |
-  | worst single leg | 4.0 A | — | ~0.7 A | — |
-  | worst single joint | 3.0 A | — | — | — |
-
+  
+  |                    | peak  | p99   | **RMS**   | mean   |
+  | ------------------ | ----- | ----- | --------- | ------ |
+  | whole bus          | 6.8 A | 5.0 A | **1.4 A** | 0.85 A |
+  | worst single leg   | 4.0 A | —     | ~0.7 A    | —      |
+  | worst single joint | 3.0 A | —     | —         | —      |
+  
   **RMS is the number that sizes copper and contacts**; the 6.8 A peaks are
   millisecond gait transients that heat nothing. So: the real peak is ~1.5×
   *lower* than the old estimate, and sustained draw is ~7× lower again.
   XT30 (30 A) and 20 AWG are hugely comfortable; JST-terminated packs (~3 A)
   stay ruled out on peak. Regenerate with
   `.venv/bin/python sim/current_budget.py --run loco_v5t`.
+
 - **Does 6.8 A peak hurt the 5 A-rated driver board? No — the servo V+ is a
   bare passthrough.** Confirmed from Waveshare's
   [schematic](https://files.waveshare.com/wiki/Servo-Driver-with-ESP32/Servo_Driver_with_ESP32.pdf)
@@ -76,6 +79,7 @@ it is an output, not an alternative power inlet. Do not feed the pack into it.
   thermal rating, and 1.4 A RMS sits ~3.5× under it. **There is no current
   sensing on this board at all**, which is why telemetry reports volts and
   not amps.
+
 - **Correction 2026-07-27 — there is no voltage ADC either.** This doc
   previously credited the board with an "R18 560 K / R19 4.7 K divider into an
   ADC". `firmware/main/board.h` establishes otherwise, and it is the grounded
@@ -85,6 +89,7 @@ it is an output, not an alternative power inlet. Do not feed the pack into it.
   pack-voltage sense is the servo bus, at 0.1 V resolution. That is adequate
   against the thresholds below, but note what it implies: **lose the bus and
   you lose the voltage reading too** — the two are not independent.
+
 - **The tighter constraint is the daisy chain, and it is not the board's
   fault.** Each 3-pin lead carries the current of every servo downstream of
   it, so the first lead in a leg sees the whole leg: **4.0 A peak, ~0.7 A
@@ -92,18 +97,21 @@ it is an output, not an alternative power inlet. Do not feed the pack into it.
   is well under. Fine as built, but it is why the two board ports are used
   one-per-leg (halving both) rather than chaining all 8–10 off one port —
   a routing choice that is now also an electrical one.
+
 - **Recommended cheap insurance**: a low-ESR **470–1000 µF** electrolytic
   across servo V+/GND at the board. The 6-12V net carries only 10 µF + 0.1 µF
   of local bulk, so a 6.8 A step is sourced through the pack leads and jack;
   a bulk cap sources it locally, cutting rail sag and the transient the jack
   actually sees. **Bench-verify** the peak with an inline shunt or clamp
   during the first walks — the table above is sim-derived, not measured.
+
 - The board's OLED shows measured bus voltage — but it faces the deck once
   the board is mounted, so it's a **bench-side** tool (bring-up, servo IDs).
   In operation the low-battery check is the bus voltage in the 10 Hz radio
   telemetry ([control-channel.md](control-channel.md)). Land the robot by
   **10.5 V on 3S** (3.5 V/cell) / 7.0 V on 2S. (A tower viewing window for
   the OLED is filed as a future improvement.)
+
 - GoPro MAX is self-powered; zero wiring to the robot.
 
 ## Battery protection
@@ -135,12 +143,12 @@ So the only thing that can stop a discharge is the control loop.
 clock, like `linkproto::Watchdog`), so its behaviour is asserted on the host in
 `firmware/host/test_battguard.cpp` rather than discovered on a ruined pack:
 
-| level | 3S | 2S | what the robot does |
-|---|---|---|---|
-| `ok` | > 10.5 V | > 7.0 V | normal operation |
-| `warn` | ≤ 10.5 V | ≤ 7.0 V | telemetry flag only — **you** land it |
-| `vland` | ≤ 9.9 V | ≤ 6.6 V | stops travelling, crouches to the trained floor over 1.5 s |
-| `vsafe` | — | — | torque off, **latched** |
+| level   | 3S       | 2S      | what the robot does                                        |
+| ------- | -------- | ------- | ---------------------------------------------------------- |
+| `ok`    | > 10.5 V | > 7.0 V | normal operation                                           |
+| `warn`  | ≤ 10.5 V | ≤ 7.0 V | telemetry flag only — **you** land it                      |
+| `vland` | ≤ 9.9 V  | ≤ 6.6 V | stops travelling, crouches to the trained floor over 1.5 s |
+| `vsafe` | —        | —       | torque off, **latched**                                    |
 
 Design points that are load-bearing:
 
@@ -187,13 +195,17 @@ Design points that are load-bearing:
   (black) · 2 V+ (red) · 3 DATA (white/blue)**. Every ST3215 has two
   identical, internally-paralleled ports, so chains just hop case to case
   with the included 150 mm leads.
+
 - Per-servo current (12 V class): **2.7 A stall, 0.18 A idle** — the ~10 A
   transient budget in the circuit diagram comes from 2–3 joints near stall
   simultaneously in the gauntlet's worst gaits.
+
 - The board's two bus ports are **electrically the same bus** — we use one
   per leg purely for cable routing:
+  
   - **Port A → left leg**: ID 1 hip roll → ID 2 hip pitch → ID 3 knee → ID 4 ankle
   - **Port B → right leg**: ID 5 hip roll → ID 6 hip pitch → ID 7 knee → ID 8 ankle
+
 - **ID order needs a permutation table** (corrected 2026-07-26 — this
   previously claimed the action vector "maps to IDs 1–8 with no permutation
   table", which was true only on the retired 8-DOF plant). On the deployed
@@ -203,20 +215,22 @@ Design points that are load-bearing:
   physical ID map above is unchanged; the firmware carries
   `obs::kServoId = {9,1,2,3,4,10,5,6,7,8}`, generated from the sim and
   covered by the host tests, so the two can't drift by hand.
+
 - Servos ship with ID 1: at bring-up, connect **one at a time** and assign
   IDs via the board's web UI (AP mode, `192.168.4.1`), then chain them.
   Two same-ID servos on the bus fail to enumerate.
+
 - **Segment lengths** (worst pose over the full ROM, measured on the routed
   paths in `cad/dress.py`, slack loops included — 2026-07-16):
-
-  | Hop | Worst routed | Lead |
-  |---|---|---|
-  | board → hip-yaw | ~50 mm (straight down from the tower into the yaw **connector deck hole** over each seat — the servo's two idler-face plugs poke UP through it; connector correction 2026-07-24) | stock 150 mm (coil excess in the tower) |
-  | hip-yaw → hip-roll | ~85 mm incl. the ~15 mm service loop across the ±45° yaw sweep (back out the same deck hole, over the deck rear edge, down the back to the roll plugs sticking rearward out of the carrier's opened rear wall at the `SV_CONN` band) | stock 150 mm |
-  | hip-roll → hip-pitch | **170 mm** | **≥200 mm extension required** (BOM item 19) — crosses both the roll and hip-pitch joints; longest at the knee-flexion pose |
-  | hip-pitch → knee | 111 mm | stock 150 mm (~35 % slack) |
-  | knee → ankle | 82 mm | stock 150 mm (worst at ankle −40°) |
-
+  
+  | Hop                  | Worst routed                                                                                                                                                                                                                         | Lead                                                                                                                        |
+  | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+  | board → hip-yaw      | ~50 mm (straight down from the tower into the yaw **connector deck hole** over each seat — the servo's two idler-face plugs poke UP through it; connector correction 2026-07-24)                                                     | stock 150 mm (coil excess in the tower)                                                                                     |
+  | hip-yaw → hip-roll   | ~85 mm incl. the ~15 mm service loop across the ±45° yaw sweep (back out the same deck hole, over the deck rear edge, down the back to the roll plugs sticking rearward out of the carrier's opened rear wall at the `SV_CONN` band) | stock 150 mm                                                                                                                |
+  | hip-roll → hip-pitch | **170 mm**                                                                                                                                                                                                                           | **≥200 mm extension required** (BOM item 19) — crosses both the roll and hip-pitch joints; longest at the knee-flexion pose |
+  | hip-pitch → knee     | 111 mm                                                                                                                                                                                                                               | stock 150 mm (~35 % slack)                                                                                                  |
+  | knee → ankle         | 82 mm                                                                                                                                                                                                                                | stock 150 mm (worst at ankle −40°)                                                                                          |
+  
   (v3yaw 2026-07-23: the old "board → hip-roll 33 mm" hop became the two
   hops above when hip yaw entered the chain — see docs/hip-yaw-study.md §6
   for the routing openings, corrected 2026-07-24 when the STS3215's ports
@@ -226,7 +240,7 @@ Design points that are load-bearing:
   that geometry; re-measure via dress.py routed paths — and confirm the
   exact port offset on a physical servo — before ordering leads. Bus grows to 10 servos, IDs 9/10 =
   L/R hip yaw; sync-read 3.5 → ~4.3 ms, still inside the 20 ms tick.)
-
+  
   The routed paths already include the service loops, so the stock-lead
   margins above are true flex margin, not taut-string numbers. An earlier
   guess here that shin→ankle was the long run was wrong — it's the shortest
@@ -234,30 +248,63 @@ Design points that are load-bearing:
 
 ## IMU (torso attitude feedback)
 
-- **BNO055 breakout** (the part actually ordered 2026-07-16 — classic
-  Adafruit layout, solder header, no STEMMA jacks) on the ESP32's I2C bus
-  (GPIO 21 SDA / 22 SCL — shared with the OLED; BNO055 address **0x28**, no
-  conflict with the OLED's 0x3C). 4× female-female jumpers: 3V3, GND, SDA,
-  SCL. Mounts on the printed **`imu_carrier`** sandwiched between the tower
+**Part correction, 2026-07-28:** this section described a **BNO055 at 0x28**.
+That was superseded on 2026-07-22 — the part in the BOM and the firmware is a
+**GY-BNO085** (Teyleten, [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F),
+[item 18](bom-sourced.md)), a different chip with a different protocol
+(SH-2 sensor-hub, not a register map) at a different address (**0x4A**/0x4B).
+See [firmware-design.md §3](firmware-design.md). `assembly.md` §9b and
+`hardware-order.md` still say BNO055 and are stale in the same way.
+
+**Pinout:**
+
+![IMU pinout: GY-BNO085 breakout to the driver board](imu-pinout.svg)
+
+| Breakout pin | Board side               | Wire  | Note                                              |
+| ------------ | ------------------------ | ----- | ------------------------------------------------- |
+| `VIN`        | 3V3 (AMS1117 out)        | red   | **not 5 V** unless the carrier's regulator is confirmed |
+| `GND`        | any GND pad              | black | common ground                                     |
+| `SDA`        | **GPIO 21**              | blue  | shared with the OLED                              |
+| `SCL`        | **GPIO 22**              | yellow | shared with the OLED                             |
+| `RST` `INT` `CS` `SDO` `P0` `P1` | — | —   | leave unconnected for I2C; see the figure's notes |
+
+- **There is no I2C header on the driver board — these four wires are solder
+  joints.** Read off Waveshare's schematic (URL in `firmware/main/board.h`,
+  re-checked 2026-07-28): the board's only connectors are **CN1** (barrel),
+  **H1** (5V / GND / **LED-OUT**, the WS2812B expansion output), **H2/H3**
+  (servo bus) and USB-C. None of them expose I2C or 3V3, and no GPIO is broken
+  out. The practical tap is the **ESP-32S module's castellated pads**. H1 pins
+  1–2 are the one solder-free 5 V + GND source, usable for `VIN` *only* if a
+  bench check confirms the carrier regulates it — pin 3 is LED data, not I2C.
+  (`connector-guide.html` says the jumpers plug onto "the board's GPIO header";
+  no such header exists, and that card needs the same correction.)
+
+- **Do not add pull-ups.** The board already pulls SDA/SCL up to 3V3 with
+  4.7 kΩ beside the OLED. Address **0x4A** (SA0 low) or 0x4B (SA0 high) — no
+  conflict with the OLED's 0x3C, and the firmware tries both.
+
+- Mounts on the printed **`imu_carrier`** sandwiched between the tower
   top and the gopro_base on the same 4 screws (now M3×12): 4× M2.5×8 into
   bosses on the board's true 21.59 × 15.24 hole pattern — see
-  [assembly.md §9b](assembly.md). Mounted long-axis-on-x; set the BNO055's
-  `AXIS_MAP_CONFIG`/`AXIS_MAP_SIGN` (standard placements P0–P7) to match
-  the silkscreen arrows to the robot frame (+x forward, +z up) at bring-up.
+  [assembly.md §9b](assembly.md). Mounted long-axis-on-x; orientation is set
+  in the SH-2 driver at bring-up (the BNO085 has no `AXIS_MAP_CONFIG` register
+  — that was the BNO055's mechanism) to match the silkscreen arrows to the
+  robot frame (+x forward, +z up).
+
 - Why: the policy's observation vector needs the torso **up-vector and
-  angular velocity** — servo encoders only cover the 8 joints. The BNO055
-  does sensor fusion on-chip and outputs the orientation quaternion directly
-  at 100 Hz, so the ESP32's 50 Hz loop just reads it.
+  angular velocity** — servo encoders only cover the joints. The BNO085
+  does sensor fusion on-chip and emits the rotation vector directly, so the
+  ESP32's 50 Hz loop just reads it.
 - Torso *linear velocity* and *height* have no direct sensor — see the
   observation-ablation results in DESIGN.md for how much they matter.
 
 ## Control path (and where latency lives)
 
-| Link | Rate | Role |
-|---|---|---|
-| Laptop ↔ ESP32 WiFi | 20 Hz cmd / 10 Hz telemetry | **the control channel**: high-level `(vx, yaw_rate)` intent + telemetry — [control-channel.md](control-channel.md) |
-| Laptop ↔ USB-C (UART0) | 115200 | flashing, serial bridge, tethered debug |
-| ESP32 ↔ servos (UART1) | 1,000,000 | position commands + state readback |
+| Link                   | Rate                        | Role                                                                                                               |
+| ---------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Laptop ↔ ESP32 WiFi    | 20 Hz cmd / 10 Hz telemetry | **the control channel**: high-level `(vx, yaw_rate)` intent + telemetry — [control-channel.md](control-channel.md) |
+| Laptop ↔ USB-C (UART0) | 115200                      | flashing, serial bridge, tethered debug                                                                            |
+| ESP32 ↔ servos (UART1) | 1,000,000                   | position commands + state readback                                                                                 |
 
 The latency work in DESIGN.md bears directly on this: at 115200 baud a full
 8-servo command + state readback cycle eats most of a 20 ms control tick,
