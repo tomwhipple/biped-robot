@@ -641,3 +641,9 @@ build, and a strategy fork worth a human call:
   (b) park getup as "assist to kneel, servo-snap the rest" for now and
       return GPU nights to locomotion/goal-conditioning, where the
       pipeline is demonstrably productive (loco_v5t 64/72 deployable).
+
+**Decision (user, 2026-07-28): getup is PARKED.** Option (b): no
+self-recovery for now — assist to kneel by hand on hardware, the servo
+stand-drive covers the rest. GPU nights return to locomotion and the
+goal-conditioning layer. The imitation build stays documented above as
+the revival path if it's ever wanted.
