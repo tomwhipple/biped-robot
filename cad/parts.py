@@ -359,6 +359,18 @@ def leg_link(print_fins=False):
     # -92.8 outside the pad and are meant to survive this.
     _below = box(-40, 40, -40, 40, -200, drop)
     p -= _below - cyl_y(D.PAD_D / 2, -40, 40, 0, drop)
+    # --- and chamfer the two corners BESIDE the axis, in the plane of the plate.
+    # Trimming below the axis (above) left the profile stepping straight off the
+    # pad: r 10 -> 12.0 at the front edge, r 10 -> 15.0 at the rear web face,
+    # both within 15 deg of the axis. Those steps are the corners that swing into
+    # the mating part, so each is blended from the pad tangent out to full width.
+    # Kept strictly outside r 10, so the pad and its bolt circle are untouched.
+    _pr = D.PAD_D / 2
+    _yl, _yh = iy0 - 1, hy1 + 1                      # spans both fork plates
+    p -= wedge_y([(_pr, drop), (12.0, drop),
+                  (12.0, drop + D.LEG_CORNER_CUT_FRONT_H)], _yl, _yh)
+    p -= wedge_y([(-_pr, drop), (web_x0, drop),
+                  (web_x0, drop + D.LEG_CORNER_CUT_REAR_H)], _yl, _yh)
     if print_fins:
         # break-away print supports, final round (2026-07-16: fin-under-slab
         # was rejected three times -- every variant is trapped under the

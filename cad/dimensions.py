@@ -379,6 +379,15 @@ FOOT_FRONT_BOSS_X = 8.30      # case row, behind the axis (== CASE_HOLES_TOP[0])
 FOOT_FRONT_BOSS_HW = 4.5      # boss half-length along x
 FOOT_FRONT_BOSS_TOP = 10.0    # boss top, clears the csk mouth over z 6.11
 FOOT_ROTOR_CLEAR_R = 10.0     # keep the boss off the O19.2 horn disc (r 9.6)
+# leg_link lower-joint corner cuts (user sketch, 2026-07-28). Measured about the
+# lower axis, the fork profile steps from the PAD_D/2 = 10.0 pad straight out to
+# r 12.0 at 0 deg (front edge) and r 15.0 at 180 deg (rear web face) -- two sharp
+# corners per plate, four in all, and the first thing to swing into the mating
+# part. Each is chamfered from the pad tangent out to the full plate width. Both
+# cuts lie entirely OUTSIDE r 10, so the pad and its O14 bolt circle are
+# untouched; the heights set how gradual the blend is.
+LEG_CORNER_CUT_FRONT_H = 6.0
+LEG_CORNER_CUT_REAR_H = 10.0
 GRIP_TOP_IDLER = -16.0  # idler side must clear the upper yoke arm sweep (R12+4)
 GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
 # (An idler-side cable-notch constant set lived here 2026-07-23 and was removed
