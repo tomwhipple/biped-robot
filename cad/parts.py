@@ -469,6 +469,20 @@ def yaw_carrier(print_fins=False):
                     (neck, 0.0, wu - nh, wu)):          # neck onto the sill
                 p += box(-19.95 + inset, -D.SV_TOPFACE - inset,
                          yc - w / 2, yc + w / 2, z0, z1)
+    # DETENT for the roll servo's horn-side RIB (same defect as leg_link and
+    # foot, 2026-07-28). The bay's front wall face IS SV_TOPFACE, so the rib --
+    # 1.13 mm proud over y +/-7.42, z CARRIER_ROLL_AXIS+8.73..+34.26 -- lands
+    # flat on it and holds the servo off the wall by its full height (the whole
+    # 415 mm3 was buried). Cut LAST so nothing unions over it. The 8x M2.5 case
+    # screws run at y +/-10.25, outboard of the rib band, so their seats keep
+    # full wall thickness.
+    ra = D.CARRIER_ROLL_AXIS
+    p -= box(D.SV_TOPFACE - 0.01,
+             D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
+             -D.SV_HORN_RIB_HW - D.RIB_RELIEF_CLR,
+             D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR,
+             ra + D.SV_HORN_RIB_L[0] - D.RIB_RELIEF_CLR,
+             ra + D.SV_HORN_RIB_L[1] + D.RIB_RELIEF_CLR)
     return p
 
 
@@ -573,7 +587,17 @@ def foot():
     """
     x0, x1 = -D.FOOT_HEEL, D.FOOT_L - D.FOOT_HEEL   # -38 .. +58
     w = D.FOOT_W / 2
-    p = box(x0, x1, -w, w, 0, D.FOOT_T)             # FLAT underside (pad glued on)
+    # sole: FLAT underside (pad glued on), with BOTH ends ROUNDED in plan -- a
+    # square corner is what catches on a door frame or a cable run, and it reads
+    # blocky. Structure is unaffected: the aft buttress sits 10 mm forward of the
+    # heel edge and the cable window stays inside the straight centre section.
+    rt, rh = D.FOOT_TOE_R, D.FOOT_HEEL_R
+    p = box(x0 + rh, x1 - rt, -w, w, 0, D.FOOT_T)
+    p += box(x1 - rt, x1, -(w - rt), w - rt, 0, D.FOOT_T)
+    p += box(x0, x0 + rh, -(w - rh), w - rh, 0, D.FOOT_T)
+    for sy in (1, -1):
+        p += cyl_z(rt, 0, D.FOOT_T, x1 - rt, sy * (w - rt))
+        p += cyl_z(rh, 0, D.FOOT_T, x0 + rh, sy * (w - rh))
     # servo pocket (top)
     px0 = -D.SV_AXIS_FROM_REAR - D.FIT
     px1 = D.SV_AXIS_FROM_OUT_END + D.FIT
@@ -633,6 +657,20 @@ def foot():
         p -= box(xh - D.FOOT_DIVOT_HW, xh + D.FOOT_DIVOT_HW,
                  min(yface, yedge), max(yface, yedge),
                  D.FOOT_DIVOT_FLOOR, D.FOOT_T + 1)
+    # DETENT for the ankle servo's horn-side RIB (same defect as leg_link, found
+    # 2026-07-28 once the mock carried the rib). The servo lies on its side here,
+    # so Rot(0,90,0) maps the rib to x = -34.26..-8.73, y from SV_TOPFACE up
+    # 1.13, z about the servo axis at ANKLE_Z - TPU_PROUD. It lands on the +Y
+    # retention tab's inner face -- 101.7 mm3 of it -- and holds the case off.
+    # The retention screws sit at z 6.11 and 26.61, clear of the 8.94..23.78 rib
+    # band by 2.4 mm either side, so both screw seats keep full tab thickness.
+    zc = D.ANKLE_Z - D.TPU_PROUD
+    p -= box(-D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR,
+             -D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR,
+             D.SV_TOPFACE - 0.01,
+             D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
+             zc - D.SV_HORN_RIB_HW - D.RIB_RELIEF_CLR,
+             zc + D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR)
     return p
 
 

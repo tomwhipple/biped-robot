@@ -356,6 +356,14 @@ GRIP_HORN_RELIEF = 10.3 # ...with a circular relief around the O19.6 case boss
 # between the two screw rails rather than carrying clamp load.
 RIB_RELIEF_CLR = 0.4          # footprint clearance each side of the rib
 RIB_RELIEF_DEPTH_CLR = 0.3    # air above the rib crest
+# Toe corner radius (plan view). Square toe corners are the ones that snag on
+# door frames / cable runs and they read as blocky; 14 leaves a 24 mm straight
+# front edge on the 52 mm-wide sole and takes only ~2 % of the sole area.
+FOOT_TOE_R = 14.0
+# Heel rounded to match (user, 2026-07-28). The aft buttress sits at x -42..-40,
+# 10 mm clear of the heel edge, and the cable window (y +/-8) stays inside the
+# straight centre section, so nothing structural rides on the removed corners.
+FOOT_HEEL_R = 14.0
 GRIP_TOP_IDLER = -16.0  # idler side must clear the upper yoke arm sweep (R12+4)
 GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
 # (An idler-side cable-notch constant set lived here 2026-07-23 and was removed
