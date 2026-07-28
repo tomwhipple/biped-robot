@@ -29,24 +29,41 @@ os.makedirs(TMP, exist_ok=True)
 # label prefix -> (insertion vector in mm world frame, extra delay in frames
 # before this stage starts -- the battery waits for the tower to finish so the
 # swap window pass is actually demonstrated, not raced)
+# Each fastener group flies in RIGHT AFTER the part it holds, along the axis the
+# driver actually works on -- so a screw that cannot be reached shows up here as
+# a screw passing through something on its way in. Matching is by bare label
+# (stage_of strips no prefix, and the L_/R_ tag is added afterwards), so these
+# must stay full labels: "screws_hip_roll" and "screws_hip_pitch" are distinct.
 PLAN = [
-    ("pelvis",          (0, 0, 120), 0),   # chassis lowered in from above
-    ("servo_hip_yaw",   (0, 0, -70), 0),   # presses UP against the deck underside
-    ("yaw_carrier",     (0, 0, -70), 4),   # bolts UP onto the yaw horn
-    ("servo_hip_roll",  (0, 0, -80), 0),   # slides UP into the carrier U-slot
-    ("yoke_roll",       (0, 0, -60), 0),   # clevis up over the roll servo
-    ("yoke_pitch",      (0, 0, -60), 0),   # bolts to the roll flange from below
-    ("servo_hip_pitch", (0, 0, -60), 0),   # thigh servo up into the pitch clevis
-    ("link_thigh",      (80, 0, 0), 0),    # grip channel slides on from the front
-    ("servo_knee",      (0, 0, -60), 0),   # up into the thigh fork
-    ("link_shin",       (80, 0, 0), 0),    # grip channel from the front
-    ("servo_ankle",     (0, 0, -60), 0),   # up into the shin fork
-    ("foot",            (0, 0, -60), 0),   # sole rises to pocket the ankle servo
-    ("tower",           (0, 0, 120), 0),   # drops onto the deck bosses
-    ("battery",         (-90, 0, 0), 18),  # 3S pack through the -x wall window
-    ("imu",             (0, 0, 90), 0),    # carrier + IMU under the gopro base
-    ("gopro_base",      (0, 0, 90), 0),    # drops onto the tower-top bosses
-    ("camera",          (0, 0, 90), 0),    # fingers drop into the prongs
+    ("pelvis",           (0, 0, 120), 0),  # chassis lowered in from above
+    ("servo_hip_yaw",    (0, 0, -70), 0),  # presses UP against the deck underside
+    ("screws_deck",      (0, 0, -90), 0),  # stator screws up through the deck
+    ("yaw_carrier",      (0, 0, -70), 4),  # bolts UP onto the yaw horn
+    ("screws_yaw_stack", (0, 0, -90), 0),  # carrier onto the horn, from below
+    ("servo_hip_roll",   (0, 0, -80), 0),  # slides UP into the carrier U-slot
+    ("yoke_roll",        (0, 0, -60), 0),  # clevis up over the roll servo
+    ("screws_hip_roll",  (90, 0, 0), 0),   # roll disc screws along the roll axis
+    ("screws_flange",    (0, 0, -90), 0),  # flange bolts up into the carrier
+    ("yoke_pitch",       (0, 0, -60), 0),  # bolts to the roll flange from below
+    ("servo_hip_pitch",  (0, 0, -60), 0),  # thigh servo up into the pitch clevis
+    ("screws_hip_pitch", (0, 90, 0), 0),   # pitch disc screws along the pitch axis
+    ("link_thigh",       (80, 0, 0), 0),   # grip channel slides on from the front
+    ("screws_thigh_grip", (0, 90, 0), 0),  # grip screws into the case, sideways
+    ("servo_knee",       (0, 0, -60), 0),  # up into the thigh fork
+    ("screws_knee",      (0, 90, 0), 0),   # knee disc screws
+    ("link_shin",        (80, 0, 0), 0),   # grip channel from the front
+    ("screws_shin_grip", (0, 90, 0), 0),
+    ("servo_ankle",      (0, 0, -60), 0),  # up into the shin fork
+    ("screws_ankle",     (0, 90, 0), 0),   # ankle disc screws
+    ("foot",             (0, 0, -60), 0),  # sole rises to pocket the ankle servo
+    ("screws_foot",      (0, 90, 0), 0),   # retention screws through the tabs
+    ("tower",            (0, 0, 120), 0),  # drops onto the deck bosses
+    ("screws_tower",     (0, 0, 120), 0),
+    ("battery",          (-90, 0, 0), 18),  # 3S pack through the -x wall window
+    ("imu",              (0, 0, 90), 0),   # carrier + IMU under the gopro base
+    ("gopro_base",       (0, 0, 90), 0),   # drops onto the tower-top bosses
+    ("screws_head_stack", (0, 0, 90), 0),
+    ("camera",           (0, 0, 90), 0),   # fingers drop into the prongs
 ]
 COLOR = {"servo": (0.22, 0.23, 0.27, 1), "camera": (0.10, 0.10, 0.12, 1),
          "battery": (0.16, 0.30, 0.55, 1),
