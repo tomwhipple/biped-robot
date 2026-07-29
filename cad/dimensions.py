@@ -446,11 +446,12 @@ GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
 # fork, ~10 mm clearance at toes-pointed; see parts.py leg_link note.)
 WEB_GAP = 0.4
 WEB_TOP = -16.0         # clears the upper joint's fork arms folding to 95 deg
-BRACE_TOP = -13.0        # top of the back brace that carries the web on up behind
-                        # the servo (2026-07-29). -3.0 == GRIP_TOP_HORN, i.e. the
-                        # brace runs the full height of the horn grip plate. This
-                        # is the number to pull DOWN if the upper joint's fork
-                        # arms need the room back; check_assembly is the arbiter.
+BRACE_Z = (-54.0, -50.0)  # cross brace between the fork tines, in the X-Y
+                        # plane (2026-07-29). Below the cable window (-48..-37)
+                        # so it cannot foul the servo lead, and inside
+                        # FORK_NARROW_X so it stays out of the web's x-band.
+                        # Pull it UP if the next servo's sweep about the lower
+                        # axis wants the room; check_assembly is the arbiter.
 WEB_END = -58.0         # web stops 32 above the lower axis: clears the foot
                         # walls and the servo case top at ankle/knee extremes
 # fork arms: full-width near the web, narrowed toward the pad so the slab does

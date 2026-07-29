@@ -277,14 +277,17 @@ def leg_link(print_fins=False):
     idler_seat = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR          # -14.90
     p += box(web_x0, grip_x1, iy0, idler_seat, D.GRIP_BOT, D.GRIP_TOP_IDLER)
     p += box(web_x0, web_x1, iy0, D.SV_TOPFACE + t, D.WEB_END, D.WEB_TOP)
-    # BACK BRACE (2026-07-29). Above WEB_TOP the horn grip plate cantilevers off
-    # nothing -- the web stops at -16 and the idler plate stops there too, so the
-    # top third of the grip is a free-ended blade. This carries the web on up
-    # behind the servo to the horn plate's own top edge, closing the section.
-    # The 0.4 WEB_GAP means it never touches the case. Its top is a constant
-    # because it is the thing that has to give if the upper joint's fork arms
-    # need the room back -- check_assembly's "joint ABOVE" sweep is the arbiter.
-    p += box(web_x0, web_x1, iy0, D.SV_TOPFACE + t, D.WEB_TOP, D.BRACE_TOP)
+    # CROSS BRACE between the fork tines (2026-07-29). The fork is a 38.45 mm
+    # wide U -- the horn arm at y 20.45..23.45 and the idler arm at y -21..-18 --
+    # and the only thing joining them is the 2.4 mm web along the BACK edge. So
+    # the tines can splay and twist about that web, worst at the pads 90 mm down.
+    # This is a plate in the X-Y plane spanning tine to tine, which closes the U
+    # into a box. It sits BELOW the cable window (z -48..-37) so it cannot foul
+    # the servo lead, and it starts at FORK_NARROW_X so it never enters the web's
+    # own x-band. Its z band is a constant: it is what gives if the next servo's
+    # sweep about the lower axis needs the room -- check_assembly is the arbiter.
+    p += box(D.FORK_NARROW_X, 12, D.IDLER_ARM_INNER, D.SV_HORN_FACE,
+             D.BRACE_Z[0], D.BRACE_Z[1])
     # --- fork arms down to the next servo (wide near the web, narrow below).
     # The wide horn-side section starts at the web/grip edge (19.75), not the
     # horn face (20.45): the 0.7 band is only a running clearance where the
@@ -337,22 +340,29 @@ def leg_link(print_fins=False):
              D.SV_TOPFACE - 0.01, D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
              -D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR,
              -D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR)
-    # ...and RAMP its print-top edge to 45 deg (2026-07-29, user: "the conformal
-    # edges of the servo rib need supporting"). This part prints web-down, so
+    # ...and RAMP its print-top edge (2026-07-29, user: "the conformal edges
+    # of the servo rib need supporting"). This part prints web-down, so
     # print-up is model +x, and the pocket's +x wall is where plate material
     # RESUMES over the void -- a 1.44 x 26.33 mm ledge bridging 26 mm on two end
     # anchors (check_printability BEAM, 38 mm2 at print z 23.0). Opening the
-    # pocket outward as it deepens turns that ledge into a 45 deg ramp the
-    # slicer can grow, so no fin is needed -- the same trick the idler boss
-    # taper uses, and fin-under-slab has been rejected three times in review.
-    # It only widens the pocket BELOW the seating face, so the land the plate
-    # actually sits on is untouched.
+    # ledge into a ramp lets the slicer grow it -- but the ramp must be
+    # ANCHORED on the pocket-floor wall (y past _ry1), the only material that
+    # is solid below it all through the pocket band. So the void closes toward
+    # the SEATING face as the print rises: hypotenuse from (_rx, _ry1) up to
+    # (_rx + _rr, _ry0), print-down normal ~(-0.64, -0.77). FIXED 2026-07-29
+    # (user flagged the 58 mm2 face in CAD): the first cut sloped the OPPOSITE
+    # way, growing the front off the seat-face corner -- under which there is
+    # only the pocket void and servo-side air, i.e. an unsupported knife-edge
+    # ribbon bridging the full 27 mm. Cost of the fix: the seat land loses a
+    # 1.7 mm chamfered strip along the pocket edge (x 7.8..9.6); the plate
+    # still seats either side of it and the M2.5 grip screws at +/-10.25
+    # clamp outboard of the ramp entirely.
     _rx = D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR
     _ry0 = D.SV_TOPFACE - 0.01
     _ry1 = D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR
-    _rr = 1.2 * (_ry1 - _ry0)          # ~32 deg: shallower than 45 and it
-                                       # costs nothing, the pocket is a relief
-    p -= wedge_z([(_rx, _ry0), (_rx + _rr, _ry1), (_rx, _ry1)],
+    _rr = 1.2 * (_ry1 - _ry0)          # ~40 deg from vertical: inside the
+                                       # 45 deg rule, the pocket is a relief
+    p -= wedge_z([(_rx, _ry0), (_rx, _ry1), (_rx + _rr, _ry0)],
                  -D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR - 0.6,
                  -D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR + 0.6)
     # DETENT for the idler-side PLATFORM -- the mirror of the rib pocket above,
@@ -362,10 +372,28 @@ def leg_link(print_fins=False):
     # the screws pull into, so it is relieved rather than seated on. What is
     # left bearing is a band across the cable end -- which carries both grip
     # screws at z -32.75 -- plus a land up each side outboard of the platform.
-    p -= box(-D.SV_IDLER_BOSS_HW - D.RIB_RELIEF_CLR, D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR,
-             D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR, idler_seat + 0.01,
-             D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR,
-             D.SV_IDLER_BOSS_Z[1] + D.RIB_RELIEF_CLR)
+    _ix = D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR          # +/-11.10
+    _iy0 = idler_seat                                    # -14.90, at the face
+    _iy1 = D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR    # -16.95, pocket floor
+    _iz0 = D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR
+    _iz1 = D.SV_IDLER_BOSS_Z[1] + D.RIB_RELIEF_CLR
+    p -= box(-_ix, _ix, _iy1, _iy0 + 0.01, _iz0, _iz1)
+    # ...and RAMP its +x wall (2026-07-29). Printing web-down, model +x is up,
+    # so the +x wall is a 28.5 mm2 DOWNWARD-facing face hanging over the
+    # pocket -- the same defect the rib pocket had, just short enough
+    # (13.9 mm) to stay under the BEAM span threshold and therefore never
+    # reported. Same fix, same anchoring rule: the ramp grows off the
+    # pocket-floor wall (y past _iy1, solid below through the whole pocket
+    # band) and the void closes toward the seating face -- hypotenuse from
+    # (_ix, _iy1) up to (_ix + _irr, _iy0), print-down normal ~(-0.64, +0.77).
+    # FIXED 2026-07-29 (user flagged the 39.7 mm2 face): the first cut sloped
+    # the opposite way, growing the front off the open seat-face corner with
+    # nothing below it. The mirror cut at -x is GONE (user flagged its 3.20 mm
+    # hypotenuse): the -x wall is the pocket FLOOR in print -- notching it
+    # supported nothing and just gouged the floor.
+    _irr = 1.2 * (_iy0 - _iy1)                           # ~40 deg, as the rib
+    p -= wedge_z([(_ix, _iy0), (_ix, _iy1), (_ix + _irr, _iy0)],
+                 _iz0 - 0.6, _iz1 + 0.6)
     # --- holes: case grip screws (M2.5 FLAT-head self-tap into the servo case
     # holes -- bench truth 2026-07-28, M3 is too wide); teardropped with the
     # peak +x (this part prints web-down, print-up = model +x). Every grip
