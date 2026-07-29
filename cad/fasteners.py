@@ -34,34 +34,40 @@ def _flat_head_y(x, z, y_face, sign):
 
 
 # --------------------------------------------------------------- leg links
-def leg_link_screws(pan_heads=False):
+def _flat_head_x(y, z, x_face, sign):
+    """_flat_head_y's twin for screws along X (carrier bay walls)."""
+    h = (D.CASE_FLAT_D - 2.5) / 2
+    rot = Rot(0, 90, 0) if sign > 0 else Rot(0, -90, 0)
+    mid = x_face - sign * h / 2
+    return Pos(mid, y, z) * rot * Cone(2.5 / 2, D.CASE_FLAT_D / 2, h)
+
+
+def _flat_head_z(x, y, z_face, sign):
+    """_flat_head_y's twin for screws along Z (pelvis deck stator screws)."""
+    h = (D.CASE_FLAT_D - 2.5) / 2
+    rot = Rot(0, 0, 0) if sign > 0 else Rot(180, 0, 0)
+    mid = z_face - sign * h / 2
+    return Pos(x, y, mid) * rot * Cone(2.5 / 2, D.CASE_FLAT_D / 2, h)
+
+
+def leg_link_screws():
     """6x M2.5x8 FLAT-head self-tap gripping the servo case (leg_link frame:
     upper joint axis == Y at origin). Heads sit FLUSH in the grip-plate
     countersinks -- see the leg_link comment / bench skew of 2026-07-28.
 
-    pan_heads=True models the AS-FITTED bench hardware instead (uxcell pan
-    heads, O5.0 x 2.0 PROUD of the plate faces) -- for demonstrating why the
-    links skew: the horn-side heads stand in the 0.70 mm band the yoke/fork
-    arm sweeps. Never use for the design-intent checks."""
+    All heads are FLAT and flush -- the pan-head variant was retired 2026-07-28
+    when the build standardised on M2.5 flat-head self-tappers."""
     s = []
     seat = D.SV_TOPFACE + D.GRIP_PLATE_T              # 19.75 horn plate outer
     for zrow in D.CASE_HOLES_TOP:
         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
             s.append(parts.cyl_y(1.25, seat - 8.0, seat - 0.9, lx, -zrow))
-            if pan_heads:
-                s.append(parts.cyl_y(D.CASE_HEAD_D / 2, seat,
-                                     seat + D.CASE_HEAD_H, lx, -zrow))
-            else:
-                s.append(_flat_head_y(lx, -zrow, seat, +1))
+            s.append(_flat_head_y(lx, -zrow, seat, +1))
     iy0 = D.IDLER_ARM_INNER - D.PLATE                 # -21 idler plate outer
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
         s.append(parts.cyl_y(1.25, iy0 + 0.9, iy0 + 8.0,
                              lx, -D.CASE_HOLES_BOT[1]))
-        if pan_heads:
-            s.append(parts.cyl_y(D.CASE_HEAD_D / 2, iy0 - D.CASE_HEAD_H, iy0,
-                                 lx, -D.CASE_HOLES_BOT[1]))
-        else:
-            s.append(_flat_head_y(lx, -D.CASE_HOLES_BOT[1], iy0, -1))
+        s.append(_flat_head_y(lx, -D.CASE_HOLES_BOT[1], iy0, -1))
     return _fuse(s)
 
 
@@ -130,7 +136,7 @@ def yaw_horn_screws():
 
 
 def yaw_wall_screws():
-    """8x M2.5x8 pan self-tap through the carrier bay walls into the
+    """8x M2.5x8 FLAT-head self-tap through the carrier bay walls into the
     roll-servo case (heads proud of the wall outer faces; the shanks
     INTENTIONALLY enter the servo case -- exclude from servo booleans)."""
     za = D.CARRIER_ROLL_AXIS
@@ -139,14 +145,12 @@ def yaw_wall_screws():
         for sg in (1, -1):
             s.append(parts.cyl_x(1.25, 19.95 - 8.0, 19.95,
                                  sg * D.CASE_HOLE_LAT, za + zrow))
-            s.append(parts.cyl_x(D.CASE_HEAD_D / 2, 19.95, 19.95 + D.CASE_HEAD_H,
-                                 sg * D.CASE_HOLE_LAT, za + zrow))
+            s.append(_flat_head_x(sg * D.CASE_HOLE_LAT, za + zrow, 19.95, +1))
     for zrow in D.CASE_HOLES_BOT:                     # rear wall (idler face)
         for sg in (1, -1):
             s.append(parts.cyl_x(1.25, -19.95, -19.95 + 8.0,
                                  sg * D.CASE_HOLE_LAT, za + zrow))
-            s.append(parts.cyl_x(D.CASE_HEAD_D / 2, -19.95 - D.CASE_HEAD_H,
-                                 -19.95, sg * D.CASE_HOLE_LAT, za + zrow))
+            s.append(_flat_head_x(sg * D.CASE_HOLE_LAT, za + zrow, -19.95, -1))
     return _fuse(s)
 
 
@@ -157,18 +161,16 @@ def yaw_carrier_screws():
 
 # --------------------------------------------------------------- pelvis
 def deck_stator_screws():
-    """Pelvis frame (deck top == z 0), BOTH legs: 8x M2.5x8 pan self-tap down
-    through the deck into the yaw-servo idler-face rows, heads sunk in the
-    deck-top counterbores (the battery footprint covers the -8.30 row)."""
+    """Pelvis frame (deck top == z 0), BOTH legs: 8x M2.5x8 FLAT-head self-tap down
+    through the deck into the yaw-servo idler-face rows, heads flush in the
+    deck-top countersinks (the battery footprint covers the -8.30 row)."""
     s = []
     for by in (D.HIP_SEP / 2, -D.HIP_SEP / 2):
         for xrow in D.YAW_CASE_HOLES_IDLER:
             for sg in (1, -1):
                 x, y = -xrow, by + sg * D.CASE_HOLE_LAT
-                zs = -D.DECK_CB_DEPTH                 # head seat (cb floor)
-                s.append(parts.cyl_z(1.25, zs - 8.0, zs, x, y))
-                s.append(parts.cyl_z(D.CASE_HEAD_D / 2, zs,
-                                     zs + D.CASE_HEAD_H, x, y))
+                s.append(parts.cyl_z(1.25, -8.0, 0.0, x, y))
+                s.append(_flat_head_z(x, y, 0.0, +1))
     return _fuse(s)
 
 
@@ -241,7 +243,6 @@ def head_stack_screws():
 # places it. Regenerated by `python cad/fasteners.py`.
 GROUPS = {
     "screws_grip":         lambda: leg_link_screws(),          # leg_link frame
-    "screws_grip_pan":     lambda: leg_link_screws(True),      # AS-FITTED bench
     "screws_disc_y":       disc_screws_y,                      # pitch/knee/ankle
     "screws_roll":         lambda: disc_screws_x() + flange_bolts(),
     "screws_yaw_carrier":  yaw_carrier_screws,                 # carrier frame

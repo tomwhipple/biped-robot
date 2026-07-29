@@ -104,25 +104,26 @@
   <text x="390" y="530" font-size="11" font-weight="bold" fill="#1e3a8a">P1 · IIC expansion header — Header 4</text>
   <text x="390" y="546" font-size="9" fill="#4b5563">1 = VDD3V3 · 2 = GND · 3 = IIC_SDA · 4 = IIC_SCL</text>
   <text x="390" y="561" font-size="9" fill="#4b5563">SDA = GPIO 32 · SCL = GPIO 33 (not 21/22 — board.h change)</text>
-  <text x="390" y="577" font-size="9" fill="#15803d">exactly the BNO085's four wires, in order — plugs straight in</text>
-  <circle cx="585" cy="588" r="5" fill="#2b62c3"/>
+  <text x="390" y="577" font-size="9" fill="#6b7280">LEFT EMPTY to start — this is the upgrade path, not the build</text>
+  <circle cx="585" cy="588" r="5" fill="#9ca3af"/>
 
-  <!-- onboard sensors -->
-  <rect x="380" y="602" width="410" height="76" rx="5" fill="#f0fdf4" stroke="#86efac"/>
-  <text x="390" y="620" font-size="11" font-weight="bold" fill="#14532d">Already on this I²C bus (no wiring)</text>
-  <text x="390" y="636" font-size="9" fill="#166534">QMI8658C 6-axis @ 0x6B · AK09918C mag @ 0x0C — via LSF0204 level shifter</text>
-  <text x="390" y="651" font-size="9" fill="#166534">BMP280 @ 0x77 · INA219 @ 0x42(8-bit)</text>
-  <text x="390" y="667" font-size="9" fill="#15803d">BNO085 at 0x4A/0x4B — no address collides. Onboard IMU is the fallback.</text>
+  <!-- PRIMARY: on-board IMU -->
+  <rect x="378" y="600" width="414" height="88" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="390" y="620" font-size="11" font-weight="bold" fill="#14532d">IMU — on board. PLAN OF RECORD. Zero wiring.</text>
+  <text x="390" y="636" font-size="9" fill="#166534">QMI8658C 6-axis @ 0x6B (accel + gyro, via LSF0204 level shifter) · AK09918C mag @ 0x0C</text>
+  <text x="390" y="651" font-size="9" fill="#166534">Already sitting on GPIO 32/33 inside the board outline — no carrier, no cable, no header used.</text>
+  <text x="390" y="666" font-size="9" fill="#4b5563">Gyro → obs angular velocity directly. Up-vector needs host-side fusion — see note 6.</text>
+  <text x="390" y="681" font-size="9" fill="#4b5563">Also on this bus: BMP280 @ 0x77 · INA219 @ 0x42 (8-bit).</text>
 
-  <!-- ================= IMU ================= -->
-  <rect x="360" y="722" width="450" height="120" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-  <text x="585" y="744" text-anchor="middle" font-size="12" font-weight="bold" fill="#14532d">GY-BNO085 breakout (BOM item 18 — already owned)</text>
-  <text x="374" y="764" font-size="9" fill="#166534">VIN ← P1 pin 1 (3V3)   ·   GND ← P1 pin 2   ·   SDA ← P1 pin 3   ·   SCL ← P1 pin 4</text>
-  <text x="374" y="780" font-size="9" fill="#166534">4-wire cable, ~150 mm. On-chip SH-2 fusion, so the ESP32 does no filtering.</text>
-  <text x="374" y="796" font-size="9" fill="#4b5563">Rides the printed imu_carrier at the tower top; RST / INT / CS / SDO / P0 / P1 unconnected.</text>
-  <text x="374" y="814" font-size="9" fill="#b45309">Verify P1's physical connector type before ordering the cable — the schematic says only "Header 4".</text>
-  <text x="374" y="831" font-size="9" fill="#15803d">If you skip it entirely, the onboard QMI8658C + AK09918C do the same job with host-side fusion.</text>
-  <path d="M585 588 V 722" stroke="#2b62c3" stroke-width="2.5"/>
+  <!-- ================= IMU upgrade path ================= -->
+  <rect x="360" y="722" width="450" height="112" rx="10" fill="#f9fafb" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="7 4"/>
+  <text x="585" y="744" text-anchor="middle" font-size="12" font-weight="bold" fill="#4b5563">UPGRADE PATH — not fitted initially</text>
+  <text x="374" y="764" font-size="9" fill="#4b5563">GY-BNO085 breakout (BOM item 18 — already owned, so nothing is wasted by starting without it).</text>
+  <text x="374" y="780" font-size="9" fill="#4b5563">Plugs into P1: VIN ← pin 1 (3V3) · GND ← pin 2 · SDA ← pin 3 · SCL ← pin 4. Addr 0x4A/0x4B, no collision.</text>
+  <text x="374" y="796" font-size="9" fill="#4b5563">Buys back SH-2 on-chip fusion if host-side fusion on the QMI8658C disappoints. RST/INT/CS/SDO/P0/P1 unused.</text>
+  <text x="374" y="812" font-size="9" fill="#b45309">Only then: verify P1's physical connector type and whether it carries pull-ups, before ordering a cable.</text>
+  <text x="374" y="828" font-size="9" fill="#6b7280">Swapping in is a firmware driver change plus one 4-wire cable — no board or CAD rework.</text>
+  <path d="M585 588 V 722" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6 4"/>
 
   <!-- ================= SERVOS ================= -->
   <text x="1160" y="98" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">Servo bus — 10 × ST3215, one leg per port</text>
@@ -209,7 +210,7 @@
   <rect x="30" y="866" width="1440" height="228" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
   <text x="46" y="890" font-size="12" font-weight="bold" fill="#92400e">Verified against Waveshare's schematic (docs/datasheets/general-driver/) unless marked otherwise</text>
   <g font-size="10" fill="#78350f">
-    <text x="46" y="914"><tspan font-weight="bold">1 · Nothing here is soldered to the board.</tspan> Power, both servo legs and the IMU all land in existing connectors. That was the whole point of the swap.</text>
+    <text x="46" y="914"><tspan font-weight="bold">1 · Nothing here is soldered, and to start with, nothing plugs into P1 either.</tspan> Power and the two servo legs are the entire harness; the IMU is inside the board.</text>
     <text x="46" y="936"><tspan font-weight="bold">2 · The external inline switch is now redundant.</tspan> SW1 on the board is a 1P2T in the input path. Keep the pigtail switch only if you want one you can reach.</text>
     <text x="46" y="958" fill="#991b1b"><tspan font-weight="bold">3 · Input current is the weak point, and it is tighter than the old board.</tspan> H5/H6 tap DC_IN, so ALL servo current flows through the XH2.54 input,</text>
     <text x="62" y="974" fill="#991b1b">the AO4407 and SW1. JST rates XH at 3 A (AWG#22, their datasheet); SW1's rating is not given. Against 1.4 A RMS that is fine — against the</text>

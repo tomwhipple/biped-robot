@@ -33,8 +33,6 @@ cases by design, so `freecad_pose.py` skips any child named `*__servo_*` when
 it intersects bodies.  Add a servo to a body here and it stays exempt.
 
     -> cad/step/bimo_v3yaw_articulated.FCStd
-    BIMO_PAN_HEADS=1 -> ..._PANHEADS.FCStd  (grip screws = the AS-FITTED uxcell
-    pan heads that skew the links, instead of the flush countersunk flat heads)
 
 How to POSE it
 --------------
@@ -116,11 +114,10 @@ import dimensions as D                  # pure-python constants, safe under Free
 
 REVOLUTE = JointObject.JointTypes.index("Revolute")   # == 1
 
-# BIMO_PAN_HEADS=1 builds the AS-FITTED bench state (proud uxcell pan heads on
-# the leg-link grip plates) instead of the design-intent flush flat heads.
-PAN_HEADS = os.environ.get("BIMO_PAN_HEADS", "") not in ("", "0", "false")
-GRIP = "screws_grip_pan" if PAN_HEADS else "screws_grip"
-DOC_NAME = "bimo_v3yaw_articulated" + ("_PANHEADS" if PAN_HEADS else "")
+# One build only: the pan-head variant was retired 2026-07-28 when the machine
+# standardised on M2.5 flat-head self-tappers for every servo-case screw.
+GRIP = "screws_grip"
+DOC_NAME = "bimo_v3yaw_articulated"
 
 # JCS orientation: a Revolute joint spins about its coordinate system's LOCAL Z.
 # Build a rotation that points local Z along each real axis.

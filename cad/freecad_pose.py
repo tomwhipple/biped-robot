@@ -28,7 +28,6 @@ so scoring them would report a hard hit on every joint at every pose.
 Headless self-test / batch use:
     BIMO_POSE="hip=-60,knee=-95" \
       /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd cad/freecad_pose.py
-    BIMO_PAN_HEADS=1 BIMO_POSE="hip=-60" freecadcmd cad/freecad_pose.py
         -> opens the matching .FCStd, poses it, prints the gap/collision table.
 
 Reading the numbers: 0.30 mm carrier-vs-yoke is the DESIGNED bay-bore slip fit,
@@ -325,8 +324,6 @@ def _doc():
         if d.getObject("Assembly") is not None and d.getObject("thigh_L"):
             return d
     name = "bimo_v3yaw_articulated"
-    if os.environ.get("BIMO_PAN_HEADS", "") not in ("", "0", "false"):
-        name += "_PANHEADS"
     path = os.path.join(HERE, "step", name + ".FCStd")
     if not os.path.isfile(path):
         raise RuntimeError("%s not found -- run freecad_articulate.py first"

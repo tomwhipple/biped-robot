@@ -8,16 +8,14 @@ the collision is a visible part in the tree, no measuring needed.
 
 Run:
   .venv/bin/python cad/export_pose.py --hip -60                 # design intent
-  .venv/bin/python cad/export_pose.py --hip -60 --pan-heads     # AS-FITTED bench
   .venv/bin/python cad/export_pose.py --hip -110 --knee -95 --ankle 40  # pike
 
   -> cad/step/poses/pose_<spec>.step   (gitignored -- regenerate at will)
 
---pan-heads swaps the leg-link grip screws for the uxcell pan heads actually
-fitted on the bench (O5.0 x 2.0 PROUD): this reproduces the 2026-07-28 bench
-find -- the yoke/fork arm lands on the horn-plate screw heads from ~+/-15 deg
-of hip travel, wedging the 0.70 mm running band and skewing the link. With
-the default flush flat heads the same pose is clear.
+Every servo-case screw is an M2.5 FLAT head sitting flush in a countersink.
+The pan-head variant was retired 2026-07-28: proud O5.0 x 2.0 heads wedged the
+0.70 mm running band at the yoke/fork arm and skewed the link from ~+/-15 deg
+of hip travel, which is what sent the build to flat heads in the first place.
 """
 import argparse
 import os
@@ -38,7 +36,7 @@ def hinge(ly, z, rx=0.0, ry=0.0, rz=0.0):
     return Pos(0, ly, z) * Rot(rx, ry, rz) * Pos(0, -ly, -z)
 
 
-def posed_leg(ly, tag, yaw, roll, hip, knee, ankle, pan_heads):
+def posed_leg(ly, tag, yaw, roll, hip, knee, ankle):
     """One leg's pieces + the pose transform of every kinematic stage.
     Returns (pieces, stages) where stages maps stage name -> (transform,
     solids-for-collision) for the pair checks."""
@@ -49,7 +47,7 @@ def posed_leg(ly, tag, yaw, roll, hip, knee, ankle, pan_heads):
     Tk = Th * hinge(ly, D.KNEE_Z, ry=knee)
     Ta = Tk * hinge(ly, D.ANKLE_Z, ry=ankle)
 
-    grip = F.leg_link_screws(pan_heads=pan_heads)
+    grip = F.leg_link_screws()
     # collision sets: printed parts + screws only. Servos are excluded from
     # PAIRS (disc faces contact them by design) but exported for context.
     stage = {
@@ -89,15 +87,13 @@ def main():
     ap = argparse.ArgumentParser()
     for j in ("yaw", "roll", "hip", "knee", "ankle"):
         ap.add_argument(f"--{j}", type=float, default=0.0)
-    ap.add_argument("--pan-heads", action="store_true",
-                    help="model the AS-FITTED pan grip screws (bench state)")
     ap.add_argument("--name", default=None)
     args = ap.parse_args()
 
     os.makedirs(OUT, exist_ok=True)
     spec = (f"y{args.yaw:+.0f}_r{args.roll:+.0f}_h{args.hip:+.0f}"
             f"_k{args.knee:+.0f}_a{args.ankle:+.0f}"
-            + ("_PANHEADS" if args.pan_heads else ""))
+            )
     name = args.name or f"pose_{spec}"
 
     children = [
@@ -112,7 +108,7 @@ def main():
     legs = {}
     for ly, tag in ((D.HIP_SEP / 2, "L"), (-D.HIP_SEP / 2, "R")):
         pieces, posed = posed_leg(ly, tag, args.yaw, args.roll, args.hip,
-                                  args.knee, args.ankle, args.pan_heads)
+                                  args.knee, args.ankle)
         children += pieces
         legs[tag] = posed
 
@@ -124,7 +120,7 @@ def main():
     print(f"pose  yaw {args.yaw:+.0f}  roll {args.roll:+.0f}  "
           f"hip {args.hip:+.0f}  knee {args.knee:+.0f}  "
           f"ankle {args.ankle:+.0f}"
-          + ("   [AS-FITTED PAN HEADS]" if args.pan_heads else ""))
+          )
     hit = 0
     for tag, posed in legs.items():
         for a, b in pairs:

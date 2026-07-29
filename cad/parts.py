@@ -108,6 +108,24 @@ def csk_y(x, z, y_face, sign):
                                        D.CASE_CS_D / 2 + 0.3, h)
 
 
+def csk_x(y, z, x_face, sign):
+    """csk_y's twin for bores along X (yaw_carrier bay walls)."""
+    h = D.CASE_CS_DEPTH + 0.3
+    rot = Rot(0, 90, 0) if sign > 0 else Rot(0, -90, 0)
+    mid = x_face + sign * (0.3 - h / 2)
+    return Pos(mid, y, z) * rot * Cone(D.CASE_SCREW_CLEAR / 2,
+                                       D.CASE_CS_D / 2 + 0.3, h)
+
+
+def csk_z(x, y, z_face, sign):
+    """csk_y's twin for bores along Z (pelvis deck stator screws)."""
+    h = D.CASE_CS_DEPTH + 0.3
+    rot = Rot(0, 0, 0) if sign > 0 else Rot(180, 0, 0)
+    mid = z_face + sign * (0.3 - h / 2)
+    return Pos(x, y, mid) * rot * Cone(D.CASE_SCREW_CLEAR / 2,
+                                       D.CASE_CS_D / 2 + 0.3, h)
+
+
 def bcd_y(y0, y1, x, z, roll=0):
     """4x M3 clearance holes (horn/idler bolt circle) along Y at pad (x, z).
     Teardropped (roll = print-up, see teardrop_y): these bores are horizontal
@@ -434,14 +452,19 @@ def yaw_carrier(print_fins=False):
     p -= cyl_x(D.BAY_BORE / 2, -21, 21, 0, za)
     p -= box(-21, 21, -D.BAY_BORE / 2, D.BAY_BORE / 2, zw - 1, za)
     # roll-servo retention screws (teardrop peak -z, printed ceiling-on-bed)
+    # COUNTERSUNK for FLAT heads (2026-07-28): the build now uses M2.5 flat-head
+    # self-tappers throughout, so these sit flush in the wall instead of standing
+    # CASE_HEAD_H proud of it. 1.25 mm of the 2.6 mm wall, 1.35 mm left behind.
     for zrow in D.CASE_HOLES_TOP:                    # front wall (horn face)
         for s in (1, -1):
             p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1, 21,
                             s * D.CASE_HOLE_LAT, za + zrow, roll=180)
+            p -= csk_x(s * D.CASE_HOLE_LAT, za + zrow, 19.95, +1)
     for zrow in D.CASE_HOLES_BOT:                    # rear wall (idler face)
         for s in (1, -1):
             p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, -21, -D.SV_TOPFACE + 1,
                             s * D.CASE_HOLE_LAT, za + zrow, roll=180)
+            p -= csk_x(s * D.CASE_HOLE_LAT, za + zrow, -19.95, -1)
     # yaw-horn bolts: 4x M3 into the horn disc (O14 circle). Bores are VERTICAL
     # in the print (part flipped, Z stays Z) -> plain holes. (The rear bolt was
     # briefly dropped for a ceiling cable channel that turned out to align with
@@ -553,8 +576,11 @@ def pelvis():
             for s in (1, -1):
                 p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zd - 1, 1,
                            -xrow, by + s * D.CASE_HOLE_LAT)
-                p -= cyl_z(D.DECK_CB_D / 2, -D.DECK_CB_DEPTH, 1,
-                           -xrow, by + s * D.CASE_HOLE_LAT)
+                # COUNTERSINK, not the old O5.8 x 2.3 pan counterbore
+                # (2026-07-28): flat heads throughout. Shallower too -- 1.25 mm
+                # instead of 2.3 -- so the deck keeps 1.05 mm more material, and
+                # the battery still lands on a flush top.
+                p -= csk_z(-xrow, by + s * D.CASE_HOLE_LAT, 0.0, +1)
         # --- idler-face interface, from the measured SV_IDLER/SV_CONN truth ---
         # (1) disc + hub CLEARANCE POCKET: the idler disc (O19.2, +0.27 proud)
         # and its hub screws (+0.82) ROTATE with the output -- clamping them
