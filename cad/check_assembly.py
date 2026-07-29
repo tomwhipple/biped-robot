@@ -18,15 +18,25 @@ def servo_mock_y():
     out (2026-07-28): the HORN-SIDE RIB on the cable half, and the rotating
     IDLER HUB inside the recess. Without them this mock reported clearance where
     the real servo interferes -- leg_link overlaps the rib by ~299 mm3."""
-    case = parts.box(-12.36, 12.36, D.SV_BOTFACE, D.SV_TOPFACE,
+    # CASE STOPS AT SV_IDLER_CASE_FACE, NOT SV_BOTFACE (2026-07-29). The case is
+    # NOT symmetric about the output axis: slab-sectioning the vendor solid finds
+    # zero material at -17.35, and the real idler-side face is 2.60 mm in, at
+    # -14.75. The old block ran the case all the way to -17.35, which invented a
+    # seating surface that does not exist -- every mount that "seats" on the
+    # idler side was really being checked against phantom material.
+    case = parts.box(-12.36, 12.36, D.SV_IDLER_CASE_FACE, D.SV_TOPFACE,
                      -D.SV_AXIS_FROM_REAR, D.SV_AXIS_FROM_OUT_END)
-    case -= parts.cyl_y(D.SV_IDLER_RECESS_D / 2, D.SV_BOTFACE - 0.01,
-                        D.SV_IDLER_FACE, 0, 0)
     # horn-side rib: cable end is -Z in this frame
     case += parts.box(-D.SV_HORN_RIB_HW, D.SV_HORN_RIB_HW,
                       D.SV_TOPFACE, D.SV_TOPFACE + D.SV_HORN_RIB_H,
                       -D.SV_HORN_RIB_L[1], -D.SV_HORN_RIB_L[0])
-    # rotating free hub, flush out to the case bottom plane
+    # moulded back-cover platform, 1.90 proud of that face
+    case += parts.box(-D.SV_IDLER_BOSS_HW, D.SV_IDLER_BOSS_HW,
+                      D.SV_IDLER_BOSS_Y, D.SV_IDLER_CASE_FACE,
+                      D.SV_IDLER_BOSS_Z[0], D.SV_IDLER_BOSS_Z[1])
+    # idler disc stands PROUD of the case face (it is not recessed into it), and
+    # the free hub proud of the disc again. Both ROTATE with the joint.
+    case += parts.cyl_y(D.SV_HORN_D / 2, D.SV_IDLER_FACE, D.SV_IDLER_CASE_FACE, 0, 0)
     case += parts.cyl_y(D.SV_IDLER_HUB_HW, D.SV_BOTFACE, D.SV_IDLER_FACE, 0, 0)
     horn = parts.cyl_y(D.SV_BOSS_D / 2, D.SV_TOPFACE, D.SV_HORN_FACE, 0, 0)
     return case + horn

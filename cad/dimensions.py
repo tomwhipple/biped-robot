@@ -335,6 +335,32 @@ SV_HORN_RIB_H = 1.13        # proud of SV_TOPFACE (top at +18.48)
 # claims relative to a different datum.
 SV_IDLER_HUB_HW = 3.24      # half-width; fills SV_BOTFACE .. SV_IDLER_FACE
 #
+# IDLER-SIDE SEATING -- measured off the same vendor solid, 2026-07-29, after
+# the user flagged that "the idler side does not conform to the servo the way
+# the horn side does".  It does not, and the numbers are stark.
+#
+# SV_BOTFACE (-17.35) IS NOT A REAL SURFACE.  SV_CASE_T assumes the case is
+# symmetric about the output axis; it is not.  Slab-sectioning the vendor solid
+# over the grip plate's own footprint gives ZERO mm2 of material at -17.35, and
+# still zero at -16.80.  The only thing that reaches -17.35 anywhere is the
+# free-hub post, which ROTATES with the joint and must never be touched.
+# Measured standoff of each grip plate from the first real material it could
+# bear on, same footprint bands either side:
+#     horn plate  seats at +17.35, material starts +17.20   -> 0.15 mm
+#     idler plate seats at -17.35, material starts -14.75   -> 2.60 mm
+# So the two idler grip screws (row 32.75) have been clamping an air gap.
+SV_IDLER_CASE_FACE = -14.75   # the real idler-side case face; the screws land
+                              # here, so this is what the plate must bear on
+# A moulded platform stands proud of that face over most of the plate footprint
+# (label/back-cover area).  It sits BETWEEN the screws and the plate, so it has
+# to be relieved rather than seated on -- exactly as the horn-side rib is.
+SV_IDLER_BOSS_Y = -16.65            # crest, 1.90 proud of the case face
+SV_IDLER_BOSS_HW = 10.70            # half-width across the case (x)
+SV_IDLER_BOSS_Z = (-29.51, -16.25)  # band along the length (axis -> cable end)
+GRIP_SEAT_CLR = 0.15          # designed plate standoff from a seat face. Set to
+                              # the horn side's MEASURED 0.15 so both plates land
+                              # the same way instead of one of them by luck.
+#
 # The vendor solid has NO O19.6 output boss: on-axis is EMPTY from SV_TOPFACE up
 # to +18.35, where the O19.2 horn disc starts and runs to SV_HORN_FACE. The
 # mocks keep a solid SV_BOSS_D column through that gap, which is conservative.
@@ -420,6 +446,11 @@ GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
 # fork, ~10 mm clearance at toes-pointed; see parts.py leg_link note.)
 WEB_GAP = 0.4
 WEB_TOP = -16.0         # clears the upper joint's fork arms folding to 95 deg
+BRACE_TOP = -13.0        # top of the back brace that carries the web on up behind
+                        # the servo (2026-07-29). -3.0 == GRIP_TOP_HORN, i.e. the
+                        # brace runs the full height of the horn grip plate. This
+                        # is the number to pull DOWN if the upper joint's fork
+                        # arms need the room back; check_assembly is the arbiter.
 WEB_END = -58.0         # web stops 32 above the lower axis: clears the foot
                         # walls and the servo case top at ankle/knee extremes
 # fork arms: full-width near the web, narrowed toward the pad so the slab does

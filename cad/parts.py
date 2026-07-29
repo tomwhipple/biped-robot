@@ -260,8 +260,22 @@ def leg_link(print_fins=False):
     # cleared swing band: same x-z footprint, and the y band -21..-18 overlap
     # with the yoke idler hub/riser (r >= 16 floor) and the chained link's
     # fork plate predates this (see yoke_pitch idler-arm comment).
-    p += box(web_x0, grip_x1, iy0, -D.SV_TOPFACE, D.GRIP_BOT, D.GRIP_TOP_IDLER)
+    # idler grip plate: its inner face follows the REAL idler-side case face
+    # (SV_IDLER_CASE_FACE, -14.75), not the mirrored SV_BOTFACE (-17.35). There
+    # is no case material at -17.35 -- the plate used to clamp a 2.60 mm air
+    # gap, which is what "the idler side does not conform" meant. Seating here
+    # puts the plate on the same face the two grip screws pull into.
+    idler_seat = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR          # -14.90
+    p += box(web_x0, grip_x1, iy0, idler_seat, D.GRIP_BOT, D.GRIP_TOP_IDLER)
     p += box(web_x0, web_x1, iy0, D.SV_TOPFACE + t, D.WEB_END, D.WEB_TOP)
+    # BACK BRACE (2026-07-29). Above WEB_TOP the horn grip plate cantilevers off
+    # nothing -- the web stops at -16 and the idler plate stops there too, so the
+    # top third of the grip is a free-ended blade. This carries the web on up
+    # behind the servo to the horn plate's own top edge, closing the section.
+    # The 0.4 WEB_GAP means it never touches the case. Its top is a constant
+    # because it is the thing that has to give if the upper joint's fork arms
+    # need the room back -- check_assembly's "joint ABOVE" sweep is the arbiter.
+    p += box(web_x0, web_x1, iy0, D.SV_TOPFACE + t, D.WEB_TOP, D.BRACE_TOP)
     # --- fork arms down to the next servo (wide near the web, narrow below).
     # The wide horn-side section starts at the web/grip edge (19.75), not the
     # horn face (20.45): the 0.7 band is only a running clearance where the
@@ -300,7 +314,7 @@ def leg_link(print_fins=False):
         abs(iy1 - D.SV_IDLER_FACE))
     # jog block joining horn grip plate (out at 19.75) to fork plate (21.45+)
     p += box(web_x0, 12, D.SV_TOPFACE, hy1, -36.5, -33)
-    p += box(web_x0, 12, iy0, -D.SV_TOPFACE, -36.5, -33)
+    p += box(web_x0, 12, iy0, idler_seat, -36.5, -33)
     # DETENT for the servo's horn-side RIB (measured off cad/vendor/ST3215.step,
     # 2026-07-28). The rib stands 1.13 mm proud of the case top face right under
     # the horn grip plate, so without this pocket the plate lands on the rib
@@ -314,6 +328,17 @@ def leg_link(print_fins=False):
              D.SV_TOPFACE - 0.01, D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
              -D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR,
              -D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR)
+    # DETENT for the idler-side PLATFORM -- the mirror of the rib pocket above,
+    # and the second half of seating this plate properly (2026-07-29). The
+    # moulded back-cover platform stands 1.90 mm proud of the case face over
+    # most of the plate's footprint, and it sits BETWEEN the plate and the face
+    # the screws pull into, so it is relieved rather than seated on. What is
+    # left bearing is a band across the cable end -- which carries both grip
+    # screws at z -32.75 -- plus a land up each side outboard of the platform.
+    p -= box(-D.SV_IDLER_BOSS_HW - D.RIB_RELIEF_CLR, D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR,
+             D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR, idler_seat + 0.01,
+             D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR,
+             D.SV_IDLER_BOSS_Z[1] + D.RIB_RELIEF_CLR)
     # --- holes: case grip screws (M2.5 FLAT-head self-tap into the servo case
     # holes -- bench truth 2026-07-28, M3 is too wide); teardropped with the
     # peak +x (this part prints web-down, print-up = model +x). Every grip
@@ -327,8 +352,8 @@ def leg_link(print_fins=False):
                             D.SV_TOPFACE + t + 1, lx, -zrow, roll=90)
             p -= csk_y(lx, -zrow, D.SV_TOPFACE + t, +1)
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):   # idler face: row 32.75 only
-        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, -D.SV_TOPFACE - D.PLATE - 1,
-                        -D.SV_TOPFACE + 1, lx, -D.CASE_HOLES_BOT[1], roll=90)
+        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, iy0 - 1,
+                        idler_seat + 1, lx, -D.CASE_HOLES_BOT[1], roll=90)
         p -= csk_y(lx, -D.CASE_HOLES_BOT[1], iy0, -1)
     # --- holes: lower joint pads
     # idler bolt circle drilled from the fork OUTER face (iy0) through to the
