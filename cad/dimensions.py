@@ -498,6 +498,23 @@ TOWER_TOP_T = 3.5
 BOARD_HOLES = (58.0, 23.0)     # hole pattern (y span, x span), M2.5 self-tap
 BOARD_STANDOFF = 6.0           # under-plate standoff height (clears the GoPro
                                # screw bosses by 3 mm; battery below gets ~2 mm)
+# CANDIDATE REPLACEMENT BOARD -- Waveshare "General Driver for Robots", the swap
+# that buys an onboard IMU with no soldering (docs/wiring-general-driver.svg,
+# schematic in docs/datasheets/general-driver/). Vendor figures, 2026-07-28.
+# NOT wired into any geometry yet: it does not fit the torso as built, and where
+# it goes is a design decision, not a parameter change. Numbers parked here so
+# the decision is made against real spans.
+BOARD_GD_OUTLINE = (65.0, 65.0)  # square, vs the 65 x 30 of the current board
+BOARD_GD_HOLES = (58.0, 49.0)    # (y span, x span) -- same convention as above
+BOARD_GD_HOLE_D = 3.0            # the board's own holes (M2.5 clears with slack)
+# THE FIT PROBLEM, in one line: the tower is 42 fore-aft (36.8 between walls)
+# and the deck is 46, but the board is 65 and even its NARROWER hole span is 49.
+# So the screws land 3.5 mm OUTBOARD of the tower's own outer wall (the wide
+# span would be 8.0 out), and the board cannot hang inside the tower the way the
+# 65 x 30 one does. It has to sit on top of something, or the torso has to grow.
+# The one piece of luck: the y span is 58 on BOTH boards, so the standoff Y
+# positions (+/-29) do not move at all -- only X, from +/-11.5 to +/-24.5.
+# Board plane today is z = 34.0 above deck top; tower top is 43.5.
 # battery: DECIDED 3S (2026-07-11 gauntlet verdict). Envelope is a SUPERSET of
 # the 3S 850 mAh XT30 field, not one pack -- the Zeee (67 x 30 x 18.5, 74 g)
 # it was originally cut for went unavailable, and every other pack in the class
