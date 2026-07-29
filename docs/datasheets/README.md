@@ -177,5 +177,25 @@ proposed harness is drawn in
   independent of the servo bus** — which is exactly `battguard`'s blind spot on
   the current board.
 
-Still unverified: P1's physical connector type, whether P1 carries I²C
-pull-ups, and SW1's current rating.
+### IMU decision (user, 2026-07-28)
+
+**Start on the board's own QMI8658C.** The BNO085 stays on the shelf as the
+upgrade path — already owned, so nothing is wasted, and swapping it in later is
+a firmware driver change plus one 4-wire cable into P1, with no board or CAD
+rework. Consequences of starting onboard:
+
+- The ESP32 must do the fusion the BNO085 did on-chip. Gyro feeds the obs
+  angular-velocity terms as-is; the **up-vector needs a complementary/Madgwick
+  filter over accel + gyro**. The magnetometer is *not* required — the policy
+  consumes up-vector and rates, not heading.
+- Cheaper than the read it replaces: ~0.4 ms for the I²C burst plus ~50 µs of
+  math, against the 1.0 ms `firmware-design.md` budgeted for the BNO085, in a
+  tick with ~16 ms spare. The new risk is filter tuning, not timing.
+- **The IMU moves from the tower top to the deck**, so `imu_carrier` is no
+  longer needed to carry it — roughly 8 g (carrier + breakout) off the highest
+  point on the robot, which lowers the CoM. Attitude and rates are identical
+  anywhere on a rigid torso, and sitting nearer the CoM means less lever-arm
+  acceleration corrupting the gravity estimate, so the move is neutral-to-better.
+
+Still unverified: SW1's current rating, and — only if the upgrade path is ever
+taken — P1's physical connector type and whether it carries I²C pull-ups.

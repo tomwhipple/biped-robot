@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1120" viewBox="0 0 1500 1120" font-family="Helvetica, Arial, sans-serif">
-  <rect width="1500" height="1120" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1250" viewBox="0 0 1500 1250" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1500" height="1250" fill="#ffffff"/>
   <text x="750" y="32" text-anchor="middle" font-size="20" font-weight="bold" fill="#1f2937">Bimo biped — wiring on the General Driver for Robots</text>
-  <text x="750" y="52" text-anchor="middle" font-size="11" fill="#6b7280">Every connection uses an existing connector. No soldering to the board. Nets: V+ red · GND black · DATA blue · I²C blue/amber</text>
+  <text x="750" y="52" text-anchor="middle" font-size="11" fill="#6b7280">Every connection uses an existing connector. No soldering to the board. Nets: V+ red · GND black · DATA blue. IMU is on the board — P1 stays empty to start.</text>
 
   <!-- ================= BATTERY COLUMN ================= -->
   <rect x="30" y="76" width="280" height="470" rx="10" fill="#fef7ed" stroke="#c2410c" stroke-width="1.5"/>
@@ -20,7 +20,7 @@
   <rect x="50" y="208" width="184" height="52" rx="6" fill="#ffffff" stroke="#16a34a"/>
   <text x="62" y="227" font-size="11" font-weight="bold" fill="#14532d">S1 · LiPo low-voltage alarm</text>
   <text x="62" y="242" font-size="9" fill="#4b5563">on the balance lead · per-cell · 3.3 V/cell</text>
-  <text x="62" y="254" font-size="8" fill="#16a34a">STILL REQUIRED — only firmware-independent guard</text>
+  <text x="62" y="254" font-size="8" fill="#16a34a">STILL REQUIRED — firmware-independent</text>
 
   <!-- XT30 -->
   <path d="M258 186 V 270 H 170 V 278" fill="none" stroke="#c0392b" stroke-width="2.5"/>
@@ -123,7 +123,7 @@
   <text x="374" y="796" font-size="9" fill="#4b5563">Buys back SH-2 on-chip fusion if host-side fusion on the QMI8658C disappoints. RST/INT/CS/SDO/P0/P1 unused.</text>
   <text x="374" y="812" font-size="9" fill="#b45309">Only then: verify P1's physical connector type and whether it carries pull-ups, before ordering a cable.</text>
   <text x="374" y="828" font-size="9" fill="#6b7280">Swapping in is a firmware driver change plus one 4-wire cable — no board or CAD rework.</text>
-  <path d="M585 588 V 722" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6 4"/>
+  <path d="M585 588 V 594 H 800 V 712 H 585 V 722" fill="none" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6 4"/>
 
   <!-- ================= SERVOS ================= -->
   <text x="1160" y="98" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">Servo bus — 10 × ST3215, one leg per port</text>
@@ -207,7 +207,7 @@
   <text x="860" y="727" font-size="9" fill="#6b7280">GoPro MAX is self-powered: zero wiring to the robot.</text>
 
   <!-- ================= NOTES ================= -->
-  <rect x="30" y="866" width="1440" height="228" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+  <rect x="30" y="866" width="1440" height="360" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
   <text x="46" y="890" font-size="12" font-weight="bold" fill="#92400e">Verified against Waveshare's schematic (docs/datasheets/general-driver/) unless marked otherwise</text>
   <g font-size="10" fill="#78350f">
     <text x="46" y="914"><tspan font-weight="bold">1 · Nothing here is soldered, and to start with, nothing plugs into P1 either.</tspan> Power and the two servo legs are the entire harness; the IMU is inside the board.</text>
@@ -219,6 +219,13 @@
     <text x="62" y="1028">mean soldering or giving up a servo port — neither is available. If note 3 bites on the bench, feed servo V+ straight from the pack instead.</text>
     <text x="46" y="1050" fill="#991b1b"><tspan font-weight="bold">5 · The onboard INA219 does NOT replace S5.</tspan> Its 0.01 Ω shunt sits between DC_IN and VIN, i.e. in the buck's feed only; the servo ports tap</text>
     <text x="62" y="1066" fill="#991b1b">DC_IN upstream of it. You gain a pack-voltage sense independent of the servo bus — which fixes battguard's blind spot — but no servo current.</text>
-    <text x="46" y="1088"><tspan font-weight="bold">6 · Still unverified:</tspan> P1's physical connector type, whether P1 carries I²C pull-ups, and SW1's current rating. Confirm on the board in hand.</text>
+    <text x="46" y="1088" fill="#14532d"><tspan font-weight="bold">6 · Starting on the onboard IMU costs one firmware component and buys back a lot of harness.</tspan> The QMI8658C is raw accel+gyro, so the ESP32 must do</text>
+    <text x="62" y="1104" fill="#14532d">the fusion the BNO085 did on-chip. Gyro feeds obs angular velocity as-is; the up-vector needs a complementary/Madgwick filter over accel+gyro — the</text>
+    <text x="62" y="1120" fill="#14532d">magnetometer is NOT required, since the policy uses up-vector and rates, not heading. Cheaper than the BNO085 read it replaces (~0.4 ms I²C burst</text>
+    <text x="62" y="1136" fill="#14532d">+ ~50 µs of math against a 1.0 ms budget), and the tick has ~16 ms spare. New risk is filter tuning, and note the upgrade path above retires it.</text>
+    <text x="46" y="1158"><tspan font-weight="bold">7 · CAD consequence: the IMU moves from the tower top to the deck.</tspan> imu_carrier is no longer needed to carry it, which takes ~8 g (carrier + breakout)</text>
+    <text x="62" y="1174">off the highest point on the robot and lowers the CoM. Attitude and rates are identical anywhere on a rigid torso, and sitting nearer the CoM means</text>
+    <text x="62" y="1190">less lever-arm acceleration corrupting the gravity estimate — so this is neutral-to-better. Axis remap still gets set at bring-up, as before.</text>
+    <text x="46" y="1212"><tspan font-weight="bold">8 · Still unverified:</tspan> SW1's current rating, and — only if the upgrade path is ever taken — P1's connector type and pull-ups. Confirm on the board in hand.</text>
   </g>
 </svg>
