@@ -125,14 +125,15 @@
            very nearly cancelled by the pack reseating to -9.0, so COM x is
            +0.6 mm. THE PLANT HAS CHANGED -- loco_v5t was trained on the old
            torso and must at minimum be re-validated. -->
-      <inertial pos="0.0006 -0.0002 0.0146" quat="0.7326 0.0067 -0.6806 -0.0086" mass="0.4023" diaginertia="3.5842e-04 5.8154e-04 7.4982e-04"/>
+      <inertial pos="0.0006 -0.0002 0.0146" quat="0.9993 0.0108 0.0368 -0.0013" mass="0.4023" diaginertia="7.4982e-04 5.8154e-04 3.5842e-04"/>
       <!-- non-colliding visual proxy (contype/conaffinity 0, group 3); the
            explicit <inertial> above is what physics uses. x half-extent tracks
            the tower, which is now the widest thing on the torso. -->
       <geom name="torso" type="box" size="0.028 0.052 0.036" mass="0.4023" rgba="0.80 0.82 0.85 1" group="3"/>
       <geom class="cad" mesh="pelvis" pos="0 0 0.00411"/>
       <geom class="cad" mesh="tower" pos="0 0 0.00411"/>
-      <geom class="cad" mesh="gopro_base" pos="0 0 0.04761"/>
+      <geom class="cad" mesh="gopro_base" pos="0 0 0.07911"/>  <!-- tower top +31.5 mm, 2026-07-28 -->
+
       <geom name="servo_L_roll" class="servo" type="box" pos="0 0.028 -0.02346" size="0.01735 0.01236 0.02261"/>
       <geom name="servo_R_roll" class="servo" type="box" pos="0 -0.028 -0.02346" size="0.01735 0.01236 0.02261"/>
       <geom name="battery" type="box" pos="-0.009 0 0.01661" size="0.015 0.031 0.0125"
@@ -158,25 +159,25 @@
         <geom type="box" pos="0 0 -0.0285" size="0.01735 0.01236 0.02261" group="1" rgba="0.22 0.23 0.27 1" mass="0"/>
       <body name="L_hip" pos="0 0 -0.041">
         <joint name="L_hip_roll" axis="1 0 0" range="-25 25"/>
-        <inertial pos="-0.0009 0.0003 -0.0218" quat="-0.4320 0.3393 0.7859 0.2840" mass="0.0296" diaginertia="1.0522e-05 1.1120e-05 1.1767e-05"/>
+        <inertial pos="-0.0009 0.0003 -0.0218" quat="0.9206 -0.2046 -0.1494 0.2973" mass="0.0296" diaginertia="1.1120e-05 1.1767e-05 1.0522e-05"/>
         <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1" group="3"/>
         <geom class="cad" mesh="yoke_roll"/>
         <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
         <body name="L_thigh" pos="0 0 -0.05">
           <joint name="L_hip_pitch" axis="0 1 0" range="-110 60"/>
-        <inertial pos="-0.0011 0.0002 -0.0238" quat="0.7189 0.0122 -0.6950 -0.0037" mass="0.0786" diaginertia="1.8615e-05 4.9664e-05 5.8760e-05"/>
+        <inertial pos="-0.0011 0.0002 -0.0238" quat="0.9998 0.0112 0.0169 0.0060" mass="0.0786" diaginertia="5.8760e-05 4.9664e-05 1.8615e-05"/>
           <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
           <body name="L_shin" pos="0 0 -0.09">
             <joint name="L_knee" axis="0 1 0" range="-95 5"/>
-        <inertial pos="-0.0011 0.0002 -0.0238" quat="0.7189 0.0122 -0.6950 -0.0037" mass="0.0786" diaginertia="1.8615e-05 4.9664e-05 5.8760e-05"/>
+        <inertial pos="-0.0011 0.0002 -0.0238" quat="0.9998 0.0112 0.0169 0.0060" mass="0.0786" diaginertia="5.8760e-05 4.9664e-05 1.8615e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
             <body name="L_foot" pos="0 0 -0.09">
               <joint name="L_ankle" axis="0 1 0" range="-40 40"/>
-        <inertial pos="-0.0047 -0.0000 -0.0063" quat="0.0006 0.9981 0.0006 -0.0611" mass="0.1104" diaginertia="2.4768e-05 9.0050e-05 9.9131e-05"/>
+        <inertial pos="-0.0047 -0.0000 -0.0063" quat="0.9981 -0.0006 0.0611 0.0006" mass="0.1104" diaginertia="2.4768e-05 9.0050e-05 9.9131e-05"/>
               <geom name="L_sole" type="box" pos="0.010 0 -0.0140" size="0.045 0.023 0.004"
                     contype="1" conaffinity="1" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001" condim="4"/>
               <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
@@ -198,25 +199,25 @@
         <geom type="box" pos="0 0 -0.0285" size="0.01735 0.01236 0.02261" group="1" rgba="0.22 0.23 0.27 1" mass="0"/>
       <body name="R_hip" pos="0 0 -0.041">
         <joint name="R_hip_roll" axis="1 0 0" range="-25 25"/>
-        <inertial pos="-0.0009 0.0003 -0.0218" quat="-0.4320 0.3393 0.7859 0.2840" mass="0.0296" diaginertia="1.0522e-05 1.1120e-05 1.1767e-05"/>
+        <inertial pos="-0.0009 0.0003 -0.0218" quat="0.9206 -0.2046 -0.1494 0.2973" mass="0.0296" diaginertia="1.1120e-05 1.1767e-05 1.0522e-05"/>
         <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1" group="3"/>
         <geom class="cad" mesh="yoke_roll"/>
         <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
         <body name="R_thigh" pos="0 0 -0.05">
           <joint name="R_hip_pitch" axis="0 1 0" range="-110 60"/>
-        <inertial pos="-0.0011 0.0002 -0.0238" quat="0.7189 0.0122 -0.6950 -0.0037" mass="0.0786" diaginertia="1.8615e-05 4.9664e-05 5.8760e-05"/>
+        <inertial pos="-0.0011 0.0002 -0.0238" quat="0.9998 0.0112 0.0169 0.0060" mass="0.0786" diaginertia="5.8760e-05 4.9664e-05 1.8615e-05"/>
           <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
           <body name="R_shin" pos="0 0 -0.09">
             <joint name="R_knee" axis="0 1 0" range="-95 5"/>
-        <inertial pos="-0.0011 0.0002 -0.0238" quat="0.7189 0.0122 -0.6950 -0.0037" mass="0.0786" diaginertia="1.8615e-05 4.9664e-05 5.8760e-05"/>
+        <inertial pos="-0.0011 0.0002 -0.0238" quat="0.9998 0.0112 0.0169 0.0060" mass="0.0786" diaginertia="5.8760e-05 4.9664e-05 1.8615e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261"/>
             <body name="R_foot" pos="0 0 -0.09">
               <joint name="R_ankle" axis="0 1 0" range="-40 40"/>
-        <inertial pos="-0.0047 -0.0000 -0.0063" quat="0.0006 0.9981 0.0006 -0.0611" mass="0.1104" diaginertia="2.4768e-05 9.0050e-05 9.9131e-05"/>
+        <inertial pos="-0.0047 -0.0000 -0.0063" quat="0.9981 -0.0006 0.0611 0.0006" mass="0.1104" diaginertia="2.4768e-05 9.0050e-05 9.9131e-05"/>
               <geom name="R_sole" type="box" pos="0.010 0 -0.0140" size="0.045 0.023 0.004"
                     contype="1" conaffinity="1" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001" condim="4"/>
               <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>

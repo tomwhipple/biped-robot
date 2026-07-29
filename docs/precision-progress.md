@@ -668,3 +668,62 @@ by <= 3 cm.** Two design facts fall out:
 `--cmd-v-range 0.05,1.0`** (new train_mjx flag) — teach the creep band,
 then re-run the homing eval. Open deployment question for the goal
 layer: position source on hardware (IMU odometry drift vs GoPro).
+
+## Day 7 evening (2026-07-28): plant sync for the tower resize
+
+Physical changes today (CAD session): TOWER 42x43.5 -> 56x75 to mount
+the General Driver board UPRIGHT (65x65, onboard IMU), pack reseated to
+-x, GoPro +31.5 mm, foot rounded toe/heel + solid heel, leg_link cuts.
+Sim incorporation, verified end to end:
+
+- **Articulation precursor: check_assembly ALL CLEAR** at every ROM
+  extreme with the new shapes (incl. the new horn-rib/idler-hub servo
+  mocks). The dressed-cable ROM sweep fails at frame 137
+  (R_cable_hip unexportable) -- cable re-sweep issue with the new tower,
+  flagged for the CAD session; cables are not in the sim plant.
+- Part deltas (STL volume x effective print density): tower +38.3 g,
+  everything else sub-gram. Inertia rebuild (with the CAD session, which
+  was editing the same files live): torso 341.8 -> 402.3 g, COM z
+  +2.9 -> +14.6 mm, total robot 1.152 kg. Battery mock follows
+  BATT_SEAT_X to x=-9; board slab upright at +x; IMU site moved onto
+  the board (honest accelerometer lever arm); gopro_base mesh +31.5 mm;
+  payload_cg_z 0.0945 -> 0.1260 in train_mjx.
+- **Parity war story:** the fresh inertials broke gate 2g (airborne
+  10-DOF) at dqpos 2e-7. Bisection: feet inertials alone reproduce it;
+  canonicalizing the eigh frame (the foot came out as a near-180-degree
+  quat, w=0.0006) changed nothing -- values, not representation. Model
+  structs bit-identical. Per-step probe under x64: 99 steps at 1e-12,
+  ONE step (t=88) at dqvel 5e-5 with several joint torques within
+  machine epsilon of the sts3215 envelope/backlash branch -- XLA op
+  ordering flips a discontinuous branch. Boundary luck, not divergence.
+  Fix: 2g probe phase 0.35 -> 0.353 steps off the knife edge; suite
+  passes at full strictness (2g dqpos 2.9e-12). Builder now
+  canonicalizes eigen-frames to minimal rotation regardless.
+- New plant + meshes rsynced to Mira BEFORE tonight's launch:
+  loco_v6creep (warm from loco_v5t, --cmd-v-range 0.05,1.0) now does
+  double duty -- creep-band learning AND adaptation to the +100 g,
+  taller-COM plant. Referee deltas vs loco_v5t will mix both effects;
+  interpret accordingly.
+
+## Day 8 (2026-07-29): goal_home SOLVED in sim — and the new body holds up
+
+**loco_v6creep (warm from loco_v5t, cmd_v_range 0.05-1.0, first run on
+the resized-tower plant): 63/72** — statistically the old 64/72 on a
+robot that gained 100 g and 12 mm of torso COM. All core gaits 7-8/8;
+open-loop circle_return 3/8 -> 5/8 (creep training already helps).
+
+**Closed-loop goal homing: 8/8, zero falls, median return 4.5 cm** (was
+3/8 open-loop baseline; 6/8 with the outer loop on the creep-blind
+policy). Promoted from scratchpad into the referee as `goal_home`
+(circle arc, then P-controller homing with body-frame creep inside
+0.3 m; gate: return < 10 cm, no fall; in the loco family + ORDER +
+HEADLINE). Referee confirms 3/3 at home 3 cm. The goal layer for flat
+ground is: outer command loop + creep-band policy — no goal-conditioned
+network needed. Remaining deployment question: position source
+(ground truth in sim; hardware needs odometry or the GoPro).
+
+**Regression flag: stand_off 8/8 -> 4/8 (drift 1.9 -> 17.3 cm).** The
+heavier, taller torso makes torque-off standing marginal against the
+estimated 0.35 N·m backdrive friction. Measuring the REAL backdrive
+friction (bring-up checklist) is now decisive for whether idle
+torque-off survives the tower resize.

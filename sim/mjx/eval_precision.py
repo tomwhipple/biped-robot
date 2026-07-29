@@ -550,6 +550,67 @@ def scen_circle_return():
     return build, evaluate
 
 
+def scen_goal_home():
+    """Goal layer (task #15, 2026-07-29): drive the circle_return arc, then
+    HOME closed-loop -- an outer P-controller reads ground truth each step
+    and steers the velocity commands back to the start point, switching to
+    an omnidirectional body-frame creep inside 0.3 m (bearing-chasing at
+    close range orbits the goal) and latching stand under 5 cm. The policy
+    must track the creep band (0.05-0.25 m/s -- trained since loco_v6creep;
+    loco_v5t had never seen commands below 0.3 and generalization alone
+    plateaued at 6/8 with 1-3 cm misses). Gate: return < 10 cm, no fall.
+    Deploy caveat recorded in docs: this uses ground-truth position; the
+    hardware needs an odometry source."""
+    period = 2 * math.pi / 0.7
+
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            if t < 1.0:
+                return (0, 0, 0, 1, 0)
+            if "start" not in ev:
+                ev["start"] = (gt["x"], gt["y"])
+            if t - 1.0 < period:
+                return (0.35, 0, 0.7, 1, 0)
+            dx = ev["start"][0] - gt["x"]
+            dy = ev["start"][1] - gt["y"]
+            dist = math.hypot(dx, dy)
+            if dist < 0.05:
+                ev["homed"] = True
+            if ev.get("homed"):
+                return (0, 0, 0, 1, 0)
+            if dist < 0.30:
+                c, s = math.cos(gt["yaw"]), math.sin(gt["yaw"])
+                bx = c * dx + s * dy
+                by = -s * dx + c * dy
+                k = min(max(0.8 * dist, 0.08), 0.25) / max(dist, 1e-6)
+                return (k * bx, k * by, 0, 1, 0)
+            bearing = math.atan2(dy, dx)
+            herr = _wrap(bearing - gt["yaw"])
+            wz = max(-0.6, min(0.6, 1.2 * herr))
+            vx = (min(max(0.9 * dist, 0.12), 0.4)
+                  * max(0.0, math.cos(herr)))
+            return (vx, 0, wz, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        final = rows[-1] if rows else None
+        sx, sy = ev.get("start", (0.0, 0.0))
+        ret_err = (math.hypot(final["x"] - sx, final["y"] - sy)
+                   if final else float("nan"))
+        circ = _win(rows, 1.0, 1.0 + period)
+        radius = (float(np.mean([math.hypot(r["x"] - np.mean([q["x"] for q in circ]),
+                                            r["y"] - np.mean([q["y"] for q in circ]))
+                                 for r in circ])) if circ else float("nan"))
+        success = ((not fell) and ret_err < 0.10
+                   and not math.isnan(radius) and radius >= 0.3)
+        return dict(success=success,
+                    metrics=dict(return_err=ret_err, radius=radius),
+                    headline=f"home {ret_err*100:.0f}cm")
+    return build, evaluate
+
+
 def scen_crouch_hold():
     def build():
         ev = {}
@@ -829,6 +890,7 @@ def _registry():
     reg["backward_1m"] = (14.0, scen_backward_1m(), True)
     reg["square_return"] = (45.0, scen_square_return(), True)
     reg["circle_return"] = (16.0, scen_circle_return(), True)
+    reg["goal_home"] = (24.0, scen_goal_home(), True)
     reg["turn_180"] = (10.0, scen_turn_180(), True)
     reg["crouch_hold"] = (10.0, scen_crouch_hold(), False)
     reg["march_in_place"] = (11.0, scen_march(), False)
@@ -855,8 +917,8 @@ ENV_EXTRA = {
 # whose config records train.family gets scored only on its own scenarios
 FAMILY_SCENARIOS = {
     "loco": ["line_1m", "backward_1m", "sidestep_L", "sidestep_R",
-             "turn_180", "square_return", "circle_return", "stand_10s",
-             "stand_off"],
+             "turn_180", "square_return", "circle_return", "goal_home",
+             "stand_10s", "stand_off"],
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
                "march_in_place", "hip_sway", "crouch_hold", "stand_10s"],
     "getup": ["recover_sit", "recover_fallen"],
@@ -865,12 +927,14 @@ FAMILY_SCENARIOS = {
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "march_in_place", "hip_sway",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
-         "turn_180", "square_return", "circle_return", "crouch_hold",
+         "turn_180", "square_return", "circle_return", "goal_home",
+         "crouch_hold",
          "recover_sit", "recover_fallen", "stand_10s", "stand_off"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
 HEADLINE = {
+    "goal_home": ("return_err", lambda v: f"home {v*100:.0f}cm"),
     "balance": ("clear_frac", lambda v: f"clear {v*100:.0f}%"),
     "circle_air": ("traced_radius", lambda v: f"r={v*100:.1f}cm"),
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),

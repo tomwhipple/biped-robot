@@ -231,7 +231,7 @@ def main():
             ext_cmd=True,
             w_track_h=1.0, w_lift=1.0, w_track_foot=1.0,
             fall_cost=10.0,
-            payload_cg_z=0.0945,
+            payload_cg_z=0.1260,   # 2026-07-28: tower top +31.5 mm (was 0.0945)
             # DEFAULT PLANT = the 10-DOF hip-yaw robot (user 2026-07-24:
             # "assume the 10-dof with the new pelvis for all simulations
             # going forward" -- the A/B verdict made yaw the build target).

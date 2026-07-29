@@ -96,6 +96,15 @@ def wedge_y(pts_xz, y0, y1):
     return Pos(0, lo - s.bounding_box().min.Y, 0) * s
 
 
+def wedge_z(pts_xy, z0, z1):
+    """Same idea as wedge_y, but the profile is (x, y) and the prism runs along
+    Z. Used for print chamfers on pockets whose overhang is in the x-y plane
+    (leg_link's rib and platform detents, which print with +x up)."""
+    lo, hi = (z0, z1) if z0 < z1 else (z1, z0)
+    s = extrude(Plane.XY * Polygon(*pts_xy, align=None), amount=(hi - lo))
+    return Pos(0, 0, lo - s.bounding_box().min.Z) * s
+
+
 def csk_y(x, z, y_face, sign):
     """90-deg countersink void for an M2.5 FLAT-head self-tapper (CASE_CS_D
     mouth), mouth on the face at y_face opening toward sign*Y, apex meeting
@@ -328,6 +337,24 @@ def leg_link(print_fins=False):
              D.SV_TOPFACE - 0.01, D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
              -D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR,
              -D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR)
+    # ...and RAMP its print-top edge to 45 deg (2026-07-29, user: "the conformal
+    # edges of the servo rib need supporting"). This part prints web-down, so
+    # print-up is model +x, and the pocket's +x wall is where plate material
+    # RESUMES over the void -- a 1.44 x 26.33 mm ledge bridging 26 mm on two end
+    # anchors (check_printability BEAM, 38 mm2 at print z 23.0). Opening the
+    # pocket outward as it deepens turns that ledge into a 45 deg ramp the
+    # slicer can grow, so no fin is needed -- the same trick the idler boss
+    # taper uses, and fin-under-slab has been rejected three times in review.
+    # It only widens the pocket BELOW the seating face, so the land the plate
+    # actually sits on is untouched.
+    _rx = D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR
+    _ry0 = D.SV_TOPFACE - 0.01
+    _ry1 = D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR
+    _rr = 1.2 * (_ry1 - _ry0)          # ~32 deg: shallower than 45 and it
+                                       # costs nothing, the pocket is a relief
+    p -= wedge_z([(_rx, _ry0), (_rx + _rr, _ry1), (_rx, _ry1)],
+                 -D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR - 0.6,
+                 -D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR + 0.6)
     # DETENT for the idler-side PLATFORM -- the mirror of the rib pocket above,
     # and the second half of seating this plate properly (2026-07-29). The
     # moulded back-cover platform stands 1.90 mm proud of the case face over

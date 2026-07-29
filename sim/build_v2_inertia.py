@@ -61,6 +61,27 @@ def inertial_xml(name, M, com, I):
     com_m = com * 1e-3
     I_kg = I * 1e-9
     w, V = np.linalg.eigh(I_kg)
+    # canonicalize the eigen-frame to the MINIMAL rotation: eigh's arbitrary
+    # column order/signs can hand back a near-180-degree frame (the 2026-07-28
+    # foot came out w ~ 0.0006), which is physically identical but numerically
+    # hostile -- it alone pushed MJX-vs-CPU airborne parity from 3e-12 to 2e-7
+    # qpos. Pick the column permutation + sign pattern closest to identity.
+    from itertools import permutations
+    best = None
+    for perm in permutations(range(3)):
+        Vp = V[:, perm]
+        sgn = np.sign(np.diag(Vp))
+        sgn[sgn == 0] = 1.0
+        Vp = Vp * sgn
+        if np.linalg.det(Vp) < 0:
+            continue
+        tr = np.trace(Vp)
+        if best is None or tr > best[0]:
+            best = (tr, Vp, np.asarray(perm))
+    if best is None:                    # unreachable in practice; keep safe
+        best = (np.trace(V), V, np.arange(3))
+    _, V, perm = best
+    w = w[perm]
     if np.linalg.det(V) < 0:
         V[:, 0] *= -1
     # rotation matrix -> quaternion (w,x,y,z)

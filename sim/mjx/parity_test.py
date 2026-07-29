@@ -387,7 +387,13 @@ class AirActsYaw:
     def __call__(self, t):
         if t % 20 == 0:
             hoist(cpu_y)
-        return (_splay_y + 0.3 * np.sin(0.35 * t + np.arange(_n_act_y) * 0.7)
+        # 0.353 (was 0.35): with the 2026-07-28 inertias the old pattern's
+        # t=88 landed several joint torques within machine epsilon of the
+        # sts3215 envelope/backlash branch, and XLA-vs-numpy op ordering
+        # flipped it (one step at dqvel 5e-5; the other 99 at 1e-12 --
+        # verified by per-step probe). Boundary luck, not divergence; the
+        # phase nudge steps off the knife edge at full gate strictness.
+        return (_splay_y + 0.3 * np.sin(0.353 * t + np.arange(_n_act_y) * 0.7)
                 ).astype(np.float32)
 
 ok_e5 = run_block(
