@@ -402,8 +402,14 @@ def leg_link(print_fins=False):
         # at the fork tips, in the open past the part's end, and snap out
         # with fingers.
         for yc, sgn in ((hy0 + D.PLATE / 2, 1), (iy0 + D.PLATE / 2, -1)):
-            stub = box(web_x0, D.FORK_NARROW_X - 0.35, yc - 1.2, yc + 1.2,
-                       -97.0, -92.8)
+            # Run the blank IN to the pad and let the pad-clearance cut below
+            # define its top face, instead of stopping at FORK_NARROW_X - 0.35.
+            # That x limit was sized for the sub-axis slab, and once that slab
+            # was trimmed back to the pad circle (2026-07-28) these stubs stood
+            # 1.21 mm off the part -- floating debris supporting nothing. They
+            # were already loose at 0.80 mm before the trim; now they hug the
+            # pad at the same 0.35 mm break-away gap the island posts use.
+            stub = box(web_x0, 0.0, yc - 1.2, yc + 1.2, -97.0, -92.8)
             stub -= cyl_y(D.PAD_D / 2 + 0.35, yc - 2, yc + 2, 0, drop)
             stub += box(web_x0, web_x0 + 1.5, min(yc - 1.2, sgn * (abs(yc) + 4.3)),
                         max(yc + 1.2, sgn * (abs(yc) + 4.3)), -97.0, -92.8)
