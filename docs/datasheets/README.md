@@ -140,3 +140,42 @@ datasheet cannot answer. Check them against the physical module before wiring:
 3. Whether SDA/SCL have on-board pull-ups, and their value.
 4. Whether PS0/PS1 are hard-tied low or exposed as solder jumpers.
 5. Measured I²C address — 0x4A or 0x4B — with a bus scan.
+
+## Waveshare General Driver for Robots (candidate controller swap)
+
+Files live in [`general-driver/`](general-driver/). Downloaded 2026-07-28 while
+answering "can the IMU daisy-chain onto the servo bus?" — it can't (see
+[wiring.md](../wiring.md)), and this board is the proposed alternative because
+it carries a 9-axis IMU on board *and* breaks I²C out to a connector. The
+proposed harness is drawn in
+[`wiring-general-driver.svg`](../wiring-general-driver.svg).
+
+| File | What it is | Source |
+|---|---|---|
+| `General_Driver_for_Robots-schematic.pdf` | **Full board schematic**, single A3 sheet. The authority for everything below. | [files.waveshare.com](https://files.waveshare.com/upload/3/37/General_Driver_for_Robots.pdf) |
+| `JST-XH-connector-datasheet.pdf` | JST XH series, 9 pp. Downloaded for one number: the **current rating of the board's power inlet**. | [jst-mfg.com](https://www.jst-mfg.com/product/pdf/eng/eXH.pdf) |
+
+### What the schematic establishes
+
+- **P1, the IIC header, is `Header 4`: 1 = VDD3V3 · 2 = GND · 3 = IIC_SDA ·
+  4 = IIC_SCL** — exactly the BNO085's four wires, in order. I²C is on
+  **GPIO 32 (SDA) / GPIO 33 (SCL)**, not 21/22.
+- Bus already carries QMI8658C (6-axis, behind an LSF0204PWR level shifter),
+  AK09918C (magnetometer), BMP280 and the INA219 at 0x42. **Nothing collides
+  with the BNO085's 0x4A/0x4B.**
+- **Two** bus-servo ports, H5 and H6, both `Header 3`:
+  **1 = DATA · 2 = DC_IN · 3 = GND**, same nets on both — so the one-port-per-leg
+  routing survives the swap. Bus UART is GPIO 18 RX / 19 TX, as before.
+- **Power inlet H1 is a 2-pin `Header 2+0` (XH2.54).** JST rates XH at
+  **3 A AC/DC (AWG #22)**. H5/H6 tap `DC_IN`, so the *whole* servo bus current
+  crosses H1, the AO4407 P-FET and SW1 — a 1P2T slide switch whose rating the
+  schematic does not state. Against 1.4 A RMS that is fine; against the 6.8 A
+  sim-derived peak it is not, and the old board's barrel jack was 5 A.
+- **The INA219 does not measure servo current.** Its 0.01 Ω shunt (R11) sits
+  between `DC_IN` and `VIN`, i.e. in the buck's feed only, and the servo ports
+  tap `DC_IN` upstream of it. What it does give is a **pack-voltage sense
+  independent of the servo bus** — which is exactly `battguard`'s blind spot on
+  the current board.
+
+Still unverified: P1's physical connector type, whether P1 carries I²C
+pull-ups, and SW1's current rating.
