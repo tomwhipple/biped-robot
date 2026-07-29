@@ -684,24 +684,13 @@ def foot():
     # face against them, sloped face up (support-free), ends at the heel edge
     p += wedge_y([(wx0, zr), (wx0 - aL, zr), (wx0, zr + aH)],
                  -(py + D.FOOT_WALL_T), py + D.FOOT_WALL_T)
-    # cable window, cut LAST and clear through the heel edge so it opens
-    # bulkhead AND buttress.
-    # NOTE 2026-07-28: the premise here is WRONG and needs revisiting. The lead
-    # does NOT exit the rear END face -- SV_CONN (measured off the vendor STEP)
-    # puts the sockets on the IDLER-SIDE FACE, x -11.75..-16.35, i.e. out the
-    # side about a third of the way along the foot. This window is still a
-    # legitimate rearward raceway once the lead is out, but it is not where the
-    # lead leaves the servo, and the routing has not been re-derived. Cutting before the buttress union -- or not
-    # deep enough -- leaves a taper of the buttress standing inside the
-    # window, thinning to a single filament: check_printability THIN.
-    # ...and STOP the window short of the top (user, 2026-07-28). Running it out
-    # through z 31 left the bulkhead and buttress as an open-topped U -- two legs
-    # either side of the slot, free to splay. Capping at FOOT_CABLE_TOP_Z closes
-    # the section into a ring, which is the whole point of the v3 bulkhead, and
-    # still leaves a 16.0 x 8.0 mm hole -- the ST3215 plug is 9.0 x 5.0, so it
-    # threads through. The cap is a flat bridge over 16 mm: no support needed.
-    p -= box(-D.FOOT_HEEL - 1, bx1 + 1, -D.FOOT_CABLE_W / 2, D.FOOT_CABLE_W / 2,
-             D.FOOT_CABLE_Z, D.FOOT_CABLE_TOP_Z)
+    # NO cable window. It used to run out through the bulkhead and buttress on
+    # the premise that the servo lead leaves the rear END face -- it does not.
+    # SV_CONN (measured off cad/vendor/ST3215.step) puts the sockets on the
+    # IDLER-SIDE face, x -11.75..-16.35, so the lead exits sideways a third of
+    # the way along the foot and never comes near the heel. With nothing to pass
+    # through, the slot was just a hole in the one structure meant to tie the two
+    # retention tabs together, so the heel is now SOLID (user, 2026-07-28).
     # front end stop: +/-15 spans the whole 24.72 case but stops 3.0 short of
     # the fork idler plate's y=-18 plane -- full pocket width (+/-17.65) left
     # only 0.35 to the fork's front corner at ankle +40 (audit 2026-07-28)
