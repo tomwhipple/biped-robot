@@ -195,24 +195,26 @@ def foot_screws():
 # --------------------------------------------------------------- torso
 def tower_screws():
     """Tower frame (deck top == z 0): 4x M3x10 button down through the feet
-    tabs into the deck heat-sets + 4x M2.5 machine pan up into the driver
-    board standoffs (board hangs face-down under the top plate)."""
+    tabs into the deck heat-sets + 4x M2.5 machine pan driven along +x into the
+    board partition (the General Driver board stands UPRIGHT against the +x
+    side -- 2026-07-28; it used to hang face-down under the top plate)."""
     s = []
     for sx in (D.TOWER_FOOT_X, -D.TOWER_FOOT_X):
         for sy in (D.TOWER_FOOT_Y, -D.TOWER_FOOT_Y):
             s.append(parts.cyl_z(1.5, -6.0, 3.9, sx, sy))
             s.append(parts.cyl_z(D.M3_HEAD_D / 2, 3.9, 3.9 + D.M3_HEAD_H,
                                  sx, sy))
-    zt0 = D.TOWER_H - D.TOWER_TOP_T
-    zb = zt0 - D.BOARD_STANDOFF - 1.6                 # board underside (PCB 1.6)
-    bx, by = D.BOARD_HOLES[1] / 2, D.BOARD_HOLES[0] / 2
-    for sx in (bx, -bx):
-        for sy in (by, -by):
-            # shank at the M25_TAP pilot dia: it self-taps the standoff, and
-            # modeling the thread OD would read as a (false) collision
-            s.append(parts.cyl_z(D.M25_TAP / 2, zb, zb + 5.0, sx, sy))
-            s.append(parts.cyl_z(D.M25_HEAD_D / 2, zb - D.M25_HEAD_H, zb,
-                                 sx, sy))
+    # board screws now run along -x: head on the board's +x (component) face,
+    # shank through the PCB and into the boss standing off the partition.
+    xh = D.BOARD_GD_PCB_X + 1.63                      # PCB +x face = head seat
+    for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY):
+        for sz in (D.BOARD_GD_CZ + D.BOARD_GD_SCREW_DZ,
+                   D.BOARD_GD_CZ - D.BOARD_GD_SCREW_DZ):
+            # shank at the pilot dia: it self-taps the boss, and modeling the
+            # thread OD would read as a (false) collision
+            s.append(parts.cyl_x(D.M25_TAP / 2, xh - 6.0, xh, sy, sz))
+            s.append(parts.cyl_x(D.M25_HEAD_D / 2, xh, xh + D.M25_HEAD_H,
+                                 sy, sz))
     return _fuse(s)
 
 

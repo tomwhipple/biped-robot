@@ -409,10 +409,12 @@ def leg_link(print_fins=False):
             # 1.21 mm off the part -- floating debris supporting nothing. They
             # were already loose at 0.80 mm before the trim; now they hug the
             # pad at the same 0.35 mm break-away gap the island posts use.
-            stub = box(web_x0, 0.0, yc - 1.2, yc + 1.2, -97.0, -92.8)
+            ht = D.FIN_T / 2
+            stub = box(web_x0, 0.0, yc - ht, yc + ht, -97.0, -92.8)
             stub -= cyl_y(D.PAD_D / 2 + 0.35, yc - 2, yc + 2, 0, drop)
-            stub += box(web_x0, web_x0 + 1.5, min(yc - 1.2, sgn * (abs(yc) + 4.3)),
-                        max(yc + 1.2, sgn * (abs(yc) + 4.3)), -97.0, -92.8)
+            # flared foot stays full width: a 1.2 mm wall needs the bed area
+            stub += box(web_x0, web_x0 + 1.5, min(yc - ht, sgn * (abs(yc) + 4.3)),
+                        max(yc + ht, sgn * (abs(yc) + 4.3)), -97.0, -92.8)
             p += stub
         # island posts under the idler ribbon (print review 2026-07-16: the
         # bare 16 mm bridge was rejected): two 2.4 x 3 columns, 0.35 under
@@ -422,7 +424,8 @@ def leg_link(print_fins=False):
         # 2 / 2.5 / 5.5 mm.
         yc = iy0 + D.PLATE / 2
         for z0, z1 in ((-68.0, -65.0), (-62.5, -59.5)):
-            p += box(web_x0, D.FORK_NARROW_X - 0.35, yc - 1.2, yc + 1.2, z0, z1)
+            p += box(web_x0, D.FORK_NARROW_X - 0.35,
+                     yc - D.FIN_T / 2, yc + D.FIN_T / 2, z0, z1)
     return p
 
 
@@ -844,13 +847,17 @@ def tower():
         prof = [(sgn * bw, 0.0), (sgn * bw, 2.5), (sgn * (bw - 2.5), 0.0)]
         det = extrude(Plane.YZ * Polygon(*prof, align=None), amount=D.WALL)
         p += Pos(-hx - det.bounding_box().min.X, 0, 0) * det
-    # far-wall rail stubs: seat the pack inner face; wedge top prints
-    # self-supporting upside down (the old 1.3 mm steps still drooped)
-    seat_in = D.BATT_SEAT_X + D.BATT[1]              # pack inner (+x) face, 14
-    for sy in (-20, 16):
-        p += box(seat_in, hx - D.WALL, sy - 6, sy + 6, 0, 12)
-        p += wedge_y([(seat_in, 12.0), (hx - D.WALL, 12.0),
-                      (hx - D.WALL, 16.9)], sy - 6, sy + 6)
+    # The far-wall rail stubs are GONE (2026-07-28). They existed to seat the
+    # pack's inner face against the +x wall, and the board partition below now
+    # sits exactly on that plane -- BATT_SEAT_X + BATT[1] == BOARD_GD_PARTITION_X
+    # by construction, so the pack seats on a full-length wall instead of two
+    # 12 mm stubs. Asserted rather than commented, because if either constant
+    # moves independently the pack quietly loses its seat.
+    seat_in = D.BATT_SEAT_X + D.BATT[1]              # pack inner (+x) face
+    assert abs(seat_in - D.BOARD_GD_PARTITION_X) < 1e-9, (
+        f"pack inner face {seat_in} no longer matches the board partition "
+        f"{D.BOARD_GD_PARTITION_X} -- one of BATT_SEAT_X / BATT[1] / "
+        f"BOARD_GD_PARTITION_X moved without the others")
     # belt guide ribs: +x wall full-width, -x wall on the window posts. Each
     # rib carries a 45 deg chamfer wedge on its model-TOP face: upside down
     # that face is the rib's print-underside, and a square 1.5 mm ledge
@@ -863,12 +870,34 @@ def tower():
             p += box(-hx - 1.5, -hx, sy * (bw + 1), sy * (hy - 1), rz, rz + 1.5)
             p += wedge_y([(-hx, rz + 1.5), (-hx - 1.5, rz + 1.5),
                           (-hx, rz + 3.0)], sy * (bw + 1), sy * (hy - 1))
-    # driver board standoffs under the plate (board face-down, M2.5 from below)
-    bx, by = D.BOARD_HOLES[1] / 2, D.BOARD_HOLES[0] / 2
-    for sx in (bx, -bx):
-        for sy in (by, -by):
-            p += cyl_z(3.5, zt0 - D.BOARD_STANDOFF, zt0, sx, sy)
-            p -= cyl_z(D.M25_TAP / 2, zt0 - D.BOARD_STANDOFF - 1, zt1 - 1, sx, sy)
+    # ---- driver board: UPRIGHT against the +x side, 2026-07-28 --------------
+    # The General Driver board is 65 x 65 and will not lie down anywhere on this
+    # torso (see BOARD_GD_* in dimensions.py), so it stands on edge. The
+    # partition below does two jobs at once: it is the pack's +x seat (replacing
+    # the rail stubs, whose space the board now occupies) and it is the board's
+    # mounting face. It also ties the two long walls together, which the old
+    # open bay never did -- welcome at 75 mm tall.
+    px0 = D.BOARD_GD_PARTITION_X
+    px1 = px0 + D.WALL
+    bz0 = D.BOARD_GD_CZ - D.BOARD_GD_OUTLINE[1] / 2      # 2.5
+    bz1 = D.BOARD_GD_CZ + D.BOARD_GD_OUTLINE[1] / 2      # 67.5
+    # partition spans the board's height and a little either side; it stops
+    # short of the top plate so the bay still vents and wires can pass over.
+    p += box(px0, px1, -hy + D.WALL, hy - D.WALL, 0, bz1 + 2)
+    # lighten it: the partition is a shear web, not a pressure vessel. Windows
+    # sit between the four screw bosses and are inset from every edge.
+    for wy in (-D.BOARD_GD_SCREW_DY / 2, D.BOARD_GD_SCREW_DY / 2):
+        p -= box(px0 - 1, px1 + 1, wy - 9, wy + 9,
+                 D.BOARD_GD_CZ - 12, D.BOARD_GD_CZ + 12)
+    # four bosses off the partition's +x face -- M2.5 self-tap into the board's
+    # O3 holes. Screws go in along +x, so these print as horizontal cylinders;
+    # they are short (4.0) and land on a vertical face, which is fine inverted.
+    for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY):
+        for sz in (D.BOARD_GD_CZ + D.BOARD_GD_SCREW_DZ,
+                   D.BOARD_GD_CZ - D.BOARD_GD_SCREW_DZ):
+            p += cyl_x(3.5, px1, px1 + D.BOARD_GD_STANDOFF, sy, sz)
+            p -= cyl_x(D.M25_TAP / 2, px0 - 1,
+                       px1 + D.BOARD_GD_STANDOFF + 1, sy, sz)
     # GoPro base screw bosses (M3 self-tap from above, through-pilots)
     gx, gy = D.GP_SCREW_XY
     for sx in (gx, -gx):

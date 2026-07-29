@@ -359,6 +359,12 @@ RIB_RELIEF_DEPTH_CLR = 0.3    # air above the rib crest
 # Toe corner radius (plan view). Square toe corners are the ones that snag on
 # door frames / cable runs and they read as blocky; 14 leaves a 24 mm straight
 # front edge on the 52 mm-wide sole and takes only ~2 % of the sole area.
+# Break-away print-support wall thickness (leg_link_print pad stubs + island
+# posts). 2.4 -> 1.2 on 2026-07-28: at full plate thickness they read as part of
+# the model in the slicer and take pliers to remove. 1.2 is 3 perimeters at a
+# 0.4 nozzle -- prints solid, snaps with a fingernail, and stays well clear of
+# check_printability's 0.85 mm thin-wall flag.
+FIN_T = 1.2
 FOOT_TOE_R = 14.0
 # Heel rounded to match (user, 2026-07-28). The aft buttress sits at x -42..-40,
 # 10 mm clear of the heel edge, and the cable window (y +/-8) stays inside the
@@ -485,11 +491,23 @@ ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+pad proud
 # the top plate -- the top now carries the GoPro mount; battery on the deck)
 # ----------------------------------------------------------------------------
 TOWER_L = 96.0
-TOWER_W = 42.0
-TOWER_H = 43.5          # deck top .. tower top. Pack sits on the deck, so the
-                        # board underside (TOWER_H - TOWER_TOP_T - BOARD_STANDOFF
-                        # - ~4 component) must clear BATT[2]: TOWER_H = BATT[2]
-                        # + 13.5 + 3.5 gap. +6.5 over the Zeee-only bay.
+# 2026-07-28 -- RESIZED for the General Driver board, which is 65 x 65 and
+# cannot lie down anywhere in the old torso (see BOARD_GD_* below). It is
+# mounted VERTICALLY against the +x wall instead, with the pack beside it
+# behind a partition. Decision: user, this session. Both numbers below are
+# derived, not chosen:
+#   TOWER_W: preload 1.4 + pack 31 + partition 2.6 + standoff 4 + PCB 1.63
+#            + components 9 (the 40-pin header is the tall one) = 49.63
+#            interior, + 2 walls = 54.8 -> 56.0.
+#   TOWER_H: the GoPro bosses hang in the top 3 mm under the plate, so the
+#            board must clear TOWER_H - TOWER_TOP_T - 3. Board bottom 2.5 +
+#            65 = 67.5, so TOWER_H >= 74; 75 leaves a 1 mm gap.
+# Consequences accepted with the decision: the tower now OVERHANGS the deck by
+# 5 mm per side fore-aft (the feet tabs still land inside it), and the GoPro
+# rides 31.5 mm higher, which raises torso COM. Both feed the sim plant --
+# sim/build_v2_inertia.py has to be re-run and the policy re-trained.
+TOWER_W = 56.0          # was 42.0
+TOWER_H = 75.0          # was 43.5
 TOWER_TOP_T = 3.5
 # driver board: Waveshare "Servo Driver with ESP32", 65 x 30, holes O2.75 on
 # a 58 x 23 grid. VERIFIED 2026-07-27 by test-fit: the real board dropped onto
@@ -498,23 +516,37 @@ TOWER_TOP_T = 3.5
 BOARD_HOLES = (58.0, 23.0)     # hole pattern (y span, x span), M2.5 self-tap
 BOARD_STANDOFF = 6.0           # under-plate standoff height (clears the GoPro
                                # screw bosses by 3 mm; battery below gets ~2 mm)
-# CANDIDATE REPLACEMENT BOARD -- Waveshare "General Driver for Robots", the swap
-# that buys an onboard IMU with no soldering (docs/wiring-general-driver.svg,
-# schematic in docs/datasheets/general-driver/). Vendor figures, 2026-07-28.
-# NOT wired into any geometry yet: it does not fit the torso as built, and where
-# it goes is a design decision, not a parameter change. Numbers parked here so
-# the decision is made against real spans.
+# REPLACEMENT BOARD -- Waveshare "General Driver for Robots", the swap that buys
+# an onboard IMU with no soldering (docs/wiring-general-driver.svg, schematic in
+# docs/datasheets/general-driver/). Vendor figures, 2026-07-28.
+#
+# WHY IT IS MOUNTED VERTICALLY: it is 65 x 65 with a 49 x 58 hole grid. The old
+# tower was 42 fore-aft (36.8 between walls) and the deck is 46, so even the
+# NARROWER 49 span put its screws 3.5 mm outboard of the tower's own outer wall.
+# No orientation lay it down anywhere on the torso. Standing it against the +x
+# wall works because the wall's OTHER axis (y, 96) has room to spare -- it just
+# needed the tower to grow tall enough, hence TOWER_H above.
 BOARD_GD_OUTLINE = (65.0, 65.0)  # square, vs the 65 x 30 of the current board
-BOARD_GD_HOLES = (58.0, 49.0)    # (y span, x span) -- same convention as above
+BOARD_GD_HOLES = (58.0, 49.0)    # AS SUPPLIED (y span, x span). Mounted upright
+                                 # the 58 stays in y and the 49 becomes vertical.
 BOARD_GD_HOLE_D = 3.0            # the board's own holes (M2.5 clears with slack)
-# THE FIT PROBLEM, in one line: the tower is 42 fore-aft (36.8 between walls)
-# and the deck is 46, but the board is 65 and even its NARROWER hole span is 49.
-# So the screws land 3.5 mm OUTBOARD of the tower's own outer wall (the wide
-# span would be 8.0 out), and the board cannot hang inside the tower the way the
-# 65 x 30 one does. It has to sit on top of something, or the torso has to grow.
-# The one piece of luck: the y span is 58 on BOTH boards, so the standoff Y
-# positions (+/-29) do not move at all -- only X, from +/-11.5 to +/-24.5.
-# Board plane today is z = 34.0 above deck top; tower top is 43.5.
+# Vertical mount, all x measured in the pelvis frame (tower interior is +/-25.4):
+BOARD_GD_PARTITION_X = 7.0       # -x face of the partition that seats the pack
+                                 # and carries the board. Replaces the old +x
+                                 # rail stubs, which the board now occupies.
+BOARD_GD_STANDOFF = 4.0          # partition +x face .. PCB -x face
+BOARD_GD_PCB_X = BOARD_GD_PARTITION_X + WALL + BOARD_GD_STANDOFF   # 13.6
+BOARD_GD_COMP = 9.0              # component reach off the PCB's +x face; the
+                                 # 40-pin header is the tall one. Unused by us,
+                                 # but it is fitted, so it sets the envelope.
+# Board centre height above deck top. Bottom lands at 2.5 (clear of the deck),
+# top at 67.5, which clears the GoPro bosses hanging at TOWER_H - 6.5 = 68.5.
+BOARD_GD_CZ = 35.0
+BOARD_GD_SCREW_DY = BOARD_GD_HOLES[0] / 2        # +/-29.0, unchanged from the
+                                                 # old board -- the one bit of luck
+BOARD_GD_SCREW_DZ = BOARD_GD_HOLES[1] / 2        # +/-24.5 about BOARD_GD_CZ
+BOARD_GD_MASS = 42.0             # g, estimated -- WEIGH IT when it arrives; it
+                                 # feeds the torso rollup and therefore the plant
 # battery: DECIDED 3S (2026-07-11 gauntlet verdict). Envelope is a SUPERSET of
 # the 3S 850 mAh XT30 field, not one pack -- the Zeee (67 x 30 x 18.5, 74 g)
 # it was originally cut for went unavailable, and every other pack in the class
@@ -536,8 +568,11 @@ BATT = (68.0, 31.0, 26.5)      # y length, x width, z height (envelope)
 # pack only gains clearance and lowers COM. Keep BATT >= BATT_PACK.
 BATT_PACK = (62.0, 30.0, 25.0)  # y length, x width, z height (actual pack)
 BATT_PACK_MASS = 80.0           # g
-BATT_SEAT_X = -17.0            # pack outer (-x) face when seated: 1.4 inside
-                               # the wall inner face, so the strap can preload
+BATT_SEAT_X = -24.0            # pack outer (-x) face when seated: 1.4 inside
+                               # the wall inner face, so the strap can preload.
+                               # Was -17.0; followed TOWER_W 42 -> 56 so the
+                               # pack still rides against the -x window wall
+                               # and the freed +x space goes to the board.
 
 # ----------------------------------------------------------------------------
 # GoPro three-prong mount (separate bolt-on part `gopro_base` on the tower top
