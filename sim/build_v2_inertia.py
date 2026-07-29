@@ -103,25 +103,39 @@ torso = combine([
     # worst case for mass+height: CNHL 70C 62 x 30 x 25, ~80 g. A lighter/flatter
     # pack (Zeee 74 g x 18.5) only lowers torso COM. Pigtail is in the wiring
     # bucket.
-    box_part(D.BATT_PACK_MASS, (-1.0, 0, dz_deck + D.BATT_PACK[2] / 2),
+    # pack centre follows the seat: BATT_SEAT_X moved -17 -> -24 with the
+    # 2026-07-28 tower resize (board takes the freed +x side), so the pack
+    # centre is SEAT + width/2 = -9.0, not the old hand-baked -1.0
+    box_part(D.BATT_PACK_MASS,
+             (D.BATT_SEAT_X + D.BATT_PACK[1] / 2, 0,
+              dz_deck + D.BATT_PACK[2] / 2),
              (D.BATT_PACK[1], D.BATT_PACK[0], D.BATT_PACK[2])),
-    # driver board: hangs face-down on standoffs UNDER the top plate, so its
-    # PCB plane is TOWER_H - TOWER_TOP_T - BOARD_STANDOFF and the 5 mm mock
-    # box hangs below that. (Was TOWER_H + 2.5 -- stale from when the board
-    # mounted on top of the tower; see cad/README.md:66-68.)
-    box_part(20.0, (0, 0, dz_deck + D.TOWER_H - D.TOWER_TOP_T
-                    - D.BOARD_STANDOFF - 2.5), (65, 30, 5)),
+    # driver board: the General Driver stands UPRIGHT against the +x side
+    # (2026-07-28). It is 65 x 65, so its mock is a slab in the y-z plane,
+    # centred on BOARD_GD_CZ, spanning the PCB plus its component reach in x.
+    # (Was a 65 x 30 x 5 slab lying face-down under the top plate.)
+    box_part(D.BOARD_GD_MASS,
+             (D.BOARD_GD_PCB_X + (1.63 + D.BOARD_GD_COMP) / 2, 0,
+              dz_deck + D.BOARD_GD_CZ),
+             (1.63 + D.BOARD_GD_COMP,
+              D.BOARD_GD_OUTLINE[0], D.BOARD_GD_OUTLINE[1])),
     # tower-top accessory stack (2026-07-17, closing the imu_carrier section's
     # "honest omission"): both STLs have z=0 at their mounting plane. The
     # carrier sandwiches on the tower top; gopro_base sits on the carrier.
     mesh_part("imu_carrier", dz_deck + D.TOWER_H),
     mesh_part("gopro_base", dz_deck + D.TOWER_H + D.IMU_CARRIER_T),
-    # BNO055 breakout on the carrier tongue bosses (pcb + header ~3 g)
-    box_part(3.0, (0, D.IMU_CY, dz_deck + D.TOWER_H + D.IMU_CARRIER_T
-                   + D.IMU_BOSS_H + 0.8), (D.IMU_PCB[0], D.IMU_PCB[1], 4.0)),
-], total=341.8)   # 327.8 (2026-07-15 bay rollup) + 14.0 accessories:
-                  # carrier 5.0 + gopro_base 5.2 + BNO055 3.0 + screw delta 0.8
-                  # (4x M3x8->12 and 4x M2.5x8, pro-rata like all fasteners)
+    # NO separate IMU breakout any more (2026-07-28): the IMU is inside the
+    # General Driver board, so its mass is already in the slab above. This also
+    # retires the D.IMU_BOSS_H reference, which had gone stale against
+    # dimensions.py and was breaking this script on import.
+], total=402.3)   # was 341.8. Deltas, all from the board swap:
+                  #   tower   41.8 -> 83.4 g  (+41.5) -- TOWER_W 42->56,
+                  #                            TOWER_H 43.5->75, + partition
+                  #   board   20.0 -> 42.0 g  (+22.0) -- General Driver, and
+                  #                            BOARD_GD_MASS is an ESTIMATE:
+                  #                            weigh the real board and redo
+                  #   IMU      3.0 ->  0.0 g   (-3.0) -- now inside the board
+                  # net +60.5 g of torso, ~18% up, and most of it high.
 
 # ---- hip (frame at HIP_ROLL_Z) ----------------------------------------------
 hip = combine([

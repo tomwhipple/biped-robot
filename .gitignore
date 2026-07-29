@@ -30,3 +30,6 @@ cad/step/poses/
 
 # animate_assembly.py writes and deletes these per run
 cad/renders/_anim/
+
+# animate_dressed_rom.py writes and rewrites these per run
+cad/renders/_dressed/
