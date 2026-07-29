@@ -63,7 +63,7 @@
 > up the idler through-holes automatically. Checks after all three:
 > `check_printability.py` ALL PARTS PRINT CLEAN, `check_assembly.py` ALL
 > CLEAR. Renders: `renders/yoke_roll_idler.png`,
-> `renders/leg_link_idler_notch.png`, `renders/foot_divot.png` +
+> `renders/leg_link_idler.png`, `renders/foot_divot.png` +
 > `_driver.png`.
 
 ## Global print settings
