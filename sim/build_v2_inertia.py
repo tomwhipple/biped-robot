@@ -106,7 +106,19 @@ def inertial_xml(name, M, com, I):
           f'diaginertia="{w[0]:.4e} {w[1]:.4e} {w[2]:.4e}"/>')
 
 
-SV_L, SV_W, SV_T = D.SV_LEN, D.SV_WID, D.SV_CASE_T   # 45.22, 24.72, 34.70
+# Servo block. SV_T is the REAL case thickness along the output axis (32.10),
+# and SV_AXMID is its centre (+1.30, toward the horn) -- the case is not
+# symmetric about the axis. This used to be SV_CASE_T (34.70) centred on zero,
+# which is the mirrored phantom the CAD mocks also carried until 2026-07-30; it
+# put every servo's 55 g 1.30 mm off along its own axis.
+#
+# Density is still uniform, which a servo is NOT -- the motor and gear train sit
+# at the output end and the PCB at the cable end. Getting that right needs the
+# real mass distribution, which nobody has measured. So this is a correct
+# ENVELOPE with an approximate interior, and the envelope is the part that was
+# actually wrong.
+SV_L, SV_W = D.SV_LEN, D.SV_WID                      # 45.22, 24.72
+SV_T, SV_AXMID = D.SV_CASE_AXIAL_T, D.SV_CASE_AXIAL_MID   # 32.10, +1.30
 SV_ZMID_Y = (D.SV_AXIS_FROM_OUT_END - D.SV_AXIS_FROM_REAR) / 2   # -12.5 (mock_y)
 
 # ---- torso (frame at TORSO_CENTER_Z = 282.86) --------------------------------
@@ -115,9 +127,11 @@ torso = combine([
     mesh_part("pelvis", dz_deck),
     mesh_part("tower", dz_deck),
     # hip-roll servos (servo_mock_x: axis +X, output end DOWN, case z -10.11..+35.11)
-    box_part(D.SERVO_MASS, (0,  D.HIP_SEP/2, D.HIP_ROLL_Z - D.TORSO_CENTER_Z - SV_ZMID_Y),
+    box_part(D.SERVO_MASS, (SV_AXMID,  D.HIP_SEP/2,
+                            D.HIP_ROLL_Z - D.TORSO_CENTER_Z - SV_ZMID_Y),
              (SV_T, SV_W, SV_L)),
-    box_part(D.SERVO_MASS, (0, -D.HIP_SEP/2, D.HIP_ROLL_Z - D.TORSO_CENTER_Z - SV_ZMID_Y),
+    box_part(D.SERVO_MASS, (SV_AXMID, -D.HIP_SEP/2,
+                            D.HIP_ROLL_Z - D.TORSO_CENTER_Z - SV_ZMID_Y),
              (SV_T, SV_W, SV_L)),
     # 3S 850 mAh pack on deck (long axis along y, seated toward -x). The bay is
     # a superset of the XT30 850 field (see dimensions.BATT), so model the
@@ -166,7 +180,7 @@ hip = combine([
 
 # ---- thigh / shin (frame at the upper joint axis) ----------------------------
 # servo_mock_y: axis +Y, case z -35.11..+10.11, x +/-12.36, y +/-17.35
-leg_servo = box_part(D.SERVO_MASS, (0, 0, SV_ZMID_Y), (SV_W, SV_T, SV_L))
+leg_servo = box_part(D.SERVO_MASS, (0, SV_AXMID, SV_ZMID_Y), (SV_W, SV_T, SV_L))
 link = mesh_part("leg_link", 0.0, mass=78.6 - D.SERVO_MASS)   # ~24 g w/ screws
 # (78.6 = 2026-07-15 rollup after the flush idler edge + filled horn slot)
 leg = combine([leg_servo, link])
@@ -174,7 +188,7 @@ leg = combine([leg_servo, link])
 # ---- foot (frame at the ankle axis, ANKLE_Z = 17.96) -------------------------
 # ankle servo: Rot(0,90,0) * servo_mock_y -> length along x (rear -35.11..+10.11)
 foot = combine([
-    box_part(D.SERVO_MASS, (SV_ZMID_Y, 0, 0), (SV_L, SV_T, SV_W)),
+    box_part(D.SERVO_MASS, (SV_ZMID_Y, SV_AXMID, 0), (SV_L, SV_T, SV_W)),
     # printed foot + 4 screws at the mesh COM (segment 110.4 g, 2026-07-15
     # sole enlargement 100 -> 116 for the get-up rise corridor) ...
     mesh_part("foot", D.TPU_PROUD - D.ANKLE_Z, mass=110.4 - D.SERVO_MASS - 9.8),

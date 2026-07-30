@@ -421,6 +421,12 @@ SV_IDLER_HUB_HW = 3.24      # half-width; fills SV_BOTFACE .. SV_IDLER_FACE
 # So the two idler grip screws (row 32.75) have been clamping an air gap.
 SV_IDLER_CASE_FACE = -14.75   # the real idler-side case face; the screws land
                               # here, so this is what the plate must bear on
+# The case is therefore NOT centred on the output axis. Anything that models the
+# servo as a block -- notably sim/build_v2_inertia.py and the <geom class="servo">
+# boxes in the MJCF plants -- has to use these, not SV_CASE_T about zero, or it
+# puts 55 g of servo 1.30 mm off along the axis on every joint.
+SV_CASE_AXIAL_T = SV_TOPFACE - SV_IDLER_CASE_FACE          # 32.10, real thickness
+SV_CASE_AXIAL_MID = (SV_TOPFACE + SV_IDLER_CASE_FACE) / 2  # +1.30, toward the horn
 # A moulded platform stands proud of that face over most of the plate footprint
 # (label/back-cover area).  It sits BETWEEN the screws and the plate, so it has
 # to be relieved rather than seated on -- exactly as the horn-side rib is.
