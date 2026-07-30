@@ -1,0 +1,111 @@
+{
+ "num_joints": 10,
+ "joints": [
+  {
+   "index": 0,
+   "name": "L_hip_yaw",
+   "bus_id": 9,
+   "zero_steps": 2048,
+   "dir": 1
+  },
+  {
+   "index": 1,
+   "name": "L_hip_roll",
+   "bus_id": 1,
+   "zero_steps": 2048,
+   "dir": 1
+  },
+  {
+   "index": 2,
+   "name": "L_hip_pitch",
+   "bus_id": 2,
+   "zero_steps": 2048,
+   "dir": 1
+  },
+  {
+   "index": 3,
+   "name": "L_knee",
+   "bus_id": 3,
+   "zero_steps": 2048,
+   "dir": 1
+  },
+  {
+   "index": 4,
+   "name": "L_ankle",
+   "bus_id": 4,
+   "zero_steps": 2048,
+   "dir": 1
+  },
+  {
+   "index": 5,
+   "name": "R_hip_yaw",
+   "bus_id": 10,
+   "zero_steps": 2048,
+   "dir": 1
+  },
+  {
+   "index": 6,
+   "name": "R_hip_roll",
+   "bus_id": 5,
+   "zero_steps": 2048,
+   "dir": 1
+  },
+  {
+   "index": 7,
+   "name": "R_hip_pitch",
+   "bus_id": 6,
+   "zero_steps": 2048,
+   "dir": 1
+  },
+  {
+   "index": 8,
+   "name": "R_knee",
+   "bus_id": 7,
+   "zero_steps": 2048,
+   "dir": 1
+  },
+  {
+   "index": 9,
+   "name": "R_ankle",
+   "bus_id": 8,
+   "zero_steps": 2048,
+   "dir": 1
+  }
+ ],
+ "bus_id": [
+  9,
+  1,
+  2,
+  3,
+  4,
+  10,
+  5,
+  6,
+  7,
+  8
+ ],
+ "zero_steps": [
+  2048,
+  2048,
+  2048,
+  2048,
+  2048,
+  2048,
+  2048,
+  2048,
+  2048,
+  2048
+ ],
+ "dir": [
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1
+ ]
+}

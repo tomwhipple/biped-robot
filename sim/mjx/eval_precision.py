@@ -169,8 +169,22 @@ class Driver:
     def step(self, cmd):
         env = self.env
         env.set_command(*cmd)
-        self.obs = env._obs()
-        a = self.act(self.obs)
+        # Feed the TRAINING-correct stacking (SIL harness finding,
+        # 2026-07-30): env.step() already returned [f_t, f_{t-1}, f_{t-2}]
+        # and pushed f_t, so re-reading env._obs() here prepends a fresh
+        # duplicate of f_t onto a ring that already holds it -- the policy
+        # got [f_t, f_t, f_{t-1}] (plus a REDRAWN IMU-noise realization).
+        # Firmware action divergence vs brax: 0.48 through the old path,
+        # 4.9e-3 (tick quantization only) through the training stacking.
+        # The new command for this tick belongs in the head frame only, so
+        # patch the cmd channels in place instead of rebuilding the frame.
+        obs = self.obs.copy()
+        nc = getattr(env, "_ncmd", 0)
+        if nc:
+            fw = env.obs_frame
+            obs[fw - nc:fw] = env._cmd
+        self.obs_fed = obs             # exposed for the SIL parity tests
+        a = self.act(obs)
         self.obs, _, term, _, info = env.step(a)
         d = env.data
         cl, cr = env._foot_contacts()

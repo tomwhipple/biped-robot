@@ -24,11 +24,24 @@ CXXFLAGS  = -std=c++17 -O1 -g \
             -I$(COMPONENTS)/imu/include \
             -I$(COMPONENTS)/battguard/include
 
+# Kept before the sanitizers are folded in: the SIL shared library cannot use
+# them (see the `sil` target below).
+CXXFLAGS_NOSAN := $(CXXFLAGS)
+
 SAN      ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 CXXFLAGS += $(SAN)
 LDFLAGS  += $(SAN)
 
 BUILD = build
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+  SIL_EXT    = dylib
+  SIL_SHARED = -dynamiclib
+else
+  SIL_EXT    = so
+  SIL_SHARED = -shared
+endif
 
 SRC_SCS   = $(COMPONENTS)/scsbus/packet.cpp $(COMPONENTS)/scsbus/bus.cpp
 SRC_LINK  = $(COMPONENTS)/linkproto/protocol.cpp \
@@ -39,11 +52,19 @@ SRC_OBS   = $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
 SRC_POL   = $(COMPONENTS)/policy/mlp.cpp
 SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 
-TESTS = test_protocol test_scsbus test_obs test_policy test_battguard
+TESTS = test_protocol test_scsbus test_obs test_policy test_battguard \
+        test_sil test_sil_golden
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
 
-.PHONY: all test clean vectors
-all: $(BINS)
+# The software-in-the-loop library (docs/sil-harness.md): the same component
+# sources the tests use, plus the C boundary python loads with ctypes.
+SIL_LIB   = $(BUILD)/libctrl_sil.$(SIL_EXT)
+SRC_SIL   = sil_lib.cpp sil_net.cpp
+SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
+            $(COMPONENTS)/policy/mlp.cpp
+
+.PHONY: all test clean vectors sil
+all: $(BINS) $(SIL_LIB)
 
 # The test sources use std::vector (FakePort's script), so exceptions are left
 # on for the test translation units only -- the firmware sources themselves are
@@ -76,10 +97,51 @@ $(BUILD)/test_policy: test_policy.cpp $(SRC_POL) $(SPEC_H) $(WEIGHTS_H) \
 $(BUILD)/test_battguard: test_battguard.cpp $(SRC_BATT) test_util.h | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
+# -- software in the loop ---------------------------------------------------
+#
+# The SIL sources are linked straight into the test binaries, so the ctests DO
+# run under -fsanitize=address,undefined even though the shipped dylib below
+# does not. That is the important half of the coverage: the JSON reader and the
+# .silw parser are the only new code that touches untrusted bytes.
+SIL_HDRS = sil.h sil_net.h sil_json.h
+
+$(BUILD)/test_sil: test_sil.cpp $(SRC_SIL) $(SRC_SILDEP) $(SIL_HDRS) \
+                   $(SPEC_H) $(WEIGHTS_H) test_util.h | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+$(BUILD)/test_sil_golden: test_sil_golden.cpp sil_net.cpp $(SRC_SILDEP) \
+                          $(SIL_HDRS) $(SPEC_H) $(WEIGHTS_H) test_util.h \
+                          | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+# libctrl_sil is built WITHOUT the sanitizers, on purpose.
+#
+# ASan on macOS installs its interceptors from the main executable's runtime;
+# a dylib built with -fsanitize=address that is dlopen()ed into a stock
+# `python3` aborts with "interceptors not installed" unless the whole
+# interpreter is launched under DYLD_INSERT_LIBRARIES=<asan runtime>, which is
+# not a thing a pytest suite can reasonably require. UBSan alone would load,
+# but splitting the two buys little. The sanitizer coverage is not lost: the
+# same translation units are compiled with both in $(BUILD)/test_sil above,
+# and that is where the parsers are exercised on adversarial input.
+#
+# -fno-exceptions is also dropped for the two SIL translation units: they use
+# std::string/std::vector for file parsing and are host-only glue that is never
+# flashed. The component sources they link stay exactly as the firmware builds
+# them.
+SILFLAGS = $(filter-out -fno-exceptions,$(CXXFLAGS_NOSAN)) -fPIC \
+           -fvisibility=default
+
+sil: $(SIL_LIB)
+
+$(SIL_LIB): $(SRC_SIL) $(SRC_SILDEP) $(SIL_HDRS) $(SPEC_H) $(WEIGHTS_H) \
+            | $(BUILD)
+	$(CXX) $(SILFLAGS) $(SIL_SHARED) $(filter %.cpp,$^) -o $@
+
 $(BUILD):
 	mkdir -p $(BUILD)
 
-test: $(BINS)
+test: $(BINS) $(SIL_LIB)
 	@rc=0; for t in $(BINS); do ./$$t || rc=1; done; \
 	 if [ $$rc -eq 0 ]; then echo "ALL GREEN"; else echo "FAILURES"; fi; \
 	 exit $$rc

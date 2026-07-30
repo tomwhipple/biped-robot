@@ -120,3 +120,47 @@ only -- the CPU env is the deployment referee by project convention).
   above; skip-if-missing when the lib is not yet built.
 - Integrator (main session): build both, run the closed loop, write the
   results table, commit.
+
+---
+
+## As built (2026-07-30, integration notes)
+
+- **Canonical `.silw` = the headed self-describing binary** (v1: SILW
+  magic, dims, activation, layer sizes, then norm_mean/std + layers).
+  The JSON sidecar is written alongside and cross-checked when present;
+  `--raw` exists for a headerless blob. The C reader accepts both and
+  errors on disagreement. The 949 KB blob is regenerable
+  (tools/export_policy_weights.py) and gitignored; sidecar, golden
+  vectors and calibration JSONs are committed.
+- **Sensor/target array order: ascending bus id (`slot = bus_id - 1`)**,
+  published by `sil_spec()`; the python harness PROBES the built library
+  (tick-domain probe) instead of assuming, and asserts agreement.
+- `vel_ticks` carries the raw reg-58 sign-magnitude word in the int16.
+- Results: host suites ALL GREEN (sil 3950 checks, golden 2959); python
+  31/31. Exported policy vs brax through the REAL firmware inference:
+  worst action err 6.6e-7. Closed loop (loco_v6creep, 8 seeds):
+  stand_10s 8/8 vs 8/8, line_1m 8/8 vs 8/8, goal_home 7/8 vs 8/8 --
+  within the one-seed budget; per-tick divergence at tick-quantization
+  scale (4.9e-3) once the referee bug below was fixed.
+
+## Findings the harness paid for on day one
+
+1. **Referee obs-stacking bug (FIXED)**: eval_precision.Driver re-read
+   env._obs() after the post-step history push, feeding
+   [f_t, f_t, f_{t-1}] (and a redrawn IMU-noise realization) instead of
+   the training stacking [f_t, f_{t-1}, f_{t-2}]. Action divergence vs
+   brax: 0.48 through the old path. The Driver now reuses env.step's
+   returned obs and patches only the head frame's cmd channels. Every
+   historical referee score ran through the old path -- current
+   policies re-refereed; historical scorecards carry the caveat.
+2. **Frozen-normalizer deployment hazard (OPEN)**: 8 obs channels have
+   normalizer std ~= 1e-6 (linvel, height, cmd[3..6]) because training
+   never varied them. cmd[3] (crouch) is frozen at exactly 1.0 -- but
+   the firmware feeds it battguard's crouch(), which RAMPS BELOW 1.0 on
+   a sagging pack, normalizing to ~-1.5e5: five orders out of
+   distribution exactly when the battery is dying. Fix before deploy:
+   either train with a varied crouch command (preferred) or floor the
+   exported normalizer std / pin cmd[3]=1 in ctrl_task until then.
+3. policy component had no runtime-weight entry point (compile-time
+   weights only) -- additive policy::Net/forwardNet added, forward()
+   unchanged (test_policy still 433/433).

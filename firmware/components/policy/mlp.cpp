@@ -33,22 +33,36 @@ void normalize(const float* obs, float* out) {
     }
 }
 
-void forward(const float* obs, float* action) {
-    static_assert(kObsDim <= kMaxWidth, "scratch buffer too small for obs");
-    normalize(obs, buf_a);
-
-    const float* src = buf_a;
-    float* dst = buf_b;
-    for (int l = 0; l < kNumLayers; ++l) {
-        dense(kLayers[l], src, dst, l + 1 < kNumLayers);
+void forwardNet(const Net& net, const float* obs, float* action) {
+    for (int i = 0; i < net.obs_dim; ++i) {
+        net.scratch_a[i] = (obs[i] - net.norm_mean[i]) / net.norm_std[i];
+    }
+    const float* src = net.scratch_a;
+    float* dst = net.scratch_b;
+    for (int l = 0; l < net.num_layers; ++l) {
+        dense(net.layers[l], src, dst, l + 1 < net.num_layers);
         const float* tmp = src;
         src = dst;
         dst = const_cast<float*>(tmp);
     }
-    // `src` now holds 2 * kActDim logits: [mean | log_std]. Deterministic
+    // `src` now holds 2 * act_dim logits: [mean | log_std]. Deterministic
     // inference is the tanh-normal's mode, i.e. tanh(mean); the std half is
     // only used while training.
-    for (int i = 0; i < kActDim; ++i) action[i] = tanhf(src[i]);
+    for (int i = 0; i < net.act_dim; ++i) action[i] = tanhf(src[i]);
+}
+
+void forward(const float* obs, float* action) {
+    static_assert(kObsDim <= kMaxWidth, "scratch buffer too small for obs");
+    Net net;
+    net.obs_dim = kObsDim;
+    net.act_dim = kActDim;
+    net.num_layers = kNumLayers;
+    net.layers = kLayers;
+    net.norm_mean = kNormMean;
+    net.norm_std = kNormStd;
+    net.scratch_a = buf_a;
+    net.scratch_b = buf_b;
+    forwardNet(net, obs, action);
 }
 
 }  // namespace policy
