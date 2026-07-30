@@ -155,6 +155,19 @@ def yoke_roll():
     """Hip-roll clevis. Local frame: roll axis == X axis through origin.
     +X = robot forward = servo horn side. Flange faces down (mates yoke_pitch).
     Print: flange face on the bed, arms up. Qty 2.
+
+    ORIENTATION IS WRONG AND IT IS BREAKING PARTS (user, 2026-07-30: the yoke
+    forks "keep breaking", mid arm). Printed flange-down the arms rise as
+    vertical columns, so the layer lines lie ACROSS them -- and the joint load
+    bends the arm about exactly that plane, pulling the interlayer bond apart.
+    The control case is leg_link: same cantilever-with-a-pad load path, far
+    longer arm, thinner mid-span section, and it has never broken -- because it
+    prints web-down, so "the filament runs the length of the leg vs extending
+    vertically from the print table".
+    Fix is orientation, not thickness: lay the yoke over so the layers run along
+    the arms. Thickening PLATE is NOT a free alternative -- it adds to the idler
+    screw stack and undoes the engagement fix (see IDLER_ARM_INNER). Deferred
+    with the rest of the hip work; do this before reprinting either yoke.
     """
     zf0 = -D.ROLL_AXIS_TO_FLANGE                    # flange top
     zf1 = zf0 - D.YOKE_FLANGE_T                     # flange bottom
@@ -193,6 +206,11 @@ def yoke_pitch():
     == Y axis through origin; flange on top (heat-set inserts, mates yoke_roll).
     Print: flange face on the bed, arms up (i.e. modeled upside-down vs print).
     Qty 2.
+
+    Same layers-across-the-arm breakage as yoke_roll -- see that docstring for
+    why orientation rather than thickness is the fix. This is the worse of the
+    two: PITCH_ARM_REACH 26 against yoke_roll's 16 means ~1.6x the root moment
+    for the same load. Deferred with the hip work.
     """
     zf1 = D.PITCH_ARM_REACH                          # flange bottom (arms side)
     zf0 = zf1 + D.YOKE_FLANGE_T                      # flange top (mating face)
