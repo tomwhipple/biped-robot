@@ -9,84 +9,100 @@ import parts
 import fasteners as F
 
 
-def servo_mock_y():
-    """Servo with output axis along +Y at origin (leg pitch joints).
-    Body length along Z: top end +10.11, bottom -35.11; horn cylinder and the
-    O25 x 0.55 idler recess (which our idler bosses reach into) included.
+def servo_mock():
+    """The ST3215 in ONE canonical frame -- the single source of servo truth.
 
-    Carries the two vendor-STEP features the earlier block-and-recess mock left
-    out (2026-07-28): the HORN-SIDE RIB on the cable half, and the rotating
-    IDLER HUB inside the recess. Without them this mock reported clearance where
-    the real servo interferes -- leg_link overlaps the rib by ~299 mm3."""
-    # CASE STOPS AT SV_IDLER_CASE_FACE, NOT SV_BOTFACE (2026-07-29). The case is
-    # NOT symmetric about the output axis: slab-sectioning the vendor solid finds
-    # zero material at -17.35, and the real idler-side face is 2.60 mm in, at
-    # -14.75. The old block ran the case all the way to -17.35, which invented a
-    # seating surface that does not exist -- every mount that "seats" on the
-    # idler side was really being checked against phantom material.
-    case = parts.box(-12.36, 12.36, D.SV_IDLER_CASE_FACE, D.SV_TOPFACE,
-                     -D.SV_AXIS_FROM_REAR, D.SV_AXIS_FROM_OUT_END)
-    # horn-side rib: cable end is -Z in this frame
-    case += parts.box(-D.SV_HORN_RIB_HW, D.SV_HORN_RIB_HW,
-                      D.SV_TOPFACE, D.SV_TOPFACE + D.SV_HORN_RIB_H,
-                      -D.SV_HORN_RIB_L[1], -D.SV_HORN_RIB_L[0])
-    # moulded back-cover platform, 1.90 proud of that face
-    case += parts.box(-D.SV_IDLER_BOSS_HW, D.SV_IDLER_BOSS_HW,
-                      D.SV_IDLER_BOSS_Y, D.SV_IDLER_CASE_FACE,
-                      D.SV_IDLER_BOSS_Z[0], D.SV_IDLER_BOSS_Z[1])
-    # idler disc stands PROUD of the case face (it is not recessed into it), and
-    # the free hub proud of the disc again. Both ROTATE with the joint.
-    case += parts.cyl_y(D.SV_HORN_D / 2, D.SV_IDLER_FACE, D.SV_IDLER_CASE_FACE, 0, 0)
-    case += parts.cyl_y(D.SV_IDLER_HUB_HW, D.SV_BOTFACE, D.SV_IDLER_FACE, 0, 0)
-    horn = parts.cyl_y(D.SV_BOSS_D / 2, D.SV_TOPFACE, D.SV_HORN_FACE, 0, 0)
-    return case + horn
+    Output axis +Y at the origin, horn +Y, body length along Z: output end
+    +10.11, cable end -35.11.
+
+    servo_mock_y/_x/_z are rigid ROTATIONS of this, so the three orientations
+    cannot drift apart. They HAD drifted (found 2026-07-30): _y was rebuilt to
+    the vendor solid on 2026-07-29 but _x and _z still ran the case all the way
+    to SV_BOTFACE and cut a O25 disc RECESS -- two things the vendor solid
+    disproves. Consequence: every hip part that "seated" on the idler side was
+    being checked against 2.60 mm of phantom material, and every part that
+    should have cleared the PROUD disc was checked against a well that is not
+    there. Rotating one body removes the whole class of bug.
+
+    Measured off cad/vendor/ST3215.step; see the wheel-end block in
+    dimensions.py. Corners are square where the real case is radiused -- that
+    is deliberate, a slightly oversized mock is the conservative direction for
+    an interference check.
+    """
+    # CASE. Asymmetric about the output axis: the idler side stops 2.60 mm short
+    # of the mirrored face. There is NO material at SV_BOTFACE.
+    s = parts.box(-D.SV_WID / 2, D.SV_WID / 2,
+                  D.SV_IDLER_CASE_FACE, D.SV_TOPFACE,
+                  -D.SV_AXIS_FROM_REAR, D.SV_AXIS_FROM_OUT_END)
+    # horn-side rib, on the cable half (cable end is -Z in this frame)
+    s += parts.box(-D.SV_HORN_RIB_HW, D.SV_HORN_RIB_HW,
+                   D.SV_TOPFACE, D.SV_TOPFACE + D.SV_HORN_RIB_H,
+                   -D.SV_HORN_RIB_L[1], -D.SV_HORN_RIB_L[0])
+    # moulded back-cover platform, proud of the idler case face
+    s += parts.box(-D.SV_IDLER_BOSS_HW, D.SV_IDLER_BOSS_HW,
+                   D.SV_IDLER_BOSS_Y, D.SV_IDLER_CASE_FACE,
+                   D.SV_IDLER_BOSS_Z[0], D.SV_IDLER_BOSS_Z[1])
+    # DELIBERATELY NOT MODELLED: the connector trench and the stator screw-boss
+    # pockets. Both are HOLES in the idler face, and nothing of ours protrudes
+    # into either (connector openings are windows -- absences -- in our parts,
+    # and the yaw seat pads are checked against the pelvis, not against this).
+    # Cutting them can only make the mock SMALLER than the real servo, which is
+    # the unsafe direction for an interference check. Leaving them solid keeps
+    # the mock conservative.
+    #
+    # They were cut here briefly on 2026-07-30 and the vendor comparison caught
+    # it: 372 mm3 of real servo went missing. Probing the vendor solid also
+    # showed both constants were off the datum they are written against --
+    # the trench floor is 5.10 below the case face (SV_CONN_FLOOR says 4.78)
+    # and the "1.78 boss recess" is really a sub-1 mm screw hole 3.00 deep
+    # inside a shallow ~1.5 pocket. If either is ever needed, MEASURE FIRST.
+    #
+    # WHEEL ENDS. Both discs stand PROUD of their case face with a clear annular
+    # moat, and each carries a free hub proud again. All of it ROTATES with the
+    # joint, so a mount that clamps it binds the joint.
+    s += parts.cyl_y(D.SV_DISC_R, D.SV_IDLER_FACE, D.SV_IDLER_CASE_FACE, 0, 0)
+    s += parts.cyl_y(D.SV_IDLER_HUB_HW, D.SV_BOTFACE, D.SV_IDLER_FACE, 0, 0)
+    s += parts.cyl_y(D.SV_BOSS_D / 2, D.SV_TOPFACE, D.SV_HORN_FACE, 0, 0)
+    return s
+
+
+def servo_mock_y():
+    """Leg pitch joints (hip pitch, knee) and -- rolled 90 deg -- the ankle.
+    Output axis +Y, body length along Z, output end +10.11, cable end -35.11."""
+    return servo_mock()
 
 
 def servo_mock_x():
-    """Roll servo: output axis +X, body length along Z (output end DOWN):
-    axis at z=0, top end +35.11, bottom -10.11. Idler face (-X) carries the
-    measured SV_CONN trench and the free-hub post at its STEP-worst-case
-    protrusion (must stay inside the bay bore)."""
-    case = parts.box(D.SV_BOTFACE, D.SV_TOPFACE, -12.36, 12.36,
-                     -D.SV_AXIS_FROM_OUT_END, D.SV_AXIS_FROM_REAR)
-    case -= parts.cyl_x(D.SV_IDLER_RECESS_D / 2, D.SV_BOTFACE - 0.01,
-                        D.SV_IDLER_FACE, 0, 0)
-    case -= parts.box(D.SV_BOTFACE - 0.01, D.SV_BOTFACE + D.SV_CONN_FLOOR,
-                      -D.SV_CONN_HW, D.SV_CONN_HW,
-                      D.SV_CONN_L[0], D.SV_CONN_L[1])
-    case += parts.cyl_x(D.SV_IDLER_HUB_HW, D.SV_BOTFACE, D.SV_IDLER_FACE, 0, 0)
-    # horn-side rib: in this frame the cable end is +Z
-    case += parts.box(D.SV_TOPFACE, D.SV_TOPFACE + D.SV_HORN_RIB_H,
-                      -D.SV_HORN_RIB_HW, D.SV_HORN_RIB_HW,
-                      D.SV_HORN_RIB_L[0], D.SV_HORN_RIB_L[1])
-    horn = parts.cyl_x(D.SV_BOSS_D / 2, D.SV_TOPFACE, D.SV_HORN_FACE, 0, 0)
-    return case + horn
+    """Roll servo: output axis +X (horn +X), body length along Z with the
+    output end DOWN -- cable end +35.11 at the top, output end -10.11."""
+    return Rot(0, 180, 0) * Rot(0, 0, 90) * servo_mock()
 
 
 def servo_mock_z():
-    """Yaw servo (v3yaw): output axis VERTICAL, horn DOWN. Case length along X
-    (YAW_CASE_X_REAR..FRONT), width along Y, thickness along Z. Origin at the
-    output axis on the case mid-plane; idler-side face UP (recessed O25 disc
-    well, measured SV_CONN trench, stator-boss recesses, and the free-hub post
-    at its STEP-worst-case protrusion -- the deck pocket must clear it), horn
-    boss DOWN."""
-    case = parts.box(D.YAW_CASE_X_REAR, D.YAW_CASE_X_FRONT, -12.36, 12.36,
-                     D.SV_BOTFACE, D.SV_TOPFACE)
-    case -= parts.cyl_z(D.SV_IDLER_RECESS_D / 2, 16.80, D.SV_TOPFACE + 0.01, 0, 0)
-    case -= parts.box(-D.SV_CONN_L[1], -D.SV_CONN_L[0],
-                      -D.SV_CONN_HW, D.SV_CONN_HW,
-                      D.SV_TOPFACE - D.SV_CONN_FLOOR, D.SV_TOPFACE + 0.01)
-    for xrow in D.YAW_CASE_HOLES_IDLER:            # stator screw boss recesses
-        for s in (1, -1):
-            case -= parts.cyl_z(3.7, D.SV_TOPFACE - D.SV_IDLER_BOSS_RECESS,
-                                D.SV_TOPFACE + 0.01, -xrow, s * D.CASE_HOLE_LAT)
-    case += parts.cyl_z(D.SV_IDLER_HUB_HW, 16.80, D.SV_TOPFACE, 0, 0)
-    # horn-side rib: for the yaw mock the horn side is -Z and the cable end -X
-    case += parts.box(-D.SV_HORN_RIB_L[1], -D.SV_HORN_RIB_L[0],
-                      -D.SV_HORN_RIB_HW, D.SV_HORN_RIB_HW,
-                      D.SV_BOTFACE - D.SV_HORN_RIB_H, D.SV_BOTFACE)
-    horn = parts.cyl_z(D.SV_BOSS_D / 2, -D.SV_HORN_FACE, D.SV_BOTFACE, 0, 0)
-    return case + horn
+    """Yaw servo (v3yaw): output axis VERTICAL with the horn DOWN. Case length
+    along X (YAW_CASE_X_REAR..FRONT), width along Y, idler face UP."""
+    return Rot(0, 90, 0) * Rot(0, 0, -90) * servo_mock()
+
+
+def _check_mock_frames():
+    """Assert each rotation lands where its docstring says. Cheap insurance:
+    a wrong Euler triple would silently check every part against a servo lying
+    in the wrong direction, and every volume would still read 0.00."""
+    exp = {
+        "y": (-D.SV_WID / 2, D.SV_WID / 2, D.SV_BOTFACE, D.SV_HORN_FACE,
+              -D.SV_AXIS_FROM_REAR, D.SV_AXIS_FROM_OUT_END),
+        "x": (D.SV_BOTFACE, D.SV_HORN_FACE, -D.SV_WID / 2, D.SV_WID / 2,
+              -D.SV_AXIS_FROM_OUT_END, D.SV_AXIS_FROM_REAR),
+        "z": (D.YAW_CASE_X_REAR, D.YAW_CASE_X_FRONT, -D.SV_WID / 2, D.SV_WID / 2,
+              -D.SV_HORN_FACE, -D.SV_BOTFACE),
+    }
+    for tag, fn in (("y", servo_mock_y), ("x", servo_mock_x), ("z", servo_mock_z)):
+        b = fn().bounding_box()
+        got = (b.min.X, b.max.X, b.min.Y, b.max.Y, b.min.Z, b.max.Z)
+        for g, e in zip(got, exp[tag]):
+            assert abs(g - e) < 1e-6, (
+                f"servo_mock_{tag} frame moved: {tuple(round(v, 2) for v in got)} "
+                f"!= {exp[tag]}")
 
 
 def vol(a, b):
