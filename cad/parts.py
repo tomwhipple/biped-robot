@@ -777,6 +777,41 @@ def foot():
     # face against them, sloped face up (support-free), ends at the heel edge
     p += wedge_y([(wx0, zr), (wx0 - aL, zr), (wx0, zr + aH)],
                  -(py + D.FOOT_WALL_T), py + D.FOOT_WALL_T)
+    # IDLER-SIDE SEAT BOSS on the rear tab (2026-07-29, user: the same servo-
+    # conformance treatment the leg_link grip plates got). The tab's inner
+    # face sat at -17.65 -- the MIRRORED pocket half-width -- but the idler
+    # side of the case is not a mirror of the horn side: the real case face
+    # is SV_IDLER_CASE_FACE (-14.75), so the two M2.5s at x -32.75 clamped
+    # ~2.8 mm of air (vendor-solid placement check in CAD, 2026-07-29; the
+    # leg_link's idler plate measured 2.60 mm of the same). Thicken the tab
+    # inward to the leg_link's idler_seat (-14.90 = face - GRIP_SEAT_CLR),
+    # tied back into the bulkhead, so the tab bears on the face the screws
+    # pull into.
+    idler_seat = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR         # -14.90
+    p += box(bx1, wx1, -(py + D.FOOT_WALL_T), idler_seat,
+             zp, zp + D.FOOT_WALL_H)
+    # DETENT for the moulded back-cover PLATFORM (1.90 proud of the case
+    # face, SV_IDLER_BOSS_*): its aft corner (foot x -29.51..-16.25,
+    # z 5.66..27.06) overlaps the boss's forward end, and it sits BETWEEN the
+    # screws and the seat, so it is relieved rather than seated on -- same
+    # rule as the leg_link. Shaped as a CHANNEL, open forward and out the
+    # top, NOT the leg_link's closed pocket: the servo drops into this pocket
+    # VERTICALLY, so the platform has to slide down past the boss on its way
+    # in -- a closed pocket would block assembly. Open top + all-vertical
+    # faces also means nothing overhangs printing sole-down: the support
+    # problem the leg_link detents needed ramps for is solved here by shape.
+    # Bearing lands: the aft band x -36.5..-29.91 (carrying both -32.75
+    # screws) and the sliver below the platform, z 4..5.26.
+    _pz0 = D.ANKLE_AXIS_ABOVE_SOLE - D.SV_IDLER_BOSS_HW - D.RIB_RELIEF_CLR
+    p -= box(D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR, wx1 + 0.1,
+             D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR, idler_seat + 0.01,
+             _pz0, zp + D.FOOT_WALL_H + 0.1)
+    # NOTE horn side: the rib (1.13 proud, band x -34.26..-8.73) crosses the
+    # +Y tab band too, and by the dims it should ride the tab face at 17.65
+    # by ~0.8 -- but the placed vendor solid shows 0.2 CLEARANCE there and
+    # the foot is a shipped, assembled print. The two sources disagree
+    # (SV_IDLER_DISC_PROUD note: this model's idler datums are off ~0.2), so
+    # no horn-side cut on paper -- measure the rib on a real servo first.
     # NO cable window. It used to run out through the bulkhead and buttress on
     # the premise that the servo lead leaves the rear END face -- it does not.
     # SV_CONN (measured off cad/vendor/ST3215.step) puts the sockets on the
@@ -844,8 +879,12 @@ def foot():
         p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, py - 1, py + D.FOOT_WALL_T + 1,
                         -29.0, zp + zh)
         p -= csk_y(-29.0, zp + zh, py + D.FOOT_WALL_T, +1)
-        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, -py - D.FOOT_WALL_T - 1, -py + 1,
-                        -32.75, zp + zh)
+        # idler row: the bore now runs on through the seat boss to the case
+        # face (it used to stop at the old tab face -17.65, which the boss
+        # has since filled). Head-to-case working length is unchanged --
+        # the boss fills what was clamped air -- so the same screws fit.
+        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, -py - D.FOOT_WALL_T - 1,
+                        idler_seat + 1, -32.75, zp + zh)
         p -= csk_y(-32.75, zp + zh, -py - D.FOOT_WALL_T, -1)
     # driver-access DIVOTS for the LOW retention row (z = zp+2.11 = 6.11, at the
     # sole top): the sole shelf outboard of the tabs blocks the head + Y-driver
