@@ -727,3 +727,36 @@ heavier, taller torso makes torque-off standing marginal against the
 estimated 0.35 N·m backdrive friction. Measuring the REAL backdrive
 friction (bring-up checklist) is now decisive for whether idle
 torque-off survives the tower resize.
+
+## Day 8 cont. (2026-07-29): terrain + knee enticement (loco_v7knee)
+
+User direction: the knee never moves ("tip-toe" gait), and the perfect
+sim floor is suspect — emulate carpet / vary roughness per iteration.
+Measured ground truth first: at 0.5 m/s the hip swings 34 deg p2p, the
+ankle 27 deg, the KNEE 5.8 deg — jammed at +1 deg against its extension
+stop. On a mathematically flat rigid plane, straight-leg + ankle-vault
+is optimal, and the gait reference's 31 deg swing-knee ask loses in the
+lump-sum imitation kernel.
+
+The build (both envs, parity gate 2h added, 9/9 PASS):
+- **Terrain mosaic**: static 12 x 6 m heightfield of 1 m tiles, each
+  0/2/5/10/15/20 mm roughness at 0.10-0.20 m feature size (carpet pile
+  to door-threshold), generated once (gen_terrain_mosaic.py, seed 0)
+  into sim/terrain_mosaic.npz — BOTH envs load the same file, so the
+  ground is bit-identical by construction. Per-episode roughness = a
+  random spawn draw on the mosaic (no MJX model batching needed; the
+  1024 env slots are the diversity population). Height, fall checks and
+  foot clearance all measured against LOCAL ground (bilinear lookup,
+  the old Stage-2b CPU machinery generalized + ported to jax).
+- **Knee-weighted mimic**: per-joint weights in the imitation kernel
+  (mimic_knee_w; the knee's 0.55 rad reference swing now carries 4x
+  error weight in the recipe).
+- New referee scenario **line_rough** (line walk on the mosaic, random
+  tile per seed) joins the loco family; flat-plane claims unchanged.
+- Known risk, stated up front: terrain gaits died once before on servo
+  torque (terrain_v4 wanted ~3 N*m). If knee-bent rough-ground walking
+  exceeds the STS3215 envelope we will see it in watts/falls — that is
+  a finding about the robot, not a tuning failure.
+
+**loco_v7knee queued**: warm from loco_v6creep, terrain on,
+mimic-knee-w 4.0, creep band kept, entropy 0.0075.

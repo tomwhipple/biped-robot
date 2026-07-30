@@ -115,9 +115,32 @@ def _quat_yaw(q):
     return jp.arctan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
 
 
+def _terrain_patch(xml: str, spec: dict) -> str:
+    """Replace the flat floor plane with the mosaic heightfield (same geom
+    name 'floor' so friction handling is untouched). Mirrors the CPU env's
+    _terrain_xml; the DATA both envs load is the same terrain_mosaic.npz,
+    so the ground is bit-identical by construction."""
+    asset = (f'<asset><hfield name="terrain" nrow="{int(spec["nrow"])}" '
+             f'ncol="{int(spec["ncol"])}" '
+             f'size="{spec["rx"]} {spec["ry"]} {spec["max_amp"]} 0.1"/>'
+             f'</asset>\n  ')
+    orig = re.search(r'<geom name="floor"[^>]*?/>', xml, flags=re.S)
+    look = re.search(r'(material="[^"]+"|rgba="[^"]+")',
+                     orig.group(0)) if orig else None
+    geom = (f'<geom name="floor" type="hfield" hfield="terrain" '
+            f'pos="{spec["cx"]} 0 0" contype="1" conaffinity="3" '
+            f'{look.group(1) if look else ""} '
+            f'friction="1 0.02 0.001" condim="4"/>')
+    patched, n = re.subn(r'<geom name="floor"[^>]*?/>', geom, xml, flags=re.S)
+    if n != 1:
+        raise ValueError(f"expected exactly one floor geom, found {n}")
+    return patched.replace("<worldbody>", asset + "<worldbody>", 1)
+
+
 def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
                 mesh_floor: bool = False,
-                payload_cg_z: float = 0.08) -> mujoco.MjModel:
+                payload_cg_z: float = 0.08,
+                terrain_spec: dict | None = None) -> mujoco.MjModel:
     """Load the v2 MJCF patched for MJX: absolute meshdir, optional welded
     payload body, MJCF position actuators silenced (torque enters via
     qfrc_applied, exactly like the CPU sts3215 path).
@@ -138,6 +161,8 @@ def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
         xml = re.sub(
             r'(<default class="cad">\s*<geom[^>]*?)contype="\d+" conaffinity="\d+"',
             r'\1contype="0" conaffinity="0"', xml)
+    if terrain_spec is not None:
+        xml = _terrain_patch(xml, terrain_spec)
     if payload:
         body = (f'<body name="payload" pos="0 0 {payload_cg_z}">'
                 f'<geom name="payload" type="box" size="0.0125 0.032 0.0345" '
@@ -376,15 +401,35 @@ class BimoMJXEnv:
         # -- see walker_env.py for both (kept arithmetically identical) ---------
         action_map: str = "legacy",    # "full" reaches asymmetric limits
         hip_flex_deg: float | None = None,   # widen hip FLEXION (deg)
+        # -- terrain mosaic (loco_v7knee, 2026-07-29) ----------------------------
+        terrain: bool = False,         # replace the plane with the shared
+        # terrain_mosaic.npz heightfield (0-20 mm tiled roughness); every
+        # episode spawns at a random spot, so per-episode roughness varies
+        # without model batching. Height/clearance measured vs LOCAL ground.
+        mimic_knee_w: float = 1.0,     # per-joint mimic weighting: knee error
+        # scaled by this in the imitation kernel (the lump-sum kernel let the
+        # hips+ankles satisfy it while the knee stayed jammed at +1 deg)
     ):
         if getup and ext_cmd:
             raise ValueError("getup and ext_cmd are separate objectives")
         # recovery episodes rest the fallen robot on its CAD hulls -- both
         # engines must collide meshes with the floor (same rule as getup)
+        self._terrain_spec = None
+        self._hf_field = None
+        if terrain:
+            _tm = np.load(os.path.join(os.path.dirname(xml_path),
+                                       "terrain_mosaic.npz"))
+            self._terrain_spec = {k: float(_tm[k]) for k in
+                                  ("nrow", "ncol", "rx", "ry", "cx",
+                                   "max_amp")}
+            self._hf_field = jp.asarray(_tm["field"], dtype=jp.float64)
         self.mj_model = _prep_model(
             xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
             mesh_floor=getup or (ext_cmd and recover_mix > 0),
-            payload_cg_z=payload_cg_z)
+            payload_cg_z=payload_cg_z, terrain_spec=self._terrain_spec)
+        if terrain:
+            self.mj_model.hfield_data[:] = (
+                np.asarray(_tm["field"]).ravel() / self._terrain_spec["max_amp"])
         # actuated-joint layout, derived from the model (NOT literals) so the
         # 8-DOF and 10-DOF hip-yaw plants both work
         (self._jq0, self._jq1, self._jv0,
@@ -419,6 +464,11 @@ class BimoMJXEnv:
                                   self._legR["hip_pitch"]])
         self._i_knee = jp.array([self._legL["knee"], self._legR["knee"]])
         self._i_ankle = jp.array([self._legL["ankle"], self._legR["ankle"]])
+        self.terrain = terrain
+        self.mimic_knee_w = mimic_knee_w
+        _mw = np.ones(self._nq_act)
+        _mw[np.asarray(self._i_knee)] = mimic_knee_w
+        self._mimic_w = jp.asarray(_mw)
         if hip_flex_deg is not None:
             for i in (self._jname2i["L_hip_pitch"], self._jname2i["R_hip_pitch"]):
                 m.jnt_range[jnt[i], 0] = -np.deg2rad(hip_flex_deg)
@@ -693,6 +743,29 @@ class BimoMJXEnv:
         return (cmd, step_i + (hold / self.control_dt).astype(jp.int32),
                 mode)
 
+    def _gz(self, x, y):
+        """Local ground height under world (x, y): bilinear on the mosaic,
+        0.0 on the flat plane or off the field. Mirrors walker_env._ground_z
+        exactly (parity-gated); the grid is float64 meters from the npz."""
+        if self._hf_field is None:
+            return jp.zeros(())
+        sp = self._terrain_spec
+        nrow, ncol = int(sp["nrow"]), int(sp["ncol"])
+        c = (x - (sp["cx"] - sp["rx"])) / (2 * sp["rx"]) * (ncol - 1)
+        r = (y + sp["ry"]) / (2 * sp["ry"]) * (nrow - 1)
+        inb = ((c >= 0.0) & (c <= ncol - 1) & (r >= 0.0) & (r <= nrow - 1))
+        c = jp.clip(c, 0.0, ncol - 1)
+        r = jp.clip(r, 0.0, nrow - 1)
+        c0 = jp.clip(jp.floor(c).astype(jp.int32), 0, ncol - 1)
+        r0 = jp.clip(jp.floor(r).astype(jp.int32), 0, nrow - 1)
+        c1 = jp.minimum(c0 + 1, ncol - 1)
+        r1 = jp.minimum(r0 + 1, nrow - 1)
+        fc, fr = c - c0, r - r0
+        g = self._hf_field
+        h = ((1 - fr) * ((1 - fc) * g[r0, c0] + fc * g[r0, c1])
+             + fr * ((1 - fc) * g[r1, c0] + fc * g[r1, c1]))
+        return jp.where(inb, h, 0.0)
+
     def _rise_ref(self, t_s):
         """Scripted joint-space rise for recovery episodes: piecewise-linear
         through kneel -> hips-over-knees -> jackknife -> stand over rise_secs,
@@ -796,7 +869,7 @@ class BimoMJXEnv:
         up = data.sensordata[self._up_adr:self._up_adr + 3]
         gyro = data.qvel[3:6]
         linvel = data.qvel[0:3]
-        height = data.qpos[2]
+        height = data.qpos[2] - self._gz(data.qpos[0], data.qpos[1])
         if self.imu_obs:
             noisy = self.domain_rand and self.imu_noise > 0.0
             up = imu_R @ up
@@ -991,6 +1064,20 @@ class BimoMJXEnv:
             data = jax.tree_util.tree_map(sel4, d_rag, d_kneel, d_squat, d_sit)
         return data, t0
 
+    def _terrain_spawn(self, qpos, rng):
+        """Random spawn on the mosaic (per-episode roughness = per-episode
+        location). 1 m margins keep episodes on the field; z rides the local
+        ground. No-op on the flat plane. The trainer's cached-first-state
+        auto-reset keeps one spawn per env slot -- 1024 slots is the
+        diversity population, matching the batch-level DR convention."""
+        if not self.terrain:
+            return qpos
+        r_sx, r_sy = jax.random.split(jax.random.fold_in(rng, 917))
+        sx = jax.random.uniform(r_sx, minval=-0.5, maxval=4.0)
+        sy = jax.random.uniform(r_sy, minval=-2.0, maxval=2.0)
+        return (qpos.at[0].add(sx).at[1].add(sy)
+                .at[2].add(self._gz(sx, sy)))
+
     # -- api -------------------------------------------------------------------
     def reset(self, rng: jax.Array) -> State:
         rng, r_q, r_v, r_ep, r_cmd, r_obs = jax.random.split(rng, 6)
@@ -1008,6 +1095,7 @@ class BimoMJXEnv:
             qpos = self._qpos0.at[self._jq0:self._jq1].add(
                 jax.random.uniform(r_q, (self._nq_act,), minval=-0.03,
                                    maxval=0.03))
+            qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
             d_up = mjx.make_data(self.model)
@@ -1025,6 +1113,7 @@ class BimoMJXEnv:
             qpos = self._qpos0.at[self._jq0:self._jq1].add(
                 jax.random.uniform(r_q, (self._nq_act,), minval=-0.03,
                                    maxval=0.03))
+            qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
             data = mjx.make_data(self.model)
@@ -1077,7 +1166,8 @@ class BimoMJXEnv:
                      recover_slot=recover_slot,
                      recovered=1.0 - recover_slot,
                      stand_streak=jp.zeros(()),
-                     best_h=data.qpos[2],
+                     best_h=data.qpos[2] - self._gz(data.qpos[0],
+                                                    data.qpos[1]),
                      head_ref=_quat_yaw(data.qpos[3:7]), rise_t0=rise_t0,
                      servo=servo, lat_ms=lat_ms, lash=lash,
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
@@ -1132,7 +1222,8 @@ class BimoMJXEnv:
             traj_on=traj_on, recover_slot=first.recover_slot,
             recovered=1.0 - first.recover_slot,
             stand_streak=jp.zeros(()),
-            best_h=first.data.qpos[2],
+            best_h=first.data.qpos[2] - self._gz(first.data.qpos[0],
+                                                 first.data.qpos[1]),
             head_ref=_quat_yaw(first.data.qpos[3:7]), servo=servo,
             lat_ms=lat_ms, lash=lash, imu_R=imu_R, imu_bias=imu_bias,
             metrics=metrics)
@@ -1206,7 +1297,7 @@ class BimoMJXEnv:
             jp.arange(self.n_substeps))
 
         up_z = data.sensordata[self._up_adr + 2]
-        height = data.qpos[2]                     # flat ground: ground_z == 0
+        height = data.qpos[2] - self._gz(data.qpos[0], data.qpos[1])
         qd_j = data.qvel[self._jv0:self._jv1]
         energy = jp.sum(jp.abs(tau) * jp.abs(qd_j))
         action_rate = jp.sum((action - state.prev_action) ** 2)
@@ -1249,7 +1340,8 @@ class BimoMJXEnv:
             con_stance = jp.where(is_r, con[0], con[1])
             sole_w = jp.where(is_r, data.geom_xpos[self._sole_gids[1]],
                               data.geom_xpos[self._sole_gids[0]])
-            foot_clear = sole_w[2] - self._sole_z0
+            foot_clear = (sole_w[2] - self._gz(sole_w[0], sole_w[1])
+                          - self._sole_z0)
             lift_ok = (lifted & ~con_swing & con_stance
                        & (foot_clear >= self.lift_clear)).astype(jp.float32)
             rel_w = sole_w - data.xpos[self._torso_bid]
@@ -1476,7 +1568,8 @@ class BimoMJXEnv:
                 mim_gate = ((~lifted) & (state.recovered > 0.5)
                             ).astype(jp.float32)
             reward += (self.w_mimic * mim_gate
-                       * jp.exp(-jp.sum(dq ** 2) / self.mimic_s2))
+                       * jp.exp(-jp.sum(self._mimic_w * dq ** 2)
+                                / self.mimic_s2))
         if self.w_rise_dofvel and self.ext_cmd and self.recover_mix > 0:
             # jerk control during the rise (HumanUP/utra lesson)
             reward -= (self.w_rise_dofvel

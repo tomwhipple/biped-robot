@@ -150,6 +150,14 @@ class BimoWalkerEnv(gym.Env):
         terrain_amplitude_min: float | None = None,  # if set, per-episode bump
         # height is drawn uniform(min, amplitude) -- mixes easy/hard episodes
         # (a built-in curriculum) instead of every episode at max roughness
+        terrain_mosaic: bool = False,  # loco_v7knee (2026-07-29): load the
+        # SHARED static tiled mosaic (sim/terrain_mosaic.npz, 0-20 mm tiles)
+        # instead of regenerating noise -- per-episode roughness variation
+        # comes from a random spawn location. Mirrors sim/mjx exactly (the
+        # npz is the single source of ground truth).
+        mimic_knee_w: float = 1.0,     # per-joint mimic weighting on the knee
+        # (mirrors sim/mjx; the lump-sum kernel let hips+ankles satisfy the
+        # gait reference while the knee stayed jammed at its extension stop)
         # -- domain randomization (sim-to-real hardening; off by default) -------
         domain_rand: bool = False,     # master switch for mass/friction/gain DR
         mass_range: float = 0.15,      # per-body mass+inertia scale +/- this
@@ -448,7 +456,18 @@ class BimoWalkerEnv(gym.Env):
         self._imu_R = np.eye(3)          # per-episode mounting misalignment
         self._imu_gyro_bias = np.zeros(3)
         xml_src = None
-        if terrain_amplitude > 0:
+        self.terrain_mosaic = terrain_mosaic
+        self._mosaic = None
+        if terrain_mosaic:
+            _tm = np.load(os.path.join(os.path.dirname(os.path.abspath(
+                xml_path)), "terrain_mosaic.npz"))
+            self._mosaic = _tm
+            xml_src = self._terrain_xml(
+                xml_path, float(_tm["max_amp"]),
+                nrow=int(_tm["nrow"]), ncol=int(_tm["ncol"]),
+                rx=float(_tm["rx"]), ry=float(_tm["ry"]),
+                cx=float(_tm["cx"]))
+        elif terrain_amplitude > 0:
             # Patch the flat-plane MJCF into a heightfield variant at load time
             # (single source of truth: no duplicated terrain XML to drift).
             xml_src = self._terrain_xml(xml_path, terrain_amplitude)
@@ -499,6 +518,9 @@ class BimoWalkerEnv(gym.Env):
                                   self._legR["hip_pitch"]])
         self._i_knee = np.array([self._legL["knee"], self._legR["knee"]])
         self._i_ankle = np.array([self._legL["ankle"], self._legR["ankle"]])
+        self.mimic_knee_w = mimic_knee_w
+        self._mimic_w = np.ones(self._nq_act)
+        self._mimic_w[self._i_knee] = mimic_knee_w
 
         # Realistic actuator model: torque is computed here (PD on the commanded
         # angle) and clamped to the DC-motor torque-speed envelope -- available
@@ -554,6 +576,20 @@ class BimoWalkerEnv(gym.Env):
         # hfield to the GPU after each re-randomization.
         self._hf_grid = None
         self._terrain_dirty = False
+        # grid dims used by _ground_z (legacy defaults; mosaic overrides)
+        self._hf_dims = (_HF_NROW, _HF_NCOL, _HF_RX, _HF_RY, _HF_CX)
+        if self._mosaic is not None:
+            _tm = self._mosaic
+            self._hf_dims = (int(_tm["nrow"]), int(_tm["ncol"]),
+                             float(_tm["rx"]), float(_tm["ry"]),
+                             float(_tm["cx"]))
+            # grid stored in METERS (amplitude baked in); _ground_z scales by
+            # terrain_amplitude, so pin it to 1.0 in mosaic mode
+            self._hf_grid = np.asarray(_tm["field"], dtype=np.float64)
+            self.terrain_amplitude = 1.0
+            self.model.hfield_data[:] = (self._hf_grid.ravel()
+                                         / float(_tm["max_amp"]))
+            self._terrain_dirty = True
 
         self.sim_dt = self.model.opt.timestep                 # 0.002 s
         self.n_substeps = max(1, round((1.0 / control_hz) / self.sim_dt))
@@ -638,21 +674,27 @@ class BimoWalkerEnv(gym.Env):
 
     # -- terrain -------------------------------------------------------------
     @staticmethod
-    def _terrain_xml(xml_path: str, amplitude: float) -> str:
+    def _terrain_xml(xml_path: str, amplitude: float,
+                     nrow: int = _HF_NROW, ncol: int = _HF_NCOL,
+                     rx: float = _HF_RX, ry: float = _HF_RY,
+                     cx: float = _HF_CX) -> str:
         """Return the MJCF with the flat floor plane replaced by an hfield geom
-        (same name 'floor' so friction DR keeps working) plus its asset."""
+        (same name 'floor' so friction DR keeps working) plus its asset.
+        Grid defaults are the legacy Stage-2b field; the mosaic passes its
+        own dimensions from terrain_mosaic.npz."""
         with open(xml_path) as f:
             xml = f.read()
-        asset = (f'<asset><hfield name="terrain" nrow="{_HF_NROW}" '
-                 f'ncol="{_HF_NCOL}" size="{_HF_RX} {_HF_RY} {amplitude} 0.1"/>'
+        asset = (f'<asset><hfield name="terrain" nrow="{nrow}" '
+                 f'ncol="{ncol}" size="{rx} {ry} {amplitude} 0.1"/>'
                  f'</asset>\n  ')
         # keep the original floor's appearance (v2 has a checker material,
         # v1 a plain rgba) so terrain runs give the same motion cues
         orig = re.search(r'<geom name="floor"[^>]*?/>', xml, flags=re.S)
         look = re.search(r'(material="[^"]+"|rgba="[^"]+")', orig.group(0)) if orig else None
         geom = (f'<geom name="floor" type="hfield" hfield="terrain" '
-                f'pos="{_HF_CX} 0 0" contype="1" conaffinity="3" '
-                f'{look.group(1) if look else ""} friction="1 0.02 0.001"/>')
+                f'pos="{cx} 0 0" contype="1" conaffinity="3" '
+                f'{look.group(1) if look else ""} friction="1 0.02 0.001" '
+                f'condim="4"/>')
         patched, n = re.subn(r'<geom name="floor"[^>]*?/>', geom, xml, flags=re.S)
         if n != 1:
             raise ValueError(f"expected exactly one floor geom in {xml_path}, found {n}")
@@ -703,12 +745,13 @@ class BimoWalkerEnv(gym.Env):
         off the field. Bilinear interpolation of the cached grid."""
         if self._hf_grid is None:
             return 0.0
-        c = (x - (_HF_CX - _HF_RX)) / (2 * _HF_RX) * (_HF_NCOL - 1)
-        r = (y + _HF_RY) / (2 * _HF_RY) * (_HF_NROW - 1)
-        if not (0.0 <= c <= _HF_NCOL - 1 and 0.0 <= r <= _HF_NROW - 1):
+        nrow, ncol, rx, ry, cx = self._hf_dims
+        c = (x - (cx - rx)) / (2 * rx) * (ncol - 1)
+        r = (y + ry) / (2 * ry) * (nrow - 1)
+        if not (0.0 <= c <= ncol - 1 and 0.0 <= r <= nrow - 1):
             return 0.0
         c0, r0 = int(c), int(r)
-        c1, r1 = min(c0 + 1, _HF_NCOL - 1), min(r0 + 1, _HF_NROW - 1)
+        c1, r1 = min(c0 + 1, ncol - 1), min(r0 + 1, nrow - 1)
         fc, fr = c - c0, r - r0
         g = self._hf_grid
         h = ((1 - fr) * ((1 - fc) * g[r0, c0] + fc * g[r0, c1])
@@ -1012,7 +1055,7 @@ class BimoWalkerEnv(gym.Env):
             self.model.body_mass[self._payload_bid] = mp
             self.model.body_inertia[self._payload_bid] = \
                 self._nom_inertia[self._payload_bid] * (mp / _PAYLOAD_REF)
-        if self.terrain_amplitude > 0:
+        if self.terrain_amplitude > 0 and self._mosaic is None:
             self._generate_terrain()   # before mj_resetData; CPU collisions read it live
         mujoco.mj_resetData(self.model, self.data)
         self._recover_ep = False
@@ -1109,6 +1152,15 @@ class BimoWalkerEnv(gym.Env):
             self.data.qpos[:] = self.model.qpos0
             self.data.qpos[self._jqpos] += self.np_random.uniform(
                 -0.03, 0.03, size=self._nq_act)
+            if self._mosaic is not None:
+                # mosaic spawn: per-episode roughness = per-episode location
+                # (mirrors sim/mjx _terrain_spawn; margins keep the episode
+                # on the field, z rides the local ground)
+                sx = self.np_random.uniform(-0.5, 4.0)
+                sy = self.np_random.uniform(-2.0, 2.0)
+                self.data.qpos[0] += sx
+                self.data.qpos[1] += sy
+                self.data.qpos[2] += self._ground_z(sx, sy)
             self.data.qvel[:] = self.np_random.uniform(-0.02, 0.02, size=self.model.nv)
             self.data.ctrl[:] = self._default
             mujoco.mj_forward(self.model, self.data)
@@ -1566,7 +1618,8 @@ class BimoWalkerEnv(gym.Env):
             if self.ext_cmd:
                 mim_gate = float((not lifted) and self._recovered)
             reward += (self.w_mimic * mim_gate
-                       * float(np.exp(-np.sum(dq ** 2) / self.mimic_s2)))
+                       * float(np.exp(-np.sum(self._mimic_w * dq ** 2)
+                                      / self.mimic_s2)))
         if self.w_rise_dofvel and self.ext_cmd and self.recover_mix > 0:
             if not self._recovered:
                 reward -= self.w_rise_dofvel * float(np.sum(

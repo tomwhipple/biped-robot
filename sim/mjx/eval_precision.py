@@ -891,6 +891,7 @@ def _registry():
     reg["square_return"] = (45.0, scen_square_return(), True)
     reg["circle_return"] = (16.0, scen_circle_return(), True)
     reg["goal_home"] = (24.0, scen_goal_home(), True)
+    reg["line_rough"] = (14.0, scen_line_1m(), True)
     reg["turn_180"] = (10.0, scen_turn_180(), True)
     reg["crouch_hold"] = (10.0, scen_crouch_hold(), False)
     reg["march_in_place"] = (11.0, scen_march(), False)
@@ -911,14 +912,17 @@ ENV_EXTRA = {
                            recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
     "recover_sit": dict(recover_mix=1.0,
                         recover_start_mix=(0.0, 0.0, 0.0, 1.0)),
+    # rough-ground claim (loco_v7knee): the line walk on the 0-20 mm tiled
+    # mosaic; the spawn draw puts each seed on a different tile
+    "line_rough": dict(terrain_mosaic=True),
 }
 
 # specialist-family scenario filters (progress review 2026-07-22): a run
 # whose config records train.family gets scored only on its own scenarios
 FAMILY_SCENARIOS = {
-    "loco": ["line_1m", "backward_1m", "sidestep_L", "sidestep_R",
-             "turn_180", "square_return", "circle_return", "goal_home",
-             "stand_10s", "stand_off"],
+    "loco": ["line_1m", "line_rough", "backward_1m", "sidestep_L",
+             "sidestep_R", "turn_180", "square_return", "circle_return",
+             "goal_home", "stand_10s", "stand_off"],
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
                "march_in_place", "hip_sway", "crouch_hold", "stand_10s"],
     "getup": ["recover_sit", "recover_fallen"],
@@ -928,7 +932,7 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "march_in_place", "hip_sway",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
          "turn_180", "square_return", "circle_return", "goal_home",
-         "crouch_hold",
+         "line_rough", "crouch_hold",
          "recover_sit", "recover_fallen", "stand_10s", "stand_off"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted

@@ -134,6 +134,12 @@ def main():
     p.add_argument("--num-evals", type=int, default=20)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--cmd-dense", action="store_true")
+    p.add_argument("--terrain", action="store_true",
+                   help="train on the tiled terrain mosaic (0-20 mm rough "
+                        "ground, per-episode spawn = per-episode roughness)")
+    p.add_argument("--mimic-knee-w", type=float, default=1.0,
+                   help="knee weight in the gait-imitation kernel (the "
+                        "lump-sum kernel let the knee stay jammed straight)")
     p.add_argument("--cmd-v-range", default="0.3,1.0",
                    help="forward-speed command range, m/s (loco_v6: "
                         "0.05,1.0 teaches the creep band the goal-homing "
@@ -296,6 +302,10 @@ def main():
             float(x) for x in args.kick_range.split(","))
     if args.push_prob is not None:
         env_kw["push_prob"] = args.push_prob
+    if args.terrain:
+        env_kw["terrain"] = True
+    if args.mimic_knee_w != 1.0:
+        env_kw["mimic_knee_w"] = args.mimic_knee_w
     if args.discovery:
         # getup_v11: stage-1 DISCOVERY physics (unified-humanoid-getup
         # recipe): strip DR, payload, latency, backlash and pushes so the

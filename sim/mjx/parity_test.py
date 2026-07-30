@@ -426,7 +426,52 @@ print("   (mismatches = tilted/deep penetration where MJX's 1 mm-skin")
 print("    manifold pruning drops corners CPU keeps -- impact transients.")
 print("    Settled stance manifolds are identical. Referee: CPU evals.)")
 
+# -- 2h. terrain-mosaic + knee-weighted mimic arithmetic (contact-free) -------
+# loco_v7knee (2026-07-29): the mosaic ground-height lookup (bilinear on the
+# shared terrain_mosaic.npz) enters height/foot_clear/obs, and the mimic
+# kernel gains a per-joint knee weight. Airborne over a ROUGH tile so the
+# _gz/_ground_z arithmetic is live in every step's height channel while the
+# manifold caveat never applies. Both envs load the same npz by construction.
+EXT_T = dict(EXT)
+EXT_T.update(cmd_dense=True, mimic_knee_w=4.0,
+             cmd_fixed=(0.3, -0.1, 0.2, 0.85, 0.0, 0.0, 0.0))
+cpu_t = BimoWalkerEnv(xml_path=XML_YAW, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False,
+                      terrain_mosaic=True, **EXT_T)
+gpu_t = BimoMJXEnv(xml_path=XML_YAW, domain_rand=False, terrain=True,
+                   **EXT_T)
+step_t = jax.jit(gpu_t.step)
+_splay_t = np.zeros(cpu_t._nq_act)
+_splay_t[cpu_t._legL["hip_roll"]] = 0.5
+_splay_t[cpu_t._legR["hip_roll"]] = -0.5
+
+
+def hoist_rough(env):
+    """Hoist over a rough mosaic tile (x=2.3, y=0.7 has nonzero height) so
+    the ground lookup returns a varying, nonzero field under the flight."""
+    env.data.qpos[0] = 2.3
+    env.data.qpos[1] = 0.7
+    env.data.qpos[2] = 1.5
+    env.data.qvel[:] = 0.0
+    import mujoco as _mj
+    _mj.mj_forward(env.model, env.data)
+
+
+class AirActsTerrain:
+    def __call__(self, t):
+        if t % 20 == 0:
+            hoist_rough(cpu_t)
+        return (_splay_t + 0.3 * np.sin(0.31 * t
+                                        + np.arange(cpu_t._nq_act) * 0.7)
+                ).astype(np.float32)
+
+ok_e6 = run_block(
+    "2h. terrain-mosaic ground-lookup + knee-weighted mimic (airborne)",
+    100, AirActsTerrain(), hoist_rough,
+    dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+    envs=(cpu_t, gpu_t, step_t))
+
 ok_all = (ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3 and ok_e4
-          and ok_e5)
+          and ok_e5 and ok_e6)
 print("\nPARITY:", "PASS" if ok_all else "FAIL")
 sys.exit(0 if ok_all else 1)
