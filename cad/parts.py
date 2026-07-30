@@ -843,12 +843,27 @@ def foot():
     p -= box(D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR, wx1 + 0.1,
              _ito - 0.1, idler_seat + 0.01,
              _pz0, zp + D.FOOT_WALL_H + 0.1)
-    # NOTE horn side: the rib (1.13 proud, band x -34.26..-8.73) crosses the
-    # +Y tab band too, and by the dims it should ride the tab face at 17.65
-    # by ~0.8 -- but the placed vendor solid shows 0.2 CLEARANCE there and
-    # the foot is a shipped, assembled print. The two sources disagree
-    # (SV_IDLER_DISC_PROUD note: this model's idler datums are off ~0.2), so
-    # no horn-side cut on paper -- measure the rib on a real servo first.
+    # DETENT WINDOW for the horn-side RIB (bench truth 2026-07-30, user: "it
+    # no longer fits in the foot"). The rib is 1.13 proud over x -34.26..-8.73
+    # and the +Y tab face is only 0.30 off the case face, so ~0.8 mm of rib
+    # lands on the tab. The old NOTE here trusted the placed vendor solid's
+    # 0.2 mm "clearance" over the dims -- but that model's idler datums carry
+    # a known ~0.2 error, and the bench has now voted with the dims. What
+    # exposed it: seating the idler tab on the REAL case face (2026-07-29)
+    # removed the 2.75 mm of -Y slack the old air-clamping tab left, which is
+    # where the rib had been hiding. Same open-top WINDOW treatment as the
+    # platform on the other tab: the servo drops in vertically, the rib sweeps
+    # the whole tab band above its seat, so the relief must run out the top --
+    # a closed pocket passes nothing. Floor measured off the WALL face (not
+    # the case face): with the case leaned fully +Y against the wall the rib
+    # still keeps its 0.3. Skin left outboard: 0.97 mm, the leg_link class.
+    # The z 26.61 horn screw whose bearing land this consumes is deleted at
+    # the retention rows below. All-vertical faces + open top: nothing new
+    # bridges printing sole-down.
+    _rz0 = D.ANKLE_AXIS_ABOVE_SOLE - D.SV_HORN_RIB_HW - D.RIB_RELIEF_CLR
+    p -= box(-D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR, wx1 + 0.1,
+             py - 0.01, py + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
+             _rz0, zp + D.FOOT_WALL_H + 0.1)
     # NO cable window. It used to run out through the bulkhead and buttress on
     # the premise that the servo lead leaves the rear END face -- it does not.
     # SV_CONN (measured off cad/vendor/ST3215.step) puts the sockets on the
@@ -913,14 +928,22 @@ def foot():
     # the shin fork blade at ankle -40 (audit 2026-07-28) -- same class as the
     # leg_link skew. The divots stay: the driver still needs them (LOW row).
     for zh in (2.11, 22.61):
-        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, py - 1, py + D.FOOT_WALL_T + 1,
-                        -29.0, zp + zh)
-        p -= csk_y(-29.0, zp + zh, py + D.FOOT_WALL_T, +1)
         # idler row: countersunk in the relocated tab's outer face (-17.30),
         # bore straight through to the seat -- M2.5x8, like everywhere else
         p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, _ito - 1,
                         idler_seat + 1, -32.75, zp + zh)
         p -= csk_y(-32.75, zp + zh, _ito, -1)
+    # horn row: LOW screw ONLY (2026-07-30). The z 26.61 seat fell to the rib
+    # window above -- 0.97 mm of skin behind a 1.25 mm countersink is no seat
+    # -- and every alternative kept the rib out instead: seating ON the rib
+    # clamps ~1.3 mm of air at the case face beside it (the defect class this
+    # week has been about deleting), and the horn face has no other hole row
+    # inside the tab's x-span. Retention is now 5 screws -- idler low+high
+    # biting 5.4 mm on the real seat, this one, both front bosses -- plus the
+    # front stop and the closed heel channel.
+    p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, py - 1, py + D.FOOT_WALL_T + 1,
+                    -29.0, zp + 2.11)
+    p -= csk_y(-29.0, zp + 2.11, py + D.FOOT_WALL_T, +1)
     # driver-access DIVOTS for the LOW retention row (z = zp+2.11 = 6.11, at the
     # sole top): the sole shelf outboard of the tabs blocks the head + Y-driver
     # (user report / probe 2026-07-23). Relieve the shelf TOP over each low screw

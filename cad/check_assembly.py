@@ -288,7 +288,7 @@ def main():
     ok &= check("yoke_roll vs disc screws + flange bolts",
                 vol(yr, F.disc_screws_x()) + vol(yr, F.flange_bolts()))
     ft = parts.foot()
-    ok &= check("foot vs its 4 tab screws", vol(ft, F.foot_screws()))
+    ok &= check("foot vs its 3 tab screws", vol(ft, F.foot_screws()))
     ok &= check("tower vs feet + board screws", vol(parts.tower(), F.tower_screws()))
     # deck-top counterbore must sink the pan head sub-flush: the battery pack
     # sits flat on the deck and its footprint covers the -8.30 stator row
@@ -322,7 +322,7 @@ def main():
     ic = parts.imu_carrier()
     for label, host, group in (
             ("leg_link: 6 grip screws", ll, "screws_grip"),
-            ("foot: 4 tab screws", ft, "screws_foot"),
+            ("foot: 3 tab screws", ft, "screws_foot"),
             ("pelvis: 8 stator screws down through the deck", pv, "screws_deck"),
             ("yaw_carrier: 8 wall screws", yc, "screws_yaw_wall"),
             ("yaw_carrier: 4 horn bolts (bay still empty, §7b)", yc,
@@ -359,26 +359,17 @@ def main():
     ok &= check_path("pelvis: yaw servo down off its deck collar",
                      pv, Pos(0, D.HIP_SEP / 2, YAW_MID) * servo_mock_z(),
                      "pelvis")
-    # ...and the ankle servo, which does NOT come clean. 2026-07-30: the
-    # servo's moulded horn-side RIB is 1.13 mm proud of SV_TOPFACE and the +Y
-    # retention tab's inner face is only 0.30 off that same face, so 0.83 mm of
-    # rib has to travel down the tab. Its detent (parts.foot) is a CLOSED
-    # pocket in z -- it has to be: opening it out the top, the way the
-    # idler-side platform window is open, would run the relief straight through
-    # the z 26.61 screw's bearing land, and every millimetre of tab above the
-    # rib band is swept during a vertical drop-in, so there is no shape that
-    # both passes the rib and backs that screw. What the number really means is
-    # a SNAP: a 0.83 x 8.3 mm section springing a 2.4 mm x 26 mm PETG
-    # cantilever tab, on a foot that has been printed and assembled with a real
-    # servo in it. And parts.foot's own NOTE says the two sources disagree
-    # about whether that rib touches the tab at all (the placed vendor solid
-    # reads 0.2 mm of CLEARANCE where the dimensions read 0.8 of interference).
-    # So it is reported, not failed, until somebody puts calipers on the rib.
+    # ...and the ankle servo. BENCH-MEASURED 2026-07-30 (user: "it no longer
+    # fits in the foot"): the rib DOES ride the +Y tab, settling the
+    # vendor-vs-dims dispute the old note here deferred -- the vendor solid's
+    # 0.2 mm "clearance" was its known ~0.2 idler-datum error. parts.foot now
+    # carries an open-top rib window (and gave up the z 26.61 horn screw whose
+    # bearing land the window consumes), so this is a hard check like every
+    # other socket: the drop-in must come through clean.
     _ankle_sv = Pos(0, 0, D.FOOT_T - D.FOOT_POCKET_D + 12.36) \
         * Rot(0, 90, 0) * servo_mock_y()        # as placed below, lying flat
-    _rib_snap, _at = insert_scan(ft, _ankle_sv, *SERVO_INSERT["foot"])
-    print(f"  {'foot: ankle servo drop-in (horn-rib snap past +Y tab)':58s} "
-          f"{_rib_snap:8.2f} mm3  SNAP at {_at:+.1f} mm -- measure the rib")
+    _rib_vol, _at = insert_scan(ft, _ankle_sv, *SERVO_INSERT["foot"])
+    ok &= check("foot: ankle servo drop-in (through the rib window)", _rib_vol)
 
     print("== GRIP-SCREW HEADS vs the arms that sweep them (the bench skew) ==")
     # 2026-07-28 bench find: the thigh links SKEWED on their servos. Cause: a

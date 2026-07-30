@@ -180,8 +180,9 @@ def deck_stator_screws():
 
 # --------------------------------------------------------------- foot
 def foot_screws():
-    """Foot frame: 4x M2.5x8 FLAT-head self-tap through the retention tabs
-    into the ankle-servo case (horn row -29 on +Y, idler row -32.75 on -Y).
+    """Foot frame: 3x M2.5x8 FLAT-head self-tap through the retention tabs
+    into the ankle-servo case (horn row -29 on +Y, LOW ONLY since the
+    2026-07-30 rib window took the high seat; idler row -32.75 on -Y, both).
     Flush in tab countersinks: a proud pan head was tangent to the shin fork
     blade at ankle -40 (audit 2026-07-28)."""
     py = D.SV_TOPFACE + D.FIT                         # 17.65 pocket half width
@@ -192,10 +193,10 @@ def foot_screws():
     ito = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - D.FOOT_WALL_T
     s = []
     for zh in (2.11, 22.61):
-        s.append(parts.cyl_y(1.25, fo - 8.0, fo - 0.9, -29.0, zp + zh))
-        s.append(_flat_head_y(-29.0, zp + zh, fo, +1))
         s.append(parts.cyl_y(1.25, ito + 0.9, ito + 8.0, -32.75, zp + zh))
         s.append(_flat_head_y(-32.75, zp + zh, ito, -1))
+    s.append(parts.cyl_y(1.25, fo - 8.0, fo - 0.9, -29.0, zp + 2.11))
+    s.append(_flat_head_y(-29.0, zp + 2.11, fo, +1))
     return _fuse(s)
 
 
@@ -385,7 +386,8 @@ def deck_stator_seats():
 
 
 def foot_seats():
-    """The 4 REAR TAB screws only -- the two front-boss screws have holes and
+    """The 3 REAR TAB screws only (horn LOW dropped its high twin to the
+    2026-07-30 rib window) -- the two front-boss screws have holes and
     countersinks in parts.foot() but no screw solid in foot_screws(), and the
     seat probe guard would (rightly) fail on a sweep with no screw behind it.
     Model them there first if they are ever wanted here."""
@@ -394,8 +396,8 @@ def foot_seats():
     ito = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - D.FOOT_WALL_T
     s = []
     for zh in (2.11, 22.61):
-        s.append((-29.0, fo, zp + zh, "y", +1, "csk25"))
         s.append((-32.75, ito, zp + zh, "y", -1, "csk25"))
+    s.append((-29.0, fo, zp + 2.11, "y", +1, "csk25"))
     return s
 
 
