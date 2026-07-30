@@ -33,6 +33,8 @@ cad/renders/_anim/
 
 # animate_dressed_rom.py writes and rewrites these per run
 cad/renders/_dressed/
+# animate_joint_rom.py, same deal
+cad/renders/_jointrom/
 
 # SIL: the weight blob is regenerable (tools/export_policy_weights.py)
 sim/sil/weights/*.silw

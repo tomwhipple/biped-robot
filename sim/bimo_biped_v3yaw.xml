@@ -41,15 +41,19 @@
        output axis, centred +1.30 toward the horn. They used to be SV_CASE_T
        (34.70) centred on zero, which is a phantom mirrored case -- the same
        one the CAD mocks carried until 2026-07-30.
-     - GROUND CONTACT is now four class="pad" corner spheres per foot, sitting
-       on the corners of the CAD 116 mm foot's TPU pad (106 x 46 @ x+8, i.e.
-       x -45..+61, y +/-23, bottom z -17.96). It used to be one 90 x 46 @ x+10
-       box, the 100 mm as-built foot. L_sole/R_sole survive as NON-COLLIDING
+     - GROUND CONTACT is now EIGHT class="pad" spheres per foot on the real
+       sole outline: 116 x 52 with R14 corners (CAD FOOT_L/FOOT_W/FOOT_*_R,
+       and user calipers 2026-07-30 measured the PRINTED foot at 52 x 116 --
+       they agree, so the plant now matches the bench). The 8 sit on the
+       corner-arc tangent points, the inscribed octagon: full 116 length at
+       y +/-12, full 52 width over x -38..+50. It used to be one 90 x 46 @
+       x+10 box (the "as-built 100 mm foot" belief), and briefly four spheres
+       on a 106 x 46 patch that was neither the as-built nor the CAD outline. L_sole/R_sole survive as NON-COLLIDING
        reference geoms at their old pose because the envs read their geom_xpos
        (see the L_pad_* comment in L_foot for the full story, including why the
        CAD-true sole broke parity gates 2g/2h on the first attempt -- it was
        foot-ON-foot box collision, NOT box-on-plane). Standing torso z is
-       unchanged at 0.3249 and stance is still four contacts per foot.
+       unchanged at 0.3249 (the pads' z did not move).
      - The two feet NO LONGER COLLIDE WITH EACH OTHER. They were the only
        self-colliding pair in the model; the leg meshes already pass through
        one another. Foot crossing is a reward-shaping matter (w_foot_cross)
@@ -59,10 +63,11 @@
      cad/stl/foot.stl; the frozen 191777e copy at cad/stl/foot_asbuilt.stl was
      deleted 2026-07-30. The rendered foot and the contact patch now agree.
 
-     NOTE: the contact patch is therefore CAD-current, i.e. AHEAD of the robot
-     on the bench until the 116 mm v3.1 feet are printed. Deliberate (user
-     2026-07-30) -- the plant leads the build. Hardware evals in the interim
-     are standing on a 16 mm shorter foot than the sim thinks. -->
+     The contact patch MATCHES THE BENCH as of 2026-07-30 (user: "keep the
+     model consistent with what's printed", calipers 52 x 116 with rounded
+     corners). The earlier note here claimed the plant led the hardware by
+     16 mm; that rested on the as-built 90 x 46 figure, which the calipers
+     retire. Re-measure and update this block if the foot is reprinted. -->
 
 <mujoco model="bimo_like_biped_v2">
   <!-- PROPOSED update matching the realized CAD (cad/parts.py, cad/dimensions.py).
@@ -94,7 +99,7 @@
           floor via their convex hulls (contype 2 vs floor conaffinity 3), so
           falls, knee strikes and shin-fork grazes on bumps are physical --
           but NOT with the pads/each other (ground contact is the class="pad"
-          corner spheres on the real 106 x 46 TPU pad; foot mesh is
+          spheres on the real 116 x 52 sole outline; foot mesh is
           visual-only to avoid doubling that contact). Legacy segment boxes
           moved to group 3 (hidden, non-colliding, masses documentation-only:
           real inertia is the explicit <inertial> per body). -->
@@ -240,13 +245,25 @@
                      * Sphere-on-plane is ONE analytic contact point that both
                        engines agree on; MJX prunes box manifolds with a 1 mm
                        skin and drops corners CPU keeps (parity gate 3 measures
-                       61% agreement on the v2 box soles). On flat ground the
-                       four corner points ARE the box manifold, so settled
-                       stance and its 4-contacts-per-foot solve are unchanged. -->
-              <geom name="L_pad_hl" class="pad" pos="-0.045  0.023 -0.015"/>
-              <geom name="L_pad_hr" class="pad" pos="-0.045 -0.023 -0.015"/>
-              <geom name="L_pad_tl" class="pad" pos=" 0.061  0.023 -0.015"/>
-              <geom name="L_pad_tr" class="pad" pos=" 0.061 -0.023 -0.015"/>
+                       61% agreement on the v2 box soles).
+                     * EIGHT points, not four (2026-07-30, user calipers: "I
+                       measure the current printed foot as 52x116mm, with
+                       rounded corners"). CAD agrees exactly -- FOOT_L 116,
+                       FOOT_W 52, FOOT_TOE_R = FOOT_HEEL_R = 14 -- so the sole
+                       is a rounded rect, and its extreme points in x and y are
+                       at DIFFERENT places: full 116 length only at y +/-12,
+                       full 52 width only over x -38..+50. No 4-point set holds
+                       both. These 8 are the arc tangent points, the inscribed
+                       octagon. The earlier 106 x 46 was neither the as-built
+                       foot nor the CAD outline. -->
+              <geom name="L_pad_hl" class="pad" pos="-0.052 +0.012 -0.015"/>
+              <geom name="L_pad_hr" class="pad" pos="-0.052 -0.012 -0.015"/>
+              <geom name="L_pad_hol" class="pad" pos="-0.038 +0.026 -0.015"/>
+              <geom name="L_pad_hor" class="pad" pos="-0.038 -0.026 -0.015"/>
+              <geom name="L_pad_tol" class="pad" pos="+0.050 +0.026 -0.015"/>
+              <geom name="L_pad_tor" class="pad" pos="+0.050 -0.026 -0.015"/>
+              <geom name="L_pad_tl" class="pad" pos="+0.064 +0.012 -0.015"/>
+              <geom name="L_pad_tr" class="pad" pos="+0.064 -0.012 -0.015"/>
               <!-- REFERENCE geom, non-colliding (group 3, hidden). pos/size are
                    frozen at the old 90 x 46 @ x+10 box ON PURPOSE: walker_env /
                    env_mjx read geom_xpos["L_sole"] for the swing-foot target,
@@ -295,10 +312,14 @@
               <joint name="R_ankle" axis="0 1 0" range="-40 40"/>
         <inertial pos="-0.0046 0.0007 -0.0063" quat="0.9979 0.0225 0.0604 -0.0063" mass="0.1104" diaginertia="2.3884e-05 9.0301e-05 9.8561e-05"/>
               <!-- mirror of the left foot; see the L_pad_* comment above -->
-              <geom name="R_pad_hl" class="pad" pos="-0.045  0.023 -0.015"/>
-              <geom name="R_pad_hr" class="pad" pos="-0.045 -0.023 -0.015"/>
-              <geom name="R_pad_tl" class="pad" pos=" 0.061  0.023 -0.015"/>
-              <geom name="R_pad_tr" class="pad" pos=" 0.061 -0.023 -0.015"/>
+              <geom name="R_pad_hl" class="pad" pos="-0.052 +0.012 -0.015"/>
+              <geom name="R_pad_hr" class="pad" pos="-0.052 -0.012 -0.015"/>
+              <geom name="R_pad_hol" class="pad" pos="-0.038 +0.026 -0.015"/>
+              <geom name="R_pad_hor" class="pad" pos="-0.038 -0.026 -0.015"/>
+              <geom name="R_pad_tol" class="pad" pos="+0.050 +0.026 -0.015"/>
+              <geom name="R_pad_tor" class="pad" pos="+0.050 -0.026 -0.015"/>
+              <geom name="R_pad_tl" class="pad" pos="+0.064 +0.012 -0.015"/>
+              <geom name="R_pad_tr" class="pad" pos="+0.064 -0.012 -0.015"/>
               <geom name="R_sole" type="box" pos="0.010 0 -0.0140" size="0.045 0.023 0.004"
                     contype="0" conaffinity="0" group="3" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001" condim="4"/>
               <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
