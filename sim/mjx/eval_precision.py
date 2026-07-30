@@ -384,8 +384,14 @@ def scen_line_1m():
         def ctrl(t, gt, ev):
             if t < 1.0:
                 return (0, 0, 0, 1, 0)
+            # spawn-relative (line_rough, 2026-07-30): the mosaic spawns
+            # anywhere, so the finish line is start+1 m and lateral drift is
+            # measured from the start lane. Identical numbers on the flat
+            # plane, where the spawn IS the origin.
+            if "x0" not in ev:
+                ev.update(x0=gt["x"], y0=gt["y"])
             if ev.get("cross_t") is None:
-                if gt["x"] >= 1.0:
+                if gt["x"] - ev["x0"] >= 1.0:
                     ev.update(cross_t=t, cross_x=gt["x"], cross_y=gt["y"],
                               cross_yaw=gt["yaw"])
                     return (0, 0, 0, 1, 0)
@@ -396,7 +402,8 @@ def scen_line_1m():
     def evaluate(rows, ev, fell, N, shared):
         crossed = "cross_t" in ev
         t2m = (ev["cross_t"] - 1.0) if crossed else float("nan")
-        y_at = abs(ev["cross_y"]) if crossed else float("nan")
+        y_at = (abs(ev["cross_y"] - ev.get("y0", 0.0))
+                if crossed else float("nan"))
         head = abs(ev["cross_yaw"]) if crossed else float("nan")
         if crossed:
             after = [r for r in rows if r["t"] >= ev["cross_t"]]
@@ -944,6 +951,7 @@ HEADLINE = {
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_sit": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "line_1m": ("time_to_1m", lambda v: f"t={v:.1f}s"),
+    "line_rough": ("time_to_1m", lambda v: f"t={v:.1f}s"),
     "backward_1m": ("time", lambda v: f"t={v:.1f}s"),
     "sidestep": ("time", lambda v: f"t={v:.1f}s"),
     "turn_180": ("head_err_deg", lambda v: f"hErr {v:.0f}deg"),

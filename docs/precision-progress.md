@@ -760,3 +760,26 @@ The build (both envs, parity gate 2h added, 9/9 PASS):
 
 **loco_v7knee queued**: warm from loco_v6creep, terrain on,
 mimic-knee-w 4.0, creep band kept, entropy 0.0075.
+
+## Day 9 (2026-07-30): first rough-ground results — the knee bends when it must
+
+**loco_v7knee partial (71M of 110M; terrain collision costs 5.6x
+throughput, so the 07:00 stop took it): referee 72/88.**
+
+The knee finding, measured: on FLAT ground the gait is still tip-toe
+(knee 5.5 deg p2p — flat tip-toe remains optimal there, honestly). On a
+ROUGH tile the same policy swings the knee 26 deg — 4.5x — with watts
+33-49 in the bumps. **The policy learned terrain-conditional knee use**,
+which is the mechanically correct answer to "entice the knee": bend it
+when the ground demands clearance, not as a style tax on every step.
+
+Scoreboard: goal_home HOLDS 8/8 (home 5 cm); square_return 8/8 @ 10 cm
+(best yet); **stand_off recovered 4/8 -> 7/8** (drift 4.2 cm) --
+torque-off standing is viable again on the new body. line_rough (new
+claim): initial 1/8 was a MEASUREMENT bug -- the line scenario gated on
+absolute world x/y, nonsense under mosaic spawns; made spawn-relative
+(identical numbers on the flat plane) -> honest **5/8 at t=2.6 s vs
+2.5 s flat, zero falls, watts 12.7**. The robot walks 0-20 mm rough
+ground at essentially flat-ground pace. turn_180 dipped 8/8 -> 5/8
+(partial training; watch the continuation). Continuation queued for the
+22:00 window (finish the step budget at terrain throughput).
