@@ -346,10 +346,20 @@ def leg_link(print_fins=False):
     # buried. The plate seats on the case either side of the pocket, and the
     # M2.5 grip screws at +/-10.25 clamp OUTSIDE the +/-7.42 rib band, so the
     # clamp load path is untouched.
+    # ...and run its TOP END out through the channel mouth (2026-07-30). The
+    # servo enters this C-section along +z ONLY -- web on -x, both grip plates
+    # on +/-y -- so the rib has to travel the whole plate on its way down to
+    # the pocket. Ending the pocket at the rib's own top left two slivers of
+    # plate between the pocket end (z -8.13) and the horn relief circle (which
+    # only reaches z -7.13 out at the rib's +/-7.57 x-band): 1.72 mm3 of
+    # material the rib scraped past for its entire 26 mm of travel
+    # (check_assembly's component insertion path, the servo-scale twin of the
+    # a4ce69e screw find). Opening the pocket to GRIP_TOP_HORN costs only
+    # those two lunes -- everything else up there is already inside the relief.
     p -= box(-D.SV_HORN_RIB_HW - D.RIB_RELIEF_CLR, D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR,
              D.SV_TOPFACE - 0.01, D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
              -D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR,
-             -D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR)
+             D.GRIP_TOP_HORN + 0.01)
     # ...and RAMP its print-top edge (2026-07-29, user: "the conformal edges
     # of the servo rib need supporting"). This part prints web-down, so
     # print-up is model +x, and the pocket's +x wall is where plate material
@@ -635,12 +645,22 @@ def yaw_carrier(print_fins=False):
     # 415 mm3 was buried). Cut LAST so nothing unions over it. The 8x M2.5 case
     # screws run at y +/-10.25, outboard of the rib band, so their seats keep
     # full wall thickness.
+    # Its LOWER end runs out into the U-slot mouth (2026-07-30): the servo
+    # slides UP into this bay, so the rib travels the front wall from the wall
+    # bottom to its detent. Ending the detent at the rib's own bottom edge left
+    # two corner slivers between it (ra+8.58) and the bore crown -- at the
+    # rib's +/-7.57 y-band the O20.6 bore only opens to ra+6.98 -- so the rib
+    # scraped 1.72 mm3 of wall on the way in (check_assembly's component
+    # insertion path; the leg_link had the identical defect at its own mouth).
+    # Below the axis the U-slot has already taken everything out to +/-10.3, so
+    # this costs the two slivers and nothing else, and the 8x M2.5 case screws
+    # stay outboard at y +/-10.25 as before.
     ra = D.CARRIER_ROLL_AXIS
     p -= box(D.SV_TOPFACE - 0.01,
              D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
              -D.SV_HORN_RIB_HW - D.RIB_RELIEF_CLR,
              D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR,
-             ra + D.SV_HORN_RIB_L[0] - D.RIB_RELIEF_CLR,
+             zw - 0.01,
              ra + D.SV_HORN_RIB_L[1] + D.RIB_RELIEF_CLR)
     return p
 
@@ -912,9 +932,21 @@ def foot():
     # bites 3.19 mm into the shelf and leaves 2.81 mm under it. The FRONT boss
     # screw needs one too -- it is the same head at the same height, just further
     # forward. Only the LOW row needs relieving; the high row clears the sole.
-    for xh, ysgn in ((-29.0, 1), (-32.75, -1),
-                     (-D.FOOT_FRONT_BOSS_X, 1), (-D.FOOT_FRONT_BOSS_X, -1)):
-        yface = ysgn * (py + D.FOOT_WALL_T)          # tab outer (head-seat) face
+    # THE DIVOT MUST START AT THE HEAD-SEAT FACE (2026-07-30). The idler tab's
+    # outer face moved from -20.05 to _ito (-17.30) when the tab was rebuilt on
+    # its real seat, and this loop still opened its channel at the OLD -20.05 --
+    # leaving 2.75 mm of un-relieved sole shelf standing directly in front of
+    # the -32.75 low countersink. Same class of miss as the buried grip
+    # countersinks (a4ce69e), and now caught by check_assembly's screw
+    # insertion-path sweep (33.3 mm3 before this line was fixed).
+    # Each entry carries its OWN head-seat face, because they are no longer all
+    # at +/-(py + FOOT_WALL_T): the rear idler tab seats at _ito (-17.30) while
+    # the two front bosses still stand at +/-20.05.
+    for xh, yface in ((-29.0, py + D.FOOT_WALL_T),
+                      (-32.75, _ito),
+                      (-D.FOOT_FRONT_BOSS_X, py + D.FOOT_WALL_T),
+                      (-D.FOOT_FRONT_BOSS_X, -(py + D.FOOT_WALL_T))):
+        ysgn = 1 if yface > 0 else -1
         yedge = ysgn * (D.FOOT_W / 2 + 1)            # just past the sole edge
         p -= cyl_y(D.FOOT_DIVOT_R, min(yface, yedge), max(yface, yedge),
                    xh, zp + 2.11)
@@ -1042,6 +1074,20 @@ def tower():
             p += cyl_x(3.5, px1, px1 + D.BOARD_GD_STANDOFF, sy, sz)
             p -= cyl_x(D.M25_TAP / 2, px0 - 1,
                        px1 + D.BOARD_GD_STANDOFF + 1, sy, sz)
+            # driver ACCESS through the +x wall (2026-07-30). These four screws
+            # run along +x with their heads on the board's +x face (x 15.23),
+            # and the +x wall stands at 18.40 -- a 3.17 mm gap for an 8 mm
+            # screw plus a PH1 bit. The board simply could not be fastened; the
+            # 2026-07-28 move from face-down-under-the-top-plate to upright
+            # took the old runway away with it. Found by check_assembly's screw
+            # insertion-path sweep (49 mm3 of wall per screw). Bore the wall
+            # coaxially so the screw is offered in from OUTSIDE, exactly like
+            # the feet bolts' O6.4 wells above; teardropped peak model -z
+            # (printed top-plate-down, so -z is print-up) since these are
+            # horizontal bores. Clear of the belt ribs (|y| <= 22) and the
+            # feet-tab gussets (|y| >= 36) at y +/-29.
+            p -= teardrop_x(D.M25_HEAD_D / 2 + 0.2, hx - D.WALL - 1, hx + 1,
+                            sy, sz, roll=180)
     # GoPro base screw bosses (M3 self-tap from above, through-pilots)
     gx, gy = D.GP_SCREW_XY
     for sx in (gx, -gx):

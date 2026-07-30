@@ -120,6 +120,59 @@ def clearance(label, a, b, need=D.SWEEP_BUFFER):
 
 
 
+# ---------------------------------------------------------------- insertion
+# Sampling step for the COMPONENT sweeps below. A true swept solid (Minkowski
+# sum along the axis) is neither cheap nor robust in OCC for a mock this
+# lumpy, so the servo is instead PLACED at interpolated offsets and intersected
+# at each one -- stepped placement sampling. 0.5 mm is fine enough that a 1 mm
+# ledge is hit at least twice, and the whole sweep costs ~2 s per component
+# (~0.02 s a boolean).
+INSERT_STEP = 0.5
+
+# Real insertion direction for every servo that has to be got INTO a printed
+# part, as (part-local unit axis, travel needed to be fully clear). Direction
+# is the servo's motion AWAY from its seat, i.e. the approach runs backwards
+# along it. Sources are the parts.py comments that settled each cavity:
+#
+#   leg_link  the grip channel is a C-section closed by the web on -x and by
+#             the two grip plates on +/-y, so the ONLY free axis is z: the case
+#             enters through the channel's top mouth (GRIP_TOP_HORN, just under
+#             the horn) and slides down. Equivalently, and how it is actually
+#             done on the bench: slide the link up onto the case starting at
+#             the case's free (cable) end. Sliding it on "from the front", as
+#             docs/assembly.md used to say, drives the horn disc straight into
+#             the grip plate -- 185 mm3 at 8 mm in (2026-07-30).
+#   foot      "the servo drops in vertically" (parts.foot, idler platform
+#             window) -- +z, straight down into the pocket.
+#   carrier   "downward-open U-slot ... slide each hip-roll servo up into it"
+#             (docs/assembly.md 7c, parts.yaw_carrier) -- so it withdraws -z.
+#   pelvis    "press it up into its collar on the deck underside" (7a) -- -z.
+SERVO_INSERT = {"leg_link": ((0, 0, 1), 32.0),
+                "foot": ((0, 0, 1), 24.0),
+                "yaw_carrier": ((0, 0, -1), 30.0),
+                "pelvis": ((0, 0, -1), 24.0)}
+
+
+def insert_scan(part, mock, axis, travel, step=INSERT_STEP):
+    """Worst intersection of `mock` with `part` as the mock travels `travel`
+    along `axis` from its seated pose. Returns (worst_mm3, offset_at_worst)."""
+    worst, at = 0.0, 0.0
+    n = int(round(travel / step))
+    for i in range(1, n + 1):
+        d = i * step
+        v = vol(part, Pos(axis[0] * d, axis[1] * d, axis[2] * d) * mock)
+        if v > worst:
+            worst, at = v, d
+    return worst, at
+
+
+def check_path(label, part, mock, key, tol=1.0):
+    w, at = insert_scan(part, mock, *SERVO_INSERT[key])
+    print(f"  {label:58s} {w:8.2f} mm3  "
+          f"{'OK' if w <= tol else '** BLOCKED **'} (worst at {at:+.1f} mm)")
+    return w <= tol
+
+
 def main():
     """Run every interference check. Behind a main() since 2026-07-27: this
     file's checks used to execute at IMPORT, so every script that imported it
@@ -247,6 +300,85 @@ def main():
     print(f"  {'stator head below deck top (cb depth - head height)':58s} "
           f"{_sink:8.2f} mm   {'OK' if _sink >= 0.2 else '** PROUD **'}")
     ok &= _sink >= 0.2
+
+    print("== SCREW INSERTION PATHS (can the screw + driver REACH the seat?) ==")
+    # The block above proves each head is SWALLOWED once seated. This one
+    # proves it can get there: fasteners.py sweeps the head/driver envelope
+    # back along every screw axis, INSERT_LEN out of the part, and the host
+    # part must not stand in that air. Voids (bore, countersink, counterbore,
+    # access holes) are voids, so a clean part reads ~0 mm3.
+    #
+    # This is the check that was missing on 2026-07-30, when the leg_link's two
+    # idler grip countersinks turned out to be buried behind the jog block and
+    # the fork wide plate (3.1 mm proud of the seat, cutting across the lower
+    # half of both head circles). Remove a4ce69e's two access counterbores and
+    # the first line below goes to ~78 mm3.
+    #
+    # Each sweep is checked against the part it is driven INTO/THROUGH at that
+    # step, not against everything that will eventually be around it: assembly
+    # ORDER is what keeps e.g. the yaw-horn bolts (§7b) clear of the roll servo
+    # that arrives in §7c, and the IMU screws (§9b) clear of the gopro_base.
+    tw = parts.tower()
+    ic = parts.imu_carrier()
+    for label, host, group in (
+            ("leg_link: 6 grip screws", ll, "screws_grip"),
+            ("foot: 4 tab screws", ft, "screws_foot"),
+            ("pelvis: 8 stator screws down through the deck", pv, "screws_deck"),
+            ("yaw_carrier: 8 wall screws", yc, "screws_yaw_wall"),
+            ("yaw_carrier: 4 horn bolts (bay still empty, §7b)", yc,
+             "screws_yaw_horn"),
+            ("yoke_pitch: 8 disc screws", yp, "screws_disc_y"),
+            ("leg_link fork: the same 8 disc screws one joint down",
+             Pos(0, 0, D.LINK_DROP) * ll, "screws_disc_y"),
+            ("yoke_roll: 8 disc screws", yr, "screws_disc_x"),
+            ("yoke_roll: 4 flange bolts", yr, "screws_flange"),
+            ("tower: 4 feet bolts + 4 board screws", tw, "screws_tower"),
+            ("imu_carrier: gopro bolts + IMU screws (§9b, base off)", ic,
+             "screws_head_stack")):
+        ok &= check(f"path: {label}", vol(host, F.paths(group)))
+    # ANTI-DRIFT: fasteners.py's seat tables restate the head coordinates of
+    # the screw builders. Every seat probe must land in head metal -- if a
+    # screw moves and its seat does not (or vice versa), this fails instead of
+    # the sweep quietly checking empty air.
+    for group, (seats, screws) in F.SEATS.items():
+        n = len(seats())
+        hit = sum(1 for s in seats()
+                  if vol(screws(), Pos(s[0], s[1], s[2]) * Sphere(0.3)) > 0)
+        ok &= require(f"{group}: sweep mouths landing on a head ({hit}/{n})",
+                      float(hit), float(n))
+
+    print("== COMPONENT INSERTION PATHS (can the SERVO reach its seat?) ==")
+    # Same blindness, one size up: every "contact only" check above proves the
+    # servo FITS where it ends up, never that it can be brought there. Stepped
+    # placement sampling along the real insertion axis (see SERVO_INSERT).
+    ok &= check_path("leg_link: gripped servo out through the channel mouth",
+                     ll, servo_mock_y(), "leg_link")
+    ok &= check_path("yaw_carrier: roll servo down out of the U-slot",
+                     yc, Pos(0, 0, D.CARRIER_ROLL_AXIS) * servo_mock_x(),
+                     "yaw_carrier")
+    ok &= check_path("pelvis: yaw servo down off its deck collar",
+                     pv, Pos(0, D.HIP_SEP / 2, YAW_MID) * servo_mock_z(),
+                     "pelvis")
+    # ...and the ankle servo, which does NOT come clean. 2026-07-30: the
+    # servo's moulded horn-side RIB is 1.13 mm proud of SV_TOPFACE and the +Y
+    # retention tab's inner face is only 0.30 off that same face, so 0.83 mm of
+    # rib has to travel down the tab. Its detent (parts.foot) is a CLOSED
+    # pocket in z -- it has to be: opening it out the top, the way the
+    # idler-side platform window is open, would run the relief straight through
+    # the z 26.61 screw's bearing land, and every millimetre of tab above the
+    # rib band is swept during a vertical drop-in, so there is no shape that
+    # both passes the rib and backs that screw. What the number really means is
+    # a SNAP: a 0.83 x 8.3 mm section springing a 2.4 mm x 26 mm PETG
+    # cantilever tab, on a foot that has been printed and assembled with a real
+    # servo in it. And parts.foot's own NOTE says the two sources disagree
+    # about whether that rib touches the tab at all (the placed vendor solid
+    # reads 0.2 mm of CLEARANCE where the dimensions read 0.8 of interference).
+    # So it is reported, not failed, until somebody puts calipers on the rib.
+    _ankle_sv = Pos(0, 0, D.FOOT_T - D.FOOT_POCKET_D + 12.36) \
+        * Rot(0, 90, 0) * servo_mock_y()        # as placed below, lying flat
+    _rib_snap, _at = insert_scan(ft, _ankle_sv, *SERVO_INSERT["foot"])
+    print(f"  {'foot: ankle servo drop-in (horn-rib snap past +Y tab)':58s} "
+          f"{_rib_snap:8.2f} mm3  SNAP at {_at:+.1f} mm -- measure the rib")
 
     print("== GRIP-SCREW HEADS vs the arms that sweep them (the bench skew) ==")
     # 2026-07-28 bench find: the thigh links SKEWED on their servos. Cause: a

@@ -60,6 +60,61 @@ def piece(label, color, solid):
     return solid
 
 
+COL_PATH = Color(0.93, 0.46, 0.10)      # insertion sweeps (docs figures only)
+
+
+def fastener_frames(y):
+    """(name, placement, fastener groups) for one leg -- ONE table feeding BOTH
+    the seated screw solids and their INSERTION SWEEPS (fasteners.paths). The
+    assembly figures draw the sweeps from this and check_assembly checks the
+    same groups, so a doc figure cannot show an approach the checker never
+    tried. Groups are fasteners.SEATS keys."""
+    at = lambda z: Pos(0, y, z)
+    return [("yaw_stack", Pos(0, y, D.HIP_YAW_Z),
+             ("screws_yaw_horn", "screws_yaw_wall")),
+            ("hip_roll", at(D.HIP_ROLL_Z), ("screws_disc_x",)),
+            ("flange", at(D.HIP_ROLL_Z), ("screws_flange",)),
+            ("hip_pitch", at(D.HIP_PITCH_Z), ("screws_disc_y",)),
+            ("thigh_grip", at(D.HIP_PITCH_Z), ("screws_grip",)),
+            ("knee", at(D.KNEE_Z), ("screws_disc_y",)),
+            ("shin_grip", at(D.KNEE_Z), ("screws_grip",)),
+            ("ankle", at(D.ANKLE_Z), ("screws_disc_y",)),
+            ("foot", at(D.TPU_PROUD), ("screws_foot",))]
+
+
+TORSO_FRAMES = [("deck", Pos(0, 0, DECK_TOP_Z), ("screws_deck",)),
+                ("tower", Pos(0, 0, DECK_TOP_Z), ("screws_tower",)),
+                ("head_stack", Pos(0, 0, TOWER_TOP_Z), ("screws_head_stack",))]
+
+
+def _fuse(solids):
+    out = None
+    for s in solids:
+        out = s if out is None else out + s
+    return out
+
+
+def fasteners(frames, paths=False):
+    """The screw pieces (or, with paths=True, their insertion sweeps) for a
+    frame table."""
+    return [piece(("paths_" if paths else "screws_") + name,
+                  COL_PATH if paths else COL_STEEL,
+                  frame * _fuse([F.paths(g) if paths else F.SEATS[g][1]()
+                                 for g in groups]))
+            for name, frame, groups in frames]
+
+
+def insertion_paths():
+    """Every screw's approach volume, placed in world exactly where its screw
+    is. NOT part of `robot` -- it is drawing, not hardware; docs figures
+    (render_assembly_steps) ask for it explicitly."""
+    return Compound(label="insertion_paths", children=(
+        fasteners(TORSO_FRAMES, paths=True)
+        + [Compound(label=f"leg_{tag}",
+                    children=fasteners(fastener_frames(sy), paths=True))
+           for sy, tag in ((D.HIP_SEP / 2, "L"), (-D.HIP_SEP / 2, "R"))]))
+
+
 def leg(y, tag):
     """One leg at lateral offset y. Same parts both sides (translations, not
     mirrors; every pitch horn faces +Y)."""
@@ -82,19 +137,9 @@ def leg(y, tag):
         piece("servo_ankle", COL_SERVO,
               at(D.ANKLE_Z) * Rot(0, 90, 0) * CA.servo_mock_y()),
         piece("foot", COL_FOOT, at(D.TPU_PROUD) * parts.foot()),
-        # fasteners (fasteners.py; same frames as the parts they ride with)
-        piece("screws_yaw_stack", COL_STEEL,
-              Pos(0, y, D.HIP_YAW_Z) * F.yaw_carrier_screws()),
-        piece("screws_hip_roll", COL_STEEL, at(D.HIP_ROLL_Z) * F.disc_screws_x()),
-        piece("screws_flange", COL_STEEL, at(D.HIP_ROLL_Z) * F.flange_bolts()),
-        piece("screws_hip_pitch", COL_STEEL, at(D.HIP_PITCH_Z) * F.disc_screws_y()),
-        piece("screws_thigh_grip", COL_STEEL,
-              at(D.HIP_PITCH_Z) * F.leg_link_screws()),
-        piece("screws_knee", COL_STEEL, at(D.KNEE_Z) * F.disc_screws_y()),
-        piece("screws_shin_grip", COL_STEEL, at(D.KNEE_Z) * F.leg_link_screws()),
-        piece("screws_ankle", COL_STEEL, at(D.ANKLE_Z) * F.disc_screws_y()),
-        piece("screws_foot", COL_STEEL, at(D.TPU_PROUD) * F.foot_screws()),
-    ])
+        # fasteners (fasteners.py; same frames as the parts they ride with) --
+        # from fastener_frames(), which also drives the insertion sweeps
+    ] + fasteners(fastener_frames(y)))
 
 
 robot = Compound(label="bimo_biped", children=[
@@ -111,10 +156,7 @@ robot = Compound(label="bimo_biped", children=[
           Pos(0, 0, TOWER_TOP_Z + D.IMU_CARRIER_T) * parts.gopro_base()),
     piece("camera_gopro_max_mock", COL_CAM,
           Pos(0, 0, TOWER_TOP_Z + D.IMU_CARRIER_T) * camera_mock()),
-    piece("screws_deck", COL_STEEL, Pos(0, 0, DECK_TOP_Z) * F.deck_stator_screws()),
-    piece("screws_tower", COL_STEEL, Pos(0, 0, DECK_TOP_Z) * F.tower_screws()),
-    piece("screws_head_stack", COL_STEEL,
-          Pos(0, 0, TOWER_TOP_Z) * F.head_stack_screws()),
+] + fasteners(TORSO_FRAMES) + [
     leg(D.HIP_SEP / 2, "L"),
     leg(-D.HIP_SEP / 2, "R"),
 ])

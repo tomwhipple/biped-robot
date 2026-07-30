@@ -1,4 +1,6 @@
 """Every fastener in the robot as a simple solid (shank + head [+ washer]),
+plus -- since 2026-07-30 -- the INSERTION SWEEP behind each head: the volume
+the screw and its driver have to travel through to REACH that seat.
 grouped in the SAME local frames as the printed parts they ride with. Single
 source of truth for BOTH check_assembly's head-clearance audit and the
 assembled STEPs (export_assembly / dress) -- a screw that moves in one moves
@@ -12,7 +14,7 @@ flush in their countersinks. Lengths follow docs/assembly.md.
 """
 import os
 
-from build123d import Pos, Rot, Cone, export_step
+from build123d import Pos, Rot, Cone, Sphere, export_step
 import dimensions as D
 import parts
 
@@ -241,6 +243,206 @@ def head_stack_screws():
         s.append(parts.cyl_z(D.M25_HEAD_D / 2, bt, bt + D.M25_HEAD_H,
                              D.IMU_SCREW_X, sy))
     return _fuse(s)
+
+
+# =============================================================================
+# INSERTION (APPROACH) PATHS -- 2026-07-30
+# =============================================================================
+# WHY THIS EXISTS. The mocks above model the SEATED screw: a flat head flush
+# inside its countersink, a shank starting just inboard of the head plane. So
+# check_assembly's "fasteners seated in their own parts" boolean proves the
+# recess swallows the head -- and NOTHING proved the screw could be brought to
+# that seat. It cannot see material standing in front of the countersink,
+# because that material is in the air the screw arrives THROUGH, not in the
+# volume it finally occupies.
+#
+# That blindness escaped a real bug (fixed in a4ce69e, 2026-07-30): the
+# leg_link's two idler grip screws seat at y -17.90, but the jog block and the
+# fork wide plate ran out to y -21 -- 3.1 mm PROUD of the seat -- and their
+# z -33 top edges cut straight across the lower half of each countersink
+# circle. The screws could not be inserted or driven square. check_assembly
+# said ALL CLEAR the whole time.
+#
+# The fix here is to model the approach as geometry: a cylinder on the screw
+# axis, at the widest diameter that must pass, extruded from the head's seated
+# plane BACKWARD (away from the part) well outside the bounding box. It is
+# legitimate for that cylinder to run through open air and through the bore /
+# countersink voids -- those are voids, so a clean part intersects it at ~0.
+INSERT_LEN = 25.0       # how far back the approach is modelled (well outside
+                        # every host part's bbox on the screw axis)
+
+# Envelope diameters, i.e. the widest thing that has to travel down the axis:
+#
+#   csk25  M2.5 flat head in a 90-deg countersink. NOT the head (4.7) but the
+#          COUNTERSINK MOUTH + 0.8: the PH1 bit has to enter the cone with the
+#          head, and it is the bit shank that rubs the mouth rim. 6.2 is the
+#          established class -- a4ce69e's access counterbores are exactly that,
+#          cut for exactly this reason.
+#   btn3   M3 button head: it only has to PASS (its hex key is 2.0 across
+#          flats, far narrower than the head), so the class is the head OD +
+#          0.4 -- e.g. the tower's O6.4 feet-screw access holes are drilled to
+#          pass this head and nothing more.
+#   wsh3   M3 button + THIN WASHER on the idler discs: the washer (7.0) is
+#          wider than the head, so the washer sets the envelope.
+#   pan25  M2.5 machine pan (driver board / IMU), head OD + 0.4.
+ENVELOPE_D = {"csk25": D.CASE_CS_D + 0.8,        # 6.2
+              "btn3":  D.M3_HEAD_D + 0.4,        # 6.1
+              "wsh3":  D.M3_WASHER_D + 0.4,      # 7.4
+              "pan25": D.M25_HEAD_D + 0.4}       # 4.9
+
+
+def _sweep(seat, length=INSERT_LEN):
+    """One screw's approach volume: ENVELOPE_D cylinder from the head's seated
+    plane, running BACK along the axis (i.e. -sign) by `length`."""
+    x, y, z, axis, sign, kind = seat
+    r = ENVELOPE_D[kind] / 2
+    if axis == "y":
+        return parts.cyl_y(r, y, y + sign * length, x, z)
+    if axis == "x":
+        return parts.cyl_x(r, x, x + sign * length, y, z)
+    return parts.cyl_z(r, z, z + sign * length, x, y)
+
+
+def sweeps(seats, length=INSERT_LEN):
+    return _fuse([_sweep(s, length) for s in seats])
+
+
+def seat_probes(seats, r=0.3):
+    """One small sphere per seat, ON the seated head plane. check_assembly
+    intersects these with the screw group: every probe must find head metal.
+    That is the anti-DRIFT guard -- the seat tables below duplicate the head
+    coordinates of the screw builders above, and this is what fails loudly if
+    one of the two moves without the other."""
+    return _fuse([Pos(s[0], s[1], s[2]) * Sphere(r) for s in seats])
+
+
+# ---- seat tables: (x, y, z, axis, sign, kind); sign = which way the head
+# ---- faces, i.e. the direction the driver comes FROM.
+def leg_link_seats():
+    """6x M2.5 flat, leg_link frame -- mirrors leg_link_screws()."""
+    seat = D.SV_TOPFACE + D.GRIP_PLATE_T                     # 19.75
+    s = [(lx, seat, -zrow, "y", +1, "csk25")
+         for zrow in D.CASE_HOLES_TOP
+         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT)]
+    igo = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - D.GRIP_PLATE_T_IDLER
+    s += [(lx, igo, -D.CASE_HOLES_BOT[1], "y", -1, "csk25")
+          for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT)]     # the a4ce69e pair
+    return s
+
+
+def disc_y_seats():
+    hy1 = D.SV_HORN_FACE + D.PLATE
+    iy0 = D.IDLER_ARM_INNER - D.PLATE
+    r = D.BCD / 2
+    s = []
+    for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
+        s.append((dx, hy1, dz, "y", +1, "btn3"))
+        s.append((dx, iy0, dz, "y", -1, "wsh3"))
+    return s
+
+
+def disc_x_seats():
+    hx1 = D.SV_HORN_FACE + D.HORN_BOSS_H + D.PLATE
+    ix0 = -19.95 - 1.0 - D.PLATE
+    r = D.BCD / 2
+    s = []
+    for dy, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
+        s.append((hx1, dy, dz, "x", +1, "btn3"))
+        s.append((ix0, dy, dz, "x", -1, "wsh3"))
+    return s
+
+
+def flange_bolt_seats():
+    zf0 = -D.ROLL_AXIS_TO_FLANGE
+    b = D.YOKE_BOLT_SQ / 2
+    return [(sx, sy, zf0, "z", +1, "btn3")
+            for sx, sy in ((b, b), (b, -b), (-b, b), (-b, -b))]
+
+
+def yaw_horn_seats():
+    """Heads sit UNDER the bay ceiling, so the driver comes up from inside the
+    empty bay -- which is why these are driven in §7b, BEFORE the roll servo
+    goes in in §7c. Checked against the carrier only, for that reason."""
+    zc = D.CARRIER_ROLL_CEIL
+    r = D.BCD / 2
+    return [(dx, dy, zc, "z", -1, "btn3")
+            for dx, dy in ((r, 0), (-r, 0), (0, r), (0, -r))]
+
+
+def yaw_wall_seats():
+    za = D.CARRIER_ROLL_AXIS
+    s = [(19.95, sg * D.CASE_HOLE_LAT, za + zrow, "x", +1, "csk25")
+         for zrow in D.CASE_HOLES_TOP for sg in (1, -1)]
+    s += [(-19.95, sg * D.CASE_HOLE_LAT, za + zrow, "x", -1, "csk25")
+          for zrow in D.CASE_HOLES_BOT for sg in (1, -1)]
+    return s
+
+
+def deck_stator_seats():
+    return [(-xrow, by + sg * D.CASE_HOLE_LAT, 0.0, "z", +1, "csk25")
+            for by in (D.HIP_SEP / 2, -D.HIP_SEP / 2)
+            for xrow in D.YAW_CASE_HOLES_IDLER for sg in (1, -1)]
+
+
+def foot_seats():
+    """The 4 REAR TAB screws only -- the two front-boss screws have holes and
+    countersinks in parts.foot() but no screw solid in foot_screws(), and the
+    seat probe guard would (rightly) fail on a sweep with no screw behind it.
+    Model them there first if they are ever wanted here."""
+    zp = D.FOOT_T - D.FOOT_POCKET_D
+    fo = D.SV_TOPFACE + D.FIT + D.FOOT_WALL_T                # 20.05
+    ito = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - D.FOOT_WALL_T
+    s = []
+    for zh in (2.11, 22.61):
+        s.append((-29.0, fo, zp + zh, "y", +1, "csk25"))
+        s.append((-32.75, ito, zp + zh, "y", -1, "csk25"))
+    return s
+
+
+def tower_seats():
+    s = [(sx, sy, 3.9, "z", +1, "btn3")
+         for sx in (D.TOWER_FOOT_X, -D.TOWER_FOOT_X)
+         for sy in (D.TOWER_FOOT_Y, -D.TOWER_FOOT_Y)]
+    xh = D.BOARD_GD_PCB_X + 1.63
+    s += [(xh, sy, sz, "x", +1, "pan25")
+          for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY)
+          for sz in (D.BOARD_GD_CZ + D.BOARD_GD_SCREW_DZ,
+                     D.BOARD_GD_CZ - D.BOARD_GD_SCREW_DZ)]
+    return s
+
+
+def head_stack_seats():
+    gz = D.IMU_CARRIER_T + D.GP_BASE_T
+    s = [(sx, sy, gz, "z", +1, "btn3")
+         for sx in (D.GP_SCREW_XY[0], -D.GP_SCREW_XY[0])
+         for sy in (D.GP_SCREW_XY[1], -D.GP_SCREW_XY[1])]
+    bt = D.IMU_PCB_Z + D.IMU_PCB[2]
+    s += [(D.IMU_SCREW_X, sy, bt, "z", +1, "pan25")
+          for sy in (D.IMU_CY + D.IMU_SCREW_DY, D.IMU_CY - D.IMU_SCREW_DY)]
+    return s
+
+
+# group name -> (seat table, the screw solids those seats belong to). Both
+# check_assembly (collision + drift guard) and render_assembly_steps (the
+# translucent path cones in the figures) read THIS, so the doc figures and the
+# check can never draw different paths.
+SEATS = {
+    "screws_grip":        (leg_link_seats,   lambda: leg_link_screws()),
+    "screws_disc_y":      (disc_y_seats,     disc_screws_y),
+    "screws_disc_x":      (disc_x_seats,     disc_screws_x),
+    "screws_flange":      (flange_bolt_seats, flange_bolts),
+    "screws_yaw_horn":    (yaw_horn_seats,   yaw_horn_screws),
+    "screws_yaw_wall":    (yaw_wall_seats,   yaw_wall_screws),
+    "screws_deck":        (deck_stator_seats, deck_stator_screws),
+    "screws_foot":        (foot_seats,       foot_screws),
+    "screws_tower":       (tower_seats,      tower_screws),
+    "screws_head_stack":  (head_stack_seats, head_stack_screws),
+}
+
+
+def paths(group, length=INSERT_LEN):
+    """The insertion sweep solid for a named group in SEATS."""
+    return sweeps(SEATS[group][0](), length)
 
 
 # ------------------------------------------------------------- STEP exports
