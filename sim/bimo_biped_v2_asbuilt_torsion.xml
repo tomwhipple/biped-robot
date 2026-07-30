@@ -13,10 +13,18 @@
      pad-true contact boxes, 102.8 g/foot segment) instead of the CAD-current
      116 mm get-up soles (106 x 46, 110.4 g). Torso carries the tower-top
      accessory stack (imu_carrier + BNO055 + gopro_base, 341.8 g). Everything
-     else identical to bimo_biped_v2.xml. Regenerate the foot numbers with
-     build_v2_inertia.py against cad/stl/foot_asbuilt.stl (extracted from git
-     191777e, the last 100 mm foot rev). Train precision policies HERE until
-     the v3.1 feet are printed, then switch back. -->
+     else identical to bimo_biped_v2.xml. Train precision policies HERE until
+     the v3.1 feet are printed, then switch back.
+
+     Foot PHYSICS below -- the L_sole/R_sole contact box, mass and diaginertia
+     -- is still the 100 mm as-built foot, and stays that way until the new
+     feet exist. Foot MESH is class="cadvis", decoration only, so it points at
+     the CAD-current cad/stl/foot.stl; the frozen 191777e copy that used to
+     live at cad/stl/foot_asbuilt.stl was deleted 2026-07-30 because two feet
+     in the tree was more confusing than one. Until the reprint, expect the
+     rendered foot to overhang the box it stands on by 16 mm. When the v3.1
+     feet are printed, regenerate the numbers with sim/build_v2_inertia.py
+     against cad/stl/foot.stl. -->
 <mujoco model="bimo_like_biped_v2">
   <!-- PROPOSED update matching the realized CAD (cad/parts.py, cad/dimensions.py).
        Differences vs bimo_biped.xml (v1):
@@ -86,7 +94,7 @@
     <mesh name="yoke_roll"  file="yoke_roll.stl"  scale="0.001 0.001 0.001"/>
     <mesh name="yoke_pitch" file="yoke_pitch.stl" scale="0.001 0.001 0.001"/>
     <mesh name="leg_link"   file="leg_link.stl"   scale="0.001 0.001 0.001"/>
-    <mesh name="foot"       file="foot_asbuilt.stl"       scale="0.001 0.001 0.001"/>
+    <mesh name="foot"       file="foot.stl"               scale="0.001 0.001 0.001"/>
   </asset>
 
   <worldbody>

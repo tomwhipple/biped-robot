@@ -71,6 +71,10 @@ Trained on **`sim/bimo_biped_v2_asbuilt.xml` — the robot as printed today**:
   CAD-current 116 mm get-up soles exist only in CAD/`bimo_biped_v2.xml`;
   switch back when the v3.1 feet are actually printed. (User confirmation:
   "we're running with the 100×50 feet".)
+  *2026-07-30: `foot_asbuilt.stl` has been deleted — it was a visual-only
+  mesh and having two feet in the tree was confusing. The foot physics
+  quoted above is unchanged; the plants now render `cad/stl/foot.stl`.
+  Recover the old mesh with `git show 191777e:cad/stl/foot.stl` if needed.*
 - **Torso 341.8 g** — now includes the tower-top accessory stack
   (imu_carrier 5.0 + BNO055 3.0 + gopro_base 5.2 + fastener delta 0.8 g)
   that was previously an honest omission.
