@@ -1368,6 +1368,52 @@ they'd have trained techniques the plan replaces. Our servo/latency/
 backlash/IMU DR modeling and the CPU-referee rule survive review as ahead
 of the surveyed field.
 
+### The sim foot finally matches the CAD foot (2026-07-30)
+
+The training plant `sim/bimo_biped_v3yaw.xml` stood on one 90 x 46 mm box per
+foot — the pad of the *old* 100 mm as-built foot — while CAD has carried the
+116 mm get-up foot with a 106 x 46 mm TPU pad (x −45..+61, y ±23) since
+2026-07-15. The obvious fix, growing the box, was tried earlier on 2026-07-30
+and reverted: it blew up MJX-vs-CPU parity gates 2g/2h (worst |dqpos| 2.9e−12
+→ 9.3e−04, |dobs| 1.5e−08 → 1.3e−01). The reverting note blamed MJX's 1 mm-skin
+box-on-plane manifold pruning.
+
+**That diagnosis was wrong.** Gates 2g/2h are AIRBORNE (torso hoisted to 1.5 m,
+re-hoisted every 20 steps) and CPU records zero floor contacts across all 100
+steps of either block. Per-step instrumentation pinned the failure on exactly
+one step in each block (2g t=70, 2h t=78) and the real culprit turned out to be
+foot-ON-foot: `L_sole`/`R_sole` carried `conaffinity="1"`, making them the only
+self-colliding pair in the whole model — the `class="cad"` leg meshes are
+`conaffinity="0"` and pass through one another freely. `mj_geomDistance`
+between the two soles over the gate-2g sequence: the 90 mm boxes clear each
+other by 4.19 mm at the worst step, the CAD-size boxes by 0.31 mm. At 0.31 mm
+MJX's box-box collider calls it a penetration and CPU's does not, and that lone
+disagreeing step is the entire failure.
+
+The fix has two halves:
+
+* **Ground contact is four `class="pad"` spheres** (r = 3 mm) per foot at the
+  CAD pad corners. Contact points land at exactly x −45/+61, y ±23, z −17.96 in
+  the foot frame. Sphere-on-plane is one analytic point both engines agree on;
+  on flat ground those four points *are* the box manifold, so settled stance is
+  unchanged (torso z 0.3249 m, four contacts per foot, max |qvel| 3.8e−11).
+  Measured MJX/CPU contact-point agreement over a gait-amplitude rollout on
+  v3yaw: **87 % with a CAD-size box sole, 97 % with the spheres.**
+* **The two feet no longer collide** (`conaffinity="0"` on the pads). Foot
+  crossing stays a reward/pose matter (`w_foot_cross`, `check_sit_pose`'s 5 mm
+  gap assertion), which is how the rest of the model already treats
+  self-intersection.
+
+`L_sole`/`R_sole` survive as non-colliding, group-3 **reference** geoms frozen
+at their old pose, because `walker_env`/`env_mjx` read `geom_xpos["L_sole"]` for
+the swing-foot target, the CoM-over-stance kernel and the lift-clearance zero
+(`_sole_z0`). Keeping them bit-identical moves the contact patch without moving
+anything a trained policy observes; retarget them deliberately, not as a side
+effect. Body masses/inertias are untouched (total 1.1517 kg) — every body has an
+explicit `<inertial>`, so the `mass="0"` pads change nothing. Contact-flag
+lookups in both envs now key off a per-foot pad-geom set (`_pad_gids`), falling
+back to the sole box on the legacy v2 plants, which are unchanged.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

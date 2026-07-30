@@ -485,6 +485,17 @@ class BimoMJXEnv:
 
         self._torso_bid = m.body("torso").id
         self._sole_gids = (m.geom("L_sole").id, m.geom("R_sole").id)
+        # Ground-contact geoms per foot -- mirror of BimoWalkerEnv._pad_gids.
+        # v3yaw (2026-07-30): the sole box is a non-colliding reference geom and
+        # the floor contact lives on four "<side>_pad_*" corner spheres (single
+        # analytic contact points, which both engines agree on). Legacy plants
+        # have no pad geoms, so the sole box itself is the contact geom.
+        self._pad_gids = tuple(
+            tuple(g for g in range(m.ngeom)
+                  if (mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g)
+                      or "").startswith(f"{side}_pad")) or (sole,)
+            for side, sole in (("L", self._sole_gids[0]),
+                               ("R", self._sole_gids[1])))
         self._up_adr = m.sensor("torso_up").adr[0]
         self._nominal_h = float(m.body("torso").pos[2])
 
@@ -859,8 +870,10 @@ class BimoMJXEnv:
         c = data.contact
         hit = c.dist < 0.0
         out = []
-        for gid in self._sole_gids:
-            mine = (c.geom[:, 0] == gid) | (c.geom[:, 1] == gid)
+        for gids in self._pad_gids:
+            mine = jp.zeros_like(hit)
+            for gid in gids:
+                mine |= (c.geom[:, 0] == gid) | (c.geom[:, 1] == gid)
             out.append(jp.any(hit & mine))
         return jp.stack(out)
 

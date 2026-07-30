@@ -570,6 +570,17 @@ class BimoWalkerEnv(gym.Env):
         self._floor_gid = self.model.geom("floor").id
         self._torso_bid = self.model.body("torso").id
         self._sole_gids = (self.model.geom("L_sole").id, self.model.geom("R_sole").id)
+        # Ground-contact geoms per foot. On the v3yaw plant (2026-07-30) the
+        # sole box became a non-colliding REFERENCE geom and the floor contact
+        # moved to four "<side>_pad_*" corner spheres -- one analytic contact
+        # point each, which MJX and CPU agree on, unlike a box manifold. Legacy
+        # plants have no pad geoms, so the sole box itself is the contact geom.
+        self._pad_gids = tuple(
+            tuple(g for g in range(self.model.ngeom)
+                  if (mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, g)
+                      or "").startswith(f"{side}_pad")) or (sole,)
+            for side, sole in (("L", self._sole_gids[0]),
+                               ("R", self._sole_gids[1])))
 
         # Terrain bookkeeping: cached (nrow, ncol) height grid in [0,1] for the
         # ground-height lookup, and a dirty flag so render() re-uploads the
@@ -759,17 +770,16 @@ class BimoWalkerEnv(gym.Env):
         return float(h) * self.terrain_amplitude
 
     def _foot_contacts(self) -> tuple[bool, bool]:
-        """(left, right) sole-in-contact flags. The soles are the only geoms
-        with collisions enabled besides the floor, so any contact involving a
-        sole geom is ground contact."""
+        """(left, right) sole-in-contact flags. The pad geoms are the only ones
+        with floor collisions enabled on the feet, so any contact involving one
+        of them is ground contact."""
         n = self.data.ncon
         if n == 0:
             return False, False
         g1 = self.data.contact.geom1[:n]
         g2 = self.data.contact.geom2[:n]
-        lid, rid = self._sole_gids
-        return (bool(np.any((g1 == lid) | (g2 == lid))),
-                bool(np.any((g1 == rid) | (g2 == rid))))
+        return tuple(bool(np.any(np.isin(g1, gids) | np.isin(g2, gids)))
+                     for gids in self._pad_gids)
 
     def _randomize_dynamics(self):
         """Re-sample mass/inertia, floor friction, and actuator gain from nominal.
