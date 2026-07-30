@@ -44,13 +44,26 @@ STL = os.path.join(HERE, "stl")
 RX180 = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]], float)
 RY_XUP = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]], float)   # model +X -> print +Z
 IDENT = np.eye(3)
+# "WALL" orientation for the hip clevises (2026-07-30). Both yokes were
+# printed flange-down with the arms rising as vertical columns, which lays the
+# layer lines ACROSS the arm -- and a cantilevered arm carries its bending load
+# as tension ALONG the arm, i.e. straight through the interlayer bond. They
+# kept snapping mid-arm. Stand them on edge instead, so the arm length lies in
+# the bed plane and that tension runs along the filament.
+#
+# The control case is leg_link, which has a far longer arm and a thinner
+# mid-span and has never broken: it prints RY_XUP, web face on bed. yoke_pitch
+# grips the same servo the same way (straddle along model Y, arm along model
+# Z), so it gets the SAME transform -- if leg_link survives this load path in
+# this orientation, so should the shorter yoke.
+RY_ROLL_WALL = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], float)  # model +Y -> print +Z
 
 ORIENT = {
     # name: (rotation, note)  -- keep in sync with parts.PARTS
     "pelvis": (RX180, "upside down: deck top on bed"),
     "yaw_carrier": (RX180, "horn-plate face on bed, bay walls rise"),
-    "yoke_roll": (IDENT, "flange face on bed, arms up"),
-    "yoke_pitch": (RX180, "flange face on bed (modeled flipped)"),
+    "yoke_roll": (RY_ROLL_WALL, "WALL: on edge, arms along the bed"),
+    "yoke_pitch": (RY_XUP, "WALL: on its back like leg_link"),
     "leg_link": (RY_XUP, "on its back: web face on bed"),
     "foot": (IDENT, "sole down"),
     "tower": (RX180, "upside down: top plate on bed"),
@@ -60,7 +73,9 @@ ORIENT = {
 
 # what actually goes to the slicer, where that differs from <name>.stl
 PRINT_STL = {"leg_link": "leg_link_print.stl",
-             "yaw_carrier": "yaw_carrier_print.stl"}
+             "yaw_carrier": "yaw_carrier_print.stl",
+             "yoke_roll": "yoke_roll_print.stl",
+             "yoke_pitch": "yoke_pitch_print.stl"}
 
 COS45 = np.cos(np.radians(45.0))          # facet is a >45 deg overhang if
                                           # nz < -COS45 (straight down = -1)

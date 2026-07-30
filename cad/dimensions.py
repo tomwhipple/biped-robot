@@ -476,6 +476,10 @@ RIB_RELIEF_DEPTH_CLR = 0.3    # air above the rib crest
 # 0.4 nozzle -- prints solid, snaps with a fingernail, and stays well clear of
 # check_printability's 0.85 mm thin-wall flag.
 FIN_T = 1.2
+FIN_GAP = 0.35          # break-away standoff: a support fin stops this far
+                        # short of the face it holds up, so it snaps out with
+                        # fingers instead of fusing. Matches the gap leg_link's
+                        # pad stubs and island posts already use.
 FOOT_TOE_R = 14.0
 # Heel rounded to match (user, 2026-07-28). The aft buttress sits at x -42..-40,
 # 10 mm clear of the heel edge, and the cable window (y +/-8) stays inside the
