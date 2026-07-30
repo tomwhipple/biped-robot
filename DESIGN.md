@@ -1392,9 +1392,9 @@ disagreeing step is the entire failure.
 
 The fix has two halves:
 
-* **Ground contact is four `class="pad"` spheres** (r = 3 mm) per foot at the
-  CAD pad corners. Contact points land at exactly x −45/+61, y ±23, z −17.96 in
-  the foot frame. Sphere-on-plane is one analytic point both engines agree on;
+* **Ground contact is `class="pad"` spheres** (r = 3 mm) per foot on the sole
+  outline. *(First cut used four at x −45/+61, y ±23 — a "106 × 46 TPU pad".
+  Corrected same day, see below.)* Sphere-on-plane is one analytic point both engines agree on;
   on flat ground those four points *are* the box manifold, so settled stance is
   unchanged (torso z 0.3249 m, four contacts per foot, max |qvel| 3.8e−11).
   Measured MJX/CPU contact-point agreement over a gait-amplitude rollout on
@@ -1413,6 +1413,34 @@ effect. Body masses/inertias are untouched (total 1.1517 kg) — every body has 
 explicit `<inertial>`, so the `mass="0"` pads change nothing. Contact-flag
 lookups in both envs now key off a per-foot pad-geom set (`_pad_gids`), falling
 back to the sole box on the legacy v2 plants, which are unchanged.
+
+### ...and then the calipers said 52 x 116 (2026-07-30, later)
+
+The above landed the plant on a "CAD 106 x 46 TPU pad". User, measuring the
+part on the bench: *"keep the model consistent with what's printed. However I
+measure the current printed foot as 52x116mm, with rounded corners."*
+
+That is the CAD foot exactly -- `FOOT_L` 116.0, `FOOT_W` 52.0, `FOOT_TOE_R` =
+`FOOT_HEEL_R` = 14.0, and `foot.stl`'s sole plane spans x -52..+64, y -26..+26.
+So **106 x 46 was neither the as-built foot nor the CAD outline**, and the
+"as-built 100 mm foot with a 90 x 46 pad" this plant was built on was wrong
+too. Two consequences worth keeping:
+
+* **The plant does not lead the bench.** The note claiming a 16 mm CAD-vs-
+  hardware gap rested on the 90 x 46 figure and is retired.
+* **Rounded corners change the POINT COUNT, not just the size.** A 116 x 52
+  rectangle with R14 corners reaches full length only at y +/-12 and full width
+  only over x -38..+50 -- the extreme points in x and in y are in different
+  places, so no FOUR-point set holds both. Four at the arc diagonals gives
+  111.8 x 43.8; four at the box corners claims contact where there is no
+  material. The plant now carries **eight** pads per foot on the corner-arc
+  tangent points (the inscribed octagon): support polygon exactly
+  116.00 x 52.00, area 5640 mm2 of the sole's true 5864 mm2 (96 %).
+
+The pads keep their z, so nothing a policy observes moved: settled torso z
+0.3249 m, mass 1.1517 kg, `L_sole` reference geom still frozen. `PARITY: PASS`
+on every gate, no threshold touched. The `<side>_pad` name-prefix discovery in
+both envs picks up eight as readily as four.
 
 ## 6. Design parameters (source of truth)
 
