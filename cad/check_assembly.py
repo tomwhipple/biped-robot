@@ -119,6 +119,48 @@ def clearance(label, a, b, need=D.SWEEP_BUFFER):
     return d >= need
 
 
+# ------------------------------------------------------------- wheel ends
+def _cyl(axis, r, a0, a1, u, v):
+    return {"x": parts.cyl_x, "y": parts.cyl_y, "z": parts.cyl_z}[axis](
+        r, a0, a1, u, v)
+
+
+def unsupported(part, axis, face, sign, ctr, head_d, t=0.4):
+    """Volume of a seated head/washer annulus that hangs over air.
+
+    The screw checks elsewhere prove the head is SWALLOWED (no interference)
+    and that the driver can REACH it. Neither says the head has anything to
+    PULL AGAINST: a head whose land runs off the rim of its pad is a clamp
+    with nothing under half of it. Inner radius is 2.6, outside the teardrop
+    peak of the PAD_HOLE bore, so the bore void never counts as unsupported."""
+    r = head_d / 2
+    a0, a1 = (face - t, face) if sign > 0 else (face, face + t)
+    ring = (_cyl(axis, r, a0, a1, *ctr)
+            - _cyl(axis, 2.6, a0 - 1, a1 + 1, *ctr))
+    return ring.volume - vol(part, ring)
+
+
+def engage(label, length, stack, washer=0.0, depth=None):
+    """Thread engagement of a disc screw: does it reach, and does it bottom?
+
+    The disc screws thread into the servo's own disc, and that disc is a thin
+    FLANGE at the O14 bolt circle -- D.DISC_THREAD (2.1 mm), not the 3.35 mm
+    the vendor solid's disc body suggests (the 3.1 mm hub is inboard of the
+    screws). Too long and the screw hits the bottom of the hole and jacks the
+    joint apart instead of clamping it; too short and there is no thread to
+    hold. Neither shows up as an interference, so no boolean check can see it."""
+    depth = D.DISC_THREAD if depth is None else depth
+    eng = length - stack - washer
+    if eng > depth:
+        state = f"** BOTTOMS OUT {eng - depth:.2f} early **"
+    elif eng < D.DISC_THREAD_MIN_ENGAGE:
+        state = f"** ONLY {eng:.2f} OF THREAD **"
+    else:
+        state = "OK"
+    print(f"  {label:58s} {eng:8.2f} mm   {state}")
+    return D.DISC_THREAD_MIN_ENGAGE <= eng <= depth
+
+
 
 # ---------------------------------------------------------------- insertion
 # Sampling step for the COMPONENT sweeps below. A true swept solid (Minkowski
@@ -271,6 +313,34 @@ def main():
     ok &= clearance("buffer: both stacks yawed inward 45",
                     yaw_stack_scr(D.HIP_SEP / 2, -45),
                     yaw_stack_scr(-D.HIP_SEP / 2, 45))
+
+    print("== WHEEL ENDS: does each disc screw actually get thread? ==")
+    # BENCH 2026-07-30 (user): "the idler disc is 2.1 mm thick... though there's
+    # a central hub that's 3.1". Sectioning the vendor solid by radius agrees --
+    # hub 3.23-3.35 to r 4.5, flange 2.20 beyond -- and the O14 bolt circle is
+    # at r 7.00, i.e. in the FLANGE. Everything the BOM specced for these holes
+    # was sized against the 3.35 slab and drives straight through it.
+    _pitch_stack = abs(D.IDLER_ARM_INNER - D.SV_IDLER_FACE) + D.PLATE   # 3.60
+    _roll_stack = abs(-19.95 - 1.0 - D.SV_IDLER_FACE) + D.PLATE         # 7.15
+    ok &= engage("horn discs: M3x5 into the horn flange (was M3x6)",
+                 5.0, D.PLATE, depth=D.HORN_THREAD)
+    ok &= engage("pitch idlers: same screw, no washer (yoke_pitch + fork)",
+                 D.DISC_SCREW_THREAD, _pitch_stack)
+    # yoke_roll is NOT fixed yet -- its long boss through the bay wall makes a
+    # 7.15 stack, which no stock screw suits (needs 8.65..9.25). Deferred with
+    # the rest of the hip work (user 2026-07-30: "let's get the foot and leg
+    # link finalized... then we can worry about the hip"). Reported, not asserted.
+    print(f"  {'roll idler: DEFERRED, stack ' + f'{_roll_stack:.2f}' + ' fits no stock screw':58s} "
+          f"{D.DISC_SCREW_THREAD - _roll_stack:8.2f} mm   ** hip TODO **")
+    # ...and the head has to have something to pull against once it gets there.
+    for _lbl, _part, _ax, _face, _sgn, _o in (
+            ("yoke_pitch idler pad", yp, "y", D.IDLER_ARM_INNER - D.PLATE, -1, (0, 0)),
+            ("leg_link fork idler pad", ll, "y", D.IDLER_ARM_INNER - D.PLATE, -1,
+             (0, -D.LINK_DROP))):
+        _worst = max(unsupported(_part, _ax, _face, _sgn,
+                                 (_o[0] + dx, _o[1] + dz), D.M3_HEAD_D)
+                     for dx, dz in ((7, 0), (-7, 0), (0, 7), (0, -7)))
+        ok &= check(f"{_lbl}: M3 head land fully supported", _worst)
 
     print("== FASTENERS seated in their own parts (recesses swallow the heads) ==")
     # Every screw is now a real solid (fasteners.py) placed in its host part's

@@ -43,6 +43,21 @@ SV_IDLER_FACE = -16.80                # idler disc face (0.55 recessed in case)
 SV_BOSS_D = 19.6                      # output boss dia (on case top face)
 SV_HORN_D = 19.2                      # horn / idler disc dia
 SV_IDLER_RECESS_D = 25.0              # opening in case bottom around idler disc
+# --- WHEEL ENDS, sectioned off cad/vendor/ST3215.step 2026-07-30 (radial
+# profile about the output axis, our frame). Both discs stand PROUD of their
+# case faces with a clear annular moat around them -- there is no "O25 recess
+# with the disc 0.55 down inside it", which is what SV_IDLER_RECESS_D and the
+# SV_IDLER_FACE comment above still describe. Kept only because the mocks cut
+# a recess with it; nothing seats on it.
+#   horn:  disc face +20.45 out to r 9.6, then NOTHING to r 10.5, case/rib
+#          beyond r 11.0 -- disc stands 3.10 proud of SV_TOPFACE
+#   idler: hub post -17.35 (r<=3.2), disc face -16.80 out to r 9.6, then
+#          NOTHING out to r 11.0, case face -14.75 beyond -- disc 2.05 proud
+# The moats are why the pads may be grown (see PAD_D): past the disc rim the
+# arm is over open air until the case face, which is 2-3 mm below it.
+SV_DISC_R = 9.6                       # horn AND idler disc, measured
+SV_HORN_MOAT_R = 10.5                 # void around the horn disc reaches here
+SV_IDLER_MOAT_R = 11.0                # void around the idler disc reaches here
 SV_GRIP_SPAN = SV_HORN_FACE - SV_IDLER_FACE   # 37.25 (drawing-confirmed)
 
 # horn/idler disc screw pattern: 4x M3 threaded on O14 bolt circle
@@ -56,6 +71,28 @@ PAD_HOLE = 3.4          # M3 clearance in printed pads
 # yoke_pitch's drive side, 7.45 mm3 on yoke_roll's.
 # 10.0 clears by 0.34 and still leaves 1.3 mm of rim outboard of the O14 bolt
 # circle -- the same rim minimum yoke_pitch's hub cut already works to.
+#
+# HELD AT 20.0 on 2026-07-30 after re-deriving it (user: "check the wheel end
+# of the servos for fit"). Two things changed since the note above and neither
+# moves the number:
+#   (1) the radial fight is over. Every arm seats on the DISC, and the vendor
+#       solid puts the disc faces 3.10 (horn) / 2.05 (idler) PROUD of their
+#       case faces, so the PAD PLATE passes UNDER a 1.65-proud case-screw head
+#       with 1.45 mm (horn: plate 20.45 vs head top 19.00) and 1.60 (idler:
+#       plate -18.00 vs head top -16.40) to spare. No pad radius reaches it.
+#       Only the SEATING BOSS shares the head's axial band, and IDLER_BOSS_D
+#       stays 20.0, inside the head's 10.34 reach.
+#   (2) so the binding constraint is now the HEAD LAND: bolt circle r 7 against
+#       a 10.0 rim leaves 3.0 mm, i.e. O6.0. The M3x6 horn buttons (O5.7) bear
+#       fully with 0.15 to spare. The idler M3x8 + THIN WASHER (O7.0) overhangs
+#       the rim by 0.5 all round -- but a full annulus centred on its own screw
+#       cannot tip on a 0.5 mm overhang, and it still bears on 6.5 of its 7.0.
+#       Tolerated, not a fit failure.
+# Growing to 21.5 (O7.5 land) was tried and reverted: r 10.75 breaks BOTH the
+# carrier wall-screw head reach (10.69, checked in check_assembly) and the
+# foot's FOOT_ROTOR_CLEAR_R arc at the ankle (4.85 mm3, three ROM extremes).
+# The pad is boxed in on all sides; buy nothing for 0.5 mm of washer rim.
+# Drawn to scale in docs/assembly/wheel-end-pad.svg.
 PAD_D = 20.0
 # Centre reliefs, sized to the MEASURED screw heads (user, 2026-07-27) rather
 # than left generously round. Shrinking them is a strength change: the web out
@@ -138,8 +175,41 @@ IDLER_BOSS_D = 20.0     # was 19.0. Grown 2026-07-23 when the idler bolt circle
                         # still slips through the LOCKED BAY_BORE 20.6 U-slot at
                         # the yoke_roll idler arm (0.3 mm/side == FIT). Do not
                         # grow past ~20.3 without revisiting BAY_BORE.
-IDLER_ARM_INNER = -18.0                    # arm plate inner face (from servo mid)
-IDLER_BOSS_H = IDLER_ARM_INNER - SV_IDLER_FACE  # 1.2
+# IDLER_ARM_INNER holds the arm plate off the disc, and the boss above spans
+# that gap. That gap is NOT slack and must not be collapsed to "narrow the
+# fork": it is what sets SCREW ENGAGEMENT. The screw has DISC_SCREW_THREAD of
+# thread and the tapped hole bottoms out at DISC_THREAD, so
+#     engagement = DISC_SCREW_THREAD - (boss + PLATE)
+# has to land between DISC_THREAD_MIN_ENGAGE and DISC_THREAD.
+# 1.20 -> 0.60 on 2026-07-30 (user: "the thickness of the fork + idle wheel is
+# 6.25 mm, the length of the screw thread is 5.6, so we could shrink that
+# dimension by ~.75"). At 1.20 the stack was 4.20 and the screw only reached
+# 1.40 mm into a 2.1 mm hole -- under-engaged. At 0.60 the stack is 3.60 and it
+# grips 2.00 mm, i.e. effectively the whole flange, with 0.10 clear of the
+# bottom. Do NOT keep shrinking: 0.45 already bottoms out, and collapsing the
+# boss to zero drives the tip 0.50 mm into the bottom of the hole and jacks the
+# joint apart instead of clamping it.
+IDLER_ARM_INNER = -17.40                   # arm plate inner face (from servo mid)
+IDLER_BOSS_H = IDLER_ARM_INNER - SV_IDLER_FACE  # 0.6
+
+# --- DISC TAPPING, bench-measured (user, 2026-07-30) and corroborated by
+# sectioning cad/vendor/ST3215.step by radius. The idler disc is NOT a flat
+# 3.35 slab: it is a thick central hub inside a thin outer flange.
+#     hub    r <= 4.5   3.1 mm (bench) / 3.23-3.35 (STEP)
+#     flange r >= 4.5   2.1 mm (bench) / 2.20 (STEP)
+# The O14 bolt circle sits at r 7.00 -- out in the FLANGE. So every disc screw
+# has 2.1 mm of thread to work with, not 3.35, and screw length is chosen
+# against DISC_THREAD, never against the disc's overall thickness.
+DISC_THREAD = 2.1
+DISC_THREAD_MIN_ENGAGE = 1.5    # below this there is not enough thread to hold
+DISC_SCREW_THREAD = 5.6         # threaded length of the disc screw (bench,
+                                # user 2026-07-30). This -- not the nominal
+                                # "M3x6" -- is what reaches into the hole.
+# The HORN disc is built the same way -- hub 4.50 to r 5.5, then a flange that
+# the bolt circle taps into. BENCH-CONFIRMED 2026-07-30 (user): "the horn wheel
+# is 2.5mm thick", matching the STEP's 2.50 exactly (unlike the idler, where the
+# STEP ran 0.1 proud of the calipers).
+HORN_THREAD = 2.5
 
 # ----------------------------------------------------------------------------
 # kinematic layout (matches sim/bimo_biped.xml)

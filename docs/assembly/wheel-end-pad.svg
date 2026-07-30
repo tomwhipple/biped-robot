@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+<style>
+ text{font-family:-apple-system,Segoe UI,Helvetica,sans-serif;text-anchor:middle}
+ .t{font-size:21px;font-weight:600;fill:#111}
+ .h{font-size:17px;font-weight:600;fill:#111}
+ .s{font-size:12.5px;fill:#666}
+ .mono{font-family:ui-monospace,Menlo,monospace}
+ .gd{font-size:13.5px;font-weight:600;fill:#1a7f37}
+ .bd{font-size:13.5px;font-weight:600;fill:#c62828}
+ .pad{fill:#dfe4ea;stroke:#5b6570;stroke-width:1.5}
+ .void{fill:#fff;stroke:#9aa3ad;stroke-width:1}
+ .bc{fill:none;stroke:#9aa3ad;stroke-width:1;stroke-dasharray:5 4}
+ .wok{fill:#1a7f37;fill-opacity:.20;stroke:#1a7f37;stroke-width:1.6}
+ .wbad{fill:#c62828;fill-opacity:.20;stroke:#c62828;stroke-width:1.6}
+ .disc{fill:#b9c6d3;stroke:#4a5560;stroke-width:1.4}
+ .case{fill:#eceff2;stroke:#5b6570;stroke-width:1.4}
+ .head{fill:#98a4b0;stroke:#4a5560;stroke-width:1.4}
+ .arm{fill:#dfe4ea;stroke:#222;stroke-width:1.8}
+ .new{fill:#1a7f37;fill-opacity:.18;stroke:#1a7f37;stroke-width:2;stroke-dasharray:6 4}
+ .dim{stroke:#c62828;stroke-width:1.2}
+ .lbl{font-size:12px;fill:#333;text-anchor:start}
+ .lblr{font-size:12px;fill:#333;text-anchor:end}
+</style>
+<rect width="1000" height="1000" fill="#fff"/>
+<text x="500" y="34" class="t">The disc-bolt pad: why it grows Ø20 → Ø21.5</text>
+<text x="500" y="55" class="s">“the pad” = the round boss on each arm that the four disc screws pass through. Face-on, down the joint axis.</text>
+<text x="255" y="95.0" class="h">now — pad Ø20.0</text>
+<text x="255" y="113.0" class="s">4× M3×8 button + thin washer (Ø7.0)</text>
+<circle cx="255" cy="205" r="66.0" class="pad"/>
+<circle cx="255" cy="205" r="24.75" class="void"/>
+<circle cx="255" cy="205" r="46.199999999999996" class="bc"/>
+<circle cx="301.2" cy="205.0" r="23.099999999999998" class="wbad"/>
+<circle cx="301.2" cy="205.0" r="11.219999999999999" class="void"/>
+<circle cx="255.0" cy="251.2" r="23.099999999999998" class="wbad"/>
+<circle cx="255.0" cy="251.2" r="11.219999999999999" class="void"/>
+<circle cx="208.8" cy="205.0" r="23.099999999999998" class="wbad"/>
+<circle cx="208.8" cy="205.0" r="11.219999999999999" class="void"/>
+<circle cx="255.0" cy="158.8" r="23.099999999999998" class="wbad"/>
+<circle cx="255.0" cy="158.8" r="11.219999999999999" class="void"/>
+<text x="255" y="301.0" class="bd">✗ washer hangs 0.5 mm off the rim — all 4 screws</text>
+<text x="255" y="320.0" class="s">head land = pad Ø20.0 − bolt circle Ø14 = <tspan class="mono">Ø6.0</tspan></text>
+<text x="745" y="90.05000000000001" class="h">after — pad Ø21.5</text>
+<text x="745" y="108.05000000000001" class="s">same fastener, nothing else moves</text>
+<circle cx="745" cy="205" r="70.95" class="pad"/>
+<circle cx="745" cy="205" r="24.75" class="void"/>
+<circle cx="745" cy="205" r="46.199999999999996" class="bc"/>
+<circle cx="791.2" cy="205.0" r="23.099999999999998" class="wok"/>
+<circle cx="791.2" cy="205.0" r="11.219999999999999" class="void"/>
+<circle cx="745.0" cy="251.2" r="23.099999999999998" class="wok"/>
+<circle cx="745.0" cy="251.2" r="11.219999999999999" class="void"/>
+<circle cx="698.8" cy="205.0" r="23.099999999999998" class="wok"/>
+<circle cx="698.8" cy="205.0" r="11.219999999999999" class="void"/>
+<circle cx="745.0" cy="158.8" r="23.099999999999998" class="wok"/>
+<circle cx="745.0" cy="158.8" r="11.219999999999999" class="void"/>
+<text x="745" y="305.95" class="gd">✓ washer bears fully, 0.25 mm to spare</text>
+<text x="745" y="324.95" class="s">head land = pad Ø21.5 − bolt circle Ø14 = <tspan class="mono">Ø7.5</tspan></text>
+<text x="745" y="345.95" class="s" style="font-size:11.5px">(inner edge still laps the Ø7.5 centre relief by 0.25 mm —</text>
+<text x="745" y="360.95" class="s" style="font-size:11.5px">that relief has to clear the disc’s own centre screw)</text>
+<text x="500" y="430" class="h">why the pad was kept small — and why that reason expired</text>
+<text x="500" y="450" class="s">radial section of the idler wheel end, joint axis at the left, outwards to the right</text>
+<text x="500" y="467" class="s">(profile sectioned off cad/vendor/ST3215.step, 2026-07-30)</text>
+<line x1="140" y1="485" x2="140" y2="790" stroke="#c62828" stroke-width="1" stroke-dasharray="4 3"/>
+<text x="140" y="480" class="s" style="fill:#c62828">joint axis</text>
+<rect x="459.0" y="518.75" width="159.5" height="86.25" class="case"/>
+<text x="563.4" y="546.35" class="s">servo case (face −14.75)</text>
+<rect x="140" y="575.1" width="278.4" height="77.04999999999995" class="disc"/>
+<text x="273.4" y="619.95" class="s" style="fill:#fff;font-weight:600">idler disc Ø19.2 — the arm bolts to THIS</text>
+<text x="438.70000000000005" y="585.45" class="s" style="font-size:11px">moat</text>
+<rect x="439.86" y="605.0" width="165.3" height="37.94999999999993" class="head"/>
+<text x="630.0999999999999" y="631.45" class="lbl">servo’s own case-screw head</text>
+<text x="630.0999999999999" y="646.45" class="lbl" style="fill:#666">(reaches in to r 10.34)</text>
+<line x1="575.0" y1="624.55" x2="624.3" y2="636.0500000000001" stroke="#9aa3ad" stroke-width="1"/>
+<rect x="140" y="652.15" width="290.0" height="27.600000000000023" class="arm"/>
+<rect x="140" y="679.75" width="290.0" height="69.0" class="arm"/>
+<rect x="430.0" y="679.75" width="21.75" height="69.0" class="new"/>
+<text x="267.6" y="716.5500000000001" class="s">printed arm — the pad plate</text>
+<text x="285.0" y="665.9499999999999" class="s" style="font-size:11px">seating boss Ø20, stays put</text>
+<text x="461.75" y="732.65" class="lbl" style="fill:#1a7f37;font-weight:600">+0.75 mm of rim all round</text>
+<text x="461.75" y="747.65" class="lbl" style="fill:#1a7f37">← this, and only this, is “growing the pad”</text>
+<line x1="445.95000000000005" y1="642.9499999999999" x2="445.95000000000005" y2="679.75" class="dim"/>
+<line x1="440.95000000000005" y1="642.9499999999999" x2="450.95000000000005" y2="642.9499999999999" class="dim"/>
+<line x1="440.95000000000005" y1="679.75" x2="450.95000000000005" y2="679.75" class="dim"/>
+<text x="453.95000000000005" y="663.65" class="lbl" style="fill:#c62828;font-weight:600">1.60 mm</text>
+<text x="427.1" y="778.65" class="lbl">the pad plate passes UNDER that head — widening it</text>
+<text x="427.1" y="794.65" class="lbl">can never bring the two together</text>
+<text x="500" y="948" class="s">Pad Ø20 was set on 2026-07-27 to keep the rim clear of those case-screw heads, back when the arm was taken to seat near the case face.</text>
+<text x="500" y="967" class="s">It seats on the disc, which stands 2.05 mm proud of the case (3.10 on the horn side) — so the arm passes under the heads entirely</text>
+<text x="500" y="986" class="s">and the radial limit never applied. The real limit is the washer’s bearing land, which Ø20 fails.</text>
+</svg>

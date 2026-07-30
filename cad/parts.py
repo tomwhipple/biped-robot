@@ -325,15 +325,17 @@ def leg_link(print_fins=False):
     # swept lobe, verified).
     p += box(web_x0, D.FORK_NARROW_X, iy0, iy1, -54, D.FORK_WIDE_Z)
     p += box(web_x0, D.FORK_NARROW_X, iy0, iy1, -92, -70)
-    # idler boss: OD tapered ~51 deg (Ø19 at the arm face -> Ø16 at the tip)
-    # so its print-underside band never exceeds 45 deg -- it used to need a
-    # break-away fin wedged 0.1 mm from the arm plate (unremovable, print
-    # feedback 2026-07-16). The OD is a loose locator (~3 mm radial slack in
-    # the Ø25 recess); concentricity comes from the screw pattern, so the
-    # taper costs nothing.
+    # idler boss: OD tapered so its print-underside band never exceeds 45 deg --
+    # it used to need a break-away fin wedged 0.1 mm from the arm plate
+    # (unremovable, print feedback 2026-07-16). The OD is a loose locator;
+    # concentricity comes from the screw pattern, so the taper costs nothing.
+    # The run is tied to the boss HEIGHT (2026-07-30) rather than the old fixed
+    # 1.5: when IDLER_BOSS_H shrank 1.2 -> 0.6 for the screw fit, a 1.5 run
+    # would have laid the taper back to 22 deg off horizontal -- a worse
+    # overhang than the ledge it was cut to avoid. Run == rise keeps it at 45.
+    _ibh = abs(D.IDLER_BOSS_H)
     p += Pos(0, (D.SV_IDLER_FACE + iy1) / 2, drop) * Rot(90, 0, 0) * Cone(
-        D.IDLER_BOSS_D / 2 - 1.5, D.IDLER_BOSS_D / 2,
-        abs(iy1 - D.SV_IDLER_FACE))
+        D.IDLER_BOSS_D / 2 - _ibh, D.IDLER_BOSS_D / 2, _ibh)
     # jog block joining horn grip plate (out at 19.75) to fork plate (21.45+)
     p += box(web_x0, 12, D.SV_TOPFACE, hy1, -36.5, -33)
     p += box(web_x0, 12, iy0, idler_seat, -36.5, -33)

@@ -85,12 +85,18 @@ def disc_screws_y():
     r = D.BCD / 2
     s = []
     for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
-        s.append(parts.cyl_y(1.5, hy1 - 6.0, hy1, dx, dz))
+        # HORN: M3x5, not the M3x6 the servo bundles. The horn disc is a thick
+        # hub inside a 2.5 mm FLANGE (bench 2026-07-30), and the bolt circle is
+        # out in the flange -- an M3x6 through the 3.0 plate drives 3.0 mm into
+        # a 2.5 mm hole.
+        s.append(parts.cyl_y(1.5, hy1 - 5.0, hy1, dx, dz))
         s.append(parts.cyl_y(D.M3_HEAD_D / 2, hy1, hy1 + D.M3_HEAD_H, dx, dz))
-        w0 = iy0 - D.M3_WASHER_T
-        s.append(parts.cyl_y(D.M3_WASHER_D / 2, w0, iy0, dx, dz))
-        s.append(parts.cyl_y(1.5, w0, w0 + 8.0, dx, dz))
-        s.append(parts.cyl_y(D.M3_HEAD_D / 2, w0 - D.M3_HEAD_H, w0, dx, dz))
+        # IDLER: the same screw, and NO WASHER. The old M3x8 + thin washer
+        # reached 3.30 mm into a 2.1 mm hole -- it bottomed out 1.20 mm early
+        # and never clamped. The washer was compensating for a screw that was
+        # too long for a hole shallower than anyone had measured.
+        s.append(parts.cyl_y(1.5, iy0, iy0 + D.DISC_SCREW_THREAD, dx, dz))
+        s.append(parts.cyl_y(D.M3_HEAD_D / 2, iy0 - D.M3_HEAD_H, iy0, dx, dz))
     return _fuse(s)
 
 
@@ -338,7 +344,7 @@ def disc_y_seats():
     s = []
     for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
         s.append((dx, hy1, dz, "y", +1, "btn3"))
-        s.append((dx, iy0, dz, "y", -1, "wsh3"))
+        s.append((dx, iy0, dz, "y", -1, "btn3"))   # was wsh3; the washer is gone
     return s
 
 
