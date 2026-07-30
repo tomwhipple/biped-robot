@@ -283,10 +283,18 @@ def leg_link(print_fins=False):
     # the tines can splay and twist about that web, worst at the pads 90 mm down.
     # This is a plate in the X-Y plane spanning tine to tine, which closes the U
     # into a box. It sits BELOW the cable window (z -48..-37) so it cannot foul
-    # the servo lead, and it starts at FORK_NARROW_X so it never enters the web's
-    # own x-band. Its z band is a constant: it is what gives if the next servo's
-    # sweep about the lower axis needs the room -- check_assembly is the arbiter.
-    p += box(D.FORK_NARROW_X, 12, D.IDLER_ARM_INNER, D.SV_HORN_FACE,
+    # the servo lead. It runs all the way back to the WEB (user, 2026-07-29):
+    # the first cut started at FORK_NARROW_X "to stay out of the web's x-band",
+    # which left its print-underside floating 2.3 mm over the web -- a 38 mm
+    # tine-to-tine bridge (the check_printability 202 mm2 LEDGE at print z 4.7).
+    # Rooted on the web it prints as a wall growing straight off the back plate,
+    # nothing to bridge. The x-band it now fills (web..FORK_NARROW_X, z -54..-50)
+    # is below the case bottom (-35.11) and off the raceway (outer web face), so
+    # it blocks nothing -- but it does bury the z -52 zip-tie bores, which are
+    # deleted below. Its z band is a constant: it is what gives if the next
+    # servo's sweep about the lower axis needs the room -- check_assembly is
+    # the arbiter.
+    p += box(web_x0, 12, D.IDLER_ARM_INNER, D.SV_HORN_FACE,
              D.BRACE_Z[0], D.BRACE_Z[1])
     # --- fork arms down to the next servo (wide near the web, narrow below).
     # The wide horn-side section starts at the web/grip edge (19.75), not the
@@ -440,11 +448,13 @@ def leg_link(print_fins=False):
     # oversized connector block. No notch needed; don't cut a hole in this
     # load-bearing fork plate speculatively. See check_assembly ankle-cable block.
     # --- zip-tie holes in the web (servo cable runs down the back); at +-9
-    # so the window keeps a >=2 mm ligament to each hole -- the -40 pair
-    # straddles the window and captures the cables right at the exit
-    for z in (-40, -52):
-        for ly in (9, -9):
-            p -= cyl_x(2.25, web_x0 - 1, web_x1 + 1, ly, z)
+    # so the window keeps a >=2 mm ligament to each hole. One pair only: it
+    # straddles the window and captures the cables right at the exit. The
+    # second pair at z -52 is GONE (user, 2026-07-29): the cross brace now
+    # fills the web's inner side across z -54..-50, so a tie could no longer
+    # loop through there -- the bores would just perforate the brace root.
+    for ly in (9, -9):
+        p -= cyl_x(2.25, web_x0 - 1, web_x1 + 1, ly, -40)
     # --- trim everything BELOW the lower joint axis back to the pad radius.
     # The slab filled to z -92 while the fork starts at the axis (z -90), so a
     # 2 mm lip hung below with four sharp vertical arrises at x -10.50 (y -21,

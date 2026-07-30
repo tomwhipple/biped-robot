@@ -448,8 +448,9 @@ WEB_GAP = 0.4
 WEB_TOP = -16.0         # clears the upper joint's fork arms folding to 95 deg
 BRACE_Z = (-54.0, -50.0)  # cross brace between the fork tines, in the X-Y
                         # plane (2026-07-29). Below the cable window (-48..-37)
-                        # so it cannot foul the servo lead, and inside
-                        # FORK_NARROW_X so it stays out of the web's x-band.
+                        # so it cannot foul the servo lead, and rooted on the
+                        # web (full depth to the back plate) so it prints as a
+                        # wall, not a 38 mm tine-to-tine bridge.
                         # Pull it UP if the next servo's sweep about the lower
                         # axis wants the room; check_assembly is the arbiter.
 WEB_END = -58.0         # web stops 32 above the lower axis: clears the foot
