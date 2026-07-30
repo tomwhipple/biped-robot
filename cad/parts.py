@@ -227,7 +227,7 @@ def yoke_roll(print_fins=False):
     zf0 = -D.ROLL_AXIS_TO_FLANGE                    # flange top
     zf1 = zf0 - D.YOKE_FLANGE_T                     # flange bottom
     hx0, hx1 = D.SV_HORN_FACE + D.HORN_BOSS_H, D.SV_HORN_FACE + D.HORN_BOSS_H + D.PLATE
-    ix1, ix0 = -19.95 - 1.0, -19.95 - 1.0 - D.PLATE  # idler plate (wall outer -19.95, 1 gap)
+    ix1, ix0 = D.ROLL_ARM_INNER, D.ROLL_ARM_INNER - D.PLATE  # (wall outer -19.95, 1 gap)
 
     p = box(-23.95, 24.45, -D.YOKE_FLANGE_Y / 2, D.YOKE_FLANGE_Y / 2, zf1, zf0)
     # horn arm: plate + boss through nothing (horn sits outside the bay wall)
@@ -236,6 +236,12 @@ def yoke_roll(print_fins=False):
     # idler arm: plate + long boss reaching through the bay-wall slot
     p += box(ix0, ix1, -12, 12, zf0, 0) + cyl_x(D.PAD_D / 2, ix0, ix1, 0, 0)
     p += cyl_x(D.IDLER_BOSS_D / 2, D.SV_IDLER_FACE, ix1, 0, 0)        # boss 4.15
+    # SINK the idler pad 2026-07-30 (user: "the yoke roll pad is too thick for
+    # our screws"). It was, by 1.55 mm of engagement -- see ROLL_* in
+    # dimensions.py for why this joint cannot reach the pitch side's 3.60 and
+    # takes an M3x8 into a sunk pad instead. Cut, not a thinner plate: the arm
+    # keeps its full 3.0 everywhere it carries bending.
+    p -= cyl_x(D.PAD_D / 2, ix0, ix0 + D.ROLL_IDLER_PAD_SINK, 0, 0)
     # holes: ONE bore per bolt-circle position, drilled from the idler-arm OUTER
     # face (ix0) clear through to past the horn plate (hx1). BUGFIX 2026-07-23:
     # this started at SV_IDLER_FACE-1 (the disc face), leaving the idler arm's

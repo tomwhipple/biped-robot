@@ -26,7 +26,7 @@ order also there.
 | 6 | PETG filament 1 kg | 1 | Bambu Lab PETG Translucent 1.75 mm 1 kg | $30.15 | $30.15 | [Amazon](https://www.amazon.com/dp/B0F68FKRWH) | With reusable spool. Refill-only (no spool): [B0FRQ9VX2K](https://www.amazon.com/dp/B0FRQ9VX2K) ($23.99). |
 | 7 | TPU filament 500 g | 1 | Geeetech TPU 1.75 mm 500 g Shore 95A | $15.99 | $15.99 | [Amazon](https://www.amazon.com/dp/B0DG8BZL6L) | Bambu TPU is 1 kg only ($42.99, [B0GG283YLZ](https://www.amazon.com/dp/B0GG283YLZ)). |
 | 8 | M3×6 button head screws | 32 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes M3×6/8/10/12/16/20/25/30 mm. |
-| 9 | M3×8 button head + M3 thin washers | 24 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes nuts & washers. |
+| 9 | M3×6 button head (idlers, no washer) 24 + M3×8 (hip-roll idler) 8 |  32 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes nuts & washers. |
 | 10 | M3×10 button head screws | 16 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes M3×6/8/10/12/16/20/25/30 mm. |
 | 11 | M3×8 self-tapping screws | 52 | 100 pc M3×8 mm Self-Tapping SS, Flat Head Hex | $8.28 | $8.28 | [Amazon](https://www.amazon.com/dp/B0F9XYX9BQ) | 100 pcs (52 needed). Includes drive bit. Alt: [520pc assortment](https://www.amazon.com/dp/B0BPM8J5F5) ($7.99). |
 | 12 | M3 heat-set inserts (Ø4.6×4–6 mm) | 12 | *Covered by KADRICK kit (item 15)* | — | — | — | Kit includes brass heat-set inserts. |
@@ -100,7 +100,10 @@ ability to choose the battery later. Buy 8 + 1–2 spares of the 12 V version.
 ## Open BOM Questions (from cad/README.md)
 
 - **Servo case thread**: M3 self-tap vs tap vs M4 — measure a real case.
-- **Idler screw length**: M3×8 + washer assumes 3.35 mm thread depth; confirm
+- **Idler screw length**: ~~M3×8 + washer assumes 3.35 mm thread depth~~
+  **RESOLVED 2026-07-30** — bench + vendor STEP: the bolt circle taps a 2.1 mm
+  flange, not the 3.35 mm body. Re-sized to M3×6 (M3×8 at the hip-roll idler),
+  no washers. Asserted in `cad/check_assembly.py`. Original note: confirm
   screws don't bottom against the gear.
 - **Driver board**: exact model + hole pattern (`BOARD_HOLES` in `dimensions.py`)
   — confirm component heights and battery clearance.

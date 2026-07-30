@@ -211,6 +211,32 @@ DISC_SCREW_THREAD = 5.6         # threaded length of the disc screw (bench,
 # STEP ran 0.1 proud of the calipers).
 HORN_THREAD = 2.5
 
+# --- HIP-ROLL IDLER: why this one joint does not use the 3.60 pitch stack.
+# Every other idler (pitch/knee/ankle) puts its arm plate straight onto the
+# disc: IDLER_ARM_INNER -17.40 + PLATE 3.0 = 3.60, engagement 2.00. The roll
+# idler cannot, because the yaw_carrier's REAR BAY WALL is in the way --
+# it spans x -19.95..-17.35 (2.60 thick) and carries the roll servo, so the
+# yoke arm has to live OUTBOARD of it. Budget from the disc face (-16.80):
+#     0.55  disc face -> wall inner (-17.35), clears the rotating disc
+#     2.60  bay wall
+#     1.00  running gap, arm plate sweeps past the wall
+#     3.00  arm plate
+#     ----
+#     7.15  stack -> engagement 5.6 - 7.15 = -1.55, the screw never arrives.
+# Even at ZERO running gap the stack floors at 6.15, so no amount of thinning
+# reaches 3.60. This joint takes a LONGER screw. Nominal M3x8 from the same
+# family as the bench-measured M3x6 (5.6 of 6.0) gives 7.60 of thread, and the
+# pad is SUNK so the head lands where that thread engages 1.80 of the 2.10 hole:
+#     stack 7.15 - 1.35 = 5.80,  engagement 7.60 - 5.80 = 1.80  OK
+# The sink is pure material removal from the arm's OUTER face, so it cannot
+# create an interference; the head land stays r 9.85 inside the O20 pad rim.
+# This replaces the M3x10 + THIN WASHER the BOM used to buy for this joint
+# (the washer was padding out a screw chosen against the disc's 3.35 body
+# rather than its 2.10 flange) -- 8 fewer washers, one fewer part number.
+ROLL_ARM_INNER = -19.95 - 1.0   # arm plate inner face: 1.0 clear of the wall
+ROLL_DISC_SCREW_THREAD = 7.6    # nominal M3x8, same 0.4 relief as the M3x6
+ROLL_IDLER_PAD_SINK = 1.35      # O PAD_D recess in the arm's outer face
+
 # ----------------------------------------------------------------------------
 # kinematic layout (matches sim/bimo_biped.xml)
 # ----------------------------------------------------------------------------

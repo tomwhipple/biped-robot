@@ -103,19 +103,22 @@ def disc_screws_y():
 # --------------------------------------------------------------- hip roll
 def disc_screws_x():
     """Hip-roll joint (axis == X at origin, yoke_roll frame): 4x M3x6 button
-    into the horn + 4x M3x10 button + washer into the idler disc through the
-    long boss."""
+    into the horn + 4x M3x8 button into the idler disc through the long boss.
+
+    The idler screw was M3x10 + THIN WASHER until 2026-07-30. That pair was
+    sized against the disc's 3.35 body instead of the 2.10 flange the O14 bolt
+    circle actually taps, and the washer was padding out the overshoot. The
+    pad is now sunk ROLL_IDLER_PAD_SINK so a plain M3x8 seats at 1.80 of
+    engagement -- no washer, and the head bears on solid pad."""
     hx1 = D.SV_HORN_FACE + D.HORN_BOSS_H + D.PLATE    # 24.45 horn pad outer
-    ix0 = -19.95 - 1.0 - D.PLATE                      # -23.95 idler pad outer
+    ix0 = D.ROLL_ARM_INNER - D.PLATE + D.ROLL_IDLER_PAD_SINK   # -22.60 sunk pad
     r = D.BCD / 2
     s = []
     for dy, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
         s.append(parts.cyl_x(1.5, hx1 - 6.0, hx1, dy, dz))
         s.append(parts.cyl_x(D.M3_HEAD_D / 2, hx1, hx1 + D.M3_HEAD_H, dy, dz))
-        w0 = ix0 - D.M3_WASHER_T
-        s.append(parts.cyl_x(D.M3_WASHER_D / 2, w0, ix0, dy, dz))
-        s.append(parts.cyl_x(1.5, w0, w0 + 10.0, dy, dz))
-        s.append(parts.cyl_x(D.M3_HEAD_D / 2, w0 - D.M3_HEAD_H, w0, dy, dz))
+        s.append(parts.cyl_x(1.5, ix0, ix0 + D.ROLL_DISC_SCREW_THREAD, dy, dz))
+        s.append(parts.cyl_x(D.M3_HEAD_D / 2, ix0 - D.M3_HEAD_H, ix0, dy, dz))
     return _fuse(s)
 
 

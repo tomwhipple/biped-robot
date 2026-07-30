@@ -47,7 +47,7 @@ settings in the [print list](../cad/PRINT_LIST.md)):
 | ------------- | --- | ----------------------------------------------------------------------------------------------------------- |
 | `pelvis`      | 1   | v3yaw: deck + two flat yaw-servo seats (no bays); print deck-top down                                       |
 | `yaw_carrier` | 2   | bolts to the yaw-servo horn, carries the hip-roll bay; horn-plate face on bed, bay walls rise — **slice `yaw_carrier_print.stl`** and snap the 3 break-away columns out of the cable window |
-| `yoke_roll`   | 2   | flange on bed                                                                                               |
+| `yoke_roll`   | 2   | **printed as a WALL, on edge** (2026-07-30, for arm strength) — **slice `yoke_roll_print.stl`** and snap off the 4 break-away fins |
 | `yoke_pitch`  | 2   | ⚠️ on hold (hip redesign)                                                                                   |
 | `leg_link`    | 4   | 2 thighs (⚠️ hold) + 2 shins — **slice `leg_link_print.stl`** and peel the 3 break-away fins after printing |
 | `foot`        | 2   | v3 (heel bulkhead), sole down                                                                               |
@@ -72,8 +72,9 @@ servo at mechanical zero** (see §1).
 | Fastener                                             | Qty                  | Threads into                                                                                                                                                                                                                                                              | Consumed in                                                                                                                |
 | ---------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | **M3×6** button head *(the servos' own horn screws)* | 40 used (40 bundled) | the servo's metal **horn disc** — M3 on the Ø14 bolt circle, **4× per horn everywhere** (the yaw horns went back to 4× after the 2026-07-24 connector correction — the "cable channel" the dropped rear bolt served aligned with nothing). Bundled with each ST3215 (10 × 4 = 40 on hand → 0 spares). | §5 (knee + ankle horns, 16), §6 (hip-pitch horn, 8), §7b (yaw carriers onto the yaw horns, 8), §8 (hip-roll horn, 8)       |
-| **M3×8** button head **+ thin washer**               | 24                   | the servo's free-spinning **idler disc** — same Ø14 circle; washer stops the tip short of the 3.35 mm thread. *(Pre-2026-07-23 prints: hand-drill the Ø3.4 idler holes through the arm — see Anatomy note.)*                            | §5 (knee + ankle idlers, 16), §6 (hip-pitch idler, 8)                                                                      |
-| **M3×10** button head                                | **20**               | three jobs: the hip-roll **idler disc** reached through the bay-wall slot by the long boss (8; pre-2026-07-23 prints need the idler holes drilled through, per §5); the **yoke_pitch flange heat-sets** that make the hip universal (8); and the **deck heat-sets** the tower feet pull down onto (4).             | §6 (flange → inserts, 8), §8 (roll idler, 8), §9c (tower feet → inserts, 4)                                                |
+| **M3×6** button head, **NO washer**                  | 24                   | the servo's free-spinning **idler disc** — same Ø14 circle. **Was M3×8 + thin washer**; see the disc-thread note below. *(Pre-2026-07-23 prints: hand-drill the Ø3.4 idler holes through the arm — see Anatomy note.)*                            | §5 (knee + ankle idlers, 16), §6 (hip-pitch idler, 8)                                                                      |
+| **M3×8** button head, **NO washer**                  | 8                    | the **hip-roll idler disc** only, reached through the bay-wall slot by the long boss. This joint is the one exception to the M3×6 above: the `yaw_carrier` rear bay wall sits between disc and yoke arm, so its stack cannot go below 6.15 mm and needs the longer screw into a **sunk pad** (2026-07-30). **Was M3×10 + washer.** *(Pre-2026-07-23 prints need the idler holes drilled through, per §5.)*             | §8 (roll idler, 8)                                                |
+| **M3×10** button head                                | **12**               | two jobs: the **yoke_pitch flange heat-sets** that make the hip universal (8), and the **deck heat-sets** the tower feet pull down onto (4).             | §6 (flange → inserts, 8), §9c (tower feet → inserts, 4)                                                |
 | **M2.5×8 FLAT-head self-tapping** *(countersunk, to buy)* | **32**          | printed Ø2.9 clearances into the **servo case holes** — heads sit **flush** in 90° countersinks. **BENCH TRUTH 2026-07-28: the case holes take M2.5, not the M3 previously listed** ("3 mm is too wide"). Flush is mandatory here: proud heads on the grip plates rode the sweeping yoke/fork arms and skewed the links.  | §3 (feet, 8), §4 (leg_link grips, 24)                                                                                      |
 | **M2.5×8 pan-head self-tapping** *(uxcell B01KXTTSCI, 50 on hand)* | 24     | printed Ø2.9 clearances into the **servo case holes**, where the head lives in free space or a counterbore (the 8 deck stators sink sub-flush — the battery sits on them).                                                                                                | §7a (yaw stators down through the deck, 8), §7c (roll servos into the carriers, 16)                                        |
 | **M3×12 self-tapping**                               | 4                    | Ø2.8 pilots in the **tower-top bosses**, through the `imu_carrier` + `gopro_base` stack (the M3×8 is too short with the 3 mm carrier added).                                                                                                                              | §11                                                                                                                        |
@@ -82,8 +83,28 @@ servo at mechanical zero** (see §1).
 | **M5×20 thumbscrew**                                 | 1                    | the GoPro three-prong clamp bore (or use the camera's own thumbscrew).                                                                                                                                                                                                    | §11                                                                                                                        |
 | servo spline/center screw                            | 10                   | each servo's output shaft — holds the metal horn on (bundled with the servo).                                                                                                                                                                                             | §1                                                                                                                         |
 
+> **Disc-screw lengths were re-derived 2026-07-30 — the old ones were sized
+> against the wrong number.** Bench-measured (user) and confirmed by sectioning
+> `cad/vendor/ST3215.step`: the idler disc is *not* a flat 3.35 mm slab. It is a
+> 3.1 mm hub inside a **2.1 mm flange**, and the Ø14 bolt circle taps the
+> **flange**. So every disc screw has 2.1 mm of thread to work with, and the
+> thin washers were padding out screws chosen against the 3.35 mm body. Washers
+> are gone (24 of them). `cad/check_assembly.py` is the authority and asserts
+> each engagement lands in 1.5–2.1 mm:
+>
+> | joint | screw | stack | engagement |
+> |---|---|---|---|
+> | horn discs (arm straight on the horn) | M3×5 | 3.00 | 2.00 |
+> | knee / ankle / hip-pitch idlers | M3×6 | 3.60 | 2.00 |
+> | hip-roll idler (sunk pad, past the bay wall) | M3×8 | 5.80 | 1.80 |
+>
+> **Still open:** the *horn*-side quantities in the table below have not been
+> re-counted against the M3×6 → M3×5 change (the hip-roll horn keeps M3×6 — its
+> 1.0 mm boss makes a 4.0 stack — and the yaw horns are unverified), so the "40
+> bundled → 0 spares" line is stale. Recount before ordering.
+
 Notes: the **40 M3×6 are the servos' included horn screws**; only the idler
-(M3×8+washer / M3×10), self-tapping, M2.5 and heat-set hardware is separately
+(M3×6 / M3×8) and the M3×10, self-tapping, M2.5 and heat-set hardware is separately
 sourced (the KADRICK M3 kit covers the machine screws, washers and inserts —
 [BOM](bom-sourced.md) items 8–15). Case self-tappers are **M2.5** (bench truth
 2026-07-28): 24 pan heads come from the uxcell B01KXTTSCI pack already on
@@ -102,7 +123,8 @@ Phillips for the M2.5 self-tappers.
 [hardware-order.md](hardware-order.md#verify-on-arrival-before-committing-plastic):
 ~~servo case holes really take M3 self-tappers~~ **RESOLVED 2026-07-28: they
 don't — the case holes take M2.5** (uxcell M2.5×8 driven on the bench); idler screws don't bottom
-(M3×8 + washer assumes the disc's 3.35 mm thread depth); driver-board holes
+(**RESOLVED 2026-07-30**: the flange is 2.1 mm, not 3.35 — screws re-sized,
+washers dropped; see the disc-screw note in the fastener table); driver-board holes
 match the tower (Ø2.75 on 58×23); GoPro fingers fit the 3.2 mm slots (print
 `gopro_base` alone first); the real battery passes the tower window.
 
@@ -201,7 +223,7 @@ holes on both faces**. Two different printed parts meet at each servo:
 
 > **Idler side is bolted too** (both faces). The idler disc has the same Ø14
 > four-bolt pattern, and the fork bolts to it for a two-sided, bearingless
-> joint: **4× M3×8 + thin washer** into the idler disc. *(Decided 2026-07-23:
+> joint: **4× M3×6, no washer** into the idler disc. *(Decided 2026-07-23:
 > through-holes are the design intent. `leg_link`/yoke prints made **before**
 > that date have the idler bolt-circle only relieved on the servo-facing side —
 > **hand-drill the Ø3.4 idler holes through the outer face** on those, or
@@ -239,8 +261,8 @@ bearings):
 1. **Horn side first**: **4× M3×6 into the horn** (Ø14 bolt circle) — use the
    servo's **own bundled M3×6**, with the servo at center and the limb at the
    CAD-neutral pose. Check the mechanical zero before moving on.
-2. **Idler side**: **4× M3×8 + thin washer** into the idler disc (same Ø14
-   circle; the washer stops the tip short of the gear behind the disc). *(Pre-
+2. **Idler side**: **4× M3×6, no washer** into the idler disc (same Ø14
+   circle) — 2.00 mm into the disc's 2.1 mm flange. *(Pre-
    2026-07-23 prints: drill the Ø3.4 idler holes through the arm's outer face
    first — see the Anatomy note.)* The printed Ø19 boss inside the Ø25 recess is a
    locator, not a precision seat — concentricity comes from the screw
@@ -257,7 +279,7 @@ servo), both legs.
 | ![yoke_pitch onto thigh servo](assembly/step04_yoke_pitch.png) | ![yoke_roll onto yoke_pitch](assembly/step05_yoke_roll.png) |
 
 1. `yoke_pitch` is a clevis over the hip-pitch (thigh) servo's horn + idler:
-   same pattern as §5 — **4× M3×6** (servo's own) horn side, **4× M3×8 + washer**
+   same pattern as §5 — **4× M3×6** (servo's own) horn side, **4× M3×6, no washer**
    idler side (pre-2026-07-23 prints need the idler holes drilled through, as
    in §5), horn first at mechanical zero.
 2. `yoke_roll` bolts on top of the `yoke_pitch` flange, **rotated 90°**
@@ -341,8 +363,10 @@ the yaw stack), clevis over the servo:
 - **Front**: yoke_roll horn arm to the roll-servo horn, **4× M3×6** (servo's
   own) — at mechanical zero, leg hanging straight.
 - **Rear**: the idler arm's long boss reaches through the bay's rear-wall slot
-  into the idler disc, **4× M3×10** (the extra length spans the long boss). Same
-  snug-at-zero, check-runout drill.
+  into the idler disc, **4× M3×8, no washer** (the extra length over the other
+  idlers spans the long boss). The heads seat in a **Ø20 pocket sunk 1.35 mm**
+  into the arm's outer face — that pocket is what brings the screw into thread,
+  so do not fill or file it. Same snug-at-zero, check-runout drill.
 
 ## 9. Electronics + tower
 

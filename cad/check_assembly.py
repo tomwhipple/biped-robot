@@ -337,22 +337,29 @@ def main():
     # at r 7.00, i.e. in the FLANGE. Everything the BOM specced for these holes
     # was sized against the 3.35 slab and drives straight through it.
     _pitch_stack = abs(D.IDLER_ARM_INNER - D.SV_IDLER_FACE) + D.PLATE   # 3.60
-    _roll_stack = abs(-19.95 - 1.0 - D.SV_IDLER_FACE) + D.PLATE         # 7.15
+    _roll_stack = (abs(D.ROLL_ARM_INNER - D.SV_IDLER_FACE) + D.PLATE
+                   - D.ROLL_IDLER_PAD_SINK)                             # 5.80
     ok &= engage("horn discs: M3x5 into the horn flange (was M3x6)",
                  5.0, D.PLATE, depth=D.HORN_THREAD)
     ok &= engage("pitch idlers: same screw, no washer (yoke_pitch + fork)",
                  D.DISC_SCREW_THREAD, _pitch_stack)
-    # yoke_roll is NOT fixed yet -- its long boss through the bay wall makes a
-    # 7.15 stack, which no stock screw suits (needs 8.65..9.25). Deferred with
-    # the rest of the hip work (user 2026-07-30: "let's get the foot and leg
-    # link finalized... then we can worry about the hip"). Reported, not asserted.
-    print(f"  {'roll idler: DEFERRED, stack ' + f'{_roll_stack:.2f}' + ' fits no stock screw':58s} "
-          f"{D.DISC_SCREW_THREAD - _roll_stack:8.2f} mm   ** hip TODO **")
+    # yoke_roll used to be DEFERRED at a 7.15 stack that fits no stock screw.
+    # FIXED 2026-07-30 (user: "the yoke roll pad is too thick for our screws"):
+    # the yaw_carrier bay wall floors this stack at 6.15 no matter how thin the
+    # arm gets, so it takes the longer M3x8 into a pad sunk 1.35. See the ROLL_*
+    # block in dimensions.py for the full budget.
+    ok &= engage("roll idler: M3x8 into a pad sunk 1.35 (was DEFERRED)",
+                 D.ROLL_DISC_SCREW_THREAD, _roll_stack)
     # ...and the head has to have something to pull against once it gets there.
     for _lbl, _part, _ax, _face, _sgn, _o in (
             ("yoke_pitch idler pad", yp, "y", D.IDLER_ARM_INNER - D.PLATE, -1, (0, 0)),
             ("leg_link fork idler pad", ll, "y", D.IDLER_ARM_INNER - D.PLATE, -1,
-             (0, -D.LINK_DROP))):
+             (0, -D.LINK_DROP)),
+            # the sunk roll pad: the head now lands 1.35 below the arm face, so
+            # prove it still has a full annulus of pad under it (r 9.85 vs the
+            # O20 rim) and is not hanging over the recess wall.
+            ("yoke_roll idler pad (sunk)", yr, "x",
+             D.ROLL_ARM_INNER - D.PLATE + D.ROLL_IDLER_PAD_SINK, -1, (0, 0))):
         _worst = max(unsupported(_part, _ax, _face, _sgn,
                                  (_o[0] + dx, _o[1] + dz), D.M3_HEAD_D)
                      for dx, dz in ((7, 0), (-7, 0), (0, 7), (0, -7)))
