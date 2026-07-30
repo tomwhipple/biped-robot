@@ -262,20 +262,22 @@ def leg_link(print_fins=False):
     p = box(web_x0, grip_x1, D.SV_TOPFACE, D.SV_TOPFACE + t, D.GRIP_BOT, D.GRIP_TOP_HORN)
     # relief around the O19.6 output boss / horn skirt (they spin vs this plate)
     p -= cyl_y(D.GRIP_HORN_RELIEF, D.SV_TOPFACE - 1, D.SV_TOPFACE + t + 1, 0, 0)
-    # idler grip plate and web run OUT to iy0 (-21), flush with the fork idler
-    # plate / jog block outer face -- the natural -20.35 (case face + PLATE)
-    # left a 0.65 step in the side silhouette at FORK_WIDE_Z for no reason
-    # (print-review feedback 2026-07-15). The extra 0.65 stays in the already-
-    # cleared swing band: same x-z footprint, and the y band -21..-18 overlap
-    # with the yoke idler hub/riser (r >= 16 floor) and the chained link's
-    # fork plate predates this (see yoke_pitch idler-arm comment).
     # idler grip plate: its inner face follows the REAL idler-side case face
     # (SV_IDLER_CASE_FACE, -14.75), not the mirrored SV_BOTFACE (-17.35). There
     # is no case material at -17.35 -- the plate used to clamp a 2.60 mm air
     # gap, which is what "the idler side does not conform" meant. Seating here
     # puts the plate on the same face the two grip screws pull into.
+    # Its OUTER face is GRIP_PLATE_T_IDLER off the seat (-17.90), NOT the old
+    # run-out to iy0 (-21): that flush-out (print-review 2026-07-15, killing a
+    # 0.65 step) plus the seat move made the wall 6.1 mm, and the grip screws
+    # suddenly needed M2.5x10. Pulled back so M2.5x8 works universally (user,
+    # 2026-07-30) -- head-to-case is now 3.15, an x8 bites ~4.9 mm of case,
+    # same class as the horn side's 5.6. The step vs the fork plate is back,
+    # but the jog block below already bridges it, exactly as on the horn side.
+    # The web still runs out to iy0; only the grip plate pulled in.
     idler_seat = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR          # -14.90
-    p += box(web_x0, grip_x1, iy0, idler_seat, D.GRIP_BOT, D.GRIP_TOP_IDLER)
+    _igo = idler_seat - D.GRIP_PLATE_T_IDLER                     # -17.90 outer
+    p += box(web_x0, grip_x1, _igo, idler_seat, D.GRIP_BOT, D.GRIP_TOP_IDLER)
     p += box(web_x0, web_x1, iy0, D.SV_TOPFACE + t, D.WEB_END, D.WEB_TOP)
     # CROSS BRACE between the fork tines (2026-07-29). The fork is a 38.45 mm
     # wide U -- the horn arm at y 20.45..23.45 and the idler arm at y -21..-18 --
@@ -415,9 +417,9 @@ def leg_link(print_fins=False):
                             D.SV_TOPFACE + t + 1, lx, -zrow, roll=90)
             p -= csk_y(lx, -zrow, D.SV_TOPFACE + t, +1)
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):   # idler face: row 32.75 only
-        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, iy0 - 1,
+        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, _igo - 1,
                         idler_seat + 1, lx, -D.CASE_HOLES_BOT[1], roll=90)
-        p -= csk_y(lx, -D.CASE_HOLES_BOT[1], iy0, -1)
+        p -= csk_y(lx, -D.CASE_HOLES_BOT[1], _igo, -1)
     # --- holes: lower joint pads
     # idler bolt circle drilled from the fork OUTER face (iy0) through to the
     # horn side -- BUGFIX 2026-07-23 (was SV_IDLER_FACE-1, leaving the idler fork
@@ -762,9 +764,9 @@ def foot():
     zp = D.FOOT_T - D.FOOT_POCKET_D                  # pocket floor, 4.0
     zr = D.FOOT_T                                    # gusset root = sole top, 6.0
     aL, aH = D.FOOT_WALL_GUSSET_AFT                  # aft buttress (heel side)
-    for s in (1, -1):
-        yb0, yb1 = s * py, s * (py + D.FOOT_WALL_T)  # tab Y band (2.4 thick)
-        p += box(wx0, wx1, yb0, yb1, zp, zp + D.FOOT_WALL_H)
+    # horn-side tab only here -- the idler tab is built at its SEAT face below
+    # (2026-07-30), since the idler side of the case is not the mirror of this
+    p += box(wx0, wx1, py, py + D.FOOT_WALL_T, zp, zp + D.FOOT_WALL_H)
     # bulkhead between the tab aft ends. Runs out to the tab OUTER faces, not
     # just the pocket width: stopping at +/-py made it die into the tabs' inner
     # faces, leaving each tab's outer 2.4 mm band tied only by the 2 mm aft
@@ -777,34 +779,38 @@ def foot():
     # face against them, sloped face up (support-free), ends at the heel edge
     p += wedge_y([(wx0, zr), (wx0 - aL, zr), (wx0, zr + aH)],
                  -(py + D.FOOT_WALL_T), py + D.FOOT_WALL_T)
-    # IDLER-SIDE SEAT BOSS on the rear tab (2026-07-29, user: the same servo-
-    # conformance treatment the leg_link grip plates got). The tab's inner
-    # face sat at -17.65 -- the MIRRORED pocket half-width -- but the idler
-    # side of the case is not a mirror of the horn side: the real case face
-    # is SV_IDLER_CASE_FACE (-14.75), so the two M2.5s at x -32.75 clamped
-    # ~2.8 mm of air (vendor-solid placement check in CAD, 2026-07-29; the
-    # leg_link's idler plate measured 2.60 mm of the same). Thicken the tab
-    # inward to the leg_link's idler_seat (-14.90 = face - GRIP_SEAT_CLR),
-    # tied back into the bulkhead, so the tab bears on the face the screws
-    # pull into.
+    # IDLER-SIDE tab, built at its SEAT face (2026-07-29, user: the same
+    # servo-conformance treatment the leg_link grip plates got). The old tab
+    # sat at -17.65 -- the MIRRORED pocket half-width -- but the idler side
+    # of the case is not a mirror of the horn side: the real case face is
+    # SV_IDLER_CASE_FACE (-14.75), so the two M2.5s at x -32.75 clamped
+    # ~2.8 mm of air (vendor-solid placement check in CAD; the leg_link's
+    # idler plate measured 2.60 mm of the same). The tab's inner face is the
+    # leg_link's idler_seat (-14.90 = face - GRIP_SEAT_CLR), and it keeps its
+    # ORIGINAL FOOT_WALL_T thickness measured off that seat (2026-07-30,
+    # user): the first cut kept the old -20.05 outer face too, which made the
+    # wall 5.15 mm and pushed the retention screws to M2.5x10. With the outer
+    # face at -17.30, head-to-case is 2.55 and an M2.5x8 bites ~5.4 mm of
+    # case -- 8 mm screws work universally. Pulling the wall in also gets it
+    # clear of the shin fork's idler-plate sweep band (y -18..-21) entirely.
     idler_seat = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR         # -14.90
-    p += box(bx1, wx1, -(py + D.FOOT_WALL_T), idler_seat,
-             zp, zp + D.FOOT_WALL_H)
+    _ito = idler_seat - D.FOOT_WALL_T                           # -17.30 outer
+    p += box(wx0, wx1, _ito, idler_seat, zp, zp + D.FOOT_WALL_H)
     # DETENT for the moulded back-cover PLATFORM (1.90 proud of the case
     # face, SV_IDLER_BOSS_*): its aft corner (foot x -29.51..-16.25,
-    # z 5.66..27.06) overlaps the boss's forward end, and it sits BETWEEN the
+    # z 5.66..27.06) overlaps the tab's forward end, and it sits BETWEEN the
     # screws and the seat, so it is relieved rather than seated on -- same
-    # rule as the leg_link. Shaped as a CHANNEL, open forward and out the
-    # top, NOT the leg_link's closed pocket: the servo drops into this pocket
-    # VERTICALLY, so the platform has to slide down past the boss on its way
-    # in -- a closed pocket would block assembly. Open top + all-vertical
-    # faces also means nothing overhangs printing sole-down: the support
-    # problem the leg_link detents needed ramps for is solved here by shape.
-    # Bearing lands: the aft band x -36.5..-29.91 (carrying both -32.75
-    # screws) and the sliver below the platform, z 4..5.26.
+    # rule as the leg_link. Shaped as a WINDOW, open forward, out the top,
+    # and THROUGH the wall, not the leg_link's closed pocket: the servo drops
+    # in vertically, so the platform has to slide down past the tab on its
+    # way in, and at 2.4 mm wall a closed relief would leave a 0.35 mm skin
+    # -- so there is none. Open top + all-vertical faces still means nothing
+    # overhangs printing sole-down. Bearing lands: the aft band
+    # x -40..-29.91 (carrying both -32.75 screws) and the sliver below the
+    # platform, z 4..5.26.
     _pz0 = D.ANKLE_AXIS_ABOVE_SOLE - D.SV_IDLER_BOSS_HW - D.RIB_RELIEF_CLR
     p -= box(D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR, wx1 + 0.1,
-             D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR, idler_seat + 0.01,
+             _ito - 0.1, idler_seat + 0.01,
              _pz0, zp + D.FOOT_WALL_H + 0.1)
     # NOTE horn side: the rib (1.13 proud, band x -34.26..-8.73) crosses the
     # +Y tab band too, and by the dims it should ride the tab face at 17.65
@@ -879,13 +885,11 @@ def foot():
         p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, py - 1, py + D.FOOT_WALL_T + 1,
                         -29.0, zp + zh)
         p -= csk_y(-29.0, zp + zh, py + D.FOOT_WALL_T, +1)
-        # idler row: the bore now runs on through the seat boss to the case
-        # face (it used to stop at the old tab face -17.65, which the boss
-        # has since filled). Head-to-case working length is unchanged --
-        # the boss fills what was clamped air -- so the same screws fit.
-        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, -py - D.FOOT_WALL_T - 1,
+        # idler row: countersunk in the relocated tab's outer face (-17.30),
+        # bore straight through to the seat -- M2.5x8, like everywhere else
+        p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, _ito - 1,
                         idler_seat + 1, -32.75, zp + zh)
-        p -= csk_y(-32.75, zp + zh, -py - D.FOOT_WALL_T, -1)
+        p -= csk_y(-32.75, zp + zh, _ito, -1)
     # driver-access DIVOTS for the LOW retention row (z = zp+2.11 = 6.11, at the
     # sole top): the sole shelf outboard of the tabs blocks the head + Y-driver
     # (user report / probe 2026-07-23). Relieve the shelf TOP over each low screw

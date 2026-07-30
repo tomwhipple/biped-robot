@@ -374,6 +374,15 @@ WIRE_PLUG_W = 9.0           # ST3215 JST housing width (assemble connector-first
 # ----------------------------------------------------------------------------
 LINK_DROP = 90.0        # == THIGH == SHIN
 GRIP_PLATE_T = 2.4
+GRIP_PLATE_T_IDLER = 3.0    # idler grip plate, measured off its SEAT face
+                        # (idler_seat, -14.90). 2026-07-30, user: the seat
+                        # move had left the old -21 outer face in place, so
+                        # the wall grew to 6.1 mm and the grip screws needed
+                        # M2.5x10 -- pull the outer face in so M2.5x8 works
+                        # everywhere. Not GRIP_PLATE_T (2.4): the platform
+                        # relief pocket is 2.05 deep and must keep ~0.95 mm
+                        # of skin behind it, the same class as the 0.97 the
+                        # horn rib pocket leaves.
 GRIP_TOP_HORN = -3.0    # top edge of horn-side grip plate (below upper axis);
 GRIP_HORN_RELIEF = 10.3 # ...with a circular relief around the O19.6 case boss
 # Rib detent in the horn-side grip plate (see leg_link). Depth clearance is what

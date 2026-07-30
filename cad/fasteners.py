@@ -63,11 +63,13 @@ def leg_link_screws():
         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
             s.append(parts.cyl_y(1.25, seat - 8.0, seat - 0.9, lx, -zrow))
             s.append(_flat_head_y(lx, -zrow, seat, +1))
-    iy0 = D.IDLER_ARM_INNER - D.PLATE                 # -21 idler plate outer
+    # idler grip plate outer face: GRIP_PLATE_T_IDLER off the seat (-17.90),
+    # pulled in 2026-07-30 so the same M2.5x8 works here too (was -21 / x10)
+    igo = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - D.GRIP_PLATE_T_IDLER
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-        s.append(parts.cyl_y(1.25, iy0 + 0.9, iy0 + 8.0,
+        s.append(parts.cyl_y(1.25, igo + 0.9, igo + 8.0,
                              lx, -D.CASE_HOLES_BOT[1]))
-        s.append(_flat_head_y(lx, -D.CASE_HOLES_BOT[1], iy0, -1))
+        s.append(_flat_head_y(lx, -D.CASE_HOLES_BOT[1], igo, -1))
     return _fuse(s)
 
 
@@ -182,13 +184,16 @@ def foot_screws():
     blade at ankle -40 (audit 2026-07-28)."""
     py = D.SV_TOPFACE + D.FIT                         # 17.65 pocket half width
     zp = D.FOOT_T - D.FOOT_POCKET_D                   # 4.0 pocket floor
-    fo = py + D.FOOT_WALL_T                           # 20.05 tab outer face
+    fo = py + D.FOOT_WALL_T                           # 20.05 horn tab outer
+    # idler tab outer face: FOOT_WALL_T off the seat (-17.30), pulled in
+    # 2026-07-30 so the same M2.5x8 works here too (was -20.05 clamping air)
+    ito = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - D.FOOT_WALL_T
     s = []
     for zh in (2.11, 22.61):
         s.append(parts.cyl_y(1.25, fo - 8.0, fo - 0.9, -29.0, zp + zh))
         s.append(_flat_head_y(-29.0, zp + zh, fo, +1))
-        s.append(parts.cyl_y(1.25, -fo + 0.9, -fo + 8.0, -32.75, zp + zh))
-        s.append(_flat_head_y(-32.75, zp + zh, -fo, -1))
+        s.append(parts.cyl_y(1.25, ito + 0.9, ito + 8.0, -32.75, zp + zh))
+        s.append(_flat_head_y(-32.75, zp + zh, ito, -1))
     return _fuse(s)
 
 
