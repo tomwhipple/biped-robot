@@ -923,9 +923,22 @@ def foot():
     # flexible and will route around the boss. Plug the connector BEFORE the foot
     # goes on; there is no room to work it in afterwards.
     fb = -D.FOOT_FRONT_BOSS_X
+    # Each side seats on ITS OWN case face -- the servo is not symmetric about
+    # the output axis, and this boss used to be mirrored (+/-py) as if it were.
+    # BENCH 2026-07-30 (user, on the placed vendor solid): "the highlighted screw
+    # attachment point is not flush with the servo body". It was not: the +Y boss
+    # sat 0.30 off the horn face (the FIT clearance, correct), but the -Y boss sat
+    # at -17.65 against a case face at -14.75 -- 2.90 mm of air, so its screw
+    # clamped nothing and the boss could not pull up against the case. Same defect
+    # class as the leg_link idler grip plate (2.60 mm) and the yaw_carrier rear
+    # wall. The rear idler tab above was re-seated on 2026-07-29; this one was
+    # missed because it is built in a mirrored loop.
+    _fb_faces = {1: (py, py + D.FOOT_WALL_T),          # horn: seat 17.65
+                 -1: (idler_seat, _ito)}               # idler: seat -14.90
     for s in (1, -1):
+        _fin, _fout = _fb_faces[s]
         p += box(fb - D.FOOT_FRONT_BOSS_HW, fb + D.FOOT_FRONT_BOSS_HW,
-                 s * py, s * (py + D.FOOT_WALL_T),
+                 min(_fin, _fout), max(_fin, _fout),
                  D.FOOT_PAD_RELIEF_Z, D.FOOT_FRONT_BOSS_TOP)
     # ...and carve its inner corner back to follow the ROTOR. The horn disc
     # sweeps O19.2 about the ankle axis from y 18.35 out, so any boss material
@@ -936,11 +949,11 @@ def foot():
                -(py + D.FOOT_WALL_T + 0.01), py + D.FOOT_WALL_T + 0.01,
                0, D.ANKLE_Z - D.TPU_PROUD)
     for s in (1, -1):
+        _fin, _fout = _fb_faces[s]
         p -= teardrop_y(D.CASE_SCREW_CLEAR / 2,
-                        s * (py - 1) if s > 0 else s * (py + D.FOOT_WALL_T + 1),
-                        s * (py + D.FOOT_WALL_T + 1) if s > 0 else s * (py - 1),
+                        min(_fin, _fout) - 1, max(_fin, _fout) + 1,
                         fb, zp + 2.11)
-        p -= csk_y(fb, zp + 2.11, s * (py + D.FOOT_WALL_T), s)
+        p -= csk_y(fb, zp + 2.11, _fout, s)
     # retention screw holes: horn face row 29.0 (+Y), idler face row 32.75 (-Y);
     # M2.5 FLAT-head self-tap (bench truth 2026-07-28: the case holes take
     # M2.5, not M3); teardropped (horizontal bores printed sole-down, peak +z).
@@ -982,13 +995,13 @@ def foot():
     # the -32.75 low countersink. Same class of miss as the buried grip
     # countersinks (a4ce69e), and now caught by check_assembly's screw
     # insertion-path sweep (33.3 mm3 before this line was fixed).
-    # Each entry carries its OWN head-seat face, because they are no longer all
-    # at +/-(py + FOOT_WALL_T): the rear idler tab seats at _ito (-17.30) while
-    # the two front bosses still stand at +/-20.05.
+    # Each entry carries its OWN head-seat face, because they are not all at
+    # +/-(py + FOOT_WALL_T): everything on the IDLER side seats at _ito (-17.30),
+    # the rear tab since 2026-07-29 and the front boss since 2026-07-30.
     for xh, yface in ((-29.0, py + D.FOOT_WALL_T),
                       (-32.75, _ito),
                       (-D.FOOT_FRONT_BOSS_X, py + D.FOOT_WALL_T),
-                      (-D.FOOT_FRONT_BOSS_X, -(py + D.FOOT_WALL_T))):
+                      (-D.FOOT_FRONT_BOSS_X, _ito)):
         ysgn = 1 if yface > 0 else -1
         yedge = ysgn * (D.FOOT_W / 2 + 1)            # just past the sole edge
         p -= cyl_y(D.FOOT_DIVOT_R, min(yface, yedge), max(yface, yedge),
