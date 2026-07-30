@@ -783,3 +783,30 @@ absolute world x/y, nonsense under mosaic spawns; made spawn-relative
 ground at essentially flat-ground pace. turn_180 dipped 8/8 -> 5/8
 (partial training; watch the continuation). Continuation queued for the
 22:00 window (finish the step budget at terrain throughput).
+
+## Day 9 cont. (2026-07-30): SIL harness live — and it caught the referee
+
+The software-in-the-loop harness (user request; design docs/sil-harness.md,
+built by two opus subagents, integrated same day) runs the REAL firmware
+control stack — obs assembler, history ring, gait clock, MLP with exported
+weights, calibration/tick conversion, bus-ID permutation — against the CPU
+referee plant, scored by the standard scenarios. Everything green; policy
+through firmware inference matches brax at 6.6e-7; closed loop within one
+seed of the python referee.
+
+**Day-one catch: the referee itself had an obs-stacking bug.** The eval
+Driver fed [f_t, f_t, f_{t-1}] (duplicated head frame + redrawn IMU noise)
+instead of the training stacking. Fixed; both current policies
+re-refereed. Shifts are BOTH directions (the old path was a different
+distribution, not a handicap): v6creep 72/88 with line_rough 8/8 — the
+flat-trained creep policy already walks 0-20 mm bumps clean — and
+v7knee 69/88 with flat line_1m dropping to 3/8 and turn_180 3/8: the
+partial knee/terrain policy trades flat precision for its terrain
+skills. v7knee_b (tonight) gets to argue the trade back. Historical
+scorecards predate the fix and carry that caveat.
+
+Also open (SIL finding #2): 8 obs channels have frozen normalizer std
+(~1e-6); cmd[3] crouch is frozen at 1.0 but battguard RAMPS it on a
+sagging pack — five orders out of distribution at the worst moment.
+Next training recipe should vary the crouch command (ties into task #16
+encoder-realism work).
