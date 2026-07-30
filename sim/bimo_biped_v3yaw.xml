@@ -195,7 +195,7 @@
         <geom type="box" pos="0.0013 0 -0.0285" size="0.01605 0.01236 0.02261" group="1" rgba="0.22 0.23 0.27 1" mass="0"/>
       <body name="L_hip" pos="0 0 -0.041">
         <joint name="L_hip_roll" axis="1 0 0" range="-25 25"/>
-        <inertial pos="-0.0009 0.0006 -0.0216" quat="0.9133 -0.1368 -0.2629 0.2792" mass="0.0296" diaginertia="1.0998e-05 1.1565e-05 1.0447e-05"/>
+        <inertial pos="-0.0005 0.0006 -0.0220" quat="0.9503 -0.2086 0.0257 0.2299" mass="0.0296" diaginertia="1.0758e-05 1.1227e-05 1.0507e-05"/>
         <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1" group="3"/>
         <geom class="cad" mesh="yoke_roll"/>
         <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
@@ -275,7 +275,7 @@
         <geom type="box" pos="0.0013 0 -0.0285" size="0.01605 0.01236 0.02261" group="1" rgba="0.22 0.23 0.27 1" mass="0"/>
       <body name="R_hip" pos="0 0 -0.041">
         <joint name="R_hip_roll" axis="1 0 0" range="-25 25"/>
-        <inertial pos="-0.0009 0.0006 -0.0216" quat="0.9133 -0.1368 -0.2629 0.2792" mass="0.0296" diaginertia="1.0998e-05 1.1565e-05 1.0447e-05"/>
+        <inertial pos="-0.0005 0.0006 -0.0220" quat="0.9503 -0.2086 0.0257 0.2299" mass="0.0296" diaginertia="1.0758e-05 1.1227e-05 1.0507e-05"/>
         <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1" group="3"/>
         <geom class="cad" mesh="yoke_roll"/>
         <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
