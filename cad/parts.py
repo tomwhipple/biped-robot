@@ -420,6 +420,17 @@ def leg_link(print_fins=False):
         p -= teardrop_y(D.CASE_SCREW_CLEAR / 2, _igo - 1,
                         idler_seat + 1, lx, -D.CASE_HOLES_BOT[1], roll=90)
         p -= csk_y(lx, -D.CASE_HOLES_BOT[1], _igo, -1)
+        # head/driver ACCESS counterbore (2026-07-30, user: "screw holes on
+        # the highlighted surface are blocked"). The jog block and the fork
+        # wide plate still run out to iy0 (-21), 3.1 mm proud of the head
+        # seat now that the grip plate pulled back to _igo -- and their top
+        # edges (z -33) cut across the row-32.75 head circle (csk mouth
+        # bottoms at z -35.45). The lower half of each countersink was
+        # buried, so the screw could neither be inserted nor driven square.
+        # Only this row: the horn rows (8.30/29.00) stay >= 1.3 mm clear of
+        # the -33 edge. Teardropped like the bores (peak +x = print-up).
+        p -= teardrop_y(D.CASE_CS_D / 2 + 0.4, iy0 - 1, _igo + 0.05,
+                        lx, -D.CASE_HOLES_BOT[1], roll=90)
     # --- holes: lower joint pads
     # idler bolt circle drilled from the fork OUTER face (iy0) through to the
     # horn side -- BUGFIX 2026-07-23 (was SV_IDLER_FACE-1, leaving the idler fork
