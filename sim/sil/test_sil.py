@@ -483,6 +483,11 @@ def test_referee_driver_feeds_training_stacking(nominal_env):
     assert abs(fed["obs"][fd - nc] - 0.1) < 1e-6
 
 
+@pytest.mark.xfail(
+    reason="loco_v6creep predates the corrected foot (8c5ac8d/f58a412) and "
+           "no longer stands 250 ticks on the current plant; re-point "
+           "SIL_RUN at the first corrected-plant policy (loco_v8foot) "
+           "when it lands (2026-07-31)", strict=False)
 def test_lib_dropout_holds_target(lib, hw_env):
     """PYRAMID ITEM 4: three consecutive skipped ticks (simulated overrun)
     must hold the last commanded target and must not drop the robot."""
@@ -513,6 +518,11 @@ def test_lib_dropout_holds_target(lib, hw_env):
         np.testing.assert_array_equal(r["action"], ref)
 
 
+@pytest.mark.xfail(
+    reason="loco_v6creep predates the corrected foot (8c5ac8d/f58a412) and "
+           "no longer stands 250 ticks on the current plant; re-point "
+           "SIL_RUN at the first corrected-plant policy (loco_v8foot) "
+           "when it lands (2026-07-31)", strict=False)
 def test_lib_survives_perturbed_calibration(cal_files, nominal_env):
     """The calibration must be a pure change of coordinates: with the SAME
     perturbed zeros on both sides of the boundary the robot still stands.

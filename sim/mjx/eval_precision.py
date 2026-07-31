@@ -24,10 +24,16 @@ has no such pose estimate; closing that odometry gap on hardware is a known open
 item, so these two scenarios grade the GAIT/turning controller, not a shippable
 navigation stack.
 
+`--sil` swaps the python policy for the REAL firmware control stack
+(sim/sil/harness.py -> libctrl_sil): the same scenarios, seeds and plant, but
+every tick goes sim -> calibrated servo ticks -> firmware obs assembler / gait
+clock / MLP -> goal ticks -> sim.  Results land in scorecard_sil.{md,json} and
+NEVER overwrite the python-path scorecard (see docs/sil-harness.md).
+
 Run:
   JAX_PLATFORMS=cpu .venv/bin/python sim/mjx/eval_precision.py \
       --run-name mjx_prec_v1 [--episodes 8] [--nominal] [--render] \
-      [--scenarios balance_L,line_1m,...]
+      [--sil] [--scenarios balance_L,line_1m,...]
 """
 import argparse
 import inspect
@@ -35,6 +41,7 @@ import json
 import math
 import os
 import pickle
+import subprocess
 import sys
 
 import numpy as np
@@ -43,6 +50,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 RUNS = os.path.join(HERE, "..", "runs")
 DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v2_asbuilt.xml")
+ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+SIL_DIR = os.path.join(ROOT, "sim", "sil")
 
 import jax
 from brax.training.acme import running_statistics
@@ -120,6 +129,98 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None):
     kw.update(push_kick=False, push_force=5.0 if not nominal else 0.0,
               push_prob=0.01 if not nominal else 0.0)
     return BimoWalkerEnv(**kw)
+
+
+# =====================================================================
+#  SIL referee column (--sil): the real firmware stack in the act() slot
+# =====================================================================
+def _run(cmd, what, cwd=None, env=None):
+    """Run a prerequisite build/export step; die loudly rather than half-run."""
+    print(f"[sil] {what}: {' '.join(cmd)}")
+    e = dict(os.environ)
+    e.setdefault("JAX_PLATFORMS", "cpu")
+    if env:
+        e.update(env)
+    p = subprocess.run(cmd, cwd=cwd, env=e, text=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if p.returncode != 0:
+        tail = "\n".join((p.stdout or "").strip().splitlines()[-25:])
+        raise SystemExit(
+            f"[sil] {what} FAILED (exit {p.returncode}).  The SIL referee "
+            f"cannot run; no scorecard_sil written.\n--- last output ---\n"
+            f"{tail}")
+    return p.stdout or ""
+
+
+def sil_setup(run_name, run_dir, verbose=True):
+    """Import the SIL harness with its prerequisites satisfied.
+
+    (a) libctrl_sil missing        -> `make -C firmware/host sil`
+    (b) <run>.silw missing/stale   -> tools/export_policy_weights.py --run <run>
+    (c) cal/cal_nominal.json missing -> harness.write_cal_files()
+
+    Returns (harness_module, SilLib, info_dict).  Any failure is a SystemExit
+    with the build/export output attached -- never a partially-run referee."""
+    if SIL_DIR not in sys.path:
+        sys.path.insert(0, SIL_DIR)
+    try:
+        import harness as H                                   # noqa: E402
+    except Exception as e:                                    # pragma: no cover
+        raise SystemExit(f"[sil] cannot import sim/sil/harness.py: {e}")
+
+    # (a) the shared library -------------------------------------------
+    lib_path = H.find_lib()
+    if lib_path is None:
+        _run(["make", "-C", os.path.join(ROOT, "firmware", "host"), "sil"],
+             "building libctrl_sil")
+        lib_path = H.find_lib()
+        if lib_path is None:
+            raise SystemExit(
+                "[sil] `make -C firmware/host sil` reported success but no "
+                f"libctrl_sil landed in {', '.join(H.LIB_DIRS)} "
+                "(set $SIL_LIB to point at it)")
+
+    # (b) the exported weights ------------------------------------------
+    weights = H.default_weights(run_name)
+    params = os.path.join(run_dir, "params.pkl")
+    if not os.path.exists(params):
+        raise SystemExit(f"[sil] {params} missing -- nothing to export")
+    stale = (not os.path.exists(weights)
+             or os.path.getmtime(weights) < os.path.getmtime(params))
+    if stale:
+        why = "missing" if not os.path.exists(weights) else "older than params.pkl"
+        if verbose:
+            print(f"[sil] {os.path.basename(weights)} {why} -- exporting")
+        # --no-golden on purpose: sim/sil/golden/*.json are COMMITTED vectors
+        # for the harness's reference run (and the firmware ctests consume
+        # them).  A referee pass must not silently re-point them at whatever
+        # run it is scoring.
+        _run([sys.executable,
+              os.path.join(ROOT, "tools", "export_policy_weights.py"),
+              "--run", run_name, "--no-golden"],
+             f"exporting {run_name} weights", cwd=ROOT)
+        if not os.path.exists(weights):
+            raise SystemExit(f"[sil] export produced no {weights}")
+
+    # (c) the nominal calibration ---------------------------------------
+    cal_path = os.path.join(H.CAL_DIR, "cal_nominal.json")
+    if not os.path.exists(cal_path):
+        H.write_cal_files()
+
+    lib = H.SilLib(lib_path, weights, cal_path, gait_hz=H.DEFAULT_GAIT_HZ)
+    info = dict(lib=os.path.relpath(lib_path, ROOT),
+                weights=os.path.relpath(weights, ROOT),
+                cal=os.path.relpath(cal_path, ROOT),
+                gait_hz=lib.gait_hz, spec=lib.spec_string(),
+                in_order=lib.in_order, out_order=lib.out_order,
+                vel_sign_magnitude=bool(lib.vel_sign_magnitude))
+    if verbose:
+        print(f"[sil] lib {info['lib']}  weights {info['weights']}  "
+              f"cal {info['cal']}")
+        print(f"[sil] spec {info['spec']}")
+        print(f"[sil] probe: in={info['in_order']} out={info['out_order']} "
+              f"vel_sign_magnitude={info['vel_sign_magnitude']}")
+    return H, lib, info
 
 
 # =====================================================================
@@ -1023,7 +1124,12 @@ def main():
     p.add_argument("--render", action="store_true")
     p.add_argument("--scenarios", default=None,
                    help="comma list filter (e.g. balance_L,line_1m)")
+    p.add_argument("--sil", action="store_true",
+                   help="route every tick through the REAL firmware stack "
+                        "(libctrl_sil); writes scorecard_sil.{md,json}")
     args = p.parse_args()
+    suffix = "_sil" if args.sil else ""
+    stack = "SIL (firmware stack)" if args.sil else "python policy"
 
     run_dir = os.path.join(RUNS, args.run_name)
     with open(os.path.join(run_dir, "config.json")) as f:
@@ -1061,11 +1167,29 @@ def main():
     act_size = get_env(12.0).action_space.shape[0]
     mass = float(get_env(12.0).model.body_mass.sum())
     N = float(get_env(12.0)._nominal_h)
-    act = load_policy(run_dir, obs_size, act_size)
+
+    # act(obs) -> action.  Either brax's policy, or -- with --sil -- the
+    # firmware's own obs assembler + gait clock + MLP + calibration, driven
+    # through the C ABI.  Everything downstream (scenarios, seeds, scoring)
+    # is identical, which is what makes the two columns comparable.
+    sil_info = None
+    if args.sil:
+        H, sil_lib, sil_info = sil_setup(args.run_name, run_dir)
+        act = None
+
+        def act_for(env):
+            # one adapter per episode: it owns the library's history ring and
+            # gait clock, and resets both in begin_episode()
+            return H.SilActAdapter(sil_lib, env, log=False)
+    else:
+        act = load_policy(run_dir, obs_size, act_size)
+
+        def act_for(env):
+            return act
 
     cond = "nominal (no DR)" if args.nominal else \
         "hardware-claim (GoPro 154 g, 4 ms latency, 0.7 deg backlash, DR, IMU obs)"
-    print(f"CPU precision referee: {args.run_name}  [{cond}]  "
+    print(f"CPU precision referee: {args.run_name}  [{stack}]  [{cond}]  "
           f"{args.episodes} seeds/scenario, plant {os.path.basename(xml)}\n")
 
     scorecard = {}
@@ -1079,7 +1203,7 @@ def main():
     for name in names:
         secs, factory, is_loco = reg[name]
         env = get_env(secs, name)
-        results = [run_one(env, act, factory, seed=100 * i + 7,
+        results = [run_one(env, act_for(env), factory, seed=100 * i + 7,
                            record=(args.render and i == 0), N=N, mass=mass)
                    for i in range(args.episodes)]
         succ = sum(r["success"] for r in results)
@@ -1122,7 +1246,7 @@ def main():
             frames = results[0]["frames"]
             if frames:
                 import imageio
-                gif = os.path.join(run_dir, f"prec_{name}.gif")
+                gif = os.path.join(run_dir, f"prec_{name}{suffix}.gif")
                 imageio.mimsave(gif, frames, fps=20)
                 print(f"  render -> {gif}")
 
@@ -1133,7 +1257,8 @@ def main():
         return float(a.mean()) if a.size else None
 
     summary = dict(
-        conditions=cond, episodes=args.episodes, plant=os.path.basename(xml),
+        conditions=cond, claim=stack, stack=("sil" if args.sil else "python"),
+        episodes=args.episodes, plant=os.path.basename(xml),
         scenarios_run=len(names),
         scenarios_all_pass=scen_all_pass,
         seed_pass=f"{tot_succ}/{tot_runs}",
@@ -1145,16 +1270,26 @@ def main():
         cot_locomotion=_m(loco_shared["cot"]),
         symmetry_locomotion=_m(loco_shared["symmetry"]),
     )
+    if sil_info:
+        summary["sil"] = sil_info
     scorecard["summary"] = summary
 
-    with open(os.path.join(run_dir, "scorecard.json"), "w") as f:
+    json_path = os.path.join(run_dir, f"scorecard{suffix}.json")
+    with open(json_path, "w") as f:
         json.dump(scorecard, f, indent=2)
 
     # --- human table ---
     lines = []
-    lines.append(f"# Precision scorecard - {args.run_name}")
-    lines.append(f"_{cond}; {args.episodes} seeds/scenario; "
-                 f"plant {os.path.basename(xml)}_")
+    lines.append(f"# Precision scorecard - {args.run_name} [{stack}]")
+    lines.append(f"_claim: **{stack}**; {cond}; {args.episodes} "
+                 f"seeds/scenario; plant {os.path.basename(xml)}_")
+    if sil_info:
+        lines.append("")
+        lines.append(f"_every tick assembled, normalized and inferred by the "
+                     f"firmware's own code: `{sil_info['lib']}`, weights "
+                     f"`{sil_info['weights']}`, calibration "
+                     f"`{sil_info['cal']}`, gait clock "
+                     f"{sil_info['gait_hz']:.2f} Hz. See docs/sil-harness.md._")
     lines.append("")
     lines.append(f"| {'scenario':14s} | pass | {'headline':18s} | wobble | watts |")
     lines.append(f"|{'-'*16}|------|{'-'*20}|--------|-------|")
@@ -1175,9 +1310,12 @@ def main():
         overall += f"; gait asym {sym*100:.0f}%"
     lines.append(overall)
     md = "\n".join(lines) + "\n"
-    with open(os.path.join(run_dir, "scorecard.md"), "w") as f:
+    md_path = os.path.join(run_dir, f"scorecard{suffix}.md")
+    with open(md_path, "w") as f:
         f.write(md)
     print(md)
+    print(f"wrote {os.path.relpath(md_path, ROOT)} and "
+          f"{os.path.relpath(json_path, ROOT)}")
 
 
 if __name__ == "__main__":

@@ -116,25 +116,70 @@ random zeros in `2048 ± 350`.
 
 ---
 
+## The standing referee column (`--sil`)
+
+Since 2026-07-31 the SIL stack is scored on **every** collected run, not only
+in this suite:
+
+```sh
+cd sim/mjx && JAX_PLATFORMS=cpu ../../.venv/bin/python \
+    eval_precision.py --run-name <run> --sil     # -> scorecard_sil.{md,json}
+```
+
+`--sil` puts `SilActAdapter` in the referee's `act()` slot (one adapter per
+episode) and builds/exports whatever is missing first: `make -C firmware/host
+sil` for the library, `tools/export_policy_weights.py --run <run> --no-golden`
+when `weights/<run>.silw` is absent or older than the run's `params.pkl`.
+`--no-golden` matters: `golden/*.json` are committed vectors for *this*
+suite's reference run and the firmware ctests consume them — a referee pass
+must not re-point them at whatever run it is scoring. `infra/night_collect.sh`
+runs the leg after the python referee and prints both paths, skipping loudly
+(never fatally) if the toolchain is missing. Details: `docs/sil-harness.md`.
+
+---
+
 ## Results — SIL vs python referee
 
-**TODO (integrator):** rebuild both sides, run
-`JAX_PLATFORMS=cpu .venv/bin/pytest sim/sil -q -s`, and fill this in from the
-printed lines.
+Same seeds (`100*i + 7`), same scenarios, same hardware-claim plant; the only
+difference is who computes the action.
+
+**`loco_v7knee_b`, 8 seeds, plant `bimo_biped_v3yaw.xml` (2026-07-31):**
 
 | scenario | seeds | python referee | SIL stack | Δ |
 |---|---|---|---|---|
-| `stand_10s` | | | | |
-| `line_1m` | | | | |
-| `goal_home` | | | | |
+| `stand_10s` | 8 | 0/8 | 0/8 | 0 |
+| `line_1m` | 8 | 0/8 | 0/8 | 0 |
+| `goal_home` | 8 | 1/8 | 1/8 | 0 |
 
-| divergence (per tick, `stand`/`walk`, clocks aligned) | value |
+The absolute rates are floor-level because that run trained on a plant
+(`_trainplant_v7kb.xml`) that is not the current one — what the table shows is
+**agreement**, which is the whole claim of the column. Across the full
+11-scenario loco family the two columns are 12/88 vs 11/88, every scenario
+within one seed except `turn_180` (4/8 vs 2/8), whose two gates
+(`head_err ≤ 15°`, `excursion ≤ 0.30 m`) both sit inside the seed-to-seed
+spread on this plant — the python column's *worst* excursion is 0.299 m.
+
+| divergence (per tick, `stand_10s` + `line_1m`, 3 seeds, closed loop) | value |
 |---|---|
-| obs `q` / `dq` block | |
-| obs `up` / `gyro` / `cmd` | |
-| obs history ring | |
-| firmware net vs brax, same obs (`net_err`) | |
-| firmware action vs brax on training-stacked obs | |
+| obs `q` block | 2.1e-3 … 1.2e-2 rad (½ tick = 7.7e-4, plus joint-limit clamping under 0.7° backlash) |
+| obs `dq` block | 7.7e-4 rad/s (= ½ tick) |
+| obs `up` / `gyro` / `cmd` / `linvel` / `height` | **0.0** |
+| obs `prev_action` | 8.8e-3 (½ tick in action units — the knee's span is the tightest) |
+| obs `phase` | free-running (the closed loop does not pin the clock, by design) |
+| firmware net vs brax, same obs (`net_err`) | **6.6e-7** |
+
+`net_err` is the number that says the export and the firmware inference are
+right; everything else is the boundary doing its job.
+
+**`loco_v6creep` (this suite's reference run), 8 seeds, same plant:** 0/8 vs
+0/8 on all three closed-loop scenarios — agreement holds, but the same plant
+change flattened the reference policy too. Two robustness tests
+(`test_lib_dropout_holds_target`, `test_lib_survives_perturbed_calibration`)
+went red with commit `8c5ac8d` ("stand the v3yaw plant on the CAD pad"): they
+assert `loco_v6creep` stays upright for 250 ticks, and on the new pad it does
+not. Bisected — green at `8c5ac8d~1`, red at `8c5ac8d`; nothing in the SIL
+path changed. Either re-point `SIL_RUN` at a policy trained on the current
+plant or relax those two to a boundary assertion.
 
 <details>
 <summary>Development reference (2026-07-30, first green run — not the official table)</summary>

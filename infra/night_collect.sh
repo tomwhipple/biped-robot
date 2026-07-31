@@ -20,6 +20,26 @@ for ST in $STS; do
   ssh mira "mv -f '$ST' 'code/robot-mjx/night/state.collected.$OUT'"
   ( cd "$REPO/sim/mjx" && JAX_PLATFORMS=cpu "$REPO/.venv/bin/python" \
       eval_precision.py --run-name "$OUT" )
-  echo "SCORECARD: sim/runs/$OUT/scorecard.md"
+  # SIL referee: the SAME run scored through the real firmware C++ control
+  # stack (docs/sil-harness.md).  Standing column, but never fatal: a laptop
+  # without a compiler, or a broken sil build, must not lose the night's
+  # collection.  eval_precision --sil builds/export as needed and refuses to
+  # half-run, so a non-zero exit here means "no SIL number", not "bad number".
+  SIL_OK=0
+  ( cd "$REPO/sim/mjx" && JAX_PLATFORMS=cpu "$REPO/.venv/bin/python" \
+      eval_precision.py --run-name "$OUT" --sil ) && SIL_OK=1 || true
+  echo "SCORECARD: sim/runs/$OUT/scorecard.md   [python policy]"
+  if [[ "$SIL_OK" == 1 ]]; then
+    echo "SCORECARD: sim/runs/$OUT/scorecard_sil.md   [SIL (firmware stack)]"
+  else
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "!!! SIL REFEREE SKIPPED for $OUT -- toolchain or build failure."
+    echo "!!! Only the python-path scorecard exists; the firmware stack is"
+    echo "!!! UNVERIFIED for this run.  Retry:"
+    echo "!!!   make -C firmware/host sil"
+    echo "!!!   cd sim/mjx && JAX_PLATFORMS=cpu ../../.venv/bin/python \\"
+    echo "!!!       eval_precision.py --run-name $OUT --sil"
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  fi
 done
 ssh mira 'pgrep -f "train_mjx[.]py" >/dev/null && echo "NOTE: a run is still ACTIVE on mira -- collect again later"' || true

@@ -143,6 +143,52 @@ only -- the CPU env is the deployment referee by project convention).
   within the one-seed budget; per-tick divergence at tick-quantization
   scale (4.9e-3) once the referee bug below was fixed.
 
+## Standing referee column (2026-07-31)
+
+The SIL stack is no longer an on-demand pytest suite: **every collected
+training run is scored through it**, next to the python column.
+
+```sh
+cd sim/mjx && JAX_PLATFORMS=cpu ../../.venv/bin/python \
+    eval_precision.py --run-name <run> --sil
+```
+
+- `--sil` swaps the brax policy in the referee's `act()` slot for
+  `SilActAdapter` (one adapter per episode, so the library's history ring and
+  gait clock reset with the env) over `libctrl_sil` + the run's exported
+  weights + `sim/sil/cal/cal_nominal.json`. Scenarios, seeds
+  (`100*i + 7`), plant and scoring are byte-identical to the python column;
+  the only difference is who computes the action.
+- Prerequisites are handled automatically and never half-run: a missing
+  library triggers `make -C firmware/host sil`; a missing or `params.pkl`-stale
+  `sim/sil/weights/<run>.silw` triggers `tools/export_policy_weights.py --run
+  <run> --no-golden` (`--no-golden` on purpose — `sim/sil/golden/*.json` are
+  committed vectors for the harness's reference run and the firmware ctests
+  consume them). Any failure is a `SystemExit` carrying the build/export
+  output; no scorecard is written.
+- Output is `scorecard_sil.md` / `scorecard_sil.json` in the run dir, headed
+  `[SIL (firmware stack)]` with the library, weights, calibration and gait
+  frequency named, plus `summary.claim` / `summary.sil` in the JSON. The
+  python-path `scorecard.md` is **never** touched. `--render` gifs get the
+  same `_sil` suffix.
+- `infra/night_collect.sh` runs the SIL leg after the python leg for every
+  collected run and prints both scorecard paths. A missing compiler or a
+  broken build prints a loud `SIL REFEREE SKIPPED` banner with the retry
+  command and collection continues — the night's data is never lost to the
+  SIL leg.
+- The closed loop deliberately does **not** pin the gait clock (see
+  `sim/sil/README.md`): on hardware the firmware runs its own 1.5 Hz clock
+  while the episode starts wherever it starts, and the referee grades the
+  outcome. Per-tick parity with the clocks aligned is what
+  `pytest sim/sil -q` covers.
+
+Validation (`loco_v7knee_b`, hardware-claim plant `bimo_biped_v3yaw.xml`,
+8 seeds, both columns): `stand_10s` 0/8 vs 0/8, `line_1m` 0/8 vs 0/8,
+`goal_home` 1/8 vs 1/8 — Δ = 0 seeds everywhere. Absolute rates are poor
+because that run trained on a different plant; what the column proves is that
+the firmware stack reproduces the python referee's verdict. Firmware MLP vs
+brax on the same obs: 6.6e-7. See the README's results table.
+
 ## Findings the harness paid for on day one
 
 1. **Referee obs-stacking bug (FIXED)**: eval_precision.Driver re-read
