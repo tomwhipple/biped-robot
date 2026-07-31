@@ -84,11 +84,8 @@ robot + ~$74 filament + $219 printer ≈ **$620–670 all-in from zero**.
 1. **Servo case holes**: tapped M3 or needs M4? (vendor STEP shows Ø3.5 —
    community self-taps M3; `cad/dimensions.py` parameterizes this).
 2. ~~**Idler screw depth**: M3×8 + washer assumed; confirm no bottoming.~~
-   **RESOLVED 2026-07-30**: the Ø14 circle taps a 2.1 mm flange. M3×6, no
-   washer. **2026-07-31**: the hip-roll idler's M3×8 exception is gone too —
-   a Ø6.2 × 1.90 head counterbore in the sunk pad brings its stack to 3.90 so
-   the ordinary M3×6 engages 1.70. **Nothing but M3×6 goes into an idler
-   disc now.** See assembly.md.
+   **RESOLVED 2026-07-30**: the Ø14 circle taps a 2.1 mm flange. M3×6 no washer
+   (M3×8 at the hip-roll idler, into a sunk pad). See assembly.md.
 3. ~~**Driver board holes** vs the CAD's 58 × 24 mm guess → then print tower.~~ **Closed 2026-07-27**: the board test-fits the printed tower, all four screws land. `BOARD_HOLES = (58.0, 23.0)` confirmed.
 4. **GoPro finger fit**: print `gopro_base` alone first (~20 min) and test the
    3.2 mm slots against the MAX's fingers (`GP_SLOT = 3.5` fallback).

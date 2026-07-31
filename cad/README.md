@@ -170,8 +170,8 @@ legs are translations, not mirrors.
 | 3S 850 mAh XT30 pack (2-pack) | 2 | BOM pick Tattu 45C, 60 × 30 × 22 mm, 76 g. Bay envelope `BATT` = 68 × 31 × 26.5 is a superset of the 3S 850 field (see `docs/bom-by-vendor.md` fit table); mocks/inertia model the worst case `BATT_PACK` = 62 × 30 × 25, 80 g. Taller pack → edit `BATT` + reprint tower |
 | 20 mm hook-loop strap ~250 mm + pull ribbon | 1 | battery belt (rides in the tower guide ribs) + extraction tab under the pack |
 | M3×6 button head | 32 | horn pads (4 per joint × 8) — servo kits include some |
-| M3×6 button head, no washer | 32 | **every** idler pad — hip-pitch, knee, ankle (4 × 6) *and* hip-roll (4 × 2). The roll arm reaches the disc through a sunk + counterbored pad, not a longer screw (2026-07-31). Was M3×8 + washer / M3×10. |
-| M3×10 button head | 8 | hip flange bolts (4 × 2) |
+| M3×8 button head + M3 thin washer | 24 | idler pads at hip-pitch, knee, ankle (4 × 6 joints); washer stops the tip short of the gears |
+| M3×10 button head | 16 | yoke_roll idler arms (4 × 2, through the long boss) + hip flange bolts (4 × 2) |
 | M3×8 self-tapping (or machine after M3-tapping the case) | 48 | case grips: 6 per leg_link (24), 8 per pelvis bay (16), 4 per foot (8) |
 | M3 heat-set insert (Ø4.6 × 4–6) | 12 | 4 per yoke_pitch flange (8) + 4 in the pelvis deck for the tower |
 | M3×12 self-tapping | 4 | gopro_base + imu_carrier stack down into the tower-top bosses |
@@ -220,7 +220,7 @@ regenerate after any CAD change). Condensed order:
 3. **Leg links** (×4): slide onto a servo case from below (horn-side plate has a
    circular relief that clears the output boss), 6× M3 into the case holes.
 4. **Knees/ankles**: offer the link fork to the next servo: 4× M3×6 into the horn
-   (+Y side), 4× M3×6 into the idler disc (−Y side). Do horn side first,
+   (+Y side), 4× M3×8+washer into the idler disc (−Y side). Do horn side first,
    check the mechanical zero, then the idler side.
 5. **Hips**: press heat-set inserts into the yoke_pitch flanges; bolt yoke_pitch
    to the thigh-servo horn/idler; bolt yoke_roll on top (rotated 90°, 4× M3×10).
@@ -247,12 +247,8 @@ regenerate after any CAD change). Condensed order:
 ## Open questions
 
 - **Servo case thread**: M3 self-tap vs tap vs M4 (see BOM note). Measure a real case.
-- ~~**Idler screw length**~~ SETTLED. The Ø14 bolt circle taps the disc's
-  **2.10 mm flange**, not its 3.35 mm body (bench + vendor STEP, 2026-07-30).
-  Every idler is now a plain M3×6, no washer; the hip-roll arm gets there via a
-  sunk + counterbored pad (2026-07-31). `check_assembly.py` gates it. Note this
-  file's fastener table still carries other pre-2026-07-28 counts — **`docs/assembly.md`
-  §0 is the authoritative BOM.**
+- **Idler screw length**: M3×8 + washer assumes the disc's 3.35 mm thread depth;
+  confirm screws don't bottom against the gear behind the disc.
 - **Driver board**: exact model + hole pattern (`BOARD_HOLES`) — it now hangs
   inside the tower; confirm its component heights (< ~4 mm toward the battery).
   That 4 mm assumption is what sets the 3.5 mm clearance to a 26.5 mm pack
