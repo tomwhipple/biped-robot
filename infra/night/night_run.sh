@@ -111,9 +111,11 @@ wait_gpu() {   # 0 = free; 1 = start deadline passed while waiting
   done
 }
 
-for JOB in $(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort); do
+# re-scan the queue after every job (not a startup snapshot): jobs armed
+# while an earlier run trains are picked up the same night (2026-07-31)
+while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -n "$JOB" ]]; do
   JF="$N/queue/$JOB"
-  [[ -f "$JF" ]] || continue
+  [[ -f "$JF" ]] || break   # vanished mid-scan; a continue would spin forever
   if (( $(date +%s) > START_DEADLINE )); then
     echo "no starts after 05:00; $JOB stays queued for tomorrow"
     break
