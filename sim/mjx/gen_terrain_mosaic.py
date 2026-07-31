@@ -1,8 +1,11 @@
 """Generate the shared terrain mosaic both envs load (sim/terrain_mosaic.npz).
 
 A single static heightfield of 1 m x 1 m tiles, each with a roughness
-amplitude drawn from {0, 2, 5, 10, 15, 20} mm and a feature size drawn
-from 0.10-0.20 m (carpet pile .. door-threshold scale). Per-episode
+amplitude drawn from {3, 5, 8, 12, 16, 20} mm and a feature size drawn
+from 0.10-0.20 m (carpet pile .. door-threshold scale). NO smooth tiles
+(user 2026-07-31: "drop the smooth as that's not realistic") -- every
+tile has at least carpet-scale texture; ideal flat ground exists only in
+the flat referee scenarios, not in training. Per-episode
 terrain variation comes from the SPAWN DRAW, not from regenerating the
 field: each episode starts at a random (x, y) on the mosaic, so the
 policy sees a different local roughness every episode while the model
@@ -27,7 +30,7 @@ OUT = os.path.join(HERE, "..", "terrain_mosaic.npz")
 NROW, NCOL = 300, 600            # y, x
 RX, RY, CX = 6.0, 3.0, 4.5       # field spans x -1.5..10.5, y -3..3
 CELL = 2 * RX / (NCOL - 1)       # ~2 cm
-AMPS_MM = [0, 2, 5, 10, 15, 20]
+AMPS_MM = [3, 5, 8, 12, 16, 20]   # rough-only since 2026-07-31 (was 0..20)
 TILE = 1.0                       # tile edge, m
 
 
