@@ -25,6 +25,24 @@ fi
 echo "=== $(date) night_run ==="
 PY="$BASE/.venv/bin/python"
 [[ -x "$PY" ]] || { echo "!!! no venv python at $PY"; exit 1; }
+
+# $BASE is a git clone (converted 2026-07-31 after the stale-plant
+# incident: rsync's hand-curated file list silently missed the v3yaw XML
+# for two days). Every job trains on a freshly pulled committed tree; a
+# queue file's optional BRANCH= line selects a branch for one-off
+# experiments (default main). This runner copy lives OUTSIDE the tree
+# (night/ is untracked) so a reset can never rewrite it mid-run.
+sync_repo() {   # $1 = branch; leaves the tree at that branch's origin tip
+  local BR=$1
+  if git -C "$BASE" fetch -q --filter=blob:none origin "$BR"; then
+    git -C "$BASE" reset -q --hard FETCH_HEAD
+    echo "$(date +%H:%M) repo @ $BR $(git -C "$BASE" rev-parse --short HEAD)"
+  else
+    echo "$(date +%H:%M) !!! fetch $BR failed; training on existing tree" \
+         "@ $(git -C "$BASE" rev-parse --short HEAD)"
+  fi
+}
+sync_repo main
 mkdir -p "$N/queue" "$N/queue/done" "$BASE/sim/runs"
 # legacy single-args file becomes the first queue item
 [[ -f "$N/args" ]] && mv "$N/args" "$N/queue/00-legacy"
@@ -68,7 +86,9 @@ wait_gpu() {   # 0 = free; 1 = start deadline passed while waiting
            --format=csv,noheader,nounits | head -1 | tr -d ',')
     read -r UTIL USED TOTAL <<<"$LINE"
     FREE=$((TOTAL - USED))
-    if (( UTIL < 20 && FREE >= 10000 )); then
+    # FREE gate 11500 not 10000: two v8 launches OOM'd (cuSolver) racing
+    # ollama's migrate-back at ~10.5 GB free (2026-07-30)
+    if (( UTIL < 20 && FREE >= 11500 )); then
       echo "$(date +%H:%M) gpu free (util=${UTIL}% free=${FREE}MiB)"
       return 0
     fi
@@ -81,7 +101,9 @@ wait_gpu() {   # 0 = free; 1 = start deadline passed while waiting
         ollama stop "$M" 2>/dev/null || true
       done < <(ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}')
       IDLE_STREAK=0
-      sleep 30
+      # recheck fast: a 30 s sleep here lost the race to a 3am vision
+      # workload reloading llama3.2-vision onto the freed GPU (2026-07-30)
+      sleep 5
       continue
     fi
     echo "$(date +%H:%M) gpu busy (util=${UTIL}% free=${FREE}MiB); retry in 10 m"
@@ -100,7 +122,9 @@ for JOB in $(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort); do
     echo "gpu never freed before 05:00; $JOB stays queued"
     break
   fi
-  ARGS=$(cat "$JF")
+  BR=$(sed -n 's/^BRANCH=//p' "$JF" | head -1)
+  sync_repo "${BR:-main}"
+  ARGS=$(grep -v '^BRANCH=' "$JF")
   OUT=$(grep -oE '(--out)[= ][^ ]+' <<<"$ARGS" | awk -F'[= ]' '{print $2}')
   OUT=${OUT:-mjx_cmd_v1}
   REQ=$(grep -oE '(--steps)[= ][0-9]+' <<<"$ARGS" | grep -oE '[0-9]+$' || true)
@@ -119,6 +143,8 @@ for JOB in $(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort); do
     > "$BASE/sim/runs/train.log" 2>&1 < /dev/null &
   PID=$!
   { echo "PID=$PID"; echo "OUT=$OUT"; echo "STARTED=$(date +%s)"
+    echo "SHA=$(git -C "$BASE" rev-parse HEAD)"
+    echo "BRANCH=${BR:-main}"
     echo "ARGS=$ARGS"; } > "$N/state"
   echo "$(date +%H:%M) launched $JOB pid=$PID out=$OUT"
   # babysit this job until it finishes or the 06:55 guard (night_stop's
@@ -134,4 +160,6 @@ for JOB in $(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort); do
   mv -f "$N/state" "$N/state.done.$OUT"
   restore_ollama
 done
+# leave the tree on main so a branch job never strands the clone
+[[ -n "${BR:-}" && "${BR:-main}" != main ]] && sync_repo main
 echo "$(date) night_run loop done"

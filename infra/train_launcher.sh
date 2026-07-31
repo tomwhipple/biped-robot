@@ -164,20 +164,28 @@ run_mira() {
   echo ">>> using remote python: $pybin"
 
   if [[ $DRY_RUN -eq 1 ]]; then
-    echo "--- [dry-run] would rsync to mira:~/code/robot-mjx/ (relative layout):"
-    echo "    sim/mjx sim/walker_env.py sim/bimo_biped_v2.xml sim/bimo_biped_v2_asbuilt.xml cad/stl"
+    echo "--- [dry-run] would update the mira clone: git fetch + reset --hard origin/main"
     echo "--- [dry-run] would launch on mira:"
     echo "    cd ~/code/robot-mjx/sim/mjx && XLA_PYTHON_CLIENT_MEM_FRACTION=0.90 nohup $pybin train_mjx.py $TRAIN_ARGS_STR > ~/code/robot-mjx/sim/runs/train.log 2>&1 < /dev/null &"
     echo "--- [dry-run] would write $LAST_TRAIN with HOST=mira, PID=<pid>, OUT=$OUT, PYBIN=$pybin"
     return 0
   fi
 
-  echo "=== syncing code to mira:~/code/robot-mjx/ ==="
-  ( cd "$REPO" && rsync -aq -R \
-      -e "ssh -o ConnectTimeout=8 -o BatchMode=yes" \
-      sim/mjx sim/walker_env.py sim/bimo_biped_v2.xml sim/bimo_biped_v2_asbuilt.xml cad/stl \
-      "mira:$MIRA_REMOTE/" \
-      --rsync-path="mkdir -p $MIRA_REMOTE && rsync" )
+  echo "=== updating mira clone to origin/main (2026-07-31: git pull model, ==="
+  echo "=== see infra/night_arm.sh -- uncommitted local changes do NOT train) ==="
+  if [[ -n "$(git -C "$REPO" status --porcelain --untracked-files=no -- sim)" ]]; then
+    echo ">>> WARNING: uncommitted sim/ changes will NOT be trained (commit+push first)"
+  fi
+  local sync_out
+  sync_out=$(ssh_t 60 -o ConnectTimeout=8 -o BatchMode=yes mira "
+    git -C $MIRA_REMOTE fetch -q --filter=blob:none origin main && \
+    git -C $MIRA_REMOTE reset -q --hard origin/main && \
+    echo SYNCED_SHA=\$(git -C $MIRA_REMOTE rev-parse --short HEAD)
+  ")
+  if [[ "$sync_out" != *SYNCED_SHA=* ]]; then
+    echo "!!! mira clone update failed:"; echo "$sync_out"; return 1
+  fi
+  echo ">>> mira tree @ ${sync_out#*SYNCED_SHA=}"
 
   echo "=== launching training on mira: $TRAIN_ARGS_STR ==="
   local launch_out pid

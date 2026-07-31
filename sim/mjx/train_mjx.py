@@ -17,6 +17,7 @@ import functools
 import json
 import os
 import pickle
+import subprocess
 import time
 
 import jax
@@ -369,6 +370,20 @@ def main():
             # the basename against the local sim/ directory
             cfg["xml_path"] = os.path.basename(cfg["xml_path"])
         cfg.update(train=vars(args))
+        # provenance: which committed tree trained this run (the 07-31
+        # stale-plant incident took an md5 bisect to answer exactly this)
+        try:
+            here = os.path.dirname(os.path.abspath(__file__))
+            sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=here, text=True,
+                capture_output=True, timeout=10).stdout.strip() or None
+            dirty = bool(subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=no"],
+                cwd=here, text=True, capture_output=True,
+                timeout=10).stdout.strip())
+        except Exception:
+            sha, dirty = None, None
+        cfg.update(git_sha=sha, git_dirty=dirty)
         json.dump(cfg, f, indent=2)
     log_path = os.path.join(out, "progress.jsonl")
     t0 = time.time()
