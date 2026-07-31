@@ -151,59 +151,34 @@ def bcd_x(x0, x1, y, z, roll=0):
 
 
 # ---------------------------------------------------------------- yoke_roll
-FOOT_H = 1.0            # flared-foot height on a break-away fin
-FOOT_E = 2.0            # ...and how far it splays each side
+# MODELLED SUPPORT FINS DELETED 2026-07-30 (user: "none of the supports break
+# away or are done very well ... it's actually pretty terrible"). Both yokes
+# now print with SLICER supports -- see the yoke_roll docstring. What was
+# measured wrong with the hand-modelled version before deleting it:
+#
+#   - The anchor tabs ran from `lo - 0.3`, i.e. 0.3 mm BELOW the bed plane, so
+#     the TABS became the lowest geometry and the flange -- the actual bed
+#     adhesion -- floated. First layer was 26 mm2 (roll) / 36 mm2 (pitch) of
+#     disconnected 2x3 stamps instead of the flange's 194 / 175 mm2: 14 % and
+#     21 % of what the part alone would give. The flared feet added FOR bed
+#     area sat 0.30 mm up, touching nothing.
+#   - Every foot splayed 2.00 mm PAST the part's own silhouette.
+#   - The pad-rim fins were flat-topped blocks under a CYLINDRICAL pad: contact
+#     on one tangent line, gap opening to 3.20 mm over 7 mm of run.
+#   - Each tab fused 0.3 mm INTO the part across 2x3 mm -- a weld, not a
+#     break-away contact.
+#
+# The root cause is worth keeping: those tabs existed to stop
+# check_printability calling the plate a BEAM, and the full-width walls to stop
+# it calling them an ISLAND. The geometry was shaped to satisfy the audit --
+# which has no concept of "a support sits 0.35 mm under this" -- rather than
+# the printer.
 
 
-def _fin_wall(w0, w1, axis, base, under, r0, r1, tab=2.0, pitch=11.0):
-    """Break-away support wall for the WALL-orientation yoke prints.
-
-    Stands on the bed (`base`) and stops FIN_GAP short of the face it holds up
-    (`under`), running `r0`..`r1` along the part and spanning `w0`..`w1` across
-    it. `axis` is the model axis the wall grows along -- "x" for yoke_roll
-    (printed -Y down, so the wall grows in y) and "y" for yoke_pitch (-X down,
-    grows in x); it runs in z either way.
-
-    Two details, both learned from the audit rejecting thinner attempts:
-
-    - The wall is as WIDE as the face it supports, not FIN_T thin. The audit
-      rays down from the PERIMETER of an overhanging face, so a 1.2 mm blade
-      under a 3 mm plate leaves that perimeter over open air and the plate is
-      still an ISLAND. A slicer's own support would be full width here too.
-    - Every `pitch` mm it closes the gap for `tab` mm, overlapping 0.3 into the
-      part so the union is unambiguous. Without those anchors the audit reads
-      the supported plate as a strip held only at its two ends -- a 26 mm BEAM
-      on yoke_pitch, past the 20 mm PETG limit -- because it has no concept of
-      "a support sits 0.35 mm under this". Contact is 2 x 3 mm per tab; they
-      snap with fingers, like leg_link's pad stubs.
-    """
-    def blk(lo, hi, a, b, e=0.0):
-        return (box(w0 - e, w1 + e, lo, hi, a, b) if axis == "x"
-                else box(lo, hi, w0 - e, w1 + e, a, b))
-    lo, hi = min(base, under), max(base, under)
-    up = under > base
-    wall = blk(lo, hi - D.FIN_GAP, r0, r1) if up else blk(lo + D.FIN_GAP, hi, r0, r1)
-    # Flared foot. A tall thin wall standing on its own edge gives the bed very
-    # little to hold: yoke_pitch is 32 mm tall and was landing 383 mm2, under
-    # check_printability's CONTACT floor (25% of footprint), i.e. a part that
-    # peels or tips mid-print. Splaying the first FOOT_H of each fin buys bed
-    # area for almost no material and snaps off with the rest. leg_link's pad
-    # stubs do the same thing ("a 1.2 mm wall needs the bed area").
-    wall += (blk(lo, lo + FOOT_H, r0, r1, FOOT_E) if up
-             else blk(hi - FOOT_H, hi, r0, r1, FOOT_E))
-    n = max(1, int((r1 - r0) // pitch))
-    for i in range(n + 1):
-        c = r0 + (r1 - r0) * (i / n)
-        a, b = max(r0, c - tab / 2), min(r1, c + tab / 2)
-        if b - a > 1e-6:
-            wall += blk(lo - 0.3, hi + 0.3, a, b) if up else blk(lo - 0.3, hi + 0.3, a, b)
-    return wall
-
-
-def yoke_roll(print_fins=False):
+def yoke_roll():
     """Hip-roll clevis. Local frame: roll axis == X axis through origin.
     +X = robot forward = servo horn side. Flange faces down (mates yoke_pitch).
-    Print: WALL -- on edge, model -Y on the bed, from yoke_roll_print.stl. Qty 2.
+    Print: WALL -- on edge, model -Y on the bed, WITH SLICER SUPPORTS. Qty 2.
 
     FIXED 2026-07-30 (user: print them "as a wall for strength"). It used to
     print flange-down with the arms rising as vertical columns, so the layer
@@ -219,10 +194,15 @@ def yoke_roll(print_fins=False):
     it adds to the idler screw stack and undoes the engagement fix (see
     IDLER_ARM_INNER), and it would not have addressed the actual failure plane.
 
-    print_fins=True adds the break-away walls the orientation needs: on edge
-    the arm plates and the -x pad-boss rim start in mid-air (check_printability
-    ISLAND). Snap them off after printing; the plain STL that sim, assembly
-    checks and renders use never has them.
+    SUPPORTS ARE THE SLICER'S JOB (2026-07-30). On edge, the arm plates and the
+    pad rims start in mid-air, so this needs support -- but the modelled fins
+    that used to live here were worse than none: they put their anchor tabs
+    0.3 mm BELOW the bed and left the flange, the only real bed adhesion,
+    floating on 14 % of its footprint. See the block above _fin_wall's grave.
+
+    Turn supports on in the slicer instead: they follow the cylindrical pad
+    undersides, keep a proper interface gap, and are built to peel. There is
+    now ONE STL for this part -- no _print variant to keep in sync.
     """
     zf0 = -D.ROLL_AXIS_TO_FLANGE                    # flange top
     zf1 = zf0 - D.YOKE_FLANGE_T                     # flange bottom
@@ -258,29 +238,14 @@ def yoke_roll(print_fins=False):
     b = D.YOKE_BOLT_SQ / 2
     for sx, sy in ((b, b), (b, -b), (-b, b), (-b, -b)):
         p -= cyl_z(D.M3_CLEAR / 2, zf1 - 1, zf0 + 1, sx, sy)
-    if print_fins:
-        # WALL orientation (2026-07-30): printed on edge, model -Y on the bed,
-        # so the arm plates are vertical walls whose bottom edges float with
-        # nothing under them (check_printability ISLAND). Break-away fins,
-        # FIN_T thin and centred in the arm's 3 mm band so they snap out
-        # sideways. Underside heights measured off the STL, not guessed:
-        #   arm plates      y -12.00 over z -16..0      (48 mm2 each)
-        #   +x arm step     y -10.00 over z 0..7.2      (24 mm2)
-        #   -x pad-boss rim y -10.00 over z -7.1..7.2   (88 mm2, inboard of
-        #                   the plate at x -20.95..-16.80, so its fin sits
-        #                   clear of the plate rather than through it)
-        p += _fin_wall(-23.95, -20.95, "x", -17.0, -12.00, -16.0, 0.0)
-        p += _fin_wall( 21.45,  24.45, "x", -17.0, -12.00, -16.0, 0.0)
-        p += _fin_wall( 21.45,  24.45, "x", -17.0, -10.00, 0.0, 7.2)
-        p += _fin_wall(-20.95, -16.80, "x", -17.0, -10.00, -7.1, 7.2)
     return p
 
 
 # ---------------------------------------------------------------- yoke_pitch
-def yoke_pitch(print_fins=False):
+def yoke_pitch():
     """Hip-pitch clevis on the thigh-servo horn/idler. Local frame: pitch axis
     == Y axis through origin; flange on top (heat-set inserts, mates yoke_roll).
-    Print: WALL -- on its back, model -X on the bed, from yoke_pitch_print.stl.
+    Print: WALL -- on its back, model -X on the bed, WITH SLICER SUPPORTS.
     Qty 2.
 
     FIXED 2026-07-30 alongside yoke_roll; see that docstring for why the old
@@ -291,8 +256,9 @@ def yoke_pitch(print_fins=False):
     It gets RY_XUP -- the exact transform leg_link prints in -- because it
     grips the same servo the same way (straddle along model Y, arm along model
     Z). If leg_link survives this load path in this orientation with a 97 mm
-    arm, a 26 mm one should. print_fins=True adds the break-away walls under
-    the two arm plates and the horn boss rim.
+    arm, a 26 mm one should. Supports come from the SLICER, not from modelled
+    fins -- see yoke_roll. This is the tippier of the two: 32 mm tall standing
+    on the flange edge, 175 mm2, so give it a brim as well as supports.
     """
     zf1 = D.PITCH_ARM_REACH                          # flange bottom (arms side)
     zf0 = zf1 + D.YOKE_FLANGE_T                      # flange top (mating face)
@@ -330,18 +296,6 @@ def yoke_pitch(print_fins=False):
     b = D.YOKE_BOLT_SQ / 2
     for sx, sy in ((b, b), (b, -b), (-b, b), (-b, -b)):
         p -= cyl_z(D.HEATSET_D / 2, zf1 - 1, zf0 + 1, sx, sy)    # heat-set M3
-    if print_fins:
-        # WALL orientation (2026-07-30): the same transform leg_link prints in
-        # (RY_XUP, model -X on the bed), so the arm plates stand as walls and
-        # their bottom edges float. Undersides measured off the STL:
-        #   horn arm  x -12.00, y 20.45..23.45, z 0..26      (78 mm2)
-        #   idler arm x -14.00, y -20.40..-17.40, z 9..26    (51 mm2); the
-        #             stretch below z 9 clears by only 1.2 mm, so carry the
-        #             fin through it rather than leave a step to climb
-        #   horn boss x -10.00, z -7.2..0                    (24 mm2)
-        p += _fin_wall( 20.45,  23.45, "y", -16.0, -12.00, 0.0, 26.0)
-        p += _fin_wall( 20.45,  23.45, "y", -16.0, -10.00, -7.2, 0.0)
-        p += _fin_wall(-20.40, -17.40, "y", -16.0, -14.00, -10.0, 26.0)
     return p
 
 
@@ -1350,9 +1304,9 @@ PARTS = [
     ("yaw_carrier", yaw_carrier, 2, "horn-plate face on bed, bay walls rise "
      "(print yaw_carrier_print.stl: break-away breakout in the cable window)"),
     ("yoke_roll", yoke_roll, 2,
-     "WALL: on edge (print yoke_roll_print.stl: break-away fins)"),
+     "WALL: on edge, arms along the bed -- SLICER SUPPORTS ON"),
     ("yoke_pitch", yoke_pitch, 2,
-     "WALL: on its back like leg_link (print yoke_pitch_print.stl)"),
+     "WALL: on its back like leg_link -- SLICER SUPPORTS ON + brim"),
     ("leg_link", leg_link, 4, "on its back: web face on bed "
      "(print leg_link_print.stl: break-away fins under the fork slabs)"),
     ("foot", foot, 2, "sole down"),
@@ -1381,10 +1335,9 @@ def main():
             yp = yaw_carrier(print_fins=True)        # connector-window bar
             export_stl(yp, os.path.join(OUT, "yaw_carrier_print.stl"))
             export_step(yp, os.path.join(STEP_OUT, "yaw_carrier_print.step"))
-        if name in ("yoke_roll", "yoke_pitch"):   # WALL orientation: fins hold
-            wp = fn(print_fins=True)              # up the floating arm walls
-            export_stl(wp, os.path.join(OUT, f"{name}_print.stl"))
-            export_step(wp, os.path.join(STEP_OUT, f"{name}_print.step"))
+        # yoke_roll / yoke_pitch used to export a _print variant with modelled
+        # break-away fins. Deleted 2026-07-30 -- they print with SLICER
+        # supports now, so the one STL above is what goes to the slicer.
         bb = part.bounding_box()
         dims = sorted((bb.size.X, bb.size.Y, bb.size.Z))
         fits = dims[0] <= 250 and dims[1] <= D.BED and dims[2] <= D.BED
@@ -1396,7 +1349,7 @@ def main():
               f"{bb.size.Z:6.1f} mm  vol {vol:6.1f} cm3  ~{mass:5.1f} g  "
               f"{'BED-OK' if fits else '** TOO BIG **'}  [{orient}]")
 
-    print(f"\nexported {len(PARTS)} parts + 4 print variants -> "
+    print(f"\nexported {len(PARTS)} parts + 2 print variants -> "
           f"{os.path.relpath(OUT)}/*.stl AND {os.path.relpath(STEP_OUT)}/*.step")
 
     # battery = worst case of the 3S 850 XT30 field the bay now fits (~80 g,

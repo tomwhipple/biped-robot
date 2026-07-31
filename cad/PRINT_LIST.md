@@ -100,14 +100,49 @@ Two things to watch when you print PETG:
 |---|---|---|---|---|---|
 | `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ♻️ **redesigned for v3yaw** (roll bays → two flat yaw-servo seats + deck-bolted stator mount; deck/tower pattern kept; grows ~15 mm rearward for the case overhang → bbox 61 × 104 × 9). ~32 g |
 | `yaw_carrier` | 2 | PETG | 30–40 % | horn-plate face on bed, bay walls rise — **slice `yaw_carrier_print.stl`** | 🆕 **new part (v3yaw)** — bolts to the yaw horn, carries the (unchanged) hip-roll bay. Prints like the old pelvis bay (walls vertical, U-slot upward-open, teardropped case screws) with one addition: the rear-wall **cable window needs a breakout** (2026-07-26). Printed horn-plate-down its ceiling is the 1.0 mm bar between the window and the bore crown — 2.6 × 22.8 mm of bare bridge with the U-slot void directly above, so no infill and no next layer to iron it flat. **Three break-away columns** split it into four 4.95 mm hops; each stands on the window sill and meets the bar through a 1.0 mm neck (body inset 0.2 mm from both wall faces for blade access). Snip/twist them out and trim the nubs flush enough to clear the plug bodies — nothing seats on that bar. Figure: `renders/yaw_carrier_breakout.png`. ~17.5 g each |
-| `yoke_roll` | 2 | PETG | 30–40 % | **WALL: on edge, arms along the bed — slice `yoke_roll_print.stl`** and snap off the 4 break-away fins | ✅ ready — *secondary* hip-angle check |
-| `yoke_pitch` | 2 | PETG | 30–40 % | **WALL: on its back like `leg_link` — slice `yoke_pitch_print.stl`** and snap off the break-away fins (flared feet included) | ♻️ **revised for hip −110°** (idler arm → hub + riser; HOLD lifted) |
+| `yoke_roll` | 2 | PETG | 30–40 % | **WALL: on edge, arms along the bed — slice `yoke_roll.stl` with SLICER SUPPORTS ON** (see below). There is no `_print` variant any more | ✅ ready — *secondary* hip-angle check |
+| `yoke_pitch` | 2 | PETG | 30–40 % | **WALL: on its back like `leg_link` — slice `yoke_pitch.stl` with SLICER SUPPORTS ON + a brim** (see below). No `_print` variant any more | ♻️ **revised for hip −110°** (idler arm → hub + riser; HOLD lifted) |
 | `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ♻️ **revised v3** (2026-07-16 print review, two passes: 9×11 **cable window** through the web — before it every joint-crossing cable pierced the plastic — zip-tie holes at ±9 straddling it; idler boss OD tapered 51°; and the fork slabs are now **solid to the web face** wherever the foot sweep allows (mapped at ankle ±45°: horn side fully; idler side except the corner-sweep lobe at z −68.4…−55.6, whose 16 mm gap is broken up by **two island posts** into 2/2.5/5.5 mm bridge hops). **There are no fins at all** — the only break-away pieces are two 4 mm pad stubs at the fork tips plus those two posts, all verified as SEPARATE first-layer islands (≥1 mm clear, attached to nothing — they lift off with a fingernail). Slice preview: `renders/leg_link_print_slice.png`. *The window is functional: reprint v1/v2 links when convenient* |
 | `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v3.1** (v3 heel bulkhead + sole enlarged 100 → 116 for the get-up corridor) |
 | `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ♻️ **revised for print, support-free** (2026-07-16 slice reviews: feet-tab gussets and battery-rail stubs are now true ≥45° wedges — the old stepped boxes left flat 6 mm ceilings drooping over the interior; the **window sill was deleted** — it printed as a 70 mm member 41 mm up in mid-air, and the hook-loop belt is the real battery retention; two 45° corner detents park the pack instead. Feet screws now seat on the tabs through Ø6.6 wells — the only remaining bridges. ~5h19m PETG) |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
 | `imu_carrier` | 1 | PETG | 30–40 % | flat on bed, bosses up | 🆕 **new part (2026-07-16)** — BNO055 carrier between tower top and gopro_base (same 4 screws → M3×12); bosses on the board's true 21.59 × 15.24 hole pattern; ~5 g, ~30 min |
 | Sole pad | 2 | 1/16" self-adhesive silicone sheet ([B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK), 2× 6"×6") | — | cut 106 × 46 mm, stick onto flat sole (one sheet yields both + a spare strip) | 🛒 ordered |
+
+### The two yokes: turn supports on in OrcaSlicer (2026-07-30)
+
+These are the **only** two parts in the list that need slicer supports;
+everything else prints support-free or carries its own break-away pieces. Put
+them on their own plate so the setting does not leak onto anything else.
+
+In OrcaSlicer, with `yoke_roll.stl` / `yoke_pitch.stl` on the plate:
+
+| Tab | Setting | Value |
+|---|---|---|
+| Support | Enable support | **on** |
+| Support | Type | `normal(auto)` — flat plate undersides peel off it cleanly; `tree(auto)` also works and is gentler on the round pads |
+| Support | Threshold angle | 30° (default) — the overhangs here are fully horizontal, so anything sane catches them |
+| Support | Top Z distance | **0.2 mm** (one layer) — PETG welds to supports at 0.1 |
+| Support | Support/object XY distance | 0.35 mm (default) |
+| Others → Brim | Brim type / width | `outer only`, **5 mm** — `yoke_pitch` only |
+
+Why `yoke_pitch` wants the brim and `yoke_roll` mostly does not: pitch stands
+32 mm tall on the flange edge, a footprint of 175 mm² that is 44 × 4 mm — tall,
+narrow and tippy. Roll lands 194 mm² and is only 30 mm tall.
+
+What the supports are actually for (from `check_printability`, which now reports
+these as `[support]` rather than failing): four floating clusters per part — the
+two arm plates, and the pad/boss rims that start in mid-air.
+
+**These used to be modelled into the STL and it was a mistake.** The fins put
+their anchor tabs 0.3 mm *below* the bed plane, so the tabs became the lowest
+geometry and the flange — the actual bed adhesion — floated: the real first
+layer was 26 mm² (roll) / 36 mm² (pitch) of disconnected stamps, 14 % and 21 %
+of the flange's own footprint. The flared feet added *for* bed area touched
+nothing. On top of that, every foot splayed 2.00 mm past the part silhouette,
+the pad-rim fins were flat blocks under a *cylindrical* pad (contact on one
+tangent line, gap opening to 3.20 mm), and each tab fused 0.3 mm into the part
+across 2 × 3 mm — a weld, not a break-away contact.
 
 `leg_link` ×4 = 2 thighs + 2 shins (identical part). `gopro_base` is the
 sacrificial crash fuse — the M5 clamp squeezes across layer lines, so PETG is

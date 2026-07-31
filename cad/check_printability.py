@@ -62,8 +62,8 @@ ORIENT = {
     # name: (rotation, note)  -- keep in sync with parts.PARTS
     "pelvis": (RX180, "upside down: deck top on bed"),
     "yaw_carrier": (RX180, "horn-plate face on bed, bay walls rise"),
-    "yoke_roll": (RY_ROLL_WALL, "WALL: on edge, arms along the bed"),
-    "yoke_pitch": (RY_XUP, "WALL: on its back like leg_link"),
+    "yoke_roll": (RY_ROLL_WALL, "WALL: on edge, arms along the bed + supports"),
+    "yoke_pitch": (RY_XUP, "WALL: on its back like leg_link + supports, brim"),
     "leg_link": (RY_XUP, "on its back: web face on bed"),
     "foot": (IDENT, "sole down"),
     "tower": (RX180, "upside down: top plate on bed"),
@@ -73,9 +73,30 @@ ORIENT = {
 
 # what actually goes to the slicer, where that differs from <name>.stl
 PRINT_STL = {"leg_link": "leg_link_print.stl",
-             "yaw_carrier": "yaw_carrier_print.stl",
-             "yoke_roll": "yoke_roll_print.stl",
-             "yoke_pitch": "yoke_pitch_print.stl"}
+             "yaw_carrier": "yaw_carrier_print.stl"}
+
+# Parts printed WITH SLICER SUPPORTS. For these, overhang findings and the
+# first-layer CONTACT floor are reported but do NOT fail the gate: the slicer
+# puts material under the overhangs and its support pillars land on the bed
+# alongside the part.
+#
+# This exists because the alternative was worse. Both yokes used to carry
+# modelled break-away fins whose only job was to satisfy THIS FILE -- full
+# plate width so the perimeter ray-down would not read ISLAND, plus anchor tabs
+# every 11 mm so it would not read BEAM. The tabs were built 0.3 mm below the
+# bed plane, which floated the flange and cut the real first layer to 14 % of
+# the part's own footprint (user, 2026-07-30: "the feet have extra pads on them
+# which screwed up the whole base"). An audit that cannot express "a support
+# sits 0.35 mm under this" should say so, not be gamed with geometry that ships
+# to the printer.
+#
+# It is NOT a blanket pass: thin walls, bores and everything else still fail
+# normally, because supports do not fix those.
+SUPPORTED = {
+    "yoke_roll": "supports on (arm plates + pad rims start in mid-air)",
+    "yoke_pitch": "supports on + brim (32 mm tall on a 175 mm2 flange edge)",
+}
+SUPPORT_WAIVES = ("ISLAND", "LEDGE", "CEILING", "BEAM", "CONTACT")
 
 COS45 = np.cos(np.radians(45.0))          # facet is a >45 deg overhang if
                                           # nz < -COS45 (straight down = -1)
@@ -304,7 +325,9 @@ def audit(name, verbose=True):
         if bad:
             findings.append((kind, ga, desc))
         if verbose or bad:
-            mark = "**" if bad else "  "
+            # no "**" on a supported part: the waiver block below reprints these
+            # as [support], and flagging them twice reads as a contradiction
+            mark = "**" if bad and name not in SUPPORTED else "  "
             print(f"  {mark}{kind:8s} {desc}")
 
     # thin walls: inward rays from each facet; local thickness = exit
@@ -346,6 +369,13 @@ def audit(name, verbose=True):
             continue
         findings.append(("THIN", ga, desc))
         print(f"  **THIN     {desc}")
+
+    if name in SUPPORTED:
+        waived = [f for f in findings if f[0] in SUPPORT_WAIVES]
+        findings = [f for f in findings if f[0] not in SUPPORT_WAIVES]
+        print(f"  SLICER SUPPORTS REQUIRED -- {SUPPORTED[name]}")
+        for kind, ga, desc in waived:
+            print(f"    [support] {kind:8s} {desc}")
 
     if not findings:
         print("  PASS")

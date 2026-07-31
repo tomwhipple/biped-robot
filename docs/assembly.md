@@ -47,7 +47,7 @@ settings in the [print list](../cad/PRINT_LIST.md)):
 | ------------- | --- | ----------------------------------------------------------------------------------------------------------- |
 | `pelvis`      | 1   | v3yaw: deck + two flat yaw-servo seats (no bays); print deck-top down                                       |
 | `yaw_carrier` | 2   | bolts to the yaw-servo horn, carries the hip-roll bay; horn-plate face on bed, bay walls rise — **slice `yaw_carrier_print.stl`** and snap the 3 break-away columns out of the cable window |
-| `yoke_roll`   | 2   | **printed as a WALL, on edge** (2026-07-30, for arm strength) — **slice `yoke_roll_print.stl`** and snap off the 4 break-away fins |
+| `yoke_roll`   | 2   | **printed as a WALL, on edge** (2026-07-30, for arm strength) — slice `yoke_roll.stl` with **slicer supports ON**; the modelled fins were deleted, see `cad/PRINT_LIST.md` |
 | `yoke_pitch`  | 2   | ⚠️ on hold (hip redesign)                                                                                   |
 | `leg_link`    | 4   | 2 thighs (⚠️ hold) + 2 shins — **slice `leg_link_print.stl`** and peel the 3 break-away fins after printing |
 | `foot`        | 2   | v3 (heel bulkhead), sole down                                                                               |

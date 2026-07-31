@@ -1444,6 +1444,39 @@ The pads keep their z, so nothing a policy observes moved: settled torso z
 on every gate, no threshold touched. The `<side>_pad` name-prefix discovery in
 both envs picks up eight as readily as four.
 
+### The yoke support fins were worse than no supports (2026-07-30)
+
+User, on the print variants: *"None of the supports break away or are done very
+well. the feet have extra pads on them which screwed up the whole base... then
+they stick out beyond the fork without even bothering to support anything."*
+All four of those turned out to be measurable, and the base one is fatal:
+
+- The anchor tabs were built from `lo - 0.3`, i.e. **0.3 mm below the bed
+  plane**. So the tabs became the lowest geometry and the flange — the actual
+  bed adhesion — floated. Real first layer: **26 mm² (roll) / 36 mm² (pitch)**
+  of disconnected 2×3 stamps, against the flange's own 194 / 175 mm². That is
+  14 % and 21 %. The flared feet added *for* bed area sat 0.30 mm up, touching
+  nothing at all.
+- Every foot splayed **2.00 mm past the part's own silhouette**.
+- The pad-rim fins were flat-topped blocks under a **cylindrical** pad: contact
+  on one tangent line, gap opening to **3.20 mm** over 7 mm of run.
+- Each tab fused **0.3 mm into the part across 2 × 3 mm** — a weld, not a
+  break-away contact. Snapping it tears the arm plate.
+
+Deleted. Both yokes print with slicer supports now (settings in
+`cad/PRINT_LIST.md`), and there is one STL per part instead of a `_print`
+variant to keep in sync.
+
+The lesson worth keeping is the root cause, not the arithmetic. Those tabs
+existed to stop `check_printability` reading the plate as a BEAM, and the walls
+were full plate width to stop it reading them as an ISLAND. The geometry was
+shaped to satisfy the audit — which has no way to express "a support sits
+0.35 mm under this" — and that geometry then shipped to the printer. An audit
+that cannot model something should say so, not be argued with in solid material.
+`check_printability` now has a `SUPPORTED` set: those parts report their
+overhangs as `[support]` instead of failing, and thin walls and everything else
+still fail normally.
+
 ### Watching the ROM in CAD, and checking it automatically (2026-07-30)
 
 Two separate things, because they answer different questions and one of them is
