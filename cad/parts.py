@@ -222,6 +222,19 @@ def yoke_roll():
     # takes an M3x8 into a sunk pad instead. Cut, not a thinner plate: the arm
     # keeps its full 3.0 everywhere it carries bending.
     p -= cyl_x(D.PAD_D / 2, ix0, ix0 + D.ROLL_IDLER_PAD_SINK, 0, 0)
+    # ...and HEAD COUNTERBORES on top of that sink, 2026-07-31 (user: "the
+    # machine screws we have only have ~5.8 mm of thread, but the part is 6 mm
+    # thick"). The 1.35 sink was budgeted against an M3x8; against the M3x6
+    # that is actually in the drawer the screw stops 0.20 mm SHORT of the disc
+    # and this joint has no clamp at all. Four pockets under the heads buy the
+    # 1.90 the sink cannot -- deepening the sink instead would delete the pad
+    # (only 1.65 mm of plate is left under it) on the arm that kept snapping.
+    # They bottom on the O20 idler boss, 3.90 mm off the disc face, so the head
+    # still lands on solid part. See the ROLL_* budget in dimensions.py.
+    _cb = ix0 + D.ROLL_IDLER_PAD_SINK + D.ROLL_IDLER_HEAD_CB          # -20.70
+    for dy, dz in ((D.BCD / 2, 0), (-D.BCD / 2, 0),
+                   (0, D.BCD / 2), (0, -D.BCD / 2)):
+        p -= cyl_x(D.ROLL_IDLER_HEAD_CB_D / 2, ix0 - 1, _cb, dy, dz)
     # holes: ONE bore per bolt-circle position, drilled from the idler-arm OUTER
     # face (ix0) clear through to past the horn plate (hx1). BUGFIX 2026-07-23:
     # this started at SV_IDLER_FACE-1 (the disc face), leaving the idler arm's

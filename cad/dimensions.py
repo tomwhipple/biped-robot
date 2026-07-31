@@ -224,18 +224,34 @@ HORN_THREAD = 2.5
 #     ----
 #     7.15  stack -> engagement 5.6 - 7.15 = -1.55, the screw never arrives.
 # Even at ZERO running gap the stack floors at 6.15, so no amount of thinning
-# reaches 3.60. This joint takes a LONGER screw. Nominal M3x8 from the same
-# family as the bench-measured M3x6 (5.6 of 6.0) gives 7.60 of thread, and the
-# pad is SUNK so the head lands where that thread engages 1.80 of the 2.10 hole:
-#     stack 7.15 - 1.35 = 5.80,  engagement 7.60 - 5.80 = 1.80  OK
-# The sink is pure material removal from the arm's OUTER face, so it cannot
-# create an interference; the head land stays r 9.85 inside the O20 pad rim.
-# This replaces the M3x10 + THIN WASHER the BOM used to buy for this joint
-# (the washer was padding out a screw chosen against the disc's 3.35 body
-# rather than its 2.10 flange) -- 8 fewer washers, one fewer part number.
+# reaches 3.60. Sinking the whole O PAD_D pad 1.35 got it to 5.80, which an
+# M3x8 (7.60 of thread) could just reach -- engagement 1.80.
+#
+# THAT SCREW IS NOT ON THE BENCH (user, 2026-07-31: "the machine screws we have
+# only have ~5.8 mm of thread, but the part is 6 mm thick ... if we have to
+# order new screws it will take several days"). An M3x6 into a 5.80 stack
+# engages -0.20: it does not touch the disc at all. So the pad gets a HEAD
+# COUNTERBORE and the joint drops back onto the M3x6 every other disc uses:
+#     stack 5.80 - 1.90 = 3.90,  engagement 5.60 - 3.90 = 1.70  OK
+#     (a 5.80-thread screw from the same box gives 1.90 -- both inside
+#      DISC_THREAD_MIN_ENGAGE 1.50 .. DISC_THREAD 2.10, which is why the
+#      counterbore is 1.90 and not the 2.00 that centres on 5.6 alone.)
+# Why a COUNTERBORE and not more sink: the sink is a full O20 recess, and the
+# arm plate only has 1.65 mm left under it. Taking another 1.90 that way would
+# delete the pad and leave the plate as a rim -- on the arm that kept SNAPPING.
+# Four O6.2 pockets at the bolt circle take ~217 mm3 instead of ~600, and the
+# head still lands r 9.85 inside the O20 rim, on the boss, with 3.90 mm of
+# boss between it and the disc.
+#
+# THE COUNTERBORE COMMITS THIS JOINT TO THE M3x6. An M3x8 in a counterbored
+# pad drives 3.70 into a 2.10 hole and jacks the joint apart. Upside: every
+# disc screw in the robot is now the M3x6 the servos ship with -- the M3x8
+# line, the M3x10 line and the thin washers are all gone from this joint.
 ROLL_ARM_INNER = -19.95 - 1.0   # arm plate inner face: 1.0 clear of the wall
-ROLL_DISC_SCREW_THREAD = 7.6    # nominal M3x8, same 0.4 relief as the M3x6
+ROLL_DISC_SCREW_THREAD = DISC_SCREW_THREAD   # 5.6, the M3x6 the servos bundle
 ROLL_IDLER_PAD_SINK = 1.35      # O PAD_D recess in the arm's outer face
+ROLL_IDLER_HEAD_CB = 1.90       # + per-screw head pocket, below that recess
+ROLL_IDLER_HEAD_CB_D = M3_HEAD_D + 0.5       # 6.2, clearance on the O5.7 head
 
 # ----------------------------------------------------------------------------
 # kinematic layout (matches sim/bimo_biped.xml)

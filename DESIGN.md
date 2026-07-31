@@ -1532,6 +1532,48 @@ ours (`0.7854*time` turns the knee exactly +45.000°).
 MbD does no collision detection, so the simulation shows motion and proves
 nothing about interference. That is what `freecad_rom_collide.py` is for.
 
+### The hip-roll idler: design to the screw you own (2026-07-31)
+
+User, holding the printed `yoke_roll`: *"the machine screws we have only have
+~5.8 mm of thread, but the part is 6 mm thick. If we have to order new screws
+it will take several days."*
+
+This joint has been the awkward one since the yaw redesign. The `yaw_carrier`'s
+rear bay wall sits between the roll servo's idler disc and the yoke arm, so the
+screw has to cross 7.15 mm of stack to reach a disc whose Ø14 bolt circle taps
+**2.10 mm** of flange. Even at zero running gap it floors at 6.15. Two previous
+attempts both solved it by reaching for a *longer* screw — M3×10 + washer, then
+M3×8 into a Ø20 pad sunk 1.35 mm (stack 5.80, engagement 1.80).
+
+Both were wrong in the same way: they assumed the hardware was the free
+variable. It is the *least* free variable — it is what is in the drawer, and a
+reorder is days. The measured 5.80 mm of thread into a 5.80 mm stack engages
+**−0.20 mm**: the screw never touches the disc, and the joint has no clamp at
+all. That is not a tolerance problem; it is a joint that does not exist.
+
+The fix goes the other direction. Four **Ø6.2 × 1.90 mm head counterbores** at
+the bolt positions take the stack to 3.90, so the ordinary **M3×6 the servos
+already ship with** engages 1.70 (1.90 at the long end of the box) of the
+2.10 mm hole. Two consequences worth recording:
+
+- **Counterbores, not a deeper sink.** Deepening the Ø20 sink to 3.25 would
+  delete the pad — only 1.65 mm of arm plate is left under it — on the very arm
+  that kept snapping in the flange-down print orientation. Four pockets remove
+  ~217 mm³ instead of ~600, and leave the Ø20 rim, the box, and the boss column
+  intact. The head still lands r 9.85 inside the rim, on the boss.
+- **The bore commits the joint to the M3×6.** An M3×8 in a counterbored pad
+  drives 3.70 mm into a 2.10 mm hole and jacks the joint apart. That is a real
+  loss of an option, taken deliberately: the upside is that *every* disc screw
+  in the robot is now the bundled M3×6, and the M3×8 line, the M3×10 line and
+  the thin washers are all gone from this joint.
+
+`check_assembly.py` gates both ends of the screw box (5.60 and 5.80 of thread)
+against `DISC_THREAD_MIN_ENGAGE`..`DISC_THREAD`, which is why the counterbore
+is 1.90 rather than the 2.00 that would centre on 5.60 alone. Fixing this also
+turned up a stale `disc_x_seats()` still pointing at the un-sunk arm face and a
+washer deleted the week before — the insertion-path gate caught it as 4 of 8
+driver sweeps landing on nothing.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

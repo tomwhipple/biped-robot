@@ -103,15 +103,18 @@ def disc_screws_y():
 # --------------------------------------------------------------- hip roll
 def disc_screws_x():
     """Hip-roll joint (axis == X at origin, yoke_roll frame): 4x M3x6 button
-    into the horn + 4x M3x8 button into the idler disc through the long boss.
+    into the horn + 4x M3x6 button into the idler disc through the long boss.
 
-    The idler screw was M3x10 + THIN WASHER until 2026-07-30. That pair was
-    sized against the disc's 3.35 body instead of the 2.10 flange the O14 bolt
-    circle actually taps, and the washer was padding out the overshoot. The
-    pad is now sunk ROLL_IDLER_PAD_SINK so a plain M3x8 seats at 1.80 of
-    engagement -- no washer, and the head bears on solid pad."""
+    The idler screw was M3x10 + THIN WASHER until 2026-07-30, then M3x8 into a
+    pad sunk ROLL_IDLER_PAD_SINK. Both were chasing a 7.15 mm stack the bay
+    wall will not let us shorten. 2026-07-31 it went the other way: the pad
+    also gets a per-screw HEAD COUNTERBORE, which drops the stack to 3.90 and
+    lets this joint use the SAME M3x6 as every other disc -- the one that
+    ships with the servos and is actually on the bench. The head seats
+    ROLL_IDLER_HEAD_CB below the sunk pad face, on the idler boss."""
     hx1 = D.SV_HORN_FACE + D.HORN_BOSS_H + D.PLATE    # 24.45 horn pad outer
-    ix0 = D.ROLL_ARM_INNER - D.PLATE + D.ROLL_IDLER_PAD_SINK   # -22.60 sunk pad
+    ix0 = (D.ROLL_ARM_INNER - D.PLATE + D.ROLL_IDLER_PAD_SINK
+           + D.ROLL_IDLER_HEAD_CB)                    # -20.70 counterbore floor
     r = D.BCD / 2
     s = []
     for dy, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
@@ -353,12 +356,18 @@ def disc_y_seats():
 
 def disc_x_seats():
     hx1 = D.SV_HORN_FACE + D.HORN_BOSS_H + D.PLATE
-    ix0 = -19.95 - 1.0 - D.PLATE
+    # The idler head seats on the COUNTERBORE FLOOR, not on the arm's outer
+    # face: the pad is sunk ROLL_IDLER_PAD_SINK and then pocketed
+    # ROLL_IDLER_HEAD_CB deeper so the M3x6 reaches the disc (2026-07-31).
+    # This literal used to be a hardcoded -23.95 and a "wsh3" washer seat,
+    # both stale -- the washer went on 2026-07-30 and the sink moved the face.
+    ix0 = (D.ROLL_ARM_INNER - D.PLATE + D.ROLL_IDLER_PAD_SINK
+           + D.ROLL_IDLER_HEAD_CB)                    # -20.70
     r = D.BCD / 2
     s = []
     for dy, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
         s.append((hx1, dy, dz, "x", +1, "btn3"))
-        s.append((ix0, dy, dz, "x", -1, "wsh3"))
+        s.append((ix0, dy, dz, "x", -1, "btn3"))
     return s
 
 
