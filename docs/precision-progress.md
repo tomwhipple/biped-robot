@@ -810,3 +810,40 @@ Also open (SIL finding #2): 8 obs channels have frozen normalizer std
 sagging pack — five orders out of distribution at the worst moment.
 Next training recipe should vary the crouch command (ties into task #16
 encoder-realism work).
+
+## Day 10 (2026-07-31): v7knee_b wins — then the plant moved under everyone
+
+Overnight `loco_v7knee_b` (60M continuation, terrain + knee-mimic 4.0,
+entropy 0.005) finished the full budget in 7.7 h. The morning collect
+scored it **12/88, falls 85%** — while training eval reward sat at ~1200.
+The tell: the only passing scenario was stand_off, the one that ignores
+policy actions. That is a referee/plant mismatch signature, not a bad
+policy.
+
+**Root cause: night_arm.sh never synced bimo_biped_v3yaw.xml.** Mira's
+copy was the 9fccf4c blob (pre-07-30), so the run trained on the OLD
+foot while the local referee scored it on the corrected printed foot
+(f58a412: 116x52 rounded-corner sole, 8 contact spheres, replacing the
+wrong "as-built 90x46 pad" belief). Cross-check: the parent v7knee —
+69/88 yesterday — scores **0/16** on the corrected plant. Every
+pre-correction policy falls 100% on the corrected foot; the box→sphere
+contact change matters far more than the larger support polygon.
+night_arm.sh now syncs `bimo_biped_*.xml` + `terrain_mosaic.npz` with
+the code (the gap that let plant and trainer drift for two days).
+
+**Scored on the plant it actually trained on, v7knee_b is the best
+policy yet: 75/88** (v6creep 72, v7knee 69). The continuation argued
+the trade back exactly as hoped: line_1m 3/8→7/8, turn_180 3/8→7/8,
+goal_home 8/8 (home 5 cm), stand_10s 8/8, stand_off 7/8, backward_1m
+8/8. Soft spots: circle_return 2/8 (ret 67 cm), line_rough 5/8.
+
+**Knee articulation generalized.** Probe (cmd 0.35 m/s, 8 s, 4 seeds):
+knee p2p **~28 deg flat AND ~28.5 deg rough** (v7knee: 5.5 flat / 26
+rough). The knee is now part of the everyday gait, not a rough-tile
+special — directly answering the standing "I don't ever see the knee
+joint moving" concern. Caveat: all of this is on the retired plant.
+
+Tonight (`loco_v8foot`, queued): warm-start v7knee_b on the corrected
+foot, same recipe. The 75/88 + knee numbers must be re-earned on the
+plant that matches the printed robot; expect early reward collapse then
+re-adaptation of contact timing.

@@ -13,7 +13,7 @@ REPO="$(cd "$HERE/.." && pwd)"
 
 echo "=== syncing code + plant to mira ==="
 rsync -aq "$REPO/sim/mjx" "$REPO/sim/walker_env.py" \
-  "$REPO/sim/bimo_biped_v2.xml" "$REPO/sim/bimo_biped_v2_asbuilt.xml" \
+  "$REPO"/sim/bimo_biped_*.xml "$REPO/sim/terrain_mosaic.npz" \
   mira:code/robot-mjx/sim/
 rsync -aq "$REPO/cad/stl" mira:code/robot-mjx/cad/
 rsync -aq "$HERE/night/night_run.sh" "$HERE/night/night_stop.sh" \
