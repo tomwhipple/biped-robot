@@ -120,11 +120,30 @@ In OrcaSlicer, with `yoke_roll.stl` / `yoke_pitch.stl` on the plate:
 | Tab | Setting | Value |
 |---|---|---|
 | Support | Enable support | **on** |
+| Support | **Support on build plate only** | **on** — see below, this one matters |
 | Support | Type | `normal(auto)` — flat plate undersides peel off it cleanly; `tree(auto)` also works and is gentler on the round pads |
 | Support | Threshold angle | 30° (default) — the overhangs here are fully horizontal, so anything sane catches them |
 | Support | Top Z distance | **0.2 mm** (one layer) — PETG welds to supports at 0.1 |
 | Support | Support/object XY distance | 0.35 mm (default) |
 | Others → Brim | Brim type / width | `outer only`, **5 mm** — `yoke_pitch` only |
+
+**"Support on build plate only" is not optional here.** In this orientation
+*every* bore in both yokes runs horizontally — the flange screw holes, the bolt
+circles, the centre reliefs — so plain auto-support packs each one solid
+(user, 2026-07-30: *"the support setting is now supporting a bunch of holes that
+don't need it"*). The setting separates the two cases exactly, because a support
+inside a bore has to stand **on the part**, while the overhangs that matter have
+a clear run down to the bed:
+
+| | kept | dropped |
+|---|---|---|
+| `yoke_roll` | 208 mm² — all four real clusters (48, 48, 78, 24) | 210 mm² of bore interiors |
+| `yoke_pitch` | 225 mm² — all four (51, 63, 78, 24) | 162 mm² of bore interiors |
+
+Dropping them is safe: the widest span then left unsupported is **5.24 mm**
+(roll) / **3.60 mm** (pitch), against `check_printability`'s 8.0 mm PETG
+`BRIDGE_OK`. Those bore tops were never failures — the audit's only findings on
+these parts are the four ISLANDs and the CONTACT floor. No teardropping needed.
 
 Why `yoke_pitch` wants the brim and `yoke_roll` mostly does not: pitch stands
 32 mm tall on the flange edge, a footprint of 175 mm² that is 44 × 4 mm — tall,
