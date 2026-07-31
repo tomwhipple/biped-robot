@@ -21,7 +21,9 @@ they said:
 
 | gate | covers |
 |---|---|
-| `python cad/check_assembly.py` | interference / clearance across the assembly |
+| `sh cad/run_checks.sh` | both interference gates below, one exit code |
+| `python cad/check_assembly.py` | interference / clearance at pose EXTREMES |
+| `python cad/freecad_rom_collide.py` (via freecadcmd) | interference across the SWEPT ROM |
 | `python cad/check_printability.py` | bridges, ceilings, first-layer contact, per part |
 | `cd firmware/host && make test` | firmware logic under ASan/UBSan |
 | `python -m pytest tests/` | sim + link protocol |
@@ -1441,6 +1443,61 @@ The pads keep their z, so nothing a policy observes moved: settled torso z
 0.3249 m, mass 1.1517 kg, `L_sole` reference geom still frozen. `PARITY: PASS`
 on every gate, no threshold touched. The `<side>_pad` name-prefix discovery in
 both envs picks up eight as readily as four.
+
+### Watching the ROM in CAD, and checking it automatically (2026-07-30)
+
+Two separate things, because they answer different questions and one of them is
+not evidence.
+
+**The check.** `cad/check_assembly.py` tests pose EXTREMES and a handful of
+combined poses. A part can foul in the MIDDLE of a joint's travel and pass both
+endpoints — endpoint checks miss that by construction. `cad/freecad_rom_collide.py`
+walks each joint across its whole range in the real articulated assembly (13
+samples per joint, both legs) and intersects every relatively-moving pair. It
+now exits 0/1 rather than only printing, so it is a gate; `sh cad/run_checks.sh`
+runs it next to `check_assembly.py` and returns one status.
+
+Two traps worth recording. `freecadcmd` tears the interpreter down on
+`SystemExit` **without flushing Python's stdout**, so exiting straight out of
+`main()` threw away the whole report and left a check that printed nothing and
+said PASS — flush before exiting. And the sweep must transform shapes extracted
+once at neutral rather than setting Placements and recomputing, because
+`doc.recompute()` re-runs the MbD solver on every pose (~130 solves) for a
+result the solver has no say in. Current verdict: ALL CLEAR, tightest gaps
+0.30 mm (yaw vs roll, the designed slip fit) and 0.32 mm (shin vs foot).
+
+**The watching.** FreeCAD has no swept-ROM collision tool — the Assembly
+workbench does no collision detection at all (issues #28165, #14528, #13390),
+and the Animate workbench's Collision Detector wants DH-notation kinematics and
+manual triggering. But FreeCAD 1.1's built-in Assembly → Simulation plays joint
+motion natively in the viewport, which is the part worth having.
+`cad/freecad_sim_setup.py` builds ten of them, one per joint per leg, so each
+plays one joint at a time.
+
+Three things that had to be got right:
+
+- **Every simulation drives all ten joints.** Ten revolutes is ten free DOF; a
+  Simulation with one Motion constrains one, and MbD puts the other nine
+  wherever solves. Driving `knee_L` alone landed the foot 63 mm off with the hip
+  yawed out of plane. So nine Motions pin their joints at `0*time`.
+- **`generateSimulation` solves from the CURRENT placements**, not from neutral.
+  Generating ten in a row without restoring compounded — the foot was 390 mm out
+  by the fifth, identically on both legs, which is what gave it away.
+- **The formula parser takes `sin`, `cos`, `pi` and products, but not
+  comparisons or `abs`** — those parse to a *silent* zero-frame simulation. No
+  piecewise, so no literal neutral → max → min → neutral ramp. Each joint gets
+  `phi(t) = a·sin(2πt) + mid·(1 − cos(2πt))` in radians, with mid = (lo+hi)/2 and
+  a = √(half² − mid²): a sinusoid about `mid` phase-shifted so phi(0) = phi(1) = 0.
+  It starts at neutral, rises to exactly `hi`, falls to exactly `lo`, returns.
+
+The setup self-verifies: it plays each simulation and finds the frame whose foot
+lands closest to where `freecad_pose.stage_placements` puts it at each ROM limit
+— which checks amplitude, sign, units and the pinning at once. All ten reach
+both limits, worst error 0.036 mm. Units are radians and the sign agrees with
+ours (`0.7854*time` turns the knee exactly +45.000°).
+
+MbD does no collision detection, so the simulation shows motion and proves
+nothing about interference. That is what `freecad_rom_collide.py` is for.
 
 ## 6. Design parameters (source of truth)
 

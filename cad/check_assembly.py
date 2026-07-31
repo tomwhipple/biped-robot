@@ -1,8 +1,10 @@
 """Assembly interference checks: mock servo bodies + printed parts, boolean
 intersection volumes at joint-range extremes. All volumes should be ~0 mm^3.
 
-Run:  .venv/bin/python cad/check_assembly.py
+Run:  .venv/bin/python cad/check_assembly.py     (exit 0 = clear, 1 = interference)
 """
+import sys
+
 from build123d import *
 import dimensions as D
 import parts
@@ -642,7 +644,12 @@ def main():
                                  D.IMU_PCB_Z - 1.0) * Box(1.6, _py + 8, 2.0)))
 
     print("\nALL CLEAR" if ok else "\nINTERFERENCES FOUND — fix before printing")
+    # NOTE: this file checks POSE EXTREMES and a handful of combined poses. The
+    # swept check -- every joint walked across its whole travel, in the real
+    # articulated assembly -- lives in freecad_rom_collide.py, which needs
+    # freecadcmd rather than this venv. cad/run_checks.sh runs both.
+    return ok
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(0 if main() else 1)
