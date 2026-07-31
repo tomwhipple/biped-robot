@@ -353,12 +353,21 @@ def disc_y_seats():
 
 def disc_x_seats():
     hx1 = D.SV_HORN_FACE + D.HORN_BOSS_H + D.PLATE
-    ix0 = -19.95 - 1.0 - D.PLATE
+    # The idler head seats on the SUNK pad face, not on the arm's outer face.
+    # This was a hardcoded -23.95 (ROLL_ARM_INNER - PLATE, i.e. the un-sunk
+    # face) and a "wsh3" washer seat until 2026-07-31 -- both stale: the washer
+    # went on 2026-07-30 and the same change sank the pad ROLL_IDLER_PAD_SINK.
+    # The gate still passed 8/8 by luck, because -23.95 happens to fall inside
+    # the head's own span (-24.25..-22.60). It would stop passing by luck the
+    # moment the sink or the head height moved, and meanwhile the insertion
+    # sweep started 1.35 mm outboard of the real seat -- so it never swept the
+    # recess band the driver actually has to pass through.
+    ix0 = D.ROLL_ARM_INNER - D.PLATE + D.ROLL_IDLER_PAD_SINK      # -22.60
     r = D.BCD / 2
     s = []
     for dy, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
         s.append((hx1, dy, dz, "x", +1, "btn3"))
-        s.append((ix0, dy, dz, "x", -1, "wsh3"))
+        s.append((ix0, dy, dz, "x", -1, "btn3"))
     return s
 
 
