@@ -69,6 +69,26 @@ _PAYLOAD_REF = 0.154   # kg -- reference (real camera) mass for inertia scaling
 _HF_NROW, _HF_NCOL = 100, 600            # y rows, x cols
 _HF_RX, _HF_RY, _HF_CX = 6.0, 1.0, 4.5   # meters: field spans x -1.5..10.5
 
+# -- STS3215 encoder/bus quantization (quantize_ticks) ------------------------
+# The deployment boundary, defined by sim/sil/harness.py + docs/sil-harness.md:
+# the servo reports POSITION as a uint16 tick word (4096 ticks/rev, full scale
+# 0..4095, "middle" 2048 == scsbus::kStepsPerRev / obs::Calibration) and
+# VELOCITY as an integer reg-58 word in steps/s (sign-magnitude, 15-bit
+# magnitude), and goal positions are written back as integer ticks. Mirrors
+# harness.STEPS_PER_REV / RAD_PER_STEP / CENTER_STEPS / MAX_STEPS exactly, and
+# is mirrored again in sim/mjx/env_mjx.py (parity gate 2i).
+_TICK_STEPS_PER_REV = 4096
+_TICK_RAD = 2.0 * np.pi / _TICK_STEPS_PER_REV   # one quantum, rad
+_TICK_ZERO = 2048                                # zero_steps, nominal cal
+_TICK_MAX = 4095                                 # encoder full scale
+_TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
+# Per-joint direction signs. Cross-ref sim/sil/cal/cal_nominal.json ("dir":
+# [1]*10 for the v3yaw joint order L_hip_yaw..R_ankle) == obs::Calibration's
+# C++ default == harness.Calibration.nominal(): a correctly oriented, freshly
+# "Set Middle Position"-ed robot has dir +1 on every joint. Kept as an explicit
+# per-joint vector so a measured (dir=-1) calibration is a one-line change.
+_TICK_DIR = 1.0
+
 
 def _gauss_smooth(field: np.ndarray, sigma: float) -> np.ndarray:
     """Separable Gaussian blur (reflect-padded), sigma in cells. Pure numpy so
@@ -326,6 +346,29 @@ class BimoWalkerEnv(gym.Env):
         # mounting misalignment + gyro bias, per-step noise (BNO085-class
         # magnitudes) -- applied only when domain_rand is on.
         imu_noise: float = 1.0,        # scale on IMU misalignment/bias/noise DR
+        # -- servo tick quantization (SIL boundary realism, 2026-07-31) --------
+        # The policy trains on float joint states, but the real robot reads
+        # STS3215 ENCODERS: position as a uint16 tick word (4096/rev, zero
+        # 2048) and velocity as an integer reg-58 steps/s word, and it writes
+        # goal positions back as integer ticks. quantize_ticks puts that
+        # quantizer inside training: joint-position/velocity OBSERVATIONS and
+        # the COMMANDED target angles are rounded to the servo grid. The IMU
+        # channels and the physics state itself are untouched -- only what the
+        # policy sees and what the bus can express. Mirrored exactly in
+        # sim/mjx/env_mjx.py (parity gate 2i). Default False = bit-exact
+        # legacy behavior.
+        quantize_ticks: bool = False,
+        # -- crouch-command variation (SIL finding #2, docs/sil-harness.md) ----
+        # cmd[3] (crouch height fraction) was frozen at exactly 1.0 through
+        # every training run, so its obs-normalizer std collapsed to ~1e-6 --
+        # but the firmware feeds that channel battguard's crouch(), which ramps
+        # BELOW 1.0 on a sagging pack, normalizing to ~-1.5e5 (five orders out
+        # of distribution, exactly when the battery is dying). A per-episode
+        # uniform draw over this range replaces the frozen 1.0 wherever a
+        # SAMPLED command would have used it; an explicit crouch-skill draw
+        # (ext_mix crouch commands) and set_command() overrides are left alone.
+        # (1.0, 1.0) = the legacy frozen channel, no RNG consumed.
+        cmd_crouch_range: tuple = (1.0, 1.0),
     ):
         super().__init__()
         self.w_forward = w_forward
@@ -448,6 +491,15 @@ class BimoWalkerEnv(gym.Env):
         self._cmd = np.zeros(self._ncmd)  # (vx, wz) or 7-channel ext
         if ext_cmd:
             self._cmd[3] = 1.0            # crouch channel: 1 = full height
+        self.quantize_ticks = bool(quantize_ticks)
+        self.cmd_crouch_range = tuple(cmd_crouch_range)
+        # feature flag: (1,1) draws no RNG at all, so runs with the default
+        # consume the identical random stream as before
+        self._crouch_dr = (self.cmd_crouch_range != (1.0, 1.0))
+        if self._crouch_dr and not ext_cmd:
+            raise ValueError("cmd_crouch_range requires ext_cmd "
+                             "(cmd[3] only exists in the 7-channel layout)")
+        self._cmd_crouch = 1.0            # per-episode crouch-command draw
         self._cmd_next = 0
         self._traj = np.zeros(3)       # air-circle: radius, omega, phase0
         self._traj_on = 0.0            # trajectory mode (0/1/2/3)
@@ -521,6 +573,8 @@ class BimoWalkerEnv(gym.Env):
         self.mimic_knee_w = mimic_knee_w
         self._mimic_w = np.ones(self._nq_act)
         self._mimic_w[self._i_knee] = mimic_knee_w
+        # per-joint encoder direction (nominal calibration -- see _TICK_DIR)
+        self._tick_dir = np.full(self._nq_act, _TICK_DIR, dtype=np.float64)
 
         # Realistic actuator model: torque is computed here (PD on the commanded
         # angle) and clamped to the DC-motor torque-speed envelope -- available
@@ -683,6 +737,33 @@ class BimoWalkerEnv(gym.Env):
             return self._default + span * action
         return np.clip(self._default + self._scale * action, self._lo, self._hi)
 
+    # -- servo tick quantization (mirrored in sim/mjx/env_mjx.py) -----------
+    def _quant_angle(self, rad):
+        """rad -> encoder tick (round-half-to-even, clipped to 0..4095) -> rad.
+
+        obs::angleToSteps followed by obs::stepsToAngle under the nominal
+        calibration (zero_steps 2048, dir +1) -- see harness.angle_to_steps /
+        steps_to_angle. np.rint is round-half-to-even, matching lrintf()'s
+        default mode (and jnp.round on the MJX side, which is what makes the
+        parity gate bit-identical). No joint-range clamp here: the harness
+        clamps because the firmware does, but every angle this env feeds
+        through is already inside [lo, hi] (the physics enforce it for
+        observations, _action_to_ctrl for targets)."""
+        ticks = np.clip(_TICK_ZERO + np.rint(np.asarray(rad, dtype=np.float64)
+                                             / _TICK_RAD * self._tick_dir),
+                        0.0, float(_TICK_MAX))
+        return (ticks - _TICK_ZERO) * _TICK_RAD * self._tick_dir
+
+    def _quant_vel(self, rad_s):
+        """rad/s -> integer reg-58 steps/s -> rad/s (harness.rad_s_to_steps_s /
+        steps_s_to_rad_s). The wire word is sign-magnitude with a 15-bit
+        magnitude, so the reachable range is +/-32767 steps/s (~+/-50 rad/s --
+        never binding on this plant, but it is the boundary's real limit)."""
+        steps = np.clip(np.rint(np.asarray(rad_s, dtype=np.float64)
+                                / _TICK_RAD * self._tick_dir),
+                        -float(_TICK_VEL_MAX), float(_TICK_VEL_MAX))
+        return steps * _TICK_RAD * self._tick_dir
+
     # -- terrain -------------------------------------------------------------
     @staticmethod
     def _terrain_xml(xml_path: str, amplitude: float,
@@ -828,9 +909,16 @@ class BimoWalkerEnv(gym.Env):
             phase = self._gait_phase
         else:
             phase = 2 * np.pi * (self._step_i / self.max_steps)
+        q_j = d.qpos[self._jqpos]
+        dq_j = d.qvel[self._jqvel]
+        if self.quantize_ticks:
+            # servo-side view: what a SYNC READ can actually report (encoder
+            # ticks + reg-58 steps/s). The physics state is untouched.
+            q_j = self._quant_angle(q_j)
+            dq_j = self._quant_vel(dq_j)
         parts = [
-            d.qpos[self._jqpos],                    # 8 joint angles
-            d.qvel[self._jqvel],                    # 8 joint velocities
+            q_j,                                    # 8 joint angles
+            dq_j,                                   # 8 joint velocities
             up,                                # 3 torso up-vector
             linvel,                            # 3 torso linear velocity
             gyro,                              # 3 torso angular velocity
@@ -919,6 +1007,7 @@ class BimoWalkerEnv(gym.Env):
                 raise ValueError(f"cmd_fixed needs {self._ncmd} channels")
             self._cmd_next = 10 ** 9
             self._traj_on = 0.0
+            self._apply_crouch_draw()
             return
         if self.ext_cmd:
             self._sample_command_ext()
@@ -986,6 +1075,18 @@ class BimoWalkerEnv(gym.Env):
         lo, hi = self.cmd_resample_s
         self._cmd_next = self._step_i + int(
             self.np_random.uniform(lo, hi) / self.control_dt)
+        self._apply_crouch_draw()
+
+    def _apply_crouch_draw(self):
+        """Replace a FROZEN full-height crouch channel with this episode's
+        draw (SIL finding #2). Only the exactly-1.0 case is replaced, so an
+        ext_mix crouch command keeps its own crouch_range draw; set_command()
+        never routes through here, so scenario evals are untouched. Mirrored
+        in sim/mjx/env_mjx.py (_apply_crouch)."""
+        if not self._crouch_dr:
+            return
+        if float(self._cmd[3]) == 1.0:
+            self._cmd[3] = self._cmd_crouch
 
     def set_command(self, *chans: float):
         """External command override (scenario evals / teleop or goal-seeking
@@ -1196,6 +1297,13 @@ class BimoWalkerEnv(gym.Env):
         if self.backlash_deg_max is not None:
             self._lash_rad = np.deg2rad(float(self.np_random.uniform(
                 self.backlash_deg, self.backlash_deg_max)))
+        if self._crouch_dr:
+            # per-episode crouch-command draw (SIL finding #2). Drawn HERE,
+            # with the other per-episode DR draws and before _sample_command()
+            # consumes it; only draws RNG when the feature is on, so default
+            # runs keep their exact random streams.
+            self._cmd_crouch = float(self.np_random.uniform(
+                *self.cmd_crouch_range))
         self._last_target = self._default.copy()
         self._air_time[:] = 0.0
         self._last_air[:] = 0.0
@@ -1244,6 +1352,11 @@ class BimoWalkerEnv(gym.Env):
     def step(self, action):
         action = np.asarray(action, dtype=np.float32)
         target = self._action_to_ctrl(action)
+        if self.quantize_ticks:
+            # the firmware writes INTEGER goal ticks (SYNC WRITE), so the
+            # servo never sees the float target -- quantize before the
+            # actuator path (latency buffer, PD, backlash) touches it
+            target = self._quant_angle(target)
         if self.action_latency:                       # apply a delayed target
             self._ctrl_buf.append(target)
             target = self._ctrl_buf.pop(0)

@@ -471,7 +471,65 @@ ok_e6 = run_block(
     dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
     envs=(cpu_t, gpu_t, step_t))
 
+# -- 2i. servo tick quantization + per-episode crouch draw (contact-free) -----
+# task #16 (2026-07-31): quantize_ticks puts the STS3215 encoder/bus quantizer
+# inside the env -- joint pos/vel OBSERVATIONS through angle->tick(round)->angle
+# (4096/rev, zero 2048, dir +1 per sim/sil/cal/cal_nominal.json) and reg-58
+# integer steps/s, plus the commanded target angles onto the same tick grid
+# before the PD/backlash/latency path. cmd_crouch_range varies the otherwise
+# FROZEN cmd[3] (SIL finding #2) per episode.
+#
+# Rounding must be BIT-identical, not close: one flipped tick is a 1.5e-3 rad
+# obs step, 150x the gate. np.rint and jp.round are both round-half-to-even,
+# and the inputs are bit-identical after sync, so the quantizers agree exactly
+# -- this block is what proves it (and would catch a knife-edge, which the 2g
+# recipe fixes by nudging the probe phase, never by loosening the gate).
+#
+# cmd_fixed pins channel 3 at exactly 1.0, which is precisely the value the
+# per-episode draw substitutes -- so the CPU env's draw (0.7..0.95) is live in
+# every step, and sync() carries it to MJX like every other per-episode draw
+# (servo/latency/backlash: the RNG streams differ by construction, the
+# arithmetic downstream of the draw is what this gates -- here the crouch-gated
+# g_skill, the height kernel and the crouch-scaled fall floor).
+EXT_Q = dict(EXT)
+EXT_Q.update(cmd_dense=True,
+             cmd_fixed=(0.3, -0.1, 0.2, 1.0, 0.0, 0.0, 0.0))
+_QK = dict(quantize_ticks=True, cmd_crouch_range=(0.7, 0.95))
+cpu_q = BimoWalkerEnv(xml_path=XML_YAW, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False, **EXT_Q, **_QK)
+gpu_q = BimoMJXEnv(xml_path=XML_YAW, domain_rand=False, **EXT_Q, **_QK)
+step_q = jax.jit(gpu_q.step)
+_splay_q = np.zeros(cpu_q._nq_act)
+_splay_q[cpu_q._legL["hip_roll"]] = 0.5
+_splay_q[cpu_q._legR["hip_roll"]] = -0.5
+
+
+class AirActsQuant:
+    def __call__(self, t):
+        if t % 20 == 0:
+            hoist(cpu_q)
+        return (_splay_q + 0.3 * np.sin(0.347 * t
+                                        + np.arange(cpu_q._nq_act) * 0.7)
+                ).astype(np.float32)
+
+ok_e7 = run_block(
+    "2i. tick quantization (4096/rev obs+targets) + crouch draw (airborne)",
+    100, AirActsQuant(), hoist,
+    dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+    envs=(cpu_q, gpu_q, step_q))
+# the block above only gates AGREEMENT; assert the quantizer is actually
+# ENGAGED (a no-op quantizer would pass every gate trivially)
+_q_obs = cpu_q._obs()[:cpu_q._nq_act]
+_q_res = float(np.max(np.abs(_q_obs / (2 * np.pi / 4096)
+                             - np.rint(_q_obs / (2 * np.pi / 4096)))))
+_q_crouch = float(cpu_q._cmd[3])
+# residual is float32-cast noise only (~3e-5 ticks); an UNQUANTIZED obs sits
+# anywhere in +/-0.5 ticks, so 1e-3 separates "on the grid" from "not"
+ok_e7 = ok_e7 and _q_res < 1e-3 and 0.7 <= _q_crouch <= 0.95
+print(f"   quantizer live: obs off-grid residual {_q_res:.1e} ticks, "
+      f"crouch cmd {_q_crouch:.3f} (drawn from 0.70..0.95)")
+
 ok_all = (ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3 and ok_e4
-          and ok_e5 and ok_e6)
+          and ok_e5 and ok_e6 and ok_e7)
 print("\nPARITY:", "PASS" if ok_all else "FAIL")
 sys.exit(0 if ok_all else 1)

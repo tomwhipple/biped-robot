@@ -189,7 +189,11 @@ def main():
     p.add_argument("--w-rise-ref", type=float, default=None,
                    help="override the staged-rise reference weight")
     p.add_argument("--turn-emph", action="store_true",
-                   help="sustained-turn command emphasis (loco_v5t): 85% of "
+                   # NOTE the %%: argparse %-formats help strings, and python
+                   # 3.14 VALIDATES them inside add_argument -- the bare "85%"
+                   # made every train_mjx.py invocation die with "badly formed
+                   # help string" on 3.14 (found while adding --quantize)
+                   help="sustained-turn command emphasis (loco_v5t): 85%% of "
                         "forward walks turn, |wz| floored at 0.25 rad/s")
     p.add_argument("--w-heading", type=float, default=None,
                    help="integrated-heading kernel weight (turn-to-face "
@@ -205,6 +209,16 @@ def main():
                    help="widen hip flexion to this many degrees (study: >=95)")
     p.add_argument("--getup-mix", default="1,0,0",
                    help="getup reset mix: ragdoll,kneel,squat fractions")
+    p.add_argument("--quantize", action="store_true",
+                   help="STS3215 encoder realism: joint pos/vel observations "
+                        "and commanded targets quantized to the servo tick "
+                        "grid (4096/rev) and reg-58 integer steps/s -- the "
+                        "SIL boundary, inside training")
+    p.add_argument("--cmd-crouch-range", default="1,1",
+                   help="per-episode crouch-command draw, lo,hi (SIL finding "
+                        "#2: cmd[3] frozen at 1.0 collapsed its normalizer "
+                        "std, while firmware battguard ramps it below 1.0 on "
+                        "a sagging pack). 1,1 = the legacy frozen channel")
     args = p.parse_args()
     if args.precision and args.entropy == 1e-2:
         args.entropy = 0.005          # Playground's biped setting (plan v2)
@@ -344,6 +358,12 @@ def main():
         env_kw["w_rise_ref"] = args.w_rise_ref
     if args.w_com_stance is not None:
         env_kw["w_com_stance"] = args.w_com_stance
+    # SIL-boundary realism (2026-07-31). Recorded unconditionally so
+    # config.json says which side of the quantizer a run trained on -- the
+    # CPU referee (eval_precision) reconstructs its env from these keys.
+    env_kw["quantize_ticks"] = bool(args.quantize)
+    env_kw["cmd_crouch_range"] = tuple(
+        float(x) for x in args.cmd_crouch_range.split(","))
     if args.getup:
         # recovery objective: gait shaping off (crawling/rolling is fine),
         # recovery terms carry the gradient; shorter episodes; same hardening

@@ -59,6 +59,22 @@ _STS_NOLOAD_12V = float(np.deg2rad(60.0) / 0.222)   # 4.712 rad/s @12V
 _PAYLOAD_REF = 0.154                         # kg, GoPro MAX incl. battery
 _K_CU = 3.75                                 # W/(N*m)^2, ST3215 stall calib.
 
+# -- STS3215 encoder/bus quantization (quantize_ticks) ------------------------
+# Exact mirror of sim/walker_env.py's block (same names, same values), which in
+# turn mirrors sim/sil/harness.py + docs/sil-harness.md: position is a uint16
+# tick word (4096 ticks/rev, full scale 0..4095, zero 2048), velocity an
+# integer reg-58 steps/s word (sign-magnitude, 15-bit magnitude), goal
+# positions integer ticks. Parity-gated (block 2i).
+_TICK_STEPS_PER_REV = 4096
+_TICK_RAD = 2.0 * np.pi / _TICK_STEPS_PER_REV   # one quantum, rad
+_TICK_ZERO = 2048                                # zero_steps, nominal cal
+_TICK_MAX = 4095                                 # encoder full scale
+_TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
+# Per-joint direction signs -- sim/sil/cal/cal_nominal.json "dir" is +1 on
+# every joint (obs::Calibration's C++ default; a freshly "Set Middle
+# Position"-ed, correctly oriented robot). See walker_env._TICK_DIR.
+_TICK_DIR = 1.0
+
 
 class State(NamedTuple):
     """Env state as a pytree. All leaves are jnp arrays (batchable)."""
@@ -100,6 +116,10 @@ class State(NamedTuple):
                               # start pose (getup_v4): a kneel start begins
                               # 1/3 into the schedule instead of being pulled
                               # BACK to the tuck the t=0 reference demands
+    cmd_crouch: jax.Array     # ()  per-episode crouch-command draw: replaces
+                              # the otherwise-FROZEN cmd[3]=1.0 in sampled
+                              # commands (SIL finding #2); 1.0 when the
+                              # feature is off
     servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
     lash: jax.Array           # ()  per-episode backlash (rad)
@@ -409,6 +429,22 @@ class BimoMJXEnv:
         mimic_knee_w: float = 1.0,     # per-joint mimic weighting: knee error
         # scaled by this in the imitation kernel (the lump-sum kernel let the
         # hips+ankles satisfy it while the knee stayed jammed at +1 deg)
+        # -- servo tick quantization (SIL boundary realism, 2026-07-31) --------
+        # Puts the STS3215 encoder/bus quantizer inside training: joint
+        # position/velocity OBSERVATIONS and the COMMANDED target angles are
+        # rounded to the servo tick grid (see the _TICK_* constants). IMU
+        # channels and the physics state are untouched. Arithmetically
+        # identical to walker_env's (parity gate 2i); default False = old runs
+        # bit-exact.
+        quantize_ticks: bool = False,
+        # -- crouch-command variation (SIL finding #2, docs/sil-harness.md) ----
+        # cmd[3] was frozen at exactly 1.0 through every run, collapsing its
+        # obs-normalizer std to ~1e-6 -- while the firmware feeds that channel
+        # battguard's crouch(), which ramps below 1.0 on a sagging pack.
+        # Per-episode uniform draw, substituted wherever a SAMPLED command
+        # would have used the frozen 1.0 (an ext_mix crouch command keeps its
+        # own crouch_range draw). (1.0, 1.0) = legacy, consumes no RNG.
+        cmd_crouch_range: tuple = (1.0, 1.0),
     ):
         if getup and ext_cmd:
             raise ValueError("getup and ext_cmd are separate objectives")
@@ -465,6 +501,14 @@ class BimoMJXEnv:
         self._i_knee = jp.array([self._legL["knee"], self._legR["knee"]])
         self._i_ankle = jp.array([self._legL["ankle"], self._legR["ankle"]])
         self.terrain = terrain
+        self.quantize_ticks = bool(quantize_ticks)
+        self.cmd_crouch_range = tuple(cmd_crouch_range)
+        self._crouch_dr = (self.cmd_crouch_range != (1.0, 1.0))
+        if self._crouch_dr and not ext_cmd:
+            raise ValueError("cmd_crouch_range requires ext_cmd "
+                             "(cmd[3] only exists in the 7-channel layout)")
+        # per-joint encoder direction (nominal calibration -- see _TICK_DIR)
+        self._tick_dir = jp.full((self._nq_act,), _TICK_DIR)
         self.mimic_knee_w = mimic_knee_w
         _mw = np.ones(self._nq_act)
         _mw[np.asarray(self._i_knee)] = mimic_knee_w
@@ -651,18 +695,22 @@ class BimoMJXEnv:
             if ext_cmd else ())
 
     # -- pieces ---------------------------------------------------------------
-    def _sample_cmd(self, rng: jax.Array, step_i: jax.Array):
+    def _sample_cmd(self, rng: jax.Array, step_i: jax.Array,
+                    cmd_crouch=1.0):
         """(cmd, cmd_next, traj_on): stand / pivot-in-place / walk mix, exactly
         the CPU distribution (draws are made unconditionally -- fixed RNG
-        shape). traj_on flags an ext_cmd air-circle command (c5/c6 evolve)."""
+        shape). traj_on flags an ext_cmd air-circle command (c5/c6 evolve).
+        cmd_crouch: this episode's crouch-channel draw (see _apply_crouch)."""
         if self.cmd_fixed is not None:
             cmd = jp.asarray(self.cmd_fixed, dtype=jp.float32)
             want = 7 if self.ext_cmd else 2
             if cmd.shape[0] != want:
                 raise ValueError(f"cmd_fixed needs {want} channels")
+            if self.ext_cmd:
+                cmd = self._apply_crouch(cmd, cmd_crouch)
             return cmd, jp.asarray(10 ** 9, dtype=jp.int32), jp.zeros(())
         if self.ext_cmd:
-            return self._sample_cmd_ext(rng, step_i)
+            return self._sample_cmd_ext(rng, step_i, cmd_crouch)
         ru, rw, rs, rv, rp, rww, rh = jax.random.split(rng, 7)
         u = jax.random.uniform(ru)
         w_piv = jax.random.uniform(rw, minval=0.3, maxval=self.cmd_w_range)
@@ -684,7 +732,8 @@ class BimoMJXEnv:
                 step_i + (hold / self.control_dt).astype(jp.int32),
                 jp.zeros(()))
 
-    def _sample_cmd_ext(self, rng: jax.Array, step_i: jax.Array):
+    def _sample_cmd_ext(self, rng: jax.Array, step_i: jax.Array,
+                        cmd_crouch=1.0):
         """7-channel precision command draw. Mix (ext_mix): stand / crouch /
         one-leg balance / air-circle / pivot; remainder walks (15% backward,
         15% pure sidestep, 70% forward with the legacy 60%-turning draw).
@@ -745,6 +794,7 @@ class BimoMJXEnv:
         lift = jp.where(lifted, side, 0.0)
         cmd = jp.stack([vx, vy, wz, ch, lift,
                         jp.zeros(()), jp.zeros(())]).astype(jp.float32)
+        cmd = self._apply_crouch(cmd, cmd_crouch)
         hold = jax.random.uniform(rs[12], minval=self.cmd_resample_s[0],
                                   maxval=self.cmd_resample_s[1])
         # trajectory mode code: 0 off, 1 foot-circle, 2 march, 3 sway
@@ -877,6 +927,36 @@ class BimoMJXEnv:
             out.append(jp.any(hit & mine))
         return jp.stack(out)
 
+    # -- servo tick quantization (mirror of walker_env's, parity-gated) --------
+    def _quant_angle(self, rad):
+        """rad -> encoder tick (round-half-to-even, clipped 0..4095) -> rad.
+        jp.round is round-half-to-even, the same rule as np.rint (and
+        lrintf()'s default mode) -- that is what makes gate 2i bit-identical
+        rather than merely close."""
+        ticks = jp.clip(_TICK_ZERO + jp.round(rad / _TICK_RAD * self._tick_dir),
+                        0.0, float(_TICK_MAX))
+        return (ticks - _TICK_ZERO) * _TICK_RAD * self._tick_dir
+
+    def _quant_vel(self, rad_s):
+        """rad/s -> integer reg-58 steps/s -> rad/s (sign-magnitude wire word,
+        15-bit magnitude -> +/-32767 steps/s)."""
+        steps = jp.clip(jp.round(rad_s / _TICK_RAD * self._tick_dir),
+                        -float(_TICK_VEL_MAX), float(_TICK_VEL_MAX))
+        return steps * _TICK_RAD * self._tick_dir
+
+    def _apply_crouch(self, cmd, cmd_crouch):
+        """Replace a FROZEN full-height crouch channel with this episode's
+        draw (SIL finding #2). Only the exactly-1.0 case is replaced, so an
+        ext_mix crouch command keeps its own crouch_range draw. Mirror of
+        walker_env._apply_crouch_draw."""
+        if not self._crouch_dr:
+            return cmd
+        # explicit cast: cmd is float32 while the draw is the jnp default
+        # (float64 under the parity suite's x64), and an implicit downcast
+        # inside .at[].set is a deprecated-and-soon-an-error scatter
+        return cmd.at[3].set(jp.where(cmd[3] == 1.0, cmd_crouch,
+                                      cmd[3]).astype(cmd.dtype))
+
     def _obs(self, data, prev_action, cmd, step_i, imu_R, imu_bias,
              rng: jax.Array, gait_phase=None) -> jax.Array:
         up = data.sensordata[self._up_adr:self._up_adr + 3]
@@ -897,9 +977,16 @@ class BimoMJXEnv:
             phase = gait_phase        # per-episode gait clock (plan v2)
         else:
             phase = 2 * jp.pi * (step_i.astype(jp.float32) / self.max_steps)
+        q_j = data.qpos[self._jq0:self._jq1]
+        dq_j = data.qvel[self._jv0:self._jv1]
+        if self.quantize_ticks:
+            # servo-side view: what a SYNC READ can actually report (encoder
+            # ticks + reg-58 steps/s). The physics state is untouched.
+            q_j = self._quant_angle(q_j)
+            dq_j = self._quant_vel(dq_j)
         return jp.concatenate([
-            data.qpos[self._jq0:self._jq1],
-            data.qvel[self._jv0:self._jv1],
+            q_j,
+            dq_j,
             up,
             linvel,
             gyro,
@@ -945,7 +1032,18 @@ class BimoMJXEnv:
         else:
             imu_R = jp.eye(3)
             imu_bias = jp.zeros(3)
-        return servo, lat_ms, lash, imu_R, imu_bias
+        if self._crouch_dr:
+            # per-episode crouch-command draw (SIL finding #2). fold_in rather
+            # than widening the split above, so every existing per-episode
+            # draw keeps its exact stream when the feature is off (the CPU
+            # mirror likewise consumes no RNG at the default).
+            cmd_crouch = jax.random.uniform(
+                jax.random.fold_in(rng, 3215),
+                minval=self.cmd_crouch_range[0],
+                maxval=self.cmd_crouch_range[1])
+        else:
+            cmd_crouch = jp.ones(())
+        return servo, lat_ms, lash, imu_R, imu_bias, cmd_crouch
 
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
@@ -1133,9 +1231,10 @@ class BimoMJXEnv:
             data = data.replace(qpos=qpos, qvel=qvel,
                                 ctrl=jp.zeros(self.mj_model.nu) + self._default)
             data = mjx.forward(self.model, data)
-        servo, lat_ms, lash, imu_R, imu_bias = self._draw_episode(r_ep)
+        (servo, lat_ms, lash, imu_R, imu_bias,
+         cmd_crouch) = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
-        cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i)
+        cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
             # recovery episodes: command pinned to STAND for the whole
             # episode (get up, then hold; locomotion-after-recovery is a
@@ -1182,6 +1281,7 @@ class BimoMJXEnv:
                      best_h=data.qpos[2] - self._gz(data.qpos[0],
                                                     data.qpos[1]),
                      head_ref=_quat_yaw(data.qpos[3:7]), rise_t0=rise_t0,
+                     cmd_crouch=cmd_crouch,
                      servo=servo, lat_ms=lat_ms, lash=lash,
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
@@ -1191,9 +1291,10 @@ class BimoMJXEnv:
         quantity -- command, servo gains, latency, backlash, IMU error -- so
         episode-level DR diversity survives auto-resetting."""
         rng, r_ep, r_cmd, r_obs = jax.random.split(rng, 4)
-        servo, lat_ms, lash, imu_R, imu_bias = self._draw_episode(r_ep)
+        (servo, lat_ms, lash, imu_R, imu_bias,
+         cmd_crouch) = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
-        cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i)
+        cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
             rng, r_traj = jax.random.split(rng)
             traj = self._draw_traj(r_traj)
@@ -1237,9 +1338,9 @@ class BimoMJXEnv:
             stand_streak=jp.zeros(()),
             best_h=first.data.qpos[2] - self._gz(first.data.qpos[0],
                                                  first.data.qpos[1]),
-            head_ref=_quat_yaw(first.data.qpos[3:7]), servo=servo,
-            lat_ms=lat_ms, lash=lash, imu_R=imu_R, imu_bias=imu_bias,
-            metrics=metrics)
+            head_ref=_quat_yaw(first.data.qpos[3:7]), cmd_crouch=cmd_crouch,
+            servo=servo, lat_ms=lat_ms, lash=lash, imu_R=imu_R,
+            imu_bias=imu_bias, metrics=metrics)
 
     def step(self, state: State, action: jax.Array) -> State:
         m = self.model
@@ -1253,6 +1354,10 @@ class BimoMJXEnv:
         else:
             target = jp.clip(self._default + self._scale * action,
                              self._lo, self._hi)
+        if self.quantize_ticks:
+            # the firmware writes INTEGER goal ticks (SYNC WRITE): quantize
+            # before the actuator path (latency, PD, backlash) sees the target
+            target = self._quant_angle(target)
 
         ang = jax.random.uniform(r_push_a, maxval=2 * jp.pi)
         if self.push_kick:
@@ -1669,7 +1774,8 @@ class BimoMJXEnv:
             done_flag = fell.astype(jp.float32)
 
         # resample AFTER the reward graded the command the policy saw
-        new_cmd, new_next, new_traj_on = self._sample_cmd(r_cmd, step_i)
+        new_cmd, new_next, new_traj_on = self._sample_cmd(r_cmd, step_i,
+                                                          state.cmd_crouch)
         resample = step_i >= state.cmd_next
         # heading reference: advance by the GRADED command's yaw rate
         # (wrapped); a fresh command restarts the integrator at the current
@@ -1741,7 +1847,7 @@ class BimoMJXEnv:
                      recovered=recovered, stand_streak=stand_streak,
                      best_h=jp.maximum(state.best_h, height),
                      head_ref=head_ref, rise_t0=state.rise_t0,
-                     servo=state.servo,
+                     cmd_crouch=state.cmd_crouch, servo=state.servo,
                      lat_ms=state.lat_ms, lash=state.lash, imu_R=state.imu_R,
                      imu_bias=state.imu_bias, metrics=metrics)
 
