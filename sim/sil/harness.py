@@ -43,7 +43,9 @@ SPEC_H = os.path.join(FIRMWARE, "components", "obs", "include", "obs",
 WEIGHTS_DIR = os.path.join(HERE, "weights")
 GOLDEN_DIR = os.path.join(HERE, "golden")
 CAL_DIR = os.path.join(HERE, "cal")
-DEFAULT_RUN = "loco_v6creep"
+# first policy trained on the corrected printed foot (f58a412); v6creep
+# predates it and no longer stands on the current plant (2026-08-01)
+DEFAULT_RUN = "loco_v8foot"
 
 # Servo units.  4096 ticks / revolution (scsbus::kStepsPerRev), encoder full
 # scale 0..4095, "middle" 2048.

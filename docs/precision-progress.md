@@ -847,3 +847,40 @@ Tonight (`loco_v8foot`, queued): warm-start v7knee_b on the corrected
 foot, same recipe. The 75/88 + knee numbers must be re-earned on the
 plant that matches the printed robot; expect early reward collapse then
 re-adaptation of contact timing.
+
+## Day 11 (2026-08-01): corrected-foot migration done in one night; rotation is the new hole
+
+The extended GPU window (user: until noon) ran the full chain: v8foot
+(60M, corrected foot, old mosaic) finished 00:24; the runner's new
+queue re-scan launched v9rough one minute later on freshly pulled code
+(rough-only mosaic, --quantize, --cmd-crouch-range 0.7,1.0); full 60M
+by 07:53. First runs with git_sha stamped in config.json and with the
+standing SIL referee column.
+
+**loco_v8foot, python 67/88 / SIL 68/88** -- the migration worked:
+every pre-correction policy scored ~0 on this plant; one warm-started
+night recovers line_1m 8/8, stand_10s 8/8, goal_home 7/8 (home 8 cm).
+**loco_v9rough, python 63/88 / SIL 63/88, 6/11 clean** -- and it is
+the first policy trained the way the robot actually senses: encoder-
+quantized obs, tick-quantized targets, varied crouch (normalizer
+hazard closed: cmd[3] std is now healthy), no smooth ground anywhere.
+stand_off 8/8 at 1.7 cm drift is the best torque-off standing ever
+recorded here. Knee articulation held through every change: ~29 deg
+p2p flat / ~27.5 deg rough on the corrected plant.
+
+**Rotation collapsed on the corrected foot**: turn_180 2/8 -> 1/8,
+circle_return 1/8 -> 0/8 (v7knee_b turned 7/8 on the old foot). The
+eight-sphere sole grips differently in yaw; nothing in either recipe
+emphasized turning. Tonight: v10turn = v9rough recipe + --turn-emph
+(the loco_v5t mechanism: 85% turn episodes, |wz| >= 0.25). goal_home
+also dipped for v9rough (3/8 python / 5/8 SIL) -- likely the same
+heading-control deficit; re-judge after v10turn.
+
+SIL vs python on marginal LONG-horizon scenarios can differ by 2-3
+seeds in either direction (goal_home 7v5 for v8foot, 3v5 for v9rough;
+opposite signs, per-tick net_err still 6.6e-7): 24 s of closed loop
+compounds the half-tick obs difference and the free-running SIL gait
+clock. The closed-loop pytest budget is now 2 seeds for goal_home, 1
+elsewhere; a real stack bug would miss in ONE direction everywhere.
+SIL reference run re-pointed loco_v6creep -> loco_v8foot (goldens
+regenerated; firmware 2959 checks green; 31/31 pytest).
