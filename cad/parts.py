@@ -638,6 +638,41 @@ def yaw_carrier(print_fins=False):
     for s in (1, -1):
         p += box(-D.SV_TOPFACE, D.SV_TOPFACE, s * cy0, s * (cy0 + D.WALL),
                  zw, zc)                                     # cheeks
+    # IDLER-SIDE SEAT + PLATFORM DETENT (2026-08-01, user: "add the idler wheel
+    # side detent to conform to that side of the servo"). The rear wall's inner
+    # face above is SV_TOPFACE MIRRORED (-17.35), and THERE IS NO SERVO THERE:
+    # the real idler-side case face is SV_IDLER_CASE_FACE (-14.75). Placing the
+    # mock in this bay measures the first material inboard of that face as the
+    # free hub (-17.35) and the idler disc (-16.80) -- both of which ROTATE --
+    # then the moulded platform (-16.65), then the case at -14.75. So this wall
+    # and its two M2.5 retention screws have been clamping 2.60 mm of air. Same
+    # defect the leg_link grip plate (2026-07-29) and the foot tab (2026-07-30)
+    # already had fixed; the carrier was the last part still on the phantom face.
+    #
+    # The seat grows INWARD ONLY. The wall's OUTER face stays at -19.95 because
+    # ROLL_ARM_INNER is measured off it -- moving it would silently re-open the
+    # hip-roll idler screw budget that was just settled. Screw engagement does
+    # not change either way: the M2.5x8 sits flush in its countersink at -19.95
+    # and bites the case 2.80 mm whether the 2.45 mm ahead of it is plastic or
+    # air. What changes is that it now pulls the case against something.
+    _seat = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR       # -14.90, at the face
+    p += box(-D.SV_TOPFACE, _seat, -cy0, cy0, zw,
+             za + D.SV_AXIS_FROM_REAR)                   # up to the cable end
+    # DETENT for the moulded back-cover PLATFORM (SV_IDLER_BOSS_*: 1.90 proud of
+    # the case face, y +/-10.70, z -23.86..-10.60 in this frame). It sits BETWEEN
+    # the screws and the face they pull into, so it is RELIEVED, not seated on --
+    # and the relief is a CHANNEL OPEN AT THE BOTTOM, not the leg_link's closed
+    # pocket: this servo slides UP into the bay, so the platform has to travel
+    # the full height of the seat to reach its place. A closed pocket would just
+    # be a wall the servo cannot get past. Its side walls straddle the platform
+    # with RIB_RELIEF_CLR a side, which is what makes it a DETENT rather than a
+    # clearance hole -- it locates the servo across the bay. Printed
+    # horn-plate-down (RX180) model +z is print-down, so the channel's closed
+    # end is its print FLOOR and nothing bridges.
+    _px = D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR          # +/-11.10
+    _pf = D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR     # -16.95, channel floor
+    p -= box(_pf, _seat + 0.01, -_px, _px, zw - 1,
+             za - D.SV_IDLER_BOSS_Z[0] + D.RIB_RELIEF_CLR)   # -10.20, closed top
     # axis bore: downward-open U-slot in both walls (servo slides up)
     p -= cyl_x(D.BAY_BORE / 2, -21, 21, 0, za)
     p -= box(-21, 21, -D.BAY_BORE / 2, D.BAY_BORE / 2, zw - 1, za)
@@ -652,7 +687,10 @@ def yaw_carrier(print_fins=False):
             p -= csk_x(s * D.CASE_HOLE_LAT, za + zrow, 19.95, +1)
     for zrow in D.CASE_HOLES_BOT:                    # rear wall (idler face)
         for s in (1, -1):
-            p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, -21, -D.SV_TOPFACE + 1,
+            # ...through the idler SEAT as well as the wall (2026-08-01): the
+            # bore used to stop at the phantom face and would now dead-end
+            # 2.45 mm inside the seat pad added above.
+            p -= teardrop_x(D.CASE_SCREW_CLEAR / 2, -21, _seat + 1,
                             s * D.CASE_HOLE_LAT, za + zrow, roll=180)
             p -= csk_x(s * D.CASE_HOLE_LAT, za + zrow, -19.95, -1)
     # yaw-horn bolts: 4x M3 into the horn disc (O14 circle). Bores are VERTICAL
@@ -670,7 +708,10 @@ def yaw_carrier(print_fins=False):
     # 1.0 mm full-width bar to the bore crown (za+10.3) and 1.25 mm to the
     # za+8.30 retention screw bores; width +/-11.4 clears the sockets and
     # keeps 3.86 mm posts to the wall edges (+/-15.26).
-    p -= box(-21, -D.SV_TOPFACE + 1, -D.SV_CONN_HW - 0.5, D.SV_CONN_HW + 0.5,
+    # (x1 runs past the idler seat, 2026-08-01 -- the window used to stop at the
+    # phantom face, which would leave the seat pad standing in front of the
+    # sockets the plugs come out of.)
+    p -= box(-21, _seat + 1, -D.SV_CONN_HW - 0.5, D.SV_CONN_HW + 0.5,
              za + D.SV_CONN_L[0] - 0.45, za + D.SV_CONN_L[1] + 1.0)
     if print_fins:
         # break-away BREAKOUT under the connector window (2026-07-26). Printed

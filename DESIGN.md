@@ -1532,6 +1532,51 @@ ours (`0.7854*time` turns the knee exactly +45.000°).
 MbD does no collision detection, so the simulation shows motion and proves
 nothing about interference. That is what `freecad_rom_collide.py` is for.
 
+### The last part still seated on a face that isn't there (2026-08-01)
+
+`SV_BOTFACE` (−17.35) is not a real surface. The ST3215's case is **not**
+symmetric about its output axis: the idler side stops 2.60 mm short of the
+mirrored face, at `SV_IDLER_CASE_FACE` (−14.75). That was established on
+2026-07-29 and fixed in the `leg_link` grip plate, then in the `foot` tab on
+2026-07-30. The `yaw_carrier`'s rear bay wall was the last part still sitting
+on the phantom face, so both of its hip-roll retention screws were tightening
+against a wall that touched nothing.
+
+Placing the servo mock in the bay and probing inward from the wall face shows
+why this is more than a gap. In order, the first things a naive seat would
+reach are the **free hub** (−17.35) and the **idler disc** (−16.80) — *both of
+which rotate with the joint* — then the moulded back-cover platform (−16.65),
+and only then the case at −14.75. Seating on the first material you touch would
+have clamped the joint solid.
+
+The fix is a seat that grows **inward only**, to `SV_IDLER_CASE_FACE −
+GRIP_SEAT_CLR` (−14.90), with a channel down the middle for the platform. Three
+things are worth recording:
+
+- **The wall's outer face did not move.** `ROLL_ARM_INNER` is measured off it,
+  so pulling it in would have silently re-opened the hip-roll idler screw budget
+  settled the day before. Screw engagement is unchanged either way — the M2.5×8
+  sits flush at −19.95 and bites the case 2.80 mm whether the 2.45 mm ahead of
+  it is plastic or air. What changed is that it now pulls the case against
+  something.
+- **The platform relief is a channel, not a pocket.** This servo slides *up*
+  into the bay, so the platform has to travel the full height of the seat to
+  reach its place; the `leg_link`'s closed pocket would simply be a wall the
+  servo could not get past. Its side walls straddle the platform by
+  `RIB_RELIEF_CLR` a side, which is what makes it a *detent* — it locates the
+  servo across the bay — rather than a clearance hole. Printed horn-plate-down
+  the channel's closed end is its print floor, so nothing bridges.
+- **One of the two rear screws still cannot bear, and that is geometric.** The
+  platform sweeps the corridor on its way in, and the lower screw row (8.30 mm
+  from the axis) lies 0.85 mm inside it. With vertical insertion there is no
+  shape that both lets the platform through and puts material under that screw.
+  It ends up 24 % backed against the upper row's 65 %; both were 0 % before.
+
+`check_assembly.py` gained a **standoff probe** on the side lands, because
+clearing the servo and seating on it are not the same measurement and the
+existing interference check passed happily throughout the 2.60 mm era. It reads
+0.15 mm now and 2.60 mm against the old geometry.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |

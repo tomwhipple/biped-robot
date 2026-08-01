@@ -311,6 +311,25 @@ def main():
     ok &= check("yaw servo seated in pelvis (contact only)", vol(pv, ysv))
     ok &= check("roll servo vs carrier bay (contact only)",
                 vol(yc, Pos(0, 0, D.CARRIER_ROLL_AXIS) * servo_mock_x()))
+    # ...and does that bay actually TOUCH the servo on the idler side? Clearing
+    # it is not the same as seating on it: until 2026-08-01 the rear wall stood
+    # at the MIRRORED SV_TOPFACE and cleared the servo by 2.60 mm everywhere, so
+    # the check above passed while both retention screws pulled on air. Probe the
+    # side lands -- outboard of the platform detent channel, where the seat is
+    # supposed to land on the real case face.
+    _rsv = Pos(0, 0, D.CARRIER_ROLL_AXIS) * servo_mock_x()
+    for _y in (11.8, -11.8):
+        _probe = parts.cyl_x(0.8, -25, 0, _y, D.CARRIER_ROLL_AXIS + 23.0)
+        _car = yc & _probe
+        _svm = _rsv & _probe
+        _inner = max((s.bounding_box().max.X for s in _car.solids()), default=None)
+        _first = min((s.bounding_box().min.X for s in _svm.solids()), default=None)
+        _gap = None if (_inner is None or _first is None) else _first - _inner
+        _state = "OK" if _gap is not None and _gap <= D.GRIP_SEAT_CLR + 0.05 \
+            else "** SEAT STANDS OFF THE CASE **"
+        print(f"  {'carrier idler seat bears on the case (y%+.1f)' % _y:58s} "
+              f"{_gap if _gap is not None else float('nan'):8.2f} mm   {_state}")
+        ok &= _state == "OK"
     for yaw in (0, 45, -45):
         stack = yaw_stack(D.HIP_SEP / 2, yaw)
         ok &= check(f"carrier+roll servo at yaw {yaw:+d} vs pelvis", vol(pv, stack))

@@ -348,6 +348,18 @@ ceiling slot is gone).
 > to clear the plug bodies — nothing seats on that bar. If a carrier came off
 > the plain `yaw_carrier.stl`, check that bar for sag before plugging in.
 
+> **The rear wall now seats on the servo (2026-08-01).** It used to stand at
+> the *mirrored* case face and cleared the real idler side by **2.60 mm**, so
+> the two rear retention screws were tightening onto a wall that touched
+> nothing. The wall now carries an **idler seat** that comes in to 0.15 mm off
+> the real case face — the same standoff the horn side has — with a **detent
+> channel** down the middle for the moulded back-cover platform. The channel is
+> open at the bottom because the servo slides up past it, and its side walls
+> straddle the platform by 0.4 mm a side, so the servo is now *located* across
+> the bay instead of rattling in it. **The servo should now feel snug against
+> the rear wall before you put a screw in.** If it does not, check that the
+> platform is running in the channel and not sitting on top of it.
+
 **8× M2.5×8 pan self-tapping per bay** — 4 through the front
 (horn) wall, 4 through the rear (idler) wall — into the roll servo's
 case holes (heads proud of the walls; the audit clears them through the
