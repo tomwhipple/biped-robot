@@ -1,11 +1,13 @@
 """Generate the shared terrain mosaic both envs load (sim/terrain_mosaic.npz).
 
-A single static heightfield of 1 m x 1 m tiles, each with a roughness
-amplitude drawn from {3, 5, 8, 12, 16, 20} mm and a feature size drawn
-from 0.10-0.20 m (carpet pile .. door-threshold scale). NO smooth tiles
-(user 2026-07-31: "drop the smooth as that's not realistic") -- every
-tile has at least carpet-scale texture; ideal flat ground exists only in
-the flat referee scenarios, not in training. Per-episode
+A single static heightfield of 1 m x 1 m tiles. CARPET MODEL (user
+2026-08-01: "generally flat, locally rough, like carpeting" -- the
+first rough-only field used 0.10-0.20 m features, which read as locally
+SMOOTH rolling hills, the opposite of carpet): amplitude 2-6 mm, feature
+size 0.02-0.08 m, so the surface is globally flat with fine-grained
+texture at the foot scale. Friction is raised vs the smooth plane in
+the envs' hfield geom (carpet grips; see _terrain_xml/_terrain_patch).
+NO smooth tiles (user 2026-07-31). Per-episode
 terrain variation comes from the SPAWN DRAW, not from regenerating the
 field: each episode starts at a random (x, y) on the mosaic, so the
 policy sees a different local roughness every episode while the model
@@ -30,7 +32,7 @@ OUT = os.path.join(HERE, "..", "terrain_mosaic.npz")
 NROW, NCOL = 300, 600            # y, x
 RX, RY, CX = 6.0, 3.0, 4.5       # field spans x -1.5..10.5, y -3..3
 CELL = 2 * RX / (NCOL - 1)       # ~2 cm
-AMPS_MM = [3, 5, 8, 12, 16, 20]   # rough-only since 2026-07-31 (was 0..20)
+AMPS_MM = [2, 3, 4, 5, 6]         # carpet: fine amplitude (2026-08-01)
 TILE = 1.0                       # tile edge, m
 
 
@@ -53,7 +55,7 @@ for ty0 in np.arange(-RY, RY, TILE):
         amp = rng.choice(AMPS_MM) * 1e-3
         if amp == 0.0:
             continue
-        smooth = rng.uniform(0.10, 0.20)
+        smooth = rng.uniform(0.02, 0.08)   # foot-scale texture, not hills
         rmask = (ys >= ty0) & (ys < ty0 + TILE)
         cmask = (xs >= tx0) & (xs < tx0 + TILE)
         R, C = int(rmask.sum()), int(cmask.sum())
@@ -67,9 +69,9 @@ for ty0 in np.arange(-RY, RY, TILE):
         tile /= max(float(np.ptp(tile)), 1e-9)
         field[np.ix_(rmask, cmask)] = tile * amp
 
-# one global smoothing pass so tile borders are steps of the same scale as
-# the bumps themselves, not cliffs
-field = gauss_smooth(field, 0.04 / CELL)
+# light border blend only (a 4 cm pass would erase the fine texture that
+# is now the whole point); amplitudes are all <= 6 mm so borders are tame
+field = gauss_smooth(field, 0.02 / CELL)
 field = np.clip(field, 0.0, None)
 
 np.savez(OUT, field=field.astype(np.float32),

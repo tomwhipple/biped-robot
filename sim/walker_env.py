@@ -785,7 +785,12 @@ class BimoWalkerEnv(gym.Env):
         look = re.search(r'(material="[^"]+"|rgba="[^"]+")', orig.group(0)) if orig else None
         geom = (f'<geom name="floor" type="hfield" hfield="terrain" '
                 f'pos="{cx} 0 0" contype="1" conaffinity="3" '
-                f'{look.group(1) if look else ""} friction="1 0.02 0.001" '
+                # carpet grips (user 2026-08-01): sliding 1.3 vs the smooth
+                # plane's 1.0, torsional 0.05 (pile engagement resists yaw
+                # pivots) -- pair friction = elementwise max vs the pads'
+                # 1/0.02/0.001. Bench-measure both when the robot walks on
+                # the real carpet; mirrors sim/mjx _terrain_patch EXACTLY.
+                f'{look.group(1) if look else ""} friction="1.3 0.05 0.001" '
                 f'condim="4"/>')
         patched, n = re.subn(r'<geom name="floor"[^>]*?/>', geom, xml, flags=re.S)
         if n != 1:

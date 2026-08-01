@@ -150,7 +150,8 @@ def _terrain_patch(xml: str, spec: dict) -> str:
     geom = (f'<geom name="floor" type="hfield" hfield="terrain" '
             f'pos="{spec["cx"]} 0 0" contype="1" conaffinity="3" '
             f'{look.group(1) if look else ""} '
-            f'friction="1 0.02 0.001" condim="4"/>')
+            # carpet friction -- mirrors sim/walker_env._terrain_xml EXACTLY
+            f'friction="1.3 0.05 0.001" condim="4"/>')
     patched, n = re.subn(r'<geom name="floor"[^>]*?/>', geom, xml, flags=re.S)
     if n != 1:
         raise ValueError(f"expected exactly one floor geom, found {n}")
