@@ -201,6 +201,26 @@ def main():
     p.add_argument("--w-com-stance", type=float, default=None,
                    help="CoM-over-stance-foot kernel while lifted "
                         "(knee-flexion balance lifts)")
+    p.add_argument("--march-mix", type=float, default=None,
+                   help="fraction of ext_cmd episodes drawn as a KNEE-HIGH "
+                        "march: marching in place with alternating "
+                        "exaggerated knee lifts (swing sole raised to the "
+                        "opposite knee's standing height, ~2x normal swing "
+                        "clearance) at zero net translation. Expressed "
+                        "through the existing 7 command channels; pair with "
+                        "--w-knee-high to pay for the clearance")
+    p.add_argument("--march-hz", type=float, default=None,
+                   help="commanded march cadence in full L/R cycles per "
+                        "second (1.0 = 0.5 s per lift). Omitted/0 alternates "
+                        "on the gait clock instead, inheriting its 1.25-1.75 "
+                        "Hz draw -- only ~165 ms of upswing to reach knee "
+                        "height. A pinned cadence decouples march swing "
+                        "timing from the gait-clock obs channel by design")
+    p.add_argument("--w-knee-high", type=float, default=None,
+                   help="knee-high clearance kernel weight: fraction of the "
+                        "commanded swing height (lift_height + c6) the swing "
+                        "sole reaches, on the correct one-foot contact "
+                        "pattern (skill kernel for --march-mix)")
     p.add_argument("--init-from", default=None,
                    help="warm-start from sim/runs/<name>/params.pkl (same "
                         "objective only -- objective changes need from-"
@@ -358,6 +378,16 @@ def main():
         env_kw["w_rise_ref"] = args.w_rise_ref
     if args.w_com_stance is not None:
         env_kw["w_com_stance"] = args.w_com_stance
+    # knee-high marching (2026-08-01). Applied AFTER the family blocks so a
+    # skills/loco recipe can be given the march slice without editing the
+    # family mix; both land in config.json, which the CPU referee rebuilds
+    # its env from.
+    if args.march_mix is not None:
+        env_kw["march_mix"] = args.march_mix
+    if args.march_hz is not None:
+        env_kw["march_hz"] = args.march_hz
+    if args.w_knee_high is not None:
+        env_kw["w_knee_high"] = args.w_knee_high
     # SIL-boundary realism (2026-07-31). Recorded unconditionally so
     # config.json says which side of the quantizer a run trained on -- the
     # CPU referee (eval_precision) reconstructs its env from these keys.

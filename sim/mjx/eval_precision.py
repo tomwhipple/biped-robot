@@ -857,6 +857,118 @@ def scen_march():
     return build, evaluate
 
 
+def scen_march_knee(settle=1.0):
+    """KNEE-HIGH march in place (user 2026-08-01): alternating exaggerated
+    knee lifts, the swing sole raised toward the height of the OPPOSITE KNEE
+    (env.march_clear -- measured on the plant: 10.4 cm on bimo_biped_v3yaw,
+    1.7x the 6 cm nominal lift_height), zero net translation.
+
+    The command script is the training command pattern, replayed: vx/vy/wz
+    pinned to 0, the lift channel alternating on the env's own march clock
+    (the pinned march_hz cadence when the run trained with one -- it arrives
+    through config.json -- else the gait clock, same left-swings-first
+    convention as w_feet_phase and the training-time march_mix draw), and c6
+    raising the swing-foot target from lift_height up to knee height over
+    each swing. No new command channel -- the obs contract is untouched,
+    which is the whole point of the encoding.
+
+    Success (user criteria): >= 6 alternating lifts whose peak swing-sole
+    clearance exceeds 60% of the knee-high target, total XY drift < 15 cm,
+    no fall. Headline: MEDIAN peak clearance across the counted swings."""
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            env = ev["_env"]
+            if t < settle:
+                return (0, 0, 0, 1, 0)
+            # Replay the env's OWN march evolution, whichever clock the run
+            # trained on -- march_hz comes through config.json into the eval
+            # env, so a run trained at a pinned cadence is graded at that
+            # cadence rather than at the referee's guess.
+            if getattr(env, "march_hz", 0.0) > 0.0:
+                # integer-exact, exactly as the env computes it (the flip
+                # must not straddle a float zero crossing -- see env)
+                n = env._step_i % env._march_period
+                left = n < env._march_half
+                ph = 2 * math.pi * n / env._march_period
+            else:
+                ph = (env._gait_phase if env.gait_clock
+                      else 2 * math.pi * 0.7 * (t - settle))
+                left = math.sin(ph) >= 0
+            lift = -1 if left else 1
+            dz = env._march_dz * abs(math.sin(ph))
+            return (0, 0, 0, 1, lift, 0, dz)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        env = ev["_env"]
+        tgt = float(getattr(env, "march_clear", 0.0))
+        win = _win(rows, settle, 1e9)
+        # segment into maximal runs of a constant COMMANDED lift side; each
+        # run is one swing, scored by its peak achieved sole clearance
+        swings = []          # (side, peak_clear)
+        side = None
+        peak = 0.0
+        for r in win:
+            s = "L" if r["cmd_lift"] < -0.5 else (
+                "R" if r["cmd_lift"] > 0.5 else None)
+            if s != side:
+                if side is not None:
+                    swings.append((side, peak))
+                side, peak = s, 0.0
+            if s is not None:
+                peak = max(peak, r["foot_clear"])
+        if side is not None:
+            swings.append((side, peak))
+        swings = [(s, p) for s, p in swings if s is not None]
+        # the window always ends mid-swing -- drop that partial one; and if
+        # the episode ended in a FALL, drop the swing it fell during too:
+        # a toppling robot's swing sole sails past knee height on the way
+        # over (2x the target, measured), which would otherwise turn the
+        # headline into a fall artifact. Neither trim can rescue a pass:
+        # 10 s is ~20 swings at a pinned 1 Hz cadence (~30 on the gait
+        # clock) against a bar of 6.
+        if swings:
+            swings = swings[:-1]
+        if fell and swings:
+            swings = swings[:-1]
+        # count only swings that ALTERNATE (a run of same-side swings would
+        # be a segmentation artifact, not a march) and clear 60% of target
+        thresh = 0.60 * tgt
+        good = []
+        prev = None
+        for s, p in swings:
+            if p >= thresh and s != prev:
+                good.append(p)
+            prev = s
+        n_good = len(good)
+        peaks = [p for _, p in swings]
+        med_peak = float(np.median(good)) if good else (
+            float(np.median(peaks)) if peaks else float("nan"))
+        # total XY drift: max excursion from where the march started
+        ref = next(((r["x"], r["y"]) for r in rows if r["t"] >= settle),
+                   (rows[0]["x"], rows[0]["y"]) if rows else (0.0, 0.0))
+        drift = (max(math.hypot(r["x"] - ref[0], r["y"] - ref[1])
+                     for r in win) if win else float("nan"))
+        success = bool((not fell) and n_good >= 6
+                       and not math.isnan(drift) and drift < 0.15)
+        return dict(success=success,
+                    metrics=dict(knee_lifts=n_good, swings=len(swings),
+                                 peak_clear_med=med_peak,
+                                 peak_clear_max=(max(peaks) if peaks
+                                                 else float("nan")),
+                                 knee_target=tgt,
+                                 clear_frac_of_knee=(med_peak / tgt
+                                                     if tgt > 0
+                                                     else float("nan")),
+                                 drift=drift,
+                                 com_off=_mean(win, "com_stance")),
+                    headline=(f"peak {med_peak*100:.1f}cm"
+                              if not math.isnan(med_peak) else "n/a"))
+    return build, evaluate
+
+
 def scen_sway():
     """Lateral sway: track vy = 0.12 sin(2 pi t / 1.6) for 6 s with both
     feet planted-ish (hip-roll exercise). Success: lateral pelvis
@@ -1017,6 +1129,8 @@ def _registry():
     reg["turn_180"] = (10.0, scen_turn_180(), True)
     reg["crouch_hold"] = (10.0, scen_crouch_hold(), False)
     reg["march_in_place"] = (11.0, scen_march(), False)
+    # knee-high march: 1 s settle + 10 s of marching (user 2026-08-01)
+    reg["march_10s"] = (11.0, scen_march_knee(), False)
     reg["hip_sway"] = (9.0, scen_sway(), False)
     # sit -> stand: the curriculum stage (user 2026-07-19); shorter deadline
     # since the hard part (getting onto the feet) starts closer to done
@@ -1046,12 +1160,13 @@ FAMILY_SCENARIOS = {
              "sidestep_R", "turn_180", "square_return", "circle_return",
              "goal_home", "stand_10s", "stand_off"],
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
-               "march_in_place", "hip_sway", "crouch_hold", "stand_10s"],
+               "march_in_place", "march_10s", "hip_sway", "crouch_hold",
+               "stand_10s"],
     "getup": ["recover_sit", "recover_fallen"],
 }
 
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
-         "march_in_place", "hip_sway",
+         "march_in_place", "march_10s", "hip_sway",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
          "turn_180", "square_return", "circle_return", "goal_home",
          "line_rough", "crouch_hold",
@@ -1074,6 +1189,7 @@ HEADLINE = {
     "circle_return": ("return_err", lambda v: f"ret {v*100:.0f}cm"),
     "crouch_hold": ("height_err", lambda v: f"hErr {v*1000:.0f}mm"),
     "march_in_place": ("clean_lifts_l", lambda v: f"{v:.0f} clean lifts/leg"),
+    "march_10s": ("peak_clear_med", lambda v: f"peak {v*100:.1f}cm"),
     "hip_sway": ("sway_amp", lambda v: f"amp {v*100:.1f}cm"),
     "stand_10s": ("drift", lambda v: f"drift {v*100:.1f}cm"),
     "stand_off": ("drift", lambda v: f"drift {v*100:.1f}cm"),

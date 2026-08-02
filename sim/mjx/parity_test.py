@@ -529,7 +529,182 @@ ok_e7 = ok_e7 and _q_res < 1e-3 and 0.7 <= _q_crouch <= 0.95
 print(f"   quantizer live: obs off-grid residual {_q_res:.1e} ticks, "
       f"crouch cmd {_q_crouch:.3f} (drawn from 0.70..0.95)")
 
+# -- 2j. knee-high march: command path + clearance kernel --------------------
+# The march skill (2026-08-01) adds NO observation channel: it is a per-step
+# COMMAND PATTERN on the existing 7 channels (vx=vy=wz=0, the lift channel c4
+# alternating on the gait clock, c6 raising the swing-foot target from
+# lift_height to the plant's knee height) plus one reward kernel (w_knee_high:
+# the fraction of the commanded swing height the swing sole reaches, on the
+# correct one-foot contact pattern). Both halves have to be bit-identical
+# between engines or the CPU referee grades a different skill than MJX trained.
+#
+# ext_mix is zeroed and march_mix set to 1.0, so EVERY draw is a knee-high
+# march and traj_on == 4 for the whole block; cmd_fixed is popped (pinned
+# commands keep mode 0 and would skip the evolution entirely, block 2f's
+# lesson). The gait clock is on, so the alternation runs off gait_phase --
+# which sync() carries to MJX like every other per-episode draw.
+#
+# 2j (airborne, full strictness) gates the command evolution itself and every
+# kernel it feeds through the ELEVATED c6: the swing-foot target, foot_under,
+# the obs command channels. 2j-b poses a real one-leg stance so knee_frac is
+# non-zero and its arithmetic is gated too (airborne, con_stance is false and
+# the kernel is trivially 0 on both sides -- that would gate nothing).
+EXT_M = dict(EXT)
+EXT_M.pop("cmd_fixed")
+EXT_M.update(cmd_dense=True, w_knee_high=1.0,
+             ext_mix=(0.0,) * 7, march_mix=1.0)
+cpu_m = BimoWalkerEnv(xml_path=XML_YAW, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False, **EXT_M)
+gpu_m = BimoMJXEnv(xml_path=XML_YAW, domain_rand=False, **EXT_M)
+step_m = jax.jit(gpu_m.step)
+_splay_m = np.zeros(cpu_m._nq_act)
+_splay_m[cpu_m._legL["hip_roll"]] = 0.5
+_splay_m[cpu_m._legR["hip_roll"]] = -0.5
+_m_seen = {"lift": set(), "c6": 0.0}
+
+
+class AirActsMarch:
+    def __call__(self, t):
+        if t % 20 == 0:
+            hoist(cpu_m)
+        _m_seen["lift"].add(float(np.sign(cpu_m._cmd[4])))
+        _m_seen["c6"] = max(_m_seen["c6"], float(cpu_m._cmd[6]))
+        return (_splay_m + 0.3 * np.sin(0.359 * t
+                                        + np.arange(cpu_m._nq_act) * 0.7)
+                ).astype(np.float32)
+
+
+ok_e8 = run_block(
+    "2j. knee-high march command path (c4 alternation, c6 knee target, "
+    "airborne)", 120, AirActsMarch(), hoist,
+    dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+    envs=(cpu_m, gpu_m, step_m))
+# liveness: the block above only gates AGREEMENT. A march that never
+# alternated, or a c6 stuck at 0, would pass it trivially -- assert the
+# pattern the skill is made of actually ran, and that the knee-high target
+# came off the PLANT (knee joint anchor 0.107 m, sole center 0.003 m).
+_m_alt = {-1.0, 1.0}.issubset(_m_seen["lift"])
+_m_dz_ok = abs(_m_seen["c6"] - cpu_m._march_dz) < 1e-3 and cpu_m._march_dz > 0
+_m_same = abs(cpu_m._march_dz - float(gpu_m._march_dz)) < 1e-12
+ok_e8 = ok_e8 and float(cpu_m._traj_on) == 4.0 and _m_alt and _m_dz_ok \
+    and _m_same
+print(f"   march live: traj_on {float(cpu_m._traj_on):.0f}, lifts "
+      f"{sorted(_m_seen['lift'])}, peak c6 {_m_seen['c6']:.4f} m, "
+      f"knee-high target {cpu_m.march_clear*100:.1f} cm "
+      f"(= {cpu_m.march_clear / cpu_m.lift_height:.2f}x lift_height)")
+
+
+def pose_march(env, lift):
+    """Pose a real one-leg march stance: the COMMANDED swing leg's knee and
+    hip flexed (foot well clear of the floor), the other leg planted with its
+    corner pads ~0.3 mm into the floor. Sphere-pad contacts are the analytic
+    single-point kind both engines agree on, so this stays in the
+    matched-manifold regime while making knee_frac non-zero."""
+    leg = env._legR if lift > 0 else env._legL
+    q = env.model.qpos0.copy()
+    # deliberately a PARTIAL lift: the clearance must land strictly between 0
+    # and the commanded knee-high target, or the kernel's clip saturates and
+    # the division under test is masked (see the interior-value assertion).
+    q[env._jq0 + leg["knee"]] = -0.62
+    q[env._jq0 + leg["hip_pitch"]] = -0.31
+    env.data.qpos[:] = q
+    env.data.qvel[:] = 0.0
+    _mj.mj_forward(env.model, env.data)
+    stance = env._pad_gids[0 if lift > 0 else 1]
+    bottom = min(float(env.data.geom_xpos[g][2])
+                 - float(env.model.geom_size[g][0]) for g in stance)
+    env.data.qpos[2] -= bottom + 3e-4          # 0.3 mm penetration
+    _mj.mj_forward(env.model, env.data)
+
+
+obs_c, _ = cpu_m.reset(seed=11)
+sm = gpu_m.reset(jax.random.PRNGKey(11))
+worst_mr = worst_mo = 0.0
+used_m = skip_m = 0
+best_kf = 0.0
+interior_kf = None            # a knee_frac strictly inside (0, 1): unclipped
+for t in range(80):
+    pose_march(cpu_m, float(cpu_m._cmd[4]))
+    a = (0.02 * np.sin(0.3 * t + np.arange(cpu_m._nq_act))).astype(np.float32)
+    sm = sync(sm, cpu_m, gpu_m)
+    pre_c, pre_g = cpu_m.data.ncon, _mjx_ncon(sm)
+    obs_c, r_c, term_c, trunc_c, info_c = cpu_m.step(a)
+    sm = step_m(sm, jp.asarray(a))
+    _kf = float(info_c["knee_frac"])
+    best_kf = max(best_kf, _kf)
+    if 0.05 < _kf < 0.95:
+        interior_kf = _kf
+    if pre_c != pre_g:
+        skip_m += 1
+        continue
+    used_m += 1
+    worst_mr = max(worst_mr, abs(float(sm.reward) - r_c))
+    worst_mo = max(worst_mo, float(np.max(np.abs(np.asarray(sm.obs) - obs_c))))
+    if trunc_c or term_c:
+        obs_c, _ = cpu_m.reset(seed=5000 + t)
+ok_e9 = (used_m >= 40 and interior_kf is not None
+         and worst_mr < 1e-3 and worst_mo < 1e-3)
+print(f"== 2j-b. knee-high clearance kernel on a posed one-leg march stance: "
+      f"{'PASS' if ok_e9 else 'FAIL'} ({used_m} compared, "
+      f"{skip_m} skipped) ==")
+print(f"   worst |dreward| = {worst_mr:.2e}  worst |dobs| = {worst_mo:.2e}  "
+      f"(kernel live: peak knee_frac {best_kf:.2f}, unclipped sample "
+      f"{interior_kf if interior_kf is None else round(interior_kf, 3)})")
+ok_e8 = ok_e8 and ok_e9
+
+# -- 2j-c. PINNED march cadence (march_hz) ------------------------------------
+# march_hz > 0 replaces the gait clock as the march's timebase: a deliberate
+# 0.5 s/lift instead of the gait clock's 0.29-0.40 s (integrator call, the
+# trainability risk). The flip is an exact integer compare on the control-step
+# count precisely because the naive sin(2*pi*f*t) >= 0 test puts the flip on a
+# zero crossing, where float32 (MJX) and float64 (CPU) land on opposite sides
+# -- that would swap the COMMANDED LEG between engines at every flip, the
+# largest possible parity failure, and it would be invisible in any block that
+# never crosses one. This block runs 120 steps = 4.8 flips at 1 Hz.
+EXT_H = dict(EXT_M)
+EXT_H.update(march_hz=1.0)
+cpu_h = BimoWalkerEnv(xml_path=XML_YAW, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False, **EXT_H)
+gpu_h = BimoMJXEnv(xml_path=XML_YAW, domain_rand=False, **EXT_H)
+step_h = jax.jit(gpu_h.step)
+_splay_h = np.zeros(cpu_h._nq_act)
+_splay_h[cpu_h._legL["hip_roll"]] = 0.5
+_splay_h[cpu_h._legR["hip_roll"]] = -0.5
+_h_trace = []                      # (step_i, commanded lift) after each step
+
+
+class AirActsMarchHz:
+    def __call__(self, t):
+        if t % 20 == 0:
+            hoist(cpu_h)
+        _h_trace.append((int(cpu_h._step_i), float(cpu_h._cmd[4])))
+        return (_splay_h + 0.3 * np.sin(0.359 * t
+                                        + np.arange(cpu_h._nq_act) * 0.7)
+                ).astype(np.float32)
+
+
+ok_e10 = run_block(
+    "2j-c. pinned march cadence march_hz=1.0 (0.5 s/lift, airborne)",
+    120, AirActsMarchHz(), hoist,
+    dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+    envs=(cpu_h, gpu_h, step_h))
+# liveness: the c4 flip period must be EXACTLY the commanded half cycle --
+# 0.5 s at 1 Hz = 25 control steps at the 50 Hz control rate. A cadence that
+# silently stayed on the gait clock (1.25-1.75 Hz) would show ~14-20.
+_h_flips = [s for (s, v), (_, pv) in zip(_h_trace[1:], _h_trace[:-1])
+            if v != pv and pv != 0.0]
+_h_gaps = sorted({b - a for a, b in zip(_h_flips[:-1], _h_flips[1:])})
+_h_steps = int(round(0.5 / cpu_h.control_dt))
+ok_e10 = (ok_e10 and cpu_h._march_half == _h_steps
+          and gpu_h._march_half == _h_steps
+          and len(_h_flips) >= 4 and _h_gaps == [_h_steps])
+print(f"   cadence live: half cycle {cpu_h._march_half} control steps "
+      f"(= {cpu_h._march_half * cpu_h.control_dt:.2f} s at "
+      f"march_hz {cpu_h.march_hz:.1f}), {len(_h_flips)} c4 flips, "
+      f"observed flip gaps {_h_gaps} steps")
+ok_e8 = ok_e8 and ok_e10
+
 ok_all = (ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3 and ok_e4
-          and ok_e5 and ok_e6 and ok_e7)
+          and ok_e5 and ok_e6 and ok_e7 and ok_e8)
 print("\nPARITY:", "PASS" if ok_all else "FAIL")
 sys.exit(0 if ok_all else 1)

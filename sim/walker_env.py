@@ -252,6 +252,26 @@ class BimoWalkerEnv(gym.Env):
         turn_emph: bool = False,       # mirrors sim/mjx turn_emph (loco_v5t)
         w_foot_cross: float = 0.0,     # feet-crossing guard (mirrors sim/mjx)
         sway_vy: float = 0.12,         # sway-command vy amplitude (m/s)
+        # -- knee-high marching (2026-08-01; mirrors sim/mjx) -----------------
+        march_mix: float = 0.0,        # fraction of ext_cmd command draws that
+        # are a KNEE-HIGH march: an extra slice carved out after the ext_mix
+        # slices (walk takes the remainder). 0.0 -> the slice is empty and the
+        # draw is bit-identical to before the feature existed.
+        w_knee_high: float = 0.0,      # knee-high clearance kernel weight
+        # (mirrors sim/mjx): pays the FRACTION of the commanded swing height
+        # (lift_height + c6) the swing sole actually reaches, gated on the
+        # correct one-foot contact pattern. Ordinary lifts command c6 = 0, so
+        # the kernel degrades to "reach lift_height"; the march commands
+        # c6 = march_dz, i.e. a target at the opposite knee's standing height.
+        march_hz: float = 0.0,         # COMMANDED march cadence in full L/R
+        # cycles per second. 0.0 (default) = alternate on the gait clock,
+        # which inherits its 1.25-1.75 Hz draw -> 0.29-0.40 s per lift; that
+        # is a sprinter's march, and 165 ms of upswing to knee height is the
+        # trainability risk. A positive march_hz pins a deliberate cadence
+        # instead (1.0 -> 0.5 s per lift) and DECOUPLES the march from the
+        # gait clock: the gait-clock obs channel keeps running at its own
+        # rate, so the policy has to learn that during a march the swing
+        # timing comes from the commanded pattern, not from the clock.
         # -- plan-v2 Phase A terms (2026-07-20; mirror sim/mjx, default off) ---
         gait_clock: bool = False,
         w_feet_phase: float = 0.0,
@@ -448,6 +468,9 @@ class BimoWalkerEnv(gym.Env):
         self._catch_states = np.load(_cs) if os.path.exists(_cs) else None
         self.w_foot_cross = w_foot_cross
         self.sway_vy = sway_vy
+        self.march_mix = float(march_mix)
+        self.w_knee_high = w_knee_high
+        self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
         self.w_feet_phase = w_feet_phase
         self.swing_height = swing_height
@@ -499,6 +522,9 @@ class BimoWalkerEnv(gym.Env):
         if self._crouch_dr and not ext_cmd:
             raise ValueError("cmd_crouch_range requires ext_cmd "
                              "(cmd[3] only exists in the 7-channel layout)")
+        if self.march_mix > 0.0 and not ext_cmd:
+            raise ValueError("march_mix requires ext_cmd (the knee-high "
+                             "march is expressed through c4/c6)")
         self._cmd_crouch = 1.0            # per-episode crouch-command draw
         self._cmd_next = 0
         self._traj = np.zeros(3)       # air-circle: radius, omega, phase0
@@ -704,6 +730,33 @@ class BimoWalkerEnv(gym.Env):
                 d0.geom_xpos[self._sole_gids[1]] - d0.xpos[self._torso_bid]])
             # standing sole-center height: lift clearance reference
             self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
+            # KNEE-HIGH reference, MEASURED on the plant (not guessed):
+            # world z of the knee joint's anchor in the standing pose. On
+            # bimo_biped_v3yaw.xml that is 0.107 m, with the sole center at
+            # 0.003 m -> a knee-high swing sole must clear 0.104 m, i.e.
+            # 1.7x the 0.06 m nominal lift_height / 3.5x the 0.03 m
+            # lift_clear floor. Mirrored in sim/mjx/env_mjx.py.
+            _knee_jid = self.model.joint(
+                self._act_names[self._legL["knee"]]).id
+            self._knee_z0 = float(d0.xanchor[_knee_jid][2])
+            self.march_clear = max(self._knee_z0 - self._sole_z0, 0.0)
+            # commanded c6 offset that puts the swing-foot TARGET (which is
+            # lift_height + c6 above the standing sole) at knee height
+            self._march_dz = max(self.march_clear - self.lift_height, 0.0)
+        # Fixed-cadence march clock (march_hz > 0), expressed in WHOLE control
+        # steps. th_m = 2*pi*march_hz*step_i*control_dt is the definition, but
+        # evaluating it that way puts the c4 sign flip exactly on sin(th_m)=0,
+        # where float32 (MJX, training) and float64 (CPU referee) land on
+        # OPPOSITE sides -- a whole-leg command disagreement at every flip.
+        # So the half-cycle is rounded to an integer number of control steps
+        # once, here, and the flip is an exact integer compare in both
+        # engines; the |sin| envelope is then evaluated on the wrapped step
+        # count, which keeps the float argument inside [0, 2*pi) and the two
+        # engines within ~1e-7 of each other. Mirrored in sim/mjx/env_mjx.py.
+        self._march_half = (max(1, int(round(0.5 / (self.march_hz
+                                                    * self.control_dt))))
+                            if self.march_hz > 0.0 else 0)
+        self._march_period = 2 * self._march_half
 
         self.action_space = spaces.Box(-1.0, 1.0, shape=(self._nq_act,),
                                        dtype=np.float32)
@@ -1040,9 +1093,11 @@ class BimoWalkerEnv(gym.Env):
         rng = self.np_random
         u = float(rng.uniform())
         t = np.cumsum(self.ext_mix)    # stand, crouch, bal, circle, pivot,
-        cmd = np.zeros(7)              # march, sway; remainder = walk
-        cmd[3] = 1.0
-        self._traj_on = 0.0            # mode: 0 off, 1 circle, 2 march, 3 sway
+        cmd = np.zeros(7)              # march, sway, knee-high march;
+        cmd[3] = 1.0                   # remainder = walk
+        t7 = float(t[6]) + self.march_mix     # knee-high march slice end
+        self._traj_on = 0.0            # mode: 0 off, 1 circle, 2 march,
+                                       # 3 sway, 4 knee-high march
         if u < t[0]:
             pass                                       # stand
         elif u < t[1]:                                 # crouch hold
@@ -1058,6 +1113,8 @@ class BimoWalkerEnv(gym.Env):
             self._traj_on = 2.0
         elif u < t[6]:                                 # lateral sway
             self._traj_on = 3.0
+        elif u < t7:                                   # knee-high march
+            self._traj_on = 4.0
         else:                                          # walk fwd / back / side
             uw = float(rng.uniform())
             p_back, p_side = self.walk_submix
@@ -1550,6 +1607,19 @@ class BimoWalkerEnv(gym.Env):
                               * float(np.clip(foot_clear / self.lift_clear,
                                               0.0, 1.0))
                               * float(np.exp(-d_xy2 / (0.03 ** 2))))
+                # knee-high clearance kernel (mirrors sim/mjx): the fraction
+                # of the COMMANDED swing height (lift_height + c6) the swing
+                # sole actually reaches, on the correct one-foot contact
+                # pattern. Linear (not Gaussian) so a 10 cm target still
+                # pays gradient from a 2 cm lift -- the kernel-width lesson.
+                # c6 = 0 under a plain balance lift -> "reach lift_height";
+                # the knee-high march drives c6 to march_dz.
+                tgt_clear = self.lift_height + float(self._cmd[6])
+                knee_frac = (float(lifted) * float(not con_swing)
+                             * float(con_stance)
+                             * float(np.clip(foot_clear
+                                             / max(tgt_clear, 1e-6),
+                                             0.0, 1.0)))
                 # CoM-over-stance-foot kernel (mirrors sim/mjx): pay for
                 # keeping the whole-robot CoM planted over the support sole
                 # while a lift is commanded (knee-flexion lifts)
@@ -1671,6 +1741,8 @@ class BimoWalkerEnv(gym.Env):
                                        0.0, 1.0)))
             if self.w_foot_under:
                 reward += self.w_foot_under * foot_under
+            if self.w_knee_high:
+                reward += self.w_knee_high * knee_frac
         if self.w_single_support:
             if shaping_on:
                 reward += self.w_single_support * float(single_support)
@@ -1858,6 +1930,13 @@ class BimoWalkerEnv(gym.Env):
                             foot_dz=float(rel[2] - base[2]
                                           - self.lift_height),
                             lift_ok=lift_ok,
+                            # knee-high march telemetry (CPU referee only):
+                            # the commanded swing-height target and the
+                            # fraction of it actually reached
+                            cmd_dz=float(self._cmd[6]),
+                            knee_tgt=float(self.lift_height
+                                           + self._cmd[6]),
+                            knee_frac=knee_frac,
                             recovered=float(self._recovered),
                             com_stance=float(lifted) * com_off,
                             head_err=abs(head_err))
@@ -1876,9 +1955,26 @@ class BimoWalkerEnv(gym.Env):
             if self.ext_cmd and self._traj_on:
                 # trajectory-mode evolution (mirrors sim/mjx): 1 = foot
                 # circle, 2 = march (alternating lifts + height bob),
-                # 3 = lateral sway. Pinned commands keep mode 0.
+                # 3 = lateral sway, 4 = KNEE-HIGH march. Pinned commands
+                # keep mode 0.
                 th = (self._traj[2]
                       + self._traj[1] * self._step_i * self.control_dt)
+                # knee-high march clock (mirrors sim/mjx). march_hz > 0 pins
+                # a COMMANDED cadence: the swing timing is then the command's
+                # own, deliberately decoupled from the gait clock (which
+                # keeps running at its own rate in the obs -- the policy has
+                # to learn the difference). march_hz == 0 falls back to the
+                # gait clock, so the alternation stays anticipatable from the
+                # sin/cos(phase) obs channels and firmware can regenerate it
+                # from its own gait clock; with neither, the per-episode
+                # trajectory clock.
+                if self.march_hz > 0.0:
+                    n_m = self._step_i % self._march_period
+                    m_left = n_m < self._march_half
+                    th_m = 2 * np.pi * n_m / self._march_period
+                else:
+                    th_m = self._gait_phase if self.gait_clock else th
+                    m_left = np.sin(th_m) >= 0
                 if self._traj_on == 1.0:
                     self._cmd[5] = self._traj[0] * np.cos(th)
                     self._cmd[6] = self._traj[0] * np.sin(th)
@@ -1888,6 +1984,16 @@ class BimoWalkerEnv(gym.Env):
                     self._cmd[6] = self._traj[0] * abs(np.sin(th))
                 elif self._traj_on == 3.0:
                     self._cmd[1] = self.sway_vy * np.sin(th)
+                elif self._traj_on == 4.0:
+                    # knee-high march: vx/vy/wz stay 0 (drawn that way), the
+                    # LIFT channel alternates on the march clock using the
+                    # same left/right convention as w_feet_phase (left
+                    # swings on the first half cycle -> lift = -1), and c6
+                    # raises the swing-foot TARGET from lift_height up to
+                    # knee height over the swing.
+                    self._cmd[4] = -1.0 if m_left else 1.0
+                    self._cmd[5] = 0.0
+                    self._cmd[6] = self._march_dz * abs(np.sin(th_m))
         self._phase_cmd()
         obs_out = self._obs()
         if self.obs_hist_len > 1:
