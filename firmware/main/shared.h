@@ -33,6 +33,14 @@ extern std::atomic<Mode> g_mode_request;
 // before it touches the bus.
 extern std::atomic<bool> g_ctrl_owns_bus;
 
+// -- command shaping pole (core 0 -> core 1) --------------------------------
+// Written by the CLI (`shape <hz>`), read by ctrl every tick. The C2 command
+// shaper's pole in Hz; 0 disables shaping (raw targets, max-speed slew --
+// the pre-shaper behaviour, kept as a bench A/B and an escape hatch). Live-
+// tunable: changing the pole mid-run is continuous because the shaper's state
+// carries over; only the gain changes.
+extern std::atomic<float> g_shape_hz;
+
 // -- command mailbox (core 0 -> core 1) ------------------------------------
 // A length-1 queue written with xQueueOverwrite: latest command wins and stale
 // commands can never pile up behind a late tick.

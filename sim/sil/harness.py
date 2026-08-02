@@ -396,6 +396,9 @@ class SilTargets(ctypes.Structure):
         ("goal_ticks", ctypes.c_uint16 * NJ),
         ("action", ctypes.c_float * NACT),
         ("obs", ctypes.c_float * NOBS),
+        # sil_abi 2: the per-servo goal speed (reg 46, steps/s) the SYNC WRITE
+        # carries with the C2-shaped targets; 0 when shaping is off.
+        ("goal_speed", ctypes.c_uint16 * NJ),
     ]
 
 
@@ -442,6 +445,13 @@ class SilLib:
         self.lib.sil_tick.restype = ctypes.c_int
         self.lib.sil_spec.argtypes = []
         self.lib.sil_spec.restype = ctypes.c_char_p
+        # sil_abi 2 (optional on older libraries): the C2 command shaper.
+        try:
+            self.lib.sil_set_shaper.argtypes = [ctypes.c_float]
+            self.lib.sil_set_shaper.restype = None
+            self.has_shaper = True
+        except AttributeError:
+            self.has_shaper = False
         rc = self.lib.sil_init(weights.encode(), cal_path.encode(),
                                ctypes.c_float(gait_hz))
         if rc != 0:
@@ -459,6 +469,20 @@ class SilLib:
     def spec_string(self):
         s = self.lib.sil_spec()
         return s.decode(errors="replace") if s else ""
+
+    def set_shaper(self, pole_hz):
+        """sil_abi 2: the C2 command shaper's pole in Hz; 0 = raw targets
+        (the pre-shaper wire image). No-op on an abi-1 library."""
+        if self.has_shaper:
+            self.lib.sil_set_shaper(ctypes.c_float(pole_hz))
+
+    def shaper_spec(self):
+        """The library's CURRENT shaper config from sil_spec(), or None on an
+        abi-1 library (which shipped raw targets unconditionally)."""
+        try:
+            return json.loads(self.spec_string()).get("shaper")
+        except (ValueError, AttributeError):
+            return None
 
     def reset(self):
         self.lib.sil_reset()
@@ -488,6 +512,12 @@ class SilLib:
         n = self.spec.num_joints
         perm = joint_to_slot_perm(self.spec)
         forced = os.environ.get("SIL_ASSUME_ORDER")
+        # Probe against RAW targets: this is about resolving array-order
+        # conventions, and the raw action->angle->steps map is the invertible
+        # reference. The shaper (sil_abi 2, on by default as deployed) is
+        # restored afterwards; its own math is pinned by the C-side tests.
+        shaper = self.shaper_spec() if self.has_shaper else None
+        self.set_shaper(0.0)
         # A distinct tick per slot, well inside 0..4095 and distinguishable
         # under any calibration.  Everything below is compared in the TICK
         # domain so a non-uniform calibration cannot masquerade as a
@@ -545,7 +575,10 @@ class SilLib:
             raise ProbeFailed(
                 "goal_ticks do not match angleToSteps(actionToAngles(action)) "
                 f"under either array order (joint {d_joint}, bus {d_bus} "
-                "ticks)")
+                "ticks); probe runs with sil_set_shaper(0), so shaping cannot "
+                "explain this")
+        if shaper and shaper.get("pole_hz"):
+            self.set_shaper(float(shaper["pole_hz"]))   # back to as-deployed
         self.reset()
         return dict(in_order=self.in_order, out_order=self.out_order,
                     vel_sign_magnitude=self.vel_sign_magnitude,

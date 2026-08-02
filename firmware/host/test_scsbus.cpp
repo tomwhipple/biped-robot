@@ -259,6 +259,36 @@ void testBusTorqueBroadcast() {
     CHECK_EQ(p.rx.size(), 0u);
 }
 
+void testBusSyncWritePerServoSpeed() {
+    // The command-shaping path: one broadcast frame, per-servo goal speed in
+    // the reg-46 slot, goal time zero, no replies.
+    FakePort p;
+    Bus bus(p);
+    const uint8_t ids[] = {1, 2, 3};
+    const int32_t pos[] = {2048, 1024, 3072};
+    const uint16_t spd[] = {150, 3400, 50};
+    CHECK_EQ(static_cast<int>(bus.syncWritePositions(ids, pos, spd, 3)),
+             static_cast<int>(Status::kOk));
+    CHECK_EQ(p.tx.size(), 4u + (kPosExStride + 1) * 3 + 4u);
+    CHECK_EQ(p.tx[2], kBroadcastId);
+    CHECK_EQ(p.tx[4], static_cast<uint8_t>(Inst::kSyncWrite));
+    CHECK_EQ(p.tx[5], kRegAcceleration);
+    CHECK_EQ(p.tx[6], kPosExStride);
+    for (int i = 0; i < 3; ++i) {
+        const uint8_t* e = p.tx.data() + 7 + i * (kPosExStride + 1);
+        CHECK_EQ(e[0], ids[i]);
+        CHECK_EQ(e[1], 0);                          // accel: not commanded
+        CHECK_EQ(rdU16(e + 2), toSignMag(pos[i], 15));
+        CHECK_EQ(rdU16(e + 4), 0);                  // goal time unused
+        CHECK_EQ(rdU16(e + 6), spd[i]);             // the per-servo speed
+    }
+    CHECK_EQ(p.rx.size(), 0u);                      // broadcast: no replies
+
+    // A null speed array is a caller bug, refused before the wire.
+    CHECK_EQ(static_cast<int>(bus.syncWritePositions(ids, pos, nullptr, 3)),
+             static_cast<int>(Status::kBadArg));
+}
+
 void testBusSetIdLocksTheNewId() {
     // Unlock old, write reg 5, lock NEW -- getting the last step wrong leaves
     // a servo with an unlocked EEPROM that nothing will notice until it
@@ -350,6 +380,7 @@ int main() {
     testDecodeFeedback();
     testBusPingAndRead();
     testBusTorqueBroadcast();
+    testBusSyncWritePerServoSpeed();
     testBusSetIdLocksTheNewId();
     testBusSetMiddle();
     testBusSyncReadFeedback();

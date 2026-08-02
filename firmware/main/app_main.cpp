@@ -26,6 +26,7 @@ namespace robot {
 // -- the shared state declared in shared.h ---------------------------------
 std::atomic<Mode> g_mode_request{Mode::kBench};
 std::atomic<bool> g_ctrl_owns_bus{false};
+std::atomic<float> g_shape_hz{obs::kShaperPoleHz};
 QueueHandle_t g_cmd_mailbox = nullptr;
 TelemetrySnapshot g_telemetry;
 scsbus::Bus* g_bus = nullptr;

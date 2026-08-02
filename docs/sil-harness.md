@@ -50,9 +50,12 @@ typedef struct {            // what the bus + IMU actually deliver
 } SilSensors;
 
 typedef struct {
-    uint16_t goal_ticks[10];  // SYNC WRITE view, BUS-ID order
+    uint16_t goal_ticks[10];  // SYNC WRITE view, BUS-ID order (C2-shaped
+                              //   when the shaper is on -- the boot default)
     float    action[10];      // the raw [-1,1] policy action (diagnostics)
     float    obs[147];        // the assembled obs (diagnostics/golden)
+    uint16_t goal_speed[10];  // sil_abi 2: per-servo reg-46 goal speed the
+                              //   SYNC WRITE carries; 0 when shaping is off
 } SilTargets;
 
 int  sil_init(const char* weights_path, const char* cal_path,
@@ -60,7 +63,17 @@ int  sil_init(const char* weights_path, const char* cal_path,
 void sil_reset(void);                    // history refill + clock zero
 int  sil_tick(const SilSensors* in, SilTargets* out);
 const char* sil_spec(void);              // obs_spec hash + dims, drift check
+void sil_set_shaper(float pole_hz);      // sil_abi 2: mirror of CLI `shape`;
+                                         //   0 = raw targets; sil_init resets
+                                         //   it to the firmware boot default
 ```
+
+sil_abi 2 (2026-08-02, firmware-design §7c): the act path shapes targets
+through `obs::CommandShaper` and streams per-servo goal speeds, and the
+library mirrors it because it compiles the same component sources. The
+python probe resolves array-order conventions with `sil_set_shaper(0)` (the
+raw map is the invertible reference) and restores the pole afterwards, so
+closed-loop scoring always runs against the as-deployed shaped plant.
 
 Rules: the library links obs::, policy::, and the actuation/Calibration
 code VERBATIM. No `#ifdef SIL` forks inside components. If a component

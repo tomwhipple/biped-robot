@@ -75,26 +75,30 @@ TESTFLAGS = $(filter-out -fno-exceptions,$(CXXFLAGS))
 # golden vectors must relink the tests (this bit us once already).
 SPEC_H    = $(COMPONENTS)/obs/include/obs/obs_spec.h
 WEIGHTS_H = $(COMPONENTS)/policy/include/policy/weights.h
+# ... and so is every component header (2026-08-02: editing a constant in
+# obs/actuation.h left libctrl_sil.dylib stale and the gate green against the
+# OLD value -- a false pass this line makes impossible).
+COMP_HDRS = $(wildcard $(COMPONENTS)/*/include/*/*.h)
 
 $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
-                        vectors/protocol_vectors.h test_util.h | $(BUILD)
+                        vectors/protocol_vectors.h test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
-$(BUILD)/test_scsbus: test_scsbus.cpp $(SRC_SCS) test_util.h | $(BUILD)
+$(BUILD)/test_scsbus: test_scsbus.cpp $(SRC_SCS) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # cal_store.cpp lives in main/ but its pack/unpack half is plain data and
 # compiles off-target (the NVS half is behind #ifdef ESP_PLATFORM), so the
 # calibration blob is covered by the hardware-free gate like everything else.
 $(BUILD)/test_obs: test_obs.cpp $(SRC_OBS) ../main/cal_store.cpp $(SPEC_H) \
-                   vectors/obs_vectors.h test_util.h | $(BUILD)
+                   vectors/obs_vectors.h test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_policy: test_policy.cpp $(SRC_POL) $(SPEC_H) $(WEIGHTS_H) \
-                      vectors/policy_vectors.h test_util.h | $(BUILD)
+                      vectors/policy_vectors.h test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
-$(BUILD)/test_battguard: test_battguard.cpp $(SRC_BATT) test_util.h | $(BUILD)
+$(BUILD)/test_battguard: test_battguard.cpp $(SRC_BATT) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # -- software in the loop ---------------------------------------------------
@@ -106,12 +110,12 @@ $(BUILD)/test_battguard: test_battguard.cpp $(SRC_BATT) test_util.h | $(BUILD)
 SIL_HDRS = sil.h sil_net.h sil_json.h
 
 $(BUILD)/test_sil: test_sil.cpp $(SRC_SIL) $(SRC_SILDEP) $(SIL_HDRS) \
-                   $(SPEC_H) $(WEIGHTS_H) test_util.h | $(BUILD)
+                   $(SPEC_H) $(WEIGHTS_H) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_sil_golden: test_sil_golden.cpp sil_net.cpp $(SRC_SILDEP) \
                           $(SIL_HDRS) $(SPEC_H) $(WEIGHTS_H) test_util.h \
-                          | $(BUILD)
+                          $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # libctrl_sil is built WITHOUT the sanitizers, on purpose.
@@ -135,7 +139,7 @@ SILFLAGS = $(filter-out -fno-exceptions,$(CXXFLAGS_NOSAN)) -fPIC \
 sil: $(SIL_LIB)
 
 $(SIL_LIB): $(SRC_SIL) $(SRC_SILDEP) $(SIL_HDRS) $(SPEC_H) $(WEIGHTS_H) \
-            | $(BUILD)
+            $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(SILFLAGS) $(SIL_SHARED) $(filter %.cpp,$^) -o $@
 
 $(BUILD):

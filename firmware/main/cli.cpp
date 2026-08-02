@@ -215,6 +215,27 @@ void cmdMove(Sink out, int argc, char** argv) {
         ms, spd, statusName(st));
 }
 
+void cmdShape(Sink out, int argc, char** argv) {
+    // Live-tunable on purpose: a single atomic float with one writer (here)
+    // and one reader (ctrl), per the shared.h rules -- so the pole can be
+    // swept while the robot walks and the jerk change felt directly.
+    if (argc >= 2) {
+        const float hz = strtof(argv[1], nullptr);
+        if (hz < 0.0f || hz > 25.0f) {
+            out("hz must be 0 (off) .. 25 (Nyquist at the 50 Hz tick)\r\n");
+            return;
+        }
+        robot::g_shape_hz.store(hz);
+    }
+    const float hz = robot::g_shape_hz.load();
+    if (hz > 0.0f) {
+        say(out, "shape: C2 pole %.2f Hz (3 cascaded lags) + per-joint goal "
+            "speed\r\n", static_cast<double>(hz));
+    } else {
+        out("shape: off (raw targets, max-speed slew)\r\n");
+    }
+}
+
 void cmdTorque(Sink out, int argc, char** argv, bool on) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
@@ -432,6 +453,7 @@ void banner(Sink out) {
     out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");
     out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
     out("  cal [show|zero|dir|save|load|reset]   servo zero + direction (NVS)\r\n");
+    out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  stat                 tick timing and fault counters\r\n");
 }
@@ -454,6 +476,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "release")) cmdTorque(out, argc, argv, false);
     else if (!strcmp(c, "torque")) cmdTorque(out, argc, argv, true);
     else if (!strcmp(c, "middle")) cmdMiddle(out, argc, argv);
+    else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
     else if (!strcmp(c, "batt")) cmdBatt(out, argc, argv);
     else if (!strcmp(c, "run")) cmdMode(out, true);

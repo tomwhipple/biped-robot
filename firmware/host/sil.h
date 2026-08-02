@@ -46,9 +46,15 @@ typedef struct {              // what the bus + IMU actually deliver
 } SilSensors;
 
 typedef struct {
-    uint16_t goal_ticks[10];  // SYNC WRITE view, bus-ID order
+    uint16_t goal_ticks[10];  // SYNC WRITE view, bus-ID order. With shaping
+                              //   on (the default, as deployed) these are the
+                              //   C2-shaped targets, NOT the raw action map;
+                              //   see sil_set_shaper.
     float action[10];         // the raw [-1,1] policy action (diagnostics)
     float obs[147];           // the assembled obs (diagnostics/golden)
+    uint16_t goal_speed[10];  // per-servo goal speed (reg 46, steps/s) the
+                              //   SYNC WRITE carries, bus-ID order; 0 when
+                              //   shaping is off (sil_abi 2 addition)
 } SilTargets;
 
 // Load an exported policy and a calibration, then reset.
@@ -80,6 +86,15 @@ const char* sil_spec(void);
 // Never NULL. Kept because "sil_init returned -2" is a bad debugging story
 // when the sidecar path is the thing that is wrong.
 const char* sil_last_error(void);
+
+// sil_abi 2: the C2 command shaper's pole in Hz, the mirror of ctrl_task's
+// g_shape_hz (CLI `shape`). sil_init resets it to the firmware default
+// (obs::kShaperPoleHz -- boot state), so a harness that wants the legacy raw
+// targets calls sil_set_shaper(0) after init. Changing the pole mid-run is
+// continuous (shaper state carries over), exactly as on the robot; sil_reset
+// reseeds the shaper from the next tick's sensed positions, the mirror of
+// ctrl_task reseeding from measured q on a torque (re)engage.
+void sil_set_shaper(float pole_hz);
 
 #ifdef __cplusplus
 }  // extern "C"

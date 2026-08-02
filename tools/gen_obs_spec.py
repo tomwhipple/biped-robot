@@ -46,13 +46,22 @@ VEC_OUT = os.path.join(ROOT, "firmware", "host", "vectors", "obs_vectors.h")
 # distal), port B the right (5-8); the v3yaw hip-yaw servos were appended as
 # 9 (left) and 10 (right).
 #
-# ASSEMBLY ERRATA 2026-08-02: the two hip-yaw servos went in swapped -- the
-# unit numbered 9 is bolted into the RIGHT hip and 10 into the LEFT. The
-# servos are not coming back out, so the map absorbs it: L_hip_yaw -> 10,
-# R_hip_yaw -> 9. Everything else on the bus is as built.
+# ASSEMBLY ERRATA 2026-08-02. Confirmed on the robot, not inferred:
+#
+#   * driving servo 9's hip yaw rotates the RIGHT leg (toe-in at +20 deg),
+#   * hip-pitch servo 2 is on the RIGHT, hip-pitch servo 6 is on the LEFT,
+#   * knee servo 3 is the RIGHT knee, knee servo 7 is the LEFT.
+#
+# So the two bus chains went onto the opposite legs from the plan: port A
+# (9,1,2,3,4) is the RIGHT leg and port B (10,5,6,7,8) is the LEFT. The
+# original "9/10 are swapped" report was the visible corner of this.
+#
+# The servos are not coming back out, so the map absorbs it. Note the yaw
+# entries are the SAME as the first errata fix -- 9 is right, 10 is left --
+# because a whole-chain swap and a yaw-only swap agree on the yaw servos.
 ID_BY_ROLE = {
-    "L_hip_roll": 1, "L_hip_pitch": 2, "L_knee": 3, "L_ankle": 4,
-    "R_hip_roll": 5, "R_hip_pitch": 6, "R_knee": 7, "R_ankle": 8,
+    "L_hip_roll": 5, "L_hip_pitch": 6, "L_knee": 7, "L_ankle": 8,
+    "R_hip_roll": 1, "R_hip_pitch": 2, "R_knee": 3, "R_ankle": 4,
     "L_hip_yaw": 10, "R_hip_yaw": 9,
 }
 

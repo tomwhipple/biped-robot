@@ -52,6 +52,67 @@ float stepsToAngle(int joint, int32_t steps, const Calibration& cal);
 float stepsPerSecToRadPerSec(int joint, int32_t steps_per_s,
                              const Calibration& cal);
 
+// -- command shaping ---------------------------------------------------
+// The policy emits a new position target every 20 ms; written raw (speed 0 ==
+// unlimited) the servo slams at max speed to each one, arrives mid-tick and
+// stops dead -- a 50 Hz velocity square wave on every joint. The shaper turns
+// that staircase into a C2 trajectory: three cascaded first-order lags, all
+// poles at pole_hz. Each stage adds one derivative of smoothness, so the
+// trajectory the servos are asked to follow has continuous velocity AND
+// acceleration (finite jerk). Each stage is the exact zero-order-hold
+// discretization, so it is stable for any pole/dt; all poles are real, so a
+// step never overshoots; and the output never leaves the hull of its inputs,
+// so a shaped target cannot exceed a joint's range if the raw ones don't.
+//
+// Default pole: 10 Hz, picked by closed-loop referee sweep (2026-08-02,
+// loco_v8foot, 8 seeds/scenario through the SIL stack): stand_10s 8/8 and
+// line_1m 8/8 at every pole tried; goal_home python 7/8 vs SIL raw 5/8,
+// 16 Hz 7/8, 12 Hz 6/8, 10 Hz 6/8, 8 Hz 4/8. So 10 Hz is the strongest
+// smoothing that stays inside the referee's parity budget -- 8 Hz measurably
+// costs the policy task performance. Runtime-tunable (CLI `shape`); 0 means
+// shaping off (the legacy raw path).
+inline constexpr float kShaperPoleHz = 10.0f;
+
+class CommandShaper {
+  public:
+    explicit CommandShaper(float pole_hz = kShaperPoleHz) {
+        setPole(pole_hz, kControlDt);
+    }
+    // Recompute the per-stage gain: k = 1 - exp(-2*pi*pole_hz*dt).
+    void setPole(float pole_hz, float dt);
+    float poleHz() const { return pole_hz_; }
+    // Seed every stage. Callers seed from MEASURED joint angles on a torque
+    // (re)engage so the first shaped target can never be a jump.
+    void reset(const float* angle_rad);
+    // Forget the seed; the next update() self-seeds from its target. Called
+    // when torque is released or the bus is handed away, so a re-engage
+    // reseeds from wherever the joints actually are by then.
+    void invalidate() { primed_ = false; }
+    bool primed() const { return primed_; }
+    // One control tick: raw targets in, shaped targets out (in-place safe).
+    void update(const float* target_rad, float* out_rad);
+
+  private:
+    float y1_[kNumJoints] = {};
+    float y2_[kNumJoints] = {};
+    float y3_[kNumJoints] = {};
+    float k_ = 1.0f;
+    float pole_hz_ = 0.0f;
+    bool primed_ = false;
+};
+
+// The goal speed (register 46, steps/s) written alongside a shaped target:
+// enough to close the gap from the MEASURED position to the target within one
+// tick, with headroom. While tracking, that is the trajectory's own speed --
+// no max-speed slam -- and under a disturbance the error term grows it back
+// toward the old slam behaviour, so smoothing never costs stiffness. The
+// floor keeps the field nonzero (0 means UNLIMITED to the servo); the ceiling
+// is the servo's own kMaxGoalSpeed (static_asserted where scsbus is visible).
+inline constexpr float kGoalSpeedHeadroom = 1.25f;
+inline constexpr int32_t kGoalSpeedFloor = 50;     // steps/s
+inline constexpr int32_t kGoalSpeedMax = 3400;     // == scsbus::kMaxGoalSpeed
+uint16_t goalSpeedSteps(int32_t goal_steps, int32_t present_steps);
+
 // First-order low-pass finite-difference velocity, for the other branch of
 // that question. alpha = 1.0 is a raw difference.
 class VelocityEstimator {

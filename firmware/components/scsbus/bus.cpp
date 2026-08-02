@@ -168,6 +168,21 @@ Status Bus::syncWritePositions(const uint8_t* ids, const int32_t* steps,
     return port_.write(tx_, txn) ? Status::kOk : Status::kTxFail;
 }
 
+Status Bus::syncWritePositions(const uint8_t* ids, const int32_t* steps,
+                               const uint16_t* speeds, size_t n,
+                               uint8_t accel) {
+    if (n == 0 || n > kMaxServos || !speeds) return Status::kBadArg;
+    uint8_t payload[kMaxServos * kPosExStride];
+    for (size_t i = 0; i < n; ++i) {
+        packPosEx(payload + i * kPosExStride, steps[i], /*time_ms=*/0,
+                  speeds[i], accel);
+    }
+    const size_t txn = buildSyncWrite(tx_, sizeof tx_, kRegAcceleration,
+                                      kPosExStride, ids, payload, n);
+    if (txn == 0) return Status::kBadArg;
+    return port_.write(tx_, txn) ? Status::kOk : Status::kTxFail;
+}
+
 Status Bus::torqueEnable(uint8_t id, bool on) {
     return writeU8(id, kRegTorqueEnable, on ? 1 : 0);
 }

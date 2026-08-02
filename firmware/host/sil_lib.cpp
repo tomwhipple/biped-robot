@@ -61,6 +61,15 @@ obs::GaitClock g_clock(1.5f);
 sil::LoadedNet g_net;
 float g_gait_hz = 1.5f;
 
+// The C2 command shaper + goal-speed streaming, the mirror of ctrl_task's
+// act path. Shaping defaults ON (kShaperPoleHz), matching the deployed boot
+// state, so closed-loop SIL evaluates the policy against the plant the robot
+// actually runs.
+obs::CommandShaper g_shaper;
+float g_shape_hz = obs::kShaperPoleHz;
+static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
+              "obs's speed ceiling must match the servo's");
+
 float g_prev_action[obs::kActDim];
 float g_frame[obs::kFrameDim];
 float g_obs[obs::kObsDim];
@@ -103,10 +112,22 @@ void buildSpec() {
     char buf[512];
     g_spec = "{";
     snprintf(buf, sizeof buf,
-             "\"sil_abi\":1,\"run\":\"%s\",\"plant\":\"%s\","
+             "\"sil_abi\":2,\"run\":\"%s\",\"plant\":\"%s\","
              "\"action_map\":\"%s\",\"spec_hash\":\"0x%016llx\",",
              obs::kRunName, obs::kPlantXml, obs::kActionMap,
              static_cast<unsigned long long>(specHash()));
+    g_spec += buf;
+    // sil_abi 2: what the python side needs to replicate the C2 command
+    // shaper (three cascaded exact first-order lags) and the goal-speed
+    // streaming bit for bit. pole_hz reflects the CURRENT sil_set_shaper
+    // state; 0 means shaping off.
+    snprintf(buf, sizeof buf,
+             "\"shaper\":{\"pole_hz\":%.9g,\"stages\":3,"
+             "\"speed_headroom\":%.9g,\"speed_floor\":%d,\"speed_max\":%d},",
+             static_cast<double>(g_shape_hz),
+             static_cast<double>(obs::kGoalSpeedHeadroom),
+             static_cast<int>(obs::kGoalSpeedFloor),
+             static_cast<int>(obs::kGoalSpeedMax));
     g_spec += buf;
     snprintf(buf, sizeof buf,
              "\"num_joints\":%d,\"act_dim\":%d,\"num_cmd\":%d,"
@@ -205,9 +226,20 @@ int sil_init(const char* weights_path, const char* cal_path,
 
     g_gait_hz = (gait_freq_hz > 0.0f) ? gait_freq_hz : 1.5f;
     g_clock.setFrequency(g_gait_hz);
+    // init == boot: shaping back to the firmware default (see sil.h).
+    sil_set_shaper(obs::kShaperPoleHz);
     g_ready = true;
     sil_reset();
     return 0;
+}
+
+void sil_set_shaper(float pole_hz) {
+    g_shape_hz = pole_hz > 0.0f ? pole_hz : 0.0f;
+    if (g_shape_hz > 0.0f) {
+        g_shaper.setPole(g_shape_hz, obs::kControlDt);
+    } else {
+        g_shaper.invalidate();
+    }
 }
 
 void sil_reset(void) {
@@ -221,6 +253,9 @@ void sil_reset(void) {
     memset(g_action, 0, sizeof g_action);
     g_clock.setPhase(0.0f);
     g_primed = false;
+    // ctrl_task reseeds the shaper from measured q on a torque (re)engage;
+    // here that is the next tick's sensed positions.
+    g_shaper.invalidate();
 }
 
 int sil_tick(const SilSensors* in, SilTargets* out) {
@@ -275,11 +310,25 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
 
     float angle[obs::kNumJoints];
     obs::actionToAngles(g_action, angle);
+
+    // -- shape: the mirror of ctrl_task's act path --------------------------
+    if (g_shape_hz > 0.0f) {
+        if (!g_shaper.primed()) g_shaper.reset(q);   // sensed == measured
+        g_shaper.update(angle, angle);
+    }
+
     for (int j = 0; j < obs::kNumJoints; ++j) {
         const int32_t steps = obs::angleToSteps(j, angle[j], g_cal);
         // angleToSteps already clamps to the encoder's 0..4095; the cast is
         // the SYNC WRITE's 16-bit field.
         out->goal_ticks[slotOf(j)] = static_cast<uint16_t>(steps);
+        // The goal speed rides on the same measured position ctrl_task uses
+        // (g_fb[i].position there, the sensed ticks here).
+        out->goal_speed[slotOf(j)] =
+            g_shape_hz > 0.0f
+                ? obs::goalSpeedSteps(
+                      steps, scsbus::signMag(in->pos_ticks[slotOf(j)], 15))
+                : 0;
     }
     memcpy(out->action, g_action, sizeof g_action);
     memcpy(out->obs, g_obs, sizeof g_obs);

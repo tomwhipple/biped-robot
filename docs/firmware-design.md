@@ -276,6 +276,44 @@ under-specified; recorded here rather than silently edited above.
   `bench` mode where `ctrl` releases torque and gives up the bus, and `run`
   hands it back. Single owner at all times, no lock.
 
+## 7c. Command shaping — C2 targets + goal-speed streaming (2026-08-02)
+
+The v1 act path wrote each 50 Hz position target raw: goal time 0, goal speed
+0 (**unlimited**), acceleration 0. The servo executed every tick as a
+max-speed slam toward the new target (~3000 steps/s, measured 2026-07-26),
+arriving mid-tick and stopping dead — a 50 Hz velocity square wave on every
+joint. That is the "jerking": velocity was discontinuous at every tick and
+the acceleration impulsive.
+
+Two changes, both in the components the SIL library compiles verbatim, so
+sim validation covers the deployed plant:
+
+- **`obs::CommandShaper`** (`obs/actuation.h`): the policy's raw targets go
+  through three cascaded first-order lags, all poles at 10 Hz. Each stage is
+  the exact ZOH discretization (stable for any pole/dt, no overshoot, output
+  stays in the hull of its inputs), and each adds one derivative of
+  smoothness — the commanded trajectory has continuous velocity **and
+  acceleration** (finite jerk, i.e. the second derivative is continuous).
+  The shaper reseeds from **measured** q on every torque (re)engage or bus
+  handover, so the first shaped target after an engage can never be a jump.
+  `prev_action` stays the RAW policy output — that is what the policy saw in
+  training.
+- **Per-servo goal speed** (reg 46, `Bus::syncWritePositions` overload): each
+  SYNC WRITE carries the speed that closes the gap from the joint's measured
+  position to the shaped target in one tick, ×1.25 headroom, floored at 50
+  (never 0 — 0 means unlimited) and clamped at the servo's 3400. While
+  tracking this is the trajectory's own speed; under a disturbance the error
+  term grows it back to the old max-speed behaviour, so smoothing costs no
+  stiffness.
+
+The pole is the plant-vs-policy tradeoff and was picked by closed-loop
+referee sweep through the SIL stack (loco_v8foot, 8 seeds): `stand_10s` and
+`line_1m` 8/8 at every pole tried; `goal_home` python 7/8 vs SIL raw 5/8,
+16 Hz 7/8, **10 Hz 6/8**, 8 Hz 4/8 (outside the parity budget — too much lag
+for the policy). 10 Hz is the strongest smoothing that keeps referee parity.
+Live-tunable from the CLI: `shape [hz]`, 0 = off (raw/legacy); the SIL twin
+is `sil_set_shaper()` and the pytest gate re-runs the referee against it.
+
 ## 8. Open questions
 
 - Exact Waveshare SKU on the BOM → confirm SRAM/PSRAM and UART wiring.

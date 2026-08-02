@@ -113,7 +113,10 @@ def test_obs_spec_parsed():
     assert H.SPEC.num_joints == 10
     assert H.SPEC.act_dim == 10
     assert H.SPEC.obs_dim == H.SPEC.frame_dim * H.SPEC.hist_len
-    assert tuple(H.SPEC.servo_id) == (9, 1, 2, 3, 4, 10, 5, 6, 7, 8)
+    # Assembly errata 2026-08-02 (tools/gen_obs_spec.py ID_BY_ROLE): the two
+    # bus chains went onto the OPPOSITE legs -- port A (9,1,2,3,4) is the
+    # right leg, port B (10,5,6,7,8) the left.
+    assert tuple(H.SPEC.servo_id) == (10, 5, 6, 7, 8, 9, 1, 2, 3, 4)
 
 
 def test_silw_sidecar_agrees_with_blob(silw):
@@ -410,6 +413,37 @@ def test_lib_abi_probe(lib):
     print("SIL ABI:", info)
 
 
+def test_lib_shaper_streams_speed(lib):
+    """sil_abi 2: with shaping on (the boot default), every SYNC WRITE slot
+    carries the goal speed that closes the measured gap in one tick -- the
+    firmware's replacement for the max-speed slam (speed 0 == unlimited)."""
+    if not lib.has_shaper:
+        pytest.skip("abi-1 library: no sil_set_shaper")
+    shaper = lib.shaper_spec()
+    assert shaper and shaper["pole_hz"] > 0, \
+        "shaping must default ON (the as-deployed plant)"
+
+    n = H.SPEC.num_joints
+    sensors = lib.make_sensors(np.zeros(n), np.zeros(n),
+                               np.array([0.0, 0.0, 1.0]), np.zeros(3),
+                               np.array([0.0, 0, 0, 1, 0, 0, 0]))
+    present = np.asarray(sensors.pos_ticks, dtype=np.int64)
+    out = lib.tick_raw(sensors)
+
+    got = np.asarray(out.goal_speed, dtype=np.int64)
+    goal = np.asarray(out.goal_ticks, dtype=np.int64)
+    want = np.rint(np.clip(np.abs(goal - present) / H.SPEC.control_dt
+                           * shaper["speed_headroom"],
+                           shaper["speed_floor"], shaper["speed_max"]))
+    assert np.array_equal(got, want.astype(np.int64)), (got, want)
+
+    # Raw mode is the legacy wire image: speed 0 (unlimited) everywhere.
+    lib.set_shaper(0.0)
+    lib.reset()
+    out = lib.tick_raw(sensors)
+    assert np.all(np.asarray(out.goal_speed, dtype=np.int64) == 0)
+
+
 def test_lib_obs_matches_python(lib, nominal_env, py_act):
     """Per-tick obs/action divergence (docs/sil-harness.md item 3): with the
     gait clocks aligned, the only difference between the firmware's assembled
@@ -418,6 +452,13 @@ def test_lib_obs_matches_python(lib, nominal_env, py_act):
     env.reset(seed=21)
     H.pin_gait_clock(env, lib.gait_hz)
     env.set_command(0.3, 0, 0, 1, 0)
+    # Raw targets for this test: it pins NUMERICAL parity, and walker_env
+    # writes the action it was stepped with into its own prev_action channel
+    # -- with shaping on, the env would see shaped actions while the firmware
+    # correctly feeds its policy the RAW ones (training semantics), and the
+    # prev_action block would diverge by design, not by bug. The shaped wire
+    # image is covered by test_lib_shaper_streams_speed and the C-side tests.
+    lib.set_shaper(0.0)
     ad = H.SilActAdapter(lib, env, py_act=py_act)
     for _ in range(120):
         obs = env._obs()

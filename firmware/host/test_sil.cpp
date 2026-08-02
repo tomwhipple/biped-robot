@@ -201,6 +201,9 @@ int slotOf(int joint) { return static_cast<int>(obs::kServoId[joint]) - 1; }
 void testServoPermutationEndToEnd() {
     const std::string nom = g_tmp_prefix + "cal_nominal.json";
     CHECK_EQ(sil_init(nullptr, nom.c_str(), 1.5f), 0);
+    // Raw targets: this test pins the PERMUTATION via the exact
+    // action->angle->steps map; the shaper is exercised in testShaping.
+    sil_set_shaper(0.0f);
 
     obs::Calibration cal;
     std::string err;
@@ -240,7 +243,7 @@ void testServoPermutationEndToEnd() {
     CHECK(differs_from_identity);   // the permutation is exercised, not vacuous
     CHECK_EQ(slotOf(0), 9);         // L_hip_yaw is bus ID 10 (assembly errata)
     CHECK_EQ(slotOf(5), 8);         // R_hip_yaw is bus ID 9  (assembly errata)
-    CHECK_EQ(slotOf(1), 0);         // L_hip_roll is bus ID 1
+    CHECK_EQ(slotOf(1), 4);         // L_hip_roll is bus ID 5 (legs swapped)
 
     // Targets: the SYNC WRITE view must be indexed the same way.
     float angle[obs::kNumJoints];
@@ -249,11 +252,12 @@ void testServoPermutationEndToEnd() {
         CHECK_EQ(out.goal_ticks[slotOf(j)], obs::angleToSteps(j, angle[j], cal));
     }
     // Velocity is sign-magnitude, not two's complement. Joint 2 sits on bus
-    // ID 2 == slot 1, which was given a NEGATIVE speed: its word is 0x8004,
-    // which read as two's complement would be -32764 steps/s (-50 rad/s)
-    // rather than -4 steps/s. That is the vendor-UI byte-order bug, so it gets
-    // its own assertion rather than riding on the loop above.
-    CHECK_EQ(slotOf(2), 1);
+    // ID 6 == slot 5 (it was bus ID 2 before the legs-swapped errata), which
+    // was given a NEGATIVE speed: its word is 0x8004, which read as two's
+    // complement would be -32764 steps/s (-50 rad/s) rather than -4 steps/s.
+    // That is the vendor-UI byte-order bug, so it gets its own assertion
+    // rather than riding on the loop above.
+    CHECK_EQ(slotOf(2), 5);
     CHECK(out.obs[obs::kOffDq + 2] < 0.0f);
     CHECK(fabsf(out.obs[obs::kOffDq + 2]) < 0.05f);
 }
@@ -502,6 +506,81 @@ void testSequencingAndReset() {
                sinf(kTwoPi * obs::kControlDt * 1.25f), 1e-6);
 }
 
+// -- 5b. command shaping (sil_abi 2) ----------------------------------------
+
+void testShaping() {
+    const std::string nom = g_tmp_prefix + "cal_nominal.json";
+    // The synth net testExportedWeights wrote: nonzero weights, so the raw
+    // targets actually differ from the seed pose and shaping is observable.
+    // (The builtin placeholder weights could legally emit action == 0, which
+    // would make every assertion here vacuous.)
+    const std::string wpath = g_tmp_prefix + "net.silw";
+    CHECK_EQ(sil_init(wpath.c_str(), nom.c_str(), 1.5f), 0);
+
+    SilSensors in{};
+    for (int s = 0; s < obs::kNumJoints; ++s) in.pos_ticks[s] = 2048;
+    in.up[2] = 1.0f;
+    in.cmd[3] = 1.0f;
+
+    // Raw reference: same sensors, shaping off. Speeds must be 0 (the legacy
+    // wire image: unlimited slew).
+    sil_set_shaper(0.0f);
+    SilTargets raw{};
+    CHECK_EQ(sil_tick(&in, &raw), 0);
+    for (int j = 0; j < obs::kNumJoints; ++j) CHECK_EQ(raw.goal_speed[j], 0);
+
+    // Shaped: bit-for-bit the same policy (the shaper is downstream of it),
+    // and the first tick is seeded from the SENSED position, so every goal
+    // sits exactly k^3 of the way from the seed to the raw target.
+    sil_reset();
+    sil_set_shaper(obs::kShaperPoleHz);
+    SilTargets shp{};
+    CHECK_EQ(sil_tick(&in, &shp), 0);
+    for (int j = 0; j < obs::kActDim; ++j) {
+        CHECK_NEAR(shp.action[j], raw.action[j], 0.0);
+    }
+    const float k = 1.0f - expf(-2.0f * 3.14159265358979f *
+                                obs::kShaperPoleHz * obs::kControlDt);
+    obs::Calibration cal;                       // nominal, matches the file
+    float target[obs::kNumJoints];
+    obs::actionToAngles(raw.action, target);
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        const int slot = slotOf(j);
+        const float seed = obs::stepsToAngle(j, 2048, cal);   // 0 rad
+        const float want = seed + k * k * k * (target[j] - seed);
+        const int32_t want_steps = obs::angleToSteps(j, want, cal);
+        CHECK(abs(static_cast<int>(shp.goal_ticks[slot]) - want_steps) <= 1);
+        // Between the seed and the raw goal, never past either.
+        const int lo = want_steps < 2048 ? want_steps - 1 : 2047;
+        const int hi = want_steps < 2048 ? 2049 : want_steps + 1;
+        CHECK(static_cast<int>(shp.goal_ticks[slot]) >= lo);
+        CHECK(static_cast<int>(shp.goal_ticks[slot]) <= hi);
+        // The streamed speed closes the measured gap in one tick.
+        CHECK_EQ(shp.goal_speed[slot],
+                 obs::goalSpeedSteps(
+                     static_cast<int32_t>(shp.goal_ticks[slot]), 2048));
+    }
+
+    // Successive ticks keep moving the shaped goals toward the raw ones --
+    // the staircase became a trajectory, not a different destination. The
+    // gait phase advances between ticks so the raw target drifts a little;
+    // the check is aggregate, against the CURRENT tick's raw map.
+    SilTargets t2{}, t3{};
+    CHECK_EQ(sil_tick(&in, &t2), 0);
+    CHECK_EQ(sil_tick(&in, &t3), 0);
+    float raw_t3[obs::kNumJoints];
+    obs::actionToAngles(t3.action, raw_t3);
+    long sum_d1 = 0, sum_d3 = 0;
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        const int slot = slotOf(j);
+        const int raw3 = obs::angleToSteps(j, raw_t3[j], cal);
+        sum_d1 += labs(static_cast<long>(shp.goal_ticks[slot]) - raw3);
+        sum_d3 += labs(static_cast<long>(t3.goal_ticks[slot]) - raw3);
+    }
+    CHECK(sum_d1 > 10);            // shaping had something to smooth
+    CHECK(2 * sum_d3 < sum_d1);    // and two ticks closed most of it
+}
+
 // -- 6. sil_spec ----------------------------------------------------------
 
 void testSpec() {
@@ -545,6 +624,24 @@ void testSpec() {
     CHECK(d && d->isStr() && d->str.size() == 18);   // 0x + 16 hex digits
     d = v.get("ready");
     CHECK(d && d->type == siljson::Value::kBool && d->b);
+
+    // sil_abi 2: the shaper block, with pole_hz tracking sil_set_shaper.
+    const siljson::Value* sh = v.get("shaper");
+    CHECK(sh && sh->isObj());
+    d = sh->get("pole_hz");
+    CHECK(d && d->isNum());
+    CHECK_NEAR(d->num, obs::kShaperPoleHz, 1e-6);   // init == boot default
+    d = sh->get("stages");
+    CHECK(d && static_cast<int>(d->num) == 3);
+    d = sh->get("speed_max");
+    CHECK(d && static_cast<int>(d->num) == obs::kGoalSpeedMax);
+    sil_set_shaper(3.5f);
+    siljson::Value v2;      // parse() APPENDS into a reused Value; start fresh
+    CHECK(siljson::parse(sil_spec(), v2, err));
+    sh = v2.get("shaper");
+    d = sh ? sh->get("pole_hz") : nullptr;
+    CHECK(d && fabs(d->num - 3.5) < 1e-6);
+    sil_set_shaper(obs::kShaperPoleHz);
 
     const siljson::Value* p = v.get("policy");
     CHECK(p && p->isObj());
@@ -597,6 +694,7 @@ int main(int argc, char** argv) {
     testExportedWeights();
     testZeroedSmoke();
     testSequencingAndReset();
+    testShaping();             // needs testExportedWeights' net.silw fixture
     testSpec();
     testErrors();
     cleanup();

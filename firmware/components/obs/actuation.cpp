@@ -61,6 +61,51 @@ float stepsPerSecToRadPerSec(int joint, int32_t steps_per_s,
            static_cast<float>(cal.dir[joint]);
 }
 
+void CommandShaper::setPole(float pole_hz, float dt) {
+    pole_hz_ = pole_hz;
+    if (pole_hz <= 0.0f || dt <= 0.0f) {
+        k_ = 1.0f;                   // degenerate: pass-through
+        return;
+    }
+    k_ = 1.0f - expf(-kTwoPi * pole_hz * dt);
+    if (k_ > 1.0f) k_ = 1.0f;
+    if (k_ < 1e-6f) k_ = 1e-6f;
+}
+
+void CommandShaper::reset(const float* angle_rad) {
+    for (int i = 0; i < kNumJoints; ++i) {
+        y1_[i] = angle_rad[i];
+        y2_[i] = angle_rad[i];
+        y3_[i] = angle_rad[i];
+    }
+    primed_ = true;
+}
+
+void CommandShaper::update(const float* target_rad, float* out_rad) {
+    if (!primed_) reset(target_rad);   // defensive; callers seed from measured
+    for (int i = 0; i < kNumJoints; ++i) {
+        // Cascade order matters: each stage sees this tick's upstream output.
+        y1_[i] += k_ * (target_rad[i] - y1_[i]);
+        y2_[i] += k_ * (y1_[i] - y2_[i]);
+        y3_[i] += k_ * (y2_[i] - y3_[i]);
+        out_rad[i] = y3_[i];
+    }
+}
+
+uint16_t goalSpeedSteps(int32_t goal_steps, int32_t present_steps) {
+    const int32_t err =
+        goal_steps >= present_steps ? goal_steps - present_steps
+                                    : present_steps - goal_steps;
+    float sps = static_cast<float>(err) / kControlDt * kGoalSpeedHeadroom;
+    if (sps < static_cast<float>(kGoalSpeedFloor)) {
+        sps = static_cast<float>(kGoalSpeedFloor);
+    }
+    if (sps > static_cast<float>(kGoalSpeedMax)) {
+        sps = static_cast<float>(kGoalSpeedMax);
+    }
+    return static_cast<uint16_t>(lrintf(sps));
+}
+
 void VelocityEstimator::reset(const float* angle_rad) {
     for (int i = 0; i < kNumJoints; ++i) {
         prev_[i] = angle_rad[i];

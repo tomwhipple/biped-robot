@@ -24,9 +24,10 @@ void testSpecMatchesVectors() {
 
 void testServoIdMapIsAPermutation() {
     // docs/wiring.md's bus IDs vs. the sim's action order. On the 10-DOF plant
-    // this is NOT the identity: L_hip_yaw is action 0 but servo ID 10 --
-    // ID 9 by the numbering, then swapped by the 2026-08-02 hip-yaw assembly
-    // errata (see ID_BY_ROLE in tools/gen_obs_spec.py).
+    // this is NOT the identity, and the 2026-08-02 errata widened the gap: the
+    // two bus chains went onto the opposite legs, so port A (9,1,2,3,4) is the
+    // RIGHT leg and port B (10,5,6,7,8) the LEFT. See ID_BY_ROLE in
+    // tools/gen_obs_spec.py for the observations that pinned it down.
     bool seen[16] = {};
     for (int i = 0; i < obs::kNumJoints; ++i) {
         const uint8_t id = obs::kServoId[i];
@@ -34,10 +35,10 @@ void testServoIdMapIsAPermutation() {
         CHECK(!seen[id]);
         seen[id] = true;
     }
-    CHECK_EQ(obs::kServoId[0], 10);     // L_hip_yaw (errata: swapped with 9)
-    CHECK_EQ(obs::kServoId[1], 1);      // L_hip_roll
-    CHECK_EQ(obs::kServoId[5], 9);      // R_hip_yaw (errata: swapped with 10)
-    CHECK_EQ(obs::kServoId[9], 8);      // R_ankle
+    CHECK_EQ(obs::kServoId[0], 10);     // L_hip_yaw  -- port B, the LEFT leg
+    CHECK_EQ(obs::kServoId[1], 5);      // L_hip_roll -- port B
+    CHECK_EQ(obs::kServoId[5], 9);      // R_hip_yaw  -- port A, the RIGHT leg
+    CHECK_EQ(obs::kServoId[9], 4);      // R_ankle    -- port A
 }
 
 void testFramesMatchTheSim() {
@@ -290,6 +291,95 @@ void testStepsClamp() {
     }
 }
 
+void testCommandShaper() {
+    const float dt = obs::kControlDt;
+    const float k = 1.0f - expf(-2.0f * 3.14159265358979f *
+                                obs::kShaperPoleHz * dt);
+    obs::CommandShaper sh;
+    CHECK_NEAR(sh.poleHz(), obs::kShaperPoleHz, 0.0);
+
+    // Seeding: after reset(q0), one update toward u lands exactly k^3 of the
+    // way there (three cascaded stages, each stepping by k, seeded equal).
+    float q0[obs::kNumJoints], u[obs::kNumJoints], y[obs::kNumJoints];
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        q0[i] = 0.1f * static_cast<float>(i) - 0.4f;
+        u[i] = q0[i] + 0.5f;
+    }
+    sh.reset(q0);
+    CHECK(sh.primed());
+    sh.update(u, y);
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        CHECK_NEAR(y[i], q0[i] + k * k * k * 0.5f, 1e-5);
+    }
+
+    // Step response: monotone (all poles real -- no overshoot), converges,
+    // and never leaves the [seed, target] hull.
+    float zero[obs::kNumJoints] = {};
+    float one[obs::kNumJoints];
+    for (int i = 0; i < obs::kNumJoints; ++i) one[i] = 1.0f;
+    sh.reset(zero);
+    float prev = 0.0f;
+    float resp[200];
+    for (int t = 0; t < 200; ++t) {
+        sh.update(one, y);
+        resp[t] = y[0];
+        CHECK(y[0] >= prev - 1e-7f);       // monotone
+        CHECK(y[0] <= 1.0f + 1e-6f);       // no overshoot
+        prev = y[0];
+    }
+    CHECK_NEAR(resp[199], 1.0f, 1e-4);     // converged (DC gain exactly 1)
+
+    // Smoothness -- the reason this class exists. The discrete second
+    // difference (acceleration) of the step response must be a small fraction
+    // of the step; the RAW staircase concentrates the whole unit step in one
+    // sample (|d2| == 1). This is "second derivative continuous" in the
+    // sampled domain: bounded and slowly-varying, not impulsive.
+    float d2max = 0.0f;
+    for (int t = 2; t < 200; ++t) {
+        const float d2 = fabsf((resp[t] - resp[t - 1]) -
+                               (resp[t - 1] - resp[t - 2]));
+        if (d2 > d2max) d2max = d2;
+    }
+    CHECK(d2max < 0.15f);                  // vs 1.0 for the raw staircase
+
+    // In-place update is safe (ctrl_task shapes `angle` into itself).
+    sh.reset(zero);
+    float inout[obs::kNumJoints];
+    for (int i = 0; i < obs::kNumJoints; ++i) inout[i] = 1.0f;
+    sh.update(inout, inout);
+    CHECK_NEAR(inout[0], k * k * k, 1e-5);
+
+    // invalidate(): the next update self-seeds from its target (defensive
+    // path; ctrl_task/sil reseed from measured q first).
+    sh.invalidate();
+    CHECK(!sh.primed());
+    sh.update(u, y);
+    for (int i = 0; i < obs::kNumJoints; ++i) CHECK_NEAR(y[i], u[i], 0.0);
+
+    // A pole change mid-run is continuous: state carries over, only the
+    // per-stage gain changes.
+    sh.setPole(3.0f, dt);
+    CHECK_NEAR(sh.poleHz(), 3.0f, 0.0);
+    sh.update(u, y);
+    for (int i = 0; i < obs::kNumJoints; ++i) CHECK_NEAR(y[i], u[i], 1e-6);
+}
+
+void testGoalSpeed() {
+    const float dt = obs::kControlDt;
+    // Zero error: the floor, never 0 (0 == UNLIMITED on the wire, which is
+    // exactly the slam this path exists to remove).
+    CHECK_EQ(obs::goalSpeedSteps(2048, 2048), obs::kGoalSpeedFloor);
+    // Mid-range: |err| / dt with headroom, symmetric in sign.
+    const int32_t want20 = static_cast<int32_t>(
+        lrintf(20.0f / dt * obs::kGoalSpeedHeadroom));
+    CHECK_EQ(obs::goalSpeedSteps(2068, 2048), want20);
+    CHECK_EQ(obs::goalSpeedSteps(2028, 2048), want20);
+    // Large error (a disturbance, or a joint that never answered): clamps to
+    // the servo's max -- the legacy stiffness is the ceiling, not lost.
+    CHECK_EQ(obs::goalSpeedSteps(4095, 0), obs::kGoalSpeedMax);
+    CHECK_EQ(obs::goalSpeedSteps(0, 4095), obs::kGoalSpeedMax);
+}
+
 int main() {
     testSpecMatchesVectors();
     testServoIdMapIsAPermutation();
@@ -299,6 +389,8 @@ int main() {
     testActionToAngles();
     testAngleToSteps();
     testVelocityEstimator();
+    testCommandShaper();
+    testGoalSpeed();
     testImuMaths();
     testCalBlob();
     testStepsClamp();

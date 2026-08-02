@@ -76,6 +76,14 @@ class Bus {
     Status syncWritePositions(const uint8_t* ids, const int32_t* steps,
                               size_t n, uint16_t time_ms = 0,
                               uint16_t speed = 0, uint8_t accel = 0);
+    // Same frame, but with a PER-SERVO goal speed (register 46) -- the
+    // control loop's command-shaping path streams the speed that reaches each
+    // shaped target by the next tick, instead of the max-speed slam a zero
+    // speed field means. Nonzero speeds only: 0 is "unlimited" on the wire,
+    // which is exactly what this overload exists to avoid.
+    Status syncWritePositions(const uint8_t* ids, const int32_t* steps,
+                              const uint16_t* speeds, size_t n,
+                              uint8_t accel = 0);
 
     // -- torque ------------------------------------------------------------
     // id == kBroadcastId releases/engages everything in one frame, which is

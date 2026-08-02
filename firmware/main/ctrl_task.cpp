@@ -49,6 +49,18 @@ float g_action[obs::kActDim];
 float g_q[obs::kNumJoints];
 float g_dq[obs::kNumJoints];
 int32_t g_target_steps[obs::kNumJoints];
+uint16_t g_target_speed[obs::kNumJoints];
+
+// C2 command shaping (obs/actuation.h): the policy's raw 50 Hz targets go
+// through three cascaded lags so the trajectory the servos chase has
+// continuous velocity and acceleration, and each SYNC WRITE carries the speed
+// that reaches the shaped target by the next tick -- instead of the max-speed
+// slam-and-wait that put a 50 Hz velocity square wave on every joint.
+// prev_action stays the RAW policy output: that is what the policy saw in
+// training; the shaper is downstream of the policy's world.
+obs::CommandShaper g_shaper;
+static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
+              "obs's speed ceiling must match the servo's");
 scsbus::Feedback g_fb[obs::kNumJoints];
 bool g_fb_ok[obs::kNumJoints];
 bool g_torque_on = false;
@@ -134,6 +146,7 @@ void ctrlTask(void*) {
                 releaseAll();               // never hand the CLI a live robot
                 g_ctrl_owns_bus.store(false);
                 g_primed = false;
+                g_shaper.invalidate();
             }
             continue;
         }
@@ -143,6 +156,7 @@ void ctrlTask(void*) {
             g_hist = obs::History();
             memset(g_prev_action, 0, sizeof g_prev_action);
             g_primed = false;
+            g_shaper.invalidate();
         }
 
         const float now_ms = static_cast<float>(t0) / 1000.0f;
@@ -190,6 +204,10 @@ void ctrlTask(void*) {
                            state == linkproto::LinkState::kEstop);
         if (limp) {
             if (g_torque_on) releaseAll();
+            // Torque is off, so the joints go wherever gravity and the
+            // operator put them; the shaper must reseed from MEASURED q on
+            // re-engage or the first shaped target would be a jump.
+            g_shaper.invalidate();
             publish(rep_state, faults, s.up[2], vbat_dv,
                     static_cast<uint32_t>(esp_timer_get_time() - t0));
             continue;
@@ -236,13 +254,36 @@ void ctrlTask(void*) {
 
         float angle[obs::kNumJoints];
         obs::actionToAngles(g_action, angle);
+
+        // -- shape (see g_shaper above; docs/firmware-design.md) -------------
+        const float shape_hz = g_shape_hz.load();
+        if (shape_hz > 0.0f) {
+            if (shape_hz != g_shaper.poleHz()) {
+                g_shaper.setPole(shape_hz, obs::kControlDt);
+            }
+            if (!g_shaper.primed()) g_shaper.reset(g_q);   // measured, no jump
+            g_shaper.update(angle, angle);
+        } else {
+            g_shaper.invalidate();      // re-enable reseeds from measured q
+        }
+
         for (int i = 0; i < obs::kNumJoints; ++i) {
             g_target_steps[i] = obs::angleToSteps(i, angle[i], g_cal);
+            // g_fb[i].position holds the last servo that answered; a joint
+            // that has never answered reads 0, the error saturates and the
+            // speed clamps to max -- exactly the legacy behaviour.
+            g_target_speed[i] =
+                obs::goalSpeedSteps(g_target_steps[i], g_fb[i].position);
         }
         const int64_t t_wr0 = esp_timer_get_time();
         if (g_bus) {
-            g_bus->syncWritePositions(servoIds(), g_target_steps,
-                                      obs::kNumJoints);
+            if (shape_hz > 0.0f) {
+                g_bus->syncWritePositions(servoIds(), g_target_steps,
+                                          g_target_speed, obs::kNumJoints);
+            } else {
+                g_bus->syncWritePositions(servoIds(), g_target_steps,
+                                          obs::kNumJoints);
+            }
         }
         const int64_t t_wr1 = esp_timer_get_time();
 
