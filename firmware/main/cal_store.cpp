@@ -64,7 +64,36 @@ bool calUnpack(const CalBlob& blob, obs::Calibration& out) {
     return true;
 }
 
+bool calUnpackV1(const CalBlobV1& blob, obs::Calibration& out) {
+    if (blob.magic != kCalMagic) return false;
+    if (blob.version != 1) return false;
+    if (blob.joints != static_cast<uint16_t>(obs::kNumJoints)) return false;
+    if (blob.crc != calCrc32(&blob, sizeof blob - sizeof blob.crc)) {
+        return false;
+    }
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        if (blob.zero_steps[i] < 0 || blob.zero_steps[i] > 4095) return false;
+        if (blob.dir[i] != 1 && blob.dir[i] != -1) return false;
+    }
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        out.zero_steps[i] = blob.zero_steps[i];
+        out.dir[i] = blob.dir[i];
+    }
+    return true;
+}
+
 #ifdef ESP_PLATFORM
+
+bool calLoadV1(obs::Calibration& out) {
+    nvs_handle_t h;
+    if (nvs_open(kNs, NVS_READONLY, &h) != ESP_OK) return false;
+    CalBlobV1 blob{};
+    size_t len = sizeof blob;
+    const esp_err_t err = nvs_get_blob(h, kKey, &blob, &len);
+    nvs_close(h);
+    if (err != ESP_OK || len != sizeof blob) return false;
+    return calUnpackV1(blob, out);
+}
 
 bool calLoad(obs::Calibration& out) {
     nvs_handle_t h;

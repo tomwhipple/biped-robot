@@ -53,6 +53,24 @@ void calPack(const obs::Calibration& cal, CalBlob& out);
 bool calUnpack(const CalBlob& blob, obs::Calibration& out);
 uint32_t calCrc32(const void* data, size_t len);
 
+// The v1 layout, kept verbatim for one purpose: an EXPLICIT operator-driven
+// migration (CLI `cal migrate`). A v1 blob cannot prove which servo map it
+// was measured under, so boot rejects it; but the as-built table in
+// docs/servo-map.md lets a HUMAN verify the values, bless them, and re-save
+// as v2. The machine never trusts v1 on its own.
+struct CalBlobV1 {
+    uint32_t magic;
+    uint16_t version;        // 1
+    uint16_t joints;
+    int32_t zero_steps[obs::kNumJoints];
+    int8_t dir[obs::kNumJoints];
+    uint8_t pad[3];
+    uint32_t crc;
+};
+
+bool calUnpackV1(const CalBlobV1& blob, obs::Calibration& out);   // pure
+bool calLoadV1(obs::Calibration& out);                            // ESP side
+
 // ESP-IDF side. calLoad leaves `out` at its constructed defaults and returns
 // false when nothing is stored yet -- that is the normal first-boot path, not
 // an error.

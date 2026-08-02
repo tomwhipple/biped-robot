@@ -282,6 +282,30 @@ void testCalBlob() {
         CHECK_EQ(blob.servo_id[i], obs::kServoId[i]);
     }
 
+    // The explicit v1 migration path (`cal migrate`): a well-formed v1 blob
+    // unpacks THERE (and only there -- boot's calUnpack requires v2).
+    robot::CalBlobV1 v1{};
+    v1.magic = robot::kCalMagic;
+    v1.version = 1;
+    v1.joints = static_cast<uint16_t>(obs::kNumJoints);
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        v1.zero_steps[i] = cal.zero_steps[i];
+        v1.dir[i] = cal.dir[i];
+    }
+    v1.crc = robot::calCrc32(&v1, sizeof v1 - sizeof v1.crc);
+    obs::Calibration mig;
+    CHECK(robot::calUnpackV1(v1, mig));
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        CHECK(mig.zero_steps[i] == cal.zero_steps[i]);
+        CHECK(mig.dir[i] == cal.dir[i]);
+    }
+    robot::CalBlobV1 v1bad = v1;
+    v1bad.crc ^= 1u;
+    CHECK(!robot::calUnpackV1(v1bad, guard));    // corrupt v1 rejected
+    v1bad = v1; v1bad.version = 2;
+    v1bad.crc = robot::calCrc32(&v1bad, sizeof v1bad - sizeof v1bad.crc);
+    CHECK(!robot::calUnpackV1(v1bad, guard));    // v2 does not sneak in here
+
     CHECK(robot::calCrc32("123456789", 9) == 0xCBF43926u);   // CRC-32 matches the standard check value
 }
 

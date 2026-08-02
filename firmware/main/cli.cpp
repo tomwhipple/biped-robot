@@ -495,6 +495,46 @@ void cmdCal(Sink out, int argc, char** argv) {
             obs::kJointNames[j], d);
         return;
     }
+    if (!strcmp(argv[1], "set") && argc >= 5) {
+        // Type a row of docs/servo-map.md's as-built table straight in --
+        // recovery path when the robot cannot be posed (e.g. broken parts).
+        if (!claimBus(out)) return;           // writer-vs-ctrl-reader guard
+        const long j = num(argv[2], -1);
+        const long z = num(argv[3], -1);
+        const long d = num(argv[4], 0);
+        if (j < 0 || j >= obs::kNumJoints || z < 0 || z > 4095 ||
+            (d != 1 && d != -1)) {
+            out("usage: cal set <joint 0-9> <zero 0-4095> <1|-1>\r\n");
+            return;
+        }
+        cal.zero_steps[j] = static_cast<int32_t>(z);
+        cal.dir[j] = static_cast<int8_t>(d);
+        say(out, "%s zero <- %ld dir <- %+ld -- run `cal save`\r\n",
+            obs::kJointNames[j], z, d);
+        return;
+    }
+    if (!strcmp(argv[1], "migrate")) {
+        // v1 blob -> live cal, HUMAN verifies, `cal save` re-persists as v2.
+        // v1 cannot prove its servo map, so the machine never trusts it on
+        // its own (cal_store.h) -- compare the printout against the as-built
+        // table in docs/servo-map.md before saving.
+        if (!claimBus(out)) return;
+        obs::Calibration old;
+        if (!robot::calLoadV1(old)) {
+            out("no readable v1 blob in NVS (already v2, empty, or corrupt)\r\n");
+            return;
+        }
+        cal = old;
+        robot::g_cal_from_nvs = false;        // not blessed until saved as v2
+        for (int j = 0; j < obs::kNumJoints; ++j) {
+            say(out, "  %-12s id %2d  zero %4ld  dir %+d\r\n",
+                obs::kJointNames[j], obs::kServoId[j],
+                static_cast<long>(cal.zero_steps[j]), cal.dir[j]);
+        }
+        out("v1 blob loaded into the LIVE cal only. Verify against\r\n"
+            "docs/servo-map.md (as-built table), then `cal save`.\r\n");
+        return;
+    }
     if (!strcmp(argv[1], "save")) {
         const bool ok = robot::calSave(cal);
         robot::g_cal_from_nvs = ok;
@@ -517,7 +557,7 @@ void cmdCal(Sink out, int argc, char** argv) {
         out("cal reset to defaults (zero 2048, dir +1) and erased\r\n");
         return;
     }
-    out("usage: cal [show] | zero [joint] | dir <joint> <1|-1> | save | load | reset\r\n");
+    out("usage: cal [show] | zero [joint] | dir <joint> <1|-1> | set <joint> <zero> <1|-1>\r\n       | migrate | save | load | reset\r\n");
 }
 
 void cmdStat(Sink out) {
@@ -556,7 +596,7 @@ void banner(Sink out) {
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
     out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");
     out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
-    out("  cal [show|zero|dir|save|load|reset]   servo zero + direction (NVS)\r\n");
+    out("  cal [show|zero|dir|set|migrate|save|load|reset]   zero + dir (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  stat                 tick timing and fault counters\r\n");
