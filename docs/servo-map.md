@@ -77,6 +77,12 @@ stand, via `cal zero` + `cal save`. Standing **is** angle zero for every joint
 (`kJointDefault` is all zeros), so these ticks are each joint's `zero_steps`.
 They are stored in NVS; the boot log reads `cal: restored from NVS`.
 
+This table is also compiled into the firmware as
+`firmware/main/asbuilt_cal.h`, where it gates the automatic v1→v2
+calibration-blob migration (a v1 blob cannot prove its servo map, but one
+that exactly matches this measurement is this measurement). **If the robot is
+re-zeroed, update both files in the same commit.**
+
 Re-measured after the legs-swapped remap — `cal` is stored per *joint index*,
 so remapping invalidated every entry and the blob was erased (`cal reset`)
 rather than left to look valid.

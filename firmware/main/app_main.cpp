@@ -89,13 +89,25 @@ extern "C" void app_main(void) {
     // but `cal` reports which of the two you are running on, because the
     // difference is invisible until a leg moves the wrong way.
     g_cal_from_nvs = calLoad(calibration());
+    bool cal_migrated = false;
+    if (!g_cal_from_nvs) {
+        // v1 -> v2, automatically and safely: a v1 blob that exactly matches
+        // the compiled as-built table (asbuilt_cal.h, the servo-map.md
+        // measurement) IS that measurement, so it migrates without an
+        // operator; anything else stays rejected and `run` refuses.
+        cal_migrated = calMigrateV1(calibration());
+        g_cal_from_nvs = cal_migrated;
+    }
 
     // Bench mode, torque off: docs/wiring.md's bring-up order starts with a
     // released bus, and a board that wakes up holding a pose is a board that
     // cooks servos while you are still plugging things in.
     g_bus->torqueEnable(scsbus::kBroadcastId, false);
 
-    ESP_LOGI(kTag, "cal: %s", g_cal_from_nvs ? "restored from NVS" : "DEFAULTS");
+    ESP_LOGI(kTag, "cal: %s",
+             cal_migrated ? "migrated v1 -> v2 (matched as-built table)"
+                          : (g_cal_from_nvs ? "restored from NVS"
+                                            : "DEFAULTS"));
     ESP_LOGI(kTag, "bus %d baud on GPIO %d/%d, %d joints, obs %d, policy %s",
              board::kServoBaud, static_cast<int>(board::kServoTx),
              static_cast<int>(board::kServoRx), obs::kNumJoints, obs::kObsDim,

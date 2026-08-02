@@ -71,6 +71,18 @@ struct CalBlobV1 {
 bool calUnpackV1(const CalBlobV1& blob, obs::Calibration& out);   // pure
 bool calLoadV1(obs::Calibration& out);                            // ESP side
 
+// True iff `cal` equals the compiled as-built table (asbuilt_cal.h) exactly.
+// This is what lets a v1 blob migrate WITHOUT an operator eyeballing it: the
+// blob cannot prove its servo map, but matching the table -- which was
+// measured under the current map -- proves it is that measurement.
+bool calIsAsBuilt(const obs::Calibration& cal);
+
+// The full automatic path, called at boot when the v2 load fails: v1 blob
+// present AND equal to the as-built table -> adopt it and re-save as v2
+// (bound to the current map), return true. Anything else -> false, robot
+// boots uncalibrated, `run` refuses.
+bool calMigrateV1(obs::Calibration& out);                         // ESP side
+
 // ESP-IDF side. calLoad leaves `out` at its constructed defaults and returns
 // false when nothing is stored yet -- that is the normal first-boot path, not
 // an error.

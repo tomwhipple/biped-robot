@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "asbuilt_cal.h"
+
 #ifdef ESP_PLATFORM
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -82,7 +84,23 @@ bool calUnpackV1(const CalBlobV1& blob, obs::Calibration& out) {
     return true;
 }
 
+bool calIsAsBuilt(const obs::Calibration& cal) {
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        if (cal.zero_steps[i] != kAsBuiltZeroSteps[i]) return false;
+        if (cal.dir[i] != kAsBuiltDir[i]) return false;
+    }
+    return true;
+}
+
 #ifdef ESP_PLATFORM
+
+bool calMigrateV1(obs::Calibration& out) {
+    obs::Calibration v1;
+    if (!calLoadV1(v1)) return false;
+    if (!calIsAsBuilt(v1)) return false;   // unknown v1 values: recalibrate
+    out = v1;
+    return calSave(out);                   // re-persist as v2, map-bound
+}
 
 bool calLoadV1(obs::Calibration& out) {
     nvs_handle_t h;

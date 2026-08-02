@@ -514,10 +514,10 @@ void cmdCal(Sink out, int argc, char** argv) {
         return;
     }
     if (!strcmp(argv[1], "migrate")) {
-        // v1 blob -> live cal, HUMAN verifies, `cal save` re-persists as v2.
-        // v1 cannot prove its servo map, so the machine never trusts it on
-        // its own (cal_store.h) -- compare the printout against the as-built
-        // table in docs/servo-map.md before saving.
+        // Normally unnecessary -- boot auto-migrates a v1 blob that matches
+        // the compiled as-built table (asbuilt_cal.h). This is the manual
+        // path for everything else: a v1 blob with UNKNOWN values loads into
+        // the live cal only, and a human decides before `cal save`.
         if (!claimBus(out)) return;
         obs::Calibration old;
         if (!robot::calLoadV1(old)) {
@@ -525,14 +525,22 @@ void cmdCal(Sink out, int argc, char** argv) {
             return;
         }
         cal = old;
+        if (robot::calIsAsBuilt(cal)) {
+            const bool ok = robot::calSave(cal);
+            robot::g_cal_from_nvs = ok;
+            say(out, "v1 blob matches the as-built table -- saved as v2: "
+                "%s\r\n", ok ? "ok" : "FAILED");
+            return;
+        }
         robot::g_cal_from_nvs = false;        // not blessed until saved as v2
         for (int j = 0; j < obs::kNumJoints; ++j) {
             say(out, "  %-12s id %2d  zero %4ld  dir %+d\r\n",
                 obs::kJointNames[j], obs::kServoId[j],
                 static_cast<long>(cal.zero_steps[j]), cal.dir[j]);
         }
-        out("v1 blob loaded into the LIVE cal only. Verify against\r\n"
-            "docs/servo-map.md (as-built table), then `cal save`.\r\n");
+        out("v1 blob does NOT match asbuilt_cal.h -- loaded into the LIVE\r\n"
+            "cal only. Verify against docs/servo-map.md, then `cal save`,\r\n"
+            "or recalibrate.\r\n");
         return;
     }
     if (!strcmp(argv[1], "save")) {

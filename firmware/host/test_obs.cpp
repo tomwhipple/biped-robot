@@ -3,6 +3,7 @@
 // The frames in obs_vectors.h came out of walker_env._obs() itself (see
 // tools/gen_obs_spec.py). If anybody reorders the observation in the sim and
 // regenerates, this test is what goes red.
+#include "../main/asbuilt_cal.h"
 #include "imu/imu.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
@@ -305,6 +306,20 @@ void testCalBlob() {
     v1bad = v1; v1bad.version = 2;
     v1bad.crc = robot::calCrc32(&v1bad, sizeof v1bad - sizeof v1bad.crc);
     CHECK(!robot::calUnpackV1(v1bad, guard));    // v2 does not sneak in here
+
+    // The auto-migration gate: the compiled as-built table matches itself,
+    // and any single-value drift (a different measurement) is refused.
+    obs::Calibration asb;
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        asb.zero_steps[i] = robot::kAsBuiltZeroSteps[i];
+        asb.dir[i] = robot::kAsBuiltDir[i];
+    }
+    CHECK(robot::calIsAsBuilt(asb));
+    asb.zero_steps[4] += 1;                      // one tick off on L_ankle
+    CHECK(!robot::calIsAsBuilt(asb));
+    asb.zero_steps[4] -= 1;
+    asb.dir[3] = static_cast<int8_t>(-asb.dir[3]);
+    CHECK(!robot::calIsAsBuilt(asb));
 
     CHECK(robot::calCrc32("123456789", 9) == 0xCBF43926u);   // CRC-32 matches the standard check value
 }
