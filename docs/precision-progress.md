@@ -884,3 +884,28 @@ clock. The closed-loop pytest budget is now 2 seeds for goal_home, 1
 elsewhere; a real stack bug would miss in ONE direction everywhere.
 SIL reference run re-pointed loco_v6creep -> loco_v8foot (goldens
 regenerated; firmware 2959 checks green; 31/31 pytest).
+
+## Day 12 (2026-08-02): turn-emph verdict split; CoM-stance kernel refuted on the walk
+
+**loco_v10turn 68/88 (6/11 clean)** on carpet: turning-while-walking
+improved (circle_return 0/8 -> 3/8 ret 46 cm, goal_home 7/8, square
+8/8 @ 13 cm, gait asym 20% -> 13%) but the in-place turn_180 stayed
+1/8 (hErr 29 deg) -- pivoting on the 8-sphere sole against carpet's
+torsional friction may genuinely need a step-turn strategy, not more
+emphasis. Cost of the 85% turn mix: stand_off crashed 8/8 -> 2/8
+(stand practice crowded out). Restore the normal mix next loco round.
+
+**loco_v11gait (26.5M partial) 61/88** -- and the probe REFUTES the
+CoM-stance lever for gait shape: forward pitch +13.5 deg / CoM lead
++2.9 cm vs the +12.3/+2.7 baseline (v10turn control: +13.2). The
+clearance-gated kernel never binds during the walk cycle; 26.5M of
+declining training reward bought zero pitch change. Continuation
+CANCELLED; the direct lever (pitch-magnitude hinge penalty, e.g.
+max(0,|pitch|-5deg)^2, flag-gated + parity) gets built today and runs
+tomorrow from v10turn (best current, 68/88).
+
+Tonight: **skills_v5march** -- the user-requested knee-high march
+(10.4 cm target, 1 Hz cadence, march_mix 0.25), warm-started from
+loco_v9rough (best stand_off, quantized lineage) since every skills_v*
+predates the corrected foot. Judged by march_10s (baseline: skills_v4
+reached 70% of knee height; v9rough topples).
