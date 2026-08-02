@@ -189,6 +189,53 @@ void cmdPos(Sink out, int argc, char** argv) {
         static_cast<unsigned>(f.status));
 }
 
+// Refuse a goal write while torque is off (or unreadable). STS servos
+// AUTO-ENABLE torque when a goal position arrives, so "torque is off, this
+// is inert" is FALSE -- that assumption drove every joint through its hard
+// stop and broke both feet off on 2026-08-02. Motion is now an explicit
+// two-step: `torque`, then the move.
+bool torqueGate(scsbus::Bus* bus, Sink out, uint8_t id) {
+    uint8_t on = 0;
+    const scsbus::Status st = bus->readU8(id, scsbus::kRegTorqueEnable, on);
+    if (st != scsbus::Status::kOk) {
+        say(out, "id %d: cannot read torque state (%s) -- refusing to write "
+            "a goal blind\r\n", id, statusName(st));
+        return false;
+    }
+    if (on == 0) {
+        say(out, "id %d: torque is OFF, and a goal write would auto-enable "
+            "it and MOVE the joint. `torque %d` first if you mean it.\r\n",
+            id, id);
+        return false;
+    }
+    return true;
+}
+
+// Clamp bench ticks to the joint's CALIBRATED mechanical range, when the
+// target servo is one of the policy's. Raw 0..4095 is the encoder's range,
+// not the mechanism's -- the difference is a horn driving a printed part
+// past its stop.
+int32_t clampToJointRange(uint8_t id, int32_t ticks, Sink out) {
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        if (robot::servoIds()[j] != id) continue;
+        const obs::Calibration& cal = robot::calibration();
+        const int32_t a = obs::angleToSteps(j, obs::kJointLo[j], cal);
+        const int32_t b = obs::angleToSteps(j, obs::kJointHi[j], cal);
+        const int32_t lo = a < b ? a : b, hi = a < b ? b : a;
+        if (ticks < lo || ticks > hi) {
+            const int32_t c = ticks < lo ? lo : hi;
+            say(out, "id %d: %ld is outside joint %d's range [%ld..%ld]%s, "
+                "clamped to %ld\r\n", id, static_cast<long>(ticks), j,
+                static_cast<long>(lo), static_cast<long>(hi),
+                robot::g_cal_from_nvs ? "" : " (UNCALIBRATED defaults!)",
+                static_cast<long>(c));
+            return c;
+        }
+        return ticks;
+    }
+    return ticks;               // not a policy servo: encoder range only
+}
+
 void cmdMove(Sink out, int argc, char** argv) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
@@ -206,8 +253,11 @@ void cmdMove(Sink out, int argc, char** argv) {
         out("ticks must be 0-4095 (2048 == middle)\r\n");
         return;
     }
+    if (!torqueGate(bus, out, static_cast<uint8_t>(id))) return;
     const uint8_t ids[1] = {static_cast<uint8_t>(id)};
-    const int32_t tgt[1] = {static_cast<int32_t>(ticks)};
+    const int32_t tgt[1] = {clampToJointRange(static_cast<uint8_t>(id),
+                                              static_cast<int32_t>(ticks),
+                                              out)};
     const scsbus::Status st = bus->syncWritePositions(
         ids, tgt, 1, static_cast<uint16_t>(ms),
         static_cast<uint16_t>(spd), 0);
@@ -237,7 +287,14 @@ void cmdPose(Sink out, int argc, char** argv) {
                 i + 1);
             return;
         }
-        tgt[i] = static_cast<int32_t>(t);
+        tgt[i] = clampToJointRange(robot::servoIds()[i],
+                                   static_cast<int32_t>(t), out);
+    }
+    // Gate on every servo BEFORE the first byte hits the wire: this is one
+    // broadcast frame, so there is no such thing as moving only the safe
+    // ones.
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        if (!torqueGate(bus, out, robot::servoIds()[i])) return;
     }
     // Bench default is a GENTLE sweep (~0.9 rad/s), not the servo's max --
     // a hand-typed pose with a typo shouldn't snap a limb across its range.
@@ -359,6 +416,16 @@ void cmdBatt(Sink out, int argc, char** argv) {
 }
 
 void cmdMode(Sink out, bool run) {
+    // No valid as-built calibration, no run. The default Calibration (zero
+    // 2048, dir +1) is exactly the raw-middle pose that broke the feet on
+    // 2026-08-02, and a stored blob measured under a different servo map is
+    // invalidated at load (cal_store.h v2) for the same reason.
+    if (run && !robot::g_cal_from_nvs) {
+        out("REFUSED: no as-built calibration in NVS (missing, or "
+            "invalidated by a servo-map change). Run the `cal` workflow "
+            "first -- driving the loop on 2048-defaults twists the robot.\r\n");
+        return;
+    }
     robot::g_mode_request.store(run ? robot::Mode::kRun : robot::Mode::kBench);
     out(run ? "control loop armed -- bus handed to core 1\r\n"
             : "benched -- control loop released torque and gave up the bus\r\n");

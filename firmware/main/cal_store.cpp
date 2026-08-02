@@ -37,6 +37,7 @@ void calPack(const obs::Calibration& cal, CalBlob& out) {
     for (int i = 0; i < obs::kNumJoints; ++i) {
         out.zero_steps[i] = cal.zero_steps[i];
         out.dir[i] = cal.dir[i];
+        out.servo_id[i] = obs::kServoId[i];
     }
     out.crc = calCrc32(&out, sizeof out - sizeof out.crc);
 }
@@ -51,6 +52,10 @@ bool calUnpack(const CalBlob& blob, obs::Calibration& out) {
         // CRC but was written by a build with a different convention.
         if (blob.zero_steps[i] < 0 || blob.zero_steps[i] > 4095) return false;
         if (blob.dir[i] != 1 && blob.dir[i] != -1) return false;
+        // The map the calibration was measured under must be THIS build's
+        // map -- a joint-indexed blob under a different kServoId pairs zeros
+        // with the wrong physical servos (see the v2 note in cal_store.h).
+        if (blob.servo_id[i] != obs::kServoId[i]) return false;
     }
     for (int i = 0; i < obs::kNumJoints; ++i) {
         out.zero_steps[i] = blob.zero_steps[i];

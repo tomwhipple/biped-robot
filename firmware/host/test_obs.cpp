@@ -266,6 +266,22 @@ void testCalBlob() {
     bad.crc = robot::calCrc32(&bad, sizeof bad - sizeof bad.crc);
     CHECK(!robot::calUnpack(bad, guard));   // invalid dir rejected
 
+    // v2: the blob is joint-indexed, so it is only meaningful under the
+    // servo map it was measured with. A blob carrying a different kServoId
+    // (the 2026-08-02 leg-swap errata scenario: cal measured, THEN the map
+    // changed) must be rejected, not silently applied to the wrong servos.
+    bad = blob;
+    const uint8_t tmp_id = bad.servo_id[0];
+    bad.servo_id[0] = bad.servo_id[5];
+    bad.servo_id[5] = tmp_id;
+    bad.crc = robot::calCrc32(&bad, sizeof bad - sizeof bad.crc);
+    CHECK(!robot::calUnpack(bad, guard));   // stale servo map rejected
+    CHECK(guard.zero_steps[0] == sentinel);
+    // ... and calPack records the CURRENT map, so a fresh cal round-trips.
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        CHECK_EQ(blob.servo_id[i], obs::kServoId[i]);
+    }
+
     CHECK(robot::calCrc32("123456789", 9) == 0xCBF43926u);   // CRC-32 matches the standard check value
 }
 

@@ -24,18 +24,27 @@ namespace robot {
 // changed from 8 to 10 DOF mid-project: restoring an 8-joint calibration into
 // a 10-joint build would silently leave two joints at defaults, which is the
 // kind of thing that is only noticed when a leg moves wrong.
+//
+// v2 also stores the SERVO MAP the calibration was measured under. The blob is
+// joint-indexed, so it only means anything relative to kServoId at measurement
+// time: on 2026-08-02 the whole-chain leg-swap errata changed the map after an
+// as-built calibration had been persisted, silently pairing 8 of 10 joints'
+// zeros and directions with the WRONG physical servos. A map mismatch (or a
+// v1 blob, which cannot prove its map) is now rejected -- the robot boots
+// uncalibrated and `run` refuses, instead of twisting.
 struct CalBlob {
     uint32_t magic;          // kCalMagic
     uint16_t version;        // kCalVersion
     uint16_t joints;         // must equal obs::kNumJoints
     int32_t zero_steps[obs::kNumJoints];
     int8_t dir[obs::kNumJoints];
+    uint8_t servo_id[obs::kNumJoints];   // kServoId at measurement time
     uint8_t pad[3];
     uint32_t crc;            // CRC-32 over everything above
 };
 
 constexpr uint32_t kCalMagic = 0x424D4331;   // "BMC1"
-constexpr uint16_t kCalVersion = 1;
+constexpr uint16_t kCalVersion = 2;
 
 // Pure, host-testable: pack/unpack + integrity. Unpack returns false and
 // leaves `out` untouched on any mismatch, so a corrupt or stale blob falls
