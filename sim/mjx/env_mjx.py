@@ -135,6 +135,14 @@ def _quat_yaw(q):
     return jp.arctan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
 
 
+def _quat_pitch(q):
+    """Torso ZYX-euler pitch from a wxyz quaternion (identical arithmetic to
+    the CPU env's inline copy in walker_env.step, and to the gait probe:
+    + = nose down toward +x). Used only by the w_pitch_hinge penalty."""
+    qw, qx, qy, qz = q[0], q[1], q[2], q[3]
+    return jp.arcsin(jp.clip(2 * (qw * qy - qz * qx), -1.0, 1.0))
+
+
 def _terrain_patch(xml: str, spec: dict) -> str:
     """Replace the flat floor plane with the mosaic heightfield (same geom
     name 'floor' so friction handling is untouched). Mirrors the CPU env's
@@ -224,6 +232,8 @@ class BimoMJXEnv:
         w_single_support: float = 0.0,
         w_lateral: float = 0.0,
         w_pitch_rate: float = 0.0,
+        w_pitch_hinge: float = 0.0,
+        pitch_deadband_deg: float = 5.0,
         w_power: float = 0.0,
         # -- actuator ---------------------------------------------------------
         supply_voltage: float = 11.1,
@@ -584,6 +594,13 @@ class BimoMJXEnv:
         self.w_single_support = w_single_support
         self.w_lateral = w_lateral
         self.w_pitch_rate = w_pitch_rate
+        # torso-pitch MAGNITUDE hinge (mirrors walker_env): quadratic penalty
+        # on |pitch| past a free deadband, pitch only (roll is untouched --
+        # sidestep gaits legitimately roll). Default 0 -> the term is not
+        # even traced.
+        self.w_pitch_hinge = w_pitch_hinge
+        self.pitch_deadband_deg = pitch_deadband_deg
+        self._pitch_db = float(np.radians(pitch_deadband_deg))
         self.w_power = w_power
         self.domain_rand = domain_rand
         self.gain_range = gain_range
@@ -1814,6 +1831,15 @@ class BimoMJXEnv:
         if self.w_pitch_rate:
             reward -= self.w_pitch_rate * (jp.abs(data.qvel[3])
                                            + jp.abs(data.qvel[4]))
+        if self.w_pitch_hinge:  # upright torso: |pitch| past a free deadband
+            pitch = _quat_pitch(data.qpos[3:7])
+            excess = jp.maximum(jp.abs(pitch) - self._pitch_db, 0.0)
+            # locomotion only: while DOWN in a recovery episode a face-plant
+            # pitch is the task, not a fault (mirrors walker_env's
+            # `self._recovered and not self.getup` gate)
+            hinge_gate = (0.0 if self.getup
+                          else jp.where(state.recovered > 0.5, 1.0, 0.0))
+            reward -= self.w_pitch_hinge * hinge_gate * excess * excess
 
         step_i = state.step_i + 1
         # ext mode: the fall floor tracks the commanded crouch (a commanded

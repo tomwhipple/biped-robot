@@ -704,7 +704,135 @@ print(f"   cadence live: half cycle {cpu_h._march_half} control steps "
       f"observed flip gaps {_h_gaps} steps")
 ok_e8 = ok_e8 and ok_e10
 
+# -- 2k. torso-pitch hinge penalty (|pitch| past a deadband) ------------------
+# day 13: the forward walk is a controlled fall -- torso pitched +12-13.5 deg
+# into travel, CoM ~3 cm ahead of the feet (backward walking is upright at
+# +1-3 deg, so the plant CAN walk upright). The upright term cannot buy it
+# back: it is cos-flat (cos(13 deg) = 0.974 -> 0.013/step at w_upright 0.5)
+# and the CoM-over-stance kernel is clearance-gated and never binds during
+# the walk cycle (refuted, day 12). w_pitch_hinge is the direct lever:
+#     w * max(0, |pitch| - deadband)^2,   pitch = asin(2(qw*qy - qz*qx))
+# PITCH ONLY -- roll is untouched (sidestep gaits legitimately roll), and the
+# term is off while DOWN in a recovery episode (there the face-plant IS the
+# task). Both engines must read the SAME euler convention off the SAME
+# quaternion or the CPU referee grades a different lean than MJX trained;
+# that is what this block gates, at full airborne strictness.
+EXT_P = dict(EXT)
+EXT_P.update(cmd_dense=True, w_pitch_hinge=1.0, pitch_deadband_deg=5.0,
+             cmd_fixed=(0.35, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0))
+EXT_P0 = dict(EXT_P)
+EXT_P0.update(w_pitch_hinge=0.0)          # reference twin: hinge OFF
+cpu_p = BimoWalkerEnv(xml_path=XML_YAW, actuator_model="sts3215",
+                      command_mode=True, domain_rand=False, **EXT_P)
+gpu_p = BimoMJXEnv(xml_path=XML_YAW, domain_rand=False, **EXT_P)
+step_p = jax.jit(gpu_p.step)
+cpu_p0 = BimoWalkerEnv(xml_path=XML_YAW, actuator_model="sts3215",
+                       command_mode=True, domain_rand=False, **EXT_P0)
+_splay_p = np.zeros(cpu_p._nq_act)
+_splay_p[cpu_p._legL["hip_roll"]] = 0.5
+_splay_p[cpu_p._legR["hip_roll"]] = -0.5
+_PDB = float(np.radians(5.0))
+_P_AMP = float(np.radians(30.0))          # sweep +/-30 deg: in AND out of band
+
+
+def _tilt(env, ang, axis="pitch"):
+    """Torso 1.5 m up, zero velocity, root quaternion set to a PURE rotation
+    of `ang` rad about the body x (roll) or y (pitch) axis. Re-posed EVERY
+    step: run_block calls act_fn BEFORE sync(), so MJX is handed the identical
+    quaternion and the block gates the kernel, not the free-fall drift."""
+    env.data.qpos[2] = 1.5
+    env.data.qvel[:] = 0.0
+    q = np.array([np.cos(0.5 * ang), 0.0, 0.0, 0.0])
+    q[1 if axis == "roll" else 2] = np.sin(0.5 * ang)
+    env.data.qpos[3:7] = q
+    _mj.mj_forward(env.model, env.data)
+
+
+def _tilt_act(t):
+    return (_splay_p + 0.3 * np.sin(0.311 * t
+                                    + np.arange(cpu_p._nq_act) * 0.7)
+            ).astype(np.float32)
+
+
+def _pitch_of(env):
+    """The probe's convention verbatim (scratchpad/gait_probe.py)."""
+    qw, qx, qy, qz = env.data.qpos[3:7]
+    return float(np.arcsin(np.clip(2 * (qw * qy - qz * qx), -1.0, 1.0)))
+
+
+class TiltActs:
+    def __init__(self, env, axis):
+        self.env, self.axis = env, axis
+
+    def __call__(self, t):
+        _tilt(self.env, _P_AMP * np.sin(0.23 * t), self.axis)
+        return _tilt_act(t)
+
+
+ok_e11 = run_block(
+    "2k. torso-pitch hinge, +/-30 deg pitch sweep across the 5 deg deadband "
+    "(airborne)", 140, TiltActs(cpu_p, "pitch"),
+    lambda env: _tilt(env, 0.0, "pitch"),
+    dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+    envs=(cpu_p, gpu_p, step_p))
+# 2k-b reports the SAME worst |dqpos|/|dqvel| as 2k, and that is physics, not
+# a copy-paste bug: a free-floating multibody system's JOINT dynamics are
+# invariant to uniform gravity, and the probe zeroes the base twist every
+# step -- so the joint trajectory is identical whichever way the torso is
+# tilted (verified: max |q_pitch - q_roll| = 3.5e-17). What differs, and what
+# this block gates, is the REWARD path off the root quaternion; the roll
+# sweep's "must not fire" claim itself is carried by 2k-c below.
+ok_e12 = run_block(
+    "2k-b. torso-pitch hinge under a +/-30 deg ROLL sweep (must not fire)",
+    140, TiltActs(cpu_p, "roll"), lambda env: _tilt(env, 0.0, "roll"),
+    dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+    envs=(cpu_p, gpu_p, step_p))
+
+
+def _sweep(env, axis, n=140):
+    """Replay the sweep on one CPU env, returning per-step (reward, |pitch|,
+    |roll-axis angle|). Deterministic: cmd_fixed pins the command, the pose is
+    forced every step, and the action depends only on t -- so the hinge-ON and
+    hinge-OFF envs walk the SAME trajectory and their reward difference is
+    exactly the hinge term."""
+    env.reset(seed=7)
+    _tilt(env, 0.0, axis)
+    rs, ps = [], []
+    for t in range(n):
+        _tilt(env, _P_AMP * np.sin(0.23 * t), axis)
+        _, r, _, _, _ = env.step(_tilt_act(t))
+        rs.append(float(r))
+        ps.append(abs(_pitch_of(env)))
+    return np.array(rs), np.array(ps)
+
+
+r_on, p_on = _sweep(cpu_p, "pitch")
+r_off, p_off = _sweep(cpu_p0, "pitch")
+hinge_obs = r_off - r_on                       # what the reward actually paid
+hinge_pred = np.maximum(p_on - _PDB, 0.0) ** 2  # w_pitch_hinge = 1.0
+_h_res = float(np.max(np.abs(hinge_obs - hinge_pred)))
+_h_peak = float(np.max(hinge_obs))
+# INSIDE the deadband the term must be EXACTLY zero -- an always-on |pitch|^2
+# penalty (no hinge) would pay here and is rejected by this assertion
+_in_band = p_on < _PDB
+_h_band = float(np.max(np.abs(hinge_obs[_in_band]))) if _in_band.any() else 1.0
+# ROLL must not fire at all: same +/-30 deg sweep about x, zero hinge income
+rr_on, _ = _sweep(cpu_p, "roll")
+rr_off, _ = _sweep(cpu_p0, "roll")
+_h_roll = float(np.max(np.abs(rr_off - rr_on)))
+ok_e13 = (_h_res < 1e-12 and _h_peak > 0.05 and _in_band.sum() >= 5
+          and _h_band == 0.0 and _h_roll == 0.0
+          and float(np.max(np.abs(p_on - p_off))) < 1e-12)
+print(f"== 2k-c. pitch-hinge liveness (hinge ON vs OFF twin): "
+      f"{'PASS' if ok_e13 else 'FAIL'} ==")
+print(f"   term = reward(off) - reward(on): peak {_h_peak:.4f} at "
+      f"|pitch| {np.degrees(p_on.max()):.1f} deg, residual vs "
+      f"max(0,|pitch|-5deg)^2 = {_h_res:.1e}")
+print(f"   deadband honoured: {int(_in_band.sum())} steps inside 5 deg pay "
+      f"{_h_band:.1e}; +/-30 deg ROLL sweep pays {_h_roll:.1e}")
+ok_e11 = ok_e11 and ok_e12 and ok_e13
+
 ok_all = (ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3 and ok_e4
-          and ok_e5 and ok_e6 and ok_e7 and ok_e8)
+          and ok_e5 and ok_e6 and ok_e7 and ok_e8 and ok_e11)
 print("\nPARITY:", "PASS" if ok_all else "FAIL")
 sys.exit(0 if ok_all else 1)

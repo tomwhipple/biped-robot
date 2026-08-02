@@ -180,6 +180,13 @@ def main():
                    help="ragdoll,kneel,squat,sit fractions, e.g. 0.2,0.2,0.2,0.4")
     p.add_argument("--w-pitch-rate", type=float, default=None,
                    help="override torso roll/pitch-rate penalty (smoothness)")
+    p.add_argument("--w-pitch-hinge", type=float, default=None,
+                   help="quadratic penalty on |torso pitch| past the deadband "
+                        "(the direct lever on the forward-lean 'controlled "
+                        "fall'; 0 = off, the default)")
+    p.add_argument("--pitch-deadband", type=float, default=None,
+                   help="free torso-pitch band in DEGREES before "
+                        "--w-pitch-hinge bites (default 5)")
     p.add_argument("--w-action-rate", type=float, default=None)
     p.add_argument("--w-power", type=float, default=None)
     p.add_argument("--w-foot-under", type=float, default=None,
@@ -362,6 +369,10 @@ def main():
             float(x) for x in args.recover_start_mix.split(","))
     if args.w_pitch_rate is not None:
         env_kw["w_pitch_rate"] = args.w_pitch_rate
+    if args.w_pitch_hinge is not None:
+        env_kw["w_pitch_hinge"] = args.w_pitch_hinge
+    if args.pitch_deadband is not None:
+        env_kw["pitch_deadband_deg"] = args.pitch_deadband
     if args.w_action_rate is not None:
         env_kw["w_action_rate"] = args.w_action_rate
     if args.w_power is not None:

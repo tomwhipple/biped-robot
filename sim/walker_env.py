@@ -128,6 +128,8 @@ class BimoWalkerEnv(gym.Env):
         w_lateral: float = 0.0,        # penalty on lateral vel + y drift
         w_yaw: float = 0.0,            # penalty on heading error + yaw rate
         w_pitch_rate: float = 0.0,     # penalty on torso roll/pitch rates
+        w_pitch_hinge: float = 0.0,    # penalty on |torso pitch| past a deadband
+        pitch_deadband_deg: float = 5.0,  # free pitch band (deg) before it bites
         # -- actuator model ("ideal" -> original MJCF position servos) ----------
         actuator_model: str = "ideal", # "ideal" | "sts3215" (torque-speed limited)
         supply_voltage: float = 7.4,   # V; stall torque + no-load speed scale ~V/12
@@ -405,6 +407,17 @@ class BimoWalkerEnv(gym.Env):
         self.w_lateral = w_lateral
         self.w_yaw = w_yaw
         self.w_pitch_rate = w_pitch_rate
+        # torso-pitch MAGNITUDE hinge (day 13): the direct lever on the
+        # "controlled fall" lean. The upright term is cos-flat (cos(13.5 deg)
+        # = 0.972, so the whole lean costs 0.022/step at loco_v11gait's
+        # w_upright 0.8 against a 2.0/step velocity income), and
+        # the CoM-over-stance kernel is clearance-gated and never binds
+        # during the walk cycle (refuted, docs/precision-progress.md day 12).
+        # This penalizes |pitch| itself, quadratically past a free deadband.
+        # PITCH ONLY -- roll is untouched, sidestep gaits legitimately roll.
+        self.w_pitch_hinge = w_pitch_hinge
+        self.pitch_deadband_deg = pitch_deadband_deg
+        self._pitch_db = float(np.radians(pitch_deadband_deg))
         self.terrain_amplitude = terrain_amplitude
         self.terrain_smoothness = terrain_smoothness
         self.terrain_amplitude_min = terrain_amplitude_min
@@ -1769,6 +1782,19 @@ class BimoWalkerEnv(gym.Env):
         if self.w_pitch_rate:   # calm torso: roll + pitch angular rates
             reward -= self.w_pitch_rate * (abs(float(d.qvel[3]))
                                            + abs(float(d.qvel[4])))
+        if self.w_pitch_hinge:  # upright torso: |pitch| past a free deadband
+            # ZYX-euler pitch off the root quaternion -- the SAME arithmetic
+            # as sim/mjx/env_mjx._quat_pitch and as the gait probe (+ = nose
+            # down toward +x). Roll is deliberately NOT penalized.
+            qw, qx, qy, qz = d.qpos[3:7]
+            pitch = float(np.arcsin(np.clip(2 * (qw * qy - qz * qx),
+                                            -1.0, 1.0)))
+            excess = max(0.0, abs(pitch) - self._pitch_db)
+            # locomotion only: while DOWN in a recovery episode a face-plant
+            # pitch is the task, not a fault (mirrors w_up_vel/w_rise_* which
+            # are gated the other way on the same flag)
+            if self._recovered and not self.getup:
+                reward -= self.w_pitch_hinge * excess * excess
 
         # -- plan-v2 Phase A terms (mirror sim/mjx; defaults off) --------------
         if self.gait_clock:
