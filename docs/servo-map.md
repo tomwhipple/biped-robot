@@ -83,16 +83,16 @@ rather than left to look valid.
 
 | Joint | ID | zero (ticks) | Δ from 2048 | dir |
 | ----- | -- | ------------ | ----------- | --- |
-| `L_hip_yaw`   | 10 | 1693 | −355  | +1 ⚠ |
-| `L_hip_roll`  | 5  | 2420 | +372  | +1 ⚠ |
-| `L_hip_pitch` | 6  | 3273 | +1225 | +1 ⚠ |
-| `L_knee`      | 7  | 1634 | −414  | **−1** ✔ |
-| `L_ankle`     | 8  | 3516 | +1468 | +1 ⚠ |
-| `R_hip_yaw`   | 9  | 1803 | −245  | +1 ⚠ |
-| `R_hip_roll`  | 1  | 3533 | +1485 | +1 ⚠ |
-| `R_hip_pitch` | 2  | 2501 | +453  | +1 ⚠ |
-| `R_knee`      | 3  | 2050 | +2    | **−1** ✔ |
-| `R_ankle`     | 4  | 3450 | +1402 | +1 ⚠ |
+| `L_hip_yaw`   | 10 | 1693 | −355  | +1 |
+| `L_hip_roll`  | 5  | 2420 | +372  | **−1** |
+| `L_hip_pitch` | 6  | 3273 | +1225 | +1 |
+| `L_knee`      | 7  | 1634 | −414  | **−1** |
+| `L_ankle`     | 8  | 3516 | +1468 | +1 |
+| `R_hip_yaw`   | 9  | 1803 | −245  | +1 |
+| `R_hip_roll`  | 1  | 3533 | +1485 | **−1** |
+| `R_hip_pitch` | 2  | 2501 | +453  | +1 |
+| `R_knee`      | 3  | 2050 | +2    | **−1** |
+| `R_ankle`     | 4  | 3450 | +1402 | +1 |
 
 The large offsets are ordinary horn clocking — the ST3215 horn seats on discrete
 splines, so a mechanical zero is never exact and `middle` was never run at the
@@ -101,19 +101,38 @@ was 2048 for all ten**, which would have driven a knee 168° on the first `run`.
 `R_knee` sits at ~2048 only because its encoder was deliberately re-centred
 (see below); the rest are wherever the horn happened to seat.
 
-✔ **Both knees are verified.** `dir −1` on each, established by driving the
-joint and having a human watch: at `dir +1` the sim's negative knee angle —
-which the policy treats as flexion — drove the joint into *hyperextension*.
-That is the exact failure `docs/assembly.md` warns about, and it would have
-been invisible in any encoder-only check.
+### Direction signs — all ten verified 2026-08-02
 
-⚠ **The other eight are unverified**, still at the `+1` default. The sign is a
-physical convention and cannot be read off the encoder, which only reports the
-servo's own frame — it needs someone watching each joint move. Do not trust a
-gait until they are checked. One data point in hand: +20° on `R_hip_yaw`
-(servo 9) gave right-leg toe-in, which is what positive yaw should do, so that
-one is *probably* +1 — but it has not been confirmed against the left. Note the
-sign gotchas: hip-pitch flexion is **negative**.
+**`dir` cannot be read off the encoder**, which only reports the servo's own
+frame; the sign is a physical convention, so every one was settled by driving
+that joint alone and having a human say which way it went. The reference for
+"which way is positive" is the sim itself: `tools/` aside, a throwaway MuJoCo
+script set each joint to +20° in isolation and reported where the toe moved in
+the torso frame, giving an unambiguous prediction per joint:
+
+| joint | sim-positive moves the toe |
+| ----- | -------------------------- |
+| hip yaw   | toward the robot's **left** (right leg toe-in, left leg toe-out) |
+| hip roll  | toward the robot's **left** (left leg abducts, right leg adducts) |
+| hip pitch | **backward** — hip extension |
+| knee      | **backward/down** — see the knee note below |
+| ankle     | **down** — plantarflexion |
+
+The result is symmetric between the legs: **roll and knee are inverted, yaw,
+pitch and ankle are not.** Both legs share the same pattern, which fits servos
+mounted the same way on each side rather than mirrored.
+
+Two things this caught that no encoder-only check could:
+
+- **The knees.** At `+1` the sim's negative knee angle — which the policy
+  treats as flexion — drove the joint into *hyperextension*. This is the exact
+  failure `docs/assembly.md` warns about.
+- **`L_hip_yaw` was briefly recorded wrong.** It was first inferred from a
+  collision during a four-joint compound pose, which attributed the leg's
+  inward swing to the yaw. A clean single-joint test showed the opposite, and
+  the real culprit was `L_hip_roll` (`−1`, so positive ticks swing that leg
+  *inward*). Inferring a sign from a compound motion does not work; drive one
+  joint at a time.
 
 ### Travel probe
 
@@ -143,11 +162,20 @@ sit near the ends (`R_hip_roll` 3533, `L_ankle` 3516, `R_ankle` 3450) will hit
 the same wall if their real ROM also exceeds the model, and would need the same
 treatment. `L_knee` (servo 7) needs none: its zero of 1634 leaves −143°/+216°.
 
-> **Sim-to-real gap, unresolved.** `sim/bimo_biped_v3yaw.xml` still declares
-> `range="-95 5"` on both knees, so every policy trained to date believes the
-> knee cannot extend past +5°. Widening it changes the plant and invalidates
-> the trained runs, so it is deliberately left alone here — but a gait tuned
-> against the old range is tuned against a knee the robot does not have.
+> **Sim-to-real gap, unresolved — and worse than just the range.**
+> `sim/bimo_biped_v3yaw.xml` declares `range="-95 5"` on both knees, so every
+> policy trained to date believes the knee cannot extend past +5°. But the
+> *sign* is wrong too: driving `L_knee` to −95° in MuJoCo puts the toe forward
+> and 14.8 cm **up**, i.e. the shank swings forward — a bird-style
+> backward-bending knee. Human flexion (heel toward buttock) is the model's
+> `+` direction, capped at 5°. So as modelled the knee gets 95° of
+> hyperextension and 5° of flexion.
+>
+> The hardware is now calibrated the human-natural way (`dir −1`, confirmed by
+> eye), which means **sim and robot bend opposite ways for the same command**.
+> Fixing the MJCF changes the plant and invalidates every trained run, so it is
+> deliberately left alone here — but no gait should be trusted to transfer
+> until this is resolved.
 
 ## Assigning these IDs
 
