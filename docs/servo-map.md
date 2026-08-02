@@ -72,7 +72,7 @@ They are stored in NVS; the boot log reads `cal: restored from NVS`.
 | `L_hip_yaw`   | 10 | 1693 | −355  | +1 ⚠ |
 | `L_hip_roll`  | 1  | 3532 | +1484 | +1 ⚠ |
 | `L_hip_pitch` | 2  | 2503 | +455  | +1 ⚠ |
-| `L_knee`      | 3  | 3965 | +1917 | +1 ⚠ |
+| `L_knee`      | 3  | 2048 | 0     | +1 ⚠ | 
 | `L_ankle`     | 4  | 3452 | +1404 | +1 ⚠ |
 | `R_hip_yaw`   | 9  | 1801 | −247  | +1 ⚠ |
 | `R_hip_roll`  | 5  | 2420 | +372  | +1 ⚠ |
@@ -94,13 +94,35 @@ sign gotchas: hip-pitch flexion is **negative**, knee is −95°/+5°.
 
 ### Travel probe
 
-Each joint was then driven ±10° from its zero (knee ±5°, since its ROM is only
-+5° on one side and the direction was unknown), one servo at a time, in 20-tick
-steps at 200 steps/s, with goal set to present position *before* torque enable
-so engaging could not produce a jump. All ten tracked to ≤2 ticks of following
+Each joint was driven ±10° from its zero, one servo at a time, in 20-tick steps
+at 200 steps/s, with goal set to present position *before* torque enable so
+engaging could not produce a jump. All ten tracked to ≤2 ticks of following
 error at ≤24/1000 load, no fault flags, and returned to zero within 7 ticks.
-This confirms every joint drives cleanly near standing; it deliberately does
-**not** probe the mechanical end stops, which remain unrecorded.
+End stops were not probed for nine of the ten and remain unrecorded.
+
+### Measured knee ROM — the sim model is wrong
+
+`L_knee` was then taken further, and the MJCF's `range="-95 5"` does **not**
+describe the built joint. Measured 2026-08-02: the knee drives cleanly to
+**−94.6° and +94.5°**, i.e. at least ±95°, at ≤172/1000 load (5.9% of a
+2.94 N·m stall) and a flat 31 °C across two continuous full-range sweeps at
+400–450 steps/s. The `+5°` was a modelling choice — an anatomical knee that
+hyperextends barely at all — that the hardware does not share.
+
+Reaching +95° needed the encoder re-centred first. The as-found zero of 3965
+left only 130 ticks (+11.4°) before the 4095 wrap, so `middle` (bring-up step 4,
+never previously run) was used to latch standing as 2048; `L_knee` is now the
+only joint whose zero is centred, and ±95° = 967…3129 ticks. **This is an
+encoder-placement limit, not a mechanical one** — the other joints whose zeros
+sit near the ends (`L_hip_roll` 3532, `R_ankle` 3520, `L_ankle` 3452) will hit
+the same wall if their real ROM also exceeds the model, and would need the same
+treatment.
+
+> **Sim-to-real gap, unresolved.** `sim/bimo_biped_v3yaw.xml` still declares
+> `range="-95 5"` on both knees, so every policy trained to date believes the
+> knee cannot extend past +5°. Widening it changes the plant and invalidates
+> the trained runs, so it is deliberately left alone here — but a gait tuned
+> against the old range is tuned against a knee the robot does not have.
 
 ## Assigning these IDs
 
