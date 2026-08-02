@@ -45,10 +45,15 @@ VEC_OUT = os.path.join(ROOT, "firmware", "host", "vectors", "obs_vectors.h")
 # docs/wiring.md "Servo bus": port A is the left leg (IDs 1-4, proximal to
 # distal), port B the right (5-8); the v3yaw hip-yaw servos were appended as
 # 9 (left) and 10 (right).
+#
+# ASSEMBLY ERRATA 2026-08-02: the two hip-yaw servos went in swapped -- the
+# unit numbered 9 is bolted into the RIGHT hip and 10 into the LEFT. The
+# servos are not coming back out, so the map absorbs it: L_hip_yaw -> 10,
+# R_hip_yaw -> 9. Everything else on the bus is as built.
 ID_BY_ROLE = {
     "L_hip_roll": 1, "L_hip_pitch": 2, "L_knee": 3, "L_ankle": 4,
     "R_hip_roll": 5, "R_hip_pitch": 6, "R_knee": 7, "R_ankle": 8,
-    "L_hip_yaw": 9, "R_hip_yaw": 10,
+    "L_hip_yaw": 10, "R_hip_yaw": 9,
 }
 
 

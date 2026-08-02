@@ -238,8 +238,8 @@ void testServoPermutationEndToEnd() {
         }
     }
     CHECK(differs_from_identity);   // the permutation is exercised, not vacuous
-    CHECK_EQ(slotOf(0), 8);         // L_hip_yaw is bus ID 9
-    CHECK_EQ(slotOf(5), 9);         // R_hip_yaw is bus ID 10
+    CHECK_EQ(slotOf(0), 9);         // L_hip_yaw is bus ID 10 (assembly errata)
+    CHECK_EQ(slotOf(5), 8);         // R_hip_yaw is bus ID 9  (assembly errata)
     CHECK_EQ(slotOf(1), 0);         // L_hip_roll is bus ID 1
 
     // Targets: the SYNC WRITE view must be indexed the same way.

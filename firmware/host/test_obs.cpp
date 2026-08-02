@@ -24,7 +24,9 @@ void testSpecMatchesVectors() {
 
 void testServoIdMapIsAPermutation() {
     // docs/wiring.md's bus IDs vs. the sim's action order. On the 10-DOF plant
-    // this is NOT the identity: L_hip_yaw is action 0 but servo ID 9.
+    // this is NOT the identity: L_hip_yaw is action 0 but servo ID 10 --
+    // ID 9 by the numbering, then swapped by the 2026-08-02 hip-yaw assembly
+    // errata (see ID_BY_ROLE in tools/gen_obs_spec.py).
     bool seen[16] = {};
     for (int i = 0; i < obs::kNumJoints; ++i) {
         const uint8_t id = obs::kServoId[i];
@@ -32,9 +34,9 @@ void testServoIdMapIsAPermutation() {
         CHECK(!seen[id]);
         seen[id] = true;
     }
-    CHECK_EQ(obs::kServoId[0], 9);      // L_hip_yaw
+    CHECK_EQ(obs::kServoId[0], 10);     // L_hip_yaw (errata: swapped with 9)
     CHECK_EQ(obs::kServoId[1], 1);      // L_hip_roll
-    CHECK_EQ(obs::kServoId[5], 10);     // R_hip_yaw
+    CHECK_EQ(obs::kServoId[5], 9);      // R_hip_yaw (errata: swapped with 10)
     CHECK_EQ(obs::kServoId[9], 8);      // R_ankle
 }
 
