@@ -240,7 +240,7 @@ void testServoPermutationEndToEnd() {
     CHECK(differs_from_identity);   // the permutation is exercised, not vacuous
     CHECK_EQ(slotOf(0), 9);         // L_hip_yaw is bus ID 10 (assembly errata)
     CHECK_EQ(slotOf(5), 8);         // R_hip_yaw is bus ID 9  (assembly errata)
-    CHECK_EQ(slotOf(1), 0);         // L_hip_roll is bus ID 1
+    CHECK_EQ(slotOf(1), 4);         // L_hip_roll is bus ID 5 (legs swapped)
 
     // Targets: the SYNC WRITE view must be indexed the same way.
     float angle[obs::kNumJoints];
@@ -249,11 +249,12 @@ void testServoPermutationEndToEnd() {
         CHECK_EQ(out.goal_ticks[slotOf(j)], obs::angleToSteps(j, angle[j], cal));
     }
     // Velocity is sign-magnitude, not two's complement. Joint 2 sits on bus
-    // ID 2 == slot 1, which was given a NEGATIVE speed: its word is 0x8004,
-    // which read as two's complement would be -32764 steps/s (-50 rad/s)
-    // rather than -4 steps/s. That is the vendor-UI byte-order bug, so it gets
-    // its own assertion rather than riding on the loop above.
-    CHECK_EQ(slotOf(2), 1);
+    // ID 6 == slot 5 (it was bus ID 2 before the legs-swapped errata), which
+    // was given a NEGATIVE speed: its word is 0x8004, which read as two's
+    // complement would be -32764 steps/s (-50 rad/s) rather than -4 steps/s.
+    // That is the vendor-UI byte-order bug, so it gets its own assertion
+    // rather than riding on the loop above.
+    CHECK_EQ(slotOf(2), 5);
     CHECK(out.obs[obs::kOffDq + 2] < 0.0f);
     CHECK(fabsf(out.obs[obs::kOffDq + 2]) < 0.05f);
 }

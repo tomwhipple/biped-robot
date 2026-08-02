@@ -24,9 +24,10 @@ void testSpecMatchesVectors() {
 
 void testServoIdMapIsAPermutation() {
     // docs/wiring.md's bus IDs vs. the sim's action order. On the 10-DOF plant
-    // this is NOT the identity: L_hip_yaw is action 0 but servo ID 10 --
-    // ID 9 by the numbering, then swapped by the 2026-08-02 hip-yaw assembly
-    // errata (see ID_BY_ROLE in tools/gen_obs_spec.py).
+    // this is NOT the identity, and the 2026-08-02 errata widened the gap: the
+    // two bus chains went onto the opposite legs, so port A (9,1,2,3,4) is the
+    // RIGHT leg and port B (10,5,6,7,8) the LEFT. See ID_BY_ROLE in
+    // tools/gen_obs_spec.py for the observations that pinned it down.
     bool seen[16] = {};
     for (int i = 0; i < obs::kNumJoints; ++i) {
         const uint8_t id = obs::kServoId[i];
@@ -34,10 +35,10 @@ void testServoIdMapIsAPermutation() {
         CHECK(!seen[id]);
         seen[id] = true;
     }
-    CHECK_EQ(obs::kServoId[0], 10);     // L_hip_yaw (errata: swapped with 9)
-    CHECK_EQ(obs::kServoId[1], 1);      // L_hip_roll
-    CHECK_EQ(obs::kServoId[5], 9);      // R_hip_yaw (errata: swapped with 10)
-    CHECK_EQ(obs::kServoId[9], 8);      // R_ankle
+    CHECK_EQ(obs::kServoId[0], 10);     // L_hip_yaw  -- port B, the LEFT leg
+    CHECK_EQ(obs::kServoId[1], 5);      // L_hip_roll -- port B
+    CHECK_EQ(obs::kServoId[5], 9);      // R_hip_yaw  -- port A, the RIGHT leg
+    CHECK_EQ(obs::kServoId[9], 4);      // R_ankle    -- port A
 }
 
 void testFramesMatchTheSim() {
