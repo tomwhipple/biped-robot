@@ -215,6 +215,42 @@ void cmdMove(Sink out, int argc, char** argv) {
         ms, spd, statusName(st));
 }
 
+void cmdPose(Sink out, int argc, char** argv) {
+    // The whole pose in ONE broadcast SYNC WRITE -- the same frame the
+    // control loop uses, so all ten servos latch their targets together
+    // instead of rippling through ten `move`s. Targets are ticks in JOINT
+    // order (obs_spec kJointNames: L_hip_yaw..L_ankle, R_hip_yaw..R_ankle);
+    // the servo-map permutation and its errata are applied here, exactly as
+    // in the act path.
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc < 1 + obs::kNumJoints) {
+        out("usage: pose <t0..t9 ticks, joint order> [steps/s]\r\n");
+        out("       joints: L yaw,roll,pitch,knee,ankle then R same\r\n");
+        return;
+    }
+    int32_t tgt[obs::kNumJoints];
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        const long t = num(argv[1 + i]);
+        if (t < 0 || t > 4095) {
+            say(out, "arg %d: ticks must be 0-4095 (2048 == middle)\r\n",
+                i + 1);
+            return;
+        }
+        tgt[i] = static_cast<int32_t>(t);
+    }
+    // Bench default is a GENTLE sweep (~0.9 rad/s), not the servo's max --
+    // a hand-typed pose with a typo shouldn't snap a limb across its range.
+    // An explicit 0 asks for unlimited, same convention as `move`.
+    const long spd = argc >= 2 + obs::kNumJoints
+                         ? num(argv[1 + obs::kNumJoints], 600) : 600;
+    const scsbus::Status st = bus->syncWritePositions(
+        robot::servoIds(), tgt, obs::kNumJoints, 0,
+        static_cast<uint16_t>(spd), 0);
+    say(out, "pose -> %d joints, spd %ld: %s\r\n", obs::kNumJoints, spd,
+        statusName(st));
+}
+
 void cmdShape(Sink out, int argc, char** argv) {
     // Live-tunable on purpose: a single atomic float with one writer (here)
     // and one reader (ctrl), per the shared.h rules -- so the pole can be
@@ -448,6 +484,7 @@ void banner(Sink out) {
     out("  id <old> <new>       assign a servo ID (EEPROM, one servo on the bus)\r\n");
     out("  pos <id>             position, speed, load, voltage, temp, faults\r\n");
     out("  move <id> <ticks> [ms] [steps/s]   2048 == middle, 4096 ticks/rev\r\n");
+    out("  pose <t0..t9> [steps/s]   all 10 targets, ONE frame (joint order)\r\n");
     out("  release [id] | torque [id]   no id = broadcast\r\n");
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
     out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");
@@ -462,8 +499,9 @@ void execute(const char* line, Sink out) {
     char buf[96];
     strncpy(buf, line, sizeof buf - 1);
     buf[sizeof buf - 1] = 0;
-    char* argv[8];
-    const int argc = split(buf, argv, 8);
+    // 13 tokens: `pose` + 10 joint targets + [steps/s] + one spare.
+    char* argv[13];
+    const int argc = split(buf, argv, 13);
     if (argc == 0) return;
     const char* c = argv[0];
 
@@ -476,6 +514,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "release")) cmdTorque(out, argc, argv, false);
     else if (!strcmp(c, "torque")) cmdTorque(out, argc, argv, true);
     else if (!strcmp(c, "middle")) cmdMiddle(out, argc, argv);
+    else if (!strcmp(c, "pose")) cmdPose(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
     else if (!strcmp(c, "batt")) cmdBatt(out, argc, argv);
