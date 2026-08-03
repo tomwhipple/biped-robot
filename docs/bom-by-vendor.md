@@ -47,7 +47,7 @@ slower than Amazon Prime — check lead time. Amazon alternates: servo
 The IMU was originally planned as an Adafruit BNO085 breakout (#4754, $24.95).
 Actual order: Teyleten Robot GY-BNO085 via Amazon [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F)
 ($20.99) — same BNO085 IC, ~$4 cheaper. Datasheet in
-[`datasheets/BNO085_BNO080_datasheet.pdf`](../datasheets/BNO085_BNO080_datasheet.pdf).
+[`docs/datasheets/BNO08X-datasheet.pdf`](datasheets/BNO08X-datasheet.pdf).
 
 Cheap spare/alt: MPU-6050 "GY-521" (~$5, needs a filter in firmware).
 
