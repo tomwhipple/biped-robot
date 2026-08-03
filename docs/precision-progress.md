@@ -970,3 +970,15 @@ the C2 lag + goal-speed actuation in the training plant) so policies learn
 compatible gaits -- queue for the next plant/recipe round alongside the
 inter-leg collision geoms; (3) until then, expect backward performance on
 hardware to match the SIL column, not the python one.
+
+### Day 14, evening: REAL WEIGHTS ON THE ROBOT — the v1 blocker is closed
+
+`run` executed with `loco_v12knee_warm_s128` (the DAgger-distilled 128x128
+student, py 52/88 / SIL 48/88 — +11 SIL seeds over its teacher) compiled in:
+50 Hz dead-on (0% late ticks), inference 7.2 ms of the 20 ms budget, zero
+servo faults, ~26 s of policy air-stand on the test stand (never-linked
+watchdog = kStand, zero command), clean `bench` handover. The robot held the
+policy's trained slightly-crouched stance, not the calibration zero. Video:
+sweeps/walk_demo/first_run_realpolicy.mov (local). Next hardware steps:
+shape 10 vs shape 0 A/B while tracking, then commanded stepping over the
+link (commander not yet exercised against this build).
