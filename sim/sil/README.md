@@ -114,6 +114,16 @@ use either shape. `cal_nominal.json` is `zero_steps = 2048, dir = +1`
 (identical to `obs::Calibration`'s C++ default); `cal_perturbed.json` has
 random zeros in `2048 ± 350`.
 
+Neither file is the **as-built** calibration and neither is meant to be. They
+describe a fictional, freshly `middle`-ed robot whose servos are all mounted to
+agree with the plant, which is what makes them clean round-trip fixtures — a
+global `dir` cancels through `angle → ticks → angle`, so the closed-loop scores
+are unaffected by the choice. The real robot's zeros and its `dir −1` on both
+hip rolls and both knees live in `docs/servo-map.md` and
+`firmware/main/asbuilt_cal.h`, and reached the board through NVS. The
+2026-08-02 knee-sign fix to `bimo_biped_v3yaw.xml` changed neither of these
+files: the nominal robot is defined as agreeing with whatever the plant says.
+
 ---
 
 ## The standing referee column (`--sil`)

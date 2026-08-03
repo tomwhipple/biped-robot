@@ -587,9 +587,21 @@ class SilLib:
 
     # -- the boundary --------------------------------------------------
     def make_sensors(self, q, dq, up, gyro, cmd) -> SilSensors:
-        """Joint-space state -> the servo-side view the bus would deliver."""
+        """Joint-space state -> the servo-side view the bus would deliver.
+
+        NO joint-range clamp on the way in.  obs::angleToSteps clamps because
+        it writes GOAL positions ("a target outside the mechanical range is how
+        you stall a horn against a printed part"), but this is the SENSOR
+        direction: a real encoder reports where the joint actually is, and
+        MuJoCo's joint limits are soft constraints, so a joint driven hard into
+        its stop sits a degree or two past it.  Clamping here made the firmware
+        see an angle walker_env never had -- a divergence that looked like a
+        boundary bug and was really the harness lying about the encoder.  Found
+        2026-08-02 when the corrected knee sign let a stale policy lean on the
+        +5 deg hyperextension stop (1.5 deg over, 17 ticks)."""
         n = self.spec.num_joints
-        ticks = to_bus(angle_to_steps(q, self.cal), self.in_order, self.spec)
+        ticks = to_bus(angle_to_steps(q, self.cal, clamp_joint_range=False),
+                       self.in_order, self.spec)
         vel = to_bus(rad_s_to_steps_s(dq, self.cal), self.in_order, self.spec)
         s = SilSensors()
         for i in range(n):

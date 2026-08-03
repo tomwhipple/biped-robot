@@ -847,11 +847,21 @@ PRINT_MASS_FACTOR = 0.90  # thin-walled parts print near-solid; grid infill on t
 # the plant policy trains against these, so CAD must clear them). Interference
 # checks probe BOTH extremes of every joint and require SWEEP_BUFFER of air
 # between relatively-moving bodies (user call 2026-07-28).
+#
+# These are PHYSICAL rotations about the CAD axis (Rot(0, ang, 0) etc., +x
+# forward, right-handed), which for nine of the ten joints is the same number
+# the MJCF carries. The KNEE is the exception since 2026-08-02: its MJCF joint
+# axis is "0 -1 0" so the plant's -95..+5 is a physical -5..+95, i.e. 95 deg of
+# flexion (shank swings BACKWARD, +y rotation) and 5 deg of hyperextension.
+# The tuple below is the physical one. Before that date the plant's knee axis
+# was +y and this dict read (-95, 5) -- so every interference sweep through the
+# knee had been probing 95 deg of hyperextension, a pose the robot never makes,
+# and only 5 deg of the flexion it actually walks in.
 ROM = {
     "hip_yaw": (-45.0, 45.0),
     "hip_roll": (-25.0, 25.0),
     "hip_pitch": (-110.0, 60.0),
-    "knee": (-95.0, 5.0),
+    "knee": (-5.0, 95.0),
     "ankle": (-40.0, 40.0),
 }
 SWEEP_BUFFER = 0.5      # mm of clearance required at the ROM extremes

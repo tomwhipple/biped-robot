@@ -121,8 +121,15 @@ the torso frame, giving an unambiguous prediction per joint:
 | hip yaw   | toward the robot's **left** (right leg toe-in, left leg toe-out) |
 | hip roll  | toward the robot's **left** (left leg abducts, right leg adducts) |
 | hip pitch | **backward** — hip extension |
-| knee      | **backward/down** — see the knee note below |
+| knee      | **forward/up** — hyperextension; flexion is **negative** ¹ |
 | ankle     | **down** — plantarflexion |
+
+¹ The knee row was **restated on 2026-08-02** when the plant's knee sign was
+corrected (see "Measured knee ROM" below). It read "backward/down" while
+`bimo_biped_v3yaw.xml` still had `axis="0 1 0"` on the knees. The `dir` column
+did **not** change: `−1` was chosen so that the *policy's* negative knee means
+flexion on the robot, and the corrected plant now agrees with the robot instead
+of contradicting it. Nothing on the board was reflashed or re-zeroed for this.
 
 The result is symmetric between the legs: **roll and knee are inverted, yaw,
 pitch and ankle are not.** Both legs share the same pattern, which fits servos
@@ -132,7 +139,10 @@ Two things this caught that no encoder-only check could:
 
 - **The knees.** At `+1` the sim's negative knee angle — which the policy
   treats as flexion — drove the joint into *hyperextension*. This is the exact
-  failure `docs/assembly.md` warns about.
+  failure `docs/assembly.md` warns about. (At the time this also disagreed with
+  the MJCF, whose knee axis made negative mean hyperextension too; the robot
+  was left calibrated the human-natural way and the **plant** was corrected on
+  2026-08-02 to match it.)
 - **`L_hip_yaw` was briefly recorded wrong.** It was first inferred from a
   collision during a four-joint compound pose, which attributed the leg's
   inward swing to the yaw. A clean single-joint test showed the opposite, and
@@ -148,16 +158,19 @@ engaging could not produce a jump. All ten tracked to ≤2 ticks of following
 error at ≤24/1000 load, no fault flags, and returned to zero within 7 ticks.
 End stops were not probed for nine of the ten and remain unrecorded.
 
-### Measured knee ROM — the sim model is wrong
+### Measured knee ROM — and the plant fix it forced
 
 Servo 3 — the **right** knee — was then taken further, and the MJCF's
-`range="-95 5"` does **not** describe the built joint. Measured 2026-08-02: the
+`range="-95 5"` did **not** describe the built joint. Measured 2026-08-02: the
 knee drives cleanly to **−94.6° and +94.5°**, i.e. at least ±95°, at ≤172/1000
 load (5.9% of a 2.94 N·m stall) and a flat 31 °C across two continuous
-full-range sweeps at 400–450 steps/s. The `+5°` was a modelling choice — an
-anatomical knee that hyperextends barely at all — that the hardware does not
-share. (This measurement was taken while servo 3 was still mis-named `L_knee`;
-the joint is physically the right knee either way.)
+full-range sweeps at 400–450 steps/s. The `5°` was a modelling choice — an
+anatomical knee that hyperextends barely at all. The hardware has no such stop,
+and on the model's wrong axis that cap had landed on *flexion*, the one
+direction the robot actually uses. The cap is **kept**, on the correct side
+now, as the deliberate hyperextension limit (see the callout below). (This
+measurement was taken while servo 3 was still mis-named `L_knee`; the joint is
+physically the right knee either way.)
 
 Reaching +95° needed the encoder re-centred first. The as-found zero of 3965
 left only 130 ticks (+11.4°) before the 4095 wrap, so `middle` (bring-up step 4,
@@ -168,20 +181,41 @@ sit near the ends (`R_hip_roll` 3533, `L_ankle` 3516, `R_ankle` 3450) will hit
 the same wall if their real ROM also exceeds the model, and would need the same
 treatment. `L_knee` (servo 7) needs none: its zero of 1634 leaves −143°/+216°.
 
-> **Sim-to-real gap, unresolved — and worse than just the range.**
-> `sim/bimo_biped_v3yaw.xml` declares `range="-95 5"` on both knees, so every
-> policy trained to date believes the knee cannot extend past +5°. But the
-> *sign* is wrong too: driving `L_knee` to −95° in MuJoCo puts the toe forward
-> and 14.8 cm **up**, i.e. the shank swings forward — a bird-style
-> backward-bending knee. Human flexion (heel toward buttock) is the model's
-> `+` direction, capped at 5°. So as modelled the knee gets 95° of
-> hyperextension and 5° of flexion.
+> **Sim-to-real gap — RESOLVED 2026-08-02, in the sim.**
 >
-> The hardware is now calibrated the human-natural way (`dir −1`, confirmed by
-> eye), which means **sim and robot bend opposite ways for the same command**.
-> Fixing the MJCF changes the plant and invalidates every trained run, so it is
-> deliberately left alone here — but no gait should be trusted to transfer
-> until this is resolved.
+> *What was wrong.* `sim/bimo_biped_v3yaw.xml` had `axis="0 1 0" range="-95 5"`
+> on both knees. Driving `L_knee` to −95° in MuJoCo put the toe forward and
+> up — the shank swung forward, a bird-style backward-bending knee. Human
+> flexion (heel toward buttock) was the model's `+` direction, capped at 5°.
+> So as modelled the knee had 95° of hyperextension and 5° of flexion, while
+> the robot — calibrated `dir −1` — flexed the human way on the *same*
+> negative command. Sim and robot bent opposite ways.
+>
+> *The fix.* Both knee joints became **`axis="0 -1 0"`**. The range string is
+> unchanged, and that is the point: `−95 … +5` now means **95° of flexion and
+> 5° of hyperextension** instead of the reverse. Re-checked in MuJoCo after the
+> change: `L_knee`/`R_knee` at −20° put the foot 3.1 cm **backward** and at
+> −95° put it 9.0 cm backward and 9.8 cm up. On the robot, servo 3 at raw 2278
+> (= −20° through zero 2050 / `dir −1`) was filmed doing exactly that — shank
+> back, heel lifted. Same command, same motion, both sides.
+>
+> *Why −95 / +5 and not ±95.* ±95° is the measured **mechanical** envelope, not
+> a sensible operating range. The flexion limit is set to the measured travel
+> (−95°). Hyperextension is capped at +5°: a knee that folds backward is a
+> failure mode, and holding the modelled envelope strictly inside the measured
+> one means nothing a policy learns is beyond what the joint can do. Widening
+> it later is a deliberate decision, not a default.
+>
+> *Hardware impact: none.* `zero_steps` and `dir` are untouched, and the
+> generated `obs_spec.h` limits are byte-identical (the numbers did not move,
+> only their meaning), so the firmware bench clamp still resolves to servo 3
+> ticks `[1993..3131]` — which is now correctly read as +5° of hyperextension
+> through 95° of flexion. **No reflash and no recalibration are required.**
+>
+> *Everything trained before this is invalid.* Every policy in `sim/runs/`
+> learned the mirrored knee; their scorecards describe a plant that no longer
+> exists. Runs and scorecards are kept as history, not as claims. See
+> `DESIGN.md`, "The knees bent the wrong way".
 
 ## Assigning these IDs
 

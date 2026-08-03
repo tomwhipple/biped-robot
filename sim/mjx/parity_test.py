@@ -605,8 +605,17 @@ def pose_march(env, lift):
     # deliberately a PARTIAL lift: the clearance must land strictly between 0
     # and the commanded knee-high target, or the kernel's clip saturates and
     # the division under test is masked (see the interior-value assertion).
-    q[env._jq0 + leg["knee"]] = -0.62
-    q[env._jq0 + leg["hip_pitch"]] = -0.31
+    #
+    # Re-posed 2026-08-02 with the corrected knee sign (plant axis "0 -1 0",
+    # negative = human flexion). The old (-0.62, -0.31) swung the shank
+    # FORWARD on the old mirrored plant; flexing it now dips the swing foot
+    # 10.5 mm THROUGH the floor, so con_swing was true and knee_frac collapsed
+    # to a trivial 0 -- the kernel arithmetic this block exists to gate stopped
+    # being exercised. (-0.90, -0.90) is a real high-knee stance: swing pads
+    # 34 mm clear, ncon a flat 8 (stance foot only, matched manifold),
+    # knee_frac ~0.44.
+    q[env._jq0 + leg["knee"]] = -0.90
+    q[env._jq0 + leg["hip_pitch"]] = -0.90
     env.data.qpos[:] = q
     env.data.qvel[:] = 0.0
     _mj.mj_forward(env.model, env.data)

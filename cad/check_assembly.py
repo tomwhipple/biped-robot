@@ -609,7 +609,12 @@ def main():
     # foot) only close in when BOTH joints fold -- exactly what the 1-DOF sweeps
     # never tried.
     thigh_ll = Pos(0, 0, D.LINK_DROP) * parts.leg_link()   # lower joint at origin
-    for k in (-95, -60):
+    # knee angles here are PHYSICAL (+y rotation) and POSITIVE is flexion --
+    # the shank folding backward. They were -95/-60 until 2026-08-02, when the
+    # plant's knee axis was corrected to "0 -1 0" (docs/servo-map.md); the old
+    # values were folding the knee the bird way, which is not the pose the
+    # robot ever holds. See dimensions.ROM["knee"].
+    for k in (95, 60):
         shin_frame = Rot(0, k, 0)
         for a in (-40, 0, 40):
             foot_frame = shin_frame * Pos(0, 0, -D.LINK_DROP) * Rot(0, a, 0)
@@ -621,7 +626,7 @@ def main():
                         vol(thigh_ll, asv2))
     # hip_pitch + knee: the upper-joint arms (worst-case fork profile from the
     # 1-DOF block) vs the SHIN when both hip and knee fold mid-stride
-    for h, k in ((60, -95), (60, -60), (-60, -95), (-60, -60)):
+    for h, k in ((60, 95), (60, 60), (-60, 95), (-60, 60)):
         arms2 = Rot(0, h, 0) * (arm_h + arm_i)
         shin2 = Rot(0, h, 0) * Pos(0, 0, -D.LINK_DROP) * Rot(0, k, 0) * parts.leg_link()
         ok &= check(f"hip {h:+d} knee {k:+d}: upper arms vs shin link",

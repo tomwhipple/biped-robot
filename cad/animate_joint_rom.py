@@ -23,7 +23,10 @@ including the servo mocks and modeled fasteners, so it shows the machine.
 
 Joint limits are the sim's, read straight off dimensions/the plant:
     hip yaw  +/-45   hip roll +/-25   hip pitch -110..+60
-    knee     -95..+5   ankle  +/-40
+    knee     -5..+95   ankle  +/-40
+The knee entry is the PHYSICAL rotation. The MJCF says range="-95 5" on a
+"0 -1 0" axis (2026-08-02 sign fix), which is the same envelope written the
+other way round: 95 deg of flexion, 5 deg of hyperextension.
 """
 import multiprocessing
 import os
@@ -149,7 +152,10 @@ JOINTS = [
     ("hip yaw",   0, (-45, 45)),
     ("hip roll",  1, (-25, 25)),
     ("hip pitch", 2, (-110, 60)),
-    ("knee",      3, (-95, 5)),
+    ("knee",      3, (-5, 95)),   # PHYSICAL +y rotation: +95 = flexion (the
+                                  # plant's knee axis is "0 -1 0" since
+                                  # 2026-08-02, so its -95..+5 is this
+                                  # mirrored -- see dimensions.ROM["knee"])
     ("ankle",     4, (-40, 40)),
 ]
 TRAVEL, HOLD, SETTLE = 12, 3, 5

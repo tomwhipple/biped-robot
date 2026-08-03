@@ -1577,12 +1577,88 @@ clearing the servo and seating on it are not the same measurement and the
 existing interference check passed happily throughout the 2.60 mm era. It reads
 0.15 mm now and 2.60 mm against the old geometry.
 
+### The knees bent the wrong way (2026-08-02)
+
+The plant and the robot did not agree about which way a knee bends, and the
+disagreement was a sign, not a number.
+
+`sim/bimo_biped_v3yaw.xml` carried `axis="0 1 0" range="-95 5"` on both knees.
+On that axis a *negative* knee angle swings the shank **forward** — a
+bird-style backward-bending knee — so the model had 95° of hyperextension and
+5° of flexion. The robot is calibrated the other way: `dir −1` on both knee
+servos (docs/servo-map.md), chosen deliberately so the policy's negative knee
+means human flexion, and confirmed on camera — servo 3 at raw 2278 (−20°
+through zero 2050) swings the shank back and lifts the heel. **Same command,
+opposite motion.** None of the knee constants in the envs (`kneel` −1.62 rad,
+`sit` −0.09, the mimic swing-bend) had ever meant what its name said in the
+sim; they only meant it on the robot.
+
+The fix is one attribute per knee: **`axis="0 -1 0"`**. The range string does
+not move, and that is the whole trick — `−95 … +5` now reads as 95° of flexion
+and 5° of hyperextension instead of the reverse. Verified in MuJoCo after the
+change: −20° moves the foot 3.1 cm backward in the torso frame, −95° moves it
+9.0 cm back and 9.8 cm up.
+
+**Why the range stayed −95/+5.** ±95° is the *mechanical* envelope measured on
+servo 3 (−94.6°/+94.5°, ≤6 % of stall, 31 °C over two full sweeps), not a
+sensible operating range. The flexion limit is set to the measured travel. The
+hyperextension cap stays at 5° because a knee that folds backward is a failure
+mode, not a gait: the modelled envelope is deliberately a strict *subset* of
+what the joint can physically do, so nothing a policy learns is unreachable on
+hardware. Widening it is a decision someone can take later on purpose.
+
+**Nothing on the robot changes.** `zero_steps` and `dir` are untouched;
+`obs_spec.h` regenerates byte-identical (the numbers did not move, only their
+meaning); the firmware's bench clamp still resolves to servo 3 ticks
+`[1993..3131]`, now correctly read as +5° of hyperextension through 95° of
+flexion. No reflash, no re-zero, no cal migration.
+
+**Everything trained before this is invalid.** Every run in `sim/runs/` learned
+the mirrored knee, so its scorecards describe a plant that no longer exists.
+The runs and their scorecards are kept as history and must not be read as
+claims about the current plant. No retraining was launched with this change.
+Two other artefacts inherit the same staleness: `sim/getup_catch_states.npz`
+(harvested qpos, so its knees are mirrored — regenerate with
+`sim/mjx/harvest_rise_states.py` before the next get-up round) and the exported
+SIL weights under `sim/sil/weights/`.
+
+**Three things fell out of the sweep.**
+
+- `cad/dimensions.py ROM["knee"]` is stated as a *physical* rotation and was
+  copied from the MJCF, so every CAD interference sweep through the knee had
+  been probing 95° of hyperextension and 5° of flexion — the poses the robot
+  never makes. Corrected to `(-5, 95)`, along with the hardcoded fold pairs in
+  `check_assembly.py`. It re-runs **ALL CLEAR**: 0.70 mm of buffer between the
+  thigh fork arms and the shin grip screws at +95° (it was 0.76 mm at −5°), and
+  no contact anywhere in the knee × ankle fold matrix.
+- `sim/sil/harness.py` was clamping the **sensor** direction to the joint range
+  (`obs::angleToSteps` clamps because it writes *goal* positions). MuJoCo joint
+  limits are soft, so once a stale policy started leaning on the +5°
+  hyperextension stop the joint sat 1.5° past it and the harness fed the
+  firmware an angle walker_env never had — a 17-tick divergence that looked
+  like a boundary bug. A real encoder reports where the joint *is*; the clamp
+  is off on that path now.
+- Parity block **2j-b** poses a one-leg march stance so the knee-high
+  clearance kernel is non-zero and its arithmetic is actually compared. Its
+  pose `(knee −0.62, hip −0.31)` lifted the foot on the mirrored plant; flexing
+  the same numbers now dips the swing foot 10.5 mm *through* the floor, so
+  `con_swing` was true and `knee_frac` collapsed to a trivial 0 — the block
+  went red not on a CPU-vs-MJX divergence (1.5e-07 reward, 1.5e-08 obs, both
+  far inside their gates) but on its own liveness assertion. Re-posed to
+  `(−0.90, −0.90)`, a real high-knee stance: swing pads 34 mm clear, `ncon` a
+  flat 8, `knee_frac` ≈ 0.44.
+
+The legacy 8-DOF plants (`bimo_biped.xml`, `bimo_biped_v2*.xml`) keep the old
+knee axis on purpose: they are frozen referees for historical runs, not the
+plant anything trains on. `sim/mjx/check_sit_pose.py` still points at
+`bimo_biped_v2_asbuilt.xml` and therefore still checks the old convention.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
 |---|---|
 | Servo (STS3215) | 45.2 × 24.6 × 35.1 mm, 55 g, 2.94 N·m stall |
-| Joint limits | hip-roll ±25°, hip-pitch ±60°, knee −95..+5°, ankle ±40° |
+| Joint limits | hip-roll ±25°, hip-pitch ±60°, knee −95..+5° (flexion is **negative**: MJCF axis `0 -1 0`, so this is 95° of flexion and 5° of hyperextension — see "The knees bent the wrong way"), ankle ±40° |
 | Segment lengths | thigh ≈ 90 mm, shin ≈ 90 mm (servo + bracket) |
 | Torso (D×W×H) | 46 × 104 × 72 mm; head 46 × 62 × 42 mm |
 | Hip separation | 56 mm (leg center-to-center) |

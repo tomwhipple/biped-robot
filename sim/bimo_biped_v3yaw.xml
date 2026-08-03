@@ -211,7 +211,28 @@
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0.0013 -0.0125" size="0.01236 0.01605 0.02261"/>
           <body name="L_shin" pos="0 0 -0.09">
-            <joint name="L_knee" axis="0 1 0" range="-95 5"/>
+            <!-- KNEE SIGN, 2026-08-02: axis is -Y, i.e. NEGATIVE q flexes the
+                 knee the human way (shank swings backward, heel toward the
+                 buttock) and positive q hyperextends. It used to be +Y, which
+                 made the model a bird-style backward-bending knee: -95 was 95
+                 deg of HYPEREXTENSION and the +5 cap was all the flexion the
+                 plant allowed. The robot is calibrated the human-natural way
+                 (docs/servo-map.md, dir -1 on both knees: sim-negative ->
+                 flexion, verified on the robot by camera at -20 deg), so the
+                 old plant and the hardware bent OPPOSITE ways for the same
+                 command. Flipping the axis -- not the range numbers -- is what
+                 makes them agree, and it also makes every knee constant in the
+                 envs (kneel -1.62 rad, sit -0.09, mimic swing-bend) mean what
+                 its name always said.
+                 RANGE: -95 is the MEASURED flexion travel (servo 3 swept to
+                 -94.6/+94.5 deg at <=6% of stall, docs/servo-map.md); +5 is a
+                 deliberate modelling cap on hyperextension, far inside the
+                 +-95 deg mechanical envelope, because a knee that folds
+                 backward is a failure mode, not an operating mode. The plant
+                 therefore stays a strict SUBSET of what the hardware can do.
+                 Keep in step with cad/dimensions.py ROM["knee"], which is
+                 stated as a PHYSICAL +Y rotation and so reads (-5, +95). -->
+            <joint name="L_knee" axis="0 -1 0" range="-95 5"/>
         <inertial pos="-0.0010 0.0016 -0.0242" quat="0.9999 0.0031 0.0153 0.0020" mass="0.0786" diaginertia="5.5586e-05 4.8599e-05 1.6317e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
@@ -303,7 +324,9 @@
           <geom class="cad" mesh="leg_link"/>
           <geom class="servo" type="box" pos="0 0.0013 -0.0125" size="0.01236 0.01605 0.02261"/>
           <body name="R_shin" pos="0 0 -0.09">
-            <joint name="R_knee" axis="0 1 0" range="-95 5"/>
+            <!-- axis -Y: flexion-negative, mirror of L_knee (see the comment
+                 there for the 2026-08-02 sign fix and the range rationale) -->
+            <joint name="R_knee" axis="0 -1 0" range="-95 5"/>
         <inertial pos="-0.0010 0.0016 -0.0242" quat="0.9999 0.0031 0.0153 0.0020" mass="0.0786" diaginertia="5.5586e-05 4.8599e-05 1.6317e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>

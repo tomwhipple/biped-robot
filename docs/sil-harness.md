@@ -223,3 +223,14 @@ brax on the same obs: 6.6e-7. See the README's results table.
 3. policy component had no runtime-weight entry point (compile-time
    weights only) -- additive policy::Net/forwardNet added, forward()
    unchanged (test_policy still 433/433).
+4. **Sensor path was clamping to the joint range (FIXED 2026-08-02)**:
+   `SilLib.make_sensors` synthesised the encoder word with
+   `angle_to_steps(...)`, which mirrors `obs::angleToSteps` and therefore
+   clamped to `kJointLo/kJointHi`. That clamp belongs to the GOAL direction
+   ("a target outside the mechanical range is how you stall a horn against a
+   printed part"); an encoder reports where the joint *is*. MuJoCo joint
+   limits are soft, so a joint leaning on its stop sits past it -- 1.5 deg /
+   17 ticks in the case that exposed this (the corrected knee sign let a
+   stale policy push the +5 deg hyperextension stop) -- and the firmware was
+   being fed an angle walker_env never had. `clamp_joint_range=False` on that
+   path; the goal direction is unchanged.

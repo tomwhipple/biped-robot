@@ -496,7 +496,7 @@ the extension leads from the order list.
    | hip yaw   | ±45°                                  | v3yaw; turn strides only need ±20–30° |
    | hip roll  | ±25°                                  |                                       |
    | hip pitch | −60/+60° (→ −110/+60° after redesign) | **flexion is NEGATIVE**               |
-   | knee      | −95/+5°                               | deep half is the get-up range         |
+   | knee      | −95/+5°                               | **flexion is NEGATIVE** — all 95° of it; the +5° is hyperextension (sign fixed in the plant 2026-08-02, see servo-map.md) |
    | ankle     | ±40°                                  |                                       |
 
 4. Land the robot by **10.5 V** on the OLED (3.5 V/cell).
