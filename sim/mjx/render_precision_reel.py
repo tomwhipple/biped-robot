@@ -19,13 +19,13 @@ import os
 import sys
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
 
 import eval_precision as ep
+from video_annot import caption, title_card, trim_trailing_still
 
 RENDERS = os.path.join(HERE, "..", "renders")
 
@@ -50,40 +50,10 @@ TITLES = {
     "stand_off": "Stand still, servos OFF (torque released)",
 }
 
-BAR_H = 44          # caption bar height (px)
 TITLE_S = 1.2       # seconds of title card before each take
 
-
-def _font(size):
-    for cand in ("/System/Library/Fonts/Helvetica.ttc",
-                 "/System/Library/Fonts/Supplemental/Arial.ttf"):
-        if os.path.exists(cand):
-            return ImageFont.truetype(cand, size)
-    return ImageFont.load_default()
-
-
-def caption(frame, title, verdict, headline, t, total_t):
-    """Frame + top caption bar (title, PASS/FAIL, headline, timecode)."""
-    h, w = frame.shape[:2]
-    img = Image.new("RGB", (w, h + BAR_H), (16, 16, 20))
-    img.paste(Image.fromarray(frame), (0, BAR_H))
-    d = ImageDraw.Draw(img)
-    d.text((10, 7), title, font=_font(19), fill=(235, 235, 235))
-    color = (90, 210, 120) if verdict == "PASS" else (235, 110, 90)
-    d.text((w - 200, 7), verdict, font=_font(19), fill=color)
-    d.text((w - 140, 7), headline, font=_font(15), fill=(180, 180, 180))
-    d.text((10, BAR_H + 6), f"{t:4.1f}s", font=_font(14), fill=(200, 200, 200))
-    return np.asarray(img)
-
-
-def title_card(w, h, title, idx, n):
-    img = Image.new("RGB", (w, h + BAR_H), (16, 16, 20))
-    d = ImageDraw.Draw(img)
-    d.text((w // 2, (h + BAR_H) // 2 - 20), title, font=_font(30),
-           fill=(235, 235, 235), anchor="mm")
-    d.text((w // 2, (h + BAR_H) // 2 + 22), f"{idx}/{n}", font=_font(18),
-           fill=(150, 150, 150), anchor="mm")
-    return np.asarray(img)
+# caption(), title_card(): sim/video_annot.py -- shared with every renderer,
+# cross-platform fonts (the training host renders too).
 
 
 def main():
@@ -160,17 +130,7 @@ def main():
         verdict = "PASS" if res["success"] else "FAIL"
         passes += res["success"]
         headline = res.get("headline", "")
-        frames = res["frames"]
-        # trim trailing standstill to ~2 s (user 2026-07-25): find the last
-        # frame with visible motion (pixel delta) and keep 2 s beyond it
-        if len(frames) > 3:
-            deltas = [float(np.mean(np.abs(frames[j].astype(np.int16)
-                                           - frames[j - 1].astype(np.int16))))
-                      for j in range(1, len(frames))]
-            thr = 1.0
-            last_mv = max((j for j, dl in enumerate(deltas, 1) if dl > thr),
-                          default=len(frames) - 1)
-            frames = frames[:min(len(frames), last_mv + int(2.0 * 50 / 3))]
+        frames = trim_trailing_still(res["frames"], fps=50 / 3)
         title = TITLES.get(name, name)
         print(f"[{k+1:2d}/{len(names)}] {name:14s} seed {seed_i} {verdict} "
               f"{headline}  ({len(frames)} frames)", flush=True)

@@ -14,7 +14,9 @@ import subprocess
 
 import mujoco
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
+
+from video_annot import load_font  # cross-platform (mira renders too)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FPS = 50
@@ -44,14 +46,6 @@ def sweep_profile(lo, hi, n):
     b = lo + ease(np.linspace(0, 1, n2)) * (hi - lo)
     c = hi + ease(np.linspace(0, 1, n3)) * (0 - hi)
     return np.concatenate([a, b, c])
-
-
-def load_font(size):
-    for cand in ("/System/Library/Fonts/Helvetica.ttc",
-                 "/System/Library/Fonts/Supplemental/Arial.ttf"):
-        if os.path.exists(cand):
-            return ImageFont.truetype(cand, size)
-    return ImageFont.load_default()
 
 
 def main():
