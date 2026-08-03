@@ -158,6 +158,30 @@ engaging could not produce a jump. All ten tracked to ≤2 ticks of following
 error at ≤24/1000 load, no fault flags, and returned to zero within 7 ticks.
 End stops were not probed for nine of the ten and remain unrecorded.
 
+### Model-range sweep — all ten joints, visually confirmed (2026-08-02 night)
+
+`tools/bench_rom_sweep.py` (single-servo torque, stepped waypoints, webcam
+frame + pos/load at each, auto-release on anomaly) swept every joint to 90 %
+of its model range on the test stand, after the knee-sign fix (`0e7d866`):
+
+- **All ten joints track their commanded range**: following error ≤8 ticks,
+  loads ≤72/1000 (worst: hip pitch holding the thigh near-horizontal at
+  −99°), temps 33–35 °C, no fault flags, clean return to zero every time.
+- **Directions visually confirmed on camera** at the extremes, including
+  knee −85.5° = deep human-style flexion (heel toward buttock) and hip
+  pitch −99° = leg raised far forward — both as the corrected convention
+  predicts.
+- **Finding — inter-leg contact the sim cannot see:** hip-roll *adduction*
+  brings the legs into contact from ≈ **−9°** (load onset; torque-off the
+  left leg rests at −7° leaning on its neighbor). The plant's ±25° roll
+  range is optimistic inward: internal parts have no collision geoms, so
+  sim legs pass through each other. `feet_distance`/`foot_cross` penalties
+  are the current mitigation; the sweep tool caps inward roll at 6°.
+  Outward (abduction) 22.5° is clean.
+- Yaw toe-in swept to the errata-tested 20°, clean; ankles ±36° clean
+  (toe-down droop is also each ankle's torque-off rest). Frames + JSON log
+  in `sweeps/` (local only, gitignored).
+
 ### Measured knee ROM — and the plant fix it forced
 
 Servo 3 — the **right** knee — was then taken further, and the MJCF's

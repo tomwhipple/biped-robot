@@ -38,3 +38,4 @@ cad/renders/_jointrom/
 
 # SIL: the weight blob is regenerable (tools/export_policy_weights.py)
 sim/sil/weights/*.silw
+sweeps/
