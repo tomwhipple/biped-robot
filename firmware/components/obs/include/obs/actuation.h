@@ -43,6 +43,13 @@ void anglesToAction(const float* angle_rad, float* action);
 
 // Angle <-> encoder ticks. 4096 ticks per revolution.
 int32_t angleToSteps(int joint, float rad, const Calibration& cal);
+
+// angleToSteps without the policy-range clamp: converts any angle through
+// the calibration, bounded only by the encoder's 0..4095. For callers that
+// clamp against a DIFFERENT range first (the CLI bench clamps to the
+// measured mechanical envelope, main/mech_envelope.h). The act path must
+// keep using angleToSteps -- the kJointLo/Hi clamp there is SIL-pinned.
+int32_t angleToStepsRaw(int joint, float rad, const Calibration& cal);
 float stepsToAngle(int joint, int32_t steps, const Calibration& cal);
 
 // The servo reports speed in steps/s (register 58). Whether the policy is fed

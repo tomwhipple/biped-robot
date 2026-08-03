@@ -29,7 +29,11 @@ namespace robot {
 inline constexpr int32_t kAsBuiltZeroSteps[obs::kNumJoints] = {
     1693,   // L_hip_yaw    (id 10)
     2420,   // L_hip_roll   (id 5)
-    3273,   // L_hip_pitch  (id 6)
+    2044,   // L_hip_pitch  (id 6)  re-centred 2026-08-03: old zero 3273 left
+            //   only +72 deg before the 4095 wrap; `middle` latched standing
+            //   as 2048 (4 ticks past zero at the latch -> zero 2044), the
+            //   R_knee treatment applied to the second of the joints
+            //   servo-map.md predicted would need it
     1634,   // L_knee       (id 7)
     3516,   // L_ankle      (id 8)
     1803,   // R_hip_yaw    (id 9)

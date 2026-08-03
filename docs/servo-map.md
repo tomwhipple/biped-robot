@@ -91,7 +91,7 @@ rather than left to look valid.
 | ----- | -- | ------------ | ----------- | --- |
 | `L_hip_yaw`   | 10 | 1693 | −355  | +1 |
 | `L_hip_roll`  | 5  | 2420 | +372  | **−1** |
-| `L_hip_pitch` | 6  | 3273 | +1225 | +1 |
+| `L_hip_pitch` | 6  | 2044 | −4    | +1 |
 | `L_knee`      | 7  | 1634 | −414  | **−1** |
 | `L_ankle`     | 8  | 3516 | +1468 | +1 |
 | `R_hip_yaw`   | 9  | 1803 | −245  | +1 |
@@ -104,8 +104,11 @@ The large offsets are ordinary horn clocking — the ST3215 horn seats on discre
 splines, so a mechanical zero is never exact and `middle` was never run at the
 CAD-neutral pose. **Before this was measured the firmware still believed zero
 was 2048 for all ten**, which would have driven a knee 168° on the first `run`.
-`R_knee` sits at ~2048 only because its encoder was deliberately re-centred
-(see below); the rest are wherever the horn happened to seat.
+`R_knee` and `L_hip_pitch` sit at ~2048 because their encoders were
+deliberately re-centred (R_knee at bring-up — see below; L_hip_pitch on
+2026-08-03, when its old zero of 3273 capped backward pitch at +72° against
+the 4095 wrap during the +90° envelope test); the rest are wherever the horn
+happened to seat.
 
 ### Direction signs — all ten verified 2026-08-02
 
@@ -157,6 +160,27 @@ at 200 steps/s, with goal set to present position *before* torque enable so
 engaging could not produce a jump. All ten tracked to ≤2 ticks of following
 error at ≤24/1000 load, no fault flags, and returned to zero within 7 ticks.
 End stops were not probed for nine of the ten and remain unrecorded.
+
+### Mechanical envelope — the bench clamp's table (2026-08-03)
+
+The CLI bench clamp no longer uses the plant's policy range: it clamps to
+`firmware/main/mech_envelope.h`, the measured/CAD-verified mechanical truth.
+The split exists because the two ranges answer different questions — what a
+policy trains in (widening it rescales action maps and invalidates runs)
+vs how far the bench may drive a joint. **Change the envelope header and
+this table in the same commit**, and name the evidence for every widening:
+
+| joint | envelope (sim frame) | evidence |
+| ----- | -------------------- | -------- |
+| hip yaw   | ±45°           | plant range; stops never probed wider |
+| hip roll  | 25° adduction / **55° abduction** | CAD buffer sweep 2026-08-03: 0.60 mm at 55°, under-buffer at 70°, touching at 90°. Creep-verify on hardware before a full 55° sweep |
+| hip pitch | −110°…+60°     | plant range; stand blocks measuring past +45° back |
+| knee      | **±95°**       | measured 2026-08-02, both directions, ≤5.9 % load |
+| ankle     | ±40°           | plant range; toes clear the shin at both extremes |
+
+Pose-dependent leg-on-leg contact (adduction ~9° standing, yaw cross ~8.5°
+with thighs raised) is deliberately NOT in this table — a per-joint clamp
+cannot express it; the plant needs inter-leg collision geoms instead.
 
 ### Model-range sweep — all ten joints, visually confirmed (2026-08-02 night)
 

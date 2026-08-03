@@ -166,6 +166,27 @@ void testAngleToSteps() {
     CHECK(s > 1900);                            // negative angle, inverted dir
 }
 
+void testAngleToStepsRaw() {
+    obs::Calibration cal;
+    // Inside the policy range the two functions agree exactly.
+    CHECK_EQ(obs::angleToStepsRaw(0, 0.0f, cal), obs::angleToSteps(0, 0.0f, cal));
+    CHECK_EQ(obs::angleToStepsRaw(0, obs::kJointHi[0], cal),
+             obs::angleToSteps(0, obs::kJointHi[0], cal));
+    // Past the policy range: angleToSteps clamps (SIL-pinned act-path
+    // behavior), Raw converts through -- the bench envelope clamp
+    // (main/mech_envelope.h) depends on this. Joint 3 (L_knee) trains in
+    // -95..+5 deg but measured +-95 mechanical.
+    const float hyper = 0.5f;                    // ~28.6 deg > kJointHi[3]
+    CHECK_EQ(obs::angleToSteps(3, hyper, cal),
+             obs::angleToStepsRaw(3, obs::kJointHi[3], cal));
+    const int32_t r = obs::angleToStepsRaw(3, hyper, cal);
+    CHECK(r != obs::angleToSteps(3, hyper, cal));
+    CHECK_NEAR(obs::stepsToAngle(3, r, cal), hyper, 2e-3);
+    // Encoder-domain guard still applies.
+    CHECK_EQ(obs::angleToStepsRaw(0, 100.0f, cal), 4095);
+    CHECK_EQ(obs::angleToStepsRaw(0, -100.0f, cal), 0);
+}
+
 void testVelocityEstimator() {
     obs::VelocityEstimator est(1.0f);           // raw difference
     float q[obs::kNumJoints] = {}, v[obs::kNumJoints];
@@ -443,6 +464,7 @@ int main() {
     testGaitClockWraps();
     testActionToAngles();
     testAngleToSteps();
+    testAngleToStepsRaw();
     testVelocityEstimator();
     testCommandShaper();
     testGoalSpeed();

@@ -30,23 +30,27 @@ void anglesToAction(const float* angle_rad, float* action) {
     }
 }
 
+int32_t angleToStepsRaw(int joint, float rad, const Calibration& cal) {
+    const float ticks = rad / kRadPerStep * static_cast<float>(cal.dir[joint]);
+    int32_t steps = cal.zero_steps[joint] + static_cast<int32_t>(lrintf(ticks));
+    // Steps-domain guard. The caller bounds the ANGLE against whichever range
+    // applies to it, but a wrong zero_steps (miscalibration, or NVS restored
+    // from a different build of the robot) still shifts the result off the
+    // encoder's 0..4095 range -- and a target the servo cannot reach is a
+    // horn parked against a hard stop drawing stall current. Clamping is the
+    // safe failure: the joint sits at its extreme instead of cooking.
+    if (steps < 0) steps = 0;
+    if (steps > kMaxSteps) steps = kMaxSteps;
+    return steps;
+}
+
 int32_t angleToSteps(int joint, float rad, const Calibration& cal) {
     // Clamp to the joint's MJCF range before it reaches the servo: the policy
     // is clamped there too, and a target outside the mechanical range is how
     // you stall a horn against a printed part.
     if (rad < kJointLo[joint]) rad = kJointLo[joint];
     if (rad > kJointHi[joint]) rad = kJointHi[joint];
-    const float ticks = rad / kRadPerStep * static_cast<float>(cal.dir[joint]);
-    int32_t steps = cal.zero_steps[joint] + static_cast<int32_t>(lrintf(ticks));
-    // Second guard, in the steps domain. The clamp above bounds the ANGLE, but
-    // a wrong zero_steps (miscalibration, or NVS restored from a different
-    // build of the robot) still shifts the result off the encoder's 0..4095
-    // range -- and a target the servo cannot reach is a horn parked against a
-    // hard stop drawing stall current. Clamping is the safe failure: the joint
-    // sits at its extreme instead of cooking.
-    if (steps < 0) steps = 0;
-    if (steps > kMaxSteps) steps = kMaxSteps;
-    return steps;
+    return angleToStepsRaw(joint, rad, cal);
 }
 
 float stepsToAngle(int joint, int32_t steps, const Calibration& cal) {

@@ -10,6 +10,7 @@
 #include "policy/mlp.h"
 #include "scsbus/bus.h"
 #include "cal_store.h"
+#include "mech_envelope.h"
 #include "shared.h"
 
 #include "freertos/FreeRTOS.h"
@@ -211,16 +212,20 @@ bool torqueGate(scsbus::Bus* bus, Sink out, uint8_t id) {
     return true;
 }
 
-// Clamp bench ticks to the joint's CALIBRATED mechanical range, when the
+// Clamp bench ticks to the joint's CALIBRATED mechanical envelope, when the
 // target servo is one of the policy's. Raw 0..4095 is the encoder's range,
 // not the mechanism's -- the difference is a horn driving a printed part
-// past its stop.
+// past its stop. The envelope (mech_envelope.h) is the measured mechanical
+// truth, deliberately separate from the plant's policy range: the bench can
+// e.g. hyperextend a knee to its measured -95..+95 even though policies
+// train in -95..+5 (split introduced 2026-08-03 after the clamp cut short
+// a manual ROM session at the plant's limits).
 int32_t clampToJointRange(uint8_t id, int32_t ticks, Sink out) {
     for (int j = 0; j < obs::kNumJoints; ++j) {
         if (robot::servoIds()[j] != id) continue;
         const obs::Calibration& cal = robot::calibration();
-        const int32_t a = obs::angleToSteps(j, obs::kJointLo[j], cal);
-        const int32_t b = obs::angleToSteps(j, obs::kJointHi[j], cal);
+        const int32_t a = obs::angleToStepsRaw(j, robot::kMechLo[j], cal);
+        const int32_t b = obs::angleToStepsRaw(j, robot::kMechHi[j], cal);
         const int32_t lo = a < b ? a : b, hi = a < b ? b : a;
         if (ticks < lo || ticks > hi) {
             const int32_t c = ticks < lo ? lo : hi;
