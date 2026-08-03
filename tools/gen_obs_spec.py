@@ -87,6 +87,15 @@ def build_env(run_dir):
         # DR off: we want the identity IMU mount and zero gyro bias, so the
         # frames are a pure function of the scripted inputs.
         domain_rand=False, latency_ms=0.0, latency_ms_max=None,
+        # ... and for the same reason the servo-side tick quantizer is off.
+        # A run trained with quantize_ticks=True (every run since 2026-07-31)
+        # would otherwise round q/dq on the way into the frame while the
+        # golden case still records the UNrounded scripted q as the C
+        # assembler's input -- obs::Assembler takes radians and does not
+        # re-quantize, so the vectors would be unsatisfiable by construction.
+        # The quantizer is a property of the sensor path, tested where it
+        # lives (angleToSteps/stepsToAngle, and the SIL closed loop).
+        quantize_ticks=False,
         render_mode=None,
     )
     return cfg, BimoWalkerEnv(**kw)

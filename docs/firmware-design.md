@@ -314,6 +314,66 @@ for the policy). 10 Hz is the strongest smoothing that keeps referee parity.
 Live-tunable from the CLI: `shape [hz]`, 0 = off (raw/legacy); the SIL twin
 is `sil_set_shaper()` and the pytest gate re-runs the referee against it.
 
+## 7d. §6 closed — the real weights are compiled in (2026-08-03)
+
+The v1 policy blocker is done. Option 1 (distil, not quantise) was taken as
+written; nothing in §6 needed revising.
+
+- **`sim/mjx/distill_student.py`** is the brax-era replacement for the day-5
+  `sim/distill.py`: DAgger on the GPU MJX env, rebuilt from the teacher run's
+  own `config.json` so the state distribution is the plant/DR/command
+  curriculum the teacher trained on. The label is the teacher's deterministic
+  action, `tanh(mean)`, and the regression is done in tanh space — a saturated
+  logit of 4 and one of 40 are the same command, and only the first is
+  learnable at 128 wide. Round 0 is pure BC; from round 1 a decaying fraction
+  β of the env slots are teacher-driven and the rest run the student's own
+  actions **for whole trajectories**, which is what puts its compounding
+  mistakes in the dataset.
+- **The teacher's normaliser is reused verbatim and frozen.** The firmware net
+  consumes normalised obs and ships the normaliser beside the weights; a
+  refitted one would mean re-deriving the frozen-channel analysis
+  (sil-harness.md finding 2) for no gain.
+- **`loco_v12knee_warm` (512, 256, 128) → `loco_v12knee_warm_s128`
+  (128, 128)**: 38 036 weights, 150 KB fp32, 1.57 M env steps of DAgger over
+  12 rounds, holdout action MAE 0.033 on a ±1 action.
+- **The referee gate was the point, and the student did not merely survive
+  it.** Both columns, 8 seeds, 11 scenarios, hardware-claim plant:
+
+  | column | teacher | student (128,128) |
+  |---|---|---|
+  | python | 51/88 | **52/88** |
+  | SIL (firmware stack) | 37/88 | **48/88** |
+
+  The python column is a wash (`stand_off` 4→6 and `line_1m` 6→7 pay for
+  `backward_1m` 8→7 and `goal_home` 1→0). The **SIL column is +11 seeds**, and
+  that is the number that matters, because it is the one the robot runs.
+  Distillation acted as a regulariser against exactly the plant/quantiser
+  mismatch the SIL leg exposes: `stand_off` 3→8, `backward_1m` 1→3,
+  `line_rough` 5→7, `line_1m` 4→6. Watts fell 10.4→8.4 and falls 34→22 %.
+  The four goal-relative scenarios (`turn_180`, `square_return`,
+  `circle_return`, `goal_home`) are 0/8 for teacher and student alike — a
+  teacher deficit, faithfully inherited, not a distillation loss.
+- **The student is a normal brax run dir.** It is saved as
+  `(normalizer, policy, value)` in `params.pkl`, so `eval_precision.py`,
+  `eval_precision.py --sil` and `tools/export_policy_weights.py` load it with
+  no shim — `_hidden_sizes()` already derived the widths from the checkpoint.
+- **`tools/gen_policy_weights.py` grew a real mode** (`--run <run>` /
+  `--silw <path>`) that reads the exported `.silw`, cross-checks its sidecar,
+  and emits the same header contract with `kWeightsArePlaceholder = false`
+  plus a new `kWeightsRun`. `test_policy` now asserts both, that
+  `kWeightsRun == obs::kRunName`, and that the net is neither the scaffold nor
+  degenerate. The placeholder is still regenerable (`--placeholder`) and turns
+  that test red on purpose; the tool no longer has an argument-less default,
+  because that default used to be "silently un-deploy the policy".
+- **Flash, not SRAM, as §6 predicted.** The image went 0x3cce0 → 0x60d20
+  (62 % of the app partition still free); the weights are `constexpr` in flash
+  `.rodata` and DRAM did not move (17.5 %).
+- **Gait clock confirmed, not changed.** `ctrl_task.cpp` runs
+  `obs::GaitClock g_clock(1.5f)`; training draws `gait_freq ~ U(1.25, 1.75)`
+  per episode in both envs, so 1.5 Hz is the midpoint of the distribution the
+  policy was trained across, and it is what both SIL columns were scored at.
+  §8's "fixed 1.5 Hz vs commanded" question is unaffected.
+
 ## 8. Open questions
 
 - Exact Waveshare SKU on the BOM → confirm SRAM/PSRAM and UART wiring.

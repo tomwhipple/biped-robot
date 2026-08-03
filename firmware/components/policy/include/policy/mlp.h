@@ -15,11 +15,14 @@
 //
 // So: normalize -> swish MLP -> take the first kActDim logits -> tanh.
 //
-// The weights come from a generated header. In v1 that header holds a small
-// PLACEHOLDER net at the correct input/output width -- sim/export_policy.py
-// does not exist yet (firmware/README.md, "v2 seams"). The golden-vector test
-// harness is real: tools/gen_policy_weights.py writes both the weights and the
-// numpy-computed obs->action pairs the host test checks to 1e-6.
+// The weights come from a generated header holding the DEPLOYED policy: the
+// training net distilled to a width that fits flash (firmware-design section
+// 6, sim/mjx/distill_student.py), exported to a .silw by
+// tools/export_policy_weights.py, refereed on both scorecard columns, and
+// compiled in by tools/gen_policy_weights.py --run <run>, which writes the
+// numpy-computed obs->action pairs the host test checks alongside it.
+// `policy::kWeightsArePlaceholder` is false and test_policy asserts it, so the
+// pre-distillation scaffold cannot come back unnoticed.
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
