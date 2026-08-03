@@ -909,3 +909,45 @@ Tonight: **skills_v5march** -- the user-requested knee-high march
 loco_v9rough (best stand_off, quantized lineage) since every skills_v*
 predates the corrected foot. Judged by march_10s (baseline: skills_v4
 reached 70% of knee height; v9rough topples).
+
+## Day 14 (2026-08-03): first corrected-knee night — warm-start survives the sign flip
+
+First night run ON mira (project + robot moved 2026-08-02, HANDOFF.md;
+gates reproduced, jax/brax added to the rebuilt venv). The knee-sign fix
+(`0e7d866`, axis flip only) landed before the window; the ten-joint
+bench ROM sweep confirmed it on hardware the same evening (`df570bb`).
+
+**A/B on the corrected plant, per the user's directive:**
+
+**loco_v12knee (from-scratch, v9rough recipe, 62M): 24/88 py / 34/88
+SIL.** Clean monotone training curve (reward -44 -> 628, ep_len 37 ->
+205) but one night from scratch lands roughly where the lineage's early
+ancestors did -- the 63-68/88 scores of v8foot..v10turn each sat on many
+accumulated nights.
+
+**loco_v12knee_warm (v10turn warm-start, 20M): 51/88 py, 5/11 clean,
+falls 28%, gait asym 18%.** Dropped onto the flipped plant with zero
+training the v10turn weights still scored eval reward ~315 (standing
+survives a knee flip; the walk cycle doesn't), and 20M of adaptation
+recovered the entire straight-line repertoire: backward_1m, sidestep
+L/R, line_rough, stand_10s all 8/8, line_1m 6/8. **Verdict: the lineage
+survives the sign flip — warm-start from v12knee_warm is the new base.**
+What did NOT come back: everything rotational (turn_180 0/8 hErr 57 deg,
+square/circle_return 0/8, goal_home 1/8) — turning was already the
+8-sphere-sole weak spot (day 11-12) and the flip erased what little
+there was. Next loco round: turn recovery from v12knee_warm with
+moderated turn emphasis (day-12 lesson: 85% mix crashed stand_off).
+
+**SIL flag, needs daylight before any deploy:** v12knee_warm python
+51/88 vs SIL 37/88, and the gap is concentrated one-direction in ONE
+scenario — backward_1m 8/8 py vs 1/8 SIL (line_1m 6v4, line_rough 8v5
+mild, rest ≤1 seed). Arm A diverged the OPPOSITE way (24 py / 34 SIL).
+Suspects: free-running SIL gait clock and the C2 shaper interacting
+with backward gait. Render the _sil takes and diff per-tick before
+trusting either column on backward.
+
+Also tonight: GPU contention resolved by precedent (llama3.2-vision fell
+to CPU during the window, re-warmed onto the GPU after; Aime coordinated
+via ask-aime). skills_v5march stayed HELD in the night queue — it was
+specced pre-fix with an old-plant warm start; re-queue it from a
+corrected-plant base instead.

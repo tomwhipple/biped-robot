@@ -14,6 +14,14 @@ os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__))))
 CAD_RENDERS = os.path.join(os.path.dirname(os.getcwd()), 'cad', 'renders')
 
 def strip_from_gif(path, n=8, factor=4):
+    # legacy-era gifs (dash_*, terrain_v4, ...) live only on machines that
+    # trained them -- the 2026-08-02 laptop->mira move copied loco_* runs
+    # only. A missing strip renders as a 1px placeholder instead of killing
+    # the whole report.
+    if not os.path.exists(path):
+        print(f"build_report: missing {path} (legacy run not on this "
+              f"machine), placeholder used")
+        return np.full((1, 1, 3), 24, dtype=np.uint8)
     frames = imageio.mimread(path, memtest=False)
     frames = [f[..., :3] for f in frames]
     idx = np.linspace(0, len(frames) - 1, n).astype(int)
