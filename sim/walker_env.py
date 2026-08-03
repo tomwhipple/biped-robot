@@ -90,6 +90,44 @@ _TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
 _TICK_DIR = 1.0
 
 
+def policy_range(m):
+    """Per-actuator (lo, hi) the POLICY trains in, radians. MIRRORED in
+    sim/mjx/env_mjx.py -- keep the two identical.
+
+    The plant's JOINT limit is the mechanical stop: how far the joint can be
+    driven before it hits metal. The POLICY range is a separate, narrower
+    thing: action +-1 is defined as its edge, so moving it silently rescales
+    every action a trained policy emits, and every scorecard with it. The two
+    were the same number until bimo_biped_v4rom.xml (2026-08-03), where the
+    hip-roll and hip-pitch stops widened to the measured/CAD-verified truth
+    while the training range deliberately stayed at v3yaw's.
+
+    A plant declares the split by putting a ctrlrange on its <position>
+    actuators; that is the policy range, and the joint limit is left as the
+    mechanical stop. Plants that declare none -- bimo_biped_v2*.xml,
+    bimo_biped_v3yaw.xml, every legacy referee -- fall back to the joint
+    limit, which is what they have always used, so they load bit-identically
+    and their runs keep meaning what they meant.
+
+    This is the same split firmware/main/mech_envelope.h draws between
+    obs_spec.h's kJointLo/kJointHi (policy, action scaling) and the bench
+    clamp. tools/gen_obs_spec.py emits kJointLo/kJointHi from env._lo/_hi, so
+    a run trained on a split plant still ships the POLICY range to the robot
+    and the envelope's containment static_assert still holds.
+
+    NOTE ctrlrange is in the actuator's own units and the compiler does NOT
+    apply angle="degree" to it (unlike jnt_range) -- so a split plant spells
+    its ctrlrange in radians. tests/test_rom_contacts.py pins those numbers.
+    """
+    jnt = m.actuator_trnid[:, 0]
+    lo = np.array(m.jnt_range[jnt, 0], dtype=float)
+    hi = np.array(m.jnt_range[jnt, 1], dtype=float)
+    lim = np.asarray(m.actuator_ctrllimited).astype(bool)
+    lo[lim] = np.asarray(m.actuator_ctrlrange)[lim, 0]
+    hi[lim] = np.asarray(m.actuator_ctrlrange)[lim, 1]
+    return lo, hi
+
+
 def _gauss_smooth(field: np.ndarray, sigma: float) -> np.ndarray:
     """Separable Gaussian blur (reflect-padded), sigma in cells. Pure numpy so
     we don't add a scipy dependency for one filter."""
@@ -708,15 +746,22 @@ class BimoWalkerEnv(gym.Env):
         # -- the standard locomotion-RL convention. Without this, action 0 maps to
         # each joint's range midpoint (a deep knee crouch) and the robot topples.
         jnt = self.model.actuator_trnid[:, 0]
+        # hip_flex_deg re-sets the hip-pitch FLEXION limit (get-up study). It
+        # is a training-range knob, so on a plant that separates the two
+        # (policy_range()) it moves the ctrlrange and leaves the mechanical
+        # stop alone; on the legacy plants ctrlrange does not exist and it
+        # moves jnt_range exactly as it always did.
         if hip_flex_deg is not None:
             for i in (self._jname2i["L_hip_pitch"], self._jname2i["R_hip_pitch"]):
-                self.model.jnt_range[jnt[i], 0] = -np.deg2rad(hip_flex_deg)
+                if self.model.actuator_ctrllimited[i]:
+                    self.model.actuator_ctrlrange[i, 0] = -np.deg2rad(hip_flex_deg)
+                else:
+                    self.model.jnt_range[jnt[i], 0] = -np.deg2rad(hip_flex_deg)
         self.hip_flex_deg = hip_flex_deg
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
-        self._lo = self.model.jnt_range[jnt, 0].copy()
-        self._hi = self.model.jnt_range[jnt, 1].copy()
+        self._lo, self._hi = policy_range(self.model)
         self._default = self.model.qpos0[self._jqpos].copy()        # standing pose
         self._scale = 0.5 * (self._hi - self._lo)              # per-joint residual
 
@@ -728,9 +773,12 @@ class BimoWalkerEnv(gym.Env):
             self.model.dof_armature[self._jqvel] = joint_armature
         self._foot_bids = (self.model.body("L_foot").id,
                            self.model.body("R_foot").id)
-        _jr = self.model.jnt_range[self.model.actuator_trnid[:, 0]]
-        _mid = 0.5 * (_jr[:, 0] + _jr[:, 1])
-        _half = 0.5 * (_jr[:, 1] - _jr[:, 0])
+        # soft joint limits (90% of range) for the dof-limit penalty. Measured
+        # against the POLICY range, not the mechanical stop: the penalty exists
+        # to keep a policy off the edge of what it may command, and reading it
+        # off a widened stop would quietly relax the shaping on a split plant.
+        _mid = 0.5 * (self._lo + self._hi)
+        _half = 0.5 * (self._hi - self._lo)
         self._soft_lo = _mid - 0.9 * _half
         self._soft_hi = _mid + 0.9 * _half
         if True:   # sole/foot reference constants (used by ext skills AND

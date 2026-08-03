@@ -843,10 +843,14 @@ FILAMENT_RHO = 1.27e-3  # g/mm^3 (PETG)
 PRINT_MASS_FACTOR = 0.90  # thin-walled parts print near-solid; grid infill on thick
 
 # ----------------------------------------------------------------------------
-# joint ranges of motion, deg (SOURCE: sim/bimo_biped_v3yaw.xml joint ranges --
-# the plant policy trains against these, so CAD must clear them). Interference
-# checks probe BOTH extremes of every joint and require SWEEP_BUFFER of air
-# between relatively-moving bodies (user call 2026-07-28).
+# joint ranges of motion, deg (SOURCE since 2026-08-03: the JOINT LIMITS of
+# sim/bimo_biped_v4rom.xml -- the mechanical stop, i.e. how far the joint can
+# be driven at all, which is what the printed parts have to clear. It is NOT
+# the plant's policy range any more; v4rom separates the two and holds the
+# training box at v3yaw's, but a part that only clears the training box is a
+# part the bench can break.) Interference checks probe BOTH extremes of every
+# joint and require SWEEP_BUFFER of air between relatively-moving bodies
+# (user call 2026-07-28).
 #
 # These are PHYSICAL rotations about the CAD axis (Rot(0, ang, 0) etc., +x
 # forward, right-handed), which for nine of the ten joints is the same number
@@ -857,10 +861,34 @@ PRINT_MASS_FACTOR = 0.90  # thin-walled parts print near-solid; grid infill on t
 # was +y and this dict read (-95, 5) -- so every interference sweep through the
 # knee had been probing 95 deg of hyperextension, a pose the robot never makes,
 # and only 5 deg of the flexion it actually walks in.
+#
+# 2026-08-03, hardware + CAD session:
+#   hip_roll  +-25 -> +-55. Abduction is CAD-clear to 55 deg per side: the
+#     buffer sweep below holds 0.60 mm at 55, drops to 0.33 at 70 and touches
+#     at 90, so the ~90 deg the design was assumed to have is refuted by the
+#     geometry that actually got printed. Written SYMMETRIC even though the
+#     plant's per-leg ranges are not (v4rom: L -25..+55, R -55..+25, since
+#     positive roll abducts the LEFT leg and adducts the right). Two reasons:
+#     this file describes ONE leg, which is mirrored onto both, so the union
+#     of the two legs is what it has to clear; and the roll check is
+#     sign-symmetric anyway (the sweep measures 0.60 mm at BOTH +55 and -55).
+#     The ADDUCTION side is a formality here for the same reason it is in
+#     firmware/main/mech_envelope.h: the legs hit EACH OTHER at ~9 deg, which
+#     no single-leg CAD check and no per-joint number can express. That
+#     constraint lives in v4rom's inter-leg collision geoms.
+#   hip_pitch +60 -> +90 backward. CAD keeps 0.70 mm of grip-screw/yoke
+#     buffer at +90, and both hips were driven there on the robot the same
+#     day. The old +60 was the test stand's limit, not the joint's. Forward
+#     flexion -110 unchanged.
+#   knee unchanged at (-5, +95) physical -- see the note above. The measured
+#     mechanical envelope is +-95 both ways, and this dict is the mechanical
+#     source, so the flexion side is already the measurement; the -5 is the
+#     plant's deliberate hyperextension cap, kept because the interference
+#     sweep has nothing to say about a pose the design forbids.
 ROM = {
     "hip_yaw": (-45.0, 45.0),
-    "hip_roll": (-25.0, 25.0),
-    "hip_pitch": (-110.0, 60.0),
+    "hip_roll": (-55.0, 55.0),
+    "hip_pitch": (-110.0, 90.0),
     "knee": (-5.0, 95.0),
     "ankle": (-40.0, 40.0),
 }

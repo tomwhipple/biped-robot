@@ -54,6 +54,22 @@ def _actuated_slices(m):
     return (int(qadr.min()), int(qadr.max()) + 1,
             int(vadr.min()), int(vadr.max()) + 1)
 
+
+def policy_range(m):
+    """Per-actuator (lo, hi) the POLICY trains in, radians. EXACT MIRROR of
+    sim/walker_env.py's policy_range() -- read the docstring there for why the
+    policy range and the joint's mechanical stop are separate numbers, and why
+    a plant that declares no ctrlrange (v2, v3yaw, every legacy referee) is
+    bit-identical to what it always was. Duplicated rather than imported so
+    the MJX env keeps its standalone import graph, like the _TICK_* block."""
+    jnt = m.actuator_trnid[:, 0]
+    lo = np.array(m.jnt_range[jnt, 0], dtype=float)
+    hi = np.array(m.jnt_range[jnt, 1], dtype=float)
+    lim = np.asarray(m.actuator_ctrllimited).astype(bool)
+    lo[lim] = np.asarray(m.actuator_ctrlrange)[lim, 0]
+    hi[lim] = np.asarray(m.actuator_ctrlrange)[lim, 1]
+    return lo, hi
+
 _STS_STALL_12V = 2.94                        # N*m  (30 kg*cm @12V)
 _STS_NOLOAD_12V = float(np.deg2rad(60.0) / 0.222)   # 4.712 rad/s @12V
 _PAYLOAD_REF = 0.154                         # kg, GoPro MAX incl. battery
@@ -550,15 +566,21 @@ class BimoMJXEnv:
         _mw[np.asarray(self._i_knee)] = mimic_knee_w
         self._mimic_w = jp.asarray(_mw)
         if hip_flex_deg is not None:
+            # training-range knob: moves the ctrlrange on a split plant, the
+            # joint limit on the legacy ones (mirror of walker_env.py)
             for i in (self._jname2i["L_hip_pitch"], self._jname2i["R_hip_pitch"]):
-                m.jnt_range[jnt[i], 0] = -np.deg2rad(hip_flex_deg)
+                if m.actuator_ctrllimited[i]:
+                    m.actuator_ctrlrange[i, 0] = -np.deg2rad(hip_flex_deg)
+                else:
+                    m.jnt_range[jnt[i], 0] = -np.deg2rad(hip_flex_deg)
             self.model = mjx.put_model(m)      # re-upload patched ranges
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
         self.hip_flex_deg = hip_flex_deg
-        self._lo = jp.asarray(m.jnt_range[jnt, 0])
-        self._hi = jp.asarray(m.jnt_range[jnt, 1])
+        _plo, _phi = policy_range(m)
+        self._lo = jp.asarray(_plo)
+        self._hi = jp.asarray(_phi)
         self._default = jp.asarray(m.qpos0[self._jq0:self._jq1])
         self._scale = 0.5 * (self._hi - self._lo)
         self._qpos0 = jp.asarray(m.qpos0)
@@ -715,11 +737,10 @@ class BimoMJXEnv:
         self.obs_size = self.obs_frame * self.obs_hist_len
         # foot BODY ids for slip velocities (cvel linear part)
         self._foot_bids = (m.body("L_foot").id, m.body("R_foot").id)
-        # soft joint limits (90% of range) for the dof-limit penalty
-        _mid = 0.5 * (np.asarray(m.jnt_range[jnt, 0])
-                      + np.asarray(m.jnt_range[jnt, 1]))
-        _half = 0.5 * (np.asarray(m.jnt_range[jnt, 1])
-                       - np.asarray(m.jnt_range[jnt, 0]))
+        # soft joint limits (90% of range) for the dof-limit penalty. POLICY
+        # range, not the mechanical stop -- see walker_env.py's mirror.
+        _mid = 0.5 * (_plo + _phi)
+        _half = 0.5 * (_phi - _plo)
         self._soft_lo = jp.asarray(_mid - 0.9 * _half)
         self._soft_hi = jp.asarray(_mid + 0.9 * _half)
         # swing-foot reference: standing sole centers relative to the torso

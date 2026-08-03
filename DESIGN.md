@@ -1653,12 +1653,171 @@ knee axis on purpose: they are frozen referees for historical runs, not the
 plant anything trains on. `sim/mjx/check_sit_pose.py` still points at
 `bimo_biped_v2_asbuilt.xml` and therefore still checks the old convention.
 
+### v4rom: the legs can touch each other, and two stops were fake (2026-08-03)
+
+The 2026-08-03 bench + CAD session measured the robot against the plant and
+found `bimo_biped_v3yaw.xml` wrong in two directions at once: it *forbade*
+travel the machine has, and it *allowed* poses the machine physically cannot
+reach. `sim/bimo_biped_v4rom.xml` is the successor that fixes both. It is
+opt-in — `--xml` on train/eval — and **v3yaw remains the scoring plant for
+every existing run**, so no scorecard in `sim/runs/` is touched or invalidated
+by this commit.
+
+**The legs went through each other.** Every internal part in this model is
+`contype 0 / conaffinity 0`, and the two feet were deliberately un-collided on
+2026-07-30 (foot-on-foot box manifolds were what broke MJX parity gates 2g/2h).
+The result: nothing on this robot could touch anything else on this robot. The
+bench says otherwise, twice:
+
+- **hip-roll adduction** loads up at ≈ **−9°** from standing, and a torque-off
+  leg comes to rest at −7° leaning on its neighbour. The plant happily drove
+  both hips to their ±25° stop, legs interpenetrating. The `bench_rom_sweep`
+  tool has been capping inward roll at 6° by hand because of this.
+- **hip yaw**, thighs raised 90° with the shanks hanging, crosses shank-on-shank
+  at ≈ **±8.5°** per side — while standing toe-in is clean out to the
+  errata-tested 20°. Same joint, two different limits, because it is not a
+  limit: it is a *pose-dependent contact*.
+
+Neither is expressible as a joint range, which is exactly why
+`firmware/main/mech_envelope.h` leaves them out of the bench clamp table. The
+plant needs geometry, so v4rom adds four capsules — one per thigh, one per
+shank, on the segment's own joint axis, 30 mm long, r = 14.7 mm — and four
+explicit `<contact><pair>` entries covering L×R thigh/shank. The capsules carry
+`contype 0 / conaffinity 0`, so those four pairs are the *complete* list of
+things on this robot that can collide with each other; nothing is left to a
+contype-bit filter that would also have collided each leg with itself.
+
+The capsule is the top-of-segment **servo case** (the widest thing on the leg,
+half-width 16.05 mm, spanning local z +10.1…−35.1 mm) reduced to its inscribed
+cylinder about the joint axis — 14.7 mm is the case's *inner* half-width, the
+face that actually meets the other leg. But the size is **calibrated, not
+copied**: 14.7 mm × 30 mm is the pair that reproduces both measurements at once.
+The capsule's lowest point sits 170 mm below the roll axis and the hips are
+56 mm apart, so adduction closes at `asin((56 − 29.4)/170)` = **9.0°**; in the
+raised-thigh pose the shanks stand 90 mm out from the yaw axes, so a symmetric
+inward yaw closes at `asin((56 − 29.4)/180)` = **8.5°**. Measured: 9° and 8.5°.
+A capsule reaching further down the shank contacts at ~6°, one sized to the
+case's *outer* face at ~7° — the two constraints together pin it. Sanity: the
+poses that must stay clean have ≥ 26.6 mm of air (90/90 sit, full −95° knee
+flexion, deep crouch, toe-in to the ±45° range edge, the new 55° abduction,
+hip pitch ±90/−110). `tests/test_rom_contacts.py` asserts the onsets to ±2°,
+which is about what "load onset" is worth as a measurement given the same
+sweep saw the torque-off rest at −7°.
+
+Dynamic check, `action_map="full"`, commanding both hips to full adduction for
+3 s: v3yaw drives to **−25.0°/+25.0°** (legs through each other), v4rom settles
+at **−4.8°/+4.5°** — the symmetric both-legs-adducting onset is 4.5° per side,
+and the contact holds it there without blow-up.
+
+**How the new contact behaves across the two engines** (measured, airborne, so
+the floor is not involved). *Geometry*: MJX and the CPU referee agree on the
+capsule separation to **1e-6** at every probe angle, and both flip sign at the
+same place — one analytic capsule-capsule manifold, no box corners for MJX's
+1 mm skin to prune, which is the failure mode that retired the foot-on-foot
+box contact in July. `tests/test_rom_contacts.py` gates this. *Manifolds*: over
+120 synced steps with both hips driven into the stop, the engines saw the same
+contact set on 119 — the one miss is a grazing step at zero force. *Loaded
+arithmetic*: pressed hard (1–2.5 mm of penetration under a full-range roll
+command) a single synced step diverges by up to **1.5e-5 rad qpos / 1.3e-3
+rad/s qvel**, scaling with contact force and falling to float64 noise
+(1e-11) as the load comes off. That is a constraint-solver difference, not a
+manifold one, and it is the same order as — actually smaller than — the
+foot-impact transients `parity_test.py` already documents and handles the same
+way: DR in training, CPU referee for scoring. `sim/mjx/parity_test.py` is
+**not** extended with a v4rom block; it gates arithmetic in regimes chosen to
+be contact-free precisely so this class of difference stays out of it, and a
+block that had to be gated at 1e-4 would not be gating anything the pytest does
+not already pin harder. Worth knowing before reading a v4rom training curve: a
+policy that spends its time leaning on its own legs is in the one regime where
+the two engines are only approximately the same robot.
+
+The other consequence of a soft contact: pressed at full actuator force the
+capsules sink 1–6 mm, i.e. the legs overlap by up to ~2° more than the onset.
+The onsets above are measured at zero load, which is what the bench measured
+too ("load onset"), and `solref` is left at the model default — the same one
+the pads and the floor use.
+
+**Two stops were narrower than the machine.** Hip-roll **abduction** is
+CAD-clear to 55° per side (buffer sweep: 0.60 mm at 55°, 0.33 at 70°, 0.00 at
+90° — the ~90° the design was assumed to have is refuted by the geometry that
+got printed), and hip **pitch** runs to **+90°** backward (0.70 mm of
+grip-screw/yoke buffer, and both hips were driven there on the robot that day
+after re-centring the left hip-pitch encoder). v4rom's joint limits become
+`L_hip_roll −25…+55`, `R_hip_roll −55…+25` — **asymmetric per leg**, because
+positive roll moves the toe toward the robot's left, so the same physical
+abduction is +55 on one leg and −55 on the other — and `hip_pitch −110…+90` on
+both. The −25 adduction side is kept as a modelling floor rather than a
+measurement: the legs touch at 9° now, so the joint's own stop on that side can
+never be reached.
+
+**The knee stays −95…+5, having gone looking for a reason to change it.** ±95°
+is the measured mechanical envelope, but hyperextension is a failure mode, not
+an operating mode, and nothing in the hardware session argued for a policy that
+hyperextends. It is also the one joint whose plant stop *protects* the machine
+rather than describing it — the 4095-tick encoder wrap is why `R_knee` had to be
+re-centred at all. Opening it stays a deliberate, separate decision.
+
+**The action-map decision, and why the widening is free.** Both envs derive the
+action map from the model: `action_map="full"` spans `hi − default` above the
+pose and `default − lo` below, `"legacy"` scales by `0.5·(hi − lo)`, and both
+read `lo/hi` straight off `jnt_range`. So *widening a joint limit silently
+rescales every action a trained policy emits* — a 55° roll limit would mean
+`action = −1` on the roll channel commands 55° instead of 25°, and every
+scorecard describing that channel becomes fiction. The same numbers also set
+the init-pose clips, the reset randomization and the 90 % soft-limit penalty.
+
+The alternative is the split the **firmware already runs**: `obs_spec.h`'s
+`kJointLo/kJointHi` (policy range, action scaling) versus `mech_envelope.h`
+(bench clamp, mechanical truth). v4rom adopts it in the plant. The joint limits
+become the mechanical stop; the **policy range** moves onto an explicit
+`ctrlrange` on each `<position>` actuator, holding every joint at v3yaw's
+numbers exactly. `policy_range()` in `sim/walker_env.py` (mirrored in
+`sim/mjx/env_mjx.py`) prefers `ctrlrange` when the plant declares one and falls
+back to `jnt_range` when it does not — so `bimo_biped_v2*.xml`, `v3yaw` and
+every legacy referee load **bit-identically** and their runs keep meaning what
+they meant. `hip_flex_deg`, being a training-range knob, moves the ctrlrange on
+a split plant and the joint limit on the old ones.
+
+Two consequences worth stating. `tools/gen_obs_spec.py` emits `kJointLo/kJointHi`
+from `env._lo/_hi`, so a run trained on v4rom still ships the *policy* range to
+the robot and `mech_envelope.h`'s containment `static_assert` still holds — no
+firmware change is needed to deploy off this plant. And `ctrlrange` is in the
+actuator's own units, which the compiler does **not** convert under
+`angle="degree"` (it converts `jnt_range` and geometry, not controls), so those
+ten lines are spelled in radians inside a degree file; the test asserts each
+against the degree value it is supposed to be.
+
+**Migration cost for the lineage.** A v3yaw-trained policy's actions mean the
+*same joint angles* on v4rom — asserted, both action maps, plus identical
+masses, inertias and standing height (0.3249 m), and a bit-identical
+stand-still return of 410.85 over 250 steps. What it does not know is the new
+contacts: any behaviour that leaned on legs passing through each other now hits
+something. So the next round is a **warm start from `loco_v12knee_warm` on
+`--xml sim/bimo_biped_v4rom.xml`**, not a cold retrain, and it is expected to
+survive — the precedents are `v8foot` (foot contact patch replaced) and
+`v12knee_warm` (the knee sign flipped outright, and the warm start still beat
+the cold one). Score it on v4rom; v3yaw scorecards stay valid *for v3yaw* and
+the two columns are not comparable once contacts differ. Opening the extra
+abduction and back-pitch travel to the *policy* is a further, separate commit
+that would cost a real retrain — v4rom deliberately does not spend that.
+
+**CAD.** `cad/dimensions.py ROM` now sources the v4rom **joint limits** (the
+mechanical stop — a part that only clears the training box is a part the bench
+can break): `hip_roll ±55`, `hip_pitch −110…+90`, knee unchanged at its physical
+`(−5, +95)`. Roll is written symmetric because this file describes *one* leg
+that gets mirrored onto both, and the check is sign-symmetric in any case
+(0.60 mm at both +55 and −55). `check_assembly.py`'s hardcoded probe lists grew
+to match (roll ±55 in the hip-stack and deep-flexion sweeps, hip +90/+95 in the
+thigh sweep). It re-runs **ALL CLEAR**, including thigh-at-−115° crossed with
+±55° roll.
+
 ## 6. Design parameters (source of truth)
 
 | Param | Value |
 |---|---|
 | Servo (STS3215) | 45.2 × 24.6 × 35.1 mm, 55 g, 2.94 N·m stall |
-| Joint limits | hip-roll ±25°, hip-pitch ±60°, knee −95..+5° (flexion is **negative**: MJCF axis `0 -1 0`, so this is 95° of flexion and 5° of hyperextension — see "The knees bent the wrong way"), ankle ±40° |
+| Joint limits (mechanical, `v4rom`) | hip-yaw ±45°, hip-roll 25° adduction / **55° abduction** (asymmetric per leg: L −25…+55, R −55…+25), hip-pitch **−110…+90°**, knee −95…+5° (flexion is **negative**: MJCF axis `0 -1 0`, so this is 95° of flexion and 5° of hyperextension — see "The knees bent the wrong way"), ankle ±40°. Leg-on-leg contact rules before the roll and yaw stops in most poses — see "v4rom". |
+| Policy range (what a policy trains in) | hip-roll ±25°, hip-pitch −110…+60°, others as above. Carried as `ctrlrange` on v4rom's actuators, unchanged from `v3yaw`; widening it rescales the action map and costs a retrain. |
 | Segment lengths | thigh ≈ 90 mm, shin ≈ 90 mm (servo + bracket) |
 | Torso (D×W×H) | 46 × 104 × 72 mm; head 46 × 62 × 42 mm |
 | Hip separation | 56 mm (leg center-to-center) |

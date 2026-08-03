@@ -1,0 +1,553 @@
+<!-- ===================================================================== -->
+<!-- v4rom (2026-08-03) -- successor to bimo_biped_v3yaw.xml. Two defects the
+     2026-08-03 hardware/CAD session found in v3yaw, and nothing else:
+
+       A. THE LEGS COULD PASS THROUGH EACH OTHER. Every internal part in this
+          model is contype 0 / conaffinity 0 (and the two feet were explicitly
+          un-collided on 2026-07-30 for parity reasons), so the plant let one
+          hip roll 25 deg into adduction, or both hips yaw a crossed pair of
+          shanks straight through one another. On the robot they touch:
+            * hip-roll ADDUCTION: load onset at ~9 deg from the standing pose,
+              and a torque-off leg comes to rest at -7 deg leaning on its
+              neighbour (bench sweep, docs/servo-map.md "Model-range sweep");
+            * hip-YAW inward cross with the thighs raised 90 deg and the shanks
+              hanging: shank-on-shank at ~8.5 deg per side; standing toe-in is
+              clean out to the errata-tested 20 deg.
+          A per-joint range CANNOT express either -- both are pose-dependent,
+          which is why firmware/main/mech_envelope.h deliberately leaves them
+          out. This plant adds the collision geometry instead (class="legcol"
+          + the explicit <contact> pairs at the bottom of the file).
+
+       B. TWO JOINT LIMITS WERE NARROWER THAN THE MACHINE. Hip-roll abduction
+          is CAD-clear to 55 deg per side (buffer sweep 2026-08-03: 0.60 mm at
+          55, 0.33 at 70, 0.00 at 90 -- the user's ~90 deg design expectation
+          is refuted by the printed geometry), and hip-pitch runs to +90 deg
+          backward (CAD grip-screw/yoke buffer 0.70 mm at +90, hardware-
+          verified 2026-08-03 on both hips). v3yaw said +/-25 and -110..+60.
+
+     WHAT DID *NOT* CHANGE, and why:
+       * The KNEE stays -95..+5. +-95 is the measured MECHANICAL envelope, but
+         hyperextension is a failure mode, not an operating mode; the plant is
+         held as a strict subset of the machine on purpose (see the L_knee
+         comment). This is a re-affirmed modelling choice, not an oversight.
+       * The POLICY RANGE of every joint is byte-identical to v3yaw. The
+         widened numbers above are the JOINT limits -- the mechanical stop the
+         physics enforces. What a policy may command is now carried separately,
+         as an explicit ctrlrange on each <position> actuator, and that is what
+         sim/walker_env.py and sim/mjx/env_mjx.py scale actions against. This
+         is the same split the firmware already runs: obs_spec.h's
+         kJointLo/kJointHi (policy, action scaling) vs mech_envelope.h (bench,
+         mechanical truth). Widening a policy range rescales the action map and
+         invalidates every trained run; widening a mechanical stop does not.
+         Opening the new travel to the policy is a separate, deliberate commit.
+       * Masses, inertias, meshes, pads, sensors, actuator gains: untouched.
+         The legcol geoms are mass 0 and every body carries an explicit
+         <inertial>, so the dynamics away from contact are v3yaw's exactly.
+       * The FEET still do not collide with each other. The 2026-07-30 finding
+         stands (MJX vs CPU box-box manifolds broke parity gates 2g/2h), and
+         the measured contact is "shank-on-shank" in any case. Foot crossing
+         remains a reward-shaping matter (w_foot_cross) plus check_sit_pose's
+         5 mm sole-gap assertion.
+
+     Contact onsets are PINNED BY TEST: tests/test_rom_contacts.py replays the
+     two bench scenarios on this file and asserts the onsets to +/-2 deg.
+     v3yaw remains the scoring plant for every existing run; this file is
+     opt-in via the --xml flag on train/eval. -->
+<!-- ===================================================================== -->
+<!-- HIP-YAW 10-DOF variant of bimo_biped_v2_asbuilt.xml (2026-07-23,
+     morphology A/B for docs/hip-yaw-study.md). Two changes vs the as-built
+     plant:
+       1. A hip-yaw joint per side (yaw-first stack, Open Duck arrangement):
+          a new L_hip_yaw / R_hip_yaw hinge (axis 0 0 1, range +/-45 deg,
+          same joint-default class) mounted on the pelvis ABOVE the roll
+          servo, carrying the unchanged roll->pitch->knee->ankle leg chain.
+          The moving carrier body holds a 0.0775 kg box (carrier print + the
+          roll servo, which relocates onto the carrier -- "yaw_carrier"
+          segment = carrier + roll servo, 77.5 g/leg per CAD parts.py, §6);
+          group 3, non-colliding. Its mass is SPRUNG on the pelvis side of
+          the roll joint, so leg inertia and the swing dynamics every gait
+          learned stay close. The two deck-mounted yaw servos (0.055 kg each)
+          do NOT rotate with the joint -- they add to the torso; since the
+          roll servos vacate the torso for the carriers, this is a
+          mass-neutral swap (both 55 g), so the torso inertial is kept as-is.
+          Two more position actuators (same class/gains) drive the joints.
+       -- TRUE stack height 40.8 mm (YAW_STACK_DROP, CAD final 2026-07-23,
+          §6): the two servos cannot nest about the shared vertical axis, so
+          the second stacks in full. Standing height grows accordingly:
+          torso z 0.283 -> 0.324 (+0.041 m; the earlier +0.028 was the
+          optimistic study estimate). The hip-yaw joint plane lands at world
+          z ~0.288 (CAD HIP_YAW_Z ~286 mm); the leg geometry BELOW the yaw
+          joint is unchanged (hip-roll origin stays at world z 0.247). Envs
+          derive the standing height and the joint count/layout from the
+          model, so the taller 10-DOF plant works with no code literals.
+       2. Torsional sole/floor friction ON (condim="4" on the class="pad"
+          ground-contact geoms and the floor), same as
+          bimo_biped_v2_asbuilt_torsion.xml -- both arms of the A/B run on
+          the honest, twist-resisting plant.
+     Masses/inertia for the carrier segment are APPROXIMATED (single box),
+     pending a full inertia rollup. Everything else identical to as-built. -->
+<!-- Descended from the as-built variant of bimo_biped_v2.xml (2026-07-17).
+     Torso carries the tower-top accessory stack (imu_carrier + BNO055 +
+     gopro_base). INERTIA, the servo blocks and (since 2026-07-30) the GROUND
+     CONTACT all track the current CAD:
+
+     - <inertial> on every body is regenerated by sim/build_v2_inertia.py from
+       the current cad/stl/*.stl. Do not hand-edit them; rerun the script.
+     - <geom class="servo"> boxes are the REAL case: 32.10 thick along the
+       output axis, centred +1.30 toward the horn. They used to be SV_CASE_T
+       (34.70) centred on zero, which is a phantom mirrored case -- the same
+       one the CAD mocks carried until 2026-07-30.
+     - GROUND CONTACT is now EIGHT class="pad" spheres per foot on the real
+       sole outline: 116 x 52 with R14 corners (CAD FOOT_L/FOOT_W/FOOT_*_R,
+       and user calipers 2026-07-30 measured the PRINTED foot at 52 x 116 --
+       they agree, so the plant now matches the bench). The 8 sit on the
+       corner-arc tangent points, the inscribed octagon: full 116 length at
+       y +/-12, full 52 width over x -38..+50. It used to be one 90 x 46 @
+       x+10 box (the "as-built 100 mm foot" belief), and briefly four spheres
+       on a 106 x 46 patch that was neither the as-built nor the CAD outline. L_sole/R_sole survive as NON-COLLIDING
+       reference geoms at their old pose because the envs read their geom_xpos
+       (see the L_pad_* comment in L_foot for the full story, including why the
+       CAD-true sole broke parity gates 2g/2h on the first attempt -- it was
+       foot-ON-foot box collision, NOT box-on-plane). Standing torso z is
+       unchanged at 0.3249 (the pads' z did not move).
+     - The two feet NO LONGER COLLIDE WITH EACH OTHER. They were the only
+       self-colliding pair in the model; the leg meshes already pass through
+       one another. Foot crossing is a reward-shaping matter (w_foot_cross)
+       and a check_sit_pose assertion, not a contact any more.
+
+     Foot MESH is class="cadvis", decoration only, and points at the CAD-current
+     cad/stl/foot.stl; the frozen 191777e copy at cad/stl/foot_asbuilt.stl was
+     deleted 2026-07-30. The rendered foot and the contact patch now agree.
+
+     The contact patch MATCHES THE BENCH as of 2026-07-30 (user: "keep the
+     model consistent with what's printed", calipers 52 x 116 with rounded
+     corners). The earlier note here claimed the plant led the hardware by
+     16 mm; that rested on the as-built 90 x 46 figure, which the calipers
+     retire. Re-measure and update this block if the foot is reprinted. -->
+
+<mujoco model="bimo_like_biped_v2">
+  <!-- PROPOSED update matching the realized CAD (cad/parts.py, cad/dimensions.py).
+       Differences vs bimo_biped.xml (v1):
+         1. Torso center 0.280 -> 0.283 m (ankle axis is 16.9 mm above ground:
+            the STS3215 lies on its side in the foot, axis at half its 24.72 mm
+            width above the pocket floor; v1 assumed 14 mm).
+         2. Foot sole 96 x 52 x 8 mm, center 10 mm ahead of the ankle
+            (v1: 84 x 48 x 12 at +12) - matches the printed foot + TPU pad.
+         3. Head geom removed: no head is built; electronics tower stays within
+            the torso box envelope. Its mass is folded into the torso.
+         4. Explicit masses from the CAD mass rollup + measured servo mass
+            (55 g each), instead of tuned densities:
+              torso 341.8 g (pelvis+tower prints, 2 roll servos, 3S LiPo 80 g,
+              tower-top imu_carrier+BNO055+gopro_base 14 g,
+                           driver board 20 g, wiring/screws)
+              hip link 29 g (yoke_roll + yoke_pitch + screws)
+              thigh/shin 79 g each (servo + leg_link + screws)
+              foot 91 g (servo + foot print + TPU pad + screws)
+            Total 0.879 kg (v1: 0.93 kg).
+         5. Joint offsets unchanged: hip-roll -36, roll->pitch 50, thigh 90,
+            shin 90 (all confirmed buildable with the real servo dimensions).
+         6. CAD-true inertia: explicit <inertial> per body, computed from the
+            printed-part STL meshes (cad/stl/, PLA rho*0.90) plus servo/battery/
+            board boxes at their CAD positions (sim/build_v2_inertia.py; box
+            geoms remain for collision/visuals, masses kept as documentation).
+       Joint ranges and actuator model unchanged.
+       7. CAD meshes (cad/stl/) as geoms: class "cad" parts collide with the
+          floor via their convex hulls (contype 2 vs floor conaffinity 3), so
+          falls, knee strikes and shin-fork grazes on bumps are physical --
+          but NOT with the pads/each other (ground contact is the class="pad"
+          spheres on the real 116 x 52 sole outline; foot mesh is
+          visual-only to avoid doubling that contact). Legacy segment boxes
+          moved to group 3 (hidden, non-colliding, masses documentation-only:
+          real inertia is the explicit <inertial> per body). -->
+  <compiler angle="degree" autolimits="true" meshdir="../cad/stl"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+
+  <visual>
+    <global offwidth="900" offheight="1100"/>
+    <headlight diffuse="0.7 0.7 0.7" ambient="0.35 0.35 0.35"/>
+  </visual>
+
+  <default>
+    <joint type="hinge" damping="0.6" armature="0.008" frictionloss="0.02" limited="true"/>
+    <position kp="40" forcerange="-3 3"/>          <!-- STS3215 ~2.9 N*m stall -->
+    <geom contype="0" conaffinity="0"/>            <!-- internal parts don't self-collide -->
+    <default class="cad">
+      <geom type="mesh" contype="2" conaffinity="0" group="1" rgba="0.82 0.84 0.87 1"/>
+    </default>
+    <default class="cadvis">
+      <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.82 0.84 0.87 1"/>
+    </default>
+    <default class="servo">
+      <geom contype="2" conaffinity="0" group="1" rgba="0.22 0.23 0.27 1"/>
+    </default>
+    <!-- ground-contact primitives for the soles (2026-07-30). contype 1 vs the
+         floor's conaffinity 3 -> they hit the floor; conaffinity 0 -> they do
+         NOT hit each other, so the two feet no longer collide (see the
+         L_pad_* block in L_foot for why). condim/friction are the old sole
+         box's, so torsional sole friction is unchanged. mass 0: every body
+         carries an explicit <inertial>, which is what physics uses. -->
+    <default class="pad">
+      <geom type="sphere" size="0.003" contype="1" conaffinity="0" mass="0"
+            friction="1 0.02 0.001" condim="4" rgba="0.20 0.21 0.24 1"/>
+    </default>
+    <!-- INTER-LEG collision primitives (v4rom, 2026-08-03). contype AND
+         conaffinity are 0, so these geoms take part in NO automatic collision
+         at all -- not with the floor, not with the meshes, not with the other
+         segments of their own leg. Every contact they can make is written out
+         by hand in the <contact> block at the bottom of the file, which is
+         exactly the four LEFT-vs-RIGHT pairs. That is deliberate: a shared
+         contype bit would also have collided L_thigh with L_foot (grandparent,
+         so not filtered by filterparent) and every other same-leg pair, and
+         the model has never claimed to be self-intersection-free within a leg.
+
+         SHAPE. One capsule per thigh and per shank, on the segment's own joint
+         axis, from the joint down 30 mm, radius 14.7 mm. That is the SERVO
+         CASE at the top of each segment -- the widest thing on the leg and the
+         only thing at that height (geom class="servo", half-width 16.05 in y,
+         spanning local z +10.1..-35.1 mm) -- reduced to its inscribed cylinder
+         about the joint axis: 14.7 mm is the case's INNER half-width (14.75),
+         the face that actually meets the other leg. Modelling it as a cylinder
+         rather than the real offset box keeps the two legs symmetric, so one
+         measured onset pins both sides.
+
+         SIZE IS CALIBRATED, NOT COPIED. The 14.7 mm radius and the 30 mm
+         length are the pair that reproduces BOTH bench measurements at once:
+           adduction, standing, one hip rolled:
+             the capsule's lowest point is 170 mm below the roll axis, the hips
+             are 56 mm apart, so contact at asin((56 - 2*14.7)/170) = 9.0 deg;
+           yaw cross, hip pitch -90 + knee -90 (thighs level, shanks hanging),
+             both hips yawed inward:
+             the shanks stand 90 mm out from the yaw axes, so contact at
+             asin((56 - 2*14.7)/(2*90)) = 8.5 deg.
+         Measured: 9 deg and 8.5 deg. A capsule reaching further down the shank
+         would contact at ~6 deg, one sized to the case's outer face at ~7.
+         Retune both numbers together against a new measurement, not one alone;
+         tests/test_rom_contacts.py fails if either onset moves by 2 deg. -->
+    <default class="legcol">
+      <geom type="capsule" size="0.0147" contype="0" conaffinity="0" mass="0"
+            group="4" rgba="0.85 0.35 0.25 0.30"/>
+    </default>
+  </default>
+
+  <asset>
+    <!-- checker floor: the render camera tracks the torso, so an untextured
+         plane makes the dash look like running in place -->
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.87 0.89 0.92"
+             rgb2="0.77 0.80 0.85" width="512" height="512"/>
+    <material name="floor_mat" texture="grid" texrepeat="24 24" texuniform="true"/>
+    <mesh name="pelvis"     file="pelvis.stl"     scale="0.001 0.001 0.001"/>
+    <mesh name="tower"      file="tower.stl"      scale="0.001 0.001 0.001"/>
+    <mesh name="gopro_base" file="gopro_base.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="yoke_roll"  file="yoke_roll.stl"  scale="0.001 0.001 0.001"/>
+    <mesh name="yoke_pitch" file="yoke_pitch.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="leg_link"   file="leg_link.stl"   scale="0.001 0.001 0.001"/>
+    <mesh name="foot"       file="foot.stl"               scale="0.001 0.001 0.001"/>
+    <mesh name="yaw_carrier" file="yaw_carrier.stl" scale="0.001 0.001 0.001"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0.6 0.4 1.5" dir="-0.4 -0.3 -1" directional="true"/>
+    <geom name="floor" type="plane" size="3 3 0.1" contype="1" conaffinity="3"
+          material="floor_mat" friction="1 0.02 0.001" condim="4"/>
+
+    <body name="torso" pos="0 0 0.324">   <!-- +0.041 m: YAW_STACK_DROP 40.8 mm -->
+      <freejoint/>
+      <!-- 2026-07-28 board swap: TOWER_W 42->56, TOWER_H 43.5->75, board now
+           upright on the +x side. Regenerate with sim/build_v2_inertia.py, do
+           not hand-edit. Torso mass 341.8 -> 402.3 g (+18%) and its COM rises
+           2.9 -> 14.6 mm. Fore-aft it stays balanced: the board's +x bias is
+           very nearly cancelled by the pack reseating to -9.0, so COM x is
+           +0.6 mm. THE PLANT HAS CHANGED -- loco_v5t was trained on the old
+           torso and must at minimum be re-validated. -->
+      <inertial pos="0.0010 -0.0002 0.0145" quat="0.9995 0.0108 0.0285 -0.0011" mass="0.4023" diaginertia="7.4893e-04 5.7955e-04 3.5722e-04"/>
+      <!-- non-colliding visual proxy (contype/conaffinity 0, group 3); the
+           explicit <inertial> above is what physics uses. x half-extent tracks
+           the tower, which is now the widest thing on the torso. -->
+      <geom name="torso" type="box" size="0.028 0.052 0.036" mass="0.4023" rgba="0.80 0.82 0.85 1" group="3"/>
+      <geom class="cad" mesh="pelvis" pos="0 0 0.00411"/>
+      <geom class="cad" mesh="tower" pos="0 0 0.00411"/>
+      <geom class="cad" mesh="gopro_base" pos="0 0 0.07911"/>  <!-- tower top +31.5 mm, 2026-07-28 -->
+
+      <geom name="servo_L_roll" class="servo" type="box" pos="0.0013 0.028 -0.02346" size="0.01605 0.01236 0.02261"/>
+      <geom name="servo_R_roll" class="servo" type="box" pos="0.0013 -0.028 -0.02346" size="0.01605 0.01236 0.02261"/>
+      <geom name="battery" type="box" pos="-0.009 0 0.01661" size="0.015 0.031 0.0125"
+            group="1" rgba="0.16 0.30 0.55 1"/>
+      <!-- IMU now lives ON the General Driver board (upright at +x): honest
+           lever arm for the accelerometer. Axis rotation of the vertical
+           mount is handled by deploy-time calibration + mounting-error DR. -->
+      <site name="imu" pos="0.0146 0 0.0391"/>
+
+      <!-- ================= LEFT LEG ================= -->
+      <!-- hip-yaw carrier (yaw-first): vertical-axis hinge on the pelvis.
+           The 0.0775 kg box is the yaw_carrier segment (carrier print + the
+           roll servo, which now rides on the carrier); the 40.8 mm stack
+           raises the torso but leaves the roll->ankle geometry below
+           unchanged (hip-roll origin at world z 0.247). -->
+      <body name="L_hip_yaw" pos="0 0.028 -0.036">
+        <joint name="L_hip_yaw" axis="0 0 1" range="-45 45"/>
+        <geom name="carrier_L" type="box" pos="0 0 -0.022" size="0.0125 0.0225 0.0175" mass="0.0775" group="3" rgba="0.22 0.23 0.27 1"/>
+        <!-- visual-only (cadvis + mass 0: no collision/inertia change vs the
+             plant the night-3 policies trained on) -- the carrier segment
+             rendered as a floating gap before -->
+        <geom class="cadvis" mesh="yaw_carrier" pos="0 0 -0.0029" mass="0"/>
+        <geom type="box" pos="0.0013 0 -0.0285" size="0.01605 0.01236 0.02261" group="1" rgba="0.22 0.23 0.27 1" mass="0"/>
+      <body name="L_hip" pos="0 0 -0.041">
+        <!-- ROLL RANGE, v4rom: ASYMMETRIC per leg, because the mechanism is.
+             Positive roll moves the toe toward the robot's LEFT
+             (docs/servo-map.md direction table), so for the LEFT leg positive
+             is ABDUCTION -- CAD-clear to +55 (buffer 0.60 mm; 0.33 at 70,
+             0.00 at 90) -- and negative is ADDUCTION, where the joint's own
+             stop is irrelevant because the legs touch at ~9 deg. -25 is kept
+             on that side as a modelling floor, not a measurement: nothing can
+             get past the legcol contact anyway. The RIGHT leg is the mirror
+             (-55..+25). The actuator ctrlrange still holds the policy to
+             v3yaw's +/-25 on both. -->
+        <joint name="L_hip_roll" axis="1 0 0" range="-25 55"/>
+        <inertial pos="-0.0005 0.0006 -0.0220" quat="0.9503 -0.2086 0.0257 0.2299" mass="0.0296" diaginertia="1.0758e-05 1.1227e-05 1.0507e-05"/>
+        <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1" group="3"/>
+        <geom class="cad" mesh="yoke_roll"/>
+        <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
+        <body name="L_thigh" pos="0 0 -0.05">
+          <!-- PITCH RANGE, v4rom: +60 -> +90 backward. CAD grip-screw-heads vs
+               yoke_pitch keep 0.70 mm of buffer at +90, and both hips were
+               driven there on the robot 2026-08-03 (knees hyperextended to
+               clear the stand, loads on the pure-gravity curve, no stall) --
+               the old +60 was the stand geometry's limit, not the joint's.
+               Forward flexion -110 is unchanged. Policy range stays -110..+60
+               via the actuator ctrlrange. -->
+          <joint name="L_hip_pitch" axis="0 1 0" range="-110 90"/>
+        <inertial pos="-0.0010 0.0016 -0.0242" quat="0.9999 0.0031 0.0153 0.0020" mass="0.0786" diaginertia="5.5586e-05 4.8599e-05 1.6317e-05"/>
+          <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
+          <geom class="cad" mesh="leg_link"/>
+          <geom class="servo" type="box" pos="0 0.0013 -0.0125" size="0.01236 0.01605 0.02261"/>
+          <geom name="L_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
+          <body name="L_shin" pos="0 0 -0.09">
+            <!-- KNEE SIGN, 2026-08-02: axis is -Y, i.e. NEGATIVE q flexes the
+                 knee the human way (shank swings backward, heel toward the
+                 buttock) and positive q hyperextends. It used to be +Y, which
+                 made the model a bird-style backward-bending knee: -95 was 95
+                 deg of HYPEREXTENSION and the +5 cap was all the flexion the
+                 plant allowed. The robot is calibrated the human-natural way
+                 (docs/servo-map.md, dir -1 on both knees: sim-negative ->
+                 flexion, verified on the robot by camera at -20 deg), so the
+                 old plant and the hardware bent OPPOSITE ways for the same
+                 command. Flipping the axis -- not the range numbers -- is what
+                 makes them agree, and it also makes every knee constant in the
+                 envs (kneel -1.62 rad, sit -0.09, mimic swing-bend) mean what
+                 its name always said.
+                 RANGE: -95 is the MEASURED flexion travel (servo 3 swept to
+                 -94.6/+94.5 deg at <=6% of stall, docs/servo-map.md); +5 is a
+                 deliberate modelling cap on hyperextension, far inside the
+                 +-95 deg mechanical envelope, because a knee that folds
+                 backward is a failure mode, not an operating mode. The plant
+                 therefore stays a strict SUBSET of what the hardware can do.
+                 Keep in step with cad/dimensions.py ROM["knee"], which is
+                 stated as a PHYSICAL +Y rotation and so reads (-5, +95).
+                 v4rom RE-AFFIRMS this, having gone looking for a reason not
+                 to. The 2026-08-03 session widened hip roll and hip pitch to
+                 the measured/CAD-verified mechanical truth and left the knee
+                 alone: the measurement (+-95) was never in doubt, the +5 cap
+                 is a judgement about what the policy should be allowed to ask
+                 for, and nothing in the hardware session argued for a policy
+                 that hyperextends. It is also the one joint where the plant's
+                 stop protects the machine rather than describing it -- the
+                 knee's own 4095-tick encoder wrap is why R_knee had to be
+                 re-centred. Open it only with a reason, in its own commit. -->
+            <joint name="L_knee" axis="0 -1 0" range="-95 5"/>
+        <inertial pos="-0.0010 0.0016 -0.0242" quat="0.9999 0.0031 0.0153 0.0020" mass="0.0786" diaginertia="5.5586e-05 4.8599e-05 1.6317e-05"/>
+            <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
+          <geom class="cad" mesh="leg_link"/>
+          <geom class="servo" type="box" pos="0 0.0013 -0.0125" size="0.01236 0.01605 0.02261"/>
+            <geom name="L_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
+            <body name="L_foot" pos="0 0 -0.09">
+              <joint name="L_ankle" axis="0 1 0" range="-40 40"/>
+        <inertial pos="-0.0046 0.0007 -0.0063" quat="0.9979 0.0225 0.0604 -0.0063" mass="0.1104" diaginertia="2.3884e-05 9.0301e-05 9.8561e-05"/>
+              <!-- GROUND CONTACT = four pad spheres at the CAD TPU-pad corners
+                   (cad/dimensions.py FOOT_L 116: the 106 x 46 x 1.6 silicone
+                   sheet spans x -45..+61, y +/-23, pad bottom at foot-frame z
+                   -17.96 mm == ANKLE_Z). r = 3 mm with centres at z -0.015 puts
+                   each sphere's lowest point at z -0.018, the plane the old box
+                   stood on, so standing height is unchanged (torso z 0.3249).
+
+                   Spheres, not one box, and no foot-foot collision. Both follow
+                   from the 2026-07-30 measurement of why the CAD-true sole
+                   broke parity gates 2g/2h:
+                     * The break was NOT box-on-plane. Those gates are airborne
+                       and CPU sees zero floor contacts in them. It was the two
+                       SOLES hitting EACH OTHER: the old sole carried
+                       conaffinity="1", so L_sole/R_sole were the only
+                       self-colliding pair in the whole model (the class="cad"
+                       leg meshes are conaffinity 0 and pass through each
+                       other freely). At gate-2g t=70 the splayed, yawed
+                       116 mm feet close to 0.31 mm apart; MJX's box-box
+                       collider called that a penetration and CPU's did not,
+                       which is the whole 9.3e-04 dqpos / 1.3e-01 dobs break.
+                       conaffinity="0" on the pads retires that island of
+                       self-collision; foot crossing stays governed by the
+                       w_foot_cross reward and check_sit_pose's 5 mm gap test.
+                     * Sphere-on-plane is ONE analytic contact point that both
+                       engines agree on; MJX prunes box manifolds with a 1 mm
+                       skin and drops corners CPU keeps (parity gate 3 measures
+                       61% agreement on the v2 box soles).
+                     * EIGHT points, not four (2026-07-30, user calipers: "I
+                       measure the current printed foot as 52x116mm, with
+                       rounded corners"). CAD agrees exactly -- FOOT_L 116,
+                       FOOT_W 52, FOOT_TOE_R = FOOT_HEEL_R = 14 -- so the sole
+                       is a rounded rect, and its extreme points in x and y are
+                       at DIFFERENT places: full 116 length only at y +/-12,
+                       full 52 width only over x -38..+50. No 4-point set holds
+                       both. These 8 are the arc tangent points, the inscribed
+                       octagon. The earlier 106 x 46 was neither the as-built
+                       foot nor the CAD outline. -->
+              <geom name="L_pad_hl" class="pad" pos="-0.052 +0.012 -0.015"/>
+              <geom name="L_pad_hr" class="pad" pos="-0.052 -0.012 -0.015"/>
+              <geom name="L_pad_hol" class="pad" pos="-0.038 +0.026 -0.015"/>
+              <geom name="L_pad_hor" class="pad" pos="-0.038 -0.026 -0.015"/>
+              <geom name="L_pad_tol" class="pad" pos="+0.050 +0.026 -0.015"/>
+              <geom name="L_pad_tor" class="pad" pos="+0.050 -0.026 -0.015"/>
+              <geom name="L_pad_tl" class="pad" pos="+0.064 +0.012 -0.015"/>
+              <geom name="L_pad_tr" class="pad" pos="+0.064 -0.012 -0.015"/>
+              <!-- REFERENCE geom, non-colliding (group 3, hidden). pos/size are
+                   frozen at the old 90 x 46 @ x+10 box ON PURPOSE: walker_env /
+                   env_mjx read geom_xpos["L_sole"] for the swing-foot target,
+                   the CoM-over-stance kernel and the lift-clearance zero
+                   (_sole_z0). Keeping it bit-identical means this change moves
+                   the contact patch WITHOUT moving anything a trained policy
+                   observes. Retarget it deliberately, not as a side effect. -->
+              <geom name="L_sole" type="box" pos="0.010 0 -0.0140" size="0.045 0.023 0.004"
+                    contype="0" conaffinity="0" group="3" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001" condim="4"/>
+              <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
+              <geom class="servo" type="box" pos="-0.0125 0.0013 0" size="0.02261 0.01605 0.01236"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      </body>   <!-- L_hip_yaw -->
+
+      <!-- ================= RIGHT LEG ================= -->
+      <body name="R_hip_yaw" pos="0 -0.028 -0.036">
+        <joint name="R_hip_yaw" axis="0 0 1" range="-45 45"/>
+        <geom name="carrier_R" type="box" pos="0 0 -0.022" size="0.0125 0.0225 0.0175" mass="0.0775" group="3" rgba="0.22 0.23 0.27 1"/>
+        <!-- visual-only (cadvis + mass 0: no collision/inertia change vs the
+             plant the night-3 policies trained on) -- the carrier segment
+             rendered as a floating gap before -->
+        <geom class="cadvis" mesh="yaw_carrier" pos="0 0 -0.0029" mass="0"/>
+        <geom type="box" pos="0.0013 0 -0.0285" size="0.01605 0.01236 0.02261" group="1" rgba="0.22 0.23 0.27 1" mass="0"/>
+      <body name="R_hip" pos="0 0 -0.041">
+        <!-- mirror of L_hip_roll: NEGATIVE roll is this leg's abduction, so
+             the CAD-verified 55 deg lands on the low side. -->
+        <joint name="R_hip_roll" axis="1 0 0" range="-55 25"/>
+        <inertial pos="-0.0005 0.0006 -0.0220" quat="0.9503 -0.2086 0.0257 0.2299" mass="0.0296" diaginertia="1.0758e-05 1.1227e-05 1.0507e-05"/>
+        <geom type="box" pos="0 0 -0.025" size="0.0175 0.0123 0.025" mass="0.029" rgba="0.22 0.23 0.27 1" group="3"/>
+        <geom class="cad" mesh="yoke_roll"/>
+        <geom class="cad" mesh="yoke_pitch" pos="0 0 -0.05"/>
+        <body name="R_thigh" pos="0 0 -0.05">
+          <!-- +90 backward, mirror of L_hip_pitch (see there) -->
+          <joint name="R_hip_pitch" axis="0 1 0" range="-110 90"/>
+        <inertial pos="-0.0010 0.0016 -0.0242" quat="0.9999 0.0031 0.0153 0.0020" mass="0.0786" diaginertia="5.5586e-05 4.8599e-05 1.6317e-05"/>
+          <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
+          <geom class="cad" mesh="leg_link"/>
+          <geom class="servo" type="box" pos="0 0.0013 -0.0125" size="0.01236 0.01605 0.02261"/>
+          <geom name="R_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
+          <body name="R_shin" pos="0 0 -0.09">
+            <!-- axis -Y: flexion-negative, mirror of L_knee (see the comment
+                 there for the 2026-08-02 sign fix and the range rationale) -->
+            <joint name="R_knee" axis="0 -1 0" range="-95 5"/>
+        <inertial pos="-0.0010 0.0016 -0.0242" quat="0.9999 0.0031 0.0153 0.0020" mass="0.0786" diaginertia="5.5586e-05 4.8599e-05 1.6317e-05"/>
+            <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
+          <geom class="cad" mesh="leg_link"/>
+          <geom class="servo" type="box" pos="0 0.0013 -0.0125" size="0.01236 0.01605 0.02261"/>
+            <geom name="R_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
+            <body name="R_foot" pos="0 0 -0.09">
+              <joint name="R_ankle" axis="0 1 0" range="-40 40"/>
+        <inertial pos="-0.0046 0.0007 -0.0063" quat="0.9979 0.0225 0.0604 -0.0063" mass="0.1104" diaginertia="2.3884e-05 9.0301e-05 9.8561e-05"/>
+              <!-- mirror of the left foot; see the L_pad_* comment above -->
+              <geom name="R_pad_hl" class="pad" pos="-0.052 +0.012 -0.015"/>
+              <geom name="R_pad_hr" class="pad" pos="-0.052 -0.012 -0.015"/>
+              <geom name="R_pad_hol" class="pad" pos="-0.038 +0.026 -0.015"/>
+              <geom name="R_pad_hor" class="pad" pos="-0.038 -0.026 -0.015"/>
+              <geom name="R_pad_tol" class="pad" pos="+0.050 +0.026 -0.015"/>
+              <geom name="R_pad_tor" class="pad" pos="+0.050 -0.026 -0.015"/>
+              <geom name="R_pad_tl" class="pad" pos="+0.064 +0.012 -0.015"/>
+              <geom name="R_pad_tr" class="pad" pos="+0.064 -0.012 -0.015"/>
+              <geom name="R_sole" type="box" pos="0.010 0 -0.0140" size="0.045 0.023 0.004"
+                    contype="0" conaffinity="0" group="3" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001" condim="4"/>
+              <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
+              <geom class="servo" type="box" pos="-0.0125 0.0013 0" size="0.02261 0.01605 0.01236"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      </body>   <!-- R_hip_yaw -->
+    </body>
+  </worldbody>
+
+  <!-- actuators listed in joint-tree (qpos-address) order so the action
+       vector, qpos slice and default pose all share one index layout:
+       [L_yaw, L_roll, L_pitch, L_knee, L_ankle, R_yaw, R_roll, ...] -->
+  <!-- THE POLICY RANGE (v4rom, 2026-08-03).
+       ctrlrange on a <position> actuator is the range of joint targets the
+       actuator will accept, and it is what sim/walker_env.py and
+       sim/mjx/env_mjx.py scale actions against (_policy_range(): ctrlrange
+       when the actuator declares one, the joint limit otherwise -- so v2,
+       v3yaw and every legacy referee, which declare none, are untouched).
+
+       Every number below is v3yaw's joint range, unchanged, ON PURPOSE. The
+       joint limits above are now the MECHANICAL stop (roll to 55 abduction,
+       pitch to +90 back); the action map must not follow them, because
+       action +-1 is defined as "the edge of the range" and moving the edge
+       silently re-scales every action a trained policy emits. Keeping the
+       policy range fixed is what lets loco_v12knee_warm's weights mean the
+       same joint angles on this plant as on v3yaw -- so a warm start begins
+       at the old behaviour and only has to learn the new CONTACTS. Opening
+       the extra travel to the policy is a deliberate later commit, and it
+       costs a full retrain (precedent: v8foot, v12knee_warm).
+
+       *** UNITS: RADIANS. *** The compiler's angle="degree" converts joint
+       ranges and geom angles; it does NOT convert ctrlrange (MuJoCo leaves
+       actuator control units alone, since a control is not necessarily an
+       angle). These are therefore deg*pi/180, spelled out to 6 decimals, and
+       tests/test_rom_contacts.py asserts each one against the degree value it
+       is supposed to be. Do not "fix" them to look like the joint ranges. -->
+  <actuator>
+    <position name="L_hip_yaw"   joint="L_hip_yaw"   ctrlrange="-0.7853981634  0.7853981634"/>  <!-- -45 .. +45 -->
+    <position name="L_hip_roll"  joint="L_hip_roll"  ctrlrange="-0.4363323130  0.4363323130"/>  <!-- -25 .. +25 -->
+    <position name="L_hip_pitch" joint="L_hip_pitch" ctrlrange="-1.9198621772  1.0471975512"/>  <!-- -110 .. +60 -->
+    <position name="L_knee"      joint="L_knee"      ctrlrange="-1.6580627894  0.0872664626"/>  <!-- -95 .. +5 -->
+    <position name="L_ankle"     joint="L_ankle"     ctrlrange="-0.6981317008  0.6981317008"/>  <!-- -40 .. +40 -->
+    <position name="R_hip_yaw"   joint="R_hip_yaw"   ctrlrange="-0.7853981634  0.7853981634"/>  <!-- -45 .. +45 -->
+    <position name="R_hip_roll"  joint="R_hip_roll"  ctrlrange="-0.4363323130  0.4363323130"/>  <!-- -25 .. +25 -->
+    <position name="R_hip_pitch" joint="R_hip_pitch" ctrlrange="-1.9198621772  1.0471975512"/>  <!-- -110 .. +60 -->
+    <position name="R_knee"      joint="R_knee"      ctrlrange="-1.6580627894  0.0872664626"/>  <!-- -95 .. +5 -->
+    <position name="R_ankle"     joint="R_ankle"     ctrlrange="-0.6981317008  0.6981317008"/>  <!-- -40 .. +40 -->
+  </actuator>
+
+  <!-- INTER-LEG CONTACT (v4rom). The only self-collision in the model, and it
+       is enumerated rather than filtered: the legcol geoms carry contype 0 /
+       conaffinity 0, so these four pairs are the complete list of things on
+       this robot that can touch each other.
+         thigh x thigh   -- crossed-leg poses; onset ~19 deg of adduction, well
+                            behind the shank pair, so it never sets the limit
+                            in the standing sweep. Present so a raised-thigh
+                            cross has something to hit.
+         thigh x shank   -- one leg raised, the other down (scissor).
+         shank x shank   -- THE measured pair: 9 deg adduction standing,
+                            8.5 deg per side on the yaw cross.
+       Feet are deliberately absent (see the header). condim/solref are the
+       MuJoCo defaults -- the same softness the pads and the floor already use.
+       Consequence worth knowing: pressed at full actuator force the capsules
+       sink 1-6 mm, so the legs overlap by up to ~2 deg past the onset. The
+       measured numbers are LOAD ONSETS (the bench read the load rising, not a
+       hard stop), so a compliant contact is the right shape for them. -->
+  <contact>
+    <pair geom1="L_col_thigh" geom2="R_col_thigh"/>
+    <pair geom1="L_col_thigh" geom2="R_col_shank"/>
+    <pair geom1="L_col_shank" geom2="R_col_thigh"/>
+    <pair geom1="L_col_shank" geom2="R_col_shank"/>
+  </contact>
+
+  <sensor>
+    <framezaxis objtype="site" objname="imu" name="torso_up"/>
+    <framepos   objtype="site" objname="imu" name="torso_pos"/>
+  </sensor>
+</mujoco>

@@ -264,7 +264,7 @@ def main():
         arms = Rot(0, ang, 0) * (arm_h + arm_i)
         ok &= check(f"upper arms at {ang:+d} deg", vol(ll, arms))
 
-    print("== hip yokes + thigh servo vs yaw_carrier + roll servo, roll -25..+25 ==")
+    print("== hip yokes + thigh servo vs yaw_carrier + roll servo, roll -55..+55 ==")
     # v3yaw: the roll joint moved from the pelvis bay onto yaw_carrier (identical
     # bay geometry). Roll clearance is now proven against the CARRIER, in its frame
     # (roll axis == X at CARRIER_ROLL_AXIS). The pelvis deck is ~40 mm higher and
@@ -276,7 +276,7 @@ def main():
     roll_axis = D.CARRIER_ROLL_AXIS                     # carrier frame, axis along X
     roll_sv = Pos(0, 0, roll_axis) * servo_mock_x()
     ok &= check("roll servo vs carrier (contact only)", vol(yc, roll_sv))
-    for ang in (0, 25, -25):
+    for ang in (0, 25, -25, 55, -55):   # +-55: the 2026-08-03 abduction widening
         # yoke_roll frame == roll axis at origin along X
         hip = yr + Pos(0, 0, -D.ROLL_TO_PITCH) * yp \
                  + Pos(0, 0, -D.ROLL_TO_PITCH) * thigh_sv
@@ -493,7 +493,7 @@ def main():
     # sideways. Fix: 90-deg countersinks + M2.5 FLAT-head self-tappers, heads
     # flush; these checks hold the whole ROM plus the SWEEP_BUFFER.
     lo, hi = D.ROM["hip_pitch"]
-    for ang in (lo, -95, -60, 0, hi):
+    for ang in (lo, -95, -60, 0, 60, hi):
         ok &= check(f"grip screws at hip {ang:+.0f} vs yoke_pitch",
                     vol(yp, Rot(0, ang, 0) * grip))
     for ang in (lo, hi):
@@ -530,12 +530,12 @@ def main():
           f"{_pad_r:8.2f} mm   {'OK' if _pad_r <= _head_in else '** TOO WIDE **'}")
     ok &= _pad_r <= _head_in
 
-    print("== yoke_pitch vs thigh (leg_link + servo), hip -110/+60 (+5 margin) ==")
+    print("== yoke_pitch vs thigh (leg_link + servo), hip -110/+90 (+5 margin) ==")
     # flexion is NEGATIVE here (knee swings toward +x). The full leg_link rides
     # in this sweep: its idler grip plate / web share the idler arm's Y band,
     # and THEY (not the servo) set the mechanical limit.
     thigh_assy = ll + servo_mock_y()
-    for ang in (0, -60, -95, -105, -110, -115, 60, 65):
+    for ang in (0, -60, -95, -105, -110, -115, 60, 90, 95):
         sv = Rot(0, ang, 0) * thigh_assy
         ok &= check(f"thigh assy at hip {ang:+d} deg", vol(yp, sv))
     # buffer at the ROM extremes, printed+screws only (the servo is excluded:
@@ -549,7 +549,7 @@ def main():
     for ang in (-110, -115):
         th = Pos(0, 0, -D.ROLL_TO_PITCH) * Rot(0, ang, 0) * thigh_assy
         ok &= check(f"thigh at hip {ang:+d} vs yoke_roll", vol(yr, th))
-        for roll in (0, 25, -25):
+        for roll in (0, 25, -25, 55, -55):
             hip_deep = Pos(0, 0, roll_axis) * Rot(roll, 0, 0) * th
             ok &= check(f"thigh at hip {ang:+d} roll {roll:+d} vs carrier",
                         vol(yc, hip_deep))
