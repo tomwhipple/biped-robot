@@ -951,3 +951,22 @@ to CPU during the window, re-warmed onto the GPU after; Aime coordinated
 via ask-aime). skills_v5march stayed HELD in the night queue — it was
 specced pre-fix with an old-plant warm start; re-queue it from a
 corrected-plant base instead.
+
+### Day 14 addendum: the backward_1m SIL gap is the SHAPER, not the stack
+
+Probe (2026-08-03 afternoon): re-ran the SIL referee column on backward_1m
+for loco_v12knee_warm with `sil_set_shaper(0)` forced after setup (episodes
+use sil_reset, which preserves the pole; scorecard written as _partial only).
+Result: **1/8 as-deployed (10 Hz shaper) -> 6/8 shaper-off** vs 8/8 python
+raw. The morning's "one-direction, one-scenario" divergence is therefore the
+C2 command shaping lag degrading this policy's backward gait -- a REAL
+deployment property, not a firmware-stack bug. The residual 6v8 is ordinary
+quantization/free-clock compounding.
+
+Consequences: (1) the day-13 pole sweep (loco_v8foot: stand/line/goal_home)
+never scored a backward scenario -- the 10 Hz pole choice is unvalidated for
+backward walking; (2) the durable fix is training THROUGH the shaper (model
+the C2 lag + goal-speed actuation in the training plant) so policies learn
+compatible gaits -- queue for the next plant/recipe round alongside the
+inter-leg collision geoms; (3) until then, expect backward performance on
+hardware to match the SIL column, not the python one.
