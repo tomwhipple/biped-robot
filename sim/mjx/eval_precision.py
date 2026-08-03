@@ -1315,6 +1315,7 @@ def main():
     tot_succ = tot_runs = tot_fall = 0
     scen_all_pass = 0
     md_rows = []
+    mov_writer, mov_path = None, None
 
     for name in names:
         secs, factory, is_loco = reg[name]
@@ -1361,10 +1362,21 @@ def main():
         if args.render:
             frames = results[0]["frames"]
             if frames:
-                import imageio
-                gif = os.path.join(run_dir, f"prec_{name}{suffix}.gif")
-                imageio.mimsave(gif, frames, fps=20)
-                print(f"  render -> {gif}")
+                # one .mov per referee run, scenarios back to back, in
+                # scorecard order (user 2026-08-03: no per-scenario gifs)
+                if mov_writer is None:
+                    import imageio
+                    mov_path = os.path.join(
+                        run_dir, f"{args.run_name}{suffix}.mov")
+                    mov_writer = imageio.get_writer(
+                        mov_path, fps=20, codec="libx264", quality=8,
+                        macro_block_size=2)
+                for f in frames:
+                    mov_writer.append_data(f)
+
+    if mov_writer is not None:
+        mov_writer.close()
+        print(f"  render -> {mov_path}")
 
     # summary shared aggregates
     def _m(vals):
@@ -1389,6 +1401,12 @@ def main():
     if sil_info:
         summary["sil"] = sil_info
     scorecard["summary"] = summary
+
+    # a --scenarios subset must not clobber the run's full scorecard
+    # (bitten 2026-08-03: a one-scenario render smoke test overwrote the
+    # 11-scenario column)
+    if args.scenarios:
+        suffix = f"{suffix}_partial"
 
     json_path = os.path.join(run_dir, f"scorecard{suffix}.json")
     with open(json_path, "w") as f:
