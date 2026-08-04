@@ -39,3 +39,8 @@ cad/renders/_jointrom/
 # SIL: the weight blob is regenerable (tools/export_policy_weights.py)
 sim/sil/weights/*.silw
 sweeps/
+
+# cad/slice.py output -- gcode is a build artifact, regenerate it
+cad/gcode/
+# flattened OrcaSlicer presets, rebuilt from the installed flatpak on demand
+cad/print_profiles/
