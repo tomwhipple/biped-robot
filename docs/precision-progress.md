@@ -982,3 +982,31 @@ policy's trained slightly-crouched stance, not the calibration zero. Video:
 sweeps/walk_demo/first_run_realpolicy.mov (local). Next hardware steps:
 shape 10 vs shape 0 A/B while tracking, then commanded stepping over the
 link (commander not yet exercised against this build).
+
+## Day 15 (2026-08-04): contact-aware night — rotation returns, records in both columns
+
+Plant for the night: `bimo_biped_v4rom.xml` (inter-leg collision capsules
+calibrated to the bench contact onsets, mechanical-truth joint limits with
+the policy range preserved on ctrlrange) PLUS the measured servo envelope
+(_STS_NOLOAD_12V 4.712 -> 4.04 rad/s, tools/measure_servo_speed.py, bench
+2026-08-03: real ceiling 2700 steps/s @12.3 V, commanded speeds exact to
+0.5% below it).
+
+**loco_v13contact (v12knee_warm warm-start, 62M, normal mix): 58/88 py /
+47/88 SIL.** Rotation returned WITHOUT turn emphasis (turn_180 0->4/8,
+square 0->5/8, goal_home 0->3/8) — feasible turning apparently falls out of
+honest contacts + honest speed. backward_1m 6/8 in BOTH columns: training
+against the measured (slower) envelope closed the day-14 shaper-sensitivity
+gap, as predicted. Regression: stand_off 0/8 (was the lineage jewel).
+
+**loco_v14turn (v13contact + --turn-emph, 30M): 66/88 py / 56/88 SIL —
+records in both columns.** stand_off RECOVERED to 8/8 (day-12's
+crowding-out did not repeat on a short warm-started round), square_return
+7/8, line_1m 8/8, falls 10%, asym 12%. Remaining holes: in-place pivot
+under the shaper (turn_180 3/8 py, 0/8 SIL) and circle_return 0/8.
+
+**v14turn is the new base and deploy candidate.** Its (128,128)
+distillation + referee + export are prepared at the end of the night;
+flashing is a supervised morning step. Deployed-flash status meanwhile:
+loco_v12knee_warm_s128 re-refereed on the measured envelope: 52/88 py /
+50/88 SIL — columns within 2 seeds, tightest agreement recorded.
