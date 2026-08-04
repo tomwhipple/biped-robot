@@ -1973,3 +1973,21 @@ the ribs arguably want to track `BATT_PACK[2]` instead.
 - Bimo Project — `github.com/mekion/the-bimo-project`, `mekion.com/project`
 - STS3215 dimensions — servodatabase.com / waveshare.com (ST3215)
 - Simulator choice — roboticscenter.ai (MuJoCo vs Isaac Sim, Best RL sims 2026)
+
+### Measured servo speed: the datasheet envelope was 14% optimistic (2026-08-03)
+
+`tools/measure_servo_speed.py` (robot on the stand, pack at 12.3 V, camera
+rule noted — future runs record video): R_knee free sweeps over 2140 ticks,
+both directions, at commanded goal speeds 500/1000/2000/3400/unlimited.
+Commanded speeds track within 0.5% up to 2000; the ceiling is **~2700
+steps/s = 4.14 rad/s at 12.3 V**, vs the datasheet-derived 4.712 rad/s @12 V
+the sts3215 actuator model assumed (voltage-scaled: 3149 steps/s expected at
+12.3 V — the real servos deliver 86% of that). Under real load (L_hip_pitch
+lifting the whole leg) speed derates to ~1650 steps/s, confirming the
+torque-speed slope. `_STS_NOLOAD_12V` in walker_env.py AND env_mjx.py is now
+the measured 4.04 rad/s (12 V basis). Caveat: every scorecard produced
+before this change was refereed against the optimistic envelope; new runs
+stamp git_sha as usual. Training's `supply_voltage=11.1` had been
+accidentally compensating (its 4.36 rad/s envelope was only 5% above the
+real 4.14) — that near-cancellation is why nothing obviously broke in
+sim-to-real bench behaviour so far.

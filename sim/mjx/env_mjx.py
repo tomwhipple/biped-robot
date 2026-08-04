@@ -71,7 +71,9 @@ def policy_range(m):
     return lo, hi
 
 _STS_STALL_12V = 2.94                        # N*m  (30 kg*cm @12V)
-_STS_NOLOAD_12V = float(np.deg2rad(60.0) / 0.222)   # 4.712 rad/s @12V
+_STS_NOLOAD_12V = 4.04   # rad/s @12V, MEASURED 2026-08-03 (86% of the
+                         # datasheet 4.712) -- see walker_env.py's comment
+                         # and tools/measure_servo_speed.py; keep in step
 _PAYLOAD_REF = 0.154                         # kg, GoPro MAX incl. battery
 _K_CU = 3.75                                 # W/(N*m)^2, ST3215 stall calib.
 

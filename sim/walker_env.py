@@ -55,7 +55,13 @@ _XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bimo_biped.xml"
 # 2S (7.4 V) or 3S (11.1 V) LiPo is in-spec. Stall torque and no-load speed are
 # scaled linearly with supply voltage (standard DC-motor approximation).
 _STS_STALL_12V = 2.94                       # N*m  (30 kg*cm)
-_STS_NOLOAD_12V = np.deg2rad(60.0) / 0.222  # 4.712 rad/s
+# Datasheet says 0.222 s/60deg -> 4.712 rad/s at 12 V. MEASURED 2026-08-03
+# on the assembled robot (tools/measure_servo_speed.py, R_knee free sweeps,
+# 2140 ticks travel, both directions): ~2700 steps/s at 12.3 V = 4.14 rad/s,
+# i.e. 86% of the datasheet line. Commanded goal speeds 500..2000 tracked
+# within 0.5%, so this is the servo's ceiling, not a control artifact.
+# 4.14 * (12.0/12.3) = 4.04 rad/s per 12 V.
+_STS_NOLOAD_12V = 4.04                      # rad/s, measured (was 4.712)
 
 # -- torso-top payload: GoPro MAX 360 camera, 154 g incl. battery, ~64 wide x
 # 69 tall x 25 deep (mm), CG ~45 mm above the tower top plate with the folding
