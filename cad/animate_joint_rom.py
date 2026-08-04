@@ -231,10 +231,10 @@ def main(jobs=None):
     # rigid parts are pose-invariant: export their STLs ONCE, then move them
     # per frame via mocap body pos/quat.
     rigid_assets, rigid_bodies = [], []
-    # v4 torso (2026-08-04): battery_guard + board_frame, not the tower.
+    # v5 torso (2026-08-04): battery_tray + board_frame, both at servo level.
     torso = [("pelvis", A.COL_PRINT, Pos(0, 0, A.DECK_TOP_Z) * parts.pelvis()),
-             ("battery_guard", A.COL_PRINT,
-              Pos(0, 0, A.DECK_TOP_Z) * parts.battery_guard()),
+             ("battery_tray", A.COL_PRINT,
+              Pos(0, 0, A.DECK_TOP_Z) * parts.battery_tray()),
              ("board_frame", A.COL_PRINT,
               Pos(0, 0, A.DECK_TOP_Z) * parts.board_frame())]
     groups = {"torso": torso}

@@ -57,6 +57,11 @@ IDENT = np.eye(3)
 # Z), so it gets the SAME transform -- if leg_link survives this load path in
 # this orientation, so should the shorter yoke.
 RY_ROLL_WALL = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], float)  # model +Y -> print +Z
+# RY_XUP's mirror image: model +X -> print -Z, i.e. the part is laid on its
+# +x face. board_frame prints this way -- the bulkhead is an x-normal plate and
+# its FORWARD face is the flat one, so that face goes on the bed and everything
+# else on the part (standoffs, side walls, top rail) rises off it.
+RY_XDOWN = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], float)
 
 ORIENT = {
     # name: (rotation, note)  -- keep in sync with parts.PARTS
@@ -66,13 +71,19 @@ ORIENT = {
     "yoke_pitch": (RY_XUP, "WALL: on its back like leg_link + supports, brim"),
     "leg_link": (RY_XUP, "on its back: web face on bed"),
     "foot": (IDENT, "sole down"),
-    # v4 torso (2026-08-04). Both are hoops of uniform height printed with
-    # their TOP RAIL on the bed -- model +z down, i.e. the same RX180 flip the
-    # pelvis takes -- so every wall rises off that first-layer ring and the
-    # only model-TOP faces (feet tabs, stop-rib crowns) carry 46 deg wedges.
-    # See the PRINT paragraphs in parts.battery_guard / parts.board_frame.
-    "battery_guard": (RX180, "TOP RAIL DOWN: uniform-height hoop, walls rise"),
-    "board_frame": (RX180, "TOP RAIL DOWN: rail/wall/bulkhead ring on bed"),
+    # v5 torso (2026-08-04). Two parts, two orientations, and neither is the
+    # v4 "top rail down" flip -- the parts they replace are gone.
+    #   battery_tray  prints on its own FLOOR, which is already the model's -z
+    #                 face, so it needs no transform at all. Walls rise; the
+    #                 only model-DOWN faces are the four fixing pads and each
+    #                 carries a 46 deg gusset.
+    #   board_frame   prints BULKHEAD FLAT, FORWARD FACE DOWN: model +X becomes
+    #                 print -Z. Standoffs, side walls and the top rail then all
+    #                 rise off a ~5000 mm2 first layer and the part has no
+    #                 overhanging face at all.
+    # See the PRINT paragraphs in parts.battery_tray / parts.board_frame.
+    "battery_tray": (IDENT, "FLOOR ON BED: walls rise, support-free"),
+    "board_frame": (RY_XDOWN, "BULKHEAD FLAT, forward face down"),
 }
 
 # RETIRED with pelvis v4 (2026-08-04): tower, gopro_base and imu_carrier left

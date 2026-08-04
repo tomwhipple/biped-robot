@@ -41,13 +41,14 @@ FPS, W, H = 14, 640, 520
 
 # body name -> (leaf labels, frame key) ; frame key None = torso (fixed)
 BODIES = {
-    # v4 torso (2026-08-04): battery_guard + board_frame in place of the
-    # tower/head stack; no camera or IMU until the head bolt-on exists. Labels
-    # must match dress.dressed_robot's leaves exactly -- a stale name here
-    # silently drops the piece from the video.
-    "torso": (["pelvis", "battery_guard", "board_frame", "battery_3s_mock",
+    # v5 torso (2026-08-04): battery_tray + board_frame, both at servo level; no
+    # camera or IMU until the head bolt-on exists. The yaw risers (trench ->
+    # roll servo) are torso-fixed too, since dress draws the carriers at neutral
+    # yaw. Labels must match dress.dressed_robot's leaves exactly -- a stale
+    # name here silently drops the piece from the video.
+    "torso": (["pelvis", "battery_tray", "board_frame", "battery_3s_mock",
                "board_pcb_mock", "board_parts_mock", "pigtail_xt30",
-               "cable_board_L", "cable_board_R",
+               "cable_board_L", "cable_board_R", "cable_yaw_L", "cable_yaw_R",
                "L_servo_hip_roll", "R_servo_hip_roll"], None),
 }
 for tag in ("L", "R"):

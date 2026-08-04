@@ -59,37 +59,52 @@ PLAN = [
     ("screws_ankle",     (0, 90, 0), 0),   # ankle disc screws
     ("foot",             (0, 0, -60), 0),  # sole rises to pocket the ankle servo
     ("screws_foot",      (0, 90, 0), 0),   # retention screws through the tabs
-    # --- v4 torso (2026-08-04). The tower / imu_carrier / gopro_base / camera
-    # stages are GONE with the parts; their two jobs are the two cages below.
-    # Torso order is the real one: the deck's furniture is bolted down empty,
-    # the board goes into its frame, and the pack is last so its bay is clear.
-    ("battery_guard",    (0, 0, 90), 0),   # hoop drops onto the deck heat-sets
-    ("screws_battery_guard", (0, 0, 90), 0),  # M3 down through the feet tabs
-    ("board_frame",      (0, 0, 90), 0),   # cage drops on: bulkhead lap, fins
-                                           # and all four feet land on the flat
-                                           # deck top, nothing to thread past
-    ("screws_board_frame", (0, 0, 90), 0),  # feet M3 down, frame still EMPTY
-    ("board_pcb",        (-70, 0, 0), 0),  # board slides FORWARD from aft into
-                                           # the frame's open back onto the
-                                           # standoffs (2 mm of side-wall
-                                           # clearance either edge, rail above)
+    # --- v5 torso (2026-08-04). Every one of these directions changed with the
+    # revision, because the torso stopped being a stack on top of the deck and
+    # became two assemblies hung off the housing's two faces. Order is the real
+    # assembly order: tray up from underneath, frame on the back, board into the
+    # frame, pack last -- it is the only item that is ever removed again, and it
+    # goes in through the deck aperture with everything else already bolted on.
+    ("battery_tray",     (0, 0, -90), 0),  # UP from BELOW: the tray is
+                                           # underslung and bolts to the deck
+                                           # underside, so it is offered up into
+                                           # place, not dropped on
+    ("screws_tray",      (0, 0, 90), 0),   # ...but its four M3 come from ABOVE,
+                                           # down through the deck into the
+                                           # tray's heat-sets. Opposite
+                                           # directions in consecutive stages,
+                                           # which is exactly the point of
+                                           # giving each group its own axis
+    ("board_frame",      (-60, 0, 0), 0),  # slides FORWARD from aft onto the
+                                           # housing's rear wall: the frame is
+                                           # a U opening aft, entirely behind
+                                           # DECK_AFT_X, so nothing is threaded
+    ("screws_board_frame", (-40, 0, 0), 0),  # 4x M3 follow it in along +x into
+                                           # the rear-wall rib heat-sets, board
+                                           # still OFF (the PCB covers them)
+    ("board_pcb",        (-70, 0, 0), 0),  # board slides forward from aft onto
+                                           # the standoffs, down the chases
     ("board_parts",      (-70, 0, 0), -9),  # ...its fitted components are the
                                            # SAME physical board, so cancel one
                                            # STAGGER and fly them together --
                                            # staggered, they read as a separate
                                            # part being installed
     ("screws_driver_board", (-60, 0, 0), 0),  # M2.5 follow it in, +x from aft
-    ("battery_3s",       (0, 0, 90), 30),  # pack drops through the guard's top
-                                           # aperture -- the swap path, and the
-                                           # reason the guard is a hoop. 18 ->
-                                           # 30: the delay is what buys the
-                                           # camera time to come back round to
-                                           # the front before the pack falls
-                                           # (see the azimuth block below)
+    ("battery_3s",       (0, 0, 90), 30),  # pack drops from ABOVE through the
+                                           # deck APERTURE into the tray -- the
+                                           # swap path, and the reason there is
+                                           # a hole in the deck at all. The 30
+                                           # frames of delay buy the camera time
+                                           # to come back round to the front
+                                           # before the pack falls (see the
+                                           # azimuth block below)
 ]
+# The belt is NOT modelled: it is a 20 mm hook-loop strap, not a part, and a
+# rigid mock of it flying in on a straight line would be the one lie in an
+# animation whose whole purpose is that the motions are real.
 COLOR = {"servo": (0.22, 0.23, 0.27, 1), "camera": (0.10, 0.10, 0.12, 1),
          "battery_3s": (0.16, 0.30, 0.55, 1),   # NOT "battery": that prefix
-         "board_pcb": (0.05, 0.32, 0.18, 1),    # also catches battery_guard,
+         "board_pcb": (0.05, 0.32, 0.18, 1),    # also catches battery_tray,
          "board_parts": (0.15, 0.15, 0.17, 1),  # which is a printed part
          "foot": (0.70, 0.72, 0.78, 1), "": (0.80, 0.82, 0.86, 1)}
 
@@ -103,7 +118,7 @@ def stage_of(label):
 
 def color_of(label):
     # order matters for the same reason PLAN's does: "battery_3s" must be
-    # tested before any shorter "battery*" key would be, or battery_guard --
+    # tested before any shorter "battery*" key would be, or battery_tray --
     # a printed part -- comes out battery-blue.
     for prefix in ("servo", "camera", "battery_3s", "board_pcb", "board_parts",
                    "foot"):
@@ -168,7 +183,10 @@ for i, (_, _, extra) in enumerate(PLAN):
 total = START[-1] + TRAVEL + HOLD
 _stages = [p for p, _, _ in PLAN]
 BATT_START = START[_stages.index("battery_3s")]
-BOARD_START = START[_stages.index("board_pcb")]
+# v5: the first thing inserted from AFT is the FRAME, not the board -- the swing
+# has to be round before it arrives, or the frame lands off-screen and only its
+# contents are seen going in.
+AFT_START = START[_stages.index("board_frame")]
 r = mujoco.Renderer(m, height=460, width=560)
 cam = mujoco.MjvCamera()
 mujoco.mjv_defaultCamera(cam)
@@ -188,18 +206,18 @@ for f in range(total):
         d.mocap_pos[mocap[n]] = (1 - ease) * vec
     mujoco.mj_forward(m, d)
     # Slow orbit for depth cues, plus TWO keyed 180 deg swings. v3 had one, to
-    # catch the pack going in through the tower's -x wall window. v4 has two
-    # insertions worth watching and they are on opposite faces, so the camera
-    # goes round for the board and comes back for the pack:
-    #   +180 before the board stage  -> the AFT face, where the board slides in
-    #   -180 before the battery      -> back to the +x FRONT, where the bay is
+    # catch the pack going in through the tower's -x wall window. Since v4 there
+    # are two insertions worth watching and they are on opposite faces, so the
+    # camera goes round for them and comes back for the pack:
+    #   +180 before the AFT block -> frame, then board, then both screw groups
+    #   -180 before the battery   -> back to the +x FRONT, where the aperture is
     # It nets to the front, which is also the right note to end the hold on.
     # Each swing is keyed to COMPLETE before its stage starts and the return is
     # keyed off the pack's own delay, so neither insertion is watched through a
     # moving camera -- at the first cut the return began while the board was
     # still traveling and the arrival happened off-screen.
     cam.azimuth = (140 + 30 * f / total
-                   + 180 * smoothstep((f - (BOARD_START - 20)) / 20)
+                   + 180 * smoothstep((f - (AFT_START - 20)) / 20)
                    - 180 * smoothstep((f - (BATT_START - 26)) / 20))
     r.update_scene(d, cam)
     frames.append(r.render().copy())

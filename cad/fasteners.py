@@ -235,59 +235,62 @@ def tower_screws():
     return _fuse(s)
 
 
-def _cone_seat_z(tab_t):
-    """z of an M3 button head's BEARING plane in a coned driver well (v4).
+def battery_tray_screws():
+    """Pelvis frame (deck top == z 0), v5: 4x M3x10 button driven straight DOWN
+    from the deck top into the heat-sets in battery_tray's outboard pads.
 
-    battery_guard and board_frame do not counterbore their foot screws: a flat
-    O6.6/O3.4 annulus would be an unsupported ring on a part printed rail-down,
-    so the well's floor is a cone (M3_SEAT_H tall, O3.4 -> O6.6). A button head
-    therefore stops where the cone is as wide as the head, not on the tab top --
-    0.59 mm down. Deriving it here rather than writing 3.41 keeps the seat
-    tables honest if M3_SEAT_H or M3_CB_D ever move.
-    """
-    return tab_t - D.M3_SEAT_H * ((D.M3_CB_D - D.M3_HEAD_D)
-                                  / (D.M3_CB_D - D.M3_CLEAR))
+    The head sits PROUD on the deck top and that is deliberate -- the deck is
+    the top of the robot now, a 1.65 mm button is inside the small-protrusion
+    budget, and these four sit outside the belt's x band so nothing runs over
+    them. (Countersinking instead would leave 3.35 mm of deck under an M3.) So
+    unlike every v4 torso screw there is no coned well and no _cone_seat_z: the
+    seat plane IS the deck top, z = 0.
 
-
-def battery_guard_screws():
-    """Pelvis frame (deck top == z 0), v4: 4x M3x10 button DOWN through the
-    battery_guard's feet into the deck heat-sets (pelvis BG_BOSS_* bosses on
-    the deck underside take the thread to 9 mm). Heads bed in the coned
-    driver wells that are bored up through each foot gusset."""
-    zs = _cone_seat_z(D.BG_FOOT_T)
+    Length: bearing face at 0, 5 mm of deck, then HEATSET_L of insert from -5 to
+    -11. An M3x10 reaches -10, i.e. 5 of the 6 mm of insert -- full engagement
+    with 1 mm to spare before the pilot bottoms."""
     s = []
-    for sx in D.BG_FOOT_X:
-        for sy in (D.BG_FOOT_Y, -D.BG_FOOT_Y):
-            s.append(parts.cyl_z(1.5, zs - 10.0, zs, sx, sy))
-            s.append(parts.cyl_z(D.M3_HEAD_D / 2, zs, zs + D.M3_HEAD_H, sx, sy))
+    for sx in D.BT_SCREW_X:
+        for sy in (D.BT_SCREW_Y, -D.BT_SCREW_Y):
+            s.append(parts.cyl_z(1.5, -10.0, 0.0, sx, sy))
+            s.append(parts.cyl_z(D.M3_HEAD_D / 2, 0.0, D.M3_HEAD_H, sx, sy))
     return _fuse(s)
 
 
-def board_frame_feet_screws():
-    """Pelvis frame (deck top == z 0), v4: 4x M3x10 button DOWN through the
-    board_frame's feet into the deck pads over the yaw box side walls.
+def board_frame_mount_screws():
+    """Pelvis frame, v5: 4x M3x8 button driven FORWARD (+x) from behind, through
+    board_frame's bulkhead into the heat-sets in the housing's rear-wall ribs
+    (BF_MOUNT_Y/Z). The frame no longer stands on the deck on four feet -- it
+    bolts flat to a 36 mm-deep wall -- so these replaced the v4 foot bolts.
 
-    SEPARATE from board_screws() below, though both live on the same part.
-    They are two different assembly steps in two different directions: the
-    frame is bolted down EMPTY from above, and only then does the board go in
-    from behind. animate_assembly flies each fastener group along ONE axis, so
-    merging them would fly the four M2.5s down through the top rail -- which is
-    exactly the kind of impossible approach that animation exists to expose."""
-    zs = _cone_seat_z(D.BF_FOOT_T)
+    SEPARATE from board_screws() below, though both end up on the same part and
+    both come from aft. They are two assembly steps with an ordering constraint
+    between them: the frame is bolted on with the board OFF (the PCB covers
+    these four heads by design -- the board is what you remove for service), and
+    only then does the board go onto its standoffs. animate_assembly flies each
+    group as its own stage, which is what makes that order visible.
+
+    Length: head on the bulkhead's aft face (-40.61), 2.6 of bulkhead, then the
+    insert from -38.01 to -32.01. An M3x8 reaches -32.61: 5.4 of the 6 mm
+    insert. The head stands 1.65 proud at -42.26, still 2.35 clear of the PCB's
+    forward face -- which is the 4 mm BOARD_GD_STANDOFF gap doing its job."""
+    xh = D.BF_BULK_X1                                 # bulkhead aft face
     s = []
-    for sx in D.BF_FOOT_X:
-        for sy in (D.BF_FOOT_Y, -D.BF_FOOT_Y):
-            s.append(parts.cyl_z(1.5, zs - 10.0, zs, sx, sy))
-            s.append(parts.cyl_z(D.M3_HEAD_D / 2, zs, zs + D.M3_HEAD_H, sx, sy))
+    for sy in (D.BF_MOUNT_Y, -D.BF_MOUNT_Y):
+        for sz in D.BF_MOUNT_Z:
+            s.append(parts.cyl_x(1.5, xh, xh + 8.0, sy, sz))
+            s.append(parts.cyl_x(D.M3_HEAD_D / 2, xh - D.M3_HEAD_H, xh, sy, sz))
     return _fuse(s)
 
 
 def board_screws():
     """The 4x M2.5 machine pan that hold the General Driver board on
-    board_frame's standoffs. They are the point of the v4 mount: they run
-    FORWARD (+x) from behind, heads landing on the PCB's aft face in open air,
-    so nothing has to be bored to reach them (contrast the tower's, which ended
-    3.17 mm from a wall). Shank at the pilot dia -- it self-taps the boss."""
+    board_frame's standoffs. They are the point of the mount, in v4 and still in
+    v5: they run FORWARD (+x) from behind, heads landing on the PCB's aft face
+    in open air, so nothing has to be bored to reach them (contrast the tower's,
+    which ended 3.17 mm from a wall). Shank at the pilot dia -- it self-taps the
+    boss. Unchanged by v5 in FORM; the whole pattern simply moved down with the
+    board (BF_CZ +35 -> -8.5), which it picks up from dimensions."""
     xh = D.BF_PCB_X1                                  # PCB aft face = head seat
     s = []
     for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY):
@@ -302,7 +305,7 @@ def board_frame_screws():
     """Every fastener that ends up on board_frame, for callers that want the
     part fully dressed (dress.py, and the seated-in-its-own-part check) rather
     than one assembly step at a time."""
-    return board_frame_feet_screws() + board_screws()
+    return board_frame_mount_screws() + board_screws()
 
 
 def head_stack_screws():
@@ -365,10 +368,21 @@ INSERT_LEN = 25.0       # how far back the approach is modelled (well outside
 #   wsh3   M3 button + THIN WASHER on the idler discs: the washer (7.0) is
 #          wider than the head, so the washer sets the envelope.
 #   pan25  M2.5 machine pan (driver board / IMU), head OD + 0.4.
+#   well3  M3 button in a DRIVER WELL: where the screw goes down a bore rather
+#          than standing in open air, it is the well (M3_CB_D) that has to be
+#          clear, not just the head. battery_tray's four verticals are this.
+#   access A REAL DRIVER AND BIT, D.ACCESS_D. v5 introduced this constant and
+#          dimensioned the deck's aft edge against it (BF_ACCESS_MARGIN: the
+#          aft stator row's driver cylinder passes 1.76 mm ahead of the board
+#          frame's bulkhead). The screws that constant governs are checked
+#          against the same 7.0 here, so the check and the dimension cannot
+#          drift apart -- if the deck ever grows aft, this fails.
 ENVELOPE_D = {"csk25": D.CASE_CS_D + 0.8,        # 6.2
               "btn3":  D.M3_HEAD_D + 0.4,        # 6.1
               "wsh3":  D.M3_WASHER_D + 0.4,      # 7.4
-              "pan25": D.M25_HEAD_D + 0.4}       # 4.9
+              "pan25": D.M25_HEAD_D + 0.4,       # 4.9
+              "well3": D.M3_CB_D,                # 6.6
+              "access": D.ACCESS_D}              # 7.0
 
 
 def _sweep(seat, length=INSERT_LEN):
@@ -468,7 +482,13 @@ def yaw_wall_seats():
 
 
 def deck_stator_seats():
-    return [(-xrow, by + sg * D.CASE_HOLE_LAT, 0.0, "z", +1, "csk25")
+    """v5 upgrades these eight from "csk25" to the full "access" cylinder. The
+    flat head still only needs 6.2 of countersink mouth, but v5 dimensioned the
+    deck's AFT EDGE against a 7.0 driver+bit reaching back from the -32.75 row
+    (BF_ACCESS_MARGIN, dimensions.py), and the whole point of that margin is
+    that these screws can still be driven with the board frame bolted on. The
+    sweep is what proves it, so it has to be the same cylinder."""
+    return [(-xrow, by + sg * D.CASE_HOLE_LAT, 0.0, "z", +1, "access")
             for by in (D.HIP_SEP / 2, -D.HIP_SEP / 2)
             for xrow in D.YAW_CASE_HOLES_IDLER for sg in (1, -1)]
 
@@ -501,24 +521,22 @@ def tower_seats():
     return s
 
 
-# The v4 foot seats are given at the TAB TOP, not at _cone_seat_z where the
-# head actually beds. The 0.59 mm between the two is the CONICAL SEAT itself,
-# and a cone is narrower than the head's own envelope everywhere below the
-# mouth -- by construction, since that is what makes it a seat. Starting the
-# O6.1 driver sweep down there reports 0.49 mm3 per screw of the part's own
-# seat cone (measured, 2026-08-04) and says nothing about whether the screw can
-# be reached. From the mouth up, the sweep runs through the O6.6 driver well
-# and the open air above it, which IS the question. The seat PROBE still lands
-# in head metal at the mouth (the head spans 3.41..5.06 on a 4 mm tab), so the
-# anti-drift guard is unaffected.
-def battery_guard_seats():
-    return [(sx, sy, D.BG_FOOT_T, "z", +1, "btn3")
-            for sx in D.BG_FOOT_X for sy in (D.BG_FOOT_Y, -D.BG_FOOT_Y)]
+def battery_tray_seats():
+    """Heads bear ON THE DECK TOP (z 0) and stand proud -- no well, no cone, so
+    unlike the v4 torso feet the seat plane and the bearing plane are the same
+    number. The approach is the "well3" cylinder rather than a bare head: these
+    run down a O3.4 bore through 5 mm of deck, and it is the well the driver
+    has to share with the head."""
+    return [(sx, sy, 0.0, "z", +1, "well3")
+            for sx in D.BT_SCREW_X for sy in (D.BT_SCREW_Y, -D.BT_SCREW_Y)]
 
 
-def board_frame_feet_seats():
-    return [(sx, sy, D.BF_FOOT_T, "z", +1, "btn3")
-            for sx in D.BF_FOOT_X for sy in (D.BF_FOOT_Y, -D.BF_FOOT_Y)]
+def board_frame_mount_seats():
+    """Driven from AFT into the housing ribs, so the approach runs -x out of
+    the frame. Checked at the full "access" cylinder: these are hand-driven
+    from behind the standing robot, and BF_CHASE was sized for exactly that."""
+    return [(D.BF_BULK_X1, sy, sz, "x", -1, "access")
+            for sy in (D.BF_MOUNT_Y, -D.BF_MOUNT_Y) for sz in D.BF_MOUNT_Z]
 
 
 def board_seats():
@@ -553,11 +571,11 @@ SEATS = {
     "screws_yaw_wall":    (yaw_wall_seats,   yaw_wall_screws),
     "screws_deck":        (deck_stator_seats, deck_stator_screws),
     "screws_foot":        (foot_seats,       foot_screws),
-    "screws_battery_guard": (battery_guard_seats, battery_guard_screws),
-    # board_frame's two steps are two groups: the feet go in from ABOVE with
-    # the frame empty, the board screws from AFT once the board is on its
-    # standoffs. See board_frame_feet_screws() for why they are not merged.
-    "screws_bf_feet":     (board_frame_feet_seats, board_frame_feet_screws),
+    "screws_tray":        (battery_tray_seats, battery_tray_screws),
+    # board_frame's two steps are two groups: the frame is bolted to the housing
+    # from aft with the board OFF, the board screws follow once it is on its
+    # standoffs. See board_frame_mount_screws() for why they are not merged.
+    "screws_bf_mount":    (board_frame_mount_seats, board_frame_mount_screws),
     "screws_board":       (board_seats,       board_screws),
 }
 # screws_tower / screws_head_stack are NOT in SEATS since pelvis v4
@@ -583,7 +601,7 @@ GROUPS = {
     "screws_roll":         lambda: disc_screws_x() + flange_bolts(),
     "screws_yaw_carrier":  yaw_carrier_screws,                 # carrier frame
     "screws_deck":         deck_stator_screws,                 # pelvis frame
-    "screws_battery_guard": battery_guard_screws,              # pelvis frame
+    "screws_tray":         battery_tray_screws,                # pelvis frame
     "screws_board_frame":  board_frame_screws,                 # pelvis frame
     "screws_tower":        tower_screws,                       # LEGACY (tower)
     "screws_head_stack":   head_stack_screws,                  # LEGACY (head)

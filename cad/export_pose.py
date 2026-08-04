@@ -99,19 +99,21 @@ def main():
     children = [
         A.piece("pelvis", A.COL_PRINT,
                 Pos(0, 0, A.DECK_TOP_Z) * parts.pelvis()),
-        # v4 torso (2026-08-04): battery_guard + board_frame replace the tower.
-        # Both are torso-fixed, so they join the torso collision body below --
-        # board_frame in particular hangs aft of the deck, right where a yawed
-        # carrier would arrive if the sweep were ever mis-sized.
-        A.piece("battery_guard", A.COL_PRINT,
-                Pos(0, 0, A.DECK_TOP_Z) * parts.battery_guard()),
+        # v5 torso (2026-08-04): battery_tray under the deck + board_frame on
+        # the housing's rear wall. Both are torso-fixed, so they join the torso
+        # collision body below -- and in v5 that matters more than it did: the
+        # tray hangs INSIDE the carrier's r~25.1 plan circle and is kept clear
+        # of it by z-separation alone (TORSO_FLOOR_Z), so a posed check is
+        # exactly where a mis-sized sweep would show up.
+        A.piece("battery_tray", A.COL_PRINT,
+                Pos(0, 0, A.DECK_TOP_Z) * parts.battery_tray()),
         A.piece("board_frame", A.COL_PRINT,
                 Pos(0, 0, A.DECK_TOP_Z) * parts.board_frame()),
         A.piece("screws_deck", A.COL_STEEL,
                 Pos(0, 0, A.DECK_TOP_Z) * F.deck_stator_screws()),
     ]
     torso_col = Pos(0, 0, A.DECK_TOP_Z) * (parts.pelvis()
-                                           + parts.battery_guard()
+                                           + parts.battery_tray()
                                            + parts.board_frame()
                                            + F.deck_stator_screws())
     legs = {}

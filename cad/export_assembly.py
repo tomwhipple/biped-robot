@@ -5,12 +5,15 @@ Run:  .venv/bin/python cad/export_assembly.py   -> cad/step/assembly.step
 Printed parts + mock STS3215 servo bodies (from check_assembly) placed with the
 same transforms the interference checks use, in world frame: ground z=0,
 +X forward, legs at y = +/-HIP_SEP/2. Open in FreeCAD/Onshape -- parts arrive
-as a labeled tree (pelvis, battery_guard, board_frame, leg_L/*, leg_R/*).
+as a labeled tree (pelvis, battery_tray, board_frame, leg_L/*, leg_R/*).
 
-TORSO IS v4 as of 2026-08-04: the tower / gopro_base / imu_carrier stack is
-retired (see the v4 block in dimensions.py). The deck now carries the battery
-in the open under `battery_guard`, and the General Driver board stands upright
-and transverse on `board_frame` behind the pelvis, component face AFT.
+TORSO IS v5 as of 2026-08-04 (see the v5 block in dimensions.py): one continuous
+yaw housing, and battery + board both dropped into the servos' own z band. The
+pack hangs UNDER the deck in `battery_tray` directly forward of the housing; the
+General Driver board hangs BEHIND it on `board_frame`, bolted flat to the
+housing's rear wall, still upright/transverse with its component face AFT. The
+deck is the top of the robot -- the only structure above it is the board's top
+24 mm (BF_FRAME_TOP_Z).
 """
 import os
 from build123d import Pos, Rot, Compound, Color, export_step
@@ -58,33 +61,33 @@ def camera_mock():
 
 
 def battery_mock():
-    """The modeled 3S 850 pack (D.BATT_PACK) lying across Y on the deck top,
-    v4 position: pushed FORWARD against battery_guard's front wall, so its
-    +x face is BATT_FRONT_X_V4 and the slack in the 31 mm bay opens up at the
-    aft (belt-preload) end. Follows BATT_PACK rather than the BATT envelope,
-    so the fly-in proves the real pack inserts."""
+    """The modeled 3S 850 pack (D.BATT_PACK) UNDERSLUNG in battery_tray (v5,
+    pelvis frame): it lies across Y with its aft face bearing on the housing's
+    front wall (BT_SEAT_X) and its underside on the tray floor (BT_FLOOR_TOP),
+    so the slack in the bay opens forward, where the belt preload and the pull
+    ribbon are. Follows BATT_PACK rather than the BATT envelope, so the fly-in
+    proves the REAL pack drops through the deck aperture."""
     ly, wx, hz = D.BATT_PACK
-    x0 = D.BATT_SEAT_X_V4 + (D.BATT[1] - wx)
-    return parts.box(x0, x0 + wx, -ly / 2, ly / 2, 0, hz)
+    return parts.box(D.BT_SEAT_X, D.BT_SEAT_X + wx, -ly / 2, ly / 2,
+                     D.BT_FLOOR_TOP, D.BT_FLOOR_TOP + hz)
 
 
 def board_pcb_mock():
-    """The General Driver PCB as board_frame holds it (v4, pelvis frame): a
+    """The General Driver PCB as board_frame holds it (v5, pelvis frame): a
     65 x 65 board standing UPRIGHT and TRANSVERSE on the bulkhead standoffs,
-    forward face at BF_PCB_X0, spanning y +/-32.5 and z 2.5..67.5."""
+    forward face at BF_PCB_X0, spanning y +/-32.5 and z BF_BOT_Z..BF_TOP_Z
+    (-41..+24) -- i.e. hanging in the servo band, not standing on the deck."""
     hy = D.BOARD_GD_OUTLINE[0] / 2
-    return parts.box(D.BF_PCB_X1, D.BF_PCB_X0, -hy, hy,
-                     D.BF_CZ - hy, D.BF_CZ + hy)
+    return parts.box(D.BF_PCB_X1, D.BF_PCB_X0, -hy, hy, D.BF_BOT_Z, D.BF_TOP_Z)
 
 
 def board_comp_mock():
     """Everything fitted to the board's AFT (component) face, as ONE slab of
-    BOARD_GD_COMP -- the 40-pin header is the tall one and the frame is sized
-    against it, so the conservative envelope is what belongs in the assembly
-    and in the interference check."""
+    BOARD_GD_COMP -- the 40-pin header is the tall one and the frame's rim is
+    sized against it (BF_RIM_PROUD), so the conservative envelope is what
+    belongs in the assembly and in the interference check."""
     hy = D.BOARD_GD_OUTLINE[0] / 2
-    return parts.box(D.BF_COMP_X, D.BF_PCB_X1, -hy, hy,
-                     D.BF_CZ - hy, D.BF_CZ + hy)
+    return parts.box(D.BF_COMP_X, D.BF_PCB_X1, -hy, hy, D.BF_BOT_Z, D.BF_TOP_Z)
 
 
 def piece(label, color, solid):
@@ -117,13 +120,13 @@ def fastener_frames(y):
 
 # v4 torso: everything up here is bolted to the deck top, so all three groups
 # share the pelvis frame (the tower/head_stack frames went with the tower).
-# board_frame's feet and the board's own M2.5s are separate pieces on purpose:
-# they are driven from opposite directions (above / aft) at different steps, and
-# animate_assembly flies one axis per piece.
+# board_frame's own mount screws and the board's M2.5s are separate pieces on
+# purpose: they are two assembly steps with an order between them (frame bolted
+# on with the board OFF, board second), and animate_assembly flies one axis and
+# one stage per piece. All four groups live in the pelvis frame.
 TORSO_FRAMES = [("deck", Pos(0, 0, DECK_TOP_Z), ("screws_deck",)),
-                ("battery_guard", Pos(0, 0, DECK_TOP_Z),
-                 ("screws_battery_guard",)),
-                ("board_frame", Pos(0, 0, DECK_TOP_Z), ("screws_bf_feet",)),
+                ("tray", Pos(0, 0, DECK_TOP_Z), ("screws_tray",)),
+                ("board_frame", Pos(0, 0, DECK_TOP_Z), ("screws_bf_mount",)),
                 ("driver_board", Pos(0, 0, DECK_TOP_Z), ("screws_board",))]
 
 
@@ -184,9 +187,10 @@ def leg(y, tag):
 
 robot = Compound(label="bimo_biped", children=[
     piece("pelvis", COL_PRINT, Pos(0, 0, DECK_TOP_Z) * parts.pelvis()),
-    # v4 torso: guard + frame bolt to the deck top, so they share its frame
-    piece("battery_guard", COL_PRINT,
-          Pos(0, 0, DECK_TOP_Z) * parts.battery_guard()),
+    # v5 torso: the tray bolts UP under the deck, the frame bolts to the
+    # housing's rear wall; both are drawn in the pelvis frame, so they share it
+    piece("battery_tray", COL_PRINT,
+          Pos(0, 0, DECK_TOP_Z) * parts.battery_tray()),
     piece("board_frame", COL_PRINT,
           Pos(0, 0, DECK_TOP_Z) * parts.board_frame()),
     piece("battery_3s_mock", COL_BATT, Pos(0, 0, DECK_TOP_Z) * battery_mock()),
@@ -211,12 +215,14 @@ def main():
     export_step(robot, path)
     bb = robot.bounding_box()
     print(f"assembly -> {path}")
-    # v4: the tallest thing on the robot is board_frame's top rail, not a
-    # camera on a tower -- so the expected height is the deck top + BF_H.
-    top = DECK_TOP_Z + D.BF_H
+    # v5: the tallest thing on the robot is the board frame's cap rail, and it
+    # is only BF_FRAME_TOP_Z (26.6 mm) above the deck -- the whole point of the
+    # revision. Everything else in the torso is at or below deck level.
+    top = DECK_TOP_Z + D.BF_FRAME_TOP_Z
     print(f"bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}"
           f"  z {bb.min.Z:.1f}..{bb.max.Z:.1f}  "
-          f"(expect ~0..{top:.0f}: board_frame top rail, no camera in v4)")
+          f"(expect ~0..{top:.0f}: board_frame cap, {D.BF_FRAME_TOP_Z:.1f} over "
+          f"the deck)")
 
 
 if __name__ == "__main__":

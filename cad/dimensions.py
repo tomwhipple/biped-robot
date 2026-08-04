@@ -274,9 +274,15 @@ YOKE_BOLT_SQ = 20.0      # 4x M3 on +/-10 square (90 deg rotationally symmetric)
 # 24 mm of material outboard of each leg centre in v3 (52 - 28); 114/2 = 57
 # holds exactly that, i.e. 8.74 mm of deck outboard of the box wall for the
 # board_frame's foot pads.
-DECK_L = 114.0          # across the robot (Y in sim); was 104.0
+# v5 (2026-08-04) pulls it back in to 104: the deck is now the TOP of the robot,
+# so plate out there is the worst mass on the machine, and nothing needs it any
+# more -- v4 spent the extra 10 mm on board_frame foot pads outboard of the
+# boxes, and v5's frame bolts to the housing's rear wall instead. 52 leaves
+# 3.74 mm of deck outboard of the housing wall (HOUSING_HW 48.26) and still
+# covers the battery tray's fixing pads at y 44.
+DECK_L = 104.0          # across the robot (Y in sim); 104 -> 114 (v4) -> 104
 # LEGACY (pelvis v4, 2026-08-04): the deck is no longer symmetric fore-aft --
-# it runs DECK_AFT_X..DECK_FWD_X (see the v4 section). DECK_W is kept ONLY
+# it runs DECK_AFT_X..DECK_FWD_X (see the v5 section). DECK_W is kept ONLY
 # because the retired tower() still measures its walls off it.
 DECK_W = 46.0           # fore-aft (X in sim) -- LEGACY, tower() only
 DECK_T = 5.0
@@ -756,285 +762,246 @@ BATT_SEAT_X = -24.0            # LEGACY (tower bay) -- pack outer (-x) face when
                                # BOARD_GD_PARTITION_X and both are legacy-true.
 
 # ============================================================================
-# PELVIS v4 -- WIDE STANCE + ENCAPSULATED YAW SERVOS  (user-approved 2026-08-04)
+# PELVIS v5 -- ONE HOUSING, EVERYTHING AT SERVO LEVEL (user-approved 2026-08-04)
 # ============================================================================
-# What changed and why, in one place:
+# v4 (this morning) got two things right and two things wrong.  RIGHT: the yaw
+# servos belong in full-depth walls, and the stance wanted widening (HIP_SEP 66,
+# both kept).  WRONG, and both are the user's words:
 #
-#   1. HIP_SEP 56 -> 66, DECK_L 104 -> 114 (both edited in place above).
-#   2. The 4 mm yaw COLLAR became a full-depth BOX: walls run from the deck
-#      underside (-DECK_T) all the way down to YAW_BOX_BOT, wrapping each servo
-#      case on all four sides. The v3 collar keyed the case against reaction
-#      torque but did nothing for the DECK, which was a 5 mm plate spanning
-#      104 mm with two servos hanging off it -- the yaw servos twisted it.  A
-#      closed box on each side turns the pelvis centre into a torsion tube: the
-#      deck is now the top flange of two 36 mm-deep beams, not a lone plate.
-#      Retention is UNCHANGED -- the same 4 vertical M2.5 stator screws pull the
-#      idler-side case face up against the same pads, and every proven
-#      idler-face feature (disc pocket, pads, connector trench hole) is kept
-#      verbatim, only re-centred on the new HIP_SEP.
-#   3. The deck became ASYMMETRIC fore-aft: DECK_AFT_X..DECK_FWD_X.  Aft it
-#      reaches past the yaw case (killing the v3 rear tab, which existed only to
-#      give the -32.75 stator row material) and lands flush with the board_frame
-#      bulkhead; forward it carries the battery bay.
-#   4. The tower is retired.  Battery -> open bay on the deck top under
-#      `battery_guard`; driver board -> `board_frame` behind the pelvis, facing
-#      AFT so its ports are reachable.  GoPro/IMU come back as their own bolt-on
-#      later; tower(), gopro_base() and imu_carrier() stay in parts.py as
-#      legacy and keep their legacy constants.
+#   "almost, but not quite" (1) -- v4 STACKED the torso.  Battery and driver
+#   board sat ON the deck with the servos hanging below it, so the mass the
+#   redesign was supposed to bring DOWN ended up 35 mm above the highest
+#   structural plane in the robot.  v5 puts all three in the SAME vertical band:
+#   pack directly IN FRONT of the yaw servos, board directly BEHIND them, all
+#   inside the servos' own z band.  The deck becomes the top of the robot; the
+#   only thing above it is the board's top 24 mm and the battery belt.
 #
-# PRINT NOTE that constrains everything below: the pelvis prints DECK TOP DOWN
-# (it is the only orientation in which the 36 mm box walls rise instead of
-# bridging), so the deck TOP FACE MUST STAY FLAT.  That is the same rule the
-# 2026-07-15 audit set when it banned raised bosses there, and it is why all
-# battery furniture lives on battery_guard rather than on the deck.  Material
-# hung UNDER the deck is free (it rises in the print) -- hence BG_BOSS_* and the
-# board_frame foot pads.
+#   (2) -- v4's two servo boxes were tied to each other only by the 5 mm deck
+#   plate.  Each box was stiff; the PAIR was not, and yaw reaction torque is
+#   exactly an anti-symmetric load on that pair.  v5 replaces them with ONE
+#   CONTINUOUS HOUSING: a full-width front wall and a full-width rear wall,
+#   36 mm deep, running the whole span y +/-HOUSING_HW, with the two servo cells
+#   and the centre wire channel carved out between them.  Those two webs are
+#   what carry the differential twist; the deck is no longer the only tie.
+#
+# THE ONE HARD FLOOR.  Everything the torso owns stays ABOVE TORSO_FLOOR_Z.
+# That plane is 1.0 mm above the yaw carrier's horn-plate top face
+# (YAW_HORN_FACE_Z), and the carrier is the HIGHEST moving part of the leg --
+# everything else (roll bay, yokes, links, foot) hangs below it and sweeps a
+# r ~25.1 cylinder about each leg centre through +/-YAW_SWEEP, plus the whole
+# thigh/shin swing far below that.  So the clearance argument for the battery
+# tray and the board frame is Z-SEPARATION, not plan geometry: no torso part
+# ever enters the band the legs move in, at any pose, so no ROM sweep can
+# reach them.  (Belt and braces: the frame also sits at x <= YAW_BOX_X_REAR
+# = -38.01, entirely outside the carrier's +/-25.1 plan circle.)
 # ----------------------------------------------------------------------------
 
-# --- deck plan ---------------------------------------------------------------
-# Aft edge: the yaw box rear outer face lands at YAW_BOX_X_REAR (-38.01), and
-# the board_frame bulkhead wants a flush face to butt against, so the deck runs
-# 3 mm past the box and stops on a round number.
-DECK_AFT_X = -41.0
-# Forward edge: BATT_SEAT_X_V4 + BATT[1] = 45.41 pack front face, + a 2.59 rim.
-DECK_FWD_X = 48.0
+# --- the plane nothing torso-side may cross ---------------------------------
+TORSO_FLOOR_Z = YAW_HORN_FACE_Z + 1.0                # -41.80
 
-# --- yaw box (per leg, about x=0, y=+/-HIP_SEP/2) ----------------------------
-# Plan geometry is the v3 collar's, unchanged: inner faces sit YAW_SEAT_GAP off
-# the case on all four sides, walls are YAW_SEAT_WALL thick.
+# --- yaw servo cells (plan geometry unchanged since v3: inner faces sit
+#     YAW_SEAT_GAP off the case on all four sides, walls YAW_SEAT_WALL) -------
 YAW_BOX_HW_IN = SV_WID / 2 + YAW_SEAT_GAP            # 12.66 inner half width
 YAW_BOX_HW_OUT = YAW_BOX_HW_IN + YAW_SEAT_WALL       # 15.26 outer half width
 YAW_BOX_X_REAR = YAW_CASE_X_REAR - YAW_SEAT_GAP - YAW_SEAT_WALL    # -38.01
 YAW_BOX_X_FRONT = YAW_CASE_X_FRONT + YAW_SEAT_GAP + YAW_SEAT_WALL  # +13.01
-# Box bottom.  Bounded from BELOW by the servo (the horn-side case face is at
-# YAW_CASE_BOT_Z = -39.70, and the box must swallow it) and from ABOVE by the
-# yaw_carrier, whose horn plate top face is the horn face itself at
-# YAW_HORN_FACE_Z = -42.80 and which sweeps a r ~25.1 cylinder about the leg
-# centre through +/-YAW_SWEEP.  -41.0 wraps the case by 1.30 and leaves
-# YAW_BOX_CARRIER_GAP of running clearance over the sweeping carrier.
-YAW_BOX_BOT = -41.0
+YAW_BOX_BOT = -41.0                 # housing bottom; wraps the horn-side case
+                                    # face (YAW_CASE_BOT_Z -39.70) by 1.30 and
+                                    # clears the carrier by YAW_BOX_CARRIER_GAP
 YAW_BOX_CARRIER_GAP = YAW_BOX_BOT - YAW_HORN_FACE_Z  # 1.80
-YAW_BOX_DEPTH = -DECK_T - YAW_BOX_BOT                # 36.0 of wall below the deck
-# Lead-in chamfer at the box mouth: the servo is offered UP into the box from
-# below, and a 36 mm-deep slip fit with a square mouth catches on its own first
-# layer.  Printed deck-top-down the chamfer faces print-UP, so it is free.
-YAW_BOX_LEADIN = 1.2
-assert YAW_BOX_BOT < YAW_CASE_BOT_Z, (
-    f"yaw box bottom {YAW_BOX_BOT} does not reach past the horn-side case face "
-    f"{YAW_CASE_BOT_Z} -- the case would stand proud of its own box")
-assert YAW_BOX_CARRIER_GAP >= 1.5, (
-    f"only {YAW_BOX_CARRIER_GAP:.2f} mm between the yaw box bottom and the "
-    f"carrier horn plate at {YAW_HORN_FACE_Z} -- the carrier sweeps under the "
-    f"whole box footprint, so this gap is a running clearance, not a static one")
+YAW_BOX_DEPTH = -DECK_T - YAW_BOX_BOT                # 36.0 of wall below deck
+YAW_BOX_LEADIN = 1.2                # 45 deg lead-in at each cell mouth: the
+                                    # servo is offered UP into a 36 mm-deep slip
+                                    # fit, and printed deck-top-down the chamfer
+                                    # faces print-UP, so it is free
+
+# --- the housing (one part of pelvis(), three cells) -------------------------
+HOUSING_HW = HIP_SEP / 2 + YAW_BOX_HW_OUT            # 48.26 outer half width
+HOUSING_CHAN_HW = HIP_SEP / 2 - YAW_BOX_HW_OUT       # 17.74 centre wire channel
+# Rear-wall thickening at the two INBOARD cheeks: board_frame bolts to the
+# housing with 4 horizontal M3s, and a M3 heat-set pilot (HEATSET_D 4.1) cannot
+# live in a 2.6 mm wall -- the mistake the old TOWER_FOOT pattern made and v4
+# fixed with outboard pads.  Here the pad grows INBOARD into the wire channel
+# (the servo cell is full), which also gussets the rear wall to the cheek.
+HOUSING_RIB_HW = 13.0               # rib inner face (channel side)
+HOUSING_RIB_X1 = -30.0              # rib forward face; 8.01 of rib behind it
+BF_MOUNT_Y = (HOUSING_RIB_HW + HIP_SEP / 2 - YAW_BOX_HW_IN) / 2    # 16.67
+BF_MOUNT_Z = (-12.0, -34.0)         # spread over the 36 mm wall band
+ACCESS_D = 7.0                      # driver + bit cylinder, the size every
+                                    # screw approach is checked against
+
+# --- deck -------------------------------------------------------------------
+# Aft edge is now FLUSH with the housing rear face: the board_frame bulkhead
+# butts that plane and rises past the deck, so any deck overhang aft would
+# either foul the bulkhead or shadow the -32.75 stator screws.  (v4: -41.0.)
+DECK_AFT_X = YAW_BOX_X_REAR                          # -38.01
+# Forward edge: aperture rim + the battery tray's front wall + a 2 mm lip.
+DECK_FWD_X = 51.0                                    # (v4: 48.0)
 assert DECK_AFT_X <= YAW_BOX_X_REAR and DECK_FWD_X >= YAW_BOX_X_FRONT, (
-    "the deck no longer covers the yaw box footprint -- the box walls hang off "
-    "the deck edge and the stator screw rows lose their material")
-assert HIP_SEP / 2 - YAW_BOX_HW_OUT > 12.0, (
-    f"the two yaw boxes leave only {HIP_SEP - 2 * YAW_BOX_HW_OUT:.1f} mm across "
-    f"the centreline -- the +/-11 wire riser window has to fit between them")
+    "the deck no longer covers the housing footprint")
+assert DECK_L / 2 > HOUSING_HW and DECK_L / 2 > BATT[0] / 2, (
+    f"deck half-span {DECK_L / 2} no longer skins the housing ({HOUSING_HW})")
+assert HOUSING_CHAN_HW > 12.0 + 2.0, (
+    f"centre channel half-width {HOUSING_CHAN_HW} no longer clears the "
+    f"+/-12 deck wire window it has to open into")
+assert YAW_BOX_BOT < YAW_CASE_BOT_Z, (
+    f"housing bottom {YAW_BOX_BOT} does not reach past the horn-side case face "
+    f"{YAW_CASE_BOT_Z} -- the case would stand proud of its own cell")
+assert YAW_BOX_BOT >= TORSO_FLOOR_Z, (
+    f"housing bottom {YAW_BOX_BOT} is below the torso floor {TORSO_FLOOR_Z}")
 
-# --- battery bay (on the deck top, forward of the yaw box) -------------------
-# The pack lies ACROSS Y exactly as it did in the tower (BATT[0] along y), but
-# it now sits in the open on the deck with battery_guard as its cage, so it
-# lifts straight out once the belt is peeled.
-BATT_PRELOAD = 1.4              # land between the box front face and the pack,
-                                # so the belt has something to preload against
-                                # (the same 1.4 the tower bay used)
-BATT_SEAT_X_V4 = YAW_BOX_X_FRONT + BATT_PRELOAD          # +14.41 pack -x face
-BATT_FRONT_X_V4 = BATT_SEAT_X_V4 + BATT[1]               # +45.41 pack +x face
-BATT_DECK_RIM = DECK_FWD_X - BATT_FRONT_X_V4             # 2.59, one wall's worth
-assert BATT_DECK_RIM >= WALL - 0.1, (
-    f"only {BATT_DECK_RIM:.2f} mm of deck ahead of the pack front face -- the "
-    f"battery_guard front wall needs a full WALL ({WALL}) to stand on")
+# --- battery: UNDERSLUNG, directly in front of the front wall ----------------
+# The pack's aft face bears on the housing front wall itself -- the stiffest
+# plane forward of the servos -- and the whole pack hangs BELOW the deck in the
+# servo band.  v4 had it on the deck top (centre +13.25); v5 centres it at
+# -18.25, a 31.5 mm drop of the heaviest single item after the servos.
+# Swap is a VERTICAL lift-out through a deck aperture: peel the belt, lift the
+# pack straight up.  The tray floor cannot be part of pelvis() -- printed
+# deck-top-down it would be a 31 x 69 slab starting 29 mm up in mid air, which
+# the repo's own print audits have rejected three times -- so battery_tray is
+# its own part, printed floor-on-bed, bolted up into the deck.
+BT_SEAT_X = YAW_BOX_X_FRONT                          # +13.01 pack aft face
+BT_FRONT_X = BT_SEAT_X + BATT[1]                     # +44.01 pack front face
+BT_PRELOAD = 1.4                    # gap ahead of the pack: belt preload, and
+                                    # the pull-ribbon's exit (same 1.4 the v3
+                                    # tower bay used)
+BT_WALL_X1 = BT_FRONT_X + BT_PRELOAD                 # +45.41 tray front inner
+BT_X1 = BT_WALL_X1 + WALL                            # +48.01 tray front outer
+BT_PACK_TOP = -DECK_T                                # -5.00 envelope top, i.e.
+                                    # flush with the deck underside.  The pack
+                                    # sits on the FLOOR, so a real 25 mm-tall
+                                    # pack's top lands 1.5 lower and the belt
+                                    # reaches it through the aperture.
+BT_FLOOR_TOP = BT_PACK_TOP - BATT[2]                 # -31.50
+BT_FLOOR_T = 2.4
+BT_BOT = BT_FLOOR_TOP - BT_FLOOR_T                   # -33.90
+BT_WALL_Y_IN = BATT[0] / 2 + 0.5                     # 34.50 (0.5/side on the
+                                                     # envelope; 3.5 on a real
+                                                     # 62 mm pack -- which is
+                                                     # where its lead comes up)
+BT_WALL_Y_OUT = BT_WALL_Y_IN + WALL                  # 37.10
+BT_APER_X = (BT_SEAT_X, BT_FRONT_X + 0.5)            # deck aperture, 13.01..44.51
+BT_APER_HY = BT_WALL_Y_IN                            # 34.50
+# Belt, and the path is worth stating exactly because three features exist only
+# to serve it.  A 20 mm hook-loop strap lies ACROSS THE PACK inside the deck
+# aperture; each end runs outboard, passes UNDER the deck through the notch cut
+# in the tray's side wall (BT_BELT_NOTCH_Z), comes UP through the deck slot,
+# back over the 3.5 mm bar of deck between slot and aperture, and closes on
+# itself over the pack -- reachable through the open aperture, no tools.  So:
+# the deck slot is the anchor, the deck bar is what the strap pulls against,
+# and the wall notch is the only path from one to the other (the pack fills the
+# tray to 0.5 mm a side, so there is no room beside it).
+BT_BELT_W = 20.0
+BT_BELT_X = (21.0, 42.0)            # slot / wall-notch band, 21 long
+BT_BELT_SLOT_Y = (38.0, 42.0)       # deck slot; the 3.5 mm of deck left between
+                                    # it and the aperture is the BELT BAR the
+                                    # strap's ends wrap
+BT_BELT_NOTCH_Z = -14.0             # tray wall cut down to here over BT_BELT_X
+# Fixing: 4 M3 straight DOWN through the deck into heat-sets in outboard pads on
+# the tray, fore and aft of the belt station.  Vertical, driven from the deck
+# top, nothing above them -- and deliberately NOT over the pack, so they are
+# reachable with the pack in place.
+BT_PAD_Y = (BT_WALL_Y_OUT, 44.0)                     # pad y band
+BT_PAD_Z = (-13.0, BT_PACK_TOP)                      # 8 mm of pad for a 6 insert
+# Pad x bands.  A M3 heat-set needs HEATSET_D + 2 perimeters EACH SIDE, so a pad
+# is 7.5 long; the first cut gave the forward one 4.5 and the audit called it
+# THIN four times over.  The forward pad overhangs the tray's front wall by 2 mm
+# to find the room -- it is a top flange under the deck, so it costs nothing.
+BT_PAD_X = ((13.01, 20.5), (42.5, 50.0))             # aft pad, forward pad
+BT_SCREW_X = (16.75, 46.25)
+BT_SCREW_Y = 40.5
+assert BT_BOT >= TORSO_FLOOR_Z, (
+    f"battery tray bottom {BT_BOT} crosses the torso floor {TORSO_FLOOR_Z} -- "
+    f"it would be in the plane the yaw carriers sweep")
+assert BT_X1 + 2.0 <= DECK_FWD_X, "tray front wall runs past the deck edge"
+assert BT_BELT_SLOT_Y[0] - BT_APER_HY >= 2.0, (
+    "the belt slot leaves less than 2 mm of deck between itself and the "
+    "battery aperture")
+assert BT_BELT_X[0] > BT_PAD_X[0][1] and BT_BELT_X[1] < BT_PAD_X[1][0], (
+    "the belt station overlaps a tray fixing pad")
+assert (BT_PAD_Y[0] + HEATSET_D / 2 < BT_SCREW_Y < BT_PAD_Y[1] - HEATSET_D / 2), (
+    f"tray heat-set at y {BT_SCREW_Y} is not fully inside the pad {BT_PAD_Y}")
+for _i, (_x0, _x1) in enumerate(BT_PAD_X):
+    assert _x0 + HEATSET_D / 2 + 1.0 < BT_SCREW_X[_i] < _x1 - HEATSET_D / 2 - 1.0, (
+        f"tray heat-set at x {BT_SCREW_X[_i]} leaves under a perimeter of pad "
+        f"in the pad band {(_x0, _x1)} -- the insert blows out the end")
+assert BT_PAD_X[-1][1] <= DECK_FWD_X, (
+    "the tray's forward fixing pad runs past the deck edge, so its screw has "
+    "nothing to come down through")
 
-# --- battery_guard (BG_*) -----------------------------------------------------
-# An open hoop bolted to the deck around the bay: two side walls, a front wall,
-# a U-shaped top rail, and two aft stop fins.  It prints TOP-RAIL-DOWN (uniform
-# BG_H, every wall rises, nothing bridges), which is why every locating feature
-# is a vertical-faced rib on a wall rather than a bump on the deck.
-BG_X0 = YAW_BOX_X_FRONT         # +13.01 aft end, flush with the yaw box face
-BG_X1 = DECK_FWD_X              # +48.00 front end == deck edge
-BG_WALL_Y_IN = 36.0             # side wall inner faces (pack is +/-34)
-BG_WALL_Y_OUT = BG_WALL_Y_IN + WALL                      # 38.6
-BG_H = 32.0                     # 26.5 pack + 5.5 of belt/rail headroom
-BG_RAIL_T = 4.0                 # top rail thickness (z BG_H-4 .. BG_H)
-BG_APER_HY = 34.5               # rail inner edge: aperture 69 wide for the 68
-                                # pack -- the pack leaves through the top, so
-                                # the rail is a guard, never a capture lip
-BG_RAIL_Y_OUT = 40.5            # rail OUTER edge, 1.9 proud of the wall. The
-                                # rail is this part's whole first layer, and at
-                                # a flush 38.6 that layer came to 484 mm2 under
-                                # a 32 mm-tall hoop -- check_printability's
-                                # CONTACT floor, and a genuinely tippy print.
-                                # Proud, it is ~650 mm2 and doubles as a knuckle
-                                # bumper. Capped by the feet: a driver coming
-                                # down on BG_FOOT_Y must clear this edge.
-BG_FRONT_X0 = BATT_FRONT_X_V4 - 0.01   # 45.40 front wall inner face; the pack
-                                # ENVELOPE touches it (the real pack is BATT[1]
-                                # - 1 narrower, see BATT_PACK)
-BG_STOP_Y = 35.0                # inward-proud guide ribs on the side walls:
-                                # 1.0 of the 2.0 slack per side, so the pack is
-                                # centred to +/-0.5 without being pinched
-BG_STOP_H = 12.0                # rib height; a 45 deg lead-in on top doubles as
-                                # the print-underside relief
-BG_AFT_STOP_HY = 30.0           # aft stop fins reach inboard to here.  They are
-                                # the pack's -x land (their front face is
-                                # BATT_SEAT_X_V4) and they live entirely AFT of
-                                # the pack, so they never block the lift-out.
-BG_BELT_W = 20.0                # 20 mm hook-loop, as on the tower
-# The slot is a DIAMOND, not the obvious rectangle.  Printed top-rail-down the
-# front wall's model-UP faces are the print-DOWN ones, so a rectangular slot
-# hangs its whole 21 mm floor as a bridge (check_printability flagged exactly
-# that on the first cut).  Splitting it with posts -- the yaw_carrier fix -- is
-# wrong here because a 20 mm strap cannot thread three separate holes.  A
-# diamond's lower half IS two 45 deg faces, so nothing bridges, the strap
-# threads one opening, and the area works out the same.
-BG_BELT_SLOT = (22.0, 22.0)     # front-wall diamond (y width, z height)
-BG_BELT_CZ = 14.0               # diamond centre ~ pack mid-height (pack 26.5);
-                                # apex 3, top 25, 3 mm clear of the rail
-BG_DETENT = 2.5                 # 45 deg corner detents in the two forward
-                                # corners (adapted from the tower's window
-                                # detents): they stop the pack corners jamming
-                                # and stiffen the corner.  They reach y 33.5 --
-                                # 0.5 inside the 68 mm ENVELOPE corner, clear of
-                                # every real pack (longest in the field is 67)
-BG_FOOT_X = (18.0, 42.0)        # feet, fore and aft of the pack CG.  44 put
-                                # the aft foot's driver well 0.7 mm from the tab
-                                # end (the tab is clipped at the deck edge) --
-                                # a sub-perimeter sliver, THIN in the audit.
-BG_FOOT_Y = 44.0                # OUTBOARD of the rail: a screw under the rail
-                                # would need a O6.4 driver well straight through
-                                # it, and the rail is only 6 wide.  At 44.0 a
-                                # O6.6 driver runs 40.7..47.3 -- clear of the
-                                # rail's 40.5 edge and inside the tab.
-BG_FOOT_T = 4.0                 # foot tab thickness
-BG_FOOT_HX = 6.0                # foot tab half length along x
-BG_FOOT_Y_OUT = 50.0            # tab outer edge: the O6.6 driver well reaches
-                                # 47.3, and 48.0 left 0.7 mm of rim past it
-BG_BOSS_D = 8.0                 # deck-UNDERSIDE boss under each foot: the deck
-BG_BOSS_H = 4.0                 # is 5 and HEATSET_L is 6, so 5+4 = 9 of thread.
-                                # Under the deck it rises in the print; over the
-                                # deck it would float the first layer (2026-07-15)
-assert BG_FOOT_Y > BG_WALL_Y_OUT + M3_HEAD_D / 2, (
-    f"battery_guard foot screw at y {BG_FOOT_Y} puts its head into the side "
-    f"wall at {BG_WALL_Y_OUT}")
-assert BG_FOOT_Y - 3.3 > BG_RAIL_Y_OUT and BG_FOOT_Y + 3.3 < BG_FOOT_Y_OUT, (
-    f"a O6.6 driver on the battery_guard foot at y {BG_FOOT_Y} fouls either the "
-    f"top rail edge ({BG_RAIL_Y_OUT}) or the tab edge ({BG_FOOT_Y_OUT})")
-assert BG_APER_HY >= BATT[0] / 2 + 0.5 and BG_FRONT_X0 - BG_X0 >= BATT[1], (
-    "battery_guard aperture no longer clears the pack envelope -- the pack "
-    "cannot be lifted out through the top rail")
-
-# --- board_frame (BF_*) -------------------------------------------------------
-# The General Driver board stands UPRIGHT and TRANSVERSE on a bulkhead behind
-# the pelvis, COMPONENT FACE AFT.  That orientation is the whole point: the
-# tower stood it face-INBOARD and the four M2.5s ended up 3.17 mm from a wall,
-# unfastenable without boring access holes through it (2026-07-30).  Here the
-# screw heads land on the PCB's aft face in open air, and the leg-servo ports,
-# the XH power inlet and the power switch all face the same way -- you reach the
-# robot's electronics from behind, standing up, with the robot on its feet.
-BF_BULK_X = DECK_AFT_X          # -41.0 bulkhead FORWARD face (flush with deck)
-BF_BULK_X1 = BF_BULK_X - WALL   # -43.6 bulkhead aft face
-BF_PCB_X0 = BF_BULK_X1 - BOARD_GD_STANDOFF               # -47.6 PCB front face
-BF_PCB_T = 1.63                 # measured PCB stock (same as the IMU breakout)
-BF_PCB_X1 = BF_PCB_X0 - BF_PCB_T                         # -49.23 PCB aft face
-BF_COMP_X = BF_PCB_X1 - BOARD_GD_COMP                    # -58.23 deepest part
-BF_AFT_X = -60.0                # side walls / top rail run to here: 1.77 proud
-                                # of the tallest component, so a fall lands on
-                                # printed plastic and not on the 40-pin header
-# 70 -> 74 while building it (2026-08-04): the top cross rail has to clear the
-# BOARD_GD_COMP envelope, which reaches the board's own top edge at 67.5. A rail
-# at 66..70 (the first sketch) ran straight through the top 1.5 mm of it. 74
-# puts the rail at 70..74, i.e. 2.5 mm over the board, and costs nothing.
-BF_H = 74.0                     # board top is at BF_CZ + 32.5 = 67.5
-BF_CZ = 35.0                    # board centre above the deck (bottom edge 2.5)
-BF_WALL_Y_IN = 34.5             # side wall inner faces (board is +/-32.5)
-BF_WALL_Y_OUT = BF_WALL_Y_IN + WALL                      # 37.1
-BF_RAIL_X = (BF_AFT_X, -50.5)   # top cross rail, x band; its forward edge keeps
-                                # 1.27 clear of the PCB's aft face
-BF_RAIL_T = 4.0                 # rail depth (z BF_H-4 .. BF_H)
-# Wire pass-through, DIAMOND for the same reason the belt slot is (the bulkhead
-# is an x-normal plate printed rail-down, so a flat roof AND a flat floor both
-# end up as one 24 mm bridge depending on which way you flip it).  A diamond is
-# self-supporting either way up.  Area = 24*24/2 = 288 mm2, which is exactly the
-# briefed 24 x 12 rectangle, and its waist passes a WIRE_PLUG_W housing --
-# non-negotiable, the leads are assembled connector-first.
-BF_WIRE = (24.0, 24.0)          # bulkhead wire pass-through (y width, z height)
-BF_WIRE_Z = 4.0                 # bottom apex; waist at 16, top at 28
-BF_FLARE_Z = 35.0               # the bulkhead flares to BF_FIN_Y_OUT below this
-                                # height, then 45 deg shoulders back to the wall
-                                # line: that flare is what the feet hang off.
-                                # 30 -> 35 while building it: the fin's 45 deg
-                                # top ramp starts here, and at 30 it had already
-                                # run out to nothing under the forward foot tab,
-                                # leaving the tab top unsupported (a LEDGE the
-                                # printability audit caught).
-# Buttress fin outer face.  Pulled INBOARD off the box wall line (45.66) so the
-# foot's O6.6 driver well keeps more than a perimeter of tab between itself and
-# the fin -- at 45.66 that web was 0.70 mm and audited THIN.  The fin does not
-# need to sit over the box wall; only the SCREW does.
-BF_FIN_Y_OUT = 44.0
-BF_FIN_T = WALL                 # so the fin band is 41.4 .. 44.0
-BF_FIN_X1 = -6.0                # fin runs from the bulkhead forward to here,
-                                # its top edge a 45 deg ramp from BF_FLARE_Z --
-                                # so it still stands BF_FOOT_T tall over the
-                                # forward foot tab and can support it
-BF_FOOT_X = (-16.0, -32.0)      # both rows land on the yaw box SIDE WALL below
-                                # (which spans x YAW_BOX_X_REAR..YAW_BOX_X_FRONT),
-                                # so a 12 mm foot pad sits entirely on wall
-BF_FOOT_Y = 49.66               # centred in the foot pad (see BF_FOOT_PAD_Y):
-                                # a O4.1 heat-set pilot CANNOT be centred in the
-                                # 2.6 mm box wall itself -- that is the known
-                                # weakness of the old TOWER_FOOT pattern, where
-                                # the pilot was wider than the wall it went into
-BF_FOOT_PAD_Y = (YAW_BOX_HW_OUT + HIP_SEP / 2 - WALL, 53.66)   # 45.66..53.66,
-                                # grown OUTBOARD off the box wall (inboard is
-                                # the servo case) and 4 deep under the deck
-BF_FOOT_PAD_H = 4.0
-BF_FOOT_Y_OUT = 55.0            # foot tab outer edge -- past the pelvis pad
-                                # (53.66) so the driver well keeps a 2.0 mm rim
-BF_FOOT_HX = 5.0                # foot tab half length
-BF_FOOT_T = 4.0
-# Every gusset/foot wedge in the v4 parts runs its RISE one millimetre past its
-# RUN. That is deliberate and it is the tower's number: an exactly-45 wedge sits
-# on check_printability's threshold and reads as an unsupported facet (the first
-# cut of battery_guard's feet came back ISLAND, 123 mm2 each). The tower's feet
-# have always used 8.5 run / 9.0 rise -- 46 deg -- and pass.
-GUSSET_OVER = 1.0
-# M3 foot screws sit under a gusset, so each needs a driver well bored through
-# it (the tower's fix).  What the tower never had to solve is the well's FLOOR:
-# a flat O6.6/O3.4 annulus is a 1.6 mm print-down ledge on a part printed
-# upside down.  A cone instead of a counterbore removes the flat entirely -- the
-# button head beds on the cone 0.6 mm down, and the cone's walls are 53 deg,
-# clear of the audit's 45 deg threshold.
-M3_CB_D = 6.6                   # driver well (M3 button head 5.7 + bit)
-M3_SEAT_H = 2.1                 # conical seat rise (radial 1.6 -> 53 deg)
-# Same threshold story on the board standoff bosses: a textbook 45 deg teardrop
-# roof audits AS the overhang it exists to prevent, because the tessellated
-# normal lands on the wrong side of nz < -cos45. 50 deg is clear of it and costs
-# 1.5 mm of boss height.
-BF_BOSS_ROOF_DEG = 50.0
-BF_LAP_X = 4.0                  # the bulkhead laps this far FORWARD onto the
-                                # deck top as a bearing flange, split either
-                                # side of the wire window so it stays clear
-assert BF_FOOT_PAD_Y[0] >= HIP_SEP / 2 + SV_WID / 2, (
-    "the board_frame foot pad grows inboard past the yaw case -- it would foul "
-    "the servo it is bolted beside")
-assert BF_FOOT_PAD_Y[0] + HEATSET_D / 2 < BF_FOOT_Y < BF_FOOT_PAD_Y[1] - HEATSET_D / 2, (
-    f"heat-set at y {BF_FOOT_Y} is not fully inside the foot pad "
-    f"{BF_FOOT_PAD_Y} -- the insert would blow out the side of it")
-assert min(BF_FOOT_X) - BF_FOOT_HX - 1 >= YAW_BOX_X_REAR, (
-    "the aft board_frame foot pad runs past the yaw box rear wall, so its "
-    "heat-set would thread 5 mm of bare deck")
+# --- board frame v2: upright, transverse, components AFT, at SERVO LEVEL -----
+# The board keeps the orientation v4 got right (ports, XH inlet and power switch
+# all face the open air behind the robot, screws drive from behind) and loses
+# the thing v4 got wrong: it no longer stands ON the deck.  The bulkhead bolts
+# flat to the housing REAR WALL, so the board hangs in the servo band, bottom
+# edge on TORSO_FLOOR_Z.  65 mm of board then reaches BF_TOP_Z above the deck --
+# that 24 mm is the ONLY torso structure above the deck and it is the accepted
+# trade for a 43.5 mm drop of the board's centre (v4 BF_CZ +35 -> v5 -8.5).
+BF_BULK_X = YAW_BOX_X_REAR                           # -38.01 bulkhead fwd face
+BF_BULK_X1 = BF_BULK_X - WALL                        # -40.61 bulkhead aft face
+BF_PCB_X0 = BF_BULK_X1 - BOARD_GD_STANDOFF           # -44.61 PCB front face
+BF_PCB_T = 1.63                     # measured PCB stock (as the IMU breakout)
+BF_PCB_X1 = BF_PCB_X0 - BF_PCB_T                     # -46.24 PCB aft face
+BF_COMP_X = BF_PCB_X1 - BOARD_GD_COMP                # -55.24 deepest component
+BF_RIM_PROUD = 1.8                  # side walls + top rail stand this proud of
+BF_AFT_X = BF_COMP_X - BF_RIM_PROUD                  # -57.04, so a fall lands
+                                    # on printed plastic, not the 40-pin header
+BF_BOT_Z = TORSO_FLOOR_Z + 0.8                       # -41.00 frame + board floor
+BF_CZ = BF_BOT_Z + BOARD_GD_OUTLINE[1] / 2           # -8.50 board centre
+BF_TOP_Z = BF_BOT_Z + BOARD_GD_OUTLINE[1]            # +24.00 board top edge
+# The frame goes WALL higher than the board so its top rail caps the board's top
+# edge instead of passing through it.  (v4 made exactly this mistake at 66..70
+# against a board top of 67.5 and it was caught the same way, by a boolean.)
+# 26.6 mm above the deck is the whole of the robot's above-deck structure.
+BF_FRAME_TOP_Z = BF_TOP_Z + WALL                     # +26.60
+# Side walls sit outboard of the 65 mm board by a WIRE CHASE each side: the leg
+# and yaw leads arrive on the deck top, pass through the bulkhead's wire slots
+# and run down these chases to the ports on the board's aft face.  9.5 mm is
+# also what a O7 driver needs to reach the frame's own mount screws.
+BF_CHASE = 9.5
+BF_WALL_Y_IN = BOARD_GD_OUTLINE[0] / 2 + BF_CHASE    # 42.0
+BF_WALL_Y_OUT = BF_WALL_Y_IN + WALL                  # 44.6
+BF_WIRE_SLOT_Y = (26.0, 40.0)       # bulkhead wire pass-through, per side
+BF_WIRE_SLOT_Z = (1.0, 13.0)        # just above the deck, where the bundle lies
+BF_TIE_POST = 3.0                   # post splitting each wire slot: the zip-tie
+                                    # anchor (strain relief) and it halves the
+                                    # slot's span
+assert BF_BOT_Z >= TORSO_FLOOR_Z, (
+    f"board frame bottom {BF_BOT_Z} crosses the torso floor {TORSO_FLOOR_Z} -- "
+    f"the carriers sweep that plane at every yaw angle")
 assert BF_PCB_X0 > BF_COMP_X > BF_AFT_X, "board stack ordering broke"
-assert (BF_FOOT_Y - M3_CB_D / 2 - BF_FIN_Y_OUT > 0.85
-        and BF_FOOT_Y_OUT - BF_FOOT_Y - M3_CB_D / 2 > 0.85), (
-    f"the board_frame foot's O{M3_CB_D} driver well leaves under a perimeter of "
-    f"tab between itself and the fin ({BF_FIN_Y_OUT}) or the tab edge "
-    f"({BF_FOOT_Y_OUT})")
-assert BF_FIN_X1 + BF_FLARE_Z >= max(BF_FOOT_X) + BF_FOOT_HX + BF_FOOT_T, (
-    "the fin's 45 deg top ramp runs out before the forward foot tab -- the tab "
-    "top would print as an unsupported ledge (see BF_FLARE_Z)")
+assert BF_WALL_Y_OUT <= HOUSING_HW, (
+    "board_frame is wider than the housing rear wall it bolts to")
+# CONSTRAINT C, the one that sets the deck's aft edge.  The 8 stator screws are
+# driven VERTICALLY DOWN through the deck, and the aft row sits at
+# x = -YAW_CASE_HOLES_IDLER[1] = -32.75 -- only 5.26 mm ahead of the wall the
+# board frame bolts to.  A driver + bit is ACCESS_D wide, so its cylinder
+# reaches back to -36.25; the bulkhead's forward face is at -38.01.  1.76 mm,
+# and it is the reason the deck stops flush at the wall instead of overhanging
+# aft the way v4's did.  (The -8.30 row has the whole open deck to itself.)
+BF_ACCESS_MARGIN = (-YAW_CASE_HOLES_IDLER[1] - ACCESS_D / 2) - BF_BULK_X    # 1.76
+assert BF_ACCESS_MARGIN > 0.5, (
+    f"only {BF_ACCESS_MARGIN:.2f} mm between the aft stator screw's driver "
+    f"cylinder and the bulkhead -- the yaw servos could not be installed with "
+    f"the frame on")
+
+# --- v4 constants that v5 deletes, so nobody hunts for them ------------------
+# BG_* (battery_guard: the deck-top hoop) -> BT_* above; the part is gone.
+# BF_FOOT_*, BF_FIN_*, BF_FLARE_Z, BF_LAP_X, BF_RAIL_*, BF_H, BF_WIRE*:
+#   board_frame stood on the deck on four feet and needed buttress fins, a
+#   spread footing and a bearing lap.  Bolted flat to a 36 mm-deep wall it needs
+#   none of them.
+# GUSSET_OVER / M3_CB_D / M3_SEAT_H / BF_BOSS_ROOF_DEG survive below: they are
+#   print rules, not layout, and the v5 parts still use them.
+GUSSET_OVER = 1.0                   # every gusset runs its RISE 1 mm past its
+                                    # RUN -- an exactly-45 wedge sits ON
+                                    # check_printability's threshold and audits
+                                    # as the overhang it exists to prevent (the
+                                    # tower's feet have always used 8.5/9.0)
+M3_CB_D = 6.6                       # driver well over an M3 button head
+M3_SEAT_H = 2.1                     # conical seat under a well (53 deg walls),
+                                    # so no flat annulus is left hanging
+BF_BOSS_ROOF_DEG = 50.0             # tangent teardrop roof on horizontal bosses
 
 # ----------------------------------------------------------------------------
 # GoPro three-prong mount (separate bolt-on part `gopro_base` on the tower top
