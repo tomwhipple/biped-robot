@@ -6,7 +6,7 @@ here verbatim:
 | File | What it is |
 |---|---|
 | [General_Driver_for_Robots-schematic.pdf](General_Driver_for_Robots-schematic.pdf) | Full circuit schematic |
-| [General_Driver_for_Robots-dimensions.pdf](General_Driver_for_Robots-dimensions.pdf) | Dimension drawing (65 × 65 mm, holes 49 × 58 mm, Ø3) |
+| [General_Driver_for_Robots-dimensions.pdf](General_Driver_for_Robots-dimensions.pdf) | Dimension drawing — board outline **65.01 × 56.01 mm**, hole grid 49 × 58 mm (58 along the 65 edge). ⚠️ The wiki's "Dimensions 65 x 65mm" parameter contradicts the drawing; trust the drawing (second wiki discrepancy after the input-voltage one below). |
 | [General_Driver_for_Robots-connector-diagram.jpg](General_Driver_for_Robots-connector-diagram.jpg) | Official annotated board photo — every connector numbered 1–27, front and back |
 | [JST-XH-connector-datasheet.pdf](JST-XH-connector-datasheet.pdf) | JST XH series datasheet (the power-inlet connector family) |
 

@@ -99,23 +99,19 @@ def main():
     children = [
         A.piece("pelvis", A.COL_PRINT,
                 Pos(0, 0, A.DECK_TOP_Z) * parts.pelvis()),
-        # v5 torso (2026-08-04): battery_tray under the deck + board_frame on
-        # the housing's rear wall. Both are torso-fixed, so they join the torso
-        # collision body below -- and in v5 that matters more than it did: the
-        # tray hangs INSIDE the carrier's r~25.1 plan circle and is kept clear
-        # of it by z-separation alone (TORSO_FLOOR_Z), so a posed check is
-        # exactly where a mis-sized sweep would show up.
-        A.piece("battery_tray", A.COL_PRINT,
-                Pos(0, 0, A.DECK_TOP_Z) * parts.battery_tray()),
-        A.piece("board_frame", A.COL_PRINT,
-                Pos(0, 0, A.DECK_TOP_Z) * parts.board_frame()),
+        # v6 torso (2026-08-04): the tray and the frame are IN the pelvis print
+        # now, so the only bolt-on left is gopro_base. The pelvis still hangs
+        # INSIDE the carrier's r~25.1 plan circle (the battery bay does) and is
+        # kept clear of it by z-separation alone (TORSO_FLOOR_Z), so a posed
+        # check is exactly where a mis-sized sweep would show up.
+        A.piece("gopro_base", A.COL_PRINT,
+                Pos(D.GP_MOUNT_X, 0, A.DECK_TOP_Z) * parts.gopro_base()),
         A.piece("screws_deck", A.COL_STEEL,
                 Pos(0, 0, A.DECK_TOP_Z) * F.deck_stator_screws()),
     ]
     torso_col = Pos(0, 0, A.DECK_TOP_Z) * (parts.pelvis()
-                                           + parts.battery_tray()
-                                           + parts.board_frame()
-                                           + F.deck_stator_screws())
+                                           + F.deck_stator_screws()) \
+        + Pos(D.GP_MOUNT_X, 0, A.DECK_TOP_Z) * parts.gopro_base()
     legs = {}
     for ly, tag in ((D.HIP_SEP / 2, "L"), (-D.HIP_SEP / 2, "R")):
         pieces, posed = posed_leg(ly, tag, args.yaw, args.roll, args.hip,

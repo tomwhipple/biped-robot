@@ -5,16 +5,18 @@ Run:  .venv/bin/python cad/export_assembly.py   -> cad/step/assembly.step
 Printed parts + mock STS3215 servo bodies (from check_assembly) placed with the
 same transforms the interference checks use, in world frame: ground z=0,
 +X forward, legs at y = +/-HIP_SEP/2. Open in FreeCAD/Onshape -- parts arrive
-as a labeled tree (pelvis, battery_tray, board_frame, leg_L/*, leg_R/*).
+as a labeled tree (pelvis, gopro_base, leg_L/*, leg_R/*).
 
-TORSO IS v5 as of 2026-08-04 (see the v5 block in dimensions.py): one continuous
-yaw housing, and battery + board both dropped into the servos' own z band. The
-pack hangs UNDER the deck in `battery_tray` directly forward of the housing; the
-General Driver board hangs BEHIND it on `board_frame`, bolted flat to the
-housing's rear wall, still upright/transverse with its component face AFT. The
-deck is the top of the robot -- the only structure above it is the board's top
-24 mm (BF_FRAME_TOP_Z).
+TORSO IS v6 as of 2026-08-04 (see the v6 blocks in dimensions.py): the WHOLE
+torso is one print. battery_tray and board_frame are gone -- the pack now sits
+on two seat chamfers in a bay under the deck, and the board stands upright and
+transverse in a recess aft of the housing, held by two M2.5 into standoffs off
+the rear web. The only bolt-on left is gopro_base, which is back on the roof
+(the deck IS the roof) and is deliberately separate: it is the camera's crash
+fuse. The board's ports edge stands 15 mm above the deck; nothing else printed
+does.
 """
+import math
 import os
 from build123d import Pos, Rot, Compound, Color, export_step
 import dimensions as D
@@ -43,51 +45,35 @@ TOWER_TOP_Z = DECK_TOP_Z + D.TOWER_H    # LEGACY (v3 tower); nothing in the v4
 
 
 def camera_mock():
-    """LEGACY (pelvis v4, 2026-08-04) -- the GoPro rode the retired tower and
-    has no mount on the robot until its own bolt-on exists. Kept because
-    render_electronics_steps and the old head-stack figures still draw it.
-
-    GoPro MAX 360 stand-in: body box + two folded mount fingers reaching
-    into the gopro_base slots (bottom of body ~6 above the M5 hole center)."""
-    hole_z = D.GP_BASE_T + D.GP_HOLE_H               # above the tower top
-    bot = hole_z + 6.0
-    dx, dy, dz = D.CAM_BODY
-    body = parts.box(-dx / 2, dx / 2, -dy / 2, dy / 2, bot, bot + dz)
-    fingers = None
-    for cy in (-(D.GP_PRONG_T + D.GP_SLOT) / 2, (D.GP_PRONG_T + D.GP_SLOT) / 2):
-        f = parts.box(-6, 6, cy - 1.45, cy + 1.45, hole_z - 6, bot + 1)
-        fingers = f if fingers is None else fingers + f
-    return body + fingers
+    """Delegates to check_assembly, which owns the bought-part mocks (it may not
+    import this module, so they cannot live here). Kept as a name because
+    render_electronics_steps and the assembly figures call it."""
+    return CA.camera_mock()
 
 
 def battery_mock():
-    """The modeled 3S 850 pack (D.BATT_PACK) UNDERSLUNG in battery_tray (v5,
-    pelvis frame): it lies across Y with its aft face bearing on the housing's
-    front wall (BT_SEAT_X) and its underside on the tray floor (BT_FLOOR_TOP),
-    so the slack in the bay opens forward, where the belt preload and the pull
-    ribbon are. Follows BATT_PACK rather than the BATT envelope, so the fly-in
-    proves the REAL pack drops through the deck aperture."""
+    """The modeled 3S 850 pack (D.BATT_PACK) seated in the v6 bay, pelvis frame.
+
+    There is no tray floor any more: the pack lies across Y and rests in the V
+    formed by the bay's two 47 deg SEAT CHAMFERS, which centre it between the
+    bay walls. So its x is set by the V's centreline, not by either wall, and
+    its bottom is BT_SEAT_Z minus the drop its own width buys it -- 1.287 mm for
+    a 30 mm pack against 0.751 for the 31 mm envelope (see BT_SEAT_DROP, whose
+    derivation this pass corrected). Follows BATT_PACK rather than the envelope,
+    so the fly-in proves the REAL pack drops through the deck aperture."""
     ly, wx, hz = D.BATT_PACK
-    return parts.box(D.BT_SEAT_X, D.BT_SEAT_X + wx, -ly / 2, ly / 2,
-                     D.BT_FLOOR_TOP, D.BT_FLOOR_TOP + hz)
+    xc = (D.BT_SEAT_X + D.BT_WALL_X1) / 2                    # the V's centre
+    z0 = D.BT_SEAT_Z - ((D.BT_SEAT_BAY_W - wx) / 2
+                        * math.tan(math.radians(D.BT_SEAT_DEG)))
+    return parts.box(xc - wx / 2, xc + wx / 2, -ly / 2, ly / 2, z0, z0 + hz)
 
 
 def board_pcb_mock():
-    """The General Driver PCB as board_frame holds it (v5, pelvis frame): a
-    65 x 65 board standing UPRIGHT and TRANSVERSE on the bulkhead standoffs,
-    forward face at BF_PCB_X0, spanning y +/-32.5 and z BF_BOT_Z..BF_TOP_Z
-    (-41..+24) -- i.e. hanging in the servo band, not standing on the deck."""
-    hy = D.BOARD_GD_OUTLINE[0] / 2
-    return parts.box(D.BF_PCB_X1, D.BF_PCB_X0, -hy, hy, D.BF_BOT_Z, D.BF_TOP_Z)
+    return CA.board_pcb_mock()
 
 
 def board_comp_mock():
-    """Everything fitted to the board's AFT (component) face, as ONE slab of
-    BOARD_GD_COMP -- the 40-pin header is the tall one and the frame's rim is
-    sized against it (BF_RIM_PROUD), so the conservative envelope is what
-    belongs in the assembly and in the interference check."""
-    hy = D.BOARD_GD_OUTLINE[0] / 2
-    return parts.box(D.BF_COMP_X, D.BF_PCB_X1, -hy, hy, D.BF_BOT_Z, D.BF_TOP_Z)
+    return CA.board_comp_mock()
 
 
 def piece(label, color, solid):
@@ -120,14 +106,14 @@ def fastener_frames(y):
 
 # v4 torso: everything up here is bolted to the deck top, so all three groups
 # share the pelvis frame (the tower/head_stack frames went with the tower).
-# board_frame's own mount screws and the board's M2.5s are separate pieces on
-# purpose: they are two assembly steps with an order between them (frame bolted
-# on with the board OFF, board second), and animate_assembly flies one axis and
-# one stage per piece. All four groups live in the pelvis frame.
+# v6 leaves three torso groups: the stator screws, the board's two M2.5 from
+# aft, and the gopro base's four M3 from above. Each is its own piece because
+# each is its own assembly step on its own axis, and animate_assembly flies one
+# axis per piece. All three live in the pelvis frame (the gopro screws included
+# -- their seats are given at GP_BASE_T above the deck, in pelvis coordinates).
 TORSO_FRAMES = [("deck", Pos(0, 0, DECK_TOP_Z), ("screws_deck",)),
-                ("tray", Pos(0, 0, DECK_TOP_Z), ("screws_tray",)),
-                ("board_frame", Pos(0, 0, DECK_TOP_Z), ("screws_bf_mount",)),
-                ("driver_board", Pos(0, 0, DECK_TOP_Z), ("screws_board",))]
+                ("driver_board", Pos(0, 0, DECK_TOP_Z), ("screws_board",)),
+                ("gopro", Pos(0, 0, DECK_TOP_Z), ("screws_gopro",))]
 
 
 def _fuse(solids):
@@ -187,12 +173,13 @@ def leg(y, tag):
 
 robot = Compound(label="bimo_biped", children=[
     piece("pelvis", COL_PRINT, Pos(0, 0, DECK_TOP_Z) * parts.pelvis()),
-    # v5 torso: the tray bolts UP under the deck, the frame bolts to the
-    # housing's rear wall; both are drawn in the pelvis frame, so they share it
-    piece("battery_tray", COL_PRINT,
-          Pos(0, 0, DECK_TOP_Z) * parts.battery_tray()),
-    piece("board_frame", COL_PRINT,
-          Pos(0, 0, DECK_TOP_Z) * parts.board_frame()),
+    # v6 torso: the tray and the frame are IN the pelvis print above. What is
+    # left to place is the one bolt-on (gopro_base, on the deck at GP_MOUNT_X),
+    # the camera it carries, and the two mocks the pelvis holds.
+    piece("gopro_base", COL_PRINT,
+          Pos(D.GP_MOUNT_X, 0, DECK_TOP_Z) * parts.gopro_base()),
+    piece("camera_gopro_max_mock", COL_CAM,
+          Pos(D.GP_MOUNT_X, 0, DECK_TOP_Z) * camera_mock()),
     piece("battery_3s_mock", COL_BATT, Pos(0, 0, DECK_TOP_Z) * battery_mock()),
     piece("board_pcb_mock", COL_PCB, Pos(0, 0, DECK_TOP_Z) * board_pcb_mock()),
     piece("board_parts_mock", COL_CHIP,
@@ -215,14 +202,15 @@ def main():
     export_step(robot, path)
     bb = robot.bounding_box()
     print(f"assembly -> {path}")
-    # v5: the tallest thing on the robot is the board frame's cap rail, and it
-    # is only BF_FRAME_TOP_Z (26.6 mm) above the deck -- the whole point of the
-    # revision. Everything else in the torso is at or below deck level.
-    top = DECK_TOP_Z + D.BF_FRAME_TOP_Z
+    # v6: the tallest PRINTED thing is the board's own top edge at BR_TOP_Z
+    # (15 mm over the deck) -- but the camera is back, and it is what sets the
+    # bbox now: base + legs + the M5 clamp + the body.
+    struct = DECK_TOP_Z + D.BR_TOP_Z
+    cam = (DECK_TOP_Z + D.GP_BASE_T + D.GP_HOLE_H + 6.0 + D.CAM_BODY[2])
     print(f"bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}"
           f"  z {bb.min.Z:.1f}..{bb.max.Z:.1f}  "
-          f"(expect ~0..{top:.0f}: board_frame cap, {D.BF_FRAME_TOP_Z:.1f} over "
-          f"the deck)")
+          f"(expect ~0..{cam:.0f} incl. camera; printed structure tops out at "
+          f"{struct:.0f}, the board's ports edge)")
 
 
 if __name__ == "__main__":

@@ -59,53 +59,41 @@ PLAN = [
     ("screws_ankle",     (0, 90, 0), 0),   # ankle disc screws
     ("foot",             (0, 0, -60), 0),  # sole rises to pocket the ankle servo
     ("screws_foot",      (0, 90, 0), 0),   # retention screws through the tabs
-    # --- v5 torso (2026-08-04). Every one of these directions changed with the
-    # revision, because the torso stopped being a stack on top of the deck and
-    # became two assemblies hung off the housing's two faces. Order is the real
-    # assembly order: tray up from underneath, frame on the back, board into the
-    # frame, pack last -- it is the only item that is ever removed again, and it
-    # goes in through the deck aperture with everything else already bolted on.
-    ("battery_tray",     (0, 0, -90), 0),  # UP from BELOW: the tray is
-                                           # underslung and bolts to the deck
-                                           # underside, so it is offered up into
-                                           # place, not dropped on
-    ("screws_tray",      (0, 0, 90), 0),   # ...but its four M3 come from ABOVE,
-                                           # down through the deck into the
-                                           # tray's heat-sets. Opposite
-                                           # directions in consecutive stages,
-                                           # which is exactly the point of
-                                           # giving each group its own axis
-    ("board_frame",      (-60, 0, 0), 0),  # slides FORWARD from aft onto the
-                                           # housing's rear wall: the frame is
-                                           # a U opening aft, entirely behind
-                                           # DECK_AFT_X, so nothing is threaded
-    ("screws_board_frame", (-40, 0, 0), 0),  # 4x M3 follow it in along +x into
-                                           # the rear-wall rib heat-sets, board
-                                           # still OFF (the PCB covers them)
-    ("board_pcb",        (-70, 0, 0), 0),  # board slides forward from aft onto
-                                           # the standoffs, down the chases
-    ("board_parts",      (-70, 0, 0), -9),  # ...its fitted components are the
+    # --- v6 torso (2026-08-04). The tray and the board frame are GONE: both
+    # folded into the pelvis print, which flies in as the chassis at stage 0.
+    # What is left to install is what the torso HOLDS -- and the camera, which
+    # is back on the roof for the first time since v3.
+    ("board_pcb",        (0, 0, 70), 0),   # board slides DOWN into its recess
+                                           # between the cheeks: the upper screw
+                                           # row is above the deck, so this
+                                           # drop-in IS the mount, and the two
+                                           # lower screws only hold what the
+                                           # rails have already located
+    ("board_parts",      (0, 0, 70), -9),  # ...its fitted components are the
                                            # SAME physical board, so cancel one
-                                           # STAGGER and fly them together --
-                                           # staggered, they read as a separate
-                                           # part being installed
-    ("screws_driver_board", (-60, 0, 0), 0),  # M2.5 follow it in, +x from aft
+                                           # STAGGER and fly them together
+    ("screws_driver_board", (-60, 0, 0), 0),  # 2x M2.5 follow +x from aft into
+                                           # the standoffs off the rear web
+    ("gopro_base",       (0, 0, 90), 0),   # drops onto the deck pad
+    ("screws_gopro",     (0, 0, 90), 0),   # 4x M3 down into the deck heat-sets
+    ("camera",           (0, 0, 90), 0),   # camera's folding fingers drop onto
+                                           # the prongs, M5 thumbscrew clamps
     ("battery_3s",       (0, 0, 90), 30),  # pack drops from ABOVE through the
-                                           # deck APERTURE into the tray -- the
-                                           # swap path, and the reason there is
-                                           # a hole in the deck at all. The 30
+                                           # deck APERTURE into the seat-chamfer
+                                           # V -- LAST, because it is the only
+                                           # item ever removed again. The 30
                                            # frames of delay buy the camera time
-                                           # to come back round to the front
-                                           # before the pack falls (see the
-                                           # azimuth block below)
+                                           # to come round to the front before
+                                           # the pack falls (azimuth block below)
 ]
-# The belt is NOT modelled: it is a 20 mm hook-loop strap, not a part, and a
+# The belt is NOT modelled: it is a 15 mm hook-loop strap (v6 narrowed it from
+# 20 so the wall under its notch bridges inside BEAM_OK), not a part, and a
 # rigid mock of it flying in on a straight line would be the one lie in an
 # animation whose whole purpose is that the motions are real.
 COLOR = {"servo": (0.22, 0.23, 0.27, 1), "camera": (0.10, 0.10, 0.12, 1),
          "battery_3s": (0.16, 0.30, 0.55, 1),   # NOT "battery": that prefix
-         "board_pcb": (0.05, 0.32, 0.18, 1),    # also catches battery_tray,
-         "board_parts": (0.15, 0.15, 0.17, 1),  # which is a printed part
+         "board_pcb": (0.05, 0.32, 0.18, 1),    # the bare PCB, ports edge up
+         "board_parts": (0.15, 0.15, 0.17, 1),  # what is fitted to it
          "foot": (0.70, 0.72, 0.78, 1), "": (0.80, 0.82, 0.86, 1)}
 
 
@@ -118,8 +106,10 @@ def stage_of(label):
 
 def color_of(label):
     # order matters for the same reason PLAN's does: "battery_3s" must be
-    # tested before any shorter "battery*" key would be, or battery_tray --
-    # a printed part -- comes out battery-blue.
+    # tested before any shorter "battery*" key would be. (In v4/v5 that guarded
+    # battery_guard / battery_tray, both printed parts; v6 has no other
+    # "battery*" label, but the ordering is free and the next one is one rename
+    # away.)
     for prefix in ("servo", "camera", "battery_3s", "board_pcb", "board_parts",
                    "foot"):
         if label.startswith(prefix):
@@ -183,10 +173,12 @@ for i, (_, _, extra) in enumerate(PLAN):
 total = START[-1] + TRAVEL + HOLD
 _stages = [p for p, _, _ in PLAN]
 BATT_START = START[_stages.index("battery_3s")]
-# v5: the first thing inserted from AFT is the FRAME, not the board -- the swing
-# has to be round before it arrives, or the frame lands off-screen and only its
-# contents are seen going in.
-AFT_START = START[_stages.index("board_frame")]
+# v6: nothing is inserted from aft any more except the board's two M2.5 -- the
+# board itself drops straight DOWN into its recess. So the swing is keyed to the
+# board screws, the one step that is only legible from behind, and it lands the
+# camera on the robot's back for the board's own arrival too (the recess is aft,
+# so a rear three-quarter view shows the drop better than a front one).
+AFT_START = START[_stages.index("board_pcb")]
 r = mujoco.Renderer(m, height=460, width=560)
 cam = mujoco.MjvCamera()
 mujoco.mjv_defaultCamera(cam)

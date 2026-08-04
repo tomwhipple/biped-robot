@@ -235,77 +235,53 @@ def tower_screws():
     return _fuse(s)
 
 
-def battery_tray_screws():
-    """Pelvis frame (deck top == z 0), v5: 4x M3x10 button driven straight DOWN
-    from the deck top into the heat-sets in battery_tray's outboard pads.
+def gopro_screws():
+    """Pelvis frame (deck top == z 0), v6: 4x M3x10 button driven straight DOWN
+    through gopro_base's feet into the heat-sets in the deck-underside bosses.
 
-    The head sits PROUD on the deck top and that is deliberate -- the deck is
-    the top of the robot now, a 1.65 mm button is inside the small-protrusion
-    budget, and these four sit outside the belt's x band so nothing runs over
-    them. (Countersinking instead would leave 3.35 mm of deck under an M3.) So
-    unlike every v4 torso screw there is no coned well and no _cone_seat_z: the
-    seat plane IS the deck top, z = 0.
+    The GoPro came back on the roof in v6, and the roof is the deck itself -- no
+    tower, no mast. These are the shortest camera fixings the robot has had. The
+    head bears on the base's own top face (GP_BASE_T above the deck) and the
+    insert runs -5..-11 inside GP_BOSS_D bosses hung under the deck, so 5 mm of
+    deck plus 4 of boss gives 9 mm of thread for a 6 mm insert.
 
-    Length: bearing face at 0, 5 mm of deck, then HEATSET_L of insert from -5 to
-    -11. An M3x10 reaches -10, i.e. 5 of the 6 mm of insert -- full engagement
-    with 1 mm to spare before the pilot bottoms."""
+    Length: bearing face at +4.0, 4 of base, 5 of deck, then insert. An M3x12
+    reaches -8.0, i.e. 3 mm into the 6 mm insert; an M3x16 would reach -12 and
+    bottom out in a 9 mm pocket. M3x12 it is -- the same screw the tower-era
+    head stack used, which is the one part of that stack worth keeping."""
+    zs = D.GP_BASE_T
+    gx, gy = D.GP_SCREW_XY
     s = []
-    for sx in D.BT_SCREW_X:
-        for sy in (D.BT_SCREW_Y, -D.BT_SCREW_Y):
-            s.append(parts.cyl_z(1.5, -10.0, 0.0, sx, sy))
-            s.append(parts.cyl_z(D.M3_HEAD_D / 2, 0.0, D.M3_HEAD_H, sx, sy))
-    return _fuse(s)
-
-
-def board_frame_mount_screws():
-    """Pelvis frame, v5: 4x M3x8 button driven FORWARD (+x) from behind, through
-    board_frame's bulkhead into the heat-sets in the housing's rear-wall ribs
-    (BF_MOUNT_Y/Z). The frame no longer stands on the deck on four feet -- it
-    bolts flat to a 36 mm-deep wall -- so these replaced the v4 foot bolts.
-
-    SEPARATE from board_screws() below, though both end up on the same part and
-    both come from aft. They are two assembly steps with an ordering constraint
-    between them: the frame is bolted on with the board OFF (the PCB covers
-    these four heads by design -- the board is what you remove for service), and
-    only then does the board go onto its standoffs. animate_assembly flies each
-    group as its own stage, which is what makes that order visible.
-
-    Length: head on the bulkhead's aft face (-40.61), 2.6 of bulkhead, then the
-    insert from -38.01 to -32.01. An M3x8 reaches -32.61: 5.4 of the 6 mm
-    insert. The head stands 1.65 proud at -42.26, still 2.35 clear of the PCB's
-    forward face -- which is the 4 mm BOARD_GD_STANDOFF gap doing its job."""
-    xh = D.BF_BULK_X1                                 # bulkhead aft face
-    s = []
-    for sy in (D.BF_MOUNT_Y, -D.BF_MOUNT_Y):
-        for sz in D.BF_MOUNT_Z:
-            s.append(parts.cyl_x(1.5, xh, xh + 8.0, sy, sz))
-            s.append(parts.cyl_x(D.M3_HEAD_D / 2, xh - D.M3_HEAD_H, xh, sy, sz))
+    for sx in (D.GP_MOUNT_X + gx, D.GP_MOUNT_X - gx):
+        for sy in (gy, -gy):
+            s.append(parts.cyl_z(1.5, zs - 12.0, zs, sx, sy))
+            s.append(parts.cyl_z(D.M3_HEAD_D / 2, zs, zs + D.M3_HEAD_H, sx, sy))
     return _fuse(s)
 
 
 def board_screws():
-    """The 4x M2.5 machine pan that hold the General Driver board on
-    board_frame's standoffs. They are the point of the mount, in v4 and still in
-    v5: they run FORWARD (+x) from behind, heads landing on the PCB's aft face
-    in open air, so nothing has to be bored to reach them (contrast the tower's,
-    which ended 3.17 mm from a wall). Shank at the pilot dia -- it self-taps the
-    boss. Unchanged by v5 in FORM; the whole pattern simply moved down with the
-    board (BF_CZ +35 -> -8.5), which it picks up from dimensions."""
-    xh = D.BF_PCB_X1                                  # PCB aft face = head seat
+    """The M2.5 machine pan that hold the General Driver board, v6: TWO of them,
+    not four, and they go into standoff bosses off the housing's rear web rather
+    than into a separate frame.
+
+    WHY TWO. Reading the manufacturer's drawing corrected the board to
+    65.01 x 56.01 (the wiki's 65 x 65 was 8.99 mm of board that does not exist),
+    and standing it upright with its ports edge UP puts the LOWER hole row at
+    BR_SCREW_Z (-37.5) and the UPPER row at +11.5 -- above the deck, where a
+    part printed deck-top-down cannot put a boss. So the lower row is bolted and
+    the upper row is not; the recess cheeks guide the board and its own
+    stiffness does the rest (see the BR_* block in dimensions.py, which works
+    the cantilever: 5 N at the top edge deflects it 0.5 mm).
+
+    They still run FORWARD (+x) from behind with their heads on the PCB's aft
+    face in open air -- the one thing every revision since v4 has kept."""
+    xh = D.BR_PCB_X1                                  # PCB aft face = head seat
     s = []
     for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY):
-        for sz in (D.BF_CZ + D.BOARD_GD_SCREW_DZ, D.BF_CZ - D.BOARD_GD_SCREW_DZ):
-            s.append(parts.cyl_x(D.M25_TAP / 2, xh, xh + 6.0, sy, sz))
-            s.append(parts.cyl_x(D.M25_HEAD_D / 2, xh - D.M25_HEAD_H, xh,
-                                 sy, sz))
+        s.append(parts.cyl_x(D.M25_TAP / 2, xh, xh + 6.0, sy, D.BR_SCREW_Z))
+        s.append(parts.cyl_x(D.M25_HEAD_D / 2, xh - D.M25_HEAD_H, xh,
+                             sy, D.BR_SCREW_Z))
     return _fuse(s)
-
-
-def board_frame_screws():
-    """Every fastener that ends up on board_frame, for callers that want the
-    part fully dressed (dress.py, and the seated-in-its-own-part check) rather
-    than one assembly step at a time."""
-    return board_frame_mount_screws() + board_screws()
 
 
 def head_stack_screws():
@@ -370,7 +346,8 @@ INSERT_LEN = 25.0       # how far back the approach is modelled (well outside
 #   pan25  M2.5 machine pan (driver board / IMU), head OD + 0.4.
 #   well3  M3 button in a DRIVER WELL: where the screw goes down a bore rather
 #          than standing in open air, it is the well (M3_CB_D) that has to be
-#          clear, not just the head. battery_tray's four verticals are this.
+#          clear, not just the head. Unused since v6 folded battery_tray away;
+#          kept because it is a real class and the next bored M3 wants it.
 #   access A REAL DRIVER AND BIT, D.ACCESS_D. v5 introduced this constant and
 #          dimensioned the deck's aft edge against it (BF_ACCESS_MARGIN: the
 #          aft stator row's driver cylinder passes 1.76 mm ahead of the board
@@ -521,30 +498,22 @@ def tower_seats():
     return s
 
 
-def battery_tray_seats():
-    """Heads bear ON THE DECK TOP (z 0) and stand proud -- no well, no cone, so
-    unlike the v4 torso feet the seat plane and the bearing plane are the same
-    number. The approach is the "well3" cylinder rather than a bare head: these
-    run down a O3.4 bore through 5 mm of deck, and it is the well the driver
-    has to share with the head."""
-    return [(sx, sy, 0.0, "z", +1, "well3")
-            for sx in D.BT_SCREW_X for sy in (D.BT_SCREW_Y, -D.BT_SCREW_Y)]
-
-
-def board_frame_mount_seats():
-    """Driven from AFT into the housing ribs, so the approach runs -x out of
-    the frame. Checked at the full "access" cylinder: these are hand-driven
-    from behind the standing robot, and BF_CHASE was sized for exactly that."""
-    return [(D.BF_BULK_X1, sy, sz, "x", -1, "access")
-            for sy in (D.BF_MOUNT_Y, -D.BF_MOUNT_Y) for sz in D.BF_MOUNT_Z]
+def gopro_seats():
+    """Heads bear on gopro_base's own top face and are driven straight down.
+    Checked at the full "access" cylinder rather than at the head: the base is
+    a 30 x 24 pad on an otherwise open deck, so there is no excuse for a driver
+    not to fit, and if the pad ever grows furniture this is what catches it."""
+    gx, gy = D.GP_SCREW_XY
+    return [(sx, sy, D.GP_BASE_T, "z", +1, "access")
+            for sx in (D.GP_MOUNT_X + gx, D.GP_MOUNT_X - gx)
+            for sy in (gy, -gy)]
 
 
 def board_seats():
-    """Driven from AFT, so the approach sweep runs -x out of the frame."""
-    return [(D.BF_PCB_X1, sy, sz, "x", -1, "pan25")
-            for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY)
-            for sz in (D.BF_CZ + D.BOARD_GD_SCREW_DZ,
-                       D.BF_CZ - D.BOARD_GD_SCREW_DZ)]
+    """Driven from AFT into the housing's rear web, so the approach runs -x out
+    of the robot. Two seats, the lower row only -- see board_screws()."""
+    return [(D.BR_PCB_X1, sy, D.BR_SCREW_Z, "x", -1, "pan25")
+            for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY)]
 
 
 def head_stack_seats():
@@ -571,12 +540,11 @@ SEATS = {
     "screws_yaw_wall":    (yaw_wall_seats,   yaw_wall_screws),
     "screws_deck":        (deck_stator_seats, deck_stator_screws),
     "screws_foot":        (foot_seats,       foot_screws),
-    "screws_tray":        (battery_tray_seats, battery_tray_screws),
-    # board_frame's two steps are two groups: the frame is bolted to the housing
-    # from aft with the board OFF, the board screws follow once it is on its
-    # standoffs. See board_frame_mount_screws() for why they are not merged.
-    "screws_bf_mount":    (board_frame_mount_seats, board_frame_mount_screws),
-    "screws_board":       (board_seats,       board_screws),
+    # v6: the tray and the board frame are gone -- folded into pelvis() -- and
+    # with them their nine screws. What is left on the torso is the board's two
+    # M2.5 from aft and the gopro base's four M3 from above.
+    "screws_gopro":       (gopro_seats,      gopro_screws),
+    "screws_board":       (board_seats,      board_screws),
 }
 # screws_tower / screws_head_stack are NOT in SEATS since pelvis v4
 # (2026-08-04): they belong to tower / gopro_base / imu_carrier, which left the
@@ -601,8 +569,8 @@ GROUPS = {
     "screws_roll":         lambda: disc_screws_x() + flange_bolts(),
     "screws_yaw_carrier":  yaw_carrier_screws,                 # carrier frame
     "screws_deck":         deck_stator_screws,                 # pelvis frame
-    "screws_tray":         battery_tray_screws,                # pelvis frame
-    "screws_board_frame":  board_frame_screws,                 # pelvis frame
+    "screws_gopro":        gopro_screws,                       # pelvis frame
+    "screws_board":        board_screws,                       # pelvis frame
     "screws_tower":        tower_screws,                       # LEGACY (tower)
     "screws_head_stack":   head_stack_screws,                  # LEGACY (head)
     "screws_foot":         foot_screws,                        # foot frame

@@ -3,6 +3,7 @@ intersection volumes at joint-range extremes. All volumes should be ~0 mm^3.
 
 Run:  .venv/bin/python cad/check_assembly.py     (exit 0 = clear, 1 = interference)
 """
+import math
 import sys
 
 from build123d import *
@@ -84,6 +85,61 @@ def servo_mock_z():
     """Yaw servo (v3yaw): output axis VERTICAL with the horn DOWN. Case length
     along X (YAW_CASE_X_REAR..FRONT), width along Y, idler face UP."""
     return Rot(0, 90, 0) * Rot(0, 0, -90) * servo_mock()
+
+
+# ------------------------------------------------------------- torso mocks
+# The bought parts the v6 torso holds: the driver board, its component side, and
+# the camera. They live HERE rather than in export_assembly because this module
+# is the one that may not import that one (export_assembly imports this), and a
+# mock that exists twice is a mock that drifts. export_assembly delegates.
+def board_pcb_mock():
+    """The General Driver PCB seated in the v6 recess, pelvis frame. CORRECTED
+    outline 65.01 x 56.01 (the wiki's 65 x 65 was 8.99 mm of board that does not
+    exist -- BOARD_GD_OUTLINE), standing upright and transverse with its 65.01
+    PORTS EDGE UP: forward face on the standoffs at BR_PCB_X0, y +/-32.505,
+    z BR_BOT_Z..BR_TOP_Z, so only the top 15 mm clears the deck.
+
+    ITS OWN MOUNTING HOLES ARE MODELLED (BOARD_GD_HOLE_D on the BOARD_GD_HOLES
+    grid). Without them a solid slab reads as blocking its own screws -- the
+    kind of false positive that gets explained away in a comment once and then
+    hides a real one later."""
+    hy = D.BOARD_GD_OUTLINE[0] / 2
+    p = parts.box(D.BR_PCB_X1, D.BR_PCB_X0, -hy, hy, D.BR_BOT_Z, D.BR_TOP_Z)
+    for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY):
+        for sz in (D.BR_SCREW_Z, D.BR_UPPER_ROW_Z):
+            p -= parts.cyl_x(D.BOARD_GD_HOLE_D / 2, D.BR_PCB_X1 - 1,
+                             D.BR_PCB_X0 + 1, sy, sz)
+    return p
+
+
+def board_comp_mock():
+    """Everything fitted to the board's AFT face, as ONE conservative slab of
+    BOARD_GD_COMP -- the 40-pin header is the tall one, and the recess cheeks
+    are sized against it (BR_RIM_PROUD)."""
+    hy = D.BOARD_GD_OUTLINE[0] / 2
+    return parts.box(D.BR_COMP_X, D.BR_PCB_X1, -hy, hy, D.BR_BOT_Z, D.BR_TOP_Z)
+
+
+def camera_mock():
+    """GoPro MAX 360 stand-in in GOPRO_BASE's frame (z=0 at the base's bottom,
+    i.e. the deck top): body box plus the two folded mount fingers reaching down
+    into the base's prong slots, body bottom ~6 above the M5 hole centre."""
+    # Body bottom CORRECTED 2026-08-04 (downstream pass): it was hole_z + 6.0,
+    # inherited from the v3 tower-era mock. The prongs' round tops reach
+    # hole_z + GP_PRONG_OD/2 = hole_z + 7.5 about the M5 axis, so a body at +6
+    # swallowed the top 1.5 mm of all three prongs -- 82.77 mm3, and it is the
+    # mock that is wrong, not the mount: on the real camera the prongs nest in
+    # the gap BETWEEN its two fingers, which is what the +7.5 clearance is. The
+    # 0.5 on top is the running gap the folding mount needs to swing shut.
+    hole_z = D.GP_BASE_T + D.GP_HOLE_H
+    bot = hole_z + D.GP_PRONG_OD / 2 + 0.5
+    dx, dy, dz = D.CAM_BODY
+    body = parts.box(-dx / 2, dx / 2, -dy / 2, dy / 2, bot, bot + dz)
+    fingers = None
+    for cy in (-(D.GP_PRONG_T + D.GP_SLOT) / 2, (D.GP_PRONG_T + D.GP_SLOT) / 2):
+        f = parts.box(-6, 6, cy - 1.45, cy + 1.45, hole_z - 6, bot + 1)
+        fingers = f if fingers is None else fingers + f
+    return body + fingers
 
 
 def _check_mock_frames():
@@ -403,31 +459,28 @@ def main():
                 vol(yr, F.disc_screws_x()) + vol(yr, F.flange_bolts()))
     ft = parts.foot()
     ok &= check("foot vs its 3 tab screws", vol(ft, F.foot_screws()))
-    # v5 (2026-08-04): the two torso parts are battery_tray (bolted UP under the
-    # deck by 4 verticals) and board_frame (bolted to the housing's rear WALL by
-    # 4 horizontals). Both are drawn in the pelvis frame.
-    bt, bf = parts.battery_tray(), parts.board_frame()
-    bt_scr = F.battery_tray_screws()
-    bfm_scr, brd_scr = F.board_frame_mount_screws(), F.board_screws()
-    ok &= check("battery_tray vs its 4 vertical M3", vol(bt, bt_scr))
-    ok &= check("board_frame vs its 4 horizontal M3 + 4 board screws",
-                vol(bf, bfm_scr) + vol(bf, brd_scr))
-    ok &= check("pelvis vs the tray screws (they pass through the deck)",
-                vol(pv, bt_scr))
-    ok &= check("pelvis vs the frame mount screws (into the rib inserts)",
-                vol(pv, bfm_scr))
-    # The pack is UNDERSLUNG in v5, so the old "deck top must be flat under the
-    # footprint" check is gone with the deck-top bay. What replaces it is the
-    # aperture: the pack's whole envelope has to pass through the hole in the
-    # deck, which is checked in the torso section below. Here, one thing that
-    # does survive -- the deck top is still a printed-on-bed face and the belt
-    # runs across it, so the stator heads must not stand in the belt's way.
+    # v6 (2026-08-04): there are no torso PARTS left to bolt on but one. The
+    # tray and the board frame folded into pelvis(), taking nine screws with
+    # them; what is left is the board's two M2.5 from aft and gopro_base's four
+    # M3 from above. Everything is drawn in the pelvis frame.
+    gp = Pos(D.GP_MOUNT_X, 0, 0) * parts.gopro_base()
+    _pcb_v6, _comp_v6 = board_pcb_mock(), board_comp_mock()
+    _camera_at = lambda: Pos(D.GP_MOUNT_X, 0, 0) * camera_mock()
+    gp_scr, brd_scr = F.gopro_screws(), F.board_screws()
+    ok &= check("gopro_base vs its 4 M3", vol(gp, gp_scr))
+    ok &= check("pelvis vs the gopro screws (into the deck bosses)",
+                vol(pv, gp_scr))
+    ok &= check("pelvis vs the 2 board screws (into the web standoffs)",
+                vol(pv, brd_scr))
+    # The deck top is still a printed-on-bed face and the belt still runs across
+    # it, so nothing may stand in the belt's band. In v6 that band has to clear
+    # the stator heads (flush) -- the four tray screws that used to sit proud
+    # here went with the tray.
     _belt = parts.box(D.BT_BELT_X[0], D.BT_BELT_X[1],
                       -D.BT_BELT_SLOT_Y[1], D.BT_BELT_SLOT_Y[1], 0, 2.0)
     ok &= check("belt band on the deck top vs the stator screw heads",
                 vol(_belt, F.deck_stator_screws()))
-    ok &= check("belt band vs the tray screw heads (they sit PROUD)",
-                vol(_belt, bt_scr))
+    ok &= check("belt band vs gopro_base + its screws", vol(_belt, gp + gp_scr))
 
     print("== SCREW INSERTION PATHS (can the screw + driver REACH the seat?) ==")
     # The block above proves each head is SWALLOWED once seated. This one
@@ -464,26 +517,38 @@ def main():
             # board is on its standoffs -- the four M2.5 whose heads land on the
             # PCB's aft face in open air, which is the whole reason the board
             # faces aft (the tower's four ended 3.17 mm from a wall).
-            ("battery_tray: 4 verticals down through the deck", bt,
-             "screws_tray"),
-            ("board_frame: 4 mount M3 from aft (board still off)", bf,
-             "screws_bf_mount"),
-            ("board: 4 M2.5 into the standoffs, from aft", bf,
+            ("gopro_base: 4 M3 down into the deck bosses", gp,
+             "screws_gopro"),
+            ("board: 2 M2.5 into the web standoffs, from aft", pv,
              "screws_board")):
         ok &= check(f"path: {label}", vol(host, F.paths(group)))
-    # ...and the two paths that cross PART BOUNDARIES, which is where v5's
-    # tightest access number lives. The stator screws are driven vertically with
-    # the FRAME ALREADY ON (it bolts to the housing before the deck is loaded
-    # with servos in any sane order, and it is certainly on for a re-torque), so
-    # their ACCESS_D cylinder has to miss the bulkhead: BF_ACCESS_MARGIN says by
-    # 1.76 mm. If the deck ever grows aft again, this is the line that fails.
-    ok &= check("path: stator screws vs board_frame (frame on, board off)",
-                vol(bf, F.paths("screws_deck")))
-    ok &= check("path: stator screws vs battery_tray", vol(bt, F.paths("screws_deck")))
-    ok &= check("path: tray screws vs the pelvis deck they pass through",
-                vol(pv, F.paths("screws_tray")))
-    ok &= check("path: frame mount screws vs pelvis (into the ribs)",
-                vol(pv, F.paths("screws_bf_mount")))
+    # ...and the paths that cross PART BOUNDARIES, which is where the tightest
+    # access numbers live. The eight stator screws are driven vertically with
+    # the BOARD and the GOPRO BASE already installed -- that is the state the
+    # robot spends its life in, and a re-torque has to be possible in it. The
+    # board is the near miss: its forward face stands at BR_PCB_X0 (-42.01) and
+    # the -32.75 row's ACCESS_D cylinder reaches back to -36.25, so 5.76 mm.
+    #
+    # The CAMERA is deliberately NOT in this set. Its body is 64 wide and hangs
+    # over the stator rows from z 19.5 up, so it does foul those cylinders --
+    # measured below and reported, not gated, because the camera is a click-on
+    # accessory held by one thumbscrew: it is not fitted when the servos are.
+    for _lbl, _host in (("board + components", _pcb_v6 + _comp_v6),
+                        ("gopro_base", gp),
+                        ("battery bay walls", pv)):
+        ok &= check(f"path: stator screws vs {_lbl}",
+                    vol(_host, F.paths("screws_deck")))
+    _cam_foul = vol(_camera_at(), F.paths("screws_deck"))
+    print(f"  {'note: stator paths vs the CAMERA (unclip it first)':58s} "
+          f"{_cam_foul:8.2f} mm3  {'clear' if _cam_foul <= 1.0 else 'FOULS'}"
+          f" -- accessory, not gated")
+    # The board's own Ø3 holes are in the mock, so the two M2.5 must pass
+    # through them cleanly -- shank in the hole, head landing on the aft face.
+    ok &= check("board screws pass their own holes in the PCB",
+                vol(board_pcb_mock(), brd_scr))
+    ok &= check("path: gopro screws vs pelvis (down through the deck)",
+                vol(pv, F.paths("screws_gopro")))
+
     # ANTI-DRIFT: fasteners.py's seat tables restate the head coordinates of
     # the screw builders. Every seat probe must land in head metal -- if a
     # screw moves and its seat does not (or vice versa), this fails instead of
@@ -666,35 +731,31 @@ def main():
         ok &= check(f"hip {h:+d} knee {k:+d}: upper arms vs shin link",
                     vol(arms2, shin2))
 
-    print("== TORSO v5: battery_tray under the deck, board_frame on the wall ==")
-    # v5 moved the whole torso DOWN into the servos' own z band: the pack hangs
-    # in a tray forward of the housing, the board hangs on a frame behind it,
-    # and the deck is the top of the robot. That changes what these checks have
-    # to prove. The v4 questions were about a deck-top bay; the v5 questions are:
+    print("== TORSO v6: one printed torso + the camera on the roof ==")
+    # v6 folded the tray and the board frame into pelvis(), so most of what the
+    # v5 section checked is now checked by the pelvis's own booleans elsewhere.
+    # What is left here is what a single-part torso still cannot prove to
+    # itself -- the things it HOLDS, and how they get in and out:
     #
-    #   (a) THE FLOOR. v5's entire leg-clearance argument is Z-SEPARATION: no
-    #       torso part may cross TORSO_FLOOR_Z, which sits 1.0 above the yaw
-    #       carrier's horn plate -- the highest moving part of the leg. That is
-    #       an argument about a single number per part, so it is checked as a
-    #       number, and then the booleans below check it the hard way at yaw
-    #       extremes.
-    #   (b) THE APERTURE. The pack no longer lifts out of an open bay; it lifts
-    #       through a hole in the deck. So the swept lift-out has to clear the
-    #       PELVIS as well as the tray.
-    #   (c) ACCESS. Everything is now packed into one band, so the driver paths
-    #       (above) and the connector headroom at the trench (below) are what
-    #       stop that packing from making the robot unserviceable.
+    #   (a) THE FLOOR still governs. Every torso solid, printed or bought, stays
+    #       above TORSO_FLOOR_Z, 1.0 mm over the yaw carrier's horn plate. The
+    #       carrier is the highest moving part of the leg, so that plane is the
+    #       whole leg-clearance argument, and it is checked as a number and then
+    #       the hard way against the swept carrier stacks.
+    #   (b) THE BOARD goes in DOWNWARD between the recess cheeks and is held by
+    #       two screws at its lower row only -- the upper row lands above the
+    #       deck, where a deck-top-down print cannot put a boss. So the drop-in
+    #       path is a real check, not a formality.
+    #   (c) THE PACK rests in a V of two 47 deg chamfers with no floor under it,
+    #       and lifts straight out through the deck aperture.
+    #   (d) THE CAMERA is back. It is 154 g on a 30 x 24 pad, so where it can
+    #       reach matters -- and what it blocks (see the stator-path note above).
     _ysv_both = ysv + Pos(0, -D.HIP_SEP / 2, YAW_MID) * servo_mock_z()
-    _bhy = D.BOARD_GD_OUTLINE[0] / 2
-    _pcb = parts.box(D.BF_PCB_X1, D.BF_PCB_X0, -_bhy, _bhy,
-                     D.BF_BOT_Z, D.BF_TOP_Z)
-    _comp = parts.box(D.BF_COMP_X, D.BF_PCB_X1, -_bhy, _bhy,
-                      D.BF_BOT_Z, D.BF_TOP_Z)
-    # (a) the floor, as a number, for every torso solid including the mocks
-    for _lbl, _s in (("battery_tray", bt), ("board_frame", bf),
-                     ("driver board + components", _pcb + _comp),
-                     ("tray screws", bt_scr), ("frame mount screws", bfm_scr),
-                     ("board screws", brd_scr)):
+    _cam = _camera_at()
+    for _lbl, _s in (("pelvis (the whole torso)", pv),
+                     ("driver board + components", _pcb_v6 + _comp_v6),
+                     ("board screws", brd_scr),
+                     ("gopro_base", gp), ("gopro screws", gp_scr)):
         _zmin = _s.bounding_box().min.Z
         _gap = _zmin - D.TORSO_FLOOR_Z
         print(f"  {'floor: ' + _lbl + ' lowest z':58s} {_zmin:8.2f} mm   "
@@ -702,129 +763,145 @@ def main():
               f"({_gap:+.2f} vs {D.TORSO_FLOOR_Z})")
         ok &= _gap >= 0
 
-    ok &= check("battery_tray vs pelvis (bolted up, contact only)", vol(pv, bt))
-    ok &= check("board_frame vs pelvis (bolted on, contact only)", vol(pv, bf))
-    ok &= check("battery_tray vs board_frame", vol(bt, bf))
-    ok &= check("battery_tray vs both yaw servos", vol(bt, _ysv_both))
-    ok &= check("board_frame vs both yaw servos", vol(bf, _ysv_both))
-    # ...and now the hard way. BOTH torso parts sit inside the carrier's r~25.1
-    # plan circle in places (the tray reaches x 13..50 across the full width),
-    # so the ONLY thing keeping them apart is the z band. Sweep the carrier
-    # stack -- carrier plus its roll servo -- through the yaw ROM against both.
+    ok &= check("gopro_base seated on the deck vs pelvis", vol(pv, gp))
+    ok &= check("camera seated vs gopro_base (fingers in the slots)",
+                vol(gp, _cam))
+    ok &= check("camera vs pelvis (it overhangs the deck)", vol(pv, _cam))
+    ok &= check("gopro_base + camera vs both yaw servos",
+                vol(gp + _cam, _ysv_both))
+    ok &= check("board + components vs both yaw servos",
+                vol(_pcb_v6 + _comp_v6, _ysv_both))
+    # ...and the hard way, against the carriers through their whole yaw sweep.
     for _yaw in (0, D.YAW_SWEEP, -D.YAW_SWEEP):
         _st = yaw_stack(D.HIP_SEP / 2, _yaw) + yaw_stack(-D.HIP_SEP / 2, _yaw)
-        ok &= check(f"battery_tray vs carrier stacks at yaw {_yaw:+.0f}",
-                    vol(bt, _st))
-        ok &= check(f"board_frame vs carrier stacks at yaw {_yaw:+.0f}",
-                    vol(bf, _st))
-    ok &= clearance("buffer: tray vs carrier stack at yaw +45", bt,
-                    yaw_stack(D.HIP_SEP / 2, D.YAW_SWEEP))
-    ok &= clearance("buffer: frame vs carrier stack at yaw -45", bf,
-                    yaw_stack(D.HIP_SEP / 2, -D.YAW_SWEEP))
+        ok &= check(f"pelvis vs carrier stacks at yaw {_yaw:+.0f}", vol(pv, _st))
+        ok &= check(f"board + components vs carrier stacks at yaw {_yaw:+.0f}",
+                    vol(_pcb_v6 + _comp_v6, _st))
+        ok &= check(f"gopro + camera vs carrier stacks at yaw {_yaw:+.0f}",
+                    vol(gp + _cam, _st))
+    ok &= clearance("buffer: board vs carrier stack at yaw -45",
+                    _pcb_v6 + _comp_v6, yaw_stack(D.HIP_SEP / 2, -D.YAW_SWEEP))
 
-    # --- HEAT-SET METAL. Four inserts in the tray's pads (vertical, pressed in
-    # from above) and four in the housing's rear-wall ribs (horizontal, pressed
-    # in from aft). Both patterns exist because a M3 insert cannot live in a
-    # 2.6 mm wall -- the old TOWER_FOOT mistake -- so an empty ring here is not
-    # cosmetic, it is the failure that pattern was invented to prevent.
+    # --- HEAT-SET METAL. v6 has ONE insert pattern left: the four under the
+    # gopro pad. (The tray's four and the rear-web ribs' four went with the
+    # parts they held.) A M3 insert cannot live in a 5 mm deck, which is why
+    # each hangs in a GP_BOSS_D boss under it -- an empty ring here is the
+    # failure that pattern exists to prevent.
     def _ring_z(x, y, z0, z1, r_out):
         return (parts.cyl_z(r_out, z0, z1, x, y)
                 - parts.cyl_z(D.HEATSET_D / 2, z0 - 1, z1 + 1, x, y))
 
-    def _ring_x(x0, x1, y, z, r_out):
-        return (parts.cyl_x(r_out, x0, x1, y, z)
-                - parts.cyl_x(D.HEATSET_D / 2, x0 - 1, x1 + 1, y, z))
-
-    for _sx in D.BT_SCREW_X:
-        for _sy in (D.BT_SCREW_Y, -D.BT_SCREW_Y):
+    _gx, _gy = D.GP_SCREW_XY
+    for _sx in (D.GP_MOUNT_X + _gx, D.GP_MOUNT_X - _gx):
+        for _sy in (_gy, -_gy):
             ok &= require(
-                f"tray pad metal round the heat-set ({_sx:+.1f},{_sy:+.1f})",
-                vol(bt, _ring_z(_sx, _sy, D.BT_PACK_TOP - D.HEATSET_L,
-                                D.BT_PACK_TOP, 3.4)), 90.0)
-    for _sy in (D.BF_MOUNT_Y, -D.BF_MOUNT_Y):
-        for _sz in D.BF_MOUNT_Z:
-            ok &= require(
-                f"housing rib metal round the insert ({_sy:+.1f},{_sz:+.0f})",
-                vol(pv, _ring_x(D.YAW_BOX_X_REAR, D.YAW_BOX_X_REAR + D.HEATSET_L,
-                                _sy, _sz, 3.4)), 90.0)
+                f"deck+boss metal round the gopro heat-set ({_sx:+.0f},{_sy:+.0f})",
+                vol(pv, _ring_z(_sx, _sy, -D.DECK_T - D.GP_BOSS_H, 0.0,
+                                D.GP_BOSS_D / 2)), 250.0)
 
-    # --- BATTERY: seated, and the check that matters -- LIFTING OUT THROUGH THE
-    # DECK. In v4 the pack lifted out of an open deck-top hoop; in v5 it has to
-    # come up through an APERTURE, so the pelvis is in the swept path too. Both
-    # the modelled pack and the BATT ENVELOPE get the full boolean this time --
-    # unlike v4's guard, nothing here is deliberately sized to touch it.
-    _ly, _wx, _hz = D.BATT_PACK
-    _pack = parts.box(D.BT_SEAT_X, D.BT_SEAT_X + _wx, -_ly / 2, _ly / 2,
-                      D.BT_FLOOR_TOP, D.BT_FLOOR_TOP + _hz)
-    _env = parts.box(D.BT_SEAT_X, D.BT_FRONT_X, -D.BATT[0] / 2, D.BATT[0] / 2,
-                     D.BT_FLOOR_TOP, D.BT_PACK_TOP)
-    ok &= check("battery pack seated vs battery_tray", vol(bt, _pack))
-    ok &= check("battery pack seated vs pelvis", vol(pv, _pack))
-    ok &= check("battery ENVELOPE seated vs battery_tray", vol(bt, _env))
+    # --- BATTERY. No floor under it any more: it rests in the V of the two
+    # 47 deg seat chamfers, which CENTRE it between the bay walls. So the mock
+    # is placed where the V actually puts it, from the chamfer geometry -- not
+    # against either wall. (BT_SEAT_DROP's derivation was corrected this pass;
+    # at the old value the pack floated 0.52 mm above its seat and every check
+    # below would have read zero by luck rather than by contact.)
+    def _seated(w, ly, h):
+        xc = (D.BT_SEAT_X + D.BT_WALL_X1) / 2
+        z0 = D.BT_SEAT_Z - ((D.BT_SEAT_BAY_W - w) / 2
+                            * math.tan(math.radians(D.BT_SEAT_DEG)))
+        return parts.box(xc - w / 2, xc + w / 2, -ly / 2, ly / 2, z0, z0 + h)
+
+    _pack = _seated(*[D.BATT_PACK[i] for i in (1, 0, 2)])
+    _env = _seated(*[D.BATT[i] for i in (1, 0, 2)])
+    ok &= check("battery pack seated in the chamfer V vs pelvis", vol(pv, _pack))
+    ok &= check("battery ENVELOPE seated in the V vs pelvis", vol(pv, _env))
+    # ...and it must actually LAND on the chamfers, not hang in the aperture:
+    # drop each 0.4 mm further and it has to bite. This is the check that the
+    # corrected BT_SEAT_DROP makes meaningful.
+    for _lbl, _sol in (("pack", _pack), ("ENVELOPE", _env)):
+        _b = _sol.bounding_box()
+        _low = parts.box(_b.min.X, _b.max.X, _b.min.Y, _b.max.Y,
+                         _b.min.Z - 0.4, _b.max.Z - 0.4)
+        ok &= require(f"battery {_lbl} lands on the seat chamfers (0.4 lower)",
+                      vol(pv, _low), 1.0)
     for _lbl, _sol in (("pack", _pack), ("ENVELOPE", _env)):
         _b = _sol.bounding_box()
         _lift = parts.box(_b.min.X, _b.max.X, _b.min.Y, _b.max.Y,
                           _b.min.Z, _b.max.Z + 60)
-        ok &= check(f"battery {_lbl} lift-out (+60 up) vs battery_tray",
-                    vol(bt, _lift))
-        ok &= check(f"battery {_lbl} lift-out (+60 up) through the deck",
+        ok &= check(f"battery {_lbl} lift-out (+60 up) through the aperture",
                     vol(pv, _lift))
+        ok &= check(f"battery {_lbl} lift-out vs gopro_base + camera",
+                    vol(gp + _cam, _lift))
 
-    # --- DRIVER BOARD: seated, and brought in from AFT along its own axis.
-    ok &= check("driver board PCB seated vs board_frame", vol(bf, _pcb))
-    ok &= check("board component envelope vs board_frame walls/rail",
-                vol(bf, _comp))
-    ok &= check("board + components vs pelvis", vol(pv, _pcb + _comp))
-    ok &= check("board + components vs battery_tray", vol(bt, _pcb + _comp))
-    _w, _at = insert_scan(bf, _pcb + _comp, (-1, 0, 0), 70.0)
-    print(f"  {'board slides in from aft (swept -x 70 mm)':58s} {_w:8.2f} mm3  "
+    # --- DRIVER BOARD: seated, and -- the v6 question -- DROPPED IN FROM ABOVE
+    # between the recess cheeks, which is both how it goes in and how it comes
+    # out for service.
+    ok &= check("driver board PCB seated vs pelvis", vol(pv, _pcb_v6))
+    ok &= check("board component envelope vs pelvis (cheeks, ears, web)",
+                vol(pv, _comp_v6))
+    ok &= check("board + components vs gopro_base + camera",
+                vol(gp + _cam, _pcb_v6 + _comp_v6))
+    _w, _at = insert_scan(pv, _pcb_v6 + _comp_v6, (0, 0, 1), 70.0)
+    print(f"  {'board drops in from above (swept +z 70 mm)':58s} {_w:8.2f} mm3  "
           f"{'OK' if _w <= 1.0 else '** BLOCKED **'} (worst at {_at:+.1f} mm)")
     ok &= _w <= 1.0
-    # ...the frame's RIM has to stand proud of the deepest component, or a
-    # backward fall lands on the 40-pin header instead of on printed plastic.
-    ok &= require("frame rim material aft of the component envelope",
-                  vol(bf, parts.box(D.BF_AFT_X, D.BF_COMP_X,
-                                    -D.BF_WALL_Y_OUT, D.BF_WALL_Y_OUT,
-                                    D.BF_BOT_Z, D.BF_FRAME_TOP_Z)), 400.0)
-    # ...and the board has to have something to bolt TO: four standoff bosses
-    # with tappable metal round each pilot. A boss that vanished into a
-    # bulkhead lightening window would pass every collision check above.
+    # ...the cheeks have to actually CAPTURE it -- a recess whose cheeks had
+    # drifted outboard would pass every collision check above and hold nothing.
+    for _s in (1, -1):
+        _grip = parts.box(D.BR_PCB_X1, D.BR_PCB_X0,
+                          _s * D.BR_CHEEK_Y_IN, _s * (D.BR_CHEEK_Y_IN + 1.5),
+                          D.BR_BOT_Z, -D.DECK_T)
+        ok &= require(f"recess cheek beside the board's {_s:+.0f}y edge",
+                      vol(pv, _grip), 50.0)
+    # ...and the two standoffs have to have tappable metal round their pilots.
     for _sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY):
-        for _sz in (D.BF_CZ + D.BOARD_GD_SCREW_DZ,
-                    D.BF_CZ - D.BOARD_GD_SCREW_DZ):
-            _boss = (parts.cyl_x(3.5, D.BF_PCB_X0, D.BF_BULK_X1, _sy, _sz)
-                     - parts.cyl_x(D.M25_TAP / 2, D.BF_PCB_X0 - 1,
-                                   D.BF_BULK_X1 + 1, _sy, _sz))
-            ok &= require(f"standoff boss metal at (y{_sy:+.0f}, z{_sz:+.1f})",
-                          vol(bf, _boss), 100.0)
+        _boss = (parts.cyl_x(3.5, D.BR_PCB_X0, D.YAW_BOX_X_REAR, _sy,
+                             D.BR_SCREW_Z)
+                 - parts.cyl_x(D.M25_TAP / 2, D.BR_PCB_X0 - 1,
+                               D.YAW_BOX_X_REAR + 1, _sy, D.BR_SCREW_Z))
+        ok &= require(f"standoff boss metal at (y{_sy:+.0f}, z{D.BR_SCREW_Z:.1f})",
+                      vol(pv, _boss), 100.0)
+    # ...the upper screw row is UNBOLTED BY DESIGN. Assert the reason, so that a
+    # future board or a lower BR_BOT_Z that brings it under the deck fails here
+    # instead of silently shipping a two-screw mount that could have had four.
+    print(f"  {'board upper screw row (unbolted -- must be above deck)':58s} "
+          f"{D.BR_UPPER_ROW_Z:8.2f} mm   "
+          f"{'OK' if D.BR_UPPER_ROW_Z > 0 else '** BELOW DECK: use 4 screws **'}")
+    ok &= D.BR_UPPER_ROW_Z > 0
 
-    # --- SERVICE ACCESS at the yaw connector trench. parts.pelvis claims "full
-    # finger and plug room at the trench with the board on", and that claim is
-    # the reason the deck stops flush at the housing rear face instead of
-    # overhanging. Probe it: the trench footprint, swept 40 mm straight up.
+    # --- SERVICE ACCESS. Same two claims v5 made, re-measured against a torso
+    # that now has a board standing up through the deck plane and a camera on
+    # the roof: full plug room over each yaw connector trench, and a clear
+    # deck-top corridor between the stator screws' driver cylinders for the
+    # leads to run aft in.
+    # The camera is excluded here for the same reason it is excluded from the
+    # stator paths, and it is the same 154 g body doing it: 64 mm across and
+    # hanging from z 19.5 up, it shadows the outboard half of both trenches
+    # above that height. Measured and reported below. Unclipping it is one
+    # thumbscrew, and it is not fitted while anyone is plugging servo leads in.
     for _by in (D.HIP_SEP / 2, -D.HIP_SEP / 2):
         _probe = parts.box(-D.SV_CONN_L[1] - 1.0, -D.SV_CONN_L[0] + 0.6,
                            _by - 10.5, _by + 10.5, 0.0, 40.0)
-        ok &= check(f"trench headroom at y {_by:+.0f} vs frame + tray",
-                    vol(bf, _probe) + vol(bt, _probe))
-    # ...and the deck-top CORRIDOR the leads then run aft along. The pelvis
-    # docstring puts it at y 26.25..39.75 -- precisely the gap between the two
-    # stator screws' ACCESS_D driver cylinders -- so if either the screw pattern
-    # or ACCESS_D ever moves, the corridor dress.py routes through closes and
-    # this fails rather than the wires quietly overlapping a driver.
+        ok &= check(f"trench headroom at y {_by:+.0f} vs board + gopro_base",
+                    vol(_pcb_v6 + _comp_v6, _probe) + vol(gp, _probe))
+        _cf = vol(_cam, _probe)
+        print(f"  {'note: trench y %+.0f vs the CAMERA (unclip it first)' % _by:58s} "
+              f"{_cf:8.2f} mm3  {'clear' if _cf <= 1.0 else 'SHADOWED'}"
+              f" -- accessory, not gated")
     _corr_y = (D.HIP_SEP / 2 - D.CASE_HOLE_LAT + D.ACCESS_D / 2,
                D.HIP_SEP / 2 + D.CASE_HOLE_LAT - D.ACCESS_D / 2)
     for _s in (1, -1):
-        _corridor = parts.box(D.DECK_AFT_X, -D.SV_CONN_L[0],
+        _corridor = parts.box(D.DECK_CUT_X, -D.SV_CONN_L[0],
                               _s * _corr_y[0], _s * _corr_y[1], 0.0, 6.0)
         ok &= check(f"deck-top lead corridor (y {_corr_y[0]:.2f}.."
                     f"{_corr_y[1]:.2f}) vs stator drivers",
                     vol(_corridor, F.paths("screws_deck")))
+        ok &= check(f"deck-top lead corridor vs gopro_base",
+                    vol(_corridor, gp))
     print(f"  {'corridor width between the stator driver cylinders':58s} "
           f"{_corr_y[1] - _corr_y[0]:8.2f} mm   "
           f"{'OK' if _corr_y[1] - _corr_y[0] >= D.WIRE_PLUG_W else '** TOO NARROW **'}")
     ok &= _corr_y[1] - _corr_y[0] >= D.WIRE_PLUG_W
-
 
     print("\nALL CLEAR" if ok else "\nINTERFERENCES FOUND — fix before printing")
     # NOTE: this file checks POSE EXTREMES and a handful of combined poses. The

@@ -9,17 +9,18 @@ catalog-exact leads. Cable segments that cross a joint are re-swept from
 the posed attachment points, so a posed export shows realistic slack/wrap
 instead of a rigid cable tearing off.
 
-TORSO IS v5 (2026-08-04): one yaw housing, and battery + board both dropped
-into the servos' own z band. The pack hangs UNDER the deck in `battery_tray`;
-the board hangs BEHIND the housing on `board_frame`, still upright/transverse
-with its CONNECTORS FACING AFT. So the torso leads no longer climb anywhere --
-they run along the deck TOP, which is now the roof of the robot, and drop into
-the frame's wire chases.
+TORSO IS v6 (2026-08-04): the whole torso is ONE printed part. The pack sits on
+two seat chamfers in a bay under the deck and the board stands upright in a
+recess aft of the housing -- with its PORTS EDGE UP, 15 mm above the deck. That
+last detail is what makes this file short: the torso leads no longer climb a
+frame or thread a bulkhead, they run along the deck TOP (the roof of the robot)
+and plug straight DOWN into the board's top edge. The camera is back too, on a
+base bolted to the deck.
 
 Chain per leg (all legs identical, horn +Y):
-  board leg-servo port (aft face of the board, z ~ -10)
-    -> outboard chase, up past the board's edge, through the bulkhead's
-       OUTBOARD wire slot (BF_WIRE_SLOT_*, past its BF_TIE_POST anchor)
+  board leg-bus socket, on the board's TOP EDGE (z ~ +15)
+    -> over the deck's aft cut edge (DECK_CUT_X, where the board stands up
+       through the deck plane)
     -> forward along the deck-top corridor -- the y band between the two
        stator screws' driver cylinders, which is what sized it
     -> yaw servo's connector, standing up out of the deck TRENCH    [rigid]
@@ -34,8 +35,8 @@ Chain per leg (all legs identical, horn +Y):
     -> shin web raceway (ties) -> ankle servo rear end at the heel   [joint]
        (through the foot's bulkhead cable window)
 Battery lead rises from the pack's +y end through the 3.5 mm gap the real
-62 mm pack leaves beside the tray wall, up through the deck APERTURE, and aft
-along the +y corridor to the board's power inlet.
+62 mm pack leaves beside the bay wall, up through the deck APERTURE, and aft
+along the +y corridor to the board's power inlet on that same top edge.
 Not placed (undesigned mounts): BNO085 IMU, power switch.
 
 Used by export_assembly_full.py (STEP + stills) and animate_dressed_rom.py
@@ -52,33 +53,33 @@ import check_assembly as CA
 import export_assembly as A
 
 DTOP = A.DECK_TOP_Z                              # v3yaw deck top, world z
-# v5 board: upright and transverse on board_frame, component/connector face
-# AFT, hanging in the servo band. World x of the two faces and the z band it
-# occupies -- all of it now at or BELOW the deck except the top 24 mm.
-PCB_AFT_X = D.BF_PCB_X1                          # -46.24, where the ports are
-PCB_FWD_X = D.BF_PCB_X0                          # -44.61, on the standoffs
-PCB_Z0 = DTOP + D.BF_BOT_Z                       # board bottom edge (-41)
-PCB_Z1 = DTOP + D.BF_TOP_Z                       # board top edge   (+24)
-# Port positions on the aft face. The board's own connector coordinates are not
-# in the repo (docs/sensor-expansion.md §1 inventories the REFS -- H1 power in,
-# H5/H6 one bus-servo port per leg -- but no positions), so these are placed
-# plausibly: the two leg ports low and inboard where the chases deliver, the
-# power inlet up on the +y side where the battery lead arrives. Nothing
-# downstream measures them; the ROUTING is what this file is for.
-PORT_LEG_Z = DTOP + D.BF_CZ - 1.5                # H5 / H6, z ~ -10
-PORT_LEG_Y = 10.0
-PORT_PWR = (DTOP + 8.0, 26.0)                    # H1 XH power inlet (z, y)
-# The two wire routes the frame provides, as y coordinates. Each bulkhead slot
-# is split by its BF_TIE_POST into an INBOARD opening (behind the board, giving
-# onto the 4 mm standoff gap -- too thin for a bundle) and an OUTBOARD one that
-# gives straight onto the chase between the board's edge and the side wall.
-# Everything in this file uses the outboard opening.
-SLOT_Y = (D.BF_WIRE_SLOT_Y[1] + D.BOARD_GD_OUTLINE[0] / 2 + D.BF_TIE_POST / 2) / 2
-CHASE_Y = (D.BOARD_GD_OUTLINE[0] / 2 + D.BF_WALL_Y_IN) / 2       # 37.25
+# v6 board: upright and transverse in the pelvis's own recess, ports edge UP.
+# The corrected outline (65.01 x 56.01) is what lets it stand entirely below
+# deck except its top 15 mm -- and that 15 mm is the PORTS edge, so every torso
+# lead now ends within a few mm of the deck instead of climbing a frame.
+PCB_AFT_X = D.BR_PCB_X1                          # -43.64 component side
+PCB_FWD_X = D.BR_PCB_X0                          # -42.01 on the standoffs
+PCB_MID_X = (D.BR_PCB_X0 + D.BR_PCB_X1) / 2      # -42.83, the ports' own plane
+PCB_Z0 = DTOP + D.BR_BOT_Z                       # board bottom edge (-41)
+PCB_Z1 = DTOP + D.BR_TOP_Z                       # board TOP edge   (+15.01)
+# Port positions along that top edge. The board's own connector coordinates are
+# not in the repo (docs/sensor-expansion.md §1 inventories the REFS -- [10] XH
+# power in, [12] the switch, [13][14][15] the servo buses -- and the annotated
+# photo shows them sharing ONE 65.01 edge, which is why that edge points up),
+# but not their positions. So these are placed plausibly along it: the two leg
+# buses inboard where the corridors deliver, the power inlet outboard on +y
+# where the battery lead arrives. Nothing downstream measures them; the ROUTING
+# is what this file is for.
+PORT_TOP_Z = PCB_Z1                              # sockets open UPWARD
+PORT_LEG_Y = 12.0                                # H5 / H6, one per leg
+PORT_PWR_Y = 26.0                                # H1 XH inlet, +y end
 # The deck-top corridor: the y band between the two stator screws' ACCESS_D
 # driver cylinders. parts.pelvis names it, check_assembly measures it, and this
 # is the file that has to stay inside it.
 CORR_Y = D.HIP_SEP / 2 - D.CASE_HOLE_LAT + D.ACCESS_D / 2 + 2.5   # ~29.3
+# Where the deck stops aft, inboard of the ears: leads cross this edge and drop
+# straight onto the board's top edge, which is 15 mm above it.
+DECK_CUT_X = D.DECK_CUT_X                        # -42.01
 
 COL_WIRE = Color(0.55, 0.12, 0.10)
 COL_TIE = Color(0.08, 0.08, 0.09)
@@ -175,24 +176,30 @@ def zip_tie(z):
 
 
 def board_mock():
-    """The General Driver PCB where board_frame holds it -- upright, transverse
-    and 65 x 65. Same solid export_assembly places, lifted to world."""
+    """The General Driver PCB where the v6 recess holds it -- upright,
+    transverse, 65.01 x 56.01, ports edge UP. Same solid check_assembly owns and
+    export_assembly places, lifted to world."""
     return Pos(0, 0, DTOP) * A.board_pcb_mock()
 
 
 def board_components():
-    """What is fitted to the board's AFT face. The interference check uses the
-    full BOARD_GD_COMP slab (conservative); here it is broken into the pieces
-    the harness plugs into, so the render reads as a board rather than a brick.
-    Depths are within that same 9 mm envelope."""
+    """What is fitted to the board. The interference check uses the full
+    BOARD_GD_COMP slab (conservative); here it is broken into the pieces the
+    harness meets, so the render reads as a board rather than a brick, and the
+    SERVICE side is drawn where v6 actually put it -- along the TOP EDGE.
+    Component depths stay inside the same 9 mm envelope aft of the PCB."""
     x1 = PCB_AFT_X                                      # component face
-    p = parts.box(x1 - 3.4, x1, -9, 9, PCB_Z1 - 28, PCB_Z1 - 10)  # ESP32 can
-    p += parts.box(x1 - 9.0, x1, -30, 30, PCB_Z1 - 10, PCB_Z1 - 4)   # 40-pin
-    for sy in (PORT_LEG_Y, -PORT_LEG_Y):                # H5 / H6 servo ports
-        p += parts.box(x1 - 5.5, x1, sy - 3, sy + 3,
-                       PORT_LEG_Z - 4, PORT_LEG_Z + 4)
-    p += parts.box(x1 - 6.5, x1, PORT_PWR[1] - 4, PORT_PWR[1] + 4,
-                   PORT_PWR[0] - 4, PORT_PWR[0] + 4)    # H1 XT30/XH inlet
+    p = parts.box(x1 - 3.4, x1, -9, 9, PCB_Z1 - 34, PCB_Z1 - 16)  # ESP32 can
+    p += parts.box(x1 - 9.0, x1, -30, 30, PCB_Z1 - 52, PCB_Z1 - 46)  # 40-pin
+    # ...and the ports edge itself: sockets standing UP off the top edge, which
+    # is the whole reason the board is this way up.
+    for sy in (PORT_LEG_Y, -PORT_LEG_Y):                # [13][14][15] servo bus
+        p += parts.box(x1 - 3.0, x1 + 1.6, sy - 3.5, sy + 3.5,
+                       PORT_TOP_Z - 4.0, PORT_TOP_Z)
+    p += parts.box(x1 - 3.0, x1 + 1.6, PORT_PWR_Y - 4, PORT_PWR_Y + 4,
+                   PORT_TOP_Z - 4.0, PORT_TOP_Z)        # [10] XH inlet
+    p += parts.box(x1 - 2.0, x1 + 1.0, -PORT_PWR_Y - 3, -PORT_PWR_Y + 3,
+                   PORT_TOP_Z - 3.0, PORT_TOP_Z)        # [12] power switch
     return p
 
 
@@ -262,38 +269,45 @@ def torso_cable(ly):
     """One leg's bus lead from the BOARD to the yaw servo's connector, standing
     up out of the deck trench. Rigid: every point is torso-fixed.
 
-    v5 route, and the frame's own features dictate all of it:
+    The v6 route is the shortest this has ever been, and it is short because the
+    board's PORTS EDGE IS UP and only 15 mm above the deck:
 
-      * it starts at a leg-servo port on the board's AFT face, low and inboard
-        (PORT_LEG_*), and runs outboard across that face,
-      * turns forward into the CHASE -- the BF_CHASE-wide slot between the
-        board's edge and the frame's side wall, which exists for this,
-      * climbs the chase and passes through the OUTBOARD half of the bulkhead's
-        wire slot (the inboard half opens onto the 4 mm standoff gap, too thin
-        for a bundle), leaving its BF_TIE_POST anchor on the inboard side --
-        that post is the strain relief the bundle zip-ties to,
+      * it starts by plugging DOWN into a leg-bus socket on that top edge,
+      * lifts over the deck's aft cut edge (DECK_CUT_X -- inboard of the ears
+        the deck stops there, which is where the board stands up through it),
       * runs forward along the deck-top CORRIDOR, the y band between the two
         stator screws' driver cylinders (check_assembly measures that band),
       * and drops into the yaw connector trench.
+
+    No chases, no bulkhead slots, no tie posts: v5 needed all three to get a
+    lead from a board hanging behind a frame back onto the deck, and v6 deleted
+    the geometry by turning the board the right way up.
     """
     sgn = 1 if ly > 0 else -1
-    zs = DTOP + sum(D.BF_WIRE_SLOT_Z) / 2               # slot mid-height
     tx = -(D.SV_CONN_L[0] + D.SV_CONN_L[1]) / 2         # trench centre, x -14.05
-    return cable([(PCB_AFT_X - 3.0, sgn * PORT_LEG_Y, PORT_LEG_Z),
-                  (PCB_AFT_X - 3.5, sgn * 24.0, PORT_LEG_Z + 1),
-                  # out past the board's edge into the chase, then forward
-                  (PCB_AFT_X - 2.0, sgn * (CHASE_Y - 2), PORT_LEG_Z + 4),
-                  (PCB_FWD_X + 1.0, sgn * (CHASE_Y - 2), DTOP - 4.0),
-                  # up the chase and through the outboard slot opening, low --
-                  # the battery lead shares this slot and takes the top of it
-                  (D.BF_BULK_X1 - 1.5, sgn * SLOT_Y, zs - 2.5),
-                  (D.BF_BULK_X + 1.5, sgn * SLOT_Y, zs - 2.5),
-                  # forward along the deck-top corridor to the trench, in the
-                  # INBOARD lane (the battery lead runs the outboard one)
-                  (-30.0, sgn * CORR_Y, DTOP + 4.0),
-                  (-20.0, sgn * CORR_Y, DTOP + 4.0),
+    # ...terminating ON the socket mouth, which IS the board's top edge: the
+    # sockets open upward out of it, so the lead stops there rather than
+    # burying itself in the PCB the way an aft-facing port would.
+    return cable([(PCB_MID_X, sgn * PORT_LEG_Y, PORT_TOP_Z + 0.2),
+                  (PCB_MID_X, sgn * PORT_LEG_Y, PORT_TOP_Z + 6.0),
+                  # over the deck's cut edge and inboard-to-outboard into the
+                  # corridor lane
+                  (DECK_CUT_X + 3.0, sgn * (PORT_LEG_Y + 6.0), DTOP + 8.0),
+                  (DECK_CUT_X + 10.0, sgn * CORR_Y, DTOP + 3.5),
+                  # forward along the corridor, INBOARD lane (the battery lead
+                  # runs the outboard one)
+                  (-30.0, sgn * CORR_Y, DTOP + 3.0),
+                  (-20.0, sgn * CORR_Y, DTOP + 3.0),
                   (tx - 1.0, sgn * (CORR_Y + 1.0), DTOP + 3.0),
-                  (tx, ly, DTOP + 0.5)])
+                  (tx, ly, DTOP + 0.5)],
+                 # chain=True, not a spline. The v6 route starts with a hard
+                 # vertical -- straight up off the socket on the board's top
+                 # edge, then a right-angle turn forward -- and OCC's sweep
+                 # tessellates that corner into 207k triangles, over mujoko's
+                 # 200k-face mesh limit, so export_assembly_full's stills fail
+                 # to load it (measured 2026-08-04). The chain builder gives the
+                 # same path in ~10k.
+                 chain=True)
 
 
 def yaw_riser(ly):
@@ -302,47 +316,44 @@ def yaw_riser(ly):
 
     It crosses INBOARD over the deck -- passing over the stator screws, which is
     free because they are flat heads sunk flush in the deck top -- drops through
-    the centre wire window, falls down the housing's middle cell (the channel
+    the centre wire window and falls down the housing's middle cell (the channel
     the one-housing rewrite left open between the two servo cells) and out its
-    open bottom to the roll servo waiting below."""
+    open bottom to the roll servo waiting below. In v6 the window's aft edge
+    came forward to WIRE_WIN_X[0] to make room for the gopro pad, so the descent
+    happens further forward than it did in v5."""
     sgn = 1 if ly > 0 else -1
     tx = -(D.SV_CONN_L[0] + D.SV_CONN_L[1]) / 2
+    xw = (D.WIRE_WIN_X[0] + D.WIRE_WIN_X[1]) / 2        # window centre, +1.2
     return cable([(tx + 2.0, ly - sgn * 4.0, DTOP + 0.5),
                   (tx + 1.0, ly - sgn * 12.0, DTOP + 4.0),
-                  (-8.0, sgn * 9.0, DTOP + 4.0),
-                  (-6.5, sgn * 8.0, DTOP - 12.0),      # down the deck window
-                  (-7.0, sgn * 9.0, DTOP - 38.0),      # ...and the channel
-                  (-7.0, ly, D.DECK_BOT_Z + 1.5)])     # roll servo plug
+                  (xw, sgn * 9.0, DTOP + 4.0),
+                  (xw - 1.0, sgn * 8.0, DTOP - 12.0),   # down the deck window
+                  (xw - 2.0, sgn * 9.0, DTOP - 38.0),   # ...and the channel
+                  (-7.0, ly, D.DECK_BOT_Z + 1.5)])      # roll servo plug
 
 
 def pigtail():
     """Battery lead: the pack's +y end up through the deck aperture and aft to
-    the board's power inlet (H1).
+    the board's power inlet (H1) on its top edge.
 
-    The pack is UNDERSLUNG in v5, so this lead starts below the deck. It comes
-    off the pack's +y end face and rises through the gap the real 62 mm pack
-    leaves beside the tray's 69 mm-wide bay -- 3.5 mm, which dimensions.py calls
-    out as exactly where the lead comes up -- then straight up through the deck
-    APERTURE (the same hole the pack itself lifts out through), aft along the
-    +y corridor and down the +y chase to the inlet. r=1.5: 3.5 mm of gap is what
-    it has to pass, so a fatter mock would be drawing a lead that does not fit.
-    """
-    zs = DTOP + sum(D.BF_WIRE_SLOT_Z) / 2
+    The pack sits in the V of the bay's two seat chamfers with no floor under
+    it, and a real 62 mm pack leaves ~3.5 mm beside the bay wall at each end --
+    dimensions.py calls that gap out as exactly where the lead comes up. From
+    there it is straight up through the deck APERTURE (the same hole the pack
+    itself lifts out through), aft along the +y corridor OUTBOARD lane, and down
+    onto the inlet. r=1.5: 3.5 mm of gap is what it has to pass, so a fatter
+    mock would be drawing a lead that does not fit."""
     ygap = (D.BATT_PACK[0] / 2 + D.BT_WALL_Y_IN) / 2    # 32.75, mid of the gap
-    return cable([(D.BT_SEAT_X + 12.0, ygap, DTOP + D.BT_FLOOR_TOP + 12.0),
-                  (D.BT_SEAT_X + 10.0, ygap, DTOP - 2.0),
-                  (D.BT_SEAT_X + 6.0, ygap, DTOP + 4.0),   # out of the aperture
-                  # OUTBOARD lane of the corridor: the leg lead has the
-                  # inboard one, and 7 mm of lane separation is what keeps the
-                  # two mocks off each other through the shared slot
+    xc = (D.BT_SEAT_X + D.BT_WALL_X1) / 2
+    return cable([(xc + 4.0, ygap, DTOP + D.BT_SEAT_Z + 12.0),
+                  (xc + 2.0, ygap, DTOP - 2.0),
+                  (xc - 2.0, ygap, DTOP + 4.0),         # out of the aperture
                   (-10.0, CORR_Y + 7.0, DTOP + 5.0),
                   (-30.0, CORR_Y + 7.0, DTOP + 5.0),
-                  (D.BF_BULK_X + 1.5, SLOT_Y, zs + 4.0),
-                  (D.BF_BULK_X1 - 1.5, SLOT_Y, zs + 4.0),  # outboard slot, high
-                  (PCB_FWD_X + 1.0, CHASE_Y + 2.0, DTOP + 6.0),
-                  (PCB_AFT_X - 3.0, CHASE_Y, PORT_PWR[0] + 2.0),
-                  (PCB_AFT_X - 3.5, PORT_PWR[1], PORT_PWR[0])],
-                 r=1.5)
+                  (DECK_CUT_X + 6.0, PORT_PWR_Y + 4.0, DTOP + 8.0),
+                  (PCB_MID_X, PORT_PWR_Y, PORT_TOP_Z + 6.0),
+                  (PCB_MID_X, PORT_PWR_Y, PORT_TOP_Z + 0.2)],
+                 r=1.5, chain=True)      # same reason as torso_cable's
 
 
 # --------------------------------------------------------------- assembly
@@ -412,14 +423,13 @@ def dressed_robot(roll=0.0, hip=0.0, knee=0.0, ankle=0.0):
     legs posed identically (same-sign roll, like the ROM video)."""
     return Compound(label="bimo_biped_dressed", children=[
         A.piece("pelvis", A.COL_PRINT, Pos(0, 0, DTOP) * parts.pelvis()),
-        # v5 torso: tray under the deck, frame on the housing's rear wall. The
-        # camera and IMU are NOT drawn -- neither has a mount on the robot until
-        # the head bolt-on exists, and drawing them on a retired tower is how
-        # the renders went on quietly showing a machine that no longer existed.
-        A.piece("battery_tray", A.COL_PRINT,
-                Pos(0, 0, DTOP) * parts.battery_tray()),
-        A.piece("board_frame", A.COL_PRINT,
-                Pos(0, 0, DTOP) * parts.board_frame()),
+        # v6 torso: the tray and the frame are IN the pelvis print. The camera
+        # is back -- bolted to the deck, no tower -- so it is drawn again; the
+        # IMU still is not, because it still has no mount.
+        A.piece("gopro_base", A.COL_PRINT,
+                Pos(D.GP_MOUNT_X, 0, DTOP) * parts.gopro_base()),
+        A.piece("camera_gopro_max_mock", A.COL_CAM,
+                Pos(D.GP_MOUNT_X, 0, DTOP) * A.camera_mock()),
         A.piece("battery_3s_mock", A.COL_BATT,
                 Pos(0, 0, DTOP) * A.battery_mock()),
         A.piece("board_pcb_mock", COL_PCB, board_mock()),
@@ -431,10 +441,10 @@ def dressed_robot(roll=0.0, hip=0.0, knee=0.0, ankle=0.0):
         A.piece("cable_yaw_R", COL_WIRE, yaw_riser(-D.HIP_SEP / 2)),
         A.piece("screws_deck", A.COL_STEEL,
                 Pos(0, 0, DTOP) * F.deck_stator_screws()),
-        A.piece("screws_tray", A.COL_STEEL,
-                Pos(0, 0, DTOP) * F.battery_tray_screws()),
-        A.piece("screws_board_frame", A.COL_STEEL,
-                Pos(0, 0, DTOP) * F.board_frame_screws()),
+        A.piece("screws_board", A.COL_STEEL,
+                Pos(0, 0, DTOP) * F.board_screws()),
+        A.piece("screws_gopro", A.COL_STEEL,
+                Pos(0, 0, DTOP) * F.gopro_screws()),
         dressed_leg(D.HIP_SEP / 2, "L", roll, hip, knee, ankle),
         dressed_leg(-D.HIP_SEP / 2, "R", roll, hip, knee, ankle),
     ])

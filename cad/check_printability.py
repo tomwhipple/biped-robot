@@ -58,9 +58,10 @@ IDENT = np.eye(3)
 # this orientation, so should the shorter yoke.
 RY_ROLL_WALL = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], float)  # model +Y -> print +Z
 # RY_XUP's mirror image: model +X -> print -Z, i.e. the part is laid on its
-# +x face. board_frame prints this way -- the bulkhead is an x-normal plate and
-# its FORWARD face is the flat one, so that face goes on the bed and everything
-# else on the part (standoffs, side walls, top rail) rises off it.
+# +x face. Added for v5's board_frame (bulkhead flat, forward face down); that
+# part was folded into pelvis() in v6 so nothing uses it right now. Kept because
+# it is the missing member of the six axis-aligned orientations and the next
+# x-normal plate will want it.
 RY_XDOWN = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], float)
 
 ORIENT = {
@@ -71,29 +72,23 @@ ORIENT = {
     "yoke_pitch": (RY_XUP, "WALL: on its back like leg_link + supports, brim"),
     "leg_link": (RY_XUP, "on its back: web face on bed"),
     "foot": (IDENT, "sole down"),
-    # v5 torso (2026-08-04). Two parts, two orientations, and neither is the
-    # v4 "top rail down" flip -- the parts they replace are gone.
-    #   battery_tray  prints on its own FLOOR, which is already the model's -z
-    #                 face, so it needs no transform at all. Walls rise; the
-    #                 only model-DOWN faces are the four fixing pads and each
-    #                 carries a 46 deg gusset.
-    #   board_frame   prints BULKHEAD FLAT, FORWARD FACE DOWN: model +X becomes
-    #                 print -Z. Standoffs, side walls and the top rail then all
-    #                 rise off a ~5000 mm2 first layer and the part has no
-    #                 overhanging face at all.
-    # See the PRINT paragraphs in parts.battery_tray / parts.board_frame.
-    "battery_tray": (IDENT, "FLOOR ON BED: walls rise, support-free"),
-    "board_frame": (RY_XDOWN, "BULKHEAD FLAT, forward face down"),
+    # v6 torso (2026-08-04): battery_tray and board_frame are GONE -- folded
+    # into pelvis(), which now prints the battery bay, the board recess and the
+    # gopro pad in one part. gopro_base comes BACK into the default set: the
+    # camera is on the robot again (bolted straight to the deck, no tower), and
+    # it is the one bolt-on left, so it has to be audited like any other part.
+    # Its orientation is the tower-era one and is unchanged -- base down, prongs
+    # up is the proven, standard orientation for a printed GoPro mount.
+    "gopro_base": (IDENT, "base down, prongs up"),
 }
 
-# RETIRED with pelvis v4 (2026-08-04): tower, gopro_base and imu_carrier left
-# parts.PARTS, so parts.py no longer exports their STLs and they must not gate
-# the build -- an audit that fails on a part nobody prints is a stalled gate,
-# not a finding. Kept addressable by name (`check_printability.py tower`) for
-# anyone re-printing an old STL; NOT in the default audit set.
+# RETIRED: tower and imu_carrier left parts.PARTS in v4 and have not come back
+# (gopro_base did, in v6 -- it is in the live set above). parts.py no longer
+# exports their STLs and they must not gate the build -- an audit that fails on
+# a part nobody prints is a stalled gate, not a finding. Kept addressable by
+# name (`check_printability.py tower`) for anyone re-printing an old STL.
 LEGACY_ORIENT = {
     "tower": (RX180, "LEGACY: upside down, top plate on bed"),
-    "gopro_base": (IDENT, "LEGACY: base down, prongs up"),
     "imu_carrier": (IDENT, "LEGACY: flat on bed, bosses up"),
 }
 
