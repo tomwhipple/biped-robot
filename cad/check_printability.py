@@ -66,9 +66,24 @@ ORIENT = {
     "yoke_pitch": (RY_XUP, "WALL: on its back like leg_link + supports, brim"),
     "leg_link": (RY_XUP, "on its back: web face on bed"),
     "foot": (IDENT, "sole down"),
-    "tower": (RX180, "upside down: top plate on bed"),
-    "gopro_base": (IDENT, "base down, prongs up"),
-    "imu_carrier": (IDENT, "flat on bed, bosses up"),
+    # v4 torso (2026-08-04). Both are hoops of uniform height printed with
+    # their TOP RAIL on the bed -- model +z down, i.e. the same RX180 flip the
+    # pelvis takes -- so every wall rises off that first-layer ring and the
+    # only model-TOP faces (feet tabs, stop-rib crowns) carry 46 deg wedges.
+    # See the PRINT paragraphs in parts.battery_guard / parts.board_frame.
+    "battery_guard": (RX180, "TOP RAIL DOWN: uniform-height hoop, walls rise"),
+    "board_frame": (RX180, "TOP RAIL DOWN: rail/wall/bulkhead ring on bed"),
+}
+
+# RETIRED with pelvis v4 (2026-08-04): tower, gopro_base and imu_carrier left
+# parts.PARTS, so parts.py no longer exports their STLs and they must not gate
+# the build -- an audit that fails on a part nobody prints is a stalled gate,
+# not a finding. Kept addressable by name (`check_printability.py tower`) for
+# anyone re-printing an old STL; NOT in the default audit set.
+LEGACY_ORIENT = {
+    "tower": (RX180, "LEGACY: upside down, top plate on bed"),
+    "gopro_base": (IDENT, "LEGACY: base down, prongs up"),
+    "imu_carrier": (IDENT, "LEGACY: flat on bed, bosses up"),
 }
 
 # what actually goes to the slicer, where that differs from <name>.stl
@@ -237,7 +252,7 @@ def _sides_anchored(ring, sx, sy, tris, depth):
 
 
 def audit(name, verbose=True):
-    rot, note = ORIENT[name]
+    rot, note = ORIENT.get(name) or LEGACY_ORIENT[name]
     fname = PRINT_STL.get(name, name + ".stl")
     tri = load_stl(os.path.join(STL, fname)) @ rot.T
     tri[:, :, 2] -= tri[:, :, 2].min()

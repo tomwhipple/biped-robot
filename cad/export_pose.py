@@ -99,11 +99,20 @@ def main():
     children = [
         A.piece("pelvis", A.COL_PRINT,
                 Pos(0, 0, A.DECK_TOP_Z) * parts.pelvis()),
-        A.piece("tower", A.COL_PRINT, Pos(0, 0, A.DECK_TOP_Z) * parts.tower()),
+        # v4 torso (2026-08-04): battery_guard + board_frame replace the tower.
+        # Both are torso-fixed, so they join the torso collision body below --
+        # board_frame in particular hangs aft of the deck, right where a yawed
+        # carrier would arrive if the sweep were ever mis-sized.
+        A.piece("battery_guard", A.COL_PRINT,
+                Pos(0, 0, A.DECK_TOP_Z) * parts.battery_guard()),
+        A.piece("board_frame", A.COL_PRINT,
+                Pos(0, 0, A.DECK_TOP_Z) * parts.board_frame()),
         A.piece("screws_deck", A.COL_STEEL,
                 Pos(0, 0, A.DECK_TOP_Z) * F.deck_stator_screws()),
     ]
     torso_col = Pos(0, 0, A.DECK_TOP_Z) * (parts.pelvis()
+                                           + parts.battery_guard()
+                                           + parts.board_frame()
                                            + F.deck_stator_screws())
     legs = {}
     for ly, tag in ((D.HIP_SEP / 2, "L"), (-D.HIP_SEP / 2, "R")):

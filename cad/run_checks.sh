@@ -9,7 +9,8 @@
 #   check_assembly.py       build123d solids at POSE EXTREMES plus a handful of
 #                           combined poses, and the insertion-path scans. Catches
 #                           anything the articulated FCStd does not model
-#                           (head stack, servo mocks, screw reach).
+#                           (torso: battery lift-out / board mount, servo
+#                           mocks, screw reach).
 #   freecad_rom_collide.py  the real articulated assembly, every joint SWEPT
 #                           across its whole travel. Catches fouls that live in
 #                           the MIDDLE of the range, which endpoint checks miss

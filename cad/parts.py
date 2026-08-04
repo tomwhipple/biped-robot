@@ -4,18 +4,28 @@ Run:  .venv/bin/python cad/parts.py        -> exports STLs to cad/stl/, prints
                                               per-part bbox / bed check / mass and
                                               the assembly mass rollup.
 
-Part set (6 unique, 12 prints):
-  pelvis      x1  deck + two hanging bays for the hip-roll servos
-  yoke_roll   x2  clevis on the hip-roll servo horn/idler, flange below
-  yoke_pitch  x2  clevis on the thigh servo horn/idler, flange above
-                  (bolts to yoke_roll flange, rotated 90 deg -> hip universal)
-  leg_link    x4  thigh AND shin: grips a servo case, forks to the next servo
-  foot        x2  sole + ankle servo pocket + rear retention walls
-  tower       x1  electronics: driver board on top, battery strapped inside
+Part set (8 unique, 14 prints) -- pelvis v4, 2026-08-04:
+  pelvis        x1  deck + two ENCAPSULATED yaw-servo boxes (torsion tube)
+  yaw_carrier   x2  bolts to the yaw horn, carries the hip-roll bay
+  yoke_roll     x2  clevis on the hip-roll servo horn/idler, flange below
+  yoke_pitch    x2  clevis on the thigh servo horn/idler, flange above
+                    (bolts to yoke_roll flange, rotated 90 deg -> hip universal)
+  leg_link      x4  thigh AND shin: grips a servo case, forks to the next servo
+  foot          x2  sole + ankle servo pocket + rear retention walls
+  battery_guard x1  open hoop over the battery bay on the deck top
+  board_frame   x1  driver-board cage aft of the pelvis, ports facing AFT
+
+LEGACY, still in this file but no longer built: tower(), gopro_base(),
+imu_carrier(). The tower carried the board and the pack; pelvis v4 splits those
+onto battery_guard and board_frame (see the v4 block in dimensions.py). The
+camera/IMU head comes back as its own bolt-on; until it does, those three
+functions and their BOARD_GD_*/BATT_SEAT_X/TOWER_* constants are kept intact so
+the old geometry still reads back.
 
 Conventions: every pitch joint has the servo HORN on +Y; the same part serves
 left and right legs (legs are translations, not mirrors).
 """
+import math
 import os
 from build123d import *
 import dimensions as D
@@ -103,6 +113,17 @@ def wedge_z(pts_xy, z0, z1):
     lo, hi = (z0, z1) if z0 < z1 else (z1, z0)
     s = extrude(Plane.XY * Polygon(*pts_xy, align=None), amount=(hi - lo))
     return Pos(0, 0, lo - s.bounding_box().min.Z) * s
+
+
+def wedge_x(pts_yz, x0, x1):
+    """wedge_y's third sibling: a (y, z) profile extruded thin along X into the
+    band [x0, x1]. Needed wherever the chamfer/gusset slope lives in the Y-Z
+    plane -- X-NORMAL plates (board_frame's bulkhead gable, the yaw box side
+    lead-ins, the guard's foot gussets). Same bbox-measured placement as
+    wedge_y: do not assume which way extrude() runs off Plane.YZ."""
+    lo, hi = (x0, x1) if x0 < x1 else (x1, x0)
+    s = extrude(Plane.YZ * Polygon(*pts_yz, align=None), amount=(hi - lo))
+    return Pos(lo - s.bounding_box().min.X, 0, 0) * s
 
 
 def csk_y(x, z, y_face, sign):
@@ -776,43 +797,88 @@ def yaw_carrier(print_fins=False):
 
 # ---------------------------------------------------------------- pelvis
 def pelvis():
-    """Deck + two flat yaw-servo seats (v3yaw). Local frame: deck top at z=0,
-    robot forward = +X, legs at y = +/-28. The yaw servos lie FLAT under the
-    deck (length along X, vertical output axis, horn down, idler-side case face
-    against the deck underside); a collar wraps the top of each case (keys its
-    reaction torque, locates it) and 4x M3 pass DOWN through the deck into the
-    idler-side case holes to fix the stator. The hanging roll bays are GONE --
-    they moved onto `yaw_carrier`. Deck footprint (DECK_L x DECK_W), the tower
-    heat-set pattern (TOWER_FOOT_X/Y) and the centre wire window are preserved;
-    a local rear tab under each seat carries the -32.75 stator-screw row (the
-    case cable end overhangs the deck rear edge). Print: upside down (deck top
-    face on the bed), collars rise as walls -- like the old pelvis.
+    """Deck + two ENCAPSULATED yaw-servo boxes (v4, 2026-08-04). Local frame:
+    deck top at z=0, robot forward = +X, legs at y = +/-HIP_SEP/2 = +/-33.
+
+    LAYOUT STORY. The yaw servos lie FLAT under the deck (length along X,
+    vertical output axis, horn down, idler-side case face pressed to the deck
+    underside) and 4x M2.5 pass DOWN through the deck into the idler-side case
+    holes: the deck is the yaw stator bracket, exactly as in v3. What changed is
+    everything AROUND that: instead of the 4 mm collar that merely keyed the
+    case, each servo now sits inside a full-depth BOX whose walls run from the
+    deck underside down to YAW_BOX_BOT (36 mm). The box is the point of the
+    redesign. A 5 mm plate spanning the deck with two yaw servos hanging off it
+    twists -- and yaw reaction torque is exactly the load it is worst at. With a
+    closed box each side, the deck stops being a lone plate and becomes the top
+    flange of two deep beams, and the pelvis centre is a stiff closed torsion
+    structure. Nothing about the servo interface moved: same YAW_SEAT_GAP slip
+    fit on all four faces, same 4 stator screws, same disc/hub pocket, same
+    O7 stator pads, same connector trench hole, same centre wire window --
+    re-centred on the new HIP_SEP and nothing else.
+
+    The box bottom is OPEN: the servo is offered UP into it from below and then
+    pulled onto its pads by the 4 vertical screws, so the mouth carries a
+    YAW_BOX_LEADIN chamfer all round (a 36 mm-deep slip fit with a square mouth
+    catches on its own first layer). The carrier hangs BELOW on the horn and
+    sweeps a r ~25.1 cylinder about each leg centre, clearing the box bottom by
+    YAW_BOX_CARRIER_GAP.
+
+    The deck is now ASYMMETRIC fore-aft, DECK_AFT_X..DECK_FWD_X. Aft it reaches
+    past the case cable end, which retires the v3 rear tab (that tab existed
+    only to give the -32.75 stator row material) and gives board_frame's
+    bulkhead a flush face to butt. Forward it carries the battery bay. The
+    TOWER_FOOT heat-set pattern is GONE with the tower; its replacements are the
+    BG_FOOT bosses under the battery bay and the BF_FOOT pads on the box walls.
+
+    PRINT: upside down, DECK TOP FACE ON THE BED -- the only orientation that
+    works, and now much more emphatically so: the box walls rise 36 mm instead
+    of the old 4, and in any other orientation the deck would have to bridge
+    two 25 x 46 mm openings. Everything hung UNDER the deck (box walls, stator
+    pads, BG/BF bosses and pads) rises in the print and is free. The deck TOP
+    FACE therefore has to stay dead flat -- the same rule the 2026-07-15 audit
+    set when it banned raised bosses there. That is why the battery bay has no
+    ribs, detents or stops of its own: they would put the whole first layer in
+    the air, so they live on battery_guard instead, where they are vertical
+    faces on a wall.
+
+    MASS, flagged rather than fixed: v4 weighs ~86 g against v3's ~30, and ~58
+    of that is the bare deck plate (89 x 114 x 5). The box walls are structure
+    and stay; the deck is the fat. The obvious next move is pocketing its
+    UNDERSIDE -- underside pockets open UPWARD in this print orientation, so
+    they cost nothing to print -- in the two regions that carry nothing:
+    outboard of the boxes, and under the battery bay between the BG_FOOT
+    bosses. Not done here because a lightening pattern is its own design
+    decision and wants a look at the torsion numbers first.
     """
     zd = -D.DECK_T                                  # -5 deck bottom
-    zseat = zd - D.YAW_SEAT_DROP                    # -9 collar bottom
-    p = box(-D.DECK_W / 2, D.DECK_W / 2, -D.DECK_L / 2, D.DECK_L / 2, zd, 0)
-    cx0 = D.YAW_CASE_X_REAR - D.YAW_SEAT_GAP        # -35.41 collar rear inner
-    cx1 = D.YAW_CASE_X_FRONT + D.YAW_SEAT_GAP       # +10.41 collar front inner
-    cyw = 12.36 + D.YAW_SEAT_GAP                     # 12.66 case half width + fit
+    zb = D.YAW_BOX_BOT                              # -41 box mouth
+    p = box(D.DECK_AFT_X, D.DECK_FWD_X, -D.DECK_L / 2, D.DECK_L / 2, zd, 0)
+    cx0 = D.YAW_CASE_X_REAR - D.YAW_SEAT_GAP        # -35.41 box rear inner
+    cx1 = D.YAW_CASE_X_FRONT + D.YAW_SEAT_GAP       # +10.41 box front inner
+    cyw = D.YAW_BOX_HW_IN                           # 12.66 case half width + fit
     w = D.YAW_SEAT_WALL
+    lead = D.YAW_BOX_LEADIN
     for by in (D.HIP_SEP / 2, -D.HIP_SEP / 2):
-        # rear local deck tab: gives the -32.75 stator screws deck material to
-        # thread into (the case cable end sits behind the deck rear edge -23)
-        p += box(cx0 - w, -D.DECK_W / 2, by - cyw - w, by + cyw + w, zd, 0)
-        # yaw-case collar: front / rear walls (X-normal) + side walls (Y-normal)
-        p += box(cx0 - w, cx0, by - cyw - w, by + cyw + w, zseat, zd)   # rear
-        p += box(cx1, cx1 + w, by - cyw - w, by + cyw + w, zseat, zd)   # front
+        # --- the box: one closed ring per leg, cut as (outer - inner) so the
+        # four corners are solid rather than four walls butted together. The
+        # corners are what carry the torsion; mitring them into the wall boxes
+        # (as the v3 collar did) leaves the load path through four butt joints
+        # printed across layer lines.
+        p += (box(cx0 - w, cx1 + w, by - cyw - w, by + cyw + w, zb, zd)
+              - box(cx0, cx1, by - cyw, by + cyw, zb - 1, zd + 1))
+        # mouth lead-in, all four inner faces. Printed deck-top-down these
+        # chamfers face print-UP, so they cost nothing; they leave 1.4 mm of the
+        # 2.6 wall at the very lip.
+        p -= wedge_y([(cx0, zb), (cx0, zb + lead), (cx0 - lead, zb)],
+                     by - cyw - w - 1, by + cyw + w + 1)               # rear
+        p -= wedge_y([(cx1, zb), (cx1, zb + lead), (cx1 + lead, zb)],
+                     by - cyw - w - 1, by + cyw + w + 1)               # front
         for s in (1, -1):
-            # side walls run forward to YAW_FOOT_REACH so the +x tower feet land
-            # on collar material (the -x feet already sit over the case span)
-            p += box(cx0, D.YAW_FOOT_REACH, by + s * cyw, by + s * (cyw + w),
-                     zseat, zd)
-        # stator screws: 4x M2.5 pan self-tap DOWN through the deck (+ rear
-        # tab) into the idler-side case face rows (8.30 and 32.75 behind the
-        # axis). Vertical. COUNTERBORED from the deck top: the battery pack
-        # sits flat on the deck and its footprint covers the -8.30 row heads
-        # (audit 2026-07-28) -- sink all 8 sub-flush. Printed deck-top-down,
-        # the O5.8 -> O2.9 step is a standard short counterbore bridge.
+            yi = by + s * cyw
+            p -= wedge_x([(yi, zb), (yi, zb + lead), (yi + s * lead, zb)],
+                         cx0 - w - 1, cx1 + w + 1)                     # sides
+        # stator screws: 4x M2.5 flat self-tap DOWN through the deck into the
+        # idler-side case face rows (8.30 and 32.75 behind the axis). Vertical.
         for xrow in D.YAW_CASE_HOLES_IDLER:
             for s in (1, -1):
                 p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zd - 1, 1,
@@ -820,7 +886,8 @@ def pelvis():
                 # COUNTERSINK, not the old O5.8 x 2.3 pan counterbore
                 # (2026-07-28): flat heads throughout. Shallower too -- 1.25 mm
                 # instead of 2.3 -- so the deck keeps 1.05 mm more material, and
-                # the battery still lands on a flush top.
+                # the battery still lands on a flush top. (The battery still
+                # sits over the -8.30 row in v4, so sub-flush still matters.)
                 p -= csk_z(-xrow, by + s * D.CASE_HOLE_LAT, 0.0, +1)
         # --- idler-face interface, from the measured SV_IDLER/SV_CONN truth ---
         # (1) disc + hub CLEARANCE POCKET: the idler disc (O19.2, +0.27 proud)
@@ -841,25 +908,307 @@ def pelvis():
                            -xrow, by + s * D.CASE_HOLE_LAT)
         # (3) yaw CONNECTOR deck HOLE, over the measured trench (11.75..16.35
         # behind the axis): the two sockets open UP out of the face; plugs +
-        # leads pass through the deck to the board. 0.6 mm margin lengthwise
-        # (1.1 mm ligament to the -8.30 screw bores); width capped at +/-10.5
-        # (not the full +/-10.9 trench) to keep 1.2 mm to the tower heat-set
-        # pilots at (+/-14, +/-42) -- the sockets span well under +/-9.
+        # leads pass through the deck and route AFT along the deck top to the
+        # board_frame bulkhead. 0.6 mm margin lengthwise (1.1 mm ligament to the
+        # -8.30 screw bores); width capped at +/-10.5 (not the full +/-10.9
+        # trench) so the deck keeps a rim -- the sockets span well under +/-9.
+        # (The +/-10.5 cap used to be justified by the tower heat-sets at
+        # (+/-14, +/-42), which are gone; it is kept because nothing wants the
+        # extra 0.4 and the rim is free stiffness.) The cut only has to clear
+        # the DECK now -- below it is box interior.
         p -= box(-D.SV_CONN_L[1] - 1.0, -D.SV_CONN_L[0] + 0.6,
-                 by - 10.5, by + 10.5, zseat - 1, 1)
+                 by - 10.5, by + 10.5, zd - 1, 1)
         # merge the hole into the pocket across the centre band -- the crescent
         # web between the circle edge and the hole edge is <0.85 mm for
         # |dy| < ~4 and would flag as unprintable
         p -= box(-D.SV_CONN_L[0] + 0.5, -10.0, by - 4.5, by + 4.5, zd, zd + 1.3)
-    # tower mounting: heat-set pilots straight down through the deck into the
-    # collar side-wall material below (feet land at |y|=42 over the side walls).
-    # No raised bosses (they held the first layer off the bed -- audit
-    # 2026-07-15). Thread depth = 5 mm deck + 4 mm collar wall = 9 mm > insert.
-    for sx in (D.TOWER_FOOT_X, -D.TOWER_FOOT_X):
-        for sy in (D.TOWER_FOOT_Y, -D.TOWER_FOOT_Y):
-            p -= cyl_z(D.HEATSET_D / 2, -D.HEATSET_L, 0.01, sx, sy)
-    # center lightening / wire riser window (leg + yaw cables rise to the tower)
+        # --- board_frame FOOT PADS (v4). The frame's 4 feet bolt into heat-sets
+        # that have to thread more than the 5 mm deck (HEATSET_L is 6), and the
+        # only material under the deck out there is the 2.6 mm box side wall --
+        # narrower than the O4.1 pilot itself. That mismatch is the known
+        # weakness of the retired TOWER_FOOT pattern (its pilot was wider than
+        # the cheek wall it threaded). So each foot gets a local pad grown
+        # OUTBOARD off the box side wall -- outboard because inboard is the
+        # servo case. Printed deck-top-down these rise off the deck like the
+        # walls do, rooted on both the deck and the wall.
+        s = 1.0 if by > 0 else -1.0     # pads go on each leg's OUTBOARD wall
+        for fx in D.BF_FOOT_X:
+            p += box(fx - D.BF_FOOT_HX - 1, fx + D.BF_FOOT_HX + 1,
+                     s * D.BF_FOOT_PAD_Y[0], s * D.BF_FOOT_PAD_Y[1],
+                     zd - D.BF_FOOT_PAD_H, zd)
+            p -= cyl_z(D.HEATSET_D / 2, zd - D.BF_FOOT_PAD_H + 1, 0.01,
+                       fx, s * D.BF_FOOT_Y)
+    # --- battery_guard FOOT BOSSES (v4): the guard's 4 feet screw into deck
+    # heat-sets forward of the yaw box, where the deck is 5 mm of nothing else.
+    # O8 x 4 bosses on the UNDERSIDE take the thread to 9 mm. Underside is the
+    # whole trick: printed deck-top-down they rise off the bed with the walls,
+    # whereas the same bosses on the deck TOP would hold the entire first layer
+    # 4 mm in the air (the 2026-07-15 audit's finding, which is why the deck top
+    # carries no battery furniture at all -- see battery_guard).
+    for sx in D.BG_FOOT_X:
+        for sy in (D.BG_FOOT_Y, -D.BG_FOOT_Y):
+            p += cyl_z(D.BG_BOSS_D / 2, zd - D.BG_BOSS_H, zd, sx, sy)
+            p -= cyl_z(D.HEATSET_D / 2, zd - D.BG_BOSS_H + 1, 0.01, sx, sy)
+    # center lightening / wire riser window: leg + yaw cables rise here and run
+    # aft over the deck to the board_frame bulkhead's pass-through. It fits
+    # between the two boxes with 6.7 mm to spare each side (centre gap 35.48).
     p -= box(-11, 11, -12, 12, zd - 1, 1)
+    return p
+
+
+# ---------------------------------------------------------------- battery_guard
+def battery_guard():
+    """Open protective hoop around the battery bay (v4, qty 1). Local frame:
+    the pelvis frame -- z=0 is the deck TOP, +X forward, the pack lies across Y
+    at x BATT_SEAT_X_V4..BATT_FRONT_X_V4.
+
+    WHAT IT IS. Two side walls, a front wall, a U-shaped top rail and two aft
+    stop fins, bolted to the deck at four feet. It is a cage, not a box: the
+    pack drops in through the top aperture (BG_APER_HY, sized to clear the
+    envelope by 1 mm) and lifts straight back out once the belt is peeled --
+    tool-free swap, which is the whole requirement. Retention is the 20 mm
+    hook-loop BELT, exactly as on the retired tower: it threads the front-wall
+    slot, runs aft over the pack and closes on itself, and the guard only has to
+    stop the pack sliding and take the knocks.
+
+    WHY THE LOCATING FEATURES ARE ALL ON THIS PART AND NOT ON THE DECK. The
+    pelvis prints deck-top-down (36 mm of yaw box wall has to rise), so anything
+    standing proud of the deck top would be BELOW the bed plane -- the whole
+    first layer ends up in the air on a handful of 2.5 mm bumps. That is the
+    2026-07-15 audit's finding, and it is why the pack's -x land, its y stops
+    and its corner detents are ribs and fins on THIS part instead:
+      -x land       two aft fins, x BG_X0..BATT_SEAT_X_V4 (the 1.4 mm preload
+                    land), reaching inboard to BG_AFT_STOP_HY. They sit
+                    entirely AFT of the pack, so they never block the lift-out.
+      y centring    ribs proud to BG_STOP_Y on each side wall (1.0 of the 2.0
+                    slack per side), with a 45 deg lead-in on top so the pack
+                    self-centres as it drops in.
+      x forward     the front wall itself.
+      corners       BG_DETENT 45 deg corner wedges, adapted from the tower's
+                    window detents.
+
+    PRINT: TOP RAIL DOWN (model z=BG_H on the bed). Uniform height, so the top
+    rail runs round as ONE closed first layer, ~620 mm2 (the rail is
+    deliberately BG_RAIL_Y_OUT proud of the walls for exactly this reason -- at
+    a flush 38.6 it was 484 mm2 under a 32 mm-tall hoop, which is both a
+    check_printability CONTACT and a genuinely tippy print; brim it anyway).
+    Every wall then rises. The only model-TOP faces are the four feet tabs and
+    the stop-rib crowns, and each carries a 46 deg wedge so its print-underside
+    is self-supporting -- the tower's treatment. Nothing bridges: the belt slot
+    is a diamond (its lower half is two 45 deg faces) and each foot's driver
+    well is coned into its screw hole rather than counterbored flat.
+    """
+    yi, yo = D.BG_WALL_Y_IN, D.BG_WALL_Y_OUT         # 36.0, 38.6
+    zr = D.BG_H - D.BG_RAIL_T                        # 28.0 rail underside
+    fx0 = D.BG_FRONT_X0                              # 45.40 front wall inner
+    p = None
+    for s in (1, -1):
+        # side wall + its share of the top rail (the rail reaches inboard to
+        # BG_APER_HY, which is what makes it a guard rail rather than a lip)
+        w = box(D.BG_X0, D.BG_X1, s * yi, s * yo, 0, D.BG_H)
+        w += box(D.BG_X0, D.BG_X1, s * D.BG_APER_HY, s * D.BG_RAIL_Y_OUT,
+                 zr, D.BG_H)
+        # aft stop fin: the pack's -x land. Full height so it prints as a wall
+        # off the bed instead of a cross-member bridging 72 mm of air.
+        w += box(D.BG_X0, D.BATT_SEAT_X_V4, s * D.BG_AFT_STOP_HY, s * yi,
+                 0, D.BG_H)
+        # y guide / end stop rib, inboard of the wall, with a 45 deg lead-in
+        # crown that doubles as the print-underside relief
+        w += box(D.BATT_SEAT_X_V4 + 2, fx0 - 2, s * D.BG_STOP_Y, s * yi,
+                 0, D.BG_STOP_H)
+        w += wedge_x([(s * D.BG_STOP_Y, D.BG_STOP_H), (s * yi, D.BG_STOP_H),
+                      (s * yi, D.BG_STOP_H + (yi - D.BG_STOP_Y))],
+                     D.BATT_SEAT_X_V4 + 2, fx0 - 2)
+        p = w if p is None else p + w
+    # front wall (x-normal) -- the pack's forward stop and its crash shield. Its
+    # top flares out to the rail line so the U of rail is continuous (and so the
+    # first layer is one closed loop rather than three strips).
+    p += box(fx0, D.BG_X1, -yo, yo, 0, D.BG_H)
+    p += box(fx0, D.BG_X1, -D.BG_RAIL_Y_OUT, D.BG_RAIL_Y_OUT, zr, D.BG_H)
+    # 45 deg corner detents in the two forward corners: they keep the pack's
+    # corners from jamming on the way in and stiffen the corner the whole
+    # height. They reach y yi - BG_DETENT = 33.5, which the 68 mm ENVELOPE
+    # overlaps by 0.5 at its corners; no pack in the field is longer than 67
+    # (see BATT) and the modelled BATT_PACK clears them by 3.5.
+    for s in (1, -1):
+        p += wedge_z([(fx0, s * yi), (fx0 - D.BG_DETENT, s * yi),
+                      (fx0, s * (yi - D.BG_DETENT))], 0, D.BG_H)
+    # belt slot through the front wall at pack mid-height. A DIAMOND: printed
+    # top-rail-down, a rectangular slot would hang its whole 22 mm floor as a
+    # bridge, and the yaw_carrier's split-it-with-posts fix does not work for a
+    # strap that has to thread ONE opening. The diamond's lower half is two
+    # 45 deg faces, so nothing bridges and the strap still goes through.
+    sw, sh = D.BG_BELT_SLOT
+    p -= wedge_x([(0, D.BG_BELT_CZ - sh / 2), (sw / 2, D.BG_BELT_CZ),
+                  (0, D.BG_BELT_CZ + sh / 2), (-sw / 2, D.BG_BELT_CZ)],
+                 fx0 - 1, D.BG_X1 + 1)
+    # belt guide ribs on the front wall's OUTER face, flanking the slot so the
+    # strap cannot walk off it (the tower's ribs, stood on end). Full height, so
+    # unlike the tower's horizontal ribs they have no ledge to chamfer.
+    for s in (1, -1):
+        p += box(D.BG_X1, D.BG_X1 + 1.5, s * (sw / 2 + 1.0), s * (sw / 2 + 2.5),
+                 0, D.BG_H)
+    # feet: tabs OUTBOARD of the walls AND of the top rail -- a screw under the
+    # 6 mm rail would need a O6.6 driver well straight through it, which would
+    # cut the rail in half. M3 down into the deck heat-sets, each with a 46 deg
+    # gusset back up the wall -- the tower's foot, mirrored outward. Tabs stop
+    # at the deck edge.
+    gr = (D.BG_FOOT_Y_OUT - yo) + D.GUSSET_OVER      # gusset rise (46 deg)
+    for fx in D.BG_FOOT_X:
+        x0 = max(fx - D.BG_FOOT_HX, D.BG_X0)         # stay inside the hoop's
+        x1 = min(fx + D.BG_FOOT_HX, D.BG_X1)         # own footprint / the deck
+        for s in (1, -1):
+            p += box(x0, x1, s * yo, s * D.BG_FOOT_Y_OUT, 0, D.BG_FOOT_T)
+            p += wedge_x([(s * D.BG_FOOT_Y_OUT, D.BG_FOOT_T),
+                          (s * yo, D.BG_FOOT_T),
+                          (s * yo, D.BG_FOOT_T + gr)], x0, x1)
+            p -= cyl_z(D.M3_CLEAR / 2, -1, D.BG_FOOT_T + 1, fx, s * D.BG_FOOT_Y)
+            # head + driver WELL up through the gusset. Without it the gusset
+            # covers the screw to z 11 and the M3 cannot be driven at all --
+            # the tower's 2026-07-30 defect in miniature, and its fix: bore
+            # coaxially so the screw is still offered in from directly above.
+            p -= cyl_z(D.M3_CB_D / 2, D.BG_FOOT_T, D.BG_FOOT_T + gr + 1, fx,
+                       s * D.BG_FOOT_Y)
+            # ...and CONE the well's floor rather than leaving a flat
+            # O6.6/O3.4 annulus: printed rail-down that annulus is a 1.6 mm
+            # unsupported ring. The head beds 0.6 mm into the cone.
+            p -= (Pos(fx, s * D.BG_FOOT_Y, D.BG_FOOT_T - D.M3_SEAT_H / 2)
+                  * Cone(D.M3_CLEAR / 2, D.M3_CB_D / 2, D.M3_SEAT_H))
+    return p
+
+
+# ---------------------------------------------------------------- board_frame
+def board_frame():
+    """Driver-board cage AFT of the pelvis (v4, qty 1). Local frame: the pelvis
+    frame -- z=0 is the deck TOP, +X forward, so this part lives at negative x
+    entirely behind the deck's aft edge (DECK_AFT_X == BF_BULK_X).
+
+    THE BOARD STANDS UPRIGHT, TRANSVERSE, COMPONENT FACE AFT. That last part is
+    the design: the General Driver's leg-servo ports, its XH power inlet and its
+    power switch are all on the component side, and pointing them at the open
+    air behind the robot means you plug in ten servo leads and flick the switch
+    with the robot standing on its feet. Contrast the tower (2026-07-30): there
+    the board faced INBOARD and its own mounting screws ended up 3.17 mm from a
+    wall, so the wall had to be bored with four access tunnels before the board
+    could be fastened at all. Here the M2.5s go in along -x from behind, their
+    heads land on the PCB's aft face in open air, and there is nothing to bore.
+
+    STACK, all off the bulkhead's forward face at BF_BULK_X:
+        -41.00  bulkhead forward face (flush with the deck's aft edge)
+        -43.60  bulkhead aft face (WALL)
+        -47.60  PCB forward face (BOARD_GD_STANDOFF bosses)
+        -49.23  PCB aft face  (BF_PCB_T)
+        -58.23  deepest component (BOARD_GD_COMP)
+        -60.00  side walls / top rail: 1.77 proud, so a backwards fall lands on
+                printed plastic and not on the 40-pin header
+    The aft face BELOW the top rail is deliberately OPEN -- that is the access
+    face. The cage is closed by the bulkhead (front), two side walls and the top
+    rail; the bulkhead is a shear web, so it is lightened with windows between
+    the four standoff bosses.
+
+    FEET. The frame hangs entirely off the back of a 5 mm deck, so it is
+    anchored forward instead: the bulkhead laps BF_LAP_X onto the deck as a
+    bearing flange, and two buttress fins run forward from it at BF_FIN_Y_OUT
+    (45 deg top ramps, so they print as walls, not as ledges) carrying four feet
+    at BF_FOOT_X. The SCREWS (BF_FOOT_Y) land over the yaw box SIDE WALLS --
+    the only material under that part of the deck -- on pads pelvis() grows
+    outboard off the wall, because a O4.1 heat-set pilot cannot be centred in a
+    2.6 mm wall (the old TOWER_FOOT pattern's unremarked weakness). The fins sit
+    inboard of the screws so a driver can reach them.
+
+    PRINT: TOP RAIL DOWN (model z=BF_H on the bed). The first layer is a closed
+    rectangular ring -- rail + both wall tops + the bulkhead top, ~930 mm2 in
+    one plane -- and everything else rises off it: bulkhead, walls, fins, and
+    the flare shoulders (45 deg). The standoff bosses are 4 mm horizontal
+    cylinders on a vertical face (precedent: the tower's identical bosses), each
+    with a tangent teardrop roof so their upper halves are not print-down
+    ledges. The wire pass-through is a diamond for the same reason.
+    """
+    yw0, yw1 = D.BF_WALL_Y_IN, D.BF_WALL_Y_OUT       # 34.5, 37.1
+    bx0, bx1 = D.BF_BULK_X1, D.BF_BULK_X             # -43.6, -41.0
+    fy0, fy1 = D.BF_FIN_Y_OUT - D.BF_FIN_T, D.BF_FIN_Y_OUT   # 41.4, 44.0
+    # bulkhead + its flared base (the flare is what the feet hang off) + 45 deg
+    # shoulders back to the wall line
+    p = box(bx0, bx1, -yw1, yw1, 0, D.BF_H)
+    p += box(bx0, bx1, -fy1, fy1, 0, D.BF_FLARE_Z)
+    for s in (1, -1):
+        p += wedge_x([(s * yw1, D.BF_FLARE_Z), (s * fy1, D.BF_FLARE_Z),
+                      (s * yw1, D.BF_FLARE_Z + (fy1 - yw1))], bx0, bx1)
+        # side wall
+        p += box(D.BF_AFT_X, bx1, s * yw0, s * yw1, 0, D.BF_H)
+    # top cross rail: ties the two side walls at the aft end. Its forward edge
+    # keeps BF_RAIL_X[1] - BF_PCB_X1 = 1.27 clear of the PCB's aft face, and it
+    # sits 2.5 above the board's top edge (see the BF_H note).
+    p += box(D.BF_RAIL_X[0], D.BF_RAIL_X[1], -yw1, yw1,
+             D.BF_H - D.BF_RAIL_T, D.BF_H)
+    # bearing lap onto the deck: the frame's weight goes into the deck in
+    # bearing here, not through the four screws. Split either side of the wire
+    # pass-through so it stays clear, with a 45 deg gusset (its print-underside).
+    for s in (1, -1):
+        p += box(bx1, bx1 + D.BF_LAP_X, s * (D.BF_WIRE[0] / 2 + 2), s * yw1,
+                 0, D.BF_FOOT_T)
+        p += wedge_y([(bx1, D.BF_FOOT_T), (bx1 + D.BF_LAP_X, D.BF_FOOT_T),
+                      (bx1, D.BF_FOOT_T + D.BF_LAP_X + D.GUSSET_OVER)],
+                     s * (D.BF_WIRE[0] / 2 + 2), s * yw1)
+        # buttress fin: bulkhead -> deck, top edge a 45 deg ramp so it prints as
+        # a wall growing off the bed rather than a ledge over the deck
+        p += wedge_y([(bx1, 0), (D.BF_FIN_X1, 0), (bx1, D.BF_FLARE_Z)],
+                     s * fy0, s * fy1)
+        # feet on the fin, gusseted outward to the screw pad
+        for fx in D.BF_FOOT_X:
+            x0, x1 = fx - D.BF_FOOT_HX, fx + D.BF_FOOT_HX
+            gr = (D.BF_FOOT_Y_OUT - fy1) + D.GUSSET_OVER      # 46 deg gusset
+            p += box(x0, x1, s * fy0, s * D.BF_FOOT_Y_OUT, 0, D.BF_FOOT_T)
+            p += wedge_x([(s * D.BF_FOOT_Y_OUT, D.BF_FOOT_T),
+                          (s * fy1, D.BF_FOOT_T),
+                          (s * fy1, D.BF_FOOT_T + gr)], x0, x1)
+            p -= cyl_z(D.M3_CLEAR / 2, -1, D.BF_FOOT_T + 1, fx, s * D.BF_FOOT_Y)
+            # head + driver well + coned floor, exactly as on battery_guard
+            p -= cyl_z(D.M3_CB_D / 2, D.BF_FOOT_T, D.BF_FOOT_T + gr + 1, fx,
+                       s * D.BF_FOOT_Y)
+            p -= (Pos(fx, s * D.BF_FOOT_Y, D.BF_FOOT_T - D.M3_SEAT_H / 2)
+                  * Cone(D.M3_CLEAR / 2, D.M3_CB_D / 2, D.M3_SEAT_H))
+    # --- board mount: 4 standoff bosses off the bulkhead's AFT face, M2.5
+    # self-tap along +x from behind. Same 4.0 standoff and O7 boss as the tower
+    # used; what changed is which way the board faces.
+    for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY):
+        for sz in (D.BF_CZ + D.BOARD_GD_SCREW_DZ, D.BF_CZ - D.BOARD_GD_SCREW_DZ):
+            p += cyl_x(3.5, bx0 - D.BOARD_GD_STANDOFF, bx0, sy, sz)
+            # ...with a TEARDROP ROOF on the boss's model-TOP. Printed rail-down
+            # that top half is the boss's print-UNDERSIDE, and unlike the
+            # tower's identical bosses (which sat inside a closed bay and so
+            # audited as a short CEILING) these stand in open air off the
+            # bulkhead: bare, they came back as a 22 mm2 LEDGE reaching 4 mm.
+            # Same idea as the teardrop_* helpers -- roof faces TANGENT to the
+            # cylinder, clipped to its own width, so nothing steeper than the
+            # tangent point is ever exposed -- but at BF_BOSS_ROOF_DEG rather
+            # than 45. A 45 deg teardrop sits exactly ON check_printability's
+            # threshold (nz < -cos45) and the tessellated normals fell the wrong
+            # side of it, so the roof itself came back as a 40 mm2 LEDGE. Tangent
+            # at 50 deg: apex r/cos50, base half-width r/sin50, clipped to +/-r.
+            r, bl = 3.5, D.BOARD_GD_STANDOFF
+            th = math.radians(D.BF_BOSS_ROOF_DEG)
+            roof = wedge_x([(sy - r / math.sin(th), sz),
+                            (sy + r / math.sin(th), sz),
+                            (sy, sz + r / math.cos(th))], bx0 - bl, bx0)
+            p += roof & box(bx0 - bl, bx0, sy - r, sy + r, sz,
+                            sz + r / math.cos(th))
+            p -= cyl_x(D.M25_TAP / 2, bx0 - D.BOARD_GD_STANDOFF - 1, bx1 + 1,
+                       sy, sz)
+    # lighten the bulkhead: it is a shear web, not a pressure vessel. Windows
+    # sit between the four bosses and are inset from every edge (the tower's
+    # partition pattern, same proportions).
+    for wy in (-D.BOARD_GD_SCREW_DY / 2, D.BOARD_GD_SCREW_DY / 2):
+        p -= box(bx0 - 1, bx1 + 1, wy - 9, wy + 9, D.BF_CZ - 12, D.BF_CZ + 12)
+    # wire pass-through: the leg + yaw leads rise through the pelvis centre
+    # window and cross the deck to here. A DIAMOND, like the guard's belt slot
+    # and for the same reason -- a flat boundary 24 mm wide bridges, whichever
+    # way this plate is flipped. 288 mm2 clear (== the 24 x 12 rectangle it
+    # replaces) and its waist passes a WIRE_PLUG_W connector housing.
+    ww, wh = D.BF_WIRE
+    p -= wedge_x([(0, D.BF_WIRE_Z), (ww / 2, D.BF_WIRE_Z + wh / 2),
+                  (0, D.BF_WIRE_Z + wh), (-ww / 2, D.BF_WIRE_Z + wh / 2)],
+                 bx0 - 1, bx1 + 1)
     return p
 
 
@@ -1339,9 +1688,15 @@ def imu_carrier():
 
 
 # ---------------------------------------------------------------- build all
+# v4 (2026-08-04): tower / gopro_base / imu_carrier dropped out of the build.
+# They are still defined above (legacy), but nothing prints them -- the tower's
+# two jobs moved to battery_guard and board_frame, and the camera/IMU head is
+# waiting on its own bolt-on. Anything that still wants a tower STL has to say
+# so explicitly rather than getting one by default.
 PARTS = [
     # name, builder, qty, print orientation note
-    ("pelvis", pelvis, 1, "upside down: deck top on bed, collars rise"),
+    ("pelvis", pelvis, 1,
+     "upside down: deck top on bed, yaw box walls rise 36 mm"),
     ("yaw_carrier", yaw_carrier, 2, "horn-plate face on bed, bay walls rise "
      "(print yaw_carrier_print.stl: break-away breakout in the cable window)"),
     ("yoke_roll", yoke_roll, 2,
@@ -1351,10 +1706,10 @@ PARTS = [
     ("leg_link", leg_link, 4, "on its back: web face on bed "
      "(print leg_link_print.stl: break-away fins under the fork slabs)"),
     ("foot", foot, 2, "sole down"),
-    ("tower", tower, 1, "upside down: top plate on bed (support-free: "
-     "open window, no sill)"),
-    ("gopro_base", gopro_base, 1, "base down, prongs up (PETG or 100% infill)"),
-    ("imu_carrier", imu_carrier, 1, "flat on bed, pocket up (support-free)"),
+    ("battery_guard", battery_guard, 1, "TOP RAIL DOWN: uniform height, walls "
+     "rise, feet + stop ribs carry 46 deg wedges (brim it -- tall and narrow)"),
+    ("board_frame", board_frame, 1, "TOP RAIL DOWN: first layer is the closed "
+     "rail/wall/bulkhead ring, everything else rises off it"),
 ]
 
 
@@ -1386,7 +1741,7 @@ def main():
         mass = part.volume * D.FILAMENT_RHO * D.PRINT_MASS_FACTOR
         print_mass += mass * qty
         rows.append((name, qty, bb.size, vol, mass, fits, orient))
-        print(f"{name:11s} x{qty}  bbox {bb.size.X:6.1f} x {bb.size.Y:6.1f} x "
+        print(f"{name:13s} x{qty}  bbox {bb.size.X:6.1f} x {bb.size.Y:6.1f} x "
               f"{bb.size.Z:6.1f} mm  vol {vol:6.1f} cm3  ~{mass:5.1f} g  "
               f"{'BED-OK' if fits else '** TOO BIG **'}  [{orient}]")
 
@@ -1404,20 +1759,26 @@ def main():
     print(f"\nprinted plastic ~{print_mass:.0f} g   servos {servos:.0f} g (10)   "
           f"battery {batt:.0f} g   board {board:.0f} g   fasteners {fasteners:.0f} g"
           f"   TPU pads {tpu:.0f} g")
-    print(f"TOTAL ROBOT ~{total:.0f} g   (+{D.CAM_MASS:.0f} g GoPro MAX = "
-          f"{total + D.CAM_MASS:.0f} g)")
+    print(f"TOTAL ROBOT ~{total:.0f} g   (the GoPro MAX's {D.CAM_MASS:.0f} g is "
+          f"NOT in this number any more -- v4 retired the tower it rode on)")
+    # v4: the overall height is set by board_frame, not the retired tower.
+    top_v4 = D.DECK_BOT_Z_YAW + D.DECK_T + D.BF_H
     print(f"\nheights: ankle {D.ANKLE_Z:.1f}  knee {D.KNEE_Z:.1f}  "
           f"hip-pitch {D.HIP_PITCH_Z:.1f}  hip-roll {D.HIP_ROLL_Z:.1f}  "
           f"hip-yaw {D.HIP_YAW_Z:.1f}  deck-bot(yaw) {D.DECK_BOT_Z_YAW:.1f}  "
-          f"top(yaw) {D.TOP_Z_YAW:.1f} mm  "
-          f"torso-center {D.TORSO_CENTER_Z:.1f}  top {D.TOP_Z:.1f} mm")
+          f"deck-top(yaw) {D.DECK_BOT_Z_YAW + D.DECK_T:.1f}  "
+          f"board-frame top {top_v4:.1f} mm  "
+          f"(legacy tower stack: TOP_Z_YAW {D.TOP_Z_YAW:.1f})")
 
     # segment mass rollup for the sim update
     m = {n: r[4] for n, r in ((row[0], row) for row in rows)}
     # v3yaw: the 2 YAW servos sit in the pelvis (torso); each carrier + its ROLL
     # servo hang on the leg (a new hip-yaw segment above the roll link).
+    # v4: tower + gopro_base out, battery_guard + board_frame in. The camera is
+    # NOT on the robot until its head mount exists, so the +154 g line is gone
+    # from the rollup as well -- it was quietly inflating the torso.
     seg = {
-        "torso": m["pelvis"] + m["tower"] + m["gopro_base"]
+        "torso": m["pelvis"] + m["battery_guard"] + m["board_frame"]
                  + 2 * D.SERVO_MASS + batt + board + 27,
         "yaw carrier": m["yaw_carrier"] + D.SERVO_MASS + 5,
         "hip(roll link)": m["yoke_roll"] + m["yoke_pitch"] + 5,
@@ -1425,17 +1786,23 @@ def main():
         "shin": m["leg_link"] + D.SERVO_MASS + 4,
         "foot": m["foot"] + D.SERVO_MASS + tpu / 2 + 4,
     }
-    print("\nsegment masses for sim v3yaw (g):  [camera +154 g on torso mounted]")
+    print("\nsegment masses for sim v4 (g):  [no camera -- head mount pending]")
     for k, v in seg.items():
         print(f"  {k:16s} {v:6.1f}  (x2 legs)" if k != "torso" else
               f"  {k:16s} {v:6.1f}")
     print(f"  yaw stack drop {D.YAW_STACK_DROP:.1f} mm  (study estimated ~28)")
+    print(f"  stance HIP_SEP {D.HIP_SEP:.0f} mm, deck {D.DECK_FWD_X - D.DECK_AFT_X:.0f}"
+          f" x {D.DECK_L:.0f} -- BOTH are plant changes: rebuild "
+          f"sim/build_v2_inertia.py and retrain")
 
-    # standing CG estimate (approximate segment CG heights, mm above ground)
-    cam_z = D.TOP_Z + D.GP_BASE_T + D.GP_HOLE_H + 6 + D.CAM_BODY[2] / 2  # ~373
+    # standing CG estimate (approximate segment CG heights, mm above ground).
+    # Deck top sits at DECK_BOT_Z_YAW + DECK_T; the v4 torso items are placed
+    # relative to it rather than to the retired tower's numbers.
+    dt = D.DECK_BOT_Z_YAW + D.DECK_T
     items = [
-        (m["pelvis"], 265), (m["tower"], 306), (m["gopro_base"], D.TOP_Z + 3),
-        (batt, 297), (board, 313), (2 * D.SERVO_MASS, 262), (27, 290),
+        (m["pelvis"], dt - 20), (m["battery_guard"], dt + 16),
+        (m["board_frame"], dt + 35),
+        (batt, dt + 13), (board, dt + 35), (2 * D.SERVO_MASS, dt - 22), (27, dt + 8),
         (2 * (m["yoke_roll"] + m["yoke_pitch"] + 5), 225),
         (2 * (m["leg_link"] + D.SERVO_MASS + 4), 175),
         (2 * (m["leg_link"] + D.SERVO_MASS + 4), 85),
@@ -1443,9 +1810,8 @@ def main():
     ]
     mt = sum(w for w, _ in items)
     cg = sum(w * z for w, z in items) / mt
-    cg_cam = (sum(w * z for w, z in items) + D.CAM_MASS * cam_z) / (mt + D.CAM_MASS)
-    print(f"\nstanding CG ~{cg:.0f} mm; with camera ~{cg_cam:.0f} mm "
-          f"(+{cg_cam - cg:.0f} mm, camera CG ~{cam_z:.0f} mm)")
+    print(f"\nstanding CG ~{cg:.0f} mm  (torso mass {sum(w for w, _ in items[:7]):.0f} g "
+          f"about the deck at {dt:.0f} mm)")
 
 
 def export_assemblies():
@@ -1455,6 +1821,13 @@ def export_assemblies():
     built from the same parts and go stale the moment someone changes a
     dimension and only runs parts.py. Imported lazily -- both modules import
     parts, so a top-level import would be circular.
+
+    (They were briefly stale on 2026-08-04, between the dimensions/parts half
+    of pelvis v4 and the downstream half: both files still placed the retired
+    tower / gopro_base / imu_carrier on the deck and seated the pack at the
+    legacy BATT_SEAT_X. Both now draw the v4 torso -- battery_guard, the pack
+    at BATT_SEAT_X_V4, board_frame and the upright board mock -- so the full
+    run is current again and --no-assembly is back to being a speed flag.)
     """
     import export_assembly
     import export_assembly_full

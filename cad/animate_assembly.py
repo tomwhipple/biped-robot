@@ -5,9 +5,11 @@ Run:  .venv/bin/python cad/animate_assembly.py
 
 Purpose is assembly *feasibility*, not eye candy: parts approach their seats
 along the direction they must actually be inserted (roll servos slide UP into
-the pelvis bays, links slide onto cases from the front, the camera drops onto
-the prongs), so a blocked insertion path shows up as one part passing through
-another. Complements check_assembly.py, which only tests the assembled state.
+the carrier bays, links slide onto cases from the front, the driver board
+slides FORWARD into its frame from behind and the pack drops through the
+guard's top aperture), so a blocked insertion path shows up as one part passing
+through another. Complements check_assembly.py, which only tests the assembled
+state.
 
 Parts are enumerated from export_assembly.robot, so this survives part-set
 changes as long as labels keep their prefixes.
@@ -27,8 +29,8 @@ TMP = os.path.join(OUT, "_anim")
 os.makedirs(TMP, exist_ok=True)
 
 # label prefix -> (insertion vector in mm world frame, extra delay in frames
-# before this stage starts -- the battery waits for the tower to finish so the
-# swap window pass is actually demonstrated, not raced)
+# before this stage starts -- the battery waits for the guard to finish so the
+# drop into the bay is actually demonstrated, not raced)
 # Each fastener group flies in RIGHT AFTER the part it holds, along the axis the
 # driver actually works on -- so a screw that cannot be reached shows up here as
 # a screw passing through something on its way in. Matching is by bare label
@@ -57,16 +59,38 @@ PLAN = [
     ("screws_ankle",     (0, 90, 0), 0),   # ankle disc screws
     ("foot",             (0, 0, -60), 0),  # sole rises to pocket the ankle servo
     ("screws_foot",      (0, 90, 0), 0),   # retention screws through the tabs
-    ("tower",            (0, 0, 120), 0),  # drops onto the deck bosses
-    ("screws_tower",     (0, 0, 120), 0),
-    ("battery",          (-90, 0, 0), 18),  # 3S pack through the -x wall window
-    ("imu",              (0, 0, 90), 0),   # carrier + IMU under the gopro base
-    ("gopro_base",       (0, 0, 90), 0),   # drops onto the tower-top bosses
-    ("screws_head_stack", (0, 0, 90), 0),
-    ("camera",           (0, 0, 90), 0),   # fingers drop into the prongs
+    # --- v4 torso (2026-08-04). The tower / imu_carrier / gopro_base / camera
+    # stages are GONE with the parts; their two jobs are the two cages below.
+    # Torso order is the real one: the deck's furniture is bolted down empty,
+    # the board goes into its frame, and the pack is last so its bay is clear.
+    ("battery_guard",    (0, 0, 90), 0),   # hoop drops onto the deck heat-sets
+    ("screws_battery_guard", (0, 0, 90), 0),  # M3 down through the feet tabs
+    ("board_frame",      (0, 0, 90), 0),   # cage drops on: bulkhead lap, fins
+                                           # and all four feet land on the flat
+                                           # deck top, nothing to thread past
+    ("screws_board_frame", (0, 0, 90), 0),  # feet M3 down, frame still EMPTY
+    ("board_pcb",        (-70, 0, 0), 0),  # board slides FORWARD from aft into
+                                           # the frame's open back onto the
+                                           # standoffs (2 mm of side-wall
+                                           # clearance either edge, rail above)
+    ("board_parts",      (-70, 0, 0), -9),  # ...its fitted components are the
+                                           # SAME physical board, so cancel one
+                                           # STAGGER and fly them together --
+                                           # staggered, they read as a separate
+                                           # part being installed
+    ("screws_driver_board", (-60, 0, 0), 0),  # M2.5 follow it in, +x from aft
+    ("battery_3s",       (0, 0, 90), 30),  # pack drops through the guard's top
+                                           # aperture -- the swap path, and the
+                                           # reason the guard is a hoop. 18 ->
+                                           # 30: the delay is what buys the
+                                           # camera time to come back round to
+                                           # the front before the pack falls
+                                           # (see the azimuth block below)
 ]
 COLOR = {"servo": (0.22, 0.23, 0.27, 1), "camera": (0.10, 0.10, 0.12, 1),
-         "battery": (0.16, 0.30, 0.55, 1),
+         "battery_3s": (0.16, 0.30, 0.55, 1),   # NOT "battery": that prefix
+         "board_pcb": (0.05, 0.32, 0.18, 1),    # also catches battery_guard,
+         "board_parts": (0.15, 0.15, 0.17, 1),  # which is a printed part
          "foot": (0.70, 0.72, 0.78, 1), "": (0.80, 0.82, 0.86, 1)}
 
 
@@ -78,7 +102,11 @@ def stage_of(label):
 
 
 def color_of(label):
-    for prefix in ("servo", "camera", "battery", "foot"):
+    # order matters for the same reason PLAN's does: "battery_3s" must be
+    # tested before any shorter "battery*" key would be, or battery_guard --
+    # a printed part -- comes out battery-blue.
+    for prefix in ("servo", "camera", "battery_3s", "board_pcb", "board_parts",
+                   "foot"):
         if label.startswith(prefix):
             return COLOR[prefix]
     return COLOR[""]
@@ -138,7 +166,9 @@ for i, (_, _, extra) in enumerate(PLAN):
     acc += (STAGGER if i else 0) + extra
     START.append(acc)
 total = START[-1] + TRAVEL + HOLD
-BATT_START = START[[p for p, _, _ in PLAN].index("battery")]
+_stages = [p for p, _, _ in PLAN]
+BATT_START = START[_stages.index("battery_3s")]
+BOARD_START = START[_stages.index("board_pcb")]
 r = mujoco.Renderer(m, height=460, width=560)
 cam = mujoco.MjvCamera()
 mujoco.mjv_defaultCamera(cam)
@@ -157,10 +187,20 @@ for f in range(total):
         ease = smoothstep((f - START[stage]) / TRAVEL)
         d.mocap_pos[mocap[n]] = (1 - ease) * vec
     mujoco.mj_forward(m, d)
-    # slow orbit for depth cues, plus a swing to the -x side just before the
-    # battery stage so the swap-window pass is on camera
+    # Slow orbit for depth cues, plus TWO keyed 180 deg swings. v3 had one, to
+    # catch the pack going in through the tower's -x wall window. v4 has two
+    # insertions worth watching and they are on opposite faces, so the camera
+    # goes round for the board and comes back for the pack:
+    #   +180 before the board stage  -> the AFT face, where the board slides in
+    #   -180 before the battery      -> back to the +x FRONT, where the bay is
+    # It nets to the front, which is also the right note to end the hold on.
+    # Each swing is keyed to COMPLETE before its stage starts and the return is
+    # keyed off the pack's own delay, so neither insertion is watched through a
+    # moving camera -- at the first cut the return began while the board was
+    # still traveling and the arrival happened off-screen.
     cam.azimuth = (140 + 30 * f / total
-                   + 180 * smoothstep((f - (BATT_START - 22)) / 24))
+                   + 180 * smoothstep((f - (BOARD_START - 20)) / 20)
+                   - 180 * smoothstep((f - (BATT_START - 26)) / 20))
     r.update_scene(d, cam)
     frames.append(r.render().copy())
 

@@ -235,6 +235,76 @@ def tower_screws():
     return _fuse(s)
 
 
+def _cone_seat_z(tab_t):
+    """z of an M3 button head's BEARING plane in a coned driver well (v4).
+
+    battery_guard and board_frame do not counterbore their foot screws: a flat
+    O6.6/O3.4 annulus would be an unsupported ring on a part printed rail-down,
+    so the well's floor is a cone (M3_SEAT_H tall, O3.4 -> O6.6). A button head
+    therefore stops where the cone is as wide as the head, not on the tab top --
+    0.59 mm down. Deriving it here rather than writing 3.41 keeps the seat
+    tables honest if M3_SEAT_H or M3_CB_D ever move.
+    """
+    return tab_t - D.M3_SEAT_H * ((D.M3_CB_D - D.M3_HEAD_D)
+                                  / (D.M3_CB_D - D.M3_CLEAR))
+
+
+def battery_guard_screws():
+    """Pelvis frame (deck top == z 0), v4: 4x M3x10 button DOWN through the
+    battery_guard's feet into the deck heat-sets (pelvis BG_BOSS_* bosses on
+    the deck underside take the thread to 9 mm). Heads bed in the coned
+    driver wells that are bored up through each foot gusset."""
+    zs = _cone_seat_z(D.BG_FOOT_T)
+    s = []
+    for sx in D.BG_FOOT_X:
+        for sy in (D.BG_FOOT_Y, -D.BG_FOOT_Y):
+            s.append(parts.cyl_z(1.5, zs - 10.0, zs, sx, sy))
+            s.append(parts.cyl_z(D.M3_HEAD_D / 2, zs, zs + D.M3_HEAD_H, sx, sy))
+    return _fuse(s)
+
+
+def board_frame_feet_screws():
+    """Pelvis frame (deck top == z 0), v4: 4x M3x10 button DOWN through the
+    board_frame's feet into the deck pads over the yaw box side walls.
+
+    SEPARATE from board_screws() below, though both live on the same part.
+    They are two different assembly steps in two different directions: the
+    frame is bolted down EMPTY from above, and only then does the board go in
+    from behind. animate_assembly flies each fastener group along ONE axis, so
+    merging them would fly the four M2.5s down through the top rail -- which is
+    exactly the kind of impossible approach that animation exists to expose."""
+    zs = _cone_seat_z(D.BF_FOOT_T)
+    s = []
+    for sx in D.BF_FOOT_X:
+        for sy in (D.BF_FOOT_Y, -D.BF_FOOT_Y):
+            s.append(parts.cyl_z(1.5, zs - 10.0, zs, sx, sy))
+            s.append(parts.cyl_z(D.M3_HEAD_D / 2, zs, zs + D.M3_HEAD_H, sx, sy))
+    return _fuse(s)
+
+
+def board_screws():
+    """The 4x M2.5 machine pan that hold the General Driver board on
+    board_frame's standoffs. They are the point of the v4 mount: they run
+    FORWARD (+x) from behind, heads landing on the PCB's aft face in open air,
+    so nothing has to be bored to reach them (contrast the tower's, which ended
+    3.17 mm from a wall). Shank at the pilot dia -- it self-taps the boss."""
+    xh = D.BF_PCB_X1                                  # PCB aft face = head seat
+    s = []
+    for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY):
+        for sz in (D.BF_CZ + D.BOARD_GD_SCREW_DZ, D.BF_CZ - D.BOARD_GD_SCREW_DZ):
+            s.append(parts.cyl_x(D.M25_TAP / 2, xh, xh + 6.0, sy, sz))
+            s.append(parts.cyl_x(D.M25_HEAD_D / 2, xh - D.M25_HEAD_H, xh,
+                                 sy, sz))
+    return _fuse(s)
+
+
+def board_frame_screws():
+    """Every fastener that ends up on board_frame, for callers that want the
+    part fully dressed (dress.py, and the seated-in-its-own-part check) rather
+    than one assembly step at a time."""
+    return board_frame_feet_screws() + board_screws()
+
+
 def head_stack_screws():
     """Tower-top frame (tower top == z 0): 4x M3x12 self-tap through
     gopro_base + imu_carrier into the tower bosses + 2x M2.5 clamping the
@@ -431,6 +501,34 @@ def tower_seats():
     return s
 
 
+# The v4 foot seats are given at the TAB TOP, not at _cone_seat_z where the
+# head actually beds. The 0.59 mm between the two is the CONICAL SEAT itself,
+# and a cone is narrower than the head's own envelope everywhere below the
+# mouth -- by construction, since that is what makes it a seat. Starting the
+# O6.1 driver sweep down there reports 0.49 mm3 per screw of the part's own
+# seat cone (measured, 2026-08-04) and says nothing about whether the screw can
+# be reached. From the mouth up, the sweep runs through the O6.6 driver well
+# and the open air above it, which IS the question. The seat PROBE still lands
+# in head metal at the mouth (the head spans 3.41..5.06 on a 4 mm tab), so the
+# anti-drift guard is unaffected.
+def battery_guard_seats():
+    return [(sx, sy, D.BG_FOOT_T, "z", +1, "btn3")
+            for sx in D.BG_FOOT_X for sy in (D.BG_FOOT_Y, -D.BG_FOOT_Y)]
+
+
+def board_frame_feet_seats():
+    return [(sx, sy, D.BF_FOOT_T, "z", +1, "btn3")
+            for sx in D.BF_FOOT_X for sy in (D.BF_FOOT_Y, -D.BF_FOOT_Y)]
+
+
+def board_seats():
+    """Driven from AFT, so the approach sweep runs -x out of the frame."""
+    return [(D.BF_PCB_X1, sy, sz, "x", -1, "pan25")
+            for sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY)
+            for sz in (D.BF_CZ + D.BOARD_GD_SCREW_DZ,
+                       D.BF_CZ - D.BOARD_GD_SCREW_DZ)]
+
+
 def head_stack_seats():
     gz = D.IMU_CARRIER_T + D.GP_BASE_T
     s = [(sx, sy, gz, "z", +1, "btn3")
@@ -455,9 +553,18 @@ SEATS = {
     "screws_yaw_wall":    (yaw_wall_seats,   yaw_wall_screws),
     "screws_deck":        (deck_stator_seats, deck_stator_screws),
     "screws_foot":        (foot_seats,       foot_screws),
-    "screws_tower":       (tower_seats,      tower_screws),
-    "screws_head_stack":  (head_stack_seats, head_stack_screws),
+    "screws_battery_guard": (battery_guard_seats, battery_guard_screws),
+    # board_frame's two steps are two groups: the feet go in from ABOVE with
+    # the frame empty, the board screws from AFT once the board is on its
+    # standoffs. See board_frame_feet_screws() for why they are not merged.
+    "screws_bf_feet":     (board_frame_feet_seats, board_frame_feet_screws),
+    "screws_board":       (board_seats,       board_screws),
 }
+# screws_tower / screws_head_stack are NOT in SEATS since pelvis v4
+# (2026-08-04): they belong to tower / gopro_base / imu_carrier, which left the
+# build. SEATS is what check_assembly gates on, and a retired part must not
+# gate the build. The screw + seat builders stay above (and screws_tower stays
+# in GROUPS below) so the legacy STEPs and freecad_articulate keep working.
 
 
 def paths(group, length=INSERT_LEN):
@@ -476,8 +583,10 @@ GROUPS = {
     "screws_roll":         lambda: disc_screws_x() + flange_bolts(),
     "screws_yaw_carrier":  yaw_carrier_screws,                 # carrier frame
     "screws_deck":         deck_stator_screws,                 # pelvis frame
-    "screws_tower":        tower_screws,                       # tower frame
-    "screws_head_stack":   head_stack_screws,                  # tower-top frame
+    "screws_battery_guard": battery_guard_screws,              # pelvis frame
+    "screws_board_frame":  board_frame_screws,                 # pelvis frame
+    "screws_tower":        tower_screws,                       # LEGACY (tower)
+    "screws_head_stack":   head_stack_screws,                  # LEGACY (head)
     "screws_foot":         foot_screws,                        # foot frame
 }
 

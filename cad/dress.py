@@ -9,9 +9,17 @@ catalog-exact leads. Cable segments that cross a joint are re-swept from
 the posed attachment points, so a posed export shows realistic slack/wrap
 instead of a rigid cable tearing off.
 
+TORSO IS v4 (2026-08-04): no tower, no head stack. The pack sits in the open
+on the deck under `battery_guard`; the General Driver board stands UPRIGHT and
+TRANSVERSE on `board_frame` behind the pelvis with its CONNECTORS FACING AFT,
+so every torso cable now terminates on the board's aft face instead of
+climbing into a tower.
+
 Chain per leg (all legs identical, horn +Y):
-  board (under the tower top, face-down)
-    -> hip-roll servo plug (top end, in the pelvis deck cutout)      [rigid]
+  board leg-servo port (aft face of the upright board)
+    -> under the PCB's bottom edge, through the bulkhead wire window,
+       forward over the deck and down the pelvis centre riser
+    -> hip-roll servo plug (top end, under the deck)                 [rigid]
     -> over the deck rear edge, down to the hip-pitch servo's rear-  [joint]
        end ports (z -35.11 below the hip axis)
     -> thigh web raceway (zip ties through the web holes) -> knee    [joint]
@@ -35,8 +43,25 @@ import check_assembly as CA
 import export_assembly as A
 
 DTOP = A.DECK_TOP_Z                              # v3yaw deck top, world z
-PCB_TOP = DTOP + D.TOWER_H - D.TOWER_TOP_T - D.BOARD_STANDOFF
-PCB_T = 1.6
+# v4 board: upright and transverse on board_frame, component/connector face
+# AFT. World x of the two faces, and the z band the board occupies.
+PCB_AFT_X = D.BF_PCB_X1                          # -49.23, where the ports are
+PCB_FWD_X = D.BF_PCB_X0                          # -47.60, on the standoffs
+PCB_Z0 = DTOP + D.BF_CZ - D.BOARD_GD_OUTLINE[0] / 2      # board bottom edge
+PCB_Z1 = DTOP + D.BF_CZ + D.BOARD_GD_OUTLINE[0] / 2      # board top edge
+# Port heights on the aft face. The board's own connector positions are not in
+# the repo (docs/sensor-expansion.md §1 inventories the REFS -- H1 power in,
+# H5/H6 one bus-servo port per leg -- but no coordinates), so these are placed
+# plausibly low on the face where the harness wants them, and the routing is
+# what this file is for. Nothing downstream measures them.
+PORT_LEG_Z = DTOP + 14.0                         # H5 / H6, y +/-PORT_LEG_Y
+PORT_LEG_Y = 10.0
+PORT_PWR = (DTOP + 8.0, -26.0)                   # H1 XH power inlet (z, y)
+# Height at which a lead crosses from the frame's inside to its open aft face.
+# It goes UNDER the board's bottom edge, and there is nothing to clear down
+# there: the deck stops at BF_BULK_X, 6.6 mm forward of the PCB, so everything
+# below the board aft of the bulkhead is open air.
+UNDER_BOARD_Z = DTOP - 1.5
 
 COL_WIRE = Color(0.55, 0.12, 0.10)
 COL_TIE = Color(0.08, 0.08, 0.09)
@@ -133,18 +158,24 @@ def zip_tie(z):
 
 
 def board_mock():
-    """Waveshare ESP32 servo driver, face-DOWN on standoffs under the tower
-    top: PCB slab + module can + two servo-header banks + XT30 stub."""
-    p = parts.box(-15, 15, -32.5, 32.5, PCB_TOP - PCB_T, PCB_TOP)
-    return p
+    """The General Driver PCB where board_frame holds it -- upright, transverse
+    and 65 x 65. Same solid export_assembly places, lifted to world."""
+    return Pos(0, 0, DTOP) * A.board_pcb_mock()
 
 
 def board_components():
-    zc = PCB_TOP - PCB_T
-    p = parts.box(-9, 9, 8, 26, zc - 3.4, zc)          # ESP32 module can
-    p += parts.box(-13, -7, -28, -2, zc - 5.5, zc)     # servo header bank
-    p += parts.box(7, 13, -28, -2, zc - 5.5, zc)       # servo header bank
-    p += parts.box(-4, 4, 27, 32.5, zc - 6.5, zc)      # XT30 power entry
+    """What is fitted to the board's AFT face. The interference check uses the
+    full BOARD_GD_COMP slab (conservative); here it is broken into the pieces
+    the harness plugs into, so the render reads as a board rather than a brick.
+    Depths are within that same 9 mm envelope."""
+    x1 = PCB_AFT_X                                      # component face
+    p = parts.box(x1 - 3.4, x1, -9, 9, PCB_Z1 - 26, PCB_Z1 - 8)   # ESP32 can
+    p += parts.box(x1 - 9.0, x1, -30, 30, PCB_Z1 - 40, PCB_Z1 - 34)  # 40-pin
+    for sy in (PORT_LEG_Y, -PORT_LEG_Y):                # H5 / H6 servo ports
+        p += parts.box(x1 - 5.5, x1, sy - 3, sy + 3,
+                       PORT_LEG_Z - 4, PORT_LEG_Z + 4)
+    p += parts.box(x1 - 6.5, x1, PORT_PWR[1] - 4, PORT_PWR[1] + 4,
+                   PORT_PWR[0] - 4, PORT_PWR[0] + 4)    # H1 XT30/XH inlet
     return p
 
 
@@ -211,20 +242,66 @@ def leg_cables(ly, roll, hip, knee, ankle, chain=False):
 
 
 def torso_cable(ly):
-    """Board edge -> down through the deck cutout -> roll servo plug (rigid:
-    every point is torso-fixed)."""
+    """One leg's bus lead, board -> hip-roll servo (rigid: every point is
+    torso-fixed). v4 route, and the geometry dictates all of it:
+
+      * it starts at a leg-servo port on the board's AFT face,
+      * dives UNDER the PCB's bottom edge (the board spans the frame's full
+        width, so the only way from the aft face into the frame is under it or
+        around it, and under is the 2.5 mm the board bottom sits above z 0),
+      * threads the bulkhead's diamond WIRE WINDOW at its waist (BF_WIRE_Z +
+        BF_WIRE[1]/2, the widest point, sized to pass a WIRE_PLUG_W housing),
+      * runs forward over the deck top to the pelvis centre riser window
+        (parts.pelvis cuts +/-11 x +/-12 for exactly this), drops through it
+        between the two yaw boxes, and only then swings outboard to the leg --
+        BELOW the box bottoms, which is the one height where that is free.
+    """
     sgn = 1 if ly > 0 else -1
-    return cable([(0, sgn * 30, PCB_TOP - PCB_T - 4),
-                  (-5, ly, DTOP + 16),
-                  (-7, ly, DTOP + 2),
-                  (-7, ly, D.DECK_BOT_Z + 1.5)])
+    wz = DTOP + D.BF_WIRE_Z + D.BF_WIRE[1] / 2          # window waist
+    return cable([(PCB_AFT_X - 2.5, sgn * PORT_LEG_Y, PORT_LEG_Z),
+                  (PCB_AFT_X - 3.0, sgn * PORT_LEG_Y, UNDER_BOARD_Z),
+                  (PCB_FWD_X + 1.5, sgn * PORT_LEG_Y, UNDER_BOARD_Z),
+                  # climb inside the standoff gap before turning into the
+                  # window -- taken in one move, the spline overshoots down
+                  # onto the bulkhead below the opening
+                  (PCB_FWD_X + 2.0, sgn * 8.0, DTOP + 6.0),
+                  # through the diamond at the WAIST and inboard of y 12: the
+                  # opening's lower edge is a 45 deg face, so at y 8 it does
+                  # not start until z 12 and a lead riding the waist height
+                  # out there clips the bulkhead under it
+                  (D.BF_BULK_X1 - 1.0, sgn * 6.5, wz),
+                  (D.BF_BULK_X + 2.0, sgn * 7.0, wz - 2),
+                  (-28.0, sgn * 8.0, DTOP + 6.0),
+                  (-8.0, sgn * 8.5, DTOP + 4.0),
+                  (-6.5, sgn * 9.0, DTOP - 12.0),
+                  (-7.0, sgn * 10.0, DTOP - 42.0),      # under the box bottoms
+                  (-7.0, ly, D.DECK_BOT_Z + 1.5)])
 
 
 def pigtail():
-    """Battery XT30 lead: pack +y end face up to the board power entry."""
-    return cable([(0, 29, DTOP + 12), (-2, 37, DTOP + 24),
-                  (0, 31, PCB_TOP - PCB_T - 5), (0, 27, PCB_TOP - PCB_T - 5)],
-                 r=2.0)
+    """Battery XH lead: the pack's aft end up over the deck and back to the
+    board's power inlet (H1). It shares the bulkhead wire window with the leg
+    leads -- that window is the only way through the bulkhead -- and then runs
+    up the open aft face to the inlet."""
+    # ...through the LOW half of the diamond on the centreline (the leg leads
+    # have the waist at y +/-6.5), so the three torso leads share the one
+    # window without lying on each other, and the lead comes out already low
+    # enough to duck straight under the board. chain=True, not a spline: the
+    # corridor between the bulkhead's aft face and the PCB is 4 mm of
+    # BOARD_GD_STANDOFF, and a spline through a 10 mm dive in a 4 mm slot
+    # overshoots in x and reads as a lead threaded through the PCB (67 mm3,
+    # measured, while building this).
+    zw = DTOP + 10.0
+    return cable([(D.BATT_SEAT_X_V4 - 0.5, 26, DTOP + 18),
+                  (D.BATT_SEAT_X_V4 - 8, 16, DTOP + 10),
+                  (-26, 2, DTOP + 9),
+                  (D.BF_BULK_X + 2.0, 0.0, zw),
+                  (D.BF_BULK_X1 - 2.0, 0.0, zw),
+                  (PCB_FWD_X + 1.8, -5.0, DTOP + 5.0),
+                  (PCB_FWD_X + 1.8, -12.0, UNDER_BOARD_Z),
+                  (-53.0, -20.0, DTOP + 0.5),         # rise clear of the PCB
+                  (PCB_AFT_X - 4.0, PORT_PWR[1], PORT_PWR[0])],
+                 r=2.0, chain=True)
 
 
 # --------------------------------------------------------------- assembly
@@ -294,7 +371,14 @@ def dressed_robot(roll=0.0, hip=0.0, knee=0.0, ankle=0.0):
     legs posed identically (same-sign roll, like the ROM video)."""
     return Compound(label="bimo_biped_dressed", children=[
         A.piece("pelvis", A.COL_PRINT, Pos(0, 0, DTOP) * parts.pelvis()),
-        A.piece("tower", A.COL_PRINT, Pos(0, 0, DTOP) * parts.tower()),
+        # v4 torso: guard + frame in place of the tower/head stack. The camera
+        # and IMU are NOT drawn -- neither has a mount on the robot until the
+        # head bolt-on exists, and drawing them on a retired tower is how the
+        # renders went on quietly showing a machine that no longer existed.
+        A.piece("battery_guard", A.COL_PRINT,
+                Pos(0, 0, DTOP) * parts.battery_guard()),
+        A.piece("board_frame", A.COL_PRINT,
+                Pos(0, 0, DTOP) * parts.board_frame()),
         A.piece("battery_3s_mock", A.COL_BATT,
                 Pos(0, 0, DTOP) * A.battery_mock()),
         A.piece("board_pcb_mock", COL_PCB, board_mock()),
@@ -302,26 +386,12 @@ def dressed_robot(roll=0.0, hip=0.0, knee=0.0, ankle=0.0):
         A.piece("pigtail_xt30", COL_WIRE, pigtail()),
         A.piece("cable_board_L", COL_WIRE, torso_cable(D.HIP_SEP / 2)),
         A.piece("cable_board_R", COL_WIRE, torso_cable(-D.HIP_SEP / 2)),
-        A.piece("imu_carrier", A.COL_PRINT,
-                Pos(0, 0, A.TOWER_TOP_Z) * parts.imu_carrier()),
-        A.piece("imu_bno055_mock", COL_PCB,
-                Pos(0, D.IMU_CY,
-                    A.TOWER_TOP_Z + D.IMU_PCB_Z)
-                * parts.box(-D.IMU_PCB[0] / 2, D.IMU_PCB[0] / 2,
-                            -D.IMU_PCB[1] / 2, D.IMU_PCB[1] / 2,
-                            0, D.IMU_PCB[2])),
-        A.piece("gopro_base", A.COL_PRINT,
-                Pos(0, 0, A.TOWER_TOP_Z + D.IMU_CARRIER_T)
-                * parts.gopro_base()),
-        A.piece("camera_gopro_max_mock", A.COL_CAM,
-                Pos(0, 0, A.TOWER_TOP_Z + D.IMU_CARRIER_T)
-                * A.camera_mock()),
         A.piece("screws_deck", A.COL_STEEL,
                 Pos(0, 0, DTOP) * F.deck_stator_screws()),
-        A.piece("screws_tower", A.COL_STEEL,
-                Pos(0, 0, DTOP) * F.tower_screws()),
-        A.piece("screws_head_stack", A.COL_STEEL,
-                Pos(0, 0, A.TOWER_TOP_Z) * F.head_stack_screws()),
+        A.piece("screws_battery_guard", A.COL_STEEL,
+                Pos(0, 0, DTOP) * F.battery_guard_screws()),
+        A.piece("screws_board_frame", A.COL_STEEL,
+                Pos(0, 0, DTOP) * F.board_frame_screws()),
         dressed_leg(D.HIP_SEP / 2, "L", roll, hip, knee, ankle),
         dressed_leg(-D.HIP_SEP / 2, "R", roll, hip, knee, ankle),
     ])
