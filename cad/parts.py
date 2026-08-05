@@ -1512,23 +1512,13 @@ V4_CG, V4_TORSO_CG = 192.7, 335.3
 V5_CG, V5_TORSO_CG, V5_TORSO_M = 185.4, 320.1, 359.0
 
 
-# Slicer-facing STL revision suffixes. OrcaSlicer keys per-file dialog state
-# on the PATH: after the v6 rewrite, the re-exported cad/stl/pelvis.stl showed
-# up grayed-out in its import panel while a byte-identical copy at a fresh
-# path imported fine (2026-08-04, user-confirmed). So the pelvis STL carries
-# its torso revision in the filename -- BUMP THIS on any pelvis geometry
-# revision so the slicer never sees a mutated file at a stale path. STEP
-# exports keep stable names (FreeCAD has no such cache).
-STL_REV = {"pelvis": "_v6"}
-
-
 def main():
     os.makedirs(OUT, exist_ok=True)
     os.makedirs(STEP_OUT, exist_ok=True)
     rows, print_mass = [], 0.0
     for name, fn, qty, orient in PARTS:
         part = fn()
-        path = os.path.join(OUT, f"{name}{STL_REV.get(name, '')}.stl")
+        path = os.path.join(OUT, f"{name}.stl")
         export_stl(part, path)
         # exact BREP solid for FreeCAD/Onshape, same solid, same run
         export_step(part, os.path.join(STEP_OUT, f"{name}.step"))
