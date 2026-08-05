@@ -284,7 +284,10 @@ def main():
             # "assume the 10-dof with the new pelvis for all simulations
             # going forward" -- the A/B verdict made yaw the build target).
             # 8-DOF plants remain available via --xml for legacy referees.
-            xml_path=os.path.join(HERE, "..", "bimo_biped_v3yaw.xml"),
+            # 2026-08-05: v3yaw and v4rom BOTH load the retired tower.stl,
+            # which pelvis v6 deleted, so neither opens any more. v5body is
+            # the pelvis-v6 plant and the only 10-DOF model that loads.
+            xml_path=os.path.join(HERE, "..", "bimo_biped_v5body.xml"),
             # dense directional progress: without it precision_v1 converged
             # to a 0-falls/0-motion standing optimum (kernels pay standers)
             cmd_dense=True,

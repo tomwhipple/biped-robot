@@ -18,8 +18,11 @@ for ST in $STS; do
   mkdir -p "$REPO/sim/runs/$OUT"
   rsync -aq "mira:code/robot-mjx/sim/runs/$OUT/" "$REPO/sim/runs/$OUT/"
   ssh mira "mv -f '$ST' 'code/robot-mjx/night/state.collected.$OUT'"
+  # --render is opt-in, and leaving it off is how loco_v14turn_s128 ended up
+  # as the deployed policy with no footage of it (2026-08-04). The night's
+  # movie is the point of collecting; it renders here, on the python referee.
   ( cd "$REPO/sim/mjx" && JAX_PLATFORMS=cpu "$REPO/.venv/bin/python" \
-      eval_precision.py --run-name "$OUT" )
+      eval_precision.py --run-name "$OUT" --render )
   # SIL referee: the SAME run scored through the real firmware C++ control
   # stack (docs/sil-harness.md).  Standing column, but never fatal: a laptop
   # without a compiler, or a broken sil build, must not lose the night's
