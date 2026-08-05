@@ -11,13 +11,15 @@
 # policy with no footage of it. This collects every finished run into the
 # working checkout and referees it WITH --render, so the movie always exists.
 #
-# The training clone belongs to tw; night/ is group-writable (devel), which is
-# how claw renames the state files.
+# The training clone moved to claw on 2026-08-05 (user: "move anything that's
+# still running in my workspace/user into yours"). Both the runner and this
+# collector now run as claw out of ~/code/robot-mjx; tw's clone is left in
+# place, untouched, as history.
 set -uo pipefail
 
 REPO=/home/claw/code/robot
-NIGHT=/home/tw/code/robot-mjx/night
-SRC=/home/tw/code/robot-mjx/sim/runs
+NIGHT=/home/claw/code/robot-mjx/night
+SRC=/home/claw/code/robot-mjx/sim/runs
 PY="$REPO/.venv/bin/python"
 LOG="$REPO/sim/runs/night_collect.log"
 
