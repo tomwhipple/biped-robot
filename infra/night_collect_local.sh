@@ -23,6 +23,15 @@ SRC=/home/claw/code/robot-mjx/sim/runs
 PY="$REPO/.venv/bin/python"
 LOG="$REPO/sim/runs/night_collect.log"
 
+# MuJoCo's renderer needs an OpenGL context. Under cron there is no DISPLAY,
+# so the default GLFW/X11 backend dies with "an OpenGL platform library has
+# not been loaded" -- and that kills the WHOLE python referee, not just the
+# movie: the first --render frame throws and takes the scorecard with it
+# (loco_v15body, 2026-08-06, produced a SIL card and nothing else).
+# EGL renders offscreen against the NVIDIA driver with no display server.
+# osmesa is NOT installed here, so it is not a fallback.
+export MUJOCO_GL=egl
+
 mkdir -p "$REPO/sim/runs"
 exec >> "$LOG" 2>&1
 echo "=== $(date) night_collect_local ==="
