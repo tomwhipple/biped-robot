@@ -298,7 +298,7 @@
 
            THE PLANT HAS CHANGED. Every loco_v1x policy was trained on the
            tower torso and is warm-start material at best. -->
-      <inertial pos="0.0001 -0.0001 -0.0153" quat="0.9854 0.0123 0.0805 0.1495" mass="0.3607" diaginertia="3.4252e-04 3.4914e-04 5.5237e-04"/>
+      <inertial pos="-0.0002 -0.0001 -0.0153" quat="0.9930 0.0071 0.0802 0.0859" mass="0.3615" diaginertia="3.4391e-04 3.5487e-04 5.5915e-04"/>
       <!-- non-colliding visual proxy (contype/conaffinity 0, group 3); the
            explicit <inertial> above is what physics uses. x half-extent now
            tracks the board recess aft (-54.4) against the pack front (+44.0);
