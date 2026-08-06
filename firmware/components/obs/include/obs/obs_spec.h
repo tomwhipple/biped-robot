@@ -43,8 +43,8 @@ inline constexpr int kOffCmd = 42;   // 7 wide
 // the yaw servos were appended as 9/10 after IDs 1-8 were assigned.
 inline constexpr const char* kJointNames[kNumJoints] = {"L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle", "R_hip_yaw", "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle"};
 inline constexpr uint8_t kServoId[kNumJoints] = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4};
-inline constexpr float kJointLo[kNumJoints] = {-0.785398163f, -0.436332313f, -1.91986218f, -1.65806279f, -0.698131701f, -0.785398163f, -0.436332313f, -1.91986218f, -1.65806279f, -0.698131701f};
-inline constexpr float kJointHi[kNumJoints] = {0.785398163f, 0.436332313f, 1.04719755f, 0.0872664626f, 0.698131701f, 0.785398163f, 0.436332313f, 1.04719755f, 0.0872664626f, 0.698131701f};
+inline constexpr float kJointLo[kNumJoints] = {-0.785398163f, -0.436332313f, -1.919862177f, -1.658062789f, -0.698131701f, -0.785398163f, -0.959931089f, -1.919862177f, -1.658062789f, -0.698131701f};
+inline constexpr float kJointHi[kNumJoints] = {0.785398163f, 0.959931089f, 1.570796327f, 1.658062789f, 0.698131701f, 0.785398163f, 0.436332313f, 1.570796327f, 1.658062789f, 0.698131701f};
 inline constexpr float kJointDefault[kNumJoints] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
 }  // namespace obs

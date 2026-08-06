@@ -174,9 +174,12 @@ void testAngleToStepsRaw() {
              obs::angleToSteps(0, obs::kJointHi[0], cal));
     // Past the policy range: angleToSteps clamps (SIL-pinned act-path
     // behavior), Raw converts through -- the bench envelope clamp
-    // (main/mech_envelope.h) depends on this. Joint 3 (L_knee) trains in
-    // -95..+5 deg but measured +-95 mechanical.
-    const float hyper = 0.5f;                    // ~28.6 deg > kJointHi[3]
+    // (main/mech_envelope.h) depends on this.
+    // DERIVED from kJointHi, not hard-coded: this was 0.5f, picked when the
+    // knee policy range stopped at +5 deg. Opening it to the measured +-95 on
+    // 2026-08-06 put 0.5f rad INSIDE the range, so nothing clamped and the
+    // check silently inverted. Anything past the limit exercises the clamp.
+    const float hyper = obs::kJointHi[3] + 0.4f;
     CHECK_EQ(obs::angleToSteps(3, hyper, cal),
              obs::angleToStepsRaw(3, obs::kJointHi[3], cal));
     const int32_t r = obs::angleToStepsRaw(3, hyper, cal);

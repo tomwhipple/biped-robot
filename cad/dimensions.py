@@ -1255,7 +1255,10 @@ ROM = {
     "hip_yaw": (-45.0, 45.0),
     "hip_roll": (-55.0, 55.0),
     "hip_pitch": (-110.0, 90.0),
-    "knee": (-5.0, 95.0),
+    # 2026-08-06: -5 -> -95. The +-95 measured on 2026-08-02 is now the POLICY
+    # range too, not just the mechanical stop, so CAD must sweep the knee
+    # through hyperextension for clearance instead of assuming a 5 deg cap.
+    "knee": (-95.0, 95.0),
     "ankle": (-40.0, 40.0),
 }
 SWEEP_BUFFER = 0.5      # mm of clearance required at the ROM extremes

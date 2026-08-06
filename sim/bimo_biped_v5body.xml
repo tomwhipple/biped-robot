@@ -401,7 +401,7 @@
                  stop protects the machine rather than describing it -- the
                  knee's own 4095-tick encoder wrap is why R_knee had to be
                  re-centred. Open it only with a reason, in its own commit. -->
-            <joint name="L_knee" axis="0 -1 0" range="-95 5"/>
+            <joint name="L_knee" axis="0 -1 0" range="-95 95"/>
         <inertial pos="-0.0010 0.0016 -0.0242" quat="0.9999 0.0031 0.0153 0.0020" mass="0.0786" diaginertia="5.5586e-05 4.8599e-05 1.6317e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
@@ -500,7 +500,7 @@
           <body name="R_shin" pos="0 0 -0.09">
             <!-- axis -Y: flexion-negative, mirror of L_knee (see the comment
                  there for the 2026-08-02 sign fix and the range rationale) -->
-            <joint name="R_knee" axis="0 -1 0" range="-95 5"/>
+            <joint name="R_knee" axis="0 -1 0" range="-95 95"/>
         <inertial pos="-0.0010 0.0016 -0.0242" quat="0.9999 0.0031 0.0153 0.0020" mass="0.0786" diaginertia="5.5586e-05 4.8599e-05 1.6317e-05"/>
             <geom type="box" pos="0 0 -0.045" size="0.0175 0.0123 0.045" mass="0.077" rgba="0.24 0.25 0.29 1" group="3"/>
           <geom class="cad" mesh="leg_link"/>
@@ -559,14 +559,14 @@
        is supposed to be. Do not "fix" them to look like the joint ranges. -->
   <actuator>
     <position name="L_hip_yaw"   joint="L_hip_yaw"   ctrlrange="-0.7853981634  0.7853981634"/>  <!-- -45 .. +45 -->
-    <position name="L_hip_roll"  joint="L_hip_roll"  ctrlrange="-0.4363323130  0.4363323130"/>  <!-- -25 .. +25 -->
-    <position name="L_hip_pitch" joint="L_hip_pitch" ctrlrange="-1.9198621772  1.0471975512"/>  <!-- -110 .. +60 -->
-    <position name="L_knee"      joint="L_knee"      ctrlrange="-1.6580627894  0.0872664626"/>  <!-- -95 .. +5 -->
+    <position name="L_hip_roll"  joint="L_hip_roll"  ctrlrange="-0.4363323130 0.9599310886"/>  <!-- -25 .. +55 abduction, measured -->
+    <position name="L_hip_pitch" joint="L_hip_pitch" ctrlrange="-1.9198621772 1.5707963268"/>  <!-- -110 .. +90 backward, verified -->
+    <position name="L_knee"      joint="L_knee"      ctrlrange="-1.6580627894 1.6580627894"/>  <!-- -95 .. +95 measured 2026-08-02 -->
     <position name="L_ankle"     joint="L_ankle"     ctrlrange="-0.6981317008  0.6981317008"/>  <!-- -40 .. +40 -->
     <position name="R_hip_yaw"   joint="R_hip_yaw"   ctrlrange="-0.7853981634  0.7853981634"/>  <!-- -45 .. +45 -->
-    <position name="R_hip_roll"  joint="R_hip_roll"  ctrlrange="-0.4363323130  0.4363323130"/>  <!-- -25 .. +25 -->
-    <position name="R_hip_pitch" joint="R_hip_pitch" ctrlrange="-1.9198621772  1.0471975512"/>  <!-- -110 .. +60 -->
-    <position name="R_knee"      joint="R_knee"      ctrlrange="-1.6580627894  0.0872664626"/>  <!-- -95 .. +5 -->
+    <position name="R_hip_roll"  joint="R_hip_roll"  ctrlrange="-0.9599310886 0.4363323130"/>  <!-- -55 .. +25 abduction, measured -->
+    <position name="R_hip_pitch" joint="R_hip_pitch" ctrlrange="-1.9198621772 1.5707963268"/>  <!-- -110 .. +90 backward, verified -->
+    <position name="R_knee"      joint="R_knee"      ctrlrange="-1.6580627894 1.6580627894"/>  <!-- -95 .. +95 measured 2026-08-02 -->
     <position name="R_ankle"     joint="R_ankle"     ctrlrange="-0.6981317008  0.6981317008"/>  <!-- -40 .. +40 -->
   </actuator>
 
