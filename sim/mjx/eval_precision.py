@@ -1111,6 +1111,148 @@ def scen_turn_180():
     return build, evaluate
 
 
+
+# --- dynamic scenarios (2026-08-06) -----------------------------------------
+# The eleven original scenarios are quasi-static: a command is set and held,
+# and nothing argues back. These three ask the policy to REACT -- to a shove,
+# to a changing speed command, and to a target that keeps moving. They are the
+# cheap third of the dynamic-scenario plan (user 2026-08-06); the ball and the
+# 1v1 need real env work, these need none.
+
+def scen_push_gauntlet():
+    """Walk a straight line while being shoved at random gait phase.
+
+    push_prob/kick_range come from ENV_EXTRA, so the shoves land wherever they
+    land -- that is the point. Averaged over 8 seeds this grades whether the
+    IMU-driven recovery actually holds a heading under disturbance, which
+    --push-prob as a training knob never reported on.
+    """
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            if t < 1.0:
+                return (0, 0, 0, 1, 0)
+            if "x0" not in ev:
+                ev.update(x0=gt["x"], y0=gt["y"], yaw0=gt["yaw"])
+            return (0.4, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        after = _win(rows, 1.0, 1e9)
+        if not after or "x0" not in ev:
+            return dict(success=False, metrics={}, headline="n/a")
+        dist = math.hypot(after[-1]["x"] - ev["x0"], after[-1]["y"] - ev["y0"])
+        lateral = max(abs(r["y"] - ev["y0"]) for r in after)
+        head_err = abs(_wrap(after[-1]["yaw"] - ev["yaw0"]))
+        # survived, kept going, and did not get knocked off the lane
+        success = ((not fell) and dist >= 2.0 and lateral <= 0.5
+                   and head_err <= math.radians(35.0))
+        return dict(success=success,
+                    metrics=dict(distance=dist, lateral=lateral,
+                                 head_err_deg=math.degrees(head_err)),
+                    headline=f"d={dist:.1f}m lat {lateral*100:.0f}cm")
+    return build, evaluate
+
+
+def scen_speed_ladder():
+    """Commanded speed climbs 0.1 -> 1.2 m/s in rungs; grade the tracking.
+
+    A single held speed never shows whether the gait can RE-ORGANISE -- the
+    transitions are where a two-beat gait either restructures or falls apart
+    (cf. periodic reward composition, Siekmann et al. 2021). Error is measured
+    only in the back half of each rung, after the transient.
+    """
+    RUNGS = (0.1, 0.3, 0.6, 0.9, 1.2)
+    HOLD = 4.0
+    SETTLE = 1.0
+
+    def build():
+        ev = {"rungs": RUNGS, "hold": HOLD, "settle": SETTLE}
+
+        def ctrl(t, gt, ev):
+            if t < SETTLE:
+                return (0, 0, 0, 1, 0)
+            i = int((t - SETTLE) // HOLD)
+            if i >= len(RUNGS):
+                return (0, 0, 0, 1, 0)
+            return (RUNGS[i], 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        errs, per_rung = [], []
+        for i, v in enumerate(RUNGS):
+            t0 = SETTLE + i * HOLD
+            win = _win(rows, t0 + HOLD * 0.5, t0 + HOLD)   # back half only
+            if not win:
+                continue
+            got = sum(r["planar"] for r in win) / len(win)
+            per_rung.append(got)
+            errs.append(abs(got - v))
+        if not errs:
+            return dict(success=False, metrics={}, headline="n/a")
+        mae = sum(errs) / len(errs)
+        top = per_rung[-1] if per_rung else float("nan")
+        success = (not fell) and mae <= 0.20
+        return dict(success=success,
+                    metrics=dict(speed_mae=mae, top_speed=top),
+                    headline=f"mae {mae:.2f}m/s top {top:.2f}")
+    return build, evaluate
+
+
+def scen_pursuit():
+    """Chase a target that keeps moving -- continuous heading re-planning.
+
+    goal_home is a fixed point; this one runs away. The outer loop here is
+    deliberately dumb (proportional heading + distance) so the score reflects
+    the POLICY's turn-while-walking authority, not a clever planner.
+    """
+    SETTLE = 1.0
+    SPEED = 0.18          # target's own speed, m/s -- catchable, not trivial
+
+    def _target(t):
+        # a lazy arc away from the spawn: forward, then curving left
+        tt = max(0.0, t - SETTLE)
+        r = 1.2
+        th = SPEED * tt / r
+        return (r * math.sin(th), r * (1.0 - math.cos(th)))
+
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            if t < SETTLE:
+                return (0, 0, 0, 1, 0)
+            if "x0" not in ev:
+                ev.update(x0=gt["x"], y0=gt["y"], yaw0=gt["yaw"])
+            tx, ty = _target(t)
+            # target in the spawn frame -> world
+            gx = ev["x0"] + tx * math.cos(ev["yaw0"]) - ty * math.sin(ev["yaw0"])
+            gy = ev["y0"] + tx * math.sin(ev["yaw0"]) + ty * math.cos(ev["yaw0"])
+            dx, dy = gx - gt["x"], gy - gt["y"]
+            dist = math.hypot(dx, dy)
+            bearing = _wrap(math.atan2(dy, dx) - gt["yaw"])
+            ev.setdefault("d", []).append(dist)
+            wz = max(-1.0, min(1.0, 1.5 * bearing))
+            # slow down when badly mis-aimed, so it turns instead of arcing wide
+            vx = 0.0 if abs(bearing) > 1.2 else max(0.0, min(0.9, 1.2 * dist))
+            return (vx, 0, wz, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        d = ev.get("d") or []
+        if not d:
+            return dict(success=False, metrics={}, headline="n/a")
+        tail = d[-max(1, len(d) // 4):]          # last quarter of the chase
+        final = sum(tail) / len(tail)
+        best = min(d)
+        success = (not fell) and final <= 0.40
+        return dict(success=success,
+                    metrics=dict(final_gap=final, best_gap=best),
+                    headline=f"gap {final*100:.0f}cm best {best*100:.0f}cm")
+    return build, evaluate
+
+
 # name -> (episode_seconds, factory, is_locomotion)
 def _registry():
     # (single-leg crouch scenarios removed 2026-07-18, user call;
@@ -1139,6 +1281,10 @@ def _registry():
     reg["stand_10s"] = (11.0, scen_stand_10s(), False)
     # torque-off idle: 1.5 s powered settle + 8 s released (user 2026-07-23)
     reg["stand_off"] = (9.5, scen_stand_off(), False)
+    # dynamic trio (2026-08-06)
+    reg["push_gauntlet"] = (14.0, scen_push_gauntlet(), True)
+    reg["speed_ladder"] = (22.0, scen_speed_ladder(), True)
+    reg["pursuit"] = (24.0, scen_pursuit(), True)
     return reg
 
 
@@ -1151,6 +1297,8 @@ ENV_EXTRA = {
     # rough-ground claim (loco_v7knee): the line walk on the 0-20 mm tiled
     # mosaic; the spawn draw puts each seed on a different tile
     "line_rough": dict(terrain_mosaic=True),
+    # the whole point of the gauntlet: shove it, hard, often
+    "push_gauntlet": dict(push_prob=0.08, kick_range=(0.6, 1.4)),
 }
 
 # specialist-family scenario filters (progress review 2026-07-22): a run
@@ -1158,7 +1306,8 @@ ENV_EXTRA = {
 FAMILY_SCENARIOS = {
     "loco": ["line_1m", "line_rough", "backward_1m", "sidestep_L",
              "sidestep_R", "turn_180", "square_return", "circle_return",
-             "goal_home", "stand_10s", "stand_off"],
+             "goal_home", "stand_10s", "stand_off",
+             "push_gauntlet", "speed_ladder", "pursuit"],
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
                "march_in_place", "march_10s", "hip_sway", "crouch_hold",
                "stand_10s"],
@@ -1169,13 +1318,17 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "march_in_place", "march_10s", "hip_sway",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
          "turn_180", "square_return", "circle_return", "goal_home",
-         "line_rough", "crouch_hold",
+         "line_rough", "push_gauntlet", "speed_ladder", "pursuit",
+         "crouch_hold",
          "recover_sit", "recover_fallen", "stand_10s", "stand_off"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
 HEADLINE = {
     "goal_home": ("return_err", lambda v: f"home {v*100:.0f}cm"),
+    "push_gauntlet": ("distance", lambda v: f"d={v:.1f}m"),
+    "speed_ladder": ("speed_mae", lambda v: f"mae {v:.2f}m/s"),
+    "pursuit": ("final_gap", lambda v: f"gap {v*100:.0f}cm"),
     "balance": ("clear_frac", lambda v: f"clear {v*100:.0f}%"),
     "circle_air": ("traced_radius", lambda v: f"r={v*100:.1f}cm"),
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
