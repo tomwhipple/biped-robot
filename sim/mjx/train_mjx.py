@@ -279,7 +279,14 @@ def main():
             ext_cmd=True,
             w_track_h=1.0, w_lift=1.0, w_track_foot=1.0,
             fall_cost=10.0,
-            payload_cg_z=0.1260,   # 2026-07-28: tower top +31.5 mm (was 0.0945)
+            # Camera CG above the TORSO CENTRE. 2026-08-06: pelvis v6 deleted
+            # the tower, so the 0.1260 that put the GoPro on a tower top is
+            # 67.9 mm too high -- it floats the 154 g camera (12 % of the
+            # robot) well clear of the body, visibly so in the render.
+            # v6 bolts gopro_base flat to the deck: CAD cam_z is 54.0 mm over
+            # the deck (GP_BASE_T + GP_HOLE_H + 6 + CAM_BODY_z/2, parts.py),
+            # and the deck is 4.11 mm over the torso centre.
+            payload_cg_z=0.0581,   # was 0.1260 (tower top), 0.0945 before that
             # DEFAULT PLANT = the 10-DOF hip-yaw robot (user 2026-07-24:
             # "assume the 10-dof with the new pelvis for all simulations
             # going forward" -- the A/B verdict made yaw the build target).
