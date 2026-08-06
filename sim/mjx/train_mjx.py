@@ -218,6 +218,13 @@ def main():
                         "clearance) at zero net translation. Expressed "
                         "through the existing 7 command channels; pair with "
                         "--w-knee-high to pay for the clearance")
+    p.add_argument("--ext-mix", default=None,
+                   help="override the ext_cmd command mix as 7 comma floats "
+                        "(stand,crouch,balance,air-circle,pivot,march,sway; "
+                        "remainder = walk). Applied AFTER the family preset, "
+                        "so a loco run can buy back the drill commands the "
+                        "preset zeroes (weight_shift/metronome scenarios, "
+                        "2026-08-06). Obs contract untouched")
     p.add_argument("--march-hz", type=float, default=None,
                    help="commanded march cadence in full L/R cycles per "
                         "second (1.0 = 0.5 s per lift). Omitted/0 alternates "
@@ -417,6 +424,11 @@ def main():
     # its env from.
     if args.march_mix is not None:
         env_kw["march_mix"] = args.march_mix
+    if args.ext_mix is not None:
+        mix = tuple(float(x) for x in args.ext_mix.split(","))
+        if len(mix) != 7 or sum(mix) > 1.0 + 1e-9:
+            raise SystemExit(f"--ext-mix needs 7 floats summing <= 1, got {mix}")
+        env_kw["ext_mix"] = mix
     if args.march_hz is not None:
         env_kw["march_hz"] = args.march_hz
     if args.w_knee_high is not None:

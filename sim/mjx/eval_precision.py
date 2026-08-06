@@ -1253,6 +1253,257 @@ def scen_pursuit():
     return build, evaluate
 
 
+def scen_reversal():
+    """Command latency, the responsiveness headline (user 2026-08-06: the
+    demo sentence is 'responds to a reversal in X s without a stumble').
+    Walk forward 0.5, snap the command to backward -0.3, then to stop; each
+    latency is the time from the flip until the heading-frame velocity stays
+    inside the tracking band for 0.5 s continuous."""
+    V_FWD, V_BACK = 0.5, -0.3
+    SETTLE, T_FWD, T_BACK, T_STOP = 1.0, 4.0, 4.0, 3.0
+
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            if t < SETTLE:
+                return (0, 0, 0, 1, 0)
+            ev.setdefault("yaw0", gt["yaw"])
+            if t < SETTLE + T_FWD:
+                return (V_FWD, 0, 0, 1, 0)
+            if t < SETTLE + T_FWD + T_BACK:
+                return (V_BACK, 0, 0, 1, 0)
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        if not rows:
+            return dict(success=False, metrics={}, headline="n/a")
+        yaw0 = ev.get("yaw0", rows[0]["yaw"])
+        c, s = math.cos(yaw0), math.sin(yaw0)
+        ts = [r["t"] for r in rows]
+        px = [r["x"] * c + r["y"] * s for r in rows]
+        # smoothed forward velocity along the initial heading (~0.3 s + 0.3 s
+        # central window; stride-to-stride speed pulses would false-trip a
+        # narrow band otherwise)
+        k = 5
+        v = []
+        for i in range(len(rows)):
+            j0, j1 = max(0, i - k), min(len(rows) - 1, i + k)
+            dt = ts[j1] - ts[j0]
+            v.append((px[j1] - px[j0]) / dt if dt > 1e-9 else 0.0)
+
+        def lock(t_flip, t_end, target, tol):
+            run = None
+            for i, r in enumerate(rows):
+                if r["t"] < t_flip:
+                    continue
+                if r["t"] > t_end:
+                    break
+                if abs(v[i] - target) <= tol:
+                    if run is None:
+                        run = r["t"]
+                    if r["t"] - run >= 0.5 - 1e-9:
+                        return run - t_flip
+                else:
+                    run = None
+            return float("nan")
+
+        t_go = lock(SETTLE, SETTLE + T_FWD, V_FWD, 0.12)
+        t_rev = lock(SETTLE + T_FWD, SETTLE + T_FWD + T_BACK, V_BACK, 0.12)
+        t_stop = lock(SETTLE + T_FWD + T_BACK,
+                      SETTLE + T_FWD + T_BACK + T_STOP, 0.0, 0.15)
+        success = bool((not fell)
+                       and not math.isnan(t_go)
+                       and not math.isnan(t_rev) and t_rev <= 2.0
+                       and not math.isnan(t_stop) and t_stop <= 2.0)
+        return dict(success=success,
+                    metrics=dict(t_go=t_go, t_reverse=t_rev, t_stop=t_stop),
+                    headline=(f"rev {t_rev:.1f}s stop {t_stop:.1f}s"
+                              if not math.isnan(t_rev) else "no-lock"))
+    return build, evaluate
+
+
+def scen_metronome():
+    """March to a metronome whose tempo CHANGES: 1.4 -> 1.0 -> 1.7 Hz full
+    L/R cycles, 6 cycles each (user 2026-08-06: cadence/dance as the
+    natural-responsiveness demo). The command encoding is the training march
+    (c4 alternating, c6 = march_dz*|sin ph|) but the clock is the REFEREE's,
+    with continuous phase across the tempo changes -- so the score is tempo
+    tracking, not replay. 1.4 and 1.7 Hz sit inside the gait-clock training
+    draw (1.25-1.75 Hz); 1.0 Hz is outside it and reported as a stretch
+    metric (cadence_err_slow), not required for the pass."""
+    SEGS = ((1.4, 6), (1.0, 6), (1.7, 6))     # (full-cycle Hz, cycles)
+    SETTLE = 1.0
+
+    def build():
+        ev = {"ph": 0.0, "tp": SETTLE}
+
+        def ctrl(t, gt, ev):
+            if t < SETTLE:
+                return (0, 0, 0, 1, 0)
+            env = ev["_env"]
+            hz, t0 = 0.0, SETTLE
+            for f, cyc in SEGS:
+                t1 = t0 + cyc / f
+                if t < t1:
+                    hz = f
+                    break
+                t0 = t1
+            if hz == 0.0:
+                return (0, 0, 0, 1, 0)
+            ev["ph"] += 2 * math.pi * hz * (t - ev["tp"])
+            ev["tp"] = t
+            lift = -1 if math.sin(ev["ph"]) >= 0 else 1   # left swings first
+            dz = getattr(env, "_march_dz", 0.0) * abs(math.sin(ev["ph"]))
+            return (0, 0, 0, 1, lift, 0, dz)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        bounds, t0 = [], SETTLE
+        for f, cyc in SEGS:
+            t1 = t0 + cyc / f
+            bounds.append((f, t0, t1))
+            t0 = t1
+        errs = []
+        for f, a, b in bounds:
+            P = 1.0 / f
+            per = []
+            for key in ("con_l", "con_r"):
+                # liftoff = contact falling edge; first cycle of the segment
+                # is the transient and is skipped
+                edges, prev = [], None
+                for r in rows:
+                    if (prev is not None and prev and not r[key]
+                            and a <= r["t"] <= b):
+                        edges.append(r["t"])
+                    prev = r[key]
+                evs = [t for t in edges if t >= a + P]
+                if len(evs) >= 3:
+                    per.append(float(np.median(np.diff(evs))))
+            errs.append(float(np.mean([abs(p - P) / P for p in per]))
+                        if per else float("nan"))
+        in_band = [errs[0], errs[2]]
+        cadence_err = (float(np.mean(in_band))
+                       if not any(math.isnan(e) for e in in_band)
+                       else float("nan"))
+        ref = next(((r["x"], r["y"]) for r in rows if r["t"] >= SETTLE),
+                   (0.0, 0.0))
+        drift = (max(math.hypot(r["x"] - ref[0], r["y"] - ref[1])
+                     for r in rows if r["t"] >= SETTLE)
+                 if rows else float("nan"))
+        success = bool((not fell) and not math.isnan(cadence_err)
+                       and errs[0] <= 0.15 and errs[2] <= 0.15
+                       and not math.isnan(drift) and drift < 0.15)
+        return dict(success=success,
+                    metrics=dict(cadence_err=cadence_err,
+                                 cadence_err_slow=errs[1], drift=drift),
+                    headline=(f"cadErr {cadence_err*100:.0f}%"
+                              if not math.isnan(cadence_err) else "no-lock"))
+    return build, evaluate
+
+
+def scen_squat_reps():
+    """Three squat reps: crouch to 0.70 height for 1.5 s, back to full for
+    1.5 s, repeated (user 2026-08-06: leg-workout moves as scenarios). 0.70
+    is the lower edge of the cmd-crouch DR the marathon loco runs train with,
+    so the depth is in-distribution; the REPS are the new content --
+    crouch_hold tests one descent, this tests cyclic knee flexion and
+    recovery."""
+    DEPTH, HOLD, REPS, SETTLE = 0.70, 1.5, 3, 1.0
+
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            if t < SETTLE:
+                return (0, 0, 0, 1, 0)
+            if (t - SETTLE) >= REPS * 2 * HOLD:
+                return (0, 0, 0, 1, 0)
+            ph = (t - SETTLE) % (2 * HOLD)
+            return (0, 0, 0, DEPTH if ph < HOLD else 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        herrs, recs = [], []
+        for i in range(REPS):
+            t0 = SETTLE + i * 2 * HOLD
+            down = _win(rows, t0 + HOLD - 0.8, t0 + HOLD)
+            up = _win(rows, t0 + 2 * HOLD - 0.8, t0 + 2 * HOLD)
+            herrs.append(abs(_mean(down, "height") - DEPTH * N))
+            recs.append(_mean(up, "height"))
+        reps_ok = sum(1 for h, rc in zip(herrs, recs)
+                      if not math.isnan(h) and h <= 0.035
+                      and not math.isnan(rc) and rc >= 0.92 * N)
+        drift = _drift_rms(_win(rows, SETTLE, 1e9))
+        success = bool((not fell) and reps_ok == REPS
+                       and not math.isnan(drift) and drift < 0.10)
+        hv = [h for h in herrs if not math.isnan(h)]
+        rv = [r for r in recs if not math.isnan(r)]
+        return dict(success=success,
+                    metrics=dict(reps_ok=reps_ok,
+                                 depth_err=(float(np.mean(hv)) if hv
+                                            else float("nan")),
+                                 recovery=(float(np.mean(rv)) if rv
+                                           else float("nan")),
+                                 drift_rms=drift),
+                    headline=f"{reps_ok}/{REPS} reps")
+    return build, evaluate
+
+
+def scen_weight_shift():
+    """Weight-shift drill: alternate 1.5 s single-leg holds, L then R, two
+    full rounds with 0.75 s both-feet transitions (user 2026-08-06: workout
+    drills; hip-roll + lateral CoM authority over the abduction range opened
+    2026-08-02). Command is the balance-lift encoding at 0.85 crouch, same
+    as crouch_leg; a hold is clean when the lifted foot stays off the floor
+    through the middle of the hold. The transitions are the point -- the
+    single-leg HOLD was already graded by balance_L/R."""
+    HOLD, GAP, ROUNDS, SETTLE = 1.5, 0.75, 2, 1.0
+    CYCLE = 2 * (HOLD + GAP)
+
+    def build():
+        ev = {}
+
+        def ctrl(t, gt, ev):
+            if t < SETTLE:
+                return (0, 0, 0, 1, 0)
+            tt = t - SETTLE
+            if tt >= ROUNDS * CYCLE:
+                return (0, 0, 0, 1, 0)
+            ph = tt % CYCLE
+            if ph < HOLD:
+                return (0, 0, 0, 0.85, -1)
+            if ph < HOLD + GAP:
+                return (0, 0, 0, 1, 0)
+            if ph < 2 * HOLD + GAP:
+                return (0, 0, 0, 0.85, 1)
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        holds_ok, cons = 0, []
+        for i in range(ROUNDS):
+            for side, off in (("L", 0.0), ("R", HOLD + GAP)):
+                t0 = SETTLE + i * CYCLE + off
+                mid = _win(rows, t0 + 0.4, t0 + HOLD)
+                c = _frac(mid, _swing_key(side))
+                cons.append(c)
+                if not math.isnan(c) and c < 0.20:
+                    holds_ok += 1
+        drift = _drift_rms(_win(rows, SETTLE, 1e9))
+        success = bool((not fell) and holds_ok >= 3
+                       and not math.isnan(drift) and drift < 0.10)
+        cv = [c for c in cons if not math.isnan(c)]
+        return dict(success=success,
+                    metrics=dict(holds_ok=holds_ok,
+                                 lifted_contact=(float(np.mean(cv)) if cv
+                                                 else float("nan")),
+                                 drift_rms=drift),
+                    headline=f"{holds_ok}/{2 * ROUNDS} holds")
+    return build, evaluate
+
+
 # name -> (episode_seconds, factory, is_locomotion)
 def _registry():
     # (single-leg crouch scenarios removed 2026-07-18, user call;
@@ -1285,6 +1536,11 @@ def _registry():
     reg["push_gauntlet"] = (14.0, scen_push_gauntlet(), True)
     reg["speed_ladder"] = (22.0, scen_speed_ladder(), True)
     reg["pursuit"] = (24.0, scen_pursuit(), True)
+    # responsiveness + workout drills (2026-08-06, natural/responsive plan)
+    reg["reversal"] = (12.5, scen_reversal(), True)
+    reg["metronome"] = (15.5, scen_metronome(), False)
+    reg["squat_reps"] = (10.5, scen_squat_reps(), False)
+    reg["weight_shift"] = (10.5, scen_weight_shift(), False)
     return reg
 
 
@@ -1307,10 +1563,11 @@ FAMILY_SCENARIOS = {
     "loco": ["line_1m", "line_rough", "backward_1m", "sidestep_L",
              "sidestep_R", "turn_180", "square_return", "circle_return",
              "goal_home", "stand_10s", "stand_off",
-             "push_gauntlet", "speed_ladder", "pursuit"],
+             "push_gauntlet", "speed_ladder", "pursuit",
+             "reversal", "metronome", "squat_reps", "weight_shift"],
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
                "march_in_place", "march_10s", "hip_sway", "crouch_hold",
-               "stand_10s"],
+               "stand_10s", "metronome", "squat_reps", "weight_shift"],
     "getup": ["recover_sit", "recover_fallen"],
 }
 
@@ -1319,6 +1576,7 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "line_1m", "backward_1m", "sidestep_L", "sidestep_R",
          "turn_180", "square_return", "circle_return", "goal_home",
          "line_rough", "push_gauntlet", "speed_ladder", "pursuit",
+         "reversal", "metronome", "squat_reps", "weight_shift",
          "crouch_hold",
          "recover_sit", "recover_fallen", "stand_10s", "stand_off"]
 
@@ -1329,6 +1587,10 @@ HEADLINE = {
     "push_gauntlet": ("distance", lambda v: f"d={v:.1f}m"),
     "speed_ladder": ("speed_mae", lambda v: f"mae {v:.2f}m/s"),
     "pursuit": ("final_gap", lambda v: f"gap {v*100:.0f}cm"),
+    "reversal": ("t_reverse", lambda v: f"rev {v:.1f}s"),
+    "metronome": ("cadence_err", lambda v: f"cadErr {v*100:.0f}%"),
+    "squat_reps": ("reps_ok", lambda v: f"{v:.0f}/3 reps"),
+    "weight_shift": ("holds_ok", lambda v: f"{v:.0f}/4 holds"),
     "balance": ("clear_frac", lambda v: f"clear {v*100:.0f}%"),
     "circle_air": ("traced_radius", lambda v: f"r={v*100:.1f}cm"),
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
