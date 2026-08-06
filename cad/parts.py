@@ -1574,7 +1574,12 @@ def main():
     m = {n: r[4] for n, r in ((row[0], row) for row in rows)}
     # v6: the torso is ONE printed part again (plus gopro_base). battery_tray
     # and board_frame folded into pelvis(); the camera is BACK, on the deck.
-    cam_z = D.GP_BASE_T + D.GP_HOLE_H + 6.0 + D.CAM_BODY[2] / 2   # 54.0 over deck
+    # Body bottom must match check_assembly.camera_mock(), which was corrected
+    # on 2026-08-04: the prongs' round tops reach hole_z + GP_PRONG_OD/2, so
+    # the tower-era "+ 6.0" used here swallowed 1.5 mm of every prong. This
+    # line kept the stale form until 2026-08-06 and read 2 mm low.
+    cam_z = (D.GP_BASE_T + D.GP_HOLE_H + D.GP_PRONG_OD / 2 + 0.5
+             + D.CAM_BODY[2] / 2)                                  # 56.0 over deck
     seg = {
         "torso": m["pelvis"] + m["gopro_base"] + 2 * D.SERVO_MASS
                  + batt + board + 27,

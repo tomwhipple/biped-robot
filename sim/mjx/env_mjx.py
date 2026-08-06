@@ -187,6 +187,7 @@ def _terrain_patch(xml: str, spec: dict) -> str:
 def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
                 mesh_floor: bool = False,
                 payload_cg_z: float = 0.08,
+                payload_cg_x: float = 0.0,
                 terrain_spec: dict | None = None) -> mujoco.MjModel:
     """Load the v2 MJCF patched for MJX: absolute meshdir, optional welded
     payload body, MJCF position actuators silenced (torque enters via
@@ -211,7 +212,11 @@ def _prep_model(xml_path: str, payload: bool, servo_joint_damping: float,
     if terrain_spec is not None:
         xml = _terrain_patch(xml, terrain_spec)
     if payload:
-        body = (f'<body name="payload" pos="0 0 {payload_cg_z}">'
+        # x matters: the camera bolts to gopro_base at GP_MOUNT_X, not on the
+        # torso centreline. Hard-coding x=0 (before 2026-08-06) put 154 g --
+        # 12 % of the robot -- 24 mm FORWARD of its mount, visibly floating off
+        # the pad in every render and biasing the CoM the same way.
+        body = (f'<body name="payload" pos="{payload_cg_x} 0 {payload_cg_z}">'
                 f'<geom name="payload" type="box" size="0.0125 0.032 0.0345" '
                 f'mass="{_PAYLOAD_REF}" contype="0" conaffinity="0" '
                 f'rgba="0.12 0.12 0.14 1"/></body>')
@@ -443,6 +448,9 @@ class BimoMJXEnv:
         # tower + imu_carrier) puts the camera CG at 0.0945. Default keeps
         # old runs' plants byte-identical.
         payload_cg_z: float = 0.08,
+        # Camera is bolted at GP_MOUNT_X, off the centreline. Default 0.0 keeps
+        # pre-2026-08-06 runs' plants byte-identical.
+        payload_cg_x: float = 0.0,
         # -- observations ---------------------------------------------------------
         imu_obs: bool = True,
         imu_noise: float = 1.0,
@@ -513,7 +521,8 @@ class BimoMJXEnv:
         self.mj_model = _prep_model(
             xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
             mesh_floor=getup or (ext_cmd and recover_mix > 0),
-            payload_cg_z=payload_cg_z, terrain_spec=self._terrain_spec)
+            payload_cg_z=payload_cg_z, payload_cg_x=payload_cg_x,
+            terrain_spec=self._terrain_spec)
         if terrain:
             self.mj_model.hfield_data[:] = (
                 np.asarray(_tm["field"]).ravel() / self._terrain_spec["max_amp"])

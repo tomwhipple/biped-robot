@@ -286,7 +286,15 @@ def main():
             # v6 bolts gopro_base flat to the deck: CAD cam_z is 54.0 mm over
             # the deck (GP_BASE_T + GP_HOLE_H + 6 + CAM_BODY_z/2, parts.py),
             # and the deck is 4.11 mm over the torso centre.
-            payload_cg_z=0.0581,   # was 0.1260 (tower top), 0.0945 before that
+            # z from check_assembly.camera_mock()'s CORRECTED body bottom
+            # (hole_z + GP_PRONG_OD/2 + 0.5, fixed 2026-08-04), not parts.py's
+            # cam_z, which still carries the tower-era hole_z + 6.0 and is
+            # 2 mm low. CG = 56.0 over the deck, deck = 4.11 over torso centre.
+            payload_cg_z=0.0601,   # was 0.1260 (tower top), 0.0945 before that
+            # And the camera is NOT on the centreline: it bolts to gopro_base
+            # at GP_MOUNT_X. x was hard-coded 0 in both envs until 2026-08-06,
+            # which floated it 24 mm forward of its own mount.
+            payload_cg_x=-0.0240,  # GP_MOUNT_X
             # DEFAULT PLANT = the 10-DOF hip-yaw robot (user 2026-07-24:
             # "assume the 10-dof with the new pelvis for all simulations
             # going forward" -- the A/B verdict made yaw the build target).

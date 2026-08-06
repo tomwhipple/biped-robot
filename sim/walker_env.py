@@ -376,6 +376,7 @@ class BimoWalkerEnv(gym.Env):
         # payload CG height above torso center (m); 0.08 = 2026-07-11 spec,
         # 0.0945 = current stack (battery-bay tower + imu_carrier + gopro_base)
         payload_cg_z: float = 0.08,
+        payload_cg_x: float = 0.0,
         w_power: float = 0.0,          # electrical-power penalty (W). Unlike
         # w_energy (mechanical |tau*w|), this prices what drains the battery:
         # P = sum(max(tau*w, 0) + K_CU * tau^2) -- the tau^2 copper loss means
@@ -565,6 +566,7 @@ class BimoWalkerEnv(gym.Env):
         self._recovered = True         # first stand achieved (or normal ep)
         self._stand_streak = 0.0       # consecutive standing steps (getup_v9)
         self.payload_cg_z = payload_cg_z
+        self.payload_cg_x = payload_cg_x
         self.w_power = w_power
         self._K_CU = 3.75              # W/(N*m)^2, ST3215 stall calibration
         self._ncmd = 7 if ext_cmd else 2
@@ -615,7 +617,7 @@ class BimoWalkerEnv(gym.Env):
                     xml_src = f.read()
             xml_src = self._payload_xml(
                 xml_src, payload_mass if payload_mass > 0 else _PAYLOAD_REF,
-                payload_cg_z)
+                payload_cg_z, payload_cg_x)
         if xml_src is not None:
             # from_xml_string resolves a relative meshdir against the CWD, not
             # the source file -- absolutize it against the XML's own directory
@@ -918,11 +920,14 @@ class BimoWalkerEnv(gym.Env):
         return patched.replace("<worldbody>", asset + "<worldbody>", 1)
 
     @staticmethod
-    def _payload_xml(xml: str, mass: float, cg_z: float = 0.08) -> str:
+    def _payload_xml(xml: str, mass: float, cg_z: float = 0.08,
+                     cg_x: float = 0.0) -> str:
         """Insert the camera payload as its own (jointless, i.e. welded) child
         body of the torso, so its mass/inertia stay separately addressable at
         runtime for per-episode payload randomization."""
-        body = (f'<body name="payload" pos="0 0 {cg_z}">'
+        # cg_x: the camera bolts to gopro_base at GP_MOUNT_X, not on the
+        # centreline (fixed 2026-08-06; x was hard-coded to 0).
+        body = (f'<body name="payload" pos="{cg_x} 0 {cg_z}">'
                 f'<geom name="payload" type="box" size="0.0125 0.032 0.0345" '
                 f'mass="{mass}" contype="2" conaffinity="0" '
                 f'rgba="0.12 0.12 0.14 1"/></body>')
