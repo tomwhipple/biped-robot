@@ -1016,7 +1016,12 @@ assert BATT[1] + 0.5 > BATT[1] - 2 * BT_SEAT_CHAMFER, "seat chamfer sanity"
 # edge, 15 mm ABOVE the deck, and the leads drop to it straight from the
 # deck-top corridors. The SERVICE EDGE is the vertical one at +y, and it needs
 # the cheek cut for it: BR_SVC_* below.
-BR_STANDOFF = BOARD_GD_STANDOFF                      # 4.0 off the web's face
+BR_STANDOFF = 5.0                   # web face .. PCB forward face. Was the
+                                    # legacy BOARD_GD_STANDOFF (4.0); raised
+                                    # 2026-08-06 (user) to put another mm of air
+                                    # between the board and the rear web. Its
+                                    # own number now, NOT the alias: the tower's
+                                    # BOARD_GD_PCB_X still asserts on the 4.0.
 BR_PCB_X0 = YAW_BOX_X_REAR - BR_STANDOFF             # -42.01 PCB forward face
 BR_PCB_T = 1.63                     # measured PCB stock (as the IMU breakout)
 BR_PCB_X1 = BR_PCB_X0 - BR_PCB_T                     # -43.64 PCB aft face
@@ -1027,20 +1032,28 @@ BR_BOT_Z = TORSO_FLOOR_Z + 0.8                       # -41.00 board bottom edge
 BR_TOP_Z = BR_BOT_Z + BOARD_GD_OUTLINE[1]            # +15.01 board top edge
 BR_CZ = BR_BOT_Z + BOARD_GD_OUTLINE[1] / 2           # -12.995 board centre
 BR_SCREW_Z = BR_BOT_Z + BOARD_GD_HOLE_INSET          # -37.495, the lower row
-BR_CHEEK_Y_IN = BOARD_GD_OUTLINE[0] / 2 + 0.5        # 33.005 cheek inner face
-BR_CHEEK_Y_OUT = BR_CHEEK_Y_IN + WALL                # 35.605
+BR_CHEEK_SLIP = 1.5                 # per side, board edge .. cheek inner face.
+                                    # Was 0.5; opened 2026-08-06 (user: "a
+                                    # couple extra mm for the width of the
+                                    # board"). 65.01 nominal now sits in a 68.01
+                                    # slot. The 0.5 was drawn against a NOMINAL
+                                    # outline with no bench measurement behind
+                                    # it, and 0.86/0.91 of proud USB-C shell had
+                                    # already eaten it whole on one side.
+BR_CHEEK_Y_IN = BOARD_GD_OUTLINE[0] / 2 + BR_CHEEK_SLIP      # 34.005
+BR_CHEEK_Y_OUT = BR_CHEEK_Y_IN + WALL                        # 36.605
 # NO EDGE RAIL, and the reason is on the board rather than in the print. A rail
 # has to grip the board's SIDE edges, and in this mount the side edges are the
 # 56.01 ones: the drawing shows the two USB-C shells standing PROUD of that
-# outline, and the opposite edge carries the A1/A2/B1/B2 headers. (2026-08-06:
-# the shells are proud by 0.91 -- MORE than this 0.5 slip -- so the +y cheek
-# does not merely lack a rail, it interferes. BR_SVC_RELIEF is the fix.)
-# It is also not needed:
+# outline, and the opposite edge carries the A1/A2/B1/B2 headers. A lip over
+# either is a bench measurement we have not made. It is also not needed:
 # bolted at two points 58 mm apart onto rigid standoffs, the board is a fixed-
 # root cantilever 52 mm tall, and 5 N of plug-in force at its top edge deflects
-# it 0.5 mm (FR4, 65 x 1.63, I = 23.5 mm^4). So the cheeks are GUIDES -- 0.5 mm
-# slip a side, chamfered at the mouth so the board drops in -- and the screws do
-# the holding.
+# it 0.5 mm (FR4, 65 x 1.63, I = 23.5 mm^4). So the cheeks are GUIDES --
+# BR_CHEEK_SLIP a side, chamfered at the mouth so the board drops in -- and the
+# screws do the holding. With the slip at 1.5 that is emphatically true: the
+# cheeks no longer touch the board in the normal case at all, they only stop it
+# leaning far enough to matter.
 BR_CHEEK_LEADIN = 2.0               # 47 deg funnel at the cheeks' top corners
 assert BR_BOT_Z >= TORSO_FLOOR_Z, (
     f"board bottom {BR_BOT_Z} crosses the torso floor {TORSO_FLOOR_Z}")
@@ -1105,9 +1118,9 @@ BR_SVC_EAR_Y = BR_SHELL_Y + XH2_PLUG[2] + 1.0        # 42.4 -- the ear is
                                     # notched from the deck cut out to clear of
                                     # the inlet plug's housing; its wires bend
                                     # up over whatever ear is left
-assert BR_SVC_RELIEF > BOARD_GD_SHELL_PROUD - 0.5, (
-    f"relief {BR_SVC_RELIEF} does not clear a shell {BOARD_GD_SHELL_PROUD} "
-    f"proud of a board edge with only 0.5 of cheek slip")
+assert BR_CHEEK_SLIP + BR_SVC_RELIEF > BOARD_GD_SHELL_PROUD + 0.5, (
+    f"slip {BR_CHEEK_SLIP} + relief {BR_SVC_RELIEF} does not clear a shell "
+    f"{BOARD_GD_SHELL_PROUD} proud of the board edge with 0.5 to spare")
 assert BR_SVC_RELIEF_Z[0] <= BR_LIDAR_Z[0] and BR_LIDAR_Z[1] <= BR_SVC_RELIEF_Z[1], (
     f"the LiDAR shell {BR_LIDAR_Z} is not inside the relief groove "
     f"{BR_SVC_RELIEF_Z} -- it would land on the cheek")
