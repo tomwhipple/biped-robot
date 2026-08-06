@@ -26,8 +26,13 @@ leg. Everything else on the board is unused. Full inventory:
 | H3, H4 | Header 6+0 | motor lead ×2 · GND · **3V3** · **two encoder inputs** (`A_C1`/`A_C2`, `B_C1`/`B_C2`, each through 10 R) — A_C1/A_C2 = **GPIO34/35**, B_C1 = **GPIO27** | free |
 | MOTOR-A1/A2/B1/B2 | Header 2+0 | DC motor screw terminals (TB6612) | free |
 | TF1 | microSD socket | SPI mass storage — GPIO 12–15. **Not a boot device** | free |
-| Type-C ×1 | CP2102N + auto-program | **ESP32 console / flashing** — DTR/RTS → RST/GPIO0 | bring-up only |
-| Type-C ×1 | second CP2102N | USB-to-UART bridge **to a host computer** (`P_TX`/`P_RX`) | free |
+| Type-C ×1, silkscreen **`USB`** | CP2102N + auto-program | **ESP32 console / flashing** — DTR/RTS → RST/GPIO0 | bring-up only |
+| Type-C ×1, silkscreen **`LIDAR`** | second CP2102N | USB-to-UART bridge **to a host computer** (`P_TX`/`P_RX`) | free |
+
+The two Type-C ports are silkscreened `USB` and `LIDAR` (bench, 2026-08-06):
+**`USB` is the one that flashes the ESP32.** Both of them, plus the XH power
+inlet and the power switch, sit on ONE 56.01 mm edge of the board — see
+`BOARD_GD_SVC_EDGE` in `cad/dimensions.py` for what that costs the pelvis.
 
 Two things worth noticing immediately:
 

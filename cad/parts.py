@@ -823,7 +823,9 @@ def pelvis():
       yaw housing   one block, two servo cells + the centre wire channel between
                     two full-width 36 mm shear webs (unchanged from v5)
       board recess  aft of the rear web: two cheeks with card RAILS, two
-                    standoff bosses, the board standing upright and transverse
+                    standoff bosses, the board standing upright and transverse.
+                    The +y cheek is the SERVICE side and is cut for it (window,
+                    shell relief, ear notch -- BR_SVC_* and the block below)
       deck          the roof: gopro pad, wire window, aperture, belt slots
 
     THE PRINT RULE THAT SHAPES ALL OF IT. This prints DECK TOP FACE ON THE BED,
@@ -835,6 +837,13 @@ def pelvis():
     (it lands at +11.5, above the deck -- the rails do that job instead), and
     why the belt notch is 18 mm and not 21 (the wall below it bridges that span;
     check_printability's BEAM_OK is 20).
+
+    WHICH WAY ROUND THE BOARD GOES IS NOT OPTIONAL (2026-08-06). BUS EDGE UP,
+    SERVICE EDGE TO +Y. Flip it end-for-end and the power switch and the USB
+    port go to the BOTTOM of the recess, 35 mm down a 2.6 mm slot; flip it about
+    the other axis and the service cuts are in the wrong cheek. The recess is
+    symmetric enough to accept all four, so this is a build instruction, not a
+    fit -- see BOARD_GD_SVC_EDGE.
 
     THE BOARD IS UPRIGHT, NOT RECLINED. The corrected 56.01 mm board
     (BOARD_GD_OUTLINE, from the manufacturer's drawing -- the wiki's 65 x 65 was
@@ -976,6 +985,38 @@ def pelvis():
                         D.BR_SCREW_Z, D.BR_SCREW_Z + 2 * r)
         p -= cyl_x(D.M25_TAP / 2, D.BR_PCB_X0 - 1, D.YAW_BOX_X_REAR + 1,
                    sy, D.BR_SCREW_Z)
+    # ---- SERVICE EDGE ACCESS (2026-08-06). The board's XH power inlet and its
+    # two USB-C ports all mate ALONG one 56.01 edge, and in this mount that edge
+    # is vertical at +y -- not the top edge the v6 recess was drawn for
+    # (BOARD_GD_SVC_EDGE, corrected off the manufacturer's dimension drawing).
+    # The +y cheek was therefore standing 0.41 mm INSIDE the USB-C shells, never
+    # mind in front of the plug. Three cuts, +y side only; the -y cheek keeps
+    # its full section and does the guiding.
+    svc = D.BR_SVC_SIGN
+    wx0, wx1 = D.BR_SVC_WIN_X
+    wz0, wz1 = D.BR_SVC_WIN_Z
+    yin, yout = svc * D.BR_CHEEK_Y_IN, svc * D.BR_CHEEK_Y_OUT
+    # (1) the WINDOW the "USB" plug passes through, open up to the cheek's own
+    # top edge so the inlet plug (which sits ON the deck plane) clears it too.
+    p -= box(wx0, wx1, yin - svc * 0.5, yout + svc * 1.0, wz0, wz1)
+    # (1a) ...and its ROOF. Printed deck-top-down, the window's LOWER edge is
+    # what has to re-form in mid-air, and at 8.5 mm across that is past
+    # BRIDGE_OK. So it closes to a point on BR_SVC_WIN_TAPER faces instead --
+    # the same trick as every other chamfer in this part, and it lands in the
+    # relief groove below, where there is nothing to protect.
+    _h = (wx1 - wx0) / 2 * math.tan(math.radians(D.BR_SVC_WIN_TAPER))
+    p -= wedge_y([(wx0, wz0), (wx1, wz0), ((wx0 + wx1) / 2, wz0 - _h)],
+                 yin - svc * 0.5, yout + svc * 1.0)
+    # (2) the RELIEF groove below the window: nothing plugs into the "LIDAR"
+    # USB-C, but its shell is just as proud as the other one, so the cheek's
+    # inner face is grooved rather than the board being asked to fit.
+    p -= box(D.BR_SVC_RELIEF_X[0], D.BR_SVC_RELIEF_X[1],
+             yin, yin + svc * D.BR_SVC_RELIEF,
+             D.BR_SVC_RELIEF_Z[0] - 1, D.BR_SVC_RELIEF_Z[1])
+    # (3) the EAR NOTCH: the inlet straddles z=0, so its plug dips ~3.6 mm into
+    # the deck ear. Cut the ear over the same x band, out to BR_SVC_EAR_Y; the
+    # pigtail then climbs over what is left of the ear on its way forward.
+    p -= box(wx0, wx1, yin, svc * D.BR_SVC_EAR_Y, zd - 0.1, 1)
     # ---- deck top furniture -------------------------------------------------
     # battery aperture: the pack's lift-out path, envelope + 0.5 forward (its
     # aft face is the housing's front web, so it leaves through a slot its own

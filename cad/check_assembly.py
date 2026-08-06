@@ -96,8 +96,13 @@ def board_pcb_mock():
     """The General Driver PCB seated in the v6 recess, pelvis frame. CORRECTED
     outline 65.01 x 56.01 (the wiki's 65 x 65 was 8.99 mm of board that does not
     exist -- BOARD_GD_OUTLINE), standing upright and transverse with its 65.01
-    PORTS EDGE UP: forward face on the standoffs at BR_PCB_X0, y +/-32.505,
+    BUS EDGE UP: forward face on the standoffs at BR_PCB_X0, y +/-32.505,
     z BR_BOT_Z..BR_TOP_Z, so only the top 15 mm clears the deck.
+
+    THE TWO USB-C SHELLS ARE MODELLED, because they are the whole reason this
+    mock was lying (2026-08-06). They stand BOARD_GD_SHELL_PROUD off the +y
+    service edge -- 0.91, against 0.5 of cheek slip -- so a mock that stopped at
+    the outline read "clear" on a board that physically does not go in.
 
     ITS OWN MOUNTING HOLES ARE MODELLED (BOARD_GD_HOLE_D on the BOARD_GD_HOLES
     grid). Without them a solid slab reads as blocking its own screws -- the
@@ -109,7 +114,32 @@ def board_pcb_mock():
         for sz in (D.BR_SCREW_Z, D.BR_UPPER_ROW_Z):
             p -= parts.cyl_x(D.BOARD_GD_HOLE_D / 2, D.BR_PCB_X1 - 1,
                              D.BR_PCB_X0 + 1, sy, sz)
+    for z0, z1 in (D.BR_USB_Z, D.BR_LIDAR_Z):     # the receptacles, 3.26 tall
+        p += parts.box(D.BR_PCB_X1 - 3.26, D.BR_PCB_X1,
+                       D.BR_SVC_SIGN * hy, D.BR_SVC_SIGN * D.BR_SHELL_Y, z0, z1)
     return p
+
+
+def board_plugs_mock():
+    """What is MATED to the service edge in service: the USB-C flashing lead and
+    the battery pigtail, as their overmoulded plug bodies (USBC_PLUG, XH2_PLUG)
+    sitting outboard of the board and running out through the cheek. No slip
+    added -- PLUG_CLR is already in the cut, so this is the honest body and any
+    overlap the checker reports is real material in the way.
+
+    The LiDAR port gets no plug: nothing is fitted to it, which is exactly why
+    its shell gets a relief groove and not a window."""
+    s = D.BR_SVC_SIGN
+    y0 = D.BR_SHELL_Y                        # the plug starts at the shell face
+    out = None
+    for (z0, z1), (u_len, thick, reach) in ((D.BR_USB_Z, D.USBC_PLUG),
+                                            (D.BR_INLET_Z, D.XH2_PLUG)):
+        cz = (z0 + z1) / 2
+        b = parts.box(D.BR_SVC_PORT_CX - thick / 2, D.BR_SVC_PORT_CX + thick / 2,
+                      s * y0, s * (y0 + reach),
+                      cz - u_len / 2, cz + u_len / 2)
+        out = b if out is None else out + b
+    return out
 
 
 def board_comp_mock():
@@ -472,6 +502,14 @@ def main():
                 vol(pv, gp_scr))
     ok &= check("pelvis vs the 2 board screws (into the web standoffs)",
                 vol(pv, brd_scr))
+    # SERVICE EDGE (2026-08-06). Two things the v6 recess got wrong at once: the
+    # board's own USB-C shells stood inside the +y cheek, and the cheek stood in
+    # front of every plug. Both are gated here now -- the first against the PCB
+    # mock (which carries the shells), the second against the plug bodies.
+    ok &= check("pelvis vs the board's USB-C shells (+y cheek relief)",
+                vol(pv, _pcb_v6))
+    ok &= check("pelvis vs the mated USB + battery plugs (service access)",
+                vol(pv, board_plugs_mock()))
     # The deck top is still a printed-on-bed face and the belt still runs across
     # it, so nothing may stand in the belt's band. In v6 that band has to clear
     # the stator heads (flush) -- the four tray screws that used to sit proud
@@ -847,12 +885,19 @@ def main():
     ok &= _w <= 1.0
     # ...the cheeks have to actually CAPTURE it -- a recess whose cheeks had
     # drifted outboard would pass every collision check above and hold nothing.
+    # The SERVICE cheek (2026-08-06) is cut through from BR_SVC_WIN_Z[0] up, so
+    # it can only grip BELOW the window -- 18.97 mm of the board's 1.63 edge
+    # band, against 36 on the far side. Probe each side over the band it is
+    # actually meant to hold, so the window cannot silently eat the rest.
     for _s in (1, -1):
+        _svc = _s == D.BR_SVC_SIGN
+        _top = D.BR_SVC_WIN_Z[0] if _svc else -D.DECK_T
         _grip = parts.box(D.BR_PCB_X1, D.BR_PCB_X0,
                           _s * D.BR_CHEEK_Y_IN, _s * (D.BR_CHEEK_Y_IN + 1.5),
-                          D.BR_BOT_Z, -D.DECK_T)
-        ok &= require(f"recess cheek beside the board's {_s:+.0f}y edge",
-                      vol(pv, _grip), 50.0)
+                          D.BR_BOT_Z, _top)
+        ok &= require(f"recess cheek beside the board's {_s:+.0f}y edge"
+                      + (" (below the service window)" if _svc else ""),
+                      vol(pv, _grip), 40.0 if _svc else 50.0)
     # ...and the two standoffs have to have tappable metal round their pilots.
     for _sy in (D.BOARD_GD_SCREW_DY, -D.BOARD_GD_SCREW_DY):
         _boss = (parts.cyl_x(3.5, D.BR_PCB_X0, D.YAW_BOX_X_REAR, _sy,

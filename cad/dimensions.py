@@ -724,18 +724,62 @@ BOARD_GD_HOLES = (58.0, 49.0)       # (span along the long edge, along the short
 BOARD_GD_HOLE_INSET = (BOARD_GD_OUTLINE[0] - BOARD_GD_HOLES[0]) / 2   # 3.505,
                                  # and it comes out the same on the other axis
 BOARD_GD_HOLE_D = 3.0            # the board's own holes (M2.5 clears with slack)
-# WHICH EDGE IS UP, from the official annotated photo
+# WHICH EDGE IS WHICH -- CORRECTED 2026-08-06 (the pelvis v6 recess was laid out
+# on the wrong reading of this, and it buried the USB port; user found it on the
+# bench).  Sources: the official annotated photo
 # docs/datasheets/general-driver/General_Driver_for_Robots-connector-diagram.jpg
-# (top-side view, callouts 1-19).  Everything this robot touches in service sits
-# along ONE 65.01-long edge: [12] the ON/OFF power switch, [10] the DC 9-12.6 V
-# XH inlet, and [13][14][15] the ST3215 servo-bus connectors.  The OTHER three
-# edges carry things we never touch after assembly -- the two USB-C ports and
-# the small LiDAR header on one 56.01 edge, the A1/A2/B1/B2 motor headers on the
-# other, and the 40-pin GPIO stack along the far 65.01 edge.
-# So: mount the board with the 65.01 dimension ACROSS the robot (y, giving the
-# +/-29 screw span we already had) and put the SWITCH/INLET/SERVO edge UP.
-BOARD_GD_PORT_EDGE = "long"      # the ports edge is a 65.01 edge -> it can be
-                                 # the top edge of a transverse upright mount
+# (top-side view, callouts 1-27) read TOGETHER with the dimension drawing, whose
+# vector geometry gives the two USB-C shells to 0.01 mm.
+#
+# The old comment here claimed the switch, the XH inlet and the servo buses all
+# shared ONE 65.01 edge, with the USB-C ports off on a 56.01 edge.  They do not.
+# Standing the board as drawn (motor headers up, ESP32 top-right, 40-pin header
+# right), the drawing's 56.01 is ACROSS and its 65.01 is DOWN, so:
+#
+#   56.01 edge, "SERVICE EDGE"  [10] XH power inlet, [9] USB-C (ESP32 flashing,
+#                               silkscreen "USB"), [8] USB-C (silkscreen
+#                               "LIDAR", the second CP2102N).  Everything you
+#                               touch with a cable in service is HERE.
+#   56.01 edge, opposite        [16][17] A1/A2/B1/B2 motor headers.  Unused.
+#   65.01 edge, "BUS EDGE"      [13][14][15] the ST3215 bus + MA/MB connectors,
+#                               and [12] the ON/OFF switch 0.4 mm inboard of it.
+#   65.01 edge, opposite        [23][24] the 40-pin GPIO stack, and the
+#                               8.99 x 52.51 notch the drawing dimensions.
+#
+# The mount that follows: 65.01 ACROSS the robot (y, keeping the +/-29 screw
+# span) with the BUS EDGE UP, so the eight servo leads plug DOWN into the board
+# from the deck-top corridors and the switch lands above the deck.  That leaves
+# the SERVICE EDGE facing sideways at y = +32.505 -- which is why the +y cheek
+# has to be cut for the USB plug (BR_SVC_* below).  Turning the board 90 deg to
+# put the service edge up was the alternative; it costs the bus edge instead,
+# and the bus connectors are 0.5 mm off a cheek where the USB plug at least has
+# somewhere to go (user decision 2026-08-06: cut the cheek, keep the mount).
+BOARD_GD_SVC_EDGE = "short"      # the service edge is a 56.01 edge.  In the
+                                 # mount above that edge is VERTICAL, not the
+                                 # top edge the v6 recess was drawn for.
+# Where things sit ALONG the service edge, as "u" = distance from the BUS EDGE
+# corner, 0 .. 56.01.  The two USB-C entries are read off the dimension
+# drawing's vector geometry (exact); the XH inlet is scaled off the photo
+# (+/-1.5, it is not on the drawing) and every clearance below carries that.
+BOARD_GD_U_INLET = (9.6, 19.6)   # [10] XH2.54 2-pin, RIGHT-ANGLE: it mates
+                                 # along the service edge, like the USB-Cs
+BOARD_GD_U_USB = (25.39, 34.34)  # [9]  "USB"   -- the ESP32/CP2102N port
+BOARD_GD_U_LIDAR = (39.76, 48.69)  # [8] "LIDAR" -- the second CP2102N
+BOARD_GD_SHELL_PROUD = 0.91      # both USB-C shells stand PROUD of the outline
+                                 # (0.86 and 0.91 on the drawing).  This is
+                                 # MORE than the 0.5 cheek slip, so the shells
+                                 # foul the cheek before any of this is about
+                                 # access -- see BR_SVC_RELIEF.
+BOARD_GD_U_SWITCH = (0.4, 7.4)   # [12] the slide switch, on the BUS edge, 8.2
+                                 # to 21.3 up from the service edge -- bus edge
+                                 # up puts it above the deck, already reachable
+# Mating envelopes, measured across the service edge (u) and off the PCB (x).
+USBC_PLUG = (12.5, 6.5, 18.0)    # (along u, off the board face, out from the
+                                 # edge) overmoulded USB-C plug; shell 8.34, and
+                                 # the third number is rigid boot, not cable
+XH2_PLUG = (8.0, 6.0, 8.0)       # the same three for the XH 2-pin plug -- short
+                                 # housing, then wires that bend where they like
+PLUG_CLR = 2.0                   # slip all round a plug passing printed wall
 # Vertical mount, all x measured in the pelvis frame (tower interior is +/-25.4).
 # LEGACY as of 2026-08-04: the board no longer lives in the tower. It stands on
 # board_frame's bulkhead AFT of the pelvis (see BF_* in the v4 section), facing
@@ -968,9 +1012,10 @@ assert BATT[1] + 0.5 > BATT[1] - 2 * BT_SEAT_CHAMFER, "seat chamfer sanity"
 # its height, and the deck's own cut edge as its forward stop. It is inserted by
 # sliding it DOWN the rails from above, which is also how it comes out.
 #
-# The ports edge (switch, XH inlet, servo buses -- see BOARD_GD_PORT_EDGE) is
-# the TOP edge, 15 mm ABOVE the deck: the best access this board has had in any
-# revision, and the leads drop to it straight from the deck-top corridors.
+# The BUS EDGE (servo buses + the switch -- see BOARD_GD_SVC_EDGE) is the TOP
+# edge, 15 mm ABOVE the deck, and the leads drop to it straight from the
+# deck-top corridors. The SERVICE EDGE is the vertical one at +y, and it needs
+# the cheek cut for it: BR_SVC_* below.
 BR_STANDOFF = BOARD_GD_STANDOFF                      # 4.0 off the web's face
 BR_PCB_X0 = YAW_BOX_X_REAR - BR_STANDOFF             # -42.01 PCB forward face
 BR_PCB_T = 1.63                     # measured PCB stock (as the IMU breakout)
@@ -987,8 +1032,10 @@ BR_CHEEK_Y_OUT = BR_CHEEK_Y_IN + WALL                # 35.605
 # NO EDGE RAIL, and the reason is on the board rather than in the print. A rail
 # has to grip the board's SIDE edges, and in this mount the side edges are the
 # 56.01 ones: the drawing shows the two USB-C shells standing PROUD of that
-# outline, and the opposite edge carries the A1/A2/B1/B2 headers. A 0.5 mm lip
-# over either is a bench measurement we have not made. It is also not needed:
+# outline, and the opposite edge carries the A1/A2/B1/B2 headers. (2026-08-06:
+# the shells are proud by 0.91 -- MORE than this 0.5 slip -- so the +y cheek
+# does not merely lack a rail, it interferes. BR_SVC_RELIEF is the fix.)
+# It is also not needed:
 # bolted at two points 58 mm apart onto rigid standoffs, the board is a fixed-
 # root cantilever 52 mm tall, and 5 N of plug-in force at its top edge deflects
 # it 0.5 mm (FR4, 65 x 1.63, I = 23.5 mm^4). So the cheeks are GUIDES -- 0.5 mm
@@ -1008,6 +1055,83 @@ assert BR_CHEEK_Y_OUT < DECK_L / 2, "board recess cheeks run off the deck"
 assert BR_AFT_X > -(FOOT_HEEL + 5.0), (
     f"the torso tail {BR_AFT_X} reaches more than 5 mm behind the heel "
     f"({-FOOT_HEEL}) -- it lands there in a backward fall")
+
+# --- SERVICE EDGE ACCESS (new 2026-08-06) -----------------------------------
+# The board's service edge -- XH power inlet, "USB" (flashing) and "LIDAR"
+# USB-C, all mating along the edge -- is the +y one. Board edge at +32.505,
+# shells 0.91 proud of it, cheek inner face 0.5 outboard of that: the shells
+# INTERFERE with the cheek by 0.41 before anyone tries to plug anything in.
+# Three cuts, all in the +y cheek and the +y deck ear only:
+#
+#   WINDOW   through the cheek where the USB plug has to pass, and running up
+#            to the cheek's top edge so the inlet plug is clear of it too
+#   RELIEF   a 1.5 mm groove down the cheek's inner face below the window, so
+#            the LiDAR shell (which nothing plugs into, but which is just as
+#            proud) has somewhere to be
+#   EAR NOTCH the inlet sits ON the deck plane; its plug dips ~3.6 mm below,
+#            straight into the deck ear, so the ear is notched over the same
+#            x band
+#
+# Everything is derived from the u-coordinates above, mapped z = BR_TOP_Z - u
+# (bus edge up), so re-measuring a connector moves its cut and its assert
+# together.
+BR_SVC_SIGN = +1                                     # service edge faces +y
+def _svc_z(u_pair):                 # u along the service edge -> pelvis z
+    return (BR_TOP_Z - u_pair[1], BR_TOP_Z - u_pair[0])
+BR_INLET_Z = _svc_z(BOARD_GD_U_INLET)                # -4.59 .. +5.41
+BR_USB_Z = _svc_z(BOARD_GD_U_USB)                    # -19.33 .. -10.38
+BR_LIDAR_Z = _svc_z(BOARD_GD_U_LIDAR)                # -33.68 .. -24.75
+BR_SHELL_Y = BOARD_GD_OUTLINE[0] / 2 + BOARD_GD_SHELL_PROUD          # 33.415
+# The plug's x band: the receptacle stands on the PCB's AFT face, so the plug
+# body straddles its opening centre. The plug is entirely OUTBOARD of the board
+# in y, so it may overlap the PCB's own x band -- it is not in the board's way.
+BR_SVC_PORT_CX = BR_PCB_X1 - 1.63                    # -45.27 opening centre
+BR_SVC_WIN_X = (BR_SVC_PORT_CX - USBC_PLUG[1] / 2 - PLUG_CLR,
+                BR_PCB_X0)                           # -50.52 .. -42.01
+BR_SVC_WIN_Z = (BR_USB_Z[0] - PLUG_CLR - 0.7, -DECK_T)       # -22.03 .. -5.0
+BR_SVC_WIN_TAPER = 47.0             # deg from horizontal: the window's LOWER
+                                    # edge is its ROOF in a deck-top-down print,
+                                    # so it closes to a point instead of
+                                    # bridging (BRIDGE_OK is 8.0, the window is
+                                    # 10.0 across)
+BR_SVC_RELIEF = 1.5                 # groove depth into the cheek's inner face
+BR_SVC_RELIEF_Z = (BR_BOT_Z, BR_SVC_WIN_Z[0])        # -41.0 .. -22.03
+# The groove stops at the PCB's AFT face, not the window's forward edge: it is
+# the SHELLS that are proud, and they stand off that face. Leaving the 1.63 mm
+# band in front of it un-grooved is what keeps the service cheek touching the
+# board's own edge at all -- below the window, that band is the whole grip.
+BR_SVC_RELIEF_X = (BR_SVC_WIN_X[0], BR_PCB_X1)       # -50.52 .. -43.64
+BR_SVC_EAR_Y = BR_SHELL_Y + XH2_PLUG[2] + 1.0        # 42.4 -- the ear is
+                                    # notched from the deck cut out to clear of
+                                    # the inlet plug's housing; its wires bend
+                                    # up over whatever ear is left
+assert BR_SVC_RELIEF > BOARD_GD_SHELL_PROUD - 0.5, (
+    f"relief {BR_SVC_RELIEF} does not clear a shell {BOARD_GD_SHELL_PROUD} "
+    f"proud of a board edge with only 0.5 of cheek slip")
+assert BR_SVC_RELIEF_Z[0] <= BR_LIDAR_Z[0] and BR_LIDAR_Z[1] <= BR_SVC_RELIEF_Z[1], (
+    f"the LiDAR shell {BR_LIDAR_Z} is not inside the relief groove "
+    f"{BR_SVC_RELIEF_Z} -- it would land on the cheek")
+assert (BR_SVC_WIN_Z[0] + PLUG_CLR <= BR_USB_Z[0]
+        and BR_USB_Z[1] + PLUG_CLR <= BR_SVC_WIN_Z[1]), (
+    f"the USB plug envelope does not fit the window {BR_SVC_WIN_Z} in z")
+assert BR_SVC_WIN_Z[1] - BR_SVC_WIN_Z[0] >= USBC_PLUG[0] + 2 * PLUG_CLR, (
+    "the window is shorter than an overmoulded USB-C plug plus its slip")
+assert BR_SVC_WIN_X[0] - BR_AFT_X >= 2.0 and YAW_BOX_X_REAR - BR_SVC_WIN_X[1] >= 3.0, (
+    f"the window {BR_SVC_WIN_X} leaves no cheek fore/aft of itself "
+    f"(cheek runs {YAW_BOX_X_REAR} .. {BR_AFT_X})")
+assert BR_INLET_Z[0] > BR_SVC_WIN_Z[1] - 1.0, (
+    f"the XH inlet {BR_INLET_Z} has dropped into the cheek band -- the window "
+    f"top {BR_SVC_WIN_Z[1]} no longer covers it")
+assert BR_SVC_EAR_Y < DECK_L / 2, "the ear notch runs off the deck"
+assert BR_SVC_RELIEF_X[1] <= BR_PCB_X1, (
+    "the relief groove has eaten the PCB-edge grip land on the service cheek")
+# What the service cheek still grips: the PCB's own 1.63 edge band, below the
+# window. State it as a number so a taller window fails here rather than on the
+# bench with a board that rattles.
+BR_SVC_GRIP_Z = BR_SVC_WIN_Z[0] - BR_BOT_Z           # 18.97 mm of grip left
+assert BR_SVC_GRIP_Z >= 15.0, (
+    f"the service cheek grips the board over only {BR_SVC_GRIP_Z:.1f} mm -- "
+    f"the window has grown into what holds it")
 
 # --- deck -------------------------------------------------------------------
 # v6 aft edge: the deck now reaches back over the board recess, but only
