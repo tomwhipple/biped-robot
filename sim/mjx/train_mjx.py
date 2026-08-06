@@ -188,6 +188,8 @@ def main():
                    help="free torso-pitch band in DEGREES before "
                         "--w-pitch-hinge bites (default 5)")
     p.add_argument("--w-action-rate", type=float, default=None)
+    p.add_argument("--w-symmetry", type=float, default=None,
+                   help="gait-symmetry penalty: on touchdown, the swing-duration\nmismatch vs the other foot. Was pinned at 1.0 and untunable until 2026-08-06.")
     p.add_argument("--w-power", type=float, default=None)
     p.add_argument("--w-foot-under", type=float, default=None,
                    help="raised-foot-under-hip kernel (knee-flexion lifts)")
@@ -313,7 +315,7 @@ def main():
             # user feedback 2026-07-19: gait-symmetry pressure + reverse
             # curriculum for the recovery slots (ragdoll/kneel/squat starts;
             # the referee still grades pure ragdoll)
-            w_symmetry=1.0,
+            w_symmetry=1.0,   # overridable via --w-symmetry below
             # sit-first reverse curriculum (user 2026-07-19): the sit is
             # where fallen robots naturally end up AND the start of the
             # study's rise path -- make it the dominant training start
@@ -393,6 +395,8 @@ def main():
         env_kw["pitch_deadband_deg"] = args.pitch_deadband
     if args.w_action_rate is not None:
         env_kw["w_action_rate"] = args.w_action_rate
+    if args.w_symmetry is not None:
+        env_kw["w_symmetry"] = args.w_symmetry
     if args.w_power is not None:
         env_kw["w_power"] = args.w_power
     if args.w_heading is not None:
