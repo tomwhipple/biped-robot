@@ -47,7 +47,11 @@ train_up=0
 [[ -n "$train_pid" ]] && kill -0 "$train_pid" 2>/dev/null && train_up=1
 
 gpu=$(nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits | head -1)
-queued=$(ls "$N/queue" 2>/dev/null | grep -vcE '^done$|^held$' || echo 0)
+# NOT grep -c: on zero matches it prints "0" AND exits 1, so `|| echo 0`
+# appended a second line and the multiline var broke every (( queued == 0 ))
+# test after it -- the queue-empty page never fired while the GPU sat idle
+# for the marathon's last 28 h (found 2026-08-11)
+queued=$(ls "$N/queue" 2>/dev/null | grep -vE '^done$|^held$' | wc -l)
 donecnt=$(ls "$N/queue/done" 2>/dev/null | wc -l)
 
 # most recent training log and how stale it is
