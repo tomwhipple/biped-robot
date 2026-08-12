@@ -259,6 +259,8 @@ class BimoMJXEnv:
         # (-w * sum(dq^2) while commanded to plain-stand, upright, no lift):
         # pays for the ABSENCE of motion, not just small corrections
         # (user 2026-08-12, stand shaking)
+        clock_stand_freeze: bool = False,   # hold the gait-clock phase at a
+        # plain stand so the obs stop oscillating (see step(); 2026-08-12)
         w_pitch_hinge: float = 0.0,
         pitch_deadband_deg: float = 5.0,
         w_power: float = 0.0,
@@ -632,6 +634,7 @@ class BimoMJXEnv:
         self.w_lateral = w_lateral
         self.w_pitch_rate = w_pitch_rate
         self.w_still = w_still
+        self.clock_stand_freeze = clock_stand_freeze
         # torso-pitch MAGNITUDE hinge (mirrors walker_env): quadratic penalty
         # on |pitch| past a free deadband, pitch only (roll is untouched --
         # sidestep gaits legitimately roll). Default 0 -> the term is not
@@ -1765,6 +1768,18 @@ class BimoMJXEnv:
             gait_phase = jp.mod(state.gait_phase + 2 * jp.pi * self.control_dt
                                 * state.gait_freq + jp.pi,
                                 2 * jp.pi) - jp.pi
+            if self.clock_stand_freeze:
+                # at a plain stand the clock HOLDS (user 2026-08-12, stand
+                # shaking): sin/cos phase is a 1.25-1.75 Hz oscillator in
+                # the obs that the policy otherwise has to actively ignore
+                # to stand still -- w_still fights the symptom, this removes
+                # the drive. Freeze is gated exactly like w_still: no
+                # locomotion command, no lift (marches/balances keep their
+                # clock). Mirrored in walker_env so referee obs match.
+                plain_stand = ((~cmd_moving)
+                               & (~lifted if self.ext_cmd else True))
+                gait_phase = jp.where(plain_stand, state.gait_phase,
+                                      gait_phase)
         if self.w_feet_phase:
             # periodic swing-height targets: feet half a cycle apart
             # (left swings on sin(phase) > 0, right on the opposite half)

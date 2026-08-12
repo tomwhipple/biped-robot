@@ -15,6 +15,7 @@ inline constexpr const char* kPlantXml = "bimo_biped_v4rom.xml";
 inline constexpr const char* kActionMap = "full";
 inline constexpr bool kImuObs = true;   // linvel + height are zeroed
 inline constexpr bool kGaitClock = true;
+inline constexpr bool kClockStandFreeze = false;   // hold phase at a plain stand (must match training; env_mjx.clock_stand_freeze)
 inline constexpr float kControlDt = 0.02f;   // 50 Hz tick
 
 // -- dimensions --------------------------------------------------------

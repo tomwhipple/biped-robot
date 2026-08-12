@@ -219,7 +219,15 @@ void ctrlTask(void*) {
         g_dog.command(now_ms, vx, wz);
         // Landing on a flat pack: stop travelling, whatever was commanded.
         if (g_batt.latched()) { vx = 0.0f; wz = 0.0f; }
-        g_clock.advance(obs::kControlDt);
+        // clock_stand_freeze runs generated per-policy: a policy trained
+        // with the frozen-at-stand clock must see it here too, or the
+        // stand obs oscillate in a way training never produced. vy and
+        // lift are not commanded on hardware yet, so |vx|,|wz| is the
+        // whole plain-stand gate.
+        if (!obs::kClockStandFreeze
+            || fabsf(vx) > 0.05f || fabsf(wz) > 0.05f) {
+            g_clock.advance(obs::kControlDt);
+        }
 
         obs::Inputs in{};
         memcpy(in.q, g_q, sizeof g_q);

@@ -218,6 +218,11 @@ def main():
                         "clearance) at zero net translation. Expressed "
                         "through the existing 7 command channels; pair with "
                         "--w-knee-high to pay for the clearance")
+    p.add_argument("--clock-freeze-stand", action="store_true",
+                   help="hold the gait-clock phase at a plain stand: the "
+                        "sin/cos obs stop oscillating, removing the rhythmic "
+                        "drive the policy otherwise must ignore to stand "
+                        "still (2026-08-12)")
     p.add_argument("--w-still", type=float, default=None,
                    help="stand-gated joint-velocity penalty (-w*sum(dq^2) "
                         "while commanded to plain-stand): pays for stillness "
@@ -430,6 +435,8 @@ def main():
         env_kw["march_mix"] = args.march_mix
     if args.w_still is not None:
         env_kw["w_still"] = args.w_still
+    if args.clock_freeze_stand:
+        env_kw["clock_stand_freeze"] = True
     if args.ext_mix is not None:
         mix = tuple(float(x) for x in args.ext_mix.split(","))
         if len(mix) != 7 or sum(mix) > 1.0 + 1e-9:

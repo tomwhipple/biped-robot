@@ -169,6 +169,9 @@ def write_spec(cfg, env, path):
       % ("true" if env.imu_obs else "false"))
     w("inline constexpr bool kGaitClock = %s;"
       % ("true" if env.gait_clock else "false"))
+    w("inline constexpr bool kClockStandFreeze = %s;   // hold phase at a "
+      "plain stand (must match training; env_mjx.clock_stand_freeze)"
+      % ("true" if getattr(env, "clock_stand_freeze", False) else "false"))
     w("inline constexpr float kControlDt = %s;   // 50 Hz tick"
       % fl(env.control_dt))
     w("")
