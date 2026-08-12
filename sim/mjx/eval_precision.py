@@ -1661,6 +1661,12 @@ def main():
                         "(libctrl_sil); writes scorecard_sil.{md,json}")
     args = p.parse_args()
     suffix = "_sil" if args.sil else ""
+    # a --scenarios subset must not clobber the run's full reel either --
+    # the scorecard learned this 2026-08-03 (guard below), but the movie
+    # path didn't and a stand-only render overwrote two full reels
+    # (2026-08-12). One suffix, decided before ANY artifact path is built.
+    if args.scenarios:
+        suffix = f"{suffix}_partial"
     stack = "SIL (firmware stack)" if args.sil else "python policy"
 
     run_dir = os.path.join(RUNS, args.run_name)
@@ -1828,12 +1834,6 @@ def main():
     if sil_info:
         summary["sil"] = sil_info
     scorecard["summary"] = summary
-
-    # a --scenarios subset must not clobber the run's full scorecard
-    # (bitten 2026-08-03: a one-scenario render smoke test overwrote the
-    # 11-scenario column)
-    if args.scenarios:
-        suffix = f"{suffix}_partial"
 
     json_path = os.path.join(run_dir, f"scorecard{suffix}.json")
     with open(json_path, "w") as f:
