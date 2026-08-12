@@ -218,6 +218,10 @@ def main():
                         "clearance) at zero net translation. Expressed "
                         "through the existing 7 command channels; pair with "
                         "--w-knee-high to pay for the clearance")
+    p.add_argument("--w-still", type=float, default=None,
+                   help="stand-gated joint-velocity penalty (-w*sum(dq^2) "
+                        "while commanded to plain-stand): pays for stillness "
+                        "itself, not just small corrections (2026-08-12)")
     p.add_argument("--ext-mix", default=None,
                    help="override the ext_cmd command mix as 7 comma floats "
                         "(stand,crouch,balance,air-circle,pivot,march,sway; "
@@ -424,6 +428,8 @@ def main():
     # its env from.
     if args.march_mix is not None:
         env_kw["march_mix"] = args.march_mix
+    if args.w_still is not None:
+        env_kw["w_still"] = args.w_still
     if args.ext_mix is not None:
         mix = tuple(float(x) for x in args.ext_mix.split(","))
         if len(mix) != 7 or sum(mix) > 1.0 + 1e-9:

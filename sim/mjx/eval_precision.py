@@ -55,6 +55,7 @@ SIL_DIR = os.path.join(ROOT, "sim", "sil")
 
 import jax
 from brax.training.acme import running_statistics
+from video_annot import caption
 from brax.training.agents.ppo import networks as ppo_networks
 
 from walker_env import BimoWalkerEnv
@@ -1778,7 +1779,17 @@ def main():
             frames = results[0]["frames"]
             if frames:
                 # one .mov per referee run, scenarios back to back, in
-                # scorecard order (user 2026-08-03: no per-scenario gifs)
+                # scorecard order (user 2026-08-03: no per-scenario gifs).
+                # Captioned with the laptop-reel style (video_annot, user
+                # 2026-08-05 and again 2026-08-12): scenario + seed verdict
+                # + headline + timecode on every frame, honesty rules and
+                # all -- a FAIL take is labeled FAIL, never left implicit.
+                r0 = results[0]
+                verdict = "PASS" if r0["success"] else "FAIL"
+                seed_note = f"seed 1/{args.episodes}"
+                head0 = r0.get("headline") or ""
+                title = f"{name} · {seed_note}"
+                frame_dt = 3 * env.control_dt        # every 3rd control step
                 if mov_writer is None:
                     import imageio
                     mov_path = os.path.join(
@@ -1786,8 +1797,9 @@ def main():
                     mov_writer = imageio.get_writer(
                         mov_path, fps=20, codec="libx264", quality=8,
                         macro_block_size=2)
-                for f in frames:
-                    mov_writer.append_data(f)
+                for j, f in enumerate(frames):
+                    mov_writer.append_data(caption(
+                        f, title, verdict, head0, t=j * frame_dt))
 
     if mov_writer is not None:
         mov_writer.close()

@@ -255,6 +255,10 @@ class BimoMJXEnv:
         w_single_support: float = 0.0,
         w_lateral: float = 0.0,
         w_pitch_rate: float = 0.0,
+        w_still: float = 0.0,       # stand-gated joint-velocity penalty
+        # (-w * sum(dq^2) while commanded to plain-stand, upright, no lift):
+        # pays for the ABSENCE of motion, not just small corrections
+        # (user 2026-08-12, stand shaking)
         w_pitch_hinge: float = 0.0,
         pitch_deadband_deg: float = 5.0,
         w_power: float = 0.0,
@@ -627,6 +631,7 @@ class BimoMJXEnv:
         self.w_single_support = w_single_support
         self.w_lateral = w_lateral
         self.w_pitch_rate = w_pitch_rate
+        self.w_still = w_still
         # torso-pitch MAGNITUDE hinge (mirrors walker_env): quadratic penalty
         # on |pitch| past a free deadband, pitch only (roll is untouched --
         # sidestep gaits legitimately roll). Default 0 -> the term is not
@@ -1863,6 +1868,21 @@ class BimoMJXEnv:
         if self.w_pitch_rate:
             reward -= self.w_pitch_rate * (jp.abs(data.qvel[3])
                                            + jp.abs(data.qvel[4]))
+        if self.w_still:
+            # stand stillness (user 2026-08-12: "focus on standing still --
+            # way too much shaking"). Direct joint-velocity penalty, gated
+            # to a plain stand: no locomotion command, no lift, upright.
+            # action_rate/ang_vel_xy bound the SIZE of corrections; nothing
+            # before this paid for their ABSENCE -- the policy idled in a
+            # micro-stepping limit cycle (38.7 W standing vs 6.6 W released,
+            # loco_v18b_mix referee). Quadratic, so disturbance recovery
+            # (large dq for a moment) costs little vs perpetual dither.
+            stand_gate = ((~cmd_moving)
+                          & (~lifted if self.ext_cmd else True)
+                          & (state.recovered > 0.5))
+            reward -= (self.w_still
+                       * jp.where(stand_gate, 1.0, 0.0)
+                       * jp.sum(data.qvel[self._jv0:self._jv1] ** 2))
         if self.w_pitch_hinge:  # upright torso: |pitch| past a free deadband
             pitch = _quat_pitch(data.qpos[3:7])
             excess = jp.maximum(jp.abs(pitch) - self._pitch_db, 0.0)
