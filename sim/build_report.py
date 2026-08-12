@@ -33,6 +33,24 @@ def to_data_uri(arr):
     imageio.imwrite(buf, arr, format='png')
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
+def strip_from_mov(path, t0, t1, n=8, factor=4):
+    # referee movies are long (200+ s) and big; seek n frames with ffmpeg
+    # instead of decoding the whole file. [t0, t1] picks the scenario of
+    # interest out of the scorecard-order reel.
+    import subprocess, tempfile
+    if not os.path.exists(path):
+        print(f"build_report: missing {path}, placeholder used")
+        return np.full((1, 1, 3), 24, dtype=np.uint8)
+    frames = []
+    for t in np.linspace(t0, t1, n):
+        with tempfile.NamedTemporaryFile(suffix='.png') as f:
+            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error',
+                            '-ss', f'{t:.2f}', '-i', path,
+                            '-frames:v', '1', f.name], check=True)
+            frames.append(imageio.imread(f.name)[..., :3])
+    strip = np.concatenate(frames, axis=1)
+    return strip[::factor, ::factor]
+
 hero    = to_data_uri(strip_from_gif('runs/dash_11v1_hard/dash.gif'))
 dash7   = to_data_uri(strip_from_gif('runs/dash_7v4_hard/dash.gif'))
 stride  = to_data_uri(strip_from_gif('runs/terrain_v4/walk.gif'))
@@ -50,6 +68,16 @@ getup2   = to_data_uri(strip_from_gif('runs/mjx_getup_v2/ref_getup.mp4', n=6, fa
 
 cad = imageio.imread(os.path.join(CAD_RENDERS, 'assembly_mujoco.png'))[..., :3]
 cad_uri = to_data_uri(cad[30:680, 230:670])       # tight crop around the robot
+
+# marathon-era reels (v5body plant, pelvis v6). The reel is scenario takes in
+# scorecard order; the early minute is the walking block (line/backward/
+# sidestep), which is the part worth a strip.
+v18b_walk = to_data_uri(strip_from_mov('runs/loco_v18b_mix/loco_v18b_mix.mov',
+                                       2, 55, factor=5))
+v18b_all  = to_data_uri(strip_from_mov('runs/loco_v18b_mix/loco_v18b_mix.mov',
+                                       60, 205, n=8, factor=5))
+getup12   = to_data_uri(strip_from_mov('runs/getup_v12/getup_v12.mov',
+                                       1, 19, n=6, factor=6))
 
 n_runs = len([d for d in os.listdir('runs')
               if os.path.exists(os.path.join('runs', d, 'model.zip'))])
@@ -158,7 +186,36 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 </style>
 
 <div class="wrap">
-  <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · day 5</p>
+  <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·12</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·12</span></p>
+    <p><b>The v5body era: new pelvis, honest joint limits, and a 90-hour
+    marathon.</b> The robot got its as-built body (pelvis v6, camera CG
+    corrected by 68 mm, every servo's measured 2026-08-02 range finally
+    applied — knees ±95°), and the referee grew a responsiveness suite:
+    command-reversal latency, metronome cadence, squats, weight shifts.
+    Best policy so far is <b>loco_v18b_mix</b>: <b>78/144</b> scenario
+    seeds, <b>11% falls</b>, goal-home to 5 cm, first-ever turn-180 passes,
+    and a <b>0.5 s reversal response</b>.</p>
+    <figure style="margin-top:14px">
+      <img class="film" src="{v18b_walk}" alt="Filmstrip of the v18b_mix policy walking the line, backward, and sidestep scenarios">
+      <figcaption>loco_v18b_mix · walking block of the referee reel — line 6/8 · backward 8/8 · sidestep 8/8 + 8/8 · rough ground 8/8</figcaption>
+    </figure>
+    <figure style="margin-top:14px">
+      <img class="film" src="{v18b_all}" alt="Filmstrip across the later scenarios: turns, pushes, pursuit, drills">
+      <figcaption>…and the hard block: turn-180 4/8 (hErr 19°) · pursuit 8/8 (gap 10 cm) · pushes/speed/drills still 0/8 — the open front</figcaption>
+    </figure>
+    <figure style="margin-top:14px">
+      <img class="film" src="{getup12}" alt="Filmstrip of the failed get-up attempt: the robot rocks but never rises">
+      <figcaption>getup_v12 · the pre-registered A/B on the new body: 0/16 — PPO shaping can't find an armless rise even with full ROM. Verdict stands: next is phase-indexed tracking, not more shaping.</figcaption>
+    </figure>
+    <p class="muted" style="font-size:14px;margin:10px 0 0">Still shaky and
+    asymmetric (23% gait asymmetry; a 3.0× symmetry penalty for 110M steps
+    moved it 0) — next: mirror-symmetry data augmentation, then AMP motion
+    priors. Full story below is the July log.</p>
+  </div>
+
   <h1>It walks. Ten seconds, and it can be told what to do.</h1>
   <p class="lede">Five days of CPU training could sprint but never walk —
   no policy survived 10&nbsp;s, and day 5 proved the missing ingredient was
@@ -433,6 +490,32 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 """
 
 out = 'runs/night_summary.html'
+
+# Recover legacy strips from the last committed page. The laptop->mira move
+# (2026-08-02) brought loco_* runs only, so the July-era source gifs are gone
+# from this machine -- but their rendered strips live in git. Any placeholder
+# image in the fresh build gets swapped for the committed image with the same
+# alt text, so republishing from mira never degrades the July sections.
+import re, subprocess
+def _imgs(html):
+    return {m.group(2): m.group(1) for m in re.finditer(
+        r'<img class="film" src="(data:image/png;base64,[^"]*)" alt="([^"]*)"',
+        html)}
+try:
+    old = subprocess.run(
+        ['git', 'show', 'HEAD:sim/runs/night_summary.html'],
+        capture_output=True, text=True, check=True).stdout
+    committed = _imgs(old)
+    swapped = 0
+    for alt, src in _imgs(HTML).items():
+        if len(src) < 1000 and len(committed.get(alt, '')) >= 1000:
+            HTML = HTML.replace(src + '" alt="' + alt,
+                                committed[alt] + '" alt="' + alt)
+            swapped += 1
+    print(f"recovered {swapped} legacy strips from git")
+except subprocess.CalledProcessError:
+    print("no committed page to recover strips from")
+
 with open(out, 'w') as f:
     f.write(HTML)
 print("wrote", out, "|", len(HTML) // 1024, "KB")
