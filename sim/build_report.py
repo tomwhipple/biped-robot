@@ -78,6 +78,8 @@ v18b_all  = to_data_uri(strip_from_mov('runs/loco_v18b_mix/loco_v18b_mix.mov',
                                        60, 205, n=8, factor=5))
 getup12   = to_data_uri(strip_from_mov('runs/getup_v12/getup_v12.mov',
                                        1, 19, n=6, factor=6))
+ghost_ab  = to_data_uri(imageio.imread(
+    'runs/loco_v18d_still/stand_ghost_ab.png')[..., :3][::2, ::2])
 
 n_runs = len([d for d in os.listdir('runs')
               if os.path.exists(os.path.join('runs', d, 'model.zip'))])
@@ -210,10 +212,15 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       <img class="film" src="{getup12}" alt="Filmstrip of the failed get-up attempt: the robot rocks but never rises">
       <figcaption>getup_v12 · the pre-registered A/B on the new body: 0/16 — PPO shaping can't find an armless rise even with full ROM. Verdict stands: next is phase-indexed tracking, not more shaping.</figcaption>
     </figure>
-    <p class="muted" style="font-size:14px;margin:10px 0 0">Still shaky and
-    asymmetric (23% gait asymmetry; a 3.0× symmetry penalty for 110M steps
-    moved it 0) — next: mirror-symmetry data augmentation, then AMP motion
-    priors. Full story below is the July log.</p>
+    <figure style="margin-top:14px">
+      <img class="film" src="{ghost_ab}" alt="Ghost composites of the standing hold, before and after the stillness work: the before is blurred by motion, the after is sharp">
+      <figcaption>2026·08·13 · the shaking, fixed: 10 s stand ghost composites. v18b dithers (blur, 20.2 (rad/s)² joint motion, 40 W); v18d holds still (0.04 (rad/s)², 2.2 W standing — below the torque-off baseline). stand_10s 8/8, stand_off 8/8, falls 2%.</figcaption>
+    </figure>
+    <p class="muted" style="font-size:14px;margin:10px 0 0">The cost of calm:
+    turn-180 and reversal latency regressed and gait asymmetry rose to 35% —
+    tonight's frozen-gait-clock run (v18e) attacks the root cause; then
+    mirror-symmetry augmentation, then AMP motion priors. Full story below
+    is the July log.</p>
   </div>
 
   <h1>It walks. Ten seconds, and it can be told what to do.</h1>
