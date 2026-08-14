@@ -837,6 +837,22 @@ void cmdImu(Sink out, int argc, char** argv) {
         dev->fusion().levelled() ? "yes" : "NO (gyro only)",
         dev->fusion().rejectStreak());
 
+    // The filter's own state, so a mount argument can be settled by looking
+    // rather than by reasoning about what the fusion "should" be doing.
+    // projgrav is what the accelerometer sees in the BODY frame; `up` is its
+    // transpose-partner. For a forward lean projgrav.x must go NEGATIVE and
+    // up.x POSITIVE -- if they do not have opposite signs, the mount is wrong.
+    float q[4];
+    dev->fusion().quat(q);
+    float pg[3];
+    imu::projectedGravityFromQuaternion(q[0], q[1], q[2], q[3], pg);
+    say(out, "quat     % .4f % .4f % .4f % .4f\r\n",
+        static_cast<double>(q[0]), static_cast<double>(q[1]),
+        static_cast<double>(q[2]), static_cast<double>(q[3]));
+    say(out, "projgrav % .4f % .4f % .4f   (world +z in BODY frame)\r\n",
+        static_cast<double>(pg[0]), static_cast<double>(pg[1]),
+        static_cast<double>(pg[2]));
+
     // Measure what this actually costs the tick. firmware-design section 4
     // budgeted ~1.0 ms for the BNO085's SH-2 reports and never got to check
     // it, because no IMU was ever fitted. This one is fitted.

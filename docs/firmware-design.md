@@ -81,6 +81,18 @@ vendor snippets get ported into thin IDF components.
     The driver probes for AE at init and falls back to the raw path on its
     own, so if a later part does support it, nothing else changes.
 
+  **Mount, measured on the robot 2026-08-14:** `0.505654 0.494116 0.485838
+  0.513931` (w x y z, sensor→body), in NVS via `imu mount`. The chip's **+Y
+  points up** and its **+Z points FORWARD** — note the second half, because
+  CAD reasoning from "components face aft" (`cad/dimensions.py:999`) gives
+  the opposite and is *wrong*. Gravity alone cannot tell the two apart: they
+  differ by 180° about the vertical, and both map an upright stance to
+  (0,0,1) exactly. Only a deliberate tilt separates them. Leaning the robot
+  forward must send `projgrav.x` negative and `up.x` positive; with the
+  flipped mount it reads a forward lean as a backward one, and the policy
+  corrects the wrong way on its first step. `imu` prints both vectors and
+  the filter quaternion so the check is a look, not an argument.
+
   The BNO085 stays the documented upgrade path onto header P1 (0x4A/0x4B
   are reserved for it) — a driver change plus one 4-wire cable, no CAD.
 - WiFi UDP for the command link (the protocol in control-channel.md).
