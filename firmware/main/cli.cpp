@@ -1,5 +1,6 @@
 #include "cli.h"
 
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,10 +10,12 @@
 #include "obs/obs_spec.h"
 #include "policy/mlp.h"
 #include "scsbus/bus.h"
+#include "board.h"
 #include "cal_store.h"
 #include "mech_envelope.h"
 #include "shared.h"
 
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -597,6 +600,256 @@ void cmdStat(Sink out) {
 
 }  // namespace
 
+// -- imu -------------------------------------------------------------------
+//
+// This is the bring-up tool, and its most important subcommand is `raw`.
+// The board stands vertical and transverse in the pelvis recess, so the
+// mounting rotation is ~90 degrees rather than a trim, and no amount of
+// reading the schematic tells you reliably which physical axis the chip calls
+// X. Tilting the board by hand while watching `imu raw` does.
+void cmdImu(Sink out, int argc, char** argv) {
+    imu::Qmi8658Imu* dev = robot::onboardImu();
+
+    if (argc >= 2 && !strcmp(argv[1], "scan")) {
+        // Bus scan works even with no IMU: that is the point when the part is
+        // NOT answering and you need to know whether anything is out there.
+        static imu::Qmi8658Imu probe_dev(imu::Qmi8658Imu::Config{
+            board::kI2cSda, board::kI2cScl,
+            static_cast<uint32_t>(board::kI2cHz), board::kImuAddr, false, 8,
+            1024});
+        imu::Qmi8658Imu* d = dev ? dev : &probe_dev;
+        uint8_t found[16];
+        const int n = d->scanBus(found, 16);
+        if (!n) {
+            say(out, "i2c GPIO %d/%d @ %d Hz: NOTHING answered\r\n",
+                static_cast<int>(board::kI2cSda),
+                static_cast<int>(board::kI2cScl), board::kI2cHz);
+            out("  the board's own sensors live on this bus, so an empty scan\r\n"
+                "  means the bus is wrong or held, not that a part is missing\r\n");
+            return;
+        }
+        say(out, "i2c GPIO %d/%d @ %d Hz: %d device(s)\r\n",
+            static_cast<int>(board::kI2cSda), static_cast<int>(board::kI2cScl),
+            board::kI2cHz, n);
+        for (int i = 0; i < n; ++i) {
+            const char* who = "?";
+            switch (found[i]) {
+                case 0x6B: case 0x6A: who = "QMI8658C  6-axis IMU"; break;
+                case 0x0C: who = "AK09918C  magnetometer (unused)"; break;
+                case 0x77: who = "BMP280    barometer (unused)"; break;
+                case 0x42: who = "INA219    power monitor (unused)"; break;
+                case 0x4A: case 0x4B: who = "BNO085    (P1 upgrade path)"; break;
+                default: break;
+            }
+            say(out, "  0x%02X  %s\r\n", found[i], who);
+        }
+        return;
+    }
+
+    if (!dev) {
+        out("imu: running on the STUB -- the QMI8658C did not answer at boot\r\n"
+            "  `imu scan` to see what is on the bus\r\n");
+        return;
+    }
+
+    if (argc >= 2 && !strcmp(argv[1], "raw")) {
+        int n = (argc >= 3) ? atoi(argv[2]) : 1;
+        if (n < 1) n = 1;
+        if (n > 200) n = 200;
+        out("sensor frame, mount NOT applied -- accel m/s2, gyro rad/s\r\n");
+        for (int i = 0; i < n; ++i) {
+            float a[3], g[3];
+            if (!dev->readRaw(a, g)) { out("read failed\r\n"); return; }
+            const float mag = sqrtf(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+            say(out, "a % 7.3f % 7.3f % 7.3f  |a| %5.3f   g % 7.4f % 7.4f % 7.4f\r\n",
+                static_cast<double>(a[0]), static_cast<double>(a[1]),
+                static_cast<double>(a[2]), static_cast<double>(mag),
+                static_cast<double>(g[0]), static_cast<double>(g[1]),
+                static_cast<double>(g[2]));
+            if (n > 1) vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        return;
+    }
+
+    if (argc >= 2 && !strcmp(argv[1], "bias")) {
+        if (robot::g_mode_request.load() != robot::Mode::kBench ||
+            robot::g_ctrl_owns_bus.load()) {
+            out("busy: `bench` first -- bias calibration writes driver state\r\n");
+            return;
+        }
+        out("hold the robot STILL for 2 s...\r\n");
+        float b[3], s[3];
+        if (!dev->calibrateBias(b, s)) { out("calibration failed\r\n"); return; }
+        say(out, "bias  % .5f % .5f % .5f rad/s\r\n",
+            static_cast<double>(b[0]), static_cast<double>(b[1]),
+            static_cast<double>(b[2]));
+        say(out, "spread % .5f % .5f % .5f rad/s\r\n",
+            static_cast<double>(s[0]), static_cast<double>(s[1]),
+            static_cast<double>(s[2]));
+        // Yaw has no gravity reference, so whatever bias survives here
+        // integrates straight into heading error -- and `up` is
+        // yaw-dependent. This is the number that decides whether the
+        // horizontal channel is worth anything after 30 s.
+        const float worst = fmaxf(fmaxf(fabsf(b[0]), fabsf(b[1])), fabsf(b[2]));
+        say(out, "residual yaw drift ~%.1f deg after 30 s\r\n",
+            static_cast<double>(fabsf(b[2]) * 30.0f * 57.2958f));
+        // The threshold is set from the part's MEASURED noise floor on this
+        // board, not from a guess. At 500 Hz ODR with the on-chip low-pass
+        // off, a motionless board shows ~0.1-0.3 rad/s peak-to-peak, so a
+        // tighter gate would fire every time and teach everyone to ignore it.
+        // Real handling shows up well above this.
+        if (s[0] > 0.6f || s[1] > 0.6f || s[2] > 0.6f) {
+            out("  *** spread is large -- the robot MOVED. Redo it still. ***\r\n");
+        }
+        // The number that actually decides whether this calibration is worth
+        // anything is the drift line above: bias stderr is sigma/sqrt(N), and
+        // it lands around 3 mrad/s, i.e. a few degrees of heading per run.
+        (void)worst;
+
+        const imu::Mount& m = dev->mount();
+        const float mq[4] = {m.w, m.x, m.y, m.z};
+        if (robot::imuCalSave(b, mq)) {
+            robot::g_imu_cal_from_nvs = true;
+            out("saved to NVS -- survives a power cycle\r\n");
+        } else {
+            out("NVS SAVE FAILED -- this bias dies at the next reset\r\n");
+        }
+        return;
+    }
+
+    if (argc >= 2 && !strcmp(argv[1], "mount")) {
+        if (argc < 6) {
+            const imu::Mount& m = dev->mount();
+            say(out, "mount % .5f % .5f % .5f % .5f (w x y z)\r\n",
+                static_cast<double>(m.w), static_cast<double>(m.x),
+                static_cast<double>(m.y), static_cast<double>(m.z));
+            out("usage: imu mount <w> <x> <y> <z>   (sensor -> body)\r\n");
+            out("  the board stands vertical/transverse in the pelvis recess,\r\n");
+            out("  so the nominal from CAD is ~90 deg about y: 0.7071 0 0.7071 0\r\n");
+            return;
+        }
+        float q[4];
+        for (int i = 0; i < 4; ++i) q[i] = strtof(argv[2 + i], nullptr);
+        const float n = sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
+        if (n < 0.5f) { out("not a rotation (zero quaternion)\r\n"); return; }
+        for (int i = 0; i < 4; ++i) q[i] /= n;
+        imu::Mount m;
+        m.w = q[0]; m.x = q[1]; m.y = q[2]; m.z = q[3];
+        dev->setMount(m);
+        float bias[3];
+        dev->bias(bias);
+        if (robot::imuCalSave(bias, q)) {
+            robot::g_imu_cal_from_nvs = true;
+            say(out, "mount % .5f % .5f % .5f % .5f saved\r\n",
+                static_cast<double>(q[0]), static_cast<double>(q[1]),
+                static_cast<double>(q[2]), static_cast<double>(q[3]));
+        } else {
+            out("NVS SAVE FAILED\r\n");
+        }
+        return;
+    }
+
+    if (argc >= 2 && !strcmp(argv[1], "ae")) {
+        imu::Qmi8658Imu::AeDiag d;
+        if (!dev->aeDiagnose(d)) { out("diagnose failed\r\n"); return; }
+        say(out, "ctrl write %s   ctrl6 0x%02X (want 0x80)   ctrl7 0x%02X "
+                 "(want 0x0B)   status0 0x%02X\r\n",
+            d.ctrl_written ? "ok" : "FAILED", d.ctrl6, d.ctrl7, d.status0);
+        out("dQ ");
+        for (int i = 0; i < 8; ++i) say(out, "%02X ", d.dq_bytes[i]);
+        out("\r\ndV ");
+        for (int i = 0; i < 6; ++i) say(out, "%02X ", d.dv_bytes[i]);
+        // Non-zero is NOT the same as valid, and the difference is the whole
+        // point of this command. Decode with the documented scalings and let
+        // the numbers speak: a stationary board must give dQ ~ (1,0,0,0) and
+        // |dV| ~ g*dt, i.e. a few tenths of a m/s.
+        float dq[4], dv[3], n = 0.0f;
+        for (int i = 0; i < 4; ++i) {
+            const int16_t r = static_cast<int16_t>(
+                static_cast<uint16_t>(d.dq_bytes[i * 2]) |
+                (static_cast<uint16_t>(d.dq_bytes[i * 2 + 1]) << 8));
+            dq[i] = static_cast<float>(r) / 16384.0f;
+            n += dq[i] * dq[i];
+        }
+        n = sqrtf(n);
+        for (int i = 0; i < 3; ++i) {
+            const int16_t r = static_cast<int16_t>(
+                static_cast<uint16_t>(d.dv_bytes[i * 2]) |
+                (static_cast<uint16_t>(d.dv_bytes[i * 2 + 1]) << 8));
+            dv[i] = static_cast<float>(r) / 1024.0f;
+        }
+        say(out, "\r\ndQ Q14 % .4f % .4f % .4f % .4f  |dQ| %.4f (want 1.0)\r\n",
+            static_cast<double>(dq[0]), static_cast<double>(dq[1]),
+            static_cast<double>(dq[2]), static_cast<double>(dq[3]),
+            static_cast<double>(n));
+        say(out, "dV m/s % .3f % .3f % .3f  (want ~0.2 at rest)\r\n",
+            static_cast<double>(dv[0]), static_cast<double>(dv[1]),
+            static_cast<double>(dv[2]));
+        if (!d.any_nonzero) {
+            out("verdict: registers all zero -- AE produced nothing\r\n");
+        } else if (n > 0.9f && n < 1.1f) {
+            out("verdict: VALID unit quaternion -- AE works, use it\r\n");
+        } else {
+            out("verdict: non-zero but NOT a unit quaternion under the\r\n"
+                "  documented Q14 scaling. The register contents do not mean\r\n"
+                "  what rev 0.6 says they mean on this silicon (rev 0x7C vs\r\n"
+                "  the 0x79 documented). Raw path stands.\r\n");
+        }
+        return;
+    }
+
+    if (argc >= 2 && !strcmp(argv[1], "forget")) {
+        say(out, "%s\r\n", robot::imuCalErase() ? "erased" : "erase failed");
+        robot::g_imu_cal_from_nvs = false;
+        return;
+    }
+
+    // Default: status.
+    imu::Qmi8658Imu::Probe p;
+    dev->probe(p);
+    say(out, "driver   %s\r\n", dev->name());
+    say(out, "who_am_i 0x%02X (expect 0x05)   rev 0x%02X   addr 0x%02X\r\n",
+        p.who_am_i, p.revision, p.addr_found);
+
+    imu::Sample s{};
+    dev->read(s);
+    say(out, "up       % .4f % .4f % .4f   (body z in WORLD -- yaw-dependent)\r\n",
+        static_cast<double>(s.up[0]), static_cast<double>(s.up[1]),
+        static_cast<double>(s.up[2]));
+    say(out, "gyro     % .4f % .4f % .4f rad/s\r\n",
+        static_cast<double>(s.gyro[0]), static_cast<double>(s.gyro[1]),
+        static_cast<double>(s.gyro[2]));
+    float b[3];
+    dev->bias(b);
+    say(out, "bias     % .5f % .5f % .5f rad/s%s\r\n",
+        static_cast<double>(b[0]), static_cast<double>(b[1]),
+        static_cast<double>(b[2]),
+        robot::g_imu_cal_from_nvs ? "   (from NVS)"
+                                  : "   *** NOT CALIBRATED: run `imu bias` ***");
+    const imu::Mount& mt = dev->mount();
+    say(out, "mount    % .4f % .4f % .4f % .4f%s\r\n",
+        static_cast<double>(mt.w), static_cast<double>(mt.x),
+        static_cast<double>(mt.y), static_cast<double>(mt.z),
+        (mt.w == 1.0f && mt.x == 0.0f && mt.y == 0.0f && mt.z == 0.0f)
+            ? "   (identity -- not yet measured on the robot)" : "");
+    say(out, "levelled %s   accel-reject streak %d\r\n",
+        dev->fusion().levelled() ? "yes" : "NO (gyro only)",
+        dev->fusion().rejectStreak());
+
+    // Measure what this actually costs the tick. firmware-design section 4
+    // budgeted ~1.0 ms for the BNO085's SH-2 reports and never got to check
+    // it, because no IMU was ever fitted. This one is fitted.
+    const int64_t t0 = esp_timer_get_time();
+    constexpr int kN = 50;
+    for (int i = 0; i < kN; ++i) {
+        imu::Sample tmp{};
+        dev->read(tmp);
+    }
+    const int64_t t1 = esp_timer_get_time();
+    say(out, "read     %.3f ms mean of %d (I2C burst + fusion), 20 ms tick\r\n",
+        static_cast<double>(t1 - t0) / (kN * 1000.0), kN);
+}
+
 void banner(Sink out) {
     out("\r\nbimo firmware v1 -- bench mode (nothing moves until `run`)\r\n");
     out("  scan                 ping IDs 0-253, report position/voltage/faults\r\n");
@@ -612,6 +865,7 @@ void banner(Sink out) {
     out("  cal [show|zero|dir|set|migrate|save|load|reset]   zero + dir (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
+    out("  imu [scan|raw [n]|bias|mount|forget]   on-board QMI8658C (NVS)\r\n");
     out("  stat                 tick timing and fault counters\r\n");
 }
 
@@ -641,6 +895,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "run")) cmdMode(out, true);
     else if (!strcmp(c, "bench")) cmdMode(out, false);
     else if (!strcmp(c, "cal")) cmdCal(out, argc, argv);
+    else if (!strcmp(c, "imu")) cmdImu(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);
     else out("? (try `help`)\r\n");
 }

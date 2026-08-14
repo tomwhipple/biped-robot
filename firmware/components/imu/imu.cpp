@@ -16,12 +16,22 @@ void applyMount(const Mount& m, const float in[3], float out[3]) {
 
 void upFromQuaternion(float qw, float qx, float qy, float qz, float out[3]) {
     // The obs's "up" is MuJoCo's framezaxis sensor on the torso imu site
-    // (sim/bimo_biped_v3yaw.xml: <framezaxis objtype="site" objname="imu">),
+    // (sim/bimo_biped_v5body.xml:609 <framezaxis objtype="site" objname="imu">),
     // which reports the site's own z-axis expressed in the WORLD frame -- not
     // gravity in the body frame. For a body->world quaternion that is the
     // third COLUMN of R(q). Upright gives (0, 0, 1), matching the sim.
     out[0] = 2.0f * (qx * qz + qw * qy);
     out[1] = 2.0f * (qy * qz - qw * qx);
+    out[2] = 1.0f - 2.0f * (qx * qx + qy * qy);
+}
+
+void projectedGravityFromQuaternion(float qw, float qx, float qy, float qz,
+                                    float out[3]) {
+    // Third ROW of R(q) == third column of R(q)^T: the world +z axis in the
+    // body frame. Differs from upFromQuaternion by the sign of the two
+    // off-diagonal cross terms, which is exactly the transpose.
+    out[0] = 2.0f * (qx * qz - qw * qy);
+    out[1] = 2.0f * (qy * qz + qw * qx);
     out[2] = 1.0f - 2.0f * (qx * qx + qy * qy);
 }
 

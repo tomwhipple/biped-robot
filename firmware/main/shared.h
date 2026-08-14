@@ -7,6 +7,7 @@
 #include <atomic>
 
 #include "battguard/guard.h"
+#include "imu/qmi8658.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "linkproto/protocol.h"
@@ -105,5 +106,21 @@ battguard::Guard& battGuard();
 // Servo IDs in policy-action order, from the generated obs spec.
 inline const uint8_t* servoIds() { return obs::kServoId; }
 inline int numJoints() { return obs::kNumJoints; }
+
+// The on-board IMU, for the bring-up CLI. Null when the part did not answer
+// at boot and the loop is running on the stub -- callers must check, because
+// "no IMU" is a normal bench state, not an error.
+//
+// Same ownership rule as the servo bus: `imu` subcommands that WRITE (bias
+// calibration, mount) are bench-only, because in bench mode ctrl is not
+// reading the sensor and there is no cross-core race. Reads are reports and
+// follow the TelemetrySnapshot rule -- a torn value is a human's problem, not
+// the control loop's.
+imu::Qmi8658Imu* onboardImu();
+
+// True when boot found a valid IMU calibration in NVS. False means the gyro
+// bias is zero and the mount is identity, which on this robot is wrong on
+// both counts -- `imu` says so loudly rather than letting it pass.
+extern bool g_imu_cal_from_nvs;
 
 }  // namespace robot

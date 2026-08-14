@@ -90,4 +90,45 @@ bool calLoad(obs::Calibration& out);
 bool calSave(const obs::Calibration& cal);
 bool calErase();
 
+// -- IMU calibration -------------------------------------------------------
+//
+// A SEPARATE blob from the servo one, deliberately: the servo calibration is
+// bound to the servo map and gets rejected wholesale when that map changes,
+// and there is no reason for an IMU bias to die with it.
+//
+// Both fields have to persist or the robot is not usable from a cold boot:
+//
+//  * gyro_bias -- measured on the bench, and NOT optional. The part's
+//    untrimmed zero-rate offset on this board is ~0.45 rad/s on x. Against
+//    the filter's 0.5/s correction gain that settles at sin(e) = 0.9, i.e.
+//    ~64 degrees of steady-state attitude error. An uncalibrated boot does
+//    not degrade the up-vector, it destroys it.
+//
+//  * mount -- the sensor->body rotation. On this board the driver stands
+//    vertical and transverse in the pelvis recess, so this is a ~90 degree
+//    rotation and not a trim.
+struct ImuCalBlob {
+    uint32_t magic;          // kImuCalMagic
+    uint16_t version;        // kImuCalVersion
+    uint16_t pad;
+    float gyro_bias[3];      // rad/s, SENSOR frame
+    float mount[4];          // w, x, y, z -- sensor -> body
+    uint32_t crc;            // CRC-32 over everything above
+};
+
+constexpr uint32_t kImuCalMagic = 0x424D4931;   // "BMI1"
+constexpr uint16_t kImuCalVersion = 1;
+
+// Pure, host-testable.
+void imuCalPack(const float bias[3], const float mount[4], ImuCalBlob& out);
+bool imuCalUnpack(const ImuCalBlob& blob, float bias_out[3],
+                  float mount_out[4]);
+
+// ESP side. imuCalLoad returns false when nothing is stored -- the normal
+// first-boot path. The caller must then treat the IMU as UNCALIBRATED rather
+// than assume zero bias is fine, because it is not.
+bool imuCalLoad(float bias_out[3], float mount_out[4]);
+bool imuCalSave(const float bias[3], const float mount[4]);
+bool imuCalErase();
+
 }  // namespace robot

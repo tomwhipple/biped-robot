@@ -169,9 +169,13 @@ Handover is one-way through the ctrl task: it releases torque and clears
 
 **Scaffolded — the v2 seams, in the order they will matter:**
 
-1. **The BNO085 driver.** `imu::Bno085Imu` does not exist; `imu::StubImu`
-   reports level and still. The SH-2 component is the work, and the interface
-   is already the seam.
+1. ~~**The BNO085 driver.**~~ **Done differently, 2026-08-14.** The IMU is
+   the QMI8658C on the board itself, not an external breakout:
+   `imu::Qmi8658Imu` + `imu::Fusion`, with `imu::StubImu` kept as the
+   fallback when the part does not answer. What remains open is the
+   **mount quaternion**: the mechanism, NVS record and `imu mount` command
+   all exist, but the value is still identity because it can only be
+   measured with the board bolted into the pelvis.
 2. **WiFi/UDP.** v1 carries the protocol over UART0 only. The framing is
    identical over both transports by design, so the UDP socket is a second
    producer into the same mailbox, not a second protocol.

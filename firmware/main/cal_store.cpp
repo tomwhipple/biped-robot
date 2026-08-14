@@ -1,5 +1,6 @@
 #include "cal_store.h"
 
+#include <stddef.h>
 #include <string.h>
 
 #include "asbuilt_cal.h"
@@ -14,6 +15,7 @@ namespace robot {
 namespace {
 constexpr const char* kNs = "bimo";
 constexpr const char* kKey = "cal";
+constexpr const char* kImuKey = "imucal";
 }  // namespace
 #endif
 
@@ -142,6 +144,72 @@ bool calErase() {
     const esp_err_t cerr = nvs_commit(h);
     nvs_close(h);
     return (err == ESP_OK || err == ESP_ERR_NVS_NOT_FOUND) && cerr == ESP_OK;
+}
+
+#endif  // ESP_PLATFORM
+
+
+
+// -- IMU calibration -------------------------------------------------------
+
+void imuCalPack(const float bias[3], const float mount[4], ImuCalBlob& out) {
+    out = ImuCalBlob{};
+    out.magic = kImuCalMagic;
+    out.version = kImuCalVersion;
+    for (int i = 0; i < 3; ++i) out.gyro_bias[i] = bias[i];
+    for (int i = 0; i < 4; ++i) out.mount[i] = mount[i];
+    out.crc = calCrc32(&out, offsetof(ImuCalBlob, crc));
+}
+
+bool imuCalUnpack(const ImuCalBlob& blob, float bias_out[3],
+                  float mount_out[4]) {
+    if (blob.magic != kImuCalMagic) return false;
+    if (blob.version != kImuCalVersion) return false;
+    if (blob.crc != calCrc32(&blob, offsetof(ImuCalBlob, crc))) return false;
+    // A zero quaternion is not a rotation. A blob that passes CRC but carries
+    // one is a bug upstream, not a calibration -- reject rather than
+    // normalising it into something plausible.
+    const float n = blob.mount[0] * blob.mount[0] +
+                    blob.mount[1] * blob.mount[1] +
+                    blob.mount[2] * blob.mount[2] +
+                    blob.mount[3] * blob.mount[3];
+    if (n < 0.9f || n > 1.1f) return false;
+    for (int i = 0; i < 3; ++i) bias_out[i] = blob.gyro_bias[i];
+    for (int i = 0; i < 4; ++i) mount_out[i] = blob.mount[i];
+    return true;
+}
+
+#ifdef ESP_PLATFORM
+
+bool imuCalLoad(float bias_out[3], float mount_out[4]) {
+    nvs_handle_t h;
+    if (nvs_open(kNs, NVS_READONLY, &h) != ESP_OK) return false;
+    ImuCalBlob blob{};
+    size_t len = sizeof blob;
+    const esp_err_t err = nvs_get_blob(h, kImuKey, &blob, &len);
+    nvs_close(h);
+    if (err != ESP_OK || len != sizeof blob) return false;
+    return imuCalUnpack(blob, bias_out, mount_out);
+}
+
+bool imuCalSave(const float bias[3], const float mount[4]) {
+    ImuCalBlob blob{};
+    imuCalPack(bias, mount, blob);
+    nvs_handle_t h;
+    if (nvs_open(kNs, NVS_READWRITE, &h) != ESP_OK) return false;
+    const esp_err_t err = nvs_set_blob(h, kImuKey, &blob, sizeof blob);
+    const esp_err_t cerr = (err == ESP_OK) ? nvs_commit(h) : err;
+    nvs_close(h);
+    return cerr == ESP_OK;
+}
+
+bool imuCalErase() {
+    nvs_handle_t h;
+    if (nvs_open(kNs, NVS_READWRITE, &h) != ESP_OK) return false;
+    nvs_erase_key(h, kImuKey);
+    const esp_err_t cerr = nvs_commit(h);
+    nvs_close(h);
+    return cerr == ESP_OK;
 }
 
 #endif  // ESP_PLATFORM

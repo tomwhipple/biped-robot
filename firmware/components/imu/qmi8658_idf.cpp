@@ -1,0 +1,375 @@
+#include "imu/qmi8658.h"
+
+#include <math.h>
+#include <string.h>
+
+#include "driver/i2c_master.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+namespace imu {
+namespace {
+
+// Register map, QST rev 0.6 (docs/datasheets/general-driver/).
+constexpr uint8_t kRegWhoAmI = 0x00;
+constexpr uint8_t kRegRevision = 0x01;
+constexpr uint8_t kRegCtrl1 = 0x02;
+constexpr uint8_t kRegCtrl2 = 0x03;   // accel: aFS 6:4, aODR 3:0
+constexpr uint8_t kRegCtrl3 = 0x04;   // gyro:  gFS 6:4, gODR 3:0
+constexpr uint8_t kRegCtrl5 = 0x06;   // low-pass filters
+constexpr uint8_t kRegCtrl6 = 0x07;   // sMoD 7, sODR 2:0
+constexpr uint8_t kRegCtrl7 = 0x08;   // syncSmpl 7, sEN 3, gEN 1, aEN 0
+constexpr uint8_t kRegCtrl9 = 0x0A;   // command port
+constexpr uint8_t kRegStatus0 = 0x2E;
+constexpr uint8_t kRegAccel = 0x35;   // AX_L .. AZ_H
+constexpr uint8_t kRegGyro = 0x3B;    // GX_L .. GZ_H
+constexpr uint8_t kRegDq = 0x49;      // dQW_L .. dQZ_H
+constexpr uint8_t kRegDv = 0x51;      // dVX_L .. dVZ_H
+
+constexpr uint8_t kWhoAmIExpected = 0x05;
+
+constexpr uint8_t kCmdReqMoD = 0x0C;
+
+// CTRL1 bit 6: serial-interface address auto-increment. Without it a burst
+// read returns the same register N times, which looks exactly like a sensor
+// stuck at a constant -- set it before trusting any multi-byte read.
+constexpr uint8_t kCtrl1AddrAutoInc = 1 << 6;
+
+// CTRL7 enables.
+constexpr uint8_t kCtrl7aEN = 1 << 0;
+constexpr uint8_t kCtrl7gEN = 1 << 1;
+constexpr uint8_t kCtrl7sEN = 1 << 3;
+
+// AE quaternion is Q14: 16384 LSB per unit. dV is 1024 LSB per m/s.
+constexpr float kDqScale = 1.0f / 16384.0f;
+constexpr float kDvScale = 1.0f / 1024.0f;
+
+constexpr float kGravity = 9.80665f;
+constexpr float kDegToRad = 3.14159265358979f / 180.0f;
+
+constexpr int kOdr500Hz = 0x04;   // aODR/gODR setting for 500 Hz, normal mode
+
+int16_t le16(const uint8_t* p) {
+    return static_cast<int16_t>(static_cast<uint16_t>(p[0]) |
+                                (static_cast<uint16_t>(p[1]) << 8));
+}
+
+uint8_t accelFsBits(uint8_t g) {
+    switch (g) {
+        case 2: return 0;
+        case 4: return 1;
+        case 8: return 2;
+        default: return 3;   // 16 g
+    }
+}
+
+uint8_t gyroFsBits(uint16_t dps) {
+    switch (dps) {
+        case 16: return 0;
+        case 32: return 1;
+        case 64: return 2;
+        case 128: return 3;
+        case 256: return 4;
+        case 512: return 5;
+        case 1024: return 6;
+        default: return 7;   // 2048 dps
+    }
+}
+
+}  // namespace
+
+bool Qmi8658Imu::busInit() {
+    if (bus_ != nullptr) return true;
+
+    i2c_master_bus_config_t bc = {};
+    bc.i2c_port = I2C_NUM_0;
+    bc.sda_io_num = cfg_.sda;
+    bc.scl_io_num = cfg_.scl;
+    bc.clk_source = I2C_CLK_SRC_DEFAULT;
+    bc.glitch_ignore_cnt = 7;
+    // The board carries its own pull-ups on this bus (and an LSF0204PWR in
+    // the IMU's path), so the internal ones stay off -- doubling them up
+    // slows the rise time, which is the opposite of helpful at 400 kHz.
+    bc.flags.enable_internal_pullup = false;
+
+    i2c_master_bus_handle_t bus = nullptr;
+    if (i2c_new_master_bus(&bc, &bus) != ESP_OK) return false;
+    bus_ = bus;
+
+    i2c_device_config_t dc = {};
+    dc.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+    dc.device_address = cfg_.addr;
+    dc.scl_speed_hz = cfg_.hz;
+
+    i2c_master_dev_handle_t dev = nullptr;
+    if (i2c_master_bus_add_device(bus, &dc, &dev) != ESP_OK) return false;
+    dev_ = dev;
+    return true;
+}
+
+bool Qmi8658Imu::regRead(uint8_t reg, uint8_t* buf, size_t len) {
+    if (dev_ == nullptr) return false;
+    return i2c_master_transmit_receive(
+               static_cast<i2c_master_dev_handle_t>(dev_), &reg, 1, buf, len,
+               100) == ESP_OK;
+}
+
+bool Qmi8658Imu::regWrite(uint8_t reg, uint8_t val) {
+    if (dev_ == nullptr) return false;
+    const uint8_t tx[2] = {reg, val};
+    return i2c_master_transmit(static_cast<i2c_master_dev_handle_t>(dev_), tx,
+                               2, 100) == ESP_OK;
+}
+
+int Qmi8658Imu::scanBus(uint8_t* found, int max) {
+    if (!busInit()) return 0;
+    int n = 0;
+    for (uint8_t a = 0x08; a < 0x78 && n < max; ++a) {
+        if (i2c_master_probe(static_cast<i2c_master_bus_handle_t>(bus_), a,
+                             50) == ESP_OK) {
+            found[n++] = a;
+        }
+    }
+    return n;
+}
+
+bool Qmi8658Imu::probe(Probe& out) {
+    out = Probe{};
+    if (!busInit()) return false;
+
+    uint8_t id = 0;
+    if (!regRead(kRegWhoAmI, &id, 1)) return false;
+    out.who_am_i = id;
+    out.addr_found = cfg_.addr;
+    out.present = (id == kWhoAmIExpected);
+    if (!out.present) return false;
+
+    regRead(kRegRevision, &out.revision, 1);
+    out.attitude_engine = use_ae_;
+    return true;
+}
+
+bool Qmi8658Imu::configure() {
+    // Auto-increment first: every burst below depends on it.
+    if (!regWrite(kRegCtrl1, kCtrl1AddrAutoInc)) return false;
+
+    const uint8_t a = static_cast<uint8_t>(
+        (accelFsBits(cfg_.accel_fs_g) << 4) | kOdr500Hz);
+    const uint8_t g = static_cast<uint8_t>(
+        (gyroFsBits(cfg_.gyro_fs_dps) << 4) | kOdr500Hz);
+    if (!regWrite(kRegCtrl2, a)) return false;
+    if (!regWrite(kRegCtrl3, g)) return false;
+
+    // No on-chip low-pass. The AttitudeEngine wants the full-rate signal, and
+    // on the raw path the complementary filter IS the low-pass -- stacking a
+    // second one only adds phase lag, and phase lag in the up-vector is a lie
+    // about where the torso is.
+    regWrite(kRegCtrl5, 0x00);
+
+    accel_scale_ = (static_cast<float>(cfg_.accel_fs_g) * kGravity) / 32768.0f;
+    gyro_scale_ =
+        (static_cast<float>(cfg_.gyro_fs_dps) * kDegToRad) / 32768.0f;
+
+    uint8_t ctrl7 = kCtrl7aEN | kCtrl7gEN;
+    use_ae_ = false;
+
+    if (cfg_.try_attitude_engine) {
+        // AE needs all three enables; MoD then needs sMoD in CTRL6.
+        if (regWrite(kRegCtrl7, static_cast<uint8_t>(ctrl7 | kCtrl7sEN)) &&
+            regWrite(kRegCtrl6, 0x80)) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+            float dq[4], dv[3];
+            // Two attempts: the first increment after enabling is allowed to
+            // be empty while the engine spins up.
+            requestMotionOnDemand();
+            vTaskDelay(pdMS_TO_TICKS(30));
+            if (readIncrement(dq, dv)) {
+                use_ae_ = true;
+            }
+        }
+    }
+
+    if (!use_ae_) {
+        if (!regWrite(kRegCtrl6, 0x00)) return false;
+        if (!regWrite(kRegCtrl7, ctrl7)) return false;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(20));
+    return true;
+}
+
+bool Qmi8658Imu::init() {
+    if (!busInit()) return false;
+
+    Probe p;
+    if (!probe(p) || !p.present) return false;
+    if (!configure()) return false;
+
+    fusion_.reset();
+    last_us_ = static_cast<uint64_t>(esp_timer_get_time());
+    ready_ = true;
+    return true;
+}
+
+bool Qmi8658Imu::requestMotionOnDemand() {
+    return regWrite(kRegCtrl9, kCmdReqMoD);
+}
+
+bool Qmi8658Imu::readIncrement(float dq[4], float dv[3]) {
+    uint8_t buf[8];
+    if (!regRead(kRegDq, buf, sizeof buf)) return false;
+    float q[4];
+    for (int i = 0; i < 4; ++i) {
+        q[i] = static_cast<float>(le16(&buf[i * 2])) * kDqScale;
+    }
+    // An all-zero increment is not a valid unit quaternion -- it is the
+    // engine saying "nothing here". Treat it as no-data rather than as a
+    // rotation, which is what feeding it forward would amount to.
+    const float n = sqrtf(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] +
+                          q[3] * q[3]);
+    if (n < 0.5f) return false;
+    const float inv = 1.0f / n;
+    for (int i = 0; i < 4; ++i) dq[i] = q[i] * inv;
+
+    uint8_t vbuf[6];
+    if (!regRead(kRegDv, vbuf, sizeof vbuf)) return false;
+    for (int i = 0; i < 3; ++i) {
+        dv[i] = static_cast<float>(le16(&vbuf[i * 2])) * kDvScale;
+    }
+    return true;
+}
+
+bool Qmi8658Imu::aeDiagnose(AeDiag& out) {
+    out = AeDiag{};
+    if (dev_ == nullptr) return false;
+
+    const uint8_t ctrl7 = kCtrl7aEN | kCtrl7gEN | kCtrl7sEN;
+    out.ctrl_written = regWrite(kRegCtrl7, ctrl7) && regWrite(kRegCtrl6, 0x80);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    requestMotionOnDemand();
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    regRead(kRegCtrl6, &out.ctrl6, 1);
+    regRead(kRegCtrl7, &out.ctrl7, 1);
+    regRead(kRegStatus0, &out.status0, 1);
+    regRead(kRegDq, out.dq_bytes, sizeof out.dq_bytes);
+    regRead(kRegDv, out.dv_bytes, sizeof out.dv_bytes);
+
+    for (size_t i = 0; i < sizeof out.dq_bytes; ++i) {
+        if (out.dq_bytes[i]) out.any_nonzero = true;
+    }
+    for (size_t i = 0; i < sizeof out.dv_bytes; ++i) {
+        if (out.dv_bytes[i]) out.any_nonzero = true;
+    }
+
+    // Put the part back the way the control loop expects it.
+    if (!use_ae_) {
+        regWrite(kRegCtrl6, 0x00);
+        regWrite(kRegCtrl7, static_cast<uint8_t>(kCtrl7aEN | kCtrl7gEN));
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    return true;
+}
+
+bool Qmi8658Imu::readRaw(float accel[3], float gyro[3]) {
+    // Accel and gyro are contiguous (0x35..0x40), so one burst gets both.
+    uint8_t buf[12];
+    if (!regRead(kRegAccel, buf, sizeof buf)) return false;
+    for (int i = 0; i < 3; ++i) {
+        accel[i] = static_cast<float>(le16(&buf[i * 2])) * accel_scale_;
+        gyro[i] = static_cast<float>(le16(&buf[6 + i * 2])) * gyro_scale_ -
+                  bias_[i];
+    }
+    return true;
+}
+
+void Qmi8658Imu::setBias(const float b[3]) {
+    for (int i = 0; i < 3; ++i) bias_[i] = b[i];
+}
+
+void Qmi8658Imu::bias(float out[3]) const {
+    for (int i = 0; i < 3; ++i) out[i] = bias_[i];
+}
+
+bool Qmi8658Imu::calibrateBias(float bias_out[3], float spread_out[3]) {
+    BiasEstimator est;
+    est.reset();
+    // Measure the RAW gyro, so zero the running bias first -- calibrating on
+    // top of a previous calibration would converge on nothing.
+    const float saved[3] = {bias_[0], bias_[1], bias_[2]};
+    bias_[0] = bias_[1] = bias_[2] = 0.0f;
+
+    bool ok = true;
+    for (int i = 0; i < BiasEstimator::kSamples; ++i) {
+        float a[3], g[3];
+        if (!readRaw(a, g)) {
+            ok = false;
+            break;
+        }
+        est.accumulate(g);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+
+    if (!ok) {
+        for (int i = 0; i < 3; ++i) bias_[i] = saved[i];
+        return false;
+    }
+    est.bias(bias_out);
+    est.spread(spread_out);
+    setBias(bias_out);
+    return true;
+}
+
+bool Qmi8658Imu::read(Sample& out) {
+    if (!ready_) return false;
+
+    float accel_s[3], gyro_s[3];
+    if (!readRaw(accel_s, gyro_s)) return false;
+
+    // Sensor frame -> body frame. Everything downstream, the filter included,
+    // is body frame; this is the only place the mounting rotation appears.
+    float accel_b[3], gyro_b[3];
+    applyMount(mount_, accel_s, accel_b);
+    applyMount(mount_, gyro_s, gyro_b);
+
+    const uint64_t now = static_cast<uint64_t>(esp_timer_get_time());
+    float dt = static_cast<float>(now - last_us_) * 1e-6f;
+    last_us_ = now;
+    if (dt <= 0.0f || dt > 0.5f) dt = 0.02f;   // first tick, or a stall
+
+    // First valid sample sets the attitude outright; see Fusion::alignTo.
+    if (!aligned_) {
+        fusion_.alignTo(accel_b);
+        aligned_ = true;
+    }
+
+    if (use_ae_) {
+        float dq_s[4], dv_s[3];
+        requestMotionOnDemand();
+        if (readIncrement(dq_s, dv_s)) {
+            // Rotate the increment's vector part into the body frame; the
+            // scalar part is frame-independent.
+            float axis_b[3];
+            const float axis_s[3] = {dq_s[1], dq_s[2], dq_s[3]};
+            applyMount(mount_, axis_s, axis_b);
+            const float dq_b[4] = {dq_s[0], axis_b[0], axis_b[1], axis_b[2]};
+            fusion_.updateDeltaQuat(dq_b, accel_b);
+        } else {
+            fusion_.updateRate(gyro_b, accel_b, dt);
+        }
+    } else {
+        fusion_.updateRate(gyro_b, accel_b, dt);
+    }
+
+    fusion_.up(out.up);
+    // The obs wants an instantaneous body rate, which is what the sim's
+    // qvel[3:6] is -- so the gyro channel comes from the raw register even on
+    // the AE path, where dQ would only give the interval average.
+    for (int i = 0; i < 3; ++i) out.gyro[i] = gyro_b[i];
+    out.t_us = now;
+    out.valid = true;
+    return true;
+}
+
+}  // namespace imu

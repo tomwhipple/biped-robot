@@ -149,6 +149,17 @@ void ctrlTask(void*) {
                 g_primed = false;
                 g_shaper.invalidate();
             }
+            // Keep the attitude filter running while benched. It is a
+            // complementary filter with a ~2 s time constant, so it needs to
+            // have been watching gravity for a while before its output means
+            // anything -- and the instant `run` is typed, the very first tick
+            // feeds `up` to the policy. Letting the estimate converge only
+            // AFTER the robot is already walking is exactly backwards. The
+            // IMU is on its own I2C bus, so this touches nothing the CLI owns.
+            if (g_imu) {
+                imu::Sample warm{};
+                g_imu->read(warm);
+            }
             continue;
         }
         if (!g_ctrl_owns_bus.load()) {
@@ -173,8 +184,20 @@ void ctrlTask(void*) {
         const int64_t t_read0 = esp_timer_get_time();
         const uint16_t faults = readJoints(obs::kControlDt);
         const int64_t t_read1 = esp_timer_get_time();
-        imu::Sample s{};
-        if (g_imu) g_imu->read(s);
+        // read() == false means "no new report this tick"; the contract
+        // (imu/imu.h) is that the caller REUSES the previous sample. Holding
+        // it in a static and only overwriting on a successful read is that
+        // reuse -- a fresh `Sample{}` per tick would feed the policy
+        // up = (0,0,0), which reads as a torso in freefall on its side and is
+        // an observation training never produced. Harmless under StubImu
+        // (always true), live the moment a real driver lands.
+        static imu::Sample s_held{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, 0,
+                                  false};
+        if (g_imu) {
+            imu::Sample fresh{};
+            if (g_imu->read(fresh)) s_held = fresh;
+        }
+        const imu::Sample& s = s_held;
         const int64_t t_imu1 = esp_timer_get_time();
 
         // Pack voltage rides in on the servo feedback -- the board has no ADC

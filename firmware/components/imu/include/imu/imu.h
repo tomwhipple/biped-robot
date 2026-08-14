@@ -1,31 +1,50 @@
 // IMU interface + mounting-offset maths.
 //
-// The part (GY-BNO085, SH-2 sensor hub, I2C 0x4A/0x4B -- firmware-design
-// section 3) may not be in hand, so the interface is the deliverable and the
-// concrete drivers plug in behind it:
+// The part is the QMI8658C ON the General Driver board (I2C 0x6B on GPIO
+// 32/33 -- board.h), not the external GY-BNO085 breakout the earlier design
+// assumed. That swap matters more than a part number: the BNO085 was a
+// sensor HUB that fused on-chip and handed us a quaternion, and the QMI8658C
+// is raw, so the fusion runs here. See fusion.h.
 //
 //   StubImu     always level, zero rates -- lets the whole control loop, the
 //               obs assembler and the CLI be exercised with no part fitted
-//   Bno085Imu   SH-2 over I2C (v2 seam; see firmware/README.md)
+//   Qmi8658Imu  I2C + host-side fusion (qmi8658.h; ESP-only, needs a bus)
+//
+// The BNO085 remains the documented upgrade path onto header P1 -- 0x4A/0x4B
+// are reserved for it (docs/sensor-expansion.md) -- so this interface stays
+// the seam and neither driver is privileged.
 //
 // The mounting rotation is applied here rather than in the obs assembler
 // because it is a property of how the board is screwed to the torso, and the
 // Open Duck runtime does the same at deploy. It is pure maths, so it is
 // host-tested.
-//
-// One correction to docs/wiring.md: that doc says the IMU shares the ESP32's
-// I2C bus with the OLED, "GPIO 21 SDA / 22 SCL". The pins are right, but there
-// is no IMU on the Waveshare board -- the SSD1306 is the only device on that
-// bus and the BNO085 is an external breakout wired to the same two pins. Also
-// wiring.md still describes a BNO055 at 0x28; firmware-design section 3
-// supersedes it with the BNO085 at 0x4A/0x4B.
 #pragma once
 #include <stdint.h>
 
 namespace imu {
 
 struct Sample {
-    float up[3];        // torso up-vector in the BODY frame; (0,0,1) = upright
+    // The torso's OWN z-axis expressed in the WORLD frame -- the third COLUMN
+    // of the body->world rotation. Upright is (0,0,1).
+    //
+    // Read that twice: it is NOT gravity in the body frame. The two are
+    // transposes of each other and they are easy to confuse, because they
+    // agree at every upright pose and differ only once tilted -- under a pure
+    // roll they differ by the SIGN of the y component, so getting it backwards
+    // yields a robot that falls consistently to one side and a filter that
+    // looks correct on the bench.
+    //
+    // The authority is the sim, because the policy was trained on it:
+    // bimo_biped_v5body.xml declares <framezaxis objtype="site" objname="imu">
+    // and MuJoCo's framezaxis reports the frame's z-axis in the GLOBAL frame.
+    // Verified against MuJoCo directly, not read off the docs.
+    //
+    // Consequence, and it is a sharp one: this vector is YAW-DEPENDENT. Roll
+    // 20 deg gives (0, -0.342, 0.940); the same roll at yaw +90 deg gives
+    // (+0.342, 0, 0.940). Heading is not observable to a 6-axis IMU, so the
+    // fusion has to dead-reckon yaw and it will drift. fusion.h explains what
+    // that costs and what the yaw-invariant alternative would be.
+    float up[3];
     float gyro[3];      // rad/s, body frame
     uint64_t t_us;      // timestamp of the report
     bool valid;
@@ -40,9 +59,19 @@ struct Mount {
 // Rotate a body-frame-relative vector by the mounting quaternion.
 void applyMount(const Mount& m, const float in[3], float out[3]);
 
-// Gravity/up-vector from a rotation quaternion: the third row of R(q)^T, i.e.
-// the world +z axis expressed in the body frame.
+// `Sample::up` from a body->world rotation quaternion: the third COLUMN of
+// R(q), i.e. the body's z-axis expressed in the world frame. Matches MuJoCo's
+// framezaxis sensor. See the long note on Sample::up before touching this --
+// the transpose is a different vector and a silent, one-sided failure.
 void upFromQuaternion(float qw, float qx, float qy, float qz, float out[3]);
+
+// The yaw-INVARIANT alternative: the world +z axis expressed in the body
+// frame (the third ROW of R(q)) -- "projected gravity", what most locomotion
+// stacks feed their policies. Not what our sim currently emits, so it is not
+// what the deployed policy expects; provided so the swap is a one-line change
+// in the driver if the sim ever adopts it. See fusion.h.
+void projectedGravityFromQuaternion(float qw, float qx, float qy, float qz,
+                                    float out[3]);
 
 class Imu {
   public:

@@ -4,6 +4,7 @@
 // tools/gen_obs_spec.py). If anybody reorders the observation in the sim and
 // regenerates, this test is what goes red.
 #include "../main/asbuilt_cal.h"
+#include "../main/cal_store.h"
 #include "imu/imu.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
@@ -201,6 +202,42 @@ void testVelocityEstimator() {
     obs::Calibration cal;
     // 4096 steps/s is exactly one revolution per second.
     CHECK_NEAR(obs::stepsPerSecToRadPerSec(0, 4096, cal), 6.2831853, 1e-4);
+}
+
+// The IMU calibration blob is a SEPARATE NVS record from the servo one, and
+// it has to round-trip exactly: an uncalibrated gyro bias parks the attitude
+// estimate ~64 degrees off (cal_store.h), so a blob that silently fails to
+// load is not a small problem.
+void testImuCalBlob() {
+    const float bias[3] = {-0.45349f, 0.06721f, -0.00259f};
+    const float mount[4] = {0.70710678f, 0.0f, 0.70710678f, 0.0f};
+
+    robot::ImuCalBlob blob{};
+    robot::imuCalPack(bias, mount, blob);
+    CHECK(blob.magic == robot::kImuCalMagic);
+    CHECK(blob.version == robot::kImuCalVersion);
+
+    float b[3] = {0}, m[4] = {0};
+    CHECK(robot::imuCalUnpack(blob, b, m));
+    for (int i = 0; i < 3; ++i) CHECK_NEAR(b[i], bias[i], 1e-9);
+    for (int i = 0; i < 4; ++i) CHECK_NEAR(m[i], mount[i], 1e-9);
+
+    // A flipped bit anywhere must fail the CRC rather than load a plausible-
+    // looking wrong calibration.
+    robot::ImuCalBlob bad = blob;
+    bad.gyro_bias[0] = 99.0f;
+    CHECK(!robot::imuCalUnpack(bad, b, m));
+
+    bad = blob;
+    bad.magic ^= 1u;
+    CHECK(!robot::imuCalUnpack(bad, b, m));
+
+    // A zero quaternion passes CRC but is not a rotation -- reject it rather
+    // than normalise it into something plausible.
+    robot::ImuCalBlob zero{};
+    const float nomount[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    robot::imuCalPack(bias, nomount, zero);
+    CHECK(!robot::imuCalUnpack(zero, b, m));
 }
 
 void testImuMaths() {
@@ -473,6 +510,7 @@ int main() {
     testGoalSpeed();
     testImuMaths();
     testCalBlob();
+    testImuCalBlob();
     testStepsClamp();
     return testutil::report("obs");
 }

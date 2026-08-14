@@ -50,16 +50,39 @@ vendor snippets get ported into thin IDF components.
   SRAM, no PSRAM assumed**, single-precision HW FPU, dual LX6 cores.
 - Feetech STS3215 bus @ 1 Mbaud half-duplex on one UART (board has the
   direction circuitry).
-- **IMU: GY-BNO085 (Teyleten, Amazon B0CL26J81F)** — user decision
-  2026-07-22, replacing the earlier BNO055. Same on-chip fusion role but a
-  DIFFERENT protocol: **SH-2 sensor-hub** (not a register map), I2C addr
-  0x4A/0x4B @ 400 kHz, rotation-vector + calibrated-gyro reports at up to
-  400 Hz. Driver: CEVA's reference `sh2` C library (as wrapped by the
-  Adafruit BNO08x port) as an IDF component. Simpler fallback if SH-2
-  fights us: **UART-RVC mode** (fixed 100 Hz yaw/pitch/roll stream,
-  trivial parsing) — but it omits the gravity vector's full quaternion, so
-  SH-2 is the primary plan. Board outline/holes unverified until the part
-  arrives (carrier reprint expected — see cad/dimensions.py TODO).
+- **IMU: QMI8658C, on the General Driver board itself** — 2026-08-14,
+  superseding the external GY-BNO085 breakout (and the BNO055 before it).
+  No part to buy, no carrier to print, no wires: it is already on the
+  board's I²C bus at **0x6B, GPIO 32/33**, verified at 400 kHz alongside
+  the AK09918C (0x0C) and INA219 (0x42). *(Bench note: the BMP280 our own
+  notes place at 0x77 did NOT answer — it is not on this board revision.)*
+
+  **The consequence is real work, not a driver swap.** The BNO085 was a
+  sensor *hub* that fused on-chip and returned a quaternion; the QMI8658C
+  is raw. The fusion moves onto the ESP32 — `imu::Fusion`, a complementary
+  filter over accel + gyro, host-tested in `firmware/host/test_fusion.cpp`.
+
+  Two things that bite, both measured rather than assumed:
+
+  - **Gyro bias is not optional.** Untrimmed zero-rate offset on this part
+    is ~0.45 rad/s on x. Against the filter's 0.5/s correction gain that
+    settles at sin(e) = 0.9 — about **64° of steady-state attitude error**.
+    Bias is calibrated by `imu bias` and persisted to NVS; a boot without
+    it is reported, not silently tolerated.
+  - **The AttitudeEngine does not work on this silicon.** The part
+    advertises an on-chip 1 kHz coning/sculling-compensated quaternion
+    increment, which would have been strictly better than 50 Hz sampling.
+    Enabling it (CTRL7 sEN + CTRL6 sMoD, `CTRL_CMD_REQ_MoD`) leaves the
+    dQ/dV registers holding **static bytes that never change between
+    reads** and decode to |dQ| = 0.05 and dV = −25.7 m/s at rest. That is
+    uninitialised memory, not motion. Our datasheet copy is QST rev 0.6,
+    stamped ADVANCE INFORMATION, and the part reports revision 0x7C rather
+    than the documented 0x79. `imu ae` re-runs this check in one command.
+    The driver probes for AE at init and falls back to the raw path on its
+    own, so if a later part does support it, nothing else changes.
+
+  The BNO085 stays the documented upgrade path onto header P1 (0x4A/0x4B
+  are reserved for it) — a driver change plus one 4-wire cable, no CAD.
 - WiFi UDP for the command link (the protocol in control-channel.md).
 
 ## 4. The 20 ms tick budget (from wiring.md's analysis)
@@ -67,7 +90,7 @@ vendor snippets get ported into thin IDF components.
 | Step | Budget | **Measured 2026-07-26** | Notes |
 |---|---|---|---|
 | Sync-read servo positions | ~3.5 ms (8) / ~4.3 ms (10) | **2.80 ms** | one SYNC READ transaction + replies @1 Mbaud, 10 servos |
-| BNO085 read (SH-2 reports) | ~1.0 ms | *0.01 ms (stub)* | no IMU fitted yet — this line is still an estimate |
+| QMI8658C read + fusion | ~0.5 ms | **0.47 ms** | one 12-byte I²C burst @400 kHz plus a quaternion update. Measured 2026-08-14 over 50 reads (`imu`), first time this row has ever been anything but an estimate — nothing was fitted before |
 | Obs assembly + history push | ~0.1 ms | **0.02 ms** | pure math |
 | Policy inference | ~2–4 ms | **0.88 ms** | placeholder 147→32→32→20; see caveat below |
 | Sync-write targets | ~0.7 ms | **0.07 ms** | one SYNC WRITE, no replies |
@@ -164,10 +187,13 @@ graph LR
 - **bus/**: Feetech SCS protocol — SYNC WRITE targets, SYNC READ positions,
   torque enable/release register broadcast, per-servo error flags. Port of
   Waveshare's C++ library into an IDF component with our timing.
-- **imu/**: BNO085 via SH-2 (game-rotation-vector + calibrated gyro
-  reports), converted to the gravity vector + rates the obs needs;
-  mounting-offset rotation applied from calibration (the Open Duck runtime
-  applies a hand-measured mounting offset at deploy — plan for the same).
+- **imu/**: QMI8658C over I²C plus the attitude fusion the part does not
+  do for us. Split three ways on purpose: `imu.cpp` (frame maths) and
+  `fusion.cpp` (the complementary filter) are pure and host-tested;
+  `qmi8658_idf.cpp` is the only file with I²C in it. Mounting rotation and
+  gyro bias both come from NVS (`ImuCalBlob`) — on this robot the board
+  stands vertical and transverse in the pelvis recess, so the mount is a
+  ~90° rotation, not a trim.
 - **obs/**: byte-exact reimplementation of the simulator's `_obs()` frame
   (encoders, encoder-derived velocities, gravity vector, gyro, previous
   action, gait-clock sin/cos advanced on-board, command channels) + the

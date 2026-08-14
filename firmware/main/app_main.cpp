@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "esp_task_wdt.h"
 #include "imu/imu.h"
+#include "imu/qmi8658.h"
 #include "link_task.h"
 #include "nvs_flash.h"
 
@@ -39,9 +40,31 @@ IdfPort g_port(board::kServoUart, board::kServoTx, board::kServoRx,
                board::kServoBaud);
 scsbus::Bus g_bus_obj(g_port);
 
-// The BNO085 driver is a v2 seam (firmware/README.md). Until the part is in
-// hand and the SH-2 component lands, the stub keeps the whole loop runnable.
-imu::StubImu g_imu;
+// The real part is the QMI8658C on the board itself. The stub stays as the
+// fallback and is not vestigial: if the IMU does not answer -- unpopulated
+// bus, a wiring fault, a board revision that moved it -- the loop still runs
+// end to end reporting level and still, which is exactly what bench work
+// needs. What must NOT happen is a robot that boots believing a dead sensor,
+// so which one is live is logged at boot and reported by `stat`.
+imu::Qmi8658Imu g_qmi(imu::Qmi8658Imu::Config{
+    board::kI2cSda, board::kI2cScl, static_cast<uint32_t>(board::kI2cHz),
+    board::kImuAddr, true, 8, 1024});
+imu::StubImu g_stub;
+imu::Imu* g_imu = nullptr;
+}  // namespace
+
+bool g_imu_cal_from_nvs = false;
+
+namespace {
+
+}  // namespace
+
+// Exposed for the bring-up CLI; null while the loop is on the stub.
+imu::Qmi8658Imu* onboardImu() {
+    return (g_imu == static_cast<imu::Imu*>(&g_qmi)) ? &g_qmi : nullptr;
+}
+
+namespace {
 
 bool initHostUart() {
     uart_config_t cfg = {};
@@ -81,7 +104,28 @@ extern "C" void app_main(void) {
         return;
     }
     g_bus = &g_bus_obj;
-    g_imu.init();
+
+    const bool imu_ok = g_qmi.init();
+    g_imu = imu_ok ? static_cast<imu::Imu*>(&g_qmi)
+                   : static_cast<imu::Imu*>(&g_stub);
+    if (!imu_ok) g_stub.init();
+
+    // Gyro bias and the mounting rotation, both from NVS. Neither has a safe
+    // default: an uncalibrated bias parks the attitude estimate tens of
+    // degrees off (see cal_store.h), and an identity mount is only right if
+    // the board happens to lie flat, which on this robot it does not. So a
+    // missing blob is REPORTED, not papered over -- `imu` shows it too.
+    if (imu_ok) {
+        float bias[3] = {0.0f, 0.0f, 0.0f};
+        float mount[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+        g_imu_cal_from_nvs = imuCalLoad(bias, mount);
+        if (g_imu_cal_from_nvs) {
+            g_qmi.setBias(bias);
+            imu::Mount m;
+            m.w = mount[0]; m.x = mount[1]; m.y = mount[2]; m.z = mount[3];
+            g_qmi.setMount(m);
+        }
+    }
 
     // Restore servo calibration before anything can command a position. A
     // missing blob is the normal first-boot path -- defaults (zero 2048,
@@ -108,6 +152,8 @@ extern "C" void app_main(void) {
              cal_migrated ? "migrated v1 -> v2 (matched as-built table)"
                           : (g_cal_from_nvs ? "restored from NVS"
                                             : "DEFAULTS"));
+    ESP_LOGI(kTag, "imu: %s, cal %s", g_imu->name(),
+             g_imu_cal_from_nvs ? "from NVS" : "MISSING (run `imu bias`)");
     ESP_LOGI(kTag, "bus %d baud on GPIO %d/%d, %d joints, obs %d, policy %s",
              board::kServoBaud, static_cast<int>(board::kServoTx),
              static_cast<int>(board::kServoRx), obs::kNumJoints, obs::kObsDim,
@@ -116,5 +162,5 @@ extern "C" void app_main(void) {
 
     startLinkTask();
     startHousekeepingTask();
-    startCtrlTask(g_imu);
+    startCtrlTask(*g_imu);
 }
