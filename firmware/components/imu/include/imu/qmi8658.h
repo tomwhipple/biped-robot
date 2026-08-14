@@ -132,6 +132,9 @@ class Qmi8658Imu : public Imu {
     bool busInit();
     bool regRead(uint8_t reg, uint8_t* buf, size_t len);
     bool regWrite(uint8_t reg, uint8_t val);
+    // Sensor-frame read with NO bias subtraction. Only the bias calibration
+    // wants this; everything else must go through readRaw().
+    bool readRawUnbiased(float accel[3], float gyro[3]);
     bool configure();
     bool requestMotionOnDemand();
 

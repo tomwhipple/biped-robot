@@ -79,7 +79,10 @@ vendor snippets get ported into thin IDF components.
     heading drift, 29° over a 30 s run, with the tilt magnitude meanwhile
     rock steady. Recalibrating in place cut it to 0.07°/s (2.2° per 30 s).
     A drift of constant `up[2]` with a rotating horizontal component is the
-    signature; `imu` prints the drift estimate directly.
+    signature; `imu` prints the drift estimate directly. Measured end state
+    on the standing robot: **0.0038 over 30 s, which is the noise floor** —
+    it wobbles rather than creeping, so there is no systematic yaw error
+    left to speak of. That is ~100x better than the bench calibration.
   - **The AttitudeEngine does not work on this silicon.** The part
     advertises an on-chip 1 kHz coning/sculling-compensated quaternion
     increment, which would have been strictly better than 50 Hz sampling.

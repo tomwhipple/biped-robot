@@ -272,15 +272,20 @@ bool Qmi8658Imu::aeDiagnose(AeDiag& out) {
     return true;
 }
 
-bool Qmi8658Imu::readRaw(float accel[3], float gyro[3]) {
+bool Qmi8658Imu::readRawUnbiased(float accel[3], float gyro[3]) {
     // Accel and gyro are contiguous (0x35..0x40), so one burst gets both.
     uint8_t buf[12];
     if (!regRead(kRegAccel, buf, sizeof buf)) return false;
     for (int i = 0; i < 3; ++i) {
         accel[i] = static_cast<float>(le16(&buf[i * 2])) * accel_scale_;
-        gyro[i] = static_cast<float>(le16(&buf[6 + i * 2])) * gyro_scale_ -
-                  bias_[i];
+        gyro[i] = static_cast<float>(le16(&buf[6 + i * 2])) * gyro_scale_;
     }
+    return true;
+}
+
+bool Qmi8658Imu::readRaw(float accel[3], float gyro[3]) {
+    if (!readRawUnbiased(accel, gyro)) return false;
+    for (int i = 0; i < 3; ++i) gyro[i] -= bias_[i];
     return true;
 }
 
@@ -295,29 +300,34 @@ void Qmi8658Imu::bias(float out[3]) const {
 bool Qmi8658Imu::calibrateBias(float bias_out[3], float spread_out[3]) {
     BiasEstimator est;
     est.reset();
-    // Measure the RAW gyro, so zero the running bias first -- calibrating on
-    // top of a previous calibration would converge on nothing.
-    const float saved[3] = {bias_[0], bias_[1], bias_[2]};
-    bias_[0] = bias_[1] = bias_[2] = 0.0f;
 
+    // Read the gyro with no bias applied -- but WITHOUT zeroing bias_ to do
+    // it. An earlier version zeroed the member for the duration, which was a
+    // cross-task bug: the control task calls read() at 50 Hz throughout, so
+    // for the two seconds of calibration the fusion integrated a completely
+    // uncorrected gyro. At the ~0.44 rad/s this part actually offsets by,
+    // that is ~50 degrees of fictitious rotation injected into the attitude
+    // estimate -- which looked exactly like the robot slumping backwards, and
+    // was diagnosed as such twice before the numbers gave it away.
     bool ok = true;
     for (int i = 0; i < BiasEstimator::kSamples; ++i) {
         float a[3], g[3];
-        if (!readRaw(a, g)) {
+        if (!readRawUnbiased(a, g)) {
             ok = false;
             break;
         }
         est.accumulate(g);
         vTaskDelay(pdMS_TO_TICKS(20));
     }
+    if (!ok) return false;
 
-    if (!ok) {
-        for (int i = 0; i < 3; ++i) bias_[i] = saved[i];
-        return false;
-    }
     est.bias(bias_out);
     est.spread(spread_out);
     setBias(bias_out);
+
+    // The estimate accumulated under the OLD bias, so drop it and re-align
+    // from gravity rather than carrying that error forward.
+    realign();
     return true;
 }
 
