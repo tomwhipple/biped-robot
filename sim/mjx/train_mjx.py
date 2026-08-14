@@ -218,6 +218,14 @@ def main():
                         "clearance) at zero net translation. Expressed "
                         "through the existing 7 command channels; pair with "
                         "--w-knee-high to pay for the clearance")
+    p.add_argument("--w-mirror-loss", type=float, default=None,
+                   help="mirror-symmetry auxiliary loss weight: penalize "
+                        "|policy(mirror(obs)) - mirror(policy(obs))| on the "
+                        "pre-tanh action mean, using the physics-verified "
+                        "signed permutations in mirror.py (tests/"
+                        "test_mirror.py). The structural answer to the "
+                        "20-35%% gait asymmetry that w-symmetry reward "
+                        "pressure provably does not fix (2026-08-14)")
     p.add_argument("--clock-freeze-stand", action="store_true",
                    help="hold the gait-clock phase at a plain stand: the "
                         "sin/cos obs stop oscillating, removing the rhythmic "
@@ -511,6 +519,47 @@ def main():
     def save_ckpt(step, make_policy, params):
         with open(os.path.join(out, "params.pkl"), "wb") as f:
             pickle.dump(params, f)   # (normalizer, policy, value)
+
+    if args.w_mirror_loss:
+        # Symmetry regularization by monkeypatch: brax's train() resolves
+        # ppo_losses.compute_ppo_loss at call time, so wrapping the module
+        # attribute is a no-fork hook. The aux term pushes the POLICY
+        # FUNCTION toward left/right equivariance -- unlike the per-
+        # touchdown w_symmetry reward, it supplies gradient on every
+        # minibatch sample whether or not a foot lands. Mirrored obs are
+        # normalized with the unmirrored normalizer stats; those stats are
+        # near-symmetric and converge symmetric as the policy does, so the
+        # approximation self-corrects. loc is PRE-tanh: tanh is odd and
+        # elementwise, so mirroring commutes with the squash.
+        import mirror as mirror_mod
+        from brax.training.agents.ppo import losses as ppo_losses
+        operm, osign = mirror_mod.obs_perm_signs(
+            env.mj_model, ncmd=(7 if env.ext_cmd else 2),
+            hist_len=env.obs_hist_len)
+        aperm, asign = mirror_mod.action_perm_signs(env.mj_model)
+        operm_j = jp.asarray(operm); osign_j = jp.asarray(osign)
+        aperm_j = jp.asarray(aperm); asign_j = jp.asarray(asign)
+        w_mirror = float(args.w_mirror_loss)
+        _orig_ppo_loss = ppo_losses.compute_ppo_loss
+
+        def _mirror_ppo_loss(params, normalizer_params, data, rng,
+                             ppo_network, **kw):
+            loss, metrics = _orig_ppo_loss(params, normalizer_params, data,
+                                           rng, ppo_network=ppo_network, **kw)
+            obs = data.observation
+            apply = ppo_network.policy_network.apply
+            logits = apply(normalizer_params, params.policy, obs)
+            logits_m = apply(normalizer_params, params.policy,
+                             obs[..., operm_j] * osign_j)
+            na = logits.shape[-1] // 2          # (loc, raw_scale)
+            loc, loc_m = logits[..., :na], logits_m[..., :na]
+            sym = jp.mean((loc_m - loc[..., aperm_j] * asign_j) ** 2)
+            metrics = dict(metrics)
+            metrics["sym_loss"] = sym
+            return loss + w_mirror * sym, metrics
+
+        ppo_losses.compute_ppo_loss = _mirror_ppo_loss
+        print(f"mirror-symmetry loss armed (w={w_mirror})")
 
     restore = None
     if args.init_from:
