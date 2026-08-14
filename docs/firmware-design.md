@@ -69,6 +69,17 @@ vendor snippets get ported into thin IDF components.
     settles at sin(e) = 0.9 — about **64° of steady-state attitude error**.
     Bias is calibrated by `imu bias` and persisted to NVS; a boot without
     it is reported, not silently tolerated.
+
+    **Calibrate it on the robot, in the standing pose — not on the bench.**
+    Bias is orientation- and temperature-dependent, so it does not survive
+    being moved. Measured 2026-08-14: a calibration taken flat on a desk,
+    then bolted upright into the pelvis, was off by 0.0187 rad/s on the
+    sensor's y axis. The mount maps sensor y onto body z, so that landed
+    entirely in **yaw — the one axis gravity cannot correct** — as ~1°/s of
+    heading drift, 29° over a 30 s run, with the tilt magnitude meanwhile
+    rock steady. Recalibrating in place cut it to 0.07°/s (2.2° per 30 s).
+    A drift of constant `up[2]` with a rotating horizontal component is the
+    signature; `imu` prints the drift estimate directly.
   - **The AttitudeEngine does not work on this silicon.** The part
     advertises an on-chip 1 kHz coning/sculling-compensated quaternion
     increment, which would have been strictly better than 50 Hz sampling.

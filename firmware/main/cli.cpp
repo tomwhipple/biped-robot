@@ -677,7 +677,20 @@ void cmdImu(Sink out, int argc, char** argv) {
             out("busy: `bench` first -- bias calibration writes driver state\r\n");
             return;
         }
-        out("hold the robot STILL for 2 s...\r\n");
+        // Bias is orientation-dependent (MEMS g-sensitivity) and temperature-
+        // dependent, so it does NOT transfer from the bench to the robot.
+        // Measured on this board: calibrating flat on a desk and then bolting
+        // it upright into the pelvis left 0.0187 rad/s on the sensor's y --
+        // which the mount maps onto body z, i.e. straight into yaw, the one
+        // axis gravity cannot correct. That was ~1 deg/s of heading drift,
+        // 29 deg over a 30 s run. Recalibrating in place cut it to 0.07 deg/s.
+        const imu::Mount& cur = dev->mount();
+        if (cur.w == 1.0f && cur.x == 0.0f && cur.y == 0.0f && cur.z == 0.0f) {
+            out("  NOTE: mount is still identity. Bias does not survive being\r\n"
+                "  moved -- set the mount, then redo this in the robot's\r\n"
+                "  STANDING pose, or the yaw will drift.\r\n");
+        }
+        out("hold the robot STILL for 2 s, in the pose it will RUN in...\r\n");
         float b[3], s[3];
         if (!dev->calibrateBias(b, s)) { out("calibration failed\r\n"); return; }
         say(out, "bias  % .5f % .5f % .5f rad/s\r\n",
