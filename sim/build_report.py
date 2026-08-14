@@ -216,11 +216,14 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       <img class="film" src="{ghost_ab}" alt="Ghost composites of the standing hold, before and after the stillness work: the before is blurred by motion, the after is sharp">
       <figcaption>2026·08·13 · the shaking, fixed: 10 s stand ghost composites. v18b dithers (blur, 20.2 (rad/s)² joint motion, 40 W); v18d holds still (0.04 (rad/s)², 2.2 W standing — below the torque-off baseline). stand_10s 8/8, stand_off 8/8, falls 2%.</figcaption>
     </figure>
-    <p class="muted" style="font-size:14px;margin:10px 0 0">The cost of calm:
-    turn-180 and reversal latency regressed and gait asymmetry rose to 35% —
-    tonight's frozen-gait-clock run (v18e) attacks the root cause; then
-    mirror-symmetry augmentation, then AMP motion priors. Full story below
-    is the July log.</p>
+    <p class="muted" style="font-size:14px;margin:10px 0 0">2026·08·14, the
+    frozen-gait-clock runs (v18e/v18f): stillness kept (0.9 W, wobble 0.08
+    rad/s, torque-off stand 7/8) AND the cost of calm repaid — turn-180
+    8/8 at 4° heading error, sidesteps and rough ground 8/8. The recipe is
+    now trading scenarios against each other instead of accumulating
+    (returns/reversal dipped as turning recovered; overall flat at ~77/144),
+    so the next lever is structural: mirror-symmetry augmentation, then AMP
+    motion priors. Full story below is the July log.</p>
   </div>
 
   <h1>It walks. Ten seconds, and it can be told what to do.</h1>
