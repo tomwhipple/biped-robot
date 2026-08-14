@@ -592,6 +592,17 @@
     <pair geom1="L_col_thigh" geom2="R_col_shank"/>
     <pair geom1="L_col_shank" geom2="R_col_thigh"/>
     <pair geom1="L_col_shank" geom2="R_col_shank"/>
+    <!-- FOOT collision (2026-08-14). The v4rom inter-leg pass stopped at the
+         shanks and the feet were left mutually transparent; loco_v18f was
+         measured pivoting with the soles overlapping on 49% of turn steps,
+         up to 46 mm deep - i.e. the turn_180 score rode on feet that pass
+         through each other. Sole-vs-sole blocks that, sole-vs-opposite-
+         shank stops the swing foot sweeping through the standing shin.
+         <pair> ignores contype/conaffinity, so the soles stay out of every
+         automatic collision exactly as before. -->
+    <pair geom1="L_sole" geom2="R_sole"/>
+    <pair geom1="L_sole" geom2="R_col_shank"/>
+    <pair geom1="R_sole" geom2="L_col_shank"/>
   </contact>
 
   <sensor>
