@@ -736,6 +736,7 @@ void cmdImu(Sink out, int argc, char** argv) {
         imu::Mount m;
         m.w = q[0]; m.x = q[1]; m.y = q[2]; m.z = q[3];
         dev->setMount(m);
+        dev->realign();          // the old estimate was in the old body frame
         float bias[3];
         dev->bias(bias);
         if (robot::imuCalSave(bias, q)) {

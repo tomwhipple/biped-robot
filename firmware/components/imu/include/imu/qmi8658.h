@@ -115,6 +115,17 @@ class Qmi8658Imu : public Imu {
     };
     bool aeDiagnose(AeDiag& out);
 
+    // Drop the attitude estimate and re-align from the next sample. Required
+    // after ANY mount change: the filter's quaternion is expressed in the
+    // body frame, so re-defining sensor->body silently invalidates it. The
+    // estimate would eventually be dragged back by the gravity correction,
+    // but "eventually" is seconds of confidently wrong attitude and there is
+    // no reason to live through it.
+    void realign() {
+        fusion_.reset();
+        aligned_ = false;
+    }
+
     Fusion& fusion() { return fusion_; }
 
   private:
