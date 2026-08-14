@@ -5,6 +5,7 @@
 // jitter is microseconds rather than scheduler ticks.
 #include "ctrl_task.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "battguard/guard.h"
