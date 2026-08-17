@@ -196,8 +196,9 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·15</span></p>
-    <p><b>The gait is finally symmetric — and the feet stopped ghosting
-    through each other.</b> Two structural fixes landed overnight. First,
+    <p><b>Left/right symmetry fixed — but the walk still isn't smooth (see
+    the 08·17 verdict below). And the feet stopped ghosting through each
+    other.</b> Two structural fixes landed overnight. First,
     the plant had no left-foot/right-foot collision: on turns and sidesteps
     the soles interpenetrated on ~half of all steps, up to 46&nbsp;mm deep.
     Explicit sole/shank contact pairs plus a retrain
@@ -219,8 +220,18 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     </figure>
     <p class="muted" style="font-size:14px;margin:10px 0 0">The run was cut
     at the 07:00 curfew (50.8M of 70M steps), so the mirror loss hasn't
-    converged — sym_loss was still falling (0.010 → 0.008). Next: finish
-    the run, chase the stand_off regression, then AMP motion priors.</p>
+    converged — sym_loss was still falling (0.010 → 0.008).</p>
+    <p class="muted" style="font-size:14px;margin:10px 0 0"><b>2026·08·17
+    verdict (Tom): the forward walk still looks like limping — confirmed,
+    but it isn't left/right.</b> Per-leg probe at 0.35 m/s: step counts,
+    lengths, and swing times now match across sides (83/83 steps, 12.1 cm
+    both legs, no per-seed side bias). What's wrong is the <i>rhythm</i>:
+    step length 12&nbsp;±&nbsp;6 cm, touchdown phase 0.53&nbsp;±&nbsp;0.27
+    of the stride cycle, and long steps arrive in bursts (lag-1 autocorr
+    up to +0.57) — a surge-stall-surge cadence that reads as a limp. Same
+    root cause as metronome 0/8 and speed mae 0.30: the policy ignores its
+    own gait clock. Next lever: a contact-schedule reward (feet paid for
+    touching down on the clock's phase), then AMP motion priors.</p>
   </div>
 
   <div class="card accent">
