@@ -235,6 +235,16 @@ def main():
                    help="stand-gated joint-velocity penalty (-w*sum(dq^2) "
                         "while commanded to plain-stand): pays for stillness "
                         "itself, not just small corrections (2026-08-12)")
+    p.add_argument("--w-contact-sched", type=float, default=None,
+                   help="clock cadence enforcement: each foot earns +-w for "
+                        "matching the schedule's stance/swing flag (left "
+                        "swings on sin>0, duty band 0.4). w_feet_phase only "
+                        "shapes swing height; this pays for the TIMING -- "
+                        "the 2026-08-17 'limp' is surge-stall cadence, not "
+                        "left/right bias")
+    p.add_argument("--sched-duty", type=float, default=None,
+                   help="stance window edge in sin units for "
+                        "--w-contact-sched (default 0.4 ~= 63%% stance)")
     p.add_argument("--ext-mix", default=None,
                    help="override the ext_cmd command mix as 7 comma floats "
                         "(stand,crouch,balance,air-circle,pivot,march,sway; "
@@ -443,6 +453,10 @@ def main():
         env_kw["march_mix"] = args.march_mix
     if args.w_still is not None:
         env_kw["w_still"] = args.w_still
+    if args.w_contact_sched is not None:
+        env_kw["w_contact_sched"] = args.w_contact_sched
+    if args.sched_duty is not None:
+        env_kw["sched_duty"] = args.sched_duty
     if args.clock_freeze_stand:
         env_kw["clock_stand_freeze"] = True
     if args.ext_mix is not None:

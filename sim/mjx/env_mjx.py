@@ -161,6 +161,22 @@ def _quat_pitch(q):
     return jp.arcsin(jp.clip(2 * (qw * qy - qz * qx), -1.0, 1.0))
 
 
+def contact_schedule(gait_phase, duty):
+    """(2,) bool: scheduled STANCE flags (left, right) for a clock phase.
+
+    Same convention as the w_feet_phase swing targets and the firmware
+    clock: left swings on sin(phase) > 0, right on the opposite half.
+    Stance is scheduled while the foot's swing drive sin is below `duty`
+    (left: sin < duty; right: -sin < duty), so duty > 0 leaves a
+    double-support band around each crossing instead of demanding an
+    instantaneous flight-to-flight handoff. Module-level (not a method) so
+    tests can pin the convention -- including that a half-cycle phase
+    shift swaps the two feet, which the mirror map's phase entry relies
+    on."""
+    s = jp.sin(gait_phase)
+    return jp.stack([s < duty, -s < duty])
+
+
 def _terrain_patch(xml: str, spec: dict) -> str:
     """Replace the flat floor plane with the mosaic heightfield (same geom
     name 'floor' so friction handling is untouched). Mirrors the CPU env's
@@ -368,6 +384,16 @@ class BimoMJXEnv:
         # 0.5-0.8 m robots, scaled to our 0.34 m)
         feet_phase_s2: float = 0.004,   # kernel denominator (their 0.01
         # at swing 0.1 -> 0.004 at swing 0.06)
+        w_contact_sched: float = 0.0,   # +-w per foot for matching the
+        # clock's contact SCHEDULE (stance when sin is below sched_duty for
+        # the left, above -sched_duty for the right). w_feet_phase only
+        # shapes swing HEIGHT -- a policy can score on it while stepping
+        # off-rhythm (measured 2026-08-17: step length 12+-6 cm, touchdown
+        # phase sd 0.27 of the cycle, the "limp"). This term pays for the
+        # timing itself.
+        sched_duty: float = 0.4,    # stance window edge in sin units:
+        # stance scheduled while sin(phase) < duty -> ~63% stance / foot,
+        # leaving a double-support band at each crossing
         w_feet_slip: float = 0.0,   # -w * sum(|foot vel xy| * contact):
         # anti-skating (their -0.25)
         w_orientation: float = 0.0,  # -w * (up_x^2 + up_y^2): quadratic
@@ -687,6 +713,8 @@ class BimoMJXEnv:
         self.w_feet_phase = w_feet_phase
         self.swing_height = swing_height
         self.feet_phase_s2 = feet_phase_s2
+        self.w_contact_sched = w_contact_sched
+        self.sched_duty = sched_duty
         self.w_feet_slip = w_feet_slip
         self.w_orientation = w_orientation
         self.w_ang_vel_xy = w_ang_vel_xy
@@ -1790,6 +1818,16 @@ class BimoMJXEnv:
             r_phase = jp.exp(-((z_l - rz_l) ** 2 + (z_r - rz_r) ** 2)
                              / self.feet_phase_s2)
             reward += jp.where(cmd_moving, self.w_feet_phase * r_phase, 0.0)
+        if self.w_contact_sched:
+            # cadence enforcement: each foot earns +w on-schedule / -w
+            # off-schedule (sum shifted by -1 so all-matched pays +1w and
+            # all-wrong -1w per step in w units). Gated like the other
+            # gait shaping: moving commands only, so standing double
+            # support is never punished.
+            sched = contact_schedule(gait_phase, self.sched_duty)
+            match = jp.sum((sched == con).astype(jp.float32))
+            reward += jp.where(cmd_moving,
+                               self.w_contact_sched * (match - 1.0), 0.0)
         if self.w_feet_slip:
             v_l = data.cvel[self._foot_bids[0], 3:5]
             v_r = data.cvel[self._foot_bids[1], 3:5]
