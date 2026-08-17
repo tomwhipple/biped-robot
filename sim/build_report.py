@@ -80,6 +80,10 @@ getup12   = to_data_uri(strip_from_mov('runs/getup_v12/getup_v12.mov',
                                        1, 19, n=6, factor=6))
 ghost_ab  = to_data_uri(imageio.imread(
     'runs/loco_v18d_still/stand_ghost_ab.png')[..., :3][::2, ::2])
+v20_walk = to_data_uri(strip_from_mov('runs/loco_v20mirror/loco_v20mirror.mov',
+                                      2, 55, factor=5))
+v20_all  = to_data_uri(strip_from_mov('runs/loco_v20mirror/loco_v20mirror.mov',
+                                      60, 205, n=8, factor=5))
 
 n_runs = len([d for d in os.listdir('runs')
               if os.path.exists(os.path.join('runs', d, 'model.zip'))])
@@ -188,7 +192,36 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 </style>
 
 <div class="wrap">
-  <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·12</p>
+  <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·15</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·15</span></p>
+    <p><b>The gait is finally symmetric — and the feet stopped ghosting
+    through each other.</b> Two structural fixes landed overnight. First,
+    the plant had no left-foot/right-foot collision: on turns and sidesteps
+    the soles interpenetrated on ~half of all steps, up to 46&nbsp;mm deep.
+    Explicit sole/shank contact pairs plus a retrain
+    (<b>loco_v19feet_b</b>) closed the hole — the same probe now measures
+    ≤2% shallow-contact steps. Second, <b>loco_v20mirror</b> added a
+    mirror-symmetry loss on the policy itself (penalize
+    π(mirror(obs))&nbsp;≠&nbsp;mirror(π(obs)), the signed permutation
+    derived from the plant and pinned by physics tests): <b>gait asymmetry
+    fell 31% → 12%</b> — a number the per-touchdown swing penalty hadn't
+    moved in 110M+ steps — with power down 17.6 → 14.0&nbsp;W and 6/18
+    scenarios fully clean (best yet).</p>
+    <figure style="margin-top:14px">
+      <img class="film" src="{v20_walk}" alt="Filmstrip of the v20mirror policy walking the line, backward, and sidestep scenarios with a symmetric gait">
+      <figcaption>loco_v20mirror · walking block — backward 8/8 · sidestep 7/8 + 8/8 · rough 8/8 · square-return 8/8 (7 cm) · gait asym 12%</figcaption>
+    </figure>
+    <figure style="margin-top:14px">
+      <img class="film" src="{v20_all}" alt="Filmstrip across the later scenarios: turns, pushes, pursuit, drills">
+      <figcaption>…the hard block: pursuit 8/8 (gap 18 cm) · goal-home 7/8 (24 cm) · pushes/speed/drills still open · watch item: torque-off stand regressed 7/8 → 0/8 vs v19feet_b</figcaption>
+    </figure>
+    <p class="muted" style="font-size:14px;margin:10px 0 0">The run was cut
+    at the 07:00 curfew (50.8M of 70M steps), so the mirror loss hasn't
+    converged — sym_loss was still falling (0.010 → 0.008). Next: finish
+    the run, chase the stand_off regression, then AMP motion priors.</p>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·12</span></p>
