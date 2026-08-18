@@ -464,6 +464,19 @@
                    observes. Retarget it deliberately, not as a side effect. -->
               <geom name="L_sole" type="box" pos="0.010 0 -0.0140" size="0.045 0.023 0.004"
                     contype="0" conaffinity="0" group="3" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001" condim="4"/>
+              <!-- FULL-footprint inter-foot collision proxy (2026-08-18, user
+                   watched the v21sched stand takes: "feet drifting into an
+                   overlap state"). The L_sole/R_sole pair only guards the
+                   frozen 90 x 46 reference box; the as-built foot is
+                   116 x 52, so the real outlines (and the render) could
+                   interpenetrate ~3 mm per side laterally and ~14 mm at
+                   toe/heel with zero contact force. This box is the actual
+                   bounding footprint (x -52..+64, y +/-26). mass 0 and no
+                   contype/conaffinity: inertia, ground contact and every
+                   observed quantity are untouched -- it exists only for the
+                   explicit inter-foot <pair> entries. -->
+              <geom name="L_col_foot" type="box" pos="0.006 0 -0.012" size="0.058 0.026 0.006"
+                    contype="0" conaffinity="0" group="3" mass="0" friction="1 0.02 0.001" condim="4"/>
               <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
               <geom class="servo" type="box" pos="-0.0125 0.0013 0" size="0.02261 0.01605 0.01236"/>
             </body>
@@ -518,6 +531,8 @@
               <geom name="R_pad_tor" class="pad" pos="+0.050 -0.026 -0.015"/>
               <geom name="R_pad_tl" class="pad" pos="+0.064 +0.012 -0.015"/>
               <geom name="R_pad_tr" class="pad" pos="+0.064 -0.012 -0.015"/>
+              <geom name="R_col_foot" type="box" pos="0.006 0 -0.012" size="0.058 0.026 0.006"
+                    contype="0" conaffinity="0" group="3" mass="0" friction="1 0.02 0.001" condim="4"/>
               <geom name="R_sole" type="box" pos="0.010 0 -0.0140" size="0.045 0.023 0.004"
                     contype="0" conaffinity="0" group="3" mass="0.1104" rgba="0.20 0.21 0.24 1" friction="1 0.02 0.001" condim="4"/>
               <geom class="cadvis" mesh="foot" pos="0 0 -0.01636"/>
@@ -603,6 +618,13 @@
     <pair geom1="L_sole" geom2="R_sole"/>
     <pair geom1="L_sole" geom2="R_col_shank"/>
     <pair geom1="R_sole" geom2="L_col_shank"/>
+    <!-- full-footprint pair (2026-08-18): the sole boxes above are the frozen
+         90 x 46 reference; the col_foot boxes carry the real 116 x 52
+         outline, so standing feet stop visually merging (user report on the
+         v21sched reel). Kept in ADDITION to the sole pair -- redundant
+         contacts are cheap and the sole pair's behavior is already trained
+         against. -->
+    <pair geom1="L_col_foot" geom2="R_col_foot"/>
   </contact>
 
   <sensor>
