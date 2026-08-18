@@ -82,6 +82,8 @@ ghost_ab  = to_data_uri(imageio.imread(
     'runs/loco_v18d_still/stand_ghost_ab.png')[..., :3][::2, ::2])
 v20_walk = to_data_uri(strip_from_mov('runs/loco_v20mirror/loco_v20mirror.mov',
                                       2, 55, factor=5))
+v21_walk = to_data_uri(strip_from_mov('runs/loco_v21sched/loco_v21sched.mov',
+                                      2, 55, factor=5))
 v20_all  = to_data_uri(strip_from_mov('runs/loco_v20mirror/loco_v20mirror.mov',
                                       60, 205, n=8, factor=5))
 
@@ -232,6 +234,20 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     root cause as metronome 0/8 and speed mae 0.30: the policy ignores its
     own gait clock. Next lever: a contact-schedule reward (feet paid for
     touching down on the clock's phase), then AMP motion priors.</p>
+    <figure style="margin-top:14px">
+      <img class="film" src="{v21_walk}" alt="Filmstrip of the v21sched policy walking with an even, metronomic cadence">
+      <figcaption>loco_v21sched (2026·08·18) · the contact-schedule reward, one night in: cadence goes metronomic — 100% step alternation, stride period 637 ± 39 ms (CV 0.06 vs 0.21–0.30 before), step length 20 ± 3 cm (was 12 ± 6). The surge-stall limp is gone.</figcaption>
+    </figure>
+    <p class="muted" style="font-size:14px;margin:10px 0 0"><b>2026·08·18:
+    cadence fixed, steering dented.</b> The rhythm result above cost lane
+    keeping — line/backward pass rates fell to 2/8 and 0/8 purely on
+    lateral drift (0.21 m vs the 0.15 limit) and heading (18°), with zero
+    falls: the policy used to steer with off-schedule correction steps and
+    hasn't relearned steering inside the new rhythm in 45M steps. Tonight's
+    A/B, both warm from v21sched: plain continuation vs
+    <code>--w-heading 1.0</code> (integrated-heading kernel). stand_off is
+    also still regressed (1/8) — the deploy candidate remains v19feet_b
+    until this line recovers.</p>
   </div>
 
   <div class="card accent">
