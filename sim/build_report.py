@@ -257,12 +257,21 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     (stand_off 7/8, falls 1%, 8 scenarios clean) but paid with the crown
     jewel: alternation fell to 88%, stride CV back to 0.33 — at weight
     1.0 the integrated-heading kernel pushes the policy back into
-    off-schedule correction steps. v21sched_b is the line going forward;
-    tonight retries heading at 0.3. Remaining sore spots on the b-arm:
-    stand_off falls 8/8 (heading proves it's fixable) and metronome —
+    off-schedule correction steps. v21sched_b is the line going forward.
+    Remaining sore spots on the b-arm: stand_off falls 8/8 and metronome —
     which now tracks tempo (cadErr 2%, was the original failure) and
     fails only on wobble during changes. Both reels confirm the
-    full-footprint foot collision fix: standing feet stay separated.</p>
+    full-footprint foot collision fix: standing feet stay separated.
+    <b>stand_off diagnosed same day:</b> the pose-at-cut probe shows the
+    v21 line parks its standing CoM 26–28 mm aft of the midfoot point;
+    with torque released the ankle gravity moment (~0.60 Nm) beats the
+    servo backdrive friction (~0.35 Nm ≈ 16 mm of offset) and it topples
+    backward at ~6.5 s — policies standing at ≤18 mm survive, including
+    v21head. Nothing in the recipe shaped the double-support stand CoM
+    (w_com_stance is single-support only), so a stand-gated
+    CoM-over-midfoot kernel (<code>--w-stand-com</code>) now exists.
+    Tonight: v22fix (heading 0.3 + stand-com 1.0 — disjoint gates, so
+    scenario attribution stays clean) vs v21sched_c (plain control).</p>
   </div>
 
   <div class="card accent">

@@ -275,6 +275,11 @@ class BimoMJXEnv:
         # (-w * sum(dq^2) while commanded to plain-stand, upright, no lift):
         # pays for the ABSENCE of motion, not just small corrections
         # (user 2026-08-12, stand shaking)
+        w_stand_com: float = 0.0,   # stand-gated CoM-over-midfoot kernel:
+        # a passive (torque-off) stand only holds if the gravity moment at
+        # the ankles stays under the servos' backdrive friction, i.e. the
+        # CoM stays within ~16 mm of the support center
+        stand_com_sigma: float = 0.02,
         clock_stand_freeze: bool = False,   # hold the gait-clock phase at a
         # plain stand so the obs stop oscillating (see step(); 2026-08-12)
         w_pitch_hinge: float = 0.0,
@@ -660,6 +665,8 @@ class BimoMJXEnv:
         self.w_lateral = w_lateral
         self.w_pitch_rate = w_pitch_rate
         self.w_still = w_still
+        self.w_stand_com = w_stand_com
+        self.stand_com_sigma = stand_com_sigma
         self.clock_stand_freeze = clock_stand_freeze
         # torso-pitch MAGNITUDE hinge (mirrors walker_env): quadratic penalty
         # on |pitch| past a free deadband, pitch only (roll is untouched --
@@ -1936,6 +1943,25 @@ class BimoMJXEnv:
             reward -= (self.w_still
                        * jp.where(stand_gate, 1.0, 0.0)
                        * jp.sum(data.qvel[self._jv0:self._jv1] ** 2))
+        if self.w_stand_com:
+            # stand_off diagnosis 2026-08-19: the v21 line parks its standing
+            # CoM 26-28 mm AFT of the midfoot point; with torque released,
+            # ankle gravity moment (m*g*offset ~ 0.60 Nm at 28 mm) beats the
+            # STS3215 backdrive friction estimate (0.35 Nm ~ 16 mm) and the
+            # robot slowly topples. Policies at <= ~18 mm survive. Nothing
+            # shaped the double-support stand CoM (w_com_stance is
+            # single-support only) -- this kernel does, gated like w_still.
+            sc_gate = ((~cmd_moving)
+                       & (~lifted if self.ext_cmd else True)
+                       & (state.recovered > 0.5))
+            sc_mid = 0.5 * (data.geom_xpos[self._sole_gids[0]]
+                            + data.geom_xpos[self._sole_gids[1]])
+            sc_com = data.subtree_com[self._torso_bid]
+            sc_off2 = ((sc_com[0] - sc_mid[0]) ** 2
+                       + (sc_com[1] - sc_mid[1]) ** 2)
+            reward += (self.w_stand_com
+                       * jp.where(sc_gate, 1.0, 0.0)
+                       * jp.exp(-sc_off2 / self.stand_com_sigma ** 2))
         if self.w_pitch_hinge:  # upright torso: |pitch| past a free deadband
             pitch = _quat_pitch(data.qpos[3:7])
             excess = jp.maximum(jp.abs(pitch) - self._pitch_db, 0.0)

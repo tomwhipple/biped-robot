@@ -235,6 +235,12 @@ def main():
                    help="stand-gated joint-velocity penalty (-w*sum(dq^2) "
                         "while commanded to plain-stand): pays for stillness "
                         "itself, not just small corrections (2026-08-12)")
+    p.add_argument("--w-stand-com", type=float, default=None,
+                   help="stand-gated CoM-over-midfoot kernel: a torque-off "
+                        "stand only survives if the CoM stays within ~16 mm "
+                        "of the support center (backdrive friction 0.35 Nm); "
+                        "the v21 line stands 28 mm aft and topples "
+                        "(stand_off 0/8, 2026-08-19)")
     p.add_argument("--w-contact-sched", type=float, default=None,
                    help="clock cadence enforcement: each foot earns +-w for "
                         "matching the schedule's stance/swing flag (left "
@@ -453,6 +459,8 @@ def main():
         env_kw["march_mix"] = args.march_mix
     if args.w_still is not None:
         env_kw["w_still"] = args.w_still
+    if args.w_stand_com is not None:
+        env_kw["w_stand_com"] = args.w_stand_com
     if args.w_contact_sched is not None:
         env_kw["w_contact_sched"] = args.w_contact_sched
     if args.sched_duty is not None:
