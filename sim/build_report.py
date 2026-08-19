@@ -248,6 +248,21 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     <code>--w-heading 1.0</code> (integrated-heading kernel). stand_off is
     also still regressed (1/8) — the deploy candidate remains v19feet_b
     until this line recovers.</p>
+    <p class="muted" style="font-size:14px;margin:10px 0 0"><b>2026·08·19
+    A/B verdict: keep the rhythm, drop the heading kernel at 1.0.</b>
+    The plain continuation (v21sched_b, +35M) kept the metronomic gait
+    (100% alternation, stride CV 0.06) <i>and</i> re-learned steering
+    inside it — line 6/8, backward 7/8, turn 5/8, square 7/8, goal-home
+    7/8. The heading arm (v21head) recovered station-keeping brilliantly
+    (stand_off 7/8, falls 1%, 8 scenarios clean) but paid with the crown
+    jewel: alternation fell to 88%, stride CV back to 0.33 — at weight
+    1.0 the integrated-heading kernel pushes the policy back into
+    off-schedule correction steps. v21sched_b is the line going forward;
+    tonight retries heading at 0.3. Remaining sore spots on the b-arm:
+    stand_off falls 8/8 (heading proves it's fixable) and metronome —
+    which now tracks tempo (cadErr 2%, was the original failure) and
+    fails only on wobble during changes. Both reels confirm the
+    full-footprint foot collision fix: standing feet stay separated.</p>
   </div>
 
   <div class="card accent">
