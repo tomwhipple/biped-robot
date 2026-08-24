@@ -280,6 +280,12 @@ class BimoMJXEnv:
         # the ankles stays under the servos' backdrive friction, i.e. the
         # CoM stays within ~16 mm of the support center
         stand_com_sigma: float = 0.02,
+        w_stand_knee: float = 0.0,  # stand-gated knee-angle kernel: a dead-
+        # straight knee sag-collapses when torque is released (knee+ankle
+        # fold together, ~28 cm drift); a +0.10 rad bias from the same pose
+        # holds at ~5 cm (knee_lock_probe sweep, 2026-08-24)
+        stand_knee_target: float = 0.10,
+        stand_knee_sigma: float = 0.06,
         clock_stand_freeze: bool = False,   # hold the gait-clock phase at a
         # plain stand so the obs stop oscillating (see step(); 2026-08-12)
         w_pitch_hinge: float = 0.0,
@@ -667,6 +673,9 @@ class BimoMJXEnv:
         self.w_still = w_still
         self.w_stand_com = w_stand_com
         self.stand_com_sigma = stand_com_sigma
+        self.w_stand_knee = w_stand_knee
+        self.stand_knee_target = stand_knee_target
+        self.stand_knee_sigma = stand_knee_sigma
         self.clock_stand_freeze = clock_stand_freeze
         # torso-pitch MAGNITUDE hinge (mirrors walker_env): quadratic penalty
         # on |pitch| past a free deadband, pitch only (roll is untouched --
@@ -1962,6 +1971,23 @@ class BimoMJXEnv:
             reward += (self.w_stand_com
                        * jp.where(sc_gate, 1.0, 0.0)
                        * jp.exp(-sc_off2 / self.stand_com_sigma ** 2))
+        if self.w_stand_knee:
+            # centering the CoM (w_stand_com) fixed the rigid backward
+            # topple but exposed a second failure: from a dead-straight
+            # knee the torque-off stand SAG-collapses (knees and ankles
+            # fold together ~1.3 deg/s; v22fix stand_off 3/8). The pure-
+            # physics sweep from v22fix's own cut pose says a +0.10 rad
+            # knee bias flips it to a ~5 cm hold; the opposite direction
+            # falls backward. Same gate as w_stand_com.
+            sk_gate = ((~cmd_moving)
+                       & (~lifted if self.ext_cmd else True)
+                       & (state.recovered > 0.5))
+            sk_q = data.qpos[self._jq0:self._jq1][self._i_knee]
+            sk_kern = jp.mean(jp.exp(
+                -((sk_q - self.stand_knee_target)
+                  / self.stand_knee_sigma) ** 2))
+            reward += (self.w_stand_knee
+                       * jp.where(sk_gate, 1.0, 0.0) * sk_kern)
         if self.w_pitch_hinge:  # upright torso: |pitch| past a free deadband
             pitch = _quat_pitch(data.qpos[3:7])
             excess = jp.maximum(jp.abs(pitch) - self._pitch_db, 0.0)

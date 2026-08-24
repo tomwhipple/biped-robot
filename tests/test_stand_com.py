@@ -61,3 +61,21 @@ def test_gated_off_while_moving():
     r0 = float(e0.step(e0.reset(jax.random.PRNGKey(2)), a).reward)
     r1 = float(e1.step(e1.reset(jax.random.PRNGKey(2)), a).reward)
     assert abs(r1 - r0) < 1e-5
+
+
+def test_stand_knee_threads_and_gates():
+    """w_stand_knee: threads, pays while standing, silent while moving."""
+    stand = (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.02)
+    move = (0.4, 0.0, 0.0, 1.0, 0.0, 0.0, 0.02)
+    e0 = _env(w_stand_knee=0.0, cmd_fixed=stand)
+    e1 = _env(w_stand_knee=5.0, cmd_fixed=stand)
+    assert e1.w_stand_knee == 5.0 and e1.stand_knee_target == 0.10
+    a = jp.zeros(e0.action_size)
+    r0 = float(e0.step(e0.reset(jax.random.PRNGKey(3)), a).reward)
+    r1 = float(e1.step(e1.reset(jax.random.PRNGKey(3)), a).reward)
+    assert 0.0 < (r1 - r0) <= 5.0 + 1e-5, r1 - r0
+    m0 = _env(w_stand_knee=0.0, cmd_fixed=move)
+    m1 = _env(w_stand_knee=5.0, cmd_fixed=move)
+    rm0 = float(m0.step(m0.reset(jax.random.PRNGKey(4)), a).reward)
+    rm1 = float(m1.step(m1.reset(jax.random.PRNGKey(4)), a).reward)
+    assert abs(rm1 - rm0) < 1e-5

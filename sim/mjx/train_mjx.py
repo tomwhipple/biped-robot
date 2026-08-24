@@ -241,6 +241,11 @@ def main():
                         "of the support center (backdrive friction 0.35 Nm); "
                         "the v21 line stands 28 mm aft and topples "
                         "(stand_off 0/8, 2026-08-19)")
+    p.add_argument("--w-stand-knee", type=float, default=None,
+                   help="stand-gated knee-angle kernel toward +0.10 rad: a "
+                        "dead-straight knee sag-collapses under torque-off "
+                        "(knee+ankle fold together); the physics sweep says "
+                        "a slight bias holds at ~5 cm (2026-08-24)")
     p.add_argument("--w-contact-sched", type=float, default=None,
                    help="clock cadence enforcement: each foot earns +-w for "
                         "matching the schedule's stance/swing flag (left "
@@ -461,6 +466,8 @@ def main():
         env_kw["w_still"] = args.w_still
     if args.w_stand_com is not None:
         env_kw["w_stand_com"] = args.w_stand_com
+    if args.w_stand_knee is not None:
+        env_kw["w_stand_knee"] = args.w_stand_knee
     if args.w_contact_sched is not None:
         env_kw["w_contact_sched"] = args.w_contact_sched
     if args.sched_duty is not None:

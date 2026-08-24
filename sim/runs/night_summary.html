@@ -173,6 +173,27 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     CoM-over-midfoot kernel (<code>--w-stand-com</code>) now exists.
     Tonight: v22fix (heading 0.3 + stand-com 1.0 — disjoint gates, so
     scenario attribution stays clean) vs v21sched_c (plain control).</p>
+    <p class="muted" style="font-size:14px;margin:10px 0 0"><b>2026·08·24:
+    v22fix is the new line — and the passive stand has a second, subtler
+    failure.</b> The 08·19 A/B: v22fix (heading 0.3 + stand-com 1.0) kept
+    the metronome perfectly (100% alternation, stride CV 0.06 — heading at
+    0.3 is rhythm-safe where 1.0 wasn't) and the stand-com kernel did
+    exactly its job: standing CoM went from 28 mm aft to 1–6 mm. Falls 4%,
+    square/goal-home 8/8. The plain control (v21sched_c) meanwhile
+    <i>decayed</i> — rhythm slipped to 95%/CV 0.20 and the card fell to
+    58/144, so the shaping terms aren't just scaffolding, they hold the
+    behavior up. But stand_off only reached 3/8: with the CoM centered,
+    the per-joint probe shows the remaining failure is a slow
+    <i>sag-collapse</i> — knees and ankles fold together ~1.3°/s from a
+    dead-straight leg. A pure-physics sweep from v22fix's own stand pose
+    found the fix: a +0.10 rad knee bias flips the release from a 28 cm
+    collapse to a 5 cm hold (the opposite bias falls backward). That's now
+    <code>--w-stand-knee</code>; tonight: v23knee (+knee bias) vs
+    v22fix_b (plain control, also watching whether turn_180 — currently
+    under-rotating by 25° with zero falls in both arms — recovers with
+    time). Note for the hardware session: stand_off passivity rests on
+    the 0.35 Nm backdrive-friction estimate — it's the cheapest, safest
+    scenario to validate sim-vs-real first.</p>
   </div>
 
   <div class="card accent">
