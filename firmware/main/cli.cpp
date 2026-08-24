@@ -14,6 +14,7 @@
 #include "cal_store.h"
 #include "mech_envelope.h"
 #include "shared.h"
+#include "wifi_link.h"
 
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -880,6 +881,77 @@ void cmdImu(Sink out, int argc, char** argv) {
         static_cast<double>(t1 - t0) / (kN * 1000.0), kN);
 }
 
+// -- wifi ------------------------------------------------------------------
+//
+// Provisioning and status for the UDP link (wifi_link.h). Credential writes
+// are bench-only for the same reason `cal save` is: an NVS commit is a flash
+// write, a flash write stalls both cores' cache, and a stalled control tick
+// past 2x budget trips the torque release.
+void cmdWifi(Sink out, int argc, char** argv) {
+    if (argc >= 2 && !strcmp(argv[1], "clear")) {
+        if (robot::g_mode_request.load() != robot::Mode::kBench) {
+            out("busy: NVS writes stall the control tick -- `bench` first\r\n");
+            return;
+        }
+        say(out, "%s\r\n", robot::wifiCredsErase()
+                               ? "credentials erased (radio stays up until "
+                                 "reboot)"
+                               : "erase failed");
+        return;
+    }
+    if (argc >= 3) {
+        if (robot::g_mode_request.load() != robot::Mode::kBench) {
+            out("busy: NVS writes stall the control tick -- `bench` first\r\n");
+            return;
+        }
+        if (!robot::wifiCredsSave(argv[1], argv[2])) {
+            out("NVS save failed\r\n");
+            return;
+        }
+        say(out, "saved; joining `%s` ...\r\n", argv[1]);
+        if (!robot::wifiApply(argv[1], argv[2])) {
+            out("driver not up -- credentials stored, reboot to join\r\n");
+        }
+        return;
+    }
+    if (argc >= 2) {
+        out("usage: wifi | wifi <ssid> <psk> | wifi clear   (no spaces in "
+            "either)\r\n");
+        return;
+    }
+
+    robot::WifiStatus w;
+    robot::wifiGetStatus(w);
+    if (!w.driver_up) { out("wifi: driver not up (init failed at boot)\r\n"); return; }
+    if (!w.have_creds) {
+        out("wifi: no credentials -- `wifi <ssid> <psk>` (bench mode)\r\n");
+        return;
+    }
+    say(out, "wifi: %s `%s`", w.connected ? "CONNECTED to" : "joining", w.ssid);
+    if (w.connected) {
+        say(out, "  ip %lu.%lu.%lu.%lu  rssi %d dBm",
+            static_cast<unsigned long>((w.ip >> 24) & 0xFF),
+            static_cast<unsigned long>((w.ip >> 16) & 0xFF),
+            static_cast<unsigned long>((w.ip >> 8) & 0xFF),
+            static_cast<unsigned long>(w.ip & 0xFF), w.rssi);
+    }
+    out("\r\n");
+    say(out, "  cmd rx %lu  bad %lu  tlm tx %lu  disconnects %lu\r\n",
+        static_cast<unsigned long>(w.rx_frames),
+        static_cast<unsigned long>(w.rx_bad),
+        static_cast<unsigned long>(w.tx_tlm),
+        static_cast<unsigned long>(w.disconnects));
+    if (w.peer_ip) {
+        say(out, "  commander %lu.%lu.%lu.%lu\r\n",
+            static_cast<unsigned long>((w.peer_ip >> 24) & 0xFF),
+            static_cast<unsigned long>((w.peer_ip >> 16) & 0xFF),
+            static_cast<unsigned long>((w.peer_ip >> 8) & 0xFF),
+            static_cast<unsigned long>(w.peer_ip & 0xFF));
+    } else {
+        out("  commander: none yet (nothing received on 4210)\r\n");
+    }
+}
+
 void banner(Sink out) {
     out("\r\nbimo firmware v1 -- bench mode (nothing moves until `run`)\r\n");
     out("  scan                 ping IDs 0-253, report position/voltage/faults\r\n");
@@ -896,6 +968,7 @@ void banner(Sink out) {
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  imu [scan|raw [n]|bias|mount|forget]   on-board QMI8658C (NVS)\r\n");
+    out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  stat                 tick timing and fault counters\r\n");
 }
 
@@ -926,6 +999,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "bench")) cmdMode(out, false);
     else if (!strcmp(c, "cal")) cmdCal(out, argc, argv);
     else if (!strcmp(c, "imu")) cmdImu(out, argc, argv);
+    else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);
     else out("? (try `help`)\r\n");
 }

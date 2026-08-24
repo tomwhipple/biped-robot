@@ -206,6 +206,9 @@ therefore *not* visible as a slump in a clean sim render. Verify it by torque
 
 ## Porting to firmware
 
+*Ported 2026-08-24: `firmware/main/wifi_link.cpp` carries this protocol over
+station-mode WiFi, verified two-way against mira with `link/verify_udp.py`.*
+
 The C side is a transcription of a debugged module, not a design job.
 
 1. `crc16_ccitt`, `encode/decode_command` — direct ports. Check against

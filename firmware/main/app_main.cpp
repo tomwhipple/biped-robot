@@ -21,6 +21,7 @@
 #include "policy/mlp.h"
 #include "scs_port_idf.h"
 #include "shared.h"
+#include "wifi_link.h"
 
 namespace robot {
 
@@ -158,9 +159,21 @@ extern "C" void app_main(void) {
              board::kServoBaud, static_cast<int>(board::kServoTx),
              static_cast<int>(board::kServoRx), obs::kNumJoints, obs::kObsDim,
              policy::kWeightsArePlaceholder ? "PLACEHOLDER" : obs::kRunName);
+    startLinkTask();
+
+    // After startLinkTask (the mailbox must exist), before the log silence
+    // (so a driver-init failure is visible on the tether). Association and
+    // DHCP finish asynchronously; `wifi` reports the result.
+    {
+        char ssid[33], psk[65];
+        const bool creds = wifiCredsLoad(ssid, sizeof ssid, psk, sizeof psk);
+        ESP_LOGI(kTag, "wifi: %s%s",
+                 creds ? "joining " : "no credentials (`wifi <ssid> <psk>`)",
+                 creds ? ssid : "");
+    }
+    startWifiLink();
     esp_log_level_set("*", ESP_LOG_NONE);
 
-    startLinkTask();
     startHousekeepingTask();
     startCtrlTask(*g_imu);
 }

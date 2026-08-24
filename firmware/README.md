@@ -176,9 +176,14 @@ Handover is one-way through the ctrl task: it releases torque and clears
    **mount quaternion**: the mechanism, NVS record and `imu mount` command
    all exist, but the value is still identity because it can only be
    measured with the board bolted into the pelvis.
-2. **WiFi/UDP.** v1 carries the protocol over UART0 only. The framing is
-   identical over both transports by design, so the UDP socket is a second
-   producer into the same mailbox, not a second protocol.
+2. ~~**WiFi/UDP.**~~ **Done, 2026-08-24.** `main/wifi_link.cpp`: station
+   mode, UDP command frames on 4210 into the same mailbox, 10 Hz telemetry
+   back to the last commander on 4211 (not gated on `run`, unlike the UART
+   path -- there is no CLI text to interleave with, and it makes the link
+   verifiable while benched, reported as RELAX). Credentials live in NVS,
+   never in git: `wifi <ssid> <psk>` over the tether, bench-only because an
+   NVS commit stalls the control tick. Verified two-way from mira with
+   `link/verify_udp.py` (disabled stand frames -- no motion).
 3. **Calibration persistence.** `obs::Calibration` exists and is used
    everywhere; loading and storing it in NVS (and a guided zeroing flow) is not
    written. Defaults are zero = 2048 ticks, direction +1.
