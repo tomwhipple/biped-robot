@@ -194,13 +194,102 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 </style>
 
 <div class="wrap">
-  <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·15</p>
+  <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·24</span></p>
+    <p><b>v22fix is the new line — and the passive stand has a second,
+    subtler failure.</b> The 08·19 A/B: v22fix (heading 0.3 + stand-com
+    1.0) kept the metronome perfectly (100% alternation, stride CV 0.06 —
+    heading at 0.3 is rhythm-safe where 1.0 wasn't) and the stand-com
+    kernel did exactly its job: standing CoM went from 28 mm aft to
+    1–6 mm. Falls 4%, square/goal-home 8/8. The plain control
+    (v21sched_c) meanwhile <i>decayed</i> — rhythm slipped to 95%/CV 0.20
+    and the card fell to 58/144, so the shaping terms aren't just
+    scaffolding, they hold the behavior up. But stand_off only reached
+    3/8: with the CoM centered, the per-joint probe shows the remaining
+    failure is a slow <i>sag-collapse</i> — knees and ankles fold
+    together ~1.3°/s from a dead-straight leg. A pure-physics sweep from
+    v22fix's own stand pose found the fix: a +0.10 rad knee bias flips
+    the release from a 28 cm collapse to a 5 cm hold (the opposite bias
+    falls backward). That's now <code>--w-stand-knee</code>; tonight:
+    v23knee (+knee bias) vs v22fix_b (plain control, also watching
+    whether turn_180 — currently under-rotating by 25° with zero falls in
+    both arms — recovers with time). Note for the hardware session:
+    stand_off passivity rests on the 0.35 Nm backdrive-friction estimate
+    — it's the cheapest, safest scenario to validate sim-vs-real
+    first.</p>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·19</span></p>
+    <p><b>A/B verdict: keep the rhythm, drop the heading kernel at
+    1.0.</b> The plain continuation (v21sched_b, +35M) kept the
+    metronomic gait (100% alternation, stride CV 0.06) <i>and</i>
+    re-learned steering inside it — line 6/8, backward 7/8, turn 5/8,
+    square 7/8, goal-home 7/8. The heading arm (v21head) recovered
+    station-keeping brilliantly (stand_off 7/8, falls 1%, 8 scenarios
+    clean) but paid with the crown jewel: alternation fell to 88%, stride
+    CV back to 0.33 — at weight 1.0 the integrated-heading kernel pushes
+    the policy back into off-schedule correction steps. v21sched_b is the
+    line going forward. Remaining sore spots on the b-arm: stand_off
+    falls 8/8 and metronome — which now tracks tempo (cadErr 2%, was the
+    original failure) and fails only on wobble during changes. Both reels
+    confirm the full-footprint foot collision fix: standing feet stay
+    separated. <b>stand_off diagnosed same day:</b> the pose-at-cut probe
+    shows the v21 line parks its standing CoM 26–28 mm aft of the midfoot
+    point; with torque released the ankle gravity moment (~0.60 Nm) beats
+    the servo backdrive friction (~0.35 Nm ≈ 16 mm of offset) and it
+    topples backward at ~6.5 s — policies standing at ≤18 mm survive,
+    including v21head. Nothing in the recipe shaped the double-support
+    stand CoM (w_com_stance is single-support only), so a stand-gated
+    CoM-over-midfoot kernel (<code>--w-stand-com</code>) now exists.
+    Tonight: v22fix (heading 0.3 + stand-com 1.0 — disjoint gates, so
+    scenario attribution stays clean) vs v21sched_c (plain control).</p>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·18</span></p>
+    <p><b>Cadence fixed — the limp is gone. Cost: steering.</b> The
+    contact-schedule reward, one night in (loco_v21sched): cadence goes
+    metronomic — 100% step alternation, stride period 637 ± 39 ms
+    (CV 0.06 vs 0.21–0.30 before), step length 20 ± 3 cm (was
+    12 ± 6).</p>
+    <figure style="margin-top:14px">
+      <img class="film" src="{v21_walk}" alt="Filmstrip of the v21sched policy walking with an even, metronomic cadence">
+      <figcaption>loco_v21sched · the contact-schedule reward: the surge-stall limp is gone.</figcaption>
+    </figure>
+    <p class="muted" style="font-size:14px;margin:10px 0 0">The rhythm
+    result cost lane keeping — line/backward pass rates fell to 2/8 and
+    0/8 purely on lateral drift (0.21 m vs the 0.15 limit) and heading
+    (18°), with zero falls: the policy used to steer with off-schedule
+    correction steps and hasn't relearned steering inside the new rhythm
+    in 45M steps. Tonight's A/B, both warm from v21sched: plain
+    continuation vs <code>--w-heading 1.0</code> (integrated-heading
+    kernel). stand_off is also still regressed (1/8) — the deploy
+    candidate remains v19feet_b until this line recovers.</p>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·17</span></p>
+    <p><b>Verdict (Tom): the forward walk still looks like limping —
+    confirmed, but it isn't left/right.</b> Per-leg probe at 0.35 m/s:
+    step counts, lengths, and swing times now match across sides (83/83
+    steps, 12.1 cm both legs, no per-seed side bias). What's wrong is the
+    <i>rhythm</i>: step length 12&nbsp;±&nbsp;6 cm, touchdown phase
+    0.53&nbsp;±&nbsp;0.27 of the stride cycle, and long steps arrive in
+    bursts (lag-1 autocorr up to +0.57) — a surge-stall-surge cadence
+    that reads as a limp. Same root cause as metronome 0/8 and speed mae
+    0.30: the policy ignores its own gait clock. Next lever: a
+    contact-schedule reward (feet paid for touching down on the clock's
+    phase), then AMP motion priors.</p>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·15</span></p>
-    <p><b>Left/right symmetry fixed — but the walk still isn't smooth (see
-    the 08·17 verdict below). And the feet stopped ghosting through each
-    other.</b> Two structural fixes landed overnight. First,
+    <p><b>Left/right symmetry fixed — but the walk still isn't smooth
+    (see the 08·17 verdict above). And the feet stopped ghosting through
+    each other.</b> Two structural fixes landed overnight. First,
     the plant had no left-foot/right-foot collision: on turns and sidesteps
     the soles interpenetrated on ~half of all steps, up to 46&nbsp;mm deep.
     Explicit sole/shank contact pairs plus a retrain
@@ -223,76 +312,6 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     <p class="muted" style="font-size:14px;margin:10px 0 0">The run was cut
     at the 07:00 curfew (50.8M of 70M steps), so the mirror loss hasn't
     converged — sym_loss was still falling (0.010 → 0.008).</p>
-    <p class="muted" style="font-size:14px;margin:10px 0 0"><b>2026·08·17
-    verdict (Tom): the forward walk still looks like limping — confirmed,
-    but it isn't left/right.</b> Per-leg probe at 0.35 m/s: step counts,
-    lengths, and swing times now match across sides (83/83 steps, 12.1 cm
-    both legs, no per-seed side bias). What's wrong is the <i>rhythm</i>:
-    step length 12&nbsp;±&nbsp;6 cm, touchdown phase 0.53&nbsp;±&nbsp;0.27
-    of the stride cycle, and long steps arrive in bursts (lag-1 autocorr
-    up to +0.57) — a surge-stall-surge cadence that reads as a limp. Same
-    root cause as metronome 0/8 and speed mae 0.30: the policy ignores its
-    own gait clock. Next lever: a contact-schedule reward (feet paid for
-    touching down on the clock's phase), then AMP motion priors.</p>
-    <figure style="margin-top:14px">
-      <img class="film" src="{v21_walk}" alt="Filmstrip of the v21sched policy walking with an even, metronomic cadence">
-      <figcaption>loco_v21sched (2026·08·18) · the contact-schedule reward, one night in: cadence goes metronomic — 100% step alternation, stride period 637 ± 39 ms (CV 0.06 vs 0.21–0.30 before), step length 20 ± 3 cm (was 12 ± 6). The surge-stall limp is gone.</figcaption>
-    </figure>
-    <p class="muted" style="font-size:14px;margin:10px 0 0"><b>2026·08·18:
-    cadence fixed, steering dented.</b> The rhythm result above cost lane
-    keeping — line/backward pass rates fell to 2/8 and 0/8 purely on
-    lateral drift (0.21 m vs the 0.15 limit) and heading (18°), with zero
-    falls: the policy used to steer with off-schedule correction steps and
-    hasn't relearned steering inside the new rhythm in 45M steps. Tonight's
-    A/B, both warm from v21sched: plain continuation vs
-    <code>--w-heading 1.0</code> (integrated-heading kernel). stand_off is
-    also still regressed (1/8) — the deploy candidate remains v19feet_b
-    until this line recovers.</p>
-    <p class="muted" style="font-size:14px;margin:10px 0 0"><b>2026·08·19
-    A/B verdict: keep the rhythm, drop the heading kernel at 1.0.</b>
-    The plain continuation (v21sched_b, +35M) kept the metronomic gait
-    (100% alternation, stride CV 0.06) <i>and</i> re-learned steering
-    inside it — line 6/8, backward 7/8, turn 5/8, square 7/8, goal-home
-    7/8. The heading arm (v21head) recovered station-keeping brilliantly
-    (stand_off 7/8, falls 1%, 8 scenarios clean) but paid with the crown
-    jewel: alternation fell to 88%, stride CV back to 0.33 — at weight
-    1.0 the integrated-heading kernel pushes the policy back into
-    off-schedule correction steps. v21sched_b is the line going forward.
-    Remaining sore spots on the b-arm: stand_off falls 8/8 and metronome —
-    which now tracks tempo (cadErr 2%, was the original failure) and
-    fails only on wobble during changes. Both reels confirm the
-    full-footprint foot collision fix: standing feet stay separated.
-    <b>stand_off diagnosed same day:</b> the pose-at-cut probe shows the
-    v21 line parks its standing CoM 26–28 mm aft of the midfoot point;
-    with torque released the ankle gravity moment (~0.60 Nm) beats the
-    servo backdrive friction (~0.35 Nm ≈ 16 mm of offset) and it topples
-    backward at ~6.5 s — policies standing at ≤18 mm survive, including
-    v21head. Nothing in the recipe shaped the double-support stand CoM
-    (w_com_stance is single-support only), so a stand-gated
-    CoM-over-midfoot kernel (<code>--w-stand-com</code>) now exists.
-    Tonight: v22fix (heading 0.3 + stand-com 1.0 — disjoint gates, so
-    scenario attribution stays clean) vs v21sched_c (plain control).</p>
-    <p class="muted" style="font-size:14px;margin:10px 0 0"><b>2026·08·24:
-    v22fix is the new line — and the passive stand has a second, subtler
-    failure.</b> The 08·19 A/B: v22fix (heading 0.3 + stand-com 1.0) kept
-    the metronome perfectly (100% alternation, stride CV 0.06 — heading at
-    0.3 is rhythm-safe where 1.0 wasn't) and the stand-com kernel did
-    exactly its job: standing CoM went from 28 mm aft to 1–6 mm. Falls 4%,
-    square/goal-home 8/8. The plain control (v21sched_c) meanwhile
-    <i>decayed</i> — rhythm slipped to 95%/CV 0.20 and the card fell to
-    58/144, so the shaping terms aren't just scaffolding, they hold the
-    behavior up. But stand_off only reached 3/8: with the CoM centered,
-    the per-joint probe shows the remaining failure is a slow
-    <i>sag-collapse</i> — knees and ankles fold together ~1.3°/s from a
-    dead-straight leg. A pure-physics sweep from v22fix's own stand pose
-    found the fix: a +0.10 rad knee bias flips the release from a 28 cm
-    collapse to a 5 cm hold (the opposite bias falls backward). That's now
-    <code>--w-stand-knee</code>; tonight: v23knee (+knee bias) vs
-    v22fix_b (plain control, also watching whether turn_180 — currently
-    under-rotating by 25° with zero falls in both arms — recovers with
-    time). Note for the hardware session: stand_off passivity rests on
-    the 0.35 Nm backdrive-friction estimate — it's the cheapest, safest
-    scenario to validate sim-vs-real first.</p>
   </div>
 
   <div class="card accent">
