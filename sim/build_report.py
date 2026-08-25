@@ -197,6 +197,35 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·25</span></p>
+    <p><b>Best card yet (84/144) — and the next wall has a name: the clock
+    caps the speed.</b> The knee-bias A/B resolved in the most instructive
+    way possible: BOTH arms fixed the passive stand. v23knee (the +0.10 rad
+    bias) went stand_off 7/8 with 0% falls overall, proving the physics
+    probe right — but the plain control v22fix_b went stand_off <b>8/8</b>
+    on its own (the stand-com kernel just needed a second night to
+    consolidate a passively stable pose) <i>and</i> recovered turn_180 to
+    7/8 (hErr 8°, was 25–30° everywhere else), posting <b>84/144</b> —
+    the best overall card to date. Third data point of the same lesson:
+    give the recipe training time before adding terms. v22fix_b is the
+    line; the knee-bias knob stays on the shelf, validated, in case the
+    sag returns. Rhythm on both: 98–99% alternation, CV 0.12–0.14 (soft
+    watch item — was 0.06). What's left all shares one root cause:
+    <b>top speed is pinned at 0.37 m/s ≈ 1.5 Hz × 25 cm strides</b>.
+    speed_ladder (top_speed 0.37 vs 1.0 commanded), reversal (t_reverse
+    0.53 s — fast! — but never reaches the go-speed), and the metronome's
+    slow rung (cadence_err 30% at 1.0 Hz vs 2% elsewhere) are all the
+    policy locked to one cadence by the very schedule reward that cured
+    the limp. Fix built today: a <b>speed-coupled gait clock</b> —
+    cadence scales with the commanded planar speed (sqrt law, ×1.0 at
+    0.35 m/s, clipped [0.7, 1.7]), one deterministic contract mirrored in
+    the training env and the referee (parity-tested), firmware threading
+    to follow before deploy, exactly the clock-freeze path. Tonight:
+    v24clockv (speed-clock on, warm from v22fix_b) vs v22fix_c (plain
+    control).</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·24</span></p>
     <p><b>v22fix is the new line — and the passive stand has a second,
     subtler failure.</b> The 08·19 A/B: v22fix (heading 0.3 + stand-com

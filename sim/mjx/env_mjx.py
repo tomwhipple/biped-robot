@@ -161,6 +161,27 @@ def _quat_pitch(q):
     return jp.arcsin(jp.clip(2 * (qw * qy - qz * qx), -1.0, 1.0))
 
 
+
+# Speed-coupled gait clock (2026-08-25). The contact-schedule reward pinned
+# cadence to the clock -- which capped speed at ~0.37 m/s (1.5 Hz x ~25 cm
+# strides; speed_ladder top_speed, both 08-24 arms) and made the 1.0 Hz slow
+# metronome unreachable (cadence_err_slow 0.30). Natural walkers change speed
+# with cadence AND stride; this scales the clock with the commanded planar
+# speed. One deterministic law shared by env_mjx, walker_env, and (pre-deploy)
+# gen_obs_spec.py -> firmware; the sqrt shape follows cadence ~ sqrt(speed).
+# Multiplier is 1.0 at SPEED_CLOCK_REF (the 0.35 m/s bread-and-butter speed),
+# so existing gaits are untouched there.
+SPEED_CLOCK_REF = 0.35
+SPEED_CLOCK_LO = 0.7
+SPEED_CLOCK_HI = 1.7
+
+
+def speed_clock_scale(v_planar):
+    """Clock-frequency multiplier for a commanded planar speed (m/s)."""
+    return jp.clip(jp.sqrt(jp.abs(v_planar) / SPEED_CLOCK_REF),
+                   SPEED_CLOCK_LO, SPEED_CLOCK_HI)
+
+
 def contact_schedule(gait_phase, duty):
     """(2,) bool: scheduled STANCE flags (left, right) for a clock phase.
 
@@ -280,6 +301,9 @@ class BimoMJXEnv:
         # the ankles stays under the servos' backdrive friction, i.e. the
         # CoM stays within ~16 mm of the support center
         stand_com_sigma: float = 0.02,
+        speed_clock: bool = False,  # scale the gait clock with commanded
+        # planar speed (speed_clock_scale) -- cadence follows the command
+        # instead of pinning speed to 1.5 Hz x stride
         w_stand_knee: float = 0.0,  # stand-gated knee-angle kernel: a dead-
         # straight knee sag-collapses when torque is released (knee+ankle
         # fold together, ~28 cm drift); a +0.10 rad bias from the same pose
@@ -673,6 +697,7 @@ class BimoMJXEnv:
         self.w_still = w_still
         self.w_stand_com = w_stand_com
         self.stand_com_sigma = stand_com_sigma
+        self.speed_clock = speed_clock
         self.w_stand_knee = w_stand_knee
         self.stand_knee_target = stand_knee_target
         self.stand_knee_sigma = stand_knee_sigma
@@ -1808,9 +1833,14 @@ class BimoMJXEnv:
                          - 0.5 * self.air_time_target, 0.0)), 0.0)
         # plan-v2 Phase A terms (all default-off) -----------------------------
         gait_phase = state.gait_phase
+        clock_freq = state.gait_freq
         if self.gait_clock:
+            if self.speed_clock:
+                v_planar = (jp.sqrt(cmd_v ** 2 + state.cmd[1] ** 2 + 1e-12)
+                            if self.ext_cmd else jp.abs(cmd_v))
+                clock_freq = clock_freq * speed_clock_scale(v_planar)
             gait_phase = jp.mod(state.gait_phase + 2 * jp.pi * self.control_dt
-                                * state.gait_freq + jp.pi,
+                                * clock_freq + jp.pi,
                                 2 * jp.pi) - jp.pi
             if self.clock_stand_freeze:
                 # at a plain stand the clock HOLDS (user 2026-08-12, stand
@@ -1873,7 +1903,7 @@ class BimoMJXEnv:
                    + jp.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * jp.sum(out)
         if self.w_mimic:
-            q_ref = self._mimic_ref(state.cmd, gait_phase, state.gait_freq)
+            q_ref = self._mimic_ref(state.cmd, gait_phase, clock_freq)
             dq = data.qpos[self._jq0:self._jq1] - q_ref
             mim_gate = 1.0
             if self.ext_cmd:

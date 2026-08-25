@@ -320,6 +320,9 @@ class BimoWalkerEnv(gym.Env):
         # timing comes from the commanded pattern, not from the clock.
         # -- plan-v2 Phase A terms (2026-07-20; mirror sim/mjx, default off) ---
         gait_clock: bool = False,
+        speed_clock: bool = False,  # scale the clock with commanded planar
+        # speed (mirror of env_mjx.speed_clock_scale -- referee obs must
+        # match training)
         clock_stand_freeze: bool = False,   # hold phase at a plain stand
         # (mirror of env_mjx; the obs stop oscillating, 2026-08-12)
         w_feet_phase: float = 0.0,
@@ -532,6 +535,7 @@ class BimoWalkerEnv(gym.Env):
         self.w_knee_high = w_knee_high
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
+        self.speed_clock = speed_clock
         self.clock_stand_freeze = clock_stand_freeze
         self.w_feet_phase = w_feet_phase
         self.swing_height = swing_height
@@ -1870,10 +1874,18 @@ class BimoWalkerEnv(gym.Env):
             else:                       # legacy 2-channel (vx, wz)
                 moving = abs(c[0]) > 0.05 or abs(c[1]) > 0.05
                 lifted = False
+            freq = self._gait_freq
+            if self.speed_clock:
+                # mirror of env_mjx.speed_clock_scale: cadence follows the
+                # commanded planar speed (x1.0 at 0.35 m/s, sqrt shape,
+                # clipped to [0.7, 1.7])
+                v = (float(np.hypot(c[0], c[1])) if self.ext_cmd
+                     else abs(float(c[0])))
+                freq *= float(np.clip(np.sqrt(max(v, 0.0) / 0.35), 0.7, 1.7))
             if not (self.clock_stand_freeze and not moving and not lifted):
                 self._gait_phase = float(
                     (self._gait_phase + 2 * np.pi * self.control_dt
-                     * self._gait_freq + np.pi) % (2 * np.pi) - np.pi)
+                     * freq + np.pi) % (2 * np.pi) - np.pi)
         if self.w_feet_phase:
             rz_l = self.swing_height * max(0.0, float(np.sin(self._gait_phase)))
             rz_r = self.swing_height * max(0.0, float(-np.sin(self._gait_phase)))
