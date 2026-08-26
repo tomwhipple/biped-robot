@@ -64,6 +64,8 @@ TLM_CASES = [
     # rather than against whichever value it was written for.
     (500, P.LinkState.VLAND, 9.9, 0.97, 0.0, 0.0, 0x00, 4),
     (501, P.LinkState.VSAFE, 9.8, 0.31, 0.0, 0.0, 0x00, 4),
+    # Robot-latched fall: torso down, torque off. up_z is what tripped it.
+    (502, P.LinkState.FALLEN, 11.2, 0.12, 0.0, 0.0, 0x00, 4),
 ]
 
 # -- watchdog script --------------------------------------------------------

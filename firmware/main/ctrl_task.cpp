@@ -67,6 +67,19 @@ bool g_fb_ok[obs::kNumJoints];
 bool g_torque_on = false;
 bool g_primed = false;
 
+// Fall latch (loop-owned). Thresholds and the rationale live in
+// linkproto/protocol.h next to the kFallen state they produce.
+constexpr int kFallDebounceTicks =
+    static_cast<int>(linkproto::kFallDebounceMs / (obs::kControlDt * 1000.0f));
+constexpr int kUprightTicks =
+    static_cast<int>(linkproto::kUprightMs / (obs::kControlDt * 1000.0f));
+bool g_fallen = false;
+int g_fall_streak = 0;
+int g_upright_streak = 0;
+// ENABLE until a frame says otherwise: a fallen robot with a dead link must
+// stay down rather than self-clear into a stand nobody asked for.
+uint8_t g_last_cmd_flags = linkproto::kFlagEnable;
+
 // Rolling late-tick statistics for telemetry.
 uint32_t g_ticks = 0, g_late = 0;
 
@@ -169,6 +182,12 @@ void ctrlTask(void*) {
             memset(g_prev_action, 0, sizeof g_prev_action);
             g_primed = false;
             g_shaper.invalidate();
+            // Fresh run, fresh fall latch: `bench` + `run` is the tethered
+            // clear, and the operator typing it is looking at the robot.
+            g_fallen = false;
+            g_fall_streak = 0;
+            g_upright_streak = 0;
+            g_last_cmd_flags = linkproto::kFlagEnable;
         }
 
         const float now_ms = static_cast<float>(t0) / 1000.0f;
@@ -177,6 +196,10 @@ void ctrlTask(void*) {
         CommandMsg msg;
         while (xQueueReceive(g_cmd_mailbox, &msg, 0) == pdTRUE) {
             g_dog.accept(msg.cmd, now_ms);
+            // Kept even for frames the watchdog rejects as stale: the fall
+            // clear below only needs "the operator is deliberately not
+            // commanding", and any recent frame answers that.
+            g_last_cmd_flags = msg.cmd.flags;
         }
         const linkproto::LinkState state = g_dog.state(now_ms);
 
@@ -212,18 +235,48 @@ void ctrlTask(void*) {
         if (fresh_dv != 0) vbat_dv = fresh_dv;
         g_batt.update(fresh_dv, now_ms);
 
+        // -- fall detection ------------------------------------------------
+        // The sim terminates an episode below fall_up_z (walker_env); the
+        // hardware analogue of "episode over" is torque off. Past that line
+        // the policy is outside anything training produced, and holding
+        // torque only grinds servos against the floor. Debounced so a
+        // footfall transient cannot trip it; the StubImu pins up_z to 1.0,
+        // so an IMU-less bench board can never false-trigger. The clear is
+        // deliberate: righted AND held upright AND the operator's frames say
+        // ENABLE off -- a robot picked up mid-fumble must not spring back to
+        // life in someone's hands.
+        if (!g_fallen) {
+            g_fall_streak =
+                (s.up[2] < linkproto::kFallUpZ) ? g_fall_streak + 1 : 0;
+            if (g_fall_streak >= kFallDebounceTicks) {
+                g_fallen = true;
+                g_upright_streak = 0;
+            }
+        } else {
+            g_upright_streak =
+                (s.up[2] > linkproto::kUprightUpZ) ? g_upright_streak + 1 : 0;
+            if (g_upright_streak >= kUprightTicks &&
+                (g_last_cmd_flags & linkproto::kFlagEnable) == 0) {
+                g_fallen = false;
+                g_fall_streak = 0;
+            }
+        }
+
         // -- safety --------------------------------------------------------
         // The pack guard outranks the link: an operator holding a live command
         // cannot keep the robot walking on a flat pack, and once the guard has
         // released torque nothing here re-engages it (the state is latched
         // inside the guard, so the `if (!g_torque_on) engageAll()` below is
-        // unreachable while it holds).
+        // unreachable while it holds). The fall latch ranks between the two:
+        // above every link state (a downed robot must say so, not "LIVE"),
+        // below the pack (a flat pack is the rarer, costlier message).
         const bool batt_limp = g_batt.torqueMustRelease();
         const linkproto::LinkState rep_state =
-            g_batt.latched() ? (batt_limp ? linkproto::LinkState::kLowBattSafe
-                                          : linkproto::LinkState::kLowBattLand)
-                             : state;
-        const bool limp = (batt_limp ||
+            g_batt.latched()
+                ? (batt_limp ? linkproto::LinkState::kLowBattSafe
+                             : linkproto::LinkState::kLowBattLand)
+                : (g_fallen ? linkproto::LinkState::kFallen : state);
+        const bool limp = (batt_limp || g_fallen ||
                            state == linkproto::LinkState::kRelax ||
                            state == linkproto::LinkState::kEstop);
         if (limp) {

@@ -86,12 +86,21 @@ than slept through.
 | `ESTOP` | operator flag; latching | torque off immediately |
 | `VLAND` | pack ≤ 9.9 V for 0.5 s | stop travelling, crouch down under control |
 | `VSAFE` | 1.5 s after `VLAND` | **torque off**, latched until a pack swap |
+| `FALLEN` | torso `up_z` < 0.4 for 200 ms | **torque off**, latched; clears when righted |
 
-The first four come from the watchdog and describe the *link*. The last two
-come from `battguard::Guard` and describe the *pack* — they are decided by the
-robot, outrank anything the operator sends, and no command clears them (see
-[wiring.md](wiring.md#battery-protection)). They are appended to the enum, so
-the existing four keep their wire encoding.
+The first four come from the watchdog and describe the *link*. The rest are
+decided by the ROBOT and appended to the enum, so existing states keep their
+wire encoding. `VLAND`/`VSAFE` come from `battguard::Guard`, describe the
+*pack*, outrank everything, and no command clears them (see
+[wiring.md](wiring.md#battery-protection)). `FALLEN` (2026-08-26) is the
+control loop reading its own IMU: below `up_z` 0.4 — the sim's own
+`fall_up_z` termination threshold — the policy is outside anything training
+produced, and holding torque only grinds the servos against the floor, so the
+robot goes limp and says why. Unlike the pack states it clears without a
+reboot, but deliberately: upright (`up_z` > 0.7) for 2 s **and** the
+operator's frames saying `ENABLE` off — so a robot picked up mid-fumble
+cannot spring back to life in someone's hands, and a dead link leaves it
+safely down. Tethered equivalent: `bench` then `run`.
 
 - **250 ms** is 5 missed packets at 20 Hz — long enough that one ordinary
   WiFi hiccup is invisible, short enough that a runaway is brief.

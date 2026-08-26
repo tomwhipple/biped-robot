@@ -87,6 +87,16 @@ def test_telemetry_roundtrip():
     assert got.servo_err == 0b0000_0100 and got.loop_late_pct == 3
 
 
+def test_telemetry_every_state_roundtrips():
+    # The wire encoding is LinkState declaration order; appending a state
+    # (VLAND, VSAFE, FALLEN...) must round-trip and never renumber the rest.
+    for i, st in enumerate(LinkState):
+        t = Telemetry(seq_echo=i, state=st, vbat_v=11.1, up_z=0.2,
+                      vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0)
+        assert decode_telemetry(encode_telemetry(t)).state is st
+    assert list(LinkState)[6] is LinkState.FALLEN   # frozen wire value
+
+
 def test_telemetry_rejects_command_frame():
     # Both sockets are on the same host; crossing them must not decode.
     with pytest.raises(ProtocolError):

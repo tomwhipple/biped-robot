@@ -76,6 +76,13 @@ class LinkState(Enum):
     # the operator sends clears these -- only a pack swap and a reboot.
     VLAND = "vland"        # confirmed flat pack: crouching down under control
     VSAFE = "vsafe"        # crouch finished, torque off, and it stays off
+    # Torso down (up_z below the sim's own fall threshold, debounced),
+    # robot-latched: torque off so a downed robot does not grind its servos
+    # against the floor. Unlike VLAND/VSAFE it CAN be cleared without a
+    # reboot: right the robot and hold ENABLE off -- upright for 2 s plus a
+    # deliberate not-yet-commanding operator is the "I meant to pick it up"
+    # signal, and re-arming straight into motion stays impossible.
+    FALLEN = "fall"        # torso down, torque off until righted + ENABLE off
 
 
 class Command(NamedTuple):

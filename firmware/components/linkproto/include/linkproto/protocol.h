@@ -62,8 +62,23 @@ enum class LinkState : uint8_t {
     // above, these are decided by the ROBOT and no command clears them.
     kLowBattLand = 4,   // crouching down under control on a flat pack
     kLowBattSafe = 5,   // crouch finished, torque off, and it stays off
-    kMaxState = kLowBattSafe,
+    // Torso down (up_z below kFallUpZ, debounced), robot-latched: torque off
+    // so a downed robot does not grind its servos against the floor. Clears
+    // without a reboot: upright for kUprightMs plus a frame with ENABLE off.
+    kFallen = 6,
+    kMaxState = kFallen,
 };
+
+// -- fall detection (robot-side, ctrl_task) --------------------------------
+// The threshold is walker_env's own fall_up_z: the sim terminates an episode
+// below it, so past this line the policy is operating outside anything it
+// trained on and holding torque only feeds the fall. Debounced over ticks
+// because a footfall transient dips up_z briefly; 200 ms of "down" is a
+// torso on the floor, not a wobble.
+constexpr float kFallUpZ = 0.4f;
+constexpr float kFallDebounceMs = 200.0f;
+constexpr float kUprightUpZ = 0.7f;     // hysteresis: righted is > this ...
+constexpr float kUprightMs = 2000.0f;   // ... held this long, + ENABLE off
 
 struct Command {
     uint32_t seq;
