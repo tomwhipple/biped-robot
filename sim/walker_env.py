@@ -323,6 +323,8 @@ class BimoWalkerEnv(gym.Env):
         speed_clock: bool = False,  # scale the clock with commanded planar
         # speed (mirror of env_mjx.speed_clock_scale -- referee obs must
         # match training)
+        speed_clock_lo: float = 0.7,
+        speed_clock_hi: float = 1.7,
         clock_stand_freeze: bool = False,   # hold phase at a plain stand
         # (mirror of env_mjx; the obs stop oscillating, 2026-08-12)
         w_feet_phase: float = 0.0,
@@ -536,6 +538,8 @@ class BimoWalkerEnv(gym.Env):
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
         self.speed_clock = speed_clock
+        self.speed_clock_lo = speed_clock_lo
+        self.speed_clock_hi = speed_clock_hi
         self.clock_stand_freeze = clock_stand_freeze
         self.w_feet_phase = w_feet_phase
         self.swing_height = swing_height
@@ -1881,7 +1885,9 @@ class BimoWalkerEnv(gym.Env):
                 # clipped to [0.7, 1.7])
                 v = (float(np.hypot(c[0], c[1])) if self.ext_cmd
                      else abs(float(c[0])))
-                freq *= float(np.clip(np.sqrt(max(v, 0.0) / 0.35), 0.7, 1.7))
+                freq *= float(np.clip(np.sqrt(max(v, 0.0) / 0.35),
+                                      self.speed_clock_lo,
+                                      self.speed_clock_hi))
             if not (self.clock_stand_freeze and not moving and not lifted):
                 self._gait_phase = float(
                     (self._gait_phase + 2 * np.pi * self.control_dt

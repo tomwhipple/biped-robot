@@ -94,3 +94,23 @@ def test_off_by_default():
     env.step(np.zeros(env.action_space.shape[0]))
     dp = (env._gait_phase - p0 + np.pi) % (2 * np.pi) - np.pi
     assert abs(dp - 2 * np.pi * env.control_dt * 1.5) < 1e-6
+
+
+def test_hi_knob_threads_both_envs():
+    """speed_clock_hi must reach both the law and the referee mirror."""
+    assert abs(float(speed_clock_scale(5.0, hi=1.25)) - 1.25) < 1e-6
+    from walker_env import BimoWalkerEnv
+    env = BimoWalkerEnv(xml_path=XML, command_mode=True, ext_cmd=True,
+                        gait_clock=True, speed_clock=True,
+                        speed_clock_hi=1.25,
+                        actuator_model="sts3215", imu_obs=True,
+                        domain_rand=False, latency_ms=0.0, backlash_deg=0.0)
+    env.reset(seed=0)
+    env._gait_freq = 1.5
+    env.set_command(0.9, 0.0, 0.0, 1.0, 0.0, 0.0, 0.02)
+    p0 = env._gait_phase
+    env.step(np.zeros(env.action_space.shape[0]))
+    dp = (env._gait_phase - p0 + np.pi) % (2 * np.pi) - np.pi
+    want = (2 * np.pi * env.control_dt * 1.5
+            * float(speed_clock_scale(0.9, hi=1.25)))
+    assert abs(dp - want) < 1e-6, (dp, want)

@@ -98,6 +98,29 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·26</span></p>
+    <p><b>The speed-clock A/B split — and exposed a quiet decay in the
+    "winning" line.</b> By scorecard the plain control won again:
+    v22fix_c posted <b>94/144 (10 clean)</b>, first-ever reversal passes
+    (2/8), top speed 0.41 m/s. The speed-clock arm (v24clockv, 87/144)
+    fixed exactly what it was built for — the slow metronome rung went
+    from 30% cadence error to <b>2%</b> — but lost the top end
+    (top_speed 0.25): the ×1.7 cap demands 2.55 Hz stepping, which needs
+    ~4.4 rad/s hip swings, <i>over the measured 4.04 rad/s STS3215
+    ceiling</i>. The cap was asking for physically impossible cadence.
+    But the rhythm probes flip the verdict: v24clockv walks at <b>100%
+    alternation, stride CV 0.09</b>, while the plain line has eroded
+    three nights straight — CV 0.06 → 0.12 → <b>0.20</b>, alternation
+    94% — buying scenario passes by drifting back toward the surge-stall
+    gait we cured. For a <i>natural</i> walker the clock architecture is
+    right; the cap was wrong. Tonight, both arms at a feasible ×1.25
+    (~1.9 Hz max, inside the servo envelope): v24clock_b continues the
+    clock lineage; v24clock_x grafts the clock onto the
+    scenario-stronger v22fix_c. Lineage race decides who carries
+    forward.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·25</span></p>
     <p><b>Best card yet (84/144) — and the next wall has a name: the clock
     caps the speed.</b> The knee-bias A/B resolved in the most instructive

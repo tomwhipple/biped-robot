@@ -176,10 +176,13 @@ SPEED_CLOCK_LO = 0.7
 SPEED_CLOCK_HI = 1.7
 
 
-def speed_clock_scale(v_planar):
-    """Clock-frequency multiplier for a commanded planar speed (m/s)."""
-    return jp.clip(jp.sqrt(jp.abs(v_planar) / SPEED_CLOCK_REF),
-                   SPEED_CLOCK_LO, SPEED_CLOCK_HI)
+def speed_clock_scale(v_planar, lo=SPEED_CLOCK_LO, hi=SPEED_CLOCK_HI):
+    """Clock-frequency multiplier for a commanded planar speed (m/s).
+    hi is bounded by hardware: at 1.5 Hz base, x1.7 = 2.55 Hz stepping
+    needs ~4.4 rad/s hip swings, over the measured 4.04 rad/s STS3215
+    ceiling -- v24clockv (x1.7) lost the top end (top_speed 0.25).
+    x1.25 (~1.9 Hz, ~2.8 rad/s swings) stays inside the envelope."""
+    return jp.clip(jp.sqrt(jp.abs(v_planar) / SPEED_CLOCK_REF), lo, hi)
 
 
 def contact_schedule(gait_phase, duty):
@@ -304,6 +307,8 @@ class BimoMJXEnv:
         speed_clock: bool = False,  # scale the gait clock with commanded
         # planar speed (speed_clock_scale) -- cadence follows the command
         # instead of pinning speed to 1.5 Hz x stride
+        speed_clock_lo: float = SPEED_CLOCK_LO,
+        speed_clock_hi: float = SPEED_CLOCK_HI,
         w_stand_knee: float = 0.0,  # stand-gated knee-angle kernel: a dead-
         # straight knee sag-collapses when torque is released (knee+ankle
         # fold together, ~28 cm drift); a +0.10 rad bias from the same pose
@@ -698,6 +703,8 @@ class BimoMJXEnv:
         self.w_stand_com = w_stand_com
         self.stand_com_sigma = stand_com_sigma
         self.speed_clock = speed_clock
+        self.speed_clock_lo = speed_clock_lo
+        self.speed_clock_hi = speed_clock_hi
         self.w_stand_knee = w_stand_knee
         self.stand_knee_target = stand_knee_target
         self.stand_knee_sigma = stand_knee_sigma
@@ -1838,7 +1845,8 @@ class BimoMJXEnv:
             if self.speed_clock:
                 v_planar = (jp.sqrt(cmd_v ** 2 + state.cmd[1] ** 2 + 1e-12)
                             if self.ext_cmd else jp.abs(cmd_v))
-                clock_freq = clock_freq * speed_clock_scale(v_planar)
+                clock_freq = clock_freq * speed_clock_scale(
+                    v_planar, self.speed_clock_lo, self.speed_clock_hi)
             gait_phase = jp.mod(state.gait_phase + 2 * jp.pi * self.control_dt
                                 * clock_freq + jp.pi,
                                 2 * jp.pi) - jp.pi

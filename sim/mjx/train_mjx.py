@@ -247,6 +247,11 @@ def main():
                         "schedule-pinned cadence capped speed at ~0.37 m/s "
                         "and made the 1.0 Hz metronome unreachable "
                         "(2026-08-25)")
+    p.add_argument("--speed-clock-hi", type=float, default=None,
+                   help="upper clip of the speed-clock multiplier. 1.7 "
+                        "(2.55 Hz) exceeds the measured STS3215 swing-speed "
+                        "envelope and cost the top end (v24clockv); 1.25 "
+                        "(~1.9 Hz) stays inside it (2026-08-26)")
     p.add_argument("--w-stand-knee", type=float, default=None,
                    help="stand-gated knee-angle kernel toward +0.10 rad: a "
                         "dead-straight knee sag-collapses under torque-off "
@@ -476,6 +481,8 @@ def main():
         env_kw["w_stand_knee"] = args.w_stand_knee
     if args.speed_clock:
         env_kw["speed_clock"] = True
+    if args.speed_clock_hi is not None:
+        env_kw["speed_clock_hi"] = args.speed_clock_hi
     if args.w_contact_sched is not None:
         env_kw["w_contact_sched"] = args.w_contact_sched
     if args.sched_duty is not None:
