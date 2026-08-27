@@ -33,9 +33,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "link"))
 
 from eval_commands import base_env, norm_cmd            # noqa: E402
 from eval_policy import load, run_env_kwargs            # noqa: E402
-from protocol import (CMD_PORT, LinkState, ProtocolError,  # noqa: E402
-                      TLM_PORT, Telemetry, Watchdog, decode_command,
-                      encode_telemetry)
+from protocol import (CMD_PORT, ProtocolError, TLM_PORT,  # noqa: E402
+                      Supervisor, Telemetry, decode_command, encode_telemetry)
 
 POSE_PORT = 4212     # sim-only ground-truth pose; see GoalSource in sources.py
 
@@ -47,7 +46,7 @@ def _yaw(quat):
 
 def run(run_dir, render=False, duration=None, port=CMD_PORT,
         tlm_port=TLM_PORT, pose_port=POSE_PORT, drop=0.0, delay_ms=0.0,
-        realtime=True, out_dir=None, **env_kw):
+        realtime=True, out_dir=None, boot_armed=False, **env_kw):
     kw = run_env_kwargs(run_dir, **env_kw)
     model, env = load(run_dir, render_mode="rgb_array" if render else None,
                       **kw)
@@ -63,12 +62,15 @@ def run(run_dir, render=False, duration=None, port=CMD_PORT,
     tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     tx.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-    dog = Watchdog()
+    # Boots BENCH like the board: an ARM edge (link/tui.cpp) arms it.
+    # --boot-armed is the twin of typing `run` on the tether, for the
+    # ARM-ignorant script/gamepad commanders.
+    dog = Supervisor(armed=boot_armed)
     rng = np.random.default_rng(0)
     obs = env.reset()
     frames, peer, held, late = [], None, [], 0
     tick_states = []
-    last_state = LinkState.STAND
+    last_state = dog.state(0.0)
     t0 = time.monotonic()
     print(f"udp_agent: {os.path.basename(run_dir)} listening on :{port} "
           f"(telemetry -> :{tlm_port}, pose -> :{pose_port})")
@@ -107,8 +109,7 @@ def run(run_dir, render=False, duration=None, port=CMD_PORT,
         # firmware's battguard::Guard, and supply_voltage here is a fixed plant
         # parameter (it scales the torque-speed envelope), not a pack that
         # discharges. Nothing to guard in sim -- see docs/wiring.md.
-        base.set_torque_enabled(state not in (LinkState.RELAX,
-                                              LinkState.ESTOP))
+        base.set_torque_enabled(dog.torque_on(now_ms))
         obs[0, -2:] = norm_cmd(env, base._cmd)
         action, _ = model.predict(obs, deterministic=True)
         obs, _, _, infos = env.step(action)
@@ -184,11 +185,15 @@ def main():
                    help="run flat out; only useful with a scripted sender")
     p.add_argument("--payload", type=float, default=None)
     p.add_argument("--latency-ms", type=float, default=None)
+    p.add_argument("--boot-armed", action="store_true",
+                   help="start in run mode (the tethered `run`) instead of "
+                        "BENCH; needed by commanders that never send ARM")
     args = p.parse_args()
     run(os.path.join(args.runs_dir, args.run_name), render=args.render,
         duration=args.duration, port=args.port, tlm_port=args.tlm_port,
         pose_port=args.pose_port, drop=args.drop, delay_ms=args.delay_ms,
         realtime=not args.no_realtime, out_dir=args.out_dir,
+        boot_armed=args.boot_armed,
         payload_mass=args.payload, latency_ms=args.latency_ms)
 
 

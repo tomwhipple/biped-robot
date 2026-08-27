@@ -37,6 +37,7 @@ const char* stateName(LinkState s) {
         case LinkState::kLowBattLand: return "kLowBattLand";
         case LinkState::kLowBattSafe: return "kLowBattSafe";
         case LinkState::kFallen: return "kFallen";
+        case LinkState::kBench: return "kBench";
     }
     return "?";
 }
@@ -179,6 +180,32 @@ void testWatchdog() {
     }
 }
 
+void runArmScript(const V::ArmStep* steps, size_t n) {
+    ArmLatch latch;
+    for (size_t i = 0; i < n; ++i) {
+        bool want = false;
+        const bool edge = latch.update(steps[i].flags, want);
+        const int verdict = edge ? static_cast<int>(want) : -1;
+        ++testutil::g_checks;
+        if (verdict != steps[i].verdict) {
+            char msg[128];
+            snprintf(msg, sizeof msg, "arm step %zu flags 0x%02X: got %d want %d",
+                     i, steps[i].flags, verdict, steps[i].verdict);
+            testutil::fail(__FILE__, __LINE__, msg);
+        }
+        CHECK(latch.haveLevel());
+        CHECK_EQ(static_cast<int>(latch.level()),
+                 static_cast<int>((steps[i].flags & kFlagArm) != 0));
+    }
+}
+
+void testArmLatch() {
+    ArmLatch fresh;
+    CHECK(!fresh.haveLevel());
+    runArmScript(V::kArm, V::kNumArm);
+    runArmScript(V::kArmHeld, V::kNumArmHeld);
+}
+
 void testEndToEnd() {
     // docs/control-channel.md's port note 4, in miniature.
     Watchdog dog;
@@ -247,6 +274,7 @@ int main() {
     testTelemetryFrames();
     testClampToEnvelope();
     testWatchdog();
+    testArmLatch();
     testEndToEnd();
     testDemux();
     return testutil::report("protocol");

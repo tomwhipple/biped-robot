@@ -66,7 +66,21 @@ TLM_CASES = [
     (501, P.LinkState.VSAFE, 9.8, 0.31, 0.0, 0.0, 0x00, 4),
     # Robot-latched fall: torso down, torque off. up_z is what tripped it.
     (502, P.LinkState.FALLEN, 11.2, 0.12, 0.0, 0.0, 0x00, 4),
+    # Benched: what the WiFi beacon says before anyone arms the loop. The
+    # zeros are real -- ctrl never published, so the snapshot is boot state.
+    (0, P.LinkState.BENCH, 0.0, 0.0, 0.0, 0.0, 0x00, 0),
 ]
+
+# -- arm latch script --------------------------------------------------------
+# flags per frame, in arrival order; the expected verdict is computed by the
+# Python reference. Covers: first frame never counts (both levels), held
+# levels, an ARM-ignorant sender, and duplicates.
+ARM_SCRIPT = [
+    0, 0, P.FLAG_ARM, P.FLAG_ARM | P.FLAG_ENABLE, P.FLAG_ARM | P.FLAG_ENABLE,
+    P.FLAG_ENABLE, 0, P.FLAG_ARM, P.FLAG_ARM | P.FLAG_ESTOP, 0, 0,
+    P.FLAG_ARM,
+]
+ARM_SCRIPT_HELD = [P.FLAG_ARM, P.FLAG_ARM, 0, P.FLAG_ARM]   # boots under ARM=1
 
 # -- watchdog script --------------------------------------------------------
 # ("rx", seq, vx, wz, flags, now_ms) | ("state", now_ms) | ("cmd", now_ms)
@@ -233,6 +247,20 @@ def main():
     w("};")
     w("inline constexpr size_t kNumWatchdog = "
       "sizeof kWatchdog / sizeof kWatchdog[0];")
+    w("")
+
+    # -- arm latch ---------------------------------------------------------
+    w("// verdict: -1 = no request, 0 = disarm (bench), 1 = arm (run)")
+    w("struct ArmStep { uint8_t flags; int verdict; };")
+    for name, script in (("kArm", ARM_SCRIPT), ("kArmHeld", ARM_SCRIPT_HELD)):
+        w("inline const ArmStep %s[] = {" % name)
+        latch = P.ArmLatch()
+        for flags in script:
+            v = latch.update(flags)
+            w("    {0x%02X, %d}," % (flags, -1 if v is None else int(v)))
+        w("};")
+        w("inline constexpr size_t kNum%s = sizeof %s / sizeof %s[0];"
+          % (name[1:], name, name))
     w("")
 
     # -- envelope ----------------------------------------------------------

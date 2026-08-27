@@ -43,7 +43,7 @@ both paths.
 |---|---|---|---|
 | 0 | 2 | magic | `"BM"` |
 | 2 | 1 | version | 1 |
-| 3 | 1 | flags | bit0 `ENABLE`, bit1 `ESTOP` |
+| 3 | 1 | flags | bit0 `ENABLE`, bit1 `ESTOP`, bit2 `ARM` |
 | 4 | 4 | seq | u32, monotonic |
 | 8 | 2 | vx | i16, mm/s, body-frame forward |
 | 10 | 2 | wz | i16, mrad/s, yaw rate |
@@ -87,6 +87,7 @@ than slept through.
 | `VLAND` | pack ≤ 9.9 V for 0.5 s | stop travelling, crouch down under control |
 | `VSAFE` | 1.5 s after `VLAND` | **torque off**, latched until a pack swap |
 | `FALLEN` | torso `up_z` < 0.4 for 200 ms | **torque off**, latched; clears when righted |
+| `BENCH` | boot, or an `ARM` 1→0 edge, or the tethered `bench` | **torque off**; CLI owns the bus; the link commands nothing |
 
 The first four come from the watchdog and describe the *link*. The rest are
 decided by the ROBOT and appended to the enum, so existing states keep their
@@ -120,6 +121,32 @@ safely down. Tethered equivalent: `bench` then `run`.
   that holds when the radio is gone, and the switch is what holds when
   everything is gone.
 
+## Arming over the link (2026-08-27)
+
+The control loop boots **benched**: the CLI owns the servo bus and nothing
+the link sends moves the robot. Until now only the tethered `run` armed it.
+The `ARM` flag (bit 2) does the same over the radio, and everything about it
+is in `link/protocol.py:ArmLatch` (C++: `linkproto::ArmLatch`):
+
+- `ARM` is a **level** on the wire — "the operator wants the loop armed",
+  held in every frame like `ENABLE` — but the robot acts on its **edges**
+  only. 0→1 is `run`; 1→0 is `bench` (torque off, bus back to the CLI).
+- **The first frame from a sender never counts.** A robot that reboots under
+  a console still holding `ARM=1` stays `BENCH` until that console
+  deliberately re-arms; the console sees `BENCH` in telemetry and says so.
+- **A sender that never sets the bit never makes an edge**, so the
+  script/gamepad commanders can still drive a robot armed over the tether
+  without benching it on their first frame.
+- Same refusal as the typed `run`: no as-built calibration in NVS, no run.
+  The refusal is printed on the tether; the link only sees the robot stay
+  `BENCH`.
+
+Firmware-side the latch lives in the control loop, which now drains the
+mailbox in bench mode too; the edge is published to the housekeeping task,
+which calls the same `cmdMode()` as the CLI. That keeps the mode's single
+writer, and — because housekeeping only looks between CLI lines — a
+wireless arm can never land in the middle of a bench-mode bus command.
+
 Reordered and duplicate frames are dropped by sequence number, and — subtly —
 **a stale frame must not pet the watchdog**. If it did, a reordered burst
 could hold the robot `LIVE` on a command from the past. A backwards seq jump
@@ -151,12 +178,24 @@ a hardware fork.
 
 ## Commanders
 
-All three live laptop-side, so the robot learns exactly one wire format and a
-fourth commander is a class in `link/sources.py`, not a firmware change.
+All of them live laptop-side, so the robot learns exactly one wire format and
+another commander is a class in `link/sources.py`, not a firmware change.
 
-- **`script`** — time-scripted sequences (`walk`, `dash_stop`, `turn`,
-  `pivot`, `square`). The on-hardware twin of `sim/eval_commands.py`, so a
-  real run and a sim eval are the same shape of test.
+- **`bimo_tui`** (`link/tui.cpp`) — the operator's console, and the only
+  commander that arms. Single keystrokes: `a` arm/disarm, arrows walk
+  (`up`/`down`, 0.4 m/s) and turn (`left`/`right`, ±0.5 rad/s) **while
+  held**, `space` stand, `e` E-stop, `q` quit (disarms first). Shows every
+  telemetry field live. Built from the firmware's own `linkproto` sources
+  (`make -C firmware/host tui`), so the bytes it sends come from the code
+  the robot decodes with. A terminal has no key-up event, only auto-repeat:
+  a motion key extends a hold that expires `--hold-ms` (default 700) after
+  the last repeat, and the console measures the terminal's repeat delay on
+  screen so that number is set from evidence. Exercised end to end by
+  `tests/test_tui_e2e.py` against `link/link_twin.py`, the plant-free twin.
+- **`script`** — time-scripted sequences (`walk`, `dash_stop`, `line_1m`,
+  `turn`, `pivot`, `square`). The on-hardware twin of `sim/eval_commands.py`,
+  so a real run and a sim eval are the same shape of test. Never sets `ARM`:
+  needs a robot armed by the console or the tether.
 - **`gamepad`** — sticks via pygame, **held** dead-man (letting go must stop
   the robot; a toggle fails that test), B/circle for E-stop.
 - **`goal`** — proportional goal-seeker; the seam the goal-conditioning work
@@ -226,10 +265,12 @@ The C side is a transcription of a debugged module, not a design job.
    `millis()`. The bit-flip and reordering tests transfer as-is.
 3. `clamp_to_envelope` — must match `V_MIN_WALK`/`V_MAX`/`W_MAX` in the
    training config the deployed policy came from.
-4. The loop: `recv` non-blocking → decode → `accept()` → `state()` →
-   `command()` → policy → servo bus at 50 Hz. `sim/udp_agent.py:run()` is
-   that loop in Python, in order.
-5. `RELAX`/`ESTOP` → STS3215 torque-enable (register 40) off on IDs 1–8.
+4. The loop: `recv` non-blocking → decode → `ArmLatch` → `accept()` →
+   `state()` → `command()` → policy → servo bus at 50 Hz.
+   `link/protocol.py:Supervisor` is that composition in Python, and
+   `sim/udp_agent.py:run()` / `link/link_twin.py` are the loop, in order.
+5. `RELAX`/`ESTOP`/`BENCH` → STS3215 torque-enable (register 40) off on
+   IDs 1–8.
 
 Not yet modeled anywhere: WiFi's real jitter distribution, and ESP32 socket
 behavior under load.

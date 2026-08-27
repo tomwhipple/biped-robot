@@ -94,10 +94,20 @@ void linkTask(void*) {
 void houseTask(void*) {
     cli::banner(&uartSay);
     TickType_t next_tlm = xTaskGetTickCount();
+    uint32_t arm_edges_seen = g_link_arm_edges.load();
     for (;;) {
         CliLine line;
         while (xQueueReceive(g_cli_queue, &line, 0) == pdTRUE) {
             cli::execute(line.text, &uartSay);
+        }
+
+        // Wireless arm/disarm (shared.h g_link_arm_*): consumed here, between
+        // CLI lines, so the mode keeps one writer and a WiFi arm can never
+        // land inside a bench-mode bus command. Same gate as `run`.
+        const uint32_t edges = g_link_arm_edges.load();
+        if (edges != arm_edges_seen) {
+            arm_edges_seen = edges;
+            cli::linkMode(g_link_arm_level.load(), &uartSay);
         }
 
         // 10 Hz telemetry, back up the same tether the commands came down.

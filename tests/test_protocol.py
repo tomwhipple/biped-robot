@@ -13,11 +13,12 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "link"))
 
-from protocol import (CMD_LEN, FLAG_ENABLE, FLAG_ESTOP, RELAX_MS,  # noqa: E402
-                      STALE_MS, TLM_LEN, V_MAX, W_MAX, Command, LinkState,
-                      ProtocolError, Telemetry, Watchdog, clamp_to_envelope,
-                      crc16_ccitt, decode_command, decode_telemetry,
-                      encode_command, encode_telemetry)
+from protocol import (CMD_LEN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP,  # noqa: E402
+                      RELAX_MS, STALE_MS, TLM_LEN, V_MAX, W_MAX, ArmLatch,
+                      Command, LinkState, ProtocolError, Supervisor,
+                      Telemetry, Watchdog, clamp_to_envelope, crc16_ccitt,
+                      decode_command, decode_telemetry, encode_command,
+                      encode_telemetry)
 
 
 # -- CRC -------------------------------------------------------------------
@@ -235,3 +236,100 @@ def test_end_to_end_encode_decode_accept():
     v, w = dog.command(0.0)
     assert v == pytest.approx(0.75, abs=1e-3)
     assert w == pytest.approx(-0.5, abs=1e-3)
+
+
+# -- arm latch -------------------------------------------------------------
+def test_arm_bit_rides_the_frame():
+    pkt = decode_command(encode_command(1, 0.0, 0.0, FLAG_ARM | FLAG_ENABLE))
+    assert pkt.arm and pkt.enabled and not pkt.estop
+    assert not decode_command(encode_command(2, 0.0, 0.0, FLAG_ENABLE)).arm
+
+
+def test_arm_is_an_edge_not_a_level():
+    latch = ArmLatch()
+    assert latch.level is None
+    assert latch.update(0) is None               # first frame never counts
+    assert latch.update(0) is None
+    assert latch.update(FLAG_ARM) is True        # 0 -> 1: arm
+    assert latch.update(FLAG_ARM | FLAG_ENABLE) is None   # held: nothing
+    assert latch.update(FLAG_ENABLE) is False    # 1 -> 0: disarm
+    assert latch.update(0) is None
+    assert latch.level is False
+
+
+def test_first_frame_never_arms():
+    # A robot rebooting under a client that is still holding ARM=1 stays
+    # benched until that client deliberately re-arms.
+    latch = ArmLatch()
+    assert latch.update(FLAG_ARM) is None
+    assert latch.update(FLAG_ARM) is None
+    assert latch.update(0) is False
+    assert latch.update(FLAG_ARM) is True
+
+
+def test_arm_ignorant_sender_never_benches_a_tethered_run():
+    # The script/gamepad commanders send ARM=0 forever: no edge, no bench.
+    latch = ArmLatch()
+    for seq in range(50):
+        assert latch.update(FLAG_ENABLE if seq % 2 else 0) is None
+
+
+def test_arm_latch_is_independent_of_the_watchdog():
+    # The watchdog drops a reordered frame; the latch still sees its level,
+    # and a duplicate makes no edge either way.
+    dog, latch = Watchdog(), ArmLatch()
+    for seq, flags in [(1, 0), (2, FLAG_ARM), (2, FLAG_ARM), (1, FLAG_ARM)]:
+        pkt = Command(seq=seq, vx=0.0, wz=0.0, flags=flags)
+        dog.accept(pkt, float(seq))
+        latch.update(pkt.flags)
+    assert dog.rejected == 2
+    assert latch.level is True
+
+
+def test_supervisor_boots_benched_and_arms_on_an_edge():
+    sup = Supervisor()
+    assert sup.state(0.0) is LinkState.BENCH
+    assert not sup.torque_on(0.0)
+    # A walk command from an unarmed client moves nothing.
+    assert not sup.accept(live(seq=1, flags=FLAG_ENABLE), 0.0)
+    assert sup.command(1.0) == (0.0, 0.0)
+    sup.accept(live(seq=2, flags=FLAG_ARM), 2.0)               # 0 -> 1
+    assert sup.state(3.0) is LinkState.LIVE
+    assert sup.torque_on(3.0)
+    sup.accept(live(seq=3, v=0.4, flags=FLAG_ARM | FLAG_ENABLE), 4.0)
+    assert sup.command(5.0) == (0.4, 0.0)
+    sup.accept(live(seq=4, flags=0), 6.0)                       # 1 -> 0
+    assert sup.state(7.0) is LinkState.BENCH
+    assert not sup.torque_on(7.0)
+    assert sup.command(7.0) == (0.0, 0.0)
+
+
+def test_supervisor_tethered_run_survives_an_arm_ignorant_client():
+    sup = Supervisor(armed=True)
+    for seq in range(1, 20):
+        sup.accept(live(seq=seq, flags=FLAG_ENABLE), float(seq))
+    assert sup.state(20.0) is LinkState.LIVE
+
+
+def test_supervisor_refuses_to_arm_without_calibration():
+    sup = Supervisor(arm_allowed=False)
+    sup.accept(live(seq=1, flags=0), 0.0)
+    sup.accept(live(seq=2, flags=FLAG_ARM), 1.0)
+    assert sup.state(2.0) is LinkState.BENCH
+
+
+def test_supervisor_rearm_is_a_fresh_run():
+    sup = Supervisor()
+    sup.accept(live(seq=1, flags=0), 0.0)
+    sup.accept(live(seq=2, flags=FLAG_ARM | FLAG_ESTOP), 1.0)
+    assert sup.state(2.0) is LinkState.ESTOP
+    sup.accept(live(seq=3, flags=FLAG_ESTOP), 3.0)              # disarm
+    sup.accept(live(seq=4, flags=FLAG_ARM), 4.0)                # re-arm
+    assert sup.state(5.0) is LinkState.LIVE                     # not ESTOP
+
+
+def test_bench_state_is_last_on_the_wire():
+    # Append-only enum: BENCH must not have displaced anything.
+    assert list(LinkState)[-1] is LinkState.BENCH
+    assert list(LinkState).index(LinkState.FALLEN) == 6
+    assert len(LinkState.BENCH.value) <= 5

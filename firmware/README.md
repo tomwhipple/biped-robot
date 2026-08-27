@@ -180,10 +180,14 @@ Handover is one-way through the ctrl task: it releases torque and clears
    mode, UDP command frames on 4210 into the same mailbox, 10 Hz telemetry
    back to the last commander on 4211 (not gated on `run`, unlike the UART
    path -- there is no CLI text to interleave with, and it makes the link
-   verifiable while benched, reported as RELAX). Credentials live in NVS,
+   verifiable while benched, reported as BENCH). Credentials live in NVS,
    never in git: `wifi <ssid> <psk>` over the tether, bench-only because an
    NVS commit stalls the control tick. Verified two-way from mira with
    `link/verify_udp.py` (disabled stand frames -- no motion).
+   **Arming over the link, 2026-08-27:** the `ARM` flag's edges are the
+   wireless `run`/`bench` (`linkproto::ArmLatch`, run by ctrl in both modes,
+   applied by housekeeping through the same `cmdMode()` as the CLI). The
+   operator's console is `link/tui.cpp`; see docs/control-channel.md.
 3. **Calibration persistence.** `obs::Calibration` exists and is used
    everywhere; loading and storing it in NVS (and a guided zeroing flow) is not
    written. Defaults are zero = 2048 ticks, direction +1.

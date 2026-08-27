@@ -57,4 +57,15 @@ void Watchdog::command(float now_ms, float& vx, float& wz) const {
     }
 }
 
+bool ArmLatch::update(uint8_t flags, bool& want_armed) {
+    const bool level = (flags & kFlagArm) != 0;
+    const bool had = have_level_;
+    const bool prev = level_;
+    have_level_ = true;
+    level_ = level;
+    if (!had || prev == level) return false;
+    want_armed = level;
+    return true;
+}
+
 }  // namespace linkproto

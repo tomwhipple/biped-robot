@@ -23,4 +23,11 @@ void execute(const char* line, Sink out);
 // The banner printed at boot and by `help`.
 void banner(Sink out);
 
+// `run` / `bench` on behalf of the wireless link (an ARM edge, see
+// linkproto::ArmLatch). Called from the housekeeping loop, never from the
+// link tasks. Same refusal as the typed `run`: no as-built calibration, no
+// run -- the refusal is printed on the tether, and the client sees the robot
+// stay BENCH in telemetry.
+void linkMode(bool run, Sink out);
+
 }  // namespace cli

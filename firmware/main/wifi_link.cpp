@@ -146,10 +146,10 @@ void wifiLinkTask(void*) {
             t.state = static_cast<linkproto::LinkState>(g_telemetry.state.load());
             // While benched, ctrl neither runs the watchdog nor publishes, so
             // the snapshot is stale (boot default reads as LIVE). The CLI owns
-            // the bus and the link commands nothing: report RELAX, the state
-            // that says "do not expect this robot to obey you".
+            // the bus and the link commands nothing: say BENCH, so the client
+            // knows an ARM edge (not a walk command) is what it needs to send.
             if (g_mode_request.load() == Mode::kBench) {
-                t.state = linkproto::LinkState::kRelax;
+                t.state = linkproto::LinkState::kBench;
             }
             t.vbat_v = g_telemetry.vbat_mv.load() / 1000.0f;
             t.up_z = g_telemetry.up_z.load();

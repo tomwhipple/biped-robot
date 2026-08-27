@@ -88,3 +88,16 @@ set_target_properties(ctrl_sil PROPERTIES
                       POSITION_INDEPENDENT_CODE ON
                       OUTPUT_NAME ctrl_sil)
 add_custom_target(sil DEPENDS ctrl_sil)
+
+# The operator's console (link/tui.cpp) -- the firmware's own linkproto plus
+# ncurses; a tool, so no sanitizers. Optional: skipped where curses is absent.
+find_package(Curses QUIET)
+if(CURSES_FOUND)
+    add_executable(bimo_tui ${CMAKE_CURRENT_SOURCE_DIR}/../../link/tui.cpp
+                   ${COMPONENTS}/linkproto/protocol.cpp
+                   ${COMPONENTS}/linkproto/watchdog.cpp
+                   ${COMPONENTS}/linkproto/framing.cpp)
+    target_include_directories(bimo_tui PRIVATE ${CURSES_INCLUDE_DIRS})
+    target_link_libraries(bimo_tui PRIVATE ${CURSES_LIBRARIES})
+    add_custom_target(tui DEPENDS bimo_tui)
+endif()

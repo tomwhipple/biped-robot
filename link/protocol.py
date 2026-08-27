@@ -35,6 +35,7 @@ TLM_PORT = 4211            # laptop listens here
 # -- command flags ---------------------------------------------------------
 FLAG_ENABLE = 1 << 0       # 0 = stand still regardless of vx/wz
 FLAG_ESTOP = 1 << 1        # latching torque release; see Watchdog.accept
+FLAG_ARM = 1 << 2          # operator wants the control loop armed; ArmLatch
 
 # -- timing ----------------------------------------------------------------
 # 20 Hz is ~2 orders of magnitude more command bandwidth than intent actually
@@ -83,6 +84,10 @@ class LinkState(Enum):
     # deliberate not-yet-commanding operator is the "I meant to pick it up"
     # signal, and re-arming straight into motion stays impossible.
     FALLEN = "fall"        # torso down, torque off until righted + ENABLE off
+    # Control loop benched: the CLI owns the servo bus, the link commands
+    # nothing, torque is off. This is the boot state. Leaves it via an ARM
+    # edge (ArmLatch) or the tethered `run`.
+    BENCH = "bench"
 
 
 class Command(NamedTuple):
@@ -98,6 +103,10 @@ class Command(NamedTuple):
     @property
     def estop(self) -> bool:
         return bool(self.flags & FLAG_ESTOP)
+
+    @property
+    def arm(self) -> bool:
+        return bool(self.flags & FLAG_ARM)
 
 
 class Telemetry(NamedTuple):
@@ -279,3 +288,91 @@ class Watchdog:
     @property
     def last_seq(self) -> int:
         return self._last_seq or 0
+
+
+class ArmLatch:
+    """Turns the ARM bit into bench/run mode requests. Firmware reference.
+
+    ARM is a *level* on the wire ("the operator wants the loop armed"), like
+    ENABLE, but the robot acts on its EDGES only:
+
+      0 -> 1   arm: hand the servo bus to the control loop (the tethered `run`)
+      1 -> 0   disarm: bench it -- torque off, bus back to the CLI
+
+    Edges rather than the level, for two reasons. A sender that has never
+    heard of the bit (the script/gamepad commanders, a pre-ARM firmware's
+    twin) sends 0 forever and produces no edge, so it can drive a robot that
+    was armed over the tether without benching it on its first frame. And the
+    very first frame from a sender never counts: a robot that reboots under a
+    client still holding ARM=1 stays benched until that client deliberately
+    re-arms -- the client sees BENCH in telemetry and says so.
+
+    Deliberately NOT inside Watchdog: the watchdog is re-created on every
+    bench -> run handover (fresh link state for a fresh run), while this must
+    outlive it to see the 1 -> 0 edge that ends the run. Sequence order is
+    the watchdog's business; this sees every decoded frame in arrival order,
+    duplicates included (a duplicate has the same level and makes no edge).
+    """
+
+    def __init__(self):
+        self._level = None
+
+    def update(self, flags: int):
+        """Feed one decoded frame's flags. True = arm, False = disarm,
+        None = no change requested."""
+        level = bool(flags & FLAG_ARM)
+        prev, self._level = self._level, level
+        if prev is None or prev == level:
+            return None
+        return level
+
+    @property
+    def level(self):
+        """The last ARM level seen, or None before the first frame."""
+        return self._level
+
+
+class Supervisor:
+    """ArmLatch + Watchdog + the bench/run mode, as the firmware composes
+    them (firmware/main/ctrl_task.cpp). Reference for the twins.
+
+    Benched (the boot state) the link commands nothing, torque is off and
+    telemetry says BENCH. An ARM edge arms: fresh Watchdog, fresh run. The
+    1 -> 0 edge benches again. `arm_allowed` stands in for the firmware's
+    refusal to run without an as-built calibration in NVS.
+    """
+
+    def __init__(self, armed: bool = False, arm_allowed: bool = True):
+        self.armed = armed
+        self.arm_allowed = arm_allowed
+        self.latch = ArmLatch()
+        self.dog = Watchdog()
+
+    def accept(self, pkt: Command, now_ms: float) -> bool:
+        """Feed one decoded frame. Returns the watchdog's verdict (always
+        False while benched: nothing was applied)."""
+        want = self.latch.update(pkt.flags)
+        if want is not None and want != self.armed:
+            if want and not self.arm_allowed:
+                pass                              # refused; stays BENCH
+            else:
+                self.armed = want
+                if want:
+                    self.dog = Watchdog()         # fresh run, fresh link state
+        if not self.armed:
+            return False
+        return self.dog.accept(pkt, now_ms)
+
+    def state(self, now_ms: float) -> LinkState:
+        return self.dog.state(now_ms) if self.armed else LinkState.BENCH
+
+    def command(self, now_ms: float) -> tuple:
+        return self.dog.command(now_ms) if self.armed else (0.0, 0.0)
+
+    def torque_on(self, now_ms: float) -> bool:
+        return self.state(now_ms) not in (LinkState.RELAX, LinkState.ESTOP,
+                                          LinkState.BENCH)
+
+    @property
+    def last_seq(self) -> int:
+        return self.dog.last_seq

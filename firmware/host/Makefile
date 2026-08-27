@@ -65,8 +65,16 @@ SRC_SIL   = sil_lib.cpp sil_net.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp
 
-.PHONY: all test clean vectors sil
+.PHONY: all test clean vectors sil tui
 all: $(BINS) $(SIL_LIB)
+
+# The operator's console (link/tui.cpp): the firmware's own linkproto
+# sources plus ncurses, no sanitizers (it is a tool, not a test), exceptions
+# off like the firmware. `make -C firmware/host tui`.
+TUI = $(BUILD)/bimo_tui
+tui: $(TUI)
+$(TUI): ../../link/tui.cpp $(SRC_LINK) $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(CXXFLAGS_NOSAN) $(filter %.cpp,$^) -o $@ -lncurses
 
 # The test sources use std::vector (FakePort's script), so exceptions are left
 # on for the test translation units only -- the firmware sources themselves are

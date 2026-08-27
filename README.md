@@ -40,7 +40,8 @@ live in [DESIGN.md](DESIGN.md).
   bolted-on emergency pose — then releases torque after 5 s. Protocol and
   failsafe are specified in `link/`, exercised against MuJoCo over real UDP
   by `sim/udp_agent.py` (30 % packet loss is invisible), and drivable by
-  script, gamepad, or goal-seeker. No parts change.
+  the single-keystroke console (`link/tui.cpp`, which also arms/disarms the
+  loop over the radio), script, gamepad, or goal-seeker. No parts change.
   See [docs/control-channel.md](docs/control-channel.md).
 - **Visual training log** — `sim/runs/night_summary.html` (self-contained
   page with gait filmstrips), rebuilt after every training round by
@@ -69,7 +70,10 @@ python train_ppo.py --steps 2_000_000 --n-envs 8 --run-name my_run
 # drive a policy over the real command protocol (two shells; ctrl-C to stop).
 # --host 127.0.0.1 talks to the sim twin; a robot's IP talks to the robot.
 cd .. && python sim/udp_agent.py --run-name cmd_11v1 --render
-python link/commander.py --host 127.0.0.1 --source gamepad
+make -C firmware/host tui && firmware/host/build/bimo_tui --host 127.0.0.1
+#   [a] arm, hold arrows to walk/turn, [space] stand, [e] e-stop, [q] quit
+python sim/udp_agent.py --run-name cmd_11v1 --render --boot-armed   # for the
+python link/commander.py --host 127.0.0.1 --source gamepad          # ARM-less
 python link/commander.py --host 127.0.0.1 --source script --script square
 python -m pytest tests/ -q             # protocol, watchdog, sources, torque
 

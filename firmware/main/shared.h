@@ -34,6 +34,18 @@ extern std::atomic<Mode> g_mode_request;
 // before it touches the bus.
 extern std::atomic<bool> g_ctrl_owns_bus;
 
+// -- link arm/disarm requests (core 1 -> core 0) ---------------------------
+// ctrl runs linkproto::ArmLatch over every frame it drains, in BOTH modes,
+// and publishes each ARM edge here; the housekeeping task turns it into the
+// same cmdMode() call the tethered `run`/`bench` make. The mode therefore
+// keeps its single writer, and -- because housekeeping only looks between
+// CLI lines -- a WiFi arm can never land in the middle of a bench-mode bus
+// command. A counter plus a level rather than a request flag, so that each
+// atomic also has exactly one writer: ctrl bumps, housekeeping remembers
+// what it has consumed.
+extern std::atomic<uint32_t> g_link_arm_edges;
+extern std::atomic<bool> g_link_arm_level;     // valid once edges > 0
+
 // -- command shaping pole (core 0 -> core 1) --------------------------------
 // Written by the CLI (`shape <hz>`), read by ctrl every tick. The C2 command
 // shaper's pole in Hz; 0 disables shaping (raw targets, max-speed slew --

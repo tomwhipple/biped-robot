@@ -48,4 +48,25 @@ class Watchdog {
     uint32_t rejected_ = 0;    // stale/duplicate frames, for telemetry
 };
 
+// C++ port of protocol.py:ArmLatch -- the ARM bit's edges become bench/run
+// requests. 0 -> 1 arms (the tethered `run`), 1 -> 0 benches. The first frame
+// from a sender never counts, and a sender that never sets the bit never
+// makes an edge, so it cannot bench a robot armed over the tether.
+//
+// Lives outside Watchdog on purpose: the watchdog is re-created on every
+// bench -> run handover, and this must outlive it to see the edge that ends
+// the run. Feed it every DECODED frame in arrival order, duplicates included.
+class ArmLatch {
+  public:
+    // true = the frame requests a mode change; `want_armed` says which way.
+    bool update(uint8_t flags, bool& want_armed);
+
+    bool haveLevel() const { return have_level_; }
+    bool level() const { return level_; }
+
+  private:
+    bool have_level_ = false;
+    bool level_ = false;
+};
+
 }  // namespace linkproto

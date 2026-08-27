@@ -27,6 +27,7 @@ constexpr uint16_t kTlmPort = 4211;
 // -- command flags ---------------------------------------------------------
 constexpr uint8_t kFlagEnable = 1u << 0;   // 0 = stand still regardless of vx/wz
 constexpr uint8_t kFlagEstop = 1u << 1;    // latching torque release
+constexpr uint8_t kFlagArm = 1u << 2;      // operator wants the loop armed; ArmLatch
 
 // -- timing ----------------------------------------------------------------
 constexpr float kSendHz = 20.0f;
@@ -66,7 +67,11 @@ enum class LinkState : uint8_t {
     // so a downed robot does not grind its servos against the floor. Clears
     // without a reboot: upright for kUprightMs plus a frame with ENABLE off.
     kFallen = 6,
-    kMaxState = kFallen,
+    // Control loop benched: CLI owns the bus, the link commands nothing,
+    // torque is off. Boot state. Left via an ArmLatch edge or the tethered
+    // `run`.
+    kBench = 7,
+    kMaxState = kBench,
 };
 
 // -- fall detection (robot-side, ctrl_task) --------------------------------
@@ -88,6 +93,7 @@ struct Command {
 
     bool enabled() const { return (flags & kFlagEnable) != 0; }
     bool estop() const { return (flags & kFlagEstop) != 0; }
+    bool arm() const { return (flags & kFlagArm) != 0; }
 };
 
 struct Telemetry {

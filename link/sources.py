@@ -65,6 +65,16 @@ def _dash_stop(t):
     return (0.8, 0.0) if t < 4.0 else (0.0, 0.0)
 
 
+def _line_1m(t):
+    # eval_precision.scen_line_1m: 1 s settle, 0.4 m/s until x crosses 1 m.
+    # Keyed on time like dash_stop; 2.73 s is loco_v14turn_s128's referee
+    # mean time_to_1m (sim/runs/loco_v14turn_s128/scorecard.json), NOT a
+    # hardware measurement -- tape the floor and correct it.
+    if t < 1.0:
+        return 0.0, 0.0
+    return (0.4, 0.0) if t < 1.0 + 2.73 else (0.0, 0.0)
+
+
 def _turn(t):
     return (0.4, 0.5) if t % 6.0 < 3.0 else (0.4, -0.5)
 
@@ -83,6 +93,7 @@ SCRIPTS = {
     "stand": _stand,
     "walk": _walk,
     "dash_stop": _dash_stop,
+    "line_1m": _line_1m,
     "turn": _turn,
     "pivot": _pivot,
     "square": _square,

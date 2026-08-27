@@ -972,6 +972,11 @@ void banner(Sink out) {
     out("  stat                 tick timing and fault counters\r\n");
 }
 
+void linkMode(bool run, Sink out) {
+    out(run ? "link: arm -> " : "link: disarm -> ");
+    cmdMode(out, run);
+}
+
 void execute(const char* line, Sink out) {
     char buf[96];
     strncpy(buf, line, sizeof buf - 1);

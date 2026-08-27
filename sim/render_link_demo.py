@@ -47,7 +47,8 @@ def main():
     agent = subprocess.Popen(
         [PY, os.path.join(HERE, "udp_agent.py"), "--run-name", args.run_name,
          "--duration", str(args.duration), "--render", "--out-dir", args.tmp,
-         "--port", "4810", "--tlm-port", "4811", "--pose-port", "4812"],
+         "--port", "4810", "--tlm-port", "4811", "--pose-port", "4812",
+         "--boot-armed"],                        # the script commander never ARMs
         stdout=subprocess.PIPE, text=True)
     time.sleep(6)                                   # policy + model load
     cmd = subprocess.Popen(

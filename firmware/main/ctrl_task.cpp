@@ -37,6 +37,9 @@ esp_timer_handle_t g_tick_timer = nullptr;
 // Loop-owned state. Single writer, never shared.
 imu::Imu* g_imu = nullptr;
 linkproto::Watchdog g_dog;
+// Outlives g_dog across bench/run handovers -- it has to see the ARM edge
+// that ENDS a run (linkproto/watchdog.h).
+linkproto::ArmLatch g_arm;
 battguard::Guard g_batt;
 obs::Calibration g_cal;
 obs::History g_hist;
@@ -154,14 +157,54 @@ void ctrlTask(void*) {
         esp_task_wdt_reset();
         ++g_ticks;
 
+        const float now_ms = static_cast<float>(t0) / 1000.0f;
+        const bool benched = g_mode_request.load() == Mode::kBench;
+
         // -- bench handover ------------------------------------------------
-        if (g_mode_request.load() == Mode::kBench) {
+        if (benched) {
             if (g_ctrl_owns_bus.load()) {
                 releaseAll();               // never hand the CLI a live robot
                 g_ctrl_owns_bus.store(false);
                 g_primed = false;
                 g_shaper.invalidate();
             }
+        } else if (!g_ctrl_owns_bus.load()) {
+            g_ctrl_owns_bus.store(true);
+            g_dog = linkproto::Watchdog();
+            g_hist = obs::History();
+            memset(g_prev_action, 0, sizeof g_prev_action);
+            g_primed = false;
+            g_shaper.invalidate();
+            // Fresh run, fresh fall latch: `bench` + `run` is the tethered
+            // clear (and a disarm + arm the wireless one), and the operator
+            // doing it is looking at the robot.
+            g_fallen = false;
+            g_fall_streak = 0;
+            g_upright_streak = 0;
+            g_last_cmd_flags = linkproto::kFlagEnable;
+        }
+
+        // -- drain the command mailbox (latest wins) -----------------------
+        // In BOTH modes: while benched the watchdog is idle and the link
+        // commands nothing, but the ArmLatch must still see every frame --
+        // an ARM edge is how the wireless client arms the loop. The edge is
+        // published, not acted on here; shared.h says why.
+        CommandMsg msg;
+        while (xQueueReceive(g_cmd_mailbox, &msg, 0) == pdTRUE) {
+            bool want_armed = false;
+            if (g_arm.update(msg.cmd.flags, want_armed)) {
+                g_link_arm_level.store(want_armed);
+                g_link_arm_edges.fetch_add(1);
+            }
+            if (benched) continue;
+            g_dog.accept(msg.cmd, now_ms);
+            // Kept even for frames the watchdog rejects as stale: the fall
+            // clear below only needs "the operator is deliberately not
+            // commanding", and any recent frame answers that.
+            g_last_cmd_flags = msg.cmd.flags;
+        }
+
+        if (benched) {
             // Keep the attitude filter running while benched. It is a
             // complementary filter with a ~2 s time constant, so it needs to
             // have been watching gravity for a while before its output means
@@ -175,32 +218,7 @@ void ctrlTask(void*) {
             }
             continue;
         }
-        if (!g_ctrl_owns_bus.load()) {
-            g_ctrl_owns_bus.store(true);
-            g_dog = linkproto::Watchdog();
-            g_hist = obs::History();
-            memset(g_prev_action, 0, sizeof g_prev_action);
-            g_primed = false;
-            g_shaper.invalidate();
-            // Fresh run, fresh fall latch: `bench` + `run` is the tethered
-            // clear, and the operator typing it is looking at the robot.
-            g_fallen = false;
-            g_fall_streak = 0;
-            g_upright_streak = 0;
-            g_last_cmd_flags = linkproto::kFlagEnable;
-        }
 
-        const float now_ms = static_cast<float>(t0) / 1000.0f;
-
-        // -- drain the command mailbox (latest wins) -----------------------
-        CommandMsg msg;
-        while (xQueueReceive(g_cmd_mailbox, &msg, 0) == pdTRUE) {
-            g_dog.accept(msg.cmd, now_ms);
-            // Kept even for frames the watchdog rejects as stale: the fall
-            // clear below only needs "the operator is deliberately not
-            // commanding", and any recent frame answers that.
-            g_last_cmd_flags = msg.cmd.flags;
-        }
         const linkproto::LinkState state = g_dog.state(now_ms);
 
         // -- sense ---------------------------------------------------------
