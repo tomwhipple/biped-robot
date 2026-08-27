@@ -197,6 +197,29 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·27</span></p>
+    <p><b>Negative result, worth its price: don't change the clock
+    contract under a trained policy.</b> Both ×1.25 arms regressed on
+    every axis — 62 and 63/144, stand_off back to 0/8, turn_180 0/8,
+    and the rhythm broke too (88% alternation, stride CV 0.23/0.33).
+    Tellingly, <i>training reward rose</i> (1600–1800, the highest yet)
+    while every measured skill fell: with the clock's speed-law changed
+    underfoot, PPO re-optimized into a different optimum and forgot the
+    scenario skills. Contrast with history: reward-<i>weight</i> changes
+    (adding the schedule, heading 0.3, stand-com) have always
+    warm-started cleanly. It's the observation-dynamics contract that
+    must stay fixed within a lineage. The ×1.25 idea isn't dead — it
+    would need training from scratch or a multi-night transition budget
+    — but it's shelved. Tonight returns to the two proven parents, each
+    with a contract-safe fix: v24clockv_b continues the rhythm-champion
+    clock lineage at its native ×1.7 (its top end is servo-capped
+    anyway; betting time recovers scenarios like it did for the v22fix
+    line), and v22fix_d continues the scenario champion with the
+    contact-schedule weight doubled to 1.0 to arrest its three-night
+    rhythm slide (CV 0.06 → 0.20).</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·26</span></p>
     <p><b>The speed-clock A/B split — and exposed a quiet decay in the
     "winning" line.</b> By scorecard the plain control won again:
