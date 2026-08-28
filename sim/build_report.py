@@ -197,6 +197,32 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·28</span></p>
+    <p><b>The lineages are exhausted — breaking the continuation loop.</b>
+    Last night's repair arms both declined again: the clock lineage's
+    <i>pure</i> continuation (identical contract) collapsed its own
+    crown jewel (rhythm CV 0.09 → 0.36, alternation 86%), and doubling
+    the schedule weight didn't arrest the fix-line's slide (CV 0.19,
+    82/144). Across the last four arms the picture is uniform: training
+    reward at all-time highs (1680–1748) while every behavioral metric
+    degrades. That's not bad luck — it's the signature of deep-
+    continuation decay: both lines are now 5–6 generations of
+    warm-starts deep, the policies have gone exploitative and brittle,
+    and further nights on these weights buy reward, not behavior.
+    Tonight breaks the loop: <b>loco_v25full</b>, trained FROM SCRATCH
+    with the full consolidated contract — every proven shaping term
+    plus the speed-coupled clock at the servo-feasible ×1.25 baked in
+    from step zero (the mid-lineage cap change that failed on 08·27
+    gets its fair test the right way). One job, the whole night
+    (70M budgeted, curfew checkpoints), continuation tomorrow if the
+    curve says so. Meanwhile the hardware-validation candidates are
+    frozen: <b>v22fix_c</b> for scenario breadth (94/144), and
+    <b>v24clockv</b> for gait quality (100% alternation, CV 0.09, slow
+    metronome solved) — both reels and weights ready whenever the robot
+    is.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·27</span></p>
     <p><b>Negative result, worth its price: don't change the clock
     contract under a trained policy.</b> Both ×1.25 arms regressed on
