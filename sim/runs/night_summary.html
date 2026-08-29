@@ -98,6 +98,25 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·29</span></p>
+    <p><b>The entropy experiment settled it: warm-starting is done.</b>
+    Tom's (fair) challenge to yesterday's from-scratch call produced a
+    split A/B: continue the best warm line with entropy raised
+    0.004 → 0.010 (if the decay was entropy collapse, this should
+    revive it) vs. the first 35M of the from-scratch consolidation.
+    Verdict: the entropy arm declined <i>further</i> — 73/144 (parent
+    94), stand_off 1/8, rhythm still degraded (94%, CV 0.18), rewards
+    plateaued. The exploitative-brittleness diagnosis stands and the
+    cheap fix is ruled out; the v21→v22 lineage is formally retired,
+    with v22fix_c and v24clockv frozen as the hardware candidates.
+    Meanwhile the infant v25full looks exactly as a healthy from-scratch
+    run should at 35M: reward −91 → 507 and climbing steeply, 14/144,
+    falls 59% — a toddler, not a verdict. It gets the whole window from
+    tonight (70M/night, same contract it was born with) until the curve
+    flattens.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·28</span></p>
     <p><b>The lineages are exhausted — breaking the continuation loop.</b>
     Last night's repair arms both declined again: the clock lineage's
