@@ -179,7 +179,10 @@ class Telemetry(NamedTuple):
     up_z: float            # torso up-vector z; 1.0 = perfectly upright
     vx_est: float          # m/s, body-frame forward
     wz_est: float          # rad/s
-    servo_err: int         # bitmask, bit i = servo ID i+1 faulted
+    servo_err: int         # bitmask, bit i = JOINT INDEX i faulted (obs_spec
+                           # order: L yaw,roll,pitch,knee,ankle then R same --
+                           # ctrl readJoints sets 1<<i; NOT servo id i+1, the
+                           # ids are not in joint order)
     loop_late_pct: int     # % of control ticks that overran 20 ms
 
     @property
