@@ -43,7 +43,13 @@ class Driver:
         self.rx.bind(("0.0.0.0", tlm_port))
         self.rx.setblocking(False)
         self.period = 1.0 / send_hz
-        self.seq = 0
+        # Seq as if this sender had been running since machine boot at the
+        # send rate: any LATER process starts above any earlier one's current
+        # seq. The robot's watchdog keeps last_seq across senders (it resets
+        # only on an arm edge) and rejects small backwards jumps as replays --
+        # on 2026-08-30 a phase-per-process run had its entire walk window
+        # silently rejected (seq restarted at 0, jump < kSeqResyncGap).
+        self.seq = int(time.monotonic() * send_hz) & 0xFFFFFFFF
         self.t0 = time.monotonic()
         self.tlm = None
         self.n_tlm = 0
