@@ -29,7 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from protocol import (CMD_PORT, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP,  # noqa: E402
                       SEND_HZ, TLM_PORT, LinkState, ProtocolError,
-                      decode_telemetry, encode_command)
+                      decode_telemetry, diag_reason, encode_command)
 from sources import SCRIPTS  # noqa: E402
 
 
@@ -93,6 +93,10 @@ class Driver:
                   f"echo={tl.seq_echo}" + ("  <-- state change" if changed else ""),
                   flush=True)
             self.last_print = t
+        if changed and tl.state == LinkState.BENCH:
+            # Benched, seq_echo is the diagnostic byte (protocol.py DIAG_*):
+            # the robot's own answer to "why is nothing happening?".
+            print(f"        robot says: {diag_reason(tl.seq_echo)}", flush=True)
         if tl.servo_err:
             return f"servo fault bits 0x{tl.servo_err:02x}"
         live = tl.state in (LinkState.LIVE, LinkState.STAND)
@@ -198,6 +202,8 @@ def main():
     finally:
         print(f"== done: {d.seq} frames sent, {d.n_tlm} telemetry received; "
               f"states: {d.states_seen}", flush=True)
+        if d.tlm is not None and d.tlm.state == LinkState.BENCH:
+            print(f"== benched: {diag_reason(d.tlm.seq_echo)}", flush=True)
         d.close()
     sys.exit(2 if verdict else 0)
 
