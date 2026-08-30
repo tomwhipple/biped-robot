@@ -163,3 +163,10 @@ def test_console_follows_a_robot_that_refuses_to_arm():
     shown = screen.text()
     assert "stayed BENCH" in shown, shown
     assert "not armed -- press [a] first" in shown, shown
+    # The incident of 2026-08-30: the robot refused the arm and said nothing
+    # over the radio, so diagnosing it needed the serial tether. The console
+    # must now name the gate that refused, without guessing.
+    assert "no as-built calibration in NVS" in shown, shown
+    # ... and it must say so BEFORE the arm was even attempted, from the very
+    # first beacon -- an uncalibrated robot is diagnosable on sight.
+    assert "arming will be REFUSED" in shown, shown

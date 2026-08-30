@@ -150,6 +150,15 @@ void wifiLinkTask(void*) {
             // knows an ARM edge (not a walk command) is what it needs to send.
             if (g_mode_request.load() == Mode::kBench) {
                 t.state = linkproto::LinkState::kBench;
+                // ... and say WHY it is still benched. seq_echo is "the last
+                // command seq the loop applied"; benched it applied none, so
+                // this is the one state where the field has nothing to lose,
+                // which is exactly why the diagnostic rides there (protocol.h
+                // kDiag*, docs/control-channel.md). A commander that predates
+                // this still decodes the frame: no version, no length change.
+                t.seq_echo = linkproto::packDiag(
+                    false, g_cal_from_nvs.load(),
+                    static_cast<linkproto::ArmResult>(g_arm_result.load()));
             }
             t.vbat_v = g_telemetry.vbat_mv.load() / 1000.0f;
             t.up_z = g_telemetry.up_z.load();

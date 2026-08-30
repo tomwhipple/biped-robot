@@ -204,7 +204,7 @@ struct Console {
     Motion motion = Motion::kNone;
     double held_until_ms = 0.0;
     double armed_at_ms = 0.0;
-    char note[120] = "";
+    char note[160] = "";
 
     // Key-repeat measurement, so --hold-ms is set from evidence.
     bool key_down = false;
@@ -324,9 +324,19 @@ void draw(const Options& o, const Link& link, const Console& c, double now_ms,
             mvprintw(row++, R, "servo    ok");
         }
         mvprintw(row++, R, "loop     %u%% late ticks", t.loop_late_pct);
-        mvprintw(row++, R, "seq_echo %u  (lag %ld)  beacons %u bad %u", t.seq_echo,
-                 static_cast<long>(link.seq) - 1 - static_cast<long>(t.seq_echo),
-                 link.tlm_count, link.tlm_bad);
+        if (t.state == LinkState::kBench) {
+            // Benched, seq_echo is the diagnostic byte, not a sequence -- so
+            // do not draw a "lag" computed from it. Showing the raw byte too
+            // keeps a screenshot diagnosable against protocol.h.
+            mvprintw(row++, R, "diag     0x%02X  beacons %u bad %u",
+                     telemetryDiag(t), link.tlm_count, link.tlm_bad);
+        } else {
+            mvprintw(row++, R, "seq_echo %u  (lag %ld)  beacons %u bad %u",
+                     t.seq_echo,
+                     static_cast<long>(link.seq) - 1 -
+                         static_cast<long>(t.seq_echo),
+                     link.tlm_count, link.tlm_bad);
+        }
     }
 
     row = top + 9;
@@ -341,6 +351,14 @@ void draw(const Options& o, const Link& link, const Console& c, double now_ms,
                      ? "  -- LONGER than hold: raise --hold-ms" : "");
     } else {
         mvprintw(row++, 0, "key repeat: not measured yet (hold a motion key)");
+    }
+    // The robot's own answer to "why is nothing happening?". Drawn whenever
+    // the beacon says BENCH, not only after an arm attempt: a console opened
+    // on an uncalibrated robot should read "arming will be REFUSED" before
+    // anyone presses [a], instead of after a silent 1.5 s.
+    if (link.have_tlm && link.tlm.state == LinkState::kBench &&
+        link.tlmAgeMs(now_ms) < kTlmLostMs) {
+        mvprintw(row++, 0, "BENCH: %s", diagReason(telemetryDiag(link.tlm)));
     }
     if (c.note[0]) mvprintw(row++, 0, "%s", c.note);
     refresh();
@@ -432,8 +450,12 @@ int main(int argc, char** argv) {
             now_ms - c.armed_at_ms > kArmSyncMs) {
             c.armed = false;
             c.stand(nullptr);
-            c.say("robot stayed BENCH after arm: refused (no calibration?) or "
-                  "rebooted -- press [a] to retry");
+            // The robot now says WHY (protocol.h kDiag*), so quote it instead
+            // of guessing at "no calibration?" the way this line used to.
+            char msg[sizeof c.note];
+            snprintf(msg, sizeof msg, "robot stayed BENCH after arm: %s",
+                     diagReason(telemetryDiag(link.tlm)));
+            c.say(msg);
         }
 
         float vx, wz;

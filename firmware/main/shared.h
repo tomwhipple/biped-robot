@@ -46,6 +46,19 @@ extern std::atomic<bool> g_ctrl_owns_bus;
 extern std::atomic<uint32_t> g_link_arm_edges;
 extern std::atomic<bool> g_link_arm_level;     // valid once edges > 0
 
+// -- why the loop is (not) armed (core 0 -> the WiFi beacon) ---------------
+// cmdMode() is the ONE place that decides a mode request, and until 2026-08-30
+// its refusal only reached the UART sink: over WiFi the robot simply stayed
+// BENCH and the operator learned nothing (that day, six seconds of ARM frames
+// were diagnosed only by plugging the tether). cmdMode records its verdict
+// here and wifi_link.cpp puts it in the BENCH beacon.
+//
+// Single writer: cmdMode runs ONLY on the housekeeping task -- a typed
+// `run`/`bench` arrives through cli::execute() and a wireless ARM edge
+// through cli::linkMode(), both from that one loop. The reader is a 10 Hz
+// human-facing beacon, so it follows the TelemetrySnapshot rule.
+extern std::atomic<uint8_t> g_arm_result;      // a linkproto::ArmResult
+
 // -- command shaping pole (core 0 -> core 1) --------------------------------
 // Written by the CLI (`shape <hz>`), read by ctrl every tick. The C2 command
 // shaper's pole in Hz; 0 disables shaping (raw targets, max-speed slew --
@@ -105,8 +118,13 @@ extern scsbus::Bus* g_bus;
 obs::Calibration& calibration();
 
 // True when boot found a valid blob in NVS. Shown by `cal` so nobody mistakes
-// freshly-defaulted values for a real calibration.
-extern bool g_cal_from_nvs;
+// freshly-defaulted values for a real calibration, and gate-kept by cmdMode:
+// no calibration, no run.
+//
+// Atomic since 2026-08-30, when the WiFi beacon became a second reader on
+// another task (the kDiagCalOk bit). Written only by the housekeeping task --
+// the `cal` subcommands -- after app_main sets it before any task starts.
+extern std::atomic<bool> g_cal_from_nvs;
 
 // The pack under-voltage guard, owned and written by the control task. The
 // CLI's `batt` reads it (a torn read is a human-facing report, same rule as

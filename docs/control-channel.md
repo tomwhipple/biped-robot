@@ -53,6 +53,8 @@ both paths.
 version, link state, echoed seq, bus millivolts, torso up-z, estimated vx/wz,
 a per-servo fault bitmask, and the percentage of control ticks that overran
 20 ms. The OLED shows bus voltage too, but telemetry is what a laptop can log.
+The echoed-seq field does double duty while the state is `BENCH` — see
+[the bench diagnostic](#saying-why-over-the-radio-2026-08-30).
 
 Fixed-point milli-units rather than float32 so the frame is byte-identical
 across the Python sender and a C firmware. ±32.7 m/s of headroom on a plant
@@ -138,14 +140,85 @@ is in `link/protocol.py:ArmLatch` (C++: `linkproto::ArmLatch`):
   script/gamepad commanders can still drive a robot armed over the tether
   without benching it on their first frame.
 - Same refusal as the typed `run`: no as-built calibration in NVS, no run.
-  The refusal is printed on the tether; the link only sees the robot stay
-  `BENCH`.
+  ~~The refusal is printed on the tether; the link only sees the robot stay
+  `BENCH`.~~ The refusal now rides the radio — next section.
 
 Firmware-side the latch lives in the control loop, which now drains the
 mailbox in bench mode too; the edge is published to the housekeeping task,
 which calls the same `cmdMode()` as the CLI. That keeps the mode's single
 writer, and — because housekeeping only looks between CLI lines — a
 wireless arm can never land in the middle of a bench-mode bus command.
+
+## Saying WHY, over the radio (2026-08-30)
+
+**The incident.** The robot ignored six seconds of `ARM` frames and sat in
+`BENCH`. Every part of the mechanism above worked; the refusal happened
+exactly where it should, in `cmdMode()` — and its explanation went to the
+UART sink, which nobody was plugged into. Diagnosing "the robot is not
+listening" required fetching a cable. That is the failure this closes: a
+silent `BENCH` beacon is not a diagnostic, it is a shrug.
+
+### The wire decision, and the two options it beat
+
+A **protocol version bump appending bytes** to telemetry was the obvious
+move and is the wrong one. Both decoders check the length *and* the version
+(`decode_telemetry`, `decodeTelemetry`), so every commander built before the
+bump — including the console already running on the operator's screen —
+would reject every frame. The change would blind the client at precisely the
+moment the diagnostic matters. Rejected.
+
+**Overloading `servo_err` or `loop_late_pct`** keeps compatibility but lies:
+an old console would draw `servo FAULT 00100000`, or `137% late ticks`, and
+send someone hunting a servo that is fine. A diagnostic that produces a
+false alarm on old clients is worse than silence. Rejected.
+
+**The diagnostic rides `seq_echo`, and only while the state is `BENCH`.**
+`seq_echo` is defined as *the last command sequence the robot applied*, and
+a benched loop applies nothing — so in exactly that state, and no other, the
+field carries no information to destroy. No version bump, no length change:
+**every existing commander decodes every frame unmodified**, and what it
+shows is a small sequence number, which is what a fresh boot looks like
+anyway. The one client-side cost is that `bimo_tui` must not compute a "lag"
+from it while benched, so it prints the raw byte instead.
+
+The byte is `linkproto::packDiag` / `protocol.py:pack_diag`, and its layout
+is **append-only** like the `LinkState` enum — reserved bits are sent zero
+and a reader ignores what it does not know:
+
+| bits | meaning |
+|---|---|
+| 0 | `RUN` — mode is `kRun` (0 = benched) |
+| 1 | `CAL_OK` — as-built calibration was loaded from NVS |
+| 2–3 | reserved, sent zero |
+| 4–7 | `ArmResult`: 0 none yet, 1 accepted, 2 **refused, no calibration** |
+
+A future refusal reason takes value 3. A client that meets a value it does
+not know says *"reason unknown to this client (newer firmware)"* rather than
+reporting an older reason — guessing "no calibration?" at an unrelated fault
+is how an operator ends up re-running `cal` for nothing. The upper 24 bits of
+`seq_echo` are reserved zero, so the diagnostic can grow past a byte without
+another wire decision.
+
+The reason *sentences* are frozen in the golden vectors alongside the bytes.
+Two copies of a message drift the moment one side is reworded, and the
+sentence is the part the operator actually reads.
+
+**Firmware-side** `cmdMode()` — the one place that decides an arm request —
+publishes its verdict to `robot::g_arm_result` before printing it, and
+`wifi_link.cpp` folds it into the `BENCH` beacon with `g_cal_from_nvs`. No
+new task: `cmdMode()` only ever runs on the housekeeping loop (a typed
+`run`/`bench` through `cli::execute`, a wireless edge through
+`cli::linkMode`), so the atomic keeps its single writer, exactly like the
+mode itself.
+
+**Client-side**, `bimo_tui` draws the reason whenever the beacon says
+`BENCH` — not only after a failed arm. An uncalibrated robot therefore reads
+*"BENCH: no arm requested yet — and there is NO calibration in NVS, so
+arming will be REFUSED"* the moment the console opens, instead of after a
+silent 1.5 s and a press of `[a]`. `link/commander.py` appends the same
+sentence to its status line and repeats it on exit. `link/link_twin.py`
+emits the byte faithfully, `--no-cal` included, which is what
+`tests/test_tui_e2e.py` asserts the console displays.
 
 Reordered and duplicate frames are dropped by sequence number, and — subtly —
 **a stale frame must not pet the watchdog**. If it did, a reordered burst

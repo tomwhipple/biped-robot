@@ -22,7 +22,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from protocol import (CMD_PORT, TLM_PORT, LinkState, ProtocolError,  # noqa
-                      Supervisor, Telemetry, decode_command, encode_telemetry)
+                      Supervisor, Telemetry, decode_command, diag_reason,
+                      encode_telemetry)
 
 
 def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
@@ -34,7 +35,7 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
     tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     sup = Supervisor(armed=armed, arm_allowed=arm_allowed)
-    peer, last_state, last_cmd = None, None, (0.0, 0.0)
+    peer, last_state, last_cmd, last_diag = None, None, (0.0, 0.0), None
     t0 = time.monotonic()
     tick = 0
     print(f"link_twin: listening on :{port}, telemetry -> :{tlm_port}, "
@@ -53,16 +54,24 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                 pass
         state = sup.state(now_ms)
         cmd = sup.command(now_ms)
-        if not quiet and (state is not last_state or cmd != last_cmd):
+        diag = sup.diag()
+        if not quiet and (state is not last_state or cmd != last_cmd
+                          or diag != last_diag):
+            why = f"  -- {diag_reason(diag)}" if state is LinkState.BENCH \
+                else ""
             print(f"  [{now_ms/1000:7.2f}s] {state.value:5s} "
                   f"vx {cmd[0]:+.2f} wz {cmd[1]:+.2f} "
-                  f"torque {'on' if sup.torque_on(now_ms) else 'off'}",
+                  f"torque {'on' if sup.torque_on(now_ms) else 'off'}{why}",
                   flush=True)
-            last_state, last_cmd = state, cmd
+            last_state, last_cmd, last_diag = state, cmd, diag
         if peer and tick % 5 == 0:
+            # seq_echo carries the bench diagnostic while BENCH, exactly as
+            # firmware/main/wifi_link.cpp does it -- the twin has to be
+            # faithful about that or the console is tested against a fiction.
             tx.sendto(encode_telemetry(Telemetry(
-                seq_echo=sup.last_seq, state=state, vbat_v=11.4, up_z=1.0,
-                vx_est=cmd[0], wz_est=cmd[1], servo_err=0, loop_late_pct=0,
+                seq_echo=sup.seq_echo(now_ms), state=state, vbat_v=11.4,
+                up_z=1.0, vx_est=cmd[0], wz_est=cmd[1], servo_err=0,
+                loop_late_pct=0,
             )), (peer, tlm_port))
         tick += 1
         time.sleep(0.02)                          # the 50 Hz control tick

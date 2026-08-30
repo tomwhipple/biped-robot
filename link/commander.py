@@ -21,8 +21,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import sources                                                   # noqa: E402
-from protocol import (CMD_PORT, SEND_HZ, TLM_PORT, ProtocolError,  # noqa: E402
-                      decode_telemetry, encode_command)
+from protocol import (CMD_PORT, SEND_HZ, TLM_PORT, LinkState,  # noqa: E402
+                      ProtocolError, decode_telemetry, encode_command)
 
 
 def stream(host, source, send_hz=SEND_HZ, cmd_port=CMD_PORT,
@@ -65,6 +65,10 @@ def stream(host, source, send_hz=SEND_HZ, cmd_port=CMD_PORT,
             seq += 1
             time.sleep(0.01)
         print("\nstopped; sent stand command")
+        if tlm is not None and tlm.state is LinkState.BENCH:
+            # Every frame this run was ignored. The robot knows why, and
+            # this is the last chance to say it before the process exits.
+            print(f"robot was BENCHED the whole time: {tlm.reason}")
     finally:
         source.close()
         tx.close()
@@ -78,6 +82,11 @@ def _status(t, vx, wz, flags, tlm):
                 f"up{tlm.up_z:4.2f} vx{tlm.vx_est:+5.2f}")
         if tlm.servo_err:
             link += f" ERR{tlm.servo_err:08b}"
+        if tlm.state is LinkState.BENCH:
+            # A benched robot ignores every command in this stream. Say why
+            # here instead of leaving the operator to watch a status line
+            # that never changes (docs/control-channel.md, 2026-08-30).
+            link += f"  {tlm.reason}"
     sys.stdout.write(f"\r{t:6.1f}s  cmd v{vx:+5.2f} w{wz:+5.2f} "
                      f"f{flags:02b}  | robot {link}   ")
     sys.stdout.flush()

@@ -69,7 +69,29 @@ TLM_CASES = [
     # Benched: what the WiFi beacon says before anyone arms the loop. The
     # zeros are real -- ctrl never published, so the snapshot is boot state.
     (0, P.LinkState.BENCH, 0.0, 0.0, 0.0, 0.0, 0x00, 0),
+    # ... and benched WITH a diagnostic in seq_echo (2026-08-30). These are
+    # the frames the incident of that day would have produced: a robot that
+    # ignored six seconds of ARM frames, now saying why. Frozen here so the
+    # firmware's packDiag() and the Python pack_diag() cannot drift apart in
+    # the one field whose meaning depends on the state byte.
+    (P.pack_diag(False, False, P.ArmResult.REFUSED_NO_CAL),
+     P.LinkState.BENCH, 11.4, 0.0, 0.0, 0.0, 0x00, 0),
+    (P.pack_diag(False, True, P.ArmResult.NONE),
+     P.LinkState.BENCH, 11.4, 0.0, 0.0, 0.0, 0x00, 0),
 ]
+
+# -- bench diagnostics -------------------------------------------------------
+# Every packing, plus a value from a hypothetical NEWER firmware (0xF0) that
+# this client must not mis-report as an older reason.
+DIAG_CASES = [
+    (False, False, P.ArmResult.NONE),
+    (False, True, P.ArmResult.NONE),
+    (False, False, P.ArmResult.REFUSED_NO_CAL),
+    (False, True, P.ArmResult.REFUSED_NO_CAL),
+    (True, True, P.ArmResult.ACCEPTED),
+    (False, True, P.ArmResult.ACCEPTED),
+]
+DIAG_RAW = [0x00, 0x02, 0x21, 0x13, 0xF0, 0xF3]   # decode-only, incl. unknown
 
 # -- arm latch script --------------------------------------------------------
 # flags per frame, in arrival order; the expected verdict is computed by the
@@ -127,6 +149,12 @@ def f32(x):
 
 def carr(b):
     return "{" + ", ".join("0x%02X" % x for x in b) + "}"
+
+
+def cstr(s):
+    """A C string literal body. The reason lines are plain ASCII prose, but
+    escaping is one line and a stray quote would be a silent syntax error."""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def fl(x):
@@ -202,6 +230,7 @@ def main():
     w("    uint32_t seq; uint8_t state; float vbat; float up_z;")
     w("    float vx; float wz; uint8_t servo_err; uint8_t late;")
     w("    uint8_t wire[%d];" % P.TLM_LEN)
+    w("    uint8_t diag;   // Telemetry.diag: seq_echo's low byte, BENCH only")
     w("};")
     w("inline const TlmCase kTlm[] = {")
     for seq, st, vb, up, vx, wz, err, late in TLM_CASES:
@@ -210,11 +239,41 @@ def main():
                         vx_est=vx, wz_est=wz, servo_err=err,
                         loop_late_pct=late)
         wire = P.encode_telemetry(t)
-        w("    {%du, %d, %s, %s, %s, %s, 0x%02X, %d, %s}," % (
+        w("    {%du, %d, %s, %s, %s, %s, 0x%02X, %d, %s, 0x%02X}," % (
             seq & 0xFFFFFFFF, list(P.LinkState).index(st), fl(vb), fl(up),
-            fl(vx), fl(wz), err, late, carr(wire)))
+            fl(vx), fl(wz), err, late, carr(wire), t.diag))
     w("};")
     w("inline constexpr size_t kNumTlm = sizeof kTlm / sizeof kTlm[0];")
+    w("")
+
+    # -- bench diagnostics -------------------------------------------------
+    # The reason STRINGS are frozen too. They are what the operator reads on
+    # a silent bench, and two copies of a sentence drift the moment one side
+    # is reworded; this makes that a failing test.
+    w("struct DiagCase {")
+    w("    int run; int cal_ok; uint8_t result; uint8_t packed;")
+    w("    const char* reason;")
+    w("};")
+    w("inline const DiagCase kDiag[] = {")
+    for run, cal_ok, res in DIAG_CASES:
+        packed = P.pack_diag(run, cal_ok, res)
+        w('    {%d, %d, %d, 0x%02X, "%s"},' % (
+            int(run), int(cal_ok), res.value, packed,
+            cstr(P.diag_reason(packed))))
+    w("};")
+    w("inline constexpr size_t kNumDiag = sizeof kDiag / sizeof kDiag[0];")
+    w("")
+    w("// Decode-only, including a value from a NEWER firmware: an unknown")
+    w("// ArmResult must produce its own message, never an older reason.")
+    w("struct DiagRawCase { uint8_t diag; int known; const char* reason; };")
+    w("inline const DiagRawCase kDiagRaw[] = {")
+    for d in DIAG_RAW:
+        r = P.diag_arm_result(d)
+        w('    {0x%02X, %d, "%s"},' % (d, int(r is not None),
+                                       cstr(P.diag_reason(d))))
+    w("};")
+    w("inline constexpr size_t kNumDiagRaw = "
+      "sizeof kDiagRaw / sizeof kDiagRaw[0];")
     w("")
 
     # -- watchdog ----------------------------------------------------------

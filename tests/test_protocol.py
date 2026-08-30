@@ -13,12 +13,14 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "link"))
 
-from protocol import (CMD_LEN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP,  # noqa: E402
-                      RELAX_MS, STALE_MS, TLM_LEN, V_MAX, W_MAX, ArmLatch,
+from protocol import (CMD_LEN, DIAG_ARM_SHIFT, DIAG_CAL_OK,  # noqa: E402
+                      DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, RELAX_MS,
+                      STALE_MS, TLM_LEN, V_MAX, W_MAX, ArmLatch, ArmResult,
                       Command, LinkState, ProtocolError, Supervisor,
                       Telemetry, Watchdog, clamp_to_envelope, crc16_ccitt,
-                      decode_command, decode_telemetry, encode_command,
-                      encode_telemetry)
+                      decode_command, decode_telemetry, diag_arm_result,
+                      diag_reason, encode_command, encode_telemetry,
+                      pack_diag)
 
 
 # -- CRC -------------------------------------------------------------------
@@ -326,6 +328,96 @@ def test_supervisor_rearm_is_a_fresh_run():
     sup.accept(live(seq=3, flags=FLAG_ESTOP), 3.0)              # disarm
     sup.accept(live(seq=4, flags=FLAG_ARM), 4.0)                # re-arm
     assert sup.state(5.0) is LinkState.LIVE                     # not ESTOP
+
+
+# -- bench diagnostics -----------------------------------------------------
+def test_diag_values_are_append_only():
+    # Same rule as LinkState: the wire meaning of an existing value must
+    # never move, or an old client mis-reports a new robot.
+    assert [(r.name, r.value) for r in ArmResult] == [
+        ("NONE", 0), ("ACCEPTED", 1), ("REFUSED_NO_CAL", 2)]
+    assert DIAG_RUN == 1 and DIAG_CAL_OK == 2 and DIAG_ARM_SHIFT == 4
+
+
+def test_diag_packs_the_three_facts_into_one_byte():
+    d = pack_diag(False, False, ArmResult.REFUSED_NO_CAL)
+    assert not d & DIAG_RUN and not d & DIAG_CAL_OK
+    assert diag_arm_result(d) is ArmResult.REFUSED_NO_CAL
+    d = pack_diag(True, True, ArmResult.ACCEPTED)
+    assert d & DIAG_RUN and d & DIAG_CAL_OK
+    assert diag_arm_result(d) is ArmResult.ACCEPTED
+    assert pack_diag(False, False, ArmResult.NONE) == 0   # boot state
+
+
+def test_diag_reason_names_the_gate_that_actually_refused():
+    d = pack_diag(False, False, ArmResult.REFUSED_NO_CAL)
+    assert "REFUSED" in diag_reason(d)
+    assert "no as-built calibration in NVS" in diag_reason(d)
+    # Uncalibrated but nobody has tried yet: warn BEFORE the operator waits.
+    assert "REFUSED" in diag_reason(pack_diag(False, False, ArmResult.NONE))
+    assert "ready to arm" in diag_reason(pack_diag(False, True,
+                                                   ArmResult.NONE))
+
+
+def test_diag_from_a_newer_firmware_is_not_mistaken_for_an_old_reason():
+    # Reason 15 does not exist yet. A client that guessed would send someone
+    # to re-run `cal` for a fault that has nothing to do with calibration.
+    future = 0xF0 | DIAG_CAL_OK
+    assert diag_arm_result(future) is None
+    assert "unknown to this client" in diag_reason(future)
+
+
+def test_diag_rides_seq_echo_only_while_benched():
+    # The whole compatibility argument: seq_echo is "the seq the robot
+    # APPLIED", and a benched loop applies nothing, so only there is the
+    # field free. Everywhere else it must stay a sequence number.
+    d = pack_diag(False, False, ArmResult.REFUSED_NO_CAL)
+    t = Telemetry(seq_echo=d, state=LinkState.BENCH, vbat_v=11.4, up_z=0.0,
+                  vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0)
+    assert decode_telemetry(encode_telemetry(t)).diag == d
+    live_t = t._replace(state=LinkState.LIVE, seq_echo=1234)
+    assert decode_telemetry(encode_telemetry(live_t)).diag == 0
+    assert decode_telemetry(encode_telemetry(live_t)).seq_echo == 1234
+
+
+def test_diag_frame_still_decodes_on_a_client_that_knows_nothing_of_it():
+    # An old commander sees an ordinary v1 frame with a small seq_echo --
+    # indistinguishable from a fresh boot, and never a false servo fault.
+    t = Telemetry(seq_echo=pack_diag(False, True, ArmResult.REFUSED_NO_CAL),
+                  state=LinkState.BENCH, vbat_v=11.4, up_z=0.0, vx_est=0.0,
+                  wz_est=0.0, servo_err=0, loop_late_pct=0)
+    wire = encode_telemetry(t)
+    assert len(wire) == TLM_LEN and wire[2] == 1        # unchanged version
+    got = decode_telemetry(wire)
+    assert got.servo_err == 0 and got.loop_late_pct == 0
+
+
+def test_supervisor_publishes_the_refusal_it_just_made():
+    # The incident this closes: ARM frames for seconds, robot stays BENCH,
+    # and the only way to learn why was the tether.
+    sup = Supervisor(arm_allowed=False)
+    assert diag_arm_result(sup.diag()) is ArmResult.NONE
+    sup.accept(live(seq=1, flags=0), 0.0)
+    sup.accept(live(seq=2, flags=FLAG_ARM), 1.0)
+    assert sup.state(2.0) is LinkState.BENCH
+    assert diag_arm_result(sup.diag()) is ArmResult.REFUSED_NO_CAL
+    assert not sup.diag() & DIAG_CAL_OK
+    assert sup.seq_echo(2.0) == sup.diag()             # it rides seq_echo
+    assert "no as-built calibration in NVS" in diag_reason(sup.diag())
+
+
+def test_supervisor_seq_echo_is_a_real_sequence_once_armed():
+    sup = Supervisor()
+    sup.accept(live(seq=1, flags=0), 0.0)
+    sup.accept(live(seq=7, flags=FLAG_ARM), 1.0)
+    assert sup.state(2.0) is LinkState.LIVE
+    assert sup.seq_echo(2.0) == 7
+    assert diag_arm_result(sup.diag()) is ArmResult.ACCEPTED
+    assert sup.diag() & DIAG_RUN
+    sup.accept(live(seq=8, flags=0), 3.0)              # disarm
+    assert sup.state(4.0) is LinkState.BENCH
+    assert not sup.diag() & DIAG_RUN
+    assert "disarmed on request" in diag_reason(sup.seq_echo(4.0))
 
 
 def test_bench_state_is_last_on_the_wire():

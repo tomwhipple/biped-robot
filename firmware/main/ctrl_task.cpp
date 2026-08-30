@@ -418,7 +418,7 @@ void ctrlTask(void*) {
 
 }  // namespace
 
-bool g_cal_from_nvs = false;
+std::atomic<bool> g_cal_from_nvs{false};
 obs::Calibration& calibration() { return g_cal; }
 battguard::Guard& battGuard() { return g_batt; }
 

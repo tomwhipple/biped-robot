@@ -66,6 +66,44 @@ void clampToEnvelope(float vx, float wz, float& out_vx, float& out_wz) {
     out_vx = vx;
 }
 
+uint8_t packDiag(bool run, bool cal_ok, ArmResult result) {
+    uint8_t d = 0;
+    if (run) d = static_cast<uint8_t>(d | kDiagRun);
+    if (cal_ok) d = static_cast<uint8_t>(d | kDiagCalOk);
+    return static_cast<uint8_t>(
+        d | ((static_cast<uint8_t>(result) << kDiagArmShift) & kDiagArmMask));
+}
+
+ArmResult diagArmResult(uint8_t diag) {
+    return static_cast<ArmResult>((diag & kDiagArmMask) >> kDiagArmShift);
+}
+
+uint8_t telemetryDiag(const Telemetry& t) {
+    // Only kBench frames carry it; anywhere else seq_echo is a real sequence
+    // number and its low byte means nothing at all.
+    return t.state == LinkState::kBench
+               ? static_cast<uint8_t>(t.seq_echo & 0xFFu)
+               : 0u;
+}
+
+const char* diagReason(uint8_t diag) {
+    switch (diagArmResult(diag)) {
+        case ArmResult::kNone:
+            return (diag & kDiagCalOk)
+                       ? "no arm requested yet -- calibrated, ready to arm"
+                       : "no arm requested yet -- and there is NO calibration "
+                         "in NVS, so arming will be REFUSED";
+        case ArmResult::kAccepted:
+            return (diag & kDiagRun) ? "armed -- the control loop is running"
+                                     : "disarmed on request -- press arm to run";
+        case ArmResult::kRefusedNoCal:
+            return "arm REFUSED -- no as-built calibration in NVS (run `cal`)";
+    }
+    // A refusal reason this client is too old to name. Say so rather than
+    // guess: the enum is append-only, so an unknown value is a NEWER robot.
+    return "arm REFUSED -- reason unknown to this client (newer firmware)";
+}
+
 size_t encodeCommand(uint8_t* out, uint32_t seq, float vx, float wz,
                      uint8_t flags) {
     out[0] = kMagicCmd[0];

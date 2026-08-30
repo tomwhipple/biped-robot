@@ -430,11 +430,19 @@ void cmdMode(Sink out, bool run) {
     // 2026-08-02, and a stored blob measured under a different servo map is
     // invalidated at load (cal_store.h v2) for the same reason.
     if (run && !robot::g_cal_from_nvs) {
+        // Publish the verdict BEFORE printing it. Over the radio this atomic
+        // is the only way the refusal reaches the operator -- `out` is the
+        // tether, and a wireless arm has nobody watching it (shared.h
+        // g_arm_result; the beacon in wifi_link.cpp carries it).
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kRefusedNoCal));
         out("REFUSED: no as-built calibration in NVS (missing, or "
             "invalidated by a servo-map change). Run the `cal` workflow "
             "first -- driving the loop on 2048-defaults twists the robot.\r\n");
         return;
     }
+    robot::g_arm_result.store(
+        static_cast<uint8_t>(linkproto::ArmResult::kAccepted));
     robot::g_mode_request.store(run ? robot::Mode::kRun : robot::Mode::kBench);
     out(run ? "control loop armed -- bus handed to core 1\r\n"
             : "benched -- control loop released torque and gave up the bus\r\n");
