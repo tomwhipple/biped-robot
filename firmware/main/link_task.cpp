@@ -44,6 +44,11 @@ StaticQueue_t g_cmd_qbuf;
 
 linkproto::Demux g_demux;
 
+// The observation dump's one line buffer (obs_dump.h). File scope rather than
+// on the housekeeping stack: 1.5 KB is most of a small task stack, and there
+// is exactly one writer of this UART anyway.
+char g_obs_line[kObsDumpLineMax];
+
 void uartSay(const char* s) {
     uart_write_bytes(board::kHostUart, s, strlen(s));
 }
@@ -95,6 +100,10 @@ void houseTask(void*) {
     cli::banner(&uartSay);
     TickType_t next_tlm = xTaskGetTickCount();
     uint32_t arm_edges_seen = g_link_arm_edges.load();
+    // Observation dump state, owned by this loop alone.
+    ObsDumpMode obs_started = ObsDumpMode::kOff;
+    TickType_t next_obs = xTaskGetTickCount();
+    uint32_t obs_seq_seen = 0;
     for (;;) {
         CliLine line;
         while (xQueueReceive(g_cli_queue, &line, 0) == pdTRUE) {
@@ -135,6 +144,56 @@ void houseTask(void*) {
                 uart_write_bytes(board::kHostUart,
                                  reinterpret_cast<const char*>(wire),
                                  linkproto::kTlmLen);
+            }
+        }
+
+        // -- observation dump (obs_dump.h) ---------------------------------
+        //
+        // Text records on the same tether as the binary telemetry above, but
+        // never interleaved WITHIN a line: both are written from this one
+        // task, so a record reaches the host whole and a host tool can find
+        // it by its "OBS," tag in otherwise mixed console output.
+        const ObsDumpMode dump = g_obs_dump.mode();
+        if (dump == ObsDumpMode::kOff) {
+            obs_started = ObsDumpMode::kOff;
+        } else if (g_mode_request.load() != Mode::kRun) {
+            // The loop went back to bench under us -- it stopped assembling
+            // observations, so the dump would go quiet with no explanation.
+            // Say so and turn it off; the mode's only writer is this task.
+            g_obs_dump.setMode(ObsDumpMode::kOff);
+            obs_started = ObsDumpMode::kOff;
+            uartSay("obsdump: off -- the loop is benched, no observations\r\n");
+        } else {
+            if (obs_started == ObsDumpMode::kOff) {
+                // First line of every capture: the column names, straight
+                // from the generated obs spec.
+                if (formatObsHeader(g_obs_line, sizeof g_obs_line)) {
+                    uartSay(g_obs_line);
+                }
+                obs_seq_seen = 0;
+                next_obs = xTaskGetTickCount();
+                obs_started = dump;
+            }
+            if (xTaskGetTickCount() >= next_obs) {
+                // Rearmed from NOW, not by adding a period: a diagnostic that
+                // fell behind must not then burst to catch up on a tether it
+                // already half fills.
+                next_obs = xTaskGetTickCount() +
+                           pdMS_TO_TICKS(kObsDumpPeriodMs);
+                ObsRecord rec;
+                uint32_t seq = 0;
+                // seq unchanged == the loop published nothing since the last
+                // record: silence is the honest report, not a repeat.
+                if (g_obs_dump.read(rec, seq) && seq != obs_seq_seen) {
+                    obs_seq_seen = seq;
+                    if (formatObsRecord(rec, g_obs_line, sizeof g_obs_line)) {
+                        uartSay(g_obs_line);
+                    }
+                    if (dump == ObsDumpMode::kOnce) {
+                        g_obs_dump.setMode(ObsDumpMode::kOff);
+                        obs_started = ObsDumpMode::kOff;
+                    }
+                }
             }
         }
         vTaskDelay(pdMS_TO_TICKS(10));

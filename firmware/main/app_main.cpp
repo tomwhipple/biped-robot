@@ -35,6 +35,7 @@ std::atomic<uint8_t> g_arm_result{
 std::atomic<float> g_shape_hz{obs::kShaperPoleHz};
 QueueHandle_t g_cmd_mailbox = nullptr;
 TelemetrySnapshot g_telemetry;
+ObsDump g_obs_dump;
 scsbus::Bus* g_bus = nullptr;
 
 namespace {

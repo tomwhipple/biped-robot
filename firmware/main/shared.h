@@ -13,6 +13,7 @@
 #include "linkproto/protocol.h"
 #include "obs/actuation.h"
 #include "obs/obs_spec.h"
+#include "obs_dump.h"
 #include "scsbus/bus.h"
 
 namespace robot {
@@ -105,6 +106,19 @@ struct TelemetrySnapshot {
     std::atomic<uint32_t> us_other{0};   // tick total minus the above
 };
 extern TelemetrySnapshot g_telemetry;
+
+// -- observation dump (core 1 -> core 0) -----------------------------------
+// The same single-writer split as TelemetrySnapshot, but the payload is too
+// big to tear harmlessly -- a diagnostic that mixes tick t's q with tick
+// t+1's frame would invent the very sign/frame error it is there to find. So
+// it is double-buffered with a sequence counter instead (obs_dump.h): ctrl
+// writes the slot the reader is not in, housekeeping copies and re-checks the
+// counter. No lock in the tick, no allocation, and a copy the writer overran
+// is DROPPED rather than reported.
+//
+// ctrl writes the buffer and only reads the mode; housekeeping writes the
+// mode (`obsdump on|off|once`) and only reads the buffer.
+extern ObsDump g_obs_dump;
 
 // The bus object itself: constructed once in app_main, used by ctrl during a
 // run and by the CLI while benched. See g_mode_request for the handover rule.

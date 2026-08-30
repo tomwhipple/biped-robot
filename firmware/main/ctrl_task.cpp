@@ -390,6 +390,14 @@ void ctrlTask(void*) {
         }
         const int64_t t_wr1 = esp_timer_get_time();
 
+        // -- dump ----------------------------------------------------------
+        // The observation instrument (obs_dump.h). Deliberately last, after
+        // the servos already have this tick's targets: it is a diagnostic and
+        // must never sit between sensing and acting. Off it is one relaxed
+        // load; on it is ~350 bytes of copy, which lands in `us_other` rather
+        // than in any of the budgeted phase lines above.
+        if (g_obs_dump.enabled()) g_obs_dump.publish(in, g_frame, g_ticks);
+
         // -- account -------------------------------------------------------
         const uint32_t took =
             static_cast<uint32_t>(esp_timer_get_time() - t0);
