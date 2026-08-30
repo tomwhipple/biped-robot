@@ -426,6 +426,68 @@ written; nothing in §6 needed revising.
   policy was trained across, and it is what both SIL columns were scored at.
   §8's "fixed 1.5 Hz vs commanded" question is unaffected.
 
+## 7e. `obsdump` — reading the observation off the armed robot (2026-08-30)
+
+The deployed policy walks in SIL and produces garbage motion on hardware.
+SIL (docs/sil-harness.md) runs the firmware's **own** assembler, history ring,
+quantiser and network, so every layer from the observation to the servo write
+is already covered by a green gate. The one thing it cannot supply is the
+numbers the **real sensors** put into `obs::Inputs`. A degrees-for-radians
+scale error, a sign flip, a swapped IMU axis and a permuted joint index all
+look identical from outside — the loop runs, the servos move, the robot falls
+— so the difference has to be **measured**, not reasoned about.
+
+- **`main/obs_dump.h`** publishes, once per tick and only when a dump is
+  enabled, one `ObsRecord`: `tick`, the raw `obs::Inputs` (`q[10]`, `dq[10]`,
+  `up[3]`, `gyro[3]`, `phase`, `cmd[7]`) **and** the assembled `kFrameDim`
+  frame. Both halves, because they answer different questions: the raw block
+  catches a sensor/unit fault, the frame block catches an assembler fault
+  (a section at the wrong offset, a stale `prev_action`).
+- **Ownership follows §4 exactly.** ctrl writes the buffer and only *reads*
+  the mode; housekeeping writes the mode (`obsdump on|off|once`) and only
+  *reads* the buffer. No lock in the tick, no allocation. The payload is too
+  big to tear harmlessly — tick *t*'s `q` beside tick *t+1*'s frame would
+  manufacture the very disagreement the dump exists to find — so unlike
+  `TelemetrySnapshot` it is **double-buffered**: two slots plus a sequence
+  counter, ctrl writes the slot the reader is not in, and a copy the writer
+  overran is **dropped**, never reported torn.
+- **The publish is the last thing in the tick**, after the servos already have
+  their targets: a diagnostic must never sit between sensing and acting. Off
+  it costs one relaxed load; on it costs ~350 bytes of copy, which lands in
+  `stat`'s `us_other` rather than in any budgeted phase line.
+- **Only while armed.** In bench mode `ctrl` warms the attitude filter and
+  returns — no servo read, no `assembleFrame`, no observation. `obsdump on`
+  while benched therefore refuses **and says that**, rather than streaming
+  zeros that look like a dead sensor.
+- **The wire format is text, on the tether, beside the binary telemetry.**
+  `OBSHDR,tick,q_L_hip_yaw,…` once when a dump is enabled, then
+  `OBS,<tick>,<83 values>` at **5 Hz** (a ~1.1 kB record at the loop's 50 Hz
+  would be 550 kB/s into an 11.5 kB/s link; 5 Hz is about half of it, leaving
+  room for the 10 Hz telemetry and typed commands). Both the records and the
+  telemetry frames are written by the **one** housekeeping task, so a record
+  is never split by a binary frame — but binary bytes do land between records,
+  which is why the host tool finds records by their `OBS,` tag rather than by
+  position. The WiFi wire format is untouched.
+- **Column names come from the generated obs spec**, including the frame block
+  (`f_q_*`, `f_dq_*`, `f_up_*`, `f_linvel_*`, `f_gyro_*`, `f_pa_*`,
+  `f_height`, `f_sin`, `f_cos`, `f_cmd_*`). The host tool keeps no second copy
+  of the joint order and refuses a capture with no header rather than guessing
+  it.
+- **`tools/obs_capture.py`** drives it: `off`, `on`, read for N seconds, `off`,
+  write `captures/obs_<ts>.csv`, then print per-channel min/max/mean/RMS.
+  `--compare A.csv B.csv` prints the per-channel **RMS ratio** of two
+  captures — the hardware-vs-sim test, where ~57.3 is degrees where radians
+  belong, ~1 is agreement, and 0 on one side is a channel not reaching the
+  observation at all. Generating the sim-side capture is a separate job; the
+  comparison mechanics work on any two CSVs the tool wrote. `--replay` parses
+  a saved console log with no serial port, which is how the parser is
+  exercised off-hardware.
+- **Host gate:** `firmware/host/test_obsdump.cpp` covers the double buffer
+  (empty read, round trip, the slot flip, sequence staleness) and the CSV
+  writer (column count against `kObsDumpCols`, value round trip, header names
+  against the generated offsets, truncation refusing rather than clipping, the
+  worst-case line fitting, NaN surviving).
+
 ## 8. Open questions
 
 - Exact Waveshare SKU on the BOM → confirm SRAM/PSRAM and UART wiring.

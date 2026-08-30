@@ -40,6 +40,9 @@ cad/renders/_jointrom/
 sim/sil/weights/*.silw
 sweeps/
 
+# tools/obs_capture.py writes one CSV per hardware capture
+captures/
+
 # cad/slice.py output -- gcode is a build artifact, regenerate it
 cad/gcode/
 # flattened OrcaSlicer presets, rebuilt from the installed flatpak on demand

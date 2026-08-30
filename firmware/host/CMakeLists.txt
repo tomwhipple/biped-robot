@@ -61,6 +61,10 @@ bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp)
 
 bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
 
+# The observation dump: main/, but ESP-IDF-free on purpose (see obs_dump.h).
+bimo_test(test_obsdump test_obsdump.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/../main/obs_dump.cpp)
+
 # -- software in the loop (docs/sil-harness.md) -----------------------------
 set(SIL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/sil_lib.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/sil_net.cpp)

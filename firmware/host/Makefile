@@ -55,7 +55,7 @@ SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 SRC_FUSION= $(COMPONENTS)/imu/imu.cpp $(COMPONENTS)/imu/fusion.cpp
 
 TESTS = test_protocol test_scsbus test_obs test_policy test_battguard \
-        test_fusion test_sil test_sil_golden
+        test_fusion test_obsdump test_sil test_sil_golden
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
 
 # The software-in-the-loop library (docs/sil-harness.md): the same component
@@ -118,6 +118,14 @@ $(BUILD)/test_battguard: test_battguard.cpp $(SRC_BATT) test_util.h $(COMP_HDRS)
 # against MuJoCo's framezaxis on the real plant -- see the header of
 # test_fusion.cpp.
 $(BUILD)/test_fusion: test_fusion.cpp $(SRC_FUSION) test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+# The observation dump (main/obs_dump.cpp). Like cal_store it lives in main/
+# but touches no ESP-IDF, precisely so the double buffer and the CSV writer
+# are covered by the hardware-free gate rather than by a flash-and-squint.
+$(BUILD)/test_obsdump: test_obsdump.cpp ../main/obs_dump.cpp \
+                       ../main/obs_dump.h $(SPEC_H) test_util.h \
+                       $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # -- software in the loop ---------------------------------------------------

@@ -607,6 +607,62 @@ void cmdStat(Sink out) {
         obs::kNumJoints, obs::kObsDim, obs::kRunName);
 }
 
+// -- obsdump ---------------------------------------------------------------
+//
+// The instrument for the one layer SIL cannot cover: the numbers the real
+// sensors put into obs::Inputs. See obs_dump.h. This command only sets the
+// mode -- the housekeeping streamer owns the UART writes and the 1.5 KB line
+// buffer, so there is exactly one of each.
+const char* dumpModeName(robot::ObsDumpMode m) {
+    switch (m) {
+        case robot::ObsDumpMode::kOff: return "off";
+        case robot::ObsDumpMode::kStream: return "on";
+        case robot::ObsDumpMode::kOnce: return "once";
+    }
+    return "?";
+}
+
+void cmdObsDump(Sink out, int argc, char** argv) {
+    const bool armed = robot::g_mode_request.load() == robot::Mode::kRun;
+
+    if (argc < 2 || !strcmp(argv[1], "show")) {
+        say(out, "obsdump %s  published %lu records  loop %s\r\n",
+            dumpModeName(robot::g_obs_dump.mode()),
+            static_cast<unsigned long>(robot::g_obs_dump.sequence()),
+            armed ? "armed" : "BENCHED");
+        say(out, "  %d columns per record, ~%d Hz, prefix OBS,\r\n",
+            robot::kObsDumpCols, robot::kObsDumpHz);
+        out("  usage: obsdump on | off | once\r\n");
+        return;
+    }
+
+    if (!strcmp(argv[1], "off")) {
+        robot::g_obs_dump.setMode(robot::ObsDumpMode::kOff);
+        out("obsdump off\r\n");
+        return;
+    }
+
+    const bool once = !strcmp(argv[1], "once");
+    if (once || !strcmp(argv[1], "on")) {
+        if (!armed) {
+            // Not a policy choice -- there is genuinely nothing to dump. In
+            // bench mode ctrl_task warms the attitude filter and then
+            // `continue`s: no servo read, no assembleFrame, no observation.
+            out("obsdump: the loop is BENCHED, so it never builds an\r\n"
+                "  observation -- ctrl returns before the servos are read.\r\n"
+                "  `run` first (with the robot supported), then `obsdump on`.\r\n");
+            return;
+        }
+        robot::g_obs_dump.setMode(once ? robot::ObsDumpMode::kOnce
+                                       : robot::ObsDumpMode::kStream);
+        // Silent on purpose: the next thing on this UART is the OBSHDR line
+        // the streamer emits, so a host tool sees the column names first.
+        return;
+    }
+
+    out("usage: obsdump on | off | once\r\n");
+}
+
 }  // namespace
 
 // -- imu -------------------------------------------------------------------
@@ -978,6 +1034,7 @@ void banner(Sink out) {
     out("  imu [scan|raw [n]|bias|mount|forget]   on-board QMI8658C (NVS)\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  stat                 tick timing and fault counters\r\n");
+    out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");
 }
 
 void linkMode(bool run, Sink out) {
@@ -1014,6 +1071,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "imu")) cmdImu(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);
+    else if (!strcmp(c, "obsdump")) cmdObsDump(out, argc, argv);
     else out("? (try `help`)\r\n");
 }
 
