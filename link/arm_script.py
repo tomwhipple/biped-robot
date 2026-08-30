@@ -147,7 +147,15 @@ def phase_arm(d, a):
     v = d.run_for(0.5, arm_off, "pre-arm: ARM=0 frames (establish latch level)")
     if v:
         return v
-    return d.run_for(a.duration, stand_armed, "ARM=1 stand frames")
+    v = d.run_for(a.duration, stand_armed, "ARM=1 stand frames")
+    # If the robot FELL during the settle, do not exit still armed: the
+    # FALLEN latch clears after ~2 s upright with ENABLE off, and an armed
+    # loop then re-engages torque -- on 2026-08-30 that happened in the
+    # operator's hands while righting the robot. A fall ends the session.
+    if v is None and any(s == "fall" for _, s in d.states_seen):
+        d.run_for(1.0, arm_off, "fall seen during arm -- disarming on exit")
+        return "fall during arm phase (disarmed before exit)"
+    return v
 
 
 def phase_script(d, a):
