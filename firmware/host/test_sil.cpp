@@ -440,8 +440,12 @@ void testZeroedSmoke() {
     }
     CHECK_NEAR(out.obs[obs::kOffHeight], 0.0, 0.0);           // no sensor
     // ctrl_task advances the clock BEFORE assembling, so the first tick is
-    // already one control step into the gait cycle.
-    const float phase = kTwoPi * obs::kControlDt * 1.5f;
+    // already one control step into the gait cycle -- UNLESS the run's
+    // contract freezes the clock at a plain stand (kClockStandFreeze) and
+    // this tick's command IS a plain stand, as here (cmd all zero).
+    const float phase = obs::kClockStandFreeze
+                            ? 0.0f
+                            : kTwoPi * obs::kControlDt * 1.5f;
     CHECK_NEAR(out.obs[obs::kOffPhase + 0], sinf(phase), 1e-6);
     CHECK_NEAR(out.obs[obs::kOffPhase + 1], cosf(phase), 1e-6);
     for (int i = 0; i < obs::kNumCmd; ++i) {
@@ -467,6 +471,9 @@ void testSequencingAndReset() {
     }
     in.up[2] = 1.0f;
     in.cmd[3] = 1.0f;
+    // A walking command, so the stand-freeze gate lets the clock run: the
+    // phase checks below are about the ADVANCEMENT math, not the gate.
+    in.cmd[0] = 0.4f;
 
     SilTargets t1{}, t2{};
     CHECK_EQ(sil_tick(&in, &t1), 0);
@@ -504,6 +511,20 @@ void testSequencingAndReset() {
     CHECK_EQ(sil_tick(&in, &slow), 0);
     CHECK_NEAR(slow.obs[obs::kOffPhase + 0],
                sinf(kTwoPi * obs::kControlDt * 1.25f), 1e-6);
+
+    // Stand-freeze regression (2026-08-30): a plain-stand tick must HOLD the
+    // phase. sil_lib ran the clock unconditionally for the whole v22fix era
+    // and the SIL column under-scored every freeze-trained run (39 vs 69 of
+    // 144 for loco_v22fix_e_s128).
+    if (obs::kClockStandFreeze) {
+        in.cmd[0] = 0.0f;
+        SilTargets hold{};
+        CHECK_EQ(sil_tick(&in, &hold), 0);
+        CHECK_NEAR(hold.obs[obs::kOffPhase + 0],
+                   slow.obs[obs::kOffPhase + 0], 1e-6);
+        CHECK_NEAR(hold.obs[obs::kOffPhase + 1],
+                   slow.obs[obs::kOffPhase + 1], 1e-6);
+    }
 }
 
 // -- 5b. command shaping (sil_abi 2) ----------------------------------------

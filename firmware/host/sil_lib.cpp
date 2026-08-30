@@ -285,7 +285,15 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     }
 
     // -- observe ------------------------------------------------------------
-    g_clock.advance(obs::kControlDt);
+    // Same plain-stand gate as ctrl_task.cpp: a freeze-trained policy must
+    // see the frozen clock HERE too, or the SIL column grades it against a
+    // stand obs training never produced (found 2026-08-30: v22fix_e_s128
+    // scored 39/144 SIL vs 69/144 py with the clock always running).
+    // cmd layout (walker_env.set_command): [0]=vx, [2]=wz.
+    if (!obs::kClockStandFreeze
+        || fabsf(in->cmd[0]) > 0.05f || fabsf(in->cmd[2]) > 0.05f) {
+        g_clock.advance(obs::kControlDt);
+    }
 
     obs::Inputs inp{};
     memcpy(inp.q, q, sizeof q);
