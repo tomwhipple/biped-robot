@@ -121,7 +121,9 @@ def run(run_dir, render=False, duration=None, port=CMD_PORT,
         if peer and i % 5 == 0:               # 10 Hz
             info = infos[0]
             tx.sendto(encode_telemetry(Telemetry(
-                seq_echo=dog.last_seq, state=state,
+                # seq_echo carries the bench diagnostic while BENCH,
+                # exactly as the firmware's beacon does (protocol.py).
+                seq_echo=dog.seq_echo(now_ms), state=state,
                 vbat_v=float(base.supply_voltage), up_z=info.get("up_z", 0.0),
                 vx_est=info.get("vx_body", 0.0), wz_est=info.get("wz", 0.0),
                 servo_err=0, loop_late_pct=int(100 * late / max(1, i)),
