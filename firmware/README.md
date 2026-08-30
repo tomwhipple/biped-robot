@@ -188,6 +188,16 @@ Handover is one-way through the ctrl task: it releases torque and clears
    wireless `run`/`bench` (`linkproto::ArmLatch`, run by ctrl in both modes,
    applied by housekeeping through the same `cmdMode()` as the CLI). The
    operator's console is `link/tui.cpp`; see docs/control-channel.md.
+   **And it says why it refused, 2026-08-30:** `cmdMode()` used to print its
+   "no as-built calibration in NVS" refusal to the UART sink only, so a
+   wireless arm that was declined looked identical to a dead link — six
+   seconds of ignored `ARM` frames cost a tether to diagnose. It now
+   publishes the verdict to `robot::g_arm_result` (single writer: `cmdMode`
+   runs only on the housekeeping task) and `wifi_link.cpp` folds it, plus
+   `g_cal_from_nvs`, into a one-byte diagnostic carried in the `BENCH`
+   beacon's `seq_echo` — a field that means nothing while benched, so no
+   version bump and every existing commander keeps working. Layout and
+   rationale: `linkproto::packDiag` and docs/control-channel.md.
 3. **Calibration persistence.** `obs::Calibration` exists and is used
    everywhere; loading and storing it in NVS (and a guided zeroing flow) is not
    written. Defaults are zero = 2048 ticks, direction +1.
