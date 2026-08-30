@@ -11,7 +11,7 @@ namespace obs {
 
 // -- deployed run ------------------------------------------------------
 inline constexpr const char* kRunName = "loco_v22fix_e_s128";
-inline constexpr const char* kPlantXml = "bimo_biped_v4rom.xml";
+inline constexpr const char* kPlantXml = "bimo_biped_v5body.xml";
 inline constexpr const char* kActionMap = "full";
 inline constexpr bool kImuObs = true;   // linvel + height are zeroed
 inline constexpr bool kGaitClock = true;
