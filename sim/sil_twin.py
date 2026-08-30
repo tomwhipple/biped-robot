@@ -109,6 +109,16 @@ def run(args):
     obs, _ = env.reset(seed=args.seed)
     fw, nc = act.spec.frame_dim, act.spec.num_cmd
 
+    obs_writer = None
+    if args.obs_csv:
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        import obs_csv                                       # noqa: E402
+        spec = json.loads(lib.spec_string())
+        obs_writer = obs_csv.Writer(args.obs_csv, spec["joint_names"],
+                                    spec["frame_offsets"], fw, nc)
+        print(f"sil_twin: obs capture -> {args.obs_csv} "
+              f"(firmware obsdump format)")
+
     rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rx.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     rx.bind(("0.0.0.0", args.port))
@@ -166,6 +176,17 @@ def run(args):
             obs = np.asarray(obs, dtype=np.float64).copy()
             obs[fw - nc:fw] = env._cmd
             a = act(obs)
+            if obs_writer is not None and dog.torque_on(now_ms):
+                # Mirror the firmware record: raw sensor fields, then the
+                # frame the stack was fed. Raw phase is recovered from the
+                # frame's sin/cos (the sim lib does not expose the scalar).
+                fields = act.split_obs(obs)
+                o = json.loads(lib.spec_string())["frame_offsets"]
+                phase = float(np.arctan2(obs[o["phase"]], obs[o["phase"] + 1]))
+                row = (list(fields["q"]) + list(fields["dq"]) +
+                       list(fields["up"]) + list(fields["gyro"]) + [phase] +
+                       list(fields["cmd"]) + list(obs[:fw]))
+                obs_writer.row(i, row)
             obs, _, _, _, step_info = env.step(a)
 
             if (stream or args.record) and i % 3 == 0:      # ~16 fps
@@ -195,6 +216,9 @@ def run(args):
     except KeyboardInterrupt:
         print("\nsil_twin: stopped")
     finally:
+        if obs_writer is not None:
+            obs_writer.close()
+            print(f"sil_twin: obs capture closed ({obs_writer.n} records)")
         if args.record and frames:
             import imageio.v2 as imageio
             imageio.mimwrite(args.record, frames, fps=int(round(1 / dt / 3)))
@@ -216,6 +240,9 @@ def main():
     p.add_argument("--stream-port", type=int, default=8645,
                    help="MJPEG live view port (0 disables)")
     p.add_argument("--record", default=None, help="write an mp4 on exit")
+    p.add_argument("--obs-csv", default=None,
+                   help="write the fed observations in firmware obsdump "
+                        "format (tools/obs_capture.py --replay/--compare)")
     p.add_argument("--duration", type=float, default=None)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--boot-armed", action="store_true")
