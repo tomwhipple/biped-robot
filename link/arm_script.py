@@ -51,6 +51,8 @@ class Driver:
         self.last_print = -1e9
         self.down_since = None
         self.states_seen = []
+        self.fault_streak = 0
+        self._n_seen = 0
 
     def now(self):
         return time.monotonic() - self.t0
@@ -97,8 +99,15 @@ class Driver:
             # Benched, seq_echo is the diagnostic byte (protocol.py DIAG_*):
             # the robot's own answer to "why is nothing happening?".
             print(f"        robot says: {diag_reason(tl.seq_echo)}", flush=True)
-        if tl.servo_err:
-            return f"servo fault bits 0x{tl.servo_err:02x}"
+        if self.n_tlm != self._n_seen:      # only judge FRESH beacons
+            self._n_seen = self.n_tlm
+            # Debounced: the fault mask is one 20 ms tick's snapshot, and a
+            # single overload flicker or missed servo reply sets a bit for
+            # one frame (seen twice on 2026-08-30, healthy servo both times).
+            # Three consecutive beacons = 0.3 s, same rule as the tilt guard.
+            self.fault_streak = self.fault_streak + 1 if tl.servo_err else 0
+        if self.fault_streak >= 3:
+            return f"servo fault bits 0x{tl.servo_err:02x} for 3+ beacons"
         live = tl.state in (LinkState.LIVE, LinkState.STAND)
         if live and tl.up_z < 0.5:
             self.down_since = self.down_since or t
