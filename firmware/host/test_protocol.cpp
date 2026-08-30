@@ -130,12 +130,57 @@ void testTelemetryFrames() {
         CHECK_EQ(back.servo_err, c.servo_err);
         CHECK_EQ(back.loop_late_pct, c.late);
         CHECK_NEAR(back.up_z, c.up_z, 1e-3);
+        // seq_echo's low byte is the bench diagnostic in kBench frames and
+        // nothing at all anywhere else. Python's Telemetry.diag froze the
+        // expected value; this is the same rule, transcribed.
+        CHECK_EQ(telemetryDiag(back), c.diag);
     }
     // Crossing the two sockets must not decode (both live on one host).
     uint8_t cmd[kCmdLen + 6] = {};
     encodeCommand(cmd, 1, 0.0f, 0.0f, 0);
     Telemetry out{};
     CHECK(decodeTelemetry(cmd, kTlmLen, out) != Err::kOk);
+}
+
+void checkReason(uint8_t diag, const char* want, size_t i) {
+    const char* got = diagReason(diag);
+    ++testutil::g_checks;
+    if (strcmp(got, want) != 0) {
+        char msg[512];
+        snprintf(msg, sizeof msg,
+                 "diag case %zu (0x%02X): got \"%s\" want \"%s\"", i, diag,
+                 got, want);
+        testutil::fail(__FILE__, __LINE__, msg);
+    }
+}
+
+void testBenchDiagnostics() {
+    // The whole point of this byte is that the operator reads its SENTENCE,
+    // so the sentences are golden too -- two copies of a message drift the
+    // moment one side is reworded.
+    for (size_t i = 0; i < V::kNumDiag; ++i) {
+        const auto& c = V::kDiag[i];
+        const uint8_t packed = packDiag(c.run != 0, c.cal_ok != 0,
+                                        static_cast<ArmResult>(c.result));
+        CHECK_EQ(packed, c.packed);
+        CHECK_EQ(static_cast<int>(diagArmResult(packed)), c.result);
+        CHECK_EQ((packed & kDiagRun) != 0, c.run != 0);
+        CHECK_EQ((packed & kDiagCalOk) != 0, c.cal_ok != 0);
+        checkReason(packed, c.reason, i);
+    }
+    for (size_t i = 0; i < V::kNumDiagRaw; ++i) {
+        const auto& c = V::kDiagRaw[i];
+        checkReason(c.diag, c.reason, i);
+        // Reserved bits 2-3 must not leak into the result nibble, and an
+        // ArmResult this build has never heard of must stay unrecognised
+        // rather than aliasing onto kNone/kAccepted/kRefusedNoCal.
+        const int known =
+            static_cast<int>(diagArmResult(c.diag)) <=
+            static_cast<int>(ArmResult::kRefusedNoCal);
+        CHECK_EQ(known, c.known);
+    }
+    // Boot state: nothing asked, nothing refused, nothing calibrated.
+    CHECK_EQ(packDiag(false, false, ArmResult::kNone), 0);
 }
 
 void testClampToEnvelope() {
@@ -272,6 +317,7 @@ int main() {
     testBadFrames();
     testEverySingleBitFlipIsCaught();
     testTelemetryFrames();
+    testBenchDiagnostics();
     testClampToEnvelope();
     testWatchdog();
     testArmLatch();

@@ -74,6 +74,42 @@ enum class LinkState : uint8_t {
     kMaxState = kBench,
 };
 
+// -- bench diagnostics (2026-08-30) ----------------------------------------
+// Why the loop is NOT armed, carried to the operator over the radio.
+//
+// The refusal used to exist only as a line of UART text, so a robot that
+// declined a wireless ARM just sat in BENCH saying nothing and the only way
+// to find out why was to plug the tether. This byte is that answer on the
+// wire. It rides in `seq_echo` and ONLY while the reported state is kBench:
+// seq_echo means "the last command seq the loop APPLIED", and a benched loop
+// applies nothing, so in exactly that state the field carries no information
+// to destroy. No version bump, no length change -- every commander built
+// before this still decodes every frame (docs/control-channel.md).
+//
+// Bit layout, APPEND-ONLY like the LinkState enum: reserved bits are sent
+// zero and a client must ignore the ones it does not know.
+constexpr uint8_t kDiagRun = 1u << 0;      // mode is kRun (0 = benched)
+constexpr uint8_t kDiagCalOk = 1u << 1;    // as-built calibration came from NVS
+// bits 2-3 reserved, sent zero
+constexpr uint8_t kDiagArmShift = 4;       // bits 4-7: the ArmResult below
+constexpr uint8_t kDiagArmMask = 0xF0;
+
+// What became of the last mode request -- a wireless ARM edge or a typed
+// `run`/`bench`. APPEND ONLY: a future refusal reason takes the next value,
+// and a client that does not know it must fall back to a generic message
+// rather than mis-report an older reason.
+enum class ArmResult : uint8_t {
+    kNone = 0,           // nothing has asked for a mode change yet
+    kAccepted = 1,       // the last request was honoured (arm or disarm)
+    kRefusedNoCal = 2,   // arm refused: no as-built calibration in NVS
+};
+
+uint8_t packDiag(bool run, bool cal_ok, ArmResult result);
+ArmResult diagArmResult(uint8_t diag);
+// One line an operator can act on. Never null, and safe for a diag byte from
+// a firmware newer than this client.
+const char* diagReason(uint8_t diag);
+
 // -- fall detection (robot-side, ctrl_task) --------------------------------
 // The threshold is walker_env's own fall_up_z: the sim terminates an episode
 // below it, so past this line the policy is operating outside anything it
@@ -106,6 +142,11 @@ struct Telemetry {
     uint8_t servo_err;   // bitmask, bit i = servo ID i+1 faulted
     uint8_t loop_late_pct;
 };
+
+// The bench diagnostic byte this frame carries, or 0 when it carries none.
+// Reading seq_echo directly would be a bug waiting to happen: the byte is
+// only meaningful while the state is kBench.
+uint8_t telemetryDiag(const Telemetry& t);
 
 // CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF).
 // crc16Ccitt("123456789") == 0x29B1 -- the standard check value, asserted in

@@ -90,6 +90,69 @@ class LinkState(Enum):
     BENCH = "bench"
 
 
+# -- bench diagnostics ------------------------------------------------------
+# Why the loop is NOT armed, carried to the operator over the radio.
+#
+# Until 2026-08-30 the refusal existed only as a line of UART text: a robot
+# that declined a wireless ARM sat in BENCH saying nothing, and finding out
+# why meant plugging the tether. This byte is that answer on the wire. It
+# rides in `seq_echo` and ONLY while the state is BENCH -- seq_echo is "the
+# last command seq the robot APPLIED", and a benched loop applies nothing, so
+# in exactly that state the field carries no information to destroy. No
+# version bump, no length change: every commander written before this still
+# decodes every frame. See docs/control-channel.md for the alternatives that
+# were rejected and why.
+#
+# Bit layout is APPEND-ONLY, like LinkState: reserved bits are sent zero and
+# a reader ignores what it does not know.
+DIAG_RUN = 1 << 0          # mode is run (0 = benched)
+DIAG_CAL_OK = 1 << 1       # as-built calibration was loaded from NVS
+# bits 2-3 reserved, sent zero
+DIAG_ARM_SHIFT = 4         # bits 4-7: ArmResult
+DIAG_ARM_MASK = 0xF0
+
+
+class ArmResult(Enum):
+    """What became of the last mode request (an ARM edge or a typed `run`).
+
+    APPEND ONLY: a future refusal reason takes the next value. A client that
+    meets a value it does not know must say so rather than report an older
+    reason -- an unknown value means the ROBOT is newer than the client.
+    """
+    NONE = 0             # nothing has asked for a mode change yet
+    ACCEPTED = 1         # the last request was honoured (arm or disarm)
+    REFUSED_NO_CAL = 2   # arm refused: no as-built calibration in NVS
+
+
+def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
+    d = (DIAG_RUN if run else 0) | (DIAG_CAL_OK if cal_ok else 0)
+    return d | ((result.value << DIAG_ARM_SHIFT) & DIAG_ARM_MASK)
+
+
+def diag_arm_result(diag: int):
+    """The ArmResult in a diag byte, or None if this client is too old."""
+    try:
+        return ArmResult((diag & DIAG_ARM_MASK) >> DIAG_ARM_SHIFT)
+    except ValueError:
+        return None
+
+
+def diag_reason(diag: int) -> str:
+    """One line an operator can act on."""
+    r = diag_arm_result(diag)
+    if r is ArmResult.REFUSED_NO_CAL:
+        return "arm REFUSED -- no as-built calibration in NVS (run `cal`)"
+    if r is ArmResult.ACCEPTED:
+        return ("armed -- the control loop is running" if diag & DIAG_RUN
+                else "disarmed on request -- press arm to run")
+    if r is ArmResult.NONE:
+        return ("no arm requested yet -- calibrated, ready to arm"
+                if diag & DIAG_CAL_OK else
+                "no arm requested yet -- and there is NO calibration in NVS, "
+                "so arming will be REFUSED")
+    return "arm REFUSED -- reason unknown to this client (newer firmware)"
+
+
 class Command(NamedTuple):
     seq: int
     vx: float              # body-frame forward velocity, m/s
@@ -118,6 +181,19 @@ class Telemetry(NamedTuple):
     wz_est: float          # rad/s
     servo_err: int         # bitmask, bit i = servo ID i+1 faulted
     loop_late_pct: int     # % of control ticks that overran 20 ms
+
+    @property
+    def diag(self) -> int:
+        """The bench diagnostic byte, or 0 when this frame carries none.
+
+        Reading seq_echo directly would be a bug waiting to happen: the byte
+        is only meaningful while the state is BENCH (see pack_diag above).
+        """
+        return (self.seq_echo & 0xFF) if self.state is LinkState.BENCH else 0
+
+    @property
+    def reason(self) -> str:
+        return diag_reason(self.diag)
 
 
 # -- CRC -------------------------------------------------------------------
@@ -339,12 +415,15 @@ class Supervisor:
     Benched (the boot state) the link commands nothing, torque is off and
     telemetry says BENCH. An ARM edge arms: fresh Watchdog, fresh run. The
     1 -> 0 edge benches again. `arm_allowed` stands in for the firmware's
-    refusal to run without an as-built calibration in NVS.
+    refusal to run without an as-built calibration in NVS -- and, like the
+    firmware (cli.cpp cmdMode), the refusal is RECORDED so the beacon can
+    say why rather than leaving the operator with a silent BENCH.
     """
 
     def __init__(self, armed: bool = False, arm_allowed: bool = True):
         self.armed = armed
         self.arm_allowed = arm_allowed
+        self.result = ArmResult.NONE
         self.latch = ArmLatch()
         self.dog = Watchdog()
 
@@ -354,14 +433,22 @@ class Supervisor:
         want = self.latch.update(pkt.flags)
         if want is not None and want != self.armed:
             if want and not self.arm_allowed:
-                pass                              # refused; stays BENCH
+                self.result = ArmResult.REFUSED_NO_CAL   # refused; stays BENCH
             else:
+                self.result = ArmResult.ACCEPTED
                 self.armed = want
                 if want:
                     self.dog = Watchdog()         # fresh run, fresh link state
         if not self.armed:
             return False
         return self.dog.accept(pkt, now_ms)
+
+    def diag(self) -> int:
+        """The bench diagnostic byte the robot would beacon right now.
+
+        `arm_allowed` IS the firmware's g_cal_from_nvs: same gate, same bit.
+        """
+        return pack_diag(self.armed, self.arm_allowed, self.result)
 
     def state(self, now_ms: float) -> LinkState:
         return self.dog.state(now_ms) if self.armed else LinkState.BENCH
@@ -372,6 +459,15 @@ class Supervisor:
     def torque_on(self, now_ms: float) -> bool:
         return self.state(now_ms) not in (LinkState.RELAX, LinkState.ESTOP,
                                           LinkState.BENCH)
+
+    def seq_echo(self, now_ms: float) -> int:
+        """What belongs in a telemetry frame's seq_echo field right now.
+
+        One place decides which field the diag byte rides in, so a twin
+        cannot drift from the firmware (wifi_link.cpp does the same thing).
+        """
+        return (self.diag() if self.state(now_ms) is LinkState.BENCH
+                else self.last_seq)
 
     @property
     def last_seq(self) -> int:
