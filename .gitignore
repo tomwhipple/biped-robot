@@ -44,3 +44,4 @@ sweeps/
 cad/gcode/
 # flattened OrcaSlicer presets, rebuilt from the installed flatpak on demand
 cad/print_profiles/
+hw_sessions/

@@ -50,6 +50,7 @@ class Driver:
         # on 2026-08-30 a phase-per-process run had its entire walk window
         # silently rejected (seq restarted at 0, jump < kSeqResyncGap).
         self.seq = int(time.monotonic() * send_hz) & 0xFFFFFFFF
+        self.seq0 = self.seq
         self.t0 = time.monotonic()
         self.tlm = None
         self.n_tlm = 0
@@ -223,7 +224,7 @@ def main():
         d.emergency("operator ctrl-C")
         verdict = "interrupted"
     finally:
-        print(f"== done: {d.seq} frames sent, {d.n_tlm} telemetry received; "
+        print(f"== done: {d.seq - d.seq0} frames sent, {d.n_tlm} telemetry received; "
               f"states: {d.states_seen}", flush=True)
         if d.tlm is not None and d.tlm.state == LinkState.BENCH:
             print(f"== benched: {diag_reason(d.tlm.seq_echo)}", flush=True)
