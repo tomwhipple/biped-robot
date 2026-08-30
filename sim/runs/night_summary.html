@@ -98,6 +98,24 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·30</span></p>
+    <p><b>The from-scratch line is growing fast.</b> v25full_b, ~105M
+    total steps: 14 → <b>72/144</b> overnight, with the parts that took
+    the old lineage weeks of diagnosis arriving on their own — stand_off
+    <b>6/8</b> (the stand-com term was in the contract from birth, so a
+    passively stable stand was simply learned), sidesteps 8/8 + 7/8,
+    turn_180 4/8 at 14°. Reward curve still steep (434 → 895, episode
+    length rising) — nowhere near plateau. The young-policy tells are
+    all present and expected: watts high (24.6), rhythm still unformed
+    (72% alternation, CV 0.49), metronome untracked (cadErr 25%) —
+    clock discipline emerged late in the old lineage too. It keeps the
+    whole window (v25full_c tonight, 70M). The comparison that matters
+    is a few nights out: match the frozen candidates (v22fix_c 94/144;
+    v24clockv rhythm CV 0.09) with one reproducible recipe instead of
+    six generations of patches.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·29</span></p>
     <p><b>The entropy experiment settled it: warm-starting is done.</b>
     Tom's (fair) challenge to yesterday's from-scratch call produced a
