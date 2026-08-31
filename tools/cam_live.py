@@ -11,6 +11,7 @@ attempt with ffmpeg (or the recording fails with 'Device busy').
 """
 import argparse
 import io
+import os
 import threading
 import time
 
@@ -84,8 +85,16 @@ def main():
     latest = [None] * len(readers)
 
     def drain(i, r):
-        while True:
-            latest[i] = np.asarray(r.get_next_data())
+        # A dead drain thread must kill the whole process: with it merely
+        # gone, `latest` freezes and the stream serves a STALE frame that
+        # looks live (bitten 2026-08-31, twice -- judged robot state from a
+        # frozen frame).
+        try:
+            while True:
+                latest[i] = np.asarray(r.get_next_data())
+        except Exception as e:
+            print(f"cam_live: reader {i} died: {e}", flush=True)
+            os._exit(3)
 
     for i, r in enumerate(readers):
         threading.Thread(target=drain, args=(i, r), daemon=True).start()
