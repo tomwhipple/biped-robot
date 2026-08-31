@@ -126,6 +126,29 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   fi
   BR=$(sed -n 's/^BRANCH=//p' "$JF" | head -1)
   sync_repo "${BR:-main}"
+  # CMD= jobs: run an arbitrary command from $BASE instead of train_mjx.py
+  # (first need: nightly distill_student.py -- 2026-08-30, after two ad-hoc
+  # launches lost GPU races to ollama's vision reload; ALL gpu work goes
+  # through this loop's wait_gpu from now on). No --steps budget capping;
+  # keep CMD jobs short or put them first in the queue.
+  CMD=$(sed -n 's/^CMD=//p' "$JF" | head -1)
+  if [[ -n "$CMD" ]]; then
+    OUT=$(sed -n 's/^OUT=//p' "$JF" | head -1); OUT=${OUT:-$JOB}
+    mv -f "$JF" "$N/queue/done/$JOB"
+    cd "$BASE"
+    XLA_PYTHON_CLIENT_MEM_FRACTION=0.80 nohup bash -c "$CMD" \
+      > "$BASE/sim/runs/cmd_${OUT}.log" 2>&1 < /dev/null &
+    PID=$!
+    echo "$(date +%H:%M) launched CMD job $JOB pid=$PID"
+    while kill -0 "$PID" 2>/dev/null && (( $(date +%s) < END_HARD - 300 )); do
+      sleep 60
+    done
+    if kill -0 "$PID" 2>/dev/null; then
+      echo "$(date +%H:%M) CMD job $JOB hit the 06:55 guard; killing"
+      kill "$PID" 2>/dev/null
+    fi
+    continue
+  fi
   ARGS=$(grep -v '^BRANCH=' "$JF")
   OUT=$(grep -oE '(--out)[= ][^ ]+' <<<"$ARGS" | awk -F'[= ]' '{print $2}')
   OUT=${OUT:-mjx_cmd_v1}
