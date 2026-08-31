@@ -93,6 +93,15 @@ _TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
 # Position"-ed, correctly oriented robot). See walker_env._TICK_DIR.
 _TICK_DIR = 1.0
 
+# -- STS3215 goal-speed streaming (servo_accel_max profile model) -------------
+# Mirror of sim/walker_env.py's block, which mirrors firmware
+# obs/actuation.cpp goalSpeedSteps(): every 50 Hz goal write streams a
+# per-joint goal speed = 1.25 * |goal - present| / 0.02 s, floored at
+# 50 steps/s and capped at 3400 steps/s. Converted to rad/s via _TICK_RAD.
+_GOAL_SPEED_HEADROOM = 1.25
+_GOAL_SPEED_FLOOR = 50.0 * _TICK_RAD      # rad/s
+_GOAL_SPEED_MAX = 3400.0 * _TICK_RAD      # rad/s
+
 
 class State(NamedTuple):
     """Env state as a pytree. All leaves are jnp arrays (batchable)."""
@@ -148,6 +157,16 @@ class State(NamedTuple):
                               # ~0.5x sim dq -- reproduced only by ~2 Hz of
                               # 3-stage filtering, 5x the 10 Hz shaper alone.
     lag_y: jax.Array          # (3, n_act) cascaded lag filter state
+    servo_prof: jax.Array     # (3, n_act) STS3215 profile tracker [lagged
+                              # command (rad); internal target pos (rad);
+                              # internal vel (rad/s)]: the servo's own goal
+                              # path, which the bench FRF (2026-08-31) showed
+                              # is a ~3.5 Hz position-loop pole plus an
+                              # ACCELERATION-limited integrator (calibrated
+                              # 7.5 rad/s^2, amplitude-independent achieved
+                              # velocity).
+                              # servo_accel_max feature; frozen at
+                              # [default, default, 0] when off.
     imu_R: jax.Array          # (3,3) mounting misalignment
     imu_bias: jax.Array       # (3,) gyro bias
     metrics: dict[str, jax.Array]
@@ -333,6 +352,23 @@ class BimoMJXEnv:
         servo_kd: float = 0.25,
         servo_range: float = 0.15,
         servo_joint_damping: float = 0.1,
+        servo_accel_max: float = 0.0,  # rad/s^2; > 0 turns ON the servo
+        # PROFILE model (bench FRF 2026-08-31, tools/servo_frf.py): the
+        # STS3215 does not slew to a new goal instantly -- sinusoidal goal
+        # tracking shows a constant internal ACCELERATION cap (achieved
+        # velocity x 2*pi*f ~= 10 rad/s^2 across amplitudes) plus the
+        # firmware's streamed per-write goal speed (goalSpeedSteps). An
+        # internal per-joint tracked target integrates toward the command
+        # under both caps and the PD tracks THAT. Calibrated against the
+        # measured FRF by tools/sim_frf.py: 7.5 rad/s^2 (with the 3.5 Hz
+        # pole below) reproduces all 10 bench points within +-0.032.
+        # 0 = off, bit-exact legacy path.
+        servo_track_hz: float = 3.5,  # servo position-loop tracking pole
+        # (Hz): first-order lag on the commanded target BEFORE the accel-
+        # limited integrator. The unsaturated bench points (0.94 @ 1 Hz;
+        # 0.92 @ 1.5 Hz and 0.86 @ 2 Hz at +-0.075 rad, where the accel cap
+        # is not binding) sit exactly on a ~3.5 Hz first-order magnitude
+        # curve. Active only when servo_accel_max > 0; <= 0 = pass-through.
         # -- payload (present iff payload_mass > 0 or payload_dr) -------------
         payload_mass: float = 0.0,
         payload_dr: bool = False,   # batch-level mass draw handled in
@@ -738,6 +774,13 @@ class BimoMJXEnv:
         self.act_lag_hz = float(act_lag_hz)
         self.act_lag_hz_max = (None if act_lag_hz_max is None
                                else float(act_lag_hz_max))
+        self.servo_accel_max = float(servo_accel_max)
+        self.servo_track_hz = float(servo_track_hz)
+        # per-SUBSTEP filter coefficient (the pole runs inside the physics
+        # loop, not at the 50 Hz command rate); 1.0 = pass-through
+        self._track_k = (1.0 - float(np.exp(-2.0 * np.pi * self.servo_track_hz
+                                            * self.sim_dt))
+                         if self.servo_track_hz > 0.0 else 1.0)
         self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
         self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
         self.fall_height = fall_height
@@ -1494,6 +1537,10 @@ class BimoMJXEnv:
                      servo=servo, lat_ms=lat_ms, lash=lash,
                      act_lag=act_lag,
                      lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
+                     servo_prof=jp.stack(
+                         [self._default.astype(jp.float32),
+                          self._default.astype(jp.float32),
+                          jp.zeros(self._nq_act, dtype=jp.float32)]),
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
     def reseed(self, first: State, rng: jax.Array) -> State:
@@ -1553,6 +1600,10 @@ class BimoMJXEnv:
             servo=servo, lat_ms=lat_ms, lash=lash,
             act_lag=act_lag,
             lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
+            servo_prof=jp.stack(
+                [self._default.astype(jp.float32),
+                 self._default.astype(jp.float32),
+                 jp.zeros(self._nq_act, dtype=jp.float32)]),
             imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
     def step(self, state: State, action: jax.Array) -> State:
@@ -1623,9 +1674,37 @@ class BimoMJXEnv:
         lash = state.lash
         last_target = state.last_target
 
+        a_max = self.servo_accel_max
+        if a_max > 0.0:
+            # STS3215 profile model: the streamed per-write goal speed for
+            # this control step (firmware goalSpeedSteps: commanded goal vs
+            # MEASURED position at write time, once per 50 Hz write).
+            q_meas = state.data.qpos[self._jq0:self._jq1]
+            v_cap = jp.clip(
+                _GOAL_SPEED_HEADROOM * jp.abs(target - q_meas)
+                / self.control_dt,
+                _GOAL_SPEED_FLOOR, _GOAL_SPEED_MAX)
+
         def substep(carry, i):
-            d, _ = carry
+            d, _, prof = carry
             cur = jp.where(i < lat_k, last_target, target)
+            if a_max > 0.0:
+                # servo profile model, two stages mirroring sim/walker_env's
+                # numpy block exactly: (1) the position-loop tracking pole
+                # (servo_track_hz first-order lag on the command), then
+                # (2) the internal goal integrator -- a sqrt-braking
+                # trapezoid under the goal-speed cap and the accel cap. The
+                # PD tracks the INTERNAL target, not the raw command.
+                lagt, sp, sv = prof[0], prof[1], prof[2]
+                lagt = lagt + self._track_k * (cur - lagt)
+                e = lagt - sp
+                v_des = jp.sign(e) * jp.minimum(
+                    v_cap, jp.sqrt(2.0 * a_max * jp.abs(e)))
+                sv = sv + jp.clip(v_des - sv, -a_max * self.sim_dt,
+                                  a_max * self.sim_dt)
+                sp = sp + sv * self.sim_dt
+                prof = jp.stack([lagt, sp, sv])
+                cur = sp
             q = d.qpos[self._jq0:self._jq1]
             qd = d.qvel[self._jv0:self._jv1]
             cap = stall * jp.clip(1.0 - jp.abs(qd) / w0, 0.0, 1.0)
@@ -1635,10 +1714,10 @@ class BimoMJXEnv:
             d = d.replace(qfrc_applied=jp.zeros(self.mj_model.nv
                                                 ).at[self._jv0:self._jv1].set(tau))
             d = mjx.step(m, d)
-            return (d, tau), None
+            return (d, tau, prof), None
 
-        (data, tau), _ = jax.lax.scan(
-            substep, (data, jp.zeros(self._nq_act)),
+        (data, tau, servo_prof), _ = jax.lax.scan(
+            substep, (data, jp.zeros(self._nq_act), state.servo_prof),
             jp.arange(self.n_substeps))
 
         up_z = data.sensordata[self._up_adr + 2]
@@ -2209,6 +2288,7 @@ class BimoMJXEnv:
                      cmd_crouch=state.cmd_crouch, servo=state.servo,
                      lat_ms=state.lat_ms, lash=state.lash,
                      act_lag=state.act_lag, lag_y=lag_y,
+                     servo_prof=servo_prof,
                      imu_R=state.imu_R,
                      imu_bias=state.imu_bias, metrics=metrics)
 

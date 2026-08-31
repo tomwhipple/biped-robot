@@ -95,6 +95,15 @@ _TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
 # per-joint vector so a measured (dir=-1) calibration is a one-line change.
 _TICK_DIR = 1.0
 
+# -- STS3215 goal-speed streaming (servo_accel_max profile model) -------------
+# firmware/components/obs/actuation.cpp goalSpeedSteps(): every 50 Hz goal
+# write carries a per-joint goal speed = 1.25 * |goal - present| / 0.02 s,
+# floored at 50 steps/s and capped at 3400 steps/s (== scsbus::kMaxGoalSpeed).
+# Converted to rad/s via _TICK_RAD; mirrored in sim/mjx/env_mjx.py.
+_GOAL_SPEED_HEADROOM = 1.25
+_GOAL_SPEED_FLOOR = 50.0 * _TICK_RAD      # rad/s
+_GOAL_SPEED_MAX = 3400.0 * _TICK_RAD      # rad/s
+
 
 def policy_range(m):
     """Per-actuator (lo, hi) the POLICY trains in, radians. MIRRORED in
@@ -186,6 +195,25 @@ class BimoWalkerEnv(gym.Env):
         # (it alone would eat the whole stall torque at ~3 rad/s). 0.1 leaves a
         # small bearing/gear-mesh loss. Fit check: 60 deg step @7.4 V reaches 90%
         # in 0.394 s (envelope-limited minimum 0.360 s), ~1.4% overshoot.
+        servo_accel_max: float = 0.0,  # rad/s^2; > 0 turns ON the servo
+        # PROFILE model (bench FRF 2026-08-31, tools/servo_frf.py): the
+        # STS3215 does not slew to a new goal instantly -- sinusoidal goal
+        # tracking measured a constant internal ACCELERATION cap (achieved
+        # velocity x 2*pi*f ~= 10 rad/s^2 across amplitudes; static holds
+        # stay stiff, constant-speed sweeps track exactly). An internal
+        # per-joint tracked target integrates toward the commanded target
+        # under (a) the firmware's streamed per-write goal speed
+        # (goalSpeedSteps, see _GOAL_SPEED_* above) and (b) this accel cap,
+        # and the PD tracks the INTERNAL target. Calibrated against the
+        # measured FRF by tools/sim_frf.py: 7.5 rad/s^2 (with the 3.5 Hz
+        # pole below) reproduces all 10 bench points within +-0.032.
+        # 0 = off, bit-exact legacy path.
+        servo_track_hz: float = 3.5,  # servo position-loop tracking pole
+        # (Hz): first-order lag on the commanded target BEFORE the accel-
+        # limited integrator. The unsaturated bench points (0.94 @ 1 Hz;
+        # 0.92 @ 1.5 Hz and 0.86 @ 2 Hz at +-0.075 rad, where the accel cap
+        # is not binding) sit exactly on a ~3.5 Hz first-order magnitude
+        # curve. Active only when servo_accel_max > 0; <= 0 = pass-through.
         # -- torso-top payload (GoPro MAX 360: 154 g, ~64x69x25 mm, CG ~45 mm
         # above the tower top plate => ~+0.08 m above the torso center) ---------
         payload_mass: float = 0.0,     # fixed payload mass (kg); 0 = none
@@ -696,7 +724,24 @@ class BimoWalkerEnv(gym.Env):
         else:
             raise ValueError(f"unknown actuator_model {actuator_model!r}")
         self.servo_range = servo_range
+        self.servo_accel_max = float(servo_accel_max)
+        if self.servo_accel_max > 0.0 and self._servo is None:
+            raise ValueError("servo_accel_max requires "
+                             "actuator_model='sts3215' (the profile tracker "
+                             "feeds the PD path)")
         self._servo_tau = np.zeros(self._nq_act)
+        self.servo_track_hz = float(servo_track_hz)
+        # per-SUBSTEP filter coefficient (the pole runs inside the physics
+        # loop, not at the 50 Hz command rate); 1.0 = pass-through. Note
+        # self.sim_dt is set below with the substep bookkeeping, so use the
+        # model timestep directly here.
+        self._track_k = (1.0 - float(np.exp(-2.0 * np.pi * self.servo_track_hz
+                                            * self.model.opt.timestep))
+                         if self.servo_track_hz > 0.0 else 1.0)
+        # servo profile tracker state (servo_accel_max); re-seeded in reset()
+        self._prof_lag = None
+        self._prof_p = None
+        self._prof_v = np.zeros(self._nq_act)
         self._torque_on = True         # see set_torque_enabled()
         self.off_frictionloss = off_frictionloss
         self._held_frictionloss = None  # saved joint frictionloss while released
@@ -1272,6 +1317,14 @@ class BimoWalkerEnv(gym.Env):
             if self._held_frictionloss is not None:
                 self.model.dof_frictionloss[self._jqvel] = self._held_frictionloss
                 self._held_frictionloss = None
+            if self.servo_accel_max > 0.0 and self._prof_p is not None:
+                # re-engage: seed the profile tracker from the MEASURED pose
+                # (a released robot moved; the internal goal integrator must
+                # not yank the joints back through a stale ramp)
+                self._prof_lag = np.array(self.data.qpos[self._jqpos],
+                                          dtype=np.float64)
+                self._prof_p = self._prof_lag.copy()
+                self._prof_v = np.zeros(self._nq_act)
         else:
             self._held_frictionloss = \
                 self.model.dof_frictionloss[self._jqvel].copy()
@@ -1450,6 +1503,12 @@ class BimoWalkerEnv(gym.Env):
             self._cmd_crouch = float(self.np_random.uniform(
                 *self.cmd_crouch_range))
         self._last_target = self._default.copy()
+        # servo profile tracker (servo_accel_max): internal target re-seeded
+        # at the hold pose with zero profile velocity (matches _last_target;
+        # mirrors sim/mjx State.servo_prof's reset value)
+        self._prof_lag = self._default.copy()
+        self._prof_p = self._default.copy()
+        self._prof_v = np.zeros(self._nq_act)
         self._air_time[:] = 0.0
         self._last_air[:] = 0.0
         self._servo_tau[:] = 0.0
@@ -1533,10 +1592,39 @@ class BimoWalkerEnv(gym.Env):
             ms = float(np.clip(ms, 0.0, self.control_dt * 1000.0))
             lat_k = min(int(round(ms / (self.sim_dt * 1000.0))), self.n_substeps)
 
+        a_max = self.servo_accel_max
+        if a_max > 0.0:
+            # STS3215 profile model: the streamed per-write goal speed for
+            # this control step (firmware goalSpeedSteps: commanded goal vs
+            # MEASURED position at write time, once per 50 Hz write).
+            v_cap = np.clip(
+                _GOAL_SPEED_HEADROOM
+                * np.abs(target - self.data.qpos[self._jqpos])
+                / self.control_dt,
+                _GOAL_SPEED_FLOOR, _GOAL_SPEED_MAX)
+
         x_before = float(self.data.qpos[0])
         for i in range(self.n_substeps):
             cur = self._last_target if i < lat_k else target
             if self._servo is not None:
+                if a_max > 0.0:
+                    # servo profile model, two stages mirrored in
+                    # sim/mjx/env_mjx.py's substep exactly: (1) the position-
+                    # loop tracking pole (servo_track_hz first-order lag on
+                    # the command), then (2) the internal goal integrator --
+                    # a sqrt-braking trapezoid under the goal-speed cap and
+                    # the accel cap. The PD tracks the INTERNAL target, not
+                    # the raw command.
+                    self._prof_lag = (self._prof_lag
+                                      + self._track_k * (cur - self._prof_lag))
+                    e = self._prof_lag - self._prof_p
+                    v_des = np.sign(e) * np.minimum(
+                        v_cap, np.sqrt(2.0 * a_max * np.abs(e)))
+                    self._prof_v += np.clip(v_des - self._prof_v,
+                                            -a_max * self.sim_dt,
+                                            a_max * self.sim_dt)
+                    self._prof_p = self._prof_p + self._prof_v * self.sim_dt
+                    cur = self._prof_p
                 # PD on the commanded angle, clamped each substep to the
                 # DC-motor torque-speed envelope (linear stall -> no-load).
                 kp, kd, stall, w0 = self._servo
