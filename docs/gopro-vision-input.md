@@ -161,6 +161,11 @@ worth not rediscovering:
   until the next keyframe. `-fflags nobuffer -flags low_delay` alone locks on
   cleanly. The tool counts and suppresses the remaining lock-on lines.
 
+See [camera-replacement-options.md](camera-replacement-options.md) for what to
+buy instead — short version: GoPro **LIT HERO** (93 g, Open GoPro API, drops
+into the existing `gopro_base` fingers) as a camera, or a **XIAO ESP32S3
+Sense + 1S LiPo** (~100 ms) if the goal is perception in the loop.
+
 ### Two blockers before this can run for real
 
 1. **The camera has to be put into AP mode by hand.** Power on, then
