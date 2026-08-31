@@ -56,7 +56,10 @@ print("q columns -> qpos addr:", list(zip(qcols, addr)))
 iq = [cols.index(c) for c in qcols]
 
 ren = mujoco.Renderer(model, height=480, width=640)
-views = {"side": 90, "rear": 0}
+# side az=270 puts world +x (the robot's facing) on image LEFT, matching the
+# physical side webcam (video0, robot faces left in frame); rear az=0 looks
+# along +x = at the robot's back, matching the rear webcam (video2).
+views = {"side": 270, "rear": 0}
 writers = {v: imageio.get_writer(f"{out_prefix}_{v}.mp4", fps=50)
            for v in views}
 torso = np.array(model.qpos0[:7])
@@ -68,8 +71,8 @@ for k, row in enumerate(rows):
     for v, az in views.items():
         cam = mujoco.MjvCamera()
         mujoco.mjv_defaultCamera(cam)
-        cam.lookat[:] = [float(torso[0]), float(torso[1]), 0.28]
-        cam.distance, cam.azimuth, cam.elevation = 1.0, az, -8
+        cam.lookat[:] = [float(torso[0]), float(torso[1]), 0.26]
+        cam.distance, cam.azimuth, cam.elevation = 0.8, az, -8
         ren.update_scene(data, cam)
         writers[v].append_data(ren.render())
 for w in writers.values():
