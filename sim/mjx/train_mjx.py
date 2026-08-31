@@ -304,6 +304,13 @@ def main():
                         "#2: cmd[3] frozen at 1.0 collapsed its normalizer "
                         "std, while firmware battguard ramps it below 1.0 on "
                         "a sagging pack). 1,1 = the legacy frozen channel")
+    p.add_argument("--act-lag", default=None,
+                   help="per-episode action-chain lag pole draw, lo,hz "
+                        "(3 cascaded stages, the deployed C2 shaper's "
+                        "structure). Stand-in for shaper + servo dynamic "
+                        "response: the 2026-08-31 bench walk measured joint "
+                        "motion at ~0.5x sim, reproduced only by ~2 Hz of "
+                        "3-stage filtering. e.g. '2,12'")
     args = p.parse_args()
     if args.precision and args.entropy == 1e-2:
         args.entropy = 0.005          # Playground's biped setting (plan v2)
@@ -435,6 +442,9 @@ def main():
                       latency_jitter_ms=0.0,
                       backlash_deg=0.0, backlash_deg_max=None,
                       push_kick=False, push_prob=0.0)
+    if args.act_lag is not None:
+        lo, hi = (float(x) for x in args.act_lag.split(","))
+        env_kw.update(act_lag_hz=lo, act_lag_hz_max=hi)
     if args.walk_submix is not None:
         env_kw["walk_submix"] = tuple(
             float(x) for x in args.walk_submix.split(","))

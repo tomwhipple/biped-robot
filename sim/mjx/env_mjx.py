@@ -141,6 +141,13 @@ class State(NamedTuple):
     servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
     lash: jax.Array           # ()  per-episode backlash (rad)
+    act_lag: jax.Array        # ()  per-episode action-chain lag pole, Hz
+                              # (0 = pass-through). Stand-in for the deployed
+                              # C2 shaper PLUS the servo's dynamic response:
+                              # 2026-08-31 bench walk measured joint motion at
+                              # ~0.5x sim dq -- reproduced only by ~2 Hz of
+                              # 3-stage filtering, 5x the 10 Hz shaper alone.
+    lag_y: jax.Array          # (3, n_act) cascaded lag filter state
     imu_R: jax.Array          # (3,3) mounting misalignment
     imu_bias: jax.Array       # (3,) gyro bias
     metrics: dict[str, jax.Array]
@@ -338,6 +345,8 @@ class BimoMJXEnv:
         latency_jitter_ms: float = 0.0,
         backlash_deg: float = 0.0,
         backlash_deg_max: float | None = None,
+        act_lag_hz: float = 0.0,
+        act_lag_hz_max: float | None = None,
         push_prob: float | None = None,
         push_force: float | None = None,
         # -- termination --------------------------------------------------------
@@ -726,6 +735,9 @@ class BimoMJXEnv:
         self.backlash_rad = float(np.deg2rad(backlash_deg))
         self.backlash_rad_max = (None if backlash_deg_max is None
                                  else float(np.deg2rad(backlash_deg_max)))
+        self.act_lag_hz = float(act_lag_hz)
+        self.act_lag_hz_max = (None if act_lag_hz_max is None
+                               else float(act_lag_hz_max))
         self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
         self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
         self.fall_height = fall_height
@@ -1232,7 +1244,15 @@ class BimoMJXEnv:
                 maxval=self.cmd_crouch_range[1])
         else:
             cmd_crouch = jp.ones(())
-        return servo, lat_ms, lash, imu_R, imu_bias, cmd_crouch
+        if self.act_lag_hz_max is not None:
+            # fold_in like cmd_crouch: existing draws keep their exact
+            # streams when the feature is off
+            act_lag = jax.random.uniform(
+                jax.random.fold_in(rng, 831),
+                minval=self.act_lag_hz, maxval=self.act_lag_hz_max)
+        else:
+            act_lag = jp.asarray(self.act_lag_hz, dtype=jp.float32)
+        return servo, lat_ms, lash, imu_R, imu_bias, cmd_crouch, act_lag
 
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
@@ -1421,7 +1441,7 @@ class BimoMJXEnv:
                                 ctrl=jp.zeros(self.mj_model.nu) + self._default)
             data = mjx.forward(self.model, data)
         (servo, lat_ms, lash, imu_R, imu_bias,
-         cmd_crouch) = self._draw_episode(r_ep)
+         cmd_crouch, act_lag) = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -1472,6 +1492,8 @@ class BimoMJXEnv:
                      head_ref=_quat_yaw(data.qpos[3:7]), rise_t0=rise_t0,
                      cmd_crouch=cmd_crouch,
                      servo=servo, lat_ms=lat_ms, lash=lash,
+                     act_lag=act_lag,
+                     lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
     def reseed(self, first: State, rng: jax.Array) -> State:
@@ -1481,7 +1503,7 @@ class BimoMJXEnv:
         episode-level DR diversity survives auto-resetting."""
         rng, r_ep, r_cmd, r_obs = jax.random.split(rng, 4)
         (servo, lat_ms, lash, imu_R, imu_bias,
-         cmd_crouch) = self._draw_episode(r_ep)
+         cmd_crouch, act_lag) = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -1528,8 +1550,10 @@ class BimoMJXEnv:
             best_h=first.data.qpos[2] - self._gz(first.data.qpos[0],
                                                  first.data.qpos[1]),
             head_ref=_quat_yaw(first.data.qpos[3:7]), cmd_crouch=cmd_crouch,
-            servo=servo, lat_ms=lat_ms, lash=lash, imu_R=imu_R,
-            imu_bias=imu_bias, metrics=metrics)
+            servo=servo, lat_ms=lat_ms, lash=lash,
+            act_lag=act_lag,
+            lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
+            imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
     def step(self, state: State, action: jax.Array) -> State:
         m = self.model
@@ -1543,6 +1567,20 @@ class BimoMJXEnv:
         else:
             target = jp.clip(self._default + self._scale * action,
                              self._lo, self._hi)
+        # action-chain lag (3 cascaded first-order stages, the firmware C2
+        # shaper's structure) BEFORE quantization, matching the deploy path's
+        # shaper -> angleToSteps order. Per-episode pole from _draw_episode;
+        # a 0 Hz draw is a pass-through.
+        if self.act_lag_hz > 0.0 or self.act_lag_hz_max is not None:
+            k = 1.0 - jp.exp(-2.0 * jp.pi * state.act_lag * self.control_dt)
+            k = jp.where(state.act_lag > 0.0, k, 1.0)
+            y1 = state.lag_y[0] + k * (target - state.lag_y[0])
+            y2 = state.lag_y[1] + k * (y1 - state.lag_y[1])
+            y3 = state.lag_y[2] + k * (y2 - state.lag_y[2])
+            lag_y = jp.stack([y1, y2, y3])
+            target = y3
+        else:
+            lag_y = state.lag_y
         if self.quantize_ticks:
             # the firmware writes INTEGER goal ticks (SYNC WRITE): quantize
             # before the actuator path (latency, PD, backlash) sees the target
@@ -2169,7 +2207,9 @@ class BimoMJXEnv:
                      best_h=jp.maximum(state.best_h, height),
                      head_ref=head_ref, rise_t0=state.rise_t0,
                      cmd_crouch=state.cmd_crouch, servo=state.servo,
-                     lat_ms=state.lat_ms, lash=state.lash, imu_R=state.imu_R,
+                     lat_ms=state.lat_ms, lash=state.lash,
+                     act_lag=state.act_lag, lag_y=lag_y,
+                     imu_R=state.imu_R,
                      imu_bias=state.imu_bias, metrics=metrics)
 
 
