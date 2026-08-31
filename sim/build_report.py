@@ -197,6 +197,29 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·08·31</span></p>
+    <p><b>New all-time best — and it's the from-scratch line.</b>
+    v25full_c (~175M, night 4): <b>96/144</b>, beating every warm-start
+    policy ever trained (previous best 94). Gait asym 8%, the lowest
+    wobble on record (0.44), turn_180 8/8 at 6°, sidesteps 8/8 + 8/8,
+    stand_off 7/8, best-ever push_gauntlet (3/8) — and the reward curve
+    is <i>still climbing</i> (737 → 1086), so this isn't the ceiling.
+    Rhythm is maturing on schedule: 88% alternation / CV 0.26, up from
+    72% / 0.49 two nights ago (reel is watchable but not demo-grade
+    yet). Remaining gaps: metronome (cadErr 42%, still unformed) and
+    speed_ladder. Reconciliation with the hardware thread also landed
+    this weekend: the robot runs distilled (128,128) students, the
+    deployed one (v22fix_e_s128, 69/144) came from the decayed lineage
+    tail, and under the fixed SIL clock gate the better teacher
+    v22fix_b re-judges at <b>85/144</b> (stand_off 8/8, falls 4%).
+    After two ad-hoc distill launches lost GPU races to ollama's vision
+    reload, the night runner gained <code>CMD=</code> queue jobs — all
+    GPU work rides wait_gpu now. Tonight: distill v22fix_b → b_s128
+    first (the swap-in deploy candidate, projected ~80), then
+    v25full_d.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·30</span></p>
     <p><b>The from-scratch line is growing fast.</b> v25full_b, ~105M
     total steps: 14 → <b>72/144</b> overnight, with the parts that took
