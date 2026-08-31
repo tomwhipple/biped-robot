@@ -124,6 +124,72 @@ Constraints: the MAX preview API only works with the MAX as its own AP (10.5.5.9
 
 ---
 
+## 8. Talking to it from mira — `tools/gopro_live.py`
+
+Written and tested 2026-08-31. Implements §2's control path: gpControl probe,
+`gpStream restart`, the 2.5 s `_GPHD_` keep-alive, and ffmpeg capture off
+UDP 8554.
+
+```
+.venv/bin/python tools/gopro_live.py --probe                  # reachable? what is it?
+.venv/bin/python tools/gopro_live.py --snapshot /tmp/gp.jpg   # cheapest proof of life
+.venv/bin/python tools/gopro_live.py --record 10 --out /tmp/gp.mp4
+.venv/bin/python tools/gopro_live.py --serve 8647             # http://mira:8647/
+```
+
+Verified against a stub camera on loopback (gpControl HTTP + a synthetic
+432x240 MPEG-TS feed on UDP 8554), which is the same shape as the real
+preview. `--probe` printed the identity, `--snapshot` produced a 432x240
+JPEG, `--record 4` produced a 4.000 s MP4 (120 frames) and a 4.000 s TS.
+Not yet run against the physical camera — see the two blockers below.
+
+Three things cost real time getting there; they are encoded in the tool and
+worth not rediscovering:
+
+- **`-t SEC` does not work on this stream.** We always join an
+  already-running preview, whose MPEG-TS timestamps start far from zero, so
+  `-t` is satisfied immediately and ffmpeg writes an empty file (measured: a
+  262-byte MP4 of 0.000000 s). Count frames instead — `-frames:v` is
+  timestamp-independent — and rebase with `setpts=PTS-STARTPTS` so the
+  duration reads true.
+- **`-c copy` into MP4 does not work either.** Joining mid-GOP there is no
+  leading SPS/PPS, so the MP4 muxer cannot build its extradata. MPEG-TS
+  tolerates it; anything else has to be re-encoded (trivial at 432x240).
+- **`-probesize 32768 -analyzeduration 0` breaks lock-on.** Those are the
+  flags the community quotes for low latency, but combined with a mid-stream
+  join ffmpeg misses the SPS/PPS and floods `non-existing PPS 0 referenced`
+  until the next keyframe. `-fflags nobuffer -flags low_delay` alone locks on
+  cleanly. The tool counts and suppresses the remaining lock-on lines.
+
+### Two blockers before this can run for real
+
+1. **The camera has to be put into AP mode by hand.** Power on, then
+   Preferences > Connections > Connect Device > GoPro App. There is no remote
+   way in: the MAX has no BLE control API (§2), and a 45 s BLE scan from mira
+   on 2026-08-31 saw no GoPro advertising at all. Wake-on-LAN (`--wake MAC`)
+   only helps once the camera has been paired and is merely asleep.
+2. **mira's WiFi is soft-blocked and `claw` cannot unblock it.** `rfkill list`
+   shows `phy0: Soft blocked: yes`; `rfkill unblock wifi` and
+   `nmcli radio wifi on` both need root, and NetworkManager reports
+   `enable-disable-wifi: no` / `wifi.scan: auth` for this user. mira reaches
+   the LAN over USB ethernet (`enxf8e43b5e358e`, 192.168.2.5), so nothing
+   depends on the WiFi card today.
+
+Once someone with root has run:
+
+```
+sudo rfkill unblock wifi && sudo nmcli radio wifi on
+nmcli device wifi list                                  # find the GPxxxxxxx SSID
+sudo nmcli device wifi connect GPxxxxxxx password <pw> ifname wlp14s0
+sudo nmcli connection modify GPxxxxxxx ipv4.never-default yes ipv6.never-default yes
+```
+
+...mira keeps its LAN default route over ethernet and only routes 10.5.5.0/24
+over WiFi, and `--probe` should answer from 10.5.5.9. The AP SSID and password
+are shown on the camera under the same Connections menu.
+
+---
+
 ### Source quality note
 
 `goprowifihack`, `gopro-py-api`, and `GoProStream` are reverse-engineered community projects (now archived) — authoritative in practice for legacy cameras since GoPro never documented this API, but not vendor-supported. GoPro official sources are used for webcam/Open GoPro/RTMP/band facts. Latency figures are community measurements, not benchmarks I ran; expect ±50% variation with RF conditions.
