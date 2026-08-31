@@ -129,8 +129,51 @@ def _march(t):
 
 EXT_KEYS = ("vy", "crouch", "lift", "foot_dx", "foot_dz")
 
+# Which referee scenario grades each script's skill. arm_script's hardware
+# preflight looks up the DEPLOYED run's row before arming: on 2026-08-31 a
+# crouch was commanded on the standing robot while the scorecard already
+# said squat_reps 0/8 -- the robot ignored it and fell. The scorecard is
+# the record of what the deployed policy can do; consult it by machine,
+# not by memory. Unmapped scripts skip the check.
+SCRIPT_SCENARIO = {
+    "walk": "line_1m",
+    "line_1m": "line_1m",
+    "stride1": "line_1m",
+    "dash_stop": "speed_ladder",
+    "turn": "turn_180",
+    "pivot": "turn_180",
+    "square": "square_return",
+    "crouch1": "squat_reps",
+    "march": "metronome",
+    "stand": "stand_10s",
+}
+
+def _stride1(t):
+    # ONE gait-clock cycle of walk (the deployed clock runs 1.5 Hz fixed;
+    # clock_stand_freeze holds phase outside the window), stand either side.
+    return (0.6, 0.0) if 2.0 <= t < 2.0 + 1.0 / 1.5 else (0.0, 0.0)
+
+
+def _crouch1(t):
+    # One crouch cycle through the trained crouch channel (cmd[3] drawn
+    # 0.7-1.0 in training): ramp down, hold, ramp back up. Ramps rather
+    # than steps -- training resamples the command, it never sees jumps
+    # mid-episode... but a slow ramp is inside the distribution everywhere.
+    if t < 2.0:
+        return dict(crouch=1.0)
+    if t < 4.0:
+        return dict(crouch=1.0 - 0.3 * (t - 2.0) / 2.0)
+    if t < 6.0:
+        return dict(crouch=0.7)
+    if t < 8.0:
+        return dict(crouch=0.7 + 0.3 * (t - 6.0) / 2.0)
+    return dict(crouch=1.0)
+
+
 SCRIPTS = {
     "stand": _stand,
+    "stride1": _stride1,
+    "crouch1": _crouch1,
     "rom_feet": _rom_feet,
     "march": _march,
     "walk": _walk,
