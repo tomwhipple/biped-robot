@@ -74,14 +74,8 @@ bool g_primed = false;
 // linkproto/protocol.h next to the kFallen state they produce.
 constexpr int kFallDebounceTicks =
     static_cast<int>(linkproto::kFallDebounceMs / (obs::kControlDt * 1000.0f));
-constexpr int kUprightTicks =
-    static_cast<int>(linkproto::kUprightMs / (obs::kControlDt * 1000.0f));
 bool g_fallen = false;
 int g_fall_streak = 0;
-int g_upright_streak = 0;
-// ENABLE until a frame says otherwise: a fallen robot with a dead link must
-// stay down rather than self-clear into a stand nobody asked for.
-uint8_t g_last_cmd_flags = linkproto::kFlagEnable;
 
 // Rolling late-tick statistics for telemetry.
 uint32_t g_ticks = 0, g_late = 0;
@@ -180,8 +174,6 @@ void ctrlTask(void*) {
             // doing it is looking at the robot.
             g_fallen = false;
             g_fall_streak = 0;
-            g_upright_streak = 0;
-            g_last_cmd_flags = linkproto::kFlagEnable;
         }
 
         // -- drain the command mailbox (latest wins) -----------------------
@@ -198,10 +190,6 @@ void ctrlTask(void*) {
             }
             if (benched) continue;
             g_dog.accept(msg.cmd, now_ms);
-            // Kept even for frames the watchdog rejects as stale: the fall
-            // clear below only needs "the operator is deliberately not
-            // commanding", and any recent frame answers that.
-            g_last_cmd_flags = msg.cmd.flags;
         }
 
         if (benched) {
@@ -259,24 +247,24 @@ void ctrlTask(void*) {
         // the policy is outside anything training produced, and holding
         // torque only grinds servos against the floor. Debounced so a
         // footfall transient cannot trip it; the StubImu pins up_z to 1.0,
-        // so an IMU-less bench board can never false-trigger. The clear is
-        // deliberate: righted AND held upright AND the operator's frames say
-        // ENABLE off -- a robot picked up mid-fumble must not spring back to
-        // life in someone's hands.
+        // so an IMU-less bench board can never false-trigger.
+        //
+        // A fall ends the run OUTRIGHT: the latch trips, this tick still
+        // reports FALLEN and goes limp below, and the mode request benches
+        // the loop from the next tick. There is no auto-clear any more --
+        // the old one (righted ~2 s + ENABLE off) re-engaged torque while
+        // the robot was in the operator's hands on 2026-08-30 and twice on
+        // 08-31. Re-arming is deliberate: a fresh wireless ARM edge or a
+        // tethered `run`, both of which pass through the arm handover above,
+        // which is also where the latch resets (user directive 2026-08-31).
         if (!g_fallen) {
             g_fall_streak =
                 (s.up[2] < linkproto::kFallUpZ) ? g_fall_streak + 1 : 0;
             if (g_fall_streak >= kFallDebounceTicks) {
                 g_fallen = true;
-                g_upright_streak = 0;
-            }
-        } else {
-            g_upright_streak =
-                (s.up[2] > linkproto::kUprightUpZ) ? g_upright_streak + 1 : 0;
-            if (g_upright_streak >= kUprightTicks &&
-                (g_last_cmd_flags & linkproto::kFlagEnable) == 0) {
-                g_fallen = false;
-                g_fall_streak = 0;
+                g_arm_result.store(static_cast<uint8_t>(
+                    linkproto::ArmResult::kDisarmedFall));
+                g_mode_request.store(Mode::kBench);
             }
         }
 

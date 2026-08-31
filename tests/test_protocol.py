@@ -335,7 +335,8 @@ def test_diag_values_are_append_only():
     # Same rule as LinkState: the wire meaning of an existing value must
     # never move, or an old client mis-reports a new robot.
     assert [(r.name, r.value) for r in ArmResult] == [
-        ("NONE", 0), ("ACCEPTED", 1), ("REFUSED_NO_CAL", 2)]
+        ("NONE", 0), ("ACCEPTED", 1), ("REFUSED_NO_CAL", 2),
+        ("DISARMED_FALL", 3)]
     assert DIAG_RUN == 1 and DIAG_CAL_OK == 2 and DIAG_ARM_SHIFT == 4
 
 

@@ -77,8 +77,10 @@ enum class LinkState : uint8_t {
     kLowBattLand = 4,   // crouching down under control on a flat pack
     kLowBattSafe = 5,   // crouch finished, torque off, and it stays off
     // Torso down (up_z below kFallUpZ, debounced), robot-latched: torque off
-    // so a downed robot does not grind its servos against the floor. Clears
-    // without a reboot: upright for kUprightMs plus a frame with ENABLE off.
+    // so a downed robot does not grind its servos against the floor. A fall
+    // DISARMS the robot (ctrl_task): the state is reported for the fall tick,
+    // then the loop benches. Re-arming is deliberate -- a fresh wireless ARM
+    // edge or a tethered `run` -- never automatic.
     kFallen = 6,
     // Control loop benched: CLI owns the bus, the link commands nothing,
     // torque is off. Boot state. Left via an ArmLatch edge or the tethered
@@ -115,6 +117,7 @@ enum class ArmResult : uint8_t {
     kNone = 0,           // nothing has asked for a mode change yet
     kAccepted = 1,       // the last request was honoured (arm or disarm)
     kRefusedNoCal = 2,   // arm refused: no as-built calibration in NVS
+    kDisarmedFall = 3,   // the FALL latch tripped: run over, robot disarmed
 };
 
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result);
@@ -131,6 +134,9 @@ const char* diagReason(uint8_t diag);
 // torso on the floor, not a wobble.
 constexpr float kFallUpZ = 0.4f;
 constexpr float kFallDebounceMs = 200.0f;
+// The firmware latch no longer auto-clears (a fall DISARMS the robot,
+// ctrl_task.cpp); these two remain for the python twin's Watchdog and any
+// host-side "is it righted yet" display.
 constexpr float kUprightUpZ = 0.7f;     // hysteresis: righted is > this ...
 constexpr float kUprightMs = 2000.0f;   // ... held this long, + ENABLE off
 

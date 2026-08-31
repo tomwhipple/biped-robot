@@ -113,6 +113,7 @@ inline const DiagCase kDiag[] = {
     {0, 1, 2, 0x22, "arm REFUSED -- no as-built calibration in NVS (run `cal`)"},
     {1, 1, 1, 0x13, "armed -- the control loop is running"},
     {0, 1, 1, 0x12, "disarmed on request -- press arm to run"},
+    {0, 1, 3, 0x32, "disarmed -- FALL latch tripped; re-arm deliberately (ARM edge or run)"},
 };
 inline constexpr size_t kNumDiag = sizeof kDiag / sizeof kDiag[0];
 

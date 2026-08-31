@@ -29,7 +29,11 @@ namespace robot {
 // Boot state is kBench, so a freshly powered board never moves on its own.
 enum class Mode : uint8_t { kBench = 0, kRun };
 
-// Written by the CLI (core 0), read by ctrl (core 1).
+// Written by the CLI (core 0), read by ctrl (core 1) -- plus ONE write from
+// ctrl itself: the fall latch stores kBench when it trips (ctrl_task.cpp),
+// because a fall must end the run without waiting on core 0. That write only
+// ever moves the mode TOWARD bench, so the bus-ownership rule holds: the CLI
+// still waits for g_ctrl_owns_bus to go false before touching the bus.
 extern std::atomic<Mode> g_mode_request;
 // Written by ctrl only. The CLI must see BOTH kBench requested and this false
 // before it touches the bus.
@@ -54,10 +58,12 @@ extern std::atomic<bool> g_link_arm_level;     // valid once edges > 0
 // were diagnosed only by plugging the tether). cmdMode records its verdict
 // here and wifi_link.cpp puts it in the BENCH beacon.
 //
-// Single writer: cmdMode runs ONLY on the housekeeping task -- a typed
-// `run`/`bench` arrives through cli::execute() and a wireless ARM edge
-// through cli::linkMode(), both from that one loop. The reader is a 10 Hz
-// human-facing beacon, so it follows the TelemetrySnapshot rule.
+// Writers: cmdMode on the housekeeping task -- a typed `run`/`bench` arrives
+// through cli::execute() and a wireless ARM edge through cli::linkMode(),
+// both from that one loop -- plus ctrl's fall latch, which stores
+// kDisarmedFall when a fall ends the run (ctrl_task.cpp) so the beacon says
+// WHY the robot is benched. The reader is a 10 Hz human-facing beacon, so it
+// follows the TelemetrySnapshot rule.
 extern std::atomic<uint8_t> g_arm_result;      // a linkproto::ArmResult
 
 // -- command shaping pole (core 0 -> core 1) --------------------------------

@@ -92,11 +92,11 @@ class LinkState(Enum):
     VSAFE = "vsafe"        # crouch finished, torque off, and it stays off
     # Torso down (up_z below the sim's own fall threshold, debounced),
     # robot-latched: torque off so a downed robot does not grind its servos
-    # against the floor. Unlike VLAND/VSAFE it CAN be cleared without a
-    # reboot: right the robot and hold ENABLE off -- upright for 2 s plus a
-    # deliberate not-yet-commanding operator is the "I meant to pick it up"
-    # signal, and re-arming straight into motion stays impossible.
-    FALLEN = "fall"        # torso down, torque off until righted + ENABLE off
+    # against the floor. A fall DISARMS the robot (firmware ctrl_task): this
+    # state is reported for the fall tick, then the robot benches. Re-arming
+    # is deliberate -- a fresh ARM edge or a tethered `run` -- never
+    # automatic; the old righted-2s auto-clear is gone (2026-08-31).
+    FALLEN = "fall"        # torso down, torque off; the run is over
     # Control loop benched: the CLI owns the servo bus, the link commands
     # nothing, torque is off. This is the boot state. Leaves it via an ARM
     # edge (ArmLatch) or the tethered `run`.
@@ -135,6 +135,7 @@ class ArmResult(Enum):
     NONE = 0             # nothing has asked for a mode change yet
     ACCEPTED = 1         # the last request was honoured (arm or disarm)
     REFUSED_NO_CAL = 2   # arm refused: no as-built calibration in NVS
+    DISARMED_FALL = 3    # the FALL latch tripped: run over, robot disarmed
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
@@ -155,6 +156,9 @@ def diag_reason(diag: int) -> str:
     r = diag_arm_result(diag)
     if r is ArmResult.REFUSED_NO_CAL:
         return "arm REFUSED -- no as-built calibration in NVS (run `cal`)"
+    if r is ArmResult.DISARMED_FALL:
+        return ("disarmed -- FALL latch tripped; re-arm deliberately (ARM "
+                "edge or run)")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")

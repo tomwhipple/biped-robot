@@ -111,6 +111,9 @@ const char* diagReason(uint8_t diag) {
                                      : "disarmed on request -- press arm to run";
         case ArmResult::kRefusedNoCal:
             return "arm REFUSED -- no as-built calibration in NVS (run `cal`)";
+        case ArmResult::kDisarmedFall:
+            return "disarmed -- FALL latch tripped; re-arm deliberately (ARM "
+                   "edge or run)";
     }
     // A refusal reason this client is too old to name. Say so rather than
     // guess: the enum is append-only, so an unknown value is a NEWER robot.

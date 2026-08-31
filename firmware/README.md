@@ -192,8 +192,10 @@ Handover is one-way through the ctrl task: it releases torque and clears
    "no as-built calibration in NVS" refusal to the UART sink only, so a
    wireless arm that was declined looked identical to a dead link — six
    seconds of ignored `ARM` frames cost a tether to diagnose. It now
-   publishes the verdict to `robot::g_arm_result` (single writer: `cmdMode`
-   runs only on the housekeeping task) and `wifi_link.cpp` folds it, plus
+   publishes the verdict to `robot::g_arm_result` (written by `cmdMode` on
+   the housekeeping task, and since 2026-08-31 also by ctrl's fall latch,
+   which stores `kDisarmedFall` when a fall ends the run) and `wifi_link.cpp`
+   folds it, plus
    `g_cal_from_nvs`, into a one-byte diagnostic carried in the `BENCH`
    beacon's `seq_echo` — a field that means nothing while benched, so no
    version bump and every existing commander keeps working. Layout and
