@@ -310,17 +310,23 @@ void ctrlTask(void*) {
         if (!g_torque_on) engageAll();
 
         // -- observe -------------------------------------------------------
-        float vx = 0.0f, wz = 0.0f;
-        g_dog.command(now_ms, vx, wz);
-        // Landing on a flat pack: stop travelling, whatever was commanded.
-        if (g_batt.latched()) { vx = 0.0f; wz = 0.0f; }
+        // Full 7-wide ext_cmd vector off the link (vx, vy, wz, crouch,
+        // lift, foot_dx, foot_dz); classic 14 B frames decode with the
+        // extras at trained defaults, so nothing changes for old senders.
+        float cmd7[7];
+        g_dog.commandExt(now_ms, cmd7);
+        const float vx = g_batt.latched() ? 0.0f : cmd7[0];
+        const float vy = g_batt.latched() ? 0.0f : cmd7[1];
+        const float wz = g_batt.latched() ? 0.0f : cmd7[2];
+        const float lift = g_batt.latched() ? 0.0f : cmd7[4];
         // clock_stand_freeze runs generated per-policy: a policy trained
         // with the frozen-at-stand clock must see it here too, or the
-        // stand obs oscillate in a way training never produced. vy and
-        // lift are not commanded on hardware yet, so |vx|,|wz| is the
-        // whole plain-stand gate.
+        // stand obs oscillate in a way training never produced. Training's
+        // gate (env_mjx plain_stand): no locomotion command AND no lift --
+        // marches/balances keep their clock.
         if (!obs::kClockStandFreeze
-            || fabsf(vx) > 0.05f || fabsf(wz) > 0.05f) {
+            || fabsf(vx) > 0.05f || fabsf(vy) > 0.05f || fabsf(wz) > 0.05f
+            || fabsf(lift) >= 0.5f) {
             g_clock.advance(obs::kControlDt);
         }
 
@@ -334,12 +340,20 @@ void ctrlTask(void*) {
         // ext_cmd channel layout (walker_env.set_command): vx, vy, wz, crouch,
         // lift, foot_dx, foot_dz -- defaults (0,0,0,1,0,0,0).
         in.cmd[0] = vx;
+        if (obs::kNumCmd > 1) in.cmd[1] = vy;
         in.cmd[2] = wz;
-        // Crouch height. 1.0 (full height) until the pack guard trips, then a
-        // ramp down to walker_env's crouch_range[0] -- the lowest stance the
-        // policy was actually trained to hold, so the landing stays inside the
-        // training distribution instead of inventing a pose on a sagging rail.
-        if (obs::kNumCmd > 3) in.cmd[3] = g_batt.crouch();
+        // Crouch height: the LOWER of the link's command and the pack
+        // guard's ramp -- the guard trips toward walker_env's
+        // crouch_range[0], the lowest stance the policy trained to hold,
+        // and a link asking for a deeper crouch than the guard allows is
+        // still inside the trained band (both clamp at kCrouchMin).
+        if (obs::kNumCmd > 3) {
+            const float bg = g_batt.crouch();
+            in.cmd[3] = cmd7[3] < bg ? cmd7[3] : bg;
+        }
+        if (obs::kNumCmd > 4) in.cmd[4] = lift;
+        if (obs::kNumCmd > 5) in.cmd[5] = g_batt.latched() ? 0.0f : cmd7[5];
+        if (obs::kNumCmd > 6) in.cmd[6] = g_batt.latched() ? 0.0f : cmd7[6];
         const int64_t t_obs0 = esp_timer_get_time();
         obs::assembleFrame(in, g_frame);
         if (!g_primed) {

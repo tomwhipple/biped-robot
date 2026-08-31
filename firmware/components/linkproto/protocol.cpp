@@ -66,6 +66,19 @@ void clampToEnvelope(float vx, float wz, float& out_vx, float& out_wz) {
     out_vx = vx;
 }
 
+void clampExtToEnvelope(Command& pkt) {
+    if (pkt.vy > kVyMax) pkt.vy = kVyMax;
+    if (pkt.vy < -kVyMax) pkt.vy = -kVyMax;
+    if (pkt.crouch > 1.0f) pkt.crouch = 1.0f;
+    if (pkt.crouch < kCrouchMin) pkt.crouch = kCrouchMin;
+    if (pkt.lift > 1.0f) pkt.lift = 1.0f;
+    if (pkt.lift < -1.0f) pkt.lift = -1.0f;
+    if (pkt.foot_dx > kFootDMax) pkt.foot_dx = kFootDMax;
+    if (pkt.foot_dx < -kFootDMax) pkt.foot_dx = -kFootDMax;
+    if (pkt.foot_dz > kFootDMax) pkt.foot_dz = kFootDMax;
+    if (pkt.foot_dz < -kFootDMax) pkt.foot_dz = -kFootDMax;
+}
+
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result) {
     uint8_t d = 0;
     if (run) d = static_cast<uint8_t>(d | kDiagRun);
@@ -117,15 +130,45 @@ size_t encodeCommand(uint8_t* out, uint32_t seq, float vx, float wz,
     return kCmdLen;
 }
 
+size_t encodeCommandExt(uint8_t* out, const Command& cmd) {
+    out[0] = kMagicCmd[0];
+    out[1] = kMagicCmd[1];
+    out[2] = kVersion;
+    out[3] = cmd.flags;
+    put32(out + 4, cmd.seq);
+    put16(out + 8, static_cast<uint16_t>(milli(cmd.vx)));
+    put16(out + 10, static_cast<uint16_t>(milli(cmd.wz)));
+    put16(out + 12, static_cast<uint16_t>(milli(cmd.vy)));
+    put16(out + 14, static_cast<uint16_t>(milli(cmd.crouch)));
+    put16(out + 16, static_cast<uint16_t>(milli(cmd.lift)));
+    put16(out + 18, static_cast<uint16_t>(milli(cmd.foot_dx)));
+    put16(out + 20, static_cast<uint16_t>(milli(cmd.foot_dz)));
+    put16(out + 22, crc16Ccitt(out, 22));
+    return kCmdLenExt;
+}
+
 Err decodeCommand(const uint8_t* buf, size_t len, Command& out) {
-    if (len != kCmdLen) return Err::kBadLength;
+    if (len != kCmdLen && len != kCmdLenExt) return Err::kBadLength;
     if (buf[0] != kMagicCmd[0] || buf[1] != kMagicCmd[1]) return Err::kBadMagic;
     if (buf[2] != kVersion) return Err::kBadVersion;
-    if (get16(buf + 12) != crc16Ccitt(buf, 12)) return Err::kBadCrc;
+    if (get16(buf + len - 2) != crc16Ccitt(buf, len - 2)) return Err::kBadCrc;
     out.flags = buf[3];
     out.seq = get32(buf + 4);
     out.vx = static_cast<int16_t>(get16(buf + 8)) / 1000.0f;
     out.wz = static_cast<int16_t>(get16(buf + 10)) / 1000.0f;
+    if (len == kCmdLenExt) {
+        out.vy = static_cast<int16_t>(get16(buf + 12)) / 1000.0f;
+        out.crouch = static_cast<int16_t>(get16(buf + 14)) / 1000.0f;
+        out.lift = static_cast<int16_t>(get16(buf + 16)) / 1000.0f;
+        out.foot_dx = static_cast<int16_t>(get16(buf + 18)) / 1000.0f;
+        out.foot_dz = static_cast<int16_t>(get16(buf + 20)) / 1000.0f;
+    } else {
+        out.vy = 0.0f;
+        out.crouch = 1.0f;
+        out.lift = 0.0f;
+        out.foot_dx = 0.0f;
+        out.foot_dz = 0.0f;
+    }
     return Err::kOk;
 }
 

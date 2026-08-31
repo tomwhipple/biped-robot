@@ -39,9 +39,19 @@ def test_stick_deadzone_and_full_travel():
 def test_every_script_stays_in_the_trained_envelope(name):
     src = sources.ScriptSource(name)
     for i in range(400):                       # 20 s at 20 Hz
-        v, w, _ = src.poll(i * 0.05)
+        out = src.poll(i * 0.05)
+        v, w = out[0], out[1]
         assert clamp_to_envelope(v, w) == (v, w), \
             f"{name} at t={i*0.05}s emits {(v, w)}, which the robot clamps"
+        if len(out) > 3:
+            # dict scripts: the extended channels must survive the robot's
+            # envelope clamp untouched too
+            from protocol import Command, clamp_ext_to_envelope
+            pkt = Command(seq=0, vx=v, wz=w, flags=out[2], **out[3])
+            assert clamp_ext_to_envelope(pkt) == (
+                pkt.vy, pkt.crouch, pkt.lift, pkt.foot_dx, pkt.foot_dz), \
+                f"{name} at t={i*0.05}s emits ext {out[3]}, which the " \
+                f"robot clamps"
 
 
 def test_script_duration_disables_rather_than_stopping_the_stream():

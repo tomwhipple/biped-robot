@@ -32,6 +32,10 @@ class Watchdog {
     // The (vx, wz) to hand the policy right now.
     void command(float now_ms, float& vx, float& wz) const;
 
+    // The full 7-wide ext_cmd vector (vx, vy, wz, crouch, lift, foot_dx,
+    // foot_dz) into cmd7. Stale links decay to the trained stand command.
+    void commandExt(float now_ms, float* cmd7) const;
+
     uint32_t lastSeq() const { return have_seq_ ? last_seq_ : 0; }
     uint32_t rejected() const { return rejected_; }
 
@@ -44,6 +48,11 @@ class Watchdog {
     bool have_seq_ = false;
     float cmd_vx_ = 0.0f;
     float cmd_wz_ = 0.0f;
+    float cmd_vy_ = 0.0f;
+    float cmd_crouch_ = 1.0f;
+    float cmd_lift_ = 0.0f;
+    float cmd_fdx_ = 0.0f;
+    float cmd_fdz_ = 0.0f;
     bool estop_ = false;
     uint32_t rejected_ = 0;    // stale/duplicate frames, for telemetry
 };

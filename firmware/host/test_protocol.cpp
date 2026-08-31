@@ -72,6 +72,86 @@ void testCommandFrames() {
     }
 }
 
+void testExtendedCommandFrames() {
+    for (size_t i = 0; i < V::kNumCmdExt; ++i) {
+        const auto& c = V::kCmdExt[i];
+        // decode (the python wire image; 14 B short frames included --
+        // extras must come back at the trained defaults)
+        Command got{};
+        CHECK_EQ(static_cast<int>(decodeCommand(c.wire, c.wire_len, got)),
+                 static_cast<int>(Err::kOk));
+        CHECK_EQ(got.seq, c.seq);
+        CHECK_EQ(got.flags, c.flags);
+        CHECK_NEAR(got.vx, c.dec[0], 0.0);
+        CHECK_NEAR(got.wz, c.dec[1], 0.0);
+        CHECK_NEAR(got.vy, c.dec[2], 0.0);
+        CHECK_NEAR(got.crouch, c.dec[3], 0.0);
+        CHECK_NEAR(got.lift, c.dec[4], 0.0);
+        CHECK_NEAR(got.foot_dx, c.dec[5], 0.0);
+        CHECK_NEAR(got.foot_dz, c.dec[6], 0.0);
+
+        // encode: the firmware's ext encoder must reproduce python's long
+        // frames byte for byte (python emits SHORT frames when the extras
+        // are at defaults -- those roundtrip through decode only)
+        if (c.wire_len == kCmdLenExt) {
+            Command src{};
+            src.seq = c.seq;
+            src.flags = c.flags;
+            src.vx = c.vx;
+            src.wz = c.wz;
+            src.vy = c.vy;
+            src.crouch = c.crouch;
+            src.lift = c.lift;
+            src.foot_dx = c.fdx;
+            src.foot_dz = c.fdz;
+            uint8_t wire[kCmdLenExt];
+            CHECK_EQ(encodeCommandExt(wire, src), kCmdLenExt);
+            CHECK_BYTES(wire, c.wire, kCmdLenExt);
+        }
+
+        // envelope clamp of the decoded frame, against the python reference
+        Command cl = got;
+        clampExtToEnvelope(cl);
+        CHECK_NEAR(cl.vy, c.clamped[0], 0.0);
+        CHECK_NEAR(cl.crouch, c.clamped[1], 0.0);
+        CHECK_NEAR(cl.lift, c.clamped[2], 0.0);
+        CHECK_NEAR(cl.foot_dx, c.clamped[3], 0.0);
+        CHECK_NEAR(cl.foot_dz, c.clamped[4], 0.0);
+    }
+}
+
+void testWatchdogExtChannels() {
+    // Not vector-driven: the ext channels ride the same accept/decay path as
+    // vx/wz, so a short script checks storage, ENABLE gating and stale decay.
+    Watchdog dog;
+    Command pkt{};
+    pkt.seq = 1;
+    pkt.flags = kFlagEnable;
+    pkt.vx = 0.4f;
+    pkt.lift = -1.0f;
+    pkt.foot_dx = 0.03f;
+    pkt.crouch = 0.8f;
+    CHECK_EQ(dog.accept(pkt, 0.0f), true);
+    float c7[7];
+    dog.commandExt(1.0f, c7);
+    CHECK_NEAR(c7[0], 0.4f, 0.0);
+    CHECK_NEAR(c7[3], 0.8f, 0.0);
+    CHECK_NEAR(c7[4], -1.0f, 0.0);
+    CHECK_NEAR(c7[5], 0.03f, 0.0);
+    // stale -> the trained stand command (crouch back to 1.0)
+    dog.commandExt(kStaleMs + 2.0f, c7);
+    CHECK_NEAR(c7[0], 0.0f, 0.0);
+    CHECK_NEAR(c7[3], 1.0f, 0.0);
+    CHECK_NEAR(c7[4], 0.0f, 0.0);
+    // ENABLE off zeroes the extras like vx/wz
+    pkt.seq = 2;
+    pkt.flags = 0;
+    CHECK_EQ(dog.accept(pkt, kStaleMs + 3.0f), true);
+    dog.commandExt(kStaleMs + 4.0f, c7);
+    CHECK_NEAR(c7[4], 0.0f, 0.0);
+    CHECK_NEAR(c7[3], 1.0f, 0.0);
+}
+
 void testBadFrames() {
     for (size_t i = 0; i < V::kNumBadCmd; ++i) {
         const auto& b = V::kBadCmd[i];
@@ -314,6 +394,8 @@ void testDemux() {
 int main() {
     testCrc();
     testCommandFrames();
+    testExtendedCommandFrames();
+    testWatchdogExtChannels();
     testBadFrames();
     testEverySingleBitFlipIsCaught();
     testTelemetryFrames();

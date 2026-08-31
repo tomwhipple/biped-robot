@@ -52,6 +52,19 @@ CMD_CASES = [
     (123456, 0.3, 1.0, P.FLAG_ENABLE),
 ]
 
+# extended command frames (2026-08-31): the 7-wide ext_cmd vector on the
+# wire. Includes the short-frame rule (extras at defaults -> 14 B), the
+# full-length layout, milli ties and saturation on the new channels.
+CMD_EXT_CASES = [
+    # (seq, vx, wz, flags, vy, crouch, lift, foot_dx, foot_dz)
+    (10, 0.0, 0.0, P.FLAG_ENABLE, 0.0, 1.0, 0.0, 0.0, 0.0),   # -> short frame
+    (11, 0.4, 0.0, P.FLAG_ENABLE, 0.0, 1.0, -1.0, 0.03, 0.0),
+    (12, 0.0, 0.0, P.FLAG_ENABLE, 0.0, 0.8, 1.0, -0.02, 0.045),
+    (13, 0.0, -0.2, P.FLAG_ENABLE, 0.15, 0.7, 0.0, 0.0, 0.0),
+    (14, 0.0, 0.0, P.FLAG_ENABLE, 0.0, 1.0, 0.0, 0.0625, -0.0625),  # milli tie
+    (15, 0.0, 0.0, 0xFF, 99.0, -99.0, 99.0, 99.0, -99.0),     # saturation
+]
+
 TLM_CASES = [
     # (seq_echo, state, vbat_v, up_z, vx_est, wz_est, servo_err, late_pct)
     (0, P.LinkState.LIVE, 11.4, 1.0, 0.0, 0.0, 0x00, 0),
@@ -204,6 +217,37 @@ def main():
             fl(d.vx), fl(d.wz)))
     w("};")
     w("inline constexpr size_t kNumCmd = sizeof kCmd / sizeof kCmd[0];")
+    w("")
+
+    # -- extended command frames -------------------------------------------
+    w("struct CmdExtCase {")
+    w("    uint32_t seq; float vx; float wz; uint8_t flags;")
+    w("    float vy; float crouch; float lift; float fdx; float fdz;")
+    w("    uint8_t wire[%d]; size_t wire_len;   // short-frame rule: defaults"
+      % P.CMD_LEN_EXT)
+    w("    float dec[7];   // decode: vx, wz, vy, crouch, lift, fdx, fdz")
+    w("    float clamped[5];  // clamp_ext_to_envelope(vy, crouch, lift,")
+    w("                       // fdx, fdz) of the DECODED frame")
+    w("};")
+    w("inline const CmdExtCase kCmdExt[] = {")
+    for seq, vx, wz, flags, vy, crouch, lift, fdx, fdz in CMD_EXT_CASES:
+        vx, wz, vy, crouch = f32(vx), f32(wz), f32(vy), f32(crouch)
+        lift, fdx, fdz = f32(lift), f32(fdx), f32(fdz)
+        wire = P.encode_command(seq, vx, wz, flags, vy=vy, crouch=crouch,
+                                lift=lift, foot_dx=fdx, foot_dz=fdz)
+        d = P.decode_command(wire)
+        cl = P.clamp_ext_to_envelope(d)
+        pad = bytes(wire) + b"\x00" * (P.CMD_LEN_EXT - len(wire))
+        w("    {%du, %s, %s, 0x%02X, %s, %s, %s, %s, %s," % (
+            seq & 0xFFFFFFFF, fl(vx), fl(wz), flags & 0xFF, fl(vy),
+            fl(crouch), fl(lift), fl(fdx), fl(fdz)))
+        w("     %s, %d," % (carr(pad), len(wire)))
+        w("     {%s}," % ", ".join(fl(v) for v in (
+            d.vx, d.wz, d.vy, d.crouch, d.lift, d.foot_dx, d.foot_dz)))
+        w("     {%s}}," % ", ".join(fl(v) for v in cl))
+    w("};")
+    w("inline constexpr size_t kNumCmdExt = "
+      "sizeof kCmdExt / sizeof kCmdExt[0];")
     w("")
 
     # -- malformed command frames ------------------------------------------

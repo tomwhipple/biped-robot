@@ -289,9 +289,15 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     // see the frozen clock HERE too, or the SIL column grades it against a
     // stand obs training never produced (found 2026-08-30: v22fix_e_s128
     // scored 39/144 SIL vs 69/144 py with the clock always running).
-    // cmd layout (walker_env.set_command): [0]=vx, [2]=wz.
+    // cmd layout (walker_env.set_command): [0]=vx, [1]=vy, [2]=wz,
+    // [4]=lift. Training's plain_stand gate (env_mjx): no locomotion
+    // command AND no lift -- marches/balances keep their clock. Must stay
+    // bit-identical to ctrl_task.cpp's gate.
+    const float sil_vy = obs::kNumCmd > 1 ? in->cmd[1] : 0.0f;
+    const float sil_lift = obs::kNumCmd > 4 ? in->cmd[4] : 0.0f;
     if (!obs::kClockStandFreeze
-        || fabsf(in->cmd[0]) > 0.05f || fabsf(in->cmd[2]) > 0.05f) {
+        || fabsf(in->cmd[0]) > 0.05f || fabsf(sil_vy) > 0.05f
+        || fabsf(in->cmd[2]) > 0.05f || fabsf(sil_lift) >= 0.5f) {
         g_clock.advance(obs::kControlDt);
     }
 

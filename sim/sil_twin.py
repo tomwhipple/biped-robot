@@ -167,8 +167,10 @@ def run(args):
                 act.begin_episode()
             was_armed = dog.armed
 
-            v, w = dog.command(now_ms)
-            env.set_command(v, 0.0, w)
+            # Full 7-wide ext_cmd off the link (vx, vy, wz, crouch, lift,
+            # foot_dx, foot_dz) -- extended frames drive the foot-target
+            # channels, classic frames decode to the trained defaults.
+            env.set_command(*dog.command_ext(now_ms))
             env.set_torque_enabled(dog.torque_on(now_ms))
 
             # Driver.step's obs contract: current cmd patched into the frame

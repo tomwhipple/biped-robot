@@ -109,8 +109,9 @@ void wifiLinkTask(void*) {
         if (n > 0) {
             // One datagram = one frame; UDP keeps the boundary, so no Demux.
             linkproto::Command pkt{};
-            if (n == static_cast<int>(linkproto::kCmdLen) &&
-                linkproto::decodeCommand(rx, linkproto::kCmdLen, pkt) ==
+            if ((n == static_cast<int>(linkproto::kCmdLen) ||
+                 n == static_cast<int>(linkproto::kCmdLenExt)) &&
+                linkproto::decodeCommand(rx, static_cast<size_t>(n), pkt) ==
                     linkproto::Err::kOk) {
                 CommandMsg msg;
                 msg.cmd = pkt;

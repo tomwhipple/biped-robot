@@ -89,8 +89,50 @@ def _square(t):
     return (0.5, 0.0) if t % leg < 3.0 else (0.0, 0.8)
 
 
+def _rom_feet(t):
+    """Policy-driven foot range-of-motion, through the TRAINED foot-target
+    channels (2026-08-31): each foot in turn -- target forward, target back,
+    down to rest. These are cm-scale offsets (traj_radius draws +-5 cm); a
+    90-degree leg swing is bench `pose` territory, not the policy's.
+
+    Dict scripts carry any subset of the 7 ext_cmd channels; omitted keys
+    ride at their trained defaults. lift: -1 = left foot, +1 = right."""
+    def leg(lift, tl):
+        if tl < 3.0:
+            return dict(lift=lift, foot_dx=+0.04)
+        if tl < 6.0:
+            return dict(lift=lift, foot_dx=-0.04)
+        return {}
+    if t < 2.0:
+        return {}
+    if t < 8.0:
+        return leg(-1.0, t - 2.0)      # left foot fwd, back
+    if t < 10.0:
+        return {}
+    if t < 16.0:
+        return leg(+1.0, t - 10.0)     # right foot fwd, back
+    return {}
+
+
+def _march(t):
+    """Knee-high march in place: the lift channel alternates on a 1.5 s
+    cadence with a raised swing target, the trained march command shape
+    (walker_env traj_on == 4)."""
+    import math as _m
+    if t < 2.0:
+        return {}
+    th = 2 * _m.pi * (t - 2.0) / 1.5
+    left = _m.sin(th) > 0
+    return dict(lift=-1.0 if left else 1.0,
+                foot_dz=0.04 * abs(_m.sin(th)))
+
+
+EXT_KEYS = ("vy", "crouch", "lift", "foot_dx", "foot_dz")
+
 SCRIPTS = {
     "stand": _stand,
+    "rom_feet": _rom_feet,
+    "march": _march,
     "walk": _walk,
     "dash_stop": _dash_stop,
     "line_1m": _line_1m,
@@ -112,7 +154,12 @@ class ScriptSource(CommandSource):
     def poll(self, t):
         if self._duration is not None and t >= self._duration:
             return 0.0, 0.0, 0        # disabled -> robot stands
-        v, w = self._fn(t)
+        out = self._fn(t)
+        if isinstance(out, dict):
+            # dict scripts: any subset of the 7 ext_cmd channels
+            ext = {k: out[k] for k in EXT_KEYS if k in out}
+            return out.get("vx", 0.0), out.get("wz", 0.0), FLAG_ENABLE, ext
+        v, w = out
         return v, w, FLAG_ENABLE
 
 

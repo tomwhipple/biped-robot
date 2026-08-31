@@ -27,9 +27,23 @@ bool Watchdog::accept(const Command& pkt, float now_ms) {
 
     if (pkt.enabled()) {
         clampToEnvelope(pkt.vx, pkt.wz, cmd_vx_, cmd_wz_);
+        // ENABLE gates the extended channels too: disabled = a plain stand
+        // (extras at trained defaults), exactly like vx/wz.
+        Command clamped = pkt;
+        clampExtToEnvelope(clamped);
+        cmd_vy_ = clamped.vy;
+        cmd_crouch_ = clamped.crouch;
+        cmd_lift_ = clamped.lift;
+        cmd_fdx_ = clamped.foot_dx;
+        cmd_fdz_ = clamped.foot_dz;
     } else {
         cmd_vx_ = 0.0f;
         cmd_wz_ = 0.0f;
+        cmd_vy_ = 0.0f;
+        cmd_crouch_ = 1.0f;
+        cmd_lift_ = 0.0f;
+        cmd_fdx_ = 0.0f;
+        cmd_fdz_ = 0.0f;
     }
     return true;
 }
@@ -54,6 +68,28 @@ void Watchdog::command(float now_ms, float& vx, float& wz) const {
     } else {
         vx = 0.0f;
         wz = 0.0f;
+    }
+}
+
+void Watchdog::commandExt(float now_ms, float* cmd7) const {
+    // walker_env ext_cmd layout: vx, vy, wz, crouch, lift, foot_dx, foot_dz.
+    // A stale link decays to the trained stand command, same as command().
+    if (state(now_ms) == LinkState::kLive) {
+        cmd7[0] = cmd_vx_;
+        cmd7[1] = cmd_vy_;
+        cmd7[2] = cmd_wz_;
+        cmd7[3] = cmd_crouch_;
+        cmd7[4] = cmd_lift_;
+        cmd7[5] = cmd_fdx_;
+        cmd7[6] = cmd_fdz_;
+    } else {
+        cmd7[0] = 0.0f;
+        cmd7[1] = 0.0f;
+        cmd7[2] = 0.0f;
+        cmd7[3] = 1.0f;
+        cmd7[4] = 0.0f;
+        cmd7[5] = 0.0f;
+        cmd7[6] = 0.0f;
     }
 }
 

@@ -19,6 +19,14 @@ constexpr uint8_t kMagicCmd[2] = {'B', 'M'};   // laptop -> robot
 constexpr uint8_t kMagicTlm[2] = {'B', 'T'};   // robot -> laptop
 constexpr uint8_t kVersion = 1;
 constexpr size_t kCmdLen = 14;
+// Extended command frame (2026-08-31): the same 12-byte prefix, then five
+// more int16 milli-channels (vy, crouch, lift, foot_dx, foot_dz) completing
+// walker_env.set_command()'s 7-wide ext_cmd vector. LENGTH selects the
+// layout, no version bump: a 14 B frame decodes with the extras at their
+// trained defaults (0, 1.0, 0, 0, 0), so every pre-extension sender keeps
+// working. protocol.py is the reference for the sender-side rule (emit the
+// short frame whenever the extras are at defaults).
+constexpr size_t kCmdLenExt = 24;
 constexpr size_t kTlmLen = 20;
 
 constexpr uint16_t kCmdPort = 4210;
@@ -42,6 +50,11 @@ constexpr uint32_t kSeqResyncGap = 1000;   // bigger backwards jump = restart
 constexpr float kVMinWalk = 0.3f;
 constexpr float kVMax = 1.0f;
 constexpr float kWMax = 1.0f;
+// extended-channel envelope, from the walker_env training draws (protocol.py
+// VY_MAX / CROUCH_MIN / FOOT_D_MAX -- keep in step):
+constexpr float kVyMax = 0.3f;      // lateral sway amplitude
+constexpr float kCrouchMin = 0.6f;  // crouch_range[0], the battguard floor
+constexpr float kFootDMax = 0.05f;  // traj_radius hi: foot offsets, m
 
 enum class Err : uint8_t {
     kOk = 0,
@@ -126,6 +139,13 @@ struct Command {
     float vx;        // body-frame forward velocity, m/s
     float wz;        // yaw rate, rad/s
     uint8_t flags;
+    // extended channels (kCmdLenExt frames); a classic frame decodes to
+    // exactly these defaults -- walker_env ext_cmd layout beyond vx/wz
+    float vy = 0.0f;       // lateral velocity, m/s
+    float crouch = 1.0f;   // stance-height fraction command (cmd[3])
+    float lift = 0.0f;     // swing-foot selector: -1 left, +1 right
+    float foot_dx = 0.0f;  // swing-foot target x offset, m
+    float foot_dz = 0.0f;  // swing-foot target extra height, m
 
     bool enabled() const { return (flags & kFlagEnable) != 0; }
     bool estop() const { return (flags & kFlagEstop) != 0; }
@@ -158,9 +178,17 @@ uint16_t crc16Ccitt(const uint8_t* data, size_t len, uint16_t crc = 0xFFFF);
 // Enforced robot-side because the robot is what eats a bad command.
 void clampToEnvelope(float vx, float wz, float& out_vx, float& out_wz);
 
+// The extended channels, snapped into their trained draws (in place).
+void clampExtToEnvelope(Command& pkt);
+
 // Encode into `out` (kCmdLen / kTlmLen bytes). Returns bytes written.
 size_t encodeCommand(uint8_t* out, uint32_t seq, float vx, float wz,
                      uint8_t flags);
+// Extended frame: always kCmdLenExt bytes (senders wanting the short-frame
+// default rule use protocol.py; firmware-side encoding exists for the twins
+// and tests).
+size_t encodeCommandExt(uint8_t* out, const Command& cmd);
+// Accepts kCmdLen (extras -> defaults) and kCmdLenExt frames.
 Err decodeCommand(const uint8_t* buf, size_t len, Command& out);
 
 size_t encodeTelemetry(uint8_t* out, const Telemetry& t);

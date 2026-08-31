@@ -27,6 +27,15 @@ MAGIC_CMD = b"BM"          # laptop -> robot ("BiMo")
 MAGIC_TLM = b"BT"          # robot -> laptop
 VERSION = 1
 CMD_LEN = 14
+# Extended command frame (2026-08-31): same 12-byte prefix, then FIVE more
+# int16 milli-channels -- vy, crouch, lift, foot_dx, foot_dz -- completing
+# walker_env.set_command()'s 7-wide ext_cmd vector over the wire. LENGTH
+# selects the layout (no version bump): a 14 B frame is the classic pair
+# with the extras at their trained defaults (0, 1.0, 0, 0, 0), so every
+# pre-extension sender keeps working against new firmware. Senders emit the
+# short frame whenever the extras ARE at defaults; old firmware drops long
+# frames by length, which the arming handshake surfaces immediately.
+CMD_LEN_EXT = 24
 TLM_LEN = 20
 
 CMD_PORT = 4210            # robot listens here
@@ -58,6 +67,10 @@ SEQ_RESYNC_GAP = 1000
 # clamp_to_envelope() closes that hole by snapping; see also sources.py.
 V_MIN_WALK = 0.3           # walker_env cmd_v_range[0]
 V_MAX = 1.0                # walker_env cmd_v_range[1]
+# extended-channel envelope, from the walker_env training draws:
+VY_MAX = 0.3               # lateral sway amplitude the sway scenarios use
+CROUCH_MIN = 0.6           # crouch_range[0] -- also the battguard ramp floor
+FOOT_D_MAX = 0.05          # traj_radius hi: air-circle/march foot offsets, m
 W_MAX = 1.0                # walker_env cmd_w_range
 
 
@@ -158,6 +171,13 @@ class Command(NamedTuple):
     vx: float              # body-frame forward velocity, m/s
     wz: float              # yaw rate, rad/s
     flags: int
+    # extended channels (walker_env ext_cmd layout beyond vx/wz); a classic
+    # 14 B frame decodes to exactly these defaults
+    vy: float = 0.0        # lateral velocity, m/s
+    crouch: float = 1.0    # stance-height fraction command (cmd[3])
+    lift: float = 0.0      # swing-foot selector: -1 left, +1 right, 0 none
+    foot_dx: float = 0.0   # swing-foot target x offset, m
+    foot_dz: float = 0.0   # swing-foot target extra height, m
 
     @property
     def enabled(self) -> bool:
@@ -241,27 +261,52 @@ def clamp_to_envelope(vx: float, wz: float) -> tuple:
     return max(-V_MAX, min(V_MAX, vx)), wz
 
 
+def clamp_ext_to_envelope(pkt: "Command") -> tuple:
+    """The extended channels, snapped into their trained draws.
+
+    Returns (vy, crouch, lift, foot_dx, foot_dz)."""
+    return (max(-VY_MAX, min(VY_MAX, pkt.vy)),
+            max(CROUCH_MIN, min(1.0, pkt.crouch)),
+            max(-1.0, min(1.0, pkt.lift)),
+            max(-FOOT_D_MAX, min(FOOT_D_MAX, pkt.foot_dx)),
+            max(-FOOT_D_MAX, min(FOOT_D_MAX, pkt.foot_dz)))
+
+
 # -- command frame ---------------------------------------------------------
-def encode_command(seq: int, vx: float, wz: float, flags: int) -> bytes:
+_EXT_DEFAULTS = (0.0, 1.0, 0.0, 0.0, 0.0)   # vy, crouch, lift, fdx, fdz
+
+
+def encode_command(seq: int, vx: float, wz: float, flags: int,
+                   vy: float = 0.0, crouch: float = 1.0, lift: float = 0.0,
+                   foot_dx: float = 0.0, foot_dz: float = 0.0) -> bytes:
     body = struct.pack(
         "<2sBBIhh", MAGIC_CMD, VERSION, flags & 0xFF, seq & 0xFFFFFFFF,
         _milli(vx), _milli(wz),
     )
+    ext = (vy, crouch, lift, foot_dx, foot_dz)
+    if any(_milli(a) != _milli(b) for a, b in zip(ext, _EXT_DEFAULTS)):
+        body += struct.pack("<5h", *(_milli(v) for v in ext))
     return body + struct.pack("<H", crc16_ccitt(body))
 
 
 def decode_command(buf: bytes) -> Command:
-    if len(buf) != CMD_LEN:
-        raise ProtocolError(f"command frame is {len(buf)} B, want {CMD_LEN}")
+    if len(buf) not in (CMD_LEN, CMD_LEN_EXT):
+        raise ProtocolError(f"command frame is {len(buf)} B, want {CMD_LEN} "
+                            f"or {CMD_LEN_EXT}")
     magic, ver, flags, seq, vx_mm, wz_mr = struct.unpack("<2sBBIhh", buf[:12])
     if magic != MAGIC_CMD:
         raise ProtocolError(f"bad magic {magic!r}")
     if ver != VERSION:
         raise ProtocolError(f"protocol version {ver}, want {VERSION}")
-    (crc,) = struct.unpack("<H", buf[12:])
-    if crc != crc16_ccitt(buf[:12]):
+    (crc,) = struct.unpack("<H", buf[-2:])
+    if crc != crc16_ccitt(buf[:-2]):
         raise ProtocolError("CRC mismatch")
-    return Command(seq=seq, vx=vx_mm / 1000.0, wz=wz_mr / 1000.0, flags=flags)
+    ext = _EXT_DEFAULTS
+    if len(buf) == CMD_LEN_EXT:
+        ext = tuple(v / 1000.0 for v in struct.unpack("<5h", buf[12:22]))
+    return Command(seq=seq, vx=vx_mm / 1000.0, wz=wz_mr / 1000.0, flags=flags,
+                   vy=ext[0], crouch=ext[1], lift=ext[2],
+                   foot_dx=ext[3], foot_dz=ext[4])
 
 
 # -- telemetry frame -------------------------------------------------------
@@ -316,6 +361,7 @@ class Watchdog:
         self._last_rx_ms = None
         self._last_seq = None
         self._cmd = (0.0, 0.0)
+        self._ext = _EXT_DEFAULTS
         self._estop = False
         self.rejected = 0      # stale/duplicate frames, for telemetry
 
@@ -343,6 +389,10 @@ class Watchdog:
 
         self._cmd = clamp_to_envelope(pkt.vx, pkt.wz) if pkt.enabled \
             else (0.0, 0.0)
+        # ENABLE gates the extended channels too: disabled = a plain stand
+        # (extras at trained defaults), exactly like vx/wz.
+        self._ext = clamp_ext_to_envelope(pkt) if pkt.enabled \
+            else _EXT_DEFAULTS
         return True
 
     def state(self, now_ms: float) -> LinkState:
@@ -363,6 +413,16 @@ class Watchdog:
         """The (vx, wz) to hand the policy right now."""
         return self._cmd if self.state(now_ms) is LinkState.LIVE else (0.0,
                                                                        0.0)
+
+    def command_ext(self, now_ms: float) -> tuple:
+        """The full 7-wide ext_cmd vector (vx, vy, wz, crouch, lift,
+        foot_dx, foot_dz). Stale links decay to the trained stand command,
+        same as command()."""
+        if self.state(now_ms) is LinkState.LIVE:
+            (vx, wz), (vy, crouch, lift, fdx, fdz) = self._cmd, self._ext
+        else:
+            (vx, wz), (vy, crouch, lift, fdx, fdz) = (0.0, 0.0), _EXT_DEFAULTS
+        return (vx, vy, wz, crouch, lift, fdx, fdz)
 
     @property
     def last_seq(self) -> int:
@@ -458,6 +518,10 @@ class Supervisor:
 
     def command(self, now_ms: float) -> tuple:
         return self.dog.command(now_ms) if self.armed else (0.0, 0.0)
+
+    def command_ext(self, now_ms: float) -> tuple:
+        return (self.dog.command_ext(now_ms) if self.armed
+                else (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0))
 
     def torque_on(self, now_ms: float) -> bool:
         return self.state(now_ms) not in (LinkState.RELAX, LinkState.ESTOP,

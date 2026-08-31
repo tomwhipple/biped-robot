@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from protocol import (CMD_PORT, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP,  # noqa: E402
                       SEND_HZ, TLM_PORT, LinkState, ProtocolError,
                       decode_telemetry, diag_reason, encode_command)
-from sources import SCRIPTS  # noqa: E402
+from sources import EXT_KEYS, SCRIPTS  # noqa: E402
 
 
 class Driver:
@@ -64,8 +64,8 @@ class Driver:
     def now(self):
         return time.monotonic() - self.t0
 
-    def send(self, vx, wz, flags):
-        self.tx.sendto(encode_command(self.seq, vx, wz, flags),
+    def send(self, vx, wz, flags, ext=None):
+        self.tx.sendto(encode_command(self.seq, vx, wz, flags, **(ext or {})),
                        (self.host, self.cmd_port))
         self.seq += 1
 
@@ -133,7 +133,9 @@ class Driver:
         return None
 
     def run_for(self, seconds, fn, label):
-        """fn(t_phase) -> (vx, wz, flags). Returns guard verdict or None."""
+        """fn(t_phase) -> (vx, wz, flags[, ext]). Returns guard verdict or
+        None. ext is an optional dict of extended command channels
+        (protocol.encode_command kwargs)."""
         print(f"== {label} ({seconds:g} s)", flush=True)
         start = self.now()
         next_send = start
@@ -141,8 +143,10 @@ class Driver:
             t = self.now() - start
             if t >= seconds:
                 return None
-            vx, wz, flags = fn(t)
-            self.send(vx, wz, flags)
+            out = fn(t)
+            vx, wz, flags = out[0], out[1], out[2]
+            ext = out[3] if len(out) > 3 else None
+            self.send(vx, wz, flags, ext)
             verdict = self.pump(vx, wz, flags)
             if verdict:
                 return verdict
@@ -195,7 +199,15 @@ def phase_script(d, a):
         return v
 
     def script(t):
-        vx, wz = fn(t)
+        out = fn(t)
+        if isinstance(out, dict):
+            # dict scripts drive the extended channels (sources.EXT_KEYS)
+            ext = {k: out[k] for k in EXT_KEYS if k in out}
+            vx, wz = out.get("vx", 0.0), out.get("wz", 0.0)
+            active = bool(vx or wz or any(ext.values()))
+            flags = FLAG_ARM | (FLAG_ENABLE if active else 0)
+            return vx, wz, flags, ext
+        vx, wz = out
         flags = FLAG_ARM | (FLAG_ENABLE if (vx or wz) else 0)
         return vx, wz, flags
     v = d.run_for(a.duration, script, f"script {a.script}")
