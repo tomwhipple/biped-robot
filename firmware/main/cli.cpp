@@ -258,6 +258,11 @@ void cmdMove(Sink out, int argc, char** argv) {
     // A commanded speed is what makes a slow constant-velocity sweep (and so
     // a friction measurement) possible at all.
     const long spd = argc >= 5 ? num(argv[4], 0) : 0;
+    // Optional 6th arg: ACC register value (100 steps/s^2 per LSB). The
+    // loop and every prior bench write sent 0; the 2026-08-31 FRF measured
+    // a ~10 rad/s^2 tracking cap at gait amplitudes, so this exists to
+    // probe what the servo's accel profile actually does with the value.
+    const long acc = argc >= 6 ? num(argv[5], 0) : 0;
     if (ticks < 0 || ticks > 4095) {
         out("ticks must be 0-4095 (2048 == middle)\r\n");
         return;
@@ -269,9 +274,9 @@ void cmdMove(Sink out, int argc, char** argv) {
                                               out)};
     const scsbus::Status st = bus->syncWritePositions(
         ids, tgt, 1, static_cast<uint16_t>(ms),
-        static_cast<uint16_t>(spd), 0);
-    say(out, "move id %ld -> %ld ticks, %ld ms, spd %ld: %s\r\n", id, ticks,
-        ms, spd, statusName(st));
+        static_cast<uint16_t>(spd), static_cast<uint8_t>(acc & 0xFF));
+    say(out, "move id %ld -> %ld ticks, %ld ms, spd %ld, acc %ld: %s\r\n", id,
+        ticks, ms, spd, acc, statusName(st));
 }
 
 void cmdPose(Sink out, int argc, char** argv) {
