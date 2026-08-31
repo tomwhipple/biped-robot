@@ -184,6 +184,12 @@ def phase_arm(d, a):
 
 def phase_script(d, a):
     fn = SCRIPTS[a.script]
+    # Same preamble as phase_arm: a fresh ArmLatch has no level until it sees
+    # a frame, so ARM=1 from frame one is a level, not an edge, and the robot
+    # (correctly) never arms. Observed 2026-08-31 after a serial-open reboot.
+    v = d.run_for(0.5, arm_off, "pre-arm: ARM=0 frames (establish latch level)")
+    if v:
+        return v
     v = d.run_for(a.settle, stand_armed, "settle: ARM stand frames")
     if v:
         return v
