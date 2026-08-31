@@ -162,9 +162,9 @@ worth not rediscovering:
   cleanly. The tool counts and suppresses the remaining lock-on lines.
 
 See [camera-replacement-options.md](camera-replacement-options.md) for what to
-buy instead — short version: GoPro **LIT HERO** (93 g, Open GoPro API, drops
-into the existing `gopro_base` fingers) as a camera, or a **XIAO ESP32S3
-Sense + 1S LiPo** (~100 ms) if the goal is perception in the loop.
+buy instead — short version: for navigation
+perception processed on mira, a **Pi Zero 2 W + Camera Module 3** (frame
+timestamps and real calibration, ~45-55 g) — not an action camera.
 
 ### Two blockers before this can run for real
 
