@@ -138,6 +138,50 @@ Doing the fixed-camera pose channel first would let the `goal` source in
 mass at all, and would give a ground-truth reference to check any on-robot
 estimate against later. [I]
 
+## Sequencing: the Pi eventually hosts the high-level controller — but not yet
+
+> "If we're going to use a RaspberryPi, it seems to me we should run the high
+> level controller there. But I don't want to make that change until we can
+> reliably move about without falling." — Tom, 2026-08-31
+
+Agreed, and the ordering matters for a concrete reason: **adding the Pi is a
+plant change.** 45–55 g at `payload_cg_z` is mass at the very top of the tower,
+and you do not perturb the plant while you are still establishing the fall-free
+baseline that the change would be measured against. [I]
+
+Deferring is cheap. The mass is already inside the 0–170 g payload DR, so it
+needs no retrain, and warm-start across a body change is measured to work on
+this project.
+
+**The deferral costs nothing architecturally, provided one thing:** write the
+high-level controller as a process that *produces `cmd`/`ext_cmd`* and does not
+care which host it runs on. `ext_cmd` is already 7-wide over the wire
+(`8002802`), and [sensor-expansion.md](sensor-expansion.md) §2 is explicit that
+Tier-3 perception enters through `cmd` and nothing else — "perception sets the
+goal; the policy walks". Build it on mira against that seam now and the
+eventual move to the Pi is a **deployment change, not a rewrite**. The way to
+lose that property is to let the controller reach into something only mira has.
+
+### Where the gate actually stands (2026-08-31)
+
+Worth stating plainly, because "until we can reliably move about without
+falling" is a long way off, not a formality: [V]
+
+- Best policy **v25full_c: 96/144** on the referee, curve still climbing.
+- Deployed line **v22fix_b: 85/144**, **4% falls**, push recovery **3/8**.
+- The robot is still bench/stand work, and the FALL latch was changed to
+  disarm *today* (`baa833e`) precisely because real falls — once on 08-30,
+  twice on 08-31 — were re-engaging torque in the operator's hands.
+
+### What this frees up to do now
+
+The **fixed arena camera is not gated by any of this.** It touches no robot
+mass, no robot power, and no robot RF, so it cannot perturb the baseline — and
+it measures the very thing the gate is about: where the robot actually goes,
+and how it falls. mira already has the two bench webcams. That is the piece of
+this work worth starting today; the on-robot camera and the Pi both wait for
+the gate. [I]
+
 ## Sources
 
 - Pi Zero 2 W 9 g, 2.4 GHz, H.264 1080p30: <https://www.hackster.io/news/raspberry-pi-zero-2-w-review-hands-on-with-the-fastest-zero-ever-b85b155905a5>
