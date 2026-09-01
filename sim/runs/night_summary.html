@@ -98,6 +98,31 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·01</span></p>
+    <p><b>The act-lag experiment repeated our 08·27 negative — and
+    points at v27.</b> The hardware thread's excellent servo work
+    (measured: the STS3215 has a ~10 rad/s² acceleration cap — THE
+    sim-real gap, real joints move at ~half sim speed) produced
+    <code>--act-lag</code> DR and an overnight run, v26servo (act-lag
+    2–12 Hz, warm from v22fix_e). It refereed at <b>10/144</b> with 26%
+    falls and 81 W — failed under its <i>own</i> trained conditions.
+    Same mechanism as 08·27: act-lag changes actuation dynamics — an
+    obs-dynamics contract change that cannot be warm-started, doubly so
+    onto a decayed-lineage policy. Kanban card filed advising against
+    flashing its s128 student. The evidence from both threads composes
+    into one move: <b>loco_v27full</b>, from scratch, the proven v25full
+    recipe <i>plus act-lag 2–12 Hz from step zero</i> — a policy born
+    expecting the real servo's sluggishness. Queued tonight behind the
+    twice-bumped v22fix_b_s128 distill (still the best near-term
+    hardware stopgap, projected ~80 vs the flashed 69). v25full (96/144,
+    curve still climbing) pauses but stays the sim benchmark; if
+    v27full tracks its growth curve while carrying act-lag, it becomes
+    the deploy line and v25full retires to reference. Note: the SIL
+    clock gate was corrected again (8002802) — SIL numbers from before
+    08·31 need re-refereeing before deploy comparisons.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·31</span></p>
     <p><b>New all-time best — and it's the from-scratch line.</b>
     v25full_c (~175M, night 4): <b>96/144</b>, beating every warm-start
