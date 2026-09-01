@@ -127,6 +127,16 @@ It is specified against files as they stand at this commit.
       opening the CP2102 port reboots the board and eats the first CLI
       command.
 
+### A benched robot sends no pose
+
+Reported from the firmware side while implementing it, and worth knowing
+before it looks like a bug: while `BENCH`ed the control loop publishes no
+joint angles, so a mirror-on console sees **classic** frames until it arms.
+The ghost appears on arm, not on ticking the box. This is consistent with
+everything else about `BENCH` — the loop is not running, so there is nothing
+measured to report — and it is why the console says *"asked for joint angles;
+robot sends none yet"* rather than claiming the feed is broken.
+
 ### State of the laptop side
 
 All done, and none of it needed a board:

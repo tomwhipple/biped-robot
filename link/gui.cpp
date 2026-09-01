@@ -731,8 +731,15 @@ void drawSim(App& a, double now_ms, float panel_w) {
             ImGui::TextColored(ImVec4(0.25f, 0.8f, 0.35f, 1.0f),
                                "ghost live -- %u poses", a.poses_sent);
         } else {
-            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
-                               "asked for joint angles; robot sends none yet");
+            // A benched loop measures nothing, so it publishes no pose. Say
+            // which of the two it is rather than leaving "no ghost" ambiguous.
+            const bool benched = a.link.have_tlm &&
+                                 a.link.tlm.state == LinkState::kBench;
+            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f), "%s",
+                               benched
+                                   ? "asked -- but a BENCHED robot measures "
+                                     "nothing; the ghost appears on arm"
+                                   : "asked for joint angles; none yet");
         }
     } else {
         ImGui::TextDisabled("drive the robot, sim follows as a ghost");
