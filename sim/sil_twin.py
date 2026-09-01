@@ -18,6 +18,7 @@ the same frames to an mp4 on exit (hw_sessions/... is the natural home).
 """
 import argparse
 import io
+import select
 import json
 import os
 import socket
@@ -26,7 +27,14 @@ import sys
 import threading
 import time
 
-os.environ.setdefault("MUJOCO_GL", "egl")
+# EGL is the right headless backend on the Linux training box (mira, under
+# cron with no X display). macOS has no EGL AT ALL -- MuJoCo raises
+# "invalid value for environment variable MUJOCO_GL: egl" before it renders a
+# single frame -- so let it pick its own there. Passing MUJOCO_GL by hand
+# masked this for a long time; bimo_gui's Start button does not pass one, and
+# died every time as a result.
+if sys.platform != "darwin":
+    os.environ.setdefault("MUJOCO_GL", "egl")
 os.environ.setdefault("JAX_PLATFORMS", "cpu")   # eval_precision imports jax
 
 import numpy as np                                          # noqa: E402
@@ -37,8 +45,8 @@ for p in ("mjx", "sil", ""):
     sys.path.insert(0, os.path.join(HERE, p))
 sys.path.insert(0, os.path.join(ROOT, "link"))
 
-from protocol import (CMD_PORT, TLM_PORT, LinkState, ProtocolError,  # noqa: E402
-                      Supervisor, Telemetry, decode_command,
+from protocol import (CMD_PORT, NUM_JOINTS, TLM_PORT, LinkState,  # noqa: E402
+                      ProtocolError, Supervisor, Telemetry, decode_command,
                       encode_telemetry)
 
 # Needs BOTH a sim/runs/<name>/config.json and an exported
@@ -129,6 +137,23 @@ def run(args):
     rx.setblocking(False)
     tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+    # Mirror mode (docs/mirror-mode.md): beacon our own joint angles to a
+    # commander that asks with FLAG_POSE, and draw a pose it pushes back at us
+    # as a ghost over our own. The console drives the real robot; this is the
+    # sim running the same command beside it, so divergence is a picture.
+    import mujoco                                            # noqa: E402
+    want_pose = False
+    ghost_q = None
+    ghost_at = 0.0
+    ghost_adr = []
+    for jn in json.loads(lib.spec_string())["joint_names"]:
+        jid = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_JOINT, jn)
+        ghost_adr.append(int(env.model.jnt_qposadr[jid]) if jid >= 0 else -1)
+    if any(a < 0 for a in ghost_adr):
+        print("sil_twin: some joints are not in this plant -- ghost disabled",
+              flush=True)
+        ghost_adr = []
+
     dog = Supervisor(armed=args.boot_armed)
     stream = Mjpeg(args.stream_port) if args.stream_port else None
     frames = []
@@ -142,11 +167,67 @@ def run(args):
           f"  plant={os.path.basename(xml) if xml else 'run default'}"
           f"  spec={info['spec'][:60]}...")
 
+    stdin_buf = [""]
+
+    def _stdin_commands():
+        """Line commands from whoever launched us (bimo_gui's SIM panel).
+
+        `reset` re-rolls the episode in place; `pose q0..q9` feeds the ghost.
+        Restarting the process instead costs ~30 s of MuJoCo and policy
+        loading, which is long enough that nobody does it, which means nobody
+        resets.
+
+        Reads the raw fd rather than sys.stdin.readline(): select() reports the
+        KERNEL buffer, but readline() pulls a whole chunk into Python's
+        TextIOWrapper, so a burst of two commands leaves the second stranded in
+        userspace with select() saying "not ready". At 10 Hz of pose lines that
+        is not hypothetical. (Percy, PR #53.)"""
+        out = []
+        while select.select([0], [], [], 0)[0]:
+            try:
+                chunk = os.read(0, 65536)
+            except OSError:
+                break
+            if not chunk:                      # EOF: the console went away
+                break
+            stdin_buf[0] += chunk.decode("utf-8", "replace")
+        while "\n" in stdin_buf[0]:
+            line, stdin_buf[0] = stdin_buf[0].split("\n", 1)
+            if line.strip():
+                out.append(line.strip())
+        return out
+
     i = 0
     try:
         while args.duration is None or i * dt < args.duration:
             tick = time.monotonic()
             now_ms = (tick - t0) * 1000.0
+
+            for cmd in _stdin_commands():
+                if cmd.startswith("pose "):
+                    # "pose q0 .. q9", radians, obs_spec order -- the angles
+                    # the console just read off the real robot.
+                    try:
+                        vals = [float(v) for v in cmd.split()[1:]]
+                    except ValueError:
+                        vals = []
+                    if len(vals) == NUM_JOINTS:
+                        if ghost_q is None:
+                            # Say it once: a ghost that silently never appears
+                            # is indistinguishable from one drawn at zero.
+                            print(f"  [{now_ms / 1000:6.2f}s] ghost pose "
+                                  f"feed live", flush=True)
+                        ghost_q, ghost_at = vals, time.monotonic()
+                    else:
+                        print(f"  pose wants {NUM_JOINTS} angles, got "
+                              f"{len(vals)}", flush=True)
+                elif cmd == "reset":
+                    obs, _ = env.reset(seed=args.seed)
+                    act.begin_episode()
+                    print(f"  [{now_ms / 1000:6.2f}s] episode reset",
+                          flush=True)
+                elif cmd:
+                    print(f"  unknown command: {cmd}", flush=True)
 
             while True:                       # drain; last valid packet wins
                 try:
@@ -155,9 +236,11 @@ def run(args):
                     break
                 peer = addr[0]
                 try:
-                    dog.accept(decode_command(buf), now_ms)
+                    pkt = decode_command(buf)
                 except ProtocolError:
-                    pass
+                    continue
+                dog.accept(pkt, now_ms)
+                want_pose = pkt.pose
 
             state = dog.state(now_ms)
             if state is not last_state:
@@ -197,6 +280,23 @@ def run(args):
 
             if (stream or args.record) and i % 3 == 0:      # ~16 fps
                 rgb = env.render()
+                # The ghost: the SAME model and camera re-posed to the angles
+                # the real robot reported, composited over our own. Rendering
+                # a second model would risk a second viewpoint, and a ghost
+                # drawn from a different camera is worse than none.
+                fresh = ghost_q is not None and \
+                    (time.monotonic() - ghost_at) < 1.0
+                if fresh and ghost_adr:
+                    saved = env.data.qpos.copy()
+                    for adr, q in zip(ghost_adr, ghost_q):
+                        env.data.qpos[adr] = q
+                    mujoco.mj_forward(env.model, env.data)
+                    ghost_rgb = env.render()
+                    env.data.qpos[:] = saved
+                    mujoco.mj_forward(env.model, env.data)
+                    rgb = (0.60 * rgb.astype(np.float32) +
+                           0.40 * ghost_rgb.astype(np.float32)
+                           ).clip(0, 255).astype(np.uint8)
                 if stream:
                     stream.push(rgb)
                 if args.record:
@@ -211,6 +311,11 @@ def run(args):
                     wz_est=float(step_info.get("wz", 0.0)),
                     servo_err=0,
                     loop_late_pct=int(100 * late / max(1, i)),
+                    # Only for a commander that asked. obs frame_offsets put
+                    # the joint angles at the front of the frame, in the same
+                    # obs_spec order the wire uses.
+                    joints=(tuple(float(q) for q in obs[:NUM_JOINTS])
+                            if want_pose else ()),
                 )), (peer, args.tlm_port))
 
             i += 1

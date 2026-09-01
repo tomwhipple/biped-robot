@@ -94,26 +94,51 @@ THIRD     = ../../third_party
 IMGUI     = $(THIRD)/imgui
 IMGUI_VER = v1.92.9b
 IMGUI_SHA = 21d8a0a565e85dce943e375db00812c2f3f0ab21f3f0f7964e364a63422d7f99
-# stb_image decodes the sim's MJPEG frames; pinned by commit, not by branch.
+# stb_image decodes the sim's MJPEG frames, stb_image_write writes the
+# console's own --screenshot. Pinned by commit, not by branch.
 STB_REV   = 2c980bb59875b0d32144a71867fbdebb2f77cd20
 STB_SHA   = 594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
+STBW_SHA  = cbd5f0ad7a9cf4468affb36354a1d2338034f2c12473cf1a8e32053cb6914a05
 
-deps: $(IMGUI)/imgui.cpp $(THIRD)/stb_image.h
+# A recipe that fails must not leave its target behind. Without this, a failed
+# sha256 leaves the BAD download on disk as an up-to-date target, and every
+# later `make deps`/`make gui` compiles it into the operator's console without
+# re-checking. --fail likewise, so an HTTP error page is never mistaken for a
+# library. (Percy, PR #53.)
+.DELETE_ON_ERROR:
+
+# ... and the digests are re-checked on EVERY `make deps`, not just on the
+# fetch. .DELETE_ON_ERROR only fires when a recipe RUNS; a file already on
+# disk is simply "up to date", so a tree poisoned by an earlier failure (or by
+# hand) would never be looked at again. Found by trying it.
+deps: $(IMGUI)/imgui.cpp $(THIRD)/stb_image.h $(THIRD)/stb_image_write.h
+	@echo "$(STB_SHA)  $(THIRD)/stb_image.h" | shasum -a 256 -c - >/dev/null \
+	  || { echo "third_party/stb_image.h FAILS its pin -- delete it and re-run"; false; }
+	@echo "$(STBW_SHA)  $(THIRD)/stb_image_write.h" | shasum -a 256 -c - >/dev/null \
+	  || { echo "third_party/stb_image_write.h FAILS its pin -- delete it and re-run"; false; }
+	@echo "deps: imgui $(IMGUI_VER) + stb $(STB_REV) verified against their pins"
 
 $(IMGUI)/imgui.cpp:
 	@mkdir -p $(THIRD)
-	curl -sSL -o $(THIRD)/imgui.tgz \
+	curl -sSL --fail -o $(THIRD)/imgui.tgz \
 	  https://github.com/ocornut/imgui/archive/refs/tags/$(IMGUI_VER).tar.gz
-	@echo "$(IMGUI_SHA)  $(THIRD)/imgui.tgz" | shasum -a 256 -c -
+	@echo "$(IMGUI_SHA)  $(THIRD)/imgui.tgz" | shasum -a 256 -c - || \
+	  { rm -f $(THIRD)/imgui.tgz; false; }
 	tar xzf $(THIRD)/imgui.tgz -C $(THIRD)
 	rm -rf $(IMGUI) && mv $(THIRD)/imgui-$(IMGUI_VER:v%=%) $(IMGUI)
 	rm -f $(THIRD)/imgui.tgz
 
 $(THIRD)/stb_image.h:
 	@mkdir -p $(THIRD)
-	curl -sSL -o $@ \
+	curl -sSL --fail -o $@ \
 	  https://raw.githubusercontent.com/nothings/stb/$(STB_REV)/stb_image.h
 	@echo "$(STB_SHA)  $@" | shasum -a 256 -c -
+
+$(THIRD)/stb_image_write.h:
+	@mkdir -p $(THIRD)
+	curl -sSL --fail -o $@ \
+	  https://raw.githubusercontent.com/nothings/stb/$(STB_REV)/stb_image_write.h
+	@echo "$(STBW_SHA)  $@" | shasum -a 256 -c -
 
 # Homebrew's GLFW. macOS still ships OpenGL.framework (deprecated since 10.14,
 # hence the silence flag); ImGui's GL3 backend only needs 3.2 core.
@@ -140,7 +165,7 @@ $(BUILD)/imgui/%.o: $(IMGUI)/%.cpp | $(IMGUI)/imgui.cpp
 # link/stb_impl.cpp is the single instantiation of stb_image; it is ours, but
 # it #includes a vendored single-header library, so it is built like one.
 $(BUILD)/imgui/stb_impl.o: ../../link/stb_impl.cpp ../../link/jpeg.h \
-                           $(THIRD)/stb_image.h
+                           $(THIRD)/stb_image.h $(THIRD)/stb_image_write.h
 	@mkdir -p $(dir $@)
 	$(CXX) -std=c++17 -O1 -w -fno-exceptions -fno-rtti $(GUI_INC) $(GUI_DEFS) \
 	       -c $< -o $@

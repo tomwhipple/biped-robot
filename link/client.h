@@ -99,7 +99,15 @@ struct Link {
     double rate_at_ms = 0.0;
     double rate_hz = 0.0;
 
+    // Mirror mode: the same bytes also go to a second address -- the sim,
+    // running the same command beside the robot. One encode, two sendto's, so
+    // the sim cannot be commanded differently from the robot by construction.
+    sockaddr_in mirror_to = {};
+    bool mirror_on = false;
+
     bool open(const char* host, int cmd_port, int tlm_port);
+    bool setMirror(const char* host, int port);
+    void clearMirror() { mirror_on = false; }
     void close();
 
     // vx/wz only -- the classic 14 B frame.
@@ -108,6 +116,8 @@ struct Link {
     // defaults, exactly as link/protocol.py:encode_command does, so a console
     // that never touches a slider is byte-identical to one that cannot.
     void sendFull(float vx, float vy, float wz, const Ext& ext, uint8_t flags);
+
+    void emit(const uint8_t* wire, size_t n);
 
     // Drain to the freshest beacon; never queue up.
     void poll(double now_ms);
@@ -120,6 +130,9 @@ struct Link {
 struct Intent {
     bool armed = false;
     bool estop = false;
+    // "Beacon joint angles too" (kFlagPose). Independent of arming: it asks
+    // for telemetry, it does not command anything.
+    bool want_pose = false;
     bool held[kAxCount] = {false, false, false, false, false, false};
     Ext ext;
     double armed_at_ms = 0.0;

@@ -20,6 +20,7 @@ there:
 
 Ports are offset so it never collides with a console pointed at the robot.
 """
+import itertools
 import os
 import subprocess
 import sys
@@ -30,20 +31,32 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GUI = os.path.join(ROOT, "firmware", "host", "build", "bimo_gui")
 TWIN = os.path.join(ROOT, "link", "link_twin.py")
-CMD_PORT, TLM_PORT = 4312, 4313
+
+# A PAIR PER TEST, not one pair for the file. The twins bind with
+# SO_REUSEADDR, so a previous test's twin that has not finished exiting will
+# happily bind alongside the next one and split the packet stream between
+# them -- which fails as "the robot ignored my command", nowhere near the
+# cause. Only ever seen on a loaded CI runner, which is exactly the kind of
+# flake that is impossible to find locally.
+_next_port = itertools.count(4312, 4)
 
 pytestmark = pytest.mark.skipif(not os.path.exists(GUI),
                                 reason="build it: make -C firmware/host gui")
 
 
-def _twin(extra=()):
+def _ports():
+    base = next(_next_port)
+    return base, base + 1
+
+
+def _twin(cmd_port, tlm_port, extra=()):
     return subprocess.Popen(
-        [sys.executable, TWIN, "--port", str(CMD_PORT), "--tlm-port",
-         str(TLM_PORT), "--duration", "20", *extra],
+        [sys.executable, TWIN, "--port", str(cmd_port), "--tlm-port",
+         str(tlm_port), "--duration", "20", *extra],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 
-def _gui(script, extra=()):
+def _gui(script, cmd_port, tlm_port, extra=()):
     """Feed `script` -- a list of (delay_s, line) -- to a headless console.
 
     Written from a thread-free generator into the child's stdin: the delays
@@ -51,8 +64,8 @@ def _gui(script, extra=()):
     batched up front.
     """
     proc = subprocess.Popen(
-        [GUI, "--host", "127.0.0.1", "--cmd-port", str(CMD_PORT),
-         "--tlm-port", str(TLM_PORT), "--headless", *extra],
+        [GUI, "--host", "127.0.0.1", "--cmd-port", str(cmd_port),
+         "--tlm-port", str(tlm_port), "--headless", *extra],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, text=True, bufsize=1)
     for delay, line in script:
@@ -77,9 +90,10 @@ def _ext_lines(log):
 
 
 def _run(script, twin_args=(), gui_args=()):
-    twin = _twin(twin_args)
+    cmd_port, tlm_port = _ports()
+    twin = _twin(cmd_port, tlm_port, twin_args)
     time.sleep(0.5)
-    gui = _gui(script, gui_args)
+    gui = _gui(script, cmd_port, tlm_port, gui_args)
     try:
         out = gui.communicate(timeout=15)[0]
     except subprocess.TimeoutExpired:
@@ -185,12 +199,18 @@ def test_closing_stdin_disarms():
     quit path is the one an operator takes deliberately, and this is the one
     they do not.
     """
-    twin = _twin()
+    cmd_port, tlm_port = _ports()
+    twin = _twin(cmd_port, tlm_port)
     time.sleep(0.5)
-    gui = _gui([(1.0, "arm"), (1.2, "press forward"), (0.5, "")])
+    gui = _gui([(1.0, "arm"), (1.2, "press forward"), (0.5, "")],
+               cmd_port, tlm_port)
     try:
         gui.stdin.close()                 # EOF: the console should leave
-        out = gui.communicate(timeout=10)[0]
+        # wait() + read(), not communicate(): communicate() closes stdin
+        # itself, and closing it twice raises "I/O operation on closed file"
+        # -- which reads as a console bug and is not one.
+        gui.wait(timeout=10)
+        out = gui.stdout.read()
     finally:
         twin.terminate()
         log = twin.communicate(timeout=5)[0]
@@ -199,3 +219,45 @@ def test_closing_stdin_disarms():
     assert any(s[0] == "live" for s in seq), log
     assert seq[-1][0] == "bench" and seq[-1][3] == "off", log
     assert gui.returncode == 0, out
+
+
+def _pose_lines(log):
+    return [ln for ln in log.splitlines() if "pose " in ln]
+
+
+def test_mirror_mode_asks_for_joint_angles_and_stops_asking():
+    """The whole point of FLAG_POSE being a request rather than a default.
+
+    A robot must beacon the classic 20 B frame to everyone until a commander
+    explicitly asks -- otherwise every existing client goes blind at once (see
+    docs/mirror-mode.md). So: silent by default, long frames while mirroring,
+    classic again the moment the console stops asking.
+    """
+    out, log, rc = _run([
+        (1.0, "sim mirror"),
+        (2.0, "sim mirror off"),
+        (1.0, "quit"),
+        (0.5, ""),
+    ], gui_args=["--no-record"])
+
+    poses = _pose_lines(log)
+    assert poses, "the twin never saw a pose request\n" + log
+    # Before anything is asked for, and after it stops being asked for, the
+    # beacon is classic.
+    assert "off" in poses[0], log
+    assert any("requested" in ln for ln in poses), log
+    assert "off" in poses[-1], log
+    assert "MIRROR" in out, out
+    assert rc == 0, out
+
+
+def test_mirror_is_off_unless_asked_for():
+    """A console that never mentions mirroring must never request pose."""
+    out, log, rc = _run([
+        (1.0, "arm"),
+        (1.5, "press forward"),
+        (0.5, "quit"),
+        (0.5, ""),
+    ], gui_args=["--no-record"])
+    assert not any("requested" in ln for ln in _pose_lines(log)), log
+    assert rc == 0, out

@@ -19,6 +19,7 @@ as it was, and a client that moves a slider (link/gui.cpp) is visibly
 different from one that cannot (link/tui.cpp).
 """
 import argparse
+import math
 import os
 import socket
 import sys
@@ -26,9 +27,9 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from protocol import (CMD_PORT, TLM_PORT, LinkState, ProtocolError,  # noqa
-                      Supervisor, Telemetry, decode_command, diag_reason,
-                      encode_telemetry)
+from protocol import (CMD_PORT, NUM_JOINTS, TLM_PORT, LinkState,  # noqa
+                      ProtocolError, Supervisor, Telemetry, decode_command,
+                      diag_reason, encode_telemetry)
 
 
 def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
@@ -42,6 +43,10 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
     sup = Supervisor(armed=armed, arm_allowed=arm_allowed)
     peer, last_state, last_diag = None, None, None
     last_cmd = (0.0,) * 7
+    # Mirror mode: joint angles ride the beacon only for a commander that asks
+    # (FLAG_POSE). A level, not an edge -- stop asking and the very next
+    # beacon is classic again. See docs/mirror-mode.md.
+    want_pose, last_pose = False, None
     t0 = time.monotonic()
     tick = 0
     print(f"link_twin: listening on :{port}, telemetry -> :{tlm_port}, "
@@ -55,9 +60,11 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                 break
             peer = addr[0]
             try:
-                sup.accept(decode_command(buf), now_ms)
+                pkt = decode_command(buf)
             except ProtocolError:
-                pass
+                continue
+            sup.accept(pkt, now_ms)
+            want_pose = pkt.pose
         state = sup.state(now_ms)
         # (vx, vy, wz, crouch, lift, foot_dx, foot_dz) -- walker_env ext_cmd
         # order, which is NOT the wire order (vy sits between vx and wz).
@@ -80,14 +87,27 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                   f"torque {'on' if sup.torque_on(now_ms) else 'off'}{why}",
                   flush=True)
             last_state, last_cmd, last_diag = state, cmd, diag
+        if want_pose is not last_pose:
+            print(f"  [{now_ms/1000:7.2f}s] pose "
+                  f"{'requested -- beaconing joint angles' if want_pose else 'off -- classic beacon'}",
+                  flush=True)
+            last_pose = want_pose
         if peer and tick % 5 == 0:
             # seq_echo carries the bench diagnostic while BENCH, exactly as
             # firmware/main/wifi_link.cpp does it -- the twin has to be
             # faithful about that or the console is tested against a fiction.
+            # A slow, deterministic wobble: no plant here, but a client in
+            # mirror mode should see something MOVE, or it cannot tell a
+            # working pose feed from ten zeros.
+            joints = ()
+            if want_pose:
+                ph = now_ms / 1000.0
+                joints = tuple(0.3 * math.sin(ph + 0.6 * i)
+                               for i in range(NUM_JOINTS))
             tx.sendto(encode_telemetry(Telemetry(
                 seq_echo=sup.seq_echo(now_ms), state=state, vbat_v=11.4,
                 up_z=1.0, vx_est=cmd[0], wz_est=cmd[2], servo_err=0,
-                loop_late_pct=0,
+                loop_late_pct=0, joints=joints,
             )), (peer, tlm_port))
         tick += 1
         time.sleep(0.02)                          # the 50 Hz control tick

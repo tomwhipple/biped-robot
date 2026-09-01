@@ -15,6 +15,10 @@ unsigned char* decodeJpeg(const unsigned char* data, size_t len, int* w,
                           int* h);
 void freePixels(unsigned char* p);
 
+// RGBA in, PNG out. Used by --screenshot, so the console can prove what it
+// drew without asking the OS for screen-recording rights.
+bool writePng(const char* path, int w, int h, const unsigned char* rgba);
+
 }  // namespace bimo
 
 #endif  // BIMO_LINK_JPEG_H_

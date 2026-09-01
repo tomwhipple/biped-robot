@@ -107,20 +107,39 @@ bool Link::open(const char* host, int cmd_port, int tlm_port) {
     return true;
 }
 
+bool Link::setMirror(const char* host, int port) {
+    mirror_to.sin_family = AF_INET;
+    mirror_to.sin_port = htons(static_cast<uint16_t>(port));
+    if (inet_pton(AF_INET, host, &mirror_to.sin_addr) != 1) {
+        mirror_on = false;
+        return false;
+    }
+    mirror_on = true;
+    return true;
+}
+
 void Link::close() {
     if (tx >= 0) ::close(tx);
     if (rx >= 0) ::close(rx);
     tx = rx = -1;
 }
 
-void Link::send(float vx, float wz, uint8_t flags) {
-    uint8_t wire[kCmdLen];
-    const size_t n = encodeCommand(wire, seq++, vx, wz, flags);
+// One encode, up to two destinations.
+void Link::emit(const uint8_t* wire, size_t n) {
     last_len = n;
     if (sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&to), sizeof to) ==
         static_cast<ssize_t>(n)) {
         ++sent;
     }
+    if (mirror_on) {
+        sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&mirror_to),
+               sizeof mirror_to);
+    }
+}
+
+void Link::send(float vx, float wz, uint8_t flags) {
+    uint8_t wire[kCmdLen];
+    emit(wire, encodeCommand(wire, seq++, vx, wz, flags));
 }
 
 void Link::sendFull(float vx, float vy, float wz, const Ext& ext,
@@ -145,12 +164,7 @@ void Link::sendFull(float vx, float vy, float wz, const Ext& ext,
     cmd.foot_dx = ext.foot_dx;
     cmd.foot_dz = ext.foot_dz;
     uint8_t wire[kCmdLenExt];
-    const size_t n = encodeCommandExt(wire, cmd);
-    last_len = n;
-    if (sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&to), sizeof to) ==
-        static_cast<ssize_t>(n)) {
-        ++sent;
-    }
+    emit(wire, encodeCommandExt(wire, cmd));
 }
 
 void Link::poll(double now_ms) {
@@ -275,10 +289,11 @@ void Intent::frame(const Speeds& s, float& vx, float& vy, float& wz,
     wz = 0.0f;
     ext_out.reset();
     flags = 0;
+    if (want_pose) flags |= kFlagPose;    // a request, not a command
     if (armed) flags |= kFlagArm;
     if (estop) {
         flags |= kFlagEstop;
-        return;
+        return;                           // kFlagPose already set above
     }
     if (!armed) return;
     const bool extras = !ext.atDefaults();

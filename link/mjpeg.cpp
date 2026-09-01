@@ -240,12 +240,13 @@ bool MjpegStream::attempt(const char* host, const char* port,
     }
     freeaddrinfo(res);
 
-    char req[640];
+    char req[sizeof path + sizeof host + 64];
     const int rn = snprintf(req, sizeof req,
                             "GET %s HTTP/1.0\r\nHost: %s\r\n"
                             "User-Agent: bimo_gui\r\n\r\n",
                             path, host);
-    if (rn <= 0 || write(fd, req, static_cast<size_t>(rn)) != rn) {
+    if (rn <= 0 || static_cast<size_t>(rn) >= sizeof req ||
+        write(fd, req, static_cast<size_t>(rn)) != rn) {
         setError("cannot send the request to %s", host);
         ::close(fd);
         return false;
@@ -299,7 +300,13 @@ bool MjpegStream::attempt(const char* host, const char* port,
 
 void MjpegStream::run() {
     // http://host[:port][/path]
-    char host[256] = "127.0.0.1", port[16] = "80", path[256] = "/";
+    // `path` is a SUFFIX of url, so it is sized to hold the whole of one --
+    // gcc's -Wformat-truncation is right that a 256 B path could not, and
+    // sizing the destination removes the possibility rather than silencing
+    // the warning. Likewise `req` is sized to hold path + host + the fixed
+    // text with room to spare, so the request can never be half-formed.
+    char host[256] = "127.0.0.1", port[16] = "80";
+    char path[sizeof url] = "/";
     const char* p = url;
     if (!strncmp(p, "http://", 7)) p += 7;
     size_t i = 0;
