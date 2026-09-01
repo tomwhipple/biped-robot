@@ -14,8 +14,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "link"))
 
 from protocol import (CMD_LEN, DIAG_ARM_SHIFT, DIAG_CAL_OK,  # noqa: E402
-                      DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, RELAX_MS,
-                      STALE_MS, TLM_LEN, V_MAX, W_MAX, ArmLatch, ArmResult,
+                      DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_POSE,
+                      NUM_JOINTS, RELAX_MS,
+                      STALE_MS, TLM_LEN, TLM_LEN_EXT, V_MAX, W_MAX,
+                      ArmLatch, ArmResult,
                       Command, LinkState, ProtocolError, Supervisor,
                       Telemetry, Watchdog, clamp_to_envelope, crc16_ccitt,
                       decode_command, decode_telemetry, diag_arm_result,
@@ -426,3 +428,61 @@ def test_bench_state_is_last_on_the_wire():
     assert list(LinkState)[-1] is LinkState.BENCH
     assert list(LinkState).index(LinkState.FALLEN) == 6
     assert len(LinkState.BENCH.value) <= 5
+
+
+# -- extended telemetry: mirror mode (docs/mirror-mode.md) -----------------
+def _tlm(**kw):
+    base = dict(seq_echo=1, state=LinkState.LIVE, vbat_v=12.0, up_z=1.0,
+                vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0)
+    base.update(kw)
+    return Telemetry(**base)
+
+
+def test_joint_angles_round_trip():
+    q = tuple(0.1 * i - 0.5 for i in range(NUM_JOINTS))
+    wire = encode_telemetry(_tlm(joints=q))
+    assert len(wire) == TLM_LEN_EXT
+    back = decode_telemetry(wire)
+    assert back.joints == pytest.approx(q, abs=1e-3)
+    # ... and the classic body is untouched by the extra channels.
+    assert back.state is LinkState.LIVE and back.vbat_v == pytest.approx(12.0)
+
+
+def test_not_asking_changes_nothing():
+    """The property every existing commander depends on.
+
+    A robot that is not asked for joint angles must beacon the classic frame,
+    byte for byte -- otherwise bimo_tui, commander.py and both twins go blind
+    at once, which is why this frame is requested rather than volunteered.
+    """
+    t = _tlm()
+    assert len(encode_telemetry(t)) == TLM_LEN
+    assert decode_telemetry(encode_telemetry(t)).joints == ()
+
+
+def test_a_length_between_the_two_is_refused():
+    wire = encode_telemetry(_tlm(joints=(0.0,) * NUM_JOINTS))
+    for bad in (wire[:TLM_LEN + 2], wire[:-1], wire + b"\x00"):
+        with pytest.raises(ProtocolError):
+            decode_telemetry(bad)
+
+
+def test_the_crc_covers_the_joints():
+    q = [0.0] * NUM_JOINTS
+    wire = bytearray(encode_telemetry(_tlm(joints=tuple(q))))
+    wire[20] ^= 0x01                       # flip a bit inside a joint field
+    with pytest.raises(ProtocolError):
+        decode_telemetry(bytes(wire))
+
+
+def test_wrong_joint_count_is_refused():
+    with pytest.raises(ProtocolError):
+        encode_telemetry(_tlm(joints=(0.0, 0.0)))
+
+
+def test_pose_is_a_level_and_does_not_disturb_the_other_flags():
+    c = decode_command(encode_command(1, 0.0, 0.0, FLAG_ARM | FLAG_POSE))
+    assert c.pose and c.arm and not c.enabled and not c.estop
+    assert not decode_command(encode_command(2, 0.0, 0.0, FLAG_ARM)).pose
+    # Bit 3, so it cannot collide with the three that predate it.
+    assert FLAG_POSE == 8

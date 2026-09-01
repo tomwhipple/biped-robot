@@ -28,6 +28,18 @@ constexpr size_t kCmdLen = 14;
 // short frame whenever the extras are at defaults).
 constexpr size_t kCmdLenExt = 24;
 constexpr size_t kTlmLen = 20;
+// Extended TELEMETRY (2026-09-01): the same 18-byte body, then one int16
+// milli-radian per joint, then the CRC. For mirror mode -- driving the real
+// robot while a sim follows its observed pose.
+//
+// This could NOT be done the way the extended command frame was. There the
+// robot is the decoder and was taught both lengths; here the robot is the
+// SENDER and every client rejects an unexpected length, so a robot that
+// simply began beaconing 40 B would blind every existing commander at once.
+// Hence kFlagPose: the long frame is REQUESTED, never volunteered. See
+// docs/mirror-mode.md.
+constexpr size_t kNumJoints = 10;   // obs_spec order, NOT servo-id order
+constexpr size_t kTlmLenExt = kTlmLen + 2 * kNumJoints;
 
 constexpr uint16_t kCmdPort = 4210;
 constexpr uint16_t kTlmPort = 4211;
@@ -36,6 +48,9 @@ constexpr uint16_t kTlmPort = 4211;
 constexpr uint8_t kFlagEnable = 1u << 0;   // 0 = stand still regardless of vx/wz
 constexpr uint8_t kFlagEstop = 1u << 1;    // latching torque release
 constexpr uint8_t kFlagArm = 1u << 2;      // operator wants the loop armed; ArmLatch
+// "Beacon joint angles too" (kTlmLenExt). A level, not an edge: stop asking
+// and the very next beacon is classic again.
+constexpr uint8_t kFlagPose = 1u << 3;
 
 // -- timing ----------------------------------------------------------------
 constexpr float kSendHz = 20.0f;
@@ -156,6 +171,7 @@ struct Command {
     bool enabled() const { return (flags & kFlagEnable) != 0; }
     bool estop() const { return (flags & kFlagEstop) != 0; }
     bool arm() const { return (flags & kFlagArm) != 0; }
+    bool pose() const { return (flags & kFlagPose) != 0; }
 };
 
 struct Telemetry {
@@ -167,6 +183,11 @@ struct Telemetry {
     float wz_est;
     uint8_t servo_err;   // bitmask, bit i = servo ID i+1 faulted
     uint8_t loop_late_pct;
+    // Measured joint angles, radians, obs_spec order. n_joints is 0 on a
+    // classic 20 B frame -- which is every frame, unless a commander asked
+    // with kFlagPose.
+    uint8_t n_joints = 0;
+    float joints[kNumJoints] = {0};
 };
 
 // The bench diagnostic byte this frame carries, or 0 when it carries none.
@@ -197,7 +218,12 @@ size_t encodeCommandExt(uint8_t* out, const Command& cmd);
 // Accepts kCmdLen (extras -> defaults) and kCmdLenExt frames.
 Err decodeCommand(const uint8_t* buf, size_t len, Command& out);
 
+// Emits kTlmLenExt when t.n_joints == kNumJoints, else kTlmLen. `out` must
+// therefore have room for kTlmLenExt whenever joints are set. Returns the
+// bytes written -- USE IT: sending kTlmLen of a long frame truncates it and
+// every CRC downstream fails.
 size_t encodeTelemetry(uint8_t* out, const Telemetry& t);
+// Accepts kTlmLen (n_joints -> 0) and kTlmLenExt frames.
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out);
 
 }  // namespace linkproto

@@ -65,6 +65,23 @@ CMD_EXT_CASES = [
     (15, 0.0, 0.0, 0xFF, 99.0, -99.0, 99.0, 99.0, -99.0),     # saturation
 ]
 
+# Extended telemetry (mirror mode): the classic body plus 10 joint angles.
+# Frozen as BYTES like everything else here, so the C++ port is diffed against
+# numbers rather than against whatever the Python happened to do that day.
+TLM_EXT_CASES = [
+    # (seq_echo, state, vbat_v, up_z, vx_est, wz_est, err, late, joints)
+    (1, P.LinkState.LIVE, 12.0, 1.0, 0.0, 0.0, 0x00, 0,
+     (0.0,) * 10),                                   # a clean zero stand
+    (2, P.LinkState.LIVE, 12.0, 0.99, 0.4, 0.0, 0x00, 2,
+     (0.05, -0.12, 0.63, -1.21, 0.58,
+      -0.05, 0.12, 0.61, -1.19, 0.57)),              # mid-stride, near-mirrored
+    (3, P.LinkState.STAND, 11.0, 0.95, 0.0, 0.0, 0x03, 9,
+     (0.0625, -0.0625, 0.0005, -0.0005, 0.0015,      # milli ties, both signs
+      -0.0015, 0.5, -0.5, 1.5707963, -1.5707963)),
+    (4, P.LinkState.FALLEN, 10.5, 0.1, 0.0, 0.0, 0xFF, 100,
+     (99.0, -99.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)),   # saturation
+]
+
 TLM_CASES = [
     # (seq_echo, state, vbat_v, up_z, vx_est, wz_est, servo_err, late_pct)
     (0, P.LinkState.LIVE, 11.4, 1.0, 0.0, 0.0, 0x00, 0),
@@ -291,6 +308,30 @@ def main():
     w("inline constexpr size_t kNumTlm = sizeof kTlm / sizeof kTlm[0];")
     w("")
 
+    # -- extended telemetry (mirror mode) ----------------------------------
+    w("struct TlmExtCase {")
+    w("    uint32_t seq; uint8_t state; float vbat; float up_z;")
+    w("    float vx; float wz; uint8_t servo_err; uint8_t late;")
+    w("    float joints[%d];" % P.NUM_JOINTS)
+    w("    uint8_t wire[%d];" % P.TLM_LEN_EXT)
+    w("};")
+    w("inline const TlmExtCase kTlmExt[] = {")
+    for seq, st, vb, up, vx, wz, err, late, joints in TLM_EXT_CASES:
+        vb, up, vx, wz = f32(vb), f32(up), f32(vx), f32(wz)
+        joints = tuple(f32(q) for q in joints)
+        t = P.Telemetry(seq_echo=seq, state=st, vbat_v=vb, up_z=up,
+                        vx_est=vx, wz_est=wz, servo_err=err,
+                        loop_late_pct=late, joints=joints)
+        wire = P.encode_telemetry(t)
+        assert len(wire) == P.TLM_LEN_EXT, len(wire)
+        w("    {%du, %d, %s, %s, %s, %s, 0x%02X, %d, {%s}, %s}," % (
+            seq & 0xFFFFFFFF, list(P.LinkState).index(st), fl(vb), fl(up),
+            fl(vx), fl(wz), err, late, ", ".join(fl(q) for q in joints),
+            carr(wire)))
+    w("};")
+    w("inline constexpr size_t kNumTlmExt = sizeof kTlmExt / sizeof kTlmExt[0];")
+    w("")
+
     # -- bench diagnostics -------------------------------------------------
     # The reason STRINGS are frozen too. They are what the operator reads on
     # a silent bench, and two copies of a sentence drift the moment one side
@@ -386,7 +427,7 @@ def main():
     with open(OUT, "w") as f:
         f.write("\n".join(L))
     print(f"wrote {OUT} "
-          f"({len(CMD_CASES)} cmd, {len(TLM_CASES)} tlm, "
+          f"({len(CMD_CASES)} cmd, {len(TLM_CASES)}+{len(TLM_EXT_CASES)} tlm, "
           f"{len(WD_SCRIPT)} watchdog steps)")
 
 

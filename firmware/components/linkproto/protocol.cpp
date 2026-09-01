@@ -193,15 +193,24 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
     put16(out + 14, static_cast<uint16_t>(milli(t.wz_est)));
     out[16] = t.servo_err;
     out[17] = t.loop_late_pct;
-    put16(out + 18, crc16Ccitt(out, 18));
-    return kTlmLen;
+    if (t.n_joints != kNumJoints) {
+        put16(out + 18, crc16Ccitt(out, 18));
+        return kTlmLen;
+    }
+    for (size_t i = 0; i < kNumJoints; ++i) {
+        put16(out + 18 + 2 * i, static_cast<uint16_t>(milli(t.joints[i])));
+    }
+    const size_t body = kTlmLenExt - 2;
+    put16(out + body, crc16Ccitt(out, body));
+    return kTlmLenExt;
 }
 
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
-    if (len != kTlmLen) return Err::kBadLength;
+    if (len != kTlmLen && len != kTlmLenExt) return Err::kBadLength;
     if (buf[0] != kMagicTlm[0] || buf[1] != kMagicTlm[1]) return Err::kBadMagic;
     if (buf[2] != kVersion) return Err::kBadVersion;
-    if (get16(buf + 18) != crc16Ccitt(buf, 18)) return Err::kBadCrc;
+    const size_t body = len - 2;
+    if (get16(buf + body) != crc16Ccitt(buf, body)) return Err::kBadCrc;
     if (buf[3] > static_cast<uint8_t>(LinkState::kMaxState)) {
         return Err::kBadState;
     }
@@ -213,6 +222,15 @@ Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
     out.wz_est = static_cast<int16_t>(get16(buf + 14)) / 1000.0f;
     out.servo_err = buf[16];
     out.loop_late_pct = buf[17];
+    out.n_joints = 0;
+    for (size_t i = 0; i < kNumJoints; ++i) out.joints[i] = 0.0f;
+    if (len == kTlmLenExt) {
+        out.n_joints = static_cast<uint8_t>(kNumJoints);
+        for (size_t i = 0; i < kNumJoints; ++i) {
+            out.joints[i] =
+                static_cast<int16_t>(get16(buf + 18 + 2 * i)) / 1000.0f;
+        }
+    }
     return Err::kOk;
 }
 

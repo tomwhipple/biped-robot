@@ -391,6 +391,91 @@ void testDemux() {
 
 }  // namespace
 
+// Extended telemetry (mirror mode): the classic body plus 10 joint angles,
+// diffed against the bytes link/protocol.py produced. The frame is REQUESTED
+// with kFlagPose and never volunteered -- see docs/mirror-mode.md for why
+// telemetry could not copy the command frame's length-selection trick.
+void testExtendedTelemetryFrames() {
+    for (size_t c = 0; c < V::kNumTlmExt; ++c) {
+        const V::TlmExtCase& k = V::kTlmExt[c];
+        Telemetry t{};
+        t.seq_echo = k.seq;
+        t.state = static_cast<LinkState>(k.state);
+        t.vbat_v = k.vbat;
+        t.up_z = k.up_z;
+        t.vx_est = k.vx;
+        t.wz_est = k.wz;
+        t.servo_err = k.servo_err;
+        t.loop_late_pct = k.late;
+        t.n_joints = static_cast<uint8_t>(kNumJoints);
+        for (size_t i = 0; i < kNumJoints; ++i) t.joints[i] = k.joints[i];
+
+        uint8_t wire[kTlmLenExt];
+        const size_t n = encodeTelemetry(wire, t);
+        CHECK_EQ(n, kTlmLenExt);
+        CHECK_BYTES(wire, k.wire, kTlmLenExt);
+
+        Telemetry back{};
+        CHECK(decodeTelemetry(k.wire, kTlmLenExt, back) == Err::kOk);
+        CHECK_EQ(back.n_joints, kNumJoints);
+        for (size_t i = 0; i < kNumJoints; ++i) {
+            // Milli-radian quantisation, and the saturating cases clamp.
+            const float want = k.joints[i] > 32.767f    ? 32.767f
+                             : k.joints[i] < -32.768f   ? -32.768f
+                                                        : k.joints[i];
+            CHECK_NEAR(back.joints[i], want, 0.001f);
+        }
+    }
+}
+
+// The property every existing commander depends on: not asking changes
+// nothing. A Telemetry with no joints must encode to the classic 20 B frame,
+// byte for byte, and a classic frame must decode with no joints.
+void testClassicTelemetryIsUntouched() {
+    for (size_t c = 0; c < V::kNumTlm; ++c) {
+        const V::TlmCase& k = V::kTlm[c];
+        Telemetry t{};
+        t.seq_echo = k.seq;
+        t.state = static_cast<LinkState>(k.state);
+        t.vbat_v = k.vbat;
+        t.up_z = k.up_z;
+        t.vx_est = k.vx;
+        t.wz_est = k.wz;
+        t.servo_err = k.servo_err;
+        t.loop_late_pct = k.late;
+        t.n_joints = 0;                       // did not ask
+        uint8_t wire[kTlmLenExt];
+        CHECK_EQ(encodeTelemetry(wire, t), kTlmLen);
+        CHECK_BYTES(wire, k.wire, kTlmLen);
+
+        Telemetry back{};
+        CHECK(decodeTelemetry(k.wire, kTlmLen, back) == Err::kOk);
+        CHECK_EQ(back.n_joints, 0);
+    }
+    // A length between the two is still refused.
+    Telemetry junk{};
+    uint8_t buf[kTlmLenExt] = {0};
+    CHECK(decodeTelemetry(buf, kTlmLen + 1, junk) == Err::kBadLength);
+    CHECK(decodeTelemetry(buf, kTlmLenExt - 1, junk) == Err::kBadLength);
+}
+
+// kFlagPose is a level on the wire and must not disturb the other three.
+void testPoseFlag() {
+    uint8_t wire[kCmdLen];
+    encodeCommand(wire, 1, 0.0f, 0.0f,
+                  static_cast<uint8_t>(kFlagArm | kFlagPose));
+    Command c{};
+    CHECK(decodeCommand(wire, kCmdLen, c) == Err::kOk);
+    CHECK(c.pose());
+    CHECK(c.arm());
+    CHECK(!c.enabled());
+    CHECK(!c.estop());
+
+    encodeCommand(wire, 2, 0.0f, 0.0f, kFlagArm);
+    CHECK(decodeCommand(wire, kCmdLen, c) == Err::kOk);
+    CHECK(!c.pose());
+}
+
 int main() {
     testCrc();
     testCommandFrames();
@@ -399,6 +484,9 @@ int main() {
     testBadFrames();
     testEverySingleBitFlipIsCaught();
     testTelemetryFrames();
+    testExtendedTelemetryFrames();
+    testClassicTelemetryIsUntouched();
+    testPoseFlag();
     testBenchDiagnostics();
     testClampToEnvelope();
     testWatchdog();
