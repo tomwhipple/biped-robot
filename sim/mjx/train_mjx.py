@@ -87,13 +87,18 @@ class BatchedEnv(brax_base.Env):
             e = self._env
             payload_bid = e._payload_bid
             payload_max = e.payload_max if payload_bid is not None else None
-            self._dr_cache[n] = domain_randomize(
-                e.model, jax.random.split(self._dr_key, n),
-                mass_range=e.mass_range, friction_range=e.friction_range,
-                payload_max=payload_max, payload_bid=payload_bid,
-                floor_gid=e._floor_gid, nom_mass=e._nom_mass,
-                nom_inertia=e._nom_inertia, nom_friction=e._nom_friction,
-                tilt_max_deg=e.tilt_max_deg)
+            # brax first asks for the eval batch size from inside its jitted
+            # reset; the cache must hold CONCRETE arrays, not that trace's
+            # tracers (they leak into later traces -- opt.gravity DR tripped
+            # this). All inputs are concrete closures, so evaluate eagerly.
+            with jax.ensure_compile_time_eval():
+                self._dr_cache[n] = domain_randomize(
+                    e.model, jax.random.split(self._dr_key, n),
+                    mass_range=e.mass_range, friction_range=e.friction_range,
+                    payload_max=payload_max, payload_bid=payload_bid,
+                    floor_gid=e._floor_gid, nom_mass=e._nom_mass,
+                    nom_inertia=e._nom_inertia, nom_friction=e._nom_friction,
+                    tilt_max_deg=e.tilt_max_deg)
         return self._dr_cache[n]
 
     @property

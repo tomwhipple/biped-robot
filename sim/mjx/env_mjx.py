@@ -2256,7 +2256,9 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
     the real one sees: a robot standing plumb to the SUPPORT reads a tilted
     up-vector against true gravity."""
     nbody = model.body_mass.shape[0]
-    g0 = float(model.opt.gravity[2])           # -9.81 nominal
+    g0 = model.opt.gravity[2]           # -9.81 nominal; stays a jax scalar
+    # (float() here breaks under jit: domain_randomize is traced inside
+    # BatchedEnv.reset, where model leaves are abstract tracers.)
 
     @jax.vmap
     def rand(rng):
