@@ -351,6 +351,7 @@ class BimoMJXEnv:
         backlash_deg_max: float | None = None,
         act_lag_hz: float = 0.0,
         act_lag_hz_max: float | None = None,
+        tilt_max_deg: float = 0.0,   # batch-level gravity-tilt DR (un-level floor)
         push_prob: float | None = None,
         push_force: float | None = None,
         # -- termination --------------------------------------------------------
@@ -754,6 +755,7 @@ class BimoMJXEnv:
         self.backlash_rad = float(np.deg2rad(backlash_deg))
         self.backlash_rad_max = (None if backlash_deg_max is None
                                  else float(np.deg2rad(backlash_deg_max)))
+        self.tilt_max_deg = float(tilt_max_deg)
         self.act_lag_hz = float(act_lag_hz)
         self.act_lag_hz_max = (None if act_lag_hz_max is None
                                else float(act_lag_hz_max))
@@ -2241,15 +2243,24 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                      payload_max: float | None = None,
                      payload_bid: int | None = None,
                      floor_gid: int = 0, nom_mass=None, nom_inertia=None,
-                     nom_friction=None):
+                     nom_friction=None, tilt_max_deg: float = 0.0):
     """Batch-level model DR (brax randomization_fn style): per-env body
-    mass/inertia scale, floor friction scale, and payload mass draw. Returns
-    (batched_model, in_axes) for vmapped training."""
+    mass/inertia scale, floor friction scale, payload mass draw, and --
+    when tilt_max_deg > 0 -- a per-env GRAVITY TILT. Returns
+    (batched_model, in_axes) for vmapped training.
+
+    The tilt is the un-level real world (user 2026-09-01: "the floor isn't
+    even perfectly level" -- the bench desk measures ~3.5 deg off): rotating
+    gravity by theta ~ U(0, tilt_max) about a random horizontal azimuth is,
+    for a flat floor, exactly a floor inclined by theta. The IMU sees what
+    the real one sees: a robot standing plumb to the SUPPORT reads a tilted
+    up-vector against true gravity."""
     nbody = model.body_mass.shape[0]
+    g0 = float(model.opt.gravity[2])           # -9.81 nominal
 
     @jax.vmap
     def rand(rng):
-        r_m, r_f, r_p = jax.random.split(rng, 3)
+        r_m, r_f, r_p, r_t, r_a = jax.random.split(rng, 5)
         mf = jax.random.uniform(r_m, (nbody,), minval=1 - mass_range,
                                 maxval=1 + mass_range)
         mass = nom_mass * mf
@@ -2263,13 +2274,21 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
             mass = mass.at[payload_bid].set(mp)
             inertia = inertia.at[payload_bid].set(
                 nom_inertia[payload_bid] * (mp / _PAYLOAD_REF))
-        return mass, inertia, friction
+        th = jax.random.uniform(r_t, maxval=np.deg2rad(tilt_max_deg))
+        az = jax.random.uniform(r_a, maxval=2 * np.pi)
+        gravity = jp.array([-g0 * jp.sin(th) * jp.cos(az),
+                            -g0 * jp.sin(th) * jp.sin(az),
+                            g0 * jp.cos(th)])
+        return mass, inertia, friction, gravity
 
-    mass, inertia, friction = rand(rng)
+    mass, inertia, friction, gravity = rand(rng)
     in_axes = jax.tree_util.tree_map(lambda x: None, model)
-    in_axes = in_axes.tree_replace({
-        "body_mass": 0, "body_inertia": 0, "geom_friction": 0})
-    model = model.tree_replace({
-        "body_mass": mass, "body_inertia": inertia,
-        "geom_friction": friction})
+    fields = {"body_mass": 0, "body_inertia": 0, "geom_friction": 0}
+    values = {"body_mass": mass, "body_inertia": inertia,
+              "geom_friction": friction}
+    if tilt_max_deg > 0.0:
+        fields["opt.gravity"] = 0
+        values["opt.gravity"] = gravity
+    in_axes = in_axes.tree_replace(fields)
+    model = model.tree_replace(values)
     return model, in_axes

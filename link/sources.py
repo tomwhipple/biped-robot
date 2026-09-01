@@ -144,6 +144,7 @@ SCRIPT_SCENARIO = {
     "pivot": "turn_180",
     "square": "square_return",
     "crouch1": "squat_reps",
+    "sidestep1": "sidestep_L",
     "march": "metronome",
     "stand": "stand_10s",
 }
@@ -170,9 +171,18 @@ def _crouch1(t):
     return dict(crouch=1.0)
 
 
+def _sidestep1(t):
+    # ONE gait-clock cycle of leftward sidestep (vy +0.2 = scen_sidestep L,
+    # the deployed line's strongest referee skill: 8/8).
+    if 2.0 <= t < 2.0 + 1.0 / 1.5:
+        return dict(vy=0.2)
+    return {}
+
+
 SCRIPTS = {
     "stand": _stand,
     "stride1": _stride1,
+    "sidestep1": _sidestep1,
     "crouch1": _crouch1,
     "rom_feet": _rom_feet,
     "march": _march,

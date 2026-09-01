@@ -92,7 +92,8 @@ class BatchedEnv(brax_base.Env):
                 mass_range=e.mass_range, friction_range=e.friction_range,
                 payload_max=payload_max, payload_bid=payload_bid,
                 floor_gid=e._floor_gid, nom_mass=e._nom_mass,
-                nom_inertia=e._nom_inertia, nom_friction=e._nom_friction)
+                nom_inertia=e._nom_inertia, nom_friction=e._nom_friction,
+                tilt_max_deg=e.tilt_max_deg)
         return self._dr_cache[n]
 
     @property
@@ -351,6 +352,11 @@ def main():
                         "#2: cmd[3] frozen at 1.0 collapsed its normalizer "
                         "std, while firmware battguard ramps it below 1.0 on "
                         "a sagging pack). 1,1 = the legacy frozen channel")
+    p.add_argument("--tilt-max", type=float, default=None,
+                   help="batch-level gravity-tilt DR in degrees: each env's "
+                        "gravity is tilted by U(0,max) about a random "
+                        "azimuth -- an un-level floor (the bench desk "
+                        "measures ~3.5 deg; user asked +-3, 2026-09-01)")
     p.add_argument("--act-lag", default=None,
                    help="per-episode action-chain lag pole draw, lo,hz "
                         "(3 cascaded stages, the deployed C2 shaper's "
@@ -489,6 +495,8 @@ def main():
                       latency_jitter_ms=0.0,
                       backlash_deg=0.0, backlash_deg_max=None,
                       push_kick=False, push_prob=0.0)
+    if args.tilt_max is not None:
+        env_kw["tilt_max_deg"] = args.tilt_max
     if args.act_lag is not None:
         lo, hi = (float(x) for x in args.act_lag.split(","))
         env_kw.update(act_lag_hz=lo, act_lag_hz_max=hi)
