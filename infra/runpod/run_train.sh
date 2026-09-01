@@ -24,7 +24,11 @@ GPU_PREFS=("NVIDIA GeForce RTX 4090" "NVIDIA RTX 4000 Ada Generation" \
            "NVIDIA A40" "NVIDIA L40S" "NVIDIA GeForce RTX 3090")
 SSH_BASE=(-i "$SSHK" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
           -o BatchMode=yes -o ConnectTimeout=15)
-KILL_AT="$(date -u -v+12H +%Y-%m-%dT%H:%M:%SZ)"
+# Auto-terminate deadline: now + 12h, computed portably. The macOS-only
+# `date -v+12H` fails on Linux (empty KILL_AT -> no auto-terminate -> a
+# forgotten pod runs indefinitely at GPU rates). python3 is already a
+# dependency (the script pipes through it for JSON parsing below).
+KILL_AT="$(python3 -c 'from datetime import datetime,timedelta,timezone; print((datetime.now(timezone.utc)+timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ"))')"
 
 ssh_t() { local t="$1"; shift; ssh "$@" & local p=$!
   ( sleep "$t"; kill -9 "$p" 2>/dev/null ) & local w=$!
