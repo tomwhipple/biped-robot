@@ -32,7 +32,7 @@ XML = os.path.join(HERE, "bimo_biped_v2.xml")
 
 ENV_KW = dict(xml_path=XML, actuator_model="sts3215", supply_voltage=11.1,
               command_mode=True, imu_obs=True, backlash_deg=0.5,
-              cmd_v_range=(0.3, 0.9), cmd_w_range=0.6,
+              cmd_v_range=(0.3, 1.0), cmd_w_range=1.0,
               cmd_resample_s=(3.0, 6.0))
 
 
