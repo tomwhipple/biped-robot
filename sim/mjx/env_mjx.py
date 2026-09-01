@@ -604,7 +604,8 @@ class BimoMJXEnv:
                                    "max_amp")}
             self._hf_field = jp.asarray(_tm["field"], dtype=jp.float64)
         self.mj_model = _prep_model(
-            xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
+            xml_path, payload_mass > 0 or payload_dr or payload_max is not None,
+            servo_joint_damping,
             mesh_floor=getup or (ext_cmd and recover_mix > 0),
             payload_cg_z=payload_cg_z, payload_cg_x=payload_cg_x,
             terrain_spec=self._terrain_spec)

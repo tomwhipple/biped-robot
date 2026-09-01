@@ -65,25 +65,35 @@ class BatchedEnv(brax_base.Env):
     def __init__(self, env: BimoMJXEnv, episode_length: int, num_envs: int = 1):
         self._env = env
         self._len = episode_length
-        # Batch-level DR: one randomized model per parallel env, drawn once at
-        # construction (the standard MJX pattern -- with thousands of envs the
-        # per-gradient-batch diversity is far higher than the CPU env's
-        # per-episode redraw). The batched model + in_axes are threaded through
-        # reset/step below. When DR is off, the single model is broadcast.
-        self._model = env.model
-        self._model_in_axes = None
+        # Batch-level DR: one randomized model per parallel env, drawn once
+        # per batch size (the standard MJX pattern -- with thousands of envs
+        # the per-gradient-batch diversity is far higher than the CPU env's
+        # per-episode redraw). brax resets THIS SAME env with num_envs while
+        # training and with num_eval_envs (default 128) in the evaluator, so
+        # the batched model is built per batch size and cached -- one model
+        # batch pinned to num_envs blows up the evaluator's vmap with
+        # "inconsistent sizes for array axes to be mapped".
+        self._dr_key = jax.random.PRNGKey(0)
+        self._dr_cache = {}
         if env.domain_rand:
-            payload_max = (env.payload_max if env._payload_bid is not None
-                           else None)
-            payload_bid = (env._payload_bid if env._payload_bid is not None
-                           else None)
-            rng = jax.random.split(jax.random.PRNGKey(0), num_envs)
-            self._model, self._model_in_axes = domain_randomize(
-                env.model, rng,
-                mass_range=env.mass_range, friction_range=env.friction_range,
+            self._batched_model(num_envs)      # warm the training batch
+
+    def _batched_model(self, n: int):
+        """(model, in_axes) for a batch of n envs. DR off -> (single model,
+        None), i.e. vmap broadcasts the one model (unchanged path)."""
+        if not self._env.domain_rand:
+            return self._env.model, None
+        if n not in self._dr_cache:
+            e = self._env
+            payload_bid = e._payload_bid
+            payload_max = e.payload_max if payload_bid is not None else None
+            self._dr_cache[n] = domain_randomize(
+                e.model, jax.random.split(self._dr_key, n),
+                mass_range=e.mass_range, friction_range=e.friction_range,
                 payload_max=payload_max, payload_bid=payload_bid,
-                floor_gid=env._floor_gid, nom_mass=env._nom_mass,
-                nom_inertia=env._nom_inertia, nom_friction=env._nom_friction)
+                floor_gid=e._floor_gid, nom_mass=e._nom_mass,
+                nom_inertia=e._nom_inertia, nom_friction=e._nom_friction)
+        return self._dr_cache[n]
 
     @property
     def observation_size(self):
@@ -98,9 +108,10 @@ class BatchedEnv(brax_base.Env):
         return "mjx"
 
     def reset(self, rng: jax.Array) -> brax_base.State:
-        if self._model_in_axes is not None:
-            st = jax.vmap(self._env.reset, in_axes=(0, self._model_in_axes))(
-                rng, self._model)
+        model, model_in_axes = self._batched_model(rng.shape[0])
+        if model_in_axes is not None:
+            st = jax.vmap(self._env.reset, in_axes=(0, model_in_axes))(
+                rng, model)
         else:
             st = jax.vmap(self._env.reset)(rng)
         n = rng.shape[0]
@@ -117,9 +128,10 @@ class BatchedEnv(brax_base.Env):
                                metrics=dict(st.metrics), info=info)
 
     def step(self, state: brax_base.State, action: jax.Array) -> brax_base.State:
-        if self._model_in_axes is not None:
-            st = jax.vmap(self._env.step, in_axes=(0, 0, self._model_in_axes))(
-                state.info["st"], action, self._model)
+        model, model_in_axes = self._batched_model(action.shape[0])
+        if model_in_axes is not None:
+            st = jax.vmap(self._env.step, in_axes=(0, 0, model_in_axes))(
+                state.info["st"], action, model)
         else:
             st = jax.vmap(self._env.step)(state.info["st"], action)
         prev_done = state.info["episode_done"]
