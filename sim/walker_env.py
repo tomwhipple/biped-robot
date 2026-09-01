@@ -1337,7 +1337,10 @@ class BimoWalkerEnv(gym.Env):
                 mix = tuple(self.recover_start_mix) + (0.0,) * 5
             else:
                 mix = tuple(self.getup_start_mix) + (0.0,) * 5
-            u = float(self.np_random.uniform())
+            # pure ragdoll draws NO random number, so a (1,0,0) getup eval
+            # keeps the exact pre-getup_start_mix RNG stream (old referee
+            # numbers stay comparable)
+            u = 0.0 if mix[0] >= 1.0 else float(self.np_random.uniform())
             if u < mix[0]:
                 kind = "ragdoll"
             elif u < mix[0] + mix[1]:

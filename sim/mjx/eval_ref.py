@@ -65,7 +65,7 @@ def load_policy(run_dir):
     return act, cfg
 
 
-def make_env(cfg, seed_payload=True):
+def make_env(cfg, seed_payload=True, getup_start_mix=None):
     """CPU env matching the training conditions (the claim we referee)."""
     return BimoWalkerEnv(
         xml_path=XML, actuator_model="sts3215",
@@ -78,7 +78,12 @@ def make_env(cfg, seed_payload=True):
         w_track_v=cfg.get("w_track_v", 2.0),
         w_track_w=cfg.get("w_track_w", 2.0),
         getup=cfg.get("getup", False),
-        getup_start_mix=tuple(cfg.get("getup_start_mix", (1.0, 0.0, 0.0))),
+        # The referee grades the CLAIM -- recovery from a ragdoll FALL -- so it
+        # deliberately does NOT inherit the training run's getup_start_mix
+        # (a reverse curriculum whose kneel/squat seeds start near the goal and
+        # would inflate the recovered rate, and would make runs trained on
+        # different mixes incomparable). --start-mix overrides for diagnostics.
+        getup_start_mix=tuple(getup_start_mix or (1.0, 0.0, 0.0)),
         episode_seconds=cfg.get("episode_seconds", 10.0),
         action_map=cfg.get("action_map", "legacy"),
         hip_flex_deg=cfg.get("hip_flex_deg"),
@@ -144,10 +149,16 @@ def main():
     p.add_argument("--run", required=True)
     p.add_argument("--episodes", type=int, default=8)
     p.add_argument("--video", action="store_true")
+    p.add_argument("--start-mix", default=None,
+                   help="getup start-pose mix 'rag,kneel,squat' for DIAGNOSTIC "
+                        "runs (e.g. 0,1,0 to probe the kneel seed). Default = "
+                        "1,0,0: the graded claim is recovery from a fall.")
     args = p.parse_args()
     run_dir = os.path.join(RUNS, args.run)
     act, cfg = load_policy(run_dir)
-    env = make_env(cfg)
+    start_mix = (tuple(float(x) for x in args.start_mix.split(","))
+                 if args.start_mix else None)
+    env = make_env(cfg, getup_start_mix=start_mix)
 
     if cfg.get("getup"):
         print(f"CPU referee (GET-UP): {args.run}  "
