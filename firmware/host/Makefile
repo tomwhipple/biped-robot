@@ -236,7 +236,8 @@ $(BUILD)/test_fusion: test_fusion.cpp $(SRC_FUSION) test_util.h $(COMP_HDRS) | $
 # but touches no ESP-IDF, precisely so the double buffer and the CSV writer
 # are covered by the hardware-free gate rather than by a flash-and-squint.
 $(BUILD)/test_obsdump: test_obsdump.cpp ../main/obs_dump.cpp \
-                       ../main/obs_dump.h $(SPEC_H) test_util.h \
+                       ../main/obs_dump.h ../main/joint_pose.h $(SPEC_H) \
+                       test_util.h \
                        $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 

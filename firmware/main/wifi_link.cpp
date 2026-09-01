@@ -45,6 +45,8 @@ std::atomic<uint32_t> g_peer_ip{0};
 std::atomic<uint32_t> g_rx_frames{0};
 std::atomic<uint32_t> g_rx_bad{0};
 std::atomic<uint32_t> g_tx_tlm{0};
+std::atomic<uint32_t> g_tx_tlm_ext{0};
+std::atomic<bool> g_pose_wanted{false};   // for `wifi`; the task keeps its own
 std::atomic<uint32_t> g_disconnects{0};
 char g_ssid[33] = {0};   // written by startWifiLink/wifiApply (CLI task) only
 
@@ -74,6 +76,20 @@ void wifiLinkTask(void*) {
     sockaddr_in peer = {};          // last commander; task-local on purpose
     bool have_peer = false;
     int64_t next_tlm_us = 0;
+    // Mirror mode (docs/mirror-mode.md): does the commander want joint angles
+    // in the beacon? A LEVEL from the last valid frame, not a latch -- unlike
+    // ARM there is nothing to remember: a commander that stops asking stops
+    // getting long frames on the very next beacon. Task-local because this
+    // task is both the receiver that sees the flag and the sender that acts
+    // on it; the mailbox does not need to carry it anywhere.
+    bool pose_wanted = false;
+    // The g_joint_pose publish count of the last pose we beaconed. The loop
+    // publishes at 50 Hz and this beacons at 10 Hz, so while armed the count
+    // always moves between beacons; the same value twice means ctrl is
+    // benched (the CLI owns the bus, nothing is measured) and the beacon
+    // drops back to the classic frame rather than send a stale pose as if
+    // it were fresh. joints=() on the client is the honest "no pose".
+    uint32_t pose_seq_sent = 0;
 
     for (;;) {
         if (!g_connected.load()) {
@@ -118,6 +134,8 @@ void wifiLinkTask(void*) {
                 msg.rx_ms = static_cast<float>(esp_timer_get_time()) / 1000.0f;
                 if (g_cmd_mailbox) xQueueOverwrite(g_cmd_mailbox, &msg);
                 g_rx_frames.fetch_add(1);
+                pose_wanted = pkt.pose();
+                g_pose_wanted.store(pose_wanted);
                 // Latest commander wins, same rule as latest command.
                 peer = from;
                 have_peer = true;
@@ -170,14 +188,31 @@ void wifiLinkTask(void*) {
             t.servo_err = static_cast<uint8_t>(f & 0xFF) |
                           static_cast<uint8_t>((f >> 8) & 0x03);
             t.loop_late_pct = g_telemetry.loop_late_pct.load();
-            uint8_t wire[linkproto::kTlmLen];
-            linkproto::encodeTelemetry(wire, t);
+            // The long frame, REQUESTED and FRESH only (see pose_wanted and
+            // pose_seq_sent above). Everything before this line is the
+            // classic body byte for byte; a commander that never asks gets
+            // exactly the 20 B frame it always did.
+            if (pose_wanted) {
+                float q[obs::kNumJoints];
+                uint32_t seq = 0;
+                if (g_joint_pose.read(q, seq) && seq != pose_seq_sent) {
+                    pose_seq_sent = seq;
+                    memcpy(t.joints, q, sizeof t.joints);
+                    t.n_joints = static_cast<uint8_t>(linkproto::kNumJoints);
+                }
+            }
+            // Sized for the long frame; the length on the wire is whatever
+            // encodeTelemetry RETURNED, in both places -- a hard-coded
+            // kTlmLen here truncates the long frame and every CRC fails.
+            uint8_t wire[linkproto::kTlmLenExt];
+            const size_t n = linkproto::encodeTelemetry(wire, t);
             sockaddr_in to = peer;
             to.sin_port = lwip_htons(linkproto::kTlmPort);
-            if (lwip_sendto(sock, wire, linkproto::kTlmLen, 0,
+            if (lwip_sendto(sock, wire, n, 0,
                             reinterpret_cast<sockaddr*>(&to), sizeof to) ==
-                static_cast<int>(linkproto::kTlmLen)) {
+                static_cast<int>(n)) {
                 g_tx_tlm.fetch_add(1);
+                if (n == linkproto::kTlmLenExt) g_tx_tlm_ext.fetch_add(1);
             }
         }
     }
@@ -290,6 +325,8 @@ void wifiGetStatus(WifiStatus& out) {
     out.rx_frames = g_rx_frames.load();
     out.rx_bad = g_rx_bad.load();
     out.tx_tlm = g_tx_tlm.load();
+    out.tx_tlm_ext = g_tx_tlm_ext.load();
+    out.pose_wanted = g_pose_wanted.load();
     out.disconnects = g_disconnects.load();
 }
 

@@ -120,6 +120,17 @@ void houseTask(void*) {
         }
 
         // 10 Hz telemetry, back up the same tether the commands came down.
+        //
+        // The tether stays CLASSIC-ONLY (kTlmLen), deliberately, even when a
+        // tethered commander sets kFlagPose. Mirror mode (docs/mirror-mode.md)
+        // is a bimo_gui-over-UDP feature -- wifi_link.cpp answers kFlagPose
+        // with the kTlmLenExt frame; nothing consumes joint angles over the
+        // UART, and this tether is 115200 baud already shared with CLI text
+        // and the 5 Hz obs dump, where 20 more bytes per beacon is not free.
+        // Honouring the flag here would also mean carrying the commander's
+        // level from linkTask to this task across the mailbox. If a tethered
+        // consumer ever appears, do it the way wifi_link.cpp does; until
+        // then the decision is: the UART beacon is always 20 B.
         if (xTaskGetTickCount() >= next_tlm) {
             next_tlm += pdMS_TO_TICKS(100);
             if (g_mode_request.load() == Mode::kRun) {

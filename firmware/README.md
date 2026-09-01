@@ -96,6 +96,7 @@ firmware/
     cli.cpp               core 0, the bring-up CLI
     scs_port_idf.cpp      scsbus::Port over UART1 -- the one hardware seam
     shared.h              the only cross-core state, and the rules for it
+    joint_pose.h          measured pose, core 1 -> the WiFi beacon (mirror mode)
   components/
     scsbus/               Feetech SCS/STS protocol (pure codec + transactions)
     linkproto/            C++ port of link/protocol.py + Watchdog + UART demux
@@ -200,6 +201,17 @@ Handover is one-way through the ctrl task: it releases torque and clears
    beacon's `seq_echo` — a field that means nothing while benched, so no
    version bump and every existing commander keeps working. Layout and
    rationale: `linkproto::packDiag` and docs/control-channel.md.
+   **Mirror mode beacon, 2026-09-01** (docs/mirror-mode.md): a commander
+   whose frames carry `kFlagPose` gets the 40 B `kTlmLenExt` beacon — the
+   classic body plus ten milli-radian joint angles in obs_spec order. The
+   pose is ctrl's `g_q`, published every armed tick through
+   `main/joint_pose.h` (ObsDump's double-buffer-plus-counter, so a beacon
+   can never mix two ticks' joints) and read by `wifi_link.cpp`, which sends
+   the long frame only when asked AND the publish count moved since the
+   last beacon — a benched loop measures nothing, so a mirror-on client sees
+   classic frames until it arms. Nobody who does not ask sees a byte change;
+   `wifi` prints `tlm tx N (pose M, asked|not asked)` so the bench check can
+   confirm that. The UART tether stays 20 B (link_task.cpp says why).
 3. **Calibration persistence.** `obs::Calibration` exists and is used
    everywhere; loading and storing it in NVS (and a guided zeroing flow) is not
    written. Defaults are zero = 2048 ticks, direction +1.
