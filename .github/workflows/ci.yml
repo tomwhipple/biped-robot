@@ -1,0 +1,108 @@
+# The acceptance gate, run by GitHub instead of by hand.
+#
+# The point of this file is the 2026-09-01 incident: link/mjpeg.cpp did not
+# compile under gcc 13's -Werror=format-truncation while passing cleanly on
+# macOS clang, so `make -C firmware/host test` was broken on Linux for hours
+# and nobody could see it. Every job here is a compiler or a runtime this
+# project is actually used on, doing the thing a person would otherwise do
+# locally and slowly.
+#
+# The repo is private, so macOS minutes bill at 10x. Everything that CAN run
+# on ubuntu does; the mac job exists only for bimo_gui, which does not build
+# on Linux yet (see the `console` job's note).
+name: ci
+
+on:
+  push:
+    branches: [main, gui]
+  pull_request:
+
+# A new push supersedes the run in flight; nobody wants the result for a
+# commit that has already been replaced.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The firmware's pure modules under gcc + ASan/UBSan. No ESP-IDF, no
+  # hardware, no Python: this is the "a laptop with a C++ compiler" gate the
+  # Makefile is built around, and it is the job that would have caught the
+  # format-truncation break.
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: gcc version
+        run: c++ --version
+      - name: make test
+        run: make -C firmware/host test
+
+  # CMakeLists.txt and the Makefile are two descriptions of the same build,
+  # and both files carry a "keep the two in step" comment. This is what makes
+  # that a failing test rather than a hope.
+  cmake-ctest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libncurses-dev
+      - name: configure
+        run: cmake -S firmware/host -B build-ci
+      - name: build
+        run: cmake --build build-ci -j"$(nproc)"
+      - name: ctest
+        run: ctest --test-dir build-ci --output-on-failure
+
+  # The wire format, the command sources, and the ncurses console driven end
+  # to end over real UDP against the plant-free twin. No MuJoCo: these are the
+  # tests that guard the protocol, and they must stay runnable without the
+  # whole sim stack installed.
+  link-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest
+      - run: sudo apt-get update && sudo apt-get install -y libncurses-dev
+      - name: build bimo_tui
+        run: make -C firmware/host tui
+      - name: protocol, sources, and the console e2e
+        # test_gui_e2e.py skips itself when bimo_gui is absent, which it is
+        # here; the mac job below is what covers it.
+        run: |
+          python -m pytest tests/test_protocol.py tests/test_sources.py \
+                           tests/test_tui_e2e.py tests/test_gui_e2e.py -q
+
+  # bimo_gui only. It links -framework OpenGL/Cocoa/IOKit and includes
+  # <OpenGL/gl3.h>, so it does not build on Linux today -- teaching it to
+  # would move this whole job onto a 1x runner and is worth doing.
+  #
+  # Runs on the branches that carry the console, and on every PR, because
+  # --headless is the only automated coverage the window client has.
+  console-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest
+      - run: brew install glfw
+      # Pinned by tag + sha256 in the Makefile, so a cache hit is the same
+      # bytes a cache miss would fetch.
+      - name: cache third_party
+        uses: actions/cache@v4
+        with:
+          path: third_party
+          key: third-party-${{ hashFiles('firmware/host/Makefile') }}
+      - name: fetch pinned deps
+        run: make -C firmware/host deps
+      - name: build both consoles
+        run: make -C firmware/host tui gui
+      - name: console e2e, both clients
+        run: python -m pytest tests/test_tui_e2e.py tests/test_gui_e2e.py -q
+      - name: the host gate under clang too
+        # The other half of the mjpeg.cpp lesson: clang and gcc disagree about
+        # what is worth warning on, so the gate is worth running under both.
+        run: make -C firmware/host test
