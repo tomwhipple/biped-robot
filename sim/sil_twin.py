@@ -41,7 +41,11 @@ from protocol import (CMD_PORT, TLM_PORT, LinkState, ProtocolError,  # noqa: E40
                       Supervisor, Telemetry, decode_command,
                       encode_telemetry)
 
-DEFAULT_RUN = "loco_v22fix_e_s128"
+# Needs BOTH a sim/runs/<name>/config.json and an exported
+# sim/sil/weights/<name>.silw.json; the previous default had only the weights,
+# so a bare `python sim/sil_twin.py` died opening config.json. bimo_gui's SIM
+# panel builds its dropdown from that same pair, for the same reason.
+DEFAULT_RUN = "loco_v11gait"
 HANG_XML = os.path.join(HERE, "bimo_biped_v5body_hang.xml")
 
 

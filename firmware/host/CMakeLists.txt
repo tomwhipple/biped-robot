@@ -43,6 +43,20 @@ bimo_test(test_protocol test_protocol.cpp
           ${COMPONENTS}/linkproto/watchdog.cpp
           ${COMPONENTS}/linkproto/framing.cpp)
 
+# The console core shared by bimo_tui and bimo_gui: the intent, the
+# frame-length rule, the keymap file format and the MJPEG stream parser. No
+# GLFW and no ImGui here on purpose -- the gate stays "a laptop with a C++
+# compiler".
+bimo_test(test_client test_client.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/../../link/client.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/../../link/keymap.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/../../link/mjpeg.cpp
+          ${COMPONENTS}/linkproto/protocol.cpp
+          ${COMPONENTS}/linkproto/watchdog.cpp
+          ${COMPONENTS}/linkproto/framing.cpp)
+target_include_directories(test_client PRIVATE
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../link)
+
 bimo_test(test_scsbus test_scsbus.cpp
           ${COMPONENTS}/scsbus/packet.cpp
           ${COMPONENTS}/scsbus/bus.cpp)
@@ -95,13 +109,52 @@ add_custom_target(sil DEPENDS ctrl_sil)
 
 # The operator's console (link/tui.cpp) -- the firmware's own linkproto plus
 # ncurses; a tool, so no sanitizers. Optional: skipped where curses is absent.
+set(LINK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../link)
+set(LINKPROTO_SRC ${COMPONENTS}/linkproto/protocol.cpp
+                  ${COMPONENTS}/linkproto/watchdog.cpp
+                  ${COMPONENTS}/linkproto/framing.cpp)
+
 find_package(Curses QUIET)
 if(CURSES_FOUND)
-    add_executable(bimo_tui ${CMAKE_CURRENT_SOURCE_DIR}/../../link/tui.cpp
-                   ${COMPONENTS}/linkproto/protocol.cpp
-                   ${COMPONENTS}/linkproto/watchdog.cpp
-                   ${COMPONENTS}/linkproto/framing.cpp)
-    target_include_directories(bimo_tui PRIVATE ${CURSES_INCLUDE_DIRS})
+    add_executable(bimo_tui ${LINK_DIR}/tui.cpp ${LINK_DIR}/client.cpp
+                   ${LINKPROTO_SRC})
+    target_include_directories(bimo_tui PRIVATE ${CURSES_INCLUDE_DIRS}
+                               ${LINK_DIR})
     target_link_libraries(bimo_tui PRIVATE ${CURSES_LIBRARIES})
     add_custom_target(tui DEPENDS bimo_tui)
+endif()
+
+# The windowed console (link/gui.cpp). Optional twice over: it needs GLFW AND
+# the pinned Dear ImGui that `make -C firmware/host deps` fetches into a
+# gitignored third_party/, so a checkout that has run neither still configures
+# and still builds every test. Third-party sources are a target of their own
+# with warnings off -- none of them survive -Werror -Wconversion.
+set(THIRD_PARTY ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party)
+find_package(glfw3 QUIET)
+if(glfw3_FOUND AND EXISTS ${THIRD_PARTY}/imgui/imgui.cpp
+   AND EXISTS ${THIRD_PARTY}/stb_image.h AND APPLE)
+    add_library(bimo_imgui STATIC
+        ${THIRD_PARTY}/imgui/imgui.cpp
+        ${THIRD_PARTY}/imgui/imgui_draw.cpp
+        ${THIRD_PARTY}/imgui/imgui_tables.cpp
+        ${THIRD_PARTY}/imgui/imgui_widgets.cpp
+        ${THIRD_PARTY}/imgui/backends/imgui_impl_glfw.cpp
+        ${THIRD_PARTY}/imgui/backends/imgui_impl_opengl3.cpp
+        ${LINK_DIR}/stb_impl.cpp)
+    target_include_directories(bimo_imgui PUBLIC ${THIRD_PARTY}
+                               ${THIRD_PARTY}/imgui
+                               ${THIRD_PARTY}/imgui/backends ${LINK_DIR})
+    target_compile_options(bimo_imgui PRIVATE -w)
+    target_compile_definitions(bimo_imgui PUBLIC GL_SILENCE_DEPRECATION)
+    target_link_libraries(bimo_imgui PUBLIC glfw)
+
+    add_executable(bimo_gui ${LINK_DIR}/gui.cpp ${LINK_DIR}/client.cpp
+                   ${LINK_DIR}/keymap.cpp ${LINK_DIR}/recorder.cpp
+                   ${LINK_DIR}/mjpeg.cpp ${LINK_DIR}/simproc.cpp
+                   ${LINKPROTO_SRC})
+    target_include_directories(bimo_gui PRIVATE ${LINK_DIR})
+    target_link_libraries(bimo_gui PRIVATE bimo_imgui
+                          "-framework OpenGL" "-framework Cocoa"
+                          "-framework IOKit" "-framework CoreVideo")
+    add_custom_target(gui DEPENDS bimo_gui)
 endif()

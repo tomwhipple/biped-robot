@@ -12,6 +12,11 @@ sim twin with a plant is sim/udp_agent.py, which shares the Supervisor.
 
 Telemetry is synthetic: vx_est/wz_est echo the applied command, vbat is a
 fixed 11.4 V, up_z is 1.0.
+
+The per-tick line carries the EXTENDED channels too, but only when they are
+off their trained defaults -- so the ordinary two-channel trace stays exactly
+as it was, and a client that moves a slider (link/gui.cpp) is visibly
+different from one that cannot (link/tui.cpp).
 """
 import argparse
 import os
@@ -35,7 +40,8 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
     tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     sup = Supervisor(armed=armed, arm_allowed=arm_allowed)
-    peer, last_state, last_cmd, last_diag = None, None, (0.0, 0.0), None
+    peer, last_state, last_diag = None, None, None
+    last_cmd = (0.0,) * 7
     t0 = time.monotonic()
     tick = 0
     print(f"link_twin: listening on :{port}, telemetry -> :{tlm_port}, "
@@ -53,14 +59,24 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
             except ProtocolError:
                 pass
         state = sup.state(now_ms)
-        cmd = sup.command(now_ms)
+        # (vx, vy, wz, crouch, lift, foot_dx, foot_dz) -- walker_env ext_cmd
+        # order, which is NOT the wire order (vy sits between vx and wz).
+        cmd = sup.command_ext(now_ms)
         diag = sup.diag()
         if not quiet and (state is not last_state or cmd != last_cmd
                           or diag != last_diag):
             why = f"  -- {diag_reason(diag)}" if state is LinkState.BENCH \
                 else ""
+            # Only the channels that are saying something: an unchanged trace
+            # for every commander that predates the extended frame.
+            ext = ""
+            if (cmd[1], cmd[3], cmd[4], cmd[5], cmd[6]) != (0.0, 1.0, 0.0,
+                                                            0.0, 0.0):
+                ext = (f" vy {cmd[1]:+.2f} crouch {cmd[3]:.2f} "
+                       f"lift {cmd[4]:+.0f} fdx {cmd[5]:+.3f} "
+                       f"fdz {cmd[6]:+.3f}")
             print(f"  [{now_ms/1000:7.2f}s] {state.value:5s} "
-                  f"vx {cmd[0]:+.2f} wz {cmd[1]:+.2f} "
+                  f"vx {cmd[0]:+.2f} wz {cmd[2]:+.2f}{ext} "
                   f"torque {'on' if sup.torque_on(now_ms) else 'off'}{why}",
                   flush=True)
             last_state, last_cmd, last_diag = state, cmd, diag
@@ -70,7 +86,7 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
             # faithful about that or the console is tested against a fiction.
             tx.sendto(encode_telemetry(Telemetry(
                 seq_echo=sup.seq_echo(now_ms), state=state, vbat_v=11.4,
-                up_z=1.0, vx_est=cmd[0], wz_est=cmd[1], servo_err=0,
+                up_z=1.0, vx_est=cmd[0], wz_est=cmd[2], servo_err=0,
                 loop_late_pct=0,
             )), (peer, tlm_port))
         tick += 1

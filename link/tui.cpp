@@ -6,7 +6,9 @@
 // Every byte this sends is produced by firmware/components/linkproto -- the
 // same translation units the ESP32 decodes with -- so the client and the
 // robot cannot disagree about the protocol. The Python link/ tools are the
-// reference and the twins; this is the operator's seat.
+// reference and the twins; this is the operator's seat over SSH. The windowed
+// seat is link/gui.cpp, and both sit on link/client.h so they cannot disagree
+// with each other either.
 //
 // Keys:
 //   a          arm / disarm (ARM bit edge -> the robot's `run` / `bench`)
@@ -23,76 +25,40 @@
 // the start of every press; the measured delay is shown on screen so
 // --hold-ms can be set from a number rather than a guess. Every pending key
 // is drained each tick -- a queue of stale repeats would otherwise keep a
-// released key "held".
+// released key "held". (bimo_gui has none of this: a window gets real
+// key-release events, so its dead-man is exact.)
 //
 // The robot is authoritative about its mode: if it reports BENCH while this
 // console believes it armed (arm refused for want of a calibration, or the
 // robot rebooted), the console drops back to disarmed and says so.
-#include <arpa/inet.h>
 #include <errno.h>
 #include <ncurses.h>
-#include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <time.h>
 #include <unistd.h>
 
+#include "client.h"
 #include "linkproto/protocol.h"
 
 namespace {
 
 using namespace linkproto;
+using bimo::Ext;
+using bimo::Intent;
+using bimo::Link;
+using bimo::Speeds;
+using bimo::nowMs;
 
 constexpr double kDefaultHoldMs = 700.0;   // > any common initial repeat delay
-constexpr double kDefaultVx = 0.4;         // eval_precision line_1m's speed
-constexpr double kDefaultWz = 0.5;         // eval_commands validates +-0.5
-constexpr double kArmSyncMs = 1500.0;      // BENCH this long after arming -> refused
-constexpr double kTlmLostMs = 1000.0;      // no beacon this long -> "link lost"
-
-enum class Motion { kNone, kForward, kBackward, kLeft, kRight };
-
-const char* motionName(Motion m) {
-    switch (m) {
-        case Motion::kNone: return "stand";
-        case Motion::kForward: return "FORWARD";
-        case Motion::kBackward: return "BACKWARD";
-        case Motion::kLeft: return "TURN LEFT";
-        case Motion::kRight: return "TURN RIGHT";
-    }
-    return "?";
-}
-
-const char* stateName(LinkState s) {
-    switch (s) {
-        case LinkState::kLive: return "LIVE";
-        case LinkState::kStand: return "STAND";
-        case LinkState::kRelax: return "RELAX (torque off)";
-        case LinkState::kEstop: return "ESTOP (latched)";
-        case LinkState::kLowBattLand: return "VLAND (flat pack, crouching)";
-        case LinkState::kLowBattSafe: return "VSAFE (flat pack, torque off)";
-        case LinkState::kFallen: return "FALLEN (torque off)";
-        case LinkState::kBench: return "BENCH (loop not armed)";
-    }
-    return "?";
-}
-
-double nowMs() {
-    timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return static_cast<double>(ts.tv_sec) * 1000.0 +
-           static_cast<double>(ts.tv_nsec) / 1e6;
-}
 
 struct Options {
     const char* host = nullptr;
     int cmd_port = kCmdPort;
     int tlm_port = kTlmPort;
     double hold_ms = kDefaultHoldMs;
-    double vx = kDefaultVx;
-    double wz = kDefaultWz;
+    Speeds speeds;
     double rate_hz = static_cast<double>(kSendHz);
 };
 
@@ -100,8 +66,8 @@ void usage(const char* argv0) {
     fprintf(stderr,
             "usage: %s --host IP [--cmd-port %d] [--tlm-port %d]\n"
             "          [--hold-ms %.0f] [--vx %.2f] [--wz %.2f] [--rate %.0f]\n",
-            argv0, kCmdPort, kTlmPort, kDefaultHoldMs, kDefaultVx, kDefaultWz,
-            static_cast<double>(kSendHz));
+            argv0, kCmdPort, kTlmPort, kDefaultHoldMs, bimo::kDefaultVx,
+            bimo::kDefaultWz, static_cast<double>(kSendHz));
 }
 
 bool parse(int argc, char** argv, Options& o) {
@@ -112,114 +78,32 @@ bool parse(int argc, char** argv, Options& o) {
         else if (!strcmp(a, "--cmd-port") && v) { o.cmd_port = atoi(v); ++i; }
         else if (!strcmp(a, "--tlm-port") && v) { o.tlm_port = atoi(v); ++i; }
         else if (!strcmp(a, "--hold-ms") && v) { o.hold_ms = atof(v); ++i; }
-        else if (!strcmp(a, "--vx") && v) { o.vx = atof(v); ++i; }
-        else if (!strcmp(a, "--wz") && v) { o.wz = atof(v); ++i; }
+        else if (!strcmp(a, "--vx") && v) { o.speeds.vx = static_cast<float>(atof(v)); ++i; }
+        else if (!strcmp(a, "--wz") && v) { o.speeds.wz = static_cast<float>(atof(v)); ++i; }
         else if (!strcmp(a, "--rate") && v) { o.rate_hz = atof(v); ++i; }
         else return false;
     }
     return o.host != nullptr && o.hold_ms > 0.0 && o.rate_hz > 0.0;
 }
 
-// -- the link ---------------------------------------------------------------
-struct Link {
-    int tx = -1, rx = -1;
-    sockaddr_in to = {};
-    uint32_t seq = 0;
-    uint32_t sent = 0;
-
-    Telemetry tlm = {};
-    bool have_tlm = false;
-    double tlm_at_ms = -1.0;
-    uint32_t tlm_count = 0, tlm_bad = 0;
-    // Beacon rate: frames in the last second, updated once a second.
-    uint32_t rate_window = 0;
-    double rate_at_ms = 0.0;
-    double rate_hz = 0.0;
-
-    bool open(const Options& o) {
-        tx = socket(AF_INET, SOCK_DGRAM, 0);
-        rx = socket(AF_INET, SOCK_DGRAM, 0);
-        if (tx < 0 || rx < 0) return false;
-        to.sin_family = AF_INET;
-        to.sin_port = htons(static_cast<uint16_t>(o.cmd_port));
-        if (inet_pton(AF_INET, o.host, &to.sin_addr) != 1) return false;
-        int one = 1;
-        setsockopt(rx, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-        sockaddr_in bind_addr = {};
-        bind_addr.sin_family = AF_INET;
-        bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-        bind_addr.sin_port = htons(static_cast<uint16_t>(o.tlm_port));
-        if (bind(rx, reinterpret_cast<sockaddr*>(&bind_addr),
-                 sizeof bind_addr) < 0) {
-            return false;
-        }
-        timeval tv = {0, 0};
-        setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
-        return true;
-    }
-
-    void send(float vx, float wz, uint8_t flags) {
-        uint8_t wire[kCmdLen];
-        encodeCommand(wire, seq++, vx, wz, flags);
-        if (sendto(tx, wire, kCmdLen, 0, reinterpret_cast<sockaddr*>(&to),
-                   sizeof to) == static_cast<ssize_t>(kCmdLen)) {
-            ++sent;
-        }
-    }
-
-    // Drain to the freshest beacon; never queue up.
-    void poll(double now_ms) {
-        uint8_t buf[64];
-        for (;;) {
-            const ssize_t n = recv(rx, buf, sizeof buf, MSG_DONTWAIT);
-            if (n < 0) break;
-            Telemetry t = {};
-            if (decodeTelemetry(buf, static_cast<size_t>(n), t) != Err::kOk) {
-                ++tlm_bad;
-                continue;
-            }
-            tlm = t;
-            have_tlm = true;
-            tlm_at_ms = now_ms;
-            ++tlm_count;
-            ++rate_window;
-        }
-        if (now_ms - rate_at_ms >= 1000.0) {
-            rate_hz = static_cast<double>(rate_window) * 1000.0 /
-                      (now_ms - rate_at_ms);
-            rate_window = 0;
-            rate_at_ms = now_ms;
-        }
-    }
-
-    double tlmAgeMs(double now_ms) const {
-        return have_tlm ? now_ms - tlm_at_ms : -1.0;
-    }
-};
-
-// -- the operator's intent --------------------------------------------------
-struct Console {
-    bool armed = false;
-    bool estop = false;
-    Motion motion = Motion::kNone;
-    double held_until_ms = 0.0;
-    double armed_at_ms = 0.0;
-    char note[160] = "";
-
-    // Key-repeat measurement, so --hold-ms is set from evidence.
+// -- the terminal's fake dead-man -------------------------------------------
+// One axis at a time (a terminal delivers one key at a time), expiring
+// --hold-ms after the last auto-repeat.
+struct Hold {
+    int axis = -1;                       // -1 = standing
+    double until_ms = 0.0;
     bool key_down = false;
     double press_at_ms = 0.0, last_key_ms = 0.0;
     double initial_delay_ms = -1.0, repeat_gap_ms = -1.0;
 
-    void say(const char* s) {
-        strncpy(note, s, sizeof note - 1);
-        note[sizeof note - 1] = 0;
-    }
-
-    void motionKey(Motion m, double now_ms, double hold_ms) {
-        if (!armed) { say("not armed -- press [a] first"); return; }
-        if (estop) { say("E-STOP latched -- [space] to stand, then move"); return; }
-        if (key_down && m == motion) {
+    void key(Intent& in, int ax, double now_ms, double hold_ms) {
+        in.releaseAll();
+        if (!in.press(ax, now_ms)) {     // refused: not armed, or E-stopped
+            axis = -1;
+            key_down = false;
+            return;
+        }
+        if (key_down && ax == axis) {
             const double gap = now_ms - last_key_ms;
             if (initial_delay_ms < 0.0) initial_delay_ms = now_ms - press_at_ms;
             else repeat_gap_ms = gap;
@@ -229,40 +113,21 @@ struct Console {
         }
         key_down = true;
         last_key_ms = now_ms;
-        motion = m;
-        held_until_ms = now_ms + hold_ms;
+        axis = ax;
+        until_ms = now_ms + hold_ms;
     }
 
-    void stand(const char* why) {
-        motion = Motion::kNone;
-        key_down = false;
-        if (estop) { estop = false; say("E-stop cleared: standing"); }
-        else if (why) say(why);
-    }
-
-    void tick(double now_ms) {
-        if (motion != Motion::kNone && now_ms >= held_until_ms) {
-            motion = Motion::kNone;
+    void tick(Intent& in, double now_ms) {
+        if (axis >= 0 && now_ms >= until_ms) {
+            in.releaseAll();
+            axis = -1;
             key_down = false;
         }
     }
 
-    // What goes on the wire this tick.
-    void frame(const Options& o, float& vx, float& wz, uint8_t& flags) const {
-        vx = 0.0f;
-        wz = 0.0f;
-        flags = 0;
-        if (armed) flags |= kFlagArm;
-        if (estop) { flags |= kFlagEstop; return; }
-        if (!armed || motion == Motion::kNone) return;
-        flags |= kFlagEnable;
-        switch (motion) {
-            case Motion::kForward: vx = static_cast<float>(o.vx); break;
-            case Motion::kBackward: vx = -static_cast<float>(o.vx); break;
-            case Motion::kLeft: wz = static_cast<float>(o.wz); break;
-            case Motion::kRight: wz = -static_cast<float>(o.wz); break;
-            case Motion::kNone: break;
-        }
+    void clear() {
+        axis = -1;
+        key_down = false;
     }
 };
 
@@ -273,22 +138,22 @@ void flagsText(uint8_t f, char* out, size_t cap) {
              f ? "" : "(none)");
 }
 
-void draw(const Options& o, const Link& link, const Console& c, double now_ms,
-          float vx, float wz, uint8_t flags) {
+void draw(const Options& o, const Link& link, const Intent& in, const Hold& hold,
+          double now_ms, float vx, float wz, uint8_t flags) {
     erase();
     int row = 0;
     mvprintw(row++, 0, "bimo console -> %s:%d   telemetry :%d   %.0f Hz   [q] quit",
-             o.host, o.cmd_port, o.tlm_port, o.rate_hz);
+             o.host, o.cmd_port, o.tlm_port, link.rate_hz);
     mvhline(row++, 0, ACS_HLINE, 78);
 
     const int L = 0, R = 38;
     const int top = row;
     mvprintw(row++, L, "CLIENT");
-    mvprintw(row++, L, "arm      %s", c.armed ? "ARMED" : "disarmed");
-    mvprintw(row++, L, "e-stop   %s", c.estop ? "LATCHED" : "--");
-    if (c.motion != Motion::kNone) {
-        mvprintw(row++, L, "motion   %-10s (hold %.2f s left)", motionName(c.motion),
-                 (c.held_until_ms - now_ms) / 1000.0);
+    mvprintw(row++, L, "arm      %s", in.armed ? "ARMED" : "disarmed");
+    mvprintw(row++, L, "e-stop   %s", in.estop ? "LATCHED" : "--");
+    if (hold.axis >= 0) {
+        mvprintw(row++, L, "motion   %-10s (hold %.2f s left)",
+                 bimo::axisName(hold.axis), (hold.until_ms - now_ms) / 1000.0);
     } else {
         mvprintw(row++, L, "motion   stand");
     }
@@ -303,14 +168,14 @@ void draw(const Options& o, const Link& link, const Console& c, double now_ms,
     const double age = link.tlmAgeMs(now_ms);
     if (!link.have_tlm) {
         mvprintw(row++, R, "ROBOT   (no telemetry yet)");
-    } else if (age > kTlmLostMs) {
+    } else if (age > bimo::kTlmLostMs) {
         mvprintw(row++, R, "ROBOT   LINK LOST  (last beacon %.1f s ago)", age / 1000.0);
     } else {
         mvprintw(row++, R, "ROBOT   beacon %.0f ms ago, %.1f Hz", age, link.rate_hz);
     }
     if (link.have_tlm) {
         const Telemetry& t = link.tlm;
-        mvprintw(row++, R, "state    %s", stateName(t.state));
+        mvprintw(row++, R, "state    %s", bimo::stateName(t.state));
         mvprintw(row++, R, "vbat     %.2f V", static_cast<double>(t.vbat_v));
         mvprintw(row++, R, "up_z     %.2f", static_cast<double>(t.up_z));
         mvprintw(row++, R, "vx_est   %+.2f m/s   wz_est %+.2f rad/s",
@@ -332,22 +197,19 @@ void draw(const Options& o, const Link& link, const Console& c, double now_ms,
                      telemetryDiag(t), link.tlm_count, link.tlm_bad);
         } else {
             mvprintw(row++, R, "seq_echo %u  (lag %ld)  beacons %u bad %u",
-                     t.seq_echo,
-                     static_cast<long>(link.seq) - 1 -
-                         static_cast<long>(t.seq_echo),
-                     link.tlm_count, link.tlm_bad);
+                     t.seq_echo, link.lag(), link.tlm_count, link.tlm_bad);
         }
     }
 
     row = top + 9;
     mvhline(row++, 0, ACS_HLINE, 78);
     mvprintw(row++, 0, "[a] arm/disarm   [up/down] walk %.2f m/s   [left/right] turn %.2f rad/s",
-             o.vx, o.wz);
+             static_cast<double>(o.speeds.vx), static_cast<double>(o.speeds.wz));
     mvprintw(row++, 0, "[space] stand    [e] E-STOP        hold timeout %.0f ms", o.hold_ms);
-    if (c.initial_delay_ms >= 0.0) {
+    if (hold.initial_delay_ms >= 0.0) {
         mvprintw(row++, 0, "key repeat: initial delay %.0f ms, repeat every %.0f ms%s",
-                 c.initial_delay_ms, c.repeat_gap_ms,
-                 c.initial_delay_ms >= o.hold_ms
+                 hold.initial_delay_ms, hold.repeat_gap_ms,
+                 hold.initial_delay_ms >= o.hold_ms
                      ? "  -- LONGER than hold: raise --hold-ms" : "");
     } else {
         mvprintw(row++, 0, "key repeat: not measured yet (hold a motion key)");
@@ -357,10 +219,10 @@ void draw(const Options& o, const Link& link, const Console& c, double now_ms,
     // on an uncalibrated robot should read "arming will be REFUSED" before
     // anyone presses [a], instead of after a silent 1.5 s.
     if (link.have_tlm && link.tlm.state == LinkState::kBench &&
-        link.tlmAgeMs(now_ms) < kTlmLostMs) {
+        !link.linkLost(now_ms)) {
         mvprintw(row++, 0, "BENCH: %s", diagReason(telemetryDiag(link.tlm)));
     }
-    if (c.note[0]) mvprintw(row++, 0, "%s", c.note);
+    if (in.note[0]) mvprintw(row++, 0, "%s", in.note);
     refresh();
 }
 
@@ -373,7 +235,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     Link link;
-    if (!link.open(o)) {
+    if (!link.open(o.host, o.cmd_port, o.tlm_port)) {
         fprintf(stderr, "link: %s (host %s, tlm port %d)\n", strerror(errno),
                 o.host, o.tlm_port);
         return 1;
@@ -401,7 +263,8 @@ int main(int argc, char** argv) {
     define_key("\033OD", KEY_LEFT);
     define_key("\033OC", KEY_RIGHT);
 
-    Console c;
+    Intent in;
+    Hold hold;
     const double period_ms = 1000.0 / o.rate_hz;
     double next_ms = nowMs();
     bool quit = false;
@@ -414,55 +277,41 @@ int main(int argc, char** argv) {
             switch (ch) {
                 case 'q': quit = true; break;
                 case 'a':
-                    if (c.armed) {
-                        c.armed = false;
-                        c.stand(nullptr);
-                        c.say("disarm sent: robot benches, torque off");
-                    } else {
-                        c.armed = true;
-                        c.estop = false;
-                        c.armed_at_ms = now_ms;
-                        c.say("arm sent: waiting for the robot to leave BENCH");
-                    }
+                    hold.clear();
+                    in.toggleArm(now_ms);
                     break;
                 case 'e':
-                    c.estop = true;
-                    c.motion = Motion::kNone;
-                    c.key_down = false;
-                    c.say("E-STOP sent (latched until [space])");
+                    hold.clear();
+                    in.fireEstop();
                     break;
-                case ' ': case 's': c.stand("stand"); break;
-                case KEY_UP: c.motionKey(Motion::kForward, now_ms, o.hold_ms); break;
-                case KEY_DOWN: c.motionKey(Motion::kBackward, now_ms, o.hold_ms); break;
-                case KEY_LEFT: c.motionKey(Motion::kLeft, now_ms, o.hold_ms); break;
-                case KEY_RIGHT: c.motionKey(Motion::kRight, now_ms, o.hold_ms); break;
+                case ' ': case 's':
+                    hold.clear();
+                    in.stand("stand");
+                    break;
+                case KEY_UP: hold.key(in, bimo::kAxForward, now_ms, o.hold_ms); break;
+                case KEY_DOWN: hold.key(in, bimo::kAxBack, now_ms, o.hold_ms); break;
+                // Left/right TURN on the terminal: with one key at a time and
+                // no key-up, yaw is the more useful of the two. The window
+                // client puts strafe here and turn on PgUp/PgDn.
+                case KEY_LEFT: hold.key(in, bimo::kAxTurnLeft, now_ms, o.hold_ms); break;
+                case KEY_RIGHT: hold.key(in, bimo::kAxTurnRight, now_ms, o.hold_ms); break;
                 default: break;
             }
         }
-        c.tick(now_ms);
+        hold.tick(in, now_ms);
 
         link.poll(now_ms);
         // The robot decides its mode. Armed here but BENCH there, after the
         // edge has had time to land: refused (no calibration in NVS) or the
         // robot rebooted under us. Either way, this console is wrong.
-        if (c.armed && link.have_tlm && link.tlmAgeMs(now_ms) < kTlmLostMs &&
-            link.tlm.state == LinkState::kBench &&
-            now_ms - c.armed_at_ms > kArmSyncMs) {
-            c.armed = false;
-            c.stand(nullptr);
-            // The robot now says WHY (protocol.h kDiag*), so quote it instead
-            // of guessing at "no calibration?" the way this line used to.
-            char msg[sizeof c.note];
-            snprintf(msg, sizeof msg, "robot stayed BENCH after arm: %s",
-                     diagReason(telemetryDiag(link.tlm)));
-            c.say(msg);
-        }
+        if (in.syncToRobot(link, now_ms)) hold.clear();
 
-        float vx, wz;
+        float vx, vy, wz;
+        bimo::Ext ext;
         uint8_t flags;
-        c.frame(o, vx, wz, flags);
-        link.send(vx, wz, flags);
-        draw(o, link, c, now_ms, vx, wz, flags);
+        bimo::sendIntent(link, in, o.speeds, vx, vy, wz, ext, flags);
+        (void)vy;                        // the terminal client never strafes
+        draw(o, link, in, hold, now_ms, vx, wz, flags);
 
         next_ms += period_ms;
         const double sleep_ms = next_ms - nowMs();

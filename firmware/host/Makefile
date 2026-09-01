@@ -55,7 +55,7 @@ SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 SRC_FUSION= $(COMPONENTS)/imu/imu.cpp $(COMPONENTS)/imu/fusion.cpp
 
 TESTS = test_protocol test_scsbus test_obs test_policy test_battguard \
-        test_fusion test_obsdump test_sil test_sil_golden
+        test_fusion test_obsdump test_sil test_sil_golden test_client
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
 
 # The software-in-the-loop library (docs/sil-harness.md): the same component
@@ -65,16 +65,94 @@ SRC_SIL   = sil_lib.cpp sil_net.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp
 
-.PHONY: all test clean vectors sil tui
+.PHONY: all test clean vectors sil tui gui deps
 all: $(BINS) $(SIL_LIB)
+
+# The two operator clients share one core (link/client.cpp): the sockets, the
+# 7-wide intent, the arm-sync rule and the short-vs-long frame decision. Only
+# the front end differs -- ncurses in tui.cpp, Dear ImGui in gui.cpp -- so the
+# two consoles cannot drift about what a keypress puts on the wire.
+SRC_CLIENT = ../../link/client.cpp
+CLIENT_HDRS= ../../link/client.h
+GUI_HDRS   = $(CLIENT_HDRS) ../../link/keymap.h ../../link/recorder.h \
+             ../../link/mjpeg.h ../../link/simproc.h
 
 # The operator's console (link/tui.cpp): the firmware's own linkproto
 # sources plus ncurses, no sanitizers (it is a tool, not a test), exceptions
 # off like the firmware. `make -C firmware/host tui`.
 TUI = $(BUILD)/bimo_tui
 tui: $(TUI)
-$(TUI): ../../link/tui.cpp $(SRC_LINK) $(COMP_HDRS) | $(BUILD)
+$(TUI): ../../link/tui.cpp $(SRC_CLIENT) $(SRC_LINK) $(CLIENT_HDRS) \
+        $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(CXXFLAGS_NOSAN) $(filter %.cpp,$^) -o $@ -lncurses
+
+# -- the window (link/gui.cpp) ---------------------------------------------
+# Dear ImGui is not vendored: `make deps` fetches a PINNED tarball into a
+# gitignored third_party/, the way sim/runs and the .silw weights are fetched
+# or regenerated rather than committed. The repo stays first-party source.
+THIRD     = ../../third_party
+IMGUI     = $(THIRD)/imgui
+IMGUI_VER = v1.92.9b
+IMGUI_SHA = 21d8a0a565e85dce943e375db00812c2f3f0ab21f3f0f7964e364a63422d7f99
+# stb_image decodes the sim's MJPEG frames; pinned by commit, not by branch.
+STB_REV   = 2c980bb59875b0d32144a71867fbdebb2f77cd20
+STB_SHA   = 594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
+
+deps: $(IMGUI)/imgui.cpp $(THIRD)/stb_image.h
+
+$(IMGUI)/imgui.cpp:
+	@mkdir -p $(THIRD)
+	curl -sSL -o $(THIRD)/imgui.tgz \
+	  https://github.com/ocornut/imgui/archive/refs/tags/$(IMGUI_VER).tar.gz
+	@echo "$(IMGUI_SHA)  $(THIRD)/imgui.tgz" | shasum -a 256 -c -
+	tar xzf $(THIRD)/imgui.tgz -C $(THIRD)
+	rm -rf $(IMGUI) && mv $(THIRD)/imgui-$(IMGUI_VER:v%=%) $(IMGUI)
+	rm -f $(THIRD)/imgui.tgz
+
+$(THIRD)/stb_image.h:
+	@mkdir -p $(THIRD)
+	curl -sSL -o $@ \
+	  https://raw.githubusercontent.com/nothings/stb/$(STB_REV)/stb_image.h
+	@echo "$(STB_SHA)  $@" | shasum -a 256 -c -
+
+# Homebrew's GLFW. macOS still ships OpenGL.framework (deprecated since 10.14,
+# hence the silence flag); ImGui's GL3 backend only needs 3.2 core.
+BREW      = $(shell brew --prefix 2>/dev/null || echo /opt/homebrew)
+GUI_LIBS  = -L$(BREW)/lib -lglfw -lpthread -framework OpenGL \
+            -framework Cocoa -framework IOKit -framework CoreVideo
+GUI_INC   = -I$(BREW)/include -I$(IMGUI) -I$(IMGUI)/backends -I$(THIRD)
+GUI_DEFS  = -DGL_SILENCE_DEPRECATION
+
+# Third-party sources cannot survive -Werror -Wconversion -Wshadow, so they
+# are compiled to objects of their own with warnings off. Ours are not.
+IMGUI_SRC = $(IMGUI)/imgui.cpp $(IMGUI)/imgui_draw.cpp \
+            $(IMGUI)/imgui_tables.cpp $(IMGUI)/imgui_widgets.cpp \
+            $(IMGUI)/backends/imgui_impl_glfw.cpp \
+            $(IMGUI)/backends/imgui_impl_opengl3.cpp
+IMGUI_OBJ = $(patsubst $(IMGUI)/%.cpp,$(BUILD)/imgui/%.o,$(IMGUI_SRC)) \
+            $(BUILD)/imgui/stb_impl.o
+
+$(BUILD)/imgui/%.o: $(IMGUI)/%.cpp | $(IMGUI)/imgui.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) -std=c++17 -O1 -w -fno-exceptions -fno-rtti $(GUI_INC) $(GUI_DEFS) \
+	       -c $< -o $@
+
+# link/stb_impl.cpp is the single instantiation of stb_image; it is ours, but
+# it #includes a vendored single-header library, so it is built like one.
+$(BUILD)/imgui/stb_impl.o: ../../link/stb_impl.cpp ../../link/jpeg.h \
+                           $(THIRD)/stb_image.h
+	@mkdir -p $(dir $@)
+	$(CXX) -std=c++17 -O1 -w -fno-exceptions -fno-rtti $(GUI_INC) $(GUI_DEFS) \
+	       -c $< -o $@
+
+GUI = $(BUILD)/bimo_gui
+gui: $(GUI)
+$(GUI): ../../link/gui.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
+        ../../link/recorder.cpp ../../link/mjpeg.cpp ../../link/simproc.cpp \
+        $(SRC_LINK) $(GUI_HDRS) ../../link/jpeg.h $(COMP_HDRS) \
+        $(IMGUI_OBJ) | $(BUILD)
+	$(CXX) $(CXXFLAGS_NOSAN) $(GUI_INC) $(GUI_DEFS) \
+	       $(filter %.cpp,$^) $(IMGUI_OBJ) -o $@ $(GUI_LIBS)
 
 # The test sources use std::vector (FakePort's script), so exceptions are left
 # on for the test translation units only -- the firmware sources themselves are
@@ -93,6 +171,15 @@ COMP_HDRS = $(wildcard $(COMPONENTS)/*/include/*/*.h)
 $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
                         vectors/protocol_vectors.h test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+# The console core: link/client.cpp's intent and frame-length rule, the
+# keymap file format, and the MJPEG stream parser -- the parts of an
+# operator's console that have no screen in them. Sanitizers ON here, unlike
+# the tools that link the same sources.
+$(BUILD)/test_client: test_client.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
+                      ../../link/mjpeg.cpp $(SRC_LINK) $(GUI_HDRS) \
+                      test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) -I../../link $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_scsbus: test_scsbus.cpp $(SRC_SCS) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)

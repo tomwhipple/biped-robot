@@ -265,6 +265,33 @@ another commander is a class in `link/sources.py`, not a firmware change.
   the last repeat, and the console measures the terminal's repeat delay on
   screen so that number is set from evidence. Exercised end to end by
   `tests/test_tui_e2e.py` against `link/link_twin.py`, the plant-free twin.
+- **`bimo_gui`** (`link/gui.cpp`) — the windowed console (Dear ImGui + GLFW;
+  `brew install glfw && make -C firmware/host deps gui`). Everything about
+  arming, the E-stop latch and the frame that goes out at 20 Hz is *shared*
+  with `bimo_tui` in `link/client.h`, so the two consoles cannot disagree
+  about what a keypress puts on the wire. What a window buys, and a terminal
+  cannot:
+  - **A real dead-man.** True key-release, so `--hold-ms` is gone: letting go
+    stands the robot on the very next frame, and so does clicking away from
+    the window. That last one is the only new failure mode a window
+    introduces, and it is handled explicitly.
+  - **The extended channels.** `crouch` / `lift` / `foot_dx` / `foot_dz` are
+    sliders — the only commander that reaches them. Off their defaults the
+    frame becomes 24 B, which is drawn on screen, because firmware older than
+    2026-08-31 drops a long frame by length.
+  - **Telemetry as a shape.** 30-second strip charts of `vbat`, `up_z` and
+    each commanded channel against its estimate.
+  - **The sim, in the window.** The SIM panel starts `sim/sil_twin.py` and
+    draws its MJPEG view, so a policy can be flown before it is flown.
+
+  Keys default to arrows *translating* on the surface (`up`/`down` = `vx`,
+  `left`/`right` = `vy` strafe) and `PgUp`/`PgDn` *rotating*, differing from
+  the console because a window can hold two at once. Every action is also a
+  button labelled with its binding, and every binding is rebindable in-app
+  (`~/.bimo/keymap.conf`). `--headless` runs the identical link loop with no
+  window, taking `press forward` / `release forward` / `set crouch 0.8` on
+  stdin; that is what `tests/test_gui_e2e.py` drives, and what makes the
+  client testable in CI. Sessions record to `hw_sessions/*.jsonl`.
 - **`script`** — time-scripted sequences (`walk`, `dash_stop`, `line_1m`,
   `turn`, `pivot`, `square`). The on-hardware twin of `sim/eval_commands.py`,
   so a real run and a sim eval are the same shape of test. Never sets `ARM`:

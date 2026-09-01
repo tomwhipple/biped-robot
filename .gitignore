@@ -48,3 +48,7 @@ cad/gcode/
 # flattened OrcaSlicer presets, rebuilt from the installed flatpak on demand
 cad/print_profiles/
 hw_sessions/
+
+# Fetched C++ deps for bimo_gui (make -C firmware/host deps) -- pinned, never
+# committed: the repo stays first-party source.
+third_party/
