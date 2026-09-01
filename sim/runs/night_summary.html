@@ -44,6 +44,10 @@ a { color:var(--accent); }
 figure { margin:0; }
 .film { width:100%; display:block; border:1px solid var(--border); border-radius:10px;
   background:var(--panel2); }
+video.film { background:#0b0d10; }
+.vidgrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px;
+  margin:20px 0 6px; }
+@media (max-width:680px) { .vidgrid { grid-template-columns:1fr; } }
 figcaption { font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:9px;
   letter-spacing:.02em; }
 .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:26px 0 4px; }
@@ -120,6 +124,46 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     the deploy line and v25full retires to reference. Note: the SIL
     clock gate was corrected again (8002802) — SIL numbers from before
     08·31 need re-refereeing before deploy comparisons.</p>
+  </div>
+
+
+  <h2><span class="n">00</span> Watch the current policies</h2>
+  <p class="muted" style="font-size:14.5px">Referee reels, cut to the
+  scenarios each run is judged on — seed 1 of 8 in every case, the same take
+  the scorecard grades, PASS/FAIL and headline burned into the frame. Clips
+  live in <code>sim/runs/_clips/</code> next to this page; full reels are the
+  <code>&lt;run&gt;.mov</code> in each run directory.</p>
+  <div class="vidgrid">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v26lag_walk.jpg" src="_clips/v26lag_walk.mp4"></video>
+      <figcaption><b>loco_v26lag_s128</b> · deployed student (128,128) · the walking block<br>line_1m 6/8 · backward_1m 5/8 · sidestep_L 8/8 · sidestep_R 7/8
+        · seed 1/8 takes, verdict burned in · 43s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v26lag_turn_stand.jpg" src="_clips/v26lag_turn_stand.mp4"></video>
+      <figcaption><b>loco_v26lag_s128</b> · the same student turning, homing, and holding a torque-off stand<br>turn_180 5/8 · goal_home 8/8 · stand_off 7/8
+        · seed 1/8 takes, verdict burned in · 36s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v25full_c_walk.jpg" src="_clips/v25full_c_walk.mp4"></video>
+      <figcaption><b>loco_v25full_c</b> · best card on record (96/144), from-scratch line · the walking block<br>line_1m 5/8 · backward_1m 7/8 · sidestep_L 8/8 · sidestep_R 8/8
+        · seed 1/8 takes, verdict burned in · 43s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v25full_c_turn.jpg" src="_clips/v25full_c_turn.mp4"></video>
+      <figcaption><b>loco_v25full_c</b> · turn-180 at 6 deg heading error, then goal-home<br>turn_180 8/8 · goal_home 7/8
+        · seed 1/8 takes, verdict burned in · 28s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v26servo_fail.jpg" src="_clips/v26servo_fail.mp4"></video>
+      <figcaption><b>loco_v26servo</b> · the act-lag negative (10/144) failing under its own trained conditions<br>line_1m 0/8 · push_gauntlet 0/8
+        · seed 1/8 takes, verdict burned in · 23s</figcaption>
+    </figure>
   </div>
 
   <div class="card accent">
@@ -703,7 +747,10 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
 
   <hr class="rule">
   <p class="muted" style="font-size:14px">Every animation also exists as .mov/.mp4 next
-  to its gif (macOS Preview doesn't animate gifs). Reproduce the headline:
+  to its gif (macOS Preview doesn't animate gifs); the embedded clips above are
+  cut from those reels into <code>sim/runs/_clips/</code> by
+  <code>sim/build_report.py</code> — keep the folder beside the page when you
+  copy it. Reproduce the headline:
   <code>cd sim &amp;&amp; python mjx/eval_ref.py --run mjx_cmd_v1 --video</code>
   · CPU-era policies: <code>python eval_policy.py --run-name dash_11v1_hard --render</code>
   · full write-up in <code>DESIGN.md</code> · CAD in <code>cad/</code>.</p>

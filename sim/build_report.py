@@ -3,10 +3,14 @@
 Run:  .venv/bin/python sim/build_report.py
 Needs: gifs under sim/runs/<run>/ and cad/renders/ (regenerate the CAD images
 with cad/render_assembly.py and cad/animate_assembly.py).
-The page is self-contained (base64 images) and is what gets published as the
-claude.ai artifact after each training round.
+Images are inlined (base64); the referee REELS are not -- a 70 MB .mov does
+not belong in a data: URI, so build_report cuts small web-playable .mp4 clips
+into runs/_clips/ and the page points at them with relative paths. Keep the
+page and that folder together (both live under sim/runs/, which is how Tom
+opens it over the SMB mount).
 """
-import os, base64, io
+import json
+import os, base64, io, subprocess, tempfile
 import numpy as np
 import imageio.v2 as imageio
 
@@ -51,6 +55,175 @@ def strip_from_mov(path, t0, t1, n=8, factor=4):
     strip = np.concatenate(frames, axis=1)
     return strip[::factor, ::factor]
 
+# ---------------------------------------------------------------------------
+#  referee reels -> embedded clips
+#
+#  A run's reel is every scenario's seed-0 take back to back in scorecard
+#  order (eval_precision.py --render). Two things make watchable embeds out
+#  of it: knowing where each scenario starts, and re-encoding the wanted
+#  scenarios small enough to sit in a web page.
+# ---------------------------------------------------------------------------
+CLIP_DIR = 'runs/_clips'          # gitignored with the rest of runs/
+CLIP_W = 520                      # clip width in px (source reels are 640)
+CLIP_CRF = 30
+
+
+def run_mov(run):
+    return os.path.join('runs', run, f'{run}.mov')
+
+
+def reel_chapters(run):
+    """[{scenario, start, end}] for runs/<run>/<run>.mov, in reel order.
+
+    eval_precision.py writes reel_index.json alongside new reels. Older reels
+    predate it, so we recover the chapters from the movie itself: the caption
+    bar (top 44 px: scenario + verdict + headline) is identical for every
+    frame of a take and changes only at a take boundary, so a downscaled
+    top-band diff gives exact cut points. The result is cached in the same
+    reel_index.json, so the scan happens once per reel.
+    """
+    mov = run_mov(run)
+    idx_path = os.path.join('runs', run, 'reel_index.json')
+    if os.path.exists(idx_path) and os.path.exists(mov) and \
+            os.path.getmtime(idx_path) >= os.path.getmtime(mov):
+        with open(idx_path) as f:
+            return json.load(f)['chapters']
+    if not os.path.exists(mov):
+        print(f"build_report: missing {mov}, no clips from it")
+        return []
+
+    W, H, FPS = 160, 11, 20
+    band = subprocess.run(
+        ['ffmpeg', '-v', 'error', '-i', mov,
+         '-vf', f'crop=in_w:44:0:0,scale={W}:{H}',
+         '-f', 'rawvideo', '-pix_fmt', 'gray', '-'],
+        capture_output=True, check=True).stdout
+    a = np.frombuffer(band, np.uint8)
+    n = a.size // (W * H)
+    a = a[:n * W * H].reshape(n, W * H).astype(np.int16)
+    cuts = [0] + [int(i) + 1 for i in
+                  np.flatnonzero(np.abs(np.diff(a, axis=0)).max(axis=1) > 10)]
+    cuts.append(n)
+
+    # name the chapters from the scorecard: same suite, same order
+    names = []
+    sc_path = os.path.join('runs', run, 'scorecard.json')
+    if os.path.exists(sc_path):
+        with open(sc_path) as f:
+            names = [k for k in json.load(f) if k != 'summary']
+    chapters = []
+    for i, (a0, a1) in enumerate(zip(cuts[:-1], cuts[1:])):
+        name = names[i] if i < len(names) else f'take{i + 1}'
+        chapters.append(dict(scenario=name, frames=a1 - a0,
+                             start=round(a0 / FPS, 3), end=round(a1 / FPS, 3)))
+    if len(chapters) != len(names):
+        # take count and scorecard disagree (partial render, --scenarios
+        # subset): the times are still right, the names are not -- say so
+        # rather than mislabel a take.
+        print(f"build_report: {run} reel has {len(chapters)} takes but "
+              f"{len(names)} scored scenarios; chapter names unreliable")
+        for i, ch in enumerate(chapters):
+            ch['scenario'] = f'take{i + 1}'
+    with open(idx_path, 'w') as f:
+        json.dump(dict(movie=os.path.basename(mov), fps=FPS,
+                       source='caption-scan', chapters=chapters), f, indent=1)
+    print(f"build_report: scanned {run} reel -> {len(chapters)} chapters")
+    return chapters
+
+
+def _encode(mov, t0, t1, out):
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error',
+                    '-ss', f'{t0:.2f}', '-to', f'{t1:.2f}', '-i', mov,
+                    '-vf', f'scale={CLIP_W}:-2', '-an',
+                    '-c:v', 'libx264', '-crf', str(CLIP_CRF),
+                    '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
+                    '-movflags', '+faststart', out], check=True)
+
+
+def clip_from_reel(run, scenarios, name):
+    """Cut `scenarios` out of run's reel into runs/_clips/<name>.mp4.
+
+    Returns (src, poster, seconds) relative to the page, or (None, None, 0)
+    when the reel isn't on this machine. Non-adjacent scenarios are encoded
+    separately and concatenated, so a clip can be "the turns and the stand"
+    without dragging the six takes in between along.
+    """
+    mov = run_mov(run)
+    chapters = reel_chapters(run)
+    if not chapters:
+        return None, None, 0.0
+    have = {c['scenario'] for c in chapters}
+    missing = [s for s in scenarios if s not in have]
+    if missing:
+        print(f"build_report: {run} reel has no take for {missing}")
+    picked = [c for c in chapters if c['scenario'] in set(scenarios)]
+    if not picked:
+        return None, None, 0.0
+    # merge adjacent takes into one seek range
+    spans = []
+    for c in picked:
+        if spans and abs(spans[-1][1] - c['start']) < 1e-6:
+            spans[-1][1] = c['end']
+        else:
+            spans.append([c['start'], c['end']])
+    secs = sum(b - a for a, b in spans)
+
+    os.makedirs(CLIP_DIR, exist_ok=True)
+    out = os.path.join(CLIP_DIR, f'{name}.mp4')
+    poster = os.path.join(CLIP_DIR, f'{name}.jpg')
+    fresh = (os.path.exists(out) and os.path.exists(poster)
+             and os.path.getmtime(out) >= os.path.getmtime(mov))
+    if not fresh:
+        if len(spans) == 1:
+            _encode(mov, spans[0][0], spans[0][1], out)
+        else:
+            with tempfile.TemporaryDirectory() as td:
+                parts = []
+                for i, (a, b) in enumerate(spans):
+                    part = os.path.join(td, f'{i}.mp4')
+                    _encode(mov, a, b, part)
+                    parts.append(part)
+                lst = os.path.join(td, 'list.txt')
+                with open(lst, 'w') as f:
+                    f.write(''.join(f"file '{q}'\n" for q in parts))
+                subprocess.run(['ffmpeg', '-y', '-loglevel', 'error',
+                                '-f', 'concat', '-safe', '0', '-i', lst,
+                                '-c', 'copy', '-movflags', '+faststart',
+                                out], check=True)
+        subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', '0.5',
+                        '-i', out, '-frames:v', '1', poster], check=True)
+        print(f"clip {name}: {secs:.0f}s, "
+              f"{os.path.getsize(out) // 1024} KB")
+    return (os.path.relpath(out, 'runs'), os.path.relpath(poster, 'runs'),
+            secs)
+
+
+def scored(run, scenarios):
+    """'line_1m 6/8 · turn_180 5/8' -- pass counts straight from the card, so
+    a clip's caption can never flatter the take it shows."""
+    sc_path = os.path.join('runs', run, 'scorecard.json')
+    if not os.path.exists(sc_path):
+        return ''
+    with open(sc_path) as f:
+        sc = json.load(f)
+    bits = [f"{s} {sc[s]['successes']}/{sc[s]['n']}"
+            for s in scenarios if s in sc]
+    return ' · '.join(bits)
+
+
+def video_figure(run, scenarios, name, blurb):
+    """<figure> with a playable clip, or '' when the reel isn't here."""
+    src, poster, secs = clip_from_reel(run, scenarios, name)
+    if not src:
+        return ''
+    return f"""<figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="{poster}" src="{src}"></video>
+      <figcaption><b>{run}</b> · {blurb}<br>{scored(run, scenarios)}
+        · seed 1/8 takes, verdict burned in · {secs:.0f}s</figcaption>
+    </figure>"""
+
+
 hero    = to_data_uri(strip_from_gif('runs/dash_11v1_hard/dash.gif'))
 dash7   = to_data_uri(strip_from_gif('runs/dash_7v4_hard/dash.gif'))
 stride  = to_data_uri(strip_from_gif('runs/terrain_v4/walk.gif'))
@@ -86,6 +259,43 @@ v21_walk = to_data_uri(strip_from_mov('runs/loco_v21sched/loco_v21sched.mov',
                                       2, 55, factor=5))
 v20_all  = to_data_uri(strip_from_mov('runs/loco_v20mirror/loco_v20mirror.mov',
                                       60, 205, n=8, factor=5))
+
+# The reels worth watching right now: the policy the robot is actually
+# running, the best policy in sim, and the night's negative result. Each
+# night's update swaps the run names here; everything else follows from the
+# scorecard (see the WATCH section in the page below).
+WATCH = [
+    ('loco_v26lag_s128',
+     ['line_1m', 'backward_1m', 'sidestep_L', 'sidestep_R'],
+     'v26lag_walk',
+     'deployed student (128,128) · the walking block'),
+    ('loco_v26lag_s128', ['turn_180', 'goal_home', 'stand_off'],
+     'v26lag_turn_stand',
+     'the same student turning, homing, and holding a torque-off stand'),
+    ('loco_v25full_c',
+     ['line_1m', 'backward_1m', 'sidestep_L', 'sidestep_R'],
+     'v25full_c_walk',
+     'best card on record (96/144), from-scratch line · the walking block'),
+    ('loco_v25full_c', ['turn_180', 'goal_home'],
+     'v25full_c_turn',
+     'turn-180 at 6 deg heading error, then goal-home'),
+    ('loco_v26servo', ['line_1m', 'push_gauntlet'],
+     'v26servo_fail',
+     'the act-lag negative (10/144) failing under its own trained conditions'),
+]
+watch_figs = [video_figure(*w) for w in WATCH]
+watch_grid = "\n    ".join(f for f in watch_figs if f)
+watch_html = f"""
+  <h2><span class="n">00</span> Watch the current policies</h2>
+  <p class="muted" style="font-size:14.5px">Referee reels, cut to the
+  scenarios each run is judged on — seed 1 of 8 in every case, the same take
+  the scorecard grades, PASS/FAIL and headline burned into the frame. Clips
+  live in <code>sim/runs/_clips/</code> next to this page; full reels are the
+  <code>&lt;run&gt;.mov</code> in each run directory.</p>
+  <div class="vidgrid">
+    {watch_grid}
+  </div>
+""" if watch_grid else ""
 
 n_runs = len([d for d in os.listdir('runs')
               if os.path.exists(os.path.join('runs', d, 'model.zip'))])
@@ -143,6 +353,10 @@ a {{ color:var(--accent); }}
 figure {{ margin:0; }}
 .film {{ width:100%; display:block; border:1px solid var(--border); border-radius:10px;
   background:var(--panel2); }}
+video.film {{ background:#0b0d10; }}
+.vidgrid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px;
+  margin:20px 0 6px; }}
+@media (max-width:680px) {{ .vidgrid {{ grid-template-columns:1fr; }} }}
 figcaption {{ font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:9px;
   letter-spacing:.02em; }}
 .kpis {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:26px 0 4px; }}
@@ -221,6 +435,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     08·31 need re-refereeing before deploy comparisons.</p>
   </div>
 
+{watch_html}
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·08·31</span></p>
     <p><b>New all-time best — and it's the from-scratch line.</b>
@@ -802,7 +1017,10 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
   <hr class="rule">
   <p class="muted" style="font-size:14px">Every animation also exists as .mov/.mp4 next
-  to its gif (macOS Preview doesn't animate gifs). Reproduce the headline:
+  to its gif (macOS Preview doesn't animate gifs); the embedded clips above are
+  cut from those reels into <code>sim/runs/_clips/</code> by
+  <code>sim/build_report.py</code> — keep the folder beside the page when you
+  copy it. Reproduce the headline:
   <code>cd sim &amp;&amp; python mjx/eval_ref.py --run mjx_cmd_v1 --video</code>
   · CPU-era policies: <code>python eval_policy.py --run-name dash_11v1_hard --render</code>
   · full write-up in <code>DESIGN.md</code> · CAD in <code>cad/</code>.</p>

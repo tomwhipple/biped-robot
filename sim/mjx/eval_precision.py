@@ -61,6 +61,7 @@ from brax.training.agents.ppo import networks as ppo_networks
 from walker_env import BimoWalkerEnv
 
 G = 9.81
+MOV_FPS = 20          # referee reel playback rate (see reel_index.json)
 _ENV_PARAMS = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
 
 
@@ -1847,6 +1848,10 @@ def main():
     scen_all_pass = 0
     md_rows = []
     mov_writer, mov_path = None, None
+    # reel chapter index: the .mov is takes back to back, so build_report
+    # (and anyone slicing a clip out of it) needs to know where each
+    # scenario starts. Written next to the movie as reel_index<suffix>.json.
+    reel_index, reel_frames = [], 0
 
     for name in names:
         secs, factory, is_loco = reg[name]
@@ -1910,15 +1915,26 @@ def main():
                     mov_path = os.path.join(
                         run_dir, f"{args.run_name}{suffix}.mov")
                     mov_writer = imageio.get_writer(
-                        mov_path, fps=20, codec="libx264", quality=8,
+                        mov_path, fps=MOV_FPS, codec="libx264", quality=8,
                         macro_block_size=2)
                 for j, f in enumerate(frames):
                     mov_writer.append_data(caption(
                         f, title, verdict, head0, t=j * frame_dt))
+                reel_index.append(dict(
+                    scenario=name, verdict=verdict, headline=head0,
+                    frames=len(frames),
+                    start=round(reel_frames / MOV_FPS, 3),
+                    end=round((reel_frames + len(frames)) / MOV_FPS, 3)))
+                reel_frames += len(frames)
 
     if mov_writer is not None:
         mov_writer.close()
         print(f"  render -> {mov_path}")
+        idx_path = os.path.join(run_dir, f"reel_index{suffix}.json")
+        with open(idx_path, "w") as f:
+            json.dump(dict(movie=os.path.basename(mov_path), fps=MOV_FPS,
+                           chapters=reel_index), f, indent=1)
+        print(f"  reel index -> {idx_path}")
 
     # summary shared aggregates
     def _m(vals):
