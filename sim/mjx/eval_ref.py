@@ -60,7 +60,9 @@ def load_policy(run_dir):
     rng = jax.random.PRNGKey(0)
 
     def act(obs):
-        a, _ = policy(obs[None].astype(np.float32), rng)
+        nonlocal rng
+        rng, sub = jax.random.split(rng)
+        a, _ = policy(obs[None].astype(np.float32), sub)
         return np.asarray(a[0])
     return act, cfg
 
