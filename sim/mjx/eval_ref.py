@@ -78,6 +78,7 @@ def make_env(cfg, seed_payload=True):
         w_track_v=cfg.get("w_track_v", 2.0),
         w_track_w=cfg.get("w_track_w", 2.0),
         getup=cfg.get("getup", False),
+        getup_start_mix=tuple(cfg.get("getup_start_mix", (1.0, 0.0, 0.0))),
         episode_seconds=cfg.get("episode_seconds", 10.0),
         action_map=cfg.get("action_map", "legacy"),
         hip_flex_deg=cfg.get("hip_flex_deg"),
