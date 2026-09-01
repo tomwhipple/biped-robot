@@ -397,6 +397,10 @@ class BimoWalkerEnv(gym.Env):
         # family): height progress + uprightness + a standing bonus.
         getup: bool = False,
         getup_settle_s: float = 0.4,
+        getup_start_mix: tuple = (1.0, 0.0, 0.0),  # getup reset-state mix:
+        # (ragdoll fall, upright kneel, feet-loaded squat) -- reverse
+        # curriculum, mirrors sim/mjx getup_start_mix. Referee evals keep
+        # (1,0,0) -- the CLAIM is fall recovery.
         w_recover_h: float = 1.0,
         w_recover_up: float = 0.8,
         stand_bonus: float = 1.0,
@@ -494,6 +498,7 @@ class BimoWalkerEnv(gym.Env):
         self.payload_max = payload_max
         self.getup = getup
         self._getup_settle = max(1, round(getup_settle_s / 0.002))
+        self.getup_start_mix = getup_start_mix
         self.w_recover_h = w_recover_h
         self.w_recover_up = w_recover_up
         self.stand_bonus = stand_bonus
@@ -1323,23 +1328,29 @@ class BimoWalkerEnv(gym.Env):
                                     < self.recover_mix)
             self._recovered = not self._recover_ep
         if self.getup or self._recover_ep:
-            # start-state draw for recovery episodes (getup mode stays pure
-            # ragdoll -- that is the graded claim). Poses mirror
-            # sim/mjx/_fallen_data exactly.
+            # start-state draw. Recovery episodes use recover_start_mix
+            # (ragdoll/kneel/squat/sit/catch); getup mode uses getup_start_mix
+            # (ragdoll/kneel/squat -- reverse curriculum, mirrors sim/mjx).
+            # Poses mirror sim/mjx/_fallen_data exactly.
             kind = "ragdoll"
             if self._recover_ep:
                 mix = tuple(self.recover_start_mix) + (0.0,) * 5
-                u = float(self.np_random.uniform())
-                if u < mix[0]:
-                    kind = "ragdoll"
-                elif u < mix[0] + mix[1]:
-                    kind = "kneel"
-                elif u < mix[0] + mix[1] + mix[2]:
-                    kind = "squat"
-                elif u < mix[0] + mix[1] + mix[2] + mix[3]:
-                    kind = "sit"
-                else:
-                    kind = "catch"
+            else:
+                mix = tuple(self.getup_start_mix) + (0.0,) * 5
+            # pure ragdoll draws NO random number, so a (1,0,0) getup eval
+            # keeps the exact pre-getup_start_mix RNG stream (old referee
+            # numbers stay comparable)
+            u = 0.0 if mix[0] >= 1.0 else float(self.np_random.uniform())
+            if u < mix[0]:
+                kind = "ragdoll"
+            elif u < mix[0] + mix[1]:
+                kind = "kneel"
+            elif u < mix[0] + mix[1] + mix[2]:
+                kind = "squat"
+            elif u < mix[0] + mix[1] + mix[2] + mix[3]:
+                kind = "sit"
+            else:
+                kind = "catch"
             self.data.qpos[:] = self.model.qpos0
             self.data.qvel[:] = 0.0
             # staged poses settle 1.0 s holding their own pose (getup_v7):
