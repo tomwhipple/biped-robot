@@ -37,6 +37,24 @@ CMD_LEN = 14
 # frames by length, which the arming handshake surfaces immediately.
 CMD_LEN_EXT = 24
 TLM_LEN = 20
+# Extended TELEMETRY (2026-09-01): the same 18-byte body, then one int16
+# milli-radian per joint, then the CRC. For mirror mode -- driving the real
+# robot while a sim follows its observed pose.
+#
+# This one could NOT be done the way the extended command frame was. There the
+# robot is the decoder and was updated to accept both lengths; here the robot
+# is the SENDER and every client is a decoder that checks `len != TLM_LEN` and
+# rejects. A robot that simply started beaconing 40 B would blind bimo_tui,
+# commander.py and both twins at once -- the same trap the bench diagnostic
+# had to dodge (see docs/control-channel.md, 2026-08-30).
+#
+# So the long frame is REQUESTED: a client sets FLAG_POSE in its commands and
+# only then does the robot answer with joint angles. A client that never asks
+# never sees a byte it does not understand, and a client that asks is by
+# construction one that can read the answer. No version bump, no length
+# surprise, and the request rides a flags bit that was already spare.
+NUM_JOINTS = 10            # obs_spec order: L yaw,roll,pitch,knee,ankle; R same
+TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS
 
 CMD_PORT = 4210            # robot listens here
 TLM_PORT = 4211            # laptop listens here
@@ -45,6 +63,7 @@ TLM_PORT = 4211            # laptop listens here
 FLAG_ENABLE = 1 << 0       # 0 = stand still regardless of vx/wz
 FLAG_ESTOP = 1 << 1        # latching torque release; see Watchdog.accept
 FLAG_ARM = 1 << 2          # operator wants the control loop armed; ArmLatch
+FLAG_POSE = 1 << 3         # "beacon joint angles too" -- see TLM_LEN_EXT
 
 # -- timing ----------------------------------------------------------------
 # 20 Hz is ~2 orders of magnitude more command bandwidth than intent actually
@@ -195,6 +214,11 @@ class Command(NamedTuple):
     def arm(self) -> bool:
         return bool(self.flags & FLAG_ARM)
 
+    @property
+    def pose(self) -> bool:
+        """This sender wants joint angles in the beacon (mirror mode)."""
+        return bool(self.flags & FLAG_POSE)
+
 
 class Telemetry(NamedTuple):
     seq_echo: int          # last command seq the robot applied
@@ -208,6 +232,9 @@ class Telemetry(NamedTuple):
                            # ctrl readJoints sets 1<<i; NOT servo id i+1, the
                            # ids are not in joint order)
     loop_late_pct: int     # % of control ticks that overran 20 ms
+    # Measured joint angles, radians, obs_spec order. Empty on a classic 20 B
+    # frame -- which is every frame, unless a commander asked with FLAG_POSE.
+    joints: tuple = ()
 
     @property
     def diag(self) -> int:
@@ -324,27 +351,36 @@ def encode_telemetry(t: Telemetry) -> bytes:
         _milli(t.up_z), _milli(t.vx_est), _milli(t.wz_est),
         t.servo_err & 0xFF, max(0, min(255, int(t.loop_late_pct))),
     )
+    if t.joints:
+        if len(t.joints) != NUM_JOINTS:
+            raise ProtocolError(f"{len(t.joints)} joints, want {NUM_JOINTS}")
+        body += struct.pack(f"<{NUM_JOINTS}h", *(_milli(q) for q in t.joints))
     return body + struct.pack("<H", crc16_ccitt(body))
 
 
 def decode_telemetry(buf: bytes) -> Telemetry:
-    if len(buf) != TLM_LEN:
-        raise ProtocolError(f"telemetry frame is {len(buf)} B, want {TLM_LEN}")
+    if len(buf) not in (TLM_LEN, TLM_LEN_EXT):
+        raise ProtocolError(f"telemetry frame is {len(buf)} B, want {TLM_LEN} "
+                            f"or {TLM_LEN_EXT}")
     (magic, ver, state, seq, vbat_mv, up_z, vx, wz, err,
      late) = struct.unpack("<2sBBIHhhhBB", buf[:18])
     if magic != MAGIC_TLM:
         raise ProtocolError(f"bad magic {magic!r}")
     if ver != VERSION:
         raise ProtocolError(f"protocol version {ver}, want {VERSION}")
-    (crc,) = struct.unpack("<H", buf[18:])
-    if crc != crc16_ccitt(buf[:18]):
+    (crc,) = struct.unpack("<H", buf[-2:])
+    if crc != crc16_ccitt(buf[:-2]):
         raise ProtocolError("CRC mismatch")
     if state >= len(_TLM_STATES):
         raise ProtocolError(f"unknown link state {state}")
+    joints = ()
+    if len(buf) == TLM_LEN_EXT:
+        joints = tuple(q / 1000.0 for q in
+                       struct.unpack(f"<{NUM_JOINTS}h", buf[18:-2]))
     return Telemetry(seq_echo=seq, state=_TLM_STATES[state],
                      vbat_v=vbat_mv / 1000.0, up_z=up_z / 1000.0,
                      vx_est=vx / 1000.0, wz_est=wz / 1000.0,
-                     servo_err=err, loop_late_pct=late)
+                     servo_err=err, loop_late_pct=late, joints=joints)
 
 
 # -- robot-side supervisor -------------------------------------------------
