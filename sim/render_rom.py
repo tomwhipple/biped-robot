@@ -129,9 +129,14 @@ def main():
     mov = args.out + ".mov"
     raw = args.out + "_frames.mp4"
     imageio.mimsave(raw, frames, fps=FPS, macro_block_size=1)
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw,
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", mov],
-                   check=True)
+    try:
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw,
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20",
+                        mov], check=True, timeout=120)
+    except subprocess.TimeoutExpired as e:
+        print(f"ffmpeg timed out after {e.timeout}s; leaving {raw} for manual "
+              f"conversion")
+        return
     os.remove(raw)
     print(f"{len(frames)} frames -> {mov}")
 

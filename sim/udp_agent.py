@@ -163,7 +163,7 @@ def _save(frames, out_dir, name):
                         "-c:v", "libx264", "-crf", "20", "-pix_fmt", "yuv420p",
                         "-movflags", "+faststart",
                         gif.replace(".gif", ".mov")],
-                       check=True, capture_output=True)
+                       check=True, capture_output=True, timeout=120)
     except Exception as e:
         print("  (mov conversion failed:", e, ")")
     print(f"  wrote {gif} (+.mov)")

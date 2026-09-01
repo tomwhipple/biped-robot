@@ -33,7 +33,7 @@ def convert(gif):
         "-c:v", "libx264", "-crf", "20", "-pix_fmt", "yuv420p",
         "-movflags", "+faststart", mov,
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    subprocess.run(cmd, check=True, capture_output=True, timeout=120)
     print(f"wrote       {mov}  ({os.path.getsize(mov) // 1024} KB "
           f"from {os.path.getsize(gif) // 1024} KB gif)")
 
@@ -48,7 +48,10 @@ def main():
     if not gifs:
         raise SystemExit("no gifs found")
     for g in sorted(gifs):
-        convert(g)
+        try:
+            convert(g)
+        except subprocess.TimeoutExpired:
+            print(f"timeout converting {g} -- skipping", file=sys.stderr)
 
 
 if __name__ == "__main__":

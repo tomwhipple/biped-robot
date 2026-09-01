@@ -196,8 +196,10 @@ def main():
         gif2mov = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                "..", "tools", "gif2mov.py")
         try:
-            subprocess.run([sys.executable, gif2mov, out], check=True)
-        except (OSError, subprocess.CalledProcessError) as e:
+            subprocess.run([sys.executable, gif2mov, out], check=True,
+                           timeout=120)
+        except (OSError, subprocess.CalledProcessError,
+                subprocess.TimeoutExpired) as e:
             print(f"(gif2mov failed: {e} -- gif is still fine)")
 
     env.close()
