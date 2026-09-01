@@ -337,9 +337,13 @@ class BimoMJXEnv:
         payload_mass: float = 0.0,
         payload_dr: bool = False,   # batch-level mass draw handled in
         # domain_randomize(); this flag only ensures the body exists
+        payload_max: float | None = None,  # if set, per-env payload mass drawn
+        # uniform(0, payload_max) -- one policy handles camera-on AND -off
         # -- DR (per-episode, state-level) -------------------------------------
         domain_rand: bool = False,
         gain_range: float = 0.2,
+        mass_range: float = 0.15,   # batch-level body mass/inertia scale +/- this
+        friction_range: float = 0.4,  # batch-level floor friction scale +/- this
         latency_ms: float = 0.0,
         latency_ms_max: float | None = None,
         latency_jitter_ms: float = 0.0,
@@ -600,7 +604,8 @@ class BimoMJXEnv:
                                    "max_amp")}
             self._hf_field = jp.asarray(_tm["field"], dtype=jp.float64)
         self.mj_model = _prep_model(
-            xml_path, payload_mass > 0 or payload_dr, servo_joint_damping,
+            xml_path, payload_mass > 0 or payload_dr or payload_max is not None,
+            servo_joint_damping,
             mesh_floor=getup or (ext_cmd and recover_mix > 0),
             payload_cg_z=payload_cg_z, payload_cg_x=payload_cg_x,
             terrain_spec=self._terrain_spec)
@@ -729,6 +734,20 @@ class BimoMJXEnv:
         self.domain_rand = domain_rand
         self.gain_range = gain_range
         self.servo_range = servo_range
+        self.mass_range = mass_range
+        self.friction_range = friction_range
+        self.payload_max = payload_max
+        # batch-level DR nominals (mirror walker_env._nom_*): the reference
+        # mass/inertia/friction the per-env draws are scaled from. Captured
+        # AFTER the payload body is welded and its mass set, so the payload
+        # draw scales from the real camera's nominal inertia.
+        self._nom_mass = jp.asarray(np.array(self.mj_model.body_mass))
+        self._nom_inertia = jp.asarray(np.array(self.mj_model.body_inertia))
+        self._nom_friction = jp.asarray(np.array(self.mj_model.geom_friction))
+        self._floor_gid = self.mj_model.geom("floor").id
+        self._payload_bid = (self.mj_model.body("payload").id
+                             if (payload_mass > 0 or payload_dr
+                                 or payload_max is not None) else None)
         self.latency_ms = latency_ms
         self.latency_ms_max = latency_ms_max
         self.latency_jitter_ms = latency_jitter_ms
@@ -1257,29 +1276,31 @@ class BimoMJXEnv:
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
 
-    def _settle(self, qpos, n, ctrl=None):
+    def _settle(self, qpos, n, ctrl=None, model=None):
         # ctrl: servo targets HELD during the settle. Default = stand pose --
         # correct for ragdoll (limp-ish drop) but WRONG for staged poses:
         # getup_v7 found the "kneel" start settling under stand-drive to
         # h 0.28 > the 0.275 recovered threshold, so every kneel episode
         # started recovered=1 and trained nothing. Staged starts must settle
         # holding their OWN pose.
-        data = mjx.make_data(self.model)
+        model = self.model if model is None else model
+        data = mjx.make_data(model)
         data = data.replace(qpos=qpos,
                             ctrl=jp.zeros(self.mj_model.nu)
                             + (self._default if ctrl is None else ctrl))
 
         def fall(d, _):
-            return mjx.step(self.model, d), None
+            return mjx.step(model, d), None
 
         data, _ = jax.lax.scan(fall, data, None, length=n)
-        return mjx.forward(self.model, data)
+        return mjx.forward(model, data)
 
-    def _fallen_data(self, r_q):
+    def _fallen_data(self, r_q, model=None):
         """Settled start for get-up mode. Mix (getup_start_mix): ragdoll fall
         (random orientation + joints, dropped from 0.35 m) / upright kneel /
         feet-loaded deep squat -- the latter two are the reverse-curriculum
         seeds (learn the rise backward from near the goal)."""
+        model = self.model if model is None else model
         r_m, r_o, r_j = jax.random.split(r_q, 3)
         u1, u2, u3 = jax.random.uniform(r_o, (3,))
         quat = jp.array([jp.sqrt(u1) * jp.cos(2 * jp.pi * u3),
@@ -1296,7 +1317,7 @@ class BimoMJXEnv:
         mix = mix + (0.0,) * (5 - len(mix))   # (rag, kneel, squat, sit, catch)
         p_rag, p_kneel, p_squat, p_sit, p_catch = mix
         if p_rag >= 1.0:
-            return self._settle(q_rag, self.getup_settle), jp.zeros(())
+            return self._settle(q_rag, self.getup_settle, model=model), jp.zeros(())
         # kneel: torso vertical, knees folded, shins on the ground
         j_kneel = jp.zeros(self._nq_act).at[self._i_pitch].set(-0.2) \
                              .at[self._i_knee].set(-1.62) \
@@ -1330,10 +1351,10 @@ class BimoMJXEnv:
         # staged poses settle 1.0 s: the kneel bounces off the shins to
         # h 0.277 (2 mm ABOVE the recovered threshold -> instant-recovered
         # episode) at 0.25 s before drooping to its true 0.23 static height
-        d_rag = self._settle(q_rag, self.getup_settle)
-        d_kneel = self._settle(q_kneel, 200, ctrl=j_kneel)
-        d_squat = self._settle(q_squat, 200, ctrl=j_squat)
-        d_sit = self._settle(q_sit, 200, ctrl=j_sit)
+        d_rag = self._settle(q_rag, self.getup_settle, model=model)
+        d_kneel = self._settle(q_kneel, 200, ctrl=j_kneel, model=model)
+        d_squat = self._settle(q_squat, 200, ctrl=j_squat, model=model)
+        d_sit = self._settle(q_sit, 200, ctrl=j_sit, model=model)
         u = jax.random.uniform(r_m)
         t_k = p_rag + p_kneel
         t_sq = t_k + p_squat
@@ -1350,7 +1371,7 @@ class BimoMJXEnv:
             row = jax.random.randint(r_c, (), 0, self._catch_qpos.shape[0])
             if self._catch_t0 is not None:
                 t0_bank = self._catch_t0[row]
-            d_cat = mjx.make_data(self.model)
+            d_cat = mjx.make_data(model)
             d_cat = d_cat.replace(qpos=self._catch_qpos[row].astype(jp.float64)
                                   if d_cat.qpos.dtype == jp.float64
                                   else self._catch_qpos[row],
@@ -1358,7 +1379,7 @@ class BimoMJXEnv:
                                       d_cat.qvel.dtype),
                                   ctrl=jp.zeros(self.mj_model.nu)
                                   + self._default)
-            d_cat = mjx.forward(self.model, d_cat)
+            d_cat = mjx.forward(model, d_cat)
         else:
             d_cat = None
 
@@ -1399,12 +1420,13 @@ class BimoMJXEnv:
                 .at[2].add(self._gz(sx, sy)))
 
     # -- api -------------------------------------------------------------------
-    def reset(self, rng: jax.Array) -> State:
+    def reset(self, rng: jax.Array, model=None) -> State:
+        model = self.model if model is None else model
         rng, r_q, r_v, r_ep, r_cmd, r_obs = jax.random.split(rng, 6)
         recover_slot = jp.zeros(())
         rise_t0 = jp.zeros(())
         if self.getup:
-            data, rise_t0 = self._fallen_data(r_q)
+            data, rise_t0 = self._fallen_data(r_q, model=model)
         elif self.ext_cmd and self.recover_mix > 0:
             # recovery slot draw: this env's episodes start from a settled
             # ragdoll fall (slot membership is FIXED across the trainer's
@@ -1418,11 +1440,12 @@ class BimoMJXEnv:
             qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
-            d_up = mjx.make_data(self.model)
+            d_up = mjx.make_data(model)
             d_up = d_up.replace(qpos=qpos, qvel=qvel,
                                 ctrl=jp.zeros(self.mj_model.nu) + self._default)
-            d_up = mjx.forward(self.model, d_up)
-            d_dn, t0_dn = self._fallen_data(jax.random.fold_in(r_q, 1))
+            d_up = mjx.forward(model, d_up)
+            d_dn, t0_dn = self._fallen_data(jax.random.fold_in(r_q, 1),
+                                            model=model)
 
             def pick(a, b):
                 return jp.where(recover_slot > 0, a, b)
@@ -1436,10 +1459,10 @@ class BimoMJXEnv:
             qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
-            data = mjx.make_data(self.model)
+            data = mjx.make_data(model)
             data = data.replace(qpos=qpos, qvel=qvel,
                                 ctrl=jp.zeros(self.mj_model.nu) + self._default)
-            data = mjx.forward(self.model, data)
+            data = mjx.forward(model, data)
         (servo, lat_ms, lash, imu_R, imu_bias,
          cmd_crouch, act_lag) = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
@@ -1555,8 +1578,8 @@ class BimoMJXEnv:
             lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
             imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
-    def step(self, state: State, action: jax.Array) -> State:
-        m = self.model
+    def step(self, state: State, action: jax.Array, model=None) -> State:
+        m = self.model if model is None else model
         rng, r_push_u, r_push_a, r_jit, r_obs, r_cmd = jax.random.split(
             state.rng, 6)
         action = jp.clip(action, -1.0, 1.0)

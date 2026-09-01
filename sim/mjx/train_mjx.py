@@ -46,17 +46,54 @@ from brax.envs import base as brax_base
 from brax.training.agents.ppo import networks as ppo_networks
 from brax.training.agents.ppo import train as ppo
 
-from env_mjx import BimoMJXEnv
+from env_mjx import BimoMJXEnv, domain_randomize
 
 
 class BatchedEnv(brax_base.Env):
     """Batched, episodic, auto-resetting adapter: BimoMJXEnv -> brax Env.
     Used with ppo.train(wrap_env=False), so this owns vmapping, truncation
-    at episode_length, and auto-reset (cached first state + reseed)."""
+    at episode_length, and auto-reset (cached first state + reseed).
 
-    def __init__(self, env: BimoMJXEnv, episode_length: int):
+    Batch-level domain randomization (mass/inertia/friction/payload): when the
+    wrapped env has domain_rand=True, the model is randomized PER ENV via
+    env_mjx.domain_randomize() and the batched model is threaded through
+    reset/step with jax.vmap -- the MJX equivalent of the CPU env's
+    _randomize_dynamics() on every reset. This closes the sim-to-real gap
+    where the flagship mjx_cmd_v1 policy was trained without ever seeing
+    mass/friction variation (Percy finding GH#30)."""
+
+    def __init__(self, env: BimoMJXEnv, episode_length: int, num_envs: int = 1):
         self._env = env
         self._len = episode_length
+        # Batch-level DR: one randomized model per parallel env, drawn once
+        # per batch size (the standard MJX pattern -- with thousands of envs
+        # the per-gradient-batch diversity is far higher than the CPU env's
+        # per-episode redraw). brax resets THIS SAME env with num_envs while
+        # training and with num_eval_envs (default 128) in the evaluator, so
+        # the batched model is built per batch size and cached -- one model
+        # batch pinned to num_envs blows up the evaluator's vmap with
+        # "inconsistent sizes for array axes to be mapped".
+        self._dr_key = jax.random.PRNGKey(0)
+        self._dr_cache = {}
+        if env.domain_rand:
+            self._batched_model(num_envs)      # warm the training batch
+
+    def _batched_model(self, n: int):
+        """(model, in_axes) for a batch of n envs. DR off -> (single model,
+        None), i.e. vmap broadcasts the one model (unchanged path)."""
+        if not self._env.domain_rand:
+            return self._env.model, None
+        if n not in self._dr_cache:
+            e = self._env
+            payload_bid = e._payload_bid
+            payload_max = e.payload_max if payload_bid is not None else None
+            self._dr_cache[n] = domain_randomize(
+                e.model, jax.random.split(self._dr_key, n),
+                mass_range=e.mass_range, friction_range=e.friction_range,
+                payload_max=payload_max, payload_bid=payload_bid,
+                floor_gid=e._floor_gid, nom_mass=e._nom_mass,
+                nom_inertia=e._nom_inertia, nom_friction=e._nom_friction)
+        return self._dr_cache[n]
 
     @property
     def observation_size(self):
@@ -71,7 +108,12 @@ class BatchedEnv(brax_base.Env):
         return "mjx"
 
     def reset(self, rng: jax.Array) -> brax_base.State:
-        st = jax.vmap(self._env.reset)(rng)
+        model, model_in_axes = self._batched_model(rng.shape[0])
+        if model_in_axes is not None:
+            st = jax.vmap(self._env.reset, in_axes=(0, model_in_axes))(
+                rng, model)
+        else:
+            st = jax.vmap(self._env.reset)(rng)
         n = rng.shape[0]
         zeros = jp.zeros(n)
         # info contract brax's PPO actor/evaluator expects (normally provided
@@ -86,7 +128,12 @@ class BatchedEnv(brax_base.Env):
                                metrics=dict(st.metrics), info=info)
 
     def step(self, state: brax_base.State, action: jax.Array) -> brax_base.State:
-        st = jax.vmap(self._env.step)(state.info["st"], action)
+        model, model_in_axes = self._batched_model(action.shape[0])
+        if model_in_axes is not None:
+            st = jax.vmap(self._env.step, in_axes=(0, 0, model_in_axes))(
+                state.info["st"], action, model)
+        else:
+            st = jax.vmap(self._env.step)(state.info["st"], action)
         prev_done = state.info["episode_done"]
         # steps: zeroed at the START of the step AFTER done (EvalWrapper reads
         # the full count at the done step itself -- brax wrapper timing)
@@ -527,7 +574,7 @@ def main():
         )
     env = BimoMJXEnv(**env_kw)
     episode_length = env.max_steps
-    wrapped = BatchedEnv(env, episode_length)
+    wrapped = BatchedEnv(env, episode_length, num_envs=args.envs)
 
     out = os.path.join(RUNS, args.out)
     os.makedirs(out, exist_ok=True)
