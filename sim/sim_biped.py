@@ -7,7 +7,7 @@ import numpy as np, mujoco, imageio.v2 as imageio
 
 m = mujoco.MjModel.from_xml_path(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 "bimo_biped_v2.xml"))
+                 "bimo_biped.xml"))
 d = mujoco.MjData(m)
 dt = m.opt.timestep
 
