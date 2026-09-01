@@ -31,6 +31,7 @@
 // tests/test_gui_e2e.py drives: no display, no pty, and it exercises the real
 // key-release path rather than a simulation of auto-repeat.
 #include <errno.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1249,6 +1250,12 @@ int runWindow(App& a) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    // A console that dies takes the link with it and never sends the disarm,
+    // so nothing routine is allowed to kill it. Writing to the sim child's
+    // stdin after that child has died raises SIGPIPE, whose default action is
+    // exactly that -- on a robot that may be armed. Ignore it here and check
+    // write() for EPIPE at the one place that writes (SimProc::tell).
+    signal(SIGPIPE, SIG_IGN);
     Options o;
     if (!parse(argc, argv, o)) {
         usage(argv[0]);

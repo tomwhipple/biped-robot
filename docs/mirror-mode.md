@@ -41,6 +41,24 @@ does not understand, and a client that asks is *by construction* one that can
 read the answer. No version bump, no length surprise, and the request rides a
 flags bit that was already spare.
 
+### The invariant the firmware must hold: {peer, pose} is one snapshot
+
+"A client that asks is by construction one that can read the answer" is only
+true if the *pose request and the destination come from the same command*.
+
+The robot beacons to whoever commanded last — every valid-CRC frame updates
+`peer` (`wifi_link.cpp`). So if the pose level and `peer` are read from
+different commands, a mirror-aware console **B** that sends one plain command
+between console **A**'s `FLAG_POSE` commands can receive a 40 B frame it never
+asked for, and **A**'s mirror keeps working only by luck of which frame landed
+last.
+
+**Snapshot `{peer, pose_wanted}` together, from the same accepted command, and
+treat pose as a level tied to that snapshot** — not as task state updated
+independently of the peer. Writing it down here because this is exactly the
+one-sender-many-decoders trap the rest of this document is careful about, and
+because it is invisible until two consoles are pointed at one robot.
+
 **Extended telemetry** — 40 B, `TLM_LEN_EXT`:
 
 | off | size | field |

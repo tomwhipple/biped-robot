@@ -208,10 +208,30 @@ void SimProc::stop() {
 
 bool SimProc::tell(const char* line) {
     if (in_fd < 0 || pid <= 0) return false;
-    char buf[128];
+    // The child may already be dead: poll() reaps at the END of a tick, so a
+    // sim killed by a signal between ticks still looks alive here. Writing to
+    // a pipe with no reader raises SIGPIPE, whose default action would kill
+    // this console outright -- taking the link with it, on a robot that may be
+    // armed, without ever sending the disarm. Reap first, then write with
+    // SIGPIPE ignored (installed in main) and treat EPIPE as "it is gone".
+    int status = 0;
+    if (waitpid(pid, &status, WNOHANG) == pid) {
+        pid = -1;
+        pushLine("-- sim gone (noticed while writing to it)");
+        return false;
+    }
+    char buf[192];
     const int n = snprintf(buf, sizeof buf, "%s\n", line);
-    if (n <= 0) return false;
-    return write(in_fd, buf, static_cast<size_t>(n)) == n;
+    if (n <= 0 || static_cast<size_t>(n) >= sizeof buf) return false;
+    const ssize_t w = write(in_fd, buf, static_cast<size_t>(n));
+    if (w != n) {
+        if (errno == EPIPE) {
+            snprintf(err, sizeof err, "the sim closed its input");
+            pushLine("-- sim closed its input");
+        }
+        return false;
+    }
+    return true;
 }
 
 void SimProc::poll() {

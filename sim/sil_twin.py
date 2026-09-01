@@ -167,20 +167,34 @@ def run(args):
           f"  plant={os.path.basename(xml) if xml else 'run default'}"
           f"  spec={info['spec'][:60]}...")
 
+    stdin_buf = [""]
+
     def _stdin_commands():
         """Line commands from whoever launched us (bimo_gui's SIM panel).
 
-        `reset` re-rolls the episode in place. Restarting the process instead
-        costs ~30 s of MuJoCo and policy loading, which is long enough that
-        nobody does it, which means nobody resets."""
-        if sys.stdin is None or sys.stdin.closed:
-            return []
+        `reset` re-rolls the episode in place; `pose q0..q9` feeds the ghost.
+        Restarting the process instead costs ~30 s of MuJoCo and policy
+        loading, which is long enough that nobody does it, which means nobody
+        resets.
+
+        Reads the raw fd rather than sys.stdin.readline(): select() reports the
+        KERNEL buffer, but readline() pulls a whole chunk into Python's
+        TextIOWrapper, so a burst of two commands leaves the second stranded in
+        userspace with select() saying "not ready". At 10 Hz of pose lines that
+        is not hypothetical. (Percy, PR #53.)"""
         out = []
-        while select.select([sys.stdin], [], [], 0)[0]:
-            line = sys.stdin.readline()
-            if not line:
+        while select.select([0], [], [], 0)[0]:
+            try:
+                chunk = os.read(0, 65536)
+            except OSError:
                 break
-            out.append(line.strip())
+            if not chunk:                      # EOF: the console went away
+                break
+            stdin_buf[0] += chunk.decode("utf-8", "replace")
+        while "\n" in stdin_buf[0]:
+            line, stdin_buf[0] = stdin_buf[0].split("\n", 1)
+            if line.strip():
+                out.append(line.strip())
         return out
 
     i = 0
