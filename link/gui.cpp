@@ -95,6 +95,8 @@ struct Options {
     const char* repo = nullptr;
     const char* sessions = nullptr;      // default <repo>/hw_sessions
     const char* run_name = nullptr;      // preselected sim run
+    bool mirror = false;                 // start in mirror mode
+    int sim_cmd_port = 0;                // 0 -> cmd_port + 100
     bool headless = false;
     bool record = true;                  // --no-record to opt out
     bool autostream = false;             // --sim-view given: connect at boot
@@ -108,7 +110,7 @@ void usage(const char* argv0) {
             "          [--vx %.2f] [--vy %.2f] [--wz %.2f] [--rate %.0f]\n"
             "          [--keymap FILE] [--sim-view [URL]] [--stream-port %d]\n"
             "          [--run-name NAME] [--repo DIR] [--sessions DIR]\n"
-            "          [--headless] [--no-record]\n"
+            "          [--headless] [--no-record] [--mirror] [--sim-cmd-port N]\n"
             "          [--screenshot FILE [--screenshot-after S]]\n",
             argv0, kCmdPort, kTlmPort, bimo::kDefaultVx, bimo::kDefaultVy,
             bimo::kDefaultWz, static_cast<double>(kSendHz), kDefaultStreamPort);
@@ -133,6 +135,8 @@ bool parse(int argc, char** argv, Options& o) {
         else if (!strcmp(a, "--run-name") && v) { o.run_name = v; ++i; }
         else if (!strcmp(a, "--headless")) { o.headless = true; }
         else if (!strcmp(a, "--no-record")) { o.record = false; }
+        else if (!strcmp(a, "--mirror")) { o.mirror = true; }
+        else if (!strcmp(a, "--sim-cmd-port") && v) { o.sim_cmd_port = atoi(v); ++i; }
         else if (!strcmp(a, "--screenshot") && v) { o.screenshot = v; ++i; }
         else if (!strcmp(a, "--screenshot-after") && v) {
             o.screenshot_after = atof(v); ++i;
@@ -169,6 +173,13 @@ struct App {
     // --hang is the test-stand plant (torso welded, feet free), which is a
     // deliberate diagnostic, not a resting state.
     bool sim_hang = false;
+    // Mirror mode: the console drives the ROBOT, the same command is relayed
+    // to the sim, and the robot's observed joint angles are pushed to the sim
+    // to draw as a ghost. docs/mirror-mode.md.
+    bool mirror = false;
+    int sim_cmd_port = 0, sim_tlm_port = 0;
+    double last_pose_ms = 0.0;
+    uint32_t poses_sent = 0;
 
     // what went on the wire this tick
     float vx = 0.0f, vy = 0.0f, wz = 0.0f;
@@ -286,6 +297,20 @@ void tick(App& a, double now_ms) {
         a.c_wz_est.push(t.wz_est);
         a.c_late.push(static_cast<float>(t.loop_late_pct));
         a.rec.telemetry(now_ms, t);
+        // Mirror: hand the robot's measured pose to the sim, once per beacon,
+        // so the ghost is drawn from the same 10 Hz the robot reports at.
+        if (a.mirror && t.n_joints == linkproto::kNumJoints && a.sim.running()) {
+            char line[256];
+            int at = snprintf(line, sizeof line, "pose");
+            for (size_t j = 0; j < linkproto::kNumJoints; ++j) {
+                at += snprintf(line + at, sizeof line - static_cast<size_t>(at),
+                               " %.4f", static_cast<double>(t.joints[j]));
+            }
+            if (a.sim.tell(line)) {
+                ++a.poses_sent;
+                a.last_pose_ms = now_ms;
+            }
+        }
     }
     a.rec.maybeFlush(now_ms);
     a.sim.poll();
@@ -322,8 +347,12 @@ void startSim(App& a) {
                  "config.json AND sim/sil/weights/<run>.silw.json)", a.repo);
         return;
     }
+    // In mirror mode the robot owns the primary ports, so the sim gets its
+    // own; otherwise it listens where the console is already pointed.
+    const int cp = a.mirror ? a.sim_cmd_port : a.o.cmd_port;
+    const int tp = a.mirror ? a.sim_tlm_port : a.o.tlm_port;
     if (!a.sim.start(a.repo, a.runs.name[a.run_sel], a.sim_hang,
-                     a.o.stream_port, a.o.cmd_port, a.o.tlm_port)) {
+                     a.o.stream_port, cp, tp)) {
         snprintf(a.status, sizeof a.status, "%s", a.sim.err);
         return;
     }
@@ -336,6 +365,23 @@ void startSim(App& a) {
 void stopSim(App& a) {
     a.stream.stop();
     a.sim.stop();
+}
+
+// Mirror is a MODE, not a button press: it changes where commands go and what
+// the robot is asked to beacon, so it says so plainly and does not pretend a
+// running sim moved ports underneath it.
+void setMirror(App& a, bool on) {
+    a.mirror = on;
+    a.in.want_pose = on;
+    if (on) {
+        a.link.setMirror("127.0.0.1", a.sim_cmd_port);
+        snprintf(a.status, sizeof a.status,
+                 "MIRROR: driving %s, relaying to the sim on :%d, asking for "
+                 "joint angles", a.o.host, a.sim_cmd_port);
+    } else {
+        a.link.clearMirror();
+        snprintf(a.status, sizeof a.status, "mirror off");
+    }
 }
 
 // Actions that are not a held axis.
@@ -410,6 +456,9 @@ void headlessLine(App& a, char* line, double now_ms) {
             printf("note: %s\n", a.status);
         } else if (arg != nullptr && !strcmp(arg, "stop")) {
             stopSim(a);
+        } else if (arg != nullptr && !strcmp(arg, "mirror")) {
+            setMirror(a, !(arg2 != nullptr && !strcmp(arg2, "off")));
+            printf("note: %s\n", a.status);
         } else if (arg != nullptr && !strcmp(arg, "reset")) {
             printf("note: %s\n", a.sim.tell("reset") ? "sim reset sent"
                                                      : "no sim listening");
@@ -417,7 +466,7 @@ void headlessLine(App& a, char* line, double now_ms) {
             a.sim_hang = !a.sim_hang;
             printf("note: hang %s\n", a.sim_hang ? "on" : "off");
         } else {
-            printf("note: sim start|stop|reset|hang\n");
+            printf("note: sim start|stop|reset|hang|mirror [off]\n");
         }
         fflush(stdout);
     } else if (!strcmp(verb, "set")) {
@@ -672,6 +721,22 @@ void drawHeader(App& a, double now_ms) {
 
 void drawSim(App& a, double now_ms, float panel_w) {
     ImGui::SeparatorText("SIM");
+    bool mir = a.mirror;
+    if (ImGui::Checkbox("mirror the robot", &mir)) setMirror(a, mir);
+    ImGui::SameLine();
+    if (a.mirror) {
+        const bool fed = a.link.have_tlm &&
+                         a.link.tlm.n_joints == linkproto::kNumJoints;
+        if (fed) {
+            ImGui::TextColored(ImVec4(0.25f, 0.8f, 0.35f, 1.0f),
+                               "ghost live -- %u poses", a.poses_sent);
+        } else {
+            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
+                               "asked for joint angles; robot sends none yet");
+        }
+    } else {
+        ImGui::TextDisabled("drive the robot, sim follows as a ghost");
+    }
     char serr[192];
     a.stream.error(serr, sizeof serr);
     const bool external = !a.sim.running() && a.stream.frames() > 0;
@@ -1213,6 +1278,8 @@ int main(int argc, char** argv) {
         logEvent(a, "FATAL", "keymap: %s", err);
         return 2;
     }
+    a.sim_cmd_port = o.sim_cmd_port ? o.sim_cmd_port : o.cmd_port + 100;
+    a.sim_tlm_port = a.sim_cmd_port + 1;
     a.runs.scan(a.repo);
     logEvent(a, "runs", "%d policy run(s) with SIL weights under %s/sim/runs",
              a.runs.n, a.repo);
@@ -1229,6 +1296,7 @@ int main(int argc, char** argv) {
     // cheap: ~90 bytes each at 20 Hz, so an hour of driving is a few MB.
     // --no-record opts out.
     if (o.record) toggleRecord(a, bimo::nowMs());
+    if (o.mirror) setMirror(a, true);
 
     const int rc = a.o.headless ? runHeadless(a) : runWindow(a);
 

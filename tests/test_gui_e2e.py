@@ -199,3 +199,45 @@ def test_closing_stdin_disarms():
     assert any(s[0] == "live" for s in seq), log
     assert seq[-1][0] == "bench" and seq[-1][3] == "off", log
     assert gui.returncode == 0, out
+
+
+def _pose_lines(log):
+    return [ln for ln in log.splitlines() if "pose " in ln]
+
+
+def test_mirror_mode_asks_for_joint_angles_and_stops_asking():
+    """The whole point of FLAG_POSE being a request rather than a default.
+
+    A robot must beacon the classic 20 B frame to everyone until a commander
+    explicitly asks -- otherwise every existing client goes blind at once (see
+    docs/mirror-mode.md). So: silent by default, long frames while mirroring,
+    classic again the moment the console stops asking.
+    """
+    out, log, rc = _run([
+        (1.0, "sim mirror"),
+        (2.0, "sim mirror off"),
+        (1.0, "quit"),
+        (0.5, ""),
+    ], gui_args=["--no-record"])
+
+    poses = _pose_lines(log)
+    assert poses, "the twin never saw a pose request\n" + log
+    # Before anything is asked for, and after it stops being asked for, the
+    # beacon is classic.
+    assert "off" in poses[0], log
+    assert any("requested" in ln for ln in poses), log
+    assert "off" in poses[-1], log
+    assert "MIRROR" in out, out
+    assert rc == 0, out
+
+
+def test_mirror_is_off_unless_asked_for():
+    """A console that never mentions mirroring must never request pose."""
+    out, log, rc = _run([
+        (1.0, "arm"),
+        (1.5, "press forward"),
+        (0.5, "quit"),
+        (0.5, ""),
+    ], gui_args=["--no-record"])
+    assert not any("requested" in ln for ln in _pose_lines(log)), log
+    assert rc == 0, out

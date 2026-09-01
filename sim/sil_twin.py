@@ -198,6 +198,11 @@ def run(args):
                     except ValueError:
                         vals = []
                     if len(vals) == NUM_JOINTS:
+                        if ghost_q is None:
+                            # Say it once: a ghost that silently never appears
+                            # is indistinguishable from one drawn at zero.
+                            print(f"  [{now_ms / 1000:6.2f}s] ghost pose "
+                                  f"feed live", flush=True)
                         ghost_q, ghost_at = vals, time.monotonic()
                     else:
                         print(f"  pose wants {NUM_JOINTS} angles, got "

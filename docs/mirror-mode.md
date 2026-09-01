@@ -1,11 +1,9 @@
 # Mirror mode: driving the robot with a sim following alongside
 
-*Status 2026-09-01. **Design, and a wire format that is half built.**
-`link/protocol.py` carries the new frame and round-trips it; everything else
-below — the C++ port, both twins, the console's mirror toggle and the whole
-firmware half — is specified here and not yet written. See
-[the hardware TODO](#the-hardware-todo) and
-[the laptop side](#state-of-the-laptop-side).*
+*Status 2026-09-01. **The laptop half is done and exercised; the firmware half
+is not written.** Both twins beacon joint angles on request, and `bimo_gui`
+mirrors against them end to end. What remains is on the board — see
+[the hardware TODO](#the-hardware-todo).*
 
 The idea: `bimo_gui` drives the **real robot**, the robot beacons back its
 **measured joint angles**, and `sim/sil_twin.py` runs the same command through
@@ -131,21 +129,34 @@ It is specified against files as they stand at this commit.
 
 ### State of the laptop side
 
-Done and exercised:
+All done, and none of it needed a board:
 
-- `link/protocol.py` — `FLAG_POSE`, `TLM_LEN_EXT`, `Telemetry.joints`, both
-  frame lengths round-tripping. This is the reference the firmware ports.
+- `link/protocol.py` and the `linkproto` C++ port — `FLAG_POSE`,
+  `TLM_LEN_EXT`, joints on `Telemetry`, both frame lengths. Cross-checked
+  byte-for-byte, and frozen in the golden vectors.
+- `link/link_twin.py` — beacons a slow deterministic wobble when asked, and
+  logs the pose on/off transition, so a client in mirror mode can tell a
+  working feed from ten zeros.
+- `sim/sil_twin.py` — beacons its own joint angles when asked; takes
+  `pose q0..q9` on stdin and composites it as a ghost, by re-posing the SAME
+  model and camera rather than rendering a second one.
+- `bimo_gui` — the mirror toggle: sets `FLAG_POSE`, relays every command to
+  the sim's own ports (`--sim-cmd-port`, default `cmd_port + 100`) as well as
+  the robot's, and pushes each observed pose down the child's stdin. One
+  encode, two destinations, so the sim cannot be commanded differently from
+  the robot by construction.
+- `tests/test_protocol.py`, `firmware/host/test_protocol.cpp`,
+  `tests/test_gui_e2e.py`.
 
-Still to write, all laptop-side and all testable without a board:
+Verified end to end on 2026-09-01 with `link_twin` standing in for the robot:
+the twin logged `pose requested -- beaconing joint angles`, `sil_twin` logged
+`ghost pose feed live`, and both reverted to the classic beacon when the
+console stopped asking.
 
-- [ ] `link/link_twin.py` — beacon synthetic joint angles when asked, so the
-      console can be driven end to end with nothing else running.
-- [ ] `sim/sil_twin.py` — beacon its own `qpos` when asked; accept
-      `pose q0..q9` on stdin and draw it as a ghost over the policy's pose.
-- [ ] `bimo_gui` — the mirror toggle: set `FLAG_POSE`, relay the command to
-      the sim's own ports as well as the robot's, and push observed poses down
-      the child's stdin. Plus the plant-config match (supply voltage, payload,
-      latency taken from the robot rather than the training config).
-- [ ] `tests/test_gui_e2e.py` — mirror mode against `link_twin`.
-- [ ] `tests/test_protocol.py` — both telemetry lengths, and that a classic
-      client still decodes a classic frame byte-for-byte unchanged.
+Still open, and deliberately not done here:
+
+- [ ] **Plant-config match.** Supply voltage, payload and control latency
+      taken from the real robot rather than the run's training config, so the
+      sim is loaded like the hardware is. `vbat` is already on the beacon;
+      payload and latency are not, and guessing them would make the ghost
+      agree with the robot for the wrong reason.
