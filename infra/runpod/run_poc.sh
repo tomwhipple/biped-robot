@@ -53,10 +53,14 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "=== creating $MODE pod ==="
+# Auto-terminate deadline: now + 2h, computed portably (macOS `date -v` and
+# GNU `date -d` disagree; python3 is already a dependency of this script).
+KILL_AT="$(python3 -c 'from datetime import datetime,timedelta,timezone; print((datetime.now(timezone.utc)+timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ"))')"
+
+echo "=== creating $MODE pod (auto-terminate $KILL_AT) ==="
 if [[ "$MODE" == "cpu" ]]; then
   OUT=$(runpodctl pod create --name poc-cpu --compute-type cpu --image "$IMAGE" \
-        --ports "22/tcp" --terminate-after "2026-07-15T12:00:00Z" 2>&1)
+        --ports "22/tcp" --terminate-after "$KILL_AT" 2>&1)
   POD_ID=$(echo "$OUT" | python3 -c "import sys,json
 try: print(json.load(sys.stdin).get('id',''))
 except: print('')" 2>/dev/null)
@@ -65,7 +69,7 @@ else
     echo "--- trying GPU: $gpu"
     OUT=$(runpodctl pod create --name poc-gpu --template-id runpod-torch-v280 \
           --gpu-id "$gpu" --cloud-type SECURE --container-disk-in-gb 20 \
-          --ports "22/tcp" --terminate-after "2026-07-15T12:00:00Z" 2>&1)
+          --ports "22/tcp" --terminate-after "$KILL_AT" 2>&1)
     POD_ID=$(echo "$OUT" | python3 -c "import sys,json
 try: print(json.load(sys.stdin).get('id',''))
 except: print('')" 2>/dev/null)
