@@ -56,6 +56,13 @@ int RunList::indexOf(const char* want) const {
 void SimProc::pushLine(const char* s) {
     snprintf(log[log_n % kSimLogLines], kSimLogCols, "%s", s);
     ++log_n;
+    // "sil_twin: <run> on :<port> ... plant=<xml> spec=..." -- keep the part
+    // up to the spec blob, which is the operator-legible half.
+    if (!strncmp(s, "sil_twin: ", 10) && strstr(s, "plant=") != nullptr) {
+        snprintf(ident, sizeof ident, "%s", s + 10);
+        char* spec = strstr(ident, "  spec=");
+        if (spec != nullptr) *spec = 0;
+    }
 }
 
 int SimProc::lines() const {
@@ -85,9 +92,15 @@ bool SimProc::start(const char* repo, const char* run_name, bool hang,
         return false;
     }
 
-    int fds[2];
+    int fds[2], cmd_fds[2];
     if (pipe(fds) != 0) {
         snprintf(err, sizeof err, "pipe: %s", strerror(errno));
+        return false;
+    }
+    if (pipe(cmd_fds) != 0) {
+        snprintf(err, sizeof err, "pipe: %s", strerror(errno));
+        ::close(fds[0]);
+        ::close(fds[1]);
         return false;
     }
 
@@ -101,16 +114,32 @@ bool SimProc::start(const char* repo, const char* run_name, bool hang,
         snprintf(err, sizeof err, "fork: %s", strerror(errno));
         ::close(fds[0]);
         ::close(fds[1]);
+        ::close(cmd_fds[0]);
+        ::close(cmd_fds[1]);
         return false;
     }
     if (child == 0) {
         ::close(fds[0]);
+        ::close(cmd_fds[1]);
+        dup2(cmd_fds[0], STDIN_FILENO);
+        ::close(cmd_fds[0]);
         dup2(fds[1], STDOUT_FILENO);
         dup2(fds[1], STDERR_FILENO);
         ::close(fds[1]);
         // Its own process group, so stop() cannot signal this console and a
         // ctrl-C in the launching terminal does not race us to the child.
         setpgid(0, 0);
+        // Run from sim/. A run config's xml_path is often a BARE filename
+        // (loco_v11gait: "bimo_biped_v3yaw.xml"), which MuJoCo resolves against
+        // the cwd -- so spawning from the repo root kills every plant except
+        // the --hang one, whose path sil_twin builds absolutely. Found by
+        // ticking the hang box off.
+        char simdir[600];
+        snprintf(simdir, sizeof simdir, "%s/sim", repo);
+        if (chdir(simdir) != 0) {
+            fprintf(stderr, "cannot enter %s: %s\n", simdir, strerror(errno));
+            _exit(126);
+        }
         const char* argv[12];
         int a = 0;
         argv[a++] = python;
@@ -133,10 +162,13 @@ bool SimProc::start(const char* repo, const char* run_name, bool hang,
     }
 
     ::close(fds[1]);
+    ::close(cmd_fds[0]);
     fcntl(fds[0], F_SETFL, O_NONBLOCK);
     out_fd = fds[0];
+    in_fd = cmd_fds[1];
     pid = child;
     partial_len = 0;
+    ident[0] = 0;
     char msg[256];
     snprintf(msg, sizeof msg, "$ sil_twin.py --run-name %s%s --stream-port %s",
              run_name, hang ? " --hang" : "", sp);
@@ -161,12 +193,25 @@ void SimProc::stop() {
             waitpid(pid, &status, 0);
         }
         pid = -1;
+        err[0] = 0;                   // a deliberate stop is not a failure
         pushLine("-- sim stopped");
     }
     if (out_fd >= 0) {
         ::close(out_fd);
         out_fd = -1;
     }
+    if (in_fd >= 0) {
+        ::close(in_fd);
+        in_fd = -1;
+    }
+}
+
+bool SimProc::tell(const char* line) {
+    if (in_fd < 0 || pid <= 0) return false;
+    char buf[128];
+    const int n = snprintf(buf, sizeof buf, "%s\n", line);
+    if (n <= 0) return false;
+    return write(in_fd, buf, static_cast<size_t>(n)) == n;
 }
 
 void SimProc::poll() {

@@ -94,11 +94,13 @@ THIRD     = ../../third_party
 IMGUI     = $(THIRD)/imgui
 IMGUI_VER = v1.92.9b
 IMGUI_SHA = 21d8a0a565e85dce943e375db00812c2f3f0ab21f3f0f7964e364a63422d7f99
-# stb_image decodes the sim's MJPEG frames; pinned by commit, not by branch.
+# stb_image decodes the sim's MJPEG frames, stb_image_write writes the
+# console's own --screenshot. Pinned by commit, not by branch.
 STB_REV   = 2c980bb59875b0d32144a71867fbdebb2f77cd20
 STB_SHA   = 594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
+STBW_SHA  = cbd5f0ad7a9cf4468affb36354a1d2338034f2c12473cf1a8e32053cb6914a05
 
-deps: $(IMGUI)/imgui.cpp $(THIRD)/stb_image.h
+deps: $(IMGUI)/imgui.cpp $(THIRD)/stb_image.h $(THIRD)/stb_image_write.h
 
 $(IMGUI)/imgui.cpp:
 	@mkdir -p $(THIRD)
@@ -114,6 +116,12 @@ $(THIRD)/stb_image.h:
 	curl -sSL -o $@ \
 	  https://raw.githubusercontent.com/nothings/stb/$(STB_REV)/stb_image.h
 	@echo "$(STB_SHA)  $@" | shasum -a 256 -c -
+
+$(THIRD)/stb_image_write.h:
+	@mkdir -p $(THIRD)
+	curl -sSL -o $@ \
+	  https://raw.githubusercontent.com/nothings/stb/$(STB_REV)/stb_image_write.h
+	@echo "$(STBW_SHA)  $@" | shasum -a 256 -c -
 
 # Homebrew's GLFW. macOS still ships OpenGL.framework (deprecated since 10.14,
 # hence the silence flag); ImGui's GL3 backend only needs 3.2 core.
@@ -140,7 +148,7 @@ $(BUILD)/imgui/%.o: $(IMGUI)/%.cpp | $(IMGUI)/imgui.cpp
 # link/stb_impl.cpp is the single instantiation of stb_image; it is ours, but
 # it #includes a vendored single-header library, so it is built like one.
 $(BUILD)/imgui/stb_impl.o: ../../link/stb_impl.cpp ../../link/jpeg.h \
-                           $(THIRD)/stb_image.h
+                           $(THIRD)/stb_image.h $(THIRD)/stb_image_write.h
 	@mkdir -p $(dir $@)
 	$(CXX) -std=c++17 -O1 -w -fno-exceptions -fno-rtti $(GUI_INC) $(GUI_DEFS) \
 	       -c $< -o $@

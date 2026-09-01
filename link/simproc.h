@@ -34,11 +34,16 @@ struct RunList {
 struct SimProc {
     pid_t pid = -1;
     int out_fd = -1;
+    int in_fd = -1;
     char log[kSimLogLines][kSimLogCols];
     int log_n = 0;                     // total lines ever, for the ring
     char partial[kSimLogCols];
     size_t partial_len = 0;
     char err[192] = "";
+    // sil_twin's own one-line description of what it is running (run name and
+    // plant). Lifted from its stdout so the panel can state what is on screen
+    // instead of implying it from controls the operator has not touched.
+    char ident[200] = "";
 
     bool running() const { return pid > 0; }
 
@@ -55,6 +60,9 @@ struct SimProc {
     int lines() const;
 
     void pushLine(const char* s);
+    // A line down the child's stdin (sil_twin understands `reset`). False if
+    // nothing is running to hear it.
+    bool tell(const char* line);
 };
 
 // The repo root: <dir of argv[0]>/../../.. for firmware/host/build/bimo_gui.

@@ -5,6 +5,9 @@
 #define STBI_NO_STDIO
 #include "stb_image.h"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 #include "jpeg.h"
 
 namespace bimo {
@@ -16,5 +19,9 @@ unsigned char* decodeJpeg(const unsigned char* data, size_t len, int* w,
 }
 
 void freePixels(unsigned char* p) { stbi_image_free(p); }
+
+bool writePng(const char* path, int w, int h, const unsigned char* rgba) {
+    return stbi_write_png(path, w, h, 4, rgba, w * 4) != 0;
+}
 
 }  // namespace bimo

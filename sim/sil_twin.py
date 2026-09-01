@@ -18,6 +18,7 @@ the same frames to an mp4 on exit (hw_sessions/... is the natural home).
 """
 import argparse
 import io
+import select
 import json
 import os
 import socket
@@ -26,7 +27,14 @@ import sys
 import threading
 import time
 
-os.environ.setdefault("MUJOCO_GL", "egl")
+# EGL is the right headless backend on the Linux training box (mira, under
+# cron with no X display). macOS has no EGL AT ALL -- MuJoCo raises
+# "invalid value for environment variable MUJOCO_GL: egl" before it renders a
+# single frame -- so let it pick its own there. Passing MUJOCO_GL by hand
+# masked this for a long time; bimo_gui's Start button does not pass one, and
+# died every time as a result.
+if sys.platform != "darwin":
+    os.environ.setdefault("MUJOCO_GL", "egl")
 os.environ.setdefault("JAX_PLATFORMS", "cpu")   # eval_precision imports jax
 
 import numpy as np                                          # noqa: E402
@@ -142,11 +150,36 @@ def run(args):
           f"  plant={os.path.basename(xml) if xml else 'run default'}"
           f"  spec={info['spec'][:60]}...")
 
+    def _stdin_commands():
+        """Line commands from whoever launched us (bimo_gui's SIM panel).
+
+        `reset` re-rolls the episode in place. Restarting the process instead
+        costs ~30 s of MuJoCo and policy loading, which is long enough that
+        nobody does it, which means nobody resets."""
+        if sys.stdin is None or sys.stdin.closed:
+            return []
+        out = []
+        while select.select([sys.stdin], [], [], 0)[0]:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            out.append(line.strip())
+        return out
+
     i = 0
     try:
         while args.duration is None or i * dt < args.duration:
             tick = time.monotonic()
             now_ms = (tick - t0) * 1000.0
+
+            for cmd in _stdin_commands():
+                if cmd == "reset":
+                    obs, _ = env.reset(seed=args.seed)
+                    act.begin_episode()
+                    print(f"  [{now_ms / 1000:6.2f}s] episode reset",
+                          flush=True)
+                elif cmd:
+                    print(f"  unknown command: {cmd}", flush=True)
 
             while True:                       # drain; last valid packet wins
                 try:
