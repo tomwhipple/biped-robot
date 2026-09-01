@@ -44,22 +44,37 @@ def main():
     p.add_argument("--tmp", default="/tmp")
     args = p.parse_args()
 
-    agent = subprocess.Popen(
-        [PY, os.path.join(HERE, "udp_agent.py"), "--run-name", args.run_name,
-         "--duration", str(args.duration), "--render", "--out-dir", args.tmp,
-         "--port", "4810", "--tlm-port", "4811", "--pose-port", "4812",
-         "--boot-armed"],                        # the script commander never ARMs
-        stdout=subprocess.PIPE, text=True)
-    time.sleep(6)                                   # policy + model load
-    cmd = subprocess.Popen(
-        [PY, os.path.join(ROOT, "link", "commander.py"), "--host", "127.0.0.1",
-         "--source", "script", "--script", "walk", "--quiet",
-         "--cmd-port", "4810", "--tlm-port", "4811"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(args.walk_s)
-    cmd.send_signal(signal.SIGKILL)              # the radio dies, mid-stride
-    print("  commander killed; watching the watchdog")
-    print(agent.communicate()[0])
+    agent = None
+    cmd = None
+    try:
+        agent = subprocess.Popen(
+            [PY, os.path.join(HERE, "udp_agent.py"), "--run-name", args.run_name,
+             "--duration", str(args.duration), "--render", "--out-dir", args.tmp,
+             "--port", "4810", "--tlm-port", "4811", "--pose-port", "4812",
+             "--boot-armed"],                    # the script commander never ARMs
+            stdout=subprocess.PIPE, text=True)
+        time.sleep(6)                               # policy + model load
+        cmd = subprocess.Popen(
+            [PY, os.path.join(ROOT, "link", "commander.py"), "--host", "127.0.0.1",
+             "--source", "script", "--script", "walk", "--quiet",
+             "--cmd-port", "4810", "--tlm-port", "4811"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(args.walk_s)
+        cmd.send_signal(signal.SIGKILL)          # the radio dies, mid-stride
+        print("  commander killed; watching the watchdog")
+        print(agent.communicate()[0])
+    finally:
+        # never orphan the UDP agent / commander: an early exit (exception,
+        # KeyboardInterrupt, agent crash) must not leak processes holding
+        # ports 4810-4812, which would block the next run.
+        if cmd is not None and cmd.poll() is None:
+            cmd.kill()
+        if agent is not None and agent.poll() is None:
+            agent.terminate()
+            try:
+                agent.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                agent.kill()
 
     frames = imageio.mimread(os.path.join(args.tmp, "udp_agent.gif"),
                              memtest=False)
