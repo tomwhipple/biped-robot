@@ -70,6 +70,27 @@ bool g_fb_ok[obs::kNumJoints];
 bool g_torque_on = false;
 bool g_primed = false;
 
+// Takeover ramp (issue #29, loop-owned). The tick the policy takes the bus
+// after a bench->run handover it used to SNAP the joints from the bench's
+// rigid zero hold straight to its own targets -- an actuation step training
+// never produced, into a policy whose history ring holds nothing but its
+// first frame. Two armed ground sessions fell within seconds of exactly that
+// handover on 2026-08-31. So for the first kArmRampMs of ACTING ticks the
+// written targets blend from the pose MEASURED at takeover toward the
+// policy's shaped targets: target = mix(q_hold, shaped, r), r 0->1. The
+// blend sits after the shaper and before angleToSteps, so the goal-speed
+// streaming chases the blended trajectory; prev_action stays the RAW policy
+// output, same rule as the shaper -- the ramp is downstream of the policy's
+// world. Deliberately NOT mirrored in sil_lib.cpp: the SIL harness has no
+// bench/run handover (sil_reset IS its episode start) and its column
+// comparability must not move.
+constexpr int kArmRampMs = 1000;
+constexpr int kArmRampTicks =
+    static_cast<int>(kArmRampMs / (obs::kControlDt * 1000.0f) + 0.5f);
+float g_ramp_hold[obs::kNumJoints];   // measured pose at the takeover tick
+int g_ramp_ticks = kArmRampTicks;     // >= kArmRampTicks == ramp done
+bool g_ramp_held = false;             // g_ramp_hold captured yet?
+
 // Fall latch (loop-owned). Thresholds and the rationale live in
 // linkproto/protocol.h next to the kFallen state they produce.
 constexpr int kFallDebounceTicks =
@@ -174,6 +195,12 @@ void ctrlTask(void*) {
             // doing it is looking at the robot.
             g_fallen = false;
             g_fall_streak = 0;
+            // Fresh takeover ramp: re-arm it for this run's first acting
+            // ticks. The hold pose is captured lazily at the first tick
+            // that actually writes targets (the link may sit RELAX for a
+            // while after `run`), from that tick's measured g_q.
+            g_ramp_ticks = 0;
+            g_ramp_held = false;
         }
 
         // -- drain the command mailbox (latest wins) -----------------------
@@ -370,6 +397,20 @@ void ctrlTask(void*) {
             g_shaper.update(angle, angle);
         } else {
             g_shaper.invalidate();      // re-enable reseeds from measured q
+        }
+
+        // -- takeover ramp (issue #29; rationale at kArmRampMs above) --------
+        if (g_ramp_ticks < kArmRampTicks) {
+            if (!g_ramp_held) {
+                memcpy(g_ramp_hold, g_q, sizeof g_ramp_hold);
+                g_ramp_held = true;
+            }
+            ++g_ramp_ticks;
+            const float r = static_cast<float>(g_ramp_ticks) /
+                            static_cast<float>(kArmRampTicks);
+            for (int i = 0; i < obs::kNumJoints; ++i) {
+                angle[i] = g_ramp_hold[i] + r * (angle[i] - g_ramp_hold[i]);
+            }
         }
 
         for (int i = 0; i < obs::kNumJoints; ++i) {

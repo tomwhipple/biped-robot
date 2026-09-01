@@ -999,6 +999,100 @@ def scen_sway():
     return build, evaluate
 
 
+def _handover_setup(env, drv, settle_s=1.5):
+    """Recreate the BENCH state, then hand the plant to the policy (#29).
+
+    The armed ground sessions start from a rigid bench hold: every joint at
+    its kJointDefault zero (the `bench` CLI's servo hold), fully settled, and
+    the policy takes the bus at t=0 with NO history of its own actions -- the
+    firmware fills the history ring with the very first frame it assembles
+    (obs::History::fill, ctrl_task.cpp / sil_lib.cpp). The standard referee
+    episodes never visit this regime: reset() adds joint noise and the first
+    second runs UNDER the policy. Two on-robot falls within seconds of the
+    handover (2026-08-31) are the reason this exists.
+
+    Runs after Driver's env.reset() (so the per-episode DR draws are the
+    normal ones) and before the first policy tick:
+      1. pin the exact bench pose (joints = kJointDefault zeros, zero vel),
+      2. settle under the bench's rigid servo hold -- the same per-substep
+         PD-with-torque-envelope that step() applies, target pinned at the
+         default pose (mirrors the reset() settle for staged getup poses),
+      3. prime the referee bookkeeping and the obs history from the SETTLED
+         frame, exactly the way g_hist.fill primes the firmware's.
+    Draws no RNG in the settle, so the per-seed DR draws stay untouched.
+    """
+    import mujoco
+    d = env.data
+    d.qpos[:] = env.model.qpos0
+    d.qpos[env._jqpos] = env._default          # kJointDefault zeros
+    d.qvel[:] = 0.0
+    d.ctrl[:] = env._default
+    mujoco.mj_forward(env.model, d)
+    n = int(round(settle_s / env.sim_dt))
+    if env._servo is not None:
+        kp, kd, stall, w0 = env._servo         # this episode's DR-scaled servo
+        for _ in range(n):
+            q = d.qpos[env._jqpos]
+            qd = d.qvel[env._jqvel]
+            cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
+            err = env._default - q
+            if env._lash_rad > 0.0:
+                err = np.sign(err) * np.maximum(
+                    np.abs(err) - 0.5 * env._lash_rad, 0.0)
+            d.qfrc_applied[env._jqvel] = np.clip(kp * err - kd * qd, -cap, cap)
+            mujoco.mj_step(env.model, d)
+        d.qfrc_applied[env._jqvel] = 0.0
+    else:
+        for _ in range(n):                     # ideal actuators read data.ctrl
+            mujoco.mj_step(env.model, d)
+    mujoco.mj_forward(env.model, d)
+    # the handover tick: stand command in the frame the ring is filled with
+    # (the benched link commands nothing -- the watchdog's defaults are stand)
+    env.set_command(0, 0, 0, 1, 0)
+    env._prev_action[:] = 0.0
+    env._best_h = float(d.qpos[2])
+    env._last_target = env._default.copy()
+    env._ctrl_buf = [env._default.copy() for _ in range(env.action_latency + 1)]
+    if env.obs_hist_len > 1:
+        # firmware priming, mirrored: ONE frame, copied into every slot
+        # (g_hist.fill + build feeds the policy [f0, f0, f0])
+        env._obs_hist = []
+        first = env._obs()
+        env._obs_hist = [first.copy() for _ in range(env.obs_hist_len - 1)]
+        drv.obs = np.concatenate([first] + list(env._obs_hist))
+    else:
+        drv.obs = env._obs()
+    # referee bookkeeping restarts at the settled pose
+    env.mark_xy = (float(d.qpos[0]), float(d.qpos[1]))
+    drv._prev_sole = [d.geom_xpos[g][:2].copy() for g in env._sole_gids]
+
+
+def scen_handover_stand():
+    """Bench->policy handover, judged like stand_10s (issue #29): 10 s of
+    stand command from a cold takeover -- rigid bench pose, freshly-filled
+    history, no settle under the policy. Success: no fall, drift < 0.15 m.
+    --scenarios-only; never part of the default suite (see EXTRA_SCENARIOS)."""
+    def build():
+        ev = {"_setup": _handover_setup}
+
+        def ctrl(t, gt, ev):
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        if rows:
+            x0, y0 = rows[0]["x"], rows[0]["y"]
+            drift = max(math.hypot(r["x"] - x0, r["y"] - y0) for r in rows)
+        else:
+            drift = float("nan")
+        success = (not fell) and drift < 0.15
+        return dict(success=success,
+                    metrics=dict(drift=drift, watts=shared["mean_watts"],
+                                 wobble=shared["wobble_rms"]),
+                    headline=f"drift {drift*100:.1f}cm")
+    return build, evaluate
+
+
 def scen_stand_10s():
     def build():
         ev = {}
@@ -1542,6 +1636,12 @@ def _registry():
     reg["metronome"] = (15.5, scen_metronome(), False)
     reg["squat_reps"] = (10.5, scen_squat_reps(), False)
     reg["weight_shift"] = (10.5, scen_weight_shift(), False)
+    # bench->policy handover probe (issue #29). Registered so --scenarios can
+    # reach it, but EXCLUDED from the default suite (not in ORDER / any
+    # FAMILY_SCENARIOS list; see EXTRA_SCENARIOS): the 144-seed totals of
+    # every existing scorecard must stay comparable, and a subset run writes
+    # a _partial card anyway.
+    reg["handover_stand"] = (10.0, scen_handover_stand(), False)
     return reg
 
 
@@ -1581,6 +1681,10 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
          "crouch_hold",
          "recover_sit", "recover_fallen", "stand_10s", "stand_off"]
 
+# scenarios that exist ONLY behind the --scenarios filter (issue #29): never
+# part of the default suite, so the comparable 144-card totals never move.
+EXTRA_SCENARIOS = ["handover_stand"]
+
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
 HEADLINE = {
@@ -1609,6 +1713,7 @@ HEADLINE = {
     "hip_sway": ("sway_amp", lambda v: f"amp {v*100:.1f}cm"),
     "stand_10s": ("drift", lambda v: f"drift {v*100:.1f}cm"),
     "stand_off": ("drift", lambda v: f"drift {v*100:.1f}cm"),
+    "handover_stand": ("drift", lambda v: f"drift {v*100:.1f}cm"),
 }
 
 
@@ -1635,6 +1740,10 @@ def run_one(env, act, factory, seed, record, N, mass):
     ctrl, ev = build()
     ev["_env"] = env          # scenarios that drive the env directly (torque-off)
     drv = Driver(env, act, seed, record)
+    if ev.get("_setup"):
+        # scenario-owned start-state hook, after reset() and before the first
+        # policy tick (handover_stand's bench hold + history prime, #29)
+        ev["_setup"](env, drv)
     gt = drv.initial_gt()
     for step in range(env.max_steps):
         t = step * drv.dt
@@ -1686,7 +1795,7 @@ def main():
         print(f"[family={fam}] scoring {len(names)} scenarios")
     if args.scenarios:
         want = [s.strip() for s in args.scenarios.split(",") if s.strip()]
-        names = [n for n in ORDER if n in want]
+        names = [n for n in ORDER + EXTRA_SCENARIOS if n in want]
         unknown = [w for w in want if w not in reg]
         if unknown:
             print(f"warning: unknown scenarios ignored: {unknown}", file=sys.stderr)
