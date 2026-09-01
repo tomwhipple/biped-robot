@@ -150,7 +150,7 @@ def main():
     t_hidden = hidden_sizes(t_params[1], (512, 256, 128))
 
     env = BimoMJXEnv(**env_kwargs(cfg))
-    wrapped = BatchedEnv(env, env.max_steps)
+    wrapped = BatchedEnv(env, env.max_steps, num_envs=args.envs)
     obs_size, act_size = env.obs_size, env.action_size
     print(f"teacher {args.teacher}: {t_hidden} hidden, obs {obs_size}, "
           f"act {act_size}, plant {os.path.basename(cfg['xml_path'])}")
