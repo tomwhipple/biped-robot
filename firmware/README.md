@@ -209,7 +209,11 @@ Handover is one-way through the ctrl task: it releases torque and clears
    can never mix two ticks' joints) and read by `wifi_link.cpp`, which sends
    the long frame only when asked AND the publish count moved since the
    last beacon — a benched loop measures nothing, so a mirror-on client sees
-   classic frames until it arms. Nobody who does not ask sees a byte change;
+   classic frames until it arms. The beacon's destination and the pose
+   request are one `Commander` snapshot replaced from each accepted frame,
+   so a long frame can only go to the address that asked for it (the
+   two-console trap in docs/mirror-mode.md). Nobody who does not ask sees a
+   byte change;
    `wifi` prints `tlm tx N (pose M, asked|not asked)` so the bench check can
    confirm that. The UART tether stays 20 B (link_task.cpp says why).
 3. **Calibration persistence.** `obs::Calibration` exists and is used

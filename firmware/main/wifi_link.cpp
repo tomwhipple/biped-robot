@@ -73,16 +73,27 @@ void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data) {
 // exactly that reason).
 void wifiLinkTask(void*) {
     int sock = -1;
-    sockaddr_in peer = {};          // last commander; task-local on purpose
-    bool have_peer = false;
     int64_t next_tlm_us = 0;
-    // Mirror mode (docs/mirror-mode.md): does the commander want joint angles
-    // in the beacon? A LEVEL from the last valid frame, not a latch -- unlike
-    // ARM there is nothing to remember: a commander that stops asking stops
-    // getting long frames on the very next beacon. Task-local because this
-    // task is both the receiver that sees the flag and the sender that acts
-    // on it; the mailbox does not need to carry it anywhere.
-    bool pose_wanted = false;
+    // The last commander, as ONE snapshot: where the beacon goes and whether
+    // it carries joint angles are read from the same accepted frame and
+    // replaced together (docs/mirror-mode.md, "The invariant the firmware
+    // must hold"). The robot beacons to whoever commanded last, so if the
+    // pose level and the address could come from different commands, a
+    // plain console B sending one frame between mirror console A's frames
+    // could be handed a 40 B beacon it never asked for. Keeping them in one
+    // struct with one assignment makes that unwritable rather than merely
+    // avoided. Task-local on purpose: this task is both the receiver that
+    // sees the flag and the sender that acts on it, so nothing else needs
+    // a copy (the g_* atomics below are `wifi` diagnostics, not inputs).
+    struct Commander {
+        sockaddr_in addr;
+        bool pose;      // Mirror mode: a LEVEL from this frame, not a latch.
+                        // Unlike ARM there is nothing to remember -- a
+                        // commander that stops asking stops getting long
+                        // frames on the very next beacon.
+    };
+    Commander cmdr = {};
+    bool have_cmdr = false;
     // The g_joint_pose publish count of the last pose we beaconed. The loop
     // publishes at 50 Hz and this beacons at 10 Hz, so while armed the count
     // always moves between beacons; the same value twice means ctrl is
@@ -134,12 +145,12 @@ void wifiLinkTask(void*) {
                 msg.rx_ms = static_cast<float>(esp_timer_get_time()) / 1000.0f;
                 if (g_cmd_mailbox) xQueueOverwrite(g_cmd_mailbox, &msg);
                 g_rx_frames.fetch_add(1);
-                pose_wanted = pkt.pose();
-                g_pose_wanted.store(pose_wanted);
-                // Latest commander wins, same rule as latest command.
-                peer = from;
-                have_peer = true;
+                // Latest commander wins, same rule as latest command -- and
+                // {address, pose} are replaced as one value from this frame.
+                cmdr = Commander{from, pkt.pose()};
+                have_cmdr = true;
                 g_peer_ip.store(lwip_ntohl(from.sin_addr.s_addr));
+                g_pose_wanted.store(cmdr.pose);
             } else {
                 // Stray traffic on an open port -- exactly what the CRC is
                 // for (control-channel.md). Count it, drop it.
@@ -152,7 +163,7 @@ void wifiLinkTask(void*) {
         // and a beacon you can hear while benched is what makes the link
         // verifiable without arming the control loop.
         const int64_t now_us = esp_timer_get_time();
-        if (have_peer && now_us >= next_tlm_us) {
+        if (have_cmdr && now_us >= next_tlm_us) {
             // Drift-free schedule: the task wakes every <=50 ms (the recv
             // timeout), so `next += period` holds a true 10 Hz average, where
             // `next = now + period` would add the wakeup slack to every
@@ -188,11 +199,13 @@ void wifiLinkTask(void*) {
             t.servo_err = static_cast<uint8_t>(f & 0xFF) |
                           static_cast<uint8_t>((f >> 8) & 0x03);
             t.loop_late_pct = g_telemetry.loop_late_pct.load();
-            // The long frame, REQUESTED and FRESH only (see pose_wanted and
+            // The long frame, REQUESTED and FRESH only (see Commander and
             // pose_seq_sent above). Everything before this line is the
             // classic body byte for byte; a commander that never asks gets
-            // exactly the 20 B frame it always did.
-            if (pose_wanted) {
+            // exactly the 20 B frame it always did. The request and the
+            // destination below are the same snapshot, so the long frame
+            // can only ever go to the address that asked for it.
+            if (cmdr.pose) {
                 float q[obs::kNumJoints];
                 uint32_t seq = 0;
                 if (g_joint_pose.read(q, seq) && seq != pose_seq_sent) {
@@ -206,7 +219,7 @@ void wifiLinkTask(void*) {
             // kTlmLen here truncates the long frame and every CRC fails.
             uint8_t wire[linkproto::kTlmLenExt];
             const size_t n = linkproto::encodeTelemetry(wire, t);
-            sockaddr_in to = peer;
+            sockaddr_in to = cmdr.addr;
             to.sin_port = lwip_htons(linkproto::kTlmPort);
             if (lwip_sendto(sock, wire, n, 0,
                             reinterpret_cast<sockaddr*>(&to), sizeof to) ==
