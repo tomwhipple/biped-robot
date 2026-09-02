@@ -27,13 +27,13 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from protocol import (CMD_PORT, NUM_JOINTS, TLM_PORT, LinkState,  # noqa
-                      ProtocolError, Supervisor, Telemetry, decode_command,
-                      diag_reason, encode_telemetry)
+from protocol import (CMD_PORT, FLAG_HOME, NUM_JOINTS, TLM_PORT,  # noqa
+                      LinkState, ProtocolError, Supervisor, Telemetry,
+                      decode_command, diag_reason, encode_telemetry)
 
 
 def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
-        duration=None, quiet=False):
+        duration=None, quiet=False, deaf_home=False):
     rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rx.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     rx.bind(("0.0.0.0", port))
@@ -64,6 +64,13 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                 pkt = decode_command(buf)
             except ProtocolError:
                 continue
+            if deaf_home:
+                # A robot that PREDATES the servo-reset bit: bit 4 means
+                # nothing to it and the frame is otherwise ordinary, so the
+                # console gets a perfectly reasonable-looking BENCH beacon
+                # about something else entirely. That is what a console met on
+                # 2026-09-02, and why it now says so out loud.
+                pkt = pkt._replace(flags=pkt.flags & ~FLAG_HOME)
             sup.accept(pkt, now_ms)
             want_pose = pkt.pose
         state = sup.state(now_ms)
@@ -134,11 +141,14 @@ def main():
                         "tether")
     p.add_argument("--no-cal", action="store_true",
                    help="refuse ARM, like a robot with no calibration in NVS")
+    p.add_argument("--deaf-home", action="store_true",
+                   help="ignore FLAG_HOME, like firmware older than "
+                        "2026-09-02")
     p.add_argument("--duration", type=float, default=None)
     p.add_argument("--quiet", action="store_true")
     a = p.parse_args()
     run(a.port, a.tlm_port, armed=a.boot_armed, arm_allowed=not a.no_cal,
-        duration=a.duration, quiet=a.quiet)
+        duration=a.duration, quiet=a.quiet, deaf_home=a.deaf_home)
 
 
 if __name__ == "__main__":

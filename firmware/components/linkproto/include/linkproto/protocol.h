@@ -152,7 +152,24 @@ enum class ArmResult : uint8_t {
     kRefusedNoCal = 2,   // arm refused: no as-built calibration in NVS
     kDisarmedFall = 3,   // the FALL latch tripped: run over, robot disarmed
     kDisarmedHome = 4,   // a kFlagHome request benched the loop and homed it
+    // ... and the three ways that request can fail. They exist for the same
+    // reason kRefusedNoCal does: a reset that silently does nothing sends an
+    // operator to look for a broken button, a dead radio or a seized servo,
+    // when the robot knew the answer all along (docs/control-channel.md,
+    // "Saying WHY, over the radio").
+    kHomeNoCal = 5,      // reset REFUSED: no as-built calibration in NVS
+    kHomeLowBatt = 6,    // reset REFUSED: the pack guard has torque latched off
+    kHomeBusFailed = 7,  // reset FAILED: the servo bus did not accept it
 };
+
+// True for every verdict a kFlagHome request can produce. A console that
+// asked for a reset uses this to tell "the robot answered me" from "the robot
+// is talking about something else" -- an old firmware that never heard of the
+// request still reports kAccepted for the disarm that rode in with it.
+inline bool isHomeResult(ArmResult r) {
+    return r == ArmResult::kDisarmedHome || r == ArmResult::kHomeNoCal ||
+           r == ArmResult::kHomeLowBatt || r == ArmResult::kHomeBusFailed;
+}
 
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result);
 ArmResult diagArmResult(uint8_t diag);

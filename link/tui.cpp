@@ -290,7 +290,7 @@ int main(int argc, char** argv) {
                     break;
                 case 'h':
                     hold.clear();
-                    in.requestHome();
+                    in.requestHome(now_ms);
                     break;
                 case ' ': case 's':
                     hold.clear();
@@ -313,6 +313,7 @@ int main(int argc, char** argv) {
         // edge has had time to land: refused (no calibration in NVS) or the
         // robot rebooted under us. Either way, this console is wrong.
         if (in.syncToRobot(link, now_ms)) hold.clear();
+        in.checkHome(link, now_ms);
 
         float vx, vy, wz;
         bimo::Ext ext;

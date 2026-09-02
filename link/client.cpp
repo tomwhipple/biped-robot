@@ -276,8 +276,9 @@ void Intent::stand(const char* why) {
     }
 }
 
-void Intent::requestHome() {
+void Intent::requestHome(double now_ms) {
     home_frames = kHomeFrames;
+    home_at_ms = now_ms;
     // The robot benches to run the move (the CLI half of the firmware owns
     // the servo bus), so drop ARM here too rather than let the console go on
     // claiming a run the robot has ended. A latched E-stop is NOT cleared:
@@ -324,6 +325,20 @@ void Intent::frame(const Speeds& s, float& vx, float& vy, float& wz,
     if (held[kAxTurnLeft]) wz += s.wz;
     if (held[kAxTurnRight]) wz -= s.wz;
     ext_out = ext;
+}
+
+bool Intent::checkHome(const Link& link, double now_ms) {
+    if (home_at_ms < 0.0) return false;
+    if (link.linkLost(now_ms)) return false;   // we know nothing; say nothing
+    if (now_ms - home_at_ms <= kArmSyncMs) return false;
+    home_at_ms = -1.0;                         // asked and answered, either way
+    if (link.tlm.state == LinkState::kBench &&
+        isHomeResult(diagArmResult(telemetryDiag(link.tlm)))) {
+        return false;      // answered -- the BENCH line already says HOW
+    }
+    say("no answer to the reset: this robot's firmware may predate the "
+        "request (re-flash it), or the frames never arrived");
+    return true;
 }
 
 bool Intent::syncToRobot(const Link& link, double now_ms) {

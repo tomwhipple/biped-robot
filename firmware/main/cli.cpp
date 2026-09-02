@@ -351,14 +351,17 @@ void cmdPose(Sink out, int argc, char** argv) {
 //     catch.
 // Torque is left ON at the end, holding the pose: a robot that homed and
 // then went limp has only fallen over more tidily.
-void cmdHome(Sink out, int argc, char** argv) {
+// Returns the verdict, because over the radio `out` is a tether nobody is
+// holding: linkHome puts what this returns into the beacon. Every early exit
+// below is a REASON, not a silence.
+linkproto::ArmResult homeAll(Sink out, long spd) {
     scsbus::Bus* bus = claimBus(out);
-    if (!bus) return;
+    if (!bus) return linkproto::ArmResult::kHomeBusFailed;
     if (!robot::g_cal_from_nvs) {
         out("REFUSED: no as-built calibration in NVS, so \"zero\" here means "
             "2048 on every joint -- the raw-middle pose that broke the feet, "
             "not a stand. Run the `cal` workflow first.\r\n");
-        return;
+        return linkproto::ArmResult::kHomeNoCal;
     }
     // The pack guard outranks the link everywhere else (ctrl_task's safety
     // block), so it outranks this too: a flat pack is exactly when powering
@@ -367,11 +370,8 @@ void cmdHome(Sink out, int argc, char** argv) {
     if (robot::battGuard().torqueMustRelease()) {
         out("REFUSED: the pack under-voltage guard has torque latched off. "
             "Swap the pack, then `batt reset` -- see `batt`.\r\n");
-        return;
+        return linkproto::ArmResult::kHomeLowBatt;
     }
-    // 0 asks for the servo's maximum, same convention as `move` and `pose`.
-    const long spd = argc >= 2 ? num(argv[1], kHomeStepsPerSec)
-                               : kHomeStepsPerSec;
     const obs::Calibration& cal = robot::calibration();
     int32_t tgt[obs::kNumJoints];
     for (int j = 0; j < obs::kNumJoints; ++j) {
@@ -385,17 +385,24 @@ void cmdHome(Sink out, int argc, char** argv) {
     if (ts != scsbus::Status::kOk) {
         say(out, "torque enable failed (%s) -- not writing goals\r\n",
             statusName(ts));
-        return;
+        return linkproto::ArmResult::kHomeBusFailed;
     }
     const scsbus::Status st = bus->syncWritePositions(
         robot::servoIds(), tgt, obs::kNumJoints, 0,
         static_cast<uint16_t>(spd), 0);
     say(out, "home -> %d joints at their calibrated zero, spd %ld: %s\r\n",
         obs::kNumJoints, spd, statusName(st));
-    if (st == scsbus::Status::kOk) {
-        out("  torque is ON and HOLDING the stand -- `release` to let go, "
-            "or arm to walk\r\n");
-    }
+    if (st != scsbus::Status::kOk) return linkproto::ArmResult::kHomeBusFailed;
+    out("  torque is ON and HOLDING the stand -- `release` to let go, "
+        "or arm to walk\r\n");
+    return linkproto::ArmResult::kDisarmedHome;
+}
+
+// The tethered `home`. 0 steps/s asks for the servo's maximum, same
+// convention as `move` and `pose`.
+void cmdHome(Sink out, int argc, char** argv) {
+    homeAll(out, argc >= 2 ? num(argv[1], kHomeStepsPerSec)
+                           : kHomeStepsPerSec);
 }
 
 void cmdShape(Sink out, int argc, char** argv) {
@@ -1142,12 +1149,13 @@ void linkHome(Sink out) {
     for (int i = 0; i < 40 && robot::g_ctrl_owns_bus.load(); ++i) {
         vTaskDelay(pdMS_TO_TICKS(5));
     }
-    // Say WHY it is benched, on the wire and not just down the tether: this
-    // is the atomic the beacon reads (shared.h g_arm_result), and an operator
-    // who resets the servos over the radio has nobody watching the UART.
+    // Publish the VERDICT, not the intention. This atomic is the only way the
+    // outcome reaches an operator who is holding a laptop and not a tether,
+    // and a reset that quietly did nothing -- no calibration, a latched pack,
+    // a servo that did not answer -- must say which, or it looks exactly like
+    // a dead button.
     robot::g_arm_result.store(
-        static_cast<uint8_t>(linkproto::ArmResult::kDisarmedHome));
-    cmdHome(out, 1, nullptr);
+        static_cast<uint8_t>(homeAll(out, kHomeStepsPerSec)));
 }
 
 void execute(const char* line, Sink out) {

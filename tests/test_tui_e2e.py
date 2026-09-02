@@ -20,7 +20,13 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TUI = os.path.join(ROOT, "firmware", "host", "build", "bimo_tui")
 TWIN = os.path.join(ROOT, "link", "link_twin.py")
-CMD_PORT, TLM_PORT = 4310, 4311
+# NOT 4310/4311, which look free and are not: a console in mirror mode
+# relays to `--cmd-port + 100`, so a `bimo_gui --mirror` pointed at the robot
+# (4210) is streaming 20 Hz into 4310 the whole time it runs. This suite
+# binds fixed ports, so that console and this test fight over the twin, and
+# the failure -- two senders, arm and pose flapping every 20 ms -- looks
+# nothing like its cause. Found the hard way on 2026-09-02.
+CMD_PORT, TLM_PORT = 4370, 4371
 
 KEY_UP, KEY_LEFT = b"\x1b[A", b"\x1b[D"
 

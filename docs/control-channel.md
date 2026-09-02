@@ -279,6 +279,34 @@ The design, and what each piece is buying:
   powering ten servos to hold a stand is the wrong answer. Home is refused
   there, and says so.
 
+### Every outcome comes back over the radio (2026-09-02, same day)
+
+The button shipped and did nothing on the first press, for the dullest
+possible reason: the console had been rebuilt and the robot had not been
+re-flashed. Old firmware ignores bit 4 — it is a bit it has never heard of —
+and the console's request rides in alongside an ordinary disarm, so the robot
+benches, reports *"disarmed on request"*, and every field on screen reads
+perfectly plausibly. From the operator's chair that is indistinguishable from
+a dead button, a dead radio or a seized servo.
+
+Two changes, both the same lesson this channel already learned once for
+arming:
+
+1. **The robot reports the verdict, not the intention.** `linkHome` used to
+   publish "reset done" *before* attempting it. It now publishes what
+   actually happened: `kDisarmedHome`, or `kHomeNoCal` / `kHomeLowBatt` /
+   `kHomeBusFailed`. A refusal that only ever reached the UART is a refusal
+   the wireless operator never sees.
+2. **The console notices silence.** All four verdicts are recognisable *as*
+   home verdicts (`isHomeResult`). If none arrives within `kArmSyncMs` of the
+   request — the same grace the arm-sync rule uses — the console says: *"no
+   answer to the reset: this robot's firmware may predate the request
+   (re-flash it), or the frames never arrived."*
+
+`link_twin.py --deaf-home` is that old robot, and
+`tests/test_gui_e2e.py` drives the real console against it, so the failure
+that shipped is now a test.
+
 Console-side the request is a `HOME` *level* held for 8 frames (400 ms at
 20 Hz): the robot acts on the first flagged frame it receives and ignores the
 rest, so the hold costs nothing and buys survival of a dropped packet — and

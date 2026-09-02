@@ -170,11 +170,32 @@ class ArmResult(Enum):
     REFUSED_NO_CAL = 2   # arm refused: no as-built calibration in NVS
     DISARMED_FALL = 3    # the FALL latch tripped: run over, robot disarmed
     DISARMED_HOME = 4    # a FLAG_HOME request benched the loop and homed it
+    # ... and the three ways that request can fail. A reset that silently
+    # does nothing sends an operator looking for a broken button, a dead
+    # radio or a seized servo, when the robot knew the answer all along.
+    HOME_NO_CAL = 5      # reset REFUSED: no as-built calibration in NVS
+    HOME_LOW_BATT = 6    # reset REFUSED: pack guard has torque latched off
+    HOME_BUS_FAILED = 7  # reset FAILED: the servo bus did not accept it
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
     d = (DIAG_RUN if run else 0) | (DIAG_CAL_OK if cal_ok else 0)
     return d | ((result.value << DIAG_ARM_SHIFT) & DIAG_ARM_MASK)
+
+
+HOME_RESULTS = (ArmResult.DISARMED_HOME, ArmResult.HOME_NO_CAL,
+                ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED)
+
+
+def is_home_result(r) -> bool:
+    """True for every verdict a FLAG_HOME request can produce.
+
+    A console that asked for a reset uses this to tell "the robot answered
+    me" from "the robot is talking about something else" -- an old firmware
+    that never heard of the request still reports ACCEPTED for the disarm
+    that rode in with it.
+    """
+    return r in HOME_RESULTS
 
 
 def diag_arm_result(diag: int):
@@ -196,6 +217,15 @@ def diag_reason(diag: int) -> str:
     if r is ArmResult.DISARMED_HOME:
         return ("disarmed -- servos reset to the standing pose; torque is "
                 "HOLDING it, re-arm to walk")
+    if r is ArmResult.HOME_NO_CAL:
+        return ("servo reset REFUSED -- no as-built calibration in NVS, so "
+                "\"zero\" is not a stand (run `cal`)")
+    if r is ArmResult.HOME_LOW_BATT:
+        return ("servo reset REFUSED -- pack under-voltage latch; swap the "
+                "pack, then `batt reset`")
+    if r is ArmResult.HOME_BUS_FAILED:
+        return ("servo reset FAILED -- the servo bus did not accept it "
+                "(check pack, wiring, `scan`)")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")

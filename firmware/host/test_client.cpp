@@ -202,7 +202,7 @@ void test_home_is_sent_disarmed_and_estopped() {
     uint8_t flags;
 
     Intent cold;                              // the boot state: disarmed
-    cold.requestHome();
+    cold.requestHome(0.0);
     cold.frame(s, vx, vy, wz, ext, flags);
     CHECK((flags & linkproto::kFlagHome) != 0);
     CHECK((flags & linkproto::kFlagArm) == 0);      // it does not arm ...
@@ -215,7 +215,7 @@ void test_home_is_sent_disarmed_and_estopped() {
     in.arm(0.0);
     in.press(kAxForward, 0.0);
     in.fireEstop();
-    in.requestHome();
+    in.requestHome(0.0);
     CHECK(!in.armed);                  // the robot benches to home; so do we
     CHECK(!in.moving());
     in.frame(s, vx, vy, wz, ext, flags);
@@ -236,7 +236,7 @@ void test_home_level_is_held_then_released() {
     Ext ext;
     uint8_t flags;
 
-    in.requestHome();
+    in.requestHome(0.0);
     int flagged = 0;
     for (int i = 0; i < kHomeFrames + 5; ++i) {
         sendIntent(link, in, s, vx, vy, wz, ext, flags);
@@ -245,9 +245,71 @@ void test_home_level_is_held_then_released() {
     CHECK_EQ(flagged, kHomeFrames);
     CHECK_EQ(in.home_frames, 0);
 
-    in.requestHome();                  // a fresh press makes a fresh edge
+    in.requestHome(0.0);               // a fresh press makes a fresh edge
     sendIntent(link, in, s, vx, vy, wz, ext, flags);
     CHECK((flags & linkproto::kFlagHome) != 0);
+}
+
+// A reset the robot never answered must not look like one that worked.
+//
+// This is the failure that actually happened the day the button shipped: a
+// console rebuilt with it, pointed at firmware that predated the bit. The
+// old robot ignores bit 4 and reports the disarm that rode in with it, so
+// every screen on the console says something reasonable and the robot just
+// sits there.
+void test_home_without_an_answer_says_so() {
+    Intent in;
+    Link link;
+    link.have_tlm = true;
+    link.tlm.state = LinkState::kBench;
+    link.tlm.seq_echo = linkproto::packDiag(
+        false, true, linkproto::ArmResult::kAccepted);   // an OLD robot
+    link.tlm_at_ms = 0.0;
+
+    in.requestHome(0.0);
+    CHECK(!in.checkHome(link, 100.0));        // too early to conclude anything
+
+    link.tlm_at_ms = kArmSyncMs + 100.0;      // a fresh beacon, still no verdict
+    CHECK(in.checkHome(link, kArmSyncMs + 100.0));
+    CHECK(strstr(in.note, "no answer") != nullptr);
+    CHECK(strstr(in.note, "re-flash") != nullptr);
+    // Said once. A console that repeated it every frame would bury the note
+    // that matters under the note that already landed.
+    CHECK(!in.checkHome(link, kArmSyncMs + 200.0));
+}
+
+// Every verdict the request can produce counts as an answer -- including the
+// refusals, whose own reason is already on screen and is more use than a
+// generic "no answer" on top of it.
+void test_home_answers_are_not_warned_about() {
+    const linkproto::ArmResult answers[] = {
+        linkproto::ArmResult::kDisarmedHome, linkproto::ArmResult::kHomeNoCal,
+        linkproto::ArmResult::kHomeLowBatt,
+        linkproto::ArmResult::kHomeBusFailed};
+    for (linkproto::ArmResult r : answers) {
+        Intent in;
+        Link link;
+        link.have_tlm = true;
+        link.tlm.state = LinkState::kBench;
+        link.tlm.seq_echo = linkproto::packDiag(false, true, r);
+        link.tlm_at_ms = kArmSyncMs + 100.0;
+        in.requestHome(0.0);
+        CHECK(!in.checkHome(link, kArmSyncMs + 100.0));
+        CHECK(in.note[0] == 0 || strstr(in.note, "no answer") == nullptr);
+    }
+}
+
+// A dead link is not evidence of anything: the console cannot tell "the robot
+// ignored me" from "the robot has not spoken for a second".
+void test_home_says_nothing_over_a_dead_link() {
+    Intent in;
+    Link link;
+    link.have_tlm = true;
+    link.tlm.state = LinkState::kBench;
+    link.tlm_at_ms = 0.0;
+    in.requestHome(0.0);
+    CHECK(!in.checkHome(link, 10000.0));
+    CHECK(strstr(in.note, "no answer") == nullptr);
 }
 
 // -- the keymap -------------------------------------------------------------
@@ -440,6 +502,9 @@ int main() {
     test_arm_sync_ignores_a_dead_link();
     test_home_is_sent_disarmed_and_estopped();
     test_home_level_is_held_then_released();
+    test_home_without_an_answer_says_so();
+    test_home_answers_are_not_warned_about();
+    test_home_says_nothing_over_a_dead_link();
     test_keymap_names_round_trip();
     test_keymap_bind_is_exclusive();
     test_keymap_file_round_trip();

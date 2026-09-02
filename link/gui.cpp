@@ -282,6 +282,7 @@ void pumpLog(App& a) {
 void tick(App& a, double now_ms) {
     a.link.poll(now_ms);
     a.in.syncToRobot(a.link, now_ms);
+    a.in.checkHome(a.link, now_ms);
     bimo::sendIntent(a.link, a.in, a.o.speeds, a.vx, a.vy, a.wz, a.ext_sent,
                      a.flags);
     a.rec.command(now_ms, a.link.seq - 1, a.vx, a.vy, a.wz, a.ext_sent, a.flags,
@@ -400,7 +401,7 @@ void fireAction(App& a, int action, double now_ms) {
         case bimo::kActArm: a.in.toggleArm(now_ms); break;
         case bimo::kActStand: a.in.stand("stand"); break;
         case bimo::kActEstop: a.in.fireEstop(); break;
-        case bimo::kActHome: a.in.requestHome(); break;
+        case bimo::kActHome: a.in.requestHome(now_ms); break;
         case bimo::kActQuit: a.quit = true; break;
         case bimo::kActRecord: toggleRecord(a, now_ms); break;
         case bimo::kActResetExt:
@@ -733,7 +734,7 @@ void drawHeader(App& a, double now_ms) {
                           ImVec4(amber.x + 0.25f, amber.y + 0.18f, amber.z,
                                  1.0f));
     labelFor(a, bimo::kActHome, lbl, sizeof lbl, "RESET SERVOS");
-    if (ImGui::Button(lbl, ImVec2(240, 34))) a.in.requestHome();
+    if (ImGui::Button(lbl, ImVec2(240, 34))) a.in.requestHome(now_ms);
     ImGui::PopStyleColor(3);
     ImGui::SameLine(0.0f, 12.0f);
     if (a.in.home_frames > 0) {

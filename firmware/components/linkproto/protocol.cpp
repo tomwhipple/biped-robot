@@ -117,6 +117,15 @@ const char* diagReason(uint8_t diag) {
         case ArmResult::kDisarmedHome:
             return "disarmed -- servos reset to the standing pose; torque is "
                    "HOLDING it, re-arm to walk";
+        case ArmResult::kHomeNoCal:
+            return "servo reset REFUSED -- no as-built calibration in NVS, so "
+                   "\"zero\" is not a stand (run `cal`)";
+        case ArmResult::kHomeLowBatt:
+            return "servo reset REFUSED -- pack under-voltage latch; swap the "
+                   "pack, then `batt reset`";
+        case ArmResult::kHomeBusFailed:
+            return "servo reset FAILED -- the servo bus did not accept it "
+                   "(check pack, wiring, `scan`)";
     }
     // A refusal reason this client is too old to name. Say so rather than
     // guess: the enum is append-only, so an unknown value is a NEWER robot.

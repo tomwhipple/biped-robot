@@ -342,3 +342,26 @@ def test_reset_servos_needs_no_arm_and_is_one_edge():
     assert len(_home_lines(log)) == 2, log     # two presses, two homes
     assert "ARM" not in out, out               # it never armed anything
     assert rc == 0, out
+
+
+def test_a_robot_that_never_heard_of_the_reset_is_called_out():
+    """The failure that actually happened the day the button shipped.
+
+    A console rebuilt with RESET SERVOS, pointed at firmware that predates
+    bit 4: the robot ignores it and reports the disarm that rode in with the
+    request, so every field on screen reads plausibly and the robot just sits
+    there. The console has to notice the difference between "answered" and
+    "answered about something else" -- otherwise the operator goes looking
+    for a dead radio or a seized servo.
+    """
+    out, log, rc = _run([
+        (1.5, "home"),
+        (2.5, ""),
+        (0.5, "quit"),
+        (0.5, ""),
+    ], twin_args=["--deaf-home"], gui_args=["--no-record"])
+
+    assert not _home_lines(log), log            # the robot never homed
+    assert "no answer to the reset" in out, out
+    assert "re-flash" in out, out
+    assert rc == 0, out

@@ -18,7 +18,7 @@ from protocol import (CMD_LEN, DIAG_ARM_SHIFT, DIAG_CAL_OK,  # noqa: E402
                       FLAG_POSE,
                       NUM_JOINTS, RELAX_MS,
                       STALE_MS, TLM_LEN, TLM_LEN_EXT, V_MAX, W_MAX,
-                      ArmLatch, ArmResult, HomeLatch,
+                      ArmLatch, ArmResult, HomeLatch, is_home_result,
                       Command, LinkState, ProtocolError, Supervisor,
                       Telemetry, Watchdog, clamp_to_envelope, crc16_ccitt,
                       decode_command, decode_telemetry, diag_arm_result,
@@ -345,6 +345,21 @@ def test_home_works_from_the_states_that_refuse_to_move():
     assert sup.command(4.0) == (0.0, 0.0)
 
 
+def test_every_home_verdict_reaches_the_operator():
+    # A reset that quietly does nothing looks exactly like a dead button, so
+    # each way it can fail has its own line -- and each is recognisable AS a
+    # home verdict, which is how a console tells "answered" from "ignored by
+    # a robot that predates the bit".
+    for r in (ArmResult.DISARMED_HOME, ArmResult.HOME_NO_CAL,
+              ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED):
+        assert is_home_result(r)
+        why = diag_reason(pack_diag(False, True, r))
+        assert "reset" in why and "unknown to this client" not in why
+    for r in (ArmResult.ACCEPTED, ArmResult.REFUSED_NO_CAL,
+              ArmResult.DISARMED_FALL, ArmResult.NONE):
+        assert not is_home_result(r)
+
+
 def test_home_needs_no_arm_and_never_arms():
     sup = Supervisor()
     sup.accept(live(seq=1, flags=0), 0.0)
@@ -405,7 +420,8 @@ def test_diag_values_are_append_only():
     # never move, or an old client mis-reports a new robot.
     assert [(r.name, r.value) for r in ArmResult] == [
         ("NONE", 0), ("ACCEPTED", 1), ("REFUSED_NO_CAL", 2),
-        ("DISARMED_FALL", 3), ("DISARMED_HOME", 4)]
+        ("DISARMED_FALL", 3), ("DISARMED_HOME", 4), ("HOME_NO_CAL", 5),
+        ("HOME_LOW_BATT", 6), ("HOME_BUS_FAILED", 7)]
     assert DIAG_RUN == 1 and DIAG_CAL_OK == 2 and DIAG_ARM_SHIFT == 4
 
 

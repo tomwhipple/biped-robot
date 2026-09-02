@@ -147,6 +147,10 @@ struct Intent {
     // Frames left to spend asking for a servo reset (kFlagHome). See
     // kHomeFrames; sendIntent spends one per frame.
     int home_frames = 0;
+    // When the last reset was asked for, or -1 once it has been answered
+    // for. See checkHome: a request nobody answers must not look like a
+    // request that worked.
+    double home_at_ms = -1.0;
     bool held[kAxCount] = {false, false, false, false, false, false};
     Ext ext;
     double armed_at_ms = 0.0;
@@ -174,7 +178,16 @@ struct Intent {
     // this is for are exactly the ones where nothing else may move the robot
     // (E-stopped, fall-latched, benched after a run). The robot benches to do
     // it, so this disarms here too, and re-arming stays a deliberate act.
-    void requestHome();
+    void requestHome(double now_ms);
+
+    // The robot is authoritative here too. A reset it HEARD produces one of
+    // the kFlagHome verdicts in the BENCH beacon (linkproto::isHomeResult) --
+    // it worked, or it says why. Silence after the edge has had time to land
+    // means the request never arrived, or arrived at a firmware that predates
+    // the bit and ignored it. Both look identical from the operator's chair
+    // -- a button that does nothing -- so say so rather than let them hunt a
+    // dead radio or a seized servo. Returns true if it just said it.
+    bool checkHome(const Link& link, double now_ms);
 
     // What goes on the wire this tick.
     void frame(const Speeds& s, float& vx, float& vy, float& wz, Ext& ext_out,
