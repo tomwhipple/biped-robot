@@ -436,6 +436,16 @@ class BimoWalkerEnv(gym.Env):
         # sim/mjx/env_mjx.py (parity gate 2i). Default False = bit-exact
         # legacy behavior.
         quantize_ticks: bool = False,
+        # -- action-chain lag (referee-side servo dynamics, 2026-09-02) --------
+        # The 2026-08-31 bench measured the STS3215's dynamic response at
+        # ~10 rad/s^2 accel cap / ~1.7 Hz bandwidth; ~2 Hz of 3-stage target
+        # filtering reproduces the hardware stride numbers. env_mjx trains
+        # ROBUST across a pole family (--act-lag lo,hi DR); here the referee
+        # applies one FIXED pole so lag-trained policies are judged against
+        # the servo we measured instead of an instant-actuation plant.
+        # 0.0 = pass-through (bit-exact legacy behavior). Same law as
+        # env_mjx: 3 cascaded first-order stages before tick quantization.
+        act_lag_hz: float = 0.0,
         # -- crouch-command variation (SIL finding #2, docs/sil-harness.md) ----
         # cmd[3] (crouch height fraction) was frozen at exactly 1.0 through
         # every training run, so its obs-normalizer std collapsed to ~1e-6 --
@@ -590,6 +600,8 @@ class BimoWalkerEnv(gym.Env):
         if ext_cmd:
             self._cmd[3] = 1.0            # crouch channel: 1 = full height
         self.quantize_ticks = bool(quantize_ticks)
+        self.act_lag_hz = float(act_lag_hz)
+        self._lag_y = None       # (3, n_act) cascade state; seeded on 1st step
         self.cmd_crouch_range = tuple(cmd_crouch_range)
         # feature flag: (1,1) draws no RNG at all, so runs with the default
         # consume the identical random stream as before
@@ -1498,6 +1510,7 @@ class BimoWalkerEnv(gym.Env):
         if self.gait_clock:
             self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
+        self._lag_y = None                    # re-seed the act-lag cascade
         if self.obs_hist_len > 1:
             self._obs_hist = []
             first = self._obs()                # frame only (hist empty)
@@ -1508,6 +1521,19 @@ class BimoWalkerEnv(gym.Env):
     def step(self, action):
         action = np.asarray(action, dtype=np.float32)
         target = self._action_to_ctrl(action)
+        if self.act_lag_hz > 0.0:
+            # action-chain lag (3 cascaded first-order stages, the firmware C2
+            # shaper's structure) BEFORE quantization, matching env_mjx and
+            # the deploy path's shaper -> angleToSteps order
+            if self._lag_y is None:
+                # seeded with the default pose, matching env_mjx reset
+                self._lag_y = np.stack(
+                    [np.asarray(self._default, dtype=np.float64)] * 3)
+            k = 1.0 - np.exp(-2.0 * np.pi * self.act_lag_hz * self.control_dt)
+            self._lag_y[0] += k * (target - self._lag_y[0])
+            self._lag_y[1] += k * (self._lag_y[0] - self._lag_y[1])
+            self._lag_y[2] += k * (self._lag_y[1] - self._lag_y[2])
+            target = self._lag_y[2].copy()
         if self.quantize_ticks:
             # the firmware writes INTEGER goal ticks (SYNC WRITE), so the
             # servo never sees the float target -- quantize before the

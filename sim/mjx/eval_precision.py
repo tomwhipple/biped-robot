@@ -100,16 +100,20 @@ def load_policy(run_dir, obs_size, act_size=8):
     return act
 
 
-def make_env(cfg, episode_seconds, nominal, xml, extra=None):
+def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0):
     """Eval env: ext_cmd precision plant mirroring config.json construction,
     but pinned to the hardware-claim conditions (or --nominal clean plant).
-    extra: per-scenario env overrides (e.g. recover_mix=1.0)."""
+    extra: per-scenario env overrides (e.g. recover_mix=1.0).
+    act_lag_hz: PINNED referee-side servo lag pole (never inherited from the
+    run's own training DR -- the referee models the measured servo, not the
+    training distribution)."""
     kw = {k: v for k, v in cfg.items() if k in _ENV_PARAMS}
     kw.update(
         xml_path=xml, command_mode=True, ext_cmd=True,
         actuator_model="sts3215", imu_obs=True, getup=False, cmd_fixed=None,
         payload_mass=0.154, payload_max=None,
         episode_seconds=episode_seconds, render_mode="rgb_array",
+        act_lag_hz=act_lag_hz,
     )
     # eval-time default: recovery machinery off unless a scenario asks;
     # training-time recover_mix in the config must not leak into e.g.
@@ -1769,8 +1773,16 @@ def main():
     p.add_argument("--sil", action="store_true",
                    help="route every tick through the REAL firmware stack "
                         "(libctrl_sil); writes scorecard_sil.{md,json}")
+    p.add_argument("--act-lag-hz", type=float, default=0.0,
+                   help="apply the measured servo action-chain lag to the "
+                        "plant (3-stage cascade pole, Hz; 2.0 = the "
+                        "2026-08-31 bench measurement). Writes "
+                        "scorecard_lag.{md,json} -- the lag-less columns "
+                        "stay untouched for historical comparability")
     args = p.parse_args()
     suffix = "_sil" if args.sil else ""
+    if args.act_lag_hz > 0.0:
+        suffix = f"{suffix}_lag"
     # a --scenarios subset must not clobber the run's full reel either --
     # the scorecard learned this 2026-08-03 (guard below), but the movie
     # path didn't and a stand-only render overwrote two full reels
@@ -1808,7 +1820,8 @@ def main():
         key = (secs, name if name in ENV_EXTRA else "")
         if key not in env_cache:
             env_cache[key] = make_env(cfg, secs, args.nominal, xml,
-                                      extra=ENV_EXTRA.get(key[1]))
+                                      extra=ENV_EXTRA.get(key[1]),
+                                      act_lag_hz=args.act_lag_hz)
         return env_cache[key]
 
     obs_size = get_env(12.0).observation_space.shape[0]
@@ -1837,6 +1850,9 @@ def main():
 
     cond = "nominal (no DR)" if args.nominal else \
         "hardware-claim (GoPro 154 g, 4 ms latency, 0.7 deg backlash, DR, IMU obs)"
+    if args.act_lag_hz > 0.0:
+        cond += (f"; MEASURED servo lag {args.act_lag_hz:g} Hz "
+                 "(3-stage act-lag cascade)")
     print(f"CPU precision referee: {args.run_name}  [{stack}]  [{cond}]  "
           f"{args.episodes} seeds/scenario, plant {os.path.basename(xml)}\n")
 
