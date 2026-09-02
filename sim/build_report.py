@@ -411,6 +411,52 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·02 · training thread</span></p>
+    <p><b>The referee got the measured servo — and the fleet ranking
+    inverted.</b> Following the morning card's finding (below), the CPU
+    referee now has the missing actuation dynamics: <code>walker_env</code>
+    gained <code>act_lag_hz</code> (the same 3-stage cascade law env_mjx
+    trains against, seeded and ordered identically — parity pinned by
+    <code>tests/test_act_lag_referee.py</code>), and
+    <code>eval_precision --act-lag-hz 2.0</code> writes a new
+    <b>scorecard_lag</b> column at the bench-measured pole, leaving every
+    historical column untouched (9cecd71). Re-refereeing the fleet
+    against the servo we actually own (lag-less CPU → lag):
+    <b>v27tilt_b 46 → 46/144</b> — the only policy whose score does not
+    move, 4/18 scenarios clean, asym 10%; the flashed v26lag_s128
+    84 → <b>19</b>; the sim champion v25full_c 96 → <b>16 with 77%
+    falls</b> (the lag-naive from-scratch line is the most fragile of
+    all — exactly why tonight's v27full carries act-lag from birth);
+    v26lag 95 → 15; v26servo 10 → 14 (15% falls, 3.1 W, wobble 0.21 —
+    the calmest policy in the fleet, but gait asym 81%: stable and
+    barely locomoting, "specialized" confirmed). So this morning's
+    "tilt generation regressed" verdict — mine — was the third casualty
+    of the lag-less columns in two days: judged against the measured
+    servo, <b>v27tilt_b is the best policy we have, by 2.4×</b>. Its
+    s128 student keeps only part of that: <b>28/144</b> under lag
+    (43% falls, stand_off 7/8) — still ahead of the flashed 19, but
+    distillation is now the bottleneck (this student's val MAE 0.031 vs
+    0.022 for the cleanest prior distill), so a 24-round re-distill
+    with a CHAINED lag referee is queued ahead of tonight's main run.
+    Two honest caveats. (1) The 2.0 Hz / 3-stage pin comes
+    from one bench session; the real robot walked on 09·01 while this
+    column scores the flashed policy 19/144 — referee scenarios are far
+    harder than a walk-day stand-and-stride, so treat the column as a
+    RANKING, not a prediction, until a real A/B (v27tilt_b_s128 vs
+    v26lag_s128 on the robot) calibrates it. (2) Rhythm under lag is
+    bad everywhere (v26lag 96%/CV 0.16 → 64%/0.30; v27tilt_b 56%/0.49)
+    — natural movement at the measured pole is still unsolved; that is
+    now the era's problem statement. Also closed: the "distill
+    self-referee dies after save" mystery — nothing crashes;
+    <code>distill_student.py</code> simply <i>ends</i> at "saved →" and
+    no distill job ever chained a referee step (future distill CMD jobs
+    get <code>&amp;&amp; eval_precision --sil</code>). Tonight: 38 =
+    v27full retry (its 2-minute 09·01 death is still unexplained; exact
+    flag set is smoke-testing on CPU) with 39 = v25full_d as the
+    dead-birth backup.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·02 · hardware thread</span></p>
     <p><b>v27tilt_b: 46/144. The referee can't see the servo lag — and
     tilt-trained policies learned to hide inside it.</b> Yesterday's card
