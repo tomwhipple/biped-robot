@@ -37,6 +37,10 @@ char g_line[128];      // one owner (the housekeeping task), no heap
 // whatever the cause, a lost ID stops being silent.
 constexpr int kEepromCommitMs = 2000;
 
+// `home`'s slew rate, steps/s (~0.45 rad/s). Half `pose`'s bench default:
+// see cmdHome for why this move in particular is the slow one.
+constexpr long kHomeStepsPerSec = 300;
+
 const char* statusName(scsbus::Status s) {
     switch (s) {
         case scsbus::Status::kOk: return "ok";
@@ -320,6 +324,78 @@ void cmdPose(Sink out, int argc, char** argv) {
         static_cast<uint16_t>(spd), 0);
     say(out, "pose -> %d joints, spd %ld: %s\r\n", obs::kNumJoints, spd,
         statusName(st));
+}
+
+// -- reset the servos ------------------------------------------------------
+// `home`: every joint to its CALIBRATED ZERO -- which on this robot is the
+// standing pose (asbuilt_cal.h: kJointDefault is all zeros, so each joint's
+// zero_steps IS where it stands) -- in one gentle broadcast frame.
+//
+// This is the one bench command that deliberately turns torque ON before it
+// writes a goal, and that needs saying plainly, because everything else here
+// refuses to (torqueGate above, and the feet that paid for it on 2026-08-02).
+// The difference is intent. torqueGate exists to stop a goal write from
+// SILENTLY becoming motion; this command IS the motion, asked for by name, by
+// an operator who wants a heap of robot back on its feet. The states it is
+// most useful in -- E-stopped, fallen, benched after a run -- are exactly the
+// states where torque is off and a plain `pose` would be refused.
+//
+// So the safety is bought elsewhere, three ways:
+//   * NO CALIBRATION, NO HOME. Default zeros are 2048 everywhere, the
+//     raw-middle pose that broke the feet. Same gate as `run` (cmdMode).
+//   * The targets are clamped to the measured mechanical envelope, like
+//     every other bench write (clampToJointRange).
+//   * It slews SLOWLY -- 300 steps/s, ~0.45 rad/s, half of `pose`'s already
+//     gentle bench default -- because the robot may be lying in a pose the
+//     move has to walk out of, and because a slow limb is one a hand can
+//     catch.
+// Torque is left ON at the end, holding the pose: a robot that homed and
+// then went limp has only fallen over more tidily.
+void cmdHome(Sink out, int argc, char** argv) {
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (!robot::g_cal_from_nvs) {
+        out("REFUSED: no as-built calibration in NVS, so \"zero\" here means "
+            "2048 on every joint -- the raw-middle pose that broke the feet, "
+            "not a stand. Run the `cal` workflow first.\r\n");
+        return;
+    }
+    // The pack guard outranks the link everywhere else (ctrl_task's safety
+    // block), so it outranks this too: a flat pack is exactly when powering
+    // ten servos to hold a stand is the wrong answer, and unlike the E-stop
+    // this latch is the ROBOT's, not the operator's, to clear.
+    if (robot::battGuard().torqueMustRelease()) {
+        out("REFUSED: the pack under-voltage guard has torque latched off. "
+            "Swap the pack, then `batt reset` -- see `batt`.\r\n");
+        return;
+    }
+    // 0 asks for the servo's maximum, same convention as `move` and `pose`.
+    const long spd = argc >= 2 ? num(argv[1], kHomeStepsPerSec)
+                               : kHomeStepsPerSec;
+    const obs::Calibration& cal = robot::calibration();
+    int32_t tgt[obs::kNumJoints];
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        tgt[j] = clampToJointRange(robot::servoIds()[j], cal.zero_steps[j],
+                                   out);
+    }
+    // Torque first, then the goal -- the explicit two-step, just with both
+    // halves on one line because that is what was asked for. Broadcast, so
+    // there is no window in which half the robot is holding and half is not.
+    const scsbus::Status ts = bus->torqueEnable(scsbus::kBroadcastId, true);
+    if (ts != scsbus::Status::kOk) {
+        say(out, "torque enable failed (%s) -- not writing goals\r\n",
+            statusName(ts));
+        return;
+    }
+    const scsbus::Status st = bus->syncWritePositions(
+        robot::servoIds(), tgt, obs::kNumJoints, 0,
+        static_cast<uint16_t>(spd), 0);
+    say(out, "home -> %d joints at their calibrated zero, spd %ld: %s\r\n",
+        obs::kNumJoints, spd, statusName(st));
+    if (st == scsbus::Status::kOk) {
+        out("  torque is ON and HOLDING the stand -- `release` to let go, "
+            "or arm to walk\r\n");
+    }
 }
 
 void cmdShape(Sink out, int argc, char** argv) {
@@ -1035,6 +1111,8 @@ void banner(Sink out) {
     out("  pos <id>             position, speed, load, voltage, temp, faults\r\n");
     out("  move <id> <ticks> [ms] [steps/s]   2048 == middle, 4096 ticks/rev\r\n");
     out("  pose <t0..t9> [steps/s]   all 10 targets, ONE frame (joint order)\r\n");
+    out("  home [steps/s]       every joint to its calibrated zero (the stand),\r\n");
+    out("                       torque ON and holding -- works after a fall\r\n");
     out("  release [id] | torque [id]   no id = broadcast\r\n");
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
     out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");
@@ -1051,6 +1129,25 @@ void banner(Sink out) {
 void linkMode(bool run, Sink out) {
     out(run ? "link: arm -> " : "link: disarm -> ");
     cmdMode(out, run);
+}
+
+void linkHome(Sink out) {
+    out("link: reset servos -> ");
+    // The move needs the bus, and the CLI only owns the bus while the loop is
+    // benched -- so end the run first. This is a disarm in every respect,
+    // including that re-arming afterwards is a fresh, deliberate ARM edge.
+    robot::g_mode_request.store(robot::Mode::kBench);
+    // ctrl hands the bus back on its next tick (20 ms). Wait for it rather
+    // than failing the operator's request into claimBus's "busy:".
+    for (int i = 0; i < 40 && robot::g_ctrl_owns_bus.load(); ++i) {
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    // Say WHY it is benched, on the wire and not just down the tether: this
+    // is the atomic the beacon reads (shared.h g_arm_result), and an operator
+    // who resets the servos over the radio has nobody watching the UART.
+    robot::g_arm_result.store(
+        static_cast<uint8_t>(linkproto::ArmResult::kDisarmedHome));
+    cmdHome(out, 1, nullptr);
 }
 
 void execute(const char* line, Sink out) {
@@ -1073,6 +1170,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "torque")) cmdTorque(out, argc, argv, true);
     else if (!strcmp(c, "middle")) cmdMiddle(out, argc, argv);
     else if (!strcmp(c, "pose")) cmdPose(out, argc, argv);
+    else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
     else if (!strcmp(c, "batt")) cmdBatt(out, argc, argv);

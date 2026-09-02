@@ -476,6 +476,53 @@ void testPoseFlag() {
     CHECK(!c.pose());
 }
 
+// kFlagHome is the "reset the servos" request: a bit that must ride
+// alongside every other flag without disturbing one, because the states it
+// is FOR are the states the other bits are describing (E-stopped, benched).
+void testHomeFlag() {
+    uint8_t wire[kCmdLen];
+    encodeCommand(wire, 1, 0.0f, 0.0f,
+                  static_cast<uint8_t>(kFlagEstop | kFlagHome | kFlagPose));
+    Command c{};
+    CHECK(decodeCommand(wire, kCmdLen, c) == Err::kOk);
+    CHECK(c.home());
+    CHECK(c.estop());
+    CHECK(c.pose());
+    CHECK(!c.arm());
+    CHECK(!c.enabled());
+
+    encodeCommand(wire, 2, 0.0f, 0.0f, kFlagEstop);
+    CHECK(decodeCommand(wire, kCmdLen, c) == Err::kOk);
+    CHECK(!c.home());
+}
+
+// The edge rule, which is the whole safety argument for a bit that MOVES a
+// robot from a standstill.
+void testHomeLatch() {
+    HomeLatch h;
+    // A client that boots with the bit already set moves nothing: same
+    // first-frame rule as ArmLatch, and here it matters more -- the request
+    // re-poses ten joints, and nobody is necessarily watching.
+    CHECK(!h.update(kFlagHome));
+    CHECK(!h.update(kFlagHome));
+
+    HomeLatch g;
+    CHECK(!g.update(0));                       // first frame: level low, seen
+    CHECK(g.update(kFlagHome));                // 0 -> 1: the one event
+    CHECK(!g.update(kFlagHome));               // held: idempotent, no re-home
+    CHECK(!g.update(kFlagHome));
+    CHECK(!g.update(0));                       // 1 -> 0 is not an "un-home"
+    CHECK(g.update(kFlagHome));                // ... and the next press works
+
+    // Deaf to every other bit: an arm, an e-stop and a pose request in the
+    // same frames must not fake an edge.
+    HomeLatch q;
+    CHECK(!q.update(kFlagArm));
+    CHECK(!q.update(static_cast<uint8_t>(kFlagArm | kFlagEnable)));
+    CHECK(!q.update(static_cast<uint8_t>(kFlagEstop | kFlagPose)));
+    CHECK(q.update(static_cast<uint8_t>(kFlagEstop | kFlagHome)));
+}
+
 int main() {
     testCrc();
     testCommandFrames();
@@ -487,6 +534,8 @@ int main() {
     testExtendedTelemetryFrames();
     testClassicTelemetryIsUntouched();
     testPoseFlag();
+    testHomeFlag();
+    testHomeLatch();
     testBenchDiagnostics();
     testClampToEnvelope();
     testWatchdog();

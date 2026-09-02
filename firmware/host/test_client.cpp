@@ -192,6 +192,64 @@ void test_arm_sync_ignores_a_dead_link() {
     CHECK(in.armed);
 }
 
+// -- reset the servos -------------------------------------------------------
+// The point of the request is that it survives the states in which every
+// other channel on this wire correctly refuses to move anything.
+void test_home_is_sent_disarmed_and_estopped() {
+    Speeds s;
+    float vx, vy, wz;
+    Ext ext;
+    uint8_t flags;
+
+    Intent cold;                              // the boot state: disarmed
+    cold.requestHome();
+    cold.frame(s, vx, vy, wz, ext, flags);
+    CHECK((flags & linkproto::kFlagHome) != 0);
+    CHECK((flags & linkproto::kFlagArm) == 0);      // it does not arm ...
+    CHECK((flags & linkproto::kFlagEnable) == 0);   // ... and commands nothing
+
+    // frame() returns EARLY once the E-stop is latched, so the home bit has
+    // to be set before that return -- otherwise the one console button that
+    // can stand a fallen robot up is dead in exactly the state it is for.
+    Intent in;
+    in.arm(0.0);
+    in.press(kAxForward, 0.0);
+    in.fireEstop();
+    in.requestHome();
+    CHECK(!in.armed);                  // the robot benches to home; so do we
+    CHECK(!in.moving());
+    in.frame(s, vx, vy, wz, ext, flags);
+    CHECK((flags & linkproto::kFlagHome) != 0);
+    CHECK((flags & linkproto::kFlagEstop) != 0);    // still latched, honestly
+    CHECK((flags & linkproto::kFlagEnable) == 0);
+    CHECK_NEAR(vx, 0.0f, 1e-6f);
+}
+
+// The level is held for kHomeFrames and then DROPS: the robot acts on the
+// rising edge, so a level that never falls would make the second press a
+// no-op, and one that falls too soon can be lost with a single UDP packet.
+void test_home_level_is_held_then_released() {
+    Intent in;
+    Speeds s;
+    Link link;                         // unopened: sendto fails, frames count
+    float vx, vy, wz;
+    Ext ext;
+    uint8_t flags;
+
+    in.requestHome();
+    int flagged = 0;
+    for (int i = 0; i < kHomeFrames + 5; ++i) {
+        sendIntent(link, in, s, vx, vy, wz, ext, flags);
+        if (flags & linkproto::kFlagHome) ++flagged;
+    }
+    CHECK_EQ(flagged, kHomeFrames);
+    CHECK_EQ(in.home_frames, 0);
+
+    in.requestHome();                  // a fresh press makes a fresh edge
+    sendIntent(link, in, s, vx, vy, wz, ext, flags);
+    CHECK((flags & linkproto::kFlagHome) != 0);
+}
+
 // -- the keymap -------------------------------------------------------------
 void test_keymap_names_round_trip() {
     for (int a = 0; a < kActCount; ++a) {
@@ -380,6 +438,8 @@ int main() {
     test_extras_alone_set_enable();
     test_arm_sync_gives_up_and_quotes_the_robot();
     test_arm_sync_ignores_a_dead_link();
+    test_home_is_sent_disarmed_and_estopped();
+    test_home_level_is_held_then_released();
     test_keymap_names_round_trip();
     test_keymap_bind_is_exclusive();
     test_keymap_file_round_trip();

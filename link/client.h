@@ -36,6 +36,17 @@ constexpr double kArmSyncMs = 1500.0;
 // No beacon this long -> "link lost".
 constexpr double kTlmLostMs = 1000.0;
 
+// How many consecutive frames carry a "reset the servos" request.
+//
+// The robot acts on the RISING EDGE of kFlagHome (linkproto::HomeLatch), and
+// this is UDP: a single flagged frame is a request that a dropped packet
+// silently cancels. Holding the level for 8 frames -- 400 ms at kSendHz --
+// makes the request survive a burst loss, and costs nothing, because an edge
+// is idempotent: the robot homes on the first flagged frame it receives and
+// ignores the seven behind it. The level must also DROP again, or the next
+// press would make no edge at all.
+constexpr int kHomeFrames = 8;
+
 constexpr double kDefaultVx = 0.4;    // eval_precision line_1m's speed
 constexpr double kDefaultVy = 0.2;    // inside kVyMax (0.3), the sway draw
 constexpr double kDefaultWz = 0.5;    // eval_commands validates +-0.5
@@ -133,6 +144,9 @@ struct Intent {
     // "Beacon joint angles too" (kFlagPose). Independent of arming: it asks
     // for telemetry, it does not command anything.
     bool want_pose = false;
+    // Frames left to spend asking for a servo reset (kFlagHome). See
+    // kHomeFrames; sendIntent spends one per frame.
+    int home_frames = 0;
     bool held[kAxCount] = {false, false, false, false, false, false};
     Ext ext;
     double armed_at_ms = 0.0;
@@ -155,6 +169,13 @@ struct Intent {
     void stand(const char* why);
     void fireEstop();
 
+    // "Reset the servos": every joint to its calibrated zero, the standing
+    // pose. Deliberately NOT gated on `armed` or on the E-stop -- the states
+    // this is for are exactly the ones where nothing else may move the robot
+    // (E-stopped, fall-latched, benched after a run). The robot benches to do
+    // it, so this disarms here too, and re-arming stays a deliberate act.
+    void requestHome();
+
     // What goes on the wire this tick.
     void frame(const Speeds& s, float& vx, float& vy, float& wz, Ext& ext_out,
                uint8_t& flags) const;
@@ -172,7 +193,9 @@ const char* motionText(const Intent& in);
 // Send `intent` once, handing back exactly what went on the wire so the
 // console can draw it. One place decides the frame, so the two consoles
 // cannot put different bytes on the wire for the same keys.
-void sendIntent(Link& link, const Intent& in, const Speeds& s, float& vx,
+// `in` is non-const because a home request is spent as it is sent: the
+// kFlagHome level lasts kHomeFrames frames and this is what counts them down.
+void sendIntent(Link& link, Intent& in, const Speeds& s, float& vx,
                 float& vy, float& wz, Ext& ext_out, uint8_t& flags);
 
 }  // namespace bimo

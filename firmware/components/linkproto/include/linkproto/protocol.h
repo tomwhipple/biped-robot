@@ -51,6 +51,24 @@ constexpr uint8_t kFlagArm = 1u << 2;      // operator wants the loop armed; Arm
 // "Beacon joint angles too" (kTlmLenExt). A level, not an edge: stop asking
 // and the very next beacon is classic again.
 constexpr uint8_t kFlagPose = 1u << 3;
+// "Put every joint back at its calibrated zero -- the standing pose -- now."
+// (2026-09-02) A RECOVERY action rather than a command, and the difference is
+// the whole point: it is honoured while the loop is BENCHED, while the FALL
+// latch is tripped and while the E-stop is latched -- exactly the states in
+// which every other channel on this wire correctly refuses to move anything,
+// and exactly the states an operator is in when the robot is a heap on the
+// floor and needs to be stood back up before it can be armed again.
+//
+// It does not arm and cannot be used to walk: the robot BENCHES first, the
+// CLI half of the firmware owns the bus for the move, and the joints slew at
+// the bench's gentle speed (cli.cpp cmdHome). Re-arming stays as deliberate
+// as it ever was -- a fresh ARM edge.
+//
+// Acted on by its RISING EDGE (HomeLatch), like kFlagArm and for the same
+// two reasons: a level would re-issue the move every frame at 20 Hz, and a
+// client that reboots with the bit set must not move a robot nobody is
+// watching.
+constexpr uint8_t kFlagHome = 1u << 4;
 
 // -- timing ----------------------------------------------------------------
 constexpr float kSendHz = 20.0f;
@@ -133,6 +151,7 @@ enum class ArmResult : uint8_t {
     kAccepted = 1,       // the last request was honoured (arm or disarm)
     kRefusedNoCal = 2,   // arm refused: no as-built calibration in NVS
     kDisarmedFall = 3,   // the FALL latch tripped: run over, robot disarmed
+    kDisarmedHome = 4,   // a kFlagHome request benched the loop and homed it
 };
 
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result);
@@ -172,6 +191,7 @@ struct Command {
     bool estop() const { return (flags & kFlagEstop) != 0; }
     bool arm() const { return (flags & kFlagArm) != 0; }
     bool pose() const { return (flags & kFlagPose) != 0; }
+    bool home() const { return (flags & kFlagHome) != 0; }
 };
 
 struct Telemetry {

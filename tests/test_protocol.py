@@ -14,10 +14,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "link"))
 
 from protocol import (CMD_LEN, DIAG_ARM_SHIFT, DIAG_CAL_OK,  # noqa: E402
-                      DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_POSE,
+                      DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,
+                      FLAG_POSE,
                       NUM_JOINTS, RELAX_MS,
                       STALE_MS, TLM_LEN, TLM_LEN_EXT, V_MAX, W_MAX,
-                      ArmLatch, ArmResult,
+                      ArmLatch, ArmResult, HomeLatch,
                       Command, LinkState, ProtocolError, Supervisor,
                       Telemetry, Watchdog, clamp_to_envelope, crc16_ccitt,
                       decode_command, decode_telemetry, diag_arm_result,
@@ -290,6 +291,72 @@ def test_arm_latch_is_independent_of_the_watchdog():
     assert latch.level is True
 
 
+def test_home_bit_rides_the_frame_with_every_other_flag():
+    # The states a servo reset is FOR are the ones the other bits describe,
+    # so it has to coexist with all of them.
+    pkt = decode_command(encode_command(1, 0.0, 0.0,
+                                        FLAG_HOME | FLAG_ESTOP | FLAG_POSE))
+    assert pkt.home and pkt.estop and pkt.pose
+    assert not pkt.arm and not pkt.enabled
+    assert not decode_command(encode_command(2, 0.0, 0.0, FLAG_ESTOP)).home
+
+
+def test_home_is_a_rising_edge_only():
+    latch = HomeLatch()
+    assert latch.update(0) is False               # first frame: level seen
+    assert latch.update(FLAG_HOME) is True        # 0 -> 1: the one event
+    assert latch.update(FLAG_HOME) is False       # held: no re-home at 20 Hz
+    assert latch.update(0) is False               # 1 -> 0 is not an "un-home"
+    assert latch.update(FLAG_HOME) is True        # ... and the next press works
+
+
+def test_first_frame_never_homes():
+    # A client that reboots with the bit set must not re-pose ten joints on a
+    # robot nobody is watching -- the same rule ArmLatch keeps, and it matters
+    # more here, because this request MOVES the robot from a standstill.
+    latch = HomeLatch()
+    assert latch.update(FLAG_HOME) is False
+    assert latch.update(FLAG_HOME) is False
+    assert latch.update(0) is False
+    assert latch.update(FLAG_HOME) is True
+
+
+def test_home_works_from_the_states_that_refuse_to_move():
+    # E-stopped and armed: the request ends the run, and torque comes back to
+    # HOLD the stand. That is the whole point -- a latched E-stop is exactly
+    # when an operator needs the robot back on its feet.
+    sup = Supervisor()
+    sup.accept(live(seq=1, flags=0), 0.0)
+    sup.accept(live(seq=2, flags=FLAG_ARM), 1.0)
+    assert sup.state(1.0) is LinkState.LIVE
+    sup.accept(live(seq=3, flags=FLAG_ARM | FLAG_ESTOP), 2.0)
+    assert sup.state(2.0) is LinkState.ESTOP and not sup.torque_on(2.0)
+
+    sup.accept(live(seq=4, flags=FLAG_ARM | FLAG_ESTOP | FLAG_HOME), 3.0)
+    assert sup.homes == 1
+    assert sup.state(3.0) is LinkState.BENCH        # the run is over ...
+    assert sup.torque_on(3.0)                       # ... but it is HOLDING
+    assert diag_arm_result(sup.diag()) is ArmResult.DISARMED_HOME
+    assert "standing pose" in diag_reason(sup.diag())
+
+    # It does not arm: a walk command after a home still moves nothing, and
+    # re-arming stays a deliberate fresh edge.
+    assert not sup.accept(live(seq=5, flags=FLAG_ENABLE), 4.0)
+    assert sup.command(4.0) == (0.0, 0.0)
+
+
+def test_home_needs_no_arm_and_never_arms():
+    sup = Supervisor()
+    sup.accept(live(seq=1, flags=0), 0.0)
+    sup.accept(live(seq=2, flags=FLAG_HOME), 1.0)
+    assert sup.homes == 1 and not sup.armed
+    assert sup.state(1.0) is LinkState.BENCH
+    # Arming afterwards is an ordinary edge, and it hands the bus back to the
+    # loop -- the "holding" state belongs to the bench half only.
+    sup.accept(live(seq=3, flags=FLAG_ARM), 2.0)
+    assert sup.armed and not sup.holding
+
+
 def test_supervisor_boots_benched_and_arms_on_an_edge():
     sup = Supervisor()
     assert sup.state(0.0) is LinkState.BENCH
@@ -338,7 +405,7 @@ def test_diag_values_are_append_only():
     # never move, or an old client mis-reports a new robot.
     assert [(r.name, r.value) for r in ArmResult] == [
         ("NONE", 0), ("ACCEPTED", 1), ("REFUSED_NO_CAL", 2),
-        ("DISARMED_FALL", 3)]
+        ("DISARMED_FALL", 3), ("DISARMED_HOME", 4)]
     assert DIAG_RUN == 1 and DIAG_CAL_OK == 2 and DIAG_ARM_SHIFT == 4
 
 

@@ -43,7 +43,7 @@ both paths.
 |---|---|---|---|
 | 0 | 2 | magic | `"BM"` |
 | 2 | 1 | version | 1 |
-| 3 | 1 | flags | bit0 `ENABLE`, bit1 `ESTOP`, bit2 `ARM` |
+| 3 | 1 | flags | bit0 `ENABLE`, bit1 `ESTOP`, bit2 `ARM`, bit3 `POSE`, bit4 `HOME` |
 | 4 | 4 | seq | u32, monotonic |
 | 8 | 2 | vx | i16, mm/s, body-frame forward |
 | 10 | 2 | wz | i16, mrad/s, yaw rate |
@@ -226,6 +226,64 @@ could hold the robot `LIVE` on a command from the past. A backwards seq jump
 larger than 1000 is read as "the commander restarted", not "ancient packet",
 so a restarted sender at seq 0 resyncs instead of being ignored forever.
 
+## Reset the servos, from the states that refuse to move (2026-09-02)
+
+`HOME` (bit 4) is the console's **RESET SERVOS** button: *every joint to its
+calibrated zero — the standing pose — now.* It is the only bit on this wire
+that moves the robot without arming it, and it exists because of a gap the
+other four leave open.
+
+Consider the state an operator is actually in when they need it. The robot
+fell: the fall latch tripped, the run is over, torque is off, and the robot
+is a heap on the floor. Or they hit E-stop: same picture, on purpose. In both
+states every channel here correctly refuses — `ENABLE` is gated on an armed
+loop, `ARM` is refused after a fall until a deliberate fresh edge, and the
+E-stop latch outranks the lot. All of that is right, and none of it helps:
+the one thing wanted is the robot back on its feet, and until 2026-09-02 the
+only way to get it was to walk over with a USB cable and type `pose`.
+
+The design, and what each piece is buying:
+
+- **An edge, not a level** (`linkproto::HomeLatch`, mirrored in
+  `protocol.py`). A level would re-issue the move 20 times a second. And, as
+  with `ARM`, *the first frame from a sender never counts*: a client that
+  reboots with the bit set makes no edge, so it cannot re-pose ten joints on
+  a robot nobody is watching. That rule matters more here than it does for
+  arming — this request moves the robot from a standstill.
+- **It benches the loop first.** The move is a servo-bus transaction, and on
+  this firmware the bench half (the CLI) owns the bus while the loop is
+  benched. So `ctrl_task` only *publishes* the edge (`g_link_home_edges`,
+  exactly like an arm edge) and the housekeeping task benches, waits for the
+  handover, and runs `cmdHome`. One writer for the mode, no bus command
+  landing mid-tick, and a request that is honoured identically whether it
+  arrived benched, fallen or E-stopped.
+- **It does not arm.** Re-arming stays what it was: a deliberate ARM edge.
+  The BENCH beacon says why the robot is benched — a new `ArmResult`,
+  `kDisarmedHome`, reading *"disarmed — servos reset to the standing pose;
+  torque is HOLDING it, re-arm to walk"*.
+- **It turns torque back ON, deliberately.** Everything else in the CLI
+  refuses to write a goal while torque is off — an STS servo auto-enables
+  torque on a goal write, which is what broke both feet on 2026-08-02, and
+  `torqueGate` exists so that can never happen *silently*. This command *is*
+  the motion, asked for by name, so it enables torque itself and says so. The
+  safety is bought elsewhere instead: **no calibration, no home** (the
+  default zeros are 2048 everywhere — the raw-middle pose that broke the
+  feet — so the gate is the same one `run` uses), targets clamped to the
+  measured mechanical envelope, and a slew of 300 steps/s (~0.45 rad/s), half
+  the already-gentle bench default, because the robot may be lying in a pose
+  the move has to walk out of and a slow limb is one a hand can catch.
+- **Torque stays on at the end,** holding the stand. A robot that homed and
+  then went limp has only fallen over more tidily.
+- **The pack guard still outranks it.** A latched under-voltage guard is the
+  robot's own decision, not the operator's, and a flat pack is exactly when
+  powering ten servos to hold a stand is the wrong answer. Home is refused
+  there, and says so.
+
+Console-side the request is a `HOME` *level* held for 8 frames (400 ms at
+20 Hz): the robot acts on the first flagged frame it receives and ignores the
+rest, so the hold costs nothing and buys survival of a dropped packet — and
+the level must fall again, or the next press would make no edge at all.
+
 ## The training envelope is part of the protocol
 
 `walker_env` draws commands from a stand `(0,0)` or a walk in
@@ -257,7 +315,9 @@ another commander is a class in `link/sources.py`, not a firmware change.
 - **`bimo_tui`** (`link/tui.cpp`) — the operator's console, and the only
   commander that arms. Single keystrokes: `a` arm/disarm, arrows walk
   (`up`/`down`, 0.4 m/s) and turn (`left`/`right`, ±0.5 rad/s) **while
-  held**, `space` stand, `e` E-stop, `q` quit (disarms first). Shows every
+  held**, `space` stand, `e` E-stop, `h` reset servos (works E-stopped or
+  fallen — see [above](#reset-the-servos-from-the-states-that-refuse-to-move-2026-09-02)),
+  `q` quit (disarms first). Shows every
   telemetry field live. Built from the firmware's own `linkproto` sources
   (`make -C firmware/host tui`), so the bytes it sends come from the code
   the robot decodes with. A terminal has no key-up event, only auto-repeat:
@@ -283,6 +343,10 @@ another commander is a class in `link/sources.py`, not a firmware change.
     each commanded channel against its estimate.
   - **The sim, in the window.** The SIM panel starts `sim/sil_twin.py` and
     draws its MJPEG view, so a policy can be flown before it is flown.
+  - **A RESET SERVOS button** (`h`), on its own row below the row that stops
+    things, amber rather than red because it is not an emergency control — it
+    is the way out of one. Needs no arm and reaches the robot through a
+    latched E-stop or a tripped fall latch.
 
   Keys default to arrows *translating* on the surface (`up`/`down` = `vx`,
   `left`/`right` = `vy` strafe) and `PgUp`/`PgDn` *rotating*, differing from

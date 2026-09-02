@@ -100,6 +100,7 @@ void houseTask(void*) {
     cli::banner(&uartSay);
     TickType_t next_tlm = xTaskGetTickCount();
     uint32_t arm_edges_seen = g_link_arm_edges.load();
+    uint32_t home_edges_seen = g_link_home_edges.load();
     // Observation dump state, owned by this loop alone.
     ObsDumpMode obs_started = ObsDumpMode::kOff;
     TickType_t next_obs = xTaskGetTickCount();
@@ -117,6 +118,17 @@ void houseTask(void*) {
         if (edges != arm_edges_seen) {
             arm_edges_seen = edges;
             cli::linkMode(g_link_arm_level.load(), &uartSay);
+        }
+
+        // Wireless "reset the servos" (shared.h g_link_home_edges). Consumed
+        // in the same place and for the same reason as the arm edge: this is
+        // the only task allowed to drive the bus while benched. It benches
+        // the loop itself, so it is honoured from ANY state -- benched,
+        // fallen, or E-stopped, which is the entire point of the request.
+        const uint32_t homes = g_link_home_edges.load();
+        if (homes != home_edges_seen) {
+            home_edges_seen = homes;
+            cli::linkHome(&uartSay);
         }
 
         // 10 Hz telemetry, back up the same tether the commands came down.

@@ -114,6 +114,9 @@ const char* diagReason(uint8_t diag) {
         case ArmResult::kDisarmedFall:
             return "disarmed -- FALL latch tripped; re-arm deliberately (ARM "
                    "edge or run)";
+        case ArmResult::kDisarmedHome:
+            return "disarmed -- servos reset to the standing pose; torque is "
+                   "HOLDING it, re-arm to walk";
     }
     // A refusal reason this client is too old to name. Say so rather than
     // guess: the enum is append-only, so an unknown value is a NEWER robot.

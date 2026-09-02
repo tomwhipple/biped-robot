@@ -40,6 +40,9 @@ linkproto::Watchdog g_dog;
 // Outlives g_dog across bench/run handovers -- it has to see the ARM edge
 // that ENDS a run (linkproto/watchdog.h).
 linkproto::ArmLatch g_arm;
+// The "reset the servos" request. Fed in both modes, exactly like g_arm --
+// its whole point is to work while benched, fallen or E-stopped.
+linkproto::HomeLatch g_home;
 battguard::Guard g_batt;
 obs::Calibration g_cal;
 obs::History g_hist;
@@ -214,6 +217,14 @@ void ctrlTask(void*) {
             if (g_arm.update(msg.cmd.flags, want_armed)) {
                 g_link_arm_level.store(want_armed);
                 g_link_arm_edges.fetch_add(1);
+            }
+            // A home edge is published, never acted on here: the move is a
+            // bench-mode CLI bus transaction and this task must not block on
+            // one. Housekeeping benches the loop and then runs it -- which
+            // is also why this needs no special case for the fall latch or
+            // the E-stop. Both leave the frames flowing to exactly here.
+            if (g_home.update(msg.cmd.flags)) {
+                g_link_home_edges.fetch_add(1);
             }
             if (benched) continue;
             g_dog.accept(msg.cmd, now_ms);

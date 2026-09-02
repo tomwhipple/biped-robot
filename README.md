@@ -45,6 +45,10 @@ live in [DESIGN.md](DESIGN.md).
   (`link/gui.cpp`, which adds a true key-release dead-man, sliders for the
   extended `crouch`/`lift`/foot channels, telemetry strip charts and a live
   view of the sim it is driving) — or by script, gamepad, or goal-seeker.
+  Both consoles carry a **reset-servos** control (`h`) that puts every joint
+  back at its calibrated zero — the standing pose — *without arming*, and
+  reaches the robot through a latched E-stop or a tripped fall latch, which
+  is the one state everything else on the wire correctly refuses in.
   No parts change.
   See [docs/control-channel.md](docs/control-channel.md).
 - **Visual training log** — `sim/runs/night_summary.html` (self-contained

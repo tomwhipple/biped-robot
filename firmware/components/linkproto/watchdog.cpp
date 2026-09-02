@@ -104,4 +104,13 @@ bool ArmLatch::update(uint8_t flags, bool& want_armed) {
     return true;
 }
 
+bool HomeLatch::update(uint8_t flags) {
+    const bool level = (flags & kFlagHome) != 0;
+    const bool had = have_level_;
+    const bool prev = level_;
+    have_level_ = true;
+    level_ = level;
+    return had && !prev && level;
+}
+
 }  // namespace linkproto

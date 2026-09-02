@@ -400,6 +400,7 @@ void fireAction(App& a, int action, double now_ms) {
         case bimo::kActArm: a.in.toggleArm(now_ms); break;
         case bimo::kActStand: a.in.stand("stand"); break;
         case bimo::kActEstop: a.in.fireEstop(); break;
+        case bimo::kActHome: a.in.requestHome(); break;
         case bimo::kActQuit: a.quit = true; break;
         case bimo::kActRecord: toggleRecord(a, now_ms); break;
         case bimo::kActResetExt:
@@ -413,9 +414,10 @@ void fireAction(App& a, int action, double now_ms) {
 // -- headless ---------------------------------------------------------------
 void headlessStatus(const App& a, double now_ms, double t0_ms) {
     char fl[40];
-    snprintf(fl, sizeof fl, "%s%s%s", (a.flags & kFlagArm) ? "ARM " : "",
+    snprintf(fl, sizeof fl, "%s%s%s%s", (a.flags & kFlagArm) ? "ARM " : "",
              (a.flags & kFlagEnable) ? "ENABLE " : "",
-             (a.flags & kFlagEstop) ? "ESTOP " : "");
+             (a.flags & kFlagEstop) ? "ESTOP " : "",
+             (a.flags & kFlagHome) ? "HOME " : "");
     printf("[%7.2fs] arm %-8s motion %-12s send vx %+.2f vy %+.2f wz %+.2f "
            "crouch %.2f len %zu flags %s",
            (now_ms - t0_ms) / 1000.0, a.in.armed ? "ARMED" : "disarmed",
@@ -715,6 +717,32 @@ void drawHeader(App& a, double now_ms) {
         ImGui::BeginDisabled();
         ImGui::Button("(no beacon)", ImVec2(250, 34));
         ImGui::EndDisabled();
+    }
+
+    // RESET SERVOS. On its own row, below the row that STOPS things, because
+    // it is the one button here that MOVES the robot from a standstill --
+    // and it is the only one that still works once the E-stop or the fall
+    // latch has (correctly) locked everything else out. Amber, not red: this
+    // is not an emergency control, it is the way out of one.
+    const ImVec4 amber(0.62f, 0.42f, 0.06f, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_Button, amber);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                          ImVec4(amber.x + 0.15f, amber.y + 0.10f, amber.z,
+                                 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                          ImVec4(amber.x + 0.25f, amber.y + 0.18f, amber.z,
+                                 1.0f));
+    labelFor(a, bimo::kActHome, lbl, sizeof lbl, "RESET SERVOS");
+    if (ImGui::Button(lbl, ImVec2(240, 34))) a.in.requestHome();
+    ImGui::PopStyleColor(3);
+    ImGui::SameLine(0.0f, 12.0f);
+    if (a.in.home_frames > 0) {
+        ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
+                           "asking (%d frames)...", a.in.home_frames);
+    } else {
+        ImGui::TextDisabled(
+            "all joints -> calibrated zero (the stand), slowly, torque ON. "
+            "Benches the loop; no arm needed.");
     }
 
     // The robot's own answer to "why is nothing happening?", drawn whenever

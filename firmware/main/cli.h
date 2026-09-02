@@ -30,4 +30,10 @@ void banner(Sink out);
 // stay BENCH in telemetry.
 void linkMode(bool run, Sink out);
 
+// The wireless "reset the servos" request (kFlagHome). Benches the loop,
+// waits for the bus handover, then drives every joint to its calibrated zero
+// -- the standing pose. Housekeeping-task only, like every other bus command
+// here. See cmdHome for why this one deliberately turns torque back ON.
+void linkHome(Sink out);
+
 }  // namespace cli

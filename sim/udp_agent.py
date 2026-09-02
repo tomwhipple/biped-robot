@@ -66,6 +66,7 @@ def run(run_dir, render=False, duration=None, port=CMD_PORT,
     # --boot-armed is the twin of typing `run` on the tether, for the
     # ARM-ignorant script/gamepad commanders.
     dog = Supervisor(armed=boot_armed)
+    homes_seen = dog.homes
     rng = np.random.default_rng(0)
     obs = env.reset()
     frames, peer, held, late = [], None, [], 0
@@ -98,6 +99,17 @@ def run(run_dir, render=False, duration=None, port=CMD_PORT,
         held = [h for h in held if h[0] > now_ms]
 
         # -- apply ---------------------------------------------------------
+        # A "reset the servos" request (FLAG_HOME) benches the Supervisor and
+        # leaves torque holding, exactly as on the robot. What it does NOT do
+        # here is re-pose the plant: on the robot the move is a bench-mode
+        # SERVO BUS transaction (cli.cpp cmdHome), and this twin has no bench
+        # half -- the policy owns every actuator. Benched, the command decays
+        # to the trained stand, which is the nearest true thing the plant can
+        # do; the joint-accurate version of this belongs to the firmware.
+        if dog.homes != homes_seen:
+            homes_seen = dog.homes
+            print(f"  [{now_ms/1000:6.2f}s] home: benched, torque holding a "
+                  f"stand (no bus half in sim)", flush=True)
         state = dog.state(now_ms)
         if state is not last_state:
             print(f"  [{now_ms/1000:6.2f}s] link {last_state.value} -> "

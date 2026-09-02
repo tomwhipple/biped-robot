@@ -64,6 +64,20 @@ FLAG_ENABLE = 1 << 0       # 0 = stand still regardless of vx/wz
 FLAG_ESTOP = 1 << 1        # latching torque release; see Watchdog.accept
 FLAG_ARM = 1 << 2          # operator wants the control loop armed; ArmLatch
 FLAG_POSE = 1 << 3         # "beacon joint angles too" -- see TLM_LEN_EXT
+# "Put every joint back at its calibrated zero -- the standing pose -- now."
+# (2026-09-02) A RECOVERY action rather than a command, and the difference is
+# the whole point: it is honoured while the loop is BENCHED, while the FALL
+# latch is tripped and while the E-stop is latched -- exactly the states in
+# which every other channel on this wire correctly refuses to move anything,
+# and exactly the states an operator is in when the robot is a heap on the
+# floor and has to be stood back up before it can be armed again.
+#
+# It does not arm and cannot be used to walk: the robot BENCHES first (the
+# CLI half of the firmware owns the bus for the move) and the joints slew at
+# the bench's gentle speed. Acted on by its RISING EDGE (HomeLatch), like
+# FLAG_ARM: a level would re-issue the move at 20 Hz, and a client that
+# reboots with the bit set must not move a robot nobody is watching.
+FLAG_HOME = 1 << 4
 
 # -- timing ----------------------------------------------------------------
 # 20 Hz is ~2 orders of magnitude more command bandwidth than intent actually
@@ -155,6 +169,7 @@ class ArmResult(Enum):
     ACCEPTED = 1         # the last request was honoured (arm or disarm)
     REFUSED_NO_CAL = 2   # arm refused: no as-built calibration in NVS
     DISARMED_FALL = 3    # the FALL latch tripped: run over, robot disarmed
+    DISARMED_HOME = 4    # a FLAG_HOME request benched the loop and homed it
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
@@ -178,6 +193,9 @@ def diag_reason(diag: int) -> str:
     if r is ArmResult.DISARMED_FALL:
         return ("disarmed -- FALL latch tripped; re-arm deliberately (ARM "
                 "edge or run)")
+    if r is ArmResult.DISARMED_HOME:
+        return ("disarmed -- servos reset to the standing pose; torque is "
+                "HOLDING it, re-arm to walk")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")
@@ -218,6 +236,11 @@ class Command(NamedTuple):
     def pose(self) -> bool:
         """This sender wants joint angles in the beacon (mirror mode)."""
         return bool(self.flags & FLAG_POSE)
+
+    @property
+    def home(self) -> bool:
+        """This sender is asking for the servos to be reset to zero."""
+        return bool(self.flags & FLAG_HOME)
 
 
 class Telemetry(NamedTuple):
@@ -511,6 +534,29 @@ class ArmLatch:
         return self._level
 
 
+class HomeLatch:
+    """The FLAG_HOME rising edge. Firmware reference (linkproto::HomeLatch).
+
+    Same first-frame rule as ArmLatch -- a client that boots with the bit
+    already set makes no edge and therefore moves nothing -- but ONE-SIDED:
+    only 0 -> 1 is an event. Dropping the bit means "request over", not
+    "un-home", so there is nothing to report on the falling edge.
+    """
+
+    def __init__(self):
+        self._level = None
+
+    def update(self, flags: int) -> bool:
+        """Feed one decoded frame's flags. True exactly on the 0 -> 1 edge."""
+        level = bool(flags & FLAG_HOME)
+        prev, self._level = self._level, level
+        return prev is False and level
+
+    @property
+    def level(self):
+        return self._level
+
+
 class Supervisor:
     """ArmLatch + Watchdog + the bench/run mode, as the firmware composes
     them (firmware/main/ctrl_task.cpp). Reference for the twins.
@@ -528,7 +574,10 @@ class Supervisor:
         self.arm_allowed = arm_allowed
         self.result = ArmResult.NONE
         self.latch = ArmLatch()
+        self.home_latch = HomeLatch()
         self.dog = Watchdog()
+        self.homes = 0        # completed servo resets, for the twins' log
+        self.holding = False  # benched with torque HOLDING the homed pose
 
     def accept(self, pkt: Command, now_ms: float) -> bool:
         """Feed one decoded frame. Returns the watchdog's verdict (always
@@ -542,6 +591,18 @@ class Supervisor:
                 self.armed = want
                 if want:
                     self.dog = Watchdog()         # fresh run, fresh link state
+                    self.holding = False          # the loop owns the bus now
+        # A home request outranks everything: it is honoured benched, fallen
+        # and E-stopped, and it ends any run first. The mode goes to bench
+        # BEFORE the joints move, because on the robot the move is a CLI bus
+        # transaction and the CLI only owns the bus while benched.
+        if self.home_latch.update(pkt.flags):
+            self.homes += 1
+            self.armed = False
+            self.holding = True
+            self.result = ArmResult.DISARMED_HOME
+            self.dog = Watchdog()
+            return False
         if not self.armed:
             return False
         return self.dog.accept(pkt, now_ms)
@@ -564,6 +625,11 @@ class Supervisor:
                 else (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0))
 
     def torque_on(self, now_ms: float) -> bool:
+        # A homed robot is benched with torque still ON, holding the standing
+        # pose -- that is what makes it stand up rather than fold. Nothing
+        # else about BENCH changes: the link commands nothing.
+        if not self.armed:
+            return self.holding
         return self.state(now_ms) not in (LinkState.RELAX, LinkState.ESTOP,
                                           LinkState.BENCH)
 

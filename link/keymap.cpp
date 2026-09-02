@@ -47,6 +47,7 @@ const struct {
     {"quit", "quit (disarms)"},
     {"record", "record toggle"},
     {"reset_ext", "reset ext -> 14 B"},
+    {"home", "reset servos -> stand"},
 };
 
 void trim(char* s) {
@@ -126,6 +127,7 @@ void Keymap::reset() {
     key[kActQuit] = 'q';
     key[kActRecord] = 'r';
     key[kActResetExt] = '0';
+    key[kActHome] = 'h';
 }
 
 int Keymap::actionFor(int k) const {

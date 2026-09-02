@@ -78,4 +78,27 @@ class ArmLatch {
     bool level_ = false;
 };
 
+// The kFlagHome rising edge: "put the joints back at their calibrated zero".
+//
+// Same first-frame rule as ArmLatch -- a client that boots with the bit
+// already set makes no edge and therefore moves nothing -- but ONE-SIDED:
+// only 0 -> 1 is an event. Dropping the bit means "request over", not
+// "un-home", so there is nothing to report on the falling edge.
+//
+// Separate from ArmLatch rather than a second return value out of it,
+// because the two are consumed by different code at different times: an arm
+// edge changes the mode, a home edge starts a bus transaction that takes
+// most of a second. Feed it every DECODED frame in arrival order.
+class HomeLatch {
+  public:
+    bool update(uint8_t flags);      // true exactly on the 0 -> 1 edge
+
+    bool haveLevel() const { return have_level_; }
+    bool level() const { return level_; }
+
+  private:
+    bool have_level_ = false;
+    bool level_ = false;
+};
+
 }  // namespace linkproto

@@ -280,3 +280,65 @@ def test_mirror_is_off_unless_asked_for():
     ], gui_args=["--no-record"])
     assert not any("requested" in ln for ln in _pose_lines(log)), log
     assert rc == 0, out
+
+
+def _home_lines(log):
+    return [ln for ln in log.splitlines() if "home:" in ln]
+
+
+def test_reset_servos_works_with_the_estop_latched():
+    """The one button that must survive the state everything else refuses in.
+
+    An E-stopped robot is limp by design, and that is the state an operator is
+    in when it is on the floor: ARM is refused, every motion key is refused,
+    and the console is correctly sending nothing but the latch. `home` is the
+    way out -- it needs no arm, it reaches the robot through the E-stop, and
+    the robot benches and holds the standing pose rather than staying limp.
+    """
+    out, log, rc = _run([
+        (1.0, "arm"),
+        (1.2, "press forward"),
+        (0.5, "estop"),
+        (0.5, "home"),
+        (0.8, "quit"),
+        (0.5, ""),
+    ], gui_args=["--no-record"])
+
+    seq = _states(log)
+    kinds = [s[0] for s in seq]
+    assert "estop" in kinds, log
+    assert _home_lines(log), "the robot never saw the request\n" + log
+
+    # After the reset: benched (the run is over) but torque ON -- the one
+    # combination nothing else on this wire produces, and the whole point.
+    i = max(k for k, s in enumerate(seq) if s[0] == "estop")
+    held = [s for s in seq[i:] if s[0] == "bench" and s[3] == "on"]
+    assert held, log
+    assert "servos reset to the standing pose" in log, log
+
+    # It is a request, not a command: the robot never leaves the bench on the
+    # strength of it -- re-arming stays a deliberate, separate act.
+    assert not any(s[0] == "live" for s in seq[i:]), log
+    # And the console says what it sent. (The HOME level itself lasts
+    # kHomeFrames = 400 ms, which is deliberately shorter than the headless
+    # status interval, so the flag string is not what to assert on here.)
+    assert "reset servos" in out, out
+    assert rc == 0, out
+
+
+def test_reset_servos_needs_no_arm_and_is_one_edge():
+    """From the boot state, and exactly once however long the level is held.
+
+    The robot acts on the RISING edge (HomeLatch), so a level held for
+    kHomeFrames must still home once -- not eight times at 20 Hz.
+    """
+    out, log, rc = _run([
+        (1.5, "home"),
+        (1.0, "home"),
+        (0.8, "quit"),
+        (0.5, ""),
+    ], gui_args=["--no-record"])
+
+    assert len(_home_lines(log)) == 2, log     # two presses, two homes
+    assert "ARM" not in out, out               # it never armed anything
+    assert rc == 0, out

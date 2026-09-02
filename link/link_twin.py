@@ -47,6 +47,7 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
     # (FLAG_POSE). A level, not an edge -- stop asking and the very next
     # beacon is classic again. See docs/mirror-mode.md.
     want_pose, last_pose = False, None
+    homes_seen = sup.homes
     t0 = time.monotonic()
     tick = 0
     print(f"link_twin: listening on :{port}, telemetry -> :{tlm_port}, "
@@ -70,6 +71,17 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
         # order, which is NOT the wire order (vy sits between vx and wz).
         cmd = sup.command_ext(now_ms)
         diag = sup.diag()
+        # Announced BEFORE the state line, because that is the order it
+        # happens in: the request benches the loop and only then moves the
+        # joints. There is no plant here, so "moved" is a claim about what
+        # the firmware would do (cli.cpp cmdHome) -- the honest twin of a
+        # bus transaction this file cannot perform.
+        if sup.homes != homes_seen:
+            homes_seen = sup.homes
+            if not quiet:
+                print(f"  [{now_ms/1000:7.2f}s] home: benched, all "
+                      f"{NUM_JOINTS} joints -> calibrated zero (the stand), "
+                      f"torque HOLDING", flush=True)
         if not quiet and (state is not last_state or cmd != last_cmd
                           or diag != last_diag):
             why = f"  -- {diag_reason(diag)}" if state is LinkState.BENCH \

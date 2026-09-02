@@ -52,6 +52,17 @@ extern std::atomic<bool> g_ctrl_owns_bus;
 extern std::atomic<uint32_t> g_link_arm_edges;
 extern std::atomic<bool> g_link_arm_level;     // valid once edges > 0
 
+// -- link "reset the servos" requests (core 1 -> core 0) -------------------
+// The kFlagHome rising edge, published the same way and for the same reason:
+// ctrl sees every frame, but the move itself is a BENCH-mode bus transaction
+// (cli.cpp cmdHome) that takes most of a second, and only the housekeeping
+// task may run one. So ctrl counts edges here and housekeeping does the work
+// -- benching the loop first, waiting for the handover, then homing.
+//
+// A counter and no level: unlike ARM this is one-sided (there is no
+// "un-home"), so there is nothing for a level to say.
+extern std::atomic<uint32_t> g_link_home_edges;
+
 // -- why the loop is (not) armed (core 0 -> the WiFi beacon) ---------------
 // cmdMode() is the ONE place that decides a mode request, and until 2026-08-30
 // its refusal only reached the UART sink: over WiFi the robot simply stayed

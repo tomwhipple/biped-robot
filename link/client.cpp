@@ -276,6 +276,17 @@ void Intent::stand(const char* why) {
     }
 }
 
+void Intent::requestHome() {
+    home_frames = kHomeFrames;
+    // The robot benches to run the move (the CLI half of the firmware owns
+    // the servo bus), so drop ARM here too rather than let the console go on
+    // claiming a run the robot has ended. A latched E-stop is NOT cleared:
+    // homing answers "the robot is on the floor", not "carry on".
+    armed = false;
+    releaseAll();
+    say("reset servos: robot benches, joints slew to the stand, torque HOLDS");
+}
+
 void Intent::fireEstop() {
     estop = true;
     releaseAll();
@@ -290,6 +301,10 @@ void Intent::frame(const Speeds& s, float& vx, float& vy, float& wz,
     ext_out.reset();
     flags = 0;
     if (want_pose) flags |= kFlagPose;    // a request, not a command
+    // Before every early return below, and gated on nothing: a servo reset
+    // must reach the robot from the states that refuse to move -- E-stopped,
+    // disarmed, fall-latched. That is the whole reason it is its own bit.
+    if (home_frames > 0) flags |= kFlagHome;
     if (armed) flags |= kFlagArm;
     if (estop) {
         flags |= kFlagEstop;
@@ -332,10 +347,14 @@ const char* motionText(const Intent& in) {
     return "stand";
 }
 
-void sendIntent(Link& link, const Intent& in, const Speeds& s, float& vx,
+void sendIntent(Link& link, Intent& in, const Speeds& s, float& vx,
                 float& vy, float& wz, Ext& ext_out, uint8_t& flags) {
     in.frame(s, vx, vy, wz, ext_out, flags);
     link.sendFull(vx, vy, wz, ext_out, flags);
+    // Spent on the way out, not on the way in: the count is frames actually
+    // PUT ON THE WIRE, so a request cannot expire in a console that is not
+    // sending (a window that lost focus, a paused test).
+    if (in.home_frames > 0) --in.home_frames;
 }
 
 }  // namespace bimo

@@ -16,6 +16,9 @@
 //   left/right turn left (+wz, CCW) / right (-wz) while held
 //   space, s   stand (also clears a latched E-stop)
 //   e          E-STOP: latching torque release on the robot
+//   h          reset servos: every joint to its calibrated zero (the stand),
+//              slowly, torque held. Works E-stopped, fallen or benched -- it
+//              needs no arm, and it benches the loop to do it.
 //   q          quit: disarms first, so a closed console leaves a limp robot
 //
 // "While held" on a terminal: there is no key-up event, only auto-repeat. A
@@ -133,8 +136,9 @@ struct Hold {
 
 // -- drawing ----------------------------------------------------------------
 void flagsText(uint8_t f, char* out, size_t cap) {
-    snprintf(out, cap, "%s%s%s%s", (f & kFlagArm) ? "ARM " : "",
+    snprintf(out, cap, "%s%s%s%s%s", (f & kFlagArm) ? "ARM " : "",
              (f & kFlagEnable) ? "ENABLE " : "", (f & kFlagEstop) ? "ESTOP " : "",
+             (f & kFlagHome) ? "HOME " : "",
              f ? "" : "(none)");
 }
 
@@ -283,6 +287,10 @@ int main(int argc, char** argv) {
                 case 'e':
                     hold.clear();
                     in.fireEstop();
+                    break;
+                case 'h':
+                    hold.clear();
+                    in.requestHome();
                     break;
                 case ' ': case 's':
                     hold.clear();
