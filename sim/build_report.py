@@ -411,6 +411,53 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·02 · hardware thread · evening</span></p>
+    <p><b>The arm-and-fall is real, it is a ROLL limit cycle, and the sim
+    cannot produce it — with any backlash.</b> Tom: "when I arm the robot it
+    begins a growing oscillation that eventually results in it falling
+    over" and "a fair amount of play in the joints that might not be well
+    modeled by the sim". Repeated from mira three times with cameras,
+    beacon joint angles (the new 40 B pose frame) and <code>obsdump</code>
+    all rolling (<code>link/osc_probe.py</code>: ARM|POSE zero-command
+    stand with a tilt/swing guard → ESTOP + disarm; <code>--home</code>
+    proved <b>RESET SERVOS over the link</b> live: verdict DISARMED_HOME,
+    every joint within 0.014 rad of zero, torque holding). Run 1 stood
+    8 s; runs 2 and 3 fell <b>8.5 s and 18.8 s</b> after arming, both
+    <b>sideways</b> (up<sub>y</sub> → +0.50 / −0.82, roll rate 2–3.5 rad/s
+    at the end). It is not a smooth exponential: bursts of ~1 Hz rocking
+    (joint p-p 0.2–0.4 rad in a 1 s window) separated by quiet seconds,
+    then one burst tips it; the torso stays inside ~10° until the last
+    half second, so a tilt guard cannot save it and a limp robot mid-sway
+    falls anyway. The sensors are not the story this time: reported
+    joint velocity vs finite-differenced angle has slope 0.69 (a unit
+    error would be 50×; the dq quantum is exactly 0.0767 rad/s = one
+    0.732 rpm LSB) and the gyro RMS matches the roll the up-vector shows.
+    The same policy (loco_v22fix_e_s128), same zero command, in the SIL
+    twin: up<sub>y</sub> RMS <b>0.0009</b> vs 0.05–0.13 on the robot,
+    gyro<sub>x</sub> 0.005 vs 0.67 (144×), dq 0.02 vs 0.35–0.47. So the
+    twin got plant knobs (<code>sil_twin --backlash-deg --act-lag-hz</code>)
+    and a sweep ran: 0 / 0.7 / 3 / 6 / <b>10°</b> backlash × 0 / 2 Hz lag
+    — every point stands dead still (up<sub>y</sub> RMS ≤ 0.0024, roll p-p
+    ≤ 0.04 rad). The sim's "backlash" is a deadzone on the PD error, i.e. a
+    servo that ignores small commands; the robot's play is the joint
+    moving FREELY under load inside the slop — passive hysteresis in the
+    only lateral actuator (no ankle roll on this body), which a command
+    deadzone does not model at all. That is the gap Tom pointed at, now
+    with numbers. Also different: the two plants settle in different
+    postures (sim leans up<sub>x</sub> +0.13 with ankles −0.10; hardware
+    up<sub>x</sub> −0.08…+0.03 with ankles +0.04…+0.07, L/R hip pitch
+    −0.09/+0.10). Next, in order: (1) <b>measure the play</b> —
+    <code>link/play_probe.py</code> is the torque-off pose stream, Tom
+    wiggles each joint, per-joint p-p in degrees falls out; (2) one stand
+    on a hard floor instead of the mat, same probe, to split surface
+    compliance from joint slop; (3) model what we measure as plant
+    hysteresis (free travel), not a command deadzone, and re-run this
+    sweep until the twin rocks like the robot does — only then re-rank
+    the fleet on it. Media + CSVs: hw_sessions/2026-09-02/osc{1,2,3}_*
+    and sim_ref/.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·02 · training thread</span></p>
     <p><b>The referee got the measured servo — and the fleet ranking
     inverted.</b> Following the morning card's finding (below), the CPU

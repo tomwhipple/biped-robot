@@ -115,8 +115,14 @@ def run(args):
     xml = args.xml or (HANG_XML if args.hang else None) \
         or cfg.get("xml_path") or None
     H, lib, info = sil_setup(args.run_name, run_dir)
+    extra = {}
+    if args.backlash_deg is not None:
+        extra.update(backlash_deg=args.backlash_deg, backlash_deg_max=None)
     env = make_env(cfg, episode_seconds=1e9, nominal=args.nominal,
-                   xml=xml if xml else cfg.get("xml_path"))
+                   xml=xml if xml else cfg.get("xml_path"),
+                   extra=extra or None, act_lag_hz=args.act_lag_hz)
+    print(f"sil_twin: plant backlash {env.backlash_deg:g} deg, "
+          f"act_lag {env.act_lag_hz:g} Hz", flush=True)
     act = H.SilActAdapter(lib, env, log=False)
     obs, _ = env.reset(seed=args.seed)
     fw, nc = act.spec.frame_dim, act.spec.num_cmd
@@ -356,6 +362,10 @@ def main():
                         "format (tools/obs_capture.py --replay/--compare)")
     p.add_argument("--duration", type=float, default=None)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--backlash-deg", type=float, default=None,
+                   help="pin gear backlash deadzone (deg) on the plant")
+    p.add_argument("--act-lag-hz", type=float, default=0.0,
+                   help="measured-servo lag pole (2.0 = the 08-31 bench)")
     p.add_argument("--boot-armed", action="store_true")
     run(p.parse_args())
 

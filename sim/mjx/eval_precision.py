@@ -119,14 +119,16 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0):
     # training-time recover_mix in the config must not leak into e.g.
     # the balance scenarios (fallen resets would break every script)
     kw["recover_mix"] = 0.0
-    if extra:
-        kw.update(extra)
     if nominal:
         kw.update(domain_rand=False, latency_ms=0.0, latency_ms_max=None,
                   latency_jitter_ms=0.0, backlash_deg=0.0, backlash_deg_max=None)
     else:
         kw.update(domain_rand=True, latency_ms=4.0, latency_ms_max=None,
                   latency_jitter_ms=0.0, backlash_deg=0.7, backlash_deg_max=None)
+    # extra LAST so a caller can pin a plant knob (e.g. sil_twin --backlash-deg
+    # on the otherwise nominal plant) -- the nominal/claim blocks are defaults
+    if extra:
+        kw.update(extra)
     # hardware-claim pushes are pinned to the HISTORICAL standard (gentle 5 N
     # force shoves @1%) regardless of what the run trained with -- v7/v7b
     # trained with strong velocity kicks and inheriting those into the eval
