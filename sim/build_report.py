@@ -411,6 +411,49 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·02 · hardware thread</span></p>
+    <p><b>v27tilt_b: 46/144. The referee can't see the servo lag — and
+    tilt-trained policies learned to hide inside it.</b> Yesterday's card
+    named the world-z/gravity observability bug as the cause of
+    v27tilt's 54/144. That bug was real and the fix (ff320ae) verified,
+    but it was <i>not</i> the cause: <b>loco_v27tilt_b</b> (v26lag's
+    exact recipe + corrected tilt, 60.6 M steps, 7.5 h, PPO eval
+    1112→1336 peak, 1200 final — the best MJX curve in the lineage)
+    refereed <b>46/144</b> with the identical signature: 122 W to stand
+    still, 34 % falls, heading/goal 0/8. So I ran the policies in
+    <i>their own</i> MJX env with a stand command (flat, no pushes, no
+    fallen starts — <code>sim/mjx/stand_probe.py</code>): v27tilt_b
+    stands at <b>11.9 W</b> flat and <b>11.0 W at 3° tilt</b>, zero
+    falls in 6 seeds — indistinguishable from v26lag (11.7 W). The 122 W
+    exists only in the CPU referee — and survives <code>--nominal</code>
+    (112 W with every DR/noise/latency/backlash term off; v26lag 13.6 W).
+    Same <code>torso_up</code> sensor in both engines, so not a
+    convention flip. The discriminator: <b>act-lag OFF in MJX reproduces
+    the referee</b> — v27tilt_b 11.9 → <b>96.4 W</b>, v26lag 11.7 → 16.1 W.
+    The tilt-trained policy learned a control law that is smooth only
+    <i>through</i> the 2–12 Hz lag cascade it trained with (fast, large
+    target swings the filter turns into motion); the CPU referee has no
+    actuation lag at all (<code>walker_env</code> — none), so it sees the
+    raw swings. Students: the deployed <b>v26lag_s128</b> is calm both
+    ways (10.7 / 12.5 W); <b>v27tilt_b_s128</b> is 10.5 W with lag and
+    <b>62.9 W, 67 % falls</b> without — more fragile than its teacher.
+    <b>No flash; v26lag_s128 stays.</b> Two conclusions. (1) The referee
+    is now judging policies for a servo we measured does not exist:
+    the STS3215 has ~1.7 Hz tracking bandwidth (tools/servo_frf.py), the
+    CPU referee actuates instantly. Every act-lag policy (v26lag,
+    v26servo, v27*) is scored against the wrong plant — v26servo's 10/144
+    (09·01 card) is the same story. The referee needs the measured servo
+    dynamics (act-lag, or the servo-profile model on the agent branch)
+    before it can rank another lag-trained run; this is the "make the
+    sim match reality" item, and it is on the referee side. (2) Tilt
+    itself is not yet judged: the referee has no floor tilt either, and
+    in MJX v26lag <i>already</i> stands 0/6 falls at 3°, so the desk lean
+    may not be why the real robot topples. Also today: the distill
+    self-referee died after "saved" again (third time); v27tilt_b_s128
+    was probed, not refereed.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·01 · hardware thread</span></p>
     <p><b>Floor-tilt DR, first cut, was a push in disguise — and the
     squat has never been paid for.</b> Walk day on the hard-rubber mat:
