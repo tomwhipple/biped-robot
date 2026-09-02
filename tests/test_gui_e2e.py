@@ -22,6 +22,7 @@ Ports are offset so it never collides with a console pointed at the robot.
 """
 import itertools
 import os
+import re
 import subprocess
 import sys
 import time
@@ -365,3 +366,116 @@ def test_a_robot_that_never_heard_of_the_reset_is_called_out():
     assert "no answer to the reset" in out, out
     assert "re-flash" in out, out
     assert rc == 0, out
+
+
+# -- the observer -----------------------------------------------------------
+# `--readonly` exists so a second pair of eyes can watch a robot somebody else
+# is driving -- another session on another machine -- without the watching
+# console being able to touch it. Two claims, both tested end to end over real
+# UDP here rather than only as unit tests, because the interesting part is the
+# TOPOLOGY: the robot beacons to whoever commanded last and to nobody else
+# (link_twin.py holds the same rule the firmware does, `peer`), so an observer
+# is only reachable because the driver forwards.
+
+
+def _observer(tlm_port, extra=()):
+    """A headless watcher. No --host: it has nowhere to send, by design."""
+    return subprocess.Popen(
+        [GUI, "--headless", "--readonly", "--tlm-port", str(tlm_port),
+         "--no-record", *extra],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True, bufsize=1)
+
+
+def test_readonly_console_cannot_command_the_robot():
+    """Point a watcher straight at the twin and try every control on it.
+
+    This is the adversarial case, not the intended wiring: the observer is
+    given the robot's own --host and --cmd-port, so the ONLY thing standing
+    between `arm` and a moving robot is the mode. The twin's trace is the
+    oracle -- it prints a line per command it would hand the policy, so an
+    empty trace is proof that nothing arrived, not merely that nothing
+    obviously happened.
+    """
+    cmd_port, tlm_port = _ports()
+    twin = _twin(cmd_port, tlm_port)
+    time.sleep(0.5)
+    obs = _observer(tlm_port, ["--host", "127.0.0.1",
+                               "--cmd-port", str(cmd_port)])
+    for delay, line in [(0.8, "arm"), (0.6, "press forward"),
+                        (0.5, "estop"), (0.5, "home"), (0.5, "quit"),
+                        (0.5, "")]:
+        time.sleep(delay)
+        if obs.poll() is not None:
+            break
+        obs.stdin.write(line + "\n")
+        obs.stdin.flush()
+    try:
+        out = obs.communicate(timeout=15)[0]
+    except subprocess.TimeoutExpired:
+        obs.kill()
+        out = obs.communicate()[0]
+    finally:
+        twin.terminate()
+        log = twin.communicate(timeout=5)[0]
+
+    # The robot heard nothing at all. Two independent proofs:
+    #  * its trace never moves off the line it prints at boot, so no command
+    #    was ever handed to the policy; and
+    #  * the observer got no telemetry -- which is the CAUSAL one, because the
+    #    twin beacons only to a peer, and a peer is set by receiving a
+    #    command. Telemetry arriving here would have meant a frame got out.
+    assert [st for st, _, _, _ in _states(log)] == ["bench"], log
+    assert "robot (no telemetry)" in out, out
+    assert "OBSERVER" in out, out
+    # And it said so for each refusal rather than going quiet, which is the
+    # difference between a mode and a bug.
+    assert out.count("OBSERVER: this console only watches") >= 1, out
+    assert "ARMED" not in out, out
+    assert obs.returncode == 0, out
+
+
+def test_the_driver_forwards_the_beacon_to_the_watcher():
+    """The intended wiring: driver --watch, watcher --readonly.
+
+    The watcher is bound to a port the twin never sends to, so every beacon it
+    reports arrived by way of the driving console -- and it reports the
+    robot's real state (LIVE, once the driver arms), not a default.
+    """
+    cmd_port, tlm_port = _ports()
+    watch_port = tlm_port + 1                  # _next_port strides 4
+    twin = _twin(cmd_port, tlm_port)
+    time.sleep(0.5)
+    obs = _observer(watch_port)
+    time.sleep(0.3)
+    drv = _gui([(1.0, "arm"), (1.5, "press forward"), (0.8, "release forward"),
+                (0.4, "quit"), (0.4, "")], cmd_port, tlm_port,
+               ["--no-record", "--watch", "127.0.0.1:%d" % watch_port])
+    try:
+        drv_out = drv.communicate(timeout=15)[0]
+    except subprocess.TimeoutExpired:
+        drv.kill()
+        drv_out = drv.communicate()[0]
+    try:
+        obs.stdin.write("quit\n")
+        obs.stdin.flush()
+        obs_out = obs.communicate(timeout=10)[0]
+    except (subprocess.TimeoutExpired, BrokenPipeError):
+        obs.kill()
+        obs_out = obs.communicate()[0]
+    finally:
+        twin.terminate()
+        log = twin.communicate(timeout=5)[0]
+
+    assert "ARMED" in drv_out, drv_out          # the driver really did drive
+    assert _states(log), log
+    # The watcher saw beacons, and they were the robot's -- LIVE is a state
+    # only an armed robot reports, and only the driver could have armed it.
+    assert "OBSERVER" in obs_out, obs_out
+    watched = [int(m) for m in re.findall(r"watched\s+(\d+) beacon", obs_out)]
+    assert watched and max(watched) > 0, obs_out
+    assert "robot LIVE" in obs_out, obs_out
+    # ...and it stayed silent throughout: the driver never lost the link to a
+    # second commander stealing the beacon.
+    assert "LINK LOST" not in drv_out, drv_out
+    assert obs.returncode == 0, obs_out

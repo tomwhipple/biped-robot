@@ -99,6 +99,10 @@ struct Options {
     bool mirror = false;                 // start in mirror mode
     int sim_cmd_port = 0;                // 0 -> cmd_port + 100
     bool headless = false;
+    // OBSERVER: watch a robot somebody else is driving. See the block comment
+    // above `readonly` in link/client.h -- no transmit socket is opened.
+    bool readonly = false;
+    const char* watch = nullptr;         // HOST[:PORT] to fan telemetry out to
     bool record = true;                  // --no-record to opt out
     bool autostream = false;             // --sim-view given: connect at boot
     const char* screenshot = nullptr;    // write a PNG of the window, then go
@@ -113,7 +117,14 @@ void usage(const char* argv0) {
             "          [--run-name NAME] [--repo DIR] [--sessions DIR]\n"
             "          [--headless] [--no-record] [--sim-cmd-port N]\n"
             "          [--mirror]  drive the robot, start a sim, ghost it\n"
-            "          [--screenshot FILE [--screenshot-after S]]\n",
+            "          [--readonly] watch only; opens no transmit socket\n"
+            "          [--watch HOST[:PORT]]  relay each beacon to a watcher\n"
+            "          [--screenshot FILE [--screenshot-after S]]\n"
+            "\n"
+            "  --readonly needs a beacon to watch, and the robot beacons only\n"
+            "  to whoever commanded it last. So the DRIVING console forwards:\n"
+            "    driver:   bimo_gui --host ROBOT --watch 192.168.2.30\n"
+            "    watcher:  bimo_gui --readonly --host ROBOT\n",
             argv0, kCmdPort, kTlmPort, bimo::kDefaultVx, bimo::kDefaultVy,
             bimo::kDefaultWz, static_cast<double>(kSendHz), kDefaultStreamPort);
 }
@@ -136,6 +147,8 @@ bool parse(int argc, char** argv, Options& o) {
         else if (!strcmp(a, "--sessions") && v) { o.sessions = v; ++i; }
         else if (!strcmp(a, "--run-name") && v) { o.run_name = v; ++i; }
         else if (!strcmp(a, "--headless")) { o.headless = true; }
+        else if (!strcmp(a, "--readonly")) { o.readonly = true; }
+        else if (!strcmp(a, "--watch") && v) { o.watch = v; ++i; }
         else if (!strcmp(a, "--no-record")) { o.record = false; }
         else if (!strcmp(a, "--mirror")) { o.mirror = true; }
         else if (!strcmp(a, "--sim-cmd-port") && v) { o.sim_cmd_port = atoi(v); ++i; }
@@ -149,6 +162,10 @@ bool parse(int argc, char** argv, Options& o) {
         }
         else return false;
     }
+    // --host is where commands GO, so an observer does not need one -- but it
+    // is still the best guess for where the sim stream is, so it stays
+    // accepted. Only its being REQUIRED is lifted.
+    if (o.host == nullptr && o.readonly) o.host = "0.0.0.0";
     return o.host != nullptr && o.rate_hz > 0.0;
 }
 
@@ -285,8 +302,14 @@ void tick(App& a, double now_ms) {
     a.in.checkHome(a.link, now_ms);
     bimo::sendIntent(a.link, a.in, a.o.speeds, a.vx, a.vy, a.wz, a.ext_sent,
                      a.flags);
-    a.rec.command(now_ms, a.link.seq - 1, a.vx, a.vy, a.wz, a.ext_sent, a.flags,
-                  a.link.last_len);
+    // Command rows are what this console PUT ON THE WIRE. An observer put
+    // nothing there, so it records telemetry only: a take with 20 Hz of
+    // invented zero-velocity commands beside the driver's real motion would
+    // read, later, as a robot that moved while being told to stand.
+    if (!a.link.readonly) {
+        a.rec.command(now_ms, a.link.seq - 1, a.vx, a.vy, a.wz, a.ext_sent,
+                      a.flags, a.link.last_len);
+    }
     // Chart on each new beacon, so the x axis is the robot's clock and not
     // ours: 10 Hz * 300 samples = the last 30 seconds.
     if (a.link.tlm_count != a.charted) {
@@ -359,9 +382,14 @@ void startSim(App& a) {
         return;
     }
     // In mirror mode the robot owns the primary ports, so the sim gets its
-    // own; otherwise it listens where the console is already pointed.
-    const int cp = a.mirror ? a.sim_cmd_port : a.o.cmd_port;
-    const int tp = a.mirror ? a.sim_tlm_port : a.o.tlm_port;
+    // own; otherwise it listens where the console is already pointed. An
+    // observer is in the first case whether or not --mirror was given: it is
+    // bound to the beacon port to hear the real robot, so a sim beaconing
+    // there too would interleave a second robot's telemetry into the same
+    // charts.
+    const bool own_ports = a.mirror || a.o.readonly;
+    const int cp = own_ports ? a.sim_cmd_port : a.o.cmd_port;
+    const int tp = own_ports ? a.sim_tlm_port : a.o.tlm_port;
     if (!a.sim.start(a.repo, a.runs.name[a.run_sel], a.sim_hang,
                      a.o.stream_port, cp, tp)) {
         snprintf(a.status, sizeof a.status, "%s", a.sim.err);
@@ -384,7 +412,21 @@ void stopSim(App& a) {
 void setMirror(App& a, bool on) {
     a.mirror = on;
     a.in.want_pose = on;
-    if (on) {
+    if (on && a.o.readonly) {
+        // The observer's mirror: no command is relayed (there is no transmit
+        // socket) and kFlagPose is never asked for (that too would be a frame
+        // on the wire). What still works is the half that matters -- joint
+        // angles arriving in the relayed beacon are pushed to the sim and
+        // drawn, so the watcher sees the robot MOVE in 3D rather than as
+        // numbers. That depends on the DRIVER having asked for pose, which is
+        // exactly what `bimo_gui --mirror` on the driving side does, so say
+        // so rather than leave an empty ghost looking like a broken sim.
+        a.link.clearMirror();
+        snprintf(a.status, sizeof a.status,
+                 "MIRROR (observer): drawing the robot's measured joints in "
+                 "the sim. Needs the driving console to be in mirror mode too "
+                 "-- only then does the beacon carry joint angles.");
+    } else if (on) {
         a.link.setMirror("127.0.0.1", a.sim_cmd_port);
         snprintf(a.status, sizeof a.status,
                  "MIRROR: driving %s, relaying to the sim on :%d, asking for "
@@ -419,6 +461,14 @@ void headlessStatus(const App& a, double now_ms, double t0_ms) {
              (a.flags & kFlagEnable) ? "ENABLE " : "",
              (a.flags & kFlagEstop) ? "ESTOP " : "",
              (a.flags & kFlagHome) ? "HOME " : "");
+    if (a.link.readonly) {
+        // No send half at all: there is nothing to report about it, and
+        // printing zeros would read as "commanding a stop", which is the one
+        // thing an observer must never look like it is doing.
+        printf("[%7.2fs] OBSERVER  watched %5u beacon(s) %5.1f Hz",
+               (now_ms - t0_ms) / 1000.0, a.link.tlm_count,
+               a.link.rate_hz > 999.9 ? 999.9 : a.link.rate_hz);
+    } else {
     printf("[%7.2fs] arm %-8s motion %-12s send vx %+.2f vy %+.2f wz %+.2f "
            "crouch %.2f len %zu flags %s",
            (now_ms - t0_ms) / 1000.0, a.in.armed ? "ARMED" : "disarmed",
@@ -426,6 +476,7 @@ void headlessStatus(const App& a, double now_ms, double t0_ms) {
            static_cast<double>(a.vy), static_cast<double>(a.wz),
            static_cast<double>(a.ext_sent.crouch), a.link.last_len,
            fl[0] ? fl : "(none)");
+    }
     if (a.link.have_tlm && !a.link.linkLost(now_ms)) {
         const Telemetry& t = a.link.tlm;
         printf(" | robot %s  %.2f V  up_z %.2f  vx_est %+.2f",
@@ -531,8 +582,13 @@ int runHeadless(App& a) {
     const double t0_ms = nowMs();
     double next_ms = t0_ms, next_status = t0_ms;
     char last_note[sizeof a.in.note] = "";
-    printf("bimo_gui --headless -> %s:%d (telemetry :%d)\n", a.o.host,
-           a.o.cmd_port, a.o.tlm_port);
+    if (a.o.readonly) {
+        printf("bimo_gui --headless --readonly: OBSERVER, no transmit socket; "
+               "listening for beacons on :%d\n", a.o.tlm_port);
+    } else {
+        printf("bimo_gui --headless -> %s:%d (telemetry :%d)\n", a.o.host,
+               a.o.cmd_port, a.o.tlm_port);
+    }
     fflush(stdout);
     while (!a.quit) {
         const double now_ms = nowMs();
@@ -664,10 +720,26 @@ void labelFor(const App& a, int action, char* out, size_t cap,
 // Text that moves has to be re-read instead of glanced at.
 void drawHeader(App& a, double now_ms) {
     const float rx = 300.0f;              // where the robot half always starts
-    ImGui::Text("-> %-21s tx %2.0f Hz", a.host_port, a.o.rate_hz);
+    if (a.o.readonly) {
+        // Same column, same width, so the line does not move between modes --
+        // and amber, because "you cannot stop this robot" is a standing
+        // condition to be aware of, not an error and not normal running.
+        ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
+                           "-- %-21s 0 Hz  ", "OBSERVER: watching only");
+    } else {
+        ImGui::Text("-> %-21s tx %2.0f Hz", a.host_port, a.o.rate_hz);
+    }
     ImGui::SameLine(rx);
     if (!a.link.have_tlm) {
-        ImGui::TextDisabled("<- :%-5d no telemetry yet", a.o.tlm_port);
+        if (a.o.readonly) {
+            // The one failure a watcher will actually hit, named precisely.
+            // "no telemetry yet" would send an operator hunting a dead radio;
+            // the radio is fine, nobody is forwarding to them.
+            ImGui::TextDisabled("<- :%-5d nothing forwarded yet -- the "
+                                "driving console needs --watch", a.o.tlm_port);
+        } else {
+            ImGui::TextDisabled("<- :%-5d no telemetry yet", a.o.tlm_port);
+        }
     } else if (a.link.linkLost(now_ms)) {
         ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.2f, 1.0f),
                            "<- :%-5d LINK LOST  %6.1f s ago", a.o.tlm_port,
@@ -677,6 +749,18 @@ void drawHeader(App& a, double now_ms) {
         // stalled beacon cannot widen the line either.
         const double age = a.link.tlmAgeMs(now_ms);
         const long lag = a.link.tlm.state == LinkState::kBench ? 0 : a.link.lag();
+        if (a.o.readonly) {
+            // seq and lag both measure OUR frames against the robot's echo.
+            // A watcher has sent none, so lag would be a large negative
+            // number that looks like a fault. Report what it does know: how
+            // many relayed beacons it has actually seen.
+            ImGui::Text("<- :%-5d beacon %4.0f ms %5.1f Hz   seen %8u"
+                        "            bad %4u",
+                        a.o.tlm_port, age > 9999.0 ? 9999.0 : age,
+                        a.link.rate_hz > 999.9 ? 999.9 : a.link.rate_hz,
+                        a.link.tlm_count % 100000000u,
+                        a.link.tlm_bad % 10000u);
+        } else {
         ImGui::Text("<- :%-5d beacon %4.0f ms %5.1f Hz   seq %8u  lag %4ld  "
                     "bad %4u",
                     a.o.tlm_port, age > 9999.0 ? 9999.0 : age,
@@ -684,9 +768,16 @@ void drawHeader(App& a, double now_ms) {
                     a.link.seq % 100000000u,
                     lag > 9999 ? 9999 : (lag < -999 ? -999 : lag),
                     a.link.tlm_bad % 10000u);
+        }
     }
 
     char lbl[64];
+    // Every control from here to the end of the row commands the robot. An
+    // observer gets them greyed rather than hidden: the operator should be
+    // able to see the console is the one they know, and that it is the MODE
+    // and not a missing feature that stops them. Clicking through the disable
+    // is impossible, and Intent::refuseReadonly is the backstop if it were.
+    if (a.o.readonly) ImGui::BeginDisabled();
     labelFor(a, bimo::kActArm, lbl, sizeof lbl,
              a.in.armed ? "DISARM" : "ARM");
     if (ImGui::Button(lbl, ImVec2(140, 34))) a.in.toggleArm(now_ms);
@@ -696,17 +787,27 @@ void drawHeader(App& a, double now_ms) {
     ImGui::SameLine();
     // All three states, or ImGui falls back to its default blue the instant
     // the mouse crosses the button -- and a blue E-STOP is a lie.
-    const ImVec4 red = a.in.estop ? ImVec4(0.80f, 0.10f, 0.10f, 1.0f)
-                                  : ImVec4(0.55f, 0.12f, 0.12f, 1.0f);
+    // Grey, not red, for a watcher. ImGui's disable dims a colour by alpha,
+    // and a dimmed red is still unmistakably an E-STOP -- which is precisely
+    // the button that must not look available when it is not. Draining the
+    // colour is what makes "you cannot stop this robot from here" legible at
+    // a glance, which is the only speed that matters for this control.
+    const ImVec4 red = a.o.readonly  ? ImVec4(0.26f, 0.26f, 0.28f, 1.0f)
+                     : a.in.estop    ? ImVec4(0.80f, 0.10f, 0.10f, 1.0f)
+                                     : ImVec4(0.55f, 0.12f, 0.12f, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_Button, red);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                           ImVec4(red.x + 0.15f, red.y, red.z, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(red.x + 0.25f, red.y, red.z, 1.0f));
     labelFor(a, bimo::kActEstop, lbl, sizeof lbl,
-             a.in.estop ? "E-STOP LATCHED" : "E-STOP");
+             a.o.readonly ? "E-STOP (not yours)"
+                          : (a.in.estop ? "E-STOP LATCHED" : "E-STOP"));
     if (ImGui::Button(lbl, ImVec2(240, 34))) a.in.fireEstop();
     ImGui::PopStyleColor(3);
+    // The robot's own state is NOT a control, and must not grey out with the
+    // controls: it is the single thing a watcher is here to read.
+    if (a.o.readonly) ImGui::EndDisabled();
 
     ImGui::SameLine(0.0f, 32.0f);
     if (a.link.have_tlm && !a.link.linkLost(now_ms)) {
@@ -725,7 +826,9 @@ void drawHeader(App& a, double now_ms) {
     // and it is the only one that still works once the E-stop or the fall
     // latch has (correctly) locked everything else out. Amber, not red: this
     // is not an emergency control, it is the way out of one.
-    const ImVec4 amber(0.62f, 0.42f, 0.06f, 1.0f);
+    if (a.o.readonly) ImGui::BeginDisabled();
+    const ImVec4 amber = a.o.readonly ? ImVec4(0.26f, 0.26f, 0.28f, 1.0f)
+                                      : ImVec4(0.62f, 0.42f, 0.06f, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_Button, amber);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                           ImVec4(amber.x + 0.15f, amber.y + 0.10f, amber.z,
@@ -736,8 +839,13 @@ void drawHeader(App& a, double now_ms) {
     labelFor(a, bimo::kActHome, lbl, sizeof lbl, "RESET SERVOS");
     if (ImGui::Button(lbl, ImVec2(240, 34))) a.in.requestHome(now_ms);
     ImGui::PopStyleColor(3);
+    if (a.o.readonly) ImGui::EndDisabled();
     ImGui::SameLine(0.0f, 12.0f);
-    if (a.in.home_frames > 0) {
+    if (a.o.readonly) {
+        ImGui::TextDisabled(
+            "watching only: no transmit socket exists. The session driving "
+            "the robot owns ARM, STAND, E-STOP and RESET.");
+    } else if (a.in.home_frames > 0) {
         ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
                            "asking (%d frames)...", a.in.home_frames);
     } else {
@@ -761,9 +869,30 @@ void drawHeader(App& a, double now_ms) {
 void drawSim(App& a, double now_ms, float panel_w) {
     ImGui::SeparatorText("SIM");
     bool mir = a.mirror;
-    if (ImGui::Checkbox("mirror the robot", &mir)) setMirror(a, mir);
+    // A watcher mirrors the robot's MEASURED pose only -- it relays no
+    // command, because it has no socket to relay one on. Same checkbox, and
+    // the half that survives is the half a watcher wants: the robot moving,
+    // in 3D, instead of as six numbers.
+    if (ImGui::Checkbox(a.o.readonly ? "ghost the robot" : "mirror the robot",
+                        &mir)) {
+        setMirror(a, mir);
+    }
     ImGui::SameLine();
-    if (a.mirror) {
+    if (a.mirror && a.o.readonly) {
+        const bool fed = a.link.have_tlm &&
+                         a.link.tlm.n_joints == linkproto::kNumJoints;
+        if (fed) {
+            ImGui::TextColored(ImVec4(0.25f, 0.8f, 0.35f, 1.0f),
+                               "ghost live -- %u poses", a.poses_sent);
+        } else {
+            // The watcher cannot fix this itself: asking for joint angles is
+            // a frame on the wire (kFlagPose), and it sends none. Name the
+            // console that CAN, or this reads as a broken sim.
+            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
+                               "no joint angles in the beacon -- the DRIVING "
+                               "console must be in mirror mode too");
+        }
+    } else if (a.mirror) {
         const bool fed = a.link.have_tlm &&
                          a.link.tlm.n_joints == linkproto::kNumJoints;
         if (fed) {
@@ -780,6 +909,8 @@ void drawSim(App& a, double now_ms, float panel_w) {
                                      "nothing; the ghost appears on arm"
                                    : "asked for joint angles; none yet");
         }
+    } else if (a.o.readonly) {
+        ImGui::TextDisabled("draw the robot's measured joints in the sim");
     } else {
         ImGui::TextDisabled("drive the robot, sim follows as a ghost");
     }
@@ -903,9 +1034,19 @@ void drawSim(App& a, double now_ms, float panel_w) {
 
 void drawDrive(App& a) {
     for (int i = 0; i < kAxCountLocal; ++i) a.mouse_held[i] = false;
-    ImGui::SeparatorText("DRIVE");
+    ImGui::SeparatorText(a.o.readonly ? "DRIVE (observer: disabled)" : "DRIVE");
     ImGui::SameLine();
-    ImGui::Text("on the wire: %zu B", a.link.last_len);
+    if (a.o.readonly) {
+        // Not "0 B", which reads as an empty frame going out 20 times a
+        // second. Nothing is on the wire because there is no wire.
+        ImGui::TextDisabled("nothing on the wire");
+    } else {
+        ImGui::Text("on the wire: %zu B", a.link.last_len);
+    }
+    // The whole panel, sliders included: crouch/lift/foot_* are commands too,
+    // and a slider that moves while the robot does not is the same lie the
+    // E-STOP would be.
+    if (a.o.readonly) ImGui::BeginDisabled();
     if (a.link.last_len == kCmdLenExt) {
         ImGui::SameLine();
         // Old firmware drops a long frame BY LENGTH, so the symptom of an
@@ -968,6 +1109,7 @@ void drawDrive(App& a) {
     changed |= ImGui::SliderFloat("foot_dz", &a.in.ext.foot_dz, -kFootDMax,
                                   kFootDMax, "%+.3f m");
     if (changed) a.in.ext.clamp();
+    if (a.o.readonly) ImGui::EndDisabled();
 }
 
 void plot(const char* label, const Ring& r, float lo, float hi,
@@ -1003,10 +1145,26 @@ void drawTelemetry(App& a, double now_ms) {
     plot("vbat", a.c_vbat, 9.0f, 13.0f, "%.2f V",
          t.vbat_v);
     plot("up_z", a.c_upz, 0.0f, 1.05f, "%.2f", t.up_z);
-    plot("vx cmd", a.c_vx_cmd, -1.1f, 1.1f, "%+.2f", a.vx);
-    plot("vx est", a.c_vx_est, -1.1f, 1.1f, "%+.2f", t.vx_est);
-    plot("wz cmd", a.c_wz_cmd, -1.1f, 1.1f, "%+.2f", a.wz);
-    plot("wz est", a.c_wz_est, -1.1f, 1.1f, "%+.2f", t.wz_est);
+    // The `cmd` traces are THIS console's own command, charted beside the
+    // robot's estimate so the operator can see the robot answer them. An
+    // observer never commanded anything, so its cmd traces are a flat zero
+    // that sits under a moving `est` and reads as the one fault an operator
+    // most wants to catch -- a robot moving while being told to stand. The
+    // driver's actual command is simply not in the beacon (the robot echoes
+    // seq, not velocity), so there is nothing honest to draw: say that, and
+    // plot only what the robot itself reported.
+    if (a.link.readonly) {
+        plot("vx est", a.c_vx_est, -1.1f, 1.1f, "%+.2f", t.vx_est);
+        plot("wz est", a.c_wz_est, -1.1f, 1.1f, "%+.2f", t.wz_est);
+        ImGui::TextDisabled(
+            "no cmd traces: the beacon carries what the robot MEASURED, not "
+            "what the driving console asked for.");
+    } else {
+        plot("vx cmd", a.c_vx_cmd, -1.1f, 1.1f, "%+.2f", a.vx);
+        plot("vx est", a.c_vx_est, -1.1f, 1.1f, "%+.2f", t.vx_est);
+        plot("wz cmd", a.c_wz_cmd, -1.1f, 1.1f, "%+.2f", a.wz);
+        plot("wz est", a.c_wz_est, -1.1f, 1.1f, "%+.2f", t.wz_est);
+    }
     (void)now_ms;
 }
 
@@ -1096,10 +1254,21 @@ void pumpKeys(App& a, GLFWwindow* win, double now_ms) {
 
     for (int act = 0; act < bimo::kMotionActions; ++act) {
         const ImGuiKey key = fromKeyCode(a.keys.key[act]);
-        a.key_held[act] = key != ImGuiKey_None && ImGui::IsKeyDown(key);
+        // An observer holds no axis, ever. Intent::press would refuse anyway,
+        // but it would refuse ONCE PER FRAME, and a status line reprinting the
+        // same refusal at 60 Hz is how a leaning-on-the-keyboard operator
+        // loses the beacon-lost message underneath it.
+        a.key_held[act] = !a.o.readonly && key != ImGuiKey_None &&
+                          ImGui::IsKeyDown(key);
     }
     for (int act = bimo::kMotionActions; act < bimo::kActCount; ++act) {
         const ImGuiKey key = fromKeyCode(a.keys.key[act]);
+        // Quit and the recorder are the console's OWN controls -- neither
+        // touches the robot -- so a watcher keeps them. Everything else is a
+        // command, and stays inert with the buttons that fire it.
+        if (a.o.readonly && act != bimo::kActQuit && act != bimo::kActRecord) {
+            continue;
+        }
         if (key != ImGuiKey_None && ImGui::IsKeyPressed(key, false)) {
             fireAction(a, act, now_ms);
         }
@@ -1301,11 +1470,42 @@ int main(int argc, char** argv) {
     }
     App a;
     a.o = o;
-    snprintf(a.host_port, sizeof a.host_port, "%s:%d", o.host, o.cmd_port);
-    if (!a.link.open(o.host, o.cmd_port, o.tlm_port)) {
-        fprintf(stderr, "bimo_gui: link: %s (host %s, tlm port %d)\n",
-                strerror(errno), o.host, o.tlm_port);
-        return 1;                      // before the log exists: stderr only
+    if (o.readonly) {
+        snprintf(a.host_port, sizeof a.host_port, "OBSERVER (silent)");
+        if (!a.link.listen(o.tlm_port)) {
+            fprintf(stderr, "bimo_gui: listen: %s (tlm port %d)\n",
+                    strerror(errno), o.tlm_port);
+            return 1;
+        }
+        a.in.readonly = true;
+        if (o.watch != nullptr) {
+            // An observer forwarding to another observer relays a beacon it
+            // is not the destination of, from a socket it does not have.
+            // Refuse rather than silently ignore: the operator asked for a
+            // fan-out and would otherwise never learn there wasn't one.
+            fprintf(stderr, "bimo_gui: --watch needs a console that receives "
+                            "the beacon; --readonly is not one\n");
+            return 2;
+        }
+    } else {
+        snprintf(a.host_port, sizeof a.host_port, "%s:%d", o.host, o.cmd_port);
+        if (!a.link.open(o.host, o.cmd_port, o.tlm_port)) {
+            fprintf(stderr, "bimo_gui: link: %s (host %s, tlm port %d)\n",
+                    strerror(errno), o.host, o.tlm_port);
+            return 1;                  // before the log exists: stderr only
+        }
+        if (o.watch != nullptr) {
+            char wh[64] = "";
+            int wp = o.tlm_port;       // the port a stock watcher listens on
+            if (!bimo::splitHostPort(o.watch, wh, sizeof wh, wp) ||
+                !a.link.setWatch(wh, wp)) {
+                fprintf(stderr, "bimo_gui: --watch %s: expected HOST[:PORT] "
+                                "with a dotted-quad host\n", o.watch);
+                return 2;
+            }
+            snprintf(a.status, sizeof a.status,
+                     "relaying every beacon to %s:%d", wh, wp);
+        }
     }
     if (o.repo != nullptr) {
         snprintf(a.repo, sizeof a.repo, "%s", o.repo);
@@ -1325,6 +1525,13 @@ int main(int argc, char** argv) {
     openLog(a);
     logEvent(a, "start", "bimo_gui -> %s (telemetry :%d), repo %s",
              a.host_port, o.tlm_port, a.repo);
+    if (o.readonly) {
+        logEvent(a, "readonly",
+                 "OBSERVER: no transmit socket. Waiting for beacons on :%d "
+                 "-- the driving console must forward them (--watch).",
+                 o.tlm_port);
+    }
+    if (a.link.watch_on) logEvent(a, "watch", "%s", a.status);
     char err[192] = "";
     if (a.keymap_path[0] && !a.keys.load(a.keymap_path, err, sizeof err)) {
         logEvent(a, "FATAL", "keymap: %s", err);
@@ -1370,9 +1577,15 @@ int main(int argc, char** argv) {
 
     // Leave a limp robot, not a standing one nobody is watching: drop ARM (the
     // 1 -> 0 edge benches it) and repeat, since any single datagram may vanish.
-    for (int i = 0; i < 10; ++i) {
-        a.link.send(0.0f, 0.0f, 0);
-        usleep(20 * 1000);
+    // An observer never armed anything and must not disarm what the DRIVER
+    // armed -- the whole mode is that closing this window changes nothing on
+    // the robot. Link::emit would drop these anyway; not composing them is
+    // what says why.
+    if (!a.link.readonly) {
+        for (int i = 0; i < 10; ++i) {
+            a.link.send(0.0f, 0.0f, 0);
+            usleep(20 * 1000);
+        }
     }
     if (a.rec.active()) {
         logEvent(a, "rec", "%u cmd / %u tlm -> %s", a.rec.n_cmd, a.rec.n_tlm,

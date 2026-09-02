@@ -47,6 +47,28 @@ const char* stateName(LinkState s) {
     return "?";
 }
 
+bool splitHostPort(const char* spec, char* host, size_t cap, int& port) {
+    if (spec == nullptr || cap == 0) return false;
+    const char* colon = strrchr(spec, ':');
+    const size_t hlen = colon != nullptr ? static_cast<size_t>(colon - spec)
+                                         : strlen(spec);
+    if (hlen == 0 || hlen + 1 > cap) return false;
+    memcpy(host, spec, hlen);
+    host[hlen] = 0;
+    if (colon == nullptr) return true;           // no port: keep the default
+    const char* p = colon + 1;
+    if (*p == 0) return false;
+    int v = 0;
+    for (; *p != 0; ++p) {
+        if (*p < '0' || *p > '9') return false;
+        v = v * 10 + (*p - '0');
+        if (v > 65535) return false;
+    }
+    if (v == 0) return false;
+    port = v;
+    return true;
+}
+
 const char* axisName(int axis) {
     switch (axis) {
         case kAxForward: return "FORWARD";
@@ -107,6 +129,33 @@ bool Link::open(const char* host, int cmd_port, int tlm_port) {
     return true;
 }
 
+// The observer's open(). Deliberately NOT `open(nullptr, ...)`: a mode that
+// cannot transmit should not share a constructor with one that can, and the
+// difference an operator's safety rests on should be visible at the call site.
+bool Link::listen(int tlm_port) {
+    readonly = true;
+    tx = -1;                      // no transmit socket exists, and none will
+    rx = socket(AF_INET, SOCK_DGRAM, 0);
+    if (rx < 0) return false;
+    int one = 1;
+    // SO_REUSEADDR because the whole point is to sit alongside something
+    // else: a driver on this same machine, or a previous observer still
+    // closing. It costs nothing here -- an observer has nothing to lose by
+    // sharing the port, and gains the ability to be started and restarted
+    // under a running session.
+    setsockopt(rx, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+    sockaddr_in bind_addr = {};
+    bind_addr.sin_family = AF_INET;
+    bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    bind_addr.sin_port = htons(static_cast<uint16_t>(tlm_port));
+    if (bind(rx, reinterpret_cast<sockaddr*>(&bind_addr), sizeof bind_addr) < 0) {
+        return false;
+    }
+    timeval tv = {0, 0};
+    setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    return true;
+}
+
 bool Link::setMirror(const char* host, int port) {
     mirror_to.sin_family = AF_INET;
     mirror_to.sin_port = htons(static_cast<uint16_t>(port));
@@ -118,6 +167,17 @@ bool Link::setMirror(const char* host, int port) {
     return true;
 }
 
+bool Link::setWatch(const char* host, int port) {
+    watch_to.sin_family = AF_INET;
+    watch_to.sin_port = htons(static_cast<uint16_t>(port));
+    if (inet_pton(AF_INET, host, &watch_to.sin_addr) != 1) {
+        watch_on = false;
+        return false;
+    }
+    watch_on = true;
+    return true;
+}
+
 void Link::close() {
     if (tx >= 0) ::close(tx);
     if (rx >= 0) ::close(rx);
@@ -126,6 +186,11 @@ void Link::close() {
 
 // One encode, up to two destinations.
 void Link::emit(const uint8_t* wire, size_t n) {
+    // The observer's last line: tx is already -1, so this is belt as well as
+    // braces -- but it also keeps `last_len` and `sent` HONEST. A watcher's
+    // status line must read "0 B on the wire", not the size of a frame it
+    // composed and threw away.
+    if (readonly) return;
     last_len = n;
     if (sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&to), sizeof to) ==
         static_cast<ssize_t>(n)) {
@@ -138,12 +203,20 @@ void Link::emit(const uint8_t* wire, size_t n) {
 }
 
 void Link::send(float vx, float wz, uint8_t flags) {
+    if (readonly) return;                 // see sendFull()
     uint8_t wire[kCmdLen];
     emit(wire, encodeCommand(wire, seq++, vx, wz, flags));
 }
 
 void Link::sendFull(float vx, float vy, float wz, const Ext& ext,
                     uint8_t flags) {
+    // An observer returns BEFORE `seq` moves, not merely before the sendto.
+    // seq is the number the header reports and lag() measures the robot's
+    // echo against, so a console that has sent nothing must still be at zero
+    // -- otherwise a watcher shows a rising sequence and a lag of minus
+    // several hundred, which reads exactly like a robot that has stopped
+    // answering. emit() refuses too; that is the backstop, this is the rule.
+    if (readonly) return;
     // The short frame whenever the extras are at their trained defaults: old
     // firmware drops a 24 B frame by length, so a console that is not asking
     // for anything extended must not look like one that is. This is the rule
@@ -182,6 +255,19 @@ void Link::poll(double now_ms) {
         tlm_at_ms = now_ms;
         ++tlm_count;
         ++rate_window;
+        // Forward to the watcher, VERBATIM and only once decoded. Verbatim so
+        // the observer runs the same decodeTelemetry against the same bytes
+        // the robot signed -- a relay that re-encoded would put a frame on the
+        // wire the robot never sent, and the CRC would stop meaning anything.
+        // Only once decoded so stray traffic on an open port is dropped here
+        // rather than forwarded on to be dropped there.
+        if (watch_on && tx >= 0) {
+            if (sendto(tx, buf, static_cast<size_t>(n), 0,
+                       reinterpret_cast<sockaddr*>(&watch_to),
+                       sizeof watch_to) == n) {
+                ++watched;
+            }
+        }
     }
     if (now_ms - rate_at_ms >= 1000.0) {
         rate_hz = static_cast<double>(rate_window) * 1000.0 /
@@ -224,8 +310,22 @@ void Intent::releaseAll() {
     for (int i = 0; i < kAxCount; ++i) held[i] = false;
 }
 
+// The one refusal, worded once. Every observer control routes through it, so
+// the console cannot say "watching only" in one place and something vaguer in
+// another -- and it names the way out, because an operator who reaches for a
+// control on a moving robot needs to be told what WOULD work, not only that
+// this did not.
+bool Intent::refuseReadonly() {
+    if (!readonly) return false;
+    say("OBSERVER: this console only watches -- it has no transmit socket. "
+        "The session driving the robot owns every control; restart without "
+        "--readonly to take over.");
+    return true;
+}
+
 bool Intent::press(int axis, double now_ms) {
     (void)now_ms;
+    if (refuseReadonly()) return false;
     if (!armed) {
         say("not armed -- press [a] first");
         return false;
@@ -245,6 +345,7 @@ void Intent::release(int axis) {
 }
 
 void Intent::arm(double now_ms) {
+    if (refuseReadonly()) return;
     armed = true;
     estop = false;
     armed_at_ms = now_ms;
@@ -252,6 +353,7 @@ void Intent::arm(double now_ms) {
 }
 
 void Intent::disarm() {
+    if (refuseReadonly()) return;
     armed = false;
     releaseAll();
     estop = false;
@@ -268,6 +370,7 @@ void Intent::toggleArm(double now_ms) {
 
 void Intent::stand(const char* why) {
     releaseAll();
+    if (refuseReadonly()) return;
     if (estop) {
         estop = false;
         say("E-stop cleared: standing");
@@ -277,6 +380,7 @@ void Intent::stand(const char* why) {
 }
 
 void Intent::requestHome(double now_ms) {
+    if (refuseReadonly()) return;
     home_frames = kHomeFrames;
     home_at_ms = now_ms;
     // The robot benches to run the move (the CLI half of the firmware owns
@@ -289,6 +393,10 @@ void Intent::requestHome(double now_ms) {
 }
 
 void Intent::fireEstop() {
+    // The one refusal that is genuinely uncomfortable, and still the right
+    // one: see Intent::readonly in client.h. A latched-looking E-STOP that
+    // sent nothing would be a worse failure than this message.
+    if (refuseReadonly()) return;
     estop = true;
     releaseAll();
     say("E-STOP sent (latched until [space])");
@@ -364,6 +472,10 @@ const char* motionText(const Intent& in) {
 
 void sendIntent(Link& link, Intent& in, const Speeds& s, float& vx,
                 float& vy, float& wz, Ext& ext_out, uint8_t& flags) {
+    // The frame is computed even for an observer -- both front ends draw
+    // vx/vy/wz and the flags from these outputs -- and then declined one layer
+    // down, in Link::sendFull. One gate, at the socket, rather than a second
+    // copy of the rule here.
     in.frame(s, vx, vy, wz, ext_out, flags);
     link.sendFull(vx, vy, wz, ext_out, flags);
     // Spent on the way out, not on the way in: the count is frames actually

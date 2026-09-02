@@ -488,6 +488,101 @@ void test_parser_refuses_endless_headers() {
     CHECK(p.overflowed());
 }
 
+// -- the observer -----------------------------------------------------------
+// The mode's whole promise is "this console cannot move the robot". Two
+// halves hold it up, and both are tested here: Link::listen leaves no
+// transmit socket, and every Intent control refuses out loud rather than
+// silently doing nothing (which is what would let an operator believe a
+// dead E-STOP had been sent).
+void test_readonly_refuses_every_control() {
+    Intent in;
+    in.readonly = true;
+
+    in.toggleArm(1000.0);
+    CHECK(!in.armed);
+    CHECK(strstr(in.note, "OBSERVER") != nullptr);
+
+    // ...and it did not merely fail to arm: the axis stays down too, with the
+    // observer's reason rather than "not armed -- press [a] first", which
+    // would send the operator hunting for a key that is also inert.
+    in.say("");
+    CHECK(!in.press(kAxForward, 1000.0));
+    CHECK(!in.moving());
+    CHECK(strstr(in.note, "OBSERVER") != nullptr);
+
+    in.say("");
+    in.fireEstop();
+    CHECK(!in.estop);                     // the button that must not lie
+    CHECK(strstr(in.note, "OBSERVER") != nullptr);
+
+    in.say("");
+    in.requestHome(2000.0);
+    CHECK(in.home_frames == 0);           // nothing queued for a wire we lack
+    CHECK(strstr(in.note, "OBSERVER") != nullptr);
+}
+
+// A watcher must not merely decline to arm -- it must not put a BYTE out.
+// sendIntent is the single funnel both consoles call every tick, so this is
+// the place the promise is either kept or broken.
+void test_readonly_puts_nothing_on_the_wire() {
+    Link link;
+    CHECK(link.listen(0));                // bind an ephemeral port; no tx
+    CHECK(link.readonly);
+    CHECK(link.tx < 0);
+
+    Intent in;
+    in.readonly = true;
+    in.armed = true;                      // even if something set it anyway
+    in.held[kAxForward] = true;
+    Speeds s;
+    float vx = 9.0f, vy = 9.0f, wz = 9.0f;
+    Ext ext;
+    uint8_t flags = 0xFF;
+    for (int i = 0; i < 20; ++i) {
+        sendIntent(link, in, s, vx, vy, wz, ext, flags);
+    }
+    CHECK(link.sent == 0);
+    CHECK(link.last_len == 0);            // "nothing on the wire", not "0 B"
+    CHECK(link.seq == 0);                 // a console that sent none has none
+
+    // The blunt paths too: neither may reach a socket that is not there.
+    link.send(1.0f, 1.0f, 0xFF);
+    ext.crouch = 0.5f;
+    link.sendFull(1.0f, 1.0f, 1.0f, ext, 0xFF);
+    CHECK(link.sent == 0);
+    CHECK(link.seq == 0);
+    link.close();
+}
+
+// --watch HOST[:PORT]. No port means "the one I am already bound to", which
+// is where a stock watcher listens -- so the default must survive untouched.
+void test_watch_spec_splits() {
+    char host[64] = "";
+    int port = 4211;
+
+    CHECK(splitHostPort("192.168.2.30", host, sizeof host, port));
+    CHECK(!strcmp(host, "192.168.2.30"));
+    CHECK(port == 4211);
+
+    CHECK(splitHostPort("192.168.2.30:9101", host, sizeof host, port));
+    CHECK(!strcmp(host, "192.168.2.30"));
+    CHECK(port == 9101);
+
+    // Rejected, and the caller's port left alone in every case: a --watch
+    // that half-parsed would forward the beacon somewhere unintended.
+    port = 4211;
+    CHECK(!splitHostPort("", host, sizeof host, port));
+    CHECK(!splitHostPort(":9101", host, sizeof host, port));
+    CHECK(!splitHostPort("host:", host, sizeof host, port));
+    CHECK(!splitHostPort("host:0", host, sizeof host, port));
+    CHECK(!splitHostPort("host:70000", host, sizeof host, port));
+    CHECK(!splitHostPort("host:99x", host, sizeof host, port));
+    CHECK(!splitHostPort(nullptr, host, sizeof host, port));
+    char tiny[4] = "";
+    CHECK(!splitHostPort("192.168.2.30", tiny, sizeof tiny, port));
+    CHECK(port == 4211);
+}
+
 }  // namespace
 
 int main() {
@@ -505,6 +600,9 @@ int main() {
     test_home_without_an_answer_says_so();
     test_home_answers_are_not_warned_about();
     test_home_says_nothing_over_a_dead_link();
+    test_readonly_refuses_every_control();
+    test_readonly_puts_nothing_on_the_wire();
+    test_watch_spec_splits();
     test_keymap_names_round_trip();
     test_keymap_bind_is_exclusive();
     test_keymap_file_round_trip();

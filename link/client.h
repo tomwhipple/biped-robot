@@ -55,6 +55,13 @@ double nowMs();
 
 const char* stateName(LinkState s);
 
+// "192.168.2.30" or "192.168.2.30:9101" -> address and port, for --watch.
+// `port` is left UNTOUCHED when the spec carries none, so the caller's
+// default -- the telemetry port it is already bound to, which is what a
+// watcher on a stock build will be listening on -- survives. Returns false on
+// an empty host, a port that is not a number, or one outside 1..65535.
+bool splitHostPort(const char* spec, char* host, size_t cap, int& port);
+
 // -- what a key can hold ----------------------------------------------------
 // Six axes rather than one "motion", because a window has real key-release
 // and can therefore hold two at once (forward + turn = an arc). The ncurses
@@ -116,9 +123,34 @@ struct Link {
     sockaddr_in mirror_to = {};
     bool mirror_on = false;
 
+    // OBSERVER mode: this link has no transmit socket at all (listen() never
+    // creates one), so it cannot put a byte on the wire. Not a policy the UI
+    // enforces -- a policy the file descriptor enforces. See listen().
+    bool readonly = false;
+
+    // Telemetry fan-out, the observer's other half. The robot beacons to
+    // WHOEVER COMMANDED LAST and to nobody else (firmware/main/wifi_link.cpp,
+    // the Commander snapshot), so a second console cannot simply listen in:
+    // there is nothing addressed to it, and the only way to become the
+    // destination is to send a command -- which both steals the beacon from
+    // the real driver and commands the robot. So the DRIVER forwards instead.
+    // Every beacon it accepts is re-sent byte for byte to the watcher, from
+    // the socket it already commands with, which is why the observer can be
+    // wholly silent. Verbatim on purpose: a relay that re-encoded would let
+    // the two consoles disagree about what the robot said.
+    sockaddr_in watch_to = {};
+    bool watch_on = false;
+    uint32_t watched = 0;
+
     bool open(const char* host, int cmd_port, int tlm_port);
+    // The observer's open(): bind the beacon port, create NO tx socket, and
+    // latch `readonly`. Every send path below is a no-op afterwards, and
+    // would fail on tx == -1 even if one were not.
+    bool listen(int tlm_port);
     bool setMirror(const char* host, int port);
     void clearMirror() { mirror_on = false; }
+    bool setWatch(const char* host, int port);
+    void clearWatch() { watch_on = false; }
     void close();
 
     // vx/wz only -- the classic 14 B frame.
@@ -141,6 +173,18 @@ struct Link {
 struct Intent {
     bool armed = false;
     bool estop = false;
+    // OBSERVER: every control here refuses, and SAYS it refused.
+    //
+    // The silence is already guaranteed one layer down (Link::listen leaves
+    // tx == -1), so this is not what makes the mode safe -- it is what makes
+    // it HONEST. A console whose E-STOP darkens on click while nothing goes
+    // out is worse than one with no E-STOP at all: it invites an operator to
+    // press it in the second that matters and believe the robot was told.
+    // Refusing out loud is the only answer that cannot be misread, and it
+    // lives here rather than in either front end so the window and the
+    // terminal cannot come to different conclusions about what a watcher may
+    // do (the same argument client.h opens with).
+    bool readonly = false;
     // "Beacon joint angles too" (kFlagPose). Independent of arming: it asks
     // for telemetry, it does not command anything.
     bool want_pose = false;
@@ -158,6 +202,10 @@ struct Intent {
 
     void say(const char* s);
     void sayf2(const char* fmt, const char* a);
+
+    // True (and says so) when this console only watches. Every control below
+    // that would reach the robot asks this first.
+    bool refuseReadonly();
 
     bool moving() const;
     void releaseAll();            // focus loss, stand, e-stop: every key up
