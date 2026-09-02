@@ -411,6 +411,49 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·01 · hardware thread</span></p>
+    <p><b>Floor-tilt DR, first cut, was a push in disguise — and the
+    squat has never been paid for.</b> Walk day on the hard-rubber mat:
+    v26lag_s128 stood ~9 s and survived a stride (vs &lt;2 s the day
+    before), then toppled slowly during plain stand — both attempts, on
+    a desk the bubble level says leans ~3.5°. The firmware fall⇒disarm
+    fired cleanly on the sidestep fall. Tom's call: randomize the floor
+    angle ±3° in training. Implemented as a per-env gravity tilt
+    (<code>--tilt-max 3</code>, 80ce2a7), which crashed at launch twice
+    (<code>float()</code> under jit, then a tracer leak from the lazily
+    built DR cache — d51400e). <b>loco_v27tilt</b> then trained clean:
+    60.6 M steps, 7.2 h, PPO reward 1112→1176 — and refereed
+    <b>54/144</b> against v26lag's 95, with <b>115 W spent standing
+    still</b> (v26lag: 6.9 W) and every heading/goal scenario collapsed
+    (turn_180 8→2, circle 8→1, goal_home 8→2). Root cause, verified in
+    code: the tilt rotated <code>opt.gravity</code>, but the IMU
+    up-vector (<code>framezaxis</code>), the upright/fall
+    <code>up_z</code> and both CoM-over-foot kernels measure against
+    <i>world z</i>. The policy trained against a constant
+    <i>unobservable</i> lateral pull while being paid to stay
+    world-vertical — a push, not a floor — and learned to brace. A real
+    IMU reads gravity. Fixed (ff320ae): gravity-aligned frame from the
+    per-env model applied to obs, up_z and the CoM projections, gated
+    so every tilt-off recipe stays bit-identical; verified on v5body
+    (world-vertical robot reads 3.00° under 3° tilt, gravity-plumb robot
+    reads 0.02°, CoM shifts the expected 13.1 mm). <b>loco_v27tilt_b</b>
+    is tonight's run: v26lag's exact recipe + corrected tilt, a
+    one-variable A/B against 95/144. Separately, <b>why squat_reps is
+    0/8 for every policy</b>: both v26lag and v27tilt show depth_err
+    9.7 cm with zero falls — the robot never leaves standing height. The
+    referee doubling the crouch command share (6→12 %) changed nothing
+    because <code>cmd_moving</code> ignores the crouch channel: a
+    commanded crouch is a <i>plain stand</i>, so <code>w_still</code>
+    (joint velocity) and <code>w_stand_com</code> (2 cm CoM kernel)
+    penalize the descent while <code>w_height</code> pays 0.03/step
+    for tracking it. Ignoring the command is the rational policy — and
+    matches what the real robot did when told to crouch. v28 needs a
+    height-tracking kernel weighted like <code>alive</code> and a
+    <code>w_still</code> gate that releases during the crouch
+    transition; that is a reward fix, not more samples.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·01</span></p>
     <p><b>The act-lag experiment repeated our 08·27 negative — and
     points at v27.</b> The hardware thread's excellent servo work
