@@ -13,6 +13,7 @@
 #include "linkproto/protocol.h"
 #include "obs/actuation.h"
 #include "obs/obs_spec.h"
+#include "joint_pose.h"
 #include "obs_dump.h"
 #include "scsbus/bus.h"
 
@@ -125,6 +126,19 @@ extern TelemetrySnapshot g_telemetry;
 // ctrl writes the buffer and only reads the mode; housekeeping writes the
 // mode (`obsdump on|off|once`) and only reads the buffer.
 extern ObsDump g_obs_dump;
+
+// -- measured joint pose (core 1 -> core 0), for the mirror-mode beacon -----
+// ctrl publishes g_q every armed tick, right after the bus read; wifi_link
+// copies it into the kTlmLenExt beacon -- but ONLY for a commander whose
+// frames carry kFlagPose, and only while the publish count is still moving
+// (joint_pose.h). Same double-buffer-plus-counter shape as ObsDump, same
+// reason: ten loose atomics would tear across ticks.
+extern JointPose g_joint_pose;
+// The wire frame carries exactly the plant's joints, in the plant's order.
+// A 12-DOF retrain that changes obs_spec must change protocol.py first.
+static_assert(linkproto::kNumJoints ==
+                  static_cast<size_t>(obs::kNumJoints),
+              "linkproto::kNumJoints must match the generated obs spec");
 
 // The bus object itself: constructed once in app_main, used by ctrl during a
 // run and by the CLI while benched. See g_mode_request for the handover rule.

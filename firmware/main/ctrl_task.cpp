@@ -240,6 +240,13 @@ void ctrlTask(void*) {
         const int64_t t_read0 = esp_timer_get_time();
         const uint16_t faults = readJoints(obs::kControlDt);
         const int64_t t_read1 = esp_timer_get_time();
+        // Publish the measured pose for the mirror-mode beacon (shared.h
+        // g_joint_pose) -- every armed tick, LIVE or limp, because the pose
+        // matters most when the link is RELAX/ESTOP and the robot is doing
+        // its own thing. A faulted servo's entry is its last good angle
+        // (readJoints holds it); `faults` says which, and rides the same
+        // beacon. One 40-byte copy and a release store; lands in us_other.
+        g_joint_pose.publish(g_q, g_ticks);
         // read() == false means "no new report this tick"; the contract
         // (imu/imu.h) is that the caller REUSES the previous sample. Holding
         // it in a static and only overwriting on a successful read is that

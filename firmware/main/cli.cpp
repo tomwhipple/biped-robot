@@ -1005,10 +1005,16 @@ void cmdWifi(Sink out, int argc, char** argv) {
             static_cast<unsigned long>(w.ip & 0xFF), w.rssi);
     }
     out("\r\n");
-    say(out, "  cmd rx %lu  bad %lu  tlm tx %lu  disconnects %lu\r\n",
+    // tlm tx counts both lengths; `pose` is how many were the 40 B mirror-mode
+    // frame, and whether the current commander is asking for it (FLAG_POSE).
+    // The bench check in docs/mirror-mode.md reads this line: with mirror
+    // OFF the pose count must not move.
+    say(out, "  cmd rx %lu  bad %lu  tlm tx %lu (pose %lu, %s)  disconnects %lu\r\n",
         static_cast<unsigned long>(w.rx_frames),
         static_cast<unsigned long>(w.rx_bad),
         static_cast<unsigned long>(w.tx_tlm),
+        static_cast<unsigned long>(w.tx_tlm_ext),
+        w.pose_wanted ? "asked" : "not asked",
         static_cast<unsigned long>(w.disconnects));
     if (w.peer_ip) {
         say(out, "  commander %lu.%lu.%lu.%lu\r\n",

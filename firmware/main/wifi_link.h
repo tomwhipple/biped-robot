@@ -25,7 +25,9 @@ struct WifiStatus {
     uint32_t peer_ip;      // last commander's address; 0 = none yet
     uint32_t rx_frames;    // valid command frames handed to the mailbox
     uint32_t rx_bad;       // wrong length, bad magic/version/CRC
-    uint32_t tx_tlm;       // telemetry datagrams sent
+    uint32_t tx_tlm;       // telemetry datagrams sent (both lengths)
+    uint32_t tx_tlm_ext;   // ... of which kTlmLenExt (pose) beacons
+    bool pose_wanted;      // last valid command frame carried kFlagPose
     uint32_t disconnects;  // STA_DISCONNECTED events since boot
 };
 

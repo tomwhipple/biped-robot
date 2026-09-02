@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../main/joint_pose.h"
 #include "../main/obs_dump.h"
 #include "test_util.h"
 
@@ -325,6 +326,68 @@ void testColumnCountMatchesTheSpec() {
     CHECK_EQ(robot::kObsDumpPeriodMs, 200);
 }
 
+// -- the mirror-mode pose buffer (main/joint_pose.h) --------------------------
+// Same double-buffer-plus-counter as ObsDump, so the same three properties:
+// nothing before the first publish, the newest pose after any number of
+// publishes (both slots), and a sequence that stands still when the loop does
+// -- which is what wifi_link.cpp uses to tell a fresh pose from a stale one.
+
+void poseOf(float base, float* q) {
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        q[i] = base + 0.01f * static_cast<float>(i);
+    }
+}
+
+void testJointPoseEmptyReadsNothing() {
+    robot::JointPose p;
+    float q[obs::kNumJoints];
+    uint32_t seq = 99;
+    CHECK_EQ(p.sequence(), 0u);
+    CHECK_EQ(p.read(q, seq), false);
+    CHECK_EQ(seq, 99u);   // untouched on failure
+}
+
+void testJointPoseNewestWins() {
+    robot::JointPose p;
+    float in[obs::kNumJoints], out[obs::kNumJoints];
+    uint32_t seq = 0, tick = 0;
+    // Enough publishes to use both slots several times over.
+    for (uint32_t k = 1; k <= 7; ++k) {
+        poseOf(static_cast<float>(k), in);
+        p.publish(in, 1000u + k);
+        CHECK_EQ(p.sequence(), k);
+        CHECK_EQ(p.read(out, seq, &tick), true);
+        CHECK_EQ(seq, k);
+        CHECK_EQ(tick, 1000u + k);
+        for (int i = 0; i < obs::kNumJoints; ++i) {
+            CHECK_EQ(out[i] == in[i], true);
+        }
+    }
+}
+
+void testJointPoseSequenceIsStillWhenTheLoopIs() {
+    // wifi_link.cpp's freshness rule: the same sequence twice means ctrl is
+    // benched and the beacon must drop back to the classic frame.
+    robot::JointPose p;
+    float in[obs::kNumJoints], out[obs::kNumJoints];
+    poseOf(3.0f, in);
+    p.publish(in, 1);
+    uint32_t s1 = 0, s2 = 0;
+    CHECK_EQ(p.read(out, s1), true);
+    CHECK_EQ(p.read(out, s2), true);
+    CHECK_EQ(s1, s2);
+    p.publish(in, 2);
+    CHECK_EQ(p.read(out, s2), true);
+    CHECK_EQ(s2, s1 + 1u);
+}
+
+void testJointPoseIsTheWireWidth() {
+    // The beacon memcpy's the buffer straight into linkproto::Telemetry
+    // .joints; shared.h static_asserts the counts agree, this pins the
+    // payload size that assertion is protecting.
+    CHECK_EQ(sizeof(float) * static_cast<size_t>(obs::kNumJoints), 40u);
+}
+
 }  // namespace
 
 int main() {
@@ -339,5 +402,9 @@ int main() {
     testWorstCaseLineFits();
     testNonFiniteSurvives();
     testColumnCountMatchesTheSpec();
+    testJointPoseEmptyReadsNothing();
+    testJointPoseNewestWins();
+    testJointPoseSequenceIsStillWhenTheLoopIs();
+    testJointPoseIsTheWireWidth();
     return testutil::report("obsdump");
 }
