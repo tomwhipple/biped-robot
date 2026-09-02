@@ -135,8 +135,8 @@ It is specified against files as they stand at this commit.
       (`wifi_link.cpp:169` says "same as link_task"). Either give it the same
       treatment or state in a comment that the tether stays classic-only, so
       the next person does not have to work out which it is.
-- [ ] **Bench check, in this order.** Flash, then `bimo_gui --host <ip>` with
-      mirror **off** first and confirm the classic 20 B beacon is unchanged —
+- [ ] **Bench check, in this order.** Flash, then `bimo_gui --host <ip>`
+      (no `--mirror`, so the mode is off) first and confirm the classic 20 B beacon is unchanged —
       that is the regression that matters, because it is what every other
       commander depends on. Only then turn mirror on.
 - [ ] **Then, and only then, with the robot on the stand.** Joint angles are
@@ -173,6 +173,15 @@ All done, and none of it needed a board:
   the robot's, and pushes each observed pose down the child's stdin. One
   encode, two destinations, so the sim cannot be commanded differently from
   the robot by construction.
+- `--mirror` **starts that sim**, rather than only arming the mode. Mirror
+  with no child is a console that requests joint angles and draws them
+  nowhere: the pose relay is gated on a running sim, the long beacon is not
+  recorded, and the relayed commands land on a port nobody is bound to. The
+  flag is equivalent to coming up and pressing Start (on `--run-name`, or the
+  first run with SIL weights); `--sim-view` opts out, since that says the
+  operator already has a stream. Watch it at `127.0.0.1:<stream-port>` — the
+  child is forked *here*, so in mirror mode its stream is NOT on `--host`,
+  which is the robot.
 - `tests/test_protocol.py`, `firmware/host/test_protocol.cpp`,
   `tests/test_gui_e2e.py`.
 

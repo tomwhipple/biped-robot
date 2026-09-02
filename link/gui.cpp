@@ -111,7 +111,8 @@ void usage(const char* argv0) {
             "          [--vx %.2f] [--vy %.2f] [--wz %.2f] [--rate %.0f]\n"
             "          [--keymap FILE] [--sim-view [URL]] [--stream-port %d]\n"
             "          [--run-name NAME] [--repo DIR] [--sessions DIR]\n"
-            "          [--headless] [--no-record] [--mirror] [--sim-cmd-port N]\n"
+            "          [--headless] [--no-record] [--sim-cmd-port N]\n"
+            "          [--mirror]  drive the robot, start a sim, ghost it\n"
             "          [--screenshot FILE [--screenshot-after S]]\n",
             argv0, kCmdPort, kTlmPort, bimo::kDefaultVx, bimo::kDefaultVy,
             bimo::kDefaultWz, static_cast<double>(kSendHz), kDefaultStreamPort);
@@ -333,12 +334,20 @@ void toggleRecord(App& a, double now_ms) {
     snprintf(a.status, sizeof a.status, "recording -> %s", a.rec.path);
 }
 
-void simViewUrl(const App& a, char* out, size_t cap) {
+// Where to watch the sim. --sim-view wins. Otherwise: a sim THIS console
+// started is a LOCAL child -- simproc.cpp forks it here -- so its stream is on
+// 127.0.0.1 whatever --host says, and in mirror mode --host is the robot.
+// Deriving the URL from --host there watches port %d on the robot, which
+// nothing serves: the panel connects forever and the operator sees an empty
+// frame with mirror apparently on. A stream this console did NOT start is the
+// other case, and there --host is exactly the right guess.
+void simViewUrl(const App& a, char* out, size_t cap, bool ours) {
     if (a.o.sim_view != nullptr) {
         snprintf(out, cap, "%s", a.o.sim_view);
         return;
     }
-    snprintf(out, cap, "http://%s:%d/", a.o.host, a.o.stream_port);
+    snprintf(out, cap, "http://%s:%d/", ours ? "127.0.0.1" : a.o.host,
+             a.o.stream_port);
 }
 
 void startSim(App& a) {
@@ -357,7 +366,7 @@ void startSim(App& a) {
         snprintf(a.status, sizeof a.status, "%s", a.sim.err);
         return;
     }
-    simViewUrl(a, a.sim_url, sizeof a.sim_url);
+    simViewUrl(a, a.sim_url, sizeof a.sim_url, true);
     a.stream.start(a.sim_url);
     snprintf(a.status, sizeof a.status, "sim %s starting; view %s",
              a.runs.name[a.run_sel], a.sim_url);
@@ -1302,7 +1311,7 @@ int main(int argc, char** argv) {
         if (i >= 0) a.run_sel = i;
     }
     if (o.autostream) {
-        simViewUrl(a, a.sim_url, sizeof a.sim_url);
+        simViewUrl(a, a.sim_url, sizeof a.sim_url, false);
         a.stream.start(a.sim_url);
     }
     // Record by default. A take you forgot to arm the recorder for is a take
@@ -1310,7 +1319,23 @@ int main(int argc, char** argv) {
     // cheap: ~90 bytes each at 20 Hz, so an hour of driving is a few MB.
     // --no-record opts out.
     if (o.record) toggleRecord(a, bimo::nowMs());
-    if (o.mirror) setMirror(a, true);
+    // --mirror is a mode AND a subject. Mirroring nothing is a console that
+    // asks the robot for joint angles and then draws them nowhere: the pose
+    // relay is gated on a running child (tick()), the extended beacon is not
+    // recorded, and the relayed commands go to a port no one is bound to. So
+    // the flag starts the sim it means to mirror against -- the --run-name
+    // run, or the first one with SIL weights -- the same as pressing Start.
+    // --sim-view is the operator saying they already have one; leave it be.
+    if (o.mirror) {
+        setMirror(a, true);
+        logEvent(a, "mirror", "%s", a.status);
+        if (!o.autostream) {
+            startSim(a);
+            logEvent(a, "mirror", "%s", a.status);
+            printf("note: %s\n", a.status);
+            fflush(stdout);
+        }
+    }
 
     const int rc = a.o.headless ? runHeadless(a) : runWindow(a);
 

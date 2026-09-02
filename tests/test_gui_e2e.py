@@ -251,6 +251,25 @@ def test_mirror_mode_asks_for_joint_angles_and_stops_asking():
     assert rc == 0, out
 
 
+def test_mirror_flag_brings_up_the_sim_it_mirrors_against(tmp_path):
+    """`--mirror` must reach the SPAWN path, not just flip the mode.
+
+    Mirroring with no sim is the console asking the robot for joint angles and
+    drawing them nowhere -- the pose relay in tick() is gated on a running
+    child. So the flag boots the sim, and the proof is that it gets as far as
+    picking a run: pointed at an empty --repo there is nothing to run, and it
+    says so out loud instead of coming up silently mirror-on and blank.
+    """
+    out, log, rc = _run([(1.5, "quit"), (0.5, "")],
+                        gui_args=["--no-record", "--mirror",
+                                  "--repo", str(tmp_path)])
+    assert "MIRROR" in out, out
+    assert "no runnable sim runs" in out, out
+    # ... and it really did ask the robot for angles, empty repo or not.
+    assert any("requested" in ln for ln in _pose_lines(log)), log
+    assert rc == 0, out
+
+
 def test_mirror_is_off_unless_asked_for():
     """A console that never mentions mirroring must never request pose."""
     out, log, rc = _run([

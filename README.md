@@ -82,6 +82,10 @@ brew install glfw && make -C firmware/host deps gui
 firmware/host/build/bimo_gui --host 127.0.0.1
 #   pick a run in the SIM panel, press Start, [a] arm, hold arrows to
 #   translate and PgUp/PgDn to turn, drag the crouch slider (-> 24 B frames)
+firmware/host/build/bimo_gui --host <robot-ip> --mirror   # mirror mode: drives
+#   the ROBOT and boots a local sim alongside it, drawing the robot's measured
+#   joints as a ghost over the policy's pose. The ghost appears on arm -- a
+#   BENCHed robot measures nothing. See docs/mirror-mode.md.
 python sim/udp_agent.py --run-name cmd_11v1 --render --boot-armed   # for the
 python link/commander.py --host 127.0.0.1 --source gamepad          # ARM-less
 python link/commander.py --host 127.0.0.1 --source script --script square
