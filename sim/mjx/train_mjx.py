@@ -157,7 +157,12 @@ class BatchedEnv(brax_base.Env):
 
         # auto-reset (cached first physics state, re-drawn per-episode DR)
         first = state.info["first_st"]
-        reseeded = jax.vmap(self._env.reseed)(first, st.rng)
+        if model_in_axes is not None:
+            reseeded = jax.vmap(self._env.reseed,
+                                in_axes=(0, 0, model_in_axes))(
+                first, st.rng, model)
+        else:
+            reseeded = jax.vmap(self._env.reseed)(first, st.rng)
 
         def pick(a, b):
             d = done.reshape(done.shape + (1,) * (a.ndim - 1))

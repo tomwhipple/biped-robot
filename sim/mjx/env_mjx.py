@@ -168,6 +168,46 @@ def _quat_pitch(q):
     return jp.arcsin(jp.clip(2 * (qw * qy - qz * qx), -1.0, 1.0))
 
 
+def _grav_up(model):
+    """Unit UP vector (-g/|g|) in world coords. (0,0,1) at nominal gravity."""
+    g = model.opt.gravity
+    return -g / jp.sqrt(jp.dot(g, g))
+
+
+def _grav_rot(model):
+    """3x3 rotation taking world vectors into the GRAVITY-ALIGNED frame
+    (z axis = -g/|g|). Identity at nominal gravity.
+
+    Gravity-tilt DR (tilt_max_deg) only rotates opt.gravity; the torso_up
+    sensor, the upright/fall up_z, and the CoM-over-foot projections all
+    measure against WORLD z. Without this frame the policy trains against
+    a constant, UNOBSERVABLE lateral pull while still being paid to stay
+    world-vertical -- v27tilt learned to brace against it (115 W standing,
+    54/144). A real IMU reads gravity: on a tilted desk the robot plumb to
+    gravity reads 'upright' and the floor is what slopes. Rodrigues
+    rotation of a=-g/|g| onto z; the s2->0 branch is the exact limit."""
+    a = _grav_up(model)
+    z = jp.array([0.0, 0.0, 1.0])
+    v = jp.cross(a, z)
+    c = jp.dot(a, z)
+    s2 = jp.dot(v, v)
+    K = jp.array([[0.0, -v[2], v[1]],
+                  [v[2], 0.0, -v[0]],
+                  [-v[1], v[0], 0.0]])
+    f = jp.where(s2 > 1e-12, (1.0 - c) / jp.maximum(s2, 1e-12), 0.5)
+    return jp.eye(3) + K + f * (K @ K)
+
+
+def _grav_proj_xy(model, p, z_ref):
+    """xy of point p carried ALONG GRAVITY down to height z_ref (where the
+    CoM actually loads the foot on a tilted support). Plain p[:2] at
+    nominal gravity."""
+    g = model.opt.gravity
+    ghat = g / jp.sqrt(jp.dot(g, g))
+    t = (z_ref - p[2]) / ghat[2]
+    return p[:2] + t * ghat[:2]
+
+
 
 # Speed-coupled gait clock (2026-08-25). The contact-schedule reward pinned
 # cadence to the clock -- which capped speed at ~0.37 m/s (1.5 Hz x ~25 cm
@@ -1180,8 +1220,12 @@ class BimoMJXEnv:
                                       cmd[3]).astype(cmd.dtype))
 
     def _obs(self, data, prev_action, cmd, step_i, imu_R, imu_bias,
-             rng: jax.Array, gait_phase=None) -> jax.Array:
+             rng: jax.Array, gait_phase=None, model=None) -> jax.Array:
         up = data.sensordata[self._up_adr:self._up_adr + 3]
+        if self.tilt_max_deg > 0.0:
+            # what an accelerometer reads: torso up against GRAVITY, not
+            # world z (see _grav_rot)
+            up = _grav_rot(self.model if model is None else model) @ up
         gyro = data.qvel[3:6]
         linvel = data.qvel[0:3]
         height = data.qpos[2] - self._gz(data.qpos[0], data.qpos[1])
@@ -1495,7 +1539,7 @@ class BimoMJXEnv:
             cmd = self._phase_cmd(cmd, recover_slot, 1.0 - recover_slot,
                                   rise_t0, step_i)
         frame = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias,
-                          r_obs, gait_phase)
+                          r_obs, gait_phase, model)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
             if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
         obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
@@ -1521,7 +1565,7 @@ class BimoMJXEnv:
                      lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
 
-    def reseed(self, first: State, rng: jax.Array) -> State:
+    def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
         cheap auto-reset: no make_data/forward) but re-draws every per-episode
         quantity -- command, servo gains, latency, backlash, IMU error -- so
@@ -1556,7 +1600,7 @@ class BimoMJXEnv:
                                   1.0 - first.recover_slot, first.rise_t0,
                                   step_i)
         frame = self._obs(first.data, prev_action, cmd, step_i, imu_R,
-                          imu_bias, r_obs, gait_phase)
+                          imu_bias, r_obs, gait_phase, model)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
             if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
         obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
@@ -1667,6 +1711,10 @@ class BimoMJXEnv:
             jp.arange(self.n_substeps))
 
         up_z = data.sensordata[self._up_adr + 2]
+        if self.tilt_max_deg > 0.0:
+            # uprightness (reward + fall) against gravity, like the IMU
+            up_z = jp.dot(_grav_up(m),
+                          data.sensordata[self._up_adr:self._up_adr + 3])
         height = data.qpos[2] - self._gz(data.qpos[0], data.qpos[1])
         qd_j = data.qvel[self._jv0:self._jv1]
         energy = jp.sum(jp.abs(tau) * jp.abs(qd_j))
@@ -1764,6 +1812,8 @@ class BimoMJXEnv:
             com = data.subtree_com[self._torso_bid]
             stance_w = jp.where(is_r, data.geom_xpos[self._sole_gids[0]],
                                 data.geom_xpos[self._sole_gids[1]])
+            if self.tilt_max_deg > 0.0:
+                com = _grav_proj_xy(m, com, stance_w[2])
             com_off = jp.sqrt((com[0] - stance_w[0]) ** 2
                               + (com[1] - stance_w[1]) ** 2 + 1e-12)
             com_kernel = jp.exp(-((com_off / self.com_sigma) ** 2))
@@ -2067,6 +2117,8 @@ class BimoMJXEnv:
             sc_mid = 0.5 * (data.geom_xpos[self._sole_gids[0]]
                             + data.geom_xpos[self._sole_gids[1]])
             sc_com = data.subtree_com[self._torso_bid]
+            if self.tilt_max_deg > 0.0:
+                sc_com = _grav_proj_xy(m, sc_com, sc_mid[2])
             sc_off2 = ((sc_com[0] - sc_mid[0]) ** 2
                        + (sc_com[1] - sc_mid[1]) ** 2)
             reward += (self.w_stand_com
@@ -2193,7 +2245,7 @@ class BimoMJXEnv:
             cmd = self._phase_cmd(cmd, state.recover_slot, recovered,
                                   state.rise_t0, step_i)
         frame = self._obs(data, action, cmd, step_i, state.imu_R,
-                          state.imu_bias, r_obs, gait_phase)
+                          state.imu_bias, r_obs, gait_phase, m)
         if self.obs_hist_len > 1:
             obs = jp.concatenate([frame, state.obs_hist.reshape(-1)])
             obs_hist = jp.concatenate(
