@@ -9,6 +9,7 @@ import os
 import sys
 
 import pytest
+import struct
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "link"))
@@ -17,7 +18,8 @@ from protocol import (CMD_LEN, DIAG_ARM_SHIFT, DIAG_CAL_OK,  # noqa: E402
                       DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,
                       FLAG_POSE,
                       NUM_JOINTS, RELAX_MS,
-                      STALE_MS, TLM_LEN, TLM_LEN_EXT, V_MAX, W_MAX,
+                      STALE_MS, TLM_LEN, TLM_LEN_EXT, TLM_LEN_EXT_V1,
+                      TLM_LEN_V1, V_MAX, W_MAX,
                       ArmLatch, ArmResult, HomeLatch, is_home_result,
                       Command, LinkState, ProtocolError, Supervisor,
                       Telemetry, Watchdog, clamp_to_envelope, crc16_ccitt,
@@ -107,6 +109,88 @@ def test_telemetry_rejects_command_frame():
     # Both sockets are on the same host; crossing them must not decode.
     with pytest.raises(ProtocolError):
         decode_telemetry(encode_command(1, 0, 0, 0) + b"\x00" * 6)
+
+
+# -- timestamps (2026-09-02, docs/control-channel.md "Time on the wire") ---
+T_REAL = 1788390475605401       # 2026-09-02T22:27:55.605401Z, a real reading
+
+
+def _legacy(t):
+    """What a robot flashed before the stamp beacons: body [+ joints] + CRC.
+
+    protocol.py cannot emit this any more, so the test packs it by hand from
+    the stamped frame -- which is also the claim being made: the legacy
+    frame IS the stamped frame with 8 bytes cut out of the middle."""
+    wire = encode_telemetry(t)
+    body = wire[:18] + wire[26:-2]
+    return body + struct.pack("<H", crc16_ccitt(body))
+
+
+def test_timestamp_round_trips_on_both_lengths():
+    t = Telemetry(seq_echo=1, state=LinkState.LIVE, vbat_v=11.4, up_z=1.0,
+                  vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
+                  t_us=T_REAL)
+    wire = encode_telemetry(t)
+    assert len(wire) == TLM_LEN == 28
+    assert struct.unpack("<Q", wire[18:26]) == (T_REAL,)     # LE, after body
+    got = decode_telemetry(wire)
+    assert got.t_us == T_REAL
+    assert got.t_utc == pytest.approx(1788390475.605401, abs=1e-6)
+    long = encode_telemetry(t._replace(joints=(0.1,) * NUM_JOINTS))
+    assert len(long) == TLM_LEN_EXT == 48
+    assert decode_telemetry(long).t_us == T_REAL
+    assert decode_telemetry(long).joints == pytest.approx((0.1,) * NUM_JOINTS)
+
+
+def test_zero_means_unsynced():
+    t = Telemetry(seq_echo=1, state=LinkState.BENCH, vbat_v=11.4, up_z=0.0,
+                  vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0)
+    assert t.t_us == 0 and t.t_utc is None
+    assert decode_telemetry(encode_telemetry(t)).t_utc is None
+
+
+def test_u64_range_is_enforced():
+    base = dict(seq_echo=1, state=LinkState.LIVE, vbat_v=11.4, up_z=1.0,
+                vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0)
+    top = Telemetry(t_us=2 ** 64 - 1, **base)
+    assert decode_telemetry(encode_telemetry(top)).t_us == 2 ** 64 - 1
+    for bad in (-1, 2 ** 64):
+        with pytest.raises(ProtocolError):
+            encode_telemetry(Telemetry(t_us=bad, **base))
+
+
+def test_legacy_frames_still_decode_with_no_time():
+    """A console from this tree against the robot as flashed on 2026-09-02.
+
+    The pre-stamp lengths (20 B, 40 B) decode with t_us = 0 and everything
+    else intact; they are the one kind of frame that says "unsynced" for a
+    reason other than SNTP."""
+    t = Telemetry(seq_echo=4242, state=LinkState.STAND, vbat_v=11.2,
+                  up_z=0.97, vx_est=0.25, wz_est=-0.1, servo_err=0x03,
+                  loop_late_pct=4, t_us=T_REAL)
+    short = _legacy(t)
+    assert len(short) == TLM_LEN_V1 == 20
+    got = decode_telemetry(short)
+    assert got.t_us == 0 and got.t_utc is None and got.joints == ()
+    assert got.seq_echo == 4242 and got.state is LinkState.STAND
+    assert got.vbat_v == pytest.approx(11.2, abs=1e-3)
+    assert got.servo_err == 0x03 and got.loop_late_pct == 4
+
+    q = tuple(0.1 * i - 0.5 for i in range(NUM_JOINTS))
+    long = _legacy(t._replace(joints=q))
+    assert len(long) == TLM_LEN_EXT_V1 == 40
+    got = decode_telemetry(long)
+    assert got.t_us == 0 and got.joints == pytest.approx(q, abs=1e-3)
+
+
+def test_the_crc_covers_the_timestamp():
+    t = Telemetry(seq_echo=1, state=LinkState.LIVE, vbat_v=11.4, up_z=1.0,
+                  vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
+                  t_us=T_REAL)
+    wire = bytearray(encode_telemetry(t))
+    wire[21] ^= 0x10                       # a bit inside t_us
+    with pytest.raises(ProtocolError):
+        decode_telemetry(bytes(wire))
 
 
 # -- training envelope -----------------------------------------------------
@@ -537,15 +621,18 @@ def test_not_asking_changes_nothing():
     A robot that is not asked for joint angles must beacon the classic frame,
     byte for byte -- otherwise bimo_tui, commander.py and both twins go blind
     at once, which is why this frame is requested rather than volunteered.
+    (Since 2026-09-02 "classic" is the 28 B stamped frame.)
     """
     t = _tlm()
     assert len(encode_telemetry(t)) == TLM_LEN
     assert decode_telemetry(encode_telemetry(t)).joints == ()
 
 
-def test_a_length_between_the_two_is_refused():
+def test_a_length_between_the_four_is_refused():
     wire = encode_telemetry(_tlm(joints=(0.0,) * NUM_JOINTS))
-    for bad in (wire[:TLM_LEN + 2], wire[:-1], wire + b"\x00"):
+    for bad in (wire[:TLM_LEN + 2], wire[:-1], wire + b"\x00",
+                wire[:TLM_LEN_V1 + 1], wire[:TLM_LEN_EXT_V1 + 1],
+                wire[:TLM_LEN_V1 - 1]):
         with pytest.raises(ProtocolError):
             decode_telemetry(bad)
 
@@ -553,7 +640,7 @@ def test_a_length_between_the_two_is_refused():
 def test_the_crc_covers_the_joints():
     q = [0.0] * NUM_JOINTS
     wire = bytearray(encode_telemetry(_tlm(joints=tuple(q))))
-    wire[20] ^= 0x01                       # flip a bit inside a joint field
+    wire[28] ^= 0x01                       # flip a bit inside a joint field
     with pytest.raises(ProtocolError):
         decode_telemetry(bytes(wire))
 

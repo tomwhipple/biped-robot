@@ -257,7 +257,9 @@ void ctrlTask(void*) {
         // its own thing. A faulted servo's entry is its last good angle
         // (readJoints holds it); `faults` says which, and rides the same
         // beacon. One 40-byte copy and a release store; lands in us_other.
-        g_joint_pose.publish(g_q, g_ticks);
+        // Stamped with the middle of the bus read: ten servos are polled one
+        // after another, so the mean sample instant is the honest one.
+        g_joint_pose.publish(g_q, g_ticks, (t_read0 + t_read1) / 2);
         // read() == false means "no new report this tick"; the contract
         // (imu/imu.h) is that the caller REUSES the previous sample. Holding
         // it in a static and only overwriting on a successful read is that

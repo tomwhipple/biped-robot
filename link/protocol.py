@@ -36,9 +36,18 @@ CMD_LEN = 14
 # short frame whenever the extras ARE at defaults; old firmware drops long
 # frames by length, which the arming handshake surfaces immediately.
 CMD_LEN_EXT = 24
-TLM_LEN = 20
-# Extended TELEMETRY (2026-09-01): the same 18-byte body, then one int16
-# milli-radian per joint, then the CRC. For mirror mode -- driving the real
+# Telemetry frame lengths. TIMESTAMPED (2026-09-02): the 18-byte body, then
+# a u64 `t_us` -- microseconds since the Unix epoch, UTC, from the robot's
+# SNTP-disciplined clock, 0 until the first sync -- then the optional joints,
+# then the CRC. The stamp is on EVERY beacon; see "Time on the wire" in
+# docs/control-channel.md for why this one is volunteered rather than
+# requested. The pre-stamp lengths (20 B / 40 B) are still DECODED, with
+# t_us = 0, so a console built from this tree keeps working against a robot
+# flashed before the change; they are never emitted.
+TLM_LEN = 28
+TLM_LEN_V1 = 20            # legacy: no timestamp (firmware before 2026-09-02)
+# Extended TELEMETRY (2026-09-01): the same body (and, since 2026-09-02, the
+# same timestamp), then one int16 milli-radian per joint, then the CRC. For mirror mode -- driving the real
 # robot while a sim follows its observed pose.
 #
 # This one could NOT be done the way the extended command frame was. There the
@@ -55,6 +64,9 @@ TLM_LEN = 20
 # surprise, and the request rides a flags bit that was already spare.
 NUM_JOINTS = 10            # obs_spec order: L yaw,roll,pitch,knee,ankle; R same
 TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS
+TLM_LEN_EXT_V1 = TLM_LEN_V1 + 2 * NUM_JOINTS   # legacy, decode-only
+_TLM_LENS = (TLM_LEN, TLM_LEN_EXT, TLM_LEN_V1, TLM_LEN_EXT_V1)
+_TLM_TIME_OFF = 18         # u64 t_us sits right after the classic body
 
 CMD_PORT = 4210            # robot listens here
 TLM_PORT = 4211            # laptop listens here
@@ -285,9 +297,20 @@ class Telemetry(NamedTuple):
                            # ctrl readJoints sets 1<<i; NOT servo id i+1, the
                            # ids are not in joint order)
     loop_late_pct: int     # % of control ticks that overran 20 ms
-    # Measured joint angles, radians, obs_spec order. Empty on a classic 20 B
+    # Measured joint angles, radians, obs_spec order. Empty on a classic
     # frame -- which is every frame, unless a commander asked with FLAG_POSE.
     joints: tuple = ()
+    # Microseconds since the Unix epoch (UTC) on the robot's clock, which is
+    # SNTP-disciplined over the same WiFi link. 0 = the robot has not synced
+    # yet (or the frame predates the field). When joints are present this is
+    # the instant they were read off the bus; otherwise the instant the
+    # beacon was assembled -- either way within one 20 ms tick of the values.
+    t_us: int = 0
+
+    @property
+    def t_utc(self):
+        """Robot time as float seconds since the epoch, or None if unsynced."""
+        return None if self.t_us == 0 else self.t_us / 1e6
 
     @property
     def diag(self) -> int:
@@ -404,6 +427,9 @@ def encode_telemetry(t: Telemetry) -> bytes:
         _milli(t.up_z), _milli(t.vx_est), _milli(t.wz_est),
         t.servo_err & 0xFF, max(0, min(255, int(t.loop_late_pct))),
     )
+    if not 0 <= t.t_us < 2 ** 64:
+        raise ProtocolError(f"t_us {t.t_us} does not fit a u64")
+    body += struct.pack("<Q", t.t_us)
     if t.joints:
         if len(t.joints) != NUM_JOINTS:
             raise ProtocolError(f"{len(t.joints)} joints, want {NUM_JOINTS}")
@@ -412,9 +438,9 @@ def encode_telemetry(t: Telemetry) -> bytes:
 
 
 def decode_telemetry(buf: bytes) -> Telemetry:
-    if len(buf) not in (TLM_LEN, TLM_LEN_EXT):
-        raise ProtocolError(f"telemetry frame is {len(buf)} B, want {TLM_LEN} "
-                            f"or {TLM_LEN_EXT}")
+    if len(buf) not in _TLM_LENS:
+        raise ProtocolError(f"telemetry frame is {len(buf)} B, want one of "
+                            f"{_TLM_LENS}")
     (magic, ver, state, seq, vbat_mv, up_z, vx, wz, err,
      late) = struct.unpack("<2sBBIHhhhBB", buf[:18])
     if magic != MAGIC_TLM:
@@ -426,14 +452,23 @@ def decode_telemetry(buf: bytes) -> Telemetry:
         raise ProtocolError("CRC mismatch")
     if state >= len(_TLM_STATES):
         raise ProtocolError(f"unknown link state {state}")
+    # Length selects the layout: the timestamp is present on the two current
+    # lengths, absent (t_us = 0) on the two legacy ones; joints are present
+    # on the two long ones.
+    t_us = 0
+    at = _TLM_TIME_OFF
+    if len(buf) in (TLM_LEN, TLM_LEN_EXT):
+        (t_us,) = struct.unpack("<Q", buf[at:at + 8])
+        at += 8
     joints = ()
-    if len(buf) == TLM_LEN_EXT:
+    if len(buf) in (TLM_LEN_EXT, TLM_LEN_EXT_V1):
         joints = tuple(q / 1000.0 for q in
-                       struct.unpack(f"<{NUM_JOINTS}h", buf[18:-2]))
+                       struct.unpack(f"<{NUM_JOINTS}h", buf[at:-2]))
     return Telemetry(seq_echo=seq, state=_TLM_STATES[state],
                      vbat_v=vbat_mv / 1000.0, up_z=up_z / 1000.0,
                      vx_est=vx / 1000.0, wz_est=wz / 1000.0,
-                     servo_err=err, loop_late_pct=late, joints=joints)
+                     servo_err=err, loop_late_pct=late, joints=joints,
+                     t_us=t_us)
 
 
 # -- robot-side supervisor -------------------------------------------------

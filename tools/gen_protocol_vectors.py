@@ -25,6 +25,7 @@ Deliberately included edge cases:
     a sender restart, and the "a stale frame must not pet the watchdog" rule
 """
 import os
+import struct
 import sys
 
 import numpy as np
@@ -68,47 +69,66 @@ CMD_EXT_CASES = [
 # Extended telemetry (mirror mode): the classic body plus 10 joint angles.
 # Frozen as BYTES like everything else here, so the C++ port is diffed against
 # numbers rather than against whatever the Python happened to do that day.
+# A real robot clock reading: 2026-09-02T22:27:55.605401Z, the instant of the
+# first webcam frame in the capture that motivated the field. Frozen so the
+# byte order of the u64 is diffed against a value with every byte non-zero.
+T_REAL = 1788390475605401
 TLM_EXT_CASES = [
-    # (seq_echo, state, vbat_v, up_z, vx_est, wz_est, err, late, joints)
+    # (seq_echo, state, vbat_v, up_z, vx_est, wz_est, err, late, joints, t_us)
     (1, P.LinkState.LIVE, 12.0, 1.0, 0.0, 0.0, 0x00, 0,
-     (0.0,) * 10),                                   # a clean zero stand
+     (0.0,) * 10, 0),                                # a clean zero stand, unsynced
     (2, P.LinkState.LIVE, 12.0, 0.99, 0.4, 0.0, 0x00, 2,
      (0.05, -0.12, 0.63, -1.21, 0.58,
-      -0.05, 0.12, 0.61, -1.19, 0.57)),              # mid-stride, near-mirrored
+      -0.05, 0.12, 0.61, -1.19, 0.57), T_REAL),      # mid-stride, near-mirrored
     (3, P.LinkState.STAND, 11.0, 0.95, 0.0, 0.0, 0x03, 9,
      (0.0625, -0.0625, 0.0005, -0.0005, 0.0015,      # milli ties, both signs
-      -0.0015, 0.5, -0.5, 1.5707963, -1.5707963)),
+      -0.0015, 0.5, -0.5, 1.5707963, -1.5707963), T_REAL + 20000),
     (4, P.LinkState.FALLEN, 10.5, 0.1, 0.0, 0.0, 0xFF, 100,
-     (99.0, -99.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)),   # saturation
+     (99.0, -99.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+     2 ** 64 - 1),                                   # saturation, incl. the u64
 ]
 
 TLM_CASES = [
-    # (seq_echo, state, vbat_v, up_z, vx_est, wz_est, servo_err, late_pct)
-    (0, P.LinkState.LIVE, 11.4, 1.0, 0.0, 0.0, 0x00, 0),
-    (99, P.LinkState.STAND, 11.4, 0.98, 0.55, -0.1, 0b100, 3),
-    (7, P.LinkState.RELAX, 7.35, -0.2, -0.75, 0.4, 0xFF, 100),
-    (2 ** 32 - 1, P.LinkState.ESTOP, 0.0, 0.0, 0.0, 0.0, 0x81, 255),
-    (11, P.LinkState.LIVE, 12.6005, 0.9995, 0.0625, -0.1875, 0x02, 7),
+    # (seq_echo, state, vbat_v, up_z, vx_est, wz_est, servo_err, late_pct,
+    #  t_us)
+    (0, P.LinkState.LIVE, 11.4, 1.0, 0.0, 0.0, 0x00, 0, 0),
+    (99, P.LinkState.STAND, 11.4, 0.98, 0.55, -0.1, 0b100, 3, T_REAL),
+    (7, P.LinkState.RELAX, 7.35, -0.2, -0.75, 0.4, 0xFF, 100, T_REAL + 100000),
+    (2 ** 32 - 1, P.LinkState.ESTOP, 0.0, 0.0, 0.0, 0.0, 0x81, 255, 2 ** 64 - 1),
+    (11, P.LinkState.LIVE, 12.6005, 0.9995, 0.0625, -0.1875, 0x02, 7, 1),
     # The robot-latched under-voltage states. Included so the C++ port's
     # decodeTelemetry range check is diffed against the real top-of-enum
     # rather than against whichever value it was written for.
-    (500, P.LinkState.VLAND, 9.9, 0.97, 0.0, 0.0, 0x00, 4),
-    (501, P.LinkState.VSAFE, 9.8, 0.31, 0.0, 0.0, 0x00, 4),
+    (500, P.LinkState.VLAND, 9.9, 0.97, 0.0, 0.0, 0x00, 4, T_REAL),
+    (501, P.LinkState.VSAFE, 9.8, 0.31, 0.0, 0.0, 0x00, 4, T_REAL),
     # Robot-latched fall: torso down, torque off. up_z is what tripped it.
-    (502, P.LinkState.FALLEN, 11.2, 0.12, 0.0, 0.0, 0x00, 4),
+    (502, P.LinkState.FALLEN, 11.2, 0.12, 0.0, 0.0, 0x00, 4, T_REAL),
     # Benched: what the WiFi beacon says before anyone arms the loop. The
     # zeros are real -- ctrl never published, so the snapshot is boot state.
-    (0, P.LinkState.BENCH, 0.0, 0.0, 0.0, 0.0, 0x00, 0),
+    # (Benched does not mean unsynced: SNTP runs regardless of the mode.)
+    (0, P.LinkState.BENCH, 0.0, 0.0, 0.0, 0.0, 0x00, 0, T_REAL),
     # ... and benched WITH a diagnostic in seq_echo (2026-08-30). These are
     # the frames the incident of that day would have produced: a robot that
     # ignored six seconds of ARM frames, now saying why. Frozen here so the
     # firmware's packDiag() and the Python pack_diag() cannot drift apart in
     # the one field whose meaning depends on the state byte.
     (P.pack_diag(False, False, P.ArmResult.REFUSED_NO_CAL),
-     P.LinkState.BENCH, 11.4, 0.0, 0.0, 0.0, 0x00, 0),
+     P.LinkState.BENCH, 11.4, 0.0, 0.0, 0.0, 0x00, 0, 0),
     (P.pack_diag(False, True, P.ArmResult.NONE),
-     P.LinkState.BENCH, 11.4, 0.0, 0.0, 0.0, 0x00, 0),
+     P.LinkState.BENCH, 11.4, 0.0, 0.0, 0.0, 0x00, 0, T_REAL),
 ]
+
+
+def legacy_wire(t):
+    """The frame a robot flashed BEFORE 2026-09-02 beacons: body, joints if
+    any, CRC -- no timestamp. protocol.py cannot emit it any more, so the
+    generator packs it by hand; the vectors then pin what BOTH decoders make
+    of it (t_us = 0, everything else intact)."""
+    body = P.encode_telemetry(t._replace(t_us=0))[:P._TLM_TIME_OFF]
+    if t.joints:
+        body += struct.pack(f"<{P.NUM_JOINTS}h",
+                            *(P._milli(q) for q in t.joints))
+    return body + struct.pack("<H", P.crc16_ccitt(body))
 
 # -- bench diagnostics -------------------------------------------------------
 # Every packing, plus a value from a hypothetical NEWER firmware (0xF0) that
@@ -291,19 +311,27 @@ def main():
     w("struct TlmCase {")
     w("    uint32_t seq; uint8_t state; float vbat; float up_z;")
     w("    float vx; float wz; uint8_t servo_err; uint8_t late;")
+    w("    uint64_t t_us;")
     w("    uint8_t wire[%d];" % P.TLM_LEN)
     w("    uint8_t diag;   // Telemetry.diag: seq_echo's low byte, BENCH only")
+    w("    uint8_t legacy[%d];   // the same frame from pre-stamp firmware"
+      % P.TLM_LEN_V1)
     w("};")
     w("inline const TlmCase kTlm[] = {")
-    for seq, st, vb, up, vx, wz, err, late in TLM_CASES:
+    for seq, st, vb, up, vx, wz, err, late, t_us in TLM_CASES:
         vb, up, vx, wz = f32(vb), f32(up), f32(vx), f32(wz)
         t = P.Telemetry(seq_echo=seq, state=st, vbat_v=vb, up_z=up,
                         vx_est=vx, wz_est=wz, servo_err=err,
-                        loop_late_pct=late)
+                        loop_late_pct=late, t_us=t_us)
         wire = P.encode_telemetry(t)
-        w("    {%du, %d, %s, %s, %s, %s, 0x%02X, %d, %s, 0x%02X}," % (
-            seq & 0xFFFFFFFF, list(P.LinkState).index(st), fl(vb), fl(up),
-            fl(vx), fl(wz), err, late, carr(wire), t.diag))
+        assert len(wire) == P.TLM_LEN, len(wire)
+        leg = legacy_wire(t)
+        assert len(leg) == P.TLM_LEN_V1, len(leg)
+        d = P.decode_telemetry(leg)
+        assert d.t_us == 0 and d.seq_echo == (seq & 0xFFFFFFFF)
+        w("    {%du, %d, %s, %s, %s, %s, 0x%02X, %d, %dull, %s, 0x%02X, %s},"
+          % (seq & 0xFFFFFFFF, list(P.LinkState).index(st), fl(vb), fl(up),
+             fl(vx), fl(wz), err, late, t_us, carr(wire), t.diag, carr(leg)))
     w("};")
     w("inline constexpr size_t kNumTlm = sizeof kTlm / sizeof kTlm[0];")
     w("")
@@ -313,21 +341,28 @@ def main():
     w("    uint32_t seq; uint8_t state; float vbat; float up_z;")
     w("    float vx; float wz; uint8_t servo_err; uint8_t late;")
     w("    float joints[%d];" % P.NUM_JOINTS)
+    w("    uint64_t t_us;")
     w("    uint8_t wire[%d];" % P.TLM_LEN_EXT)
+    w("    uint8_t legacy[%d];   // the same frame from pre-stamp firmware"
+      % P.TLM_LEN_EXT_V1)
     w("};")
     w("inline const TlmExtCase kTlmExt[] = {")
-    for seq, st, vb, up, vx, wz, err, late, joints in TLM_EXT_CASES:
+    for seq, st, vb, up, vx, wz, err, late, joints, t_us in TLM_EXT_CASES:
         vb, up, vx, wz = f32(vb), f32(up), f32(vx), f32(wz)
         joints = tuple(f32(q) for q in joints)
         t = P.Telemetry(seq_echo=seq, state=st, vbat_v=vb, up_z=up,
                         vx_est=vx, wz_est=wz, servo_err=err,
-                        loop_late_pct=late, joints=joints)
+                        loop_late_pct=late, joints=joints, t_us=t_us)
         wire = P.encode_telemetry(t)
         assert len(wire) == P.TLM_LEN_EXT, len(wire)
-        w("    {%du, %d, %s, %s, %s, %s, 0x%02X, %d, {%s}, %s}," % (
-            seq & 0xFFFFFFFF, list(P.LinkState).index(st), fl(vb), fl(up),
-            fl(vx), fl(wz), err, late, ", ".join(fl(q) for q in joints),
-            carr(wire)))
+        leg = legacy_wire(t)
+        assert len(leg) == P.TLM_LEN_EXT_V1, len(leg)
+        d = P.decode_telemetry(leg)
+        assert d.t_us == 0 and len(d.joints) == P.NUM_JOINTS
+        w("    {%du, %d, %s, %s, %s, %s, 0x%02X, %d, {%s}, %dull, %s, %s},"
+          % (seq & 0xFFFFFFFF, list(P.LinkState).index(st), fl(vb), fl(up),
+             fl(vx), fl(wz), err, late, ", ".join(fl(q) for q in joints),
+             t_us, carr(wire), carr(leg)))
     w("};")
     w("inline constexpr size_t kNumTlmExt = sizeof kTlmExt / sizeof kTlmExt[0];")
     w("")

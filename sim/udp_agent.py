@@ -139,6 +139,8 @@ def run(run_dir, render=False, duration=None, port=CMD_PORT,
                 vbat_v=float(base.supply_voltage), up_z=info.get("up_z", 0.0),
                 vx_est=info.get("vx_body", 0.0), wz_est=info.get("wz", 0.0),
                 servo_err=0, loop_late_pct=int(100 * late / max(1, i)),
+                # A sim's "robot clock" is the host's: synced by definition.
+                t_us=int(time.time() * 1e6),
             )), (peer, tlm_port))
             q = base.data.qpos
             tx.sendto(struct.pack("<3f", float(q[0]), float(q[1]),

@@ -5,6 +5,7 @@
 // UART0, so adding the WiFi socket later is a second producer into the same
 // mailbox, not a second protocol. See firmware/README.md for the v2 seam.
 #include "link_task.h"
+#include "timesync.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -142,7 +143,7 @@ void houseTask(void*) {
         // Honouring the flag here would also mean carrying the commander's
         // level from linkTask to this task across the mailbox. If a tethered
         // consumer ever appears, do it the way wifi_link.cpp does; until
-        // then the decision is: the UART beacon is always 20 B.
+        // then the decision is: the UART beacon is always kTlmLen (28 B).
         if (xTaskGetTickCount() >= next_tlm) {
             next_tlm += pdMS_TO_TICKS(100);
             if (g_mode_request.load() == Mode::kRun) {
@@ -162,6 +163,7 @@ void houseTask(void*) {
                 t.servo_err = static_cast<uint8_t>(f & 0xFF) |
                               static_cast<uint8_t>((f >> 8) & 0x03);
                 t.loop_late_pct = g_telemetry.loop_late_pct.load();
+                t.t_us = timeNowUs();   // 0 until SNTP answers (timesync.h)
                 uint8_t wire[linkproto::kTlmLen];
                 linkproto::encodeTelemetry(wire, t);
                 uart_write_bytes(board::kHostUart,

@@ -12,6 +12,7 @@
 #include "client.h"
 #include "keymap.h"
 #include "mjpeg.h"
+#include "recorder.h"
 #include "test_util.h"
 
 #include <stdio.h>
@@ -488,6 +489,76 @@ void test_parser_refuses_endless_headers() {
     CHECK(p.overflowed());
 }
 
+// -- recorder: the three clocks -----------------------------------------------
+//
+// A record must carry the host wall clock and, when the beacon had one, the
+// robot's; a legacy/unsynced beacon says null rather than 0 or 1970. And the
+// header must say whether the host clock was NTP-disciplined, because the
+// utc column is only worth a video frame if it was.
+void test_recorder_writes_both_clocks() {
+    char dir[] = "/tmp/bimo_rec_XXXXXX";
+    CHECK(mkdtemp(dir) != nullptr);
+    Recorder r;
+    char err[128] = "";
+    const double before = Recorder::wallNow();
+    CHECK(r.start(dir, "twin", 1000.0, err, sizeof err));
+    CHECK(r.active());
+
+    Telemetry synced = {};
+    synced.state = LinkState::kLive;
+    synced.t_us = 1788390475605401ull;      // 2026-09-02T22:27:55.605401Z
+    synced.n_joints = static_cast<uint8_t>(linkproto::kNumJoints);
+    for (size_t i = 0; i < linkproto::kNumJoints; ++i) {
+        synced.joints[i] = 0.25f * static_cast<float>(i);
+    }
+    r.telemetry(1100.0, synced);
+    Telemetry unsynced = {};
+    unsynced.state = LinkState::kBench;     // t_us 0, no joints
+    r.telemetry(1200.0, unsynced);
+    Ext ext;
+    r.command(1250.0, 7, 0.1f, 0.0f, 0.0f, ext, 0x05, 14);
+    r.stop();
+    const double after = Recorder::wallNow();
+
+    FILE* f = fopen(r.path, "r");
+    CHECK(f != nullptr);
+    char line[4][1024] = {};
+    for (int i = 0; i < 4 && f; ++i) {
+        CHECK(fgets(line[i], sizeof line[i], f) != nullptr);
+    }
+    if (f) fclose(f);
+    unlink(r.path);
+    rmdir(dir);
+
+    // Header: the host clock's standing, from the kernel.
+    CHECK(strstr(line[0], "\"rec\":\"header\"") != nullptr);
+    CHECK(strstr(line[0], "\"host_clock\":\"") != nullptr);
+    CHECK(strstr(line[0], "\"utc_s\":") != nullptr);
+    const char* hc = strstr(line[0], "\"host_clock\":\"");
+    if (hc) {
+        hc += strlen("\"host_clock\":\"");
+        CHECK(strncmp(hc, "ntp", 3) == 0 || strncmp(hc, "unsynced", 8) == 0 ||
+              strncmp(hc, "unknown", 7) == 0);
+    }
+    // A synced pose beacon: robot_utc to the microsecond, joints logged.
+    CHECK(strstr(line[1], "\"robot_utc\":1788390475.605401,") != nullptr);
+    CHECK(strstr(line[1], "\"q\":[0.0000,0.2500,0.5000,") != nullptr);
+    CHECK(strstr(line[1], "\"t\":0.100,") != nullptr);
+    // The host clock on the record lies between the two we took around it.
+    const char* u = strstr(line[1], "\"utc\":");
+    double utc = 0.0;
+    CHECK(u != nullptr && sscanf(u, "\"utc\":%lf", &utc) == 1);
+    CHECK(utc >= before && utc <= after);
+    // An unsynced (or legacy) beacon says so, and carries no pose.
+    CHECK(strstr(line[2], "\"robot_utc\":null,") != nullptr);
+    CHECK(strstr(line[2], "\"q\"") == nullptr);
+    CHECK(strstr(line[2], "\"state\":\"BENCH") != nullptr);
+    // Commands get the wall clock too.
+    CHECK(strstr(line[3], "\"dir\":\"cmd\"") != nullptr);
+    CHECK(strstr(line[3], "\"utc\":") != nullptr);
+    CHECK(strstr(line[3], "\"seq\":7,") != nullptr);
+}
+
 }  // namespace
 
 int main() {
@@ -513,5 +584,6 @@ int main() {
     test_parser_survives_split_reads();
     test_parser_holds_a_truncated_frame();
     test_parser_refuses_endless_headers();
+    test_recorder_writes_both_clocks();
     return testutil::report("client");
 }

@@ -311,6 +311,7 @@ def run(args):
                     wz_est=float(step_info.get("wz", 0.0)),
                     servo_err=0,
                     loop_late_pct=int(100 * late / max(1, i)),
+                    t_us=int(time.time() * 1e6),   # the host clock IS ours
                     # Only for a commander that asked. obs frame_offsets put
                     # the joint angles at the front of the frame, in the same
                     # obs_spec order the wire uses.

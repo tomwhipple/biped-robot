@@ -51,6 +51,7 @@ bimo_test(test_client test_client.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/client.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/keymap.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/mjpeg.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/../../link/recorder.cpp
           ${COMPONENTS}/linkproto/protocol.cpp
           ${COMPONENTS}/linkproto/watchdog.cpp
           ${COMPONENTS}/linkproto/framing.cpp)

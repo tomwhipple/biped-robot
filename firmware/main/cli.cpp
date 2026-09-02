@@ -15,6 +15,7 @@
 #include "mech_envelope.h"
 #include "shared.h"
 #include "wifi_link.h"
+#include "timesync.h"
 
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -1033,6 +1034,55 @@ void cmdImu(Sink out, int argc, char** argv) {
         static_cast<double>(t1 - t0) / (kN * 1000.0), kN);
 }
 
+// -- ntp -------------------------------------------------------------------
+//
+// The robot's wall clock (timesync.h): is it synced, to whom, how long ago,
+// and by how much did the last reply move it. Logging is silenced after boot
+// (app_main), so this line is the only place SNTP can be seen from -- and the
+// thing to type after a flash before trusting a single `t_us` in a log.
+void cmdNtp(Sink out, int argc, char**) {
+    if (argc >= 2) { out("usage: ntp   (status only; server comes from DHCP)\r\n"); return; }
+    robot::TimeStatus ts;
+    robot::timeGetStatus(ts);
+    if (!ts.started) {
+        out("ntp: not started -- no DHCP lease yet (`wifi`)\r\n");
+        return;
+    }
+    if (!ts.synced) {
+        say(out, "ntp: UNSYNCED, waiting for a reply from `%s` / `%s`; "
+                 "telemetry t_us = 0\r\n",
+            ts.server0[0] ? ts.server0 : "(no DHCP server)", ts.server1);
+        return;
+    }
+    const uint64_t s = ts.now_us / 1000000ull;
+    const unsigned us = static_cast<unsigned>(ts.now_us % 1000000ull);
+    // Broken down by hand: newlib's gmtime is fine but strftime drags in a
+    // locale table, and this is one line.
+    const uint64_t days = s / 86400ull;
+    const unsigned sod = static_cast<unsigned>(s % 86400ull);
+    // Civil-from-days (Howard Hinnant), valid for the years this robot lives.
+    const int64_t z = static_cast<int64_t>(days) + 719468;
+    const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+    const unsigned doe = static_cast<unsigned>(z - era * 146097);
+    const unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    const int64_t y = static_cast<int64_t>(yoe) + era * 400;
+    const unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    const unsigned mp = (5 * doy + 2) / 153;
+    const unsigned d = doy - (153 * mp + 2) / 5 + 1;
+    const unsigned m = mp < 10 ? mp + 3 : mp - 9;
+    say(out, "ntp: synced  %04lld-%02u-%02uT%02u:%02u:%02u.%06uZ  "
+             "(t_us %llu)\r\n",
+        static_cast<long long>(m <= 2 ? y + 1 : y), m, d, sod / 3600,
+        (sod / 60) % 60, sod % 60, us,
+        static_cast<unsigned long long>(ts.now_us));
+    say(out, "  server `%s` (dhcp), fallback `%s`; %lu replies, last %lld s "
+             "ago, moved the clock %ld ms\r\n",
+        ts.server0[0] ? ts.server0 : "(none)", ts.server1,
+        static_cast<unsigned long>(ts.syncs),
+        static_cast<long long>(ts.since_sync_us / 1000000),
+        static_cast<long>(ts.last_step_ms));
+}
+
 // -- wifi ------------------------------------------------------------------
 //
 // Provisioning and status for the UDP link (wifi_link.h). Credential writes
@@ -1129,6 +1179,7 @@ void banner(Sink out) {
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  imu [scan|raw [n]|bias|mount|forget]   on-board QMI8658C (NVS)\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
+    out("  ntp                  wall clock: SNTP sync state (server from DHCP)\r\n");
     out("  stat                 tick timing and fault counters\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");
 }
@@ -1187,6 +1238,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "cal")) cmdCal(out, argc, argv);
     else if (!strcmp(c, "imu")) cmdImu(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
+    else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);
     else if (!strcmp(c, "obsdump")) cmdObsDump(out, argc, argv);
     else out("? (try `help`)\r\n");

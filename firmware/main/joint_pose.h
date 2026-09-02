@@ -41,12 +41,16 @@ namespace robot {
 class JointPose {
   public:
     // -- control task (the writer) ----------------------------------------
-    // q: obs::kNumJoints radians, obs_spec order. Cheap enough to call every
-    // tick unconditionally.
-    void publish(const float* q, uint32_t tick) {
+    // q: obs::kNumJoints radians, obs_spec order. t_us: when the bus was
+    // read, on esp_timer's clock (boot-relative microseconds) -- the beacon
+    // turns it into wall time (timesync.h) so the stamp on a pose frame is
+    // the measurement instant, not the send instant. Cheap enough to call
+    // every tick unconditionally.
+    void publish(const float* q, uint32_t tick, int64_t t_us) {
         const uint32_t s = seq_.load(std::memory_order_relaxed);
         Slot& dst = slot_[(s + 1u) & 1u];
         dst.tick = tick;
+        dst.t_us = t_us;
         memcpy(dst.q, q, sizeof dst.q);
         // Release: the slot's contents must be visible before the counter
         // that advertises them.
@@ -59,7 +63,8 @@ class JointPose {
     // (a dropped sample is the honest answer, not a torn one). seq_out is
     // the publish count the copy belongs to; the same value twice means the
     // loop has stopped publishing -- see the header comment.
-    bool read(float* q_out, uint32_t& seq_out, uint32_t* tick_out = nullptr) const {
+    bool read(float* q_out, uint32_t& seq_out, uint32_t* tick_out = nullptr,
+              int64_t* t_us_out = nullptr) const {
         for (int attempt = 0; attempt < 4; ++attempt) {
             const uint32_t s0 = seq_.load(std::memory_order_acquire);
             if (s0 == 0) return false;              // nothing published yet
@@ -67,6 +72,7 @@ class JointPose {
             float q[obs::kNumJoints];
             memcpy(q, src.q, sizeof q);
             const uint32_t tick = src.tick;
+            const int64_t t_us = src.t_us;
             // The slot just copied is next written when the counter reaches
             // s0 + 2; requiring it not to have moved at all is the
             // conservative version of that test, and at 50 Hz against a
@@ -74,6 +80,7 @@ class JointPose {
             if (seq_.load(std::memory_order_acquire) == s0) {
                 memcpy(q_out, q, sizeof q);
                 if (tick_out) *tick_out = tick;
+                if (t_us_out) *t_us_out = t_us;
                 seq_out = s0;
                 return true;
             }
@@ -87,6 +94,7 @@ class JointPose {
   private:
     struct Slot {
         uint32_t tick;                 // g_ticks at publish time
+        int64_t t_us;                  // esp_timer us when the bus was read
         float q[obs::kNumJoints];      // rad, sim sign convention
     };
     Slot slot_[2] = {};

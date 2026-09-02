@@ -37,6 +37,16 @@ inline uint32_t get32(const uint8_t* p) {
            (static_cast<uint32_t>(p[2]) << 16) |
            (static_cast<uint32_t>(p[3]) << 24);
 }
+inline void put64(uint8_t* p, uint64_t v) {
+    for (size_t i = 0; i < 8; ++i) {
+        p[i] = static_cast<uint8_t>((v >> (8 * i)) & 0xFF);
+    }
+}
+inline uint64_t get64(const uint8_t* p) {
+    uint64_t v = 0;
+    for (size_t i = 0; i < 8; ++i) v |= static_cast<uint64_t>(p[i]) << (8 * i);
+    return v;
+}
 
 }  // namespace
 
@@ -205,20 +215,24 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
     put16(out + 14, static_cast<uint16_t>(milli(t.wz_est)));
     out[16] = t.servo_err;
     out[17] = t.loop_late_pct;
-    if (t.n_joints != kNumJoints) {
-        put16(out + 18, crc16Ccitt(out, 18));
-        return kTlmLen;
+    put64(out + kTlmTimeOff, t.t_us);
+    size_t at = kTlmTimeOff + 8;
+    if (t.n_joints == kNumJoints) {
+        for (size_t i = 0; i < kNumJoints; ++i) {
+            put16(out + at + 2 * i, static_cast<uint16_t>(milli(t.joints[i])));
+        }
+        at += 2 * kNumJoints;
     }
-    for (size_t i = 0; i < kNumJoints; ++i) {
-        put16(out + 18 + 2 * i, static_cast<uint16_t>(milli(t.joints[i])));
-    }
-    const size_t body = kTlmLenExt - 2;
-    put16(out + body, crc16Ccitt(out, body));
-    return kTlmLenExt;
+    put16(out + at, crc16Ccitt(out, at));
+    return at + 2;
 }
 
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
-    if (len != kTlmLen && len != kTlmLenExt) return Err::kBadLength;
+    const bool has_time = (len == kTlmLen || len == kTlmLenExt);
+    const bool has_joints = (len == kTlmLenExt || len == kTlmLenExtV1);
+    if (!has_time && len != kTlmLenV1 && len != kTlmLenExtV1) {
+        return Err::kBadLength;
+    }
     if (buf[0] != kMagicTlm[0] || buf[1] != kMagicTlm[1]) return Err::kBadMagic;
     if (buf[2] != kVersion) return Err::kBadVersion;
     const size_t body = len - 2;
@@ -234,13 +248,22 @@ Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
     out.wz_est = static_cast<int16_t>(get16(buf + 14)) / 1000.0f;
     out.servo_err = buf[16];
     out.loop_late_pct = buf[17];
+    // Length selects the layout, exactly as protocol.py: the timestamp is
+    // present on the two current lengths (absent -> 0 on the legacy pair),
+    // the joints on the two long ones.
+    size_t at = kTlmTimeOff;
+    out.t_us = 0;
+    if (has_time) {
+        out.t_us = get64(buf + at);
+        at += 8;
+    }
     out.n_joints = 0;
     for (size_t i = 0; i < kNumJoints; ++i) out.joints[i] = 0.0f;
-    if (len == kTlmLenExt) {
+    if (has_joints) {
         out.n_joints = static_cast<uint8_t>(kNumJoints);
         for (size_t i = 0; i < kNumJoints; ++i) {
             out.joints[i] =
-                static_cast<int16_t>(get16(buf + 18 + 2 * i)) / 1000.0f;
+                static_cast<int16_t>(get16(buf + at + 2 * i)) / 1000.0f;
         }
     }
     return Err::kOk;
