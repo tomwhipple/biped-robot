@@ -10,7 +10,7 @@ bimo_biped_v5body (ankle +6: d_up (-0.11, 0), int y -6.28 deg) and on the
 robot after the yaw-strip fix (d_up (-0.100, -0.005), int y -6.55 deg).
     .venv/bin/python tools/gyro_sign_check.py --joint ankle --amp 6"""
 import serial, time, re, argparse
-ap=argparse.ArgumentParser(); ap.add_argument('--joint', default='ankle', choices=['ankle','hip_roll']); ap.add_argument('--amp', type=float, default=6.0); ap.add_argument('--ms', type=int, default=2000); ap.add_argument('--no-release', action='store_true')
+ap=argparse.ArgumentParser(); ap.add_argument('--joint', default='ankle', choices=['ankle','hip_roll','hip_pitch','knee']); ap.add_argument('--amp', type=float, default=6.0); ap.add_argument('--ms', type=int, default=2000); ap.add_argument('--no-release', action='store_true')
 A=ap.parse_args()
 CAL=[("L_hip_yaw",10,1692,+1),("L_hip_roll",5,2418,-1),("L_hip_pitch",6,2001,+1),("L_knee",7,1581,-1),("L_ankle",8,3535,+1),("R_hip_yaw",9,1806,+1),("R_hip_roll",1,3532,-1),("R_hip_pitch",2,2479,+1),("R_knee",3,2063,-1),("R_ankle",4,3437,+1)]
 TPD=4096/360
@@ -34,7 +34,8 @@ def up_avg(n=5):
     return [a/k for a in acc] if k else None
 def lean(a):
     # same WORLD sense on both legs: ankles share sign; hip rolls are +L/-R abduction, so L +a with R +a rolls both the same way
-    return {'L_ankle':a,'R_ankle':a} if A.joint=='ankle' else {'L_hip_roll':a,'R_hip_roll':a}
+    if A.joint=='hip_roll': return {'L_hip_roll':a,'R_hip_roll':a}
+    return {f'L_{A.joint}':a, f'R_{A.joint}':a}
 print(cmd('home', r'(streaming|REFUSED)').strip().splitlines()[0][:30]); time.sleep(3.5)
 print(f"both-{A.joint} lean {A.amp:+.0f} then back, {A.ms} ms each; up = policy's body-frame up, integral = policy's body-frame gyro")
 for tgt in (A.amp, 0.0):
