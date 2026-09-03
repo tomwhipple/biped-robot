@@ -35,6 +35,7 @@ std::atomic<bool> g_link_arm_level{false};
 std::atomic<uint8_t> g_arm_result{
     static_cast<uint8_t>(linkproto::ArmResult::kNone)};
 std::atomic<float> g_shape_hz{obs::kShaperPoleHz};
+std::atomic<uint32_t> g_obs_freeze{0};
 QueueHandle_t g_cmd_mailbox = nullptr;
 TelemetrySnapshot g_telemetry;
 ObsDump g_obs_dump;
@@ -67,11 +68,34 @@ imu::Imu* g_imu = nullptr;
 // task and ctrl hold g_imu; if we booted on the stub, swap the pointer once
 // the real sensor answers (the sampler dereferences it every 4 ms, so the
 // swap is a single aligned pointer store).
+// Bias, mount and per-axis gyro scale from NVS onto the live QMI. Called at
+// boot when the part answered, and again from imuReinitLive(): a boot that
+// fell back to the stub never applied them, and a later `imu reinit` used
+// to bring the sensor back UNCALIBRATED (2026-09-03: bias 0, mount identity,
+// 27 deg/s of raw x offset straight into the filter) with nothing but the
+// `imu` status line to say so.
+void applyImuCalFromNvs() {
+    float bias[3] = {0.0f, 0.0f, 0.0f};
+    float mount[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+    {
+        float gs[3];
+        if (imuGyroScaleLoad(gs)) g_qmi.setGyroScale(gs);
+    }
+    g_imu_cal_from_nvs = imuCalLoad(bias, mount);
+    if (g_imu_cal_from_nvs) {
+        g_qmi.setBias(bias);
+        imu::Mount m;
+        m.w = mount[0]; m.x = mount[1]; m.y = mount[2]; m.z = mount[3];
+        g_qmi.setMount(m);
+    }
+}
+
 bool imuReinitLive() {
     const bool ok = g_qmi.reinit();
     if (ok) {
         g_imu = &g_qmi;
         imuSamplerSetSource(g_qmi);
+        applyImuCalFromNvs();
     }
     return ok;
 }
@@ -138,21 +162,7 @@ extern "C" void app_main(void) {
     // degrees off (see cal_store.h), and an identity mount is only right if
     // the board happens to lie flat, which on this robot it does not. So a
     // missing blob is REPORTED, not papered over -- `imu` shows it too.
-    if (imu_ok) {
-        float bias[3] = {0.0f, 0.0f, 0.0f};
-        float mount[4] = {1.0f, 0.0f, 0.0f, 0.0f};
-        {
-            float gs[3];
-            if (imuGyroScaleLoad(gs)) g_qmi.setGyroScale(gs);
-        }
-        g_imu_cal_from_nvs = imuCalLoad(bias, mount);
-        if (g_imu_cal_from_nvs) {
-            g_qmi.setBias(bias);
-            imu::Mount m;
-            m.w = mount[0]; m.x = mount[1]; m.y = mount[2]; m.z = mount[3];
-            g_qmi.setMount(m);
-        }
-    }
+    if (imu_ok) applyImuCalFromNvs();
 
     // Restore servo calibration before anything can command a position. A
     // missing blob is the normal first-boot path -- defaults (zero 2048,

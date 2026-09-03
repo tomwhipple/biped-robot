@@ -181,7 +181,8 @@ void Fusion::quat(float out[4]) const {
 }
 
 void Fusion::up(float out[3]) const {
-    upFromQuaternion(q_[0], q_[1], q_[2], q_[3], out);
+    // yaw-stripped: see imu.h. The raw column-3 form is upFromQuaternion.
+    upYawStrippedFromQuaternion(q_[0], q_[1], q_[2], q_[3], out);
 }
 
 // -- BiasEstimator ---------------------------------------------------------

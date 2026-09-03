@@ -14,6 +14,19 @@ void applyMount(const Mount& m, const float in[3], float out[3]) {
     out[2] = in[2] + m.w * t2 + (m.x * t1 - m.y * t0);
 }
 
+void upYawStrippedFromQuaternion(float qw, float qx, float qy, float qz,
+                                 float out[3]) {
+    // yaw (ZYX) of the body->world quaternion, then q_tilt = qz(-yaw) * q
+    const float psi = atan2f(2.0f * (qw * qz + qx * qy),
+                             1.0f - 2.0f * (qy * qy + qz * qz));
+    const float c = cosf(0.5f * psi), s = sinf(0.5f * psi);
+    const float tw = c * qw + s * qz;
+    const float tx = c * qx + s * qy;
+    const float ty = c * qy - s * qx;
+    const float tz = c * qz - s * qw;
+    upFromQuaternion(tw, tx, ty, tz, out);
+}
+
 void upFromQuaternion(float qw, float qx, float qy, float qz, float out[3]) {
     // The obs's "up" is MuJoCo's framezaxis sensor on the torso imu site
     // (sim/bimo_biped_v5body.xml:609 <framezaxis objtype="site" objname="imu">),

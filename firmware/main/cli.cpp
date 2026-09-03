@@ -654,6 +654,27 @@ void cmdHome(Sink out, int argc, char** argv) {
                            : kHomeStepsPerSec);
 }
 
+void cmdObsFreeze(Sink out, int argc, char** argv) {
+    // obsfreeze [none|up|gyro|imu|dq ...] -- bench diagnostic, not persistent.
+    if (argc >= 2) {
+        uint32_t fz = 0;
+        for (int i = 1; i < argc; ++i) {
+            if (!strcmp(argv[i], "none")) fz = 0;
+            else if (!strcmp(argv[i], "up")) fz |= robot::kObsFreezeUp;
+            else if (!strcmp(argv[i], "gyro")) fz |= robot::kObsFreezeGyro;
+            else if (!strcmp(argv[i], "imu")) fz |= robot::kObsFreezeUp | robot::kObsFreezeGyro;
+            else if (!strcmp(argv[i], "dq")) fz |= robot::kObsFreezeDq;
+            else { say(out, "obsfreeze: unknown '%s' (none|up|gyro|imu|dq)\r\n", argv[i]); return; }
+        }
+        robot::g_obs_freeze.store(fz);
+    }
+    const uint32_t fz = robot::g_obs_freeze.load();
+    say(out, "obsfreeze: up %s  gyro %s  dq %s  (policy obs only; beacon + guards see real values)\r\n",
+        (fz & robot::kObsFreezeUp) ? "FROZEN(0,0,1)" : "live",
+        (fz & robot::kObsFreezeGyro) ? "FROZEN(0)" : "live",
+        (fz & robot::kObsFreezeDq) ? "FROZEN(0)" : "live");
+}
+
 void cmdShape(Sink out, int argc, char** argv) {
     // Live-tunable on purpose: a single atomic float with one writer (here)
     // and one reader (ctrl), per the shared.h rules -- so the pole can be
@@ -1457,7 +1478,7 @@ void cmdImu(Sink out, int argc, char** argv) {
 
     imu::Sample s{};
     dev->read(s);
-    say(out, "up       % .4f % .4f % .4f   (body z in WORLD -- yaw-dependent)\r\n",
+    say(out, "up       % .4f % .4f % .4f   (body z, yaw stripped = sim framezaxis at yaw 0)\r\n",
         static_cast<double>(s.up[0]), static_cast<double>(s.up[1]),
         static_cast<double>(s.up[2]));
     say(out, "gyro     % .4f % .4f % .4f rad/s\r\n",
@@ -1655,6 +1676,7 @@ void banner(Sink out) {
     out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
     out("  cal [show|zero|dir|set|migrate|save|load|reset]   zero + dir (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
+    out("  obsfreeze [none|up|gyro|imu|dq]  bench: freeze policy-obs parts at nominal\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
@@ -1715,6 +1737,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
+    else if (!strcmp(c, "obsfreeze")) cmdObsFreeze(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
     else if (!strcmp(c, "batt")) cmdBatt(out, argc, argv);
     else if (!strcmp(c, "run")) cmdMode(out, true);

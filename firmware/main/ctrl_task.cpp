@@ -377,6 +377,12 @@ void ctrlTask(void*) {
         memcpy(in.dq, g_dq, sizeof g_dq);
         memcpy(in.up, s.up, sizeof in.up);
         memcpy(in.gyro, s.gyro, sizeof in.gyro);
+        {
+            const uint32_t fz = g_obs_freeze.load();
+            if (fz & kObsFreezeUp) { in.up[0] = 0.0f; in.up[1] = 0.0f; in.up[2] = 1.0f; }
+            if (fz & kObsFreezeGyro) { in.gyro[0] = in.gyro[1] = in.gyro[2] = 0.0f; }
+            if (fz & kObsFreezeDq) { for (int i = 0; i < obs::kNumJoints; ++i) in.dq[i] = 0.0f; }
+        }
         memcpy(in.prev_action, g_prev_action, sizeof g_prev_action);
         in.phase = g_clock.phase();
         // ext_cmd channel layout (walker_env.set_command): vx, vy, wz, crouch,

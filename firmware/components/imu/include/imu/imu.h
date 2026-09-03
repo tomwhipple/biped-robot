@@ -73,6 +73,16 @@ void upFromQuaternion(float qw, float qx, float qy, float qz, float out[3]);
 void projectedGravityFromQuaternion(float qw, float qx, float qy, float qz,
                                     float out[3]);
 
+// The sim's convention with the yaw REMOVED (2026-09-03): framezaxis is the
+// body z-axis in the WORLD frame, so it turns with yaw -- and in sim the yaw
+// is ~0 at every reset, while on the robot the fused yaw is a free gyro
+// integral that walked 66 deg in 15 min (residual z bias ~0.07 deg/s). The
+// policy's tilt feedback was being rotated by an angle that drifted over
+// minutes. This strips the ZYX yaw from q first, then takes the third
+// column, which equals the sim's up at zero yaw exactly.
+void upYawStrippedFromQuaternion(float qw, float qx, float qy, float qz,
+                                 float out[3]);
+
 class Imu {
   public:
     virtual ~Imu() = default;

@@ -85,6 +85,12 @@ extern std::atomic<uint8_t> g_arm_result;      // a linkproto::ArmResult
 // tunable: changing the pole mid-run is continuous because the shaper's state
 // carries over; only the gain changes.
 extern std::atomic<float> g_shape_hz;
+// Bench diagnostic (2026-09-03): freeze parts of the policy OBSERVATION at
+// their nominal stand values while the loop runs, to find which sensor
+// closes the oscillation loop. Bits: 1 = up-vector -> (0,0,1), 2 = gyro -> 0,
+// 4 = dq -> 0. The beacon/tilt guard keep the REAL values. CLI `obsfreeze`.
+constexpr uint32_t kObsFreezeUp = 1, kObsFreezeGyro = 2, kObsFreezeDq = 4;
+extern std::atomic<uint32_t> g_obs_freeze;
 
 // -- command mailbox (core 0 -> core 1) ------------------------------------
 // A length-1 queue written with xQueueOverwrite: latest command wins and stale
