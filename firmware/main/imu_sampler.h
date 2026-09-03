@@ -18,4 +18,18 @@ void startImuSampler(imu::Imu& imu);
 bool takeImu(imu::Sample& out);
 uint32_t imuSampleTotal();
 uint32_t imuSampleFailures();
+// Ringing meter (Tom 2026-09-03: "if this is important we should design
+// another way to measure it"): the sampler keeps the last ~4 s of body-frame
+// gyro; imuRing() summarises the last `ms` -- per-50 ms RMS envelope of the
+// horizontal (pitch/roll) rate, peak, dominant frequency from zero crossings
+// of the livelier axis, and decay = RMS(last quarter)/RMS(first quarter).
+struct RingStats {
+    int n = 0;
+    float peak = 0.0f;            // rad/s
+    float rms_first = 0.0f, rms_last = 0.0f;
+    float f_hz = 0.0f;
+    int nbins = 0;
+    float env[80];                // per-50 ms RMS, oldest first (<= 4 s)
+};
+bool imuRing(int ms, RingStats& out);
 }  // namespace robot

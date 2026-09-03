@@ -15,6 +15,7 @@ ap.add_argument('out'); ap.add_argument('--legs', choices=['L','R','both'], requ
 ap.add_argument('--thetas', default='10,20,30,40,45,40,30,20,10,0')
 ap.add_argument('--spd', type=int, default=60); ap.add_argument('--settle', type=float, default=2.0)
 ap.add_argument('--smooth-ms', type=int, default=3000, help='firmware pose s<ms>: minimum-jerk stream from the housekeeping loop (default; 0 = constant speed)')
+ap.add_argument('--trace-id', type=int, default=0, help='servo id to trace at 50 Hz through the move + 1.2 s tail (firmware T<id> token); metrics printed per step')
 ap.add_argument('--stream-opts', default='', help='extra tokens after s<ms>, e.g. "h90 a10" (speed headroom pct, servo acc register)')
 ap.add_argument('--unison-ms', type=int, default=0, help='use the firmware pose t<ms> unison mode (per-servo speeds) instead of one speed')
 ap.add_argument('--tilt-abort', type=float, default=8.0); ap.add_argument('--stall-ticks', type=int, default=40)
@@ -62,8 +63,31 @@ def offsets(theta):
     return off
 def ticks(off): return [int(round(z + d*off.get(n,0.0)*TPD)) for n,i,z,d in CAL]
 def pose(off):
-    tail = (f's{A.smooth_ms} {A.stream_opts}'.strip()) if A.smooth_ms else f't{A.unison_ms}' if A.unison_ms else f'{A.spd}'
-    return cmd('pose ' + ' '.join(map(str, ticks(off))) + f' {tail}', until=r'(ok|refus|OFF|usage|busy|answer)')
+    """Send ONE pose; verify by reply, else by watching the witness joint move.
+    Never resend a pose that may already be running (a resend mid-move restarts
+    the profile from mid-travel -- found 2026-09-03 via the knee trace)."""
+    tail = (f's{A.smooth_ms} {A.stream_opts}' + (f' T{A.trace_id}' if A.trace_id else '')).strip() if A.smooth_ms else f't{A.unison_ms}' if A.unison_ms else f'{A.spd}'
+    tk = ticks(off); names = [c[0] for c in CAL]
+    cur = {}
+    for n,i,z,d in CAL:
+        p = pos(i)
+        if p: cur[n] = p[0]
+    wit = max(cur, key=lambda n: abs(tk[names.index(n)] - cur[n])) if cur else None
+    for attempt in range(3):
+        s.read(65536); s.write(('pose ' + ' '.join(map(str, tk)) + f' {tail}\r\n').encode())
+        t0 = time.time(); o = ''
+        while time.time() - t0 < 1.5:
+            o += s.read(4096).decode(errors='replace')
+            if re.search(r'(ok|streaming|refus|OFF|usage|busy|answer)', o): break
+        log.write(f'>>> pose ... {tail} [try {attempt+1}]\n{o}'); log.flush()
+        if re.search(r'(ok|streaming|refus|OFF|usage|busy|answer)', o): return o
+        if wit is None: return o
+        time.sleep(0.6)
+        p = pos(CAL[names.index(wit)][1])
+        if p and abs(p[0] - cur[wit]) >= 3:
+            log.write(f'   (no reply, but {wit} moved: taken)\n'); return 'streaming (verified by motion)'
+        if abs(tk[names.index(wit)] - cur[wit]) < 3: return 'ok (no move needed)'
+    return o
 def burst(n):
     pat = re.compile(r'a\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+\|a\|\s+[\d.]+\s+g\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)')
     s.read(65536); s.write(f'imu raw {n}\r\n'.encode()); t0=time.time(); o=''
@@ -101,11 +125,41 @@ for theta in [float(x) for x in A.thetas.split(',')]:
     off = offsets(theta); tk = ticks(off); o = pose(off)
     if not re.search(r'ok|streaming', o): print(f'!! pose refused at theta {theta}: {o.strip()[:100]}'); break
     ring = None
+    ring_line = ''; rm = None
+    if A.smooth_ms and not A.burst:
+        # read the onboard ringing meter ONE second after the profile ends: the
+        # 2.5 s window then spans the last ~1.5 s of motion and 1 s of settling
+        time.sleep(A.smooth_ms/1000.0 + 1.0)
+        ro = cmd('imu ring 2500', until=r'envelope.*\n', timeout=3.0); rm = re.search(r'peak ([\d.]+) rad/s, RMS first/last quarter ([\d.]+)/([\d.]+), ~([\d.]+) Hz', ro)
+        ring_line = ro.strip().splitlines()[-1][:160] if ro.strip() else ''
+        if rm: print(f"  ring(-1.5..+1 s): peak {float(rm.group(1)):.3f} rad/s  RMS motion/tail {rm.group(2)}/{rm.group(3)}  ~{rm.group(4)} Hz  | {ring_line}", flush=True)
+        time.sleep(max(0.0, A.settle - 1.0))
+        if A.trace_id:
+            time.sleep(0.4)
+            to = cmd('trace', until=r'trace end', timeout=6.0)
+            rows = [tuple(int(x) for x in m.groups()) for m in re.finditer(r'T (\d+) (-?\d+) (-?\d+) (-?\d+)', to)]
+            tf = A.out.replace('.csv', f'_trace_t{int(theta):02d}.csv')
+            with open(tf, 'w', newline='') as fh:
+                tw = csv.writer(fh); tw.writerow(['ms','pos','spd','load']); [tw.writerow(r) for r in rows]
+            if rows:
+                end_ms = A.smooth_ms
+                last = [r for r in rows if r[0] >= end_ms - 1000 and r[0] < end_ms]
+                tail = [r for r in rows if r[0] >= end_ms]
+                def reversals(seq):
+                    d = [b - a for a, b in zip(seq, seq[1:]) if b != a]
+                    return sum(1 for a, b in zip(d, d[1:]) if (a > 0) != (b > 0))
+                pj_last = reversals([r[1] for r in last]); pj_tail = reversals([r[1] for r in tail])
+                sr_last = sum(1 for a, b in zip(last, last[1:]) if a[2] * b[2] < 0)
+                moving_tail = [r for r in tail if r[2] != 0]
+                settle_ms = (moving_tail[-1][0] - end_ms) if moving_tail else 0
+                pk_tail = max((abs(r[2]) for r in tail), default=0)
+                span_tail = (max(r[1] for r in tail) - min(r[1] for r in tail)) if tail else 0
+                print(f"  trace id {A.trace_id}: {len(rows)} samples | last 1 s of move: pos reversals {pj_last}, speed sign flips {sr_last} | tail 1.2 s: pos reversals {pj_tail}, pos span {span_tail} ticks, peak |spd| {pk_tail}, settled after {settle_ms} ms", flush=True)
     if A.burst:
         rows, bdt = burst(A.burst)
         for k, r in enumerate(rows): gw.writerow([theta, k] + list(r))
         ring = ring_stats(rows, bdt)
-    else:
+    elif not (A.smooth_ms and not A.burst):
         time.sleep(((A.smooth_ms or A.unison_ms)/1000.0 if (A.smooth_ms or A.unison_ms) else 2*abs(theta-prev_theta)*TPD/A.spd) + A.settle)
     prev_theta = theta
     errs=[]; loads=[]

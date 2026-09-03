@@ -288,10 +288,28 @@ void cmdMove(Sink out, int argc, char** argv) {
 static bool s_traj_active = false;
 static TickType_t s_traj_t0 = 0, s_traj_last = 0;
 static long s_traj_ms = 0;
-static float s_traj_headroom = 0.9f;    // servo speed = profile speed x this
+static float s_traj_headroom = 1.0f;    // servo speed = (gap to the next sub-target) / tick x this
 static uint8_t s_traj_acc = 0;          // servo acceleration register (100 steps/s^2 per LSB)
-static int32_t s_traj_bigstep = 4;      // write at once when a joint has this many ticks to go
-static long s_traj_minint_ms = 100;     // ... else wait this long between writes (>= 1 tick)
+static int32_t s_traj_bigstep = 1;      // write at once when a joint has this many ticks to go
+static long s_traj_minint_ms = 20;      // ... else wait this long between writes (>= 1 tick)
+// ZV input shaping (z<tenths of Hz>): the profile is the average of itself
+// and a copy delayed by half the period of the structural mode, so the
+// vibration the second half excites cancels the first half's. 0 = off.
+static long s_traj_zv_ms = 0;
+static float s_traj_floor = 15.0f;      // f<steps/s>: minimum servo speed near the ends
+// Servo trace (T<id> token, `trace` to print): during the stream and for
+// kTraceTailMs after it, poseTick reads one servo's position/speed/load every
+// tick -- the leg-side instrument for end-of-motion shake (Tom 2026-09-03:
+// "you were going to instrument this for hard numbers"; the pelvis IMU
+// cannot see the legs).
+constexpr int kTraceMax = 400;
+constexpr long kTraceTailMs = 1200;
+static uint8_t s_trace_id = 0;
+static int16_t s_trace_pos[kTraceMax], s_trace_spd[kTraceMax], s_trace_load[kTraceMax];
+static uint16_t s_trace_ms[kTraceMax];
+static int s_trace_n = 0;
+static bool s_trace_on = false;
+static TickType_t s_trace_until = 0;
 static int32_t s_traj_start[obs::kNumJoints];
 static int32_t s_traj_tgt[obs::kNumJoints];
 static int32_t s_traj_sent[obs::kNumJoints];     // last goal written per joint
@@ -408,10 +426,13 @@ void cmdPose(Sink out, int argc, char** argv) {
         // speed = profile speed x pct/100; <100 keeps the servo running
         // continuously behind the stream instead of stop-starting at 50 Hz),
         // a<n> servo acceleration register (100 steps/s^2 per LSB, 0 = max).
-        s_traj_headroom = 0.9f;
+        s_traj_headroom = 1.0f;
         s_traj_acc = 0;
-        s_traj_bigstep = 4;
-        s_traj_minint_ms = 100;
+        s_traj_bigstep = 1;
+        s_traj_minint_ms = 20;
+        s_traj_zv_ms = 0;
+        s_traj_floor = 15.0f;
+        s_trace_id = 0;
         for (int k = 1 + obs::kNumJoints; k < argc; ++k) {
             if (argv[k][0] == 's') continue;
             if (argv[k][0] == 'h') {
@@ -429,6 +450,15 @@ void cmdPose(Sink out, int argc, char** argv) {
                 if (b < 1) b = 1;
                 if (b > 64) b = 64;
                 s_traj_bigstep = static_cast<int32_t>(b);
+            } else if (argv[k][0] == 'T') {          // T<id>: trace this servo
+                const long id = num(argv[k] + 1, 0);
+                if (id >= 1 && id <= 253) s_trace_id = static_cast<uint8_t>(id);
+            } else if (argv[k][0] == 'f') {          // f<steps/s>: speed floor
+                const long f = num(argv[k] + 1, 15);
+                if (f >= 5 && f <= 500) s_traj_floor = static_cast<float>(f);
+            } else if (argv[k][0] == 'z') {          // z<tenths Hz>: ZV shaper at that mode
+                const long t = num(argv[k] + 1, 25);
+                if (t >= 5 && t <= 200) s_traj_zv_ms = 5000L / t;   // half period, ms
             } else if (argv[k][0] == 'i') {          // i<ms>: min interval between small writes
                 long iv = num(argv[k] + 1, 100);
                 if (iv < 20) iv = 20;
@@ -440,11 +470,14 @@ void cmdPose(Sink out, int argc, char** argv) {
         s_traj_t0 = xTaskGetTickCount();
         s_traj_last = s_traj_t0;
         s_traj_active = true;
+        s_trace_n = 0;
+        s_trace_on = s_trace_id != 0;
+        s_trace_until = s_traj_t0 + pdMS_TO_TICKS(ms + s_traj_zv_ms + kTraceTailMs);
         say(out, "pose -> %d joints, SMOOTH minimum-jerk over %ld ms (speed x%.2f, "
-                 "acc %u, step %ld ticks / %ld ms): streaming\r\n",
+                 "acc %u, step %ld ticks / %ld ms, ZV %ld ms): streaming\r\n",
             obs::kNumJoints, ms, static_cast<double>(s_traj_headroom),
             static_cast<unsigned>(s_traj_acc), static_cast<long>(s_traj_bigstep),
-            s_traj_minint_ms);
+            s_traj_minint_ms, s_traj_zv_ms);
         return;
     }
     if (last && last[0] == 't') {
@@ -591,10 +624,12 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
         s_traj_tsent[j] = xTaskGetTickCount();
     }
     s_traj_ms = dur_ms;
-    s_traj_headroom = 0.9f;
+    s_traj_headroom = 1.0f;
     s_traj_acc = 0;
-    s_traj_bigstep = 4;
-    s_traj_minint_ms = 100;
+    s_traj_bigstep = 1;
+    s_traj_minint_ms = 20;
+    s_traj_zv_ms = 0;
+    s_traj_floor = 15.0f;
     s_traj_t0 = xTaskGetTickCount();
     s_traj_last = s_traj_t0;
     s_traj_active = true;
@@ -969,8 +1004,42 @@ void cmdObsDump(Sink out, int argc, char** argv) {
 
 }  // namespace
 
+static void traceTick(scsbus::Bus* bus, TickType_t now) {
+    if (!s_trace_on) return;
+    if (now >= s_trace_until || s_trace_n >= kTraceMax) { s_trace_on = false; return; }
+    scsbus::Feedback f{};
+    if (bus->readFeedback(s_trace_id, f) != scsbus::Status::kOk) return;
+    s_trace_ms[s_trace_n] = static_cast<uint16_t>(pdTICKS_TO_MS(now - s_traj_t0));
+    s_trace_pos[s_trace_n] = static_cast<int16_t>(f.position);
+    s_trace_spd[s_trace_n] = static_cast<int16_t>(f.speed);
+    s_trace_load[s_trace_n] = static_cast<int16_t>(f.load);
+    ++s_trace_n;
+}
+
+void traceDump(Sink out) {
+    say(out, "trace id %u: %d samples (ms pos spd load)\r\n",
+        static_cast<unsigned>(s_trace_id), s_trace_n);
+    for (int k = 0; k < s_trace_n; ++k) {
+        say(out, "T %u %d %d %d\r\n", static_cast<unsigned>(s_trace_ms[k]),
+            static_cast<int>(s_trace_pos[k]), static_cast<int>(s_trace_spd[k]),
+            static_cast<int>(s_trace_load[k]));
+    }
+    out("trace end\r\n");
+}
+
 void poseTick(Sink out) {
-    if (!s_traj_active) return;
+    if (!s_traj_active) {
+        // trace tail after the stream: keep sampling until s_trace_until
+        if (s_trace_on) {
+            const TickType_t now = xTaskGetTickCount();
+            if (now - s_traj_last >= pdMS_TO_TICKS(20)) {
+                s_traj_last = now;
+                scsbus::Bus* bus = claimBus(out);
+                if (bus) traceTick(bus, now);
+            }
+        }
+        return;
+    }
     if (robot::g_ctrl_owns_bus.load() ||
         robot::g_mode_request.load() == robot::Mode::kRun) {
         s_traj_active = false;
@@ -983,11 +1052,24 @@ void poseTick(Sink out) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) { s_traj_active = false; return; }
     const long el = static_cast<long>(pdTICKS_TO_MS(now - s_traj_t0));
-    float tau = static_cast<float>(el) / static_cast<float>(s_traj_ms);
+    // quintic minimum-jerk: s = 10t^3 - 15t^4 + 6t^5, optionally ZV-shaped
+    auto quintic = [](float t) {
+        if (t <= 0.0f) return 0.0f;
+        if (t >= 1.0f) return 1.0f;
+        const float t2 = t * t, t3 = t2 * t, t4 = t3 * t, t5 = t4 * t;
+        return 10.0f * t3 - 15.0f * t4 + 6.0f * t5;
+    };
+    const long total_ms = s_traj_ms + s_traj_zv_ms;
+    float tau = static_cast<float>(el) / static_cast<float>(total_ms);
     if (tau > 1.0f) tau = 1.0f;
-    // quintic minimum-jerk: s = 10t^3 - 15t^4 + 6t^5
-    const float t2 = tau * tau, t3 = t2 * tau, t4 = t3 * tau, t5 = t4 * tau;
-    const float sc = 10.0f * t3 - 15.0f * t4 + 6.0f * t5;
+    float sc;
+    if (s_traj_zv_ms > 0) {
+        const float a = static_cast<float>(el) / static_cast<float>(s_traj_ms);
+        const float b = static_cast<float>(el - s_traj_zv_ms) / static_cast<float>(s_traj_ms);
+        sc = 0.5f * quintic(a) + 0.5f * quintic(b);
+    } else {
+        sc = quintic(static_cast<float>(el) / static_cast<float>(s_traj_ms));
+    }
     // Write rule (Tom 2026-09-03, "make sure we don't have single ticks that
     // are too close together in time"): a joint gets a new goal when it has
     // >= kBigStep ticks to move, or >= 1 tick AND >= kMinIntervalMs since its
@@ -1016,14 +1098,19 @@ void poseTick(Sink out) {
             continue;
         }
         changed = true;
-        // glide: cover this distance over the time this interval took, with
-        // the headroom factor (< 1 keeps the servo running behind the stream
-        // rather than arriving early and stopping). Floor: one tick per
-        // 20 ms tick, never 0 (= unlimited on the wire).
+        // CLOSED-LOOP speed (2026-09-03, knee trace): the speed that closes
+        // the gap from the servo's MEASURED position to this sub-target within
+        // one tick. Open-loop "profile speed x 0.9" let lag accumulate to ~10 %
+        // of the move, which the servo then crept off at the floor speed for
+        // a second after the profile ended -- the wobbly finish.
+        int32_t actual = s_traj_sent[i];
+        bus->readPosition(robot::servoIds()[i], actual);
+        const int32_t gap = want - actual;
+        const int32_t gapmag = gap < 0 ? -gap : gap;
         const long dt_ms = since_ms < 20 ? 20 : since_ms;
-        float v = static_cast<float>(mag) * 1000.0f / static_cast<float>(dt_ms) *
+        float v = static_cast<float>(gapmag) * 1000.0f / static_cast<float>(dt_ms) *
                   s_traj_headroom;
-        if (v < 15.0f) v = 15.0f;
+        if (v < s_traj_floor) v = s_traj_floor;
         if (v > 3400.0f) v = 3400.0f;
         steps[i] = want;
         spds[i] = static_cast<uint16_t>(v);
@@ -1035,6 +1122,7 @@ void poseTick(Sink out) {
         bus->syncWritePositions(robot::servoIds(), steps, spds, obs::kNumJoints,
                                 s_traj_acc);
     }
+    traceTick(bus, now);
     if (tau >= 1.0f) {
         s_traj_active = false;
         say(out, "smooth pose done (%ld ms)\r\n", el);
@@ -1141,6 +1229,20 @@ void cmdImu(Sink out, int argc, char** argv) {
         return;
     }
 
+    if (argc >= 2 && !strcmp(argv[1], "ring")) {
+        const int ms = argc >= 3 ? static_cast<int>(num(argv[2], 2000)) : 2000;
+        robot::RingStats r;
+        if (!robot::imuRing(ms, r)) { out("imu ring: not enough samples\r\n"); return; }
+        say(out, "imu ring: last %d ms, %d samples @ %d ms; horizontal gyro peak %.3f rad/s, "
+                 "RMS first/last quarter %.4f/%.4f, ~%.1f Hz\r\n",
+            ms, r.n, robot::kImuPeriodMs, static_cast<double>(r.peak),
+            static_cast<double>(r.rms_first), static_cast<double>(r.rms_last),
+            static_cast<double>(r.f_hz));
+        out("  envelope (mrad/s per 50 ms):");
+        for (int i = 0; i < r.nbins; ++i) say(out, " %d", static_cast<int>(r.env[i] * 1000.0f + 0.5f));
+        out("\r\n");
+        return;
+    }
     if (argc >= 2 && !strcmp(argv[1], "raw")) {
         int n = (argc >= 3) ? atoi(argv[2]) : 1;
         if (n < 1) n = 1;
@@ -1466,7 +1568,7 @@ void banner(Sink out) {
     out("  cal [show|zero|dir|set|migrate|save|load|reset]   zero + dir (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
-    out("  imu [scan|raw [n]|bias|mount|forget]   on-board QMI8658C (NVS)\r\n");
+    out("  imu [scan|raw [n]|ring [ms]|bias|mount|forget]   QMI8658C; ring = ringing meter\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  stat                 tick timing and fault counters\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");
@@ -1501,9 +1603,12 @@ void execute(const char* line, Sink out) {
     char buf[96];
     strncpy(buf, line, sizeof buf - 1);
     buf[sizeof buf - 1] = 0;
-    // 13 tokens: `pose` + 10 joint targets + [steps/s] + one spare.
-    char* argv[13];
-    const int argc = split(buf, argv, 13);
+    // 24 tokens: `pose` + 10 targets + mode + up to a dozen tuning tokens
+    // (h/a/b/i/f/z/T). It was 13 until 2026-09-03, which silently dropped
+    // every tuning token after the first -- three "A/B/C" bench comparisons
+    // were run on identical settings before this was found.
+    char* argv[24];
+    const int argc = split(buf, argv, 24);
     if (argc == 0) return;
     const char* c = argv[0];
 
@@ -1518,6 +1623,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "middle")) cmdMiddle(out, argc, argv);
     else if (!strcmp(c, "pose")) cmdPose(out, argc, argv);
     else if (!strcmp(c, "reg")) cmdReg(out, argc, argv);
+    else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
