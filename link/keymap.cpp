@@ -48,6 +48,7 @@ const struct {
     {"record", "record toggle"},
     {"reset_ext", "reset ext -> 14 B"},
     {"home", "reset servos -> stand"},
+    {"control", "take control / watch only"},
 };
 
 void trim(char* s) {
@@ -128,6 +129,10 @@ void Keymap::reset() {
     key[kActRecord] = 'r';
     key[kActResetExt] = '0';
     key[kActHome] = 'h';
+    // 't' for take. Deliberately not next to a motion key: this one hands the
+    // robot between two consoles, and a fat finger on the way to an arrow
+    // should not be able to steal it from whoever is flying it.
+    key[kActControl] = 't';
 }
 
 int Keymap::actionFor(int k) const {

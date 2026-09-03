@@ -479,3 +479,59 @@ def test_the_driver_forwards_the_beacon_to_the_watcher():
     # second commander stealing the beacon.
     assert "LINK LOST" not in drv_out, drv_out
     assert obs.returncode == 0, obs_out
+
+
+def test_a_watcher_can_take_control_and_hand_it_back():
+    """The toggle, end to end, against a robot the watcher was only watching.
+
+    Started with --readonly, so nothing it does can reach the twin until it
+    takes control -- and the twin's trace is the oracle for exactly when that
+    changed. Handing back must NOT bench the robot: the whole point of
+    releasing control is that whoever else is driving keeps it, and a parting
+    disarm would be a 1 -> 0 edge on a single global ArmLatch.
+    """
+    cmd_port, tlm_port = _ports()
+    twin = _twin(cmd_port, tlm_port)
+    time.sleep(0.5)
+    # A watcher WITH a --host: it has somewhere to take control to.
+    proc = subprocess.Popen(
+        [GUI, "--headless", "--readonly", "--host", "127.0.0.1",
+         "--cmd-port", str(cmd_port), "--tlm-port", str(tlm_port),
+         "--no-record"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True, bufsize=1)
+    for delay, line in [(0.8, "arm"),            # refused: still watching
+                        (0.5, "control"),        # -> DRIVING
+                        (0.8, "arm"),            # now it really arms
+                        (1.2, "press forward"),
+                        (0.8, "release forward"),
+                        (0.5, "control"),        # -> WATCHING again
+                        (0.8, "press forward"),  # refused again
+                        (0.5, "quit"), (0.5, "")]:
+        time.sleep(delay)
+        if proc.poll() is not None:
+            break
+        proc.stdin.write(line + "\n")
+        proc.stdin.flush()
+    try:
+        out = proc.communicate(timeout=15)[0]
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out = proc.communicate()[0]
+    finally:
+        twin.terminate()
+        log = twin.communicate(timeout=5)[0]
+
+    states = [st for st, _, _, _ in _states(log)]
+    # It could not arm while watching, and could once it had control: the
+    # robot leaves bench exactly once, and only after `control`.
+    assert "live" in states, log
+    assert out.index("took control") < out.index("ARMED"), out
+    # It really drove.
+    assert any(vx == "+0.40" for _, vx, _, _ in _states(log)), log
+    # Handing back left the robot RUNNING -- no parting disarm. The twin's
+    # last state is the robot standing under its own watchdog, not benched by
+    # us; a disarm would have printed a bench transition right after release.
+    assert "no parting disarm" in out, out
+    assert "OBSERVER" in out, out
+    assert proc.returncode == 0, out

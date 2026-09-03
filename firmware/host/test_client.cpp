@@ -528,7 +528,7 @@ void test_readonly_refuses_every_control() {
 // the place the promise is either kept or broken.
 void test_readonly_puts_nothing_on_the_wire() {
     Link link;
-    CHECK(link.listen(0));                // bind an ephemeral port; no tx
+    CHECK(link.listen(0, nullptr, 0));    // bind an ephemeral port; no tx
     CHECK(link.readonly);
     CHECK(link.tx < 0);
 
@@ -585,6 +585,110 @@ void test_watch_spec_splits() {
     CHECK(port == 4211);
 }
 
+// -- the toggle -------------------------------------------------------------
+// Going back and forth must keep `readonly` and "has no transmit socket" in
+// lockstep. If they could ever disagree, the mode's whole promise -- that a
+// watcher CANNOT emit, rather than merely declines to -- would be a comment.
+void test_control_toggle_tracks_the_socket() {
+    Link link;
+    CHECK(link.listen(0, "127.0.0.1", 4210));
+    CHECK(link.readonly && link.tx < 0);
+    CHECK(link.has_dest);
+
+    CHECK(link.takeControl());
+    CHECK(!link.readonly && link.tx >= 0);
+
+    link.goReadonly();
+    CHECK(link.readonly && link.tx < 0);
+    CHECK(link.last_len == 0);
+
+    // ...and a watcher that still cannot send after a round trip.
+    Intent in;
+    in.readonly = true;
+    Speeds s;
+    float vx = 0.0f, vy = 0.0f, wz = 0.0f;
+    Ext ext;
+    uint8_t flags = 0;
+    sendIntent(link, in, s, vx, vy, wz, ext, flags);
+    CHECK(link.sent == 0 && link.seq == 0);
+    link.close();
+}
+
+// Without a --host there is nowhere to take control TO, and the beacon's
+// sender is the forwarding console, not the robot -- so it must NOT be
+// guessed at. The console stays a watcher and says why.
+void test_control_needs_a_destination() {
+    Link link;
+    CHECK(link.listen(0, nullptr, 0));
+    CHECK(!link.has_dest);
+    CHECK(!link.takeControl());
+    CHECK(link.readonly && link.tx < 0);   // still a watcher, not half of one
+    link.close();
+}
+
+// The one that matters. linkproto::ArmLatch is a SINGLE latch on the robot,
+// fed by every decoded frame whoever sent it, tracking a LEVEL. So taking
+// control of a running robot with ARM low is not a neutral start -- it is a
+// 1 -> 0 edge, and the robot benches with torque off and falls over. The
+// handover has to adopt the level the robot is already at.
+void test_taking_control_adopts_the_robots_arm_level() {
+    Link link;
+    Intent in;
+    Speeds s;
+    float vx = 0.0f, vy = 0.0f, wz = 0.0f;
+    Ext ext;
+    uint8_t flags = 0;
+
+    // A robot the OTHER console has armed and is walking.
+    link.have_tlm = true;
+    link.tlm.state = LinkState::kLive;
+    link.tlm_at_ms = 1000.0;
+    in.readonly = true;
+    in.adopt(link, 1000.0);
+    CHECK(!in.readonly);
+    CHECK(in.armed);                       // the level is held...
+    CHECK(!in.moving());                   // ...and nothing is commanded
+    in.frame(s, vx, vy, wz, ext, flags);
+    CHECK((flags & linkproto::kFlagArm) != 0);        // no falling edge: it keeps running
+    CHECK(vx == 0.0f && vy == 0.0f && wz == 0.0f);
+
+    // A benched robot is the other way: adopting "armed" would be a rising
+    // edge that arms a robot nobody asked to arm.
+    Intent in2;
+    link.tlm.state = LinkState::kBench;
+    in2.readonly = true;
+    in2.adopt(link, 1000.0);
+    CHECK(!in2.armed);
+    in2.frame(s, vx, vy, wz, ext, flags);
+    CHECK((flags & linkproto::kFlagArm) == 0);
+
+    // A latched E-stop is a level too, and dropping it would silently clear
+    // the latch the moment the handover happened.
+    Intent in3;
+    link.tlm.state = LinkState::kEstop;
+    in3.readonly = true;
+    in3.adopt(link, 1000.0);
+    CHECK(in3.armed && in3.estop);
+    in3.frame(s, vx, vy, wz, ext, flags);
+    CHECK((flags & linkproto::kFlagEstop) != 0);
+
+    // Torque-off run states (a tripped fall latch, the low-battery pair) still
+    // have the loop ARMED. Reading only kLive here would bench them.
+    Intent in4;
+    link.tlm.state = LinkState::kFallen;
+    in4.readonly = true;
+    in4.adopt(link, 1000.0);
+    CHECK(in4.armed);
+
+    // No fresh beacon: nothing to adopt, and nothing safe to assume.
+    Intent in5;
+    link.tlm.state = LinkState::kLive;
+    in5.readonly = true;
+    in5.adopt(link, 1000.0 + 4.0 * kTlmLostMs);
+    CHECK(!in5.armed && !in5.estop);
+    CHECK(strstr(in5.note, "NO beacon") != nullptr);
+}
+
 }  // namespace
 
 int main() {
@@ -605,6 +709,9 @@ int main() {
     test_readonly_refuses_every_control();
     test_readonly_puts_nothing_on_the_wire();
     test_watch_spec_splits();
+    test_control_toggle_tracks_the_socket();
+    test_control_needs_a_destination();
+    test_taking_control_adopts_the_robots_arm_level();
     test_keymap_names_round_trip();
     test_keymap_bind_is_exclusive();
     test_keymap_file_round_trip();

@@ -123,10 +123,20 @@ struct Link {
     sockaddr_in mirror_to = {};
     bool mirror_on = false;
 
-    // OBSERVER mode: this link has no transmit socket at all (listen() never
-    // creates one), so it cannot put a byte on the wire. Not a policy the UI
-    // enforces -- a policy the file descriptor enforces. See listen().
+    // OBSERVER mode: this link has no transmit socket at all, so it cannot
+    // put a byte on the wire. Not a policy the UI enforces -- a policy the
+    // file descriptor enforces.
+    //
+    // Toggleable (2026-09-03), and the invariant survives the toggle: the
+    // socket is CLOSED on the way into readonly and CREATED on the way out,
+    // so `readonly` and `tx < 0` are never briefly out of step. A flag that
+    // merely guarded a live socket would be a weaker promise than this.
     bool readonly = false;
+    // Whether `to` holds a real destination -- i.e. a --host was given. A
+    // watcher started without one has nowhere to take control TO, and must
+    // say so rather than offer a button that cannot work. The beacon's source
+    // address is NOT a fallback: it is the forwarding driver, not the robot.
+    bool has_dest = false;
 
     // Telemetry fan-out, the observer's other half. The robot beacons to
     // WHOEVER COMMANDED LAST and to nobody else (firmware/main/wifi_link.cpp,
@@ -145,8 +155,32 @@ struct Link {
     bool open(const char* host, int cmd_port, int tlm_port);
     // The observer's open(): bind the beacon port, create NO tx socket, and
     // latch `readonly`. Every send path below is a no-op afterwards, and
-    // would fail on tx == -1 even if one were not.
-    bool listen(int tlm_port);
+    // would fail on tx == -1 even if one were not. `host` may be null -- it
+    // is only remembered, as the destination a later takeControl() uses.
+    bool listen(int tlm_port, const char* host, int cmd_port);
+
+    // -- the toggle ---------------------------------------------------------
+    // Stop commanding: close the transmit socket. Deliberately sends NO
+    // parting disarm, unlike quitting. The robot is being watched precisely
+    // because somebody else is flying it, and THEIR frames hold the arm level
+    // high; a disarm here would be a 1 -> 0 edge that benches the robot
+    // mid-stride out from under the console that owns it. With nobody else
+    // driving, going quiet is what the robot's own watchdog is for (kStaleMs
+    // -> stand, kRelaxMs -> torque off) -- a better failsafe than anything
+    // this end could send.
+    void goReadonly();
+    // Start commanding. False when no --host was given: see has_dest.
+    bool takeControl();
+
+    // Re-point the console at a different robot (or at the sim) without
+    // restarting it, in the given mode. Closes both sockets and re-opens
+    // them, so it is `open`/`listen` and not a patch to a live one -- the
+    // bind is the part that has to change, and a half-moved link is worse
+    // than a closed one. The per-target counters are reset with it: `seq`,
+    // `sent` and the beacon tallies all describe a conversation with ONE
+    // robot, and carrying them across would make `lag` meaningless in
+    // exactly the way the observer's own header had to avoid.
+    bool relink(const char* host, int cmd_port, int tlm_port, bool observe);
     bool setMirror(const char* host, int port);
     void clearMirror() { mirror_on = false; }
     bool setWatch(const char* host, int port);
@@ -240,6 +274,26 @@ struct Intent {
     // What goes on the wire this tick.
     void frame(const Speeds& s, float& vx, float& vy, float& wz, Ext& ext_out,
                uint8_t& flags) const;
+
+    // Take over from whoever is driving, WITHOUT moving the robot.
+    //
+    // This is the one genuinely dangerous moment in the observer feature, and
+    // the danger is not obvious. linkproto::ArmLatch is a SINGLE latch on the
+    // robot fed by every decoded frame in arrival order, whoever sent it --
+    // it tracks a level, not a per-sender session. So a console that starts
+    // commanding a LIVE robot with ARM low does not "begin disarmed": it puts
+    // a 1 -> 0 edge on the wire, and the robot benches with torque off and
+    // falls over, mid-stride, as the direct result of someone clicking a
+    // button labelled "take control".
+    //
+    // So the handover ADOPTS the level the robot is already reporting, and is
+    // a no-op on the wire by construction: armed if the beacon says the loop
+    // is running, E-stopped if it says latched, and no axis held either way,
+    // so the robot keeps standing until an actual key is pressed. With no
+    // fresh beacon there is nothing to adopt and nothing safe to assume, so
+    // it starts disarmed -- benching a robot we cannot see is the right
+    // answer to not knowing.
+    void adopt(const Link& link, double now_ms);
 
     // The robot is authoritative: armed here but BENCH there, after the edge
     // has had time to land, means the arm was refused or the robot rebooted.

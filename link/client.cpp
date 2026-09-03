@@ -109,12 +109,14 @@ void Ext::reset() {
 
 // -- Link -------------------------------------------------------------------
 bool Link::open(const char* host, int cmd_port, int tlm_port) {
+    readonly = false;
     tx = socket(AF_INET, SOCK_DGRAM, 0);
     rx = socket(AF_INET, SOCK_DGRAM, 0);
     if (tx < 0 || rx < 0) return false;
     to.sin_family = AF_INET;
     to.sin_port = htons(static_cast<uint16_t>(cmd_port));
     if (inet_pton(AF_INET, host, &to.sin_addr) != 1) return false;
+    has_dest = true;
     int one = 1;
     setsockopt(rx, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
     sockaddr_in bind_addr = {};
@@ -132,9 +134,18 @@ bool Link::open(const char* host, int cmd_port, int tlm_port) {
 // The observer's open(). Deliberately NOT `open(nullptr, ...)`: a mode that
 // cannot transmit should not share a constructor with one that can, and the
 // difference an operator's safety rests on should be visible at the call site.
-bool Link::listen(int tlm_port) {
+bool Link::listen(int tlm_port, const char* host, int cmd_port) {
     readonly = true;
-    tx = -1;                      // no transmit socket exists, and none will
+    tx = -1;                      // no transmit socket exists yet
+    // Resolved but not connected: `to` is where takeControl() would send, and
+    // resolving it now means a bad --host is a startup error rather than a
+    // button that fails at the moment it is finally needed.
+    if (host != nullptr) {
+        to.sin_family = AF_INET;
+        to.sin_port = htons(static_cast<uint16_t>(cmd_port));
+        if (inet_pton(AF_INET, host, &to.sin_addr) != 1) return false;
+        has_dest = true;
+    }
     rx = socket(AF_INET, SOCK_DGRAM, 0);
     if (rx < 0) return false;
     int one = 1;
@@ -154,6 +165,42 @@ bool Link::listen(int tlm_port) {
     timeval tv = {0, 0};
     setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     return true;
+}
+
+void Link::goReadonly() {
+    if (tx >= 0) ::close(tx);
+    tx = -1;
+    readonly = true;
+    // Zeroed so the status line cannot go on reporting the size of the last
+    // frame from a console that is no longer sending any.
+    last_len = 0;
+}
+
+bool Link::takeControl() {
+    if (!has_dest) return false;
+    if (tx < 0) {
+        tx = socket(AF_INET, SOCK_DGRAM, 0);
+        if (tx < 0) return false;
+    }
+    // Last, and only once the socket is real: readonly must never read false
+    // while there is still nothing to send on.
+    readonly = false;
+    return true;
+}
+
+bool Link::relink(const char* host, int cmd_port, int tlm_port, bool observe) {
+    close();
+    has_dest = false;
+    seq = sent = 0;
+    last_len = 0;
+    have_tlm = false;
+    tlm_at_ms = -1.0;
+    tlm_count = tlm_bad = watched = 0;
+    rate_window = 0;
+    rate_hz = 0.0;
+    rate_at_ms = 0.0;
+    if (observe) return listen(tlm_port, host, cmd_port);
+    return open(host, cmd_port, tlm_port);
 }
 
 bool Link::setMirror(const char* host, int port) {
@@ -400,6 +447,35 @@ void Intent::fireEstop() {
     estop = true;
     releaseAll();
     say("E-STOP sent (latched until [space])");
+}
+
+void Intent::adopt(const Link& link, double now_ms) {
+    readonly = false;
+    releaseAll();
+    home_frames = 0;
+    home_at_ms = -1.0;
+    const bool fresh = link.have_tlm && !link.linkLost(now_ms);
+    const LinkState st = link.tlm.state;
+    // "Armed" is the loop RUNNING, which is every state except kBench --
+    // including kFallen and the low-battery pair, where torque is off but the
+    // loop still holds the arm level. Reading only kLive here would drop the
+    // level on a robot that had merely tripped its fall latch, benching it.
+    armed = fresh && st != LinkState::kBench;
+    estop = fresh && st == LinkState::kEstop;
+    // The grace period starts now: syncToRobot gives an arm kArmSyncMs to be
+    // reflected, and an adopted level has had no edge of its own to wait on.
+    armed_at_ms = now_ms;
+    if (!fresh) {
+        say("took control with NO beacon: starting disarmed, which benches "
+            "the robot if it was running. Nothing else is safe without "
+            "knowing what it is doing.");
+    } else if (armed) {
+        say("took control of a RUNNING robot: holding its arm level so the "
+            "handover moves nothing. It stands until you press a key.");
+    } else {
+        say("took control: the robot is benched, so this console is "
+            "disarmed too. Press [a] to arm.");
+    }
 }
 
 void Intent::frame(const Speeds& s, float& vx, float& vy, float& wz,

@@ -33,6 +33,7 @@ enum Action {
     kActRecord,
     kActResetExt,
     kActHome,
+    kActControl,
     kActCount,
 };
 
