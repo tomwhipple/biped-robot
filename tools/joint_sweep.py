@@ -4,6 +4,8 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('out'); ap.add_argument('--joints', default='L_hip_roll,R_hip_roll,L_hip_pitch,R_hip_pitch,L_ankle,R_ankle,L_knee,R_knee')
 ap.add_argument('--step', type=float, default=0.5); ap.add_argument('--max', type=float, default=4.0)
 ap.add_argument('--tilt-abort', type=float, default=8.0); ap.add_argument('--home-after', action='store_true', default=True)
+ap.add_argument('--spd', type=int, default=10, help='step slew, ticks/s (10 = quasi-static; 60 rang the structure on a single-leg stance, Tom 2026-09-03)')
+ap.add_argument('--settle', type=float, default=1.0, help='seconds after a step before reading tilt')
 ap.add_argument('--base', default='', help='baseline pose offsets held on non-swept joints, e.g. R_knee=-30,R_hip_pitch=10 (deg, joint sign)')
 A = ap.parse_args(); OUT = A.out
 CAL = [  # (name, id, zero, dir) joint order
@@ -18,7 +20,7 @@ ALL10 = list(CAL)
 BASE = {kv.split('=')[0]: float(kv.split('=')[1]) for kv in A.base.split(',') if kv}
 def base_ticks(name, zero, d): return int(round(zero + d*BASE.get(name, 0.0)*TPD))
 CAL = [c for c in CAL if c[0] in A.joints.split(',')]
-LOAD_ABORT = 250; LOAD_FREE = 60; TILT_ABORT_DEG = A.tilt_abort; SPD = 60
+LOAD_ABORT = 250; LOAD_FREE = 60; TILT_ABORT_DEG = A.tilt_abort; SPD = A.spd
 def openport():
     for _ in range(60):
         try:
@@ -77,11 +79,13 @@ csvf = open(OUT,'w',newline=''); w = csv.writer(csvf); w.writerow(['joint','id',
 for name,i,zero,d in CAL:
     p0 = pos(i); print(f'== {name} id {i} start pos {p0}', flush=True)
     aborted = None
+    prev_deg = 0.0
     for deg in STEPS:
         goal = int(round(zero + d*(deg + BASE.get(name, 0.0))*TPD))
-        o = cmd(f'move {i} {goal} 0 {SPD}', until=r'(: ok|refusing|torque is OFF)'); time.sleep(0.45)
+        o = cmd(f'move {i} {goal} 0 {SPD}', until=r'(: ok|refusing|torque is OFF)'); time.sleep(abs(deg-prev_deg)*TPD/SPD + A.settle)
         if 'torque is OFF' in o or 'refusing' in o: aborted=f'gate: {o.strip()[:60]}'; break
         p = pos(i); a = imu(); tilt = ang(base,a) if (a and base) else float('nan')
+        prev_deg = deg
         if p is None: aborted='no feedback'; break
         w.writerow([name,i,deg,goal,p[0],p[0]-goal,p[2],p[1],f'{tilt:.2f}',f'{time.time():.2f}'])
         csvf.flush()

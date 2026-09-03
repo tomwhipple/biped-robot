@@ -177,6 +177,36 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     is not a direction check, and never change <code>cal dir</code> on
     inferred evidence. Data: hw_sessions/2026-09-03/yaw2.csv,
     yaw3_opposite.csv, yawcheck_*.jpg, sim_ref/sim_yaw.txt.</p>
+    <p><b>Afternoon: the clean play numbers, one clamped foot at a time.</b>
+    Tom clamped one foot to the desk and the other leg was lifted clear
+    (<code>joint_sweep --base</code> holds the free leg at hip −25°, knee
+    −50°, ankle −25°, roll +10° — a −40° hip swing leaned the torso ~14°
+    and crept; both-feet-clamped locks the torso and measures nothing).
+    The clamped leg is the loaded leg by construction, so every joint
+    finally reads under real load (90–170 counts) with real hysteresis.
+    Torso-tilt hysteresis at the same command, hw / rigid sim: <b>L hip
+    roll 1.06/0.20, L hip pitch 0.97/0.20, L ankle 1.44/0.00, L knee
+    1.35/0.00, R hip pitch 0.58/0.10, R hip roll 0.82/0.10, R knee
+    0.70/0.00</b>. Separately, the loaded servos sit 10–20 ticks (up to
+    1.8°) short of goal — about 16 N·m/rad, which the sim's kp = 12 servo
+    already models. So the un-modelled part is <b>~1–1.5° of mechanical
+    hysteresis per loaded joint, both legs, all axes</b>; yesterday's
+    "pitch is tighter" came from unloaded legs. Then the outlier: the
+    <b>right ankle</b>. At +1.0° of ankle the torso jumped 0.4→5.2° and,
+    on a repeat with the free foot raised higher, 0.5→6.5° — identical
+    ticks both times: servo lag −4→+1, load −40→0. The right knee at −1.0°
+    did the same (5.9°). The right ankle is holding the robot's pitch
+    moment on one side of a ~5° gap and a 1° command drops the robot
+    through it; the left ankle swept ±4° smoothly. <b>Inspect the right
+    ankle</b> (horn, bracket, screws) before trusting any right-leg
+    number. Two more of Tom's observations went straight into the tool:
+    the 0.5° steps at 60 ticks/s were jerky and rang the structure on a
+    single-leg stance while the big lift moves were smooth
+    (<code>joint_sweep</code> now steps at 10 ticks/s with a 1 s settle),
+    and the clamped-foot configuration looks like a better range-of-motion
+    rig than the hang stand — the swept leg is loaded as in use and the
+    free leg can be posed anywhere. Data: hw_sessions/2026-09-03/
+    sweep6_Lclamped.csv, sweep12–14_Rclamped.csv.</p>
   </div>
 
   <div class="card accent">
