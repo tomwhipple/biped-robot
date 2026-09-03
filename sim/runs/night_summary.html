@@ -318,6 +318,41 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     hip-roll abduction is +L and −R in the model; a +10° "abduction" on the
     lifted right leg swung it into the left. Data: hw_sessions/2026-09-03/
     ankleR3*, ankleL2*.</p>
+    <p><b>Evening: "the goal is to run the robot via policy."</b> Tom's
+    words, after the v26lag student fell the instant he armed it. So:
+    <b>loco_v27tilt_b_s128r24</b> — the referee's best under the measured
+    servo (41/144, 38 % falls) — was exported, its obs spec and weights
+    regenerated (host suite green) and flashed. Three recorded arms, Tom
+    spotting: it <b>stood 6 s</b> (torso within 0.97) and toppled when my
+    probe's disarm froze the joints mid-sway (Tom: "disarming torque does
+    nothing" — friction holds, the rigid body tips; the probe now ends with
+    the reset edge while still armed); then fell at 3.4 s; then at 2.4 s
+    with the shaper pole at 4 Hz. Every trace reads the same: a quiet
+    symmetric stand for a second, then <b>growing alternating hip-pitch
+    swings</b> — −9, −12, −24, −31° on the left against +6, +14, −21° on
+    the right, knees ±10°, at 1–2 Hz — until the torso passes 25–40°.
+    Tom: "the amount of time it remains upright is random chance; all
+    examples show destructive oscillations." The referee says this student
+    stands 8/8 under lag in sim, so this is a plant or sensor gap, and one
+    sensor got looked at hard: the gyro. Its x axis is the body pitch axis
+    after the mount, its raw zero-rate is 27°/s (far out of spec, though
+    steady at rest over 32 s), its stored bias was stale by ~1.5°/s on two
+    axes (recalibrated, saved), it is twice as noisy as the other axes, and
+    one move test integrated 2–2.7× the accelerometer's tilt change — the
+    scale question is <i>open</i>, and a known rotation by hand settles it.
+    Also found and fixed on the way: with the 250 Hz sampler, every flash
+    left the I2C bus hung and the firmware on the stub IMU; boot now clocks
+    the bus free (3 × 32 pulses) and <code>imu reinit</code> does it live.
+    <b>Training, per Tom's ask:</b> the trainer and referee gained a
+    per-episode joint <b>zero-offset</b> randomisation (±Z°, obs minus the
+    offset, targets plus it — the rezero moved the zeros 1–4.7° today and
+    the policy must not care), parity test green, and
+    <code>loco_v28crouch</code> is queued <i>first</i> for the GPU run,
+    which now starts at 20:00: v27tilt_b's recipe with the crouch share
+    raised 6 → 30 %, crouch to half height, backlash 0.5–1.5°, zero-offset
+    3°, chained distill and lag referee. What a retrain cannot fix, and what
+    tonight's run does not model: the load-reversal lurch, the 2.5 Hz mode,
+    and whatever the pitch gyro is doing. Robot released at home.</p>
   </div>
 
   <div class="card accent">
