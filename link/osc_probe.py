@@ -144,12 +144,13 @@ def main():
                                 "ARM|POSE zero-command stand")
         if verdict and not verdict.startswith("home not confirmed"):
             d.emergency(verdict)
-        elif not verdict:
-            d.run_for(1.0, arm_off, "disarm: ARM=0 frames")
-        # A bare disarm releases torque -- a robot caught mid-sway goes limp and
-        # falls (2026-09-03: stood 6 s, fell at the disarm). End every run with
-        # a RESET SERVOS edge: torque on, smooth home, readback.
-        d.run_for(0.4, lambda t: (0.0, 0.0, FLAG_HOME), "end: RESET SERVOS edge")
+        # End of run: the RESET SERVOS edge sent WHILE STILL ARMED. A disarm
+        # first froze the joints wherever the sway had them and the robot
+        # toppled as a rigid body (2026-09-03, stood 6 s, fell on the
+        # disarm). kFlagHome is honoured from the armed state: the firmware
+        # benches and homes in one go, torque continuous but for its own
+        # handover.
+        d.run_for(0.4, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_HOME), "end: RESET SERVOS edge (still armed)")
         for _ in range(10):
             d.run_for(1.0, arm_off, "home settle")
             r = diag_arm_result(d.tlm.diag) if d.tlm is not None else None
