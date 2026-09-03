@@ -5,7 +5,17 @@
 
 ## Branching
 
-Work on a branch and open a pull request.
+**Meaningful changes go on a branch with a pull request.** A new capability, a
+plant or reward change, a firmware change that will be flashed, a rework of how
+something is done — those get a branch, so there is a place to see them whole.
+
+Small ones do not. A typo, a doc touch-up, a report, a regenerated artifact, a
+number corrected after a bench session: commit those straight to `main`.
+
+**Most changes here will not be reviewed.** The PR is a record of a substantial
+change, not a gate waiting on an approval that is not coming — open it, and do
+not sit blocked on it. The real gates are the ones below, and the physical
+ones: a part that prints and fits, a bench measurement.
 
 Keep local `main` in sync with `origin/main`: fetch and rebase before working,
 push after. `origin/main` moves often — expect to rebase mid-task, and re-check
