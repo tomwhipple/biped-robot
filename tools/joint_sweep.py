@@ -8,11 +8,11 @@ ap.add_argument('--spd', type=int, default=10, help='step slew, ticks/s (10 = qu
 ap.add_argument('--settle', type=float, default=1.0, help='seconds after a step before reading tilt')
 ap.add_argument('--base', default='', help='baseline pose offsets held on non-swept joints, e.g. R_knee=-30,R_hip_pitch=10 (deg, joint sign)')
 A = ap.parse_args(); OUT = A.out
-CAL = [  # (name, id, zero, dir) joint order
- ("L_hip_roll",5,2420,-1),("R_hip_roll",1,3533,-1),
- ("L_hip_pitch",6,2044,+1),("R_hip_pitch",2,2501,+1),
- ("L_ankle",8,3516,+1),("R_ankle",4,3450,+1),
- ("L_knee",7,1634,-1),("R_knee",3,2050,-1)]
+CAL = [  # (name, id, zero, dir) joint order -- zeros re-latched 2026-09-03 (cal zero after horn screws tightened); keep in sync with asbuilt_cal.h
+ ("L_hip_roll",5,2418,-1),("R_hip_roll",1,3532,-1),
+ ("L_hip_pitch",6,2001,+1),("R_hip_pitch",2,2479,+1),
+ ("L_ankle",8,3535,+1),("R_ankle",4,3437,+1),
+ ("L_knee",7,1581,-1),("R_knee",3,2063,-1)]
 TPD = 4096/360.0
 N = int(round(A.max / A.step))
 STEPS = [k*A.step for k in range(0, N+1)] + [k*A.step for k in range(N-1, -N-1, -1)] + [k*A.step for k in range(-N+1, 1)]

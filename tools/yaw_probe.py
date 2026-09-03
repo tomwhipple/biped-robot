@@ -16,8 +16,8 @@ ap.add_argument('out'); ap.add_argument('--modes', default='both,left,right,oppo
 ap.add_argument('--max', type=float, default=4.0); ap.add_argument('--step', type=float, default=2.0)
 ap.add_argument('--spd', type=int, default=15); ap.add_argument('--tilt-abort', type=float, default=6.0)
 A = ap.parse_args()
-CAL = [("L_hip_yaw",10,1693,+1),("L_hip_roll",5,2420,-1),("L_hip_pitch",6,2044,+1),("L_knee",7,1634,-1),("L_ankle",8,3516,+1),
-       ("R_hip_yaw",9,1803,+1),("R_hip_roll",1,3533,-1),("R_hip_pitch",2,2501,+1),("R_knee",3,2050,-1),("R_ankle",4,3450,+1)]
+CAL = [("L_hip_yaw",10,1692,+1),("L_hip_roll",5,2418,-1),("L_hip_pitch",6,2001,+1),("L_knee",7,1581,-1),("L_ankle",8,3535,+1),
+       ("R_hip_yaw",9,1806,+1),("R_hip_roll",1,3532,-1),("R_hip_pitch",2,2479,+1),("R_knee",3,2063,-1),("R_ankle",4,3437,+1)]
 TPD = 4096/360.0
 N = int(round(A.max/A.step))
 STEPS = [k*A.step for k in range(1, N+1)] + [k*A.step for k in range(N-1, -N-1, -1)] + [k*A.step for k in range(-N+1, 1)]
