@@ -66,11 +66,12 @@ constexpr size_t kTlmLenExtV1 = kTlmLenV1 + 2 * kNumJoints;   // legacy
 // would blind every mirror-mode client already built.
 //
 // Four lengths, and they stay unambiguous because each block has a fixed
-// size: 20 base, 24 +att, 40 +joints, 44 +joints+att. The CRC is already
-// "over len-2, appended at len-2", so the framing needed no change at all.
+// size: 28 base (18 body + 8 t_us), 32 +att, 48 +joints, 52 +joints+att.
+// The CRC is already "over len-2, appended at len-2", so the framing needed
+// no change at all.
 constexpr size_t kTlmAttBytes = 4;
-constexpr size_t kTlmLenAtt = kTlmLen + kTlmAttBytes;              // 24
-constexpr size_t kTlmLenExtAtt = kTlmLenExt + kTlmAttBytes;        // 44
+constexpr size_t kTlmLenAtt = kTlmLen + kTlmAttBytes;              // 32
+constexpr size_t kTlmLenExtAtt = kTlmLenExt + kTlmAttBytes;        // 52
 constexpr size_t kTlmLenMax = kTlmLenExtAtt;
 
 constexpr uint16_t kCmdPort = 4210;
