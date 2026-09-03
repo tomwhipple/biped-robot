@@ -1885,9 +1885,13 @@ def main():
         if succ == args.episodes:
             scen_all_pass += 1
 
-        # per-metric mean/worst across seeds
-        mkeys = results[0]["metrics"].keys()
-        metrics = {k: _agg([r["metrics"][k] for r in results]) for k in mkeys}
+        # per-metric mean/worst across seeds. A seed that falls before a
+        # metric exists (e.g. speed_mae with zero completed rungs) simply
+        # lacks the key -- aggregate over the seeds that have it instead of
+        # KeyError-ing the whole card (bit fall-heavy infants, 2026-09-03)
+        mkeys = {k for r in results for k in r["metrics"]}
+        metrics = {k: _agg([r["metrics"][k] for r in results
+                            if k in r["metrics"]]) for k in mkeys}
         shared_keys = ("wobble_rms", "mean_watts", "mean_speed", "foot_slip",
                        "symmetry")
         sh = {k: _agg([r["shared"][k] for r in results]) for k in shared_keys}

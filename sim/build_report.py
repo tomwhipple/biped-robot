@@ -491,6 +491,37 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   </div>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·03 · training thread</span></p>
+    <p><b>v27full is born, and it is healthy — the first policy raised
+    entirely inside the measured servo.</b> Night 1 of the from-scratch
+    synthesis (v25full recipe + act-lag 2–12 Hz + speed-clock ×1.25 from
+    step zero) reached 59M steps before the 07:00 hard stop, reward
+    −75 → 713 peak / 640 at the cut — and at the 35M mark it sits at 536
+    vs the v25full benchmark's 507 at the same age: <b>carrying the lag
+    contract costs nothing in growth rate</b>. Its column signature
+    proves the adaptation: 0/144 with 126 W of thrash on the lag-less
+    plant, 16/144 at a calm 3.3 W in its own lagged world (falls 79%,
+    rhythm 60%/CV 0.58 — the usual infancy, v25full looked the same at
+    this age; judge by curve, reel is an infant reel). From here the
+    lag column is the only honest CPU judge for the v27 era.
+    <b>v27full_b continues tonight, same contract.</b> Second result:
+    the 24-round re-distill worked — <b>v27tilt_b_s128r24 = 41/144</b>
+    under measured lag (12-round student 28, teacher 46; stand_off 8/8,
+    push_gauntlet 4/8), so DAgger depth was the distillation bottleneck
+    and the chained lag-referee CMD job pattern held. That student is
+    now the best deployable candidate we own — 2.2× the flashed
+    v26lag_s128's 19 — pending the real-robot A/B (kanban t_856978e0),
+    which the hardware thread's evening finding makes more interesting:
+    their roll-limit-cycle work says ~3° of passive hip-roll PLAY —
+    free hysteresis, a third plant term nothing in sim models yet — is
+    what actually topples real stands; their measure-then-model plan is
+    the right order, and once the twin rocks like the robot the fleet
+    re-ranks again. Housekeeping: fixed the eval_precision
+    <code>speed_mae</code> KeyError that fall-heavy infants trigger
+    (it's why the collect gave v27full only a SIL card).</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·02 · training thread</span></p>
     <p><b>The referee got the measured servo — and the fleet ranking
     inverted.</b> Following the morning card's finding (below), the CPU
