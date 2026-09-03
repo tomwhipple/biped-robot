@@ -245,6 +245,32 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     spotting, or train with a jerk penalty. Robot left with torque
     released, Tom's idle state. Data: hw_sessions/2026-09-03/rom_*,
     hold_hunt20*, servo_registers.txt, rezero.log.</p>
+    <p><b>Late evening, Tom watching the one-motion crouch.</b> "Much
+    better — still some random shakes on the ends", then "make sure we
+    don't have single ticks that are too close together in time", then
+    the architecture rule: <i>the control loop runs entirely on the robot;
+    if a position is commanded the controller takes it there smoothly;
+    telemetry back is a debug tool we can switch off.</i> So the streamer
+    grew live tokens (<code>h</code> speed headroom, <code>a</code> servo
+    accel, <code>b</code>/<code>i</code> glide rule: a joint is written
+    when it has ≥ b ticks to go or ≥ 1 tick and ≥ i ms since its last
+    write, speed = distance over the interval, so small end-of-profile
+    steps become slow continuous creeps instead of 50 Hz pokes against the
+    1-tick dead zone), and <b><code>pose</code> is now smooth by default</b>
+    with the duration from the longest move. A camera frame-difference
+    meter (<code>tools/video_shake.py</code>) ranked the old 125 % speed
+    setting worst and 90 % best, but cannot resolve the end shakes Tom
+    sees — his eye is the meter there, and the A/B/C of glide settings is
+    still his call. Then "increase the IMU sample and control loop rate as
+    much as practical": the loop stays at 50 Hz (the policy net is 7.5 ms
+    of the 20 ms tick and the policy is trained at that step — a faster
+    net and a retrain is the project item), but the IMU now has its own
+    <b>250 Hz task</b> (<code>imu_sampler.cpp</code>): attitude filter at
+    4 ms, tick-averaged gyro to the loop instead of one aliased sample per
+    tick, I2C mutex for the bench commands, counters in <code>stat</code>.
+    Verified live: 250/s with zero failures, e-stop-armed loop 0 % late.
+    The full armed budget and the effect on the stand wait for a live arm
+    with Tom spotting.</p>
   </div>
 
   <div class="card accent">
