@@ -662,6 +662,26 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     3°, chained distill and lag referee. What a retrain cannot fix, and what
     tonight's run does not model: the load-reversal lurch, the 2.5 Hz mode,
     and whatever the pitch gyro is doing. Robot released at home.</p>
+    <p><b>Later: the pitch gyro over-read by 18 %, and the firmware now
+    corrects it.</b> Tom clamped the left foot ("hand input will not
+    produce accurate results"); <code>tools/imu_scale_check.py</code>
+    lifts the free leg, swings the stance ankle ±8° over 2 s, and compares
+    the accelerometer's tilt change <i>at rest</i> before and after each
+    move with the gyro integral through it (the rest reading answers
+    Tom's moment-arm question: no arm enters a static gravity direction).
+    Pitch axis: ratio <b>1.16 / 1.18 / 1.19</b>; roll axis (hip roll on
+    the same clamp): 1.03 / 1.03 / 1.02, which validates the method. An
+    18 % hot pitch rate is a phantom velocity on exactly the axis the
+    policy oscillates in. Firmware gained a per-axis gyro <b>scale</b> in
+    the sensor frame (own NVS record, unity when absent, <code>imu gscale
+    x y z</code> sets and saves), set to 0.851 on sensor x; the bias was
+    re-taken under it (−0.4675 → −0.3951 = 0.851×, as it must be) and the
+    same clamped test now reads <b>1.01 / 1.01 / 1.04</b>. Also moved
+    <code>imu reinit</code> above the stub check — the one time you need
+    it is when boot fell back to the stub, and that path was refusing it.
+    Not yet re-armed under the corrected gyro; that is the next arm test,
+    with the same probe and cameras. Data:
+    hw_sessions/2026-09-03/imu_scale_L*.log; firmware 3afe7d7.</p>
   </div>
 
   <div class="card accent">
