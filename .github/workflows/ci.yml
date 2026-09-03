@@ -37,6 +37,35 @@ jobs:
       - name: make test
         run: make -C firmware/host test
 
+  # The TARGET build -- the one gap this file had, and the one that matters
+  # most for a firmware change.
+  #
+  # Everything else here compiles firmware/components for the HOST. That
+  # covers linkproto, obs, policy and the rest, but it never touches
+  # firmware/main: wifi_link.cpp, ctrl_task.cpp, shared.h, cli.cpp are
+  # ESP-IDF-only and were compiled by exactly one thing -- somebody's laptop,
+  # if they happened to have the toolchain installed and remembered.
+  #
+  # Found the honest way (2026-09-03): a telemetry change touching
+  # wifi_link.cpp and ctrl_task.cpp passed the whole suite locally, because
+  # the whole suite cannot see those files. The next step after that is
+  # flashing a robot with code no machine has ever compiled.
+  #
+  # No hardware and no flashing here -- this links the image, which is the
+  # part a compiler can check.
+  esp32-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: idf.py build (esp32)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          # Track the toolchain the project is actually developed against;
+          # firmware/README.md's setup instructions install this one.
+          esp_idf_version: v5.4
+          target: esp32
+          path: firmware
+
   # CMakeLists.txt and the Makefile are two descriptions of the same build,
   # and both files carry a "keep the two in step" comment. This is what makes
   # that a failing test rather than a hope.
