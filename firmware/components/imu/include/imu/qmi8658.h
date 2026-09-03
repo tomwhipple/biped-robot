@@ -75,6 +75,9 @@ class Qmi8658Imu : public Imu {
     // Tear the I2C bus down, run the bus recovery, and init again -- for the
     // bench (`imu reinit`) when a reset left the sensor holding SDA low.
     bool reinit();
+    // Per-axis gyro scale correction, SENSOR frame, applied before bias/mount.
+    void setGyroScale(const float s[3]);
+    void gyroScale(float out[3]) const;
     bool read(Sample& out) override;
     const char* name() const override {
         return use_ae_ ? "qmi8658c/ae" : "qmi8658c/raw";
@@ -151,6 +154,7 @@ class Qmi8658Imu : public Imu {
     bool aligned_ = false;
     uint32_t tear_count_ = 0;   // torn-read rejections (readRawUnbiased)
     float bias_[3] = {0.0f, 0.0f, 0.0f};
+    float gscale_[3] = {1.0f, 1.0f, 1.0f};
     float accel_scale_ = 0.0f;   // LSB -> m/s^2
     float gyro_scale_ = 0.0f;    // LSB -> rad/s
     uint64_t last_us_ = 0;

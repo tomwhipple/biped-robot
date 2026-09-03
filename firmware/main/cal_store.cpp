@@ -203,6 +203,42 @@ bool imuCalSave(const float bias[3], const float mount[4]) {
     return cerr == ESP_OK;
 }
 
+namespace {
+constexpr uint32_t kGsMagic = 0x47535331;   // 'GSS1'
+constexpr char kGsKey[] = "imu_gscale";
+struct GyroScaleBlob { uint32_t magic; float scale[3]; uint32_t crc; };
+}  // namespace
+
+bool imuGyroScaleLoad(float scale_out[3]) {
+    nvs_handle_t h;
+    if (nvs_open(kNs, NVS_READONLY, &h) != ESP_OK) return false;
+    GyroScaleBlob blob{};
+    size_t len = sizeof blob;
+    const esp_err_t err = nvs_get_blob(h, kGsKey, &blob, &len);
+    nvs_close(h);
+    if (err != ESP_OK || len != sizeof blob) return false;
+    if (blob.magic != kGsMagic) return false;
+    if (blob.crc != calCrc32(&blob, offsetof(GyroScaleBlob, crc))) return false;
+    for (int i = 0; i < 3; ++i) {
+        if (!(blob.scale[i] > 0.5f && blob.scale[i] < 2.0f)) return false;
+        scale_out[i] = blob.scale[i];
+    }
+    return true;
+}
+
+bool imuGyroScaleSave(const float scale[3]) {
+    GyroScaleBlob blob{};
+    blob.magic = kGsMagic;
+    for (int i = 0; i < 3; ++i) blob.scale[i] = scale[i];
+    blob.crc = calCrc32(&blob, offsetof(GyroScaleBlob, crc));
+    nvs_handle_t h;
+    if (nvs_open(kNs, NVS_READWRITE, &h) != ESP_OK) return false;
+    const esp_err_t err = nvs_set_blob(h, kGsKey, &blob, sizeof blob);
+    const esp_err_t cerr = (err == ESP_OK) ? nvs_commit(h) : err;
+    nvs_close(h);
+    return cerr == ESP_OK;
+}
+
 bool imuCalErase() {
     nvs_handle_t h;
     if (nvs_open(kNs, NVS_READWRITE, &h) != ESP_OK) return false;

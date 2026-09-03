@@ -141,6 +141,10 @@ extern "C" void app_main(void) {
     if (imu_ok) {
         float bias[3] = {0.0f, 0.0f, 0.0f};
         float mount[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+        {
+            float gs[3];
+            if (imuGyroScaleLoad(gs)) g_qmi.setGyroScale(gs);
+        }
         g_imu_cal_from_nvs = imuCalLoad(bias, mount);
         if (g_imu_cal_from_nvs) {
             g_qmi.setBias(bias);

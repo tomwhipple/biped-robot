@@ -1223,18 +1223,37 @@ void cmdImu(Sink out, int argc, char** argv) {
         return;
     }
 
+    if (argc >= 2 && !strcmp(argv[1], "reinit")) {
+        // bench-only: recover a hung bus and re-init the QMI without a
+        // flash. Must sit ABOVE the stub check: a flash that resets the board
+        // mid-read leaves SDA held and boot falls back to the stub. If it comes back, the sampler task keeps reading it (it
+        // holds the same object); if we booted on the stub, say so.
+        out(robot::imuReinitLive() ? "imu reinit: QMI8658C is back\r\n"
+                            : "imu reinit: still not answering (power-cycle the board)\r\n");
+        return;
+    }
     if (!dev) {
         out("imu: running on the STUB -- the QMI8658C did not answer at boot\r\n"
             "  `imu scan` to see what is on the bus\r\n");
         return;
     }
 
-    if (argc >= 2 && !strcmp(argv[1], "reinit")) {
-        // bench-only: recover a hung bus and re-init the QMI without a
-        // flash. If it comes back, the sampler task keeps reading it (it
-        // holds the same object); if we booted on the stub, say so.
-        out(robot::imuReinitLive() ? "imu reinit: QMI8658C is back\r\n"
-                            : "imu reinit: still not answering (power-cycle the board)\r\n");
+    if (argc >= 2 && !strcmp(argv[1], "gscale")) {
+        // per-axis gyro scale (SENSOR frame). `imu gscale` prints; three
+        // numbers set + save to NVS. Measured with tools/imu_scale_check.py.
+        if (argc >= 5) {
+            float gs[3];
+            for (int i = 0; i < 3; ++i) gs[i] = static_cast<float>(atof(argv[2 + i]));
+            for (int i = 0; i < 3; ++i) {
+                if (!(gs[i] > 0.5f && gs[i] < 2.0f)) { out("gscale: each factor must be in (0.5, 2)\r\n"); return; }
+            }
+            dev->setGyroScale(gs);
+            out(robot::imuGyroScaleSave(gs) ? "gscale saved to NVS\r\n" : "gscale: NVS save FAILED\r\n");
+        }
+        float cur[3];
+        dev->gyroScale(cur);
+        say(out, "gyro scale (sensor frame): x %.4f y %.4f z %.4f\r\n",
+            static_cast<double>(cur[0]), static_cast<double>(cur[1]), static_cast<double>(cur[2]));
         return;
     }
     if (argc >= 2 && !strcmp(argv[1], "avg")) {
@@ -1587,7 +1606,7 @@ void banner(Sink out) {
     out("  cal [show|zero|dir|set|migrate|save|load|reset]   zero + dir (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
-    out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|reinit|bias|mount|forget]   QMI8658C\r\n");
+    out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  stat                 tick timing and fault counters\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");

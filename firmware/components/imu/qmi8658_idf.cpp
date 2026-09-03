@@ -390,9 +390,17 @@ bool Qmi8658Imu::readRawUnbiased(float accel[3], float gyro[3]) {
     }
     for (int i = 0; i < 3; ++i) {
         accel[i] = static_cast<float>(use[i]) * accel_scale_;
-        gyro[i] = static_cast<float>(use[3 + i]) * gyro_scale_;
+        gyro[i] = static_cast<float>(use[3 + i]) * gyro_scale_ * gscale_[i];
     }
     return true;
+}
+
+void Qmi8658Imu::setGyroScale(const float s[3]) {
+    for (int i = 0; i < 3; ++i) gscale_[i] = s[i];
+}
+
+void Qmi8658Imu::gyroScale(float out[3]) const {
+    for (int i = 0; i < 3; ++i) out[i] = gscale_[i];
 }
 
 bool Qmi8658Imu::readRaw(float accel[3], float gyro[3]) {

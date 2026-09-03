@@ -129,6 +129,12 @@ bool imuCalUnpack(const ImuCalBlob& blob, float bias_out[3],
 // than assume zero bias is fine, because it is not.
 bool imuCalLoad(float bias_out[3], float mount_out[4]);
 bool imuCalSave(const float bias[3], const float mount[4]);
+// Per-axis gyro SCALE correction (sensor frame), its own NVS record so the
+// bias/mount blob keeps its version. Absent = (1, 1, 1). 2026-09-03: the
+// QMI8658C's x-axis gyro (body pitch after the mount) over-reads by 18 %
+// against the accelerometer's tilt on a clamped-leg test; y and z by 2-3 %.
+bool imuGyroScaleLoad(float scale_out[3]);
+bool imuGyroScaleSave(const float scale[3]);
 bool imuCalErase();
 
 }  // namespace robot
