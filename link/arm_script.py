@@ -33,9 +33,21 @@ from protocol import (CMD_PORT, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP,  # noqa: E402
 from sources import EXT_KEYS, SCRIPTS  # noqa: E402
 
 
+def _watch_addr(spec, default_port):
+    """"HOST" or "HOST:PORT" -> (host, port).
+
+    No port means the one this process is bound to, which is where a stock
+    `bimo_gui --readonly` listens.
+    """
+    host, _, port = spec.rpartition(":")
+    if not host:                     # no colon at all
+        return spec, default_port
+    return host, int(port)
+
+
 class Driver:
     def __init__(self, host, cmd_port=CMD_PORT, tlm_port=TLM_PORT,
-                 send_hz=SEND_HZ):
+                 send_hz=SEND_HZ, watch=None):
         self.host, self.cmd_port = host, cmd_port
         self.tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -60,6 +72,19 @@ class Driver:
         self.states_seen = []
         self.fault_streak = 0
         self._n_seen = 0
+        # Telemetry fan-out to a `bimo_gui --readonly` watcher. The robot
+        # beacons to WHOEVER COMMANDED LAST and to nobody else
+        # (firmware/main/wifi_link.cpp), so a second console cannot listen in
+        # -- and the only way for it to become the destination is to send a
+        # command, which would steal the beacon from THIS process and drive
+        # the robot mid-probe. So the driver forwards instead. Every one of
+        # these probes runs unattended for tens of seconds on real hardware;
+        # this is how somebody gets to watch one happen.
+        self.watch = _watch_addr(watch, tlm_port) if watch else None
+        self.n_watched = 0
+        if self.watch is not None:
+            print(f"forwarding telemetry to "
+                  f"{self.watch[0]}:{self.watch[1]}", flush=True)
 
     def now(self):
         return time.monotonic() - self.t0
@@ -80,7 +105,16 @@ class Driver:
                 self.tlm = decode_telemetry(buf)
                 self.n_tlm += 1
             except ProtocolError:
-                pass
+                continue          # stray traffic: decoded here, never relayed
+            if self.watch is not None:
+                # Verbatim, so the watcher runs the same decode over the same
+                # bytes the robot signed. Best-effort: a probe on real
+                # hardware must never die because a watcher went away.
+                try:
+                    self.tx.sendto(buf, self.watch)
+                    self.n_watched += 1
+                except OSError:
+                    pass
         t = self.now()
         tl = self.tlm
         if tl is None:
@@ -238,9 +272,11 @@ def main():
     p.add_argument("--settle", type=float, default=1.5)
     p.add_argument("--tail", type=float, default=2.0)
     p.add_argument("--stay-armed", action="store_true")
+    p.add_argument("--watch", metavar="HOST[:PORT]",
+                   help="forward every beacon to a `bimo_gui --readonly` watcher (HOST[:PORT]); the robot beacons only to whoever commanded it last, so a second console cannot listen in")
     a = p.parse_args()
 
-    d = Driver(a.host, cmd_port=a.port, tlm_port=a.tlm_port)
+    d = Driver(a.host, cmd_port=a.port, tlm_port=a.tlm_port, watch=a.watch)
     try:
         verdict = {"arm": phase_arm, "script": phase_script,
                    "disarm": phase_disarm}[a.phase](d, a)

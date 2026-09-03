@@ -111,9 +111,12 @@ def main():
                    help="skip the ARM=0 preamble (twin --boot-armed reference)")
     p.add_argument("--port", type=int, default=None)
     p.add_argument("--tlm-port", type=int, default=None)
+    p.add_argument("--watch", metavar="HOST[:PORT]",
+                   help="forward every beacon to a `bimo_gui --readonly` watcher (HOST[:PORT]); the robot beacons only to whoever commanded it last, so a second console cannot listen in")
     a = p.parse_args()
 
-    kw = {k: v for k, v in (("cmd_port", a.port), ("tlm_port", a.tlm_port))
+    kw = {k: v for k, v in (("cmd_port", a.port), ("tlm_port", a.tlm_port),
+                            ("watch", a.watch))
           if v is not None}
     d = OscDriver(a.host, a.csv, a.tilt, a.pp_rad, **kw)
     verdict = None
