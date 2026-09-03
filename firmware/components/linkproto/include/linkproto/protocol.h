@@ -160,6 +160,13 @@ enum class ArmResult : uint8_t {
     kHomeNoCal = 5,      // reset REFUSED: no as-built calibration in NVS
     kHomeLowBatt = 6,    // reset REFUSED: the pack guard has torque latched off
     kHomeBusFailed = 7,  // reset FAILED: the servo bus did not accept it
+    // (2026-09-03) A reset that "succeeded" once moved nothing: the goal
+    // write is a broadcast with no reply, so kDisarmedHome only ever meant
+    // "written". Now the write reports kHomePending, and the housekeeping
+    // loop reads every joint back after the slew (cli::homeVerify) and
+    // stores kDisarmedHome only when all ten sit at their zeros -- or this:
+    kHomePending = 8,    // reset WRITTEN: joints slewing, readback not yet done
+    kHomeNotReached = 9, // reset FAILED: readback found joints off their zeros
 };
 
 // True for every verdict a kFlagHome request can produce. A console that
@@ -168,7 +175,8 @@ enum class ArmResult : uint8_t {
 // request still reports kAccepted for the disarm that rode in with it.
 inline bool isHomeResult(ArmResult r) {
     return r == ArmResult::kDisarmedHome || r == ArmResult::kHomeNoCal ||
-           r == ArmResult::kHomeLowBatt || r == ArmResult::kHomeBusFailed;
+           r == ArmResult::kHomeLowBatt || r == ArmResult::kHomeBusFailed ||
+           r == ArmResult::kHomePending || r == ArmResult::kHomeNotReached;
 }
 
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result);

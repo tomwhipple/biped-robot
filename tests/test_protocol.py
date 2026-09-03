@@ -351,7 +351,8 @@ def test_every_home_verdict_reaches_the_operator():
     # home verdict, which is how a console tells "answered" from "ignored by
     # a robot that predates the bit".
     for r in (ArmResult.DISARMED_HOME, ArmResult.HOME_NO_CAL,
-              ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED):
+              ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED,
+              ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED):
         assert is_home_result(r)
         why = diag_reason(pack_diag(False, True, r))
         assert "reset" in why and "unknown to this client" not in why
@@ -421,7 +422,8 @@ def test_diag_values_are_append_only():
     assert [(r.name, r.value) for r in ArmResult] == [
         ("NONE", 0), ("ACCEPTED", 1), ("REFUSED_NO_CAL", 2),
         ("DISARMED_FALL", 3), ("DISARMED_HOME", 4), ("HOME_NO_CAL", 5),
-        ("HOME_LOW_BATT", 6), ("HOME_BUS_FAILED", 7)]
+        ("HOME_LOW_BATT", 6), ("HOME_BUS_FAILED", 7),
+        ("HOME_PENDING", 8), ("HOME_NOT_REACHED", 9)]
     assert DIAG_RUN == 1 and DIAG_CAL_OK == 2 and DIAG_ARM_SHIFT == 4
 
 

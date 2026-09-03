@@ -126,6 +126,12 @@ const char* diagReason(uint8_t diag) {
         case ArmResult::kHomeBusFailed:
             return "servo reset FAILED -- the servo bus did not accept it "
                    "(check pack, wiring, `scan`)";
+        case ArmResult::kHomePending:
+            return "servo reset written -- joints slewing to the stand, "
+                   "readback pending";
+        case ArmResult::kHomeNotReached:
+            return "servo reset FAILED -- readback found joints OFF their "
+                   "zeros (see the tether for which; `scan`)";
     }
     // A refusal reason this client is too old to name. Say so rather than
     // guess: the enum is append-only, so an unknown value is a NEWER robot.

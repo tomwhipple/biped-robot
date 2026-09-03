@@ -118,11 +118,16 @@ def run(args):
     extra = {}
     if args.backlash_deg is not None:
         extra.update(backlash_deg=args.backlash_deg, backlash_deg_max=None)
+    if args.play_deg > 0.0:
+        extra.update(play_deg=args.play_deg,
+                     play_joints=tuple(args.play_joints.split(","))
+                     if args.play_joints else None)
     env = make_env(cfg, episode_seconds=1e9, nominal=args.nominal,
                    xml=xml if xml else cfg.get("xml_path"),
                    extra=extra or None, act_lag_hz=args.act_lag_hz)
     print(f"sil_twin: plant backlash {env.backlash_deg:g} deg, "
-          f"act_lag {env.act_lag_hz:g} Hz", flush=True)
+          f"act_lag {env.act_lag_hz:g} Hz, play {env.play_deg:g} deg "
+          f"on {env.play_joints or 'all joints'}", flush=True)
     act = H.SilActAdapter(lib, env, log=False)
     obs, _ = env.reset(seed=args.seed)
     fw, nc = act.spec.frame_dim, act.spec.num_cmd
@@ -364,6 +369,12 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--backlash-deg", type=float, default=None,
                    help="pin gear backlash deadzone (deg) on the plant")
+    p.add_argument("--play-deg", type=float, default=0.0,
+                   help="free travel (mechanical hysteresis) between servo "
+                        "shaft and link, peak-to-peak deg")
+    p.add_argument("--play-joints", default=None,
+                   help="comma list of joint names the play applies to "
+                        "(default all), e.g. L_hip_roll,R_hip_roll")
     p.add_argument("--act-lag-hz", type=float, default=0.0,
                    help="measured-servo lag pole (2.0 = the 08-31 bench)")
     p.add_argument("--boot-armed", action="store_true")

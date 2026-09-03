@@ -107,8 +107,14 @@ def main():
         d.run_for(0.5, arm_off, "pre-arm: ARM=0 frames (latch level)")
         if a.home:
             d.run_for(0.4, lambda t: (0.0, 0.0, FLAG_HOME), "RESET SERVOS: FLAG_HOME edge")
-            d.run_for(4.0, arm_off, "home settle: ARM=0 frames")
-            r = diag_arm_result(d.tlm.diag) if d.tlm is not None else None
+            # the robot says HOME_PENDING until it has read the joints back
+            # after the slew (firmware 2026-09-03); wait that out, up to 10 s
+            r = None
+            for _ in range(10):
+                d.run_for(1.0, arm_off, "home settle: ARM=0 frames")
+                r = diag_arm_result(d.tlm.diag) if d.tlm is not None else None
+                if r is not None and r is not ArmResult.HOME_PENDING:
+                    break
             print(f"== home verdict: {r} -- {diag_reason(d.tlm.diag) if d.tlm else 'no beacon'}", flush=True)
             if r is not ArmResult.DISARMED_HOME:
                 raise SystemExit(f"home not confirmed ({r}); not going limp")

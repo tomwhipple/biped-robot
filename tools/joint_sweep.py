@@ -1,14 +1,21 @@
 """Single-joint load sweep on the standing robot: free play = the low-load band."""
-import serial, time, re, csv, math, sys
-OUT = sys.argv[1]
+import serial, time, re, csv, math, sys, argparse
+ap = argparse.ArgumentParser(description=__doc__)
+ap.add_argument('out'); ap.add_argument('--joints', default='L_hip_roll,R_hip_roll,L_hip_pitch,R_hip_pitch,L_ankle,R_ankle,L_knee,R_knee')
+ap.add_argument('--step', type=float, default=0.5); ap.add_argument('--max', type=float, default=4.0)
+ap.add_argument('--tilt-abort', type=float, default=8.0); ap.add_argument('--home-after', action='store_true', default=True)
+A = ap.parse_args(); OUT = A.out
 CAL = [  # (name, id, zero, dir) joint order
  ("L_hip_roll",5,2420,-1),("R_hip_roll",1,3533,-1),
  ("L_hip_pitch",6,2044,+1),("R_hip_pitch",2,2501,+1),
  ("L_ankle",8,3516,+1),("R_ankle",4,3450,+1),
  ("L_knee",7,1634,-1),("R_knee",3,2050,-1)]
 TPD = 4096/360.0
-STEPS = [x*0.5 for x in range(0,9)] + [x*0.5 for x in range(7,-9,-1)] + [x*0.5 for x in range(-7,1)]
-LOAD_ABORT = 250; LOAD_FREE = 60; TILT_ABORT_DEG = 8.0; SPD = 60
+N = int(round(A.max / A.step))
+STEPS = [k*A.step for k in range(0, N+1)] + [k*A.step for k in range(N-1, -N-1, -1)] + [k*A.step for k in range(-N+1, 1)]
+ALL10 = list(CAL)
+CAL = [c for c in CAL if c[0] in A.joints.split(',')]
+LOAD_ABORT = 250; LOAD_FREE = 60; TILT_ABORT_DEG = A.tilt_abort; SPD = 60
 def openport():
     for _ in range(60):
         try:
@@ -58,7 +65,7 @@ def ang(a,b):
     return math.degrees(math.acos(max(-1,min(1,sum(x*y for x,y in zip(a,b))/(na*nb)))))
 sc = cmd('scan', until=r'servo\(s\)', timeout=6); print(sc.strip().splitlines()[-1], flush=True)
 base = imu(); print('imu baseline accel', base, flush=True)
-for name,i,zero,d in CAL:
+for name,i,zero,d in ALL10:
     o = cmd(f'move {i} {zero} 0 {SPD}', until=r'(: ok|refusing|torque is OFF)')
     if 'torque is OFF' in o or 'refusing' in o:
         print(f'!! {name} id {i}: {o.strip()[:70]} -- torque must be ON (run `home` / `torque` first); stopping', flush=True); s.close(); sys.exit(2)

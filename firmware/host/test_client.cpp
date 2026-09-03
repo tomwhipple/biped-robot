@@ -285,7 +285,9 @@ void test_home_answers_are_not_warned_about() {
     const linkproto::ArmResult answers[] = {
         linkproto::ArmResult::kDisarmedHome, linkproto::ArmResult::kHomeNoCal,
         linkproto::ArmResult::kHomeLowBatt,
-        linkproto::ArmResult::kHomeBusFailed};
+        linkproto::ArmResult::kHomeBusFailed,
+        linkproto::ArmResult::kHomePending,
+        linkproto::ArmResult::kHomeNotReached};
     for (linkproto::ArmResult r : answers) {
         Intent in;
         Link link;

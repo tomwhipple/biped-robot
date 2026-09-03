@@ -354,7 +354,16 @@ void cmdPose(Sink out, int argc, char** argv) {
 // Returns the verdict, because over the radio `out` is a tether nobody is
 // holding: linkHome puts what this returns into the beacon. Every early exit
 // below is a REASON, not a silence.
+// Pending readback after a home: the slew deadline and the targets written.
+// Touched only by the housekeeping task (typed `home`, linkHome and
+// homeVerify all run there), so plain statics.
+static bool s_home_pending = false;
+static TickType_t s_home_deadline = 0;
+static int32_t s_home_tgt[obs::kNumJoints];
+constexpr int32_t kHomeTolTicks = 12;      // ~1 deg: the servo's own deadband is ~3
+
 linkproto::ArmResult homeAll(Sink out, long spd) {
+    s_home_pending = false;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return linkproto::ArmResult::kHomeBusFailed;
     if (!robot::g_cal_from_nvs) {
@@ -387,16 +396,34 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
             statusName(ts));
         return linkproto::ArmResult::kHomeBusFailed;
     }
+    // How far is the longest move? Sets the readback deadline: the write is
+    // a broadcast with no reply, and on 2026-09-02 one "ok" moved nothing,
+    // so the verdict now waits for the joints to actually get there.
+    int32_t worst = 0;
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        int32_t cur = 0;
+        if (bus->readPosition(robot::servoIds()[j], cur) == scsbus::Status::kOk) {
+            const int32_t d = cur > tgt[j] ? cur - tgt[j] : tgt[j] - cur;
+            if (d > worst) worst = d;
+        } else {
+            worst = 4096;             // unknown start: allow the full slew
+        }
+    }
     const scsbus::Status st = bus->syncWritePositions(
         robot::servoIds(), tgt, obs::kNumJoints, 0,
         static_cast<uint16_t>(spd), 0);
     say(out, "home -> %d joints at their calibrated zero, spd %ld: %s\r\n",
         obs::kNumJoints, spd, statusName(st));
     if (st != scsbus::Status::kOk) return linkproto::ArmResult::kHomeBusFailed;
-    out("  torque is ON and HOLDING the stand -- `release` to let go, "
-        "or arm to walk\r\n");
-    return linkproto::ArmResult::kDisarmedHome;
+    const long slew_ms = (spd > 0 ? (worst * 1000L) / spd : 0L) + 700L;
+    memcpy(s_home_tgt, tgt, sizeof s_home_tgt);
+    s_home_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(slew_ms);
+    s_home_pending = true;
+    say(out, "  written; worst move %ld ticks -- reading back in %ld ms\r\n",
+        static_cast<long>(worst), slew_ms);
+    return linkproto::ArmResult::kHomePending;
 }
+
 
 // The tethered `home`. 0 steps/s asks for the servo's maximum, same
 // convention as `move` and `pose`.
@@ -752,6 +779,54 @@ void cmdObsDump(Sink out, int argc, char** argv) {
 }
 
 }  // namespace
+
+void homeVerify(Sink out) {
+    if (!s_home_pending) return;
+    if (xTaskGetTickCount() < s_home_deadline) return;
+    s_home_pending = false;
+    if (robot::g_ctrl_owns_bus.load() ||
+        robot::g_mode_request.load() == robot::Mode::kRun) {
+        // Armed in the meantime: that request's verdict already replaced
+        // ours, and the bus is not the CLI's to read. Say so, store nothing.
+        out("home readback skipped -- the loop was armed before the slew "
+            "finished\r\n");
+        return;
+    }
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) {
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kHomeNotReached));
+        return;
+    }
+    int off = 0;
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        int32_t cur = 0;
+        const uint8_t id = robot::servoIds()[j];
+        if (bus->readPosition(id, cur) != scsbus::Status::kOk) {
+            say(out, "home readback: id %u did not answer\r\n", id);
+            ++off;
+            continue;
+        }
+        const int32_t d = cur - s_home_tgt[j];
+        if (d > kHomeTolTicks || d < -kHomeTolTicks) {
+            say(out, "home readback: %s id %u at %ld, zero %ld (%+ld ticks)\r\n",
+                obs::kJointNames[j], id, static_cast<long>(cur),
+                static_cast<long>(s_home_tgt[j]), static_cast<long>(d));
+            ++off;
+        }
+    }
+    if (off == 0) {
+        out("home readback: all 10 joints at their zeros -- torque is ON and "
+            "HOLDING the stand; `release` to let go, or arm to walk\r\n");
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kDisarmedHome));
+    } else {
+        say(out, "home readback: %d joint(s) OFF their zeros -- the reset did "
+            "not take; check `scan`, torque, pack\r\n", off);
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kHomeNotReached));
+    }
+}
 
 // -- imu -------------------------------------------------------------------
 //

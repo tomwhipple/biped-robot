@@ -35,5 +35,10 @@ void linkMode(bool run, Sink out);
 // -- the standing pose. Housekeeping-task only, like every other bus command
 // here. See cmdHome for why this one deliberately turns torque back ON.
 void linkHome(Sink out);
+// Called from the housekeeping loop every iteration: once a home's slew
+// deadline has passed, read every joint back and store the REAL verdict
+// (kDisarmedHome / kHomeNotReached) in g_arm_result. No-op when nothing
+// is pending; cancels itself if the loop got armed in the meantime.
+void homeVerify(Sink out);
 
 }  // namespace cli

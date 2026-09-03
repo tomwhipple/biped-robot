@@ -176,6 +176,12 @@ class ArmResult(Enum):
     HOME_NO_CAL = 5      # reset REFUSED: no as-built calibration in NVS
     HOME_LOW_BATT = 6    # reset REFUSED: pack guard has torque latched off
     HOME_BUS_FAILED = 7  # reset FAILED: the servo bus did not accept it
+    # (2026-09-03) the goal write is a broadcast with no reply, and one reset
+    # that reported DISARMED_HOME moved nothing. The write now reports
+    # HOME_PENDING; the robot reads every joint back after the slew and only
+    # then says DISARMED_HOME -- or HOME_NOT_REACHED.
+    HOME_PENDING = 8     # reset WRITTEN: joints slewing, readback not yet done
+    HOME_NOT_REACHED = 9  # reset FAILED: readback found joints off their zeros
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
@@ -184,7 +190,8 @@ def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
 
 
 HOME_RESULTS = (ArmResult.DISARMED_HOME, ArmResult.HOME_NO_CAL,
-                ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED)
+                ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED,
+                ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED)
 
 
 def is_home_result(r) -> bool:
@@ -226,6 +233,12 @@ def diag_reason(diag: int) -> str:
     if r is ArmResult.HOME_BUS_FAILED:
         return ("servo reset FAILED -- the servo bus did not accept it "
                 "(check pack, wiring, `scan`)")
+    if r is ArmResult.HOME_PENDING:
+        return ("servo reset written -- joints slewing to the stand, "
+                "readback pending")
+    if r is ArmResult.HOME_NOT_REACHED:
+        return ("servo reset FAILED -- readback found joints OFF their zeros "
+                "(see the tether for which; `scan`)")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")
