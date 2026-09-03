@@ -139,6 +139,10 @@ def main():
                    help="gear backlash deadzone (STS3215 measures ~0.5-1.0)")
     p.add_argument("--backlash-deg-max", type=float, default=None,
                    help="per-episode backlash drawn uniform(backlash-deg, this)")
+    p.add_argument("--zero-offset-deg", type=float, default=0.0,
+                   help="per-episode per-joint servo zero offset, uniform(-z, z) deg "
+                        "(calibration-error DR; the hardware zero moved 1-4.7 deg on "
+                        "2026-09-03 when loose horns were tightened)")
     p.add_argument("--fall-height", type=float, default=0.18)
     p.add_argument("--fall-up-z", type=float, default=0.4)
     p.add_argument("--push-force", type=float, default=None,
@@ -174,6 +178,7 @@ def main():
         w_track_w=args.w_track_w, cmd_stand_prob=args.cmd_stand_prob,
         imu_obs=args.imu_obs, imu_noise=args.imu_noise,
         backlash_deg=args.backlash_deg, backlash_deg_max=args.backlash_deg_max,
+        zero_offset_deg=args.zero_offset_deg,
         fall_height=args.fall_height, fall_up_z=args.fall_up_z,
         w_time=args.w_time, w_time_stop=args.w_time_stop,
         finish_bonus=args.finish_bonus,
