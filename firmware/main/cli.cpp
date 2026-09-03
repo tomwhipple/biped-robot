@@ -363,10 +363,28 @@ void cmdPose(Sink out, int argc, char** argv) {
     // distance, so all ten arrive together, instead of one speed for all.
     const char* last = argc >= 2 + obs::kNumJoints ? argv[1 + obs::kNumJoints]
                                                     : nullptr;
-    if (last && last[0] == 's') {
-        // SMOOTH mode: record start + target, let poseTick stream the
-        // minimum-jerk profile. See cli.h.
-        const long ms = num(last + 1, 3000);
+    // DEFAULT IS SMOOTH (Tom 2026-09-03: "if a position is commanded, the
+    // controller should take it there smoothly"): with no mode argument the
+    // duration comes from the longest move at 300 steps/s (>= 1 s). A
+    // trailing number keeps the legacy constant-speed slew, t<ms> the
+    // unison mode, s<ms> an explicit smooth duration.
+    const bool smooth = (last == nullptr) || last[0] == 's';
+    if (smooth) {
+        long ms = 0;
+        if (last) {
+            ms = num(last + 1, 3000);
+        } else {
+            int32_t worst = 0;
+            for (int i = 0; i < obs::kNumJoints; ++i) {
+                int32_t cur = tgt[i];
+                if (bus->readPosition(robot::servoIds()[i], cur) == scsbus::Status::kOk) {
+                    const int32_t d = cur > tgt[i] ? cur - tgt[i] : tgt[i] - cur;
+                    if (d > worst) worst = d;
+                }
+            }
+            ms = (worst * 1000L) / 300L;
+            if (ms < 1000) ms = 1000;
+        }
         if (ms < 200 || ms > 20000) {
             out("pose s<ms>: duration must be 200-20000 ms\r\n");
             return;
@@ -393,7 +411,8 @@ void cmdPose(Sink out, int argc, char** argv) {
         s_traj_acc = 0;
         s_traj_bigstep = 4;
         s_traj_minint_ms = 100;
-        for (int k = 2 + obs::kNumJoints; k < argc; ++k) {
+        for (int k = 1 + obs::kNumJoints; k < argc; ++k) {
+            if (argv[k][0] == 's') continue;
             if (argv[k][0] == 'h') {
                 long pct = num(argv[k] + 1, 90);
                 if (pct < 30) pct = 30;
@@ -1430,8 +1449,9 @@ void banner(Sink out) {
     out("  id <old> <new>       assign a servo ID (EEPROM, one servo on the bus)\r\n");
     out("  pos <id>             position, speed, load, voltage, temp, faults\r\n");
     out("  move <id> <ticks> [ms] [steps/s]   2048 == middle, 4096 ticks/rev\r\n");
-    out("  pose <t0..t9> [steps/s|t<ms>|s<ms>]  all 10 targets (joint order);\r\n"
-        "                       t<ms> unison speeds; s<ms> SMOOTH min-jerk stream\r\n");
+    out("  pose <t0..t9> [s<ms>|t<ms>|steps/s]  all 10 targets (joint order);\r\n"
+        "                       default = SMOOTH min-jerk (auto duration); s<ms> sets it,\r\n"
+        "                       tokens h<pct> a<acc> b<ticks> i<ms>; t<ms> unison; N = const speed\r\n");
     out("  reg <id> <addr> [1|2]  READ a servo register (PID 21-23, deadzone 26/27, acc 41)\r\n");
     out("  home [steps/s]       every joint to its calibrated zero (the stand),\r\n");
     out("                       torque ON and holding -- works after a fall\r\n");
