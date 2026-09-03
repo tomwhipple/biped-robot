@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "driver/i2c_master.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -113,18 +115,35 @@ bool Qmi8658Imu::busInit() {
     return true;
 }
 
+// One mutex per device: the 250 Hz sampler task (imu_sampler.cpp) and the
+// bench CLI (`imu raw`, `imu bias`) share this bus from different cores.
+static SemaphoreHandle_t s_i2c_lock = nullptr;
+static void lockInit() {
+    if (s_i2c_lock == nullptr) s_i2c_lock = xSemaphoreCreateMutex();
+}
+
 bool Qmi8658Imu::regRead(uint8_t reg, uint8_t* buf, size_t len) {
     if (dev_ == nullptr) return false;
-    return i2c_master_transmit_receive(
+    lockInit();
+    if (xSemaphoreTake(s_i2c_lock, pdMS_TO_TICKS(50)) != pdTRUE) return false;
+    const bool ok = i2c_master_transmit_receive(
                static_cast<i2c_master_dev_handle_t>(dev_), &reg, 1, buf, len,
                100) == ESP_OK;
+    xSemaphoreGive(s_i2c_lock);
+    return ok;
 }
 
 bool Qmi8658Imu::regWrite(uint8_t reg, uint8_t val) {
     if (dev_ == nullptr) return false;
+    lockInit();
+    if (xSemaphoreTake(s_i2c_lock, pdMS_TO_TICKS(50)) != pdTRUE) return false;
+    const bool ok = [&]() {
     const uint8_t tx[2] = {reg, val};
-    return i2c_master_transmit(static_cast<i2c_master_dev_handle_t>(dev_), tx,
+        return i2c_master_transmit(static_cast<i2c_master_dev_handle_t>(dev_), tx,
                                2, 100) == ESP_OK;
+    }();
+    xSemaphoreGive(s_i2c_lock);
+    return ok;
 }
 
 int Qmi8658Imu::scanBus(uint8_t* found, int max) {

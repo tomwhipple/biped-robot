@@ -12,6 +12,7 @@
 #include "scsbus/bus.h"
 #include "board.h"
 #include "cal_store.h"
+#include "imu_sampler.h"
 #include "mech_envelope.h"
 #include "shared.h"
 #include "wifi_link.h"
@@ -902,6 +903,9 @@ void cmdStat(Sink out) {
         static_cast<unsigned long>(robot::g_telemetry.us_net.load()),
         static_cast<unsigned long>(robot::g_telemetry.us_write.load()),
         static_cast<unsigned long>(robot::g_telemetry.us_other.load()));
+    say(out, "  imu sampler: %lu samples, %lu failures (%d ms period, tick-averaged gyro)\r\n",
+        static_cast<unsigned long>(robot::imuSampleTotal()),
+        static_cast<unsigned long>(robot::imuSampleFailures()), robot::kImuPeriodMs);
     say(out, "policy: %s, %d joints, obs %d, run %s\r\n",
         policy::kWeightsArePlaceholder ? "PLACEHOLDER WEIGHTS" : "exported",
         obs::kNumJoints, obs::kObsDim, obs::kRunName);

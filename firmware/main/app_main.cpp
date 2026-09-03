@@ -9,6 +9,7 @@
 #include "board.h"
 #include "cli.h"
 #include "ctrl_task.h"
+#include "imu_sampler.h"
 #include "driver/uart.h"
 #include "esp_log.h"
 #include "esp_task_wdt.h"
@@ -182,5 +183,6 @@ extern "C" void app_main(void) {
     esp_log_level_set("*", ESP_LOG_NONE);
 
     startHousekeepingTask();
+    startImuSampler(*g_imu);
     startCtrlTask(*g_imu);
 }

@@ -14,6 +14,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "imu_sampler.h"
 #include "linkproto/watchdog.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
@@ -238,9 +239,11 @@ void ctrlTask(void*) {
             // feeds `up` to the policy. Letting the estimate converge only
             // AFTER the robot is already walking is exactly backwards. The
             // IMU is on its own I2C bus, so this touches nothing the CLI owns.
-            if (g_imu) {
+            // The sampler task keeps the filter running; drain its gyro
+            // accumulator so the first armed tick averages a fresh window.
+            {
                 imu::Sample warm{};
-                g_imu->read(warm);
+                takeImu(warm);
             }
             continue;
         }
@@ -267,9 +270,9 @@ void ctrlTask(void*) {
         // (always true), live the moment a real driver lands.
         static imu::Sample s_held{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, 0,
                                   false};
-        if (g_imu) {
+        {
             imu::Sample fresh{};
-            if (g_imu->read(fresh)) s_held = fresh;
+            if (takeImu(fresh)) s_held = fresh;
         }
         const imu::Sample& s = s_held;
         const int64_t t_imu1 = esp_timer_get_time();
