@@ -1,8 +1,19 @@
 # Print list — Bimo-like biped
 
-**16 plastic prints (9 unique parts) + 2 TPU foot pads.** Generated from
-`cad/parts.py` / `cad/dimensions.py`. Export STLs with
-`../.venv/bin/python parts.py` (writes `cad/stl/*.stl`).
+**14 plastic prints (7 unique parts) + 2 silicone sole pads**, ~354 g of PETG.
+Generated from `cad/parts.py` / `cad/dimensions.py`. Export STLs with
+`../.venv/bin/python parts.py` (writes `cad/stl/*.stl`), which prints the
+authoritative table of parts, quantities, bounding boxes and masses.
+
+> **⚠️ pelvis v6 (2026-08-05) — three parts below are RETIRED.** The torso is
+> now **one print**: `tower`, `imu_carrier`, the battery tray and the board
+> frame were all folded into `pelvis`, which is why the COM dropped 30 mm and
+> `sim/bimo_biped_v5body.xml` exists. **Do not print `tower` or `imu_carrier`**
+> — their rows below are kept only for the build history, and `cad/stl/tower.stl`
+> is a stale artifact that `parts.py` no longer produces. `gopro_base` is the
+> only bolt-on left, and that one is deliberate (crash fuse).
+> The per-part orientation and slicing guidance for the seven live parts is
+> unchanged and still correct.
 
 > **v3yaw (2026-07-23):** hip-yaw added — one STS3215 per leg, flat under the
 > deck, vertical axis, horn down (see `docs/hip-yaw-study.md`). Two changes to
@@ -88,25 +99,24 @@ Two things to watch when you print PETG:
   parts — servo pockets (`foot`), idler bosses (Ø19 into the Ø25 recess), and the
   GoPro slots (3.2 mm) — and tune flow / dial in a size test if anything binds.
 - **Mass.** PETG (~1.27 g/cm³) is ~2–3 % denser than PLA. The mass rollup uses
-  the PETG density (`dimensions.py::FILAMENT_RHO = 1.27e-3`): printed plastic
-  ~307 g, total robot ~914 g (+154 g GoPro) after foot v3.1, the yoke_pitch
-  hip-110 revision, the battery-bay tower, and the leg_link v2 cleanup.
-  `parts.py` and the sim inertia builder (`sim/build_v2_inertia.py`) both
-  reflect this.
+  the PETG density (`dimensions.py::FILAMENT_RHO = 1.27e-3`): as of pelvis v6,
+  printed plastic **~354 g**, total robot **~1078 g** (+154 g GoPro = 1232 g).
+  Run `parts.py` for the live numbers; the sim inertia builder
+  (`sim/build_v2_inertia.py`) is regenerated from the same solids.
 
 ## Parts to print
 
 | Part | Copies | Material | Infill | Orientation | Status |
 |---|---|---|---|---|---|
-| `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ♻️ **redesigned for v3yaw** (roll bays → two flat yaw-servo seats + deck-bolted stator mount; deck/tower pattern kept; grows ~15 mm rearward for the case overhang → bbox 61 × 104 × 9). ~32 g |
+| `pelvis` | 1 | PETG | 30–40 % | upside-down, deck top on bed | ♻️ **v6: THE WHOLE TORSO IS THIS PART** (tower + imu_carrier + battery tray + board frame folded in; board recess and battery V-seat bay are printed into it; ~30 mm lower COM). Previously — **redesigned for v3yaw** (roll bays → two flat yaw-servo seats + deck-bolted stator mount; deck/tower pattern kept; grows ~15 mm rearward for the case overhang → bbox 61 × 104 × 9). ~32 g |
 | `yaw_carrier` | 2 | PETG | 30–40 % | horn-plate face on bed, bay walls rise — **slice `yaw_carrier_print.stl`** | 🆕 **new part (v3yaw)** — bolts to the yaw horn, carries the (unchanged) hip-roll bay. Prints like the old pelvis bay (walls vertical, U-slot upward-open, teardropped case screws) with one addition: the rear-wall **cable window needs a breakout** (2026-07-26). Printed horn-plate-down its ceiling is the 1.0 mm bar between the window and the bore crown — 2.6 × 22.8 mm of bare bridge with the U-slot void directly above, so no infill and no next layer to iron it flat. **Three break-away columns** split it into four 4.95 mm hops; each stands on the window sill and meets the bar through a 1.0 mm neck (body inset 0.2 mm from both wall faces for blade access). Snip/twist them out and trim the nubs flush enough to clear the plug bodies — nothing seats on that bar. Figure: `renders/yaw_carrier_breakout.png`. ~17.5 g each |
 | `yoke_roll` | 2 | PETG | 30–40 % | **WALL: on edge, arms along the bed — slice `yoke_roll.stl` with SLICER SUPPORTS ON** (see below). There is no `_print` variant any more | ✅ ready — *secondary* hip-angle check |
 | `yoke_pitch` | 2 | PETG | 30–40 % | **WALL: on its back like `leg_link` — slice `yoke_pitch.stl` with SLICER SUPPORTS ON + a brim** (see below). No `_print` variant any more | ♻️ **revised for hip −110°** (idler arm → hub + riser; HOLD lifted) |
 | `leg_link` | 4 | PETG | 30–40 % | on its back, web face on bed — **slice `leg_link_print.stl`** | ♻️ **revised v3** (2026-07-16 print review, two passes: 9×11 **cable window** through the web — before it every joint-crossing cable pierced the plastic — zip-tie holes at ±9 straddling it; idler boss OD tapered 51°; and the fork slabs are now **solid to the web face** wherever the foot sweep allows (mapped at ankle ±45°: horn side fully; idler side except the corner-sweep lobe at z −68.4…−55.6, whose 16 mm gap is broken up by **two island posts** into 2/2.5/5.5 mm bridge hops). **There are no fins at all** — the only break-away pieces are two 4 mm pad stubs at the fork tips plus those two posts, all verified as SEPARATE first-layer islands (≥1 mm clear, attached to nothing — they lift off with a fingernail). Slice preview: `renders/leg_link_print_slice.png`. *The window is functional: reprint v1/v2 links when convenient* |
 | `foot` | 2 | PETG | 30–40 % | sole down | ♻️ **revised v3.1** (v3 heel bulkhead + sole enlarged 100 → 116 for the get-up corridor) |
-| `tower` | 1 | PETG | 30–40 % | upside-down, top plate on bed | ♻️ **revised for print, support-free** (2026-07-16 slice reviews: feet-tab gussets and battery-rail stubs are now true ≥45° wedges — the old stepped boxes left flat 6 mm ceilings drooping over the interior; the **window sill was deleted** — it printed as a 70 mm member 41 mm up in mid-air, and the hook-loop belt is the real battery retention; two 45° corner detents park the pack instead. Feet screws now seat on the tabs through Ø6.6 wells — the only remaining bridges. ~5h19m PETG) |
+| ~~`tower`~~ **RETIRED (pelvis v6)** | — | — | — | — | ♻️ **revised for print, support-free** (2026-07-16 slice reviews: feet-tab gussets and battery-rail stubs are now true ≥45° wedges — the old stepped boxes left flat 6 mm ceilings drooping over the interior; the **window sill was deleted** — it printed as a 70 mm member 41 mm up in mid-air, and the hook-loop belt is the real battery retention; two 45° corner detents park the pack instead. Feet screws now seat on the tabs through Ø6.6 wells — the only remaining bridges. ~5h19m PETG) |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
-| `imu_carrier` | 1 | PETG | 30–40 % | flat on bed, bosses up | 🆕 **new part (2026-07-16)** — BNO055 carrier between tower top and gopro_base (same 4 screws → M3×12); bosses on the board's true 21.59 × 15.24 hole pattern; ~5 g, ~30 min |
+| ~~`imu_carrier`~~ **RETIRED (pelvis v6)** | — | — | — | — | 🆕 **new part (2026-07-16)** — BNO055 carrier between tower top and gopro_base (same 4 screws → M3×12); bosses on the board's true 21.59 × 15.24 hole pattern; ~5 g, ~30 min |
 | Sole pad | 2 | 1/16" self-adhesive silicone sheet ([B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK), 2× 6"×6") | — | cut 106 × 46 mm, stick onto flat sole (one sheet yields both + a spare strip) | 🛒 ordered |
 
 ### The two yokes: turn supports on in OrcaSlicer (2026-07-30)

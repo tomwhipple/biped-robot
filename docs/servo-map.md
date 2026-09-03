@@ -4,10 +4,10 @@ Bus address (ST3215 servo ID) → physical joint on the robot. Ten servos on one
 half-duplex TTL chain at 1 Mbaud off the Waveshare ESP32 driver board.
 
 Generated-source of truth: `firmware/components/obs/include/obs/obs_spec.h`
-(`kJointNames` / `kServoId`), which `tools/gen_obs_spec.py` emits from
-`sim/bimo_biped_v3yaw.xml` and the deployed run config. The host tests
-(`firmware/host/test_obs.cpp`) pin the permutation, so this table and the
-firmware cannot drift by hand.
+(`kJointNames` / `kServoId`), which `tools/gen_obs_spec.py` emits from the
+deployed run's config and its plant MJCF (currently
+`sim/bimo_biped_v5body.xml`). The host tests (`firmware/host/test_obs.cpp`) pin
+the permutation, so this table and the firmware cannot drift by hand.
 
 ## By servo address
 

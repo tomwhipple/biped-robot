@@ -1,7 +1,21 @@
 # Bimo-like Biped — Design & Simulation Working Doc
 
-**Status:** CAD massing model + MuJoCo physics validation complete (Stage 0–1). CPU RL baseline done incl. gait-quality shaping + uneven-terrain curriculum (Stage 2b). Printable part set done (build123d, `cad/`, interference-checked). **Buildable-robot retrain done:** CAD-true model `sim/bimo_biped_v2.xml` (mesh inertia) + honest STS3215 torque-speed actuator model + camera payload + 2 m dash — recommended policies `dash_11v1_hard` (3S, 2 m in ~2.7 s) / `dash_7v4_hard` (2S, ~4.4 s). Nothing printed yet; sim-to-real not started.
-**Last updated:** 2026-07-11
+**Status:** **The robot is built and it walks.** 10-DOF machine (hip-yaw added
+after the A/B study), printed in PETG, assembled, calibrated, running its own
+ESP32 firmware with a distilled policy onboard at 50 Hz — first walk 2026-09-01.
+Training is brax PPO on the MJX port (`sim/mjx/`) against the CAD-true
+`sim/bimo_biped_v5body.xml`, graded by a CPU referee on 28 scenarios × 8 seeds.
+Current work is the last of the sim-to-real gap: a roll limit cycle on the real
+robot that the twin does not reproduce, and natural rhythm under the
+bench-measured servo lag.
+
+**Note on this document:** §§1–8 below are the *design* record and are kept
+current. The long dated sections between them are a **historical log** — they
+record what was true when written and are deliberately not rewritten.
+For how training works today, see **[docs/training.md](docs/training.md)**; for
+running results, `sim/runs/night_summary.html`.
+
+**Last updated:** 2026-09-03
 **Owner:** Tom
 
 ---
@@ -38,8 +52,10 @@ Build a custom, small (~34 cm), 3D-printed **bipedal robot** using an LLM-assist
 loop: parametric CAD → physics simulation → print → RL walking policy → sim-to-real.
 Inspired by (not a clone of) the open-source **Bimo Project**.
 
-This folder holds a first-pass **parametric CAD massing model** and a **MuJoCo
-physics model** used to validate the mechanism *before* committing to printed parts.
+The loop has now closed once, end to end: the CAD in `cad/` is the printed
+robot, the plant in `sim/` is derived from that CAD, the policy trained against
+that plant is compiled into the firmware in `firmware/`, and what the bench
+measures on the real machine goes back into the plant as a modelled term.
 
 ## 2. Key decisions & rationale
 
@@ -50,11 +66,17 @@ physics model** used to validate the mechanism *before* committing to printed pa
 - **Strategy: do NOT reverse-engineer Bimo's exact parts from photos/video.** Instead
   design a *similar* platform around **known component dimensions**. For a servo robot
   the servos are the skeleton, so the datasheet — not the video — anchors the geometry.
-- **Actuator:** 8× **Feetech STS3215** serial-bus servo. Measured **45.2 × 24.6 × 35.1 mm**,
+- **Actuator:** 10× **Feetech STS3215** serial-bus servo. Measured **45.2 × 24.6 × 35.1 mm**,
   ~55 g, ~30 kg·cm (**2.94 N·m**) stall @ 12 V. Same class as LeRobot/SO-ARM, easy to source.
-- **DOF layout:** 4 per leg = **hip-roll (X), hip-pitch (Y), knee (Y), ankle (Y)** → 8 total.
-- **CAD tool:** parametric **OpenSCAD** (render-in-the-loop). Chosen because it's text/
-  parametric, LLM-friendly, and headless-renderable.
+  No-load speed **measured at 4.04 rad/s**, 14 % below the datasheet — the sim
+  uses the measured number (`tools/measure_servo_speed.py`).
+- **DOF layout:** 5 per leg = **hip-yaw (Z), hip-roll (X), hip-pitch (Y), knee (Y),
+  ankle (Y)** → 10 total. Started at 4 per leg; hip-yaw was added 2026-07-24
+  after an A/B study found it decisive for turning ([docs/hip-yaw-study.md](docs/hip-yaw-study.md)).
+- **CAD tool:** parametric **build123d** (Python/OCC) — `cad/dimensions.py` is the
+  single source of truth, `cad/parts.py` builds every part. The original
+  **OpenSCAD** massing model (`cad/bimo_like_biped.scad`) is superseded and kept
+  only as the concept record.
 - **Simulator:** **MuJoCo** (not Isaac Lab). MuJoCo is CPU/laptop-friendly, `pip install`,
   gold-standard contact physics, and is the universal validation layer even for Isaac users.
   Isaac Lab needs a workstation NVIDIA GPU + 1–2 week setup; overkill at this scale.
@@ -73,18 +95,45 @@ training/eval/report tooling, `sim/runs/` (gitignored) holds trained policies.
 
 ## 4. Current state — what works
 
-- **CAD (Stage 0, done):** massing model renders correctly; proportions and the 8-servo
-  layout are established. Servo bodies double as the limb segments; gray brackets connect
-  them; blue box = SBC head cavity. **This is a concept, NOT printable parts** — no screw
-  bosses, heat-set seats, horn-spline interfaces, wire channels, or tolerances.
-- **Sim (Stage 1, done):** the physics model **stands** under gravity (settles ~2 mm,
-  perfectly upright) and completes a **coordinated squat while staying balanced** — all
-  eight joints actuated, uprightness stayed 1.000, recovered to standing. Mechanism is
-  physically sane. Verified numerically and by rendering.
+- **CAD:** a complete parametric printable part set — **7 unique parts, 14
+  prints**, support-free, ~354 g of PETG, gated by boolean interference checks
+  over the full joint ranges and a printability audit per part. Pelvis v6 folded
+  the tower, IMU carrier, battery tray and board frame into one printed torso,
+  dropping the standing CG 3 mm and the torso CG 2.2 mm on 19 g less plastic.
+  The whole robot is ~1.08 kg, ~1.23 kg with the GoPro.
+- **Physical robot:** printed, assembled, wired, and calibrated. Ten servos on
+  one 1 Mbaud half-duplex chain; as-built zeros and per-joint direction signs
+  live in `docs/servo-map.md` and in NVS on the board.
+- **Sim:** `sim/bimo_biped_v5body.xml` is the CAD-true 10-DOF plant — mesh-derived
+  inertia, pad-true sole contacts, measured STS3215 torque–speed envelope,
+  sub-step latency, backlash, actuation lag, free-travel play, IMU-realizable
+  observations. `sim/walker_env.py` (CPU) is the referee plant; `sim/mjx/env_mjx.py`
+  is the JAX port trained on, and `sim/mjx/parity_test.py` gates the two against
+  each other.
+- **Training:** brax PPO at 1–2k parallel envs, overnight on the GPU box, on a
+  command-conditioned policy covering stand / walk / backward / sidestep / turn /
+  crouch / one-leg balance / march. Graded by `sim/mjx/eval_precision.py` on 28
+  scenarios × 8 seeds, in three columns (python, real-C++-code SIL, and
+  bench-measured servo lag). Full write-up: [docs/training.md](docs/training.md).
+- **Firmware:** the 50 Hz policy loop runs on the ESP32 itself, with the
+  distilled (128,128) network in flash, a 250 Hz IMU sampler, a C2 command
+  shaper, calibration in NVS, an arming latch and a fall latch. The observation
+  layout and servo permutation are generated from the sim and pinned by host
+  tests.
+- **It walked** on 2026-09-01, untethered, under `loco_v26lag_s128`; the
+  currently flashed policy is `loco_v27tilt_b_s128r24` (deployed 2026-09-03).
 
 ## 5. How to run
 
-### OpenSCAD (CAD renders)
+> **Current commands live in [README.md](README.md) → Quickstart**, and the
+> training pipeline in [docs/training.md](docs/training.md). What follows in
+> this section is the **day-1 through day-5 recipe**, kept because the dated
+> log below refers to it: the OpenSCAD massing model, the CPU Gymnasium env,
+> and the Stable-Baselines3 trainer. None of it is the current path — the
+> plant, the observation, the actuator model and the trainer have all been
+> replaced since.
+
+### OpenSCAD (CAD renders) — superseded by `cad/parts.py`
 ```bash
 # headless render (add xvfb-run on a server); pose override via -D
 xvfb-run -a openscad -o out.png --preview --projection=perspective \
@@ -1819,34 +1868,41 @@ thigh sweep). It re-runs **ALL CLEAR**, including thigh-at-−115° crossed with
 | Joint limits (mechanical, `v4rom`) | hip-yaw ±45°, hip-roll 25° adduction / **55° abduction** (asymmetric per leg: L −25…+55, R −55…+25), hip-pitch **−110…+90°**, knee −95…+5° (flexion is **negative**: MJCF axis `0 -1 0`, so this is 95° of flexion and 5° of hyperextension — see "The knees bent the wrong way"), ankle ±40°. Leg-on-leg contact rules before the roll and yaw stops in most poses — see "v4rom". |
 | Policy range (what a policy trains in) | hip-roll ±25°, hip-pitch −110…+60°, others as above. Carried as `ctrlrange` on v4rom's actuators, unchanged from `v3yaw`; widening it rescales the action map and costs a retrain. |
 | Segment lengths | thigh ≈ 90 mm, shin ≈ 90 mm (servo + bracket) |
-| Torso (D×W×H) | 46 × 104 × 72 mm; head 46 × 62 × 42 mm |
-| Hip separation | 56 mm (leg center-to-center) |
-| Standing height | torso center ≈ 0.28 m; overall ≈ 0.34 m |
-| Total sim mass | ≈ 0.93 kg |
+| Torso | one printed piece since pelvis v6 (tower + imu_carrier + battery tray + board frame folded in); deck 105 × 104 mm |
+| Hip separation | **66 mm** (leg center-to-center; 56 mm through v4rom) |
+| Standing height | torso center ≈ 0.28 m; overall ≈ 0.34 m; hip-yaw axis 288 mm, deck top 336 mm |
+| Printed plastic | ≈ 354 g PETG (7 unique parts, 14 prints) |
+| Total robot mass | ≈ 1.08 kg; ≈ 1.23 kg with the 154 g GoPro |
+| Standing CG | 182 mm; 208 mm with the camera aboard (the camera is 12 % of the robot at 56 mm above the deck — the worst item on the machine for balance) |
 
-MJCF specifics: position actuators, kp=40, forcerange ±3 N·m; foot-floor friction 1.0;
-internal parts set non-colliding (feet-only contact); IMU `site` on torso for orientation.
+MJCF specifics (`v5body`): per-body `<inertial>` derived from the STLs plus
+component boxes (`sim/build_v2_inertia.py`); STS3215 torque–speed actuators
+driven per substep, not ideal position servos; contact geometry is the pad-true
+8-sphere sole, CAD mesh geoms carry no contacts; inter-leg collision geometry
+present (the legs can touch each other); IMU `site` on the board where it
+actually sits.
 
 ## 7. Roadmap
 
 - **Stage 0 — CAD massing:** DONE (concept only).
 - **Stage 1 — Physics validation (MuJoCo):** DONE.
 - **Stage 2a — Gymnasium RL env (CPU MuJoCo):** DONE. `sim/walker_env.py` + smoke test.
-- **Stage 2b — Train PPO:** CPU baseline DONE, then gait-quality shaping +
-  procedural terrain (`terrain_v4`), then the **buildable-robot retrain** (see
-  that section): CAD-true `bimo_biped_v2.xml` + STS3215 torque-speed actuator
-  model + camera payload + 2 m dash. Recommended: **`dash_11v1_hard`** (3S,
-  2 m in ~2.7 s, 16/16 in every cell incl. camera + 10 mm terrain) or
-  **`dash_7v4_hard`** on the current 2S design (~4.4 s). `terrain_v4` and all
-  ideal-actuator policies are physically unbuildable (they demand ~3 N·m at
-  4.4 rad/s — outside the servo envelope at any voltage). **Open:** action-
-  latency robustness (0/16 with 20 ms whole-step delay; needs sub-step latency
-  modeling or a from-scratch latency curriculum), repeated shoves (unchanged).
-  Next: port the env+reward to MJX on the RTX 4070 for scale/speed.
-- **Stage 3 — Sim-to-real:** system-ID the real servos, export ONNX policy, deploy on the
-  ESP32 (docs/wiring.md; *not* an RP2040/SBC — that was an early sketch). The wireless
-  command channel it runs under is specified and sim-verified in
-  [docs/control-channel.md](docs/control-channel.md).
+- **Stage 2b — Train PPO:** DONE, and then replaced. CPU baseline → gait-quality
+  shaping + procedural terrain → the buildable-robot retrain (CAD-true plant +
+  honest actuators + payload) → **MJX/brax at GPU scale**, which is where the
+  wall came down and sustained command-conditioned walking appeared. Every
+  ideal-actuator policy (`terrain_v4` and its generation) is physically
+  unbuildable — they demand ~3 N·m at 4.4 rad/s, outside the servo envelope at
+  any voltage — and is kept only for provenance. See
+  [docs/training.md](docs/training.md).
+- **Stage 3 — Sim-to-real:** DONE and ongoing. Servos system-ID'd on the bench
+  (torque, no-load speed, actuation lag, joint play); policy distilled to
+  (128,128) and compiled into the ESP32 firmware as a `constexpr`, not ONNX;
+  the wireless command channel is specified in
+  [docs/control-channel.md](docs/control-channel.md) and flying. **Open:** the
+  roll limit cycle (§ "Known limitations"), rhythm under the measured servo lag.
+- **Stage 4 — Goal-conditioned locomotion:** the next abstraction. Requires an
+  onboard pose estimate the robot cannot yet produce.
 
 ## 8. TODO — known next steps (start here)
 
@@ -1857,10 +1913,15 @@ internal parts set non-colliding (feet-only contact); IMU `site` on torso for or
       − action-rate. Terminate on height < 0.18 m or up-vector z < 0.4. Foot-
       contact obs still optional/TODO. Smoke test: zero policy stands upright 500
       steps; random/scripted fall (correct reward gradient).
-- [ ] **Stage 2b — Port to MJX (JAX)** and train PPO (Brax PPO or RSL-RL) on the RTX 4070
-      with a few thousand parallel envs. Target: a stable forward gait.
-- [ ] **Domain randomization** (required for sim-to-real): friction, link mass ±15%,
-      actuator latency, random shove forces.
+- [x] **Stage 2b — Port to MJX (JAX)** and train PPO on the GPU box with a few
+      thousand parallel envs. DONE — `sim/mjx/`, brax PPO, parity-gated against
+      the CPU env. Target met and exceeded: command-conditioned walking, not
+      just a forward gait.
+- [x] **Domain randomization** (required for sim-to-real). DONE — batch-level
+      mass/inertia ±15 %, friction ±40 %, payload, floor tilt; per-episode servo
+      gain, latency + jitter, backlash, actuation-lag pole, IMU misalignment and
+      bias, shoves. Every hardware term is added only after the bench measures
+      it (docs/training.md §6).
 - [x] **Accurate inertia from CAD meshes** — DONE for inertia: `bimo_biped_v2.xml`
       now has explicit per-body `<inertial>` from the STL meshes + component boxes
       (`sim/build_v2_inertia.py`). Collision/visual geoms are still boxes; mesh
@@ -1869,28 +1930,51 @@ internal parts set non-colliding (feet-only contact); IMU `site` on torso for or
       clamped to the voltage-scaled STS3215 torque-speed envelope (see the
       buildable-robot retrain section). Backlash + serial-bus latency still open
       (env has an `action_latency` knob as a proxy).
-- [ ] **Measure & set real masses/inertias** once physical parts exist.
-- [ ] **CAD → printable:** take ONE joint (e.g. the knee bracket joining two servos) from
-      massing block to a real printable STEP/STL with horn spline, heat-set bosses, and
-      clearances; test-print to dial in tolerance (~0.3–0.4 mm on moving fits).
-- [ ] **Verify joint axis directions/signs** against a real assembly before trusting any gait.
-- [ ] **Sim-to-real plan:** system-identification protocol for the STS3215 (torque, speed,
-      latency), ONNX export, and deploy pipeline to the **ESP32** (the board on the order
-      sheet; earlier drafts said RP2040 + SBC).
-- [ ] **Firmware:** port `link/protocol.py`'s decode + `Watchdog` to C on the ESP32 and run
-      the 50 Hz policy loop beside the servo bus. The protocol itself is already specified
-      and exercised against MuJoCo over real UDP — see [docs/control-channel.md](docs/control-channel.md).
-- [ ] **Odometry:** the goal-seeking commander needs a pose estimate the robot cannot yet
-      produce (the BNO085 gives attitude only). Today `link.sources.GoalSource` is fed
-      ground truth by the sim; on hardware that gap is unfilled.
+- [x] **CAD → printable:** DONE — the full part set, printed and assembled.
+- [x] **Verify joint axis directions/signs** against a real assembly. DONE the
+      hard way: the two bus chains went onto the *opposite legs* from the plan
+      (port A is the RIGHT leg), and roll and knee are inverted on both legs.
+      `docs/servo-map.md` carries the hand-verified as-built table.
+- [x] **Sim-to-real plan:** DONE — bench system-ID for torque, no-load speed,
+      actuation lag and joint play; the deploy pipeline is `.silw` → generated
+      `weights.h` → SIL gate → flash (not ONNX).
+- [x] **Firmware:** DONE — `link/protocol.py`'s decode + `Watchdog` are ported to
+      C++ byte-exactly (vectors generated from the Python reference), and the
+      50 Hz policy loop runs on core 1 beside the servo bus.
+- [ ] **Measure real masses/inertias** on the assembled robot and reconcile
+      against the CAD-derived numbers the plant uses.
+- [ ] **Model the measured joint play** as plant hysteresis (free travel), not a
+      command deadzone, and re-run the twin sweep until it rocks like the robot
+      does — *then* re-rank the fleet. This is the top open item.
+- [ ] **Odometry:** the goal-seeking commander needs a pose estimate the robot
+      cannot produce (the IMU gives attitude only). `link.sources.GoalSource` is
+      fed ground truth by the sim; on hardware that gap is unfilled, and it is
+      what gates goal-conditioned locomotion.
+- [ ] **Board power:** the General Driver's 5 A bus limit against ten servos is
+      unresolved.
 
 ### Known limitations / caveats
-- Massing CAD ≠ printable geometry.
-- v1 (`bimo_biped.xml`) inertias are approximate boxes; v2 has mesh-derived
-  inertia but still box *contact* geometry.
-- No self-collision between internal parts (feet-only contact) — revisit when adding meshes.
-- v1 actuator is idealized; the sts3215 model adds the torque-speed envelope but
-  not backlash or serial-bus latency (use `action_latency` as a proxy).
+- **The armed robot oscillates itself over.** A quiet symmetric stand for ~1 s,
+  then growing alternating hip-pitch swings at 1–2 Hz until the torso passes
+  25–40° (2.4–6 s to fall, apparently at random); with the previous student the
+  same story ran in roll. The SIL twin stands dead still under the same policy
+  (up_y RMS 0.0009 vs 0.05–0.13) and the referee scores it 8/8 under lag, so it
+  is a plant or sensor gap. Suspects in test order: ~3° of free hip-roll play,
+  the pitch gyro's scale (27°/s raw zero-rate; integrated 2–2.7× the
+  accelerometer's tilt change on one test), the asymmetric right-foot stance,
+  foot/mat compliance, and the complementary-filter up-vector.
+- **The right leg carries the weight.** Repeatedly measured: right-leg joints
+  move the torso 2–4× more than the left, and the right ankle has ~5 ° of
+  coupling gap. The sim stands symmetric.
+- **Rhythm under the measured servo lag is poor across the whole fleet** — the
+  current era's problem statement.
+- **Terrain blindness:** no height scan; rough ground is handled by DR and the
+  terrain mosaic, not by seeing it.
+- **Get-up is parked** by decision (2026-07-28): the robot sits up, but PPO has
+  not found the rise in 11 rounds. Assist-to-kneel on hardware instead.
+- Legacy plants: `bimo_biped.xml` has box inertias; `v3yaw` and `v4rom` no
+  longer load at all (they declare the retired `tower.stl`). `v5body` is the
+  only current 10-DOF model.
 
 ### Battery bay widened to the 3S 850 field (2026-07-15)
 
