@@ -271,6 +271,32 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     Verified live: 250/s with zero failures, e-stop-armed loop 0 % late.
     The full armed budget and the effect on the stand wait for a live arm
     with Tom spotting.</p>
+    <p><b>Night: "you were going to instrument this for hard numbers."</b>
+    Two instruments, both onboard: <code>imu ring</code> reads the 250 Hz
+    gyro ring as a 50 ms envelope with peak, decay and dominant frequency;
+    <code>pose … T&lt;id&gt;</code> makes the streamer log one servo's
+    position, speed and load every tick through the move and 1.2 s after,
+    dumped by <code>trace</code>. The IMU said the torso is still at both
+    ends of a crouch (~1°/s, the noise floor) — the shake is in the legs.
+    The knee trace then found the real causes, and neither was the robot.
+    <b>(1)</b> The bench tool's reply pattern wanted "ok"; the smooth mode
+    answers "streaming"; so every smooth pose timed out and was
+    <i>re-sent 3 s into the move</i>, restarting the profile from
+    mid-travel — that restart was the end-of-move shake on every crouch
+    Tom judged. <b>(2)</b> Open-loop speed (profile × 0.9) let ~10 % lag
+    accumulate, and the servo crept the last 60 ticks off at the floor
+    speed for 1.2 s after the profile ended. <b>(3)</b> The CLI kept 13
+    argv, silently dropping every tuning token after the first — the
+    A/B/C glide, floor and shaper comparisons were identical runs (fixed,
+    24). The streamer is now <b>closed-loop</b>: each tick reads every
+    servo's measured position and commands the speed that closes the gap
+    to the next sub-target within the tick. Knee trace after, two reps,
+    both directions: target reached at 3.95 s of a 4.0 s profile,
+    <b>0 ticks of motion and 0 reversals in the 1.2 s tail</b>. Cost: the
+    stream tick stretched to ~28 ms for the ten reads. Lessons carried
+    forward: never resend a motion command blindly (verify by reply, else
+    by a witness joint moving), and the pelvis IMU is the wrong sensor for
+    leg shake. Tom has not yet watched a closed-loop crouch.</p>
   </div>
 
   <div class="card accent">
