@@ -60,7 +60,21 @@ imu::Qmi8658Imu g_qmi(imu::Qmi8658Imu::Config{
     board::kImuAddr, true, 8, 1024});
 imu::StubImu g_stub;
 imu::Imu* g_imu = nullptr;
+
 }  // namespace
+
+// `imu reinit` (cli.cpp): recover + re-init the QMI at runtime. The sampler
+// task and ctrl hold g_imu; if we booted on the stub, swap the pointer once
+// the real sensor answers (the sampler dereferences it every 4 ms, so the
+// swap is a single aligned pointer store).
+bool imuReinitLive() {
+    const bool ok = g_qmi.reinit();
+    if (ok) {
+        g_imu = &g_qmi;
+        imuSamplerSetSource(g_qmi);
+    }
+    return ok;
+}
 
 bool g_imu_cal_from_nvs = false;
 

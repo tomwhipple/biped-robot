@@ -1229,6 +1229,14 @@ void cmdImu(Sink out, int argc, char** argv) {
         return;
     }
 
+    if (argc >= 2 && !strcmp(argv[1], "reinit")) {
+        // bench-only: recover a hung bus and re-init the QMI without a
+        // flash. If it comes back, the sampler task keeps reading it (it
+        // holds the same object); if we booted on the stub, say so.
+        out(robot::imuReinitLive() ? "imu reinit: QMI8658C is back\r\n"
+                            : "imu reinit: still not answering (power-cycle the board)\r\n");
+        return;
+    }
     if (argc >= 2 && !strcmp(argv[1], "avg")) {
         if (argc >= 3) robot::imuSetAverage(!strcmp(argv[2], "on"));
         say(out, "imu avg: %s (gyro handed to the loop is the %s)\r\n",
@@ -1245,6 +1253,10 @@ void cmdImu(Sink out, int argc, char** argv) {
             ms, r.n, robot::kImuPeriodMs, static_cast<double>(r.peak),
             static_cast<double>(r.rms_first), static_cast<double>(r.rms_last),
             static_cast<double>(r.f_hz));
+        say(out, "  integral over the window (deg, body frame): x %.2f y %.2f z %.2f; mean rate (rad/s) %.4f %.4f %.4f\r\n",
+            static_cast<double>(r.integ[0] * 57.2958f), static_cast<double>(r.integ[1] * 57.2958f),
+            static_cast<double>(r.integ[2] * 57.2958f), static_cast<double>(r.mean[0]),
+            static_cast<double>(r.mean[1]), static_cast<double>(r.mean[2]));
         out("  envelope (mrad/s per 50 ms):");
         for (int i = 0; i < r.nbins; ++i) say(out, " %d", static_cast<int>(r.env[i] * 1000.0f + 0.5f));
         out("\r\n");
@@ -1575,7 +1587,7 @@ void banner(Sink out) {
     out("  cal [show|zero|dir|set|migrate|save|load|reset]   zero + dir (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
-    out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|bias|mount|forget]   QMI8658C\r\n");
+    out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|reinit|bias|mount|forget]   QMI8658C\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  stat                 tick timing and fault counters\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");

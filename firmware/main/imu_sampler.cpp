@@ -89,7 +89,11 @@ bool imuRing(int ms, RingStats& out) {
     // bias: mean over the window (a settle window is mostly still)
     float m[3] = {0, 0, 0};
     for (int k = 0; k < n; ++k) for (int i = 0; i < 3; ++i) m[i] += g[k][i];
-    for (int i = 0; i < 3; ++i) m[i] /= static_cast<float>(n);
+    for (int i = 0; i < 3; ++i) {
+        out.integ[i] = m[i] * (kImuPeriodMs / 1000.0f);   // sum * dt (m is the sum here)
+        m[i] /= static_cast<float>(n);
+        out.mean[i] = m[i];
+    }
     float var[2] = {0, 0};
     const int per_bin = 50 / kImuPeriodMs;
     int bin = 0; float acc = 0.0f; int cnt = 0;
@@ -119,6 +123,7 @@ bool imuRing(int ms, RingStats& out) {
     return true;
 }
 
+void imuSamplerSetSource(imu::Imu& imu) { s_imu = &imu; }
 uint32_t imuSampleTotal() { return s_total; }
 void imuSetAverage(bool on) { s_average = on; }
 bool imuAverage() { return s_average; }

@@ -103,20 +103,24 @@ static bool busRecover(gpio_num_t sda, gpio_num_t scl) {
     gpio_set_level(scl, 1);
     esp_rom_delay_us(20);
     bool recovered = false;
-    if (gpio_get_level(sda) == 0) {
-        for (int i = 0; i < 16 && gpio_get_level(sda) == 0; ++i) {
+    // Up to three rounds: 32 clocks at ~25 kHz (the slave may be mid-byte
+    // and the QMI8658C's I2C engine is slow to notice), then a STOP; the
+    // 16-pulse single round (first version, 2026-09-03) freed the bus once
+    // and failed the next time.
+    for (int round = 0; round < 3 && gpio_get_level(sda) == 0; ++round) {
+        for (int i = 0; i < 32 && gpio_get_level(sda) == 0; ++i) {
             gpio_set_level(scl, 0);
-            esp_rom_delay_us(5);
+            esp_rom_delay_us(20);
             gpio_set_level(scl, 1);
-            esp_rom_delay_us(5);
+            esp_rom_delay_us(20);
         }
-        // STOP: SDA low -> high while SCL is high
+        // START then STOP: SDA low while SCL high, then SDA high while SCL high
         gpio_set_level(sda, 0);
-        esp_rom_delay_us(5);
-        gpio_set_level(scl, 1);
-        esp_rom_delay_us(5);
-        gpio_set_level(sda, 1);
         esp_rom_delay_us(20);
+        gpio_set_level(scl, 1);
+        esp_rom_delay_us(20);
+        gpio_set_level(sda, 1);
+        esp_rom_delay_us(50);
         recovered = gpio_get_level(sda) == 1;
     }
     gpio_reset_pin(sda);
@@ -262,6 +266,19 @@ bool Qmi8658Imu::configure() {
 
     vTaskDelay(pdMS_TO_TICKS(20));
     return true;
+}
+
+bool Qmi8658Imu::reinit() {
+    ready_ = false;
+    if (dev_ != nullptr) {
+        i2c_master_bus_rm_device(static_cast<i2c_master_dev_handle_t>(dev_));
+        dev_ = nullptr;
+    }
+    if (bus_ != nullptr) {
+        i2c_del_master_bus(static_cast<i2c_master_bus_handle_t>(bus_));
+        bus_ = nullptr;
+    }
+    return init();
 }
 
 bool Qmi8658Imu::init() {

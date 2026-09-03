@@ -72,6 +72,9 @@ class Qmi8658Imu : public Imu {
     explicit Qmi8658Imu(const Config& cfg) : cfg_(cfg) {}
 
     bool init() override;
+    // Tear the I2C bus down, run the bus recovery, and init again -- for the
+    // bench (`imu reinit`) when a reset left the sensor holding SDA low.
+    bool reinit();
     bool read(Sample& out) override;
     const char* name() const override {
         return use_ae_ ? "qmi8658c/ae" : "qmi8658c/raw";

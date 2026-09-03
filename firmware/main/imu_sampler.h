@@ -13,10 +13,13 @@
 namespace robot {
 constexpr int kImuPeriodMs = 4;                 // 250 Hz
 void startImuSampler(imu::Imu& imu);
+void imuSamplerSetSource(imu::Imu& imu);   // after a runtime re-init
 // Latest attitude + tick-averaged gyro since the previous take. False until
 // the first sample has landed (caller keeps its held sample).
 bool takeImu(imu::Sample& out);
 uint32_t imuSampleTotal();
+// Defined in app_main.cpp: recover + re-init the live QMI (bench `imu reinit`).
+bool imuReinitLive();
 // Tick-averaging of the gyro handed to the control loop (default on). Off =
 // the latest 4 ms sample, i.e. the pre-sampler behaviour with 5x the rate.
 void imuSetAverage(bool on);
@@ -34,6 +37,8 @@ struct RingStats {
     float f_hz = 0.0f;
     int nbins = 0;
     float env[80];                // per-50 ms RMS, oldest first (<= 4 s)
+    float integ[3];               // integrated body-frame gyro over the window, rad
+    float mean[3];                // mean body-frame gyro over the window, rad/s
 };
 bool imuRing(int ms, RingStats& out);
 }  // namespace robot
