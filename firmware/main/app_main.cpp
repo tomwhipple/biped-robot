@@ -36,6 +36,7 @@ std::atomic<uint8_t> g_arm_result{
     static_cast<uint8_t>(linkproto::ArmResult::kNone)};
 std::atomic<float> g_shape_hz{obs::kShaperPoleHz};
 std::atomic<uint32_t> g_obs_freeze{0};
+std::atomic<float> g_obs_gyro_gain{1.0f};
 QueueHandle_t g_cmd_mailbox = nullptr;
 TelemetrySnapshot g_telemetry;
 ObsDump g_obs_dump;

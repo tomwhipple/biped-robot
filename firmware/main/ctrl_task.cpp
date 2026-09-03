@@ -381,6 +381,8 @@ void ctrlTask(void*) {
             const uint32_t fz = g_obs_freeze.load();
             if (fz & kObsFreezeUp) { in.up[0] = 0.0f; in.up[1] = 0.0f; in.up[2] = 1.0f; }
             if (fz & kObsFreezeGyro) { in.gyro[0] = in.gyro[1] = in.gyro[2] = 0.0f; }
+            const float gg = g_obs_gyro_gain.load();
+            if (gg != 1.0f) { for (int i = 0; i < 3; ++i) in.gyro[i] *= gg; }
             if (fz & kObsFreezeDq) { for (int i = 0; i < obs::kNumJoints; ++i) in.dq[i] = 0.0f; }
         }
         memcpy(in.prev_action, g_prev_action, sizeof g_prev_action);

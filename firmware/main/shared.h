@@ -91,6 +91,8 @@ extern std::atomic<float> g_shape_hz;
 // 4 = dq -> 0. The beacon/tilt guard keep the REAL values. CLI `obsfreeze`.
 constexpr uint32_t kObsFreezeUp = 1, kObsFreezeGyro = 2, kObsFreezeDq = 4;
 extern std::atomic<uint32_t> g_obs_freeze;
+// Bench diagnostic: multiply the gyro obs by this (1 = as measured).
+extern std::atomic<float> g_obs_gyro_gain;
 
 // -- command mailbox (core 0 -> core 1) ------------------------------------
 // A length-1 queue written with xQueueOverwrite: latest command wins and stale

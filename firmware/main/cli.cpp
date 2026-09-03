@@ -664,14 +664,21 @@ void cmdObsFreeze(Sink out, int argc, char** argv) {
             else if (!strcmp(argv[i], "gyro")) fz |= robot::kObsFreezeGyro;
             else if (!strcmp(argv[i], "imu")) fz |= robot::kObsFreezeUp | robot::kObsFreezeGyro;
             else if (!strcmp(argv[i], "dq")) fz |= robot::kObsFreezeDq;
+            else if (!strncmp(argv[i], "gain=", 5)) {
+                const float g = strtof(argv[i] + 5, nullptr);
+                if (!(g >= 0.0f && g <= 2.0f)) { out("obsfreeze: gain= must be 0..2\r\n"); return; }
+                robot::g_obs_gyro_gain.store(g);
+                continue;
+            }
             else { say(out, "obsfreeze: unknown '%s' (none|up|gyro|imu|dq)\r\n", argv[i]); return; }
         }
         robot::g_obs_freeze.store(fz);
     }
     const uint32_t fz = robot::g_obs_freeze.load();
-    say(out, "obsfreeze: up %s  gyro %s  dq %s  (policy obs only; beacon + guards see real values)\r\n",
+    say(out, "obsfreeze: up %s  gyro %s x%.2f  dq %s  (policy obs only; beacon + guards see real values)\r\n",
         (fz & robot::kObsFreezeUp) ? "FROZEN(0,0,1)" : "live",
         (fz & robot::kObsFreezeGyro) ? "FROZEN(0)" : "live",
+        static_cast<double>(robot::g_obs_gyro_gain.load()),
         (fz & robot::kObsFreezeDq) ? "FROZEN(0)" : "live");
 }
 
@@ -1676,7 +1683,7 @@ void banner(Sink out) {
     out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
     out("  cal [show|zero|dir|set|migrate|save|load|reset]   zero + dir (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
-    out("  obsfreeze [none|up|gyro|imu|dq]  bench: freeze policy-obs parts at nominal\r\n");
+    out("  obsfreeze [none|up|gyro|imu|dq|gain=k]  bench: freeze/scale policy-obs parts\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");

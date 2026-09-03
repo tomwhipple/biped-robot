@@ -682,6 +682,42 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     Not yet re-armed under the corrected gyro; that is the next arm test,
     with the same probe and cameras. Data:
     hw_sessions/2026-09-03/imu_scale_L*.log; firmware 3afe7d7.</p>
+    <p><b>Night: the ablation that found the loop, and the gain that
+    closes it.</b> Armed under the corrected gyro it fell in 3.8 s, same
+    growth as before. So the firmware gained <code>obsfreeze</code>, which
+    pins parts of the policy observation at their nominal stand values
+    while the beacon and guards keep the real ones, and Tom spotted seven
+    arms: <b>IMU frozen → stands 8 s</b> (swing 0.03 rad, no growth);
+    <b>gyro frozen only → stands</b>; <b>up frozen only → swing guard at 5
+    s</b>; joint velocities frozen with the IMU live → guard at 3 s. The
+    loop closes through the gyro. Then a signed bench test
+    (<code>tools/gyro_sign_check.py</code>: both ankles, both hip pitches,
+    both knees, +6° over 2 s, the policy's own <code>up</code> before and
+    after, the ring integral through the move) against the identical
+    move in the sim on the v5body plant: gyro integral matched to 0.3°
+    on every joint, and the up-vector matched in magnitude but was
+    <b>rotated 66°</b>. Cause: the obs <code>up</code> is MuJoCo's
+    framezaxis, the body z-axis in the <i>world</i> frame, which turns
+    with yaw; the sim's yaw is ~0 at every reset, the robot's fused yaw
+    is a free gyro integral walking at the residual z bias (~4°/min), so
+    the tilt feedback was rotated by an angle that drifted over minutes —
+    that is "how long it stays up is random chance". Firmware now strips
+    the ZYX yaw before forming <code>up</code> (checked to 1e-16 against
+    the zero-yaw column over 2000 random poses); the leans then match the
+    sim to 0.01 on every joint. Also found: a boot that fell back to the
+    stub IMU never applied the NVS calibration and <code>imu reinit</code>
+    brought the sensor back uncalibrated (bias 0, mount identity) — now
+    re-applied on reinit. <b>But the yaw-stripped up did not stop the
+    oscillation</b> (fell at 5 s). What did: <b>gyro at half gain</b>
+    (<code>obsfreeze gain=0.5</code>) — stood the full 8 s in a bounded
+    0.1 rad limit cycle. The loop is gain-limited: with sign, scale, frame
+    and yaw all verified, the plant has more phase lag at the crossover
+    than the sim's, and the student leans on the rate term harder than
+    this plant allows. Training answer, queued for tonight: randomise the
+    gyro observation per episode (scale and a 0–2 tick delay) so the
+    policy cannot depend on a crisp rate. Data:
+    hw_sessions/2026-09-03/arm_v27_{gscale,imufrozen,gyrofrozen,upfrozen,
+    yawstrip2,dqfrozen,gyrohalf}_*, gyro_sign_*.log.</p>
   </div>
 
   <div class="card accent">
