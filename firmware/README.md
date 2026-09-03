@@ -177,16 +177,30 @@ Handover is one-way through the ctrl task: it releases torque and clears
   vectors at the 147→128→128→20 widths. `kWeightsArePlaceholder` is false and
   `test_policy` asserts it, along with `kWeightsRun == obs::kRunName`.
 - **`imu/`** — the QMI8658C driver (`imu::Qmi8658Imu`), the complementary
-  attitude filter (`imu::Fusion`), the up-vector-from-quaternion maths, the
-  mounting rotation, and a stub that lets the whole loop run with no part
+  attitude filter (`imu::Fusion`), the up-vector maths, the mounting rotation, a
+  per-axis gyro scale, and a stub that lets the whole loop run with no part
   fitted. Sampled at 250 Hz by `main/imu_sampler.cpp`, with **I2C bus recovery
   at init** — a reset mid-transaction leaves SDA held low, and without the
   recovery the firmware silently falls back to the `StubImu`.
+
+  Two corrections live here, both found by bench measurement against the sim:
+  **`upYawStrippedFromQuaternion`** removes ZYX yaw before taking the up-vector,
+  because the policy's `up` observation is the torso z-axis in the *world* frame
+  and the fused yaw is a free drifting integral — see DESIGN's known-limitations
+  entry, this was the cause of the stand oscillation. And a **per-axis gyro
+  scale** (`imu gscale x y z`, own NVS record, unity when absent) corrects the
+  pitch gyro's 18 % over-read. `applyImuCalFromNvs()` applies bias, mount and
+  scale at boot **and** after `imu reinit` — a boot that fell back to the stub
+  used to leave the re-initialised sensor completely uncalibrated.
 - **The CLI** — the primary bench interface, exercised daily:
   `scan`, `ping`, `id`, `pos`, `move`, `pose`, `home`, `release`, `torque`,
   `middle`, `reg`, `cal` (save/load/show/migrate/forget), `imu`
-  (raw/bias/mount/ring), `wifi`, `obsdump`, `trace`, `shape`, `batt`, `volt`,
-  `run`, `bench`, `stat`, `help`. A commanded position is **smooth by default**
+  (raw/bias/mount/gscale/reinit/ring), `wifi`, `obsdump`, `obsfreeze`, `trace`,
+  `shape`, `batt`, `volt`, `run`, `bench`, `stat`, `help`.
+  `obsfreeze [none|up|gyro|imu|dq]` pins part of the policy's observation at
+  nominal while the beacon and guards keep reading the real values — a
+  non-persistent diagnostic, and the one that located the stand oscillation.
+  A commanded position is **smooth by default**
   (minimum-jerk pose streaming with a computed duration) — reaching a target
   smoothly is the controller's job, not the caller's.
 

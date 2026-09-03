@@ -9,12 +9,16 @@ scripted walk.
 
 **Status:** built, calibrated, and walking under its own firmware since
 2026-09-01. Training is brax PPO on a MuJoCo MJX model of the robot; the trained
-network is distilled small enough to live in the ESP32's flash. The open problem
-is that an armed robot holds a stand for about a second and then oscillates
-itself over, where the same policy stands still in simulation. One cause is
-found and fixed — the pitch gyro over-read by 18 %, a phantom velocity on
-exactly the axis it oscillates in — and the re-arm test under the corrected
-sensor is pending.
+network is distilled small enough to live in the ESP32's flash.
+
+The open problem — an armed robot holding a stand for a second and then
+oscillating itself over — was traced on 2026-09-03 to the observation contract
+rather than the plant: the policy's "up" vector is the torso z-axis in the
+*world* frame, which turns with yaw. Simulated episodes always start at yaw ≈ 0,
+but the robot's fused yaw is a free gyro integral that drifts (~0.07°/s), so its
+tilt feedback was rotated by an angle that grew over minutes. Two sensor fixes
+are in (yaw-stripped up-vector, an 18 % pitch-gyro over-read); **neither has
+been re-armed on the robot yet.**
 
 *Inspired by (not a clone of) the open-source
 [Bimo Project](https://github.com/mekion/the-bimo-project). The geometry here is

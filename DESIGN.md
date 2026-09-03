@@ -1936,18 +1936,25 @@ actually sits.
       unresolved.
 
 ### Known limitations / caveats
-- **The armed robot oscillates itself over.** A quiet symmetric stand for ~1 s,
-  then growing alternating hip-pitch swings at 1–2 Hz until the torso passes
-  25–40° (2.4–6 s to fall, apparently at random); with the previous student the
-  same story ran in roll. The SIL twin stands dead still under the same policy
-  (up_y RMS 0.0009 vs 0.05–0.13) and the referee scores it 8/8 under lag, so it
-  is a plant or sensor gap. **One cause found and fixed:** the pitch gyro read
-  18 % hot on a clamped-foot test (1.16–1.19 vs the accelerometer, roll axis
-  1.02–1.03 as a control) — a phantom velocity on the oscillating axis. The
-  firmware now carries a per-axis gyro scale in NVS and the test reads 1.01–1.04;
-  the re-arm under it is pending. Remaining suspects: ~3° of free hip-roll play,
-  the asymmetric right-foot stance, foot/mat compliance, and the
-  complementary-filter up-vector.
+- **The armed robot oscillates itself over — ROOT CAUSE FOUND 2026-09-03.** A
+  quiet stand for ~1 s, then growing alternating hip-pitch swings at 1–2 Hz
+  until the torso passes 25–40° (2.4–6 s to fall, apparently at random). The SIL
+  twin stands dead still under the same policy and the referee scores it 8/8
+  under lag. An obs-freeze ablation put the loop through the IMU observation
+  (`up` frozen → stands 8 s; live → falls at 3.8 s), and a signed bench test
+  against the same move in sim found the gyro integral matching while the `up`
+  change was **rotated 66°**.
+  The observation's `up` is the torso z-axis in the WORLD frame, which turns
+  with yaw. Sim episodes reset at yaw ≈ 0 so it never showed there; the robot's
+  fused yaw is a free gyro-z integral drifting ~0.07°/s, so the tilt feedback the
+  policy reads was rotated by an angle that grew over minutes — hence the random
+  time-to-fall. Fixed in firmware by stripping ZYX yaw from the quaternion
+  before taking the up-vector; **not yet re-armed under the fix.** A second
+  sensor error found on the way: the pitch gyro read 18 % hot (1.16–1.19 vs the
+  accelerometer on a clamped foot, roll axis 1.02–1.03 as a control), now
+  corrected by a per-axis scale in NVS.
+  Remaining suspects for whatever is left: ~3° of free hip-roll play, the
+  asymmetric right-foot stance, and foot/mat compliance.
 - **The right leg carries the weight.** Repeatedly measured: right-leg joints
   move the torso 2–4× more than the left, and the right ankle has ~5 ° of
   coupling gap. The sim stands symmetric.
