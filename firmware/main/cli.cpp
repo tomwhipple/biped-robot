@@ -287,8 +287,15 @@ void cmdMove(Sink out, int argc, char** argv) {
 static bool s_traj_active = false;
 static TickType_t s_traj_t0 = 0, s_traj_last = 0;
 static long s_traj_ms = 0;
+static float s_traj_headroom = 0.9f;    // servo speed = profile speed x this
+static uint8_t s_traj_acc = 0;          // servo acceleration register (100 steps/s^2 per LSB)
+static int32_t s_traj_bigstep = 4;      // write at once when a joint has this many ticks to go
+static long s_traj_minint_ms = 100;     // ... else wait this long between writes (>= 1 tick)
 static int32_t s_traj_start[obs::kNumJoints];
 static int32_t s_traj_tgt[obs::kNumJoints];
+static int32_t s_traj_sent[obs::kNumJoints];     // last goal written per joint
+static uint16_t s_traj_spd[obs::kNumJoints];     // ... and its speed
+static TickType_t s_traj_tsent[obs::kNumJoints]; // ... and when
 
 // `reg <id> <addr> [1|2]` -- READ a servo register (EEPROM or RAM), never
 // write. Added 2026-09-03 to inspect PosP/PosD/PosI (21-23), dead zones
@@ -374,13 +381,50 @@ void cmdPose(Sink out, int argc, char** argv) {
             }
             s_traj_start[i] = cur;
             s_traj_tgt[i] = tgt[i];
+            s_traj_sent[i] = cur;
+            s_traj_spd[i] = 15;
+            s_traj_tsent[i] = xTaskGetTickCount();
+        }
+        // optional tuning tokens after s<ms>: h<pct> speed headroom (servo
+        // speed = profile speed x pct/100; <100 keeps the servo running
+        // continuously behind the stream instead of stop-starting at 50 Hz),
+        // a<n> servo acceleration register (100 steps/s^2 per LSB, 0 = max).
+        s_traj_headroom = 0.9f;
+        s_traj_acc = 0;
+        s_traj_bigstep = 4;
+        s_traj_minint_ms = 100;
+        for (int k = 2 + obs::kNumJoints; k < argc; ++k) {
+            if (argv[k][0] == 'h') {
+                long pct = num(argv[k] + 1, 90);
+                if (pct < 30) pct = 30;
+                if (pct > 300) pct = 300;
+                s_traj_headroom = static_cast<float>(pct) / 100.0f;
+            } else if (argv[k][0] == 'a') {
+                long a = num(argv[k] + 1, 0);
+                if (a < 0) a = 0;
+                if (a > 254) a = 254;
+                s_traj_acc = static_cast<uint8_t>(a);
+            } else if (argv[k][0] == 'b') {          // b<ticks>: big-step threshold
+                long b = num(argv[k] + 1, 4);
+                if (b < 1) b = 1;
+                if (b > 64) b = 64;
+                s_traj_bigstep = static_cast<int32_t>(b);
+            } else if (argv[k][0] == 'i') {          // i<ms>: min interval between small writes
+                long iv = num(argv[k] + 1, 100);
+                if (iv < 20) iv = 20;
+                if (iv > 1000) iv = 1000;
+                s_traj_minint_ms = iv;
+            }
         }
         s_traj_ms = ms;
         s_traj_t0 = xTaskGetTickCount();
         s_traj_last = s_traj_t0;
         s_traj_active = true;
-        say(out, "pose -> %d joints, SMOOTH minimum-jerk over %ld ms: streaming\r\n",
-            obs::kNumJoints, ms);
+        say(out, "pose -> %d joints, SMOOTH minimum-jerk over %ld ms (speed x%.2f, "
+                 "acc %u, step %ld ticks / %ld ms): streaming\r\n",
+            obs::kNumJoints, ms, static_cast<double>(s_traj_headroom),
+            static_cast<unsigned>(s_traj_acc), static_cast<long>(s_traj_bigstep),
+            s_traj_minint_ms);
         return;
     }
     if (last && last[0] == 't') {
@@ -522,8 +566,15 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
         }
         s_traj_start[j] = cur;
         s_traj_tgt[j] = tgt[j];
+        s_traj_sent[j] = cur;
+        s_traj_spd[j] = 15;
+        s_traj_tsent[j] = xTaskGetTickCount();
     }
     s_traj_ms = dur_ms;
+    s_traj_headroom = 0.9f;
+    s_traj_acc = 0;
+    s_traj_bigstep = 4;
+    s_traj_minint_ms = 100;
     s_traj_t0 = xTaskGetTickCount();
     s_traj_last = s_traj_t0;
     s_traj_active = true;
@@ -904,31 +955,63 @@ void poseTick(Sink out) {
         return;
     }
     const TickType_t now = xTaskGetTickCount();
-    if (now - s_traj_last < pdMS_TO_TICKS(20)) return;     // ~50 Hz stream
+    if (now - s_traj_last < pdMS_TO_TICKS(20)) return;     // ~50 Hz evaluation
     s_traj_last = now;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) { s_traj_active = false; return; }
     const long el = static_cast<long>(pdTICKS_TO_MS(now - s_traj_t0));
     float tau = static_cast<float>(el) / static_cast<float>(s_traj_ms);
     if (tau > 1.0f) tau = 1.0f;
-    // quintic minimum-jerk: s = 10t^3 - 15t^4 + 6t^5, s' = 30t^2 - 60t^3 + 30t^4
+    // quintic minimum-jerk: s = 10t^3 - 15t^4 + 6t^5
     const float t2 = tau * tau, t3 = t2 * tau, t4 = t3 * tau, t5 = t4 * tau;
     const float sc = 10.0f * t3 - 15.0f * t4 + 6.0f * t5;
-    const float sd = 30.0f * t2 - 60.0f * t3 + 30.0f * t4;   // per unit tau
+    // Write rule (Tom 2026-09-03, "make sure we don't have single ticks that
+    // are too close together in time"): a joint gets a new goal when it has
+    // >= kBigStep ticks to move, or >= 1 tick AND >= kMinIntervalMs since its
+    // last write, or at the very end. Its speed is the distance over the
+    // interval it will take -- the servo GLIDES between updates instead of
+    // being poked one tick every 20 ms against its dead zone.
+    const int32_t kBigStep = s_traj_bigstep;
+    const long kMinIntervalMs = s_traj_minint_ms;
     int32_t steps[obs::kNumJoints];
     uint16_t spds[obs::kNumJoints];
+    bool changed = false;
     for (int i = 0; i < obs::kNumJoints; ++i) {
         const float d = static_cast<float>(s_traj_tgt[i] - s_traj_start[i]);
-        steps[i] = tau >= 1.0f ? s_traj_tgt[i]
-                               : s_traj_start[i] + static_cast<int32_t>(lroundf(sc * d));
-        // profile speed in steps/s (+25 % headroom so the servo leads the
-        // stream instead of trailing it), never 0 (= unlimited on the wire)
-        float v = fabsf(d) * sd / (static_cast<float>(s_traj_ms) / 1000.0f) * 1.25f;
+        const int32_t want = tau >= 1.0f
+            ? s_traj_tgt[i]
+            : s_traj_start[i] + static_cast<int32_t>(lroundf(sc * d));
+        const int32_t dstep = want - s_traj_sent[i];
+        const int32_t mag = dstep < 0 ? -dstep : dstep;
+        const long since_ms = static_cast<long>(pdTICKS_TO_MS(now - s_traj_tsent[i]));
+        const bool go = (mag >= kBigStep) ||
+                        (mag >= 1 && since_ms >= kMinIntervalMs) ||
+                        (tau >= 1.0f && mag >= 1);
+        if (!go) {
+            steps[i] = s_traj_sent[i];
+            spds[i] = s_traj_spd[i];
+            continue;
+        }
+        changed = true;
+        // glide: cover this distance over the time this interval took, with
+        // the headroom factor (< 1 keeps the servo running behind the stream
+        // rather than arriving early and stopping). Floor: one tick per
+        // 20 ms tick, never 0 (= unlimited on the wire).
+        const long dt_ms = since_ms < 20 ? 20 : since_ms;
+        float v = static_cast<float>(mag) * 1000.0f / static_cast<float>(dt_ms) *
+                  s_traj_headroom;
         if (v < 15.0f) v = 15.0f;
         if (v > 3400.0f) v = 3400.0f;
+        steps[i] = want;
         spds[i] = static_cast<uint16_t>(v);
+        s_traj_sent[i] = want;
+        s_traj_spd[i] = spds[i];
+        s_traj_tsent[i] = now;
     }
-    bus->syncWritePositions(robot::servoIds(), steps, spds, obs::kNumJoints, 0);
+    if (changed) {
+        bus->syncWritePositions(robot::servoIds(), steps, spds, obs::kNumJoints,
+                                s_traj_acc);
+    }
     if (tau >= 1.0f) {
         s_traj_active = false;
         say(out, "smooth pose done (%ld ms)\r\n", el);

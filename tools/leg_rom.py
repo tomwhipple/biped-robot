@@ -15,6 +15,7 @@ ap.add_argument('out'); ap.add_argument('--legs', choices=['L','R','both'], requ
 ap.add_argument('--thetas', default='10,20,30,40,45,40,30,20,10,0')
 ap.add_argument('--spd', type=int, default=60); ap.add_argument('--settle', type=float, default=2.0)
 ap.add_argument('--smooth-ms', type=int, default=3000, help='firmware pose s<ms>: minimum-jerk stream from the housekeeping loop (default; 0 = constant speed)')
+ap.add_argument('--stream-opts', default='', help='extra tokens after s<ms>, e.g. "h90 a10" (speed headroom pct, servo acc register)')
 ap.add_argument('--unison-ms', type=int, default=0, help='use the firmware pose t<ms> unison mode (per-servo speeds) instead of one speed')
 ap.add_argument('--tilt-abort', type=float, default=8.0); ap.add_argument('--stall-ticks', type=int, default=40)
 ap.add_argument('--roll', type=float, default=0.0, help='hip roll (abduction, +) on the lifted leg for clearance')
@@ -61,7 +62,7 @@ def offsets(theta):
     return off
 def ticks(off): return [int(round(z + d*off.get(n,0.0)*TPD)) for n,i,z,d in CAL]
 def pose(off):
-    tail = f's{A.smooth_ms}' if A.smooth_ms else f't{A.unison_ms}' if A.unison_ms else f'{A.spd}'
+    tail = (f's{A.smooth_ms} {A.stream_opts}'.strip()) if A.smooth_ms else f't{A.unison_ms}' if A.unison_ms else f'{A.spd}'
     return cmd('pose ' + ' '.join(map(str, ticks(off))) + f' {tail}', until=r'(ok|refus|OFF|usage|busy|answer)')
 def burst(n):
     pat = re.compile(r'a\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+\|a\|\s+[\d.]+\s+g\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)')
