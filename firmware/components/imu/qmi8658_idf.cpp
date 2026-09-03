@@ -40,6 +40,11 @@ constexpr uint8_t kCtrl1AddrAutoInc = 1 << 6;
 constexpr uint8_t kCtrl7aEN = 1 << 0;
 constexpr uint8_t kCtrl7gEN = 1 << 1;
 constexpr uint8_t kCtrl7sEN = 1 << 3;
+// syncSmpl: lock the output registers while they are being read. Without
+// it a 12-byte burst can straddle a sample update and one axis comes back
+// with a torn 16-bit value -- measured 2026-09-03 as isolated +-256 LSB
+// (exactly 8 deg/s at the 1024 dps range) spikes on gyro z, ~1 in 100.
+constexpr uint8_t kCtrl7SyncSmpl = 1 << 7;
 
 // AE quaternion is Q14: 16384 LSB per unit. dV is 1024 LSB per m/s.
 constexpr float kDqScale = 1.0f / 16384.0f;
@@ -171,7 +176,7 @@ bool Qmi8658Imu::configure() {
     gyro_scale_ =
         (static_cast<float>(cfg_.gyro_fs_dps) * kDegToRad) / 32768.0f;
 
-    uint8_t ctrl7 = kCtrl7aEN | kCtrl7gEN;
+    uint8_t ctrl7 = kCtrl7aEN | kCtrl7gEN | kCtrl7SyncSmpl;
     use_ae_ = false;
 
     if (cfg_.try_attitude_engine) {
@@ -274,11 +279,41 @@ bool Qmi8658Imu::aeDiagnose(AeDiag& out) {
 
 bool Qmi8658Imu::readRawUnbiased(float accel[3], float gyro[3]) {
     // Accel and gyro are contiguous (0x35..0x40), so one burst gets both.
-    uint8_t buf[12];
-    if (!regRead(kRegAccel, buf, sizeof buf)) return false;
+    //
+    // TORN READS (2026-09-03): a burst can straddle a sample update and one
+    // axis comes back with mismatched low/high bytes -- measured as isolated
+    // +-256 LSB spikes (exactly 8 deg/s at 1024 dps) on gyro z, ~1 in 100
+    // samples, and syncSmpl did not stop them. So: read twice; if any axis
+    // disagrees by more than kTearLsb, read a third time and take the
+    // per-axis median. Two clean reads 0.4 ms apart agree to a few LSB even
+    // in motion; a tear is an outlier by hundreds.
+    constexpr int kTearLsb = 96;
+    uint8_t b1[12], b2[12], b3[12];
+    if (!regRead(kRegAccel, b1, sizeof b1)) return false;
+    if (!regRead(kRegAccel, b2, sizeof b2)) return false;
+    int16_t v1[6], v2[6], v3[6];
+    bool torn = false;
+    for (int i = 0; i < 6; ++i) {
+        v1[i] = le16(&b1[i * 2]);
+        v2[i] = le16(&b2[i * 2]);
+        const int d = static_cast<int>(v1[i]) - static_cast<int>(v2[i]);
+        if (d > kTearLsb || d < -kTearLsb) torn = true;
+    }
+    int16_t* use = v2;
+    if (torn) {
+        if (!regRead(kRegAccel, b3, sizeof b3)) return false;
+        for (int i = 0; i < 6; ++i) {
+            v3[i] = le16(&b3[i * 2]);
+            // median of three
+            const int16_t a = v1[i], b = v2[i], c = v3[i];
+            v2[i] = (a > b) ? ((b > c) ? b : (a > c ? c : a))
+                            : ((a > c) ? a : (b > c ? c : b));
+        }
+        ++tear_count_;
+    }
     for (int i = 0; i < 3; ++i) {
-        accel[i] = static_cast<float>(le16(&buf[i * 2])) * accel_scale_;
-        gyro[i] = static_cast<float>(le16(&buf[6 + i * 2])) * gyro_scale_;
+        accel[i] = static_cast<float>(use[i]) * accel_scale_;
+        gyro[i] = static_cast<float>(use[3 + i]) * gyro_scale_;
     }
     return true;
 }

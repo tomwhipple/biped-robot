@@ -516,6 +516,44 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     rig than the hang stand — the swept leg is loaded as in use and the
     free leg can be posed anywhere. Data: hw_sessions/2026-09-03/
     sweep6_Lclamped.csv, sweep12–14_Rclamped.csv.</p>
+    <p><b>Evening: the horns were loose, the zeros moved, and the crouch
+    oscillation was the command, not the robot.</b> Tom found and tightened
+    loose screws at the servo wheels on both legs, so the stand was
+    <b>re-zeroed</b> by eye (<code>cal zero</code> + <code>cal save</code>):
+    the pitch chains had wandered L hip pitch −3.8°, L knee −4.7°, L ankle
+    +1.7°, R hip pitch −1.9°, R knee +1.1°, R ankle −1.1°, yaws and rolls
+    under 0.3° — the loose horns were the asymmetric stance. The right
+    ankle's 5–7° release <i>survived</i> the tightening (five reproductions,
+    the free foot verifiably clear by servo load), so that gap is elsewhere
+    in the ankle. Then range of motion, one foot clamped
+    (<code>tools/leg_rom.py</code>, the level-foot family hip −θ / knee
+    −2θ / ankle −θ): the free leg lifts to θ = 40°, knee −80°, ~4.7 cm,
+    within 4 ticks on every joint; the two-leg crouch reaches knee −80°
+    within 4 ticks, torso within 2°. Tom saw the crouch <b>oscillate</b>,
+    then saw hips and ankles move first with the knees catching up, then
+    saw it get <i>worse</i> when all servos ran in unison. The gyro bursts
+    agreed: constant speed peaks 0.3–0.7 rad/s of torso rate, unison
+    0.2–0.6, dominant ~2.5 Hz — the structure, hit by every velocity step,
+    and hit coherently when ten servos step together. The fix is firmware:
+    <code>pose … s&lt;ms&gt;</code> streams a <b>minimum-jerk</b> profile
+    from the housekeeping loop at 50 Hz with per-servo speeds
+    (<code>cli::poseTick</code>), and <code>home</code> now rides it too
+    (≥ 2.5 s). Result: crouch peaks <b>0.007–0.011 rad/s</b>, tails
+    0.004 — the sensor's noise floor, a 30–70× reduction; home from a 20°
+    crouch 1.0 → 0.14. Two side findings: the servos do not hunt at hold
+    (all ten at factory P32/D32/I0, dead zone 1 tick, read with the new
+    read-only <code>reg</code> command), and the "residual oscillation"
+    in the tails was the <b>IMU tearing 16-bit reads</b> — isolated
+    ±0.1396 rad/s spikes, exactly 256 LSB at the 1024 dps range, about one
+    sample in a hundred; sync-sample mode did not stop them, a
+    read-twice-median-of-three in the driver did (0 in 400). That same
+    driver feeds the control loop, so the policy had been seeing an 8°/s
+    rate spike every couple of seconds. The lesson for the walking policy
+    is the next experiment: the armed loop's C2 shaper pole sits at 10 Hz,
+    above the 2.5 Hz mode — try 3–5 Hz live (<code>shape</code>) with Tom
+    spotting, or train with a jerk penalty. Robot left with torque
+    released, Tom's idle state. Data: hw_sessions/2026-09-03/rom_*,
+    hold_hunt20*, servo_registers.txt, rezero.log.</p>
   </div>
 
   <div class="card accent">

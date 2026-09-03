@@ -101,6 +101,7 @@ class Qmi8658Imu : public Imu {
     bool calibrateBias(float bias_out[3], float spread_out[3]);
     void setBias(const float bias[3]);
     void bias(float out[3]) const;
+    uint32_t tearCount() const { return tear_count_; }
 
     // Bench diagnostic: force the AttitudeEngine on and report what the dQ/dV
     // registers actually contain. This exists because the datasheet copy we
@@ -145,6 +146,7 @@ class Qmi8658Imu : public Imu {
     bool use_ae_ = false;
     bool ready_ = false;
     bool aligned_ = false;
+    uint32_t tear_count_ = 0;   // torn-read rejections (readRawUnbiased)
     float bias_[3] = {0.0f, 0.0f, 0.0f};
     float accel_scale_ = 0.0f;   // LSB -> m/s^2
     float gyro_scale_ = 0.0f;    // LSB -> rad/s

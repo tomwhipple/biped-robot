@@ -283,6 +283,39 @@ void cmdMove(Sink out, int argc, char** argv) {
         ticks, ms, spd, acc, statusName(st));
 }
 
+// Smooth-pose streamer state (poseTick). Housekeeping task only.
+static bool s_traj_active = false;
+static TickType_t s_traj_t0 = 0, s_traj_last = 0;
+static long s_traj_ms = 0;
+static int32_t s_traj_start[obs::kNumJoints];
+static int32_t s_traj_tgt[obs::kNumJoints];
+
+// `reg <id> <addr> [1|2]` -- READ a servo register (EEPROM or RAM), never
+// write. Added 2026-09-03 to inspect PosP/PosD/PosI (21-23), dead zones
+// (26/27) and acceleration (41) while chasing bench oscillation.
+void cmdReg(Sink out, int argc, char** argv) {
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc < 3) { out("usage: reg <id> <addr> [1|2]   (read-only)\r\n"); return; }
+    const long id = num(argv[1]);
+    const long addr = num(argv[2]);
+    const long n = argc >= 4 ? num(argv[3], 1) : 1;
+    if (id < 0 || id > 253 || addr < 0 || addr > 255) { out("bad id/addr\r\n"); return; }
+    if (n == 2) {
+        uint16_t v = 0;
+        const scsbus::Status st = bus->readU16(static_cast<uint8_t>(id),
+                                               static_cast<uint8_t>(addr), v);
+        if (st != scsbus::Status::kOk) { say(out, "id %ld reg %ld: %s\r\n", id, addr, statusName(st)); return; }
+        say(out, "id %ld reg %ld = %u (0x%04X)\r\n", id, addr, static_cast<unsigned>(v), static_cast<unsigned>(v));
+    } else {
+        uint8_t v = 0;
+        const scsbus::Status st = bus->readU8(static_cast<uint8_t>(id),
+                                              static_cast<uint8_t>(addr), v);
+        if (st != scsbus::Status::kOk) { say(out, "id %ld reg %ld: %s\r\n", id, addr, statusName(st)); return; }
+        say(out, "id %ld reg %ld = %u (0x%02X)\r\n", id, addr, static_cast<unsigned>(v), static_cast<unsigned>(v));
+    }
+}
+
 void cmdPose(Sink out, int argc, char** argv) {
     // The whole pose in ONE broadcast SYNC WRITE -- the same frame the
     // control loop uses, so all ten servos latch their targets together
@@ -317,8 +350,71 @@ void cmdPose(Sink out, int argc, char** argv) {
     // Bench default is a GENTLE sweep (~0.9 rad/s), not the servo's max --
     // a hand-typed pose with a typo shouldn't snap a limb across its range.
     // An explicit 0 asks for unlimited, same convention as `move`.
-    const long spd = argc >= 2 + obs::kNumJoints
-                         ? num(argv[1 + obs::kNumJoints], 600) : 600;
+    // UNISON mode (2026-09-03, Tom: "the ankle/hip servos move, then the
+    // knees catch up -- all three should move in unison to stay balanced"):
+    // a trailing `t<ms>` gives every servo its OWN speed from its own
+    // distance, so all ten arrive together, instead of one speed for all.
+    const char* last = argc >= 2 + obs::kNumJoints ? argv[1 + obs::kNumJoints]
+                                                    : nullptr;
+    if (last && last[0] == 's') {
+        // SMOOTH mode: record start + target, let poseTick stream the
+        // minimum-jerk profile. See cli.h.
+        const long ms = num(last + 1, 3000);
+        if (ms < 200 || ms > 20000) {
+            out("pose s<ms>: duration must be 200-20000 ms\r\n");
+            return;
+        }
+        for (int i = 0; i < obs::kNumJoints; ++i) {
+            int32_t cur = tgt[i];
+            if (bus->readPosition(robot::servoIds()[i], cur) !=
+                scsbus::Status::kOk) {
+                say(out, "id %u did not answer -- no smooth pose\r\n",
+                    robot::servoIds()[i]);
+                return;
+            }
+            s_traj_start[i] = cur;
+            s_traj_tgt[i] = tgt[i];
+        }
+        s_traj_ms = ms;
+        s_traj_t0 = xTaskGetTickCount();
+        s_traj_last = s_traj_t0;
+        s_traj_active = true;
+        say(out, "pose -> %d joints, SMOOTH minimum-jerk over %ld ms: streaming\r\n",
+            obs::kNumJoints, ms);
+        return;
+    }
+    if (last && last[0] == 't') {
+        const long ms = num(last + 1, 2000);
+        if (ms < 100 || ms > 20000) {
+            out("pose t<ms>: duration must be 100-20000 ms\r\n");
+            return;
+        }
+        uint16_t spds[obs::kNumJoints];
+        long lo = 100000, hi = 0;
+        for (int i = 0; i < obs::kNumJoints; ++i) {
+            int32_t cur = tgt[i];
+            if (bus->readPosition(robot::servoIds()[i], cur) !=
+                scsbus::Status::kOk) {
+                say(out, "id %u did not answer -- no unison pose\r\n",
+                    robot::servoIds()[i]);
+                return;
+            }
+            const long d = cur > tgt[i] ? cur - tgt[i] : tgt[i] - cur;
+            long v = (d * 1000L) / ms;
+            if (v < 10) v = 10;          // 0 means unlimited on the wire
+            if (v > 3400) v = 3400;
+            spds[i] = static_cast<uint16_t>(v);
+            if (v < lo) lo = v;
+            if (v > hi) hi = v;
+        }
+        const scsbus::Status st = bus->syncWritePositions(
+            robot::servoIds(), tgt, spds, obs::kNumJoints, 0);
+        say(out, "pose -> %d joints in UNISON over %ld ms (speeds %ld..%ld "
+                 "steps/s): %s\r\n",
+            obs::kNumJoints, ms, lo, hi, statusName(st));
+        return;
+    }
+    const long spd = last ? num(last, 600) : 600;
     const scsbus::Status st = bus->syncWritePositions(
         robot::servoIds(), tgt, obs::kNumJoints, 0,
         static_cast<uint16_t>(spd), 0);
@@ -409,18 +505,37 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
             worst = 4096;             // unknown start: allow the full slew
         }
     }
-    const scsbus::Status st = bus->syncWritePositions(
-        robot::servoIds(), tgt, obs::kNumJoints, 0,
-        static_cast<uint16_t>(spd), 0);
-    say(out, "home -> %d joints at their calibrated zero, spd %ld: %s\r\n",
-        obs::kNumJoints, spd, statusName(st));
-    if (st != scsbus::Status::kOk) return linkproto::ArmResult::kHomeBusFailed;
-    const long slew_ms = (spd > 0 ? (worst * 1000L) / spd : 0L) + 700L;
+    // The move itself is the smooth streamer (poseTick): a minimum-jerk
+    // profile no faster than the old constant `spd` on the longest joint,
+    // and never shorter than 1.5 s. The old constant-speed home rang the
+    // structure at 1.0 rad/s of torso rate from a 20 deg crouch (2026-09-03);
+    // the streamed pose family measured <= 0.05.
+    long dur_ms = spd > 0 ? (worst * 1000L) / spd : 1500L;
+    if (dur_ms < 2500L) dur_ms = 2500L;      // gentle: the crouch runs rang least at >= 3 s
+    if (dur_ms > 8000L) dur_ms = 8000L;
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        int32_t cur = tgt[j];
+        if (bus->readPosition(robot::servoIds()[j], cur) != scsbus::Status::kOk) {
+            say(out, "home: id %u did not answer -- no move\r\n",
+                robot::servoIds()[j]);
+            return linkproto::ArmResult::kHomeBusFailed;
+        }
+        s_traj_start[j] = cur;
+        s_traj_tgt[j] = tgt[j];
+    }
+    s_traj_ms = dur_ms;
+    s_traj_t0 = xTaskGetTickCount();
+    s_traj_last = s_traj_t0;
+    s_traj_active = true;
+    const scsbus::Status st = scsbus::Status::kOk;
+    say(out, "home -> %d joints to their calibrated zero, SMOOTH over %ld ms "
+             "(worst move %ld ticks): streaming\r\n",
+        obs::kNumJoints, dur_ms, static_cast<long>(worst));
+    const long slew_ms = dur_ms + 700L;
     memcpy(s_home_tgt, tgt, sizeof s_home_tgt);
     s_home_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(slew_ms);
     s_home_pending = true;
-    say(out, "  written; worst move %ld ticks -- reading back in %ld ms\r\n",
-        static_cast<long>(worst), slew_ms);
+    say(out, "  reading back in %ld ms\r\n", slew_ms);
     return linkproto::ArmResult::kHomePending;
 }
 
@@ -779,6 +894,46 @@ void cmdObsDump(Sink out, int argc, char** argv) {
 }
 
 }  // namespace
+
+void poseTick(Sink out) {
+    if (!s_traj_active) return;
+    if (robot::g_ctrl_owns_bus.load() ||
+        robot::g_mode_request.load() == robot::Mode::kRun) {
+        s_traj_active = false;
+        out("smooth pose cancelled -- the loop was armed\r\n");
+        return;
+    }
+    const TickType_t now = xTaskGetTickCount();
+    if (now - s_traj_last < pdMS_TO_TICKS(20)) return;     // ~50 Hz stream
+    s_traj_last = now;
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) { s_traj_active = false; return; }
+    const long el = static_cast<long>(pdTICKS_TO_MS(now - s_traj_t0));
+    float tau = static_cast<float>(el) / static_cast<float>(s_traj_ms);
+    if (tau > 1.0f) tau = 1.0f;
+    // quintic minimum-jerk: s = 10t^3 - 15t^4 + 6t^5, s' = 30t^2 - 60t^3 + 30t^4
+    const float t2 = tau * tau, t3 = t2 * tau, t4 = t3 * tau, t5 = t4 * tau;
+    const float sc = 10.0f * t3 - 15.0f * t4 + 6.0f * t5;
+    const float sd = 30.0f * t2 - 60.0f * t3 + 30.0f * t4;   // per unit tau
+    int32_t steps[obs::kNumJoints];
+    uint16_t spds[obs::kNumJoints];
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        const float d = static_cast<float>(s_traj_tgt[i] - s_traj_start[i]);
+        steps[i] = tau >= 1.0f ? s_traj_tgt[i]
+                               : s_traj_start[i] + static_cast<int32_t>(lroundf(sc * d));
+        // profile speed in steps/s (+25 % headroom so the servo leads the
+        // stream instead of trailing it), never 0 (= unlimited on the wire)
+        float v = fabsf(d) * sd / (static_cast<float>(s_traj_ms) / 1000.0f) * 1.25f;
+        if (v < 15.0f) v = 15.0f;
+        if (v > 3400.0f) v = 3400.0f;
+        spds[i] = static_cast<uint16_t>(v);
+    }
+    bus->syncWritePositions(robot::servoIds(), steps, spds, obs::kNumJoints, 0);
+    if (tau >= 1.0f) {
+        s_traj_active = false;
+        say(out, "smooth pose done (%ld ms)\r\n", el);
+    }
+}
 
 void homeVerify(Sink out) {
     if (!s_home_pending) return;
@@ -1192,7 +1347,9 @@ void banner(Sink out) {
     out("  id <old> <new>       assign a servo ID (EEPROM, one servo on the bus)\r\n");
     out("  pos <id>             position, speed, load, voltage, temp, faults\r\n");
     out("  move <id> <ticks> [ms] [steps/s]   2048 == middle, 4096 ticks/rev\r\n");
-    out("  pose <t0..t9> [steps/s]   all 10 targets, ONE frame (joint order)\r\n");
+    out("  pose <t0..t9> [steps/s|t<ms>|s<ms>]  all 10 targets (joint order);\r\n"
+        "                       t<ms> unison speeds; s<ms> SMOOTH min-jerk stream\r\n");
+    out("  reg <id> <addr> [1|2]  READ a servo register (PID 21-23, deadzone 26/27, acc 41)\r\n");
     out("  home [steps/s]       every joint to its calibrated zero (the stand),\r\n");
     out("                       torque ON and holding -- works after a fall\r\n");
     out("  release [id] | torque [id]   no id = broadcast\r\n");
@@ -1253,6 +1410,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "torque")) cmdTorque(out, argc, argv, true);
     else if (!strcmp(c, "middle")) cmdMiddle(out, argc, argv);
     else if (!strcmp(c, "pose")) cmdPose(out, argc, argv);
+    else if (!strcmp(c, "reg")) cmdReg(out, argc, argv);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
