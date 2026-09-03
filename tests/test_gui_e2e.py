@@ -535,3 +535,33 @@ def test_a_watcher_can_take_control_and_hand_it_back():
     assert "no parting disarm" in out, out
     assert "OBSERVER" in out, out
     assert proc.returncode == 0, out
+
+
+def test_mirror_asks_for_attitude_and_the_robot_answers():
+    """Mirror mode must carry BOTH halves of "the last known state".
+
+    Joint angles say what the legs are doing; the up vector says which way the
+    robot is facing while they do it. A viewer given only the first draws a
+    robot lying on its face standing to attention -- so `sim mirror` has to
+    set FLAG_ATT as well as FLAG_POSE, and the console has to keep the
+    attitude it gets back.
+    """
+    cmd_port, tlm_port = _ports()
+    twin = _twin(cmd_port, tlm_port)
+    time.sleep(0.5)
+    gui = _gui([(1.0, "arm"), (1.0, "sim mirror"), (2.0, "quit"), (0.5, "")],
+               cmd_port, tlm_port, ["--no-record"])
+    try:
+        out = gui.communicate(timeout=15)[0]
+    except subprocess.TimeoutExpired:
+        gui.kill()
+        out = gui.communicate()[0]
+    finally:
+        twin.terminate()
+        log = twin.communicate(timeout=5)[0]
+
+    # The twin reports the levels it was asked for, and only when asked.
+    assert "pose requested" in log, log
+    # ...and the attitude alongside it, which is the half that was missing.
+    assert "att requested" in log, log
+    assert gui.returncode == 0, out

@@ -13,6 +13,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "link"))
 
+import protocol as P                                     # noqa: E402
 from protocol import (CMD_LEN, DIAG_ARM_SHIFT, DIAG_CAL_OK,  # noqa: E402
                       DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,
                       FLAG_POSE,
@@ -571,3 +572,74 @@ def test_pose_is_a_level_and_does_not_disturb_the_other_flags():
     assert not decode_command(encode_command(2, 0.0, 0.0, FLAG_ARM)).pose
     # Bit 3, so it cannot collide with the three that predate it.
     assert FLAG_POSE == 8
+
+
+# -- the attitude block (2026-09-03) ----------------------------------------
+# up_z alone is how FAR from upright, never which way. FLAG_ATT adds up_x/up_y
+# so mirror mode can draw the robot in the attitude it is actually in.
+
+def test_attitude_block_is_additive():
+    """The two frames that existed before must not have changed one byte.
+
+    The robot is the SENDER here, so a client that meets a length it does not
+    know drops the frame. That is why the block is requested rather than
+    volunteered, and why this asserts on the PREFIX rather than just on the
+    round trip.
+    """
+    base = dict(seq_echo=4242, state=P.LinkState.LIVE, vbat_v=11.4,
+                up_z=0.887, vx_est=0.4, wz_est=-0.25, servo_err=0,
+                loop_late_pct=3)
+    plain = P.encode_telemetry(P.Telemetry(**base))
+    assert len(plain) == P.TLM_LEN
+
+    att = P.encode_telemetry(P.Telemetry(**base, up_xy=(0.45, -0.10)))
+    assert len(att) == P.TLM_LEN_ATT
+    assert att[:18] == plain[:18]          # only the CRC moved
+
+    got = P.decode_telemetry(att)
+    assert got.up_xy == pytest.approx((0.45, -0.10), abs=1e-3)
+    assert got.up_z == pytest.approx(0.887, abs=1e-3)
+    assert got.joints == ()
+
+    joints = tuple(0.1 * i - 0.4 for i in range(P.NUM_JOINTS))
+    pose_only = P.encode_telemetry(P.Telemetry(**base, joints=joints))
+    both = P.encode_telemetry(
+        P.Telemetry(**base, joints=joints, up_xy=(0.45, -0.10)))
+    assert len(pose_only) == P.TLM_LEN_EXT
+    assert len(both) == P.TLM_LEN_EXT_ATT
+    assert both[:P.TLM_LEN_EXT - 2] == pose_only[:P.TLM_LEN_EXT - 2]
+
+    g2 = P.decode_telemetry(both)
+    assert g2.joints == pytest.approx(joints, abs=1e-3)
+    assert g2.up_xy == pytest.approx((0.45, -0.10), abs=1e-3)
+
+    # A frame nobody asked attitude for reports NONE -- not zeros, which would
+    # read as "perfectly upright".
+    assert P.decode_telemetry(plain).up_xy == ()
+
+    for bad_len in (P.TLM_LEN_ATT - 1, 42, P.TLM_LEN_EXT + 1):
+        with pytest.raises(P.ProtocolError):
+            P.decode_telemetry(both[:bad_len])
+
+
+def test_att_flag_is_its_own_bit():
+    c = P.decode_command(P.encode_command(1, 0.0, 0.0, P.FLAG_ATT))
+    assert c.att and not c.pose and not c.arm and not c.home
+    c2 = P.decode_command(
+        P.encode_command(2, 0.0, 0.0, P.FLAG_POSE | P.FLAG_ATT))
+    assert c2.att and c2.pose
+
+
+def test_attitude_frame_matches_firmware():
+    """Pinned to the same literal firmware/host/test_protocol.cpp asserts.
+
+    Two encoders that only ever check themselves agree perfectly right up
+    until they don't; the house rule is that the port is diffed against a
+    number, not against whatever the other side said.
+    """
+    want = bytes.fromhex("4254010092100000ec2c7703900106ff0003c2019cff72f7")
+    got = P.encode_telemetry(P.Telemetry(
+        seq_echo=4242, state=P.LinkState.LIVE, vbat_v=11.5, up_z=0.887,
+        vx_est=0.4, wz_est=-0.25, servo_err=0, loop_late_pct=3,
+        up_xy=(0.45, -0.10)))
+    assert got == want

@@ -47,6 +47,7 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
     # (FLAG_POSE). A level, not an edge -- stop asking and the very next
     # beacon is classic again. See docs/mirror-mode.md.
     want_pose, last_pose = False, None
+    want_att, last_att = False, None
     homes_seen = sup.homes
     t0 = time.monotonic()
     tick = 0
@@ -73,6 +74,7 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                 pkt = pkt._replace(flags=pkt.flags & ~FLAG_HOME)
             sup.accept(pkt, now_ms)
             want_pose = pkt.pose
+            want_att = pkt.att
         state = sup.state(now_ms)
         # (vx, vy, wz, crouch, lift, foot_dx, foot_dz) -- walker_env ext_cmd
         # order, which is NOT the wire order (vy sits between vx and wz).
@@ -111,6 +113,11 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                   f"{'requested -- beaconing joint angles' if want_pose else 'off -- classic beacon'}",
                   flush=True)
             last_pose = want_pose
+        if want_att is not last_att:
+            print(f"  [{now_ms/1000:7.2f}s] att "
+                  f"{'requested -- beaconing the up vector' if want_att else 'off'}",
+                  flush=True)
+            last_att = want_att
         if peer and tick % 5 == 0:
             # seq_echo carries the bench diagnostic while BENCH, exactly as
             # firmware/main/wifi_link.cpp does it -- the twin has to be
@@ -123,10 +130,19 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                 ph = now_ms / 1000.0
                 joints = tuple(0.3 * math.sin(ph + 0.6 * i)
                                for i in range(NUM_JOINTS))
+            # Attitude, on the same terms: only when asked (FLAG_ATT), and
+            # visibly moving so a client can tell a working feed from a
+            # hard-coded upright. A slow lean, well inside kFallUpZ.
+            up_xy = ()
+            if want_att:
+                ph = now_ms / 1000.0
+                up_xy = (0.25 * math.sin(0.5 * ph), 0.25 * math.cos(0.5 * ph))
             tx.sendto(encode_telemetry(Telemetry(
                 seq_echo=sup.seq_echo(now_ms), state=state, vbat_v=11.4,
-                up_z=1.0, vx_est=cmd[0], wz_est=cmd[2], servo_err=0,
-                loop_late_pct=0, joints=joints,
+                up_z=(1.0 - (up_xy[0] ** 2 + up_xy[1] ** 2)) ** 0.5
+                if up_xy else 1.0,
+                vx_est=cmd[0], wz_est=cmd[2], servo_err=0,
+                loop_late_pct=0, joints=joints, up_xy=up_xy,
             )), (peer, tlm_port))
         tick += 1
         time.sleep(0.02)                          # the 50 Hz control tick

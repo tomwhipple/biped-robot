@@ -211,20 +211,29 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
     put16(out + 14, static_cast<uint16_t>(milli(t.wz_est)));
     out[16] = t.servo_err;
     out[17] = t.loop_late_pct;
-    if (t.n_joints != kNumJoints) {
-        put16(out + 18, crc16Ccitt(out, 18));
-        return kTlmLen;
+    // Blocks in a FIXED order and of fixed size, so the length alone still
+    // names the layout: [base 18][joints 20?][att 4?][crc 2].
+    size_t at = 18;
+    if (t.n_joints == kNumJoints) {
+        for (size_t i = 0; i < kNumJoints; ++i) {
+            put16(out + at + 2 * i, static_cast<uint16_t>(milli(t.joints[i])));
+        }
+        at += 2 * kNumJoints;
     }
-    for (size_t i = 0; i < kNumJoints; ++i) {
-        put16(out + 18 + 2 * i, static_cast<uint16_t>(milli(t.joints[i])));
+    if (t.have_att) {
+        put16(out + at, static_cast<uint16_t>(milli(t.up_x)));
+        put16(out + at + 2, static_cast<uint16_t>(milli(t.up_y)));
+        at += kTlmAttBytes;
     }
-    const size_t body = kTlmLenExt - 2;
-    put16(out + body, crc16Ccitt(out, body));
-    return kTlmLenExt;
+    put16(out + at, crc16Ccitt(out, at));
+    return at + 2;
 }
 
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
-    if (len != kTlmLen && len != kTlmLenExt) return Err::kBadLength;
+    if (len != kTlmLen && len != kTlmLenExt && len != kTlmLenAtt &&
+        len != kTlmLenExtAtt) {
+        return Err::kBadLength;
+    }
     if (buf[0] != kMagicTlm[0] || buf[1] != kMagicTlm[1]) return Err::kBadMagic;
     if (buf[2] != kVersion) return Err::kBadVersion;
     const size_t body = len - 2;
@@ -242,12 +251,22 @@ Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
     out.loop_late_pct = buf[17];
     out.n_joints = 0;
     for (size_t i = 0; i < kNumJoints; ++i) out.joints[i] = 0.0f;
-    if (len == kTlmLenExt) {
+    out.have_att = 0;
+    out.up_x = 0.0f;
+    out.up_y = 0.0f;
+    size_t at = 18;
+    if (len == kTlmLenExt || len == kTlmLenExtAtt) {
         out.n_joints = static_cast<uint8_t>(kNumJoints);
         for (size_t i = 0; i < kNumJoints; ++i) {
             out.joints[i] =
-                static_cast<int16_t>(get16(buf + 18 + 2 * i)) / 1000.0f;
+                static_cast<int16_t>(get16(buf + at + 2 * i)) / 1000.0f;
         }
+        at += 2 * kNumJoints;
+    }
+    if (len == kTlmLenAtt || len == kTlmLenExtAtt) {
+        out.have_att = 1;
+        out.up_x = static_cast<int16_t>(get16(buf + at)) / 1000.0f;
+        out.up_y = static_cast<int16_t>(get16(buf + at + 2)) / 1000.0f;
     }
     return Err::kOk;
 }

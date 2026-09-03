@@ -129,10 +129,19 @@ void Keymap::reset() {
     key[kActRecord] = 'r';
     key[kActResetExt] = '0';
     key[kActHome] = 'h';
-    // 't' for take. Deliberately not next to a motion key: this one hands the
-    // robot between two consoles, and a fat finger on the way to an arrow
-    // should not be able to steal it from whoever is flying it.
-    key[kActControl] = 't';
+    // UNBOUND by default, and the reasoning that first put it on 't' is
+    // exactly why: this one hands the robot between two consoles. Taking
+    // control steals the beacon from whoever is flying the robot; releasing
+    // it drops this console's own arm level. Neither belongs on a bare
+    // letter that a focused window will accept from a fat finger -- which is
+    // not hypothetical, it happened within an hour of binding it (a stray 't'
+    // reaching a screenshot run silently turned a driving console into a
+    // watcher, mid-arm).
+    //
+    // The button says what it does and cannot be hit by accident. Anyone who
+    // wants a key can bind one in the keys panel; the default should not
+    // make handing over the robot the easiest thing on the keyboard.
+    key[kActControl] = kKeyNone;
 }
 
 int Keymap::actionFor(int k) const {

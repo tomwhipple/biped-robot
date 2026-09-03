@@ -1,15 +1,68 @@
-# Mirror mode: driving the robot with a sim following alongside
+# Mirror mode: a picture of the robot, drawn from its own telemetry
 
-*Status 2026-09-01. **The laptop half is done and exercised; the firmware half
-is not written.** Both twins beacon joint angles on request, and `bimo_gui`
-mirrors against them end to end. What remains is on the board — see
-[the hardware TODO](#the-hardware-todo).*
+*Status 2026-09-03. **Rebuilt as a viewer** (Tom: "I want to see that mode
+strictly displaying the last known state of the robot — joint angles + IMU
+orientation. I don't want to run the sim forward in that mode; it's only for
+visualization, not simulation.")*
 
-The idea: `bimo_gui` drives the **real robot**, the robot beacons back its
-**measured joint angles**, and `sim/sil_twin.py` runs the same command through
-the same policy while drawing the robot's observed pose over it as a ghost.
-Divergence between the two is then visible directly, which is the sim-to-real
-question stated as a picture instead of a number.
+The idea now: the robot beacons its **measured joint angles and torso up
+vector**, and `sim/sil_twin.py --viewer` poses the plant from them and renders
+it. No policy, no physics, no integration. The picture is a **mannequin held
+in the last state the robot reported** — every pixel of it a measurement.
+
+## What it used to be, and why that was worse than useless
+
+Until 2026-09-03 mirror mode ran the sim *forward*: the console relayed each
+command to `sil_twin`, which stepped the real policy and its own physics, and
+the "ghost" was a blend — `0.60 * simulated + 0.40 * measured` — of the two
+robots.
+
+That picture could not be read. **60 % of every pixel was a simulated robot
+walking under the policy**, which moves its legs whether or not the real robot
+does. Worse, the measured 40 % was gated on a pose fresher than one second,
+and a *benched* robot publishes no pose at all (the firmware drops back to the
+classic 20 B beacon). So the common case — robot benched on the stand, console
+mirroring — rendered **100 % simulation and 0 % robot**, animated, and looking
+exactly like a live view of a robot that was in fact sitting perfectly still.
+
+The lesson generalises past this panel: a view that blends a measurement with
+a prediction, and degrades to *pure prediction* without changing how it looks,
+is worse than no view. Now the sim is not running, so there is nothing to
+blend, and when the feed stops the console says **FROZEN** with the age of the
+pose on screen rather than letting a held picture pass for a live one.
+
+## Attitude: why joint angles alone are not a pose
+
+`up_z` has been in the base telemetry frame since the beginning, but it is
+only the tilt **magnitude** — how far from upright, never which way. A viewer
+given ten joint angles and nothing else draws a robot lying on its face
+standing to attention.
+
+`kFlagAtt` (2026-09-03) adds `up_x` and `up_y`: the torso's own z axis
+expressed in the **world** frame — `obs_spec` `kOffUp`, `imu::Sample::up`, the
+same convention MuJoCo's `framezaxis` uses. `ctrl_task` has had the whole
+vector every tick since the beginning and was storing only `up[2]`.
+
+The viewer turns it into the shortest rotation taking world +Z onto `up`,
+which fixes roll and pitch and leaves **yaw at zero**. That is the honest
+reconstruction: this robot has no magnetometer, its heading is dead-reckoned
+and drifts, so an invented heading would make a drifting number look like a
+measurement. (For the same reason `up_x`/`up_y` are themselves yaw-dependent
+where `up_z` is drift-immune — good enough to draw an attitude, not a
+heading.) Torso **position** is pinned, because there is no odometry at all.
+
+Four frame lengths now, and they stay unambiguous because every block is fixed
+size and the CRC has always been "over `len-2`, appended at `len-2`":
+
+| len | blocks | asked for with |
+|-----|--------|----------------|
+| 20 | base | — |
+| 24 | base + attitude | `kFlagAtt` |
+| 40 | base + joints | `kFlagPose` |
+| 44 | base + joints + attitude | both |
+
+Both optional blocks are **requested, never volunteered**, for the reason the
+next section spells out.
 
 ## The wire decision, and the one it could not copy
 

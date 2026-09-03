@@ -203,17 +203,6 @@ bool Link::relink(const char* host, int cmd_port, int tlm_port, bool observe) {
     return open(host, cmd_port, tlm_port);
 }
 
-bool Link::setMirror(const char* host, int port) {
-    mirror_to.sin_family = AF_INET;
-    mirror_to.sin_port = htons(static_cast<uint16_t>(port));
-    if (inet_pton(AF_INET, host, &mirror_to.sin_addr) != 1) {
-        mirror_on = false;
-        return false;
-    }
-    mirror_on = true;
-    return true;
-}
-
 bool Link::setWatch(const char* host, int port) {
     watch_to.sin_family = AF_INET;
     watch_to.sin_port = htons(static_cast<uint16_t>(port));
@@ -231,7 +220,7 @@ void Link::close() {
     tx = rx = -1;
 }
 
-// One encode, up to two destinations.
+// One encode, one destination.
 void Link::emit(const uint8_t* wire, size_t n) {
     // The observer's last line: tx is already -1, so this is belt as well as
     // braces -- but it also keeps `last_len` and `sent` HONEST. A watcher's
@@ -242,10 +231,6 @@ void Link::emit(const uint8_t* wire, size_t n) {
     if (sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&to), sizeof to) ==
         static_cast<ssize_t>(n)) {
         ++sent;
-    }
-    if (mirror_on) {
-        sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&mirror_to),
-               sizeof mirror_to);
     }
 }
 
@@ -486,6 +471,7 @@ void Intent::frame(const Speeds& s, float& vx, float& vy, float& wz,
     ext_out.reset();
     flags = 0;
     if (want_pose) flags |= kFlagPose;    // a request, not a command
+    if (want_att) flags |= kFlagAtt;      // likewise
     // Before every early return below, and gated on nothing: a servo reset
     // must reach the robot from the states that refuse to move -- E-stopped,
     // disarmed, fall-latched. That is the whole reason it is its own bit.

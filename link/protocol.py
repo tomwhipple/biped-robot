@@ -56,6 +56,18 @@ TLM_LEN = 20
 NUM_JOINTS = 10            # obs_spec order: L yaw,roll,pitch,knee,ankle; R same
 TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS
 
+# ATTITUDE (2026-09-03): up_x and up_y appended after the joint block. up_z
+# has always been in the base frame, but alone it is only the tilt MAGNITUDE
+# -- how far from upright, never which way. Requested with FLAG_ATT, for the
+# same reason FLAG_POSE exists: the robot is the sender, and an unexpected
+# length is a dropped frame. Four lengths, unambiguous because every block is
+# fixed size: 20 base, 24 +att, 40 +joints, 44 +joints+att.
+# Firmware reference: linkproto::kTlmLenAtt / kTlmLenExtAtt.
+TLM_ATT_BYTES = 4
+TLM_LEN_ATT = TLM_LEN + TLM_ATT_BYTES
+TLM_LEN_EXT_ATT = TLM_LEN_EXT + TLM_ATT_BYTES
+TLM_LENS = (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT)
+
 CMD_PORT = 4210            # robot listens here
 TLM_PORT = 4211            # laptop listens here
 
@@ -78,6 +90,9 @@ FLAG_POSE = 1 << 3         # "beacon joint angles too" -- see TLM_LEN_EXT
 # FLAG_ARM: a level would re-issue the move at 20 Hz, and a client that
 # reboots with the bit set must not move a robot nobody is watching.
 FLAG_HOME = 1 << 4
+# "Beacon the torso up vector too" -- a LEVEL, like FLAG_POSE. Requests
+# telemetry, commands nothing.
+FLAG_ATT = 1 << 5
 
 # -- timing ----------------------------------------------------------------
 # 20 Hz is ~2 orders of magnitude more command bandwidth than intent actually
@@ -285,6 +300,11 @@ class Command(NamedTuple):
         """This sender is asking for the servos to be reset to zero."""
         return bool(self.flags & FLAG_HOME)
 
+    @property
+    def att(self) -> bool:
+        """"Beacon the up vector too" -- a level, like `pose`."""
+        return bool(self.flags & FLAG_ATT)
+
 
 class Telemetry(NamedTuple):
     seq_echo: int          # last command seq the robot applied
@@ -301,6 +321,12 @@ class Telemetry(NamedTuple):
     # Measured joint angles, radians, obs_spec order. Empty on a classic 20 B
     # frame -- which is every frame, unless a commander asked with FLAG_POSE.
     joints: tuple = ()
+    # Torso up vector x and y (z is up_z above): the robot's own z axis in the
+    # WORLD frame, obs_spec kOffUp / imu::Sample::up. None unless a commander
+    # asked with FLAG_ATT. up_z is drift-immune; these two are yaw-dependent
+    # and this robot's heading is dead-reckoned, so they give a lean direction
+    # in a slowly rotating frame -- an attitude to draw, not a heading.
+    up_xy: tuple = ()
 
     @property
     def diag(self) -> int:
@@ -421,13 +447,17 @@ def encode_telemetry(t: Telemetry) -> bytes:
         if len(t.joints) != NUM_JOINTS:
             raise ProtocolError(f"{len(t.joints)} joints, want {NUM_JOINTS}")
         body += struct.pack(f"<{NUM_JOINTS}h", *(_milli(q) for q in t.joints))
+    if t.up_xy:
+        if len(t.up_xy) != 2:
+            raise ProtocolError(f"up_xy is {len(t.up_xy)} long, want 2")
+        body += struct.pack("<2h", *(_milli(v) for v in t.up_xy))
     return body + struct.pack("<H", crc16_ccitt(body))
 
 
 def decode_telemetry(buf: bytes) -> Telemetry:
-    if len(buf) not in (TLM_LEN, TLM_LEN_EXT):
-        raise ProtocolError(f"telemetry frame is {len(buf)} B, want {TLM_LEN} "
-                            f"or {TLM_LEN_EXT}")
+    if len(buf) not in TLM_LENS:
+        raise ProtocolError(f"telemetry frame is {len(buf)} B, want one of "
+                            f"{TLM_LENS}")
     (magic, ver, state, seq, vbat_mv, up_z, vx, wz, err,
      late) = struct.unpack("<2sBBIHhhhBB", buf[:18])
     if magic != MAGIC_TLM:
@@ -439,14 +469,19 @@ def decode_telemetry(buf: bytes) -> Telemetry:
         raise ProtocolError("CRC mismatch")
     if state >= len(_TLM_STATES):
         raise ProtocolError(f"unknown link state {state}")
-    joints = ()
-    if len(buf) == TLM_LEN_EXT:
-        joints = tuple(q / 1000.0 for q in
-                       struct.unpack(f"<{NUM_JOINTS}h", buf[18:-2]))
+    joints, up_xy, at = (), (), 18
+    if len(buf) in (TLM_LEN_EXT, TLM_LEN_EXT_ATT):
+        joints = tuple(q / 1000.0 for q in struct.unpack(
+            f"<{NUM_JOINTS}h", buf[at:at + 2 * NUM_JOINTS]))
+        at += 2 * NUM_JOINTS
+    if len(buf) in (TLM_LEN_ATT, TLM_LEN_EXT_ATT):
+        up_xy = tuple(v / 1000.0 for v in
+                      struct.unpack("<2h", buf[at:at + TLM_ATT_BYTES]))
     return Telemetry(seq_echo=seq, state=_TLM_STATES[state],
                      vbat_v=vbat_mv / 1000.0, up_z=up_z / 1000.0,
                      vx_est=vx / 1000.0, wz_est=wz / 1000.0,
-                     servo_err=err, loop_late_pct=late, joints=joints)
+                     servo_err=err, loop_late_pct=late, joints=joints,
+                     up_xy=up_xy)
 
 
 # -- robot-side supervisor -------------------------------------------------

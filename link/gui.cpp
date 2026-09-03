@@ -365,6 +365,15 @@ void tick(App& a, double now_ms) {
                 at += snprintf(line + at, sizeof line - static_cast<size_t>(at),
                                " %.4f", static_cast<double>(t.joints[j]));
             }
+            // The up vector rides on the same line, and only when the robot
+            // actually sent one: appended, never defaulted. A viewer handed
+            // (0,0,1) it was not told would draw a fallen robot standing.
+            if (t.have_att) {
+                at += snprintf(line + at, sizeof line - static_cast<size_t>(at),
+                               " %.4f %.4f %.4f", static_cast<double>(t.up_x),
+                               static_cast<double>(t.up_y),
+                               static_cast<double>(t.up_z));
+            }
             if (a.sim.tell(line)) {
                 ++a.poses_sent;
                 a.last_pose_ms = now_ms;
@@ -423,7 +432,9 @@ void startSim(App& a) {
     const bool own_ports = a.mirror || a.link.readonly;
     const int cp = own_ports ? a.sim_cmd_port : a.o.cmd_port;
     const int tp = own_ports ? a.sim_tlm_port : a.o.tlm_port;
-    if (!a.sim.start(a.repo, a.runs.name[a.run_sel], a.sim_hang,
+    // Mirroring => a VIEWER. Not a second robot running beside the real one:
+    // a picture of the real one, posed from its own telemetry.
+    if (!a.sim.start(a.repo, a.runs.name[a.run_sel], a.sim_hang, a.mirror,
                      a.o.stream_port, cp, tp)) {
         snprintf(a.status, sizeof a.status, "%s", a.sim.err);
         return;
@@ -445,6 +456,7 @@ void stopSim(App& a) {
 void setMirror(App& a, bool on) {
     a.mirror = on;
     a.in.want_pose = on;
+    a.in.want_att = on;
     if (on && a.link.readonly) {
         // The observer's mirror: no command is relayed (there is no transmit
         // socket) and kFlagPose is never asked for (that too would be a frame
@@ -454,18 +466,24 @@ void setMirror(App& a, bool on) {
         // numbers. That depends on the DRIVER having asked for pose, which is
         // exactly what `bimo_gui --mirror` on the driving side does, so say
         // so rather than leave an empty ghost looking like a broken sim.
-        a.link.clearMirror();
         snprintf(a.status, sizeof a.status,
                  "MIRROR (observer): drawing the robot's measured joints in "
                  "the sim. Needs the driving console to be in mirror mode too "
                  "-- only then does the beacon carry joint angles.");
     } else if (on) {
-        a.link.setMirror("127.0.0.1", a.sim_cmd_port);
+        // No command relay any more (Tom, 2026-09-03): mirror mode is for
+        // SEEING the robot, not for running a second one beside it. Relaying
+        // the command was what made the sim a simulation -- it stepped its own
+        // physics from our vx/wz and drifted away from the robot in silence,
+        // and the "ghost" was a 60/40 blend of the two, so the picture was
+        // part measurement and part guess with no way to tell which.
+        // Now the sim is a mannequin: it is posed from the robot's measured
+        // joints and nothing else.
         snprintf(a.status, sizeof a.status,
-                 "MIRROR: driving %s, relaying to the sim on :%d, asking for "
-                 "joint angles", a.o.host, a.sim_cmd_port);
+                 "MIRROR: the sim is a VIEWER -- posed from %s's measured "
+                 "joints, no physics, no policy. Asking for joint angles.",
+                 a.o.host);
     } else {
-        a.link.clearMirror();
         snprintf(a.status, sizeof a.status, "mirror off");
     }
 }
@@ -1027,26 +1045,47 @@ void drawSim(App& a, double now_ms, float panel_w) {
         setMirror(a, mir);
     }
     ImGui::SameLine();
-    if (a.mirror && a.link.readonly) {
+    if (a.mirror) {
+        // The picture is only as live as the pose feed. When the feed stops,
+        // the viewer holds the LAST pose -- which is correct (it is still the
+        // last known state) and dangerous to leave unlabelled, because a held
+        // pose and a live one look identical. So the age is on screen
+        // whenever it is not moving. This is the whole complaint the mode was
+        // rebuilt for: a picture that keeps looking live after it stops being
+        // a measurement.
+        // Three independent things can be missing, and they have different
+        // fixes: joints in the beacon, a sim to draw them in, and a pose
+        // recent enough to still be true. Saying which one it is beats one
+        // "no ghost" that sends the operator looking in the wrong place.
         const bool fed = a.link.have_tlm &&
                          a.link.tlm.n_joints == linkproto::kNumJoints;
-        if (fed) {
+        const bool drawing = a.sim.running() && a.poses_sent > 0;
+        const double pose_age = drawing ? now_ms - a.last_pose_ms : -1.0;
+        if (fed && drawing && pose_age < 1000.0) {
             ImGui::TextColored(ImVec4(0.25f, 0.8f, 0.35f, 1.0f),
-                               "ghost live -- %u poses", a.poses_sent);
-        } else {
+                               "live -- %u poses%s", a.poses_sent,
+                               a.link.tlm.have_att ? " + attitude" : "");
+        } else if (drawing) {
+            // The picture is still up and no longer a measurement. Age on
+            // screen, always: a held pose and a live one look identical.
+            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
+                               "FROZEN: showing the last pose, %.1f s old",
+                               pose_age / 1000.0);
+        } else if (fed) {
+            // The half that WAS reporting "none yet" while joint angles were
+            // arriving perfectly well -- there was simply nothing to draw
+            // them in.
+            ImGui::TextColored(ImVec4(0.25f, 0.8f, 0.35f, 1.0f),
+                               "joint angles%s arriving -- press Start to "
+                               "draw them",
+                               a.link.tlm.have_att ? " + attitude" : "");
+        } else if (a.link.readonly) {
             // The watcher cannot fix this itself: asking for joint angles is
             // a frame on the wire (kFlagPose), and it sends none. Name the
             // console that CAN, or this reads as a broken sim.
             ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
                                "no joint angles in the beacon -- the DRIVING "
                                "console must be in mirror mode too");
-        }
-    } else if (a.mirror) {
-        const bool fed = a.link.have_tlm &&
-                         a.link.tlm.n_joints == linkproto::kNumJoints;
-        if (fed) {
-            ImGui::TextColored(ImVec4(0.25f, 0.8f, 0.35f, 1.0f),
-                               "ghost live -- %u poses", a.poses_sent);
         } else {
             // A benched loop measures nothing, so it publishes no pose. Say
             // which of the two it is rather than leaving "no ghost" ambiguous.
@@ -1055,7 +1094,7 @@ void drawSim(App& a, double now_ms, float panel_w) {
             ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f), "%s",
                                benched
                                    ? "asked -- but a BENCHED robot measures "
-                                     "nothing; the ghost appears on arm"
+                                     "nothing; the pose appears on arm"
                                    : "asked for joint angles; none yet");
         }
     } else if (a.link.readonly) {

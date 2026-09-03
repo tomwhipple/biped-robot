@@ -77,7 +77,7 @@ const char* SimProc::line(int i) const {
 }
 
 bool SimProc::start(const char* repo, const char* run_name, bool hang,
-                    int stream_port, int cmd_port, int tlm_port) {
+                    bool viewer, int stream_port, int cmd_port, int tlm_port) {
     if (running()) return true;
     err[0] = 0;
     char python[512], script[512];
@@ -140,7 +140,7 @@ bool SimProc::start(const char* repo, const char* run_name, bool hang,
             fprintf(stderr, "cannot enter %s: %s\n", simdir, strerror(errno));
             _exit(126);
         }
-        const char* argv[12];
+        const char* argv[13];
         int a = 0;
         argv[a++] = python;
         argv[a++] = script;
@@ -153,6 +153,7 @@ bool SimProc::start(const char* repo, const char* run_name, bool hang,
         argv[a++] = "--tlm-port";
         argv[a++] = tp;
         if (hang) argv[a++] = "--hang";
+        if (viewer) argv[a++] = "--viewer";
         argv[a] = nullptr;
         execv(python, const_cast<char**>(argv));
         // execv only returns on failure, and this is a forked child: say so

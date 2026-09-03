@@ -117,11 +117,10 @@ struct Link {
     double rate_at_ms = 0.0;
     double rate_hz = 0.0;
 
-    // Mirror mode: the same bytes also go to a second address -- the sim,
-    // running the same command beside the robot. One encode, two sendto's, so
-    // the sim cannot be commanded differently from the robot by construction.
-    sockaddr_in mirror_to = {};
-    bool mirror_on = false;
+    // Mirror mode used to relay each command to a second address -- the sim,
+    // running the same command beside the robot. That is gone (2026-09-03):
+    // mirror mode is a VIEWER now, posed from the robot's measured joints, so
+    // there is no second robot to command. See docs/mirror-mode.md.
 
     // OBSERVER mode: this link has no transmit socket at all, so it cannot
     // put a byte on the wire. Not a policy the UI enforces -- a policy the
@@ -181,8 +180,6 @@ struct Link {
     // robot, and carrying them across would make `lag` meaningless in
     // exactly the way the observer's own header had to avoid.
     bool relink(const char* host, int cmd_port, int tlm_port, bool observe);
-    bool setMirror(const char* host, int port);
-    void clearMirror() { mirror_on = false; }
     bool setWatch(const char* host, int port);
     void clearWatch() { watch_on = false; }
     void close();
@@ -222,6 +219,12 @@ struct Intent {
     // "Beacon joint angles too" (kFlagPose). Independent of arming: it asks
     // for telemetry, it does not command anything.
     bool want_pose = false;
+    // "Beacon the torso up vector too" (kFlagAtt). Same shape as want_pose
+    // and requested alongside it: joint angles say what the legs are doing,
+    // the up vector says which way the robot is facing while they do it, and
+    // a mirror that draws one without the other draws a robot lying on its
+    // face standing to attention.
+    bool want_att = false;
     // Frames left to spend asking for a servo reset (kFlagHome). See
     // kHomeFrames; sendIntent spends one per frame.
     int home_frames = 0;

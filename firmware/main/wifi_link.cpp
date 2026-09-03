@@ -91,6 +91,11 @@ void wifiLinkTask(void*) {
                         // Unlike ARM there is nothing to remember -- a
                         // commander that stops asking stops getting long
                         // frames on the very next beacon.
+        bool att;       // Same rule, same snapshot: the torso up vector. It
+                        // shares this struct with `pose` and the address for
+                        // the reason spelled out above -- two optional blocks
+                        // read from different frames could hand a commander a
+                        // length it never asked for, which every client drops.
     };
     Commander cmdr = {};
     bool have_cmdr = false;
@@ -147,7 +152,7 @@ void wifiLinkTask(void*) {
                 g_rx_frames.fetch_add(1);
                 // Latest commander wins, same rule as latest command -- and
                 // {address, pose} are replaced as one value from this frame.
-                cmdr = Commander{from, pkt.pose()};
+                cmdr = Commander{from, pkt.pose(), pkt.att()};
                 have_cmdr = true;
                 g_peer_ip.store(lwip_ntohl(from.sin_addr.s_addr));
                 g_pose_wanted.store(cmdr.pose);
@@ -205,6 +210,15 @@ void wifiLinkTask(void*) {
             // exactly the 20 B frame it always did. The request and the
             // destination below are the same snapshot, so the long frame
             // can only ever go to the address that asked for it.
+            if (cmdr.att) {
+                // Unlike the pose block there is no freshness gate: up_x/up_y
+                // come from the same publish() as up_z, which the base frame
+                // has always carried unconditionally. Gating them differently
+                // from the field beside them would be the surprise.
+                t.have_att = 1;
+                t.up_x = g_telemetry.up_x.load();
+                t.up_y = g_telemetry.up_y.load();
+            }
             if (cmdr.pose) {
                 float q[obs::kNumJoints];
                 uint32_t seq = 0;
@@ -217,7 +231,7 @@ void wifiLinkTask(void*) {
             // Sized for the long frame; the length on the wire is whatever
             // encodeTelemetry RETURNED, in both places -- a hard-coded
             // kTlmLen here truncates the long frame and every CRC fails.
-            uint8_t wire[linkproto::kTlmLenExt];
+            uint8_t wire[linkproto::kTlmLenMax];
             const size_t n = linkproto::encodeTelemetry(wire, t);
             sockaddr_in to = cmdr.addr;
             to.sin_port = lwip_htons(linkproto::kTlmPort);
@@ -225,7 +239,12 @@ void wifiLinkTask(void*) {
                             reinterpret_cast<sockaddr*>(&to), sizeof to) ==
                 static_cast<int>(n)) {
                 g_tx_tlm.fetch_add(1);
-                if (n == linkproto::kTlmLenExt) g_tx_tlm_ext.fetch_add(1);
+                // "carried joints", which is what the counter has always
+                // meant -- now true of the +attitude length too.
+                if (n == linkproto::kTlmLenExt ||
+                    n == linkproto::kTlmLenExtAtt) {
+                    g_tx_tlm_ext.fetch_add(1);
+                }
             }
         }
     }

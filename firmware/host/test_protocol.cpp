@@ -523,7 +523,140 @@ void testHomeLatch() {
     CHECK(q.update(static_cast<uint8_t>(kFlagEstop | kFlagHome)));
 }
 
+// -- the attitude block (2026-09-03) ----------------------------------------
+// up_z alone is how FAR from upright, never which way. All four lengths must
+// round-trip, and -- the part that actually matters -- adding the block must
+// not have changed a single byte of the two frames that existed before it,
+// because the robot is the SENDER and an unexpected length is a dropped frame
+// at every client already built.
+void testAttitudeIsAdditive() {
+    Telemetry t = {};
+    t.state = LinkState::kLive;
+    t.seq_echo = 4242;
+    t.vbat_v = 11.4f;
+    t.up_z = 0.887f;
+    t.vx_est = 0.4f;
+    t.wz_est = -0.25f;
+    t.loop_late_pct = 3;
+
+    uint8_t plain[kTlmLenMax] = {0};
+    const size_t n_plain = encodeTelemetry(plain, t);
+    CHECK(n_plain == kTlmLen);
+
+    // Same telemetry, now asking for attitude: 4 bytes longer, and the first
+    // 18 bytes IDENTICAL. Only the CRC moves.
+    t.have_att = 1;
+    t.up_x = 0.450f;
+    t.up_y = -0.100f;
+    uint8_t att[kTlmLenMax] = {0};
+    const size_t n_att = encodeTelemetry(att, t);
+    CHECK(n_att == kTlmLenAtt);
+    CHECK(memcmp(plain, att, 18) == 0);
+
+    Telemetry got = {};
+    CHECK(decodeTelemetry(att, n_att, got) == Err::kOk);
+    CHECK(got.have_att == 1);
+    CHECK_NEAR(got.up_x, 0.450, 1e-3);
+    CHECK_NEAR(got.up_y, -0.100, 1e-3);
+    CHECK_NEAR(got.up_z, 0.887, 1e-3);
+    CHECK(got.n_joints == 0);
+
+    // With joints as well: the longest frame, joints BEFORE attitude, and the
+    // 38-byte prefix still byte-identical to the joints-only frame.
+    for (size_t i = 0; i < kNumJoints; ++i) {
+        t.joints[i] = 0.1f * static_cast<float>(i) - 0.4f;
+    }
+    t.n_joints = static_cast<uint8_t>(kNumJoints);
+    uint8_t both[kTlmLenMax] = {0};
+    const size_t n_both = encodeTelemetry(both, t);
+    CHECK(n_both == kTlmLenExtAtt);
+
+    t.have_att = 0;
+    uint8_t pose_only[kTlmLenMax] = {0};
+    const size_t n_pose = encodeTelemetry(pose_only, t);
+    CHECK(n_pose == kTlmLenExt);
+    CHECK(memcmp(pose_only, both, kTlmLenExt - 2) == 0);   // all but the CRC
+
+    Telemetry g2 = {};
+    CHECK(decodeTelemetry(both, n_both, g2) == Err::kOk);
+    CHECK(g2.n_joints == static_cast<uint8_t>(kNumJoints));
+    CHECK(g2.have_att == 1);
+    CHECK_NEAR(g2.up_x, 0.450, 1e-3);
+    CHECK_NEAR(g2.up_y, -0.100, 1e-3);
+    for (size_t i = 0; i < kNumJoints; ++i) {
+        CHECK_NEAR(g2.joints[i], 0.1 * static_cast<double>(i) - 0.4, 1e-3);
+    }
+
+    // A frame that was not asked for attitude must report NONE, not zeros
+    // that read as "perfectly upright".
+    Telemetry g3 = {};
+    CHECK(decodeTelemetry(plain, n_plain, g3) == Err::kOk);
+    CHECK(g3.have_att == 0);
+
+    // Lengths between the valid ones are still refused.
+    Telemetry g4 = {};
+    CHECK(decodeTelemetry(att, kTlmLenAtt - 1, g4) == Err::kBadLength);
+    CHECK(decodeTelemetry(both, 42, g4) == Err::kBadLength);
+
+    // A flipped bit in the new block must fail the CRC -- the block rides
+    // inside it precisely because the CRC is length-agnostic.
+    uint8_t bad[kTlmLenMax];
+    memcpy(bad, both, n_both);
+    bad[kTlmLenExt] = static_cast<uint8_t>(bad[kTlmLenExt] ^ 0x01);
+    CHECK(decodeTelemetry(bad, n_both, g4) == Err::kBadCrc);
+}
+
+// The two implementations pinned to the SAME literal, so neither can drift
+// onto its own private idea of the frame. Produced by link/protocol.py and
+// asserted identically in tests/test_protocol.py -- this is the house rule
+// that the port is diffed against a number, not against whatever Python said.
+void testAttitudeFrameMatchesPython() {
+    Telemetry t = {};
+    t.state = LinkState::kLive;
+    t.seq_echo = 4242;
+    // 11.5 exactly, not 11.4: the encoder TRUNCATES millivolts to match
+    // protocol.py, and 11.4f is 11.39999961 as a float, so it would truncate
+    // to 11399 here and 11400 there -- a difference in the vbat field, not in
+    // anything this test is about. (On the wire vbat is always an integer
+    // millivolt from vbat_dv * 100, so the robot never hits this.)
+    t.vbat_v = 11.5f;
+    t.up_z = 0.887f;
+    t.vx_est = 0.4f;
+    t.wz_est = -0.25f;
+    t.loop_late_pct = 3;
+    t.have_att = 1;
+    t.up_x = 0.450f;
+    t.up_y = -0.100f;
+    const uint8_t want[] = {
+        0x42, 0x54, 0x01, 0x00, 0x92, 0x10, 0x00, 0x00, 0xec, 0x2c, 0x77, 0x03,
+        0x90, 0x01, 0x06, 0xff, 0x00, 0x03, 0xc2, 0x01, 0x9c, 0xff, 0x72, 0xf7
+    };
+    uint8_t got[kTlmLenMax] = {0};
+    const size_t n = encodeTelemetry(got, t);
+    CHECK(n == sizeof want);
+    for (size_t i = 0; i < sizeof want; ++i) CHECK(got[i] == want[i]);
+}
+
+// kFlagAtt is a request, like kFlagPose: its own bit, disturbing no other.
+void testAttFlagIsItsOwnBit() {
+    uint8_t wire[kCmdLen];
+    Command c = {};
+    encodeCommand(wire, 1, 0.0f, 0.0f, kFlagAtt);
+    CHECK(decodeCommand(wire, kCmdLen, c) == Err::kOk);
+    CHECK(c.att());
+    CHECK(!c.pose() && !c.arm() && !c.estop() && !c.enabled() && !c.home());
+
+    Command c2 = {};
+    encodeCommand(wire, 2, 0.0f, 0.0f,
+                  static_cast<uint8_t>(kFlagPose | kFlagAtt));
+    CHECK(decodeCommand(wire, kCmdLen, c2) == Err::kOk);
+    CHECK(c2.att() && c2.pose());
+}
+
 int main() {
+    testAttitudeIsAdditive();
+    testAttitudeFrameMatchesPython();
+    testAttFlagIsItsOwnBit();
     testCrc();
     testCommandFrames();
     testExtendedCommandFrames();
