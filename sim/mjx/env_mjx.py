@@ -141,6 +141,13 @@ class State(NamedTuple):
     servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
     lash: jax.Array           # ()  per-episode backlash (rad)
+    zero_off: jax.Array       # (n_act,) per-episode joint ZERO OFFSET (rad):
+                              # the servo's tick zero vs the policy's frame.
+                              # The hardware zero is set by eye and moved by
+                              # 1-4.7 deg on 2026-09-03 when loose horns were
+                              # tightened; the policy must not depend on it.
+                              # Applied as: physical target = target + off,
+                              # observed q = physical q - off.
     act_lag: jax.Array        # ()  per-episode action-chain lag pole, Hz
                               # (0 = pass-through). Stand-in for the deployed
                               # C2 shaper PLUS the servo's dynamic response:
@@ -389,6 +396,8 @@ class BimoMJXEnv:
         latency_jitter_ms: float = 0.0,
         backlash_deg: float = 0.0,
         backlash_deg_max: float | None = None,
+        zero_offset_deg: float = 0.0,   # per-episode per-joint zero offset
+        # drawn uniform(-z, +z) deg (calibration-error DR, 2026-09-03)
         act_lag_hz: float = 0.0,
         act_lag_hz_max: float | None = None,
         tilt_max_deg: float = 0.0,   # batch-level gravity-tilt DR (un-level floor)
@@ -799,6 +808,8 @@ class BimoMJXEnv:
         self.act_lag_hz = float(act_lag_hz)
         self.act_lag_hz_max = (None if act_lag_hz_max is None
                                else float(act_lag_hz_max))
+        self.zero_offset_deg = float(zero_offset_deg)
+        self.zero_offset_rad = float(np.deg2rad(zero_offset_deg))
         self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
         self.push_force = (5.0 if domain_rand else 0.0) if push_force is None else push_force
         self.fall_height = fall_height
@@ -1220,7 +1231,8 @@ class BimoMJXEnv:
                                       cmd[3]).astype(cmd.dtype))
 
     def _obs(self, data, prev_action, cmd, step_i, imu_R, imu_bias,
-             rng: jax.Array, gait_phase=None, model=None) -> jax.Array:
+             rng: jax.Array, gait_phase=None, model=None,
+             zero_off=None) -> jax.Array:
         up = data.sensordata[self._up_adr:self._up_adr + 3]
         if self.tilt_max_deg > 0.0:
             # what an accelerometer reads: torso up against GRAVITY, not
@@ -1244,6 +1256,10 @@ class BimoMJXEnv:
         else:
             phase = 2 * jp.pi * (step_i.astype(jp.float32) / self.max_steps)
         q_j = data.qpos[self._jq0:self._jq1]
+        if zero_off is not None:
+            # calibration-error DR: the encoder's zero sits zero_off away from
+            # the policy's frame, so the reported angle is physical - offset
+            q_j = q_j - zero_off
         dq_j = data.qvel[self._jv0:self._jv1]
         if self.quantize_ticks:
             # servo-side view: what a SYNC READ can actually report (encoder
@@ -1275,6 +1291,13 @@ class BimoMJXEnv:
                                       maxval=self.backlash_rad_max)
         else:
             lash = jp.asarray(self.backlash_rad, dtype=jp.float32)
+        if self.zero_offset_rad > 0.0:
+            zero_off = jax.random.uniform(jax.random.fold_in(r_lash, 7),
+                                          (self._nq_act,),
+                                          minval=-self.zero_offset_rad,
+                                          maxval=self.zero_offset_rad)
+        else:
+            zero_off = jp.zeros((self._nq_act,), dtype=jp.float32)
         if self.domain_rand:
             sf = jp.concatenate([
                 jax.random.uniform(r_servo, (2,), minval=1 - self.gain_range,
@@ -1317,7 +1340,7 @@ class BimoMJXEnv:
                 minval=self.act_lag_hz, maxval=self.act_lag_hz_max)
         else:
             act_lag = jp.asarray(self.act_lag_hz, dtype=jp.float32)
-        return servo, lat_ms, lash, imu_R, imu_bias, cmd_crouch, act_lag
+        return servo, lat_ms, lash, imu_R, imu_bias, cmd_crouch, act_lag, zero_off
 
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
@@ -1510,7 +1533,7 @@ class BimoMJXEnv:
                                 ctrl=jp.zeros(self.mj_model.nu) + self._default)
             data = mjx.forward(model, data)
         (servo, lat_ms, lash, imu_R, imu_bias,
-         cmd_crouch, act_lag) = self._draw_episode(r_ep)
+         cmd_crouch, act_lag, zero_off) = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -1539,7 +1562,7 @@ class BimoMJXEnv:
             cmd = self._phase_cmd(cmd, recover_slot, 1.0 - recover_slot,
                                   rise_t0, step_i)
         frame = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias,
-                          r_obs, gait_phase, model)
+                          r_obs, gait_phase, model, zero_off=zero_off)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
             if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
         obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
@@ -1560,7 +1583,7 @@ class BimoMJXEnv:
                                                     data.qpos[1]),
                      head_ref=_quat_yaw(data.qpos[3:7]), rise_t0=rise_t0,
                      cmd_crouch=cmd_crouch,
-                     servo=servo, lat_ms=lat_ms, lash=lash,
+                     servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
                      act_lag=act_lag,
                      lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
                      imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
@@ -1572,7 +1595,7 @@ class BimoMJXEnv:
         episode-level DR diversity survives auto-resetting."""
         rng, r_ep, r_cmd, r_obs = jax.random.split(rng, 4)
         (servo, lat_ms, lash, imu_R, imu_bias,
-         cmd_crouch, act_lag) = self._draw_episode(r_ep)
+         cmd_crouch, act_lag, zero_off) = self._draw_episode(r_ep)
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -1600,7 +1623,7 @@ class BimoMJXEnv:
                                   1.0 - first.recover_slot, first.rise_t0,
                                   step_i)
         frame = self._obs(first.data, prev_action, cmd, step_i, imu_R,
-                          imu_bias, r_obs, gait_phase, model)
+                          imu_bias, r_obs, gait_phase, model, zero_off=zero_off)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
             if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
         obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
@@ -1619,7 +1642,7 @@ class BimoMJXEnv:
             best_h=first.data.qpos[2] - self._gz(first.data.qpos[0],
                                                  first.data.qpos[1]),
             head_ref=_quat_yaw(first.data.qpos[3:7]), cmd_crouch=cmd_crouch,
-            servo=servo, lat_ms=lat_ms, lash=lash,
+            servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
             act_lag=act_lag,
             lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
             imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
@@ -1654,6 +1677,10 @@ class BimoMJXEnv:
             # the firmware writes INTEGER goal ticks (SYNC WRITE): quantize
             # before the actuator path (latency, PD, backlash) sees the target
             target = self._quant_angle(target)
+        # calibration-error DR (zero_offset_deg): the servo's zero is off from
+        # the policy's frame, so the PHYSICAL target it serves is target + off
+        # (the obs subtracts the same offset). Zeros when the feature is off.
+        target = target + state.zero_off
 
         ang = jax.random.uniform(r_push_a, maxval=2 * jp.pi)
         if self.push_kick:
@@ -2245,7 +2272,7 @@ class BimoMJXEnv:
             cmd = self._phase_cmd(cmd, state.recover_slot, recovered,
                                   state.rise_t0, step_i)
         frame = self._obs(data, action, cmd, step_i, state.imu_R,
-                          state.imu_bias, r_obs, gait_phase, m)
+                          state.imu_bias, r_obs, gait_phase, m, zero_off=state.zero_off)
         if self.obs_hist_len > 1:
             obs = jp.concatenate([frame, state.obs_hist.reshape(-1)])
             obs_hist = jp.concatenate(
@@ -2284,7 +2311,7 @@ class BimoMJXEnv:
                      best_h=jp.maximum(state.best_h, height),
                      head_ref=head_ref, rise_t0=state.rise_t0,
                      cmd_crouch=state.cmd_crouch, servo=state.servo,
-                     lat_ms=state.lat_ms, lash=state.lash,
+                     lat_ms=state.lat_ms, lash=state.lash, zero_off=state.zero_off,
                      act_lag=state.act_lag, lag_y=lag_y,
                      imu_R=state.imu_R,
                      imu_bias=state.imu_bias, metrics=metrics)

@@ -245,6 +245,8 @@ class BimoWalkerEnv(gym.Env):
         # ~0.5-1.0 deg of lash). 0 = legacy behavior, bit-exact.
         backlash_deg_max: float | None = None,  # per-episode draw
         # uniform(backlash_deg, max) -- backlash DR
+        zero_offset_deg: float = 0.0,  # per-episode per-joint zero offset,
+        # uniform(-z, +z) deg: calibration-error DR (mirror of env_mjx)
         play_deg: float = 0.0,         # FREE TRAVEL between servo shaft and
         # link, peak-to-peak (hw 2026-09-02: L hip roll ~3 deg). Unlike
         # backlash_deg (a deadzone on the servo's error) this is mechanical
@@ -506,6 +508,8 @@ class BimoWalkerEnv(gym.Env):
         self.backlash_deg = backlash_deg
         self.backlash_deg_max = backlash_deg_max
         self._lash_rad = np.deg2rad(backlash_deg)
+        self.zero_offset_deg = float(zero_offset_deg)
+        self._zero_off = None            # (n_act,) rad, drawn at reset
         self.play_deg = float(play_deg)
         self.play_joints = tuple(play_joints) if play_joints else None
         self._play_rad = np.deg2rad(self.play_deg)
@@ -1084,6 +1088,8 @@ class BimoWalkerEnv(gym.Env):
         else:
             phase = 2 * np.pi * (self._step_i / self.max_steps)
         q_j = d.qpos[self._jqpos]
+        if self._zero_off is not None:
+            q_j = q_j - self._zero_off       # calibration-error DR (env_mjx parity)
         dq_j = d.qvel[self._jqvel]
         if self.quantize_ticks:
             # servo-side view: what a SYNC READ can actually report (encoder
@@ -1481,6 +1487,11 @@ class BimoWalkerEnv(gym.Env):
         if self.backlash_deg_max is not None:
             self._lash_rad = np.deg2rad(float(self.np_random.uniform(
                 self.backlash_deg, self.backlash_deg_max)))
+        if self.zero_offset_deg > 0.0:
+            self._zero_off = np.deg2rad(self.np_random.uniform(
+                -self.zero_offset_deg, self.zero_offset_deg, self._nq_act))
+        else:
+            self._zero_off = None
         if self._crouch_dr:
             # per-episode crouch-command draw (SIL finding #2). Drawn HERE,
             # with the other per-episode DR draws and before _sample_command()
@@ -1587,6 +1598,8 @@ class BimoWalkerEnv(gym.Env):
             ms = float(np.clip(ms, 0.0, self.control_dt * 1000.0))
             lat_k = min(int(round(ms / (self.sim_dt * 1000.0))), self.n_substeps)
 
+        if self._zero_off is not None:
+            target = target + self._zero_off  # the servo serves the PHYSICAL target (env_mjx parity)
         x_before = float(self.data.qpos[0])
         for i in range(self.n_substeps):
             cur = self._last_target if i < lat_k else target

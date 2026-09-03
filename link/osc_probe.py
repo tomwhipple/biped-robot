@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from arm_script import Driver, arm_off  # noqa: E402
-from protocol import (FLAG_ARM, FLAG_HOME, FLAG_POSE, ArmResult,  # noqa: E402
+from protocol import (FLAG_ARM, FLAG_ATT, FLAG_HOME, FLAG_POSE, ArmResult,  # noqa: E402
                       LinkState, diag_arm_result, diag_reason)
 
 JOINTS = ["L_yaw", "L_roll", "L_pitch", "L_knee", "L_ankle",
@@ -33,7 +33,7 @@ class OscDriver(Driver):
         self.f = open(csv_path, "w", newline="")
         self.w = csv.writer(self.f)
         self.w.writerow(["t", "epoch", "state", "vbat", "up_z", "vx_est",
-                         "wz_est", "err", "late", "len"] + JOINTS)
+                         "wz_est", "err", "late", "len", "up_x", "up_y"] + JOINTS)
         self.tilt, self.pp_rad = tilt, pp_rad
         self.hist = deque()          # (t, joints) over the last window
         self.window = window_s
@@ -54,7 +54,8 @@ class OscDriver(Driver):
                          f"{tl.vbat_v:.2f}", f"{tl.up_z:.3f}",
                          f"{tl.vx_est:.3f}", f"{tl.wz_est:.3f}",
                          f"0x{tl.servo_err:02x}", tl.loop_late_pct,
-                         40 if j else 20] + [f"{x:.4f}" for x in j])
+                         40 if j else 20,
+                         f"{tl.up_xy[0]:.3f}" if tl.up_xy else "", f"{tl.up_xy[1]:.3f}" if tl.up_xy else ""] + [f"{x:.4f}" for x in j])
         self.f.flush()
         self.n_logged += 1
         live = tl.state in (LinkState.LIVE, LinkState.STAND)
@@ -139,7 +140,7 @@ def main():
                 d.run_for(0.5, arm_off, "abort: ARM=0 frames")
         if not verdict:
             verdict = d.run_for(a.duration,
-                                lambda t: (0.0, 0.0, FLAG_ARM | FLAG_POSE),
+                                lambda t: (0.0, 0.0, FLAG_ARM | FLAG_POSE | FLAG_ATT),
                                 "ARM|POSE zero-command stand")
         if verdict and not verdict.startswith("home not confirmed"):
             d.emergency(verdict)
