@@ -3,18 +3,15 @@
 *For anyone — human or agent — making changes here. The design record is
 [DESIGN.md](DESIGN.md); how training works is [docs/training.md](docs/training.md).*
 
-## Branching: commit to main, no PRs
+## Branching
 
-**This repo does not use pull requests for physical parts or documentation.**
-CAD, STLs, print list, BOM, assembly and design docs, and reports go **straight
-to `main`** — no branch, no PR, no review queue.
+Work on a branch and open a pull request.
 
-The real review gate here is physical — a part that prints and fits, a bench
-measurement — not a diff read on GitHub. Tom is the only reviewer, so a PR only
-delays the file reaching the checkout he slices and builds from.
+Keep local `main` in sync with `origin/main`: fetch and rebase before working,
+push after. `origin/main` moves often — expect to rebase mid-task, and re-check
+any claim your change depends on when it does.
 
-Keep local `main` in sync with `origin/main`: fetch and merge before working,
-push after. Commit at each real milestone without being asked.
+Commit at each real milestone without being asked.
 
 ## The gates
 
