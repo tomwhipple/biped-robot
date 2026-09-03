@@ -17,6 +17,10 @@ void startImuSampler(imu::Imu& imu);
 // the first sample has landed (caller keeps its held sample).
 bool takeImu(imu::Sample& out);
 uint32_t imuSampleTotal();
+// Tick-averaging of the gyro handed to the control loop (default on). Off =
+// the latest 4 ms sample, i.e. the pre-sampler behaviour with 5x the rate.
+void imuSetAverage(bool on);
+bool imuAverage();
 uint32_t imuSampleFailures();
 // Ringing meter (Tom 2026-09-03: "if this is important we should design
 // another way to measure it"): the sampler keeps the last ~4 s of body-frame

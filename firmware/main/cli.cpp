@@ -1229,6 +1229,13 @@ void cmdImu(Sink out, int argc, char** argv) {
         return;
     }
 
+    if (argc >= 2 && !strcmp(argv[1], "avg")) {
+        if (argc >= 3) robot::imuSetAverage(!strcmp(argv[2], "on"));
+        say(out, "imu avg: %s (gyro handed to the loop is the %s)\r\n",
+            robot::imuAverage() ? "on" : "off",
+            robot::imuAverage() ? "tick average of ~5 samples" : "latest 4 ms sample");
+        return;
+    }
     if (argc >= 2 && !strcmp(argv[1], "ring")) {
         const int ms = argc >= 3 ? static_cast<int>(num(argv[2], 2000)) : 2000;
         robot::RingStats r;
@@ -1568,7 +1575,7 @@ void banner(Sink out) {
     out("  cal [show|zero|dir|set|migrate|save|load|reset]   zero + dir (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
-    out("  imu [scan|raw [n]|ring [ms]|bias|mount|forget]   QMI8658C; ring = ringing meter\r\n");
+    out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|bias|mount|forget]   QMI8658C\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  stat                 tick timing and fault counters\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");

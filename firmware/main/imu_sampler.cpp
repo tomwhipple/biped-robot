@@ -15,6 +15,7 @@ uint32_t s_gcount = 0;
 uint32_t s_total = 0;
 uint32_t s_fail = 0;
 bool s_have = false;
+bool s_average = true;
 constexpr int kRingN = 1024;                    // 4.1 s at 4 ms
 float s_ring[kRingN][3];
 uint32_t s_ring_w = 0;                          // total written
@@ -61,7 +62,7 @@ bool takeImu(imu::Sample& out) {
         return false;
     }
     out = s_latest;
-    if (s_gcount > 0) {
+    if (s_average && s_gcount > 0) {
         for (int i = 0; i < 3; ++i) out.gyro[i] = s_gsum[i] / static_cast<float>(s_gcount);
     }
     for (int i = 0; i < 3; ++i) s_gsum[i] = 0.0f;
@@ -119,5 +120,7 @@ bool imuRing(int ms, RingStats& out) {
 }
 
 uint32_t imuSampleTotal() { return s_total; }
+void imuSetAverage(bool on) { s_average = on; }
+bool imuAverage() { return s_average; }
 uint32_t imuSampleFailures() { return s_fail; }
 }  // namespace robot
