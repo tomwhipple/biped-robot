@@ -20,31 +20,10 @@ running results, `sim/runs/night_summary.html`.
 
 ---
 
-## 0. Working process — commit to main, no PRs
+## 0. Working process
 
-**This repo does not use pull requests for physical parts or documentation.** CAD, STLs,
-print list, BOM, assembly/design docs and reports go **straight to `main`** — no branch,
-no PR, no review queue.
-
-The real review gate here is physical — a part that prints and fits, a bench measurement —
-not a diff read on GitHub. Tom is the only reviewer, so a PR only delays the file reaching
-the checkout he slices and builds from.
-
-What replaces review is the repo's own gates. Run them *before* committing, and report what
-they said:
-
-| gate | covers |
-|---|---|
-| `sh cad/run_checks.sh` | both interference gates below, one exit code |
-| `python cad/check_assembly.py` | interference / clearance at pose EXTREMES |
-| `python cad/freecad_rom_collide.py` (via freecadcmd) | interference across the SWEPT ROM |
-| `python cad/check_printability.py` | bridges, ceilings, first-layer contact, per part |
-| `cd firmware/host && make test` | firmware logic under ASan/UBSan |
-| `python -m pytest tests/` | sim + link protocol |
-
-Keep local `main` in sync with `origin/main` — fetch and merge before working, push after.
-Regenerated artifacts (STLs) are rebuilt from source with `python cad/parts.py` rather than
-merged as binaries.
+Moved to [AGENTS.md](AGENTS.md) — branching, the gate list, generated-file
+rules, training discipline and bench safety, in one place.
 
 ## 1. Goal
 
@@ -87,11 +66,14 @@ measures on the real machine goes back into the plant as a modelled term.
 
 ## 3. Folder contents
 
-See the directory tree in [README.md](README.md) — kept in one place so it can't
-drift. Highlights: `cad/` is the parametric printable design (build123d;
-`dimensions.py` is the single source of truth), `sim/` is the MuJoCo env + PPO
-training/eval/report tooling, `sim/runs/` (gitignored) holds trained policies.
-`requirements.txt` pins all deps.
+Top-level map is in [README.md](README.md); each major directory carries its own
+README with the detail ([cad/](cad/README.md), [firmware/](firmware/README.md),
+[sim/sil/](sim/sil/README.md)) — kept there so this file cannot drift from them.
+
+The three source-of-truth files worth knowing by name: `cad/dimensions.py` (every
+dimension), `sim/bimo_biped_v5body.xml` (the plant), and each run's
+`sim/runs/<run>/config.json` (the exact world a policy was trained in).
+`sim/runs/` is gitignored — trained policies are local artifacts.
 
 ## 4. Current state — what works
 
