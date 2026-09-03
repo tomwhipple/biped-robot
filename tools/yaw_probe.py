@@ -73,6 +73,9 @@ def pose_ticks(yawL, yawR):
         deg = yawL if name=='L_hip_yaw' else yawR if name=='R_hip_yaw' else 0.0
         t.append(int(round(zero + d*deg*TPD)))
     return t
+def servo_pos(i):
+    o,_ = cmd(f'pos {i}', until=r'load\s+-?\d+.*err'); m = re.search(r'pos\s+(-?\d+)', o)
+    return int(m.group(1)) if m else None
 def pose(yawL, yawR):
     o,_ = cmd('pose ' + ' '.join(map(str, pose_ticks(yawL, yawR))) + f' {A.spd}', until=r'(ok|refus|OFF|usage|busy)')
     return o
@@ -84,7 +87,7 @@ acc, gyr, dt = burst(30)
 if len(gyr) < 15: print('!! short burst', len(gyr)); sys.exit(2)
 rate = len(gyr)/dt; up = unit(mean(acc)); base_up = up
 print(f'imu burst: {len(gyr)} samples in {dt:.2f}s -> {rate:.0f} Hz; gravity axis (sensor frame) {tuple(round(x,3) for x in up)}', flush=True)
-w = csv.writer(open(A.out,'w',newline='')); w.writerow(['mode','cmd_deg','dyaw_deg','cum_yaw_deg','bias_rad_s','samples','burst_s','tilt_deg'])
+w = csv.writer(open(A.out,'w',newline='')); w.writerow(['mode','cmd_deg','dyaw_deg','cum_yaw_deg','bias_rad_s','samples','burst_s','tilt_deg','L_yaw_ticks','L_yaw_err','R_yaw_ticks','R_yaw_err'])
 MODES = {'both':(1,1), 'left':(1,0), 'right':(0,1), 'opposite':(1,-1)}
 for mode in A.modes.split(','):
     sL, sR = MODES[mode]; cum = 0.0
@@ -103,8 +106,10 @@ for mode in A.modes.split(','):
         dyaw = math.degrees(sum(dot(g, up) - bias for g in g1) * dts)
         cum += dyaw
         tilt = math.degrees(math.acos(max(-1,min(1,dot(unit(mean(acc1)), base_up)))))
-        w.writerow([mode, deg, f'{dyaw:.3f}', f'{cum:.3f}', f'{bias:.5f}', len(g1), f'{dt1:.2f}', f'{tilt:.2f}'])
-        print(f'   cmd {deg:+.1f}  step {deg-prev:+.1f} -> pelvis {dyaw:+.2f} deg  cum {cum:+.2f}  (bias {bias:+.4f} rad/s, tilt {tilt:.1f})', flush=True)
+        tk = pose_ticks(deg*sL, deg*sR); pL, pR = servo_pos(10), servo_pos(9)
+        eL = (pL - tk[0]) if pL is not None else None; eR = (pR - tk[5]) if pR is not None else None
+        w.writerow([mode, deg, f'{dyaw:.3f}', f'{cum:.3f}', f'{bias:.5f}', len(g1), f'{dt1:.2f}', f'{tilt:.2f}', pL, eL, pR, eR])
+        print(f'   cmd {deg:+.1f}  step {deg-prev:+.1f} -> pelvis {dyaw:+.2f} deg  cum {cum:+.2f}  (bias {bias:+.4f}, tilt {tilt:.1f})  servo err L {eL} R {eR} ticks', flush=True)
         prev = deg
         if tilt > A.tilt_abort: print('!! tilt guard', flush=True); pose(0.0, 0.0); sys.exit(2)
     pose(0.0, 0.0); time.sleep(1.0)
