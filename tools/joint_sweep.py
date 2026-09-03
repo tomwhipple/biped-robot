@@ -4,6 +4,7 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('out'); ap.add_argument('--joints', default='L_hip_roll,R_hip_roll,L_hip_pitch,R_hip_pitch,L_ankle,R_ankle,L_knee,R_knee')
 ap.add_argument('--step', type=float, default=0.5); ap.add_argument('--max', type=float, default=4.0)
 ap.add_argument('--tilt-abort', type=float, default=8.0); ap.add_argument('--home-after', action='store_true', default=True)
+ap.add_argument('--base', default='', help='baseline pose offsets held on non-swept joints, e.g. R_knee=-30,R_hip_pitch=10 (deg, joint sign)')
 A = ap.parse_args(); OUT = A.out
 CAL = [  # (name, id, zero, dir) joint order
  ("L_hip_roll",5,2420,-1),("R_hip_roll",1,3533,-1),
@@ -14,6 +15,8 @@ TPD = 4096/360.0
 N = int(round(A.max / A.step))
 STEPS = [k*A.step for k in range(0, N+1)] + [k*A.step for k in range(N-1, -N-1, -1)] + [k*A.step for k in range(-N+1, 1)]
 ALL10 = list(CAL)
+BASE = {kv.split('=')[0]: float(kv.split('=')[1]) for kv in A.base.split(',') if kv}
+def base_ticks(name, zero, d): return int(round(zero + d*BASE.get(name, 0.0)*TPD))
 CAL = [c for c in CAL if c[0] in A.joints.split(',')]
 LOAD_ABORT = 250; LOAD_FREE = 60; TILT_ABORT_DEG = A.tilt_abort; SPD = 60
 def openport():
@@ -64,27 +67,28 @@ def ang(a,b):
     na=math.sqrt(sum(x*x for x in a)); nb=math.sqrt(sum(x*x for x in b))
     return math.degrees(math.acos(max(-1,min(1,sum(x*y for x,y in zip(a,b))/(na*nb)))))
 sc = cmd('scan', until=r'servo\(s\)', timeout=6); print(sc.strip().splitlines()[-1], flush=True)
-base = imu(); print('imu baseline accel', base, flush=True)
 for name,i,zero,d in ALL10:
-    o = cmd(f'move {i} {zero} 0 {SPD}', until=r'(: ok|refusing|torque is OFF)')
+    o = cmd(f'move {i} {base_ticks(name, zero, d)} 0 {SPD}', until=r'(: ok|refusing|torque is OFF)')
     if 'torque is OFF' in o or 'refusing' in o:
         print(f'!! {name} id {i}: {o.strip()[:70]} -- torque must be ON (run `home` / `torque` first); stopping', flush=True); s.close(); sys.exit(2)
-print('all ten joints accept goals at zero (torque on)', flush=True)
-w = csv.writer(open(OUT,'w',newline='')); w.writerow(['joint','id','cmd_deg','goal_ticks','pos_ticks','pos_err','load','spd','tilt_deg','epoch'])
+print(f'all ten joints accept goals at the baseline (torque on); base offsets {BASE}', flush=True); time.sleep(6.0)
+base = imu(); print('imu tilt reference (taken IN the baseline pose)', base, flush=True)
+csvf = open(OUT,'w',newline=''); w = csv.writer(csvf); w.writerow(['joint','id','cmd_deg','goal_ticks','pos_ticks','pos_err','load','spd','tilt_deg','epoch'])
 for name,i,zero,d in CAL:
     p0 = pos(i); print(f'== {name} id {i} start pos {p0}', flush=True)
     aborted = None
     for deg in STEPS:
-        goal = int(round(zero + d*deg*TPD))
+        goal = int(round(zero + d*(deg + BASE.get(name, 0.0))*TPD))
         o = cmd(f'move {i} {goal} 0 {SPD}', until=r'(: ok|refusing|torque is OFF)'); time.sleep(0.45)
         if 'torque is OFF' in o or 'refusing' in o: aborted=f'gate: {o.strip()[:60]}'; break
         p = pos(i); a = imu(); tilt = ang(base,a) if (a and base) else float('nan')
         if p is None: aborted='no feedback'; break
         w.writerow([name,i,deg,goal,p[0],p[0]-goal,p[2],p[1],f'{tilt:.2f}',f'{time.time():.2f}'])
+        csvf.flush()
         print(f'  {deg:+5.1f} deg  goal {goal}  pos {p[0]} (err {p[0]-goal:+d})  load {p[2]:+5d}  tilt {tilt:.1f}', flush=True)
         if abs(p[2]) > LOAD_ABORT: aborted=f'load {p[2]} at {deg:+.1f} deg'; break
         if tilt > TILT_ABORT_DEG: aborted=f'tilt {tilt:.1f} deg at {deg:+.1f}'; break
-    cmd(f'move {i} {zero} 0 {SPD}', until=r': ok'); time.sleep(0.8); p=pos(i)
+    cmd(f'move {i} {base_ticks(name, zero, d)} 0 {SPD}', until=r': ok'); time.sleep(0.8); p=pos(i)
     print(f'   back to zero: pos {p}  {"ABORT: "+aborted if aborted else "sweep complete"}', flush=True)
     if aborted and aborted.startswith('tilt'): print('!! tilt guard -- stopping all sweeps'); break
 print(cmd('home', until=r'HOLDING', timeout=6).strip(), flush=True); time.sleep(2)
