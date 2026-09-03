@@ -6,6 +6,7 @@
 // task, so there is no cross-task state beyond the status atomics, each of
 // which has this file as its only writer.
 #include "wifi_link.h"
+#include "timesync.h"
 
 #include <string.h>
 
@@ -64,6 +65,9 @@ void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data) {
         const ip_event_got_ip_t* e = static_cast<ip_event_got_ip_t*>(data);
         g_ip.store(lwip_ntohl(e->ip_info.ip.addr));
         g_connected.store(true);
+        // A lease is the first moment an NTP request can go anywhere. The
+        // server itself came with the lease (DHCP option 42, timesync.h).
+        timeSyncStart();
     }
 }
 
@@ -204,10 +208,14 @@ void wifiLinkTask(void*) {
             t.servo_err = static_cast<uint8_t>(f & 0xFF) |
                           static_cast<uint8_t>((f >> 8) & 0x03);
             t.loop_late_pct = g_telemetry.loop_late_pct.load();
+            // The wall-clock stamp (timesync.h): the assembly instant, or 0
+            // while SNTP has not answered yet. A pose frame below replaces
+            // it with the instant the joints were read.
+            t.t_us = timeNowUs();
             // The long frame, REQUESTED and FRESH only (see Commander and
             // pose_seq_sent above). Everything before this line is the
             // classic body byte for byte; a commander that never asks gets
-            // exactly the 20 B frame it always did. The request and the
+            // exactly the 28 B frame it always did. The request and the
             // destination below are the same snapshot, so the long frame
             // can only ever go to the address that asked for it.
             if (cmdr.att) {
@@ -222,10 +230,13 @@ void wifiLinkTask(void*) {
             if (cmdr.pose) {
                 float q[obs::kNumJoints];
                 uint32_t seq = 0;
-                if (g_joint_pose.read(q, seq) && seq != pose_seq_sent) {
+                int64_t read_us = 0;
+                if (g_joint_pose.read(q, seq, nullptr, &read_us) &&
+                    seq != pose_seq_sent) {
                     pose_seq_sent = seq;
                     memcpy(t.joints, q, sizeof t.joints);
                     t.n_joints = static_cast<uint8_t>(linkproto::kNumJoints);
+                    t.t_us = timeFromBootUs(read_us);
                 }
             }
             // Sized for the long frame; the length on the wire is whatever
@@ -296,6 +307,7 @@ bool wifiCredsErase() {
 void startWifiLink() {
     if (esp_netif_init() != ESP_OK) return;
     if (esp_event_loop_create_default() != ESP_OK) return;
+    startTimeSync();   // configured now, started by the GOT_IP handler
     esp_netif_t* netif = esp_netif_create_default_wifi_sta();
     if (!netif) return;
     esp_netif_set_hostname(netif, "bimo");

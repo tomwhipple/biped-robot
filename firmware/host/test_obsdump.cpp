@@ -351,14 +351,17 @@ void testJointPoseNewestWins() {
     robot::JointPose p;
     float in[obs::kNumJoints], out[obs::kNumJoints];
     uint32_t seq = 0, tick = 0;
+    int64_t t_us = 0;
     // Enough publishes to use both slots several times over.
     for (uint32_t k = 1; k <= 7; ++k) {
         poseOf(static_cast<float>(k), in);
-        p.publish(in, 1000u + k);
+        p.publish(in, 1000u + k, 20000 * static_cast<int64_t>(k));
         CHECK_EQ(p.sequence(), k);
-        CHECK_EQ(p.read(out, seq, &tick), true);
+        CHECK_EQ(p.read(out, seq, &tick, &t_us), true);
         CHECK_EQ(seq, k);
         CHECK_EQ(tick, 1000u + k);
+        // The read instant travels with the pose it belongs to.
+        CHECK_EQ(t_us == 20000 * static_cast<int64_t>(k), true);
         for (int i = 0; i < obs::kNumJoints; ++i) {
             CHECK_EQ(out[i] == in[i], true);
         }
@@ -371,12 +374,12 @@ void testJointPoseSequenceIsStillWhenTheLoopIs() {
     robot::JointPose p;
     float in[obs::kNumJoints], out[obs::kNumJoints];
     poseOf(3.0f, in);
-    p.publish(in, 1);
+    p.publish(in, 1, 0);
     uint32_t s1 = 0, s2 = 0;
     CHECK_EQ(p.read(out, s1), true);
     CHECK_EQ(p.read(out, s2), true);
     CHECK_EQ(s1, s2);
-    p.publish(in, 2);
+    p.publish(in, 2, 0);
     CHECK_EQ(p.read(out, s2), true);
     CHECK_EQ(s2, s1 + 1u);
 }

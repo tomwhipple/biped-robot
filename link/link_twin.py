@@ -143,6 +143,7 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                 if up_xy else 1.0,
                 vx_est=cmd[0], wz_est=cmd[2], servo_err=0,
                 loop_late_pct=0, joints=joints, up_xy=up_xy,
+                t_us=int(time.time() * 1e6),      # a twin is always synced
             )), (peer, tlm_port))
         tick += 1
         time.sleep(0.02)                          # the 50 Hz control tick

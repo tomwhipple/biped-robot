@@ -27,7 +27,17 @@ constexpr size_t kCmdLen = 14;
 // working. protocol.py is the reference for the sender-side rule (emit the
 // short frame whenever the extras are at defaults).
 constexpr size_t kCmdLenExt = 24;
-constexpr size_t kTlmLen = 20;
+// Telemetry lengths. TIMESTAMPED (2026-09-02): the 18-byte body, then a u64
+// t_us (microseconds since the Unix epoch, UTC, from the robot's SNTP-
+// disciplined clock; 0 until the first sync), then the optional joints, then
+// the CRC. The stamp rides EVERY beacon -- docs/control-channel.md "Time on
+// the wire" says why this one is volunteered where the joints were not. The
+// pre-stamp lengths are still DECODED (t_us -> 0), never emitted, so a
+// console from this tree keeps working against a robot flashed before the
+// change.
+constexpr size_t kTlmLen = 28;
+constexpr size_t kTlmLenV1 = 20;    // legacy: no timestamp, decode-only
+constexpr size_t kTlmTimeOff = 18;  // the u64 sits right after the body
 // Extended TELEMETRY (2026-09-01): the same 18-byte body, then one int16
 // milli-radian per joint, then the CRC. For mirror mode -- driving the real
 // robot while a sim follows its observed pose.
@@ -40,6 +50,7 @@ constexpr size_t kTlmLen = 20;
 // docs/mirror-mode.md.
 constexpr size_t kNumJoints = 10;   // obs_spec order, NOT servo-id order
 constexpr size_t kTlmLenExt = kTlmLen + 2 * kNumJoints;
+constexpr size_t kTlmLenExtV1 = kTlmLenV1 + 2 * kNumJoints;   // legacy
 
 // ATTITUDE (2026-09-03): up_x and up_y, int16 milli, appended AFTER the joint
 // block and before the CRC. up_z has been in the base frame since the
@@ -55,11 +66,12 @@ constexpr size_t kTlmLenExt = kTlmLen + 2 * kNumJoints;
 // would blind every mirror-mode client already built.
 //
 // Four lengths, and they stay unambiguous because each block has a fixed
-// size: 20 base, 24 +att, 40 +joints, 44 +joints+att. The CRC is already
-// "over len-2, appended at len-2", so the framing needed no change at all.
+// size: 28 base (18 body + 8 t_us), 32 +att, 48 +joints, 52 +joints+att.
+// The CRC is already "over len-2, appended at len-2", so the framing needed
+// no change at all.
 constexpr size_t kTlmAttBytes = 4;
-constexpr size_t kTlmLenAtt = kTlmLen + kTlmAttBytes;              // 24
-constexpr size_t kTlmLenExtAtt = kTlmLenExt + kTlmAttBytes;        // 44
+constexpr size_t kTlmLenAtt = kTlmLen + kTlmAttBytes;              // 32
+constexpr size_t kTlmLenExtAtt = kTlmLenExt + kTlmAttBytes;        // 52
 constexpr size_t kTlmLenMax = kTlmLenExtAtt;
 
 constexpr uint16_t kCmdPort = 4210;
@@ -256,10 +268,15 @@ struct Telemetry {
     uint8_t servo_err;   // bitmask, bit i = servo ID i+1 faulted
     uint8_t loop_late_pct;
     // Measured joint angles, radians, obs_spec order. n_joints is 0 on a
-    // classic 20 B frame -- which is every frame, unless a commander asked
-    // with kFlagPose.
+    // classic frame -- which is every frame, unless a commander asked with
+    // kFlagPose.
     uint8_t n_joints = 0;
     float joints[kNumJoints] = {0};
+    // Microseconds since the Unix epoch (UTC) on the robot's clock. 0 = not
+    // synced yet, or a legacy frame. With joints present it is the instant
+    // they were read off the bus; otherwise the instant the beacon was
+    // assembled -- either way within one 20 ms tick of the values.
+    uint64_t t_us = 0;
     // Torso up vector, x and y (z is up_z above). The robot's own z axis
     // EXPRESSED IN THE WORLD FRAME -- obs_spec kOffUp / imu::Sample::up, the
     // same convention MuJoCo's framezaxis uses. have_att is 0 on any frame
@@ -303,12 +320,13 @@ size_t encodeCommandExt(uint8_t* out, const Command& cmd);
 // Accepts kCmdLen (extras -> defaults) and kCmdLenExt frames.
 Err decodeCommand(const uint8_t* buf, size_t len, Command& out);
 
-// Emits the blocks that are set: joints when t.n_joints == kNumJoints, the up
-// vector when t.have_att. `out` must have room for kTlmLenMax. Returns the
-// bytes written -- USE IT: sending kTlmLen of a long frame truncates it and
-// every CRC downstream fails.
+// Emits the blocks that are set: the u64 timestamp ALWAYS, then joints when
+// t.n_joints == kNumJoints, then the up vector when t.have_att. `out` must
+// have room for kTlmLenMax. Returns the bytes written -- USE IT: sending
+// kTlmLen of a long frame truncates it and every CRC downstream fails.
 size_t encodeTelemetry(uint8_t* out, const Telemetry& t);
-// Accepts kTlmLen (n_joints -> 0) and kTlmLenExt frames.
+// Accepts kTlmLen and kTlmLenExt, plus the legacy kTlmLenV1 / kTlmLenExtV1
+// (t_us -> 0). n_joints is kNumJoints on the two long lengths, else 0.
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out);
 
 }  // namespace linkproto

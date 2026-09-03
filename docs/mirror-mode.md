@@ -112,13 +112,22 @@ independently of the peer. Writing it down here because this is exactly the
 one-sender-many-decoders trap the rest of this document is careful about, and
 because it is invisible until two consoles are pointed at one robot.
 
-**Extended telemetry** — 40 B, `TLM_LEN_EXT`:
+**Extended telemetry** — 48 B, `TLM_LEN_EXT` (40 B before the timestamp
+of 2026-09-02, still decoded):
 
 | off | size | field |
 |---|---|---|
 | 0–17 | 18 | exactly the classic body, unchanged |
-| 18–37 | 20 | 10 × i16, milli-radians, **obs_spec joint order** |
-| 38–39 | 2 | crc16 over bytes 0–37 |
+| 18–25 | 8 | `t_us`, the robot's clock — the instant these joints were read ([control-channel.md](control-channel.md#time-on-the-wire-2026-09-02)) |
+| 26–45 | 20 | 10 × i16, milli-radians, **obs_spec joint order** |
+| 46–47 | 2 | crc16 over bytes 0–45 |
+
+*Note (2026-09-02).* The timestamp that now precedes the joints is the one
+telemetry field that IS volunteered on every frame, against the rule this
+section lays down. Both decoders accept the pre-stamp lengths too, so no
+console in this tree goes blind against older firmware; the reasoning, and
+the one pairing that does break, are in control-channel.md's "Time on the
+wire".
 
 Joint order is obs_spec's, not servo-id order: `L_hip_yaw, L_hip_roll,
 L_hip_pitch, L_knee, L_ankle`, then the same five right. This is the same

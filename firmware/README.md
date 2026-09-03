@@ -224,8 +224,9 @@ Handover is one-way through the ctrl task: it releases torque and clears
    version bump and every existing commander keeps working. Layout and
    rationale: `linkproto::packDiag` and docs/control-channel.md.
    **Mirror mode beacon, 2026-09-01** (docs/mirror-mode.md): a commander
-   whose frames carry `kFlagPose` gets the 40 B `kTlmLenExt` beacon — the
-   classic body plus ten milli-radian joint angles in obs_spec order. The
+   whose frames carry `kFlagPose` gets the `kTlmLenExt` beacon (48 B; 40 B
+   before the 2026-09-02 timestamp) — the classic body plus ten
+   milli-radian joint angles in obs_spec order. The
    pose is ctrl's `g_q`, published every armed tick through
    `main/joint_pose.h` (ObsDump's double-buffer-plus-counter, so a beacon
    can never mix two ticks' joints) and read by `wifi_link.cpp`, which sends

@@ -202,7 +202,8 @@ $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
 # operator's console that have no screen in them. Sanitizers ON here, unlike
 # the tools that link the same sources.
 $(BUILD)/test_client: test_client.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
-                      ../../link/mjpeg.cpp $(SRC_LINK) $(GUI_HDRS) \
+                      ../../link/mjpeg.cpp ../../link/recorder.cpp \
+                      $(SRC_LINK) $(GUI_HDRS) \
                       test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) -I../../link $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 

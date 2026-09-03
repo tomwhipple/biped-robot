@@ -22,6 +22,7 @@ braces for the servo-fault case the firmware only reports.
 """
 import argparse
 import socket
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -89,6 +90,25 @@ class Driver:
     def now(self):
         return time.monotonic() - self.t0
 
+    @staticmethod
+    def host_clock_line():
+        """One line for the log: host UTC now, and whether it is NTP-synced.
+
+        The kernel flag systemd's timedatectl reads; "unknown" where that
+        cannot be asked. A `utc=` column from an unsynced host is a number,
+        not a time, and the log should say so up front."""
+        synced = "unknown"
+        try:
+            out = subprocess.run(
+                ["timedatectl", "show", "-p", "NTPSynchronized", "--value"],
+                capture_output=True, text=True, timeout=2).stdout.strip()
+            synced = {"yes": "synced", "no": "UNSYNCED"}.get(out, "unknown")
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return (f"== host clock utc={time.time():.3f} "
+                f"({time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}) "
+                f"ntp={synced}")
+
     def send(self, vx, wz, flags, ext=None):
         self.tx.sendto(encode_command(self.seq, vx, wz, flags, **(ext or {})),
                        (self.host, self.cmd_port))
@@ -128,7 +148,16 @@ class Driver:
             self.last_state = tl.state
             self.states_seen.append((round(t, 2), tl.state.value))
         if changed or t - self.last_print >= 0.5:
-            print(f"t={t:6.2f} cmd vx={vx:+.2f} wz={wz:+.2f} "
+            # Two wall clocks on every line (docs/control-channel.md "Time on
+            # the wire"): the host's, which is the time base burned into the
+            # webcam frames by tools/cam_record.sh, and the robot's own SNTP
+            # stamp from the beacon. `robot=unsynced` means the robot has not
+            # heard from NTP yet (or runs pre-stamp firmware) -- correlate on
+            # `utc` alone in that case, and say so in the write-up.
+            robot = ("unsynced" if tl.t_utc is None
+                     else f"{tl.t_utc:.3f}")
+            print(f"t={t:6.2f} utc={time.time():.3f} robot={robot} "
+                  f"cmd vx={vx:+.2f} wz={wz:+.2f} "
                   f"flags=0x{flags:02x} | {tl.state.value:5s} "
                   f"vbat={tl.vbat_v:4.1f}V up_z={tl.up_z:+.2f} "
                   f"vx_est={tl.vx_est:+.2f} wz_est={tl.wz_est:+.2f} "
@@ -277,6 +306,7 @@ def main():
     a = p.parse_args()
 
     d = Driver(a.host, cmd_port=a.port, tlm_port=a.tlm_port, watch=a.watch)
+    print(Driver.host_clock_line(), flush=True)
     try:
         verdict = {"arm": phase_arm, "script": phase_script,
                    "disarm": phase_disarm}[a.phase](d, a)

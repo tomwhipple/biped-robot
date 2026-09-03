@@ -4,6 +4,7 @@
 // reference; nothing here was typed by hand except the CCITT-FALSE check
 // value, which is the one number the whole chain can be diffed against.
 #include <stdint.h>
+#include <string.h>
 
 #include "linkproto/framing.h"
 #include "linkproto/protocol.h"
@@ -198,6 +199,7 @@ void testTelemetryFrames() {
         t.wz_est = c.wz;
         t.servo_err = c.servo_err;
         t.loop_late_pct = c.late;
+        t.t_us = c.t_us;
         uint8_t wire[kTlmLen];
         CHECK_EQ(encodeTelemetry(wire, t), kTlmLen);
         CHECK_BYTES(wire, c.wire, kTlmLen);
@@ -206,6 +208,7 @@ void testTelemetryFrames() {
         CHECK_EQ(static_cast<int>(decodeTelemetry(c.wire, kTlmLen, back)),
                  static_cast<int>(Err::kOk));
         CHECK_EQ(back.seq_echo, c.seq);
+        CHECK(back.t_us == c.t_us);
         CHECK_EQ(static_cast<int>(back.state), c.state);
         CHECK_EQ(back.servo_err, c.servo_err);
         CHECK_EQ(back.loop_late_pct, c.late);
@@ -409,6 +412,7 @@ void testExtendedTelemetryFrames() {
         t.loop_late_pct = k.late;
         t.n_joints = static_cast<uint8_t>(kNumJoints);
         for (size_t i = 0; i < kNumJoints; ++i) t.joints[i] = k.joints[i];
+        t.t_us = k.t_us;
 
         uint8_t wire[kTlmLenExt];
         const size_t n = encodeTelemetry(wire, t);
@@ -418,6 +422,7 @@ void testExtendedTelemetryFrames() {
         Telemetry back{};
         CHECK(decodeTelemetry(k.wire, kTlmLenExt, back) == Err::kOk);
         CHECK_EQ(back.n_joints, kNumJoints);
+        CHECK(back.t_us == k.t_us);
         for (size_t i = 0; i < kNumJoints; ++i) {
             // Milli-radian quantisation, and the saturating cases clamp.
             const float want = k.joints[i] > 32.767f    ? 32.767f
@@ -429,7 +434,7 @@ void testExtendedTelemetryFrames() {
 }
 
 // The property every existing commander depends on: not asking changes
-// nothing. A Telemetry with no joints must encode to the classic 20 B frame,
+// nothing. A Telemetry with no joints must encode to the classic 28 B frame,
 // byte for byte, and a classic frame must decode with no joints.
 void testClassicTelemetryIsUntouched() {
     for (size_t c = 0; c < V::kNumTlm; ++c) {
@@ -443,6 +448,7 @@ void testClassicTelemetryIsUntouched() {
         t.wz_est = k.wz;
         t.servo_err = k.servo_err;
         t.loop_late_pct = k.late;
+        t.t_us = k.t_us;
         t.n_joints = 0;                       // did not ask
         uint8_t wire[kTlmLenExt];
         CHECK_EQ(encodeTelemetry(wire, t), kTlmLen);
@@ -452,11 +458,61 @@ void testClassicTelemetryIsUntouched() {
         CHECK(decodeTelemetry(k.wire, kTlmLen, back) == Err::kOk);
         CHECK_EQ(back.n_joints, 0);
     }
-    // A length between the two is still refused.
+    // Every length that is none of the four is refused -- including the
+    // ones a truncated or padded frame of each kind would produce.
     Telemetry junk{};
-    uint8_t buf[kTlmLenExt] = {0};
-    CHECK(decodeTelemetry(buf, kTlmLen + 1, junk) == Err::kBadLength);
-    CHECK(decodeTelemetry(buf, kTlmLenExt - 1, junk) == Err::kBadLength);
+    uint8_t buf[kTlmLenExt + 1] = {0};
+    const size_t bad[] = {0, kTlmLenV1 - 1, kTlmLenV1 + 1, kTlmLen - 1,
+                          kTlmLen + 1, kTlmLenExtV1 - 1, kTlmLenExtV1 + 1,
+                          kTlmLenExt - 1, kTlmLenExt + 1};
+    for (size_t n : bad) {
+        CHECK(decodeTelemetry(buf, n, junk) == Err::kBadLength);
+    }
+}
+
+// Timestamps (2026-09-02). Two properties: the u64 is carried byte-exact
+// (the vectors above already diffed every byte, including 2^64-1 and the
+// real-clock value); and a frame from PRE-stamp firmware -- the robot as
+// flashed the day this was written -- still decodes, with t_us == 0 and
+// everything else intact. The legacy bytes were packed by the generator,
+// since protocol.py can no longer emit them, and what Python decoded from
+// them was asserted there; this is the same check for the C++ side.
+void testLegacyTelemetryDecodes() {
+    for (size_t c = 0; c < V::kNumTlm; ++c) {
+        const V::TlmCase& k = V::kTlm[c];
+        Telemetry back{};
+        back.t_us = 99;                       // must be overwritten, not kept
+        CHECK(decodeTelemetry(k.legacy, kTlmLenV1, back) == Err::kOk);
+        CHECK(back.t_us == 0);
+        CHECK_EQ(back.n_joints, 0);
+        CHECK_EQ(back.seq_echo, k.seq);
+        CHECK_EQ(static_cast<int>(back.state), k.state);
+        CHECK_EQ(back.servo_err, k.servo_err);
+        CHECK_EQ(back.loop_late_pct, k.late);
+        CHECK_NEAR(back.up_z, k.up_z, 1e-3);
+        CHECK_EQ(telemetryDiag(back), k.diag);
+        // The legacy frame is the stamped frame minus its stamp: same body.
+        CHECK_BYTES(k.legacy, k.wire, kTlmTimeOff);
+    }
+    for (size_t c = 0; c < V::kNumTlmExt; ++c) {
+        const V::TlmExtCase& k = V::kTlmExt[c];
+        Telemetry back{};
+        CHECK(decodeTelemetry(k.legacy, kTlmLenExtV1, back) == Err::kOk);
+        CHECK(back.t_us == 0);
+        CHECK_EQ(back.n_joints, kNumJoints);
+        for (size_t i = 0; i < kNumJoints; ++i) {
+            const float want = k.joints[i] > 32.767f    ? 32.767f
+                             : k.joints[i] < -32.768f   ? -32.768f
+                                                        : k.joints[i];
+            CHECK_NEAR(back.joints[i], want, 0.001f);
+        }
+    }
+    // The CRC covers the stamp: flip one bit of it and the frame is refused.
+    uint8_t wire[kTlmLen];
+    memcpy(wire, V::kTlm[1].wire, kTlmLen);
+    wire[kTlmTimeOff + 3] ^= 0x10;
+    Telemetry junk{};
+    CHECK(decodeTelemetry(wire, kTlmLen, junk) == Err::kBadCrc);
 }
 
 // kFlagPose is a level on the wire and must not disturb the other three.
@@ -627,9 +683,14 @@ void testAttitudeFrameMatchesPython() {
     t.have_att = 1;
     t.up_x = 0.450f;
     t.up_y = -0.100f;
+    // Pinned to link/protocol.py's encoder, MERGED format: the u64 t_us
+    // (zero here -- never synced) sits at offset 18, THEN the att block,
+    // then the CRC. Regenerate with tools/gen_protocol_vectors.py when the
+    // frame layout changes.
     const uint8_t want[] = {
-        0x42, 0x54, 0x01, 0x00, 0x92, 0x10, 0x00, 0x00, 0xec, 0x2c, 0x77, 0x03,
-        0x90, 0x01, 0x06, 0xff, 0x00, 0x03, 0xc2, 0x01, 0x9c, 0xff, 0x72, 0xf7
+        0x42, 0x54, 0x01, 0x00, 0x92, 0x10, 0x00, 0x00, 0xEC, 0x2C, 0x77, 0x03,
+        0x90, 0x01, 0x06, 0xFF, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0xC2, 0x01, 0x9C, 0xFF, 0x3E, 0xF6
     };
     uint8_t got[kTlmLenMax] = {0};
     const size_t n = encodeTelemetry(got, t);
@@ -666,6 +727,7 @@ int main() {
     testTelemetryFrames();
     testExtendedTelemetryFrames();
     testClassicTelemetryIsUntouched();
+    testLegacyTelemetryDecodes();
     testPoseFlag();
     testHomeFlag();
     testHomeLatch();

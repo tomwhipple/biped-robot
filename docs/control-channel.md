@@ -49,12 +49,32 @@ both paths.
 | 10 | 2 | wz | i16, mrad/s, yaw rate |
 | 12 | 2 | crc16 | CCITT-FALSE over bytes 0–11 |
 
-**Telemetry** — robot → laptop, 20 B, UDP port 4211, 10 Hz: magic `"BT"`,
+**Telemetry** — robot → laptop, 28 B, UDP port 4211, 10 Hz: magic `"BT"`,
 version, link state, echoed seq, bus millivolts, torso up-z, estimated vx/wz,
-a per-servo fault bitmask, and the percentage of control ticks that overran
-20 ms. The OLED shows bus voltage too, but telemetry is what a laptop can log.
+a per-servo fault bitmask, the percentage of control ticks that overran
+20 ms, and — since 2026-09-02 — the robot's wall clock, `t_us`, as
+microseconds since the Unix epoch. The OLED shows bus voltage too, but
+telemetry is what a laptop can log.
 The echoed-seq field does double duty while the state is `BENCH` — see
-[the bench diagnostic](#saying-why-over-the-radio-2026-08-30).
+[the bench diagnostic](#saying-why-over-the-radio-2026-08-30). The joints
+extension (48 B, [mirror-mode.md](mirror-mode.md)) and the timestamp are
+described in [Time on the wire](#time-on-the-wire-2026-09-02).
+
+| off | size | field | notes |
+|---|---|---|---|
+| 0 | 2 | magic | `"BT"` |
+| 2 | 1 | version | 1 |
+| 3 | 1 | state | `LinkState`, declaration order |
+| 4 | 4 | seq_echo | u32; the bench diagnostic byte while `BENCH` |
+| 8 | 2 | vbat | u16, mV |
+| 10 | 2 | up_z | i16, milli |
+| 12 | 2 | vx_est | i16, mm/s |
+| 14 | 2 | wz_est | i16, mrad/s |
+| 16 | 1 | servo_err | bitmask, obs_spec joint order |
+| 17 | 1 | loop_late_pct | u8 |
+| 18 | 8 | **t_us** | u64, µs since the epoch, UTC, robot clock; **0 = not synced** |
+| 26 | 20 | joints | 10 × i16 milli-rad, **48 B frame only** (`FLAG_POSE`) |
+| last | 2 | crc16 | CCITT-FALSE over everything before it |
 
 Fixed-point milli-units rather than float32 so the frame is byte-identical
 across the Python sender and a C firmware. ±32.7 m/s of headroom on a plant
@@ -225,6 +245,97 @@ Reordered and duplicate frames are dropped by sequence number, and — subtly �
 could hold the robot `LIVE` on a command from the past. A backwards seq jump
 larger than 1000 is read as "the commander restarted", not "ancient packet",
 so a restarted sender at seq 0 resyncs instead of being ignored forever.
+
+## Time on the wire (2026-09-02)
+
+**The problem.** A hardware take is video plus a telemetry log, and until
+today nothing joined them better than a second. The robot had no clock at
+all: the Waveshare board has no RTC chip, no 32 kHz crystal and no backup
+cell (the vendor schematic, read end to end — GPIO32/33, the only pins that
+could take a slow crystal, are the I2C bus), and the firmware never asked
+for the time. Telemetry carried none. Host side, the recorder's `t` column
+was seconds since the recording started, the video's only anchor was the
+mp4's whole-second mtime, and "where in the video is the beacon that says
+the robot fell" was a guess.
+
+**The design.** One time base, NTP, on both ends:
+
+- **The robot syncs itself.** `firmware/main/timesync.{h,cpp}` runs SNTP
+  from the moment the WiFi link holds a DHCP lease. The server comes with
+  the lease (DHCP option 42 — the LAN router hands it out), with
+  `pool.ntp.org` as the static fallback; polls every 30 s, so the crystal's
+  drift between steps stays in the low milliseconds; the RFC 4330 startup
+  delay (a random 1–5 min before the first request) is off. The tethered
+  `ntp` command is the only diagnostic, since logging is silenced after
+  boot — type it after a flash and before trusting a single stamp.
+- **Every beacon carries `t_us`.** A u64 at offset 18, microseconds since
+  the Unix epoch on the robot's clock. **0 means "not synced"** — the robot
+  has not heard from NTP yet, or the frame came from firmware older than
+  this section. Nothing ever sends the boot-relative time dressed up as an
+  epoch. When the frame carries joints (mirror mode) the stamp is the
+  instant they were read off the servo bus (the midpoint of the ten reads),
+  not the instant the beacon was sent; otherwise it is the beacon's assembly
+  time. Either way it is within one 20 ms tick of the values beside it.
+- **Every video frame carries its capture time.** `tools/cam_record.sh`
+  records a webcam with the UTC time burned into the picture to the
+  millisecond and a `.pts` sidecar of one epoch-ms per frame, from the
+  kernel's V4L2 capture timestamps converted to `CLOCK_REALTIME` — which
+  chrony disciplines to NTP on mira (0.1 ms, measured). Verified against
+  `date` on `/dev/video0`. `tools/record_attempt.sh` uses it for both
+  cameras and records whether the host clock was NTP-synced at the time.
+- **Every log line carries both clocks.** `link/recorder.cpp` (bimo_gui's
+  JSONL) writes `utc` (host, CLOCK_REALTIME) on every record and
+  `robot_utc` (from `t_us`, `null` when 0) plus the joints `q` on every
+  beacon, and says in its header whether the host clock was disciplined
+  (`host_clock`, from the kernel's own flag). `link/arm_script.py` prints
+  `utc=` and `robot=` on every line. `utc − robot_utc` is link latency plus
+  the two clocks' disagreement, and is the number to look at when a
+  filmstrip and a joint trace disagree.
+
+### The wire decision, and why this one is volunteered
+
+The mirror-mode extension established the rule for telemetry: the robot is
+the sender, every client rejects an unknown length, so **a new length is
+requested, never volunteered** ([mirror-mode.md](mirror-mode.md)). The
+timestamp breaks that rule on purpose, and both halves of the reasoning are
+worth writing down.
+
+*Why not request it with a flag bit.* A timestamp is not a payload a client
+opts into; it is metadata about the frame, and its whole value is that the
+log of *any* frame from *any* commander can be laid against a video. Making
+it depend on each commander remembering to set a bit is exactly the "thing
+nobody writes down at the time" that `link/recorder.cpp` exists to prevent.
+A passive listener on port 4211 would get stamps only if someone else had
+asked.
+
+*Why it is safe anyway.* Both decoders — `decode_telemetry` and
+`decodeTelemetry` — now accept **four** lengths: 28 and 48 with the stamp,
+and the legacy 20 and 40 without it (decoded with `t_us = 0`, never
+emitted). So a console built from this tree keeps working against a robot
+flashed before the change, which is the case that matters on the bench
+(the robot as flashed on 2026-09-02, `2f38b0c`, beacons 20/40 B). The only
+pairing that goes blind is an *old* console against *new* firmware, and
+every console lives in this tree and is rebuilt with it. The version byte
+stays 1: length selects the layout, as it has for every extension so far.
+
+### Checking it
+
+1. Flash; on the tether, `wifi` until CONNECTED, then `ntp` — expect
+   `synced` with a server address from DHCP and a step in the low ms.
+   `UNSYNCED` after a minute means the router is not handing out option 42
+   and pool.ntp.org is unreachable from the robot's network.
+2. `bimo_gui --host <robot>`: the JSONL in `hw_sessions/` has `robot_utc`
+   on every beacon (not `null`) and `"host_clock":"ntp"` in its header.
+3. `tools/record_attempt.sh <name> ...`: `<name>_timing.txt` has
+   `host_ntp_synced: yes` and `cam0_first_frame_epoch`, and frame *i* of
+   `<name>_cam0.mp4` shows the time on line *i+2* of `<name>_cam0.pts`.
+4. Cross-check: pick a beacon with a state change in `<name>_arm.log`,
+   read its `utc=`, find the first sidecar line ≥ that value; the burned-in
+   time on that frame agrees to the millisecond and the picture agrees with
+   the state.
+
+Firmware-side the module is 10 kB of flash (esp_netif_sntp), and the
+beacon grows by 8 B at 10 Hz — 0.6 kbit/s, still a non-issue.
 
 ## Reset the servos, from the states that refuse to move (2026-09-02)
 
