@@ -6,6 +6,8 @@ ap.add_argument('--step', type=float, default=0.5); ap.add_argument('--max', typ
 ap.add_argument('--tilt-abort', type=float, default=8.0); ap.add_argument('--home-after', action='store_true', default=True)
 ap.add_argument('--spd', type=int, default=10, help='step slew, ticks/s (10 = quasi-static; 60 rang the structure on a single-leg stance, Tom 2026-09-03)')
 ap.add_argument('--settle', type=float, default=1.0, help='seconds after a step before reading tilt')
+ap.add_argument('--watch', default='', help='comma list of NON-swept joints whose servo load to read every step (free-leg contact detector, Tom 2026-09-03); abort the joint if |load| > --watch-abort')
+ap.add_argument('--watch-abort', type=int, default=120)
 ap.add_argument('--base', default='', help='baseline pose offsets held on non-swept joints, e.g. R_knee=-30,R_hip_pitch=10 (deg, joint sign)')
 A = ap.parse_args(); OUT = A.out
 CAL = [  # (name, id, zero, dir) joint order -- zeros re-latched 2026-09-03 (cal zero after horn screws tightened); keep in sync with asbuilt_cal.h
@@ -18,6 +20,7 @@ N = int(round(A.max / A.step))
 STEPS = [k*A.step for k in range(0, N+1)] + [k*A.step for k in range(N-1, -N-1, -1)] + [k*A.step for k in range(-N+1, 1)]
 ALL10 = list(CAL)
 BASE = {kv.split('=')[0]: float(kv.split('=')[1]) for kv in A.base.split(',') if kv}
+WATCH = [c for c in CAL if c[0] in A.watch.split(',')] if A.watch else []
 def base_ticks(name, zero, d): return int(round(zero + d*BASE.get(name, 0.0)*TPD))
 CAL = [c for c in CAL if c[0] in A.joints.split(',')]
 LOAD_ABORT = 250; LOAD_FREE = 60; TILT_ABORT_DEG = A.tilt_abort; SPD = A.spd
@@ -75,7 +78,7 @@ for name,i,zero,d in ALL10:
         print(f'!! {name} id {i}: {o.strip()[:70]} -- torque must be ON (run `home` / `torque` first); stopping', flush=True); s.close(); sys.exit(2)
 print(f'all ten joints accept goals at the baseline (torque on); base offsets {BASE}', flush=True); time.sleep(6.0)
 base = imu(); print('imu tilt reference (taken IN the baseline pose)', base, flush=True)
-csvf = open(OUT,'w',newline=''); w = csv.writer(csvf); w.writerow(['joint','id','cmd_deg','goal_ticks','pos_ticks','pos_err','load','spd','tilt_deg','epoch'])
+csvf = open(OUT,'w',newline=''); w = csv.writer(csvf); w.writerow(['joint','id','cmd_deg','goal_ticks','pos_ticks','pos_err','load','spd','tilt_deg','epoch'] + [f'load_{c[0]}' for c in WATCH])
 for name,i,zero,d in CAL:
     p0 = pos(i); print(f'== {name} id {i} start pos {p0}', flush=True)
     aborted = None
@@ -87,9 +90,13 @@ for name,i,zero,d in CAL:
         p = pos(i); a = imu(); tilt = ang(base,a) if (a and base) else float('nan')
         prev_deg = deg
         if p is None: aborted='no feedback'; break
-        w.writerow([name,i,deg,goal,p[0],p[0]-goal,p[2],p[1],f'{tilt:.2f}',f'{time.time():.2f}'])
+        wl = []
+        for wn, wi, wz, wd in WATCH:
+            pw = pos(wi); wl.append(pw[2] if pw else None)
+        w.writerow([name,i,deg,goal,p[0],p[0]-goal,p[2],p[1],f'{tilt:.2f}',f'{time.time():.2f}'] + wl)
         csvf.flush()
-        print(f'  {deg:+5.1f} deg  goal {goal}  pos {p[0]} (err {p[0]-goal:+d})  load {p[2]:+5d}  tilt {tilt:.1f}', flush=True)
+        print(f'  {deg:+5.1f} deg  goal {goal}  pos {p[0]} (err {p[0]-goal:+d})  load {p[2]:+5d}  tilt {tilt:.1f}' + ('  free-leg loads ' + ' '.join(f'{c[0]}={v}' for c,v in zip(WATCH, wl)) if WATCH else ''), flush=True)
+        if any(v is not None and abs(v) > A.watch_abort for v in wl): aborted=f'free-leg contact: loads {wl} at {deg:+.1f} deg'; break
         if abs(p[2]) > LOAD_ABORT: aborted=f'load {p[2]} at {deg:+.1f} deg'; break
         if tilt > TILT_ABORT_DEG: aborted=f'tilt {tilt:.1f} deg at {deg:+.1f}'; break
     cmd(f'move {i} {base_ticks(name, zero, d)} 0 {SPD}', until=r': ok'); time.sleep(0.8); p=pos(i)
