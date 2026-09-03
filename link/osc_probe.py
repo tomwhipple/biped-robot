@@ -146,6 +146,16 @@ def main():
             d.emergency(verdict)
         elif not verdict:
             d.run_for(1.0, arm_off, "disarm: ARM=0 frames")
+        # A bare disarm releases torque -- a robot caught mid-sway goes limp and
+        # falls (2026-09-03: stood 6 s, fell at the disarm). End every run with
+        # a RESET SERVOS edge: torque on, smooth home, readback.
+        d.run_for(0.4, lambda t: (0.0, 0.0, FLAG_HOME), "end: RESET SERVOS edge")
+        for _ in range(10):
+            d.run_for(1.0, arm_off, "home settle")
+            r = diag_arm_result(d.tlm.diag) if d.tlm is not None else None
+            if r is not None and r is not ArmResult.HOME_PENDING:
+                break
+        print(f"== end-of-run home: {r}", flush=True)
     except KeyboardInterrupt:
         d.emergency("operator ctrl-C")
         verdict = "interrupted"
