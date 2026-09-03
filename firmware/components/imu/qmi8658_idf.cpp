@@ -3,7 +3,10 @@
 #include <math.h>
 #include <string.h>
 
+#include "driver/gpio.h"
 #include "driver/i2c_master.h"
+#include "esp_log.h"
+#include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "esp_timer.h"
@@ -86,8 +89,46 @@ uint8_t gyroFsBits(uint16_t dps) {
 
 }  // namespace
 
+// I2C bus recovery (2026-09-03): a reset that lands mid-transaction -- and
+// with the 250 Hz sampler running, every flash does -- leaves the QMI8658C
+// holding SDA low, and the next boot's scan finds NOTHING on the bus (seen
+// twice tonight; the firmware then silently runs on the StubImu). The cure
+// is the standard one: clock SCL until the slave releases SDA, then a STOP.
+static bool busRecover(gpio_num_t sda, gpio_num_t scl) {
+    gpio_reset_pin(sda);
+    gpio_reset_pin(scl);
+    gpio_set_direction(sda, GPIO_MODE_INPUT_OUTPUT_OD);
+    gpio_set_direction(scl, GPIO_MODE_INPUT_OUTPUT_OD);
+    gpio_set_level(sda, 1);
+    gpio_set_level(scl, 1);
+    esp_rom_delay_us(20);
+    bool recovered = false;
+    if (gpio_get_level(sda) == 0) {
+        for (int i = 0; i < 16 && gpio_get_level(sda) == 0; ++i) {
+            gpio_set_level(scl, 0);
+            esp_rom_delay_us(5);
+            gpio_set_level(scl, 1);
+            esp_rom_delay_us(5);
+        }
+        // STOP: SDA low -> high while SCL is high
+        gpio_set_level(sda, 0);
+        esp_rom_delay_us(5);
+        gpio_set_level(scl, 1);
+        esp_rom_delay_us(5);
+        gpio_set_level(sda, 1);
+        esp_rom_delay_us(20);
+        recovered = gpio_get_level(sda) == 1;
+    }
+    gpio_reset_pin(sda);
+    gpio_reset_pin(scl);
+    return recovered;
+}
+
 bool Qmi8658Imu::busInit() {
     if (bus_ != nullptr) return true;
+    if (busRecover(cfg_.sda, cfg_.scl)) {
+        ESP_LOGW("imu", "I2C bus was held low (SDA stuck) -- recovered by clocking it out");
+    }
 
     i2c_master_bus_config_t bc = {};
     bc.i2c_port = I2C_NUM_0;
