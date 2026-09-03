@@ -487,6 +487,21 @@ another commander is a class in `link/sources.py`, not a firmware change.
     is the way out of one. Needs no arm and reaches the robot through a
     latched E-stop or a tripped fall latch.
 
+  - **A SETTINGS panel** (2026-09-03) — *every* command-line flag, editable
+    live, so trying the same console against the twin, raising the walk
+    speed, or starting a relay for a watcher who has just asked to see it no
+    longer costs a restart (and with it the link, the recording and the sim
+    child). `--host`/`--cmd-port`/`--tlm-port` relink on a button (disarming
+    the robot being left first); `--vx`/`--vy`/`--wz`/`--rate` are live
+    sliders clamped to the trained envelope, with the rate floored well above
+    the robot's own `kStaleMs` dead-man so a setting cannot starve it;
+    `--watch`, `--sim-view`, `--stream-port`, `--sim-cmd-port`, `--repo`,
+    `--sessions`, `--keymap` and `--screenshot` each apply on their own
+    button. Fields that rebind a socket are edited into buffers and applied
+    deliberately — binding them live would relink to `192.168.2.9` on the way
+    to typing `.90`. `--headless` is the only flag with no control, because it
+    decides whether there is a window at all.
+
   Keys default to arrows *translating* on the surface (`up`/`down` = `vx`,
   `left`/`right` = `vy` strafe) and `PgUp`/`PgDn` *rotating*, differing from
   the console because a window can hold two at once. Every action is also a
@@ -495,6 +510,121 @@ another commander is a class in `link/sources.py`, not a firmware change.
   window, taking `press forward` / `release forward` / `set crouch 0.8` on
   stdin; that is what `tests/test_gui_e2e.py` drives, and what makes the
   client testable in CI. Sessions record to `hw_sessions/*.jsonl`.
+- **`bimo_gui --readonly`** — the **observer**: the same window, watching a
+  robot somebody else is driving, and unable to touch it. Added 2026-09-02 so
+  a second pair of eyes (or a person watching an agent session drive) can see
+  the state, the battery and the estimates live without the risk that a
+  stray keypress fights the console that is actually flying the robot.
+
+  It is a **starting** mode, not a permanent one: **TAKE CONTROL** (`t`, or
+  the button above the controls it governs) opens the socket and makes this
+  console the commander; **WATCH ONLY** closes it again. Both directions are
+  covered below — the takeover is the one genuinely sharp edge in the
+  feature.
+
+  Two things make it a mode rather than a promise:
+
+  - **It has no transmit socket.** `Link::listen()` binds the beacon port and
+    never creates one, so `tx` stays `-1`. The socket is *closed* entering
+    readonly and *created* leaving it, so `readonly` and `tx < 0` are never
+    briefly out of step — a flag guarding a live socket would be a weaker
+    promise. This
+    is not a UI that hides buttons; it is a console that *cannot* emit a
+    frame. `Intent::refuseReadonly()` then makes every control say so out
+    loud, because an E-STOP that darkens on click while nothing goes out is
+    worse than no E-STOP at all — it invites the operator to press it in the
+    second that matters and believe the robot was told. On screen the
+    emergency controls are greyed and drained of colour, and E-STOP is
+    relabelled **"(not yours)"**.
+  - **It is fed by the driver, not by the robot.** See below.
+
+  It quits, records (`hw_sessions/*.jsonl`, telemetry rows only — it put no
+  commands on the wire and must not write any) and can ghost the robot's
+  measured joints into a local sim. It draws **no `cmd` traces**: the beacon
+  carries what the robot *measured*, never what the other console *asked
+  for*, and a flat-zero `vx cmd` under a moving `vx est` reads as exactly the
+  fault an operator most wants to catch.
+
+### Why a watcher needs the driver's help
+
+The robot beacons **to whoever commanded last, and to nobody else**
+(`firmware/main/wifi_link.cpp`, the `Commander` snapshot). A second console
+therefore cannot simply listen in: nothing is addressed to it, and the only
+way to *become* the destination is to send a command — which both steals the
+beacon from the real driver and drives the robot. Exactly the two things an
+observer exists not to do.
+
+So the **driving** console forwards. `--watch HOST[:PORT]` re-sends every
+beacon it accepts, byte for byte, from the socket it already commands with.
+Verbatim on purpose: the watcher then runs the same `decodeTelemetry` over the
+same bytes the robot signed, so the two consoles cannot come to different
+conclusions about what the robot said. Only decoded frames are relayed —
+stray traffic on an open port is dropped where it lands. No port in the spec
+means the one the driver is bound to, which is where a stock watcher listens.
+
+```
+# on the machine driving (a second session, another host, ssh):
+bimo_gui  --host 192.168.2.90 --watch 192.168.2.30      # windowed
+bimo_tui  --host 192.168.2.90 --watch 192.168.2.30      # over ssh
+python link/commander.py --host 192.168.2.90 --watch 192.168.2.30
+
+# on the machine watching:
+bimo_gui --readonly                       # --tlm-port to use another port
+```
+
+`--watch` is available on `bimo_gui`, `bimo_tui` and `link/commander.py`, so
+whichever commander is driving can feed a watcher. Asking a `--readonly`
+console to `--watch` is refused at startup rather than ignored: it receives no
+beacon to forward and has no socket to forward it on, and an operator who
+asked for a fan-out should learn there wasn't one.
+
+### Taking control must not drop the robot
+
+The sharp edge, and it is not obvious. `linkproto::ArmLatch` is a **single
+latch on the robot**, fed every decoded frame in arrival order *whoever sent
+it*, and it tracks a **level** — not a per-sender session. So a console that
+starts commanding a `LIVE` robot with `ARM` low does not "begin disarmed": it
+puts a **1 → 0 edge** on the wire, and the robot benches with torque off and
+falls over, mid-stride, as the direct result of clicking a button labelled
+*take control*.
+
+So `Intent::adopt()` **adopts the level the robot is already reporting**, and
+the handover is a no-op on the wire by construction:
+
+| beacon says | adopted | why |
+|---|---|---|
+| any state but `BENCH` | armed | the loop is running; hold the level. Includes `FALLEN` and the low-battery pair, where torque is off but the loop still holds ARM — reading only `LIVE` here would bench them |
+| `ESTOP` | armed + E-stopped | the latch is a level too; dropping it would silently clear the latch at the moment of handover |
+| `BENCH` | disarmed | adopting "armed" would be a *rising* edge arming a robot nobody asked to arm |
+| no fresh beacon | disarmed | nothing to adopt and nothing safe to assume; benching a robot you cannot see is the right answer to not knowing |
+
+No axis is ever held, so the robot keeps standing until a key is pressed.
+
+Releasing control is the mirror image and deliberately sends **no parting
+disarm**: the robot is being watched precisely because somebody else is flying
+it, and *their* frames hold the arm level high — a disarm here would be an
+edge that benches the robot out from under the console that owns it. With
+nobody else driving, going quiet is what the robot's own watchdog is for
+(`kStaleMs` → stand, `kRelaxMs` → torque off), which is a better failsafe than
+anything this end can send.
+
+Taking control needs a `--host`: the beacon's sender is the console
+*forwarding* it, not the robot, so the address cannot be guessed from the
+traffic. Without one the button is greyed and says so.
+
+Add `--mirror` on **both** ends to watch in 3D: the driver's mirror mode is
+what puts joint angles in the beacon (`kFlagPose`), and the watcher pushes
+them into its own sim to draw. The watcher cannot ask for them itself — that
+would be a frame on the wire — so it says which console has to, instead of
+showing an empty ghost that looks like a broken sim.
+
+Exercised end to end over real UDP by `tests/test_gui_e2e.py`: one test points
+a watcher straight at the twin with the robot's own `--host` and `--cmd-port`
+and tries every control on it, proving nothing arrives (the twin beacons only
+to a commander, so the watcher getting *no telemetry* is the causal proof);
+the other wires driver-`--watch` to watcher-`--readonly` and checks the
+watcher reports `LIVE`, a state only the driver could have caused.
+
 - **`script`** — time-scripted sequences (`walk`, `dash_stop`, `line_1m`,
   `turn`, `pivot`, `square`). The on-hardware twin of `sim/eval_commands.py`,
   so a real run and a sim eval are the same shape of test. Never sets `ARM`:

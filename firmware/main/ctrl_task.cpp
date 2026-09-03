@@ -14,6 +14,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "imu_sampler.h"
 #include "linkproto/watchdog.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
@@ -149,12 +150,16 @@ uint16_t readJoints(float dt) {
     return faults;
 }
 
-void publish(linkproto::LinkState st, uint16_t faults, float up_z,
+void publish(linkproto::LinkState st, uint16_t faults, const float up[3],
              uint8_t vbat_dv, uint32_t tick_us) {
     g_telemetry.state.store(static_cast<uint8_t>(st));
     g_telemetry.seq_echo.store(g_dog.lastSeq());
     g_telemetry.servo_err.store(faults);
-    g_telemetry.up_z.store(up_z);
+    // All three, not just z: z alone is how FAR from upright, never which
+    // way. A commander that asks with kFlagAtt gets the vector.
+    g_telemetry.up_x.store(up[0]);
+    g_telemetry.up_y.store(up[1]);
+    g_telemetry.up_z.store(up[2]);
     g_telemetry.vbat_mv.store(static_cast<uint16_t>(vbat_dv) * 100u);
     g_telemetry.ticks.store(g_ticks);
     g_telemetry.overruns.store(g_late);
@@ -238,9 +243,11 @@ void ctrlTask(void*) {
             // feeds `up` to the policy. Letting the estimate converge only
             // AFTER the robot is already walking is exactly backwards. The
             // IMU is on its own I2C bus, so this touches nothing the CLI owns.
-            if (g_imu) {
+            // The sampler task keeps the filter running; drain its gyro
+            // accumulator so the first armed tick averages a fresh window.
+            {
                 imu::Sample warm{};
-                g_imu->read(warm);
+                takeImu(warm);
             }
             continue;
         }
@@ -269,9 +276,9 @@ void ctrlTask(void*) {
         // (always true), live the moment a real driver lands.
         static imu::Sample s_held{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, 0,
                                   false};
-        if (g_imu) {
+        {
             imu::Sample fresh{};
-            if (g_imu->read(fresh)) s_held = fresh;
+            if (takeImu(fresh)) s_held = fresh;
         }
         const imu::Sample& s = s_held;
         const int64_t t_imu1 = esp_timer_get_time();
@@ -338,7 +345,7 @@ void ctrlTask(void*) {
             // operator put them; the shaper must reseed from MEASURED q on
             // re-engage or the first shaped target would be a jump.
             g_shaper.invalidate();
-            publish(rep_state, faults, s.up[2], vbat_dv,
+            publish(rep_state, faults, s.up, vbat_dv,
                     static_cast<uint32_t>(esp_timer_get_time() - t0));
             continue;
         }
@@ -483,7 +490,7 @@ void ctrlTask(void*) {
             took > (us_read + us_imu + us_obs + us_net + us_write)
                 ? took - (us_read + us_imu + us_obs + us_net + us_write)
                 : 0u);
-        publish(rep_state, faults, s.up[2], vbat_dv, took);
+        publish(rep_state, faults, s.up, vbat_dv, took);
     }
 }
 

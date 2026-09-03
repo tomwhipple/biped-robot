@@ -131,6 +131,11 @@ void houseTask(void*) {
             home_edges_seen = homes;
             cli::linkHome(&uartSay);
         }
+        // The home's readback, once its slew deadline has passed (typed
+        // `home` and the wireless request both arm it). Stores the verdict
+        // the beacon actually means: at the zeros, or not.
+        cli::homeVerify(&uartSay);
+        cli::poseTick(&uartSay);
 
         // 10 Hz telemetry, back up the same tether the commands came down.
         //

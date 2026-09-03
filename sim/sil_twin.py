@@ -115,8 +115,19 @@ def run(args):
     xml = args.xml or (HANG_XML if args.hang else None) \
         or cfg.get("xml_path") or None
     H, lib, info = sil_setup(args.run_name, run_dir)
+    extra = {}
+    if args.backlash_deg is not None:
+        extra.update(backlash_deg=args.backlash_deg, backlash_deg_max=None)
+    if args.play_deg > 0.0:
+        extra.update(play_deg=args.play_deg,
+                     play_joints=tuple(args.play_joints.split(","))
+                     if args.play_joints else None)
     env = make_env(cfg, episode_seconds=1e9, nominal=args.nominal,
-                   xml=xml if xml else cfg.get("xml_path"))
+                   xml=xml if xml else cfg.get("xml_path"),
+                   extra=extra or None, act_lag_hz=args.act_lag_hz)
+    print(f"sil_twin: plant backlash {env.backlash_deg:g} deg, "
+          f"act_lag {env.act_lag_hz:g} Hz, play {env.play_deg:g} deg "
+          f"on {env.play_joints or 'all joints'}", flush=True)
     act = H.SilActAdapter(lib, env, log=False)
     obs, _ = env.reset(seed=args.seed)
     fw, nc = act.spec.frame_dim, act.spec.num_cmd
@@ -144,6 +155,7 @@ def run(args):
     import mujoco                                            # noqa: E402
     want_pose = False
     ghost_q = None
+    ghost_up = None
     ghost_at = 0.0
     ghost_adr = []
     for jn in json.loads(lib.spec_string())["joint_names"]:
@@ -153,6 +165,42 @@ def run(args):
         print("sil_twin: some joints are not in this plant -- ghost disabled",
               flush=True)
         ghost_adr = []
+    # The torso free joint, for the attitude half of a pose. qpos layout is
+    # [x y z qw qx qy qz] at its address; -1 when the plant is welded (--hang),
+    # where the torso has no pose to set and the joints are the whole picture.
+    _root = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_JOINT, "root")
+    root_adr = int(env.model.jnt_qposadr[_root]) if _root >= 0 else -1
+
+    def up_to_quat(up):
+        """Torso orientation from the robot's up vector, as a wxyz quaternion.
+
+        `up` is the torso's own z axis EXPRESSED IN THE WORLD FRAME -- MuJoCo
+        framezaxis, and the same convention the obs frame uses
+        (obs/obs_spec.h kOffUp, filled from imu::Sample::up). So the rotation
+        wanted is the one taking world +Z onto `up`: the shortest such
+        rotation, because that is all the information there is.
+
+        It fixes roll and pitch and leaves yaw at zero, which is honest --
+        this robot has no magnetometer, and the filter's heading is
+        dead-reckoned and drifts. Drawing a mannequin with an invented heading
+        would make a drifting number look like a measurement.
+        """
+        v = np.asarray(up, dtype=np.float64)
+        n = float(np.linalg.norm(v))
+        if not np.isfinite(n) or n < 1e-6:
+            return np.array([1.0, 0.0, 0.0, 0.0])
+        v = v / n
+        z = np.array([0.0, 0.0, 1.0])
+        axis = np.cross(z, v)                 # world +Z -> up, not the reverse
+        sn = float(np.linalg.norm(axis))
+        c = float(np.dot(z, v))
+        if sn < 1e-9:
+            # Parallel or antiparallel: upright, or flat on its back.
+            return (np.array([1.0, 0.0, 0.0, 0.0]) if c > 0
+                    else np.array([0.0, 1.0, 0.0, 0.0]))
+        axis = axis / sn
+        ang = float(np.arctan2(sn, c))
+        return np.concatenate(([np.cos(ang / 2)], np.sin(ang / 2) * axis))
 
     dog = Supervisor(armed=args.boot_armed)
     stream = Mjpeg(args.stream_port) if args.stream_port else None
@@ -205,22 +253,31 @@ def run(args):
 
             for cmd in _stdin_commands():
                 if cmd.startswith("pose "):
-                    # "pose q0 .. q9", radians, obs_spec order -- the angles
-                    # the console just read off the real robot.
+                    # "pose q0 .. q9 [ux uy uz]": the ten joint angles the
+                    # console just read off the real robot, radians in
+                    # obs_spec order, optionally followed by the torso up
+                    # vector from its IMU. The up vector is what turns a set
+                    # of joint angles into an ATTITUDE -- without it a robot
+                    # lying on its face draws standing to attention.
                     try:
                         vals = [float(v) for v in cmd.split()[1:]]
                     except ValueError:
                         vals = []
-                    if len(vals) == NUM_JOINTS:
+                    if len(vals) in (NUM_JOINTS, NUM_JOINTS + 3):
                         if ghost_q is None:
                             # Say it once: a ghost that silently never appears
                             # is indistinguishable from one drawn at zero.
-                            print(f"  [{now_ms / 1000:6.2f}s] ghost pose "
-                                  f"feed live", flush=True)
-                        ghost_q, ghost_at = vals, time.monotonic()
+                            print(f"  [{now_ms / 1000:6.2f}s] pose feed live"
+                                  f"{'' if len(vals) > NUM_JOINTS else ' (no '
+                                  'up vector: torso drawn upright)'}",
+                                  flush=True)
+                        ghost_q = vals[:NUM_JOINTS]
+                        ghost_up = (tuple(vals[NUM_JOINTS:])
+                                    if len(vals) > NUM_JOINTS else None)
+                        ghost_at = time.monotonic()
                     else:
-                        print(f"  pose wants {NUM_JOINTS} angles, got "
-                              f"{len(vals)}", flush=True)
+                        print(f"  pose wants {NUM_JOINTS} angles "
+                              f"(+3 optional up), got {len(vals)}", flush=True)
                 elif cmd == "reset":
                     obs, _ = env.reset(seed=args.seed)
                     act.begin_episode()
@@ -241,6 +298,41 @@ def run(args):
                     continue
                 dog.accept(pkt, now_ms)
                 want_pose = pkt.pose
+
+            if args.viewer:
+                # VISUALISE ONLY. No policy, no env.step, no integration, no
+                # beacon -- the plant is a mannequin held in whatever pose the
+                # robot last reported. Anything else would be a SECOND robot
+                # drawn beside the real one and diverging from it in silence,
+                # which is the thing this mode exists not to do.
+                if (stream or args.record) and i % 3 == 0:
+                    fresh = ghost_q is not None and \
+                        (time.monotonic() - ghost_at) < 1.0
+                    if fresh and ghost_adr:
+                        for adr, q in zip(ghost_adr, ghost_q):
+                            env.data.qpos[adr] = q
+                        if root_adr >= 0:
+                            # Attitude from the IMU; position PINNED. There is
+                            # no odometry on this robot, so a world position
+                            # would be invented -- and a mannequin that drifts
+                            # is worse than one that stands still and is
+                            # honest about only knowing which way is up.
+                            env.data.qpos[root_adr + 3:root_adr + 7] = (
+                                up_to_quat(ghost_up) if ghost_up is not None
+                                else np.array([1.0, 0.0, 0.0, 0.0]))
+                        # Kinematics only: mj_forward places the bodies from
+                        # qpos. mj_step would integrate, which is the whole
+                        # thing we are not doing.
+                        mujoco.mj_forward(env.model, env.data)
+                    if stream:
+                        stream.push(env.render())
+                    if args.record:
+                        frames.append(env.render())
+                i += 1
+                slack = dt - (time.monotonic() - tick)
+                if slack > 0:
+                    time.sleep(slack)
+                continue
 
             state = dog.state(now_ms)
             if state is not last_state:
@@ -357,7 +449,22 @@ def main():
                         "format (tools/obs_capture.py --replay/--compare)")
     p.add_argument("--duration", type=float, default=None)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--backlash-deg", type=float, default=None,
+                   help="pin gear backlash deadzone (deg) on the plant")
+    p.add_argument("--play-deg", type=float, default=0.0,
+                   help="free travel (mechanical hysteresis) between servo "
+                        "shaft and link, peak-to-peak deg")
+    p.add_argument("--play-joints", default=None,
+                   help="comma list of joint names the play applies to "
+                        "(default all), e.g. L_hip_roll,R_hip_roll")
+    p.add_argument("--act-lag-hz", type=float, default=0.0,
+                   help="measured-servo lag pole (2.0 = the 08-31 bench)")
     p.add_argument("--boot-armed", action="store_true")
+    p.add_argument("--viewer", action="store_true",
+                   help="VISUALISE ONLY: no policy, no physics, no beacon. "
+                        "The plant is posed from `pose` lines on stdin and "
+                        "rendered. This is what mirror mode wants -- a picture "
+                        "of the real robot, not a second robot beside it.")
     run(p.parse_args())
 
 

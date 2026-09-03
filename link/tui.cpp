@@ -63,12 +63,15 @@ struct Options {
     double hold_ms = kDefaultHoldMs;
     Speeds speeds;
     double rate_hz = static_cast<double>(kSendHz);
+    const char* watch = nullptr;         // HOST[:PORT] to fan telemetry out to
 };
 
 void usage(const char* argv0) {
     fprintf(stderr,
             "usage: %s --host IP [--cmd-port %d] [--tlm-port %d]\n"
-            "          [--hold-ms %.0f] [--vx %.2f] [--wz %.2f] [--rate %.0f]\n",
+            "          [--hold-ms %.0f] [--vx %.2f] [--wz %.2f] [--rate %.0f]\n"
+            "          [--watch HOST[:PORT]]  forward every beacon to a\n"
+            "                                 `bimo_gui --readonly` watcher\n",
             argv0, kCmdPort, kTlmPort, kDefaultHoldMs, bimo::kDefaultVx,
             bimo::kDefaultWz, static_cast<double>(kSendHz));
 }
@@ -84,6 +87,7 @@ bool parse(int argc, char** argv, Options& o) {
         else if (!strcmp(a, "--vx") && v) { o.speeds.vx = static_cast<float>(atof(v)); ++i; }
         else if (!strcmp(a, "--wz") && v) { o.speeds.wz = static_cast<float>(atof(v)); ++i; }
         else if (!strcmp(a, "--rate") && v) { o.rate_hz = atof(v); ++i; }
+        else if (!strcmp(a, "--watch") && v) { o.watch = v; ++i; }
         else return false;
     }
     return o.host != nullptr && o.hold_ms > 0.0 && o.rate_hz > 0.0;
@@ -243,6 +247,18 @@ int main(int argc, char** argv) {
         fprintf(stderr, "link: %s (host %s, tlm port %d)\n", strerror(errno),
                 o.host, o.tlm_port);
         return 1;
+    }
+    // The robot beacons only to whoever commanded last, so a second console
+    // cannot listen in -- this one forwards instead. See Link::watch_to.
+    if (o.watch != nullptr) {
+        char wh[64] = "";
+        int wp = o.tlm_port;
+        if (!bimo::splitHostPort(o.watch, wh, sizeof wh, wp) ||
+            !link.setWatch(wh, wp)) {
+            fprintf(stderr, "--watch %s: expected HOST[:PORT] with a "
+                            "dotted-quad host\n", o.watch);
+            return 2;
+        }
     }
 
     initscr();

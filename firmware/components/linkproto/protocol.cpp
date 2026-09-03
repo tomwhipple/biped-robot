@@ -136,6 +136,12 @@ const char* diagReason(uint8_t diag) {
         case ArmResult::kHomeBusFailed:
             return "servo reset FAILED -- the servo bus did not accept it "
                    "(check pack, wiring, `scan`)";
+        case ArmResult::kHomePending:
+            return "servo reset written -- joints slewing to the stand, "
+                   "readback pending";
+        case ArmResult::kHomeNotReached:
+            return "servo reset FAILED -- readback found joints OFF their "
+                   "zeros (see the tether for which; `scan`)";
     }
     // A refusal reason this client is too old to name. Say so rather than
     // guess: the enum is append-only, so an unknown value is a NEWER robot.
@@ -216,6 +222,8 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
     out[16] = t.servo_err;
     out[17] = t.loop_late_pct;
     put64(out + kTlmTimeOff, t.t_us);
+    // Blocks in a FIXED order and of fixed size, so the length alone still
+    // names the layout: [base 18][t_us 8][joints 20?][att 4?][crc 2].
     size_t at = kTlmTimeOff + 8;
     if (t.n_joints == kNumJoints) {
         for (size_t i = 0; i < kNumJoints; ++i) {
@@ -223,13 +231,24 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
         }
         at += 2 * kNumJoints;
     }
+    if (t.have_att) {
+        put16(out + at, static_cast<uint16_t>(milli(t.up_x)));
+        put16(out + at + 2, static_cast<uint16_t>(milli(t.up_y)));
+        at += kTlmAttBytes;
+    }
     put16(out + at, crc16Ccitt(out, at));
     return at + 2;
 }
 
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
-    const bool has_time = (len == kTlmLen || len == kTlmLenExt);
-    const bool has_joints = (len == kTlmLenExt || len == kTlmLenExtV1);
+    // Length selects the layout, exactly as protocol.py. Four current
+    // lengths (timestamped, with/without joints and attitude) plus the two
+    // legacy pre-timestamp ones, decode-only.
+    const bool has_time = (len == kTlmLen || len == kTlmLenAtt ||
+                           len == kTlmLenExt || len == kTlmLenExtAtt);
+    const bool has_joints = (len == kTlmLenExt || len == kTlmLenExtAtt ||
+                             len == kTlmLenExtV1);
+    const bool has_att = (len == kTlmLenAtt || len == kTlmLenExtAtt);
     if (!has_time && len != kTlmLenV1 && len != kTlmLenExtV1) {
         return Err::kBadLength;
     }
@@ -259,12 +278,21 @@ Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
     }
     out.n_joints = 0;
     for (size_t i = 0; i < kNumJoints; ++i) out.joints[i] = 0.0f;
+    out.have_att = 0;
+    out.up_x = 0.0f;
+    out.up_y = 0.0f;
     if (has_joints) {
         out.n_joints = static_cast<uint8_t>(kNumJoints);
         for (size_t i = 0; i < kNumJoints; ++i) {
             out.joints[i] =
                 static_cast<int16_t>(get16(buf + at + 2 * i)) / 1000.0f;
         }
+        at += 2 * kNumJoints;
+    }
+    if (has_att) {
+        out.have_att = 1;
+        out.up_x = static_cast<int16_t>(get16(buf + at)) / 1000.0f;
+        out.up_y = static_cast<int16_t>(get16(buf + at + 2)) / 1000.0f;
     }
     return Err::kOk;
 }

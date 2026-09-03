@@ -119,14 +119,16 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0):
     # training-time recover_mix in the config must not leak into e.g.
     # the balance scenarios (fallen resets would break every script)
     kw["recover_mix"] = 0.0
-    if extra:
-        kw.update(extra)
     if nominal:
         kw.update(domain_rand=False, latency_ms=0.0, latency_ms_max=None,
                   latency_jitter_ms=0.0, backlash_deg=0.0, backlash_deg_max=None)
     else:
         kw.update(domain_rand=True, latency_ms=4.0, latency_ms_max=None,
                   latency_jitter_ms=0.0, backlash_deg=0.7, backlash_deg_max=None)
+    # extra LAST so a caller can pin a plant knob (e.g. sil_twin --backlash-deg
+    # on the otherwise nominal plant) -- the nominal/claim blocks are defaults
+    if extra:
+        kw.update(extra)
     # hardware-claim pushes are pinned to the HISTORICAL standard (gentle 5 N
     # force shoves @1%) regardless of what the run trained with -- v7/v7b
     # trained with strong velocity kicks and inheriting those into the eval
@@ -1883,9 +1885,13 @@ def main():
         if succ == args.episodes:
             scen_all_pass += 1
 
-        # per-metric mean/worst across seeds
-        mkeys = results[0]["metrics"].keys()
-        metrics = {k: _agg([r["metrics"][k] for r in results]) for k in mkeys}
+        # per-metric mean/worst across seeds. A seed that falls before a
+        # metric exists (e.g. speed_mae with zero completed rungs) simply
+        # lacks the key -- aggregate over the seeds that have it instead of
+        # KeyError-ing the whole card (bit fall-heavy infants, 2026-09-03)
+        mkeys = {k for r in results for k in r["metrics"]}
+        metrics = {k: _agg([r["metrics"][k] for r in results
+                            if k in r["metrics"]]) for k in mkeys}
         shared_keys = ("wobble_rms", "mean_watts", "mean_speed", "foot_slip",
                        "symmetry")
         sh = {k: _agg([r["shared"][k] for r in results]) for k in shared_keys}

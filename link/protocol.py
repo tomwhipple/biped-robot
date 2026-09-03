@@ -65,8 +65,23 @@ TLM_LEN_V1 = 20            # legacy: no timestamp (firmware before 2026-09-02)
 NUM_JOINTS = 10            # obs_spec order: L yaw,roll,pitch,knee,ankle; R same
 TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS
 TLM_LEN_EXT_V1 = TLM_LEN_V1 + 2 * NUM_JOINTS   # legacy, decode-only
-_TLM_LENS = (TLM_LEN, TLM_LEN_EXT, TLM_LEN_V1, TLM_LEN_EXT_V1)
 _TLM_TIME_OFF = 18         # u64 t_us sits right after the classic body
+
+# ATTITUDE (2026-09-03): up_x and up_y appended after the joint block. up_z
+# has always been in the base frame, but alone it is only the tilt MAGNITUDE
+# -- how far from upright, never which way. Requested with FLAG_ATT, for the
+# same reason FLAG_POSE exists: the robot is the sender, and an unexpected
+# length is a dropped frame. Six lengths, unambiguous because every block is
+# fixed size: 28 base, 32 +att, 48 +joints, 52 +joints+att, plus the two
+# legacy pre-timestamp lengths (20/40) that are still decoded, t_us -> 0.
+# Firmware reference: linkproto::kTlmLenAtt / kTlmLenExtAtt.
+TLM_ATT_BYTES = 4
+TLM_LEN_ATT = TLM_LEN + TLM_ATT_BYTES
+TLM_LEN_EXT_ATT = TLM_LEN_EXT + TLM_ATT_BYTES
+# Every length a decoder accepts: the four current (timestamped) layouts
+# plus the two legacy pre-timestamp ones. Encode never emits the legacy pair.
+TLM_LENS = (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT)
+_TLM_LENS = TLM_LENS + (TLM_LEN_V1, TLM_LEN_EXT_V1)
 
 CMD_PORT = 4210            # robot listens here
 TLM_PORT = 4211            # laptop listens here
@@ -90,6 +105,9 @@ FLAG_POSE = 1 << 3         # "beacon joint angles too" -- see TLM_LEN_EXT
 # FLAG_ARM: a level would re-issue the move at 20 Hz, and a client that
 # reboots with the bit set must not move a robot nobody is watching.
 FLAG_HOME = 1 << 4
+# "Beacon the torso up vector too" -- a LEVEL, like FLAG_POSE. Requests
+# telemetry, commands nothing.
+FLAG_ATT = 1 << 5
 
 # -- timing ----------------------------------------------------------------
 # 20 Hz is ~2 orders of magnitude more command bandwidth than intent actually
@@ -188,6 +206,12 @@ class ArmResult(Enum):
     HOME_NO_CAL = 5      # reset REFUSED: no as-built calibration in NVS
     HOME_LOW_BATT = 6    # reset REFUSED: pack guard has torque latched off
     HOME_BUS_FAILED = 7  # reset FAILED: the servo bus did not accept it
+    # (2026-09-03) the goal write is a broadcast with no reply, and one reset
+    # that reported DISARMED_HOME moved nothing. The write now reports
+    # HOME_PENDING; the robot reads every joint back after the slew and only
+    # then says DISARMED_HOME -- or HOME_NOT_REACHED.
+    HOME_PENDING = 8     # reset WRITTEN: joints slewing, readback not yet done
+    HOME_NOT_REACHED = 9  # reset FAILED: readback found joints off their zeros
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
@@ -196,7 +220,8 @@ def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
 
 
 HOME_RESULTS = (ArmResult.DISARMED_HOME, ArmResult.HOME_NO_CAL,
-                ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED)
+                ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED,
+                ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED)
 
 
 def is_home_result(r) -> bool:
@@ -238,6 +263,12 @@ def diag_reason(diag: int) -> str:
     if r is ArmResult.HOME_BUS_FAILED:
         return ("servo reset FAILED -- the servo bus did not accept it "
                 "(check pack, wiring, `scan`)")
+    if r is ArmResult.HOME_PENDING:
+        return ("servo reset written -- joints slewing to the stand, "
+                "readback pending")
+    if r is ArmResult.HOME_NOT_REACHED:
+        return ("servo reset FAILED -- readback found joints OFF their zeros "
+                "(see the tether for which; `scan`)")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")
@@ -284,6 +315,11 @@ class Command(NamedTuple):
         """This sender is asking for the servos to be reset to zero."""
         return bool(self.flags & FLAG_HOME)
 
+    @property
+    def att(self) -> bool:
+        """"Beacon the up vector too" -- a level, like `pose`."""
+        return bool(self.flags & FLAG_ATT)
+
 
 class Telemetry(NamedTuple):
     seq_echo: int          # last command seq the robot applied
@@ -311,6 +347,12 @@ class Telemetry(NamedTuple):
     def t_utc(self):
         """Robot time as float seconds since the epoch, or None if unsynced."""
         return None if self.t_us == 0 else self.t_us / 1e6
+    # Torso up vector x and y (z is up_z above): the robot's own z axis in the
+    # WORLD frame, obs_spec kOffUp / imu::Sample::up. None unless a commander
+    # asked with FLAG_ATT. up_z is drift-immune; these two are yaw-dependent
+    # and this robot's heading is dead-reckoned, so they give a lean direction
+    # in a slowly rotating frame -- an attitude to draw, not a heading.
+    up_xy: tuple = ()
 
     @property
     def diag(self) -> int:
@@ -434,6 +476,10 @@ def encode_telemetry(t: Telemetry) -> bytes:
         if len(t.joints) != NUM_JOINTS:
             raise ProtocolError(f"{len(t.joints)} joints, want {NUM_JOINTS}")
         body += struct.pack(f"<{NUM_JOINTS}h", *(_milli(q) for q in t.joints))
+    if t.up_xy:
+        if len(t.up_xy) != 2:
+            raise ProtocolError(f"up_xy is {len(t.up_xy)} long, want 2")
+        body += struct.pack("<2h", *(_milli(v) for v in t.up_xy))
     return body + struct.pack("<H", crc16_ccitt(body))
 
 
@@ -452,23 +498,28 @@ def decode_telemetry(buf: bytes) -> Telemetry:
         raise ProtocolError("CRC mismatch")
     if state >= len(_TLM_STATES):
         raise ProtocolError(f"unknown link state {state}")
-    # Length selects the layout: the timestamp is present on the two current
+    # Length selects the layout: the timestamp is present on the four current
     # lengths, absent (t_us = 0) on the two legacy ones; joints are present
-    # on the two long ones.
+    # on the two long ones, the attitude pair on the two +att ones.
     t_us = 0
     at = _TLM_TIME_OFF
-    if len(buf) in (TLM_LEN, TLM_LEN_EXT):
+    if len(buf) in (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT):
         (t_us,) = struct.unpack("<Q", buf[at:at + 8])
         at += 8
-    joints = ()
-    if len(buf) in (TLM_LEN_EXT, TLM_LEN_EXT_V1):
+    joints, up_xy = (), ()
+    if len(buf) in (TLM_LEN_EXT, TLM_LEN_EXT_ATT, TLM_LEN_EXT_V1):
         joints = tuple(q / 1000.0 for q in
-                       struct.unpack(f"<{NUM_JOINTS}h", buf[at:-2]))
+                       struct.unpack(f"<{NUM_JOINTS}h",
+                                     buf[at:at + 2 * NUM_JOINTS]))
+        at += 2 * NUM_JOINTS
+    if len(buf) in (TLM_LEN_ATT, TLM_LEN_EXT_ATT):
+        up_xy = tuple(v / 1000.0 for v in
+                      struct.unpack("<2h", buf[at:at + TLM_ATT_BYTES]))
     return Telemetry(seq_echo=seq, state=_TLM_STATES[state],
                      vbat_v=vbat_mv / 1000.0, up_z=up_z / 1000.0,
                      vx_est=vx / 1000.0, wz_est=wz / 1000.0,
                      servo_err=err, loop_late_pct=late, joints=joints,
-                     t_us=t_us)
+                     t_us=t_us, up_xy=up_xy)
 
 
 # -- robot-side supervisor -------------------------------------------------

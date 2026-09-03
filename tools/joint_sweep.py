@@ -1,0 +1,107 @@
+"""Single-joint load sweep on the standing robot: free play = the low-load band."""
+import serial, time, re, csv, math, sys, argparse
+ap = argparse.ArgumentParser(description=__doc__)
+ap.add_argument('out'); ap.add_argument('--joints', default='L_hip_roll,R_hip_roll,L_hip_pitch,R_hip_pitch,L_ankle,R_ankle,L_knee,R_knee')
+ap.add_argument('--step', type=float, default=0.5); ap.add_argument('--max', type=float, default=4.0)
+ap.add_argument('--tilt-abort', type=float, default=8.0); ap.add_argument('--home-after', action='store_true', default=True)
+ap.add_argument('--spd', type=int, default=10, help='step slew, ticks/s (10 = quasi-static; 60 rang the structure on a single-leg stance, Tom 2026-09-03)')
+ap.add_argument('--settle', type=float, default=1.0, help='seconds after a step before reading tilt')
+ap.add_argument('--watch', default='', help='comma list of NON-swept joints whose servo load to read every step (free-leg contact detector, Tom 2026-09-03); abort the joint if |load| > --watch-abort')
+ap.add_argument('--watch-abort', type=int, default=120)
+ap.add_argument('--base', default='', help='baseline pose offsets held on non-swept joints, e.g. R_knee=-30,R_hip_pitch=10 (deg, joint sign)')
+A = ap.parse_args(); OUT = A.out
+CAL = [  # (name, id, zero, dir) joint order -- zeros re-latched 2026-09-03 (cal zero after horn screws tightened); keep in sync with asbuilt_cal.h
+ ("L_hip_roll",5,2418,-1),("R_hip_roll",1,3532,-1),
+ ("L_hip_pitch",6,2001,+1),("R_hip_pitch",2,2479,+1),
+ ("L_ankle",8,3535,+1),("R_ankle",4,3437,+1),
+ ("L_knee",7,1581,-1),("R_knee",3,2063,-1)]
+TPD = 4096/360.0
+N = int(round(A.max / A.step))
+STEPS = [k*A.step for k in range(0, N+1)] + [k*A.step for k in range(N-1, -N-1, -1)] + [k*A.step for k in range(-N+1, 1)]
+ALL10 = list(CAL)
+BASE = {kv.split('=')[0]: float(kv.split('=')[1]) for kv in A.base.split(',') if kv}
+WATCH = [c for c in CAL if c[0] in A.watch.split(',')] if A.watch else []
+def base_ticks(name, zero, d): return int(round(zero + d*BASE.get(name, 0.0)*TPD))
+CAL = [c for c in CAL if c[0] in A.joints.split(',')]
+LOAD_ABORT = 250; LOAD_FREE = 60; TILT_ABORT_DEG = A.tilt_abort; SPD = A.spd
+def openport():
+    for _ in range(60):
+        try:
+            return serial.Serial('/dev/ttyUSB0', 115200, timeout=0.15)
+        except Exception:
+            time.sleep(0.5)
+    raise SystemExit('serial port never came back')
+s = openport()
+log = open(OUT.replace('.csv','.log'),'w')
+def cmd(c, wait=0.35, until=None, timeout=1.2, tries=4):
+    """Send a CLI line; with `until`, wait for the reply pattern and RESEND if
+    it does not come (the board drops ~half of all CLI lines, measured
+    2026-09-02 -- pos/move/imu are idempotent, so a retry is safe)."""
+    global s
+    o = ''
+    for attempt in range(tries if until else 1):
+        try:
+            s.read(65536)                   # discard anything stale
+        except serial.SerialException:
+            print('!! serial dropped -- reopening', flush=True); log.write('!! serial dropped\n')
+            try: s.close()
+            except Exception: pass
+            time.sleep(2); s = openport(); time.sleep(2); s.read(65536); s.write(b'\r\n'); time.sleep(0.5); s.read(65536)
+        s.write(c.encode()+b'\r\n'); t=time.time(); o=''
+        while time.time()-t < (timeout if until else wait):
+            try:
+                o += s.read(4096).decode(errors='replace')
+            except serial.SerialException:
+                print('!! serial dropped mid-read', flush=True); break
+            if until and re.search(until, o): break
+        if until is None: time.sleep(0.05); o += s.read(65536).decode(errors='replace')
+        log.write(f'>>> {c}  [try {attempt+1}]\n{o}'); log.flush()
+        if until is None or re.search(until, o): break
+    time.sleep(0.25)
+    return o
+t0=time.time(); buf=b''
+while time.time()-t0 < 2: buf += s.read(4096)
+cmd('', 0.3)
+def pos(i):
+    o = cmd(f'pos {i}', until=r'load\s+-?\d+.*err 0x..'); m = re.search(r'pos\s+(-?\d+)\s+spd\s+(-?\d+)\s+load\s+(-?\d+)', o)
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
+def imu():
+    o = cmd('imu raw 1', until=r'\|a\|.*g .*\n'); m = re.search(r'a\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)', o)
+    return tuple(float(x) for x in m.groups()) if m else None
+def ang(a,b):
+    na=math.sqrt(sum(x*x for x in a)); nb=math.sqrt(sum(x*x for x in b))
+    return math.degrees(math.acos(max(-1,min(1,sum(x*y for x,y in zip(a,b))/(na*nb)))))
+sc = cmd('scan', until=r'servo\(s\)', timeout=6); print(sc.strip().splitlines()[-1], flush=True)
+for name,i,zero,d in ALL10:
+    o = cmd(f'move {i} {base_ticks(name, zero, d)} 0 {SPD}', until=r'(: ok|refusing|torque is OFF)')
+    if 'torque is OFF' in o or 'refusing' in o:
+        print(f'!! {name} id {i}: {o.strip()[:70]} -- torque must be ON (run `home` / `torque` first); stopping', flush=True); s.close(); sys.exit(2)
+print(f'all ten joints accept goals at the baseline (torque on); base offsets {BASE}', flush=True); time.sleep(6.0)
+base = imu(); print('imu tilt reference (taken IN the baseline pose)', base, flush=True)
+csvf = open(OUT,'w',newline=''); w = csv.writer(csvf); w.writerow(['joint','id','cmd_deg','goal_ticks','pos_ticks','pos_err','load','spd','tilt_deg','epoch'] + [f'load_{c[0]}' for c in WATCH])
+for name,i,zero,d in CAL:
+    p0 = pos(i); print(f'== {name} id {i} start pos {p0}', flush=True)
+    aborted = None
+    prev_deg = 0.0
+    for deg in STEPS:
+        goal = int(round(zero + d*(deg + BASE.get(name, 0.0))*TPD))
+        o = cmd(f'move {i} {goal} 0 {SPD}', until=r'(: ok|refusing|torque is OFF)'); time.sleep(abs(deg-prev_deg)*TPD/SPD + A.settle)
+        if 'torque is OFF' in o or 'refusing' in o: aborted=f'gate: {o.strip()[:60]}'; break
+        p = pos(i); a = imu(); tilt = ang(base,a) if (a and base) else float('nan')
+        prev_deg = deg
+        if p is None: aborted='no feedback'; break
+        wl = []
+        for wn, wi, wz, wd in WATCH:
+            pw = pos(wi); wl.append(pw[2] if pw else None)
+        w.writerow([name,i,deg,goal,p[0],p[0]-goal,p[2],p[1],f'{tilt:.2f}',f'{time.time():.2f}'] + wl)
+        csvf.flush()
+        print(f'  {deg:+5.1f} deg  goal {goal}  pos {p[0]} (err {p[0]-goal:+d})  load {p[2]:+5d}  tilt {tilt:.1f}' + ('  free-leg loads ' + ' '.join(f'{c[0]}={v}' for c,v in zip(WATCH, wl)) if WATCH else ''), flush=True)
+        if any(v is not None and abs(v) > A.watch_abort for v in wl): aborted=f'free-leg contact: loads {wl} at {deg:+.1f} deg'; break
+        if abs(p[2]) > LOAD_ABORT: aborted=f'load {p[2]} at {deg:+.1f} deg'; break
+        if tilt > TILT_ABORT_DEG: aborted=f'tilt {tilt:.1f} deg at {deg:+.1f}'; break
+    cmd(f'move {i} {base_ticks(name, zero, d)} 0 {SPD}', until=r': ok'); time.sleep(0.8); p=pos(i)
+    print(f'   back to zero: pos {p}  {"ABORT: "+aborted if aborted else "sweep complete"}', flush=True)
+    if aborted and aborted.startswith('tilt'): print('!! tilt guard -- stopping all sweeps'); break
+print(cmd('home', until=r'HOLDING', timeout=6).strip(), flush=True); time.sleep(2)
+print(cmd('scan', until=r'servo\(s\)', timeout=6).strip(), flush=True)
+s.close()

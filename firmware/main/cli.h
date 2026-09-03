@@ -35,5 +35,16 @@ void linkMode(bool run, Sink out);
 // -- the standing pose. Housekeeping-task only, like every other bus command
 // here. See cmdHome for why this one deliberately turns torque back ON.
 void linkHome(Sink out);
+// Called from the housekeeping loop every iteration: once a home's slew
+// deadline has passed, read every joint back and store the REAL verdict
+// (kDisarmedHome / kHomeNotReached) in g_arm_result. No-op when nothing
+// is pending; cancels itself if the loop got armed in the meantime.
+void homeVerify(Sink out);
+// Smooth-pose streamer (`pose ... s<ms>`): a minimum-jerk profile from the
+// positions at the command to the targets, streamed as per-servo sync writes
+// from the housekeeping loop at ~50 Hz. Zero velocity and acceleration at
+// both ends, so nothing rings (Tom 2026-09-03: unison constant-speed moves
+// made the crouch oscillation WORSE). No-op when idle.
+void poseTick(Sink out);
 
 }  // namespace cli

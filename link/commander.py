@@ -26,12 +26,23 @@ from protocol import (CMD_PORT, SEND_HZ, TLM_PORT, LinkState,  # noqa: E402
 
 
 def stream(host, source, send_hz=SEND_HZ, cmd_port=CMD_PORT,
-           tlm_port=TLM_PORT, quiet=False):
+           tlm_port=TLM_PORT, quiet=False, watch=None):
     tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rx.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     rx.bind(("0.0.0.0", tlm_port))
     rx.setblocking(False)
+
+    # The robot beacons to WHOEVER COMMANDED LAST and nobody else
+    # (firmware/main/wifi_link.cpp). A second console therefore cannot simply
+    # listen in -- the only way to become the destination is to send a
+    # command, which both steals the beacon from this process and drives the
+    # robot. So forward instead: every beacon this process accepts is re-sent
+    # byte for byte to `bimo_gui --readonly`. Verbatim, so the watcher runs
+    # the same decode over the same bytes the robot signed.
+    watch_to = _watch_addr(watch, tlm_port) if watch else None
+    if watch_to is not None:
+        print(f"forwarding telemetry to {watch_to[0]}:{watch_to[1]}")
 
     period = 1.0 / send_hz
     seq, t0, tlm = 0, time.monotonic(), None
@@ -52,7 +63,9 @@ def stream(host, source, send_hz=SEND_HZ, cmd_port=CMD_PORT,
                 try:
                     tlm = decode_telemetry(buf)
                 except ProtocolError:
-                    pass
+                    continue        # stray traffic: never forward it on
+                if watch_to is not None:
+                    tx.sendto(buf, watch_to)
             if not quiet and seq % 5 == 0:
                 _status(t, vx, wz, flags, tlm)
 
@@ -73,6 +86,18 @@ def stream(host, source, send_hz=SEND_HZ, cmd_port=CMD_PORT,
         source.close()
         tx.close()
         rx.close()
+
+
+def _watch_addr(spec, default_port):
+    """"HOST" or "HOST:PORT" -> (host, port).
+
+    No port means the one this process is bound to, which is where a stock
+    `bimo_gui --readonly` listens.
+    """
+    host, _, port = spec.rpartition(":")
+    if not host:                     # no colon at all: rpartition puts it last
+        return spec, default_port
+    return host, int(port)
 
 
 def _status(t, vx, wz, flags, tlm):
@@ -111,9 +136,14 @@ def main():
     p.add_argument("--cmd-port", type=int, default=CMD_PORT)
     p.add_argument("--tlm-port", type=int, default=TLM_PORT)
     p.add_argument("--quiet", action="store_true")
+    p.add_argument("--watch", metavar="HOST[:PORT]",
+                   help="forward every beacon to a `bimo_gui --readonly` "
+                        "watcher; the robot only beacons to whoever commanded "
+                        "it last, so a second console cannot listen in")
     args = p.parse_args()
     stream(args.host, sources.build(args), send_hz=args.rate,
-           cmd_port=args.cmd_port, tlm_port=args.tlm_port, quiet=args.quiet)
+           cmd_port=args.cmd_port, tlm_port=args.tlm_port, quiet=args.quiet,
+           watch=args.watch)
 
 
 if __name__ == "__main__":

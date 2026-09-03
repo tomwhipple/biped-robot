@@ -72,6 +72,11 @@ briefly `{10, 1, …, 9, …}` after the yaw-only fix; see the errata note above
 
 ## As-built zero calibration
 
+> **Re-zeroed 2026-09-03** after loose servo-horn screws were found and tightened on
+> both legs. Stand set by eye on the desk, `cal zero` + `cal save`. Shifts from the
+> 2026-08-02 values: L hip pitch −3.8°, L knee −4.7°, L ankle +1.7°, R hip pitch −1.9°,
+> R knee +1.1°, R ankle −1.1°; yaws and rolls under 0.3°. Table below is the new set.
+
 Measured 2026-08-02 on the assembled robot, held at the standing pose on a test
 stand, via `cal zero` + `cal save`. Standing **is** angle zero for every joint
 (`kJointDefault` is all zeros), so these ticks are each joint's `zero_steps`.
@@ -89,16 +94,16 @@ rather than left to look valid.
 
 | Joint | ID | zero (ticks) | Δ from 2048 | dir |
 | ----- | -- | ------------ | ----------- | --- |
-| `L_hip_yaw`   | 10 | 1693 | −355  | +1 |
-| `L_hip_roll`  | 5  | 2420 | +372  | **−1** |
-| `L_hip_pitch` | 6  | 2044 | −4    | +1 |
-| `L_knee`      | 7  | 1634 | −414  | **−1** |
-| `L_ankle`     | 8  | 3516 | +1468 | +1 |
-| `R_hip_yaw`   | 9  | 1803 | −245  | +1 |
-| `R_hip_roll`  | 1  | 3533 | +1485 | **−1** |
-| `R_hip_pitch` | 2  | 2501 | +453  | +1 |
-| `R_knee`      | 3  | 2050 | +2    | **−1** |
-| `R_ankle`     | 4  | 3450 | +1402 | +1 |
+| `L_hip_yaw`   | 10 | 1692 | −356  | +1 |
+| `L_hip_roll`  | 5  | 2418 | +370  | **−1** |
+| `L_hip_pitch` | 6  | 2001 | −47    | +1 |
+| `L_knee`      | 7  | 1581 | −467  | **−1** |
+| `L_ankle`     | 8  | 3535 | +1487 | +1 |
+| `R_hip_yaw`   | 9  | 1806 | −242  | +1 |
+| `R_hip_roll`  | 1  | 3532 | +1484 | **−1** |
+| `R_hip_pitch` | 2  | 2479 | +431  | +1 |
+| `R_knee`      | 3  | 2063 | +15    | **−1** |
+| `R_ankle`     | 4  | 3437 | +1389 | +1 |
 
 The large offsets are ordinary horn clocking — the ST3215 horn seats on discrete
 splines, so a mechanical zero is never exact and `middle` was never run at the

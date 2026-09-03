@@ -22,6 +22,7 @@ Ports are offset so it never collides with a console pointed at the robot.
 """
 import itertools
 import os
+import re
 import subprocess
 import sys
 import time
@@ -365,3 +366,202 @@ def test_a_robot_that_never_heard_of_the_reset_is_called_out():
     assert "no answer to the reset" in out, out
     assert "re-flash" in out, out
     assert rc == 0, out
+
+
+# -- the observer -----------------------------------------------------------
+# `--readonly` exists so a second pair of eyes can watch a robot somebody else
+# is driving -- another session on another machine -- without the watching
+# console being able to touch it. Two claims, both tested end to end over real
+# UDP here rather than only as unit tests, because the interesting part is the
+# TOPOLOGY: the robot beacons to whoever commanded last and to nobody else
+# (link_twin.py holds the same rule the firmware does, `peer`), so an observer
+# is only reachable because the driver forwards.
+
+
+def _observer(tlm_port, extra=()):
+    """A headless watcher. No --host: it has nowhere to send, by design."""
+    return subprocess.Popen(
+        [GUI, "--headless", "--readonly", "--tlm-port", str(tlm_port),
+         "--no-record", *extra],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True, bufsize=1)
+
+
+def test_readonly_console_cannot_command_the_robot():
+    """Point a watcher straight at the twin and try every control on it.
+
+    This is the adversarial case, not the intended wiring: the observer is
+    given the robot's own --host and --cmd-port, so the ONLY thing standing
+    between `arm` and a moving robot is the mode. The twin's trace is the
+    oracle -- it prints a line per command it would hand the policy, so an
+    empty trace is proof that nothing arrived, not merely that nothing
+    obviously happened.
+    """
+    cmd_port, tlm_port = _ports()
+    twin = _twin(cmd_port, tlm_port)
+    time.sleep(0.5)
+    obs = _observer(tlm_port, ["--host", "127.0.0.1",
+                               "--cmd-port", str(cmd_port)])
+    for delay, line in [(0.8, "arm"), (0.6, "press forward"),
+                        (0.5, "estop"), (0.5, "home"), (0.5, "quit"),
+                        (0.5, "")]:
+        time.sleep(delay)
+        if obs.poll() is not None:
+            break
+        obs.stdin.write(line + "\n")
+        obs.stdin.flush()
+    try:
+        out = obs.communicate(timeout=15)[0]
+    except subprocess.TimeoutExpired:
+        obs.kill()
+        out = obs.communicate()[0]
+    finally:
+        twin.terminate()
+        log = twin.communicate(timeout=5)[0]
+
+    # The robot heard nothing at all. Two independent proofs:
+    #  * its trace never moves off the line it prints at boot, so no command
+    #    was ever handed to the policy; and
+    #  * the observer got no telemetry -- which is the CAUSAL one, because the
+    #    twin beacons only to a peer, and a peer is set by receiving a
+    #    command. Telemetry arriving here would have meant a frame got out.
+    assert [st for st, _, _, _ in _states(log)] == ["bench"], log
+    assert "robot (no telemetry)" in out, out
+    assert "OBSERVER" in out, out
+    # And it said so for each refusal rather than going quiet, which is the
+    # difference between a mode and a bug.
+    assert out.count("OBSERVER: this console only watches") >= 1, out
+    assert "ARMED" not in out, out
+    assert obs.returncode == 0, out
+
+
+def test_the_driver_forwards_the_beacon_to_the_watcher():
+    """The intended wiring: driver --watch, watcher --readonly.
+
+    The watcher is bound to a port the twin never sends to, so every beacon it
+    reports arrived by way of the driving console -- and it reports the
+    robot's real state (LIVE, once the driver arms), not a default.
+    """
+    cmd_port, tlm_port = _ports()
+    watch_port = tlm_port + 1                  # _next_port strides 4
+    twin = _twin(cmd_port, tlm_port)
+    time.sleep(0.5)
+    obs = _observer(watch_port)
+    time.sleep(0.3)
+    drv = _gui([(1.0, "arm"), (1.5, "press forward"), (0.8, "release forward"),
+                (0.4, "quit"), (0.4, "")], cmd_port, tlm_port,
+               ["--no-record", "--watch", "127.0.0.1:%d" % watch_port])
+    try:
+        drv_out = drv.communicate(timeout=15)[0]
+    except subprocess.TimeoutExpired:
+        drv.kill()
+        drv_out = drv.communicate()[0]
+    try:
+        obs.stdin.write("quit\n")
+        obs.stdin.flush()
+        obs_out = obs.communicate(timeout=10)[0]
+    except (subprocess.TimeoutExpired, BrokenPipeError):
+        obs.kill()
+        obs_out = obs.communicate()[0]
+    finally:
+        twin.terminate()
+        log = twin.communicate(timeout=5)[0]
+
+    assert "ARMED" in drv_out, drv_out          # the driver really did drive
+    assert _states(log), log
+    # The watcher saw beacons, and they were the robot's -- LIVE is a state
+    # only an armed robot reports, and only the driver could have armed it.
+    assert "OBSERVER" in obs_out, obs_out
+    watched = [int(m) for m in re.findall(r"watched\s+(\d+) beacon", obs_out)]
+    assert watched and max(watched) > 0, obs_out
+    assert "robot LIVE" in obs_out, obs_out
+    # ...and it stayed silent throughout: the driver never lost the link to a
+    # second commander stealing the beacon.
+    assert "LINK LOST" not in drv_out, drv_out
+    assert obs.returncode == 0, obs_out
+
+
+def test_a_watcher_can_take_control_and_hand_it_back():
+    """The toggle, end to end, against a robot the watcher was only watching.
+
+    Started with --readonly, so nothing it does can reach the twin until it
+    takes control -- and the twin's trace is the oracle for exactly when that
+    changed. Handing back must NOT bench the robot: the whole point of
+    releasing control is that whoever else is driving keeps it, and a parting
+    disarm would be a 1 -> 0 edge on a single global ArmLatch.
+    """
+    cmd_port, tlm_port = _ports()
+    twin = _twin(cmd_port, tlm_port)
+    time.sleep(0.5)
+    # A watcher WITH a --host: it has somewhere to take control to.
+    proc = subprocess.Popen(
+        [GUI, "--headless", "--readonly", "--host", "127.0.0.1",
+         "--cmd-port", str(cmd_port), "--tlm-port", str(tlm_port),
+         "--no-record"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True, bufsize=1)
+    for delay, line in [(0.8, "arm"),            # refused: still watching
+                        (0.5, "control"),        # -> DRIVING
+                        (0.8, "arm"),            # now it really arms
+                        (1.2, "press forward"),
+                        (0.8, "release forward"),
+                        (0.5, "control"),        # -> WATCHING again
+                        (0.8, "press forward"),  # refused again
+                        (0.5, "quit"), (0.5, "")]:
+        time.sleep(delay)
+        if proc.poll() is not None:
+            break
+        proc.stdin.write(line + "\n")
+        proc.stdin.flush()
+    try:
+        out = proc.communicate(timeout=15)[0]
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out = proc.communicate()[0]
+    finally:
+        twin.terminate()
+        log = twin.communicate(timeout=5)[0]
+
+    states = [st for st, _, _, _ in _states(log)]
+    # It could not arm while watching, and could once it had control: the
+    # robot leaves bench exactly once, and only after `control`.
+    assert "live" in states, log
+    assert out.index("took control") < out.index("ARMED"), out
+    # It really drove.
+    assert any(vx == "+0.40" for _, vx, _, _ in _states(log)), log
+    # Handing back left the robot RUNNING -- no parting disarm. The twin's
+    # last state is the robot standing under its own watchdog, not benched by
+    # us; a disarm would have printed a bench transition right after release.
+    assert "no parting disarm" in out, out
+    assert "OBSERVER" in out, out
+    assert proc.returncode == 0, out
+
+
+def test_mirror_asks_for_attitude_and_the_robot_answers():
+    """Mirror mode must carry BOTH halves of "the last known state".
+
+    Joint angles say what the legs are doing; the up vector says which way the
+    robot is facing while they do it. A viewer given only the first draws a
+    robot lying on its face standing to attention -- so `sim mirror` has to
+    set FLAG_ATT as well as FLAG_POSE, and the console has to keep the
+    attitude it gets back.
+    """
+    cmd_port, tlm_port = _ports()
+    twin = _twin(cmd_port, tlm_port)
+    time.sleep(0.5)
+    gui = _gui([(1.0, "arm"), (1.0, "sim mirror"), (2.0, "quit"), (0.5, "")],
+               cmd_port, tlm_port, ["--no-record"])
+    try:
+        out = gui.communicate(timeout=15)[0]
+    except subprocess.TimeoutExpired:
+        gui.kill()
+        out = gui.communicate()[0]
+    finally:
+        twin.terminate()
+        log = twin.communicate(timeout=5)[0]
+
+    # The twin reports the levels it was asked for, and only when asked.
+    assert "pose requested" in log, log
+    # ...and the attitude alongside it, which is the half that was missing.
+    assert "att requested" in log, log
+    assert gui.returncode == 0, out

@@ -245,6 +245,12 @@ class BimoWalkerEnv(gym.Env):
         # ~0.5-1.0 deg of lash). 0 = legacy behavior, bit-exact.
         backlash_deg_max: float | None = None,  # per-episode draw
         # uniform(backlash_deg, max) -- backlash DR
+        play_deg: float = 0.0,         # FREE TRAVEL between servo shaft and
+        # link, peak-to-peak (hw 2026-09-02: L hip roll ~3 deg). Unlike
+        # backlash_deg (a deadzone on the servo's error) this is mechanical
+        # hysteresis: the shaft follows the command, the link floats freely
+        # inside +/-play/2 of the shaft and is driven only at the band edges.
+        play_joints: tuple | None = None,  # joint names it applies to; None = all
         fall_height: float = 0.18,     # terminate below this torso height (m)
         fall_up_z: float = 0.4,        # terminate below this up-vector z
         # (issue #10: 0.4 = 66 deg lean is generous; kept as the default for
@@ -500,6 +506,10 @@ class BimoWalkerEnv(gym.Env):
         self.backlash_deg = backlash_deg
         self.backlash_deg_max = backlash_deg_max
         self._lash_rad = np.deg2rad(backlash_deg)
+        self.play_deg = float(play_deg)
+        self.play_joints = tuple(play_joints) if play_joints else None
+        self._play_rad = np.deg2rad(self.play_deg)
+        self._shaft = None               # per-joint servo shaft angle (play model)
         self.fall_height = fall_height
         self.fall_up_z = fall_up_z
         self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
@@ -698,6 +708,12 @@ class BimoWalkerEnv(gym.Env):
         # re-derives from the silenced actuators, not the ideal ones.
         self.actuator_model = actuator_model
         self.supply_voltage = supply_voltage
+        _names = [self.model.actuator(i).name for i in range(self.model.nu)]
+        self._play_h = np.zeros(self.model.nu)
+        if self._play_rad > 0.0:
+            for i, n in enumerate(_names):
+                if self.play_joints is None or n in self.play_joints:
+                    self._play_h[i] = 0.5 * self._play_rad
         if actuator_model == "sts3215":
             v = supply_voltage / 12.0
             # [kp, kd, stall torque, no-load speed] -- DR rescales from nominal
@@ -1473,6 +1489,7 @@ class BimoWalkerEnv(gym.Env):
             self._cmd_crouch = float(self.np_random.uniform(
                 *self.cmd_crouch_range))
         self._last_target = self._default.copy()
+        self._shaft = None
         self._air_time[:] = 0.0
         self._last_air[:] = 0.0
         self._servo_tau[:] = 0.0
@@ -1580,13 +1597,29 @@ class BimoWalkerEnv(gym.Env):
                 q = self.data.qpos[self._jqpos]
                 qd = self.data.qvel[self._jqvel]
                 cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
-                err = cur - q
+                free = None
+                if self._play_rad > 0.0:
+                    # play model: a massless output shaft tracks the command
+                    # at up to the no-load speed; the link is pushed only
+                    # when it sits outside the shaft's +/-h free band, and
+                    # inside it the servo neither drives nor damps it.
+                    if self._shaft is None:
+                        self._shaft = q.copy()
+                    lim = w0 * self.sim_dt
+                    self._shaft = self._shaft + np.clip(cur - self._shaft, -lim, lim)
+                    e = self._shaft - q
+                    err = np.sign(e) * np.maximum(np.abs(e) - self._play_h, 0.0)
+                    free = (err == 0.0) & (self._play_h > 0.0)
+                else:
+                    err = cur - q
                 if self._lash_rad > 0.0:
                     # gear backlash: +/-lash/2 deadzone on the position error
                     # (inside the lash the output gear floats -- no P torque)
                     err = np.sign(err) * np.maximum(
                         np.abs(err) - 0.5 * self._lash_rad, 0.0)
                 self._servo_tau = np.clip(kp * err - kd * qd, -cap, cap)
+                if free is not None:
+                    self._servo_tau = np.where(free, 0.0, self._servo_tau)
                 if not self._torque_on:      # released servos: limp, no hold
                     self._servo_tau = np.zeros(self._nq_act)
                 self.data.qfrc_applied[self._jqvel] = self._servo_tau

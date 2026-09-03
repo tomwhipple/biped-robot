@@ -411,6 +411,336 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·03 · hardware thread</span></p>
+    <p><b>Three follow-ups, one correction, one honest negative.</b>
+    <i>Correction first:</i> the policy on the robot is
+    <code>loco_v26lag_s128</code> (the board's <code>stat</code> says so),
+    trained WITH the 2–12 Hz act-lag pole and 0.5–1° backlash — last
+    night's sim comparisons used the v22fix student by mistake. Redone
+    with the right policy: still dead still in sim (up<sub>y</sub> RMS
+    0.0009 vs 0.05–0.13 on the robot). <b>(1) Fine sweep.</b> At 0.25°
+    steps the left hip roll shows a textbook backlash step: no torso
+    response until +3.25°, then a jump to 1.3° that holds through the
+    reversal all the way down to +1.25° — <b>2° of hysteresis, ~3° from
+    home to engagement</b>. Right hip roll stays unresolved (≤0.4°
+    response). Knees: the left tracks smoothly (0.27° hysteresis); the
+    right at +3.5° tipped the whole robot 7° (guard fired, homed cleanly) —
+    the right leg carries the weight, third time it shows. <b>(2) Play in
+    the twin.</b> <code>walker_env</code> gained a FREE-TRAVEL model
+    (<code>play_deg</code>/<code>play_joints</code>: a massless shaft
+    tracks the command at the no-load speed, the link is driven only
+    outside ±play/2 and floats undamped inside), exposed as
+    <code>sil_twin --play-deg --play-joints</code>. Result: 3° or 6° on the
+    hip rolls or on all ten joints, with or without 2 Hz lag, and the
+    flashed policy <b>still stands dead still</b> (up<sub>y</sub> RMS ≤
+    0.002). So static mechanical hysteresis, on its own, is <i>not</i> the
+    mechanism — the hardware loop is being excited by something the twin
+    lacks. Remaining candidates, in the order I'd test them: the
+    asymmetric right-foot stance (sim stands symmetric), foot/mat
+    compliance, the complementary-filter up-vector (sim's is exact), and
+    dq/gyro noise. <b>(3) Firmware: the reset verdict now means moved.</b>
+    <code>homeAll</code> returns <b>HOME_PENDING</b> (8) after the
+    broadcast write; <code>cli::homeVerify</code>, on the housekeeping
+    loop, reads all ten joints back once the slew deadline passes (worst
+    move ÷ speed + 0.7 s) and stores <b>DISARMED_HOME</b> only when every
+    joint is within 12 ticks of its zero, else <b>HOME_NOT_REACHED</b> (9)
+    with the offenders named on the tether. Flashed 09:01, verified over
+    the link: PENDING at 0.45 s, DISARMED_HOME at 0.90 s, UART "home
+    readback: all 10 joints at their zeros". Both probes wait out PENDING;
+    <code>tools/home_verify.py</code> watches the sequence. One more
+    bench note: the servos had <b>lost torque overnight</b> (home left them
+    holding at 23:00; at 08:50 a goal write was refused "torque is OFF";
+    pack 12.0 V, no faults, no reboot, cause unknown) — check torque before
+    any bench run. Data: hw_sessions/2026-09-03/.</p>
+    <p><b>Later: Tom's yaw suspicion, a wrong inference, and the eye test
+    that caught it.</b> Tom: the hip yaw joints likely have the most play
+    — "the entire leg is controlled by the tiny servo axis" — and the mat
+    is not a factor since the feet have no traction pads. Yaw does not
+    tilt the torso and the encoders sit on the shaft side of the slop, so
+    <code>tools/yaw_probe.py</code> yaws the hips in 2° steps and reads
+    the <b>pelvis yaw off the gyro</b> (projected on the measured gravity
+    axis, bias-corrected per step, integrated over each slow move; the
+    board streams <code>imu raw</code> at ~11 Hz). Rigid-sim reference
+    (<code>sim/joint_yaw_sim.py</code>): both hips the same way → pelvis
+    0.78°/°, one hip 0.45°/°, opposite signs ~0. The robot did the
+    reverse — same-sign commands cancelled, opposite-sign turned the
+    pelvis 2.0°/1.65°, right-only went the other way from left-only —
+    and I read that as <b>one hip yaw mirrored against the model</b>,
+    pointing at R_hip_yaw, and asked for an eye check before touching the
+    calibration. <b>The eye check refuted it.</b> Right hip +10°: the
+    right toe swung to the robot's left (inward) — the model's direction.
+    Left hip +10°: the left foot stayed planted and the <i>rest of the
+    robot</i> swung right, so the left toe points outward — also the
+    robot's left in body terms, also the model's direction. Nothing is
+    mirrored; both as-built yaw signs are right. What the gyro had
+    measured: the weight was on the <b>left</b> foot this morning (it was
+    on the right last night — the stance asymmetry flips between
+    re-homings), so the right foot slides, and a right-yaw command mostly
+    <i>reacts</i> back into the pelvis, which turns the other way inside
+    the left yaw chain's slop while the left servo holds. Read correctly,
+    that is a yaw-play measurement: the left yaw chain let the pelvis move
+    ≥1.2° under reaction torque with its servo holding, and every yaw move
+    stalled 10–12 ticks (~1°) short of its goal in both directions. So yaw
+    play is ~1–2°, the same order as the 2–3° in roll, not dramatically
+    larger. Two lessons, both already in the rules: a gyro-inferred sign
+    is not a direction check, and never change <code>cal dir</code> on
+    inferred evidence. Data: hw_sessions/2026-09-03/yaw2.csv,
+    yaw3_opposite.csv, yawcheck_*.jpg, sim_ref/sim_yaw.txt.</p>
+    <p><b>Afternoon: the clean play numbers, one clamped foot at a time.</b>
+    Tom clamped one foot to the desk and the other leg was lifted clear
+    (<code>joint_sweep --base</code> holds the free leg at hip −25°, knee
+    −50°, ankle −25°, roll +10° — a −40° hip swing leaned the torso ~14°
+    and crept; both-feet-clamped locks the torso and measures nothing).
+    The clamped leg is the loaded leg by construction, so every joint
+    finally reads under real load (90–170 counts) with real hysteresis.
+    Torso-tilt hysteresis at the same command, hw / rigid sim: <b>L hip
+    roll 1.06/0.20, L hip pitch 0.97/0.20, L ankle 1.44/0.00, L knee
+    1.35/0.00, R hip pitch 0.58/0.10, R hip roll 0.82/0.10, R knee
+    0.70/0.00</b>. Separately, the loaded servos sit 10–20 ticks (up to
+    1.8°) short of goal — about 16 N·m/rad, which the sim's kp = 12 servo
+    already models. So the un-modelled part is <b>~1–1.5° of mechanical
+    hysteresis per loaded joint, both legs, all axes</b>; yesterday's
+    "pitch is tighter" came from unloaded legs. Then the outlier: the
+    <b>right ankle</b>. At +1.0° of ankle the torso jumped 0.4→5.2° and,
+    on a repeat with the free foot raised higher, 0.5→6.5° — identical
+    ticks both times: servo lag −4→+1, load −40→0. The right knee at −1.0°
+    did the same (5.9°). The right ankle is holding the robot's pitch
+    moment on one side of a ~5° gap and a 1° command drops the robot
+    through it; the left ankle swept ±4° smoothly. <b>Inspect the right
+    ankle</b> (horn, bracket, screws) before trusting any right-leg
+    number. Two more of Tom's observations went straight into the tool:
+    the 0.5° steps at 60 ticks/s were jerky and rang the structure on a
+    single-leg stance while the big lift moves were smooth
+    (<code>joint_sweep</code> now steps at 10 ticks/s with a 1 s settle),
+    and the clamped-foot configuration looks like a better range-of-motion
+    rig than the hang stand — the swept leg is loaded as in use and the
+    free leg can be posed anywhere. Data: hw_sessions/2026-09-03/
+    sweep6_Lclamped.csv, sweep12–14_Rclamped.csv.</p>
+    <p><b>Evening: the horns were loose, the zeros moved, and the crouch
+    oscillation was the command, not the robot.</b> Tom found and tightened
+    loose screws at the servo wheels on both legs, so the stand was
+    <b>re-zeroed</b> by eye (<code>cal zero</code> + <code>cal save</code>):
+    the pitch chains had wandered L hip pitch −3.8°, L knee −4.7°, L ankle
+    +1.7°, R hip pitch −1.9°, R knee +1.1°, R ankle −1.1°, yaws and rolls
+    under 0.3° — the loose horns were the asymmetric stance. The right
+    ankle's 5–7° release <i>survived</i> the tightening (five reproductions,
+    the free foot verifiably clear by servo load), so that gap is elsewhere
+    in the ankle. Then range of motion, one foot clamped
+    (<code>tools/leg_rom.py</code>, the level-foot family hip −θ / knee
+    −2θ / ankle −θ): the free leg lifts to θ = 40°, knee −80°, ~4.7 cm,
+    within 4 ticks on every joint; the two-leg crouch reaches knee −80°
+    within 4 ticks, torso within 2°. Tom saw the crouch <b>oscillate</b>,
+    then saw hips and ankles move first with the knees catching up, then
+    saw it get <i>worse</i> when all servos ran in unison. The gyro bursts
+    agreed: constant speed peaks 0.3–0.7 rad/s of torso rate, unison
+    0.2–0.6, dominant ~2.5 Hz — the structure, hit by every velocity step,
+    and hit coherently when ten servos step together. The fix is firmware:
+    <code>pose … s&lt;ms&gt;</code> streams a <b>minimum-jerk</b> profile
+    from the housekeeping loop at 50 Hz with per-servo speeds
+    (<code>cli::poseTick</code>), and <code>home</code> now rides it too
+    (≥ 2.5 s). Result: crouch peaks <b>0.007–0.011 rad/s</b>, tails
+    0.004 — the sensor's noise floor, a 30–70× reduction; home from a 20°
+    crouch 1.0 → 0.14. Two side findings: the servos do not hunt at hold
+    (all ten at factory P32/D32/I0, dead zone 1 tick, read with the new
+    read-only <code>reg</code> command), and the "residual oscillation"
+    in the tails was the <b>IMU tearing 16-bit reads</b> — isolated
+    ±0.1396 rad/s spikes, exactly 256 LSB at the 1024 dps range, about one
+    sample in a hundred; sync-sample mode did not stop them, a
+    read-twice-median-of-three in the driver did (0 in 400). That same
+    driver feeds the control loop, so the policy had been seeing an 8°/s
+    rate spike every couple of seconds. The lesson for the walking policy
+    is the next experiment: the armed loop's C2 shaper pole sits at 10 Hz,
+    above the 2.5 Hz mode — try 3–5 Hz live (<code>shape</code>) with Tom
+    spotting, or train with a jerk penalty. Robot left with torque
+    released, Tom's idle state. Data: hw_sessions/2026-09-03/rom_*,
+    hold_hunt20*, servo_registers.txt, rezero.log.</p>
+    <p><b>Late evening, Tom watching the one-motion crouch.</b> "Much
+    better — still some random shakes on the ends", then "make sure we
+    don't have single ticks that are too close together in time", then
+    the architecture rule: <i>the control loop runs entirely on the robot;
+    if a position is commanded the controller takes it there smoothly;
+    telemetry back is a debug tool we can switch off.</i> So the streamer
+    grew live tokens (<code>h</code> speed headroom, <code>a</code> servo
+    accel, <code>b</code>/<code>i</code> glide rule: a joint is written
+    when it has ≥ b ticks to go or ≥ 1 tick and ≥ i ms since its last
+    write, speed = distance over the interval, so small end-of-profile
+    steps become slow continuous creeps instead of 50 Hz pokes against the
+    1-tick dead zone), and <b><code>pose</code> is now smooth by default</b>
+    with the duration from the longest move. A camera frame-difference
+    meter (<code>tools/video_shake.py</code>) ranked the old 125 % speed
+    setting worst and 90 % best, but cannot resolve the end shakes Tom
+    sees — his eye is the meter there, and the A/B/C of glide settings is
+    still his call. Then "increase the IMU sample and control loop rate as
+    much as practical": the loop stays at 50 Hz (the policy net is 7.5 ms
+    of the 20 ms tick and the policy is trained at that step — a faster
+    net and a retrain is the project item), but the IMU now has its own
+    <b>250 Hz task</b> (<code>imu_sampler.cpp</code>): attitude filter at
+    4 ms, tick-averaged gyro to the loop instead of one aliased sample per
+    tick, I2C mutex for the bench commands, counters in <code>stat</code>.
+    Verified live: 250/s with zero failures, e-stop-armed loop 0 % late.
+    The full armed budget and the effect on the stand wait for a live arm
+    with Tom spotting.</p>
+    <p><b>Night: "you were going to instrument this for hard numbers."</b>
+    Two instruments, both onboard: <code>imu ring</code> reads the 250 Hz
+    gyro ring as a 50 ms envelope with peak, decay and dominant frequency;
+    <code>pose … T&lt;id&gt;</code> makes the streamer log one servo's
+    position, speed and load every tick through the move and 1.2 s after,
+    dumped by <code>trace</code>. The IMU said the torso is still at both
+    ends of a crouch (~1°/s, the noise floor) — the shake is in the legs.
+    The knee trace then found the real causes, and neither was the robot.
+    <b>(1)</b> The bench tool's reply pattern wanted "ok"; the smooth mode
+    answers "streaming"; so every smooth pose timed out and was
+    <i>re-sent 3 s into the move</i>, restarting the profile from
+    mid-travel — that restart was the end-of-move shake on every crouch
+    Tom judged. <b>(2)</b> Open-loop speed (profile × 0.9) let ~10 % lag
+    accumulate, and the servo crept the last 60 ticks off at the floor
+    speed for 1.2 s after the profile ended. <b>(3)</b> The CLI kept 13
+    argv, silently dropping every tuning token after the first — the
+    A/B/C glide, floor and shaper comparisons were identical runs (fixed,
+    24). The streamer is now <b>closed-loop</b>: each tick reads every
+    servo's measured position and commands the speed that closes the gap
+    to the next sub-target within the tick. Knee trace after, two reps,
+    both directions: target reached at 3.95 s of a 4.0 s profile,
+    <b>0 ticks of motion and 0 reversals in the 1.2 s tail</b>. Cost: the
+    stream tick stretched to ~28 ms for the ten reads. Lessons carried
+    forward: never resend a motion command blindly (verify by reply, else
+    by a witness joint moving), and the pelvis IMU is the wrong sensor for
+    leg shake. Tom watched one: "very good!"</p>
+    <p><b>The right ankle, closed.</b> A new probe (<code>tools/ankle_probe.py</code>)
+    sweeps the stance ankle 0 → +3° → −3° → 0 over 6 s per segment on a
+    clamped single leg, with that servo traced at 50 Hz and the torso's
+    250 Hz ringing meter read per segment. First it needed the IMU back:
+    with the sampler running, every flash resets the MCU mid-read and the
+    QMI8658C holds SDA low, the next boot's scan finds nothing, and the
+    firmware silently runs on the stub IMU — three runs' torso readings
+    tonight were stub zeros before I noticed; <code>busInit</code> now
+    clocks the bus free at boot. Then the verdict. <b>Both ankle servos are
+    fine:</b> on either leg the shaft glides through the load reversal
+    (−24 → +20 counts) at exactly the commanded rate, no jump. The 5–7°
+    "release" seen with 0.5° steps was the leg's whole pitch chain giving up
+    its play when the moment reverses, excited by the step. <b>The right
+    chain lurches 2–4× more than the left</b> at the same command (torso
+    peaks 0.148 / 0.173 vs 0.040 / 0.073 rad/s on the ±3° excursions), so
+    the extra play is in the right leg's couplings outside the encoder —
+    foot bracket, ankle horn, knee or hip coupling — and the next step is
+    hands on those with torque on, not a servo swap. One more sign lesson:
+    hip-roll abduction is +L and −R in the model; a +10° "abduction" on the
+    lifted right leg swung it into the left. Data: hw_sessions/2026-09-03/
+    ankleR3*, ankleL2*.</p>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·02 · hardware thread · evening</span></p>
+    <p><b>The arm-and-fall is real, it is a ROLL limit cycle, and the sim
+    cannot produce it — with any backlash.</b> Tom: "when I arm the robot it
+    begins a growing oscillation that eventually results in it falling
+    over" and "a fair amount of play in the joints that might not be well
+    modeled by the sim". Repeated from mira three times with cameras,
+    beacon joint angles (the new 40 B pose frame) and <code>obsdump</code>
+    all rolling (<code>link/osc_probe.py</code>: ARM|POSE zero-command
+    stand with a tilt/swing guard → ESTOP + disarm; <code>--home</code>
+    proved <b>RESET SERVOS over the link</b> live: verdict DISARMED_HOME,
+    every joint within 0.014 rad of zero, torque holding). Run 1 stood
+    8 s; runs 2 and 3 fell <b>8.5 s and 18.8 s</b> after arming, both
+    <b>sideways</b> (up<sub>y</sub> → +0.50 / −0.82, roll rate 2–3.5 rad/s
+    at the end). It is not a smooth exponential: bursts of ~1 Hz rocking
+    (joint p-p 0.2–0.4 rad in a 1 s window) separated by quiet seconds,
+    then one burst tips it; the torso stays inside ~10° until the last
+    half second, so a tilt guard cannot save it and a limp robot mid-sway
+    falls anyway. The sensors are not the story this time: reported
+    joint velocity vs finite-differenced angle has slope 0.69 (a unit
+    error would be 50×; the dq quantum is exactly 0.0767 rad/s = one
+    0.732 rpm LSB) and the gyro RMS matches the roll the up-vector shows.
+    The same policy (loco_v22fix_e_s128), same zero command, in the SIL
+    twin: up<sub>y</sub> RMS <b>0.0009</b> vs 0.05–0.13 on the robot,
+    gyro<sub>x</sub> 0.005 vs 0.67 (144×), dq 0.02 vs 0.35–0.47. So the
+    twin got plant knobs (<code>sil_twin --backlash-deg --act-lag-hz</code>)
+    and a sweep ran: 0 / 0.7 / 3 / 6 / <b>10°</b> backlash × 0 / 2 Hz lag
+    — every point stands dead still (up<sub>y</sub> RMS ≤ 0.0024, roll p-p
+    ≤ 0.04 rad). The sim's "backlash" is a deadzone on the PD error, i.e. a
+    servo that ignores small commands; the robot's play is the joint
+    moving FREELY under load inside the slop — passive hysteresis in the
+    only lateral actuator (no ankle roll on this body), which a command
+    deadzone does not model at all. That is the gap Tom pointed at, now
+    with numbers. Also different: the two plants settle in different
+    postures (sim leans up<sub>x</sub> +0.13 with ankles −0.10; hardware
+    up<sub>x</sub> −0.08…+0.03 with ankles +0.04…+0.07, L/R hip pitch
+    −0.09/+0.10). Next, in order: (1) <b>measure the play</b> —
+    <code>link/play_probe.py</code> is the torque-off pose stream, Tom
+    wiggles each joint, per-joint p-p in degrees falls out; (2) one stand
+    on a hard floor instead of the mat, same probe, to split surface
+    compliance from joint slop; (3) model what we measure as plant
+    hysteresis (free travel), not a command deadzone, and re-run this
+    sweep until the twin rocks like the robot does — only then re-rank
+    the fleet on it. Media + CSVs: hw_sessions/2026-09-02/osc{1,2,3}_*
+    and sim_ref/.</p>
+    <p><b>Later the same evening — the play, estimated without hands.</b>
+    Tom stepped away, so the "wiggle each joint" measurement became a
+    machine one: <code>tools/joint_sweep.py</code> steps ONE joint
+    ±4° in 0.5° increments from the home stand (bench <code>move</code>,
+    60 steps/s) while the other nine hold, logging servo position, load
+    and IMU tilt; <code>sim/joint_sweep_sim.py</code> runs the identical
+    sweep on the rigid plant; <code>tools/joint_sweep_compare.py</code>
+    puts them side by side. Two things the sim saved me from
+    misreading. (1) The STS3215 <b>load register is useless for static
+    stiffness</b>: every joint reached every goal within 6 ticks with load
+    never leaving its idle ±24–56 band — the geartrain carries static load
+    with the motor idle. (2) A hip-roll sweep barely tilts the torso
+    <i>even in sim</i> (0.7° per 4°), so a small roll response is not
+    play. <b>Hysteresis is.</b> Sim traces retrace to 0.1°; on the robot
+    <b>L hip roll held the torso 1.2° tilted through ~3° of command
+    reversal</b> before letting go, R hip pitch ~1°, L ankle ~0.5°, the
+    rest under 0.3° (R hip roll unresolved: 0.2° torso response, too
+    small to read). That 3° in the roll chain is 3–6× the 0.5–1.0°
+    backlash the sim trains against, and it sits in exactly the axis that
+    rocks. Also measured: the stance is <b>asymmetric — weight on the
+    right foot</b> (right-leg joints move the torso more than the rigid
+    sim, left-leg joints less: L ankle +4° → 0.2° vs 2.4° sim), and the
+    right ankle at only −2° tipped the whole robot 8.5° (tilt guard,
+    homed cleanly) — under 2° of pitch margin on the loaded foot. Knees
+    not swept. Ops notes for the next bench script: the serial CLI drops
+    about half of all lines at any spacing (wait for the reply pattern and
+    resend); two 30 fps webcams plus the serial bridge on one USB hub
+    re-enumerated three times tonight — one 640×480 camera alone was
+    fine; and one RESET SERVOS over the link reported success but moved
+    nothing (positions verified by <code>scan</code>; the verdict means
+    "written", not "moved" — <code>homeAll</code> wants a position
+    readback). Data: hw_sessions/2026-09-02/play_sweep4.csv,
+    play_compare.txt, sim_ref/sim_sweep.txt.</p>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·03 · training thread</span></p>
+    <p><b>v27full is born, and it is healthy — the first policy raised
+    entirely inside the measured servo.</b> Night 1 of the from-scratch
+    synthesis (v25full recipe + act-lag 2–12 Hz + speed-clock ×1.25 from
+    step zero) reached 59M steps before the 07:00 hard stop, reward
+    −75 → 713 peak / 640 at the cut — and at the 35M mark it sits at 536
+    vs the v25full benchmark's 507 at the same age: <b>carrying the lag
+    contract costs nothing in growth rate</b>. Its column signature
+    proves the adaptation: 0/144 with 126 W of thrash on the lag-less
+    plant, 16/144 at a calm 3.3 W in its own lagged world (falls 79%,
+    rhythm 60%/CV 0.58 — the usual infancy, v25full looked the same at
+    this age; judge by curve, reel is an infant reel). From here the
+    lag column is the only honest CPU judge for the v27 era.
+    <b>v27full_b continues tonight, same contract.</b> Second result:
+    the 24-round re-distill worked — <b>v27tilt_b_s128r24 = 41/144</b>
+    under measured lag (12-round student 28, teacher 46; stand_off 8/8,
+    push_gauntlet 4/8), so DAgger depth was the distillation bottleneck
+    and the chained lag-referee CMD job pattern held. That student is
+    now the best deployable candidate we own — 2.2× the flashed
+    v26lag_s128's 19 — pending the real-robot A/B (kanban t_856978e0),
+    which the hardware thread's evening finding makes more interesting:
+    their roll-limit-cycle work says ~3° of passive hip-roll PLAY —
+    free hysteresis, a third plant term nothing in sim models yet — is
+    what actually topples real stands; their measure-then-model plan is
+    the right order, and once the twin rocks like the robot the fleet
+    re-ranks again. Housekeeping: fixed the eval_precision
+    <code>speed_mae</code> KeyError that fall-heavy infants trigger
+    (it's why the collect gave v27full only a SIL card).</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·02 · training thread</span></p>
     <p><b>The referee got the measured servo — and the fleet ranking
     inverted.</b> Following the morning card's finding (below), the CPU

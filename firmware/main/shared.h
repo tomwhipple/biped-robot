@@ -103,6 +103,13 @@ struct TelemetrySnapshot {
     std::atomic<uint32_t> seq_echo{0};
     std::atomic<uint8_t> state{0};
     std::atomic<uint16_t> vbat_mv{0};
+    // The torso up vector. up_z alone is the tilt MAGNITUDE -- how far from
+    // upright, never which way -- so all three go out when a commander asks
+    // for attitude (linkproto::kFlagAtt). ctrl_task has had the full vector
+    // in imu::Sample::up every tick since the beginning and was throwing two
+    // thirds of it away here.
+    std::atomic<float> up_x{0.0f};
+    std::atomic<float> up_y{0.0f};
     std::atomic<float> up_z{0.0f};
     std::atomic<float> vx_est{0.0f};
     std::atomic<float> wz_est{0.0f};

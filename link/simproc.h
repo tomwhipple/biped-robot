@@ -48,7 +48,11 @@ struct SimProc {
     bool running() const { return pid > 0; }
 
     // Spawns `<repo>/.venv/bin/python <repo>/sim/sil_twin.py ...`.
-    bool start(const char* repo, const char* run_name, bool hang,
+    // `viewer` starts it as a VISUALISER: no policy, no physics, no beacon --
+    // the plant is posed from the `pose` lines this console pushes and
+    // rendered. That is what mirror mode wants, and running the sim forward
+    // beside the robot is what it must not do (docs/mirror-mode.md).
+    bool start(const char* repo, const char* run_name, bool hang, bool viewer,
                int stream_port, int cmd_port, int tlm_port);
     // SIGTERM, then reap. Safe to call when nothing is running.
     void stop();

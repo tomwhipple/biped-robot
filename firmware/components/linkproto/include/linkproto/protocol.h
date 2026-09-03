@@ -52,6 +52,27 @@ constexpr size_t kNumJoints = 10;   // obs_spec order, NOT servo-id order
 constexpr size_t kTlmLenExt = kTlmLen + 2 * kNumJoints;
 constexpr size_t kTlmLenExtV1 = kTlmLenV1 + 2 * kNumJoints;   // legacy
 
+// ATTITUDE (2026-09-03): up_x and up_y, int16 milli, appended AFTER the joint
+// block and before the CRC. up_z has been in the base frame since the
+// beginning, but alone it is only the tilt MAGNITUDE -- it says how far from
+// upright the torso is and nothing about which way it fell. All three
+// components are what mirror mode needs to draw the robot in the attitude it
+// is actually in rather than upright-and-wrong.
+//
+// Requested, never volunteered -- kFlagAtt, for exactly the reason kFlagPose
+// exists and spelled out above: the robot is the SENDER, and a client that
+// gets a length it does not know drops the frame. Independent of kFlagPose
+// rather than folded into the ext frame, because lengthening the ext frame
+// would blind every mirror-mode client already built.
+//
+// Four lengths, and they stay unambiguous because each block has a fixed
+// size: 20 base, 24 +att, 40 +joints, 44 +joints+att. The CRC is already
+// "over len-2, appended at len-2", so the framing needed no change at all.
+constexpr size_t kTlmAttBytes = 4;
+constexpr size_t kTlmLenAtt = kTlmLen + kTlmAttBytes;              // 24
+constexpr size_t kTlmLenExtAtt = kTlmLenExt + kTlmAttBytes;        // 44
+constexpr size_t kTlmLenMax = kTlmLenExtAtt;
+
 constexpr uint16_t kCmdPort = 4210;
 constexpr uint16_t kTlmPort = 4211;
 
@@ -80,6 +101,11 @@ constexpr uint8_t kFlagPose = 1u << 3;
 // client that reboots with the bit set must not move a robot nobody is
 // watching.
 constexpr uint8_t kFlagHome = 1u << 4;
+
+// "Beacon the torso up vector too" (kTlmLenAtt / kTlmLenExtAtt). A LEVEL, not
+// a latch, exactly like kFlagPose: stop asking and the very next beacon is
+// short again. It requests telemetry and commands nothing.
+constexpr uint8_t kFlagAtt = 1u << 5;
 
 // -- timing ----------------------------------------------------------------
 constexpr float kSendHz = 20.0f;
@@ -171,6 +197,13 @@ enum class ArmResult : uint8_t {
     kHomeNoCal = 5,      // reset REFUSED: no as-built calibration in NVS
     kHomeLowBatt = 6,    // reset REFUSED: the pack guard has torque latched off
     kHomeBusFailed = 7,  // reset FAILED: the servo bus did not accept it
+    // (2026-09-03) A reset that "succeeded" once moved nothing: the goal
+    // write is a broadcast with no reply, so kDisarmedHome only ever meant
+    // "written". Now the write reports kHomePending, and the housekeeping
+    // loop reads every joint back after the slew (cli::homeVerify) and
+    // stores kDisarmedHome only when all ten sit at their zeros -- or this:
+    kHomePending = 8,    // reset WRITTEN: joints slewing, readback not yet done
+    kHomeNotReached = 9, // reset FAILED: readback found joints off their zeros
 };
 
 // True for every verdict a kFlagHome request can produce. A console that
@@ -179,7 +212,8 @@ enum class ArmResult : uint8_t {
 // request still reports kAccepted for the disarm that rode in with it.
 inline bool isHomeResult(ArmResult r) {
     return r == ArmResult::kDisarmedHome || r == ArmResult::kHomeNoCal ||
-           r == ArmResult::kHomeLowBatt || r == ArmResult::kHomeBusFailed;
+           r == ArmResult::kHomeLowBatt || r == ArmResult::kHomeBusFailed ||
+           r == ArmResult::kHomePending || r == ArmResult::kHomeNotReached;
 }
 
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result);
@@ -220,6 +254,7 @@ struct Command {
     bool arm() const { return (flags & kFlagArm) != 0; }
     bool pose() const { return (flags & kFlagPose) != 0; }
     bool home() const { return (flags & kFlagHome) != 0; }
+    bool att() const { return (flags & kFlagAtt) != 0; }
 };
 
 struct Telemetry {
@@ -241,6 +276,19 @@ struct Telemetry {
     // they were read off the bus; otherwise the instant the beacon was
     // assembled -- either way within one 20 ms tick of the values.
     uint64_t t_us = 0;
+    // Torso up vector, x and y (z is up_z above). The robot's own z axis
+    // EXPRESSED IN THE WORLD FRAME -- obs_spec kOffUp / imu::Sample::up, the
+    // same convention MuJoCo's framezaxis uses. have_att is 0 on any frame
+    // that was not asked for it, which is every frame unless a commander set
+    // kFlagAtt.
+    //
+    // Worth knowing before trusting these: up_z is drift-immune, but up_x and
+    // up_y are yaw-DEPENDENT, and this robot's heading is dead-reckoned with
+    // no magnetometer to correct it. They give the lean direction in a frame
+    // that slowly rotates. Good enough to draw an attitude; not a heading.
+    uint8_t have_att = 0;
+    float up_x = 0.0f;
+    float up_y = 0.0f;
 };
 
 // The bench diagnostic byte this frame carries, or 0 when it carries none.
@@ -271,10 +319,10 @@ size_t encodeCommandExt(uint8_t* out, const Command& cmd);
 // Accepts kCmdLen (extras -> defaults) and kCmdLenExt frames.
 Err decodeCommand(const uint8_t* buf, size_t len, Command& out);
 
-// Emits kTlmLenExt when t.n_joints == kNumJoints, else kTlmLen; t_us always.
-// `out` must therefore have room for kTlmLenExt whenever joints are set.
-// Returns the bytes written -- USE IT: sending kTlmLen of a long frame
-// truncates it and every CRC downstream fails.
+// Emits the blocks that are set: the u64 timestamp ALWAYS, then joints when
+// t.n_joints == kNumJoints, then the up vector when t.have_att. `out` must
+// have room for kTlmLenMax. Returns the bytes written -- USE IT: sending
+// kTlmLen of a long frame truncates it and every CRC downstream fails.
 size_t encodeTelemetry(uint8_t* out, const Telemetry& t);
 // Accepts kTlmLen and kTlmLenExt, plus the legacy kTlmLenV1 / kTlmLenExtV1
 // (t_us -> 0). n_joints is kNumJoints on the two long lengths, else 0.

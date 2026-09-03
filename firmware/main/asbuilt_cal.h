@@ -24,23 +24,26 @@
 
 namespace robot {
 
+// Re-zeroed 2026-09-03 after Tom found and tightened loose servo-horn screws
+// on both legs (pitch chains had wandered -3.8/-4.7/+1.7 deg L and -1.9/+1.1/
+// -1.1 deg R; yaw and roll < 0.3 deg). Stand set by eye, `cal zero` + `cal save`.
 // Joint order (obs_spec kJointNames): L hip yaw/roll/pitch, knee, ankle,
 // then R the same.
 inline constexpr int32_t kAsBuiltZeroSteps[obs::kNumJoints] = {
-    1693,   // L_hip_yaw    (id 10)
-    2420,   // L_hip_roll   (id 5)
-    2044,   // L_hip_pitch  (id 6)  re-centred 2026-08-03: old zero 3273 left
+    1692,   // L_hip_yaw    (id 10)
+    2418,   // L_hip_roll   (id 5)
+    2001,   // L_hip_pitch  (id 6)  re-centred 2026-08-03: old zero 3273 left
             //   only +72 deg before the 4095 wrap; `middle` latched standing
             //   as 2048 (4 ticks past zero at the latch -> zero 2044), the
             //   R_knee treatment applied to the second of the joints
             //   servo-map.md predicted would need it
-    1634,   // L_knee       (id 7)
-    3516,   // L_ankle      (id 8)
-    1803,   // R_hip_yaw    (id 9)
-    3533,   // R_hip_roll   (id 1)
-    2501,   // R_hip_pitch  (id 2)
-    2050,   // R_knee       (id 3)
-    3450,   // R_ankle      (id 4)
+    1581,   // L_knee       (id 7)
+    3535,   // L_ankle      (id 8)
+    1806,   // R_hip_yaw    (id 9)
+    3532,   // R_hip_roll   (id 1)
+    2479,   // R_hip_pitch  (id 2)
+    2063,   // R_knee       (id 3)
+    3437,   // R_ankle      (id 4)
 };
 
 // Roll and knee are inverted on BOTH legs (servos mounted the same way on
