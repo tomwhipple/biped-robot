@@ -455,6 +455,39 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     sweep until the twin rocks like the robot does — only then re-rank
     the fleet on it. Media + CSVs: hw_sessions/2026-09-02/osc{1,2,3}_*
     and sim_ref/.</p>
+    <p><b>Later the same evening — the play, estimated without hands.</b>
+    Tom stepped away, so the "wiggle each joint" measurement became a
+    machine one: <code>tools/joint_sweep.py</code> steps ONE joint
+    ±4° in 0.5° increments from the home stand (bench <code>move</code>,
+    60 steps/s) while the other nine hold, logging servo position, load
+    and IMU tilt; <code>sim/joint_sweep_sim.py</code> runs the identical
+    sweep on the rigid plant; <code>tools/joint_sweep_compare.py</code>
+    puts them side by side. Two things the sim saved me from
+    misreading. (1) The STS3215 <b>load register is useless for static
+    stiffness</b>: every joint reached every goal within 6 ticks with load
+    never leaving its idle ±24–56 band — the geartrain carries static load
+    with the motor idle. (2) A hip-roll sweep barely tilts the torso
+    <i>even in sim</i> (0.7° per 4°), so a small roll response is not
+    play. <b>Hysteresis is.</b> Sim traces retrace to 0.1°; on the robot
+    <b>L hip roll held the torso 1.2° tilted through ~3° of command
+    reversal</b> before letting go, R hip pitch ~1°, L ankle ~0.5°, the
+    rest under 0.3° (R hip roll unresolved: 0.2° torso response, too
+    small to read). That 3° in the roll chain is 3–6× the 0.5–1.0°
+    backlash the sim trains against, and it sits in exactly the axis that
+    rocks. Also measured: the stance is <b>asymmetric — weight on the
+    right foot</b> (right-leg joints move the torso more than the rigid
+    sim, left-leg joints less: L ankle +4° → 0.2° vs 2.4° sim), and the
+    right ankle at only −2° tipped the whole robot 8.5° (tilt guard,
+    homed cleanly) — under 2° of pitch margin on the loaded foot. Knees
+    not swept. Ops notes for the next bench script: the serial CLI drops
+    about half of all lines at any spacing (wait for the reply pattern and
+    resend); two 30 fps webcams plus the serial bridge on one USB hub
+    re-enumerated three times tonight — one 640×480 camera alone was
+    fine; and one RESET SERVOS over the link reported success but moved
+    nothing (positions verified by <code>scan</code>; the verdict means
+    "written", not "moved" — <code>homeAll</code> wants a position
+    readback). Data: hw_sessions/2026-09-02/play_sweep4.csv,
+    play_compare.txt, sim_ref/sim_sweep.txt.</p>
   </div>
 
   <div class="card accent">

@@ -21,7 +21,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from arm_script import Driver, arm_off  # noqa: E402
-from protocol import FLAG_ARM, FLAG_ESTOP, FLAG_POSE, LinkState  # noqa: E402
+from protocol import (FLAG_ARM, FLAG_ESTOP, FLAG_HOME, FLAG_POSE,  # noqa: E402
+                      ArmResult, LinkState, diag_arm_result, diag_reason)
 
 JOINTS = ["L_yaw", "L_roll", "L_pitch", "L_knee", "L_ankle",
           "R_yaw", "R_roll", "R_pitch", "R_knee", "R_ankle"]
@@ -93,6 +94,8 @@ def main():
     p.add_argument("--host", required=True)
     p.add_argument("--duration", type=float, default=60.0)
     p.add_argument("--csv", required=True)
+    p.add_argument("--home", action="store_true",
+                   help="RESET SERVOS first (FLAG_HOME edge), then go limp")
     p.add_argument("--port", type=int, default=None)
     p.add_argument("--tlm-port", type=int, default=None)
     a = p.parse_args()
@@ -102,6 +105,13 @@ def main():
     verdict = None
     try:
         d.run_for(0.5, arm_off, "pre-arm: ARM=0 frames (latch level)")
+        if a.home:
+            d.run_for(0.4, lambda t: (0.0, 0.0, FLAG_HOME), "RESET SERVOS: FLAG_HOME edge")
+            d.run_for(4.0, arm_off, "home settle: ARM=0 frames")
+            r = diag_arm_result(d.tlm.diag) if d.tlm is not None else None
+            print(f"== home verdict: {r} -- {diag_reason(d.tlm.diag) if d.tlm else 'no beacon'}", flush=True)
+            if r is not ArmResult.DISARMED_HOME:
+                raise SystemExit(f"home not confirmed ({r}); not going limp")
         verdict = d.run_for(a.duration,
                             lambda t: (0.0, 0.0, FLAG_ARM | FLAG_ESTOP | FLAG_POSE),
                             "ARM|ESTOP|POSE limp -- wiggle each joint now")
