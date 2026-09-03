@@ -452,6 +452,38 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     holding at 23:00; at 08:50 a goal write was refused "torque is OFF";
     pack 12.0 V, no faults, no reboot, cause unknown) — check torque before
     any bench run. Data: hw_sessions/2026-09-03/.</p>
+    <p><b>Later: Tom's yaw suspicion, and what the gyro found instead.</b>
+    Tom: the hip yaw joints likely have the most play — "the entire leg is
+    controlled by the tiny servo axis" — and the mat is not a factor since
+    the feet have no traction pads. Yaw does not tilt the torso and the
+    encoders sit on the shaft side of the slop, so the sweep tool is blind
+    to it; <code>tools/yaw_probe.py</code> instead yaws the hips in 2°
+    steps and reads the <b>pelvis yaw off the gyro</b> (projected on the
+    measured gravity axis, bias-corrected per step, integrated over each
+    slow move; the board streams <code>imu raw</code> at ~11 Hz, which
+    sized the steps). Rigid-sim reference (<code>sim/joint_yaw_sim.py</code>):
+    both hips the same way → pelvis 0.78°/°; one hip → 0.45°/°; opposite
+    signs → ~0. The robot did the reverse: <b>same-sign commands nearly
+    cancel</b> (−1.3° then ~0 net), <b>opposite-sign commands turn the
+    pelvis 2.0° / 1.65°</b>, left-only matches the sim's direction, and
+    right-only goes the <i>other</i> way. That is one hip yaw running
+    <b>mirrored between robot and model</b> (the MJCF has both yaw axes
+    <code>0 0 1</code>), and the evidence points at <b>R_hip_yaw</b>
+    (id 9, as-built dir +1) — the one joint whose direction
+    <code>servo-map.md</code> never records a single-joint check for. If
+    it holds up by eye, every yaw action the policy takes twists the right
+    leg the wrong way and the legs scissor: a candidate for both "the
+    policy is completely wrong" and the roll rocking, and one no amount of
+    DR would fix. <b>Not changed</b> — flipping a calibration direction is
+    Tom's call: <code>move 9 1917</code> then <code>move 10 1807</code>
+    (+10° each) should toe both feet the same way; if they toe opposite
+    ways, <code>cal dir</code> + <code>cal save</code> for R_hip_yaw,
+    update <code>asbuilt_cal.h</code> and the servo map, then re-run the
+    standing probe. On the original question: in the physically
+    same-direction mode the pelvis follows ~0.5°/° against 0.78 rigid and
+    ~60% of an 8° reversal reaches it — real yaw compliance, but slop and
+    foot slip cannot be split without pinned feet. Data:
+    hw_sessions/2026-09-03/yaw2.csv, yaw3_opposite.csv, sim_ref/sim_yaw.txt.</p>
   </div>
 
   <div class="card accent">
