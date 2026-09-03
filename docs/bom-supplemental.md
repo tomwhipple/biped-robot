@@ -19,7 +19,7 @@ the robot is complete and functional without any of it.
 
 | # | Component | Qty | Spec that matters | Est. | Source |
 |---|-----------|-----|-------------------|------|--------|
-| S1 | LiPo low-voltage alarm / buzzer | 1–2 | **1S–8S**, plugs onto the pack's **JST-XH balance lead**, adjustable or 3.3 V/cell alarm point, per-cell display | ~$7 (usually sold in 2–4 packs) | [search](https://www.amazon.com/s?k=lipo+low+voltage+alarm+buzzer+1s-8s+balance) |
+| S1 | LiPo low-voltage alarm / buzzer | 1–2 | **1S–8S**, plugs onto the pack's **JST-XH balance lead**, adjustable or 3.3 V/cell alarm point, per-cell display | ~$7 (usually sold in 2–4 packs) | [search](https://www.amazon.com/s?k=lipo+low+voltage+alarm+buzzer+1s-8s+balance&tag=tommwhipple-20) |
 
 This is the highest-value part on the page and it costs about as much as a
 coffee. It is the **only** protection that is independent of the firmware: it
@@ -46,8 +46,8 @@ pack is seated, or let it sit outside the bay on its lead during bring-up.
 
 | # | Component | Qty | Spec that matters | Est. | Source |
 |---|-----------|-----|-------------------|------|--------|
-| S2 | Inline blade-fuse holder, **mini (ATM)** | 1 | 16–18 AWG pigtail, waterproof/heat-shrink body | ~$8 (2-pack) | [search](https://www.amazon.com/s?k=inline+mini+blade+fuse+holder+16+awg) |
-| S3 | Mini blade fuses, assorted | 1 pack | Need **10 A and 15 A**; start at 12–15 A | ~$7 | [search](https://www.amazon.com/s?k=mini+blade+fuse+assortment+10a+15a) |
+| S2 | Inline blade-fuse holder, **mini (ATM)** | 1 | 16–18 AWG pigtail, waterproof/heat-shrink body | ~$8 (2-pack) | [search](https://www.amazon.com/s?k=inline+mini+blade+fuse+holder+16+awg&tag=tommwhipple-20) |
+| S3 | Mini blade fuses, assorted | 1 pack | Need **10 A and 15 A**; start at 12–15 A | ~$7 | [search](https://www.amazon.com/s?k=mini+blade+fuse+assortment+10a+15a&tag=tommwhipple-20) |
 
 Nothing in the power path has a fuse, polyfuse, e-fuse, or protection FET —
 confirmed from Waveshare's schematic. Operating current is a non-issue (1.4 A
@@ -78,7 +78,7 @@ and it would sag the rail the rest of the time.
 
 | # | Component | Qty | Spec that matters | Est. | Source |
 |---|-----------|-----|-------------------|------|--------|
-| S4 | Low-ESR electrolytic capacitor | 1–2 | **470–1000 µF, ≥ 25 V**, low-ESR / "low impedance", 105 °C | ~$9 (assortment) | [search](https://www.amazon.com/s?k=470uf+25v+low+esr+electrolytic+capacitor) |
+| S4 | Low-ESR electrolytic capacitor | 1–2 | **470–1000 µF, ≥ 25 V**, low-ESR / "low impedance", 105 °C | ~$9 (assortment) | [search](https://www.amazon.com/s?k=470uf+25v+low+esr+electrolytic+capacitor&tag=tommwhipple-20) |
 
 Across servo V+/GND at the board. The `6-12V` net carries only 10 µF + 0.1 µF
 of local bulk, so a 6.8 A step is sourced all the way through the pack leads
@@ -97,7 +97,7 @@ pigtail or a spare header, not a plug-in part.
 
 | # | Component | Qty | Spec that matters | Est. | Source |
 |---|-----------|-----|-------------------|------|--------|
-| S5 | Inline RC watt meter / power analyzer | 1 | ≥ 60 A, **XT30 or XT60 with adapters**, shows peak A | ~$20 | [search](https://www.amazon.com/s?k=rc+watt+meter+power+analyzer+60a+xt60) |
+| S5 | Inline RC watt meter / power analyzer | 1 | ≥ 60 A, **XT30 or XT60 with adapters**, shows peak A | ~$20 | [search](https://www.amazon.com/s?k=rc+watt+meter+power+analyzer+60a+xt60&tag=tommwhipple-20) |
 
 wiring.md's current table is **sim-derived, not measured**, and explicitly asks
 for a bench check: *"Bench-verify the peak with an inline shunt or clamp during
@@ -115,7 +115,7 @@ this repo into measurements.
 
 | # | Component | Qty | Spec that matters | Est. | Source |
 |---|-----------|-----|-------------------|------|--------|
-| S6 | LiPo charge/storage bag or case | 1 | Fits a 60 × 30 × 23 mm pack with room to spare | ~$12 | [search](https://www.amazon.com/s?k=lipo+safe+charging+bag) |
+| S6 | LiPo charge/storage bag or case | 1 | Fits a 60 × 30 × 23 mm pack with room to spare | ~$12 | [search](https://www.amazon.com/s?k=lipo+safe+charging+bag&tag=tommwhipple-20) |
 
 Standard practice for any LiPo, independent of this robot. Worth pairing with a
 habit rather than a part: **storage-charge to ~3.8 V/cell (11.4 V) if a pack

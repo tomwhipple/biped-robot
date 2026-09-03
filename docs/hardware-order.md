@@ -10,7 +10,7 @@ battery voltages; sub-step control-latency validated and hardened (DESIGN.md
 The gauntlet numbers that drove it (2 m dash median **2.72 s** vs 4.36 s;
 GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 
-- **Battery**: 2× [Tattu 850 mAh 3S 75C XT30](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30)
+- **Battery**: 2× [Tattu 850 mAh 3S 75C XT30](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30&tag=tommwhipple-20)
   (or any pack passing the `bom-by-vendor.md` spec filter — the bay takes the class)
   (67 × 30 × 18.5 mm, 74 g each) — two packs = hot-swap. ✅ ordered/orderable.
 - **CAD**: tower reworked for tool-free swap — the pack now side-loads
@@ -33,11 +33,11 @@ GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
 | Item | Spec | Qty | Est. cost | Status |
 |---|---|---|---|---|
 | **Servos** | Waveshare ST3215, **12 V version** (6–12.6 V, 30 kg·cm @ 12 V, magnetic encoder) — *not* the $16.99 "7.4 V" version, which is rated 4–7.4 V and forecloses 3S | 8 + 1–2 spares | $21.99 ea [Waveshare direct](https://www.waveshare.com/st3215-servo.htm) → ~$176 + spares | ✅ **Ready to order** — sim-validated at both voltages; CAD built from its STEP |
-| **Driver board** | Waveshare "Servo Driver with ESP32" (65 × 30 mm, 6–12.6 V in — 2S *and* 3S direct per Waveshare docs, WiFi/BLE) | 1 | $24.99 [Amazon](https://www.amazon.com/dp/B0CFY34BX5) / [direct](https://www.waveshare.com/servo-driver-with-esp32.htm) | ✅ Ready — holes Ø2.75 on 58 × 23 — **verified 2026-07-27 by test-fit, all four screws landed in the printed tower** |
-| **Battery** | Tattu 850 mAh 11.1 V 75C 3S1P XT30 (60 × 30 × 23, 80 g) — bay fits the whole 3S 850 XT30 class, not just this one; **11.1 V not 11.4 V HV** | 2 | ~$15 ea [search](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) | ✅ **Ready — decision made** (3S, swap-window bay in CAD) |
+| **Driver board** | Waveshare "Servo Driver with ESP32" (65 × 30 mm, 6–12.6 V in — 2S *and* 3S direct per Waveshare docs, WiFi/BLE) | 1 | $24.99 [Amazon](https://www.amazon.com/dp/B0CFY34BX5?tag=tommwhipple-20) / [direct](https://www.waveshare.com/servo-driver-with-esp32.htm) | ✅ Ready — holes Ø2.75 on 58 × 23 — **verified 2026-07-27 by test-fit, all four screws landed in the printed tower** |
+| **Battery** | Tattu 850 mAh 11.1 V 75C 3S1P XT30 (60 × 30 × 23, 80 g) — bay fits the whole 3S 850 XT30 class, not just this one; **11.1 V not 11.4 V HV** | 2 | ~$15 ea [search](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30&tag=tommwhipple-20) | ✅ **Ready — decision made** (3S, swap-window bay in CAD) |
 | Battery belt + ribbon | 20 mm hook-loop strap ~250 mm + pull ribbon (battery retention/extraction) | 1 | ~$5 (or scrap velcro) | ✅ Ready |
 | Power switch | inline XT30 rocker/slide switch (battery → board) | 1 | ~$8 | ✅ Ready |
-| **IMU** | **BNO055 breakout — ordered** ([B0GVK81HXR](https://www.amazon.com/dp/B0GVK81HXR); classic Adafruit layout, solder header, I2C 0x28, shares the ESP32's OLED bus; mounts on the printed `imu_carrier` under the gopro_base) | 1 | ~$30 | ✅ **Ordered 2026-07-16** — closes the sensing gap: the policy consumes torso attitude + angular velocity that nothing else on this list measures |
+| **IMU** | **BNO055 breakout — ordered** ([B0GVK81HXR](https://www.amazon.com/dp/B0GVK81HXR?tag=tommwhipple-20); classic Adafruit layout, solder header, I2C 0x28, shares the ESP32's OLED bus; mounts on the printed `imu_carrier` under the gopro_base) | 1 | ~$30 | ✅ **Ordered 2026-07-16** — closes the sensing gap: the policy consumes torso attitude + angular velocity that nothing else on this list measures |
 | Balance charger | 2S–3S LiPo charger (skip if owned) | 1 | ~$30 | check what you own |
 | **Fastener kit** | M3 heat-set inserts (~20), M3×6/8/10 machine, M3 self-tap, M2.5×8 (board), washers | 1 kit | ~$25 | ✅ Ready |
 | Filament | PLA (prototype), PETG (final structural), TPU 95A (foot pads) | 1 ea | ~$55 | ✅ Ready |

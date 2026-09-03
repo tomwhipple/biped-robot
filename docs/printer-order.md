@@ -30,16 +30,16 @@ Alternatives and the one thing it *can't* do are covered below.
 
 | Item | Product | Qty | Est. price | Link |
 |---|---|---|---|---|
-| **3D printer** | FlashForge **Adventurer 5M Pro** — enclosed CoreXY, 220³ mm, 280 °C hotend, HEPA+carbon, 600 mm/s | 1 | **$449** | [FlashForge](https://www.flashforge.com/products/adventurer-5m-pro-3d-printer) · [Amazon B0CH4RG161](https://www.amazon.com/dp/B0CH4RG161) |
-| **PLA** 1 kg | 1.75 mm — **prototyping / most robot parts** (stiff, easy). Overture PLA (color selectable on the listing) | 1 | ~$22 | [Amazon B0CPJ4QSPK](https://www.amazon.com/dp/B0CPJ4QSPK) |
-| **PETG** 1 kg | 1.75 mm — **final servo brackets** (tough, mild heat). Overture PETG (color selectable) | 1 | ~$25 | [Amazon B0991YSBDG](https://www.amazon.com/dp/B0991YSBDG) |
-| **TPU 95A** 1 kg | 1.75 mm — **foot soles / grip pads** (Shore 95A; 500 g would do, 1 kg is the standard roll). SainSmart 95A | 1 | ~$24 | [Amazon B0GTZ79H4X](https://www.amazon.com/dp/B0GTZ79H4X) |
-| 99% Isopropyl alcohol (16 oz) | Degrease the PEI plate between prints — finger oils are the #1 adhesion-failure cause | 1 | ~$9 | [Amazon B07NFSFBXQ](https://www.amazon.com/dp/B07NFSFBXQ) |
+| **3D printer** | FlashForge **Adventurer 5M Pro** — enclosed CoreXY, 220³ mm, 280 °C hotend, HEPA+carbon, 600 mm/s | 1 | **$449** | [FlashForge](https://www.flashforge.com/products/adventurer-5m-pro-3d-printer) · [Amazon B0CH4RG161](https://www.amazon.com/dp/B0CH4RG161?tag=tommwhipple-20) |
+| **PLA** 1 kg | 1.75 mm — **prototyping / most robot parts** (stiff, easy). Overture PLA (color selectable on the listing) | 1 | ~$22 | [Amazon B0CPJ4QSPK](https://www.amazon.com/dp/B0CPJ4QSPK?tag=tommwhipple-20) |
+| **PETG** 1 kg | 1.75 mm — **final servo brackets** (tough, mild heat). Overture PETG (color selectable) | 1 | ~$25 | [Amazon B0991YSBDG](https://www.amazon.com/dp/B0991YSBDG?tag=tommwhipple-20) |
+| **TPU 95A** 1 kg | 1.75 mm — **foot soles / grip pads** (Shore 95A; 500 g would do, 1 kg is the standard roll). SainSmart 95A | 1 | ~$24 | [Amazon B0GTZ79H4X](https://www.amazon.com/dp/B0GTZ79H4X?tag=tommwhipple-20) |
+| 99% Isopropyl alcohol (16 oz) | Degrease the PEI plate between prints — finger oils are the #1 adhesion-failure cause | 1 | ~$9 | [Amazon B07NFSFBXQ](https://www.amazon.com/dp/B07NFSFBXQ?tag=tommwhipple-20) |
 | **Ready-to-print subtotal** | | | **~$530** | |
 
 > **🛒 One-click cart** (printer + filament + IPA): paste this into a browser to
 > pre-load the cart, then *Save for Later* for a wishlist —
-> `https://www.amazon.com/gp/aws/cart/add.html?ASIN.1=B0CH4RG161&Quantity.1=1&ASIN.2=B0CPJ4QSPK&Quantity.2=1&ASIN.3=B0991YSBDG&Quantity.3=1&ASIN.4=B0GTZ79H4X&Quantity.4=1&ASIN.5=B07NFSFBXQ&Quantity.5=1`
+> `https://www.amazon.com/gp/aws/cart/add.html?ASIN.1=B0CH4RG161&Quantity.1=1&ASIN.2=B0CPJ4QSPK&Quantity.2=1&ASIN.3=B0991YSBDG&Quantity.3=1&ASIN.4=B0GTZ79H4X&Quantity.4=1&ASIN.5=B07NFSFBXQ&Quantity.5=1&tag=tommwhipple-20`
 > This uses Amazon's legacy bulk-add endpoint; if it doesn't load, use the
 > per-item links in the tables instead.
 

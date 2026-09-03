@@ -33,7 +33,7 @@ plug** (centre positive: CN1 pin 4 = VCC, pins 2/3 = GND). The board's other
 it is an output, not an alternative power inlet. Do not feed the pack into it.
 
 - The battery is a 3S 850 mAh XT30 pack — BOM pick
-  [Tattu 75C](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) (decided
+  [Tattu 75C](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30&tag=tommwhipple-20) (decided
   2026-07-11, re-sourced 2026-07-15; buy two, so one charges while one flies).
   Any pack passing the `bom-by-vendor.md` spec filter works — **11.1 V, not
   11.4 V HV**, which would exceed the servos' 12.6 V ceiling. It swaps
@@ -250,7 +250,7 @@ Design points that are load-bearing:
 
 **Part correction, 2026-07-28:** this section described a **BNO055 at 0x28**.
 That was superseded on 2026-07-22 — the part in the BOM and the firmware is a
-**GY-BNO085** (Teyleten, [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F),
+**GY-BNO085** (Teyleten, [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F?tag=tommwhipple-20),
 [item 18](bom-sourced.md)), a different chip with a different protocol
 (SH-2 sensor-hub, not a register map) at a different address (**0x4A**/0x4B).
 See [firmware-design.md §3](firmware-design.md). `assembly.md` §9b and

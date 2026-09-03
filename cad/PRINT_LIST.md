@@ -117,7 +117,7 @@ Two things to watch when you print PETG:
 | ~~`tower`~~ **RETIRED (pelvis v6)** | — | — | — | — | ♻️ **revised for print, support-free** (2026-07-16 slice reviews: feet-tab gussets and battery-rail stubs are now true ≥45° wedges — the old stepped boxes left flat 6 mm ceilings drooping over the interior; the **window sill was deleted** — it printed as a 70 mm member 41 mm up in mid-air, and the hook-loop belt is the real battery retention; two 45° corner detents park the pack instead. Feet screws now seat on the tabs through Ø6.6 wells — the only remaining bridges. ~5h19m PETG) |
 | `gopro_base` | 1 | PETG | — | base down, prongs up | ✅ printed in PETG |
 | ~~`imu_carrier`~~ **RETIRED (pelvis v6)** | — | — | — | — | 🆕 **new part (2026-07-16)** — BNO055 carrier between tower top and gopro_base (same 4 screws → M3×12); bosses on the board's true 21.59 × 15.24 hole pattern; ~5 g, ~30 min |
-| Sole pad | 2 | 1/16" self-adhesive silicone sheet ([B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK), 2× 6"×6") | — | cut 106 × 46 mm, stick onto flat sole (one sheet yields both + a spare strip) | 🛒 ordered |
+| Sole pad | 2 | 1/16" self-adhesive silicone sheet ([B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK?tag=tommwhipple-20), 2× 6"×6") | — | cut 106 × 46 mm, stick onto flat sole (one sheet yields both + a spare strip) | 🛒 ordered |
 
 ### The two yokes: turn supports on in OrcaSlicer (2026-07-30)
 

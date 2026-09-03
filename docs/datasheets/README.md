@@ -23,7 +23,7 @@ thing that matters when ordering, and the two classes share one case.
 | 12 V | **ST-3215-C018** | 30 kg·cm @ 12 V | rated 12 V, 4–14 V | ✅ **yes** — [bom-sourced.md](../bom-sourced.md) row 1 |
 | 7.4 V | STS3215 (C001) | 19.5 kg·cm @ 7.4 V | 4–7.4 V | ❌ cannot run on 3S |
 
-Verified against [Amazon B0FLPQQ4FR](https://www.amazon.com/dp/B0FLPQQ4FR)
+Verified against [Amazon B0FLPQQ4FR](https://www.amazon.com/dp/B0FLPQQ4FR?tag=tommwhipple-20)
 ("RCmall 30KG … 12V …", 6-pack) — that ASIN is the **12 V** class, i.e. C018.
 
 ### The files
@@ -54,7 +54,7 @@ drawing is the receipt for them, not a correction.
 
 ## BNO08X (Teyleten Robot "GY-BNO085" 9-DOF IMU breakout)
 
-Purchased as [Amazon B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F) —
+Purchased as [Amazon B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F?tag=tommwhipple-20) —
 "Teyleten Robot GY-BNO085 AR VR IMU High Accuracy Nine-Axis 9DOF AHRS Sensor Module".
 
 There is no manufacturer datasheet for the Teyleten breakout itself (it's an

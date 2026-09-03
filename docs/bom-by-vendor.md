@@ -21,8 +21,8 @@ Robot: ~34 cm, ~0.9 kg 3D-printed biped, 8× Feetech STS3215 serial-bus servos.
 
 Best direct prices on the two most expensive electronic parts. Shipping may be
 slower than Amazon Prime — check lead time. Amazon alternates: servo
-[B0FGNTDV3Y](https://www.amazon.com/dp/B0FGNTDV3Y) ($29.99, 12 V), driver
-[B0CFY34BX5](https://www.amazon.com/dp/B0CFY34BX5) ($24.99).
+[B0FGNTDV3Y](https://www.amazon.com/dp/B0FGNTDV3Y?tag=tommwhipple-20) ($29.99, 12 V), driver
+[B0CFY34BX5](https://www.amazon.com/dp/B0CFY34BX5?tag=tommwhipple-20) ($24.99).
 
 ---
 
@@ -30,14 +30,14 @@ slower than Amazon Prime — check lead time. Amazon alternates: servo
 
 | Component                      | Qty          | Product                                                                     | Unit   | Extended    | Link                                               |
 | ------------------------------ | ------------ | --------------------------------------------------------------------------- | ------ | ----------- | -------------------------------------------------- |
-| 3S LiPo battery                | 2            | Tattu 850 mAh 11.1 V 75C 3S1P XT30 (60 × 30 × 23 mm, 80 g) — or any pack meeting the spec filter below | ~$15 | ~$30.00 | [search](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30) · ASIN [B07218SB7L](https://www.amazon.com/dp/B07218SB7L) |
-| M3 screw + heat-set insert kit | 1            | KADRICK 420 pc M3 kit — covers M3×6–30 screws, brass inserts, nuts, washers | $15.99 | $15.99      | [B0GYRQG7F2](https://www.amazon.com/dp/B0GYRQG7F2) |
-| M3×8 self-tapping screws       | 52 (100 pc)  | M3×8 Self-Tapping SS, flat head hex (incl. drive bit)                       | $8.28  | $8.28       | [B0F9XYX9BQ](https://www.amazon.com/dp/B0F9XYX9BQ) |
-| M2.5×8 self-tapping screws     | 4 (50 pc)    | uxcell M2.5×8 self-tapping, 304 SS                                          | $8.07  | $8.07       | [B01KXTTSCI](https://www.amazon.com/dp/B01KXTTSCI) |
-| M5×20 GoPro thumbscrew         | 1 (pair)     | M5 handle thumb screws, stainless, GoPro Hero 4–13                          | $7.22  | $7.22       | [B0BCJRFCLX](https://www.amazon.com/dp/B0BCJRFCLX) |
-| Sole pad sheet 1/16"           | 1 (2-pack)   | Self-adhesive silicone rubber sheet, 2× 6"×6" — cut two 106 × 46 mm pads (one sheet does both feet; 2nd sheet = spares) | — | — | [B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK) |
-| Zip ties 2.5 mm                | ~10 (100 pc) | 2.5 × 200 mm black nylon, 30 lb                                             | $3.99  | $3.99       | [B0GR52PRHF](https://www.amazon.com/dp/B0GR52PRHF) |
-| 9-DOF IMU                      | 1            | Teyleten Robot GY-BNO085 9DOF AHRS (BNO085 chip, CEVA SH-2 fusion — actual part ordered 2026-07-16) | $20.99 | $20.99 | [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F) |
+| 3S LiPo battery                | 2            | Tattu 850 mAh 11.1 V 75C 3S1P XT30 (60 × 30 × 23 mm, 80 g) — or any pack meeting the spec filter below | ~$15 | ~$30.00 | [search](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30&tag=tommwhipple-20) · ASIN [B07218SB7L](https://www.amazon.com/dp/B07218SB7L?tag=tommwhipple-20) |
+| M3 screw + heat-set insert kit | 1            | KADRICK 420 pc M3 kit — covers M3×6–30 screws, brass inserts, nuts, washers | $15.99 | $15.99      | [B0GYRQG7F2](https://www.amazon.com/dp/B0GYRQG7F2?tag=tommwhipple-20) |
+| M3×8 self-tapping screws       | 52 (100 pc)  | M3×8 Self-Tapping SS, flat head hex (incl. drive bit)                       | $8.28  | $8.28       | [B0F9XYX9BQ](https://www.amazon.com/dp/B0F9XYX9BQ?tag=tommwhipple-20) |
+| M2.5×8 self-tapping screws     | 4 (50 pc)    | uxcell M2.5×8 self-tapping, 304 SS                                          | $8.07  | $8.07       | [B01KXTTSCI](https://www.amazon.com/dp/B01KXTTSCI?tag=tommwhipple-20) |
+| M5×20 GoPro thumbscrew         | 1 (pair)     | M5 handle thumb screws, stainless, GoPro Hero 4–13                          | $7.22  | $7.22       | [B0BCJRFCLX](https://www.amazon.com/dp/B0BCJRFCLX?tag=tommwhipple-20) |
+| Sole pad sheet 1/16"           | 1 (2-pack)   | Self-adhesive silicone rubber sheet, 2× 6"×6" — cut two 106 × 46 mm pads (one sheet does both feet; 2nd sheet = spares) | — | — | [B0FJ8TBMQK](https://www.amazon.com/dp/B0FJ8TBMQK?tag=tommwhipple-20) |
+| Zip ties 2.5 mm                | ~10 (100 pc) | 2.5 × 200 mm black nylon, 30 lb                                             | $3.99  | $3.99       | [B0GR52PRHF](https://www.amazon.com/dp/B0GR52PRHF?tag=tommwhipple-20) |
+| 9-DOF IMU                      | 1            | Teyleten Robot GY-BNO085 9DOF AHRS (BNO085 chip, CEVA SH-2 fusion — actual part ordered 2026-07-16) | $20.99 | $20.99 | [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F?tag=tommwhipple-20) |
 | **Amazon subtotal**            |              |                                                                             |        | **~$110.13** |                                                    |
 
 ---
@@ -45,7 +45,7 @@ slower than Amazon Prime — check lead time. Amazon alternates: servo
 ## ~~Adafruit~~ → moved to Amazon
 
 The IMU was originally planned as an Adafruit BNO085 breakout (#4754, $24.95).
-Actual order: Teyleten Robot GY-BNO085 via Amazon [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F)
+Actual order: Teyleten Robot GY-BNO085 via Amazon [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F?tag=tommwhipple-20)
 ($20.99) — same BNO085 IC, ~$4 cheaper. Datasheet in
 [`docs/datasheets/BNO08X-datasheet.pdf`](datasheets/BNO08X-datasheet.pdf).
 
@@ -77,9 +77,9 @@ All-in from zero (robot + printer order): **~$845**.
   Bus Servo Driver HAT (A) — that Pi HAT is the wrong size and 9–25 V input.
   Waveshare also sells PCA9685-based boards that drive *PWM* servos — those
   cannot talk to ST/SC bus servos at all. On Amazon the same board is listed as
-  [B0CFY34BX5](https://www.amazon.com/dp/B0CFY34BX5),
-  [B0F5W67S56](https://www.amazon.com/dp/B0F5W67S56), and
-  [B09SZ41RJW](https://www.amazon.com/dp/B09SZ41RJW) — buy whichever is cheapest
+  [B0CFY34BX5](https://www.amazon.com/dp/B0CFY34BX5?tag=tommwhipple-20),
+  [B0F5W67S56](https://www.amazon.com/dp/B0F5W67S56?tag=tommwhipple-20), and
+  [B09SZ41RJW](https://www.amazon.com/dp/B09SZ41RJW?tag=tommwhipple-20) — buy whichever is cheapest
   and in stock; prefer a title that states "6~12V" and "SC, ST Series".
 - **Battery: buy to the spec filter, not to an ASIN.** The bay was originally cut
   for the Zeee 3S 850 (67 × 30 × 18.5, 74 g), which went unavailable — and every
