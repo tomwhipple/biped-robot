@@ -157,6 +157,17 @@ class State(NamedTuple):
     lag_y: jax.Array          # (3, n_act) cascaded lag filter state
     imu_R: jax.Array          # (3,3) mounting misalignment
     imu_bias: jax.Array       # (3,) gyro bias
+    gyro_hist: jax.Array      # (3, 3) raw torso gyro at the last 3 obs ticks,
+                              # row 0 = now; the obs reads row gyro_delay
+    gyro_delay: jax.Array     # ()  int32 per-episode obs delay, 0..gyro_delay_max
+    gyro_gain: jax.Array      # ()  per-episode gyro obs gain (1 = exact).
+                              # 2026-09-03: on the robot the v27tilt_b student
+                              # oscillates and falls with the gyro as measured
+                              # (sign/scale/frame all verified against this
+                              # sim) and STANDS with the gyro obs at 0.5x --
+                              # the loop through the rate term is gain-limited
+                              # on the real plant. Train so the policy cannot
+                              # depend on a crisp, exact rate.
     metrics: dict[str, jax.Array]
 
 
@@ -589,6 +600,8 @@ class BimoMJXEnv:
         # -- observations ---------------------------------------------------------
         imu_obs: bool = True,
         imu_noise: float = 1.0,
+        gyro_gain_range: tuple | None = None,   # per-episode gyro obs gain DR
+        gyro_delay_max: int = 0,                # per-episode gyro obs delay, ticks
         # -- get-up mode (fall recovery) -------------------------------------------
         # Episodes START from a settled ragdoll fall (random orientation +
         # joints, dropped and settled for getup_settle_s); there is NO fall
@@ -880,6 +893,10 @@ class BimoMJXEnv:
             self.getup_start_mix = recover_start_mix
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
+        self.gyro_gain_range = (tuple(float(x) for x in gyro_gain_range)
+                                if gyro_gain_range is not None else None)
+        self.gyro_delay_max = int(gyro_delay_max)
+        assert 0 <= self.gyro_delay_max <= 2, "gyro_hist holds 3 ticks"
         self.getup = getup
         self.getup_settle = max(1, round(getup_settle_s / self.sim_dt))
         self.w_recover_h = w_recover_h
@@ -1232,13 +1249,19 @@ class BimoMJXEnv:
 
     def _obs(self, data, prev_action, cmd, step_i, imu_R, imu_bias,
              rng: jax.Array, gait_phase=None, model=None,
-             zero_off=None) -> jax.Array:
+             zero_off=None, gyro_hist=None, gyro_delay=None,
+             gyro_gain=None) -> jax.Array:
         up = data.sensordata[self._up_adr:self._up_adr + 3]
         if self.tilt_max_deg > 0.0:
             # what an accelerometer reads: torso up against GRAVITY, not
             # world z (see _grav_rot)
             up = _grav_rot(self.model if model is None else model) @ up
         gyro = data.qvel[3:6]
+        if gyro_hist is not None:
+            # gyro obs DR: read the rate gyro_delay ticks back, scaled
+            gyro = jp.take(gyro_hist, gyro_delay, axis=0)
+        if gyro_gain is not None:
+            gyro = gyro * gyro_gain
         linvel = data.qvel[0:3]
         height = data.qpos[2] - self._gz(data.qpos[0], data.qpos[1])
         if self.imu_obs:
@@ -1341,6 +1364,26 @@ class BimoMJXEnv:
         else:
             act_lag = jp.asarray(self.act_lag_hz, dtype=jp.float32)
         return servo, lat_ms, lash, imu_R, imu_bias, cmd_crouch, act_lag, zero_off
+
+    def _draw_gyro(self, rng: jax.Array):
+        """Per-episode gyro obs gain + delay. fold_in like cmd_crouch so every
+        existing draw keeps its exact stream when the feature is off."""
+        if self.gyro_gain_range is not None:
+            gyro_gain = jax.random.uniform(
+                jax.random.fold_in(rng, 4471),
+                minval=self.gyro_gain_range[0], maxval=self.gyro_gain_range[1])
+        else:
+            gyro_gain = jp.ones(())
+        if self.gyro_delay_max > 0:
+            gyro_delay = jax.random.randint(
+                jax.random.fold_in(rng, 4472), (), 0, self.gyro_delay_max + 1)
+        else:
+            gyro_delay = jp.zeros((), dtype=jp.int32)
+        return gyro_gain, gyro_delay
+
+    @staticmethod
+    def _gyro_hist0(data):
+        return jp.tile(data.qvel[3:6][None, :], (3, 1))
 
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
@@ -1534,6 +1577,8 @@ class BimoMJXEnv:
             data = mjx.forward(model, data)
         (servo, lat_ms, lash, imu_R, imu_bias,
          cmd_crouch, act_lag, zero_off) = self._draw_episode(r_ep)
+        gyro_gain, gyro_delay = self._draw_gyro(r_ep)
+        gyro_hist = self._gyro_hist0(data)
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -1562,7 +1607,9 @@ class BimoMJXEnv:
             cmd = self._phase_cmd(cmd, recover_slot, 1.0 - recover_slot,
                                   rise_t0, step_i)
         frame = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias,
-                          r_obs, gait_phase, model, zero_off=zero_off)
+                          r_obs, gait_phase, model, zero_off=zero_off,
+                          gyro_hist=gyro_hist, gyro_delay=gyro_delay,
+                          gyro_gain=gyro_gain)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
             if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
         obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
@@ -1586,7 +1633,9 @@ class BimoMJXEnv:
                      servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
                      act_lag=act_lag,
                      lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
-                     imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
+                     imu_R=imu_R, imu_bias=imu_bias,
+                     gyro_hist=gyro_hist, gyro_delay=gyro_delay,
+                     gyro_gain=gyro_gain, metrics=metrics)
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
@@ -1596,6 +1645,8 @@ class BimoMJXEnv:
         rng, r_ep, r_cmd, r_obs = jax.random.split(rng, 4)
         (servo, lat_ms, lash, imu_R, imu_bias,
          cmd_crouch, act_lag, zero_off) = self._draw_episode(r_ep)
+        gyro_gain, gyro_delay = self._draw_gyro(r_ep)
+        gyro_hist = self._gyro_hist0(first.data)
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -1623,7 +1674,9 @@ class BimoMJXEnv:
                                   1.0 - first.recover_slot, first.rise_t0,
                                   step_i)
         frame = self._obs(first.data, prev_action, cmd, step_i, imu_R,
-                          imu_bias, r_obs, gait_phase, model, zero_off=zero_off)
+                          imu_bias, r_obs, gait_phase, model, zero_off=zero_off,
+                          gyro_hist=gyro_hist, gyro_delay=gyro_delay,
+                          gyro_gain=gyro_gain)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
             if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
         obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
@@ -1645,7 +1698,9 @@ class BimoMJXEnv:
             servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
             act_lag=act_lag,
             lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
-            imu_R=imu_R, imu_bias=imu_bias, metrics=metrics)
+            imu_R=imu_R, imu_bias=imu_bias,
+            gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
+            metrics=metrics)
 
     def step(self, state: State, action: jax.Array, model=None) -> State:
         m = self.model if model is None else model
@@ -2271,8 +2326,12 @@ class BimoMJXEnv:
         if self.ext_cmd and self.w_rise_ref and self.recover_mix > 0:
             cmd = self._phase_cmd(cmd, state.recover_slot, recovered,
                                   state.rise_t0, step_i)
+        gyro_hist = jp.concatenate([data.qvel[3:6][None, :],
+                                    state.gyro_hist[:-1]], axis=0)
         frame = self._obs(data, action, cmd, step_i, state.imu_R,
-                          state.imu_bias, r_obs, gait_phase, m, zero_off=state.zero_off)
+                          state.imu_bias, r_obs, gait_phase, m, zero_off=state.zero_off,
+                          gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
+                          gyro_gain=state.gyro_gain)
         if self.obs_hist_len > 1:
             obs = jp.concatenate([frame, state.obs_hist.reshape(-1)])
             obs_hist = jp.concatenate(
@@ -2314,7 +2373,9 @@ class BimoMJXEnv:
                      lat_ms=state.lat_ms, lash=state.lash, zero_off=state.zero_off,
                      act_lag=state.act_lag, lag_y=lag_y,
                      imu_R=state.imu_R,
-                     imu_bias=state.imu_bias, metrics=metrics)
+                     imu_bias=state.imu_bias,
+                     gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
+                     gyro_gain=state.gyro_gain, metrics=metrics)
 
 
 def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,

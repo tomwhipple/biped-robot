@@ -66,6 +66,11 @@ def main():
                         "zeroed, IMU noise/bias DR on up-vector + gyro")
     p.add_argument("--imu-noise", type=float, default=1.0,
                    help="scale on the IMU misalignment/bias/noise DR")
+    p.add_argument("--gyro-gain-range", type=str, default=None,
+                   help="per-episode gyro OBS gain DR 'lo,hi' (2026-09-03: the "
+                        "robot stands with the gyro obs at 0.5x, falls at 1x)")
+    p.add_argument("--gyro-delay-max", type=int, default=0,
+                   help="per-episode gyro OBS delay DR, 0..N ticks (max 2)")
     p.add_argument("--w-time-stop", type=float, default=1.5,
                    help="extra per-step penalty after crossing (dash_stop): "
                         "makes loitering past the line net-negative")
@@ -177,6 +182,9 @@ def main():
         w_power=args.w_power,
         w_track_w=args.w_track_w, cmd_stand_prob=args.cmd_stand_prob,
         imu_obs=args.imu_obs, imu_noise=args.imu_noise,
+        gyro_gain_range=(tuple(float(x) for x in args.gyro_gain_range.split(","))
+                         if args.gyro_gain_range else None),
+        gyro_delay_max=args.gyro_delay_max,
         backlash_deg=args.backlash_deg, backlash_deg_max=args.backlash_deg_max,
         zero_offset_deg=args.zero_offset_deg,
         fall_height=args.fall_height, fall_up_z=args.fall_up_z,
