@@ -411,10 +411,14 @@ policy on its own ESP32, untethered.
   Two open threads: ~3° of *free* hip-roll play (sim "backlash" is a command
   deadzone; the real joint moves freely under load inside the slop — the plan is
   measure → model as hysteresis → re-run the twin sweep until it rocks like the
-  robot → only then re-rank the fleet), and the **pitch gyro**, whose raw
-  zero-rate is 27°/s, which is twice as noisy as the other axes and which
-  integrated 2–2.7× the accelerometer's tilt change on one move test. That
-  scale question is unresolved and a known rotation by hand settles it.
+  robot → only then re-rank the fleet), and the **pitch gyro** — which is now
+  partly answered. On a clamped foot it read **18 % hot** (ratio 1.16–1.19
+  against the accelerometer's tilt change at rest; the roll axis read 1.02–1.03,
+  which validates the method) — a phantom velocity on exactly the axis the policy
+  oscillates in. The firmware carries a per-axis gyro scale in NVS
+  (`imu gscale x y z`, unity when absent) and the same test now reads 1.01–1.04.
+  **The re-arm under the corrected sensor has not happened yet**, so how much of
+  the oscillation it accounts for is unknown.
 - Also unmodelled by anything currently trained: the ankle **load-reversal
   lurch**, and a 2.5 Hz mode seen on the bench.
 - **Natural movement under the measured servo.** Rhythm scores are poor across

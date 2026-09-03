@@ -387,12 +387,15 @@ montage refreshes into `sim/runs/night_summary.html` each round.
   time-to-fall is 2.4–6 s and reads as chance. With the previous student the
   same story ran in roll. The SIL twin stands dead still under the same policy
   (up_y RMS 0.0009 vs 0.05–0.13 measured) and the referee scores it 8/8 under
-  lag, so this is a plant or sensor gap. Two threads: ~3° of *free* hip-roll
-  play (sim "backlash" is a command deadzone, while the real joint moves freely
-  under load inside the slop — measure → model as hysteresis → re-run the sweep
-  → only then re-rank the fleet), and the **pitch gyro**, whose raw zero-rate is
-  27°/s and which integrated 2–2.7× the accelerometer's tilt change on one move
-  test.
+  lag, so this is a plant or sensor gap. **One cause is found:** on a clamped
+  foot the pitch gyro read **18 % hot** (ratio 1.16–1.19 against the
+  accelerometer's tilt change at rest, while the roll axis read 1.02–1.03 —
+  which validates the method), a phantom velocity on exactly the axis the policy
+  oscillates in. The firmware now carries a per-axis gyro scale in NVS
+  (`imu gscale`), and the same test reads 1.01–1.04 under it. **Not yet re-armed
+  under the correction** — that is the next test. Still open alongside it: ~3° of
+  *free* hip-roll play (sim "backlash" is a command deadzone, while the real
+  joint moves freely under load inside the slop).
 - **Left/right asymmetry on the real machine.** Weight sits on the right foot;
   right-leg joints move the torso 2–4× more than the left, and the right ankle
   has a ~5° coupling gap. The sim stands symmetric.

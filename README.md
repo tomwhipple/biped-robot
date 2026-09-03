@@ -11,8 +11,10 @@ scripted walk.
 2026-09-01. Training is brax PPO on a MuJoCo MJX model of the robot; the trained
 network is distilled small enough to live in the ESP32's flash. The open problem
 is that an armed robot holds a stand for about a second and then oscillates
-itself over — the same policy stands still in simulation, so something in the
-plant or the sensors is missing.
+itself over, where the same policy stands still in simulation. One cause is
+found and fixed — the pitch gyro over-read by 18 %, a phantom velocity on
+exactly the axis it oscillates in — and the re-arm test under the corrected
+sensor is pending.
 
 *Inspired by (not a clone of) the open-source
 [Bimo Project](https://github.com/mekion/the-bimo-project). The geometry here is

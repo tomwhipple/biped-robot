@@ -1941,10 +1941,13 @@ actually sits.
   25–40° (2.4–6 s to fall, apparently at random); with the previous student the
   same story ran in roll. The SIL twin stands dead still under the same policy
   (up_y RMS 0.0009 vs 0.05–0.13) and the referee scores it 8/8 under lag, so it
-  is a plant or sensor gap. Suspects in test order: ~3° of free hip-roll play,
-  the pitch gyro's scale (27°/s raw zero-rate; integrated 2–2.7× the
-  accelerometer's tilt change on one test), the asymmetric right-foot stance,
-  foot/mat compliance, and the complementary-filter up-vector.
+  is a plant or sensor gap. **One cause found and fixed:** the pitch gyro read
+  18 % hot on a clamped-foot test (1.16–1.19 vs the accelerometer, roll axis
+  1.02–1.03 as a control) — a phantom velocity on the oscillating axis. The
+  firmware now carries a per-axis gyro scale in NVS and the test reads 1.01–1.04;
+  the re-arm under it is pending. Remaining suspects: ~3° of free hip-roll play,
+  the asymmetric right-foot stance, foot/mat compliance, and the
+  complementary-filter up-vector.
 - **The right leg carries the weight.** Repeatedly measured: right-leg joints
   move the torso 2–4× more than the left, and the right ankle has ~5 ° of
   coupling gap. The sim stands symmetric.
