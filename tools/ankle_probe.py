@@ -31,7 +31,11 @@ def cmd(c, until, timeout=3.0, tries=3):
     return o
 def ticks(off): return [int(round(z + d*off.get(n,0.0)*TPD)) for n,i,z,d in CAL]
 def base(ankle_deg=0.0):
-    off = {f'{free}_hip_pitch': -25.0, f'{free}_knee': -50.0, f'{free}_ankle': -25.0, f'{free}_hip_roll': 10.0, ankle_name: ankle_deg}
+    # abduction is +roll on the LEFT leg and -roll on the RIGHT (model ranges
+    # L -25..+55, R -55..+25); +10 on the right swung it INTO the left leg
+    # (2026-09-03)
+    abd = 10.0 if free == 'L' else -10.0
+    off = {f'{free}_hip_pitch': -25.0, f'{free}_knee': -50.0, f'{free}_ankle': -25.0, f'{free}_hip_roll': abd, ankle_name: ankle_deg}
     return off
 def pose_once(off, ms, trace=False):
     tail = f's{ms}' + (f' T{ankle_id}' if trace else '')

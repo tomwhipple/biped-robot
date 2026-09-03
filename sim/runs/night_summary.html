@@ -296,7 +296,28 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     stream tick stretched to ~28 ms for the ten reads. Lessons carried
     forward: never resend a motion command blindly (verify by reply, else
     by a witness joint moving), and the pelvis IMU is the wrong sensor for
-    leg shake. Tom has not yet watched a closed-loop crouch.</p>
+    leg shake. Tom watched one: "very good!"</p>
+    <p><b>The right ankle, closed.</b> A new probe (<code>tools/ankle_probe.py</code>)
+    sweeps the stance ankle 0 → +3° → −3° → 0 over 6 s per segment on a
+    clamped single leg, with that servo traced at 50 Hz and the torso's
+    250 Hz ringing meter read per segment. First it needed the IMU back:
+    with the sampler running, every flash resets the MCU mid-read and the
+    QMI8658C holds SDA low, the next boot's scan finds nothing, and the
+    firmware silently runs on the stub IMU — three runs' torso readings
+    tonight were stub zeros before I noticed; <code>busInit</code> now
+    clocks the bus free at boot. Then the verdict. <b>Both ankle servos are
+    fine:</b> on either leg the shaft glides through the load reversal
+    (−24 → +20 counts) at exactly the commanded rate, no jump. The 5–7°
+    "release" seen with 0.5° steps was the leg's whole pitch chain giving up
+    its play when the moment reverses, excited by the step. <b>The right
+    chain lurches 2–4× more than the left</b> at the same command (torso
+    peaks 0.148 / 0.173 vs 0.040 / 0.073 rad/s on the ±3° excursions), so
+    the extra play is in the right leg's couplings outside the encoder —
+    foot bracket, ankle horn, knee or hip coupling — and the next step is
+    hands on those with torque on, not a servo swap. One more sign lesson:
+    hip-roll abduction is +L and −R in the model; a +10° "abduction" on the
+    lifted right leg swung it into the left. Data: hw_sessions/2026-09-03/
+    ankleR3*, ankleL2*.</p>
   </div>
 
   <div class="card accent">

@@ -59,7 +59,7 @@ def offsets(theta):
     off = {}
     for side in (['L','R'] if A.legs=='both' else [A.legs]):
         off[f'{side}_hip_pitch'] = -theta; off[f'{side}_knee'] = -2*theta; off[f'{side}_ankle'] = -theta
-        if A.legs != 'both': off[f'{side}_hip_roll'] = A.roll
+        if A.legs != 'both': off[f'{side}_hip_roll'] = A.roll if side == 'L' else -A.roll   # abduction: +L, -R (model ranges)
     return off
 def ticks(off): return [int(round(z + d*off.get(n,0.0)*TPD)) for n,i,z,d in CAL]
 def pose(off):
