@@ -209,10 +209,13 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
     out[2] = kVersion;
     out[3] = static_cast<uint8_t>(t.state);
     put32(out + 4, t.seq_echo);
-    // NOTE: protocol.py uses int(vbat_v * 1000) here -- truncation, not the
-    // round-half-even of _milli(). Matching that exactly matters for vectors.
-    double mv = static_cast<double>(t.vbat_v) * 1000.0;
-    mv = trunc(mv);
+    // protocol.py's _milli_u16(): round-half-even into uint16, the same
+    // rounding milli() uses. It ROUNDS rather than truncates because vbat_v
+    // arrives here as a float32 of an integer millivolt count (link_task.cpp:
+    // vbat_mv / 1000.0f), and float32(11400/1000) is 11.399999619 V --
+    // truncating that reported 11399 mV for every 11.4 V pack and disagreed
+    // with the Python reference's double (issue #54).
+    double mv = nearbyint(static_cast<double>(t.vbat_v) * 1000.0);
     if (mv < 0.0) mv = 0.0;
     if (mv > 65535.0) mv = 65535.0;
     put16(out + 8, static_cast<uint16_t>(mv));

@@ -736,3 +736,34 @@ def test_attitude_frame_matches_firmware():
         vx_est=0.4, wz_est=-0.25, servo_err=0, loop_late_pct=3,
         up_xy=(0.45, -0.10)))
     assert got == want
+
+
+def test_vbat_millivolt_round_trip():
+    """mV -> float32 -> wire -> mV is the identity (issue #54).
+
+    The robot holds the pack voltage as an integer millivolt count
+    (shared.h: std::atomic<uint16_t> vbat_mv) and hands encodeTelemetry a
+    float32 of it. float32(11400 / 1000) is 11.399999619 V, so an encoder
+    that truncates puts 11399 on the wire -- one millivolt lost on every
+    beacon, and, worse, a C++ port that no longer agrees byte-for-byte with
+    this reference on an ordinary 3S reading. Both encoders round.
+    """
+    import numpy as np
+    mvs = list(range(0, 65536, 7)) + [11400, 11100, 9900, 3700, 8191, 65535]
+    for mv in mvs:
+        as_float32 = float(np.float32(mv / 1000.0))
+        t = P.Telemetry(seq_echo=0, state=P.LinkState.LIVE, vbat_v=as_float32,
+                        up_z=1.0, vx_est=0.0, wz_est=0.0, servo_err=0,
+                        loop_late_pct=0)
+        (on_wire,) = struct.unpack_from("<H", P.encode_telemetry(t), 8)
+        assert on_wire == mv, f"{mv} mV -> float32 -> {on_wire} mV"
+
+
+def test_vbat_saturates():
+    """Out-of-range volts clamp into the u16 rather than wrapping."""
+    for volts, want in ((-1.0, 0), (0.0, 0), (99.0, 65535)):
+        t = P.Telemetry(seq_echo=0, state=P.LinkState.LIVE, vbat_v=volts,
+                        up_z=1.0, vx_est=0.0, wz_est=0.0, servo_err=0,
+                        loop_late_pct=0)
+        (on_wire,) = struct.unpack_from("<H", P.encode_telemetry(t), 8)
+        assert on_wire == want

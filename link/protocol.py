@@ -396,6 +396,19 @@ def _milli(x: float) -> int:
     return max(-32768, min(32767, int(round(x * 1000.0))))
 
 
+def _milli_u16(x: float) -> int:
+    """Scale to milli-units and saturate into uint16 (the vbat field).
+
+    ROUND, not truncate.  The robot holds the pack voltage as integer mV and
+    hands encodeTelemetry a float32 of it, and float32(11400/1000) is
+    11.399999619 V -- truncating that costs a millivolt on the wire, and
+    made the firmware and this reference disagree byte-for-byte on 11.4 V
+    (issue #54).  Rounding makes mV -> V -> mV the identity for every value
+    the field can hold, so both encoders land on the same integer.
+    """
+    return max(0, min(65535, int(round(x * 1000.0))))
+
+
 def clamp_to_envelope(vx: float, wz: float) -> tuple:
     """Snap a raw command into the region the policy was actually trained on.
 
@@ -465,7 +478,7 @@ _TLM_STATES = list(LinkState)
 def encode_telemetry(t: Telemetry) -> bytes:
     body = struct.pack(
         "<2sBBIHhhhBB", MAGIC_TLM, VERSION, _TLM_STATES.index(t.state),
-        t.seq_echo & 0xFFFFFFFF, max(0, min(65535, int(t.vbat_v * 1000))),
+        t.seq_echo & 0xFFFFFFFF, _milli_u16(t.vbat_v),
         _milli(t.up_z), _milli(t.vx_est), _milli(t.wz_est),
         t.servo_err & 0xFF, max(0, min(255, int(t.loop_late_pct))),
     )

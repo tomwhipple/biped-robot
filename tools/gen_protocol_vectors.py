@@ -116,7 +116,24 @@ TLM_CASES = [
      P.LinkState.BENCH, 11.4, 0.0, 0.0, 0.0, 0x00, 0, 0),
     (P.pack_diag(False, True, P.ArmResult.NONE),
      P.LinkState.BENCH, 11.4, 0.0, 0.0, 0.0, 0x00, 0, T_REAL),
+    # vbat round-trip, both directions of the float32 error (issue #54). The
+    # firmware hands encodeTelemetry a float32 of an integer millivolt count,
+    # so the encoder must ROUND: 11.4 V is 11.399999619 as a float32 and 3.7 V
+    # is 3.7000000476. Truncation reported 11399 mV for the first (and matched
+    # on the second), which is exactly the asymmetry that made the C++ and the
+    # Python reference disagree on ordinary pack voltages.
+    (503, P.LinkState.LIVE, 3.7, 0.99, 0.0, 0.0, 0x00, 0, T_REAL),
+    (504, P.LinkState.LIVE, 8.191, 0.99, 0.0, 0.0, 0x00, 0, T_REAL),
 ]
+
+# Every vbat case must survive mV -> float32 -> wire -> mV unchanged. This is
+# the property the encoder is FOR: the robot stores integer millivolts, and a
+# beacon that loses one of them means the two encoders are no longer diffable
+# against each other. Checked at generation time so a truncating encoder can
+# never be baked into the vectors again.
+for _c in TLM_CASES:
+    _mv = round(_c[2] * 1000)
+    assert P._milli_u16(float(np.float32(_mv / 1000.0))) == _mv, (_c[2], _mv)
 
 
 def legacy_wire(t):
