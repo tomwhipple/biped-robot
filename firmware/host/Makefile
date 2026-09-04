@@ -65,7 +65,7 @@ SRC_SIL   = sil_lib.cpp sil_net.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp
 
-.PHONY: all test clean vectors sil tui gui deps
+.PHONY: all test clean vectors deploy-headers sil tui gui deps
 all: $(BINS) $(SIL_LIB)
 
 # The two operator clients share one core (link/client.cpp): the sockets, the
@@ -291,11 +291,24 @@ test: $(BINS) $(SIL_LIB)
 	 if [ $$rc -eq 0 ]; then echo "ALL GREEN"; else echo "FAILURES"; fi; \
 	 exit $$rc
 
-# Regenerate every committed golden vector / generated header from the sim.
+# Regenerate the golden PROTOCOL vectors from the Python reference. This is
+# the only generator that has one right answer independent of any policy, so
+# it is the only one safe to run without saying anything.
 vectors:
 	cd ../.. && .venv/bin/python tools/gen_protocol_vectors.py
-	cd ../.. && .venv/bin/python tools/gen_obs_spec.py
-	cd ../.. && .venv/bin/python tools/gen_policy_weights.py
+
+# The other two generators write the DEPLOYED policy: obs_spec.h is the
+# observation layout the flashed weights were trained against, and
+# policy_weights.h is the net itself. They may only change together, and only
+# because somebody said which run to deploy -- an argument-less run of either
+# silently re-points the firmware at a different policy. Hence:
+#
+#   make -C firmware/host deploy-headers RUN=loco_v27tilt_b_s128r24
+#
+deploy-headers:
+	@test -n "$(RUN)" || { echo "name the run: make deploy-headers RUN=<run>"; exit 2; }
+	cd ../.. && .venv/bin/python tools/gen_obs_spec.py --run $(RUN)
+	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN)
 
 clean:
 	rm -rf $(BUILD)

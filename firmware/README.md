@@ -59,10 +59,18 @@ There is a `CMakeLists.txt` beside the Makefile for CI (`cmake -S . -B build &&
 cmake --build build && ctest --test-dir build`). The Makefile is still the
 routinely-exercised path; keep the two in step.
 
-Regenerate every committed golden vector and generated header from the sim:
+Regenerate the committed golden protocol vectors from the Python reference:
 
 ```
-make -C firmware/host vectors     # or run the three tools/ scripts directly
+make -C firmware/host vectors     # tools/gen_protocol_vectors.py
+```
+
+The two DEPLOYED-policy headers (`obs_spec.h` and `weights.h`) are deliberately
+not in that target: they describe the policy that is flashed, so they only move
+when somebody says which run to deploy.
+
+```
+make -C firmware/host deploy-headers RUN=loco_v27tilt_b_s128r24
 ```
 
 ## Build and flash for the board

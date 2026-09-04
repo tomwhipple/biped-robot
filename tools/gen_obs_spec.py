@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Generate the firmware's obs spec header + golden observation vectors.
 
-Run:  .venv/bin/python tools/gen_obs_spec.py --run loco_v5t
+Run:  .venv/bin/python tools/gen_obs_spec.py --run <deployed run>
+
+--run is REQUIRED: this header is the deployed obs layout, so it may only
+change because somebody said which run to deploy.
 
 docs/firmware-design.md section 5 says the obs SPEC "is exported from the sim
 as a generated header so it cannot drift by hand". This is that exporter. It
@@ -251,10 +254,20 @@ def write_vectors(env, samples, path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--run", default="loco_v5t",
+    ap.add_argument("--run",
                     help="run under sim/runs/ whose config defines the spec")
     ap.add_argument("--samples", type=int, default=8)
     args = ap.parse_args()
+
+    if not args.run:
+        raise SystemExit(
+            "name the run: --run <run under sim/runs/>.  This tool used to "
+            "default to loco_v5t; it does not any more, because the header it "
+            "writes IS the deployed observation layout and an argument-less "
+            "run would silently re-point the firmware's idea of its own obs "
+            "at some other policy (see gen_policy_weights.py, same guard, "
+            "same reason).  The run currently deployed is named in "
+            "kRunName in %s." % os.path.relpath(SPEC_OUT, ROOT))
 
     run_dir = os.path.join(ROOT, "sim", "runs", args.run)
     cfg, env = build_env(run_dir)
