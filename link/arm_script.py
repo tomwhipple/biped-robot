@@ -16,9 +16,11 @@ supervised sequence in phases:
            unless --stay-armed -- 1 s of ARM-off frames = disarm (BENCH).
   disarm   1 s of ARM-off frames.
 
-Guard: servo fault bits or up_z < 0.5 (held 0.3 s) -> ESTOP frames for 1 s,
-then disarm, then exit 2.  The robot latches FALLEN itself; this is belt and
-braces for the servo-fault case the firmware only reports.
+Guard: a robot-latched FALLEN, servo fault bits, or up_z < 0.5 (held 0.3 s)
+-> ESTOP frames for 1 s, then disarm, then exit 2.  The tilt guard only judges
+LIVE/STAND beacons (a benched beacon repeats a stale snapshot), so FALLEN is
+checked on its own: without it a fallen robot kept receiving the rest of the
+script, which is what the 2026-08-31 ground attempts did (issue #29).
 """
 import argparse
 import socket
@@ -169,6 +171,14 @@ class Driver:
             # Benched, seq_echo is the diagnostic byte (protocol.py DIAG_*):
             # the robot's own answer to "why is nothing happening?".
             print(f"        robot says: {diag_reason(tl.seq_echo)}", flush=True)
+        if tl.state == LinkState.FALLEN:
+            # The robot latched a fall: torso down, torque off, and (firmware
+            # ctrl_task) it has disarmed itself. Nothing after this point is
+            # a supervised motion -- keeping the script running just streams
+            # commands at a robot on the floor, and holding ARM into the next
+            # phase re-engages torque under whoever is picking it up. The
+            # 2026-08-31 ground attempts ran on past exactly this.
+            return "robot latched FALLEN (torso down, torque off)"
         live = tl.state in (LinkState.LIVE, LinkState.STAND)
         if self.n_tlm != self._n_seen:      # only judge FRESH beacons
             self._n_seen = self.n_tlm
