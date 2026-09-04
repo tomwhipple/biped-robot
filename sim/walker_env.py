@@ -1487,7 +1487,9 @@ class BimoWalkerEnv(gym.Env):
         if self.backlash_deg_max is not None:
             self._lash_rad = np.deg2rad(float(self.np_random.uniform(
                 self.backlash_deg, self.backlash_deg_max)))
-        if self.zero_offset_deg > 0.0:
+        if self.zero_offset_deg > 0.0 and self.domain_rand:
+            # a DR term: off with domain_rand, so the golden obs vectors
+            # (gen_obs_spec, DR off) stay a pure function of scripted inputs
             self._zero_off = np.deg2rad(self.np_random.uniform(
                 -self.zero_offset_deg, self.zero_offset_deg, self._nq_act))
         else:

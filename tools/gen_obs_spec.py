@@ -90,6 +90,7 @@ def build_env(run_dir):
         # DR off: we want the identity IMU mount and zero gyro bias, so the
         # frames are a pure function of the scripted inputs.
         domain_rand=False, latency_ms=0.0, latency_ms_max=None,
+        zero_offset_deg=0.0,   # calibration-error DR: a frame input, not a sensor
         # ... and for the same reason the servo-side tick quantizer is off.
         # A run trained with quantize_ticks=True (every run since 2026-07-31)
         # would otherwise round q/dq on the way into the frame while the
