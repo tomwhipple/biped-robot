@@ -129,6 +129,37 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     for a run trained with zero-offset DR carried a random ±3° draw
     (walker_env drew it with DR off); gated, regenerated, host tests
     green.</p>
+    <p><b>Midday: it was never the IMU. The student's learned stance is
+    the fault.</b> Six more spotted arms: v28 at full gain fell at 4.5 s,
+    v28 at half gain toppled sideways at 3.5 s with the yaws splayed, v27
+    at 0.75 damped its pitch swing but drifted into a 15°/13° hip-pitch
+    scissor with 13° yaw splay and rolled over at 7 s; the same on bare
+    varnished wood in 4 s; and armed <i>from the policy's own tick-1
+    stance</i> (posed by hand: hips adducted 6.6°/7.0°, torso 13° forward
+    where the sim settles at 3°) it fell in 3.4 s with the identical
+    signature. Tom saw it directly: "it moves the right leg into the left,
+    resulting in the two legs bound together." The offline check settles
+    the origin: fed the robot's exact home observation, the policy's
+    <b>first action adducts both hips</b> (−0.26 / +0.28 ≈ 7°); fed the
+    sim's first observation it outputs the same, and swapping any single
+    channel (q, dq, up, gyro, phase) changes nothing. The sim twin with the
+    same policy holds all of it under 6°, because its floor lets the legs
+    press instead of slide; a twin with hip-roll play or friction 0.4
+    still does not reproduce the drift, so the contact story is
+    incomplete, but the direction is unambiguous: the standing posture
+    this line learned (adduction, forward lean, knee bias +0.10 rad by
+    design, CoM 26–28 mm aft of midfoot in the model while the real robot
+    stands released at zero) does not exist on the robot. Tom's call:
+    <b>"train the policy that the zero position is the stop/rest
+    position."</b> Trainer gained <code>--w-stand-zero</code>, a
+    stand-gated mean(action²) so zero command means zero action means the
+    home pose; <code>loco_v29zero</code> (v27tilt_b recipe + gyro DR +
+    stand-zero, knee bias off) started 11:43 under Tom's GPU grant, distill
+    and referee queued behind it, the gyro-DR-only attribution run after
+    that. Also ruled out today: a torso rattle (a ±5° hip-pitch wiggle at
+    1 Hz gives exactly the kinematic gyro peak, 0.69 vs 0.65 rad/s) and
+    the arm transient (starting at the stance changes nothing). v27 build
+    is back on the robot. Data: hw_sessions/2026-09-04/.</p>
   </div>
 
   <div class="card accent">
