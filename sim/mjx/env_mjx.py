@@ -364,6 +364,16 @@ class BimoMJXEnv:
         # (-w * sum(dq^2) while commanded to plain-stand, upright, no lift):
         # pays for the ABSENCE of motion, not just small corrections
         # (user 2026-08-12, stand shaking)
+        w_stand_zero: float = 0.0,  # stand-gated ACTION-magnitude penalty: at a
+                                    # plain stand the policy must output ~0, i.e.
+                                    # hold the default (home) pose. 2026-09-04,
+                                    # Tom: "train the policy that the zero
+                                    # position is the stop/rest position" -- the
+                                    # deployed student's stand was a learned
+                                    # posture (7 deg hip adduction, 3 deg lean,
+                                    # splayed yaws) that only holds on a sim
+                                    # floor; on the robot it walks the legs into
+                                    # each other. mean(action^2), same gate.
         w_stand_com: float = 0.0,   # stand-gated CoM-over-midfoot kernel:
         # a passive (torque-off) stand only holds if the gravity moment at
         # the ankles stays under the servos' backdrive friction, i.e. the
@@ -778,6 +788,7 @@ class BimoMJXEnv:
         self.w_pitch_rate = w_pitch_rate
         self.w_still = w_still
         self.w_stand_com = w_stand_com
+        self.w_stand_zero = w_stand_zero
         self.stand_com_sigma = stand_com_sigma
         self.speed_clock = speed_clock
         self.speed_clock_lo = speed_clock_lo
@@ -2185,6 +2196,14 @@ class BimoMJXEnv:
             reward -= (self.w_still
                        * jp.where(stand_gate, 1.0, 0.0)
                        * jp.sum(data.qvel[self._jv0:self._jv1] ** 2))
+        if self.w_stand_zero:
+            # zero command -> zero action -> home pose (see ctor note)
+            sz_gate = ((~cmd_moving)
+                       & (~lifted if self.ext_cmd else True)
+                       & (state.recovered > 0.5))
+            reward -= (self.w_stand_zero
+                       * jp.where(sz_gate, 1.0, 0.0)
+                       * jp.mean(action ** 2))
         if self.w_stand_com:
             # stand_off diagnosis 2026-08-19: the v21 line parks its standing
             # CoM 26-28 mm AFT of the midfoot point; with torque released,
