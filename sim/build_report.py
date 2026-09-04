@@ -746,8 +746,8 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     this plant allows. Training answer, queued for tonight: randomise the
     gyro observation per episode (scale and a 0–2 tick delay) so the
     policy cannot depend on a crisp rate. Data:
-    hw_sessions/2026-09-03/arm_v27_{gscale,imufrozen,gyrofrozen,upfrozen,
-    yawstrip2,dqfrozen,gyrohalf}_*, gyro_sign_*.log.</p>
+    hw_sessions/2026-09-03/arm_v27_{{gscale,imufrozen,gyrofrozen,upfrozen,
+    yawstrip2,dqfrozen,gyrohalf}}_*, gyro_sign_*.log.</p>
   </div>
 
   <div class="card accent">
@@ -828,6 +828,37 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     "written", not "moved" — <code>homeAll</code> wants a position
     readback). Data: hw_sessions/2026-09-02/play_sweep4.csv,
     play_compare.txt, sim_ref/sim_sweep.txt.</p>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·04 · training thread</span></p>
+    <p><b>v27full keeps its promise; v28crouch re-proves the warm-start
+    law.</b> Night 2 of the from-scratch line (v27full_b, +38M → ~97M
+    total; its 17:34 evening launch died silently in the shared-GPU
+    window — third such death, all outside the clean 22:00 path — and
+    the re-launch at 02:20 ran fine): reward 649 → <b>798, still
+    climbing</b>, and under the measured servo the scorecard holds at
+    16/144 while what's underneath improves — falls 79% → 69% and the
+    <b>best stands in the fleet under lag</b> (stand_10s 8/8 at 1.0 cm
+    drift, stand_off 8/8 at 3.5 cm; rhythm still unformed at 55%/CV
+    0.43 but surviving 10× the strides of night 1). Same growth
+    trajectory the v25full benchmark had at this age; the era plan
+    holds — continue nightly, expect the scorecard to move after
+    ~200M like its lag-naive sibling did. The hardware thread's
+    <b>v28crouch</b> (their squat fix + measured backlash / zero-offset
+    / gyro DR, warm from v27tilt_b) refereed <b>14/144 under lag vs its
+    parent's 46</b>, wobbling curve (peak 781, ended 673), student
+    likewise 14: new DR terms are obs-dynamics contract changes, and
+    warm-starting them onto a trained policy has now regressed the line
+    four times out of four (08·27 clock, 09·01 v26servo, 09·01 tilt,
+    now v28crouch). Tonight's already-queued <b>v28gyro</b> repeats the
+    move more gently (gyro DR only, on terms partly in the parent's
+    contract) — a clean falsifiable test: if the law is right it lands
+    well under 46 too, and the v28 features belong in the NEXT
+    from-scratch birth's contract (v29 = v27full recipe + crouch fix +
+    measured DR) rather than in warm continuations. Housekeeping: the
+    42-distill + chained lag-referee CMD pattern ran unattended
+    end-to-end for the first time (34 min, card written by 02:00).</p>
   </div>
 
   <div class="card accent">
