@@ -634,7 +634,6 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
     s_traj_t0 = xTaskGetTickCount();
     s_traj_last = s_traj_t0;
     s_traj_active = true;
-    const scsbus::Status st = scsbus::Status::kOk;
     say(out, "home -> %d joints to their calibrated zero, SMOOTH over %ld ms "
              "(worst move %ld ticks): streaming\r\n",
         obs::kNumJoints, dur_ms, static_cast<long>(worst));

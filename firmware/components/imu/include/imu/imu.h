@@ -108,9 +108,6 @@ class StubImu : public Imu {
     bool read(Sample& out) override;
     const char* name() const override { return "stub"; }
 
-    // Let a test or the CLI drive it.
-    void set(const float up[3], const float gyro[3]);
-
   private:
     float up_[3] = {0.0f, 0.0f, 1.0f};
     float gyro_[3] = {0.0f, 0.0f, 0.0f};

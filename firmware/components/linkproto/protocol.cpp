@@ -91,6 +91,8 @@ void clampExtToEnvelope(Command& pkt) {
 
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result) {
     uint8_t d = 0;
+    // cppcheck-suppress badBitmaskCheck -- building a bitmask from zero is the
+    // idiom; the `d |` form keeps each flag's contribution explicit.
     if (run) d = static_cast<uint8_t>(d | kDiagRun);
     if (cal_ok) d = static_cast<uint8_t>(d | kDiagCalOk);
     return static_cast<uint8_t>(

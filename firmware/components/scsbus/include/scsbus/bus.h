@@ -63,7 +63,6 @@ class Bus {
     Status readU16(uint8_t id, uint8_t addr, uint16_t& out);
     Status write(uint8_t id, uint8_t addr, const uint8_t* data, uint8_t n);
     Status writeU8(uint8_t id, uint8_t addr, uint8_t value);
-    Status writeU16(uint8_t id, uint8_t addr, uint16_t value);
 
     // -- the 50 Hz pair ----------------------------------------------------
     // One SYNC READ of the feedback block for `n` servos. `ok[i]` reports
@@ -101,9 +100,6 @@ class Bus {
     // 128 to the torque-enable register. Leaves torque OFF afterwards, which
     // is the state you want while assembling.
     Status setMiddle(uint8_t id);
-    // Explicit +-2047 step offset in reg 31 (sign in bit 11). setMiddle() is
-    // the usual path; this is for restoring a stored calibration.
-    Status setPositionCorrection(uint8_t id, int32_t steps);
 
     // -- individual reads --------------------------------------------------
     Status readPosition(uint8_t id, int32_t& steps);
@@ -119,8 +115,8 @@ class Bus {
 
     Port& port_;
     uint32_t reply_timeout_us_;
-    uint8_t tx_[kMaxPacket];      // no heap: one scratch buffer, one owner
-    uint8_t rx_[kMaxPacket];
+    uint8_t tx_[kMaxPacket] = {};  // no heap: one scratch buffer, one owner
+    uint8_t rx_[kMaxPacket] = {};
 };
 
 }  // namespace scsbus

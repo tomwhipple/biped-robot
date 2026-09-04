@@ -305,6 +305,8 @@ void testWorstCaseLineFits() {
 void testNonFiniteSurvives() {
     ObsDump d;
     obs::Inputs in = makeInputs(0.0f);
+    // cppcheck-suppress duplicateExpression -- a deliberate NaN: the dump's
+    // whole point is that a dead IMU's NaN must reach the host as a NaN.
     in.up[0] = 0.0f / 0.0f;
     float frame[obs::kFrameDim];
     makeFrame(0.0f, frame);

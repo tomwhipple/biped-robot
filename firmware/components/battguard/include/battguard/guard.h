@@ -53,8 +53,8 @@ enum class Level : uint8_t {
 
 class Guard {
   public:
-    Guard(uint8_t warn_dv = kWarn3S, uint8_t land_dv = kLand3S,
-          int confirm_ticks = kConfirmTicks, float land_ms = kLandMs)
+    explicit Guard(uint8_t warn_dv = kWarn3S, uint8_t land_dv = kLand3S,
+                   int confirm_ticks = kConfirmTicks, float land_ms = kLandMs)
         : warn_dv_(warn_dv), land_dv_(land_dv),
           confirm_(confirm_ticks), land_ms_(land_ms) {}
 

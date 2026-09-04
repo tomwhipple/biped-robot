@@ -103,6 +103,50 @@ jobs:
           python -m pytest tests/test_protocol.py tests/test_sources.py \
                            tests/test_tui_e2e.py tests/test_gui_e2e.py -q
 
+  # Static analysis: clang-tidy over the host firmware build. The compiler
+  # flags already catch the mechanical mistakes; clang-tidy is here for the
+  # classes a compiler cannot see (bugprone-*, cppcoreguidelines-*,
+  # readability-*), tuned to the project's C++17 style in .clang-tidy.
+  # WarningsAsErrors makes a finding fail the job, not just print.
+  clang-tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y clang-tidy cmake libncurses-dev
+      - name: configure (compile_commands.json)
+        run: cmake -S firmware/host -B build-tidy -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: clang-tidy (host firmware)
+        run: run-clang-tidy -p build-tidy -quiet
+
+  # Static analysis: cppcheck over firmware + link, whole-program. The
+  # --enable=unusedFunction pass is the cross-TU dead-code detector a per-file
+  # clang-tidy or -Wall cannot see; the wrapper fails on ANY finding (cppcheck's
+  # own --error-exitcode only fires on error severity, not warning/style).
+  cppcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: cppcheck (firmware + link, whole-program)
+        run: firmware/host/cppcheck.sh
+
+  # Static analysis: clang-tidy over the GUI sources (link/gui.cpp + peers).
+  # bimo_gui only links on macOS, but its pure logic host-compiles and gui.cpp
+  # is parseable on Linux once <OpenGL/gl3.h> is mapped onto imgui's GL loader
+  # (see firmware/host/gl-shim/). Runs on ubuntu so the window client gets the
+  # same gate as the firmware without a 10x macOS runner.
+  clang-tidy-gui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y clang-tidy cmake libncurses-dev libglfw3-dev libdigest-sha-perl
+      - name: fetch pinned deps (imgui + stb)
+        run: make -C firmware/host deps
+      - name: configure (compile_commands.json)
+        run: cmake -S firmware/host -B firmware/host/build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: clang-tidy (GUI sources)
+        run: firmware/host/clang-tidy-gui.sh
+
   # bimo_gui only. It links -framework OpenGL/Cocoa/IOKit and includes
   # <OpenGL/gl3.h>, so it does not build on Linux today -- teaching it to
   # would move this whole job onto a 1x runner and is worth doing.

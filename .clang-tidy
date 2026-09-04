@@ -1,0 +1,77 @@
+# Static-analysis house rules for the host firmware build.
+#
+# The compiler flags (-Wall -Wextra -Werror -Wshadow -Wconversion
+# -Wsign-conversion) already catch the mechanical mistakes; clang-tidy is here
+# for the classes a compiler cannot see: bugprone-* (the "this looks right but
+# is wrong" family), cppcoreguidelines-* (the "this is a footgun" family) and
+# readability-* (the "this will be misread next month" family).
+#
+# Tuned to the project's C++17 style, which is deliberately NOT idiomatic
+# modern C++ in a few places:
+#   * No STL and no exceptions in the firmware/console core (client.h's own
+#     comment: it compiles under -fno-exceptions -fno-rtti). So the
+#     cppcoreguidelines checks that demand std::array/std::vector/RAII
+#     containers, or that flag every raw pointer, are OFF -- they would drown
+#     the signal in noise on a codebase that is raw-buffer-by-design.
+#   * The math/FP code (imu/fusion.cpp, policy/mlp.cpp, obs/actuation.cpp)
+#     legitimately does float<->double and narrowing arithmetic; the
+#     readability-* and bugprone-* checks that would flag every one of those
+#     are OFF here, because the compiler's -Wconversion/-Wsign-conversion
+#     already own that lane.
+#   * The test sources write `!(a && b)` and nested clamp ternaries on
+#     purpose -- the DeMorgan form and the flattened form are both harder to
+#     read against the assertion they are guarding. Those two readability
+#     checks are OFF.
+#
+# The full clang-analyzer-* pass is a separate, much slower run and is NOT
+# part of the default gate; only the dead-store check from it is kept on
+# (cheap, and it is the one the compiler cannot see). A deliberate deep run
+# can re-enable the analyzer.
+Checks: >
+  clang-diagnostic-*,
+  -clang-analyzer-*,
+  clang-analyzer-deadcode.DeadStores,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-signed-char-misuse,
+  -bugprone-not-null-terminated-result,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-do-while,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-init-variables,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-narrowing-conversions,
+  -cppcoreguidelines-no-malloc,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-cstyle-cast,
+  -cppcoreguidelines-pro-type-member-init,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-special-member-functions,
+  readability-*,
+  -readability-avoid-nested-conditional-operator,
+  -readability-avoid-unconditional-preprocessor-if,
+  -readability-braces-around-statements,
+  -readability-else-after-return,
+  -readability-function-cognitive-complexity,
+  -readability-function-size,
+  -readability-identifier-length,
+  -readability-identifier-naming,
+  -readability-implicit-bool-conversion,
+  -readability-isolate-declaration,
+  -readability-magic-numbers,
+  -readability-named-parameter,
+  -readability-redundant-access-specifiers,
+  -readability-simplify-boolean-expr,
+  -readability-uppercase-literal-suffix
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: ''

@@ -37,7 +37,6 @@ class Demux {
 
     const uint8_t* frame() const { return buf_; }
     const char* line() const { return reinterpret_cast<const char*>(buf_); }
-    size_t lineLen() const { return line_len_; }
 
     void reset() { n_ = 0; line_len_ = 0; in_frame_ = false; }
 

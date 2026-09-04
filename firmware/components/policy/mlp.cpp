@@ -37,13 +37,15 @@ void forwardNet(const Net& net, const float* obs, float* action) {
     for (int i = 0; i < net.obs_dim; ++i) {
         net.scratch_a[i] = (obs[i] - net.norm_mean[i]) / net.norm_std[i];
     }
-    const float* src = net.scratch_a;
+    // Ping-pong scratch buffers: `src` is read-only to `dense()` but the
+    // buffers themselves are mutable, so both pointers are plain float*.
+    float* src = net.scratch_a;
     float* dst = net.scratch_b;
     for (int l = 0; l < net.num_layers; ++l) {
         dense(net.layers[l], src, dst, l + 1 < net.num_layers);
-        const float* tmp = src;
+        float* tmp = src;
         src = dst;
-        dst = const_cast<float*>(tmp);
+        dst = tmp;
     }
     // `src` now holds 2 * act_dim logits: [mean | log_std]. Deterministic
     // inference is the tanh-normal's mode, i.e. tanh(mean); the std half is
@@ -52,6 +54,8 @@ void forwardNet(const Net& net, const float* obs, float* action) {
 }
 
 void forward(const float* obs, float* action) {
+    // cppcheck-suppress knownConditionTrueFalse -- a compile-time guarantee,
+    // not a runtime check: the scratch buffer is sized to the widest layer.
     static_assert(kObsDim <= kMaxWidth, "scratch buffer too small for obs");
     Net net;
     net.obs_dim = kObsDim;

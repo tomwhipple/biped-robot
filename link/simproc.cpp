@@ -155,6 +155,9 @@ bool SimProc::start(const char* repo, const char* run_name, bool hang,
         if (hang) argv[a++] = "--hang";
         if (viewer) argv[a++] = "--viewer";
         argv[a] = nullptr;
+        // execv's signature is char* const[] but it never mutates the
+        // strings; the argv entries are const char* owned by the parent.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) -- POSIX wart.
         execv(python, const_cast<char**>(argv));
         // execv only returns on failure, and this is a forked child: say so
         // down the pipe the parent is already reading, then leave.

@@ -94,6 +94,8 @@ void Watchdog::commandExt(float now_ms, float* cmd7) const {
 }
 
 bool ArmLatch::update(uint8_t flags, bool& want_armed) {
+    // cppcheck-suppress shadowFunction -- `level` shadows the level() accessor,
+    // not a variable; the local name is the clearest for the extracted bit.
     const bool level = (flags & kFlagArm) != 0;
     const bool had = have_level_;
     const bool prev = level_;
@@ -105,6 +107,7 @@ bool ArmLatch::update(uint8_t flags, bool& want_armed) {
 }
 
 bool HomeLatch::update(uint8_t flags) {
+    // cppcheck-suppress shadowFunction -- same as ArmLatch::update above.
     const bool level = (flags & kFlagHome) != 0;
     const bool had = have_level_;
     const bool prev = level_;

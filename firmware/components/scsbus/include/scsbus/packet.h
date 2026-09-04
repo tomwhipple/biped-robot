@@ -39,12 +39,7 @@ size_t buildWrite(uint8_t* out, size_t cap, uint8_t id, uint8_t addr,
                   const uint8_t* data, uint8_t n);
 size_t buildWrite8(uint8_t* out, size_t cap, uint8_t id, uint8_t addr,
                    uint8_t value);
-size_t buildWrite16(uint8_t* out, size_t cap, uint8_t id, uint8_t addr,
-                    uint16_t value);
-size_t buildRegWrite(uint8_t* out, size_t cap, uint8_t id, uint8_t addr,
-                     const uint8_t* data, uint8_t n);
 size_t buildAction(uint8_t* out, size_t cap);
-size_t buildReset(uint8_t* out, size_t cap, uint8_t id);
 
 // SYNC READ `n` bytes at `addr` from each of `ids`. Servos answer in the order
 // listed, one ordinary status packet each.

@@ -56,12 +56,4 @@ bool StubImu::read(Sample& out) {
     return true;
 }
 
-void StubImu::set(const float up[3], const float gyro[3]) {
-    for (int i = 0; i < 3; ++i) {
-        up_[i] = up[i];
-        gyro_[i] = gyro[i];
-    }
-    t_us_ += 20000;
-}
-
 }  // namespace imu
