@@ -5,6 +5,11 @@ well (dash, stand) but not a conditional skill family jointly at CPU-PPO
 scale. So: train experts per command region, then teach one student to
 imitate whichever expert matches the active command.
 
+SUPERSEDED by sim/mjx/distill_student.py (brax era). Kept because the SB3
+experts it reads are day-5 runs: its 8-DOF v2 plant and 38-dim observation
+are correct FOR THOSE, and are deliberately not moved to the 10-DOF v5body
+plant the MJX pipeline trains on.
+
 Run:  .venv/bin/python sim/distill.py --out cmd_distill \
           --walk exp_walk --stand cmd_11v2 --pivotl exp_pivot_l --pivotr exp_pivot_r
 

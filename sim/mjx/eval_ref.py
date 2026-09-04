@@ -13,10 +13,18 @@ Scenarios (command-conditioned, 10 s episodes, N seeds each):
   pivot_r : wz=-0.5           -- survive, turn right
   turn    : vx=0.4, wz=+0.4   -- walk a left arc
 
+The plant, the observation width and the network shape all come from the
+run's OWN config.json and checkpoint -- refereeing a policy on a different
+robot than it was trained on scores nothing (issue #50). What the referee
+does NOT inherit is the conditions it grades: servo action lag and the shove
+model are pinned here, so runs trained over different DR ranges stay
+comparable (the same rule eval_precision.py states).
+
 Run:  .venv/bin/python sim/mjx/eval_ref.py --run mjx_cmd_v1 [--video]
 """
 import argparse
 import json
+import inspect
 import os
 import pickle
 import sys
@@ -26,13 +34,20 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 RUNS = os.path.join(HERE, "..", "runs")
-XML = os.path.join(HERE, "..", "bimo_biped_v2.xml")
+# Fallback only. The plant a run is refereed on comes from the run's OWN
+# config.json ("xml_path"), because refereeing a policy on a different robot
+# than it was trained on scores nothing: bimo_biped_v2.xml is the 8-DOF
+# day-5 plant, and every policy since the v3yaw hip-yaw redesign has a 10-DOF
+# action vector that will not even fit its actuators (issue #50).
+DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v5body.xml")
 
 import jax
 from brax.training.acme import running_statistics
 from brax.training.agents.ppo import networks as ppo_networks
 
 from walker_env import BimoWalkerEnv
+
+_ENV_PARAMS = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
 
 SCENARIOS = [
     ("walk",    0.6,  0.0),
@@ -44,16 +59,45 @@ SCENARIOS = [
 ]
 
 
-def load_policy(run_dir):
+def plant_xml(cfg):
+    """The MJCF this run was trained on, resolved locally.
+
+    train_mjx.py stores the basename (the run may have trained on another
+    host), so an unqualified name resolves against sim/.
+    """
+    xml = cfg.get("xml_path") or DEFAULT_XML
+    if not os.path.isabs(xml) and not os.path.exists(xml):
+        xml = os.path.join(HERE, "..", os.path.basename(xml))
+    return xml
+
+
+def _hidden_sizes(net_params, fallback):
+    """MLP hidden sizes from the checkpoint's own param shapes (brax names
+    every layer hidden_i; the last is the output layer). --precision runs are
+    (512, 256, 128), not the (128, 128) this used to hard-code."""
+    try:
+        layers = net_params["params"]
+        ks = sorted((k for k in layers if k.startswith("hidden_")),
+                    key=lambda k: int(k.split("_")[1]))
+        return tuple(int(layers[k]["kernel"].shape[1]) for k in ks[:-1])
+    except Exception:
+        return fallback
+
+
+def load_policy(run_dir, obs_size=38, act_size=8):
+    """Rebuild the run's inference net. obs/act sizes come from the env the
+    caller built from this run's config -- the 38/8 defaults are the 8-DOF
+    day-5 shape, kept only for callers still refereeing those runs."""
     with open(os.path.join(run_dir, "params.pkl"), "rb") as f:
         params = pickle.load(f)
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
     net = ppo_networks.make_ppo_networks(
-        observation_size=38, action_size=8,
+        observation_size=obs_size, action_size=act_size,
         preprocess_observations_fn=running_statistics.normalize,
-        policy_hidden_layer_sizes=(128, 128),
-        value_hidden_layer_sizes=(256, 256))
+        policy_hidden_layer_sizes=_hidden_sizes(params[1], (128, 128)),
+        value_hidden_layer_sizes=(_hidden_sizes(params[2], (256, 256))
+                                  if len(params) > 2 else (256, 256)))
     make_policy = ppo_networks.make_inference_fn(net)
     policy = make_policy((params[0], params[1]), deterministic=True)
     policy = jax.jit(policy)
@@ -67,10 +111,35 @@ def load_policy(run_dir):
     return act, cfg
 
 
-def make_env(cfg, seed_payload=True, getup_start_mix=None):
-    """CPU env matching the training conditions (the claim we referee)."""
-    return BimoWalkerEnv(
-        xml_path=XML, actuator_model="sts3215",
+def make_env(cfg, seed_payload=True, getup_start_mix=None, act_lag_hz=0.0):
+    """CPU env matching the training conditions (the claim we referee).
+
+    The run's own config seeds the construction, filtered to the env's real
+    signature. That is not a nicety: obs width is a function of ext_cmd,
+    obs_hist_len, gait_clock and friends, so a referee that ignores them
+    builds an observation the policy was never trained to read. The explicit
+    block below then pins the conditions the referee GRADES (payload, latency,
+    backlash, DR) over whatever the run trained with.
+    """
+    kw = {k: v for k, v in cfg.items() if k in _ENV_PARAMS}
+    # Training-time reset machinery must not leak into the scored episodes.
+    if "recover_mix" in _ENV_PARAMS:
+        kw["recover_mix"] = 0.0
+    kw.update(dict(
+        # PINNED, never inherited (same rule as eval_precision.py): the
+        # servo action-chain lag is a property of the plant the referee
+        # models, not of the distribution a run happened to train over.
+        # Inheriting loco_v27's act_lag_hz=2.0 scores every scenario at the
+        # worst corner of its own DR and makes runs trained on different
+        # ranges incomparable.
+        act_lag_hz=act_lag_hz,
+        # Also pinned, same rule and the same history as eval_precision.py:
+        # the graded shove is the HISTORICAL gentle 5 N force at 1%, not
+        # whatever the run trained with. loco_v27 trains with velocity kicks
+        # (push_kick=True); inheriting them scored stand at 0/2 with the
+        # policy falling at ~4 s, against 8/8 from the precision referee.
+        push_kick=False, push_force=5.0, push_prob=0.01,
+        xml_path=plant_xml(cfg), actuator_model="sts3215",
         supply_voltage=cfg.get("supply_voltage", 11.1),
         command_mode=True, imu_obs=True,
         domain_rand=True,
@@ -93,7 +162,8 @@ def make_env(cfg, seed_payload=True, getup_start_mix=None):
         action_map=cfg.get("action_map", "legacy"),
         hip_flex_deg=cfg.get("hip_flex_deg"),
         render_mode="rgb_array",
-    )
+    ))
+    return BimoWalkerEnv(**kw)
 
 
 def rollout_getup(env, act, seed, record=False):
@@ -116,9 +186,23 @@ def rollout_getup(env, act, seed, record=False):
                 power_w=float(np.mean(pw)), frames=frames)
 
 
+def _command(env, v, w):
+    """(forward, yaw-rate) into whichever command layout this run uses.
+
+    set_command()'s channel 1 is yaw rate on a legacy 2-wide env but SIDEWAYS
+    VELOCITY on a 7-wide ext_cmd env. Passing (v, w) positionally to an ext
+    env therefore asked every pivot/turn scenario for a sidestep, and scored
+    it against a yaw rate nobody had commanded (pivot_l 0/4 before this).
+    """
+    if getattr(env, "ext_cmd", False):
+        env.set_command(v, 0.0, w)      # vx, vy, wz (crouch defaults to 1)
+    else:
+        env.set_command(v, w)
+
+
 def rollout(env, act, v, w, seed, record=False):
     obs, _ = env.reset(seed=seed)
-    env.set_command(v, w)
+    _command(env, v, w)
     obs = env._obs()          # refresh command channels post-override
     frames = []
     vxs, wzs, gyr, pw, planar = [], [], [], [], []
@@ -154,16 +238,28 @@ def main():
     p.add_argument("--run", required=True)
     p.add_argument("--episodes", type=int, default=8)
     p.add_argument("--video", action="store_true")
+    p.add_argument("--act-lag-hz", type=float, default=0.0,
+                   help="servo action-chain lag pole applied to the plant "
+                        "(Hz; 2.0 = the 2026-08-31 bench measurement). "
+                        "PINNED rather than inherited from the run's DR.")
     p.add_argument("--start-mix", default=None,
                    help="getup start-pose mix 'rag,kneel,squat' for DIAGNOSTIC "
                         "runs (e.g. 0,1,0 to probe the kneel seed). Default = "
                         "1,0,0: the graded claim is recovery from a fall.")
     args = p.parse_args()
     run_dir = os.path.join(RUNS, args.run)
-    act, cfg = load_policy(run_dir)
+    with open(os.path.join(run_dir, "config.json")) as f:
+        cfg = json.load(f)
     start_mix = (tuple(float(x) for x in args.start_mix.split(","))
                  if args.start_mix else None)
-    env = make_env(cfg, getup_start_mix=start_mix)
+    # Env FIRST: it is the thing that knows how wide this run's observation
+    # and action vectors are, and the net has to be built to match them.
+    env = make_env(cfg, getup_start_mix=start_mix, act_lag_hz=args.act_lag_hz)
+    act, cfg = load_policy(run_dir, env.observation_space.shape[0],
+                           env.action_space.shape[0])
+    print(f"plant {os.path.basename(plant_xml(cfg))}  "
+          f"obs {env.observation_space.shape[0]}  "
+          f"act {env.action_space.shape[0]}")
 
     if cfg.get("getup"):
         print(f"CPU referee (GET-UP): {args.run}  "
