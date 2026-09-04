@@ -103,9 +103,6 @@ bool imuReinitLive() {
 
 bool g_imu_cal_from_nvs = false;
 
-namespace {
-
-}  // namespace
 
 // Exposed for the bring-up CLI; null while the loop is on the stub.
 imu::Qmi8658Imu* onboardImu() {
