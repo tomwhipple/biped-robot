@@ -3,18 +3,25 @@
 *For anyone — human or agent — making changes here. The design record is
 [DESIGN.md](DESIGN.md); how training works is [docs/training.md](docs/training.md).*
 
-## Branching: commit to main, no PRs
+## Branching
 
-**This repo does not use pull requests for physical parts or documentation.**
-CAD, STLs, print list, BOM, assembly and design docs, and reports go **straight
-to `main`** — no branch, no PR, no review queue.
+**Meaningful changes go on a branch with a pull request.** A new capability, a
+plant or reward change, a firmware change that will be flashed, a rework of how
+something is done — those get a branch, so there is a place to see them whole.
 
-The real review gate here is physical — a part that prints and fits, a bench
-measurement — not a diff read on GitHub. Tom is the only reviewer, so a PR only
-delays the file reaching the checkout he slices and builds from.
+Small ones do not. A typo, a doc touch-up, a report, a regenerated artifact, a
+number corrected after a bench session: commit those straight to `main`.
 
-Keep local `main` in sync with `origin/main`: fetch and merge before working,
-push after. Commit at each real milestone without being asked.
+**Most changes here will not be reviewed.** The PR is a record of a substantial
+change, not a gate waiting on an approval that is not coming — open it, and do
+not sit blocked on it. The real gates are the ones below, and the physical
+ones: a part that prints and fits, a bench measurement.
+
+Keep local `main` in sync with `origin/main`: fetch and rebase before working,
+push after. `origin/main` moves often — expect to rebase mid-task, and re-check
+any claim your change depends on when it does.
+
+Commit at each real milestone without being asked.
 
 ## The gates
 

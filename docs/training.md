@@ -400,25 +400,43 @@ policy on its own ESP32, untethered.
 
 **Not solved, in the order they are being worked:**
 
-- **The armed robot oscillates itself over.** This is the top item. Armed with a
-  zero (stand) command it holds a quiet symmetric stand for about a second, then
-  grows *alternating hip-pitch swings* (−9, −12, −24, −31° on the left at
-  1–2 Hz) until the torso passes 25–40°; time-to-fall reads as chance (2.4–6 s
-  across recorded arms). Earlier, with the previous student, the same story ran
-  in **roll** instead. The referee says this policy stands 8/8 under lag *in
-  sim*, and the SIL twin stands dead still (up_y RMS 0.0009 vs 0.05–0.13
-  measured), so this is a plant or sensor gap, not a policy that cannot stand.
-  Two open threads: ~3° of *free* hip-roll play (sim "backlash" is a command
-  deadzone; the real joint moves freely under load inside the slop — the plan is
+- **The armed robot oscillates itself over — root cause found 2026-09-03, fix
+  not yet armed.** Armed with a zero (stand) command it held a quiet stand for
+  about a second, then grew alternating hip-pitch swings at 1–2 Hz until the
+  torso passed 25–40°, with a time-to-fall that read as pure chance (2.4–6 s).
+  The referee scored the same policy 8/8 under lag *in sim*, and the SIL twin
+  stood dead still (up_y RMS 0.0009 vs 0.05–0.13 measured).
+
+  An **observation-freeze ablation** on the robot located it: IMU live → the
+  swing grew and it fell at 3.8 s; `up` and gyro frozen at nominal → stood the
+  full 8 s; gyro alone frozen → stood; `up` alone frozen → swing guard at 5 s.
+  The loop was closing through the IMU observation. A signed bench test against
+  the identical move in sim then named it: the gyro integral matched (sim −6.28°
+  vs robot −6.53°), but the `up` change did not — sim `(−0.11, 0)` against robot
+  `(−0.042, −0.093)`, **the same vector rotated 66°**.
+
+  The observation's `up` is MuJoCo's `framezaxis`: the torso z-axis in the
+  **world** frame, which turns with yaw. Every simulated episode resets at
+  yaw ≈ 0, so in training that distinction never showed. On the robot the fused
+  yaw is a free gyro-z integral with ~0.07°/s of residual bias — 66° in fifteen
+  minutes — so the policy's tilt feedback was rotated by an angle that grew over
+  minutes, which is exactly why time-upright looked random. The firmware now
+  strips ZYX yaw from the quaternion before taking the up-vector
+  (`upYawStrippedFromQuaternion`, equal to the sim's up at yaw 0 to 1e-16 over
+  2000 random poses), and `obsfreeze` stays as a standing diagnostic.
+
+  **This is the sharpest sim-to-real lesson here so far, and it is not about
+  physics.** The plant was fine. One observation channel meant two different
+  things on the two sides of the contract, and the sim's initial conditions hid
+  the difference for months. Generating the obs *layout* into the firmware —
+  which this project already does, and which §9 is proud of — does nothing to
+  stop the obs *semantics* diverging.
+- Still open alongside it: ~3° of *free* hip-roll play (sim "backlash" is a
+  command deadzone; the real joint moves freely under load inside the slop —
   measure → model as hysteresis → re-run the twin sweep until it rocks like the
-  robot → only then re-rank the fleet), and the **pitch gyro** — which is now
-  partly answered. On a clamped foot it read **18 % hot** (ratio 1.16–1.19
-  against the accelerometer's tilt change at rest; the roll axis read 1.02–1.03,
-  which validates the method) — a phantom velocity on exactly the axis the policy
-  oscillates in. The firmware carries a per-axis gyro scale in NVS
-  (`imu gscale x y z`, unity when absent) and the same test now reads 1.01–1.04.
-  **The re-arm under the corrected sensor has not happened yet**, so how much of
-  the oscillation it accounts for is unknown.
+  robot → only then re-rank the fleet), and an 18 % pitch-gyro over-read, now
+  corrected by a per-axis scale in NVS (`imu gscale`). **Neither fix has been
+  re-armed on the robot.**
 - Also unmodelled by anything currently trained: the ankle **load-reversal
   lurch**, and a 2.5 Hz mode seen on the bench.
 - **Natural movement under the measured servo.** Rhythm scores are poor across

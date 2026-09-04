@@ -381,21 +381,25 @@ montage refreshes into `sim/runs/night_summary.html` each round.
   Return-to-start and goal-seeking evals use sim ground truth; on hardware that
   seam is unfilled (encoder dead-reckoning or the GoPro are the candidates), and
   it is what gates goal-conditioned locomotion.
-- **The armed robot oscillates itself over — the top open item.** With a zero
-  (stand) command it holds a quiet symmetric stand for ~1 s, then grows
-  alternating hip-pitch swings at 1–2 Hz until the torso passes 25–40°;
-  time-to-fall is 2.4–6 s and reads as chance. With the previous student the
-  same story ran in roll. The SIL twin stands dead still under the same policy
-  (up_y RMS 0.0009 vs 0.05–0.13 measured) and the referee scores it 8/8 under
-  lag, so this is a plant or sensor gap. **One cause is found:** on a clamped
-  foot the pitch gyro read **18 % hot** (ratio 1.16–1.19 against the
-  accelerometer's tilt change at rest, while the roll axis read 1.02–1.03 —
-  which validates the method), a phantom velocity on exactly the axis the policy
-  oscillates in. The firmware now carries a per-axis gyro scale in NVS
-  (`imu gscale`), and the same test reads 1.01–1.04 under it. **Not yet re-armed
-  under the correction** — that is the next test. Still open alongside it: ~3° of
-  *free* hip-roll play (sim "backlash" is a command deadzone, while the real
-  joint moves freely under load inside the slop).
+- **The armed robot oscillates itself over — root cause found 2026-09-03.** With
+  a zero (stand) command it held a quiet stand for ~1 s, then grew alternating
+  hip-pitch swings at 1–2 Hz until the torso passed 25–40°, with a time-to-fall
+  (2.4–6 s) that read as chance. The SIL twin stood dead still under the same
+  policy and the referee scored it 8/8 under lag — so it was never a policy that
+  could not stand. An obs-freeze ablation on the robot (`obsfreeze up|gyro|imu`)
+  showed the loop closing through the IMU observation: `up` frozen at nominal
+  and it stood 8 s; live and it fell at 3.8 s. A signed bench test against the
+  same move in sim found the gyro integral matching but the `up` change rotated
+  **66°**.
+  The cause is a **semantic mismatch in the observation contract**: `up` is the
+  torso z-axis in the *world* frame, which turns with yaw. Sim episodes reset at
+  yaw ≈ 0 so it never mattered there; the robot's fused yaw is a free gyro-z
+  integral drifting ~0.07°/s, so the policy's tilt feedback was rotated by an
+  angle that grew over minutes. The firmware now strips yaw from the quaternion
+  before taking the up-vector. **Not yet re-armed under the fix.**
+  Still open alongside it: ~3° of *free* hip-roll play (sim "backlash" is a
+  command deadzone, while the real joint moves freely under load inside the
+  slop), and an 18 % pitch-gyro over-read now corrected by a per-axis NVS scale.
 - **Left/right asymmetry on the real machine.** Weight sits on the right foot;
   right-leg joints move the torso 2–4× more than the left, and the right ankle
   has a ~5° coupling gap. The sim stands symmetric.
