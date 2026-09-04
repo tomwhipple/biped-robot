@@ -411,6 +411,36 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·04 · morning · v28crouch student on the robot</span></p>
+    <p><b>Overnight.</b> <code>loco_v28crouch</code> trained 18:17–01:25
+    (60M steps, six evals, reward 574 → 673, peak 781) with the new
+    per-episode <b>gyro observation gain 0.5–1.2 and 0–2 tick delay</b>,
+    zero-offset 3° and backlash 0.5–1.5° in its config. Queue mishaps: the
+    distill entry fired at launch (locale sort put <code>39b</code> before
+    <code>39-</code>) and failed on a missing config; a peer session
+    re-queued it correctly at 01:25 and re-added the parked v27full_b
+    job, which the 07:00 stop killed. The student's <b>lag scorecard is a
+    regression everywhere but standing</b>: stand_10s 8/8 (unchanged),
+    stand_off 4/8 (was 8/8), line_1m 0/8 (was 4/8), overall 14/144 vs
+    41/144 for v27tilt_b's student; squat_reps 0/8 either way, so the
+    crouch itself did not appear. Two things changed at once, the gyro DR
+    and the crouch mix; tonight's queue (44 <code>loco_v28gyro</code> +
+    45 distill/referee) runs the gyro DR alone on the unchanged v27tilt_b
+    recipe to attribute it.</p>
+    <p><b>On the robot now:</b> <code>loco_v28crouch_s128r24</code>,
+    flashed and verified (IMU back on the second <code>imu reinit</code>,
+    bias/mount/scale from NVS, link 100/100 beacons). It is the only
+    policy trained to tolerate a soft gyro, so a single spotted stand arm
+    at full gyro gain is the cleanest test of last night's hypothesis
+    that the fall loop is gain-limited through the rate term. The
+    fallback for the current v27 student is <code>obsfreeze gain=0.5</code>,
+    which stood 8 s last night. Found on the way: the golden obs vectors
+    for a run trained with zero-offset DR carried a random ±3° draw
+    (walker_env drew it with DR off); gated, regenerated, host tests
+    green.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·03 · hardware thread</span></p>
     <p><b>Three follow-ups, one correction, one honest negative.</b>
     <i>Correction first:</i> the policy on the robot is
