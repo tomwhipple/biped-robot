@@ -367,6 +367,17 @@ def main():
                         "gravity is tilted by U(0,max) about a random "
                         "azimuth -- an un-level floor (the bench desk "
                         "measures ~3.5 deg; user asked +-3, 2026-09-01)")
+    p.add_argument("--backlash-deg", default=None,
+                   help="per-episode gear backlash draw 'lo,hi' deg, applied "
+                        "AFTER the --precision block (which zeroes it)")
+    p.add_argument("--zero-offset-deg", type=float, default=None,
+                   help="per-episode per-joint zero-offset DR, +-deg (the "
+                        "hardware zero is set by eye; moved 1-4.7 deg 2026-09-03)")
+    p.add_argument("--gyro-gain-range", default=None,
+                   help="per-episode gyro OBS gain DR 'lo,hi' (2026-09-03: the "
+                        "robot stands with the gyro obs at 0.5x, falls at 1x)")
+    p.add_argument("--gyro-delay-max", type=int, default=None,
+                   help="per-episode gyro OBS delay DR, 0..N ticks (max 2)")
     p.add_argument("--act-lag", default=None,
                    help="per-episode action-chain lag pole draw, lo,hz "
                         "(3 cascaded stages, the deployed C2 shaper's "
@@ -510,6 +521,16 @@ def main():
     if args.act_lag is not None:
         lo, hi = (float(x) for x in args.act_lag.split(","))
         env_kw.update(act_lag_hz=lo, act_lag_hz_max=hi)
+    if args.backlash_deg is not None:
+        lo, hi = (float(x) for x in args.backlash_deg.split(","))
+        env_kw.update(backlash_deg=lo, backlash_deg_max=hi)
+    if args.zero_offset_deg is not None:
+        env_kw["zero_offset_deg"] = float(args.zero_offset_deg)
+    if args.gyro_gain_range is not None:
+        env_kw["gyro_gain_range"] = tuple(
+            float(x) for x in args.gyro_gain_range.split(","))
+    if args.gyro_delay_max is not None:
+        env_kw["gyro_delay_max"] = int(args.gyro_delay_max)
     if args.walk_submix is not None:
         env_kw["walk_submix"] = tuple(
             float(x) for x in args.walk_submix.split(","))
