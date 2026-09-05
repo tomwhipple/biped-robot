@@ -34,7 +34,7 @@ Make the sim plant match the robot on the things the stand depends on.
 | Item | Test | Pass | Status |
 |---|---|---|---|
 | Zero-pose CoM | Released robot on the pad: tilt the desk/plate until it topples fore and aft; CoM offset from the two angles. Or: torque-on `pose` ankle sweep, note the ankle angle where load reverses. | Model CoM within 5 mm of measured; `w_stand_com` stops asking for a lean at q=0 | **open**. Corrected 09-05: the model's zero-pose CoM is 11.3 mm aft of the L_sole/R_sole midpoint (26–28 mm was the v21 policies' *stance*, not q=0). The kernel (σ 20 mm, w 1.0) pays 0.27/step for a 3.3° forward torso pitch that centres it; the real robot stands released at zero, which only bounds the real offset at ≲16 mm (backdrive friction). Measurement still needed. |
-| Servo small-step response | `move` 3°/5°/10° steps on hip pitch + `trace`; fit the act-lag cascade | Sim `--act-lag` band brackets the measured small-step response (the 2 Hz figure came from a large-motion walk) | open |
+| Servo small-step response | `move` 3°/5°/10° steps on hip pitch + `trace`; fit the act-lag cascade | Sim `--act-lag` band brackets the measured small-step response (the 2 Hz figure came from a large-motion walk) | **measured 09-05** (left foot clamped, 16 traces, 3 loads): pure dead time ≈ 85 ms + 30 ms lag (5 Hz), amplitude- and load-independent, no rate limit below 650 steps/s. The sim has 0–8 ms latency and a 2–12 Hz 3-stage lag; it has NO dead time, so it never sees the robot's "full gain, 80° late at 2 Hz" combination. Fix: per-episode action dead-time DR (0–5 ticks) in env_mjx; hw_sessions/2026-09-05/servo_step_notes.md |
 | Foot–ground friction | Spring-scale drag of the released robot on pad and wood; tilt-slip angle | Sim friction DR band covers both surfaces (pad ≈ high, wood ≈ low) | open |
 | Joint play / zero | Tilt-hysteresis method, rezero after any mechanical work | ≤ 1.5° per pitch-chain joint; zeros within 3 ticks | done 09-03 (L hip roll 2–3° remains) |
 | IMU | `tools/imu_scale_check.py`, `tools/gyro_sign_check.py` vs the sim leans | gyro integral within 0.5°, up within 0.02 on ankle/hip/knee leans | **done** 09-03/04 |
@@ -134,13 +134,20 @@ Free driving from the GUI with the safety envelope on:
   30M steps. Firmware with the v29zero student is built (host suite green, 225 checks) but
   NOT flashed; the robot keeps v27tilt_b.
 
+- **09-05, hardware arms on `loco_v29zero_s128r24`** (full gain, three arms, one variable each): wood 30 s
+  stood but shuffled off the table; pad fell backward at 23 s; pad + `shape 4` stood 30 s, wandered, 20° burst.
+  Hip roll within 1.5° in all three: the roll-over mode is gone. Rest is the trained scissor (L hip pitch
+  +5..+8°, R −5..−9°, L ankle −8°, torso 3–5° forward) with 8–14° pitch swings per 3 s that never decay;
+  gyro RMS 0.42–0.49 roll / 0.72–0.75 pitch in every arm; twin at 0.005. Surface and shaper change nothing:
+  the swing is the loop, the scissor is the amplifier. Notes: hw_sessions/2026-09-05/arm_v29_*_notes.md.
+
 ## Immediate next steps
 
 1. `loco_v30home` (held as robot-mjx night/queue/held/49,50) → distill → lag referee →
    offline tick-1 + twin rest check → flash → Stage 1 hardware gate with a spotter.
    Optional before that: one spotted arm on the v29zero student (binary built) to see
    whether removing the adduction alone stops the legs binding.
-2. Stage 0 CoM measurement on the bench (30 min, no policy) and the model correction; the
-   servo small-step response the same session.
+2. Action dead-time DR in env_mjx (`--act-delay-max`, ticks) from the 09-05 servo measurement,
+   into the next training run. Stage 0 CoM measurement still open (30 min, no policy).
 3. Gyro-DR-only attribution (queue 45/46) to settle whether the DR costs walking.
 4. Foot friction: measure both surfaces; decide traction pads vs. friction DR vs. both.
