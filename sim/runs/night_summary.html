@@ -102,6 +102,44 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·05 · hardware thread</span></p>
+    <p><b>v29zero fails the rest-is-home gate, and the reason is
+    arithmetic.</b> Both overnight runs landed with their students:
+    <code>loco_v29zero_s128r24</code> (stand_10s 8/8, stand_off 7/8,
+    0.5 W standing, walking 21/144 under the measured servo) and the
+    gyro-DR-only attribution run <code>loco_v28gyro_s128r24</code>
+    (36/144, stand 8/8) — so the gyro DR costs about five seeds of the
+    v27tilt_b student's 41 and the crouch mix cost the rest of
+    v28crouch's 14. (The training-thread card above quotes 36 for the
+    v29zero student; the file <code>scorecard_lag.md</code> in its run
+    directory says 21 — 36 is the v28gyro student.) The Stage 1 offline
+    check then failed: fed the robot's home observation the v29zero
+    student asks for ankles −7° and a knee at +12° (max|a| 0.175 against
+    a 0.05 gate), and the teacher asks the same (0.208), so this is the
+    objective, not the distill. Run in the twin for 6 s it rests with the
+    left ankle at −8.5°, hip pitches ±3.9°, yaws ±1.8°, torso pitched
+    3.3° forward — but hip roll only ±1.1°: <b>the 7° adduction that bound
+    the legs on the robot is gone.</b> What remains is a forward lean, and
+    the model explains it exactly: at q=0 the plant's CoM sits 11.3 mm aft
+    of the sole midpoint (the "26–28 mm" in the reward comments was the
+    v21 policies' <i>stance</i>, not the zero pose), <code>w_stand_com</code>
+    (σ 20 mm, weight 1.0) collects 0.27 more reward per step once the
+    torso pitch centres it (−0.9 mm at the twin's pose), and
+    <code>w_stand_zero 2.0</code> charges 0.02 per step for the actions
+    that do it. The real robot stands released at zero, which bounds the
+    real offset below the backdrive-friction figure (~16 mm) and says
+    nothing about needing a lean. Fix drafted as <code>loco_v30home</code>
+    (v29zero recipe, stand-CoM kernel off, stand-zero ×5, warm from
+    v29zero, 30M ≈ 3.5 h) and parked in night/queue/held: tonight's slot
+    is held by v27full_d from the training thread and the order is Tom's
+    call. Firmware with the v29zero student is built and the host suite is
+    green (225 checks), but it is not flashed; the robot keeps the v27
+    build, torque released. The roadmap's Stage 1 gate gained a twin
+    rest-pose criterion (every joint within 2° of home, torso within 1°),
+    since tick-1 alone is a transient.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·04 · morning · v28crouch student on the robot</span></p>
     <p><b>Overnight.</b> <code>loco_v28crouch</code> trained 18:17–01:25
     (60M steps, six evals, reward 574 → 673, peak 781) with the new

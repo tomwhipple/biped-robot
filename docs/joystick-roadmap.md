@@ -33,7 +33,7 @@ Make the sim plant match the robot on the things the stand depends on.
 
 | Item | Test | Pass | Status |
 |---|---|---|---|
-| Zero-pose CoM | Released robot on the pad: tilt the desk/plate until it topples fore and aft; CoM offset from the two angles. Or: torque-on `pose` ankle sweep, note the ankle angle where load reverses. | Model CoM within 5 mm of measured; `w_stand_com` stops asking for a lean at q=0 | **open** (model says 26–28 mm aft; robot stands at zero) |
+| Zero-pose CoM | Released robot on the pad: tilt the desk/plate until it topples fore and aft; CoM offset from the two angles. Or: torque-on `pose` ankle sweep, note the ankle angle where load reverses. | Model CoM within 5 mm of measured; `w_stand_com` stops asking for a lean at q=0 | **open**. Corrected 09-05: the model's zero-pose CoM is 11.3 mm aft of the L_sole/R_sole midpoint (26–28 mm was the v21 policies' *stance*, not q=0). The kernel (σ 20 mm, w 1.0) pays 0.27/step for a 3.3° forward torso pitch that centres it; the real robot stands released at zero, which only bounds the real offset at ≲16 mm (backdrive friction). Measurement still needed. |
 | Servo small-step response | `move` 3°/5°/10° steps on hip pitch + `trace`; fit the act-lag cascade | Sim `--act-lag` band brackets the measured small-step response (the 2 Hz figure came from a large-motion walk) | open |
 | Foot–ground friction | Spring-scale drag of the released robot on pad and wood; tilt-slip angle | Sim friction DR band covers both surfaces (pad ≈ high, wood ≈ low) | open |
 | Joint play / zero | Tilt-hysteresis method, rezero after any mechanical work | ≤ 1.5° per pitch-chain joint; zeros within 3 ticks | done 09-03 (L hip roll 2–3° remains) |
@@ -47,7 +47,7 @@ bench leans; the mass/friction/actuator numbers are in the plant XML with a date
 
 | | Sim gate | Hardware gate |
 |---|---|---|
-| Policy | `loco_v29zero_s128r24` (or successor): stand_10s 8/8 and stand_off ≥ 6/8 on the lag referee; first action from the home obs ≤ 0.05 on every joint (offline check, `sim/sil/harness.silw_forward`) | 5 arms × 30 s at **full gyro gain**, on the pad: no guard, hip-pitch swing < 0.05 rad, hip-roll and yaw drift < 3°, torso within 3° of its starting attitude |
+| Policy | `loco_v29zero_s128r24` (or successor): stand_10s 8/8 and stand_off ≥ 6/8 on the lag referee; first action from the home obs ≤ 0.05 on every joint (offline check, `sim/sil/harness.silw_forward`); **and** the twin's rest pose (`sil_twin.py`, last 3 s of a 6 s stand) within 2° of home on every joint, torso within 1° | 5 arms × 30 s at **full gyro gain**, on the pad: no guard, hip-pitch swing < 0.05 rad, hip-roll and yaw drift < 3°, torso within 3° of its starting attitude |
 | Then | same on bare wood | 3 arms × 30 s on wood |
 | Then | push recovery scenarios in the referee | Tom nudges the torso ±2 cm at the pelvis, 5 pushes, recovers each time without a step |
 
@@ -118,10 +118,28 @@ Free driving from the GUI with the safety envelope on:
 - **Sim scores are gates, not proof.** v27tilt_b stood 8/8 under lag in sim and never
   stood on the robot.
 
+## Stage 1 log
+
+- **09-05, `loco_v29zero_s128r24`: sim gate FAILED on the tick-1/rest check.** Referee:
+  stand_10s 8/8, stand_off 7/8, walking 21/144 (v27tilt_b student 41; gyro-DR-only
+  v28gyro student 36). Tick-1 at the home obs: max|a| 0.175 (ankles −7°, R knee +12°);
+  the teacher gives the same (0.208), so it is the objective, not the distill. Twin rest
+  pose after 6 s: L ankle −8.5°, hip pitch +3.9/−3.8, yaw +1.9/−1.6, hip roll −1.1/+1.1,
+  torso pitched 3.3° forward (up_x 0.057). The adduction is gone (was ∓7°); what remains
+  is the forward lean, and its cause is arithmetic: at q=0 the model's CoM is 11.3 mm aft
+  of midfoot, `w_stand_com` (σ 20 mm, w 1.0) gains 0.27/step by pitching the torso until
+  the CoM is centred (−0.9 mm at the twin's pose), and `w_stand_zero 2.0` charges only
+  0.02/step for the actions that do it. Fix queued as `loco_v30home` (held, needs the GPU
+  slot): the v29zero recipe with `--w-stand-com 0 --w-stand-zero 10`, warm from v29zero,
+  30M steps. Firmware with the v29zero student is built (host suite green, 225 checks) but
+  NOT flashed; the robot keeps v27tilt_b.
+
 ## Immediate next steps
 
-1. `loco_v29zero` (training since 11:43 09-04) → distill → lag referee → offline tick-1
-   check → flash → Stage 1 hardware gate with a spotter.
+1. `loco_v30home` (held as robot-mjx night/queue/held/49,50) → distill → lag referee →
+   offline tick-1 + twin rest check → flash → Stage 1 hardware gate with a spotter.
+   Optional before that: one spotted arm on the v29zero student (binary built) to see
+   whether removing the adduction alone stops the legs binding.
 2. Stage 0 CoM measurement on the bench (30 min, no policy) and the model correction; the
    servo small-step response the same session.
 3. Gyro-DR-only attribution (queue 45/46) to settle whether the DR costs walking.
