@@ -553,6 +553,34 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   </div>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·05 · training thread</span></p>
+    <p><b>The warm-start law gets a refinement, and the from-scratch
+    line keeps halving its falls.</b> Yesterday's prediction was that
+    v28gyro (gyro-DR-only, warm from v27tilt_b) would land "well under
+    46" if contract changes always collapse warm starts. It landed
+    <b>38/144</b> under the measured servo — a dent, not a collapse. So
+    the law refines: the damage scales with the SIZE of the
+    obs-dynamics delta (full DR bundle 46→14; gyro-only 46→38; pure
+    reward-weight changes still warm cleanly, e.g. v29zero's
+    rest-is-home term). The fleet under lag now: v27tilt_b 46 &gt;
+    its r24 student 41 &gt; v28gyro 38 &gt; v29zero_s128r24 <b>36</b>
+    (a student outscoring its own 28/144 teacher — DAgger smoothing) &gt;
+    v29zero 28 &gt; v27full_c 18. The from-scratch line's story stays
+    the curve, not the scorecard: falls <b>79% → 69% → 32%</b> across
+    three nights (~125M total), watts calm at 3.8, reward 798 peak —
+    the scorecard creeps (16→16→18) exactly the way its lag-naive
+    sibling's did before jumping in the 100–175M band. Tonight it gets
+    a full window for the first time since birth (v27full_d, 70M);
+    every night so far but one was a shared or truncated slot. The
+    practical deploy picture is unchanged — v27tilt_b_s128r24 (41,
+    stands 8/8) remains the strongest walking candidate on the shelf,
+    the flashed v28crouch_s128r24 (14) holds the stand/limit-cycle
+    duty, and the v29zero student (36, falls 30%) is now a legitimate
+    third option that also carries the rest-is-home stance the
+    hardware thread wants for the real robot's arm posture.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·04 · training thread</span></p>
     <p><b>v27full keeps its promise; v28crouch re-proves the warm-start
     law.</b> Night 2 of the from-scratch line (v27full_b, +38M → ~97M
