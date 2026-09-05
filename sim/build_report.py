@@ -446,6 +446,44 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     build, torque released. The roadmap's Stage 1 gate gained a twin
     rest-pose criterion (every joint within 2° of home, torso within 1°),
     since tick-1 alone is a transient.</p>
+    <p><b>Evening: three arms, one clamp, one number that was missing.</b>
+    Tom flashed the v29zero student anyway to see whether killing the
+    adduction alone would stop the legs binding. It did — <b>hip roll
+    stayed within 1.5° in all three arms and the roll-over never
+    appeared</b> — and the rest of the picture stayed exactly as the twin
+    predicted, only louder: a fore-aft scissor (left hip +5..+8°, right
+    −5..−9°, left ankle −8°, torso 3–5° forward) with 8–14° of pitch swing
+    per 3 s that never decayed. On bare wood it stood 30 s and shuffled to
+    the table edge (Tom pushed it back twice); on the grippy pad it fell
+    <i>backward</i> at 23 s, the swing growing to 22° once the feet could
+    no longer bleed energy by sliding; on the pad with the C2 shaper at
+    4 Hz it stood 30 s, wandered off the pad and ended in a 20° burst.
+    Gyro RMS was 0.42–0.49 roll / 0.72–0.75 pitch rad/s in every arm; the
+    twin sits at 0.005. Surface and shaper change nothing, so the swing is
+    the loop and the scissor is only its amplifier. Then the Stage 0 test
+    the roadmap asked for: left foot clamped flat at the desk edge, right
+    foot hanging, 200 ms minimum-jerk steps of 3°, 5°, 10° on the free
+    hip, the loaded ankle and the stance hip, servo trace at 40 Hz. All 16
+    traces say the same thing: <b>the STS3215 follows a target after
+    ~85 ms of pure dead time</b> (68–106) plus a 30 ms lag, independent of
+    amplitude and load, peak speeds far below the slew limit. The sim's
+    actuator had 0–8 ms of latency and a 2–12 Hz three-stage lag — phase
+    that always arrives with attenuation. A dead time is phase without
+    attenuation: at 2 Hz the robot passes 0.94 of the command 82° late
+    (0.88 at −116° through the 10 Hz shaper) while the sim's easy draw
+    passes 0.96 at −31° and its hard draw 0.35 at −138°. No training
+    episode ever contained the robot's combination, which is why every arm
+    since 09-03 has been gain-limited through the gyro and why the
+    half-gain trick stood. <code>env_mjx</code> gained a per-episode
+    servo dead-time draw (<code>--act-delay-max</code>, 0–N ticks;
+    <code>State.act_hist</code> serves the target from N ticks ago ahead
+    of the lag cascade; tests green, semantics checked on the GPU). Tom's
+    call for tonight: <code>loco_v30home</code> with BOTH fixes — stand-CoM
+    kernel off, stand-zero ×5, dead time 0–5 ticks — ahead of the training
+    thread's v27full_d, and start now. Runner started 16:56 on a fresh
+    pull. Also learned the easy way: releasing torque never drops the
+    robot, even on one clamped foot — gear friction holds (Tom: "please
+    remember that"). Data: hw_sessions/2026-09-05/.</p>
   </div>
 
   <div class="card accent">
