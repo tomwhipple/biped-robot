@@ -381,6 +381,9 @@ def main():
                         "robot stands with the gyro obs at 0.5x, falls at 1x)")
     p.add_argument("--gyro-delay-max", type=int, default=None,
                    help="per-episode gyro OBS delay DR, 0..N ticks (max 2)")
+    p.add_argument("--act-delay-max", type=int, default=None,
+                   help="per-episode servo dead time DR, 0..N control ticks "
+                        "(20 ms each); 2026-09-05 bench measured ~85 ms")
     p.add_argument("--act-lag", default=None,
                    help="per-episode action-chain lag pole draw, lo,hz "
                         "(3 cascaded stages, the deployed C2 shaper's "
@@ -534,6 +537,8 @@ def main():
             float(x) for x in args.gyro_gain_range.split(","))
     if args.gyro_delay_max is not None:
         env_kw["gyro_delay_max"] = int(args.gyro_delay_max)
+    if args.act_delay_max is not None:
+        env_kw["act_delay_max"] = int(args.act_delay_max)
     if args.walk_submix is not None:
         env_kw["walk_submix"] = tuple(
             float(x) for x in args.walk_submix.split(","))

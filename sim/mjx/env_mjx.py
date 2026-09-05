@@ -155,6 +155,15 @@ class State(NamedTuple):
                               # ~0.5x sim dq -- reproduced only by ~2 Hz of
                               # 3-stage filtering, 5x the 10 Hz shaper alone.
     lag_y: jax.Array          # (3, n_act) cascaded lag filter state
+    act_hist: jax.Array       # (act_delay_max+1, n_act) recent joint TARGETS,
+                              # row 0 = this tick; the actuator serves row
+                              # act_delay. Servo DEAD TIME DR: 2026-09-05 bench
+                              # (one foot clamped, 16 traces, 3 loads, 3-10 deg)
+                              # measured ~85 ms pure delay + 30 ms lag before
+                              # the STS3215 follows a target, amplitude- and
+                              # load-independent -- phase without attenuation,
+                              # which the lag cascade above cannot produce.
+    act_delay: jax.Array      # ()  int32 per-episode target delay, 0..act_delay_max
     imu_R: jax.Array          # (3,3) mounting misalignment
     imu_bias: jax.Array       # (3,) gyro bias
     gyro_hist: jax.Array      # (3, 3) raw torso gyro at the last 3 obs ticks,
@@ -612,6 +621,7 @@ class BimoMJXEnv:
         imu_noise: float = 1.0,
         gyro_gain_range: tuple | None = None,   # per-episode gyro obs gain DR
         gyro_delay_max: int = 0,                # per-episode gyro obs delay, ticks
+        act_delay_max: int = 0,                 # per-episode servo dead time, ticks
         # -- get-up mode (fall recovery) -------------------------------------------
         # Episodes START from a settled ragdoll fall (random orientation +
         # joints, dropped and settled for getup_settle_s); there is NO fall
@@ -908,6 +918,8 @@ class BimoMJXEnv:
                                 if gyro_gain_range is not None else None)
         self.gyro_delay_max = int(gyro_delay_max)
         assert 0 <= self.gyro_delay_max <= 2, "gyro_hist holds 3 ticks"
+        self.act_delay_max = int(act_delay_max)
+        assert 0 <= self.act_delay_max <= 10, "act_delay_max in ticks (20 ms each)"
         self.getup = getup
         self.getup_settle = max(1, round(getup_settle_s / self.sim_dt))
         self.w_recover_h = w_recover_h
@@ -1396,6 +1408,19 @@ class BimoMJXEnv:
     def _gyro_hist0(data):
         return jp.tile(data.qvel[3:6][None, :], (3, 1))
 
+    def _draw_act_delay(self, rng: jax.Array):
+        """Per-episode servo dead time in control ticks (fold_in 4473 so the
+        other draws keep their streams). 0 when the feature is off."""
+        if self.act_delay_max > 0:
+            return jax.random.randint(
+                jax.random.fold_in(rng, 4473), (), 0, self.act_delay_max + 1)
+        return jp.zeros((), dtype=jp.int32)
+
+    def _act_hist0(self):
+        # before the policy has acted the served target is the home pose
+        return jp.tile(self._default.astype(jp.float32)[None, :],
+                       (self.act_delay_max + 1, 1))
+
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
 
@@ -1590,6 +1615,8 @@ class BimoMJXEnv:
          cmd_crouch, act_lag, zero_off) = self._draw_episode(r_ep)
         gyro_gain, gyro_delay = self._draw_gyro(r_ep)
         gyro_hist = self._gyro_hist0(data)
+        act_delay = self._draw_act_delay(r_ep)
+        act_hist = self._act_hist0()
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -1644,6 +1671,7 @@ class BimoMJXEnv:
                      servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
                      act_lag=act_lag,
                      lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
+                     act_hist=act_hist, act_delay=act_delay,
                      imu_R=imu_R, imu_bias=imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=gyro_delay,
                      gyro_gain=gyro_gain, metrics=metrics)
@@ -1658,6 +1686,8 @@ class BimoMJXEnv:
          cmd_crouch, act_lag, zero_off) = self._draw_episode(r_ep)
         gyro_gain, gyro_delay = self._draw_gyro(r_ep)
         gyro_hist = self._gyro_hist0(first.data)
+        act_delay = self._draw_act_delay(r_ep)
+        act_hist = self._act_hist0()
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -1709,6 +1739,7 @@ class BimoMJXEnv:
             servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
             act_lag=act_lag,
             lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
+            act_hist=act_hist, act_delay=act_delay,
             imu_R=imu_R, imu_bias=imu_bias,
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
             metrics=metrics)
@@ -1725,6 +1756,11 @@ class BimoMJXEnv:
         else:
             target = jp.clip(self._default + self._scale * action,
                              self._lo, self._hi)
+        # servo dead time DR (see State.act_hist): the actuator serves the
+        # target from act_delay ticks ago; row 0 is this tick's. Sits BEFORE
+        # the lag cascade, as the real bus write precedes the servo's response.
+        act_hist = jp.concatenate([target[None, :], state.act_hist[:-1]], axis=0)
+        target = jp.take(act_hist, state.act_delay, axis=0)
         # action-chain lag (3 cascaded first-order stages, the firmware C2
         # shaper's structure) BEFORE quantization, matching the deploy path's
         # shaper -> angleToSteps order. Per-episode pole from _draw_episode;
@@ -2391,6 +2427,7 @@ class BimoMJXEnv:
                      cmd_crouch=state.cmd_crouch, servo=state.servo,
                      lat_ms=state.lat_ms, lash=state.lash, zero_off=state.zero_off,
                      act_lag=state.act_lag, lag_y=lag_y,
+                     act_hist=act_hist, act_delay=state.act_delay,
                      imu_R=state.imu_R,
                      imu_bias=state.imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
