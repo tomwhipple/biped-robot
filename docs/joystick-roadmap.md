@@ -163,6 +163,12 @@ Free driving from the GUI with the safety envelope on:
    of Stage 1 on v30home — 4 more pad arms, 3 wood arms, 5 pushes — then `loco_v31home` (queue 52/53)
    → offline gate (tick-1 + twin rest within 2°) → flash → repeat.
    Open question to settle in sim: which reward term pays for a knee split at stand.
+   09-06 08:40 (Tom): GUI arm fine, forward click → oscillation that recovered; an earlier GUI
+   arm oscillated. Hypothesis: GUI arms from the pose the last drive left (no home first).
+   Sim now has `--init-pose-deg` (start-pose jitter, served target seeded at the jittered pose);
+   v31home runs with 3°. To measure a GUI arm: `$T/obs_wait.sh <name> <s>` waits for the arm
+   over the tether (the robot beacons only to its commander, so the GUI's stream cannot be
+   sniffed).
 2. Action dead-time DR in env_mjx (`--act-delay-max`, ticks) from the 09-05 servo measurement,
    into the next training run. Stage 0 CoM measurement still open (30 min, no policy).
 3. Gyro-DR-only attribution (queue 45/46) to settle whether the DR costs walking.
