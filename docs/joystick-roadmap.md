@@ -141,12 +141,21 @@ Free driving from the GUI with the safety envelope on:
   gyro RMS 0.42–0.49 roll / 0.72–0.75 pitch in every arm; twin at 0.005. Surface and shaper change nothing:
   the swing is the loop, the scissor is the amplifier. Notes: hw_sessions/2026-09-05/arm_v29_*_notes.md.
 
+- **09-05 night, `loco_v30home_s128r24`** (stand-CoM off, stand-zero 10, servo dead time 0–5 ticks; 30M
+  warm from v29zero): referee 19/144, stand 8/8 (drift 1.0 cm), stand_off 7/8, falls 15 % (lowest yet).
+  Gate: tick-1 max|a| 0.136 FAIL; twin rest torso −1.1° (the lean is gone) but knees +5.3/−8.9°, right ankle
+  −7.4° — a new knee split, same in the teacher. Cause: the squared-action term is toothless in `full` action
+  units (10° knee = 0.11 action, 0.03/step at w 10) and the base reward pays ~0.5/step more for the split than
+  for home (term not yet identified). Fix: `--w-stand-home` (L1 on the served target in radians, stand-gated;
+  1.17/step at this split), queued as `loco_v31home` (52/53) for the 09-06 night slot. v30home firmware built,
+  not flashed; the hardware question it can still answer tomorrow is whether the dead-time DR damps the swing.
+
 ## Immediate next steps
 
-1. `loco_v30home` (held as robot-mjx night/queue/held/49,50) → distill → lag referee →
-   offline tick-1 + twin rest check → flash → Stage 1 hardware gate with a spotter.
-   Optional before that: one spotted arm on the v29zero student (binary built) to see
-   whether removing the adduction alone stops the legs binding.
+1. Morning 09-06: spotted arm on the v30home student (binary built) — does the servo dead-time DR
+   damp the pitch swing at full gain? Pad, 30 s, same script. Then `loco_v31home` (queue 52/53,
+   09-06 night) → offline gate (tick-1 + twin rest within 2°) → flash → Stage 1 gate.
+   Open question to settle in sim: which reward term pays for a knee split at stand.
 2. Action dead-time DR in env_mjx (`--act-delay-max`, ticks) from the 09-05 servo measurement,
    into the next training run. Stage 0 CoM measurement still open (30 min, no policy).
 3. Gyro-DR-only attribution (queue 45/46) to settle whether the DR costs walking.

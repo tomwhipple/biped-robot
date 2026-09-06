@@ -484,6 +484,27 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     pull. Also learned the easy way: releasing torque never drops the
     robot, even on one clamped foot — gear friction holds (Tom: "please
     remember that"). Data: hw_sessions/2026-09-05/.</p>
+    <p><b>Night: v30home lands, the lean is gone, a knee split takes its
+    place.</b> 30.5M steps in 3.6 h (2400 sps on an otherwise idle GPU),
+    distilled and refereed by 21:19: <b>19/144</b>, stand_10s 8/8 with
+    1.0 cm drift, stand_off 7/8, falls 15 % — the lowest fall rate of any
+    student — but walking is poor (line 0/8) and the training curve had
+    not plateaued (reward 297 → 495 → 562 → 505). The offline gate still
+    fails: tick-1 max|a| 0.136, and in the twin it rests level (torso
+    −1.1°, gyro RMS 0.003) with the knees split +5.3° / −8.9° and the
+    right ankle at −7.4°. The teacher rests the same way, so it is the
+    objective. Two facts explain it: the stand-zero term is a mean of
+    squared <i>actions</i>, and in the full action map a 10° knee is a
+    0.11 action, so weight 10 charged 0.03 per step; and a direct
+    step-for-step comparison shows the base reward paying about 0.5 per
+    step <i>more</i> for the split than for home, from a term not yet
+    identified. New term: <code>--w-stand-home</code>, an L1 pull of the
+    served target onto home in radians, stand-gated — 1.17 per step at
+    this split, verified against the analytic value on the GPU.
+    <code>loco_v31home</code> (v30home recipe, stand-home 4, warm from
+    v30home) is queued behind v27full_d for the 09-06 slot. The v30home
+    firmware is built and saved, not flashed: tomorrow's first arm can
+    still answer whether the dead-time DR damps the swing, posture aside.</p>
   </div>
 
   <div class="card accent">
