@@ -455,6 +455,15 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     servos off. The runner was stopped after the grant's two jobs; tonight
     the training thread's v27full_d distill and v27full_e run first, then
     a 60M walking continuation of v31home.</p>
+    <p><b>Afternoon: and on the robot too.</b> v31home flashed and armed
+    on the pad at full gain with Tom spotting: fixed point in 3 s, joint
+    peak-to-peak 0.0 for the remaining 27 s, gyro RMS 0.002 / 0.027, and
+    the pose it holds is <b>home</b> — the largest joint 2.6° off (left
+    hip roll), every other joint within 1.4°, all within 1° of what the
+    twin predicted. Two days ago this line could not stand for seven
+    seconds; the two plant facts that were missing were the servo's 85 ms
+    dead time and a reward that actually preferred home. Stage 1, row 1:
+    one of five pad arms passed.</p>
   </div>
 
   <div class="card accent">
