@@ -2267,8 +2267,11 @@ class BimoMJXEnv:
                        * jp.sum(data.qvel[self._jv0:self._jv1] ** 2))
         if self.w_stand_zero:
             # zero command -> zero action -> home pose (see ctor note)
+            # crouch is a COMMAND, not a stand: cmd[3] < 0.97 releases the pull
+            # (2026-09-06: v30/v31home could not crouch -- this gate held them
+            # at home while the slider asked for 0.87; same test as w_pose)
             sz_gate = ((~cmd_moving)
-                       & (~lifted if self.ext_cmd else True)
+                       & ((~lifted) & (state.cmd[3] >= 0.97) if self.ext_cmd else True)
                        & (state.recovered > 0.5))
             reward -= (self.w_stand_zero
                        * jp.where(sz_gate, 1.0, 0.0)
@@ -2278,7 +2281,7 @@ class BimoMJXEnv:
             # actuator serves this tick (post dead-time/lag), so the pull is
             # on the pose the servos are actually asked to hold.
             sh_gate = ((~cmd_moving)
-                       & (~lifted if self.ext_cmd else True)
+                       & ((~lifted) & (state.cmd[3] >= 0.97) if self.ext_cmd else True)
                        & (state.recovered > 0.5))
             reward -= (self.w_stand_home
                        * jp.where(sh_gate, 1.0, 0.0)
