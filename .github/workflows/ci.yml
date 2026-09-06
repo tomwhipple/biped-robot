@@ -8,8 +8,8 @@
 # locally and slowly.
 #
 # The repo is private, so macOS minutes bill at 10x. Everything that CAN run
-# on ubuntu does; the mac job exists only for bimo_gui, which does not build
-# on Linux yet (see the `console` job's note).
+# on ubuntu does; bimo_gui now builds and links on Linux too (see the
+# `console` job), so no macOS runner remains in this workflow.
 name: ci
 
 on:
@@ -98,7 +98,7 @@ jobs:
         run: make -C firmware/host tui
       - name: protocol, sources, and the console e2e
         # test_gui_e2e.py skips itself when bimo_gui is absent, which it is
-        # here; the mac job below is what covers it.
+        # here; the `console` job below is what builds and covers it.
         run: |
           python -m pytest tests/test_protocol.py tests/test_sources.py \
                            tests/test_tui_e2e.py tests/test_gui_e2e.py -q
@@ -131,9 +131,9 @@ jobs:
         run: firmware/host/cppcheck.sh
 
   # Static analysis: clang-tidy over the GUI sources (link/gui.cpp + peers).
-  # bimo_gui only links on macOS, but its pure logic host-compiles and gui.cpp
-  # is parseable on Linux once <OpenGL/gl3.h> is mapped onto imgui's GL loader
-  # (see firmware/host/gl-shim/). Runs on ubuntu so the window client gets the
+  # gui.cpp's pure logic host-compiles and is parseable on Linux once
+  # <OpenGL/gl3.h> is mapped onto imgui's GL loader (see
+  # firmware/host/gl-shim/). Runs on ubuntu so the window client gets the
   # same gate as the firmware without a 10x macOS runner.
   clang-tidy-gui:
     runs-on: ubuntu-latest
@@ -147,35 +147,66 @@ jobs:
       - name: clang-tidy (GUI sources)
         run: firmware/host/clang-tidy-gui.sh
 
-  # bimo_gui only. It links -framework OpenGL/Cocoa/IOKit and includes
-  # <OpenGL/gl3.h>, so it does not build on Linux today -- teaching it to
-  # would move this whole job onto a 1x runner and is worth doing.
+  # bimo_gui + bimo_tui, built and linked on Linux. This used to be a
+  # macos-latest job (bimo_gui only linked -framework OpenGL/Cocoa/IOKit and
+  # included <OpenGL/gl3.h>); the Makefile now splits GUI_LIBS/GUI_INC by
+  # platform and the gl-shim maps <OpenGL/gl3.h> onto imgui's own GL loader,
+  # so the window client links on ubuntu and this whole job moved onto a 1x
+  # runner (GH#60).
   #
-  # Runs on the branches that carry the console, and on every PR, because
-  # --headless is the only automated coverage the window client has.
-  console-macos:
-    runs-on: macos-latest
+  # --headless is the only automated coverage the window client has, so this
+  # runs on the branches that carry the console and on every PR that touches
+  # the console's sources (path-filtered below so firmware-only pushes do not
+  # pay for it).
+  console:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # paths-filter diffs against the base ref; on push events that
+          # needs the full history, not the default shallow fetch.
+          fetch-depth: 0
+      # Path-filter the console job only: it is the expensive e2e half and
+      # should not run on a firmware-only push/PR. A workflow-level `paths:`
+      # would skip the ESP32/firmware jobs too, so the filter lives here.
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            console:
+              - 'link/**'
+              - 'firmware/host/Makefile'
+              - 'firmware/host/CMakeLists.txt'
+              - '.github/workflows/ci.yml'
       - uses: actions/setup-python@v5
+        if: steps.changes.outputs.console == 'true'
         with:
           python-version: '3.12'
       - run: pip install pytest
-      - run: brew install glfw
+        if: steps.changes.outputs.console == 'true'
+      - run: sudo apt-get update && sudo apt-get install -y libglfw3-dev libgl1-mesa-dev libncurses-dev
+        if: steps.changes.outputs.console == 'true'
       # Pinned by tag + sha256 in the Makefile, so a cache hit is the same
       # bytes a cache miss would fetch.
       - name: cache third_party
+        if: steps.changes.outputs.console == 'true'
         uses: actions/cache@v4
         with:
           path: third_party
           key: third-party-${{ hashFiles('firmware/host/Makefile') }}
       - name: fetch pinned deps
+        if: steps.changes.outputs.console == 'true'
         run: make -C firmware/host deps
       - name: build both consoles
+        if: steps.changes.outputs.console == 'true'
         run: make -C firmware/host tui gui
       - name: console e2e, both clients
+        if: steps.changes.outputs.console == 'true'
         run: python -m pytest tests/test_tui_e2e.py tests/test_gui_e2e.py -q
-      - name: the host gate under clang too
+      - name: the host gate under gcc too
+        if: steps.changes.outputs.console == 'true'
         # The other half of the mjpeg.cpp lesson: clang and gcc disagree about
         # what is worth warning on, so the gate is worth running under both.
+        # This is the gcc half -- the 2026-09-01 format-truncation break was
+        # invisible to the old mac job's clang.
         run: make -C firmware/host test

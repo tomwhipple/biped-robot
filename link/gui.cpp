@@ -193,12 +193,20 @@ struct App {
     bimo::SimProc sim;
     bimo::RunList runs;
 
-    char host_port[64] = "";
+    // host_port is a display string ("host:port"); sized to hold a 63-byte
+    // host (ed_host's bound) plus ":port".
+    char host_port[80] = "";
     char repo[512] = ".";
-    char sessions[512] = "hw_sessions";
+    // sessions defaults to <repo>/hw_sessions, so it must hold repo (512)
+    // plus the 12-byte suffix.
+    char sessions[544] = "hw_sessions";
     char keymap_path[512] = "";
     char sim_url[512] = "";
-    char status[320] = "";
+    // status is a one-line message shown in the window and logged. It embeds
+    // 512-byte paths (repo, sessions, keymap, sim_url, rec.path), so it is
+    // sized to hold the largest such message -- repo + sessions + the fixed
+    // text -- rather than truncate a long path (gcc -Wformat-truncation).
+    char status[1152] = "";
     int run_sel = 0;
     // Default OFF: the console should come up looking like the robot does on
     // the bench at power-on -- standing on the ground, benched, torque off.
@@ -223,8 +231,8 @@ struct App {
     // first line stayed invisible to both the operator and the author.
     FILE* logf = nullptr;
     char last_note[192] = "";
-    char last_status[320] = "";
-    char last_sim_err[192] = "";
+    char last_status[1152] = "";
+    char last_sim_err[544] = "";
     char last_stream_err[192] = "";
     int logged_sim_lines = 0;
 
@@ -255,7 +263,9 @@ struct App {
     char ed_sim_view[512] = "";
     int ed_stream_port = 0, ed_sim_cmd_port = 0;
     char ed_repo[512] = "";
-    char ed_sessions[512] = "";
+    // Matches a.sessions (repo + "/hw_sessions"), so the round-trip copy
+    // cannot truncate.
+    char ed_sessions[544] = "";
     char ed_keymap[512] = "";
     char ed_shot[512] = "shot.png";
     bool shot_now = false;               // the render loop grabs on next frame
