@@ -122,6 +122,30 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     (joint-space L1 home pull, weight 4). Stage 1 of the roadmap now
     needs four more pad arms, three on wood and five pushes on this
     student. Data: hw_sessions/2026-09-06/.</p>
+    <p><b>Midday: rest is home, in the sim at least.</b> Tom drove v30home
+    from the GUI: arming was fine, a forward click set off an oscillation
+    it recovered from, and one earlier GUI arm had oscillated where mine
+    had not — the GUI arms from wherever the last drive left the servos,
+    my script goes to home first (hypothesis, not yet recorded). Tom's
+    direction: randomise the starting foot position within the play
+    limits. The sim already jittered starts by ±1.7°; that is now a flag
+    (<code>--init-pose-deg</code>) at ±3°, and when set the served
+    servo target starts at the jittered pose the way the firmware reseeds
+    its shaper from measured joints. On Tom's daytime grant
+    <code>loco_v31home</code> ran 08:49–12:25 (v30home + the joint-space
+    L1 home pull at 4 + the 3° jitter, 30M warm from v30home). In the
+    twin it <b>rests at home</b>: every joint within 2.1°, torso −2.2°,
+    gyro RMS 0.002 — the first policy in this line to do so. The referee
+    is mixed: 19/144 and stand_10s 8/8 as before, but stand_off 2/8 (the
+    sim's torque-off stand from dead-straight knees sag-collapses, the
+    very failure the old +0.10 rad knee bias was added for; the real
+    robot stands released at zero, so this row is the backdrive model's
+    opinion) and falls 33 % against v30home's 15 %, which is the cost of
+    the pull under the randomisation and needs a hardware read before it
+    is judged. Firmware built, not flashed; the robot keeps v30home with
+    servos off. The runner was stopped after the grant's two jobs; tonight
+    the training thread's v27full_d distill and v27full_e run first, then
+    a 60M walking continuation of v31home.</p>
   </div>
 
   <div class="card accent">

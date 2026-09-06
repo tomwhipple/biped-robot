@@ -157,11 +157,17 @@ Free driving from the GUI with the safety envelope on:
   remaining gap is the trained rest posture, a reward question (v31home). Stage 1 row 1 needs 5 such arms; row 2
   wood; row 3 pushes. Notes: hw_sessions/2026-09-06/arm_v30_full_pad_notes.md.
 
+- **09-06 13:00, `loco_v31home_s128r24`** (v30home + joint-space L1 home pull 4 + 3° start jitter; daytime run
+  on Tom's grant): **rest = home in the twin**, max joint 2.1° (L hip pitch), torso −2.2°, gyro RMS 0.002 — the
+  first policy whose rest is the home pose. Referee 19/144, stand_10s 8/8, but stand_off 2/8 (the sim's
+  straight-knee torque-off sag, a backdrive-model artefact the real robot does not have) and falls 33 % vs
+  v30home's 15 %. Tick-1 transient 0.150 (hip roll). Firmware built, not flashed. Hardware read pending.
+
 ## Immediate next steps
 
-1. Done 09-06 08:12: v30home stands still at full gain on the pad (see Stage 1 log). Next: the rest
-   of Stage 1 on v30home — 4 more pad arms, 3 wood arms, 5 pushes — then `loco_v31home` (queue 52/53)
-   → offline gate (tick-1 + twin rest within 2°) → flash → repeat.
+1. Flash v31home (built) and arm on the pad: does it stand still AT HOME on hardware? If yes, run
+   Stage 1 on it (4 more pad arms, 3 wood, 5 pushes) and record a GUI arm + forward drive with
+   `$T/obs_wait.sh`. v31long (60M, walking) is queued for tonight behind the training thread's jobs.
    Open question to settle in sim: which reward term pays for a knee split at stand.
    09-06 08:40 (Tom): GUI arm fine, forward click → oscillation that recovered; an earlier GUI
    arm oscillated. Hypothesis: GUI arms from the pose the last drive left (no home first).
