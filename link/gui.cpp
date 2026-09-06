@@ -369,10 +369,10 @@ void tick(App& a, double now_ms) {
             // actually sent one: appended, never defaulted. A viewer handed
             // (0,0,1) it was not told would draw a fallen robot standing.
             if (t.have_att) {
-                at += snprintf(line + at, sizeof line - static_cast<size_t>(at),
-                               " %.4f %.4f %.4f", static_cast<double>(t.up_x),
-                               static_cast<double>(t.up_y),
-                               static_cast<double>(t.up_z));
+                snprintf(line + at, sizeof line - static_cast<size_t>(at),
+                         " %.4f %.4f %.4f", static_cast<double>(t.up_x),
+                         static_cast<double>(t.up_y),
+                         static_cast<double>(t.up_z));
             }
             if (a.sim.tell(line)) {
                 ++a.poses_sent;

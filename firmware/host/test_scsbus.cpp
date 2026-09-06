@@ -53,7 +53,6 @@ class FakePort : public Port {
     void flushInput() override { ++flushes; }
     uint64_t nowUs() const override { return t_us; }
 
-    void queueRaw(std::vector<uint8_t> bytes) { rx.push_back(bytes); }
     void queueStatus(uint8_t id, uint8_t err, std::vector<uint8_t> params) {
         std::vector<uint8_t> p;
         p.push_back(id);

@@ -243,17 +243,17 @@ void wifiLinkTask(void*) {
             // encodeTelemetry RETURNED, in both places -- a hard-coded
             // kTlmLen here truncates the long frame and every CRC fails.
             uint8_t wire[linkproto::kTlmLenMax];
-            const size_t n = linkproto::encodeTelemetry(wire, t);
+            const size_t tlm_len = linkproto::encodeTelemetry(wire, t);
             sockaddr_in to = cmdr.addr;
             to.sin_port = lwip_htons(linkproto::kTlmPort);
-            if (lwip_sendto(sock, wire, n, 0,
+            if (lwip_sendto(sock, wire, tlm_len, 0,
                             reinterpret_cast<sockaddr*>(&to), sizeof to) ==
-                static_cast<int>(n)) {
+                static_cast<int>(tlm_len)) {
                 g_tx_tlm.fetch_add(1);
                 // "carried joints", which is what the counter has always
                 // meant -- now true of the +attitude length too.
-                if (n == linkproto::kTlmLenExt ||
-                    n == linkproto::kTlmLenExtAtt) {
+                if (tlm_len == linkproto::kTlmLenExt ||
+                    tlm_len == linkproto::kTlmLenExtAtt) {
                     g_tx_tlm_ext.fetch_add(1);
                 }
             }

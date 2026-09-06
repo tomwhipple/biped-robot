@@ -73,6 +73,8 @@ void testWeightsAreTheDeployedPolicy() {
     CHECK(strcmp(policy::kWeightsRun, obs::kRunName) == 0);
     // A distilled net, not the (512, 256, 128) trainer: every hidden layer
     // has to fit the scratch buffers, and the whole thing has to fit flash.
+    // cppcheck-suppress knownConditionTrueFalse -- asserting the invariant,
+    // not testing a runtime condition.
     CHECK(policy::kMaxWidth == policy::kObsDim);
     size_t n = 0;
     for (int i = 0; i < policy::kNumLayers; ++i) {

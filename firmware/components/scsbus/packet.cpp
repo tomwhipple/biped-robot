@@ -52,28 +52,8 @@ size_t buildWrite8(uint8_t* out, size_t cap, uint8_t id, uint8_t addr,
     return buildWrite(out, cap, id, addr, &value, 1);
 }
 
-size_t buildWrite16(uint8_t* out, size_t cap, uint8_t id, uint8_t addr,
-                    uint16_t value) {
-    uint8_t d[2];
-    wrU16(d, value);
-    return buildWrite(out, cap, id, addr, d, 2);
-}
-
-size_t buildRegWrite(uint8_t* out, size_t cap, uint8_t id, uint8_t addr,
-                     const uint8_t* data, uint8_t n) {
-    uint8_t p[64];
-    if (static_cast<size_t>(n) + 1 > sizeof p) return 0;
-    p[0] = addr;
-    for (uint8_t i = 0; i < n; ++i) p[1 + i] = data[i];
-    return frame(out, cap, id, Inst::kRegWrite, p, static_cast<size_t>(n) + 1);
-}
-
 size_t buildAction(uint8_t* out, size_t cap) {
     return frame(out, cap, kBroadcastId, Inst::kAction, nullptr, 0);
-}
-
-size_t buildReset(uint8_t* out, size_t cap, uint8_t id) {
-    return frame(out, cap, id, Inst::kReset, nullptr, 0);
 }
 
 size_t buildSyncRead(uint8_t* out, size_t cap, uint8_t addr, uint8_t n,

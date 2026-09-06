@@ -89,12 +89,6 @@ Status Bus::writeU8(uint8_t id, uint8_t addr, uint8_t value) {
     return write(id, addr, &value, 1);
 }
 
-Status Bus::writeU16(uint8_t id, uint8_t addr, uint16_t value) {
-    uint8_t d[2];
-    wrU16(d, value);
-    return write(id, addr, d, 2);
-}
-
 Status Bus::syncReadFeedback(const uint8_t* ids, size_t n, Feedback* out,
                              bool* ok) {
     if (n == 0 || n > kMaxServos) return Status::kBadArg;
@@ -206,15 +200,6 @@ Status Bus::setId(uint8_t old_id, uint8_t new_id) {
 
 Status Bus::setMiddle(uint8_t id) {
     return writeU8(id, kRegTorqueEnable, kTorqueCalibrateMiddle);
-}
-
-Status Bus::setPositionCorrection(uint8_t id, int32_t steps) {
-    if (steps < -2047 || steps > 2047) return Status::kBadArg;
-    Status st = unlockEeprom(id);
-    if (st != Status::kOk) return st;
-    st = writeU16(id, kRegPosCorrection, toSignMag(steps, 11));
-    const Status lock = lockEeprom(id);
-    return st != Status::kOk ? st : lock;
 }
 
 Status Bus::readPosition(uint8_t id, int32_t& steps) {

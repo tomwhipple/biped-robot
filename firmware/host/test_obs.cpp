@@ -280,8 +280,6 @@ void testImuMaths() {
 // -- calibration persistence + the steps clamp -----------------------------
 // The blob format is plain data, so it is testable here even though the NVS
 // side of cal_store only compiles under ESP-IDF.
-#include "../main/cal_store.h"
-
 void testCalBlob() {
     obs::Calibration cal;
     for (int i = 0; i < obs::kNumJoints; ++i) {

@@ -132,6 +132,7 @@ class Fusion {
 // does it.
 class BiasEstimator {
   public:
+    BiasEstimator() { reset(); }
     void reset();
     // Returns true while more samples are still wanted.
     bool accumulate(const float gyro[3]);

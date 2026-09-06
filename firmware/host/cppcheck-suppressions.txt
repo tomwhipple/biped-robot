@@ -1,0 +1,32 @@
+# cppcheck suppressions for the biped-robot static-analysis gate.
+# (bare '#' lines are parsed as empty ids by cppcheck -- keep a trailing space)
+# These are DESIGN-NOISE suppressions, not bug suppressions: each id below
+# flags a pattern that is deliberate in this codebase, and suppressing the id
+# keeps the gate green while every other check (including the bug classes
+# bugprone/knownConditionTrueFalse/nullPointerRedundantCheck/unusedFunction)
+# still fails the build on a new finding.
+# (blank separator)
+# The firmware/console core is deliberately no-STL and raw-buffer (see
+# link/client.h: "No STL and no exceptions: this compiles under the firmware's
+# own flags"). The checks below all assume idiomatic modern C++ and would drown
+# the signal in noise on a codebase that is raw-buffer-by-design.
+
+# C-style casts are the house style (no RTTI, C++17, raw buffers); the
+# compiler's -Wconversion/-Wsign-conversion already own the narrowing lane.
+cstyleCast
+
+# "Use std::find_if/std::copy/std::fill" -- there is no STL in the core.
+useStlAlgorithm
+
+# "Declare this variable const" -- style suggestion, not a bug.
+constVariable
+constVariablePointer
+constVariableReference
+constParameterReference
+
+# "Parameter name differs between declaration and definition" -- inconclusive
+# cosmetic nit (e.g. `bias` vs `b`, `key` vs `k`).
+funcArgNamesDifferent
+
+# "Pass by const reference" -- a performance nit on a test helper.
+passedByValue

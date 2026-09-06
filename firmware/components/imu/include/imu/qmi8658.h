@@ -107,7 +107,6 @@ class Qmi8658Imu : public Imu {
     bool calibrateBias(float bias_out[3], float spread_out[3]);
     void setBias(const float bias[3]);
     void bias(float out[3]) const;
-    uint32_t tearCount() const { return tear_count_; }
 
     // Bench diagnostic: force the AttitudeEngine on and report what the dQ/dV
     // registers actually contain. This exists because the datasheet copy we

@@ -195,7 +195,6 @@ battguard::Guard& battGuard();
 
 // Servo IDs in policy-action order, from the generated obs spec.
 inline const uint8_t* servoIds() { return obs::kServoId; }
-inline int numJoints() { return obs::kNumJoints; }
 
 // The on-board IMU, for the bring-up CLI. Null when the part did not answer
 // at boot and the loop is running on the stub -- callers must check, because
