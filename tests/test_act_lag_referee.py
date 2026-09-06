@@ -114,3 +114,39 @@ def test_law_matches_mjx():
     want = _cascade([target], default, 2.0, env.control_dt)[0]
     got = np.asarray(s2.lag_y[2], dtype=np.float64)
     np.testing.assert_allclose(got, want, rtol=0, atol=1e-4)
+
+
+def test_act_delay_serves_old_target():
+    """With a 3-tick dead time the plant must receive the target from 3
+    steps ago (default pose until the ring fills), before the lag stage."""
+    env = _walker(act_delay_ticks=3)
+    env.reset(seed=0)
+    acts = [a * np.ones(env.action_space.shape[0], dtype=np.float32)
+            for a in (0.2, -0.3, 0.5, 0.1, -0.2)]
+    targets = [env._action_to_ctrl(a) for a in acts]
+    for i, a in enumerate(acts):
+        env.step(a)
+        if i < 3:
+            np.testing.assert_allclose(env.data.ctrl, env._default,
+                                       rtol=0, atol=1e-5, err_msg=f"fill {i}")
+        else:
+            np.testing.assert_allclose(env.data.ctrl, targets[i - 3],
+                                       rtol=0, atol=1e-5, err_msg=f"step {i}")
+
+
+def test_act_delay_resets_and_composes_with_lag():
+    """Reset clears the ring; delay feeds the cascade (delay THEN lag)."""
+    env = _walker(act_delay_ticks=2, act_lag_hz=2.0)
+    env.reset(seed=0)
+    a = 0.7 * np.ones(env.action_space.shape[0], dtype=np.float32)
+    target = env._action_to_ctrl(a).astype(np.float64)
+    # ticks 0,1 the ring serves default; tick 2 serves the real target --
+    # so the cascade sees [default, default, target, target, ...]
+    seq = [np.asarray(env._default, np.float64)] * 2 + [target] * 3
+    want = _cascade(seq, env._default, 2.0, env.control_dt)
+    for i in range(5):
+        env.step(a)
+        np.testing.assert_allclose(env.data.ctrl, want[i], rtol=0, atol=1e-5,
+                                   err_msg=f"step {i}")
+    env.reset(seed=1)
+    assert env._act_hist is None and env._lag_y is None

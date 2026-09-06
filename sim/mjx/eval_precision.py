@@ -100,7 +100,8 @@ def load_policy(run_dir, obs_size, act_size=8):
     return act
 
 
-def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0):
+def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
+             act_delay_ticks=0):
     """Eval env: ext_cmd precision plant mirroring config.json construction,
     but pinned to the hardware-claim conditions (or --nominal clean plant).
     extra: per-scenario env overrides (e.g. recover_mix=1.0).
@@ -113,7 +114,7 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0):
         actuator_model="sts3215", imu_obs=True, getup=False, cmd_fixed=None,
         payload_mass=0.154, payload_max=None,
         episode_seconds=episode_seconds, render_mode="rgb_array",
-        act_lag_hz=act_lag_hz,
+        act_lag_hz=act_lag_hz, act_delay_ticks=act_delay_ticks,
     )
     # eval-time default: recovery machinery off unless a scenario asks;
     # training-time recover_mix in the config must not leak into e.g.
@@ -1775,6 +1776,11 @@ def main():
     p.add_argument("--sil", action="store_true",
                    help="route every tick through the REAL firmware stack "
                         "(libctrl_sil); writes scorecard_sil.{md,json}")
+    p.add_argument("--act-delay-ticks", type=int, default=0,
+                   help="apply the measured servo dead time to the plant "
+                        "(control ticks of 20 ms; 4 = the 2026-09-05 bench's "
+                        "~85 ms). Folds into the _lag column's conditions "
+                        "line; only counts as a distinct column via cond")
     p.add_argument("--act-lag-hz", type=float, default=0.0,
                    help="apply the measured servo action-chain lag to the "
                         "plant (3-stage cascade pole, Hz; 2.0 = the "
@@ -1783,7 +1789,7 @@ def main():
                         "stay untouched for historical comparability")
     args = p.parse_args()
     suffix = "_sil" if args.sil else ""
-    if args.act_lag_hz > 0.0:
+    if args.act_lag_hz > 0.0 or args.act_delay_ticks > 0:
         suffix = f"{suffix}_lag"
     # a --scenarios subset must not clobber the run's full reel either --
     # the scorecard learned this 2026-08-03 (guard below), but the movie
@@ -1823,7 +1829,8 @@ def main():
         if key not in env_cache:
             env_cache[key] = make_env(cfg, secs, args.nominal, xml,
                                       extra=ENV_EXTRA.get(key[1]),
-                                      act_lag_hz=args.act_lag_hz)
+                                      act_lag_hz=args.act_lag_hz,
+                                      act_delay_ticks=args.act_delay_ticks)
         return env_cache[key]
 
     obs_size = get_env(12.0).observation_space.shape[0]
@@ -1855,6 +1862,9 @@ def main():
     if args.act_lag_hz > 0.0:
         cond += (f"; MEASURED servo lag {args.act_lag_hz:g} Hz "
                  "(3-stage act-lag cascade)")
+    if args.act_delay_ticks > 0:
+        cond += (f"; servo dead time {20 * args.act_delay_ticks} ms "
+                 f"({args.act_delay_ticks} ticks)")
     print(f"CPU precision referee: {args.run_name}  [{stack}]  [{cond}]  "
           f"{args.episodes} seeds/scenario, plant {os.path.basename(xml)}\n")
 

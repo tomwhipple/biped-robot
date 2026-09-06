@@ -454,6 +454,14 @@ class BimoWalkerEnv(gym.Env):
         # 0.0 = pass-through (bit-exact legacy behavior). Same law as
         # env_mjx: 3 cascaded first-order stages before tick quantization.
         act_lag_hz: float = 0.0,
+        # -- servo dead time (referee-side, 2026-09-06) ------------------------
+        # The 2026-09-05 clamped-foot step test measured ~85 ms of PURE delay
+        # before the STS3215 follows a target (amplitude/load independent) --
+        # a term the lag cascade cannot express. Same law as env_mjx
+        # --act-delay-max, but FIXED: the actuator serves the target from
+        # act_delay_ticks control steps ago (20 ms each), applied BEFORE the
+        # lag cascade like the deploy path. 0 = pass-through.
+        act_delay_ticks: int = 0,
         # -- crouch-command variation (SIL finding #2, docs/sil-harness.md) ----
         # cmd[3] (crouch height fraction) was frozen at exactly 1.0 through
         # every training run, so its obs-normalizer std collapsed to ~1e-6 --
@@ -616,6 +624,9 @@ class BimoWalkerEnv(gym.Env):
         self.quantize_ticks = bool(quantize_ticks)
         self.act_lag_hz = float(act_lag_hz)
         self._lag_y = None       # (3, n_act) cascade state; seeded on 1st step
+        self.act_delay_ticks = int(act_delay_ticks)
+        assert 0 <= self.act_delay_ticks <= 10, "act_delay_ticks (20 ms each)"
+        self._act_hist = None    # target ring for the dead-time delay
         self.cmd_crouch_range = tuple(cmd_crouch_range)
         # feature flag: (1,1) draws no RNG at all, so runs with the default
         # consume the identical random stream as before
@@ -1541,6 +1552,7 @@ class BimoWalkerEnv(gym.Env):
             self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
         self._lag_y = None                    # re-seed the act-lag cascade
+        self._act_hist = None                 # re-seed the dead-time ring
         if self.obs_hist_len > 1:
             self._obs_hist = []
             first = self._obs()                # frame only (hist empty)
@@ -1551,6 +1563,14 @@ class BimoWalkerEnv(gym.Env):
     def step(self, action):
         action = np.asarray(action, dtype=np.float32)
         target = self._action_to_ctrl(action)
+        if self.act_delay_ticks > 0:
+            # servo dead time: serve the target from act_delay_ticks ago,
+            # BEFORE the lag cascade -- matching env_mjx's act_hist order
+            if self._act_hist is None:
+                self._act_hist = [np.asarray(self._default, dtype=np.float64)
+                                  ] * self.act_delay_ticks
+            self._act_hist.append(target.astype(np.float64))
+            target = self._act_hist.pop(0)
         if self.act_lag_hz > 0.0:
             # action-chain lag (3 cascaded first-order stages, the firmware C2
             # shaper's structure) BEFORE quantization, matching env_mjx and

@@ -982,6 +982,36 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   </div>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·06 · training thread</span></p>
+    <p><b>The jump arrived on schedule — the from-scratch line now leads
+    the fleet under the measured servo.</b> v27full_d's first full
+    uninterrupted window (+70M → ~195M total) did what the lag-naive
+    benchmark did in the same band: the lag scorecard went 16 → 16 →
+    18 → <b>56/144</b> overnight — past v27tilt_b's 46 — with falls
+    79 → 69 → 32 → <b>22%</b>, both stands 8/8 at ~1–3 cm drift, asym
+    12%, 4.0 W, reward 715→963 and still climbing. Rhythm is forming on
+    the same arc (76% alternation from 55%, stride CV 0.42, 103
+    surviving strides). The policy that was born expecting the real
+    servo is now the best walker we have judged against it, and it
+    carries the speed-coupled clock besides. Tonight: its 24-round
+    distill (the deploy artifact question) and v27full_e continue
+    behind the hardware thread's queued v31home pair. Referee-side, the
+    measured plant kept growing too: their 09·05 bench found <b>85 ms
+    of pure servo dead time</b> (their <code>--act-delay-max</code> DR
+    landed in env_mjx), so the referee now mirrors it —
+    <code>act_delay_ticks</code> in walker_env (target ring served
+    before the lag cascade, exact env_mjx order) and
+    <code>--act-delay-ticks</code> in eval_precision, tests pinning
+    delay order, ring reset and delay+lag composition. The column's
+    PIN is deliberately unchanged (still 2 Hz lag, no delay): their
+    step test (85 ms delay + 30 ms lag) and the stride fit (2 Hz
+    cascade) partially explain the same physics, and stacking both
+    without a joint fit would double-count — one bench-trace fit
+    decides the combo before any scores move. Flagged to the hardware
+    thread on t_856978e0.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·05 · training thread</span></p>
     <p><b>The warm-start law gets a refinement, and the from-scratch
     line keeps halving its falls.</b> Yesterday's prediction was that
