@@ -179,8 +179,14 @@ jobs:
           else
             BASE="${{ github.event.before }}"
           fi
-          if git diff --name-only "$BASE" HEAD \
-              | grep -qE '^(link/|firmware/host/Makefile$|firmware/host/CMakeLists\.txt$|\.github/workflows/ci\.yml$)'; then
+          # Hoist the diff out of the pipeline so `set -e` sees a failure:
+          # a failed command-substitution assignment aborts the step (red),
+          # instead of grep seeing empty stdin and silently skipping the gate
+          # (green) when $BASE is unresolvable (e.g. github.event.before after
+          # a force-push). printf keeps multi-file matching correct when the
+          # diff is a single filename.
+          CHANGED=$(git diff --name-only "$BASE" HEAD)
+          if printf '%s\n' "$CHANGED" | grep -qE '^(link/|firmware/host/(Makefile$|CMakeLists\.txt$|gl-shim/)|firmware/components/linkproto/|tests/test_.*e2e\.py$|\.github/workflows/ci\.yml$)'; then
             echo "console=true" >> "$GITHUB_OUTPUT"
           else
             echo "console=false" >> "$GITHUB_OUTPUT"
