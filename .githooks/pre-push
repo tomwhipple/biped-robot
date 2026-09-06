@@ -5,7 +5,8 @@
 # Runs `make -C firmware/host check` ONCE over the whole working tree (not
 # per-ref over stdin) -- a single pass is cheaper and covers every ref being
 # pushed in one shot. `make check` is the SAME gate set CI's host-tests /
-# link-tests / console jobs run, so a pass here cannot be a fail in CI.
+# link-tests / console jobs run (no gate-set drift), but a local pass can
+# still go red in CI via the Linux gui tolerance or platform differences.
 #
 # Enable once per clone:
 #   git config core.hooksPath .githooks

@@ -18,9 +18,9 @@ clone). Everyone who clones the repo runs the same hook.
 
 The hook runs `make -C firmware/host check` once over the whole working tree
 (not per-ref), then blocks the push if it fails. `make check` is the **same**
-gate set CI's `host-tests` / `link-tests` / `console` jobs run, so a pass in
-the hook cannot be a fail in CI (and vice versa) — the command list is never
-forked between the two.
+gate set CI's `host-tests` / `link-tests` / `console` jobs run (no gate-set
+drift), but a local pass can still go red in CI via the Linux gui tolerance
+or platform differences.
 
 `make check` runs:
 

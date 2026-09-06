@@ -305,8 +305,9 @@ test: $(BINS) $(SIL_LIB)
 #
 # `make check` is what the .githooks/pre-push hook runs before a push, and it
 # is the SAME set of gates CI's host-tests / link-tests / console jobs run.
-# Do NOT fork the command list between the hook and CI: a pass here must be a
-# pass there and vice versa (the "no drift" rule).
+# Do NOT fork the command list between the hook and CI (no gate-set drift),
+# but a local pass can still go red in CI via the Linux gui tolerance or
+# platform differences.
 #
 #   test + tui  -- HARD, always. These are the mjpeg.cpp gate that works on
 #                  both macOS and Linux today (ASan/UBSan host gate + the
@@ -326,6 +327,7 @@ ifeq ($(UNAME_S),Darwin)
 	@$(MAKE) --no-print-directory deps gui
 else
 	@echo "check: gui/deps tolerant on Linux until the GUI port lands (PR #61)"
+	@echo "  (install with: sudo apt-get install libglfw3-dev)"
 	@-$(MAKE) --no-print-directory check-gui
 endif
 
