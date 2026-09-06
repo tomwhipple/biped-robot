@@ -1,0 +1,31 @@
+#!/bin/sh
+# Pre-push gate: run the fast local checks before a push so a broken build is
+# caught on the laptop instead of burning GitHub Actions minutes.
+#
+# Runs `make -C firmware/host check` ONCE over the whole working tree (not
+# per-ref over stdin) -- a single pass is cheaper and covers every ref being
+# pushed in one shot. `make check` is the SAME gate set CI's host-tests /
+# link-tests / console jobs run, so a pass here cannot be a fail in CI.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Escape hatch (documented in docs/hooks.md):
+#   git push --no-verify
+
+set -u
+
+# Resolve the repo root regardless of where git invokes the hook from.
+ROOT="$(git rev-parse --show-toplevel)" || exit 1
+
+echo "== pre-push: make -C firmware/host check =="
+if make -C "$ROOT/firmware/host" check; then
+    echo "== pre-push: check passed =="
+    exit 0
+fi
+
+echo "" >&2
+echo "pre-push: make check FAILED -- push blocked." >&2
+echo "  The failing gate is in the output above. Fix it and re-push," >&2
+echo "  or bypass with 'git push --no-verify' if you know what you're doing." >&2
+exit 1

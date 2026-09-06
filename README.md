@@ -38,6 +38,7 @@ python -m mujoco.viewer --mjcf=sim/bimo_biped_v5body.xml
 # the test gates
 python -m pytest tests/ -q          # ~3 min: physics parity, protocol, ROM, referee
 make -C firmware/host test          # the firmware's pure modules under ASan/UBSan
+make -C firmware/host check         # the fast pre-push gate (test + tui + gui/deps)
 
 # regenerate the printable parts from the parametric source
 python cad/parts.py                 # STLs + STEPs + bed-fit and mass checks
