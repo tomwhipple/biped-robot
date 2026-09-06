@@ -168,6 +168,14 @@ Free driving from the GUI with the safety envelope on:
   the twin's prediction within 1° on every joint. Stage 1 row 1: arm 1 of 5 PASSED. Notes:
   hw_sessions/2026-09-06/arm_v31_full_pad_notes.md.
 
+- **09-06 afternoon, GUI-stream replays on v31home** (tools/replay_session.py, battery, pad): Tom's 0.1 s forward
+  blip → robot 9° twitch, quiet in 2 s (twin 7°). His 1.15 s forward pulse at 0.4 m/s → a step with the right hip at
+  −28..−35° and the torso at 17..30°: recovered 1 of 3, fell forward 2 of 3. Twin on the same pulse: hip −23°,
+  lean 11.5° (16.7° with the 80 ms dead time now in `sil_twin --act-delay-ticks 4`), never falls. Verdicts: the GUI
+  is fine (its keys are momentary blips); crouch is ignored by this line (squat 0/8) and my stand gates were fighting
+  it (fixed af315a2); a step on the robot is ~1.5× the twin's and sits on the recovery edge. The rest of the gap is
+  contact/mass: Stage 0 CoM and friction measurements. Notes: hw_sessions/2026-09-06/replay_notes.md.
+
 ## Immediate next steps
 
 1. v31home stands still at home on hardware (1/5 pad arms done). Finish Stage 1 on it: 4 more pad

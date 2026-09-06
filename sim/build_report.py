@@ -464,6 +464,31 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     seconds; the two plant facts that were missing were the servo's 85 ms
     dead time and a reward that actually preferred home. Stage 1, row 1:
     one of five pad arms passed.</p>
+    <p><b>Late afternoon: the command stream, at last, and what a click
+    really is.</b> Tom pointed the GUI's recorder at mira over SMB, so for
+    the first time the exact frames he sent exist next to the robot's data.
+    Two findings before any replay: the GUI's direction keys are
+    <i>momentary</i> — a click is 100–150 ms of vx 0.4 then stand, a pulse
+    no training episode contains — and the recording had zero telemetry
+    rows in 575 s, so his laptop was not receiving beacons at all (and
+    would not carry joints anyway unless Mirror is on). The GUI is
+    otherwise fine; the crouch slider it sends is simply ignored by this
+    line (squat_reps 0/8 throughout), partly because the stand-home and
+    stand-zero gates I wrote treated a crouch command as a stand and
+    pulled against it — fixed for tonight's run. Then
+    <code>tools/replay_session.py</code>: the recorded stream replayed to
+    the twin and to the robot, same frames, same times. The 0.1 s blip: a
+    7° twitch in the twin, 9° on the robot, both quiet in two seconds. The
+    1.15 s pulse: the twin steps with the hip at −23° and the torso at
+    11.5° (16.7° once the twin carries the 80 ms servo dead time,
+    <code>--act-delay-ticks 4</code>) and never falls; the robot steps at
+    −28..−35° with the torso at 17..30° and fell twice in three. The dead
+    time explains the robot's lean in the run it recovered from and not
+    the falls, which leaves contact and mass — the Stage 0 measurements
+    still open. On the tooling side the swing guard, written for the
+    standing tests, stopped one perfectly good step (Tom: "look at the
+    pose") and is now off for drive replays. Data: hw_sessions/2026-09-06/
+    replay_*, the GUI file 2026-09-06T21-30-06Z-192.168.2.90.jsonl.</p>
   </div>
 
   <div class="card accent">

@@ -118,6 +118,8 @@ def run(args):
     extra = {}
     if args.backlash_deg is not None:
         extra.update(backlash_deg=args.backlash_deg, backlash_deg_max=None)
+    if args.act_delay_ticks > 0:
+        extra.update(act_delay_ticks=int(args.act_delay_ticks))
     if args.play_deg > 0.0:
         extra.update(play_deg=args.play_deg,
                      play_joints=tuple(args.play_joints.split(","))
@@ -126,7 +128,7 @@ def run(args):
                    xml=xml if xml else cfg.get("xml_path"),
                    extra=extra or None, act_lag_hz=args.act_lag_hz)
     print(f"sil_twin: plant backlash {env.backlash_deg:g} deg, "
-          f"act_lag {env.act_lag_hz:g} Hz, play {env.play_deg:g} deg "
+          f"act_lag {env.act_lag_hz:g} Hz, dead time {getattr(env, 'act_delay_ticks', 0)} ticks, play {env.play_deg:g} deg "
           f"on {env.play_joints or 'all joints'}", flush=True)
     act = H.SilActAdapter(lib, env, log=False)
     obs, _ = env.reset(seed=args.seed)
@@ -457,6 +459,8 @@ def main():
     p.add_argument("--play-joints", default=None,
                    help="comma list of joint names the play applies to "
                         "(default all), e.g. L_hip_roll,R_hip_roll")
+    p.add_argument("--act-delay-ticks", type=int, default=0,
+                   help="servo dead time in 20 ms control ticks (4 = the 09-05 bench ~85 ms)")
     p.add_argument("--act-lag-hz", type=float, default=0.0,
                    help="measured-servo lag pole (2.0 = the 08-31 bench)")
     p.add_argument("--boot-armed", action="store_true")
