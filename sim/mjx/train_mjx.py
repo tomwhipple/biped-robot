@@ -387,6 +387,10 @@ def main():
     p.add_argument("--act-delay-max", type=int, default=None,
                    help="per-episode servo dead time DR, 0..N control ticks "
                         "(20 ms each); 2026-09-05 bench measured ~85 ms")
+    p.add_argument("--init-pose-deg", type=float, default=None,
+                   help="episode start-pose jitter half-width per joint, deg "
+                        "(unset = the historical 1.7 deg); served target starts "
+                        "at the jittered pose when set")
     p.add_argument("--act-lag", default=None,
                    help="per-episode action-chain lag pole draw, lo,hz "
                         "(3 cascaded stages, the deployed C2 shaper's "
@@ -542,6 +546,8 @@ def main():
         env_kw["gyro_delay_max"] = int(args.gyro_delay_max)
     if args.act_delay_max is not None:
         env_kw["act_delay_max"] = int(args.act_delay_max)
+    if args.init_pose_deg is not None:
+        env_kw["init_pose_deg"] = float(args.init_pose_deg)
     if args.walk_submix is not None:
         env_kw["walk_submix"] = tuple(
             float(x) for x in args.walk_submix.split(","))

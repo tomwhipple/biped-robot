@@ -631,6 +631,17 @@ class BimoMJXEnv:
         gyro_gain_range: tuple | None = None,   # per-episode gyro obs gain DR
         gyro_delay_max: int = 0,                # per-episode gyro obs delay, ticks
         act_delay_max: int = 0,                 # per-episode servo dead time, ticks
+        init_pose_deg: float | None = None,     # start-pose jitter half-width per
+                                                # joint (deg). None keeps the
+                                                # historical +-0.03 rad (1.7 deg).
+                                                # Tom 2026-09-06: "randomize the
+                                                # starting foot position within
+                                                # natural play limits" -- GUI arms
+                                                # start from wherever the servos
+                                                # were left. When set, the served
+                                                # target and lag state also start
+                                                # AT the jittered pose (firmware
+                                                # reseeds the shaper from measured q).
         # -- get-up mode (fall recovery) -------------------------------------------
         # Episodes START from a settled ragdoll fall (random orientation +
         # joints, dropped and settled for getup_settle_s); there is NO fall
@@ -930,6 +941,10 @@ class BimoMJXEnv:
         assert 0 <= self.gyro_delay_max <= 2, "gyro_hist holds 3 ticks"
         self.act_delay_max = int(act_delay_max)
         assert 0 <= self.act_delay_max <= 10, "act_delay_max in ticks (20 ms each)"
+        self.init_pose_deg = (None if init_pose_deg is None
+                              else float(init_pose_deg))
+        self._init_q_rad = (0.03 if self.init_pose_deg is None
+                            else float(np.radians(self.init_pose_deg)))
         self.getup = getup
         self.getup_settle = max(1, round(getup_settle_s / self.sim_dt))
         self.w_recover_h = w_recover_h
@@ -1593,8 +1608,9 @@ class BimoMJXEnv:
             recover_slot = (jax.random.uniform(r_mix)
                             < self.recover_mix).astype(jp.float32)
             qpos = self._qpos0.at[self._jq0:self._jq1].add(
-                jax.random.uniform(r_q, (self._nq_act,), minval=-0.03,
-                                   maxval=0.03))
+                jax.random.uniform(r_q, (self._nq_act,),
+                                   minval=-self._init_q_rad,
+                                   maxval=self._init_q_rad))
             qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
@@ -1612,8 +1628,9 @@ class BimoMJXEnv:
             rise_t0 = jp.where(recover_slot > 0, t0_dn, 0.0)
         else:
             qpos = self._qpos0.at[self._jq0:self._jq1].add(
-                jax.random.uniform(r_q, (self._nq_act,), minval=-0.03,
-                                   maxval=0.03))
+                jax.random.uniform(r_q, (self._nq_act,),
+                                   minval=-self._init_q_rad,
+                                   maxval=self._init_q_rad))
             qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
@@ -1626,7 +1643,13 @@ class BimoMJXEnv:
         gyro_gain, gyro_delay = self._draw_gyro(r_ep)
         gyro_hist = self._gyro_hist0(data)
         act_delay = self._draw_act_delay(r_ep)
-        act_hist = self._act_hist0()
+        if self.init_pose_deg is None:
+            act_hist = self._act_hist0()
+            lag_y0 = jp.tile(self._default.astype(jp.float32), (3, 1))
+        else:
+            q_init = data.qpos[self._jq0:self._jq1].astype(jp.float32)
+            act_hist = jp.tile(q_init[None, :], (self.act_delay_max + 1, 1))
+            lag_y0 = jp.tile(q_init, (3, 1))
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -1680,7 +1703,7 @@ class BimoMJXEnv:
                      cmd_crouch=cmd_crouch,
                      servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
                      act_lag=act_lag,
-                     lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
+                     lag_y=lag_y0,
                      act_hist=act_hist, act_delay=act_delay,
                      imu_R=imu_R, imu_bias=imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=gyro_delay,
