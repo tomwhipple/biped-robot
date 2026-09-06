@@ -373,6 +373,15 @@ class BimoMJXEnv:
         # (-w * sum(dq^2) while commanded to plain-stand, upright, no lift):
         # pays for the ABSENCE of motion, not just small corrections
         # (user 2026-08-12, stand shaking)
+        w_stand_home: float = 0.0,  # stand-gated L1 pull of the SERVED joint
+                                    # target onto the home pose, in RADIANS:
+                                    # -w * sum|target - default|. 2026-09-05:
+                                    # w_stand_zero (mean of squared ACTIONS)
+                                    # is toothless in 'full' action units -- a
+                                    # 10 deg knee split is a 0.11 action, so
+                                    # w=10 charged 0.03/step and v30home
+                                    # rested with knees +6/-10 deg. L1 makes
+                                    # exactly-home a sharp optimum.
         w_stand_zero: float = 0.0,  # stand-gated ACTION-magnitude penalty: at a
                                     # plain stand the policy must output ~0, i.e.
                                     # hold the default (home) pose. 2026-09-04,
@@ -799,6 +808,7 @@ class BimoMJXEnv:
         self.w_still = w_still
         self.w_stand_com = w_stand_com
         self.w_stand_zero = w_stand_zero
+        self.w_stand_home = w_stand_home
         self.stand_com_sigma = stand_com_sigma
         self.speed_clock = speed_clock
         self.speed_clock_lo = speed_clock_lo
@@ -2240,6 +2250,16 @@ class BimoMJXEnv:
             reward -= (self.w_stand_zero
                        * jp.where(sz_gate, 1.0, 0.0)
                        * jp.mean(action ** 2))
+        if self.w_stand_home:
+            # rest = home, in joint units (see ctor note). Uses the target the
+            # actuator serves this tick (post dead-time/lag), so the pull is
+            # on the pose the servos are actually asked to hold.
+            sh_gate = ((~cmd_moving)
+                       & (~lifted if self.ext_cmd else True)
+                       & (state.recovered > 0.5))
+            reward -= (self.w_stand_home
+                       * jp.where(sh_gate, 1.0, 0.0)
+                       * jp.sum(jp.abs(target - self._default)))
         if self.w_stand_com:
             # stand_off diagnosis 2026-08-19: the v21 line parks its standing
             # CoM 26-28 mm AFT of the midfoot point; with torque released,

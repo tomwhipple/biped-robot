@@ -296,6 +296,9 @@ def main():
     p.add_argument("--w-stand-zero", type=float, default=None,
                    help="stand-gated action-magnitude penalty: zero command "
                         "-> zero action -> home pose (Tom 2026-09-04)")
+    p.add_argument("--w-stand-home", type=float, default=None,
+                   help="stand-gated L1 pull of the served target onto home, "
+                        "radians (rest = home; replaces --w-stand-zero)")
     p.add_argument("--w-stand-com", type=float, default=None,
                    help="stand-gated CoM-over-midfoot kernel: a torque-off "
                         "stand only survives if the CoM stays within ~16 mm "
@@ -583,6 +586,8 @@ def main():
         env_kw["w_stand_com"] = args.w_stand_com
     if args.w_stand_zero is not None:
         env_kw["w_stand_zero"] = args.w_stand_zero
+    if args.w_stand_home is not None:
+        env_kw["w_stand_home"] = float(args.w_stand_home)
     if args.w_stand_knee is not None:
         env_kw["w_stand_knee"] = args.w_stand_knee
     if args.speed_clock:
