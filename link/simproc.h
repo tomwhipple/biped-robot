@@ -25,7 +25,9 @@ constexpr int kMaxRuns = 128;
 // exported sim/sil/weights/<name>.silw.json. Anything else fails at startup
 // with a traceback, which is a poor dropdown entry.
 struct RunList {
-    char name[kMaxRuns][64];
+    // Sized to hold a directory entry name (d_name is char[256]), so a long
+    // run name cannot truncate (gcc -Wformat-truncation).
+    char name[kMaxRuns][256];
     int n = 0;
     void scan(const char* repo);
     int indexOf(const char* want) const;
@@ -39,7 +41,10 @@ struct SimProc {
     int log_n = 0;                     // total lines ever, for the ring
     char partial[kSimLogCols];
     size_t partial_len = 0;
-    char err[192] = "";
+    // Sized to hold the largest message it carries: "no interpreter at " +
+    // a full 512-byte path (python/script are char[512]), so a long repo
+    // path cannot truncate the reason the sim will not start.
+    char err[544] = "";
     // sil_twin's own one-line description of what it is running (run name and
     // plant). Lifted from its stdout so the panel can state what is on screen
     // instead of implying it from controls the operator has not touched.

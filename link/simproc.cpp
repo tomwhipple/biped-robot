@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -280,13 +281,17 @@ void SimProc::poll() {
 
 void guessRepoRoot(const char* argv0, char* out, size_t cap) {
     // firmware/host/build/bimo_gui -> three levels up.
-    char path[1024];
+    char path[PATH_MAX];
     if (argv0 != nullptr && strchr(argv0, '/') != nullptr) {
         snprintf(path, sizeof path, "%s", argv0);
     } else {
         snprintf(path, sizeof path, "%s", "./bimo_gui");
     }
-    char real[1024];
+    // realpath's resolved buffer must be at least PATH_MAX: glibc's FORTIFY
+    // check aborts on anything smaller, and PATH_MAX is 4096 on Linux but
+    // only 1024 on macOS -- so a 1024-byte buffer passed here on macOS and
+    // never caught it. This is the Linux-only class the gcc gate exists for.
+    char real[PATH_MAX];
     if (realpath(path, real) == nullptr) {
         snprintf(real, sizeof real, "%s", path);
     }

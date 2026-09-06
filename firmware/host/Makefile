@@ -140,13 +140,23 @@ $(THIRD)/stb_image_write.h:
 	  https://raw.githubusercontent.com/nothings/stb/$(STB_REV)/stb_image_write.h
 	@echo "$(STBW_SHA)  $@" | shasum -a 256 -c -
 
-# Homebrew's GLFW. macOS still ships OpenGL.framework (deprecated since 10.14,
-# hence the silence flag); ImGui's GL3 backend only needs 3.2 core.
-BREW      = $(shell brew --prefix 2>/dev/null || echo /opt/homebrew)
-GUI_LIBS  = -L$(BREW)/lib -lglfw -lpthread -framework OpenGL \
-            -framework Cocoa -framework IOKit -framework CoreVideo
-GUI_INC   = -I$(BREW)/include -I$(IMGUI) -I$(IMGUI)/backends -I$(THIRD)
-GUI_DEFS  = -DGL_SILENCE_DEPRECATION
+# GLFW + OpenGL, split by platform. macOS still ships OpenGL.framework
+# (deprecated since 10.14, hence the silence flag); ImGui's GL3 backend only
+# needs 3.2 core. On Linux, GLFW is a system package (libglfw3-dev) and the
+# OpenGL symbols come from imgui's own loader (imgui_impl_opengl3_loader.h),
+# reached through the gl-shim that stands in for <OpenGL/gl3.h> -- the same
+# shim clang-tidy uses, now compiled into the real binary.
+ifeq ($(UNAME_S),Darwin)
+  BREW      = $(shell brew --prefix 2>/dev/null || echo /opt/homebrew)
+  GUI_LIBS  = -L$(BREW)/lib -lglfw -lpthread -framework OpenGL \
+              -framework Cocoa -framework IOKit -framework CoreVideo
+  GUI_INC   = -I$(BREW)/include -I$(IMGUI) -I$(IMGUI)/backends -I$(THIRD)
+  GUI_DEFS  = -DGL_SILENCE_DEPRECATION
+else
+  GUI_LIBS  = -lglfw -lGL -lpthread
+  GUI_INC   = -Igl-shim -I$(IMGUI) -I$(IMGUI)/backends -I$(THIRD)
+  GUI_DEFS  =
+endif
 
 # Third-party sources cannot survive -Werror -Wconversion -Wshadow, so they
 # are compiled to objects of their own with warnings off. Ours are not.
