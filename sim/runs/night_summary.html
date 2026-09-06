@@ -102,6 +102,29 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·06 · hardware thread</span></p>
+    <p><b>It stood still.</b> The v30home student — rest-is-home plus the
+    85 ms servo dead time measured on the bench the evening before — was
+    flashed at 08:10 and armed on the pad at full gyro gain with Tom
+    spotting. Within 3 s it settled into a fixed point and held it for the
+    remaining 27 s: joint peak-to-peak 0.0° in every window, gyro RMS
+    <b>0.002 roll / 0.020 pitch rad/s</b> where the previous day's pad
+    arms on v29zero read 0.49 / 0.72, the policy's action constant to
+    0.003 with the loop verifiably live (1352 ticks, beacon echo
+    advancing). Tom: "fantastic!" The pose it chose is the one the sim
+    twin predicted to within about 2° on every joint (knees +4.8 / −9.5°,
+    right ankle −5.7°, left hip roll −3.2°) — the first time the twin has
+    predicted the hardware stand. The reading is clean: the servo's dead
+    time was the missing plant term, and with it in training the loop no
+    longer rings on the real servo. What is left is the trained rest
+    posture, a knee split that the reward prefers to home; that is a
+    reward question, answered by tonight's <code>loco_v31home</code>
+    (joint-space L1 home pull, weight 4). Stage 1 of the roadmap now
+    needs four more pad arms, three on wood and five pushes on this
+    student. Data: hw_sessions/2026-09-06/.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·05 · hardware thread</span></p>
     <p><b>v29zero fails the rest-is-home gate, and the reason is
     arithmetic.</b> Both overnight runs landed with their students:

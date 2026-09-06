@@ -150,11 +150,18 @@ Free driving from the GUI with the safety envelope on:
   1.17/step at this split), queued as `loco_v31home` (52/53) for the 09-06 night slot. v30home firmware built,
   not flashed; the hardware question it can still answer tomorrow is whether the dead-time DR damps the swing.
 
+- **09-06 08:12, `loco_v30home_s128r24` on the pad, full gain: STOOD STILL.** Settled in 3 s to a fixed
+  point and held it for 27 s: joint p-p 0.0°, gyro RMS 0.002 / 0.020 rad/s (v29zero on the same pad: 0.49 / 0.72),
+  action constant to 0.003 with the loop live. The pose is the twin's prediction within ~2° on every joint (knees
+  +4.8 / −9.5°, right ankle −5.7°, left hip roll −3.2°). The servo dead-time DR was the missing plant term; the
+  remaining gap is the trained rest posture, a reward question (v31home). Stage 1 row 1 needs 5 such arms; row 2
+  wood; row 3 pushes. Notes: hw_sessions/2026-09-06/arm_v30_full_pad_notes.md.
+
 ## Immediate next steps
 
-1. Morning 09-06: spotted arm on the v30home student (binary built) — does the servo dead-time DR
-   damp the pitch swing at full gain? Pad, 30 s, same script. Then `loco_v31home` (queue 52/53,
-   09-06 night) → offline gate (tick-1 + twin rest within 2°) → flash → Stage 1 gate.
+1. Done 09-06 08:12: v30home stands still at full gain on the pad (see Stage 1 log). Next: the rest
+   of Stage 1 on v30home — 4 more pad arms, 3 wood arms, 5 pushes — then `loco_v31home` (queue 52/53)
+   → offline gate (tick-1 + twin rest within 2°) → flash → repeat.
    Open question to settle in sim: which reward term pays for a knee split at stand.
 2. Action dead-time DR in env_mjx (`--act-delay-max`, ticks) from the 09-05 servo measurement,
    into the next training run. Stage 0 CoM measurement still open (30 min, no policy).
