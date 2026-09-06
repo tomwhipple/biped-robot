@@ -176,11 +176,20 @@ Free driving from the GUI with the safety envelope on:
   it (fixed af315a2); a step on the robot is ~1.5× the twin's and sits on the recovery edge. The rest of the gap is
   contact/mass: Stage 0 CoM and friction measurements. Notes: hw_sessions/2026-09-06/replay_notes.md.
 
+## One policy line (Tom, 2026-09-06)
+
+From 09-06 there is ONE policy under iteration: `loco_v31home` → `loco_v32` → … Each hop is warm-started
+from the previous, changes ONE thing, and must pass the offline gate (tick-1, twin rest) before it is flashed
+and the hardware gates before it advances a stage. The v27full line (training thread, from scratch, best sim
+walker at 56/144 but never on the robot) is a donor of recipe ideas, not a second policy; its `v27full_e` job
+is held. First hop: `loco_v32` = v31home + `--speed-clock --speed-clock-hi 1.25`, 60M, 09-06 night.
+Planned hops after it, one change each: crouch share up (Stage 2), then whatever Stage 3 (step in place) needs.
+
 ## Immediate next steps
 
-1. v31home stands still at home on hardware (1/5 pad arms done). Finish Stage 1 on it: 4 more pad
-   arms, 3 wood, 5 pushes; record a GUI arm + forward drive with `$T/obs_wait.sh`. v31long (60M,
-   walking) is queued for tonight behind the training thread's jobs.
+1. Tonight: `loco_v32` (queue 56/57). Morning: offline gate → flash → remaining Stage 1 arms (4 pad,
+   3 wood, 5 pushes) → replay Tom's forward-pulse segment (`tools/replay_session.py`, tilt guard only)
+   to see whether the step now stays inside the recovery limit.
    Open question to settle in sim: which reward term pays for a knee split at stand.
    09-06 08:40 (Tom): GUI arm fine, forward click → oscillation that recovered; an earlier GUI
    arm oscillated. Hypothesis: GUI arms from the pose the last drive left (no home first).
