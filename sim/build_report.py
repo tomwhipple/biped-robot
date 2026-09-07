@@ -411,6 +411,34 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·07 · overnight, offline gate</span></p>
+    <p><b>v32 is quieter and steps smaller, but it no longer rests at
+    home.</b> The first hop of the single policy line,
+    <code>loco_v32</code> (v31home plus the speed clock at ×1.25, 60M
+    warm), trained 17:14–00:22 and distilled by 00:57. The teacher
+    climbed the whole way (reward 470 → 562, episode length 148 → 170).
+    The student's referee is a wash with v31home: 19/144 both, stand_10s
+    8/8 at 1.7 cm drift, falls 25 % against 33 %, 2.6 W against 3.2 W.
+    Tick-1 at home is the same 0.145 hip-roll transient v31home has. The
+    twin rest is where it fails: after 6 s the left hip sits at yaw −4.0°
+    and pitch +4.3° with the torso pitched <b>4.0° backward</b>, where
+    v31home under the identical analysis rests within 2.1° and −2.2°.
+    Adding the 80 ms dead time changes nothing (0.2°). The gait clock is
+    frozen at a plain stand in this recipe, so the clock did not move the
+    pose; the L1 home pull at weight 4 lost ground over the extra 60M
+    steps to a term not yet identified. On Tom's recorded 1.15 s forward
+    pulse, replayed into the twin with dead time, v32 steps with the
+    right hip at −19° and the torso at 8° where v31home goes to −23° and
+    15°; neither falls, v31home returns to home in 2 s, v32 settles 5.8°
+    off it. Verdict: the rest-is-home gate is failed, the robot keeps
+    v31home for the remaining Stage 1 arms, the v32 image is saved but
+    not flashed. The rest of the night slot goes to the repair hop
+    <code>loco_v33home</code>: v32 with the home pull doubled to 8, one
+    change, 30M warm from v32. Data: hw_sessions/2026-09-07/
+    v32_offline_gate.md, sim/runs/loco_v32_s128r24/scorecard_lag.md.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·06 · hardware thread</span></p>
     <p><b>It stood still.</b> The v30home student — rest-is-home plus the
     85 ms servo dead time measured on the bench the evening before — was

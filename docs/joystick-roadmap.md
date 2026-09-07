@@ -176,6 +176,16 @@ Free driving from the GUI with the safety envelope on:
   it (fixed af315a2); a step on the robot is ~1.5× the twin's and sits on the recovery edge. The rest of the gap is
   contact/mass: Stage 0 CoM and friction measurements. Notes: hw_sessions/2026-09-06/replay_notes.md.
 
+- **09-07 01:00, `loco_v32_s128r24`** (v31home + `--speed-clock --speed-clock-hi 1.25`, 60M warm; first hop of the
+  line): **offline gate FAILED on twin rest.** Referee 19/144 (= v31home), stand_10s 8/8 (1.7 cm), falls 25 % (v31home
+  33 %), 2.6 W; tick-1 0.145 (same hip-roll transient as v31home). Twin rest: L hip yaw −4.0°, L hip pitch +4.3°,
+  torso −4.0° (v31home, same analysis: 2.1° / −2.2°); dead time changes it by 0.2°; gyro RMS 0.006 (quiet). The clock
+  is frozen at a plain stand, so the clock is not the mover; the home pull at 4 lost to an unidentified term over the
+  extra steps. Twin A/B on Tom's 1.15 s forward pulse (with dead time): v32 hip −19°, torso 8° vs v31home −23°, 15°;
+  neither falls; v31home returns home in 2 s, v32 settles 5.8° off. Firmware built and saved, NOT flashed; robot keeps
+  v31home. Repair hop `loco_v33home` = v32 + `--w-stand-home 8.0` (one change), 30M warm from v32, queued 58/59 for
+  the rest of the 09-07 night slot. Notes: hw_sessions/2026-09-07/v32_offline_gate.md.
+
 ## One policy line (Tom, 2026-09-06)
 
 From 09-06 there is ONE policy under iteration: `loco_v31home` → `loco_v32` → … Each hop is warm-started
@@ -187,9 +197,12 @@ Planned hops after it, one change each: crouch share up (Stage 2), then whatever
 
 ## Immediate next steps
 
-1. Tonight: `loco_v32` (queue 56/57). Morning: offline gate → flash → remaining Stage 1 arms (4 pad,
-   3 wood, 5 pushes) → replay Tom's forward-pulse segment (`tools/replay_session.py`, tilt guard only)
-   to see whether the step now stays inside the recovery limit.
+1. 09-07 morning: `loco_v32` failed the twin-rest gate (4.3° / −4.0°); `loco_v33home` (v32 + home pull 8)
+   runs in the rest of the night slot. If v33home passes the offline gate (rest within 2°, torso within
+   1°, twin quiet): flash it → remaining Stage 1 arms (4 pad, 3 wood, 5 pushes) → replay Tom's forward-pulse
+   segment (`tools/replay_session.py --pp-rad 3.0`) to see whether the step stays inside the recovery limit.
+   If it fails too: the robot keeps v31home for the arms; the open sim question becomes which term pays for
+   the off-home rest (log the stand-gated reward terms per step at the twin's rest pose, no guessing).
    Open question to settle in sim: which reward term pays for a knee split at stand.
    09-06 08:40 (Tom): GUI arm fine, forward click → oscillation that recovered; an earlier GUI
    arm oscillated. Hypothesis: GUI arms from the pose the last drive left (no home first).

@@ -72,6 +72,8 @@ def main():
                    help="RESET SERVOS edge + 4 s home before the replay")
     p.add_argument("--pose", action="store_true", default=True,
                    help="request joint angles in every beacon (FLAG_POSE|FLAG_ATT); on by default")
+    p.add_argument("--watch", metavar="HOST[:PORT]", default=None,
+                   help="relay every beacon to a bimo_gui --readonly watcher")
     p.add_argument("--speed", type=float, default=1.0,
                    help="replay speed factor (1 = real time)")
     a = p.parse_args()
@@ -96,7 +98,8 @@ def main():
     if len(changes) > 40:
         print(f"   ... {len(changes) - 40} more changes")
 
-    kw = {k: v for k, v in (("cmd_port", a.port), ("tlm_port", a.tlm_port))
+    kw = {k: v for k, v in (("cmd_port", a.port), ("tlm_port", a.tlm_port),
+                            ("watch", a.watch))
           if v is not None}
     d = OscDriver(a.host, a.csv, a.tilt, a.pp_rad, **kw)
     print(d.host_clock_line(), flush=True)
