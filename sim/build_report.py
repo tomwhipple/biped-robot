@@ -479,6 +479,29 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     flashed. Recommendation: flash v33home for the Stage 1 arms this
     morning with the v31home image as fallback. Data: hw_sessions/
     2026-09-07/v33home_offline_gate.md, sim/runs/loco_v33home_s128r24/.</p>
+    <p><b>Afternoon: Stage 1 closed, the step is the problem.</b> Tom
+    flashed the go: v33home went on at 09:20 and, on the pad on battery
+    at full gain, stood still for 30 s — fixed point in 3 s, joint
+    peak-to-peak 0.00° after, torso within 0.5°, rest within 4° on the
+    joints the twin predicted. Tom: static arms are "fully working now",
+    no more of them. Then the 1.15 s forward pulse, five runs: one
+    recovery, four falls, all caught — one sideways with the feet bound
+    together, three forward, the last from a synthetic stream at crouch
+    1.0 that removed the yaw drift Tom's recording carried before the
+    step. Every run showed the same excess over the twin: hip roll
+    ±12–14° against ±5°, both hips flexing within 0.2 s of the command
+    where the twin swings one leg 0.76 s later, torso pitch 24–30°
+    against 11°. Twenty-four twin runs afterwards — play, backlash,
+    weaker and slower servos, low voltage, no payload, extra payload,
+    dead time to 8 ticks, eight seeds — and not one falls or swings its
+    hips past 6°; weaker servos make the step smaller. The command bytes
+    and the firmware code are the same on both, so the difference has to
+    be in what the policy sees. The next drive is tethered with the
+    observation dump running so the 147 floats can be compared tick by
+    tick. New standing rule from Tom: RESET SERVOS a few seconds after
+    every guard trip. Tonight: <code>loco_v34crouch</code>, the Stage 2
+    hop (crouch share 0.06 → 0.20), independent of the fall. Data:
+    hw_sessions/2026-09-07/arm_v33_full_pad_notes.md.</p>
   </div>
 
   <div class="card accent">

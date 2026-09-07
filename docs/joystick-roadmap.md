@@ -195,6 +195,19 @@ Free driving from the GUI with the safety envelope on:
   backlog held the vision model on the GPU 01:00–02:13; the distill was run by hand at 05:50 (runner refuses starts
   after 05:00). Notes: hw_sessions/2026-09-07/v33home_offline_gate.md.
 
+- **09-07 afternoon, `loco_v33home_s128r24` FLASHED (6f09813) and on the pad, battery, full gain.** Pad arm 1: **STOOD
+  STILL**, 30 s, fixed point in 3 s, joint p-p 0.00 after, torso −0.5° / +0.2°, rest within 4.1° (L knee, R yaw; the twin's
+  joints and signs, ~1.5° larger). Tom: static arms are "fully working now" — no more Stage 1 arms, go needed only after a
+  fall. **Forward pulse (1.15 s at 0.4 m/s), 5 runs: 1 recovered, 4 falls, all caught.** Three on Tom's recording (sideways
+  with the feet bound; recovered; forward), then a synthetic stream at crouch 1.0 (rules out the crouch-0.87 yaw drift the
+  recording carried): fell forward-right. Hardware excess in every run: hip roll ±12–14° (twin ±5°), both hips flexing
+  within 0.2 s of the command (twin: one leg, 0.76 s later), torso pitch 24–30° (twin 11°), a second step. Twin sweeps
+  (24 runs: play, backlash, servo kp 5/8, 8 V, payload 0/0.3, lag 1 Hz, dead time 6/8, seeds): **no knob reproduces it**,
+  no fall; weaker/slower servos shrink the step. Same command bytes, same firmware code → the policy INPUT differs on the
+  robot; next drive session tethered with obsdump through the synthetic pulse, frames compared tick by tick. New rule
+  (Tom): RESET SERVOS a few seconds after every guard trip (drivers, 7dc404c). Notes: hw_sessions/2026-09-07/
+  arm_v33_full_pad_notes.md, synth_fwdpulse_crouch1.jsonl.
+
 ## One policy line (Tom, 2026-09-06)
 
 From 09-06 there is ONE policy under iteration: `loco_v31home` → `loco_v32` → … Each hop is warm-started
@@ -206,14 +219,15 @@ Planned hops after it, one change each: crouch share up (Stage 2), then whatever
 
 ## Immediate next steps
 
-1. 09-07 morning (Tom's call): `loco_v32` failed the twin-rest gate (4.3° / −4.0°); `loco_v33home` (v32 +
-   home pull 8) is back to v31home's rest (2.8° / −2.0°) with the referee at 34/144. Recommended: flash
-   v33home (`$T/fw_v33home_s128r24.bin`, or deploy-headers RUN=loco_v33home_s128r24 + build) → postflash
-   script → remaining Stage 1 arms (4 pad, 3 wood, 5 pushes) → replay Tom's forward-pulse segment
-   (`tools/replay_session.py --pp-rad 3.0`) to see whether the step stays inside the recovery limit.
-   Fallback: v31home stays on the robot. Open in sim: the 6° L hip yaw left after a step, and which term
-   pays for the off-home rest (log the stand-gated reward terms per step at the twin's rest pose, no guessing).
-   Nothing is queued for tonight until the hardware read decides the next hop (crouch share is the plan).
+1. Stage 1 is closed on v33home (Tom, 09-07: "fully working now"). The forward pulse falls 4/5 on the robot and
+   never in the twin, and no plant knob moves the twin: the next drive session is TETHERED, `tools/obs_capture.py`
+   running through `REC_FILE=hw_sessions/2026-09-07/synth_fwdpulse_crouch1.jsonl $T/run_replay.sh …`, and the
+   robot's 147-float frames are diffed against the twin's (`harness.obs_block_errors`) to find which block
+   (q, dq, up, gyro, prev action, phase, cmd) diverges first. Until then no policy change aimed at the fall.
+2. Tonight (queue 60/61): `loco_v34crouch` = v33home + ext-mix crouch share 0.06 → 0.20 (Stage 2, the planned
+   hop); gate = twin rest unchanged and a crouch 0.8 command lowers the knees in the twin.
+3. Open Stage 0: CoM and floor friction measurements; does the robot carry the 154 g "GoPro" payload the claim
+   plant assumes? Open in sim: which term pays for the off-home rest and the 6° hip-yaw residue after a step.
    Open question to settle in sim: which reward term pays for a knee split at stand.
    09-06 08:40 (Tom): GUI arm fine, forward click → oscillation that recovered; an earlier GUI
    arm oscillated. Hypothesis: GUI arms from the pose the last drive left (no home first).
