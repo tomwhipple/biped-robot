@@ -65,7 +65,7 @@ SRC_SIL   = sil_lib.cpp sil_net.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp
 
-.PHONY: all test clean vectors deploy-headers sil tui gui deps
+.PHONY: all test clean vectors deploy-headers sil tui gui deps check check-gui
 all: $(BINS) $(SIL_LIB)
 
 # The two operator clients share one core (link/client.cpp): the sockets, the
@@ -300,6 +300,39 @@ test: $(BINS) $(SIL_LIB)
 	@rc=0; for t in $(BINS); do ./$$t || rc=1; done; \
 	 if [ $$rc -eq 0 ]; then echo "ALL GREEN"; else echo "FAILURES"; fi; \
 	 exit $$rc
+
+# -- the fast local gate (single source of truth with CI) -------------------
+#
+# `make check` is what the .githooks/pre-push hook runs before a push, and it
+# is the SAME set of gates CI's host-tests / link-tests / console jobs run.
+# Do NOT fork the command list between the hook and CI (no gate-set drift),
+# but a local pass can still go red in CI via the Linux gui tolerance or
+# platform differences.
+#
+#   test + tui  -- HARD, always. These are the mjpeg.cpp gate that works on
+#                  both macOS and Linux today (ASan/UBSan host gate + the
+#                  ncurses console compile).
+#   deps + gui  -- the windowed console. Tolerant on Linux ONLY until the
+#                  Linux GUI port (PR #61) lands on main: before that, a Linux
+#                  dev without libglfw3-dev cannot link bimo_gui, and blocking
+#                  their push would be the opposite of the point. On macOS the
+#                  GUI builds today, so a gui failure there IS a hard block.
+#
+# The tolerance is expressed as a separate `check-gui` phony that `check`
+# invokes with `-` (ignore its exit status) on Linux only. After the port
+# merges, fold `deps gui` back into `check` as hard prerequisites and delete
+# `check-gui` -- that is a follow-up, not this change.
+check: test tui
+ifeq ($(UNAME_S),Darwin)
+	@$(MAKE) --no-print-directory deps gui
+else
+	@echo "check: gui/deps tolerant on Linux until the GUI port lands (PR #61)"
+	@echo "  (install with: sudo apt-get install libglfw3-dev)"
+	@-$(MAKE) --no-print-directory check-gui
+endif
+
+check-gui: deps gui
+
 
 # Regenerate the golden PROTOCOL vectors from the Python reference. This is
 # the only generator that has one right answer independent of any policy, so
