@@ -436,6 +436,24 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     <code>loco_v33home</code>: v32 with the home pull doubled to 8, one
     change, 30M warm from v32. Data: hw_sessions/2026-09-07/
     v32_offline_gate.md, sim/runs/loco_v32_s128r24/scorecard_lag.md.</p>
+    <p><b>06:30: the repair hop recovers the rest and doubles the
+    referee.</b> <code>loco_v33home</code> (v32 with the home pull at 8,
+    30M warm) waited until 02:13 for the GPU — the camera classifier was
+    working through a backlog of driveway clips on the vision model — and
+    its distill had to be run by hand at 05:50 because the runner refuses
+    starts after 05:00; it finished at 06:22, inside the window. Student
+    referee <b>34/144</b> against 19 for v31home and v32, falls 19 %,
+    backward_1m and both sidesteps 8/8, stand_10s 8/8 at 1.6 cm; the
+    squat row is still 0/8. Twin rest: 2.8° max (left knee), torso
+    −2.0°, gyro RMS 0.002 — within a degree of v31home's 2.1° / −2.2°
+    and v32's 4.3° / −4.0° regression is gone. Tick-1 is the same 0.15
+    hip-roll transient all three share. On the recorded forward pulse it
+    steps with the hip at −19° and the torso at 10°, calmer than v31home,
+    never falls, and afterwards holds a 6° left-hip yaw — a heading
+    twist, not a lean. Firmware built (host suite all green), saved, not
+    flashed. Recommendation: flash v33home for the Stage 1 arms this
+    morning with the v31home image as fallback. Data: hw_sessions/
+    2026-09-07/v33home_offline_gate.md, sim/runs/loco_v33home_s128r24/.</p>
   </div>
 
   <div class="card accent">
