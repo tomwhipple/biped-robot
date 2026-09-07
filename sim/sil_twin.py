@@ -124,6 +124,16 @@ def run(args):
         extra.update(play_deg=args.play_deg,
                      play_joints=tuple(args.play_joints.split(","))
                      if args.play_joints else None)
+    for kv in (args.plant or []):
+        # --plant servo_kp=8 payload_mass=0.15 friction_range=0 : any
+        # BimoWalkerEnv kwarg, pinned on top of the claim/nominal plant
+        # (make_env applies extra LAST). Numbers parse as float, else str.
+        k, _, v = kv.partition("=")
+        try:
+            v = float(v)
+        except ValueError:
+            v = {"true": True, "false": False, "none": None}.get(v.lower(), v)
+        extra[k] = v
     env = make_env(cfg, episode_seconds=1e9, nominal=args.nominal,
                    xml=xml if xml else cfg.get("xml_path"),
                    extra=extra or None, act_lag_hz=args.act_lag_hz)
@@ -459,6 +469,10 @@ def main():
     p.add_argument("--play-joints", default=None,
                    help="comma list of joint names the play applies to "
                         "(default all), e.g. L_hip_roll,R_hip_roll")
+    p.add_argument("--plant", nargs="*", metavar="KEY=VAL",
+                   help="pin BimoWalkerEnv plant kwargs on the twin, e.g. "
+                        "servo_kp=8 supply_voltage=6.5 payload_mass=0.15 "
+                        "friction_range=0 (numbers parse as float)")
     p.add_argument("--act-delay-ticks", type=int, default=0,
                    help="servo dead time in 20 ms control ticks (4 = the 09-05 bench ~85 ms)")
     p.add_argument("--act-lag-hz", type=float, default=0.0,
