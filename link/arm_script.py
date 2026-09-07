@@ -30,7 +30,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from protocol import (CMD_PORT, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP,  # noqa: E402
+from protocol import (CMD_PORT, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,  # noqa: E402
                       SEND_HZ, TLM_PORT, LinkState, ProtocolError,
                       decode_telemetry, diag_reason, encode_command)
 from sources import EXT_KEYS, SCRIPTS  # noqa: E402
@@ -230,6 +230,13 @@ class Driver:
         print(f"!! GUARD: {why} -- sending ESTOP then disarm", flush=True)
         self.run_for(1.0, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_ESTOP), "ESTOP")
         self.run_for(1.0, lambda t: (0.0, 0.0, 0), "disarm")
+        # Tom, 2026-09-07: "always reset servos a few seconds after the fall
+        # protection engages". The ESTOP leaves the servos holding the fallen
+        # pose; after the spotter has righted the robot, a RESET SERVOS edge
+        # puts it back at home so the next run starts clean.
+        self.run_for(3.0, lambda t: (0.0, 0.0, 0), "hold (spotter rights the robot)")
+        self.run_for(0.4, lambda t: (0.0, 0.0, FLAG_HOME), "RESET SERVOS: FLAG_HOME edge")
+        self.run_for(4.0, lambda t: (0.0, 0.0, 0), "home settle")
 
     def close(self):
         self.tx.close()

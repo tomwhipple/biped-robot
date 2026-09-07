@@ -127,9 +127,9 @@ def main():
                        foot_dz=r.get("foot_dz", 0.0))
             d.send(r["vx"], r["wz"], r["flags"] | extra, ext=ext)
         if verdict:
-            print(f"!! GUARD: {verdict} -- sending ESTOP then disarm", flush=True)
-            d.run_for(1.0, lambda t: (0.0, 0.0, FLAG_ESTOP), "ESTOP")
-            d.run_for(1.0, lambda t: (0.0, 0.0, 0), "disarm")
+            # ESTOP, disarm, then (Tom, 2026-09-07) a RESET SERVOS edge a few
+            # seconds later so the robot is back at home for the next run.
+            d.emergency(verdict)
         else:
             d.run_for(0.4, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_HOME),
                       "end: RESET SERVOS edge (still armed)")
