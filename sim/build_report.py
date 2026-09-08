@@ -491,6 +491,29 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     queue file while the runner slept made it launch a flagless default
     run, killed at once — a lesson now in memory. Data: hw_sessions/
     2026-09-08/v34crouch_offline_gate.md, v35mimic_offline_gate.md.</p>
+    <p><b>Morning, on the bench: the policy's inputs are clean, and its
+    step is a shuffle.</b> The tethered forward pulse with the observation
+    dump ran twice and recovered twice; then Tom explained the tether also
+    meant a bench supply for the servos, so the A/B became supply versus
+    battery: supply 2/2, battery 2/5 today after 1/5 yesterday, and Tom
+    called it — the battery is out, the outcome flips run to run with the
+    leg that swings first and the joint play. The dump itself settled two
+    things. Before the command the robot's 147 policy inputs match the
+    twin's: velocities zero, gyro at the noise floor, torso level; the one
+    hardware-only habit is a left hip yaw held 6° off home and growing
+    after each step. And the firmware's gait clock ran at the fixed base
+    frequency while every recipe since v32 scales it with commanded speed,
+    +7 % at 0.4 m/s — a small gap, now closed in firmware (5609c27, host
+    suite green, image built, not yet flashed). Tom's steer for the
+    policy: keep the feet from binding and lift the foot by bending the
+    knee. The twin, given a new per-tick foot log, put numbers on it: on
+    the same pulse v33home and v35mimic lift the swing foot 0.7–1.0 cm
+    against a 6 cm target, never past 2 cm, and stand with the soles 5.9 cm
+    apart, 1.3 cm of daylight. Tonight's <code>loco_v36swing</code> is
+    that lever: target 9 cm, kernel weight 3 and half the width, and a
+    foot-separation guard set just above the stance. The hop after it is
+    recovery from a stumble — the push gauntlet is 0/8 for every student
+    in the line. Data: hw_sessions/2026-09-08/tethered_pulse_notes.md.</p>
   </div>
 
   <div class="card accent">

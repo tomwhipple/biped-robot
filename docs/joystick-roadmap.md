@@ -233,11 +233,15 @@ Planned hops after it, one change each: crouch share up (Stage 2), then whatever
 
 ## Immediate next steps
 
-1. Stage 1 is closed on v33home (Tom, 09-07: "fully working now"). The forward pulse falls 4/5 on the robot and
-   never in the twin, and no plant knob moves the twin: the next drive session is TETHERED, `tools/obs_capture.py`
-   running through `REC_FILE=hw_sessions/2026-09-07/synth_fwdpulse_crouch1.jsonl $T/run_replay.sh …`, and the
-   robot's 147-float frames are diffed against the twin's (`harness.obs_block_errors`) to find which block
-   (q, dq, up, gyro, prev action, phase, cmd) diverges first. Until then no policy change aimed at the fall.
+1. Stage 1 is closed on v33home (Tom, 09-07: "fully working now"). 09-08 tethered obs dump on the forward pulse:
+   the policy inputs match the twin before the command (dq 0, gyro floor, torso level); supply-vs-battery A/B
+   (supply 2/2, battery 2/5 + 1/5) — Tom: battery ruled out, outcome flips with leg choice and joint play. The
+   step itself is the fault: the twin lifts the swing foot 0.7–1.0 cm (target 6 cm) and stands with 1.3 cm
+   between the feet (`sil_twin --foot-csv`, `$T/twin_swing_metrics.sh`). Tom's steer: foot lift by knee bend +
+   feet kept apart → `loco_v36swing` tonight (68/69). Then: recovery from a stumble (push_gauntlet 0/8 for every
+   student). Firmware: speed-clock scaling added to obs::GaitClock (5609c27; every recipe since v32 trained with
+   it) — image built, flash with Tom's go (tether needed). Hardware-only habit to watch: L hip yaw held 6–12°
+   off home after steps.
 2. Stage 2 (crouch): the mimic term was the blocker (see Stage 2 log); v35mimic crouches 5°. Tonight (queue 66/67)
    `loco_v35mimic_b` = +30M same recipe. Gate for a flash candidate: knees ≥ 15° at crouch 0.8 in the twin, rest
    ≤ 4°, referee not below v33home's 34. If the continuation plateaus near 5°: next one-change hop = w_pose gated
