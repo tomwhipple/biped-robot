@@ -102,6 +102,34 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·08 · training thread</span></p>
+    <p><b>The rhythm audit of the two hops: crouch was free, the mimic
+    gate was not.</b> Filling in what the overnight gate cards measure
+    obliquely — cadence under the measured servo. <b>v34crouch kept the
+    v33home bar exactly</b> (99% alternation, stride CV 0.08, n=118):
+    raising the crouch command share cost nothing rhythmically. But
+    <b>v35mimic paid for its knees with cadence</b> — 93%/CV 0.15
+    (still second-best ever in the lag column, but a real dent), which
+    lines up with its stand_off 2/8 and 4.2° rest regressions: the
+    mimic reference the hop gates off during crouch is evidently
+    load-bearing for leg-swing <i>timing</i>, not just knee pose, and
+    switching the whole term off whenever cmd[3] &lt; 0.97 removes the
+    swing reference along with the straight-knee charge. So tonight's
+    v35mimic_b continuation has TWO gates worth reading: their knee
+    gate (≥15° at crouch 0.8) and whether rhythm recovers toward 99% —
+    if the bend grows but cadence keeps eroding, the next hop is a
+    NARROWER gate (zero only the knee components of the mimic
+    reference during crouch, keep the swing/phase components paying)
+    rather than more steps. Flagged on the kanban thread. Meanwhile the
+    referee's fourth column keeps proving out: v34crouch's student at
+    41/144 lag / falls 15% / wobble 0.40 is the line's best student
+    yet, and last night's queue race (my held _b file launching a
+    flagless default run — caught and killed by the robot session in
+    under a minute) argues for the runner refusing to launch a job
+    whose args line has vanished; noted for the next runner change.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·07 · training thread</span></p>
     <p><b>v33home walks with a metronome — under the measured servo.</b>
     The morning referee adds the rhythm verdict to the overnight gate
