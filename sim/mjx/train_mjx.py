@@ -284,6 +284,10 @@ def main():
                         "test_mirror.py). The structural answer to the "
                         "20-35%% gait asymmetry that w-symmetry reward "
                         "pressure provably does not fix (2026-08-14)")
+    p.add_argument("--mimic-crouch-gate", action="store_true",
+                   help="mimic term off while a crouch is commanded "
+                        "(cmd[3] < 0.97): the zero-velocity reference has "
+                        "straight knees and fought every crouch (2026-09-08)")
     p.add_argument("--clock-freeze-stand", action="store_true",
                    help="hold the gait-clock phase at a plain stand: the "
                         "sin/cos obs stop oscillating, removing the rhythmic "
@@ -606,6 +610,8 @@ def main():
         env_kw["sched_duty"] = args.sched_duty
     if args.clock_freeze_stand:
         env_kw["clock_stand_freeze"] = True
+    if args.mimic_crouch_gate:
+        env_kw["mimic_crouch_gate"] = True
     if args.ext_mix is not None:
         mix = tuple(float(x) for x in args.ext_mix.split(","))
         if len(mix) != 7 or sum(mix) > 1.0 + 1e-9:

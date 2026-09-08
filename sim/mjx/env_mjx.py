@@ -556,6 +556,12 @@ class BimoMJXEnv:
         joint_armature: float = 0.0,       # reflected rotor inertia per leg
         # DOF (kg*m^2). BAM fit ~0.028 -- significant against our light legs.
         # -- plan-v2 Phase B: procedural gait imitation (Open Duck pattern) ----
+        mimic_crouch_gate: bool = False,  # 2026-09-08: the mimic reference at
+        # zero velocity IS the standing pose (straight knees) whatever cmd[3]
+        # says, so with mimic_knee_w 4 the term charged for the knee bend a
+        # crouch needs -- squat_reps 0/8 in every student of the line, crouch
+        # share 0.06 -> 0.20 (v34crouch) changed nothing. When set, the mimic
+        # term is off while a crouch is commanded (cmd[3] < 0.97).
         w_mimic: float = 0.0,       # exp(-sum((q - q_ref)^2)/mimic_s2) toward
         # a joint-space reference gait generated from (vx, vy, wz, gait
         # phase): sinusoidal stride/roll amplitudes scaled by command/freq,
@@ -911,6 +917,7 @@ class BimoMJXEnv:
         self.kick_range = kick_range
         self.obs_hist_len = max(1, int(obs_hist_len))
         self.w_mimic = w_mimic
+        self.mimic_crouch_gate = bool(mimic_crouch_gate)
         self.mimic_s2 = mimic_s2
         self.w_rise_dofvel = w_rise_dofvel
         self.w_rise_ref = w_rise_ref
@@ -2190,8 +2197,10 @@ class BimoMJXEnv:
             dq = data.qpos[self._jq0:self._jq1] - q_ref
             mim_gate = 1.0
             if self.ext_cmd:
-                mim_gate = ((~lifted) & (state.recovered > 0.5)
-                            ).astype(jp.float32)
+                mg = (~lifted) & (state.recovered > 0.5)
+                if self.mimic_crouch_gate:
+                    mg = mg & (state.cmd[3] >= 0.97)
+                mim_gate = mg.astype(jp.float32)
             reward += (self.w_mimic * mim_gate
                        * jp.exp(-jp.sum(self._mimic_w * dq ** 2)
                                 / self.mimic_s2))
