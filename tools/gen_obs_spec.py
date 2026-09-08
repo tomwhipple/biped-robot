@@ -176,6 +176,24 @@ def write_spec(cfg, env, path):
     w("inline constexpr bool kClockStandFreeze = %s;   // hold phase at a "
       "plain stand (must match training; env_mjx.clock_stand_freeze)"
       % ("true" if getattr(env, "clock_stand_freeze", False) else "false"))
+    # speed clock (env_mjx.speed_clock_scale, mirrored in walker_env): the
+    # clock frequency is scaled by clip(sqrt(v_planar / ref), lo, hi) under a
+    # velocity command. Every recipe since loco_v32 (2026-09-06) trains with
+    # it; the firmware ran the base frequency until 2026-09-08 (found by the
+    # tethered obs dump: 1.50 Hz on the robot vs 1.81 in the twin).
+    sc = bool(getattr(env, "speed_clock", False))
+    sc_lo = getattr(env, "speed_clock_lo", None)
+    sc_hi = getattr(env, "speed_clock_hi", None)
+    if sc_lo is None:
+        sc_lo = 0.7    # env_mjx.SPEED_CLOCK_LO (train_mjx leaves the default)
+    if sc_hi is None:
+        sc_hi = 1.7    # env_mjx.SPEED_CLOCK_HI
+    w("inline constexpr bool kSpeedClock = %s;   // clock freq x clip(sqrt(v/"
+      "kSpeedClockRef), lo, hi) under a velocity command (env_mjx.speed_clock)"
+      % ("true" if sc else "false"))
+    w("inline constexpr float kSpeedClockRef = 0.35f;   // m/s at which the scale is x1 (env_mjx.SPEED_CLOCK_REF)")
+    w("inline constexpr float kSpeedClockLo = %s;" % fl(float(sc_lo)))
+    w("inline constexpr float kSpeedClockHi = %s;" % fl(float(sc_hi)))
     w("inline constexpr float kControlDt = %s;   // 50 Hz tick"
       % fl(env.control_dt))
     w("")

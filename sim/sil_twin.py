@@ -153,6 +153,15 @@ def run(args):
                                     spec["frame_offsets"], fw, nc)
         print(f"sil_twin: obs capture -> {args.obs_csv} "
               f"(firmware obsdump format)")
+    foot_writer = None
+    if args.foot_csv:
+        # swing clearance + foot separation per tick (2026-09-08, Tom: "keeping
+        # the feet from binding together and raising the foot higher") --
+        # sole heights above the standing sole height and the torso-frame
+        # lateral separation of the two sole centres (env_mjx y_sep).
+        foot_writer = open(args.foot_csv, "w")
+        foot_writer.write("tick,t,z_l,z_r,y_sep,cmd_vx\n")
+        print(f"sil_twin: foot metrics -> {args.foot_csv}")
 
     rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rx.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -380,6 +389,19 @@ def run(args):
                        list(fields["up"]) + list(fields["gyro"]) + [phase] +
                        list(fields["cmd"]) + list(obs[:fw]))
                 obs_writer.row(i, row)
+            if foot_writer is not None:
+                d = env.data
+                pL = d.geom_xpos[env._sole_gids[0]] - d.xpos[env._torso_bid]
+                pR = d.geom_xpos[env._sole_gids[1]] - d.xpos[env._torso_bid]
+                # torso yaw from the body x-axis (same lateral axis as env_mjx)
+                xm = d.xmat[env._torso_bid].reshape(3, 3)
+                yaw = float(np.arctan2(xm[1, 0], xm[0, 0]))
+                sth, cth = np.sin(yaw), np.cos(yaw)
+                y_sep = abs((-sth * pL[0] + cth * pL[1]) - (-sth * pR[0] + cth * pR[1]))
+                foot_writer.write(f"{i},{i * env.control_dt:.3f},"
+                                  f"{d.geom_xpos[env._sole_gids[0]][2] - env._sole_z0:.4f},"
+                                  f"{d.geom_xpos[env._sole_gids[1]][2] - env._sole_z0:.4f},"
+                                  f"{y_sep:.4f},{float(env._cmd[0]):.2f}\n")
             obs, _, _, _, step_info = env.step(a)
 
             if (stream or args.record) and i % 3 == 0:      # ~16 fps
@@ -456,6 +478,9 @@ def main():
     p.add_argument("--stream-port", type=int, default=8645,
                    help="MJPEG live view port (0 disables)")
     p.add_argument("--record", default=None, help="write an mp4 on exit")
+    p.add_argument("--foot-csv", default=None,
+                   help="per-tick swing clearance (sole heights) + torso-frame "
+                        "lateral foot separation CSV")
     p.add_argument("--obs-csv", default=None,
                    help="write the fed observations in firmware obsdump "
                         "format (tools/obs_capture.py --replay/--compare)")

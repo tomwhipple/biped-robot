@@ -369,7 +369,11 @@ void ctrlTask(void*) {
         if (!obs::kClockStandFreeze
             || fabsf(vx) > 0.05f || fabsf(vy) > 0.05f || fabsf(wz) > 0.05f
             || fabsf(lift) >= 0.5f) {
-            g_clock.advance(obs::kControlDt);
+            // speed clock (kSpeedClock, 2026-09-08): cadence follows the
+            // commanded planar speed exactly as in training; the base
+            // frequency alone ran the robot 7-25 % slow on every drive
+            // since loco_v32. Mirror of sil_lib.cpp.
+            g_clock.advanceSpeedClock(obs::kControlDt, sqrtf(vx * vx + vy * vy));
         }
 
         obs::Inputs in{};

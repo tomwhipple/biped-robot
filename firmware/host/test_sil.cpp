@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "obs/actuation.h"
+#include "obs/assembler.h"
 #include "obs/obs_spec.h"
 #include "scsbus/registers.h"
 #include "sil.h"
@@ -489,8 +490,17 @@ void testSequencingAndReset() {
         CHECK_NEAR(t2.obs[obs::kFrameDim + i], t1.obs[i], 0.0);
     }
     // The clock keeps advancing.
-    const float p1 = kTwoPi * obs::kControlDt * 1.5f;
+    // ... at the speed-clock rate for cmd vx 0.4 (kSpeedClock; x1 when off)
+    const float sc = obs::GaitClock::speedScale(0.4f);
+    const float p1 = kTwoPi * obs::kControlDt * 1.5f * sc;
     CHECK_NEAR(t2.obs[obs::kOffPhase + 0], sinf(2.0f * p1), 1e-6);
+    if (obs::kSpeedClock) {
+        // the mirror of env_mjx.speed_clock_scale: clip(sqrt(v/0.35), lo, hi)
+        CHECK_NEAR(sc, fminf(fmaxf(sqrtf(0.4f / 0.35f), obs::kSpeedClockLo),
+                             obs::kSpeedClockHi), 1e-6);
+        CHECK_NEAR(obs::GaitClock::speedScale(0.0f), obs::kSpeedClockLo, 1e-6);
+        CHECK_NEAR(obs::GaitClock::speedScale(9.0f), obs::kSpeedClockHi, 1e-6);
+    }
 
     // Reset must make tick 1 reproducible bit for bit.
     for (int k = 0; k < 5; ++k) CHECK_EQ(sil_tick(&in, &t2), 0);
@@ -510,7 +520,7 @@ void testSequencingAndReset() {
     SilTargets slow{};
     CHECK_EQ(sil_tick(&in, &slow), 0);
     CHECK_NEAR(slow.obs[obs::kOffPhase + 0],
-               sinf(kTwoPi * obs::kControlDt * 1.25f), 1e-6);
+               sinf(kTwoPi * obs::kControlDt * 1.25f * sc), 1e-6);
 
     // Stand-freeze regression (2026-08-30): a plain-stand tick must HOLD the
     // phase. sil_lib ran the clock unconditionally for the whole v22fix era

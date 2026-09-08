@@ -16,6 +16,10 @@ inline constexpr const char* kActionMap = "full";
 inline constexpr bool kImuObs = true;   // linvel + height are zeroed
 inline constexpr bool kGaitClock = true;
 inline constexpr bool kClockStandFreeze = true;   // hold phase at a plain stand (must match training; env_mjx.clock_stand_freeze)
+inline constexpr bool kSpeedClock = true;   // clock freq x clip(sqrt(v/kSpeedClockRef), lo, hi) under a velocity command (env_mjx.speed_clock)
+inline constexpr float kSpeedClockRef = 0.35f;   // m/s at which the scale is x1 (env_mjx.SPEED_CLOCK_REF)
+inline constexpr float kSpeedClockLo = 0.7f;
+inline constexpr float kSpeedClockHi = 1.25f;
 inline constexpr float kControlDt = 0.02f;   // 50 Hz tick
 
 // -- dimensions --------------------------------------------------------

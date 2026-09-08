@@ -63,6 +63,13 @@ class GaitClock {
   public:
     explicit GaitClock(float hz = 1.5f) : freq_(hz) {}
     void advance(float dt);
+    // Speed clock (kSpeedClock): the phase advances at freq * scale where
+    // scale = clip(sqrt(v_planar / kSpeedClockRef), kSpeedClockLo,
+    // kSpeedClockHi) and v_planar = hypot(cmd vx, cmd vy) -- the mirror of
+    // env_mjx.speed_clock_scale / walker_env. With kSpeedClock false this
+    // is advance(dt).
+    void advanceSpeedClock(float dt, float v_planar);
+    static float speedScale(float v_planar);
     void setFrequency(float hz) { freq_ = hz; }
     float phase() const { return phase_; }
     void setPhase(float p) { phase_ = p; }

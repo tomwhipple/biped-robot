@@ -52,4 +52,19 @@ void GaitClock::advance(float dt) {
     phase_ = p - 3.141592653589793f;
 }
 
+float GaitClock::speedScale(float v_planar) {
+    // env_mjx.speed_clock_scale: clip(sqrt(|v| / REF), lo, hi); walker_env
+    // mirrors it with max(v, 0) under the sqrt. v_planar is >= 0 here.
+    if (!kSpeedClock) return 1.0f;
+    const float v = v_planar < 0.0f ? 0.0f : v_planar;
+    float s = sqrtf(v / kSpeedClockRef);
+    if (s < kSpeedClockLo) s = kSpeedClockLo;
+    if (s > kSpeedClockHi) s = kSpeedClockHi;
+    return s;
+}
+
+void GaitClock::advanceSpeedClock(float dt, float v_planar) {
+    advance(dt * speedScale(v_planar));   // freq * scale == same step at dt * scale
+}
+
 }  // namespace obs

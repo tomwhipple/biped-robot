@@ -298,7 +298,9 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     if (!obs::kClockStandFreeze
         || fabsf(in->cmd[0]) > 0.05f || fabsf(sil_vy) > 0.05f
         || fabsf(in->cmd[2]) > 0.05f || fabsf(sil_lift) >= 0.5f) {
-        g_clock.advance(obs::kControlDt);
+        // speed clock: same scale as ctrl_task.cpp (kSpeedClock)
+        g_clock.advanceSpeedClock(obs::kControlDt,
+                                  sqrtf(in->cmd[0] * in->cmd[0] + sil_vy * sil_vy));
     }
 
     obs::Inputs inp{};
