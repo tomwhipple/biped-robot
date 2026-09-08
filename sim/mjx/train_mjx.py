@@ -349,6 +349,15 @@ def main():
                         "Hz draw -- only ~165 ms of upswing to reach knee "
                         "height. A pinned cadence decouples march swing "
                         "timing from the gait-clock obs channel by design")
+    p.add_argument("--w-foot-cross", type=float, default=None,
+                   help="feet-crossing penalty weight (preset 0.5)")
+    p.add_argument("--foot-cross-sep", type=float, default=None,
+                   help="lateral sole separation (m) below which the "
+                        "feet-crossing penalty pays (default 0.051)")
+    p.add_argument("--swing-height", type=float, default=None,
+                   help="swing-foot peak height target for w_feet_phase (m; preset 0.06)")
+    p.add_argument("--w-feet-phase", type=float, default=None,
+                   help="swing-height tracking kernel weight (preset 1.0)")
     p.add_argument("--w-knee-high", type=float, default=None,
                    help="knee-high clearance kernel weight: fraction of the "
                         "commanded swing height (lift_height + c6) the swing "
@@ -621,6 +630,9 @@ def main():
         env_kw["march_hz"] = args.march_hz
     if args.w_knee_high is not None:
         env_kw["w_knee_high"] = args.w_knee_high
+    for _k in ("w_foot_cross", "foot_cross_sep", "swing_height", "w_feet_phase"):
+        if getattr(args, _k) is not None:
+            env_kw[_k] = float(getattr(args, _k))
     # SIL-boundary realism (2026-07-31). Recorded unconditionally so
     # config.json says which side of the quantizer a run trained on -- the
     # CPU referee (eval_precision) reconstructs its env from these keys.

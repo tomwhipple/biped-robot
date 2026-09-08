@@ -483,6 +483,11 @@ class BimoMJXEnv:
         # articulation); sway = standing lateral weight-shift tracking an
         # oscillating vy (hip-roll articulation). User request 2026-07-20:
         # "not a lot of motion in the knees or sideways in the hips."
+        foot_cross_sep: float = 0.051,  # torso-frame lateral sole separation
+        # below which w_foot_cross starts paying (m). 0.051 = sole width +
+        # 5 mm (the visual-overlap guard); the hardware's feet BIND when they
+        # meet mid-step (Tom, 2026-09-07/08), so a wider margin keeps a
+        # swing foot clear of the stance foot earlier.
         w_foot_cross: float = 0.0,    # penalty when the soles' torso-frame
         # lateral separation closes below sole width + 5 mm -- the leg
         # meshes don't self-collide, so only the reward keeps the feet from
@@ -898,6 +903,7 @@ class BimoMJXEnv:
         self.walk_submix = walk_submix
         self.turn_emph = turn_emph
         self.w_foot_cross = w_foot_cross
+        self.foot_cross_sep = float(foot_cross_sep)
         self.sway_vy = sway_vy
         self.march_mix = float(march_mix)
         self.w_knee_high = w_knee_high
@@ -1972,7 +1978,8 @@ class BimoMJXEnv:
             pR = data.geom_xpos[self._sole_gids[1]] - data.xpos[self._torso_bid]
             y_sep = jp.abs((-sth * pL[0] + cth * pL[1])
                            - (-sth * pR[0] + cth * pR[1]))
-            cross_frac = jp.clip((0.051 - y_sep) / 0.051, 0.0, 1.0)
+            cross_frac = jp.clip((self.foot_cross_sep - y_sep)
+                                 / self.foot_cross_sep, 0.0, 1.0)
             # CoM-over-stance-foot kernel (user 2026-07-23): pay for keeping
             # the whole-robot CoM planted over the support sole while a lift
             # is commanded -- the knee-flexion lift (thigh vertical, shank
