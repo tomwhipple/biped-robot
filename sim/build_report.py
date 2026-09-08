@@ -436,6 +436,36 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   </div>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·08 · overnight, Stage 2</span></p>
+    <p><b>Why the robot never crouched, and the first student that does.</b>
+    Two hops ran overnight on the single policy line. The planned one,
+    <code>loco_v34crouch</code> (v33home with the crouch share of the
+    command mix raised from 0.06 to 0.20, 30M), gave the best referee so
+    far — 41/144, falls 15 %, stand_off 8/8 for the first time, tick-1
+    halved to 0.072 — and still ignored a crouch command completely: a
+    0.8 height command in the twin moved its knees 0.3°. The share was
+    not the lever. The reason is in the environment code, not a guess:
+    the joint-space gait mimic reference at zero velocity is the standing
+    pose with straight knees whatever the crouch channel says, and it is
+    weighted 1.5 with the knees weighted 4× on top, so it charged for the
+    very knee bend the height kernel asked for. A new flag,
+    <code>--mimic-crouch-gate</code>, switches the mimic term off while a
+    crouch is commanded (76facf0). <code>loco_v35mimic</code> (v34crouch
+    plus that one flag, 30M) is the first student in the line whose knees
+    answer the command — about 5° with the ankles following and the torso
+    dipping — but 5° is a token crouch against the 6 cm the command asks,
+    and the hop cost the referee (29/144, falls 24 %, stand_off 2/8) and
+    0.7° of rest. Neither is flashed; the robot keeps v33home. Tonight a
+    plain 30M continuation of v35mimic separates time-in-recipe from a
+    competing term (the pose regulariser toward the straight-knee default
+    is the suspect). On the night-runner side: the training thread's
+    continuation of v34crouch was held per its own rule, and moving a
+    queue file while the runner slept made it launch a flagless default
+    run, killed at once — a lesson now in memory. Data: hw_sessions/
+    2026-09-08/v34crouch_offline_gate.md, v35mimic_offline_gate.md.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·07 · overnight, offline gate</span></p>
     <p><b>v32 is quieter and steps smaller, but it no longer rests at
     home.</b> The first hop of the single policy line,

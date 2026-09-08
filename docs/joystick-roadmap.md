@@ -208,6 +208,20 @@ Free driving from the GUI with the safety envelope on:
   (Tom): RESET SERVOS a few seconds after every guard trip (drivers, 7dc404c). Notes: hw_sessions/2026-09-07/
   arm_v33_full_pad_notes.md, synth_fwdpulse_crouch1.jsonl.
 
+## Stage 2 log
+
+- **09-08 00:40, `loco_v34crouch_s128r24`** (v33home + ext-mix crouch share 0.06 → 0.20, 30M): referee **41/144** (line
+  best), falls 15 %, stand_off 8/8 (first), tick-1 0.072, twin rest 3.5° / torso +1.6°. **Crouch 0.8 still ignored** (twin
+  knees move 0.3°; test `$T/twin_crouch_test.sh`, stream hw_sessions/2026-09-07/synth_crouch08.jsonl). Cause in code:
+  `env_mjx._mimic_ref` at zero velocity is the standing pose (straight knees) regardless of cmd[3], w_mimic 1.5 ×
+  mimic_knee_w 4 charges for the knee bend the height kernel (w_track_h 1, σ 4 cm) asks for. Fix `--mimic-crouch-gate`
+  (76facf0). Not flashed. Notes: hw_sessions/2026-09-08/v34crouch_offline_gate.md.
+- **09-08 04:45, `loco_v35mimic_s128r24`** (v34crouch + `--mimic-crouch-gate`, 30M): **first crouch response in the
+  line** — crouch 0.8 → knees −5°, ankles −4°, torso −2° — but token (≈1 cm of the 5.7 cm asked). Referee 29/144, falls
+  24 %, stand_off 2/8, tick-1 0.143, rest 4.2° (R yaw). Not flashed; robot stays v33home. Tonight 66/67:
+  `loco_v35mimic_b` = same recipe +30M (time-in-recipe vs a competing term; suspect w_pose 0.3 toward the straight-knee
+  default). Notes: hw_sessions/2026-09-08/v35mimic_offline_gate.md.
+
 ## One policy line (Tom, 2026-09-06)
 
 From 09-06 there is ONE policy under iteration: `loco_v31home` → `loco_v32` → … Each hop is warm-started
@@ -224,8 +238,10 @@ Planned hops after it, one change each: crouch share up (Stage 2), then whatever
    running through `REC_FILE=hw_sessions/2026-09-07/synth_fwdpulse_crouch1.jsonl $T/run_replay.sh …`, and the
    robot's 147-float frames are diffed against the twin's (`harness.obs_block_errors`) to find which block
    (q, dq, up, gyro, prev action, phase, cmd) diverges first. Until then no policy change aimed at the fall.
-2. Tonight (queue 60/61): `loco_v34crouch` = v33home + ext-mix crouch share 0.06 → 0.20 (Stage 2, the planned
-   hop); gate = twin rest unchanged and a crouch 0.8 command lowers the knees in the twin.
+2. Stage 2 (crouch): the mimic term was the blocker (see Stage 2 log); v35mimic crouches 5°. Tonight (queue 66/67)
+   `loco_v35mimic_b` = +30M same recipe. Gate for a flash candidate: knees ≥ 15° at crouch 0.8 in the twin, rest
+   ≤ 4°, referee not below v33home's 34. If the continuation plateaus near 5°: next one-change hop = w_pose gated
+   off under crouch (or a crouch-aware mimic reference), not both.
 3. Open Stage 0: CoM and floor friction measurements; does the robot carry the 154 g "GoPro" payload the claim
    plant assumes? Open in sim: which term pays for the off-home rest and the 6° hip-yaw residue after a step.
    Open question to settle in sim: which reward term pays for a knee split at stand.
