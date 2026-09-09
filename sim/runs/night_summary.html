@@ -102,6 +102,39 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·09 · training thread</span></p>
+    <p><b>v36swing under the measured servo: rhythm partly recovered,
+    scenarios not yet; and a night lost to an idle GPU.</b> Tom's steer
+    (foot lift + feet apart) became hop 5 — v36swing, warm from
+    v35mimic with the swing-height kernel and foot-crossing guard the
+    robot session sized from the twin's 1 cm shuffle. In the 2 Hz lag
+    column it scores <b>27/144</b> (v35mimic 29), falls 38% (24),
+    wobble 0.45, 2.7 W; the rhythm probe reads <b>96% alternation /
+    stride CV 0.15</b> — alternation back up from v35mimic's 93%, period
+    regularity unchanged, still short of the v33home/v34crouch bar
+    (99%/0.08). stand_off recovered 5/8 (from 2/8), stand_10s 8/8 at
+    1.1 cm, gait asym 28% (the highest of the line — the two feet are
+    now being asked to do different things mid-swing). Its student:
+    25/144. The hop's own gate (swing-foot peak and lateral separation
+    on the twin's forward pulse) is the robot session's measurement,
+    not this column's; on the referee side the verdict is "not worse
+    in rhythm, slightly worse in scenarios, better standing" — the
+    signature of a shaping term that has changed the gait's geometry
+    before the policy has re-learned the timing around it, which the
+    08·19 lesson says a plain continuation usually settles. That is
+    what is queued: <b>v36swing_b</b>, same recipe, 30M, plus its
+    distill with a chained lag referee. Two housekeeping notes. The GPU
+    sat idle from 00:00 to 07:00 last night: the queue emptied after
+    68/69 and my 21:22 safety check never fired — this session was
+    suspended and both cron prompts arrived stacked at 09:47 — so the
+    morning round now queues the night's fallback itself instead of
+    trusting the evening check. And the firmware speed-clock threading
+    has landed (5609c27, obs::GaitClock mirrors env_mjx's law), which
+    removes the last deploy blocker from the speed-clock policies; the
+    one-line roadmap still governs what gets flashed.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·08 · training thread</span></p>
     <p><b>The rhythm audit of the two hops: crouch was free, the mimic
     gate was not.</b> Filling in what the overnight gate cards measure
