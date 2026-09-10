@@ -561,6 +561,13 @@ class BimoMJXEnv:
         joint_armature: float = 0.0,       # reflected rotor inertia per leg
         # DOF (kg*m^2). BAM fit ~0.028 -- significant against our light legs.
         # -- plan-v2 Phase B: procedural gait imitation (Open Duck pattern) ----
+        mimic_crouch_gate_knee: bool = False,  # 2026-09-10: KNEE-ONLY crouch
+        # gate. mimic_crouch_gate switches the whole mimic term off while
+        # cmd[3] < 0.97 -- and the 09-08 rhythm audit showed the term carries
+        # leg-swing TIMING (v35mimic: 99%/CV 0.08 -> 93%/0.15). This variant
+        # keeps the hip pitch/roll (swing/phase) components paying during a
+        # crouch and zeroes only the knee + ankle components (the straight-
+        # knee charge, and the ankle ref that is derived from that knee).
         mimic_crouch_gate: bool = False,  # 2026-09-08: the mimic reference at
         # zero velocity IS the standing pose (straight knees) whatever cmd[3]
         # says, so with mimic_knee_w 4 the term charged for the knee bend a
@@ -776,6 +783,11 @@ class BimoMJXEnv:
         _mw = np.ones(self._nq_act)
         _mw[np.asarray(self._i_knee)] = mimic_knee_w
         self._mimic_w = jp.asarray(_mw)
+        # knee-only crouch gate: per-joint keep-mask with knee + ankle zeroed
+        _keep = np.ones(self._nq_act)
+        _keep[np.asarray(self._i_knee)] = 0.0
+        _keep[np.asarray(self._i_ankle)] = 0.0
+        self._mimic_keep = jp.asarray(_keep)
         if hip_flex_deg is not None:
             # training-range knob: moves the ctrlrange on a split plant, the
             # joint limit on the legacy ones (mirror of walker_env.py)
@@ -924,6 +936,10 @@ class BimoMJXEnv:
         self.obs_hist_len = max(1, int(obs_hist_len))
         self.w_mimic = w_mimic
         self.mimic_crouch_gate = bool(mimic_crouch_gate)
+        self.mimic_crouch_gate_knee = bool(mimic_crouch_gate_knee)
+        if self.mimic_crouch_gate and self.mimic_crouch_gate_knee:
+            raise ValueError("mimic_crouch_gate and mimic_crouch_gate_knee "
+                             "are alternatives; pick one")
         self.mimic_s2 = mimic_s2
         self.w_rise_dofvel = w_rise_dofvel
         self.w_rise_ref = w_rise_ref
@@ -2203,13 +2219,20 @@ class BimoMJXEnv:
             q_ref = self._mimic_ref(state.cmd, gait_phase, clock_freq)
             dq = data.qpos[self._jq0:self._jq1] - q_ref
             mim_gate = 1.0
+            mim_w = self._mimic_w
             if self.ext_cmd:
                 mg = (~lifted) & (state.recovered > 0.5)
                 if self.mimic_crouch_gate:
                     mg = mg & (state.cmd[3] >= 0.97)
+                if self.mimic_crouch_gate_knee:
+                    # crouching: knee + ankle components drop out, the hip
+                    # swing/phase components keep paying (timing survives)
+                    mim_w = jp.where(state.cmd[3] < 0.97,
+                                     self._mimic_w * self._mimic_keep,
+                                     self._mimic_w)
                 mim_gate = mg.astype(jp.float32)
             reward += (self.w_mimic * mim_gate
-                       * jp.exp(-jp.sum(self._mimic_w * dq ** 2)
+                       * jp.exp(-jp.sum(mim_w * dq ** 2)
                                 / self.mimic_s2))
         if self.w_rise_dofvel and self.ext_cmd and self.recover_mix > 0:
             # jerk control during the rise (HumanUP/utra lesson)
