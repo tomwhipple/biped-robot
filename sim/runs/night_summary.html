@@ -102,6 +102,33 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·10 · training thread</span></p>
+    <p><b>The swing hop does not settle with time — stop continuing it.</b>
+    Two more nights of the v36swing recipe (v36swing_b +30M, v36swing_c
+    +40M, cut at 07:00) under the measured servo: lag score <b>27 → 16 →
+    15/144</b>, PPO reward flat at ~440 throughout, rhythm swinging
+    96%/0.15 → 82%/CV 0.41 → 97%/0.19, gait asym climbing 28 → 21 →
+    <b>38%</b>, students 25 → 18. Flat reward with falling behavior is
+    the decay signature this log has met four times before, and the
+    08·19 "time-in-recipe recovers it" rule does not apply: the
+    continuation is not re-learning timing around a new geometry, it is
+    oscillating between two gaits (one leg lifting as asked, the other
+    not — that is what asym 38% says). Referee verdict on hop 5: the
+    swing-height kernel and crossing guard as sized fight the cadence
+    machinery rather than sit inside it; more steps make it worse, so
+    the next move is recipe, not budget — and the twin's swing metrics
+    (the robot session's gate) should say whether the foot-lift was
+    even bought. For the line's own record, the best gate-passing
+    member is still v34crouch (99%/0.08 rhythm, student 41/144, the
+    only hop since v33home that lost nothing). Tonight the safety-net
+    rule applies literally — a plain same-recipe continuation of that
+    best gate candidate, v34crouch_b, plus its distill — queued with a
+    WHY note, and the robot session or Tom can replace it before 20:00.
+    It is a continuation, not a hop; choosing the line's next hop stays
+    theirs.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·09 · training thread</span></p>
     <p><b>v36swing under the measured servo: rhythm partly recovered,
     scenarios not yet; and a night lost to an idle GPU.</b> Tom's steer
