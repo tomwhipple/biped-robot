@@ -307,6 +307,10 @@ def main():
     p.add_argument("--w-stand-home", type=float, default=None,
                    help="stand-gated L1 pull of the served target onto home, "
                         "radians (rest = home; replaces --w-stand-zero)")
+    p.add_argument("--crouch-pose-ref", action="store_true",
+                   help="mimic reference = the bench level-foot squat under a "
+                        "crouch command; height targets use the feasible depth")
+    p.add_argument("--crouch-theta-max-deg", type=float, default=None)
     p.add_argument("--w-hip-yaw", type=float, default=None,
                    help="sum(hip_yaw^2) penalty, ungated (2026-09-11)")
     p.add_argument("--w-crouch-track", type=float, default=None,
@@ -620,6 +624,10 @@ def main():
         env_kw["w_stand_com"] = args.w_stand_com
     if args.w_hip_yaw is not None:
         env_kw["w_hip_yaw"] = args.w_hip_yaw
+    if args.crouch_pose_ref:
+        env_kw["crouch_pose_ref"] = True
+    if args.crouch_theta_max_deg is not None:
+        env_kw["crouch_theta_max_deg"] = args.crouch_theta_max_deg
     if args.w_crouch_track is not None:
         env_kw["w_crouch_track"] = args.w_crouch_track
     if args.crouch_track_sigma is not None:

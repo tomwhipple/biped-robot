@@ -63,6 +63,7 @@ from walker_env import BimoWalkerEnv
 G = 9.81
 MOV_FPS = 20          # referee reel playback rate (see reel_index.json)
 _ENV_PARAMS = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
+CROUCH_H_TARGET = None   # set in main() from the run's env (crouch_pose_ref)
 
 
 # =====================================================================
@@ -1514,6 +1515,10 @@ def scen_squat_reps():
     crouch_hold tests one descent, this tests cyclic knee flexion and
     recovery."""
     DEPTH, HOLD, REPS, SETTLE = 0.70, 1.5, 3, 1.0
+    # 2026-09-11: the expected depth is the ENV's crouch target, not
+    # DEPTH x nominal -- with crouch_pose_ref the 0.7 command means the
+    # feasible level-foot squat (~5.3 cm on v5body), while DEPTH x nominal
+    # asked 9.7 cm the legs cannot give. Old configs map identically.
 
     def build():
         ev = {}
@@ -1533,7 +1538,9 @@ def scen_squat_reps():
             t0 = SETTLE + i * 2 * HOLD
             down = _win(rows, t0 + HOLD - 0.8, t0 + HOLD)
             up = _win(rows, t0 + 2 * HOLD - 0.8, t0 + 2 * HOLD)
-            herrs.append(abs(_mean(down, "height") - DEPTH * N))
+            target = (CROUCH_H_TARGET(DEPTH) if CROUCH_H_TARGET is not None
+                      else DEPTH * N)
+            herrs.append(abs(_mean(down, "height") - target))
             recs.append(_mean(up, "height"))
         reps_ok = sum(1 for h, rc in zip(herrs, recs)
                       if not math.isnan(h) and h <= 0.035
@@ -1833,6 +1840,8 @@ def main():
                                       act_delay_ticks=args.act_delay_ticks)
         return env_cache[key]
 
+    global CROUCH_H_TARGET
+    CROUCH_H_TARGET = getattr(get_env(12.0), "_crouch_h_target", None)
     obs_size = get_env(12.0).observation_space.shape[0]
     act_size = get_env(12.0).action_space.shape[0]
     mass = float(get_env(12.0).model.body_mass.sum())
