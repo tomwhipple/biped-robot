@@ -392,6 +392,19 @@ class BimoMJXEnv:
                                     # splayed yaws) that only holds on a sim
                                     # floor; on the robot it walks the legs into
                                     # each other. mean(action^2), same gate.
+        w_hip_yaw: float = 0.0,     # 2026-09-11: sum(hip_yaw^2) penalty, ungated.
+        # The line's "crouch" on hardware was a symmetric hip-yaw pinch
+        # (L -7 / R +8 deg, twin + robot) with no descent; nothing charged
+        # yaw (the mimic ref keeps yaw at 0 but its weight is tiny next to
+        # the knee's). Turning is differential stride, not yaw, so 0 is right.
+        w_crouch_track: float = 0.0,   # 2026-09-11: TIGHT crouch-depth kernel
+        crouch_track_sigma: float = 0.015,  # (m). The 4 cm height kernel pays
+        # 13% for standing tall at crouch 0.8 -- cheap to ignore. This one
+        # pays only within ~1.5 cm of the commanded height and only while a
+        # crouch is commanded (cmd[3] < 0.97).
+        crouch_release: bool = False,  # 2026-09-11: while a crouch is commanded,
+        # release the w_still and w_stand_com gates (both charged the descent:
+        # joint velocity and CoM shift are the crouch).
         w_stand_com: float = 0.0,   # stand-gated CoM-over-midfoot kernel:
         # a passive (torque-off) stand only holds if the gravity moment at
         # the ankles stays under the servos' backdrive friction, i.e. the
@@ -767,6 +780,10 @@ class BimoMJXEnv:
                                   self._legR["hip_pitch"]])
         self._i_knee = jp.array([self._legL["knee"], self._legR["knee"]])
         self._i_ankle = jp.array([self._legL["ankle"], self._legR["ankle"]])
+        # hip yaw: present on v3yaw+ plants, None on the 8-DOF ones
+        _ly, _ry = self._legL.get("hip_yaw"), self._legR.get("hip_yaw")
+        self._i_yaw = (None if _ly is None or _ry is None
+                       else jp.array([_ly, _ry]))
         self.terrain = terrain
         self.quantize_ticks = bool(quantize_ticks)
         self.cmd_crouch_range = tuple(cmd_crouch_range)
@@ -841,6 +858,10 @@ class BimoMJXEnv:
         self.w_pitch_rate = w_pitch_rate
         self.w_still = w_still
         self.w_stand_com = w_stand_com
+        self.w_hip_yaw = float(w_hip_yaw)
+        self.w_crouch_track = float(w_crouch_track)
+        self.crouch_track_sigma = float(crouch_track_sigma)
+        self.crouch_release = bool(crouch_release)
         self.w_stand_zero = w_stand_zero
         self.w_stand_home = w_stand_home
         self.stand_com_sigma = stand_com_sigma
@@ -2289,6 +2310,16 @@ class BimoMJXEnv:
         if self.w_pitch_rate:
             reward -= self.w_pitch_rate * (jp.abs(data.qvel[3])
                                            + jp.abs(data.qvel[4]))
+        if self.w_hip_yaw and self._i_yaw is not None:
+            q_yaw = data.qpos[self._jq0:self._jq1][self._i_yaw]
+            reward -= self.w_hip_yaw * jp.sum(q_yaw ** 2)
+        if self.w_crouch_track and self.ext_cmd:
+            # pays only while a crouch is commanded and only near the depth
+            ct_gate = ((state.cmd[3] < 0.97) & (state.recovered > 0.5)
+                       & (~lifted)).astype(jp.float32)
+            ct_err = height - state.cmd[3] * self._nominal_h
+            reward += (self.w_crouch_track * ct_gate
+                       * jp.exp(-(ct_err / self.crouch_track_sigma) ** 2))
         if self.w_still:
             # stand stillness (user 2026-08-12: "focus on standing still --
             # way too much shaking"). Direct joint-velocity penalty, gated
@@ -2301,6 +2332,8 @@ class BimoMJXEnv:
             stand_gate = ((~cmd_moving)
                           & (~lifted if self.ext_cmd else True)
                           & (state.recovered > 0.5))
+            if self.crouch_release and self.ext_cmd:
+                stand_gate = stand_gate & (state.cmd[3] >= 0.97)
             reward -= (self.w_still
                        * jp.where(stand_gate, 1.0, 0.0)
                        * jp.sum(data.qvel[self._jv0:self._jv1] ** 2))
@@ -2336,6 +2369,8 @@ class BimoMJXEnv:
             sc_gate = ((~cmd_moving)
                        & (~lifted if self.ext_cmd else True)
                        & (state.recovered > 0.5))
+            if self.crouch_release and self.ext_cmd:
+                sc_gate = sc_gate & (state.cmd[3] >= 0.97)
             sc_mid = 0.5 * (data.geom_xpos[self._sole_gids[0]]
                             + data.geom_xpos[self._sole_gids[1]])
             sc_com = data.subtree_com[self._torso_bid]
