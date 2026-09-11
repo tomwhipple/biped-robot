@@ -435,6 +435,29 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     WHY note, and the robot session or Tom can replace it before 20:00.
     It is a continuation, not a hop; choosing the line's next hop stays
     theirs.</p>
+    <p><b>Evening — Tom's "keep working using the sim" turned the day into
+    an A/B, and the knee-only gate won it.</b> Built
+    <code>--mimic-crouch-gate-knee</code> (82e1da3: during a crouch zero
+    only the knee + ankle components of the mimic kernel, keep the hip
+    swing/phase components paying) and ran it against the plain
+    continuation, both warm from v34crouch, 30M each, under the measured
+    servo: <b>v37knee 37/144</b>, falls 14%, rhythm <b>97% / CV 0.16</b>,
+    asym 19%, crouch 0.8 → knees −5.0° / height −3.6 cm with a clean
+    return (−0.3°), swing peak 1.9 cm — vs control <b>v34crouch_b
+    34/144</b>, falls 25%, rhythm <b>89% / CV 0.26</b>, asym 28%, crouch
+    −3.4° / −1.2 cm, swing 1.0 cm. Every axis, and the one that matters
+    most: the knee-only gate keeps the cadence the whole-term gate
+    (v35mimic, 93%/0.15) and even the plain continuation lost, while
+    matching v35mimic's crouch response. Students tied (31 vs 32) — r24
+    distillation noise, not signal. The lift probe also settled the
+    swing question: hop 5 bought little height (1.9→2.3 cm, gate 3 cm)
+    and made lateral separation worse (6.1→4.7→4.3 cm, gate 5.5) — the
+    crossing guard at 6 cm sits 1 mm above the stance and never fires.
+    Round 2 of the A/B runs tonight (v37knee_b vs v34crouch_c, same
+    recipes); if v37knee_b holds, v37knee is the proposed hop 6 for
+    Tom's read. Also: the GPU idled 18:08–22:00 — this session was
+    suspended again and the queue was not deep enough; from now on the
+    queue is kept two jobs deeper than the night needs.</p>
   </div>
 
   <div class="card accent">
