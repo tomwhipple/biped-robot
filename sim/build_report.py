@@ -411,6 +411,32 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·11 · training thread</span></p>
+    <p><b>A/B round 2: the knee-only gate is what makes the crouch real —
+    and the line's rhythm is back at the bar.</b> Both arms warm-continued
+    30M under the measured servo. <b>v37knee_b</b>: 32/144, falls 14%,
+    rhythm <b>99% / CV 0.10</b> (up from 97%/0.16 — the v33home standard,
+    for the first time since hop 3), crouch 0.8 → knees −5.7°, <b>torso
+    −3.8 cm</b>, return error −0.6°. Control <b>v34crouch_c</b>: 32/144,
+    falls 16%, rhythm 98%/0.10, knees −5.8° but torso only <b>−1.5 cm</b>
+    — the plain continuation eventually bends its knees too, but the
+    height doesn't follow (ankles absorb it), which is the mimic term's
+    straight-leg charge still doing its work. Same score, same cadence,
+    one real crouch: the gate earns its place. Students: v37knee_b 33
+    (falls 12%, the line's lowest); the control's distill was cut by the
+    07:00 stop and runs first tonight. Not decay — rhythm and crouch both
+    improved from round 1 while the score moved within seed noise
+    (37→32) — so the referee's proposal for <b>hop 6 is the v37knee
+    line</b>, and the call is Tom's. Honest accounting: every hop since
+    v34crouch has traded scenario score for the crouch capability
+    (student 41 → ~32) — the line now stands, walks in rhythm and
+    crouches under the measured servo, and steers worse than it did.
+    Tonight continues the line (v37knee_c, then a _d backstop) with the
+    queue kept two jobs deeper than the night, after yesterday's
+    suspension idled the GPU four hours.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·10 · training thread</span></p>
     <p><b>The swing hop does not settle with time — stop continuing it.</b>
     Two more nights of the v36swing recipe (v36swing_b +30M, v36swing_c
