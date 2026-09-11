@@ -434,6 +434,30 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     Tonight continues the line (v37knee_c, then a _d backstop) with the
     queue kept two jobs deeper than the night, after yesterday's
     suspension idled the GPU four hours.</p>
+    <p><b>Evening — on the robot, and two corrections to the morning.</b>
+    Tom's "test the latest": v37knee_b_s128r24 flashed (d334a9b — also the
+    first image carrying the GaitClock speed-clock scaling; the 09·07
+    v33home image had none). Stand: the steadiest on record (joint p-p
+    0.29°, torso pitch p-p 0.17°). The crouch script: <b>the toes turned
+    in and the robot did not lower</b> — Tom saw it, I had reported a
+    descent from three unmeasured frames and was wrong. The SIL twin
+    (firmware stack, deployed weights, measured lag + dead time) driven by
+    a new instrumented probe (<code>link/crouch_probe.py</code>, pose
+    beacons + guards) reproduces the robot exactly: hold 0.7 → hip yaw
+    <b>L −7.4° / R +7.6°</b> (both hinges axis 0 0 1 = symmetric toe-in),
+    knees −5.5°, right yaw stuck +7.9° after. Not a servo mix-up: the
+    policy commands it. The line's learned "crouch" is a yaw pinch with a
+    token knee bend. Second correction: my job-tmp walker-plant probes had
+    commanded a 2 cm foot-height channel since 08·17 (an MJX test-fixture
+    value; the referee uses 0) — every absolute probe number in these
+    cards (rhythm %, stride CV, crouch cm, lift cm) is void; scorecards
+    were never affected. Re-measured with the fix: v27full_d 95%/0.15,
+    v33home 93%/0.11, v34crouch_c 88%/0.22, v34crouch 86%/0.12, v36swing
+    79%/0.32, <b>v37knee_b 74%/0.21</b>, v35mimic 65%/0.13. The morning's
+    hop-6 proposal is withdrawn: score tie, worse rhythm, fake crouch. The
+    recipe gap is real and specific — nothing pins hip yaw during a
+    crouch and the height kernel is satisfiable by nothing — and the hop
+    that fixes it is Tom's call. Robot left torque-released.</p>
   </div>
 
   <div class="card accent">
