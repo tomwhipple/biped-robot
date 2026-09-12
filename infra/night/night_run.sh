@@ -149,7 +149,20 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
     fi
     continue
   fi
+  # A queue file can vanish or empty out between selection and here (moved to
+  # held/ by another session -- 2026-09-08 and 2026-09-11 both launched a
+  # DEFAULT-recipe train_mjx run named mjx_cmd_v1 this way). Never launch
+  # with no args: log it, rescan.
+  if [[ ! -f "$JF" ]]; then
+    echo "$(date +%H:%M) $JOB vanished before launch (queue edited under the runner); rescanning"
+    continue
+  fi
   ARGS=$(grep -v '^BRANCH=' "$JF")
+  if [[ -z "${ARGS// /}" ]]; then
+    echo "$(date +%H:%M) $JOB has no args line and no CMD=; moving to done/ unlaunched"
+    mv -f "$JF" "$N/queue/done/$JOB.empty" 2>/dev/null || true
+    continue
+  fi
   OUT=$(grep -oE '(--out)[= ][^ ]+' <<<"$ARGS" | awk -F'[= ]' '{print $2}')
   OUT=${OUT:-mjx_cmd_v1}
   REQ=$(grep -oE '(--steps)[= ][0-9]+' <<<"$ARGS" | grep -oE '[0-9]+$' || true)
