@@ -411,6 +411,50 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·12 · training thread</span></p>
+    <p><b>Three squat hops in 20 hours, all measured to the bone — and
+    the cause was never the reward.</b> Tom asked for an explicit squat
+    example rather than an RL-discovered one. What exists: the bench's
+    level-foot family (hip −θ, knee −2θ, ankle −θ), verified in MuJoCo
+    to keep soles and torso level and drop the hip by (thigh+shank)
+    (1−cos θ); nothing in training had it, and the crouch channel's
+    cmd × nominal height asked 9.7 cm at 0.7 where these 9+9 cm legs
+    give ~4 cm at the ankle limit — the referee's squat scenario was
+    physically unpassable. Built <code>--crouch-pose-ref</code> (the
+    family becomes the mimic reference under a crouch command; every
+    height target uses the feasible depth; the referee expects the env's
+    own target). Then three runs, all under the measured servo:
+    <b>v38squat</b> (penalty terms only): knees the wrong way, torso up,
+    walking 0%. <b>v39pose</b> (reference only): knee +0.2°, torso up,
+    walking 43%, student 17/144, twin yaw pinch 14°. Root cause, two
+    parts, both measured: the env puts a per-episode stance draw on
+    <i>every</i> episode, so "crouch commanded" fired while walking and
+    the squat reference was added to the gait; and the mimic kernel
+    (σ² 0.72) pays 5×10⁻⁵/step for standing tall at crouch 0.8 — no
+    gradient toward the example. <b>v40sit</b> (squat terms gated on a
+    <i>stationary</i> crouch + a dense L1 pull): walking back to 65%,
+    but still knee −5°, torso +0.8 cm. So the last suspects were
+    measured out one by one: the reward holding poses from standing to
+    the squat is monotone at both depths with no term forming a barrier
+    in ablation; the fall line and the standing flag clear the squat
+    height; and the reference squat driven <b>open-loop through the
+    plant under 2 Hz lag + 85 ms dead time holds 4/4</b> (−4.1 cm, knee
+    −79°, up_z 1.00). The plant can, the reward wants it, the
+    warm-started policy never explores the descent. Tonight's hop is
+    the textbook answer to exactly that: <b>reference-state
+    initialization</b> — a quarter of env slots start each episode
+    already in the squat under a stationary crouch command (the command
+    resamples later, so the rise is practiced), the same mechanism the
+    get-up work uses for fallen starts. v41rsi runs after v40sit's
+    distill/twin chain. Two confessions for the record: my probes
+    carried a spurious 2 cm foot-height command since 08·17 (fixed;
+    every earlier absolute probe number is void, scorecards unaffected),
+    and a queue edit under the live runner launched a default-recipe run
+    that wasted 2½ GPU-hours — the runner now refuses a vanished or
+    empty job.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·11 · training thread</span></p>
     <p><b>A/B round 2: the knee-only gate is what makes the crouch real —
     and the line's rhythm is back at the bar.</b> Both arms warm-continued
