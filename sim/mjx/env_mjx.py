@@ -401,6 +401,11 @@ class BimoMJXEnv:
         # every height target uses the feasible depth instead of cmd x
         # nominal (cmd 0.7 asked 9.7 cm; the legs give ~5.8 at the knee limit).
         crouch_theta_max_deg: float = 39.0,  # theta at crouch cmd 0.7: 1 deg inside the +-40 ankle limit (bench max was 40)
+        w_crouch_pull: float = 0.0,  # 2026-09-12: dense L1 pull of hip_pitch /
+        # knee / ankle onto the squat reference while a STATIONARY crouch is
+        # commanded. The mimic kernel (s2 0.72) pays 5e-5/step for standing
+        # tall at crouch 0.8 and 0.1 halfway down -- no gradient toward the
+        # pose; v39pose never left standing. This term has a slope everywhere.
         w_hip_yaw: float = 0.0,     # 2026-09-11: sum(hip_yaw^2) penalty, ungated.
         # The line's "crouch" on hardware was a symmetric hip-yaw pinch
         # (L -7 / R +8 deg, twin + robot) with no descent; nothing charged
@@ -868,6 +873,7 @@ class BimoMJXEnv:
         self.w_still = w_still
         self.w_stand_com = w_stand_com
         self.w_hip_yaw = float(w_hip_yaw)
+        self.w_crouch_pull = float(w_crouch_pull)
         self.crouch_pose_ref = bool(crouch_pose_ref)
         self.crouch_theta_max = float(np.radians(crouch_theta_max_deg))
         # thigh + shank length from the joint anchors (level-foot squat drop)
@@ -1283,13 +1289,23 @@ class BimoMJXEnv:
         walker_env."""
         return self.crouch_theta_max * jp.clip((1.0 - cmd3) / 0.3, 0.0, 1.0)
 
-    def _crouch_h_target(self, cmd3):
-        """Torso-height target for a crouch command: the feasible level-foot
-        squat depth when crouch_pose_ref is on, cmd x nominal otherwise."""
+    @staticmethod
+    def _cmd_is_moving(cmd):
+        """Locomotion commanded on any of vx / vy / wz (7-channel layout)."""
+        return ((jp.abs(cmd[0]) > 0.05) | (jp.abs(cmd[1]) > 0.05)
+                | (jp.abs(cmd[2]) > 0.05))
+
+    def _crouch_h_target(self, cmd3, moving=False):
+        """Torso-height target for a crouch command. The squat is a
+        STATIONARY skill: with crouch_pose_ref the feasible level-foot depth
+        applies only when no locomotion is commanded; a moving command keeps
+        the old cmd x nominal preference (the per-episode stance draw lands
+        on walking episodes too -- _apply_crouch -- and v38/v39 collapsed
+        the gait by demanding a squat while walking)."""
         if not self.crouch_pose_ref:
             return cmd3 * self._nominal_h
         drop = self._leg_len * (1.0 - jp.cos(self._crouch_theta(cmd3)))
-        return self._nominal_h - drop
+        return jp.where(moving, cmd3 * self._nominal_h, self._nominal_h - drop)
 
     def _mimic_ref(self, cmd, phase, freq):
         """Joint-space procedural gait reference (plan-v2 Phase B).
@@ -1317,8 +1333,10 @@ class BimoMJXEnv:
         roll = d[self._i_roll] + B * xn
         ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
         if self.crouch_pose_ref:
-            # the explicit squat: level-foot family, additive to the gait
-            th = self._crouch_theta(cmd[3])
+            # the explicit squat: level-foot family, STATIONARY only (a
+            # walking episode carries a stance draw too; no squat-walk)
+            th = jp.where(self._cmd_is_moving(cmd), 0.0,
+                          self._crouch_theta(cmd[3]))
             hipP = hipP - th
             knee = knee - 2.0 * th
             ank = ank - th
@@ -2120,7 +2138,7 @@ class BimoMJXEnv:
             h_gate = jp.where((sp_cmd > 0.05) | (jp.abs(cmd_w) > 0.05),
                               0.3, 1.0)
             h_norm = jp.exp(
-                -(((height - self._crouch_h_target(cmd_h)) / 0.04) ** 2))
+                -(((height - self._crouch_h_target(cmd_h, self._cmd_is_moving(state.cmd))) / 0.04) ** 2))
             h_term = self.w_track_h * h_gate * h_norm
             # skill-compliance gate (round 4): precision_v3 answered lift/
             # crouch commands with calm standing -- the velocity/yaw kernels
@@ -2165,7 +2183,7 @@ class BimoMJXEnv:
                 -((wz - cmd_w) / 0.5) ** 2)
 
         # posture reference: the commanded crouch height in ext mode
-        h_ref = (self._crouch_h_target(state.cmd[3]) if self.ext_cmd
+        h_ref = (self._crouch_h_target(state.cmd[3], self._cmd_is_moving(state.cmd)) if self.ext_cmd
                  else self._nominal_h)
         reward = (primary
                   + self.w_upright * up_z
@@ -2347,12 +2365,21 @@ class BimoMJXEnv:
         if self.w_pitch_rate:
             reward -= self.w_pitch_rate * (jp.abs(data.qvel[3])
                                            + jp.abs(data.qvel[4]))
+        if self.w_crouch_pull and self.ext_cmd:
+            cp_gate = ((state.cmd[3] < 0.97) & (~cmd_moving) & (~lifted)
+                       & (state.recovered > 0.5))
+            q_cp = self._mimic_ref(state.cmd, gait_phase, clock_freq)
+            dq_cp = data.qpos[self._jq0:self._jq1] - q_cp
+            idx_cp = jp.concatenate([self._i_pitch, self._i_knee, self._i_ankle])
+            reward -= (self.w_crouch_pull * jp.where(cp_gate, 1.0, 0.0)
+                       * jp.sum(jp.abs(dq_cp[idx_cp])))
         if self.w_hip_yaw and self._i_yaw is not None:
             q_yaw = data.qpos[self._jq0:self._jq1][self._i_yaw]
             reward -= self.w_hip_yaw * jp.sum(q_yaw ** 2)
         if self.w_crouch_track and self.ext_cmd:
             # pays only while a crouch is commanded and only near the depth
-            ct_gate = ((state.cmd[3] < 0.97) & (state.recovered > 0.5)
+            ct_gate = ((state.cmd[3] < 0.97) & (~cmd_moving)
+                       & (state.recovered > 0.5)
                        & (~lifted)).astype(jp.float32)
             ct_err = height - self._crouch_h_target(state.cmd[3])
             reward += (self.w_crouch_track * ct_gate

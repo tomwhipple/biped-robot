@@ -1178,8 +1178,12 @@ class BimoWalkerEnv(gym.Env):
     def _crouch_theta(self, cmd3):
         return self.crouch_theta_max * float(np.clip((1.0 - cmd3) / 0.3, 0.0, 1.0))
 
-    def _crouch_h_target(self, cmd3):
-        if not self.crouch_pose_ref:
+    @staticmethod
+    def _cmd_is_moving(cmd):
+        return bool(abs(cmd[0]) > 0.05 or abs(cmd[1]) > 0.05 or abs(cmd[2]) > 0.05)
+
+    def _crouch_h_target(self, cmd3, moving=False):
+        if not self.crouch_pose_ref or moving:
             return cmd3 * self._nominal_h
         return self._nominal_h - self._leg_len * (1.0 - np.cos(self._crouch_theta(cmd3)))
 
@@ -1203,7 +1207,7 @@ class BimoWalkerEnv(gym.Env):
         roll = d[self._i_roll] + B * xn
         ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
         if self.crouch_pose_ref:
-            th = self._crouch_theta(float(cmd[3]))
+            th = 0.0 if self._cmd_is_moving(cmd) else self._crouch_theta(float(cmd[3]))
             hipP = hipP - th
             knee = knee - 2.0 * th
             ank = ank - th
@@ -1796,7 +1800,7 @@ class BimoWalkerEnv(gym.Env):
                 h_gate = (0.3 if (sp_cmd > 0.05
                                   or abs(self._cmd[2]) > 0.05) else 1.0)
                 h_norm = float(np.exp(
-                    -(((height - self._crouch_h_target(float(self._cmd[3]))) / 0.04) ** 2)))
+                    -(((height - self._crouch_h_target(float(self._cmd[3]), self._cmd_is_moving(self._cmd))) / 0.04) ** 2)))
                 h_term = self.w_track_h * h_gate * h_norm
                 # one-leg geometry pre-reward (mirrors sim/mjx): contact
                 # pattern + clearance + swing-foot target kernel
@@ -1907,7 +1911,7 @@ class BimoWalkerEnv(gym.Env):
                           or abs(self._cmd[2]) > 0.05) and not lifted
         shaping_on = cmd_moving and not braking
         # posture reference: the commanded crouch height in ext mode
-        h_ref = (self._crouch_h_target(float(self._cmd[3])) if self.ext_cmd
+        h_ref = (self._crouch_h_target(float(self._cmd[3]), self._cmd_is_moving(self._cmd)) if self.ext_cmd
                  else self._nominal_h)
 
         reward = (

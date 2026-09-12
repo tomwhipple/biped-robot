@@ -68,6 +68,20 @@ def test_theta_mapping_and_feasible_depth():
     assert (q[np.asarray(e._i_ankle)] > lo[np.asarray(e._i_ankle)] + 1e-4).all()
 
 
+def test_squat_is_stationary_only():
+    """A walking command with a stance draw gets the plain gait reference;
+    the squat offsets appear only when nothing is commanded."""
+    e = _mjx(crouch_pose_ref=True)
+    still = np.asarray(e._mimic_ref(jp.array([0, 0, 0, 0.7, 0, 0, 0.0]), 0.0, 1.5))
+    tall = np.asarray(e._mimic_ref(jp.array([0, 0, 0, 1.0, 0, 0, 0.0]), 0.0, 1.5))
+    assert np.abs(still - tall)[np.asarray(e._i_knee)].max() > 1.0     # squat present
+    walk_c = np.asarray(e._mimic_ref(jp.array([0.3, 0, 0, 0.7, 0, 0, 0.0]), 0.7, 1.5))
+    walk_t = np.asarray(e._mimic_ref(jp.array([0.3, 0, 0, 1.0, 0, 0, 0.0]), 0.7, 1.5))
+    np.testing.assert_allclose(walk_c, walk_t, atol=1e-6)               # no squat-walk
+    assert abs(float(e._crouch_h_target(0.7, True)) - 0.7 * e._nominal_h) < 1e-6
+    assert float(e._crouch_h_target(0.7, False)) > 0.7 * e._nominal_h + 0.03
+
+
 def test_walker_mirrors_mjx():
     em, ew = _mjx(crouch_pose_ref=True), _walker(crouch_pose_ref=True)
     for c in (1.0, 0.85, 0.7):
@@ -76,7 +90,8 @@ def test_walker_mirrors_mjx():
             a = np.asarray(em._mimic_ref(jp.asarray(cmd), ph, 1.5))
             b = np.asarray(ew._mimic_ref(cmd, ph, 1.5))
             np.testing.assert_allclose(a, b, atol=1e-5, err_msg=f"c={c} ph={ph}")
-        assert abs(float(em._crouch_h_target(c)) - ew._crouch_h_target(c)) < 1e-5
+        for mv in (False, True):
+            assert abs(float(em._crouch_h_target(c, mv)) - ew._crouch_h_target(c, mv)) < 1e-5
 
 
 def test_reference_is_a_level_foot_squat_in_the_physics():
@@ -97,3 +112,17 @@ def test_reference_is_a_level_foot_squat_in_the_physics():
     hp1 = d.xanchor[m.joint("L_hip_pitch").id][2] - d.xanchor[m.joint("L_ankle").id][2]
     want = e._nominal_h - float(e._crouch_h_target(0.7))
     assert abs((hp0 - hp1) - want) < 2e-3, (hp0 - hp1, want)
+
+
+def test_crouch_pull_has_slope_and_is_gated():
+    """Standing tall under a stationary crouch 0.7 is charged by the pull
+    (unlike the flat mimic kernel); the same pose under a walking command
+    with the same stance draw is not."""
+    import jax
+    def r(vx, w):
+        e = _mjx(crouch_pose_ref=True, w_crouch_pull=w,
+                 cmd_fixed=(vx, 0.0, 0.0, 0.7, 0.0, 0.0, 0.0))
+        s0 = e.reset(jax.random.PRNGKey(0))
+        return float(jax.jit(e.step)(s0, jp.zeros(e.action_size)).reward)
+    assert r(0.0, 0.0) - r(0.0, 0.5) > 1.0        # ~5 rad of L1 distance x 0.5
+    assert abs(r(0.3, 0.0) - r(0.3, 0.5)) < 1e-4  # walking: term off
