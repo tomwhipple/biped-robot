@@ -117,6 +117,10 @@ class State(NamedTuple):
     obs_hist: jax.Array       # (hist-1, frame) previous obs frames (newest
                               # first); zeros-shaped (0, frame) when hist=1
     recover_slot: jax.Array   # ()  1.0 = this env slot starts episodes fallen
+    crouch_slot: jax.Array    # ()  1.0 = this env slot starts episodes IN the
+                              # squat reference under a stationary crouch cmd
+                              # (reference-state initialization, 2026-09-12)
+    crouch_c: jax.Array       # ()  that slot's crouch command value
     recovered: jax.Array      # ()  0.0 while down (no fall termination); flips
                               # to 1.0 at the first HELD stand (getup_v9:
                               # stand_streak >= stand_hold_n, not an instant
@@ -401,6 +405,12 @@ class BimoMJXEnv:
         # every height target uses the feasible depth instead of cmd x
         # nominal (cmd 0.7 asked 9.7 cm; the legs give ~5.8 at the knee limit).
         crouch_theta_max_deg: float = 39.0,  # theta at crouch cmd 0.7: 1 deg inside the +-40 ankle limit (bench max was 40)
+        crouch_rsi_mix: float = 0.0,   # 2026-09-12: fraction of env slots whose
+        # episodes START in the squat reference with a stationary crouch
+        # command pinned (the command still resamples later, so the rise is
+        # practiced too). Reference-state initialization: the reward toward
+        # the squat is monotone and the plant holds it open-loop, but the
+        # warm-started policy never explores the descent (v40sit).
         w_crouch_pull: float = 0.0,  # 2026-09-12: dense L1 pull of hip_pitch /
         # knee / ankle onto the squat reference while a STATIONARY crouch is
         # commanded. The mimic kernel (s2 0.72) pays 5e-5/step for standing
@@ -875,6 +885,10 @@ class BimoMJXEnv:
         self.w_hip_yaw = float(w_hip_yaw)
         self.w_crouch_pull = float(w_crouch_pull)
         self.crouch_pose_ref = bool(crouch_pose_ref)
+        self.crouch_rsi_mix = float(crouch_rsi_mix)
+        if self.crouch_rsi_mix > 0 and not self.crouch_pose_ref:
+            raise ValueError("crouch_rsi_mix needs crouch_pose_ref (the squat "
+                             "reference is the initial pose)")
         self.crouch_theta_max = float(np.radians(crouch_theta_max_deg))
         # thigh + shank length from the joint anchors (level-foot squat drop)
         _d0 = mujoco.MjData(self.mj_model); mujoco.mj_forward(self.mj_model, _d0)
@@ -1766,6 +1780,36 @@ class BimoMJXEnv:
             cmd_next = jp.where(recover_slot > 0,
                                 jp.asarray(10 ** 9, dtype=jp.int32), cmd_next)
             traj_on = jp.where(recover_slot > 0, 0.0, traj_on)
+        crouch_slot = jp.zeros(())
+        crouch_c = jp.ones(())
+        if self.ext_cmd and self.crouch_rsi_mix > 0:
+            # reference-state initialization: fold_in keys so every existing
+            # draw stream is untouched when the feature is off
+            r_s, r_c = jax.random.split(jax.random.fold_in(rng, 9137))
+            crouch_slot = (jax.random.uniform(r_s)
+                           < self.crouch_rsi_mix).astype(jp.float32)
+            crouch_c = jax.random.uniform(
+                r_c, minval=self.cmd_crouch_range[0],
+                maxval=min(self.cmd_crouch_range[1], 0.95))
+            cmd_rsi = jp.zeros(7).at[3].set(crouch_c).astype(jp.float32)
+            q_rsi = self._mimic_ref(cmd_rsi, 0.0, 1.5)
+            drop = self._nominal_h - self._crouch_h_target(crouch_c)
+            qpos_r = (data.qpos.at[self._jq0:self._jq1].set(q_rsi)
+                      .at[2].add(-drop))
+            d_rsi = mjx.make_data(model)
+            d_rsi = d_rsi.replace(qpos=qpos_r, qvel=jp.zeros_like(data.qvel),
+                                  ctrl=jp.zeros(self.mj_model.nu) + q_rsi)
+            d_rsi = mjx.forward(model, d_rsi)
+            data = jax.tree_util.tree_map(
+                lambda a, b: jp.where(crouch_slot > 0, a, b), d_rsi, data)
+            cmd = jp.where(crouch_slot > 0, cmd_rsi, cmd)
+            traj_on = jp.where(crouch_slot > 0, 0.0, traj_on)
+            # the servo chain starts AT the squat, not slewing from standing
+            q_init_r = q_rsi.astype(jp.float32)
+            act_hist = jp.where(crouch_slot > 0,
+                                jp.tile(q_init_r[None, :], (self.act_delay_max + 1, 1)),
+                                act_hist)
+            lag_y0 = jp.where(crouch_slot > 0, jp.tile(q_init_r, (3, 1)), lag_y0)
         if self.ext_cmd:
             rng, r_traj = jax.random.split(rng)
             traj = self._draw_traj(r_traj)
@@ -1800,6 +1844,7 @@ class BimoMJXEnv:
                      obs_hist=obs_hist, cmd=cmd,
                      cmd_next=cmd_next, traj=traj, traj_on=traj_on,
                      recover_slot=recover_slot,
+                     crouch_slot=crouch_slot, crouch_c=crouch_c,
                      recovered=1.0 - recover_slot,
                      stand_streak=jp.zeros(()),
                      best_h=data.qpos[2] - self._gz(data.qpos[0],
@@ -1838,6 +1883,12 @@ class BimoMJXEnv:
             cmd_next = jp.where(first.recover_slot > 0,
                                 jp.asarray(10 ** 9, dtype=jp.int32), cmd_next)
             traj_on = jp.where(first.recover_slot > 0, 0.0, traj_on)
+            if self.crouch_rsi_mix > 0:
+                # RSI slots reuse their squat cached-first-state: re-pin the
+                # stationary crouch command (it resamples later = the rise)
+                cmd_rsi = jp.zeros(7).at[3].set(first.crouch_c).astype(jp.float32)
+                cmd = jp.where(first.crouch_slot > 0, cmd_rsi, cmd)
+                traj_on = jp.where(first.crouch_slot > 0, 0.0, traj_on)
         else:
             traj = jp.zeros(3)
         if self.gait_clock:
@@ -1869,6 +1920,7 @@ class BimoMJXEnv:
             gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
+            crouch_slot=first.crouch_slot, crouch_c=first.crouch_c,
             recovered=1.0 - first.recover_slot,
             stand_streak=jp.zeros(()),
             best_h=first.data.qpos[2] - self._gz(first.data.qpos[0],
@@ -2605,6 +2657,7 @@ class BimoMJXEnv:
                      obs_hist=obs_hist,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,
                      traj_on=traj_on, recover_slot=state.recover_slot,
+                     crouch_slot=state.crouch_slot, crouch_c=state.crouch_c,
                      recovered=recovered, stand_streak=stand_streak,
                      best_h=jp.maximum(state.best_h, height),
                      head_ref=head_ref, rise_t0=state.rise_t0,
