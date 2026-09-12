@@ -8,18 +8,21 @@
 # hip yaws (L -7 / R +8 deg) with no descent -- this makes that visible
 # before a flash.
 set -uo pipefail
-RUN=${1:?run name}; OUT=${2:-sim/runs/$RUN}; mkdir -p "$OUT"
-ROOT=/home/claw/code/robot; cd "$ROOT"
+# Root = the checkout this script lives in (the runner invokes the copy in
+# ~/code/robot-mjx, where the student's run dir is); all paths absolute.
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
+RUN=${1:?run name}; OUT=${2:-$ROOT/sim/runs/$RUN}; mkdir -p "$OUT"
+PY="$ROOT/.venv/bin/python"
 PORT=${PORT:-4611}; TLM=${TLM:-4612}
-MUJOCO_GL=egl JAX_PLATFORMS=cpu .venv/bin/python sim/sil_twin.py --run-name "$RUN" --xml sim/bimo_biped_v5body.xml \
+MUJOCO_GL=egl JAX_PLATFORMS=cpu "$PY" sim/sil_twin.py --run-name "$RUN" --xml sim/bimo_biped_v5body.xml \
   --nominal --act-lag-hz 2.0 --act-delay-ticks 4 --stream-port 0 --port $PORT --tlm-port $TLM \
   --duration 60 --record "$OUT/twin_crouch1.mp4" > "$OUT/twin_crouch1_twin.log" 2>&1 &
 TWIN=$!
 for i in $(seq 1 60); do grep -q '"ready":true' "$OUT/twin_crouch1_twin.log" 2>/dev/null && break; sleep 1; done; sleep 2
-.venv/bin/python link/crouch_probe.py --host 127.0.0.1 --port $PORT --tlm-port $TLM \
+"$PY" link/crouch_probe.py --host 127.0.0.1 --port $PORT --tlm-port $TLM \
   --csv "$OUT/twin_crouch1_beacons.csv" > "$OUT/twin_crouch1_probe.log" 2>&1
 kill $TWIN 2>/dev/null; wait $TWIN 2>/dev/null
-.venv/bin/python - "$OUT/twin_crouch1_beacons.csv" << 'PY'
+"$PY" - "$OUT/twin_crouch1_beacons.csv" << 'PY'
 import csv, math, sys
 p=sys.argv[1]; rows=[r for r in csv.DictReader(open(p)) if r.get("L_yaw")]
 if not rows: print("twin_crouch_check: no pose rows"); sys.exit(1)
