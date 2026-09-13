@@ -237,6 +237,8 @@ class Driver:
         self.run_for(3.0, lambda t: (0.0, 0.0, 0), "hold (spotter rights the robot)")
         self.run_for(0.4, lambda t: (0.0, 0.0, FLAG_HOME), "RESET SERVOS: FLAG_HOME edge")
         self.run_for(4.0, lambda t: (0.0, 0.0, 0), "home settle")
+        # Tom 2026-09-13: a reset is not finished until torque is released.
+        self.run_for(1.0, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_ESTOP), "ESTOP = torque release, then silence")
 
     def close(self):
         self.tx.close()

@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from arm_script import Driver, arm_off  # noqa: E402
-from protocol import (FLAG_ARM, FLAG_ATT, FLAG_HOME, FLAG_POSE, ArmResult,  # noqa: E402
+from protocol import (FLAG_ESTOP, FLAG_ARM, FLAG_ATT, FLAG_HOME, FLAG_POSE, ArmResult,  # noqa: E402
                       LinkState, diag_arm_result, diag_reason)
 
 JOINTS = ["L_yaw", "L_roll", "L_pitch", "L_knee", "L_ankle",
@@ -157,6 +157,10 @@ def main():
             if r is not None and r is not ArmResult.HOME_PENDING:
                 break
         print(f"== end-of-run home: {r}", flush=True)
+        # Tom 2026-09-13: "always release torque ... zeroing the servos
+        # implies released torque" -- the ESTOP latch is the link-side
+        # release; nothing is sent after it, so it holds.
+        d.run_for(1.0, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_ESTOP), "end: ESTOP = torque release, then silence")
     except KeyboardInterrupt:
         d.emergency("operator ctrl-C")
         verdict = "interrupted"

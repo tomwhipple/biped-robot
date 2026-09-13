@@ -19,7 +19,7 @@ MUJOCO_GL=egl JAX_PLATFORMS=cpu "$PY" sim/sil_twin.py --run-name "$RUN" --xml si
   --duration 60 --record "$OUT/twin_crouch1.mp4" > "$OUT/twin_crouch1_twin.log" 2>&1 &
 TWIN=$!
 for i in $(seq 1 60); do grep -q '"ready":true' "$OUT/twin_crouch1_twin.log" 2>/dev/null && break; sleep 1; done; sleep 2
-"$PY" link/crouch_probe.py --host 127.0.0.1 --port $PORT --tlm-port $TLM \
+"$PY" link/crouch_probe.py --host 127.0.0.1 --port $PORT --tlm-port $TLM --pp-rad ${PP_RAD:-0.5} \
   --csv "$OUT/twin_crouch1_beacons.csv" > "$OUT/twin_crouch1_probe.log" 2>&1
 kill -INT $TWIN 2>/dev/null; wait $TWIN 2>/dev/null   # INT, not TERM: the twin flushes --record in its finally
 "$PY" - "$OUT/twin_crouch1_beacons.csv" << 'PY'
