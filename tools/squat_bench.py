@@ -29,6 +29,10 @@ ap.add_argument("--balance", default=None,
                 help="one-foot balance, open loop: 'L:12:25' = stance LEFT, lean 12 deg over it (both hips roll "
                      "the same way; no ankle roll, so the whole body leans), lift the RIGHT foot with the level-foot "
                      "family theta=25 (knee -50). Steps: lean, lean+lift, lean, zero. Overrides the other modes")
+ap.add_argument("--step", default=None,
+                help="one open-loop step: 'R:20:10:200' = swing RIGHT leg, lift theta 20 (knee -40), swing psi +10 deg "
+                     "forward (negative = backward), each move 200 ms: swing pose, landing pose, hold, then slow zero. "
+                     "The swing KNEE is traced at 50 Hz (firmware T<id>) so its load shows the foot unloading")
 ap.add_argument("--balance-mode", default="stance", choices=("stance", "both"),
                 help="stance = roll the stance hip only; both = both hips the same way (parallelogram lean)")
 ap.add_argument("--ms", type=int, default=2000, help="minimum-jerk duration per move")
@@ -128,15 +132,22 @@ def label(tr):
         return " ".join(f"{k.replace('_hip', '')}={v:g}" for k, v in tr.items() if v)
     return f"hip/knee/ankle {tr[0]:g}/{tr[1]:g}/{tr[2]:g}" + (f" abdL/abdR {tr[3]:g}/{tr[4]:g}" if len(tr) > 4 else "")
 
-def pose(tr):
+def pose(tr, ms=None, trace_id=0):
     tk = ticks(tr)
-    o = cmd("pose " + " ".join(map(str, tk)) + f" s{A.ms}", until=r"(streaming|ok|refus|OFF|usage|busy|answer)", timeout=2.0)
+    tail = f" s{ms or A.ms}" + (f" T{trace_id}" if trace_id else "")
+    o = cmd("pose " + " ".join(map(str, tk)) + tail, until=r"(streaming|ok|refus|OFF|usage|busy|answer)", timeout=2.0)
     ok = bool(re.search(r"streaming|ok", o))
     say(f"pose {label(tr) or 'zero'}: {'streaming' if ok else 'REFUSED: ' + o.strip()[:100]}"
         + ("  (CLAMPED by the bench envelope)" if "clamp" in o else ""))
     return ok
 
-if A.balance:
+sw = None
+if A.step:
+    sw, th, psi, sms = A.step.split(":"); th = float(th); psi = float(psi); sms = int(sms); sw = sw.upper()
+    swing = {f"{sw}_hip_pitch": -(th + psi), f"{sw}_knee": -2 * th, f"{sw}_ankle": -(th - psi)}   # sole level
+    land = {f"{sw}_hip_pitch": -(5 + psi), f"{sw}_knee": -10, f"{sw}_ankle": -(5 - psi)}
+    reps = [("swing", swing, sms), ("land", land, sms)]
+elif A.balance:
     side, phi, th = A.balance.split(":"); phi = float(phi); th = float(th); side = side.upper()
     # lean toward the stance foot: rolls L and R both -phi leans LEFT (L adducts, R abducts), both +phi leans RIGHT
     # 2026-09-13 measured: rolling BOTH hips just slides the feet on the pad (torso stayed put on camera).
@@ -187,17 +198,32 @@ w = csv.writer(open(A.out + ".csv", "w", newline=""))
 w.writerow(["rep", "phase", "hip_cmd", "knee_cmd", "ankle_cmd", "t", "tilt_deg"] + [f"{n}_deg" for n in NAMES] + [f"{n}_load" for n in NAMES])
 t_start = time.time(); rc = 0
 try:
-    if A.balance:
+    if A.step:
+        seq = [(n, d, ms) for n, d, ms in reps] + [("zero", ZERO5, None)]
+    elif A.balance:
         seq = [(n, d) for n, d in reps] + [("zero", ZERO5)]
     else:
         seq = []
         for rep, tr in enumerate(reps, 1):
             seq += [(f"rep {rep} down", tr), (f"rep {rep} up", ZERO5)]
-    for rep, (phase, th) in enumerate(seq, 1):
+    KNEE_ID = {"L": 7, "R": 3}
+    for rep, item in enumerate(seq, 1):
         if True:
-            if not pose(th):
+            phase, th = item[0], item[1]; mv = item[2] if len(item) > 2 and item[2] else None
+            tid = KNEE_ID[sw] if (A.step and phase == "swing") else 0
+            if not pose(th, ms=mv, trace_id=tid):
                 rc = 2; break
-            time.sleep(A.ms / 1000 + A.settle)
+            time.sleep((mv or A.ms) / 1000 + (0.3 if (A.step and phase == "swing") else A.settle))
+            if tid:
+                time.sleep(1.4)
+                to = cmd("trace", until=r"trace end", timeout=6.0)
+                rows = [tuple(int(x) for x in mm.groups()) for mm in re.finditer(r"T (\d+) (-?\d+) (-?\d+) (-?\d+)", to)]
+                with open(A.out + f"_trace_{phase}.csv", "w") as f:
+                    f.write("t_ms,pos,spd,load\n" + "".join(f"{a},{b},{c},{d}\n" for a, b, c, d in rows))
+                if rows:
+                    loads = [abs(r[3]) for r in rows]
+                    say(f"  knee trace ({len(rows)} samples): load min {min(loads)} max {max(loads)} "
+                        f"first {loads[0]} last {loads[-1]}  | samples with |load| < 16: {sum(1 for l in loads if l < 16)}")
             up = imu_up(); tl = tilt(base, up); ang, load = readback()
             tg = targets(th)
             w.writerow([rep, phase, tg.get("L_hip_pitch", 0), tg.get("L_knee", 0), tg.get("L_ankle", 0), round(time.time() - t_start, 2), round(tl, 2)]
