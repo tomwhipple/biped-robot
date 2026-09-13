@@ -529,7 +529,28 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     (<code>--crouch-deep-ref -65,-95,-40</code>, FK depth ~5.9 cm, tested
     against MuJoCo with the torso leaning and the soles flat), with the
     hip-yaw penalty raised 3→10: v42deep and v42deepfast, both from
-    v41rsi_b. Robot: v41rsi_b_s128r24 (83513ec), released.</p>
+    v41rsi_b.</p>
+    <p><b>Afternoon, and the incident.</b> The zeroing now takes up the
+    hip-roll play (each hip out 5° and back, then torque released — Tom:
+    "zeroing the servos implies released torque"); three more squats
+    with it were identical to the morning's. Then two open-loop questions,
+    both answered by sim and robot together and both answered no: a
+    static one-foot balance by hip roll is unreachable (no ankle roll —
+    the planted foot pins the pelvis, the feet slide before the centre of
+    mass moves, and a lifted leg just tips the body onto itself: sim
+    sweep finds no window before the sideways fall, six bench runs agree),
+    and a single step from rest is a prop, not a stride (Tom's words; the
+    sim's 3 mm for 200 ms). The rock-then-step that a stride needs was
+    built in the sim (a 10–14° hip-roll rock at 0.6–0.8 s sways the torso
+    13–35° and lifts the feet 1–3 cm, the step timing still unsolved), and
+    then I ran the rock alone on the robot, on the table, right after
+    building it, on the strength of "confirm on the hardware" — <b>the
+    robot fell off the table and broke its hip roll joints</b>. The sim
+    had shown the same family falling at neighbouring parameters; a
+    tilt-abort that reads between poses cannot catch a dynamic fall; and
+    the table edge turned a fall into breakage. Robot out of service until
+    Tom repairs it. The rule from it: a dynamic or new-class motion gets
+    an explicit go per attempt, on the floor, with a stated sim margin.</p>
     <div class="grid2" style="margin-top:14px">
     {fig_0913hw}
     </div>
