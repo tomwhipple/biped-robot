@@ -400,6 +400,11 @@ def main():
                         "and commanded targets quantized to the servo tick "
                         "grid (4096/rev) and reg-58 integer steps/s -- the "
                         "SIL boundary, inside training")
+    p.add_argument("--cmd-resample-s", default="2.5,4.5",
+                   help="command hold before resample, lo,hi seconds "
+                        "(2026-09-13: the referee's squat_reps cycles 1.5 s "
+                        "holds, faster than the 2.5-4.5 s default ever "
+                        "trains; 1.0,4.5 puts that cadence in-distribution)")
     p.add_argument("--cmd-crouch-range", default="1,1",
                    help="per-episode crouch-command draw, lo,hi (SIL finding "
                         "#2: cmd[3] frozen at 1.0 collapsed its normalizer "
@@ -454,7 +459,8 @@ def main():
         backlash_deg=0.5, backlash_deg_max=1.0,
         cmd_v_range=tuple(float(x) for x in args.cmd_v_range.split(",")),
         cmd_w_range=1.0, cmd_stand_prob=0.3,
-        cmd_resample_s=(2.5, 4.5), cmd_dense=args.cmd_dense,
+        cmd_resample_s=tuple(float(x) for x in args.cmd_resample_s.split(",")),
+        cmd_dense=args.cmd_dense,
         w_track_v=2.0, w_track_w=2.0,
         imu_obs=True, imu_noise=1.0,
         action_map=args.action_map, hip_flex_deg=args.hip_flex,

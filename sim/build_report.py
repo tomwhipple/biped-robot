@@ -411,6 +411,42 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·13 · training thread</span></p>
+    <p><b>Reference-state initialization did it: the line's first real
+    squat, measured per leg.</b> Two runs last night, both under the
+    measured 2 Hz servo. <b>v41rsi</b> (a quarter of env slots start
+    each episode already in the squat): teacher SIL 51/144 with
+    squat_reps <b>8/8</b> for the first time in the line, rhythm
+    93% / CV 0.10, student lag <b>33/144</b>; twin crouch1 knee bend
+    −20.6° (v40sit: −2.8°) but yaw pinch +13.3° and, per leg at 0.7,
+    knees only −11/−24 with a +17° forward lean — a third of the way
+    down, lopsided. <b>v41rsi_b</b> (same recipe, warm-continued) is the
+    one: at crouch 0.7 on the walker plant under lag, hip −54/−57,
+    <b>knee −71/−72</b>, ankle −25/−24, torso pitch +8°, hip drop
+    <b>3.8 of the feasible 4.0 cm</b>, both soles flat, yaw −2.7/+3.1,
+    4/4 two-rep runs at 5 s holds with a clean return to standing. That
+    is a forward-lean squat rather than the bench's level-foot family
+    (its ankle stays at −25° where the family asks −39°), and it is the
+    first policy in this project that actually sits down. The price:
+    walking falls 44→50% SIL, stride CV 0.10→0.20, overall 51→37 while
+    training reward rose 637→784 — a skill trade, not a free lunch, so
+    the same-recipe continuation I had parked as a spare is deleted.
+    Two measured caveats. The referee's squat_reps still reads
+    <b>0/8</b> for v41rsi_b (depth error 1.0 cm, but it falls 8/8): the
+    scenario cycles 1.5 s holds, and the env resamples commands every
+    2.5–4.5 s, so that cadence was never trained — exposed today as
+    <code>--cmd-resample-s</code>. And v41rsi_b's distill/lag/twin
+    chain did not run (the 05:00 start cutoff), so its student and twin
+    numbers — the gate itself — land tonight, first in the queue. Then
+    two one-knob hops from v41rsi_b: <b>v42hold</b> (RSI mix 0.25→0.10:
+    consolidate walking, keep the squat) and <b>v42fast</b> (RSI 0.25 +
+    command resample 1.0–4.5 s so the referee's rep cadence is
+    in-distribution). Gate unchanged: twin knee ≥ 60° at 0.7, pinch
+    &lt; 3°, walking ≥ 80%, lag ≥ 30. Robot stays on v37knee_b_s128r24
+    until a student clears it.</p>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·12 · training thread</span></p>
     <p><b>Three squat hops in 20 hours, all measured to the bone — and
     the cause was never the reward.</b> Tom asked for an explicit squat
