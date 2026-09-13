@@ -84,6 +84,12 @@ class DesignParams:
     m_board: float = 0.030       # General Driver 65x65
     m_wiring: float = 0.030      # leads, ties, switch
     payload_ref: float = 0.0     # Pi + camera volume reserved; mass via DR
+    ankle_servos_in_shank: bool = False   # study variant: parallel-linkage ankle --
+                                          # both ankle servos ride at the top of the
+                                          # shank, the ankle joints are driven through
+                                          # links (modelled: same joints, servo mass
+                                          # moved up, linkage lumps at the ankle)
+    m_linkage: float = 0.015     # per ankle DOF: rod ends + link + lever
     # ---- torso geometry (m) ----------------------------------------------
     deck_x: tuple = (-0.058, 0.052)
     deck_w: float = 0.118
@@ -139,6 +145,18 @@ def _pads(p: DesignParams, side: str) -> str:
         for n, x, y in pts)
 
 
+def _shank_ankle_servos(p: DesignParams, side: str) -> str:
+    """parallel-ankle study variant: both ankle servos stacked in the shank just
+    below the knee servo (cases side by side across the shank), driving the
+    ankle through links (not modelled as geometry)."""
+    if not p.ankle_servos_in_shank:
+        return ""
+    sv = p.servo_mass
+    z1 = -(SV_LEN - SV_AX_OUT) - 0.004 - SV_WID / 2      # below the knee servo case
+    return (f'              <geom class="servo" type="box" pos="0.004 0.009 {_f(z1)}" size="{_f(SV_WID/2)} {_f(SV_T/4)} {_f(SV_LEN/2*0.55)}" mass="{sv}"/>\n'
+            f'              <geom class="servo" type="box" pos="0.004 -0.009 {_f(z1)}" size="{_f(SV_WID/2)} {_f(SV_T/4)} {_f(SV_LEN/2*0.55)}" mass="{sv}"/>')
+
+
 def _leg(p: DesignParams, side: str) -> str:
     s = +1.0 if side == "L" else -1.0
     y = s * p.hip_sep / 2
@@ -188,19 +206,21 @@ def _leg(p: DesignParams, side: str) -> str:
               <geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>
               <geom type="box" pos="0 0 {_f(-p.shank/2)}" size="0.012 0.019 {_f(p.shank/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
               <geom name="{side}_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
+{_shank_ankle_servos(p, side)}
               <body name="{side}_ankle_blk" pos="0 0 {_f(-p.shank)}">
                 <joint name="{side}_ankle" axis="0 1 0" range="{-p.ankle_range:.0f} {p.ankle_range:.0f}"/>
                 <!-- ankle-pitch servo case in the ankle link, INVERTED: the
                      case rises above the axis between the shin's fork tines -->
-                <geom class="servo" type="box" pos="0 0 {_f(z_servo_case_up)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>
-                <geom type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.020 0.016 {_f(p.d_ankle/2)}" mass="{p.m_ankle_link}" rgba="{link_rgba}" group="1"/>
+                {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 {_f(z_servo_case_up)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>'}
+                <geom type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.020 0.016 {_f(p.d_ankle/2)}" mass="{p.m_ankle_link if not p.ankle_servos_in_shank else p.m_ankle_link * 0.6 + p.m_linkage}" rgba="{link_rgba}" group="1"/>
                 <geom name="{side}_col_ankle" type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.021 0.017 {_f(p.d_ankle/2)}" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="{side}_foot" pos="0 0 {_f(-p.d_ankle)}">
                   <joint name="{side}_ankle_roll" axis="1 0 0" range="{-ar:.0f} {ar:.0f}"/>
                   <!-- ankle-ROLL servo lies across the foot, output axis X,
                        case bottom on the sole plate; the ankle link forks
                        onto its horn (front) and idler (rear) -->
-                  <geom class="servo" type="box" pos="0 0 0" size="{_f(sx_h[0])} {_f(sx_h[1])} {_f(sx_h[2])}" mass="{sv}"/>
+                  {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 0" size="{_f(sx_h[0])} {_f(sx_h[1])} {_f(sx_h[2])}" mass="{sv}"/>'}
+                  {f'<geom type="box" pos="0 0 0" size="0.010 0.015 0.008" mass="{p.m_linkage}" rgba="{link_rgba}" group="1"/>' if p.ankle_servos_in_shank else ""}
                   <geom type="box" pos="{_f(foot_cx)} 0 {_f(sole_z + 0.004)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.004" mass="{p.m_foot}" rgba="0.30 0.31 0.34 1" group="1"/>
 {_pads(p, side)}
                   <!-- reference sole (non-colliding; walker_env reads it) and
@@ -351,7 +371,9 @@ def params_from_args(argv=None) -> tuple[DesignParams, argparse.Namespace]:
     for kv in a.set:
         k, v = kv.split("=", 1)
         cur = getattr(p, k)
-        if isinstance(cur, tuple):
+        if isinstance(cur, bool):
+            setattr(p, k, v.lower() in ("1", "true", "yes"))
+        elif isinstance(cur, tuple):
             setattr(p, k, tuple(float(x) for x in v.split(",")))
         elif isinstance(cur, str):
             setattr(p, k, v)

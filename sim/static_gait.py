@@ -168,7 +168,16 @@ def make_env(p: DesignParams, xml_path, mu=0.7, play_deg=3.0, backlash_deg=1.0, 
 
 def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, play_deg=3.0, backlash_deg=1.0,
              mass_scale=1.0, servo_scale=1.0, payload=0.0, floor_tilt_deg=0.0, per_joint=None,
-             lag_hz=2.0, delay_ticks=4, render=None, verbose=False):
+             lag_hz=2.0, delay_ticks=4, render=None, verbose=False, fb_ankle=0.0, fb_hip=0.0, fb_i=0.0,
+             fb_sag=0.0, fb_sag_joints=None):
+    """fb_ankle / fb_hip: proportional IMU-roll feedback (rad per rad of torso
+    roll error) added to the ankle-roll / hip-roll targets of BOTH legs -- the
+    simplest compliance-aware controller, what a policy would learn first.
+    fb_i: integral gain on the same error (per second).
+    fb_sag: joint-position-error feedback on fb_sag_joints (default: the four
+    roll joints): target += fb_sag * (target - measured), i.e. software
+    stiffening from the servo's own position readback -- what a policy that
+    sees joint positions can do, limited by the 2 Hz shaper + dead time."""
     env = make_env(p, xml_path, mu=mu, play_deg=play_deg, backlash_deg=backlash_deg, lag_hz=lag_hz,
                    delay_ticks=delay_ticks, payload=payload)
     m = env.model
@@ -213,12 +222,29 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     tilt_max = 0.0
     stance_start = {}
     n_ticks = int(tl.T / dt) + 1
+    i_roll = 0.0
+    sag_idx = [JN.index(j) for j in (fb_sag_joints or ROLLS)]
+    iL, iR = JN.index("L_ankle_roll"), JN.index("R_ankle_roll")
+    hL, hR = JN.index("L_hip_roll"), JN.index("R_hip_roll")
     for k in range(n_ticks):
         key = tl.at(t)
         try:
             qc = q_of(p, key)
         except ValueError:
             pass
+        if fb_ankle or fb_hip or fb_i:
+            # torso roll about its own x axis (the commanded attitude is level)
+            Rm = env.data.xmat[env._torso_bid].reshape(3, 3)
+            roll_err = math.atan2(Rm[2, 1], Rm[2, 2])
+            i_roll += roll_err * dt
+            corr = fb_ankle * roll_err + fb_i * i_roll
+            qc = qc.copy()
+            qc[iL] += corr; qc[iR] += corr
+            qc[hL] += fb_hip * roll_err; qc[hR] += fb_hip * roll_err
+        if fb_sag:
+            qm = env.data.qpos[7:19]
+            qc = qc.copy()
+            qc[sag_idx] += fb_sag * (qc[sag_idx] - qm[sag_idx])
         obs, r, term, trunc, _ = env.step(inv(qc))
         d = env.data
         up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
@@ -309,6 +335,8 @@ def main(argv=None):
     ap.add_argument("--knees3250", action="store_true", help="STS3250 at both knees")
     ap.add_argument("--rolls3250", action="store_true", help="STS3250 at hip roll + ankle roll (4)")
     ap.add_argument("--all3250", action="store_true")
+    ap.add_argument("--fb-ankle", type=float, default=0.0, help="IMU roll -> ankle roll P gain (rad/rad)")
+    ap.add_argument("--fb-hip", type=float, default=0.0, help="IMU roll -> hip roll P gain (rad/rad)")
     ap.add_argument("--mu", type=float, default=0.7)
     ap.add_argument("--play", type=float, default=3.0)
     ap.add_argument("--json", default=None)
@@ -332,7 +360,8 @@ def main(argv=None):
           f"shift {a.t_shift} s, swing {a.t_swing} s, {a.steps} steps, {tl.T:.1f} s total"
           f"{'  STS3250 at ' + ','.join(sorted(per_joint)) if per_joint else '  STS3215 everywhere'}")
     if not a.sweep:
-        r = run_walk(p, xml_path, tl, windows, mu=a.mu, play_deg=a.play, per_joint=per_joint, render=a.render)
+        r = run_walk(p, xml_path, tl, windows, mu=a.mu, play_deg=a.play, per_joint=per_joint, render=a.render,
+                     fb_ankle=a.fb_ankle, fb_hip=a.fb_hip)
         print(fmt_row(f"nominal mu {a.mu} play {a.play}", r))
         if a.json:
             json.dump(r, open(a.json, "w"), indent=1)

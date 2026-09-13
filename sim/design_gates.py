@@ -54,6 +54,12 @@ V = 11.1 / 12.0
 SERVOS = {
     "sts3215": dict(stall=2.94 * V, w0=4.04 * V, kp_scale=1.0),
     "sts3250": dict(stall=4.90 * V, w0=7.87 * 0.86 * V, kp_scale=4.0),
+    # study only (docs/design-v6-ankle-roll.md section 8): Dynamixel XL430-W250,
+    # 1.5 N*m stall / 57 rpm at 12 V per Robotis, derated 0.86 like the 3215;
+    # stiffness UNKNOWN (kp_scale 1.0 = no credit until measured)
+    "xl430": dict(stall=1.50 * V, w0=5.97 * 0.86 * V, kp_scale=1.0),
+    # Dynamixel XC430-W240: 1.9 N*m / 70 rpm at 12 V
+    "xc430": dict(stall=1.90 * V, w0=7.33 * 0.86 * V, kp_scale=1.0),
 }
 JN = [f"{s}_{j}" for s in "LR" for j in K.JOINTS]
 

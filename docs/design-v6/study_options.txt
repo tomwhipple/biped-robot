@@ -1,0 +1,38 @@
+== A. STS3215 everywhere + joint-position SAG COMPENSATION on the 4 rolls (target += k*(target-measured)), play 3 / 1
+fb_sag 1 play 3 |   FELL@6.7s steps 1/6  clear>=   21 mm  air>= 0.68 s  CoM margin>=   9.5 mm  slip 10.7 mm  tilt 54.3  x  +0.2 y +34.8 cm  hdg  +0.5  FAIL
+fb_sag 1 play 1 |    up       steps 6/6  clear>=   23 mm  air>= 0.62 s  CoM margin>=  13.2 mm  slip  1.9 mm  tilt  5.7  x +14.7 y  +0.1 cm  hdg  +0.2  OK
+fb_sag 2 play 3 |   FELL@4.7s steps 0/6  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 23.9 mm  tilt 53.2  x  -0.1 y +34.9 cm  hdg  +0.9  FAIL
+fb_sag 2 play 1 |   FELL@6.5s steps 0/6  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 34.0 mm  tilt 55.6  x  -0.1 y +35.2 cm  hdg  +1.0  FAIL
+fb_sag 3 play 3 |   FELL@4.1s steps 0/6  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip  0.0 mm  tilt 58.6  x  +0.6 y -33.6 cm  hdg  -3.4  FAIL
+fb_sag 3 play 1 |   FELL@3.2s steps 0/6  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip  0.0 mm  tilt 55.2  x  +0.3 y -35.6 cm  hdg  -0.8  FAIL
+== A2. STS3250 rolls+knees assumed only 2x / 1.5x stiffer than the 3215, + sag compensation k=1/2 (play 3)
+kp_scale 2.0 fb_sag 0 |   FELL@7.1s steps 1/6  clear>=   22 mm  air>= 0.64 s  CoM margin>=  23.2 mm  slip  2.1 mm  tilt 55.9  x  +0.6 y +35.3 cm  hdg  -0.5  FAIL
+kp_scale 2.0 fb_sag 1 |    up       steps 6/6  clear>=   21 mm  air>= 0.72 s  CoM margin>=  12.3 mm  slip  1.4 mm  tilt  5.7  x +14.9 y  -0.7 cm  hdg  -1.1  OK
+kp_scale 2.0 fb_sag 2 |  FELL@11.5s steps 1/6  clear>=   21 mm  air>= 0.68 s  CoM margin>=  10.0 mm  slip 24.2 mm  tilt 53.7  x  +2.7 y -33.8 cm  hdg  -2.6  FAIL
+kp_scale 1.5 fb_sag 0 |   FELL@6.8s steps 1/6  clear>=   20 mm  air>= 0.62 s  CoM margin>=  21.9 mm  slip  4.5 mm  tilt 54.2  x  +0.4 y +34.9 cm  hdg  -0.4  FAIL
+kp_scale 1.5 fb_sag 1 |    up       steps 6/6  clear>=   19 mm  air>= 0.54 s  CoM margin>=  11.2 mm  slip  1.8 mm  tilt  6.7  x +14.8 y  -0.9 cm  hdg  -2.8  OK
+kp_scale 1.5 fb_sag 2 |  FELL@10.4s steps 1/6  clear>=   24 mm  air>= 0.84 s  CoM margin>=   9.7 mm  slip 21.0 mm  tilt 56.0  x  +3.7 y -34.6 cm  hdg  -1.0  FAIL
+== B. PARALLEL-LINKAGE ANKLE (both ankle servos in the shank, +1.5 deg linkage play on the ankle joints)
+   mass 1.291 kg (foot+ankle subtree 110 g vs 200 g serial)
+   Gate A margin 30.0 mm  pass True
+   Gate B sts3215: min speed margin 1.56 (R_knee), min torque margin 3.12
+   Gate B sts3250: min speed margin 2.61 (R_knee), min torque margin 5.20
+   walk 3215 all         play 3(hip)+1.5(linkage->3 modelled) |   FELL@6.5s steps 1/6  clear>=   22 mm  air>= 0.66 s  CoM margin>=  20.1 mm  slip 12.8 mm  tilt 55.9  x  +0.4 y +35.5 cm  hdg  -1.7  FAIL
+   walk 3250 rolls+knees play 3(hip)+1.5(linkage->3 modelled) |    up       steps 6/6  clear>=   21 mm  air>= 0.68 s  CoM margin>=  25.8 mm  slip  1.5 mm  tilt  4.3  x +14.6 y  -0.5 cm  hdg  -0.7  OK
+== C. SCALE-UP: thigh/shank 130 mm, heavier print + 150 g pack (~Bimo scale)
+   mass 1.345 kg, deck top 449 mm
+   Gate A margin 30.0 mm  hip roll -12.3  pass True
+   Gate B sts3215: min speed margin 1.82 (R_knee), min torque margin 2.96 (L_hip_roll)
+   Gate B sts3250: min speed margin 3.06 (R_knee), min torque margin 4.93 (L_hip_roll)
+   walk 3215 all         |   FELL@5.1s steps 0/6  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 27.8 mm  tilt 53.7  x  -0.6 y +38.1 cm  hdg  +1.6  FAIL
+   walk 3250 rolls+knees |   FELL@6.9s steps 1/6  clear>=   17 mm  air>= 0.74 s  CoM margin>=  16.8 mm  slip  2.5 mm  tilt 57.4  x  +0.6 y +39.1 cm  hdg  -0.7  FAIL
+== D. OTHER ACTUATOR CLASS (Gate B envelopes only; stiffness unknown so no Gate D credit)
+   xl430: min speed margin 1.95, min torque margin 1.67 (R_knee), short: ['R_knee'], up
+   xc430: min speed margin 2.39, min torque margin 2.00 (R_knee), short: [], up
+== C2. scale-up, gait re-tuned for the bigger body (STS3250 rolls+knees)
+   bias -10 land_out 16 fb_sag 0 |    up       steps 6/6  clear>=   16 mm  air>= 0.60 s  CoM margin>=  11.2 mm  slip  1.5 mm  tilt  6.5  x +13.5 y  -0.9 cm  hdg  -1.5  OK
+   bias -10 land_out 16 fb_sag 1 |   FELL@6.5s steps 1/6  clear>=   34 mm  air>= 0.84 s  CoM margin>=   6.7 mm  slip 22.8 mm  tilt 54.0  x  -1.0 y +36.4 cm  hdg  +0.2  FAIL
+   bias -5 land_out 12 fb_sag 1 |    up       steps 6/6  clear>=   21 mm  air>= 0.70 s  CoM margin>=  12.0 mm  slip  2.4 mm  tilt  5.9  x +14.8 y  -0.9 cm  hdg  -1.1  OK
+== A3. baseline v6 with STS3250 (4x) AND sag compensation k=1: does feedback cost margin when the servo is stiff?
+   play 3 fb_sag 1 |    up       steps 6/6  clear>=   22 mm  air>= 0.70 s  CoM margin>=  13.8 mm  slip  1.0 mm  tilt  4.8  x +14.6 y  -0.6 cm  hdg  -0.6  OK
+   play 5 fb_sag 1 |   FELL@7.3s steps 1/6  clear>=   28 mm  air>= 0.68 s  CoM margin>=  15.0 mm  slip  3.8 mm  tilt 56.7  x  +0.5 y +35.3 cm  hdg  +0.2  FAIL

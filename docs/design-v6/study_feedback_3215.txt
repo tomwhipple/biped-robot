@@ -1,0 +1,5 @@
+== STS3215 EVERYWHERE + simple IMU-roll feedback (lift 4, play 3, land 0.5): gain sign/magnitude scan
+fb_ankle -1.0 fb_hip +0.0 |   FELL@6.7s steps 1/6  clear>=   19 mm  air>= 0.68 s  CoM margin>=   8.8 mm  slip  5.1 mm  tilt 54.4  x  +0.3 y +34.5 cm  hdg  +0.1  FAIL
+fb_ankle -0.5 fb_hip +0.0 |   FELL@6.7s steps 1/6  clear>=   17 mm  air>= 0.62 s  CoM margin>=  14.7 mm  slip  5.6 mm  tilt 53.3  x  +0.2 y +34.4 cm  hdg  +0.2  FAIL
+fb_ankle +0.5 fb_hip +0.0 |   FELL@6.8s steps 1/6  clear>=   14 mm  air>= 0.54 s  CoM margin>=  12.7 mm  slip  4.3 mm  tilt 53.4  x  +0.2 y +34.9 cm  hdg  +0.2  FAIL
+fb_ankle +1.0 fb_hip +0.0 |   FELL@6.2s steps 0/6  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 38.4 mm  tilt 57.4  x  -0.2 y +36.8 cm  hdg  +0.9  FAIL

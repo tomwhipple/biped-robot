@@ -178,7 +178,7 @@ The body turns at up to 20° per step (a 134° bearing change in eight steps, ra
 
 In the order the gates doc asks for them ("from the datasheet before purchase, from a bench measurement after"):
 
-1. **STS3250 static stiffness ≥ 3× the STS3215's.** The number in the model (4×) is from a third-party bench, not ours. Buy **two** first, mount one in place of a v5 hip-roll servo (same case), and repeat the 2026-09-13 stance-hip test (8° roll, planted foot): the 3215 stalled 1.2° short at load 120. Pass: ≤ 0.4° short at the same load. This single measurement decides whether six are ordered or the design falls back to a compliance-aware controller before it walks.
+1. **STS3250 static stiffness ≥ 3× the STS3215's** (≥ 1.5× with the sag compensator of §8.1). The number in the model (4×) is from a third-party bench, not ours. Buy **two** first, mount one in place of a v5 hip-roll servo (same case), and repeat the 2026-09-13 stance-hip test (8° roll, planted foot): the 3215 stalled 1.2° short at load 120. Pass: ≤ 0.4° short at the same load (≤ 0.8° with the compensator). This single measurement decides whether six are ordered.
 2. **Roll-chain play ≤ 3° total per joint (target ≤ 1°), backlash ≤ 1°.** Design rules for the CAD: both roll joints double-supported (horn + idler), metal horns with thread-locked M3s, the ankle link's fork tines sized to the disc faces (`SV_IDLER_CASE_FACE`, not the phantom face), and a tilt-hysteresis play measurement per roll joint on the assembled leg *before* the first walk — the same test that found 2–3° on v5.
 3. **Masses.** The plant is 1.25 kg from lumps; the assembled robot with six STS3250 will be ~1.37 kg. Weigh every segment when built and regenerate the inertials (`build_v2_inertia.py`), as `DESIGN.md` §8 has been asking for v5.
 4. **The 600 ms "200 ms pose".** Still unexplained on v5 (streamer cap or servo under load). The Gate D script depends on the shaper's timing; measure the streamer against a free servo before trusting any cadence number on hardware.
@@ -197,6 +197,48 @@ In the order the gates doc asks for them ("from the datasheet before purchase, f
 3. Print, assemble, weigh, measure play per roll joint, re-zero, and run `static_gait.py`'s keyframes over the tether: stand → crouch → shift → one-foot balance → stepping in place → six steps, in that order, each a number, on the floor.
 4. Only then Gate E: train on the v6 plant with the measured masses, play and stiffness in it.
 
+## 8. Option study: cost / benefit of the alternatives, and the STS3250 purchase risk
+
+Tom (2026-09-13): *"I wouldn't want to buy a bunch of 3250 servos and then find they're insufficient."* Same tools, same deploy servo model and gait as §4.3 unless stated; rows in `docs/design-v6/study_options.txt` and `study_feedback_3215.txt`.
+
+### 8.1 Is the STS3250 necessary, and what if it under-delivers?
+
+Two controller-side rescues were tried on the all-STS3215 body, because a policy would find them too:
+
+- **IMU-roll feedback** (torso roll → ankle/hip roll targets, P gains ±0.5 … ±1.0): **no help in any sign or gain**. The failure is a lateral pelvis *translation* (the two roll joints of the stance leg sag as a parallelogram, the torso stays within 5° of level), so an attitude sensor does not see it.
+- **Joint-position sag compensation** (target += k·(target − measured) on the four roll joints, from the servo's own readback): k = 1 walks the all-STS3215 body **only with ≤ 1° of roll play** (13 mm margin); at the measured 3° it still falls at the crossover; k ≥ 2 is unstable through the 2 Hz shaper + 80 ms dead time.
+
+So the STS3215 route is "1° play *and* a compensator *and* 13 mm of margin", against a hardware record of 2–3° play. Not a design to bet a build on.
+
+The other side of the risk, an STS3250 that is less stiff than the third-party 4×:
+
+| STS3250 stiffness vs 3215 | no compensation | sag compensation k = 1 |
+|---|---|---|
+| 4× (third-party bench) | walks, 26 mm margin | walks, 14 mm |
+| 3× | walks, 25 mm | — |
+| 2× | falls after step 1 | **walks, 12 mm** |
+| 1.5× | falls after step 1 | **walks, 11 mm** |
+
+**The purchase risk is bounded:** even a 1.5× STS3250 walks with one line of feedback that the controller will have anyway, and at 5° of play nothing walks with any servo. The one thing that cannot be recovered in software is play, which is a printed-chain property, not a servo property. Recommended sequence stands: buy two, measure stiffness and play on the v5 hip roll (§5.1), then six.
+
+### 8.2 The alternatives
+
+| option | what changes | cost (money / build / software) | gates | verdict |
+|---|---|---|---|---|
+| **v6 serial ankle, STS3250 at rolls + knees** (this spec) | +2 servos, ankle block, foot v4, pelvis v7, longer leg links | ≈ $180 / 4 new or revised parts / 10 → 12 DOF refactor (~1 day) | A 30 mm, B pass, C/D pass incl. arcs, robust to 3° play, 1.5× servo shortfall with feedback | **baseline** |
+| v6, STS3215 everywhere | same parts, no purchase | $0 / same / same | A pass, B knee 1.5×, **D fails at measured play**; walks only at ≤ 1° play with a compensator | fallback only if the bench shows the new chains at ≤ 1° |
+| **parallel-linkage ankle** (both ankle servos in the shank, ankle DOF through links) | 2 linkages + 4 rod ends per leg, a lever on each servo; foot/ankle subtree 200 → 110 g | +$20–40 / 2 more parts per leg, linkage design + play control (the exact failure class of v5) / same | A 30 mm, **B unchanged** (the swing knee, not the ankle mass, is the speed limit: 1.56× vs 1.5×), D identical to serial per servo class (falls on 3215, walks on 3250) | **no benefit on this servo class**; revisit only for a dynamic gait where swing inertia matters |
+| torso-mass shifter / waist roll instead of ankle roll (10 + 1 DOF) | a lateral slide or waist roll joint moving the torso mass | 1 servo / new mechanism / obs change | kinematics: the torso is 26 % of the mass; a 60 mm torso shift moves the CoM 16 mm, the shift needed is ≥ 36 mm; and feet cannot overlap, so no stance exists without a lateral shift | **not viable** at this mass distribution (servos in the legs dominate) |
+| arms / waist yaw for balance | +2–4 servos as reaction masses | $50–110 / parts / DOF refactor | static single-foot stance unchanged (they add nothing to Gate A); help only dynamic recovery | later, for a policy; not for the walking capability |
+| **scale-up** (130 mm segments, 150 g pack, ~1.35 kg, 0.45 m deck) | longer leg links, bigger bay | +$20 pack, more filament / same parts scaled / same | A 30 mm at 12° roll; B speed 1.82× (3215) / 3.06× (3250); D: **falls with the 110 mm gait on both servo sets**, walks on STS3250 once re-tuned (12 mm margin: heavier body, more sag) | possible but buys speed margin at the cost of lateral margin; not needed to pass |
+| Dynamixel XL430-W250 (12 ×) | new bus (Protocol 2.0), U2D2 or board, all brackets, all CAD | ≈ $600 + $50 / everything / firmware bus rewrite | B: knee speed 1.95×, torque 1.67× — short; stiffness unknown | **no** |
+| Dynamixel XC430-W240 (12 ×) | same | ≈ $1,100 / everything / rewrite | B pass (2.4× / 2.0×); stiffness unknown, needs the same bench test as the 3250 | last resort only, as Tom said |
+| Feetech STS3235 (metal-case STS3215) | drop-in | ≈ $30 each | same torque/speed as the 3215; stiffness and play **unverified** | worth one unit on the same bench test if the 3250 disappoints |
+
+### 8.3 What the study changes
+
+Nothing in the spec; it sharpens the purchase decision: (1) the failure mode is roll-chain compliance and play, which no alternative architecture removes and only servo stiffness, chain design and a position-error compensator address; (2) the STS3250 is sufficient down to 1.5× its claimed stiffness with feedback, and the bench test of two units settles which regime we are in before six are bought; (3) roll-chain play above ~3° defeats every option — the CAD rules in §5.2 and the per-joint play measurement are not optional.
+
 ## Files
 
 - `sim/gen_plant_v6.py` — parametric MJCF (all dimensions, masses, ranges); writes `sim/bimo_biped_v6ar.xml`
@@ -204,5 +246,5 @@ In the order the gates doc asks for them ("from the datasheet before purchase, f
 - `sim/design_gates.py` — Gates A and B, the task-space timeline, the geometry sweep
 - `sim/static_gait.py` — the quasi-static walk, Gate C/D sweep, rendering
 - `tests/test_v6_design_gates.py` — pins the numbers above
-- `docs/design-v6/` — every table quoted here, and `gateCD_sweep.json`
+- `docs/design-v6/` — every table quoted here, `gateCD_sweep.json`, and the option study (`study_options.txt`, `study_feedback_3215.txt`)
 - `sim/renders/v6_static_walk_strip.png`, `sim/renders/v6_arc_walk_strip.png` (+ the gitignored `.mp4`s)
