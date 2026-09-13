@@ -22,6 +22,9 @@ ap.add_argument("--thetas", default="39,39,39", help="level-foot squat depth per
 ap.add_argument("--poses", default=None,
                 help="explicit reps 'hip,knee,ankle;hip,knee,ankle' (deg, negative = flex), "
                      "overrides --thetas; the same triple goes to both legs")
+ap.add_argument("--rolls", default=None,
+                help="hip-roll reps, ONE leg at a time: 'L5,R5,L10,R10' = abduct (foot outward) that hip by N deg "
+                     "at the standing pose, hold, back to zero; overrides --poses/--thetas")
 ap.add_argument("--ms", type=int, default=2000, help="minimum-jerk duration per move")
 ap.add_argument("--settle", type=float, default=2.0)
 ap.add_argument("--tilt-abort", type=float, default=12.0)
@@ -81,8 +84,11 @@ def triple(theta):
     return (-theta, -2 * theta, -theta)          # the level-foot family
 
 def targets(tr):
-    h, k, a = tr
-    return {"L_hip_pitch": h, "L_knee": k, "L_ankle": a, "R_hip_pitch": h, "R_knee": k, "R_ankle": a}
+    h, k, a = tr[:3]
+    rl = tr[3] if len(tr) > 3 else 0.0      # abduction, deg: L +, R - in the sim/model frame (leg_rom.py)
+    rr = tr[4] if len(tr) > 4 else 0.0
+    return {"L_hip_pitch": h, "L_knee": k, "L_ankle": a, "R_hip_pitch": h, "R_knee": k, "R_ankle": a,
+            "L_hip_roll": +rl, "R_hip_roll": -rr}
 
 def ticks(tr):
     off = targets(tr)
@@ -113,11 +119,17 @@ def pose(tr):
     tk = ticks(tr)
     o = cmd("pose " + " ".join(map(str, tk)) + f" s{A.ms}", until=r"(streaming|ok|refus|OFF|usage|busy|answer)", timeout=2.0)
     ok = bool(re.search(r"streaming|ok", o))
-    say(f"pose hip/knee/ankle {tr[0]:g}/{tr[1]:g}/{tr[2]:g}: {'streaming' if ok else 'REFUSED: ' + o.strip()[:100]}"
+    roll = f" abdL/abdR {tr[3]:g}/{tr[4]:g}" if len(tr) > 4 else ""
+    say(f"pose hip/knee/ankle {tr[0]:g}/{tr[1]:g}/{tr[2]:g}{roll}: {'streaming' if ok else 'REFUSED: ' + o.strip()[:100]}"
         + ("  (CLAMPED by the bench envelope)" if "clamp" in o else ""))
     return ok
 
-if A.poses:
+if A.rolls:
+    reps = []
+    for tok in A.rolls.split(","):
+        leg, deg = tok.strip()[0].upper(), float(tok.strip()[1:])
+        reps.append((0.0, 0.0, 0.0, deg if leg == "L" else 0.0, deg if leg == "R" else 0.0))
+elif A.poses:
     reps = [tuple(float(x) for x in r.split(",")) for r in A.poses.split(";")]
 else:
     reps = [triple(float(x)) for x in A.thetas.split(",")]
@@ -136,7 +148,8 @@ time.sleep(1.0)
 o = cmd("torque", until=r"\n", timeout=2.0); say("torque:", o.strip()[-60:])
 if "busy" in o:
     say("!! bus still busy after bench -- not sending poses"); sys.exit(2)
-if not pose((0.0, 0.0, 0.0)):
+ZERO5 = (0.0, 0.0, 0.0, 0.0, 0.0)
+if not pose(ZERO5):
     release(); sys.exit(2)
 time.sleep(A.ms / 1000 + A.settle)
 base = imu_up(); a0, l0 = readback()
@@ -147,7 +160,7 @@ w.writerow(["rep", "phase", "hip_cmd", "knee_cmd", "ankle_cmd", "t", "tilt_deg"]
 t_start = time.time(); rc = 0
 try:
     for rep, tr in enumerate(reps, 1):
-        for phase, th in (("down", tr), ("up", (0.0, 0.0, 0.0))):
+        for phase, th in (("down", tr), ("up", ZERO5)):
             if not pose(th):
                 rc = 2; break
             time.sleep(A.ms / 1000 + A.settle)
@@ -156,9 +169,9 @@ try:
                        + [round(a, 2) for a in ang] + load)
             tg = targets(th)
             err = [abs(a - tg.get(n, 0.0)) for n, a in zip(NAMES, ang)]
-            say(f"rep {rep} {phase:4s} cmd {th[0]:g}/{th[1]:g}/{th[2]:g}: tilt {tl:5.1f} deg | "
-                f"L hip/knee/ankle {ang[2]:+6.1f}/{ang[3]:+6.1f}/{ang[4]:+6.1f}  "
-                f"R {ang[7]:+6.1f}/{ang[8]:+6.1f}/{ang[9]:+6.1f} | max err {max(err):.1f} | "
+            say(f"rep {rep} {phase:4s} cmd {th[0]:g}/{th[1]:g}/{th[2]:g}" + (f" abd {th[3]:g}/{th[4]:g}" if len(th) > 4 else "") + f": tilt {tl:5.1f} deg | "
+                f"L roll/hip/knee/ankle {ang[1]:+6.1f}/{ang[2]:+6.1f}/{ang[3]:+6.1f}/{ang[4]:+6.1f}  "
+                f"R {ang[6]:+6.1f}/{ang[7]:+6.1f}/{ang[8]:+6.1f}/{ang[9]:+6.1f} | yaw L/R {ang[0]:+5.1f}/{ang[5]:+5.1f} | max err {max(err):.1f} | "
                 f"load max {max(abs(x) for x in load)}")
             if tl > A.tilt_abort:
                 say(f"!! tilt {tl:.1f} > {A.tilt_abort} -- abort"); rc = 2; break
