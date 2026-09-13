@@ -129,7 +129,7 @@ def main():
             # the robot says HOME_PENDING until it has read the joints back
             # after the slew (firmware 2026-09-03); wait that out, up to 10 s
             r = None
-            for _ in range(10):
+            for _ in range(16):   # the zeroing takes ~8 s since the hip wiggle (2026-09-13)
                 d.run_for(1.0, arm_off, "home settle: ARM=0 frames")
                 r = diag_arm_result(d.tlm.diag) if d.tlm is not None else None
                 if r is not None and r is not ArmResult.HOME_PENDING:
@@ -150,17 +150,9 @@ def main():
         # disarm). kFlagHome is honoured from the armed state: the firmware
         # benches and homes in one go, torque continuous but for its own
         # handover.
-        d.run_for(0.4, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_HOME), "end: RESET SERVOS edge (still armed)")
-        for _ in range(10):
-            d.run_for(1.0, arm_off, "home settle")
-            r = diag_arm_result(d.tlm.diag) if d.tlm is not None else None
-            if r is not None and r is not ArmResult.HOME_PENDING:
-                break
-        print(f"== end-of-run home: {r}", flush=True)
-        # Tom 2026-09-13: "always release torque ... zeroing the servos
-        # implies released torque" -- the ESTOP latch is the link-side
-        # release; nothing is sent after it, so it holds.
-        d.run_for(1.0, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_ESTOP), "end: ESTOP = torque release, then silence")
+        # end of run: zero the servos (firmware rolls the hips out/back for
+        # play and RELEASES torque itself); ESTOP only if the reset failed
+        d.home_and_release(FLAG_ARM | FLAG_HOME, "end: RESET SERVOS (still armed)")
     except KeyboardInterrupt:
         d.emergency("operator ctrl-C")
         verdict = "interrupted"

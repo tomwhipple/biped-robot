@@ -53,7 +53,7 @@ def main():
         if not verdict:
             d.run_for(0.4, lambda t: (0.0, 0.0, FLAG_HOME), "RESET SERVOS: FLAG_HOME edge")
             r = None
-            for _ in range(10):
+            for _ in range(16):   # the zeroing takes ~8 s since the hip wiggle (2026-09-13)
                 d.run_for(1.0, arm_off, "home settle: ARM=0 frames")
                 r = diag_arm_result(d.tlm.diag) if d.tlm is not None else None
                 if r is not None and r is not ArmResult.HOME_PENDING:
@@ -70,15 +70,9 @@ def main():
             verdict = d.run_for(a.tail, lambda t: (0.0, 0.0, POSE), "tail: ARM|POSE stand")
         if verdict and not verdict.startswith("home not confirmed"):
             d.emergency(verdict)
-        d.run_for(0.4, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_HOME), "end: RESET SERVOS edge (still armed)")
-        for _ in range(10):
-            d.run_for(1.0, arm_off, "home settle")
-            r = diag_arm_result(d.tlm.diag) if d.tlm is not None else None
-            if r is not None and r is not ArmResult.HOME_PENDING:
-                break
-        print(f"== end-of-run home: {r}", flush=True)
-        # Tom 2026-09-13: "zeroing the servos implies released torque".
-        d.run_for(1.0, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_ESTOP), "end: ESTOP = torque release, then silence")
+        # end of run: zero the servos (firmware rolls the hips out/back for
+        # play and RELEASES torque itself); ESTOP only if the reset failed
+        d.home_and_release(FLAG_ARM | FLAG_HOME, "end: RESET SERVOS (still armed)")
     except KeyboardInterrupt:
         d.emergency("operator ctrl-C")
         verdict = "interrupted"

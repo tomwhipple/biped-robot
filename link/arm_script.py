@@ -30,7 +30,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from protocol import (CMD_PORT, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,  # noqa: E402
+from protocol import (ArmResult, diag_arm_result, CMD_PORT, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,  # noqa: E402
                       SEND_HZ, TLM_PORT, LinkState, ProtocolError,
                       decode_telemetry, diag_reason, encode_command)
 from sources import EXT_KEYS, SCRIPTS  # noqa: E402
@@ -235,10 +235,28 @@ class Driver:
         # pose; after the spotter has righted the robot, a RESET SERVOS edge
         # puts it back at home so the next run starts clean.
         self.run_for(3.0, lambda t: (0.0, 0.0, 0), "hold (spotter rights the robot)")
-        self.run_for(0.4, lambda t: (0.0, 0.0, FLAG_HOME), "RESET SERVOS: FLAG_HOME edge")
-        self.run_for(4.0, lambda t: (0.0, 0.0, 0), "home settle")
-        # Tom 2026-09-13: a reset is not finished until torque is released.
-        self.run_for(1.0, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_ESTOP), "ESTOP = torque release, then silence")
+        self.home_and_release(FLAG_HOME, "RESET SERVOS after guard")
+
+    def home_and_release(self, edge_flags, label="RESET SERVOS"):
+        """The zeroing: a FLAG_HOME edge, then wait for the firmware's HOME
+        verdict (since 2026-09-13 the routine slews, rolls each hip out and
+        back to take up play, reads back and RELEASES torque itself -- ~8 s),
+        then silence. Only if the reset did not finish clean is the ESTOP
+        latch sent as the fallback release (Tom: a zeroing is not done until
+        torque is off). Returns the verdict."""
+        self.run_for(0.4, lambda t: (0.0, 0.0, edge_flags), f"{label}: FLAG_HOME edge")
+        r = None
+        for _ in range(16):
+            self.run_for(1.0, lambda t: (0.0, 0.0, 0), "home: slew + hip wiggle + readback")
+            r = diag_arm_result(self.tlm.diag) if self.tlm is not None else None
+            if r in (ArmResult.DISARMED_HOME, ArmResult.HOME_NOT_REACHED,
+                     ArmResult.HOME_NO_CAL, ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED):
+                break
+        print(f"== {label} verdict: {r}", flush=True)
+        if r is not ArmResult.DISARMED_HOME:
+            self.run_for(1.0, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_ESTOP),
+                         "reset not clean -> ESTOP = torque release, then silence")
+        return r
 
     def close(self):
         self.tx.close()
