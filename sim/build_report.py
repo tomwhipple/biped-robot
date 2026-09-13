@@ -352,6 +352,26 @@ fig_0913 = "\n    ".join(f for f in [
                'crouch1 script as the 09·11 bench session · knee −20.6°, yaw '
                'pinch +13.3°', name='v41rsi_s128r24_twin_crouch1'),
 ] if f)
+fig_0913hw = "\n    ".join(f for f in [
+    video_file('../hw_sessions/2026-09-13/openloop_deep2_cam0.mp4',
+               '<b>open-loop reference squat</b>, robot, both cameras · firmware '
+               'minimum-jerk poses over the tether: level-foot 40°, then knee −90°, '
+               'then knee −95° with the ankle pinned at −40° · every joint within '
+               '0.5° of command · Tom: "that\'s our target"',
+               name='hw0913_openloop_deep2_cam0'),
+    video_file('../hw_sessions/2026-09-13/v41_crouch2_2cam.mp4',
+               '<b>v41rsi_b student on the robot</b>, crouch1 take 2 of 3 · knees '
+               '−56/−57°, hips −34/−49°, toe-in 7°/side, back to home · the first '
+               'policy squat on hardware', name='hw0913_v41_crouch2_2cam'),
+    video_file('../hw_sessions/2026-09-13/v37_crouch1_2cam.mp4',
+               '<b>v37knee_b</b> (Thursday\'s image), same crouch1, joint beacons on: '
+               'yaw pinch 38.6°, knee −10° · the toe-in is the policy, not the '
+               'calibration', name='hw0913_v37_crouch1_2cam'),
+    video_file('sim/runs/loco_v41rsi_b_s128r24/twin_crouch1.mp4'.replace('sim/', ''),
+               '<b>v41rsi_b student on the SIL twin</b> · knees −63/−66°, pinch 2.4° · '
+               'what the firmware loop predicted before the flash',
+               name='hw0913_v41_twin_crouch1'),
+] if f)
 watch_figs = [video_figure(*w) for w in WATCH]
 watch_grid = "\n    ".join(f for f in watch_figs if f)
 watch_html = f"""
@@ -480,6 +500,40 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·09·13 · hardware thread</span></p>
+    <p><b>The robot squats.</b> Three methods, three reps each, Tom
+    spotting. First the <b>open-loop reference</b> over the tether — the
+    level-foot family at its 40° ankle limit, then the ankle pinned and the
+    knee taken to −90° and to its measured −95° limit with the hip leaning
+    the torso ~10° forward. Every joint landed within 0.5° of command,
+    loads stayed light, and Tom named the deepest one the target:
+    <b>hip −65°, knee −95°, ankle −40°</b>. Then <b>v37knee_b</b>, the
+    image flashed on Thursday, with joint beacons on for the first time:
+    yaw pinch 38.6°, knees −1/−14° — the toe-in is the policy's own
+    command, since the same calibration had just held six deep squats
+    with the yaws at zero. Then the new one: <b>v41rsi_b</b> was distilled
+    on the GPU under Tom's grant (lag column 24/144; the twin e-stopped
+    the first try because the probe's swing guard was tuned for the toe-in
+    wobble — opened to 2.5 rad it gave knees −63/−66°, pinch 2.4°), flashed
+    at 11:20, stood 10 s with 3° of joint motion, and squatted 3/3: knees
+    −57/−58°, hips −35/−50°, ankles −25/−21°, back to home every time.
+    The gaps, measured: 7°/side of toe-in that the twin barely shows, the
+    right hip folding 15° further than the left (twin symmetric), and
+    depth −58° against the −95° target. Two rules from Tom now in the
+    tools: <b>always release torque</b> — "zeroing the servos implies
+    released torque" — so every link probe ends with the ESTOP latch and
+    silence (<code>link/release.py</code>), and the swing guard runs at
+    2.5 rad for squats. The sim reference moves to the target tonight
+    (<code>--crouch-deep-ref -65,-95,-40</code>, FK depth ~5.9 cm, tested
+    against MuJoCo with the torso leaning and the soles flat), with the
+    hip-yaw penalty raised 3→10: v42deep and v42deepfast, both from
+    v41rsi_b. Robot: v41rsi_b_s128r24 (83513ec), released.</p>
+    <div class="grid2" style="margin-top:14px">
+    {fig_0913hw}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·13 · training thread</span></p>
