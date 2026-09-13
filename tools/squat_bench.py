@@ -33,6 +33,9 @@ ap.add_argument("--step", default=None,
                 help="one open-loop step: 'R:20:10:200' = swing RIGHT leg, lift theta 20 (knee -40), swing psi +10 deg "
                      "forward (negative = backward), each move 200 ms: swing pose, landing pose, hold, then slow zero. "
                      "The swing KNEE is traced at 50 Hz (firmware T<id>) so its load shows the foot unloading")
+ap.add_argument("--rock", default=None,
+                help="lateral rock only: 'phi:P:cycles' = both hip rolls alternate -phi/+phi as half-period smooth "
+                     "moves (P seconds per cycle), then zero. For measuring whether the real torso sways")
 ap.add_argument("--balance-mode", default="stance", choices=("stance", "both"),
                 help="stance = roll the stance hip only; both = both hips the same way (parallelogram lean)")
 ap.add_argument("--ms", type=int, default=2000, help="minimum-jerk duration per move")
@@ -142,7 +145,14 @@ def pose(tr, ms=None, trace_id=0):
     return ok
 
 sw = None
-if A.step:
+if A.rock:
+    phi, P, cyc = A.rock.split(":"); phi = float(phi); P = float(P); cyc = int(cyc)
+    half = int(round(500 * P))
+    reps = []
+    for c in range(cyc):
+        reps.append((f"rock {c+1}-", {"L_hip_roll": -phi, "R_hip_roll": -phi}, half))
+        reps.append((f"rock {c+1}+", {"L_hip_roll": +phi, "R_hip_roll": +phi}, half))
+elif A.step:
     sw, th, psi, sms = A.step.split(":"); th = float(th); psi = float(psi); sms = int(sms); sw = sw.upper()
     swing = {f"{sw}_hip_pitch": -(th + psi), f"{sw}_knee": -2 * th, f"{sw}_ankle": -(th - psi)}   # sole level
     land = {f"{sw}_hip_pitch": -(5 + psi), f"{sw}_knee": -10, f"{sw}_ankle": -(5 - psi)}
@@ -198,7 +208,9 @@ w = csv.writer(open(A.out + ".csv", "w", newline=""))
 w.writerow(["rep", "phase", "hip_cmd", "knee_cmd", "ankle_cmd", "t", "tilt_deg"] + [f"{n}_deg" for n in NAMES] + [f"{n}_load" for n in NAMES])
 t_start = time.time(); rc = 0
 try:
-    if A.step:
+    if A.rock:
+        seq = [(n, d, ms) for n, d, ms in reps] + [("zero", ZERO5, None)]
+    elif A.step:
         seq = [(n, d, ms) for n, d, ms in reps] + [("zero", ZERO5, None)]
     elif A.balance:
         seq = [(n, d) for n, d in reps] + [("zero", ZERO5)]
@@ -210,9 +222,11 @@ try:
     for rep, item in enumerate(seq, 1):
         if True:
             phase, th = item[0], item[1]; mv = item[2] if len(item) > 2 and item[2] else None
-            tid = KNEE_ID[sw] if (A.step and phase == "swing") else 0
+            tid = KNEE_ID[sw] if (A.step and phase == "swing" and sw) else 0
             if not pose(th, ms=mv, trace_id=tid):
                 rc = 2; break
+            if A.rock and phase.startswith("rock"):
+                time.sleep((mv or A.ms) / 1000 + 0.02); continue
             time.sleep((mv or A.ms) / 1000 + (0.3 if (A.step and phase == "swing") else A.settle))
             if tid:
                 time.sleep(1.4)
