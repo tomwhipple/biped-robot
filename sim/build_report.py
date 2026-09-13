@@ -198,6 +198,50 @@ def clip_from_reel(run, scenarios, name):
             secs)
 
 
+def video_file(path, blurb, name=None):
+    """<figure> for a clip that is NOT cut from a referee reel -- a probe
+    render (runs/_clips/*.mp4), a twin recording (runs/<run>/twin_*.mp4) or
+    a bench camera file. Re-encoded once into runs/_clips/<name>.mp4 at the
+    reel-clip size so the page stays light; '' when the file isn't here
+    (the page must never break on a missing movie -- they are gitignored)."""
+    if not os.path.exists(path):
+        print(f"build_report: missing {path}, no clip from it")
+        return ''
+    name = name or os.path.splitext(os.path.basename(path))[0]
+    os.makedirs(CLIP_DIR, exist_ok=True)
+    out = os.path.join(CLIP_DIR, f'{name}.mp4')
+    poster = os.path.join(CLIP_DIR, f'{name}.jpg')
+    fresh = (os.path.exists(out) and os.path.exists(poster)
+             and os.path.getmtime(out) >= os.path.getmtime(path)
+             and os.path.abspath(out) != os.path.abspath(path))
+    if os.path.abspath(out) == os.path.abspath(path):
+        # already lives in the clip dir at page size: just make the poster
+        if not os.path.exists(poster) or \
+                os.path.getmtime(poster) < os.path.getmtime(path):
+            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss',
+                            '0.5', '-i', path, '-frames:v', '1', poster],
+                           check=True)
+    elif not fresh:
+        subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', path,
+                        '-vf', f'scale={CLIP_W * 2}:-2', '-an',
+                        '-c:v', 'libx264', '-crf', str(CLIP_CRF),
+                        '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
+                        '-movflags', '+faststart', out], check=True)
+        subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', '0.5',
+                        '-i', out, '-frames:v', '1', poster], check=True)
+        print(f"clip {name}: {os.path.getsize(out) // 1024} KB")
+    probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries',
+                            'format=duration', '-of', 'csv=p=0', out],
+                           capture_output=True, text=True).stdout.strip()
+    secs = float(probe) if probe else 0.0
+    return f"""<figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="{os.path.relpath(poster, 'runs')}"
+             src="{os.path.relpath(out, 'runs')}"></video>
+      <figcaption>{blurb} · {secs:.0f}s</figcaption>
+    </figure>"""
+
+
 def scored(run, scenarios):
     """'line_1m 6/8 · turn_180 5/8' -- pass counts straight from the card, so
     a clip's caption can never flatter the take it shows."""
@@ -283,6 +327,31 @@ WATCH = [
      'v26servo_fail',
      'the act-lag negative (10/144) failing under its own trained conditions'),
 ]
+# 2026-09-13 card: the squat, shown not told (Tom: embed videos of what
+# was done each night). Probe renders come from render_crouch.py (walker
+# plant, act-lag 2 Hz, seeds 0+1 side by side, torso dz burned in); the
+# twin clip is the deploy-facing view of the distilled student.
+fig_0913 = "\n    ".join(f for f in [
+    video_file('runs/_clips/v41rsi_b_crouch07_lag2.mp4',
+               '<b>v41rsi_b</b> teacher · crouch 1.0 → 0.7 → 1.0 on the walker '
+               'plant under the measured 2 Hz servo, seeds 0 and 1 · the first '
+               'real squat: knees −71/−72°, hip drop 3.8 cm, soles flat'),
+    video_file('runs/_clips/v40sit_crouch07_lag2.mp4',
+               '<b>v40sit</b> (the night before, same command, same plant) · '
+               'knees −5°, torso barely moves — what "the policy never explores '
+               'the descent" looked like'),
+    video_file('runs/_clips/v41rsi_crouch07_lag2.mp4',
+               '<b>v41rsi</b> (first RSI run) · a third of the way down, '
+               'lopsided, forward lean'),
+    video_figure('loco_v41rsi_b', ['squat_reps'], 'v41rsi_b_squat_reps',
+                 'the referee\'s squat_reps take (1.5 s holds, no lag): it '
+                 'reaches depth and falls — the cadence it never trained'),
+    video_file('runs/loco_v41rsi_s128r24/twin_crouch1.mp4',
+               '<b>v41rsi student</b> on the SIL twin (the robot\'s own '
+               'firmware loop, lag 2 Hz + 85 ms dead time) driven by the same '
+               'crouch1 script as the 09·11 bench session · knee −20.6°, yaw '
+               'pinch +13.3°', name='v41rsi_s128r24_twin_crouch1'),
+] if f)
 watch_figs = [video_figure(*w) for w in WATCH]
 watch_grid = "\n    ".join(f for f in watch_figs if f)
 watch_html = f"""
@@ -351,6 +420,8 @@ a {{ color:var(--accent); }}
 .meta {{ font-family:var(--mono); font-size:12.5px; color:var(--muted); display:flex; gap:18px;
   flex-wrap:wrap; margin-top:20px; padding-top:18px; border-top:1px solid var(--border); }}
 figure {{ margin:0; }}
+.grid2 {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }}
+@media (max-width:760px) {{ .grid2 {{ grid-template-columns:1fr; }} }}
 .film {{ width:100%; display:block; border:1px solid var(--border); border-radius:10px;
   background:var(--panel2); }}
 video.film {{ background:#0b0d10; }}
@@ -444,6 +515,9 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     in-distribution). Gate unchanged: twin knee ≥ 60° at 0.7, pinch
     &lt; 3°, walking ≥ 80%, lag ≥ 30. Robot stays on v37knee_b_s128r24
     until a student clears it.</p>
+    <div class="grid2" style="margin-top:14px">
+    {fig_0913}
+    </div>
   </div>
 
   <div class="card accent">

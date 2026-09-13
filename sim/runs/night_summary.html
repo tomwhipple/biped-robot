@@ -42,6 +42,8 @@ a { color:var(--accent); }
 .meta { font-family:var(--mono); font-size:12.5px; color:var(--muted); display:flex; gap:18px;
   flex-wrap:wrap; margin-top:20px; padding-top:18px; border-top:1px solid var(--border); }
 figure { margin:0; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:760px) { .grid2 { grid-template-columns:1fr; } }
 .film { width:100%; display:block; border:1px solid var(--border); border-radius:10px;
   background:var(--panel2); }
 video.film { background:#0b0d10; }
@@ -135,6 +137,38 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     in-distribution). Gate unchanged: twin knee ≥ 60° at 0.7, pinch
     &lt; 3°, walking ≥ 80%, lag ≥ 30. Robot stays on v37knee_b_s128r24
     until a student clears it.</p>
+    <div class="grid2" style="margin-top:14px">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v41rsi_b_crouch07_lag2.jpg"
+             src="_clips/v41rsi_b_crouch07_lag2.mp4"></video>
+      <figcaption><b>v41rsi_b</b> teacher · crouch 1.0 → 0.7 → 1.0 on the walker plant under the measured 2 Hz servo, seeds 0 and 1 · the first real squat: knees −71/−72°, hip drop 3.8 cm, soles flat · 18s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v40sit_crouch07_lag2.jpg"
+             src="_clips/v40sit_crouch07_lag2.mp4"></video>
+      <figcaption><b>v40sit</b> (the night before, same command, same plant) · knees −5°, torso barely moves — what "the policy never explores the descent" looked like · 18s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v41rsi_crouch07_lag2.jpg"
+             src="_clips/v41rsi_crouch07_lag2.mp4"></video>
+      <figcaption><b>v41rsi</b> (first RSI run) · a third of the way down, lopsided, forward lean · 18s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v41rsi_b_squat_reps.jpg" src="_clips/v41rsi_b_squat_reps.mp4"></video>
+      <figcaption><b>loco_v41rsi_b</b> · the referee's squat_reps take (1.5 s holds, no lag): it reaches depth and falls — the cadence it never trained<br>squat_reps 0/8
+        · seed 1/8 takes, verdict burned in · 3s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/v41rsi_s128r24_twin_crouch1.jpg"
+             src="_clips/v41rsi_s128r24_twin_crouch1.mp4"></video>
+      <figcaption><b>v41rsi student</b> on the SIL twin (the robot's own firmware loop, lag 2 Hz + 85 ms dead time) driven by the same crouch1 script as the 09·11 bench session · knee −20.6°, yaw pinch +13.3° · 59s</figcaption>
+    </figure>
+    </div>
   </div>
 
   <div class="card accent">

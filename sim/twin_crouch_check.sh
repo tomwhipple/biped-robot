@@ -21,7 +21,7 @@ TWIN=$!
 for i in $(seq 1 60); do grep -q '"ready":true' "$OUT/twin_crouch1_twin.log" 2>/dev/null && break; sleep 1; done; sleep 2
 "$PY" link/crouch_probe.py --host 127.0.0.1 --port $PORT --tlm-port $TLM \
   --csv "$OUT/twin_crouch1_beacons.csv" > "$OUT/twin_crouch1_probe.log" 2>&1
-kill $TWIN 2>/dev/null; wait $TWIN 2>/dev/null
+kill -INT $TWIN 2>/dev/null; wait $TWIN 2>/dev/null   # INT, not TERM: the twin flushes --record in its finally
 "$PY" - "$OUT/twin_crouch1_beacons.csv" << 'PY'
 import csv, math, sys
 p=sys.argv[1]; rows=[r for r in csv.DictReader(open(p)) if r.get("L_yaw")]
