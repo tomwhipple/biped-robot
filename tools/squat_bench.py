@@ -29,6 +29,8 @@ ap.add_argument("--balance", default=None,
                 help="one-foot balance, open loop: 'L:12:25' = stance LEFT, lean 12 deg over it (both hips roll "
                      "the same way; no ankle roll, so the whole body leans), lift the RIGHT foot with the level-foot "
                      "family theta=25 (knee -50). Steps: lean, lean+lift, lean, zero. Overrides the other modes")
+ap.add_argument("--balance-mode", default="stance", choices=("stance", "both"),
+                help="stance = roll the stance hip only; both = both hips the same way (parallelogram lean)")
 ap.add_argument("--ms", type=int, default=2000, help="minimum-jerk duration per move")
 ap.add_argument("--settle", type=float, default=2.0)
 ap.add_argument("--tilt-abort", type=float, default=12.0)
@@ -137,10 +139,19 @@ def pose(tr):
 if A.balance:
     side, phi, th = A.balance.split(":"); phi = float(phi); th = float(th); side = side.upper()
     # lean toward the stance foot: rolls L and R both -phi leans LEFT (L adducts, R abducts), both +phi leans RIGHT
-    lean = {"L_hip_roll": -phi if side == "L" else +phi, "R_hip_roll": -phi if side == "L" else +phi}
+    # 2026-09-13 measured: rolling BOTH hips just slides the feet on the pad (torso stayed put on camera).
+    # Roll the STANCE hip only: the pelvis rotates about it, the torso tilts over the stance foot (which
+    # stays flat), the other hip rises and that foot unloads. Adduction at the stance hip: L -phi / R +phi.
+    if A.balance_mode == "both":
+        lean = {"L_hip_roll": -phi if side == "L" else +phi, "R_hip_roll": -phi if side == "L" else +phi}
+    else:
+        lean = {"L_hip_roll": -phi} if side == "L" else {"R_hip_roll": +phi}
     sw = "R" if side == "L" else "L"
     lift = dict(lean); lift.update({f"{sw}_hip_pitch": -th, f"{sw}_knee": -2 * th, f"{sw}_ankle": -th})
-    reps = [("lean", lean), ("lean+lift", lift), ("lean", lean)]
+    # a slow lean first is pointless (the planted swing foot pins the pelvis): ONE move that shortens the swing leg
+    # while the stance hip rolls, so the pelvis rolls about the stance hip as the constraint goes; hold; back down
+    reps = ([("lean", lean), ("lean+lift", lift), ("lean", lean)] if A.balance_mode == "both"
+            else [("lean+lift", lift), ("lean", lean)])
 elif A.rolls:
     reps = []
     for tok in A.rolls.split(","):
