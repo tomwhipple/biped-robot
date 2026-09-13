@@ -25,6 +25,10 @@ ap.add_argument("--poses", default=None,
 ap.add_argument("--rolls", default=None,
                 help="hip-roll reps, ONE leg at a time: 'L5,R5,L10,R10' = abduct (foot outward) that hip by N deg "
                      "at the standing pose, hold, back to zero; overrides --poses/--thetas")
+ap.add_argument("--balance", default=None,
+                help="one-foot balance, open loop: 'L:12:25' = stance LEFT, lean 12 deg over it (both hips roll "
+                     "the same way; no ankle roll, so the whole body leans), lift the RIGHT foot with the level-foot "
+                     "family theta=25 (knee -50). Steps: lean, lean+lift, lean, zero. Overrides the other modes")
 ap.add_argument("--ms", type=int, default=2000, help="minimum-jerk duration per move")
 ap.add_argument("--settle", type=float, default=2.0)
 ap.add_argument("--tilt-abort", type=float, default=12.0)
@@ -84,6 +88,8 @@ def triple(theta):
     return (-theta, -2 * theta, -theta)          # the level-foot family
 
 def targets(tr):
+    if isinstance(tr, dict):
+        return dict(tr)
     h, k, a = tr[:3]
     rl = tr[3] if len(tr) > 3 else 0.0      # abduction, deg: L +, R - in the sim/model frame (leg_rom.py)
     rr = tr[4] if len(tr) > 4 else 0.0
@@ -115,16 +121,27 @@ def tilt(a, b):
     na = math.sqrt(sum(x * x for x in a)); nb = math.sqrt(sum(x * x for x in b))
     return math.degrees(math.acos(max(-1, min(1, sum(x * y for x, y in zip(a, b)) / (na * nb)))))
 
+def label(tr):
+    if isinstance(tr, dict):
+        return " ".join(f"{k.replace('_hip', '')}={v:g}" for k, v in tr.items() if v)
+    return f"hip/knee/ankle {tr[0]:g}/{tr[1]:g}/{tr[2]:g}" + (f" abdL/abdR {tr[3]:g}/{tr[4]:g}" if len(tr) > 4 else "")
+
 def pose(tr):
     tk = ticks(tr)
     o = cmd("pose " + " ".join(map(str, tk)) + f" s{A.ms}", until=r"(streaming|ok|refus|OFF|usage|busy|answer)", timeout=2.0)
     ok = bool(re.search(r"streaming|ok", o))
-    roll = f" abdL/abdR {tr[3]:g}/{tr[4]:g}" if len(tr) > 4 else ""
-    say(f"pose hip/knee/ankle {tr[0]:g}/{tr[1]:g}/{tr[2]:g}{roll}: {'streaming' if ok else 'REFUSED: ' + o.strip()[:100]}"
+    say(f"pose {label(tr) or 'zero'}: {'streaming' if ok else 'REFUSED: ' + o.strip()[:100]}"
         + ("  (CLAMPED by the bench envelope)" if "clamp" in o else ""))
     return ok
 
-if A.rolls:
+if A.balance:
+    side, phi, th = A.balance.split(":"); phi = float(phi); th = float(th); side = side.upper()
+    # lean toward the stance foot: rolls L and R both -phi leans LEFT (L adducts, R abducts), both +phi leans RIGHT
+    lean = {"L_hip_roll": -phi if side == "L" else +phi, "R_hip_roll": -phi if side == "L" else +phi}
+    sw = "R" if side == "L" else "L"
+    lift = dict(lean); lift.update({f"{sw}_hip_pitch": -th, f"{sw}_knee": -2 * th, f"{sw}_ankle": -th})
+    reps = [("lean", lean), ("lean+lift", lift), ("lean", lean)]
+elif A.rolls:
     reps = []
     for tok in A.rolls.split(","):
         leg, deg = tok.strip()[0].upper(), float(tok.strip()[1:])
@@ -159,17 +176,23 @@ w = csv.writer(open(A.out + ".csv", "w", newline=""))
 w.writerow(["rep", "phase", "hip_cmd", "knee_cmd", "ankle_cmd", "t", "tilt_deg"] + [f"{n}_deg" for n in NAMES] + [f"{n}_load" for n in NAMES])
 t_start = time.time(); rc = 0
 try:
-    for rep, tr in enumerate(reps, 1):
-        for phase, th in (("down", tr), ("up", ZERO5)):
+    if A.balance:
+        seq = [(n, d) for n, d in reps] + [("zero", ZERO5)]
+    else:
+        seq = []
+        for rep, tr in enumerate(reps, 1):
+            seq += [(f"rep {rep} down", tr), (f"rep {rep} up", ZERO5)]
+    for rep, (phase, th) in enumerate(seq, 1):
+        if True:
             if not pose(th):
                 rc = 2; break
             time.sleep(A.ms / 1000 + A.settle)
             up = imu_up(); tl = tilt(base, up); ang, load = readback()
-            w.writerow([rep, phase, th[0], th[1], th[2], round(time.time() - t_start, 2), round(tl, 2)]
-                       + [round(a, 2) for a in ang] + load)
             tg = targets(th)
+            w.writerow([rep, phase, tg.get("L_hip_pitch", 0), tg.get("L_knee", 0), tg.get("L_ankle", 0), round(time.time() - t_start, 2), round(tl, 2)]
+                       + [round(a, 2) for a in ang] + load)
             err = [abs(a - tg.get(n, 0.0)) for n, a in zip(NAMES, ang)]
-            say(f"rep {rep} {phase:4s} cmd {th[0]:g}/{th[1]:g}/{th[2]:g}" + (f" abd {th[3]:g}/{th[4]:g}" if len(th) > 4 else "") + f": tilt {tl:5.1f} deg | "
+            say(f"{phase:12s} cmd [{label(th) or 'zero'}]: tilt {tl:5.1f} deg | "
                 f"L roll/hip/knee/ankle {ang[1]:+6.1f}/{ang[2]:+6.1f}/{ang[3]:+6.1f}/{ang[4]:+6.1f}  "
                 f"R {ang[6]:+6.1f}/{ang[7]:+6.1f}/{ang[8]:+6.1f}/{ang[9]:+6.1f} | yaw L/R {ang[0]:+5.1f}/{ang[5]:+5.1f} | max err {max(err):.1f} | "
                 f"load max {max(abs(x) for x in load)}")
@@ -177,7 +200,6 @@ try:
                 say(f"!! tilt {tl:.1f} > {A.tilt_abort} -- abort"); rc = 2; break
             if max(err) > 12.0:
                 say(f"!! joint error {max(err):.1f} deg -- stalled? abort"); rc = 2; break
-        if rc: break
 finally:
     if rc:
         release()
