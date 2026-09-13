@@ -1,0 +1,17 @@
+== hip_sep 84, bias -5, swing_out 10, land_out 12, shift 1.6/60mm, swing 1.6, land 0.5
+3215 all           lift 3 play 1 |  FELL@12.9s steps 2/6  clear>=    6 mm  air>= 0.12 s  CoM margin>=  19.4 mm  slip  2.5 mm  tilt 54.8  x  +3.6 cm  FAIL
+3215 all           lift 3 play 3 |   FELL@6.7s steps 1/6  clear>=   15 mm  air>= 0.50 s  CoM margin>=  20.3 mm  slip  8.5 mm  tilt 58.0  x  +0.3 cm  FAIL
+3215 all           lift 4 play 1 |   FELL@7.2s steps 1/6  clear>=   15 mm  air>= 0.50 s  CoM margin>=  19.2 mm  slip  2.3 mm  tilt 53.7  x  +0.3 cm  FAIL
+3215 all           lift 4 play 3 |   FELL@6.6s steps 1/6  clear>=   23 mm  air>= 0.68 s  CoM margin>=  20.1 mm  slip 13.4 mm  tilt 55.7  x  +0.2 cm  FAIL
+3250 rolls         lift 3 play 1 |    up       steps 6/6  clear>=   14 mm  air>= 0.58 s  CoM margin>=  19.8 mm  slip  0.7 mm  tilt  3.2  x +14.7 cm  FAIL
+3250 rolls         lift 3 play 3 |    up       steps 6/6  clear>=   13 mm  air>= 0.48 s  CoM margin>=  26.4 mm  slip  0.9 mm  tilt  3.2  x +14.4 cm  FAIL
+3250 rolls         lift 4 play 1 |    up       steps 6/6  clear>=   23 mm  air>= 0.70 s  CoM margin>=  19.8 mm  slip  0.7 mm  tilt  3.2  x +14.6 cm  OK
+3250 rolls         lift 4 play 3 |    up       steps 6/6  clear>=   22 mm  air>= 0.66 s  CoM margin>=  26.3 mm  slip  0.9 mm  tilt  3.2  x +14.5 cm  OK
+3250 rolls+knees   lift 3 play 1 |    up       steps 6/6  clear>=   16 mm  air>= 0.64 s  CoM margin>=  19.7 mm  slip  0.9 mm  tilt  3.1  x +14.2 cm  OK
+3250 rolls+knees   lift 3 play 3 |    up       steps 6/6  clear>=   16 mm  air>= 0.60 s  CoM margin>=  26.1 mm  slip  1.1 mm  tilt  3.2  x +14.2 cm  OK
+3250 rolls+knees   lift 4 play 1 |    up       steps 6/6  clear>=   24 mm  air>= 0.76 s  CoM margin>=  19.7 mm  slip  1.1 mm  tilt  3.2  x +14.2 cm  OK
+3250 rolls+knees   lift 4 play 3 |    up       steps 6/6  clear>=   25 mm  air>= 0.74 s  CoM margin>=  26.0 mm  slip  1.0 mm  tilt  3.1  x +14.2 cm  OK
+3250 all           lift 3 play 1 |    up       steps 6/6  clear>=   16 mm  air>= 0.64 s  CoM margin>=  19.8 mm  slip  1.0 mm  tilt  3.1  x +14.4 cm  OK
+3250 all           lift 3 play 3 |    up       steps 6/6  clear>=   16 mm  air>= 0.62 s  CoM margin>=  26.2 mm  slip  1.1 mm  tilt  3.0  x +14.4 cm  OK
+3250 all           lift 4 play 1 |    up       steps 6/6  clear>=   24 mm  air>= 0.76 s  CoM margin>=  19.8 mm  slip  0.9 mm  tilt  3.1  x +14.7 cm  OK
+3250 all           lift 4 play 3 |    up       steps 6/6  clear>=   25 mm  air>= 0.74 s  CoM margin>=  26.1 mm  slip  1.1 mm  tilt  2.9  x +14.7 cm  OK

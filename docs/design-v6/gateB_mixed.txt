@@ -1,0 +1,30 @@
+== Gate B  STS3215 everywhere: step 4.2 s, stayed up, tilt 2.4 deg, swing peak 24 mm for 0.54 s
+     joint          servo    w_pk rad/s  speed x  tau_pk torque x    sat  err_pk
+     L_hip_yaw      sts3215        0.09     43.1    0.11     23.9   0.0%    0.2
+     L_hip_roll     sts3215        0.67      5.6    0.79      3.4   0.0%    2.2
+     L_hip_pitch    sts3215        0.35     10.6    0.17     15.7   0.0%    0.7
+     L_knee         sts3215        0.71      5.3    0.50      5.5   0.0%    1.7
+     L_ankle        sts3215        0.67      5.6    0.26     10.5   0.0%    1.1
+     L_ankle_roll   sts3215        0.67      5.6    0.51      5.3   0.0%    1.7
+     R_hip_yaw      sts3215        0.03    108.8    0.03     77.8   0.0%    0.1
+     R_hip_roll     sts3215        0.66      5.7    0.38      7.1   0.0%    1.0
+     R_hip_pitch    sts3215        1.24      3.0    0.55      4.9   0.0%    2.4
+     R_knee         sts3215        2.44      1.5    0.88      3.1   0.0%    4.1  <--
+     R_ankle        sts3215        1.42      2.6    0.59      4.6   0.0%    2.4
+     R_ankle_roll   sts3215        0.76      4.9    0.36      7.5   0.0%    1.3
+  => short: ['R_knee']
+== Gate B  STS3250 rolls + knees, STS3215 yaw / hip pitch / ankle pitch: step 4.2 s, stayed up, tilt 2.4 deg, swing peak 24 mm for 0.54 s
+     joint          servo    w_pk rad/s  speed x  tau_pk torque x    sat  err_pk
+     L_hip_yaw      sts3215        0.09     43.1    0.11     23.9   0.0%    0.2
+     L_hip_roll     sts3250        0.67      9.3    0.79      5.7   0.0%    2.2
+     L_hip_pitch    sts3215        0.35     10.6    0.17     15.7   0.0%    0.7
+     L_knee         sts3250        0.71      8.8    0.50      9.1   0.0%    1.7
+     L_ankle        sts3215        0.67      5.6    0.26     10.5   0.0%    1.1
+     L_ankle_roll   sts3250        0.67      9.3    0.51      8.9   0.0%    1.7
+     R_hip_yaw      sts3215        0.03    108.8    0.03     77.8   0.0%    0.1
+     R_hip_roll     sts3250        0.66      9.6    0.38     11.9   0.0%    1.0
+     R_hip_pitch    sts3215        1.24      3.0    0.55      4.9   0.0%    2.4
+     R_knee         sts3250        2.44      2.6    0.88      5.2   0.0%    4.1
+     R_ankle        sts3215        1.42      2.6    0.59      4.6   0.0%    2.4
+     R_ankle_roll   sts3250        0.76      8.2    0.36     12.4   0.0%    1.3
+  => PASS

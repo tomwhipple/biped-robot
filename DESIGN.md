@@ -1885,6 +1885,12 @@ actually sits.
   roll limit cycle (§ "Known limitations"), rhythm under the measured servo lag.
 - **Stage 4 — Goal-conditioned locomotion:** the next abstraction. Requires an
   onboard pose estimate the robot cannot yet produce.
+- **v6 body (2026-09-13):** the 09-13 bench showed this body has no static
+  single-foot stance (no ankle roll). The redesign — 6 DOF/leg with ankle
+  roll, 84 mm hips, 110 mm segments, STS3250 at the roll joints and knees —
+  is specified and validated through design-stage Gates A–D in
+  [docs/design-v6-ankle-roll.md](docs/design-v6-ankle-roll.md); CAD waits on
+  sign-off and one bench measurement (STS3250 stiffness).
 
 ## 8. TODO — known next steps (start here)
 
