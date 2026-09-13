@@ -126,3 +126,93 @@ def test_crouch_pull_has_slope_and_is_gated():
         return float(jax.jit(e.step)(s0, jp.zeros(e.action_size)).reward)
     assert r(0.0, 0.0) - r(0.0, 0.5) > 1.0        # ~5 rad of L1 distance x 0.5
     assert abs(r(0.3, 0.0) - r(0.3, 0.5)) < 1e-4  # walking: term off
+
+
+DEEP = (-65.0, -95.0, -40.0)     # Tom 2026-09-13, held open-loop on the robot
+
+
+def test_deep_ref_pose_and_depth():
+    """With crouch_deep_ref the 0.7 reference IS the target triple, scaled
+    linearly by depth, and the height target is the FK drop of that pose."""
+    e = _mjx(crouch_pose_ref=True, crouch_deep_ref=DEEP)
+    for c, dep in ((1.0, 0.0), (0.85, 0.5), (0.7, 1.0), (0.5, 1.0)):
+        h, k, a = (float(x) for x in e._crouch_pose(c))
+        np.testing.assert_allclose([h, k, a], np.radians(DEEP) * dep, atol=1e-5)
+    q = np.asarray(e._mimic_ref(jp.array([0, 0, 0, 0.7, 0, 0, 0.0]), 0.0, 1.5))
+    d = np.asarray(e._default)
+    np.testing.assert_allclose(np.degrees(q[np.asarray(e._i_pitch)] - d[np.asarray(e._i_pitch)]), [-65, -65], atol=1e-3)
+    np.testing.assert_allclose(np.degrees(q[np.asarray(e._i_knee)] - d[np.asarray(e._i_knee)]), [-95, -95], atol=1e-3)
+    np.testing.assert_allclose(np.degrees(q[np.asarray(e._i_ankle)] - d[np.asarray(e._i_ankle)]), [-40, -40], atol=1e-3)
+    drop = e._nominal_h - float(e._crouch_h_target(0.7))
+    want = e._shank * (1 - np.cos(np.radians(40))) + e._thigh * (1 - np.cos(np.radians(55)))
+    assert abs(drop - want) < 1e-6 and 0.05 < drop < 0.07, (drop, want)   # ~5.9 cm
+    # walking keeps the plain reference and the old height law
+    walk_c = np.asarray(e._mimic_ref(jp.array([0.3, 0, 0, 0.7, 0, 0, 0.0]), 0.7, 1.5))
+    walk_t = np.asarray(e._mimic_ref(jp.array([0.3, 0, 0, 1.0, 0, 0, 0.0]), 0.7, 1.5))
+    np.testing.assert_allclose(walk_c, walk_t, atol=1e-6)
+    assert abs(float(e._crouch_h_target(0.7, True)) - 0.7 * e._nominal_h) < 1e-6
+
+
+def test_deep_ref_off_is_the_level_foot_family():
+    """crouch_deep_ref=None reproduces the level-foot reference and depth
+    exactly (the refactor to _crouch_pose/_crouch_drop changed nothing)."""
+    e = _mjx(crouch_pose_ref=True)
+    th = np.radians(39.0)
+    np.testing.assert_allclose([float(x) for x in e._crouch_pose(0.7)], [-th, -2 * th, -th], atol=1e-6)
+    drop = e._nominal_h - float(e._crouch_h_target(0.7))
+    assert abs(drop - e._leg_len * (1 - np.cos(th))) < 1e-6
+
+
+def test_deep_ref_walker_parity():
+    em, ew = _mjx(crouch_pose_ref=True, crouch_deep_ref=DEEP), _walker(crouch_pose_ref=True, crouch_deep_ref=DEEP)
+    for c in (1.0, 0.85, 0.7):
+        for ph, vx in ((0.0, 0.0), (1.1, 0.3)):
+            cmd = np.array([vx, 0.0, 0.0, c, 0.0, 0.0, 0.0])
+            a = np.asarray(em._mimic_ref(jp.asarray(cmd), ph, 1.5))
+            b = np.asarray(ew._mimic_ref(cmd, ph, 1.5))
+            np.testing.assert_allclose(a, b, atol=1e-5, err_msg=f"c={c} ph={ph}")
+        for mv in (False, True):
+            assert abs(float(em._crouch_h_target(c, mv)) - ew._crouch_h_target(c, mv)) < 1e-5
+
+
+def test_deep_ref_in_the_physics():
+    """The deep 0.7 pose on the model: soles flat, torso pitched ~10 deg
+    forward (the lean that keeps the hips over the feet), hip drop = the FK
+    number the height target uses, and every joint inside its range."""
+    e = _mjx(crouch_pose_ref=True, crouch_deep_ref=DEEP)
+    m = mujoco.MjModel.from_xml_path(XML); d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    hp0 = d.xanchor[m.joint("L_hip_pitch").id][2] - d.xanchor[m.joint("L_ankle").id][2]
+    q_ref = np.asarray(e._mimic_ref(jp.array([0, 0, 0, 0.7, 0, 0, 0.0]), 0.0, 1.5))
+    lo, hi = np.asarray(e._lo), np.asarray(e._hi)
+    assert (q_ref >= lo - 1e-6).all() and (q_ref <= hi + 1e-6).all(), np.degrees(q_ref)
+    d.qpos[e._jq0:e._jq1] = q_ref
+    # the root is the torso: pitch it until the soles are flat (on the robot
+    # the foot is on the table and the TORSO leans) and read the lean off
+    best = None
+    for phi in np.radians(np.arange(-20.0, 20.01, 0.25)):
+        d.qpos[3:7] = [np.cos(phi / 2), 0.0, np.sin(phi / 2), 0.0]
+        mujoco.mj_forward(m, d)
+        flat = min(d.geom_xmat[m.geom(g).id].reshape(3, 3)[2, 2] for g in ("L_sole", "R_sole"))
+        if best is None or flat > best[0]:
+            best = (flat, phi)
+    flat, phi = best
+    assert flat > 0.9999, flat
+    assert 8.0 < abs(np.degrees(phi)) < 12.0, np.degrees(phi)     # ~10 deg lean, as measured on the robot
+    d.qpos[3:7] = [np.cos(phi / 2), 0.0, np.sin(phi / 2), 0.0]
+    mujoco.mj_forward(m, d)
+    hp1 = d.xanchor[m.joint("L_hip_pitch").id][2] - d.xanchor[m.joint("L_ankle").id][2]
+    want = e._nominal_h - float(e._crouch_h_target(0.7))
+    assert abs((hp0 - hp1) - want) < 2e-3, (hp0 - hp1, want)
+
+
+def test_deep_ref_with_rsi_resets_and_steps():
+    """Reference-state init draws the deep pose: reset + one step run."""
+    import jax
+    e = _mjx(crouch_pose_ref=True, crouch_deep_ref=DEEP, crouch_rsi_mix=1.0, cmd_fixed=None, cmd_crouch_range=(0.7, 1.0))
+    st = e.reset(jax.random.PRNGKey(3))
+    q = np.asarray(st.pipeline_state.qpos[e._jq0:e._jq1]) if hasattr(st, "pipeline_state") else np.asarray(st.data.qpos[e._jq0:e._jq1])
+    d = np.asarray(e._default)
+    assert np.degrees(q[np.asarray(e._i_knee)] - d[np.asarray(e._i_knee)]).max() < -60.0
+    st2 = e.step(st, jp.zeros(e.action_size))
+    assert np.isfinite(float(st2.reward))

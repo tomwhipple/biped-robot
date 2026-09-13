@@ -405,6 +405,9 @@ class BimoMJXEnv:
         # every height target uses the feasible depth instead of cmd x
         # nominal (cmd 0.7 asked 9.7 cm; the legs give ~5.8 at the knee limit).
         crouch_theta_max_deg: float = 39.0,  # theta at crouch cmd 0.7: 1 deg inside the +-40 ankle limit (bench max was 40)
+        crouch_deep_ref: tuple | None = None,  # 2026-09-13 (Tom: "that's our target"): (hip, knee, ankle) deg at crouch
+                                               # 0.7, e.g. (-65, -95, -40) -- the ankle-pinned deep squat the robot held
+                                               # open-loop; replaces the level-foot family (which caps at knee -78)
         crouch_rsi_mix: float = 0.0,   # 2026-09-12: fraction of env slots whose
         # episodes START in the squat reference with a stationary crouch
         # command pinned (the command still resamples later, so the rise is
@@ -890,12 +893,16 @@ class BimoMJXEnv:
             raise ValueError("crouch_rsi_mix needs crouch_pose_ref (the squat "
                              "reference is the initial pose)")
         self.crouch_theta_max = float(np.radians(crouch_theta_max_deg))
-        # thigh + shank length from the joint anchors (level-foot squat drop)
+        self.crouch_deep = (None if crouch_deep_ref is None
+                            else jp.asarray(np.radians(np.asarray(crouch_deep_ref, dtype=np.float32))))
+        # thigh + shank length from the joint anchors (squat drop by FK)
         _d0 = mujoco.MjData(self.mj_model); mujoco.mj_forward(self.mj_model, _d0)
         _hp = _d0.xanchor[self.mj_model.joint("L_hip_pitch").id]
         _kn = _d0.xanchor[self.mj_model.joint("L_knee").id]
         _an = _d0.xanchor[self.mj_model.joint("L_ankle").id]
-        self._leg_len = float(np.linalg.norm(_kn - _hp) + np.linalg.norm(_an - _kn))
+        self._thigh = float(np.linalg.norm(_kn - _hp))
+        self._shank = float(np.linalg.norm(_an - _kn))
+        self._leg_len = self._thigh + self._shank
         self.w_crouch_track = float(w_crouch_track)
         self.crouch_track_sigma = float(crouch_track_sigma)
         self.crouch_release = bool(crouch_release)
@@ -1309,17 +1316,34 @@ class BimoMJXEnv:
         return ((jp.abs(cmd[0]) > 0.05) | (jp.abs(cmd[1]) > 0.05)
                 | (jp.abs(cmd[2]) > 0.05))
 
+    def _crouch_pose(self, cmd3):
+        """Squat joint offsets (hip_pitch, knee, ankle; negative = flex) for a
+        crouch command. Level-foot family (-th, -2th, -th) by default; with
+        crouch_deep_ref the target triple scaled by depth (0 at 1.0, 1 at
+        0.7). Mirrored in walker_env."""
+        if self.crouch_deep is not None:
+            dep = jp.clip((1.0 - cmd3) / 0.3, 0.0, 1.0)
+            return dep * self.crouch_deep[0], dep * self.crouch_deep[1], dep * self.crouch_deep[2]
+        th = self._crouch_theta(cmd3)
+        return -th, -2.0 * th, -th
+
+    def _crouch_drop(self, cmd3):
+        """Hip drop of the squat pose with the sole flat: the shank leans by
+        the ankle flexion, the thigh by (knee - ankle) the other way."""
+        _h, k, a = self._crouch_pose(cmd3)
+        return (self._shank * (1.0 - jp.cos(-a))
+                + self._thigh * (1.0 - jp.cos((-k) - (-a))))
+
     def _crouch_h_target(self, cmd3, moving=False):
         """Torso-height target for a crouch command. The squat is a
-        STATIONARY skill: with crouch_pose_ref the feasible level-foot depth
-        applies only when no locomotion is commanded; a moving command keeps
-        the old cmd x nominal preference (the per-episode stance draw lands
-        on walking episodes too -- _apply_crouch -- and v38/v39 collapsed
-        the gait by demanding a squat while walking)."""
+        STATIONARY skill: with crouch_pose_ref the feasible depth applies
+        only when no locomotion is commanded; a moving command keeps the
+        old cmd x nominal preference (the per-episode stance draw lands on
+        walking episodes too -- _apply_crouch -- and v38/v39 collapsed the
+        gait by demanding a squat while walking)."""
         if not self.crouch_pose_ref:
             return cmd3 * self._nominal_h
-        drop = self._leg_len * (1.0 - jp.cos(self._crouch_theta(cmd3)))
-        return jp.where(moving, cmd3 * self._nominal_h, self._nominal_h - drop)
+        return jp.where(moving, cmd3 * self._nominal_h, self._nominal_h - self._crouch_drop(cmd3))
 
     def _mimic_ref(self, cmd, phase, freq):
         """Joint-space procedural gait reference (plan-v2 Phase B).
@@ -1347,13 +1371,14 @@ class BimoMJXEnv:
         roll = d[self._i_roll] + B * xn
         ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
         if self.crouch_pose_ref:
-            # the explicit squat: level-foot family, STATIONARY only (a
-            # walking episode carries a stance draw too; no squat-walk)
-            th = jp.where(self._cmd_is_moving(cmd), 0.0,
-                          self._crouch_theta(cmd[3]))
-            hipP = hipP - th
-            knee = knee - 2.0 * th
-            ank = ank - th
+            # the explicit squat (level-foot family, or the deep target),
+            # STATIONARY only (a walking episode carries a stance draw too;
+            # no squat-walk)
+            g = jp.where(self._cmd_is_moving(cmd), 0.0, 1.0)
+            oh, ok, oa = self._crouch_pose(cmd[3])
+            hipP = hipP + g * oh
+            knee = knee + g * ok
+            ank = ank + g * oa
         # scatter the per-leg references onto the standing pose; any hip_yaw
         # joints stay at their default (0.0) -> neutral regularization
         q = (d.at[self._i_roll].set(roll).at[self._i_pitch].set(hipP)

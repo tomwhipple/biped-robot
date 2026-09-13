@@ -311,6 +311,9 @@ def main():
                    help="mimic reference = the bench level-foot squat under a "
                         "crouch command; height targets use the feasible depth")
     p.add_argument("--crouch-theta-max-deg", type=float, default=None)
+    p.add_argument("--crouch-deep-ref", default=None,
+                   help="hip,knee,ankle deg at crouch 0.7 (2026-09-13 robot "
+                        "target: -65,-95,-40); replaces the level-foot family")
     p.add_argument("--crouch-rsi-mix", type=float, default=None,
                    help="fraction of env slots starting IN the squat reference "
                         "(reference-state initialization; needs --crouch-pose-ref)")
@@ -643,6 +646,8 @@ def main():
         env_kw["crouch_pose_ref"] = True
     if args.crouch_theta_max_deg is not None:
         env_kw["crouch_theta_max_deg"] = args.crouch_theta_max_deg
+    if args.crouch_deep_ref is not None:
+        env_kw["crouch_deep_ref"] = tuple(float(x) for x in args.crouch_deep_ref.split(","))
     if args.w_crouch_track is not None:
         env_kw["w_crouch_track"] = args.w_crouch_track
     if args.crouch_track_sigma is not None:

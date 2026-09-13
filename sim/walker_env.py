@@ -465,6 +465,7 @@ class BimoWalkerEnv(gym.Env):
         # -- explicit squat reference (2026-09-11, mirror of env_mjx) -----------
         crouch_pose_ref: bool = False,
         crouch_theta_max_deg: float = 39.0,   # 1 deg inside the +-40 ankle limit (bench max was 40)
+        crouch_deep_ref: tuple | None = None,  # (hip, knee, ankle) deg at crouch 0.7; mirror of env_mjx
         # -- crouch-command variation (SIL finding #2, docs/sil-harness.md) ----
         # cmd[3] (crouch height fraction) was frozen at exactly 1.0 through
         # every training run, so its obs-normalizer std collapsed to ~1e-6 --
@@ -630,7 +631,9 @@ class BimoWalkerEnv(gym.Env):
         self.act_delay_ticks = int(act_delay_ticks)
         self.crouch_pose_ref = bool(crouch_pose_ref)
         self.crouch_theta_max = float(np.radians(crouch_theta_max_deg))
-        self._leg_len_cache = None    # thigh+shank, computed on first use
+        self.crouch_deep = (None if crouch_deep_ref is None
+                            else np.radians(np.asarray(crouch_deep_ref, dtype=np.float32)))
+        self._leg_len_cache = None    # (thigh, shank), computed on first use
         assert 0 <= self.act_delay_ticks <= 10, "act_delay_ticks (20 ms each)"
         self._act_hist = None    # target ring for the dead-time delay
         self.cmd_crouch_range = tuple(cmd_crouch_range)
@@ -1166,17 +1169,33 @@ class BimoWalkerEnv(gym.Env):
         return np.clip(q, self._lo, self._hi)
 
     @property
-    def _leg_len(self):
+    def _segments(self):
         if self._leg_len_cache is None:
             d0 = mujoco.MjData(self.model); mujoco.mj_forward(self.model, d0)
             hp = d0.xanchor[self.model.joint("L_hip_pitch").id]
             kn = d0.xanchor[self.model.joint("L_knee").id]
             an = d0.xanchor[self.model.joint("L_ankle").id]
-            self._leg_len_cache = float(np.linalg.norm(kn - hp) + np.linalg.norm(an - kn))
+            self._leg_len_cache = (float(np.linalg.norm(kn - hp)), float(np.linalg.norm(an - kn)))
         return self._leg_len_cache
+
+    @property
+    def _leg_len(self):
+        return sum(self._segments)
 
     def _crouch_theta(self, cmd3):
         return self.crouch_theta_max * float(np.clip((1.0 - cmd3) / 0.3, 0.0, 1.0))
+
+    def _crouch_pose(self, cmd3):
+        if self.crouch_deep is not None:
+            dep = float(np.clip((1.0 - cmd3) / 0.3, 0.0, 1.0))
+            return tuple(float(dep * v) for v in self.crouch_deep)
+        th = self._crouch_theta(cmd3)
+        return -th, -2.0 * th, -th
+
+    def _crouch_drop(self, cmd3):
+        thigh, shank = self._segments
+        _h, k, a = self._crouch_pose(cmd3)
+        return shank * (1.0 - np.cos(-a)) + thigh * (1.0 - np.cos((-k) - (-a)))
 
     @staticmethod
     def _cmd_is_moving(cmd):
@@ -1185,7 +1204,7 @@ class BimoWalkerEnv(gym.Env):
     def _crouch_h_target(self, cmd3, moving=False):
         if not self.crouch_pose_ref or moving:
             return cmd3 * self._nominal_h
-        return self._nominal_h - self._leg_len * (1.0 - np.cos(self._crouch_theta(cmd3)))
+        return self._nominal_h - self._crouch_drop(cmd3)
 
     def _mimic_ref(self, cmd, phase, freq):
         """Numpy mirror of sim/mjx BimoMJXEnv._mimic_ref (parity-gated)."""
@@ -1207,10 +1226,11 @@ class BimoWalkerEnv(gym.Env):
         roll = d[self._i_roll] + B * xn
         ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
         if self.crouch_pose_ref:
-            th = 0.0 if self._cmd_is_moving(cmd) else self._crouch_theta(float(cmd[3]))
-            hipP = hipP - th
-            knee = knee - 2.0 * th
-            ank = ank - th
+            g = 0.0 if self._cmd_is_moving(cmd) else 1.0
+            oh, ok, oa = self._crouch_pose(float(cmd[3]))
+            hipP = hipP + g * oh
+            knee = knee + g * ok
+            ank = ank + g * oa
         # scatter the per-leg references onto the standing pose; any hip_yaw
         # joints stay at their default (0.0) -> neutral regularization
         q = d.copy()
