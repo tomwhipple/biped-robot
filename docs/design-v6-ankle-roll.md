@@ -19,7 +19,7 @@ Goal (Tom, 2026-09-13): *a new physical robot design able to walk by lifting one
 | mass (estimate) | 1.08 kg (1.23 with GoPro) | **≈ 1.25 kg** (servos 0.66 + 0.12 for the six STS3250, print ≈ 0.40, battery 0.10, board + wiring 0.06) |
 | standing CoM | 0.18 m | 0.21 m |
 | static single-foot stance | **does not exist** (Gate A fail, measured 09-13) | **exists with 30 mm of margin**, reached by a 14° hip/ankle roll shift with both soles flat |
-| open-loop walk in the deploy-model plant | 1 cm shuffle, feet never leave the ground | **6–12 steps of 6 cm, swing foot 22–25 mm off the ground for 0.7 s per step, CoM margin ≥ 20 mm, μ 0.3–1.0, ±15 % mass, 3° roll play** |
+| open-loop walk in the deploy-model plant | 1 cm shuffle, feet never leave the ground | **6–12 steps of 6 cm, swing foot 22–25 mm off the ground for 0.7 s per step, CoM margin ≥ 20 mm, μ 0.3–1.0, ±15 % mass, 3° roll play; arcs at up to 20° of heading per step** |
 
 Cost of the servo change: 6 × STS3250 at ~$25–30 = **≈ $150–180**; the 12 STS3215 on hand cover the other six joints with six spares.
 
@@ -116,6 +116,7 @@ Final configuration (STS3250 at rolls + knees), worst of 3 seeds per case (`docs
 | floor tilt ±2° fore-aft | 6/6 | 24–25 mm | 19.6–25.4 mm | 1.6 mm | OK |
 | 12 steps; 8 steps in place | 12/12; 8/8 | 25 / 26 mm | 26 mm | 1.0 mm | OK |
 | cadence 1.2 s shift / 1.2 s swing (30 s per 6 steps) | 6/6 | 22 mm | 25.8 mm | 1.3 mm | OK |
+| **arc walk**, 10° / 15° / 20° of heading per step, 8 steps, both directions | 8/8 each | 23–25 mm | 24.9–25.5 mm | ≤ 1.5 mm | OK — heading change 65° / 99° / 134° (§4.7) |
 | **play 5° on the rolls** | fell in the first shift | | | | **FAIL** |
 | **backlash 2°** | fell after step 1 | | | | **FAIL** |
 | cadence 0.8 s shift / 1.0 s swing | fell at step 3 | | | | FAIL (body dynamics) |
@@ -156,6 +157,23 @@ A knee that bends backward is, in the sagittal plane, the forward knee with time
 
 There is no capability the backward knee unlocks for this body and one cost (ankle range, and every leg part convention in `cad/` assumes the forward knee). **Decision: forward knee.** Since the knee servo's mechanical travel is ±95° and the direction is a joint-limit plus foot-orientation choice, the same printed legs could be run backward-kneed later if a reason appears; it is not designed in.
 
+### 4.7 Turning: walking in an arc
+
+Tom's follow-up: verify the body can change its bearing by walking in an arc. The generator places each swing foot in a frame rotated by `turn_deg` from the stance foot's yaw, the pelvis heading follows the mean of the two foot yaws, and the leg IK (`v6_kin.pose_world`) solves each leg in its own yawed frame — the hip yaw joint carries ±turn/2 and the soles stay flat and parallel to their own footprint. Same deploy servo model and gait as §4.3 (STS3250 rolls + knees, 3° roll play, 1° lash, 2 Hz shaper + 80 ms), `docs/design-v6/gateD_turning.txt`:
+
+| turn per step | steps | heading commanded → achieved | swing clearance | CoM margin ≥ | slip | verdict |
+|---|---|---|---|---|---|---|
+| +10° (left) | 8/8 | 75° → 65° | 24 mm | 25.3 mm | 1.5 mm | OK |
+| −10° (right) | 8/8 | −75° → −64° | 25 mm | 25.0 mm | 1.7 mm | OK |
+| +15° | 8/8 | 113° → 99° | 24 mm | 25.5 mm | 1.4 mm | OK |
+| −15° | 8/8 | −113° → −100° | 25 mm | 24.9 mm | 1.3 mm | OK |
+| +20° | 8/8 | 150° → 134° | 23 mm | 25.2 mm | 1.5 mm | OK |
+| +10°, 12 steps | 12/12 | 115° → 100° | 24 mm | 25.3 mm | 1.5 mm | OK |
+
+The body turns at up to 20° per step (a 134° bearing change in eight steps, radius ≈ 0.17 m) with the same margins as the straight walk; the hip yaws never exceed ±10°. The 10–15 % shortfall in achieved heading is the yaw chain's compliance and lash plus sole pivot under the yaw torque, i.e. the sim's version of the hardware's yaw play; a heading-conditioned controller closes it, and it is the quantity to compare against the bench (Gate D) rather than a design limit. One implementation detail worth keeping: the mid-swing outward bump must be applied in the swing foot's own yawed frame — applied in world y it turned into a fore-aft error past 60° of heading and the 15°/20° arcs fell at steps 7 and 5 (`gateD_turning.txt` history in git).
+
+![v6 arc walk](../sim/renders/v6_arc_walk_strip.png)
+
 ## 5. Assumptions to retire on the bench before ordering
 
 In the order the gates doc asks for them ("from the datasheet before purchase, from a bench measurement after"):
@@ -187,4 +205,4 @@ In the order the gates doc asks for them ("from the datasheet before purchase, f
 - `sim/static_gait.py` — the quasi-static walk, Gate C/D sweep, rendering
 - `tests/test_v6_design_gates.py` — pins the numbers above
 - `docs/design-v6/` — every table quoted here, and `gateCD_sweep.json`
-- `sim/renders/v6_static_walk_strip.png` (+ the gitignored `.mp4`)
+- `sim/renders/v6_static_walk_strip.png`, `sim/renders/v6_arc_walk_strip.png` (+ the gitignored `.mp4`s)

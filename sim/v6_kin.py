@@ -76,19 +76,47 @@ def leg_ik(p: DesignParams, v: np.ndarray, knee: str | None = None,
     return np.array([0.0, phi, q_hip, q_knee, q_ankle, -phi])
 
 
+def _rz(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
 def pose_from_feet(p: DesignParams, pelvis: np.ndarray, footL: np.ndarray,
                    footR: np.ndarray, knee: str | None = None,
                    yaw: tuple[float, float] = (0.0, 0.0),
                    sole_pitch: tuple[float, float] = (0.0, 0.0)) -> np.ndarray:
     """12 joint angles for a level pelvis at `pelvis` and the two ankle-roll
-    points at footL / footR (all in one level frame). Foot points are the
-    ankle roll axis points, i.e. roll_h above the sole bottom."""
+    points at footL / footR (all in the PELVIS frame). Foot points are the
+    ankle roll axis points, i.e. roll_h above the sole bottom. yaw = each
+    foot's yaw relative to the pelvis: it becomes the hip yaw joint, and the
+    rest of the leg is solved in the frame rotated by it about the hip yaw
+    axis, so the sole stays flat and parallel to the yawed foot frame."""
     q = np.zeros(12)
+    pel = np.asarray(pelvis, float)
     for i, (side, f) in enumerate((("L", footL), ("R", footR))):
-        v = np.asarray(f, float) - (np.asarray(pelvis, float) + hip_roll_point(p, side))
+        s = 1.0 if side == "L" else -1.0
+        hip_yaw_pt = pel + np.array([0.0, s * p.hip_sep / 2, 0.0])
+        v = _rz(-yaw[i]) @ (np.asarray(f, float) - hip_yaw_pt)   # into the yawed leg frame
+        v = v - np.array([0.0, 0.0, -p.d_yaw_roll])              # from the hip roll point
         q[6 * i:6 * i + 6] = leg_ik(p, v, knee, sole_pitch[i])
         q[6 * i] = yaw[i]
     return q
+
+
+def pose_world(p: DesignParams, pelvis: np.ndarray, heading: float, footL: np.ndarray,
+               footR: np.ndarray, yawL: float = 0.0, yawR: float = 0.0,
+               knee: str | None = None) -> np.ndarray:
+    """same, with everything in the WORLD frame: pelvis (x, y, z) and heading
+    (yaw about +Z), feet as ankle-roll points with their own world yaws."""
+    R = _rz(-heading)
+    pel = np.asarray(pelvis, float)
+    fL = R @ (np.asarray(footL, float) - pel)
+    fR = R @ (np.asarray(footR, float) - pel)
+    return pose_from_feet(p, np.zeros(3), fL, fR, knee, yaw=(yawL - heading, yawR - heading))
+
+
+def heading_quat(heading: float):
+    return (math.cos(heading / 2), 0.0, 0.0, math.sin(heading / 2))
 
 
 def set_pose(m, d, q12, torso_pos=(0.0, 0.0, 1.0), torso_quat=(1.0, 0.0, 0.0, 0.0)):

@@ -64,9 +64,13 @@ class Key:
     pelvis: np.ndarray
     footL: np.ndarray
     footR: np.ndarray
+    heading: float = 0.0     # pelvis yaw in the world (rad)
+    yawL: float = 0.0        # foot yaws in the world (rad)
+    yawR: float = 0.0
 
     def copy(self):
-        return Key(self.pelvis.copy(), self.footL.copy(), self.footR.copy())
+        return Key(self.pelvis.copy(), self.footL.copy(), self.footR.copy(),
+                   self.heading, self.yawL, self.yawR)
 
 
 def minjerk(s: float) -> float:
@@ -108,16 +112,25 @@ class Timeline:
                 a, b = self.keys[k], self.keys[k + 1]
                 out = Key(a.pelvis + (b.pelvis - a.pelvis) * s,
                           a.footL + (b.footL - a.footL) * s,
-                          a.footR + (b.footR - a.footR) * s)
+                          a.footR + (b.footR - a.footR) * s,
+                          a.heading + (b.heading - a.heading) * s,
+                          a.yawL + (b.yawL - a.yawL) * s,
+                          a.yawR + (b.yawR - a.yawR) * s)
                 arc, foot, arc_out = self.arcs[k]
                 if arc > 0 or arc_out > 0:
                     bump = math.sin(math.pi * s)
+                    # sideways bump in the swing FOOT's yawed frame (outward =
+                    # +y for the left foot, -y for the right)
                     if foot == "R":
+                        yaw = out.yawR
                         out.footR[2] += arc * bump
-                        out.footR[1] -= arc_out * bump
+                        out.footR[0] += arc_out * bump * math.sin(yaw)
+                        out.footR[1] -= arc_out * bump * math.cos(yaw)
                     else:
+                        yaw = out.yawL
                         out.footL[2] += arc * bump
-                        out.footL[1] += arc_out * bump
+                        out.footL[0] -= arc_out * bump * math.sin(yaw)
+                        out.footL[1] += arc_out * bump * math.cos(yaw)
                 return out
             acc += dur
         return self.keys[-1]
@@ -133,7 +146,9 @@ def standing_key(p: DesignParams, drop: float) -> Key:
 
 
 def q_of(p: DesignParams, key: Key) -> np.ndarray:
-    return K.pose_from_feet(p, key.pelvis, key.footL, key.footR)
+    if key.heading == 0.0 and key.yawL == 0.0 and key.yawR == 0.0:
+        return K.pose_from_feet(p, key.pelvis, key.footL, key.footR)
+    return K.pose_world(p, key.pelvis, key.heading, key.footL, key.footR, key.yawL, key.yawR)
 
 
 # --------------------------------------------------------------------------- hull helpers (from toein_hyp)

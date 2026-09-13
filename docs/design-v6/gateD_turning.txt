@@ -1,0 +1,6 @@
+[turn 10] nominal mu 0.7 play 3.0                        up       steps 8/8  clear>=   24 mm  air>= 0.74 s  CoM margin>=  25.3 mm  slip  1.5 mm  tilt  3.1  x +15.8 y +10.4 cm  hdg +65.1  OK
+[turn 15] nominal mu 0.7 play 3.0                        up       steps 8/8  clear>=   24 mm  air>= 0.74 s  CoM margin>=  25.5 mm  slip  1.4 mm  tilt  2.8  x +12.4 y +13.1 cm  hdg +98.9  OK
+[turn 20] nominal mu 0.7 play 3.0                        up       steps 8/8  clear>=   23 mm  air>= 0.76 s  CoM margin>=  25.2 mm  slip  1.5 mm  tilt  3.4  x  +8.6 y +14.9 cm  hdg +134.0  OK
+[turn -15] nominal mu 0.7 play 3.0                        up       steps 8/8  clear>=   25 mm  air>= 0.74 s  CoM margin>=  24.9 mm  slip  1.3 mm  tilt  2.9  x  +9.7 y -13.9 cm  hdg -99.8  OK
+wrote sim/renders/v6_arc_walk.mp4 (1819 frames) and the filmstrip png
+nominal mu 0.7 play 3.0                        up       steps 12/12  clear>=   24 mm  air>= 0.74 s  CoM margin>=  25.3 mm  slip  1.5 mm  tilt  3.1  x +16.9 y +21.6 cm  hdg +100.4  OK

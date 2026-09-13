@@ -70,3 +70,38 @@ def test_gate_b_torque_margins(p):
     assert max(r["sat"]) == 0.0
     # only the swing knee is short of the 2x speed margin on the STS3215
     assert set(r["short"]) <= {"R_knee", "L_knee"}
+
+
+def test_ik_yawed_feet_roundtrip(p):
+    """pose_world: pelvis heading and per-foot yaws land the soles flat, at the
+    requested world position and yaw, with the hip yaw carrying the difference."""
+    import math
+    m, d = K.load(p)
+    pel = np.array([0.3, 0.1, p.z_yaw_above_sole - 0.02])
+    hd = math.radians(20)
+    fL = pel + K._rz(hd) @ np.array([0.02, 0.042, 0.0]); fL[2] = p.roll_h
+    fR = pel + K._rz(hd) @ np.array([-0.03, -0.042, 0.0]); fR[2] = p.roll_h
+    yL, yR = math.radians(10), math.radians(30)
+    q = K.pose_world(p, pel, hd, fL, fR, yL, yR)
+    K.set_pose(m, d, q, torso_pos=pel, torso_quat=K.heading_quat(hd))
+    for s, f, yw, qi in (("L", fL, yL, 0), ("R", fR, yR, 6)):
+        pos, R = K.foot_frame(m, d, s)
+        assert np.linalg.norm(pos - f) < 1e-4
+        assert abs(R[2, 2] - 1.0) < 1e-6
+        assert abs(math.degrees(math.atan2(R[1, 0], R[0, 0])) - math.degrees(yw)) < 1e-3
+        assert abs(q[qi] - (yw - hd)) < 1e-6
+
+
+def test_arc_walk_turns_under_deploy_model(p):
+    """4 steps at 15 deg/step under the deploy servo model (STS3250 rolls +
+    knees) must complete and change the heading by at least 30 deg."""
+    import static_gait as S
+    from gen_plant_v6 import build_xml
+    import tempfile, os
+    xml = os.path.join(tempfile.gettempdir(), "v6_test_arc.xml")
+    open(xml, "w").write(build_xml(p))
+    pj = {j: "sts3250" for j in S.ROLLS + ("L_knee", "R_knee")}
+    tl, win = S.walk_timeline(p, n_steps=4, lift_h=0.04, turn_deg=15.0)
+    r = S.run_walk(p, xml, tl, win, play_deg=3.0, per_joint=pj)
+    assert r["ok"], r
+    assert r["heading_deg"] > 30.0

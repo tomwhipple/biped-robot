@@ -44,20 +44,24 @@ ROLLS = ("L_hip_roll", "R_hip_roll", "L_ankle_roll", "R_ankle_roll")
 
 
 # --------------------------------------------------------------------------- gait
-def solve_pelvis(m, d, p, pelvis, feet, stance, swing_mid, bias=(0.0, 0.0)):
+def solve_pelvis(m, d, p, pelvis, feet, stance, swing_mid, bias=(0.0, 0.0),
+                 heading=0.0, yaws=None):
     """pelvis (x, y) that puts the kinematic CoM on the stance sole centre (+bias,
     in the stance foot frame: x forward, y toward robot left) with the swing
-    foot at swing_mid. Fixed-point iteration; converges in ~4 rounds."""
+    foot at swing_mid. Fixed-point iteration; converges in ~4 rounds. World
+    frame: pelvis heading and per-foot yaws (rad) are honoured."""
     pel = np.array(pelvis, float)
     cx = p.foot_toe - p.foot_len / 2
+    yaws = yaws or {"L": 0.0, "R": 0.0}
+    Rf = K._rz(yaws[stance])[:2, :2]
     for _ in range(12):
         fl = feet["L"] if stance == "L" else swing_mid
         fr = feet["R"] if stance == "R" else swing_mid
-        q = K.pose_from_feet(p, pel, fl, fr)
-        K.set_pose(m, d, q, torso_pos=pel + np.array([0, 0, 1.0]))
+        q = K.pose_world(p, pel, heading, fl, fr, yaws["L"], yaws["R"])
+        K.set_pose(m, d, q, torso_pos=pel + np.array([0, 0, 1.0]), torso_quat=K.heading_quat(heading))
         _, c = K.com_margin(m, d, p, stance)
-        err = np.array([cx + bias[0] - c[0], bias[1] - c[1]])
-        pel[:2] += err
+        err = np.array([cx + bias[0] - c[0], bias[1] - c[1]])     # in the stance foot frame
+        pel[:2] += Rf @ err
         if np.linalg.norm(err) < 1e-5:
             break
     return pel
@@ -65,9 +69,12 @@ def solve_pelvis(m, d, p, pelvis, feet, stance, swing_mid, bias=(0.0, 0.0)):
 
 def walk_timeline(p: DesignParams, n_steps=6, step=0.06, lift_h=0.03, drop=0.02,
                   t_shift=1.6, t_swing=1.6, t_settle=0.2, t_land=0.5, bias_y=-0.005, in_place=False,
-                  swing_out=0.01, land_out=0.012):
+                  swing_out=0.01, land_out=0.012, turn_deg=0.0):
     """alternating steps starting with the RIGHT foot; returns the timeline and
-    a list of (t0, t1, swing_side) swing windows."""
+    a list of (t0, t1, swing_side) swing windows. turn_deg: heading change per
+    step (+ = left); each swing foot is placed in the NEW heading's frame and
+    the pelvis heading follows the mean of the two foot yaws (the hip yaws
+    then carry +-turn/2)."""
     m, d = K.load(p)
     k = standing_key(p, drop)
     # start where the robot starts: straight legs (qpos0), then ease into the
@@ -75,26 +82,37 @@ def walk_timeline(p: DesignParams, n_steps=6, step=0.06, lift_h=0.03, drop=0.02,
     # because the knee (2x the travel) arrives last
     tl = Timeline(standing_key(p, 0.0)).hold(0.5).to(k, 1.5).hold(0.5)
     feet = {"L": k.footL.copy(), "R": k.footR.copy()}
+    yaws = {"L": 0.0, "R": 0.0}
+    heading = 0.0
     pel = k.pelvis.copy()
     windows = []
     swing = "R"
     s = step / 2
+    dturn = math.radians(turn_deg)
     for i in range(n_steps):
         stance = "L" if swing == "R" else "R"
-        sgn = 1.0 if stance == "L" else -1.0
+        sgn = 1.0 if stance == "L" else -1.0          # +1: stance foot is on the robot's left
+        last = (i == n_steps - 1)
         if in_place:
             target = feet[swing].copy()
+            yaw_new = yaws[swing]
         else:
-            target = feet[swing].copy()
-            last = (i == n_steps - 1)
-            target[0] = feet[stance][0] + (0.0 if last else s)
+            # place the swing foot in the NEW heading's frame: `s` ahead of the
+            # stance foot (0 on the last step) and hip_sep across
+            yaw_new = yaws[stance] + dturn
+            Rn = K._rz(yaw_new)
+            target = feet[stance] + Rn @ np.array([0.0 if last else s, -sgn * p.hip_sep, 0.0])
+            target[2] = p.roll_h
+        heading_new = 0.5 * (yaws[stance] + yaw_new)
         mid = 0.5 * (feet[swing] + target) + np.array([0, 0, lift_h])
-        pel_new = solve_pelvis(m, d, p, pel, feet, stance, mid, bias=(0.0, sgn * bias_y))
+        yaws_mid = dict(yaws); yaws_mid[swing] = 0.5 * (yaws[swing] + yaw_new)
+        pel_new = solve_pelvis(m, d, p, pel, feet, stance, mid, bias=(0.0, sgn * bias_y),
+                               heading=heading_new, yaws=yaws_mid)
         pel_new[2] = pel[2]
-        kk = Key(pel_new, feet["L"], feet["R"])
+        kk = Key(pel_new, feet["L"], feet["R"], heading_new, yaws["L"], yaws["R"])
         # shift time scales with the lateral distance (t_shift is per 60 mm):
         # the crossover from one stance to the other is twice the first shift
-        dist = abs(pel_new[1] - pel[1])
+        dist = float(np.linalg.norm(pel_new[:2] - pel[:2]))
         tl.to(kk, t_shift * max(1.0, dist / 0.06)).hold(t_settle)
         t0 = tl.T
         # land_out: the hanging swing leg sags ~12-15 mm INWARD (hip/ankle roll
@@ -104,14 +122,14 @@ def walk_timeline(p: DesignParams, n_steps=6, step=0.06, lift_h=0.03, drop=0.02,
         # swing_out: extra sideways bump away from the stance foot at mid-swing.
         # t_land: the swing leg lags its command by ~0.3 s through the 2 Hz
         # shaper + 80 ms dead time; let it land before the next shift starts.
-        out = np.array([0.0, land_out if swing == "L" else -land_out, 0.0])
+        out = K._rz(yaw_new) @ np.array([0.0, -sgn * land_out, 0.0])
         kk2 = kk.copy()
         if swing == "L":
-            kk2.footL = target + out
+            kk2.footL = target + out; kk2.yawL = yaw_new
         else:
-            kk2.footR = target + out
+            kk2.footR = target + out; kk2.yawR = yaw_new
         tl.to(kk2, t_swing, arc=lift_h, arc_foot=swing, arc_out=swing_out)
-        kk3 = kk.copy()
+        kk3 = kk2.copy()
         if swing == "L":
             kk3.footL = target
         else:
@@ -119,11 +137,16 @@ def walk_timeline(p: DesignParams, n_steps=6, step=0.06, lift_h=0.03, drop=0.02,
         tl.to(kk3, t_land)
         windows.append((t0, t0 + t_swing + t_land, swing))
         feet[swing] = target.copy()
+        yaws[swing] = yaw_new
+        heading = heading_new
         pel = pel_new
         swing = "L" if swing == "R" else "R"
-    # finish: pelvis centred between the feet
-    kend = Key(np.array([0.5 * (feet["L"][0] + feet["R"][0]), 0.0, pel[2]]), feet["L"], feet["R"])
+    # finish: pelvis centred between the feet, heading = mean foot yaw
+    hend = 0.5 * (yaws["L"] + yaws["R"])
+    kend = Key(np.array([0.5 * (feet["L"][0] + feet["R"][0]), 0.5 * (feet["L"][1] + feet["R"][1]), pel[2]]),
+               feet["L"], feet["R"], hend, yaws["L"], yaws["R"])
     tl.to(kend, t_shift).hold(1.0)
+    tl.final_heading = hend
     return tl, windows
 
 
@@ -183,7 +206,7 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     if render:
         rnd = mujoco.Renderer(m, 480, 640)
         cam = mujoco.MjvCamera()
-        cam.distance, cam.elevation, cam.azimuth = 0.75, -10, 135
+        cam.distance, cam.elevation, cam.azimuth = (0.75, -10, 135) if not getattr(tl, "final_heading", 0.0) else (1.1, -30, 120)
     steps = [dict(peak=0.0, t_air=0.0, margin_min=1e9, slip=0.0, done=False) for _ in windows]
     t = 0.0
     fell = False
@@ -223,7 +246,10 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
             break
         t += dt
     completed = sum(1 for s in steps if s["done"])
+    qw = env.data.qpos[3:7]
+    heading = math.atan2(2 * (qw[0] * qw[3] + qw[1] * qw[2]), 1 - 2 * (qw[2] ** 2 + qw[3] ** 2))
     res = dict(fell=fell, t_fell=t if fell else None, steps_completed=completed, n_steps=len(windows),
+               heading_deg=math.degrees(heading),
                tilt_max=tilt_max, x_final=float(env.data.qpos[0]), y_final=float(env.data.qpos[1]),
                clear_peaks=[round(1e3 * s["peak"], 1) for s in steps], t_air=[round(s["t_air"], 2) for s in steps],
                margin_min=[round(1e3 * s["margin_min"], 1) if s["margin_min"] < 1e8 else None for s in steps],
@@ -243,7 +269,8 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
 def fmt_row(label, r):
     return (f"{label:44s} {'FELL@%.1fs' % r['t_fell'] if r['fell'] else 'up      ':>10s} steps {r['steps_completed']}/{r['n_steps']}  "
             f"clear>= {1e3*r['min_clear_peak']:4.0f} mm  air>= {r['min_t_air']:.2f} s  CoM margin>= {1e3*r['min_margin']:5.1f} mm  "
-            f"slip {r['slip_max']:4.1f} mm  tilt {r['tilt_max']:4.1f}  x {100*r['x_final']:+5.1f} cm  {'OK' if r['ok'] else 'FAIL'}")
+            f"slip {r['slip_max']:4.1f} mm  tilt {r['tilt_max']:4.1f}  x {100*r['x_final']:+5.1f} y {100*r['y_final']:+5.1f} cm  "
+            f"hdg {r.get('heading_deg', 0.0):+5.1f}  {'OK' if r['ok'] else 'FAIL'}")
 
 
 def _write_video(frames, path, fps=25):
@@ -276,6 +303,7 @@ def main(argv=None):
     ap.add_argument("--bias-y", type=float, default=-0.005, help="CoM target offset from the stance sole centreline, "
                     "+ = outboard. Slightly INBOARD is the safe side: a drift then falls toward the incoming swing foot")
     ap.add_argument("--in-place", action="store_true")
+    ap.add_argument("--turn", type=float, default=0.0, help="heading change per step, deg (+ = left)")
     ap.add_argument("--swing-out", type=float, default=0.01, help="outward sideways bump of the swing foot (m)")
     ap.add_argument("--land-out", type=float, default=0.012, help="feed-forward outboard landing offset (m)")
     ap.add_argument("--knees3250", action="store_true", help="STS3250 at both knees")
@@ -291,7 +319,7 @@ def main(argv=None):
         f.write(build_xml(p))
     tl, windows = walk_timeline(p, n_steps=a.steps, step=a.step_len, lift_h=a.lift, t_shift=a.t_shift,
                                 t_swing=a.t_swing, t_land=a.t_land, bias_y=a.bias_y, in_place=a.in_place,
-                                swing_out=a.swing_out, land_out=a.land_out)
+                                swing_out=a.swing_out, land_out=a.land_out, turn_deg=a.turn)
     per_joint = {}
     if a.knees3250 or a.all3250:
         per_joint.update({"L_knee": "sts3250", "R_knee": "sts3250"})
@@ -300,7 +328,7 @@ def main(argv=None):
     if a.all3250:
         per_joint.update({j: "sts3250" for j in JN})
     per_joint = per_joint or None
-    print(f"design: {p.summary()}   gait: step {100*a.step_len:.0f} cm, lift {100*a.lift:.0f} cm, "
+    print(f"design: {p.summary()}   gait: step {100*a.step_len:.0f} cm, lift {100*a.lift:.0f} cm, turn {a.turn:.0f} deg/step, "
           f"shift {a.t_shift} s, swing {a.t_swing} s, {a.steps} steps, {tl.T:.1f} s total"
           f"{'  STS3250 at ' + ','.join(sorted(per_joint)) if per_joint else '  STS3215 everywhere'}")
     if not a.sweep:
