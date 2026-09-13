@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from arm_script import arm_off  # noqa: E402
 from osc_probe import OscDriver  # noqa: E402
-from protocol import (FLAG_ARM, FLAG_ATT, FLAG_ENABLE, FLAG_HOME, FLAG_POSE,  # noqa: E402
+from protocol import (FLAG_ARM, FLAG_ATT, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME, FLAG_POSE,  # noqa: E402
                       ArmResult, LinkState, diag_arm_result, diag_reason)
 from sources import SCRIPTS  # noqa: E402
 
@@ -77,6 +77,8 @@ def main():
             if r is not None and r is not ArmResult.HOME_PENDING:
                 break
         print(f"== end-of-run home: {r}", flush=True)
+        # Tom 2026-09-13: "zeroing the servos implies released torque".
+        d.run_for(1.0, lambda t: (0.0, 0.0, FLAG_ARM | FLAG_ESTOP), "end: ESTOP = torque release, then silence")
     except KeyboardInterrupt:
         d.emergency("operator ctrl-C")
         verdict = "interrupted"
