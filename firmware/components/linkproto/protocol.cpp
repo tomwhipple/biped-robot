@@ -127,8 +127,8 @@ const char* diagReason(uint8_t diag) {
             return "disarmed -- FALL latch tripped; re-arm deliberately (ARM "
                    "edge or run)";
         case ArmResult::kDisarmedHome:
-            return "disarmed -- servos reset to the standing pose; torque is "
-                   "HOLDING it, re-arm to walk";
+            return "disarmed -- servos reset to the standing pose (hips rolled "
+                   "out/back for play) and torque RELEASED; arm to walk";
         case ArmResult::kHomeNoCal:
             return "servo reset REFUSED -- no as-built calibration in NVS, so "
                    "\"zero\" is not a stand (run `cal`)";

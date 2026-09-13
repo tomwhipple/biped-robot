@@ -252,8 +252,8 @@ def diag_reason(diag: int) -> str:
         return ("disarmed -- FALL latch tripped; re-arm deliberately (ARM "
                 "edge or run)")
     if r is ArmResult.DISARMED_HOME:
-        return ("disarmed -- servos reset to the standing pose; torque is "
-                "HOLDING it, re-arm to walk")
+        return ("disarmed -- servos reset to the standing pose (hips rolled "
+                "out/back for play) and torque RELEASED; arm to walk")
     if r is ArmResult.HOME_NO_CAL:
         return ("servo reset REFUSED -- no as-built calibration in NVS, so "
                 "\"zero\" is not a stand (run `cal`)")

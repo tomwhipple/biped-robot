@@ -543,8 +543,15 @@ void cmdPose(Sink out, int argc, char** argv) {
 //     gentle bench default -- because the robot may be lying in a pose the
 //     move has to walk out of, and because a slow limb is one a hand can
 //     catch.
-// Torque is left ON at the end, holding the pose: a robot that homed and
-// then went limp has only fallen over more tidily.
+// After the slew the routine takes up the hip-roll PLAY once per zeroing
+// (Tom 2026-09-13: "the feet often end up touching together ... roll each
+// hip a few degrees out and back ... this is for zeroing only, due to play
+// in the servos"): left hip abducted kHomeWiggleDeg and back, then the
+// right, each a short smooth move, so both rolls arrive at zero from the
+// outside and the slop sits on the feet-apart side. Then the readback, and
+// then torque is RELEASED (Tom 2026-09-13: "always release torque ...
+// zeroing the servos implies released torque"). Gear friction holds the
+// stand (Tom 2026-09-05); arming re-engages torque.
 // Returns the verdict, because over the radio `out` is a tether nobody is
 // holding: linkHome puts what this returns into the beacon. Every early exit
 // below is a REASON, not a silence.
@@ -555,6 +562,42 @@ static bool s_home_pending = false;
 static TickType_t s_home_deadline = 0;
 static int32_t s_home_tgt[obs::kNumJoints];
 constexpr int32_t kHomeTolTicks = 12;      // ~1 deg: the servo's own deadband is ~3
+// The play take-up after the slew: stage 0 = slewing to zero, then L out,
+// L back, R out, R back (1..4), then the readback + release.
+static int s_home_stage = 0;
+constexpr float kHomeWiggleDeg = 5.0f;     // abduction per hip; 5 deg measured 2026-09-13 (loads <= 88, pelvis level)
+constexpr long kHomeWiggleMs = 600L;       // per move (smooth), + settle before the next
+constexpr long kHomeWiggleSettleMs = 250L;
+constexpr int kIdxLRoll = 1, kIdxRRoll = 6;   // kJointNames order
+
+// Start the smooth streamer (poseTick) from the joints' CURRENT positions to
+// tgt over dur_ms. false = a servo did not answer (nothing written).
+static bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, long dur_ms, Sink out) {
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        int32_t cur = tgt[j];
+        if (bus->readPosition(robot::servoIds()[j], cur) != scsbus::Status::kOk) {
+            say(out, "home: id %u did not answer -- no move\r\n",
+                robot::servoIds()[j]);
+            return false;
+        }
+        s_traj_start[j] = cur;
+        s_traj_tgt[j] = tgt[j];
+        s_traj_sent[j] = cur;
+        s_traj_spd[j] = 15;
+        s_traj_tsent[j] = xTaskGetTickCount();
+    }
+    s_traj_ms = dur_ms;
+    s_traj_headroom = 1.0f;
+    s_traj_acc = 0;
+    s_traj_bigstep = 1;
+    s_traj_minint_ms = 20;
+    s_traj_zv_ms = 0;
+    s_traj_floor = 15.0f;
+    s_traj_t0 = xTaskGetTickCount();
+    s_traj_last = s_traj_t0;
+    s_traj_active = true;
+    return true;
+}
 
 linkproto::ArmResult homeAll(Sink out, long spd) {
     s_home_pending = false;
@@ -611,37 +654,19 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
     long dur_ms = spd > 0 ? (worst * 1000L) / spd : 1500L;
     if (dur_ms < 2500L) dur_ms = 2500L;      // gentle: the crouch runs rang least at >= 3 s
     if (dur_ms > 8000L) dur_ms = 8000L;
-    for (int j = 0; j < obs::kNumJoints; ++j) {
-        int32_t cur = tgt[j];
-        if (bus->readPosition(robot::servoIds()[j], cur) != scsbus::Status::kOk) {
-            say(out, "home: id %u did not answer -- no move\r\n",
-                robot::servoIds()[j]);
-            return linkproto::ArmResult::kHomeBusFailed;
-        }
-        s_traj_start[j] = cur;
-        s_traj_tgt[j] = tgt[j];
-        s_traj_sent[j] = cur;
-        s_traj_spd[j] = 15;
-        s_traj_tsent[j] = xTaskGetTickCount();
+    if (!startSmooth(bus, tgt, dur_ms, out)) {
+        return linkproto::ArmResult::kHomeBusFailed;
     }
-    s_traj_ms = dur_ms;
-    s_traj_headroom = 1.0f;
-    s_traj_acc = 0;
-    s_traj_bigstep = 1;
-    s_traj_minint_ms = 20;
-    s_traj_zv_ms = 0;
-    s_traj_floor = 15.0f;
-    s_traj_t0 = xTaskGetTickCount();
-    s_traj_last = s_traj_t0;
-    s_traj_active = true;
     say(out, "home -> %d joints to their calibrated zero, SMOOTH over %ld ms "
              "(worst move %ld ticks): streaming\r\n",
         obs::kNumJoints, dur_ms, static_cast<long>(worst));
     const long slew_ms = dur_ms + 700L;
     memcpy(s_home_tgt, tgt, sizeof s_home_tgt);
     s_home_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(slew_ms);
+    s_home_stage = 0;
     s_home_pending = true;
-    say(out, "  reading back in %ld ms\r\n", slew_ms);
+    say(out, "  then hips out/back %.0f deg each (play take-up), readback, release\r\n",
+        static_cast<double>(kHomeWiggleDeg));
     return linkproto::ArmResult::kHomePending;
 }
 
@@ -1160,21 +1185,55 @@ void poseTick(Sink out) {
 void homeVerify(Sink out) {
     if (!s_home_pending) return;
     if (xTaskGetTickCount() < s_home_deadline) return;
-    s_home_pending = false;
     if (robot::g_ctrl_owns_bus.load() ||
         robot::g_mode_request.load() == robot::Mode::kRun) {
         // Armed in the meantime: that request's verdict already replaced
         // ours, and the bus is not the CLI's to read. Say so, store nothing.
+        s_home_pending = false;
         out("home readback skipped -- the loop was armed before the slew "
             "finished\r\n");
         return;
     }
     scsbus::Bus* bus = claimBus(out);
     if (!bus) {
+        s_home_pending = false;
         robot::g_arm_result.store(
             static_cast<uint8_t>(linkproto::ArmResult::kHomeNotReached));
         return;
     }
+    if (s_home_stage < 4) {
+        // the play take-up: one hip at a time, out then back to zero
+        ++s_home_stage;
+        const obs::Calibration& cal = robot::calibration();
+        int32_t tgt[obs::kNumJoints];
+        memcpy(tgt, s_home_tgt, sizeof tgt);
+        const bool left = s_home_stage <= 2;
+        const bool outward = (s_home_stage % 2) == 1;
+        if (outward) {
+            // abduction is +roll on the LEFT joint and -roll on the RIGHT in
+            // the joint frame (mech_envelope.h / servo-map.md); the cal dir
+            // maps joint sign to servo ticks
+            const int j = left ? kIdxLRoll : kIdxRRoll;
+            const float deg = left ? kHomeWiggleDeg : -kHomeWiggleDeg;
+            const float ticks = deg * (4096.0f / 360.0f) * static_cast<float>(cal.dir[j]);
+            tgt[j] = clampToJointRange(robot::servoIds()[j],
+                                       s_home_tgt[j] + static_cast<int32_t>(ticks + (ticks >= 0 ? 0.5f : -0.5f)),
+                                       out);
+        }
+        if (!startSmooth(bus, tgt, kHomeWiggleMs, out)) {
+            s_home_pending = false;
+            robot::g_arm_result.store(
+                static_cast<uint8_t>(linkproto::ArmResult::kHomeNotReached));
+            return;
+        }
+        say(out, "home: %s hip %s (%.0f deg, play take-up)\r\n",
+            left ? "L" : "R", outward ? "out" : "back",
+            static_cast<double>(kHomeWiggleDeg));
+        s_home_deadline = xTaskGetTickCount()
+                          + pdMS_TO_TICKS(kHomeWiggleMs + kHomeWiggleSettleMs);
+        return;
+    }
+    s_home_pending = false;
     int off = 0;
     for (int j = 0; j < obs::kNumJoints; ++j) {
         int32_t cur = 0;
@@ -1192,9 +1251,12 @@ void homeVerify(Sink out) {
             ++off;
         }
     }
+    // Tom 2026-09-13: "zeroing the servos implies released torque". Gear
+    // friction holds the stand; arming re-engages torque.
+    const scsbus::Status rs = bus->torqueEnable(scsbus::kBroadcastId, false);
     if (off == 0) {
-        out("home readback: all 10 joints at their zeros -- torque is ON and "
-            "HOLDING the stand; `release` to let go, or arm to walk\r\n");
+        say(out, "home readback: all 10 joints at their zeros -- torque "
+                 "RELEASED (%s); arm to walk\r\n", statusName(rs));
         robot::g_arm_result.store(
             static_cast<uint8_t>(linkproto::ArmResult::kDisarmedHome));
     } else {
