@@ -52,6 +52,7 @@ INSERT = [
     ("pi4_mock",           (0, 0, 1), 10),
     ("pack_mock",          (0, 0, 1), 11),   # pack down through the aperture
     ("servo_neck",         (0, 0, 1), 12),
+    ("neck_collar",        (0, 0, 1), 12),
     ("head",               (0, 0, 1), 13),
 ]
 FLY_MM = 60.0

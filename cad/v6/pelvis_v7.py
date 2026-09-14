@@ -445,6 +445,26 @@ def pelvis_v7():
     p -= box(-D.SV_CONN_L[1], -D.SV_CONN_L[0], -D.SV_CONN_HW, D.SV_CONN_HW,
              -V.NECK_WELL_D - 0.1, -V.NECK_WELL_D + 1.3)
 
+    # ---- NECK COLLAR: now a SEPARATE printed part (cad/v6/neck_collar.py) --
+    # a one-piece collar rising 33 mm above the deck made the collar's own
+    # mouth the model's new z-extreme, which flips which end of a
+    # deck-top-down print touches the bed: the ENTIRE housing (97 x 121 mm)
+    # read as a floating island 33 mm above a tiny collar footprint (a real
+    # printability failure, not a cosmetic finding -- see the prior report).
+    # Splitting it off keeps this part's own orientation untouched. What
+    # stays here: the well, the 4 stator screws, the lead slot (all
+    # unchanged, above) -- plus 4 M2.5 pilot holes for the collar's flange,
+    # at the SAME corner positions neck_collar.py uses (NECK_FLANGE_HOLE_XY
+    # below), 2.05 mm dia x 4.5 mm deep into the 5 mm deck from the top.
+    NECK_FLANGE_MARGIN = 8.0
+    NECK_FLANGE_HOLE_INSET = 4.0
+    nfx = (V.NECK_WELL_X[0] - D.WALL - NECK_FLANGE_HOLE_INSET,
+          V.NECK_WELL_X[1] + D.WALL + NECK_FLANGE_HOLE_INSET)
+    nfy = V.NECK_WELL_HW[0] + D.WALL + NECK_FLANGE_HOLE_INSET
+    NECK_FLANGE_HOLE_XY = [(nfx[0], nfy), (nfx[1], nfy), (nfx[0], -nfy), (nfx[1], -nfy)]
+    for hx, hy in NECK_FLANGE_HOLE_XY:
+        p -= cyl_z(2.05 / 2, -4.5, 0.5, hx, hy)
+
     # ---- HOUSING_SKIN: the real 3 deg taper, separate from the cell/column
     # structure (coordinator, 2nd mass pass). dimensions_v6.py now carries a
     # dedicated 4 mm band outboard of the cell wall's own outer face (hw):

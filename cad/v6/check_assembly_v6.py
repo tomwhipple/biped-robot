@@ -51,6 +51,7 @@ PAIRS = [
     ("ankle_roll", "servo_ankle_roll_{s}", "servo_ankle_pitch_{s}", "roll case vs the pitch servo hanging above it"),
     ("neck", "head", "pelvis_v7", "head shell vs the deck through +-90"),
     ("neck", "head", "servo_neck", "head base vs the neck servo case (rides on its horn)"),
+    ("neck", "head", "neck_collar", "head shell vs the collar top through +-90 (>= 1.5 mm by design)"),
 ]
 # pairs designed to touch at the standing pose (seat/disc contacts): checked
 # for intersection VOLUME only (must be ~0), the distance rule is waived

@@ -92,6 +92,13 @@ def part_pelvis():
     return Pos((x0 + x1) / 2, 0, V.YAW_BOX_BOT_Z / 2) * Box(x1 - x0, 2 * V.HOUSING_HW, -V.YAW_BOX_BOT_Z)
 
 
+def part_collar():
+    s, ok = _try("neck_collar", "neck_collar")
+    if ok:
+        return s
+    return Pos(-12.5, 0, 16) * Box(50, 30, 32)
+
+
 def part_head():
     s, ok = _try("head", "head")
     if ok:
@@ -185,6 +192,7 @@ def _torso_pieces():
         (0, "pi4_mock", COL_MOCK, Pos(0, 0, z) * mock_pi()),
         (0, "gd_mock", COL_MOCK, Pos(0, 0, z) * mock_gd()),
         (0, "servo_neck", COL_SERVO, Pos(V.NECK_X, 0, z + V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z()),
+        (0, "neck_collar", COL_PRINT, Pos(V.NECK_X, 0, z) * part_collar()),
     ]
 
 

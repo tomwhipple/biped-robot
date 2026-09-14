@@ -113,6 +113,8 @@ def bodies(p: DesignParams):
     t.append(box_props(V.PWR_MASS * 1e-3, [(V.PWR_X[0] + V.PWR_X[1]) / 2, 0, zdeck + (V.PWR_Z[0] + V.PWR_Z[1]) / 2], [V.PWR_BOARD[1], V.PWR_BOARD[0], V.PWR_BOARD[2]]))
     t.append(box_props(V.WIRING_MASS * 1e-3, [-10, 0, zdeck - 20], [60, 80, 20]))
     t.append(servo_box(m3215, [-(SV_LEN / 2 - SV_AX_OUT) * 1e3, 0, zdeck + V.NECK_AXIS_Z], "z"))
+    if have("neck_collar"):   # flange-down print, local z=0 = deck top, at the neck servo's x
+        t.append(mesh_props(os.path.join(STL, "neck_collar.stl"), [V.NECK_X, 0, zdeck]))
     out["torso"] = t
     # ---- head (frame: neck horn face)
     h = []

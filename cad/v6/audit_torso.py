@@ -28,6 +28,7 @@ CP.ORIENT.update({
     "head": (IDENT, "base down: neck-horn plate on bed"),
     "head_shell": (IDENT, "base down: neck-horn plate on bed"),
     "head_face": (IDENT, "face plate flat on bed, camera bosses up"),
+    "neck_collar": (IDENT, "flange down, flat, no supports"),
 })
 
 # NOTE (not waived): pelvis_v7's yaw-cell ceiling reports as an ISLAND

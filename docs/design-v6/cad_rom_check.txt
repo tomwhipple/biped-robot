@@ -33,3 +33,8 @@ interleg     ankle_link_L           ankle_link_R                  0.00      9.84
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 => ALL CLEAR  (59 s)
+joint        A                      B                      overlap mm3  min dist  at deg  verdict
+neck         head                   pelvis_v7                     0.00     35.20   -90.0  ok   head shell vs the deck through +-90
+neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
+neck         head                   neck_collar                   0.00      2.10   -90.0  ok   head shell vs the collar top through +-90 (>= 1.5 mm by design)
+=> ALL CLEAR  (56 s)

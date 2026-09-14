@@ -12,7 +12,7 @@ Companion to `docs/design-v6-ankle-roll.md` §9 and the CAD under `cad/v6/`. The
 | 5 V regulator for the Pi | 1 | Pololu **D24V50F5** (5 V, 5 A, 17.8 × 25.4 mm) or equal; USB-C pigtail | Pi 4B wants 3 A peaks | $20 |
 | inline fuse + holder | 1 | 10–15 A mini blade on the pack lead (bom-supplemental.md) | 13 servos on one bus, 3250 stall 4.2 A | $10 |
 | bulk capacitor | 1 | 1000 µF ≥ 25 V low-ESR across the bus at the board | brown-out on servo transients | $3 |
-| M2.5 × 8 flat-head self-tappers | ~60 (have 24) | 90° countersunk, stainless | 6 per leg link × 4, 6 per ankle link × 2, 4 per foot × 2, 4 neck, 8 yaw stators | $8 |
+| M2.5 × 8 flat-head self-tappers | ~60 (have 24) | 90° countersunk, stainless | 6 per leg link × 4, 6 per ankle link × 2, 4 per foot × 2, 4 neck stators + 4 neck-collar flange, 8 yaw stators | $8 |
 | M3 × 6 button head | 40 (have) | horn discs: 4 per joint × 13 + head | | |
 | M3 × 8 button head + thin washer | 28 | idler discs: 4 per double-sided joint × 7 | | |
 | M2.5 × 6 pan machine screws | 8 | Pi 4B + General Driver standoffs (self-tap bosses) | | |

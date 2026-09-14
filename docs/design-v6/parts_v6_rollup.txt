@@ -1,6 +1,7 @@
 part           qty  g each              bbox (mm)  note
 pelvis_v7        1   174.2  123.5x  99.0x  72.0  BED-OK  one print, deck-top-down
 head             1    34.7   62.0x  60.0x  53.0  BED-OK  neck horn carrier + shell
+neck_collar      1    19.8   67.0x  46.5x  33.1  BED-OK  collar round the neck servo, flange-down
 yaw_carrier      2    17.8   44.0x  39.9x  30.5  BED-OK  v5 part, unchanged
 yoke_roll        2    11.5   48.4x  34.0x  30.0  BED-OK  v5 part, unchanged (slicer supports)
 yoke_pitch       2    11.3   44.0x  43.9x  32.0  BED-OK  v5 part, unchanged (slicer supports)
@@ -11,4 +12,4 @@ foot_R           1    52.0  130.0x  84.0x  30.0  BED-OK  asymmetric sole, mirror
 sole_tpu_L       1    23.2  130.0x  84.0x   2.0  BED-OK  TPU 95A
 sole_tpu_R       1    23.2  130.0x  84.0x   2.0  BED-OK  TPU 95A
 
-printed total 572 g; servos 832 g ({'STS3250': 6, 'STS3215': 7}); pack + boards + wiring 350 g; robot ~1754 g
+printed total 591 g; servos 832 g ({'STS3250': 6, 'STS3215': 7}); pack + boards + wiring 350 g; robot ~1773 g
