@@ -138,13 +138,14 @@ def in_foot(m, d, side: str, pt_world: np.ndarray) -> np.ndarray:
     return R.T @ (np.asarray(pt_world) - pos)
 
 
-def sole_margin(p: DesignParams, xy) -> float:
+def sole_margin(p: DesignParams, xy, side: str = "L") -> float:
     """Signed distance (m, + inside) from a point in the FOOT frame (x, y) to
-    the rounded-rectangle sole outline."""
+    the rounded-rectangle sole outline (centreline foot_y_off outboard)."""
     cx = p.foot_toe - p.foot_len / 2
+    cy = p.foot_y_off if side == "L" else -p.foot_y_off
     hx, hy, r = p.foot_len / 2 - p.foot_r, p.foot_w / 2 - p.foot_r, p.foot_r
     qx = abs(xy[0] - cx) - hx
-    qy = abs(xy[1]) - hy
+    qy = abs(xy[1] - cy) - hy
     outside = math.hypot(max(qx, 0.0), max(qy, 0.0))
     inside = min(max(qx, qy), 0.0)
     return -(outside + inside - r)
@@ -156,7 +157,7 @@ def com_margin(m, d, p: DesignParams, stance: str):
     be anywhere in the world -- Gate A is a pure-kinematics question)."""
     com = d.subtree_com[0]
     c = in_foot(m, d, stance, com)
-    return sole_margin(p, c[:2]), c
+    return sole_margin(p, c[:2], stance), c
 
 
 def pad_heights(m, d, p: DesignParams, stance: str, other: str) -> np.ndarray:
@@ -186,7 +187,7 @@ def self_collides(m, d) -> int:
 
 
 def joint_ok(m, q12, tol_deg: float = 0.0) -> bool:
-    lo = m.jnt_range[1:, 0]
-    hi = m.jnt_range[1:, 1]
+    lo = m.jnt_range[1:13, 0]
+    hi = m.jnt_range[1:13, 1]
     t = math.radians(tol_deg)
     return bool(np.all(q12 >= lo - t) and np.all(q12 <= hi + t))

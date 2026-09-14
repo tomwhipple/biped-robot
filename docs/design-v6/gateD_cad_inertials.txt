@@ -1,0 +1,5 @@
+== final walk on the CAD-inertial plant (sim/bimo_biped_v6ar.xml), STS3250 rolls+knees, lift 4, play 3
+turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   18 mm  air>= 0.54 s  CoM margin>=  10.6 mm  slip  4.1 mm  tilt  7.6  x +19.1 y  -0.4 cm  hdg  -0.6  OK
+turn +15 mu 0.7 play 3 |    up       steps 8/8  clear>=   15 mm  air>= 0.52 s  CoM margin>=  10.9 mm  slip  5.4 mm  tilt  8.9  x +13.2 y +11.8 cm  hdg +87.3  FAIL
+turn  +0 mu 0.3 play 5 |    up       steps 8/8  clear>=   13 mm  air>= 0.46 s  CoM margin>=   7.0 mm  slip  8.3 mm  tilt  9.9  x +17.0 y  +0.0 cm  hdg  -0.5  FAIL
+turn -15 mu 1.0 play 3 |    up       steps 8/8  clear>=   13 mm  air>= 0.50 s  CoM margin>=  10.4 mm  slip 12.1 mm  tilt 10.1  x  +9.7 y -10.5 cm  hdg -85.5  FAIL

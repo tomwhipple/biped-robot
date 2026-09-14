@@ -1889,8 +1889,11 @@ actually sits.
   single-foot stance (no ankle roll). The redesign — 6 DOF/leg with ankle
   roll, 84 mm hips, 110 mm segments, STS3250 at the roll joints and knees —
   is specified and validated through design-stage Gates A–D in
-  [docs/design-v6-ankle-roll.md](docs/design-v6-ankle-roll.md); CAD waits on
-  sign-off and one bench measurement (STS3250 stiffness).
+  [docs/design-v6-ankle-roll.md](docs/design-v6-ankle-roll.md). 2026-09-14:
+  Tom chose the STS3250 route with a Pi 4B torso, a head on a neck servo and a
+  bigger pack; the printed part set is drawn and gated under `cad/v6/`
+  (design doc §9–10, `docs/design-v6/print-list.md`, `bom-delta.md`). Next:
+  two STS3250 for the stiffness bench test, then print.
 
 ## 8. TODO — known next steps (start here)
 

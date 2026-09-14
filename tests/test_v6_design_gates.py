@@ -26,10 +26,20 @@ def p():
     return DesignParams()
 
 
-def test_plant_loads_12_dof(p):
+def test_plant_loads(p):
+    """12 leg actuators + the v7 neck; mass in the modelled band."""
     m, d = K.load(p)
-    assert m.nu == 12 and m.nq == 19
-    assert 1.1 < m.body_subtreemass[0] < 1.4
+    assert m.nu == 13 and m.nq == 20
+    assert m.actuator(12).name == "neck_yaw"
+    assert 1.4 < m.body_subtreemass[0] < 1.7
+
+
+def test_cad_and_sim_agree(p):
+    """cad/v6/dimensions_v6.py and the sim plant share every kinematic number."""
+    sys.path.insert(0, os.path.join(HERE, "..", "cad", "v6"))
+    import dimensions_v6 as V
+    for k, v in V.SIM_EXPECT.items():
+        assert abs(getattr(p, k) - v) < 1e-6, (k, getattr(p, k), v)
 
 
 @pytest.mark.parametrize("knee", ["fwd", "bwd"])
@@ -55,7 +65,7 @@ def test_ik_roundtrip(knee):
 def test_gate_a_passes(p):
     A = G.gate_a(p, verbose=False)
     assert A["A_pass"]
-    assert A["A2"]["poses"]["mid_swing"]["margin"] >= 0.025
+    assert A["A2"]["poses"]["mid_swing"]["margin"] >= 0.0249   # = the inboard sole half-width
     assert A["A2"]["poses"]["mid_swing"]["jok"]
     assert A["A2"]["poses"]["mid_swing"]["ncon"] == 0
     assert A["A5"]["crouch_depth"] >= 0.05

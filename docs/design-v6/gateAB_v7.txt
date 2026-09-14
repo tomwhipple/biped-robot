@@ -1,0 +1,40 @@
+== Gate A  hip_sep 84  thigh 110  shank 110  d_ankle 57  foot 130x84  knee fwd  torso v7 (Pi 4B + head)  yaw axis 386 mm, deck top 465 mm  mass 1.626 kg  CoM z 0.288
+  A1 shift (both soles flat): pelvis y*  60.6 mm  hip roll -11.2 deg  ankle roll  11.2  CoM margin in L sole  30.0 mm  double-support margin along the path >= 54.4 mm  limits ok  self-contacts 0
+  A2 lifted (pelvis y 60.5 mm):
+     lift       margin  29.9 mm  clearance 30.0 mm  hip roll -11.1  limits ok  contacts 0  q [0.0, -11.1, -20.6, -41.3, -20.6, 11.1, 0.0, -12.3, -36.6, -73.3, -36.6, 12.3]
+     mid_swing  margin  30.0 mm  clearance 30.0 mm  hip roll -11.1  limits ok  contacts 0  q [0.0, -11.1, -20.6, -41.3, -20.6, 11.1, 0.0, -12.3, -45.2, -71.0, -25.9, 12.3]
+     fore       margin  30.1 mm  clearance 30.0 mm  hip roll -11.1  limits ok  contacts 0  q [0.0, -11.1, -20.6, -41.3, -20.6, 11.1, 0.0, -12.3, -50.8, -64.1, -13.3, 12.3]
+     lift_5cm   margin  29.9 mm  clearance 50.0 mm  hip roll -11.1  limits ok  contacts 0  q [0.0, -11.1, -20.6, -41.3, -20.6, 11.1, 0.0, -13.2, -44.5, -88.9, -44.5, 13.2]
+  A3 best one-foot margin 41.7 mm at pelvis y 77.0 mm, drop 40 mm, swing h 40 dy +0 dx +60 (hip roll -15.0)
+  A4 split stance 6 cm: hull margin 63.7 mm  limits ok
+  A5 level-sole crouch depth 62 mm
+  => Gate A PASS
+== Gate B  step 4.2 s (cadence x1)  sts3215 on every joint: stayed up, max tilt 2.8 deg, swing foot peak 21 mm off the ground for 0.48 s
+     joint          w_pk rad/s  speed x  tau_pk torque x    sat  err_pk
+     L_hip_yaw            0.05     81.7    0.09     30.2   0.0%    0.2
+     L_hip_roll           0.50      7.5    0.94      2.9   0.0%    2.1
+     L_hip_pitch          0.32     11.5    0.15     17.6   0.0%    0.5
+     L_knee               0.43      8.6    0.52      5.3   0.0%    1.6
+     L_ankle              0.53      7.1    0.27     10.2   0.0%    1.0
+     L_ankle_roll         0.51      7.4    0.72      3.8   0.0%    2.0
+     R_hip_yaw            0.04     95.2    0.05     59.3   0.0%    0.1
+     R_hip_roll           0.50      7.5    0.42      6.5   0.0%    0.8
+     R_hip_pitch          1.21      3.1    0.54      5.0   0.0%    2.3
+     R_knee               2.26      1.7    0.88      3.1   0.0%    3.8  <--
+     R_ankle              1.35      2.8    0.51      5.3   0.0%    2.3
+     R_ankle_roll         0.52      7.2    0.40      6.9   0.0%    0.9
+== Gate B  step 4.2 s (cadence x1)  sts3250 on every joint: stayed up, max tilt 2.8 deg, swing foot peak 21 mm off the ground for 0.48 s
+     joint          w_pk rad/s  speed x  tau_pk torque x    sat  err_pk
+     L_hip_yaw            0.05    136.8    0.09     50.3   0.0%    0.2
+     L_hip_roll           0.50     12.6    0.94      4.8   0.0%    2.1
+     L_hip_pitch          0.32     19.3    0.15     29.3   0.0%    0.5
+     L_knee               0.43     14.4    0.52      8.8   0.0%    1.6
+     L_ankle              0.53     11.9    0.27     17.0   0.0%    1.0
+     L_ankle_roll         0.51     12.4    0.72      6.3   0.0%    2.0
+     R_hip_yaw            0.04    159.5    0.05     98.8   0.0%    0.1
+     R_hip_roll           0.50     12.6    0.42     10.9   0.0%    0.8
+     R_hip_pitch          1.21      5.2    0.54      8.3   0.0%    2.3
+     R_knee               2.26      2.8    0.88      5.2   0.0%    3.8
+     R_ankle              1.35      4.6    0.51      8.9   0.0%    2.3
+     R_ankle_roll         0.52     12.0    0.40     11.4   0.0%    0.9
+  => Gate B: STS3215 everywhere FAIL (short: ['R_knee']); STS3250 everywhere PASS (short: [])

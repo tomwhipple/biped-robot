@@ -56,12 +56,19 @@ class DesignParams:
     d_roll_pitch: float = 0.050  # hip roll axis -> hip pitch axis (yoke pair)
     thigh: float = 0.110         # hip pitch -> knee (v5: 0.090; longer = lower joint rates for the same step)
     shank: float = 0.110         # knee -> ankle pitch (v5: 0.090)
-    d_ankle: float = 0.032       # ankle pitch axis -> ankle roll axis
-    roll_h: float = 0.0184       # ankle roll axis above the sole bottom
+    d_ankle: float = 0.058       # ankle pitch axis -> ankle roll axis (the pitch servo HANGS
+                                 # below its axis like every other joint; 50 = the hip's
+                                 # ROLL_TO_PITCH, so the ankle link is a short leg_link)
+    roll_h: float = 0.01836      # ankle roll axis above the sole bottom: 4 mm plate + 12.36
+                                 # (axis centred in the 24.72 case width) + 2 mm TPU sole
     foot_len: float = 0.130
-    foot_w: float = 0.060        # one-foot CoM margin == foot_w / 2; gap to the other foot = hip_sep - foot_w
+    foot_w: float = 0.084        # sole width; with foot_y_off the inboard half is 30 mm
+                                 # (inner gap 24 mm), the outboard half 54 mm (2026-09-14)
     foot_toe: float = 0.075      # ankle axis -> toe edge (heel = len - toe)
     foot_r: float = 0.014        # corner radius (pad octagon like v5)
+    foot_y_off: float = 0.012    # sole centreline OUTBOARD of the ankle roll axis (m):
+                                 # an asymmetric sole with more width outside the ankle,
+                                 # because the open-loop walk's failure direction is outward
     knee: str = "fwd"            # "fwd" = human knee, "bwd" = bird knee
     # ---- joint ranges (deg) ----------------------------------------------
     yaw_range: float = 45.0
@@ -71,16 +78,16 @@ class DesignParams:
     knee_flex: float = 95.0      # flexion travel (either direction)
     knee_hyper: float = 5.0      # hyperextension cap (modelling cap, v5)
     ankle_range: float = 45.0    # ankle pitch +/-
-    ankle_roll_range: float = 30.0
+    ankle_roll_range: float = 25.0   # the roll servo case sweep under the ankle link (cad/v6/dimensions_v6.py)
     # ---- masses (kg) ------------------------------------------------------
     servo_mass: float = 0.055    # STS3215; STS3250 = 0.0745
-    m_pelvis: float = 0.060      # one-print torso (v6 pelvis 32 g; bigger deck)
+    m_pelvis: float = 0.174      # v7 torso print (CAD 2026-09-14 final: 174.2 g)
     m_carrier: float = 0.0175    # yaw carrier (PRINT_LIST)
     m_hip_yokes: float = 0.030   # yoke_roll + yoke_pitch (v5 L_hip 29.6 g)
-    m_leg_link: float = 0.024    # leg_link (v5 thigh 78.6 g incl. servo)
-    m_ankle_link: float = 0.025  # new ankle link (leg_link-like, fork in X)
-    m_foot: float = 0.065        # plate + TPU sole + walls (v5 foot 55 g)
-    m_battery: float = 0.100     # 3S 850-1300 mAh class (80-110 g)
+    m_leg_link: float = 0.027    # leg_link_v6 (CAD 2026-09-14: 26.7 g)
+    m_ankle_link: float = 0.009  # ankle_link (CAD 2026-09-14: 8.9 g)
+    m_foot: float = 0.071        # foot_v6 47 g + TPU sole 23 g (CAD 2026-09-14)
+    m_battery: float = 0.170     # 3S 2200-2600 mAh class LiPo (150-190 g)
     m_board: float = 0.030       # General Driver 65x65
     m_wiring: float = 0.030      # leads, ties, switch
     payload_ref: float = 0.0     # Pi + camera volume reserved; mass via DR
@@ -95,6 +102,17 @@ class DesignParams:
     deck_w: float = 0.118
     deck_t: float = 0.005
     housing_h: float = 0.043     # yaw axis -> deck bottom (v5: 0.0428)
+    # ---- torso v7 (2026-09-13, Tom: full Pi 4B, taller torso, head on a
+    # yaw servo). torso_v7=True raises the deck by a transverse battery layer
+    # above the yaw cells, stands the Pi 4B on the aft wall and the General
+    # Driver on the front wall, and adds a neck STS3215 + head above the deck.
+    torso_v7: bool = True
+    batt_layer_h: float = 0.031  # battery layer between the yaw cells and the deck
+    m_pi4: float = 0.066         # Pi 4B 46 g + heatsink/standoffs 20 g
+    m_power: float = 0.060       # 3S protection/UPS module + 5 V buck + leads
+    m_neck_servo: float = 0.055  # STS3215
+    m_head: float = 0.039        # head 34.7 g + Camera Module 3 (CAD 2026-09-14)
+    head_h: float = 0.050        # neck horn face -> head CoM
 
     @property
     def z_hip_pitch_above_sole(self) -> float:
@@ -103,6 +121,11 @@ class DesignParams:
     @property
     def z_yaw_above_sole(self) -> float:
         return self.z_hip_pitch_above_sole + self.d_roll_pitch + self.d_yaw_roll
+
+    @property
+    def deck_bot(self) -> float:
+        """deck underside above the torso origin (yaw axis)."""
+        return self.housing_h + (self.batt_layer_h if self.torso_v7 else 0.0)
 
     @property
     def knee_range(self) -> tuple[float, float]:
@@ -117,8 +140,9 @@ class DesignParams:
         return (f"hip_sep {1e3*self.hip_sep:.0f}  thigh {1e3*self.thigh:.0f}  "
                 f"shank {1e3*self.shank:.0f}  d_ankle {1e3*self.d_ankle:.0f}  "
                 f"foot {1e3*self.foot_len:.0f}x{1e3*self.foot_w:.0f}  knee {self.knee}  "
+                f"{'torso v7 (Pi 4B + head)  ' if self.torso_v7 else ''}"
                 f"yaw axis {1e3*self.z_yaw_above_sole:.0f} mm, deck top "
-                f"{1e3*(self.z_yaw_above_sole+self.housing_h+self.deck_t):.0f} mm")
+                f"{1e3*(self.z_yaw_above_sole+self.deck_bot+self.deck_t):.0f} mm")
 
 
 def _f(x: float) -> str:
@@ -127,13 +151,15 @@ def _f(x: float) -> str:
 
 def _pads(p: DesignParams, side: str) -> str:
     """8 pad spheres on the inscribed octagon of the rounded-rect sole, sole
-    bottom at foot-frame z = -roll_h (== v5 convention: r 3 mm, centre 3 mm up)."""
+    bottom at foot-frame z = -roll_h (== v5 convention: r 3 mm, centre 3 mm up).
+    The sole centreline sits foot_y_off OUTBOARD of the ankle roll axis."""
     r = 0.003
     zc = -p.roll_h + r
     x_heel = -(p.foot_len - p.foot_toe)
     x_toe = p.foot_toe
     hw = p.foot_w / 2
     cr = p.foot_r
+    yo = p.foot_y_off if side == "L" else -p.foot_y_off
     pts = [
         ("hl", x_heel, +hw - cr), ("hr", x_heel, -(hw - cr)),
         ("hol", x_heel + cr, +hw), ("hor", x_heel + cr, -hw),
@@ -141,7 +167,7 @@ def _pads(p: DesignParams, side: str) -> str:
         ("tl", x_toe, +hw - cr), ("tr", x_toe, -(hw - cr)),
     ]
     return "\n".join(
-        f'              <geom name="{side}_pad_{n}" class="pad" pos="{_f(x)} {_f(y)} {_f(zc)}"/>'
+        f'              <geom name="{side}_pad_{n}" class="pad" pos="{_f(x)} {_f(y + yo)} {_f(zc)}"/>'
         for n, x, y in pts)
 
 
@@ -184,6 +210,7 @@ def _leg(p: DesignParams, side: str) -> str:
     z_servo_case_dn = -(SV_LEN / 2 - SV_AX_OUT)   # case centre when the case hangs below the axis
     z_servo_case_up = +(SV_LEN / 2 - SV_AX_OUT)   # case centre when the case rises above the axis
     foot_cx = p.foot_toe - p.foot_len / 2
+    foot_cy = p.foot_y_off if side == "L" else -p.foot_y_off
     sole_z = -p.roll_h
     return f"""
       <body name="{side}_hip_yaw" pos="0 {_f(y)} 0">
@@ -209,9 +236,9 @@ def _leg(p: DesignParams, side: str) -> str:
 {_shank_ankle_servos(p, side)}
               <body name="{side}_ankle_blk" pos="0 0 {_f(-p.shank)}">
                 <joint name="{side}_ankle" axis="0 1 0" range="{-p.ankle_range:.0f} {p.ankle_range:.0f}"/>
-                <!-- ankle-pitch servo case in the ankle link, INVERTED: the
-                     case rises above the axis between the shin's fork tines -->
-                {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 {_f(z_servo_case_up)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>'}
+                <!-- ankle-pitch servo case hangs below the axis inside the
+                     ankle link (the hip's roll->pitch stack, upside down) -->
+                {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>'}
                 <geom type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.020 0.016 {_f(p.d_ankle/2)}" mass="{p.m_ankle_link if not p.ankle_servos_in_shank else p.m_ankle_link * 0.6 + p.m_linkage}" rgba="{link_rgba}" group="1"/>
                 <geom name="{side}_col_ankle" type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.021 0.017 {_f(p.d_ankle/2)}" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="{side}_foot" pos="0 0 {_f(-p.d_ankle)}">
@@ -221,19 +248,80 @@ def _leg(p: DesignParams, side: str) -> str:
                        onto its horn (front) and idler (rear) -->
                   {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 0" size="{_f(sx_h[0])} {_f(sx_h[1])} {_f(sx_h[2])}" mass="{sv}"/>'}
                   {f'<geom type="box" pos="0 0 0" size="0.010 0.015 0.008" mass="{p.m_linkage}" rgba="{link_rgba}" group="1"/>' if p.ankle_servos_in_shank else ""}
-                  <geom type="box" pos="{_f(foot_cx)} 0 {_f(sole_z + 0.004)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.004" mass="{p.m_foot}" rgba="0.30 0.31 0.34 1" group="1"/>
+                  <geom type="box" pos="{_f(foot_cx)} {_f(foot_cy)} {_f(sole_z + 0.004)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.004" mass="{p.m_foot}" rgba="0.30 0.31 0.34 1" group="1"/>
 {_pads(p, side)}
                   <!-- reference sole (non-colliding; walker_env reads it) and
                        the full-footprint inter-foot collision proxy -->
-                  <geom name="{side}_sole" type="box" pos="{_f(foot_cx)} 0 {_f(sole_z + 0.004)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.004"
+                  <geom name="{side}_sole" type="box" pos="{_f(foot_cx)} {_f(foot_cy)} {_f(sole_z + 0.004)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.004"
                         contype="0" conaffinity="0" group="3" mass="0" friction="1 0.02 0.001" condim="4"/>
-                  <geom name="{side}_col_foot" type="box" pos="{_f(foot_cx)} 0 {_f(sole_z + 0.010)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.010"
+                  <geom name="{side}_col_foot" type="box" pos="{_f(foot_cx)} {_f(foot_cy)} {_f(sole_z + 0.010)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.010"
                         contype="0" conaffinity="0" group="3" mass="0" friction="1 0.02 0.001" condim="4"/>
                 </body>
               </body>
             </body>
           </body>
         </body>
+      </body>"""
+
+
+def _torso(p: DesignParams) -> str:
+    d = p.deck_x
+    deck_cx = (d[0] + d[1]) / 2
+    deck_hx = (d[1] - d[0]) / 2
+    zdeck = p.deck_bot + p.deck_t / 2
+    yaw_case = (SV_LEN / 2, SV_WID / 2, SV_T / 2)
+    yaw_z = p.housing_h - SV_T / 2 - 0.003
+    s = []
+    s.append(f'      <!-- one-print pelvis: deck + housing walls -->')
+    s.append(f'      <geom type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
+    s.append(f'      <geom type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
+    s.append(f'      <!-- hip YAW servos hang under the housing floor, horn down on the yaw axis -->')
+    for sgn in (1, -1):
+        s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(sgn*p.hip_sep/2)} {_f(yaw_z)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>')
+    if not p.torso_v7:
+        s.append(f'      <geom type="box" pos="-0.010 0 0.018" size="0.031 0.016 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
+        s.append(f'      <geom type="box" pos="{_f(d[0]+0.008)} 0 0.024" size="0.006 0.0325 0.020" mass="{p.m_board}" rgba="0.1 0.5 0.2 1" group="1"/>')
+        s.append(f'      <geom type="box" pos="0.02 0 0.030" size="0.015 0.03 0.008" mass="{p.m_wiring}" rgba="0.3 0.3 0.3 0.4" group="1"/>')
+        s.append(f'      <site name="imu" pos="{_f(d[0]+0.014)} 0 0.024" size="0.004" rgba="1 0 0 0.6"/>')
+        s.append(f'      <body name="pi_bay" pos="0.028 0 {_f(p.housing_h + p.deck_t + 0.008)}">')
+        s.append(f'        <geom type="box" size="0.033 0.016 0.008" mass="{p.payload_ref}" rgba="0.8 0.2 0.6 0.5" group="1"/>')
+        s.append(f'      </body>')
+        return "\n".join(s)
+    # ---- v7: battery TRANSVERSE above the yaw cells, Pi 4B vertical on the
+    # aft wall (85 across, 56 tall), General Driver vertical on the front wall,
+    # power module under the deck beside the battery, neck servo + head on top
+    zb = p.housing_h + p.batt_layer_h / 2
+    s.append(f'      <!-- 3S 2200 mAh class pack, transverse, 105 x 36 x 26 -->')
+    s.append(f'      <geom type="box" pos="-0.012 0 {_f(zb)}" size="0.018 0.0525 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
+    s.append(f'      <!-- Pi 4B on the aft wall: 85 across (y), 56 tall (z), 20 deep with heatsink -->')
+    s.append(f'      <geom type="box" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.010 0.0425 0.028" mass="{p.m_pi4}" rgba="0.1 0.5 0.2 1" group="1"/>')
+    s.append(f'      <!-- General Driver on the front wall: 65 x 65, 12 deep -->')
+    s.append(f'      <geom type="box" pos="{_f(d[1]-0.009)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.007 0.0325 0.0325" mass="{p.m_board}" rgba="0.1 0.5 0.2 1" group="1"/>')
+    s.append(f'      <!-- power: 3S protection / UPS module + 5 V buck, beside the pack -->')
+    s.append(f'      <geom type="box" pos="0.024 0 {_f(zb)}" size="0.014 0.030 0.010" mass="{p.m_power}" rgba="0.6 0.3 0.1 1" group="1"/>')
+    s.append(f'      <geom type="box" pos="0.0 0 {_f(p.deck_bot - 0.010)}" size="0.02 0.03 0.006" mass="{p.m_wiring}" rgba="0.3 0.3 0.3 0.4" group="1"/>')
+    s.append(f'      <site name="imu" pos="{_f(d[1]-0.016)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.004" rgba="1 0 0 0.6"/>')
+    # neck servo: axis Z, case above the deck, horn up (the head body itself is
+    # emitted by _head() AFTER the legs, so the neck joint is LAST in qpos)
+    zn = p.deck_bot + p.deck_t
+    s.append(f'      <!-- neck STS3215, axis Z, horn UP; the head yaws on it -->')
+    s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} 0 {_f(zn + SV_T/2)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.m_neck_servo}"/>')
+    s.append(f'      <body name="pi_bay" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}">')
+    s.append(f'        <geom type="box" size="0.002 0.002 0.002" mass="{p.payload_ref}" rgba="0.8 0.2 0.6 0.0" group="3"/>')
+    s.append(f'      </body>')
+    return "\n".join(s)
+
+
+def _head(p: DesignParams) -> str:
+    if not p.torso_v7:
+        return ""
+    zn = p.deck_bot + p.deck_t
+    return f"""
+      <body name="head" pos="0 0 {_f(zn + SV_T + 0.004)}">
+        <joint name="neck_yaw" axis="0 0 1" range="-90 90"/>
+        <geom type="box" pos="0.005 0 {_f(p.head_h/2)}" size="0.028 0.030 {_f(p.head_h/2)}" mass="{p.m_head}" rgba="0.82 0.84 0.87 1" group="1"/>
+        <geom type="box" pos="0.036 0 {_f(p.head_h*0.6)}" size="0.005 0.012 0.012" mass="0.003" rgba="0.1 0.1 0.1 1" group="1"/>
+        <site name="camera" pos="0.041 0 {_f(p.head_h*0.6)}" size="0.003" rgba="0 1 0 0.6"/>
       </body>"""
 
 
@@ -260,6 +348,8 @@ def build_xml(p: DesignParams) -> str:
         ):
             acts.append(f'    <position name="{side}_{jn}" joint="{side}_{jn}" '
                         f'ctrlrange="{r(lo):.10f} {r(hi):.10f}"/>  <!-- {lo:.0f} .. {hi:.0f} -->')
+    if p.torso_v7:
+        acts.append(f'    <position name="neck_yaw" joint="neck_yaw" ctrlrange="{r(-90):.10f} {r(90):.10f}"/>  <!-- head yaw -->')
     acts_s = "\n".join(acts)
     pairs = []
     segs = ("col_thigh", "col_shank", "col_ankle", "col_foot")
@@ -313,28 +403,9 @@ def build_xml(p: DesignParams) -> str:
     <!-- torso origin = hip yaw axis height, on the centreline -->
     <body name="torso" pos="0 0 {_f(z0)}">
       <freejoint/>
-      <!-- one-print pelvis: deck + housing walls -->
-      <geom type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>
-      <geom type="box" pos="{_f(deck_cx)} 0 {_f(p.housing_h/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.housing_h/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>
-      <!-- hip YAW servos hang under the deck, horn down on the yaw axis -->
-      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(p.hip_sep/2)} {_f(p.housing_h - SV_T/2 - 0.003)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>
-      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(-p.hip_sep/2)} {_f(p.housing_h - SV_T/2 - 0.003)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>
-      <!-- battery in the centre channel between the yaw servos, low -->
-      <geom type="box" pos="-0.010 0 0.018" size="0.031 0.016 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>
-      <!-- driver board (65 x 65) vertical against the aft wall -->
-      <geom type="box" pos="{_f(d[0]+0.008)} 0 0.024" size="0.006 0.0325 0.020" mass="{p.m_board}" rgba="0.1 0.5 0.2 1" group="1"/>
-      <!-- wiring / switch lump -->
-      <geom type="box" pos="0.02 0 0.030" size="0.015 0.03 0.008" mass="{p.m_wiring}" rgba="0.3 0.3 0.3 0.4" group="1"/>
-      <site name="imu" pos="{_f(d[0]+0.014)} 0 0.024" size="0.004" rgba="1 0 0 0.6"/>
-      <!-- Pi Zero 2 W + Camera Module VOLUME, reserved on the deck front
-           (65 x 30 x 16 mm). Mass 0: walker_env's payload_mass / payload_max
-           inject their own "payload" body -- point payload_cg_x/z here
-           (x 0.028, z {p.housing_h + p.deck_t + 0.008:.3f} above the torso origin). -->
-      <body name="pi_bay" pos="0.028 0 {_f(p.housing_h + p.deck_t + 0.008)}">
-        <geom type="box" size="0.033 0.016 0.008" mass="{p.payload_ref}" rgba="0.8 0.2 0.6 0.5" group="1"/>
-      </body>
+{_torso(p)}
 {_leg(p, "L")}
-{_leg(p, "R")}
+{_leg(p, "R")}{_head(p)}
     </body>
   </worldbody>
 
@@ -358,6 +429,7 @@ def params_from_args(argv=None) -> tuple[DesignParams, argparse.Namespace]:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-o", "--out", default=DEFAULT_OUT)
     ap.add_argument("--knee", choices=("fwd", "bwd"), default=None)
+    ap.add_argument("--torso-v7", action="store_true", help="Pi 4B torso + neck servo + head")
     ap.add_argument("--servo", choices=("sts3215", "sts3250"), default=None,
                     help="servo mass everywhere (case is identical)")
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VAL",
@@ -366,6 +438,8 @@ def params_from_args(argv=None) -> tuple[DesignParams, argparse.Namespace]:
     p = DesignParams()
     if a.knee:
         p.knee = a.knee
+    if a.torso_v7:
+        p.torso_v7 = True
     if a.servo == "sts3250":
         p.servo_mass = 0.0745
     for kv in a.set:

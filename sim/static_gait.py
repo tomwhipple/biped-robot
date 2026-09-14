@@ -189,10 +189,11 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
         m.opt.gravity[:] = [-9.81 * math.sin(a), 0.0, -9.81 * math.cos(a)]   # +tilt = downhill forward
     obs, _ = env.reset(seed=seed)
     kp, kd, stall, w0 = env._servo
-    stall = np.full(12, stall) * servo_scale
-    w0 = np.full(12, w0) * servo_scale
-    kp = np.full(12, float(kp))
-    kd = np.full(12, float(kd))
+    na = env._nq_act                      # 12, or 13 with the v7 neck
+    stall = np.full(na, stall) * servo_scale
+    w0 = np.full(na, w0) * servo_scale
+    kp = np.full(na, float(kp))
+    kd = np.full(na, float(kd))
     if per_joint:
         for i, n in enumerate(JN):
             if n in per_joint:
@@ -205,6 +206,8 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     d0, hi, lo = env._default, env._hi, env._lo
 
     def inv(q):
+        if len(q) < na:                    # neck (and any extra joints) held at 0
+            q = np.concatenate([q, np.zeros(na - len(q))])
         return np.clip(np.where(q >= d0, (q - d0) / np.maximum(hi - d0, 1e-6),
                                 (q - d0) / np.maximum(d0 - lo, 1e-6)), -1, 1)
     dt = env.control_dt
@@ -340,7 +343,10 @@ def main(argv=None):
     ap.add_argument("--mu", type=float, default=0.7)
     ap.add_argument("--play", type=float, default=3.0)
     ap.add_argument("--json", default=None)
+    ap.add_argument("--torso-v7", action="store_true")
     a, rest = ap.parse_known_args(argv)
+    if a.torso_v7:
+        rest = rest + ["--torso-v7"]
     p, _ = params_from_args(rest + ["-o", "/dev/null"])
     xml_path = os.path.join(os.environ.get("TMPDIR", "/tmp"), f"v6_{os.getpid()}.xml")
     with open(xml_path, "w") as f:

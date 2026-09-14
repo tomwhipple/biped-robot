@@ -1,0 +1,34 @@
+== torso v7 (1.55 kg, CoM 0.259): gait re-tune, STS3250 rolls+knees unless noted, lift 4, play 3
+v6 gait as-is                                  |   FELL@7.0s steps 1/6  clear>=   16 mm  air>= 0.64 s  CoM margin>=  13.6 mm  slip  1.9 mm  tilt 54.8  x  +1.1 y +34.3 cm  hdg  -0.9  FAIL
+bias -10, land_out 16                          |   FELL@6.5s steps 1/6  clear>=   35 mm  air>= 0.88 s  CoM margin>=   8.4 mm  slip 14.4 mm  tilt 58.2  x  +0.3 y +35.2 cm  hdg  -0.2  FAIL
+bias -10, land_out 16, fb_sag 1                |   FELL@6.4s steps 0/6  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 82.1 mm  tilt 54.1  x  -3.2 y -29.7 cm  hdg  -5.7  FAIL
+bias -5, land_out 12, fb_sag 1                 |   FELL@6.5s steps 1/6  clear>=   35 mm  air>= 0.98 s  CoM margin>=  10.6 mm  slip 13.8 mm  tilt 54.6  x  +0.7 y +34.2 cm  hdg  -0.5  FAIL
+bias -10, land_out 16, shift 2.0               |   FELL@6.9s steps 1/6  clear>=   34 mm  air>= 0.88 s  CoM margin>=   8.3 mm  slip 14.3 mm  tilt 57.2  x  +0.4 y +34.9 cm  hdg  -0.2  FAIL
+bias -10, land_out 16, ALL STS3250             |   FELL@6.5s steps 1/6  clear>=   34 mm  air>= 0.88 s  CoM margin>=   8.4 mm  slip 12.3 mm  tilt 55.5  x  +0.2 y +34.2 cm  hdg  +0.3  FAIL
+bias -10, land_out 16, fb_sag 1, ALL STS3250   |   FELL@6.3s steps 0/6  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 77.2 mm  tilt 53.2  x  -1.5 y -29.0 cm  hdg  -1.7  FAIL
+== what breaks the v7 torso: mass or height? (STS3250 rolls+knees, v6 gait, play 3)
+v6 baseline                                          m 1.25 kg CoM 0.000 |    up       steps 6/6  clear>=   25 mm  air>= 0.74 s  CoM margin>=  26.1 mm  slip  1.0 mm  tilt  3.1  x +14.2 y  -0.7 cm  hdg  -0.7  OK
+v6 + 300 g in the housing (low, z +0.02)             m 1.55 kg CoM 0.000 |  FELL@12.5s steps 2/6  clear>=   18 mm  air>= 0.62 s  CoM margin>=  15.3 mm  slip  2.1 mm  tilt 57.5  x  +3.9 y -34.5 cm  hdg  -0.2  FAIL
+v6 + 300 g on the deck front (payload known)         m 1.55 kg CoM 0.000 |   FELL@7.1s steps 1/6  clear>=   15 mm  air>= 0.60 s  CoM margin>=  14.4 mm  slip  1.7 mm  tilt 54.5  x  +0.6 y +34.2 cm  hdg  -1.6  FAIL
+v7 full                                              m 1.55 kg CoM 0.000 |   FELL@7.0s steps 1/6  clear>=   16 mm  air>= 0.64 s  CoM margin>=  13.6 mm  slip  1.9 mm  tilt 54.8  x  +1.1 y +34.3 cm  hdg  -0.9  FAIL
+v7 without head + neck servo                         m 1.45 kg CoM 0.000 |   FELL@7.2s steps 1/6  clear>=   17 mm  air>= 0.64 s  CoM margin>=  15.2 mm  slip  1.4 mm  tilt 58.1  x  +1.2 y +35.5 cm  hdg  -1.2  FAIL
+v7 without the battery layer (deck 31 mm lower)      m 1.55 kg CoM 0.000 |   FELL@7.1s steps 1/6  clear>=   17 mm  air>= 0.64 s  CoM margin>=  14.3 mm  slip  1.7 mm  tilt 56.6  x  +1.1 y +35.0 cm  hdg  -0.9  FAIL
+v7 with 18650x3 (141 g) and no Pi heatsink (46 g)    m 1.50 kg CoM 0.000 |   FELL@7.1s steps 1/6  clear>=   16 mm  air>= 0.64 s  CoM margin>=  13.9 mm  slip  1.7 mm  tilt 54.3  x  +1.0 y +34.2 cm  hdg  -1.0  FAIL
+v7, feet 66 wide, hips 90 (gap 24)                   m 1.55 kg CoM 0.000 |  FELL@13.3s steps 2/6  clear>=   19 mm  air>= 0.58 s  CoM margin>=  16.7 mm  slip  2.1 mm  tilt 54.6  x  +4.5 y -33.4 cm  hdg  +0.5  FAIL
+== v7 torso (1.55 kg) with OUTBOARD-biased soles (foot_w / centreline offset outboard), STS3250 rolls+knees, play 3
+foot_w 60 y_off 0 (inner gap 24 mm, outboard margin 30)    |   FELL@7.0s steps 1/6  clear>=   16 mm  air>= 0.64 s  CoM margin>=  13.6 mm  slip  1.9 mm  tilt 54.8  x  +1.1 y +34.3 cm  hdg  -0.9  FAIL
+foot_w 66 y_off 8 (inner gap 34 mm, outboard margin 41)    |    up       steps 6/6  clear>=   22 mm  air>= 0.62 s  CoM margin>=   9.3 mm  slip  2.0 mm  tilt  6.3  x +14.3 y  -0.7 cm  hdg  -0.3  OK
+foot_w 70 y_off 10 (inner gap 34 mm, outboard margin 45)   |    up       steps 6/6  clear>=   22 mm  air>= 0.60 s  CoM margin>=   9.3 mm  slip  2.2 mm  tilt  6.2  x +14.3 y  -0.8 cm  hdg  -0.2  OK
+foot_w 74 y_off 12 (inner gap 34 mm, outboard margin 49)   |    up       steps 6/6  clear>=   23 mm  air>= 0.62 s  CoM margin>=  10.0 mm  slip  2.4 mm  tilt  5.4  x +14.2 y  -0.8 cm  hdg  -0.2  OK
+foot_w 80 y_off 15 (inner gap 34 mm, outboard margin 55)   |    up       steps 6/6  clear>=   24 mm  air>= 0.70 s  CoM margin>=  22.3 mm  slip  2.0 mm  tilt  2.4  x +14.1 y  -0.9 cm  hdg  -0.2  OK
+== same on the v6 torso (1.25 kg)
+v6 foot_w 70 y_off 10                                      |    up       steps 6/6  clear>=   25 mm  air>= 0.72 s  CoM margin>=  25.8 mm  slip  1.6 mm  tilt  2.6  x +13.9 y  -1.0 cm  hdg  -0.3  OK
+== 2026-09-14 CAD masses (links 27 g, ankle link 9 g, foot 71 g, head 39 g): pelvis mass x sole geometry
+pelvis 140, foot 84/12 (in 30/out 54)    turn  0 |    up       steps 6/6  clear>=   24 mm  air>= 0.70 s  CoM margin>=  29.9 mm  slip  1.9 mm  tilt  2.5  x +14.3 y  -0.7 cm  hdg  -0.4  OK
+pelvis 140, foot 84/12 (in 30/out 54)    turn 15 |    up       steps 6/6  clear>=   17 mm  air>= 0.56 s  CoM margin>=  12.9 mm  slip  2.1 mm  tilt  6.8  x +12.3 y  +6.7 cm  hdg +68.6  OK
+pelvis 150, foot 84/12                   turn  0 |    up       steps 6/6  clear>=   23 mm  air>= 0.62 s  CoM margin>=  13.8 mm  slip  2.5 mm  tilt  5.4  x +14.1 y  -0.6 cm  hdg  -0.4  OK
+pelvis 150, foot 84/12                   turn 15 |    up       steps 6/6  clear>=   17 mm  air>= 0.56 s  CoM margin>=  12.4 mm  slip  2.1 mm  tilt  7.1  x +12.3 y  +6.6 cm  hdg +68.6  OK
+pelvis 175, foot 84/12                   turn  0 |    up       steps 6/6  clear>=   22 mm  air>= 0.62 s  CoM margin>=  12.7 mm  slip  2.1 mm  tilt  6.0  x +14.3 y  -0.5 cm  hdg  -0.2  OK
+pelvis 175, foot 84/12                   turn 15 |    up       steps 6/6  clear>=   17 mm  air>= 0.56 s  CoM margin>=  12.5 mm  slip  2.0 mm  tilt  7.0  x +12.3 y  +6.7 cm  hdg +68.6  OK
+pelvis 175, foot 84/12, play 5           turn  0 |    up       steps 6/6  clear>=   22 mm  air>= 0.72 s  CoM margin>=  34.5 mm  slip  2.0 mm  tilt  3.6  x +13.7 y  -0.1 cm  hdg  -0.5  OK
+pelvis 175, foot 84/12, play 5           turn 15 |    up       steps 6/6  clear>=   20 mm  air>= 0.80 s  CoM margin>=  34.5 mm  slip  2.3 mm  tilt  8.9  x +13.8 y  +6.7 cm  hdg +77.1  OK

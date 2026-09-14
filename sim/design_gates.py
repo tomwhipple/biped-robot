@@ -375,37 +375,39 @@ def run_servo(p: DesignParams, tl: Timeline, servo="sts3215", per_joint=None, kp
     Returns per-joint saturation fraction, peak tracking error, p99 |tau|, peak
     |qd|, plus the swing foot's achieved clearance and whether the body stayed up."""
     m, d = model_data or K.load(p)
+    na = m.nu                                # 12 legs (+1 neck on the v7 torso)
     m.actuator_gainprm[:] = 0.0
     m.actuator_biasprm[:] = 0.0
-    m.dof_damping[6:18] = 0.1               # servo_joint_damping (walker_env)
-    stall = np.array([SERVOS[(per_joint or {}).get(n, servo)]["stall"] for n in JN])
-    w0 = np.array([SERVOS[(per_joint or {}).get(n, servo)]["w0"] for n in JN])
+    m.dof_damping[6:6 + na] = 0.1            # servo_joint_damping (walker_env)
+    names = JN + ["neck_yaw"] * (na - 12)
+    stall = np.array([SERVOS[(per_joint or {}).get(n, servo)]["stall"] for n in names])
+    w0 = np.array([SERVOS[(per_joint or {}).get(n, servo)]["w0"] for n in names])
     k0 = tl.at(0.0)
     q0 = q_of(p, k0)
     K.set_pose(m, d, q0, torso_pos=k0.pelvis + np.array([0, 0, 0.001]))
     dt = m.opt.timestep
     n_sub = int(round(1.0 / ctrl_hz / dt))
-    sat = np.zeros(12); n = 0
-    err_pk = np.zeros(12); tau_all = []; qd_pk = np.zeros(12)
+    sat = np.zeros(na); n = 0
+    err_pk = np.zeros(na); tau_all = []; qd_pk = np.zeros(na)
     fell = False; tilt_max = 0.0; clear_max = 0.0; t_air = 0.0; roll_err_pk = 0.0
     swing_pads = [g for g in range(m.ngeom) if (mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) or "").startswith("R_pad_")]
-    t = 0.0; cmd = q0.copy()
+    t = 0.0; cmd = np.zeros(na); cmd[:12] = q0
     while t < tl.T:
         try:
-            cmd = q_of(p, tl.at(t))
+            cmd[:12] = q_of(p, tl.at(t))
         except ValueError:
             pass
         for _ in range(n_sub):
-            q = d.qpos[7:19]; qd = d.qvel[6:18]
+            q = d.qpos[7:7 + na]; qd = d.qvel[6:6 + na]
             cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
             raw = kp * (cmd - q) - kd * qd
             tau = np.clip(raw, -cap, cap)
             sat += (np.abs(raw) > cap + 1e-9); n += 1
-            d.qfrc_applied[6:18] = tau
+            d.qfrc_applied[6:6 + na] = tau
             mujoco.mj_step(m, d)
             tau_all.append(tau.copy())
-            err_pk = np.maximum(err_pk, np.abs(cmd - d.qpos[7:19]))
-            qd_pk = np.maximum(qd_pk, np.abs(d.qvel[6:18]))
+            err_pk = np.maximum(err_pk, np.abs(cmd - d.qpos[7:7 + na]))
+            qd_pk = np.maximum(qd_pk, np.abs(d.qvel[6:6 + na]))
         t += 1.0 / ctrl_hz
         up = d.xmat[m.body("torso").id].reshape(3, 3)[2, 2]
         tilt_max = max(tilt_max, math.degrees(math.acos(max(-1, min(1, up)))))
@@ -417,6 +419,7 @@ def run_servo(p: DesignParams, tl: Timeline, servo="sts3215", per_joint=None, kp
             fell = True
             break
     tau_all = np.array(tau_all)
+    tau_all = tau_all[:, :12]; sat = sat[:12]; err_pk = err_pk[:12]; qd_pk = qd_pk[:12]; w0 = w0[:12]; stall = stall[:12]
     return dict(sat=sat / max(n, 1), err_pk_deg=np.degrees(err_pk), tau_p99=np.percentile(np.abs(tau_all), 99, axis=0),
                 tau_pk=np.abs(tau_all).max(0), qd_pk=qd_pk, fell=fell, tilt_max=tilt_max,
                 clear_max=clear_max, t_air=t_air,
