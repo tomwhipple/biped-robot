@@ -220,17 +220,19 @@ def run_sequence(p: DesignParams, xml_path, seq, start="supine", play_deg=3.0, p
                 frames.append(fr)
         q_prev = q_tgt
         up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
+        front = d.xmat[env._torso_bid].reshape(3, 3)[2, 0]     # world z of the torso +x: prone -1, supine +1
         pz = float(d.qpos[2])
         tau = env._servo_tau
         names = list(JN) + EXTRA
-        log.append((label, up, pz, contacts_summary(m, d), float(np.abs(tau).max()), names[int(np.abs(tau).argmax())]))
+        log.append((label, up, pz, contacts_summary(m, d), float(np.abs(tau).max()), names[int(np.abs(tau).argmax())], front))
         if verbose:
-            print(f"  {t:5.1f}s {label:38s} up_z {up:+.2f}  pelvis z {pz:.3f}  |tau|max {log[-1][4]:.2f} ({log[-1][5]})  contacts {log[-1][3]}")
+            print(f"  {t:5.1f}s {label:38s} up_z {up:+.2f} front_z {front:+.2f}  pelvis z {pz:.3f}  |tau|max {log[-1][4]:.2f} ({log[-1][5]})  contacts {log[-1][3]}")
     up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
+    front = d.xmat[env._torso_bid].reshape(3, 3)[2, 0]
     ok = up > 0.9 and d.qpos[2] > 0.8 * z_stand
     if render:
         _write_video(frames, render, fps=25)
-    return dict(ok=ok, up=up, pelvis_z=float(d.qpos[2]), log=log)
+    return dict(ok=ok, up=up, front=float(front), pelvis_z=float(d.qpos[2]), log=log)
 
 
 def main(argv=None):

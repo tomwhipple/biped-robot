@@ -367,10 +367,12 @@ def _tail(p: DesignParams) -> str:
     tz = p.tail_len * math.sin(math.radians(p.tail_rest))
     return f"""
       <body name="tail" pos="{_f(p.tail_x)} 0 {_f(p.tail_z)}">
-        <joint name="tail_pitch" axis="0 1 0" range="-150 60"/>
-        <geom class="servo" type="box" pos="{_f(SV_LEN/2 - SV_AX_OUT)} 0 0" size="{_f(SV_LEN/2)} {_f(SV_T/2)} {_f(SV_WID/2)}" mass="{p.m_neck_servo}"/>
-        <geom {_fc(p)}type="capsule" fromto="0 0 0 {_f(tx)} 0 {_f(tz)}" size="0.007" mass="{p.tail_mass}" rgba="0.82 0.84 0.87 1"/>
-        <geom {_fc(p)}type="sphere" pos="{_f(tx)} 0 {_f(tz)}" size="0.014" mass="0.010" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
+        <joint name="tail_pitch" axis="0 1 0" range="-150 120"/>
+        <!-- case on the -y side of the horn plane, long axis forward under the housing (rear face 10 mm
+             behind the axis); the rod runs on the +y side of the horn so it clears the case at EVERY angle -->
+        <geom class="servo" type="box" pos="{_f(SV_LEN/2 - SV_AX_OUT)} {_f(-SV_T/2 + 0.003)} 0" size="{_f(SV_LEN/2)} {_f(SV_T/2)} {_f(SV_WID/2)}" mass="{p.m_neck_servo}"/>
+        <geom {_fc(p)}type="capsule" fromto="0 0.009 0 {_f(tx)} 0.009 {_f(tz)}" size="0.006" mass="{p.tail_mass}" rgba="0.82 0.84 0.87 1"/>
+        <geom {_fc(p)}type="sphere" pos="{_f(tx)} 0.009 {_f(tz)}" size="0.014" mass="0.010" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
       </body>"""
 
 
@@ -418,7 +420,7 @@ def build_xml(p: DesignParams) -> str:
             if p.arm_elbow:
                 acts.append(f'    <position name="{side}_elbow" joint="{side}_elbow" ctrlrange="{r(-150):.10f} {r(150):.10f}"/>')
     if p.tail:
-        acts.append(f'    <position name="tail_pitch" joint="tail_pitch" ctrlrange="{r(-150):.10f} {r(60):.10f}"/>')
+        acts.append(f'    <position name="tail_pitch" joint="tail_pitch" ctrlrange="{r(-150):.10f} {r(120):.10f}"/>')
     acts_s = "\n".join(acts)
     pairs = []
     segs = ("col_thigh", "col_shank", "col_ankle", "col_foot")

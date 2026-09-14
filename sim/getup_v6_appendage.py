@@ -52,8 +52,8 @@ def plant(name):
 
 def run(label, p, xml, seq, start="supine", render=None):
     r = G.run_sequence(p, xml, seq, start=start, play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False, render=render)
-    trail = " | ".join(f"{L[0][:11]}:{L[1]:+.2f}/{L[2]:.2f}/{'+'.join(c.replace('_','')[:5] for c in L[3])}" for L in r['log'][2:])
-    print(f"{label:64s} {'STANDING' if r['ok'] else 'no      '} up {r['up']:+.2f} z {r['pelvis_z']:.3f}\n      {trail}", flush=True)
+    trail = " | ".join(f"{L[0][:11]}:{L[1]:+.2f}/{L[2]:.2f}/{'+'.join(c.replace('_','')[:5] for c in L[3])}" for L in r['log'][1:])
+    print(f"{label:64s} {'STANDING' if r['ok'] else 'no      '} up {r['up']:+.2f} front {r['front']:+.2f} z {r['pelvis_z']:.3f}\n      {trail}", flush=True)
     if r['ok']:
         hits.append(label)
     return r
@@ -67,22 +67,36 @@ def seat_push(app, s0, s1, t_push, a_push, elbow=None):
     -> tuck the feet under -> push the pelvis up while the shank leans
     forward -> rise. app = 'shoulder' | 'tail'; elbow = (e0, e1) for the
     2-DOF arm."""
-    fold = {app: 180 if app == "shoulder" else 60}
+    fold = {app: 180 if app == "shoulder" else 90}     # flat along the back: the robot lies FLAT
     behind = {app: s0}
     push = {app: s1}
     rest = {app: 60 if app == "shoulder" else -20}      # out of the way behind
     if elbow:
         fold["elbow"] = 0; behind["elbow"] = elbow[0]; push["elbow"] = elbow[1]; rest["elbow"] = 0
-    return [("lie", dict(**fold), 0.5, 0.8),
+    return [("lie", dict(**fold), 0.5, 1.5),
             ("sit up", dict(hip_pitch=-90, **fold), 1.5, 0.8),
             ("fold", dict(hip_pitch=-110, **fold), 1.0, 0.6),
             ("brace", dict(hip_pitch=-110, **behind), 1.0, 0.8),
             ("tuck", dict(hip_pitch=H, knee=K, ankle=0, **behind), 1.5, 0.8),
             ("push", dict(hip_pitch=H, knee=K, ankle=a_push, **push), t_push, 1.0),
-            ("rise 2", dict(hip_pitch=-80, knee=-70, ankle=-30, **push), 1.5, 1.0),
+            ("crouch hold", dict(hip_pitch=H, knee=K, ankle=a_push, **rest), 1.0, 2.0),      # appendage OFF the floor: feet only
+            ("rise 2", dict(hip_pitch=-80, knee=-70, ankle=-30, **rest), 1.5, 1.0),
             ("rise 3", dict(hip_pitch=-45, knee=-50, ankle=-25, **rest), 1.5, 1.0),
             ("stand", dict(hip_pitch=-20, knee=-40, ankle=-20, **rest), 1.5, 1.0),
             ("straight", dict(**rest), 1.0, 0.8)]
+
+
+def full_chain(app, abd=55.0):
+    """prone -> on the side -> on the back -> seat push -> stand (see mode 'chain')."""
+    fold = {app: 90 if app == "tail" else 180}          # flat along the back / up along the torso
+    roll = [("lie prone", dict(**fold), 0.5, 0.8),
+            ("R leg out (yaw 45, roll out)", dict(R_hip_yaw=45, R_hip_roll=-abd, R_hip_pitch=-100, R_knee=-130, R_ankle=0, **fold), 1.5, 0.8),
+            ("R push + L swing -> side", dict(R_hip_yaw=45, R_hip_roll=-abd, R_hip_pitch=-20, R_knee=-20, L_hip_roll=-45, L_hip_pitch=-60, L_knee=-90, **fold), 1.5, 1.2),
+            ("legs neutral", dict(**fold), 1.5, 1.0),
+            ("L presses, R up+back -> back", dict(R_hip_pitch=60, R_hip_roll=-30, L_hip_roll=30, **fold), 1.0, 2.0),
+            ("legs neutral (supine)", dict(**fold), 1.5, 1.5)]
+    seat = seat_push(app, -20 if app == "tail" else 70, -90 if app == "tail" else 0, 2.0, -40)
+    return roll + seat[1:]      # drop the seat sequence's own 'lie'
 
 
 def prone_roll(side, s_push, kick):
@@ -191,6 +205,48 @@ def main():
                        ("legs back", dict(L_shoulder=s_push, R_shoulder=180), 1.0, 1.0),
                        ("arms fold", dict(shoulder=180), 1.0, 1.0)]
                 run(f"{name:12s} R2: L arm -60->{s_push} R leg kick {kick} + swing", p, xml, seq, start="prone")
+    elif mode == "legroll":
+        print("== PRONE -> SUPINE by rolling with the LEGS (Tom): one leg out to the side, foot planted, extend to lever the body over; the other leg swung across. success = torso front_z > +0.7 (on the back) at the end")
+        for name, kw in (("bare", {}), ("tail_hip_20", CONFIGS["tail_hip_20"]), ("arms_hip_20", CONFIGS["arms_hip_20"])):
+            p = dataclasses.replace(BASE, **kw); xml = os.path.join(SP, f"gu_lr_{name}_{os.getpid()}.xml"); open(xml, "w").write(build_xml(p))
+            base_pose = dict(tail=0) if p.tail else (dict(shoulder=180) if p.arms else {})
+            n_ok = 0
+            for hp0, k0, k1, hp1, swing in itertools.product((-40, -70, -100), (-90, -130), (-30, 0), (-20, 0), (0, 30)):
+                seq = [("lie prone", dict(**base_pose), 0.5, 0.8),
+                       ("R leg out", dict(R_hip_roll=-45, R_hip_pitch=hp0, R_knee=k0, R_ankle=0, **base_pose), 1.5, 0.8),
+                       ("push + L swing", dict(R_hip_roll=-45, R_hip_pitch=hp1, R_knee=k1, L_hip_roll=-swing, L_hip_pitch=-40 if swing else 0, L_knee=-40 if swing else 0, **base_pose), 1.5, 1.0),
+                       ("legs back", dict(**base_pose), 1.5, 1.0)]
+                r = G.run_sequence(p, xml, seq, start="prone", play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False)
+                ok = r["front"] > 0.7
+                n_ok += ok
+                fr = " ".join(f"{L[0][:8]}:{L[6]:+.2f}" for L in r["log"][1:])
+                print(f"{name:12s} R hip {hp0:+4d} knee {k0:+5d} -> knee {k1:+4d} hip {hp1:+4d}, L swing {swing:2d}   {'ROLLED' if ok else 'no    '} front {r['front']:+.2f} up {r['up']:+.2f}  [{fr}]", flush=True)
+            print(f"-- {name}: {n_ok} rolled onto the back")
+    elif mode == "chain":
+        # the whole thing: PRONE -> roll to the side (R leg yawed out + pushing) -> onto the back (lower leg presses, upper leg
+        # swings back) -> sit up -> tail/arms brace -> tuck -> push -> crouch -> stand. Tom 2026-09-14: "roll one leg out and
+        # push over onto the back where we can get up".
+        print("== FULL CHAIN prone -> supine -> standing; hip roll abd/add as given; conditions nominal + adversarial")
+        for name, kw, abd in (("tail_hip_20", CONFIGS["tail_hip_20"], 55.0), ("tail_hip_20", CONFIGS["tail_hip_20"], 45.0),
+                              ("arms_hip_20", CONFIGS["arms_hip_20"], 55.0)):
+            p = dataclasses.replace(BASE, hip_roll_abd=abd, hip_roll_add=45.0, **kw)
+            xml = os.path.join(SP, f"gu_chain_{name}_{abd:.0f}_{os.getpid()}.xml"); open(xml, "w").write(build_xml(p))
+            seq = full_chain("tail" if p.tail else "shoulder", abd)
+            for c in (dict(play_deg=3.0, mu=0.7, servo_scale=1.0), dict(play_deg=5.0, mu=0.7, servo_scale=1.0), dict(play_deg=3.0, mu=0.3, servo_scale=1.0),
+                      dict(play_deg=3.0, mu=1.0, servo_scale=1.0), dict(play_deg=3.0, mu=0.7, servo_scale=0.8)):
+                r = G.run_sequence(p, xml, seq, start="prone", per_joint=G.PJ_DEFAULT, verbose=False, **c)
+                fr = " ".join(f"{L[0][:6]}:{L[6]:+.1f}/{L[1]:+.1f}" for L in r["log"][1:9])
+                worst = max(r["log"], key=lambda L: L[4])
+                print(f"{name:12s} abd {abd:.0f}  play {c['play_deg']:.0f} mu {c['mu']:.1f} servo {c['servo_scale']:.1f}  {'STANDING' if r['ok'] else 'no      '} up {r['up']:+.2f} z {r['pelvis_z']:.3f} |tau|max {worst[4]:.2f} ({worst[5]})  [{fr}]", flush=True)
+                if r["ok"]: hits.append(f"{name} abd {abd:.0f} {c}")
+    elif mode == "render_chain":
+        out = sys.argv[2]; abd = 55.0
+        p = dataclasses.replace(BASE, hip_roll_abd=abd, hip_roll_add=45.0, **CONFIGS["tail_hip_20"])
+        xml = os.path.join(SP, f"gu_chain_render_{os.getpid()}.xml"); open(xml, "w").write(build_xml(p))
+        r = G.run_sequence(p, xml, full_chain("tail", abd), start="prone", per_joint=G.PJ_DEFAULT, verbose=True, render=out,
+                           cam=(1.5, -18, 150), size=(540, 720), label_fn=lambda lab, t: f"tail_hip_20  prone -> standing   {lab}   t={t:4.1f}s")
+        print("STANDING" if r["ok"] else "not standing", out)
+        return
     elif mode == "render":
         # render <config> <variant s0,s1,t,ankle[,e0,e1]> <out.mp4> [side|rear] [seat|prone_pike|prone_roll]
         name, variant, out = sys.argv[2], sys.argv[3], sys.argv[4]
