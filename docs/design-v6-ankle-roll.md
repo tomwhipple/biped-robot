@@ -324,6 +324,35 @@ Both cuts live on the one leg-link print (thigh and shin stay the same part: the
 
 **And the get-up on the 130/125 body (`getup_search_flex130.txt`, 32 sequences, with and without the skid): 0 standing.** The failure is unchanged in kind. Seated on the skid with the feet tucked under (knee −130, hip −125) the shank is vertical and the feet are 8 cm ahead of the hips, but the hip joints are only ~4 cm off the floor, so the thighs point up 35° and the torso ends up *vertical over the hips* at full hip flexion — the CoM never reaches the feet, and every rise falls back (torso 0.88 → 0.70 → 0.40). From prone, every forward fold (child's pose → toes under → hips up, or kneel-sit → fold → push) lands the **head** on the floor first and the push becomes a pike between head and feet. So the deep ranges are real and worth having (they make the kneel-sit and the foot-beside-hip placements reachable), but they do not by themselves change the conclusion of §11.2: the seat height (hips 4 cm off the floor, torso 46 cm tall above them) and the leading head are the blockers, and the levers that remain are a seat below the hips, low arms, or a learned dynamic get-up.
 
+## 12. Get-up, round 2 (2026-09-14): a hip-level tail or hip-level arms stand it up
+
+Tom: *"Figure out what we need to do to make the get-up work. We have extra servos so we could add some proto-arms. Or maybe a kangaroo / t-rex like tail?"* Study script `sim/getup_v6_appendage.py` (plant options `arms`/`arm_z`/`arm_elbow`/`tail`/`tail_z` in `gen_plant_v6.py`); logs `docs/design-v6/getup_search_appendage_*.txt`, filmstrips `getup_tail_hip20_strip.png`, `getup_arms_hip20_strip.png`.
+
+**The mechanics.** §11.3 left the seated robot with the hips 4 cm off the floor, the torso vertical and the CoM 8 cm behind the feet. Anything that lifts the pelvis to ~10 cm *while the feet stay planted* lets the shank lean forward (ankle −40°), which at knee −130° / hip −125° puts the torso 55° forward and its CoM over the toes — from there the legs alone finish the rise. So the appendage only has to push the pelvis up from behind, once. Two things decide whether that works:
+
+1. **Where it pushes.** At the housing bottom (the yaw-axis height, 9 cm above the hip joints) the push tilts the torso back about the hips instead of lifting the pelvis: 0/24 for arms there, 0/12 for a tail there. At the **hip roll height** (6 cm lower, beside the hip roll servos / behind them on the centreline) the same push lifts the pelvis: arms 22/24, tail 21/24.
+2. **When it goes down.** The appendage must be folded along the torso during the sit-up (arms up along the body, tail tip toward the head) — hanging, it lies on the floor and jams the sit-up or flips the body over its head — and planted *before* the feet are tucked, so it braces the seated torso while the legs move.
+
+| configuration | servos | mass | seat push (variants standing) | robustness: play 5°, mu 0.3 / 1.0, servos 80 % / 65 % | peak appendage torque |
+|---|---|---|---|---|---|
+| tail 20 cm, root at hip height, centreline | 1 × STS3215 | ~95 g | 11/12 | **6/6** | 0.50 N·m (1.0 at 65 %) |
+| tail 25 cm | 1 | ~105 g | 12/12 | 5/6 (fails only at 65 % servos: 1.46 N·m) | 0.58 |
+| tail 15 cm | 1 | ~90 g | 0/12 (too short to lift the pelvis high enough) | — | — |
+| two arms 20 cm, 1 DOF pitch, roots at hip height on the housing sides | 2 × STS3215 | ~160 g | 10/12 | **6/6** | < 0.4 |
+| two arms 25 cm | 2 | ~170 g | 10/12 | 6/6 | 0.53 |
+| two arms 20 cm at the hip *pitch* height (3 cm lower still) | 2 | ~160 g | 12/12 | 6/6 | 0.50 |
+| two 2-DOF arms 12 + 12 cm (elbows) | 4 | ~280 g | 15/16 | 6/6 | 1.04 (hip pitch) |
+| arms 15 cm | 2 | | 0/12 | | |
+| anything at the housing-bottom height | | | 0/36 | | |
+
+Winning keyframes for the tail (sim signs: knee/hip flexion negative; tail 0 = straight back, + = tip up, −90 = straight down): lie (tail +60) → sit up (hip −90) → fold (hip −110) → **tail down behind onto the floor (−20)** → tuck (hip −125, knee −130, ankle 0) → **push: tail −20 → −90 over 2 s while the ankle goes to −40** → rise 2 (hip −80, knee −70, ankle −30) → rise 3 (−45/−50/−25) → stand (−20/−40/−20) → straight. Arms: the same with shoulder 180 (folded) → 70 (planted behind) → 0 (vertical) during the push.
+
+**Walking with it.** Gate D on the lumped-mass plant with the appendage hanging at rest (`gateD_appendages.txt`): every case 8/8; margins equal or better than the bare body (the mass hangs at hip height, which lowers the CoM), e.g. straight 13.0 → 27–30 mm, +15° turn 12.2 → 12.6–13.6 mm. The tail hanging straight down clears the floor by 10 cm on a 20 cm rod.
+
+**What is still not solved: prone.** From face-down, hip-level arms lift the *hips* (they push behind the torso's mass) into a head-down pike every time (`getup_search_appendage_prone*.txt`, 0/76 across push-up → kneel, kneel-tripod → bear → squat, and one-arm rolls with leg swings); a pitch-axis tail cannot reach the floor from prone at all (it exits the back, the floor is on the belly side). The one-arm roll pitches the body onto its head instead of rolling the flat-fronted box. Candidates, untested: (a) a forward fall that ends on the hands instead of the face — with hip arms swung forward the robot lands in a bear pose (hands + feet), from which the seated-push logic applies in reverse; (b) a torso whose front/side edges are rounded enough that a side push rolls it; (c) a learned dynamic roll. Backward and sideways falls end supine or on the side; supine is solved above and the side case is a leg swing away from supine (to be checked).
+
+**Recommendation.** The **tail** is the cheaper answer to the question asked: one spare STS3215, ~95 g, centred, no effect on the walk margins, and it doubles as the seat skid of §11.2 (sitting on the tail with the feet planted is the stable rest pose) and as a bumper for backward falls. Mount: root ~62 mm behind the yaw axis, 60 mm below it (behind the yaw carriers, under the housing's rear wall), 20 cm rod with a rubber tip, ±150° pitch. Arms cost a second servo and ~65 g more, are 12/12 at the hip-pitch height, and are the only one of the two with a path to the prone case (fall arrest / roll). Both need the same three CAD checks before drawing: the bracket on the pelvis, the sweep against the thighs at hip abduction 45°, and the head-first fold clearance. Prone recovery stays an open gate either way.
+
 ## Files
 
 - `sim/gen_plant_v6.py` — parametric MJCF (all dimensions, masses, ranges); writes `sim/bimo_biped_v6ar.xml`

@@ -35,7 +35,8 @@ J = {n: i for i, n in enumerate(JN)}
 PJ_DEFAULT = {j: "sts3250" for j in ROLLS + ("L_knee", "R_knee")}
 
 
-EXTRA = ["neck_yaw", "L_shoulder", "R_shoulder"]   # actuator order after the 12 leg joints
+EXTRA = ["neck_yaw", "L_shoulder", "R_shoulder"]   # actuator order after the 12 leg joints;
+# run_sequence overwrites this IN PLACE from the plant (neck, shoulders/elbows, tail)
 
 
 def q_from_offsets(off: dict) -> np.ndarray:
@@ -48,8 +49,10 @@ def q_from_offsets(off: dict) -> np.ndarray:
             q[J[k]] = math.radians(v)
         elif k in EXTRA:
             q[12 + EXTRA.index(k)] = math.radians(v)
-        elif k == "shoulder":
-            q[12 + 1] = q[12 + 2] = math.radians(v)
+        elif k == "tail" and "tail_pitch" in EXTRA:
+            q[12 + EXTRA.index("tail_pitch")] = math.radians(v)
+        elif f"L_{k}" in EXTRA:                     # 'shoulder', 'elbow' -> both arms
+            q[12 + EXTRA.index(f"L_{k}")] = q[12 + EXTRA.index(f"R_{k}")] = math.radians(v)
         else:
             for s in "LR":
                 q[J[f"{s}_{k}"]] = math.radians(v)
@@ -147,6 +150,7 @@ def run_sequence(p: DesignParams, xml_path, seq, start="supine", play_deg=3.0, p
                  render=None, verbose=True, servo_scale=1.0):
     env = make_env(p, xml_path, mu=mu, play_deg=play_deg)
     obs, _ = env.reset(seed=0)
+    EXTRA[:] = [env.model.actuator(i).name for i in range(12, env.model.nu)]
     kp, kd, stall, w0 = env._servo
     na = env._nq_act
     stall = np.full(na, stall) * servo_scale
@@ -198,8 +202,9 @@ def run_sequence(p: DesignParams, xml_path, seq, start="supine", play_deg=3.0, p
         q_prev = q_tgt
         up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
         pz = float(d.qpos[2])
-        tau = env._servo_tau[:12]
-        log.append((label, up, pz, contacts_summary(m, d), float(np.abs(tau).max()), JN[int(np.abs(tau).argmax())]))
+        tau = env._servo_tau
+        names = list(JN) + EXTRA
+        log.append((label, up, pz, contacts_summary(m, d), float(np.abs(tau).max()), names[int(np.abs(tau).argmax())]))
         if verbose:
             print(f"  {t:5.1f}s {label:38s} up_z {up:+.2f}  pelvis z {pz:.3f}  |tau|max {log[-1][4]:.2f} ({log[-1][5]})  contacts {log[-1][3]}")
     up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]

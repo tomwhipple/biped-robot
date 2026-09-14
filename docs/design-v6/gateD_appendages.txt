@@ -1,0 +1,25 @@
+== Gate D (lumped-mass plant, gen_plant_v6 defaults) with the get-up appendages hanging at rest, STS3250 rolls+knees, lift 4, 8 steps
+base                                 turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   22 mm  air>= 0.62 s  CoM margin>=  13.0 mm  slip  2.5 mm  tilt  5.7  x +19.9 y  -0.4 cm  hdg  -0.3  OK
+base                                 turn +15 mu 0.7 play 3 |    up       steps 8/8  clear>=   16 mm  air>= 0.54 s  CoM margin>=  12.2 mm  slip  2.1 mm  tilt  7.3  x +13.7 y +12.5 cm  hdg +93.5  OK
+base                                 turn  +0 mu 0.3 play 5 |    up       steps 8/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=  34.8 mm  slip  1.4 mm  tilt  3.3  x +20.0 y  -0.2 cm  hdg  +0.2  OK
+base                                 turn -15 mu 0.9 play 3 |    up       steps 8/8  clear>=   22 mm  air>= 0.64 s  CoM margin>=  16.1 mm  slip  2.8 mm  tilt  5.2  x +10.9 y -12.6 cm  hdg -94.5  OK
+arms_hip_20 (hanging)                turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   24 mm  air>= 0.70 s  CoM margin>=  27.4 mm  slip  1.8 mm  tilt  2.8  x +20.9 y  -0.5 cm  hdg  -0.0  OK
+arms_hip_20 (hanging)                turn +15 mu 0.7 play 3 |    up       steps 8/8  clear>=   20 mm  air>= 0.60 s  CoM margin>=  12.9 mm  slip  2.1 mm  tilt  6.4  x +13.9 y +12.6 cm  hdg +93.7  OK
+arms_hip_20 (hanging)                turn  +0 mu 0.3 play 5 |    up       steps 8/8  clear>=   22 mm  air>= 0.70 s  CoM margin>=  35.9 mm  slip  1.5 mm  tilt  3.2  x +20.4 y  -0.1 cm  hdg  +0.6  OK
+arms_hip_20 (hanging)                turn -15 mu 0.9 play 3 |    up       steps 8/8  clear>=   22 mm  air>= 0.66 s  CoM margin>=  19.4 mm  slip  2.3 mm  tilt  4.6  x +11.0 y -12.3 cm  hdg -94.8  OK
+tail_hip_20 straight back            turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   23 mm  air>= 0.68 s  CoM margin>=  27.7 mm  slip  1.7 mm  tilt  3.3  x +21.1 y  -0.4 cm  hdg  -0.1  OK
+tail_hip_20 straight back            turn +15 mu 0.7 play 3 |    up       steps 8/8  clear>=   20 mm  air>= 0.60 s  CoM margin>=  12.6 mm  slip  2.6 mm  tilt  6.5  x +14.4 y +13.3 cm  hdg +95.8  OK
+tail_hip_20 straight back            turn  +0 mu 0.3 play 5 |    up       steps 8/8  clear>=   21 mm  air>= 0.68 s  CoM margin>=  35.3 mm  slip  1.5 mm  tilt  3.3  x +20.1 y  -0.2 cm  hdg  +0.3  OK
+tail_hip_20 straight back            turn -15 mu 0.9 play 3 |    up       steps 8/8  clear>=   22 mm  air>= 0.66 s  CoM margin>=  25.1 mm  slip  1.9 mm  tilt  3.3  x +11.7 y -13.8 cm  hdg -97.0  OK
+tail_hip_20 hanging                  turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=  29.8 mm  slip  1.7 mm  tilt  2.9  x +20.7 y  -0.4 cm  hdg  +0.1  OK
+tail_hip_20 hanging                  turn +15 mu 0.7 play 3 |    up       steps 8/8  clear>=   20 mm  air>= 0.60 s  CoM margin>=  12.8 mm  slip  2.2 mm  tilt  6.7  x +14.1 y +12.4 cm  hdg +93.5  OK
+tail_hip_20 hanging                  turn  +0 mu 0.3 play 5 |    up       steps 8/8  clear>=   22 mm  air>= 0.70 s  CoM margin>=  35.6 mm  slip  1.5 mm  tilt  3.3  x +20.1 y  -0.1 cm  hdg  +0.6  OK
+tail_hip_20 hanging                  turn -15 mu 0.9 play 3 |    up       steps 8/8  clear>=   22 mm  air>= 0.68 s  CoM margin>=  23.1 mm  slip  2.1 mm  tilt  3.7  x +11.2 y -12.9 cm  hdg -95.3  OK
+tail_hip_25 hanging                  turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=  29.8 mm  slip  1.7 mm  tilt  2.9  x +20.7 y  -0.4 cm  hdg  +0.1  OK
+tail_hip_25 hanging                  turn +15 mu 0.7 play 3 |    up       steps 8/8  clear>=   20 mm  air>= 0.60 s  CoM margin>=  12.9 mm  slip  2.2 mm  tilt  6.7  x +14.1 y +12.4 cm  hdg +93.6  OK
+tail_hip_25 hanging                  turn  +0 mu 0.3 play 5 |    up       steps 8/8  clear>=   22 mm  air>= 0.70 s  CoM margin>=  35.8 mm  slip  1.5 mm  tilt  3.3  x +20.0 y  -0.1 cm  hdg  +0.6  OK
+tail_hip_25 hanging                  turn -15 mu 0.9 play 3 |    up       steps 8/8  clear>=   22 mm  air>= 0.68 s  CoM margin>=  24.2 mm  slip  2.1 mm  tilt  3.5  x +11.2 y -12.9 cm  hdg -95.2  OK
+arms_hip_20 + tail_hip_20 hanging    turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=  30.1 mm  slip  1.8 mm  tilt  3.3  x +21.0 y  -0.3 cm  hdg  -0.1  OK
+arms_hip_20 + tail_hip_20 hanging    turn +15 mu 0.7 play 3 |    up       steps 8/8  clear>=   21 mm  air>= 0.62 s  CoM margin>=  13.6 mm  slip  2.5 mm  tilt  6.0  x +14.2 y +12.5 cm  hdg +94.2  OK
+arms_hip_20 + tail_hip_20 hanging    turn  +0 mu 0.3 play 5 |    up       steps 8/8  clear>=   21 mm  air>= 0.68 s  CoM margin>=  34.8 mm  slip  1.6 mm  tilt  3.3  x +20.2 y  -0.1 cm  hdg  +0.5  OK
+arms_hip_20 + tail_hip_20 hanging    turn -15 mu 0.9 play 3 |    up       steps 8/8  clear>=   22 mm  air>= 0.66 s  CoM margin>=  26.9 mm  slip  2.0 mm  tilt  3.3  x +11.6 y -13.2 cm  hdg -96.0  OK

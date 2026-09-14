@@ -96,6 +96,16 @@ class DesignParams:
     arm_len: float = 0.20
     arm_mass: float = 0.020      # printed link + tip
     arm_shoulder_x: float = -0.02
+    arm_z: float | None = None   # mount height above the torso origin (yaw axis); None = deck top
+                                 # (shoulders, the 09-14 study); 0.0 = housing bottom / hip level
+    arm_elbow: bool = False      # 2-DOF arm: a second STS3215 at the elbow, forearm arm_fore_len
+    arm_fore_len: float = 0.12
+    tail: bool = False           # kangaroo tail: one STS3215 (pitch) at the housing rear, a rod
+    tail_len: float = 0.20       # with a rubber tip; 0 deg = straight back, + = tip up
+    tail_x: float = -0.062       # root x (behind the deck's aft edge -0.058)
+    tail_z: float = 0.0          # root height above the torso origin (yaw axis)
+    tail_mass: float = 0.030     # printed rod + tip
+    tail_rest: float = 0.0       # deg; the rod is MODELLED at this angle so joint 0 = rest (walk study: -90 = hanging)
     fall_collision: bool = True  # torso, head, links, feet collide with the FLOOR (contype 2),
                                  # so falls and get-ups are physical; soles stay the 8 pads
     ankle_servos_in_shank: bool = False   # study variant: parallel-linkage ankle --
@@ -327,17 +337,41 @@ def _arms(p: DesignParams) -> str:
     if not p.arms:
         return ""
     out = []
-    zs = p.deck_bot - 0.015
+    zs = p.deck_bot - 0.015 if p.arm_z is None else p.arm_z
     for side, sgn in (("L", 1), ("R", -1)):
         y = sgn * (p.deck_w / 2 + SV_T / 2 + 0.004)
+        hand = f'<geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>'
+        if p.arm_elbow:
+            hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}">
+          <joint name="{side}_elbow" axis="0 1 0" range="-150 150"/>
+          <geom class="servo" type="box" pos="0 {_f(-sgn*SV_T/2)} 0" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
+          <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_fore_len)}" size="0.006" mass="{p.arm_mass*0.6}" rgba="0.82 0.84 0.87 1"/>
+          <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_fore_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
+        </body>"""
         out.append(f"""
       <body name="{side}_arm" pos="{_f(p.arm_shoulder_x)} {_f(y)} {_f(zs)}">
-        <joint name="{side}_shoulder" axis="0 1 0" range="-180 90"/>
+        <joint name="{side}_shoulder" axis="0 1 0" range="-90 200"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
         <geom class="servo" type="box" pos="0 {_f(-sgn*SV_T/2)} 0" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
         <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_len)}" size="0.006" mass="{p.arm_mass}" rgba="0.82 0.84 0.87 1"/>
-        <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
+        {hand}
       </body>""")
     return "".join(out)
+
+
+def _tail(p: DesignParams) -> str:
+    """one STS3215, axis Y, case at the root on the housing rear; the rod points
+    straight back at 0 deg (-x), positive lifts the tip (-90 = straight down)."""
+    if not p.tail:
+        return ""
+    tx = -p.tail_len * math.cos(math.radians(p.tail_rest))
+    tz = p.tail_len * math.sin(math.radians(p.tail_rest))
+    return f"""
+      <body name="tail" pos="{_f(p.tail_x)} 0 {_f(p.tail_z)}">
+        <joint name="tail_pitch" axis="0 1 0" range="-150 60"/>
+        <geom class="servo" type="box" pos="{_f(SV_LEN/2 - SV_AX_OUT)} 0 0" size="{_f(SV_LEN/2)} {_f(SV_T/2)} {_f(SV_WID/2)}" mass="{p.m_neck_servo}"/>
+        <geom {_fc(p)}type="capsule" fromto="0 0 0 {_f(tx)} 0 {_f(tz)}" size="0.007" mass="{p.tail_mass}" rgba="0.82 0.84 0.87 1"/>
+        <geom {_fc(p)}type="sphere" pos="{_f(tx)} 0 {_f(tz)}" size="0.014" mass="0.010" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
+      </body>"""
 
 
 def _head(p: DesignParams) -> str:
@@ -378,9 +412,13 @@ def build_xml(p: DesignParams) -> str:
                         f'ctrlrange="{r(lo):.10f} {r(hi):.10f}"/>  <!-- {lo:.0f} .. {hi:.0f} -->')
     if p.torso_v7:
         acts.append(f'    <position name="neck_yaw" joint="neck_yaw" ctrlrange="{r(-90):.10f} {r(90):.10f}"/>  <!-- head yaw -->')
-    if p.arms:
+    if p.arms:   # actuator order == joint (qpos) order: per arm shoulder then elbow, then the tail
         for side in ("L", "R"):
-            acts.append(f'    <position name="{side}_shoulder" joint="{side}_shoulder" ctrlrange="{r(-180):.10f} {r(90):.10f}"/>')
+            acts.append(f'    <position name="{side}_shoulder" joint="{side}_shoulder" ctrlrange="{r(-90):.10f} {r(200):.10f}"/>')
+            if p.arm_elbow:
+                acts.append(f'    <position name="{side}_elbow" joint="{side}_elbow" ctrlrange="{r(-150):.10f} {r(150):.10f}"/>')
+    if p.tail:
+        acts.append(f'    <position name="tail_pitch" joint="tail_pitch" ctrlrange="{r(-150):.10f} {r(60):.10f}"/>')
     acts_s = "\n".join(acts)
     pairs = []
     segs = ("col_thigh", "col_shank", "col_ankle", "col_foot")
@@ -439,7 +477,7 @@ def build_xml(p: DesignParams) -> str:
       <freejoint/>
 {_torso(p)}
 {_leg(p, "L")}
-{_leg(p, "R")}{_head(p)}{_arms(p)}
+{_leg(p, "R")}{_head(p)}{_arms(p)}{_tail(p)}
     </body>
   </worldbody>
 
