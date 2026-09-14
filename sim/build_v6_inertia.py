@@ -132,7 +132,7 @@ def bodies(p: DesignParams):
         out[f"{side}_hip_yaw"] = hy
         hp = []   # hip body: yokes
         hp.append(mesh_props(os.path.join(STL_V5, "yoke_roll.stl"), [0, 0, 0]))
-        hp.append(mesh_props(os.path.join(STL_V5, "yoke_pitch.stl"), [0, 0, -V.ROLL_TO_PITCH]))
+        hp.append(mesh_props(os.path.join(STL, "yoke_pitch_v6.stl"), [0, 0, -V.ROLL_TO_PITCH]))   # v6 clevis (flange chamfer)
         out[f"{side}_hip"] = hp
         for body, servo_m in ((f"{side}_thigh", m3215), (f"{side}_shin", m3250)):
             b = []

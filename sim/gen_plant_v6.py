@@ -74,8 +74,8 @@ class DesignParams:
     yaw_range: float = 45.0
     hip_roll_add: float = 30.0   # adduction (toward the other leg)
     hip_roll_abd: float = 45.0   # abduction
-    hip_pitch_range: tuple = (-110.0, 90.0)
-    knee_flex: float = 95.0      # flexion travel (either direction)
+    hip_pitch_range: tuple = (-125.0, 90.0)   # -110 -> -125: yoke_pitch_v6 flange chamfer (cad/v6, 2026-09-14)
+    knee_flex: float = 130.0     # flexion travel (either direction); 95 -> 130 with the leg-link relief cuts (cad/v6, 2026-09-14)
     knee_hyper: float = 5.0      # hyperextension cap (modelling cap, v5)
     ankle_range: float = 45.0    # ankle pitch +/-
     ankle_roll_range: float = 25.0   # the roll servo case sweep under the ankle link (cad/v6/dimensions_v6.py)

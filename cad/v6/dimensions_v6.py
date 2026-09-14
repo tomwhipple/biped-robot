@@ -73,6 +73,10 @@ DECK_BOT_Z = HIP_ROLL_Z + D.ROLL_BELOW_DECK_YAW                      # v5 stack.
 # ...plus the v7 torso's battery layer (see TORSO) -- DECK_BOT_Z is redefined below.
 
 # joint ranges (PHYSICAL rotations, one leg; the interference sweeps probe
+# SIGN NOTE: the assembly rotates every pitch joint about +Y, so a POSITIVE
+# knee here is human flexion (shin swings back) while the sim's knee axis is
+# -Y and flexion is NEGATIVE there (gen_plant_v6: knee_flex). Hip pitch has
+# the same sign in both (negative = thigh forward).
 # both extremes with D.SWEEP_BUFFER of air). Hip yaw/roll/pitch and knee are
 # v5's measured ROM; the ankle pitch stays +-40 (the shin fork vs the ankle
 # link's grip plates is the same pair as the knee); ankle roll +-25 is what
@@ -81,8 +85,8 @@ DECK_BOT_Z = HIP_ROLL_Z + D.ROLL_BELOW_DECK_YAW                      # v5 stack.
 ROM = {
     "hip_yaw": (-45.0, 45.0),
     "hip_roll": (-55.0, 55.0),
-    "hip_pitch": (-110.0, 90.0),
-    "knee": (-95.0, 95.0),
+    "hip_pitch": (-125.0, 90.0),   # was -110: yoke_pitch_v6 flange chamfer (YOKE_FLEX_CHAMFER)
+    "knee": (-95.0, 130.0),        # + = flexion (see the sign note); 95 -> 130 with LL_FLEX_CUT + LL_FOLD_CHAMFER; hard limit ~132
     "ankle_pitch": (-40.0, 40.0),
     "ankle_roll": (-25.0, 25.0),
     "neck": (-90.0, 90.0),
@@ -201,6 +205,33 @@ LL_EDGE_R = 5.0
 LL_WEB_END = -(LL_DROP - 32.0)                # v5's WEB_END rule: 32 above the lower axis
 LL_CABLE_WINDOW_Z = (-48.0, -37.0)            # v5 (upper-anchored: the lead leaves the case bottom)
 LL_BRACE_Z = (LL_BOX_BOT - 4.0, LL_BOX_BOT)   # gable brace at the box bottom
+# DEEP-FLEXION relief (2026-09-14, Tom: "we could probably bend the existing
+# knees further ... with slight modifications of the leg links"): the knee is
+# clear to 105 deg as drawn; from 110 to 130 the only contact is the SHIN's
+# rear-top corner in the idler tine band (web top + the idler grip plate's
+# outer skin, 16-33 mm below the knee axis) sweeping into the THIGH's idler
+# tine 8-32 mm above the axis. A triangular wedge off that corner (height
+# below WEB_TOP, run forward from the web outer face; the idler band only)
+# clears it; ~132 deg is the hard limit where the shin's web and the knee
+# servo case meet the thigh's web end full-width. Same part serves the thigh,
+# where the identical corner faces the pitch yoke at hip extension (+90,
+# already 0.7 mm clear -- removing material only helps).
+LL_FLEX_CUT = (20.0, 24.0)                    # (height below WEB_TOP, run from the web face), mm
+# hip flexion: the thigh's grip plates' front edge sweeps the pitch yoke's
+# flange front-bottom corner (x 16, z 26 above the axis) at 123 deg; the
+# plate cannot be relieved (the lower grip screw's countersink sits exactly
+# there), so the FLANGE corner gets a 45 deg chamfer instead (yoke_pitch_v6).
+# 4 mm leaves the M3 heat-set bores (x +-10, r 2.05) untouched and moves the
+# limit to ~127 deg; a bigger one runs into the bores, so the hip ROM is 125.
+YOKE_FLEX_CHAMFER = 4.0
+# The fold limit after LL_FLEX_CUT is 131 deg: the two links' REAR faces
+# meet -- the shin's jog-block rear-top corner (x web_x0, z -33, r 36.6
+# about the knee) lands on the thigh's rear face 33 mm above the knee (the
+# web-end corner in the idler band; the horn slab's face in the horn band).
+# Two 45 deg corner chamfers buy the last 2 deg + buffer: the web end's
+# outer-bottom corner (idler band) and the jog block's rear-top corner (horn
+# band only, y > the web's upper limit so the web is not notched).
+LL_FOLD_CHAMFER = 3.0
 # anchor classification for anyone porting v5's constants: UPPER-anchored
 # (unchanged): GRIP_*, jog -36.5..-33, cable window, rib/platform detents.
 # LOWER-anchored (shift by LL_DROP - 90 = +20 down): -92 -> -112, -70 -> -90,

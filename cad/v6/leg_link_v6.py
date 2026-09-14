@@ -204,6 +204,28 @@ def leg_link_v6(print_fins=False):
     # already had at -95 (SWEEP_BUFFER only requires 0.5).
     p -= parts.wedge_y([(web_x0 - 1, SLAB_MID_TOP + 1), (web_x0 - 1, SLAB_MID_TOP - 17),
                         (web_x0 + 4.5, SLAB_MID_TOP + 1)], iy0 - 1, iy1 + 1)
+    # DEEP-FLEXION RELIEF (V.LL_FLEX_CUT, see dimensions_v6): triangular wedge
+    # off the rear-top corner in the idler tine band only (y iy0..iy1, plus
+    # the 0.6 mm the thigh's idler-boss taper protrudes past the tine face),
+    # from WEB_TOP down LL_FLEX_CUT[0] on the web's outer face and forward
+    # LL_FLEX_CUT[1] along the top edge. Sized so knee flexion clears to 130
+    # deg (cad/v6/check_assembly_v6.py) with the lower idler grip screw's
+    # countersink (CASE_HOLES_BOT, x -10.25, z -32.75) outside the wedge.
+    # NOTE on signs: assembly +knee = human flexion (shin swings BACK); the
+    # sim's knee axis is -Y so that is sim -130. The "+95 (hyperextension)"
+    # label on the wedge above is the same corner in the same direction.
+    _fh, _fw = V.LL_FLEX_CUT
+    p -= parts.wedge_y([(web_x0 - 1, D.WEB_TOP + 1), (web_x0 - 1, D.WEB_TOP + 1 - _fh),
+                        (web_x0 - 1 + _fw, D.WEB_TOP + 1)], iy0 - 1, iy1 + 0.6)
+    # FOLD CHAMFERS (V.LL_FOLD_CHAMFER): the last 2 deg to 130 -- the web
+    # end's outer-bottom corner (idler band) and the jog block's rear-top
+    # corner (horn tine band only, above the web's y limit _web_y1).
+    _c = V.LL_FOLD_CHAMFER
+    # (y range runs past the idler band into the arched web's ramp start --
+    # the shin's rear face touches the web end out to y ~ -16 at 131 deg)
+    p -= parts.wedge_y([(web_x0 - 1, V.LL_WEB_END - 1), (web_x0 - 1, V.LL_WEB_END + _c),
+                        (web_x0 + _c, V.LL_WEB_END - 1)], iy0 - 1, iy1 + 4.5)
+    # (the jog-block corner chamfer is applied AFTER the jog blocks, below)
     # idler boss: OD tapered (45 deg run==rise) so the print-underside band
     # never exceeds 45 deg. Unchanged formula -- moves with `drop` for free.
     _ibh = abs(D.IDLER_BOSS_H)
@@ -213,6 +235,10 @@ def leg_link_v6(print_fins=False):
     # --- jog blocks (BYTE IDENTICAL, upper-anchored)
     p += parts.box(web_x0, 12, D.SV_TOPFACE, hy1, -36.5, -33)
     p += parts.box(web_x0, 12, iy0, idler_seat, -36.5, -33)
+    # FOLD CHAMFER 2 (V.LL_FOLD_CHAMFER, see above): the horn-side jog block's
+    # rear-top corner, horn tine band only (must come after the block is added)
+    p -= parts.wedge_y([(web_x0 - 1, -33 + 1), (web_x0 - 1, -33 - _c),
+                        (web_x0 + _c, -33 + 1)], _web_y1 + 0.05, hy1 + 1)
 
     # --- DETENT for the servo's horn-side RIB (BYTE IDENTICAL to v5).
     p -= parts.box(-D.SV_HORN_RIB_HW - D.RIB_RELIEF_CLR, D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR,

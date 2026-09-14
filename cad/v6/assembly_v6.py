@@ -61,6 +61,16 @@ def _try(modname, fn, *a, **k):
         return None, False
 
 
+def part_yoke_pitch():
+    """v6 clevis (flange chamfer for hip flexion 125); falls back to v5's."""
+    try:
+        import yoke_pitch_v6
+        return yoke_pitch_v6.yoke_pitch_v6()
+    except Exception as e:  # noqa: BLE001
+        print(f"  [assembly_v6] yoke_pitch_v6 unavailable ({type(e).__name__}: {e}); v5 yoke_pitch")
+        return v5parts.yoke_pitch()
+
+
 def part_leg_link():
     s, ok = _try("leg_link_v6", "leg_link_v6")
     if ok:
@@ -167,7 +177,7 @@ def _leg_chain(side):
         (1, f"yaw_carrier_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * v5parts.yaw_carrier()),
         (1, f"servo_hip_roll_{side}", COL_SERVO, at(V.HIP_ROLL_Z) * CA.servo_mock_x()),
         (2, f"yoke_roll_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * v5parts.yoke_roll()),
-        (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * v5parts.yoke_pitch()),
+        (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch()),
         (3, f"servo_hip_pitch_{side}", COL_SERVO, at(V.HIP_PITCH_Z) * CA.servo_mock_y()),
         (3, f"thigh_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_leg_link()),
         (4, f"servo_knee_{side}", COL_SERVO, at(V.KNEE_Z) * CA.servo_mock_y()),

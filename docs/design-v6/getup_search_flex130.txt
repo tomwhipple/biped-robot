@@ -1,0 +1,70 @@
+== deep-flexion body: knee 130, hip 125 (STS3250 rolls+knees, play 3, mu 0.7); standing pelvis z 0.387
+== A. supine + skid (x -90..-20, bottom -95): sit up -> fold -> tuck both feet under -> heels in -> rock + push -> rise
+A skid tuck-ankle +40 heels -40 rock 0.4s knee1 -110       no       up +0.03 z 0.092
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.76/0.13/Lfoot+torso | tuck R:+0.76/0.13/Lfoot+Rfoot+torso | heels in:+0.76/0.13/Lfoot+Rfoot+torso | rock + push:+0.88/0.13/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.03/0.09/torso
+A skid tuck-ankle +40 heels -40 rock 0.4s knee1 -90        no       up +0.02 z 0.092
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.76/0.13/Lfoot+torso | tuck R:+0.76/0.13/Lfoot+Rfoot+torso | heels in:+0.76/0.13/Lfoot+Rfoot+torso | rock + push:+0.95/0.12/Lfoot+Rfoot+torso | rise 2:+0.71/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.02/0.09/torso
+A skid tuck-ankle +40 heels -40 rock 1.5s knee1 -110       no       up +0.03 z 0.092
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.76/0.13/Lfoot+torso | tuck R:+0.76/0.13/Lfoot+Rfoot+torso | heels in:+0.76/0.13/Lfoot+Rfoot+torso | rock + push:+0.88/0.13/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.03/0.09/torso
+A skid tuck-ankle +40 heels -40 rock 1.5s knee1 -90        no       up +0.04 z 0.094
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.76/0.13/Lfoot+torso | tuck R:+0.76/0.13/Lfoot+Rfoot+torso | heels in:+0.76/0.13/Lfoot+Rfoot+torso | rock + push:+0.95/0.12/Lfoot+Rfoot+torso | rise 2:+0.71/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.04/0.09/Lfoot+Rfoot+torso
+A skid tuck-ankle +40 heels -20 rock 0.4s knee1 -110       no       up +0.04 z 0.094
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.76/0.13/Lfoot+torso | tuck R:+0.76/0.13/Lfoot+Rfoot+torso | heels in:+0.71/0.13/Lfoot+Rfoot+torso | rock + push:+0.83/0.13/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.04/0.09/Lfoot+Rfoot+torso
+A skid tuck-ankle +40 heels -20 rock 0.4s knee1 -90        no       up +0.04 z 0.094
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.76/0.13/Lfoot+torso | tuck R:+0.76/0.13/Lfoot+Rfoot+torso | heels in:+0.71/0.13/Lfoot+Rfoot+torso | rock + push:+0.92/0.12/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.04/0.09/Lfoot+Rfoot+torso
+A skid tuck-ankle +40 heels -20 rock 1.5s knee1 -110       no       up +0.04 z 0.094
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.76/0.13/Lfoot+torso | tuck R:+0.76/0.13/Lfoot+Rfoot+torso | heels in:+0.71/0.13/Lfoot+Rfoot+torso | rock + push:+0.83/0.13/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.04/0.09/Lfoot+Rfoot+torso
+A skid tuck-ankle +40 heels -20 rock 1.5s knee1 -90        no       up +0.04 z 0.094
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.76/0.13/Lfoot+torso | tuck R:+0.76/0.13/Lfoot+Rfoot+torso | heels in:+0.71/0.13/Lfoot+Rfoot+torso | rock + push:+0.92/0.12/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.04/0.09/Lfoot+Rfoot+torso
+A skid tuck-ankle +0 heels -40 rock 0.4s knee1 -110        no       up +0.03 z 0.093
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.69/0.13/Lfoot+torso | tuck R:+0.69/0.13/Lfoot+Rfoot+torso | heels in:+0.76/0.13/Lfoot+Rfoot+torso | rock + push:+0.88/0.13/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.03/0.09/torso
+A skid tuck-ankle +0 heels -40 rock 0.4s knee1 -90         no       up +0.04 z 0.094
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.69/0.13/Lfoot+torso | tuck R:+0.69/0.13/Lfoot+Rfoot+torso | heels in:+0.76/0.13/Lfoot+Rfoot+torso | rock + push:+0.95/0.12/Lfoot+Rfoot+torso | rise 2:+0.71/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.04/0.09/Lfoot+Rfoot+torso
+A skid tuck-ankle +0 heels -40 rock 1.5s knee1 -110        no       up +0.02 z 0.092
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.69/0.13/Lfoot+torso | tuck R:+0.69/0.13/Lfoot+Rfoot+torso | heels in:+0.76/0.13/Lfoot+Rfoot+torso | rock + push:+0.88/0.13/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.02/0.09/torso
+A skid tuck-ankle +0 heels -40 rock 1.5s knee1 -90         no       up +0.04 z 0.094
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.69/0.13/Lfoot+torso | tuck R:+0.69/0.13/Lfoot+Rfoot+torso | heels in:+0.76/0.13/Lfoot+Rfoot+torso | rock + push:+0.95/0.12/Lfoot+Rfoot+torso | rise 2:+0.71/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.04/0.09/Lfoot+Rfoot+torso
+A skid tuck-ankle +0 heels -20 rock 0.4s knee1 -110        no       up +0.04 z 0.093
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.69/0.13/Lfoot+torso | tuck R:+0.69/0.13/Lfoot+Rfoot+torso | heels in:+0.71/0.13/Lfoot+Rfoot+torso | rock + push:+0.83/0.13/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.04/0.09/torso
+A skid tuck-ankle +0 heels -20 rock 0.4s knee1 -90         no       up +0.04 z 0.094
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.69/0.13/Lfoot+torso | tuck R:+0.69/0.13/Lfoot+Rfoot+torso | heels in:+0.71/0.13/Lfoot+Rfoot+torso | rock + push:+0.92/0.12/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.04/0.09/Lfoot+Rfoot+torso
+A skid tuck-ankle +0 heels -20 rock 1.5s knee1 -110        no       up +0.03 z 0.093
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.69/0.13/Lfoot+torso | tuck R:+0.69/0.13/Lfoot+Rfoot+torso | heels in:+0.71/0.13/Lfoot+Rfoot+torso | rock + push:+0.83/0.13/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.03/0.09/torso
+A skid tuck-ankle +0 heels -20 rock 1.5s knee1 -90         no       up +0.03 z 0.093
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.69/0.13/Lfoot+torso | tuck R:+0.69/0.13/Lfoot+Rfoot+torso | heels in:+0.71/0.13/Lfoot+Rfoot+torso | rock + push:+0.92/0.12/Lfoot+Rfoot+torso | rise 2:+0.70/0.13/Lfoot+Rfoot+torso | rise 3:+0.40/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso | straight:+0.03/0.09/torso
+== B. same, NO skid
+B noskid heels -40 rock 0.4s knee1 -110                    no       up +0.03 z 0.056
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.33/0.05/Lfoot+torso | tuck R:+0.33/0.05/Lfoot+Rfoot+torso | heels in:+0.40/0.05/Lthig+Rthig+torso | rock + push:+0.40/0.05/Lthig+Rthig+torso | rise 2:+0.37/0.05/Lthig+Rthig+torso | rise 3:+0.26/0.05/Lfoot+Rfoot+torso | stand:+0.03/0.06/Lfoot+Rfoot+torso | straight:+0.03/0.06/Lfoot+Rfoot+torso
+B noskid heels -40 rock 0.4s knee1 -90                     no       up +0.03 z 0.056
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.33/0.05/Lfoot+torso | tuck R:+0.33/0.05/Lfoot+Rfoot+torso | heels in:+0.40/0.05/Lthig+Rthig+torso | rock + push:+0.40/0.05/Lthig+Rthig+torso | rise 2:+0.37/0.05/Lthig+Rthig+torso | rise 3:+0.26/0.05/Lfoot+Rfoot+torso | stand:+0.03/0.06/Lfoot+Rfoot+torso | straight:+0.03/0.06/Lfoot+Rfoot+torso
+B noskid heels -40 rock 1.5s knee1 -110                    no       up +0.03 z 0.056
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.33/0.05/Lfoot+torso | tuck R:+0.33/0.05/Lfoot+Rfoot+torso | heels in:+0.40/0.05/Lthig+Rthig+torso | rock + push:+0.40/0.05/Lthig+Rthig+torso | rise 2:+0.37/0.05/Lthig+Rthig+torso | rise 3:+0.26/0.05/Lfoot+Rfoot+torso | stand:+0.03/0.06/Lfoot+Rfoot+torso | straight:+0.03/0.06/Lfoot+Rfoot+torso
+B noskid heels -40 rock 1.5s knee1 -90                     no       up +0.03 z 0.056
+      fold:+0.97/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.33/0.05/Lfoot+torso | tuck R:+0.33/0.05/Lfoot+Rfoot+torso | heels in:+0.40/0.05/Lthig+Rthig+torso | rock + push:+0.40/0.05/Lthig+Rthig+torso | rise 2:+0.37/0.05/Lthig+Rthig+torso | rise 3:+0.26/0.05/Lfoot+Rfoot+torso | stand:+0.03/0.06/Lfoot+Rfoot+torso | straight:+0.03/0.06/Lfoot+Rfoot+torso
+== C. prone: child's pose -> toes under -> push the hips up (crouch) -> hinge up
+C prone hips-up hip -125 knee -90 ankle -40                no       up -0.03 z 0.054
+      toes under:-0.41/0.10/Lfoot+Rfoot+head | hips up:-0.66/0.14/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+C prone hips-up hip -125 knee -90 ankle -20                no       up -0.03 z 0.054
+      toes under:-0.41/0.10/Lfoot+Rfoot+head | hips up:-0.63/0.13/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+C prone hips-up hip -125 knee -70 ankle -40                no       up -0.03 z 0.054
+      toes under:-0.41/0.10/Lfoot+Rfoot+head | hips up:-0.76/0.15/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+C prone hips-up hip -125 knee -70 ankle -20                no       up -0.03 z 0.054
+      toes under:-0.41/0.10/Lfoot+Rfoot+head | hips up:-0.74/0.15/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+C prone hips-up hip -100 knee -90 ankle -40                no       up -0.03 z 0.054
+      toes under:-0.41/0.10/Lfoot+Rfoot+head | hips up:-0.50/0.11/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+C prone hips-up hip -100 knee -90 ankle -20                no       up -0.03 z 0.054
+      toes under:-0.41/0.10/Lfoot+Rfoot+head | hips up:-0.45/0.10/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+C prone hips-up hip -100 knee -70 ankle -40                no       up -0.03 z 0.054
+      toes under:-0.41/0.10/Lfoot+Rfoot+head | hips up:-0.60/0.13/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+C prone hips-up hip -100 knee -70 ankle -20                no       up -0.03 z 0.054
+      toes under:-0.41/0.10/Lfoot+Rfoot+head | hips up:-0.58/0.12/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+== D. prone: child's pose -> kneel-sit -> toes under -> fold forward -> push up
+D prone kneel-sit->toes under->push knee -100 ankle -40    no       up -0.03 z 0.054
+      kneel-sit:-0.22/0.07/Lshin+Rshin+head | toes under:-0.22/0.07/Lshin+Rshin+head | fold forwar:-0.41/0.10/Lfoot+Rfoot+head | push up:-0.44/0.10/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+D prone kneel-sit->toes under->push knee -100 ankle -25    no       up -0.03 z 0.054
+      kneel-sit:-0.22/0.07/Lshin+Rshin+head | toes under:-0.22/0.07/Lshin+Rshin+head | fold forwar:-0.41/0.10/Lfoot+Rfoot+head | push up:-0.39/0.10/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+D prone kneel-sit->toes under->push knee -80 ankle -40     no       up -0.03 z 0.054
+      kneel-sit:-0.22/0.07/Lshin+Rshin+head | toes under:-0.22/0.07/Lshin+Rshin+head | fold forwar:-0.41/0.10/Lfoot+Rfoot+head | push up:-0.55/0.12/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+D prone kneel-sit->toes under->push knee -80 ankle -25     no       up -0.03 z 0.054
+      kneel-sit:-0.22/0.07/Lshin+Rshin+head | toes under:-0.22/0.07/Lshin+Rshin+head | fold forwar:-0.41/0.10/Lfoot+Rfoot+head | push up:-0.53/0.12/Lfoot+Rfoot+head | hinge up:-0.31/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+standing: []

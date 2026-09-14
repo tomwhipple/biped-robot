@@ -39,7 +39,7 @@ PARTS = [
     ("neck_collar", _lazy("neck_collar", "neck_collar"), 1, "collar round the neck servo, flange-down"),
     ("yaw_carrier", v5.yaw_carrier, 2, "v5 part, unchanged"),
     ("yoke_roll", v5.yoke_roll, 2, "v5 part, unchanged (slicer supports)"),
-    ("yoke_pitch", v5.yoke_pitch, 2, "v5 part, unchanged (slicer supports)"),
+    ("yoke_pitch_v6", _lazy("yoke_pitch_v6", "yoke_pitch_v6"), 2, "v5 clevis + flange chamfer for hip flexion 125 (slicer supports)"),
     ("leg_link_v6", _lazy("leg_link_v6", "leg_link_v6"), 4, "thigh + shin, 110 mm, box section"),
     ("ankle_link", _lazy("ankle_link", "ankle_link"), 2, "pitch grip + X fork onto the roll servo"),
     ("foot_L", _lazy("foot_v6", "foot", "L"), 1, "asymmetric sole, mirrored pair"),

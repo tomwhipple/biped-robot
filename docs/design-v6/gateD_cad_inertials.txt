@@ -1,5 +1,16 @@
-== final walk on the CAD-inertial plant (sim/bimo_biped_v6ar.xml, 1.773 kg incl. neck_collar), STS3250 rolls+knees, lift 4, play 3
-turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   18 mm  air>= 0.54 s  CoM margin>=  10.7 mm  slip  4.0 mm  tilt  7.6  x +19.0 y  -0.4 cm  hdg  -0.7  OK
-turn +15 mu 0.7 play 3 |    up       steps 8/8  clear>=   15 mm  air>= 0.52 s  CoM margin>=  10.9 mm  slip  6.3 mm  tilt  8.7  x +13.3 y +11.9 cm  hdg +86.9  OK
-turn  +0 mu 0.3 play 5 |    up       steps 8/8  clear>=   13 mm  air>= 0.46 s  CoM margin>=   6.9 mm  slip  8.4 mm  tilt  9.9  x +17.0 y  -0.0 cm  hdg  -0.2  FAIL
-turn -15 mu 1.0 play 3 |    up       steps 8/8  clear>=   13 mm  air>= 0.50 s  CoM margin>=  10.4 mm  slip 12.6 mm  tilt 10.1  x  +9.7 y -10.6 cm  hdg -86.5  FAIL
+== final walk on the CAD-inertial plant (sim/bimo_biped_v6ar.xml, 1.771 kg, knee 130 / hip 125 ranges after the deep-flexion relief), STS3250 rolls+knees, lift 4, play 3
+turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   18 mm  air>= 0.54 s  CoM margin>=  10.6 mm  slip  4.0 mm  tilt  7.6  x +18.9 y  -0.4 cm  hdg  -0.8  OK
+turn +15 mu 0.7 play 3 |    up       steps 8/8  clear>=   15 mm  air>= 0.54 s  CoM margin>=  10.9 mm  slip  6.2 mm  tilt  8.7  x +13.3 y +11.8 cm  hdg +87.1  OK
+turn  +0 mu 0.3 play 5 |    up       steps 8/8  clear>=   13 mm  air>= 0.46 s  CoM margin>=   6.9 mm  slip  8.1 mm  tilt  9.8  x +16.9 y  -0.0 cm  hdg  -0.4  FAIL
+turn -15 mu 1.0 play 3 |  FELL@13.4s steps 2/8  clear>=   13 mm  air>= 0.54 s  CoM margin>=  10.4 mm  slip 12.3 mm  tilt 55.5  x  +1.1 y -35.5 cm  hdg -12.5  FAIL
+
+== sensitivity of the sticky-foot turn-in (turn -15) to friction, new plant vs the previous commit's plant (0.35 g lighter links, 0.2 g lighter yokes):
+bimo_biped_v6ar.xml    turn -15 mu 0.8 play 3 |    up       steps 8/8  clear>=   13 mm  air>= 0.52 s  CoM margin>=  10.3 mm  slip  9.7 mm  tilt  9.2  x +10.4 y -11.2 cm  hdg -86.8  FAIL
+bimo_biped_v6ar.xml    turn -15 mu 0.9 play 3 |    up       steps 8/8  clear>=   13 mm  air>= 0.50 s  CoM margin>=  10.4 mm  slip 11.3 mm  tilt  9.7  x +10.1 y -10.9 cm  hdg -86.2  FAIL
+bimo_biped_v6ar.xml    turn +15 mu 1.0 play 3 |    up       steps 8/8  clear>=   14 mm  air>= 0.52 s  CoM margin>=  11.0 mm  slip  9.8 mm  tilt  9.9  x +11.8 y +10.4 cm  hdg +88.0  FAIL
+bimo_biped_v6ar.xml    turn -15 mu 1.2 play 3 |  FELL@12.1s steps 2/8  clear>=   15 mm  air>= 0.52 s  CoM margin>=  10.4 mm  slip 14.3 mm  tilt 54.2  x  -3.0 y -36.8 cm  hdg -10.7  FAIL
+plant_head.xml               turn  +0 mu 0.7 play 3 |    up       steps 8/8  clear>=   18 mm  air>= 0.54 s  CoM margin>=  10.7 mm  slip  4.0 mm  tilt  7.6  x +19.0 y  -0.4 cm  hdg  -0.7  OK
+plant_head.xml         turn -15 mu 0.9 play 3 |    up       steps 8/8  clear>=   13 mm  air>= 0.50 s  CoM margin>=  10.4 mm  slip 11.5 mm  tilt  9.7  x +10.0 y -10.8 cm  hdg -86.2  FAIL
+plant_head.xml               turn -15 mu 1.0 play 3 |    up       steps 8/8  clear>=   13 mm  air>= 0.50 s  CoM margin>=  10.4 mm  slip 12.6 mm  tilt 10.1  x  +9.7 y -10.6 cm  hdg -86.5  FAIL
+plant_head.xml         turn -15 mu 1.2 play 3 |  FELL@12.1s steps 2/8  clear>=   15 mm  air>= 0.52 s  CoM margin>=  10.4 mm  slip 14.2 mm  tilt 56.0  x  -3.2 y -37.6 cm  hdg -10.6  FAIL
+# the -15 turn walks at mu <= 0.9 and falls at mu 1.2 on BOTH plants; mu 1.0 sits on the threshold (old plant walks, new plant falls). A knife-edge, not a margin: the stance foot cannot pivot when it cannot slip. Gate criterion for that case was already FAIL (slip > 10 mm).

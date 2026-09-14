@@ -76,19 +76,19 @@
         <geom class="servo" type="box" pos="0 0 -0.0285" size="0.01735 0.01236 0.02261" mass="0.055"/>
         <body name="L_hip" pos="0 0 -0.041">
           <joint name="L_hip_roll" axis="1 0 0" range="-30 45"/>
-        <inertial pos="-0.0005 0.0006 -0.0220" quat="0.4986 -0.4773 -0.6815 -0.2431" mass="0.0228" diaginertia="8.0835e-06 8.2769e-06 8.6376e-06"/>
+        <inertial pos="-0.0008 0.0006 -0.0220" quat="0.5163 -0.4564 -0.6811 -0.2475" mass="0.0224" diaginertia="7.9334e-06 8.2094e-06 8.5342e-06"/>
           <!-- yoke_roll + yoke_pitch (the hip universal, 50 mm axis offset) -->
           <geom type="box" pos="0 0 -0.025" size="0.0175 0.0125 0.025" mass="0.03" rgba="0.82 0.84 0.87 1" group="1"/>
           <body name="L_thigh" pos="0 0 -0.05">
-            <joint name="L_hip_pitch" axis="0 1 0" range="-110 90"/>
-        <inertial pos="0.0001 0.0015 -0.0281" quat="0.6991 -0.0036 -0.7150 -0.0069" mass="0.0817" diaginertia="1.9769e-05 7.3772e-05 8.2128e-05"/>
+            <joint name="L_hip_pitch" axis="0 1 0" range="-125 90"/>
+        <inertial pos="0.0002 0.0016 -0.0281" quat="0.6992 -0.0010 -0.7149 -0.0038" mass="0.0813" diaginertia="1.9586e-05 7.3690e-05 8.1954e-05"/>
             <!-- hip-pitch servo case sits in the thigh, axis at its upper end -->
             <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261" mass="0.055"/>
             <geom class="fallcol" type="box" pos="0 0 -0.055" size="0.012 0.019 0.055" mass="0.027" rgba="0.82 0.84 0.87 1" group="1"/>
             <geom name="L_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
             <body name="L_shin" pos="0 0 -0.11">
-              <joint name="L_knee" axis="0 -1 0" range="-95 5"/>
-        <inertial pos="0.0001 0.0015 -0.0251" quat="0.6997 -0.0030 -0.7144 -0.0065" mass="0.1012" diaginertia="2.2721e-05 8.1915e-05 9.1232e-05"/>
+              <joint name="L_knee" axis="0 -1 0" range="-130 5"/>
+        <inertial pos="0.0001 0.0015 -0.0251" quat="0.6997 -0.0005 -0.7144 -0.0038" mass="0.1008" diaginertia="2.2538e-05 8.1838e-05 9.1064e-05"/>
               <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261" mass="0.055"/>
               <geom class="fallcol" type="box" pos="0 0 -0.055" size="0.012 0.019 0.055" mass="0.027" rgba="0.82 0.84 0.87 1" group="1"/>
               <geom name="L_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
@@ -139,19 +139,19 @@
         <geom class="servo" type="box" pos="0 0 -0.0285" size="0.01735 0.01236 0.02261" mass="0.055"/>
         <body name="R_hip" pos="0 0 -0.041">
           <joint name="R_hip_roll" axis="1 0 0" range="-45 30"/>
-        <inertial pos="-0.0005 0.0006 -0.0220" quat="0.4986 -0.4773 -0.6815 -0.2431" mass="0.0228" diaginertia="8.0835e-06 8.2769e-06 8.6376e-06"/>
+        <inertial pos="-0.0008 0.0006 -0.0220" quat="0.5163 -0.4564 -0.6811 -0.2475" mass="0.0224" diaginertia="7.9334e-06 8.2094e-06 8.5342e-06"/>
           <!-- yoke_roll + yoke_pitch (the hip universal, 50 mm axis offset) -->
           <geom type="box" pos="0 0 -0.025" size="0.0175 0.0125 0.025" mass="0.03" rgba="0.82 0.84 0.87 1" group="1"/>
           <body name="R_thigh" pos="0 0 -0.05">
-            <joint name="R_hip_pitch" axis="0 1 0" range="-110 90"/>
-        <inertial pos="0.0001 0.0015 -0.0281" quat="0.6991 -0.0036 -0.7150 -0.0069" mass="0.0817" diaginertia="1.9769e-05 7.3772e-05 8.2128e-05"/>
+            <joint name="R_hip_pitch" axis="0 1 0" range="-125 90"/>
+        <inertial pos="0.0002 0.0016 -0.0281" quat="0.6992 -0.0010 -0.7149 -0.0038" mass="0.0813" diaginertia="1.9586e-05 7.3690e-05 8.1954e-05"/>
             <!-- hip-pitch servo case sits in the thigh, axis at its upper end -->
             <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261" mass="0.055"/>
             <geom class="fallcol" type="box" pos="0 0 -0.055" size="0.012 0.019 0.055" mass="0.027" rgba="0.82 0.84 0.87 1" group="1"/>
             <geom name="R_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
             <body name="R_shin" pos="0 0 -0.11">
-              <joint name="R_knee" axis="0 -1 0" range="-95 5"/>
-        <inertial pos="0.0001 0.0015 -0.0251" quat="0.6997 -0.0030 -0.7144 -0.0065" mass="0.1012" diaginertia="2.2721e-05 8.1915e-05 9.1232e-05"/>
+              <joint name="R_knee" axis="0 -1 0" range="-130 5"/>
+        <inertial pos="0.0001 0.0015 -0.0251" quat="0.6997 -0.0005 -0.7144 -0.0038" mass="0.1008" diaginertia="2.2538e-05 8.1838e-05 9.1064e-05"/>
               <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261" mass="0.055"/>
               <geom class="fallcol" type="box" pos="0 0 -0.055" size="0.012 0.019 0.055" mass="0.027" rgba="0.82 0.84 0.87 1" group="1"/>
               <geom name="R_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
@@ -206,14 +206,14 @@
   <actuator>
     <position name="L_hip_yaw" joint="L_hip_yaw" ctrlrange="-0.7853981634 0.7853981634"/>  <!-- -45 .. 45 -->
     <position name="L_hip_roll" joint="L_hip_roll" ctrlrange="-0.5235987756 0.7853981634"/>  <!-- -30 .. 45 -->
-    <position name="L_hip_pitch" joint="L_hip_pitch" ctrlrange="-1.9198621772 1.5707963268"/>  <!-- -110 .. 90 -->
-    <position name="L_knee" joint="L_knee" ctrlrange="-1.6580627894 0.0872664626"/>  <!-- -95 .. 5 -->
+    <position name="L_hip_pitch" joint="L_hip_pitch" ctrlrange="-2.1816615650 1.5707963268"/>  <!-- -125 .. 90 -->
+    <position name="L_knee" joint="L_knee" ctrlrange="-2.2689280276 0.0872664626"/>  <!-- -130 .. 5 -->
     <position name="L_ankle" joint="L_ankle" ctrlrange="-0.7853981634 0.7853981634"/>  <!-- -45 .. 45 -->
     <position name="L_ankle_roll" joint="L_ankle_roll" ctrlrange="-0.4363323130 0.4363323130"/>  <!-- -25 .. 25 -->
     <position name="R_hip_yaw" joint="R_hip_yaw" ctrlrange="-0.7853981634 0.7853981634"/>  <!-- -45 .. 45 -->
     <position name="R_hip_roll" joint="R_hip_roll" ctrlrange="-0.7853981634 0.5235987756"/>  <!-- -45 .. 30 -->
-    <position name="R_hip_pitch" joint="R_hip_pitch" ctrlrange="-1.9198621772 1.5707963268"/>  <!-- -110 .. 90 -->
-    <position name="R_knee" joint="R_knee" ctrlrange="-1.6580627894 0.0872664626"/>  <!-- -95 .. 5 -->
+    <position name="R_hip_pitch" joint="R_hip_pitch" ctrlrange="-2.1816615650 1.5707963268"/>  <!-- -125 .. 90 -->
+    <position name="R_knee" joint="R_knee" ctrlrange="-2.2689280276 0.0872664626"/>  <!-- -130 .. 5 -->
     <position name="R_ankle" joint="R_ankle" ctrlrange="-0.7853981634 0.7853981634"/>  <!-- -45 .. 45 -->
     <position name="R_ankle_roll" joint="R_ankle_roll" ctrlrange="-0.4363323130 0.4363323130"/>  <!-- -25 .. 25 -->
     <position name="neck_yaw" joint="neck_yaw" ctrlrange="-1.5707963268 1.5707963268"/>  <!-- head yaw -->

@@ -44,8 +44,8 @@ Chain per leg, pelvis down (+X forward, +Y left, sim conventions of `bimo_biped_
 |---|---|---|---|---|
 | hip yaw | Z | ±45° | under the deck, horn down (v5 carrier) | STS3215 |
 | hip roll | X | 30° adduction / 45° abduction | in the yaw carrier, output +X (v5) | **STS3250** |
-| hip pitch | Y | −110 … +90° | thigh top (v5 yoke pair, 50 mm below the roll axis) | STS3215 |
-| knee | −Y | −95 … +5° (flexion negative) | shin top (v5 leg_link) | **STS3250** |
+| hip pitch | Y | −125 … +90° (was −110; §11.3) | thigh top (v5 yoke pair, 50 mm below the roll axis; `yoke_pitch_v6` flange chamfer) | STS3215 |
+| knee | −Y | −130 … +5° (flexion negative; was −95, §11.3) | shin top (leg_link_v6 with the flexion relief cuts) | **STS3250** |
 | ankle pitch | Y | ±45° | ankle link, case *rising* above the axis between the shin's fork tines | STS3215 |
 | ankle roll | X | ±30° | **lying across the foot, output axis fore-aft**, case bottom on the sole plate; the ankle link forks onto horn (front) and idler (rear) | **STS3250** |
 
@@ -263,7 +263,7 @@ Everything here is in `sim/gen_plant_v6.py` (DesignParams defaults now describe 
 
 ## 10. CAD (2026-09-14): the printed part set
 
-Built in build123d under `cad/v6/` against `cad/v6/dimensions_v6.py`, which imports every servo-interface number from v5's `cad/dimensions.py` unchanged (case, discs, screw rows, rib and platform detents, the real idler face, countersinks, walls, fits) and adds only what v6 changes. The unchanged hip stack (`yaw_carrier`, `yoke_roll`, `yoke_pitch`) is used as-is from `cad/parts.py`. Print list with orientations, supports and fasteners: `docs/design-v6/print-list.md`; rollup: `parts_v6_rollup.txt`.
+Built in build123d under `cad/v6/` against `cad/v6/dimensions_v6.py`, which imports every servo-interface number from v5's `cad/dimensions.py` unchanged (case, discs, screw rows, rib and platform detents, the real idler face, countersinks, walls, fits) and adds only what v6 changes. The hip stack (`yaw_carrier`, `yoke_roll`) is used as-is from `cad/parts.py`; `yoke_pitch_v6` is v5's clevis with one flange chamfer (§11.3). Print list with orientations, supports and fasteners: `docs/design-v6/print-list.md`; rollup: `parts_v6_rollup.txt`.
 
 | part | qty | g | what changed / how it is built |
 |---|---|---|---|
@@ -310,6 +310,19 @@ Tom, before settling the design: *"let's figure out an open loop fall recovery s
 | dynamic (learned) get-up | no hardware change | v5's record: 11 rounds, kneel achieved, the rise never |
 
 **Recommendation.** Do not hold the walking design for the get-up: its levers all sit in the leg joint ranges and the hip stack, not in anything the walking gates fixed, and the offset knee is the one change that both paths (seated and kneeling) need. Ship v6 as the walker, add the pelvis skid now (cheap, and it makes the seated pose a safe place to be), and treat "v6.1 gets up" as its own gate with the offset knee and low arms as candidates, run through this same script before any part is drawn — exactly as the walking was.
+
+### 11.3 Deep flexion is cheap on this knee — and still not enough (2026-09-14)
+
+Tom's pushback on the "offset knee": *it looks like we could bend the existing knees further with slight modifications of the leg links.* A sweep of the assembly past the ROM table (`docs/design-v6/deep_flexion_sweep.txt`) says he is right. The 95° in the table was v5's measured figure carried over, not a v6 limit. (Sign note: the assembly rotates the knee about +Y, so **+knee is human flexion in the CAD** while the sim's knee axis is −Y and flexion is negative there; the ±95° gate sweep hid the difference, and the inter-leg "lifted swing" check pose had the shin swung the wrong way — fixed.)
+
+| joint | as drawn | what touches first | relief | now |
+|---|---|---|---|---|
+| knee | clear to 105°; 110–130° one sliver: the shin's rear-top corner in the idler tine band (web top + the idler grip plate's outer 0.5 mm skin) sweeping into the thigh's idler tine 8–32 mm above the axis; hard stop ~131° where the two links' rear faces meet | — | `LL_FLEX_CUT` (20 × 24 mm triangular wedge off that corner, idler band only, the lower grip screw's countersink outside it) + `LL_FOLD_CHAMFER` (3 mm on the thigh's web-end corner and the horn-side jog block corner) | **130° with 0.60 mm** (the same 0.5 mm buffer rule as every other pair); 132° is the hard limit |
+| hip pitch | clear to −120°; the thigh grip plates' front edge lands on the pitch yoke's flange front-bottom corner at −123°; the roll servo case at −135° | the thigh plate cannot be relieved: the lower grip screw's countersink sits exactly where the flange lands | `yoke_pitch_v6`: 4 mm 45° chamfer on the flange's front-bottom edge (the M3 heat-set bores at x ±10 stop a bigger one) | **−125° with 0.70 mm**; −127° is the limit |
+
+Both cuts live on the one leg-link print (thigh and shin stay the same part: the same corner on the thigh faces the pitch yoke at +90° extension, where removing material only helps), mass 26.7 → 26.3 g; the yoke 11.1 → 10.9 g. ROM gate ALL CLEAR at the new ranges (`cad_rom_check.txt`), the plant regenerated with the new ranges and CAD masses (1.771 kg), the 8 design-gate tests pass, walk margins in `gateD_cad_inertials.txt`: straight, +15° turn and the mu 0.3 / play 5° case are unchanged (10.6 / 10.9 / 6.9 mm). One case moved: the −15° turn at mu 1.0, which already failed the slip criterion, now falls at step 2. It is not the ranges (the new plant with the old ranges falls identically) but the 0.35 g per link: on both plants that turn walks at mu ≤ 0.9 and falls at mu 1.2, so mu 1.0 sits on the threshold. A sticky foot that cannot pivot is the known weak spot of the turn-in, and that case is a knife-edge, not a margin — worth remembering when reading the 10 mm numbers.
+
+**And the get-up on the 130/125 body (`getup_search_flex130.txt`, 32 sequences, with and without the skid): 0 standing.** The failure is unchanged in kind. Seated on the skid with the feet tucked under (knee −130, hip −125) the shank is vertical and the feet are 8 cm ahead of the hips, but the hip joints are only ~4 cm off the floor, so the thighs point up 35° and the torso ends up *vertical over the hips* at full hip flexion — the CoM never reaches the feet, and every rise falls back (torso 0.88 → 0.70 → 0.40). From prone, every forward fold (child's pose → toes under → hips up, or kneel-sit → fold → push) lands the **head** on the floor first and the push becomes a pike between head and feet. So the deep ranges are real and worth having (they make the kneel-sit and the foot-beside-hip placements reachable), but they do not by themselves change the conclusion of §11.2: the seat height (hips 4 cm off the floor, torso 46 cm tall above them) and the leading head are the blockers, and the levers that remain are a seat below the hips, low arms, or a learned dynamic get-up.
 
 ## Files
 
