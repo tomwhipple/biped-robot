@@ -353,6 +353,10 @@ Winning keyframes for the tail (sim signs: knee/hip flexion negative; tail 0 = s
 
 **Recommendation.** The **tail** is the cheaper answer to the question asked: one spare STS3215, ~95 g, centred, no effect on the walk margins, and it doubles as the seat skid of §11.2 (sitting on the tail with the feet planted is the stable rest pose) and as a bumper for backward falls. Mount: root ~62 mm behind the yaw axis, 60 mm below it (behind the yaw carriers, under the housing's rear wall), 20 cm rod with a rubber tip, ±150° pitch. Arms cost a second servo and ~65 g more, are 12/12 at the hip-pitch height, and are the only one of the two with a path to the prone case (fall arrest / roll). Both need the same three CAD checks before drawing: the bracket on the pelvis, the sweep against the thighs at hip abduction 45°, and the head-first fold clearance. Prone recovery stays an open gate either way.
 
+**Backwards knees (Tom: "did you consider using the knees backwards for the get-up?").** Tested with a double-jointed knee (±130°; the CAD as drawn is clear to ~105° in the backward direction, the thigh's front plate stops it at 110°), `getup_search_birdknee.txt`, 0/32. From prone, bird-flexed shanks make fine struts and lift the pelvis to 10 cm — and pike the body onto its head, the same failure as the hip arms; arching the hips (extension 30–90°) lays it back down flat. From supine, a bird fold after the sit-up lifts the feet into the air behind the knees, and a bird "bridge" does nothing. The knee direction is not the blocker; the head-first torso and the 4 cm hips are.
+
+**Videos** (local only, `sim/renders/getup_v6/`, gitignored, regenerate with `sim/getup_v6_appendage.py render`): `getup_tail_hip20_side.mp4`, `getup_tail_hip20_rear.mp4`, `getup_arms_hip20_side.mp4`, `getup_arms_elbow_side.mp4`, `getup_tail_vs_arms_side.mp4` (side by side), and the two prone failures `getup_prone_pike_arms_hip20.mp4`, `getup_prone_roll_arms_hip20.mp4`.
+
 ## Files
 
 - `sim/gen_plant_v6.py` — parametric MJCF (all dimensions, masses, ranges); writes `sim/bimo_biped_v6ar.xml`

@@ -1,0 +1,69 @@
+== BIRD KNEE (knee range -130..+130; sim + = shank swings FORWARD, the bird direction), no appendages
+-- B1 prone: shanks as struts (bird flex) -> pelvis up -> arch the torso up (hip extension) -> straighten
+B1 prone struts knee +90, arch hip +30, then knee +60      no       up -0.03 z 0.054
+      bird flex (s:-0.45/0.10/Lfoot+Rfoot+head | arch up:-0.27/0.08/Lfoot+Rfoot+head | straighten 1:-0.25/0.07/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +90, arch hip +30, then knee +30      no       up -0.03 z 0.054
+      bird flex (s:-0.45/0.10/Lfoot+Rfoot+head | arch up:-0.27/0.08/Lfoot+Rfoot+head | straighten 1:-0.08/0.06/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +90, arch hip +60, then knee +60      no       up -0.03 z 0.054
+      bird flex (s:-0.45/0.10/Lfoot+Rfoot+head | arch up:-0.03/0.05/Lfoot+Rfoot+torso | straighten 1:-0.12/0.06/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +90, arch hip +60, then knee +30      no       up -0.03 z 0.054
+      bird flex (s:-0.45/0.10/Lfoot+Rfoot+head | arch up:-0.03/0.05/Lfoot+Rfoot+torso | straighten 1:+0.07/0.05/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +90, arch hip +90, then knee +60      no       up -0.03 z 0.054
+      bird flex (s:-0.45/0.10/Lfoot+Rfoot+head | arch up:+0.26/0.04/Lfoot+Rfoot+torso | straighten 1:+0.03/0.05/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +90, arch hip +90, then knee +30      no       up -0.03 z 0.054
+      bird flex (s:-0.45/0.10/Lfoot+Rfoot+head | arch up:+0.26/0.04/Lfoot+Rfoot+torso | straighten 1:+0.26/0.04/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +130, arch hip +30, then knee +60     no       up -0.03 z 0.054
+      bird flex (s:-0.43/0.10/Lfoot+Rfoot+head | arch up:-0.31/0.08/Lfoot+Rfoot+head | straighten 1:-0.26/0.07/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +130, arch hip +30, then knee +30     no       up -0.03 z 0.054
+      bird flex (s:-0.43/0.10/Lfoot+Rfoot+head | arch up:-0.31/0.08/Lfoot+Rfoot+head | straighten 1:-0.08/0.06/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +130, arch hip +60, then knee +60     no       up -0.03 z 0.054
+      bird flex (s:-0.43/0.10/Lfoot+Rfoot+head | arch up:-0.23/0.07/Lfoot+Rfoot+head | straighten 1:-0.13/0.06/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +130, arch hip +60, then knee +30     no       up -0.03 z 0.054
+      bird flex (s:-0.43/0.10/Lfoot+Rfoot+head | arch up:-0.23/0.07/Lfoot+Rfoot+head | straighten 1:+0.07/0.05/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +130, arch hip +90, then knee +60     no       up -0.03 z 0.054
+      bird flex (s:-0.43/0.10/Lfoot+Rfoot+head | arch up:-0.06/0.06/Lfoot+Rfoot+torso | straighten 1:+0.03/0.05/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B1 prone struts knee +130, arch hip +90, then knee +30     no       up -0.03 z 0.054
+      bird flex (s:-0.43/0.10/Lfoot+Rfoot+head | arch up:-0.06/0.06/Lfoot+Rfoot+torso | straighten 1:+0.26/0.04/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+-- B2 prone: bird crouch = hips extended back, shanks forward-down under the body, then rise
+B2 prone crouch hip +30 knee +100 ankle 0                  no       up -0.03 z 0.054
+      bird flex:-0.45/0.11/Lfoot+Rfoot+head | crouch (hip :-0.30/0.08/Lfoot+Rfoot+head | rise:-0.21/0.07/Lfoot+Rfoot+head+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +30 knee +100 ankle -30                no       up -0.03 z 0.054
+      bird flex:-0.42/0.10/Lfoot+Rfoot+head | crouch (hip :-0.24/0.07/Lfoot+Rfoot+head | rise:-0.22/0.07/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +30 knee +100 ankle 30                 no       up -0.03 z 0.054
+      bird flex:-0.48/0.11/Lfoot+Rfoot+head | crouch (hip :-0.28/0.08/Lfoot+Rfoot+head | rise:-0.18/0.07/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +30 knee +130 ankle 0                  no       up -0.03 z 0.054
+      bird flex:-0.43/0.10/Lfoot+Rfoot+head | crouch (hip :-0.31/0.08/Lfoot+Rfoot+head | rise:-0.28/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +30 knee +130 ankle -30                no       up -0.03 z 0.054
+      bird flex:-0.46/0.11/Lfoot+Rfoot+head | crouch (hip :-0.32/0.08/Lfoot+Rfoot+head | rise:-0.29/0.08/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +30 knee +130 ankle 30                 no       up -0.03 z 0.054
+      bird flex:-0.47/0.11/Lfoot+Rfoot+head | crouch (hip :-0.38/0.09/Lfoot+Rfoot+head | rise:-0.26/0.07/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +60 knee +100 ankle 0                  no       up -0.03 z 0.054
+      bird flex:-0.45/0.11/Lfoot+Rfoot+head | crouch (hip :-0.09/0.06/Lfoot+Rfoot+torso | rise:-0.05/0.06/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +60 knee +100 ankle -30                no       up -0.03 z 0.054
+      bird flex:-0.42/0.10/Lfoot+Rfoot+head | crouch (hip :-0.08/0.06/Lfoot+Rfoot+torso | rise:-0.09/0.06/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +60 knee +100 ankle 30                 no       up -0.03 z 0.054
+      bird flex:-0.48/0.11/Lfoot+Rfoot+head | crouch (hip :-0.02/0.05/Lfoot+Rfoot+torso | rise:-0.01/0.05/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +60 knee +130 ankle 0                  no       up -0.03 z 0.054
+      bird flex:-0.43/0.10/Lfoot+Rfoot+head | crouch (hip :-0.23/0.07/Lfoot+Rfoot+head | rise:-0.16/0.06/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +60 knee +130 ankle -30                no       up -0.03 z 0.054
+      bird flex:-0.46/0.11/Lfoot+Rfoot+head | crouch (hip :-0.12/0.06/Lfoot+Rfoot+torso | rise:-0.18/0.07/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+B2 prone crouch hip +60 knee +130 ankle 30                 no       up -0.03 z 0.054
+      bird flex:-0.47/0.11/Lfoot+Rfoot+head | crouch (hip :-0.21/0.07/Lfoot+Rfoot+head | rise:-0.12/0.06/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso
+-- B3 supine: sit up, then bird-fold (feet up and back over the hips?) / bird bridge
+B3 supine sit-up, bird fold hip -90 knee +90               no       up +0.03 z 0.056
+      sit up:+0.99/0.10/Lfoot+Lthig+Rfoot+Rthig | bird fold:+1.00/0.10/Lthig+Rthig | rise:+0.83/0.09/Lshin+Lthig+Rshin+Rthig | stand:+0.03/0.06/Lfoot+Rfoot+torso
+B3 supine sit-up, bird fold hip -90 knee +130              no       up +0.03 z 0.056
+      sit up:+0.99/0.10/Lfoot+Lthig+Rfoot+Rthig | bird fold:+1.00/0.10/Lshin+Lthig+Rshin+Rthig | rise:+0.84/0.09/Lshin+Lthig+Rshin+Rthig | stand:+0.03/0.06/Lfoot+Rfoot+torso
+B3 supine sit-up, bird fold hip -125 knee +90              no       up +0.03 z 0.056
+      sit up:+0.99/0.10/Lfoot+Lthig+Rfoot+Rthig | bird fold:+0.82/0.09/Lthig+Rthig | rise:+0.83/0.09/Lshin+Lthig+Rshin+Rthig | stand:+0.03/0.06/Lfoot+Rfoot+torso
+B3 supine sit-up, bird fold hip -125 knee +130             no       up +0.03 z 0.056
+      sit up:+0.99/0.10/Lfoot+Lthig+Rfoot+Rthig | bird fold:+0.83/0.09/Lshin+Lthig+Rshin+Rthig | rise:+0.84/0.09/Lshin+Lthig+Rshin+Rthig | stand:+0.03/0.06/Lfoot+Rfoot+torso
+B3 supine bird bridge knee +90 hip +30                     no       up -0.04 z 0.061
+      bird knees:+0.19/0.05/Lshin+Rshin+torso | bridge (hip :-0.04/0.06/Lshin+Rshin+torso | hold:-0.04/0.06/Lshin+Rshin+torso
+B3 supine bird bridge knee +90 hip +60                     no       up -0.24 z 0.075
+      bird knees:+0.19/0.05/Lshin+Rshin+torso | bridge (hip :-0.23/0.07/Lshin+Rshin+torso | hold:-0.24/0.07/Lshin+Rshin+torso
+B3 supine bird bridge knee +130 hip +30                    no       up -0.03 z 0.060
+      bird knees:+0.18/0.05/Lshin+Rshin+torso | bridge (hip :-0.03/0.06/Lshin+Rshin+torso | hold:-0.03/0.06/Lshin+Rshin+torso
+B3 supine bird bridge knee +130 hip +60                    no       up -0.21 z 0.073
+      bird knees:+0.18/0.05/Lshin+Rshin+torso | bridge (hip :-0.21/0.07/Lshin+Rshin+torso | hold:-0.21/0.07/Lshin+Rshin+torso
+standing: []

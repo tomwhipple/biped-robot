@@ -192,13 +192,28 @@ def main():
                        ("arms fold", dict(shoulder=180), 1.0, 1.0)]
                 run(f"{name:12s} R2: L arm -60->{s_push} R leg kick {kick} + swing", p, xml, seq, start="prone")
     elif mode == "render":
+        # render <config> <variant s0,s1,t,ankle[,e0,e1]> <out.mp4> [side|rear] [seat|prone_pike|prone_roll]
         name, variant, out = sys.argv[2], sys.argv[3], sys.argv[4]
+        view = sys.argv[5] if len(sys.argv) > 5 else "side"
+        what = sys.argv[6] if len(sys.argv) > 6 else "seat"
         p, xml = plant(name)
         app = "tail" if name.startswith("tail") else "shoulder"
         v = [float(x) for x in variant.split(",")]
         s0, s1, t_push, a_push = v[:4]
-        run(f"{name} {variant}", p, xml, seat_push(app, s0, s1, t_push, a_push, elbow=(v[4], v[5]) if len(v) > 4 else None), render=out)
-        os.system(f"ffmpeg -loglevel error -y -i {out} -vf 'fps=0.8,scale=320:-1,tile=10x1' -frames:v 1 {out[:-4]}_strip.png")
+        cam = (1.25, -12, 90) if view == "side" else (1.3, -15, 135)
+        cap = lambda lab, t: f"{name}  {what}   {lab}   t={t:4.1f}s"
+        if what == "seat":
+            seq, start = seat_push(app, s0, s1, t_push, a_push, elbow=(v[4], v[5]) if len(v) > 4 else None), "supine"
+        elif what == "prone_pike":
+            seq, start = [("lie prone", dict(shoulder=180), 0.5, 0.8), ("arms to floor", dict(shoulder=-60), 0.8, 0.4),
+                          ("push (both arms)", dict(shoulder=-90), 1.5, 1.0), ("push more", dict(shoulder=-110), 1.5, 1.0),
+                          ("knees under", dict(hip_pitch=H, knee=K, ankle=40, shoulder=-90), 2.0, 1.0),
+                          ("try to sit back", dict(hip_pitch=-60, knee=K, ankle=40, shoulder=-45), 2.0, 1.5)], "prone"
+        else:
+            seq, start = prone_roll("L", -130, 45), "prone"
+        r = G.run_sequence(p, xml, seq, start=start, play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False,
+                           render=out, cam=cam, size=(540, 720), label_fn=cap)
+        print(f"{name} {what} {variant}: {'STANDING' if r['ok'] else 'not standing'} -> {out}")
         return
     print("standing:", hits)
 

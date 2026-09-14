@@ -133,6 +133,19 @@ def settle_fallen(env, p, how: str, q_hold: np.ndarray, seconds=1.5):
         env.step(inv(qq))
 
 
+def _caption(frame, text):
+    """burn a one-line caption into the top-left of an RGB frame (PIL if present)."""
+    try:
+        from PIL import Image, ImageDraw
+        im = Image.fromarray(frame)
+        dr = ImageDraw.Draw(im)
+        dr.rectangle([0, 0, im.width, 22], fill=(0, 0, 0))
+        dr.text((6, 4), text, fill=(255, 255, 255))
+        return np.asarray(im)
+    except Exception:  # noqa: BLE001
+        return frame
+
+
 def contacts_summary(m, d):
     names = set()
     for i in range(d.ncon):
@@ -147,7 +160,9 @@ def contacts_summary(m, d):
 
 
 def run_sequence(p: DesignParams, xml_path, seq, start="supine", play_deg=3.0, per_joint=None, mu=0.7,
-                 render=None, verbose=True, servo_scale=1.0):
+                 render=None, verbose=True, servo_scale=1.0, cam=(1.3, -15, 135), size=(480, 640), label_fn=None):
+    """cam = (distance, elevation, azimuth): 135 = rear three-quarter, 90 = side on;
+    label_fn(step_label, t) -> text burned into the frames (None = no caption)."""
     env = make_env(p, xml_path, mu=mu, play_deg=play_deg)
     obs, _ = env.reset(seed=0)
     EXTRA[:] = [env.model.actuator(i).name for i in range(12, env.model.nu)]
@@ -178,9 +193,10 @@ def run_sequence(p: DesignParams, xml_path, seq, start="supine", play_deg=3.0, p
     dt = env.control_dt
     frames = []
     if render:
-        rnd = mujoco.Renderer(m, 480, 640)
+        rnd = mujoco.Renderer(m, size[0], size[1])
+        _cam = cam
         cam = mujoco.MjvCamera()
-        cam.distance, cam.elevation, cam.azimuth = 1.3, -15, 135
+        cam.distance, cam.elevation, cam.azimuth = _cam
     z_stand = p.z_yaw_above_sole
     log = []
     t = 0.0
@@ -198,7 +214,10 @@ def run_sequence(p: DesignParams, xml_path, seq, start="supine", play_deg=3.0, p
             if render and k % 2 == 0:
                 cam.lookat[:] = [d.qpos[0], d.qpos[1], 0.2]
                 rnd.update_scene(d, cam)
-                frames.append(rnd.render().copy())
+                fr = rnd.render().copy()
+                if label_fn is not None:
+                    fr = _caption(fr, label_fn(label, t))
+                frames.append(fr)
         q_prev = q_tgt
         up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
         pz = float(d.qpos[2])
