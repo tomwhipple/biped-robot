@@ -4,7 +4,7 @@ Companion to `docs/design-v6-ankle-roll.md` §9 and the CAD under `cad/v6/`. The
 
 | item | qty | spec / filter | why | est. |
 |---|---|---|---|---|
-| **Feetech STS3250** (12 V class) | **6** (buy **2 first** for the stiffness bench test, §5.1 of the design doc, then 4) | same 45.2 × 24.7 × 35 case as the STS3215, 50 kg·cm, magnetic encoder, TTL bus | hip roll, ankle roll, knee: the roll-chain stiffness the walk needs; the knee's speed margin | 6 × $25–30 |
+| **Feetech STS3250** (12 V class) | **6** (buy **2 first** for the stiffness bench test, §5.1 of the design doc, then 4) | same 45.2 × 24.7 × 35 case as the STS3215, 50 kg·cm, magnetic encoder, TTL bus | hip roll, ankle roll, knee: the roll-chain stiffness the walk needs; the knee's speed margin | 6 × $43–65 US stock (BABSCO $64.99, WowRobo $43 when in stock), $48–55 AliExpress; Waveshare does not list it (checked 2026-09-14) |
 | Raspberry Pi 4B (2–4 GB) | 1 | + 32 GB card; low-profile heatsink (no fan tower: the aft bay is 16 mm deep on the component side) | onboard camera/navigation | on hand? |
 | Raspberry Pi Camera Module 3 **Wide** | 1 | 102° HFOV, IMX708, with a 300 mm ribbon (the head is ~30 cm above the Pi's CSI port by cable path) | head camera | $35 |
 | 3S LiPo pack | 1–2 | **11.1 V (not 11.4 HV), 2200–2600 mAh, ≤ 105 × 36 × 26 mm, 150–190 g, XT60 or XT30, 25C+** | 2× the v5 pack's energy for 13 servos + Pi (est. 25–35 min walking) | $20–25 each |

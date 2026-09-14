@@ -21,7 +21,7 @@ Goal (Tom, 2026-09-13): *a new physical robot design able to walk by lifting one
 | static single-foot stance | **does not exist** (Gate A fail, measured 09-13) | **exists with 30 mm of margin**, reached by a 14° hip/ankle roll shift with both soles flat |
 | open-loop walk in the deploy-model plant | 1 cm shuffle, feet never leave the ground | **6–12 steps of 6 cm, swing foot 22–25 mm off the ground for 0.7 s per step, CoM margin ≥ 20 mm, μ 0.3–1.0, ±15 % mass, 3° roll play; arcs at up to 20° of heading per step** |
 
-Cost of the servo change: 6 × STS3250 at ~$25–30 = **≈ $150–180**; the 12 STS3215 on hand cover the other six joints with six spares.
+Cost of the servo change: 6 × STS3250 at $43–65 from US stock ($48–55 on AliExpress) = **≈ $260–390**; the 12 STS3215 on hand cover the other seven joints with five spares. (First estimate of $25–30 each was wrong; corrected 2026-09-14 against live listings.)
 
 ## 1. What the record says, and what it asks of a new body
 
