@@ -1,0 +1,16 @@
+== deep-flexion body (hip -135, knee -135): sit up, lift thigh + fold shank so the foot drops beside the hip, one leg then the other, rock, stand
+deep body, place ankle -20, lift -135          no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | lift L thigh:+0.38/0.05 | lift R thigh:+0.38/0.05 | rock forward:+0.38/0.05 | rise 1:+0.41/0.05 | rise 2:+0.38/0.05 | rise 3:+0.23/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+deep body, place ankle -20, lift -125          no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | lift L thigh:+0.38/0.05 | lift R thigh:+0.36/0.05 | rock forward:+0.38/0.05 | rise 1:+0.41/0.05 | rise 2:+0.38/0.05 | rise 3:+0.23/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+deep body, place ankle +0, lift -135           no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | lift L thigh:+0.36/0.05 | lift R thigh:+0.35/0.05 | rock forward:+0.35/0.05 | rise 1:+0.41/0.05 | rise 2:+0.38/0.05 | rise 3:+0.23/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+deep body, place ankle +0, lift -125           no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | lift L thigh:+0.29/0.05 | lift R thigh:+0.27/0.05 | rock forward:+0.35/0.05 | rise 1:+0.41/0.05 | rise 2:+0.38/0.05 | rise 3:+0.23/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+deep body, place ankle +20, lift -135          no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | lift L thigh:+0.30/0.05 | lift R thigh:+0.29/0.05 | rock forward:+0.29/0.05 | rise 1:+0.41/0.05 | rise 2:+0.38/0.05 | rise 3:+0.23/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+deep body, place ankle +20, lift -125          no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | lift L thigh:+0.23/0.05 | lift R thigh:+0.22/0.05 | rock forward:+0.28/0.05 | rise 1:+0.41/0.05 | rise 2:+0.38/0.05 | rise 3:+0.23/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+== same sequence on the NOMINAL body (hip -110, knee -95) for reference
+nominal body, same idea                        no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | lift L thigh:+0.40/0.05 | lift R thigh:+0.40/0.05 | rise 2:+0.38/0.05 | rise 3:+0.23/0.05 | stand:+0.03/0.06

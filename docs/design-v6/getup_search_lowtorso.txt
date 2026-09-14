@@ -1,0 +1,10 @@
+== LOW-TORSO probe: hip stack collapsed (yaw->roll 20 mm, roll->pitch 20 mm; a different hip layout), nominal ranges, sit-up + tuck one leg at a time
+hip stack 41+50 mm                                 no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.98/0.10 | tuck L:+0.40/0.05 | tuck R:+0.40/0.05 | rise 1:+0.39/0.05 | rise 2:+0.27/0.05 | stand:+0.03/0.06
+hip stack 20+20 mm                                 no       up +0.03 z 0.056
+      sit up:+0.99/0.05 | fold:+0.98/0.05 | tuck L:+0.62/0.04 | tuck R:+0.61/0.04 | rise 1:+0.64/0.04 | rise 2:+0.30/0.05 | stand:+0.03/0.06
+hip stack 10+10 mm                                 no       up +0.03 z 0.056
+      sit up:+0.99/0.03 | fold:+0.98/0.03 | tuck L:+0.66/0.04 | tuck R:+0.65/0.04 | rise 1:+0.70/0.04 | rise 2:+0.31/0.05 | stand:+0.03/0.06
+== LOW-TORSO + deep flexion (hip -135, knee -135), lift-thigh-and-fold sequence
+low torso + deep flexion                           no       up +0.03 z 0.056
+      sit up:+0.99/0.05 | lift L thigh:+0.43/0.05 | lift R thigh:+0.41/0.05 | rise 1:+0.58/0.04 | rise 2:+0.48/0.05 | rise 3:+0.24/0.05 | stand:+0.03/0.06

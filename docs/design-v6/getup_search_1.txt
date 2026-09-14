@@ -1,0 +1,35 @@
+== supine: sit-up -> fold -> tuck(ankle a) -> rise1(h1,k1,a1) -> rise2 -> stand   [play 3, STS3250 rolls+knees]
+a_tuck    h1   k1   a1 | after tuck: up/pelvis/contacts | after rise1 | final
+   -40  -110  -90  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -40  -110  -90  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -40  -110  -75  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -40  -110  -75  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -40   -95  -90  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -40   -95  -90  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -40   -95  -75  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -40   -95  -75  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -10  -110  -90  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -10  -110  -90  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -10  -110  -75  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -10  -110  -75  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -10   -95  -90  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -10   -95  -90  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -10   -95  -75  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+   -10   -95  -75  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    20  -110  -90  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    20  -110  -90  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    20  -110  -75  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    20  -110  -75  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    20   -95  -90  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    20   -95  -90  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    20   -95  -75  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    20   -95  -75  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    40  -110  -90  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    40  -110  -90  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    40  -110  -75  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    40  -110  -75  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.40 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    40   -95  -90  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    40   -95  -90  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    40   -95  -75  -40 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+    40   -95  -75  -20 | +0.40 0.048 Lthigh,Rthigh,torso    | +0.38 0.048 Lthigh,Rthigh,torso | up +0.03 z 0.056 
+standing combos: []

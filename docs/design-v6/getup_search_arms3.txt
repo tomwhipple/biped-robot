@@ -1,0 +1,39 @@
+== PRONE with arms, knees under FIRST: child's pose -> hands push chest up (all fours) -> feet flat (bear) -> hands off -> hinge -> stand
+all-fours arms -60, bear arms -100, hip -110 knee -60 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.47/0.11/Larm+Rarm+head | feet flat, :-0.88/0.16/Larm+Rarm+head | hands off:-0.72/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -60, bear arms -130, hip -110 knee -60 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.47/0.11/Larm+Rarm+head | feet flat, :-0.99/0.17/Larm+Rarm+head | hands off:-0.72/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -60, bear arms -100, hip -110 knee -35 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.47/0.11/Larm+Rarm+head | feet flat, :-0.88/0.16/Larm+Rarm+head | hands off:-0.82/0.16/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -60, bear arms -130, hip -110 knee -35 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.47/0.11/Larm+Rarm+head | feet flat, :-0.99/0.17/Larm+Rarm+head | hands off:-0.82/0.16/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -80, bear arms -100, hip -110 knee -60 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.69/0.14/Larm+Rarm+head | feet flat, :-0.88/0.16/Larm+Rarm+head | hands off:-0.72/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -80, bear arms -130, hip -110 knee -60 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.69/0.14/Larm+Rarm+head | feet flat, :-0.99/0.17/Larm+Rarm+head | hands off:-0.72/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -80, bear arms -100, hip -110 knee -35 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.69/0.14/Larm+Rarm+head | feet flat, :-0.88/0.16/Larm+Rarm+head | hands off:-0.82/0.16/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -80, bear arms -130, hip -110 knee -35 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.69/0.14/Larm+Rarm+head | feet flat, :-0.99/0.17/Larm+Rarm+head | hands off:-0.82/0.16/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -100, bear arms -100, hip -110 knee -60 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.89/0.16/Larm+Rarm+head | feet flat, :-0.88/0.16/Larm+Rarm+head | hands off:-0.72/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -100, bear arms -130, hip -110 knee -60 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.89/0.16/Larm+Rarm+head | feet flat, :-0.99/0.17/Larm+Rarm+head | hands off:-0.72/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -100, bear arms -100, hip -110 knee -35 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.89/0.16/Larm+Rarm+head | feet flat, :-0.88/0.16/Larm+Rarm+head | hands off:-0.82/0.16/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+all-fours arms -100, bear arms -130, hip -110 knee -35 no       up -0.03 z 0.054
+      child's pos:-0.36/0.09/Lshin+Rshin+head | all fours (:-0.89/0.16/Larm+Rarm+head | feet flat, :-0.99/0.17/Larm+Rarm+head | hands off:-0.82/0.16/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+standing: []
+== SUPINE with arms: one arm pushes the floor beside the torso to roll onto the front
+roll with L arm -60                              no       up +0.03 z 0.056
+      L arm out:+0.03/0.06/Lfoot+Rfoot+torso | push + legs:+0.07/0.05/Rfoot+torso | neutral:+0.03/0.06/Lfoot+Rfoot+torso
+roll with L arm -90                              no       up +0.03 z 0.056
+      L arm out:+0.03/0.06/Lfoot+Rfoot+torso | push + legs:+0.07/0.05/Rfoot+torso | neutral:+0.03/0.06/Lfoot+Rfoot+torso
+roll with L arm -120                             no       up +0.03 z 0.056
+      L arm out:+0.03/0.06/Lfoot+Rfoot+torso | push + legs:+0.07/0.05/Rfoot+torso | neutral:+0.03/0.06/Lfoot+Rfoot+torso
+roll with L arm +60                              no       up +0.03 z 0.056
+      L arm out:-0.00/0.08/Larm+Lfoot+Rarm+Rfoot+torso | push + legs:-0.01/0.08/Larm+Rarm+Rfoot | neutral:+0.03/0.06/Lfoot+Rfoot+torso
+roll with L arm +90                              no       up +0.03 z 0.056
+      L arm out:-0.01/0.08/Larm+Lfoot+Rarm+Rfoot | push + legs:-0.01/0.08/Larm+Rarm+Rfoot | neutral:+0.03/0.06/Lfoot+Rfoot+torso
+roll with L arm +120                             no       up +0.03 z 0.056
+      L arm out:-0.01/0.08/Larm+Lfoot+Rarm+Rfoot | push + legs:-0.01/0.08/Larm+Rarm+Rfoot | neutral:+0.03/0.06/Lfoot+Rfoot+torso

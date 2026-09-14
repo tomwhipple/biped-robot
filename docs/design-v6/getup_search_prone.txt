@@ -1,0 +1,17 @@
+== prone: tuck knees (child's pose) -> kneel up (hip extends, knees stay) -> sit back over the heels -> roll back onto the buttocks with feet tucked -> supine rise
+    1.3s lie prone                              up_z -0.03  pelvis z 0.054  |tau|max 0.26 (L_hip_pitch)  contacts ['L_foot', 'R_foot', 'torso']
+    4.3s tuck knees under                       up_z -0.36  pelvis z 0.091  |tau|max 0.36 (L_knee)  contacts ['L_shin', 'R_shin', 'head']
+    7.3s kneel up                               up_z -0.06  pelvis z 0.057  |tau|max 0.04 (L_knee)  contacts ['L_shin', 'R_shin', 'torso']
+    9.8s sit back on the heels                  up_z -0.36  pelvis z 0.090  |tau|max 0.32 (R_knee)  contacts ['L_shin', 'R_shin', 'head']
+   12.8s roll back onto the pelvis              up_z -0.54  pelvis z 0.118  |tau|max 0.40 (L_hip_pitch)  contacts ['L_foot', 'R_foot', 'head']
+   15.3s rise 1                                 up_z -0.56  pelvis z 0.121  |tau|max 0.36 (L_hip_pitch)  contacts ['L_foot', 'R_foot', 'head']
+   17.8s rise 2                                 up_z -0.25  pelvis z 0.074  |tau|max 0.42 (R_hip_pitch)  contacts ['L_foot', 'R_foot', 'head']
+   20.8s stand                                  up_z -0.03  pelvis z 0.054  |tau|max 0.24 (L_knee)  contacts ['L_foot', 'R_foot', 'torso']
+=> not standing (up -0.03, pelvis 0.054)
+== prone with the hip flexion range opened to -135 (a yoke redesign): pike on the head, feet walk under, hinge
+    1.3s lie prone                              up_z -0.03  pelvis z 0.054  |tau|max 0.26 (L_hip_pitch)  contacts ['L_foot', 'R_foot', 'torso']
+    4.3s tuck knees under                       up_z -0.47  pelvis z 0.108  |tau|max 0.51 (L_hip_pitch)  contacts ['L_foot', 'R_foot', 'head']
+    7.8s push pelvis up                         up_z -0.93  pelvis z 0.168  |tau|max 0.25 (L_hip_pitch)  contacts ['L_foot', 'R_foot', 'head']
+   11.3s hinge up                               up_z -0.60  pelvis z 0.127  |tau|max 0.12 (R_hip_pitch)  contacts ['L_foot', 'R_foot', 'head']
+   14.3s stand                                  up_z -0.03  pelvis z 0.054  |tau|max 0.24 (R_knee)  contacts ['L_foot', 'R_foot', 'torso']
+=> not standing (up -0.03, pelvis 0.054)

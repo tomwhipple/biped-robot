@@ -1,0 +1,23 @@
+== seated on the skid with both feet planted (nominal legs): search the rise -- heels in (ankle), torso fold, rock speed
+heels ankle -40, rock 0.4s, knee1 -95                no       up +0.04 z 0.094
+      tuck L:+0.78/0.13/Lfoo+tors | tuck R:+0.78/0.13/Lfoo+Rfoo+tors | heels in:+0.85/0.13/Lfoo+Rfoo+tors | rock forwa:+0.85/0.13/Lfoo+Rfoo+tors | rise 2:+0.70/0.13/Lfoo+Rfoo+tors | rise 3:+0.40/0.12/Lfoo+Rfoo+tors | stand:+0.00/0.09/tors | straight:+0.04/0.09/Lfoo+Rfoo+tors
+heels ankle -40, rock 0.4s, knee1 -80                no       up +0.04 z 0.094
+      tuck L:+0.78/0.13/Lfoo+tors | tuck R:+0.78/0.13/Lfoo+Rfoo+tors | heels in:+0.85/0.13/Lfoo+Rfoo+tors | rock forwa:+0.92/0.12/Lfoo+Rfoo+tors | rise 2:+0.72/0.13/Lfoo+Rfoo+tors | rise 3:+0.40/0.12/Lfoo+Rfoo+tors | stand:+0.00/0.09/tors | straight:+0.04/0.09/Lfoo+Rfoo+tors
+heels ankle -40, rock 1.5s, knee1 -95                no       up +0.04 z 0.094
+      tuck L:+0.78/0.13/Lfoo+tors | tuck R:+0.78/0.13/Lfoo+Rfoo+tors | heels in:+0.85/0.13/Lfoo+Rfoo+tors | rock forwa:+0.85/0.13/Lfoo+Rfoo+tors | rise 2:+0.70/0.13/Lfoo+Rfoo+tors | rise 3:+0.40/0.12/Lfoo+Rfoo+tors | stand:+0.00/0.09/tors | straight:+0.04/0.09/Lfoo+Rfoo+tors
+heels ankle -40, rock 1.5s, knee1 -80                no       up +0.04 z 0.094
+      tuck L:+0.78/0.13/Lfoo+tors | tuck R:+0.78/0.13/Lfoo+Rfoo+tors | heels in:+0.85/0.13/Lfoo+Rfoo+tors | rock forwa:+0.92/0.12/Lfoo+Rfoo+tors | rise 2:+0.72/0.13/Lfoo+Rfoo+tors | rise 3:+0.40/0.12/Lfoo+Rfoo+tors | stand:+0.00/0.09/tors | straight:+0.04/0.09/Lfoo+Rfoo+tors
+heels ankle -25, rock 0.4s, knee1 -95                no       up +0.04 z 0.094
+      tuck L:+0.78/0.13/Lfoo+tors | tuck R:+0.78/0.13/Lfoo+Rfoo+tors | heels in:+0.81/0.13/Lfoo+Rfoo+tors | rock forwa:+0.82/0.13/Lfoo+Rfoo+tors | rise 2:+0.70/0.13/Lfoo+Rfoo+tors | rise 3:+0.40/0.12/Lfoo+Rfoo+tors | stand:+0.00/0.09/tors | straight:+0.04/0.09/Lfoo+Rfoo+tors
+heels ankle -25, rock 0.4s, knee1 -80                no       up +0.04 z 0.094
+      tuck L:+0.78/0.13/Lfoo+tors | tuck R:+0.78/0.13/Lfoo+Rfoo+tors | heels in:+0.81/0.13/Lfoo+Rfoo+tors | rock forwa:+0.89/0.13/Lfoo+Rfoo+tors | rise 2:+0.71/0.13/Lfoo+Rfoo+tors | rise 3:+0.40/0.12/Lfoo+Rfoo+tors | stand:+0.00/0.09/tors | straight:+0.04/0.09/Lfoo+Rfoo+tors
+heels ankle -25, rock 1.5s, knee1 -95                no       up +0.03 z 0.093
+      tuck L:+0.78/0.13/Lfoo+tors | tuck R:+0.78/0.13/Lfoo+Rfoo+tors | heels in:+0.81/0.13/Lfoo+Rfoo+tors | rock forwa:+0.82/0.13/Lfoo+Rfoo+tors | rise 2:+0.70/0.13/Lfoo+Rfoo+tors | rise 3:+0.40/0.12/Lfoo+Rfoo+tors | stand:+0.00/0.09/tors | straight:+0.03/0.09/tors
+heels ankle -25, rock 1.5s, knee1 -80                no       up +0.04 z 0.094
+      tuck L:+0.78/0.13/Lfoo+tors | tuck R:+0.78/0.13/Lfoo+Rfoo+tors | heels in:+0.81/0.13/Lfoo+Rfoo+tors | rock forwa:+0.89/0.13/Lfoo+Rfoo+tors | rise 2:+0.71/0.13/Lfoo+Rfoo+tors | rise 3:+0.40/0.12/Lfoo+Rfoo+tors | stand:+0.00/0.09/tors | straight:+0.04/0.09/Lfoo+Rfoo+tors
+standing: []
+== same with the skid bottom at the hip-pitch level but further AFT (x -110..-40) so the seat is behind the hips
+aft skid, heels -40, rock 0.4s                       no       up +0.12 z 0.120
+      tuck L:+0.81/0.14/Lfoo+tors | tuck R:+0.81/0.14/Lfoo+Rfoo+tors | heels in:+0.87/0.14/Lfoo+Rfoo+tors | rock forwa:+0.93/0.13/Lfoo+Rfoo+tors | rise 2:+0.76/0.14/Lfoo+Rfoo+tors | rise 3:+0.46/0.14/Lfoo+Rfoo+tors | stand:+0.13/0.12/Lfoo+Rfoo+tors | straight:+0.12/0.12/Lfoo+Rfoo+tors
+aft skid, heels -40, rock 1.5s                       no       up +0.12 z 0.120
+      tuck L:+0.81/0.14/Lfoo+tors | tuck R:+0.81/0.14/Lfoo+Rfoo+tors | heels in:+0.87/0.14/Lfoo+Rfoo+tors | rock forwa:+0.93/0.13/Lfoo+Rfoo+tors | rise 2:+0.76/0.14/Lfoo+Rfoo+tors | rise 3:+0.46/0.14/Lfoo+Rfoo+tors | stand:+0.13/0.12/Lfoo+Rfoo+tors | straight:+0.12/0.12/Lfoo+Rfoo+tors

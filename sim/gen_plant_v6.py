@@ -91,6 +91,13 @@ class DesignParams:
     m_board: float = 0.030       # General Driver 65x65
     m_wiring: float = 0.030      # leads, ties, switch
     payload_ref: float = 0.0     # Pi + camera volume reserved; mass via DR
+    arms: bool = False           # get-up study: two 1-DOF stub arms (shoulder pitch, STS3215) on
+                                 # the deck sides, rigid links with a rubber tip
+    arm_len: float = 0.20
+    arm_mass: float = 0.020      # printed link + tip
+    arm_shoulder_x: float = -0.02
+    fall_collision: bool = True  # torso, head, links, feet collide with the FLOOR (contype 2),
+                                 # so falls and get-ups are physical; soles stay the 8 pads
     ankle_servos_in_shank: bool = False   # study variant: parallel-linkage ankle --
                                           # both ankle servos ride at the top of the
                                           # shank, the ankle joints are driven through
@@ -143,6 +150,10 @@ class DesignParams:
                 f"{'torso v7 (Pi 4B + head)  ' if self.torso_v7 else ''}"
                 f"yaw axis {1e3*self.z_yaw_above_sole:.0f} mm, deck top "
                 f"{1e3*(self.z_yaw_above_sole+self.deck_bot+self.deck_t):.0f} mm")
+
+
+def _fc(p) -> str:
+    return 'class="fallcol" ' if p.fall_collision else ''
 
 
 def _f(x: float) -> str:
@@ -226,12 +237,12 @@ def _leg(p: DesignParams, side: str) -> str:
             <joint name="{side}_hip_pitch" axis="0 1 0" range="{hp[0]:.0f} {hp[1]:.0f}"/>
             <!-- hip-pitch servo case sits in the thigh, axis at its upper end -->
             <geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>
-            <geom type="box" pos="0 0 {_f(-p.thigh/2)}" size="0.012 0.019 {_f(p.thigh/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
+            <geom {_fc(p)}type="box" pos="0 0 {_f(-p.thigh/2)}" size="0.012 0.019 {_f(p.thigh/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
             <geom name="{side}_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
             <body name="{side}_shin" pos="0 0 {_f(-p.thigh)}">
               <joint name="{side}_knee" axis="0 -1 0" range="{kr[0]:.0f} {kr[1]:.0f}"/>
               <geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>
-              <geom type="box" pos="0 0 {_f(-p.shank/2)}" size="0.012 0.019 {_f(p.shank/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
+              <geom {_fc(p)}type="box" pos="0 0 {_f(-p.shank/2)}" size="0.012 0.019 {_f(p.shank/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
               <geom name="{side}_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
 {_shank_ankle_servos(p, side)}
               <body name="{side}_ankle_blk" pos="0 0 {_f(-p.shank)}">
@@ -239,7 +250,7 @@ def _leg(p: DesignParams, side: str) -> str:
                 <!-- ankle-pitch servo case hangs below the axis inside the
                      ankle link (the hip's roll->pitch stack, upside down) -->
                 {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>'}
-                <geom type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.020 0.016 {_f(p.d_ankle/2)}" mass="{p.m_ankle_link if not p.ankle_servos_in_shank else p.m_ankle_link * 0.6 + p.m_linkage}" rgba="{link_rgba}" group="1"/>
+                <geom {_fc(p)}type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.020 0.016 {_f(p.d_ankle/2)}" mass="{p.m_ankle_link if not p.ankle_servos_in_shank else p.m_ankle_link * 0.6 + p.m_linkage}" rgba="{link_rgba}" group="1"/>
                 <geom name="{side}_col_ankle" type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.021 0.017 {_f(p.d_ankle/2)}" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="{side}_foot" pos="0 0 {_f(-p.d_ankle)}">
                   <joint name="{side}_ankle_roll" axis="1 0 0" range="{-ar:.0f} {ar:.0f}"/>
@@ -248,7 +259,7 @@ def _leg(p: DesignParams, side: str) -> str:
                        onto its horn (front) and idler (rear) -->
                   {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 0" size="{_f(sx_h[0])} {_f(sx_h[1])} {_f(sx_h[2])}" mass="{sv}"/>'}
                   {f'<geom type="box" pos="0 0 0" size="0.010 0.015 0.008" mass="{p.m_linkage}" rgba="{link_rgba}" group="1"/>' if p.ankle_servos_in_shank else ""}
-                  <geom type="box" pos="{_f(foot_cx)} {_f(foot_cy)} {_f(sole_z + 0.004)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.004" mass="{p.m_foot}" rgba="0.30 0.31 0.34 1" group="1"/>
+                  <geom {_fc(p)}type="box" pos="{_f(foot_cx)} {_f(foot_cy)} {_f(sole_z + 0.005)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.003" mass="{p.m_foot}" rgba="0.30 0.31 0.34 1" group="1"/>
 {_pads(p, side)}
                   <!-- reference sole (non-colliding; walker_env reads it) and
                        the full-footprint inter-foot collision proxy -->
@@ -273,8 +284,8 @@ def _torso(p: DesignParams) -> str:
     yaw_z = p.housing_h - SV_T / 2 - 0.003
     s = []
     s.append(f'      <!-- one-print pelvis: deck + housing walls -->')
-    s.append(f'      <geom type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
-    s.append(f'      <geom type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
+    s.append(f'      <geom {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
+    s.append(f'      <geom {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
     s.append(f'      <!-- hip YAW servos hang under the housing floor, horn down on the yaw axis -->')
     for sgn in (1, -1):
         s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(sgn*p.hip_sep/2)} {_f(yaw_z)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>')
@@ -312,6 +323,23 @@ def _torso(p: DesignParams) -> str:
     return "\n".join(s)
 
 
+def _arms(p: DesignParams) -> str:
+    if not p.arms:
+        return ""
+    out = []
+    zs = p.deck_bot - 0.015
+    for side, sgn in (("L", 1), ("R", -1)):
+        y = sgn * (p.deck_w / 2 + SV_T / 2 + 0.004)
+        out.append(f"""
+      <body name="{side}_arm" pos="{_f(p.arm_shoulder_x)} {_f(y)} {_f(zs)}">
+        <joint name="{side}_shoulder" axis="0 1 0" range="-180 90"/>
+        <geom class="servo" type="box" pos="0 {_f(-sgn*SV_T/2)} 0" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
+        <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_len)}" size="0.006" mass="{p.arm_mass}" rgba="0.82 0.84 0.87 1"/>
+        <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
+      </body>""")
+    return "".join(out)
+
+
 def _head(p: DesignParams) -> str:
     if not p.torso_v7:
         return ""
@@ -319,7 +347,7 @@ def _head(p: DesignParams) -> str:
     return f"""
       <body name="head" pos="0 0 {_f(zn + SV_T + 0.004)}">
         <joint name="neck_yaw" axis="0 0 1" range="-90 90"/>
-        <geom type="box" pos="0.005 0 {_f(p.head_h/2)}" size="0.028 0.030 {_f(p.head_h/2)}" mass="{p.m_head}" rgba="0.82 0.84 0.87 1" group="1"/>
+        <geom {_fc(p)}type="box" pos="0.005 0 {_f(p.head_h/2)}" size="0.028 0.030 {_f(p.head_h/2)}" mass="{p.m_head}" rgba="0.82 0.84 0.87 1" group="1"/>
         <geom type="box" pos="0.036 0 {_f(p.head_h*0.6)}" size="0.005 0.012 0.012" mass="0.003" rgba="0.1 0.1 0.1 1" group="1"/>
         <site name="camera" pos="0.041 0 {_f(p.head_h*0.6)}" size="0.003" rgba="0 1 0 0.6"/>
       </body>"""
@@ -350,6 +378,9 @@ def build_xml(p: DesignParams) -> str:
                         f'ctrlrange="{r(lo):.10f} {r(hi):.10f}"/>  <!-- {lo:.0f} .. {hi:.0f} -->')
     if p.torso_v7:
         acts.append(f'    <position name="neck_yaw" joint="neck_yaw" ctrlrange="{r(-90):.10f} {r(90):.10f}"/>  <!-- head yaw -->')
+    if p.arms:
+        for side in ("L", "R"):
+            acts.append(f'    <position name="{side}_shoulder" joint="{side}_shoulder" ctrlrange="{r(-180):.10f} {r(90):.10f}"/>')
     acts_s = "\n".join(acts)
     pairs = []
     segs = ("col_thigh", "col_shank", "col_ankle", "col_foot")
@@ -383,6 +414,9 @@ def build_xml(p: DesignParams) -> str:
       <geom type="sphere" size="0.003" contype="1" conaffinity="0" mass="0"
             friction="1 0.02 0.001" condim="4" rgba="0.20 0.21 0.24 1"/>
     </default>
+    <default class="fallcol">
+      <geom contype="2" conaffinity="0" group="1" friction="0.8 0.02 0.001" condim="4"/>
+    </default>
     <default class="legcol">
       <geom type="capsule" size="0.0147" contype="0" conaffinity="0" mass="0"
             group="4" rgba="0.85 0.35 0.25 0.30"/>
@@ -405,7 +439,7 @@ def build_xml(p: DesignParams) -> str:
       <freejoint/>
 {_torso(p)}
 {_leg(p, "L")}
-{_leg(p, "R")}{_head(p)}
+{_leg(p, "R")}{_head(p)}{_arms(p)}
     </body>
   </worldbody>
 

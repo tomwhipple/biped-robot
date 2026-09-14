@@ -1,0 +1,10 @@
+== prone -> child's pose -> kneel upright -> half-kneel -> lunge up: knee flexion 95 (nominal) vs 135; hip 110 vs 135
+knee 95, hip 110, rear ankle +40             no       up -0.03 z 0.054
+      child's pose:-0.36/0.09/Lshin+Rshin+head | kneel uprigh:+0.16/0.05/Lthig+Rthig+torso | half-kneel: :+0.05/0.07/Lfoot+Rfoot+Rthig+torso | lean over th:-0.07/0.07/Rfoot+Rthig+torso | lunge up:-0.10/0.08/Lfoot+Rfoot+torso | both feet:-0.01/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+knee 135, hip 110, rear ankle +40            no       up -0.03 z 0.054
+      child's pose:-0.37/0.09/Lshin+Rshin+head | kneel uprigh:+0.16/0.05/Lshin+Rshin+torso | half-kneel: :+0.02/0.07/Lfoot+Rfoot+torso | lean over th:-0.07/0.08/Lfoot+Rfoot+Rthig+torso | lunge up:-0.10/0.08/Lfoot+Rfoot+torso | both feet:-0.01/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+knee 135, hip 135, rear ankle +40            no       up -0.03 z 0.054
+      child's pose:-0.04/0.09/Lankl+Lshin+Rankl+Rshin | kneel uprigh:+0.63/0.15/Lankl+Lfoot+Rankl+Rfoot | half-kneel: :+0.02/0.07/Lfoot+Rfoot+torso | lean over th:-0.07/0.08/Lfoot+Rfoot+Rthig+torso | lunge up:-0.10/0.08/Lfoot+Rfoot+torso | both feet:-0.01/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+== knee 135 with a wider ankle (+-60) so the rear shank can lie flatter
+knee 135, hip 110, ankle 60                  no       up -0.03 z 0.054
+      child's pose:-0.37/0.09/Lshin+Rshin+head | kneel uprigh:+0.16/0.05/Lshin+Rshin+torso | half-kneel: :-0.05/0.08/Lfoot+Rfoot+torso | lean over th:-0.08/0.08/Lfoot+Rfoot+Rthig+torso | lunge up:-0.10/0.08/Lfoot+Rfoot+torso | both feet:-0.01/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso

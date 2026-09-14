@@ -271,6 +271,7 @@ Built in build123d under `cad/v6/` against `cad/v6/dimensions_v6.py`, which impo
 | `ankle_link` | 2 | 12 | leg_link's grip channel (the ankle-pitch servo hangs in it) plus a new fork in the X-Z plane: two tines fore and aft onto the roll servo's horn and idler discs, tied by a top plate and an inboard web. The ROM sweep of the roll servo's case under it set `ANKLE_PITCH_TO_ROLL` at 58 (see §9) |
 | `foot_L` / `foot_R` | 1 + 1 | 52 | mirrored pair: 130 × 84 plate, centreline 12 mm outboard; the roll servo lies across it in a cradle with an inboard end stop and two retention tabs (front on the horn-side case face, rear on the real idler face, 2 × M2.5 flat-heads each at the far hole rows), platform relief as an open window (v5's foot logic), the lead notched out of the rear rail; underside pocketed with a 6 mm perimeter for the TPU bond. `sole_tpu_L/R` (23 g) print in TPU 95A |
 | `pelvis_v7` | 1 | 174 | one print, deck-top-down: v5's yaw cells at 84 mm with their own ceilings carrying the stator screws (counterbores up, driven with the pack out), a transverse battery layer above them with belt slots and side windows, the General Driver vertical on the front wall and the Pi 4B on the aft wall — both slide down guide grooves through deck slots (installability verified by sweep, 0 mm³), lower screw row on standoff bosses and the upper row into pilots (a boss there would block the slide), USB/Ethernet and the General Driver's service edge through side windows, the neck STS3215 standing in a deck-top well with 4 × M2.5 up from below, a 3° tapered outer skin on a 4 mm band outside the cell walls with R 8 corners and windows. 242 → 174 g over three passes; the remaining mass is the cell walls, ceilings, the bay walls and the deck |
+| `neck_collar` | 1 | 20 | the neck servo's mount (2026-09-14, after the assembly showed the servo standing loose in its deck well): a tube round the servo case rising to 2.1 mm under the head's horn disc, on a 3 mm flange with 4 × M2.5 into deck pilots. A separate print, flange down, support-free — fused into the pelvis it made the pelvis's deck an island above the collar mouth |
 | `head_shell` + `head_face` | 1 + 1 | 27 + 7 | base plate on the neck horn (4 × M3 on the Ø14 circle, centre relief, ribbon slot), a domed shell (≥ 45° to a 7 mm crown, support-free) and a face plate carrying the Camera Module 3 on M2 bosses; ±90° yaw clears the neck servo and the deck; the horn screws are driven from inside before the face goes on |
 
 **Assembly and gates.** `cad/v6/assembly_v6.py` places every part, servo mock and electronics mock as a kinematic chain and poses it (`cad/v6/step/assembly_v6.step`, `renders/assembly_v6.png`). `cad/v6/check_assembly_v6.py` sweeps every relatively-moving pair over its ROM (results: `docs/design-v6/cad_rom_check.txt`) — it is what caught the knee regression, the servo-to-servo ankle clash and the foot tab/tine touch. Per-part printability audits use v5's `check_printability` rules; `cad/v6/animate_v6.py` flies the parts in along their insertion paths (`renders/assembly_v6_flyin_strip.png`).
@@ -278,6 +279,37 @@ Built in build123d under `cad/v6/` against `cad/v6/dimensions_v6.py`, which impo
 **Back into the sim.** `sim/build_v6_inertia.py --write` regenerates `sim/bimo_biped_v6ar.xml` with per-body `<inertial>` blocks from the v6 STLs plus the servo, pack and board boxes at their CAD places: **1.75 kg**, torso CoM 47 mm above the yaw axis. The open-loop walk on that plant (`docs/design-v6/gateD_cad_inertials.txt`, 8 steps, STS3250 rolls + knees, 3° play): straight 8/8 with 10.6 mm of CoM margin and 18 mm of swing clearance; ±15°/step arcs 8/8 (86–87° of bearing change) at 10–11 mm; μ 0.3 with 5° of play 8/8 at 7 mm. Margins are thinner than the 1.55 kg model's (the real torso is 115 g heavier than modelled) and the combined-adversity case sits at the gates doc's 1 cm floor; the levers if the bench wants more are the deck thickness (5 → 3.5 mm ribbed, ~10 g), the Pi heatsink, and a 5 cm commanded lift.
 
 **Open items from the CAD pass** (all in the module docstrings): the pelvis's yaw-cell ceilings and skin window roofs need slicer supports; the General Driver and Pi upper screw rows are pilots, not bosses (heat-set inserts are the alternative if the pilots strip); a handful of standoff and idler-grip screws need a slim driver; the leg link's round pads want a brim; the head's dome-seam audit flag should be checked in the slicer.
+
+## 11. Fall recovery (2026-09-14): an open-loop get-up does not exist on this body, and why
+
+Tom, before settling the design: *"let's figure out an open loop fall recovery sequence."* Method: `sim/getup_v6.py` — every body part now collides with the floor (`fall_collision`), the robot is dropped supine or prone and settled, then joint-space keyframe sequences run under the deploy servo model (STS3250 rolls + knees, 3° play, 2 Hz shaper + 80 ms). Success = torso up-vector > 0.9 and the pelvis at ≥ 80 % of standing height. Seven search batches, ~120 sequences, logs in `docs/design-v6/getup_search_*.txt`.
+
+**What this body can do statically**
+
+- **Sit up from supine**: yes, every time. With the legs straight the legs are the counterweight (0.8 kg at 0.25 m vs the upper body's 0.95 kg at 0.15 m) and the torso comes to vertical on 0.14 N·m per hip. Contacts: feet + thighs.
+- **Child's pose from prone** (hips −110, knees −95): yes — shins + head, pelvis at 0.09 m.
+- **Head-and-feet "downward dog"** from there: yes, pelvis at 0.17 m, torso inverted.
+- **Kneel-sit on the heels**: only with a 135° knee *and* 135° hip (torso upright, pelvis 0.18 m, contacts shins + ankles); the 95° knee collapses.
+- **Sit on a skid with both feet planted**: yes, if the pelvis carries a printed seat skid reaching down to the hip-pitch level (contacts feet + skid, torso within 20° of vertical).
+
+**Where every path dies: moving the centre of mass from the seat onto the feet.** The same failure in all of them:
+
+1. *Seated, tuck the feet under* (the human way): with the pelvis on the floor, a 95° knee cannot put a foot under the body — flexing the knee swings the foot **up into the air** beside the knee (the shank is nearly vertical at full flexion), and the lifted leg tips the torso onto its back. Confirmed on film (`gu_situp_strip`). With 135°/135° ranges the foot can be *placed* beside the hip, but lifting one thigh off the seat still tips the torso, because the seat is the thighs themselves, 91 mm below the torso housing: the robot sits on stilts (the tall yaw-roll-pitch hip stack). A low hip stack alone (probed at 20 and 10 mm) does not fix it either.
+2. *Seated on the skid, rise*: the feet are planted 0.10 m ahead of the hips and the torso can lean only 20° past the thigh (hip −110), so the CoM stays 5 cm behind the feet and every push-up falls back onto the skid — the "rise corridor" v5 spent 11 rounds in.
+3. *Prone, pike on the head, hinge up*: the kinematic sweep shows no feet-flat pose with the head on the floor and the CoM over the soles; walking the feet in under the CoM needs hip flexion well beyond 110°, and at 135° the hinge still fails.
+4. *Kneel-sit → half-kneel*: the 135°/135° kneel-sit is stable, but stepping one foot forward puts the body on one shin and it tips forward, every combination of lunge angles and roll shift (16 tried).
+5. *Stub arms* (2 × 1-DOF, 200 mm, at the shoulders): every push pivots the body about the **head**, which is the first contact in every prone pose, into a headstand; from supine an arm push does not roll the flat box torso.
+
+**Design levers, in order of effect** (each verified as the thing that moves the failing step, none yet verified as sufficient):
+
+| lever | what it buys | cost |
+|---|---|---|
+| **knee flexion ≥ 130° and hip flexion ≥ 130°** (foot to buttock, chest to thigh) | the foot can be placed beside the hip; the kneel-sit exists; the CoM can be folded over the feet | an offset knee (the shank folds past the thigh's box: a new link/joint geometry) and a hip yoke with 25° more travel — both real CAD changes to the proven servo-link pattern |
+| **a seat below the hip joints** (a pelvis skid, or a hip layout that puts the torso bottom at hip level) | seated poses become stable with the legs free to move | a 30 g skid is trivial; a low hip stack is a different hip |
+| **arms mounted low** (near the hips, not the shoulders) with a head that does not lead the contact | a third contact that lifts the pelvis instead of pivoting the torso over the head | 2 servos (~$60), 2 links, +150 g, obs/firmware DOF change; the head needs a recessed face or a chest bumper |
+| dynamic (learned) get-up | no hardware change | v5's record: 11 rounds, kneel achieved, the rise never |
+
+**Recommendation.** Do not hold the walking design for the get-up: its levers all sit in the leg joint ranges and the hip stack, not in anything the walking gates fixed, and the offset knee is the one change that both paths (seated and kneeling) need. Ship v6 as the walker, add the pelvis skid now (cheap, and it makes the seated pose a safe place to be), and treat "v6.1 gets up" as its own gate with the offset knee and low arms as candidates, run through this same script before any part is drawn — exactly as the walking was.
 
 ## Files
 
@@ -289,4 +321,5 @@ Built in build123d under `cad/v6/` against `cad/v6/dimensions_v6.py`, which impo
 - `docs/design-v6/` — every table quoted here, `gateCD_sweep*.json`, the option study (`study_options.txt`, `study_feedback_3215.txt`), the CAD rollup, ROM check, print list and BOM delta
 - `cad/v6/` — `dimensions_v6.py`, the part modules, `parts_v6.py`, `assembly_v6.py`, `check_assembly_v6.py`, `animate_v6.py`, `stl/`, `step/`, `renders/`
 - `sim/build_v6_inertia.py` — CAD-true inertials into the plant
+- `sim/getup_v6.py` — fall-recovery sequences under the deploy model (supine/prone start, stub-arm and deep-flexion variants via DesignParams)
 - `sim/renders/v6_static_walk_strip.png`, `sim/renders/v6_arc_walk_strip.png` (+ the gitignored `.mp4`s)

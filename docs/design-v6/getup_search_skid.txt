@@ -1,0 +1,10 @@
+== SEAT SKID under the pelvis (a printed bumper from the housing bottom down to the hip-pitch level, behind the hips), nominal legs
+skid x -90..-20, bottom -95 mm                 no       up +0.00 z 0.090
+      sit up:+0.99/0.10/Lfoot+Lthig+Rfoot+Rthig+torso | fold:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.78/0.13/Lfoot+torso | tuck R:+0.78/0.13/Lfoot+Rfoot+torso | rise 1:+0.78/0.13/Lfoot+Rfoot+torso | rise 2:+0.44/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso
+skid x -70..-0, bottom -95 mm                  no       up +0.00 z 0.070
+      sit up:+0.99/0.10/Lfoot+Lthig+Rfoot+Rthig+torso | fold:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck L:+0.74/0.12/Lfoot+torso | tuck R:+0.73/0.12/Lfoot+Rfoot+torso | rise 1:+0.75/0.12/Lfoot+Rfoot+torso | rise 2:+0.36/0.10/Lfoot+Rfoot+torso | stand:+0.00/0.07/Lfoot+Rfoot+torso
+skid x -90..-20, bottom -120 mm                no       up +0.00 z 0.090
+      sit up:-0.00/0.09/torso | fold:-0.34/0.08/torso | tuck L:-0.37/0.08/head+torso | tuck R:-0.37/0.08/head+torso | rise 1:-0.37/0.08/head+torso | rise 2:+0.46/0.14/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso
+== skid + knee 135 / hip 135, lift-thigh-and-fold
+skid + 135/135                                 no       up +0.00 z 0.090
+      sit up:+0.99/0.10/Lfoot+Lthig+Rfoot+Rthig+torso | lift L thig:+0.72/0.13/Lfoot+torso | lift R thig:+0.69/0.13/Lfoot+Rfoot+torso | rock forwar:+0.76/0.13/Lfoot+Rfoot+torso | rise 1:+0.76/0.13/Lfoot+Rfoot+torso | rise 2:+0.63/0.13/Lfoot+Rfoot+torso | rise 3:+0.37/0.12/Lfoot+Rfoot+torso | stand:+0.00/0.09/torso

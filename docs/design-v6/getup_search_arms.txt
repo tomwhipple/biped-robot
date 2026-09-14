@@ -1,0 +1,14 @@
+arms plant nu 15 mass 1.81
+== supine with stub arms (200 mm, shoulder pitch; + = arm swings backward/down behind the torso when sitting)
+arms +60 then +90                                  no       up +0.03 z 0.056
+      arms plant b:-0.61/0.12 | sit up (arms:-0.64/0.13 | knees up, fe:-0.62/0.12 | arms push pe:-0.89/0.16 | fold forward:-0.89/0.16 | release arms:+0.25/0.05 | rise 2:+0.20/0.05 | stand:+0.03/0.06
+arms +90 then +120                                 no       up -0.03 z 0.054
+      arms plant b:-0.88/0.16 | sit up (arms:-0.83/0.16 | knees up, fe:-0.34/0.09 | arms push pe:-0.41/0.10 | fold forward:-0.51/0.11 | release arms:-0.34/0.09 | rise 2:-0.22/0.07 | stand:-0.03/0.05
+arms +120 then +150                                no       up -0.03 z 0.054
+      arms plant b:-0.88/0.16 | sit up (arms:-0.83/0.16 | knees up, fe:-0.34/0.09 | arms push pe:-0.41/0.10 | fold forward:-0.51/0.11 | release arms:-0.34/0.09 | rise 2:-0.22/0.07 | stand:-0.03/0.05
+arms -60 then -90                                  no       up +0.03 z 0.056
+      arms plant b:+0.03/0.06 | sit up (arms:+0.99/0.10 | knees up, fe:+0.37/0.05 | arms push pe:+0.39/0.05 | fold forward:+0.40/0.05 | release arms:+0.25/0.05 | rise 2:+0.20/0.05 | stand:+0.03/0.06
+arms -90 then -120                                 no       up +0.03 z 0.056
+      arms plant b:+0.03/0.06 | sit up (arms:+0.99/0.10 | knees up, fe:+0.37/0.05 | arms push pe:+0.39/0.05 | fold forward:+0.40/0.05 | release arms:+0.25/0.05 | rise 2:+0.20/0.05 | stand:+0.03/0.06
+arms -120 then -150                                no       up +0.03 z 0.056
+      arms plant b:+0.03/0.06 | sit up (arms:+0.99/0.10 | knees up, fe:+0.37/0.05 | arms push pe:+0.39/0.05 | fold forward:+0.40/0.05 | release arms:+0.25/0.05 | rise 2:+0.20/0.05 | stand:+0.03/0.06

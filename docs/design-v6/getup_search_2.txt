@@ -1,0 +1,24 @@
+== supine, tuck ONE LEG AT A TIME (nominal ranges: hip -110, knee -95)
+nominal, tuck ankle -40                              no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.98/0.10 | tuck L:+0.39/0.05 | tuck R:+0.40/0.05 | rise 1:+0.39/0.05 | rise 2:+0.36/0.05 | rise 3:+0.17/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+nominal, tuck ankle +0                               no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.98/0.10 | tuck L:+0.40/0.05 | tuck R:+0.40/0.05 | rise 1:+0.39/0.05 | rise 2:+0.36/0.05 | rise 3:+0.17/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+nominal, tuck ankle +40                              no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.98/0.10 | tuck L:+0.40/0.05 | tuck R:+0.40/0.05 | rise 1:+0.39/0.05 | rise 2:+0.36/0.05 | rise 3:+0.17/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+== knee flexion opened to 135 (offset-knee redesign), hip -110
+knee 135, tuck ankle -40                             no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.98/0.10 | tuck L:+0.30/0.05 | tuck R:+0.30/0.05 | rise 1:+0.41/0.05 | rise 2:+0.38/0.05 | rise 3:+0.29/0.05 | rise 4:+0.17/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+knee 135, tuck ankle +0                              no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.98/0.10 | tuck L:+0.14/0.05 | tuck R:+0.14/0.05 | rise 1:+0.41/0.05 | rise 2:+0.38/0.05 | rise 3:+0.29/0.05 | rise 4:+0.17/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+knee 135, tuck ankle +40                             no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.98/0.10 | tuck L:+0.13/0.05 | tuck R:+0.12/0.05 | rise 1:+0.41/0.05 | rise 2:+0.38/0.05 | rise 3:+0.29/0.05 | rise 4:+0.17/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+== knee 135 AND hip flexion 135
+knee 135 + hip 135, tuck ankle -40                   no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.79/0.09 | tuck L:+0.23/0.05 | tuck R:+0.38/0.05 | rise 1:+0.39/0.05 | rise 2:+0.40/0.05 | rise 3:+0.37/0.05 | rise 4:+0.23/0.05 | rise 5:+0.12/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+knee 135 + hip 135, tuck ankle +0                    no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.79/0.09 | tuck L:+0.35/0.05 | tuck R:+0.35/0.05 | rise 1:+0.39/0.05 | rise 2:+0.40/0.05 | rise 3:+0.37/0.05 | rise 4:+0.23/0.05 | rise 5:+0.12/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+knee 135 + hip 135, tuck ankle +40                   no       up +0.03 z 0.056
+      sit up:+0.99/0.10 | fold:+0.79/0.09 | tuck L:+0.25/0.05 | tuck R:+0.26/0.05 | rise 1:+0.39/0.05 | rise 2:+0.40/0.05 | rise 3:+0.37/0.05 | rise 4:+0.23/0.05 | rise 5:+0.12/0.05 | stand:+0.03/0.06 | straight:+0.03/0.06
+== prone: roll over with a big asymmetric swing (nominal ranges)
+prone roll attempt                                   no       up +0.06 z 0.057
+      swing both:+0.27/0.06 | kick:-0.14/0.08 | neutral:+0.06/0.06

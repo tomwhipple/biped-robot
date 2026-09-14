@@ -1,0 +1,34 @@
+== 135/135 body: prone -> child's pose -> kneel-sit (on the heels) -> half-kneel search -> lunge
+L hip -110 knee -100, R hip -40, roll 0  no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.01/0.07/Rfoot+Rthig+torso | lunge up:-0.01/0.07/Rfoot+Rshin+torso | both feet:-0.01/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -110 knee -100, R hip -40, roll 10 no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.09/0.08/Rfoot+Rthig+torso | lunge up:-0.12/0.08/Lfoot+Rfoot+torso | both feet:-0.04/0.08/Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -110 knee -100, R hip -70, roll 0  no       up +0.02 z 0.076
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.05/0.07/Rfoot+Rthig+torso | lunge up:-0.01/0.07/Rfoot+Rshin+torso | both feet:-0.00/0.08/Lfoot+Rfoot+torso | stand:+0.02/0.08/Lfoot+Rfoot+torso | straight:+0.02/0.08/Lfoot+Rfoot+torso
+L hip -110 knee -100, R hip -70, roll 10 no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.11/0.08/Rfoot+Rshin+torso | lunge up:-0.12/0.08/Lfoot+Rfoot+torso | both feet:-0.03/0.08/Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -110 knee -120, R hip -40, roll 0  no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.01/0.07/Rfoot+Rthig+torso | lunge up:-0.01/0.07/Rfoot+Rshin+torso | both feet:-0.01/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -110 knee -120, R hip -40, roll 10 no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.09/0.08/Rfoot+Rthig+torso | lunge up:-0.12/0.08/Lfoot+Rfoot+torso | both feet:-0.05/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -110 knee -120, R hip -70, roll 0  no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.27/0.09/Lfoot+Lshin+Rshin+torso | lunge up:-0.27/0.08/Lfoot+head+torso | both feet:-0.07/0.06/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -110 knee -120, R hip -70, roll 10 no       up -0.06 z 0.063
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.30/0.09/Lfoot+Lshin+Rshin+head+torso | lunge up:-0.17/0.07/Rfoot+torso | both feet:-0.07/0.06/Lfoot+Rfoot+torso | stand:-0.06/0.06/Lfoot+Rfoot+torso | straight:-0.06/0.06/Lfoot+Rfoot+torso
+L hip -135 knee -100, R hip -40, roll 0  no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.02/0.07/Lfoot+Rfoot+Rthig+torso | lunge up:-0.01/0.07/Rfoot+Rshin+torso | both feet:-0.01/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -135 knee -100, R hip -40, roll 10 no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.09/0.08/Rfoot+Rthig+torso | lunge up:-0.12/0.08/Lfoot+Rfoot+torso | both feet:-0.04/0.08/Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -135 knee -100, R hip -70, roll 0  no       up +0.02 z 0.076
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.05/0.07/Rfoot+Rthig+torso | lunge up:-0.01/0.07/Rfoot+Rshin+torso | both feet:-0.00/0.08/Lfoot+Rfoot+torso | stand:+0.02/0.08/Lfoot+Rfoot+torso | straight:+0.02/0.08/Lfoot+Rfoot+torso
+L hip -135 knee -100, R hip -70, roll 10 no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.11/0.08/Rfoot+Rshin+torso | lunge up:-0.12/0.08/Lfoot+Rfoot+torso | both feet:-0.05/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -135 knee -120, R hip -40, roll 0  no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.02/0.07/Rfoot+Rthig+torso | lunge up:-0.01/0.07/Rfoot+Rshin+torso | both feet:-0.01/0.08/Lfoot+Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -135 knee -120, R hip -40, roll 10 no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.09/0.08/Rfoot+Rthig+torso | lunge up:-0.12/0.08/Lfoot+Rfoot+torso | both feet:-0.05/0.08/Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+L hip -135 knee -120, R hip -70, roll 0  no       up +0.02 z 0.076
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.05/0.07/Rfoot+Rthig+torso | lunge up:-0.01/0.07/Rfoot+Rshin+torso | both feet:-0.00/0.08/Lfoot+Rfoot+torso | stand:+0.02/0.08/Lfoot+Rfoot+torso | straight:+0.02/0.08/Lfoot+Rfoot+torso
+L hip -135 knee -120, R hip -70, roll 10 no       up -0.03 z 0.054
+      kneel-sit:+0.95/0.18/Lankl+Lshin+Rankl+Rshin | L foot forw:-0.11/0.08/Rfoot+Rshin+torso | lunge up:-0.12/0.08/Lfoot+Rfoot+torso | both feet:-0.05/0.08/Rfoot+torso | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+standing: []

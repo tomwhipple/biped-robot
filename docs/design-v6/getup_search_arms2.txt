@@ -1,0 +1,27 @@
+== PRONE with stub arms (200 mm): push-up -> knees under -> bear pose (feet flat, hands down) -> hands off -> hinge -> stand
+   shoulder sign: 0 = arm along the torso toward the feet; negative swings the tip toward the torso's front (+x)
+s1 -70 s2 -110 bear hip -110 knee -60        no       up -0.03 z 0.054
+      hands down :-0.58/0.12/Larm+Rarm+head | push-up + k:-0.96/0.17/Larm+Rarm+head | feet flat (:-0.96/0.17/Larm+Rarm+head | hands off:-0.72/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+s1 -70 s2 -110 bear hip -110 knee -35        no       up -0.03 z 0.054
+      hands down :-0.58/0.12/Larm+Rarm+head | push-up + k:-0.96/0.17/Larm+Rarm+head | feet flat (:-0.96/0.17/Larm+Rarm+head | hands off:-0.82/0.16/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+s1 -70 s2 -110 bear hip -100 knee -50        no       up -0.03 z 0.054
+      hands down :-0.58/0.12/Larm+Rarm+head | push-up + k:-0.96/0.17/Larm+Rarm+head | feet flat (:-0.96/0.17/Larm+Rarm+head | hands off:-0.71/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+s1 -70 s2 -130 bear hip -110 knee -60        no       up +0.03 z 0.056
+      hands down :-0.58/0.12/Larm+Rarm+head | push-up + k:+0.26/0.05/Lfoot+Rfoot+torso | feet flat (:+0.40/0.05/Lthig+Rthig+torso | hands off:+0.21/0.05/Larm+Rarm+torso | hinge up:+0.26/0.05/Larm+Rarm+torso | stand:+0.03/0.06/Lfoot+Rfoot+torso | straight:+0.03/0.06/Lfoot+Rfoot+torso
+s1 -70 s2 -130 bear hip -110 knee -35        no       up +0.03 z 0.056
+      hands down :-0.58/0.12/Larm+Rarm+head | push-up + k:+0.26/0.05/Lfoot+Rfoot+torso | feet flat (:+0.40/0.05/Lthig+Rthig+torso | hands off:+0.19/0.05/Larm+Rarm+torso | hinge up:+0.27/0.05/Larm+Rarm+torso | stand:+0.03/0.06/Lfoot+Rfoot+torso | straight:+0.03/0.06/Lfoot+Rfoot+torso
+s1 -70 s2 -130 bear hip -100 knee -50        no       up +0.03 z 0.056
+      hands down :-0.58/0.12/Larm+Rarm+head | push-up + k:+0.26/0.05/Lfoot+Rfoot+torso | feet flat (:+0.39/0.05/Lthig+Rthig+torso | hands off:+0.22/0.05/Larm+Rarm+torso | hinge up:+0.26/0.05/Larm+Rarm+torso | stand:+0.03/0.06/Lfoot+Rfoot+torso | straight:+0.03/0.06/Lfoot+Rfoot+torso
+s1 -90 s2 -110 bear hip -110 knee -60        no       up -0.03 z 0.054
+      hands down :-0.80/0.15/Larm+Rarm+head | push-up + k:-0.96/0.17/Larm+Rarm+head | feet flat (:-0.96/0.17/Larm+Rarm+head | hands off:-0.72/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+s1 -90 s2 -110 bear hip -110 knee -35        no       up -0.03 z 0.054
+      hands down :-0.80/0.15/Larm+Rarm+head | push-up + k:-0.96/0.17/Larm+Rarm+head | feet flat (:-0.96/0.17/Larm+Rarm+head | hands off:-0.82/0.16/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+s1 -90 s2 -110 bear hip -100 knee -50        no       up -0.03 z 0.054
+      hands down :-0.80/0.15/Larm+Rarm+head | push-up + k:-0.96/0.17/Larm+Rarm+head | feet flat (:-0.96/0.17/Larm+Rarm+head | hands off:-0.71/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+s1 -90 s2 -130 bear hip -110 knee -60        no       up -0.03 z 0.054
+      hands down :-0.80/0.15/Larm+Rarm+head | push-up + k:-0.98/0.17/Larm+Rarm+head | feet flat (:-0.99/0.17/Larm+Rarm+head | hands off:-0.72/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+s1 -90 s2 -130 bear hip -110 knee -35        no       up -0.03 z 0.054
+      hands down :-0.80/0.15/Larm+Rarm+head | push-up + k:-0.98/0.17/Larm+Rarm+head | feet flat (:-0.99/0.17/Larm+Rarm+head | hands off:-0.82/0.16/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+s1 -90 s2 -130 bear hip -100 knee -50        no       up -0.03 z 0.054
+      hands down :-0.80/0.15/Larm+Rarm+head | push-up + k:-0.98/0.17/Larm+Rarm+head | feet flat (:-0.99/0.17/Larm+Rarm+head | hands off:-0.71/0.14/Lfoot+Rfoot+head | hinge up:-0.43/0.10/Lfoot+Rfoot+head | stand:-0.03/0.05/Lfoot+Rfoot+torso | straight:-0.03/0.05/Lfoot+Rfoot+torso
+standing: []
