@@ -25,8 +25,10 @@ Camera: left-drag rotate, right-drag pan, scroll zoom (the MuJoCo viewer).
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -147,26 +149,10 @@ class Puppet:
         self._quit = True
 
 
-def build_panel(pup: Puppet):
-    """slider panel next to the 3D viewer. Prefers matplotlib (TkAgg window);
-    falls back to a zero-dependency terminal REPL if matplotlib is absent, so
-    `pip install matplotlib` is optional polish rather than a requirement.
-    Each control is a joint TARGET (deg) -- the servo + gravity decide how
-    close the body actually gets, and that gap is the point: a joint that will
-    not reach its slider is one the servo cannot hold there against the floor."""
-    try:
-        import matplotlib  # noqa: F401
-        return _panel_matplotlib(pup)
-    except ImportError:
-        print("matplotlib not present -- terminal control (pip install matplotlib for sliders).",
-              flush=True)
-        return _panel_repl(pup)
-
-
 def _panel_repl(pup: Puppet):
-    """no extra deps: type `L_knee -90`, `R_ankle 20`, `pose supine`,
-    `record`, `dump`, `state`, or `quit`. Gravity runs the whole time
-    (the viewer loop on the main thread keeps stepping the sim)."""
+    """terminal fallback (used with --no-window or when the GUI child cannot
+    be spawned): `L_knee -90`, `R_ankle 20`, `pose supine`, `record`, `dump`,
+    `state`, or `quit`. Gravity runs the whole time."""
     print("commands: <joint> <deg> | pose %s | record | dump | state | quit"
           % "/".join(POSES), flush=True)
     while not pup._quit:
@@ -188,6 +174,13 @@ def _panel_repl(pup: Puppet):
             pup.record(); continue
         if w[0] == "dump":
             pup.dump(); continue
+        if w[0] == "*":
+            try:
+                for n in pup.targets_deg:
+                    pup.targets_deg[n] = float(w[1])
+            except (ValueError, IndexError):
+                print("  '* -90' sets every joint")
+            continue
         if w[0] == "state":
             z, up, com, contacts, t = pup.state()
             print(f"  t {t:.1f}s pelvis z {z:.3f} up {up:+.2f} CoM x {com[0]:+.3f} | {' '.join(contacts)}")
@@ -202,68 +195,134 @@ def _panel_repl(pup: Puppet):
     pup._quit = True
 
 
-def _panel_matplotlib(pup: Puppet):
-    import matplotlib
-    matplotlib.use("TkAgg")
-    import matplotlib.pyplot as plt
-    from matplotlib.widgets import Slider, Button
 
-    order = JOINTS + [n for n in pup.targets_deg if n not in JOINTS]
-    n_rows = len(order)
-    fig, axes = plt.subplots(n_rows, 1, figsize=(5.6, 0.42 * n_rows + 1.6))
-    fig.subplots_adjust(left=0.22, right=0.98, top=0.92, bottom=0.14, hspace=0.0)
-    fig.canvas.manager.set_window_title("v6/v7 joint puppet — gravity on")
-    fig.suptitle("joint targets (deg) — gravity on; achieved pose in the status line", fontsize=9)
+# --------------------------------------------------------------------------- GUI
+# The GUI is a BROWSER. No native toolkit exists in this venv (no Tk/Qt/wx)
+# and on macOS GLFW + a Tk window can't share one process's main thread
+# anyway -- so the sim runs the MuJoCo viewer, and a Flask thread serves a
+# slider page that any browser opens. Sliders POST joint targets to /set; a
+# poll on /state paints the ACHIEVED angles + pelvis/contacts live. Gravity
+# runs the whole time, in the browser exactly as on the real bench.
 
-    sliders, readouts = {}, {}
-    for ax, n in zip(axes, order):
-        lo, hi = pup.m.jnt_range[pup.m.joint(pup.m.actuator(pup._act_index[n]).trnid[0])]
-        sl = Slider(ax, n, math.degrees(lo), math.degrees(hi),
-                    valinit=round(pup.targets_deg.get(n, 0.0)), valstep=0.5)
-        sl.label.set_fontsize(8)
-        sl.valtext.set_fontsize(8)
-        def handler(v, name=n):
-            pup.targets_deg[name] = v
-        sl.on_changed(handler)
-        sliders[n] = sl
-        readouts[n] = ax.text(1.02, 0.15, "", transform=ax.transAxes, fontsize=8, color="#555")
+_JOINT_NAMES_HTML = []
 
-    # preset body-pose buttons along the bottom
-    btn_axes = []
-    poses = list(POSES) + ["record", "dump"]
-    for i, name in enumerate(poses):
-        axb = fig.add_axes([0.03 + i * 0.115, 0.015, 0.105, 0.05])
-        b = Button(axb, name)
-        btn_axes.append(axb)
-        if name in POSES:
-            def on_pose(ev, po=name):
-                pup._set_body(po)
-                pup._sync_targets()
-                for n2, sc in sliders.items():
-                    sc.set_val(round(pup.targets_deg[n2]))
-            b.on_clicked(on_pose)
-        elif name == "record":
-            b.on_clicked(lambda ev: pup.record())
-        else:
-            b.on_clicked(lambda ev: pup.dump())
-        # keep a ref
-        btn_axes.append(b)
 
-    stat = fig.text(0.03, 0.075, "", fontsize=8, family="monospace")
+def _jrange_deg(pup: Puppet, name: str):
+    jid = pup.m.actuator(pup._act_index[name]).trnid[0]
+    lo, hi = pup.m.jnt_range[jid]
+    return math.degrees(float(lo)), math.degrees(float(hi))
 
-    def tick(_frame):
+
+_PAGE = """<!doctype html><meta charset=utf-8>
+<title>v6/v7 joint puppet</title>
+<style>
+ body{font:13px -apple-system,Helvetica,sans-serif;margin:14px;background:#14151a;color:#e6e7ea}
+ h1{font-size:14px;margin:0 0 4px} .sub{color:#8a8f98;margin-bottom:10px}
+ .row{display:flex;align-items:center;gap:8px;margin:2px 0}
+ .nm{width:120px;text-align:right;color:#9aa0ab}
+ input[type=range]{flex:1;accent-color:#4f8ef7}
+ .tg{width:56px;text-align:right;font-variant-numeric:tabular-nums}
+ .ac{width:56px;color:#7fd08a;font-variant-numeric:tabular-nums}
+ button{margin:3px 6px 3px 0;padding:5px 10px;background:#22262e;color:#e6e7ea;
+  border:1px solid #373c46;border-radius:6px;cursor:pointer}
+ button:active{background:#2f6bd6}
+ #stat{white-space:pre;font:11px/1.5 ui-monospace,monospace;color:#9aa0ab;margin-top:8px}
+ #frames{color:#7fd08a}
+</style>
+<h1>v6/v7 joint puppet</h1>
+<div class=sub>joint targets (deg) — gravity is on; the servo settles the pose. green = achieved angle.</div>
+<div id=poses></div>
+<div id=sliders></div>
+<div>
+ <button onclick=send({cmd:'record'})>record pose</button>
+ <button onclick=send({cmd:'dump'})>dump frames</button>
+</div>
+<div id=stat></div>
+<script>
+let J={};
+function row(j){
+ return `<div class=row><span class=nm>${j.name}</span>
+  <input type=range min=${j.lo} max=${j.hi} step=0.5 value=${j.val}
+   oninput=set('${j.name}',this.value) id=s_${j.name}>
+  <span class=tg id=t_${j.name}>${j.val.toFixed(0)}&deg;</span>
+  <span class=ac id=a_${j.name}></span></div>`;
+}
+function set(n,v){document.getElementById('t_'+n).innerHTML=(+v).toFixed(0)+'&deg;';
+ send({cmd:'set',joint:n,value:+v});}
+function send(o){fetch('/set',{method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify(o)});}
+async function init(){
+ const s=await (await fetch('/state')).json();
+ document.getElementById('sliders').innerHTML=s.joints.map(row).join('');
+ document.getElementById('poses').innerHTML=s.poses.map(p=>
+  `<button onclick="send({cmd:'pose',pose:'${p}'})">${p}</button>`).join('');
+ s.joints.forEach(j=>J[j.name]=1);
+ poll();
+}
+async function poll(){
+ try{const s=await (await fetch('/state')).json();
+  document.getElementById('stat').textContent=
+   `t ${s.t.toFixed(1)}s  pelvis z ${s.z.toFixed(3)}  up ${s.up>=0?'+':''}${s.up.toFixed(2)}  CoM x ${s.com_x.toFixed(3)}  `+
+   `frames ${s.recorded}\\ncontacts: ${s.contacts.join(' ')}`;
+  for(const n in J){const e=document.getElementById('a_'+n); if(e) e.textContent=s.q[n].toFixed(0)+'°';}}
+ catch(e){}
+ setTimeout(poll,120);
+}
+init();
+</script>"""
+
+
+def make_app(pup: Puppet):
+    from flask import Flask, jsonify, request
+    app = Flask(__name__)
+    import logging
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
+    @app.route("/")
+    def index():
+        return _PAGE
+
+    @app.route("/state")
+    def state():
         z, up, com, contacts, t = pup.state()
-        stat.set_text(f"t {t:6.1f}s  pelvis z {z:.3f}  up {up:+.2f}  CoM x {com[0]:+.3f}\n{ ' '.join(contacts) }")
-        for n, ro in readouts.items():
-            adr = pup.m.joint(pup.m.actuator(pup._act_index[n]).trnid[0]).qposadr[0]
-            ro.set_text(f"{math.degrees(pup.d.qpos[adr]):+.0f}°")
-        return [stat, *readouts.values()]
+        return jsonify({
+            "t": t, "z": z, "up": up, "com_x": float(com[0]),
+            "contacts": contacts, "recorded": len(pup.recorded),
+            "q": {n: round(math.degrees(pup.d.qpos[pup.m.joint(
+                pup.m.actuator(pup._act_index[n]).trnid[0]).qposadr[0]]), 1)
+                for n in pup.targets_deg},
+            "joints": [{"name": n, "lo": _jrange_deg(pup, n)[0],
+                        "hi": _jrange_deg(pup, n)[1],
+                        "val": pup.targets_deg.get(n, 0.0)} for n in pup.targets_deg],
+            "poses": list(POSES)})
 
-    from matplotlib.animation import FuncAnimation
-    anim = FuncAnimation(fig, tick, interval=80, blit=False, cache_frame_data=False)
-    _ = anim
-    plt.show()
-    pup._quit = True
+    @app.route("/set", methods=["POST"])
+    def set_():
+        c = request.get_json(force=True, silent=True) or {}
+        cmd = c.get("cmd")
+        if cmd == "set" and c.get("joint") in pup.targets_deg:
+            pup.targets_deg[c["joint"]] = float(c["value"])
+        elif cmd == "pose" and c.get("pose") in POSES:
+            pup._set_body(c["pose"])
+            pup._sync_targets()
+        elif cmd == "record":
+            pup.record()
+        elif cmd == "dump":
+            pup.dump()
+        return ("", 204)
+    return app
+
+
+def _serve_web(pup: Puppet, port: int):
+    app = make_app(pup)
+    # werkzeug's reloader/debugger both spawn threads; keep it bare.
+    app.run(host="127.0.0.1", port=port, threaded=True, debug=False,
+            use_reloader=False)
+
+
+def _open_browser(port: int):
+    import webbrowser
+    webbrowser.open(f"http://127.0.0.1:{port}/")
 
 
 def main():
@@ -271,33 +330,27 @@ def main():
     ap.add_argument("--pose", default="stand", choices=list(POSES))
     ap.add_argument("--skid", action="store_true")
     ap.add_argument("--knee", choices=("fwd", "bwd"), default="fwd")
+    ap.add_argument("--port", type=int, default=8471, help="slider page port")
     ap.add_argument("--no-window", action="store_true",
-                    help="no 3D window: drive the panel alone (headless / debugging). "
-                         "A background thread steps the sim instead.")
+                    help="no 3D window: the web GUI alone on a background sim.")
     a = ap.parse_args()
     p = DesignParams(skid=a.skid, knee=a.knee)
     pup = Puppet(p, a.pose)
+
+    threading.Thread(target=_serve_web, args=(pup, a.port), daemon=True).start()
+    threading.Timer(0.6, _open_browser, args=(a.port,)).start()
+    print(f"slider GUI: http://127.0.0.1:{a.port}/  (opened in your browser)", flush=True)
+
     if a.no_window or not HAVE_VIEWER:
-        # headless: a background thread steps the sim (gravity) while the
-        # panel (REPL or sliders) runs on the main thread.
         def _loop():
             while not pup._quit:
                 pup.step_once()
                 time.sleep(pup.m.opt.timestep)
-        t = threading.Thread(target=_loop, daemon=True)
-        t.start()
-        _panel_repl(pup)
+        threading.Thread(target=_loop, daemon=True).start()
+        _panel_repl(pup)                          # terminal control too
         return
-    # windowed: macOS wants GLFW (launch_passive) AND TkAgg (matplotlib) on
-    # the MAIN thread -- they cannot share it. Run the sim window on the main
-    # thread and the panel on a worker:
-    #  - matplotlib sliders: its `plt.show()` must be main-thread too, which
-    #    collides with the viewer, so even with matplotlib installed the
-    #    zero-dep REPL is the reliable on-screen path on macOS.
-    panel = threading.Thread(target=_panel_repl, args=(pup,), daemon=True)
-    panel.start()
     try:
-        pup.run_viewer()        # blocks until the 3D window closes
+        pup.run_viewer()                           # 3D window, main thread
     finally:
         pup._quit = True
         pup.dump()
