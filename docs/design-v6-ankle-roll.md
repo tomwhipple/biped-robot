@@ -367,7 +367,7 @@ Three objections to the first cut, all valid, all fixed:
 
 With the two hip **arms** the same roll fails: folded up along the torso they lie on the floor beside the head and the body cannot roll over them (0/5). A different arm stow would probably fix it, but it is one more reason to prefer the tail.
 
-**Videos** (local only, `sim/renders/getup_v6/`, gitignored, regenerate with `sim/getup_v6_appendage.py render`): `getup_tail_hip20_side.mp4`, `getup_tail_hip20_rear.mp4`, `getup_arms_hip20_side.mp4`, `getup_arms_elbow_side.mp4`, `getup_tail_vs_arms_side.mp4` (side by side), the two prone failures `getup_prone_pike_arms_hip20.mp4`, `getup_prone_roll_arms_hip20.mp4`, and the full prone-to-standing chain `getup_full_chain_tail_hip20.mp4`.
+**Videos** (local only, `sim/renders/getup_v6/`, gitignored, regenerate with `sim/getup_v6_appendage.py render …` / `render_chain`; all with the flat start and the crouch hold): `getup_full_chain_tail_hip20_side.mp4` and `getup_full_chain_tail_hip20.mp4` (rear) — prone → standing with the tail, 38 s; `getup_tail_hip20_side.mp4`, `getup_tail_hip20_rear.mp4` — supine → standing with the tail; `getup_arms_hip20_side.mp4`, `getup_arms_elbow_side.mp4` — the arm variants; `getup_tail_vs_arms_side.mp4` — tail and arms side by side. Contact sheets committed: `getup_full_chain_tail_strip.png`, `getup_tail_hip20_strip.png`, `getup_arms_hip20_strip.png`.
 
 ## Files
 

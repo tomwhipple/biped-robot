@@ -240,11 +240,13 @@ def main():
                 print(f"{name:12s} abd {abd:.0f}  play {c['play_deg']:.0f} mu {c['mu']:.1f} servo {c['servo_scale']:.1f}  {'STANDING' if r['ok'] else 'no      '} up {r['up']:+.2f} z {r['pelvis_z']:.3f} |tau|max {worst[4]:.2f} ({worst[5]})  [{fr}]", flush=True)
                 if r["ok"]: hits.append(f"{name} abd {abd:.0f} {c}")
     elif mode == "render_chain":
-        out = sys.argv[2]; abd = 55.0
+        out = sys.argv[2]; abd = 45.0
+        view = sys.argv[3] if len(sys.argv) > 3 else "rear"
+        cam = {"rear": (1.5, -18, 150), "side": (1.4, -12, 90), "front": (1.5, -18, 30)}[view]
         p = dataclasses.replace(BASE, hip_roll_abd=abd, hip_roll_add=45.0, **CONFIGS["tail_hip_20"])
         xml = os.path.join(SP, f"gu_chain_render_{os.getpid()}.xml"); open(xml, "w").write(build_xml(p))
-        r = G.run_sequence(p, xml, full_chain("tail", abd), start="prone", per_joint=G.PJ_DEFAULT, verbose=True, render=out,
-                           cam=(1.5, -18, 150), size=(540, 720), label_fn=lambda lab, t: f"tail_hip_20  prone -> standing   {lab}   t={t:4.1f}s")
+        r = G.run_sequence(p, xml, full_chain("tail", abd), start="prone", per_joint=G.PJ_DEFAULT, verbose=False, render=out,
+                           cam=cam, size=(540, 720), label_fn=lambda lab, t: f"tail_hip_20  prone -> standing   {lab}   t={t:4.1f}s")
         print("STANDING" if r["ok"] else "not standing", out)
         return
     elif mode == "render":
