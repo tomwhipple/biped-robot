@@ -124,19 +124,28 @@ class Puppet:
                                and (mujoco.mj_id2name(self.m, mujoco.mjtObj.mjOBJ_GEOM, g) or "") != "floor"})
             return self.d.qpos[2], up, com, contacts, self.d.time
 
+    def step_once(self):
+        """one physics tick with the current slider targets on the servos. The
+        panel thread sets targets_deg concurrently; targets are plain floats
+        (atomic under the GIL) so no lock is needed on the hot loop."""
+        for name, i in self._act_index.items():
+            self.d.ctrl[i] = math.radians(self.targets_deg.get(name, 0.0))
+        mujoco.mj_step(self.m, self.d)
+
     def run_viewer(self):
+        """main thread: launch_passive (and GLFW generally) MUST run on the
+        main thread on macOS, and under `mjpython`. This blocks until the
+        window closes."""
         assert HAVE_VIEWER, "mujoco.viewer unavailable"
         with mujoco_viewer.launch_passive(self.m, self.d) as v:
             while v.is_running() and not self._quit:
-                with self.lock:
-                    for name, i in self._act_index.items():
-                        self.d.ctrl[i] = math.radians(self.targets_deg[name])
-                    mujoco.mj_step(self.m, self.d)
+                self.step_once()
                 v.sync()
                 time.sleep(self.m.opt.timestep)
+        self._quit = True
 
 
-def build_panel(pup: Puppet, viewer_thread: threading.Thread):
+def build_panel(pup: Puppet):
     """slider panel next to the 3D viewer. Prefers matplotlib (TkAgg window);
     falls back to a zero-dependency terminal REPL if matplotlib is absent, so
     `pip install matplotlib` is optional polish rather than a requirement.
@@ -149,15 +158,16 @@ def build_panel(pup: Puppet, viewer_thread: threading.Thread):
     except ImportError:
         print("matplotlib not present -- terminal control (pip install matplotlib for sliders).",
               flush=True)
-        return _panel_repl(pup, viewer_thread)
+        return _panel_repl(pup)
 
 
-def _panel_repl(pup: Puppet, viewer_thread: threading.Thread):
+def _panel_repl(pup: Puppet):
     """no extra deps: type `L_knee -90`, `R_ankle 20`, `pose supine`,
-    `record`, `dump`, `state`, or `quit`. Gravity runs the whole time."""
+    `record`, `dump`, `state`, or `quit`. Gravity runs the whole time
+    (the viewer loop on the main thread keeps stepping the sim)."""
     print("commands: <joint> <deg> | pose %s | record | dump | state | quit"
           % "/".join(POSES), flush=True)
-    while viewer_thread.is_alive() and not pup._quit:
+    while not pup._quit:
         try:
             print("joint> ", end="", flush=True)
             line = sys.stdin.readline().strip()
@@ -259,13 +269,33 @@ def main():
     ap.add_argument("--pose", default="stand", choices=list(POSES))
     ap.add_argument("--skid", action="store_true")
     ap.add_argument("--knee", choices=("fwd", "bwd"), default="fwd")
+    ap.add_argument("--no-window", action="store_true",
+                    help="no 3D window: drive the panel alone (headless / debugging). "
+                         "A background thread steps the sim instead.")
     a = ap.parse_args()
     p = DesignParams(skid=a.skid, knee=a.knee)
     pup = Puppet(p, a.pose)
-    t = threading.Thread(target=pup.run_viewer, daemon=True)
-    t.start()
+    if a.no_window or not HAVE_VIEWER:
+        # headless: a background thread steps the sim (gravity) while the
+        # panel (REPL or sliders) runs on the main thread.
+        def _loop():
+            while not pup._quit:
+                pup.step_once()
+                time.sleep(pup.m.opt.timestep)
+        t = threading.Thread(target=_loop, daemon=True)
+        t.start()
+        _panel_repl(pup)
+        return
+    # windowed: macOS wants GLFW (launch_passive) AND TkAgg (matplotlib) on
+    # the MAIN thread -- they cannot share it. Run the sim window on the main
+    # thread and the panel on a worker:
+    #  - matplotlib sliders: its `plt.show()` must be main-thread too, which
+    #    collides with the viewer, so even with matplotlib installed the
+    #    zero-dep REPL is the reliable on-screen path on macOS.
+    panel = threading.Thread(target=_panel_repl, args=(pup,), daemon=True)
+    panel.start()
     try:
-        build_panel(pup, t)
+        pup.run_viewer()        # blocks until the 3D window closes
     finally:
         pup._quit = True
         pup.dump()
