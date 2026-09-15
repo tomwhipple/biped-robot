@@ -109,11 +109,22 @@ class DesignParams:
     fall_collision: bool = True  # torso, head, links, feet collide with the FLOOR (contype 2),
                                  # so falls and get-ups are physical; soles stay the 8 pads
     ankle_servos_in_shank: bool = False   # study variant: parallel-linkage ankle --
-                                          # both ankle servos ride at the top of the
-                                          # shank, the ankle joints are driven through
-                                          # links (modelled: same joints, servo mass
-                                          # moved up, linkage lumps at the ankle)
+                                           # both ankle servos ride at the top of the
+                                           # shank, the ankle joints are driven through
+                                           # links (modelled: same joints, servo mass
+                                           # moved up, linkage lumps at the ankle)
     m_linkage: float = 0.015     # per ankle DOF: rod ends + link + lever
+    # ---- pelvis skid (round-3 get-up; no servo, a printed bumper) ----------
+    skid: bool = False           # a rigid curved sole under/behind the pelvis
+                                 # that the seated body rests on instead of the
+                                 # thigh tops; lets the legs reposition under a
+                                 # braced torso. Modelled as a rounded shell.
+    skid_len: float = 0.11       # fore-aft extent of the skid contact patch (m)
+    skid_bot: float = 0.0        # height of the skid's bottom REL to the torso
+                                 # origin (yaw axis); 0 = at hip-yaw level
+    skid_x: float = -0.02        # fore-aft centre of the skid patch (m; - = aft)
+    skid_w: float = 0.10         # width (m)
+    skid_mass: float = 0.030     # print mass (kg)
     # ---- torso geometry (m) ----------------------------------------------
     deck_x: tuple = (-0.058, 0.052)
     deck_w: float = 0.118
@@ -376,6 +387,23 @@ def _tail(p: DesignParams) -> str:
       </body>"""
 
 
+def _skid(p: DesignParams) -> str:
+    """seat skid: a rounded shell on the pelvis underside, its sole at
+    skid_bot above the yaw axis. The body sits on it (fall_collision class)
+    when the hips are folded; convex (a capsule end) so it rolls the torso
+    forward as the shanks extend, instead of catching an edge."""
+    if not p.skid:
+        return ""
+    # capsule from fore to aft along the pelvis bottom
+    x0 = p.skid_x - p.skid_len / 2
+    x1 = p.skid_x + p.skid_len / 2
+    return f"""
+      <body name="skid" pos="0 0 {_f(p.skid_bot)}">
+        <geom {_fc(p)}type="capsule" fromto="{_f(x0)} 0 0 {_f(x1)} 0 0" size="{_f(p.skid_w/2)}"
+              mass="{p.skid_mass}" friction="1.0 0.02 0.001" rgba="0.20 0.22 0.25 1"/>
+      </body>"""
+
+
 def _head(p: DesignParams) -> str:
     if not p.torso_v7:
         return ""
@@ -475,11 +503,11 @@ def build_xml(p: DesignParams) -> str:
           material="floor_mat" friction="1 0.02 0.001" condim="4"/>
 
     <!-- torso origin = hip yaw axis height, on the centreline -->
-    <body name="torso" pos="0 0 {_f(z0)}">
+      <body name="torso" pos="0 0 {_f(z0)}">
       <freejoint/>
 {_torso(p)}
 {_leg(p, "L")}
-{_leg(p, "R")}{_head(p)}{_arms(p)}{_tail(p)}
+{_leg(p, "R")}{_head(p)}{_arms(p)}{_tail(p)}{_skid(p)}
     </body>
   </worldbody>
 
