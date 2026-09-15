@@ -6,13 +6,13 @@ show. Gravity always applies; the sliders drive the plant's own position
 actuators (same servos, same limits -- no stronger puppet string than the
 real joints).
 
-Run (on macOS use mjpython, the MuJoCo GL wrapper -- plain `python` cannot
-open the 3D window there):
+Run (on macOS use mjpython for the 3D window; the slider GUI is a browser page
+either way):
 
-    .venv/bin/mjpython sim/joint_puppet.py                      # v7 body, standing
+    .venv/bin/mjpython sim/joint_puppet.py                      # 3D window + browser sliders
     .venv/bin/mjpython sim/joint_puppet.py --skid               # with the pelvis skid
     .venv/bin/mjpython sim/joint_puppet.py --pose supine        # start fallen
-    .venv/bin/python  sim/joint_puppet.py --no-window           # headless / any platform
+    .venv/bin/python  sim/joint_puppet.py --no-window           # browser sliders, no 3D window
 
 Controls: drag a joint slider to a target (deg) and the servo tracks it --
 gravity, contacts and inertia act the whole time. Presets set the free body
