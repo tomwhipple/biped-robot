@@ -1,0 +1,26 @@
+== SIDE-MOUNTED-LEG search, start=prone, self_collide=True on every run
+horiz_box            pushup_wide splay +30 ankle -40                   no       up +0.07 front -1.00 z 0.108
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.08/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.49/0.12/Lfoot+Rfoot+head | narrow:-0.39/0.12/Lfoot+Rfoot+head | stand:+0.08/0.11/Lfoot+Rfoot+head | straight:+0.07/0.11/Lfoot+Rfoot+head
+horiz_box            pushup_wide splay +30 ankle -25                   no       up +0.07 front -1.00 z 0.108
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.08/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.49/0.12/Lfoot+Rfoot+head | narrow:-0.39/0.12/Lfoot+Rfoot+head | stand:+0.08/0.11/Lfoot+Rfoot+head | straight:+0.07/0.11/Lfoot+Rfoot+head
+horiz_box            pushup_wide splay +60 ankle -40                   no       up +0.07 front -1.00 z 0.108
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.09/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.57/0.12/Lfoot+Rfoot+head | narrow:-0.39/0.12/Lfoot+Rfoot+head | stand:+0.08/0.11/Lfoot+Rfoot+head | straight:+0.07/0.11/Lfoot+Rfoot+head
+horiz_box            pushup_wide splay +60 ankle -25                   no       up +0.07 front -1.00 z 0.108
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.09/0.11/Lankl+Rankl+head | push pelvis:-0.99/0.09/Lfoot+Rfoot+torso | hinge up:-0.57/0.12/Lfoot+Rfoot+head | narrow:-0.39/0.12/Lfoot+Rfoot+head | stand:+0.08/0.11/Lfoot+Rfoot+head | straight:+0.07/0.11/Lfoot+Rfoot+head
+horiz_box            pushup_wide splay +90 ankle -40                   no       up +0.07 front -1.00 z 0.108
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.09/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.57/0.12/Lfoot+Rfoot+head | narrow:-0.39/0.12/Lfoot+Rfoot+head | stand:+0.08/0.11/Lfoot+Rfoot+head | straight:+0.07/0.11/Lfoot+Rfoot+head
+horiz_box            pushup_wide splay +90 ankle -25                   no       up +0.07 front -1.00 z 0.108
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.09/0.11/Lankl+Rankl+head | push pelvis:-0.99/0.09/Lfoot+Rfoot+torso | hinge up:-0.57/0.12/Lfoot+Rfoot+head | narrow:-0.39/0.12/Lfoot+Rfoot+head | stand:+0.08/0.11/Lfoot+Rfoot+head | straight:+0.07/0.11/Lfoot+Rfoot+head
+horiz_round          pushup_wide splay +30 ankle -40                   no       up -0.96 front -0.27 z 0.080
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.08/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.96/0.08/head+torso | narrow:-0.96/0.08/head+torso | stand:-0.96/0.08/head+torso | straight:-0.96/0.08/head+torso
+horiz_round          pushup_wide splay +30 ankle -25                   no       up -0.96 front -0.27 z 0.080
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.08/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.96/0.08/head+torso | narrow:-0.96/0.08/head+torso | stand:-0.96/0.08/head+torso | straight:-0.96/0.08/head+torso
+horiz_round          pushup_wide splay +60 ankle -40                   no       up -0.96 front -0.27 z 0.080
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.09/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.96/0.08/head+torso | narrow:-0.96/0.08/head+torso | stand:-0.96/0.08/head+torso | straight:-0.96/0.08/head+torso
+horiz_round          pushup_wide splay +60 ankle -25                   no       up -0.96 front -0.27 z 0.080
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.09/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.96/0.08/head+torso | narrow:-0.96/0.08/head+torso | stand:-0.96/0.08/head+torso | straight:-0.96/0.08/head+torso
+horiz_round          pushup_wide splay +90 ankle -40                   no       up -0.96 front -0.27 z 0.080
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.09/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.96/0.08/head+torso | narrow:-0.96/0.08/head+torso | stand:-0.96/0.08/head+torso | straight:-0.96/0.08/head+torso
+horiz_round          pushup_wide splay +90 ankle -25                   no       up -0.96 front -0.27 z 0.080
+      splay:+0.08/0.11/Lfoot+Rfoot+head | tuck knees :+0.09/0.11/Lankl+Rankl+head | push pelvis:-1.00/0.09/Lfoot+Rfoot+torso | hinge up:-0.96/0.08/head+torso | narrow:-0.96/0.08/head+torso | stand:-0.96/0.08/head+torso | straight:-0.96/0.08/head+torso
+standing: []

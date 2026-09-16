@@ -73,6 +73,17 @@ CONFIGS = {
     # stack, so nearly the whole torso (housing+deck+head) hangs BELOW the
     # hip line, like a torso slung low between long-legged sides
     "bird_topmount": dict(hip_z=0.20, hip_sep=0.180, hip_roll_abd=75.0),
+    # ---- round 2 (2026-09-16): a GENUINELY horizontal torso, gen_plant_v6
+    # torso_pitch/torso_block_x/torso_block_z. Root torso frame (hip yaw
+    # axes, IMU site) is untouched -- only the deck/housing/battery/Pi/power/
+    # neck+head block rotates 90 deg and is repositioned so the whole-robot
+    # standing CoM sits over the hip line and the block's own bottom is just
+    # below hip-yaw level (both measured with mj_forward, see the study doc):
+    # tx=-0.06, tz=+0.03 -> CoM x +0.002 (box) / -0.0003 (round), CoM z
+    # 0.280 m (vs 0.292 m stock), block bottom 16-22 mm below the hip line.
+    # hip_sep 0.20 m clears the legs past the block sides (ncon 0 at stand).
+    "horiz_box": dict(torso_pitch=90.0, torso_block_x=-0.06, torso_block_z=0.03, hip_sep=0.20),
+    "horiz_round": dict(torso_pitch=90.0, torso_block_x=-0.06, torso_block_z=0.03, hip_sep=0.20, torso_round=True),
 }
 hits = []
 
@@ -151,6 +162,79 @@ def full_from_side(side, splay, kick, push_splay, a_push):
     roll = seq_side_roll(side, splay, kick)
     push = seq_pushup_wide(push_splay, a_push)
     return roll + push[1:]   # drop the push sequence's own 'lie prone' (the roll already ends lying down)
+
+
+def seq_pushup_tuned(splay, knee_push, a_push, t_push, hold_push_s):
+    """round 2, task 2: seq_pushup_wide with the push travel (knee_push, was
+    fixed at -40), the ankle angle and the push/hold TIMING all open, to
+    tune the bird_z15/horizontal-torso over-rotation (pelvis 0.193 m, up-
+    vector -0.99) found in round 1 -- a smaller knee_push and a shorter push
+    with a hold before continuing should stop it overshooting past vertical."""
+    sp = q_splay(splay)
+    z = q_splay(0.0)
+    return [("lie prone", dict(), 0.5, 0.8),
+            ("splay", dict(**sp), 1.0, 0.6),
+            ("tuck knees under", dict(hip_pitch=H, knee=K, ankle=40, **sp), 2.0, 1.0),
+            ("push pelvis up (knee/ankle extend)", dict(hip_pitch=H, knee=knee_push, ankle=a_push, **sp), t_push, hold_push_s),
+            ("hinge up", dict(hip_pitch=-60, knee=-40, ankle=-25, **sp), 2.0, 1.0),
+            ("narrow", dict(hip_pitch=-60, knee=-40, ankle=-25, **z), 1.0, 0.8),
+            ("stand", dict(hip_pitch=-20, knee=-40, ankle=-20, **z), 1.5, 1.0),
+            ("straight", dict(**z), 1.0, 0.8)]
+
+
+def seq_roll_over(side, swing, yaw):
+    """round 2, task 1 (supine roll): swing ONE leg via hip ROLL + YAW (the
+    other leg counter-adducts a little for reaction) to try to log-roll the
+    body about its fore-aft axis. Reports (not just standing) via the
+    'rollcheck' mode below -- max tilt from the settled supine attitude and
+    peak servo torque, since a partial roll is real information even when
+    it does not reach standing."""
+    o = "R" if side == "L" else "L"
+    return [("lie", dict(), 0.5, 1.0),
+            (f"{side} swing (roll+yaw)", {f"{side}_hip_roll": swing, f"{side}_hip_yaw": yaw, f"{o}_hip_roll": -0.3 * swing}, 1.5, 2.5)]
+
+
+def rotation_angle_deg(q0, q1):
+    """angle (deg) between two orientation quaternions [w,x,y,z]."""
+    dp = min(1.0, abs(float(np.dot(q0, q1))))
+    return math.degrees(2 * math.acos(dp))
+
+
+def roll_check(name, side, swing, yaw):
+    """run seq_roll_over under the full deploy servo model and report the
+    PEAK tilt reached (deg, from the settled supine attitude) and the peak
+    servo torque -- the number the brief asks for when a body 'cannot roll'."""
+    p, xml = plant(name)
+    env = SG.make_env(p, xml, mu=0.7, play_deg=3.0)
+    obs, _ = env.reset(seed=0)
+    G.EXTRA[:] = [env.model.actuator(i).name for i in range(12, env.model.nu)]
+    m, d = env.model, env.data
+    q0 = np.zeros(env._nq_act)
+    G.settle_fallen(env, p, "supine", q0)
+    q_init = d.qpos[3:7].copy()
+    seq = seq_roll_over(side, swing, yaw)
+    d0, hi, lo = env._default, env._hi, env._lo
+
+    def inv(q):
+        q = q[:env._nq_act] if len(q) >= env._nq_act else np.concatenate([q, np.zeros(env._nq_act - len(q))])
+        return np.clip(np.where(q >= d0, (q - d0) / np.maximum(hi - d0, 1e-6), (q - d0) / np.maximum(d0 - lo, 1e-6)), -1, 1)
+    q_prev = q0.copy()
+    max_tilt, max_tau = 0.0, 0.0
+    dt = env.control_dt
+    for label, off, move_s, hold_s in seq[1:]:
+        q_tgt = G.q_from_offsets(off)[:env._nq_act]
+        n = int(move_s / dt)
+        for i in range(n + int(hold_s / dt)):
+            s = min(1.0, (i + 1) / max(n, 1))
+            s = 10 * s ** 3 - 15 * s ** 4 + 6 * s ** 5
+            q = q_prev + (q_tgt - q_prev) * s
+            env.step(inv(q))
+            max_tilt = max(max_tilt, rotation_angle_deg(q_init, d.qpos[3:7]))
+            max_tau = max(max_tau, float(np.abs(env._servo_tau).max()))
+        q_prev = q_tgt
+    up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
+    print(f"{name:16s} roll {side} swing {swing:+4.0f} yaw {yaw:+4.0f}: peak tilt {max_tilt:5.1f} deg  peak tau {max_tau:5.2f} Nm  final up {up:+.2f}  z {float(d.qpos[2]):.3f}", flush=True)
+    return max_tilt, max_tau, up
 
 
 # --------------------------------------------------------------------------- quasi-static probe
@@ -236,8 +320,9 @@ def main():
             probe_config(name)
     elif mode == "search":
         start_arg = sys.argv[2] if len(sys.argv) > 2 else "supine"
+        names = sys.argv[3:] or list(CONFIGS)
         print(f"== SIDE-MOUNTED-LEG search, start={start_arg}, self_collide=True on every run")
-        for name in CONFIGS:
+        for name in names:
             p, xml = plant(name)
             if start_arg == "supine":
                 for splay, a_push in itertools.product((0, 30, 60), (-40, -25)):
@@ -270,27 +355,71 @@ def main():
         # comparability, on the plant HANGING AT REST (no get-up sequence).
         names = sys.argv[2:] or list(CONFIGS)
         print("== Gate D (lumped-mass plant) on the side-mounted-leg body at rest, STS3250 rolls+knees, lift 4, 8 steps")
-        print("   NOTE: v6_kin.leg_ik (Gate C/D's foot-placement IK) assumes the hip yaw axis IS the pelvis/torso")
-        print("   origin (v6_kin.hip_roll_point has no hip_z term). hip_z != 0 configs are therefore NOT MEASURED")
-        print("   here -- the IK throws 'out of reach' (confirmed) rather than silently returning a wrong pose.")
+        print("   round 2: v6_kin.hip_roll_point/pose_from_feet now carry a hip_z term (2026-09-16), so hip_z != 0")
+        print("   configs run here too -- tests/test_v6_design_gates.py still passes 8/8 at hip_z=0 (unchanged).")
         per_joint = {j: "sts3250" for j in SG.ROLLS + ("L_knee", "R_knee")}
         for name in names:
             p, xml = plant(name)
-            if p.hip_z != 0.0:
-                print(f"{name:24s} SKIPPED: hip_z {p.hip_z*1e3:.0f} mm != 0, walk-gate IK is not valid on this layout (not measured)")
-                continue
             for label, kw in (("turn  +0 mu 0.7 play 3", dict()), ("turn +15 mu 0.7 play 3", dict(turn_deg=15.0)),
                               ("turn  +0 mu 0.3 play 5", dict(mu=0.3, play_deg=5.0)), ("turn -15 mu 0.9 play 3", dict(turn_deg=-15.0, mu=0.9))):
                 turn = kw.pop("turn_deg", 0.0)
-                tl2, windows2 = SG.walk_timeline(p, n_steps=8, step=0.06, lift_h=0.04, turn_deg=turn)
-                r = SG.run_walk(p, xml, tl2, windows2, per_joint=per_joint, **kw)
-                print(SG.fmt_row(f"{name:24s} {label}", r))
+                try:
+                    tl2, windows2 = SG.walk_timeline(p, n_steps=8, step=0.06, lift_h=0.04, turn_deg=turn)
+                    r = SG.run_walk(p, xml, tl2, windows2, per_joint=per_joint, **kw)
+                    print(SG.fmt_row(f"{name:24s} {label}", r))
+                except ValueError as e:
+                    # a wide hip_sep can ask the gait's foot-placement offsets
+                    # (bias_y/swing_out/turn) for more leg reach than thigh+
+                    # shank give (0.220 m) -- a real kinematic limit of the
+                    # EXISTING gait planner (tuned for hip_sep 0.084), not a
+                    # bug in the hip_z fix: measured and reported, not guessed.
+                    print(f"{name:24s} {label}  IK REACH EXCEEDED: {e}")
+    elif mode == "roll":
+        # round 2, task 1: supine -> try to roll over by splaying/swinging the
+        # legs (hip roll + yaw). Reports peak tilt + peak torque, not just a
+        # standing bool, per the brief ("if the body cannot roll, say so with
+        # the number").
+        names = sys.argv[2:] or [n for n in CONFIGS if n.startswith("horiz") or n.startswith("bird")]
+        print("== SUPINE ROLL-OVER attempt: one leg swings via hip roll+yaw, peak tilt from the settled supine attitude + peak torque")
+        for name in names:
+            for side in ("L", "R"):
+                for swing, yaw in itertools.product((60.0, 90.0), (30.0, 45.0)):
+                    roll_check(name, side, swing, yaw)
+    elif mode == "tune":
+        # round 2, task 2: finer keyframe search on the bird_z15 prone push
+        # that over-rotated in round 1 (pelvis 0.193 m, up -0.99): sweep the
+        # push travel (knee target), ankle angle and push/hold timing.
+        names = sys.argv[2:] or ["bird_z15_sep160", "horiz_box", "horiz_round"]
+        print("== TUNE the prone push: knee_push/ankle/timing sweep on the over-rotating path")
+        best = {}
+        for name in names:
+            p, xml = plant(name)
+            b = (-1e9, None)
+            for knee_push, a_push, t_push, hold in itertools.product(
+                    (-40, -60, -80, -100), (-40, -25, -10), (1.0, 2.0, 3.0), (0.5, 1.5)):
+                seq = seq_pushup_tuned(60.0, knee_push, a_push, t_push, hold)
+                r = G.run_sequence(p, xml, seq, start="prone", play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False)
+                score = r["up"] - 0.2 * abs(r["front"])   # reward upright, mildly penalize residual pitch
+                if score > b[0]:
+                    b = (score, (knee_push, a_push, t_push, hold, r))
+            _, (kp, ap, tp, ho, r) = b
+            print(f"{name:16s} BEST knee_push {kp:+4d} ankle {ap:+4d} t_push {tp:.1f}s hold {ho:.1f}s  "
+                  f"{'STANDING' if r['ok'] else 'no      '} up {r['up']:+.2f} front {r['front']:+.2f} z {r['pelvis_z']:.3f}", flush=True)
+            best[name] = (kp, ap, tp, ho, r["ok"], r["up"], r["pelvis_z"])
+        print("best:", best)
     elif mode == "render":
         name, seqname, out = sys.argv[2], sys.argv[3], sys.argv[4]
         start = sys.argv[5] if len(sys.argv) > 5 else "supine"
         p, xml = plant(name)
-        seq = {"situp_wide": seq_situp_wide(60, -40), "pushup_wide": seq_pushup_wide(60, -40),
-               "side_l": full_from_side("l", 60, 60, 60, -40), "side_r": full_from_side("r", 60, 60, 60, -40)}[seqname]
+        if seqname.startswith("tuned:"):
+            kp, ap, tp, ho = (float(x) for x in seqname.split(":")[1].split(","))
+            seq = seq_pushup_tuned(60.0, kp, ap, tp, ho)
+        elif seqname.startswith("roll:"):
+            side, swing, yaw = seqname.split(":")[1].split(",")
+            seq = seq_roll_over(side, float(swing), float(yaw))
+        else:
+            seq = {"situp_wide": seq_situp_wide(60, -40), "pushup_wide": seq_pushup_wide(60, -40),
+                   "side_l": full_from_side("l", 60, 60, 60, -40), "side_r": full_from_side("r", 60, 60, 60, -40)}[seqname]
         cam = (1.4, -14, 90) if start.startswith("side") else (1.3, -15, 135)
         cap = lambda lab, t: f"{name}  {seqname}  {start}   {lab}   t={t:4.1f}s"
         r = G.run_sequence(p, xml, seq, start=start, play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=True,

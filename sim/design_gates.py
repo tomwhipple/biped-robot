@@ -145,7 +145,8 @@ class Timeline:
 def standing_key(p: DesignParams, drop: float) -> Key:
     """standing with the pelvis `drop` below the straight-leg height, feet
     under the hips, sole bottoms on z = 0 (ankle roll points at z = roll_h)."""
-    z_pel = p.z_yaw_above_sole - drop
+    z_pel = p.z_yaw_above_sole - p.hip_z - drop  # torso ORIGIN, not the yaw
+                                                  # axis, when hip_z != 0
     return Key(np.array([0.0, 0.0, z_pel]),
                np.array([0.0, +p.hip_sep / 2, p.roll_h]),
                np.array([0.0, -p.hip_sep / 2, p.roll_h]))
