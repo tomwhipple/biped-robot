@@ -69,7 +69,8 @@ class DesignParams:
     foot_y_off: float = 0.012    # sole centreline OUTBOARD of the ankle roll axis (m):
                                  # an asymmetric sole with more width outside the ankle,
                                  # because the open-loop walk's failure direction is outward
-    knee: str = "fwd"            # "fwd" = human knee, "bwd" = bird knee
+    knee: str = "fwd"            # "fwd" = human knee, "bwd" = bird knee, "both" =
+                                 # double-jointed: the CAD ROM in both directions
     # ---- joint ranges (deg) ----------------------------------------------
     yaw_range: float = 45.0
     hip_roll_add: float = 30.0   # adduction (toward the other leg)
@@ -77,6 +78,8 @@ class DesignParams:
     hip_pitch_range: tuple = (-125.0, 90.0)   # -110 -> -125: yoke_pitch_v6 flange chamfer (cad/v6, 2026-09-14)
     knee_flex: float = 130.0     # flexion travel (either direction); 95 -> 130 with the leg-link relief cuts (cad/v6, 2026-09-14)
     knee_hyper: float = 5.0      # hyperextension cap (modelling cap, v5)
+    knee_back: float = 95.0      # CAD ROM the OTHER way (cad/v6/dimensions_v6.ROM["knee"]
+                                 # is (-95, +130) with + = human flexion), used by knee="both"
     ankle_range: float = 45.0    # ankle pitch +/-
     ankle_roll_range: float = 25.0   # the roll servo case sweep under the ankle link (cad/v6/dimensions_v6.py)
     # ---- masses (kg) ------------------------------------------------------
@@ -108,12 +111,34 @@ class DesignParams:
     tail_rest: float = 0.0       # deg; the rod is MODELLED at this angle so joint 0 = rest (walk study: -90 = hanging)
     fall_collision: bool = True  # torso, head, links, feet collide with the FLOOR (contype 2),
                                  # so falls and get-ups are physical; soles stay the 8 pads
+    self_collide: bool = False   # OPT-OUT self-collision: every solid part collides with
+                                 # every other, except same-body and parent<->child pairs
+                                 # (MuJoCo excludes those automatically). The default plant
+                                 # is the opposite -- opt-IN, via the enumerated <pair> list
+                                 # below -- and that is why part overlaps kept being found
+                                 # one at a time: of 62 geoms only 8 are NAMED, so the 28
+                                 # servo cases and electronics could never appear in a pair
+                                 # list at all and nothing could ever stop them. Measured:
+                                 # 107 of 300 random in-ROM poses have an overlap the
+                                 # enumerated list cannot see. Off by default so every
+                                 # existing study keeps the plant it was run on.
     ankle_servos_in_shank: bool = False   # study variant: parallel-linkage ankle --
-                                          # both ankle servos ride at the top of the
-                                          # shank, the ankle joints are driven through
-                                          # links (modelled: same joints, servo mass
-                                          # moved up, linkage lumps at the ankle)
+                                           # both ankle servos ride at the top of the
+                                           # shank, the ankle joints are driven through
+                                           # links (modelled: same joints, servo mass
+                                           # moved up, linkage lumps at the ankle)
     m_linkage: float = 0.015     # per ankle DOF: rod ends + link + lever
+    # ---- pelvis skid (round-3 get-up; no servo, a printed bumper) ----------
+    skid: bool = False           # a rigid curved sole under/behind the pelvis
+                                 # that the seated body rests on instead of the
+                                 # thigh tops; lets the legs reposition under a
+                                 # braced torso. Modelled as a rounded shell.
+    skid_len: float = 0.11       # fore-aft extent of the skid contact patch (m)
+    skid_bot: float = 0.0        # height of the skid's bottom REL to the torso
+                                 # origin (yaw axis); 0 = at hip-yaw level
+    skid_x: float = -0.02        # fore-aft centre of the skid patch (m; - = aft)
+    skid_w: float = 0.10         # width (m)
+    skid_mass: float = 0.030     # print mass (kg)
     # ---- torso geometry (m) ----------------------------------------------
     deck_x: tuple = (-0.058, 0.052)
     deck_w: float = 0.118
@@ -151,6 +176,10 @@ class DesignParams:
             return (-self.knee_flex, self.knee_hyper)
         if self.knee == "bwd":
             return (-self.knee_hyper, self.knee_flex)
+        if self.knee == "both":
+            # the joint as the CAD actually allows it, both ways: human
+            # flexion to -knee_flex, backward to +knee_back. No modelling cap.
+            return (-self.knee_flex, self.knee_back)
         raise ValueError(self.knee)
 
     def summary(self) -> str:
@@ -164,6 +193,16 @@ class DesignParams:
 
 def _fc(p) -> str:
     return 'class="fallcol" ' if p.fall_collision else ''
+
+
+def _selfaff(p) -> int:
+    """conaffinity for the solid parts. 0 = they meet the floor but never each
+    other (opt-in collision, the enumerated <pair> list decides). 2 = they meet
+    each other too, and MuJoCo excludes same-body and parent<->child pairs by
+    itself -- so a part added later is collided by default rather than only if
+    somebody remembers to list it. The floor is unaffected either way: it is
+    contype 1 / conaffinity 3, and 3 & 2 is still non-zero."""
+    return 2 if p.self_collide else 0
 
 
 def _f(x: float) -> str:
@@ -252,7 +291,7 @@ def _leg(p: DesignParams, side: str) -> str:
             <body name="{side}_shin" pos="0 0 {_f(-p.thigh)}">
               <joint name="{side}_knee" axis="0 -1 0" range="{kr[0]:.0f} {kr[1]:.0f}"/>
               <geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>
-              <geom {_fc(p)}type="box" pos="0 0 {_f(-p.shank/2)}" size="0.012 0.019 {_f(p.shank/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
+              <geom name="{side}_shin_link" {_fc(p)}type="box" pos="0 0 {_f(-p.shank/2)}" size="0.012 0.019 {_f(p.shank/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
               <geom name="{side}_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
 {_shank_ankle_servos(p, side)}
               <body name="{side}_ankle_blk" pos="0 0 {_f(-p.shank)}">
@@ -269,7 +308,7 @@ def _leg(p: DesignParams, side: str) -> str:
                        onto its horn (front) and idler (rear) -->
                   {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 0" size="{_f(sx_h[0])} {_f(sx_h[1])} {_f(sx_h[2])}" mass="{sv}"/>'}
                   {f'<geom type="box" pos="0 0 0" size="0.010 0.015 0.008" mass="{p.m_linkage}" rgba="{link_rgba}" group="1"/>' if p.ankle_servos_in_shank else ""}
-                  <geom {_fc(p)}type="box" pos="{_f(foot_cx)} {_f(foot_cy)} {_f(sole_z + 0.005)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.003" mass="{p.m_foot}" rgba="0.30 0.31 0.34 1" group="1"/>
+                  <geom name="{side}_foot_plate" {_fc(p)}type="box" pos="{_f(foot_cx)} {_f(foot_cy)} {_f(sole_z + 0.005)}" size="{_f(p.foot_len/2)} {_f(p.foot_w/2)} 0.003" mass="{p.m_foot}" rgba="0.30 0.31 0.34 1" group="1"/>
 {_pads(p, side)}
                   <!-- reference sole (non-colliding; walker_env reads it) and
                        the full-footprint inter-foot collision proxy -->
@@ -294,8 +333,8 @@ def _torso(p: DesignParams) -> str:
     yaw_z = p.housing_h - SV_T / 2 - 0.003
     s = []
     s.append(f'      <!-- one-print pelvis: deck + housing walls -->')
-    s.append(f'      <geom {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
-    s.append(f'      <geom {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
+    s.append(f'      <geom name="torso_deck" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
+    s.append(f'      <geom name="torso_housing" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
     s.append(f'      <!-- hip YAW servos hang under the housing floor, horn down on the yaw axis -->')
     for sgn in (1, -1):
         s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(sgn*p.hip_sep/2)} {_f(yaw_z)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>')
@@ -376,6 +415,23 @@ def _tail(p: DesignParams) -> str:
       </body>"""
 
 
+def _skid(p: DesignParams) -> str:
+    """seat skid: a rounded shell on the pelvis underside, its sole at
+    skid_bot above the yaw axis. The body sits on it (fall_collision class)
+    when the hips are folded; convex (a capsule end) so it rolls the torso
+    forward as the shanks extend, instead of catching an edge."""
+    if not p.skid:
+        return ""
+    # capsule from fore to aft along the pelvis bottom
+    x0 = p.skid_x - p.skid_len / 2
+    x1 = p.skid_x + p.skid_len / 2
+    return f"""
+      <body name="skid" pos="0 0 {_f(p.skid_bot)}">
+        <geom name="skid_shell" {_fc(p)}type="capsule" fromto="{_f(x0)} 0 0 {_f(x1)} 0 0" size="{_f(p.skid_w/2)}"
+              mass="{p.skid_mass}" friction="1.0 0.02 0.001" rgba="0.20 0.22 0.25 1"/>
+      </body>"""
+
+
 def _head(p: DesignParams) -> str:
     if not p.torso_v7:
         return ""
@@ -383,7 +439,7 @@ def _head(p: DesignParams) -> str:
     return f"""
       <body name="head" pos="0 0 {_f(zn + SV_T + 0.004)}">
         <joint name="neck_yaw" axis="0 0 1" range="-90 90"/>
-        <geom {_fc(p)}type="box" pos="0.005 0 {_f(p.head_h/2)}" size="0.028 0.030 {_f(p.head_h/2)}" mass="{p.m_head}" rgba="0.82 0.84 0.87 1" group="1"/>
+        <geom name="head_shell" {_fc(p)}type="box" pos="0.005 0 {_f(p.head_h/2)}" size="0.028 0.030 {_f(p.head_h/2)}" mass="{p.m_head}" rgba="0.82 0.84 0.87 1" group="1"/>
         <geom type="box" pos="0.036 0 {_f(p.head_h*0.6)}" size="0.005 0.012 0.012" mass="0.003" rgba="0.1 0.1 0.1 1" group="1"/>
         <site name="camera" pos="0.041 0 {_f(p.head_h*0.6)}" size="0.003" rgba="0 1 0 0.6"/>
       </body>"""
@@ -423,11 +479,19 @@ def build_xml(p: DesignParams) -> str:
         acts.append(f'    <position name="tail_pitch" joint="tail_pitch" ctrlrange="{r(-150):.10f} {r(120):.10f}"/>')
     acts_s = "\n".join(acts)
     pairs = []
-    segs = ("col_thigh", "col_shank", "col_ankle", "col_foot")
-    for a in segs:
-        for b in segs:
-            pairs.append(f'    <pair geom1="L_{a}" geom2="R_{b}"/>')
-    pairs.append('    <pair geom1="L_sole" geom2="R_sole"/>')
+    if not p.self_collide:
+        # opt-IN collision: only what is listed here can ever touch. The col_*
+        # proxies are deliberately coarse (col_foot is a 20 mm slab of the full
+        # footprint), which is fine as a conservative toe-overlap check for the
+        # walk but is not the part.
+        segs = ("col_thigh", "col_shank", "col_ankle", "col_foot")
+        for a in segs:
+            for b in segs:
+                pairs.append(f'    <pair geom1="L_{a}" geom2="R_{b}"/>')
+        pairs.append('    <pair geom1="L_sole" geom2="R_sole"/>')
+    # with self_collide the real geoms collide directly (see the class
+    # definitions below), so no pair list is needed -- and none can be
+    # forgotten.
     pairs_s = "\n".join(pairs)
     yaw_case = (SV_LEN / 2, SV_WID / 2, SV_T / 2)
     return f"""<mujoco model="bimo_biped_v6ar">
@@ -448,14 +512,14 @@ def build_xml(p: DesignParams) -> str:
     <position kp="40" forcerange="-3 3"/>
     <geom contype="0" conaffinity="0"/>
     <default class="servo">
-      <geom type="box" contype="2" conaffinity="0" group="1" rgba="0.22 0.23 0.27 1"/>
+      <geom type="box" contype="2" conaffinity="{_selfaff(p)}" group="1" rgba="0.22 0.23 0.27 1"/>
     </default>
     <default class="pad">
       <geom type="sphere" size="0.003" contype="1" conaffinity="0" mass="0"
             friction="1 0.02 0.001" condim="4" rgba="0.20 0.21 0.24 1"/>
     </default>
     <default class="fallcol">
-      <geom contype="2" conaffinity="0" group="1" friction="0.8 0.02 0.001" condim="4"/>
+      <geom contype="2" conaffinity="{_selfaff(p)}" group="1" friction="0.8 0.02 0.001" condim="4"/>
     </default>
     <default class="legcol">
       <geom type="capsule" size="0.0147" contype="0" conaffinity="0" mass="0"
@@ -475,11 +539,11 @@ def build_xml(p: DesignParams) -> str:
           material="floor_mat" friction="1 0.02 0.001" condim="4"/>
 
     <!-- torso origin = hip yaw axis height, on the centreline -->
-    <body name="torso" pos="0 0 {_f(z0)}">
+      <body name="torso" pos="0 0 {_f(z0)}">
       <freejoint/>
 {_torso(p)}
 {_leg(p, "L")}
-{_leg(p, "R")}{_head(p)}{_arms(p)}{_tail(p)}
+{_leg(p, "R")}{_head(p)}{_arms(p)}{_tail(p)}{_skid(p)}
     </body>
   </worldbody>
 
