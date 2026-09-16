@@ -15,6 +15,22 @@ floor.
     .venv/bin/python sim/joint_puppet.py --pose prone    # start face-down
     .venv/bin/python sim/joint_puppet.py --skid          # with the pelvis skid
 
+Camera: left-drag orbits, right-drag pans, the wheel zooms, double-click
+resets the view.
+
+Keyboard: one finger column per joint, proximal on the pinky out to distal on
+the index; top row +5 deg, home row zero, bottom row -5 deg. The right leg is
+the same shape mirrored by finger role, so the same finger drives the same
+joint on the same side of the body. Hold a key to sweep (auto-repeat).
+
+              LEFT LEG                         RIGHT LEG
+    hip yaw    q / a / z                        p / ; / /
+    hip roll   w / s / x                        o / l / .
+    hip pitch  e / d / c                        i / k / ,
+    knee       r / f / v                        u / j / m
+    ankle      t / g / b                        y / h / n
+    ankle roll 6 (+) 5 (-)  [no zero]           7 (+) 8 (-)  [no zero]
+
 Buttons: the body poses (jump the fall). There is no record button on purpose.
 
 The session RECORDS ITSELF: the whole timeline is sampled continuously
@@ -71,6 +87,28 @@ POSES = {
     "side_L": ((math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0), 0.13),
     "side_R": ((math.cos(math.pi / 4), -math.sin(math.pi / 4), 0.0, 0.0), 0.13),
 }
+
+# Keyboard: one finger column per joint, proximal (hip yaw) on the pinky out to
+# distal (ankle) on the index; top row = +, home = zero, bottom = -. The right
+# leg is the same shape mirrored by finger role (q<->p, w<->o, ... b<->n), so
+# the same finger drives the same joint on the same side of the body. Ankle
+# roll has no letter column left, so it sits on the number row (+ on the inner
+# key) and has no zero.
+KEY_STEP = 5.0                        # degrees per press (auto-repeat sweeps)
+KEYMAP = {}                           # char -> (joint, delta or None for zero)
+for _side, _plus, _zero, _minus in (
+        ("L", "qwert", "asdfg", "zxcvb"),
+        ("R", "poiuy", ";lkjh", "/.,mn"),
+):
+    for _lvl, _p, _z, _m in zip(
+            ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle"), _plus, _zero, _minus):
+        KEYMAP[_p] = (f"{_side}_{_lvl}", +KEY_STEP)
+        KEYMAP[_z] = (f"{_side}_{_lvl}", None)
+        KEYMAP[_m] = (f"{_side}_{_lvl}", -KEY_STEP)
+KEYMAP["6"] = ("L_ankle_roll", +KEY_STEP)      # no zero: the roll is only +-25
+KEYMAP["5"] = ("L_ankle_roll", -KEY_STEP)
+KEYMAP["7"] = ("R_ankle_roll", +KEY_STEP)
+KEYMAP["8"] = ("R_ankle_roll", -KEY_STEP)
 
 
 class Puppet:
@@ -410,7 +448,7 @@ def main():
         h.addWidget(sl)
         h.addWidget(tgt)
         h.addWidget(ach)
-        achieved[name] = (sl, ach)
+        achieved[name] = (sl, ach, tgt)
         return box
 
     row = 0
@@ -440,10 +478,11 @@ def main():
     right.addLayout(btns)
 
     def refresh_sliders():
-        for nm, (sl, _) in achieved.items():
+        for nm, (sl, _ach, tgt) in achieved.items():
             sl.blockSignals(True)
             sl.setValue(int(round(pup.targets[nm])))
             sl.blockSignals(False)
+            tgt.setText(f"{pup.targets[nm]:+.0f}°")
 
     for pose_name in POSES:
         b = QtWidgets.QPushButton(pose_name)
@@ -456,6 +495,36 @@ def main():
     status.setStyleSheet("font-family:monospace; color:#666;")
     right.addWidget(status)
     right.addStretch(1)
+
+    # ---- keyboard: KEYMAP drives the same targets the sliders do. Installed
+    # on the application so a key works wherever the focus is (a slider that
+    # has focus would otherwise eat the arrow-ish keys itself).
+    def apply_key(ch):
+        hit = KEYMAP.get(ch)
+        if hit is None:
+            return False
+        name, delta = hit
+        if name not in pup.targets:
+            return False
+        lo, hi = pup.limits_deg(name)
+        cur = pup.targets[name]
+        val = 0.0 if delta is None else max(lo, min(hi, cur + delta))
+        pup.set_target(name, val)
+        sl, _ach, tgt = achieved[name]
+        sl.blockSignals(True)
+        sl.setValue(int(round(val)))
+        sl.blockSignals(False)
+        tgt.setText(f"{val:+.0f}°")
+        return True
+
+    class Keys(QtCore.QObject):
+        def eventFilter(self, obj, ev):
+            if ev.type() == QtCore.QEvent.Type.KeyPress and not ev.modifiers():
+                if apply_key(ev.text().lower()):
+                    return True                        # consumed
+            return False
+    keys = Keys()
+    app.installEventFilter(keys)
 
     # ---- physics on a worker thread; rendering + widgets on the Qt thread
     def sim_loop():
@@ -481,7 +550,7 @@ def main():
         img = QtGui.QImage(frame.data, frame.shape[1], frame.shape[0],
                            frame.strides[0], QtGui.QImage.Format.Format_RGB888)
         view.setPixmap(QtGui.QPixmap.fromImage(img))
-        for nm, (_, lab) in achieved.items():
+        for nm, (_sl, lab, _tgt) in achieved.items():
             lab.setText(f"{act[nm]:+.0f}°")
         status.setText(f"t {t:6.1f}s   pelvis z {z:.3f}   up {up:+.2f}   CoM x {com[0]:+.3f}\n"
                        f"contacts: {' '.join(contacts)}")
