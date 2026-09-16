@@ -53,8 +53,6 @@ import sys
 import threading
 import time
 
-import numpy as np
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 os.environ.setdefault("MUJOCO_GL", "glfw")      # offscreen render backend
@@ -130,23 +128,23 @@ class Puppet:
                     self.d.ctrl[i] = math.radians(self.targets[name])
                 mujoco.mj_step(self.m, self.d)
 
-    def snapshot(self):
-        with self.lock:
-            com = self.d.subtree_com[0].copy()
-            up = float(self.d.xmat[self.m.body("torso").id].reshape(3, 3)[2, 2])
-            contacts = sorted({self.m.body(self.m.geom_bodyid[g]).name
-                               for i in range(int(self.d.ncon))
-                               for g in (self.d.contact[i].geom1, self.d.contact[i].geom2)
-                               if self.m.body(self.m.geom_bodyid[g]).name != "world"
-                               and (mujoco.mj_id2name(self.m, mujoco.mjtObj.mjOBJ_GEOM, g) or "") != "floor"})
-            return float(self.d.qpos[2]), up, com, contacts, float(self.d.time)
-
-    def snapshot_contacts(self):
+    def contacts(self):
+        """bodies touching the floor (the floor geom itself excluded). Call
+        with the lock held."""
         return sorted({self.m.body(self.m.geom_bodyid[g]).name
                        for i in range(int(self.d.ncon))
                        for g in (self.d.contact[i].geom1, self.d.contact[i].geom2)
                        if self.m.body(self.m.geom_bodyid[g]).name != "world"
                        and (mujoco.mj_id2name(self.m, mujoco.mjtObj.mjOBJ_GEOM, g) or "") != "floor"})
+
+    def snapshot(self):
+        """(pelvis_z, up_z, com, contacts, sim_time) -- the status line's data."""
+        with self.lock:
+            return (float(self.d.qpos[2]),
+                    float(self.d.xmat[self.m.body("torso").id].reshape(3, 3)[2, 2]),
+                    self.d.subtree_com[0].copy(),
+                    self.contacts(),
+                    float(self.d.time))
 
     # ---- session log: the WHOLE timeline, sampled continuously, so a prior
     # session can be reconstructed and its keyframes recovered afterwards --
@@ -171,7 +169,7 @@ class Puppet:
             z = round(float(self.d.qpos[2]), 4)
             up = round(float(self.d.xmat[self.m.body("torso").id].reshape(3, 3)[2, 2]), 3)
             t = round(float(self.d.time), 2)
-            con = self.snapshot_contacts()
+            con = self.contacts()
         self.log(dict(cmd="s", t=t, tgt=tgt, q=q, z=z, up=up, con=con))
 
     def close_log(self):
@@ -229,7 +227,7 @@ def keyframes_from_log(path, settle_s=0.8, move_tol=0.5):
         frames.append((run_start, prev))
 
     seq, states = [], []
-    for i, (a, b) in enumerate(frames):
+    for a, b in frames:
         off = {n: v for n, v in zip(names, b["q"]) if abs(v) > 0.05}
         held = round(b["t"] - a["t"], 1)
         seq.append((f"t={b['t']:.0f}s", off, 1.5, max(0.5, min(held, 2.0))))
@@ -354,7 +352,6 @@ def main():
         def on_change(v, nm=name, lab=tgt):
             pup.set_target(nm, float(v))
             lab.setText(f"{v:+d}°")
-            pup.log(dict(cmd="set", t=round(float(pup.d.time), 3), joint=nm, deg=float(v)))
         sl.valueChanged.connect(on_change)
 
         grid.addWidget(sl, row, 1)
