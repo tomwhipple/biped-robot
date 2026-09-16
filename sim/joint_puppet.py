@@ -19,9 +19,11 @@ Camera: left-drag orbits, right-drag pans, the wheel zooms, double-click
 resets the view.
 
 Keyboard: one finger column per joint, proximal on the pinky out to distal on
-the index; top row +5 deg, home row zero, bottom row -5 deg. The right leg is
+the index; top row +1 deg, home row zero, bottom row -1 deg. The right leg is
 the same shape mirrored by finger role, so the same finger drives the same
-joint on the same side of the body. Hold a key to sweep (auto-repeat).
+joint on the same side of the body. Hold a key to sweep: the repeat is the
+tool's own (60 steps/s, no initial delay, --key-rate to change it), not the
+system's typing repeat.
 
               LEFT LEG                         RIGHT LEG
     hip yaw    q / a / z                        p / ; / /
@@ -109,6 +111,11 @@ KEYMAP["6"] = ("L_ankle_roll", +KEY_STEP)      # no zero: the roll is only +-25
 KEYMAP["5"] = ("L_ankle_roll", -KEY_STEP)
 KEYMAP["7"] = ("R_ankle_roll", +KEY_STEP)
 KEYMAP["8"] = ("R_ankle_roll", -KEY_STEP)
+# by Qt key code, which is what an event carries (and unlike ev.text() it is
+# still right on key RELEASE). For every character used here the Qt code is
+# ord() of its upper-case form: Key_Q == 0x51, Key_Semicolon == 0x3B, etc.
+KEYCODES = {ord(_ch.upper()): _v for _ch, _v in KEYMAP.items()}
+KEY_RATE_HZ = 60.0                    # held-key steps per second (our own repeat)
 
 
 def cad_rom_params(skid=False, knee="both"):
@@ -367,6 +374,10 @@ def main():
     ap.add_argument("--settle", type=float, default=0.8,
                     help="a pose counts as HELD (and so a keyframe) after this many seconds "
                          "of unchanged targets and a still body (default 0.8)")
+    ap.add_argument("--key-rate", type=float, default=KEY_RATE_HZ, dest="key_rate",
+                    help=f"held-key repeat, steps per second (default {KEY_RATE_HZ:.0f}; "
+                         f"at {KEY_STEP:.0f} deg a step that is "
+                         f"{KEY_RATE_HZ * KEY_STEP:.0f} deg/s)")
     a = ap.parse_args()
 
     if a.keyframes:
@@ -534,9 +545,13 @@ def main():
 
     # ---- keyboard: KEYMAP drives the same targets the sliders do. Installed
     # on the application so a key works wherever the focus is (a slider that
-    # has focus would otherwise eat the arrow-ish keys itself).
-    def apply_key(ch):
-        hit = KEYMAP.get(ch)
+    # has focus would otherwise eat the keys itself).
+    #
+    # The repeat is OURS, not the OS's: holding a key starts a timer that steps
+    # every 1000/rate ms with no initial delay, so a sweep begins instantly and
+    # runs at a usable speed instead of the system's typing repeat.
+    def apply_key(code):
+        hit = KEYCODES.get(code)
         if hit is None:
             return False
         name, delta = hit
@@ -553,11 +568,44 @@ def main():
         tgt.setText(f"{val:+.0f}°")
         return True
 
+    held = set()                                   # key codes currently down
+    repeat = QtCore.QTimer()
+    repeat.setInterval(max(1, int(round(1000.0 / a.key_rate))))
+
+    def on_repeat():
+        for code in list(held):
+            apply_key(code)
+    repeat.timeout.connect(on_repeat)
+
     class Keys(QtCore.QObject):
         def eventFilter(self, obj, ev):
-            if ev.type() == QtCore.QEvent.Type.KeyPress and not ev.modifiers():
-                if apply_key(ev.text().lower()):
-                    return True                        # consumed
+            t = ev.type()
+            if t == QtCore.QEvent.Type.KeyPress:
+                if ev.isAutoRepeat():
+                    return True                    # swallow the OS repeat: ours is faster
+                if ev.modifiers() != QtCore.Qt.KeyboardModifier.NoModifier:
+                    return False
+                hit = KEYCODES.get(ev.key())
+                if hit is None:
+                    return False
+                apply_key(ev.key())                # act on the press itself
+                if hit[1] is not None:             # +/- repeat; the zero keys do not
+                    held.add(ev.key())
+                    if not repeat.isActive():
+                        repeat.start()
+                return True
+            if t == QtCore.QEvent.Type.KeyRelease:
+                if ev.isAutoRepeat():
+                    return True
+                if ev.key() in held:
+                    held.discard(ev.key())
+                    if not held:
+                        repeat.stop()
+                    return True
+            elif t in (QtCore.QEvent.Type.WindowDeactivate,
+                       QtCore.QEvent.Type.ApplicationDeactivate):
+                held.clear()                       # never leave a joint sweeping
+                repeat.stop()
             return False
     keys = Keys()
     app.installEventFilter(keys)
