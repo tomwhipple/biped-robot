@@ -15,20 +15,23 @@ floor.
     .venv/bin/python sim/joint_puppet.py --pose prone    # start face-down
     .venv/bin/python sim/joint_puppet.py --skid          # with the pelvis skid
 
-Buttons: the body poses (jump the fall), Record (store the settled pose as a
-get-up keyframe) and Dump (print them as getup_v6-style offsets).
+Buttons: the body poses (jump the fall). There is no record button on purpose.
 
-Every session is LOGGED: each slider command with the sim time it was given,
-and each recorded frame with target vs achieved angles, pelvis height,
-uprightness and floor contacts. The log is plain JSONL, one event per line, in
-`sim/puppet_sessions/` -- a file to hand to someone, and a file the sim can
-eat again:
+The session RECORDS ITSELF: the whole timeline is sampled continuously
+(targets, achieved angles, pelvis height, uprightness, floor contacts) to a
+JSONL log in `sim/puppet_sessions/`. Afterwards the keyframes of that session
+are recovered from the log -- the poses you actually HELD, found by looking
+for stretches where the targets stopped changing and the body stopped moving:
 
-    .venv/bin/python sim/joint_puppet.py --export LOG.jsonl   # -> a getup_v6 keyframe sequence
-    .venv/bin/python sim/joint_puppet.py --run    LOG.jsonl   # -> feed it back through the study's
-                                                              #    evaluator (getup_v6.run_sequence,
-                                                              #    deploy servo model) -- does the pose
-                                                              #    you found survive real servos?
+    .venv/bin/python sim/joint_puppet.py --keyframes LOG.jsonl  # -> a getup_v6 sequence
+    .venv/bin/python sim/joint_puppet.py --run       LOG.jsonl  # -> feed those poses back through
+                                                                 #    the study's evaluator
+                                                                 #    (getup_v6.run_sequence, deploy
+                                                                 #    servo model): do they survive
+                                                                 #    real servos?
+
+So a session from last week can be re-read, replayed, or handed over whole,
+without anyone having pressed anything at the right moment.
 
 Implementation note, so nobody re-litigates it: MuJoCo's own simulate UI
 (viewer.launch, which has a Control-slider panel) cannot construct on this
@@ -82,7 +85,6 @@ class Puppet:
         self.d = mujoco.MjData(self.m)
         self.lock = threading.Lock()
         self.quit = False
-        self.recorded = []
         self.targets = {}                 # deg, keyed by actuator/joint name
         self.act = {}
         for i in range(self.m.nu):
@@ -139,20 +141,6 @@ class Puppet:
                                and (mujoco.mj_id2name(self.m, mujoco.mjtObj.mjOBJ_GEOM, g) or "") != "floor"})
             return float(self.d.qpos[2]), up, com, contacts, float(self.d.time)
 
-    def record(self):
-        with self.lock:
-            q = {n: round(self.actual_deg(n), 1) for n in self.names}
-            tgt = {n: round(self.targets[n], 1) for n in self.names}
-            z = float(self.d.qpos[2])
-            up = float(self.d.xmat[self.m.body("torso").id].reshape(3, 3)[2, 2])
-            t = float(self.d.time)
-            contacts = self.snapshot_contacts()
-        self.recorded.append(q)
-        line = ", ".join(f"{n[2:]} {v:+.0f}" for n, v in q.items() if abs(v) > 0.5)
-        print(f"[frame {len(self.recorded)}] pelvis z {z:.3f} up {up:+.2f} | {line or 'standing'}", flush=True)
-        self.log(dict(cmd="record", t=t, frame=len(self.recorded), target=tgt,
-                      achieved=q, pelvis_z=round(z, 4), up=round(up, 3), contacts=contacts))
-
     def snapshot_contacts(self):
         return sorted({self.m.body(self.m.geom_bodyid[g]).name
                        for i in range(int(self.d.ncon))
@@ -160,9 +148,9 @@ class Puppet:
                        if self.m.body(self.m.geom_bodyid[g]).name != "world"
                        and (mujoco.mj_id2name(self.m, mujoco.mjtObj.mjOBJ_GEOM, g) or "") != "floor"})
 
-    # ---- session log: every angle command, with the sim time it was given.
-    # The file is the point: it can be fed back into the sim (--run), turned
-    # into a getup_v6 sequence (--export), or just read.
+    # ---- session log: the WHOLE timeline, sampled continuously, so a prior
+    # session can be reconstructed and its keyframes recovered afterwards --
+    # nothing depends on having pressed a button at the right moment.
     def open_log(self, path, meta):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         self.log_fh = open(path, "w", buffering=1)      # line-buffered
@@ -174,12 +162,26 @@ class Puppet:
         if fh is not None:
             fh.write(json.dumps(ev) + "\n")
 
-    def dump(self):
-        print("recorded keyframes (getup_v6-style offsets):", flush=True)
-        for i, f in enumerate(self.recorded):
-            print(f"  ({i+1}, {f})", flush=True)
+    def sample(self):
+        """one timeline sample: targets, achieved angles, pose, contacts. Cheap
+        and compact (arrays in `joints` order from the init line)."""
+        with self.lock:
+            tgt = [round(self.targets[n], 1) for n in self.names]
+            q = [round(self.actual_deg(n), 1) for n in self.names]
+            z = round(float(self.d.qpos[2]), 4)
+            up = round(float(self.d.xmat[self.m.body("torso").id].reshape(3, 3)[2, 2]), 3)
+            t = round(float(self.d.time), 2)
+            con = self.snapshot_contacts()
+        self.log(dict(cmd="s", t=t, tgt=tgt, q=q, z=z, up=up, con=con))
+
+    def close_log(self):
         if getattr(self, "log_path", None):
             print(f"session log: {self.log_path}", flush=True)
+            print(f"  recover its keyframes: "
+                  f"sim/joint_puppet.py --keyframes {self.log_path}", flush=True)
+        fh = getattr(self, "log_fh", None)
+        if fh is not None:
+            fh.close()
 
 
 # --------------------------------------------------------------------------- log tools
@@ -193,26 +195,58 @@ def load_log(path):
     return evs
 
 
-def log_to_sequence(evs, hold=1.0, move=1.5):
-    """the recorded frames of a session -> a getup_v6 keyframe sequence:
-    [(label, {joint: deg, ...}, move_s, hold_s), ...]. These are the ACHIEVED
-    angles, which is what the body actually held under gravity."""
-    seq = []
-    for ev in evs:
-        if ev.get("cmd") == "record":
-            off = {k: v for k, v in ev["achieved"].items() if abs(v) > 0.05}
-            seq.append((f"frame {ev['frame']}", off, move, hold))
-    return seq
+def keyframes_from_log(path, settle_s=0.8, move_tol=0.5):
+    """RECOVER the keyframes of a past session automatically: no 'record'
+    button needed. Walk the sampled timeline and emit one keyframe per pose
+    the operator actually HELD -- a stretch where the targets stopped changing
+    and the body stopped moving (joint motion under move_tol deg between
+    samples) for at least settle_s. That is the definition of 'a pose he
+    stopped at', which is what a keyframe is.
 
-
-def export_sequence(path, hold=1.0, move=1.5):
+    Returns [(label, {joint: achieved_deg}, move_s, hold_s)] plus the per-frame
+    state, so an old session can be replayed or read without any manual step."""
     evs = load_log(path)
     init = next((e for e in evs if e.get("cmd") == "init"), {})
-    seq = log_to_sequence(evs, hold, move)
-    print(f"# from {os.path.basename(path)} -- start pose {init.get('pose')!r}, "
-          f"skid={init.get('skid')}, knee={init.get('knee')!r}")
-    print(f"# {len(seq)} recorded frames; paste into sim/getup_v6.py SEQUENCES "
-          f"or run: sim/joint_puppet.py --run {os.path.basename(path)}")
+    names = init.get("joints", [])
+    samples = [e for e in evs if e.get("cmd") == "s"]
+    if not samples or not names:
+        return [], init, []
+
+    frames, run_start, prev = [], None, None
+    for s in samples:
+        if prev is not None:
+            tgt_same = all(abs(a - b) <= 1e-6 for a, b in zip(s["tgt"], prev["tgt"]))
+            still = all(abs(a - b) <= move_tol for a, b in zip(s["q"], prev["q"]))
+            if tgt_same and still:
+                if run_start is None:
+                    run_start = prev
+            else:
+                if run_start is not None and (prev["t"] - run_start["t"]) >= settle_s:
+                    frames.append((run_start, prev))
+                run_start = None
+        prev = s
+    if run_start is not None and (prev["t"] - run_start["t"]) >= settle_s:
+        frames.append((run_start, prev))
+
+    seq, states = [], []
+    for i, (a, b) in enumerate(frames):
+        off = {n: v for n, v in zip(names, b["q"]) if abs(v) > 0.05}
+        held = round(b["t"] - a["t"], 1)
+        seq.append((f"t={b['t']:.0f}s", off, 1.5, max(0.5, min(held, 2.0))))
+        states.append(b)
+    return seq, init, states
+
+
+def export_sequence(path, settle_s=0.8):
+    seq, init, states = keyframes_from_log(path, settle_s=settle_s)
+    print(f"# recovered from {os.path.basename(path)} -- start pose {init.get('pose')!r}, "
+          f"skid={init.get('skid')}, knee={init.get('knee')!r}, session {init.get('when')}")
+    if not seq:
+        print("# no held poses found (the body never settled at a fixed target)")
+        return seq
+    print(f"# {len(seq)} poses the session actually HELD (auto-recovered, no manual record):")
+    for (label, off, mv, hd), st in zip(seq, states):
+        print(f"#   {label:>8s}  pelvis z {st['z']:.3f}  up {st['up']:+.2f}  contacts {' '.join(st['con'])}")
     print("[")
     for label, off, mv, hd in seq:
         print(f"    ({label!r}, {off}, {mv}, {hd}),")
@@ -220,17 +254,14 @@ def export_sequence(path, hold=1.0, move=1.5):
     return seq
 
 
-def run_sequence_from_log(path, hold=1.0, move=1.5, play=3.0, mu=0.7):
-    """feed the session's angle commands back through the STUDY's evaluator:
-    getup_v6.run_sequence under the deploy servo model (play, shaper, STS3250
-    knees/rolls) from the settled fall -- i.e. does what you posed by hand
-    actually hold up when the real servos have to do it?"""
+def run_sequence_from_log(path, settle_s=0.8, play=3.0, mu=0.7):
+    """feed a past session's recovered keyframes back through the STUDY's
+    evaluator: getup_v6.run_sequence under the deploy servo model -- does what
+    was posed by hand hold up when the real servos have to do it?"""
     import getup_v6 as G
-    evs = load_log(path)
-    init = next((e for e in evs if e.get("cmd") == "init"), {})
-    seq = log_to_sequence(evs, hold, move)
+    seq, init, _ = keyframes_from_log(path, settle_s=settle_s)
     if not seq:
-        print("no recorded frames in the log (press 'record' in the GUI to capture poses)")
+        print("no held poses recovered from that log")
         return None
     p = DesignParams(skid=bool(init.get("skid")), knee=init.get("knee", "fwd"))
     xml = os.path.join(os.environ.get("TMPDIR", "/tmp"), f"puppet_run_{os.getpid()}.xml")
@@ -238,7 +269,7 @@ def run_sequence_from_log(path, hold=1.0, move=1.5, play=3.0, mu=0.7):
         fh.write(build_xml(p))
     start = init.get("pose", "stand")
     start = start if start in ("supine", "prone") else "supine"
-    print(f"replaying {len(seq)} hand-posed frames from {start} under the deploy servo model "
+    print(f"replaying {len(seq)} recovered poses from {start} under the deploy servo model "
           f"(play {play} deg, mu {mu}):")
     r = G.run_sequence(p, xml, seq, start=start, play_deg=play, per_joint=G.PJ_DEFAULT,
                        mu=mu, verbose=True)
@@ -255,20 +286,22 @@ def main():
     ap.add_argument("--knee", choices=("fwd", "bwd"), default="fwd")
     ap.add_argument("--log", default=None,
                     help="session log path (default sim/puppet_sessions/<stamp>.jsonl)")
-    ap.add_argument("--export", metavar="LOG",
-                    help="print a getup_v6 keyframe sequence from a session log and exit")
+    ap.add_argument("--keyframes", "--export", dest="keyframes", metavar="LOG",
+                    help="recover the keyframes of a PAST session from its log "
+                         "(the poses it actually held) and print them as a getup_v6 sequence")
     ap.add_argument("--run", metavar="LOG",
-                    help="feed a session log's recorded frames back through the study's "
-                         "evaluator (getup_v6.run_sequence, deploy servo model) and exit")
-    ap.add_argument("--move", type=float, default=1.5, help="--export/--run: slew seconds per frame")
-    ap.add_argument("--hold", type=float, default=1.0, help="--export/--run: hold seconds per frame")
+                    help="recover a past session's keyframes and feed them back through the "
+                         "study's evaluator (getup_v6.run_sequence, deploy servo model)")
+    ap.add_argument("--settle", type=float, default=0.8,
+                    help="a pose counts as HELD (and so a keyframe) after this many seconds "
+                         "of unchanged targets and a still body (default 0.8)")
     a = ap.parse_args()
 
-    if a.export:
-        export_sequence(a.export, hold=a.hold, move=a.move)
+    if a.keyframes:
+        export_sequence(a.keyframes, settle_s=a.settle)
         return
     if a.run:
-        run_sequence_from_log(a.run, hold=a.hold, move=a.move)
+        run_sequence_from_log(a.run, settle_s=a.settle)
         return
 
     from PyQt6 import QtCore, QtGui, QtWidgets
@@ -329,7 +362,10 @@ def main():
         grid.addWidget(ach, row, 3)
         achieved[name] = (sl, ach)
 
-    # ---- buttons: body poses, record, dump
+    # ---- buttons: body poses only. There is deliberately no record button --
+    # the session is sampled continuously and its keyframes are recovered from
+    # the log afterwards (--keyframes), so nothing depends on pressing
+    # anything at the right moment.
     btns = QtWidgets.QHBoxLayout()
     right.addLayout(btns)
 
@@ -345,12 +381,6 @@ def main():
             pup.log(dict(cmd="pose", t=round(float(pup.d.time), 3), pose=po)),
             pup.set_body(po), refresh_sliders()))
         btns.addWidget(b)
-    b_rec = QtWidgets.QPushButton("record")
-    b_rec.clicked.connect(lambda: pup.record())
-    btns.addWidget(b_rec)
-    b_dump = QtWidgets.QPushButton("dump")
-    b_dump.clicked.connect(lambda: pup.dump())
-    btns.addWidget(b_dump)
 
     status = QtWidgets.QLabel("")
     status.setStyleSheet("font-family:monospace; color:#666;")
@@ -382,22 +412,31 @@ def main():
         for nm, (_, lab) in achieved.items():
             lab.setText(f"{act[nm]:+.0f}°")
         status.setText(f"t {t:6.1f}s   pelvis z {z:.3f}   up {up:+.2f}   CoM x {com[0]:+.3f}\n"
-                       f"frames {len(pup.recorded)}   contacts: {' '.join(contacts)}")
+                       f"contacts: {' '.join(contacts)}")
 
     timer = QtCore.QTimer()
     timer.timeout.connect(tick)
     timer.start(33)                      # ~30 fps
 
+    # the session recorder: samples the whole timeline at 5 Hz so a past
+    # session's keyframes can be recovered later without anyone having
+    # pressed anything.
+    sampler = QtCore.QTimer()
+    sampler.timeout.connect(pup.sample)
+    sampler.start(200)
+
     print(f"joint puppet: v6/{'v7' if pup.p.torso_v7 else 'v6'} body"
           f"{', pelvis skid' if a.skid else ''}, start '{a.pose}' -- "
           f"{len(pup.names)} sliders, gravity on.", flush=True)
+    print(f"  logging the session to {log_path}", flush=True)
+    print(f"  afterwards: sim/joint_puppet.py --keyframes {log_path}", flush=True)
     win.resize(1080, 700)
     win.show()
     win.raise_()                 # macOS: a window from a terminal-launched
     win.activateWindow()         # process otherwise opens behind the terminal
     app.exec()
     pup.quit = True
-    pup.dump()
+    pup.close_log()
 
 
 if __name__ == "__main__":
