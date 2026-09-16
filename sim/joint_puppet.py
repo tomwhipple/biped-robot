@@ -142,6 +142,7 @@ def cad_rom_params(skid=False, knee="both"):
     ROM says +-40."""
     return DesignParams(
         skid=skid, knee=knee,
+        self_collide=True,           # the legs must not sweep through the body
         yaw_range=45.0,
         hip_roll_abd=55.0, hip_roll_add=55.0,
         hip_pitch_range=(-125.0, 90.0),
