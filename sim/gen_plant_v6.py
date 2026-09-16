@@ -108,15 +108,17 @@ class DesignParams:
     tail_rest: float = 0.0       # deg; the rod is MODELLED at this angle so joint 0 = rest (walk study: -90 = hanging)
     fall_collision: bool = True  # torso, head, links, feet collide with the FLOOR (contype 2),
                                  # so falls and get-ups are physical; soles stay the 8 pads
-    self_collide: bool = False   # ALSO stop the legs passing through the body. The floor
-                                 # collisions above are contype 2 / conaffinity 0, i.e. they
-                                 # meet the floor but never each other, so nothing has ever
-                                 # stopped a shin or foot sweeping through the torso -- only
-                                 # the joint ranges did, implicitly. Explicit pairs (which
-                                 # bypass the contype filter) fix that for the distal links,
-                                 # where it matters; the thigh's clearance to the pelvis is
-                                 # already what the hip's CAD ROM encodes. Off by default so
-                                 # every existing study sees the plant it has always seen.
+    self_collide: bool = False   # OPT-OUT self-collision: every solid part collides with
+                                 # every other, except same-body and parent<->child pairs
+                                 # (MuJoCo excludes those automatically). The default plant
+                                 # is the opposite -- opt-IN, via the enumerated <pair> list
+                                 # below -- and that is why part overlaps kept being found
+                                 # one at a time: of 62 geoms only 8 are NAMED, so the 28
+                                 # servo cases and electronics could never appear in a pair
+                                 # list at all and nothing could ever stop them. Measured:
+                                 # 107 of 300 random in-ROM poses have an overlap the
+                                 # enumerated list cannot see. Off by default so every
+                                 # existing study keeps the plant it was run on.
     ankle_servos_in_shank: bool = False   # study variant: parallel-linkage ankle --
                                           # both ankle servos ride at the top of the
                                           # shank, the ankle joints are driven through
@@ -173,6 +175,16 @@ class DesignParams:
 
 def _fc(p) -> str:
     return 'class="fallcol" ' if p.fall_collision else ''
+
+
+def _selfaff(p) -> int:
+    """conaffinity for the solid parts. 0 = they meet the floor but never each
+    other (opt-in collision, the enumerated <pair> list decides). 2 = they meet
+    each other too, and MuJoCo excludes same-body and parent<->child pairs by
+    itself -- so a part added later is collided by default rather than only if
+    somebody remembers to list it. The floor is unaffected either way: it is
+    contype 1 / conaffinity 3, and 3 & 2 is still non-zero."""
+    return 2 if p.self_collide else 0
 
 
 def _f(x: float) -> str:
@@ -449,24 +461,19 @@ def build_xml(p: DesignParams) -> str:
         acts.append(f'    <position name="tail_pitch" joint="tail_pitch" ctrlrange="{r(-150):.10f} {r(120):.10f}"/>')
     acts_s = "\n".join(acts)
     pairs = []
-    segs = ("col_thigh", "col_shank", "col_ankle", "col_foot")
-    for a in segs:
-        for b in segs:
-            pairs.append(f'    <pair geom1="L_{a}" geom2="R_{b}"/>')
-    pairs.append('    <pair geom1="L_sole" geom2="R_sole"/>')
-    if p.self_collide:
-        # leg vs body. An explicit pair collides regardless of contype, which
-        # is the only way these meet: every one of these geoms is contype 2 /
-        # conaffinity 0 (they see the floor, not each other).
-        body_geoms = ["torso_deck", "torso_housing"]
-        if p.torso_v7:
-            body_geoms.append("head_shell")
-        if p.skid:
-            body_geoms.append("skid_shell")
-        for s_ in ("L", "R"):
-            for leg in (f"{s_}_shin_link", f"{s_}_foot_plate"):
-                for bg in body_geoms:
-                    pairs.append(f'    <pair geom1="{leg}" geom2="{bg}"/>')
+    if not p.self_collide:
+        # opt-IN collision: only what is listed here can ever touch. The col_*
+        # proxies are deliberately coarse (col_foot is a 20 mm slab of the full
+        # footprint), which is fine as a conservative toe-overlap check for the
+        # walk but is not the part.
+        segs = ("col_thigh", "col_shank", "col_ankle", "col_foot")
+        for a in segs:
+            for b in segs:
+                pairs.append(f'    <pair geom1="L_{a}" geom2="R_{b}"/>')
+        pairs.append('    <pair geom1="L_sole" geom2="R_sole"/>')
+    # with self_collide the real geoms collide directly (see the class
+    # definitions below), so no pair list is needed -- and none can be
+    # forgotten.
     pairs_s = "\n".join(pairs)
     yaw_case = (SV_LEN / 2, SV_WID / 2, SV_T / 2)
     return f"""<mujoco model="bimo_biped_v6ar">
@@ -487,14 +494,14 @@ def build_xml(p: DesignParams) -> str:
     <position kp="40" forcerange="-3 3"/>
     <geom contype="0" conaffinity="0"/>
     <default class="servo">
-      <geom type="box" contype="2" conaffinity="0" group="1" rgba="0.22 0.23 0.27 1"/>
+      <geom type="box" contype="2" conaffinity="{_selfaff(p)}" group="1" rgba="0.22 0.23 0.27 1"/>
     </default>
     <default class="pad">
       <geom type="sphere" size="0.003" contype="1" conaffinity="0" mass="0"
             friction="1 0.02 0.001" condim="4" rgba="0.20 0.21 0.24 1"/>
     </default>
     <default class="fallcol">
-      <geom contype="2" conaffinity="0" group="1" friction="0.8 0.02 0.001" condim="4"/>
+      <geom contype="2" conaffinity="{_selfaff(p)}" group="1" friction="0.8 0.02 0.001" condim="4"/>
     </default>
     <default class="legcol">
       <geom type="capsule" size="0.0147" contype="0" conaffinity="0" mass="0"
