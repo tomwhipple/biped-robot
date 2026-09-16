@@ -118,6 +118,13 @@ KEYMAP["8"] = ("R_ankle_roll", -KEY_STEP)
 # ord() of its upper-case form: Key_Q == 0x51, Key_Semicolon == 0x3B, etc.
 KEYCODES = {ord(_ch.upper()): _v for _ch, _v in KEYMAP.items()}
 KEY_RATE_HZ = 60.0                    # held-key steps per second (our own repeat)
+# joint -> (key that decreases it, key that increases it), for the slider
+# labels. Derived from KEYMAP rather than written out again, so a key can never
+# be shown on a slider it does not actually drive.
+KEY_HINT = {}
+for _ch, (_jnt, _dl) in KEYMAP.items():
+    _lo, _hi = KEY_HINT.get(_jnt, ("", ""))
+    KEY_HINT[_jnt] = (_ch, _hi) if _dl < 0 else (_lo, _ch)
 
 
 def cad_rom_params(skid=False, knee="both"):
@@ -148,17 +155,20 @@ def cad_rom_params(skid=False, knee="both"):
 
     That envelope is pose-dependent, though -- it moves as soon as the other
     leg yaws or the hips abduct -- so rather than bake in a number, the range
-    here is a plain bound (+-190) and the sim's own inter-leg contact pairs do
-    the limiting, which is honest for every pose rather than one. Cable length
-    is NOT modelled (the yaw->roll service loop is currently sized for +-45;
-    that is to be measured on the real hardware).
+    here is the SERVO's own limit and the plant's self-collision does the rest,
+    which is honest for every pose rather than one. Cable length is NOT modelled
+    (the yaw->roll service loop is currently sized for +-45; that is to be
+    measured on the real hardware).
 
-    Note for whoever sets the bound: an ST3215 is 4096 steps over one turn, so
-    a centred zero can only reach +-180 anyway."""
+    The bound is +-180 because that is all the servo has: an ST3215 encoder is
+    4096 steps over one turn, so from a centred zero (step 2048) the reachable
+    span is -180.00 .. +179.91, one step short on the positive side. Asking for
+    more was meaningless -- there is no count to command it with."""
     return DesignParams(
         skid=skid, knee=knee,
-        self_collide=True,           # the legs must not sweep through the body
-        yaw_range=190.0,
+        self_collide=True,           # every part collides with every other;
+                                     # the legs cannot sweep through the body
+        yaw_range=180.0,
         hip_roll_abd=55.0, hip_roll_add=55.0,
         hip_pitch_range=(-125.0, 90.0),
         knee_flex=130.0, knee_back=95.0,
@@ -484,17 +494,35 @@ def main():
     achieved = {}
 
     def make_slider(name):
-        """slider + target + achieved for one joint, as a single row widget."""
+        """slider + target + achieved for one joint, as a single row widget.
+        The two keys that drive the joint sit either side of the slider, on the
+        side they move it -- decrease key left, increase key right -- so the
+        keyboard reads off the widget instead of out of a manual."""
         lo, hi = pup.limits_deg(name)
         box = QtWidgets.QWidget()
         h = QtWidgets.QHBoxLayout(box)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(4)
+        k_dn, k_up = KEY_HINT.get(name, ("", ""))   # the neck has no keys
+        caps = []
+        for ch in (k_dn, k_up):
+            cap = QtWidgets.QLabel(ch.upper())
+            cap.setFixedWidth(15)
+            cap.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter)
+            cap.setToolTip("" if not ch else
+                           f"hold '{ch}' to {'lower' if ch == k_dn else 'raise'} "
+                           f"{name.replace('_', ' ')} ({KEY_STEP:g}°/step)")
+            if ch:
+                cap.setStyleSheet(
+                    "color:#888; border:1px solid #555; border-radius:3px;"
+                    "font-family:monospace; font-size:10px;")
+            caps.append(cap)
         sl = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         sl.setMinimum(int(round(lo)))
         sl.setMaximum(int(round(hi)))
         sl.setValue(int(round(pup.targets[name])))
         sl.setMinimumWidth(170)
+        sl.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)   # keys stay with the window
         tgt = QtWidgets.QLabel(f"{pup.targets[name]:+.0f}°")
         tgt.setFixedWidth(42)
         tgt.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
@@ -508,7 +536,9 @@ def main():
             lab.setText(f"{v:+d}°")
         sl.valueChanged.connect(on_change)
 
+        h.addWidget(caps[0])
         h.addWidget(sl)
+        h.addWidget(caps[1])
         h.addWidget(tgt)
         h.addWidget(ach)
         achieved[name] = (sl, ach, tgt)
