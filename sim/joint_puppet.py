@@ -94,7 +94,7 @@ POSES = {
 # the same finger drives the same joint on the same side of the body. Ankle
 # roll has no letter column left, so it sits on the number row (+ on the inner
 # key) and has no zero.
-KEY_STEP = 5.0                        # degrees per press (auto-repeat sweeps)
+KEY_STEP = 1.0                        # degrees per press (auto-repeat sweeps)
 KEYMAP = {}                           # char -> (joint, delta or None for zero)
 for _side, _plus, _zero, _minus in (
         ("L", "qwert", "asdfg", "zxcvb"),
@@ -109,6 +109,39 @@ KEYMAP["6"] = ("L_ankle_roll", +KEY_STEP)      # no zero: the roll is only +-25
 KEYMAP["5"] = ("L_ankle_roll", -KEY_STEP)
 KEYMAP["7"] = ("R_ankle_roll", +KEY_STEP)
 KEYMAP["8"] = ("R_ankle_roll", -KEY_STEP)
+
+
+def cad_rom_params(skid=False, knee="both"):
+    """the plant with the HARDWARE's range of motion, not the walk's.
+
+    The joint limits come from the CAD ROM table (cad/v6/dimensions_v6.ROM),
+    which is the table `cad/check_assembly_v6.py` sweeps for interference, so
+    every limit here is one the printed parts have been checked at:
+
+        hip yaw    +-45          hip pitch  -125 .. +90
+        hip roll   +-55          knee       -95 .. +130   (+ = human flexion)
+        ankle      +-40          ankle roll +-25          neck +-90
+
+    Sign note: the assembly rotates pitch joints about +Y, the sim's knee axis
+    is -Y, so the sim's knee is the CAD's negated -- CAD +130 flexion is sim
+    -130, CAD -95 backward is sim +95. knee="both" gives the joint as the CAD
+    allows it in BOTH directions (the plant's default 'fwd' caps the backward
+    side at 5 deg, which is a modelling cap inherited from v5, not hardware).
+
+    Two of these are deliberately wider than the walking plant's defaults,
+    because those defaults are design choices rather than limits: hip roll
+    (the walk uses abduction 45 / adduction 30) and the knee's backward side.
+    One is narrower: the walking plant allows +-45 ankle pitch where the CAD
+    ROM says +-40."""
+    return DesignParams(
+        skid=skid, knee=knee,
+        yaw_range=45.0,
+        hip_roll_abd=55.0, hip_roll_add=55.0,
+        hip_pitch_range=(-125.0, 90.0),
+        knee_flex=130.0, knee_back=95.0,
+        ankle_range=40.0,
+        ankle_roll_range=25.0,
+    )
 
 
 class Puppet:
@@ -299,7 +332,7 @@ def run_sequence_from_log(path, settle_s=0.8, play=3.0, mu=0.7):
     if not seq:
         print("no held poses recovered from that log")
         return None
-    p = DesignParams(skid=bool(init.get("skid")), knee=init.get("knee", "fwd"))
+    p = cad_rom_params(skid=bool(init.get("skid")), knee=init.get("knee", "both"))
     xml = os.path.join(os.environ.get("TMPDIR", "/tmp"), f"puppet_run_{os.getpid()}.xml")
     with open(xml, "w") as fh:
         fh.write(build_xml(p))
@@ -319,7 +352,10 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pose", default="stand", choices=list(POSES))
     ap.add_argument("--skid", action="store_true", help="add the pelvis skid")
-    ap.add_argument("--knee", choices=("fwd", "bwd"), default="fwd")
+    ap.add_argument("--knee", choices=("both", "fwd", "bwd"), default="both",
+                    help="'both' (default) = the knee as the CAD allows it in both "
+                         "directions (-130 flexion .. +95 backward); 'fwd'/'bwd' are the "
+                         "single-direction knees the walking studies use")
     ap.add_argument("--log", default=None,
                     help="session log path (default sim/puppet_sessions/<stamp>.jsonl)")
     ap.add_argument("--keyframes", "--export", dest="keyframes", metavar="LOG",
@@ -386,7 +422,7 @@ def main():
         def mouseDoubleClickEvent(self, e):
             cs.update(CAM0)                         # back to the default view
 
-    pup = Puppet(DesignParams(skid=a.skid, knee=a.knee), a.pose)
+    pup = Puppet(cad_rom_params(skid=a.skid, knee=a.knee), a.pose)
     log_path = a.log or os.path.join(
         HERE, "puppet_sessions",
         f"session_{datetime.datetime.now():%Y%m%d_%H%M%S}.jsonl")

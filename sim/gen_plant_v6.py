@@ -69,7 +69,8 @@ class DesignParams:
     foot_y_off: float = 0.012    # sole centreline OUTBOARD of the ankle roll axis (m):
                                  # an asymmetric sole with more width outside the ankle,
                                  # because the open-loop walk's failure direction is outward
-    knee: str = "fwd"            # "fwd" = human knee, "bwd" = bird knee
+    knee: str = "fwd"            # "fwd" = human knee, "bwd" = bird knee, "both" =
+                                 # double-jointed: the CAD ROM in both directions
     # ---- joint ranges (deg) ----------------------------------------------
     yaw_range: float = 45.0
     hip_roll_add: float = 30.0   # adduction (toward the other leg)
@@ -77,6 +78,8 @@ class DesignParams:
     hip_pitch_range: tuple = (-125.0, 90.0)   # -110 -> -125: yoke_pitch_v6 flange chamfer (cad/v6, 2026-09-14)
     knee_flex: float = 130.0     # flexion travel (either direction); 95 -> 130 with the leg-link relief cuts (cad/v6, 2026-09-14)
     knee_hyper: float = 5.0      # hyperextension cap (modelling cap, v5)
+    knee_back: float = 95.0      # CAD ROM the OTHER way (cad/v6/dimensions_v6.ROM["knee"]
+                                 # is (-95, +130) with + = human flexion), used by knee="both"
     ankle_range: float = 45.0    # ankle pitch +/-
     ankle_roll_range: float = 25.0   # the roll servo case sweep under the ankle link (cad/v6/dimensions_v6.py)
     # ---- masses (kg) ------------------------------------------------------
@@ -162,6 +165,10 @@ class DesignParams:
             return (-self.knee_flex, self.knee_hyper)
         if self.knee == "bwd":
             return (-self.knee_hyper, self.knee_flex)
+        if self.knee == "both":
+            # the joint as the CAD actually allows it, both ways: human
+            # flexion to -knee_flex, backward to +knee_back. No modelling cap.
+            return (-self.knee_flex, self.knee_back)
         raise ValueError(self.knee)
 
     def summary(self) -> str:
