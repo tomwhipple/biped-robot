@@ -304,6 +304,50 @@ def main():
 
     from PyQt6 import QtCore, QtGui, QtWidgets
 
+    # camera state, driven entirely by the mouse on the view (below)
+    CAM0 = dict(az=135.0, el=-16.0, dist=1.3, ox=0.0, oy=0.0, oz=0.0)
+    cs = dict(CAM0)
+
+    class View(QtWidgets.QLabel):
+        """the 3D view, and the camera's input surface: left-drag orbits,
+        right/middle-drag pans, the wheel zooms -- the usual 3D conventions,
+        so the camera behaves like every other viewer."""
+
+        def __init__(self):
+            super().__init__()
+            self._last = None
+            self._btn = None
+
+        def mousePressEvent(self, e):
+            self._last = e.position()
+            self._btn = e.button()
+
+        def mouseReleaseEvent(self, e):
+            self._last = None
+
+        def mouseMoveEvent(self, e):
+            if self._last is None:
+                return
+            p = e.position()
+            dx, dy = p.x() - self._last.x(), p.y() - self._last.y()
+            self._last = p
+            if self._btn == QtCore.Qt.MouseButton.LeftButton:
+                cs["az"] = (cs["az"] - dx * 0.4) % 360.0
+                cs["el"] = max(-89.0, min(89.0, cs["el"] - dy * 0.4))
+            else:                                   # pan in the camera plane
+                az, el = math.radians(cs["az"]), math.radians(cs["el"])
+                right = (-math.sin(az), math.cos(az), 0.0)
+                up = (-math.cos(az) * math.sin(el), -math.sin(az) * math.sin(el), math.cos(el))
+                s = cs["dist"] * 0.0015
+                for i, k in enumerate(("ox", "oy", "oz")):
+                    cs[k] += (-right[i] * dx + up[i] * dy) * s
+
+        def wheelEvent(self, e):
+            cs["dist"] = max(0.25, min(6.0, cs["dist"] * math.exp(-e.angleDelta().y() * 0.0015)))
+
+        def mouseDoubleClickEvent(self, e):
+            cs.update(CAM0)                         # back to the default view
+
     pup = Puppet(DesignParams(skid=a.skid, knee=a.knee), a.pose)
     log_path = a.log or os.path.join(
         HERE, "puppet_sessions",
@@ -317,10 +361,11 @@ def main():
     win.setWindowTitle("v6/v7 joint puppet — gravity on")
     outer = QtWidgets.QHBoxLayout(win)
 
-    # ---- left: the live 3D view
-    view = QtWidgets.QLabel()
+    # ---- left: the live 3D view (and the camera's mouse surface)
+    view = View()
     view.setMinimumSize(520, 660)
     view.setStyleSheet("background:#111;")
+    view.setToolTip("left-drag: orbit   right-drag: pan   wheel: zoom   double-click: reset view")
     outer.addWidget(view)
 
     # ---- right: a slider per joint + buttons + status
@@ -330,22 +375,30 @@ def main():
         "<b>joint targets</b> (deg) — gravity is on; the servo settles the pose.<br>"
         "<span style='color:#2a7'>green</span> = the angle actually reached."))
 
+    # Laid out like the robot: neck on top, then each joint level as one row
+    # with left and right side by side, hip down to ankle.
     grid = QtWidgets.QGridLayout()
+    grid.setHorizontalSpacing(14)
     right.addLayout(grid)
     achieved = {}
-    for row, name in enumerate(pup.names):
+
+    def make_slider(name):
+        """slider + target + achieved for one joint, as a single row widget."""
         lo, hi = pup.limits_deg(name)
-        grid.addWidget(QtWidgets.QLabel(name), row, 0)
+        box = QtWidgets.QWidget()
+        h = QtWidgets.QHBoxLayout(box)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(4)
         sl = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         sl.setMinimum(int(round(lo)))
         sl.setMaximum(int(round(hi)))
         sl.setValue(int(round(pup.targets[name])))
-        sl.setMinimumWidth(240)
+        sl.setMinimumWidth(170)
         tgt = QtWidgets.QLabel(f"{pup.targets[name]:+.0f}°")
-        tgt.setFixedWidth(46)
+        tgt.setFixedWidth(42)
         tgt.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         ach = QtWidgets.QLabel("")
-        ach.setFixedWidth(46)
+        ach.setFixedWidth(42)
         ach.setStyleSheet("color:#2a7;")
         ach.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
 
@@ -354,10 +407,30 @@ def main():
             lab.setText(f"{v:+d}°")
         sl.valueChanged.connect(on_change)
 
-        grid.addWidget(sl, row, 1)
-        grid.addWidget(tgt, row, 2)
-        grid.addWidget(ach, row, 3)
+        h.addWidget(sl)
+        h.addWidget(tgt)
+        h.addWidget(ach)
         achieved[name] = (sl, ach)
+        return box
+
+    row = 0
+    if "neck_yaw" in pup.targets:                     # head, at the top
+        grid.addWidget(QtWidgets.QLabel("<b>neck</b>"), row, 0)
+        grid.addWidget(make_slider("neck_yaw"), row, 1, 1, 2)
+        row += 1
+    hdr_l = QtWidgets.QLabel("<b>left</b>")
+    hdr_r = QtWidgets.QLabel("<b>right</b>")
+    for w in (hdr_l, hdr_r):
+        w.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter)
+    grid.addWidget(hdr_l, row, 1)
+    grid.addWidget(hdr_r, row, 2)
+    row += 1
+    # top of the leg to the bottom
+    for level in ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll"):
+        grid.addWidget(QtWidgets.QLabel(level.replace("_", " ")), row, 0)
+        grid.addWidget(make_slider(f"L_{level}"), row, 1)
+        grid.addWidget(make_slider(f"R_{level}"), row, 2)
+        row += 1
 
     # ---- buttons: body poses only. There is deliberately no record button --
     # the session is sampled continuously and its keyframes are recovered from
@@ -393,13 +466,15 @@ def main():
 
     renderer = mujoco.Renderer(pup.m, 660, 520)
     cam = mujoco.MjvCamera()
-    cam.distance, cam.elevation, cam.azimuth = 1.3, -16.0, 135.0
 
     def tick():
         z, up, com, contacts, t = pup.snapshot()
         with pup.lock:
-            cam.lookat[:] = [float(pup.d.qpos[0]), float(pup.d.qpos[1]),
-                             max(0.12, float(pup.d.qpos[2]) * 0.5)]
+            # the camera follows the body, offset by whatever the mouse panned
+            cam.azimuth, cam.elevation, cam.distance = cs["az"], cs["el"], cs["dist"]
+            cam.lookat[:] = [float(pup.d.qpos[0]) + cs["ox"],
+                             float(pup.d.qpos[1]) + cs["oy"],
+                             max(0.12, float(pup.d.qpos[2]) * 0.5) + cs["oz"]]
             renderer.update_scene(pup.d, cam)
             frame = renderer.render().copy()
             act = {n: pup.actual_deg(n) for n in pup.names}
