@@ -1,0 +1,21 @@
+== Gate D (lumped-mass plant) on the side-mounted-leg body at rest, STS3250 rolls+knees, lift 4, 8 steps
+   NOTE: v6_kin.leg_ik (Gate C/D's foot-placement IK) assumes the hip yaw axis IS the pelvis/torso
+   origin (v6_kin.hip_roll_point has no hip_z term). hip_z != 0 configs are therefore NOT MEASURED
+   here -- the IK throws 'out of reach' (confirmed) rather than silently returning a wrong pose.
+bird_z06_sep160          SKIPPED: hip_z 60 mm != 0, walk-gate IK is not valid on this layout (not measured)
+bird_z10_sep160          SKIPPED: hip_z 100 mm != 0, walk-gate IK is not valid on this layout (not measured)
+bird_z15_sep160          SKIPPED: hip_z 150 mm != 0, walk-gate IK is not valid on this layout (not measured)
+bird_z20_sep160          SKIPPED: hip_z 200 mm != 0, walk-gate IK is not valid on this layout (not measured)
+bird_z15_sep200          SKIPPED: hip_z 150 mm != 0, walk-gate IK is not valid on this layout (not measured)
+frog_splay_abd75         turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   22 mm  air>= 0.62 s  CoM margin>=  13.0 mm  slip  2.5 mm  tilt  5.7  x +19.9 y  -0.4 cm  hdg  -0.3  OK
+frog_splay_abd75         turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   16 mm  air>= 0.54 s  CoM margin>=  12.2 mm  slip  2.2 mm  tilt  7.3  x +14.1 y +13.5 cm  hdg +96.2  OK
+frog_splay_abd75         turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=  35.2 mm  slip  1.4 mm  tilt  3.3  x +20.1 y  -0.1 cm  hdg  +0.4  OK
+frog_splay_abd75         turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   23 mm  air>= 0.66 s  CoM margin>=  26.6 mm  slip  2.5 mm  tilt  6.1  x +11.3 y -13.3 cm  hdg -96.6  OK
+frog_splay_abd90         turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   22 mm  air>= 0.62 s  CoM margin>=  13.0 mm  slip  2.5 mm  tilt  5.7  x +19.9 y  -0.4 cm  hdg  -0.3  OK
+frog_splay_abd90         turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   16 mm  air>= 0.54 s  CoM margin>=  12.2 mm  slip  2.2 mm  tilt  7.3  x +14.1 y +13.5 cm  hdg +96.2  OK
+frog_splay_abd90         turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=  35.2 mm  slip  1.4 mm  tilt  3.3  x +20.1 y  -0.1 cm  hdg  +0.4  OK
+frog_splay_abd90         turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   23 mm  air>= 0.66 s  CoM margin>=  26.6 mm  slip  2.5 mm  tilt  6.1  x +11.3 y -13.3 cm  hdg -96.6  OK
+bird_z15_splay75         SKIPPED: hip_z 150 mm != 0, walk-gate IK is not valid on this layout (not measured)
+bird_z15_splay90         SKIPPED: hip_z 150 mm != 0, walk-gate IK is not valid on this layout (not measured)
+bird_topmount            SKIPPED: hip_z 200 mm != 0, walk-gate IK is not valid on this layout (not measured)
+standing: []

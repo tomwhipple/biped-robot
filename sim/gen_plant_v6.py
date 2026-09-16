@@ -139,6 +139,24 @@ class DesignParams:
     skid_x: float = -0.02        # fore-aft centre of the skid patch (m; - = aft)
     skid_w: float = 0.10         # width (m)
     skid_mass: float = 0.030     # print mass (kg)
+    # ---- side-mounted / "bird" leg study (2026-09-16, Option 1: "legs on the
+    # SIDES, frog/bird style") ----------------------------------------------
+    hip_z: float = 0.0           # height of the hip YAW axis ABOVE the torso
+                                 # origin, in the torso's own local frame. The
+                                 # torso's own internal geometry (deck/housing/
+                                 # battery/head, everything _torso()/_head()
+                                 # place) is UNCHANGED in that local frame --
+                                 # only the leg's mount point and the torso's
+                                 # world height (so the leg still reaches the
+                                 # floor) move. hip_z > 0 therefore pulls the
+                                 # existing torso block DOWN relative to the
+                                 # hip line: part of it now hangs BELOW the
+                                 # hips (a frog/bird "belly" between the legs)
+                                 # and part stays above (mass, head). 0.0 =
+                                 # today's body (hips at the torso's bottom
+                                 # edge). Combine with a wider hip_sep to put
+                                 # the hip axis outboard of the torso's own
+                                 # side wall (deck_w/2).
     # ---- torso geometry (m) ----------------------------------------------
     deck_x: tuple = (-0.058, 0.052)
     deck_w: float = 0.118
@@ -273,7 +291,7 @@ def _leg(p: DesignParams, side: str) -> str:
     foot_cy = p.foot_y_off if side == "L" else -p.foot_y_off
     sole_z = -p.roll_h
     return f"""
-      <body name="{side}_hip_yaw" pos="0 {_f(y)} 0">
+      <body name="{side}_hip_yaw" pos="0 {_f(y)} {_f(p.hip_z)}">
         <joint name="{side}_hip_yaw" axis="0 0 1" range="{-p.yaw_range:.0f} {p.yaw_range:.0f}"/>
         <!-- yaw carrier print + the hip ROLL servo riding in it (axis X) -->
         <geom type="box" pos="0 0 {_f(-p.d_yaw_roll/2)}" size="0.014 0.020 {_f(p.d_yaw_roll/2)}" mass="{p.m_carrier}" rgba="{link_rgba}" group="1"/>
@@ -330,7 +348,8 @@ def _torso(p: DesignParams) -> str:
     deck_hx = (d[1] - d[0]) / 2
     zdeck = p.deck_bot + p.deck_t / 2
     yaw_case = (SV_LEN / 2, SV_WID / 2, SV_T / 2)
-    yaw_z = p.housing_h - SV_T / 2 - 0.003
+    yaw_z = p.housing_h - SV_T / 2 - 0.003 + p.hip_z   # tracks the leg's own
+                                 # mount point (hip_z == 0 -> unchanged)
     s = []
     s.append(f'      <!-- one-print pelvis: deck + housing walls -->')
     s.append(f'      <geom name="torso_deck" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
@@ -446,7 +465,9 @@ def _head(p: DesignParams) -> str:
 
 
 def build_xml(p: DesignParams) -> str:
-    z0 = p.z_yaw_above_sole            # torso origin (yaw axis) above the floor
+    z0 = p.z_yaw_above_sole - p.hip_z  # torso origin above the floor: the yaw
+                                       # axis itself (torso origin + hip_z)
+                                       # still sits at leg-reach height
     d = p.deck_x
     deck_cx = (d[0] + d[1]) / 2
     deck_hx = (d[1] - d[0]) / 2

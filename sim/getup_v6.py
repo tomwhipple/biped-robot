@@ -107,8 +107,9 @@ SEQUENCES = {
 
 # --------------------------------------------------------------------------- run
 def settle_fallen(env, p, how: str, q_hold: np.ndarray, seconds=1.5):
-    """drop the robot lying on its back ('supine') or front ('prone') with
-    the joints held at q_hold, let it settle."""
+    """drop the robot lying on its back ('supine'), front ('prone') or
+    ('side_l' / 'side_r', side-mounted-leg study 2026-09-16) with the joints
+    held at q_hold, let it settle."""
     d = env.data
     m = env.model
     mujoco.mj_resetData(m, d)
@@ -117,6 +118,12 @@ def settle_fallen(env, p, how: str, q_hold: np.ndarray, seconds=1.5):
         z = 0.12
     elif how == "prone":
         quat = [math.cos(math.pi / 4), 0.0, math.sin(math.pi / 4), 0.0]    # +x down
+        z = 0.12
+    elif how == "side_l":
+        quat = [math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0]    # rotate +90 about x: +y (L side) down
+        z = 0.12
+    elif how == "side_r":
+        quat = [math.cos(math.pi / 4), -math.sin(math.pi / 4), 0.0, 0.0]   # rotate -90 about x: -y (R side) down
         z = 0.12
     else:
         raise ValueError(how)
