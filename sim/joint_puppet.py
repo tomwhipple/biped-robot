@@ -127,7 +127,7 @@ def cad_rom_params(skid=False, knee="both"):
     which is the table `cad/check_assembly_v6.py` sweeps for interference, so
     every limit here is one the printed parts have been checked at:
 
-        hip yaw    +-45          hip pitch  -125 .. +90
+        hip yaw    see below     hip pitch  -125 .. +90
         hip roll   +-55          knee       -95 .. +130   (+ = human flexion)
         ankle      +-40          ankle roll +-25          neck +-90
 
@@ -137,15 +137,28 @@ def cad_rom_params(skid=False, knee="both"):
     allows it in BOTH directions (the plant's default 'fwd' caps the backward
     side at 5 deg, which is a modelling cap inherited from v5, not hardware).
 
-    Two of these are deliberately wider than the walking plant's defaults,
-    because those defaults are design choices rather than limits: hip roll
-    (the walk uses abduction 45 / adduction 30) and the knee's backward side.
-    One is narrower: the walking plant allows +-45 ankle pitch where the CAD
-    ROM says +-40."""
+    HIP YAW is deliberately not the ROM table's +-45. That number is v5's,
+    carried over and never re-derived; the interference gate could only ever
+    confirm it because it sweeps to the table's own limit. Swept properly
+    (2026-09-16) the yaw carrier's gap to the pelvis is 1.80 mm and CONSTANT
+    from 0 to 180 deg -- the carrier is round about the axis, so the housing
+    never limits yaw. The first real contact is foot-vs-foot: with the feet
+    side by side, clear to -52 and +102 (asymmetric because the sole sits
+    12 mm outboard and the foot is split 75 toe / 55 heel).
+
+    That envelope is pose-dependent, though -- it moves as soon as the other
+    leg yaws or the hips abduct -- so rather than bake in a number, the range
+    here is a plain bound (+-190) and the sim's own inter-leg contact pairs do
+    the limiting, which is honest for every pose rather than one. Cable length
+    is NOT modelled (the yaw->roll service loop is currently sized for +-45;
+    that is to be measured on the real hardware).
+
+    Note for whoever sets the bound: an ST3215 is 4096 steps over one turn, so
+    a centred zero can only reach +-180 anyway."""
     return DesignParams(
         skid=skid, knee=knee,
         self_collide=True,           # the legs must not sweep through the body
-        yaw_range=45.0,
+        yaw_range=190.0,
         hip_roll_abd=55.0, hip_roll_add=55.0,
         hip_pitch_range=(-125.0, 90.0),
         knee_flex=130.0, knee_back=95.0,
