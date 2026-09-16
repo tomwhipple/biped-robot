@@ -19,19 +19,20 @@ Camera: left-drag orbits, right-drag pans, the wheel zooms, double-click
 resets the view.
 
 Keyboard: one finger column per joint, proximal on the pinky out to distal on
-the index; top row +1 deg, home row zero, bottom row -1 deg. The right leg is
-the same shape mirrored by finger role, so the same finger drives the same
-joint on the same side of the body. Hold a key to sweep: the repeat is the
-tool's own (60 steps/s, no initial delay, --key-rate to change it), not the
-system's typing repeat.
+the index; top row +1 deg, bottom row -1 deg. The right leg is the same shape
+mirrored by finger role, so the same finger drives the same joint on the same
+side of the body. Hold a key to sweep: the repeat is the tool's own (60
+steps/s, no initial delay, --key-rate to change it), not the system's typing
+repeat. There is no "zero the joint" key -- a servo cannot teleport to zero;
+to start over, press a pose button.
 
               LEFT LEG                         RIGHT LEG
-    hip yaw    q / a / z                        p / ; / /
-    hip roll   w / s / x                        o / l / .
-    hip pitch  e / d / c                        i / k / ,
-    knee       r / f / v                        u / j / m
-    ankle      t / g / b                        y / h / n
-    ankle roll 6 (+) 5 (-)  [no zero]           7 (+) 8 (-)  [no zero]
+    hip yaw    q (+)  z (-)                     p (+)  / (-)
+    hip roll   w (+)  x (-)                     o (+)  . (-)
+    hip pitch  e (+)  c (-)                     i (+)  , (-)
+    knee       r (+)  v (-)                     u (+)  m (-)
+    ankle      t (+)  b (-)                     y (+)  n (-)
+    ankle roll 6 (+)  5 (-)                     7 (+)  8 (-)
 
 Buttons: the body poses (jump the fall). There is no record button on purpose.
 
@@ -91,23 +92,24 @@ POSES = {
 }
 
 # Keyboard: one finger column per joint, proximal (hip yaw) on the pinky out to
-# distal (ankle) on the index; top row = +, home = zero, bottom = -. The right
-# leg is the same shape mirrored by finger role (q<->p, w<->o, ... b<->n), so
-# the same finger drives the same joint on the same side of the body. Ankle
-# roll has no letter column left, so it sits on the number row (+ on the inner
-# key) and has no zero.
+# distal (ankle) on the index; top row = +, bottom row = -. The right leg is
+# the same shape mirrored by finger role (q<->p, w<->o, ... b<->n), so the same
+# finger drives the same joint on the same side of the body. Ankle roll has no
+# letter column left, so it sits on the number row (+ on the inner key).
+# There are deliberately no "zero this joint" keys: a servo cannot teleport to
+# zero, so neither should the puppet. To start over, use a pose button -- that
+# is the realistic reset (picking the robot up and putting it down).
 KEY_STEP = 1.0                        # degrees per press (auto-repeat sweeps)
-KEYMAP = {}                           # char -> (joint, delta or None for zero)
-for _side, _plus, _zero, _minus in (
-        ("L", "qwert", "asdfg", "zxcvb"),
-        ("R", "poiuy", ";lkjh", "/.,mn"),
+KEYMAP = {}                           # char -> (joint, delta)
+for _side, _plus, _minus in (
+        ("L", "qwert", "zxcvb"),
+        ("R", "poiuy", "/.,mn"),
 ):
-    for _lvl, _p, _z, _m in zip(
-            ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle"), _plus, _zero, _minus):
+    for _lvl, _p, _m in zip(
+            ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle"), _plus, _minus):
         KEYMAP[_p] = (f"{_side}_{_lvl}", +KEY_STEP)
-        KEYMAP[_z] = (f"{_side}_{_lvl}", None)
         KEYMAP[_m] = (f"{_side}_{_lvl}", -KEY_STEP)
-KEYMAP["6"] = ("L_ankle_roll", +KEY_STEP)      # no zero: the roll is only +-25
+KEYMAP["6"] = ("L_ankle_roll", +KEY_STEP)
 KEYMAP["5"] = ("L_ankle_roll", -KEY_STEP)
 KEYMAP["7"] = ("R_ankle_roll", +KEY_STEP)
 KEYMAP["8"] = ("R_ankle_roll", -KEY_STEP)
@@ -559,8 +561,7 @@ def main():
         if name not in pup.targets:
             return False
         lo, hi = pup.limits_deg(name)
-        cur = pup.targets[name]
-        val = 0.0 if delta is None else max(lo, min(hi, cur + delta))
+        val = max(lo, min(hi, pup.targets[name] + delta))
         pup.set_target(name, val)
         sl, _ach, tgt = achieved[name]
         sl.blockSignals(True)
@@ -590,10 +591,9 @@ def main():
                 if hit is None:
                     return False
                 apply_key(ev.key())                # act on the press itself
-                if hit[1] is not None:             # +/- repeat; the zero keys do not
-                    held.add(ev.key())
-                    if not repeat.isActive():
-                        repeat.start()
+                held.add(ev.key())                 # and keep stepping while held
+                if not repeat.isActive():
+                    repeat.start()
                 return True
             if t == QtCore.QEvent.Type.KeyRelease:
                 if ev.isAutoRepeat():
