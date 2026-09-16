@@ -10,10 +10,12 @@ pose is the FALL (you start it lying flat), and the joints follow what you're
 trying -- exactly what play_probe.py does for the real servo play, here in
 the sim instead of on the bench.
 
-    .venv/bin/python sim/joint_puppet.py                          # v7 body, standing
+    .venv/bin/python sim/joint_puppet.py                          # v7 body, standing (terminal)
     .venv/bin/python sim/joint_puppet.py --skid                   # with the pelvis skid
     .venv/bin/python sim/joint_puppet.py --pose supine            # start lying on its back
     .venv/bin/python sim/joint_puppet.py --pose prone             # start face-down
+    .venv/bin/mjpython sim/joint_puppet.py --pose supine --view   # + a live-render window
+                                                                  # (GL needs mjpython on macOS)
 
 Commands (one per line):
     <joint> <deg>      set one joint target          e.g.  L_knee -90
@@ -35,6 +37,7 @@ import argparse
 import math
 import os
 import sys
+import threading
 import time
 
 import numpy as np
@@ -45,6 +48,11 @@ os.environ.setdefault("MUJOCO_GL", os.environ.get("MUJOCO_GL", "disable"))
 os.environ.pop("MUJOCO_GL", None) if os.environ.get("MUJOCO_GL") == "disable" else None
 
 import mujoco  # noqa: E402
+try:
+    import mujoco.viewer as mujoco_viewer
+    HAVE_VIEWER = True
+except Exception:  # noqa: BLE001
+    HAVE_VIEWER = False
 
 from gen_plant_v6 import DesignParams, build_xml  # noqa: E402
 import v6_kin as VK  # noqa: E402
@@ -79,7 +87,8 @@ class Puppet:
         self.targets_deg = {}
         self.recorded = []
         self._quit = False
-        self._act = {}
+        self.lock = threading.Lock()      # serializes the renderer thread and
+        self._act = {}                    # the REPL's settle calls on self.d
         for i in range(self.m.nu):
             a = self.m.actuator(i)
             lo, hi = self.m.jnt_range[a.trnid[0]]
@@ -146,9 +155,40 @@ class Puppet:
                            and (mujoco.mj_id2name(self.m, mujoco.mjtObj.mjOBJ_GEOM, g) or "") != "floor"})
         print(f"  pelvis z {self.d.qpos[2]:.3f}  up {up:+.2f}  CoM x {com[0]:+.3f} z {com[2]:.3f}  contacts {contacts}")
 
+    def step(self):
+        """one physics tick with the current targets on the servos."""
+        for name, i in self._act.items():
+            self.d.ctrl[i] = math.radians(self.targets_deg[name])
+        mujoco.mj_step(self.m, self.d)
+
     def status_line(self):
         return "  ".join(f"{n.split('_',1)[0][:1]}{n.split('_',1)[1][:3]} {self._actual(n):+5.0f}"
                          for n in JOINTS if abs(self._actual(n)) > 0.5)
+
+
+class LiveView:
+    """the live picture: a MuJoCo viewer window sharing the sim, run on the
+    main thread via `launch_passive` (which is the supported macOS path -- it
+    handles the GLFW main-thread requirement; that's why --view runs under
+    mjpython). The terminal REPL moves joints from a worker thread; the window
+    just shows what the sim is doing each frame."""
+    def __init__(self, pup: Puppet):
+        self.pup = pup
+
+    def run(self):
+        assert HAVE_VIEWER, "mujoco.viewer unavailable"
+        pup = self.pup
+        with mujoco_viewer.launch_passive(pup.m, pup.d) as v:
+            v.cam.distance, v.cam.elevation, v.cam.azimuth = 1.3, -16.0, 135.0
+            while v.is_running() and not pup._quit:
+                with pup.lock:
+                    for _ in range(int(0.016 / pup.m.opt.timestep)):
+                        pup.step()
+                    v.cam.lookat[:] = [pup.d.qpos[0], pup.d.qpos[1],
+                                       max(0.12, pup.d.qpos[2] * 0.5)]
+                    v.sync()
+                time.sleep(0.004)
+        pup._quit = True
 
 
 def main():
@@ -157,12 +197,49 @@ def main():
     ap.add_argument("--skid", action="store_true")
     ap.add_argument("--knee", choices=("fwd", "bwd"), default="fwd")
     ap.add_argument("--live", action="store_true", help="settle in real time (wall-clock), watchable")
+    ap.add_argument("--view", action="store_true",
+                    help="open a live-render GLFW window next to the terminal. "
+                         "On macOS GL insists on the main thread, so --view runs the "
+                         "script under mjpython: `.venv/bin/mjpython sim/joint_puppet.py --view`.")
     a = ap.parse_args()
     p = DesignParams(skid=a.skid, knee=a.knee)
     pup = Puppet(p, a.pose)
     print(f"puppet: v6/{'v7' if p.torso_v7 else 'v6'} body{', skid' if a.skid else ''}, pose {a.pose} -- gravity on")
     pup.report()
-    print("targets are the sim's own actuators; 'state'/'record'/'dump'/'pose X'/'quit'. 'live' for real-time.")
+    print("targets are the sim's own actuators; 'state'/'record'/'dump'/'pose X'/'quit'. 'live N' settles in real time."
+          + ("  The live view is a GLFW window; it opens on the main thread." if a.view else ""))
+
+    if a.view:
+        # GLFW must run on the main thread (macOS); the terminal REPL drives
+        # the sim from a worker thread. When stdin isn't a real tty the
+        # window alone is the whole app (the sim keeps running in this loop).
+        def _repl():
+            _repl_loop(pup, settle_on_pose=not a.view)
+        threading.Thread(target=_repl, daemon=True).start()
+        try:
+            LiveView(pup).run()                    # blocks until the window closes
+        finally:
+            pup._quit = True
+            pup.dump()
+        return
+
+    if not sys.stdin.isatty():
+        # launched detached (CI / a pipe): run the command loop on whatever's
+        # piped in, then a short settle so a queued 'record' reflects a settled
+        # pose, then print the frames and exit -- never idle forever.
+        _repl_loop(pup, settle_on_pose=not a.view)
+        pup.settle(2.0)
+        pup.dump()
+        return
+
+    _repl_loop(pup)
+    pup.dump()
+
+
+def _repl_loop(pup: Puppet, settle_on_pose=True):
+    """the command loop. When a live view owns the sim's stepping it also owns
+    the lock each frame, so settle() calls from here just mark the target and
+    let the view do the settling; with no view we settle here."""
     while not pup._quit:
         try:
             line = input("> ").strip()
@@ -183,7 +260,10 @@ def main():
         if c == "state":
             pup.report(); print("   " + pup.status_line()); continue
         if c == "pose" and len(w) == 2 and w[1] in POSES:
-            pup._set_body(w[1]); pup.report(); continue
+            pup._set_body(w[1])
+            if settle_on_pose:
+                pup.settle()          # fall to the floor under gravity
+            pup.report(); continue
         if c in GROUPS and len(w) == 2:
             try:
                 v = float(w[1])
@@ -213,7 +293,6 @@ def main():
             continue
         print("  unknown -- joints:", ", ".join(list(GROUPS) + JOINTS + ["neck_yaw"]))
     pup._quit = True
-    pup.dump()
 
 
 if __name__ == "__main__":
