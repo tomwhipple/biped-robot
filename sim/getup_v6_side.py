@@ -35,6 +35,11 @@ not a horizontal reorientation.
     .venv/bin/python sim/getup_v6_side.py render <config> <seq> out.mp4 [supine|prone|side_l|side_r]
 """
 import sys, os, itertools, dataclasses, math
+import multiprocessing as mp
+
+MAX_WORKERS = 12   # coordinator, 2026-09-17: Tom's box is shared with the
+                   # collective (the gait agent gets 12 too) -- keep this
+                   # script's own pool at 12 workers, not the full 32 cores.
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -490,6 +495,176 @@ def fall_census_midstride(name):
     return dist
 
 
+# --------------------------------------------------------------------------- round 5: kneel -> stand
+# the STOCK-torso pincer's own winning path (getup_search_pincer_stock.txt
+# BEST, copied verbatim -- same numbers used for pincer_stock_best.mp4), and
+# its kneel end state (k5: torso upright up +1.00, pelvis 0.211 m, contacts
+# shins+thighs+feet -- "up on its knees").
+PINCER_STOCK_PATH = [[-115.4958140914521, 19.754929426273392, -47.28229681820817, 7.351568671683273],
+                      [-86.37186801795589, 7.048896663736713, 24.91680374614564, 4.439110619859928],
+                      [17.605554463392473, 16.776696611180917, 8.453408803422935, -36.34323206522071],
+                      [25.955597962633988, 101.52574992771922, 42.709966015592556, 0.5551627331748175],
+                      [46.321585991742644, 99.97982322088865, -83.3639219446182, 10.72121641559237],
+                      [-131.45470113772205, 14.255932531574217, -102.12810544008325, 21.410000545808717]]
+KNEEL_POSE = _bird_legs(L_roll=14.255932531574217, R_roll=-14.255932531574217,
+                         L_hip_yaw=-131.45470113772205, R_hip_yaw=-131.45470113772205,
+                         knee=-102.12810544008325, ankle=21.410000545808717)
+
+
+def _q_sym4(yaw, roll, knee, ankle):
+    return _bird_legs(L_roll=roll, R_roll=-roll, L_hip_yaw=yaw, R_hip_yaw=yaw, knee=knee, ankle=ankle)
+
+
+def pincer_plant():
+    p = dataclasses.replace(BASE, knee="both", hip_roll_abd=120.0, yaw_range=180.0)
+    xml = os.path.join(SP, f"gu_kneel_{os.getpid()}.xml")
+    open(xml, "w").write(build_xml(p))
+    return p, xml
+
+
+def seq_via_pincer(extra):
+    """start A: reach the kneel by actually running the pincer path (lie ->
+    k0..k5), then continue with `extra` keyframes."""
+    base = [("lie", BIRD_SUPINE_STRAIGHT, 0.5, 1.0)] + [(f"k{j}", _q_sym4(*row), 1.4, 0.6) for j, row in enumerate(PINCER_STOCK_PATH)]
+    return base + extra, "supine"
+
+
+def seq_direct_kneel(extra):
+    """start B: settle directly into the SAME kneel joint targets (path-
+    independence check), then continue with `extra` keyframes."""
+    return [("kneel (direct)", KNEEL_POSE, 1.5, 1.5)] + extra, "supine"
+
+
+def brace_seq(side, foot_yaw, foot_knee, foot_ankle, trail_roll_extra, t_shift, t_rise):
+    """(1) FOOT BRACE / half-kneel: bring ONE foot (side) forward and flat --
+    unwind its yaw from the kneel's -131 deg toward foot_yaw, extend its knee
+    to foot_knee, set its ankle to foot_ankle for a flat sole -- then shift
+    weight over it (the TRAILING leg's roll adjusts by trail_roll_extra) and
+    rise with the trailing leg following."""
+    o = "R" if side == "L" else "L"
+    kneel = dict(KNEEL_POSE)
+    brace = dict(kneel)
+    brace[f"{side}_hip_yaw"] = foot_yaw
+    brace[f"{side}_knee"] = foot_knee
+    brace[f"{side}_ankle"] = foot_ankle
+    shift = dict(brace)
+    shift[f"{o}_hip_roll"] = kneel[f"{o}_hip_roll"] + trail_roll_extra
+    rise = dict(shift)
+    rise[f"{o}_hip_yaw"] = foot_yaw * 0.6
+    rise[f"{o}_knee"] = foot_knee * 0.7
+    rise[f"{o}_ankle"] = foot_ankle
+    stand = _bird_legs(L_roll=0, R_roll=0, L_hip_yaw=0, R_hip_yaw=0, knee=-40, ankle=-20)
+    return [("brace foot", brace, t_shift, 0.8),
+            ("shift CoM", shift, t_shift, 1.0),
+            ("rise, trail follows", rise, t_rise, 1.0),
+            ("stand", stand, 1.5, 1.0)]
+
+
+def knee_pincer_seq(abd, yaw, knee_out, ankle_out, t_close, t_rise):
+    """(2) KNEE PINCER / sumo squat: from the kneel, yaw+abduct BOTH legs out
+    (a wide frog/W base), flex the knees so the soles land flat beside the
+    hips (pelvis drops to whatever height that needs), then sweep the legs
+    together (adduct + extend) with the torso vertical, like a sumo-squat
+    rise."""
+    wide = _q_sym4(yaw, abd, knee_out, ankle_out)
+    narrow = _bird_legs(L_roll=abd * 0.3, R_roll=-abd * 0.3, L_hip_yaw=yaw * 0.4, R_hip_yaw=yaw * 0.4,
+                         knee=knee_out * 0.5, ankle=ankle_out * 0.5)
+    stand = _bird_legs(L_roll=0, R_roll=0, L_hip_yaw=0, R_hip_yaw=0, knee=-40, ankle=-20)
+    return [("splay wide (W base)", wide, t_close, 1.0),
+            ("close + extend", narrow, t_rise, 1.0),
+            ("stand", stand, 1.5, 1.0)]
+
+
+def _kneel_margin_note(r):
+    # CoM-vs-support-polygon margin at the point the TRAILING shin leaves the
+    # floor (docs sec 11 step 4's failure point): the first keyframe whose
+    # contacts drop a "*_shin" that the previous keyframe had.
+    margin_note = "n/a (never lifts a shin)"
+    prev_contacts = set(r["log"][0][3])
+    for L in r["log"][1:]:
+        cur = set(L[3])
+        lost_shin = {c for c in prev_contacts if c.endswith("_shin")} - cur
+        if lost_shin:
+            margin_note = f"shin lift at '{L[0]}': up {L[1]:+.2f} z {L[2]:.3f} contacts {sorted(cur)}"
+            break
+        prev_contacts = cur
+    return margin_note
+
+
+def _kneel_eval(task):
+    """picklable worker body: task = (label, p, xml, seq, start). MuJoCo
+    objects are built fresh in the worker (from p/xml, both plain/picklable)
+    and never cross the pool's pipe -- only the plain-dict result does."""
+    label, p, xml, seq, start = task
+    r = G.run_sequence(p, xml, seq, start=start, play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False)
+    pk = max(L[4] for L in r["log"])
+    return dict(label=label, ok=r["ok"], up=r["up"], z=r["pelvis_z"], pk=pk, note=_kneel_margin_note(r))
+
+
+def kneel_run_all(tasks, workers=MAX_WORKERS):
+    """run a list of (label, p, xml, seq, start) tasks across a fork pool,
+    print results in TASK ORDER (deterministic, diff-able logs) after all
+    finish, not as they complete."""
+    with mp.get_context("fork").Pool(min(workers, MAX_WORKERS)) as pool:
+        results = pool.map(_kneel_eval, tasks)
+    for res in results:
+        print(f"{res['label']:60s} {'STANDING' if res['ok'] else 'no      '} up {res['up']:+.2f} z {res['z']:.3f} "
+              f"|tau|max {res['pk']:.2f} N-m  [{res['note']}]", flush=True)
+        if res["ok"]:
+            hits.append(res["label"])
+    return results
+
+
+def kneel_run(label, p, xml, seq, start, render=None, cam=(1.3, -15, 90)):
+    """single, non-pooled run -- used for renders (a Renderer/EGL context is
+    not fork-safe to share) and one-off checks."""
+    cap = (lambda lab, t: f"stock kneel-rise  {label}   {lab}   t={t:4.1f}s") if render else None
+    r = G.run_sequence(p, xml, seq, start=start, play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False,
+                        render=render, cam=cam, size=(540, 720), label_fn=cap)
+    pk = max(L[4] for L in r["log"])
+    margin_note = _kneel_margin_note(r)
+    print(f"{label:60s} {'STANDING' if r['ok'] else 'no      '} up {r['up']:+.2f} z {r['pelvis_z']:.3f} |tau|max {pk:.2f} N-m  [{margin_note}]", flush=True)
+    if r["ok"]:
+        hits.append(label)
+    return r
+
+
+def _kneelsearch_restart(args):
+    """one hill-climb restart, picklable (module-level) worker body. Each
+    restart gets its OWN independent RNG seeded by its restart index (NOT a
+    shared sequential stream -- that cannot be split across processes and
+    still match a serial run bit-for-bit). Builds its own plant/env inside
+    the worker; only the plain-dict result crosses back."""
+    import random
+    restart, start_name = args
+    p, xml = pincer_plant()
+    start_fn = seq_via_pincer if start_name == "via-pincer" else seq_direct_kneel
+    rng = random.Random(restart)
+
+    def eval_path(V):
+        extra = [(f"r{j}", _q_sym4(*row), 1.4, 0.6) for j, row in enumerate(V)]
+        seq, start = start_fn(extra)
+        res = G.run_sequence(p, xml, seq, start=start, play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False)
+        up_bonus = sum(2.0 for L in res["log"] if L[1] > 0.9) / max(1, len(res["log"]))
+        return 3.0 * max(0, res["up"]) + 8.0 * res["pelvis_z"] + up_bonus, res
+
+    NK, bounds = 6, [(-180, 180), (0, 120), (-130, 95), (-45, 45)]
+    x = np.array([[rng.uniform(*b) for b in bounds] for _ in range(NK)])
+    s_best, step = -1e9, [60.0, 30.0, 30.0, 15.0]
+    for it in range(30):
+        for _ in range(6):
+            y = x + np.array([[rng.gauss(0, st) for st in step] for _ in range(NK)])
+            for j, b in enumerate(bounds):
+                y[:, j] = np.clip(y[:, j], *b)
+            s, res = eval_path(y)
+            if s > s_best:
+                s_best, x = s, y
+        step = [st * 0.93 for st in step]
+    s, res = eval_path(x)
+    return dict(restart=restart, start_name=start_name, score=s, up=res["up"], z=res["pelvis_z"],
+                ok=res["ok"], path=x.tolist())
+
+
 # --------------------------------------------------------------------------- quasi-static probe
 def probe_config(name):
     """quasi-static (no servo dynamics, the plant's own position actuators):
@@ -822,6 +997,51 @@ def main():
             max_up = max(L[1] for L in rb["log"])
             print(f"max up-vector reached: {max_up:+.3f} (never crosses the 0.9 standing threshold)"
                   if max_up < 0.9 else f"max up-vector reached: {max_up:+.3f}")
+    elif mode == "kneelrise":
+        # round 5 (2026-09-17), Tom on pincer_stock_best: "we have the robot
+        # up on its knees ... can we use a foot to stabilize while getting up
+        # the rest of the way? or use the same pincer movement at the
+        # knees?" docs sec 11 step 4 (kneel -> half-kneel, 0/16) used
+        # knee="fwd" and 45 deg abduction; retest with the pincer's sim-only
+        # ranges (knee="both", hip_roll_abd 120, yaw_range 180) from the
+        # pincer's own kneel end state, two ways to reach it.
+        p, xml = pincer_plant()
+        print(f"== KNEEL-RISE on the stock v7 torso: {p.summary()}  (pool={MAX_WORKERS})")
+        print("-- 1. FOOT BRACE (half-kneel): sweep the planted foot's yaw/knee/ankle + trailing-leg roll shift + timing")
+        tasks = []
+        for start_name, start_fn in (("via-pincer", seq_via_pincer), ("direct-kneel", seq_direct_kneel)):
+            for side in ("L", "R"):
+                for foot_yaw, foot_knee in itertools.product((-90, -60, -30, 0), (-70, -50, -30)):
+                    for trail_roll, t_shift in itertools.product((10, 25), (1.2, 2.0)):
+                        seq, start = start_fn(brace_seq(side, foot_yaw, foot_knee, -20, trail_roll, t_shift, 1.6))
+                        label = f"{start_name} brace {side} yaw{foot_yaw:+d} knee{foot_knee:+d} troll{trail_roll:+d} t{t_shift}"
+                        tasks.append((label, p, xml, seq, start))
+        kneel_run_all(tasks)
+        print("-- 2. KNEE PINCER / sumo squat: sweep abduction, yaw, and rise timing")
+        tasks = []
+        for start_name, start_fn in (("via-pincer", seq_via_pincer), ("direct-kneel", seq_direct_kneel)):
+            for abd, yaw in itertools.product((60, 90, 120), (-131.45, -90, -45, 0)):
+                for t_close, t_rise in itertools.product((1.5, 2.5), (1.5, 2.5)):
+                    seq, start = start_fn(knee_pincer_seq(abd, yaw, -90, -20, t_close, t_rise))
+                    label = f"{start_name} sumo abd{abd:+d} yaw{yaw:+.0f} t{t_close}/{t_rise}"
+                    tasks.append((label, p, xml, seq, start))
+        kneel_run_all(tasks)
+        print("standing so far:", hits)
+    elif mode == "kneelsearch":
+        # round 5, task 3: if both hand-built families fail, hill-climb from
+        # the kneel with a torso-up bonus (Tom: "stay up, not another
+        # headstand") -- same 6-node space as bird3search/pincer. The 6
+        # restarts run as 6 pool workers (coordinator, 2026-09-17: this was
+        # single-core before -- see _kneelsearch_restart's docstring for the
+        # per-restart-seed tradeoff that parallelizing it requires).
+        start_name = sys.argv[2] if len(sys.argv) > 2 else "via-pincer"
+        print(f"== KNEEL hill-climb, {start_name} start (pool={min(6, MAX_WORKERS)}, per-restart independent seed = restart index)")
+        with mp.get_context("fork").Pool(min(6, MAX_WORKERS)) as pool:
+            results = pool.map(_kneelsearch_restart, [(i, start_name) for i in range(6)])
+        for res in results:
+            print(f"restart {res['restart']}: score {res['score']:.2f} up {res['up']:+.2f} z {res['z']:.3f}", flush=True)
+        best = max(results, key=lambda r: r["score"])
+        print(f"BEST score {best['score']:.2f} up {best['up']:+.2f} z {best['z']:.3f} STANDING={best['ok']} path={best['path']}")
     elif mode == "falls":
         # round 3, task 4: fall census. 12 headings x 3 magnitudes (tip,
         # 1.5x, 2x -- found per body by binary search), classify the settled

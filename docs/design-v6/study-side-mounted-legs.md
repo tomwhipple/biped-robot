@@ -897,6 +897,114 @@ png`) -- the torso visibly rights itself (matching Tom's "pincer" framing)
 and then squats at low height rather than rising, exactly matching the
 trace above.
 
+## R3.8 Kneel -> stand: foot brace and knee pincer
+
+Tom, on `pincer_stock_best.mp4`: *"we have the robot up on its knees ...
+can we use a foot to stabilize while getting up the rest of the way? or use
+the same pincer movement at the knees?"* Docs sec 11 step 4 (kneel-sit ->
+half-kneel) failed 0/16, but with `knee="fwd"` and 45 deg abduction --
+retested here with the pincer's own sim-only ranges (`knee="both"`,
+`hip_roll_abd=120`, `yaw_range=180`), `self_collide=True`, deploy model.
+**A multiprocessing fix landed mid-task and is reported first** (the
+coordinator caught this run at 100% of one core on a 32-core box).
+
+**Parallelized `getup_v6_side.py` (coordinator, 2026-09-17)**: `kneelrise`
+(the hand-built sweeps) and `kneelsearch` (the hill-climb) now run through
+`multiprocessing.get_context("fork").Pool(12)` -- `MAX_WORKERS = 12`,
+shared with the collective's other jobs on the same box. Workers build
+their own plant/env from a picklable `(label, p, xml, seq, start)` tuple
+(`p` a `dataclasses` instance, `xml` a file path -- no MuJoCo object ever
+crosses the pool's pipe) and return plain dicts; results print in TASK
+ORDER after `pool.map` returns, not as they complete, so the log stays
+diff-able. **Verified before trusting it**: re-ran 4 already-logged
+`kneelrise` rows (`via-pincer brace L yaw-90 knee-70 ...`, all 4
+`troll`/`t_shift` combinations) through the new pooled path and diffed
+against the original serial log -- byte-identical (`up`, `z`, `|tau|max`,
+the shin-lift contacts, all four rows). The hill-climb's restarts cannot be
+diffed the same way: a shared sequential RNG stream cannot be split across
+processes and reproduced, so each restart now gets its OWN independent
+seed (`random.Random(restart)`, restart 0 matches what a fresh single-
+restart run gets, restarts 1-5 do not match the old sequential-stream
+numbers bit-for-bit) -- stated here, not hidden. Only `kneelrise`/
+`kneelsearch` were parallelized this round; `search`/`bird3`/`roll`/`tune`/
+`falls`/`bird3search`/`pincer` are unchanged (still single-core) -- time
+did not allow retrofitting the whole file, noted as scope, not an oversight.
+
+**Two ways to reach the kneel**: (A) `seq_via_pincer` -- actually run the
+pincer path k0..k5 to arrive there (up +1.00, pelvis 0.211, per R3.7); (B)
+`seq_direct_kneel` -- settle the SAME joint targets (`KNEEL_POSE`, k5's
+angles) directly from a neutral drop. **These are NOT the same physical
+state**: direct settle reaches only `up +0.08, pelvis 0.070` (front +0.91,
+contacts include a grounded shin+thigh+torso) -- the pincer's specific
+DYNAMIC path matters, not just its final joint targets, for landing in the
+same stable, upright kneel. Both are used as starts below; the difference
+is itself a measured result.
+
+**(1) FOOT BRACE (half-kneel)**, `brace_seq`: unwind ONE foot's yaw from
+kneel's -131 deg toward `foot_yaw`, extend its knee to `foot_knee`, flatten
+its ankle, shift the CoM via the trailing leg's roll, then rise. Swept
+`foot_yaw` in (-90,-60,-30,0), `foot_knee` in (-70,-50,-30), trailing roll
+shift (10,25 deg), timing (1.2,2.0 s), both sides, both kneel starts -- 192
+runs (`getup_search_kneel_rise.txt`). **0/192 stood, and the family barely
+moves the body at all**: best of the whole sweep reaches only **pelvis
+0.073 m** (`via-pincer brace R yaw-90 knee-70 troll+10 t2.0`, up -0.20,
+`|tau|max` 1.54 N-m) -- essentially the kneel's own settled height (0.05-
+0.07 m), not a rise.
+
+**(2) KNEE PINCER / sumo squat**, `knee_pincer_seq`: yaw+abduct BOTH legs
+into a wide W/frog base, flex the knees so the soles land flat, then close
+(adduct + extend) with the torso meant to stay vertical. Swept abduction
+(60,90,120 deg), yaw (-131.45 to 0 deg), close/rise timing (1.5,2.5 s),
+both kneel starts -- 96 runs. **Measured pelvis height at which the soles
+touch, sweeping abduction from the kneel** (quasi-static probe, no servo
+dynamics, direct `mj_step`, held 2 s): at abd 90-120 deg the pelvis settles
+to **0.052-0.061 m with the torso staying upright** (up +0.89 to +1.00) --
+confirming the task's own arithmetic (0.211 m kneel height needs the feet
+under a 0.220 m leg, which cannot reach without the pelvis dropping) and
+showing the WIDE splayed rest itself is stable and upright, unlike a narrow
+one. But the dynamic CLOSE-and-rise from there fails: **0/96 stood**, best
+of the sweep again barely above the kneel (**pelvis 0.072 m**,
+`via-pincer sumo abd+60 yaw-131 t1.5/1.5`). **Peak hip torque during the
+splay is 4.53 N-m on `R_hip_roll`** (`direct-kneel sumo abd+120 yaw-90`,
+verbose trace) -- more than double the STS3250's rated range, the same
+kind of jam the pincer's own k3 hit in R3.7 -- the wide-splay commands ask
+for more roll authority than the servo model can deliver at this speed.
+
+**The geometric failure point, measured** (docs sec 11 step 4's own
+question: what happens right when the trailing shin leaves the floor):
+replaying the pincer path to k4 (the step right after the last shin lifts,
+`contacts ['L_foot','L_thigh','R_foot','R_thigh']`, pelvis 0.051 m) and
+computing the whole-robot CoM against EACH sole's outline
+(`v6_kin.sole_margin`): **L sole margin -136.0 mm, R sole margin -147.7 mm**
+-- the CoM sits more than 130 mm outside BOTH feet's support polygons, at
+a moment where the largest sole dimension is 130 mm. This is not a small
+correction: no single-foot brace or symmetric leg motion within this
+body's leg reach (thigh+shank 0.220 m) can shift the CoM back over a sole
+from 136-148 mm outside it while the trailing leg is airborne, which is
+exactly why every hand-built recovery attempt from this state stalls near
+the kneel height rather than progressing toward it.
+
+**(3) Hill-climb** (`kneelsearch`, torso-up bonus: `+2.0` per keyframe with
+`up > 0.9`, 6 restarts x 2 kneel starts, now pooled): **0/12 stood**, but
+clearly better than the hand-built families -- best **pelvis 0.209-0.211 m**
+(`direct-kneel restart 0`: score 6.07, up +0.97, z 0.180; `via-pincer
+restart 0`: score 5.39, up +0.97, z 0.194; overall sweep max across both
+0.209-0.211 m, still short of the 0.8x0.387=0.310 m standing threshold).
+The search keeps the torso up (as scored) but cannot translate that into
+height, the same "upright, not tall" result R3.7 found for the pincer
+itself.
+
+**Robustness**: not run -- nothing in any family (hand-built or
+hill-climbed) reached standing to test.
+
+**Renders**: `sim/renders/getup_options/side/kneel_brace_best.mp4` (best
+of the foot-brace family, filmstrip `docs/design-v6/kneel_brace_best_
+strip.png`) and `kneel_pincer_best.mp4` (best of the knee-pincer family,
+filmstrip `docs/design-v6/kneel_pincer_best_strip.png`) -- both show the
+robot barely rising off the settled kneel before the sequence's own final
+"stand" keyframe collapses it back down, matching the pelvis-height
+numbers above.
+
 ## Files (round 3)
 
 - `sim/gen_plant_v6.py` -- `bird_body`/`bird_L`/`bird_W`/`bird_H` (default False/0.20/0.14/0.055, plant unchanged); `_bird_body_torso()`
@@ -914,6 +1022,9 @@ trace above.
 - `sim/getup_v6_side.py` `pincer` mode -- R3.7, the pincer test on the stock torso
 - `docs/design-v6/getup_search_pincer_stock.txt` -- R3.7 log (verbatim bird path + 12-restart hill-climb + best trace)
 - `docs/design-v6/pincer_stock_best_strip.png` -- R3.7 filmstrip; `sim/renders/getup_options/side/pincer_stock_best.mp4` (gitignored)
+- `sim/getup_v6_side.py` -- R3.8: `MAX_WORKERS`/`kneel_run_all`/`_kneel_eval`/`_kneelsearch_restart` (multiprocessing), `brace_seq`/`knee_pincer_seq`/`seq_via_pincer`/`seq_direct_kneel`/`KNEEL_POSE`/`PINCER_STOCK_PATH` (modes `kneelrise`, `kneelsearch`)
+- `docs/design-v6/getup_search_kneel_rise.txt` -- R3.8 log (288 hand-built + 12 hill-climb restarts, 0 standing)
+- `docs/design-v6/kneel_brace_best_strip.png`, `kneel_pincer_best_strip.png` -- R3.8 filmstrips; `sim/renders/getup_options/side/kneel_{brace,pincer}_best.mp4` (gitignored)
 
 ## Verdict (round 3)
 
