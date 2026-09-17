@@ -103,6 +103,15 @@ class DesignParams:
                                  # (shoulders, the 09-14 study); 0.0 = housing bottom / hip level
     arm_elbow: bool = False      # 2-DOF arm: a second STS3215 at the elbow, forearm arm_fore_len
     arm_fore_len: float = 0.12
+    arm_abd: bool = False         # get-up study round 4 (09-16, top-of-torso shoulders): a
+                                  # THIRD DOF, proximal to the shoulder pitch -- ab/adduction,
+                                  # axis X like hip_roll, so the arm can swing OUT to the side
+                                  # before pitching fore/aft. Same sign convention as hip_roll:
+                                  # + = abduction (away from centreline) on the LEFT arm.
+                                  # One more STS3215 per arm.
+    arm_abd_add: float = 20.0    # adduction limit (deg, toward centreline)
+    arm_abd_abd: float = 100.0   # abduction limit (deg, away from centreline / out to the side)
+    arm_shoulder_y_extra: float = 0.0   # extra lateral offset beyond the torso-hugging default (m)
     tail: bool = False           # kangaroo tail: one STS3215 (pitch) at the housing rear, a rod
     tail_len: float = 0.20       # with a rubber tip; 0 deg = straight back, + = tip up
     tail_x: float = -0.062       # root x (behind the deck's aft edge -0.058)
@@ -378,7 +387,7 @@ def _arms(p: DesignParams) -> str:
     out = []
     zs = p.deck_bot - 0.015 if p.arm_z is None else p.arm_z
     for side, sgn in (("L", 1), ("R", -1)):
-        y = sgn * (p.deck_w / 2 + SV_T / 2 + 0.004)
+        y = sgn * (p.deck_w / 2 + SV_T / 2 + 0.004) + sgn * p.arm_shoulder_y_extra
         hand = f'<geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>'
         if p.arm_elbow:
             hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}">
@@ -387,12 +396,27 @@ def _arms(p: DesignParams) -> str:
           <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_fore_len)}" size="0.006" mass="{p.arm_mass*0.6}" rgba="0.82 0.84 0.87 1"/>
           <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_fore_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
         </body>"""
-        out.append(f"""
-      <body name="{side}_arm" pos="{_f(p.arm_shoulder_x)} {_f(y)} {_f(zs)}">
-        <joint name="{side}_shoulder" axis="0 1 0" range="-90 200"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
+        arm_inner = f"""<joint name="{side}_shoulder" axis="0 1 0" range="-90 200"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
         <geom class="servo" type="box" pos="0 {_f(-sgn*SV_T/2)} 0" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
         <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_len)}" size="0.006" mass="{p.arm_mass}" rgba="0.82 0.84 0.87 1"/>
-        {hand}
+        {hand}"""
+        if p.arm_abd:
+            # a proximal ab/adduction joint, axis X like hip_roll: same sign
+            # convention (+ = away from the centreline on the LEFT side).
+            abd_lo, abd_hi = ((-p.arm_abd_add, p.arm_abd_abd) if side == "L"
+                              else (-p.arm_abd_abd, p.arm_abd_add))
+            out.append(f"""
+      <body name="{side}_shoulder_abd" pos="{_f(p.arm_shoulder_x)} {_f(y)} {_f(zs)}">
+        <joint name="{side}_abd" axis="1 0 0" range="{abd_lo:.0f} {abd_hi:.0f}"/>   <!-- 0 = arm hangs at the torso side, + = swings OUT to the side -->
+        <geom class="servo" type="box" pos="{_f(-sgn*0.004)} 0 0" size="{_f(SV_T/2)} {_f(SV_WID/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
+        <body name="{side}_arm" pos="0 0 0">
+          {arm_inner}
+        </body>
+      </body>""")
+        else:
+            out.append(f"""
+      <body name="{side}_arm" pos="{_f(p.arm_shoulder_x)} {_f(y)} {_f(zs)}">
+        {arm_inner}
       </body>""")
     return "".join(out)
 
@@ -470,8 +494,12 @@ def build_xml(p: DesignParams) -> str:
                         f'ctrlrange="{r(lo):.10f} {r(hi):.10f}"/>  <!-- {lo:.0f} .. {hi:.0f} -->')
     if p.torso_v7:
         acts.append(f'    <position name="neck_yaw" joint="neck_yaw" ctrlrange="{r(-90):.10f} {r(90):.10f}"/>  <!-- head yaw -->')
-    if p.arms:   # actuator order == joint (qpos) order: per arm shoulder then elbow, then the tail
+    if p.arms:   # actuator order == joint (qpos) order: per arm [abd,] shoulder[, elbow], then the tail
         for side in ("L", "R"):
+            if p.arm_abd:
+                abd_lo, abd_hi = ((-p.arm_abd_add, p.arm_abd_abd) if side == "L"
+                                  else (-p.arm_abd_abd, p.arm_abd_add))
+                acts.append(f'    <position name="{side}_abd" joint="{side}_abd" ctrlrange="{r(abd_lo):.10f} {r(abd_hi):.10f}"/>')
             acts.append(f'    <position name="{side}_shoulder" joint="{side}_shoulder" ctrlrange="{r(-90):.10f} {r(200):.10f}"/>')
             if p.arm_elbow:
                 acts.append(f'    <position name="{side}_elbow" joint="{side}_elbow" ctrlrange="{r(-150):.10f} {r(150):.10f}"/>')
