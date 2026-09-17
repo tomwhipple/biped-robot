@@ -198,19 +198,105 @@ filmstrips alongside and copied into this directory:
 ![combo straight](gateD_wide_gait_bird3_combo_straight_strip.png)
 ![combo turn 15](gateD_wide_gait_bird3_combo_turn15_strip.png)
 
+## 9. Sway vs stride (2026-09-17 follow-up)
+
+Tom, watching `bird3_walk_combo_straight.mp4` and the stock walk: *"both
+robots seem to be swaying side to side more than they're taking forward
+strides."* Quantified, then pushed toward longer/faster strides, then
+checked whether the sway is the weight shift itself or an over-shoot. Full
+numbers: `docs/design-v6/gateD_wide_gait_stride.txt`.
+
+**He's right, exactly.** `sim/wide_gait.py sway` adds an optional
+`track_sway` to `static_gait.run_walk` (pelvis x/y every tick, off by
+default) and measures pelvis lateral peak-to-peak (sway) vs pelvis forward
+advance (stride) per step, steady-state (excludes the last, non-advancing
+settle step):
+
+| gait | stride/step | sway/step | sway is ___x the stride |
+|---|---|---|---|
+| `combo` (bird3_round) | 31.1 mm | 187.4 mm | 6.0x |
+| stock's OLD gait (`static_gait.walk_timeline` defaults) | 29.4 mm | 138.4 mm | 4.7x |
+
+**Stride/cadence frontier**: `sim/wide_gait.py frontier {bird3_round,stock}`
+sweeps step length (60/90/120/150 mm) x cadence (down from 1.8 s) x
+roll_amp (4-12°), drop 30 mm / foot_sep 140 mm held fixed, and reports the
+fastest cadence x roll that still clears all 4 gate D cases (3 seeds each):
+
+| body | step | cadence | roll | worst margin | sway:stride ratio | 8-step dist/time |
+|---|---|---|---|---|---|---|
+| bird3_round | 60 mm | 0.8 s | 8° | 2.7 mm | 0.18 | 21.1 cm / 25.1 s (0.84 cm/s) |
+| bird3_round | **90 mm** | **0.8 s** | **12°** | **1.3 mm** | 0.34 | **34.6 cm / 21.7 s (1.60 cm/s)** — fastest |
+| bird3_round | 120 mm | 0.8 s | 10° | 1.7 mm | 0.32 | 38.1 cm / 24.4 s (1.56 cm/s) |
+| bird3_round | 150 mm | — | — | FAILS at every cadence/roll tried | — | — |
+| stock | 60 mm | 0.5 s | 6° | 16.2 mm | 0.18 | 19.1 cm / 18.6 s (1.03 cm/s) |
+| stock | 90 mm | 0.8 s | 4° | 29.3 mm | 0.24 | 30.1 cm / 29.0 s (1.04 cm/s) |
+| stock | 120 mm | 0.8 s | 4° | 29.0 mm | 0.31 | 40.1 cm / 29.5 s (1.36 cm/s) |
+| stock | **150 mm** | **1.2 s** | **8°** | **11.4 mm** | 0.45 | **49.5 cm / 36.8 s (1.35 cm/s)** — fastest |
+
+bird3_round's fastest passing point is **3.9x** the original `combo`'s
+speed (1.60 vs 0.41 cm/s) but only a 1.3 mm worst-case margin — a real
+speed/margin trade, not a free lunch; the wide hip_sep is why bird3_round's
+frontier tops out at 120 mm while the narrower-hipped stock body clears all
+four step lengths with comfortable margins throughout. The sway:stride
+RATIO gets WORSE at longer steps for both bodies (sway saturates near
+150-190 mm regardless of step length while stride grows) — longer strides,
+not just a faster cadence, are the real lever on the ratio Tom flagged.
+
+**Is the sway the minimum needed shift, or excess?** A kinematic scan
+(`v6_kin.pose_world`/`com_margin` at combo's own drop/foot_sep/roll,
+mid-swing) found the minimum pelvis shift for CoM margin ≥ 0 is **10.5 mm**
+— `combo` commands **49.1 mm** (kinematic margin 25.0 mm), a ~4.7x
+over-shift, because its `bias_y` (the CoM target's offset from the sole
+centreline) was inherited unmodified from `static_gait`'s stock-hip-sep
+tuning, which never accounted for how much of the alignment roll+adduction
+now do for free. Sweeping `bias_y` more inboard (which REDUCES the
+commanded shift for this roll+adduct-assisted body):
+
+| bias_y | 4-case gate | worst CoM margin | sway/step |
+|---|---|---|---|
+| −5 mm (`combo`) | ALL 4 OK | 15.7 mm | 187.4 mm |
+| **−10 mm (`combo_tight`)** | **ALL 4 OK** | **9.3 mm** | **148.9 mm — 20.5% less** |
+| −15 mm | FAILS (mu0.3/play5 marginal; −15° turn mu0.9 fell) | | |
+| −20 mm | FAILS catastrophically (falls in every case) | | |
+
+`combo_tight` (`bias_y=-0.010`, added to `GAITS`) cuts the sway ~20% for
+free — same 4/4 gate pass, and it also clears the full robustness suite
+(mass ×1.1 / 100 g payload / 3° tilt / all combined, worst margin 11.1 mm).
+−15 mm is the wall: past it, the reduced shift stops covering the turning
+cases' extra demand.
+
+**Fastest-passing render**: `combo_fast` (drop 30 mm, foot_sep 140 mm, roll
+12°, cadence 0.8 s) at step 90 mm — `sim/renders/getup_options/side/
+bird3_walk_combo_fast_straight.mp4`, filmstrip alongside and copied here:
+
+![combo_fast straight](bird3_walk_combo_fast_straight_strip.png)
+
+**Parallelism**: the gate/frontier/robustness sweeps above run through a
+`multiprocessing.Pool(12, fork context)` added to `sim/wide_gait.py` this
+round (the box has 32 cores; the two frontier searches were each pegging
+only one). Verified before trusting it: the pooled `wide_gait.py gate
+bird3_round combo` reproduced the already-logged `combo` rows in
+`gateD_wide_gait.txt` byte-for-byte (0 diff) before generating any of the
+numbers above with it.
+
 ## Files
 
 - `sim/wide_gait.py` — `wide_walk_timeline`, `solve_pelvis_w`,
-  `standing_key_w`, the `GAITS` candidate table, CLI (`sweep`/`gate`/
-  `torque`/`robust`/`render`).
+  `standing_key_w`, the `GAITS` candidate table (`combo`, `combo_tight`,
+  `combo_fast`), a `multiprocessing.Pool(12)` (`run_batch`/`_run_job`) used
+  by `gate`/`robust`/`frontier`, CLI (`sweep`/`gate`/`torque`/`robust`/
+  `render`/`sway`/`frontier`).
 - `sim/design_gates.py` — `Key.roll` (default 0.0), `Timeline.at()`
   interpolates it, `q_of` routes through it. Backward compatible:
   `tests/test_v6_design_gates.py` 8/8 before and after.
 - `sim/v6_kin.py` — `_rx`, `orient_quat`, `pose_world(..., roll=0.0)`.
-- `sim/static_gait.py` — `run_walk(..., track_torque=False)`, additive
-  only (off by default, existing callers/tests unaffected).
+- `sim/static_gait.py` — `run_walk(..., track_torque=False, track_sway=
+  False)`, both additive only (off by default, existing callers/tests
+  unaffected).
 - `docs/design-v6/gateD_wide_gait.txt` — every candidate's full gate row,
   the torque report, the robustness table, the stock regression check.
+- `docs/design-v6/gateD_wide_gait_stride.txt` — the sway/stride numbers,
+  the frontier tables, the bias_y tightening sweep, the fast render.
 
 ## Verdict
 
@@ -225,3 +311,16 @@ The failure the round-3 workaround could not fix (planning the IK at a
 fictitious hip_sep) is fixed here by planning against the real body instead
 and asking three small, independently-gated mechanisms to share the work
 that one alone could not do inside 220 mm of leg reach.
+
+**2026-09-17 follow-up**: Tom's eye was right — both `combo` and the
+stock body's old gait sway 5-6x more than they stride per step (§9), because
+`combo` inherited a CoM-centring target tuned for a body with no roll/adduct
+help and so shifts the pelvis ~4.7x further than the kinematic minimum for
+positive margin. `combo_tight` (bias_y −10 mm) cuts that sway ~20% for free,
+still 4/4 on the gate and the full robustness suite. Pushed for speed, the
+gait also has real headroom: `combo_fast` (90 mm steps, 0.8 s cadence, 12°
+roll) is 3.9x faster than `combo` on bird3_round, though its margin thins to
+1.3 mm at the frontier — a genuine trade, not a free lunch — while the
+narrower-hipped stock body clears every step length up to 150 mm at 1.35 cm/s
+with comfortable margins throughout, confirming the wide hip_sep, not the
+gait family, is what limits bird3_round's speed.
