@@ -1,0 +1,33 @@
+== Gate D (lumped-mass plant, gen_plant_v6 defaults), STS3250 rolls+knees, lift 4, 8 steps -- round-4 top-of-torso shoulder arms hanging at rest (shoulder=0, ctrl=0), self_collide=True
+-- bare (no arms): mass total not computed here, see study doc for servo/mass accounting
+bare (no arm turn +0                           up       steps 8/8  clear>=   22 mm  air>= 0.62 s  CoM margin>=  13.0 mm  slip  2.5 mm  tilt  5.7  x +19.9 y  -0.4 cm  hdg  -0.3  OK
+bare (no arm turn +15                          up       steps 8/8  clear>=   16 mm  air>= 0.54 s  CoM margin>=  12.2 mm  slip  2.2 mm  tilt  7.3  x +14.1 y +13.5 cm  hdg +96.2  OK
+bare (no arm turn +0 mu 0.3 play 5             up       steps 8/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=  35.2 mm  slip  1.4 mm  tilt  3.3  x +20.1 y  -0.1 cm  hdg  +0.4  OK
+bare (no arm turn -15 mu 0.9                   up       steps 8/8  clear>=   23 mm  air>= 0.66 s  CoM margin>=  26.6 mm  slip  2.5 mm  tilt  6.1  x +11.3 y -13.3 cm  hdg -96.6  OK
+-- top1_len35 (1 STS3215/arm, 0.35 m): mass total not computed here, see study doc for servo/mass accounting
+top1_len35 ( turn +0                           up       steps 8/8  clear>=   21 mm  air>= 0.54 s  CoM margin>=  11.6 mm  slip  2.7 mm  tilt  8.4  x +14.5 y  +0.0 cm  hdg  +4.1  OK
+top1_len35 ( turn +15                          up       steps 8/8  clear>=   15 mm  air>= 0.58 s  CoM margin>=  12.4 mm  slip  3.7 mm  tilt  8.4  x +13.6 y +10.4 cm  hdg +103.6  OK
+top1_len35 ( turn +0 mu 0.3 play 5             up       steps 8/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=  34.1 mm  slip  2.9 mm  tilt  6.6  x +21.5 y  -0.3 cm  hdg  +0.6  OK
+top1_len35 ( turn -15 mu 0.9                   up       steps 8/8  clear>=   10 mm  air>= 0.46 s  CoM margin>=  12.3 mm  slip  4.2 mm  tilt 13.0  x +10.6 y  -7.8 cm  hdg -97.6  FAIL
+-- top_elbow_18_18 (2 STS3215/arm, 0.18+0.18 m): mass total not computed here, see study doc for servo/mass accounting
+top_elbow_18 turn +0                           up       steps 8/8  clear>=   20 mm  air>= 0.58 s  CoM margin>=  11.4 mm  slip  4.7 mm  tilt  7.2  x +19.5 y  -0.4 cm  hdg  +7.1  OK
+top_elbow_18 turn +15                        FELL@17.1s steps 3/8  clear>=   12 mm  air>= 0.68 s  CoM margin>=  11.3 mm  slip 12.9 mm  tilt 53.4  x -12.6 y +32.4 cm  hdg +30.6  FAIL
+top_elbow_18 turn +0 mu 0.3 play 5             up       steps 8/8  clear>=   23 mm  air>= 0.68 s  CoM margin>=  34.9 mm  slip  3.4 mm  tilt  6.6  x +21.4 y  -0.7 cm  hdg  +0.8  OK
+top_elbow_18 turn -15 mu 0.9                 FELL@17.1s steps 3/8  clear>=   14 mm  air>= 0.58 s  CoM margin>=  12.0 mm  slip  5.0 mm  tilt 57.0  x +22.9 y +30.6 cm  hdg -27.3  FAIL
+== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk
+top_elbow_16_16      up   tilt_max 6.0 deg  arm-vs-leg contacts 7327 over 44.6s  pairs [('L_ankle_blk', 'L_forearm'), ('L_forearm', 'L_shin'), ('L_forearm', 'L_thigh'), ('R_ankle_blk', 'R_forearm'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+top_elbow_18_18      up   tilt_max 7.2 deg  arm-vs-leg contacts 6735 over 44.6s  pairs [('L_ankle_blk', 'L_forearm'), ('L_forearm', 'L_shin'), ('L_forearm', 'L_thigh'), ('R_ankle_blk', 'R_forearm'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+top1_len35           up   tilt_max 8.4 deg  arm-vs-leg contacts 1667 over 45.1s  pairs [('L_ankle_blk', 'L_arm'), ('L_arm', 'L_shin'), ('R_ankle_blk', 'R_arm'), ('R_arm', 'R_shin')]
+aft -0.05      up   tilt_max 3.9 deg  contacts 31  pairs [('L_ankle_blk', 'L_forearm'), ('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+wide +0.02     up   tilt_max 8.8 deg  contacts 2907  pairs [('L_ankle_blk', 'L_forearm'), ('L_forearm', 'L_shin'), ('L_forearm', 'L_thigh'), ('R_ankle_blk', 'R_forearm'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+aft+wide       up   tilt_max 3.9 deg  contacts 72  pairs [('L_ankle_blk', 'L_forearm'), ('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+-- top_elbow_16_16 (default x)
+top_elbow_16_1 turn +0                         up       steps 8/8  clear>=   21 mm  air>= 0.62 s  CoM margin>=  12.0 mm  slip  1.7 mm  tilt  6.0  x +20.7 y  -0.6 cm  hdg  +0.3  OK
+top_elbow_16_1 turn +15                        up       steps 8/8  clear>=   20 mm  air>= 0.58 s  CoM margin>=  11.5 mm  slip  2.8 mm  tilt  7.6  x +14.8 y +13.1 cm  hdg +91.6  OK
+top_elbow_16_1 turn +0 mu 0.3 play 5         FELL@17.1s steps 3/8  clear>=   14 mm  air>= 0.52 s  CoM margin>=   7.5 mm  slip  5.7 mm  tilt 56.7  x  +7.1 y +36.2 cm  hdg  +0.3  FAIL
+top_elbow_16_1 turn -15 mu 0.9                 up       steps 8/8  clear>=   20 mm  air>= 0.58 s  CoM margin>=  12.2 mm  slip  2.5 mm  tilt  7.8  x +12.0 y -13.8 cm  hdg -92.8  OK
+-- top_elbow_16_16 (aft x=-0.05)
+top_elbow_16_1 turn +0                         up       steps 8/8  clear>=   21 mm  air>= 0.68 s  CoM margin>=  30.7 mm  slip  1.8 mm  tilt  3.9  x +21.6 y  -0.3 cm  hdg  -0.2  OK
+top_elbow_16_1 turn +15                        up       steps 8/8  clear>=   22 mm  air>= 0.58 s  CoM margin>=  12.2 mm  slip  2.7 mm  tilt  8.0  x +14.9 y +14.6 cm  hdg +98.6  OK
+top_elbow_16_1 turn +0 mu 0.3 play 5           up       steps 8/8  clear>=   20 mm  air>= 0.66 s  CoM margin>=  35.6 mm  slip  1.6 mm  tilt  3.9  x +20.6 y  -0.1 cm  hdg  +0.4  OK
+top_elbow_16_1 turn -15 mu 0.9                 up       steps 8/8  clear>=   19 mm  air>= 0.58 s  CoM margin>=  12.7 mm  slip  2.5 mm  tilt  8.1  x +12.3 y -14.7 cm  hdg -98.8  OK

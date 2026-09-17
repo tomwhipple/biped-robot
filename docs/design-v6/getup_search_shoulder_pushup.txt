@@ -1,0 +1,122 @@
+== PRONE PUSH-UP with top-of-torso arms: both arms reach forward to the floor, push the torso up, knees tuck under, try to sit back onto the heels. Round-2 hip-level arms were 0/76 here; this asks whether a TOP mount (closer to a real push-up) changes it.
+top1_len28         floor sh -60 -> -90 -> -110 abd 0                     no       up -0.40 front -0.91 z 0.098
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.93/0.17/Larm+Rarm+head | push more:-0.93/0.17/Larm+Rarm+head | knees under:-0.93/0.17/Larm+Rarm+head | try to sit :-0.40/0.10/Larm+Rarm+head
+top1_len28         floor sh -60 -> -90 -> -130 abd 0                     no       up -0.40 front -0.91 z 0.098
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.93/0.17/Larm+Rarm+head | push more:-0.93/0.17/Larm+Rarm+head | knees under:-0.93/0.17/Larm+Rarm+head | try to sit :-0.40/0.10/Larm+Rarm+head
+top1_len28         floor sh -60 -> -110 -> -130 abd 0                    no       up -0.40 front -0.91 z 0.098
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.93/0.17/Larm+Rarm+head | push more:-0.93/0.17/Larm+Rarm+head | knees under:-0.93/0.17/Larm+Rarm+head | try to sit :-0.40/0.10/Larm+Rarm+head
+top1_len28         floor sh -80 -> -90 -> -110 abd 0                     no       up -0.40 front -0.91 z 0.098
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.93/0.17/Larm+Rarm+head | push more:-0.93/0.17/Larm+Rarm+head | knees under:-0.93/0.17/Larm+Rarm+head | try to sit :-0.40/0.10/Larm+Rarm+head
+top1_len28         floor sh -80 -> -90 -> -130 abd 0                     no       up -0.40 front -0.91 z 0.098
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.93/0.17/Larm+Rarm+head | push more:-0.93/0.17/Larm+Rarm+head | knees under:-0.93/0.17/Larm+Rarm+head | try to sit :-0.40/0.10/Larm+Rarm+head
+top1_len28         floor sh -80 -> -110 -> -130 abd 0                    no       up -0.40 front -0.91 z 0.098
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.92/0.17/Larm+Rarm+head | push more:-0.93/0.17/Larm+Rarm+head | knees under:-0.93/0.17/Larm+Rarm+head | try to sit :-0.40/0.10/Larm+Rarm+head
+top1_len35         floor sh -60 -> -90 -> -110 abd 0                     no       up -0.44 front -0.90 z 0.104
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.96/0.17/Larm+Rarm+head | push more:-0.96/0.17/Larm+Rarm+head | knees under:-0.96/0.17/Larm+Rarm+head | try to sit :-0.44/0.10/Larm+Rarm+head
+top1_len35         floor sh -60 -> -90 -> -130 abd 0                     no       up -0.44 front -0.90 z 0.104
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.96/0.17/Larm+Rarm+head | push more:-0.96/0.17/Larm+Rarm+head | knees under:-0.96/0.17/Larm+Rarm+head | try to sit :-0.44/0.10/Larm+Rarm+head
+top1_len35         floor sh -60 -> -110 -> -130 abd 0                    no       up -0.13 front +0.99 z 0.067
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :+0.03/0.06/Lfoot+Rfoot+torso | push more:+0.03/0.06/Lfoot+Rfoot+torso | knees under:+0.25/0.05/Lfoot+Rfoot+torso | try to sit :-0.13/0.07/Lfoot+Rfoot+torso
+top1_len35         floor sh -80 -> -90 -> -110 abd 0                     no       up -0.13 front +0.99 z 0.067
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :+0.03/0.06/Lfoot+Rfoot+torso | push more:+0.03/0.06/Lfoot+Rfoot+torso | knees under:+0.25/0.05/Lfoot+Rfoot+torso | try to sit :-0.13/0.07/Lfoot+Rfoot+torso
+top1_len35         floor sh -80 -> -90 -> -130 abd 0                     no       up -0.13 front +0.99 z 0.067
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :+0.03/0.06/Lfoot+Rfoot+torso | push more:+0.03/0.06/Lfoot+Rfoot+torso | knees under:+0.25/0.05/Lfoot+Rfoot+torso | try to sit :-0.13/0.07/Lfoot+Rfoot+torso
+top1_len35         floor sh -80 -> -110 -> -130 abd 0                    no       up -0.13 front +0.99 z 0.067
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :+0.03/0.06/Lfoot+Rfoot+torso | push more:+0.03/0.06/Lfoot+Rfoot+torso | knees under:+0.25/0.05/Lfoot+Rfoot+torso | try to sit :-0.13/0.07/Lfoot+Rfoot+torso
+top_elbow_15_15    floor sh -60 elbow ->-40->-80 abd 0                   no       up -0.32 front -0.95 z 0.085
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.02/0.05/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | push more:-0.30/0.08/Lfore+Lthig+Rfore+Rthig+head | knees under:-0.35/0.09/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head | try to sit :-0.32/0.09/Lfore+Lthig+Rfore+Rthig+head
+top_elbow_15_15    floor sh -60 elbow ->0->-40 abd 0                     no       up -0.22 front -0.98 z 0.069
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.02/0.05/Lfoot+Lfore+Lhipy+Rfoot+Rfore+Rhipy+torso | push more:-0.02/0.05/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | knees under:-0.35/0.09/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head | try to sit :-0.22/0.07/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head
+top_elbow_15_15    floor sh -80 elbow ->-40->-80 abd 0                   no       up -0.32 front -0.95 z 0.085
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.02/0.05/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | push more:-0.30/0.08/Lfore+Lthig+Rfore+Rthig+head | knees under:-0.35/0.09/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head | try to sit :-0.32/0.09/Lfore+Lthig+Rfore+Rthig+head
+top_elbow_15_15    floor sh -80 elbow ->0->-40 abd 0                     no       up -0.22 front -0.98 z 0.069
+      arms to flo:-0.03/0.05/Lfoot+Rfoot+torso | push (both :-0.02/0.05/Lfoot+Lfore+Lhipy+Rfoot+Rfore+Rhipy+torso | push more:-0.02/0.05/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | knees under:-0.35/0.09/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head | try to sit :-0.22/0.07/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head
+top_elbow_18_18    floor sh -60 elbow ->-40->-80 abd 0                   no       up -0.32 front -0.95 z 0.085
+      arms to flo:-0.02/0.05/Lfoot+Rfoot+torso | push (both :-0.07/0.06/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | push more:-0.32/0.09/Lfore+Lthig+Rfore+Rthig+head | knees under:-0.35/0.09/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head | try to sit :-0.32/0.09/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+head
+top_elbow_18_18    floor sh -60 elbow ->0->-40 abd 0                     no       up -0.22 front -0.98 z 0.069
+      arms to flo:-0.02/0.05/Lfoot+Rfoot+torso | push (both :-0.03/0.05/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | push more:-0.07/0.06/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | knees under:-0.35/0.09/Lfoot+Lfore+Lshin+Lthig+Rfoot+Rfore+Rshin+Rthig+head | try to sit :-0.22/0.07/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head
+top_elbow_18_18    floor sh -80 elbow ->-40->-80 abd 0                   no       up -0.32 front -0.95 z 0.085
+      arms to flo:-0.02/0.05/Lfoot+Rfoot+torso | push (both :-0.07/0.06/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | push more:-0.32/0.09/Lfore+Lthig+Rfore+Rthig+head | knees under:-0.35/0.09/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head | try to sit :-0.32/0.09/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+head
+top_elbow_18_18    floor sh -80 elbow ->0->-40 abd 0                     no       up -0.22 front -0.98 z 0.069
+      arms to flo:-0.02/0.05/Lfoot+Rfoot+torso | push (both :-0.03/0.05/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | push more:-0.07/0.06/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig+torso | knees under:-0.35/0.09/Lfoot+Lfore+Lshin+Lthig+Rfoot+Rfore+Rshin+Rthig+head | try to sit :-0.22/0.07/Lfore+Lshin+Lthig+Rfore+Rshin+Rthig+head
+top_abd_20         floor sh -60 -> -90 -> -110 abd 0                     no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -60 -> -90 -> -110 abd 30                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -60 -> -90 -> -130 abd 0                     no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -60 -> -90 -> -130 abd 30                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -60 -> -110 -> -130 abd 0                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -60 -> -110 -> -130 abd 30                   no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -80 -> -90 -> -110 abd 0                     no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -80 -> -90 -> -110 abd 30                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -80 -> -90 -> -130 abd 0                     no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -80 -> -90 -> -130 abd 30                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -80 -> -110 -> -130 abd 0                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_20         floor sh -80 -> -110 -> -130 abd 30                   no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -60 -> -90 -> -110 abd 0                     no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -60 -> -90 -> -110 abd 30                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -60 -> -90 -> -130 abd 0                     no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -60 -> -90 -> -130 abd 30                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -60 -> -110 -> -130 abd 0                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -60 -> -110 -> -130 abd 30                   no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -80 -> -90 -> -110 abd 0                     no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -80 -> -90 -> -110 abd 30                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -80 -> -90 -> -130 abd 0                     no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -80 -> -90 -> -130 abd 30                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -80 -> -110 -> -130 abd 0                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_28         floor sh -80 -> -110 -> -130 abd 30                   no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_15_15 floor sh -60 elbow ->-40->-80 abd 0                  no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_15_15 floor sh -60 elbow ->-40->-80 abd 30                 no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_15_15 floor sh -60 elbow ->0->-40 abd 0                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_15_15 floor sh -60 elbow ->0->-40 abd 30                   no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_15_15 floor sh -80 elbow ->-40->-80 abd 0                  no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_15_15 floor sh -80 elbow ->-40->-80 abd 30                 no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_15_15 floor sh -80 elbow ->0->-40 abd 0                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_15_15 floor sh -80 elbow ->0->-40 abd 30                   no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_18_18 floor sh -60 elbow ->-40->-80 abd 0                  no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_18_18 floor sh -60 elbow ->-40->-80 abd 30                 no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_18_18 floor sh -60 elbow ->0->-40 abd 0                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_18_18 floor sh -60 elbow ->0->-40 abd 30                   no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_18_18 floor sh -80 elbow ->-40->-80 abd 0                  no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_18_18 floor sh -80 elbow ->-40->-80 abd 30                 no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_18_18 floor sh -80 elbow ->0->-40 abd 0                    no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+top_abd_elbow_18_18 floor sh -80 elbow ->0->-40 abd 30                   no       up -0.22 front -0.97 z 0.069
+      arms to flo:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push (both :-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | push more:-0.03/0.05/Larm+Lfoot+Rarm+Rfoot+torso | knees under:-0.35/0.09/Larm+Lshin+Rarm+Rshin+head+torso | try to sit :-0.22/0.07/Larm+Lshin+Rarm+Rshin+head+torso
+standing: []

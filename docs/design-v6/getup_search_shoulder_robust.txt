@@ -1,0 +1,26 @@
+== ROBUSTNESS of the seat-push winners: play, friction, servo strength (nominal = play 3, mu 0.7, servo 1.0)
+top1_len35           play 3 mu 0.7 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 1.19 Nm (L_shoulder @ brace)
+top1_len35           play 5 mu 0.7 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 1.19 Nm (L_shoulder @ brace)
+top1_len35           play 3 mu 0.3 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 1.06 Nm (L_shoulder @ brace)
+top1_len35           play 3 mu 1.0 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 1.26 Nm (L_shoulder @ brace)
+top1_len35           play 3 mu 0.7 servo 0.80  STANDING up +1.00 z 0.387  |tau|max 1.14 Nm (L_shoulder @ brace)
+top1_len35           play 3 mu 0.7 servo 0.65  STANDING up +1.00 z 0.387  |tau|max 1.43 Nm (R_shoulder @ brace)
+top1_len35           play 3 mu 0.7 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 0.45 Nm (L_hip_pitch @ rise 2)
+top1_len35           play 5 mu 0.7 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 0.45 Nm (L_hip_pitch @ rise 2)
+top1_len35           play 3 mu 0.3 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 0.45 Nm (R_hip_pitch @ rise 2)
+top1_len35           play 3 mu 1.0 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 0.45 Nm (L_hip_pitch @ rise 2)
+top1_len35           play 3 mu 0.7 servo 0.80  STANDING up +1.00 z 0.387  |tau|max 0.45 Nm (R_hip_pitch @ rise 2)
+top1_len35           play 3 mu 0.7 servo 0.65  STANDING up +1.00 z 0.387  |tau|max 0.91 Nm (L_shoulder @ tuck)
+top_elbow_18_18      play 3 mu 0.7 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 1.19 Nm (L_shoulder @ brace)
+top_elbow_18_18      play 5 mu 0.7 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 1.19 Nm (L_shoulder @ brace)
+top_elbow_18_18      play 3 mu 0.3 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 1.12 Nm (R_shoulder @ brace)
+top_elbow_18_18      play 3 mu 1.0 servo 1.00  STANDING up +1.00 z 0.387  |tau|max 1.20 Nm (L_shoulder @ brace)
+top_elbow_18_18      play 3 mu 0.7 servo 0.80  STANDING up +1.00 z 0.387  |tau|max 1.13 Nm (L_shoulder @ brace)
+top_elbow_18_18      play 3 mu 0.7 servo 0.65  STANDING up +1.00 z 0.387  |tau|max 1.01 Nm (L_hip_pitch @ brace)
+standing: ['top1_len35', 'top1_len35', 'top1_len35', 'top1_len35', 'top1_len35', 'top1_len35', 'top1_len35', 'top1_len35', 'top1_len35', 'top1_len35', 'top1_len35', 'top1_len35', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18']
+{'play_deg': 3.0, 'mu': 0.7, 'servo_scale': 1.0} True 0.38710649320486196 {'L_shoulder': 1.576415760885759, 'R_shoulder': 1.5764157608857592}
+{'play_deg': 5.0, 'mu': 0.7, 'servo_scale': 1.0} True 0.38710649320486196 {'L_shoulder': 1.576415760885759, 'R_shoulder': 1.5764157608857592}
+{'play_deg': 3.0, 'mu': 0.3, 'servo_scale': 1.0} True 0.387147601910092 {'L_shoulder': 1.2831997485851494, 'R_shoulder': 1.2831997485851492}
+{'play_deg': 3.0, 'mu': 1.0, 'servo_scale': 1.0} True 0.38702877929125223 {'L_shoulder': 1.8410911024537833, 'R_shoulder': 1.841091102453783}
+{'play_deg': 3.0, 'mu': 0.7, 'servo_scale': 0.8} True 0.38710692997798973 {'L_shoulder': 1.6977045216962383, 'R_shoulder': 1.6977045216962383}
+{'play_deg': 3.0, 'mu': 0.7, 'servo_scale': 0.65} True 0.3871073463038768 {'L_shoulder': 1.5665213128421978, 'R_shoulder': 1.5665213128421982}

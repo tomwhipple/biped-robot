@@ -1,0 +1,128 @@
+== ELBOW-LENGTH SWEEP (Tom 2026-09-16: idle pose hangs at the sides, elbows wanted): shortest 2-DOF elbow arm at TOP_Z 0.079 m that stands robustly. seat push, supine, self_collide=True.
+-- top_elbow_16_16: arm_len 0.16 arm_fore_len 0.16  reach 0.32 m  4 servos (2/arm)
+top_elbow_16_16      sh  +60-> +20 el  -60-> -20 ankle -40               no       up +0.66 front +0.75 z 0.284
+      sit up:+0.38/0.05/Lthig+Rthig+torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.96/0.10/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | tuck:+0.98/0.20/Lfoot+Lfore+Rfoot+Rfore | push:+1.00/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.89/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.78/0.24/Lfoot+Lfore+Rfoot+Rfore | stand:+0.67/0.28/Lfoot+Lfore+Rfoot+Rfore | straight:+0.66/0.28/Lfoot+Lfore+Rfoot+Rfore
+top_elbow_16_16      sh  +60-> +20 el  -60-> -20 ankle -25               no       up +0.66 front +0.75 z 0.284
+      sit up:+0.38/0.05/Lthig+Rthig+torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.96/0.10/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | tuck:+0.98/0.20/Lfoot+Lfore+Rfoot+Rfore | push:+0.99/0.23/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.89/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.78/0.24/Lfoot+Lfore+Rfoot+Rfore | stand:+0.67/0.28/Lfoot+Lfore+Rfoot+Rfore | straight:+0.66/0.28/Lfoot+Lfore+Rfoot+Rfore
+top_elbow_16_16      sh  +60->  +0 el  -60->  +0 ankle -40               no       up +0.66 front +0.75 z 0.284
+      sit up:+0.38/0.05/Lthig+Rthig+torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.96/0.10/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | tuck:+0.98/0.20/Lfoot+Lfore+Rfoot+Rfore | push:+0.98/0.24/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | crouch hold:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.89/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.78/0.24/Lfoot+Lfore+Rfoot+Rfore | stand:+0.67/0.28/Lfoot+Lfore+Rfoot+Rfore | straight:+0.66/0.28/Lfoot+Lfore+Rfoot+Rfore
+top_elbow_16_16      sh  +60->  +0 el  -60->  +0 ankle -25               STANDING up +1.00 front +0.07 z 0.387
+      sit up:+0.38/0.05/Lthig+Rthig+torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.96/0.10/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | tuck:+0.98/0.20/Lfoot+Lfore+Rfoot+Rfore | push:+0.95/0.23/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_16_16      sh  +90-> +20 el  -90-> -20 ankle -40               no       up +0.66 front +0.75 z 0.284
+      sit up:+0.38/0.05/Lthig+Rthig+torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.86/0.17/Lfoot+Lfore+Rfoot+Rfore | push:+1.00/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.89/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.78/0.24/Lfoot+Lfore+Rfoot+Rfore | stand:+0.67/0.28/Lfoot+Lfore+Rfoot+Rfore | straight:+0.66/0.28/Lfoot+Lfore+Rfoot+Rfore
+top_elbow_16_16      sh  +90-> +20 el  -90-> -20 ankle -25               no       up +0.66 front +0.75 z 0.284
+      sit up:+0.38/0.05/Lthig+Rthig+torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.86/0.17/Lfoot+Lfore+Rfoot+Rfore | push:+0.99/0.23/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.89/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.78/0.24/Lfoot+Lfore+Rfoot+Rfore | stand:+0.67/0.28/Lfoot+Lfore+Rfoot+Rfore | straight:+0.66/0.28/Lfoot+Lfore+Rfoot+Rfore
+top_elbow_16_16      sh  +90->  +0 el  -90->  +0 ankle -40               no       up +0.66 front +0.75 z 0.284
+      sit up:+0.38/0.05/Lthig+Rthig+torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.86/0.17/Lfoot+Lfore+Rfoot+Rfore | push:+0.98/0.24/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | crouch hold:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.89/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.78/0.24/Lfoot+Lfore+Rfoot+Rfore | stand:+0.67/0.28/Lfoot+Lfore+Rfoot+Rfore | straight:+0.66/0.28/Lfoot+Lfore+Rfoot+Rfore
+top_elbow_16_16      sh  +90->  +0 el  -90->  +0 ankle -25               STANDING up +1.00 front +0.07 z 0.387
+      sit up:+0.38/0.05/Lthig+Rthig+torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.86/0.17/Lfoot+Lfore+Rfoot+Rfore | push:+0.95/0.23/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+-- top_elbow_16_16: at least one variant STANDING
+-- top_elbow_18_18: arm_len 0.18 arm_fore_len 0.18  reach 0.36 m  4 servos (2/arm)
+top_elbow_18_18      sh  +60-> +20 el  -60-> -20 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.39/0.05/Lthig+Rthig | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.94/0.10/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.21/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Rfoot | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_18      sh  +60-> +20 el  -60-> -20 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.39/0.05/Lthig+Rthig | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.94/0.10/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.21/Lfoot+Lfore+Rfoot+Rfore | push:+0.94/0.23/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_18      sh  +60->  +0 el  -60->  +0 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.39/0.05/Lthig+Rthig | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.94/0.10/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.21/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_18      sh  +60->  +0 el  -60->  +0 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.39/0.05/Lthig+Rthig | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.94/0.10/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.21/Lfoot+Lfore+Rfoot+Rfore | push:+0.90/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_18      sh  +90-> +20 el  -90-> -20 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.39/0.05/Lthig+Rthig | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.91/0.18/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Rfoot | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_18      sh  +90-> +20 el  -90-> -20 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.39/0.05/Lthig+Rthig | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.91/0.18/Lfoot+Lfore+Rfoot+Rfore | push:+0.94/0.23/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_18      sh  +90->  +0 el  -90->  +0 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.39/0.05/Lthig+Rthig | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.91/0.18/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_18      sh  +90->  +0 el  -90->  +0 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.39/0.05/Lthig+Rthig | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.91/0.18/Lfoot+Lfore+Rfoot+Rfore | push:+0.90/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+-- top_elbow_18_18: at least one variant STANDING
+-- top_elbow_20_20: arm_len 0.2 arm_fore_len 0.2  reach 0.40 m  4 servos (2/arm)
+top_elbow_20_20      sh  +60-> +20 el  -60-> -20 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.93/0.11/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.22/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Rfoot | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_20_20      sh  +60-> +20 el  -60-> -20 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.93/0.11/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.22/Lfoot+Lfore+Rfoot+Rfore | push:+0.91/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_20_20      sh  +60->  +0 el  -60->  +0 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.93/0.11/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.22/Lfoot+Lfore+Rfoot+Rfore | push:+0.78/0.23/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_20_20      sh  +60->  +0 el  -60->  +0 ankle -25               no       up +0.77 front +0.64 z 0.323
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.93/0.11/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.22/Lfoot+Lfore+Rfoot+Rfore | push:+0.83/0.25/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.97/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.94/0.24/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.85/0.28/Lfoot+Lfore+Rfoot+Rfore | stand:+0.78/0.31/Lfoot+Lfore+Rfoot+Rfore | straight:+0.77/0.32/Lfoot+Lfore+Rfoot+Rfore
+top_elbow_20_20      sh  +90-> +20 el  -90-> -20 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.95/0.19/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Rfoot | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_20_20      sh  +90-> +20 el  -90-> -20 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.95/0.19/Lfoot+Lfore+Rfoot+Rfore | push:+0.91/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_20_20      sh  +90->  +0 el  -90->  +0 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.95/0.19/Lfoot+Lfore+Rfoot+Rfore | push:+0.78/0.23/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_20_20      sh  +90->  +0 el  -90->  +0 ankle -25               no       up +0.77 front +0.64 z 0.323
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.95/0.19/Lfoot+Lfore+Rfoot+Rfore | push:+0.83/0.25/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.97/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.94/0.24/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.85/0.28/Lfoot+Lfore+Rfoot+Rfore | stand:+0.78/0.31/Lfoot+Lfore+Rfoot+Rfore | straight:+0.77/0.32/Lfoot+Lfore+Rfoot+Rfore
+-- top_elbow_20_20: at least one variant STANDING
+-- top_elbow_18_22: arm_len 0.18 arm_fore_len 0.22  reach 0.40 m  4 servos (2/arm)
+top_elbow_18_22      sh  +60-> +20 el  -60-> -20 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.27/0.05/torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.92/0.12/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.22/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Rfoot | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_22      sh  +60-> +20 el  -60-> -20 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.27/0.05/torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.92/0.12/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.22/Lfoot+Lfore+Rfoot+Rfore | push:+0.91/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_22      sh  +60->  +0 el  -60->  +0 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.27/0.05/torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.92/0.12/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.22/Lfoot+Lfore+Rfoot+Rfore | push:+0.78/0.23/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_22      sh  +60->  +0 el  -60->  +0 ankle -25               no       up +0.77 front +0.64 z 0.322
+      sit up:+0.27/0.05/torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.92/0.12/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.22/Lfoot+Lfore+Rfoot+Rfore | push:+0.83/0.25/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.97/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.94/0.24/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.85/0.27/Lfoot+Lfore+Rfoot+Rfore | stand:+0.78/0.31/Lfoot+Lfore+Rfoot+Rfore | straight:+0.77/0.32/Lfoot+Lfore+Rfoot+Rfore
+top_elbow_18_22      sh  +90-> +20 el  -90-> -20 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.27/0.05/torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.97/0.10/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | tuck:+0.97/0.20/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Rfoot | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_22      sh  +90-> +20 el  -90-> -20 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.27/0.05/torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.97/0.10/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | tuck:+0.97/0.20/Lfoot+Lfore+Rfoot+Rfore | push:+0.91/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_22      sh  +90->  +0 el  -90->  +0 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.27/0.05/torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.97/0.10/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | tuck:+0.97/0.20/Lfoot+Lfore+Rfoot+Rfore | push:+0.78/0.23/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_18_22      sh  +90->  +0 el  -90->  +0 ankle -25               no       up +0.77 front +0.64 z 0.322
+      sit up:+0.27/0.05/torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.97/0.10/Lfoot+Lfore+Lthig+Rfoot+Rfore+Rthig | tuck:+0.97/0.20/Lfoot+Lfore+Rfoot+Rfore | push:+0.83/0.25/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.97/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.94/0.24/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.85/0.27/Lfoot+Lfore+Rfoot+Rfore | stand:+0.78/0.31/Lfoot+Lfore+Rfoot+Rfore | straight:+0.77/0.32/Lfoot+Lfore+Rfoot+Rfore
+-- top_elbow_18_22: at least one variant STANDING
+-- top_elbow_22_18: arm_len 0.22 arm_fore_len 0.18  reach 0.40 m  4 servos (2/arm)
+top_elbow_22_18      sh  +60-> +20 el  -60-> -20 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.94/0.10/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.21/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Rfoot | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_22_18      sh  +60-> +20 el  -60-> -20 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.94/0.10/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.21/Lfoot+Lfore+Rfoot+Rfore | push:+0.91/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_22_18      sh  +60->  +0 el  -60->  +0 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.94/0.10/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.21/Lfoot+Lfore+Rfoot+Rfore | push:+0.78/0.23/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_22_18      sh  +60->  +0 el  -60->  +0 ankle -25               no       up +0.77 front +0.64 z 0.323
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.94/0.10/Lfoot+Lfore+Rfoot+Rfore | tuck:+1.00/0.21/Lfoot+Lfore+Rfoot+Rfore | push:+0.83/0.25/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.97/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.94/0.24/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.86/0.28/Lfoot+Lfore+Rfoot+Rfore | stand:+0.78/0.31/Lfoot+Lfore+Rfoot+Rfore | straight:+0.77/0.32/Lfoot+Lfore+Rfoot+Rfore
+top_elbow_22_18      sh  +90-> +20 el  -90-> -20 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | push:+0.81/0.23/Lfoot+Rfoot | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_22_18      sh  +90-> +20 el  -90-> -20 ankle -25               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | push:+0.91/0.24/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_22_18      sh  +90->  +0 el  -90->  +0 ankle -40               STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | push:+0.78/0.23/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.81/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+top_elbow_22_18      sh  +90->  +0 el  -90->  +0 ankle -25               no       up +0.77 front +0.64 z 0.323
+      sit up:+0.07/0.05/torso | fold:+0.07/0.05/torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.93/0.19/Lfoot+Lfore+Rfoot+Rfore | push:+0.82/0.25/Lfoot+Lfore+Rfoot+Rfore | crouch hold:+0.97/0.21/Lfoot+Lfore+Rfoot+Rfore | rise 2:+0.94/0.24/Lfoot+Lfore+Rfoot+Rfore | rise 3:+0.86/0.28/Lfoot+Lfore+Rfoot+Rfore | stand:+0.78/0.31/Lfoot+Lfore+Rfoot+Rfore | straight:+0.77/0.32/Lfoot+Lfore+Rfoot+Rfore
+-- top_elbow_22_18: at least one variant STANDING
+candidate winners for the robustness pass: ['top_elbow_16_16', 'top_elbow_16_16', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_18_18', 'top_elbow_20_20', 'top_elbow_20_20', 'top_elbow_20_20', 'top_elbow_20_20', 'top_elbow_20_20', 'top_elbow_20_20', 'top_elbow_18_22', 'top_elbow_18_22', 'top_elbow_18_22', 'top_elbow_18_22', 'top_elbow_18_22', 'top_elbow_18_22', 'top_elbow_22_18', 'top_elbow_22_18', 'top_elbow_22_18', 'top_elbow_22_18', 'top_elbow_22_18', 'top_elbow_22_18']
+== ROBUSTNESS + peak torque, elbow-length winners (play 3/5, mu 0.3/0.7/1.0, servo 100/80/65%; STS3215 sim stall 2.72 N*m)
+top_elbow_16_16      play 3 mu 0.7 servo 1.00  STANDING z 0.387  peak: L_shoulder 1.49 R_shoulder 1.49 L_elbow 1.09 R_elbow 1.09
+top_elbow_16_16      play 5 mu 0.7 servo 1.00  STANDING z 0.387  peak: L_shoulder 1.49 R_shoulder 1.49 L_elbow 1.09 R_elbow 1.09
+top_elbow_16_16      play 3 mu 0.3 servo 1.00  STANDING z 0.387  peak: L_shoulder 1.40 R_shoulder 1.40 L_elbow 0.98 R_elbow 0.98
+top_elbow_16_16      play 3 mu 1.0 servo 1.00  STANDING z 0.387  peak: L_shoulder 1.59 R_shoulder 1.59 L_elbow 1.18 R_elbow 1.18
+top_elbow_16_16      play 3 mu 0.7 servo 0.80  STANDING z 0.387  peak: L_shoulder 1.52 R_shoulder 1.52 L_elbow 1.08 R_elbow 1.08
+top_elbow_16_16      play 3 mu 0.7 servo 0.65  STANDING z 0.387  peak: L_shoulder 1.29 R_shoulder 1.29 L_elbow 0.91 R_elbow 0.91
+-- top_elbow_16_16: 6/6 robust
+Traceback (most recent call last):
+  File [35m"/home/claw/code/robot/.claude/worktrees/agent-a10564d1cbff1264e/sim/getup_v6_shoulder.py"[0m, line [35m430[0m, in [35m<module>[0m
+    [31mmain[0m[1;31m()[0m
+    [31m~~~~[0m[1;31m^^[0m
+  File [35m"/home/claw/code/robot/.claude/worktrees/agent-a10564d1cbff1264e/sim/getup_v6_shoulder.py"[0m, line [35m319[0m, in [35mmain[0m
+    rt = run_traced(p, xml, seq, start="supine", **c)
+  File [35m"/home/claw/code/robot/.claude/worktrees/agent-a10564d1cbff1264e/sim/getup_v6_shoulder.py"[0m, line [35m170[0m, in [35mrun_traced[0m
+    env = G.make_env(p, xml_path, mu=kw.get("mu", 0.7), play_deg=kw.get("play_deg", 3.0))
+  File [35m"/home/claw/code/robot/.claude/worktrees/agent-a10564d1cbff1264e/sim/static_gait.py"[0m, line [35m160[0m, in [35mmake_env[0m
+    payload_cg_x=0.028, payload_cg_z=[1;31mp.housing_h[0m + p.deck_t + 0.008,   # the Pi bay
+                                     [1;31m^^^^^^^^^^^[0m
+[1;35mAttributeError[0m: [35m'tuple' object has no attribute 'housing_h'[0m
+== ROBUSTNESS + peak torque, elbow-length winners (play 3/5, mu 0.3/0.7/1.0, servo 100/80/65%; STS3215 sim stall 2.72 N*m)
+top_elbow_18_18      play 3 mu 0.7 servo 1.00  STANDING z 0.387  peak: L_shoulder 1.65 R_shoulder 1.65 L_elbow 1.01 R_elbow 1.01
+top_elbow_18_18      play 5 mu 0.7 servo 1.00  STANDING z 0.387  peak: L_shoulder 1.65 R_shoulder 1.65 L_elbow 1.01 R_elbow 1.01
+top_elbow_18_18      play 3 mu 0.3 servo 1.00  STANDING z 0.387  peak: L_shoulder 1.53 R_shoulder 1.53 L_elbow 0.91 R_elbow 0.91
+top_elbow_18_18      play 3 mu 1.0 servo 1.00  STANDING z 0.387  peak: L_shoulder 1.97 R_shoulder 1.97 L_elbow 1.10 R_elbow 1.10
+top_elbow_18_18      play 3 mu 0.7 servo 0.80  STANDING z 0.387  peak: L_shoulder 1.61 R_shoulder 1.61 L_elbow 0.99 R_elbow 0.99
+top_elbow_18_18      play 3 mu 0.7 servo 0.65  STANDING z 0.387  peak: L_shoulder 1.62 R_shoulder 1.62 L_elbow 0.96 R_elbow 0.96
+-- top_elbow_18_18: 6/6 robust
+== HANGING IDLE POSE (shoulder 0 / elbow 0 = straight down at the sides): hand position + leg clearance, standing plant, mj_forward only (no dynamics).
+top_elbow_16_16      L hand world z 146 mm (floor=0)  lateral gap to L_thigh axis 38 mm  hand xyz -20,80,146 mm
+top_elbow_16_16      R hand world z 146 mm (floor=0)  lateral gap to R_thigh axis 38 mm  hand xyz -20,-80,146 mm
+top_elbow_18_18      L hand world z 106 mm (floor=0)  lateral gap to L_thigh axis 38 mm  hand xyz -20,80,106 mm
+top_elbow_18_18      R hand world z 106 mm (floor=0)  lateral gap to R_thigh axis 38 mm  hand xyz -20,-80,106 mm
+aft 16+16 seat push                                                      STANDING up +1.00 front +0.08 z 0.387
+      sit up:+0.38/0.05/Lthig+Rthig+torso | fold:+0.40/0.05/Lthig+Rthig+torso | brace:+0.98/0.10/Lfoot+Lthig+Rfoot+Rthig | tuck:+0.89/0.18/Lfoot+Lfore+Rfoot+Rfore | push:+0.95/0.23/Lfoot+Rfoot | crouch hold:+0.95/0.23/Lfoot+Rfoot | rise 2:+0.72/0.32/Lfoot+Rfoot | rise 3:+0.93/0.36/Lfoot+Rfoot | stand:+1.00/0.37/Lfoot+Rfoot | straight:+1.00/0.39/Lfoot+Rfoot
+True 0.38676064196454546
