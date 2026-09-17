@@ -400,6 +400,20 @@ Tom: *"We have never built the tail robot — that's hypothetical and I'd like t
 **Verdict and the recommendation.** Sim-verified: **the skid is a good seat, not a stander.** It is a strict improvement worth the 30 g print on its own — the fallen/supine pose becomes a stable, face-up resting state instead of a sprawl, and it gives the operator a safe posture to park in — but it does not get the robot up. As a get-up mechanism it needs the partner the record keeps circling: the **offset knee / full foot-to-buttock fold** (so the feet can reach *under* the seated pelvis instead of 7 cm ahead) or a push. It changes the *resting* failure of a fall, not the *recovery* one; the tail remains the only sim-verified full recovery, and this round's work does not change §12.2's recommendation — but it does isolate the single structural edit (the fold) that a legs-plus-skid body would need, which is now a concrete, probe-testable gate for any future v6.1 rather than a guess.
 
 
+## 13. Get-up decision (2026-09-17): two arms with elbows
+
+After the 09-16/17 option studies (side-mounted / flat bird body vs a
+shoulder at the top of the torso), Tom settled on **two 2-DOF arms
+(shoulder pitch + elbow), 16 + 16 cm, shoulder at the deck top and 5 cm
+aft, hanging at the sides when idle** (`top_elbow_16_16_aft`). The full
+record of what was tried, what failed and why, and what the design still
+owes before CAD is `docs/design-v6/getup-decision-2026-09-17.md`; the
+studies themselves are `study-shoulder-arms.md`,
+`study-side-mounted-legs.md` and `study-wide-hip-gait.md`. The flat bird
+body is documented there as the working alternative (gets up from supine
+and prone, falls better, walks on the wide-hip gait) and the reasons it
+was not chosen.
+
 ## Files
 
 - `sim/gen_plant_v6.py` — parametric MJCF (all dimensions, masses, ranges); writes `sim/bimo_biped_v6ar.xml`
