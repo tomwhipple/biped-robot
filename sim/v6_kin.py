@@ -31,9 +31,11 @@ def load(p: DesignParams):
 
 
 def hip_roll_point(p: DesignParams, side: str) -> np.ndarray:
-    """hip roll axis point in the pelvis (torso) frame; torso origin = yaw axis."""
+    """hip roll axis point in the pelvis (torso) frame; the yaw axis sits
+    hip_z above the torso origin (gen_plant_v6.hip_z, 2026-09-16; 0.0 =
+    torso origin == yaw axis, unchanged)."""
     s = 1.0 if side == "L" else -1.0
-    return np.array([0.0, s * p.hip_sep / 2, -p.d_yaw_roll])
+    return np.array([0.0, s * p.hip_sep / 2, p.hip_z - p.d_yaw_roll])
 
 
 def leg_ik(p: DesignParams, v: np.ndarray, knee: str | None = None,
@@ -95,7 +97,7 @@ def pose_from_feet(p: DesignParams, pelvis: np.ndarray, footL: np.ndarray,
     pel = np.asarray(pelvis, float)
     for i, (side, f) in enumerate((("L", footL), ("R", footR))):
         s = 1.0 if side == "L" else -1.0
-        hip_yaw_pt = pel + np.array([0.0, s * p.hip_sep / 2, 0.0])
+        hip_yaw_pt = pel + np.array([0.0, s * p.hip_sep / 2, p.hip_z])
         v = _rz(-yaw[i]) @ (np.asarray(f, float) - hip_yaw_pt)   # into the yawed leg frame
         v = v - np.array([0.0, 0.0, -p.d_yaw_roll])              # from the hip roll point
         q[6 * i:6 * i + 6] = leg_ik(p, v, knee, sole_pitch[i])

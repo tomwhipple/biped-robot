@@ -1,0 +1,6 @@
+== TUNE the prone push: knee_push/ankle/timing sweep on the over-rotating path
+bird_z15_sep160  BEST knee_push  -80 ankle  -25 t_push 2.0s hold 1.5s  no       up -0.09 front -1.00 z 0.059
+horiz_box        BEST knee_push  -80 ankle  -25 t_push 3.0s hold 0.5s  no       up +0.07 front -1.00 z 0.108
+horiz_round      BEST knee_push -100 ankle  -25 t_push 3.0s hold 0.5s  no       up +0.07 front -1.00 z 0.108
+best: {'bird_z15_sep160': (-80, -25, 2.0, 1.5, np.False_, np.float64(-0.09043892655209806), 0.05887976657270232), 'horiz_box': (-80, -25, 3.0, 0.5, np.False_, np.float64(0.0746791516566066), 0.1075465477927729), 'horiz_round': (-100, -25, 3.0, 0.5, np.False_, np.float64(0.07468969741905779), 0.10754587829639002)}
+standing: []

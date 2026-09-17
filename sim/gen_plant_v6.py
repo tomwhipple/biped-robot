@@ -148,6 +148,56 @@ class DesignParams:
     skid_x: float = -0.02        # fore-aft centre of the skid patch (m; - = aft)
     skid_w: float = 0.10         # width (m)
     skid_mass: float = 0.030     # print mass (kg)
+    # ---- side-mounted / "bird" leg study (2026-09-16, Option 1: "legs on the
+    # SIDES, frog/bird style") ----------------------------------------------
+    hip_z: float = 0.0           # height of the hip YAW axis ABOVE the torso
+                                 # origin, in the torso's own local frame. The
+                                 # torso's own internal geometry (deck/housing/
+                                 # battery/head, everything _torso()/_head()
+                                 # place) is UNCHANGED in that local frame --
+                                 # only the leg's mount point and the torso's
+                                 # world height (so the leg still reaches the
+                                 # floor) move. hip_z > 0 therefore pulls the
+                                 # existing torso block DOWN relative to the
+                                 # hip line: part of it now hangs BELOW the
+                                 # hips (a frog/bird "belly" between the legs)
+                                 # and part stays above (mass, head). 0.0 =
+                                 # today's body (hips at the torso's bottom
+                                 # edge). Combine with a wider hip_sep to put
+                                 # the hip axis outboard of the torso's own
+                                 # side wall (deck_w/2).
+    # ---- horizontal "bird" torso (2026-09-16, Option 1 round 2) -----------
+    # The root torso body/freejoint, both hip yaw axes, the IMU site and the
+    # hip-yaw servo CASE geoms all stay exactly where they are today (so
+    # standing == hips vertical still holds and walker_env/v6_kin's "torso
+    # origin" convention is untouched). Everything ELSE that _torso() places
+    # for torso_v7 (deck, housing, battery, Pi, driver, power, wiring) plus
+    # _head() moves into one fixed child body, torso_block, at the SAME local
+    # coordinates as before (nothing about their own formulas changes) --
+    # only torso_block's own pos/orientation changes where that whole group
+    # sits and points.
+    torso_pitch: float = 0.0     # deg, rotation of torso_block about its own
+                                 # Y axis. 0 = today's vertical stack (also
+                                 # the only value with an identity torso_block
+                                 # transform, so the default plant is emitted
+                                 # WITHOUT the wrapper body -- byte-identical
+                                 # XML, verified). 90 = the stack lies fore-
+                                 # aft: local +Z (the old "up", where the head
+                                 # sits) becomes world +X (forward), local +X
+                                 # (the old fore-aft depth, 110 mm) becomes
+                                 # vertical (the body's height), local Y
+                                 # (width, 118 mm) is unchanged.
+    torso_block_x: float = 0.0   # world X (root-torso frame) of torso_block's
+                                 # own origin (i.e. where "torso origin" USED
+                                 # to sit) relative to the hip line
+    torso_block_z: float = 0.0   # same, world Z
+    torso_round: bool = False    # replace the deck+housing boxes with ONE
+                                 # capsule (axis along torso_block's local Y,
+                                 # radius = half the local-X depth) -- "a bird
+                                 # body is not a box": a flat-bottomed box
+                                 # will not roll onto its side, a round belly/
+                                 # back might. Same total mass as the two
+                                 # boxes it replaces (m_pelvis).
     # ---- torso geometry (m) ----------------------------------------------
     deck_x: tuple = (-0.058, 0.052)
     deck_w: float = 0.118
@@ -282,7 +332,7 @@ def _leg(p: DesignParams, side: str) -> str:
     foot_cy = p.foot_y_off if side == "L" else -p.foot_y_off
     sole_z = -p.roll_h
     return f"""
-      <body name="{side}_hip_yaw" pos="0 {_f(y)} 0">
+      <body name="{side}_hip_yaw" pos="0 {_f(y)} {_f(p.hip_z)}">
         <joint name="{side}_hip_yaw" axis="0 0 1" range="{-p.yaw_range:.0f} {p.yaw_range:.0f}"/>
         <!-- yaw carrier print + the hip ROLL servo riding in it (axis X) -->
         <geom type="box" pos="0 0 {_f(-p.d_yaw_roll/2)}" size="0.014 0.020 {_f(p.d_yaw_roll/2)}" mass="{p.m_carrier}" rgba="{link_rgba}" group="1"/>
@@ -333,21 +383,34 @@ def _leg(p: DesignParams, side: str) -> str:
       </body>"""
 
 
+def _torso_transform(p: DesignParams):
+    """(tx, tz, pitch_deg, identity) for the torso_block/head_block wrapper.
+    identity == True (torso_pitch/torso_block_x/torso_block_z all 0, the
+    default) means the wrapper is skipped entirely and the block content is
+    emitted flat, in the ORIGINAL 09-14 order -- byte-identical XML."""
+    return p.torso_block_x, p.torso_block_z, p.torso_pitch, (
+        p.torso_pitch == 0.0 and p.torso_block_x == 0.0 and p.torso_block_z == 0.0)
+
+
 def _torso(p: DesignParams) -> str:
     d = p.deck_x
     deck_cx = (d[0] + d[1]) / 2
     deck_hx = (d[1] - d[0]) / 2
     zdeck = p.deck_bot + p.deck_t / 2
     yaw_case = (SV_LEN / 2, SV_WID / 2, SV_T / 2)
-    yaw_z = p.housing_h - SV_T / 2 - 0.003
+    yaw_z = p.housing_h - SV_T / 2 - 0.003 + p.hip_z   # tracks the leg's own
+                                 # mount point (hip_z == 0 -> unchanged)
     s = []
-    s.append(f'      <!-- one-print pelvis: deck + housing walls -->')
-    s.append(f'      <geom name="torso_deck" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
-    s.append(f'      <geom name="torso_housing" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
-    s.append(f'      <!-- hip YAW servos hang under the housing floor, horn down on the yaw axis -->')
-    for sgn in (1, -1):
-        s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(sgn*p.hip_sep/2)} {_f(yaw_z)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>')
     if not p.torso_v7:
+        # legacy (non-v7) torso: unaffected by hip_z's horizontal-torso
+        # siblings (torso_pitch/torso_block_x/torso_block_z/torso_round) --
+        # nobody studies this path, keeping it flat avoids touching it at all
+        s.append(f'      <!-- one-print pelvis: deck + housing walls -->')
+        s.append(f'      <geom name="torso_deck" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
+        s.append(f'      <geom name="torso_housing" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
+        s.append(f'      <!-- hip YAW servos hang under the housing floor, horn down on the yaw axis -->')
+        for sgn in (1, -1):
+            s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(sgn*p.hip_sep/2)} {_f(yaw_z)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>')
         s.append(f'      <geom type="box" pos="-0.010 0 0.018" size="0.031 0.016 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
         s.append(f'      <geom type="box" pos="{_f(d[0]+0.008)} 0 0.024" size="0.006 0.0325 0.020" mass="{p.m_board}" rgba="0.1 0.5 0.2 1" group="1"/>')
         s.append(f'      <geom type="box" pos="0.02 0 0.030" size="0.015 0.03 0.008" mass="{p.m_wiring}" rgba="0.3 0.3 0.3 0.4" group="1"/>')
@@ -356,27 +419,82 @@ def _torso(p: DesignParams) -> str:
         s.append(f'        <geom type="box" size="0.033 0.016 0.008" mass="{p.payload_ref}" rgba="0.8 0.2 0.6 0.5" group="1"/>')
         s.append(f'      </body>')
         return "\n".join(s)
-    # ---- v7: battery TRANSVERSE above the yaw cells, Pi 4B vertical on the
-    # aft wall (85 across, 56 tall), General Driver vertical on the front wall,
-    # power module under the deck beside the battery, neck servo + head on top
+
+    tx, tz, pitch, identity = _torso_transform(p)
+    if identity:
+        # ---- v7, IDENTITY transform: the ORIGINAL 09-14 flat layout, byte-
+        # for-byte, so the default plant is untouched. battery TRANSVERSE
+        # above the yaw cells, Pi 4B vertical on the aft wall (85 across, 56
+        # tall), General Driver vertical on the front wall, power module
+        # under the deck beside the battery, neck servo + head on top.
+        zb = p.housing_h + p.batt_layer_h / 2
+        s.append(f'      <!-- one-print pelvis: deck + housing walls -->')
+        s.append(f'      <geom name="torso_deck" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
+        s.append(f'      <geom name="torso_housing" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
+        s.append(f'      <!-- hip YAW servos hang under the housing floor, horn down on the yaw axis -->')
+        for sgn in (1, -1):
+            s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(sgn*p.hip_sep/2)} {_f(yaw_z)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>')
+        s.append(f'      <!-- 3S 2200 mAh class pack, transverse, 105 x 36 x 26 -->')
+        s.append(f'      <geom type="box" pos="-0.012 0 {_f(zb)}" size="0.018 0.0525 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
+        s.append(f'      <!-- Pi 4B on the aft wall: 85 across (y), 56 tall (z), 20 deep with heatsink -->')
+        s.append(f'      <geom type="box" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.010 0.0425 0.028" mass="{p.m_pi4}" rgba="0.1 0.5 0.2 1" group="1"/>')
+        s.append(f'      <!-- General Driver on the front wall: 65 x 65, 12 deep -->')
+        s.append(f'      <geom type="box" pos="{_f(d[1]-0.009)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.007 0.0325 0.0325" mass="{p.m_board}" rgba="0.1 0.5 0.2 1" group="1"/>')
+        s.append(f'      <!-- power: 3S protection / UPS module + 5 V buck, beside the pack -->')
+        s.append(f'      <geom type="box" pos="0.024 0 {_f(zb)}" size="0.014 0.030 0.010" mass="{p.m_power}" rgba="0.6 0.3 0.1 1" group="1"/>')
+        s.append(f'      <geom type="box" pos="0.0 0 {_f(p.deck_bot - 0.010)}" size="0.02 0.03 0.006" mass="{p.m_wiring}" rgba="0.3 0.3 0.3 0.4" group="1"/>')
+        s.append(f'      <site name="imu" pos="{_f(d[1]-0.016)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.004" rgba="1 0 0 0.6"/>')
+        # neck servo: axis Z, case above the deck, horn up (the head body itself is
+        # emitted by _head() AFTER the legs, so the neck joint is LAST in qpos)
+        zn = p.deck_bot + p.deck_t
+        s.append(f'      <!-- neck STS3215, axis Z, horn UP; the head yaws on it -->')
+        s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} 0 {_f(zn + SV_T/2)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.m_neck_servo}"/>')
+        s.append(f'      <body name="pi_bay" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}">')
+        s.append(f'        <geom type="box" size="0.002 0.002 0.002" mass="{p.payload_ref}" rgba="0.8 0.2 0.6 0.0" group="3"/>')
+        s.append(f'      </body>')
+        return "\n".join(s)
+
+    # ---- v7, NON-identity transform (2026-09-16, Option 1 round 2, "bird
+    # torso"): the hip yaw servo cases and the IMU site stay in the ROOT
+    # torso frame exactly as above (same formulas); everything else that
+    # used to be emitted flat here (deck+housing OR one round "belly"
+    # capsule, battery, Pi, driver, power, wiring, neck servo, pi_bay) moves
+    # into one fixed child body torso_block, at torso_block's OWN local
+    # coordinates -- UNCHANGED formulas, only WHERE that whole group sits/
+    # points (torso_block's pos/euler) is new. torso_block carries no joint
+    # (rigidly welded), so this reordering has no qpos effect; _head() gets
+    # the SAME transform in its own wrapper (build_xml), emitted after both
+    # legs as always, so the neck_yaw qpos slot does not move either.
     zb = p.housing_h + p.batt_layer_h / 2
-    s.append(f'      <!-- 3S 2200 mAh class pack, transverse, 105 x 36 x 26 -->')
-    s.append(f'      <geom type="box" pos="-0.012 0 {_f(zb)}" size="0.018 0.0525 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
-    s.append(f'      <!-- Pi 4B on the aft wall: 85 across (y), 56 tall (z), 20 deep with heatsink -->')
-    s.append(f'      <geom type="box" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.010 0.0425 0.028" mass="{p.m_pi4}" rgba="0.1 0.5 0.2 1" group="1"/>')
-    s.append(f'      <!-- General Driver on the front wall: 65 x 65, 12 deep -->')
-    s.append(f'      <geom type="box" pos="{_f(d[1]-0.009)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.007 0.0325 0.0325" mass="{p.m_board}" rgba="0.1 0.5 0.2 1" group="1"/>')
-    s.append(f'      <!-- power: 3S protection / UPS module + 5 V buck, beside the pack -->')
-    s.append(f'      <geom type="box" pos="0.024 0 {_f(zb)}" size="0.014 0.030 0.010" mass="{p.m_power}" rgba="0.6 0.3 0.1 1" group="1"/>')
-    s.append(f'      <geom type="box" pos="0.0 0 {_f(p.deck_bot - 0.010)}" size="0.02 0.03 0.006" mass="{p.m_wiring}" rgba="0.3 0.3 0.3 0.4" group="1"/>')
+    s.append(f'      <!-- hip YAW servos hang under the housing floor, horn down on the yaw axis -->')
+    for sgn in (1, -1):
+        s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(sgn*p.hip_sep/2)} {_f(yaw_z)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>')
     s.append(f'      <site name="imu" pos="{_f(d[1]-0.016)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.004" rgba="1 0 0 0.6"/>')
-    # neck servo: axis Z, case above the deck, horn up (the head body itself is
-    # emitted by _head() AFTER the legs, so the neck joint is LAST in qpos)
+    b = []
+    if p.torso_round:
+        # ONE capsule replacing deck+housing, same total mass, axis along
+        # torso_block's local Y (the width, unaffected by torso_pitch),
+        # radius = half the local-X depth -- "a bird body is not a box": a
+        # flat-bottomed box will not roll onto its side, a round belly/back
+        # might.
+        rad = deck_hx
+        zc = p.deck_bot / 2
+        b.append(f'        <geom name="torso_belly" {_fc(p)}type="capsule" fromto="{_f(deck_cx)} {_f(-p.deck_w/2)} {_f(zc)} {_f(deck_cx)} {_f(p.deck_w/2)} {_f(zc)}" size="{_f(rad)}" mass="{p.m_pelvis}" rgba="0.82 0.84 0.87 1" group="1"/>')
+    else:
+        b.append(f'        <geom name="torso_deck" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
+        b.append(f'        <geom name="torso_housing" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
+    b.append(f'        <geom type="box" pos="-0.012 0 {_f(zb)}" size="0.018 0.0525 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
+    b.append(f'        <geom type="box" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.010 0.0425 0.028" mass="{p.m_pi4}" rgba="0.1 0.5 0.2 1" group="1"/>')
+    b.append(f'        <geom type="box" pos="{_f(d[1]-0.009)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.007 0.0325 0.0325" mass="{p.m_board}" rgba="0.1 0.5 0.2 1" group="1"/>')
+    b.append(f'        <geom type="box" pos="0.024 0 {_f(zb)}" size="0.014 0.030 0.010" mass="{p.m_power}" rgba="0.6 0.3 0.1 1" group="1"/>')
+    b.append(f'        <geom type="box" pos="0.0 0 {_f(p.deck_bot - 0.010)}" size="0.02 0.03 0.006" mass="{p.m_wiring}" rgba="0.3 0.3 0.3 0.4" group="1"/>')
     zn = p.deck_bot + p.deck_t
-    s.append(f'      <!-- neck STS3215, axis Z, horn UP; the head yaws on it -->')
-    s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} 0 {_f(zn + SV_T/2)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.m_neck_servo}"/>')
-    s.append(f'      <body name="pi_bay" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}">')
-    s.append(f'        <geom type="box" size="0.002 0.002 0.002" mass="{p.payload_ref}" rgba="0.8 0.2 0.6 0.0" group="3"/>')
+    b.append(f'        <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} 0 {_f(zn + SV_T/2)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.m_neck_servo}"/>')
+    b.append(f'        <body name="pi_bay" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}">')
+    b.append(f'          <geom type="box" size="0.002 0.002 0.002" mass="{p.payload_ref}" rgba="0.8 0.2 0.6 0.0" group="3"/>')
+    b.append(f'        </body>')
+    s.append(f'      <body name="torso_block" pos="{_f(tx)} 0 {_f(tz)}" euler="0 {pitch:.6g} 0">')
+    s.extend(b)
     s.append(f'      </body>')
     return "\n".join(s)
 
@@ -460,17 +578,28 @@ def _head(p: DesignParams) -> str:
     if not p.torso_v7:
         return ""
     zn = p.deck_bot + p.deck_t
-    return f"""
+    head_body = f"""
       <body name="head" pos="0 0 {_f(zn + SV_T + 0.004)}">
         <joint name="neck_yaw" axis="0 0 1" range="-90 90"/>
         <geom name="head_shell" {_fc(p)}type="box" pos="0.005 0 {_f(p.head_h/2)}" size="0.028 0.030 {_f(p.head_h/2)}" mass="{p.m_head}" rgba="0.82 0.84 0.87 1" group="1"/>
         <geom type="box" pos="0.036 0 {_f(p.head_h*0.6)}" size="0.005 0.012 0.012" mass="0.003" rgba="0.1 0.1 0.1 1" group="1"/>
         <site name="camera" pos="0.041 0 {_f(p.head_h*0.6)}" size="0.003" rgba="0 1 0 0.6"/>
       </body>"""
+    tx, tz, pitch, identity = _torso_transform(p)
+    if identity:
+        return head_body
+    # head_block: the SAME transform as torso_block (a separate body, not a
+    # nested one, so the neck_yaw joint's qpos slot stays right after the 12
+    # leg joints -- see the long comment in _torso()'s non-identity branch).
+    return f"""
+      <body name="head_block" pos="{_f(tx)} 0 {_f(tz)}" euler="0 {pitch:.6g} 0">{head_body}
+      </body>"""
 
 
 def build_xml(p: DesignParams) -> str:
-    z0 = p.z_yaw_above_sole            # torso origin (yaw axis) above the floor
+    z0 = p.z_yaw_above_sole - p.hip_z  # torso origin above the floor: the yaw
+                                       # axis itself (torso origin + hip_z)
+                                       # still sits at leg-reach height
     d = p.deck_x
     deck_cx = (d[0] + d[1]) / 2
     deck_hx = (d[1] - d[0]) / 2
