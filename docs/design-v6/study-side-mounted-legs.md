@@ -833,6 +833,70 @@ state (67 % of the fall census) has not been given a sequence, the walk
 gate is negative at hip_sep 0.18 (R3.4), and the abduction/yaw ranges are
 sim-only until a CAD hip is drawn.
 
+## R3.7 The pincer on the v7 torso
+
+Tom, watching `bird3_supine_best.mp4`: *"I see the getup for the bird starts
+with legs outstretched, and then brings them together in a pincer
+movement. Why wouldn't a similar concept work for the v5 two legged walking
+torso?"* The round-1 legs-only search on the stock v7 body (docs sec 12.2)
+only explored symmetric hip_pitch/knee/ankle with `knee="fwd"` and
+`hip_roll_abd=45` -- the pincer (hip yaw + roll sweeping from splayed-in-
+the-floor-plane to together, backward knee) was never in that search
+space. Tested here with the SAME sim-only ranges the bird got
+(`knee="both"`, `hip_roll_abd=120`, `yaw_range=180`) on the stock torso
+(`bird_body=False`, everything else default), same 6-node hill-climb, same
+scoring, 6 restarts x 2 fold states, plus the bird's own winning path run
+VERBATIM (`getup_search_pincer_stock.txt`).
+
+**The bird's exact path, run unperturbed on the tall torso, fails
+outright** (both fold states give the identical trace): it never gets past
+a rocking motion (up swings +0.43 -> +0.37 -> -0.27 -> +0.37 -> +0.07 with
+a **4.48 N-m torque spike** on `R_hip_roll` at k3 -- more than double the
+STS3250's rated range, a genuine jam, not a controlled move) and ends
+`up -0.02, pelvis z 0.060` -- on its side, not standing. The pincer motion
+itself (splayed hip roll closing toward the centreline) is what the search
+found FOR the slab's specific mass distribution (CoM near the hip line);
+run on a torso whose CoM sits far out along what is now the horizontal
+long axis, the same joint angles put reaction forces through the hips that
+the servo model cannot deliver.
+
+**A fresh hill-climb, given the same freedom, does better but still does
+not stand**: best of 12 restarts (`straight` fold) reaches **up +1.00,
+pelvis z 0.211 m** (score 4.69, `STANDING=False` -- the criterion needs
+pelvis >= 0.8 x 0.387 = 0.310 m). The per-keyframe trace
+(`getup_search_pincer_stock.txt`) shows exactly where it stalls: by k4 the
+torso is already fully vertical (`up +1.00`) at pelvis **0.051 m** (feet +
+thighs grounded) -- the pitch-up itself succeeds completely, max torso
+pitch-up angle reached is the full 90 deg (up 0.03 -> 1.00) -- but k5's
+rise only lifts the pelvis to 0.211 m, 0.176 m short of standing height,
+at 1.54 N-m on `R_hip_roll`. **The pincer gets the tall torso upright; it
+does not get it tall.** The bird's identical search (bounds, scoring,
+restarts) reaches 0.386/0.387 m on the slab from the same starting
+attitude budget.
+
+**The geometric answer, measured** (`mj_forward`, both bodies supine, each
+in its own correct fall orientation, legs folded/settled): the whole-robot
+CoM's straight-line distance from the hip axis ("radius" of the rotation a
+sit-up-style pincer performs) is **0.096 m for the stock body** (CoM
+`[0.096, 0, 0.055]`, hip point `[0, 0, 0.057]` -- the CoM sits almost
+exactly at hip HEIGHT, 96 mm out along the now-horizontal torso) vs
+**0.036 m for the bird slab** (CoM `[0.044, 0, 0.051]`, hip point
+`[0.017, 0, 0.027]` -- already 23 mm above the hip line before anything
+moves). The stock body's CoM has to sweep through a **2.7x larger radius**
+to get overhead the hip pivot, because the mass that used to be "tall"
+(torso + head) is now the mass sitting far out along the ground when
+supine -- exactly the length-vs-height problem docs sec 12.2 measured
+`(legs 0.335 m vs torso 0.55 m)`, seen again here as a lever-arm number
+instead of a length comparison. The slab does not have this problem
+because its own dimensions put its CoM close to the hip line in EVERY
+orientation, not just standing.
+
+**Render**: `sim/renders/getup_options/side/pincer_stock_best.mp4` (side
+view, best-found path, filmstrip `docs/design-v6/pincer_stock_best_strip.
+png`) -- the torso visibly rights itself (matching Tom's "pincer" framing)
+and then squats at low height rather than rising, exactly matching the
+trace above.
+
 ## Files (round 3)
 
 - `sim/gen_plant_v6.py` -- `bird_body`/`bird_L`/`bird_W`/`bird_H` (default False/0.20/0.14/0.055, plant unchanged); `_bird_body_torso()`
@@ -846,6 +910,10 @@ sim-only until a CAD hip is drawn.
 - `docs/design-v6/bird3_supine_strip.png` -- filmstrip of the WINNING supine get-up (rendered from the exact logged path: roll from on-its-back through up -1.00 -> -0.24 -> +0.42 -> +0.98 -> +1.00, pelvis rising 0.028 -> 0.386 m over the last 3 keyframes, peak torque 1.43 N-m on `L_hip_roll` -- confirms `STANDING=True` end to end under the full deploy servo model, not just the search's own scoring)
 - `docs/design-v6/bird3_prone_strip.png`, `bird3_fall_bird3_round_strip.png`, `bird3_fall_stock_strip.png` -- filmstrips (best prone push-up attempt, a representative fall for each body)
 - `sim/renders/getup_options/side/bird3_*.png`, `bird3_*.mp4` -- stills (sent to the coordinator) and videos (local only, gitignored)
+- `sim/getup_v6_bird3_verify.py`, `docs/design-v6/getup_search_bird3_verify.txt`, `docs/design-v6/bird3_prone_stand_strip.png` -- R3.6, path verification (not authored this round; merged from `v6-getup-legs-skid`)
+- `sim/getup_v6_side.py` `pincer` mode -- R3.7, the pincer test on the stock torso
+- `docs/design-v6/getup_search_pincer_stock.txt` -- R3.7 log (verbatim bird path + 12-restart hill-climb + best trace)
+- `docs/design-v6/pincer_stock_best_strip.png` -- R3.7 filmstrip; `sim/renders/getup_options/side/pincer_stock_best.mp4` (gitignored)
 
 ## Verdict (round 3)
 

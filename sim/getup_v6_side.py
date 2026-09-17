@@ -753,6 +753,75 @@ def main():
                 best = (s, x.copy(), res)
         print(f"BEST score {best[0]:.2f} up {best[2]['up']:+.2f} z {best[2]['pelvis_z']:.3f} "
               f"STANDING={best[2]['ok']} path={best[1].tolist()}")
+    elif mode == "pincer":
+        # round 4 (2026-09-17, Tom via the coordinator): "I see the getup for
+        # the bird starts with legs outstretched, and then brings them
+        # together in a pincer movement. Why wouldn't a similar concept work
+        # for the v5 two legged walking torso?" -- the round-1/round-3
+        # legs-only search on the STOCK v7 body (docs sec 12.2) only tried
+        # symmetric hip_pitch/knee/ankle, knee="fwd", abduction 45; the
+        # pincer (hip yaw + roll sweep, backward knee) was never in that
+        # space. Same 6-node hill-climb as bird3search, same sim-only ranges
+        # the bird got (knee="both", hip_roll_abd=120, yaw_range=180), on
+        # the STOCK torso (bird_body=False). Two start folds (folded/
+        # straight, "supine" -- the STOCK body's own correct fall
+        # convention, a 90 deg pitch, not the slab's 180 deg roll) x 6
+        # restarts each, PLUS one verbatim, unperturbed run of the bird's
+        # own winning path (sim/getup_v6_bird3_verify.PATH) on this torso.
+        import random
+        import getup_v6_bird3_verify as V3
+        p = dataclasses.replace(BASE, knee="both", hip_roll_abd=120.0, yaw_range=180.0)
+        xml = os.path.join(SP, f"gu_pincer_{os.getpid()}.xml")
+        open(xml, "w").write(build_xml(p))
+        print(f"== PINCER on the STOCK v7 torso: {p.summary()}")
+
+        def q_sym(yaw, roll, knee, ankle):
+            return _bird_legs(L_roll=roll, R_roll=-roll, L_hip_yaw=yaw, R_hip_yaw=yaw, knee=knee, ankle=ankle)
+
+        print("-- 0. the bird's winning path, VERBATIM, unperturbed, on the stock torso")
+        for fold_name, fold in (("folded", BIRD_SUPINE_FOLD), ("straight", BIRD_SUPINE_STRAIGHT)):
+            seq0 = [("lie", fold, 0.5, 1.0)] + [(f"k{j}", q_sym(*row), 1.4, 0.6) for j, row in enumerate(V3.PATH)]
+            r0 = G.run_sequence(p, xml, seq0, start="supine", play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=True)
+            print(f"bird path verbatim, {fold_name} start: {'STANDING' if r0['ok'] else 'no      '} up {r0['up']:+.2f} z {r0['pelvis_z']:.3f}", flush=True)
+
+        random.seed(0); np.random.seed(0)
+        NK, bounds = 6, [(-180, 180), (0, 120), (-130, 95), (-45, 45)]
+        overall_best = (-1e9, None, None, None)
+        for fold_name, fold in (("folded", BIRD_SUPINE_FOLD), ("straight", BIRD_SUPINE_STRAIGHT)):
+            print(f"-- hill-climb, {fold_name} start")
+
+            def eval_path(V):
+                seq = [("lie", fold, 0.5, 1.0)] + [(f"k{j}", q_sym(*row), 1.4, 0.6) for j, row in enumerate(V)]
+                res = G.run_sequence(p, xml, seq, start="supine", play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False)
+                return 3.0 * max(0, res["up"]) + 8.0 * res["pelvis_z"], res
+
+            for restart in range(6):
+                x = np.array([[random.uniform(*b) for b in bounds] for _ in range(NK)])
+                s_best, step = -1e9, [60.0, 30.0, 30.0, 15.0]
+                for it in range(30):
+                    for _ in range(6):
+                        y = x + np.array([[random.gauss(0, st) for st in step] for _ in range(NK)])
+                        for j, b in enumerate(bounds):
+                            y[:, j] = np.clip(y[:, j], *b)
+                        s, res = eval_path(y)
+                        if s > s_best:
+                            s_best, x = s, y
+                    step = [st * 0.93 for st in step]
+                s, res = eval_path(x)
+                print(f"{fold_name} restart {restart}: score {s:.2f} up {res['up']:+.2f} z {res['pelvis_z']:.3f}", flush=True)
+                if s > overall_best[0]:
+                    overall_best = (s, x.copy(), res, fold_name)
+        s, xbest, res, fold_name = overall_best
+        print(f"BEST ({fold_name}) score {s:.2f} up {res['up']:+.2f} z {res['pelvis_z']:.3f} "
+              f"STANDING={res['ok']} path={xbest.tolist()}")
+        print("-- per-keyframe trace of the best result")
+        fold = BIRD_SUPINE_FOLD if fold_name == "folded" else BIRD_SUPINE_STRAIGHT
+        seqb = [("lie", fold, 0.5, 1.0)] + [(f"k{j}", q_sym(*row), 1.4, 0.6) for j, row in enumerate(xbest)]
+        rb = G.run_sequence(p, xml, seqb, start="supine", play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=True)
+        if not rb["ok"]:
+            max_up = max(L[1] for L in rb["log"])
+            print(f"max up-vector reached: {max_up:+.3f} (never crosses the 0.9 standing threshold)"
+                  if max_up < 0.9 else f"max up-vector reached: {max_up:+.3f}")
     elif mode == "falls":
         # round 3, task 4: fall census. 12 headings x 3 magnitudes (tip,
         # 1.5x, 2x -- found per body by binary search), classify the settled
