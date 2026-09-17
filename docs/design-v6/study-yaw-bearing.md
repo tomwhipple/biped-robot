@@ -411,6 +411,20 @@ design (§9 has the exact status of each file at commit time).
   `cad/render_assembly_steps.py` targets the v5 assembly sequence, not
   the v6/v7 hip-yaw stack; rerunning it would not pick up this change.
 
+## Owed before the sim re-run (coordinator, 2026-09-17)
+
+- **Mass**: two 6811-2RS rings plus the pelvis skirt/bridge print are NOT
+  in the plant yet; the bearing's catalogue mass was not verified here
+  ("not measured"). It sits at hip-yaw height, the lowest place on the
+  torso, but `sim/build_v6_inertia.py --write` must be re-run with the new
+  pelvis_v7 STL and the bearing mass as a lump before the walk gate is
+  trusted again (the 09-13 rule: sim margins scale with real part masses).
+- **Alternative size**: 6711-2RS (55 x 68 x 7) has the same bore, is 2 mm
+  thinner and lighter, and would shrink the skirt to OD 74 (10 mm between
+  skirts, possibly no bridge); it was not used only because no published
+  static rating was found -- irrelevant at these loads. If it is in stock,
+  it is the better part; the recess depth/OD are parametric (`YAW_BRG_*`).
+
 ## BOM delta
 
 See `docs/design-v6/bom-delta.md` (added there too):
