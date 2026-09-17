@@ -803,6 +803,36 @@ approximate -- both `bird3_round` and `bird3_box` give IDENTICAL numbers
   that plans a genuinely adducted stance as a first-class feature rather
   than a post-hoc IK trick.
 
+## R3.6 Verification of the found path (coordinator, 2026-09-17)
+
+`sim/getup_v6_bird3_verify.py` replays the search's BEST path
+(`getup_search_bird3_hillclimb_round_folded.txt`) with a 2 s final hold and
+answers the three questions R3.2 left open (log
+`docs/design-v6/getup_search_bird3_verify.txt`, 16/16 STANDING):
+
+- **Quasi-static, not a flip.** At the search timing (1.4 s moves / 0.6 s
+  holds) and at 3x slower (4 s / 2 s) the per-keyframe trace is the same:
+  lie (up -1.00, pelvis 0.028) -> k1 slab pitched up onto its rear edge
+  (up -0.24, front +0.97, pelvis 0.097) -> k2 falling over (up +0.42) -> k3
+  flat on the belly on feet + thighs (up +0.98, pelvis 0.073) -> k4 crouch on
+  the feet alone (pelvis 0.144) -> k5 stand (pelvis 0.386), held. Peak
+  |tau| 1.43-1.49 N-m at a hip ROLL (STS3250 joint), never on a 3215.
+- **Robust 7/7**: play 3/5 deg, mu 0.3/0.7/1.0, servos 100/80/65 % and the
+  worst combination (play 5, mu 0.3, 65 %) all end STANDING at 0.386 m.
+- **Prone is solved by the same path.** From the flat prone settle
+  (`BIRD_PRONE_FOLD`) the second half, k3..k5, stands the body up nominal +
+  5/5 robust; the FULL path from prone also stands (the k0-k2 edge-pitch
+  simply re-lands it on its belly). R3.2's hand-built push-ups toppled
+  because they narrowed the 90 deg splay AFTER rising; this path narrows at
+  the crouch (k4, pelvis 0.144) before it rises. Render:
+  `sim/renders/getup_options/side/bird3_prone_stand.mp4`.
+
+So on the rounded flat body the open-loop recovery is supine -> standing
+and prone -> standing, robust, one sequence. Still open: the "edge" rest
+state (67 % of the fall census) has not been given a sequence, the walk
+gate is negative at hip_sep 0.18 (R3.4), and the abduction/yaw ranges are
+sim-only until a CAD hip is drawn.
+
 ## Files (round 3)
 
 - `sim/gen_plant_v6.py` -- `bird_body`/`bird_L`/`bird_W`/`bird_H` (default False/0.20/0.14/0.055, plant unchanged); `_bird_body_torso()`
