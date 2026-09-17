@@ -125,6 +125,20 @@ def settle_fallen(env, p, how: str, q_hold: np.ndarray, seconds=1.5):
     elif how == "side_r":
         quat = [math.cos(math.pi / 4), -math.sin(math.pi / 4), 0.0, 0.0]   # rotate -90 about x: -y (R side) down
         z = 0.12
+    elif how == "bird_back":
+        # round 3, flat bird_body (2026-09-17): "on its back" for an ALREADY
+        # flat pod is NOT the tall-body's 90 deg pitch (which stands a flat
+        # slab up on its edge) -- it is a 180 deg ROLL about the fore-aft
+        # axis: legs now point UP/away from the ground, the slab rests flat
+        # on the opposite face from standing.
+        quat = [0.0, 1.0, 0.0, 0.0]   # 180 deg about x
+        z = 0.08
+    elif how == "bird_flat":
+        # right-way-up, but dropped low (as if the legs had collapsed): the
+        # "prone / pushup" start for a body that has no tall torso to fall
+        # face-down onto -- it is already lying flat, legs splay from here.
+        quat = [1.0, 0.0, 0.0, 0.0]
+        z = 0.06
     else:
         raise ValueError(how)
     d.qpos[:] = 0

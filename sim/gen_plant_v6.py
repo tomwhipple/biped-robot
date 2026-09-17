@@ -198,6 +198,20 @@ class DesignParams:
                                  # will not roll onto its side, a round belly/
                                  # back might. Same total mass as the two
                                  # boxes it replaces (m_pelvis).
+    # ---- flat "bird" body, round 3 (2026-09-17, Tom: "a flattened body,
+    # parallel to the ground ... closer to the original bimo inspiration" --
+    # the-bimo-project hip-head biped: a payload pod sitting ON the hips, no
+    # tall torso, no separate head). Replaces the WHOLE torso_v7 stack + head
+    # with ONE flat slab, centred on the hip line (hip_z = slab mid-height,
+    # so "standing == hips vertical" and the root frame/IMU/sensors are
+    # untouched, same as the horizontal-torso machinery above -- but this
+    # slab needs no rotation wrapper: it is authored flat in the root frame
+    # directly, local X = length (fore-aft), Y = width, Z = height).
+    bird_body: bool = False
+    bird_L: float = 0.20         # slab length (fore-aft), the old stack's
+                                 # "height" folded flat -- camera on the +X face
+    bird_W: float = 0.14         # slab width
+    bird_H: float = 0.055        # slab height (thin, "flattened")
     # ---- torso geometry (m) ----------------------------------------------
     deck_x: tuple = (-0.058, 0.052)
     deck_w: float = 0.118
@@ -392,7 +406,42 @@ def _torso_transform(p: DesignParams):
         p.torso_pitch == 0.0 and p.torso_block_x == 0.0 and p.torso_block_z == 0.0)
 
 
+def _bird_body_torso(p: DesignParams) -> str:
+    """round 3 (2026-09-17): ONE flat slab, parallel to the ground, centred
+    on the hip line (slab mid-height == hip_z, so the root frame/IMU/sensors
+    are untouched -- "standing == hips vertical" still holds, same invariant
+    as the horizontal-torso machinery, but this shape needs no rotation
+    wrapper: it is authored flat directly). Battery + Pi live inside it at
+    mid-height; the pelvis print mass is the shell; the camera is on the
+    FRONT (+X) face -- no separate head, no neck servo, the slab IS the head
+    (the-bimo-project "hip-head biped" pod)."""
+    yaw_case = (SV_LEN / 2, SV_WID / 2, SV_T / 2)
+    hz = p.hip_z
+    s = []
+    s.append(f'      <!-- flat bird-body slab: {1e3*p.bird_L:.0f}x{1e3*p.bird_W:.0f}x{1e3*p.bird_H:.0f} mm, centred on the hip line -->')
+    if p.torso_round:
+        # one ellipsoid, same outer envelope as the box -- rounds every edge
+        # (not just two, the way a capsule would), so it can roll onto any
+        # face, not just tip over a flat bottom.
+        s.append(f'      <geom name="bird_slab" {_fc(p)}type="ellipsoid" pos="0 0 {_f(hz)}" size="{_f(p.bird_L/2)} {_f(p.bird_W/2)} {_f(p.bird_H/2)}" mass="{p.m_pelvis}" rgba="0.82 0.84 0.87 1" group="1"/>')
+    else:
+        s.append(f'      <geom name="bird_slab" {_fc(p)}type="box" pos="0 0 {_f(hz)}" size="{_f(p.bird_L/2)} {_f(p.bird_W/2)} {_f(p.bird_H/2)}" mass="{p.m_pelvis}" rgba="0.82 0.84 0.87 1" group="1"/>')
+    s.append(f'      <!-- battery + Pi at the slab mid-height -->')
+    s.append(f'      <geom type="box" pos="{_f(-p.bird_L*0.22)} 0 {_f(hz)}" size="{_f(p.bird_L*0.20)} {_f(p.bird_W*0.28)} {_f(p.bird_H*0.35)}" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
+    s.append(f'      <geom type="box" pos="{_f(p.bird_L*0.15)} 0 {_f(hz)}" size="{_f(p.bird_L*0.18)} {_f(p.bird_W*0.24)} {_f(p.bird_H*0.30)}" mass="{p.m_pi4}" rgba="0.1 0.5 0.2 1" group="1"/>')
+    s.append(f'      <!-- hip YAW servos at the slab SIDES, mid-height -- the hip line IS the slab mid-height -->')
+    for sgn in (1, -1):
+        s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(sgn*p.hip_sep/2)} {_f(hz)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>')
+    s.append(f'      <!-- camera on the front face: the slab IS the head -->')
+    s.append(f'      <geom type="box" pos="{_f(p.bird_L/2 - 0.004)} 0 {_f(hz)}" size="0.004 0.010 0.010" mass="0.003" rgba="0.1 0.1 0.1 1" group="1"/>')
+    s.append(f'      <site name="camera" pos="{_f(p.bird_L/2)} 0 {_f(hz)}" size="0.003" rgba="0 1 0 0.6"/>')
+    s.append(f'      <site name="imu" pos="{_f(p.bird_L/2 - 0.02)} 0 {_f(hz)}" size="0.004" rgba="1 0 0 0.6"/>')
+    return "\n".join(s)
+
+
 def _torso(p: DesignParams) -> str:
+    if p.bird_body:
+        return _bird_body_torso(p)
     d = p.deck_x
     deck_cx = (d[0] + d[1]) / 2
     deck_hx = (d[1] - d[0]) / 2
@@ -575,7 +624,7 @@ def _skid(p: DesignParams) -> str:
 
 
 def _head(p: DesignParams) -> str:
-    if not p.torso_v7:
+    if not p.torso_v7 or p.bird_body:   # bird_body: the slab IS the head, no neck servo/joint
         return ""
     zn = p.deck_bot + p.deck_t
     head_body = f"""
@@ -621,7 +670,7 @@ def build_xml(p: DesignParams) -> str:
         ):
             acts.append(f'    <position name="{side}_{jn}" joint="{side}_{jn}" '
                         f'ctrlrange="{r(lo):.10f} {r(hi):.10f}"/>  <!-- {lo:.0f} .. {hi:.0f} -->')
-    if p.torso_v7:
+    if p.torso_v7 and not p.bird_body:
         acts.append(f'    <position name="neck_yaw" joint="neck_yaw" ctrlrange="{r(-90):.10f} {r(90):.10f}"/>  <!-- head yaw -->')
     if p.arms:   # actuator order == joint (qpos) order: per arm [abd,] shoulder[, elbow], then the tail
         for side in ("L", "R"):

@@ -1,0 +1,18 @@
+== Gate D (lumped-mass plant) on the side-mounted-leg body at rest, STS3250 rolls+knees, lift 4, 8 steps
+   round 2: v6_kin.hip_roll_point/pose_from_feet now carry a hip_z term (2026-09-16), so hip_z != 0
+   configs run here too -- tests/test_v6_design_gates.py still passes 8/8 at hip_z=0 (unchanged).
+bird3_round              gait IK uses hip_sep 0.14 m (real hip_sep 0.18 m) -- an adducted, narrower-footprint gait; the mechanical hip mount is unchanged
+bird3_round              turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=  -2.9 mm  slip  5.4 mm  tilt  6.3  x  +8.9 y  -1.3 cm  hdg  +0.5  FAIL
+bird3_round              turn +15 mu 0.7 play 3   up       steps 8/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=  -3.5 mm  slip 17.8 mm  tilt  6.4  x  +7.3 y  +4.4 cm  hdg +42.6  FAIL
+bird3_round              turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=    1 mm  air>= 0.00 s  CoM margin>=  -1.2 mm  slip  2.7 mm  tilt  6.0  x +15.6 y  -1.2 cm  hdg  -0.1  FAIL
+bird3_round              turn -15 mu 0.9 play 3   up       steps 8/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=  -4.3 mm  slip 17.1 mm  tilt  6.8  x  +4.9 y  -4.0 cm  hdg -32.3  FAIL
+bird3_box                gait IK uses hip_sep 0.14 m (real hip_sep 0.18 m) -- an adducted, narrower-footprint gait; the mechanical hip mount is unchanged
+bird3_box                turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=  -2.9 mm  slip  5.4 mm  tilt  6.3  x  +9.0 y  -1.3 cm  hdg  +0.4  FAIL
+bird3_box                turn +15 mu 0.7 play 3   up       steps 8/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=  -3.5 mm  slip 17.8 mm  tilt  6.4  x  +7.2 y  +4.5 cm  hdg +42.9  FAIL
+bird3_box                turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=    1 mm  air>= 0.00 s  CoM margin>=  -1.1 mm  slip  2.7 mm  tilt  6.0  x +15.5 y  -1.3 cm  hdg  -0.0  FAIL
+bird3_box                turn -15 mu 0.9 play 3   up       steps 8/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=  -4.3 mm  slip 17.0 mm  tilt  6.9  x  +4.9 y  -3.9 cm  hdg -32.5  FAIL
+stock                    turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   22 mm  air>= 0.62 s  CoM margin>=  13.0 mm  slip  2.5 mm  tilt  5.7  x +19.9 y  -0.4 cm  hdg  -0.3  OK
+stock                    turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   16 mm  air>= 0.54 s  CoM margin>=  12.2 mm  slip  2.2 mm  tilt  7.3  x +14.1 y +13.5 cm  hdg +96.2  OK
+stock                    turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=  35.2 mm  slip  1.4 mm  tilt  3.3  x +20.1 y  -0.1 cm  hdg  +0.4  OK
+stock                    turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   23 mm  air>= 0.66 s  CoM margin>=  26.6 mm  slip  2.5 mm  tilt  6.1  x +11.3 y -13.3 cm  hdg -96.6  OK
+standing: []

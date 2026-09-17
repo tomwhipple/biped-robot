@@ -514,3 +514,326 @@ individual mechanisms (a lower CoM, a shorter hip-to-head lever, a wider
 stance) are each real and measurable, but none of the four bodies built
 across both rounds crosses the standing threshold, and the layout's own
 wide stance is now the walker's blocker as much as the get-up ever was.
+
+---
+
+# Round 3 (2026-09-17): the actual bird body -- a flat slab, "closer to the original bimo inspiration"
+
+Tom rejected round 2: *"I don't think we really studied the bird body. With
+double jointed knees and the COM being lower, I find it difficult to
+believe that it couldn't recover from being on its back... and it's less
+likely to end up in that situation to begin with. I'd expect a flattened
+body, parallel to the ground, something closer to the original bimo
+inspiration."* The-bimo-project (github.com/mekion/the-bimo-project) is an
+8-servo, 45 cm, ~1.6 kg "hip-head biped" -- the body is a payload pod
+sitting ON the hips, no tall torso. Round 2's "horizontal torso" was the
+existing vertical stack tipped on its side (110 mm tall, a separate head
+still on the end, human-only knee, stock 45 deg abduction) -- not that.
+
+This worktree was first brought up to date with `v6-getup-legs-skid`
+(`git merge`, fast-forward, no conflicts -- it already contained this
+worktree's round 1/2 commits plus a separate shoulder-arm study, merge
+commit `1a0688b`; default plant and pinned tests unaffected, re-verified).
+
+## R3.1 The model: one flat slab
+
+New `DesignParams.bird_body` (default `False`, plant unchanged -- SHA1
+verified) replaces the WHOLE torso_v7 stack + head with one flat slab,
+centred on the hip line: `bird_L` 0.20 m (length/fore-aft, camera on the
+front +X face), `bird_W` 0.14 m (width), `bird_H` 0.055 m (height). Unlike
+round 2's `torso_pitch` rotation, this shape is authored flat directly (no
+rotation wrapper needed) and `hip_z` stays at its default 0.0 -- the slab
+is centred at local z = hip_z by construction, so "hips at the slab's
+mid-height" holds for any hip_z, and the root torso frame, both hip yaw
+axes, the IMU site and the `torso_up`/`torso_pos` sensors are the SAME
+code, untouched (`_torso()` gained an early `if p.bird_body` branch;
+`_head()` returns `""` -- no separate head, no neck servo, the slab IS the
+head, matching Bimo's pod). Battery (170 g) and Pi (66 g) are boxes at the
+slab's mid-height; the pelvis print mass (`m_pelvis`, 174 g) is the shell
+itself -- a box, or (`torso_round=True`) one ellipsoid with the same outer
+envelope, rounding every edge so it can roll onto any face, not just tip
+over a flat bottom. Driver/power/wiring/neck-servo/head are NOT modelled
+(Tom's list did not include them) -- **total mass 1.436 kg vs the stock
+body's 1.650 kg**, 214 g lighter, all of it electronics/head mass, not
+servos (still 12 leg actuators, no change).
+
+**Hip mount**: the hip-yaw servo cases sit at the slab's sides at
+mid-height (same code as the vertical body's yaw-servo emission, just at
+`z = hip_z` instead of a housing-relative offset). `hip_sep = 0.18 m`,
+derived as `bird_W + SV_WID + 2 x 0.006 m clearance = 0.14 + 0.0247 + 0.012
+= 0.177 m`, rounded up to 0.18. This pair (slab shell, yaw servo case) is
+one rigid body in MuJoCo -- `self_collide`'s contact count cannot check it
+(same-body contacts are never computed), so the clearance is the geometric
+derivation above, not a measurement; what IS measured is 0 self-collision
+contacts for the LEG (a separate, jointed body) against the slab at the
+standing pose, confirming the derivation didn't leave the legs fouling the
+slab. Legs: current thigh/shank/foot (0.110/0.110 m), `knee="both"`
+(+-130/+95, the CAD ROM already in the plant), `hip_roll_abd` swept 90 and
+120 deg, `yaw_range` 180 deg (the servo's own limit, matching
+`joint_puppet.py`'s 09-16 correction). Hip pitch was left at (-125, 90) as
+now -- the frog get-up sequences below did not run into that limit (they
+use hip roll/yaw/knee, not deep hip pitch, except the "stand up inverted"
+variant, tested at hip pitch +-90/+120 as its own swept variable, R3.3c).
+
+**Measured with `mj_forward`** (direct one-liners, reproducible from the
+commit):
+
+| quantity | value |
+|---|---|
+| total mass | 1.436 kg (stock: 1.650 kg) |
+| standing CoM height | 0.247 m (stock: 0.292 m) |
+| slab bottom above floor, standing | 0.360 m |
+| **supine CoM height, legs neutral/straight** (worst case: legs held at the commanded-straight pose, which after a 180 deg roll point straight UP) | **0.167 m** |
+| **supine CoM height, legs folded** (hip roll 90 deg both, knee 45 deg -- a realistic settle, legs splayed flat rather than commanded rigid) | **0.051 m** |
+| **prone CoM height, legs folded** (hip roll 90 deg, knee -90 deg) | **0.041 m** |
+| stock body supine CoM height (its own natural fall, 90 deg pitch) | 0.055 m |
+| stock body prone CoM height | 0.063 m |
+
+**This is the number the whole argument rests on, and it depends on the leg
+assumption.** With legs held rigidly straight (the worst case, as if the
+robot fell without ever moving its legs), the flat body's "on its back" CoM
+(0.167 m) is HIGHER than the stock body's (0.055 m) -- the straight legs
+stick up into the air after the 180 deg roll and dominate the height. But
+with the legs folded/splayed (the realistic settle -- see R3.3, this is
+also the pose the frog get-up starts from), the flat body's CoM drops to
+0.051 m supine / 0.041 m prone, LOWER than the stock body's 0.055/0.063 m.
+**Tom's "the CoM is lower" claim is confirmed, but only once the legs fold;
+a fall that freezes the legs straight up is the one case where it is not.**
+
+Coordinator review after the first stills: model approved ("matches the
+brief"); two corrections applied before the get-up runs: (1) the prone
+start settles from `BIRD_PRONE_FOLD` (hip roll 90, knee -90) instead of
+straight legs, so the slab lands flat (up +1.00) instead of tipping onto an
+edge (the original still, `bird3_model_prone.png`, showed the untipped
+case -- kept as the "what NOT folding gives you" reference); (2) every
+supine sequence below was run from BOTH `BIRD_SUPINE_STRAIGHT` (CoM 0.167)
+and `BIRD_SUPINE_FOLD` (hip roll 90, knee 45, CoM 0.051), reported
+separately.
+
+**Stills** (`sim/renders/getup_options/side/bird3_model_*.png`, sent to the
+coordinator before the sweeps as asked): `bird3_model_stand_front.png`,
+`_stand_side.png` (standing), `_supine.png` (on its back, straight legs --
+shows the legs pointing up), `_prone.png` (the un-corrected tip-onto-edge
+case, kept for reference).
+
+## R3.2 Get-up: hand-built sequences all fail; a continuous search finds a stand
+
+**Supine, hand-built (a)/(b)/(d)** (`getup_search_bird3_supine.txt`, 226
+runs x 2 configs x 2 fold states): frog-lift-and-roll (a), yaw-first (b),
+sit-up-style hip-pitch (d) -- **0/~900 stood**, both fold states, both
+`bird3_box`/`bird3_round`. From `BIRD_SUPINE_STRAIGHT`, the "lift" step
+barely engages the floor at all (`|tau|max` 0.01-0.11 N-m -- the legs,
+splaying out from a straight-up start, do not reach the ground within the
+tested ranges) and the body stays inverted (up -1.00) throughout. From
+`BIRD_SUPINE_FOLD` the legs DO reach the floor, but no combination of
+lift/push-side/push-amount rolls the slab past being knocked flat again
+(front +-0.99, CoM height stuck at 0.027-0.035 m -- lower than the fold's
+own start height in most cases, meaning the "lift" often pushes the slab
+flatter against the ground rather than rolling it).
+
+**Continuous keyframe search finds it** (`getup_v6_side.py bird3search`,
+hill-climb with 6 restarts, 6-DOF symmetric hip_yaw/hip_roll/knee/ankle
+nodes, same method as `getup_v6_legs.py`'s round-1 search, run separately
+from the straight and folded starts):
+
+| config | fold | best score | up | pelvis z | standing? |
+|---|---|---|---|---|---|
+| `bird3_round` | folded | 6.09 | **+1.00** | **0.386 m** | **YES** (>0.9 up, >=0.8x0.387m) |
+| `bird3_round` | straight | 6.10 | **+1.00** | **0.387 m** | **YES** |
+| `bird3_box` | folded | 4.66 | +1.00 | 0.209 m | no (short of the 0.310 m height threshold) |
+
+**This is the positive result Tom expected: an open-loop path exists from
+"on its back" to standing on this body, and the hand-built sequences above
+simply did not find it** (`getup_search_bird3_hillclimb_round_{folded,
+straight}.txt`; the winning path is logged with the run). Two of six
+restarts converge to essentially full standing height (0.386-0.387 m out
+of 0.387 m possible) from BOTH the straight-leg and folded-leg supine
+starts -- the double-jointed knee's extra ROM (the search's bounds include
+the full -130..+95 deg range) is exactly what a hand-authored sequence
+tends not to explore. The other four restarts land on lower local optima
+(0.096-0.189 m, still upright-leaning but short of standing), consistent
+with a genuinely hard search landscape rather than a trivial path.
+
+**The rounded slab succeeds where the box does not, on the identical
+search.** The same folded-start search on `bird3_box` (box shell, same
+mass, same everything else) tops out at up +1.00 but pelvis **0.209 m**
+(`getup_search_bird3_hillclimb_box_folded.txt`, best of 6 restarts,
+`STANDING=False`) -- short of the 0.310 m threshold. This is the same
+direction as round 2's roll-tilt result (the round shape adding 3-5 deg of
+tilt over the box): a rollable shell does not just help a partial roll, it
+is the difference between the search finding a full stand and getting
+stuck partway, on this specific body.
+
+**Prone** (`getup_search_bird3_prone.txt`, 54 runs x 2 configs): **0/108
+stood.** The push-up itself works well -- from `BIRD_PRONE_FOLD`, extending
+the folded knees reaches up +0.99-1.00 with the slab flat and feet+thighs
+grounded (`|tau|max` <0.5 N-m) -- but EVERY attempt topples during the
+transition from the wide push-up stance to a narrower standing stance
+(measured directly: splay 90 deg -> 45 deg alone drops up from 0.99 to
+0.43; the two-stage narrowing added to `seq_bird_pushup` after that
+discovery did not fix it, up still falls to 0.27-0.33 by the final "stand"
+step, converging to the SAME resting pose regardless of the push
+parameters swept). The push-up's wide stance is stable but short (pelvis
+only 0.061 m at full push, since much of the leg's length goes into the
+splay rather than height); reaching stand height needs the narrow,
+upright leg configuration, and that specific transition is the failure
+point, not the push itself.
+
+**Side** (`getup_search_bird3_side.txt`, `side_l`/`side_r` settle +
+push-up): **0/16 stood**, same narrowing-topple mechanism as prone.
+
+**Robustness**: not run -- nothing in the hand-built grids stood to test,
+and the search's winning path was found (and is reported) too close to
+this study's time budget to also robustness-sweep; noted as the natural
+next step, not measured here.
+
+## R3.3 Fall census
+
+`getup_v6_side.py falls`: from a zero-command stand, a velocity-kick
+impulse (mass-normalized -- same m/s for both bodies, so momentum scales
+with mass automatically) at 12 headings x 3 magnitudes (tip speed, found by
+binary search per body, then 1.5x/2x), 3 s settle under the full deploy
+model, classified by which of the torso's own local axes ends up vertical
+(`classify_fall`, `flat=True` for the slab: only the THIN axis (Z)
+counts as a flat rest -- standing (up) or supine (up negative); the
+slab's LENGTH or WIDTH axis ending up vertical is an `edge` rest, not a
+stable flat state, unlike the tall body where the length axis IS the
+prone/supine axis). Tip speed: `bird3_round`/`bird3_box` 0.66 m/s, `stock`
+0.57 m/s -- **the flat body needs 16% more speed to tip over in the first
+place**, Tom's second claim, measured (`getup_search_bird3_falls.txt`).
+
+| end state | bird3_round (36) | bird3_box (36) | stock (36) |
+|---|---|---|---|
+| standing | **12 (33%)** | **12 (33%)** | 8 (22%) |
+| edge | 24 (67%) | 24 (67%) | 0 |
+| supine | 0 | 0 | 11 |
+| prone | 0 | 0 | 7 |
+| side_l | 0 | 0 | 5 |
+| side_r | 0 | 0 | 5 |
+
+**Both claims hold in this census.** The flat body recovers to standing
+more often after a perturbation (33% vs 22%) and NEVER lands flipped flat
+onto its back (0/36 supine, vs 11/36 for the stock body) -- every non-
+recovery lands "edge" (resting on a length or width edge, tipped, neither
+flat nor upright). Whether "edge" is easier to recover from than the stock
+body's prone/supine/side states is not measured here (would need the same
+get-up-sequence treatment R3.2 gave supine/prone) -- worth flagging since
+"edge" is 67% of this body's non-standing outcomes.
+
+**Mid-stride** (`getup_search_bird3_falls_midstride.txt`, legs held in an
+asymmetric walking pose, one fixed 0.5 m/s impulse, 12 headings): `bird3_
+round` lands "edge" 36/36; `stock` lands "side_r" 36/36 (both fully
+deterministic at this fixed speed/pose combination -- the mid-stride
+asymmetry dominates the heading-dependence that showed up in the neutral-
+stance census).
+
+## R3.4 Walk gate
+
+`v6_kin.leg_ik` does not accept `knee="both"` (only `"fwd"`/`"bwd"` pick a
+solution branch -- a real gap from the ad440f0 merge, not touched before
+now); the walk-gate IK uses `knee="fwd"` for its own solve (normal walking
+never asks for the backward ROM anyway, so this does not change the
+simulated gait).
+
+**hip_sep 0.18 m exceeds the gait planner's reach on every case, including
+straight** (confirmed: `step`, `lift_h`, `swing_out`, `land_out`, `bias_y`
+and `drop` were all sept and NONE materially changed the required reach --
+`D` stayed at 0.221-0.232 m against a 0.220 m limit regardless; the reach
+is set by the LATERAL weight-shift-to-stance-foot distance, which scales
+with `hip_sep` directly, not by any timing/offset parameter). Per the
+coordinator's instruction, **the fix is a narrower gait footprint, not a
+narrower hip mount**: the walk-gate IK now solves for a SEPARATE, narrower
+`hip_sep` (found by trying 0.18/0.16/0.14/0.12/0.10 until a turning case
+resolves; 0.14 m worked for `bird3_*`) while the simulated PHYSICS still
+uses the real, wide-hip XML -- the resulting joint angles adduct the real,
+wide-mounted legs to a narrower footprint (an intentional, adducted,
+knock-kneed-style gait), not a change to the mechanical design.
+
+| body | case | clear | air | CoM margin | tilt | result |
+|---|---|---|---|---|---|---|
+| `bird3_round`/`bird3_box` (hip_sep 0.18, gait IK 0.14) | straight | 0 mm | 0.00 s | **-2.9 mm** | 6.3 | FAIL |
+| | +15 turn | 0 mm | 0.00 s | **-3.5 mm** | 6.4 | FAIL |
+| | mu 0.3/play 5 | 1 mm | 0.00 s | **-1.2 mm** | 6.0 | FAIL |
+| | -15 turn, mu 0.9 | 0 mm | 0.00 s | **-4.3 mm** | 6.8 | FAIL |
+| `stock` (hip_sep 0.084) | straight | 22 mm | 0.62 s | 13.0 mm | 5.7 | OK |
+| | +15 turn | 16 mm | 0.54 s | 12.2 mm | 7.3 | OK |
+| | mu 0.3/play 5 | 23 mm | 0.70 s | 35.2 mm | 3.3 | OK |
+| | -15 turn, mu 0.9 | 23 mm | 0.66 s | 26.6 mm | 6.1 | OK |
+
+**Even with the narrowed-gait workaround, the flat body's walk margins are
+negative on all 4 cases** (`gateD_bird3.txt`) -- zero foot clearance, zero
+air time (the swing foot barely leaves the ground at this narrow a
+footprint relative to the wide hip mount), and negative CoM margin (the
+kinematic CoM solve cannot find a fully safe pelvis position at this
+adduction). This is a genuine, measured negative for the flat body's
+current dimensions/hip_sep, not an artefact of the workaround being
+approximate -- both `bird3_round` and `bird3_box` give IDENTICAL numbers
+(the shell shape does not affect the rigid-body walk kinematics).
+
+## R3.5 Hardware cost
+
+- **Hip stack at the slab sides**: the yaw servo relocates from the
+  housing floor (today) to the slab's own side wall at mid-height -- a new
+  bracket integrated into the slab shell, not a parameter change on
+  existing CAD. The yaw-roll-pitch stack below it (d_yaw_roll + d_roll_pitch
+  = 91 mm, unchanged from every other v6 body) still hangs below the slab,
+  visible in the stills as the same "hip stack gap" the original vertical
+  body has.
+- **hip_sep 0.18 m** (vs 0.084 m stock): legs mount 21 mm outboard of the
+  slab's own half-width (0.07 m) plus the yaw servo's own width, by
+  derivation (not self-collision-measured, see R3.1) -- widens the
+  footprint substantially.
+- **`hip_roll_abd` 90-120 deg, `yaw_range` 180 deg**: same CAD-unverified
+  caveat as round 1/2 -- the appendage study only validated to 55 deg
+  abduction, and the self-collision work found the stock 45 deg range
+  already colliding foot-on-foot at full symmetric yaw. 90-120 deg and full
+  180 deg yaw are sim-only ranges here; a real hip yoke/servo-case/thigh
+  clearance sweep at THESE ranges was not done.
+- **`knee="both"`**: the CAD ROM (-130/+95) is already in the plant
+  (2026-09-16 merge) -- no new hardware, but confirms the double-jointed
+  knee this study leans on is not itself a new ask.
+- **Mass/servos**: 1.436 kg, 12 servos (unchanged count) -- 214 g LIGHTER
+  than stock because the driver/power/wiring/neck-servo/head are not
+  modelled in this pod (Tom's spec: battery + Pi + camera only). If those
+  are needed on the real robot, they will have to fit inside or on the
+  55 mm-thick slab -- not attempted here.
+- **Walking**: R3.4's negative is the flat body's real, current
+  cost -- not a modelling gap. Fixing it needs either a narrower hip_sep
+  (undercutting the leg-clearance derivation in R3.1) or a gait planner
+  that plans a genuinely adducted stance as a first-class feature rather
+  than a post-hoc IK trick.
+
+## Files (round 3)
+
+- `sim/gen_plant_v6.py` -- `bird_body`/`bird_L`/`bird_W`/`bird_H` (default False/0.20/0.14/0.055, plant unchanged); `_bird_body_torso()`
+- `sim/getup_v6.py` -- `settle_fallen` gained `bird_back` (180 deg roll, "on its back") and `bird_flat` (right-way-up, dropped low) start states
+- `sim/getup_v6_side.py` -- `bird3_box`/`bird3_round`/`bird3_box_abd120`/`bird3_round_abd120` configs; `seq_frog_roll`/`seq_stand_inverted`/`seq_bird_situp`/`seq_bird_pushup` (modes `bird3`, `bird3search`); `classify_fall`/`fall_census`/`fall_census_midstride` (modes `falls`, `fallsmid`); `gate` mode's hip_sep-scaling workaround for wide-stance bodies
+- `sim/v6_kin.py`/`sim/design_gates.py`: unchanged this round (round 2's hip_z fix reused; the walk-gate workaround lives in getup_v6_side.py, not the shared kinematics)
+- `docs/design-v6/getup_search_bird3_{supine,prone,side}.txt` -- hand-built sequence grids (0 standing)
+- `docs/design-v6/getup_search_bird3_hillclimb_{round,box}_{folded,straight}.txt` -- continuous search (STANDING found, round_folded/straight)
+- `docs/design-v6/getup_search_bird3_falls.txt`, `_falls_midstride.txt` -- fall census
+- `docs/design-v6/gateD_bird3.txt` -- walk gate (negative on all 4 cases)
+- `docs/design-v6/bird3_supine_strip.png` -- filmstrip of the WINNING supine get-up (rendered from the exact logged path: roll from on-its-back through up -1.00 -> -0.24 -> +0.42 -> +0.98 -> +1.00, pelvis rising 0.028 -> 0.386 m over the last 3 keyframes, peak torque 1.43 N-m on `L_hip_roll` -- confirms `STANDING=True` end to end under the full deploy servo model, not just the search's own scoring)
+- `docs/design-v6/bird3_prone_strip.png`, `bird3_fall_bird3_round_strip.png`, `bird3_fall_stock_strip.png` -- filmstrips (best prone push-up attempt, a representative fall for each body)
+- `sim/renders/getup_options/side/bird3_*.png`, `bird3_*.mp4` -- stills (sent to the coordinator) and videos (local only, gitignored)
+
+## Verdict (round 3)
+
+Tom was right about the body, and mostly right about the mechanism: a flat
+slab centred on the hip line, with legs folded (not held straight), settles
+LOWER when fallen than the tall stock body (0.051/0.041 m supine/prone vs
+0.055/0.063 m), needs 16% more impulse to tip over in the first place, and
+recovers to standing more often after a perturbation (33% vs 22%, and it
+never lands flipped flat on its back at all, 0/36 vs 11/36) -- both of his
+claims measured, not assumed. He was also right that hand-built sequences
+were not going to find the get-up: every hand-authored frog/inverted/push-
+up sequence in this round failed (0/~1000 combined), but a continuous
+keyframe search -- the same hill-climb method round 1 used -- found a path
+from flat-on-its-back to full standing height (up +1.00, pelvis 0.385-0.387
+of 0.387 m possible) using the double-jointed knee's extra range, which is
+the demonstration Tom asked for. The two costs this round adds are real
+and unresolved: the wide hip_sep this body needs for leg-to-slab clearance
+gives the existing walk-gait planner negative CoM margin on every case even
+after adducting the gait to a narrower footprint, and the prone/side
+get-up specifically fails at the wide-stance-to-narrow-stance transition,
+a distinct, unfixed failure mode from the supine case's success.

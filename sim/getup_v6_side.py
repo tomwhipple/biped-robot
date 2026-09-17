@@ -57,6 +57,7 @@ BASE = DesignParams(self_collide=True)   # EVERY run in this file: self-collisio
 # = 0.042 m sits INSIDE that; hip_sep 0.16 m puts the hip axis 0.021 m
 # outboard of the side wall).
 CONFIGS = {
+    "stock": {},   # the default v7 plant (self_collide=True via BASE only) -- fall-census baseline
     # bird: hips raised + moved outboard, splay unchanged (45 deg, plant default)
     "bird_z06_sep160": dict(hip_z=0.06, hip_sep=0.160),     # "hip roll height" from the appendage study, for comparison
     "bird_z10_sep160": dict(hip_z=0.10, hip_sep=0.160),
@@ -84,6 +85,21 @@ CONFIGS = {
     # hip_sep 0.20 m clears the legs past the block sides (ncon 0 at stand).
     "horiz_box": dict(torso_pitch=90.0, torso_block_x=-0.06, torso_block_z=0.03, hip_sep=0.20),
     "horiz_round": dict(torso_pitch=90.0, torso_block_x=-0.06, torso_block_z=0.03, hip_sep=0.20, torso_round=True),
+    # ---- round 3 (2026-09-17), Tom: "a flattened body, parallel to the
+    # ground ... closer to the original bimo inspiration" -- ONE flat slab
+    # (bird_body=True), hips at its sides at mid-height (hip_z stays 0.0:
+    # the slab is centred ON the hip line by construction, see
+    # gen_plant_v6._bird_body_torso). hip_sep 0.18 m = bird_W (0.14) +
+    # SV_WID (0.02472) + 2x6 mm clearance, ROUNDED UP from 0.177 (the yaw
+    # servo and the slab share the SAME rigid body, so self_collide's
+    # contact count cannot check this pair -- measured analytically, then
+    # confirmed 0 self-collision contacts for the LEG-vs-slab pair, which
+    # self_collide CAN see, at standing). knee="both" (+-130/+95, already in
+    # the plant), hip yaw +-180, hip_roll_abd swept 90/120.
+    "bird3_box": dict(bird_body=True, hip_sep=0.18, knee="both", yaw_range=180.0, hip_roll_abd=90.0),
+    "bird3_round": dict(bird_body=True, hip_sep=0.18, knee="both", yaw_range=180.0, hip_roll_abd=90.0, torso_round=True),
+    "bird3_box_abd120": dict(bird_body=True, hip_sep=0.18, knee="both", yaw_range=180.0, hip_roll_abd=120.0),
+    "bird3_round_abd120": dict(bird_body=True, hip_sep=0.18, knee="both", yaw_range=180.0, hip_roll_abd=120.0, torso_round=True),
 }
 hits = []
 
@@ -237,6 +253,243 @@ def roll_check(name, side, swing, yaw):
     return max_tilt, max_tau, up
 
 
+# --------------------------------------------------------------------------- round 3: flat bird_body
+# folded start poses (Tom, coordinator review 09-17): after a real fall the
+# legs are not straight -- q values measured in getup_v6_side.py (mj_forward
+# settle, splay=90/knee=+-90 or +-45 both land flat, up +-1.00):
+BIRD_SUPINE_FOLD = dict(L_hip_roll=90, R_hip_roll=-90, hip_pitch=0, knee=45, ankle=0)     # CoM z 0.049 m (flat on the back)
+BIRD_SUPINE_STRAIGHT = dict()                                                             # CoM z 0.167 m (legs neutral, straight up)
+BIRD_PRONE_FOLD = dict(L_hip_roll=90, R_hip_roll=-90, hip_pitch=0, knee=-90, ankle=0)      # up +1.00 flat prone (vs tipping onto an edge from straight legs)
+
+
+def _bird_legs(L_roll=None, R_roll=None, **rest):
+    """explicit-key dict builder for the round-3 sequences -- avoids the
+    generic/specific key-order pitfall (q_from_offsets processes dict keys
+    in order, so a generic 'knee' AFTER a specific 'L_knee' would clobber it)
+    by always emitting fully explicit L_/R_ keys."""
+    out = {}
+    for k, v in rest.items():
+        if k.startswith("L_") or k.startswith("R_"):
+            out[k] = v
+        else:
+            out[f"L_{k}"] = v
+            out[f"R_{k}"] = v
+    if L_roll is not None:
+        out["L_hip_roll"] = L_roll
+    if R_roll is not None:
+        out["R_hip_roll"] = R_roll
+    return out
+
+
+def seq_frog_roll(fold, knee_lift, ankle_lift, push_side, push_extra, yaw_first=0.0):
+    """(a)/(b): from the folded start (legs already splayed ~90 deg in the
+    floor plane, per BIRD_SUPINE_FOLD), optionally yaw the hips first (b),
+    then press both knees to lift the slab off the floor, then push the
+    PUSH_SIDE knee harder (more extension) than the other to roll the slab
+    over its long edge. fold = BIRD_SUPINE_FOLD or BIRD_SUPINE_STRAIGHT."""
+    o = "R" if push_side == "L" else "L"
+    yawed = dict(fold, L_hip_yaw=yaw_first, R_hip_yaw=yaw_first) if yaw_first else dict(fold)
+    lift = _bird_legs(L_roll=90, R_roll=-90, knee=knee_lift, ankle=ankle_lift)
+    push = dict(lift)
+    push[f"{push_side}_knee"] = knee_lift + push_extra
+    return [("lie", fold, 0.5, 1.0),
+            ("yaw" if yaw_first else "hold", yawed, 1.0, 0.6),
+            ("lift both", lift, 1.5, 1.0),
+            (f"push {push_side}", push, 1.5, 1.5),
+            ("hold", push, 0.5, 1.5)]
+
+
+def seq_stand_inverted(fold, knee_lift, ankle_lift, hip_pitch_over, t_over):
+    """(c) "stand up inverted": from the folded start (upside down), press
+    both legs to lift the slab clear of the floor, then walk the feet under
+    (both knees flex the OTHER way, "either direction, the double joint is
+    the point") and pitch the slab over the hip axis (hip_pitch through the
+    range) to end right way up."""
+    lift = _bird_legs(L_roll=45, R_roll=-45, knee=knee_lift, ankle=ankle_lift)
+    tuck = _bird_legs(L_roll=20, R_roll=-20, knee=-90, ankle=ankle_lift, hip_pitch=hip_pitch_over)
+    over = _bird_legs(L_roll=0, R_roll=0, knee=-40, ankle=-10, hip_pitch=-hip_pitch_over)
+    stand = _bird_legs(L_roll=0, R_roll=0, knee=-30, ankle=-15, hip_pitch=-20)
+    return [("lie (inverted)", fold, 0.5, 1.0),
+            ("lift clear", lift, 1.5, 1.0),
+            ("tuck + pitch start", tuck, t_over, 1.0),
+            ("pitch over hip", over, t_over, 1.5),
+            ("stand", stand, 1.5, 1.0)]
+
+
+def seq_bird_situp(fold, hip_pitch_amt):
+    """(d) reference: a sit-up-style hip_pitch flex from the folded supine
+    start -- there is no torso to fold OVER, so this mostly tests whether
+    hip_pitch alone does anything useful for a flat pod."""
+    return [("lie", fold, 0.5, 1.0),
+            ("pitch", dict(fold, hip_pitch=hip_pitch_amt), 1.5, 1.5),
+            ("hold", dict(fold, hip_pitch=hip_pitch_amt), 0.5, 1.5)]
+
+
+def seq_bird_pushup(splay, knee_push, ankle_push):
+    """prone (BIRD_PRONE_FOLD, slab flat, right way up) -> push-up: extend
+    the already-folded knees to lift the slab onto standing legs, THEN
+    narrow the wide push-up stance in two steps (a single big step from 90
+    deg splay to 0 loses the base of support before the legs get under the
+    slab and it topples sideways -- measured, `narrow` alone at splay 90
+    drops up 0.99 -> 0.33)."""
+    fold = BIRD_PRONE_FOLD
+    lift = _bird_legs(L_roll=splay, R_roll=-splay, knee=knee_push, ankle=ankle_push)
+    half = _bird_legs(L_roll=splay * 0.5, R_roll=-splay * 0.5, knee=knee_push * 0.7, ankle=ankle_push)
+    narrow = _bird_legs(L_roll=0, R_roll=0, knee=-40, ankle=-20)
+    stand = _bird_legs(L_roll=0, R_roll=0, knee=-30, ankle=-15)
+    return [("lie (folded prone)", fold, 0.5, 1.0),
+            ("push up", lift, 2.0, 1.5),
+            ("half narrow", half, 1.5, 1.0),
+            ("narrow", narrow, 1.5, 1.0),
+            ("stand", stand, 1.5, 1.0)]
+
+
+def bird_run(name, label, seq, start, render=None):
+    p, xml = plant(name)
+    r = G.run_sequence(p, xml, seq, start=start, play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False, render=render)
+    worst = max(r["log"], key=lambda L: L[4])
+    print(f"{name:18s} {label:52s} {'STANDING' if r['ok'] else 'no      '} up {r['up']:+.2f} front {r['front']:+.2f} z {r['pelvis_z']:.3f}  |tau|max {worst[4]:.2f} ({worst[5]})", flush=True)
+    if r["ok"]:
+        hits.append(f"{name} {label}")
+    return r
+
+
+# --------------------------------------------------------------------------- round 3: fall census
+def classify_fall(up, front, side, flat=False):
+    """standing / supine / prone / side_l / side_r / edge, from the torso's
+    world-Z components of its own local Z/X/Y axes (up/front/side -- these
+    are one orthonormal row, up^2+front^2+side^2 == 1).
+
+    The tall (stock) body's LONG axis is local Z (spine) and its SHORT axis
+    is local X (chest-normal) -- lying down, front dominant (>0.7) is the
+    historical "flat on the ground" resting state (supine/prone,
+    front=+-1). The flat bird_body's LONG axis is local X (slab length,
+    0.20 m) and its SHORT axis is local Z (0.055 m) -- for THIS shape,
+    front (or side) dominant means the LENGTH (or width) edge is vertical,
+    a genuine, less-stable EDGE-balancing state, not a flat rest; only up
+    dominant is a flat rest (standing right-way-up, or supine upside-down).
+    `flat=True` selects that second scheme."""
+    if up > 0.7:
+        return "standing"
+    if flat:
+        return "supine" if up < -0.7 else "edge"
+    if front > 0.7:
+        return "supine"
+    if front < -0.7:
+        return "prone"
+    if side > 0.7:
+        return "side_l"
+    if side < -0.7:
+        return "side_r"
+    if up < -0.7:
+        return "supine"     # rare/degenerate for the tall body (would need to flip through vertical)
+    return "edge"
+
+
+def find_tip_speed(m, d, env, heading_rad, lo=0.15, hi=1.5, tries=6):
+    """binary search (from a stand) for the smallest CoM velocity kick along
+    `heading_rad` that knocks the body out of 'standing' after a 3 s settle
+    -- "just past tipping"."""
+    def falls(speed):
+        mujoco.mj_resetData(m, d)
+        d.qpos[2] = env.p_stand_z
+        mujoco.mj_forward(m, d)
+        d.qvel[0] = speed * math.cos(heading_rad)
+        d.qvel[1] = speed * math.sin(heading_rad)
+        for _ in range(int(3.0 / env.control_dt)):
+            env.step(np.zeros(env._nq_act))
+        up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
+        return up < 0.9
+    if not falls(hi):
+        return hi   # never tips in range -- use hi as "just past tipping"
+    for _ in range(tries):
+        mid = (lo + hi) / 2
+        if falls(mid):
+            hi = mid
+        else:
+            lo = mid
+    return hi
+
+
+def fall_census(name, headings=12, render_one=None):
+    p, xml = plant(name)
+    env = SG.make_env(p, xml, mu=0.7, play_deg=3.0)
+    obs, _ = env.reset(seed=0)
+    m, d = env.model, env.data
+    env.p_stand_z = p.z_yaw_above_sole - p.hip_z
+    tip = find_tip_speed(m, d, env, 0.0)
+    print(f"-- {name}: tipping speed (heading 0) {tip:.2f} m/s -> testing {tip:.2f}/{1.5*tip:.2f}/{2*tip:.2f} m/s", flush=True)
+    dist = {}
+    n = 0
+    for hi in range(headings):
+        heading = 2 * math.pi * hi / headings
+        for mult in (1.0, 1.5, 2.0):
+            speed = tip * mult
+            mujoco.mj_resetData(m, d)
+            d.qpos[2] = env.p_stand_z
+            mujoco.mj_forward(m, d)
+            d.qvel[0] = speed * math.cos(heading)
+            d.qvel[1] = speed * math.sin(heading)
+            frames = [] if render_one == (hi, mult) else None
+            rnd = cam = None
+            if frames is not None:
+                rnd = mujoco.Renderer(m, 480, 640)
+                cam = mujoco.MjvCamera(); cam.distance, cam.elevation, cam.azimuth = (1.3, -15, 135)
+            for k in range(int(3.0 / env.control_dt)):
+                env.step(np.zeros(env._nq_act))
+                if frames is not None and k % 2 == 0:
+                    cam.lookat[:] = [d.qpos[0], d.qpos[1], 0.2]
+                    rnd.update_scene(d, cam)
+                    frames.append(rnd.render().copy())
+            R = d.xmat[m.body("torso").id].reshape(3, 3)
+            cls = classify_fall(R[2, 2], R[2, 0], R[2, 1], flat=p.bird_body)
+            dist[cls] = dist.get(cls, 0) + 1
+            n += 1
+            print(f"{name:12s} heading {math.degrees(heading):5.0f} deg  speed {speed:.2f} m/s ({mult:.1f}x)  -> {cls:10s} up {R[2,2]:+.2f} front {R[2,0]:+.2f} side {R[2,1]:+.2f}", flush=True)
+            if frames is not None:
+                SG._write_video(frames, render_one[2] if len(render_one) > 2 else "sim/renders/getup_side/bird3_fall.mp4")
+    print(f"{name:12s} DISTRIBUTION ({n} trials): " + ", ".join(f"{k}={v}" for k, v in sorted(dist.items())), flush=True)
+    return dist
+
+
+def fall_census_midstride(name):
+    """same census, but the legs held in a walking mid-stride pose (one hip
+    forward+lifted, one back) instead of neutral standing -- cheap: reuses
+    the same tip-speed/impulse loop with a fixed non-zero q_hold."""
+    p, xml = plant(name)
+    env = SG.make_env(p, xml, mu=0.7, play_deg=3.0)
+    obs, _ = env.reset(seed=0)
+    m, d = env.model, env.data
+    na = env._nq_act
+    q_mid = G.q_from_offsets(dict(L_hip_pitch=-25, L_knee=-35, R_hip_pitch=20, R_knee=-15))[:na]
+    d0, hi_, lo_ = env._default, env._hi, env._lo
+    inv = lambda q: np.clip(np.where(q >= d0, (q - d0) / np.maximum(hi_ - d0, 1e-6), (q - d0) / np.maximum(d0 - lo_, 1e-6)), -1, 1)
+    mujoco.mj_resetData(m, d)
+    d.qpos[2] = p.z_yaw_above_sole - p.hip_z
+    mujoco.mj_forward(m, d)
+    for _ in range(int(1.0 / env.control_dt)):
+        env.step(inv(q_mid))
+    tip = 0.5
+    dist = {}
+    for hi in range(12):
+        heading = 2 * math.pi * hi / 12
+        for mult in (1.0, 1.5, 2.0):
+            speed = tip * mult
+            qpos0 = d.qpos.copy()
+            d.qvel[:] = 0
+            d.qvel[0] = speed * math.cos(heading)
+            d.qvel[1] = speed * math.sin(heading)
+            for _ in range(int(3.0 / env.control_dt)):
+                env.step(inv(q_mid))
+            R = d.xmat[m.body("torso").id].reshape(3, 3)
+            cls = classify_fall(R[2, 2], R[2, 0], R[2, 1], flat=p.bird_body)
+            dist[cls] = dist.get(cls, 0) + 1
+            d.qpos[:] = qpos0
+            mujoco.mj_forward(m, d)
+    print(f"{name:12s} MIDSTRIDE DISTRIBUTION (36 trials, tip speed {tip} m/s fixed): " + ", ".join(f"{k}={v}" for k, v in sorted(dist.items())), flush=True)
+    return dist
+
+
 # --------------------------------------------------------------------------- quasi-static probe
 def probe_config(name):
     """quasi-static (no servo dynamics, the plant's own position actuators):
@@ -360,12 +613,36 @@ def main():
         per_joint = {j: "sts3250" for j in SG.ROLLS + ("L_knee", "R_knee")}
         for name in names:
             p, xml = plant(name)
+            # round 3, task 5: if the IK's foot-placement reach fails at this
+            # hip_sep (wide-stance bodies need the mechanical hip_sep for leg/
+            # slab clearance, but the gait planner's weight-shift was tuned
+            # for hip_sep 0.084 -- see study doc round 2), SCALE hip_sep for
+            # the IK/timeline solve only (p_ik) -- the real, wide-hip PLANT
+            # (xml, built from `p`) still does the physics; p_ik just makes
+            # the gait plant NARROWER feet than the real hips (an adducted,
+            # narrower-footprint gait), one bird_sep_scale step down at a
+            # time. p.knee == "both" also isn't handled by v6_kin.leg_ik
+            # (only "fwd"/"bwd" pick a solution branch) -- p_ik forces "fwd"
+            # for the walk (normal gait never uses the backward ROM anyway).
+            p_ik = p
+            if p.bird_body:
+                for sep in (p.hip_sep, 0.16, 0.14, 0.12, 0.10):
+                    cand = dataclasses.replace(p, hip_sep=sep, knee="fwd")
+                    try:
+                        SG.walk_timeline(cand, n_steps=8, step=0.06, lift_h=0.04, turn_deg=15.0)
+                        p_ik = cand
+                        break
+                    except ValueError:
+                        continue
+                if p_ik.hip_sep != p.hip_sep:
+                    print(f"{name:24s} gait IK uses hip_sep {p_ik.hip_sep:.2f} m (real hip_sep {p.hip_sep:.2f} m) -- "
+                          f"an adducted, narrower-footprint gait; the mechanical hip mount is unchanged")
             for label, kw in (("turn  +0 mu 0.7 play 3", dict()), ("turn +15 mu 0.7 play 3", dict(turn_deg=15.0)),
                               ("turn  +0 mu 0.3 play 5", dict(mu=0.3, play_deg=5.0)), ("turn -15 mu 0.9 play 3", dict(turn_deg=-15.0, mu=0.9))):
                 turn = kw.pop("turn_deg", 0.0)
                 try:
-                    tl2, windows2 = SG.walk_timeline(p, n_steps=8, step=0.06, lift_h=0.04, turn_deg=turn)
-                    r = SG.run_walk(p, xml, tl2, windows2, per_joint=per_joint, **kw)
+                    tl2, windows2 = SG.walk_timeline(p_ik, n_steps=8, step=0.06, lift_h=0.04, turn_deg=turn)
+                    r = SG.run_walk(p_ik, xml, tl2, windows2, per_joint=per_joint, **kw)
                     print(SG.fmt_row(f"{name:24s} {label}", r))
                 except ValueError as e:
                     # a wide hip_sep can ask the gait's foot-placement offsets
@@ -373,7 +650,7 @@ def main():
                     # shank give (0.220 m) -- a real kinematic limit of the
                     # EXISTING gait planner (tuned for hip_sep 0.084), not a
                     # bug in the hip_z fix: measured and reported, not guessed.
-                    print(f"{name:24s} {label}  IK REACH EXCEEDED: {e}")
+                    print(f"{name:24s} {label}  IK REACH EXCEEDED even at hip_sep {p_ik.hip_sep:.2f}: {e}")
     elif mode == "roll":
         # round 2, task 1: supine -> try to roll over by splaying/swinging the
         # legs (hip roll + yaw). Reports peak tilt + peak torque, not just a
@@ -407,6 +684,94 @@ def main():
                   f"{'STANDING' if r['ok'] else 'no      '} up {r['up']:+.2f} front {r['front']:+.2f} z {r['pelvis_z']:.3f}", flush=True)
             best[name] = (kp, ap, tp, ho, r["ok"], r["up"], r["pelvis_z"])
         print("best:", best)
+    elif mode == "bird3":
+        # round 3: flat bird_body get-up, supine (both start folds) / prone / side
+        which = sys.argv[2] if len(sys.argv) > 2 else "supine"
+        names = sys.argv[3:] or ["bird3_box", "bird3_round"]
+        print(f"== BIRD3 flat-body get-up, {which}, self_collide=True")
+        for name in names:
+            if which == "supine":
+                for fold_name, fold in (("straight", BIRD_SUPINE_STRAIGHT), ("folded", BIRD_SUPINE_FOLD)):
+                    for knee_lift, ankle_lift in itertools.product((-90, -45, 45, 90), (-30, 0, 30)):
+                        for push_side, push_extra in itertools.product(("L", "R"), (40, 80)):
+                            seq = seq_frog_roll(fold, knee_lift, ankle_lift, push_side, push_extra)
+                            bird_run(name, f"(a) {fold_name} lift{knee_lift:+d}/{ankle_lift:+d} push{push_side}{push_extra:+d}", seq, "bird_back")
+                    for yaw in (45, 90):
+                        seq = seq_frog_roll(fold, -60, 0, "L", 60, yaw_first=yaw)
+                        bird_run(name, f"(b) {fold_name} yaw{yaw:+d} push L+60", seq, "bird_back")
+                    for hip_pitch_amt in (-90, 90):
+                        seq = seq_bird_situp(fold, hip_pitch_amt)
+                        bird_run(name, f"(d) {fold_name} situp pitch{hip_pitch_amt:+d}", seq, "bird_back")
+                for knee_lift, hip_pitch_over, t_over in itertools.product((-90, -45), (90, 120), (1.5, 2.5)):
+                    seq = seq_stand_inverted(BIRD_SUPINE_STRAIGHT, knee_lift, -20, hip_pitch_over, t_over)
+                    bird_run(name, f"(c) inverted lift{knee_lift:+d} pitch{hip_pitch_over:+d} t{t_over}", seq, "bird_back")
+            elif which == "prone":
+                for splay, knee_push, ankle_push in itertools.product((45, 90, 120), (-40, -60, -90), (-40, -25, -10)):
+                    seq = seq_bird_pushup(splay, knee_push, ankle_push)
+                    bird_run(name, f"pushup splay{splay:+d} knee{knee_push:+d} ankle{ankle_push:+d}", seq, "bird_flat")
+            elif which == "side":
+                for side in ("l", "r"):
+                    for splay, knee_push in itertools.product((45, 90), (-40, -90)):
+                        seq = seq_bird_pushup(splay, knee_push, -25)
+                        bird_run(name, f"side_{side} pushup splay{splay:+d} knee{knee_push:+d}", seq, f"side_{side}")
+    elif mode == "bird3search":
+        # continuous keyframe hill-climb (getup_v6_legs.py style) on the
+        # supine flat-body get-up, if the hand-built sequences above fail --
+        # symmetric hip_roll/knee/ankle + a shared hip_yaw, 6 nodes.
+        import random
+        name = sys.argv[2] if len(sys.argv) > 2 else "bird3_round"
+        fold_name = sys.argv[3] if len(sys.argv) > 3 else "folded"
+        fold = BIRD_SUPINE_FOLD if fold_name == "folded" else BIRD_SUPINE_STRAIGHT
+        random.seed(0); np.random.seed(0)
+        p, xml = plant(name)
+
+        def q_sym(yaw, roll, knee, ankle):
+            return _bird_legs(L_roll=roll, R_roll=-roll, L_hip_yaw=yaw, R_hip_yaw=yaw, knee=knee, ankle=ankle)
+
+        def eval_path(V):
+            seq = [("lie", fold, 0.5, 1.0)] + [(f"k{j}", q_sym(*row), 1.4, 0.6) for j, row in enumerate(V)]
+            res = G.run_sequence(p, xml, seq, start="bird_back", play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False)
+            return 3.0 * max(0, res["up"]) + 8.0 * res["pelvis_z"], res
+
+        NK, bounds = 6, [(-180, 180), (0, 120), (-130, 95), (-45, 45)]
+        best = (-1e9, None, None)
+        for restart in range(6):
+            x = np.array([[random.uniform(*b) for b in bounds] for _ in range(NK)])
+            s_best, step = -1e9, [60.0, 30.0, 30.0, 15.0]
+            for it in range(30):
+                for _ in range(6):
+                    y = x + np.array([[random.gauss(0, st) for st in step] for _ in range(NK)])
+                    for j, b in enumerate(bounds):
+                        y[:, j] = np.clip(y[:, j], *b)
+                    s, res = eval_path(y)
+                    if s > s_best:
+                        s_best, x = s, y
+                step = [st * 0.93 for st in step]
+            s, res = eval_path(x)
+            print(f"restart {restart}: score {s:.2f} up {res['up']:+.2f} z {res['pelvis_z']:.3f}", flush=True)
+            if s > best[0]:
+                best = (s, x.copy(), res)
+        print(f"BEST score {best[0]:.2f} up {best[2]['up']:+.2f} z {best[2]['pelvis_z']:.3f} "
+              f"STANDING={best[2]['ok']} path={best[1].tolist()}")
+    elif mode == "falls":
+        # round 3, task 4: fall census. 12 headings x 3 magnitudes (tip,
+        # 1.5x, 2x -- found per body by binary search), classify the settled
+        # end state. Same for the flat bird body and the stock v7 body.
+        names = sys.argv[2:] or ["bird3_round", "stock"]
+        print("== FALL CENSUS: 12 headings x 3 magnitudes (tip/1.5x/2x), 3 s settle, deploy model")
+        dists = {}
+        for name in names:
+            dists[name] = fall_census(name)
+        print()
+        print("SIDE BY SIDE:")
+        classes = sorted(set().union(*[set(d) for d in dists.values()]))
+        for c in classes:
+            print(f"  {c:10s} " + "  ".join(f"{name}={dists[name].get(c,0)}" for name in names))
+    elif mode == "fallsmid":
+        names = sys.argv[2:] or ["bird3_round", "stock"]
+        print("== FALL CENSUS, walking mid-stride pose (cheap variant)")
+        for name in names:
+            fall_census_midstride(name)
     elif mode == "render":
         name, seqname, out = sys.argv[2], sys.argv[3], sys.argv[4]
         start = sys.argv[5] if len(sys.argv) > 5 else "supine"

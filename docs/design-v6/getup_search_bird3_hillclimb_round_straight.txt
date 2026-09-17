@@ -1,0 +1,8 @@
+restart 0: score 3.57 up +0.98 z 0.079
+restart 1: score 6.08 up +1.00 z 0.385
+restart 2: score 3.82 up +1.00 z 0.103
+restart 3: score 3.90 up +0.98 z 0.118
+restart 4: score 6.10 up +1.00 z 0.387
+restart 5: score 1.94 up +0.40 z 0.092
+BEST score 6.10 up +1.00 z 0.387
+standing: []

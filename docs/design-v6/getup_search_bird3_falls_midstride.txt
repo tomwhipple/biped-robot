@@ -1,0 +1,4 @@
+== FALL CENSUS, walking mid-stride pose (cheap variant)
+bird3_round  MIDSTRIDE DISTRIBUTION (36 trials, tip speed 0.5 m/s fixed): edge=36
+stock        MIDSTRIDE DISTRIBUTION (36 trials, tip speed 0.5 m/s fixed): side_r=36
+standing: []

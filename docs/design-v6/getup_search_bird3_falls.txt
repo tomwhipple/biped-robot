@@ -1,0 +1,124 @@
+== FALL CENSUS: 12 headings x 3 magnitudes (tip/1.5x/2x), 3 s settle, deploy model
+-- bird3_round: tipping speed (heading 0) 0.66 m/s -> testing 0.66/0.98/1.31 m/s
+bird3_round  heading     0 deg  speed 0.66 m/s (1.0x)  -> edge       up +0.08 front -1.00 side -0.00
+bird3_round  heading     0 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.09 front -1.00 side +0.00
+bird3_round  heading     0 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.09 front -1.00 side -0.00
+bird3_round  heading    30 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_round  heading    30 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.08 front -1.00 side +0.00
+bird3_round  heading    30 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.09 front -1.00 side +0.01
+bird3_round  heading    60 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_round  heading    60 deg  speed 0.98 m/s (1.5x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_round  heading    60 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.08 front -1.00 side -0.00
+bird3_round  heading    90 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_round  heading    90 deg  speed 0.98 m/s (1.5x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_round  heading    90 deg  speed 1.31 m/s (2.0x)  -> edge       up -0.01 front -0.00 side -1.00
+bird3_round  heading   120 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_round  heading   120 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.14 front +0.99 side -0.00
+bird3_round  heading   120 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.14 front +0.99 side +0.01
+bird3_round  heading   150 deg  speed 0.66 m/s (1.0x)  -> edge       up +0.14 front +0.99 side +0.01
+bird3_round  heading   150 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.14 front +0.99 side +0.01
+bird3_round  heading   150 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.14 front +0.99 side +0.00
+bird3_round  heading   180 deg  speed 0.66 m/s (1.0x)  -> edge       up +0.14 front +0.99 side +0.00
+bird3_round  heading   180 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.14 front +0.99 side -0.00
+bird3_round  heading   180 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.14 front +0.99 side +0.00
+bird3_round  heading   210 deg  speed 0.66 m/s (1.0x)  -> edge       up +0.14 front +0.99 side -0.01
+bird3_round  heading   210 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.14 front +0.99 side -0.01
+bird3_round  heading   210 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.14 front +0.99 side -0.00
+bird3_round  heading   240 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_round  heading   240 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.14 front +0.99 side +0.00
+bird3_round  heading   240 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.14 front +0.99 side -0.01
+bird3_round  heading   270 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_round  heading   270 deg  speed 0.98 m/s (1.5x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_round  heading   270 deg  speed 1.31 m/s (2.0x)  -> edge       up -0.01 front -0.00 side +1.00
+bird3_round  heading   300 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_round  heading   300 deg  speed 0.98 m/s (1.5x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_round  heading   300 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.08 front -1.00 side +0.00
+bird3_round  heading   330 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_round  heading   330 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.08 front -1.00 side -0.00
+bird3_round  heading   330 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.09 front -1.00 side -0.01
+bird3_round  DISTRIBUTION (36 trials): edge=24, standing=12
+-- stock: tipping speed (heading 0) 0.57 m/s -> testing 0.57/0.86/1.14 m/s
+stock        heading     0 deg  speed 0.57 m/s (1.0x)  -> prone      up -0.02 front -1.00 side +0.00
+stock        heading     0 deg  speed 0.86 m/s (1.5x)  -> prone      up -0.02 front -1.00 side -0.00
+stock        heading     0 deg  speed 1.14 m/s (2.0x)  -> prone      up -0.02 front -1.00 side -0.00
+stock        heading    30 deg  speed 0.57 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+stock        heading    30 deg  speed 0.86 m/s (1.5x)  -> prone      up -0.02 front -1.00 side -0.00
+stock        heading    30 deg  speed 1.14 m/s (2.0x)  -> prone      up -0.02 front -1.00 side +0.00
+stock        heading    60 deg  speed 0.57 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+stock        heading    60 deg  speed 0.86 m/s (1.5x)  -> side_r     up -0.03 front +0.00 side -1.00
+stock        heading    60 deg  speed 1.14 m/s (2.0x)  -> side_r     up -0.03 front +0.00 side -1.00
+stock        heading    90 deg  speed 0.57 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+stock        heading    90 deg  speed 0.86 m/s (1.5x)  -> side_r     up -0.03 front +0.00 side -1.00
+stock        heading    90 deg  speed 1.14 m/s (2.0x)  -> side_r     up -0.02 front +0.00 side -1.00
+stock        heading   120 deg  speed 0.57 m/s (1.0x)  -> standing   up +1.00 front +0.02 side +0.00
+stock        heading   120 deg  speed 0.86 m/s (1.5x)  -> supine     up +0.03 front +1.00 side -0.00
+stock        heading   120 deg  speed 1.14 m/s (2.0x)  -> side_r     up -0.03 front +0.00 side -1.00
+stock        heading   150 deg  speed 0.57 m/s (1.0x)  -> supine     up +0.03 front +1.00 side -0.00
+stock        heading   150 deg  speed 0.86 m/s (1.5x)  -> supine     up +0.03 front +1.00 side +0.00
+stock        heading   150 deg  speed 1.14 m/s (2.0x)  -> supine     up +0.03 front +1.00 side -0.00
+stock        heading   180 deg  speed 0.57 m/s (1.0x)  -> supine     up +0.03 front +1.00 side +0.00
+stock        heading   180 deg  speed 0.86 m/s (1.5x)  -> supine     up +0.03 front +1.00 side +0.00
+stock        heading   180 deg  speed 1.14 m/s (2.0x)  -> supine     up +0.03 front +1.00 side +0.00
+stock        heading   210 deg  speed 0.57 m/s (1.0x)  -> supine     up +0.03 front +1.00 side +0.00
+stock        heading   210 deg  speed 0.86 m/s (1.5x)  -> supine     up +0.03 front +1.00 side -0.00
+stock        heading   210 deg  speed 1.14 m/s (2.0x)  -> supine     up +0.03 front +1.00 side +0.00
+stock        heading   240 deg  speed 0.57 m/s (1.0x)  -> standing   up +1.00 front +0.02 side -0.00
+stock        heading   240 deg  speed 0.86 m/s (1.5x)  -> supine     up +0.03 front +1.00 side +0.00
+stock        heading   240 deg  speed 1.14 m/s (2.0x)  -> side_l     up -0.03 front +0.00 side +1.00
+stock        heading   270 deg  speed 0.57 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+stock        heading   270 deg  speed 0.86 m/s (1.5x)  -> side_l     up -0.03 front +0.00 side +1.00
+stock        heading   270 deg  speed 1.14 m/s (2.0x)  -> side_l     up -0.02 front +0.00 side +1.00
+stock        heading   300 deg  speed 0.57 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+stock        heading   300 deg  speed 0.86 m/s (1.5x)  -> side_l     up -0.03 front +0.00 side +1.00
+stock        heading   300 deg  speed 1.14 m/s (2.0x)  -> side_l     up -0.03 front +0.00 side +1.00
+stock        heading   330 deg  speed 0.57 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+stock        heading   330 deg  speed 0.86 m/s (1.5x)  -> prone      up -0.02 front -1.00 side +0.00
+stock        heading   330 deg  speed 1.14 m/s (2.0x)  -> prone      up -0.02 front -1.00 side -0.00
+stock        DISTRIBUTION (36 trials): prone=7, side_l=5, side_r=5, standing=8, supine=11
+-- bird3_box: tipping speed (heading 0) 0.66 m/s -> testing 0.66/0.98/1.31 m/s
+bird3_box    heading     0 deg  speed 0.66 m/s (1.0x)  -> edge       up +0.06 front -1.00 side -0.00
+bird3_box    heading     0 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.07 front -1.00 side -0.00
+bird3_box    heading     0 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.07 front -1.00 side +0.00
+bird3_box    heading    30 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_box    heading    30 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.07 front -1.00 side -0.00
+bird3_box    heading    30 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.07 front -1.00 side +0.00
+bird3_box    heading    60 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_box    heading    60 deg  speed 0.98 m/s (1.5x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_box    heading    60 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.07 front -1.00 side +0.00
+bird3_box    heading    90 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_box    heading    90 deg  speed 0.98 m/s (1.5x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_box    heading    90 deg  speed 1.31 m/s (2.0x)  -> edge       up -0.01 front -0.00 side -1.00
+bird3_box    heading   120 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_box    heading   120 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.13 front +0.99 side +0.00
+bird3_box    heading   120 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.13 front +0.99 side +0.00
+bird3_box    heading   150 deg  speed 0.66 m/s (1.0x)  -> edge       up +0.13 front +0.99 side +0.00
+bird3_box    heading   150 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.14 front +0.99 side +0.00
+bird3_box    heading   150 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.14 front +0.99 side +0.00
+bird3_box    heading   180 deg  speed 0.66 m/s (1.0x)  -> edge       up +0.13 front +0.99 side -0.00
+bird3_box    heading   180 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.14 front +0.99 side -0.00
+bird3_box    heading   180 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.14 front +0.99 side -0.00
+bird3_box    heading   210 deg  speed 0.66 m/s (1.0x)  -> edge       up +0.13 front +0.99 side -0.00
+bird3_box    heading   210 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.14 front +0.99 side -0.00
+bird3_box    heading   210 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.14 front +0.99 side -0.00
+bird3_box    heading   240 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_box    heading   240 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.13 front +0.99 side -0.00
+bird3_box    heading   240 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.13 front +0.99 side -0.00
+bird3_box    heading   270 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_box    heading   270 deg  speed 0.98 m/s (1.5x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_box    heading   270 deg  speed 1.31 m/s (2.0x)  -> edge       up -0.01 front -0.00 side +1.00
+bird3_box    heading   300 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side -0.00
+bird3_box    heading   300 deg  speed 0.98 m/s (1.5x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_box    heading   300 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.07 front -1.00 side -0.00
+bird3_box    heading   330 deg  speed 0.66 m/s (1.0x)  -> standing   up +1.00 front +0.04 side +0.00
+bird3_box    heading   330 deg  speed 0.98 m/s (1.5x)  -> edge       up +0.07 front -1.00 side +0.00
+bird3_box    heading   330 deg  speed 1.31 m/s (2.0x)  -> edge       up +0.07 front -1.00 side -0.00
+bird3_box    DISTRIBUTION (36 trials): edge=24, standing=12
+
+SIDE BY SIDE:
+  edge       bird3_round=24  stock=0  bird3_box=24
+  prone      bird3_round=0  stock=7  bird3_box=0
+  side_l     bird3_round=0  stock=5  bird3_box=0
+  side_r     bird3_round=0  stock=5  bird3_box=0
+  standing   bird3_round=12  stock=8  bird3_box=12
+  supine     bird3_round=0  stock=11  bird3_box=0
+standing: []
