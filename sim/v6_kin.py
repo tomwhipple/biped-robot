@@ -83,6 +83,24 @@ def _rz(a: float) -> np.ndarray:
     return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
 
 
+def _rx(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
+
+
+def orient_quat(heading: float, roll: float = 0.0):
+    """torso quaternion for world orientation R = Rz(heading) @ Rx(roll) --
+    yaw the body to `heading`, then roll it about its own (now-yawed) local
+    forward axis by `roll`. roll=0 reduces to heading_quat(heading)."""
+    if roll == 0.0:
+        return heading_quat(heading)
+    qz = np.array([math.cos(heading / 2), 0.0, 0.0, math.sin(heading / 2)])
+    qx = np.array([math.cos(roll / 2), math.sin(roll / 2), 0.0, 0.0])
+    q = np.zeros(4)
+    mujoco.mju_mulQuat(q, qz, qx)
+    return tuple(q)
+
+
 def pose_from_feet(p: DesignParams, pelvis: np.ndarray, footL: np.ndarray,
                    footR: np.ndarray, knee: str | None = None,
                    yaw: tuple[float, float] = (0.0, 0.0),
@@ -107,10 +125,18 @@ def pose_from_feet(p: DesignParams, pelvis: np.ndarray, footL: np.ndarray,
 
 def pose_world(p: DesignParams, pelvis: np.ndarray, heading: float, footL: np.ndarray,
                footR: np.ndarray, yawL: float = 0.0, yawR: float = 0.0,
-               knee: str | None = None) -> np.ndarray:
+               knee: str | None = None, roll: float = 0.0) -> np.ndarray:
     """same, with everything in the WORLD frame: pelvis (x, y, z) and heading
-    (yaw about +Z), feet as ankle-roll points with their own world yaws."""
-    R = _rz(-heading)
+    (yaw about +Z), feet as ankle-roll points with their own world yaws.
+    roll (rad, 2026-09-17, wide_gait.py WADDLE): the pelvis/torso is additionally
+    ROLLED by this angle about its own (post-heading) local forward axis --
+    e.g. the whole flat-slab body tilts sideways to swing its CoM over the
+    stance foot instead of only translating the pelvis. The hip-mount offsets
+    baked into pose_from_feet (+-hip_sep/2 in the pelvis's local Y) then tilt
+    WITH the body, so a rolled torso changes each leg's required reach --
+    that is the whole mechanism. roll=0.0 reproduces the original R = Rz(-heading)
+    exactly (byte-identical for every existing caller)."""
+    R = _rz(-heading) if roll == 0.0 else (_rx(-roll) @ _rz(-heading))
     pel = np.asarray(pelvis, float)
     fL = R @ (np.asarray(footL, float) - pel)
     fR = R @ (np.asarray(footR, float) - pel)
