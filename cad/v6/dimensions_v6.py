@@ -258,6 +258,100 @@ YAW_HORN_FACE_Z = YAW_BOX_BOT_Z - D.YAW_BOX_CARRIER_GAP               # -73.80
 TORSO_FLOOR_Z = YAW_HORN_FACE_Z + 1.0         # nothing torso-side below this
 DECK_BOT_Z = HIP_YAW_Z - YAW_HORN_FACE_Z - DECK_T                     # world z of the deck bottom
 DECK_TOP_Z = DECK_BOT_Z + DECK_T
+
+# ----------------------------------------------------------------------------
+# hip-yaw bearing (2026-09-17, docs/design-v6/study-yaw-bearing.md): today the
+# yaw servo's HORN SPLINE + 4 horn screws are the only connection between the
+# carrier (whole leg, 0.335 m lever) and the pelvis -- thrust (~15 N single-
+# support) and the roll moment (~0.65 N-m) both go through the shaft. A
+# 6707-2RS deep-groove ball bearing (35x44x5) goes around the CARRIER'S
+# HORN-PLATE RIM (not the servo's O19.2 horn disc -- a boss that tight would
+# leave a 0.4 mm wall) so the pelvis carries thrust + moment through its own
+# printed material and the servo shaft goes back to pure torque.
+#
+# Geometry that sizes the bore: the servo case's own footprint (half-width
+# D.SV_WID/2 = 12.36 Y, reach D.SV_AXIS_FROM_OUT_END = 10.11 fwd) has a
+# forward-corner distance from the axis of hypot(10.11, 12.36) = 15.97 mm --
+# the tightest the case ever gets to the axis.
+#
+# But the carrier's own horn-mount PLATE is bigger than the disc it grips --
+# it is ALSO the roll bay's ceiling (X +/-19.95, Y +/-hw=15.26, so its own
+# CORNER is hypot(19.95, 15.26) = 25.12 mm from the axis) and that full
+# plate -- not just a boss -- sweeps through the recess's Z-band as the leg
+# yaws. A first pass at this used a 6707-2RS (35x44x5, boss r 17.45): its
+# 22 mm recess radius does NOT clear the plate's 25.12 mm corner (found by
+# check_assembly_v6.py --joint hip_yaw: 240 mm3 overlap growing with yaw
+# angle). 6709-2RS (45x55x6) fixes it -- recess radius 27.475 mm clears the
+# corner by 2.35 mm -- at the cost of 1 mm more axial stack (6 mm vs 5) and
+# a larger boss ring welded onto the OUTSIDE of the existing plate/bay
+# footprint (does not touch the plate's existing structural connections to
+# the bay walls).
+#
+# It lives entirely BELOW the existing yaw cell tube rim (YAW_BOX_BOT_Z,
+# unchanged) -- the GD/Pi board columns and the servo case both end at or
+# above that Z, so the whole assembly sits in air that was already open.
+# NO axis drop, no change to YAW_HORN_FACE_Z/TORSO_FLOOR_Z/HIP_YAW_Z/anything
+# in the leg chain below the carrier's own plate.
+YAW_BRG_ID = 45.0                              # 6709-2RS bore
+YAW_BRG_OD = 55.0                              # 6709-2RS OD
+YAW_BRG_W = 6.0                                # 6709-2RS width
+YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.10            # 45.10, +0.10 interference (press
+                                                # fit; no bearing precedent in
+                                                # dimensions.py -- new for this
+                                                # study, verify/adjust after the
+                                                # first print)
+YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2           # 22.55 -- clears the case's
+                                                # 15.97 mm corner by 6.6 mm
+YAW_BRG_BOSS_H = YAW_BRG_W                     # 6.0, full bore engagement -- the
+                                                # boss radius clears the case at
+                                                # any height so there is no need
+                                                # to shorten it
+YAW_BRG_RECESS_ID = YAW_BRG_OD + 1.5            # 56.5, +1.5 CLEARANCE (not a
+                                                # press fit) against the outer
+                                                # race -- widened from the
+                                                # first-pass -0.05 interference
+                                                # after check_assembly_v6 found
+                                                # only 0.38 mm min distance to
+                                                # the plate's 25.12 mm corner at
+                                                # +-0.05 (< D.SWEEP_BUFFER 0.5);
+                                                # retention is the shoulder +
+                                                # retaining compound (see the
+                                                # write-up), not an interference
+                                                # fit on the outer race
+YAW_BRG_SHOULDER_LAND = 2.0                    # ledge width (radial) that stops
+                                                # the outer race's top face --
+                                                # reacts the leg's upward thrust.
+                                                # The shoulder's own Z-band sits
+                                                # ABOVE the plate (see the Z
+                                                # derivation below), so it does
+                                                # not need the plate's clearance.
+YAW_BRG_SHOULDER_ID = YAW_BRG_OD - 2 * YAW_BRG_SHOULDER_LAND   # 51.0
+YAW_BRG_SKIRT_OD = 62.0                        # ~3.5 mm wall around the recess;
+                                                # two skirts (84 mm hip sep) leave
+                                                # 22 mm edge-to-edge, and both sit
+                                                # entirely below where GD/Pi/the
+                                                # battery layer exist, so nothing
+                                                # else routes through that gap
+                                                # below z = YAW_BOX_BOT_Z
+# skirt/recess Z (pelvis-local, hangs from the EXISTING rim, nothing above
+# YAW_BOX_BOT_Z moves). The recess is pinned to YAW_HORN_FACE_Z (the world
+# reference the carrier's boss ALSO uses -- HIP_YAW_Z in assembly_v6.py --
+# so the two align exactly): recess proper is the bearing's own width,
+# ending flush at the horn face; the shoulder fills the remaining, already-
+# existing 1.8 mm gap up to the tube rim (D.YAW_BOX_CARRIER_GAP, unchanged).
+YAW_BRG_RECESS_Z = (YAW_HORN_FACE_Z - YAW_BRG_W, YAW_HORN_FACE_Z)              # -78.80..-73.80
+YAW_BRG_SHOULDER_Z = (YAW_BRG_RECESS_Z[1], YAW_BOX_BOT_Z)                      # -73.80..-72.0
+YAW_BRG_SHOULDER_H = YAW_BRG_SHOULDER_Z[1] - YAW_BRG_SHOULDER_Z[0]             # 1.80 == D.YAW_BOX_CARRIER_GAP
+# carrier boss Z, in the CARRIER's own local frame (z=0 at the horn face,
+# +Z toward the servo -- see cad/parts.py yaw_carrier docstring): the boss
+# hangs from the plate's top face DOWN into the carrier's own body, matching
+# the pelvis recess when the leg hangs at HIP_YAW_Z in the standing pose.
+YAW_BRG_BOSS_CARRIER_Z = (-YAW_BRG_BOSS_H, 0.0)                                # -6.0..0.0
+assert YAW_BRG_BOSS_R + 1.0 > D.BCD / 2 + 3.0, "boss must clear the horn screws"
+_case_corner_r = math.hypot(D.SV_AXIS_FROM_OUT_END, D.SV_WID / 2)   # 15.97
+assert YAW_BRG_BOSS_R > _case_corner_r, "boss radius must clear the servo case's own corner"
+assert YAW_BRG_SHOULDER_Z[1] == YAW_BOX_BOT_Z, "skirt must hang from the EXISTING rim, unmoved"
+
 # housing plan
 # +4: an outer skin outboard of the yaw cell walls, so the housing can taper
 # 3 deg toward the bottom for the look without thinning the cell walls

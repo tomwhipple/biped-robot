@@ -37,7 +37,7 @@ PARTS = [
     ("pelvis_v7", _lazy("pelvis_v7", "pelvis_v7"), 1, "one print, deck-top-down"),
     ("head", _lazy("head", "head"), 1, "neck horn carrier + shell"),
     ("neck_collar", _lazy("neck_collar", "neck_collar"), 1, "collar round the neck servo, flange-down"),
-    ("yaw_carrier", v5.yaw_carrier, 2, "v5 part, unchanged"),
+    ("yaw_carrier_v6", _lazy("yaw_carrier_v6", "yaw_carrier_v6"), 2, "v5 carrier + hip-yaw bearing boss (study-yaw-bearing.md)"),
     ("yoke_roll", v5.yoke_roll, 2, "v5 part, unchanged (slicer supports)"),
     ("yoke_pitch_v6", _lazy("yoke_pitch_v6", "yoke_pitch_v6"), 2, "v5 clevis + flange chamfer for hip flexion 125 (slicer supports)"),
     ("leg_link_v6", _lazy("leg_link_v6", "leg_link_v6"), 4, "thigh + shin, 110 mm, box section"),

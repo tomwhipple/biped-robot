@@ -61,6 +61,16 @@ def _try(modname, fn, *a, **k):
         return None, False
 
 
+def part_yaw_carrier():
+    """v6 carrier (v5's + the hip-yaw bearing boss); falls back to v5's."""
+    try:
+        import yaw_carrier_v6
+        return yaw_carrier_v6.yaw_carrier_v6()
+    except Exception as e:  # noqa: BLE001
+        print(f"  [assembly_v6] yaw_carrier_v6 unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
+        return v5parts.yaw_carrier()
+
+
 def part_yoke_pitch():
     """v6 clevis (flange chamfer for hip flexion 125); falls back to v5's."""
     try:
@@ -174,7 +184,7 @@ def _leg_chain(side):
               ("ankle_roll", (1, 0, 0), (0, y, V.ANKLE_ROLL_Z))]
     pieces = [
         (0, f"servo_hip_yaw_{side}", COL_SERVO, Pos(0, y, V.HIP_YAW_Z + D.SV_HORN_FACE) * CA.servo_mock_z()),
-        (1, f"yaw_carrier_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * v5parts.yaw_carrier()),
+        (1, f"yaw_carrier_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * part_yaw_carrier()),
         (1, f"servo_hip_roll_{side}", COL_SERVO, at(V.HIP_ROLL_Z) * CA.servo_mock_x()),
         (2, f"yoke_roll_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * v5parts.yoke_roll()),
         (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch()),

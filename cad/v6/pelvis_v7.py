@@ -532,6 +532,27 @@ def pelvis_v7():
             p += box(rx, rx + rib_w, s * (hw - 0.5), s * (hw_skin + 0.5),
                      zb + 2.0, zd - 2.0)
 
+    # ---- HIP-YAW BEARING SKIRT + RECESS (2026-09-17, docs/design-v6/
+    # study-yaw-bearing.md): the OUTER-race seat for a 6707-2RS deep-groove
+    # ball bearing around the carrier's horn-plate rim (cad/v6/
+    # yaw_carrier_v6.py has the matching boss). Hangs from the EXISTING
+    # cell-tube rim (zb = V.YAW_BOX_BOT_Z -- NOT moved, nothing above this
+    # line changes) down to V.YAW_BRG_RECESS_Z[0], entirely in the air that
+    # was already open below both the servo case (case-bottom sits above
+    # zb) and the GD/Pi board columns (both end at zb too -- see
+    # dimensions_v6.py's derivation of YAW_BRG_BOSS_R). A shoulder (ID
+    # V.YAW_BRG_SHOULDER_ID) stops the outer race's top face, reacting the
+    # leg's upward thrust (single-support weight) into the pelvis print;
+    # the recess proper below it (ID V.YAW_BRG_RECESS_ID) is a light press
+    # fit on the race OD.
+    skirt_r = V.YAW_BRG_SKIRT_OD / 2
+    sho_z0, sho_z1 = V.YAW_BRG_SHOULDER_Z
+    rec_z0, rec_z1 = V.YAW_BRG_RECESS_Z
+    for by in (V.HIP_SEP / 2, -V.HIP_SEP / 2):
+        p += cyl_z(skirt_r, rec_z0 - 0.5, sho_z1, 0, by)
+        p -= cyl_z(V.YAW_BRG_SHOULDER_ID / 2, sho_z0, sho_z1 + 0.5, 0, by)
+        p -= cyl_z(V.YAW_BRG_RECESS_ID / 2, rec_z0 - 0.6, rec_z1 + 0.01, 0, by)
+
     return p
 
 
