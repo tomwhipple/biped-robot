@@ -533,18 +533,21 @@ def pelvis_v7():
                      zb + 2.0, zd - 2.0)
 
     # ---- HIP-YAW BEARING SKIRT + RECESS (2026-09-17, docs/design-v6/
-    # study-yaw-bearing.md): the OUTER-race seat for a 6707-2RS deep-groove
-    # ball bearing around the carrier's horn-plate rim (cad/v6/
-    # yaw_carrier_v6.py has the matching boss). Hangs from the EXISTING
-    # cell-tube rim (zb = V.YAW_BOX_BOT_Z -- NOT moved, nothing above this
-    # line changes) down to V.YAW_BRG_RECESS_Z[0], entirely in the air that
-    # was already open below both the servo case (case-bottom sits above
-    # zb) and the GD/Pi board columns (both end at zb too -- see
-    # dimensions_v6.py's derivation of YAW_BRG_BOSS_R). A shoulder (ID
-    # V.YAW_BRG_SHOULDER_ID) stops the outer race's top face, reacting the
-    # leg's upward thrust (single-support weight) into the pelvis print;
-    # the recess proper below it (ID V.YAW_BRG_RECESS_ID) is a light press
-    # fit on the race OD.
+    # study-yaw-bearing.md; REVISED after coordinator review -- 6811-2RS,
+    # located races, no clearance fit -- see the write-up's history
+    # section). The OUTER-race seat for a 6811-2RS deep-groove ball bearing
+    # around the carrier's ENTIRE horn-plate + upper bay-wall footprint
+    # (cad/v6/yaw_carrier_v6.py has the matching boss). Hangs from the
+    # EXISTING cell-tube rim (zb = V.YAW_BOX_BOT_Z -- NOT moved, nothing
+    # above this line changes) down to V.YAW_BRG_RECESS_Z[0], entirely in
+    # the air that was already open below both the servo case (case-bottom
+    # sits above zb) and the GD/Pi board columns (both end at zb too). A
+    # shoulder (ID V.YAW_BRG_SHOULDER_ID, land V.YAW_BRG_SHOULDER_LAND)
+    # stops the outer race's top face, reacting the leg's upward thrust
+    # (single-support weight) into the pelvis print; the recess proper
+    # below it (ID V.YAW_BRG_RECESS_ID) is a LOCATED, -0.04 mm interference
+    # fit on the race OD -- not a clearance fit, per the coordinator's
+    # note that a movable outer race defeats the point of the bearing.
     skirt_r = V.YAW_BRG_SKIRT_OD / 2
     sho_z0, sho_z1 = V.YAW_BRG_SHOULDER_Z
     rec_z0, rec_z1 = V.YAW_BRG_RECESS_Z
@@ -552,6 +555,27 @@ def pelvis_v7():
         p += cyl_z(skirt_r, rec_z0 - 0.5, sho_z1, 0, by)
         p -= cyl_z(V.YAW_BRG_SHOULDER_ID / 2, sho_z0, sho_z1 + 0.5, 0, by)
         p -= cyl_z(V.YAW_BRG_RECESS_ID / 2, rec_z0 - 0.6, rec_z1 + 0.01, 0, by)
+
+    # BRIDGE the two skirts: OD 78 mm at 84 mm hip separation leaves only
+    # 6 mm edge-to-edge -- too little for two independent free-hanging
+    # rings to stand on their own without flexing under yaw torque or a
+    # bench knock, so they are fused into one structure by a short web at
+    # the bottom (the most compliant point, farthest from the rigid cell
+    # block above). MUST stay outside each skirt's own recess bore (r <
+    # V.YAW_BRG_RECESS_R from that hip's own centre) -- a first version of
+    # this reached 5 mm into each skirt without checking that boundary and
+    # ate 80 mm3 into the bearing's own reserved outer-race space
+    # (check_yaw_bearing_combo.py caught it: pelvis vs OUTER_RING, FAIL).
+    # The skirt's SOLID wall at x=0 only exists between y = hip_y -
+    # skirt_r (the outer surface) and y = hip_y - V.YAW_BRG_RECESS_R (where
+    # the hollow bore begins) -- so the bridge reaches to just inside that
+    # inner limit, never into the bore itself.
+    bridge_hy = V.HIP_SEP / 2 - V.YAW_BRG_RECESS_R - 0.3   # 5.72, inside the
+                                                            # skirt wall, clear
+                                                            # of the recess bore
+    bridge_x = (-15.0, 15.0)
+    bridge_z = (rec_z0, rec_z0 + 4.0)
+    p += box(bridge_x[0], bridge_x[1], -bridge_hy, bridge_hy, bridge_z[0], bridge_z[1])
 
     return p
 

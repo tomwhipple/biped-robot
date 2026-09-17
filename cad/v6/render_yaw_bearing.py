@@ -94,11 +94,14 @@ def main():
     render_zoom(joint_compound(after_carrier, after_pelvis, y),
                 os.path.join(OUT, "yaw_bearing_after.png"))
 
-    # ---- SECTION: cut both parts (in their OWN local frames, before
-    # placement) with a half-space at the hip's own y so the boss/recess/
-    # shoulder stack is visible in the assembled section.
+    # ---- SECTION: cut the carrier at its OWN y (reveals its boss/plate),
+    # and cut the PELVIS at the housing's mid-sagittal plane (y=0, not the
+    # hip's own y) so the section shows the near skirt's full recess/
+    # shoulder stack AND the bridge connecting it to the far skirt (the
+    # bridge spans y=-8..+8 in pelvis-local, so this cut clips it at its
+    # midpoint rather than hiding it entirely).
     carrier_cut = after_carrier - Pos(0, 200, 0) * Box(500, 400, 500)
-    pelvis_cut = after_pelvis - Pos(0, y + 200, 0) * Box(500, 400, 500)
+    pelvis_cut = after_pelvis - Pos(0, -200, 0) * Box(500, 400, 500)
     render_zoom(joint_compound(carrier_cut, pelvis_cut, y),
                 os.path.join(OUT, "yaw_bearing_section.png"), dist=0.16)
 
