@@ -279,36 +279,77 @@ stops, one of them a screwed part per side** (`cad/v6/yaw_retention_optE.py`,
 STEP in `cad/v6/step/yaw_bearing_optE/`):
 
 - **Carrier, under the inner race -- LIP (printed):** ring r 25.04..27.5,
-  carrier z [-8.5, -7]. The race now goes on from the horn-face side and
+  carrier z [-8.3, -6.8]. The race now goes on from the horn-face side and
   sits on the lip. Stance load: shoulder -> outer race -> balls -> inner
   race -> lip -> carrier.
 - **Carrier, over the inner race -- CAP (separate, screwed):** ring
-  r 17..28.5 x 1.2 mm in the EXISTING 1.8 mm gap between the horn face and
-  the cell rim, 3x M2.5 flat-head self-tap at r 22 into the solid hub
-  (pilot 2.05, the build's standard; heads 0.3 proud, 0.3 mm to the rim).
+  r 17..28.5 x 1.0 mm in the EXISTING gap between the horn face and the
+  cell rim, 3x M2.5 flat-head self-tap at r 22 into the solid hub (pilot
+  2.05, the build's standard; heads countersunk flush, the cone continuing
+  0.3 into the hub).
   Fitted with the carrier OUT of the pelvis (no driver access in the gap).
 - **Pelvis, above the outer race -- shoulder:** unchanged from option A.
 - **Pelvis, under the outer race -- RETAINER (separate, screwed):** ring
-  1.5 mm, land r 29.8..32.48 on the outer race's bottom face, 3 tabs to
+  1.5 mm with a 0.9 mm land r 29.8..32.28 up into the recess onto the
+  outer race's bottom face, 3 tabs to
   three new dia-8 bosses on the skirt OD (r 38.5, outboard and +-120 deg,
   off the inboard bridge line), 3x M2.5x8 flat-head self-tap driven UP
   from below. Swing load: carrier -> cap screws -> cap -> inner race ->
   balls -> outer race -> retainer -> boss screws -> pelvis.
 
-**Checked:** 9 must-not-touch pairs (cap vs outer race / pelvis / yaw
-servo; retainer vs inner race / carrier / roll servo; carrier vs pelvis
-and outer race; pelvis vs inner race) all 0.000 mm3 overlap at the build
-pose. No stack growth: `HIP_YAW_Z`, `CARRIER_ROLL_AXIS`, `YAW_BOX_BOT_Z`
-untouched. Masses: carrier 21.46 cm3, cap 1.94 cm3, retainer 1.95 cm3
-(pelvis 169.17 cm3 incl. six bosses).
+**Play (Tom's condition for accepting E: tolerances must still eliminate
+play).** Three kinds, handled three ways:
+
+- *Axial and tilt play* -- the kind that actually reaches the foot through
+  the 0.335 m lever -- is removed by PRELOAD, not by fit. The whole bearing
+  sits `E_PRELOAD` = 0.2 mm higher than in option A, so the race stands
+  0.2 proud of the horn face and the pelvis shoulder's underside is raised
+  0.2 to match (land 1.8 -> 1.6 mm). The cap bottoms on the inner race with
+  a 0.2 gap to the hub face behind it; the retainer's 0.9 mm land reaches
+  into the recess and bottoms on the outer race with a 0.2 gap to the
+  skirt/boss faces behind it. Tightening the screws therefore clamps the
+  RACE, never the print; print error of up to 0.2 mm in either direction
+  goes into that gap. Measured in the STEP (`distToShape`): cap-race 0.00,
+  cap-hub 0.20, retainer-race 0.00, retainer-pelvis 0.20, race-shoulder
+  0.00, race-lip 0.00, cap-cell-rim 1.1.
+- *Radial play* (the fit of the hub in the bore and the race in the
+  recess): a 0.04/0.08 mm interference is inside the printer's error band,
+  so the CAD fit alone is neither reliably tight nor reliably loose. The
+  standard answer for a bearing in a plastic or loose housing is a
+  RETAINING COMPOUND on both seats (Loctite 641 medium strength, gap fill
+  0.15-0.25 mm, disassemblable; 648 if it must never come apart). With the
+  axial clamps above, the compound only has to take up radial slop, not
+  hold the bearing in. Print the hub and recess at nominal, measure, and
+  fit with compound. Note a 0.1 mm radial gap at the hip moves the foot
+  0.1 mm; it does NOT become an angle.
+- *Yaw rotational play* (the 1-2 deg measured on v5) lives in the horn
+  spline and the 4 horn screws and is NOT touched by any bearing option;
+  what the bearing does is take the moment off those screws so they stop
+  working loose. Separate item.
+
+**Heat-setting the bearing into the PETG (Tom's question): no.** PETG has
+to be taken to ~230 C to flow around a race; a 2RS bearing's seals and
+grease are good to roughly 100 C, so the bearing is cooked before the seat
+forms. The melted seat also has no controlled diameter (so no defined
+radial fit), gives no positive stop in the lift-out direction, and still
+creeps afterwards. Heat-set INSERTS remain fine (small brass, local heat)
+but are not needed here: every screw is the build's M2.5 flat-head
+self-tap into a 2.05 pilot, with >= 6 mm of engagement in each boss/hub.
+
+**Checked:** 15 must-not-touch pairs (cap vs outer race / pelvis / yaw
+servo / carrier / inner race; retainer vs inner race / carrier / roll
+servo / pelvis / outer race; carrier vs pelvis / both races; pelvis vs
+both races) all 0.000 mm3 overlap at the build pose. No stack growth:
+`HIP_YAW_Z`, `CARRIER_ROLL_AXIS`, `YAW_BOX_BOT_Z` untouched. Volumes:
+carrier 21.44 cm3, cap 1.62 cm3, retainer 2.39 cm3 (pelvis 169.08 cm3
+incl. six bosses).
 
 **Not yet done:** the full `check_assembly_v6.py` yaw/roll/pitch sweep
 (the new parts are axisymmetric about the yaw axis, so the informative
 pose is the build pose, but the sweep is owed for parity with A/C); the
-fly-in strip; and once retention is positive the two interference fits
-should be relaxed to located slip fits (constants unchanged for now).
-Cap OD and retainer ID hang off the same ESTIMATED ring split as A/C
-(1.04 / 1.76 mm margins) -- verify on the real bearing before cutting.
+fly-in strip; the BOM line for the retaining compound. Cap OD and
+retainer ID hang off the same ESTIMATED ring split as A/C (1.04 / 1.76 mm
+margins) -- verify on the real bearing before cutting.
 
 ## 7. Recommendation
 

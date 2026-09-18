@@ -6,9 +6,9 @@ pelvis shoulder above the outer race); the other three directions are
 interference-fit friction only. This option adds the missing three:
 
   carrier (leg) side, inner race (band z -7..0, carrier-local, unchanged):
-    - LIP  : printed ring under the race, z [-8.5, -7], r 25.04..27.5. The
+    - LIP  : printed ring under the race, z [-8.3, -6.8], r 25.04..27.5. The
              race now goes on from the horn-face side, down onto the lip.
-    - CAP  : a separate thin ring ON TOP of the race, r 17..28.5 x 1.2 mm,
+    - CAP  : a separate thin ring ON TOP of the race, r 17..28.5 x 1.0 mm,
              in the existing 1.8 mm gap between the horn face and the cell
              rim, held by 3x M2.5 flat-head self-tappers at r 22 driven into
              the hub (7 mm of solid hub there, outside the bay cavity).
@@ -51,15 +51,26 @@ box, cyl_z = P.box, P.cyl_z
 # ---- carrier side (carrier-local, horn face z = 0)
 E_HUB_R = V.YAWA_BRG_BOSS_R                 # 25.04, unchanged
 E_LIP_R = 27.5                              # under the inner race (OD est 28.04): 0.54 mm short of the seal gap
-E_LIP_Z = (V.YAWA_BAND_Z[0] - 1.5, V.YAWA_BAND_Z[0])   # (-8.5, -7.0)
+# PRELOAD: the whole bearing (both races share their faces) sits E_PRELOAD
+# higher than option A, so the race stands proud of the horn face by that
+# much; the cap and the retainer each bottom on a RACE face while a
+# E_PRELOAD gap remains to the plastic behind them (hub face / boss faces).
+# Tightening the screws closes that gap onto the race, not the print, so
+# print tolerance cannot leave the race loose -- this is what kills axial
+# and tilt play. Radial play is a fit/retaining-compound matter, see doc.
+E_PRELOAD = 0.2
+E_RACE_Z = (V.YAWA_BAND_Z[0] + E_PRELOAD, V.YAWA_BAND_Z[1] + E_PRELOAD)   # (-6.8, 0.2) carrier-local
+E_LIP_Z = (E_RACE_Z[0] - 1.5, E_RACE_Z[0])  # (-8.3, -6.8)
 E_CAP_ID_R, E_CAP_OD_R = 17.0, 28.5         # clears the horn disc (15.97) / the outer race ID est 29.54 by 1.04
-E_CAP_T = 1.2                               # + flat head 0.3 proud = 1.5 < 1.8 mm gap to the cell rim
+E_CAP_T = 1.0                               # cap z E_PRELOAD..E_PRELOAD+1.0; flat heads countersunk FLUSH, the
+                                            # 90-deg cone continues 0.3 into the hub (solid there)
+E_CAP_Z = (E_RACE_Z[1], E_RACE_Z[1] + E_CAP_T)   # (0.2, 1.2): 0.6 mm to the cell rim at 1.8
 E_CAP_SCREW_R = 22.0                        # 3x M2.5 flat-head self-tap, into the solid hub (heads reach r 24.35 < hub 25.04)
 E_CAP_SCREW_ANGLES = (90, 210, 330)         # +y first: all three land outside the bay cavity (|y|>12.66 or |x|>17.35)
 E_PILOT = D.CASE_SCREW_PILOT                # 2.05, the build's M2.5 self-tap pilot
 E_M25_CLEAR = 2.7
 E_M25_HEAD_R, E_M25_HEAD_H = 2.35, 1.5      # flat/countersunk head
-assert E_CAP_T + 0.3 < (V.YAW_BOX_BOT_Z - V.YAW_HORN_FACE_Z), "cap + proud head must fit the horn-face/cell-rim gap"
+assert E_CAP_Z[1] + 0.4 <= (V.YAW_BOX_BOT_Z - V.YAW_HORN_FACE_Z), "cap (heads flush) must clear the cell rim by 0.4"
 assert E_CAP_OD_R < V.YAWA_EST_OUTER_RING_ID, "cap must not touch the outer race"
 assert E_LIP_R < V.YAWA_EST_OUTER_RING_ID, "lip must not reach the outer race"
 for a in E_CAP_SCREW_ANGLES:
@@ -73,9 +84,14 @@ E_BOSS_R_POS = 38.5                         # boss centre radius from the yaw ax
 E_BOSS_R = 4.0                              # dia 8 boss
 E_BOSS_Z = (V.YAWA_RECESS_Z[0] - 0.5, V.YAW_BOX_BOT_Z)   # (-81.3, -72.0): same span as the skirt
 E_RET_T = 1.5
-E_RET_Z = (E_BOSS_Z[0] - E_RET_T, E_BOSS_Z[0])            # (-82.8, -81.3)
+E_RET_Z = (E_BOSS_Z[0] - E_PRELOAD - E_RET_T, E_BOSS_Z[0] - E_PRELOAD)   # (-83.0, -81.5): body top E_PRELOAD below the skirt/boss faces
 E_RET_ID_R = 29.8                           # land starts 0.26 outside the outer race ID est, 1.76 clear of the inner race
+E_RET_LAND_OD_R = V.YAWA_BRG_RECESS_R - 0.2 # 32.28: the land enters the recess bore with 0.2 radial clearance
 E_RET_OD_R = V.YAWA_SKIRT_OD / 2            # 35.5, flush with the skirt
+E_RACE_BOT_PELVIS = V.YAWA_RECESS_Z[0] + E_PRELOAD   # -80.6 pelvis-local: outer race bottom face
+E_RET_LAND_Z = (E_RET_Z[1], E_RACE_BOT_PELVIS)       # (-81.5, -80.6): 0.9 tall land up into the recess to the race
+E_SHOULDER_Z = (V.YAWA_RECESS_Z[1] + E_PRELOAD, V.YAWA_SHOULDER_Z[1])   # (-73.6, -72.0): 1.6 mm land, was 1.8
+assert E_SHOULDER_Z[1] - E_SHOULDER_Z[0] >= 1.2, "pelvis shoulder land too thin"
 E_RET_SCREW_DEPTH = 7.0                     # M2.5x8 self-tap: 1.5 ring + 6.5 in the boss
 assert E_RET_ID_R > V.YAWA_EST_INNER_RING_OD + 1.5, "retainer must clear the inner race"
 assert E_RET_ID_R > E_LIP_R + 2.0, "retainer must clear the carrier lip"
@@ -106,17 +122,24 @@ def carrier_optE(print_fins=False):
     for a in E_CAP_SCREW_ANGLES:
         x, y = _pol(E_CAP_SCREW_R, a)
         p -= cyl_z(E_PILOT / 2, -6.0, 0.5, x, y)
+        p -= _head_cone(x, y)                        # the countersink's tail, below the cap
     return p
+
+
+def _head_cone(x, y):
+    """90-deg countersink for an M2.5 flat head, top flush with the cap's top
+    face; the same cone is cut from the cap AND the hub beneath it."""
+    top = E_CAP_Z[1]
+    return Pos(x, y, top - E_M25_HEAD_H / 2 + 0.005) * Cone(0.0, E_M25_HEAD_R, E_M25_HEAD_H + 0.01)
 
 
 def cap():
     """Carrier-local. Thin ring over the inner race, countersunk for 3x M2.5 flat heads."""
-    c = _ring(E_CAP_ID_R, E_CAP_OD_R, 0.0, E_CAP_T)
+    c = _ring(E_CAP_ID_R, E_CAP_OD_R, *E_CAP_Z)
     for a in E_CAP_SCREW_ANGLES:
         x, y = _pol(E_CAP_SCREW_R, a)
-        c -= cyl_z(E_M25_CLEAR / 2, -1, E_CAP_T + 1, x, y)
-        # 90-deg countersink from the top face
-        c -= Pos(x, y, E_CAP_T - E_M25_HEAD_H / 2 + 0.005) * Cone(0.0, E_M25_HEAD_R, E_M25_HEAD_H + 0.01)
+        c -= cyl_z(E_M25_CLEAR / 2, E_CAP_Z[0] - 1, E_CAP_Z[1] + 1, x, y)
+        c -= _head_cone(x, y)
     return c
 
 
@@ -124,6 +147,9 @@ def pelvis_optE():
     """Option A's pelvis + 3 screw bosses on each hip skirt."""
     p = pelvis_v7.pelvis_v7(bearing_variant="A")
     for y_hip in (V.HIP_SEP / 2, -V.HIP_SEP / 2):
+        # raise the recess top (= the shoulder's underside) by E_PRELOAD so the
+        # race stands proud of the horn face on the carrier side
+        p -= cyl_z(V.YAWA_BRG_RECESS_R, V.YAWA_RECESS_Z[1] - 0.01, E_SHOULDER_Z[0], 0, y_hip)
         for a in boss_angles(y_hip):
             x, y = _pol(E_BOSS_R_POS, a)
             # web from the skirt wall out to the boss, then the boss itself
@@ -139,6 +165,7 @@ def retainer(y_hip):
     """Pelvis-local, one hip. Ring under the skirt bearing on the outer race's
     bottom face, with 3 tabs out to the bosses."""
     r = _ring(E_RET_ID_R, E_RET_OD_R, *E_RET_Z, 0, y_hip)
+    r += _ring(E_RET_ID_R, E_RET_LAND_OD_R, E_RET_LAND_Z[0] - 0.01, E_RET_LAND_Z[1], 0, y_hip)   # the land, up to the race
     for a in boss_angles(y_hip):
         x, y = _pol(E_BOSS_R_POS, a)
         r += cyl_z(E_BOSS_R, *E_RET_Z, x, y + y_hip)
@@ -156,7 +183,7 @@ def build_joint():
     y = V.HIP_SEP / 2
     carrier = carrier_optE()
     pelvis = pelvis_optE()
-    ring_z = (V.HIP_YAW_Z - V.YAWA_BRG_W, V.HIP_YAW_Z)
+    ring_z = (V.HIP_YAW_Z + E_RACE_Z[0], V.HIP_YAW_Z + E_RACE_Z[1])
     inner = Pos(0, y, 0) * _ring(E_HUB_R, V.YAWA_EST_INNER_RING_OD, *ring_z)
     outer = Pos(0, y, 0) * _ring(V.YAWA_EST_OUTER_RING_ID, V.YAWA_BRG_RECESS_R, *ring_z)
     carrier_w = Pos(0, y, V.HIP_YAW_Z) * carrier
@@ -185,7 +212,10 @@ def clearance_report(joint):
                   ("inner_race_cap", "servo_hip_yaw_mock"), ("outer_race_retainer", "bearing_inner_race"),
                   ("outer_race_retainer", "yaw_carrier_E"), ("outer_race_retainer", "servo_hip_roll_mock"),
                   ("yaw_carrier_E", "pelvis_v7_cell_E"), ("yaw_carrier_E", "bearing_outer_race"),
-                  ("pelvis_v7_cell_E", "bearing_inner_race")]
+                  ("pelvis_v7_cell_E", "bearing_inner_race"),
+                  ("inner_race_cap", "yaw_carrier_E"), ("outer_race_retainer", "pelvis_v7_cell_E"),
+                  ("inner_race_cap", "bearing_inner_race"), ("outer_race_retainer", "bearing_outer_race"),
+                  ("yaw_carrier_E", "bearing_inner_race"), ("pelvis_v7_cell_E", "bearing_outer_race")]
     out = []
     for a, b in must_clear:
         vol = (parts[a] & parts[b]).volume
