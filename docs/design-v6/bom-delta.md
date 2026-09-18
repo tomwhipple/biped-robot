@@ -21,7 +21,7 @@ Companion to `docs/design-v6-ankle-roll.md` §9 and the CAD under `cad/v6/`. The
 | PETG | ~0.6 kg | 11 prints, ≈ 450 g + supports | | |
 | 15 mm hook-and-loop strap | 1 | battery belt (v5 pattern) | | |
 
-| **6811-2RS deep-groove ball bearing** | **4** (2 fitted + 2 spares) | 55 x 72 x 9 mm, sealed both sides (2RS), chrome steel | hip-yaw thrust + moment: the pelvis carries the leg's load instead of the yaw servo's horn screws (`study-yaw-bearing.md`) | **[VXB 6811-2RS](https://vxb.com/products/6811-2rs-bearing-55x72x9-sealed)**, US stock, price on the page |
+| **Hip-yaw bearing** (thin-section sealed deep-groove ring, 2 fitted + 2 spares) | 4 | **size NOT selected yet** -- the CAD option study (`study-yaw-bearing.md`) compares a round-hub layout (35 mm bore class) against the 6811 wrap; Tom picks after it | hip-yaw thrust + moment: the pelvis carries the leg's load instead of the yaw servo's horn screws | link after the selection |
 
 Not needed: a Dynamixel bus or board; a UPS HAT (the Waveshare UPS Module 3S's pack output is 2 A, an order of magnitude under the servo bus); a GoPro mount.
 
