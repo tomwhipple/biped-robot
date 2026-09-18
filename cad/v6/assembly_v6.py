@@ -61,13 +61,26 @@ def _try(modname, fn, *a, **k):
         return None, False
 
 
+def yaw_bearing_variant():
+    """Which hip-yaw bearing option the assembly builds (docs/design-v6/
+    study-yaw-bearing.md): "C" (default, unchanged behavior) or "A" via the
+    YAW_BEARING_VARIANT env var -- set by the option-A check/render/export
+    scripts, never by default, so every existing caller of this module keeps
+    building the "C" baseline unless it opts in."""
+    return os.environ.get("YAW_BEARING_VARIANT", "C")
+
+
 def part_yaw_carrier():
     """v6 carrier (v5's + the hip-yaw bearing boss); falls back to v5's."""
+    variant = yaw_bearing_variant()
     try:
+        if variant == "A":
+            import yaw_carrier_v6_optA
+            return yaw_carrier_v6_optA.yaw_carrier_v6_optA()
         import yaw_carrier_v6
         return yaw_carrier_v6.yaw_carrier_v6()
     except Exception as e:  # noqa: BLE001
-        print(f"  [assembly_v6] yaw_carrier_v6 unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
+        print(f"  [assembly_v6] yaw_carrier_v6 (variant {variant}) unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
         return v5parts.yaw_carrier()
 
 
@@ -105,7 +118,7 @@ def part_foot(side):
 
 
 def part_pelvis():
-    s, ok = _try("pelvis_v7", "pelvis_v7")
+    s, ok = _try("pelvis_v7", "pelvis_v7", yaw_bearing_variant())
     if ok:
         return s
     x0, x1 = V.HOUSING_X
