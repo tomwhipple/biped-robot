@@ -252,6 +252,64 @@ option A's, for direct comparison in FreeCAD).
   plausible as a refinement of option A's pelvis side, but it changes
   neither the bore choice nor the recommendation, so not built.
 
+## 6b. Option E: Option A + positive retention of both races (round 3, 2026-09-18)
+
+Tom's review of option A: *"I'm skeptical that press fitting into the
+printed PETG will be effective... I'd think that it would fall out. Are
+there bearing/joint options with built in flanges that we could screw in
+to the plastic?"* Agreed: option A's interference (0.04 / 0.08 mm on
+diameter) is below what the printer holds on a 65 mm circle, and PETG
+creeps, so within weeks both fits are slip fits. Option A has ONE positive
+stop (the pelvis shoulder above the outer race); the other three axial
+directions are friction only, so in swing the leg would hang from the horn
+screws exactly as it does today and the bearing would carry nothing.
+
+**Off-the-shelf flanged / bolt-on options at this bore (searched this
+session):**
+
+| option | bore x OD x W | holes | fits the band, no stack growth | mass each |
+|---|---|---|---|---|
+| 6810-2RS (option A) | 50 x 65 x 7 | none | yes | 52 g |
+| F6810 flanged (Lily) | 50 x 65 x 7 + 1.5 flange | none | yes; but the flange lands on the skirt's BOTTOM face (inserted from below) so it only stops the race going UP, which the shoulder already does | ~52 g |
+| THK RU42 cross roller ring | 20 x 70 x 12 | both rings | **no** -- 20 mm bore vs the roll servo's 22.23 mm reach in the band, so it must sit above the roll servo's cable end: ~+7 mm stack | 290 g (x2 = a third of the robot) |
+| small slewing rings (PBC, IKO) | >= 70-80 mm OD | both rings | no, same bore/height problem, heavier | -- |
+
+None solves it. **Option E keeps the 6810-2RS and adds the three missing
+stops, one of them a screwed part per side** (`cad/v6/yaw_retention_optE.py`,
+STEP in `cad/v6/step/yaw_bearing_optE/`):
+
+- **Carrier, under the inner race -- LIP (printed):** ring r 25.04..27.5,
+  carrier z [-8.5, -7]. The race now goes on from the horn-face side and
+  sits on the lip. Stance load: shoulder -> outer race -> balls -> inner
+  race -> lip -> carrier.
+- **Carrier, over the inner race -- CAP (separate, screwed):** ring
+  r 17..28.5 x 1.2 mm in the EXISTING 1.8 mm gap between the horn face and
+  the cell rim, 3x M2.5 flat-head self-tap at r 22 into the solid hub
+  (pilot 2.05, the build's standard; heads 0.3 proud, 0.3 mm to the rim).
+  Fitted with the carrier OUT of the pelvis (no driver access in the gap).
+- **Pelvis, above the outer race -- shoulder:** unchanged from option A.
+- **Pelvis, under the outer race -- RETAINER (separate, screwed):** ring
+  1.5 mm, land r 29.8..32.48 on the outer race's bottom face, 3 tabs to
+  three new dia-8 bosses on the skirt OD (r 38.5, outboard and +-120 deg,
+  off the inboard bridge line), 3x M2.5x8 flat-head self-tap driven UP
+  from below. Swing load: carrier -> cap screws -> cap -> inner race ->
+  balls -> outer race -> retainer -> boss screws -> pelvis.
+
+**Checked:** 9 must-not-touch pairs (cap vs outer race / pelvis / yaw
+servo; retainer vs inner race / carrier / roll servo; carrier vs pelvis
+and outer race; pelvis vs inner race) all 0.000 mm3 overlap at the build
+pose. No stack growth: `HIP_YAW_Z`, `CARRIER_ROLL_AXIS`, `YAW_BOX_BOT_Z`
+untouched. Masses: carrier 21.46 cm3, cap 1.94 cm3, retainer 1.95 cm3
+(pelvis 169.17 cm3 incl. six bosses).
+
+**Not yet done:** the full `check_assembly_v6.py` yaw/roll/pitch sweep
+(the new parts are axisymmetric about the yaw axis, so the informative
+pose is the build pose, but the sweep is owed for parity with A/C); the
+fly-in strip; and once retention is positive the two interference fits
+should be relaxed to located slip fits (constants unchanged for now).
+Cap OD and retainer ID hang off the same ESTIMATED ring split as A/C
+(1.04 / 1.76 mm margins) -- verify on the real bearing before cutting.
+
 ## 7. Recommendation
 
 **Option A (round hub, 6810-2RS) over Option C (6811 wrap, baseline):**
