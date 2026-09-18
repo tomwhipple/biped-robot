@@ -1,4 +1,4 @@
-# Hip-yaw bearing study (2026-09-17)
+# Hip-yaw bearing study (2026-09-17, round 2 2026-09-18)
 
 Tom, 2026-09-17: *"What about the hip yaw? The servo axle is the only
 connection between the leg and the rest of the robot ... it seems to me
@@ -10,19 +10,16 @@ to the ceiling, horn down, and the carrier (the WHOLE leg, a 0.335 m lever)
 bolts to the horn alone. Symptoms on v5: 1-2 deg of measured yaw play, horn
 screws working loose, heading shortfall in turns (v5 build log).
 
-**Verdict up front:** a 6811-2RS deep-groove ball bearing (55x68... no,
-55x72x9) wraps around the OUTSIDE of the carrier's ENTIRE horn-plate + upper
-bay-wall footprint -- not a boss sized to the servo's disc or case alone,
-both of which are smaller than the carrier's own rotating cross-section and
-were tried and rejected first (§3). Both races are LOCATED with real
-interference (boss +0.08 mm, recess -0.04 mm), no clearance fit. The
-bearing itself is modeled as two solid rings in the interference check
-(`cad/v6/check_yaw_bearing_combo.py`), not just the printed parts against
-each other, and both the full `check_assembly_v6.py` suite and the ring
-check pass through yaw x hip_roll x hip_pitch at their ROM extremes (see
-`docs/design-v6/yaw_bearing_check.txt`). This design went through two
-rejected passes before this one -- §3 and §5 keep both, with the numbers
-that killed each, so neither gets retried.
+**Round 2, 2026-09-18:** round 1 ended on a 6811-2RS wrapped around the
+carrier's WHOLE rectangular plate+wall footprint (kept below as **Option
+C**, the baseline). Tom's review: get the CAD right for a real selection,
+not a rectangle-wrapped compromise -- specifically (1) **the hip stack must
+not get taller** (no change to `HIP_YAW_Z`, `CARRIER_ROLL_AXIS`, `d_yaw_roll`
+anywhere), and (2) **make the yaw joint round**. This round lays out three
+options on that footing (**A**: a round hub at the carrier's existing
+height; **B**: raise the yaw servo into the housing; **C**: the baseline)
+plus a fourth considered on paper only (**D**), builds out A fully, and
+recommends it. Selection is left to Tom -- BOM not touched.
 
 ## 1. Load path, before and after
 
@@ -34,422 +31,327 @@ spline -> 4x M3 horn screws -> the carrier's flat plate. The plate mates the
 horn by friction/screw clamp only; nothing pelvis-side reacts a moment
 except through that same shaft.
 
-**After:** the SAME 4 horn screws stay (torque only -- they still turn the
-leg). Thrust and moment now go: carrier plate + the bay walls under it ->
-a boss wrapping their WHOLE outer footprint -> the 6811-2RS bearing's
-LOCATED inner and outer races -> a recess in the pelvis housing -> the
-housing's own print material. The servo's output shaft carries torque
-only, exactly like every other joint's horn already does relative to its
-own idler-side grip.
+**After (both A and C):** the SAME 4 horn screws stay (torque only -- they
+still turn the leg). Thrust and moment now go: carrier hub/plate + the bay
+walls under it -> a boss (round, in both options, on the carrier's own
+axis) -> a deep-groove ball bearing's LOCATED inner and outer races -> a
+recess in the pelvis housing -> the housing's own print material. The
+servo's output shaft carries torque only, exactly like every other joint's
+horn already does relative to its own idler-side grip. The two options
+differ only in how big the boss/recess have to be and where, in the SAME
+fixed axial envelope, they sit -- see §3.
 
-## 2. Envelope (measured from the CAD)
+## 2. What's actually inside the envelope (measured, both options work from this)
 
-All numbers from `cad/dimensions.py`, `cad/v6/dimensions_v6.py`, and
-`cad/parts.py yaw_carrier()` / `cad/v6/pelvis_v7.py` -- the actual formulas
-that build the STLs, not estimates (the one exception, the bearing's own
-internal raceway split, is called out explicitly in §4 as an estimate).
+Everything below is from `cad/dimensions.py`, `cad/v6/dimensions_v6.py`, and
+a live geometry measurement this session (`cad/check_assembly.py
+servo_mock_x()`, cited where used) -- not estimates.
 
 | feature | value | source |
 |---|---|---|
-| servo case half-width (Y) | 12.36 mm | `D.SV_WID/2` |
-| servo case reach, forward (output end) | 10.11 mm | `D.SV_AXIS_FROM_OUT_END` |
-| servo case reach, aft (cable end) | 35.11 mm | `D.SV_AXIS_FROM_REAR` |
-| servo case's own max corner reach from the axis | 15.97 mm | `hypot(10.11, 12.36)` |
-| horn disc diameter | 19.2 mm (r 9.6) | `D.SV_HORN_D` |
-| horn bolt circle | O14 (r 7), 4x M3 | `D.BCD` |
-| horn disc stands proud of the case's own flat face | 3.10 mm | `D.SV_HORN_FACE - D.SV_TOPFACE` |
-| carrier horn-mount plate (== bay ceiling) footprint | 39.9 x 30.52 mm (+-19.95 x +-15.26) | `parts.yaw_carrier()`, `box(-19.95,19.95,-hw,hw,...)` |
-| **the bay's front/rear/cheek walls share that SAME footprint for their whole height** (z = -3 down to -44) -- not just the top 3 mm plate | -- | `parts.yaw_carrier()` wall boxes |
-| **carrier's max corner reach from the axis (plate AND walls)** | **25.12 mm** | `hypot(19.95, 15.26)` |
-| yaw cell tube (servo clearance) half-width | 12.66 mm | `D.YAW_BOX_HW_IN` |
-| yaw cell tube wall | 2.6 mm | `D.YAW_SEAT_WALL` (`D.WALL`) |
-| yaw cell tube outer face | 15.26 mm | `D.YAW_BOX_HW_OUT` |
-| centre channel (open, between the two cells) | +-26.74 mm | `V.HOUSING_CHAN_HW` |
-| **vertical gap, tube rim to horn face TODAY** | **1.80 mm** | `D.YAW_BOX_CARRIER_GAP` |
-| that gap is 1.30 mm inside the tube (wraps the case) + 1.50 mm below it (open air) | -- | `YAW_BOX_BOT_Z - CASE_BOT` / `CASE_BOT - HORN_FACE` |
-| GD/Pi board columns' own floor | z = `V.YAW_BOX_BOT_Z` (same as the tube rim) | `dimensions_v6.py` `GD_BOT_Z`/`PI_BOT_Z` |
+| horn screws | 4x M3, bolt circle r 7, self-tap head ~1.7 mm -> 8.7 mm reach | `D.BCD`, `D.PAD_HOLE` |
+| carrier horn-mount plate footprint (z 0..-3) | 39.9 x 30.52 mm, corner 25.12 mm | `parts.yaw_carrier()`, round-1 write-up |
+| carrier's bay walls share that SAME 25.12 mm corner for their whole height (z -3..-44) | -- | `parts.yaw_carrier()` |
+| yaw axis -> roll axis (`d_yaw_roll`, `CARRIER_ROLL_AXIS`) | 40.11 mm, **UNCHANGED by every option below** | `D.CARRIER_ROLL_AXIS` |
+| roll servo's own cable-end (top) position, carrier-local | -5.00 mm (`CARRIER_ROLL_AXIS + SV_AXIS_FROM_REAR`) | `dimensions_v6.py` `YAWA_ROLL_CASE_TOP_Z` |
+| roll servo's own worst corner reach from the yaw axis, at its cable-end top (incl. the horn-side rib) | **22.23 mm**, MEASURED (`CA.servo_mock_x()` sliced at carrier-local z in [-10.11,-5.00] this session) | see `yaw_carrier_v6_optA.py` docstring |
+| roll-servo retention screw rows, carrier-local | -11.11 mm and -7.36 mm | `D.CARRIER_ROLL_AXIS + D.CASE_HOLES_TOP[1]/BOT[1]` |
+| yaw servo/horn-disc's OWN corner reach (the round-1 mistake's basis) | 15.97 mm -- too small, it is not what is actually in the band (the ROLL servo is bulkier and does reach into it) | `_case_corner_r`, `dimensions_v6.py` |
+| cell ceiling -> battery bottom (clearance below the battery) | 0.5 mm | `dimensions_v6.py` new `YAWB_CLEAR_BELOW_BATT` |
+| battery top -> deck bottom (clearance above the battery) | 4.5 mm | `dimensions_v6.py` new `YAWB_CLEAR_ABOVE_BATT` |
 
-**Max OD without moving the leg down:** the disc-to-case-face gap is only
-3.1 mm total (1.8 mm of it genuinely free of the servo's own case body),
-under any listed bearing's width (4-9 mm), and that 3.1 mm is a fixed servo
-fact -- the disc always stands 3.1 mm proud of the case, independent of how
-the case is mounted to the pelvis. A pelvis-side spacer under the case
-("moving the axis down") does NOT create room there -- it moves the whole
-servo (case + disc) together, so the 3.1 mm gap is unchanged. What DOES
-have room, with no axis change at all, is everything BELOW the yaw cell
-tube's rim: the servo case and the GD/Pi board columns both end at that
-exact Z (`V.YAW_BOX_BOT_Z`), so the space below it was already open. That
-is where this design puts the bearing.
+**The round-1 mistake, corrected:** a round hub at the horn face only has to
+clear the small yaw-servo horn disc (15.97 mm) if the band stays inside the
+old 3 mm plate. Any bearing width from the offered classes (45/50/55 mm
+bore, all 5-9 mm wide) is deeper than that 3 mm, so the band always reaches
+into the roll-servo bay's top -- and what is there is the BULKIER roll
+servo's own case (22.23 mm), not the small horn disc. That is the number
+every hub in this round has to clear.
 
-## 3. Bearing choice: size from the geometry, not the other way round
+## 3. Option A: round hub, at the carrier's existing height (RECOMMENDED)
 
-Two earlier passes picked a bearing size FIRST and then tried to make the
-carrier or the pelvis fit around it -- both wrong, in the order the
-coordinator's review caught them:
+**No axial growth.** The bearing band is fixed, not new length: it starts
+at the horn face (carrier z = 0) and runs down the bearing's own width --
+`V.YAWA_BAND_Z = (-7.0, 0.0)`, entirely inside the carrier's EXISTING
+envelope (z 0..-44 unchanged). `HIP_YAW_Z`, `CARRIER_ROLL_AXIS`,
+`d_yaw_roll`, `DECK_BOT_Z`/`DECK_TOP_Z` are byte-identical to before this
+option (verified: `cad/v6/dimensions_v6.py` adds only new `YAWA_*`
+constants, touches nothing existing).
 
-1. **6704-2RS (20x27x4), boss around the horn disc.** Bore radius 10 mm vs
-   the disc's own 9.6 mm radius leaves a 0.4 mm boss wall -- not printable.
-2. **6707-2RS (35x44x5) / 6709-2RS (45x55x6), boss around the servo
-   CASE's footprint (15.97 mm corner) only.** Both looked right against the
-   case, but the carrier's own horn-mount PLATE -- which doubles as the
-   roll bay's ceiling -- is bigger than either the disc or the case: its
-   own corner (`hypot(19.95, 15.26)` = 25.12 mm) is what actually sweeps
-   through the bearing band, and the bay WALLS below the plate share that
-   same footprint for their whole height, not just the top 3 mm. 6707
-   failed outright (240 mm3 overlap, `check_assembly_v6.py --joint
-   hip_yaw`); 6709 failed at 0.38 mm minimum distance (< the 0.5 mm
-   buffer) once trimmed, and a second try that widened the RECESS instead
-   of the carrier (a "compromise") left the outer race a 0.75 mm clearance
-   fit -- defeating the purpose of a bearing (a race that can shift 0.75 mm
-   in its seat is itself ~1.5 deg of tilt lash at that radius, worse than
-   what it was meant to remove).
+**Bearing pick.** Bore radius must clear the roll servo's own worst corner
+(22.23 mm, §2) by >= 1.5 mm -> radius >= 23.73 mm -> bore >= 47.46 mm.
+Of the three offered classes:
 
-**The right order:** the boss (inner-race seat) must ENCLOSE the carrier's
-whole footprint -- plate AND walls, 25.12 mm corner -- with >= 1.5 mm of
-wall, so bore radius >= 25.12 + 1.5 = 26.62 mm, bore >= 53.24 mm. Nothing
-in the 20-45 mm bore range works; the smallest common size that clears it
-is a 55 mm bore.
+| bore class | bearing | OD x W | boss radius | wall vs 22.23 mm | verdict |
+|---|---|---|---|---|---|
+| 45 mm | 6709-2RS / 6809-2RS | -- | 22.54 mm | **0.31 mm** | **FAILS** -- not printable |
+| 50 mm | 6710-2RS (50x62x6) / **6810-2RS (50x65x7)** | 65x7 | 25.04 mm | **2.81 mm** | clears, smallest that does |
+| 55 mm | 6711-2RS / 6811-2RS | 72x9 | 27.54 mm | 5.31 mm | clears, oversized here |
 
-- **6711-2RS (55x68x7)** was the first candidate at this bore -- but no
-  published static/dynamic load rating (C0/C) was found for it across the
-  supplier listings checked in this session (dimensions only). Rather than
-  fabricate a number, it was dropped.
-- **6811-2RS (55x72x9)** -- same 55 mm bore, C0 published consistently
-  across sources (6.2-8.4 kN; 8.1 kN used below) -- **this is the pick**,
-  at the cost of 2 mm more width and a tighter skirt-to-skirt gap (§4).
+**Pick: 6810-2RS (50x65x7 mm).** C0 = 5.8 kN (one full spec sheet this
+session; a second source's 6.6 kN is a DYNAMIC figure, not directly
+comparable, not cross-checked against a second static source). Mass 52 g
+(single source, not independently re-verified). The 6710-2RS alternative
+(50x62x6, 6 mm narrower) is lighter as a BEARING but heavier as a listed
+PART (67 g) and its C0 varies 2.6-3.1 kN across the sources checked -- 6810
+picked for the more consistent citation, not because the load needs it
+(§3.1 of the round-1 write-up already showed even the smallest bearing
+tried clears these loads by ~9-20x; at 5.8 kN vs a ~18-34 N applied load
+this is a 170-320x margin, the same "geometry, not load" story as round 1).
 
-### 3.1 Radial (moment) arithmetic
+**Construction** (`cad/v6/yaw_carrier_v6_optA.py`), entirely within carrier
+z in [-7, 0], nothing below that touched:
 
-A single-row deep-groove bearing takes an applied moment as a force couple
-across its own ball circle, roughly the mean of bore and OD:
+1. Trim the carrier's existing material (plate corners AND the top of the
+   bay walls) back to a cylinder of radius 25.04 mm. This clips the FOUR
+   CORNERS of the existing 25.12 mm rectangle by **0.08 mm** -- under print
+   tolerance, and not a load path (load goes through the horn screws at the
+   centre and the bearing at the OD, not these corners) -- and, along the
+   flat sides (19.95 and 15.26 mm half-widths, both < 25.04), ADDS a little
+   material. Net: the top of the carrier becomes a true cylinder.
+2. Re-open the same rectangular cavity the bay walls already had for
+   z in [-7, -3] (where the roll servo's case passes through), so the round
+   hub does not seal it off -- the SAME operation Option C already does one
+   z-band lower, just needed here because the band reaches that territory.
+3. Re-cut the 4 horn screw bores + centre relief (refilled by step 1's disk
+   add wherever they fall inside the band).
 
-```
-D_pw = (55 + 72) / 2 = 63.5 mm = 0.0635 m
-F(moment) = M / D_pw
-  steady  (M = 0.65 N-m):  F = 0.65 / 0.0635 = 10.2 N
-  impact  (M = 1.7  N-m):  F = 1.7  / 0.0635 = 26.8 N
-```
+**What's inside the band, disclosed:** both roll-servo retention screw rows
+(-11.11, -7.36) stay OUTSIDE the band (0.36 mm and 4.11 mm clear
+respectively, asserted in `dimensions_v6.py`) -- untouched. Only the very
+top ~2 mm of the idler-side SEAT PAD (added 2026-08-01, a fix for a
+different phantom-face defect) is trimmed where it happened to reach up to
+-5.00 inside the band; that pad's actual job (locating the case against its
+two screw rows) is done entirely below both rows, well clear of this
+trim -- not independently re-verified by a dedicated check, flagged here
+rather than assumed harmless.
 
-Combined with the 15 N thrust as an equivalent static load (ISO-76-style
-approximation for a single-row deep-groove bearing, P0 = Fr + 0.5 x Fa):
+**Horn screws:** unaffected -- same 4x M3, same 3 mm plate engagement, bolt
+circle r 7 (8.7 mm reach with a self-tap head), 16.3 mm of hub wall outside
+that. No interaction with the bearing boss at r 25.04.
 
-```
-P0(steady) = 10.2 + 0.5x15 = 17.7 N   -> C0/P0 = 8100/17.7 = 458x margin
-P0(impact) = 26.8 + 0.5x15 = 34.3 N   -> C0/P0 = 8100/34.3 = 236x margin
-```
+**Print:** SAME orientation as v5 (`RX180`, horn-plate face on the bed, bay
+walls rise) -- no new overhang class, part count unchanged (2 carriers by
+translation, 1 pelvis).
 
-### 3.2 Bore vs the horn screws
+**Pelvis side** (`pelvis_v7(bearing_variant="A")`): the recess/shoulder hang
+from the SAME unmoved cell-tube rim (`V.YAW_BOX_BOT_Z`) the same way option
+C's does -- no pelvis growth either.
 
-Boss radius 27.54 mm clears the O14 bolt circle (r 7) + a self-tap head
-(~1.7 mm) by a wide margin (`assert` in `dimensions_v6.py`); the 4 horn
-screws are unaffected by any of this (see §5.2).
+| feature | value |
+|---|---|
+| recess ID | 64.96 mm (r 32.48), -0.04 mm interference |
+| shoulder land / ID | 1.2 mm / 62.6 mm (r 31.3) |
+| estimated inner-ring OD / outer-ring ID | ~28.04 / ~29.54 mm (ESTIMATE, scaled the same way as option C's -- no published internal-geometry spec found for this bearing either; margin to shoulder 1.76 mm) |
+| skirt OD | 71.0 mm (~3 mm wall) |
+| skirt-to-skirt gap at 84 mm hip sep | **13 mm** edge-to-edge (vs option C's 6 mm) |
+| bridge | kept anyway, same style as option C's -- a conservative judgement call given the doubled gap, NOT FEA-verified either way |
+| recess/shoulder Z, pelvis-local | recess -80.80..-73.80; shoulder -73.80..-72.0 (the SAME existing 1.8 mm gap option C reuses) |
+| axial growth | **none** -- `HIP_YAW_Z`/`DECK_BOT_Z`/`DECK_TOP_Z` unchanged |
+| pelvis mass (measured, this session) | 190.3 g (option C: 194.3 g) |
+| carrier mass (measured, this session) | 23.8 g (option C: 29.9 g; v5 unmodified: 17.8 g) |
 
-### 3.3 Why size is geometry-driven, not load-driven
+**Checks (both required by this study):**
 
-Even the smallest bearing tried (6704, C0 = 0.73 kN by the same catalogue
-class) would have cleared these loads by ~9-20x. Every size decision in
-this study was about fitting a round bore/OD around the carrier's own
-rectangular footprint, not about static load rating -- the final margin
-(236-458x) is almost comically large, worth stating plainly so a future
-pass does not "upsize for strength" when the actual lever is clearance.
+- `check_assembly_v6.py` full suite (21 joint pairs + 4 inter-leg pairs, via
+  `YAW_BEARING_VARIANT=A`, a new opt-in-only hook in `assembly_v6.py`'s
+  `part_yaw_carrier()`/`part_pelvis()` that leaves every existing caller's
+  default ("C") behavior byte-identical): **ALL CLEAR**, 82 s. Full output
+  `docs/design-v6/yaw_bearing_check_optA.txt`.
+- `cad/v6/check_yaw_bearing_optA.py` (option C's ring-based method,
+  re-parametrized off the `YAWA_*` constants): the bearing modeled as two
+  solid rings, checked through yaw x hip_roll x hip_pitch at their ROM
+  extremes (12 poses x 5 pairs): **ALL CLEAR**. Same output file.
+- Roll and pitch don't actually move the carrier or the pelvis (both are
+  upstream of those joints in the kinematic chain -- only hip_yaw does), so
+  the informative pose for both checks is the yaw sweep; roll/pitch are
+  swept anyway for direct comparability with option C's own check.
+- No walk-gate re-run needed: `d_yaw_roll`/`HIP_YAW_Z` did not change, so
+  the kinematics gate is untouched by this option (unlike round 1's
+  rejected axial-growth version, which would have needed one).
 
-## 4. CAD changes
+**Renders:** `cad/v6/renders/yaw_bearing_optA_after.png` (before is the SAME
+pre-study state as option C's -- `yaw_bearing_before.png`, not
+re-rendered), `cad/v6/renders/yaw_bearing_optA_section.png` (axis section,
+same cut convention as option C's -- the round shoulder/collar is visible
+sitting on the carrier's hub). Fly-in filmstrip for the whole robot with
+this option: `cad/v6/renders/assembly_v6_flyin_optA_strip.png` (the
+committed baseline strip, `assembly_v6_flyin_strip.png`, is unchanged --
+option A does not change anything else in the body, and the difference at
+whole-robot scale is subtle since the OD only shrinks ~10%; the section
+render is the one that actually shows it).
 
-- **`cad/v6/yaw_carrier_v6.py`** (new; `cad/v6` had no carrier override --
-  `parts_v6.py` mapped `yaw_carrier` straight to `parts.yaw_carrier()`,
-  "v5 part, unchanged"). Builds on `parts.yaw_carrier()` and adds ONE
-  feature, nothing removed or trimmed from the existing part:
-  - a boss, radius `V.YAW_BRG_BOSS_R` = 27.54 mm (+0.08 mm interference vs
-    the bearing's 55 mm bore -- within the requested +0.05..+0.10 band),
-    from the plate's z=0 face down 9.0 mm (`V.YAW_BRG_BOSS_H` = the
-    bearing's own width) -- 3 mm of that is the plate's own existing
-    thickness, the other 6 mm wraps the top of the bay walls below it
-    (they share the plate's exact X/Y footprint the whole way down, so
-    wrapping them costs no extra radius). Built as a full disk then
-    re-opened, for the part BELOW the existing plate only (z = -9..-3),
-    along the SAME x/y footprint the roll bay's own front/rear/cheek walls
-    already use -- so the bay's interior (where the roll servo slides up)
-    is simply 6 mm deeper at its mouth. The plate's own z-band (-3..0) is
-    untouched.
-  - **no corner trim** -- the boss's whole point is to enclose the
-    carrier's existing 25.12 mm corner (2.42 mm of wall to spare), so
-    nothing about the existing plate or bay walls is cut back.
-  - Print: **same orientation as v5** (`RX180`, "horn-plate face on bed,
-    bay walls rise") -- the boss lives at MORE NEGATIVE local Z than the
-    plate's z=0 mating face, the same side the bay walls already rise
-    from; no new overhang class.
-- **`cad/v6/pelvis_v7.py`**: a skirt hanging from the EXISTING yaw-cell
-  tube rim (`V.YAW_BOX_BOT_Z`, not moved) down 10.8 mm total:
-  - 1.8 mm shoulder land (ID 69 mm, a 1.5 mm radial ledge -- reacts the
-    leg's upward thrust into the pelvis print) -- this exactly reuses the
-    gap that was already there (`D.YAW_BOX_CARRIER_GAP`, unchanged). The
-    land is kept narrow (1.5 mm, not the more generous 2 mm first used for
-    6709) so it cannot reach the bearing's own moving parts even if the
-    ESTIMATED internal raceway split below is off by a couple mm.
-  - 9.0 mm recess (ID 71.96 mm, -0.04 mm interference -- within the
-    requested -0.03..-0.05 band, a real located fit, not a clearance fit)
-    for the bearing's outer race, flush with the horn face
-    (`V.YAW_HORN_FACE_Z`) at its bottom.
-  - Skirt OD 78 mm (~3 mm wall around the recess). Two skirts, 84 mm hip
-    separation, leave only **6 mm edge-to-edge** -- too little for two
-    independent free-hanging rings, so `pelvis_v7.py` adds a short
-    connecting web between them at the bottom (the most compliant point),
-    spanning the gap plus 5 mm into each skirt. This is disclosed, not
-    hidden: the packaging got tighter going from 6709 to 6811, and a
-    bridge is the honest fix rather than shrinking the wall further.
-  - **Internal raceway split is an ESTIMATE, not a catalog fact.** No
-    source checked in this session publishes a bearing's internal
-    ring/ball geometry at this class. `dimensions_v6.py` scales the
-    coordinator's own illustrative split for a 6709 (inner ring 2 mm,
-    ball/cage gap 1 mm, outer ring 2 mm over a 5 mm total radial span) by
-    this bearing's larger span (8.5 mm, factor 1.7x) to get
-    `YAW_BRG_EST_INNER_RING_OD` (~30.94 mm) and `YAW_BRG_EST_OUTER_RING_ID`
-    (~32.64 mm) -- used only to keep the shoulder land off the moving
-    parts, with margin (1.86 mm) chosen specifically to survive being
-    wrong. **Verify against the real bearing's datasheet or a caliper
-    measurement before cutting metal on the shoulder.**
-  - All new constants (`YAW_BRG_*`) live in `cad/v6/dimensions_v6.py`,
-    parametric off `D`/`V`, with asserts that the boss encloses the
-    carrier's corner with >= 1.5 mm wall, that it clears the servo case,
-    and that the shoulder stays off the estimated outer-ring ID.
-- Nothing above `V.YAW_BOX_BOT_Z` changes: `TORSO_FLOOR_Z`, `HIP_YAW_Z`,
-  `DECK_BOT_Z`, and every joint's Z in the leg chain are byte-identical to
-  before this study.
+**STEP** (for review in FreeCAD): `cad/v6/step/yaw_bearing_recommended/` --
+`yaw_carrier_v6_A.step`, `pelvis_v7_A.step` (full parts) and
+`joint_assembly_A.step` (a small sub-assembly: the pelvis CELL REGION only,
+cropped to one hip, + the carrier + both bearing races modeled as rings +
+the yaw AND roll servo mocks, all in world placement).
 
-## 5. Checks
+## 4. Option B: raise the yaw servo into the housing -- STOPPED AT MEASUREMENT
 
-Run: `.venv/bin/python cad/v6/pelvis_v7.py`, `yaw_carrier_v6.py`,
-`assembly_v6.py`, then `check_assembly_v6.py` (all pairs) and
-`cad/v6/check_yaw_bearing_combo.py` -- REWRITTEN after the coordinator
-pointed out the first version only checked the printed parts against each
-other, never against the bearing's OWN body. It now models the bearing as
-two solid rings (inner race: `V.YAW_BRG_BOSS_R` to the estimated inner-ring
-OD; outer race: the estimated outer-ring ID to `V.YAW_BRG_RECESS_R`) and
-checks, through yaw 0/+-45 CROSSED with hip_roll and hip_pitch at their ROM
-extremes:
+The brief: move the yaw servo UP so the bearing band sits at the cell mouth
+around the case's lower end (also a 35+ mm bore class, by the same
+corner-reach logic as §3), with the leg's own stack unchanged (so the robot
+does not get taller) -- meaning the CELL CEILING (today `CELL_TOP_Z`, the
+battery bay's floor) has to rise the same amount the servo does, since the
+servo's case is retained from the ceiling down.
 
-1. the rotating carrier stays clear of the inner ring except the boss's own
-   designed interference,
-2. the rotating carrier NEVER touches the outer ring (it only ever meets
-   it through the balls),
-3. the fixed pelvis stays clear of the outer ring except the recess wall's
-   own designed interference,
-4. the fixed pelvis NEVER touches the inner ring,
-5. `D.SWEEP_BUFFER` (0.5 mm) everywhere else,
+**Measured** (`dimensions_v6.py` `YAWB_CLEAR_BELOW_BATT`/`YAWB_CLEAR_ABOVE_BATT`):
+the battery pack sits directly above the cell ceiling with only **0.5 mm**
+of air below it (battery bottom to ceiling) and **4.5 mm** above it (battery
+top to deck bottom) -- the entire 31 mm battery layer is already almost
+fully consumed. The brief's 7-10 mm of rise:
 
-plus the original direct carrier-vs-pelvis check as a cross-check. Full
-output: `docs/design-v6/yaw_bearing_check.txt`.
+| needed rise | available (above the battery) | shortfall |
+|---|---|---|
+| 7 mm (low end) | 4.5 mm | **2.5 mm** |
+| 10 mm (high end) | 4.5 mm | **5.5 mm** |
 
-### 5.1 The failures that shaped the design (kept so none is retried)
+**What would have to move:** the battery pack (or the deck it sits under)
+by 2.5-5.5 mm, since the cell ceiling rising eats the 4.5 mm slack above the
+battery before it can rise the full 7-10 mm the brief asks for. Moving the
+battery layout or the deck is explicitly out of this study's authorization
+(task scope: pelvis + carrier only). **Stopped here -- no CAD built for
+Option B**, per the task's own instruction to stop at the measurement when
+a change outside scope is required.
 
-- 6707-2RS, boss around the case footprint only: 240 mm3 overlap, growing
-  with yaw angle, between `yaw_carrier_L` and `pelvis_v7` -- the carrier's
-  plate corner (25.12 mm) exceeded the recess radius (22 mm).
-- 6709-2RS, boss around the case footprint, plate corner trimmed to
-  23.05 mm: `check_assembly_v6.py --joint hip_yaw` found only 0.38 mm
-  minimum distance (< 0.5 mm buffer) at the SHOULDER (radius 25.5 mm)
-  against the still-untrimmed BAY WALLS below the trimmed plate (25.12 mm)
-  -- the first fix only trimmed the top slab, not the walls sharing its
-  footprint one z-band down.
-- 6709-2RS, recess widened to a +1.5 mm clearance fit instead of trimming
-  further: passed the geometric sweep, but the coordinator's review
-  correctly rejected it -- a 0.75 mm radial clearance at the outer race
-  reintroduces the exact lash (~1.5 deg of tilt freedom at that radius)
-  the bearing exists to remove.
-- **This pass (6811-2RS, boss encloses the WHOLE carrier footprint, both
-  races located):** passes both the direct check and the ring-based check
-  below.
+## 5. Option C: the 6811 wrap -- baseline, runner-up
 
-### 5.2 Screw access and print orientation (asked explicitly, verified)
+Unchanged from round 1 (`docs/design-v6/study-yaw-bearing.md` git history
+has the original write-up's §3/§5 with the two earlier REJECTED passes,
+6707/6709, kept there so neither is retried): a 6811-2RS (55x72x9, C0
+6.2-8.4 kN, 8.1 kN used) wraps around the OUTSIDE of the carrier's ENTIRE
+horn-plate + upper bay-wall footprint (boss r 27.54, wall 2.42 mm over the
+25.12 mm corner). Re-measured this session (numbers unchanged from round 1,
+confirmed by rebuilding both parts): carrier mass 29.9 g, pelvis mass
+194.3 g, skirt OD 78 mm (6 mm edge-to-edge at 84 mm hip sep, bridged).
+`check_assembly_v6.py` (default, no env var) and `check_yaw_bearing_combo.py`:
+**ALL CLEAR** (re-run this session, same result as round 1,
+`docs/design-v6/yaw_bearing_check.txt`). No axial growth here either --
+this was already true in round 1. **STEP**:
+`cad/v6/step/yaw_bearing_runner_up/` -- `yaw_carrier_v6_C.step`,
+`pelvis_v7_C.step`, `joint_assembly_C.step` (same sub-assembly convention as
+option A's, for direct comparison in FreeCAD).
 
-- The 4 horn screws are unaffected: they still thread from BELOW, through
-  the SAME `D.YAW_CARRIER_PLATE` = 3.0 mm plate (z = 0..-3, unchanged),
-  reachable through the roll bay's cavity (now 6 mm deeper at its mouth,
-  which only helps tool access). The screw heads' seating area (bolt
-  circle r 7 mm) is well inside r = 17.35/12.66 mm -- solid, untouched;
-  the boss starts beyond r 25 mm, nowhere near it.
-- Print orientation for `yaw_carrier_v6`: **unchanged** (`RX180`,
-  horn-plate face on the bed, bay walls rise) -- confirmed in §4.
+## 6. Option D: considered on paper, not built
 
-### 5.3 Results (full output in `docs/design-v6/yaw_bearing_check.txt`)
+- **Stub-axle with two small bearings beside the servo:** would move the
+  leg's attachment point OFF the yaw axis centreline entirely, replacing
+  the single coaxial thrust/moment bearing with an offset pair reacting
+  moment as a couple -- a different LOAD-PATH MECHANISM, not a bearing
+  swap, and it still has to fit beside the yaw servo within the same
+  15.26 mm cheek-to-cheek footprint the carrier already uses (no width to
+  spare there without widening the cell, which is out of scope). Not
+  pursued: option A already meets the "round, no axial growth" brief with a
+  much smaller change.
+- **Flanged bearing (F6810/F6811), seated by its flange:** same bore/OD as
+  option A's pick, but the flange itself becomes the axial thrust face,
+  potentially removing the separate machined shoulder step in the pelvis
+  recess. No flanged-variant datasheet was found for a 50 mm-bore thin
+  section in the sources checked this session (a real gap, not a guess) --
+  plausible as a refinement of option A's pelvis side, but it changes
+  neither the bore choice nor the recommendation, so not built.
 
-`check_assembly_v6.py` (all 21 joint pairs + 4 inter-leg pairs): **ALL
-CLEAR** (81 s); the two pairs this study touches:
+## 7. Recommendation
 
-```
-hip_yaw   yaw_carrier_L      pelvis_v7           0.00 mm3   2.30 mm   at -45 deg   ok
-hip_yaw   servo_hip_roll_L   pelvis_v7           0.00 mm3   7.30 mm   at -45 deg   ok
-```
+**Option A (round hub, 6810-2RS) over Option C (6811 wrap, baseline):**
 
-`cad/v6/check_yaw_bearing_combo.py` (the ring-based check, 12 combined
-yaw/roll/pitch poses): **ALL CLEAR**, but getting there took two more
-rounds of the coordinator's review catching real bugs in the CHECK itself,
-kept in `docs/design-v6/yaw_bearing_check.txt` so neither is silently
-reintroduced:
+1. Genuinely round -- Tom's ask directly, not a rectangle wrapped in a
+   circle. Option C's boss is round on the OUTSIDE but its whole reason for
+   being that size is the carrier's own rectangular corner; option A's hub
+   IS the carrier's top, no rectangle underneath it within the band.
+2. Smaller everywhere it matters: bearing OD 65 vs 72 mm, skirt OD 71 vs
+   78 mm, skirt-to-skirt gap 13 vs 6 mm (more than double), carrier mass
+   23.8 vs 29.9 g, pelvis mass 190.3 vs 194.3 g.
+3. Neither option grows the axial stack (both satisfy Tom's constraint 1
+   equally) -- this was not a point of difference, checked explicitly for
+   both (`HIP_YAW_Z`/`d_yaw_roll` unchanged in both `dimensions_v6.py`
+   sections).
+4. Load margin is enormous either way (170-320x for A, 236-458x for C at
+   the same applied loads) -- not a deciding factor, exactly as round 1's
+   own §3.3 already said about bearing sizing on this joint.
+5. Cost of A vs C: a hair more surgical CAD (the "re-open the cavity, re-cut
+   the screws" construction, vs C's simpler "wrap outside, touch nothing"),
+   a 2 mm trim off the top of one existing feature (the idler seat pad,
+   disclosed in §3, not independently re-verified), and a worst-corner
+   figure that comes from a measured geometry slice rather than a single
+   named catalogue constant (reproducible via
+   `cad/v6/yaw_carrier_v6_optA.py`'s own docstring/build, but a small
+   documentation trade against C's cleaner `hypot()` derivation).
 
-1. The first version built the two rings at `V.YAW_BRG_RECESS_Z` directly
-   -- a PELVIS-LOCAL z range -- while `assembly_v6.robot()` places every
-   piece in WORLD coordinates. Every check "passed" with reported
-   distances of 400+ mm, which is physically absurd for a joint whose own
-   parts are all within ~30 mm of each other; the absurdity of the number
-   is what caught it, not a passing grade. Fixed by using
-   `(V.HIP_YAW_Z - V.YAW_BRG_W, V.HIP_YAW_Z)`.
-2. With the frame fixed, the bridge connecting the two skirts (added
-   because 6811's OD leaves only 6 mm between them) showed up as 80 mm3 of
-   overlap with the outer ring's own reserved space -- the bridge had
-   reached 5 mm into each skirt without checking where that skirt's
-   hollow bore actually begins (only ~3 mm of solid wall exists there).
-   Fixed by shortening the bridge to stay inside the solid wall.
+Both options are fully built, checked (`check_assembly_v6.py` full suite +
+the ring-based combo check, ALL CLEAR for both) and exported to STEP for
+side-by-side review. Option B is a real, measured negative at this
+authorization boundary (battery/deck), not a soft "not tried." Option D is
+reasoned, not built, since neither variant would beat A.
 
-Final result:
+## 8. Owed before the sim re-run / before cutting metal
 
-```
-part         ring       overlap mm3  min dist  at (yaw,roll,pitch)
-yaw_carrier  INNER_RING        0.00      0.50  (0, -55, -125)   ok
-yaw_carrier  OUTER_RING        0.00      5.10  (0, -55, -125)   ok
-pelvis_v7    OUTER_RING        0.00      0.01  (-45, -55, -125) ok  (*)
-pelvis_v7    INNER_RING        0.00      2.30  (-45, -55, -125) ok
-yaw_carrier  (direct)          0.00      2.30  (-45, -55, -125) ok
-=> ALL CLEAR
-```
-
-(*) 0.01 mm here is the INTENDED contact plane, not a near-miss: the
-ring's top boundary (world z = `V.HIP_YAW_Z`) is exactly where the
-pelvis's shoulder land is designed to touch the outer race's flat top
-face -- that is the shoulder's entire job. It is excluded from the
-"radial interference" allowance (`FIT_ALLOW`) the same way the boss-to-
-bore and recess-to-OD fits are, because it is a different (axial) designed
-contact, not a radial one -- both are legitimate zero-clearance seats, not
-sweep-buffer violations.
-
-## 6. Sim: yaw play / lash model
-
-**Not changed** (per the task -- the sim plant is untouched). The bearing
-replaces the horn-spline+screw load path with a LOCATED bearing seat (both
-races interference-fit, no clearance anywhere in the load path) -- the
-axial/moment lash that the spline used to carry under load is now reacted
-by the bearing (236-458x margin, §3.1), so the physical mechanism the v5
-1-2 deg yaw play was attributed to (screws working loose under a
-cantilevered moment) is removed for that axis, with no new radial lash
-source introduced in its place (unlike the rejected clearance-fit pass in
-§5.1). No plant change is proposed -- the mechanism this study targets did
-not have a corresponding plant parameter in the first place (the ROM/play
-model is generic clearance, not joint-specific).
-
-**Swing-phase load, for the bench build (context, not a retention gap this
-time -- both races are located):** the leg mass BELOW the yaw joint
-(yaw_carrier print + hip-roll servo + everything down to the foot, from the
-CAD mass rollup, `parts_v6.py`) is:
-
-```
-29.9 (yaw_carrier_v6, incl. the boss) + 74.5 (hip-roll STS3250) + 11.5 (yoke_roll)
-+ 10.9 (yoke_pitch_v6) + 55.0 (hip-pitch STS3215) + 26.3 (thigh)
-+ 74.5 (knee STS3250) + 26.3 (shin) + 55.0 (ankle-pitch STS3215)
-+ 12.1 (ankle_link) + 74.5 (ankle-roll STS3250) + 52.0 (foot)
-+ 23.2 (TPU sole) + ~10 (hardware) = 535.7 g -> 5.26 N static weight
-```
-
-No measured swing-phase acceleration exists for this gait (the demo suite
-is quasi-static weight-shift/reversal, not a dynamic swing --
-`natural-responsive-demo-plan.md`), so a conservative x2-3 dynamic factor
-gives 10-15 N -- now carried by the boss's own +0.08 mm interference fit
-(not a clearance fit backed by retaining compound), consistent with a
-standard bearing installation; still worth a pull-scale check at the bench
-before the first hardware run, as with any new press fit in this codebase.
-
-## 7. Print / assembly
-
-- **Boss (carrier):** OD 55.08 mm, +0.08 mm vs the bearing's 55 mm bore --
-  within the requested +0.05..+0.10 mm interference band. No existing
-  bearing precedent in `dimensions.py` to match (every other joint's "fit"
-  is a screw or a horn spline, not a bearing bore); verify and trim after
-  the first print the same way `D.FIT` (0.30 mm slip) was tuned for the
-  servo case originally.
-- **Recess (pelvis):** ID 71.96 mm, -0.04 mm vs the bearing's 72 mm OD --
-  within the requested -0.03..-0.05 mm interference band. A real located
-  press fit, not a clearance fit.
-- **Shoulder:** ID 69 mm, 1.8 mm tall land, 1.5 mm radial width -- prints
-  as a small internal step; kept narrow deliberately (§4) against the
-  estimated internal raceway split.
-- **Bridge:** a short web connecting the two skirts at the bottom (§4) --
-  new print feature, needed because 6811's larger OD leaves only 6 mm
-  between the two skirts.
-- **Assembly order:** bolt the carrier's plate to the horn (4x M3, exactly
-  as today) BEFORE the bearing goes on -- the boss stands on the plate's
-  OUTER rim, clear of the screw heads, so order does not matter for screw
-  access, but doing the horn bolts first keeps the leg supported on the
-  bench while the bearing/skirt mate. Press the inner race onto the boss,
-  then offer the leg up into the pelvis recess from below and press the
-  outer race home against the shoulder.
-- **Quantity:** 2x 6811-2RS (one per hip yaw) + 2 spares (the same "buy
-  spares" rule as the STS3250 stiffness-bench order in `bom-delta.md`).
-
-## 8. Renders
-
-`cad/v6/render_yaw_bearing.py` renders the yaw joint only (carrier + the
-pelvis cell above it), not the whole robot; regenerated for the 6811
-design (§9 has the exact status of each file at commit time).
-
-- `cad/v6/renders/yaw_bearing_before.png` -- the pre-study joint (v5
-  `yaw_carrier` + the pre-edit `pelvis_v7`, loaded from git HEAD): the cell
-  mouth ends flush at the tube rim, nothing below it.
-- `cad/v6/renders/yaw_bearing_after.png` -- the same view with the new
-  (larger, 6811-sized) skirt hanging below the cell and the enclosing boss
-  visible above it -- the clearest evidence of the change.
-- `cad/v6/renders/yaw_bearing_section.png` -- a half-space cut through the
-  yaw axis, at the housing's own mid-sagittal plane rather than through the
-  hip's own axis, so both the near skirt's full recess/shoulder stack AND
-  the carrier's boss (orange) sitting inside it are visible; a real
-  improvement over the earlier pass's section render (which only grazed
-  the outer wall). The shoulder ledge, the recess collar, and the boss
-  wrapping the carrier's plate are all legible in this one.
-- Fly-in assembly animation: `cad/v6/animate_v6.py`, output gitignored
-  (project rule); `cad/v6/renders/assembly_v6_flyin_strip.png` is the
-  committed filmstrip (not re-run this pass unless the silhouette changed
-  enough to matter -- see the commit for what was actually regenerated).
-- `docs/assembly.md` figures: **not regenerated** this pass --
-  `cad/render_assembly_steps.py` targets the v5 assembly sequence, not
-  the v6/v7 hip-yaw stack; rerunning it would not pick up this change.
-
-## Owed before the sim re-run (coordinator, 2026-09-17)
-
-- **Mass**: two 6811-2RS rings plus the pelvis skirt/bridge print are NOT
-  in the plant yet; the bearing's catalogue mass was not verified here
-  ("not measured"). It sits at hip-yaw height, the lowest place on the
-  torso, but `sim/build_v6_inertia.py --write` must be re-run with the new
-  pelvis_v7 STL and the bearing mass as a lump before the walk gate is
-  trusted again (the 09-13 rule: sim margins scale with real part masses).
-- **Alternative size**: 6711-2RS (55 x 68 x 7) has the same bore, is 2 mm
-  thinner and lighter, and would shrink the skirt to OD 74 (10 mm between
-  skirts, possibly no bridge); it was not used only because no published
-  static rating was found -- irrelevant at these loads. If it is in stock,
-  it is the better part; the recess depth/OD are parametric (`YAW_BRG_*`).
+- **Mass**: neither option's bearing rings nor the pelvis's own new print
+  mass are in the sim plant yet (`sim/build_v6_inertia.py --write` needs
+  the new STL + a bearing-mass lump before the walk gate is trusted again,
+  per the 09-13 rule) -- unchanged from round 1's owed item, and LOWER
+  URGENCY than round 1 thought since neither A nor C in this round changes
+  any kinematic constant, so the EXISTING gate result stands geometrically;
+  only the mass rollup is stale.
+- **Internal ring split is an ESTIMATE for BOTH bearings** (6810-2RS same
+  as 6811-2RS) -- no published internal raceway/ball geometry found for
+  either. Verify against the real bearing's datasheet or a caliper
+  measurement before cutting the shoulder metal, same caveat as round 1.
+- **Bridge on option A's skirts**: kept despite the doubled gap (13 vs
+  6 mm) as a conservative, NOT FEA-verified choice -- worth a bench check
+  (or a deflection estimate) on whether it is still needed once a real
+  6810-2RS is in hand; removing it would save a small amount of print
+  material and one extra feature.
+- **6710-2RS vs 6810-2RS**: 6710 is 1 mm narrower and, oddly, listed 15 g
+  HEAVIER as a bought part across the sources checked (67 vs 52 g) with a
+  less consistently published C0 (2.6-3.1 kN across sources vs 6810's
+  single clean spec sheet) -- picked 6810 for the citation, not the load;
+  if 6710 is in stock and its rating is confirmed, it is interchangeable
+  (same bore, same recess, `YAWA_BRG_W`/`YAWA_BRG_OD` are the only two
+  numbers that would change).
+- **Flanged-bearing refinement (Option D)**: not pursued this session for
+  lack of a found datasheet at this bore/section; worth a supplier search
+  if Option A is selected and a simpler pelvis-side shoulder is wanted.
+- **Idler-side seat pad trim** (Option A, §3): the top ~2 mm is cut back by
+  the band; both retention screw rows it actually locates against are
+  clear of the trim, but this was reasoned, not independently
+  re-verified by a dedicated check.
 
 ## BOM delta
 
-See `docs/design-v6/bom-delta.md` (added there too):
+Not touched this session (task instruction) -- the existing 6811-2RS line
+in `docs/design-v6/bom-delta.md` stands until Tom selects an option; if
+Option A is picked, that line becomes 2 (+2 spares) 6810-2RS, 50x65x7 mm,
+sealed, chrome steel, deep-groove "68xx" series.
 
-| item | qty | spec filter | why | est. |
-|---|---|---|---|---|
-| 6811-2RS deep-groove ball bearing | 2 (+2 spares) | 55x72x9mm, sealed (2RS), chrome steel (SAE 52100), deep-groove "68xx" series | hip-yaw thrust + moment, replacing the horn-screw-only load path | not sourced here -- buy to the spec filter, Tom to source per project convention |
+## 9-sentence verdict
 
-## 5-sentence verdict
-
-A 6811-2RS (55x72x9, C0 ~8.1 kN) wraps around the OUTSIDE of the carrier's
-ENTIRE horn-plate-plus-bay-wall footprint -- not a boss sized to the disc
-or the case alone, both of which are smaller than the carrier's own
-rotating cross-section and were tried and rejected first -- with both
-races LOCATED by real interference (+0.08 mm / -0.04 mm), no clearance fit
-anywhere in the load path. The bearing's own load margin is enormous
-(236-458x even at the impact moment); every sizing decision was forced by
-enclosing the carrier's 25.12 mm corner with real wall, not by load
-capacity. `check_assembly_v6.py` plus a rewritten combined-pose check that
-models the bearing as two solid rings (not just the printed parts against
-each other) confirm no interference anywhere in the load path through the
-full yaw x roll x pitch ROM. The tradeoff for closing the previous pass's
-compromise is packaging: 6811 is 2 mm wider than the size that produced
-the clearance-fit problem, and the two skirts now need a connecting bridge
-at 84 mm hip separation -- disclosed, not hidden. This directly answers
-Tom's complaint: the horn screws go back to pure torque, and the leg's
-0.335 m lever now loads the pelvis print through a properly located
-bearing, not a shaft or a compromise fit.
+Round 1's 6811-2RS wrap (kept here as Option C, the baseline/runner-up)
+sized a round boss to the carrier's own rectangular corner (25.12 mm),
+which is round on the outside but still a rectangle-driven number
+underneath; Tom asked for the joint itself to be round, and for the hip
+stack to not get any taller. Option A puts the round hub at the carrier's
+EXISTING height (no change anywhere to `HIP_YAW_Z`, `CARRIER_ROLL_AXIS`, or
+`d_yaw_roll`), sized instead to what the geometry actually shows is inside
+that fixed band: not the small yaw-servo horn disc (a mistake this round
+caught and corrected), but the bulkier ROLL SERVO's own case, measured at a
+22.23 mm worst corner -- which clears with a 50 mm-bore 6810-2RS (65x7,
+2.81 mm of wall) after a smaller 45 mm bore FAILED outright (0.31 mm of
+wall, shown explicitly as a negative control). The result is smaller
+everywhere that matters -- 65 mm bearing OD vs 72, a 71 mm skirt vs 78, and
+more than double the clearance between the two hip skirts (13 mm vs 6) --
+at the cost of a slightly more surgical carrier construction and a 0.08 mm
+trim off one existing corner, both disclosed rather than hidden. Option B
+(raising the yaw servo instead) is a genuine, measured negative: only
+4.5 mm of air exists above the battery pack where 7-10 mm is needed, a
+2.5-5.5 mm shortfall that only the battery layout or the deck could close,
+both outside this study's authorization, so it was stopped at the
+measurement with no CAD built. Both A and C pass the full
+`check_assembly_v6.py` suite and a bearing-modeled-as-two-rings combo check
+across the yaw x roll x pitch ROM with zero interference, and both are
+exported to STEP (`cad/v6/step/yaw_bearing_recommended/` and
+`.../yaw_bearing_runner_up/`) as a small joint sub-assembly -- pelvis cell
+region, carrier, both bearing races, and the yaw and roll servos -- so Tom
+can compare them directly in FreeCAD. The recommendation is Option A; the
+BOM is left untouched for Tom to act on.
