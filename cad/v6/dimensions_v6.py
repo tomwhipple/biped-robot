@@ -111,10 +111,10 @@ FOOT_W = 84.0           # 76 -> 84 on 2026-09-14: with the CAD part masses (1.65
                         # the walk's margin was INBOARD-limited at 8 mm; 30 mm of
                         # inboard sole restores >= 12 mm at every pelvis mass tried
 FOOT_Y_OFF = 12.0       # sole centreline outboard of the roll axis
-FOOT_IN = FOOT_W / 2 - FOOT_Y_OFF                                    # 25 inboard half
-FOOT_OUT = FOOT_W / 2 + FOOT_Y_OFF                                   # 51 outboard half
+FOOT_IN = FOOT_W / 2 - FOOT_Y_OFF                                    # 30 inboard half
+FOOT_OUT = FOOT_W / 2 + FOOT_Y_OFF                                   # 54 outboard half
 FOOT_CORNER_R = 14.0
-FOOT_INNER_GAP = HIP_SEP - 2 * FOOT_IN                               # 34
+FOOT_INNER_GAP = HIP_SEP - 2 * FOOT_IN                               # 24
 # roll servo placement: output (horn) end FORWARD (+X), case length along Y
 # with the CABLE END OUTBOARD -- the case spans y -10.11..+35.11 (foot_L,
 # outboard = +y) and sits on the plate top. Its horn disc face is at
