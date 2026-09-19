@@ -5,9 +5,18 @@
 # Gate coverage now lives in .githooks/pre-push:
 #   host-tests/console  ->  make -C firmware/host check
 #   link-tests          ->  python3 -m pytest tests/ -q
-#   cmake-ctest         ->  cmake configure / build / ctest
-#   esp32-build         ->  idf.py build (firmware/main)
-#   clang-tidy/cppcheck ->  run when the toolchain is installed
+#   cmake-ctest         ->  cmake configure / build / ctest  (hard when cmake
+#                           is installed; skips with a note otherwise)
+#   esp32-build         ->  idf.py build (firmware/main); needs ESP-IDF on
+#                           PATH or IDF_PATH (SKIP_ESP32=1 overrides)
+#   clang-tidy          ->  run-clang-tidy over the host build, when clang-tidy
+#                           is installed (WarningsAsErrors per .clang-tidy)
+#   clang-tidy-gui      ->  firmware/host/clang-tidy-gui.sh, when clang-tidy
+#                           is installed (runs `make deps` first)
+#   cppcheck            ->  firmware/host/cppcheck.sh, when cppcheck is
+#                           installed (wrapper fails on any finding)
+# Toolchain-guarded gates SKIP with a note when the tool is absent; install
+# the toolchain to enforce them locally.
 #
 # To re-enable CI, restore the original `on:` triggers and jobs. The prior
 # config is preserved in git history on main.
