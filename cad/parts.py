@@ -1,4 +1,4 @@
-"""Printable parts for the Bimo-like biped (build123d, algebra mode).
+"""Printable parts for the biped (build123d, algebra mode).
 
 Run:  .venv/bin/python cad/parts.py        -> exports STLs to cad/stl/, prints
                                               per-part bbox / bed check / mass and

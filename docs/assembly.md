@@ -1,4 +1,4 @@
-# Assembly instructions — Bimo-like biped
+# Assembly instructions — the biped
 
 *Step-by-step build guide with figures. Figures are rendered from the real CAD
 (`cad/render_assembly_steps.py`): parts already installed are shown in their

@@ -1,4 +1,4 @@
-"""Stage-2a: Gymnasium environment for the Bimo-like biped (CPU MuJoCo).
+"""Stage-2a: Gymnasium environment for the biped (CPU MuJoCo).
 
 Wraps sim/bimo_biped.xml as a standard RL env so a policy can learn to walk
 forward. Kept deliberately framework-light (plain MuJoCo, no MJX) so it runs on
