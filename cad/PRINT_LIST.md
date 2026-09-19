@@ -1,4 +1,4 @@
-# Print list — Bimo-like biped
+# Print list — the biped
 
 **14 plastic prints (7 unique parts) + 2 silicone sole pads**, ~354 g of PETG.
 Generated from `cad/parts.py` / `cad/dimensions.py`. Export STLs with

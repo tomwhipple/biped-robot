@@ -1,4 +1,4 @@
-# Bimo-like Biped
+# Biped
 
 A 34 cm, ~1.1 kg 3D-printed **bipedal robot** — 10 serial-bus servos, an ESP32,
 and a reinforcement-learning policy that runs onboard at 50 Hz and decides every
@@ -20,8 +20,8 @@ tilt feedback was rotated by an angle that grew over minutes. Two sensor fixes
 are in (yaw-stripped up-vector, an 18 % pitch-gyro over-read); **neither has
 been re-armed on the robot yet.**
 
-*Inspired by (not a clone of) the open-source
-[Bimo Project](https://github.com/mekion/the-bimo-project). The geometry here is
+*This biped is loosely inspired by the
+[Bimo Project](https://github.com/mekion/the-bimo-project). It is an independent design, not a clone. The geometry here is
 built from servo datasheet dimensions rather than reverse-engineered parts.*
 
 ## Try it

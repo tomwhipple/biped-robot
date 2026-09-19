@@ -1,6 +1,6 @@
 # CAD software & 3D printer recommendations
 
-*Compiled 2026-07-10, for building the Bimo-like biped (8× STS3215 servos, ~34 cm tall).
+*Compiled 2026-07-10, for building the biped (8× STS3215 servos, ~34 cm tall).*
 Parts are small — the longest single piece (thigh/shin link) is well under 120 mm — so even a
 compact print bed is plenty.*
 
