@@ -1,0 +1,43 @@
+== PINCER on the STOCK v7 torso: hip_sep 84  thigh 110  shank 110  d_ankle 58  foot 130x84  knee both  torso v7 (Pi 4B + head)  yaw axis 387 mm, deck top 466 mm
+-- 0. the bird's winning path, VERBATIM, unperturbed, on the stock torso
+    1.5s lie                                    up_z +0.43 front_z +0.90  pelvis z 0.047  |tau|max 0.21 (R_knee)  contacts ['L_shin', 'R_shin', 'torso']
+    3.5s k0                                     up_z +0.37 front_z +0.54  pelvis z 0.070  |tau|max 0.37 (R_hip_yaw)  contacts ['L_shin', 'R_hip_yaw', 'torso']
+    5.5s k1                                     up_z -0.27 front_z +0.96  pelvis z 0.077  |tau|max 0.51 (R_hip_pitch)  contacts ['L_foot', 'R_foot', 'torso']
+    7.5s k2                                     up_z +0.37 front_z +0.66  pelvis z 0.071  |tau|max 0.31 (L_hip_roll)  contacts ['L_foot', 'L_shin', 'R_foot', 'torso']
+    9.5s k3                                     up_z +0.07 front_z -0.27  pelvis z 0.065  |tau|max 4.48 (R_hip_roll)  contacts ['L_foot', 'L_thigh', 'R_thigh', 'torso']
+   11.5s k4                                     up_z -0.03 front_z +0.48  pelvis z 0.082  |tau|max 0.68 (R_hip_yaw)  contacts ['L_foot', 'R_foot', 'torso']
+   13.5s k5                                     up_z -0.02 front_z +1.00  pelvis z 0.060  |tau|max 0.46 (R_hip_roll)  contacts ['L_foot', 'R_foot', 'torso']
+bird path verbatim, folded start: no       up -0.02 z 0.060
+    1.5s lie                                    up_z +0.03 front_z +1.00  pelvis z 0.056  |tau|max 0.25 (R_hip_pitch)  contacts ['L_foot', 'R_foot', 'torso']
+    3.5s k0                                     up_z +1.00 front_z +0.04  pelvis z 0.064  |tau|max 0.88 (L_hip_roll)  contacts ['L_foot', 'L_thigh', 'R_thigh']
+    5.5s k1                                     up_z -0.27 front_z +0.96  pelvis z 0.077  |tau|max 0.52 (R_hip_pitch)  contacts ['L_foot', 'R_foot', 'torso']
+    7.5s k2                                     up_z +0.36 front_z +0.66  pelvis z 0.071  |tau|max 0.28 (L_hip_roll)  contacts ['L_foot', 'L_shin', 'R_foot', 'torso']
+    9.5s k3                                     up_z +0.07 front_z -0.26  pelvis z 0.065  |tau|max 4.48 (R_hip_roll)  contacts ['L_foot', 'L_thigh', 'R_thigh', 'torso']
+   11.5s k4                                     up_z -0.02 front_z +0.48  pelvis z 0.081  |tau|max 0.69 (R_hip_yaw)  contacts ['L_foot', 'R_foot', 'torso']
+   13.5s k5                                     up_z -0.02 front_z +1.00  pelvis z 0.060  |tau|max 0.44 (R_hip_roll)  contacts ['L_foot', 'R_foot', 'torso']
+bird path verbatim, straight start: no       up -0.02 z 0.060
+-- hill-climb, folded start
+folded restart 0: score 4.40 up +0.97 z 0.186
+folded restart 1: score 4.63 up +1.00 z 0.205
+folded restart 2: score 4.39 up +0.97 z 0.186
+folded restart 3: score 3.46 up +1.00 z 0.058
+folded restart 4: score 3.63 up +0.99 z 0.081
+folded restart 5: score 3.68 up +1.00 z 0.087
+-- hill-climb, straight start
+straight restart 0: score 4.28 up +0.97 z 0.172
+straight restart 1: score 3.83 up +0.97 z 0.115
+straight restart 2: score 3.63 up +0.99 z 0.081
+straight restart 3: score 3.64 up +0.97 z 0.091
+straight restart 4: score 3.63 up +0.98 z 0.085
+straight restart 5: score 4.69 up +1.00 z 0.211
+BEST (straight) score 4.69 up +1.00 z 0.211 STANDING=False path=[[-115.4958140914521, 19.754929426273392, -47.28229681820817, 7.351568671683273], [-86.37186801795589, 7.048896663736713, 24.91680374614564, 4.439110619859928], [17.605554463392473, 16.776696611180917, 8.453408803422935, -36.34323206522071], [25.955597962633988, 101.52574992771922, 42.709966015592556, 0.5551627331748175], [46.321585991742644, 99.97982322088865, -83.3639219446182, 10.72121641559237], [-131.45470113772205, 14.255932531574217, -102.12810544008325, 21.410000545808717]]
+-- per-keyframe trace of the best result
+    1.5s lie                                    up_z +0.03 front_z +1.00  pelvis z 0.056  |tau|max 0.25 (R_hip_pitch)  contacts ['L_foot', 'R_foot', 'torso']
+    3.5s k0                                     up_z -0.02 front_z +1.00  pelvis z 0.060  |tau|max 1.03 (R_hip_roll)  contacts ['R_foot', 'torso']
+    5.5s k1                                     up_z -0.04 front_z +1.00  pelvis z 0.061  |tau|max 0.89 (R_hip_roll)  contacts ['L_foot', 'R_foot', 'torso']
+    7.5s k2                                     up_z +0.14 front_z +0.99  pelvis z 0.052  |tau|max 0.58 (R_hip_pitch)  contacts ['L_ankle_blk', 'torso']
+    9.5s k3                                     up_z +0.57 front_z +0.80  pelvis z 0.053  |tau|max 0.61 (R_hip_yaw)  contacts ['L_shin', 'R_hip_yaw', 'torso']
+   11.5s k4                                     up_z +1.00 front_z +0.01  pelvis z 0.051  |tau|max 0.14 (R_knee)  contacts ['L_foot', 'L_thigh', 'R_foot', 'R_thigh']
+   13.5s k5                                     up_z +1.00 front_z +0.03  pelvis z 0.211  |tau|max 1.54 (R_hip_roll)  contacts ['L_ankle_blk', 'L_foot', 'L_shin', 'L_thigh', 'R_foot', 'R_shin']
+max up-vector reached: +1.000
+standing: []

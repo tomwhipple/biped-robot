@@ -13,3 +13,6 @@ trimesh          # mesh inertia for bimo_biped_v2 (sim/build_v2_inertia.py)
 pytest           # tests/
 pygame           # optional: gamepad command source (link/sources.py)
 pyserial        # tools/servo_tool.py (ST3215 bench tool over the USB bridge)
+PyQt6            # optional: sim/joint_puppet.py joint-slider GUI (MuJoCo 3.10's
+                 # own simulate UI cannot construct on py3.14/macOS, so the
+                 # puppet brings its own sliders)

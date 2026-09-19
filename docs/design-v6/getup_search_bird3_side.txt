@@ -1,0 +1,18 @@
+== BIRD3 flat-body get-up, side, self_collide=True
+bird3_round        side_l pushup splay+45 knee-40                       no       up -0.08 front +1.00 z 0.100  |tau|max 0.45 (R_hip_yaw)
+bird3_round        side_l pushup splay+45 knee-90                       no       up -0.08 front +1.00 z 0.100  |tau|max 0.45 (R_hip_yaw)
+bird3_round        side_l pushup splay+90 knee-40                       no       up -0.08 front +1.00 z 0.100  |tau|max 0.78 (L_hip_yaw)
+bird3_round        side_l pushup splay+90 knee-90                       no       up -0.08 front +1.00 z 0.100  |tau|max 0.61 (L_knee)
+bird3_round        side_r pushup splay+45 knee-40                       no       up -0.08 front +1.00 z 0.100  |tau|max 0.44 (L_hip_yaw)
+bird3_round        side_r pushup splay+45 knee-90                       no       up -0.08 front +1.00 z 0.100  |tau|max 0.44 (L_hip_yaw)
+bird3_round        side_r pushup splay+90 knee-40                       no       up -0.08 front +1.00 z 0.100  |tau|max 0.78 (L_hip_yaw)
+bird3_round        side_r pushup splay+90 knee-90                       no       up -0.08 front +1.00 z 0.100  |tau|max 0.61 (R_knee)
+bird3_box          side_l pushup splay+45 knee-40                       no       up -0.06 front +1.00 z 0.101  |tau|max 0.42 (L_hip_yaw)
+bird3_box          side_l pushup splay+45 knee-90                       no       up -1.00 front +0.00 z 0.027  |tau|max 0.42 (L_hip_yaw)
+bird3_box          side_l pushup splay+90 knee-40                       no       up -0.06 front +1.00 z 0.101  |tau|max 0.78 (R_hip_yaw)
+bird3_box          side_l pushup splay+90 knee-90                       no       up -0.06 front +1.00 z 0.101  |tau|max 0.62 (R_knee)
+bird3_box          side_r pushup splay+45 knee-40                       no       up -0.06 front +1.00 z 0.101  |tau|max 0.42 (R_hip_yaw)
+bird3_box          side_r pushup splay+45 knee-90                       no       up -1.00 front +0.00 z 0.027  |tau|max 0.42 (R_hip_yaw)
+bird3_box          side_r pushup splay+90 knee-40                       no       up -0.06 front +1.00 z 0.101  |tau|max 0.78 (L_hip_yaw)
+bird3_box          side_r pushup splay+90 knee-90                       no       up -0.06 front +1.00 z 0.101  |tau|max 0.62 (L_knee)
+standing: []

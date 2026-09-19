@@ -1,0 +1,43 @@
+== bird3_round get-up path verification (self_collide=True, deploy model, STS3250 rolls+knees); path from getup_search_bird3_hillclimb_round_folded.txt BEST
+-- 1. as searched (1.4 s moves, 0.6 s holds) + 2 s final hold, per-keyframe trace
+    1.5s lie                                    up_z -1.00 front_z -0.07  pelvis z 0.028  |tau|max 0.03 (R_hip_yaw)  contacts ['L_foot', 'R_foot', 'torso']
+    3.5s k0                                     up_z -1.00 front_z -0.04  pelvis z 0.028  |tau|max 0.49 (R_hip_roll)  contacts ['L_foot', 'torso']
+    5.5s k1                                     up_z -0.24 front_z +0.97  pelvis z 0.097  |tau|max 0.35 (R_hip_pitch)  contacts ['L_foot', 'R_foot', 'torso']
+    7.5s k2                                     up_z +0.42 front_z +0.72  pelvis z 0.089  |tau|max 0.31 (L_knee)  contacts ['L_hip_yaw', 'L_shin', 'R_foot', 'torso']
+    9.5s k3                                     up_z +0.98 front_z -0.13  pelvis z 0.073  |tau|max 0.77 (L_hip_yaw)  contacts ['L_foot', 'L_thigh', 'R_foot', 'R_thigh', 'torso']
+   11.5s k4                                     up_z +1.00 front_z +0.01  pelvis z 0.144  |tau|max 1.43 (L_hip_roll)  contacts ['L_foot', 'R_foot']
+   13.5s k5                                     up_z +1.00 front_z +0.06  pelvis z 0.386  |tau|max 0.85 (L_hip_roll)  contacts ['L_foot', 'R_foot']
+   15.6s hold                                   up_z +1.00 front_z +0.05  pelvis z 0.386  |tau|max 0.29 (L_hip_roll)  contacts ['L_foot', 'R_foot']
+supine, search timing                                STANDING up +1.00 z 0.386 |tau|max 1.43 N-m
+-- 2. quasi-static check: 4 s moves, 2 s holds (3x slower)
+    1.5s lie                                    up_z -1.00 front_z -0.07  pelvis z 0.028  |tau|max 0.03 (R_hip_yaw)  contacts ['L_foot', 'R_foot', 'torso']
+    7.5s k0                                     up_z -1.00 front_z -0.05  pelvis z 0.028  |tau|max 0.47 (R_hip_roll)  contacts ['L_foot', 'torso']
+   13.5s k1                                     up_z -0.23 front_z +0.97  pelvis z 0.097  |tau|max 0.17 (L_hip_pitch)  contacts ['L_foot', 'R_foot', 'torso']
+   19.5s k2                                     up_z +0.42 front_z +0.72  pelvis z 0.088  |tau|max 0.32 (R_hip_pitch)  contacts ['L_hip_yaw', 'L_shin', 'R_foot', 'torso']
+   25.5s k3                                     up_z +0.98 front_z -0.16  pelvis z 0.074  |tau|max 0.39 (L_hip_yaw)  contacts ['L_foot', 'L_thigh', 'R_foot', 'R_thigh', 'torso']
+   31.5s k4                                     up_z +1.00 front_z +0.01  pelvis z 0.143  |tau|max 1.49 (L_hip_roll)  contacts ['L_foot', 'R_foot']
+   37.5s k5                                     up_z +1.00 front_z +0.05  pelvis z 0.386  |tau|max 0.33 (L_hip_roll)  contacts ['L_foot', 'R_foot']
+   39.6s hold                                   up_z +1.00 front_z +0.05  pelvis z 0.386  |tau|max 0.20 (R_ankle_roll)  contacts ['L_foot', 'R_foot']
+supine, 3x slower                                    STANDING up +1.00 z 0.386 |tau|max 1.49 N-m
+-- 3. robustness (play deg, friction, servo strength)
+supine play 3 mu 0.7 servo 1.00                      STANDING up +1.00 z 0.386 |tau|max 1.43 N-m
+supine play 5 mu 0.7 servo 1.00                      STANDING up +1.00 z 0.386 |tau|max 1.45 N-m
+supine play 3 mu 0.3 servo 1.00                      STANDING up +1.00 z 0.386 |tau|max 1.45 N-m
+supine play 3 mu 1.0 servo 1.00                      STANDING up +1.00 z 0.386 |tau|max 1.42 N-m
+supine play 3 mu 0.7 servo 0.80                      STANDING up +1.00 z 0.386 |tau|max 1.43 N-m
+supine play 3 mu 0.7 servo 0.65                      STANDING up +1.00 z 0.386 |tau|max 1.42 N-m
+supine play 5 mu 0.3 servo 0.65                      STANDING up +1.00 z 0.386 |tau|max 1.47 N-m
+-- 4. PRONE start (bird_flat, BIRD_PRONE_FOLD): second half of the path, k3..k5
+    1.5s lie                                    up_z +1.00 front_z -0.07  pelvis z 0.061  |tau|max 0.03 (L_ankle_roll)  contacts ['L_foot', 'L_thigh', 'R_foot', 'R_thigh']
+    3.5s k3                                     up_z +0.98 front_z -0.14  pelvis z 0.074  |tau|max 0.76 (L_hip_yaw)  contacts ['L_foot', 'L_thigh', 'R_foot', 'R_thigh', 'torso']
+    5.5s k4                                     up_z +1.00 front_z +0.01  pelvis z 0.144  |tau|max 1.42 (L_hip_roll)  contacts ['L_foot', 'R_foot']
+    7.5s k5                                     up_z +1.00 front_z +0.06  pelvis z 0.386  |tau|max 1.04 (R_hip_roll)  contacts ['L_foot', 'R_foot']
+    9.6s hold                                   up_z +1.00 front_z +0.05  pelvis z 0.386  |tau|max 0.30 (L_hip_roll)  contacts ['L_foot', 'R_foot']
+prone k3..k5 nominal                                 STANDING up +1.00 z 0.386 |tau|max 1.42 N-m
+prone k3..k5 play 5 mu 0.7 servo 1.00                STANDING up +1.00 z 0.386 |tau|max 1.44 N-m
+prone k3..k5 play 3 mu 0.3 servo 1.00                STANDING up +1.00 z 0.386 |tau|max 1.46 N-m
+prone k3..k5 play 3 mu 1.0 servo 1.00                STANDING up +1.00 z 0.386 |tau|max 1.41 N-m
+prone k3..k5 play 3 mu 0.7 servo 0.65                STANDING up +1.00 z 0.386 |tau|max 1.40 N-m
+prone k3..k5 play 5 mu 0.3 servo 0.65                STANDING up +1.00 z 0.386 |tau|max 1.47 N-m
+-- 5. PRONE start, the full path k0..k5 (robustness to running the whole thing regardless of start)
+prone full path nominal                              STANDING up +1.00 z 0.386 |tau|max 1.43 N-m

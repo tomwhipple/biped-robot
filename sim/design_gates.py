@@ -73,10 +73,14 @@ class Key:
     heading: float = 0.0     # pelvis yaw in the world (rad)
     yawL: float = 0.0        # foot yaws in the world (rad)
     yawR: float = 0.0
+    roll: float = 0.0        # pelvis/torso ROLL about its own local forward
+                             # (post-heading) axis (rad); 0.0 everywhere keeps
+                             # every existing caller byte-identical (wide_gait.py,
+                             # 2026-09-17: the WADDLE gait for wide-hip bodies)
 
     def copy(self):
         return Key(self.pelvis.copy(), self.footL.copy(), self.footR.copy(),
-                   self.heading, self.yawL, self.yawR)
+                   self.heading, self.yawL, self.yawR, self.roll)
 
 
 def minjerk(s: float) -> float:
@@ -121,7 +125,8 @@ class Timeline:
                           a.footR + (b.footR - a.footR) * s,
                           a.heading + (b.heading - a.heading) * s,
                           a.yawL + (b.yawL - a.yawL) * s,
-                          a.yawR + (b.yawR - a.yawR) * s)
+                          a.yawR + (b.yawR - a.yawR) * s,
+                          a.roll + (b.roll - a.roll) * s)
                 arc, foot, arc_out = self.arcs[k]
                 if arc > 0 or arc_out > 0:
                     bump = math.sin(math.pi * s)
@@ -145,16 +150,17 @@ class Timeline:
 def standing_key(p: DesignParams, drop: float) -> Key:
     """standing with the pelvis `drop` below the straight-leg height, feet
     under the hips, sole bottoms on z = 0 (ankle roll points at z = roll_h)."""
-    z_pel = p.z_yaw_above_sole - drop
+    z_pel = p.z_yaw_above_sole - p.hip_z - drop  # torso ORIGIN, not the yaw
+                                                  # axis, when hip_z != 0
     return Key(np.array([0.0, 0.0, z_pel]),
                np.array([0.0, +p.hip_sep / 2, p.roll_h]),
                np.array([0.0, -p.hip_sep / 2, p.roll_h]))
 
 
 def q_of(p: DesignParams, key: Key) -> np.ndarray:
-    if key.heading == 0.0 and key.yawL == 0.0 and key.yawR == 0.0:
+    if key.heading == 0.0 and key.yawL == 0.0 and key.yawR == 0.0 and key.roll == 0.0:
         return K.pose_from_feet(p, key.pelvis, key.footL, key.footR)
-    return K.pose_world(p, key.pelvis, key.heading, key.footL, key.footR, key.yawL, key.yawR)
+    return K.pose_world(p, key.pelvis, key.heading, key.footL, key.footR, key.yawL, key.yawR, roll=key.roll)
 
 
 # --------------------------------------------------------------------------- hull helpers (from toein_hyp)

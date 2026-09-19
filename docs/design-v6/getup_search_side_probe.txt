@@ -1,0 +1,71 @@
+--- bird_z06_sep160  hip_z 60 mm  hip_sep 160 mm  abd 45 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.057  up +0.01  CoM (+0.059,+0.000,0.056)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.044  up +0.99  CoM (+0.135,+0.000,0.076)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'L_thigh', 'R_foot', 'R_thigh']
+  seated tuck (hip -125 knee -130) pelvis z 0.047  up +0.42  CoM (+0.032,+0.000,0.072)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  prone tuck (knees under)   pelvis z 0.101  up +0.06  CoM (+0.001,+0.000,0.082)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_shin', 'R_ankle_blk', 'R_shin']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+--- bird_z10_sep160  hip_z 100 mm  hip_sep 160 mm  abd 45 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.058  up +0.00  CoM (+0.034,+0.000,0.056)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.052  up +0.07  CoM (-0.035,+0.000,0.131)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  seated tuck (hip -125 knee -130) pelvis z 0.052  up +0.08  CoM (-0.021,+0.000,0.081)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  prone tuck (knees under)   pelvis z 0.098  up +0.06  CoM (+0.026,-0.000,0.081)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_shin', 'R_ankle_blk', 'R_shin']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+--- bird_z15_sep160  hip_z 150 mm  hip_sep 160 mm  abd 45 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.058  up +0.00  CoM (+0.003,-0.000,0.056)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.052  up +0.07  CoM (-0.066,+0.000,0.133)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  seated tuck (hip -125 knee -130) pelvis z 0.052  up +0.07  CoM (-0.052,+0.000,0.083)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  prone tuck (knees under)   pelvis z 0.097  up +0.05  CoM (+0.057,+0.000,0.080)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_foot', 'L_shin', 'R_ankle_blk', 'R_foot', 'R_shin', 'torso']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+--- bird_z20_sep160  hip_z 200 mm  hip_sep 160 mm  abd 45 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.058  up -0.01  CoM (-0.029,-0.000,0.056)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.068  up -0.14  CoM (-0.125,+0.000,0.128)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  seated tuck (hip -125 knee -130) pelvis z 0.068  up -0.14  CoM (-0.101,+0.000,0.082)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  prone tuck (knees under)   pelvis z 0.092  up +0.06  CoM (+0.087,+0.000,0.079)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_foot', 'L_shin', 'R_ankle_blk', 'R_foot', 'R_shin', 'torso']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+--- bird_z15_sep200  hip_z 150 mm  hip_sep 200 mm  abd 45 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.058  up +0.00  CoM (+0.003,+0.000,0.056)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.052  up +0.07  CoM (-0.066,+0.000,0.133)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  seated tuck (hip -125 knee -130) pelvis z 0.052  up +0.07  CoM (-0.052,+0.000,0.083)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  prone tuck (knees under)   pelvis z 0.095  up +0.06  CoM (+0.056,+0.000,0.080)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_shin', 'R_ankle_blk', 'R_shin']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+--- frog_splay_abd75  hip_z 0 mm  hip_sep 84 mm  abd 75 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.057  up +0.01  CoM (+0.096,+0.000,0.055)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.104  up +0.99  CoM (+0.181,-0.000,0.098)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'L_thigh', 'R_foot', 'R_thigh']
+  seated tuck (hip -125 knee -130) pelvis z 0.050  up +0.32  CoM (+0.058,+0.000,0.064)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  prone tuck (knees under)   pelvis z 0.104  up +0.05  CoM (-0.036,+0.000,0.083)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_shin', 'R_ankle_blk', 'R_shin']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+--- frog_splay_abd90  hip_z 0 mm  hip_sep 84 mm  abd 90 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.057  up +0.01  CoM (+0.096,+0.000,0.055)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.104  up +0.99  CoM (+0.181,-0.000,0.098)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'L_thigh', 'R_foot', 'R_thigh']
+  seated tuck (hip -125 knee -130) pelvis z 0.050  up +0.32  CoM (+0.058,+0.000,0.064)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  prone tuck (knees under)   pelvis z 0.104  up +0.05  CoM (-0.036,+0.000,0.083)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_shin', 'R_ankle_blk', 'R_shin']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+--- bird_z15_splay75  hip_z 150 mm  hip_sep 160 mm  abd 75 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.058  up +0.00  CoM (+0.003,-0.000,0.056)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.052  up +0.07  CoM (-0.066,+0.000,0.133)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  seated tuck (hip -125 knee -130) pelvis z 0.052  up +0.07  CoM (-0.052,+0.000,0.083)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  prone tuck (knees under)   pelvis z 0.097  up +0.05  CoM (+0.057,+0.000,0.080)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_foot', 'L_shin', 'R_ankle_blk', 'R_foot', 'R_shin', 'torso']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+--- bird_z15_splay90  hip_z 150 mm  hip_sep 160 mm  abd 90 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.058  up +0.00  CoM (+0.003,-0.000,0.056)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.052  up +0.07  CoM (-0.066,+0.000,0.133)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  seated tuck (hip -125 knee -130) pelvis z 0.052  up +0.07  CoM (-0.052,+0.000,0.083)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  prone tuck (knees under)   pelvis z 0.097  up +0.05  CoM (+0.057,+0.000,0.080)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_foot', 'L_shin', 'R_ankle_blk', 'R_foot', 'R_shin', 'torso']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+--- bird_topmount  hip_z 200 mm  hip_sep 180 mm  abd 75 deg  standing yaw-axis height 387 mm
+  supine (lie)               pelvis z 0.058  up -0.01  CoM (-0.029,+0.000,0.056)  sole margin[L:  air  R:  air ]  contacts ['L_foot', 'R_foot', 'torso']
+  sit up (hip -90)           pelvis z 0.068  up -0.14  CoM (-0.125,+0.000,0.128)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  seated tuck (hip -125 knee -130) pelvis z 0.068  up -0.14  CoM (-0.101,+0.000,0.082)  sole margin[L:  air  R:  air ]  contacts ['torso']
+  prone tuck (knees under)   pelvis z 0.092  up +0.06  CoM (+0.087,+0.000,0.079)  sole margin[L:  air  R:  air ]  contacts ['L_ankle_blk', 'L_shin', 'R_ankle_blk', 'R_shin']
+  rise-arc sweep (seated tuck, splay 0, hip -125): knee/ankle -> pelvis z / CoM margin
+    no (knee, ankle) pair in the sweep puts the CoM over a grounded sole below pelvis 0.33 m
+standing: []

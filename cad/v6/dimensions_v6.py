@@ -258,6 +258,197 @@ YAW_HORN_FACE_Z = YAW_BOX_BOT_Z - D.YAW_BOX_CARRIER_GAP               # -73.80
 TORSO_FLOOR_Z = YAW_HORN_FACE_Z + 1.0         # nothing torso-side below this
 DECK_BOT_Z = HIP_YAW_Z - YAW_HORN_FACE_Z - DECK_T                     # world z of the deck bottom
 DECK_TOP_Z = DECK_BOT_Z + DECK_T
+
+# ----------------------------------------------------------------------------
+# hip-yaw bearing (2026-09-17, docs/design-v6/study-yaw-bearing.md; REVISED
+# after coordinator review found the first two passes wrong -- see the
+# write-up's history section). Today the yaw servo's HORN SPLINE + 4 horn
+# screws are the only connection between the carrier (whole leg, 0.335 m
+# lever) and the pelvis -- thrust (~15 N single-support) and the roll
+# moment (~0.65 N-m) both go through the shaft.
+#
+# SIZE FROM THE GEOMETRY, NOT THE OTHER WAY ROUND. The carrier's horn-mount
+# PLATE is bigger than the servo's O19.2 horn disc -- it is ALSO the roll
+# bay's ceiling (X +/-19.95, Y +/-hw=15.26), and the bay WALLS below it
+# share that SAME footprint for their whole height (front/rear/cheeks run
+# the full X/Y rectangle from the plate down to the bore). So the carrier's
+# max corner reach, hypot(19.95, 15.26) = 25.12 mm, is present at EVERY z
+# the bearing band could occupy, not just at the plate's own 3 mm. Two
+# earlier passes got this backwards -- picked a bearing first, then tried
+# to shrink the carrier (a corner trim) or grow the pelvis recess (a
+# clearance fit that defeated the point of a bearing) to fit around it.
+# Correct order: the boss (inner-race seat) must ENCLOSE the carrier's
+# whole footprint with >= 1.5 mm of wall -> bore radius >= 25.12 + 1.5 =
+# 26.62 mm -> bore >= 53.24 mm. The smallest common thin/reduced-section
+# size that clears this is 55 mm bore. 6711-2RS (55x68x7) has no published
+# C0/C in the sources checked for this study (multiple supplier listings,
+# no load-rating datasheet found) -- rather than guess a number,
+# **6811-2RS (55x72x9)** is used instead: C0 published consistently
+# (6.2-8.4 kN across sources; 8.1 kN used below) even though it costs 2 mm
+# more width and a tighter skirt-to-skirt gap (see YAW_BRG_SKIRT_OD).
+#
+# The boss WRAPS the existing plate/wall footprint -- nothing is trimmed
+# off the carrier. It lives entirely BELOW the existing yaw cell tube rim
+# (YAW_BOX_BOT_Z, unchanged) -- the GD/Pi board columns and the servo case
+# both end at or above that Z, so the whole bearing band sits in air that
+# was already open. NO axis drop, no change to
+# YAW_HORN_FACE_Z/TORSO_FLOOR_Z/HIP_YAW_Z/anything in the leg chain.
+YAW_BRG_ID = 55.0                              # 6811-2RS bore
+YAW_BRG_OD = 72.0                              # 6811-2RS OD
+YAW_BRG_W = 9.0                                # 6811-2RS width
+YAW_BRG_C0_KN = 8.1                            # published range 6.2-8.4 kN
+                                                # across sources checked; not a
+                                                # single vendor's guarantee
+_carrier_corner_r = math.hypot(19.95, D.SV_WID / 2 + D.BAY_CHEEK_GAP + D.WALL)  # 25.12
+YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.08             # 55.08, +0.08 interference
+                                                 # (within the requested
+                                                 # +0.05..+0.10 band; located,
+                                                 # not a clearance/adhesive fit)
+YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2            # 27.54
+YAW_BRG_BOSS_H = YAW_BRG_W                      # 9.0, full bore engagement
+YAW_BRG_RECESS_ID = YAW_BRG_OD - 0.04           # 71.96, -0.04 interference
+                                                 # (within the requested
+                                                 # -0.03..-0.05 band)
+YAW_BRG_RECESS_R = YAW_BRG_RECESS_ID / 2        # 35.98
+# ESTIMATED internal race split -- NOT a published spec (bearing internal
+# raceway/ball geometry is not in the basic catalog data found for either
+# 6709 or 6811); scaled from the coordinator's own illustrative 6709 split
+# (inner ring 2 mm, ball/cage gap 1 mm, outer ring 2 mm, over a 5 mm total
+# radial span) by this bearing's larger span, (72-55)/2 = 8.5 mm, factor
+# 1.7x. Used ONLY to keep the pelvis shoulder off the moving inner
+# ring/balls -- verify against the real bearing before cutting metal.
+YAW_BRG_EST_INNER_RING_OD = YAW_BRG_BOSS_R + 2.0 * 1.7      # ~30.94
+YAW_BRG_EST_OUTER_RING_ID = YAW_BRG_EST_INNER_RING_OD + 1.0 * 1.7  # ~32.64 (est. gap)
+YAW_BRG_SHOULDER_LAND = 1.5                     # ledge width (radial) that stops
+                                                 # the outer race's top face --
+                                                 # kept narrow (vs the estimated
+                                                 # outer-ring ID above) so it
+                                                 # cannot touch the moving parts
+                                                 # even if the estimate is off
+YAW_BRG_SHOULDER_ID = YAW_BRG_OD - 2 * YAW_BRG_SHOULDER_LAND    # 69.0 (r 34.5,
+                                                 # 1.86 mm clear of the est.
+                                                 # outer-ring ID above)
+assert YAW_BRG_SHOULDER_ID / 2 > YAW_BRG_EST_OUTER_RING_ID, \
+    "shoulder must not reach the (estimated) outer race's own ID"
+YAW_BRG_SKIRT_OD = 78.0                        # ~3.0 mm wall around the recess.
+                                                # Two skirts, 84 mm hip sep:
+                                                # 84 - 78 = 6 mm edge-to-edge --
+                                                # too tight for two independent
+                                                # free-hanging rings, so they
+                                                # are BRIDGED (pelvis_v7.py) by
+                                                # a short connecting web at the
+                                                # bottom rather than left as two
+                                                # separate thin hoops.
+# skirt/recess Z (pelvis-local, hangs from the EXISTING rim, nothing above
+# YAW_BOX_BOT_Z moves). The recess is pinned to YAW_HORN_FACE_Z (the world
+# reference the carrier's boss ALSO uses -- HIP_YAW_Z in assembly_v6.py --
+# so the two align exactly): recess proper is the bearing's own width,
+# ending flush at the horn face; the shoulder fills the remaining, already-
+# existing 1.8 mm gap up to the tube rim (D.YAW_BOX_CARRIER_GAP, unchanged).
+YAW_BRG_RECESS_Z = (YAW_HORN_FACE_Z - YAW_BRG_W, YAW_HORN_FACE_Z)              # -82.80..-73.80
+YAW_BRG_SHOULDER_Z = (YAW_BRG_RECESS_Z[1], YAW_BOX_BOT_Z)                      # -73.80..-72.0
+YAW_BRG_SHOULDER_H = YAW_BRG_SHOULDER_Z[1] - YAW_BRG_SHOULDER_Z[0]             # 1.80 == D.YAW_BOX_CARRIER_GAP
+# carrier boss Z, in the CARRIER's own local frame (z=0 at the horn face,
+# +Z toward the servo -- see cad/parts.py yaw_carrier docstring): the boss
+# spans the plate's own 3 mm (z=-3..0) PLUS the top of the bay walls below
+# it (z=-9..-3), which share the SAME footprint/corner reach as the plate,
+# so wrapping them costs nothing extra in radius.
+YAW_BRG_BOSS_CARRIER_Z = (-YAW_BRG_BOSS_H, 0.0)                                # -9.0..0.0
+assert YAW_BRG_BOSS_R - _carrier_corner_r >= 1.5, \
+    "boss must enclose the carrier's own corner (plate AND bay walls) with >= 1.5 mm wall"
+_case_corner_r = math.hypot(D.SV_AXIS_FROM_OUT_END, D.SV_WID / 2)   # 15.97
+assert YAW_BRG_BOSS_R > _case_corner_r, "boss radius must clear the servo case's own corner"
+assert YAW_BRG_SHOULDER_Z[1] == YAW_BOX_BOT_Z, "skirt must hang from the EXISTING rim, unmoved"
+
+# ----------------------------------------------------------------------------
+# hip-yaw bearing OPTION STUDY, round 2 (2026-09-18, docs/design-v6/
+# study-yaw-bearing.md; Tom: "the hip stack must NOT get taller" -- drop any
+# axial growth -- AND "modify the yaw joints to be round"). Everything above
+# (YAW_BRG_*) is OPTION C, the 2026-09-17 baseline (6811-2RS wrapping the
+# carrier's WHOLE rectangular plate+wall footprint) -- left unrenamed because
+# it is still what yaw_carrier_v6()/pelvis_v7() build by default. Below:
+# OPTION A (a round hub, AT THE SAME AXIAL ENVELOPE -- no HIP_YAW_Z /
+# CARRIER_ROLL_AXIS / d_yaw_roll change) and OPTION B's measurement (raise
+# the yaw servo into the housing -- stopped at measurement, see the write-up).
+
+# ---- OPTION A: round hub, current height ------------------------------------
+# The bearing band is FIXED, not new axial length: it starts at the horn
+# face (carrier z=0) and runs down the bearing's own width. Within that band
+# the carrier already holds (v5, unchanged): the horn mount plate (z 0..-3,
+# corner 25.12 mm, _carrier_corner_r above) and, once the band passes -3 mm,
+# the TOP of the roll-servo bay -- occupied by the ROLL servo's own case,
+# whose cable (top) end is at CARRIER_ROLL_AXIS + SV_AXIS_FROM_REAR =
+# -40.11 + 35.11 = -5.00 mm -- a different, BULKIER footprint than the small
+# yaw-horn disc the round-hub idea first (wrongly) sized to. Measured
+# directly (`CA.servo_mock_x()` intersected with a box at carrier-local z in
+# [-10.11, -5.00], i.e. the roll servo's own cable-end 5 mm, in a REPL this
+# session): the case's own worst corner reach from the yaw axis over that
+# span, including the horn-side rib (SV_HORN_RIB_H proud of SV_TOPFACE):
+YAWA_BAND_CASE_CORNER_R = 22.23   # mm, measured (see comment above); bigger
+                                  # than the yaw-servo/horn-disc figure
+                                  # (_case_corner_r above, 15.97) and only a
+                                  # little under the carrier's OWN existing
+                                  # rectangular corner (25.12)
+# Smallest of the three offered bore classes (45: 6709/6809, 50: 6710/6810,
+# 55: 6711/6811) that clears YAWA_BAND_CASE_CORNER_R + 1.5 mm wall (need
+# radius >= 23.73 mm, bore >= 47.46 mm): 45 mm FAILS (r 22.54, wall only
+# 0.31 mm -- not printable, kept as an assert below so it is not re-tried);
+# 50 mm clears with 2.81 mm of wall; 55 mm also clears but is not smallest.
+YAWA_BRG_ID = 50.0            # 6810-2RS bore
+YAWA_BRG_OD = 65.0            # 6810-2RS OD (vs 6710-2RS's 62 mm -- 6810 picked
+                              # for the more consistently published static
+                              # rating; see the BOM note)
+YAWA_BRG_W = 7.0              # 6810-2RS width (6710-2RS is 6 mm/67 g, lighter
+                              # bearing but a heavier PART, and its C0 varies
+                              # 2.6-3.1 kN across sources checked; either is
+                              # enormous overkill at these loads -- see YAW_BRG
+                              # section 3.1's arithmetic, same order of load)
+YAWA_BRG_C0_KN = 5.8          # 6810-2RS, one full spec sheet (50x65x7); a
+                              # second source's DYNAMIC figure (6.6 kN) is not
+                              # directly comparable and was not cross-checked
+                              # against a second STATIC source this session
+YAWA_BRG_MASS_G = 52.0        # cited, single source, not independently re-verified
+YAWA_BRG_BOSS_OD = YAWA_BRG_ID + 0.08         # 50.08, +0.08 interference (same band as YAW_BRG_BOSS_OD)
+YAWA_BRG_BOSS_R = YAWA_BRG_BOSS_OD / 2        # 25.04
+YAWA_BRG_BOSS_H = YAWA_BRG_W                  # 7.0 mm, full bore engagement -- the band IS carrier z [-7, 0]
+assert YAWA_BRG_BOSS_R - YAWA_BAND_CASE_CORNER_R >= 1.5, \
+    "hub must enclose the roll servo's own case corner (within the band) with >= 1.5 mm wall"
+_yawA_45_r = (45.0 + 0.08) / 2
+assert _yawA_45_r - YAWA_BAND_CASE_CORNER_R < 1.5, \
+    "45 mm bore is supposed to FAIL this margin (negative control) -- re-check the 50 mm pick if this trips"
+YAWA_BRG_RECESS_ID = YAWA_BRG_OD - 0.04       # 64.96, -0.04 interference
+YAWA_BRG_RECESS_R = YAWA_BRG_RECESS_ID / 2    # 32.48
+_yawA_span = (YAWA_BRG_OD - YAWA_BRG_ID) / 2       # 7.5 mm, this bearing's race span
+_yawA_factor = _yawA_span / 5.0                     # scale of the coordinator's illustrative 6709 split (5 mm span)
+YAWA_EST_INNER_RING_OD = YAWA_BRG_BOSS_R + 2.0 * _yawA_factor       # ~28.04, ESTIMATE (no published internal geometry)
+YAWA_EST_OUTER_RING_ID = YAWA_EST_INNER_RING_OD + 1.0 * _yawA_factor  # ~29.54, ESTIMATE
+YAWA_SHOULDER_LAND = 1.2
+YAWA_SHOULDER_ID = YAWA_BRG_OD - 2 * YAWA_SHOULDER_LAND     # 62.6 (r 31.3)
+assert YAWA_SHOULDER_ID / 2 > YAWA_EST_OUTER_RING_ID, \
+    "shoulder must not reach the (estimated) outer race's own ID"
+YAWA_SKIRT_OD = YAWA_BRG_OD + 6.0   # 71.0, ~3 mm wall around the recess (same convention as YAW_BRG_SKIRT_OD)
+# skirt gap: HIP_SEP - YAWA_SKIRT_OD = 84 - 71 = 13 mm edge-to-edge (vs 6 mm
+# for option C's 78 mm skirt). A bridge is still added (pelvis_v7.py,
+# bearing_variant="A") for the same reason as option C's -- kept as a
+# conservative, NOT FEA-verified choice rather than assumed unnecessary just
+# because the gap more than doubled.
+YAWA_BAND_Z = (-YAWA_BRG_BOSS_H, 0.0)     # carrier-local -- SAME frame/origin
+                                           # as today; no change anywhere to
+                                           # HIP_YAW_Z, CARRIER_ROLL_AXIS or
+                                           # d_yaw_roll (Tom's constraint 1).
+YAWA_ROLL_CASE_TOP_Z = D.CARRIER_ROLL_AXIS + D.SV_AXIS_FROM_REAR   # -5.00, carrier-local
+# roll-servo retention screw rows (carrier-local; both must stay OUTSIDE the
+# band -- the SCREW HOLES themselves are v5-unchanged, only the wall/hub
+# OUTSIDE them changes shape)
+YAWA_ROLL_SCREW_ROWS_Z = (D.CARRIER_ROLL_AXIS + D.CASE_HOLES_TOP[1],
+                          D.CARRIER_ROLL_AXIS + D.CASE_HOLES_BOT[1])   # -11.11, -7.36
+assert YAWA_ROLL_SCREW_ROWS_Z[1] < YAWA_BAND_Z[0], \
+    "the idler-side retention screw row must stay below (outside) the band"
+YAWA_RECESS_Z = (YAW_HORN_FACE_Z - YAWA_BRG_W, YAW_HORN_FACE_Z)      # -80.80..-73.80, pelvis-local
+YAWA_SHOULDER_Z = (YAWA_RECESS_Z[1], YAW_BOX_BOT_Z)                   # -73.80..-72.0 -- the SAME existing 1.8 mm gap option C reuses
+assert YAWA_SHOULDER_Z[1] == YAW_BOX_BOT_Z, \
+    "skirt must hang from the EXISTING rim, unmoved (no axial growth)"
+
 # housing plan
 # +4: an outer skin outboard of the yaw cell walls, so the housing can taper
 # 3 deg toward the bottom for the look without thinning the cell walls
@@ -314,6 +505,22 @@ BATT_HY = BATT[0] / 2                         # 52.5 half length
 assert BATT_Z[1] <= -DECK_T - 1.0, "pack does not fit under the deck"
 assert BATT_HY + 1.0 <= HOUSING_HW - D.WALL, "pack is longer than the housing is wide"
 BATT_BELT_W = D.BT_BELT_W                     # 15
+
+# ---- OPTION B measurement (hip-yaw bearing study round 2, 2026-09-18):
+# raise the yaw servo into the housing. "7-10 mm of rise" (the brief) has to
+# open up between the yaw servo's cable (top) end and the cell ceiling --
+# i.e. the WHOLE servo (case+horn+disc) moves up, so the cell's own ceiling
+# (CELL_TOP_Z, the battery bay's FLOOR) has to rise the same amount (the
+# case is retained from the ceiling down, the same pattern the roll servo's
+# own cable end shows one joint lower -- YAWA_ROLL_CASE_TOP_Z above).
+# Measured clearance around the battery layer, which sits directly above:
+YAWB_CLEAR_BELOW_BATT = BATT_Z[0] - CELL_TOP_Z    # -35.5 - (-36.0) = 0.5 mm (cell ceiling -> battery bottom)
+YAWB_CLEAR_ABOVE_BATT = -DECK_T - BATT_Z[1]       # -5.0 - (-9.5) = 4.5 mm (battery top -> deck bottom)
+YAWB_NEEDED_RISE_LO, YAWB_NEEDED_RISE_HI = 7.0, 10.0
+YAWB_SHORTFALL_LO = YAWB_NEEDED_RISE_LO - YAWB_CLEAR_ABOVE_BATT   # 2.5 mm
+YAWB_SHORTFALL_HI = YAWB_NEEDED_RISE_HI - YAWB_CLEAR_ABOVE_BATT   # 5.5 mm
+assert YAWB_CLEAR_ABOVE_BATT < YAWB_NEEDED_RISE_LO, \
+    "Option B: not enough rise exists above the battery without moving it (or the deck) -- see the study doc"
 # power electronics beside the pack, forward of it, in the same layer:
 # 3S protection board + 5 V / 5 A buck (Pololu D24V50F5, 17.8 x 25.4 x ~8)
 # The pocket's forward limit is the yaw cell block's own front web (inner face

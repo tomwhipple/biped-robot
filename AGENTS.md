@@ -104,3 +104,23 @@ each learned by breaking something:
 - When the bench measures something the sim does not model, model it — but only
   after it is measured. Guessing a domain-randomization range produces a policy
   robust to a thing the robot does not do.
+
+## Local tools are native tools
+
+**No web UI for a local tool. Not a Flask page, not a served MJPEG stream, not
+a browser tab — ever.** A tool that drives the sim on this laptop gets a native
+window (Qt: `sim/joint_puppet.py`) or a terminal. This was learned the
+expensive way: a browser slider panel was built, rejected, rebuilt and rejected
+again, and the whole detour existed only to dodge a macOS main-thread problem
+that Qt solves directly.
+
+Two rules that fall out of the same session, worth keeping:
+
+- **One window.** A control surface in one place and the picture in another is
+  a bug, not a layout.
+- **A GUI and MuJoCo's physics must never touch `MjData` at the same instant.**
+  Render on one thread, step on another, one lock across both — an unguarded
+  read mid-`mj_step` lands in `mj_fwdConstraint` and the OS shows a crash
+  dialog ("mjpython quit unexpectedly"); the stack is in
+  `~/Library/Logs/DiagnosticReports/mjpython-*.ips`, which is the core file
+  for a crash macOS does not dump.

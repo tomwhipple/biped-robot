@@ -61,6 +61,33 @@ def _try(modname, fn, *a, **k):
         return None, False
 
 
+def yaw_bearing_variant():
+    """Which hip-yaw bearing option the assembly builds (docs/design-v6/
+    study-yaw-bearing.md): "C" (default, unchanged behavior), "A", or "E"
+    (A + positive retention: lip, screwed cap, screwed retainer) via the
+    YAW_BEARING_VARIANT env var -- set by the option-A check/render/export
+    scripts, never by default, so every existing caller of this module keeps
+    building the "C" baseline unless it opts in."""
+    return os.environ.get("YAW_BEARING_VARIANT", "C")
+
+
+def part_yaw_carrier():
+    """v6 carrier (v5's + the hip-yaw bearing boss); falls back to v5's."""
+    variant = yaw_bearing_variant()
+    try:
+        if variant == "E":
+            import yaw_retention_optE
+            return yaw_retention_optE.carrier_optE()
+        if variant == "A":
+            import yaw_carrier_v6_optA
+            return yaw_carrier_v6_optA.yaw_carrier_v6_optA()
+        import yaw_carrier_v6
+        return yaw_carrier_v6.yaw_carrier_v6()
+    except Exception as e:  # noqa: BLE001
+        print(f"  [assembly_v6] yaw_carrier_v6 (variant {variant}) unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
+        return v5parts.yaw_carrier()
+
+
 def part_yoke_pitch():
     """v6 clevis (flange chamfer for hip flexion 125); falls back to v5's."""
     try:
@@ -95,7 +122,10 @@ def part_foot(side):
 
 
 def part_pelvis():
-    s, ok = _try("pelvis_v7", "pelvis_v7")
+    if yaw_bearing_variant() == "E":
+        s, ok = _try("yaw_retention_optE", "pelvis_optE")
+    else:
+        s, ok = _try("pelvis_v7", "pelvis_v7", yaw_bearing_variant())
     if ok:
         return s
     x0, x1 = V.HOUSING_X
@@ -174,7 +204,8 @@ def _leg_chain(side):
               ("ankle_roll", (1, 0, 0), (0, y, V.ANKLE_ROLL_Z))]
     pieces = [
         (0, f"servo_hip_yaw_{side}", COL_SERVO, Pos(0, y, V.HIP_YAW_Z + D.SV_HORN_FACE) * CA.servo_mock_z()),
-        (1, f"yaw_carrier_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * v5parts.yaw_carrier()),
+        (1, f"yaw_carrier_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * part_yaw_carrier()),
+        *yaw_retention_pieces(side, y),
         (1, f"servo_hip_roll_{side}", COL_SERVO, at(V.HIP_ROLL_Z) * CA.servo_mock_x()),
         (2, f"yoke_roll_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * v5parts.yoke_roll()),
         (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch()),
@@ -188,6 +219,22 @@ def _leg_chain(side):
         (6, f"foot_{side}", COL_FOOT, at(V.TPU_SOLE_T) * part_foot(side)),
     ]
     return pieces, joints
+
+
+def yaw_retention_pieces(side, y):
+    """Option E only: the bearing (one ring, bought part), the cap (turns
+    with the carrier, link 1) and the retainer (pelvis-fixed, link 0)."""
+    if yaw_bearing_variant() != "E":
+        return []
+    import yaw_retention_optE as E
+    from build123d import Cylinder
+    z0, z1 = V.HIP_YAW_Z + E.E_RACE_Z[0], V.HIP_YAW_Z + E.E_RACE_Z[1]
+    bearing = Pos(0, y, (z0 + z1) / 2) * (Cylinder(V.YAWA_BRG_OD / 2, z1 - z0) - Cylinder(V.YAWA_BRG_ID / 2, z1 - z0 + 2))
+    return [
+        (1, f"bearing_6810_{side}", COL_MOCK, bearing),
+        (1, f"yaw_cap_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * E.cap()),
+        (0, f"yaw_retainer_{side}", COL_PRINT, Pos(0, 0, V.DECK_TOP_Z) * E.retainer(y)),
+    ]
 
 
 def torso_pieces():
@@ -313,14 +360,15 @@ def main(argv=None):
     ap.add_argument("--pose", default="")
     ap.add_argument("--no-step", action="store_true")
     ap.add_argument("--png", default=os.path.join(OUT_REN, "assembly_v6.png"))
+    ap.add_argument("--step", default=os.path.join(OUT_STEP, "assembly_v6.step"))
     a = ap.parse_args(argv)
     comp = robot(parse_pose(a.pose))
     bb = comp.bounding_box()
     print(f"assembly bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}  z {bb.min.Z:.1f}..{bb.max.Z:.1f} mm, {len(comp.children)} pieces")
     if not a.no_step:
         os.makedirs(OUT_STEP, exist_ok=True)
-        export_step(comp, os.path.join(OUT_STEP, "assembly_v6.step"))
-        print("wrote", os.path.join(OUT_STEP, "assembly_v6.step"))
+        export_step(comp, a.step)
+        print("wrote", a.step)
     print("wrote", render(comp, a.png))
 
 

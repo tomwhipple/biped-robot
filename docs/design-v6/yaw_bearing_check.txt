@@ -1,0 +1,63 @@
+== FINAL DESIGN: 6811-2RS (55x72x9), both races located, boss encloses the
+   carrier's WHOLE footprint (not just the disc or the case) ==
+
+== check_assembly_v6.py (full run, all pairs, default 5 samples per joint sweep) ==
+hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      2.30   -45.0  ok   carrier under the cell through +-45
+hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00      7.30   -45.0  ok   roll servo in the carrier bay vs the housing floor
+(... every other pair in the suite: ok, unaffected by this study ...)
+=> ALL CLEAR  (81 s)
+
+== check_yaw_bearing_combo.py (REWRITTEN per coordinator review to model the
+   BEARING ITSELF as two solid rings, not just the printed parts against
+   each other): yaw 0/+-45 CROSSED with hip_roll ROM extremes (+-55) and
+   hip_pitch ROM extremes (-125/+90), 12 combined poses, single leg (L) ==
+
+part         ring       overlap mm3  min dist  at (yaw,roll,pitch)                 verdict  note
+yaw_carrier  INNER_RING        0.00      0.50  (0.0, -55.0, -125.0)                ok   rotating carrier must clear it except the boss
+yaw_carrier  OUTER_RING        0.00      5.10  (0.0, -55.0, -125.0)                ok   rotating carrier must never touch the fixed race
+pelvis_v7    OUTER_RING        0.00      0.01  (-45.0, -55.0, -125.0)              ok   fixed pelvis must clear it except the recess wall
+pelvis_v7    INNER_RING        0.00      2.30  (-45.0, -55.0, -125.0)              ok   fixed pelvis must never touch the rotating race
+yaw_carrier  (direct)          0.00      2.30  (-45.0, -55.0, -125.0)              ok   carrier vs pelvis, direct (cross-check)
+=> ALL CLEAR  (12 poses x 5 pairs)
+
+Note on "pelvis_v7 vs OUTER_RING: min dist 0.01 mm" -- this is the
+INTENDED contact plane, not a near-miss: the ring's top boundary (world
+z = V.HIP_YAW_Z) is exactly where the pelvis's shoulder land is designed
+to touch the outer race's flat top face (that is the shoulder's entire
+job -- see study-yaw-bearing.md section 4). 0.01 mm is floating-point/mesh
+noise at a boundary the design puts in contact on purpose, the same way
+the boss-to-bore and recess-to-OD radial interference is excluded from the
+ring's radial bounds (FIT_ALLOW) rather than flagged as a clearance
+failure.
+
+== Bugs found and fixed DURING this review round (kept here so neither is
+   silently reintroduced) ==
+
+1. check_yaw_bearing_combo.py's first version built the two bearing rings
+   at V.YAW_BRG_RECESS_Z directly -- a PELVIS-LOCAL z range (-82.8..-73.8)
+   -- but assembly_v6.robot() places every piece in WORLD coordinates,
+   where the actual joint sits at z ~ V.HIP_YAW_Z (386.5 mm, not -82.8).
+   Every check "passed" with reported distances of 400+ mm, which is
+   physically absurd for a joint whose own parts are all within ~30 mm of
+   each other -- the absurdity of the number is what caught it, not a
+   passing grade. Fixed: RING_Z = (V.HIP_YAW_Z - V.YAW_BRG_W, V.HIP_YAW_Z),
+   matching where the carrier's boss (placed via Pos(0, y, V.HIP_YAW_Z))
+   and the pelvis's recess (placed via Pos(0, 0, V.DECK_TOP_Z), which is
+   DECK_TOP_Z = HIP_YAW_Z - YAW_HORN_FACE_Z by construction) actually land.
+
+2. The bridge connecting the two skirts (pelvis_v7.py, added because 6811's
+   larger OD leaves only 6 mm edge-to-edge) first reached 5 mm into each
+   skirt without checking where each skirt's own HOLLOW BORE begins --
+   the ring check (once bug 1 was fixed) caught 80 mm3 of overlap between
+   the pelvis and the outer ring's own reserved space at (yaw=-45,
+   roll=-55, pitch=-125). The skirt's solid wall at x=0 only exists between
+   y = hip_y - skirt_r (outer surface, 78/2=39 mm out) and y = hip_y -
+   V.YAW_BRG_RECESS_R (35.98 mm out, where the hollow bore begins) -- a
+   ~3 mm band, not 5 mm. Fixed: bridge_hy = HIP_SEP/2 - YAW_BRG_RECESS_R -
+   0.3 (5.72 mm), staying inside the solid wall.
+
+Arithmetic check (not a boolean sweep, from the constants in
+cad/v6/dimensions_v6.py): two skirts, hip separation 84 mm, skirt OD 78 mm
+each -> 84 - 78 = 6 mm edge-to-edge -- too tight for two independent
+free-hanging rings, hence the bridge (see above and section 4/7 of the
+write-up).
