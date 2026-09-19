@@ -19,8 +19,12 @@ import parts as v5  # noqa: E402
 D = V.D
 
 
-def yoke_pitch_v6():
-    p = v5.yoke_pitch()
+def flex_chamfer_wedge():
+    """The hip-flexion chamfer as a SOLID to subtract, in this part's frame
+    (pitch axis == Y at the origin, flange up): a 45 deg wedge off the
+    flange's front-bottom edge, V.YOKE_FLEX_CHAMFER on each face, running the
+    flange's full Y span. Shared with hip_yoke_v6 (the one-print roll+pitch
+    yoke), which must trim the same edge with the same wedge."""
     zf1 = D.PITCH_ARM_REACH                          # flange bottom (arms side)
     xf = D.YOKE_FLANGE_X / 2                         # flange front face
     c = V.YOKE_FLEX_CHAMFER
@@ -28,9 +32,12 @@ def yoke_pitch_v6():
     iy0 = D.IDLER_ARM_INNER - D.PLATE
     # hypotenuse through (xf - c, zf1) and (xf, zf1 + c); the +-1 margins
     # keep the boolean faces off the flange's own faces
-    p -= v5.wedge_y([(xf + 1, zf1 - 1), (xf + 1, zf1 + c + 1), (xf - c - 1, zf1 - 1)],
-                    iy0 - 1, hy1 + 1)
-    return p
+    return v5.wedge_y([(xf + 1, zf1 - 1), (xf + 1, zf1 + c + 1), (xf - c - 1, zf1 - 1)],
+                      iy0 - 1, hy1 + 1)
+
+
+def yoke_pitch_v6():
+    return v5.yoke_pitch() - flex_chamfer_wedge()
 
 
 if __name__ == "__main__":
