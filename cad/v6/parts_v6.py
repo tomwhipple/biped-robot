@@ -56,7 +56,23 @@ if os.environ.get("HIP_YOKE_VARIANT", "split") == "single":
     PARTS.insert(_i, ("hip_yoke_v6", _lazy("hip_yoke_v6", "hip_yoke_v6"), 2,
                       "ONE PRINT: roll + pitch clevis fused, no flange bolts (on edge like yoke_roll; supports + brim)"))
 
+# ARMS=1 (the assembly_v6.arms_on switch): the two get-up arms, 3 designs and
+# 6 prints -- arms are a MIRROR PAIR, so unlike the legs each link is two part
+# numbers. Default rollup unchanged.
+if os.environ.get("ARMS", "0") not in ("", "0", "no", "false", "off"):
+    for _n, _b, _q, _note in [
+            ("shoulder_mount_v6_L", _lazy("arm_v6", "shoulder_mount_v6", "L"), 1, "deck cradle, servo stands on end, horn outboard"),
+            ("shoulder_mount_v6_R", _lazy("arm_v6", "shoulder_mount_v6", "R"), 1, "mirror of _L"),
+            ("arm_upper_v6_L", _lazy("arm_v6", "arm_upper_v6", "L"), 1, "shoulder horn -> elbow fork, 160 mm (on its back)"),
+            ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L"),
+            ("arm_fore_v6_L", _lazy("arm_v6", "arm_fore_v6", "L"), 1, "elbow grip -> hand knuckle, 160 mm (on its back)"),
+            ("arm_fore_v6_R", _lazy("arm_v6", "arm_fore_v6", "R"), 1, "mirror of _L"),
+    ]:
+        PARTS.append((_n, _b, _q, _note))
+
 SERVO_COUNT = {"STS3250": 6, "STS3215": 7}
+if os.environ.get("ARMS", "0") not in ("", "0", "no", "false", "off"):
+    SERVO_COUNT = dict(SERVO_COUNT, STS3215=SERVO_COUNT["STS3215"] + V.ARM_SERVO_COUNT)
 
 
 def mass_g(solid, tpu=False):

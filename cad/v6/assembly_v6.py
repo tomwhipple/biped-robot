@@ -18,6 +18,12 @@ Opt-in variants (env vars, defaults leave every existing caller byte-identical):
     YAW_BEARING_VARIANT=A|C|E   hip-yaw bearing option (docs/design-v6/study-yaw-bearing.md)
     HIP_YOKE_VARIANT=single     one-print hip yoke replacing yoke_roll + yoke_pitch
                                 (cad/v6/hip_yoke_v6.py, docs/design-v6/hip-yoke-single-print.md)
+    ARMS=1                      the two get-up arms -- shoulder bracket + servo,
+                                upper arm, elbow servo, forearm, per side
+                                (cad/v6/arm_v6.py, docs/design-v6/arms.md). ALSO
+                                switches the pelvis to its arm_mounts=True build
+                                (8 extra deck pilots), so the DEFAULT pelvis and
+                                the default assembly stay byte-identical.
 
     .venv/bin/python cad/v6/assembly_v6.py                 # step/assembly_v6.step + renders
     .venv/bin/python cad/v6/assembly_v6.py --pose knee=-60,hip_pitch=-30
@@ -54,6 +60,7 @@ COL_MOCK = Color(0.15, 0.45, 0.75)
 COL_HEAD = Color(0.90, 0.88, 0.80)
 
 JOINTS = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle_pitch", "ankle_roll")
+ARM_JOINTS = ("shoulder", "elbow")
 
 
 # --------------------------------------------------------------------------- part sources
@@ -84,6 +91,15 @@ def hip_yoke_variant():
     contract as yaw_bearing_variant(): nothing sets it by default, so every
     existing caller keeps building the split baseline unless it opts in."""
     return os.environ.get("HIP_YOKE_VARIANT", "split")
+
+
+def arms_on():
+    """Whether this build carries the two get-up arms (docs/design-v6/
+    getup-decision-2026-09-17.md). Same contract as yaw_bearing_variant() and
+    hip_yoke_variant(): nothing sets ARMS by default, so every existing caller
+    -- the STEP export, the renders, check_assembly_v6, animate_v6 -- keeps
+    building the armless baseline byte for byte unless it opts in."""
+    return os.environ.get("ARMS", "0") not in ("", "0", "no", "false", "off")
 
 
 def part_hip_yoke():
@@ -164,7 +180,7 @@ def part_pelvis():
     if yaw_bearing_variant() == "E":
         s, ok = _try("yaw_retention_optE", "pelvis_optE")
     else:
-        s, ok = _try("pelvis_v7", "pelvis_v7", yaw_bearing_variant())
+        s, ok = _try("pelvis_v7", "pelvis_v7", yaw_bearing_variant(), arms_on())
     if ok:
         return s
     x0, x1 = V.HOUSING_X
@@ -304,6 +320,36 @@ def _torso_pieces():
     ]
 
 
+def arm_chain(side):
+    return cached(("arm", side), lambda: _arm_chain(side))
+
+
+def _arm_chain(side):
+    """[(link_index, label, colour, world_solid_in_the_HANGING pose)] for one
+    arm, plus its joint list. Link 0 = the torso (the bracket and the shoulder
+    servo's stator ride it), 1 = after the shoulder, 2 = after the elbow. The
+    hanging pose IS shoulder 0 / elbow 0 -- the actuators' own rest, and the
+    idle pose the walk gate was measured in (study-shoulder-arms.md section 5).
+
+    The bracket and the shoulder servo are drawn in the PELVIS frame, so they
+    are lifted by DECK_TOP_Z here exactly as pelvis_v7 itself is."""
+    import arm_v6
+    y = V.ARM_Y * (1 if side == "L" else -1)
+    deck = Pos(0, 0, V.DECK_TOP_Z)
+    at_sh = Pos(V.ARM_SHOULDER_X, y, V.ARM_SHOULDER_Z)
+    at_el = Pos(V.ARM_SHOULDER_X, y, V.ARM_ELBOW_Z)
+    joints = [("shoulder", (0, 1, 0), (V.ARM_SHOULDER_X, y, V.ARM_SHOULDER_Z)),
+              ("elbow", (0, 1, 0), (V.ARM_SHOULDER_X, y, V.ARM_ELBOW_Z))]
+    pieces = [
+        (0, f"shoulder_mount_{side}", COL_PRINT, deck * arm_v6.shoulder_mount_v6(side)),
+        (0, f"servo_shoulder_{side}", COL_SERVO, deck * arm_v6.shoulder_servo_mock(side)),
+        (1, f"arm_upper_{side}", COL_PRINT, at_sh * arm_v6.arm_upper_v6(side)),
+        (2, f"servo_elbow_{side}", COL_SERVO, at_el * arm_v6.elbow_servo_mock(side)),
+        (2, f"arm_fore_{side}", COL_PRINT, at_el * arm_v6.arm_fore_v6(side)),
+    ]
+    return pieces, joints
+
+
 def head_pieces():
     return cached("head", lambda: [(1, "head", COL_HEAD, Pos(V.NECK_X, 0, V.NECK_HORN_Z) * part_head())])
 
@@ -346,6 +392,15 @@ def robot(pose=None):
             s = T[idx] * solid
             s.label, s.color = label, col
             children.append(s)
+    if arms_on():
+        for side in ("L", "R"):
+            pieces, joints = arm_chain(side)
+            angles = [pose.get(f"{side}_{j}", pose.get(j, 0.0)) for j in ARM_JOINTS]
+            T = pose_transforms(joints, angles)
+            for idx, label, col, solid in pieces:
+                s = T[idx] * solid
+                s.label, s.color = label, col
+                children.append(s)
     return Compound(label="bimo_v6", children=children)
 
 
@@ -411,8 +466,14 @@ def main(argv=None):
     ap.add_argument("--pose", default="")
     ap.add_argument("--no-step", action="store_true")
     ap.add_argument("--png", default=os.path.join(OUT_REN, "assembly_v6.png"))
-    ap.add_argument("--step", default=os.path.join(OUT_STEP, "assembly_v6.step"))
+    ap.add_argument("--step", default=None)
     a = ap.parse_args(argv)
+    if a.step is None:
+        # ARMS=1 writes its own file: the armless assembly_v6.step is what every
+        # existing figure and check refers to, and an opt-in must not overwrite it.
+        a.step = os.path.join(OUT_STEP, "assembly_v6_arms.step" if arms_on() else "assembly_v6.step")
+    if arms_on() and a.png == os.path.join(OUT_REN, "assembly_v6.png"):
+        a.png = os.path.join(OUT_REN, "assembly_v6_arms.png")
     comp = robot(parse_pose(a.pose))
     bb = comp.bounding_box()
     print(f"assembly bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}  z {bb.min.Z:.1f}..{bb.max.Z:.1f} mm, {len(comp.children)} pieces")
