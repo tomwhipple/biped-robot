@@ -131,6 +131,7 @@ bolt through the disc or a thin 19×27 washer-bearing under the arm.
 | `pelvis` | 1 | 46 × 104 × 48 | 47 g | deck + two hanging bays clamping the hip-roll servos |
 | `yoke_roll` | 2 | 48 × 34 × 32 | 12 g | clevis on roll-servo horn/idler, flange down |
 | `yoke_pitch` | 2 | 32 × 45 × 42 | 12 g | clevis on thigh-servo horn/idler, bolts under `yoke_roll` rotated 90° (hip universal joint) |
+| *(`v6/hip_yoke_v6`)* | *(2)* | 48 × 44 × 74 | 23 g | v6 opt-in (`HIP_YOKE_VARIANT=single`): `yoke_roll` + `yoke_pitch_v6` as ONE print, the 4 flange bolts and heat-sets gone — [docs/design-v6/hip-yoke-single-print.md](../docs/design-v6/hip-yoke-single-print.md) |
 | `leg_link` | 4 | 28 × 45 × 99 | 18 g | thigh **and** shin (same part): grips a servo case, forks 90 mm down to the next servo's horn/idler |
 | `foot` | 2 | 100 × 52 × 30 | 36 g | flat sole + ankle-servo pocket + heel bulkhead tying the retention tabs into a U-channel (glued rubber sole pad) |
 | `tower` | 1 | 45 × 96 × 43.5 | 39 g | electronics: driver board hangs face-down on standoffs INSIDE; 3S battery tilt-loads through the rear-wall window onto the deck (tool-free swap: peel belt, tug ribbon); GoPro bosses on top |

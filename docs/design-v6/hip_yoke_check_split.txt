@@ -1,0 +1,32 @@
+# cad/v6/check_assembly_v6.py, 2026-09-19, switch off (split baseline, post-change)
+joint        A                      B                      overlap mm3  min dist  at deg  verdict
+  [head] vertical fillet: R4.0 did not fit this section's material, used R1.20 instead
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [ankle_link] rounded 2/4 outer top-plate corners
+hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      2.30   -45.0  ok   carrier under the cell through +-45
+hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00      7.30   -45.0  ok   roll servo in the carrier bay vs the housing floor
+hip_roll     yoke_roll_L            yaw_carrier_L                 0.00      0.30     0.0  ok   roll clevis vs the bay walls (v5 pair)
+hip_roll     yoke_pitch_L           yaw_carrier_L                 0.00      5.27   -55.0  ok   pitch yoke flange vs the bay at abduction
+hip_roll     yoke_pitch_L           servo_hip_roll_L              0.00      4.08   -55.0  ok   yoke vs the roll servo case
+hip_pitch    thigh_L                yoke_pitch_L                  0.00      0.70  -125.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
+hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00   -17.5  ok   grip channel vs its own servo: seated, must not intersect
+hip_pitch    thigh_L                yaw_carrier_L                 0.00     10.27  -125.0  ok   thigh top vs the carrier at deep flexion
+hip_pitch    thigh_L                pelvis_v7                     0.00     27.92  -125.0  ok   thigh vs the housing at deep flexion
+hip_pitch    thigh_L                servo_hip_roll_L              0.00      5.14  -125.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
+knee         shin_L                 thigh_L                       0.00      0.60   130.0  ok   shin grip plates vs the thigh fork; shin case vs the thigh box
+knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's box (r 16 rule)
+ankle_pitch  ankle_link_L           shin_L                        0.00      0.70   -40.0  ok   ankle link grip plates vs the shin fork (0.7 mm)
+ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin box
+ankle_pitch  foot_L                 shin_L                        0.00     37.29    20.0  ok   foot tabs / cradle vs the shin tines at +-40
+ankle_roll   foot_L                 ankle_link_L                  0.43      0.00    25.0  ok   foot tabs vs the ankle link tines (0.7 mm), sole vs the web
+ankle_roll   servo_ankle_roll_L     ankle_link_L                  0.00      0.00   -25.0  ok   THE 54 mm pair: roll servo case sweep under the link
+ankle_roll   servo_ankle_roll_L     servo_ankle_pitch_L           0.00      1.05    25.0  ok   roll case vs the pitch servo hanging above it
+neck         head                   pelvis_v7                     0.00     35.20   -90.0  ok   head shell vs the deck through +-90
+neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
+neck         head                   neck_collar                   0.00      2.10   -90.0  ok   head shell vs the collar top through +-90 (>= 1.5 mm by design)
+interleg     foot_L                 foot_R                        0.00     13.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
+interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
+interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
+interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
+=> ALL CLEAR  (54 s)
+exit 0

@@ -10,6 +10,7 @@ Generated from `cad/v6/parts_v6.py` (`docs/design-v6/parts_v6_rollup.txt`). PETG
 | `yaw_carrier` | 2 | 18 | as v5 (`yaw_carrier_print.stl` from `cad/parts.py`) | v5 fins | unchanged v5 part |
 | `yoke_roll` | 2 | 12 | as v5, on edge | slicer supports (v5) | unchanged v5 part |
 | `yoke_pitch_v6` | 2 | 11 | as v5, on its back + brim | slicer supports (v5) | v5 clevis + a 4 mm chamfer on the flange's front-bottom edge (hip flexion 125°) |
+| *(`hip_yoke_v6`)* | *(2)* | *(23)* | *on edge like `yoke_roll` + brim* | *slicer supports* | *opt-in `HIP_YOKE_VARIANT=single`: the two rows above as ONE print, no flange bolts / heat-sets — [hip-yoke-single-print.md](hip-yoke-single-print.md); not default until its two open clearance findings are decided* |
 | `leg_link_v6` | 4 | 26 | **standing on the lower fork end** (new: the box's front plate prints as a wall) | brim recommended (round pads meet the bed on a line) | thigh and shin are the same part; 110 mm; closed box section; one 25 mm end-anchored rib at the v5 jog block prints as a short bridge; 2026-09-14 flexion relief cuts (knee 130°) are 40–45° faces, no new supports |
 | `ankle_link` | 2 | 12 | web-down like v5 (`RY_XUP`) | **yes** (CEILING/ISLAND class, same as the yokes) | grips the ankle-pitch servo, forks fore/aft onto the roll servo's discs |
 | `foot_L`, `foot_R` | 1 + 1 | 52 | sole down | no | mirrored pair; roll servo drops into the cradle, two tabs with 2 × M2.5 flat-heads each |
