@@ -1,4 +1,4 @@
-# Printable CAD — Bimo-like biped
+# Printable CAD — the biped
 
 Parametric CAD in Python ([build123d](https://build123d.readthedocs.io/)), realizing the
 kinematics of `sim/bimo_biped.xml` with **10× Feetech STS3215** bus servos

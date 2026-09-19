@@ -1,4 +1,4 @@
-# Bimo-like Biped — Design & Simulation Working Doc
+# Biped — Design & Simulation Working Doc
 
 **Status:** **The robot is built and it walks.** 10-DOF machine (hip-yaw added
 after the A/B study), printed in PETG, assembled, calibrated, running its own
@@ -29,7 +29,6 @@ rules, training discipline and bench safety, in one place.
 
 Build a custom, small (~34 cm), 3D-printed **bipedal robot** using an LLM-assisted
 loop: parametric CAD → physics simulation → print → RL walking policy → sim-to-real.
-Inspired by (not a clone of) the open-source **Bimo Project**.
 
 The loop has now closed once, end to end: the CAD in `cad/` is the printed
 robot, the plant in `sim/` is derived from that CAD, the policy trained against
@@ -38,11 +37,11 @@ measures on the real machine goes back into the plant as a modelled term.
 
 ## 2. Key decisions & rationale
 
-- **Reference platform:** The Bimo Project by Mekion — `github.com/mekion/the-bimo-project`,
-  a $500 fully-3D-printable biped shipping with an NVIDIA Isaac Lab RL env and working
-  sim-to-real. As of 2026-07 it is pre-order / early access: CAD files "coming soon",
+- **Reference platform:** a $500 fully-3D-printable biped shipping with an
+  NVIDIA Isaac Lab RL env and working sim-to-real (attribution in README.md).
+  As of 2026-07 it is pre-order / early access: CAD files "coming soon",
   and its custom RP2040 controller board is the one non-COTS component.
-- **Strategy: do NOT reverse-engineer Bimo's exact parts from photos/video.** Instead
+- **Strategy: do NOT reverse-engineer exact parts from photos/video.** Instead
   design a *similar* platform around **known component dimensions**. For a servo robot
   the servos are the skeleton, so the datasheet — not the video — anchors the geometry.
 - **Actuator:** 10× **Feetech STS3215** serial-bus servo. Measured **45.2 × 24.6 × 35.1 mm**,
@@ -2055,7 +2054,6 @@ the ribs arguably want to track `BATT_PACK[2]` instead.
 
 ## 9. References
 
-- Bimo Project — `github.com/mekion/the-bimo-project`, `mekion.com/project`
 - STS3215 dimensions — servodatabase.com / waveshare.com (ST3215)
 - Simulator choice — roboticscenter.ai (MuJoCo vs Isaac Sim, Best RL sims 2026)
 

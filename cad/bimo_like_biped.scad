@@ -1,4 +1,4 @@
-// Parametric biped skeleton (Bimo-like), servo-anchored massing model.
+// Parametric biped skeleton (a biped), servo-anchored massing model.
 // Why: lock proportions + the 8x STS3215 joint layout before designing printable parts.
 // Axes: X = forward, Y = left/right, Z = up. Servo bodies ARE the limb segments.
 
