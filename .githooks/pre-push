@@ -1,32 +1,184 @@
 #!/bin/sh
-# Pre-push gate: run the fast local checks before a push so a broken build is
-# caught on the laptop instead of burning GitHub Actions minutes.
+# Pre-push gate: runs the full CI gate-set locally before every push,
+# so nothing CI caught is lost when .github/workflows/ci.yml fires no jobs.
 #
-# Runs `make -C firmware/host check` ONCE over the whole working tree (not
-# per-ref over stdin) -- a single pass is cheaper and covers every ref being
-# pushed in one shot. `make check` is the SAME gate set CI's host-tests /
-# link-tests / console jobs run (no gate-set drift), but a local pass can
-# still go red in CI via the Linux gui tolerance or platform differences.
+# Per Tom (2026-09-16): "disable all CI on this project and make it run as a
+# pre-push hook instead." ALL gates the old CI ran execute here:
+#   [1/8] host check      make -C firmware/host check  (hard, always)
+#   [2/8] link-tests      python3 -m pytest tests/ -q  (hard, always)
+#   [3/8] cmake-ctest     cmake configure/build/ctest  (hard when cmake installed; skip with note otherwise)
+#   [4/8] clang-tidy      run-clang-tidy -p build -quiet  (toolchain-guarded)
+#   [5/8] clang-tidy-gui  firmware/host/clang-tidy-gui.sh (toolchain-guarded; runs make deps)
+#   [6/8] cppcheck        firmware/host/cppcheck.sh    (toolchain-guarded)
+#   [7-8/8] esp32-build   idf.py build (firmware/main) — detection: idf.py on
+#                         PATH, else source $IDF_PATH/export.sh, else hardcoded
+#                         $HOME/.espressif/frameworks/esp-idf-v5.4; SKIP_ESP32=1
+#                         overrides a missing toolchain.
+# Static-analysis gates fail on findings (same pass/fail semantics as the old
+# CI jobs: run-clang-tidy honours WarningsAsErrors from .clang-tidy;
+# cppcheck.sh fails on ANY finding).
 #
 # Enable once per clone:
 #   git config core.hooksPath .githooks
-#
-# Escape hatch (documented in docs/hooks.md):
-#   git push --no-verify
 
 set -u
 
-# Resolve the repo root regardless of where git invokes the hook from.
-ROOT="$(git rev-parse --show-toplevel)" || exit 1
+ROOT="$(git rev-parse --show-toplevel)"
 
-echo "== pre-push: make -C firmware/host check =="
-if make -C "$ROOT/firmware/host" check; then
-    echo "== pre-push: check passed =="
-    exit 0
+rc=0
+
+# macOS + Linux portable helpers.
+ncpu() { nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1; }
+mkbuild() { mktemp -d 2>/dev/null || mktemp -d '/tmp/biped-robot-ci-build.XXXXXX'; }
+
+echo "== pre-push: making sure everything compiles, linked, and tested =="
+echo "(same set CI used to check — now local instead of GitHub Actions)"
+
+# --- [1/8] host gate (the mjpeg.cpp lesson) + tui (console client) ----------
+echo "" >&2
+echo "== [host-tests + console/tui] make -C firmware/host check =="
+if ! make -C "$ROOT/firmware/host" check; then
+  echo "FAIL: host/tests/gui compile or test failed" >&2
+  rc=1
 fi
 
+# --- [2/8] link-test suite (protocol, sources, e2e simulation tests) -------
 echo "" >&2
-echo "pre-push: make check FAILED -- push blocked." >&2
-echo "  The failing gate is in the output above. Fix it and re-push," >&2
-echo "  or bypass with 'git push --no-verify' if you know what you're doing." >&2
-exit 1
+echo "== [link-tests] pytest over link/test suite =="
+if ! python3 -m pytest "$ROOT/tests/" -q; then
+  echo "FAIL: link-test suite failed" >&2
+  rc=1
+fi
+
+# --- [3/8] cmake + ctest (both build files must agree) -----------------------
+echo "" >&2
+echo "== [cmake-ctest] verifying cmake builds and tests pass =="
+build_dir=""
+
+if ! command -v cmake >/dev/null 2>&1; then
+  echo "SKIP: cmake not installed — run 'brew install cmake' (macOS) or 'apt-get install cmake'" >&2
+else
+  build_dir="$(mkbuild)"
+  if ! cmake -S "$ROOT/firmware/host" -B "$build_dir" \
+      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON; then
+    echo "FAIL: CMake configure failed (see above)" >&2
+    rc=1
+  elif ! cmake --build "$build_dir" -j"$(ncpu)"; then
+    echo "FAIL: cmake build phase failed (see above)" >&2
+    rc=1
+  elif ! ctest --test-dir "$build_dir" --output-on-failure; then
+    echo "FAIL: ctest failed (see output above)" >&2
+    rc=1
+  fi
+fi
+
+# --- [4/8] clang-tidy over host firmware (bugprone/readability classes) ------
+echo "" >&2
+echo "== [clang-tidy] static analysis over host firmware =="
+if ! command -v run-clang-tidy >/dev/null 2>&1; then
+  echo "SKIP: clang-tidy not installed — 'apt-get install clang-tidy' / 'brew install llvm'" >&2
+elif [ -z "$build_dir" ] || [ ! -f "$build_dir/compile_commands.json" ]; then
+  # No configured build from [3/8] (cmake absent or configure failed — already
+  # counted there if it failed).
+  echo "SKIP: no compile_commands.json (cmake gate skipped/failed above)" >&2
+elif ! run-clang-tidy -p "$build_dir" -quiet; then
+  echo "FAIL: clang-tidy findings (WarningsAsErrors per .clang-tidy)" >&2
+  rc=1
+fi
+
+# --- [5/8] clang-tidy over GUI sources ----------------------------------------
+echo "" >&2
+echo "== [clang-tidy-gui] static analysis over GUI/console sources =="
+if ! command -v clang-tidy >/dev/null 2>&1; then
+  echo "SKIP: clang-tidy not installed" >&2
+else
+  # clang-tidy-gui.sh needs deps fetched and a compile_commands.json under
+  # firmware/host/build (separate from the [3/8] scratch dir, as in old CI).
+  gui_build="$ROOT/firmware/host/build"
+  gui_created=""
+  if [ ! -f "$gui_build/compile_commands.json" ]; then
+    if command -v cmake >/dev/null 2>&1; then
+      if cmake -S "$ROOT/firmware/host" -B "$gui_build" \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null 2>&1; then
+        gui_created=1
+      else
+        echo "SKIP: gui compile_commands.json configure failed" >&2
+      fi
+    else
+      echo "SKIP: cmake not installed (needed for gui compile_commands.json)" >&2
+    fi
+  fi
+  if [ -f "$gui_build/compile_commands.json" ]; then
+    if ! make -C "$ROOT/firmware/host" deps; then
+      echo "FAIL: make deps (pinned imgui/stb fetch) failed" >&2
+      rc=1
+    elif ! "$ROOT/firmware/host/clang-tidy-gui.sh"; then
+      echo "FAIL: clang-tidy-gui findings" >&2
+      rc=1
+    fi
+  fi
+  if [ -n "$gui_created" ]; then
+    rm -rf "$gui_build"
+  fi
+fi
+
+# --- [6/8] cppcheck (whole-program, fails on ANY finding) ----------------------
+echo "" >&2
+echo "== [cppcheck] static analysis over firmware + link =="
+if ! command -v cppcheck >/dev/null 2>&1; then
+  echo "SKIP: cppcheck not installed — 'apt-get install cppcheck' / 'brew install cppcheck'" >&2
+elif ! "$ROOT/firmware/host/cppcheck.sh"; then
+  echo "FAIL: cppcheck findings (wrapper fails on any finding)" >&2
+  rc=1
+fi
+
+# Scratch cmake build cleanup (kept across the tidy gates on purpose: [4/8]
+# reuses its compile_commands.json).
+if [ -n "$build_dir" ] && [ -d "$build_dir" ]; then
+  rm -rf "$build_dir"
+fi
+
+# --- [7-8/8] esp32 firmware build (idf.py link step) ---------------------------
+echo "" >&2
+echo "== [esp32-build] verifying ESP-IDF compiles firmware/main =="
+
+esp_build() {
+  ( cd "$ROOT/firmware/main" && idf.py fullclean >/dev/null 2>&1 && idf.py build )
+}
+
+if [ "${SKIP_ESP32:-0}" != "0" ]; then
+  echo "SKIP: SKIP_ESP32=$SKIP_ESP32 in env" >&2
+elif command -v idf.py >/dev/null 2>&1; then
+  # Toolchain already on PATH (real ESP-IDF installs put idf.py's DIR on PATH;
+  # export.sh does this).
+  if ! esp_build; then
+    echo "FAIL: esp32 firmware build failed (see above)" >&2
+    rc=1
+  fi
+else
+  IDF_HOME="${IDF_PATH:-$HOME/.espressif/frameworks/esp-idf-v5.4}"
+  if [ -f "$IDF_HOME/export.sh" ]; then
+    if ! ( . "$IDF_HOME/export.sh" >/dev/null 2>&1 && esp_build ); then
+      echo "FAIL: esp32 firmware build failed (see above)" >&2
+      rc=1
+    fi
+  else
+    echo "WARN: no ESP-IDF detected (no idf.py on PATH, no export.sh at ${IDF_HOME})." >&2
+    echo "      Install ESP-IDF v5.4, or set IDF_PATH to its location, or SKIP_ESP32=1." >&2
+    if [ "${SKIP_ESP32:-0}" = "0" ]; then
+      rc=1
+    fi
+  fi
+fi
+
+if [ "$rc" -eq 0 ]; then
+  echo "" >&2
+  echo "All gates passed. Safe to push."
+  exit 0
+else
+  echo "" >&2
+  echo "Pre-push gate FAILED. Push blocked until fix is pushed." >&2
+  echo "Escape hatch (if you know what you're doing): git push --no-verify" >&2
+  echo "" >&2
+  exit 1
+fi

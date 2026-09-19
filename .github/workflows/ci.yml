@@ -1,225 +1,28 @@
-# The acceptance gate, run by GitHub instead of by hand.
+# CI disabled (2026-09-16, Tom): all acceptance gates moved to the local
+# pre-push hook (.githooks/pre-push). This file is kept only so the workflow
+# name stays registered for easy re-enable; it never auto-fires.
 #
-# The point of this file is the 2026-09-01 incident: link/mjpeg.cpp did not
-# compile under gcc 13's -Werror=format-truncation while passing cleanly on
-# macOS clang, so `make -C firmware/host test` was broken on Linux for hours
-# and nobody could see it. Every job here is a compiler or a runtime this
-# project is actually used on, doing the thing a person would otherwise do
-# locally and slowly.
+# Gate coverage now lives in .githooks/pre-push:
+#   host-tests/console  ->  make -C firmware/host check
+#   link-tests          ->  python3 -m pytest tests/ -q
+#   cmake-ctest         ->  cmake configure / build / ctest  (hard when cmake
+#                           is installed; skips with a note otherwise)
+#   esp32-build         ->  idf.py build (firmware/main); needs ESP-IDF on
+#                           PATH or IDF_PATH (SKIP_ESP32=1 overrides)
+#   clang-tidy          ->  run-clang-tidy over the host build, when clang-tidy
+#                           is installed (WarningsAsErrors per .clang-tidy)
+#   clang-tidy-gui      ->  firmware/host/clang-tidy-gui.sh, when clang-tidy
+#                           is installed (runs `make deps` first)
+#   cppcheck            ->  firmware/host/cppcheck.sh, when cppcheck is
+#                           installed (wrapper fails on any finding)
+# Toolchain-guarded gates SKIP with a note when the tool is absent; install
+# the toolchain to enforce them locally.
 #
-# The repo is private, so macOS minutes bill at 10x. Everything that CAN run
-# on ubuntu does; bimo_gui now builds and links on Linux too (see the
-# `console` job), so no macOS runner remains in this workflow.
-name: ci
+# To re-enable CI, restore the original `on:` triggers and jobs. The prior
+# config is preserved in git history on main.
+name: ci (disabled)
 
 on:
-  push:
-    branches: [main, gui]
-  pull_request:
+  workflow_dispatch:
 
-# A new push supersedes the run in flight; nobody wants the result for a
-# commit that has already been replaced.
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  # The firmware's pure modules under gcc + ASan/UBSan. No ESP-IDF, no
-  # hardware, no Python: this is the "a laptop with a C++ compiler" gate the
-  # Makefile is built around, and it is the job that would have caught the
-  # format-truncation break.
-  host-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: gcc version
-        run: c++ --version
-      - name: make test
-        run: make -C firmware/host test
-
-  # The TARGET build -- the one gap this file had, and the one that matters
-  # most for a firmware change.
-  #
-  # Everything else here compiles firmware/components for the HOST. That
-  # covers linkproto, obs, policy and the rest, but it never touches
-  # firmware/main: wifi_link.cpp, ctrl_task.cpp, shared.h, cli.cpp are
-  # ESP-IDF-only and were compiled by exactly one thing -- somebody's laptop,
-  # if they happened to have the toolchain installed and remembered.
-  #
-  # Found the honest way (2026-09-03): a telemetry change touching
-  # wifi_link.cpp and ctrl_task.cpp passed the whole suite locally, because
-  # the whole suite cannot see those files. The next step after that is
-  # flashing a robot with code no machine has ever compiled.
-  #
-  # No hardware and no flashing here -- this links the image, which is the
-  # part a compiler can check.
-  esp32-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: idf.py build (esp32)
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          # Track the toolchain the project is actually developed against;
-          # firmware/README.md's setup instructions install this one.
-          esp_idf_version: v5.4
-          target: esp32
-          path: firmware
-
-  # CMakeLists.txt and the Makefile are two descriptions of the same build,
-  # and both files carry a "keep the two in step" comment. This is what makes
-  # that a failing test rather than a hope.
-  cmake-ctest:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y libncurses-dev
-      - name: configure
-        run: cmake -S firmware/host -B build-ci
-      - name: build
-        run: cmake --build build-ci -j"$(nproc)"
-      - name: ctest
-        run: ctest --test-dir build-ci --output-on-failure
-
-  # The wire format, the command sources, and the ncurses console driven end
-  # to end over real UDP against the plant-free twin. No MuJoCo: these are the
-  # tests that guard the protocol, and they must stay runnable without the
-  # whole sim stack installed.
-  link-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install pytest numpy
-      - run: sudo apt-get update && sudo apt-get install -y libncurses-dev
-      - name: build bimo_tui
-        run: make -C firmware/host tui
-      - name: protocol, sources, and the console e2e
-        # test_gui_e2e.py skips itself when bimo_gui is absent, which it is
-        # here; the `console` job below is what builds and covers it.
-        run: |
-          python -m pytest tests/test_protocol.py tests/test_sources.py \
-                           tests/test_tui_e2e.py tests/test_gui_e2e.py -q
-
-  # Static analysis: clang-tidy over the host firmware build. The compiler
-  # flags already catch the mechanical mistakes; clang-tidy is here for the
-  # classes a compiler cannot see (bugprone-*, cppcoreguidelines-*,
-  # readability-*), tuned to the project's C++17 style in .clang-tidy.
-  # WarningsAsErrors makes a finding fail the job, not just print.
-  clang-tidy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y clang-tidy cmake libncurses-dev
-      - name: configure (compile_commands.json)
-        run: cmake -S firmware/host -B build-tidy -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-      - name: clang-tidy (host firmware)
-        run: run-clang-tidy -p build-tidy -quiet
-
-  # Static analysis: cppcheck over firmware + link, whole-program. The
-  # --enable=unusedFunction pass is the cross-TU dead-code detector a per-file
-  # clang-tidy or -Wall cannot see; the wrapper fails on ANY finding (cppcheck's
-  # own --error-exitcode only fires on error severity, not warning/style).
-  cppcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y cppcheck
-      - name: cppcheck (firmware + link, whole-program)
-        run: firmware/host/cppcheck.sh
-
-  # Static analysis: clang-tidy over the GUI sources (link/gui.cpp + peers).
-  # gui.cpp's pure logic host-compiles and is parseable on Linux once
-  # <OpenGL/gl3.h> is mapped onto imgui's GL loader (see
-  # firmware/host/gl-shim/). Runs on ubuntu so the window client gets the
-  # same gate as the firmware without a 10x macOS runner.
-  clang-tidy-gui:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y clang-tidy cmake libncurses-dev libglfw3-dev libdigest-sha-perl
-      - name: fetch pinned deps (imgui + stb)
-        run: make -C firmware/host deps
-      - name: configure (compile_commands.json)
-        run: cmake -S firmware/host -B firmware/host/build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-      - name: clang-tidy (GUI sources)
-        run: firmware/host/clang-tidy-gui.sh
-
-  # bimo_gui + bimo_tui, built and linked on Linux. This used to be a
-  # macos-latest job (bimo_gui only linked -framework OpenGL/Cocoa/IOKit and
-  # included <OpenGL/gl3.h>); the Makefile now splits GUI_LIBS/GUI_INC by
-  # platform and the gl-shim maps <OpenGL/gl3.h> onto imgui's own GL loader,
-  # so the window client links on ubuntu and this whole job moved onto a 1x
-  # runner (GH#60).
-  #
-  # --headless is the only automated coverage the window client has, so this
-  # runs on the branches that carry the console and on every PR that touches
-  # the console's sources (path-filtered below so firmware-only pushes do not
-  # pay for it).
-  console:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # The path filter below diffs against the base ref; on push events
-          # that needs the full history, not the default shallow fetch.
-          fetch-depth: 0
-      # Path-filter the console job only: it is the expensive e2e half and
-      # should not run on a firmware-only push/PR. A workflow-level `paths:`
-      # would skip the ESP32/firmware jobs too, so the filter lives here as a
-      # native git diff (no third-party action -- dorny/paths-filter's API
-      # token cannot list PR files on a private repo).
-      - name: detect console-relevant changes
-        id: changes
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-          else
-            BASE="${{ github.event.before }}"
-          fi
-          # Hoist the diff out of the pipeline so `set -e` sees a failure:
-          # a failed command-substitution assignment aborts the step (red),
-          # instead of grep seeing empty stdin and silently skipping the gate
-          # (green) when $BASE is unresolvable (e.g. github.event.before after
-          # a force-push). printf keeps multi-file matching correct when the
-          # diff is a single filename.
-          CHANGED=$(git diff --name-only "$BASE" HEAD)
-          if printf '%s\n' "$CHANGED" | grep -qE '^(link/|firmware/host/(Makefile$|CMakeLists\.txt$|gl-shim/)|firmware/components/linkproto/|tests/test_.*e2e\.py$|\.github/workflows/ci\.yml$)'; then
-            echo "console=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "console=false" >> "$GITHUB_OUTPUT"
-          fi
-      - uses: actions/setup-python@v5
-        if: steps.changes.outputs.console == 'true'
-        with:
-          python-version: '3.12'
-      - run: pip install pytest
-        if: steps.changes.outputs.console == 'true'
-      - run: sudo apt-get update && sudo apt-get install -y libglfw3-dev libgl1-mesa-dev libncurses-dev
-        if: steps.changes.outputs.console == 'true'
-      # Pinned by tag + sha256 in the Makefile, so a cache hit is the same
-      # bytes a cache miss would fetch.
-      - name: cache third_party
-        if: steps.changes.outputs.console == 'true'
-        uses: actions/cache@v4
-        with:
-          path: third_party
-          key: third-party-${{ hashFiles('firmware/host/Makefile') }}
-      - name: fetch pinned deps
-        if: steps.changes.outputs.console == 'true'
-        run: make -C firmware/host deps
-      - name: build both consoles
-        if: steps.changes.outputs.console == 'true'
-        run: make -C firmware/host tui gui
-      - name: console e2e, both clients
-        if: steps.changes.outputs.console == 'true'
-        run: python -m pytest tests/test_tui_e2e.py tests/test_gui_e2e.py -q
-      - name: the host gate under gcc too
-        if: steps.changes.outputs.console == 'true'
-        # The other half of the mjpeg.cpp lesson: clang and gcc disagree about
-        # what is worth warning on, so the gate is worth running under both.
-        # This is the gcc half -- the 2026-09-01 format-truncation break was
-        # invisible to the old mac job's clang.
-        run: make -C firmware/host test
+jobs: {}
