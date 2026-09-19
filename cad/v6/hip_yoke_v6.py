@@ -534,13 +534,61 @@ def _flex_relief():
                        (RX1 + 2, ZF_MID), (PX, ZF_MID)], PY0 - 1, PY1 + 1)
 
 
+# ----------------------------------------------------- the one-plate flange
+# Tom, 2026-09-19, looking at the styled-vs-fused A/B in FreeCAD: "not much
+# difference... at least combine the two former baseplates into one."
+#
+# He is right, and the reason the first styling pass could not fix it is that
+# the two flanges are a plus sign in 3D, not in plan. The ROLL flange owns the
+# TOP band (z -20..-16) and runs x -23.95..24.45 by y +-17; the PITCH flange
+# owns the BOTTOM band (z -24..-20) and runs x +-16 by y -20.40..23.45. So on
+# every side of the old bolted plane one flange oversails the other and leaves
+# a ledge, and no amount of edge rounding removes a ledge.
+#
+# Three of the four ledges can simply be filled, and it costs NOTHING in
+# clearance. Each candidate was measured on its own against the thigh, the
+# pitch servo, the roll servo and the yaw carrier over the whole ROM of both
+# hip joints (_probe_notch, scratch): the rear fill and both lateral fills
+# come back at exactly 0.00 mm3 of overlap at every angle, with 4.26 / 7.50 /
+# 5.58 mm still in hand.
+#
+# The FRONT cannot be filled in any form, and that is not a styling failure --
+# it is the corner the hip-flexion chamfer exists for:
+#   - square fill:  47.4 mm3 into the pitch servo at -118.4 deg, ~411 at -125
+#   - sloped ramp leaning away from the sweep: still 189 mm3 at -125
+#   - chamfering the roll flange BACK instead of filling under it: the material
+#     that would have to come off is the roll horn arm's own root
+# So the front keeps its step. _flex_relief already carries the chamfer plane
+# across the whole band there, which is what makes it read as the deliberate
+# relief it is rather than a leftover ledge.
+PLATE_X = (RX0, PX)          # -23.95 .. +16.00, rear face to the front step
+PLATE_Y = (PY0, PY1)         # -20.40 .. +23.45, the pitch flange's full depth
+
+
+def _one_plate_fill():
+    """The material that makes the flange band ONE plate on its rear and both
+    lateral faces: a single prismatic outline through the full 8 mm, stopping
+    at the front step (see the block above for why the front is excluded)."""
+    return v5.box(PLATE_X[0], PLATE_X[1], PLATE_Y[0], PLATE_Y[1], ZF_BOT, ZF_TOP)
+
+
 def hip_yoke_v6(style=True, verbose=True):
     """The one-print hip yoke, styled (see the STYLING block above). Pass
     style=False for the raw fused solid fused() -- the A/B reference."""
-    p = fused()
+    p = fused() + _one_plate_fill()
     if not style:
         return p
     p -= _shoulder_reliefs()
+    # CUT THE FLEXION RELIEF TWICE, and the first cut is not optional.
+    # Cutting it only after the blends (which is where it belongs -- see
+    # _flex_relief) hits an OCC boolean glitch once the one-plate fill is in:
+    # the cut reports the right volume but leaves the TOOL's own envelope
+    # behind as material, so the part's bbox grows to the wedge's margins
+    # (x to RX1+2, y to PY0-1..PY1+1) -- 2 mm of phantom flange straight
+    # through the thigh's path. Cutting once before the blends and once
+    # after is clean, and the second cut still earns its keep: it takes the
+    # 3.1 mm3 of front waist cove that blends out past the chamfer plane.
+    p -= _flex_relief()
     p, skipped = _round_edges(p, verbose=verbose)
     p -= _flex_relief()
     globals()["LAST_SKIPPED"] = skipped
@@ -609,7 +657,8 @@ def audit(stl_path):
 def render(stl_path, png_path, px=640):
     """MuJoCo offscreen render (iso / bottom / back), like leg_link_v6.
     MUJOCO_GL must be set before mujoco is imported (cgl on a Mac)."""
-    os.environ.setdefault("MUJOCO_GL", "egl")
+    # cgl on a Mac -- egl is not a valid backend there and raises on import
+    os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
     import mujoco  # noqa: E402
     import numpy as np
     import imageio.v2 as imageio
@@ -655,7 +704,9 @@ if __name__ == "__main__":
     r, q = v5.yoke_roll(), yoke_pitch_v6.yoke_pitch_v6()
     raw = fused()
     print(f"volume  yoke_roll {r.volume:8.1f} + yoke_pitch_v6 {q.volume:8.1f} = {r.volume + q.volume:8.1f} mm3"
-          f"  ->  hip_yoke_v6 {p.volume:8.1f} mm3  (+{p.volume - r.volume - q.volume:.1f} = the 4 filled bolt columns)")
+          f"  ->  hip_yoke_v6 {p.volume:8.1f} mm3  "
+          f"(+{p.volume - r.volume - q.volume:.1f} = the 4 filled bolt columns "
+          f"+ the one-plate flange fill, less the styling)")
     print(f"styling fused {raw.volume:8.1f} mm3 {mass_g(raw):6.2f} g  ->  styled {p.volume:8.1f} mm3 "
           f"{mass_g(p):6.2f} g   ({p.volume - raw.volume:+.1f} mm3, {mass_g(p) - mass_g(raw):+.3f} g: "
           f"blends add, rounds and tapers take away)")

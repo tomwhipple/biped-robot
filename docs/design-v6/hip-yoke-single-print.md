@@ -317,3 +317,98 @@ and the cost is the root fillet on the arm that snapped in the field, which
 is the one blend in this pass that is not cosmetic. It is called out here
 rather than quietly traded; if section 6's open item 1 is settled by
 relieving the roll flange front, this goes with it.
+
+## 8. One plate, not two stacked ones (2026-09-19)
+
+Tom, on the styled-vs-fused A/B in FreeCAD: *"not much difference... at least
+combine the two former baseplates into one."*
+
+Correct, and §7's rounding could not have fixed it. **The two flanges are a
+plus sign in 3D, not in plan.** The roll flange owns the top band (z −20..−16)
+and runs x −23.95..24.45 by y ±17; the pitch flange owns the bottom band
+(z −24..−20) and runs x ±16 by y −20.40..23.45. On every side of the old
+bolted plane one flange oversails the other and leaves a ledge, and no amount
+of edge rounding removes a ledge — it only rounds its lip.
+
+### What the ROM allows
+
+Each candidate fill was measured **on its own**, against the thigh, the pitch
+servo, the roll servo and the yaw carrier, over the whole ROM of both hip
+joints, before any of it was drawn:
+
+| notch | fill | worst overlap, whole ROM | nearest miss |
+|---|---|---|---|
+| rear, bottom band | 1081.2 mm³ | **0.00** | 4.26 mm (roll servo @ +55) |
+| +y, top band | 825.6 mm³ | **0.00** | 7.50 mm (roll servo @ 0) |
+| −y, top band | 435.2 mm³ | **0.00** | 5.58 mm (thigh @ −118) |
+| rear hull corners | 313.2 mm³ | **0.00** | 8.33 mm (carrier @ −55) |
+| **front, bottom band** | 1482.1 mm³ | **47.4 mm³ into the pitch servo @ −118.4, ~411 @ −125** | — |
+
+So three of the four ledges are simply free, and they are now filled: the
+flange band is **one prismatic outline through the full 8 mm** from the rear
+face forward to x = +16, on all three of those sides.
+
+### Why the front keeps its step
+
+The front is the corner the hip-flexion chamfer exists for, and it refuses
+every form of filling:
+
+- **square fill** — 47.4 mm³ into the pitch servo at −118.4°, ~411 at −125
+- **sloped ramp** leaning away from the sweep (the obvious dodge: lean the
+  face back so the thigh passes outside it) — still 189 mm³ at −125
+- **chamfering the roll flange back** instead of filling under it, which would
+  cost mass rather than add it — not available: the material that would have
+  to come off is the roll **horn arm's own root**, the load path that broke in
+  the field
+
+So the front step stays, and `_flex_relief()` carries the chamfer plane across
+the whole band there so it reads as the deliberate relief it is.
+
+### Cost
+
+| | volume | mass |
+|---|---|---|
+| fused (raw union) | 19 929.1 mm³ | 22.78 g |
+| §7 styled | 19 905.6 mm³ | 22.75 g |
+| **one plate, styled** | **22 866.5 mm³** | **26.14 g** |
+
+**+3.39 g per hip, +6.8 g the pair** — 0.4 % of the 1.65 kg robot, at the hip,
+close to the CoM.
+
+### It did not cost clearance — it bought some
+
+Every gate is unchanged or better than the *raw fused* part:
+
+| | fused | one plate |
+|---|---|---|
+| roll servo vs yoke−seats ±55° | 0.076 | 0.076 |
+| bay walls ±55° | 1.000 | 1.000 |
+| flexion first contact | −118.398° | **−118.398°** |
+| thigh @ −119° | 3.870 mm³ | **3.451** |
+| thigh @ −121° | 78.706 mm³ | **72.525** |
+| thigh @ −125° | 271.698 mm³ | **268.752** |
+
+`check_interfaces()` 3908.9557 → 3908.9551 mm³ (IDENTICAL). `check_printability`
+PASS, and the first-layer contact **grows 823 → 1048 mm²** (29.3 % of the
+bbox), which is a straight win for a 44 mm-tall part on a brim.
+`HIP_YOKE_VARIANT=single check_assembly_v6.py` → the same 2 pre-existing FAIL
+rows, nothing new.
+
+### One OCC trap, recorded
+
+Cutting `_flex_relief()` only *after* the blends — where it belongs, per §7 —
+hits a boolean glitch once the one-plate fill is present: the cut returns the
+**right volume** but leaves the **tool's own envelope** behind as material, so
+the part's bbox silently grows to the wedge's margins (x to RX1+2, y to
+PY0−1..PY1+1). That is 2 mm of phantom flange sitting directly in the thigh's
+path, and *volume alone would never have caught it* — only the bbox did. The
+fix is to cut once before the blends and once after; the second cut still
+earns its keep, taking the 3.1 mm³ of front waist cove that blends out past
+the chamfer plane. **Check the bbox, not just the volume, after every boolean
+on this solid.**
+
+### Edges still not rounded (6)
+
+The five from §7, plus two new ones created by the fill: the front step's own
+top-rim ends at (16.00, −18.70, −20.00) and (16.00, 19.22, −20.00), 3.40 and
+4.45 mm, where the new plate outline runs into the surviving front ledge.
