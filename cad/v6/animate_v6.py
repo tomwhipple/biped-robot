@@ -46,8 +46,11 @@ INSERT = [
     ("yoke_roll_",         (0, 0, 1), 6),
     ("servo_hip_roll_",    (1, 0, 0), 7),    # roll servo slides into the carrier bay from the front
     ("yaw_carrier_",       (0, 0, 1), 7),
+    ("bearing_6810_",      (0, 0, 1), 8),    # option E: bearing slid DOWN over the hub onto the lip (horn-face side)
+    ("yaw_cap_",           (0, 0, 1), 8),    # option E: cap down onto the race, screwed, carrier still on the bench
     ("servo_hip_yaw_",     (0, 0, -1), 8),   # yaw servo offered UP into its cell (arrives from below)
     ("pelvis_v7",          (0, 0, 1), 9),    # pelvis lowered onto the yaw servos
+    ("yaw_retainer_",      (0, 0, -1), 10),  # option E: retainer offered UP under the skirt, screwed from below
     ("gd_mock",            (0, 0, 1), 10),   # boards down through the deck slots
     ("pi4_mock",           (0, 0, 1), 10),
     ("pack_mock",          (0, 0, 1), 11),   # pack down through the aperture
@@ -121,7 +124,9 @@ def main():
         r.update_scene(d, cam)
         frames.append(r.render().copy())
     os.makedirs(os.path.join(HERE, "renders"), exist_ok=True)
-    out = os.path.join(HERE, "renders", "assembly_v6_flyin.mp4")
+    variant = A.yaw_bearing_variant()
+    suffix = "" if variant == "C" else f"_opt{variant}"
+    out = os.path.join(HERE, "renders", f"assembly_v6_flyin{suffix}.mp4")
     with imageio.get_writer(out, fps=20, codec="libx264", quality=8, macro_block_size=None) as w:
         for fr in frames:
             w.append_data(fr)
