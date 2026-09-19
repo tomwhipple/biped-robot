@@ -14,6 +14,11 @@ foot_v6, pelvis_v7, head) and from v5 for the unchanged hip stack
 labelled envelope box so the chain, the export and the checks run while the
 parts are still being drawn.
 
+Opt-in variants (env vars, defaults leave every existing caller byte-identical):
+    YAW_BEARING_VARIANT=A|C|E   hip-yaw bearing option (docs/design-v6/study-yaw-bearing.md)
+    HIP_YOKE_VARIANT=single     one-print hip yoke replacing yoke_roll + yoke_pitch
+                                (cad/v6/hip_yoke_v6.py, docs/design-v6/hip-yoke-single-print.md)
+
     .venv/bin/python cad/v6/assembly_v6.py                 # step/assembly_v6.step + renders
     .venv/bin/python cad/v6/assembly_v6.py --pose knee=-60,hip_pitch=-30
 """
@@ -69,6 +74,40 @@ def yaw_bearing_variant():
     scripts, never by default, so every existing caller of this module keeps
     building the "C" baseline unless it opts in."""
     return os.environ.get("YAW_BEARING_VARIANT", "C")
+
+
+def hip_yoke_variant():
+    """Which hip yoke (link 2, the roll/pitch universal joint) the assembly
+    builds: "split" (default, unchanged behavior: v5 yoke_roll + yoke_pitch_v6
+    bolted flange to flange) or "single" (cad/v6/hip_yoke_v6.py: the two fused
+    into one print, no flange bolts) via the HIP_YOKE_VARIANT env var. Same
+    contract as yaw_bearing_variant(): nothing sets it by default, so every
+    existing caller keeps building the split baseline unless it opts in."""
+    return os.environ.get("HIP_YOKE_VARIANT", "split")
+
+
+def part_hip_yoke():
+    """The one-print hip yoke. No envelope fallback: a caller that opted in
+    asked for this part, and two bolted pieces are not a stand-in for one."""
+    import hip_yoke_v6
+    return hip_yoke_v6.hip_yoke_v6()
+
+
+def hip_yoke_seat_zone(side):
+    """World-frame (standing pose) solid of the one-print yoke's DESIGNED
+    contacts -- hip_yoke_v6.disc_seat_zones -- for check_assembly_v6's
+    "~seats" rows. Cached like the parts."""
+    import hip_yoke_v6
+    y = V.HIP_SEP / 2 * (1 if side == "L" else -1)
+    return cached(("hip_yoke_seats", side), lambda: Pos(0, y, V.HIP_ROLL_Z) * hip_yoke_v6.disc_seat_zones())
+
+
+def posed_hip_yoke_seats(side, pose):
+    """hip_yoke_seat_zone carried to `pose` with link 2 (after hip_yaw and
+    hip_roll), exactly as robot() moves the yoke itself."""
+    pieces, joints = leg_chain(side)
+    angles = [pose.get(f"{side}_{j}", pose.get(j, 0.0)) for j in JOINTS]
+    return pose_transforms(joints, angles)[2] * hip_yoke_seat_zone(side)
 
 
 def part_yaw_carrier():
@@ -207,8 +246,7 @@ def _leg_chain(side):
         (1, f"yaw_carrier_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * part_yaw_carrier()),
         *yaw_retention_pieces(side, y),
         (1, f"servo_hip_roll_{side}", COL_SERVO, at(V.HIP_ROLL_Z) * CA.servo_mock_x()),
-        (2, f"yoke_roll_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * v5parts.yoke_roll()),
-        (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch()),
+        *hip_yoke_pieces(side, at),
         (3, f"servo_hip_pitch_{side}", COL_SERVO, at(V.HIP_PITCH_Z) * CA.servo_mock_y()),
         (3, f"thigh_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_leg_link()),
         (4, f"servo_knee_{side}", COL_SERVO, at(V.KNEE_Z) * CA.servo_mock_y()),
@@ -219,6 +257,19 @@ def _leg_chain(side):
         (6, f"foot_{side}", COL_FOOT, at(V.TPU_SOLE_T) * part_foot(side)),
     ]
     return pieces, joints
+
+
+def hip_yoke_pieces(side, at):
+    """Link 2 -- the hip universal joint between the roll servo (link 1) and
+    the pitch servo (link 3): the bolted pair (default) or the one print.
+    Both yokes' frames are the joint frames themselves (roll axis / pitch
+    axis at their origins), so the split parts are placed at HIP_ROLL_Z and
+    HIP_PITCH_Z; the single part carries the pitch clevis at -ROLL_TO_PITCH
+    in its own frame and is placed at HIP_ROLL_Z alone."""
+    if hip_yoke_variant() == "single":
+        return [(2, f"hip_yoke_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * part_hip_yoke())]
+    return [(2, f"yoke_roll_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * v5parts.yoke_roll()),
+            (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch())]
 
 
 def yaw_retention_pieces(side, y):

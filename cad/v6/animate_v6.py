@@ -44,6 +44,8 @@ INSERT = [
     ("servo_hip_pitch_",   (0, 0, 1), 5),
     ("yoke_pitch_",        (0, 0, 1), 6),
     ("yoke_roll_",         (0, 0, 1), 6),
+    ("hip_yoke_",          (0, 0, 1), 6),    # HIP_YOKE_VARIANT=single: the one-print yoke lowered onto the pitch servo
+                                              # discs from above (same path the pair took; the roll servo then slides in)
     ("servo_hip_roll_",    (1, 0, 0), 7),    # roll servo slides into the carrier bay from the front
     ("yaw_carrier_",       (0, 0, 1), 7),
     ("bearing_6810_",      (0, 0, 1), 8),    # option E: bearing slid DOWN over the hub onto the lip (horn-face side)
@@ -126,6 +128,8 @@ def main():
     os.makedirs(os.path.join(HERE, "renders"), exist_ok=True)
     variant = A.yaw_bearing_variant()
     suffix = "" if variant == "C" else f"_opt{variant}"
+    if A.hip_yoke_variant() == "single":
+        suffix += "_hipyoke"
     out = os.path.join(HERE, "renders", f"assembly_v6_flyin{suffix}.mp4")
     with imageio.get_writer(out, fps=20, codec="libx264", quality=8, macro_block_size=None) as w:
         for fr in frames:

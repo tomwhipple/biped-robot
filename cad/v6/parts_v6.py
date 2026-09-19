@@ -48,6 +48,14 @@ PARTS = [
     ("sole_tpu_R", _lazy("foot_v6", "sole_tpu", "R"), 1, "TPU 95A"),
 ]
 
+# HIP_YOKE_VARIANT=single (the assembly_v6.hip_yoke_variant switch): the two
+# yokes are one print, hip_yoke_v6. Default rollup unchanged.
+if os.environ.get("HIP_YOKE_VARIANT", "split") == "single":
+    _i = next(i for i, r in enumerate(PARTS) if r[0] == "yoke_roll")
+    PARTS = [r for r in PARTS if r[0] not in ("yoke_roll", "yoke_pitch_v6")]
+    PARTS.insert(_i, ("hip_yoke_v6", _lazy("hip_yoke_v6", "hip_yoke_v6"), 2,
+                      "ONE PRINT: roll + pitch clevis fused, no flange bolts (on edge like yoke_roll; supports + brim)"))
+
 SERVO_COUNT = {"STS3250": 6, "STS3215": 7}
 
 
