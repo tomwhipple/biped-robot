@@ -33,7 +33,7 @@ should be decided once, with that.
 | `yoke_roll` | 10 037.8 | 11.47 |
 | `yoke_pitch_v6` | 9 534.8 | 10.90 |
 | **split total** | 19 572.6 | **22.37** |
-| **`hip_yoke_v6`** | 19 929.1 | **22.78** (+0.41) |
+| **`hip_yoke_v6`** (styled, §7) | 19 905.6 | **22.75** (+0.38) |
 
 Hardware removed per hip (not in the CAD mass; catalogue-typical estimates):
 4 × M3×10 button head ≈ 0.9 g each, 4 × M3 brass heat-set (O4.6 × 4–6) ≈
@@ -65,8 +65,9 @@ preload, i.e. compression onto the disc with the servo body as the spacer.
 So the choice is print quality, and **+Y up** wins on every count measured
 (`check_printability.py`, `RY_ROLL_WALL`):
 
-- first layer **855 mm² (23.9 %)** — the pitch idler arm's r14 hub + riser and
-  the pitch flange end lie flat on the bed — vs ≈ 360 mm² (11 %) for +X up;
+- first layer **823 mm² (23.0 %)** after the styling pass of §7 (855 mm² /
+  23.9 % before it) — the pitch idler arm's r14 hub + riser and the pitch
+  flange end lie flat on the bed — vs ≈ 360 mm² (11 %) for +X up;
 - height 43.85 mm vs 48.4;
 - the roll arms (the ones that broke) print in exactly their proven
   orientation; the 26 mm pitch idler arm (1.6 × a roll arm's root moment)
@@ -119,6 +120,10 @@ the same solid** (the pitch-half chamfer still gives 0.70 mm at −125), but
 the −125° figure was only ever proven against `yoke_pitch`; `thigh_{s}` vs
 `yoke_roll_{s}` was never in the v6 PAIRS list.
 
+Re-run after the styling pass of §7: **the same two FAILs and nothing new**
+(`=> 2 FAIL (57 s)`). The −125° row reads 273.85 mm³ rather than 271.70 —
+accounted for to the mm³ in §7.4.
+
 ## 5. Exports and figures
 
 - `cad/v6/stl/hip_yoke_v6.stl`, `cad/v6/step/hip_yoke_v6.step` (from the
@@ -158,3 +163,157 @@ the −125° figure was only ever proven against `yoke_pitch`; `thigh_{s}` vs
 4. Bench: print one, confirm the supported horn-seating face of the pitch
    horn arm seats flat on the disc (support interface Z gap 0.2 mm), and
    that the on-edge part with a brim does not tip during the pitch horn slab.
+
+## 7. Styling pass (2026-09-19)
+
+Tom, on the part above: *"This 'merged' part just looks like the two parts are
+just slapped together... functional but not pretty. Let's make it more organic
+and streamline all of the sharp corners as much as possible."*
+
+He is right, and section 1 says why: the merged solid was a **pure boolean
+union**, so wherever the two flange footprints disagreed it kept a bare step.
+They disagree everywhere, because the two clevises are rotated 90° to each
+other:
+
+| | fore/aft (x) | across (y) |
+|---|---|---|
+| roll flange (z −20..−16) | −23.95 .. 24.45 (48.40) | ±17.00 (34.00) |
+| pitch flange (z −24..−20) | ±16.00 (32.00) | −20.40 .. 23.45 (43.85) |
+
+In plan the 8 mm block is a **plus sign**: the roll flange overhangs fore and
+aft by 8.45 / 7.95 mm (a bare downward ledge at z −20), the pitch flange
+overhangs on ±y by 6.45 / 3.40 mm (a bare upward ledge on the same plane).
+That plane — the old bolted joint — is what read as "slapped together".
+
+### 7.1 What the blend actually is
+
+Everything is in `cad/v6/hip_yoke_v6.py`; `fused()` is the old solid, kept as
+the A/B reference, and `hip_yoke_v6()` is `fused()` + the styling pass.
+
+1. **The waist.** A cove (`R_WAIST` 2.75) on each of the four reentrant lines
+   at z −20: the roll flange's underside into the pitch flange's two side
+   faces, and the roll flange's two side faces into the pitch flange's top.
+   The step becomes a continuous curved transition from one footprint to the
+   other — this is the blend, and it is why the block no longer reads as two
+   plates stacked.
+2. **The silhouette.** The block's six vertical corners at `R_CORNER` 4.5
+   (the pitch flange's front two are already the flexion chamfer's diagonal,
+   which gets `R_PLATE` 2.0), every horizontal flange rim at `R_BROW` 1.0,
+   and the arm plates' outline corners at `R_PLATE` 2.0.
+3. **Arm roots** — structural, not cosmetic; this is the cantilever that
+   snapped in the field. `R_ROOT` 2.5 where there is room: both roll plates'
+   side roots, the pitch horn arm's three roots, the idler riser's three.
+   `R_ROOT_SERVO` **0.6** on the two roots that face a servo case: the roll
+   servo's corner sweeps 0.08 mm over the roll flange top at ±55° of roll and
+   the bay walls run 1.0 mm off each roll arm's inner face, so a full-size
+   fillet there would spend clearance the joint does not have.
+4. **Shoulder tapers**, `leg_link_v6`'s corner-cut idiom: each arm plate is
+   12 mm half-wide over a r 10 pad, so the two corners where the rectangle
+   oversails the pad carry nothing. Taper 1.7 × 3.0, apex 0.3 mm outside the
+   pad radius so no servo interface is touched. **Not on the roll idler
+   arm**: behind its sunk pad (`ROLL_IDLER_PAD_SINK` 1.35 of 3.0) that plate
+   is already a 1.65 mm floor, and tapering its shoulder too left a feather
+   edge where the cut ran tangent to the sink — `check_printability` caught
+   it as 2.6 mm² of wall under 0.85 mm, which is a wall this part is not
+   allowed to grow. Its shoulders stay square.
+5. **`_flex_relief()`**, last: the flexion chamfer's own plane re-cut across
+   the flange band, so the front cove dies into the chamfer instead of
+   bulging past it into the thigh's sweep.
+
+Print orientation is unchanged (`PRINT_ORIENT` / `RY_ROLL_WALL`, on edge,
+model −Y on the bed) and edges **lying in the bed plane are chamfered, not
+rounded** — a fillet there starts horizontal at the first layer, an
+unsupported 90° overhang around the part's own bed contact, where a chamfer
+is a printable 45°. First-layer contact is still 823 mm² and
+`check_printability` still passes.
+
+### 7.2 The fillet helper, and why it is one edge at a time
+
+`_round_edges()` walks `_groups()` — (name, radius, predicate) — re-querying
+the edges from the *current* solid each time, so nothing holds a stale edge
+reference. Each predicate pins **both** faces' planes (`_on(e, y=..., z=...)`),
+never one: a fillet leaves a tangent line one radius away on each face, and a
+one-plane test happily re-selects that line on the next group, which cannot be
+filleted and shows up as a phantom failure. Each edge gets its target radius,
+then 0.7 / 0.5 / 0.35 / 0.2 of it, then the same ladder as a **chamfer**
+(`leg_link_v6`'s fallback); an edge that survives none of it is skipped **and
+reported** with location and length.
+
+Two things were measured rather than assumed:
+
+- **Group fillets are out.** Filleting a group in one call blends the corners
+  where its edges meet and is the prettier result, but on this solid it does
+  not merely fail — OCC **segfaulted** on the four pitch-flange bottom rims
+  (exit 139, no STL, no traceback). A crash cannot be caught in process, so
+  the group path was deleted. `HIP_YOKE_TRACE=1` prints a flushed breadcrumb
+  per edge for the next time this happens.
+- **Order matters, and the order is corners-then-rims.** Rims first leaves
+  each 4 mm corner trimmed to 1.2–2.6 mm between two blends and OCC then
+  refuses it at every radius: 4 of the 6 block corners were lost that way.
+  Corners first costs only the corner *arcs*, which a later group picks up.
+  `R_BROW` is 1.0 rather than the 1.4 a 4 mm flange could take, for the same
+  reason: at 1.4, four of the block's rims were dropped outright.
+
+### 7.3 Edges left unrounded (5)
+
+| edge | at | length | why |
+|---|---|---|---|
+| block corner arcs ×2 | (−21.92, −14.97, −20.00) and (−21.92, −14.97, −16.00) | 5.50 mm | where the roll flange's rear −y corner blend meets the top and waist planes. Refused as fillet and as chamfer at every radius down to 0.2 mm. Cosmetic: the corner itself is R4.5, this is the crease around it. |
+| roll arm plate corners ×2 | (−20.95, ±12.00, −7.70) | 15.40 mm | the roll **idler** arm's two inner-face corners. Their outer twins at x −23.95 are rounded, so the plate reads slightly one-sided. Both faces here are free space (1.0 mm to the bay wall), so this is finish, not fit. |
+| pitch idler hub rim | (−4.79, −20.40, −63.16) | 53.76 mm | the r14 hub's outer rim — the part's **bed contact face**. Refused everything, including chamfer-first. Leaving it square is the benign failure: it is the first layer, and a sharp rim there is what the brim wants anyway. |
+
+Deliberately **not** attempted, and not in the list because they are not
+failures:
+
+- **the roll pads' rims.** With the bolt circle at r 7 (`BCD` 14), an M3
+  head's edge lands at r 10.0 — the pad's own radius. Any round there
+  undercuts a fastener seat.
+- **the pitch horn plate's inner corners** (y 20.45): that face is the horn
+  **disc seat**.
+
+`check_interfaces()` is the hard gate on all of that: it intersects both the
+raw and the styled solid with `_interface_zones()` (r 10.2 cylinders on all
+four disc axes — pads, bolt circles, bosses, sunk idler pad, centre reliefs)
+and requires the volumes to match. They do, to 6 × 10⁻⁴ mm³ of 3908.9557.
+
+### 7.4 Mass, and every clearance that moved
+
+| | volume mm³ | printed g |
+|---|---|---|
+| `fused()` (as shipped at `afd4daf`) | 19 929.1 | 22.78 |
+| `hip_yoke_v6()` styled | 19 905.6 | 22.75 |
+| | **−23.5** | **−0.027** |
+
+The blends add 116.0 mm³ (coves and root fillets), the rounds and tapers take
+139.5 mm³ back.
+
+Clearances, measured in the yoke's own frame against the same mocks
+`check_assembly_v6` uses (link 1 = carrier + roll servo rotated by −hip_roll,
+link 3 = thigh + pitch servo rotated by +hip_pitch; the probe reproduces the
+gate's numbers exactly):
+
+| | fused | styled |
+|---|---|---|
+| roll servo vs yoke−seats, ±55° | 0.076 mm | **0.076 mm** |
+| bay walls vs yoke−seats, ±55° | 1.000 mm | **1.000 mm** |
+| thigh, first contact in flexion | −118.40° | **−118.40°** |
+| thigh at −117° | no contact, 0.700 mm | **no contact, 0.700 mm** |
+| thigh at −121° | 78.71 mm³ overlap | **77.31 mm³** (better) |
+| thigh at −125° | 271.70 mm³ overlap | **273.85 mm³** (+2.15) |
+
+(The constant 0.700 mm is the thigh grip plate vs the yoke arm gap, which
+does not vary with the angle; deep flexion shows up as overlap volume, which
+is why the table reports both.)
+
+The one number that moved the wrong way is −125°, by 2.15 mm³ on 271.70 —
+**+0.8 %, entirely the horn arm's root fillet**. Located exactly: at −125°
+the only styling material inside the thigh is the 3.71 mm³ lump at
+x 21.45..24.45, y 12.00..14.50, z −16.00..−13.50, which is the R2.5 fillet at
+the roll **horn** arm's +y root; at −119° and −121° *no* added material is
+inside the thigh at all (0.00 mm³). So the pose that got worse is 7° past the
+part's own hard contact at −118.40° and 6° past the gate's first FAIL, in a
+pose where both the old and the new solid are already deep inside the thigh —
+and the cost is the root fillet on the arm that snapped in the field, which
+is the one blend in this pass that is not cosmetic. It is called out here
+rather than quietly traded; if section 6's open item 1 is settled by
+relieving the roll flange front, this goes with it.
