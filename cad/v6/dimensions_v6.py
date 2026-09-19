@@ -576,6 +576,146 @@ PWR_MASS = 60.0
 CAM3_MASS = 4.0
 WIRING_MASS = 40.0
 
+# ============================================================================
+# ARMS -- two 2-DOF arms (shoulder pitch + elbow), the get-up design decision
+# of 2026-09-17 (docs/design-v6/getup-decision-2026-09-17.md section 1,
+# docs/design-v6/study-shoulder-arms.md sections 4-7). NOTHING here is
+# re-derived: the segment lengths, the DOF count, the aft mount and the
+# hanging idle pose are the study's measured numbers. Everything below that
+# is a CAD consequence of hanging a real STS3215 on a real deck, and every
+# place the CAD had to DEVIATE from the plant is called out by name so the
+# sim can be re-run against the as-drawn geometry.
+#
+# Plant config this mirrors: sim/getup_v6_shoulder.py CONFIGS
+# ["top_elbow_16_16_aft"] = arms=True, arm_len=0.16, arm_elbow=True,
+# arm_fore_len=0.16, arm_shoulder_x=-0.05, arm_z=0.079.
+# ============================================================================
+ARM_UPPER = 160.0        # shoulder axis -> elbow axis (plant arm_len 0.16).
+ARM_FORE = 160.0         # elbow axis -> hand centre (plant arm_fore_len 0.16).
+                         # 0.32 m end-to-end is the MEASURED reach threshold:
+                         # 0.30 (15+15) never stands, 0.32 does. Do not shorten.
+ARM_SHOULDER_X = -50.0   # aft mount (plant arm_shoulder_x = -0.05). This is
+                         # the fix for the hanging arm walking into its own
+                         # leg: 7327 arm-vs-leg contacts at the default -0.02
+                         # mount, 31 here (study section 5). Do not move it forward.
+
+# --- the shoulder servo's pose on the deck, and what forced it -------------
+# The servo stands on the deck with its case LENGTH VERTICAL, output end DOWN,
+# cable end up, output axis along Y and the HORN OUTBOARD. Three constraints
+# pick that pose and there is no fourth option:
+#   (a) the output axis must be lateral (Y) for a sagittal-plane shoulder, so
+#       the case's 34.70 SV_CASE_T always runs along Y. The case therefore
+#       always reaches to ARM_Y - 5.6, whatever else is done.
+#   (b) laid flat (case length along X) the cradle would sit over the battery
+#       aperture (x -36.51..+10.41, |y| < 54.66) -- the deck is OPEN there, so
+#       the forward case-screw row would have nothing to bolt into. Standing it
+#       up puts the whole 24.72 mm footprint aft of the aperture.
+#   (c) the Pi 4B can only be installed by sliding DOWN through its deck slot
+#       (x -51.76..-37.76, |y| <= 45, pelvis_v7's PI_SLOT). Nothing of the arm
+#       mount may overhang that slot or the Pi becomes uninstallable, which is
+#       what sets ARM_Y (below) rather than the plant's 80.35.
+ARM_CRADLE_FLOOR = 4.0   # bracket floor under the servo's output end. 4.0, not
+                         # WALL: this plate cantilevers ~22 mm past the deck edge.
+ARM_SHOULDER_Z = DECK_TOP_Z + ARM_CRADLE_FLOOR + D.SV_AXIS_FROM_OUT_END   # 474.38
+ARM_ELBOW_Z = ARM_SHOULDER_Z - ARM_UPPER                                  # 314.38
+ARM_HAND_Z = ARM_ELBOW_Z - ARM_FORE                                       # 154.38
+# DEVIATION 1 (shoulder height): the plant put the shoulder 79.0 mm above the
+# yaw axis ("the deck top"). The CAD deck top is only 73.80 above the yaw axis
+# (the CAD housing is 5 mm shallower than the plant's), and a real servo case
+# cannot have its axis IN the deck surface -- the axis sits 4.0 (floor) +
+# 10.11 (SV_AXIS_FROM_OUT_END) above it. Net: 87.91, i.e. +8.9 mm.
+ARM_SHOULDER_ABOVE_YAW = ARM_SHOULDER_Z - HIP_YAW_Z                       # 87.91
+ARM_SHOULDER_Z_SIM = 79.0    # what the get-up was measured at (m*1e3, above yaw)
+
+# --- the arm plane --------------------------------------------------------
+# |y| of the upper arm's horn plate == the elbow servo's mid-plane. The arm is
+# straight: one plane from the shoulder horn to the hand.
+# DEVIATION 2 (lateral): the plant hung the arm at 80.35 mm (deck_w/2 + SV_T/2
+# + 4 on its 118 mm-wide deck). 88.0 here, +7.7 mm outboard, forced by (c)
+# above: the shoulder servo's inboard case-screw wall is ARM_Y - 40.85, and it
+# must clear the Pi slot's y = 45 edge. It is also the friendlier direction --
+# the study's own widen sweep (arm_shoulder_y_extra +20 mm) cut arm-vs-leg
+# contacts, and in CAD it is what buys the elbow fork its clearance past the
+# thigh/yoke (whose outer face reaches y 65.5).
+ARM_Y = 88.0
+ARM_Y_SIM = 80.35
+ARM_HORN_FACE_Y = ARM_Y - D.PLATE / 2 - D.HORN_BOSS_H      # 85.50 shoulder horn face
+ARM_SERVO_MID_Y = ARM_HORN_FACE_Y - D.SV_HORN_FACE         # 65.05 shoulder case mid-plane
+ARM_SEAT_Y = ARM_SERVO_MID_Y + D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR      # 50.15 wall seat
+ARM_WALL_Y0 = ARM_SEAT_Y - D.GRIP_PLATE_T_IDLER            # 47.15 wall inner face
+ARM_CASE_Y1 = ARM_SERVO_MID_Y + D.SV_TOPFACE               # 82.40 case outboard face
+ARM_MOUNT_Y1 = ARM_CASE_Y1 + 0.6                           # 83.00 bracket outboard limit
+assert ARM_WALL_Y0 > PI_OUTLINE[0] / 2 + 2.5 + 1.0, \
+    "shoulder bracket must clear the Pi slide slot (pelvis_v7 PI_SLOT)"
+
+# --- the arm links --------------------------------------------------------
+# Section: an open C -- back web + two side rails, opening FORWARD (+x). Not a
+# closed box like leg_link_v6: this part prints on its back (model +X up, v5
+# leg_link's proven "the filament runs the length of the leg" orientation, the
+# control case in cad/parts.py's yoke_roll comment), and in that orientation a
+# front plate is a flat ceiling spanning the full tine-to-tine width. The load
+# that matters here is bending in the sagittal plane, which the C carries in
+# its rails; peak measured joint torque is 1.59 N-m (shoulder) / 1.18 (elbow).
+ARM_WEB_X = (-15.16, -12.76)     # back web: bed face .. inner face (WEB_GAP off
+                                 # the gripped case's -12.36, same as leg_link)
+ARM_FRONT_X = 12.0               # rails' front edge at a joint (leg_link's
+                                 # fork-arm bound; the pads need x -10..+10)
+ARM_TIP_X = 5.0                  # rails' front edge at the far end of a shaft.
+                                 # The bending moment in a 2-link arm loaded at
+                                 # the hand falls off linearly toward the tip, so
+                                 # the section depth does too: ARM_FRONT_X at the
+                                 # loaded end, ARM_TIP_X at the free one. Free in
+                                 # print (x is the print HEIGHT here, so a varying
+                                 # x-extent is an up-facing slope, never an
+                                 # overhang) and it is 20 % of the link's mass.
+ARM_RAIL_T = D.WALL              # 2.6 rail thickness in y. In the jog the rails
+                                 # run at ~30 deg, so ~2.25 perpendicular -- still
+                                 # 5 perimeters at a 0.4 nozzle.
+ARM_SHAFT_Y = (-3.5, 10.5)       # upper-arm shaft, local y (0 == the arm plane).
+                                 # Inboard face is 2.1 mm outboard of the shoulder
+                                 # case face and 1.5 mm off the bracket's outer limit.
+ARM_FORE_SHAFT_HY = 8.0          # forearm shaft half width (nothing inboard to dodge)
+ARM_JOG_Z = (-108.0, -136.0)     # upper arm: shaft -> elbow fork, widening band
+ARM_HAND_R = 12.0                # hand knuckle radius == the plant's hand sphere
+                                 # (12 mm, friction 1.0 0.02 0.001). BARE PETG here;
+                                 # the robustness sweep covered mu 0.3-1.0, 6/6.
+ARM_EDGE_R = 3.0                 # outer vertical edge fillet ("no sharp corners")
+ARM_R16_BUFFER = 1.0             # how far the upper arm's fork web stands off the
+                                 # elbow servo's own swept circle (r = hypot(
+                                 # SV_WID/2, SV_AXIS_FROM_OUT_END) = 15.97 -- the
+                                 # "r 16 rule" leg_link's check_r16 guards). The
+                                 # case turns WITH the forearm, so a web that
+                                 # crosses that circle is an interference, not a
+                                 # clearance question: see arm_v6.arm_upper_v6.
+
+# Declared ROM. The plant's ranges are shoulder -90..200 and elbow -150..150;
+# the CAD elbow is limited by the forearm's own grip channel meeting the upper
+# arm's fork, which cad/v6/check_assembly_v6.py measures. The get-up only ever
+# uses shoulder 90 -> 0 and elbow -90 -> 0, and the fold-up reaches shoulder 180.
+# Sign: + about +Y, so + shoulder swings the arm BACKWARD, 0 = hanging down.
+ARM_ROM = {"shoulder": (-90.0, 200.0), "elbow": (-100.0, 10.0)}
+ARM_ROM_SIM = {"shoulder": (-90.0, 200.0), "elbow": (-150.0, 150.0)}
+
+# --- deck interface -------------------------------------------------------
+# 4x M2.5 self-tap into blind pilots in the 5 mm deck, EXACTLY the pattern
+# neck_collar already uses (2.05 dia x 4.5 deep from the deck top). Positions
+# are pelvis-frame (deck top z = 0), left side; the right side mirrors in y.
+# Every one is checked against the real pelvis solid by arm_v6.check_deck_pilots.
+ARM_PILOT_D = 2.05
+ARM_PILOT_DEPTH = 4.5
+# The quadrilateral is squashed on purpose. Three cuts box it in: the Pi slot
+# (|y| <= 45 over x -51.76..-37.76) keeps the forward pair OUTBOARD, the
+# battery aperture (x >= -36.51) keeps everything aft of it, and the bracket's
+# own case-screw wall (y 47.15..50.15) must not be undercut by a countersink,
+# which costs another 3 mm either side. What is left is: two on the aft ear,
+# deep inboard, and two on the cradle floor outboard of the wall.
+ARM_PILOT_XY = [(-61.0, 32.0), (-55.0, 32.0), (-61.0, 56.0), (-41.0, 56.0)]
+
+# --- what the pair costs --------------------------------------------------
+ARM_SERVO_COUNT = 4      # 2 per arm: shoulder pitch + elbow, both STS3215
+SERVO_MASS_3215_ARM = None   # see parts_v6 rollup; kept out of the servo count
+                             # dicts so the default (armless) rollup is unchanged
+
 # ----------------------------------------------------------------------------
 # sanity: the sim plant (sim/gen_plant_v6.py DesignParams) must agree
 # ----------------------------------------------------------------------------
