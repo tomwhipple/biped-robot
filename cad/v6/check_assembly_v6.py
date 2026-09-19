@@ -75,10 +75,61 @@ SINGLE_RENAME = {"yoke_roll_{s}": "hip_yoke_{s}", "yoke_pitch_{s}": "hip_yoke_{s
 SINGLE_SEATED = {("hip_yoke_{s}", "yaw_carrier_{s}"): "one-print yoke vs the bay walls: idler boss rides the bore, volume only",
                  ("hip_yoke_{s}", "servo_hip_roll_{s}"): "one-print yoke on the roll servo discs: seated, must not intersect"}
 
+# ARMS=1 (assembly_v6.arms_on): the get-up arms, docs/design-v6/arms.md.
+# Rows are (joint swept, A, B, note, extra pose) -- the 5th field is what the
+# 4-field PAIRS rows above never needed: the arm has TWO joints, and the poses
+# that matter are not all at elbow 0. The FOLDED rows are study-shoulder-
+# arms.md's own open item 1 ("fold-up swept volume ... only end poses were
+# checked against the head and torso"); this is where that gets measured.
+#
+# Three families, all of them things the lumped-mass plant could not see:
+#   * the arm against the TORSO through the full shoulder sweep, hanging and
+#     folded -- the fold-up passes the head and the neck collar;
+#   * the arm against its OWN bracket and servos (the elbow's real ROM limit,
+#     which is what V.ARM_ROM['elbow'] is set from);
+#   * the LEG against the hanging arm, swept at every leg joint. The plant
+#     measured 31 residual arm-vs-leg contacts over an 8-step walk with a 12 mm
+#     capsule for an arm; the CAD arm is a 44 mm fork, so this is the row that
+#     decides whether the aft mount is really enough.
+ARM_PAIRS = [
+    ("shoulder", "arm_upper_{s}", "pelvis_v7", "upper arm vs the torso through the whole sweep, hanging", None),
+    ("shoulder", "arm_upper_{s}", "head", "upper arm vs the head at the fold-up (shoulder 180)", None),
+    ("shoulder", "arm_upper_{s}", "neck_collar", "upper arm vs the neck collar at the fold-up", None),
+    ("shoulder", "arm_upper_{s}", "shoulder_mount_{s}", "upper arm vs its own cradle: the case is 1.6 mm inboard of the shaft", None),
+    ("shoulder", "arm_upper_{s}", "servo_shoulder_{s}", "horn plate seated on the shoulder disc: must not intersect", None),
+    ("shoulder", "arm_fore_{s}", "pelvis_v7", "forearm vs the torso through the whole sweep, hanging", None),
+    ("shoulder", "arm_fore_{s}", "head", "forearm vs the head, FOLDED (elbow -90, the sit-up pose)", {"{s}_elbow": -90.0}),
+    ("shoulder", "arm_fore_{s}", "pelvis_v7", "forearm vs the torso, FOLDED (elbow -90, the sit-up pose)", {"{s}_elbow": -90.0}),
+    ("shoulder", "arm_fore_{s}", "shoulder_mount_{s}", "forearm vs the cradle, FOLDED", {"{s}_elbow": -90.0}),
+    ("shoulder", "servo_elbow_{s}", "pelvis_v7", "the elbow servo case vs the torso through the sweep", None),
+    ("elbow", "arm_fore_{s}", "arm_upper_{s}", "THE ELBOW LIMIT: forearm grip vs the fork (sets V.ARM_ROM)", None),
+    ("elbow", "arm_fore_{s}", "servo_elbow_{s}", "forearm grip channel on its own servo: seated, must not intersect", None),
+    ("elbow", "servo_elbow_{s}", "arm_upper_{s}", "elbow servo discs on the fork tines: seated, must not intersect", None),
+    ("hip_pitch", "thigh_{s}", "arm_fore_{s}", "THE WALK ROW: thigh swept against the hanging forearm", None),
+    ("hip_pitch", "thigh_{s}", "arm_upper_{s}", "thigh swept against the hanging upper arm / elbow fork", None),
+    ("hip_pitch", "servo_hip_pitch_{s}", "arm_fore_{s}", "hip pitch servo case vs the hanging forearm", None),
+    ("knee", "shin_{s}", "arm_fore_{s}", "shin swept against the hanging forearm (the plant's own contact pair)", None),
+    ("knee", "servo_knee_{s}", "arm_fore_{s}", "knee servo case vs the hanging forearm", None),
+    ("hip_roll", "yoke_pitch_{s}", "arm_fore_{s}", "hip abduction swings the yoke out toward the arm plane", None),
+    ("hip_yaw", "yaw_carrier_{s}", "arm_fore_{s}", "hip yaw swings the carrier toward the arm plane", None),
+    ("ankle_pitch", "ankle_link_{s}", "arm_fore_{s}", "ankle link vs the hanging forearm (the arm reaches to z 154)", None),
+]
+ARM_TOUCHING = {("arm_upper_{s}", "servo_shoulder_{s}"), ("arm_fore_{s}", "servo_elbow_{s}"),
+                ("servo_elbow_{s}", "arm_upper_{s}")}
+
 
 def active_pairs():
-    """(PAIRS, TOUCHING) for the assembly as built -- unchanged unless the
-    one-print hip yoke is switched on."""
+    """(pairs, touching) for the assembly as built -- unchanged unless the
+    one-print hip yoke or the arms are switched on. Rows come back as
+    5-tuples (joint, A, B, note, extra pose)."""
+    pairs, touching = _yoke_pairs()
+    if A.arms_on():
+        pairs = list(pairs) + ARM_PAIRS
+        touching = set(touching) | ARM_TOUCHING
+    return [r if len(r) == 5 else (*r, None) for r in pairs], touching
+
+
+def _yoke_pairs():
     if A.hip_yoke_variant() != "single":
         return PAIRS, TOUCHING
     pairs, seen = [], set()
@@ -115,7 +166,7 @@ def pieces_by_label(comp):
 
 
 def check_pair(joint, la, lb, samples, side="L", extra=None):
-    lo, hi = V.ROM[joint]
+    lo, hi = V.ROM[joint] if joint in V.ROM else V.ARM_ROM[joint]
     worst_vol, worst_dist, worst_ang = 0.0, 1e9, None
     for k in range(samples):
         ang = lo + (hi - lo) * k / (samples - 1)
@@ -149,11 +200,16 @@ def main(argv=None):
     pairs, touching_set = active_pairs()
     if A.hip_yoke_variant() == "single":
         print("HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch")
+    if A.arms_on():
+        print(f"ARMS=1: two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM "
+              f"shoulder {V.ARM_ROM['shoulder']}, elbow {V.ARM_ROM['elbow']}; "
+              f"every leg row sweeps the leg with the arms in the HANGING idle pose.")
     print(f"{'joint':12s} {'A':22s} {'B':22s} {'overlap mm3':>11s} {'min dist':>9s} {'at deg':>7s}  verdict")
-    for joint, la, lb, note in pairs:
+    for joint, la, lb, note, extra in pairs:
         if a.joint and joint != a.joint:
             continue
-        vol, dist, ang = check_pair(joint, la, lb, a.samples, a.side)
+        ex = {k.format(s=a.side): v for k, v in extra.items()} if extra else None
+        vol, dist, ang = check_pair(joint, la, lb, a.samples, a.side, extra=ex)
         touching = (la, lb) in touching_set or (lb, la) in touching_set
         ok = vol < 0.5 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
         fails += 0 if ok else 1

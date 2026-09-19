@@ -13,6 +13,7 @@ from the pieces' STLs; the .mp4 is gitignored, a 2 x 4 filmstrip png is
 committed next to it.
 
     .venv/bin/python cad/v6/animate_v6.py            # renders/assembly_v6_flyin.mp4 + _strip.png
+    ARMS=1 .venv/bin/python cad/v6/animate_v6.py     # ..._flyin_arms.mp4 + _strip.png
 """
 from __future__ import annotations
 
@@ -59,6 +60,21 @@ INSERT = [
     ("servo_neck",         (0, 0, 1), 12),
     ("neck_collar",        (0, 0, 1), 12),
     ("head",               (0, 0, 1), 13),
+    # ARMS=1 (cad/v6/arm_v6.py). The order IS the bench order, and it is not
+    # arbitrary: two of the four deck pilots sit under the servo's own
+    # footprint, so the cradle has to be screwed down while it is still empty.
+    # Cradle down onto the deck -> servo dropped into the open cradle from
+    # above (the only way in: the cradle is a U open upward and outboard) ->
+    # upper arm offered straight IN onto the horn along the joint axis, which
+    # is the one direction a single-sided horn plate can arrive from -> elbow
+    # servo slid into the forearm's grip channel from the FRONT (the C section
+    # is open forward; this is the same channel-entry leg_link uses) ->
+    # forearm lifted UP between the fork tines onto the two discs.
+    ("shoulder_mount_",    (0, 0, 1), 14),
+    ("servo_shoulder_",    (0, 0, 1), 15),
+    ("arm_upper_",         (0, 1, 0), 16),
+    ("servo_elbow_",       (1, 0, 0), 17),
+    ("arm_fore_",          (0, 0, -1), 18),
 ]
 FLY_MM = 60.0
 FRAMES_PER_GROUP = 14
@@ -70,7 +86,13 @@ def plan(comp):
     for i, ch in enumerate(comp.children):
         for pref, d, grp in INSERT:
             if ch.label.startswith(pref):
-                out.append((i, ch, np.array(d, float), grp))
+                v = np.array(d, float)
+                # a LATERAL insertion is handed: the left arm is offered from
+                # +y, the right from -y. Anything that flies in along y and
+                # belongs to a side gets its vector mirrored with the part.
+                if v[1] and ch.label.endswith("_R"):
+                    v = v * np.array([1.0, -1.0, 1.0])
+                out.append((i, ch, v, grp))
                 break
         else:
             out.append((i, ch, np.array([0, 0, 1.0]), 99))
@@ -104,7 +126,10 @@ def main():
     r = mujoco.Renderer(m, 960, 1280)
     cam = mujoco.MjvCamera()
     cam.lookat[:] = [0, 0, V.TOP_Z / 2000.0]
-    cam.distance = 1.5
+    # 1.5 is the framing every committed default filmstrip was shot at -- left
+    # alone so this change does not silently re-shoot them. The arms make the
+    # robot 223 mm wide and add five groups, so their own film pulls in.
+    cam.distance = 1.15 if A.arms_on() else 1.5
     cam.elevation = -12
     frames = []
     total = ngroups * (FRAMES_PER_GROUP + HOLD)
@@ -130,11 +155,24 @@ def main():
     suffix = "" if variant == "C" else f"_opt{variant}"
     if A.hip_yoke_variant() == "single":
         suffix += "_hipyoke"
+    if A.arms_on():
+        suffix += "_arms"
     out = os.path.join(HERE, "renders", f"assembly_v6_flyin{suffix}.mp4")
     with imageio.get_writer(out, fps=20, codec="libx264", quality=8, macro_block_size=None) as w:
         for fr in frames:
             w.append_data(fr)
-    idx = np.linspace(0, len(frames) - 1, 8).astype(int)
+    # Row 1 = the whole build, row 2 = the part of it this change is ABOUT.
+    # With the arms on there are 19 groups, so 8 uniform samples land 5 of the
+    # 8 before anything above the knee exists and exactly one inside the five
+    # arm groups -- a filmstrip that does not show the thing it was made to
+    # prove. When a tail group exists (the arms), row 2 samples only that.
+    first_arm = min((g for _, _, _, g in pieces if 14 <= g < 99), default=None)
+    if first_arm is None:
+        idx = np.linspace(0, len(frames) - 1, 8).astype(int)
+    else:
+        split = first_arm * (FRAMES_PER_GROUP + HOLD)
+        idx = np.concatenate([np.linspace(0, split - 1, 4),
+                              np.linspace(split, len(frames) - 1, 4)]).astype(int)
     rows = [np.concatenate([frames[i][::2, ::2] for i in idx[:4]], axis=1),
             np.concatenate([frames[i][::2, ::2] for i in idx[4:]], axis=1)]
     imageio.imwrite(os.path.splitext(out)[0] + "_strip.png", np.concatenate(rows, axis=0))

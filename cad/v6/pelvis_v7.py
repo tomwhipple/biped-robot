@@ -97,7 +97,7 @@ GD_SLOT = (2 * GD_CHAN_HY, 14.0)                # deck slot (y width, x depth) -
 PI_SLOT = (2 * PI_CHAN_HY, 14.0)                # slide channel exactly, no sliver at the edge
 
 
-def pelvis_v7(bearing_variant="C"):
+def pelvis_v7(bearing_variant="C", arm_mounts=False):
     """THE WHOLE V7 TORSO. bearing_variant selects the hip-yaw bearing seat
     (docs/design-v6/study-yaw-bearing.md): "C" (default, unchanged) is the
     2026-09-17 baseline, a 6811-2RS wrapping the carrier's whole rectangular
@@ -469,6 +469,26 @@ def pelvis_v7(bearing_variant="C"):
     NECK_FLANGE_HOLE_XY = [(nfx[0], nfy), (nfx[1], nfy), (nfx[0], -nfy), (nfx[1], -nfy)]
     for hx, hy in NECK_FLANGE_HOLE_XY:
         p -= cyl_z(2.05 / 2, -4.5, 0.5, hx, hy)
+
+    # ---- ARM MOUNTS (arm_mounts=True only; docs/design-v6/arms.md) ----------
+    # The get-up arms (cad/v6/arm_v6.py) bolt their shoulder cradles straight
+    # to this deck, with EXACTLY the interface the neck collar above already
+    # uses: M2.5 self-tap into blind 2.05 x 4.5 pilots in the 5 mm deck, driven
+    # from the top. 4 per side, positions in dimensions_v6.ARM_PILOT_XY, mirrored
+    # in y -- and every one of them is checked against this solid by
+    # arm_v6.check_deck_pilots(), because the deck around here is cut by the Pi
+    # slide slot, the leg-bus slots and the R3 top fillet.
+    #
+    # OPT-IN, and it stays opt-in: adding 8 blind holes changes the printed
+    # pelvis, and the default build has to stay byte-identical to what has
+    # already been checked, rendered and (eventually) printed. assembly_v6
+    # passes arm_mounts=arms_on() and nothing else sets it. The flip side is
+    # real and belongs in the sign-off: A PELVIS PRINTED WITHOUT THIS FLAG
+    # CANNOT TAKE THE ARMS WITHOUT BEING DRILLED OR REPRINTED.
+    if arm_mounts:
+        for hx, hy in V.ARM_PILOT_XY:
+            for sgn in (1, -1):
+                p -= cyl_z(V.ARM_PILOT_D / 2, -V.ARM_PILOT_DEPTH, 0.5, hx, sgn * hy)
 
     # ---- HOUSING_SKIN: the real 3 deg taper, separate from the cell/column
     # structure (coordinator, 2nd mass pass). dimensions_v6.py now carries a
