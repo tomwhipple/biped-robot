@@ -1,0 +1,16 @@
+== GATE D, 4 cases x arm contacts (8 steps, STS3250 rolls+knees, hanging idle pose, self_collide=True)
+r5_bare            turn  +0 mu 0.7 play 3  up   tilt_max   5.7 deg  arm-vs-leg contacts      0  pairs []
+r5_bare            turn +15 mu 0.7 play 3  up   tilt_max   7.3 deg  arm-vs-leg contacts      0  pairs []
+r5_bare            turn  +0 mu 0.3 play 5  up   tilt_max   3.3 deg  arm-vs-leg contacts      0  pairs []
+r5_bare            turn -15 mu 0.9 play 3  up   tilt_max   6.1 deg  arm-vs-leg contacts      0  pairs []
+-- r5_bare: 4/4 cases stayed up
+r5_girdle_ondeck_nocol turn  +0 mu 0.7 play 3  up   tilt_max   6.8 deg  arm-vs-leg contacts      0  pairs []
+r5_girdle_ondeck_nocol turn +15 mu 0.7 play 3  up   tilt_max   8.1 deg  arm-vs-leg contacts      0  pairs []
+r5_girdle_ondeck_nocol turn  +0 mu 0.3 play 5  up   tilt_max   3.3 deg  arm-vs-leg contacts      0  pairs []
+r5_girdle_ondeck_nocol turn -15 mu 0.9 play 3  up   tilt_max   6.9 deg  arm-vs-leg contacts      0  pairs []
+-- r5_girdle_ondeck_nocol: 4/4 cases stayed up
+r5_aft_cad_nocol   turn  +0 mu 0.7 play 3  up   tilt_max   3.9 deg  arm-vs-leg contacts      0  pairs []
+r5_aft_cad_nocol   turn +15 mu 0.7 play 3  up   tilt_max   6.7 deg  arm-vs-leg contacts      0  pairs []
+r5_aft_cad_nocol   turn  +0 mu 0.3 play 5  up   tilt_max   3.9 deg  arm-vs-leg contacts      0  pairs []
+r5_aft_cad_nocol   turn -15 mu 0.9 play 3  up   tilt_max   6.0 deg  arm-vs-leg contacts      0  pairs []
+-- r5_aft_cad_nocol: 4/4 cases stayed up

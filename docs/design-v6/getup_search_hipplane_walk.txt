@@ -1,0 +1,6 @@
+== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk
+top_elbow_16_16_aft  up   tilt_max 3.9 deg  arm-vs-leg contacts 31 over 44.6s  pairs [('L_ankle_blk', 'L_forearm'), ('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+top_elbow_16_16_hip  FELL tilt_max 112.5 deg  arm-vs-leg contacts 8240 over 44.6s  pairs [('L_forearm', 'L_shin'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+top_elbow_16_16_hip_cad FELL tilt_max 93.8 deg  arm-vs-leg contacts 28977 over 44.6s  pairs [('L_forearm', 'L_hip_yaw'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_hip_yaw'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+top_elbow_16_16_hip_w20 up   tilt_max 6.1 deg  arm-vs-leg contacts 3996 over 44.6s  pairs [('L_forearm', 'L_thigh'), ('R_forearm', 'R_thigh')]
+top_elbow_16_16_hip_w30 up   tilt_max 6.7 deg  arm-vs-leg contacts 146 over 44.6s  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]

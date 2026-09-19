@@ -1,0 +1,21 @@
+== GATE D, 4 cases x arm contacts (8 steps, STS3250 rolls+knees, hanging idle pose, self_collide=True)
+r5_aft_cad         turn  +0 mu 0.7 play 3  up   tilt_max   3.9 deg  arm-vs-leg contacts      0  pairs []
+r5_aft_cad         turn +15 mu 0.7 play 3  up   tilt_max   7.9 deg  arm-vs-leg contacts    126  pairs [('R_forearm', 'R_shin')]
+r5_aft_cad         turn  +0 mu 0.3 play 5  up   tilt_max   3.9 deg  arm-vs-leg contacts      0  pairs []
+r5_aft_cad         turn -15 mu 0.9 play 3  up   tilt_max   8.1 deg  arm-vs-leg contacts    184  pairs [('L_forearm', 'L_shin')]
+-- r5_aft_cad: 4/4 cases stayed up
+r5_hip_cad         turn  +0 mu 0.7 play 3  up   tilt_max   7.0 deg  arm-vs-leg contacts   1579  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+r5_hip_cad         turn +15 mu 0.7 play 3  up   tilt_max   8.4 deg  arm-vs-leg contacts   2042  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+r5_hip_cad         turn  +0 mu 0.3 play 5  FELL tilt_max 103.4 deg  arm-vs-leg contacts   1379  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+r5_hip_cad         turn -15 mu 0.9 play 3  up   tilt_max   9.9 deg  arm-vs-leg contacts   2121  pairs [('L_forearm', 'L_shin'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+-- r5_hip_cad: 3/4 cases stayed up
+r5_hip_cad_w10     turn  +0 mu 0.7 play 3  up   tilt_max   5.5 deg  arm-vs-leg contacts    768  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_hip_cad_w10     turn +15 mu 0.7 play 3  up   tilt_max   7.3 deg  arm-vs-leg contacts   1052  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_hip_cad_w10     turn  +0 mu 0.3 play 5  up   tilt_max   5.9 deg  arm-vs-leg contacts    728  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_hip_cad_w10     turn -15 mu 0.9 play 3  up   tilt_max   8.1 deg  arm-vs-leg contacts    997  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+-- r5_hip_cad_w10: 4/4 cases stayed up
+r5_hip_cad_w20     turn  +0 mu 0.7 play 3  up   tilt_max   6.9 deg  arm-vs-leg contacts    164  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_hip_cad_w20     turn +15 mu 0.7 play 3  up   tilt_max   7.8 deg  arm-vs-leg contacts    372  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_hip_cad_w20     turn  +0 mu 0.3 play 5  up   tilt_max   3.3 deg  arm-vs-leg contacts     19  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_hip_cad_w20     turn -15 mu 0.9 play 3  up   tilt_max   7.5 deg  arm-vs-leg contacts    470  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+-- r5_hip_cad_w20: 4/4 cases stayed up

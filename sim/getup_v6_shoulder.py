@@ -72,6 +72,55 @@ CONFIGS = {
     # passes all 4 gate cases with 31 arm-leg contacts over 44.6 s vs 7327).
     "top_elbow_16_16_aft": dict(arms=True, arm_z=TOP_Z, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=-0.05),
     "top_elbow_18_18_aft": dict(arms=True, arm_z=TOP_Z, arm_len=0.18, arm_elbow=True, arm_fore_len=0.18, arm_shoulder_x=-0.05),
+    # round-5 (Tom 2026-09-19, the shoulder-girdle restyle): "put the shoulder
+    # joint in the same plane as the hips", i.e. arm_shoulder_x = 0 -- directly
+    # above the yaw axis, not 50 mm aft. That undoes the round-4b fix, so it has
+    # to be re-measured, not assumed: the aft mount existed ONLY to keep the
+    # hanging arm out of the swinging leg. The other lever on that same contact
+    # is lateral: the study's own widen sweep (arm_shoulder_y_extra) cut contacts
+    # too, and the CAD arm already hangs 7.7 mm wider than the plant's default
+    # (dimensions_v6 ARM_Y 88.0 vs ARM_Y_SIM 80.35). So sweep x=0 against width.
+    # _cad = the AS-DRAWN geometry (CAD arm plane and CAD shoulder height).
+    "top_elbow_16_16_hip": dict(arms=True, arm_z=TOP_Z, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0),
+    "top_elbow_16_16_hip_cad": dict(arms=True, arm_z=0.08791, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.0077),
+    "top_elbow_16_16_hip_w20": dict(arms=True, arm_z=TOP_Z, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.020),
+    "top_elbow_16_16_hip_w30": dict(arms=True, arm_z=TOP_Z, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.030),
+    # ...and the same sweep again with arm_cad_servos=True (gen_plant_v6), i.e.
+    # the elbow servo box where cad/v6/arm_v6.py actually draws it. The sweep
+    # above says x=0 needs +30 mm of shoulder width; but the contact pairs are
+    # ALWAYS *_forearm (never *_arm), and the widest inboard thing on the
+    # forearm body is that servo box -- which the plant had ~20 mm too far
+    # inboard and ~12 mm too high. Re-measure before paying for a 220 mm
+    # shoulder span. "_r5cad" = as-drawn servo boxes; CAD shoulder height and
+    # CAD arm plane where the name says so.
+    "r5_aft_cad": dict(arms=True, arm_z=0.08791, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=-0.05, arm_shoulder_y_extra=0.0077, arm_cad_servos=True),
+    "r5_hip_cad": dict(arms=True, arm_z=0.08791, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.0077, arm_cad_servos=True),
+    "r5_hip_cad_w10": dict(arms=True, arm_z=0.08791, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.0177, arm_cad_servos=True),
+    "r5_hip_cad_w20": dict(arms=True, arm_z=0.08791, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.0277, arm_cad_servos=True),
+    # THE PROPOSED ROUND-5 GEOMETRY (shoulder girdle, cad/v6/shoulder_girdle_v6.py).
+    # arm_shoulder_x 0      -- "the same plane as the hips" (Tom, 2026-09-19).
+    # arm_z 0.079           -- the study's OWN TOP_Z, exactly. Rotating the servo
+    #                          90 deg about its output axis drops the case from
+    #                          "standing on end on the deck" to "lying fore-aft
+    #                          beside the deck", so the axis no longer has to sit
+    #                          a half-case above the lid. Round-4's +8.9 mm
+    #                          shoulder-height deviation is GONE.
+    # y_extra 0.023         -- ARM_Y 103.35 mm. Not a free choice: the rotated
+    #                          case must hang outboard of the deck skin (61.26)
+    #                          with a 3 mm screw wall and 1 mm of air, which
+    #                          lands the arm plane there. The walk gate wants
+    #                          >= +10 mm at x=0 anyway (w10 above), so the
+    #                          structural number and the measured one agree.
+    "r5_girdle": dict(arms=True, arm_z=0.079, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True),
+    # the alternative that keeps the pod sitting ON the deck lid instead of
+    # hanging beside it: axis a half-case + floor above the lid (deviation +11.2)
+    "r5_girdle_ondeck": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True),
+    # controls for the one gate case (mu 0.3 play 5) the hip-plane geometry
+    # keeps failing: is the fall CONTACT (arm hits leg) or MASS (arm inertia at
+    # x=0)? _nocol removes every self-collision; _bare removes the arms.
+    "r5_girdle_ondeck_nocol": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True, self_collide=False),
+    "r5_aft_cad_nocol": dict(arms=True, arm_z=0.08791, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=-0.05, arm_shoulder_y_extra=0.0077, arm_cad_servos=True, self_collide=False),
+    "r5_bare": dict(arms=False),
 }
 hits = []
 
@@ -218,12 +267,18 @@ def run_traced(p, xml_path, seq, start="supine", track=("L_shoulder", "R_shoulde
     return dict(ok=ok, pelvis_z=float(d.qpos[2]), peak=peak)
 
 
-def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_deg=3.0, per_joint=None):
+def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_deg=3.0, per_joint=None, arm_pose=(0.0, 0.0)):
     """Gate D's own walk (static_gait.walk_timeline / run_walk's stepping
     loop, copied here to add arm-vs-leg contact accounting -- run_walk
     itself does not expose per-step contacts). The arm/elbow actuators are
-    not in the timeline, so they stay at ctrl 0 = shoulder 0 / elbow 0 =
-    hanging straight down at the sides, exactly the idle pose Tom specified."""
+    not in the timeline, so they default to shoulder 0 / elbow 0 = hanging
+    straight down at the sides, exactly the idle pose Tom specified.
+
+    arm_pose=(shoulder_deg, elbow_deg) HOLDS the arms somewhere else for the
+    whole walk instead. Round 5 (2026-09-19) needs this: with the shoulder
+    joint moved into the hip plane (arm_shoulder_x=0) the hanging arm is
+    directly beside the swinging thigh, and the held pose is the one lever
+    that clears it without moving the JOINT or widening the shoulders."""
     import mujoco as mj
     from static_gait import walk_timeline, make_env
     from design_gates import q_of, JN as _JN
@@ -241,9 +296,17 @@ def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_de
     obs, _ = env.reset(seed=0)
     d0, hi, lo = env._default, env._hi, env._lo
 
+    # q_of returns the 12 LEG joints; everything after them (neck, then
+    # shoulder/elbow per side -- see the model's joint order) is padded. Pad
+    # the arm entries with the held pose rather than zero.
+    _pad = np.zeros(max(0, na - 12))
+    if len(_pad) >= 5:
+        _sh, _el = math.radians(arm_pose[0]), math.radians(arm_pose[1])
+        _pad[1], _pad[2], _pad[3], _pad[4] = _sh, _el, _sh, _el
+
     def inv(q):
         if len(q) < na:
-            q = np.concatenate([q, np.zeros(na - len(q))])
+            q = np.concatenate([q, _pad[:na - len(q)]])
         return np.clip(np.where(q >= d0, (q - d0) / np.maximum(hi - d0, 1e-6), (q - d0) / np.maximum(d0 - lo, 1e-6)), -1, 1)
     tl, windows = walk_timeline(p, n_steps=n_steps, step=0.06, lift_h=0.04, turn_deg=turn_deg)
     dt = env.control_dt
@@ -274,9 +337,42 @@ def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_de
 
 def main():
     mode = sys.argv[1]
+    if mode == "gate4":
+        # Gate D's four walk cases (the set round-4b judged the aft mount on:
+        # docs/design-v6/gateD_shoulder.txt), re-run with arm-vs-leg contact
+        # accounting. This is the gate a round-5 hip-plane shoulder has to pass.
+        print("== GATE D, 4 cases x arm contacts (8 steps, STS3250 rolls+knees, hanging idle pose, self_collide=True)")
+        pj = {"L_knee": "sts3250", "R_knee": "sts3250", "L_hip_roll": "sts3250", "R_hip_roll": "sts3250", "L_ankle_roll": "sts3250", "R_ankle_roll": "sts3250"}
+        cases = (("turn  +0 mu 0.7 play 3", dict()),
+                 ("turn +15 mu 0.7 play 3", dict(turn_deg=15.0)),
+                 ("turn  +0 mu 0.3 play 5", dict(mu=0.3, play_deg=5.0)),
+                 ("turn -15 mu 0.9 play 3", dict(turn_deg=-15.0, mu=0.9)))
+        g4argv = sys.argv[2:]
+        g4pose = (0.0, 0.0)
+        if g4argv and g4argv[0].startswith("--pose="):
+            g4pose = tuple(float(v) for v in g4argv[0].split("=", 1)[1].split(","))
+            g4argv = g4argv[1:]
+            print(f"   held idle arm pose: shoulder {g4pose[0]:+.0f} deg, elbow {g4pose[1]:+.0f} deg")
+        for name in g4argv:
+            p = dataclasses.replace(BASE, **CONFIGS[name])
+            xml = os.path.join(SP, f"gu_g4_{name}_{os.getpid()}.xml"); open(xml, "w").write(build_xml(p))
+            n_ok = 0
+            for label, kw in cases:
+                r = walk_with_arm_contacts(p, xml, per_joint=pj, arm_pose=g4pose, **kw)
+                n_ok += not r["fell"]
+                print(f"{name:18s} {label}  {'FELL' if r['fell'] else 'up  '} tilt_max {r['tilt_max']:5.1f} deg  "
+                      f"arm-vs-leg contacts {r['arm_leg_contacts']:6d}  pairs {r['pairs']}", flush=True)
+            print(f"-- {name}: {n_ok}/4 cases stayed up", flush=True)
+        return
     if mode == "walkarmcontacts":
         print("== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk")
-        names = sys.argv[2:] or ["top1_len35", "top_elbow_18_18"]
+        argv = sys.argv[2:]
+        pose = (0.0, 0.0)
+        if argv and argv[0].startswith("--pose="):
+            pose = tuple(float(v) for v in argv[0].split("=", 1)[1].split(","))
+            argv = argv[1:]
+            print(f"   held idle arm pose: shoulder {pose[0]:+.0f} deg, elbow {pose[1]:+.0f} deg")
+        names = argv or ["top1_len35", "top_elbow_18_18"]
         pj = {"L_knee": "sts3250", "R_knee": "sts3250", "L_hip_roll": "sts3250", "R_hip_roll": "sts3250", "L_ankle_roll": "sts3250", "R_ankle_roll": "sts3250"}
         for name in names:
             if name in CONFIGS:
@@ -285,7 +381,7 @@ def main():
                 up_len, fore_len = [float(x) / 100 for x in name.replace("top_elbow_", "").split("_")]
                 p = dataclasses.replace(BASE, arms=True, arm_z=TOP_Z, arm_len=up_len, arm_elbow=True, arm_fore_len=fore_len)
             xml = os.path.join(SP, f"gu_wc_{name}_{os.getpid()}.xml"); open(xml, "w").write(build_xml(p))
-            r = walk_with_arm_contacts(p, xml, per_joint=pj)
+            r = walk_with_arm_contacts(p, xml, per_joint=pj, arm_pose=pose)
             print(f"{name:20s} {'FELL' if r['fell'] else 'up  '} tilt_max {r['tilt_max']:.1f} deg  "
                   f"arm-vs-leg contacts {r['arm_leg_contacts']} over {r['t_final']:.1f}s  pairs {r['pairs']}", flush=True)
         return

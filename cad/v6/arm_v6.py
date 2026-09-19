@@ -17,14 +17,13 @@ CAD had to deviate -- shoulder 8.9 mm higher, arm plane 7.7 mm further out --
 dimensions_v6.py says so by name next to the constant, and the design note
 (docs/design-v6/arms.md) lists both as sign-off items.
 
-WHAT IS HERE (3 designs, 6 prints -- arms are mirror pairs, like the feet)
-    shoulder_mount_v6(side)  the deck bracket: a cradle that stands the
-                             shoulder servo on the deck top, case LENGTH
-                             VERTICAL, output end down, horn OUTBOARD. Bolted
-                             down with 4x M2.5 self-tap into blind pilots in
-                             the 5 mm deck -- the same interface neck_collar
-                             already uses. Built in the PELVIS frame (deck top
-                             z = 0), because that is the face it bolts to.
+WHAT IS HERE (2 designs, 4 prints -- arms are mirror pairs, like the feet)
+    (the shoulder MOUNT is not here any more. Round 5 -- Tom, 2026-09-19:
+     "rotate the servo bodies 90deg and incorporate them into the torso" --
+     replaced the per-side deck bracket with ONE part that carries both
+     shoulder servos AND the neck: cad/v6/shoulder_girdle_v6.py. The arm
+     LINKS below are unchanged by that: the shoulder servo was rotated about
+     its OWN output axis, so the horn is in exactly the same place.)
     arm_upper_v6(side)       shoulder horn -> elbow. Single-sided horn plate at
                              the top (the hip YAW joint's proven grip: the
                              shoulder servo's idler face looks inboard over the
@@ -97,7 +96,6 @@ OUT_REN = os.path.join(HERE, "renders")
 RY_XUP = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]], float)
 IDENT = np.eye(3)
 PRINT_ORIENT = {
-    "shoulder_mount_v6": (IDENT, "footplate down, cradle walls up"),
     "arm_upper_v6": (RY_XUP, "on its back: web face on bed, arm length in the bed plane"),
     "arm_fore_v6": (RY_XUP, "on its back: web face on bed, arm length in the bed plane"),
 }
@@ -107,13 +105,8 @@ PRINT_ORIENT = {
 ROLL_UP = 90
 
 # derived, local to this module (everything dimensional lives in dimensions_v6)
-_AX = V.ARM_SHOULDER_X                                   # -50, deck frame
-_AZ = V.ARM_CRADLE_FLOOR + D.SV_AXIS_FROM_OUT_END        # 14.11 above the deck top
-_EW_IN = D.SV_WID / 2 + 0.5                              # 12.86 cradle end-wall inner face
-_EW_OUT = _EW_IN + D.WALL                                # 15.46
-_DISC_RELIEF_R = D.SV_IDLER_MOAT_R - 0.4                 # 10.6 -- clears the rotating
-                                                         # idler disc (r 9.6) inside the
-                                                         # moat, never touches the case
+_AX = V.ARM_SHOULDER_X                                   # 0.0 -- the hip plane
+_AZ = V.ARM_AXIS_Z                                       # 16.36 above the deck top
 
 
 def _mirrored(solid, side):
@@ -123,111 +116,6 @@ def _mirrored(solid, side):
     if side == "L":
         return solid
     return mirror(solid, Plane.XZ)
-
-
-# ===========================================================================
-# 1. shoulder_mount_v6 -- the deck bracket
-# ===========================================================================
-def shoulder_mount_v6(side="L"):
-    """The shoulder servo's cradle, in the PELVIS frame (deck top z = 0, robot
-    forward +x, left +y) so it reads directly against pelvis_v7's own geometry.
-    Qty 2 (mirror pair). Print: footplate down, walls up -- the load here is a
-    stubby box, not a cantilever, and every wall is an in-plane member.
-
-    The servo stands on end (see dimensions_v6's ARM_CRADLE_FLOOR block for
-    the three constraints that force that). The cradle is a U open UPWARD and
-    OUTBOARD: floor, an inboard wall carrying the 4 case screws, and two end
-    walls wrapping the case in x with 0.5 mm of slip. The servo drops straight
-    in from above AFTER the bracket is screwed down -- two of the four deck
-    pilots sit under its footprint, which is the assembly order this part
-    declares (INSERT below) and the order the fly-in animates.
-
-    Three reliefs in the inboard wall, all of them holes the servo's own
-    geometry demands and none of them optional:
-      * the idler DISC rotates with the joint and stands 2.05 proud of the case
-        face, so the wall gets an R _DISC_RELIEF_R hole on the axis -- clipped
-        at the floor so the wall/floor joint stays solid;
-      * the moulded back-cover PLATFORM (SV_IDLER_BOSS_*) stands 1.90 proud of
-        the seat, so it gets a detent, same as leg_link's;
-      * the connector TRENCH (SV_CONN_*) is where the servo's own lead plugs
-        in. A wall over it is a servo you cannot wire, so it gets a through
-        window -- which doubles as the cable's route inboard along the deck.
-    """
-    y0, y1 = V.ARM_WALL_Y0, V.ARM_MOUNT_Y1        # 47.15 .. 83.00
-    seat = V.ARM_SEAT_Y                           # 50.15
-    ft = V.ARM_CRADLE_FLOOR                       # 4.0
-    top = _AZ + D.SV_AXIS_FROM_REAR + 2.9         # 52.10 -- just over the cable end
-
-    # --- floor. Reaches y1 = 0.6 past the case's outboard face, which is
-    # 21.7 mm PAST the deck edge (hw_skin 61.26): the servo genuinely hangs off
-    # the side of the torso. That cantilever is why the floor is 4.0 and why
-    # the end walls run its full depth.
-    p = parts.box(_AX - _EW_OUT, _AX + _EW_OUT, y0, y1, 0, ft)
-    # --- aft flange: the inboard ear that carries the wide pilot pair. It can
-    # only live AFT of x -52, because forward of that is the Pi slide slot.
-    p += parts.box(_AX - _EW_OUT, -52.5, 28.0, y0, 0, ft)
-    # --- inboard wall (the case-screw wall) and the two end walls
-    p += parts.box(_AX - _EW_OUT, _AX + _EW_OUT, y0, seat, 0, top)
-    p += parts.box(_AX - _EW_OUT, _AX - _EW_IN, y0, y1, 0, top)
-    p += parts.box(_AX + _EW_IN, _AX + _EW_OUT, y0, y1, 0, top)
-
-    # --- ONE opening for the idler disc AND the connector trench. They are cut
-    # together on purpose: as two separate cuts they left a 0.35 mm rib of wall
-    # between the relief's top and the window's bottom -- a THIN finding and, on
-    # a real print, a strand. The result is a keyhole; the wall's load path is
-    # the two x strips outboard of |x| 9, which is where all four case screws
-    # (x +-10.25) live anyway.
-    opening = parts.cyl_y(_DISC_RELIEF_R, y0 - 1, seat + 1, _AX, _AZ)
-    opening += parts.box(_AX - 9.0, _AX + 9.0, y0 - 1, seat + 1,
-                         _AZ + 2.0, _AZ + D.SV_CONN_L[1] + 1.2)
-    opening -= parts.box(_AX - 20, _AX + 20, y0 - 2, seat + 2, -1, ft + 0.4)
-    p -= opening
-    # --- detent for the moulded back-cover platform (leg_link's, rotated:
-    # our servo is the canonical mock turned 180 about Y, so the platform's
-    # band runs toward the CABLE end, i.e. +z here). Its roof is ramped: flat,
-    # it is a 22 x 2 mm down-facing strip that the audit reads as a BEAM.
-    _ix = D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR
-    _iy = V.ARM_SERVO_MID_Y + D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR
-    _iz0 = _AZ - D.SV_IDLER_BOSS_Z[1] - D.RIB_RELIEF_CLR
-    _iz1 = _AZ - D.SV_IDLER_BOSS_Z[0] + D.RIB_RELIEF_CLR
-    p -= parts.box(_AX - _ix, _AX + _ix, _iy, seat + 0.01, _iz0, _iz1)
-    p -= parts.wedge_x([(seat + 0.01, _iz1), (_iy, _iz1),
-                        (_iy, _iz1 + (seat - _iy) * 1.3)], _AX - _ix, _AX + _ix)
-
-    # --- case screws: the servo's IDLER-side rows, driven from inboard (-y
-    # head, +y tip) into the case. M2.5 flat-head self-tap, D.CASE_SCREW_PILOT
-    # in the case itself; clearance + countersink here.
-    for zrow in D.CASE_HOLES_BOT:
-        for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-            p -= parts.teardrop_y(D.CASE_SCREW_CLEAR / 2, y0 - 1, seat + 1,
-                                  _AX + lx, _AZ + zrow, roll=0)
-            p -= parts.csk_y(_AX + lx, _AZ + zrow, y0, -1)
-    # --- deck pilots: clearance + countersink through the floor
-    for hx, hy in V.ARM_PILOT_XY:
-        p -= parts.cyl_z(D.CASE_SCREW_CLEAR / 2, -1, ft + 1, hx, hy)
-        p -= parts.csk_z(hx, hy, ft, +1)
-
-    # --- style: round the four outer vertical corners (house rule, and the
-    # outboard pair is what a hand reaches past when the pack comes out)
-    try:
-        corners = [(_AX - _EW_OUT, y1), (_AX + _EW_OUT, y1)]
-        edges = [e for e in p.edges()
-                 if abs(e.length - top) < 0.6
-                 and any(abs(e.center().X - cx) < 0.05 and abs(e.center().Y - cy) < 0.05
-                         for cx, cy in corners)]
-        if edges:
-            p = fillet(edges, V.ARM_EDGE_R)
-    except Exception as e:  # noqa: BLE001 -- cosmetic; never fail the build on it
-        print(f"  [arm_v6] shoulder_mount corner fillet skipped ({type(e).__name__}: {str(e)[:70]})")
-    return _mirrored(p, side)
-
-
-def shoulder_servo_mock(side="L"):
-    """The shoulder STS3215 in the PELVIS frame: canonical mock (axis +Y, horn
-    +Y, case length along Z with the OUTPUT end at +10.11) turned 180 about Y
-    so the output end points DOWN onto the cradle floor."""
-    m = Pos(_AX, V.ARM_SERVO_MID_Y, _AZ) * Rot(0, 180, 0) * CA.servo_mock()
-    return _mirrored(m, side)
 
 
 # ===========================================================================
@@ -490,15 +378,8 @@ def SCREWS():
     """Every fastener the arm pair adds, per side, with the frame each one is
     quoted in. `axis` points from the head toward the tip."""
     s = []
-    for hx, hy in V.ARM_PILOT_XY:
-        s.append(dict(name=f"shoulder_mount_deck_{hx:+.0f}_{hy:+.0f}", frame="pelvis",
-                      kind="M2.5x8 self-tap, flat head (2.05 x 4.5 pilot in the deck)",
-                      pos=(hx, hy, V.ARM_CRADLE_FLOOR), axis=(0, 0, -1), length=8.0))
-    for zrow in D.CASE_HOLES_BOT:
-        for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-            s.append(dict(name=f"shoulder_case_{zrow:.0f}_{lx:+.0f}", frame="pelvis",
-                          kind="M2.5x8 self-tap, flat head (into the servo case)",
-                          pos=(_AX + lx, V.ARM_WALL_Y0, _AZ + zrow), axis=(0, 1, 0), length=8.0))
+    # the shoulder's own fasteners (deck pilots + the four case screws) moved
+    # to shoulder_girdle_v6.SCREWS() with the mount itself.
     for i in range(4):
         ang = math.radians(90 * i)
         s.append(dict(name=f"shoulder_horn_{i}", frame="arm_upper",
@@ -531,7 +412,6 @@ def SCREWS():
 
 # where each piece is offered from, on the bench (fly-in / animate_v6)
 INSERT = {
-    "shoulder_mount": (0, 0, 1),     # lowered onto the deck, screwed down FIRST
     "servo_shoulder": (0, 0, 1),     # dropped into the open cradle from above
     "arm_upper": (0, 1, 0),          # offered straight in onto the horn, outboard->in
     "servo_elbow": (1, 0, 0),        # slid into the forearm's grip channel from the front
@@ -542,34 +422,6 @@ INSERT = {
 # ===========================================================================
 # audits
 # ===========================================================================
-def check_deck_pilots(verbose=True):
-    """Every deck pilot must be fully BURIED in the pelvis deck: 4.5 mm deep
-    into a 5 mm plate leaves 0.5 mm of floor, and the deck around here is cut
-    by the Pi slide slot, the leg-bus slots, the battery aperture and the R3
-    top fillet. Checked against the real solid, both sides, not against a
-    drawing of where those cuts are.
-    """
-    import pelvis_v7 as PV
-    solid = PV.pelvis_v7()
-    worst, ok = 0.0, True
-    for hx, hy0 in V.ARM_PILOT_XY:
-        for sgn in (1, -1):
-            hy = sgn * hy0
-            pilot = parts.cyl_z(V.ARM_PILOT_D / 2, -V.ARM_PILOT_DEPTH, 0.0, hx, hy)
-            # the pilot must lie entirely inside the deck: pilot - solid == 0
-            try:
-                stray = (pilot - solid).volume
-            except Exception:  # noqa: BLE001
-                stray = float("nan")
-            worst = max(worst, stray)
-            good = stray < 0.5
-            ok &= good
-            if verbose:
-                print(f"  {'PASS' if good else 'FAIL'}  deck pilot ({hx:+6.1f},{hy:+6.1f})  "
-                      f"outside the deck: {stray:6.2f} mm3")
-    return ok
-
-
 def check_elbow_rom(samples=41, verbose=True):
     """The elbow's real limit: sweep the forearm AND the elbow servo it carries
     against the upper arm's fork, and report the widest band that clears
@@ -640,9 +492,7 @@ def run_audits(built, verbose=True):
         if CP.audit(name):
             ok = False
 
-    print("\n== deck pilots buried in the pelvis deck ==")
-    if not check_deck_pilots():
-        ok = False
+    # (deck pilots moved with the mount: shoulder_girdle_v6.check_deck_pilots)
 
     print("\n== elbow range of motion (CAD, forearm vs the upper arm's fork) ==")
     band = check_elbow_rom()
@@ -651,7 +501,7 @@ def run_audits(built, verbose=True):
 
     print("\n== mass ==")
     per_arm = 0.0
-    for name in ("shoulder_mount_v6_L", "arm_upper_v6_L", "arm_fore_v6_L"):
+    for name in ("arm_upper_v6_L", "arm_fore_v6_L"):
         s = BUILDERS[name]()
         m = mass_g(s)
         per_arm += m
@@ -702,8 +552,6 @@ def render(stl_path, png_path, px=560):
 
 
 BUILDERS = {
-    "shoulder_mount_v6_L": lambda: shoulder_mount_v6("L"),
-    "shoulder_mount_v6_R": lambda: shoulder_mount_v6("R"),
     "arm_upper_v6_L": lambda: arm_upper_v6("L"),
     "arm_upper_v6_R": lambda: arm_upper_v6("R"),
     "arm_fore_v6_L": lambda: arm_fore_v6("L"),

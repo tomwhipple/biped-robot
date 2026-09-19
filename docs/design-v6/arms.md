@@ -1,5 +1,19 @@
 # Arms in CAD (2026-09-19): drawing the get-up decision
 
+> **Partly superseded the same day by
+> [`shoulder-girdle.md`](shoulder-girdle.md) (round 5).** Tom, on seeing these
+> arms in FreeCAD: *"looks like the arms are just bolted on. Aside from being
+> brittle, it looks ugly."* The **arm links** (`arm_upper_v6`, `arm_fore_v6`)
+> described below are unchanged and still current. What is superseded is
+> everything about the **mount**: `shoulder_mount_v6` is deleted, the shoulder
+> servo is rotated 90 deg about its own output axis and lies fore-aft inside a
+> one-piece `shoulder_girdle_v6` that also absorbs the neck collar, the
+> shoulder joint moved from x = -50 to **x = 0 (the hip plane)**, and the arm
+> plane moved from `ARM_Y` 88.0 to **103.35**. Section 1's "three constraints
+> pick that pose and there is no fourth option" was true of a servo standing
+> on END; rotating it removed the premise. Read the round-5 note for what the
+> numbers are now.
+
 Tom, 2026-09-19: *"I'm still waiting for a render with the arms... though
 perhaps those haven't been designed in CAD yet? Let's get that done."*
 

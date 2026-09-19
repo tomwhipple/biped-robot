@@ -42,6 +42,7 @@ DEFAULT_OUT = os.path.join(HERE, "bimo_biped_v6ar.xml")
 # 24.72 wide x 34.70 across the output axis; output axis 10.11 from the
 # output end, centred in the width.
 SV_LEN, SV_WID, SV_T = 0.04522, 0.02472, 0.03470
+SV_AXIS_OUT = 0.01011   # output axis -> the output END of the case (dimensions.SV_AXIS_FROM_OUT_END)
 SV_AX_OUT = 0.01011
 
 
@@ -112,6 +113,22 @@ class DesignParams:
     arm_abd_add: float = 20.0    # adduction limit (deg, toward centreline)
     arm_abd_abd: float = 100.0   # abduction limit (deg, away from centreline / out to the side)
     arm_shoulder_y_extra: float = 0.0   # extra lateral offset beyond the torso-hugging default (m)
+    arm_cad_servos: bool = False  # round 5 (2026-09-19): place the arm's servo
+                                  # BOXES where cad/v6/arm_v6.py actually draws
+                                  # them, instead of the round-2 placeholder.
+                                  # The placeholder put BOTH servo boxes half a
+                                  # case INBOARD of their joint and CENTRED on
+                                  # the axis. The CAD elbow servo is centred on
+                                  # the ARM PLANE (the upper arm FORKS round it,
+                                  # arm_v6.arm_upper_v6) and HANGS below the
+                                  # elbow axis (case bottom 10.11 mm below it,
+                                  # SV_AXIS_FROM_OUT_END) -- i.e. ~20 mm further
+                                  # OUTBOARD and ~12 mm lower than the plant
+                                  # modelled. That box is the arm geometry that
+                                  # reaches the thigh, so the placeholder made
+                                  # the forearm collide with the leg far more
+                                  # than the drawn one does. Default False so
+                                  # every round 1-4 number stays reproducible.
     tail: bool = False           # kangaroo tail: one STS3215 (pitch) at the housing rear, a rod
     tail_len: float = 0.20       # with a rubber tip; 0 deg = straight back, + = tip up
     tail_x: float = -0.062       # root x (behind the deck's aft edge -0.058)
@@ -555,11 +572,15 @@ def _arms(p: DesignParams) -> str:
     zs = p.deck_bot - 0.015 if p.arm_z is None else p.arm_z
     for side, sgn in (("L", 1), ("R", -1)):
         y = sgn * (p.deck_w / 2 + SV_T / 2 + 0.004) + sgn * p.arm_shoulder_y_extra
+        # elbow servo box: CAD places it centred on the ARM PLANE and hanging
+        # below the elbow axis; the round-2 placeholder put it inboard+centred.
+        _el_y = 0.0 if p.arm_cad_servos else -sgn * SV_T / 2
+        _el_z = -(SV_LEN / 2 - SV_AXIS_OUT) if p.arm_cad_servos else 0.0
         hand = f'<geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>'
         if p.arm_elbow:
             hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}">
           <joint name="{side}_elbow" axis="0 1 0" range="-150 150"/>
-          <geom class="servo" type="box" pos="0 {_f(-sgn*SV_T/2)} 0" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
+          <geom class="servo" type="box" pos="0 {_f(_el_y)} {_f(_el_z)}" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
           <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_fore_len)}" size="0.006" mass="{p.arm_mass*0.6}" rgba="0.82 0.84 0.87 1"/>
           <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_fore_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
         </body>"""

@@ -599,54 +599,118 @@ ARM_SHOULDER_X = -50.0   # aft mount (plant arm_shoulder_x = -0.05). This is
                          # leg: 7327 arm-vs-leg contacts at the default -0.02
                          # mount, 31 here (study section 5). Do not move it forward.
 
-# --- the shoulder servo's pose on the deck, and what forced it -------------
-# The servo stands on the deck with its case LENGTH VERTICAL, output end DOWN,
-# cable end up, output axis along Y and the HORN OUTBOARD. Three constraints
-# pick that pose and there is no fourth option:
-#   (a) the output axis must be lateral (Y) for a sagittal-plane shoulder, so
-#       the case's 34.70 SV_CASE_T always runs along Y. The case therefore
-#       always reaches to ARM_Y - 5.6, whatever else is done.
-#   (b) laid flat (case length along X) the cradle would sit over the battery
-#       aperture (x -36.51..+10.41, |y| < 54.66) -- the deck is OPEN there, so
-#       the forward case-screw row would have nothing to bolt into. Standing it
-#       up puts the whole 24.72 mm footprint aft of the aperture.
-#   (c) the Pi 4B can only be installed by sliding DOWN through its deck slot
-#       (x -51.76..-37.76, |y| <= 45, pelvis_v7's PI_SLOT). Nothing of the arm
-#       mount may overhang that slot or the Pi becomes uninstallable, which is
-#       what sets ARM_Y (below) rather than the plant's 80.35.
-ARM_CRADLE_FLOOR = 4.0   # bracket floor under the servo's output end. 4.0, not
-                         # WALL: this plate cantilevers ~22 mm past the deck edge.
-ARM_SHOULDER_Z = DECK_TOP_Z + ARM_CRADLE_FLOOR + D.SV_AXIS_FROM_OUT_END   # 474.38
-ARM_ELBOW_Z = ARM_SHOULDER_Z - ARM_UPPER                                  # 314.38
-ARM_HAND_Z = ARM_ELBOW_Z - ARM_FORE                                       # 154.38
-# DEVIATION 1 (shoulder height): the plant put the shoulder 79.0 mm above the
-# yaw axis ("the deck top"). The CAD deck top is only 73.80 above the yaw axis
-# (the CAD housing is 5 mm shallower than the plant's), and a real servo case
-# cannot have its axis IN the deck surface -- the axis sits 4.0 (floor) +
-# 10.11 (SV_AXIS_FROM_OUT_END) above it. Net: 87.91, i.e. +8.9 mm.
-ARM_SHOULDER_ABOVE_YAW = ARM_SHOULDER_Z - HIP_YAW_Z                       # 87.91
+# --- the shoulder servo's pose: LYING FORE-AFT, WRAPPED BY THE TORSO -------
+# Round 4 stood the servo ON END on the deck lid (case length vertical) in a
+# bracket bolted down with four M2.5 self-taps, hanging 21.7 mm past the deck
+# edge. Tom, 2026-09-19: *"looks like the arms are just bolted on. Aside from
+# being brittle, it looks ugly. We should rotate the servo bodies 90deg and
+# incorporate them into the torso, then put the head above them, so they look
+# like real shoulders"* ... *"and put the shoulder joint in the same plane as
+# the hips."*
+#
+# The case is rotated 90 deg ABOUT ITS OWN OUTPUT AXIS. The axis is still
+# lateral (+-Y, horn OUTBOARD) -- it has to be for a sagittal-plane shoulder,
+# which is why SV_CASE_T (34.70) still runs along Y and why NOTHING about the
+# arm LINKS changes. What changes is which of the other two case dimensions
+# stands up:
+#     round 4:  case LENGTH (45.22) vertical, axis SV_AXIS_FROM_OUT_END above
+#               the case's lower END -> a tower standing on the lid
+#     round 5:  case WIDTH  (24.72) vertical, axis SV_WID/2 above the case's
+#               lower LONG FACE, case LENGTH running FORE-AFT
+# The servo now lies along the top of the torso like a scapula instead of
+# standing on it, and with ARM_SHOULDER_X = 0 its footprint is
+# x -35.11..+10.11 (cable end AFT) -- the SAME x band the neck servo already
+# occupies (NECK_WELL_X -35.41..+10.41). The three servos at the top of the
+# torso line up in one transverse block, and shoulder_girdle_v6 is the single
+# printed part that wraps all three.
+ARM_SHOULDER_X = 0.0     # "the same plane as the hips": directly above the hip
+                         # yaw axis, not 50 mm aft. This undoes round 4b's aft
+                         # mount, whose ONLY job was keeping the hanging arm
+                         # clear of the swinging leg -- so it was re-measured,
+                         # not assumed. See ARM_WALK_HOLD below and
+                         # docs/design-v6/shoulder-girdle.md section 2.
+GIRDLE_FLOOR = 4.0       # bay floor under the servo's lower long face. Same
+                         # 4.0 the round-4 cradle used, and it is what keeps
+                         # the whole girdle FLAT-BOTTOMED at the deck plane --
+                         # the part prints base-down, so nothing may hang below
+                         # z = 0 (see the module docstring's print block).
+ARM_AXIS_Z = GIRDLE_FLOOR + D.SV_WID / 2                                  # 16.36 above the deck top
+ARM_SHOULDER_Z = DECK_TOP_Z + ARM_AXIS_Z                                  # 476.63
+ARM_ELBOW_Z = ARM_SHOULDER_Z - ARM_UPPER                                  # 316.63
+ARM_HAND_Z = ARM_ELBOW_Z - ARM_FORE                                       # 156.63
+# DEVIATION 1 (shoulder height), unchanged in kind from round 4 and barely
+# changed in size: the plant put the shoulder 79.0 mm above the yaw axis. The
+# CAD deck top is 73.80 above it, and a real case lying on a 4 mm floor puts
+# its axis 16.36 higher still -> 90.16, i.e. +11.2. (Round 4 was +8.9. The
+# extra 2.3 mm is the difference between resting on the case's END and resting
+# on its long FACE.) Measured at the as-drawn height: the walk gate config
+# `r5_girdle_ondeck` uses arm_z = 0.09016 exactly, and passes 4/4.
+ARM_SHOULDER_ABOVE_YAW = ARM_SHOULDER_Z - HIP_YAW_Z                       # 90.16
 ARM_SHOULDER_Z_SIM = 79.0    # what the get-up was measured at (m*1e3, above yaw)
+# The servo's fore-aft footprint, in the pelvis frame, with the CABLE end AFT.
+# Aft on purpose: the Pi and the General Driver are both in the aft half of
+# the housing, so the lead runs the short way; and it puts the case's mass
+# behind the joint, which is the direction the arm swings to push.
+ARM_CASE_X = (ARM_SHOULDER_X - D.SV_AXIS_FROM_REAR,
+              ARM_SHOULDER_X + D.SV_AXIS_FROM_OUT_END)                    # -35.11..+10.11
 
-# --- the arm plane --------------------------------------------------------
-# |y| of the upper arm's horn plate == the elbow servo's mid-plane. The arm is
-# straight: one plane from the shoulder horn to the hand.
-# DEVIATION 2 (lateral): the plant hung the arm at 80.35 mm (deck_w/2 + SV_T/2
-# + 4 on its 118 mm-wide deck). 88.0 here, +7.7 mm outboard, forced by (c)
-# above: the shoulder servo's inboard case-screw wall is ARM_Y - 40.85, and it
-# must clear the Pi slot's y = 45 edge. It is also the friendlier direction --
-# the study's own widen sweep (arm_shoulder_y_extra +20 mm) cut arm-vs-leg
-# contacts, and in CAD it is what buys the elbow fork its clearance past the
-# thigh/yoke (whose outer face reaches y 65.5).
-ARM_Y = 88.0
+# --- the arm plane, and why it is where it is ------------------------------
+# Round 4 derived ARM_Y from the Pi slide slot. Round 5 derives it from the
+# DECK EDGE, because the rotated case is no longer over the lid at all: it
+# lies OUTBOARD of the housing skin, and the girdle's inboard wall has to fit
+# in between with a driver's worth of nothing in it. Chain, outward from the
+# skin -- every step is a real thickness, none of it is chosen:
+GIRDLE_SKIN_AIR = 1.24                                   # wall inner face off the skin
+GIRDLE_WALL_Y0 = HOUSING_HW + GIRDLE_SKIN_AIR            # 62.50
+GIRDLE_WALL_T = D.GRIP_PLATE_T_IDLER                     # 3.00
+ARM_SEAT_Y = GIRDLE_WALL_Y0 + GIRDLE_WALL_T              # 65.50 seat face (case lands here)
+ARM_SERVO_MID_Y = ARM_SEAT_Y + D.GRIP_SEAT_CLR - D.SV_IDLER_CASE_FACE     # 80.40 case mid-plane
+ARM_CASE_Y1 = ARM_SERVO_MID_Y + D.SV_TOPFACE             # 97.75 case outboard (horn-side) face
+ARM_HORN_FACE_Y = ARM_SERVO_MID_Y + D.SV_HORN_FACE       # 100.85 horn mounting face
+GIRDLE_GRIP_T = D.GRIP_PLATE_T                           # 2.40 outboard grip plate
+GIRDLE_Y1 = ARM_CASE_Y1 + GIRDLE_GRIP_T                  # 100.15 girdle's outer face
+ARM_Y = ARM_HORN_FACE_Y + D.HORN_BOSS_H + D.PLATE / 2    # 103.35 the arm plane
 ARM_Y_SIM = 80.35
-ARM_HORN_FACE_Y = ARM_Y - D.PLATE / 2 - D.HORN_BOSS_H      # 85.50 shoulder horn face
-ARM_SERVO_MID_Y = ARM_HORN_FACE_Y - D.SV_HORN_FACE         # 65.05 shoulder case mid-plane
-ARM_SEAT_Y = ARM_SERVO_MID_Y + D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR      # 50.15 wall seat
-ARM_WALL_Y0 = ARM_SEAT_Y - D.GRIP_PLATE_T_IDLER            # 47.15 wall inner face
-ARM_CASE_Y1 = ARM_SERVO_MID_Y + D.SV_TOPFACE               # 82.40 case outboard face
-ARM_MOUNT_Y1 = ARM_CASE_Y1 + 0.6                           # 83.00 bracket outboard limit
-assert ARM_WALL_Y0 > PI_OUTLINE[0] / 2 + 2.5 + 1.0, \
-    "shoulder bracket must clear the Pi slide slot (pelvis_v7 PI_SLOT)"
+# The grip plate is on the HORN (outboard) face, not the idler face round 4
+# used, and that is an ACCESS result, not a preference: with the case lying
+# against the torso there is GIRDLE_SKIN_AIR = 1.24 mm between the girdle's
+# inboard wall and the housing skin, and no driver reaches into a 1.24 mm
+# slot. The horn-side face is open air. Precedent: leg_link's own horn-side
+# grip plate, with D.GRIP_HORN_RELIEF around the O19.6 case boss.
+assert GIRDLE_Y1 < ARM_HORN_FACE_Y, \
+    "the static grip plate must stay clear of the plane the ROTATING arm plate bolts to"
+GIRDLE_ARM_CLR = ARM_HORN_FACE_Y - GIRDLE_Y1             # 0.70 mm of air, arm vs girdle
+GIRDLE_WIDTH = 2 * GIRDLE_Y1                             # 200.30
+assert GIRDLE_WIDTH <= D.BED, "the girdle must fit the print bed in one piece"
+# DEVIATION 2 (lateral): the plant hung the arm at 80.35. 103.35 here, +23.0.
+# Round 4 was +7.7 and it was forced by the Pi slot; this one is forced by the
+# deck edge (above) -- and it is ALSO what the walk gate wants once the
+# shoulder comes forward to x = 0, so the structural number and the measured
+# one agree instead of fighting. See docs/design-v6/shoulder-girdle.md.
+
+# --- the held arm pose during locomotion -----------------------------------
+# The one thing the aft mount really bought was fore-aft separation between
+# the hanging arm and the swinging leg. With the joint in the hip plane that
+# separation has to come from somewhere, and it comes from the POSE, which is
+# free: the arm actuators are not in the walk timeline, so whatever they are
+# commanded to is what they hold.
+#
+# Measured (docs/design-v6/getup_search_girdle_pose.txt, the 8-step walk with
+# self-collision on, as-drawn servo boxes):
+#     shoulder  0 deg (straight down):  592 arm-vs-leg contacts, and the
+#                                       mu 0.3 / play 5 gate case FALLS
+#     shoulder 10 deg back:             0 contacts
+#     shoulder 15 deg back:             0 contacts
+#     shoulder 25 deg back:             0 contacts
+# and at both 10 and 15 the full four-case gate is 4/4 with zero contacts
+# (getup_search_girdle_gate4_pose.txt) -- strictly better than round 4b's aft
+# mount, which scored 4/4 with 0/126/0/184. 15 is the middle of the measured
+# zero band, so 15 is the number.
+ARM_WALK_HOLD = 15.0     # deg, shoulder held BACK while walking/standing
+                         # (+ = backward, 0 = straight down). Costs ~0.02 N-m
+                         # of holding torque per shoulder against a 2.72 N-m
+                         # stall; it is a controller default, not geometry.
+ARM_WALK_HOLD_BAND = (10.0, 25.0)   # the measured zero-contact band
 
 # --- the arm links --------------------------------------------------------
 # Section: an open C -- back web + two side rails, opening FORWARD (+x). Not a
@@ -671,9 +735,18 @@ ARM_TIP_X = 5.0                  # rails' front edge at the far end of a shaft.
 ARM_RAIL_T = D.WALL              # 2.6 rail thickness in y. In the jog the rails
                                  # run at ~30 deg, so ~2.25 perpendicular -- still
                                  # 5 perimeters at a 0.4 nozzle.
-ARM_SHAFT_Y = (-3.5, 10.5)       # upper-arm shaft, local y (0 == the arm plane).
-                                 # Inboard face is 2.1 mm outboard of the shoulder
-                                 # case face and 1.5 mm off the bracket's outer limit.
+# upper-arm shaft, local y (0 == the arm plane). The INBOARD bound is not a
+# free number and never was: the shaft sweeps past the shoulder mount every
+# time the arm swings, so it is derived FROM the mount's outer face with
+# ARM_SHAFT_CLR of air. Round 4 quoted -3.5 against a bracket whose outer
+# limit was 83.0; round 5's girdle reaches GIRDLE_Y1 = 100.15 against an arm
+# plane of 103.35, and -3.5 put the shaft 0.30 mm INSIDE it -- which is
+# exactly what check_assembly_v6's `arm_upper vs shoulder_girdle_v6` row
+# caught (0.47 mm3 of overlap at shoulder +55 deg).
+ARM_SHAFT_CLR = 1.5
+ARM_SHAFT_Y = (GIRDLE_Y1 + ARM_SHAFT_CLR - ARM_Y, 10.5)     # (-1.70, 10.5)
+assert ARM_Y + ARM_SHAFT_Y[0] >= GIRDLE_Y1 + 1.0, \
+    "the upper arm's shaft sweeps into the girdle"
 ARM_FORE_SHAFT_HY = 8.0          # forearm shaft half width (nothing inboard to dodge)
 ARM_JOG_Z = (-108.0, -136.0)     # upper arm: shaft -> elbow fork, widening band
 ARM_HAND_R = 12.0                # hand knuckle radius == the plant's hand sphere
@@ -697,19 +770,35 @@ ARM_ROM = {"shoulder": (-90.0, 200.0), "elbow": (-100.0, 10.0)}
 ARM_ROM_SIM = {"shoulder": (-90.0, 200.0), "elbow": (-150.0, 150.0)}
 
 # --- deck interface -------------------------------------------------------
-# 4x M2.5 self-tap into blind pilots in the 5 mm deck, EXACTLY the pattern
-# neck_collar already uses (2.05 dia x 4.5 deep from the deck top). Positions
-# are pelvis-frame (deck top z = 0), left side; the right side mirrors in y.
-# Every one is checked against the real pelvis solid by arm_v6.check_deck_pilots.
+# The girdle bolts down with M2.5 self-taps into blind pilots in the 5 mm
+# deck (2.05 dia x 4.5 deep from the deck top) -- the same interface the neck
+# collar was drawn with. WHERE they go is not a drawing decision: the deck
+# here is cut by the Pi slide slot (x -51.76..-37.76, |y| <= 45), the battery
+# aperture (x -36.51..+10.41, |y| < 54.66), the General Driver lead slot and
+# the R3 top fillet, and a 4.5 mm pilot in the wrong place is a hole into the
+# battery bay. Every position below was found by PROBING the real pelvis solid
+# on a grid and is re-verified on every build by
+# shoulder_girdle_v6.check_deck_pilots().
+#
+# What survives the probe is one continuous strip either side -- y 55..59, the
+# deck's edge beam over the housing side wall -- plus the solid land forward
+# of the battery aperture (x >= +10.5). So the girdle bolts on two long rails
+# and one forward beam, which is also exactly the load path the arm wants.
+#
+# (The probe also found a PRE-EXISTING defect it was not looking for: all four
+# of neck_collar.py's own flange pilots, (-42.01, +-19.26) and (+17.01,
+# +-19.26), are 100 % outside the deck solid -- the aft pair lands in the Pi
+# slide slot, the forward pair in the GD lead slot. The collar has nothing to
+# bite. The girdle absorbs the collar and replaces those four with the
+# verified set below; docs/design-v6/shoulder-girdle.md section 6.)
 ARM_PILOT_D = 2.05
 ARM_PILOT_DEPTH = 4.5
-# The quadrilateral is squashed on purpose. Three cuts box it in: the Pi slot
-# (|y| <= 45 over x -51.76..-37.76) keeps the forward pair OUTBOARD, the
-# battery aperture (x >= -36.51) keeps everything aft of it, and the bracket's
-# own case-screw wall (y 47.15..50.15) must not be undercut by a countersink,
-# which costs another 3 mm either side. What is left is: two on the aft ear,
-# deep inboard, and two on the cradle floor outboard of the wall.
-ARM_PILOT_XY = [(-61.0, 32.0), (-55.0, 32.0), (-61.0, 56.0), (-41.0, 56.0)]
+GIRDLE_RAIL_PILOT_X = (-32.0, -18.0, -4.0, 8.0)
+GIRDLE_RAIL_PILOT_Y = 57.0        # between the aperture edge (54.66) and the
+                                  # deck's R3 top fillet (starts at 58.26)
+GIRDLE_CLAV_PILOT_XY = ((14.0, 40.0), (14.0, 20.0))
+GIRDLE_PILOT_XY = ([(x, s * GIRDLE_RAIL_PILOT_Y) for x in GIRDLE_RAIL_PILOT_X for s in (1, -1)]
+                   + [(x, s * y) for x, y in GIRDLE_CLAV_PILOT_XY for s in (1, -1)])
 
 # --- what the pair costs --------------------------------------------------
 ARM_SERVO_COUNT = 4      # 2 per arm: shoulder pitch + elbow, both STS3215

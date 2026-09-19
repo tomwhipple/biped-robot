@@ -486,9 +486,11 @@ def pelvis_v7(bearing_variant="C", arm_mounts=False):
     # real and belongs in the sign-off: A PELVIS PRINTED WITHOUT THIS FLAG
     # CANNOT TAKE THE ARMS WITHOUT BEING DRILLED OR REPRINTED.
     if arm_mounts:
-        for hx, hy in V.ARM_PILOT_XY:
-            for sgn in (1, -1):
-                p -= cyl_z(V.ARM_PILOT_D / 2, -V.ARM_PILOT_DEPTH, 0.5, hx, sgn * hy)
+        # blind pilots for shoulder_girdle_v6. The list is already both sides
+        # (dimensions_v6.GIRDLE_PILOT_XY) and every entry is verified against
+        # THIS solid by shoulder_girdle_v6.check_deck_pilots().
+        for hx, hy in V.GIRDLE_PILOT_XY:
+            p -= cyl_z(V.ARM_PILOT_D / 2, -V.ARM_PILOT_DEPTH, 0.5, hx, hy)
 
     # ---- HOUSING_SKIN: the real 3 deg taper, separate from the cell/column
     # structure (coordinator, 2nd mass pass). dimensions_v6.py now carries a

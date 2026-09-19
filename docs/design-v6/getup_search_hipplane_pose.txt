@@ -1,0 +1,21 @@
+== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk
+   held idle arm pose: shoulder +10 deg, elbow +0 deg
+top_elbow_16_16_hip_cad FELL tilt_max 92.6 deg  arm-vs-leg contacts 20945 over 44.6s  pairs [('L_forearm', 'L_hip_yaw'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_hip_yaw'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk
+   held idle arm pose: shoulder +15 deg, elbow +0 deg
+top_elbow_16_16_hip_cad FELL tilt_max 93.5 deg  arm-vs-leg contacts 12670 over 44.6s  pairs [('L_forearm', 'L_hip_yaw'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_hip_yaw'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk
+   held idle arm pose: shoulder +20 deg, elbow +0 deg
+top_elbow_16_16_hip_cad FELL tilt_max 95.6 deg  arm-vs-leg contacts 6794 over 44.6s  pairs [('L_forearm', 'L_hip_yaw'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_hip_yaw'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk
+   held idle arm pose: shoulder +30 deg, elbow +0 deg
+top_elbow_16_16_hip_cad FELL tilt_max 105.9 deg  arm-vs-leg contacts 5820 over 44.6s  pairs [('L_forearm', 'L_hip_yaw'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_hip_yaw'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk
+   held idle arm pose: shoulder +0 deg, elbow -20 deg
+top_elbow_16_16_hip_cad up   tilt_max 20.0 deg  arm-vs-leg contacts 20632 over 44.6s  pairs [('L_forearm', 'L_hip_yaw'), ('L_forearm', 'L_shin'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_hip_yaw'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]
+== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk
+   held idle arm pose: shoulder +0 deg, elbow -40 deg
+top_elbow_16_16_hip_cad up   tilt_max 19.5 deg  arm-vs-leg contacts 20114 over 44.6s  pairs [('L_forearm', 'L_hip_yaw'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_hip_yaw'), ('R_forearm', 'R_thigh')]
+== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk
+   held idle arm pose: shoulder +15 deg, elbow -20 deg
+top_elbow_16_16_hip_cad up   tilt_max 20.7 deg  arm-vs-leg contacts 4839 over 44.6s  pairs [('L_forearm', 'L_hip_yaw'), ('L_forearm', 'L_shin'), ('L_forearm', 'L_thigh'), ('R_forearm', 'R_hip_yaw'), ('R_forearm', 'R_shin'), ('R_forearm', 'R_thigh')]

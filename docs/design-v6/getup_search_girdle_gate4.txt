@@ -1,0 +1,11 @@
+== GATE D, 4 cases x arm contacts (8 steps, STS3250 rolls+knees, hanging idle pose, self_collide=True)
+r5_girdle          turn  +0 mu 0.7 play 3  up   tilt_max   2.8 deg  arm-vs-leg contacts    708  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_girdle          turn +15 mu 0.7 play 3  up   tilt_max   7.3 deg  arm-vs-leg contacts    880  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_girdle          turn  +0 mu 0.3 play 5  FELL tilt_max 103.4 deg  arm-vs-leg contacts    324  pairs [('L_forearm', 'L_shin'), ('R_ankle_blk', 'R_forearm'), ('R_forearm', 'R_shin')]
+r5_girdle          turn -15 mu 0.9 play 3  up   tilt_max   7.2 deg  arm-vs-leg contacts    854  pairs [('L_forearm', 'L_shin'), ('R_ankle_blk', 'R_forearm'), ('R_forearm', 'R_shin')]
+-- r5_girdle: 3/4 cases stayed up
+r5_girdle_ondeck   turn  +0 mu 0.7 play 3  up   tilt_max   2.9 deg  arm-vs-leg contacts    592  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_girdle_ondeck   turn +15 mu 0.7 play 3  up   tilt_max   7.4 deg  arm-vs-leg contacts    711  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_girdle_ondeck   turn  +0 mu 0.3 play 5  FELL tilt_max 102.7 deg  arm-vs-leg contacts     31  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+r5_girdle_ondeck   turn -15 mu 0.9 play 3  up   tilt_max   7.0 deg  arm-vs-leg contacts    683  pairs [('L_forearm', 'L_shin'), ('R_forearm', 'R_shin')]
+-- r5_girdle_ondeck: 3/4 cases stayed up

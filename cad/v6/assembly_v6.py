@@ -188,6 +188,14 @@ def part_pelvis():
 
 
 def part_collar():
+    """The neck's mount. With ARMS=1 this is no longer a standalone collar:
+    shoulder_girdle_v6 absorbs it, so the neck tube, the two shoulder pods and
+    the trapezius webs are ONE print and the head rises out of the same solid
+    the arms hang off."""
+    if arms_on():
+        s, ok = _try("shoulder_girdle_v6", "shoulder_girdle_v6")
+        if ok:
+            return s
     s, ok = _try("neck_collar", "neck_collar")
     if ok:
         return s
@@ -316,7 +324,8 @@ def _torso_pieces():
         (0, "pi4_mock", COL_MOCK, Pos(0, 0, z) * mock_pi()),
         (0, "gd_mock", COL_MOCK, Pos(0, 0, z) * mock_gd()),
         (0, "servo_neck", COL_SERVO, Pos(V.NECK_X, 0, z + V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z()),
-        (0, "neck_collar", COL_PRINT, Pos(V.NECK_X, 0, z) * part_collar()),
+        (0, "shoulder_girdle_v6" if arms_on() else "neck_collar", COL_PRINT,
+         Pos(0 if arms_on() else V.NECK_X, 0, z) * part_collar()),
     ]
 
 
@@ -334,6 +343,7 @@ def _arm_chain(side):
     The bracket and the shoulder servo are drawn in the PELVIS frame, so they
     are lifted by DECK_TOP_Z here exactly as pelvis_v7 itself is."""
     import arm_v6
+    import shoulder_girdle_v6 as SG
     y = V.ARM_Y * (1 if side == "L" else -1)
     deck = Pos(0, 0, V.DECK_TOP_Z)
     at_sh = Pos(V.ARM_SHOULDER_X, y, V.ARM_SHOULDER_Z)
@@ -341,8 +351,10 @@ def _arm_chain(side):
     joints = [("shoulder", (0, 1, 0), (V.ARM_SHOULDER_X, y, V.ARM_SHOULDER_Z)),
               ("elbow", (0, 1, 0), (V.ARM_SHOULDER_X, y, V.ARM_ELBOW_Z))]
     pieces = [
-        (0, f"shoulder_mount_{side}", COL_PRINT, deck * arm_v6.shoulder_mount_v6(side)),
-        (0, f"servo_shoulder_{side}", COL_SERVO, deck * arm_v6.shoulder_servo_mock(side)),
+        # the shoulder bracket is gone: shoulder_girdle_v6 carries BOTH shoulder
+        # servos and the neck, and it is drawn once in torso_pieces(). Only the
+        # servo itself rides link 0 here.
+        (0, f"servo_shoulder_{side}", COL_SERVO, deck * SG.shoulder_servo_mock(side)),
         (1, f"arm_upper_{side}", COL_PRINT, at_sh * arm_v6.arm_upper_v6(side)),
         (2, f"servo_elbow_{side}", COL_SERVO, at_el * arm_v6.elbow_servo_mock(side)),
         (2, f"arm_fore_{side}", COL_PRINT, at_el * arm_v6.arm_fore_v6(side)),

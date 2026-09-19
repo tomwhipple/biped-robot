@@ -52,7 +52,11 @@ PAIRS = [
     ("ankle_roll", "servo_ankle_roll_{s}", "servo_ankle_pitch_{s}", "roll case vs the pitch servo hanging above it"),
     ("neck", "head", "pelvis_v7", "head shell vs the deck through +-90"),
     ("neck", "head", "servo_neck", "head base vs the neck servo case (rides on its horn)"),
-    ("neck", "head", "neck_collar", "head shell vs the collar top through +-90 (>= 1.5 mm by design)"),
+    # the neck's mount is the standalone collar in the armless build and the
+    # shoulder girdle (which absorbs it) with ARMS=1 -- same clearance, one
+    # name or the other depending on what is actually in the assembly.
+    ("neck", "head", "shoulder_girdle_v6" if A.arms_on() else "neck_collar",
+     "head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)"),
 ]
 # pairs designed to touch at the standing pose (seat/disc contacts): checked
 # for intersection VOLUME only (must be ~0), the distance rule is waived
@@ -94,13 +98,13 @@ SINGLE_SEATED = {("hip_yoke_{s}", "yaw_carrier_{s}"): "one-print yoke vs the bay
 ARM_PAIRS = [
     ("shoulder", "arm_upper_{s}", "pelvis_v7", "upper arm vs the torso through the whole sweep, hanging", None),
     ("shoulder", "arm_upper_{s}", "head", "upper arm vs the head at the fold-up (shoulder 180)", None),
-    ("shoulder", "arm_upper_{s}", "neck_collar", "upper arm vs the neck collar at the fold-up", None),
-    ("shoulder", "arm_upper_{s}", "shoulder_mount_{s}", "upper arm vs its own cradle: the case is 1.6 mm inboard of the shaft", None),
+    ("shoulder", "arm_upper_{s}", "shoulder_girdle_v6", "upper arm vs the neck tube at the fold-up (shoulder 180)", None),
+    ("shoulder", "arm_upper_{s}", "shoulder_girdle_v6", "upper arm vs the girdle it hangs off, whole sweep", None),
     ("shoulder", "arm_upper_{s}", "servo_shoulder_{s}", "horn plate seated on the shoulder disc: must not intersect", None),
     ("shoulder", "arm_fore_{s}", "pelvis_v7", "forearm vs the torso through the whole sweep, hanging", None),
     ("shoulder", "arm_fore_{s}", "head", "forearm vs the head, FOLDED (elbow -90, the sit-up pose)", {"{s}_elbow": -90.0}),
     ("shoulder", "arm_fore_{s}", "pelvis_v7", "forearm vs the torso, FOLDED (elbow -90, the sit-up pose)", {"{s}_elbow": -90.0}),
-    ("shoulder", "arm_fore_{s}", "shoulder_mount_{s}", "forearm vs the cradle, FOLDED", {"{s}_elbow": -90.0}),
+    ("shoulder", "arm_fore_{s}", "shoulder_girdle_v6", "forearm vs the girdle, FOLDED", {"{s}_elbow": -90.0}),
     ("shoulder", "servo_elbow_{s}", "pelvis_v7", "the elbow servo case vs the torso through the sweep", None),
     ("elbow", "arm_fore_{s}", "arm_upper_{s}", "THE ELBOW LIMIT: forearm grip vs the fork (sets V.ARM_ROM)", None),
     ("elbow", "arm_fore_{s}", "servo_elbow_{s}", "forearm grip channel on its own servo: seated, must not intersect", None),

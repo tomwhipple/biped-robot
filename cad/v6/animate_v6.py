@@ -60,17 +60,18 @@ INSERT = [
     ("servo_neck",         (0, 0, 1), 12),
     ("neck_collar",        (0, 0, 1), 12),
     ("head",               (0, 0, 1), 13),
-    # ARMS=1 (cad/v6/arm_v6.py). The order IS the bench order, and it is not
-    # arbitrary: two of the four deck pilots sit under the servo's own
-    # footprint, so the cradle has to be screwed down while it is still empty.
-    # Cradle down onto the deck -> servo dropped into the open cradle from
-    # above (the only way in: the cradle is a U open upward and outboard) ->
-    # upper arm offered straight IN onto the horn along the joint axis, which
-    # is the one direction a single-sided horn plate can arrive from -> elbow
-    # servo slid into the forearm's grip channel from the FRONT (the C section
-    # is open forward; this is the same channel-entry leg_link uses) ->
-    # forearm lifted UP between the fork tines onto the two discs.
-    ("shoulder_mount_",    (0, 0, 1), 14),
+    # ARMS=1 (cad/v6/arm_v6.py + cad/v6/shoulder_girdle_v6.py). The order IS
+    # the bench order, and it is not arbitrary: the girdle's twelve deck pilots
+    # include four under the servo bays themselves, so the girdle goes down
+    # onto the deck while it is still EMPTY. Girdle down -> each shoulder servo
+    # dropped straight into its open bay from above (the only way in: every bay
+    # is open upward, a roof over a 32 mm span being unprintable) and screwed
+    # from OUTBOARD -> upper arm offered straight IN onto the horn along the
+    # joint axis, the one direction a single-sided horn plate can arrive from
+    # -> elbow servo slid into the forearm's grip channel from the FRONT (the
+    # same channel entry leg_link uses) -> forearm lifted UP between the fork
+    # tines onto the two discs.
+    ("shoulder_girdle_v6", (0, 0, 1), 14),
     ("servo_shoulder_",    (0, 0, 1), 15),
     ("arm_upper_",         (0, 1, 0), 16),
     ("servo_elbow_",       (1, 0, 0), 17),
