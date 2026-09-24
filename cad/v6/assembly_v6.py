@@ -207,7 +207,7 @@ def part_head():
     s, ok = _try("head", "head")
     if ok:
         return s
-    return Pos(0, 0, V.HEAD_H / 2 + V.HEAD_BASE_T) * Box(V.HEAD_D, V.HEAD_W, V.HEAD_H)
+    return Pos((V.HEAD_X[0] + V.HEAD_X[1]) / 2, 0, V.HEAD_H / 2 + V.HEAD_BASE_T) * Box(V.HEAD_D, V.HEAD_W, V.HEAD_H)
 
 
 def mock_pack():

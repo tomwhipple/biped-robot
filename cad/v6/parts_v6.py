@@ -35,7 +35,7 @@ def _lazy(mod, fn, *a):
 PARTS = [
     # name, builder, qty, note
     ("pelvis_v7", _lazy("pelvis_v7", "pelvis_v7"), 1, "one print, deck-top-down"),
-    ("head", _lazy("head", "head"), 1, "neck horn carrier + shell"),
+    ("head", _lazy("head", "head"), 1, "stereo-periscope head: shell + lid + camera sled, fused for the rollup (prints as 3: head.py)"),
     ("neck_collar", _lazy("neck_collar", "neck_collar"), 1, "collar round the neck servo, flange-down"),
     ("yaw_carrier_v6", _lazy("yaw_carrier_v6", "yaw_carrier_v6"), 2, "v5 carrier + hip-yaw bearing boss (study-yaw-bearing.md)"),
     ("yoke_roll", v5.yoke_roll, 2, "v5 part, unchanged (slicer supports)"),

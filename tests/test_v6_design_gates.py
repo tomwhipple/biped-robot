@@ -31,7 +31,9 @@ def test_plant_loads(p):
     m, d = K.load(p)
     assert m.nu == 13 and m.nq == 20
     assert m.actuator(12).name == "neck_yaw"
-    assert 1.4 < m.body_subtreemass[0] < 1.7
+    # upper bound 1.7 -> 1.8 on 2026-09-24: the stereo-periscope head is 111 g,
+    # not 39 (docs/design-v6/stereo-head.md); the CAD-true plant is 1.86 kg
+    assert 1.4 < m.body_subtreemass[0] < 1.8
 
 
 def test_cad_and_sim_agree(p):

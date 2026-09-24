@@ -126,11 +126,20 @@ def bodies(p: DesignParams, m3250_g: float | None = None):
     out["torso"] = t
     # ---- head (frame: neck horn face)
     h = []
-    if have("head"):
+    if have("head"):   # shell + lid + camera sled, fused, PETG
         h.append(mesh_props(os.path.join(STL, "head.stl"), [0, 0, 0]))
     else:
-        h.append(box_props(0.040, [5, 0, V.HEAD_H / 2 + V.HEAD_BASE_T], [V.HEAD_D, V.HEAD_W, V.HEAD_H]))
-    h.append(box_props(V.CAM3_MASS * 1e-3, [V.HEAD_D / 2 - 5, 0, V.HEAD_BASE_T + V.CAM_Z_ABOVE_HORN], [2, 25, 24]))
+        h.append(box_props(V.HEAD_PETG_MASS * 1e-3, [(V.HEAD_X[0] + V.HEAD_X[1]) / 2, 0, V.HEAD_H / 2 + V.HEAD_BASE_T],
+                           [V.HEAD_D, V.HEAD_W, V.HEAD_H]))
+    # the stereo head's glass (datasheet masses) and the camera, at their CAD
+    # centroids; the mirrors are 3 mm plates, so their own inertia is taken
+    # as a plate across y-z (they stand at 30 deg to that -- a small error
+    # next to the m*r^2 of sitting 45 mm off the neck axis)
+    h.append(box_props(V.HEAD_PRISM_MASS * 1e-3, V.HEAD_PRISM_C, [14.1, 28.3, 20.0]))
+    for sy in (1, -1):
+        c = (V.HEAD_MIRROR_C[0], sy * V.HEAD_MIRROR_C[1], V.HEAD_MIRROR_C[2])
+        h.append(box_props(V.HEAD_MIRROR_MASS * 1e-3, c, [3.0, 50.0, 50.0]))
+    h.append(box_props(V.CAM3_MASS * 1e-3, V.HEAD_CAM_C, [12.4, 25, 24]))
     out["head"] = h
     # ---- legs (same for L and R; foot mirrored)
     for side, sgn in (("L", 1), ("R", -1)):

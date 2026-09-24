@@ -574,17 +574,35 @@ NECK_HORN_FACE_Z = NECK_AXIS_Z + D.SV_HORN_FACE                      # 35.20 abo
 NECK_WELL_D = 3.0                             # locating well depth in the deck top
 NECK_WELL_HW = (D.SV_WID / 2 + D.YAW_SEAT_GAP, )                     # +-12.66 across
 NECK_WELL_X = (-D.SV_AXIS_FROM_REAR - D.YAW_SEAT_GAP, D.SV_AXIS_FROM_OUT_END + D.YAW_SEAT_GAP)   # -35.41..+10.41
-# head: a carrier bolted to the neck horn (4x M3x6 on the O14 BCD + the
-# centre screw recess), carrying the Camera Module 3 (Wide) on its front face
+# head: the STEREO-PERISCOPE head (2026-09-24; cad/v6/head.py, optics in
+# cad/v6/periscope_optics.py, record in docs/design-v6/stereo-head.md). A
+# chevron body bolted to the neck horn (4x M3x6 on the O14 BCD); ONE Camera
+# Module 3 (Wide) looks AFT into a knife-edge right-angle prism mirror, and two
+# 50 x 50 first-surface mirrors turn each half-image forward out of an eye
+# window -- binocular vision from one sensor. The numbers below are COPIED from
+# head.py (which asserts they still match), for the modules that must not
+# import the CAD: the plant and inertia builders, the assembly fallback.
 HEAD_BASE_T = 4.0                             # horn plate thickness
-HEAD_W, HEAD_D, HEAD_H = 62.0, 50.0, 56.0     # outer shell, rounded (organic)
-HEAD_WALL = 2.0
+HEAD_W, HEAD_D, HEAD_H = 140.4, 49.9, 61.7    # envelope: width (y), depth (x), height above the plate
+HEAD_X = (-39.4, 10.5)                        # envelope fore-aft about the neck axis (camera nose at the front)
+HEAD_WALL = 2.2
 CAM3_BOARD = (25.0, 24.0)                     # Camera Module 3 PCB (w x h)
 CAM3_HOLES = (21.0, 12.5)                     # hole spacing (w x h), M2
 CAM3_LENS_D = 10.0
 CAM3_LENS_ABOVE_HOLES_CZ = 0.0                # lens centred between the holes (Wide: +0)
-CAM_Z_ABOVE_HORN = 30.0                       # lens centre above the horn face
+CAM_Z_ABOVE_HORN = 43.0                       # lens pupil above the horn PLATE (47.0 above the horn face)
 HEAD_CABLE_SLOT = (12.0, 4.0)                 # camera ribbon slot in the base (w x t)
+# the glass: Edmund Optics datasheet masses, centroids in the head frame
+# (horn face, neck axis; +Y is the left eye -- the right eye mirrors it)
+HEAD_PRISM_MASS = 10.0                        # #49-414: 20 mm knife-edge right-angle prism mirror
+HEAD_PRISM_C = (-18.70, 0.0, 45.86)
+HEAD_MIRROR_MASS = 18.8                       # #43-876: 50 x 50 x 3.0 first-surface, each
+HEAD_MIRROR_C = (-22.57, 45.10, 37.54)
+HEAD_MIRROR_YAW = -30.6                       # the +Y mirror's normal, deg from +X (tilts 2.3 deg down too)
+HEAD_CAM_C = (-1.8, 0.0, 43.25)               # camera (board + lens) centroid; it looks AFT
+HEAD_PUPIL = (-6.5, 0.0, 47.0)                # the real lens pupil
+HEAD_EYE_VP = (-67.61, 31.74, 49.68)          # +Y eye's VIRTUAL pupil: baseline = 2 x y = 63.5 mm
+HEAD_PETG_MASS = 59.8                         # shell + lid + sled, CAD volume x print factor
 NECK_ROM = ROM["neck"]
 # world heights
 NECK_HORN_Z = DECK_TOP_Z + NECK_HORN_FACE_Z
