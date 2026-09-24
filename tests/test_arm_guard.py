@@ -7,6 +7,7 @@ that keeps being commanded after it has stopped being a robot standing up.
 Every case here is one the hardware has actually produced.
 """
 import os
+import select
 import socket
 import sys
 
@@ -34,6 +35,12 @@ def beacon(d, state, up_z=1.0, servo_err=0x00, seq=1):
                   loop_late_pct=0)
     tx.sendto(encode_telemetry(t), ("127.0.0.1", d.rx.getsockname()[1]))
     tx.close()
+    # Wait for the frame to be READABLE before pumping. Loopback UDP is not
+    # instantaneous: on this Mac (2026-09-24) a datagram is not yet readable
+    # 0 ms after sendto but is by ~0.5 ms, so pumping straight away made this
+    # test a race it lost every time. The driver's own non-blocking read is
+    # right for its real-time loop; the test was assuming instant delivery.
+    select.select([d.rx], [], [], 0.2)
     return d.pump(0.0, 0.0, 0x00)
 
 
