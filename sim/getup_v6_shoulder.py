@@ -121,6 +121,23 @@ CONFIGS = {
     "r5_girdle_ondeck_nocol": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True, self_collide=False),
     "r5_aft_cad_nocol": dict(arms=True, arm_z=0.08791, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16, arm_shoulder_x=-0.05, arm_shoulder_y_extra=0.0077, arm_cad_servos=True, self_collide=False),
     "r5_bare": dict(arms=False),
+    # ROUND 5b (2026-09-24, Tom: "We need to re-run the getup with these arms
+    # anyway."): the robot AS DRAWN after the girdle + closed-box arm head. The
+    # r5_girdle_ondeck geometry, plus: the shoulder servos and the 84 g girdle
+    # on the TORSO (arm_girdle), and the printed links at their CAD masses
+    # (arm_upper_v6 33.1 g, arm_fore_v6 33.7 g, vs the 20 / 12 g placeholder).
+    "r5_asdrawn": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
+                       arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
+                       arm_girdle=True, arm_mass=0.0331, arm_fore_mass=0.0337, m_girdle=0.084),
+    # ...and with the hip's REAL flexion limit enforced by the plant. The CAD
+    # hip ROM comes back to -120 (thigh front wall / jog block vs the roll
+    # flange, 0.70 mm at -120 after the leg-link relief; -125 is out of reach
+    # in either yoke variant). The walk plant keeps its -125 range for now:
+    # the walk policy's action scaling is tied to it.
+    "r5_asdrawn_rom120": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
+                              arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
+                              arm_girdle=True, arm_mass=0.0331, arm_fore_mass=0.0337, m_girdle=0.084,
+                              hip_pitch_range=(-120.0, 90.0)),
 }
 hits = []
 
@@ -363,6 +380,65 @@ def main():
                 print(f"{name:18s} {label}  {'FELL' if r['fell'] else 'up  '} tilt_max {r['tilt_max']:5.1f} deg  "
                       f"arm-vs-leg contacts {r['arm_leg_contacts']:6d}  pairs {r['pairs']}", flush=True)
             print(f"-- {name}: {n_ok}/4 cases stayed up", flush=True)
+        return
+    if mode == "getupnamed":
+        # Round 5b (2026-09-24): the round-4 seat-push search + robustness pass,
+        # run on NAMED configs so the as-drawn robot and the round-4 baseline go
+        # through the identical grid. Seat push from supine, the elbow grid the
+        # round-4 winner was found on; every standing variant then gets the six
+        # robustness conditions (play 3/5, mu 0.3/0.7/1.0, servo 100/80/65 %).
+        conds = [dict(play_deg=3.0, mu=0.7, servo_scale=1.0), dict(play_deg=5.0, mu=0.7, servo_scale=1.0),
+                 dict(play_deg=3.0, mu=0.3, servo_scale=1.0), dict(play_deg=3.0, mu=1.0, servo_scale=1.0),
+                 dict(play_deg=3.0, mu=0.7, servo_scale=0.8), dict(play_deg=3.0, mu=0.7, servo_scale=0.65)]
+        stall = __import__("design_gates").SERVOS["sts3215"]["stall"]
+        # flags: --hip=DEG (tuck hip flexion, default H = -125; -117 is where
+        # the CAD's thigh front wall meets the roll flange -- hip-yoke-single-
+        # print.md section 6 item 1, in BOTH yoke variants), --knee=DEG, and
+        # --broad (also sweep ankle push -10 and push time 3 s).
+        global H, K
+        names, broad = [], False
+        for a in sys.argv[2:]:
+            if a.startswith("--hip="):
+                H = float(a.split("=", 1)[1])
+            elif a.startswith("--knee="):
+                K = float(a.split("=", 1)[1])
+            elif a == "--broad":
+                broad = True
+            else:
+                names.append(a)
+        ankles = (-40, -25, -10) if broad else (-40, -25)
+        t_pushes = (2.0, 3.0) if broad else (2.0,)
+        print(f"== GET-UP (seat push from supine), named configs, self_collide=True; tuck hip {H:+.0f} knee {K:+.0f}; STS3215 sim stall {stall:.2f} N*m")
+        for name in names:
+            p, xml = plant(name)
+            print(f"-- {name}: {CONFIGS[name]}", flush=True)
+            winners = []
+            grid = list(itertools.product(((60, -60), (90, -90)), ((20, -20), (0, 0), (30, 0)), ankles, t_pushes))
+            for (s0, e0), (s1, e1), a_push, tp in grid:
+                args = (False, s0, s1, tp, a_push, 0.0, 0.0)
+                r = run(f"{name:18s} sh {s0:+4d}->{s1:+4d} el {e0:+4d}->{e1:+4d} ankle {a_push} t {tp:.0f}",
+                        p, xml, seat_push(*args, elbow=(e0, e1)))
+                if r["ok"]:
+                    winners.append((s0, s1, a_push, (e0, e1), tp))
+            print(f"-- {name}: {len(winners)}/{len(grid)} seat-push variants stand", flush=True)
+            best = None
+            for s0, s1, a_push, el, tp in winners:
+                seq = seat_push(False, s0, s1, tp, a_push, 0.0, 0.0, elbow=el)
+                n_ok, peak_max = 0, {}
+                for c in conds:
+                    rt = run_traced(p, xml, seq, start="supine", **c)
+                    n_ok += rt["ok"]
+                    for k, v in rt["peak"].items():
+                        peak_max[k] = max(peak_max.get(k, 0.0), v)
+                pk = " ".join(f"{k} {v:.2f}" for k, v in sorted(peak_max.items()))
+                print(f"   robust {name:18s} sh {s0:+4d}->{s1:+4d} el {el[0]:+4d}->{el[1]:+4d} ankle {a_push} t {tp:.0f}: "
+                      f"{n_ok}/6   peak {pk}", flush=True)
+                if best is None or n_ok > best[0]:
+                    best = (n_ok, (s0, s1, a_push, el, tp), pk)
+            if best:
+                print(f"== {name}: BEST {best[0]}/6 robust  {best[1]}  peak {best[2]}", flush=True)
+            else:
+                print(f"== {name}: NOTHING STANDS", flush=True)
         return
     if mode == "walkarmcontacts":
         print("== walk gate (8 steps, turn 0, nominal mu 0.7 play 3, STS3250 rolls+knees), hanging idle pose (shoulder 0 / elbow 0), self_collide=True -- arm-vs-leg contact count over the walk")

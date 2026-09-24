@@ -338,6 +338,22 @@ def leg_link_v6(print_fins=False):
         print("  [leg_link_v6] no box-corner edges found to fillet "
               "(geometry changed?) -- left sharp")
 
+    # HIP-FLEXION RELIEF (V.LL_HIP_RELIEF): chamfer the box's top-front edge,
+    # AFTER the corner fillet above -- that fillet picks the box's vertical
+    # edges by their full box-height LENGTH, and cutting first shortened the
+    # two front ones, so they silently went unrounded (+571 mm3 of square
+    # corner, and a bigger ISLAND at the box bottom).
+    # full width, so the thigh's front wall clears the roll flange to the
+    # declared hip ROM. Harmless on the shin (same part): it only removes
+    # material, and there the edge sits under the knee axis, facing nothing.
+    _rx, _rz = V.LL_HIP_RELIEF
+    _fx1 = V.LL_FRONT_X[1]
+    p -= parts.wedge_y([(_fx1 - _rx, V.LL_BOX_TOP + 0.01), (_fx1 + 1.0, V.LL_BOX_TOP + 0.01),
+                        (_fx1 + 1.0, V.LL_BOX_TOP - _rz - 1.0), (_fx1, V.LL_BOX_TOP - _rz)],
+                       iy0 - 1.0, hy1 + 1.0)
+    p -= parts.box(V.LL_HIP_RELIEF_X0, _fx1 + 1.0, iy0 - 1.0, hy1 + 1.0,
+                   V.LL_BOX_TOP - 0.01, V.LL_BOX_TOP + V.LL_HIP_RELIEF_UP)
+
     if print_fins:
         pass  # no-op: standing on the lower fork end, nothing floats (see
               # audit_leg_link.py -- no ISLAND/LEDGE finding on the pads)

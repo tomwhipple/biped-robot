@@ -1,0 +1,7 @@
+== GATE D, 4 cases x arm contacts (8 steps, STS3250 rolls+knees, hanging idle pose, self_collide=True)
+   held idle arm pose: shoulder +15 deg, elbow +0 deg
+r5_asdrawn         turn  +0 mu 0.7 play 3  up   tilt_max   5.4 deg  arm-vs-leg contacts      0  pairs []
+r5_asdrawn         turn +15 mu 0.7 play 3  up   tilt_max   8.1 deg  arm-vs-leg contacts      0  pairs []
+r5_asdrawn         turn  +0 mu 0.3 play 5  up   tilt_max   5.0 deg  arm-vs-leg contacts      0  pairs []
+r5_asdrawn         turn -15 mu 0.9 play 3  up   tilt_max   8.4 deg  arm-vs-leg contacts      0  pairs []
+-- r5_asdrawn: 4/4 cases stayed up

@@ -572,6 +572,30 @@ def _one_plate_fill():
     return v5.box(PLATE_X[0], PLATE_X[1], PLATE_Y[0], PLATE_Y[1], ZF_BOT, ZF_TOP)
 
 
+# ---- roll-servo corner relief (2026-09-24, section 6 item 2) ----------------
+# The roll servo's output-end corner sits r = hypot(SV_WID/2, SV_AXIS_FROM_OUT_END)
+# = 15.97 from the roll axis, and at roll +-55 deg it points straight at the
+# roll flange's top face, 16.0 below the axis: 0.08 mm measured, against the
+# 0.5 mm rule (ROLL_AXIS_TO_FLANGE 16.0 was set against the bay walls at +-25
+# deg; the 2026-08-03 widening to +-55 made the case corner the binding
+# feature). Tom, 2026-09-24: take 0.5 mm off. NOT by moving the flange --
+# ROLL_AXIS_TO_FLANGE is a shared v5 constant that also fixes PITCH_ARM_REACH,
+# yoke_roll and every blend picker here -- but by a 0.5 mm relief exactly
+# where the corner passes: across the case's own thickness (its idler-face
+# boss to its horn-face rib, +-0.5) and no wider, so both roll arm plates'
+# root fillets -- the roll clevis's load path -- keep every millimetre.
+ROLL_CORNER_RELIEF = 0.5
+ROLL_RELIEF_X = (D.SV_IDLER_BOSS_Y - 0.5,                          # -17.15
+                 D.SV_TOPFACE + D.SV_HORN_RIB_H + 0.5)             # +18.98
+assert ROLL_RELIEF_X[0] > RXI0 + 2.0 and ROLL_RELIEF_X[1] < RXI1 - 2.0, \
+    "the roll-corner relief must stay clear of the roll arm plates' roots"
+
+
+def _roll_corner_relief():
+    return v5.box(ROLL_RELIEF_X[0], ROLL_RELIEF_X[1], -RHY - 1, RHY + 1,
+                  ZF_TOP - ROLL_CORNER_RELIEF, ZF_TOP + 0.01)
+
+
 def hip_yoke_v6(style=True, verbose=True):
     """The one-print hip yoke, styled (see the STYLING block above). Pass
     style=False for the raw fused solid fused() -- the A/B reference."""
@@ -591,6 +615,7 @@ def hip_yoke_v6(style=True, verbose=True):
     p -= _flex_relief()
     p, skipped = _round_edges(p, verbose=verbose)
     p -= _flex_relief()
+    p -= _roll_corner_relief()
     globals()["LAST_SKIPPED"] = skipped
     if skipped:
         print(f"  [hip_yoke_v6] {len(skipped)} edge(s) NOT rounded:")

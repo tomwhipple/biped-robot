@@ -453,3 +453,44 @@ Three findings were real defects no slicer fixes, and are fixed:
 * **the connector-notch sliver was back** (0.55 mm between the notch and the
   disc relief — round 4's cradle had fixed exactly this). The notch now runs
   to the relief's centre line, meeting the circle square.
+
+## 11. The get-up, re-run on the robot as drawn (2026-09-24)
+
+Tom: *"We need to re-run the getup with these arms anyway."* Round 4's get-up
+was measured on a plant that no longer matches the robot: shoulder 50 mm aft,
+no girdle, and arm placeholders. The plant now has `arm_girdle` (default off,
+so rounds 1–4 reproduce): the 84 g girdle as a torso collision box (the
+shoulder pods are what meet the floor when the robot lies supine), both
+shoulder servos on the **torso** where the girdle holds them (rounds 1–4 hung
+them on the swinging arm), and the printed links at their CAD masses (33.1 /
+33.7 g vs the 20 / 12 g placeholders). Config `r5_asdrawn`: 2098 g total
+(+154 g), 127 g per moving arm (−20 g). Mode `getupnamed` runs the round-4
+seat-push grid + the six-condition robustness pass on named configs.
+
+| config | tuck hip | variants standing | robustness | peak shoulder, sh 90→0 |
+|---|---|---|---|---|
+| `top_elbow_16_16_aft` (round 4) | −125 | 2/12 | 6/6, 6/6 | 1.52 N·m |
+| `r5_asdrawn` | −125 | 2/12 | 6/6, 6/6 | 1.72 N·m |
+| `r5_asdrawn` | −121 / −119 | 2/12 | 6/6, 6/6 | 1.74 / 1.75 |
+| `r5_asdrawn` | −118 / −117 | **0/12** (−117: 0/84 incl. broad grids) | — | — |
+| **`r5_asdrawn_rom120`** (plant capped at the real −120) | **−120** | **2/12** | **6/6, 6/6** | **1.77 N·m** (65 % of 2.72 stall) |
+
+**The as-drawn robot gets up.** Same two sequences as round 4, both fully
+robust; torque is up 13–16 % from the extra mass, so the shoulder 90→0 / elbow
+−90→0 sequence (1.77 N·m) is the one to use — the 60→0 one peaks at 2.12
+(78 %). The walk gate on the same plant, arms held 15° back: 4/4, **zero**
+arm-vs-leg contacts (`getup_search_r5_asdrawn_walk.txt`).
+
+**What the re-run exposed:** the get-up's tuck needs **≥ 119°** of hip
+flexion, and the hardware could only ever reach ~118.4° — the thigh's front
+wall meets the roll flange there in *both* hip-yoke variants, a pair the
+sweep never checked. With `LL_HIP_RELIEF` the joint now reaches **−120** at
+the 0.7 mm rule (`hip-yoke-single-print.md` §6 item 1), which is **1° of
+margin** over the sim's threshold. That margin is thin, and it is a sim
+number: the bench should confirm the tuck, and if it proves marginal the
+next lever is the get-up sequence (more arm push to carry the CoM forward),
+not more hip.
+
+> **Open (training side):** the walk plant's `hip_pitch_range` is still −125;
+> the walk policy's action scaling is tied to it, so it moves to −120 with the
+> next training round, not here.

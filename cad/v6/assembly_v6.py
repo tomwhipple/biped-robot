@@ -85,12 +85,13 @@ def yaw_bearing_variant():
 
 def hip_yoke_variant():
     """Which hip yoke (link 2, the roll/pitch universal joint) the assembly
-    builds: "split" (default, unchanged behavior: v5 yoke_roll + yoke_pitch_v6
-    bolted flange to flange) or "single" (cad/v6/hip_yoke_v6.py: the two fused
-    into one print, no flange bolts) via the HIP_YOKE_VARIANT env var. Same
-    contract as yaw_bearing_variant(): nothing sets it by default, so every
-    existing caller keeps building the split baseline unless it opts in."""
-    return os.environ.get("HIP_YOKE_VARIANT", "split")
+    builds: "single" (DEFAULT since 2026-09-24: cad/v6/hip_yoke_v6.py, the roll
+    and pitch clevises as one print, no flange bolts) or "split" (the legacy
+    v5 yoke_roll + yoke_pitch_v6 bolted flange to flange) via the
+    HIP_YOKE_VARIANT env var. Promoted once both clearance findings its sweep
+    exposed were resolved (hip-yoke-single-print.md section 6): the roll-
+    corner relief, and hip flexion -120 with the leg link's LL_HIP_RELIEF."""
+    return os.environ.get("HIP_YOKE_VARIANT", "single")
 
 
 def arms_on():
