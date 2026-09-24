@@ -95,6 +95,12 @@ OUT_REN = os.path.join(HERE, "renders")
 
 IDENT = np.eye(3)
 PRINT_ORIENT = {"shoulder_girdle_v6": (IDENT, "base down on the deck face, walls up")}
+# OrcaSlicer supports (Tom, 2026-09-24: support work is the slicer's job
+# wherever it can do it). What needs them, base down: the four trapezius-web
+# window tops (34 mm spans), the servo bays' relief/pocket roofs and the neck
+# tube's aft window top. All are open to the plate, so supports come out.
+SUPPORT_NOTE = ("supports on (build plate only): trapezius-web window tops, the "
+                "grip plates' rib-relief roofs, the bays' disc-relief tops")
 
 # ---------------------------------------------------------------------------
 # derived, local to this module (everything dimensional lives in dimensions_v6)
@@ -111,9 +117,15 @@ WY0, WY1 = V.GIRDLE_WALL_Y0, V.ARM_SEAT_Y                 # 62.50 .. 65.50 inboa
 GRIP_Y0, GRIP_Y1 = V.ARM_CASE_Y1, V.GIRDLE_Y1             # 97.75 .. 100.15 grip plate
 BASE_T = V.GIRDLE_FLOOR                                   # 4.0
 
-RAIL_Y0 = 54.8          # rail inboard edge. NOT a style number: the battery
-                        # aperture in the deck reaches |y| < 54.66, and the
-                        # rail must not overhang it (the pack drops through).
+RAIL_Y0 = 53.8          # rail inboard edge. Set by the deck-pilot countersink:
+                        # its O5.4 mouth at y 57 reaches 54.3, and a rail edge
+                        # at 54.8 (the first cut, which stopped at the battery
+                        # aperture's 54.66) left a sub-mm sliver the audit
+                        # flagged THIN. It now overhangs the aperture edge by
+                        # 0.86 mm, which costs nothing: the pack goes in BEFORE
+                        # the girdle (it cannot pass the neck tube either way).
+assert RAIL_Y0 + 0.5 <= V.GIRDLE_RAIL_PILOT_Y - D.CASE_CS_D / 2, \
+    "the rail pilots' countersinks would break out of the rail's inboard edge"
 RAIL_X = (-42.0, 16.0)  # aft of the pod (extra bolting land) to the clavicle
 CLAV_X = (POD_X[1] - END_T, 16.0)     # +10.61 .. +16.0 forward clavicle beam
 CLAV_HY = 58.0                        # inside the deck's R3 top fillet (61.26 - 3)
@@ -211,7 +223,12 @@ def _pod(sgn):
     #     straight UP out of the notch, and never has to fit the slot.
     rel = D.SV_IDLER_MOAT_R - 0.4                                   # 10.6
     opening = parts.cyl_y(rel, y(WY0 - 1), y(WY1 + 1), _AX, _AZ)
-    opening += parts.box(_AX - D.SV_CONN_L[1] - 0.6, _AX - D.SV_CONN_L[0] + 0.6,
+    # the notch runs INTO the relief, to its centre line: stopping at the
+    # trench's own edge left a 0.55 mm post between them, and stopping just
+    # inside the circle left thin cusps where the circle curves away -- both
+    # THIN audit findings. Ending on the axis, the notch's edge meets the
+    # circle square at its top and bottom, so no cusp exists to be thin.
+    opening += parts.box(_AX - D.SV_CONN_L[1] - 0.6, _AX,
                          y(WY0 - 1), y(WY1 + 1), _AZ - D.SV_CONN_HW, POD_TOP + 1)
     opening -= parts.box(POD_X[0] - 1, POD_X[1] + 1, y(WY0 - 2), y(WY1 + 2),
                          -1, BASE_T + 0.4)
@@ -277,8 +294,8 @@ def shoulder_girdle_v6():
 
     # --- deck pilots: clearance + countersink through whatever sits over them
     for hx, hy in pilot_xy():
-        p -= parts.cyl_z(D.CASE_SCREW_CLEAR / 2, -1, CLAV_H + 1, hx, hy)
-        p -= parts.csk_z(hx, hy, BASE_T if abs(hy) > 30 else CLAV_H, +1)
+        p -= parts.cyl_z(D.CASE_SCREW_CLEAR / 2, -1, BASE_T + 1, hx, hy)
+        p -= parts.csk_z(hx, hy, BASE_T, +1)
 
     # --- the flare. A 45 deg chamfer under each pod's OUTBOARD edge, so the
     # shoulder grows out of the torso instead of stepping off it: the torso
@@ -374,7 +391,7 @@ def SCREWS():
     `axis` points from the head toward the tip."""
     out = []
     for hx, hy in pilot_xy():
-        top = CLAV_H if abs(hy) < 30 else BASE_T
+        top = BASE_T
         out.append(dict(name=f"girdle_deck_{hx:+.0f}_{hy:+.0f}", frame="pelvis",
                         kind="M2.5x8 self-tap, flat head (2.05 x 4.5 pilot in the deck)",
                         pos=(hx, hy, top), axis=(0, 0, -1), length=8.0))
@@ -400,6 +417,27 @@ INSERT = {
 # ===========================================================================
 # checks
 # ===========================================================================
+def check_pilot_access(verbose=True):
+    """Every deck screw has to be DRIVABLE: nothing above its seat but air,
+    within a 7 mm driver's radius (the check the print list quotes). The
+    first girdle failed this for six of its twelve pilots, which sat under
+    the clavicle beam, the aft tie and the webs."""
+    p = shoulder_girdle_v6()
+    ok = True
+    for hx, hy in pilot_xy():
+        shaft = parts.cyl_z(3.5, BASE_T + 0.5, POD_TOP + 5, hx, hy)
+        try:
+            hit = (shaft & p).volume
+        except Exception:  # noqa: BLE001
+            hit = float("nan")
+        good = hit < 0.5
+        ok &= good
+        if verbose:
+            print(f"  {'PASS' if good else 'FAIL'}  driver access to pilot ({hx:+6.1f},{hy:+6.1f}): "
+                  f"{hit:6.2f} mm3 in the way")
+    return ok
+
+
 def check_deck_pilots(verbose=True):
     """Every deck pilot must be fully BURIED in the pelvis deck: 4.5 mm into a
     5 mm plate leaves 0.5 mm of floor. Checked against the REAL pelvis solid,
@@ -477,9 +515,27 @@ def check_head_above_shoulders(verbose=True):
     return good
 
 
+def check_print(verbose=True):
+    """check_printability's audit in the declared orientation (base down).
+    Anything the audit calls an overhang that OrcaSlicer can support goes in
+    SUPPORT_NOTE and is left to the slicer -- nothing is modelled for it."""
+    import check_printability as CP
+    rot, note = PRINT_ORIENT["shoulder_girdle_v6"]
+    CP.STL = OUT_STL
+    CP.ORIENT["shoulder_girdle_v6"] = (rot, note)
+    CP.PRINT_STL["shoulder_girdle_v6"] = "shoulder_girdle_v6.stl"
+    if SUPPORT_NOTE:
+        CP.SUPPORTED["shoulder_girdle_v6"] = SUPPORT_NOTE
+    return not CP.audit("shoulder_girdle_v6")
+
+
 def run_checks():
+    print("\n== printability (base down) ==")
+    ok = check_print()
+    print("\n== driver access to every deck pilot ==")
+    ok &= check_pilot_access()
     print("\n== deck pilots (against the real pelvis solid) ==")
-    ok = check_deck_pilots()
+    ok &= check_deck_pilots()
     print("\n== servo fit / print envelope ==")
     ok &= check_servo_fit()
     print("\n== arm vs girdle clearance ==")

@@ -16,6 +16,15 @@ Generated from `cad/v6/parts_v6.py` (`docs/design-v6/parts_v6_rollup.txt`). PETG
 | `foot_L`, `foot_R` | 1 + 1 | 52 | sole down | no | mirrored pair; roll servo drops into the cradle, two tabs with 2 × M2.5 flat-heads each |
 | `sole_tpu_L`, `sole_tpu_R` | 1 + 1 | 23 | flat | no | **TPU 95A**, glued to the flat plate underside |
 
+
+**With `ARMS=1`** (the get-up arms, opt-in — `docs/design-v6/shoulder-girdle.md`). The girdle *replaces* `neck_collar`; the rest are additions. Print support is **OrcaSlicer's job** wherever it can do it (Tom, 2026-09-24) — nothing below has modelled supports; the "supports" column is what the slicer must be told.
+
+| part | qty | g each | orientation | supports | notes |
+|---|---|---|---|---|---|
+| `shoulder_girdle_v6` | 1 | 84 | base down on the deck face | **yes**, build plate only: trapezius-web window tops (34 mm spans), grip-plate rib-relief roofs, bay disc-relief tops | 200 × 58 × 33 mm — centre it on the bed. Both shoulder servos + the neck tube. 10 × M2.5×8 flat-head into deck pilots on the two edge rails; the pack goes in **before** the girdle |
+| `arm_upper_v6_L`, `_R` | 1 + 1 | 33 | on its back, web face on bed (`RY_XUP`) | **yes**, build plate only: the two elbow-pad undersides (5 mm off the bed) | closed-box head, screw-access bore on the outboard face; the front wall prints as a 6.4 mm bridge |
+| `arm_fore_v6_L`, `_R` | 1 + 1 | 34 | on its back (`RY_XUP`) | no | grips the elbow servo; 12 mm hand knuckle |
+
 Totals: 16 prints, 13 unique STLs, ≈ 589 g PETG + 46 g TPU. Robot ≈ 1.77 kg with 6 × STS3250 + 7 × STS3215 (832 g), a 170 g pack and 180 g of boards and wiring.
 
 Fasteners (from each module's `SCREWS()`): 24 + 12 M2.5×8 flat-head grip screws (leg links, ankle links), 8 M2.5×8 flat-head foot tabs, 8 M2.5 yaw stators + 4 neck stators + 4 M2.5 neck-collar flange, 8 M2.5 board standoffs + 4 pilot, 2 M2.5 power bosses, 4 M2.5 head face, 52 M3×6 horn + 28 M3×8 idler with washers, 4 M2 camera. Driver access was checked with a 7 mm cylinder on every screw; the exceptions (v5-inherited idler grip counterbores, a few standoff screws close to walls) are listed in the module reports and need a slim driver, not a redesign.

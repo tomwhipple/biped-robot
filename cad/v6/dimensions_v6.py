@@ -743,6 +743,70 @@ ARM_RAIL_T = D.WALL              # 2.6 rail thickness in y. In the jog the rails
 # plane of 103.35, and -3.5 put the shaft 0.30 mm INSIDE it -- which is
 # exactly what check_assembly_v6's `arm_upper vs shoulder_girdle_v6` row
 # caught (0.47 mm3 of overlap at shoulder +55 deg).
+# --- the head: the arm's SECTION runs to the shoulder, it does not flatten --
+# Tom, 2026-09-21, selecting the upper arm's outboard head face in FreeCAD:
+# "the highlighted face seems very brittle, let's reinforce that" ... and then,
+# on being shown a merely thicker plate: "not quite what I had in mind. Let's
+# continue the thickness of the upper arm all the way to the shoulder, using a
+# box structure on 3 sides, with the outward side open for screw access."
+#
+# He is right twice over. The head WAS brittle, and thickening the plate was
+# the wrong fix. The head is a SINGLE-SIDED plate on the shoulder horn -- there
+# is no idler-side tine and there cannot be one (the servo's idler face looks
+# inboard at the torso) -- so one plate carries a 320 mm arm. In its own plane
+# that is easy (1.59 N-m peak against Z = 369 mm3). About X -- a sideways force
+# at the hand, the robot falling onto the arm, a hand catching -- the flat
+# 3 mm plate had Z = 41 mm3, so 20 N at the hand was ~157 MPa in a ~50 MPa
+# material. It snaps.
+#
+# Measured (the arithmetic is in docs/design-v6/shoulder-girdle.md section 9):
+#     flat plate, D.PLATE 3.0      Z =  41 mm3     157 MPa    <- what was there
+#     plate thickened to 6.0       Z = 163 mm3      39 MPa    <- rejected
+#     the SHAFT's own box section  Z = 583 mm3      11 MPa    <- this
+# A thicker slab only moves material away from ONE face. The shaft's section
+# already puts flanges at BOTH y extremes and joins them with the aft web, and
+# carrying that section up to the shoulder instead of collapsing it into a
+# plate is 14.3x the flat plate for less material than the 6 mm slab.
+#
+# WHICH three sides is a PRINT result, not a choice. The arm prints web-face-
+# down (RY_XUP, model +X up -- the orientation that puts the filament along the
+# arm; see arm_v6's print block). A FRONT wall in that orientation is a 9 mm
+# unsupported ledge at the top of the print -- the same "flat ceiling spanning
+# tine to tine" finding that made leg_link_v6 an open C. So the three sides are
+# the three the shaft already has -- aft web + inboard flange (the horn plate)
+# + outboard flange -- opening FORWARD, and the head simply stops being an
+# exception to the rest of the arm.
+# ...and CLOSED at the front. Tom, 2026-09-24: "strengthen the forearm-
+# shoulder joint by connecting the inner and outer face in front. If there is
+# to be an opening, have it on the side facing away from the body." So the
+# head is a closed four-sided box -- aft web, FRONT WALL, inboard flange (the
+# horn plate), outboard flange -- and its only opening is the screw-access
+# bore through the outboard flange.
+#
+# The front wall IS printable here, where it was not in an open-outboard box:
+# its first layer (in RY_XUP the front is the TOP of the print) spans from the
+# inboard flange to the outboard flange, a BRIDGE anchored on both sides of
+# ~6.4 mm, under check_printability's BRIDGE_OK of 8. Without the outboard
+# flange under it, it would have been a 9 mm one-sided ledge.
+#
+# The front wall cannot stay at ARM_FRONT_X (12.0): its inner face would be at
+# 9.4, and the forward disc screw's O5.7 head reaches x = 7 + 2.85 = 9.85 --
+# the wall would sit ON the screw. So the head's front edge moves forward to
+# give the head its clearance, and the shaft keeps its own 12.0.
+ARM_HEAD_FRONT_CLR = 0.95
+ARM_HEAD_WALL_IN_X = D.BCD / 2 + D.M3_HEAD_D / 2 + ARM_HEAD_FRONT_CLR   # 10.80
+ARM_HEAD_FRONT_X = ARM_HEAD_WALL_IN_X + D.WALL                           # 13.40
+# The opening on the side away from the body: one bore through the OUTBOARD
+# flange on the shoulder axis. r >= 9.85 to pass the button heads; and r is
+# capped from above too, because the bore's teardrop roof now ends against the
+# front wall's underside, leaving a flat bridge 2*(r*sqrt2 - WALL_IN_X) wide
+# that has to stay under BRIDGE_OK (8 mm). 10.3 -> 7.5 mm.
+ARM_HEAD_ACCESS_R = 10.3
+assert ARM_HEAD_ACCESS_R > D.BCD / 2 + D.M3_HEAD_D / 2, \
+    "the head's access bore must clear the four M3 button heads"
+assert 2 * (ARM_HEAD_ACCESS_R * 2 ** 0.5 - ARM_HEAD_WALL_IN_X) < 8.0, \
+    "the access bore's roof, truncated by the front wall, would be an unbridgeable span"
+
 ARM_SHAFT_CLR = 1.5
 ARM_SHAFT_Y = (GIRDLE_Y1 + ARM_SHAFT_CLR - ARM_Y, 10.5)     # (-1.70, 10.5)
 assert ARM_Y + ARM_SHAFT_Y[0] >= GIRDLE_Y1 + 1.0, \
@@ -793,12 +857,17 @@ ARM_ROM_SIM = {"shoulder": (-90.0, 200.0), "elbow": (-150.0, 150.0)}
 # verified set below; docs/design-v6/shoulder-girdle.md section 6.)
 ARM_PILOT_D = 2.05
 ARM_PILOT_DEPTH = 4.5
-GIRDLE_RAIL_PILOT_X = (-32.0, -18.0, -4.0, 8.0)
+# 2026-09-24 correction: the first cut also put pilots at (14, +-20),
+# (14, +-40) and (-32, +-57). All six were BURIED -- under the clavicle beam,
+# the aft tie and the trapezius webs (12..31 mm of material), with only a
+# O2.9 clearance bore above each seat, so no flat-head could ever reach its
+# pilot. Every pilot now sits on the open rail strip, BETWEEN the two web
+# bands (aft tie x -36..-31, clavicle x 10.61..16), where nothing but the
+# 4 mm rail is above it and a 7 mm driver clears the pod's inboard wall.
+GIRDLE_RAIL_PILOT_X = (-27.0, -18.0, -9.0, 0.0, 6.0)   # +6 not +8: a 7 mm driver at +8 clips the clavicle web
 GIRDLE_RAIL_PILOT_Y = 57.0        # between the aperture edge (54.66) and the
                                   # deck's R3 top fillet (starts at 58.26)
-GIRDLE_CLAV_PILOT_XY = ((14.0, 40.0), (14.0, 20.0))
-GIRDLE_PILOT_XY = ([(x, s * GIRDLE_RAIL_PILOT_Y) for x in GIRDLE_RAIL_PILOT_X for s in (1, -1)]
-                   + [(x, s * y) for x, y in GIRDLE_CLAV_PILOT_XY for s in (1, -1)])
+GIRDLE_PILOT_XY = [(x, s * GIRDLE_RAIL_PILOT_Y) for x in GIRDLE_RAIL_PILOT_X for s in (1, -1)]
 
 # --- what the pair costs --------------------------------------------------
 ARM_SERVO_COUNT = 4      # 2 per arm: shoulder pitch + elbow, both STS3215

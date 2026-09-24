@@ -311,3 +311,145 @@ The girdle (82.9 g) replaces two shoulder brackets **and** the neck collar,
 and is the single heaviest printed part added by the arms. It sits at the top
 of the torso, so it raises the CoM slightly — worth watching, but the walk gate
 was run on the as-drawn geometry and is 4/4.
+
+---
+
+## 9. The arm's section runs to the shoulder (2026-09-21)
+
+Tom, selecting the upper arm's outboard head face in FreeCAD (`arm_upper_L`,
+`Face56`, y = 104.85, normal +Y):
+
+> the highlighted face seems very brittle, let's reinforce that
+
+and, on being shown a merely thicker plate:
+
+> not quite what I had in mind. Let's continue the thickness of the upper arm
+> all the way to the shoulder, using a box structure on 3 sides, with the
+> outward side open for screw access.
+
+Right on both counts — the head *was* brittle, and thickening the plate was
+the wrong fix.
+
+### Why it was brittle
+
+The head is **single-sided** on the shoulder horn — there is no idler-side
+tine and there cannot be one, because the servo's idler face looks inboard at
+the torso — so one plate carries a 320 mm arm. In its own plane that is easy:
+the 1.59 N·m the joint actually makes sees Z = 369 mm³, about 4 MPa. About
+**X** — a sideways force at the hand, the robot falling onto the arm, a hand
+catching — the flat plate was ten times weaker, and nothing was checking it.
+
+Section modulus about X, **measured off the built solid** by slicing it and
+integrating (not hand-figured — the hand figure was optimistic):
+
+| head | I (mm⁴) | Z about X (mm³) | 20 N at the hand |
+|---|---|---|---|
+| flat plate, `D.PLATE` 3.0 — *what was there* | 61 | **41** | **157 MPa** — snaps |
+| plate thickened to 6.0 — *rejected* | 489 | 163 | 39 MPa |
+| box, cut **through** the access opening (z = −2) | 1504 | **172** | 36 MPa |
+| box, cut **just outside** it (z = −12) | 3375 | **544** | 11 MPa |
+
+Read that honestly: **the box is 13.3× the flat plate where it carries the
+moment as a beam, and 4.2× across the short band the access opening
+interrupts.** The opening spans |z| < 10.6 and the lowest bolt is at z = −7,
+so there is a ~3 mm band that is both open and still carrying nearly the full
+moment — that band, not the closed section, is what sets the 36 MPa. It is
+still a 4.3× improvement on what was there, and the load in that band is
+already shedding into the bolt pattern rather than running as pure bending,
+but it is the number to beat if this ever wants another pass (see the options
+at the end of this section).
+
+A thicker slab only moves material away from **one** face. The shaft's section
+already puts flanges at **both** y extremes and joins them with the aft web;
+carrying that section up to the shoulder instead of collapsing it into a plate
+is **13.3×** the flat plate where it matters — and it does it for *less* material than the 6 mm
+slab (`arm_upper_v6` 32.0 g vs 33.3 g; the original plate version was 30.5 g).
+
+### Which three sides is a print result, not a choice
+
+The arm prints web-face-down (`RY_XUP`, model **+X up** — the orientation that
+lays the filament along the arm). In that orientation a **front** wall is a
+9 mm unsupported ledge at the top of the print: the same "flat ceiling
+spanning tine to tine" finding that made `leg_link_v6` an open C in the first
+place. So the three sides are the three the shaft already has — **aft web +
+inboard flange (the horn plate) + outboard flange**, opening forward — and the
+head simply stops being the one place the arm is an exception.
+
+The **inboard flange is still the horn plate**: still `D.PLATE` thick, still
+bearing on the horn at the same plane, so the four M3 disc screws, their
+stack, their thread engagement and `ARM_Y` are all untouched.
+
+### The open side
+
+`ARM_HEAD_ACCESS_R = 10.6`: one bore through the **outboard** flange, on the
+shoulder axis, big enough to drop all four M3s in and reach them — the bore
+has to clear the Ø5.7 button heads on a Ø14 bolt circle, so r ≥ 9.85 is a hard
+floor. Teardropped, like every horizontal bore in this print.
+
+If the 36 MPa band above ever needs closing, two levers, neither taken here:
+**(a)** four individual Ø7.4 access holes instead of one bore — keeps ~45 % of
+the flange at the worst cut, but "open for screw access" becomes "fiddly with
+a hex key"; **(b)** a raised rim around the bore, putting material back at
+high y exactly where the bore removed it, at the cost of a teardropped
+overhang to draw.
+
+The old solid transition wedge is gone with it: it existed only to flare a
+3 mm plate out to the C section over 16 mm, and a hollow section of the same
+envelope is both stiffer and lighter than the solid one it replaced.
+
+### What the sweep caught
+
+Extending the box gave the **aft top-corner chamfer** an outboard flange to
+cut through as well, and at its old 7.0 × 7.5 shape that chamfer is a 47°
+**down-facing** slope starting at the first layer (in `RY_XUP` the bed is
+model −x). `check_printability` called it a `LEDGE` immediately. The two
+corner chamfers are now different shapes on purpose: 8.0 × 6.0 (37°,
+self-supporting) at the aft corner, the tighter 6.5 × 7.0 kept at the forward
+one, which faces up and is free.
+
+### Closed at the front (2026-09-24)
+
+Tom: *"strengthen the forearm-shoulder joint by connecting the inner and outer
+face in front. If there is to be an opening, have it on the side facing away
+from the body."* The head is now a closed four-sided box — aft web, **front
+wall**, inboard flange, outboard flange — and its only opening is the screw
+bore on the outboard face. The front wall is printable here where it was not
+in the open box: with both flanges under it, its first layer is a 6.4 mm
+bridge anchored on both sides, not a one-sided ledge. It had to move forward
+to do it: at the shaft's x = 12.0 its inner face would have sat on the forward
+screw head (x 9.85), so the head's front is `ARM_HEAD_FRONT_X` = 13.4 and the
+access bore is `ARM_HEAD_ACCESS_R` = 10.3 (the bore's roof now ends against
+the front wall, and that flat has to stay a bridgeable < 8 mm). Measured off
+the solid about X: 241 mm³ through the opening (was 172), 584 mm³ clear of it.
+
+## 10. Print supports are the slicer's job (2026-09-24)
+
+Tom: *"going forward we should leave the print support work to OrcaSlicer as
+long as it is capable of handling it."* Prompted by the fork's rectangular
+"slab backing under the pad", which stuck out past the elbow pad ("what's the
+extra bit sticking off the elbow end?") and — it turned out — was also what
+the forearm hit at elbow +20°: without it the CAD elbow range is −101..+60.
+
+So: modelled support geometry is gone, and parts that need supports say so
+instead — `CP.SUPPORTED[...]` (the `hip_yoke_v6` precedent) and the
+"supports" column of `print-list.md`. What a slicer cannot clean up is still
+designed in: small horizontal bores stay teardropped.
+
+Running the girdle through `check_printability` for the first time (it had
+never been audited) sorted its findings the same way. Its overhangs — the web
+window tops, the rib-relief roofs, the disc-relief tops — are slicer supports.
+Three findings were real defects no slicer fixes, and are fixed:
+
+* **six of the twelve deck screws could not be installed.** The pilots at
+  (14, ±20), (14, ±40) and (−32, ±57) sat under the clavicle beam, the aft tie
+  and the trapezius webs, 12–31 mm of material with only a Ø2.9 clearance bore
+  above each seat. All ten pilots now sit on the open rail strip between the
+  two web bands (x −27, −18, −9, 0, +6 at y ±57), each re-verified buried in
+  the real pelvis deck, and a new `check_pilot_access()` puts a 7 mm driver
+  shaft over every one. *The committed girdle (1b7d65f) has this defect.*
+* **the rail countersinks broke out of the rail's edge** (mouth to y 54.3,
+  rail from 54.8): the rail now starts at 53.8, overhanging the battery
+  aperture edge by 0.86 mm — free, since the pack goes in first.
+* **the connector-notch sliver was back** (0.55 mm between the notch and the
+  disc relief — round 4's cradle had fixed exactly this). The notch now runs
+  to the relief's centre line, meeting the circle square.
