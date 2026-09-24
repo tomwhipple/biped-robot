@@ -128,7 +128,14 @@ def active_pairs():
     5-tuples (joint, A, B, note, extra pose)."""
     pairs, touching = _yoke_pairs()
     if A.arms_on():
-        pairs = list(pairs) + ARM_PAIRS
+        arm_pairs = ARM_PAIRS
+        if A.hip_yoke_variant() == "single":
+            # the arm rows name the split yoke too (the abduction row sweeps
+            # yoke_pitch toward the arm plane); with the one-print yoke that
+            # part does not exist and the row crashed with a KeyError.
+            arm_pairs = [(j, SINGLE_RENAME.get(a, a), SINGLE_RENAME.get(b, b), *rest)
+                         for j, a, b, *rest in ARM_PAIRS]
+        pairs = list(pairs) + arm_pairs
         touching = set(touching) | ARM_TOUCHING
     return [r if len(r) == 5 else (*r, None) for r in pairs], touching
 
