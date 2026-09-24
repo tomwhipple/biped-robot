@@ -1,6 +1,6 @@
 ARMS=1: two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM shoulder (-90.0, 200.0), elbow (-100.0, 10.0); every leg row sweeps the leg with the arms in the HANGING idle pose.
 joint        A                      B                      overlap mm3  min dist  at deg  verdict
-  [girdle] top edges eased: 38/44
+  [girdle] top edges eased: 37/42
   [head] vertical fillet: R4.0 did not fit this section's material, used R1.20 instead
   [ankle_link] rounded 2/4 outer top-plate corners
   [ankle_link] rounded 2/4 outer top-plate corners
@@ -27,8 +27,8 @@ neck         head                   servo_neck                    0.00      0.00
 neck         head                   shoulder_girdle_v6            0.00      2.10   -90.0  ok   head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)
 shoulder     arm_upper_L            pelvis_v7                     0.00     22.37   -17.5  ok   upper arm vs the torso through the whole sweep, hanging
 shoulder     arm_upper_L            head                          0.00     70.65   -17.5  ok   upper arm vs the head at the fold-up (shoulder 180)
-shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.53    55.0  ok   upper arm vs the neck tube at the fold-up (shoulder 180)
-shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.53    55.0  ok   upper arm vs the girdle it hangs off, whole sweep
+shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the neck tube at the fold-up (shoulder 180)
+shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the girdle it hangs off, whole sweep
 shoulder     arm_upper_L            servo_shoulder_L              0.00      0.00   -90.0  ok   horn plate seated on the shoulder disc: must not intersect
 shoulder     arm_fore_L             pelvis_v7                     0.00     74.28   -17.5  ok   forearm vs the torso through the whole sweep, hanging
 shoulder     arm_fore_L             head                          0.00     84.88   200.0  ok   forearm vs the head, FOLDED (elbow -90, the sit-up pose)
@@ -50,4 +50,4 @@ interleg     foot_L                 foot_R                        0.00     13.67
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (65 s)
+=> ALL CLEAR  (62 s)

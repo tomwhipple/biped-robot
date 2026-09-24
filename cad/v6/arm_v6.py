@@ -99,6 +99,14 @@ PRINT_ORIENT = {
     "arm_upper_v6": (RY_XUP, "on its back: web face on bed, arm length in the bed plane"),
     "arm_fore_v6": (RY_XUP, "on its back: web face on bed, arm length in the bed plane"),
 }
+# Parts printed WITH OrcaSlicer supports (check_printability waives their
+# overhang findings; docs/design-v6/print-list.md's "supports" column says the
+# same). Support work is the slicer's job wherever it can do it -- only what a
+# slicer cannot clean up (small horizontal bores: teardropped) is designed in.
+SUPPORT_NOTE = {
+    "arm_upper_v6": "supports on: the two elbow pads' undersides start 5 mm off the bed "
+                    "(the fork prints on its back); support touching the build plate only",
+}
 # print-up for this orientation is model +X, so every horizontal bore's
 # teardrop peak points that way (teardrop_*'s roll=90). Named, not a bare 90,
 # for the same reason leg_link_v6 names its ROLL_UP=0.
@@ -128,8 +136,13 @@ def arm_upper_v6(side="L"):
     hangs to -z, the elbow axis is at z = -V.ARM_UPPER. +y is OUTBOARD.
     Qty 2 (mirror pair). Print: on its back, RY_XUP (see the module docstring).
 
-    Top end is SINGLE-SIDED on the shoulder horn -- a plate + 1.0 seating boss
-    + the 4x M3 disc bolt circle, exactly yoke_roll's horn arm. There is no
+    Top end is SINGLE-SIDED on the shoulder horn -- the horn plate + 1.0
+    seating boss + the 4x M3 disc bolt circle, exactly yoke_roll's horn arm.
+    But it is no longer a bare plate: the arm's BOX SECTION runs all the way to
+    the shoulder (inboard flange + aft web + outboard flange, opening forward),
+    with one access bore through the outboard flange for the disc screws. As a
+    flat 3 mm plate this head had Z = 41 mm3 about X and a 20 N knock at the
+    hand put ~157 MPa in it; as the box it is 583 mm3 and ~11 MPa. There is no
     idler-side arm and there cannot be one: the shoulder servo's idler face
     looks INBOARD, straight over the deck, so a second tine would have to wrap
     round the case and sweep the deck and the head every time the arm folds up.
@@ -159,24 +172,50 @@ def arm_upper_v6(side="L"):
     shaft_top = -24.0
     trans_z = -40.0                           # head plate -> full shaft section
 
-    # --- head: the horn plate. Kept to PLATE thickness out to r 13 so all four
-    # M3 disc screws (bolt circle r 7, heads O5.7) are reachable from outboard
-    # with nothing over them; the section only grows below shaft_top.
-    p = parts.box(wx0, fx, boss_y1, py1, shaft_top, head_top)
+    # --- head: a CLOSED box, not a plate. The arm's section runs all the way
+    # to the shoulder (Tom, 2026-09-21) and is closed at the front (Tom,
+    # 2026-09-24: "connecting the inner and outer face in front"): inboard
+    # flange + aft web + outboard flange + front wall. Its only opening is the
+    # screw-access bore on the side facing AWAY from the body.
+    #   inboard flange == the horn plate: still D.PLATE thick, still bearing on
+    #   the horn at boss_y1, so the four disc screws and their stack are
+    #   untouched and ARM_Y is untouched. The head runs forward to
+    #   ARM_HEAD_FRONT_X so the front wall clears the forward screw head.
+    hfx = V.ARM_HEAD_FRONT_X                  # 13.4
+    p = parts.box(wx0, hfx, boss_y1, py1, trans_z, head_top)
     p += parts.cyl_y(D.HORN_BOSS_D / 2, boss_y0, boss_y1, 0, 0)
+    #   aft web and outboard flange, carried up from the shaft at full depth
+    p += parts.box(wx0, wx1, sy0, sy1, trans_z, head_top)
+    p += parts.box(wx0, hfx, sy1 - rt, sy1, trans_z, head_top)
+    #   THE OPENING, away from the body: one bore through the outboard flange
+    #   on the shoulder axis to drop the four M3s in. Teardropped (horizontal
+    #   bore in this print); its roof is then cut off by the front wall below,
+    #   which leaves a flat bridge ARM_HEAD_ACCESS_R is sized to keep < 8 mm.
+    p -= parts.teardrop_y(V.ARM_HEAD_ACCESS_R, sy1 - rt - 1, sy1 + 1, 0, 0, roll=ROLL_UP)
+    #   the FRONT WALL, added after the bore so the bore never cuts it: joins
+    #   the inboard and outboard flanges and closes the box. In print it is a
+    #   bridge between the two flanges, not a ledge.
+    p += parts.box(V.ARM_HEAD_WALL_IN_X, hfx, boss_y1, sy1, trans_z, head_top)
     # knock the two top corners off (no sharp external corners; also keeps the
     # plate from reaching further round the servo than it needs to)
-    for cx in (wx0, fx):
+    # The two chamfers are NOT the same shape, and that is a print result. In
+    # RY_XUP the bed is model -x, so the AFT corner's chamfer is a DOWN-facing
+    # slope starting at the first layer: at the old 7.0 x 7.5 it was 47 deg and
+    # the audit called it a LEDGE the moment the box gave it the outboard
+    # flange to cut through as well. 8.0 x 6.0 is 37 deg -- self-supporting.
+    # The forward corner faces UP and is free, so it keeps the tighter shape.
+    for cx in (wx0, hfx):
         s = 1 if cx > 0 else -1
+        dx, dz = (8.0, 6.0) if cx < 0 else (6.5, 7.0)
         p -= parts.wedge_y([(cx + s * 0.5, head_top + 0.5),
-                            (cx + s * 0.5, head_top - 7.0),
-                            (cx - s * 6.5, head_top + 0.5)],
-                           boss_y1 - 1, py1 + 1)
+                            (cx + s * 0.5, head_top - dz),
+                            (cx - s * dx, head_top + 0.5)],
+                           boss_y1 - 1, sy1 + 1)
 
-    # --- transition: head plate (3 mm) out to the full C section. Solid: this
-    # is the root of a 160 mm cantilever and the one place mass buys stiffness.
-    p += parts.wedge_x([(boss_y1, shaft_top), (sy0, trans_z),
-                        (sy1, trans_z), (py1, shaft_top)], wx0, fx)
+    # --- no transition any more. The old solid wedge existed to flare a 3 mm
+    # plate out to the C section over 16 mm; with the box run to the shoulder
+    # there is nothing to flare, and a hollow section of the same envelope is
+    # both stiffer and lighter than the solid one it replaces.
 
     # --- shaft: open C, back web + two rails, opening forward. The rails taper
     # from ARM_FRONT_X at the shoulder (where the bending moment is the hand
@@ -213,12 +252,17 @@ def arm_upper_v6(side="L"):
     _r16 = math.hypot(D.SV_WID / 2, D.SV_AXIS_FROM_OUT_END) + V.ARM_R16_BUFFER
     web_end = drop + math.sqrt(_r16 ** 2 - wx1 ** 2)
     p += parts.box(wx0, wx1, iy0, hy1, web_end, jz1)
+    # NO modelled pad support. Printed on its back, the bed is model -x and the
+    # pad's lowest point sits 5.16 mm above it facing straight down -- that is
+    # OrcaSlicer's job, not this part's (Tom, 2026-09-24: "leave the print
+    # support work to OrcaSlicer as long as it is capable of handling it").
+    # The rectangular slab that used to sit under each pad stuck out past it,
+    # and was also the thing the forearm hit at elbow +20 deg; without it the
+    # CAD elbow range opens to +60. SUPPORT_NOTE below registers the part as
+    # printed with slicer supports, so the audit waives the pad undersides.
     for a0, a1 in ((iy0, iy1), (hy0, hy1)):
         p += parts.box(wx0, fx, a0, a1, drop, jz1)
         p += parts.cyl_y(D.PAD_D / 2, a0, a1, 0, drop)
-        # slab backing under the pad: keeps the print's bed face continuous
-        # all the way past the pad instead of leaving it floating 5 mm up
-        p += parts.box(wx0, -D.PAD_D / 2, a0, a1, drop - D.PAD_D / 2 - 0.5, drop)
     # idler boss, OD tapered 45 deg so its print-underside band never exceeds 45
     _ibh = abs(D.IDLER_BOSS_H)
     p += Pos(0, (D.SV_IDLER_FACE + iy1) / 2, drop) * Rot(90, 0, 0) * Cone(
@@ -232,6 +276,8 @@ def arm_upper_v6(side="L"):
     p -= parts.cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 6,
                      D.SV_IDLER_FACE + 0.7, 0, drop)
     # --- holes: the shoulder disc bolt circle through the horn plate
+    # (only through the INBOARD flange: the access bore already opened the
+    # outboard flange over the whole bolt circle)
     for h in parts.bcd_y(boss_y0 - 1, py1 + 1, 0, 0, roll=ROLL_UP):
         p -= h
     p -= parts.cyl_y(D.HORN_CENTER_RELIEF_D / 2, boss_y0 - 1, py1 + 1, 0, 0)
@@ -242,9 +288,7 @@ def arm_upper_v6(side="L"):
 
     # --- trim anything that ran below the elbow axis outside the pad radius
     _below = parts.box(-40, 40, -40, 40, drop - 60, drop)
-    p -= _below - (parts.cyl_y(D.PAD_D / 2, -40, 40, 0, drop)
-                   + parts.box(wx0, -D.PAD_D / 2, iy0, iy1, drop - 60, drop)
-                   + parts.box(wx0, -D.PAD_D / 2, hy0, hy1, drop - 60, drop))
+    p -= _below - parts.cyl_y(D.PAD_D / 2, -40, 40, 0, drop)
     return _mirrored(p, side)
 
 
@@ -489,6 +533,8 @@ def run_audits(built, verbose=True):
         rot, note = PRINT_ORIENT[base]
         CP.ORIENT[name] = (rot, note)
         CP.PRINT_STL[name] = os.path.basename(path)
+        if base in SUPPORT_NOTE:
+            CP.SUPPORTED[name] = SUPPORT_NOTE[base]
         if CP.audit(name):
             ok = False
 
