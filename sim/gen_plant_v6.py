@@ -113,6 +113,19 @@ class DesignParams:
     arm_abd_add: float = 20.0    # adduction limit (deg, toward centreline)
     arm_abd_abd: float = 100.0   # abduction limit (deg, away from centreline / out to the side)
     arm_shoulder_y_extra: float = 0.0   # extra lateral offset beyond the torso-hugging default (m)
+    arm_fore_mass: float | None = None   # forearm printed-link mass; None = 0.6 * arm_mass (rounds 1-4)
+    arm_girdle: bool = False      # round 5b (2026-09-24): the AS-DRAWN shoulder
+                                  # (cad/v6/shoulder_girdle_v6.py). The shoulder
+                                  # servo is fixed in the girdle, so its 55 g box
+                                  # belongs to the TORSO, not to the swinging
+                                  # arm (rounds 1-4 hung it on the arm body, which
+                                  # put its mass in the arm's swing inertia); and
+                                  # the girdle itself -- 84 g, 200 mm wide, the
+                                  # shoulder pods that meet the floor first when
+                                  # the robot lies supine -- was not in the plant
+                                  # at all. Adds the girdle box + both shoulder
+                                  # servo boxes to the torso. Needs arm_cad_servos.
+    m_girdle: float = 0.084       # shoulder_girdle_v6 print (CAD 2026-09-24: 84.0 g)
     arm_cad_servos: bool = False  # round 5 (2026-09-19): place the arm's servo
                                   # BOXES where cad/v6/arm_v6.py actually draws
                                   # them, instead of the round-2 placeholder.
@@ -570,6 +583,15 @@ def _arms(p: DesignParams) -> str:
         return ""
     out = []
     zs = p.deck_bot - 0.015 if p.arm_z is None else p.arm_z
+    if p.arm_girdle:
+        # shoulder_girdle_v6 as one box: x -38.21..+16.0 about the shoulder
+        # axis, out to 3.2 mm inboard of the arm plane (GIRDLE_Y1 100.15 vs
+        # ARM_Y 103.35), from the deck top to the pod tops (axis + 14.96).
+        _yo = p.deck_w / 2 + SV_T / 2 + 0.004 + p.arm_shoulder_y_extra - 0.0032
+        _x0, _x1 = p.arm_shoulder_x - 0.03821, p.arm_shoulder_x + 0.016
+        _z0, _z1 = p.deck_bot + p.deck_t, zs + 0.01496
+        out.append(f'\n      <geom name="girdle" {_fc(p)}type="box" pos="{_f((_x0+_x1)/2)} 0 {_f((_z0+_z1)/2)}" '
+                   f'size="{_f((_x1-_x0)/2)} {_f(_yo)} {_f((_z1-_z0)/2)}" mass="{p.m_girdle}" rgba="0.82 0.84 0.87 1" group="1"/>')
     for side, sgn in (("L", 1), ("R", -1)):
         y = sgn * (p.deck_w / 2 + SV_T / 2 + 0.004) + sgn * p.arm_shoulder_y_extra
         # elbow servo box: CAD places it centred on the ARM PLANE and hanging
@@ -581,11 +603,19 @@ def _arms(p: DesignParams) -> str:
             hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}">
           <joint name="{side}_elbow" axis="0 1 0" range="-150 150"/>
           <geom class="servo" type="box" pos="0 {_f(_el_y)} {_f(_el_z)}" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
-          <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_fore_len)}" size="0.006" mass="{p.arm_mass*0.6}" rgba="0.82 0.84 0.87 1"/>
+          <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_fore_len)}" size="0.006" mass="{p.arm_mass*0.6 if p.arm_fore_mass is None else p.arm_fore_mass}" rgba="0.82 0.84 0.87 1"/>
           <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_fore_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
         </body>"""
+        _sh_servo = "" if p.arm_girdle else f'<geom class="servo" type="box" pos="0 {_f(-sgn*SV_T/2)} 0" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>'
+        if p.arm_girdle:
+            # the stator lives in the girdle: a TORSO geom, lying fore-aft with
+            # the cable end aft (case x axis-35.11..axis+10.11), its mid-plane
+            # 22.95 mm inboard of the arm plane (dimensions_v6 ARM_SERVO_MID_Y)
+            _cx = p.arm_shoulder_x - (SV_LEN / 2 - SV_AXIS_OUT)
+            _cy = sgn * (abs(y) - 0.02295)
+            out.append(f'\n      <geom class="servo" type="box" pos="{_f(_cx)} {_f(_cy)} {_f(zs)}" size="{_f(SV_LEN/2)} {_f(SV_T/2)} {_f(SV_WID/2)}" mass="{p.m_neck_servo}"/>')
         arm_inner = f"""<joint name="{side}_shoulder" axis="0 1 0" range="-90 200"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
-        <geom class="servo" type="box" pos="0 {_f(-sgn*SV_T/2)} 0" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
+        {_sh_servo}
         <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_len)}" size="0.006" mass="{p.arm_mass}" rgba="0.82 0.84 0.87 1"/>
         {hand}"""
         if p.arm_abd:

@@ -38,6 +38,10 @@ PAIRS = [
     ("hip_roll", "yoke_pitch_{s}", "yaw_carrier_{s}", "pitch yoke flange vs the bay at abduction"),
     ("hip_roll", "yoke_pitch_{s}", "servo_hip_roll_{s}", "yoke vs the roll servo case"),
     ("hip_pitch", "thigh_{s}", "yoke_pitch_{s}", "thigh grip plates vs the yoke arms (0.7 mm v5 rule)"),
+    # the pair that actually limits hip flexion: the thigh's front wall vs the
+    # ROLL flange (hip-yoke-single-print.md section 6 item 1). The split sweep
+    # never listed it, which is how a -125 ROM stood unchallenged for 10 days.
+    ("hip_pitch", "thigh_{s}", "yoke_roll_{s}", "thigh front wall vs the ROLL flange (sets ROM hip_pitch)"),
     ("hip_pitch", "thigh_{s}", "servo_hip_pitch_{s}", "grip channel vs its own servo: seated, must not intersect"),
     ("hip_pitch", "thigh_{s}", "yaw_carrier_{s}", "thigh top vs the carrier at deep flexion"),
     ("hip_pitch", "thigh_{s}", "pelvis_v7", "thigh vs the housing at deep flexion"),

@@ -85,7 +85,12 @@ DECK_BOT_Z = HIP_ROLL_Z + D.ROLL_BELOW_DECK_YAW                      # v5 stack.
 ROM = {
     "hip_yaw": (-45.0, 45.0),
     "hip_roll": (-55.0, 55.0),
-    "hip_pitch": (-125.0, 90.0),   # was -110: yoke_pitch_v6 flange chamfer (YOKE_FLEX_CHAMFER)
+    "hip_pitch": (-120.0, 90.0),   # -110 -> -125 (yoke_pitch_v6 flange chamfer, 2026-09-14) -> -120
+                                   # (2026-09-24): -125 was never reachable -- the thigh's front wall met
+                                   # the ROLL flange from -118.4 in BOTH yoke variants, a pair the split
+                                   # sweep never listed. -120 is the deepest the joint clears at the
+                                   # 0.7 mm rule after LL_HIP_RELIEF; past it the thigh's own servo case
+                                   # is next. The get-up needs >= 119 (getup_search_r5_asdrawn_hip*.txt).
     "knee": (-95.0, 130.0),        # + = flexion (see the sign note); 95 -> 130 with LL_FLEX_CUT + LL_FOLD_CHAMFER; hard limit ~132
     "ankle_pitch": (-40.0, 40.0),
     "ankle_roll": (-25.0, 25.0),
@@ -202,6 +207,25 @@ LL_FRONT_X = (D.SV_WID / 2 + D.FIT + 0.8, D.SV_WID / 2 + D.FIT + 0.8 + D.WALL)  
 LL_BOX_TOP = -36.5                            # below the servo case bottom (-35.11) + jog
 LL_BOX_BOT = -(LL_DROP - 16.0 - D.SWEEP_BUFFER - 1.0)                 # -92.5
 LL_EDGE_R = 5.0
+# HIP-FLEXION RELIEF (2026-09-24, hip-yoke-single-print.md section 6 item 1).
+# At deep hip flexion the thigh's front wall -- the TOP edge of this box --
+# swings up into the roll flange's front (in BOTH yoke variants: the flange is
+# the same; the split sweep never listed the pair). First contact -118.4 deg.
+# The get-up needs the tuck at -119 or deeper (it stands at -119/-121/-125
+# and not at -118/-117, docs/design-v6/getup_search_r5_asdrawn_hip*.txt), and
+# -125 is out of reach without cutting through this wall or the roll horn
+# arm's root. So ROM["hip_pitch"] comes back to -122 and the box's top-front
+# edge gets a chamfer (x run from the front face, z drop from LL_BOX_TOP),
+# sized by check_assembly_v6's thigh-vs-hip_yoke row at -122 with the 0.7 mm
+# rule. It faces UP-forward in this part's standing print: self-supporting.
+LL_HIP_RELIEF = (3.5, 4.0)
+# ...and, once that chamfer cleared the wall, the next thing the flange's
+# front-bottom edge met at -121 was the idler jog block's front, 0.5 mm ABOVE
+# the box top at x 13.2 -- 0.54 mm forward of the servo case face (SV_WID/2
+# + FIT = 12.66), so that sliver locates nothing. Everything forward of
+# LL_HIP_RELIEF_X0 is trimmed for LL_HIP_RELIEF_UP above the box top.
+LL_HIP_RELIEF_X0 = D.SV_WID / 2 + D.FIT + 0.24      # 12.90: 0.24 clear of the case's fit
+LL_HIP_RELIEF_UP = 3.0
 LL_WEB_END = -(LL_DROP - 32.0)                # v5's WEB_END rule: 32 above the lower axis
 LL_CABLE_WINDOW_Z = (-48.0, -37.0)            # v5 (upper-anchored: the lead leaves the case bottom)
 LL_BRACE_Z = (LL_BOX_BOT - 4.0, LL_BOX_BOT)   # gable brace at the box bottom

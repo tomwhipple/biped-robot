@@ -48,9 +48,10 @@ PARTS = [
     ("sole_tpu_R", _lazy("foot_v6", "sole_tpu", "R"), 1, "TPU 95A"),
 ]
 
-# HIP_YOKE_VARIANT=single (the assembly_v6.hip_yoke_variant switch): the two
-# yokes are one print, hip_yoke_v6. Default rollup unchanged.
-if os.environ.get("HIP_YOKE_VARIANT", "split") == "single":
+# The hip yoke is ONE print, hip_yoke_v6 (default since 2026-09-24, the
+# assembly_v6.hip_yoke_variant switch); HIP_YOKE_VARIANT=split rolls up the
+# legacy bolted pair instead.
+if os.environ.get("HIP_YOKE_VARIANT", "single") == "single":
     _i = next(i for i, r in enumerate(PARTS) if r[0] == "yoke_roll")
     PARTS = [r for r in PARTS if r[0] not in ("yoke_roll", "yoke_pitch_v6")]
     PARTS.insert(_i, ("hip_yoke_v6", _lazy("hip_yoke_v6", "hip_yoke_v6"), 2,

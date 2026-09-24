@@ -1,69 +1,94 @@
+HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch
 joint        A                      B                      overlap mm3  min dist  at deg  verdict
   [head] vertical fillet: R4.0 did not fit this section's material, used R1.20 instead
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
   [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
   [ankle_link] rounded 2/4 outer top-plate corners
-hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      1.80   -45.0  ok   carrier under the cell through +-45
-hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00      6.80   -45.0  ok   roll servo in the carrier bay vs the housing floor
-hip_roll     yoke_roll_L            yaw_carrier_L                 0.00      0.30     0.0  ok   roll clevis vs the bay walls (v5 pair)
-hip_roll     yoke_pitch_L           yaw_carrier_L                 0.00      5.27    55.0  ok   pitch yoke flange vs the bay at abduction
-hip_roll     yoke_pitch_L           servo_hip_roll_L              0.00      4.08    55.0  ok   yoke vs the roll servo case
-hip_pitch    thigh_L                yoke_pitch_L                  0.00      0.70  -110.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
-hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    40.0  ok   grip channel vs its own servo: seated, must not intersect
-hip_pitch    thigh_L                yaw_carrier_L                 0.00     20.54  -110.0  ok   thigh top vs the carrier at deep flexion
-hip_pitch    thigh_L                pelvis_v7                     0.00     59.01  -110.0  ok   thigh vs the housing at -110
-knee         shin_L                 thigh_L                       0.00      0.70    95.0  ok   shin grip plates vs the thigh fork; shin case vs the thigh box
-knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's box (r 16 rule)
-ankle_pitch  ankle_link_L           shin_L                        0.00      0.70   -40.0  ok   ankle link grip plates vs the shin fork (0.7 mm)
-ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin box
-ankle_pitch  foot_L                 shin_L                        0.00     37.29    40.0  ok   foot tabs / cradle vs the shin tines at +-40
-ankle_roll   foot_L                 ankle_link_L                  0.43      0.00    25.0  ok   foot tabs vs the ankle link tines (0.7 mm), sole vs the web
-ankle_roll   servo_ankle_roll_L     ankle_link_L                  0.00      0.00   -25.0  ok   THE 54 mm pair: roll servo case sweep under the link
-ankle_roll   servo_ankle_roll_L     servo_ankle_pitch_L           0.00      1.05    25.0  ok   roll case vs the pitch servo hanging above it
-neck         head                   pelvis_v7                     0.00     35.20   -90.0  ok   head shell vs the deck through +-90
-neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
-interleg     foot_L                 foot_R                    21963.29      0.00          FAIL   at {'L_hip_roll': -8.0, 'R_hip_roll': 8.0, 
-interleg     ankle_link_L           ankle_link_R               5744.29      0.00          FAIL   at {'L_hip_roll': -8.0, 'R_hip_roll': 8.0, 
-interleg     shin_L                 shin_R                     2069.26      0.00          FAIL   at {'L_hip_roll': -8.0, 'R_hip_roll': 8.0, 
-interleg     thigh_L                thigh_R                     651.55      0.00          FAIL   at {'L_hip_roll': -8.0, 'R_hip_roll': 8.0, 
-=> 4 FAIL  (88 s)
-CHECK_DONE
-joint        A                      B                      overlap mm3  min dist  at deg  verdict
-interleg     foot_L                 foot_R                        0.00     13.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (59 s)
-joint        A                      B                      overlap mm3  min dist  at deg  verdict
-neck         head                   pelvis_v7                     0.00     35.20   -90.0  ok   head shell vs the deck through +-90
-neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
-neck         head                   neck_collar                   0.00      2.10   -90.0  ok   head shell vs the collar top through +-90 (>= 1.5 mm by design)
-=> ALL CLEAR  (56 s)
-
-== 2026-09-14 deep-flexion relief: knee ROM 95 -> 130 (LL_FLEX_CUT + LL_FOLD_CHAMFER on leg_link_v6), hip pitch -110 -> -125 (yoke_pitch_v6 flange chamfer); interleg swing pose sign fixed (+knee = flexion); new pair thigh vs hip roll servo
-joint        A                      B                      overlap mm3  min dist  at deg  verdict
-hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      1.80   -45.0  ok   carrier under the cell through +-45
-hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00      6.80   -45.0  ok   roll servo in the carrier bay vs the housing floor
-hip_roll     yoke_roll_L            yaw_carrier_L                 0.00      0.30     0.0  ok   roll clevis vs the bay walls (v5 pair)
-hip_roll     yoke_pitch_L           yaw_carrier_L                 0.00      5.27    55.0  ok   pitch yoke flange vs the bay at abduction
-hip_roll     yoke_pitch_L           servo_hip_roll_L              0.00      4.08    55.0  ok   yoke vs the roll servo case
-hip_pitch    thigh_L                yoke_pitch_L                  0.00      0.70  -125.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
-hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00  -125.0  ok   grip channel vs its own servo: seated, must not intersect
-hip_pitch    thigh_L                yaw_carrier_L                 0.00     10.27  -125.0  ok   thigh top vs the carrier at deep flexion
-hip_pitch    thigh_L                pelvis_v7                     0.00     40.28  -125.0  ok   thigh vs the housing at deep flexion
-hip_pitch    thigh_L                servo_hip_roll_L              0.00      5.14  -125.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
+hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      2.30   -45.0  ok   carrier under the cell through +-45
+hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00      7.30   -45.0  ok   roll servo in the carrier bay vs the housing floor
+hip_roll     hip_yoke_L             yaw_carrier_L                 0.00      0.30     0.0  ok   one-print yoke vs the bay walls: idler boss rides the bore, volume only
+hip_roll     hip_yoke_L~seats       yaw_carrier_L                 0.00      1.00   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
+hip_roll     hip_yoke_L             servo_hip_roll_L              0.00      0.00   -55.0  ok   one-print yoke on the roll servo discs: seated, must not intersect
+hip_roll     hip_yoke_L~seats       servo_hip_roll_L              0.00      0.58   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
+hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
+hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    37.5  ok   grip channel vs its own servo: seated, must not intersect
+hip_pitch    thigh_L                yaw_carrier_L                 0.00     13.90  -120.0  ok   thigh top vs the carrier at deep flexion
+hip_pitch    thigh_L                pelvis_v7                     0.00     34.38  -120.0  ok   thigh vs the housing at deep flexion
+hip_pitch    thigh_L                servo_hip_roll_L              0.00      8.94  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
 knee         shin_L                 thigh_L                       0.00      0.60   130.0  ok   shin grip plates vs the thigh fork; shin case vs the thigh box
 knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's box (r 16 rule)
 ankle_pitch  ankle_link_L           shin_L                        0.00      0.70   -40.0  ok   ankle link grip plates vs the shin fork (0.7 mm)
 ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin box
-ankle_pitch  foot_L                 shin_L                        0.00     37.29    40.0  ok   foot tabs / cradle vs the shin tines at +-40
+ankle_pitch  foot_L                 shin_L                        0.00     37.29    20.0  ok   foot tabs / cradle vs the shin tines at +-40
 ankle_roll   foot_L                 ankle_link_L                  0.43      0.00    25.0  ok   foot tabs vs the ankle link tines (0.7 mm), sole vs the web
 ankle_roll   servo_ankle_roll_L     ankle_link_L                  0.00      0.00   -25.0  ok   THE 54 mm pair: roll servo case sweep under the link
 ankle_roll   servo_ankle_roll_L     servo_ankle_pitch_L           0.00      1.05    25.0  ok   roll case vs the pitch servo hanging above it
 neck         head                   pelvis_v7                     0.00     35.20   -90.0  ok   head shell vs the deck through +-90
 neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
-neck         head                   neck_collar                   0.00      2.10   -90.0  ok   head shell vs the collar top through +-90 (>= 1.5 mm by design)
+neck         head                   neck_collar                   0.00      2.10   -90.0  ok   head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)
 interleg     foot_L                 foot_R                        0.00     13.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (81 s)
+=> ALL CLEAR  (51 s)

@@ -137,6 +137,46 @@ accounted for to the mm³ in §7.4.
 
 ## 6. Open items (design decisions, not taken here)
 
+> **Resolved 2026-09-24 — `hip_yoke_v6` is now the DEFAULT** (Tom: *"didn't we
+> combine the two parts of the hip joint?"* … *"yes, go ahead. We need to re-run
+> the getup with these arms anyway."*). Items 1–3 below are closed as follows;
+> item 4 (bench) stands.
+>
+> **Item 2 — roll servo corner, 0.08 → 0.58 mm at ±55° roll.** A 0.5 mm relief
+> (`hip_yoke_v6.ROLL_CORNER_RELIEF`) on the roll flange's top, *only* across the
+> servo case's own thickness (x −17.15..+18.98, its idler boss to its horn rib,
+> ±0.5), so both roll arm plates' root fillets — the roll clevis's load path —
+> are untouched and `ROLL_AXIS_TO_FLANGE` / `PITCH_ARM_REACH` / every v5 part
+> stay as they were. Servo interfaces IDENTICAL, printability PASS, −0.74 g.
+>
+> **Item 1 — hip flexion: −125 was never reachable; the ROM is now −120.**
+> Measured, the clash is not the thigh's grip top but its **front wall** (the
+> leg link box's top edge, thigh-local x 11–16, z −33..−41), meeting the roll
+> flange's front from −118.4° in *both* variants. Clearing −125 would have meant
+> a 5.7 mm cut straight through that 2.6 mm wall (option c) — the thigh's
+> sagittal-bending flange where the hip moment peaks, and the same hole under
+> the knee on the shin — or thinning the **roll horn arm's root** from 3.0 to
+> ~1.1 mm (option b). Option a was tested in sim first: the get-up **needs the
+> tuck at ≥ 119°** (stands at −119/−120/−121/−125, and at −118/−117 not once in
+> 84 variants incl. broader ankle/knee/push-time grids —
+> `getup_search_r5_asdrawn_hip*.txt`). So: `leg_link_v6` gets `LL_HIP_RELIEF`
+> (a 3.5 × 4 mm chamfer on the box's top-front edge + the idler jog block's
+> sliver forward of the servo case trimmed), which takes the thigh to **0.70 mm
+> at −120°**; past that the thigh's own servo case is next, so −120 is the
+> limit without redesigning the joint. `ROM["hip_pitch"]` −125 → **−120**. The
+> get-up at the real limit (plant capped at −120): 2/12 variants stand, both
+> 6/6 robust. The pair `("hip_pitch", "thigh", "yoke_roll")` now also runs in
+> the legacy split sweep, so this can't hide there again.
+>
+> **Item 3 — promoted**: `HIP_YOKE_VARIANT` defaults to `single`; the parts
+> rollup and `print-list.md` carry `hip_yoke_v6` × 2 in place of `yoke_roll` +
+> `yoke_pitch_v6` (−2 part numbers, −8 M3×10 flange bolts, −8 heat-sets).
+> `HIP_YOKE_VARIANT=split` still builds the bolted pair.
+>
+> **Still open:** the *walk* plant's `hip_pitch_range` is still (−125, 90). The
+> walk policy's action scaling is tied to that range, so bringing it to −120 is
+> a training-side change for the next night round, not a CAD one.
+
 1. **Hip flexion is limited by the ROLL flange, at ≈ −117°, in both
    variants.** The thigh's grip top reaches the roll flange's front face
    (x 19.8..24.5, full ±17 width, z −20..−13 — the flange front *and* the
