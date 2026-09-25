@@ -123,7 +123,7 @@ class Plane:
             t = ((self.c - O) @ self.n) / den
         ok = (den < -1e-12) & (t > 1e-9)
         t = np.where(ok, t, np.inf)
-        P = O + t[..., None] * D
+        P = O + np.where(ok, t, 0.0)[..., None] * D      # misses: P = O (masked by ok)
         Q = np.where(ok[..., None], P - self.c, 0.0)
         return t, P, Q @ self.e1, Q @ self.e2, ok
 

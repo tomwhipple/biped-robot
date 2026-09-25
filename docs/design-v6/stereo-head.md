@@ -23,7 +23,8 @@ parts to buy (§3), what was **measured** in CAD and sim (§4), how to build and
 align it (§5), and what is still open (§6).
 
 Source of truth: [`cad/v6/periscope_optics.py`](../../cad/v6/periscope_optics.py)
-(the 3-D ray trace and the design search) and
+(the 3-D ray trace and the design search; the top/bottom alternative is
+[`cad/v6/periscope_tb.py`](../../cad/v6/periscope_tb.py), §7) and
 [`cad/v6/head.py`](../../cad/v6/head.py) (the CAD, every optical number derived
 from the trace). Renders: `cad/v6/renders/head.png`, `head_fields.png`.
 
@@ -259,3 +260,69 @@ is untouched. Anything trained on v6 from here on sees the heavier head.
   image nearest the prism apex; it carries the pupil-split brightness ramp.
   Harmless for stereo (the overlap is at the inner edges) but budget it when
   cropping.
+
+---
+
+## 7. Why not split the frame top/bottom? (traced, 2026-09-24)
+
+Tom, on seeing this design:
+
+> how are the left and right sides separated? I was imagining the bottom half
+> to be one side, and the top half to be the other ... that way we get a wider
+> horizontal field of view.
+
+Right on paper: a vertical knife edge (this design) gives each eye half the
+frame's **width**; a horizontal one would give each eye the **full** width at
+half the height. So it was traced like everything else —
+[`cad/v6/periscope_tb.py`](../../cad/v6/periscope_tb.py), output in
+`stereo_topbottom_study.txt` (`.venv/bin/python cad/v6/periscope_tb.py`, ~7 min).
+
+**The ceiling is real.** With perfect optics, the top half of the sensor gives
+an eye **80° wide at a 26° band** (96° at 20°, 54° at 30°). The band and the
+width trade because the half-sensor's straight edge bows once the band is
+levelled.
+
+**Inside a head, it loses.** Four families of layout (a horizontal-apex prism
+or two stacked fold mirrors, then 1–3 more mirrors per eye; camera facing
+forward and aft; both image flips), each random-sampled and refined with
+mirrors **unbounded** — just big enough for the light — so this is each
+layout's best case before any stock size is imposed:
+
+| layout | per eye | total / overlap | last mirror needed |
+|---|---|---|---|
+| prism + 3 mirrors per eye | **36°** | 50° / 22° | **98 × 70 mm** |
+| 2 stacked folds + 2 mirrors per eye | 33° | 53° / 13° | 454 × 216 mm |
+| 2 stacked folds + 3 mirrors per eye | 27° | 44° / 10° | 106 × 77 mm |
+| **this design** (left/right) | **38°** | **56° / 20°** | **50 × 50 mm, stock** |
+
+The best top/bottom layout is 2° narrower per eye than this one, uses seven
+pieces of glass instead of three, and needs a last mirror twice the size of any
+stock part. (The searches are randomised; the best of several runs is quoted,
+so a slightly better top/bottom layout may exist, but not a 2× one.) Why:
+
+1. **Each eye needs four reflections, not two.** Each half-frame is
+   one-sided vertically, so each eye's image has to be tilted ~17° to put both
+   eyes on the same band, *and* moved sideways to make the baseline. Two
+   mirrors can do one or the other, never both.
+2. **The full-width fan has to turn a corner twice.** A mirror only passes a
+   ±51° fan if it bends it by more than ~100°, and the fan keeps spreading
+   between folds, so the last mirror grows with the path to the window.
+3. **The shoulders cap that path.** Every best design fills the space
+   between the shoulders. Allowing a head twice as tall and twice as deep
+   changed nothing (30–35° per eye, 83–188 mm mirrors).
+4. The two eyes' optics can't be mirror images (the top half can feed one side
+   only): the right eye's would be the left's turned upside down.
+
+So the left/right split stays. If more **total** horizontal field matters more
+than stereo overlap, the knob is toe-out -- turning the eyes further apart.
+Traced with the same stock parts (`periscope_optics.CTR_RANGE`):
+
+| eye centre | per eye | total | shared (stereo) | baseline |
+|---|---|---|---|---|
+| 9.5° out (**this design**) | 38° | 56° | 20° | 63.5 mm |
+| 12° | 38° | 60° | 16° | 59.8 mm |
+| 15° | 38° | 66° | 10° | 52.7 mm |
+| 18° | 36° | 70° | 2° | 51.7 mm |
+
+Total width comes at almost exactly the cost of stereo overlap, and some
+baseline.
