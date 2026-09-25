@@ -153,6 +153,44 @@ Glass total **$261.50**. Alternatives, both traced:
   change `STOCK` in `periscope_optics.py` to 25 mm and re-run `--search`.
 - **Edmund #89-495** — the same 50 × 50 in protected silver (R > 98 %), $55.50.
 
+### Cheaper options (researched 2026-09-25)
+
+Tom: *"almost $300 is way too much."* The prism is two-thirds of that, and
+no documented knife-edge prism is cheap. So the cheapest route replaces it with
+a **V of two thin first-surface squares** glued at 90° in a printed block.
+Their glass can't both reach the apex: one square stops a glass-thickness
+short, and that blanks a strip of *one* eye's outer edge. The stereo overlap
+sits at the inner edges and is untouched. Every row below is traced with
+`periscope_optics.py`, both eyes scored on one physical layout
+(`leg_setback`).
+
+| option | splitter | outer mirrors | eyes | total / shared | baseline | parts | delivered, est. | glass |
+|---|---|---|---|---|---|---|---|---|
+| as drawn | Edmund #49-414 20 mm prism | 2 × Edmund #43-876 50×50×3 | 38° / 38° | 56° / 20° | 64 mm | $261.50 | ~$275 (US) | 47.6 g |
+| **A** | **V: 2 × UQG MFG-2551 25×25×1.2** | **2 × UQG MFG-5051 50×50×1.2** | **37° / 26°** | **47° / 16°** | **59 mm** | **$64.16** | **~$115–135 (UK)** | **19 g** |
+| C′ | OptoSigma KRPB4-10 10 mm prism | 2 × Thorlabs ME1.5S-G01 38.1 sq | 33° / 33° | 50° / 16° | 52 mm | $142.80 | ~$165 (US) | 24 g |
+| D | Thorlabs MRAK25-G01 25 mm prism | 2 × Thorlabs ME1.5S-G01 38.1 sq | 35° / 35° | 56° / 14° | 48 mm | $183.15 | ~$195 (US) | 43 g |
+| B | Thorlabs MRAK25-G01 | 2 × UQG MFG-5051 50×50×1.2 | 38° / 38° | 56° / 20° | 64 mm | $189.35 | ~$250 (US + UK) | 34.5 g |
+
+- **UQG Optics (UK):** front-surface mirrors, enhanced aluminium
+  (R ≥ 94 % at 550 nm), ≤ 5 fringes per 25 mm. Spec page plus a reflectance
+  PDF, but no drawing. Judged to meet the documentation rule.
+  - [catalogue](https://uqgoptics.com/catalogue/mirrors/mirrors-mirrors/front-surface-mirrors/)
+  - MFG-5051 is $16.50; MFG-2551 (25 × 25 × 1.2) is $15.58.
+  - Shipping to the US is about £37. The US de minimis exemption has been
+    suspended since August 2025, so expect duty and a brokerage fee on top.
+    The delivered prices are estimates.
+- **Thorlabs [ME1.5S-G01](https://www.thorlabs.com/item/ME1.5S-G01):**
+  38.1 mm square, protected aluminium, drawing and spec, $13.40.
+- **OptoSigma KRPB4-10-550:** $116, specified "not chamfered" apex,
+  a two-week lead time.
+- **Option A's other effects:**
+  - The 1.2 mm glass takes about 29 g off the head (111 → ~82 g).
+  - Thin glass takes the shape of whatever it's glued to. Use a compliant bead
+    (silicone) on the pocket's 5 mm frame, not a rigid bond across its face.
+  - The V's apex is a plain cut glass edge, so any chip or chamfer there
+    dims the seam a little more.
+
 Rejected: 1.1 mm Knight Optical mirrors (lighter, cheaper, but no drawing and
 no flatness spec — fails the documentation rule), Edmund 0.1 mm "ultra-thin"
 mirrors (unspecified flatness; they take the shape of whatever they're glued to,

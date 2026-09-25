@@ -196,6 +196,8 @@ class Config:
     mirror_H: float = 50.0
     mirror_t: float = 3.0
     mirror_off: tuple = (0.0, 0.0)   # outer mirror centre, offset in its own plane
+    leg_setback: float = 0.0   # DIY splitter from two flat mirrors: the mirror that yields at the
+                               # apex starts this far along its leg (= the other's glass thickness)
     # built
     C: np.ndarray = field(default=None, repr=False)
     S: np.ndarray = field(default=None, repr=False)
@@ -374,7 +376,7 @@ class Config:
         # pencil straddling it is shared by both eyes -- a brightness ramp
         # over atan(pupil radius / a) either side of the seam, flat-fielded
         # out, not a cutoff.
-        ok &= (a1 >= prism_lo[0] + m) & (a1 <= prism_hi[0] - m) & (b1 >= prism_lo[1]) & (b1 <= prism_hi[1] - m)
+        ok &= (a1 >= prism_lo[0] + m) & (a1 <= prism_hi[0] - m) & (b1 >= prism_lo[1] + self.leg_setback) & (b1 <= prism_hi[1] - m)
         ok &= (a2 >= mirror_lo[0] + m) & (a2 <= mirror_hi[0] - m) & (b2 >= mirror_lo[1] + m) & (b2 <= mirror_hi[1] - m)
         if other_side:
             g = self.mirror_glass(-1, mirror_lo, mirror_hi)
