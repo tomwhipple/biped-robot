@@ -2,6 +2,8 @@
 
 Companion to `docs/design-v6-ankle-roll.md` §9 and the CAD under `cad/v6/`. The v5 robot's parts that carry over: the 12 STS3215 on hand (7 used: hip yaw ×2, hip pitch ×2, ankle pitch ×2, neck ×1; 5 spare), the General Driver board, the horn/idler M3 hardware and the M2.5 flat-head self-tappers already sourced (counts below), the printer and PETG. Buy to the spec filters, not to ASINs (the battery lesson).
 
+**2026-09-26, if no genuine STS3250 can be bought** (design doc §14): the STS3250 row below is replaced by **7 × STS3215 12 V** (ST-3215-C018, the part already in the robot). That makes 17 in total: 12 legs, the neck and 4 arm servos, with 2 spares. Buy them only after a spare STS3215 passes the P-gain stiffness bench test in §14.6 step 0. No CAD part changes.
+
 | item | qty | spec / filter | why | est. |
 |---|---|---|---|---|
 | **Feetech STS3250** (12 V class) | **6** (buy **2 first** for the stiffness bench test, §5.1 of the design doc, then 4) | same 45.2 × 24.7 × 35 case as the STS3215, 50 kg·cm, magnetic encoder, TTL bus | hip roll, ankle roll, knee: the roll-chain stiffness the walk needs; the knee's speed margin | 6 × $43–65 US stock (BABSCO $64.99, WowRobo $43 when in stock), $48–55 AliExpress; Waveshare does not list it (checked 2026-09-14) |

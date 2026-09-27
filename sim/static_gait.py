@@ -169,7 +169,7 @@ def make_env(p: DesignParams, xml_path, mu=0.7, play_deg=3.0, backlash_deg=1.0, 
 def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, play_deg=3.0, backlash_deg=1.0,
              mass_scale=1.0, servo_scale=1.0, payload=0.0, floor_tilt_deg=0.0, per_joint=None,
              lag_hz=2.0, delay_ticks=4, render=None, verbose=False, fb_ankle=0.0, fb_hip=0.0, fb_i=0.0,
-             fb_sag=0.0, fb_sag_joints=None, track_torque=False, track_sway=False):
+             fb_sag=0.0, fb_sag_joints=None, track_torque=False, track_sway=False, track_speed=False):
     """fb_ankle / fb_hip: proportional IMU-roll feedback (rad per rad of torso
     roll error) added to the ankle-roll / hip-roll targets of BOTH legs -- the
     simplest compliance-aware controller, what a policy would learn first.
@@ -181,6 +181,8 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     track_torque (2026-09-17, wide_gait.py): also return res["peak_tau"] /
     res["stall"], the per-joint (order JN) peak |applied torque| over the run
     and the per-joint stall used, from the servo model's own qfrc_applied.
+    track_speed (2026-09-26, gate_no3250.py): also return res["peak_qd"] /
+    res["w0"], the per-joint peak |joint speed| and the no-load speed used.
     track_sway (2026-09-17, wide_gait.py): also return res["traj_t"] /
     res["traj_x"] / res["traj_y"], the pelvis (torso freejoint) x/y position
     every tick -- for measuring lateral sway vs forward stride per step.
@@ -237,6 +239,7 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     iL, iR = JN.index("L_ankle_roll"), JN.index("R_ankle_roll")
     hL, hR = JN.index("L_hip_roll"), JN.index("R_hip_roll")
     peak_tau = np.zeros(na) if track_torque else None
+    peak_qd = np.zeros(na) if track_speed else None
     traj_t, traj_x, traj_y = ([], [], []) if track_sway else (None, None, None)
     for k in range(n_ticks):
         key = tl.at(t)
@@ -263,6 +266,8 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
             # object array above to hold ragged per-joint scalars/arrays) --
             # cast to float before combining with the float64 accumulator.
             np.maximum(peak_tau, np.abs(env._servo_tau.astype(np.float64)), out=peak_tau)
+        if track_speed:
+            np.maximum(peak_qd, np.abs(env.data.qvel[env._jqvel]), out=peak_qd)
         if track_sway:
             traj_t.append(t); traj_x.append(float(env.data.qpos[0])); traj_y.append(float(env.data.qpos[1]))
         d = env.data
@@ -307,6 +312,9 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     if track_torque:
         res["peak_tau"] = peak_tau.tolist()
         res["stall"] = stall.tolist()
+    if track_speed:
+        res["peak_qd"] = peak_qd.tolist()
+        res["w0"] = w0.tolist()
     if track_sway:
         res["traj_t"] = traj_t
         res["traj_x"] = traj_x

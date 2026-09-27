@@ -1,0 +1,21 @@
+== Gate D, 4 cases x arm contacts, as-drawn robot with arms (r5_asdrawn, lumped, 2.098 kg), arms held shoulder +15 / elbow 0
+3250     turn  +0 mu 0.7 play 3  up   tilt_max   5.4 deg  arm-vs-leg contacts      0
+3250     turn +15 mu 0.7 play 3  up   tilt_max   8.1 deg  arm-vs-leg contacts      0
+3250     turn  +0 mu 0.3 play 5  up   tilt_max   5.0 deg  arm-vs-leg contacts      0
+3250     turn -15 mu 0.9 play 3  up   tilt_max   8.4 deg  arm-vs-leg contacts      0
+3250     turn -15 mu 0.7 play 3  up   tilt_max   8.0 deg  arm-vs-leg contacts      0
+3215     turn  +0 mu 0.7 play 3  FELL tilt_max  99.2 deg  arm-vs-leg contacts      0
+3215     turn +15 mu 0.7 play 3  FELL tilt_max  98.8 deg  arm-vs-leg contacts      0
+3215     turn  +0 mu 0.3 play 5  FELL tilt_max  96.7 deg  arm-vs-leg contacts      0
+3215     turn -15 mu 0.9 play 3  FELL tilt_max 101.8 deg  arm-vs-leg contacts      0
+3215     turn -15 mu 0.7 play 3  FELL tilt_max 102.5 deg  arm-vs-leg contacts      0
+3215_p3rk turn  +0 mu 0.7 play 3  up   tilt_max   7.9 deg  arm-vs-leg contacts      0
+3215_p3rk turn +15 mu 0.7 play 3  FELL tilt_max  96.9 deg  arm-vs-leg contacts      0
+3215_p3rk turn  +0 mu 0.3 play 5  up   tilt_max   6.9 deg  arm-vs-leg contacts      0
+3215_p3rk turn -15 mu 0.9 play 3  FELL tilt_max 100.6 deg  arm-vs-leg contacts      0
+3215_p3rk turn -15 mu 0.7 play 3  FELL tilt_max  97.4 deg  arm-vs-leg contacts      0
+3215_p4rk turn  +0 mu 0.7 play 3  up   tilt_max   5.3 deg  arm-vs-leg contacts      0
+3215_p4rk turn +15 mu 0.7 play 3  up   tilt_max   8.1 deg  arm-vs-leg contacts      0
+3215_p4rk turn  +0 mu 0.3 play 5  up   tilt_max   5.0 deg  arm-vs-leg contacts      0
+3215_p4rk turn -15 mu 0.9 play 3  FELL tilt_max 103.6 deg  arm-vs-leg contacts      0
+3215_p4rk turn -15 mu 0.7 play 3  up   tilt_max   8.1 deg  arm-vs-leg contacts      0
