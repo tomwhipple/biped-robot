@@ -195,19 +195,20 @@
       </body>
       <body name="head" pos="0 0 0.1177">
         <joint name="neck_yaw" axis="0 0 1" range="-90 90"/>
-        <inertial pos="-0.0188 -0.0000 0.0353" quat="0.5055 0.4944 -0.4944 -0.5055" mass="0.1114" diaginertia="6.0260e-05 1.5751e-04 1.8480e-04"/>
-        <geom name="head_shell" class="fallcol" type="box" pos="-0.01445 0 0.03285" size="0.02495 0.0702 0.03285" mass="0.06" rgba="0.20 0.20 0.22 1" group="1"/>
+        <inertial pos="-0.0181 -0.0001 0.0346" quat="0.5114 0.4880 -0.4878 -0.5123" mass="0.0906" diaginertia="6.4782e-05 1.1992e-04 1.4744e-04"/>
+        <geom name="head_shell" class="fallcol" type="box" pos="-0.01565 0 0.03495" size="0.02615 0.0724 0.03495" mass="0.0701" rgba="0.20 0.20 0.22 1" group="1"/>
         <!-- the glass and the camera: mass only (they sit inside the shell) -->
-        <geom name="head_prism" type="box" pos="-0.0187 0 0.0459" size="0.0071 0.0141 0.010" mass="0.01" contype="0" conaffinity="0" rgba="0.6 0.8 0.95 1" group="1"/>
-        <geom name="head_mirror_L" type="box" pos="-0.0226 0.0451 0.0375" euler="0 0 -30.6" size="0.0015 0.025 0.025" mass="0.0188" contype="0" conaffinity="0" rgba="0.7 0.85 0.95 1" group="1"/>
-        <geom name="head_mirror_R" type="box" pos="-0.0226 -0.0451 0.0375" euler="0 0 30.6" size="0.0015 0.025 0.025" mass="0.0188" contype="0" conaffinity="0" rgba="0.7 0.85 0.95 1" group="1"/>
-        <geom name="head_cam" type="box" pos="-0.0018 0 0.0433" size="0.0062 0.0125 0.012" mass="0.004" contype="0" conaffinity="0" rgba="0.1 0.45 0.2 1" group="1"/>
+        <geom name="head_vtile_L" type="box" pos="-0.0189 0.0084 0.0465" euler="0 0 45" size="0.00055 0.0125 0.010" mass="0.00138" contype="0" conaffinity="0" rgba="0.6 0.8 0.95 1" group="1"/>
+        <geom name="head_vtile_R" type="box" pos="-0.0197 -0.0092 0.0465" euler="0 0 -45" size="0.00055 0.0125 0.010" mass="0.00138" contype="0" conaffinity="0" rgba="0.6 0.8 0.95 1" group="1"/>
+        <geom name="head_mirror_L" type="box" pos="-0.0230 0.0458 0.0418" euler="0 0 -30" size="0.00055 0.025 0.025" mass="0.00688" contype="0" conaffinity="0" rgba="0.7 0.85 0.95 1" group="1"/>
+        <geom name="head_mirror_R" type="box" pos="-0.0230 -0.0458 0.0418" euler="0 0 30" size="0.00055 0.025 0.025" mass="0.00688" contype="0" conaffinity="0" rgba="0.7 0.85 0.95 1" group="1"/>
+        <geom name="head_cam" type="box" pos="-0.0018 0 0.0448" size="0.0062 0.0125 0.012" mass="0.004" contype="0" conaffinity="0" rgba="0.1 0.45 0.2 1" group="1"/>
         <!-- camera: the real lens pupil (it looks AFT, into the prism). eye_L / eye_R:
              the stereo pair's VIRTUAL pupils, behind the mirrors -- where each eye
-             effectively sees from; 63.5 mm apart. -->
-        <site name="camera" pos="-0.0065 0 0.047" size="0.003" rgba="0 1 0 0.6"/>
-        <site name="eye_L" pos="-0.0676 0.0317 0.0497" size="0.003" rgba="0 1 0 0.6"/>
-        <site name="eye_R" pos="-0.0676 -0.0317 0.0497" size="0.003" rgba="0 1 0 0.6"/>
+             effectively sees from; 62.2 mm apart. -->
+        <site name="camera" pos="-0.0065 0 0.0485" size="0.003" rgba="0 1 0 0.6"/>
+        <site name="eye_L" pos="-0.0698 0.0311 0.0536" size="0.003" rgba="0 1 0 0.6"/>
+        <site name="eye_R" pos="-0.0698 -0.0311 0.0536" size="0.003" rgba="0 1 0 0.6"/>
       </body>
     </body>
   </worldbody>

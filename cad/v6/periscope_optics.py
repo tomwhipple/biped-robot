@@ -198,6 +198,10 @@ class Config:
     mirror_off: tuple = (0.0, 0.0)   # outer mirror centre, offset in its own plane
     leg_setback: float = 0.0   # DIY splitter from two flat mirrors: the mirror that yields at the
                                # apex starts this far along its leg (= the other's glass thickness)
+    v_back_t: float = 0.0      # DIY splitter from two BACK-silvered tiles: glass this thick in
+                               # front of each silver leg. Both reach the apex (the glass is outside
+                               # the V), but a ray must enter through the tile's face, not the cut
+                               # end at the apex -- the notch between the two ends is dead
     # built
     C: np.ndarray = field(default=None, repr=False)
     S: np.ndarray = field(default=None, repr=False)
@@ -327,6 +331,10 @@ class Config:
         N = len(Dc)
         O = np.zeros((N, 3))
         t1, P1, a1, b1, ok1 = self.leg.hit(O, Dc)
+        if self.v_back_t > 0:
+            face = Plane("tile_face", self.leg.c + self.leg.n * self.v_back_t, self.leg.n, self.leg.e1)
+            _, _, _, bf, okf = face.hit(O, Dc)
+            ok1 = ok1 & okf & (bf >= 0.0)            # enters through the face, not the cut end
         D1 = reflect(Dc, self.leg.n)
         t2, P2, a2, b2, ok2 = self.outer.hit(P1, D1)
         ok = ok1 & ok2
@@ -567,33 +575,162 @@ def search(stock, n=4000, seed=0, top=6):
 
 
 # ---------------------------------------------------------------- the design
-# Filled in from search() -- re-run `periscope_optics.py --search` after any
-# change to the camera, the prism or the mirror stock, and paste the result.
+# PRISM-FREE (2026-09-26). Tom, after the prism quotes: "don't use a prism
+# then" -- and cheap mirrors, glued in and calibrated, instead of optics-grade
+# parts. The split is a V of two FRONT-SURFACE squares glued into a printed
+# block. Their glass can't both reach the apex: the LEFT eye's square runs to
+# it; the RIGHT eye's butts against the back of the left one, a glass-
+# thickness short -- a dead strip at the right eye's OUTER edge (leg_setback;
+# the stereo overlap, at the inner edges, is untouched). Both eyes are scored
+# on the one physical layout (two_eyes()).
 #
-# The stock (docs/design-v6/stereo-head.md has the sweep that picked it):
-#   prism   Edmund Optics #49-414, 20 mm enhanced-Al leg-coated N-BK7 90 deg
-#           "specialty mirror" (knife-edge right-angle prism), 10 g. The 25 mm
-#           (#47-005 / Thorlabs MRAK25) traces to the same 38 deg per eye at
-#           twice the mass; 12.5 mm costs 2 deg.
-#   mirrors 2x Edmund Optics #43-876, 50 x 50 x 3.0 mm enhanced-Al 4-6 lambda
-#           first-surface, 18.8 g each. 40 x 57.5 / 35 x 50 trade 1-3 deg and
-#           6-12 mm of baseline for 1.5-5.7 g each.
-STOCK = dict(prism_leg=20.0, prism_len=20.0, mirror_L=50.0, mirror_H=50.0, mirror_t=3.0)
-DESIGN = dict(a=2.773, prism_offset=-1.143, ell=33.659, toe_out=1.61, el0=-3.836, u_c=0.515)
+# The squares have no manufacturer datasheets (Tom's call for this part):
+# their size and thickness are MEASURED ON ARRIVAL and set here, and the
+# stereo calibration absorbs the rest.
+V_TILE = (25.0, 20.0, 1.1)       # V squares: along the leg, height, glass thickness (front-surface).
+                                 # 25 mm along the leg, not 50: a longer piece's far end reaches the
+                                 # outer mirror (glass_clash), and the light only uses ~20 mm of it
+OUTER_TILE = (50.0, 50.0, 1.1)   # outer squares: length, height, glass thickness
+# The parts (2026-09-26), all front-surface 1.1 mm optical glass, no datasheets
+# (Tom's call: cheap, glued in, calibrated), measured on arrival:
+#   outer  5 x 50 x 50 -- eBay hnpiwxny "Front Surface Projector Reflector
+#          Mirror", $16.34 delivered (2 used, 3 spare)
+#   V      5 x 25 x 20 -- eBay explore-space, $12.66 delivered (2 used)
+# No cutting. (Cutting a spare 50 x 50 into 25 x 25 quarters instead traces
+# 2 deg wider -- 48 vs 46 total -- for $0: set V_TILE = (25.0, 25.0, 1.1).)
+OUTER_FRONT = True               # front-surface outer squares (False: back-silvered craft tiles)
+STOCK = dict(prism_leg=V_TILE[0], prism_len=V_TILE[1], mirror_L=OUTER_TILE[0], mirror_H=OUTER_TILE[1],
+             mirror_t=OUTER_TILE[2])
+SETBACK = V_TILE[2]              # the right eye's square starts this far from the apex
+DESIGN = dict(a=3.166, prism_offset=-1.98, ell=34.551, toe_out=4.136, el0=-6.977, u_c=0.505)   # --search, 2026-09-26 (the eBay parts)
+V_RANGES = dict(SIMPLE_RANGES, a=(2.5, 12.0))
+
+
+def two_eyes(p, stock=None, setback=None, step=1.0):
+    """Place the outer mirrors once (centred on the left eye's field), then
+    score BOTH eyes on that layout: the left eye on the apex square, the
+    right on the set-back one. Returns None if either eye has no field."""
+    stock = STOCK if stock is None else stock
+    setback = SETBACK if setback is None else setback
+    try:
+        r0 = evaluate(Config(**SIMPLE_FIXED, **stock, **p), 0.0, step=step, el_win=EL_WINDOW)
+    except (ValueError, np.linalg.LinAlgError):
+        return None
+    if r0 is None:
+        return None
+    cfg = r0["cfg"]
+    if glass_clash(cfg):
+        return None
+    out = {}
+    for name, sb in (("left", 0.0), ("right", setback)):
+        cfg.leg_setback = sb
+        g = cfg.eye_grid(step=step)
+        r = best_az(cfg.valid_mask(g), g[0], g[1], *EL_WINDOW)
+        if r is None:
+            return None
+        out[name] = dict(w=r[0], az_lo=r[1], az_hi=r[2])
+    cfg.leg_setback = 0.0
+    vp = cfg.virtual_pupil()
+    L, R_ = out["left"], out["right"]
+    out.update(cfg=cfg, total=L["az_hi"] + R_["az_hi"], overlap=2 * min(-L["az_lo"], -R_["az_lo"]),
+               baseline=2 * abs(vp[1]), vp=vp, el_lo=EL_WINDOW[0], el_hi=EL_WINDOW[1])
+    return out
+
+
+def glass_clash(cfg, clear=1.0):
+    """Solid against solid, which the ray trace never looks at: the V's
+    squares (both, the right one mirrored and set back) and the outer mirrors'
+    glass must not overlap, with `clear` mm to spare for their mounts."""
+    V_pts = []
+    for side, s0 in ((1, 0.0), (-1, SETBACK)):
+        for sa in (s0, s0 + cfg.prism_leg):
+            for su in (-cfg.prism_len / 2, cfg.prism_len / 2):
+                for dep in (0.0, -V_TILE[2]):
+                    q = cfg.leg.c + cfg.leg.e2 * sa + cfg.leg.e1 * su + cfg.leg.n * dep
+                    V_pts.append(q if side > 0 else q * np.array([1, -1, 1]))
+    V_pts = np.array(V_pts)
+    lo, hi = (-cfg.mirror_L / 2, -cfg.mirror_H / 2), (cfg.mirror_L / 2, cfg.mirror_H / 2)
+    for side in (1, -1):
+        g = cfg.mirror_glass(side, (lo[0] - clear, lo[1] - clear), (hi[0] + clear, hi[1] + clear))
+        if g.contains(V_pts).any():
+            return True
+        # and the other way round: an outer glass corner inside the V's footprint
+    corners = []
+    o = cfg.outer
+    for a1 in (lo[0], hi[0]):
+        for a2 in (lo[1], hi[1]):
+            for dep in (0.0, -cfg.mirror_t):
+                corners.append(o.c + o.e1 * a1 + o.e2 * a2 + o.n * dep)
+    tri = cfg.prism_solid()
+    return bool(tri.contains(np.array(corners), eps=-clear).any())
+
+
+def v_objective(res):
+    """Total field (the right eye pays the seam), a real stereo zone, some baseline."""
+    if res is None:
+        return -1e9
+    f = res["total"] + 0.05 * min(res["baseline"], 70.0)
+    if res["overlap"] < 16.0:
+        f -= 3.0 * (16.0 - res["overlap"])
+    return f
+
+
+def v_search(stock=None, setback=None, n=1500, seed=0):
+    rng = np.random.default_rng(seed)
+    best = (-1e9, None)
+    for _ in range(n):
+        p = {k: float(rng.uniform(*r)) for k, r in V_RANGES.items()}
+        f = v_objective(two_eyes(p, stock, setback))
+        if f > best[0]:
+            best = (f, p)
+    f, p = best
+    steps = dict(a=0.5, prism_offset=1.0, ell=2.0, toe_out=1.0, el0=1.0, u_c=0.03)
+    for _ in range(6):
+        improved = False
+        for k, h in steps.items():
+            for sg in (1, -1):
+                q = dict(p)
+                q[k] = float(np.clip(q[k] + sg * h, *V_RANGES[k]))
+                g = v_objective(two_eyes(q, stock, setback))
+                if g > f:
+                    p, f, improved = q, g, True
+        if not improved:
+            steps = {k: v / 2 for k, v in steps.items()}
+    return p, f
+
+
+def _v_search_job(seed):
+    import warnings
+    warnings.filterwarnings("ignore")
+    return v_search(seed=seed)
 
 
 def design():
-    """The chosen Config, built, with its outer mirror centred on the field's
-    footprint (what evaluate() does) -- the single source for the CAD."""
-    res = evaluate(Config(**SIMPLE_FIXED, **STOCK, **DESIGN), 0.0, step=0.5, el_win=EL_WINDOW)
-    return res
+    """The chosen layout, both eyes -- the single source for the CAD."""
+    return two_eyes(DESIGN, step=0.5)
+
+
+def describe_v(res, title="DESIGN"):
+    L, R_ = res["left"], res["right"]
+    o = res["cfg"].outer
+    print(f"-- {title}")
+    print(f"   left eye {L['w']:.0f} deg (az {L['az_lo']:+.0f}..{L['az_hi']:+.0f}), right eye {R_['w']:.0f} deg "
+          f"(the seam's strip), both {res['el_hi'] - res['el_lo']:.0f} deg tall (el {res['el_lo']:+.0f}..{res['el_hi']:+.0f})")
+    print(f"   TOTAL {res['total']:.0f} deg, stereo overlap {res['overlap']:.0f} deg, baseline {res['baseline']:.1f} mm")
+    print(f"   V apex {res['cfg'].a:.2f} mm behind the pupil; outer mirror centre "
+          f"({o.c[0]:.1f}, {o.c[1]:.1f}, {o.c[2]:.1f}) normal ({o.n[0]:.2f}, {o.n[1]:.2f}, {o.n[2]:.2f})")
 
 
 if __name__ == "__main__":
     import sys
+    import warnings
+    warnings.filterwarnings("ignore")
     if "--search" in sys.argv:
-        p, f = search(STOCK)
+        from concurrent.futures import ProcessPoolExecutor
+        with ProcessPoolExecutor(8) as ex:
+            runs = list(ex.map(_v_search_job, range(8)))
+        p, f = max(runs, key=lambda t: t[1])
         print("best:", {k: round(v, 3) for k, v in p.items()}, "objective", round(f, 2))
-        describe(_eval_params(p, STOCK, step=0.5), "searched")
+        describe_v(two_eyes(p, step=0.5), "searched")
     else:
-        describe(design(), "DESIGN")
+        describe_v(design())

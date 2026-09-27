@@ -1,11 +1,10 @@
 """head: the STEREO-PERISCOPE camera head on its own neck servo (v6 body).
 
-2026-09-24, replacing the 2026-09-14 single forward camera: ONE Camera Module 3
-(Wide) sees in stereo through two horizontal periscopes -- binocular vision from
-a single sensor, both eye openings in one horizontal plane, the horizontal field
-as wide as stock optics allow. The optics are designed, and every optical number
-here is derived, in periscope_optics.py; the design note with the trade study
-and the parts list is docs/design-v6/stereo-head.md.
+ONE Camera Module 3 (Wide) sees in stereo through two horizontal periscopes --
+binocular vision from a single sensor, both eye openings in one horizontal
+plane. The optics are designed, and every optical number here is derived, in
+periscope_optics.py; the design note (trade studies, parts, assembly) is
+docs/design-v6/stereo-head.md.
 
 Seen from above (+X forward, the neck yaw axis at the origin):
 
@@ -13,43 +12,45 @@ Seen from above (+X forward, the neck yaw axis at the origin):
       ____________________|  CM3 |____________________
       \\  outer mirror L   \\  |  /   outer mirror R  //
        \\                    \\|/                    //     the chevron walls ARE
-        \\                  prism                   //      the mirror mounts
-         \\_______________ [pad] _______________//          <- back wall
+        \\                  V of 2 squares          //      the mirror mounts
+         \\____________________________________//          <- back wall
 
-  * The camera looks AFT (-X) into a 20 mm knife-edge right-angle prism mirror
-    2.8 mm behind its entrance pupil. The prism's two coated legs split the
-    sensor's long axis; each half-image goes sideways to a 50 x 50 mm
-    first-surface mirror that turns it forward out of that side's eye window.
-    Two reflections per eye: each eye's image is rotated, never mirrored.
-  * Per eye 38 deg (H) x 40 deg (V, -30..+10 deg); the eyes are toed out so
-    the total field is 56 deg with 20 deg of stereo overlap; 63.5 mm baseline
-    between the two virtual pupils. periscope_optics.py records why the camera
-    faces aft (it keeps the outer mirrors small) and why no stock splitter
-    gives more than ~45 deg per eye.
-  * The prism sits BEHIND the horn's screw circle and the camera rides a
-    removable sled in the nose above it: lift the lid, pull the sled, and the
-    four M3 horn screws are driven straight down, as on the old head.
-  * The chevron walls lean 2.3 deg: that is the optics, not slop -- a vertical
-    mirror loses 9 deg per eye (the lens's field edge at each eye's inner
-    edge only reaches ~27 deg down; the tilt rotates the eye's view to keep
-    the full -30).
+  * PRISM-FREE (2026-09-26, Tom: "don't use a prism then"). The camera looks
+    AFT (-X) into a V of two small FRONT-SURFACE squares glued into a printed
+    block, its apex just behind the lens. The V splits the sensor's long axis;
+    each half-image goes sideways to an outer front-surface square that turns
+    it forward out of that side's eye window. Two reflections per eye: rotated,
+    never mirrored.
+  * The two V squares can't both reach the apex (their glass would collide):
+    the LEFT one runs to it, the RIGHT one butts against its back one glass-
+    thickness out. That blanks a strip at the right eye's OUTER edge; the
+    stereo overlap, at the inner edges, is untouched.
+  * The mirrors are cheap and undocumented (Tom's call for this part): their
+    size and thickness are periscope_optics.V_TILE / OUTER_TILE, MEASURED ON
+    ARRIVAL; the stereo calibration absorbs the rest.
+  * The V sits BEHIND the horn's screw circle and the camera rides a removable
+    sled in the nose above it: lift the lid, pull the sled, and the four M3
+    horn screws are driven straight down.
+  * The chevron walls lean a few degrees: that is the optics, not slop -- a
+    vertical mirror loses ~9 deg per eye (the lens's field edge at each eye's
+    inner edge only reaches ~27 deg down; the tilt keeps the full -30).
 
 Parts (all print base-down; the sled prints lying on its front face):
   head_shell()   base plate on the horn + the chevron body -- both mirror
                  walls, back wall, face frame with the two eye windows, the
-                 nose, and the prism pad. Open on top.
+                 nose, and the V block. Open on top.
   head_lid()     the roof; 4x M2.5 flat-head self-tappers into shell bosses.
                  It also holds the camera sled down.
   camera_sled()  the plate the Camera Module 3 screws to (4x M2 self-tap);
                  slides down grooves in the nose.
   head()         all three fused -- the assembly, the ROM checks, the mass.
-Mocks (not printed): prism_mock(), mirror_mock(side), camera_mock(), and
+Mocks (not printed): v_tiles_mock(), mirror_mock(side), camera_mock(), and
 view_cones() -- the eyes' fields, for renders and the self-occlusion check.
 
-Every beam -- pupil to prism, prism to mirror, mirror out through the window --
-is built as a solid from the traced design (with margin) and subtracted from
-every printed part, so nothing printed can sit in the light path; check_optics()
-re-proves it on the finished parts.
+Every beam -- pupil to V, V to mirror, mirror out through the window -- is
+built as a solid from the traced design (with margin) and subtracted from
+every printed part, so nothing printed can sit in the light path;
+check_optics() re-proves it on the finished parts.
 
 Glue the glass with 2-part epoxy or neutral-cure silicone, NEVER cyanoacrylate:
 its vapour frosts first-surface coatings. Print in black PETG -- the inside of
@@ -94,17 +95,18 @@ PRINT_ORIENT_SLED = np.array([[0, 0, 1.0], [0, 1.0, 0], [-1.0, 0, 0]])   # +X ->
 # ---------------------------------------------------------------- the optics
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    OPT = PO.design()            # w, az_lo/az_hi, el_lo/el_hi, baseline, vp, cfg
+    OPT = PO.design()            # left/right eye fields, total, overlap, baseline, vp, cfg
 CFG = OPT["cfg"]
+EYE_L, EYE_R = OPT["left"], OPT["right"]
 
-# the camera's entrance pupil, head-local. XP puts the prism's apex just aft
+# the camera's entrance pupil, head-local. XP puts the V's apex just aft
 # of the horn screws' driver cylinders (see check_horn_access). ZP is set by
 # the eyes' lowest rays, not by the mirrors: at 40.5 (mirrors a rim above
 # the base) the -30 deg cones sliced the socket floor into knife-edge
-# slivers out at the face; at 47.0 they clear the whole floor up to the
+# slivers out at the face; at 48.5 they clear the whole floor up to the
 # face, so the floor stays whole -- and stiff, which the stereo calibration
-# needs more than it needs the 6.5 mm.
-XP, ZP = -6.5, 47.0
+# needs more than it needs the 8 mm. (face_windows() asserts it.)
+XP, ZP = -6.5, 48.5
 PUPIL = np.array([XP, 0.0, ZP])
 
 
@@ -124,23 +126,30 @@ def _unit(v):
 
 FLIP_Y = np.diag([1.0, -1.0, 1.0])
 
-# prism: Edmund #49-414, legs = height = 20, apex line vertical
-PRISM_LEG = CFG.prism_leg
-PRISM_LEN = CFG.prism_len
-PRISM_HYP = PRISM_LEG * math.sqrt(2)                   # 28.28 across the back
-APEX = H(CFG.apex)                                     # apex-line centre
-X_APEX = APEX[0]                                       # -9.27
-X_HYP = X_APEX - PRISM_LEG / math.sqrt(2)              # -23.42, the glued back face
-PRISM_Z = (APEX[2] - PRISM_LEN / 2, APEX[2] + PRISM_LEN / 2)
-PRISM_MASS = 10.0                                      # g, Edmund spec (N-BK7)
+# the V: two front-surface squares (PO.V_TILE), apex line vertical. The LEFT
+# eye's square (+Y leg) runs to the apex; the RIGHT eye's butts against its
+# back, one glass-thickness out along its own leg.
+VT_L, VT_H, VT_T = PO.V_TILE                           # along the leg, height, glass
+LEG = CFG.leg                                          # +Y leg: n out of the face, e2 out along the leg
+APEX = H(CFG.apex)                                     # apex-line centre = the squares' mid-height
+X_APEX = APEX[0]
+V_UP = LEG.e1 if LEG.e1[2] > 0 else -LEG.e1           # up the apex line
+V_BACK = 2.2                                           # backing plate behind each square
+V_RIM = 2.0                                            # rim past each square's far end
+GLASS_RHO = 2.5e-3                                     # g/mm^3, soda-lime float glass
+VT_MASS = VT_L * VT_H * VT_T * GLASS_RHO               # each
+V_AL = {+1: (0.0, VT_L), -1: (VT_T, VT_T + VT_L)}      # each square's span along its leg
+V_UPR = (-VT_H / 2, VT_H / 2)
+V_FRAME = (APEX, LEG.e2, V_UP, LEG.n)                  # built on +Y; the right square is mirrored
 
-# outer mirrors: Edmund #43-876, 50 x 50 x 3.0, enhanced Al 4-6 lambda
+# outer mirrors: front-surface squares (PO.OUTER_TILE)
 MIR_C = H(CFG.outer.c)                                 # reflective-face centre, +Y side
 MIR_N = CFG.outer.n                                    # out of the reflective face
 MIR_E1 = CFG.outer.e1                                  # along its 50 mm length (horizontal)
 MIR_E2 = CFG.outer.e2                                  # along its 50 mm height (~vertical)
 MIR_L, MIR_H, MIR_T = CFG.mirror_L, CFG.mirror_H, CFG.mirror_t
-MIRROR_MASS = 18.8                                     # g each, Edmund spec
+assert PO.OUTER_FRONT, "back-silvered outer squares need the pocket flipped (glass in front)"
+MIRROR_MASS = MIR_L * MIR_H * MIR_T * GLASS_RHO        # g each
 
 # ---------------------------------------------------------------- the body
 BCD_R = D.BCD / 2
@@ -175,8 +184,13 @@ assert _glass[:, 2].min() - 0.2 > BASE_T + 1.0, "mirror must clear the base plat
 # the chevron's two ends, on its OUTER surface, at the mirror's mid-height
 _aft = MIR_C + MIR_N * WALL_OUT - MIR_E1 * (MIR_L / 2 + MIR_RIM)
 _fwd = MIR_C + MIR_N * WALL_OUT + MIR_E1 * (MIR_L / 2 + MIR_RIM)
-X_BACK = float(np.floor(_aft[0] * 10) / 10)            # back wall's outer face
-Y_OUT = float(np.ceil(_fwd[1] * 10) / 10)              # outer side's outer face
+_v_aft = min((APEX + LEG.e2 * (V_AL[-1][1] + V_RIM) - LEG.n * (VT_T + V_BACK))[0], _aft[0] + 0.0)
+X_BACK = float(np.floor(min(_aft[0], _v_aft - WALL - 1.0) * 10) / 10)   # back wall's outer face
+# the side wall clears both the outer mirror's forward end AND the eye's field
+# where it leaves through the face (the cone's outer plane, margin + pencil)
+_vp = H(CFG.virtual_pupil())
+_cone_y = _vp[1] + (XP - PO.NOSE_C[1] + 0.6 - _vp[0]) * math.tan(math.radians(EYE_L["az_hi"] + 1.0)) + 0.8
+Y_OUT = float(np.ceil(max(_fwd[1], _cone_y + WALL + 0.8) * 10) / 10)    # outer side's outer face
 
 # the face and the nose -- the numbers the optics trace assumed (PO.NOSE_*)
 X_FACE0 = XP - PO.PUPIL_BELOW_FRONT                    # face aft surface == lens front
@@ -196,16 +210,13 @@ CAM_HOLES = tuple((sy * V.CAM3_HOLES[0] / 2, ZP + sz * V.CAM3_HOLES[1] / 2)
                   for sy in (1, -1) for sz in (1, -1))
 assert SLED_X[1] <= XN_FRONT - NOSE_FRONT_T + 0.01, "sled must sit behind the nose front wall"
 
-# the prism mount: a plate on the back face, a 45-deg ledge under it
-PAD_T = 3.0
-PAD_HW = PRISM_HYP / 2 - 1.5                           # inside the hypotenuse, clear of the beams
-PRISM_POCKET = 0.5
-LEDGE = 4.0
+# ribbon slot: behind the screw circle, and beside the V's right leg -- the
+# V's apex sits right over the old centred slot, which undercut its foot
+CABLE_X = -(BCD_R + 2.0 + V.HEAD_CABLE_SLOT[1] / 2)    # -11
+CABLE_Y = -(V.HEAD_CABLE_SLOT[0] / 2 + 3.0)            # -9: the slot spans y -15..-3
 
-CABLE_X = -(BCD_R + 2.0 + V.HEAD_CABLE_SLOT[1] / 2)    # -11: ribbon slot behind the screw circle
-
-# lid screws: two against the back wall behind the prism pad (no beam passes
-# |y| < the pad there), two in the nose side walls just ahead of the face
+# lid screws: two against the back wall behind the V (no beam passes there),
+# two in the nose side walls just ahead of the face
 LID_SCREWS = ((X_BACK + WALL + 2.2, 7.0), (X_BACK + WALL + 2.2, -7.0),
               (X_FACE1 + 2.5, NOSE_HW - 2.6), (X_FACE1 + 2.5, -(NOSE_HW - 2.6)))
 
@@ -247,8 +258,11 @@ def _pyramid(apex, dirs, d_far, pencil):
 
 
 # ---------------------------------------------------------------- the beams
-def _corner_dirs(margin):
-    a0, a1 = OPT["az_lo"] - margin, OPT["az_hi"] + margin
+def _corner_dirs(margin, eye=None):
+    """The eye's field corners (left eye by default: the right eye's field is
+    the left's minus the seam strip, so its mirrored beams contain it)."""
+    eye = EYE_L if eye is None else eye
+    a0, a1 = eye["az_lo"] - margin, eye["az_hi"] + margin
     e0, e1 = OPT["el_lo"] - margin, OPT["el_hi"] + margin
     return [PO.dir_az_el(a, e) for a, e in ((a0, e0), (a1, e0), (a1, e1), (a0, e1))]
 
@@ -312,10 +326,11 @@ def view_cones(reach=250.0):
     """The two eyes' fields (exact window, no margin), out to `reach` from
     the virtual pupils, clipped to in front of the mirrors -- for renders
     and the self-occlusion check."""
-    E = _corner_dirs(0.0)
     vp = H(CFG.virtual_pupil())
-    cone = _pyramid(vp, E, reach, 0.0) & _halfspace(H(CFG.outer.c), CFG.outer.n)
-    return cone + _mirror_y(cone)
+    front = _halfspace(H(CFG.outer.c), CFG.outer.n)
+    left = _pyramid(vp, _corner_dirs(0.0, EYE_L), reach, 0.0) & front
+    right = _pyramid(vp, _corner_dirs(0.0, EYE_R), reach, 0.0) & front
+    return left + _mirror_y(right)
 
 
 # ---------------------------------------------------------------- body solids
@@ -346,71 +361,127 @@ def _nose_inner(extra=0.0, z0=BASE_T, z1=None):
     return box(X_FACE0 - 1.0, XN_FRONT - NOSE_FRONT_T - extra, -(NOSE_IN - extra), NOSE_IN - extra, z0, z1)
 
 
-def _mirror_pocket(side):
-    """The glass's own volume plus everything in front of it: 0.2 mm
-    clearance round the outline, floor exactly at the glass's back face."""
-    c = MIR_C + MIR_N * (-MIR_T + 6.0) / 2
-    s = _frame_box(c, MIR_E1, MIR_N, (MIR_L + 0.4, MIR_H + 0.4, MIR_T + 6.0))
-    return s if side > 0 else _mirror_y(s)
+# ---------------------------------------------------------------- the glass
+# Every mirror is a flat FRONT-SURFACE square glued into a recess: reflective
+# face on the design plane, glass behind it. A tile frame is (a point on the
+# face, along, up, n out of the face); ranges are (lo, hi) mm along those axes.
+OUT_FRAME = (MIR_C, MIR_E1, MIR_E2, MIR_N)
+OUT_AL, OUT_UP = (-MIR_L / 2, MIR_L / 2), (-MIR_H / 2, MIR_H / 2)
 
 
-def _in_mirror_plane(pts_e1e2, n0, n1):
-    """A prism whose profile is given in the mirror's own (e1, e2) coords,
-    spanning n0..n1 along its normal (+Y mirror frame)."""
-    pl = Plane(origin=_v(MIR_C + MIR_N * n0), x_dir=_v(MIR_E1), z_dir=_v(MIR_N))
-    area2 = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts_e1e2, pts_e1e2[1:] + pts_e1e2[:1]))
-    pts = list(pts_e1e2) if area2 > 0 else list(reversed(pts_e1e2))    # CCW -> face normal +n
-    out = extrude(pl * Polygon(*pts, align=None), amount=n1 - n0)
+def _tile_box(fr, s_al, s_up, s_dep):
+    c0, al, up, n = fr
+    ctr = c0 + al * sum(s_al) / 2 + up * sum(s_up) / 2 + n * sum(s_dep) / 2
+    return _frame_box(ctr, al, n, (s_al[1] - s_al[0], s_up[1] - s_up[0], s_dep[1] - s_dep[0]))
+
+
+def _tile_prism(fr, pts_al_up, d0, d1):
+    """A prism with its profile in the tile's (along, up) plane, spanning
+    depths d0..d1 along n."""
+    c0, al, up, n = fr
+    pl = Plane(origin=_v(c0 + n * d0), x_dir=_v(al), z_dir=_v(n))
+    ysgn = 1.0 if np.dot(np.cross(n, al), up) > 0 else -1.0
+    pts = [(a, ysgn * u) for a, u in pts_al_up]
+    area2 = sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(pts, pts[1:] + pts[:1]))
+    if area2 < 0:
+        pts = pts[::-1]                                  # CCW -> face normal +n
+    out = extrude(pl * Polygon(*pts, align=None), amount=d1 - d0)
     bb = out.bounding_box()
-    assert np.dot(_unit(MIR_N), [(bb.min.X + bb.max.X) / 2 - pl.origin.X, (bb.min.Y + bb.max.Y) / 2 - pl.origin.Y,
-                                 (bb.min.Z + bb.max.Z) / 2 - pl.origin.Z]) >= -1e-6, "extruded the wrong way"
+    mid = np.array([(bb.min.X + bb.max.X) / 2, (bb.min.Y + bb.max.Y) / 2, (bb.min.Z + bb.max.Z) / 2])
+    assert np.dot(n, mid - (c0 + n * d0)) >= -1e-6, "extruded the wrong way"
     return out
 
 
+def _tile_glass(fr, s_al, s_up, t):
+    return _tile_box(fr, s_al, s_up, (-t, 0.0))
+
+
+POCKET_FRONT = 1.5      # the recess cutter reaches this far in front of the glass: enough to clear
+                        # the pocket lip -- at 6 mm it shaved the V block's far end (outer
+                        # mirror pocket) and the other V square's plate (at the apex)
+
+
+def _tile_pocket(fr, s_al, s_up, t):
+    """The glass's own volume (+0.15 all round) and just in front of it:
+    floor exactly at the glass's back face."""
+    return _tile_box(fr, (s_al[0] - 0.15, s_al[1] + 0.15), (s_up[0] - 0.15, s_up[1] + 0.15), (-t, POCKET_FRONT))
+
+
+def _tile_window(fr, s_al, s_up, t, back, frame=5.0):
+    """Opening in the plate behind the glass (it bears on a `frame` mm
+    border). Peaked top, ~55 deg: printed base-down, a flat top would
+    bridge, and exactly 45 sits on the audit's line when the plate is
+    vertical (the V's are)."""
+    w0, w1 = s_al[0] + frame, s_al[1] - frame
+    u0, u1 = s_up[0] + frame, s_up[1] - frame
+    if w1 - w0 < 4.0 or u1 - u0 < 4.0:
+        return None
+    half, mid = (w1 - w0) / 2, (w0 + w1) / 2
+    shoulder = max(u0 + 0.5, u1 - half * 1.43)             # tan 55 deg
+    pts = [(w0, u0), (w1, u0), (w1, shoulder), (mid, u1), (w0, shoulder)]
+    return _tile_prism(fr, pts, -(t + back) - 1.0, -t + 0.1)
+
+
+def _tile_top_chamfer(fr, s_al, s_up, d_floor, d_surface):
+    """60-deg chamfer on the recess's top edge: the plate above would
+    otherwise overhang the recess by its depth (d_surface - d_floor)."""
+    c0, al, up, n = fr
+    ht = s_up[1] + 0.15
+    run = (d_surface + 0.3) - (d_floor - 0.05)
+    mid = c0 + al * sum(s_al) / 2
+    pl = Plane(origin=_v(mid), x_dir=_v(up), z_dir=_v(al))           # local y = al x up
+    ysgn = 1.0 if np.dot(np.cross(al, up), n) > 0 else -1.0
+    tri = [(ht - 0.05, ysgn * (d_floor - 0.05)), (ht - 0.05, ysgn * (d_surface + 0.3)),
+           (ht - 0.05 + run * 1.75, ysgn * (d_surface + 0.3))]
+    return extrude(pl * Polygon(*tri, align=None), amount=(s_al[1] - s_al[0]) / 2, both=True)
+
+
+def _sides(solid_left, side):
+    return solid_left if side > 0 else _mirror_y(solid_left)
+
+
+def _mirror_pocket(side):
+    return _sides(_tile_pocket(OUT_FRAME, OUT_AL, OUT_UP, MIR_T), side)
+
+
 def _mirror_window(side):
-    """Opening in the wall behind the glass (the glass bears on a 5 mm
-    frame round it). The top is a 45-deg peak, not a flat 40 mm bridge:
-    printed base-down, a flat top would be an unsupported ceiling."""
-    w, b = (MIR_L - MIR_WINDOW) / 2, -(MIR_H - MIR_WINDOW) / 2
-    top = (MIR_H - MIR_WINDOW) / 2
-    pts = [(-w, b), (w, b), (w, top - w), (0.0, top), (-w, top - w)]
-    s = _in_mirror_plane(pts, WALL_OUT - 1.0, -MIR_T + 0.1)
-    return s if side > 0 else _mirror_y(s)
+    return _sides(_tile_window(OUT_FRAME, OUT_AL, OUT_UP, MIR_T, MIR_BACK), side)
 
 
 def _pocket_top_chamfer(side):
-    """60-deg chamfer on the glue pocket's top edge: the wall above the
-    recess would otherwise overhang it by the pocket depth. (45 is not
-    enough: the wall's own 2.3 deg lean tips a 45 over the audit's line.)"""
-    ht = MIR_H / 2 + 0.2
-    pl = Plane(origin=_v(MIR_C), x_dir=_v(MIR_E2), z_dir=_v(MIR_E1))    # local x = e2, y = n
-    run = WALL_IN + 0.3 - (-MIR_T - 0.05)
-    tri = [(ht - 0.05, -MIR_T - 0.05), (ht - 0.05, WALL_IN + 0.3), (ht - 0.05 + run * 1.75, WALL_IN + 0.3)]
-    s = extrude(pl * Polygon(*tri, align=None), amount=MIR_L / 2 + 0.2, both=True)
-    return s if side > 0 else _mirror_y(s)
+    return _sides(_tile_top_chamfer(OUT_FRAME, OUT_AL, OUT_UP, -MIR_T, WALL_IN), side)
 
 
-def _prism_mount():
-    """Pad plate on the hypotenuse (full height, floor to lid) + a 45-deg
-    ledge under the prism's back edge that sets its height."""
-    pad = box(X_HYP - PAD_T, X_HYP + PRISM_POCKET, -PAD_HW, PAD_HW, BASE_T - 0.1, Z_ROOF)
-    ledge = P.wedge_y([(X_HYP, PRISM_Z[0]), (X_HYP + LEDGE, PRISM_Z[0]), (X_HYP, PRISM_Z[0] - LEDGE)],
-                      -PAD_HW + 3.5, PAD_HW - 3.5)
-    return pad + ledge
+def _v_backing():
+    """The V block: a backing plate behind each square, from the floor to just
+    above the squares, the two meeting at the apex (an L-section, stiff on its
+    own). Recesses, windows and chamfers are cut later."""
+    b = None
+    for side in (1, -1):
+        slab = _sides(_tile_box(V_FRAME, (V_AL[side][0], V_AL[side][1] + V_RIM), (-200.0, VT_H / 2 + 3.0),
+                                (-(VT_T + V_BACK), 0.0)), side)
+        b = slab if b is None else b + slab
+    return b
 
 
-def _prism_pocket():
-    """0.5 mm recess in the pad for the hypotenuse face (sets x and z; y is
-    set by ACTIVE alignment -- nudge the prism against the live image until
-    the split is centred, then let the epoxy cure)."""
-    return box(X_HYP, X_HYP + 2.0, -(PRISM_HYP / 2 + 0.15), PRISM_HYP / 2 + 0.15,
-               PRISM_Z[0] - 0.15, PRISM_Z[1] + 0.15)
+def _v_cuts():
+    """Each square's recess, the window behind it, and its top chamfer."""
+    cut = None
+    for side in (1, -1):
+        parts = [_tile_pocket(V_FRAME, V_AL[side], V_UPR, VT_T),
+                 _tile_top_chamfer(V_FRAME, V_AL[side], V_UPR, -VT_T, 0.0),
+                 _tile_window(V_FRAME, V_AL[side], V_UPR, VT_T, V_BACK)]
+        for q in parts:
+            if q is not None:
+                q = _sides(q, side)
+                cut = q if cut is None else cut + q
+    return cut
 
 
 def _body():
     """Shell + lid as one solid, before the lid is split off."""
     b = (_main_body() + _nose_outer()) - (_interior() + _nose_inner())
-    b += _prism_mount()
+    b += _v_backing()
     for x, y in LID_SCREWS:                              # screw bosses, full height
         b += cyl_z(2.6, BASE_T - 0.1, Z_ROOF, x, y)
     b &= (_main_body() + _nose_outer())                  # bosses stay inside the skin
@@ -439,11 +510,7 @@ def head_shell():
         p -= _mirror_pocket(side)
         p -= _pocket_top_chamfer(side)
         p -= _mirror_window(side)
-    p -= _prism_pocket()
-    zt = PRISM_Z[1] + 0.15                                   # 45-deg chamfer over the prism recess
-    p -= P.wedge_y([(X_HYP - 0.05, zt - 0.05), (X_HYP + PRISM_POCKET + 0.3, zt - 0.05),
-                    (X_HYP + PRISM_POCKET + 0.3, zt + PRISM_POCKET + 0.35)],
-                   -(PRISM_HYP / 2 + 0.15), PRISM_HYP / 2 + 0.15)
+    p -= _v_cuts()
     # sled grooves: 1 mm into each nose side wall, open at the top, a stop at SLED_Z0
     p -= box(SLED_X[0] - 0.15, SLED_X[1] + 0.15, -(SLED_HW + 0.15), SLED_HW + 0.15,
              SLED_Z0 - 0.2, Z_ROOF + 1.0)
@@ -453,18 +520,20 @@ def head_shell():
     # the base plate: horn screws on the O14 BCD, centre relief, ribbon slot,
     # and a lightening pocket from ABOVE (a pocket from below would print as
     # a 30 x 133 mm bridge) leaving a 1.3 mm floor, a boss round the horn,
-    # a rim under every wall, and solid under the prism pad
+    # a rim under every wall, and solid under the V's backing plates
     for ang in (45, 135, 225, 315):
         x, y = BCD_R * math.cos(math.radians(ang)), BCD_R * math.sin(math.radians(ang))
         p -= cyl_z(D.PAD_HOLE / 2, -1, BASE_T + 1, x, y)
     p -= cyl_z(D.HORN_CENTER_RELIEF_D / 2, -1, BASE_T + 1, 0, 0)
     p -= box(CABLE_X - V.HEAD_CABLE_SLOT[1] / 2, CABLE_X + V.HEAD_CABLE_SLOT[1] / 2,
-             -V.HEAD_CABLE_SLOT[0] / 2, V.HEAD_CABLE_SLOT[0] / 2, -1, BASE_T + 1)
+             CABLE_Y - V.HEAD_CABLE_SLOT[0] / 2, CABLE_Y + V.HEAD_CABLE_SLOT[0] / 2, -1, BASE_T + 1)
     zp = 1.3
     pocket = _interior(extra=1.5, z0=zp, z1=BASE_T + 0.01) + _nose_inner(extra=1.5, z0=zp, z1=BASE_T + 0.01)
     pocket -= cyl_z(BCD_R + 5.0, -2, BASE_T + 1, 0, 0)
-    pocket -= box(X_HYP - PAD_T - 2.0, X_HYP + LEDGE + 1.0, -(PAD_HW + 2.0), PAD_HW + 2.0, -2, BASE_T + 1)
-    pocket -= box(CABLE_X - 4.0, CABLE_X + 4.0, -9.0, 9.0, -2, BASE_T + 1)
+    for side in (1, -1):
+        pocket -= _sides(_tile_box(V_FRAME, (V_AL[side][0] - 2.0, V_AL[side][1] + V_RIM + 2.0), (-200.0, 200.0),
+                                   (-(VT_T + V_BACK) - 2.0, 2.0)), side)
+    pocket -= box(CABLE_X - 4.0, CABLE_X + 4.0, CABLE_Y - 9.0, CABLE_Y + 9.0, -2, BASE_T + 1)
     for x, y in LID_SCREWS:
         pocket -= cyl_z(4.0, -2, BASE_T + 1, x, y)
     p -= pocket
@@ -506,7 +575,7 @@ def head():
     return head_shell() + head_lid() + camera_sled()
 
 
-GLASS_MASS = PRISM_MASS + 2 * MIRROR_MASS
+GLASS_MASS = 2 * VT_MASS + 2 * MIRROR_MASS
 
 
 def check_dimension_copies(tol=0.06):
@@ -517,10 +586,12 @@ def check_dimension_copies(tol=0.06):
     want = {
         "HEAD_X": (X_BACK, XN_FRONT), "HEAD_W": 2 * Y_OUT, "HEAD_D": XN_FRONT - X_BACK,
         "HEAD_H": ZT - BASE_T, "CAM_Z_ABOVE_HORN": ZP - BASE_T,
-        "HEAD_PRISM_C": ((X_APEX + 2 * X_HYP) / 3, 0.0, APEX[2]), "HEAD_MIRROR_C": tuple(mc),
+        "HEAD_VTILE_C_L": tuple(_v_tile_centroid(1)), "HEAD_VTILE_C_R": tuple(_v_tile_centroid(-1)),
+        "HEAD_CAM_C": (-1.8, 0.0, ZP + sum(PO.CAM_LENS_A) / 2),
+        "HEAD_MIRROR_C": tuple(mc),
         "HEAD_MIRROR_YAW": math.degrees(math.atan2(MIR_N[1], MIR_N[0])),
         "HEAD_PUPIL": tuple(PUPIL), "HEAD_EYE_VP": tuple(H(CFG.virtual_pupil())),
-        "HEAD_PRISM_MASS": PRISM_MASS, "HEAD_MIRROR_MASS": MIRROR_MASS,
+        "HEAD_VTILE_MASS": VT_MASS, "HEAD_MIRROR_MASS": MIRROR_MASS,
     }
     bad = []
     for k, v in want.items():
@@ -535,16 +606,17 @@ def check_dimension_copies(tol=0.06):
 
 
 # ---------------------------------------------------------------- mocks
-def prism_mock():
-    tri = Wire.make_polygon([_v((X_APEX, 0, PRISM_Z[0])),
-                             _v((X_HYP, PRISM_HYP / 2, PRISM_Z[0])),
-                             _v((X_HYP, -PRISM_HYP / 2, PRISM_Z[0]))], close=True)
-    return extrude(Face(tri), amount=PRISM_LEN)
+def _v_tile_centroid(side):
+    c = APEX + LEG.e2 * sum(V_AL[side]) / 2 - LEG.n * VT_T / 2
+    return c if side > 0 else FLIP_Y @ c
+
+
+def v_tiles_mock():
+    return _tile_glass(V_FRAME, V_AL[1], V_UPR, VT_T) + _mirror_y(_tile_glass(V_FRAME, V_AL[-1], V_UPR, VT_T))
 
 
 def mirror_mock(side=+1):
-    s = _frame_box(MIR_C - MIR_N * MIR_T / 2, MIR_E1, MIR_N, (MIR_L, MIR_H, MIR_T))
-    return s if side > 0 else _mirror_y(s)
+    return _sides(_tile_glass(OUT_FRAME, OUT_AL, OUT_UP, MIR_T), side)
 
 
 def camera_mock():
@@ -593,7 +665,7 @@ def check_optics(verbose=True):
     """Nothing printed in any beam, and the glass seated but not
     interfering: (1) every printed part vs the beams at a SMALLER margin
     than they were cut with; (2) the glass and camera mocks vs the printed
-    parts (pockets have 0.2 mm clearance, so ~0); (3) the prism and camera
+    parts (pockets have 0.15 mm clearance, so ~0); (3) the V and camera
     vs the beams they are not meant to be in."""
     ok = True
     tight = beams(margin=0.3, pencil=0.4)
@@ -605,7 +677,7 @@ def check_optics(verbose=True):
         if verbose:
             print(f"  {'PASS' if good else 'FAIL'}  {name:12s} in the light path: {v:7.2f} mm3")
     shell = head_shell()
-    for name, m in (("prism", prism_mock()), ("mirror L", mirror_mock(1)), ("mirror R", mirror_mock(-1)),
+    for name, m in (("V squares", v_tiles_mock()), ("mirror L", mirror_mock(1)), ("mirror R", mirror_mock(-1)),
                     ("camera", camera_mock())):
         v = _vol(shell, m)
         good = v < 1.0
@@ -618,8 +690,8 @@ def check_optics(verbose=True):
 def check_horn_access(verbose=True):
     """With the lid off and the sled pulled, a straight 7 mm driver reaches
     each horn screw from above: the cylinder from the base plate's top to
-    the roof must miss the shell AND the glued prism."""
-    shell = head_shell() + prism_mock()
+    the roof must miss the shell AND the glued V squares."""
+    shell = head_shell() + v_tiles_mock()
     ok = True
     for ang in (45, 135, 225, 315):
         x, y = BCD_R * math.cos(math.radians(ang)), BCD_R * math.sin(math.radians(ang))
@@ -691,7 +763,7 @@ def mass_report(verbose=True):
     if verbose:
         for k, m in petg.items():
             print(f"  {k:12s} {m:5.1f} g PETG")
-        print(f"  glass        {GLASS_MASS:5.1f} g (prism {PRISM_MASS} + 2 x mirror {MIRROR_MASS})")
+        print(f"  glass        {GLASS_MASS:5.1f} g (2 x V square {VT_MASS:.1f} + 2 x mirror {MIRROR_MASS:.1f})")
         print(f"  camera       {V.CAM3_MASS:5.1f} g")
         print(f"  HEAD TOTAL   {total:5.1f} g")
     return total, petg
@@ -707,7 +779,7 @@ def _render(path, with_cones=False):
              ("sled", camera_sled(), "0.35 0.35 0.38 1"),
              ("glassL", mirror_mock(1), "0.70 0.85 0.95 1"),
              ("glassR", mirror_mock(-1), "0.70 0.85 0.95 1"),
-             ("prism", prism_mock(), "0.60 0.80 0.95 1"),
+             ("vtiles", v_tiles_mock(), "0.60 0.80 0.95 1"),
              ("cam", camera_mock(), "0.10 0.45 0.20 1")]
     if with_cones:
         items.append(("cones", view_cones(120.0), "1.0 0.8 0.2 0.25"))
@@ -751,10 +823,10 @@ if __name__ == "__main__":
     os.makedirs(OUT_STEP, exist_ok=True)
     os.makedirs(OUT_REN, exist_ok=True)
 
-    print(f"optics: per eye {OPT['w']:.0f} x {OPT['el_hi'] - OPT['el_lo']:.0f} deg, total "
+    print(f"optics: left eye {EYE_L['w']:.0f}, right eye {EYE_R['w']:.0f} x {OPT['el_hi'] - OPT['el_lo']:.0f} deg, total "
           f"{OPT['total']:.0f} deg, overlap {OPT['overlap']:.0f} deg, baseline {OPT['baseline']:.1f} mm")
     print(f"head: x {X_BACK:.1f}..{XN_FRONT:.1f}, |y| <= {Y_OUT:.1f}, z 0..{ZT:.1f}; "
-          f"pupil ({XP}, 0, {ZP}); prism apex x {X_APEX:.2f}, back x {X_HYP:.2f}")
+          f"pupil ({XP}, 0, {ZP}); V apex x {X_APEX:.2f}")
 
     print("building head_shell(), head_lid(), camera_sled()...")
     shell, lid, sled = head_shell(), head_lid(), camera_sled()
@@ -772,7 +844,7 @@ if __name__ == "__main__":
         export_step(s, os.path.join(OUT_STEP, f"{name}.step"))
     # not printed, for looking at it in FreeCAD: the glass, the camera, and the
     # eyes' fields (exact windows, 180 mm out)
-    for name, s in (("head_prism_mock", prism_mock()), ("head_mirrors_mock", mirror_mock(1) + mirror_mock(-1)),
+    for name, s in (("head_vtiles_mock", v_tiles_mock()), ("head_mirrors_mock", mirror_mock(1) + mirror_mock(-1)),
                     ("head_camera_mock", camera_mock()), ("head_view_cones", view_cones(180.0))):
         export_step(s, os.path.join(OUT_STEP, f"{name}.step"))
 

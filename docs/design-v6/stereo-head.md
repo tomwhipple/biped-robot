@@ -1,4 +1,6 @@
-# The stereo-periscope head (2026-09-24): binocular vision from one camera
+# The stereo-periscope head: binocular vision from one camera
+
+*2026-09-24; prism-free since 2026-09-26.*
 
 Tom, 2026-09-24:
 
@@ -17,10 +19,18 @@ and, answering the clarifying questions:
 > - *Ideally we can order something that doesn't require cutting that could be
 >   glued into the PETG.*
 
-This note is the record of that design: the optical layout and why it is the
-one it is (§2 is the trade study — three layouts were traced, not guessed), the
-parts to buy (§3), what was **measured** in CAD and sim (§4), how to build and
-align it (§5), and what is still open (§6).
+then, on cost (2026-09-25/26):
+
+> *almost $300 is way too much* — *still way too expensive. we'll stick with
+> monocular vision if this is the choice. I'd think we could get some cheap
+> mirrors and glue them in, then calibrate* — *don't use a prism then* — (a V
+> of front-surface squares) *they don't have to come from etsy. Look for
+> another source.*
+
+This note is the record: the design as drawn (§1), why the optical layout is
+what it is (§2 and §7 are the traced trade studies), the parts (§3), what was
+**measured** in CAD and sim (§4), how to build and align it (§5), and what is
+still open (§6).
 
 Source of truth: [`cad/v6/periscope_optics.py`](../../cad/v6/periscope_optics.py)
 (the 3-D ray trace and the design search; the top/bottom alternative is
@@ -32,17 +42,17 @@ from the trace). Renders: `cad/v6/renders/head.png`, `head_fields.png`.
 
 ## 1. The design, in one table
 
-| | old head (2026-09-14) | stereo head (this note) |
+| | old head (2026-09-14) | stereo head, as drawn (2026-09-26) |
 |---|---|---|
-| camera | Camera Module 3 **Wide**, looking forward | the same camera, looking **aft** into a prism |
-| vision | mono, 102° × 67° | **stereo**: two eyes, each **38° H × 40° V** (−30…+10°) |
-| total horizontal field | 102° (mono) | **56°**, of which **20°** is seen by both eyes |
-| baseline | — | **63.5 mm** between the virtual pupils (human: ~63) |
+| camera | Camera Module 3 **Wide**, looking forward | the same camera, looking **aft** into a V of two small mirrors |
+| vision | mono, 102° × 67° | **stereo**: left eye **37°**, right eye **26°** wide, both **40°** tall (−30…+10°) |
+| total horizontal field | 102° (mono) | **47°**, of which **16°** is seen by both eyes |
+| baseline | — | **62.2 mm** between the virtual pupils (human: ~63) |
 | eye openings | one lens hole | two windows, **same horizontal plane**, either side of a camera "nose" |
-| envelope | 62 × 50 × 60 mm | **140 × 50 × 66 mm** (shoulders are 200 mm) |
-| mass | 39 g | **111 g** (PETG 60 + glass 47.6 + camera 4) |
+| envelope | 62 × 50 × 60 mm | **145 × 52 × 70 mm** (shoulders are 200 mm) |
+| mass | 39 g | **90.6 g** (PETG 70.1 + glass 16.5 + camera 4) |
 | prints | shell + face plate | **shell + lid + camera sled** |
-| optics to buy | — | 1 knife-edge prism + 2 first-surface mirrors, ~$262 (§3) |
+| optics to buy | — | 4 front-surface glass mirrors, **~$29** delivered, no cutting (§3) |
 
 How it works, seen from above (+X forward):
 
@@ -51,26 +61,35 @@ How it works, seen from above (+X forward):
      ___________________| CM3  |___________________
      \\  mirror L        \\  |  /        mirror R  //
       \\                   \\|/                   //       chevron walls = the
-       \\                 prism                  //        mirror mounts
-        \\______________ [pad] ______________//            <- back wall
+       \\              V of 2 squares           //        mirror mounts
+        \\____________________________________//            <- back wall
 ```
 
-The camera looks **aft** into a 20 mm knife-edge right-angle prism mirror (two
-coated legs meeting at a sharp 90° apex, 2.8 mm behind the lens's entrance
-pupil). The apex cuts the image down the middle: each half-image is thrown
-sideways to a 50 × 50 mm first-surface mirror glued to the inside of that
-side's chevron wall, which turns it forward out through the eye window. Two
-reflections per eye, so each eye's image is **rotated, never mirrored**, and
-each eye sees from a *virtual* pupil behind its mirror — the two virtual pupils
-are the stereo pair.
+The camera looks **aft** into a V of two 25 × 20 mm front-surface squares glued
+into a printed block, the V's apex 3.2 mm behind the lens's entrance pupil.
+The apex cuts the image down the middle: each half-image is thrown sideways to
+a 50 × 50 mm front-surface square glued inside that side's chevron wall, which
+turns it forward out through the eye window. Two reflections per eye, so each
+eye's image is **rotated, never mirrored**, and each eye sees from a *virtual*
+pupil behind its outer mirror — the two virtual pupils are the stereo pair.
 
-The sensor's long axis is split, so the left half of the sensor is one eye and
-the right half the other: at full resolution, each eye is 2304 × 2592 px of the
-4608 × 2592 frame (less the unused outer edge, §2.1).
+The two V squares can't both reach the apex: their glass would collide. The
+**left** eye's square runs to it; the **right** eye's butts against the back
+of the left one, 1.1 mm (a glass thickness) out along its leg. That blanks a
+strip at the right eye's **outer** edge — the right eye is 26° to the left's
+37° — while the stereo overlap, at the eyes' inner edges, is untouched. (A
+knife-edge prism has no such strip: 38° + 38°, but $139–185 on its own, §3.2.)
+
+The sensor's long axis is split, so the left half of the frame is one eye and
+the right half the other: at full resolution each eye is 2304 × 2592 px of the
+4608 × 2592 frame, less the unused outer edge (§2.1).
 
 ---
 
 ## 2. Why this layout — the trade study
+
+*The layout studies below were run with a knife-edge prism as the splitter;
+the prism-free V (§3.2) keeps the same camera-aft, left/right layout.*
 
 All of this is `periscope_optics.py`: a 3-D sequential trace of rays from the
 pupil through the prism and outer mirror, with every stock aperture, the camera,
@@ -130,174 +149,170 @@ shoulders. A bigger mirror (50 × 75, 28 g each) buys baseline, not field.
 
 ---
 
-## 3. Parts to buy
+## 3. Parts
 
-No extra lens: the Camera Module 3 Wide's own lens is used as-is. Every optic
-below has a manufacturer spec page and drawing; every URL was opened on
-2026-09-24 and lands on the product. Prices are USD list, quantity 1.
+### 3.1 What to buy (as drawn)
 
-| qty | part | why this one | price | mass |
-|---|---|---|---|---|
-| 1 | **Edmund Optics #49-414** — 20 mm enhanced-aluminium, leg-coated N-BK7 90° "specialty mirror" (knife-edge right-angle prism) — [product page](https://www.edmundoptics.com/p/20mm-enhanced-aluminum-coated-n-bk7-90deg-specialty-mirror/9848/) | smallest prism that reaches the full 38° per eye; R > 95 % 450–650 nm, λ/8, drawing + STEP | $170 | 10 g |
-| 2 | **Edmund Optics #43-876** — 50 × 50 × 3.0 mm enhanced-aluminium 4–6λ first-surface mirror — [product page](https://www.edmundoptics.com/p/50-x-50mm-enhanced-aluminum-4-6lambda-mirror/5362/) | largest stock square → widest baseline; R ≥ 95 %; stock size, no cutting | $45.75 ea | 18.8 g ea |
-| — | Raspberry Pi **Camera Module 3 Wide** (already on the robot) — [product page](https://www.raspberrypi.com/products/camera-module-3/) | 120° diagonal / 102° × 67°; the product page links the mechanical drawing | — | 4 g |
+No extra lens: the Camera Module 3 Wide's own lens is used as-is.
 
-Glass total **$261.50**. Alternatives, both traced:
+| qty | part | price, delivered | used for |
+|---|---|---|---|
+| 1 pack of 5 | **front-surface mirror, 50 × 50 × 1.1 mm optical glass** — eBay seller *hnpiwxny*, "Front Surface Projector Reflector Mirror" ([listing](https://www.ebay.com/itm/188927818845), 1.1 mm option) | **$16.34** (import fees included) | the 2 outer mirrors, 3 spares |
+| 1 pack of 5 | **front-surface mirror, 25 × 20 × 1.1 mm** — eBay seller *explore-space* ([listing](https://www.ebay.com/itm/158008301027)) | **$12.66** (free shipping) | the V's 2 squares, 3 spares |
+| — | Raspberry Pi **Camera Module 3 Wide** (already on the robot) — [product page](https://www.raspberrypi.com/products/camera-module-3/) | — | |
 
-- **Thorlabs [MRAK25-G01](https://www.thorlabs.com/item/MRAK25-G01)** ($156.35, 25 mm, 19.5 g) —
-  a specified *sharp, bevel-free* apex. Edmund says only "bevel: protective as
-  needed", so their apex may carry a small chamfer. At 2.8 mm from a 1.25 mm
-  pupil that only dims the seam a little (the pupil sees the bevel as a partial
-  obstruction; nothing goes blind), so the Edmund part is the default. If the
-  seam turns out worse than expected, the MRAK25 traces to the same 37–38° —
-  change `STOCK` in `periscope_optics.py` to 25 mm and re-run `--search`.
-- **Edmund #89-495** — the same 50 × 50 in protected silver (R > 98 %), $55.50.
+Glass **~$29 delivered**, no cutting, arriving mid-October (eBay estimates).
 
-### Cheaper options (researched 2026-09-25)
-
-Tom: *"almost $300 is way too much."* The prism is two-thirds of that, and
-no documented knife-edge prism is cheap. So the cheapest route replaces it with
-a **V of two thin first-surface squares** glued at 90° in a printed block.
-Their glass can't both reach the apex: one square stops a glass-thickness
-short, and that blanks a strip of *one* eye's outer edge. The stereo overlap
-sits at the inner edges and is untouched. Every row below is traced with
-`periscope_optics.py`, both eyes scored on one physical layout
-(`leg_setback`).
-
-| option | splitter | outer mirrors | eyes | total / shared | baseline | parts | delivered, est. | glass |
-|---|---|---|---|---|---|---|---|---|
-| as drawn | Edmund #49-414 20 mm prism | 2 × Edmund #43-876 50×50×3 | 38° / 38° | 56° / 20° | 64 mm | $261.50 | ~$275 (US) | 47.6 g |
-| **A** | **V: 2 × UQG MFG-2551 25×25×1.2** | **2 × UQG MFG-5051 50×50×1.2** | **37° / 26°** | **47° / 16°** | **59 mm** | **$64.16** | **~$115–135 (UK)** | **19 g** |
-| C′ | OptoSigma KRPB4-10 10 mm prism | 2 × Thorlabs ME1.5S-G01 38.1 sq | 33° / 33° | 50° / 16° | 52 mm | $142.80 | ~$165 (US) | 24 g |
-| D | Thorlabs MRAK25-G01 25 mm prism | 2 × Thorlabs ME1.5S-G01 38.1 sq | 35° / 35° | 56° / 14° | 48 mm | $183.15 | ~$195 (US) | 43 g |
-| B | Thorlabs MRAK25-G01 | 2 × UQG MFG-5051 50×50×1.2 | 38° / 38° | 56° / 20° | 64 mm | $189.35 | ~$250 (US + UK) | 34.5 g |
-
-- **UQG Optics (UK):** front-surface mirrors, enhanced aluminium
-  (R ≥ 94 % at 550 nm), ≤ 5 fringes per 25 mm. Spec page plus a reflectance
-  PDF, but no drawing. Judged to meet the documentation rule.
-  - [catalogue](https://uqgoptics.com/catalogue/mirrors/mirrors-mirrors/front-surface-mirrors/)
-  - MFG-5051 is $16.50; MFG-2551 (25 × 25 × 1.2) is $15.58.
-  - Shipping to the US is about £37. The US de minimis exemption has been
-    suspended since August 2025, so expect duty and a brokerage fee on top.
-    The delivered prices are estimates.
-- **Thorlabs [ME1.5S-G01](https://www.thorlabs.com/item/ME1.5S-G01):**
-  38.1 mm square, protected aluminium, drawing and spec, $13.40.
-- **OptoSigma KRPB4-10-550:** $116, specified "not chamfered" apex,
-  a two-week lead time.
-- **Option A's other effects:**
-  - The 1.2 mm glass takes about 29 g off the head (111 → ~82 g).
-  - Thin glass takes the shape of whatever it's glued to. Use a compliant bead
-    (silicone) on the pocket's 5 mm frame, not a rigid bond across its face.
-  - The V's apex is a plain cut glass edge, so any chip or chamfer there
-    dims the seam a little more.
-
-Rejected: 1.1 mm Knight Optical mirrors (lighter, cheaper, but no drawing and
-no flatness spec — fails the documentation rule), Edmund 0.1 mm "ultra-thin"
-mirrors (unspecified flatness; they take the shape of whatever they're glued to,
-and printed PETG isn't flat), hollow roof mirrors (mirrored on the *inside*,
-they retro-reflect; they cannot split an image).
+- **No manufacturer datasheets.** That's Tom's call for this part: cheap
+  mirrors glued in and calibrated. It is a deliberate exception to the repo's
+  sourcing rule. So every size and thickness is **measured on arrival** and set
+  in `periscope_optics.V_TILE` / `OUTER_TILE`, then run
+  `periscope_optics.py --search` and `head.py`. The listings state size,
+  thickness and "front surface"; nothing states flatness.
+- **Cheaper still: cut instead.** Score and snap one spare 50 × 50 into four
+  25 × 25 pieces. That skips the second order and traces 2° wider (48° total).
+  Set `V_TILE = (25.0, 25.0, 1.1)`. Score on the uncoated back, keep the
+  protective film on the mirror face, and put a factory edge at the apex.
+- **Why 25 mm and not 50 mm in the V.** The light only uses about 20 mm of
+  each V leg. A 50 mm piece's far end hits the outer mirror: the optics search
+  rejects any layout where glass meets glass (`glass_clash`).
 
 Hardware: 4 × M3×6 (horn, as before), 4 × M2.5×8 flat-head self-tap (lid),
 4 × M2×5 self-tap (camera to sled).
 
----
+### 3.2 How it got here (all traced with `periscope_optics.py`)
+
+The optics started optics-grade: an Edmund #49-414 20 mm knife-edge prism
+($170) and two Edmund #43-876 50 × 50 × 3 mm mirrors, $261.50 in all, 38° per
+eye, 56° total with 20° shared. Each step below was a response to cost.
+
+| option | splitter | outer mirrors | eyes | total / shared | glass, delivered |
+|---|---|---|---|---|---|
+| optics-grade (first draft) | Edmund 20 mm prism | 2 × Edmund 50×50×3 | 38° / 38° | 56° / 20° | ~$275 |
+| cheapest *documented* | V: 2 × UQG 25×25×1.2 | 2 × UQG 50×50×1.2 | 37° / 26° | 47° / 16° | ~$115–135 (UK) |
+| documented knife edge | OptoSigma KRPB4-10 10 mm prism | 2 × Thorlabs ME1.5S-G01 38 mm | 33° / 33° | 50° / 16° | ~$165 |
+| craft mirrors throughout | V of 2 mm **back-silvered** tiles | craft tiles | 25° / 25° | 34–36° / 14° | ~$10 |
+| **as drawn** | **V: 2 × 25×20×1.1 front-surface** | **2 × 50×50×1.1 front-surface** | **37° / 26°** | **47° / 16°** | **~$29** |
+
+- **Craft mirrors failed at the V, not at the outer mirrors.** Craft tiles are
+  back-silvered, with the glass in front of the silver. At the V's apex, the
+  notch between the two tiles' cut glass ends is dead on *both* eyes, and it is
+  wider the thicker the tile (§2 of `periscope_optics.py`, `v_back_t`).
+  Back-silvered tiles would be fine as the outer mirrors, where a camera
+  focused at infinity sees the 4 % front-surface ghost only on close objects.
+- **Prisms were dropped because none is cheap.** OptoSigma's 10 mm is $116,
+  Edmund's 10/15 mm are $139/153, and Thorlabs MRAK25 (25 mm, sharp apex) is
+  $156. Edmund's own spec also allows a "protective bevel" on its apex.
 
 ## 4. What was measured
 
-All from `cad/v6/head.py` (run it) and the v6 assembly gate.
+All from `cad/v6/head.py` (run it) and the v6 assembly gate, on the design as
+drawn.
 
 | check | result |
 |---|---|
 | nothing printed in any light path (every part vs the beams at a tighter margin than they were cut with) | **0.00 mm³** for shell, lid and sled |
-| glass seated: prism, both mirrors, camera vs the shell | **0.00 mm³** |
+| glass seated: both V squares, both mirrors, the camera vs the shell | **0.00 mm³** |
 | horn screws: a 7 mm driver reaches all four from above (lid off, sled out) | **PASS** ×4 |
 | neck ±90° vs the neck servo and the deck | **clear** |
-| `check_assembly_v6 --joint neck` (ARMS=1) | **ALL CLEAR**; head vs girdle **2.10 mm** (≥ 1.5 by design) |
-| `check_assembly_v6` (ARMS=1, every joint, on `main` 6bad5d5 with the one-print hip yoke and the box arm head) | **ALL CLEAR**; upper arm vs head **31.5 mm** at the fold-up, folded forearm **70.9 mm** |
-| self-view: robot parts inside the eyes' fields (to 600 mm), standing, arms hanging | **none** (a 50 mm control cube ahead: fully seen; arms raised forward, shoulder −90°: both arms seen — it can watch its hands) |
+| `ARMS=1 check_assembly_v6.py` (every joint) | **ALL CLEAR**: head vs girdle **2.10 mm** (≥ 1.5 by design), upper arm vs head **29.3 mm** at the fold-up, folded forearm **66.6 mm** |
+| self-view: robot parts inside the eyes' fields (to 600 mm), standing, arms hanging | **none** |
 | printability (`audit_torso`: shell base-down, lid flat, sled on its face) | **all three PASS**, no supports |
-| mass | shell 50.2 + lid 7.8 + sled 1.8 g PETG, glass 47.6, camera 4.0 → **111.4 g**, CoM (−18.8, 0, +35.3) mm |
+| `pytest tests/` | **190 passed**, 16 skipped |
+| mass | PETG 70.1 g + glass 16.5 g + camera 4.0 g → **90.6 g**, CoM (−18.1, −0.1, +34.6) mm |
+
+Earlier in the design, a positive control confirmed the self-view check isn't
+vacuous. A cube ahead of the head was fully seen, and with the arms raised
+forward (shoulder −90°) both arms came into view. The robot can watch its
+hands.
 
 Geometry of the result, for navigation:
 
-- The eyes (virtual pupils) are **545 mm** above the floor; at −30° the floor is
-  in view from **0.88 m** ahead of the neck axis — about 1.5 s of walking.
-- The two fields cross **~110 mm** ahead of the neck axis; nearer than that an
-  object is seen by one eye only.
-- Depth step for 0.5 px of disparity with the 63.5 mm baseline: **4 mm at 1 m /
-  38 mm at 3 m** at full resolution; 13 mm / 114 mm streaming a 1536-px-wide
-  frame.
+- **Floor view:** the eyes (virtual pupils) are **549 mm** above the floor. At
+  −30° the floor is in view from **0.88 m** ahead of the neck axis.
+- **Stereo range:** the two fields cross **~150 mm** ahead of the neck axis.
+  Anything nearer is seen by one eye only.
+- **Depth resolution:** the depth step for 0.5 px of disparity at the 62.2 mm
+  baseline is **4 mm at 1 m and 39 mm at 3 m** at full resolution. Streaming a
+  1536-px-wide frame, it is 13 mm and 116 mm.
 
 ### 4.1 The plant
 
 `sim/bimo_biped_v6ar.xml` is regenerated (`gen_plant_v6.py` +
-`build_v6_inertia.py --write`). The head body is now 111.4 g with its glass as
-separate mass-only geoms (the mirrors sit 45 mm off the neck axis: head Izz
-3.1e-5 → **1.85e-4 kg m²**), plus `eye_L` / `eye_R` sites at the virtual pupils;
-`camera` stays at the real lens. Robot **1.790 → 1.863 kg (+72.7 g at the top
-of the tower)**.
+`build_v6_inertia.py --write`).
 
-The regeneration also carries **three drifts that predate this change** — the
-committed plant was last regenerated 2026-09-14, and on a clean `main` the same
-two commands already produce them: the torso inertial is 725 g, not 705
-(`pelvis_v7.stl`, 09-17); several geoms gained names (`gen_plant_v6.py`, 09-19);
-and the thigh/shin links are 0.3 g lighter each (`leg_link_v6.stl`, 09-24).
-They are in this diff because a generated file is regenerated whole, not
-hand-picked.
-
-This is the **v6 design plant**; the nightly training runs on the v5 plants and
-is untouched. Anything trained on v6 from here on sees the heavier head.
+- **Head body:** 90.6 g, with its glass as separate mass-only geoms, plus
+  `eye_L` / `eye_R` sites at the virtual pupils. The `camera` site stays at the
+  real lens.
+- **Head inertia:** principal moments (6.5, 12.0, 14.7) × 10⁻⁵ kg m². The old
+  head's were about 3 × 10⁻⁵.
+- **Robot mass:** **1.790 → 1.842 kg**, +52 g at the top of the tower.
+- **Pre-existing drifts:** the first regeneration also carried three changes
+  from before this work, because a generated file is regenerated whole. The
+  torso is 725 g not 705 (`pelvis_v7.stl`, 09-17), several geoms gained names
+  (`gen_plant_v6.py`, 09-19), and each thigh/shin link is 0.3 g lighter
+  (`leg_link_v6.stl`).
+- **Training:** this is the **v6 design plant**. The nightly training runs on
+  the v5 plants and is untouched.
 
 ---
 
 ## 5. Building and aligning it
 
-1. **Print** in **black** PETG (the inside is an optical cavity; light walls
-   scatter): `head_shell` base-down, `head_lid` flat, `camera_sled` on its front
-   face. No supports.
-2. **Mirrors**: glue each into its pocket on the inside of a chevron wall —
-   2-part epoxy or neutral-cure silicone, a thin bead on the 5 mm frame round
-   the back window. **Never cyanoacrylate**: its vapour frosts first-surface
-   coatings. The pocket floor sets the mirror's plane; press flat, don't smear
-   the front face (clean only with lens tissue and IPA, it's bare aluminium).
-3. **Head on the neck horn**: 4 × M3×6, driven straight down through the nose
-   with the sled out — the prism sits behind the screw circle, so it can go in
-   before or after.
-4. **Camera**: 4 × M2×5 into the sled bosses, lens aft; slide the sled down the
-   nose grooves; run the ribbon down behind the board, along the floor under the
-   prism, and out through the slot behind the screw circle.
-5. **Prism**, with the camera live: the pad's 0.5 mm recess sets its depth and
-   height; set its **sideways** position *actively* — slow epoxy on the
-   hypotenuse, nudge the prism until the split is centred in the live image,
-   let it cure. (Why: 0.2 mm sideways at 2.8 mm from the pupil moves the split
-   ~4°. The printed pocket can't hold that; the camera can.)
-6. **Lid**: 4 × M2.5×8 flat-heads. It also holds the sled down.
+1. **Print** in **black** PETG. The inside is an optical cavity, and light
+   walls scatter.
+   - `head_shell` base-down, `head_lid` flat, `camera_sled` on its front face.
+   - No supports.
+2. **Outer mirrors:** glue each 50 × 50 square into its recess inside a
+   chevron wall.
+   - Use a thin bead of neutral-cure silicone or 2-part epoxy on the 5 mm
+     frame round the back window. Thin glass takes the shape of what it's
+     rigidly bonded to, so keep the bead compliant.
+   - **Never cyanoacrylate**: its vapour frosts first-surface coatings.
+   - Keep the protective film on the mirror face until the glue has cured.
+3. **Head on the neck horn:** 4 × M3×6, driven straight down through the
+   empty nose. The V sits behind the screw circle, so it can go in before or
+   after.
+4. **Camera:** 4 × M2×5 into the sled bosses, lens aft.
+   - Slide the sled down the nose grooves.
+   - Run the ribbon down behind the board, along the floor, and out through
+     the slot beside the V's right leg.
+5. **V squares, with the camera live:**
+   - Glue the **left** square first, into the left recess, with a factory edge
+     at the apex. Slow epoxy.
+   - Slide it along its leg until the image's split is centred, then let it
+     cure. 0.2 mm along the leg moves the split about 4°: the recess can't
+     hold that, the camera can.
+   - Then glue the **right** square: butt its end against the back of the left
+     one and seat it in its recess.
+6. **Lid:** 4 × M2.5×8 flat-heads. It also holds the sled down.
 7. **Calibrate** as a stereo pair: crop the frame into its left and right
-   halves, treat them as two cameras (OpenCV `stereoCalibrate` with a
-   checkerboard). Expect each half rotated by the mirrors (a proper rotation,
-   not a flip), the Wide lens's barrel distortion, and a soft brightness ramp at
-   each eye's **outer** edge where the pupil straddles the prism apex —
-   flat-field it out.
+   halves and treat them as two cameras (OpenCV `stereoCalibrate` with a
+   checkerboard). Expect:
+   - each half rotated by the mirrors (a proper rotation, not a flip);
+   - the Wide lens's barrel distortion;
+   - a soft brightness ramp at each eye's **outer** edge, where the pupil
+     straddles the V's apex, to be flat-fielded out;
+   - the right eye's blank strip beyond that.
 
 ---
 
 ## 6. Open items
 
+- **Measure the glass on arrival.** Size and thickness go into `V_TILE` /
+  `OUTER_TILE`; then re-run `periscope_optics.py --search` and `head.py`. No
+  datasheets means no flatness spec either; calibration absorbs mild bow.
 - **The lens's entrance-pupil depth is an estimate** (1.5 mm behind the front
-  of the lens; `PUPIL_BELOW_FRONT`). A ±1 mm error moves the prism's apex
-  distance and shifts the field by a degree or two; measure it on the bench
-  (e.g. the apex-seam position vs sled shim) before trusting the last degree.
-- **+72.7 g at the top of the robot.** The v6 design gates should be re-run on
-  the regenerated plant before this head flies; if they object, the lighter
-  trade is a 12.5 mm prism (−7.6 g, −2° per eye) and 35 × 50 mirrors
-  (−11.4 g, −3° and −13 mm of baseline).
-- **Dust.** The eye windows are open; first-surface mirrors don't forgive
-  fingerprints or grit. A cover window (a plane-parallel plate) in each eye
-  opening is a straightforward follow-up if the robot's floor life demands it.
-- **Seam near the eyes' outer edges.** Each eye's outer ~10° is the part of the
-  image nearest the prism apex; it carries the pupil-split brightness ramp.
-  Harmless for stereo (the overlap is at the inner edges) but budget it when
-  cropping.
+  of the lens; `PUPIL_BELOW_FRONT`). A ±1 mm error moves the V's apex distance
+  and shifts the field a degree or two. Measure it on the bench.
+- **+52 g at the top of the robot** against the mono head. The v6 design
+  gates should be re-run on the regenerated plant before this head flies.
+- **Dust.** The eye windows are open, and front-surface mirrors don't forgive
+  fingerprints or grit. A cover window in each opening is a straightforward
+  follow-up if needed.
+- **Stereo only covers 16° straight ahead.** The total view is 47°, against
+  the mono camera's 102°. Toe-out trades overlap for total width
+  (§7's table).
 
 ---
 
@@ -331,9 +346,9 @@ layout's best case before any stock size is imposed:
 | prism + 3 mirrors per eye | **36°** | 50° / 22° | **98 × 70 mm** |
 | 2 stacked folds + 2 mirrors per eye | 33° | 53° / 13° | 454 × 216 mm |
 | 2 stacked folds + 3 mirrors per eye | 27° | 44° / 10° | 106 × 77 mm |
-| **this design** (left/right) | **38°** | **56° / 20°** | **50 × 50 mm, stock** |
+| **left/right, with the prism** (§2) | **38°** | **56° / 20°** | **50 × 50 mm, stock** |
 
-The best top/bottom layout is 2° narrower per eye than this one, uses seven
+The best top/bottom layout is 2° narrower per eye than the prism layout, uses seven
 pieces of glass instead of three, and needs a last mirror twice the size of any
 stock part. (The searches are randomised; the best of several runs is quoted,
 so a slightly better top/bottom layout may exist, but not a 2× one.) Why:
@@ -351,13 +366,13 @@ so a slightly better top/bottom layout may exist, but not a 2× one.) Why:
 4. The two eyes' optics can't be mirror images (the top half can feed one side
    only): the right eye's would be the left's turned upside down.
 
-So the left/right split stays. If more **total** horizontal field matters more
+So the left/right split stays (and the prism-free V keeps it). If more **total** horizontal field matters more
 than stereo overlap, the knob is toe-out -- turning the eyes further apart.
-Traced with the same stock parts (`periscope_optics.CTR_RANGE`):
+Traced for the prism layout (`periscope_optics.CTR_RANGE`); the V behaves the same way:
 
 | eye centre | per eye | total | shared (stereo) | baseline |
 |---|---|---|---|---|
-| 9.5° out (**this design**) | 38° | 56° | 20° | 63.5 mm |
+| 9.5° out (the prism layout) | 38° | 56° | 20° | 63.5 mm |
 | 12° | 38° | 60° | 16° | 59.8 mm |
 | 15° | 38° | 66° | 10° | 52.7 mm |
 | 18° | 36° | 70° | 2° | 51.7 mm |
