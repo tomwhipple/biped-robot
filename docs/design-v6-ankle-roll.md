@@ -4,6 +4,8 @@
 
 Goal (Tom, 2026-09-13): *a new physical robot design able to walk by lifting one foot completely off the ground*; consider a backward-bent knee, different or more servos; no GoPro; room for an onboard Raspberry Pi + camera later.
 
+**2026-09-26 — if no STS3250 can be bought, the build plan is §14 (Plan B):** STS3215 at every joint with its position-loop P gain (Feetech register 21) raised about 4× on the six roll and knee servos. In sim this matches the STS3250 design case for case. It depends on one bench measurement, which comes before any purchase. Stock STS3215s at those joints fail both the walk and the get-up.
+
 ## 0. The design in one screen
 
 | item | v5 (current, broken) | **v6 (this spec)** |
@@ -178,7 +180,7 @@ The body turns at up to 20° per step (a 134° bearing change in eight steps, ra
 
 In the order the gates doc asks for them ("from the datasheet before purchase, from a bench measurement after"):
 
-1. **STS3250 static stiffness ≥ 3× the STS3215's** (≥ 1.5× with the sag compensator of §8.1). The number in the model (4×) is from a third-party bench, not ours. Buy **two** first, mount one in place of a v5 hip-roll servo (same case), and repeat the 2026-09-13 stance-hip test (8° roll, planted foot): the 3215 stalled 1.2° short at load 120. Pass: ≤ 0.4° short at the same load (≤ 0.8° with the compensator). This single measurement decides whether six are ordered.
+1. **STS3250 static stiffness ≥ 3× the STS3215's** (≥ 1.5× with the sag compensator of §8.1). The number in the model (4×) is from a third-party bench, not ours. Buy **two** first, mount one in place of a v5 hip-roll servo (same case), and repeat the 2026-09-13 stance-hip test (8° roll, planted foot): the 3215 stalled 1.2° short at load 120. Pass: ≤ 0.4° short at the same load (≤ 0.8° with the compensator). This single measurement decides whether six are ordered. *(2026-09-26: on the current CAD-inertial body the requirement is ≥ 4×, i.e. ≤ 0.3° short, and the compensator no longer helps. A 3× roll/knee servo passes only if the roll chains measure ≤ 1° of play. This applies to any servo, including a gain-tuned STS3215; see §14.)*
 2. **Roll-chain play ≤ 3° total per joint (target ≤ 1°), backlash ≤ 1°.** Design rules for the CAD: both roll joints double-supported (horn + idler), metal horns with thread-locked M3s, the ankle link's fork tines sized to the disc faces (`SV_IDLER_CASE_FACE`, not the phantom face), and a tilt-hysteresis play measurement per roll joint on the assembled leg *before* the first walk — the same test that found 2–3° on v5.
 3. **Masses.** The plant is 1.25 kg from lumps; the assembled robot with six STS3250 will be ~1.37 kg. Weigh every segment when built and regenerate the inertials (`build_v2_inertia.py`), as `DESIGN.md` §8 has been asking for v5.
 4. **The 600 ms "200 ms pose".** Still unexplained on v5 (streamer cap or servo under load). The Gate D script depends on the shaper's timing; measure the streamer against a free servo before trusting any cadence number on hardware.
@@ -191,6 +193,8 @@ In the order the gates doc asks for them ("from the datasheet before purchase, f
 - **Charge for every free channel from day one** (gates doc, proposal 1): the ankle roll joins yaw and hip roll in the posture regularizer of the first v6 reward.
 
 ## 7. Next steps (after sign-off)
+
+> **2026-09-26:** step 1 below assumes STS3250s can be bought. If they cannot, §14.6 replaces it (no purchase: raise the P coefficient on a spare STS3215 and measure its stiffness first). Steps 2–4 carry over, and the CAD of step 2 exists (§10). The STS3250 route stays the preferred one if a genuine part turns up. Its acceptance number tightens on today's body, though: ≥ 4× the STS3215's stiffness, not 3× (§14.2).
 
 1. Buy 2 × STS3250; run §5.1 on the v5 hip roll (the robot is out of service for walking but a single hip-roll servo swap for a stance test is a bench-only, torque-released job).
 2. CAD in `cad/`: `foot` v4 (roll servo across the foot, 130 × 60, TPU sole pocket), `ankle_link` (new: grips the pitch servo, forks in X), `leg_link` at 110 mm (a length parameter), `pelvis` v7 (84 mm hip separation, battery channel, Pi bay on the deck front, aft board recess), unchanged `yaw_carrier` / `yoke_roll` / `yoke_pitch`. Then `check_assembly.py` over the new ROM (ankle roll ±30° vs the shin fork and the foot walls is the new pair to sweep), `check_printability.py`, `run_checks.sh`, fly-in animation, and `build_v2_inertia.py` into the v6 plant.
@@ -218,6 +222,8 @@ The other side of the risk, an STS3250 that is less stiff than the third-party 4
 | 3× | walks, 25 mm | — |
 | 2× | falls after step 1 | **walks, 12 mm** |
 | 1.5× | falls after step 1 | **walks, 11 mm** |
+
+> **Superseded on the current body (2026-09-26, §14.2):** on the 1.79 kg CAD-inertial plant, sag compensation no longer rescues anything. A 3× or 2× STS3250 with k = 1 falls at the first crossover, and so does every STS3215 variant. A 3× STS3250 without it walks 2/4 gate cases. The table below is the 1.25 kg body of 09-13.
 
 **The purchase risk is bounded:** even a 1.5× STS3250 walks with one line of feedback that the controller will have anyway, and at 5° of play nothing walks with any servo. The one thing that cannot be recovered in software is play, which is a printed-chain property, not a servo property. Recommended sequence stands: buy two, measure stiffness and play on the v5 hip roll (§5.1), then six.
 
@@ -414,8 +420,142 @@ body is documented there as the working alternative (gets up from supine
 and prone, falls better, walks on the wide-hip gait) and the reasons it
 was not chosen.
 
+## 14. Plan B: no STS3250 (2026-09-26)
+
+Tom, after a sourcing hunt turned up almost no genuine STS3250 at a sane price (≈ $43 at WowRobo with uncertain stock, $65–128 elsewhere, many marketplace listings bait): *plan v6 as if none can be bought.* The study script is `sim/gate_no3250.py` and the logs are `docs/design-v6/no3250_{walk,sweep,envelope,arms_walk,getup}.txt`, all local CPU sim. Every gate is the design's own gate, re-run on the current plant under §4.3's deploy servo model (kp 12 N·m/rad, torque–speed clamp at 11.1 V, 2 Hz shaper + 80 ms dead time, integer ticks, 5 ms latency, 1° backlash, 3° free play on the four rolls). Only two things change between runs: which servo sits at each joint, and its mass.
+
+**Plants.**
+- **CAD-inertial, no arms.** Regenerated from today's STLs. `build_v6_inertia.py` gained `--all-3215` and `-o`, which write the same plant with a 55 g servo at each of the six STS3250 places. With STS3250s it weighs 1.790 kg. The committed `bimo_biped_v6ar.xml` is 1.771 kg because it predates later CAD passes; the design row below reproduces its `gateD_cad_inertials.txt` numbers to within 0.2 mm. With STS3215s it weighs **1.673 kg**.
+- **As drawn, with arms.** Round 5b's `r5_asdrawn(_rom120)` lumped plant, 2.098 kg, carries 55 g servos everywhere. That is exactly the all-STS3215 mass, so its STS3250 rows are 117 g light, as they were in round 5b.
+
+**Servo sets.** `3250` is the design: STS3250 at hip roll, ankle roll and knee. `3215` is stock STS3215 everywhere. `3215_pN` is STS3215 everywhere with the position-loop P coefficient of the roll servos raised N× (`_pNrk`: rolls and knees). It is modelled as `kp_scale` N on the STS3215 torque–speed envelope, which is exactly how the model credits the STS3250 (`kp_scale` 4).
+
+### 14.1 What evidence existed
+
+All-STS3215 evidence existed only for the 1.25 kg lumped body of 09-13: `gateD_servo_matrix.txt`, `gateD_lift_matrix_3215.txt`, `study_feedback_3215.txt` and `study_options.txt`. On that body it fell every time and walked only with ≤ 1° play *and* the sag compensator. Gate B's knee (1.5×, and 1.7× in `gateAB_v7.txt`) was run only at Gate B's own 1.2 s swing. Nothing had been run with STS3215 rolls or knees on the 1.63–1.79 kg bodies, on the CAD-inertial plant, with the arms, or through the get-up. So all of it was re-run.
+
+### 14.2 Results
+
+**Gate D, the four CAD-plant cases** (8 steps; `no3250_walk.txt`). "Up" means 8/8 steps without a fall. "OK" also requires ≥ 15 mm of swing clearance and ≥ 0.3 s in the air.
+
+| servo set / lever (CAD plant) | up | OK | CoM margin, nominal | note |
+|---|---|---|---|---|
+| **design: STS3250 rolls + knees** | 4/4 | 2/4 | 10.8 mm | the two FAILs are 13 mm clearance (μ 0.3 play 5, −15° turn at μ 0.9), as in `gateD_cad_inertials.txt` |
+| STS3250 at only 3× / 2× the STS3215's stiffness | 2/4 / 0/4 | 0/4 | 9.8 mm / — | the §8.1 "3× walks" does not hold on this body |
+| … the same with sag compensation k = 1 | 0/4 / 0/4 | 0/4 | — | the compensator now destabilises (first crossover) |
+| **STS3215 everywhere, stock** | **0/4** | 0/4 | — | every case falls at the first crossover (6.7–7.0 s), outward: the §4.4 roll-compliance failure |
+| stock + sag comp 0.5 / 1.0; slower (shift 2.4 / swing 2.0, and 3.2 / 2.4); CoM aim 10 mm inboard; landing offsets 20 / 15 mm; torso −60 g, −120 g; legs 100/100 (link inertia still from the 110 mm STL, an estimate); torso −120 g + comp + slower | 0/4 each | 0/4 | — | nothing that leaves the joint stiffness alone moves it |
+| stock, lift 3 cm | 3/4 | 0/4 | 7.6 mm | "up" only because the feet never leave the floor (0–2 mm clearance): the v5 shuffle |
+| stock, 1° roll play everywhere | 2/4 | 0/4 | 7.0 mm | also a shuffle (2–4 mm clearance); with comp k = 1: 0/4 |
+| roll P ×2 / ×3 / ×4 | 1/4 / 3/4 / 3/4 | 0 / 0 / 1 | 8.4 / 10.9 / 28.8 mm | knees still stock: clearance 7–18 mm, μ 0.3 play 5 falls |
+| roll + knee P ×2 / ×3 | 0/4 / 2/4 | 0 / 1 | — / 10.5 mm | |
+| **roll + knee P ×4** | **4/4** | **4/4** | **12.2 mm** (7.5–12.2 over the cases) | clearance 15–20 mm |
+| roll + knee P ×4 on the 74.5 g plant (mass control) | 4/4 | 2/4 | 10.8 mm | identical to the design row: in the model the STS3250 is worth exactly its stiffness |
+| **roll + knee P ×3, 1° roll play** | **4/4** | **4/4** | **14.3 mm** (14.1–14.7) | the other way to pass: 3× if the printed chains hold ≤ 1° |
+| P ×2 or ×3 with lift 5 cm; roll P ×2 or ×3 + comp k = 1 | 0/4 each | 0/4 | — | |
+
+**The full adversity matrix** (18 cases × 3 seeds, 8 steps; `no3250_sweep.txt`):
+- The design and the roll + knee P ×4 STS3215 both score **15/18**, and they miss the same three cases. Five degrees of play at μ 0.7 falls for both; that is new on this plant, since the lumped 1.63 kg body walked it (`gateCD_sweep_v7.txt`, 6 steps). Floor tilt +2° and "μ 0.3 + play 5 + servos −15 %" stay up but miss the clearance rule (13–15 mm).
+- P ×3 scores 12/18. Stock STS3215 scores 0/18.
+- "Servos −30 %" passes for both 15/18 sets: torque is not what binds.
+
+**Envelope** (`no3250_envelope.txt`), peak demand in the deploy-model walk, maximum over the four cases:
+- P ×4 STS3215: torque margins 2.7× at the hip roll, 3.2× at the knee and 2.3× at the ankle roll; speed margins 6.0×, 2.3× and 2.2×. Every joint clears the design-stage rule (≥ 1.5× torque, ≥ 2× speed).
+- STS3250 design, same joints: torque 4.2×, 5.2×, 3.2×; speed 10.9×, 3.9×, 3.1×.
+
+**Gate B's one-step test**, run on the CAD plant, gives the STS3215 knee a speed margin of **1.7× at Gate B's 1.2 s swing (FAIL)**. At the walk's own 1.6 s swing it is **2.2× (PASS)**, then 2.5× at 1.8 s and 2.8× at 2.0 s. §4.2's "FAIL on STS3215" is therefore a statement about a swing faster than the gait uses.
+
+**Speed cost.** At the design cadence (shift 1.6 s per 60 mm, swing 1.6 s, land 0.5 s; 5.25 s per step) there is none. At the faster 1.2 / 1.2 / 0.4 cadence (4.0 s per step), both sets stay up in 3/4 cases and lose the μ 0.3 / play 5 case, so the body sets that limit. The P ×4 set meets the clearance rule in 2/4 cases, the design in 0/4. The STS3215 knee is then under the 2× speed rule (1.7×), while the STS3250 knee is at 2.8×. **Plan B should stay at a ≥ 1.6 s swing.** The STS3250 build could go about 24 % faster per step once the body allows it.
+
+**As drawn, with arms** (2.10 kg, arms held at 15°; `no3250_arms_walk.txt`). The four cases plus the −15° turn at the nominal μ 0.7:
+- STS3250: 5/5 up.
+- Stock STS3215: 0/5.
+- Roll + knee P ×3: 2/5.
+- Roll + knee P ×4: **4/5**. It misses only the −15° turn at μ 0.9, the sticky-foot knife-edge of §11.3, and walks the same turn at μ 0.7.
+
+No arm–leg contacts in any run.
+
+**Get-up, as drawn** (seat push from supine, tuck at hip −120 / knee −130, the round-5b grid of 12 variants, then six robustness conditions: play 3/5, μ 0.3/0.7/1.0, servos 100/80/65 %; `no3250_getup.txt`):
+
+| servo set | variants standing | robust | peak \|τ\| (knee / hip pitch / shoulder / elbow), % of that servo's stall |
+|---|---|---|---|
+| design (STS3250 rolls + knees) | 2/12 | 6/6, 6/6 | 1.35 N·m (30 %) / 1.45 (53 %) / 2.12 (78 %) / 1.11 (41 %) |
+| **stock STS3215** | **0/12** | — | reaches the crouch hold on its feet (up 0.98, pelvis 0.23 m), then falls backwards at "rise 2" (up −0.44): the knee sags, it is not out of torque |
+| roll + knee P ×3 | 2/12 | 6/6, 6/6 | 1.43 (52 %) / 1.35 (50 %) / 2.03 (75 %) / 1.07 (39 %) |
+| **roll + knee P ×4** | 2/12 | 6/6, 6/6 (incl. servos at 65 %) | 1.41 (52 %) / 1.45 (53 %) / 2.02 (74 %) / 1.07 (39 %) |
+
+Two findings here are not about this servo question:
+- **The shoulder** is an STS3215 in both designs. At 74–78 % of stall it runs close to the STS-series overload protection: > 80 % of stall held for 2 s drops the servo to 20 % torque (Feetech memory table registers 34–36; the same rule is in the STS3235 datasheet §7-11). Watch it on the bench.
+- **The prone → supine leg roll of §12.1**, run on the as-drawn body with the arms folded up, fails **0/6 for every servo set, the STS3250 included**. Folded up, the arms block the roll, which is what §12.1 already found for hip-level arms. Its peak torques stay ≤ 1.41 N·m, so the servo is not the question. The prone path on the arms body is open whatever servo is chosen.
+
+### 14.3 What the numbers say
+
+1. **Stock STS3215s at the rolls and knees give no walk and no get-up, and that is a compliance failure, not a torque or speed one.** Nothing that leaves joint stiffness alone moves it: gait timing, lift, CoM aim, landing offsets, a lighter torso, shorter legs, the §8.1 compensator.
+2. **The walk needs about 4× the fitted STS3215 stiffness** (kp ≈ 48 N·m/rad in the model's terms) at the rolls **and** the knees with 3° of roll play. With ≤ 1° of play, 3× is enough. The get-up needs ≥ 3× at the knees. The STS3215's torque–speed envelope covers both at the design cadence.
+3. **That stiffness is a register on the servo already in the robot.** The Feetech ST3215 memory table V3.7, the one `firmware/components/scsbus/include/scsbus/registers.h` cites, defines:
+   - register 21, position-loop P: default 32, range 0–254;
+   - register 22, D: default 32;
+   - register 23, I: default 0;
+   - registers 26/27, dead zone: 1 step each.
+
+   The STS3235 datasheet lists its control algorithm as "PID, customizable". The walk loads (≤ 1.2 N·m, under 45 % of stall) sit in the servo's linear region, so a higher P should raise static stiffness roughly in proportion. **That assumption is what has to be measured.** One known limit: LeRobot writes the same register *down*, 32 → 16, on its STS3215 arms "to avoid shakiness" (`src/lerobot/robots/lekiwi/lekiwi.py` in huggingface/lerobot). A high P can buzz or limit-cycle, and 3° of play in the chain is where it would.
+
+### 14.4 The options, ranked
+
+| rank | option | evidence | cost | verdict |
+|---|---|---|---|---|
+| 1 | **STS3215 everywhere, position-loop P ≈ 4× (≈ 128, D raised with it) on the six roll and knee servos** | walk 4/4 and 15/18 (= the design); arms walk 4/5; get-up 6/6; every joint inside the envelope at the 1.6 s swing | 7 more STS3215 (17 needed, 12 on hand, 2 spares; $21.99 each at Waveshare per `docs/bom-sourced.md`, not re-checked); no CAD change; a boot-time register check in firmware | **Plan B.** Contingent on one bench number (§14.6 step 0). |
+| 2 | the same at P ≈ 3× with printed roll chains measured ≤ 1° | walk 4/4 at 1° play (14 mm); get-up 6/6; fails at 3° play (2/4) | same | the fallback if P = 4× buzzes but 3× is quiet, *and* the chain meets §5.2's ≤ 1° target |
+| — | stock STS3215 everywhere | walk 0/4, matrix 0/18, get-up 0/12, arms 0/5 | $0 | **ruled out** |
+| — | mechanical levers keeping stock STS3215 (torso −60 / −120 g, legs 100/100, slower cadence, lift, CoM aim, landing offsets) | 0/4 each | parts or speed | don't close the gap. Keep the §10 mass levers for margin, not as a fix. The one mechanical lever that matters is roll-chain play, and that is §5.2's CAD rule already. |
+| 3 | **Feetech STS3235** (ST-3235-C001; Feetech spec A/0, 2021-11-19) | 12 V, 30 kg·cm stall, 0.222 s/60°, 2.7 A stall, **45.22 × 24.72 × 35 mm**, 70.5 g, aluminium case, steel gears 1:345, backlash ≤ 0.5°, 25T horn, 5264-3P connector (GND / Vcc / TTL signal), half-duplex TTL 38.4 k–1 Mbps: the same case, protocol and horn, a drop-in | +15.5 g each; one unit to test | Same torque as the STS3215, so no loop-stiffness gain to expect from the motor. A metal gear train and case can only cut the gear-lash and compliance share. Worth one unit **only if** step 0 shows the STS3215's gears, not its loop gain, are what is soft. |
+| 4 | **Feetech ST-3025-C002** (STS3025BL; Feetech spec) | 12 V, 40 kg·cm, brushless, 0.117 s/60°, 4.4 A stall, 89 g, **40 × 20 × 40 mm**, PH2.0-3P, 25T horn, the same STS TTL protocol | every six-joint pocket redrawn (leg links, ankle link, foot cradle, yaw-carrier roll bay); +34 g × 6; the 4.4 A stall makes the open 5 A bus problem worse | last Feetech resort; stiffness unknown until benched |
+| 5 | Dynamixel XC430-W240 | §8.2 | new bus, case and firmware; ≈ $1,100 | unchanged: last resort |
+
+Feetech's TTL catalogue (checked 2026-09-26) lists exactly three 12 V servos in the 45.22 × 24.72 × 35 case: ST-3215-C018 (our STS3215), ST-3235-C001 and ST-3250-C001. So no other drop-in exists. Left out on purpose:
+- the RS485 SM series, which the General Driver's TTL bus cannot drive;
+- 7.4 V parts (ST-3046, SC-4600 …), because a 3S pack exceeds their rating;
+- anything without a manufacturer datasheet.
+
+**If a genuine STS3250 turns up** it is still the lower-risk part:
+- its stiffness comes from the actuator, not from a gain that may buzz;
+- 1.7× torque headroom (get-up knee at 30 % of stall vs 52 %);
+- measured loaded backlash of 0.33° (`sourcing-research.md`).
+
+Against that: +117 g, 4.2 A stall on an over-budget bus, and the same ≥ 4× acceptance number. One bench rig answers both routes.
+
+### 14.5 CAD, mass, sim
+
+- **CAD: no part changes.** The v6 parts are drawn around the STS3215's STEP-measured case, v5's servo truth in `cad/dimensions.py`: `SV_LEN` 45.22, `SV_WID` 24.72, `SV_CASE_T` 34.70, horn face, rib band, idler face. The STS3250 was only ever assumed identical and carried as a mass (`dimensions_v6.SERVO_MASS_3250`). An STS3215 at the six joints is the servo the CAD was literally drawn around, so `check_assembly_v6` / ROM results stand. The rollup (`parts_v6.SERVO_COUNT`) would read 17 × STS3215.
+- **Mass:** −19.5 g × 6 = **−117 g**. The CAD-inertial plant goes from 1.790 to 1.673 kg; the as-drawn robot with arms from ≈ 2.21 to 2.10 kg.
+- **Sim:** `build_v6_inertia.py --all-3215 --write -o <path>` writes the plant. The committed `bimo_biped_v6ar.xml` and `SERVO_3250_JOINTS` are left as they are until step 0 says which servo goes in. The plant should then carry the *measured* stiffness per joint, not the 4× guessed here (AGENTS.md: model what the bench measured). The Gate E training plant needs both the masses and the stiffness.
+
+### 14.6 Revised purchase / bench sequence (replaces §7 step 1 when no STS3250 can be had)
+
+0. **Bench, no purchase: one spare STS3215 off the robot** (5 spares on hand).
+   - Open the port (it reboots the board), drain, then *read* registers 21/22/23.
+   - With torque off, write P 32 → 64 → 96 → 128 (EEPROM; lock flag, register 55), scaling D with it.
+   - At each P, measure static stiffness from Present Position (read only) with 0.5 / 1.0 / 1.5 N·m hung on a lever.
+   - Hold a leg-like inertia (≈ 0.25 kg at 0.1 m) and watch Present Load and Speed for buzz or a limit cycle.
+   - Confirm the overload and overcurrent protections do not trip.
+   - AGENTS.md bench rules apply: every write is a motion command, hands off the horn.
+
+   **Pass:** ≥ 4× the P = 32 stiffness in the same rig, with no sustained oscillation (≤ ±1 count at hold). **Conditional pass:** 3× quiet, provided the assembled roll chains later measure ≤ 1°.
+1. **Stance test.** Mount that servo in the v5 hip roll and repeat §5.1's test. The stock servo stalled 1.2° short at load 120. Pass: **≤ 0.3° short** (≤ 0.4° on the 3× route).
+2. **Buy 7 × STS3215, 12 V version** (ST-3215-C018; not the 7.4 V part): 17 needed (12 legs + neck + 4 arm), 12 on hand, 2 spares.
+3. **Configure** P and D on the six roll and knee servos and record the per-ID values in `docs/servo-map.md`. The firmware should read register 21 at boot and refuse to arm on a mismatch: a factory reset or a swapped spare silently goes back to 32, and the robot then falls at its first crossover. That is a firmware change owed, not made here.
+4. **Print and assemble** per `print-list.md` (unchanged). Measure play per roll joint (§5.2): ≤ 3° required, ≤ 1° targeted, since ≤ 1° is what lets 3× suffice.
+5. **Re-run the gates on the measured robot.** Put the measured stiffness and play per joint into the plant (`--all-3215` masses) and re-run `gate_no3250.py walk | sweep | arms | getup`. Then run §7.3's floor sequence.
+6. **If step 0 fails** (it buzzes before 3×, or the gain doesn't turn into stiffness), in order:
+   1. the I coefficient (register 23) for static sag. It needs an integral term in the sim servo model before anything relies on it;
+   2. one STS3235 on the same rig, to answer the gear-train question;
+   3. the STS3250 hunt resumed, judged by the same test;
+   4. the ST-3025-C002 with a CAD redo;
+   5. §8.2's XC430.
+
 ## Files
 
+- `sim/gate_no3250.py` — §14: the no-STS3250 study (walk, adversity sweep, envelope, arms walk, get-up per servo set); logs `docs/design-v6/no3250_*.txt`
 - `sim/gen_plant_v6.py` — parametric MJCF (all dimensions, masses, ranges); writes `sim/bimo_biped_v6ar.xml`
 - `sim/v6_kin.py` — analytic 6-DOF leg IK, support-polygon and CoM geometry
 - `sim/design_gates.py` — Gates A and B, the task-space timeline, the geometry sweep

@@ -1892,7 +1892,12 @@ actually sits.
   Tom chose the STS3250 route with a Pi 4B torso, a head on a neck servo and a
   bigger pack; the printed part set is drawn and gated under `cad/v6/`
   (design doc §9–10, `docs/design-v6/print-list.md`, `bom-delta.md`). Next:
-  two STS3250 for the stiffness bench test, then print.
+  two STS3250 for the stiffness bench test, then print. 2026-09-26: genuine
+  STS3250 stock is effectively unavailable. The no-STS3250 plan (design doc
+  §14) keeps STS3215 at every joint and raises the position-loop P gain about
+  4× on the six roll and knee servos. In sim that matches the STS3250 design
+  case for case; stock STS3215s fail both the walk and the get-up. It hinges
+  on one bench test of a spare STS3215, which comes before any purchase.
 
 ## 8. TODO — known next steps (start here)
 
