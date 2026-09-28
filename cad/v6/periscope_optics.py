@@ -591,13 +591,16 @@ V_TILE = (25.0, 20.0, 1.1)       # V squares: along the leg, height, glass thick
                                  # 25 mm along the leg, not 50: a longer piece's far end reaches the
                                  # outer mirror (glass_clash), and the light only uses ~20 mm of it
 OUTER_TILE = (50.0, 50.0, 1.1)   # outer squares: length, height, glass thickness
-# The parts (2026-09-26), all front-surface 1.1 mm optical glass, no datasheets
-# (Tom's call: cheap, glued in, calibrated), measured on arrival:
+# The parts (2026-09-26/27), all front-surface 1.1 mm optical glass sold
+# pre-cut, no datasheets (Tom's call: cheap, glued in, calibrated), measured
+# on arrival:
 #   outer  5 x 50 x 50 -- eBay hnpiwxny "Front Surface Projector Reflector
 #          Mirror", $16.34 delivered (2 used, 3 spare)
-#   V      5 x 25 x 20 -- eBay explore-space, $12.66 delivered (2 used)
-# No cutting. (Cutting a spare 50 x 50 into 25 x 25 quarters instead traces
-# 2 deg wider -- 48 vs 46 total -- for $0: set V_TILE = (25.0, 25.0, 1.1).)
+#   V      5 x 25 x 20 -- Amazon B0FDB2KL5F, $23.41 delivered, or eBay
+#          explore-space, $12.66 (2 used, 3 spare)
+# No cutting (Tom: "I don't want to try to cut these"). Other pre-cut sizes
+# up to 30 mm drop into DESIGN; the glass THICKNESS is what costs field
+# (2 mm: 41 deg total, 3 mm: 36) -- size_study(), --sizes.
 OUTER_FRONT = True               # front-surface outer squares (False: back-silvered craft tiles)
 STOCK = dict(prism_leg=V_TILE[0], prism_len=V_TILE[1], mirror_L=OUTER_TILE[0], mirror_H=OUTER_TILE[1],
              mirror_t=OUTER_TILE[2])
@@ -684,6 +687,8 @@ def v_search(stock=None, setback=None, n=1500, seed=0):
         if f > best[0]:
             best = (f, p)
     f, p = best
+    if p is None:                    # no layout gives both eyes a field with this glass
+        return None, f
     steps = dict(a=0.5, prism_offset=1.0, ell=2.0, toe_out=1.0, el0=1.0, u_c=0.03)
     for _ in range(6):
         improved = False
@@ -710,6 +715,67 @@ def design():
     return two_eyes(DESIGN, step=0.5)
 
 
+# Which pre-cut V squares work (2026-09-27, Tom: "I don't want to try to cut
+# these")? Each candidate is re-searched with the outer mirrors kept at
+# OUTER_TILE, and also dropped into today's DESIGN, where only the printed
+# pockets would change. --sizes; output in docs/design-v6/stereo_vsize_study.txt.
+SIZE_CANDS = [(25, 20, 1.1), (20, 25, 1.1), (24, 20, 1.1), (20, 20, 1.1), (20, 15, 1.1), (15, 20, 1.1),
+              (25, 25, 1.1), (25.4, 25.4, 1.0), (30, 30, 1.1), (26, 32.5, 1.1), (32.5, 26, 1.1),
+              (35, 35, 1.1), (25, 20, 1.6), (25, 20, 2.0), (30, 30, 2.0), (25, 20, 3.0)]
+
+
+def _use_v_tile(vt):
+    """Swap the V squares everywhere the search and the clash check read them."""
+    global V_TILE, SETBACK, STOCK
+    V_TILE = tuple(float(c) for c in vt)
+    SETBACK = V_TILE[2]
+    STOCK = dict(STOCK, prism_leg=V_TILE[0], prism_len=V_TILE[1])
+
+
+def _size_summary(r):
+    if r is None:
+        return None
+    return dict(left=r["left"]["w"], right=r["right"]["w"], total=r["total"], overlap=r["overlap"],
+                baseline=r["baseline"], a=r["cfg"].a)
+
+
+def _size_job(arg):
+    import warnings
+    warnings.filterwarnings("ignore")
+    vt, seed = arg
+    _use_v_tile(vt)
+    return vt, v_search(seed=seed)
+
+
+def _size_final(arg):
+    import warnings
+    warnings.filterwarnings("ignore")
+    vt, p = arg
+    _use_v_tile(vt)
+    return vt, (None if p is None else _size_summary(two_eyes(p, step=0.5))), _size_summary(two_eyes(DESIGN, step=0.5))
+
+
+def size_study(seeds=3):
+    from concurrent.futures import ProcessPoolExecutor
+    with ProcessPoolExecutor(10) as ex:
+        runs = list(ex.map(_size_job, [(vt, s) for vt in SIZE_CANDS for s in range(seeds)]))
+    best = {}
+    for vt, (p, f) in runs:
+        if p is not None and (vt not in best or f > best[vt][1]):
+            best[vt] = (p, f)
+    with ProcessPoolExecutor(10) as ex:
+        fin = list(ex.map(_size_final, [(vt, best.get(vt, (None,))[0]) for vt in SIZE_CANDS]))
+    print(f"V squares (outer mirrors {OUTER_TILE[0]:g} x {OUTER_TILE[1]:g} x {OUTER_TILE[2]:g}; {seeds} search seeds each)")
+    print(f"{'along x tall x thick (mm)':26s} | {'re-searched: eyes L/R, total, shared, baseline':48s} | as laid out today")
+    for vt, s, t in fin:
+        name = f"{vt[0]:g} x {vt[1]:g} x {vt[2]:g}"
+        ss = "no layout" if s is None else (f"{s['left']:2.0f}/{s['right']:2.0f}, total {s['total']:2.0f}, shared "
+                                           f"{s['overlap']:2.0f}, {s['baseline']:4.1f} mm")
+        ts = "glass clash or no field" if t is None else (f"{t['left']:2.0f}/{t['right']:2.0f}, total {t['total']:2.0f}, "
+                                                         f"shared {t['overlap']:2.0f}")
+        print(f"{name:26s} | {ss:48s} | {ts}")
+
+
 def describe_v(res, title="DESIGN"):
     L, R_ = res["left"], res["right"]
     o = res["cfg"].outer
@@ -732,5 +798,7 @@ if __name__ == "__main__":
         p, f = max(runs, key=lambda t: t[1])
         print("best:", {k: round(v, 3) for k, v in p.items()}, "objective", round(f, 2))
         describe_v(two_eyes(p, step=0.5), "searched")
+    elif "--sizes" in sys.argv:
+        size_study()
     else:
         describe_v(design())

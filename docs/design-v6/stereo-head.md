@@ -27,6 +27,11 @@ then, on cost (2026-09-25/26):
 > of front-surface squares) *they don't have to come from etsy. Look for
 > another source.*
 
+and on the V's small squares (2026-09-27):
+
+> *the design appears to call for smaller reflectors.. where should I get
+> them? I don't want to try to cut these.*
+
 This note is the record: the design as drawn (§1), why the optical layout is
 what it is (§2 and §7 are the traced trade studies), the parts (§3), what was
 **measured** in CAD and sim (§4), how to build and align it (§5), and what is
@@ -52,7 +57,7 @@ from the trace). Renders: `cad/v6/renders/head.png`, `head_fields.png`.
 | envelope | 62 × 50 × 60 mm | **145 × 52 × 70 mm** (shoulders are 200 mm) |
 | mass | 39 g | **90.6 g** (PETG 70.1 + glass 16.5 + camera 4) |
 | prints | shell + face plate | **shell + lid + camera sled** |
-| optics to buy | — | 4 front-surface glass mirrors, **~$29** delivered, no cutting (§3) |
+| optics to buy | — | 4 front-surface glass mirrors, sold pre-cut, **$29–40** delivered (§3) |
 
 How it works, seen from above (+X forward):
 
@@ -158,10 +163,11 @@ No extra lens: the Camera Module 3 Wide's own lens is used as-is.
 | qty | part | price, delivered | used for |
 |---|---|---|---|
 | 1 pack of 5 | **front-surface mirror, 50 × 50 × 1.1 mm optical glass** — eBay seller *hnpiwxny*, "Front Surface Projector Reflector Mirror" ([listing](https://www.ebay.com/itm/188927818845), 1.1 mm option) | **$16.34** (import fees included) | the 2 outer mirrors, 3 spares |
-| 1 pack of 5 | **front-surface mirror, 25 × 20 × 1.1 mm** — eBay seller *explore-space* ([listing](https://www.ebay.com/itm/158008301027)) | **$12.66** (free shipping) | the V's 2 squares, 3 spares |
+| 1 pack of 5 | **front-surface mirror, 25 × 20 × 1.1 mm, sold pre-cut** — Amazon [B0FDB2KL5F](https://www.amazon.com/dp/B0FDB2KL5F) (seller Tuoyibaihuodian, ships from China). Pick the **1.1 mm** option: the same listing's 2 and 3 mm ones cost field (below). Or, cheaper, eBay seller *explore-space* ([listing](https://www.ebay.com/itm/158008301027)) | **$23.41** on Amazon (read 2026-09-27; arrives Oct 9–22), or **$12.66** on eBay (read 2026-09-26) | the V's 2 squares, 3 spares |
 | — | Raspberry Pi **Camera Module 3 Wide** (already on the robot) — [product page](https://www.raspberrypi.com/products/camera-module-3/) | — | |
 
-Glass **~$29 delivered**, no cutting, arriving mid-October (eBay estimates).
+Glass **$29–40 delivered** (the V squares from eBay or Amazon), **no
+cutting**, arriving mid-October.
 
 - **No manufacturer datasheets.** That's Tom's call for this part: cheap
   mirrors glued in and calibrated. It is a deliberate exception to the repo's
@@ -169,10 +175,28 @@ Glass **~$29 delivered**, no cutting, arriving mid-October (eBay estimates).
   in `periscope_optics.V_TILE` / `OUTER_TILE`, then run
   `periscope_optics.py --search` and `head.py`. The listings state size,
   thickness and "front surface"; nothing states flatness.
-- **Cheaper still: cut instead.** Score and snap one spare 50 × 50 into four
-  25 × 25 pieces. That skips the second order and traces 2° wider (48° total).
-  Set `V_TILE = (25.0, 25.0, 1.1)`. Score on the uncoated back, keep the
-  protective film on the mirror face, and put a factory edge at the apex.
+- **Other pre-cut sizes work; the thickness is what matters.** Traced with
+  `periscope_optics.py --sizes` ([`stereo_vsize_study.txt`](stereo_vsize_study.txt)):
+  - **Size:** 1.1 mm pieces from 20 × 15 to 30 × 30 mm drop into today's
+    layout at 47° total (48° for 1″ squares of 1 mm glass). Only the printed
+    pockets change:
+    set `V_TILE` and re-run `head.py`. 25 × 25, 1″ × 1″, 30 × 30 and
+    26 × 32.5 (26 along the leg) keep the full 16° shared. Smaller pieces
+    shrink it (20 × 20: 13°).
+  - **Bigger pieces need a re-layout.** Pieces 32.5 mm or more along the leg
+    (35 × 35 included) hit the outer mirror as laid out today. A re-search
+    finds 49°, but it is a CAD rework.
+  - **Thickness costs field**, all of it from the right eye, whose square
+    starts one glass thickness out from the apex. 1.6 mm glass gives 42–44°
+    total, 2 mm 41–43°, 3 mm 36°. **Buy 1.1 mm or thinner.**
+  - **Other listings, read 2026-09-27:**
+    - RUEHALF 2-packs on Amazon at 1.1 mm, $19.32 with free delivery, but no
+      spares: 24 × 20 ([B0GB7QSN6M](https://www.amazon.com/dp/B0GB7QSN6M)) or
+      30 × 30 ([B0GBF3LXVC](https://www.amazon.com/dp/B0GBF3LXVC)).
+    - From US stock: Spectrum Scientifics'
+      [30 × 30 × 2 mm](https://www.spectrum-scientifics.com/First-Surface-Mirror-30mm-x-30mm-x-2mm-p/7657.htm),
+      2 × $9.99 + $7.85. It ships in 1–2 days, but the 2 mm glass costs 6°.
+    - Cut to size in the US (First Surface Mirror LLC): about $44 a piece.
 - **Why 25 mm and not 50 mm in the V.** The light only uses about 20 mm of
   each V leg. A 50 mm piece's far end hits the outer mirror: the optics search
   rejects any layout where glass meets glass (`glass_clash`).
@@ -192,7 +216,7 @@ eye, 56° total with 20° shared. Each step below was a response to cost.
 | cheapest *documented* | V: 2 × UQG 25×25×1.2 | 2 × UQG 50×50×1.2 | 37° / 26° | 47° / 16° | ~$115–135 (UK) |
 | documented knife edge | OptoSigma KRPB4-10 10 mm prism | 2 × Thorlabs ME1.5S-G01 38 mm | 33° / 33° | 50° / 16° | ~$165 |
 | craft mirrors throughout | V of 2 mm **back-silvered** tiles | craft tiles | 25° / 25° | 34–36° / 14° | ~$10 |
-| **as drawn** | **V: 2 × 25×20×1.1 front-surface** | **2 × 50×50×1.1 front-surface** | **37° / 26°** | **47° / 16°** | **~$29** |
+| **as drawn** | **V: 2 × 25×20×1.1 front-surface** | **2 × 50×50×1.1 front-surface** | **37° / 26°** | **47° / 16°** | **$29–40** |
 
 - **Craft mirrors failed at the V, not at the outer mirrors.** Craft tiles are
   back-silvered, with the glass in front of the silver. At the V's apex, the
