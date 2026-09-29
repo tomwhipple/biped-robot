@@ -103,21 +103,44 @@ landing offsets, a lighter torso or shorter legs.
 
 **The plan ("Plan B"): raise the position-loop P coefficient (register 21,
 default 32) about 4× on the six hip-roll, ankle-roll and knee servos.** The walk
-loads (≤ 1.2 N·m, under 45 % of stall) sit in the servo's linear region, so P
+loads (≤ 1.5 N·m, at most 55 % of stall) sit in the servo's linear region, so P
 should raise static stiffness roughly in proportion. In simulation, P × 4 on
-rolls and knees matches the stiffer STS3250 case for case:
+rolls and knees does at least as well as the stiffer STS3250 in every column:
 
-| | walk, CAD plant (4 cases) | adversity matrix (18 × 3 seeds) | walk with arms (5 cases) | get-up, as drawn |
+| | walk, 4 gate cases | adversity matrix (18 × 3 seeds) | walk, 5 cases, arm contacts counted | get-up, as drawn |
 |---|---|---|---|---|
 | stock STS3215 | 0/4 | 0/18 | 0/5 | 0/12 |
-| **P × 4, rolls + knees** | **4/4**, CoM margin 7.5–12.2 mm, clearance 15–20 mm | **15/18** | **4/5** | **robust 6/6** |
-| P × 3, rolls + knees, ≤ 1° roll play | 4/4, margin 14.1–14.7 mm | — | — | — |
-| STS3250 at rolls + knees | 4/4 | 15/18 | 5/5 | robust 6/6 |
+| **P × 4, rolls + knees** | **4/4**, CoM margin 13.9–36.6 mm, clearance 15–19 mm | **16/18** | **4/5**, no arm–leg contact | **robust 6/6**, at the scripted pace and 3× slower |
+| P × 3, rolls + knees, ≤ 1° roll play | 4/4 up, 3/4 on the clearance rule, margin 16.6–19.5 mm | — | — | — |
+| STS3250 at rolls + knees | 4/4 up, 2/4 on the clearance rule | 14/18 | 4/5 | robust 6/6 |
 
-Envelope under P × 4 at the design cadence: torque margins 2.7× (hip roll),
-3.2× (knee), 2.3× (ankle roll); speed 6.0×, 2.3×, 2.2×. The STS3215 knee is
-under the 2× speed rule at a 1.2 s swing (1.7×), so **the gait keeps a ≥ 1.6 s
-swing**. Torque is not what binds: "servos −30 %" still passes.
+The plants:
+
+- **The walk columns** run on the robot's CAD-inertial plant
+  (`build_v6_inertia`): 17 servos, 2.28 kg with STS3215s, hip-yaw bearing C,
+  the arms held at their 15° walking pose (`docs/design-v6/no3250_*.txt`).
+- **The get-up column** runs on the lumped as-drawn get-up plant
+  (`r5_asdrawn_rom120`, 2.10 kg).
+
+P × 4 misses two cases of the matrix:
+
+- **2° of backlash** leaves 15 mm of clearance, just under the rule.
+- **A 2° fore-aft floor tilt** falls backwards in the initial crouch, in 2 of
+  3 seeds.
+
+The arms walk misses the −15° turn at μ 0.9, the sticky-foot knife edge; the
+same turn at μ 0.7 passes.
+
+**Envelope** under P × 4 at the design cadence:
+
+| | hip roll | knee | ankle roll |
+|---|---|---|---|
+| torque margin | 2.1× | 2.1× | 1.8× |
+| speed margin | 5.6× | 2.1× | 3.1× |
+
+The STS3215 knee is under the 2× speed rule at a 1.2 s swing (1.7×) and at
+2.2× at 1.6 s, so **the gait keeps a ≥ 1.6 s swing**. Torque is not what
+binds: "servos −30 %" still passes.
 
 **This rests on one assumption that has to be measured**: that a higher P
 actually yields proportionally higher static stiffness without buzzing. A high
@@ -292,11 +315,19 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
   20 ms tick; the 17-servo figure has not been computed.
 - **Current**: the board's servo power path is rated 5 A continuous, and its
   XH inlet 3 A per contact. The simulated budget
-  ([wiring.md](docs/wiring.md#current-the-open-constraint)) brackets the walk
-  at 0.9–2.7 A RMS (peak 1.8–5.1 A), and the get-up's push at 5.2–10.3 A peak.
-  The push is over the inlet, and over the board's rating in the upper model.
-  Two measures follow from it: feed `DC_IN` directly, and put one leg and one
-  arm on each port. A shunt on the first powered run confirms both.
+  ([wiring.md](docs/wiring.md#current-the-open-constraint)) brackets:
+  - the walk at 1.0–3.1 A RMS (peak 1.7–4.7 A);
+  - the seat push at 5.2–10.3 A peak;
+  - the prone roll at 11.6–15.9 A peak.
+
+  The walk fits the board but not the inlet; the get-ups fit neither. Three
+  measures follow from it:
+  - feed `DC_IN` directly;
+  - put one leg and one arm on each port;
+  - keep the 15 A fuse.
+
+  A shunt on the first powered run confirms them, starting with the prone
+  roll.
 - **Power path**: pack → protection board (≥ 15 A, over-discharge cut-off) →
   10–15 A fuse → switch → board inlet; bulk capacitor (1000 µF, ≥ 25 V) at the
   board; Pololu D24V50F5-class 5 V / 5 A buck for the Pi.
@@ -354,9 +385,14 @@ throughout. On hardware the same keyframes stream through the firmware's
   Up to 20° of heading per step holds the same margins; the achieved heading
   is 10–15 % short of commanded (yaw-chain compliance), which a heading-aware
   controller closes.
-- **Limits the gates found**: 5° of roll play fails at some friction values —
-  hence the ≤ 3° requirement and ≤ 1° target per roll joint; a faster 1.2 s
-  cadence loses the low-friction case.
+- **Limits the gates found** (the robot's CAD-inertial plant, arms held):
+  - The CoM margin is 13.9–36.6 mm over the gate cases; the tightest is the
+    −15° turn at μ 0.9.
+  - 2° of gear backlash takes the swing clearance just under 15 mm.
+  - A 2° fore-aft floor tilt can tip the robot backwards in the initial crouch.
+  - A faster 1.2 s cadence loses the μ 0.3 / play 5° case.
+  - 5° of roll play passes on this plant, but the ≤ 3° requirement and ≤ 1°
+    target per roll joint stand: ≤ 1° is what lets P × 3 suffice (§4).
 
 **The policy comes after** the open-loop gait works on the floor (Gate E): trained
 on the measured plant with the measured masses, stiffness and play in it —
