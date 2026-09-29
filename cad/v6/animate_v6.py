@@ -12,8 +12,14 @@ time slot, ground up, one group at a time. Frames are rendered with MuJoCo
 from the pieces' STLs; the .mp4 is gitignored, a 2 x 4 filmstrip png is
 committed next to it.
 
-    .venv/bin/python cad/v6/animate_v6.py            # renders/assembly_v6_flyin.mp4 + _strip.png
-    ARMS=1 .venv/bin/python cad/v6/animate_v6.py     # ..._flyin_arms.mp4 + _strip.png
+    .venv/bin/python cad/v6/animate_v6.py            # renders/assembly_v6_flyin_arms.mp4 + _strip.png (the robot)
+    ARMS=0 .venv/bin/python cad/v6/animate_v6.py     # ..._flyin.mp4 + _strip.png (armless)
+    YAW_BEARING_VARIANT=E .venv/bin/python cad/v6/animate_v6.py   # ..._flyin_optE_arms...
+
+The filmstrip is two rows: the whole build at even intervals, then the parts
+this build is ABOUT caught halfway along their insertion paths (FEATURE_GROUPS:
+the girdle and neck floor going down, the neck servo dropping into its tube,
+the arms; plus the bearing parts for option E).
 """
 from __future__ import annotations
 
@@ -56,27 +62,35 @@ INSERT = [
     ("yaw_retainer_",      (0, 0, -1), 10),  # option E: retainer offered UP under the skirt, screwed from below
     ("gd_mock",            (0, 0, 1), 10),   # boards down through the deck slots
     ("pi4_mock",           (0, 0, 1), 10),
-    ("pack_mock",          (0, 0, 1), 11),   # pack down through the aperture
-    ("servo_neck",         (0, 0, 1), 12),
+    ("pack_mock",          (0, 0, 1), 11),   # pack down through the aperture -- BEFORE the girdle:
+                                              # it cannot pass the neck tube or the neck floor afterwards
+    # The neck is built into its tube ON THE BENCH (neck_floor.py): the floor
+    # screwed up into the tube's bosses, the servo dropped in onto it and
+    # screwed from below. Then the girdle (or, armless, the collar) goes onto
+    # the deck with the floor passing down through the battery aperture. The
+    # film shows the tube + floor going down together, then the servo going
+    # into the tube from above -- on the bench the servo is in before the
+    # tube goes on (its stator screws are under the floor, over the pack).
+    ("shoulder_girdle_v6", (0, 0, 1), 12),
     ("neck_collar",        (0, 0, 1), 12),
-    ("head",               (0, 0, 1), 13),
-    # ARMS=1 (cad/v6/arm_v6.py + cad/v6/shoulder_girdle_v6.py). The order IS
-    # the bench order, and it is not arbitrary: the girdle's twelve deck pilots
-    # include four under the servo bays themselves, so the girdle goes down
-    # onto the deck while it is still EMPTY. Girdle down -> each shoulder servo
-    # dropped straight into its open bay from above (the only way in: every bay
-    # is open upward, a roof over a 32 mm span being unprintable) and screwed
-    # from OUTBOARD -> upper arm offered straight IN onto the horn along the
-    # joint axis, the one direction a single-sided horn plate can arrive from
-    # -> elbow servo slid into the forearm's grip channel from the FRONT (the
-    # same channel entry leg_link uses) -> forearm lifted UP between the fork
-    # tines onto the two discs.
-    ("shoulder_girdle_v6", (0, 0, 1), 14),
+    ("neck_floor",         (0, 0, 1), 12),
+    ("servo_neck",         (0, 0, 1), 13),   # dropped into the tube from above, onto the floor's pads
+    ("head",               (0, 0, 1), 14),
+    # ARMS (cad/v6/arm_v6.py): each shoulder servo dropped straight into its
+    # open pod from above (the only way in: a roof over a 32 mm span is
+    # unprintable) and screwed from OUTBOARD -> upper arm offered straight IN
+    # onto the horn along the joint axis, the one direction a single-sided
+    # horn plate can arrive from -> elbow servo slid into the forearm's grip
+    # channel from the FRONT (the same channel entry leg_link uses) -> forearm
+    # lifted UP between the fork tines onto the two discs.
     ("servo_shoulder_",    (0, 0, 1), 15),
     ("arm_upper_",         (0, 1, 0), 16),
     ("servo_elbow_",       (1, 0, 0), 17),
     ("arm_fore_",          (0, 0, -1), 18),
 ]
+# filmstrip row 2, by (option E?, arms?): the insertion groups the strip shows
+FEATURE_GROUPS = {False: {True: (12, 13, 16, 18), False: (11, 12, 13, 14)},
+                  True: {True: (8, 10, 12, 13, 16, 18), False: (8, 10, 12, 13)}}
 FLY_MM = 60.0
 FRAMES_PER_GROUP = 14
 HOLD = 6
@@ -110,8 +124,9 @@ def main():
         export_stl(ch, os.path.join(tmp, f"p{i}.stl"))
     ngroups = max(g for _, _, _, g in pieces if g < 99) + 1
     # one MJCF with every piece as a free-positioned body (mocap) so we can move it per frame
-    xml = ['<mujoco><compiler meshdir="."/><visual><global offwidth="1280" offheight="960"/><headlight diffuse="0.7 0.7 0.7" ambient="0.4 0.4 0.4"/></visual>',
-           '<asset><texture name="grid" type="2d" builtin="checker" rgb1="0.9 0.9 0.92" rgb2="0.8 0.8 0.84" width="512" height="512"/>',
+    xml = ['<mujoco><compiler meshdir="."/><visual><global offwidth="1280" offheight="960"/><headlight diffuse="0.55 0.55 0.55" ambient="0.35 0.35 0.37"/></visual>',
+           '<asset><texture name="sky" type="skybox" builtin="gradient" rgb1="0.95 0.96 0.97" rgb2="0.84 0.86 0.90" width="256" height="256"/>',
+           '<texture name="grid" type="2d" builtin="checker" rgb1="0.9 0.9 0.92" rgb2="0.8 0.8 0.84" width="512" height="512"/>',
            '<material name="floor" texture="grid" texrepeat="10 10" texuniform="true"/>']
     xml += [f'<mesh name="p{i}" file="p{i}.stl" scale="0.001 0.001 0.001"/>' for i, *_ in pieces]
     xml += ['</asset><worldbody><light pos="0.5 0.5 1.5" dir="-0.3 -0.3 -1" directional="true"/>',
@@ -134,7 +149,8 @@ def main():
     cam.elevation = -12
     frames = []
     total = ngroups * (FRAMES_PER_GROUP + HOLD)
-    for f in range(total + 20):
+
+    def pose_frame(f):
         grp_f = f // (FRAMES_PER_GROUP + HOLD)
         sub = f % (FRAMES_PER_GROUP + HOLD)
         for k, (i, ch, dvec, grp) in enumerate(pieces):
@@ -148,6 +164,9 @@ def main():
             off = dvec * FLY_MM * (1.0 - s) / 1000.0
             d.mocap_pos[k] = off if s > 0.0 or grp == grp_f else off + np.array([0, 0, 5.0])  # not-yet parts parked out of view
         mujoco.mj_forward(m, d)
+
+    for f in range(total + 20):
+        pose_frame(f)
         cam.azimuth = 140 + 40 * f / (total + 20)
         r.update_scene(d, cam)
         frames.append(r.render().copy())
@@ -162,20 +181,34 @@ def main():
     with imageio.get_writer(out, fps=20, codec="libx264", quality=8, macro_block_size=None) as w:
         for fr in frames:
             w.append_data(fr)
-    # Row 1 = the whole build, row 2 = the part of it this change is ABOUT.
-    # With the arms on there are 19 groups, so 8 uniform samples land 5 of the
-    # 8 before anything above the knee exists and exactly one inside the five
-    # arm groups -- a filmstrip that does not show the thing it was made to
-    # prove. When a tail group exists (the arms), row 2 samples only that.
-    first_arm = min((g for _, _, _, g in pieces if 14 <= g < 99), default=None)
-    if first_arm is None:
-        idx = np.linspace(0, len(frames) - 1, 8).astype(int)
-    else:
-        split = first_arm * (FRAMES_PER_GROUP + HOLD)
-        idx = np.concatenate([np.linspace(0, split - 1, 4),
-                              np.linspace(split, len(frames) - 1, 4)]).astype(int)
-    rows = [np.concatenate([frames[i][::2, ::2] for i in idx[:4]], axis=1),
-            np.concatenate([frames[i][::2, ::2] for i in idx[4:]], axis=1)]
+    # Row 1 = the whole build at even intervals; row 2 = the groups this
+    # build is ABOUT, each caught halfway along its insertion path (uniform
+    # samples of 19 groups land mostly on the legs and miss the thing the
+    # film was made to prove).
+    present = {g for _, _, _, g in pieces}
+    feature = [g for g in FEATURE_GROUPS[variant == "E"][A.arms_on()] if g in present]
+    n = len(feature)
+    per = FRAMES_PER_GROUP + HOLD
+    top = np.linspace(0, len(frames) - 1, n).astype(int)
+    # row 2: each feature group halfway in, the camera closed in on that
+    # group's own parts (at their seats) so the insertion is legible
+    close = []
+    for g in feature:
+        pose_frame(g * per + FRAMES_PER_GROUP // 2)
+        lo, hi = np.full(3, 1e9), np.full(3, -1e9)
+        for _, ch, dvec, grp in pieces:
+            if grp == g:
+                bb = ch.bounding_box()
+                a, b = np.array([bb.min.X, bb.min.Y, bb.min.Z]) / 1e3, np.array([bb.max.X, bb.max.Y, bb.max.Z]) / 1e3
+                lo = np.minimum(lo, np.minimum(a, a + dvec * FLY_MM / 2e3))
+                hi = np.maximum(hi, np.maximum(b, b + dvec * FLY_MM / 2e3))
+        cam.lookat[:] = (lo + hi) / 2
+        cam.distance = max(0.22, 2.2 * float(np.linalg.norm(hi - lo)))
+        cam.azimuth, cam.elevation = 150, -20
+        r.update_scene(d, cam)
+        close.append(r.render().copy())
+    rows = [np.concatenate([frames[i][::2, ::2] for i in top], axis=1),
+            np.concatenate([fr[::2, ::2] for fr in close], axis=1)]
     imageio.imwrite(os.path.splitext(out)[0] + "_strip.png", np.concatenate(rows, axis=0))
     print("wrote", out, "and the filmstrip;", len(frames), "frames,", len(pieces), "pieces in", ngroups, "groups")
 

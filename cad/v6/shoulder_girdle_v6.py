@@ -88,6 +88,7 @@ import dimensions_v6 as V  # noqa: E402
 D = V.D
 import parts  # noqa: E402
 import check_assembly as CA  # noqa: E402
+import neck_floor as NF  # noqa: E402
 
 OUT_STL = os.path.join(HERE, "stl")
 OUT_STEP = os.path.join(HERE, "step")
@@ -285,12 +286,18 @@ def shoulder_girdle_v6():
     # --- the neck tube: the head's mount, rising BETWEEN the pods
     p += parts.box(NCX0 - NC_WALL, NCX1 + NC_WALL, -(NC_HY + NC_WALL),
                    NC_HY + NC_WALL, 0.0, COLLAR_TOP)
-    # case cavity, open top (the mouth) and open bottom (continuous with the
-    # pelvis's own well pocket once assembled)
+    # case cavity, open top (the mouth) and open bottom: the neck servo's seat
+    # is neck_floor.py, a plate screwed up into four bosses on the tube's
+    # side walls that drops into the deck's battery aperture at the old well
+    # depth (issue #90). It is its own print because it hangs below this
+    # part's print plane.
     p -= parts.box(NCX0, NCX1, -NC_HY, NC_HY, -1.0, COLLAR_TOP + 1.0)
     # aft window at the case's cable end
     p -= parts.box(NCX0 - NC_WALL - 1.0, NCX0 + 1.0, -AFT_WIN[0] / 2, AFT_WIN[0] / 2,
                    0.0, AFT_WIN[1])
+    boss_add, boss_cut = NF.tube_bosses()
+    p += boss_add
+    p -= boss_cut
 
     # --- deck pilots: clearance + countersink through whatever sits over them
     for hx, hy in pilot_xy():
@@ -407,9 +414,15 @@ def SCREWS():
 
 
 # the order IS the bench order; animate_v6 flies the parts in along these.
+# On the bench, before the girdle goes on the robot: the neck floor is screwed
+# up into the tube's bosses, and the neck servo drops into the tube onto it
+# (neck_floor.INSERT) and is screwed from below -- the plate sits over the
+# pack, so none of that is reachable once the girdle is on the deck. Then the
+# girdle is lowered onto the deck (the pack is already in) and screwed down
+# through its two rails; the rail pilots are clear of the bays, so the
+# shoulder servos can go in before or after.
 INSERT = {
-    "shoulder_girdle_v6": (0, 0, 1),   # lowered onto the deck, screwed down FIRST
-                                       # (four of its pilots are under the bays)
+    "shoulder_girdle_v6": (0, 0, 1),   # lowered onto the deck, screwed down through the rails
     "servo_shoulder": (0, 0, 1),       # dropped into the open bay from above
 }
 

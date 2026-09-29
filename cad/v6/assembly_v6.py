@@ -14,18 +14,22 @@ foot_v6, pelvis_v7, head) and from v5 for the unchanged hip stack
 labelled envelope box so the chain, the export and the checks run while the
 parts are still being drawn.
 
-Opt-in variants (env vars, defaults leave every existing caller byte-identical):
-    YAW_BEARING_VARIANT=A|C|E   hip-yaw bearing option (docs/design-v6/study-yaw-bearing.md)
-    HIP_YOKE_VARIANT=single     one-print hip yoke replacing yoke_roll + yoke_pitch
-                                (cad/v6/hip_yoke_v6.py, docs/design-v6/hip-yoke-single-print.md)
-    ARMS=1                      the two get-up arms -- shoulder bracket + servo,
-                                upper arm, elbow servo, forearm, per side
-                                (cad/v6/arm_v6.py, docs/design-v6/arms.md). ALSO
-                                switches the pelvis to its arm_mounts=True build
-                                (8 extra deck pilots), so the DEFAULT pelvis and
-                                the default assembly stay byte-identical.
+Variants (env vars; the defaults are the robot to print):
+    ARMS=1 (default) | 0        the two get-up arms: the shoulder girdle (both
+                                shoulder servos + the neck tube), upper arm,
+                                elbow servo, forearm per side (cad/v6/arm_v6.py,
+                                cad/v6/shoulder_girdle_v6.py), and the pelvis
+                                built with the girdle's deck pilots. ARMS=0 is
+                                the armless variant: neck_collar instead of the
+                                girdle, a pelvis without the pilots.
+    YAW_BEARING_VARIANT=C|A|E   hip-yaw bearing option (docs/design-v6/
+                                study-yaw-bearing.md). C is a PLACEHOLDER
+                                default; the choice is open (issue #75).
+    HIP_YOKE_VARIANT=single|split  the one-print hip yoke (default) or the
+                                legacy bolted yoke_roll + yoke_pitch pair.
 
-    .venv/bin/python cad/v6/assembly_v6.py                 # step/assembly_v6.step + renders
+    .venv/bin/python cad/v6/assembly_v6.py                 # step/assembly_v6_arms.step + renders
+    ARMS=0 .venv/bin/python cad/v6/assembly_v6.py          # step/assembly_v6.step (armless)
     .venv/bin/python cad/v6/assembly_v6.py --pose knee=-60,hip_pitch=-30
 """
 from __future__ import annotations
@@ -75,11 +79,10 @@ def _try(modname, fn, *a, **k):
 
 def yaw_bearing_variant():
     """Which hip-yaw bearing option the assembly builds (docs/design-v6/
-    study-yaw-bearing.md): "C" (default, unchanged behavior), "A", or "E"
-    (A + positive retention: lip, screwed cap, screwed retainer) via the
-    YAW_BEARING_VARIANT env var -- set by the option-A check/render/export
-    scripts, never by default, so every existing caller of this module keeps
-    building the "C" baseline unless it opts in."""
+    study-yaw-bearing.md): "C" (the placeholder default -- the selection is
+    open, issue #75), "A", or "E" (A + positive retention: lip, screwed cap,
+    screwed retainer), via the YAW_BEARING_VARIANT env var. parts_v6 reads
+    the same switch, so the exported pelvis and carriers match the assembly."""
     return os.environ.get("YAW_BEARING_VARIANT", "C")
 
 
@@ -96,11 +99,9 @@ def hip_yoke_variant():
 
 def arms_on():
     """Whether this build carries the two get-up arms (docs/design-v6/
-    getup-decision-2026-09-17.md). Same contract as yaw_bearing_variant() and
-    hip_yoke_variant(): nothing sets ARMS by default, so every existing caller
-    -- the STEP export, the renders, check_assembly_v6, animate_v6 -- keeps
-    building the armless baseline byte for byte unless it opts in."""
-    return os.environ.get("ARMS", "0") not in ("", "0", "no", "false", "off")
+    getup-decision-2026-09-17.md). ON by default -- the arms are the design;
+    ARMS=0 builds the armless variant (the CAD checks run both)."""
+    return os.environ.get("ARMS", "1") not in ("", "0", "no", "false", "off")
 
 
 def part_hip_yoke():
@@ -179,7 +180,7 @@ def part_foot(side):
 
 def part_pelvis():
     if yaw_bearing_variant() == "E":
-        s, ok = _try("yaw_retention_optE", "pelvis_optE")
+        s, ok = _try("yaw_retention_optE", "pelvis_optE", arms_on())
     else:
         s, ok = _try("pelvis_v7", "pelvis_v7", yaw_bearing_variant(), arms_on())
     if ok:
@@ -189,7 +190,7 @@ def part_pelvis():
 
 
 def part_collar():
-    """The neck's mount. With ARMS=1 this is no longer a standalone collar:
+    """The neck's mount. With the arms (the default) this is not a standalone collar:
     shoulder_girdle_v6 absorbs it, so the neck tube, the two shoulder pods and
     the trapezius webs are ONE print and the head rises out of the same solid
     the arms hang off."""
@@ -201,6 +202,14 @@ def part_collar():
     if ok:
         return s
     return Pos(-12.5, 0, 16) * Box(50, 30, 32)
+
+
+def part_neck_floor():
+    """The neck servo's seat (issue #90): a plate screwed up into the neck
+    tube, in the deck's battery aperture. No envelope fallback -- a missing
+    seat is the defect this part fixes."""
+    import neck_floor
+    return neck_floor.neck_floor()
 
 
 def part_head():
@@ -325,6 +334,7 @@ def _torso_pieces():
         (0, "pi4_mock", COL_MOCK, Pos(0, 0, z) * mock_pi()),
         (0, "gd_mock", COL_MOCK, Pos(0, 0, z) * mock_gd()),
         (0, "servo_neck", COL_SERVO, Pos(V.NECK_X, 0, z + V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z()),
+        (0, "neck_floor", COL_PRINT, Pos(0, 0, z) * part_neck_floor()),
         (0, "shoulder_girdle_v6" if arms_on() else "neck_collar", COL_PRINT,
          Pos(0 if arms_on() else V.NECK_X, 0, z) * part_collar()),
     ]
@@ -482,8 +492,7 @@ def main(argv=None):
     ap.add_argument("--step", default=None)
     a = ap.parse_args(argv)
     if a.step is None:
-        # ARMS=1 writes its own file: the armless assembly_v6.step is what every
-        # existing figure and check refers to, and an opt-in must not overwrite it.
+        # the robot (arms) and the ARMS=0 variant each write their own file
         a.step = os.path.join(OUT_STEP, "assembly_v6_arms.step" if arms_on() else "assembly_v6.step")
     if arms_on() and a.png == os.path.join(OUT_REN, "assembly_v6.png"):
         a.png = os.path.join(OUT_REN, "assembly_v6_arms.png")

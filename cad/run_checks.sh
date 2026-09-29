@@ -8,10 +8,12 @@
 #   check_assembly_v6.py    the articulated v6 assembly (cad/v6/assembly_v6.py)
 #                           posed through every joint's ROM -- extremes plus
 #                           interior samples -- for every pair of pieces that
-#                           move relative to each other. Run twice: the default
-#                           build, and ARMS=1 (shoulder girdle + the two arms).
-#                           Results are what docs/design-v6/cad_rom_check.txt
-#                           records.
+#                           move relative to each other, plus the relatively
+#                           fixed pairs that must keep their distance (the neck
+#                           floor over the pack). Run twice: the default build
+#                           (the robot: shoulder girdle + the two arms) and
+#                           ARMS=0 (armless). Results are what
+#                           docs/design-v6/cad_rom_check.txt records.
 #   audit_torso.py,         printability REPORTS (cad/check_printability.py's
 #   audit_ankle_foot.py     engine: bridges, ceilings, islands, first-layer
 #                           contact) on the exported STLs in cad/v6/stl. They
@@ -43,8 +45,8 @@ run() {
     echo
 }
 
-run "check_assembly_v6 (default build)" "$PY" "$ROOT/cad/v6/check_assembly_v6.py"
-run "check_assembly_v6 (ARMS=1)" env ARMS=1 "$PY" "$ROOT/cad/v6/check_assembly_v6.py"
+run "check_assembly_v6 (default build: arms)" "$PY" "$ROOT/cad/v6/check_assembly_v6.py"
+run "check_assembly_v6 (ARMS=0)" env ARMS=0 "$PY" "$ROOT/cad/v6/check_assembly_v6.py"
 
 report() {
     label=$1

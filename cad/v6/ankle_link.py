@@ -321,7 +321,8 @@ def SCREWS():
     """Every fastener in this part's local frame: {name, kind, pos, axis,
     length}. 6x M2.5 flat-head self-tap grip the ankle-pitch servo case
     (leg_link's own pattern); 8x M3 button (4 horn + 4 idler) grip the
-    ankle-roll servo's discs through the tine pads."""
+    ankle-roll servo's discs through the tine pads. `axis` points from the
+    head toward the tip."""
     s = []
     seat = D.SV_TOPFACE + D.GRIP_PLATE_T
     for zrow in D.CASE_HOLES_TOP:
@@ -332,16 +333,18 @@ def SCREWS():
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
         s.append({"name": f"grip_idler_{lx:+.1f}", "kind": "M2.5x8 flat self-tap",
                   "pos": (lx, igo, -D.CASE_HOLES_BOT[1]), "axis": (0, 1, 0), "length": 8.0})
+    # disc screws: each tine is a 3.0 plate straight on its disc, so both
+    # take the length V.disc_screw gives a 3.0 stack (M3x5), no washers.
+    # The head bears on the tine's OUTER face.
     r = D.BCD / 2
-    for x0, x1, tag in ((V.AL_TINE_FRONT_X[0], V.AL_TINE_FRONT_X[1], "horn"),
-                        (V.AL_TINE_REAR_X[0], V.AL_TINE_REAR_X[1], "idler")):
-        seat_x = x0 if tag == "horn" else x1
-        length = 5.0 if tag == "horn" else D.ROLL_DISC_SCREW_THREAD
+    for tag, head_x, stack in (("horn", V.AL_TINE_FRONT_X[1], V.AL_TINE_FRONT_X[1] - D.SV_HORN_FACE),
+                               ("idler", V.AL_TINE_REAR_X[0], D.SV_IDLER_FACE - V.AL_TINE_REAR_X[0])):
+        length, eng, flange = V.disc_screw(stack, tag)
         for dy, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
             s.append({"name": f"tine_{tag}_{dy:+.1f}_{dz:+.1f}",
-                      "kind": f"M3x{'6' if tag=='horn' else '8'} button",
-                      "pos": (seat_x, dy, -AL_DROP + dz), "axis": (1, 0, 0),
-                      "length": length})
+                      "kind": f"M3x{length} button",
+                      "pos": (head_x, dy, -AL_DROP + dz), "axis": (-1, 0, 0) if tag == "horn" else (1, 0, 0),
+                      "length": float(length), "stack": stack, "engage": eng, "flange": flange})
     return s
 
 

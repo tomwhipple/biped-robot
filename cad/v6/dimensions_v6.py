@@ -32,6 +32,32 @@ SERVO_3250_JOINTS = ("hip_roll", "ankle_roll", "knee")        # 6x STS3250
 SERVO_3215_JOINTS = ("hip_yaw", "hip_pitch", "ankle_pitch", "neck")   # 7x STS3215
 SERVO_MASS_3215 = 55.0
 SERVO_MASS_3250 = 74.5
+# Plan B (DESIGN.md section 4): every joint is an STS3215, with a raised
+# position-loop P on the six joints above. SERVO_3250_JOINTS stays as the
+# fallback's assignment (cad/v6/parts_v6.py SERVO_PLAN=3250).
+
+# --- disc screws: M3 button heads into a servo's horn or idler disc --------
+# The discs are tapped through a thin FLANGE at the O14 bolt circle: 2.5 mm on
+# the horn, 2.1 on the idler (D.HORN_THREAD / D.DISC_THREAD; bench-measured and
+# confirmed on the vendor STEP). A screw must engage at least
+# D.DISC_THREAD_MIN_ENGAGE and no deeper than the flange -- a longer one
+# bottoms out and jacks the joint apart -- so the LENGTH follows the stack
+# under the head, and there are no washers. Thread reaching the hole, by
+# nominal length: M3x6 5.6 (bench), M3x8 7.6, M3x5 4.6 (the same 0.4 short as
+# the measured M3x6; confirm on the first joint).
+DISC_SCREW_THREAD = {5: 4.6, 6: D.DISC_SCREW_THREAD, 8: D.ROLL_DISC_SCREW_THREAD}
+
+
+def disc_screw(stack, side):
+    """(length, engagement, flange) of the SHORTEST M3 button head that
+    engages a `side` ("horn" | "idler") disc through `stack` mm under its head
+    within the rule above."""
+    flange = D.HORN_THREAD if side == "horn" else D.DISC_THREAD
+    for length in sorted(DISC_SCREW_THREAD):
+        eng = DISC_SCREW_THREAD[length] - stack
+        if D.DISC_THREAD_MIN_ENGAGE - 1e-9 <= eng <= flange + 1e-9:
+            return length, eng, flange
+    raise ValueError(f"no M3 disc screw engages a {side} disc through a {stack:.2f} mm stack")
 
 # ----------------------------------------------------------------------------
 # kinematics
@@ -323,6 +349,9 @@ YAW_BRG_W = 9.0                                # 6811-2RS width
 YAW_BRG_C0_KN = 8.1                            # published range 6.2-8.4 kN
                                                 # across sources checked; not a
                                                 # single vendor's guarantee
+YAW_BRG_MASS_G = 83.0                          # SKF 61811-2RS1 catalogue mass
+                                                # 0.083 kg (as listed by SKF
+                                                # distributors, 2026-09-29)
 _carrier_corner_r = math.hypot(19.95, D.SV_WID / 2 + D.BAY_CHEEK_GAP + D.WALL)  # 25.12
 YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.08             # 55.08, +0.08 interference
                                                  # (within the requested
@@ -431,7 +460,7 @@ YAWA_BRG_C0_KN = 5.8          # 6810-2RS, one full spec sheet (50x65x7); a
                               # second source's DYNAMIC figure (6.6 kN) is not
                               # directly comparable and was not cross-checked
                               # against a second STATIC source this session
-YAWA_BRG_MASS_G = 52.0        # cited, single source, not independently re-verified
+YAWA_BRG_MASS_G = 52.0        # SKF 61810-2RS1 catalogue mass 0.052 kg (as listed by SKF distributors)
 YAWA_BRG_BOSS_OD = YAWA_BRG_ID + 0.08         # 50.08, +0.08 interference (same band as YAW_BRG_BOSS_OD)
 YAWA_BRG_BOSS_R = YAWA_BRG_BOSS_OD / 2        # 25.04
 YAWA_BRG_BOSS_H = YAWA_BRG_W                  # 7.0 mm, full bore engagement -- the band IS carrier z [-7, 0]
@@ -571,9 +600,44 @@ NECK_AXIS_ABOVE_DECK = D.SV_IDLER_CASE_FACE * -1.0 + 0.0             # case idle
 # +20.45 -> 35.20 above the deck, the horn disc top ~ +21.3.
 NECK_AXIS_Z = D.SV_TOPFACE - D.SV_TOPFACE + 14.75                    # 14.75 above the deck top
 NECK_HORN_FACE_Z = NECK_AXIS_Z + D.SV_HORN_FACE                      # 35.20 above the deck top
-NECK_WELL_D = 3.0                             # locating well depth in the deck top
+NECK_WELL_D = 3.0                             # seat depth below the deck top (the floor's top face)
 NECK_WELL_HW = (D.SV_WID / 2 + D.YAW_SEAT_GAP, )                     # +-12.66 across
 NECK_WELL_X = (-D.SV_AXIS_FROM_REAR - D.YAW_SEAT_GAP, D.SV_AXIS_FROM_OUT_END + D.YAW_SEAT_GAP)   # -35.41..+10.41
+# The deck's battery + power-board aperture (pelvis_v7 cuts it; the pack lifts
+# out through it). The neck servo's footprint lies ENTIRELY inside it, so the
+# deck cannot seat the neck: the seat is a separate FLOOR PLATE (neck_floor.py)
+# screwed to the neck tube's walls, which drops into this aperture.
+DECK_APER_X = (BATT_X[0] - 0.5, min(PWR_X[1] + 0.5, D.YAW_CASE_X_FRONT + D.YAW_SEAT_GAP))   # -36.51..+10.40
+DECK_APER_HY = HIP_SEP / 2 + D.YAW_BOX_HW_OUT - D.WALL                                  # 54.66
+# --- neck floor (issue #90) --------------------------------------------------
+# A 2 mm plate under the neck servo at the old well depth, so the neck's height
+# is unchanged: floor top at -NECK_WELL_D, floor bottom at the deck-bottom plane.
+# Four PADS stand up from it to the case's idler face (z = 0) at the four stator
+# screw rows (the yaw cells' pattern: M2.5 x 8 flat-heads UP into the idler-face
+# rows 8.30 / 32.75, +-10.25), trimmed clear of the rotating idler disc and hub
+# and of the moulded back-cover platform, which all stand proud of that face.
+# The plate is its own print (it hangs below the girdle's print plane) and is
+# held by four M2.5 x 8 flat-heads UP into bosses on the neck tube's side walls.
+NECK_FLOOR_Z = (-DECK_T, -NECK_WELL_D)                                # (-5.0, -3.0)
+NECK_FLOOR_X = (DECK_APER_X[0] + 0.3, DECK_APER_X[1] - 0.3)           # 0.3 in from the aperture edges
+NECK_FLOOR_HY = NECK_WELL_HW[0] + D.WALL                              # 15.26 == the tube's outer face
+NECK_PAD_R = 3.5                                                      # the yaw-cell stator pad radius
+NECK_PAD_XY = [(-row, s * D.CASE_HOLE_LAT) for row in D.YAW_CASE_HOLES_IDLER for s in (1, -1)]
+NECK_DISC_RELIEF_R = 19.2 / 2 + 0.6                                   # idler disc O19.2 turns: 0.6 air
+NECK_HUB_RELIEF = (4.5, 0.6)                                          # (r, depth) pocket under the idler hub
+NECK_STATOR_CB = 1.0                                                  # counterbore under each stator head:
+                                                                      # the head seats 1 mm up, M2.5 x 8 bites 4.0
+NECK_LUG_X = (-26.0, 4.0)                                             # between the aft tie (x <= -31) and the
+                                                                      # clavicle (x >= 10.61): open air above
+NECK_LUG_Y = NECK_FLOOR_HY + 2.5                                      # 17.76: bosses overlap the tube wall 1 mm
+NECK_LUG_R = 4.5                                                      # 1.5 mm of wall round the 6 mm counterbore
+NECK_LUG_CB = 3.0                                                     # counterbore: the head seats at z -2.0
+NECK_BOSS_R = 3.5                                                     # boss on the tube wall; pilot wall 2.5
+NECK_BOSS_H = 9.0                                                     # boss on the tube wall, z 0..9 (prints base-down)
+NECK_BOSS_PILOT = 7.0                                                 # 2.05 pilot depth; M2.5 x 8 bites 6.0
+NECK_LEAD_WIN = (-D.SV_CONN_L[1] - 1.0, -D.SV_CONN_L[0] + 1.0)        # x band under the connector trench
+assert NECK_FLOOR_Z[0] - (BATT_Z[1]) >= 4.0, "neck floor must keep >= 4 mm over the pack"
+assert NECK_FLOOR_X[0] <= -max(D.YAW_CASE_HOLES_IDLER) - NECK_PAD_R + 0.1, "aft pads must fit on the floor"
 # head: a carrier bolted to the neck horn (4x M3x6 on the O14 BCD + the
 # centre screw recess), carrying the Camera Module 3 (Wide) on its front face
 HEAD_BASE_T = 4.0                             # horn plate thickness

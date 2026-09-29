@@ -143,9 +143,10 @@ def cap():
     return c
 
 
-def pelvis_optE():
-    """Option A's pelvis + 3 screw bosses on each hip skirt."""
-    p = pelvis_v7.pelvis_v7(bearing_variant="A")
+def pelvis_optE(arm_mounts=True):
+    """Option A's pelvis + 3 screw bosses on each hip skirt. arm_mounts: the
+    shoulder girdle's deck pilots (the robot's build; False = ARMS=0)."""
+    p = pelvis_v7.pelvis_v7(bearing_variant="A", arm_mounts=arm_mounts)
     for y_hip in (V.HIP_SEP / 2, -V.HIP_SEP / 2):
         # raise the recess top (= the shoulder's underside) by E_PRELOAD so the
         # race stands proud of the horn face on the carrier side
@@ -174,6 +175,27 @@ def retainer(y_hip):
             Box(E_BOSS_R_POS - E_RET_OD_R + 2, 2 * E_BOSS_R, E_RET_T)
         r -= cyl_z(E_M25_CLEAR / 2, E_RET_Z[0] - 1, E_RET_Z[1] + 1, x, y + y_hip)
     return r
+
+
+def SCREWS():
+    """Option E's screws for ONE hip. Cap: 3 M2.5 flat-heads, heads flush in
+    the cap's top face (carrier-local z E_CAP_Z[1]), into 2.05 pilots that
+    run to z -6.0 in the hub -- an M2.5 x 6 ends 1.2 mm short of the pilot
+    bottom (an x 8 would bottom out). Retainer: 3 M2.5 x 8 flat-heads UP
+    through the ring into the skirt bosses (pelvis-local, +y hip shown).
+    `axis` points from the head toward the tip."""
+    s = []
+    for a in E_CAP_SCREW_ANGLES:
+        x, y = _pol(E_CAP_SCREW_R, a)
+        s.append(dict(name=f"cap_{a}", frame="carrier", kind="M2.5x6 self-tap, flat head (cap into the hub)",
+                      pos=(x, y, E_CAP_Z[1]), axis=(0, 0, -1), length=6.0))
+    for a in boss_angles(V.HIP_SEP / 2):
+        x, y = _pol(E_BOSS_R_POS, a)
+        s.append(dict(name=f"retainer_{a}", frame="pelvis",
+                      kind="M2.5x8 self-tap, flat head (retainer up into the skirt boss)",
+                      pos=(x, y + V.HIP_SEP / 2, E_RET_Z[0]), axis=(0, 0, 1), length=8.0))
+    assert E_CAP_Z[1] - 6.0 > -6.0, "the cap screw must end above its pilot's bottom"
+    return s
 
 
 def build_joint():

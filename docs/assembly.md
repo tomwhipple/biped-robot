@@ -3,28 +3,38 @@
 How the robot goes together, written from the CAD in `cad/v6/`. **Nothing has
 been built yet**: the first build (#79) will correct this guide.
 
-**Step-by-step figures for this robot are not rendered yet.** That is open work
-(#80). Until they exist, these are the visual references:
+**The figures** in each section are rendered from the CAD
+(`cad/v6/render_steps_v6.py`, into `docs/assembly/v6_*.png`): installed parts
+in their own colours, the part going in orange, backed off along its insertion
+path, with a ghost at its seat. They show the left leg and arm; the right side
+is built the same way. The hip-yaw bearing is not drawn: its option is open
+(#75).
+
+**Other visual references:**
 
 - **Fly-in filmstrips.** Every part flies in along its insertion path in
-  `cad/v6/animate_v6.py`:
-  - [the whole robot](../cad/v6/renders/assembly_v6_flyin_strip.png)
-  - [the girdle and arms](../cad/v6/renders/assembly_v6_flyin_arms_strip.png)
-  - bearing options [A](../cad/v6/renders/assembly_v6_flyin_optA_strip.png)
-    and [E](../cad/v6/renders/assembly_v6_flyin_optE_strip.png)
+  `cad/v6/animate_v6.py`; the second row of each strip closes in on the parts
+  that build is about:
+  - [the robot](../cad/v6/renders/assembly_v6_flyin_arms_strip.png)
+    (and the armless variant's [strip](../cad/v6/renders/assembly_v6_flyin_strip.png))
+  - bearing options [A](../cad/v6/renders/assembly_v6_flyin_optA_arms_strip.png)
+    and [E](../cad/v6/renders/assembly_v6_flyin_optE_arms_strip.png)
 
   The `.mp4`s are gitignored; regenerate them with the script.
 - **STEP models to open in FreeCAD:** `cad/v6/step/assembly_v6_arms.step` (the
   robot) and the per-part STEPs ([cad/README.md](../cad/README.md)).
 
-The fly-in is a feasibility check that runs bottom-up. It is not the bench
-order. Where this text and the strips differ, the text follows the part
-modules' insertion specs. The two known differences:
+The fly-in is a feasibility check that builds the robot in place, bottom-up.
+It is not the bench order; the figures and this text are. The differences:
 
+- **Legs and hip stack:** the strip builds each leg up from the foot under the
+  pelvis; on the bench the leg is a subassembly offered up onto the hip-roll
+  servo (§8).
 - **Hip-roll servo:** the strip brings it in from the front; on the bench it
   goes up into its bay from below (§7c).
-- **Neck servo and head:** the strip places them before the girdle; on the
-  bench they go in after it (§11).
+- **Neck:** the strip lowers the girdle with its floor, then drops the neck
+  servo in; on the bench the servo is screwed to the floor before the girdle
+  goes on (§11a).
 
 **Companion docs:**
 
@@ -41,7 +51,8 @@ modules' insertion specs. The two known differences:
 3. Build the hip stack into the pelvis (§7), then hang the legs on it (§8).
 4. Fit the boards and power parts (§9).
 5. Put the pack in (§10).
-6. Fit the shoulder girdle, arms, neck and head (§11).
+6. Build the neck into the girdle on the bench, then fit the girdle,
+   shoulders, arms and head (§11).
 7. Cable it (§12), power it up and calibrate (§13), then test the play (§14).
 
 ---
@@ -101,21 +112,22 @@ washer is never the fix. The length therefore follows the stack under the head:
 
 | stack under the head | where | screw | engagement |
 |---|---|---|---|
-| 3.0 mm: a 3 mm plate straight on the **horn** | leg-link fork horn pads; ankle-link front tine; hip-yoke pitch horn arm; yaw carrier; upper arm at the shoulder and elbow horns | **M3 × 5** | ≈ 2.0 of 2.5 |
+| 3.0 mm: a 3 mm plate straight on the **horn** | leg-link fork horn pads; ankle-link front tine; hip-yoke pitch horn arm; yaw carrier; upper arm at the elbow horn | **M3 × 5** | ≈ 1.6–2.0 of 2.5 |
 | 3.0 mm: a 3 mm plate straight on the **idler** | ankle-link rear tine | **M3 × 5** | ≈ 1.6–2.0 of 2.1 |
 | 3.6 mm: plate + 0.6 mm locating boss, **idler** | leg-link fork idler pads; hip-yoke pitch idler; upper arm at the elbow idler | **M3 × 6** | 2.0 of 2.1 |
-| 4.0 mm: plate on a 1 mm boss, or the head's 4 mm base, **horn** | hip-yoke roll horn arm; head | **M3 × 6** | ≈ 1.6 of 2.5 |
+| 4.0 mm: plate on a 1 mm boss, or the head's 4 mm base, **horn** | hip-yoke roll horn arm; upper arm at the shoulder horn; head | **M3 × 6** | ≈ 1.6 of 2.5 |
 | 5.8 mm: the pad sunk 1.35 mm behind the carrier's bay wall, **idler** | hip-yoke roll idler | **M3 × 8** | 1.8 of 2.1 |
 
 **What this table rests on:**
 
-- The stacks come from each part's CAD, and the rule is the one
-  `cad/check_assembly.py` asserts for the prototype.
-- `cad/v6/check_assembly_v6.py` does not check engagement, and the part modules'
-  `SCREWS()` lists still name M3 × 6 at the horns and M3 × 8 + washer at the
-  idlers (M3 × 10 + washer at the elbow). Those lengths bottom out on this
-  table's stacks. Reconciling them is open.
-- **Confirm on the first joint of each kind before torquing the rest.**
+- The stacks come from each part's CAD. The part modules' `SCREWS()` lists
+  take their lengths from the stack (`dimensions_v6.disc_screw`), and
+  `cad/v6/check_assembly_v6.py` checks every disc screw's engagement against
+  its flange (the `discscrew` rows of
+  [cad_rom_check.txt](design-v6/cad_rom_check.txt)).
+- The M3 × 5's thread length (taken as 4.6 mm, the same 0.4 mm short of
+  nominal as the measured M3 × 6) is not measured. **Confirm on the first
+  joint of each kind before torquing the rest.**
 
 ### Fasteners by step
 
@@ -131,17 +143,17 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §6 hip pitch (hip-yoke pitch clevis) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
 | §7a yaw-servo stators | M2.5 × 8 flat | 8 |
 | §7b carrier to the yaw horn | M3 × 5 | 8 |
-| §7b option E only: cap / retainer | M2.5 flat (length not fixed) / M2.5 × 8 flat | 6 / 6 |
+| §7b option E only: cap / retainer | M2.5 × 6 flat / M2.5 × 8 flat | 6 / 6 |
 | §7c hip-roll servo into the carrier bay | M2.5 × 8 flat | 16 |
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
 | §9a–b Pi and General Driver | M2.5 × 10 pan (lower row) / M2.5 × 6 pan (upper row) | 4 / 4 |
 | §9c power-pocket bosses | M2.5 × 8 pan | 2 |
-| §11a girdle to deck | M2.5 × 8 flat | 10 |
-| §11b shoulder servos | M2.5 × 8 flat | 8 |
-| §11c shoulder horns | M3 × 5 | 8 |
-| §11c elbow grips (forearms) | M2.5 × 8 flat | 12 |
-| §11c elbows (upper-arm forks) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
-| §11d neck-servo stators | M2.5 × 8 flat | 4 |
+| §11a neck floor to the tube / neck-servo stators | M2.5 × 8 flat | 4 / 4 |
+| §11b girdle to deck | M2.5 × 8 flat | 10 |
+| §11c shoulder servos | M2.5 × 8 flat | 8 |
+| §11d shoulder horns | M3 × 6 | 8 |
+| §11d elbow grips (forearms) | M2.5 × 8 flat | 12 |
+| §11d elbows (upper-arm forks) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
 | §11e head to neck horn / head face / camera | M3 × 6 / M2.5 × 8 flat / M2 × 4 self-tap | 4 / 4 / 4 |
 
 The robot has no heat-set inserts and no washers.
@@ -181,6 +193,8 @@ The robot has no heat-set inserts and no washers.
 
 ## 3. Feet ×2
 
+![Ankle-roll servo into the foot](assembly/v6_01_foot_servo.png)
+
 1. **Glue the TPU sole** (`sole_tpu_L/R`) to the foot plate's flat underside.
    The underside is pocketed inside a 6 mm perimeter for the bond.
 2. **Drop the ankle-roll servo into the cradle** from above.
@@ -203,6 +217,8 @@ The robot has no heat-set inserts and no washers.
 - **6 × M2.5 × 8 flat-heads** per link: 4 on the horn-side face (rows 8.30 and
   29.00) and 2 on the idler face (row 32.75). All heads flush.
 
+![Ankle-pitch servo into the ankle link's grip channel](assembly/v6_02_ankle_link_grip.png)
+
 ## 5. Close the leg joints: fork onto horn and idler
 
 Each fork closes on the next servo's two discs. Work horn first at zero, then
@@ -214,6 +230,10 @@ the idler, with thread-locker, and check runout.
 | ankle pitch | the shin's lower fork onto the ankle-pitch servo in the ankle link: horn +Y, idler −Y | 4 × M3 × 5 | 4 × M3 × 6 |
 | knee | the thigh's lower fork onto the knee servo in the shin | 4 × M3 × 5 | 4 × M3 × 6 |
 
+![Ankle link onto the roll servo](assembly/v6_03_ankle_roll_fork.png)
+![Shin onto the ankle-pitch servo](assembly/v6_04_shin_on_ankle.png)
+![Thigh onto the knee servo](assembly/v6_05_thigh_on_knee.png)
+
 ## 6. Hip yoke onto the hip-pitch servo
 
 - **Pitch clevis.** Lower `hip_yoke_v6` onto the hip-pitch servo in the thigh.
@@ -223,6 +243,8 @@ the idler, with thread-locker, and check runout.
 - **Roll clevis.** The upper half waits for §8.
 
 The leg is now a subassembly from the hip yoke down to the foot.
+
+![Hip yoke onto the hip-pitch servo](assembly/v6_06_hip_yoke.png)
 
 ## 7. Hip stack in the pelvis (×2)
 
@@ -244,10 +266,13 @@ Everything in the battery layer is done **before the pack goes in** (§10).
    idler-face rows (8.30 and 32.75). Reach them from above, through the deck's
    battery aperture, with the pack out.
 
+![Yaw servo up into its cell](assembly/v6_07_yaw_servo.png)
+
 ### 7b. Yaw carrier and the hip-yaw bearing
 
-**The bearing option is not selected (#75).** What goes between carrier and
-pelvis depends on the choice (details in
+**The bearing option is not selected (#75).** The code builds option C as a
+placeholder, so the pelvis and carriers are provisional. What goes between
+carrier and pelvis depends on the choice (details in
 [study-yaw-bearing.md](design-v6/study-yaw-bearing.md)). The same steps hold
 for every option:
 
@@ -256,6 +281,8 @@ for every option:
    it before torquing**: a clocked carrier is a permanent yaw offset.
 2. **Drive 4 × M3 × 5 up into the horn** through the bay ceiling, from inside
    the bay. Do this before the roll servo goes in.
+
+![Yaw carrier up onto the yaw horn](assembly/v6_08_yaw_carrier.png)
 
 The bearing depends on the option:
 
@@ -271,7 +298,8 @@ The bearing depends on the option:
     is no driver access in the gap afterwards):
     1. Slide the race down over the hub from the horn-face side onto the printed
        lip.
-    2. Screw the 1 mm cap over it with 3 × M2.5 flat-heads at r 22 mm.
+    2. Screw the 1 mm cap over it with 3 × M2.5 × 6 flat-heads at r 22 mm
+       (an × 8 would bottom out in the hub's pilots).
   - **Pelvis side,** after the carrier is on: offer the retainer up under the
     skirt and drive 3 × M2.5 × 8 flat-heads up into the skirt bosses.
   - **Preload 0.2 mm.** The cap and the retainer bottom on the races with a
@@ -302,6 +330,8 @@ The bearing depends on the option:
 3. **Drive 8 × M2.5 × 8 flat-heads:** 4 through the front (horn) wall and 4
    through the rear (idler) wall, into the case.
 
+![Hip-roll servo up into the carrier's bay](assembly/v6_09_hip_roll_servo.png)
+
 ## 8. Legs onto the roll servos
 
 Offer each leg up so that the hip yoke's roll clevis straddles its roll servo:
@@ -314,6 +344,8 @@ Offer each leg up so that the hip yoke's roll clevis straddles its roll servo:
     is what brings the screws into thread, so do not fill or file it.
   - Snug at zero, then check runout.
 
+![The leg offered up onto the roll servo](assembly/v6_10_leg_to_hip.png)
+
 ## 9. Torso electronics
 
 The Pi and the General Driver stand vertically in their own columns, fore and
@@ -324,6 +356,8 @@ own slot in the deck.
   standoff bosses; the upper row takes **M2.5 × 6 pan** screws into wall pilots.
   A boss in the upper row would block the slide.
 - **Driver:** a few of these screws sit close to walls and need a slim driver.
+
+![The two boards down their channels](assembly/v6_11_boards.png)
 
 ### 9a. Raspberry Pi 4B (aft wall)
 
@@ -362,26 +396,51 @@ own slot in the deck.
    cell ceilings.
 3. **Belt it** with the 15 mm hook-and-loop strap through the belt slots.
 
-The girdle's neck tube and aft tie span the aperture, so **the pack cannot come
-out while the girdle is on**. Swapping it means lifting the girdle, which is
-held by ten deck screws.
+![The pack down through the deck aperture](assembly/v6_12_pack.png)
 
-## 11. Girdle, shoulders, arms, neck, head
+The girdle's neck tube, the neck floor under it and the aft tie span the
+aperture, so **the pack cannot come out while the girdle is on**. Swapping it
+means lifting the girdle, which is held by ten deck screws; the neck stays in
+the girdle.
 
-This is the bench order from
-[shoulder-girdle.md §7](design-v6/shoulder-girdle.md). The arm steps are what
-the [arms fly-in strip](../cad/v6/renders/assembly_v6_flyin_arms_strip.png)
-shows.
+## 11. Girdle, neck, shoulders, arms, head
 
-### 11a. Shoulder girdle
+The bench order, girdle first. The neck floor sits 4.5 mm over the pack, so
+the neck is built into the girdle before the girdle goes onto the robot.
 
-- **Lower the girdle onto the deck while it is still empty.**
+### 11a. Neck into the girdle (on the bench)
+
+1. **Neck floor into the tube.** Offer `neck_floor` up into the bottom of the
+   girdle's neck tube, pads up, and drive **4 × M2.5 × 8 flat-heads** up
+   through its lugs into the four bosses on the tube's side walls.
+
+   ![Neck floor up into the girdle's tube](assembly/v6_13_neck_floor.png)
+
+2. **Plug the neck servo's leads first.** The bus ports face down, in the
+   connector trench on the idler face. The floor has a window under the trench,
+   open toward the robot's left (+Y), so the plugs pass it and the leads leave
+   sideways at floor level.
+3. **Drop the neck servo into the tube from above**, horn up, case length
+   fore-aft with the cable end aft. Its idler face lands on the floor's four
+   pads; the turning idler disc and hub clear the floor by 0.6 mm.
+4. **Drive 4 × M2.5 × 8 flat-heads up through the floor and the pads** into
+   the idler-face rows (8.30 and 32.75). The heads seat in 1 mm counterbores,
+   so each screw bites 4 mm into the case.
+
+   ![Neck servo down into the tube](assembly/v6_14_neck_servo.png)
+
+### 11b. Girdle onto the deck
+
+- **Lower the girdle onto the deck**, the neck floor passing down into the
+  battery aperture over the pack. Lead the neck's bus leads up beside the tube.
 - **Screw it down with 10 × M2.5 × 8 flat-heads** from above into the deck
-  pilots on the two edge rails (x −27, −18, −9, 0, +6 mm at y ±57 mm).
-  - **These pilots exist only in a pelvis built with `arm_mounts=True`**
-    ([PRINT_LIST](../cad/PRINT_LIST.md#before-the-pelvis-prints)).
+  pilots on the two edge rails (x −27, −18, −9, 0, +6 mm at y ±57 mm). The
+  rail pilots are clear of the pods, so the shoulder servos can go in before
+  or after.
 
-### 11b. Shoulder servos
+![The girdle lowered onto the deck](assembly/v6_15_girdle.png)
+
+### 11c. Shoulder servos
 
 - **Drop each servo straight into its open pod** from above: case length
   fore-aft, width vertical, horn outboard.
@@ -389,28 +448,29 @@ shows.
   outboard.** The inboard face sits 1.24 mm off the housing skin, where no
   driver fits.
 
-### 11c. Arms (a mirror pair)
+![Shoulder servos into their pods](assembly/v6_16_shoulder_servos.png)
+
+### 11d. Arms (a mirror pair)
 
 1. **Upper arm onto the shoulder horn.** Offer it straight in along the joint
    axis, with the shoulder at zero (arm hanging). It is a single-sided horn
    joint.
-   - **4 × M3 × 5**, driven through the access bore in the arm's outboard face.
+   - **4 × M3 × 6** (the horn plate sits on a 1 mm seating boss: a 4.0 mm
+     stack), driven through the access bore in the arm's outboard face.
+
+   ![Upper arm onto the shoulder horn](assembly/v6_17_upper_arm.png)
+
 2. **Elbow servo into the forearm.** Slide it into the forearm's grip channel,
    with **6 × M2.5 × 8 flat-heads**.
+
+   ![Elbow servo into the forearm](assembly/v6_18_elbow_servo.png)
+
 3. **Forearm onto the upper arm.** Lift it up between the upper arm's fork
    tines onto the elbow's two discs, with the elbow straight:
    - horn side **4 × M3 × 5**;
    - idler side **4 × M3 × 6**.
 
-### 11d. Neck servo
-
-Drop the neck servo into the girdle's neck tube from above, horn up.
-
-**Open defect.** `pelvis_v7` has four M2.5 × 8 flat-heads going up through the
-deck into the neck servo's idler-face rows. However, the deck's battery aperture
-covers the whole neck well, so those screws have no deck to pass through. The
-tube locates the servo sideways only. This must be fixed in the pelvis before it
-is printed ([PRINT_LIST](../cad/PRINT_LIST.md#before-the-pelvis-prints)).
+   ![Forearm onto the upper arm's fork](assembly/v6_19_forearm.png)
 
 ### 11e. Head and camera
 
@@ -422,6 +482,10 @@ is printed ([PRINT_LIST](../cad/PRINT_LIST.md#before-the-pelvis-prints)).
    neck at zero and the head facing forward. Drive **4 × M3 × 6** through the
    4 mm base plate, from inside the open shell.
 4. **Close the face** with **4 × M2.5 × 8 flat-heads**.
+
+![Head onto the neck horn](assembly/v6_20_head.png)
+
+![The robot as drawn](assembly/v6_21_complete.png)
 
 ## 12. Cabling
 
@@ -436,7 +500,9 @@ lengths, and no current budget.
   window.
 - **Boards:** the General Driver's bus edge faces up under its deck slot, and
   the Pi's camera edge faces up under the deck.
-- **Neck:** the girdle's neck tube has a window at the servo's cable end.
+- **Neck:** the leads leave the plugs through the neck floor's window, toward
+  +Y, and rise through the deck aperture beside the tube; the tube also has a
+  window at the servo's cable end.
 
 **Rules:**
 
@@ -501,9 +567,6 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 
 | item | where |
 |---|---|
-| step-by-step figures | #80 |
-| disc-screw lengths: part modules' `SCREWS()` vs the engagement table in §1 | #76 |
-| the printable pelvis: bearing seat, girdle pilots, neck-servo seat | #75, #76 |
-| hip-yaw bearing option | #75 |
+| hip-yaw bearing option; the pelvis and yaw carriers wait on it | #75 |
 | ID map, harness, lead lengths, current budget, fixing of the power boards | #77 |
 | 17-joint firmware: calibration, IMU mounting rotation, register-21 check | #81 |

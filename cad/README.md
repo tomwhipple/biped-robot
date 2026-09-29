@@ -36,21 +36,23 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 | module | what it is |
 |---|---|
 | `dimensions_v6.py` | every dimension the robot adds or changes: kinematics, feet, torso, pack, Pi, neck and head, the bearing options (`YAW_BRG_*` = C, `YAWA_*` = A/E), arms and girdle. It re-exports `cad/dimensions.py` as `D`, and `SIM_EXPECT` is the set of numbers the plant must share (pinned by `tests/test_v6_design_gates.py`) |
-| `parts_v6.py` | exports every printed part to `stl/` and `step/`, with a bed check and a mass rollup (`--only <names>`) |
-| `assembly_v6.py` | the articulated robot: one kinematic chain of parts, servo mocks and electronics mocks, posable (`--pose knee=-60,...`). Writes `step/assembly_v6.step` (`_arms` with `ARMS=1`) and `renders/assembly_v6.png`. The checker and the fly-in read this chain |
-| `check_assembly_v6.py` | the ROM interference gate: every pair of pieces that move relative to each other, at the ROM extremes plus interior samples (`--joint`, `--samples`, `--side`) |
+| `parts_v6.py` | exports every printed part to `stl/` and `step/`, with a bed check and the mass rollup `docs/design-v6/parts_v6_rollup.txt` (`--only <names>`, `--no-export` for the rollup alone) |
+| `assembly_v6.py` | the articulated robot: one kinematic chain of parts, servo mocks and electronics mocks, posable (`--pose knee=-60,...`). Writes `step/assembly_v6_arms.step` (`assembly_v6.step` with `ARMS=0`) and `renders/assembly_v6_arms.png`. The checker, the fly-in and the step figures read this chain |
+| `check_assembly_v6.py` | the CAD gate: every pair of pieces that move relative to each other, at the ROM extremes plus interior samples; the relatively fixed pairs that must keep their distance (`--joint static`); every disc screw's thread engagement (`--joint screws`). Options: `--joint`, `--samples`, `--side` |
 | `animate_v6.py` | fly-in along each part's insertion path. Writes `renders/assembly_v6_flyin*.mp4` (gitignored) and a committed `_strip.png` |
+| `render_steps_v6.py` | the assembly guide's step figures, `docs/assembly/v6_*.png`: bench order, the incoming part orange along its insertion path |
 | `pelvis_v7.py` | the torso, one print: `pelvis_v7(bearing_variant, arm_mounts)`, its `SCREWS()`, a driver-access check and the board slide checks |
-| `yaw_carrier_v6.py` | the bearing option C carrier: the prototype's carrier plus a 6811-2RS boss |
+| `yaw_carrier_v6.py` | the bearing option C carrier: the prototype's carrier plus a 6811-2RS boss; the carrier's `SCREWS()` (all options) |
 | `yaw_carrier_v6_optA.py` | the option A carrier: a round hub for a 6810-2RS |
-| `yaw_retention_optE.py` | option E: carrier with lip, cap and retainer, and a pelvis with retainer bosses. Writes `step/yaw_bearing_optE/` |
+| `yaw_retention_optE.py` | option E: carrier with lip, cap and retainer, a pelvis with retainer bosses, and their `SCREWS()`. Writes `step/yaw_bearing_optE/` |
 | `hip_yoke_v6.py` | the hip roll and pitch clevises fused into one print |
 | `yoke_pitch_v6.py` | the pitch clevis alone. `hip_yoke_v6` is built from it; it is printed only under `HIP_YOKE_VARIANT=split` |
 | `leg_link_v6.py` | thigh and shin (one part): a 110 mm box section |
 | `ankle_link.py` | grips the ankle-pitch servo and forks onto the ankle-roll servo |
 | `foot_v6.py` | `foot_L`/`foot_R` and the TPU soles `sole_tpu_L`/`_R` |
 | `head.py` | `head_shell`, `head_face`, and `head` (the two fused, for checks) |
-| `neck_collar.py` | the armless build's neck-servo mount |
+| `neck_floor.py` | the neck servo's seat: a plate screwed up into the neck tube's bosses, in the deck's battery aperture (#90); its checks and `tube_bosses()` |
+| `neck_collar.py` | the `ARMS=0` variant's neck tube (not a print target: its flange pilots miss the deck) |
 | `shoulder_girdle_v6.py` | the girdle: both shoulder pods and the neck tube in one print |
 | `arm_v6.py` | upper arm and forearm (mirror pairs), the elbow-servo mock, and the elbow ROM check |
 | `audit_torso.py` | printability report for `pelvis_v7`, the head parts and `neck_collar` |
@@ -102,12 +104,16 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 ## Regenerate
 
 ```bash
-ARMS=1 .venv/bin/python cad/v6/parts_v6.py              # every printed part -> cad/v6/stl + cad/v6/step, bed check, mass rollup
+.venv/bin/python cad/v6/parts_v6.py                      # the robot: every printed part -> cad/v6/stl + cad/v6/step, bed check, rollup
+.venv/bin/python cad/v6/parts_v6.py --no-export          # the rollup alone
+YAW_BEARING_VARIANT=E .venv/bin/python cad/v6/parts_v6.py --only pelvis_v7_optE yaw_carrier_v6_optE yaw_cap_optE yaw_retainer_optE
 .venv/bin/python cad/v6/head.py                          # head_shell, head_face (+ the fused head), audits, render
-ARMS=1 .venv/bin/python cad/v6/assembly_v6.py            # step/assembly_v6_arms.step + renders/assembly_v6_arms.png
+.venv/bin/python cad/v6/assembly_v6.py                   # step/assembly_v6_arms.step + renders/assembly_v6_arms.png
 .venv/bin/python cad/v6/assembly_v6.py --pose hip_pitch=-60,knee=90 --step /tmp/posed.step --png /tmp/posed.png
-ARMS=1 .venv/bin/python cad/v6/animate_v6.py             # fly-in mp4 (gitignored) + filmstrip
+.venv/bin/python cad/v6/animate_v6.py                    # fly-in mp4 (gitignored) + filmstrip
+.venv/bin/python cad/v6/render_steps_v6.py               # docs/assembly/v6_*.png
 .venv/bin/python cad/v6/<module>.py                      # one part: STL + STEP + its own audits + render
+.venv/bin/python sim/build_v6_inertia.py --write         # the plant from the exported STLs (sim/bimo_biped_v6ar.xml)
 .venv/bin/python cad/parts.py                            # the prototype's parts -> cad/stl, cad/step (the training plant meshes them)
 ```
 
@@ -115,25 +121,19 @@ ARMS=1 .venv/bin/python cad/v6/animate_v6.py             # fly-in mp4 (gitignore
 - **Renders on the Mac need `MUJOCO_GL=cgl`.** The scripts default it to `egl`
   (Linux), and on macOS they then skip the render.
 - **The exports are generated files:** regenerate them, never edit them. See
-  [AGENTS.md](../AGENTS.md).
-- **`parts_v6.py` has no rollup-only mode:** every run rewrites the STLs and
-  STEPs. `docs/design-v6/parts_v6_rollup.txt` is a saved copy of its output
-  dated 2026-09-14, and it is stale.
+  [AGENTS.md](../AGENTS.md). A bearing variant's pelvis exports as
+  `pelvis_v7_optA` / `pelvis_v7_optE` (and `_armless` with `ARMS=0`), so no
+  variant run overwrites the robot's `pelvis_v7`.
 
-**Environment flags:**
+**Environment flags** (the defaults are the robot to print):
 
 | flag | default | read by | effect |
 |---|---|---|---|
-| `ARMS` | off | `parts_v6.py`, `assembly_v6.py` (and so `check_assembly_v6.py`, `animate_v6.py`) | `1` adds `shoulder_girdle_v6` and the four arm links, and drops `neck_collar`. In `assembly_v6` it also builds the pelvis with `arm_mounts=True` (the ten girdle pilots). **`parts_v6.py` does not:** it always exports the default pelvis |
-| `YAW_BEARING_VARIANT` | `C` | `assembly_v6.py` (and so the checker and the fly-in); forced to `A` inside `check_yaw_bearing_optA.py` | selects the carrier and pelvis for bearing option `A`, `C` or `E`; `E` adds the bearing, cap and retainer pieces. **`parts_v6.py` ignores it** and always exports option C's carrier |
+| `ARMS` | `1` | `parts_v6.py`, `assembly_v6.py` (and so `check_assembly_v6.py`, `animate_v6.py`, `render_steps_v6.py`) | the girdle, the four arm links, and the pelvis with the ten girdle pilots. `0` is the armless variant: `neck_collar`, no pilots, no arms |
+| `YAW_BEARING_VARIANT` | `C` (a placeholder until #75) | `parts_v6.py`, `assembly_v6.py`, `sim/build_v6_inertia.py` | the carrier and pelvis for bearing option `A`, `C` or `E`; `E` adds the bearing, cap and retainer |
 | `HIP_YOKE_VARIANT` | `single` | `parts_v6.py`, `assembly_v6.py` | `split` builds the bolted `yoke_roll` + `yoke_pitch_v6` pair instead of `hip_yoke_v6` |
+| `SERVO_PLAN` | `B` | `parts_v6.py` | `B`: 17 × STS3215; `3250`: STS3250s at the six roll and knee joints (the mass line only; same case) |
 | `MUJOCO_GL` | `egl` (set by default) | every render | set `cgl` on macOS |
-
-**The defaults are not the robot to print.** The code builds armless, with
-bearing C, and its mass line counts 6 × STS3250. Making the defaults the robot
-(arms on, the chosen bearing, 17 × STS3215, rollup and plant regenerated) is
-#76. [PRINT_LIST.md](PRINT_LIST.md) lists what that leaves undone for the
-pelvis.
 
 ## The gate
 
@@ -143,14 +143,20 @@ sh cad/run_checks.sh          # exit 0 = clear; "CHECKS FAILED -- do not print" 
 
 It runs four things with `.venv/bin/python`:
 
-1. **`check_assembly_v6.py` on the default build.** Every relatively-moving pair
-   is posed at its joint's ROM extremes and interior samples.
+1. **`check_assembly_v6.py` on the default build (the robot, with arms).**
+   Every relatively-moving pair is posed at its joint's ROM extremes and
+   interior samples.
    - Each pair must show zero intersection and at least `SWEEP_BUFFER` of
-     clearance. Designed contacts (pads on discs, seats) are excluded by name.
+     clearance. Designed contacts (pads on discs, seats) are checked for
+     volume only, by name.
+   - The relatively fixed pairs (the neck floor over the pack, off the pelvis
+     and the boards) are checked at the standing pose, each against its own
+     minimum distance.
+   - Every disc screw's thread engagement is checked against its flange.
    - The pair list is printed with the result, because a pair that is not listed
      was never checked.
    - Results are recorded in `docs/design-v6/cad_rom_check.txt`.
-2. **The same check with `ARMS=1`:** the girdle, arms and arm-versus-leg pairs.
+2. **The same check with `ARMS=0`** (the armless variant).
 3. **`audit_torso.py`**, a printability report on `cad/v6/stl`.
 4. **`audit_ankle_foot.py`**, likewise.
 
@@ -164,9 +170,11 @@ their `**` lines against the slice preview.
   (`leg_link_v6`, `hip_yoke_v6`, `shoulder_girdle_v6`, `arm_v6`). Those rewrite
   their STL as they run, so run them when that part changes.
 - **A bearing option other than C:**
-  `YAW_BEARING_VARIANT=A .venv/bin/python cad/v6/check_assembly_v6.py` plus the
-  ring check `check_yaw_bearing_optA.py`. The full sweep for option E has not
-  been run.
+  `YAW_BEARING_VARIANT=A` (or `E`) `.venv/bin/python cad/v6/check_assembly_v6.py`,
+  on both builds; with `E` the checker adds the cap, retainer and bearing rows
+  (the bearing's press fit in the pelvis is checked against its designed
+  interference). Results in
+  `docs/design-v6/yaw_bearing_options_2026-09-29.txt`.
 - **Insertion paths:** on a layout change, `animate_v6.py` proves that the parts
   fly in along them.
 
@@ -177,8 +185,8 @@ their `**` lines against the slice preview.
 
 Open the STEP exports:
 
-- **the robot:** `cad/v6/step/assembly_v6_arms.step`, or `assembly_v6.step`
-  without the arms;
+- **the robot:** `cad/v6/step/assembly_v6_arms.step` (`assembly_v6.step` is the
+  armless variant);
 - **each part:** `cad/v6/step/<part>.step`;
 - **each bearing option's joint sub-assembly** (pelvis cell region, carrier,
   both races as rings, yaw and roll servo mocks):

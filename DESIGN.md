@@ -41,7 +41,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | joints | **17**: per leg hip yaw, hip roll, hip pitch, knee, ankle pitch, ankle roll (12); neck yaw (1); per arm shoulder pitch, elbow (4) |
 | servos | 17 × Feetech STS3215 (12 V, ST-3215-C018) with a raised position-loop gain on the six roll and knee servos — "Plan B", §4 |
 | height | deck top 460 mm, camera 530 mm, head top 555 mm |
-| mass | ≈ 1.67 kg without arms, ≈ 2.10 kg with them (§7) |
+| mass | ≈ 2.2–2.3 kg as drawn, depending on the hip-yaw bearing option (§7) |
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
@@ -187,38 +187,51 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
     screwed cap on the carrier, a shoulder and a screwed retainer on the
     pelvis, 0.2 mm preload. Addresses the concern that a press fit in PETG
     creeps loose.
-  - **C** — 6811-2RS wrapped round the existing carrier (the code's current
-    default, `YAW_BEARING_VARIANT=C`); larger and heavier.
+  - **C** — 6811-2RS wrapped round the existing carrier; larger and heavier.
+    The code builds C by default (`YAW_BEARING_VARIANT`) as a placeholder
+    until the selection, so the pelvis and carriers are provisional.
 
-  Load margin is > 100× for every option. Details and checks:
-  [study-yaw-bearing.md](docs/design-v6/study-yaw-bearing.md).
+  | | C | A | E |
+  |---|---|---|---|
+  | bearing (SKF catalogue mass) | 6811-2RS, 83 g | 6810-2RS, 52 g | 6810-2RS, 52 g |
+  | pelvis / carrier (print) | 194 / 29.9 g | 190 / 23.8 g | 193 / 24.5 g + cap 1.8 g, retainer 2.7 g |
+  | robot, CAD-inertial plant | 2.284 kg | 2.206 kg | 2.219 kg |
+
+  Load margin is > 100× for every option. All three pass the swept-ROM gate
+  on both builds. Details and checks:
+  [study-yaw-bearing.md](docs/design-v6/study-yaw-bearing.md),
+  [yaw_bearing_options_2026-09-29.txt](docs/design-v6/yaw_bearing_options_2026-09-29.txt).
 - **`hip_yoke_v6`** (×2): the hip-roll clevis and hip-pitch clevis fused into
   one print, straddling the roll servo's discs and the pitch servo's discs. No
   flange bolts or inserts.
 
 ### 5.3 Torso
 
-**`pelvis_v7`**, one print, deck-top-down (≈ 174 g plus the bearing seat):
+**`pelvis_v7`**, one print, deck-top-down (190–194 g with the bearing seat, §5.2):
 
 - two yaw cells at y = ±42 mm, each with a ceiling carrying the yaw servo's four
   stator screws;
 - a 31 mm battery layer above them: the pack lies transverse, belted with a
-  15 mm hook-and-loop strap, and goes in through the deck aperture;
+  15 mm hook-and-loop strap, and goes in through the deck aperture (which
+  also runs under the neck servo, so the deck does not seat it: §5.5);
 - the General Driver vertical on the front wall and the Pi 4B vertical on the
   aft wall, both sliding down guide channels through deck slots (16 mm of
   component depth behind the Pi: low-profile heatsink, no fan);
 - a 60 × 8.4 × 25 mm pocket for the protection board and 5 V buck;
 - side windows for the Pi's USB/Ethernet and the driver's service edge.
 
-With the arms, the pelvis is built with ten extra deck pilots for the girdle
-(`ARMS=1`).
+The pelvis carries ten deck pilots for the girdle. The code's `ARMS=0`
+variant (no girdle, no arms, `neck_collar` for the neck) builds it without
+them; that variant is kept for the CAD checks and is not a print target.
 
 ### 5.4 Arms and shoulder girdle
 
-- **`shoulder_girdle_v6`** (one print, ≈ 76 g, 200 × 58 × 33 mm) sits on the
+- **`shoulder_girdle_v6`** (one print, 77 g, 200 × 58 × 33 mm) sits on the
   deck and holds both shoulder servos in open-top pods plus the neck servo's
-  tube. Ten M2.5 × 8 flat-heads into deck pilots on two edge rails. **The pack
-  goes in before the girdle**; it cannot pass the neck tube afterwards.
+  tube, whose side walls carry four bosses for the neck floor (§5.5). Ten
+  M2.5 × 8 flat-heads into deck pilots on two edge rails. **The pack goes in
+  before the girdle**: it cannot pass the neck tube or the neck floor
+  afterwards, so the neck is built into the girdle on the bench first.
 - **Shoulder axis in the hip plane** (x = 0), 16 mm above the deck top, arm
   planes at y = ±103.35 mm.
 - **Upper arm 160 mm, forearm 160 mm.** The 0.32 m reach is a measured
@@ -230,9 +243,18 @@ With the arms, the pelvis is built with ten extra deck pilots for the girdle
 
 ### 5.5 Neck and head
 
-The neck STS3215 stands on the deck, ±90° yaw. Its seat is open: the deck's
-battery aperture currently cuts through the neck well, leaving the stator
-screws nothing to bite (#90). The head (`head_shell` +
+The neck STS3215 stands on its idler face in the girdle's neck tube, horn up,
+±90° yaw. The deck cannot seat it (its battery aperture runs under the whole
+servo), so its seat is **`neck_floor`**: a 2 mm plate, its own print (4 g),
+screwed up into four bosses on the tube's side walls with M2.5 × 8
+flat-heads, dropping into the aperture with its top 3 mm below the deck top.
+Four pads rise from it to the case's idler face, trimmed clear of the turning
+idler disc and hub and of the moulded back-cover platform, and take the four
+stator screws (M2.5 × 8 up through the floor, 4 mm of bite). The plate sits
+4.5 mm over the pack, so the neck goes in on the bench: plate into the tube,
+servo down onto the pads (leads plugged first, out through a window in the
+floor under the connector trench), stator screws from below; then the girdle
+goes onto the deck. The head (`head_shell` +
 `head_face`, ~35 g) bolts to its horn with 4 × M3 and carries the Camera
 Module 3 Wide on M2 bosses; the ribbon runs through a slot beside the axis.
 A stereo alternative from one camera and four mirrors is proposed in PR #71
@@ -258,15 +280,33 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
 
 ## 7. Mass
 
-| | without arms | with arms |
-|---|---|---|
-| robot, all STS3215 | ≈ 1.67 kg (CAD-inertial plant) | ≈ 2.10 kg (as-drawn get-up plant) |
-| servos | 13 × 55 g | 17 × 55 g |
-| printed PETG + TPU | ≈ 0.59 + 0.05 kg | + girdle ≈ 76 g, arm links ≈ 134 g |
-| pack / boards + wiring | 170 g / ≈ 180 g | same |
+The robot as drawn, Plan B, from the CAD-inertial plant
+(`sim/bimo_biped_v6ar.xml`) and the rollup
+(`docs/design-v6/parts_v6_rollup.txt`):
 
-The simulation plants carry these as CAD-derived inertias
-(`sim/build_v6_inertia.py`); they are replaced by weighed masses once the parts
+| | |
+|---|---|
+| robot | ≈ 2.28 kg with bearing C (2.21 kg A, 2.22 kg E) |
+| servos | 17 × 55 g = 935 g |
+| printed PETG + TPU | ≈ 0.79 + 0.05 kg: pelvis 194 g, girdle 77 g, arm links 134 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
+| hip-yaw bearings | 166 g (2 × 6811-2RS) or 104 g (2 × 6810-2RS) |
+| pack / boards + wiring | 170 g / ≈ 180 g |
+
+With STS3250s at the six roll and knee joints (the fallback) it is 117 g
+heavier. The simulation gates in §4, §8 and §9 were run on earlier plants:
+the armless CAD-inertial plant (1.67 kg) for the walk, the lumped as-drawn
+get-up plant (2.10 kg, no bearings) for the arms. On this plant Plan B
+(P × 4, rolls + knees) walks the four gate cases 4/4, with 33–37 mm of CoM
+margin, most of the gain from the bearings' mass; stock STS3215s still fall
+0/4; and with the arms held at 15° and self-collision on, Plan B stays up in
+4 of 5 cases with no arm-to-leg contact (the μ 0.9 turn falls, as before)
+(`docs/design-v6/no3250_walk_plant17.txt`,
+`no3250_arms_walk_plant17.txt`).
+
+The plant carries every part at its CAD inertia (`sim/build_v6_inertia.py`):
+the printed parts from their STLs, each servo on its case mock at its CAD
+place, the bearing as two rings split between the pelvis and the carrier, the
+pack and boards as boxes. It is replaced by weighed masses once the parts
 exist.
 
 ## 8. Walking
@@ -348,15 +388,18 @@ pre-push suite.
 
 **CAD gates** (`sh cad/run_checks.sh`): `cad/v6/check_assembly_v6.py` poses the
 articulated assembly through every joint's range for every pair of pieces that
-move relative to each other, on the armless and the `ARMS=1` build (results in
+move relative to each other, checks the relatively fixed pairs that must keep
+their distance (the neck floor over the pack) and every disc screw's thread
+engagement, on the robot's build and the `ARMS=0` variant (results in
 `docs/design-v6/cad_rom_check.txt`); printability audits report bridges,
 ceilings and islands for the slicer's support settings; `cad/v6/animate_v6.py`
 flies the parts in along their insertion paths to prove they assemble.
 
 **Plants**: `sim/gen_plant_v6.py` builds a parametric plant (`DesignParams`) for
-design sweeps; `sim/build_v6_inertia.py` builds the CAD-inertial plant from the
-exported STLs plus servo, pack and board boxes (`--all-3215` for Plan B);
-`sim/bimo_biped_v6ar.xml` is the committed plant.
+design sweeps; `sim/build_v6_inertia.py` builds the CAD-inertial plant of the robot as
+drawn (17 actuators, arms at rest at the 15° walking hold, Plan B masses,
+the bearing option's parts); `sim/bimo_biped_v6ar.xml` is the committed plant,
+pinned by the tests.
 
 ## 11. Software
 
@@ -391,8 +434,7 @@ Everything open is a GitHub issue.
 | servo route: Plan B stands or falls on the bench test | #73, then the purchase #74 |
 | hip-yaw bearing A, C or E (§5.2); the pelvis and yaw carriers wait on it | #75 |
 | head: mono camera, or the stereo periscope | PR #71, #87 |
-| make the code's defaults the robot to print (arms on, chosen bearing, 17 × STS3215; rollup and plant regenerated) — today they build armless with bearing C and count 6 × STS3250 | #76 |
-| neck servo seat (the battery aperture cuts through the neck well) | #90 |
+| make the code's defaults the robot to print: arms, 17 × STS3215, rollup and plant regenerated are done; the bearing default follows #75 | #76 |
 
 | work | issue |
 |---|---|
