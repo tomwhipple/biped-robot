@@ -166,8 +166,9 @@ Its restart-1 winner is **the recommended prone path**
   shoulders trip in the seat push part
   ([…_robust_duty.txt](getup_prone_verify_stow_fold_robust_duty.txt)).
 - **Current**: 8.8 / 3.8 A peak and 5.5 / 1.9 A over the worst 2 s (upper /
-  lower model), against 15.9 / 11.6 A for the first path
-  ([current_budget_v6.txt](current_budget_v6.txt)).
+  lower model) ([current_budget_v6.txt](current_budget_v6.txt)). The first
+  path, in the same script before `ROLL_STOW_FOLD` was switched, drew 15.9 /
+  11.6 A peak and 8.7 / 4.4 A over 2 s (in git history).
 - ROBUST_PLACEHOLDER
 
 ![Prone → one arm braced, the other raised → roll onto the back → arms folded → the seat push → standing](figs/getup_prone_chain_sheet.png)
