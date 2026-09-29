@@ -508,7 +508,25 @@ def rise_keys(na):
     return [(lab, q_of(off, na), m, h) for lab, off, m, h in sp[6:]]
 
 
-def run_catch(x, kick=1.5, cond=NOMINAL, time_scale=1.0, render=None, heading_deg=0.0, protection=None):
+RISE_NAMES = [f"r{k}_{j}" for k in range(3) for j in ("hip", "knee", "ankle", "sh", "el", "t", "h")]
+RISE_BOUNDS = np.array([b for _ in range(3) for b in (RANGE["L_hip_pitch"], RANGE["L_knee"], RANGE["L_ankle"],
+                                                       RANGE["L_shoulder"], RANGE["L_elbow"], T_MOVE, T_HOLD)], float)
+# the seat push's own rise (rise_keys) as a RISE_NAMES vector: the search's seed
+RISE_SEED = dict(r0_hip=-120, r0_knee=-130, r0_ankle=-25, r0_sh=60, r0_el=0, r0_t=1.0, r0_h=2.0,
+                 r1_hip=-80, r1_knee=-70, r1_ankle=-30, r1_sh=60, r1_el=0, r1_t=1.5, r1_h=1.0,
+                 r2_hip=-45, r2_knee=-50, r2_ankle=-25, r2_sh=60, r2_el=0, r2_t=1.5, r2_h=1.0)
+
+
+def rise_keys_x(r, na):
+    """a searched rise from the crouch: three free keyframes, then stand and straight"""
+    keys = [(f"rise {k}", q_of(dict(hip_pitch=r[f"r{k}_hip"], knee=r[f"r{k}_knee"], ankle=r[f"r{k}_ankle"],
+                                     shoulder=r[f"r{k}_sh"], elbow=r[f"r{k}_el"]), na), r[f"r{k}_t"], r[f"r{k}_h"])
+            for k in range(3)]
+    return keys + [("stand", q_of(dict(hip_pitch=-20, knee=-40, ankle=-20, shoulder=60, elbow=0), na), 1.5, 1.0),
+                   ("straight", q_of(dict(shoulder=60, elbow=0), na), 1.0, 0.8)]
+
+
+def run_catch(x, kick=1.5, cond=NOMINAL, time_scale=1.0, render=None, heading_deg=0.0, protection=None, rise=None):
     """stand (arms idle) -> forward kick (kick x the tip speed) -> hold until
     the torso pitches past trig_deg (or 2 s) -> catch keys -> rise."""
     _set_hk()
@@ -545,7 +563,7 @@ def run_catch(x, kick=1.5, cond=NOMINAL, time_scale=1.0, render=None, heading_de
     up_c, front_c, _ = torso_axes(env)
     z_c = float(env.data.qpos[2])
     feet_only = set(G.contacts_summary(env.model, env.data)) <= {"L_foot", "R_foot"}
-    q, t, pk2 = run_keys(env, rise_keys(na), q, rec, time_scale, t0=t, prot=prot)
+    q, t, pk2 = run_keys(env, rise_keys_x(rise, na) if rise else rise_keys(na), q, rec, time_scale, t0=t, prot=prot)
     up, front, side = torso_axes(env)
     nm = names_of(env)
     pkm = np.maximum(pk, pk2)
@@ -602,6 +620,19 @@ def _eval_roll(args):
     out["score"] = min(sc) + 0.2 * float(np.mean(sc))
     out["n_back"] = sum(r["roll_ok"] for r in rs)
     return out
+
+
+def _eval_catchrise(args):
+    """the catch fixed (CATCH_BEST), the rise searched: worst of the runs"""
+    x, r, runs = args
+    rs = []
+    for kick, c, ts in runs:
+        try:
+            rs.append(run_catch(x, kick=kick, cond=c, time_scale=ts, rise=r))
+        except Exception as e:  # noqa: BLE001
+            rs.append(dict(stand=False, up=-1.0, z=0.0, up_crouch=-1.0, feet_only=False, err=str(e)))
+    sc = [catch_score(q) for q in rs]
+    return dict(score=min(sc) + 0.2 * float(np.mean(sc)), n_stand=sum(q["stand"] for q in rs), per=rs)
 
 
 def _eval_catch(args):
@@ -856,6 +887,24 @@ def main():
             verify(family, best[1])
         elif best[2].get("roll_ok"):
             print("   (no PRONE_ENTRY given: the chain is verified separately with `verify`)", flush=True)
+    elif mode == "catchrise":
+        # stage 2 of the catch: the fall arrest (catch + push-back + crouch)
+        # fixed at a given winner, the rise from the crouch searched
+        x = json.loads(sys.argv[2])
+        restarts = int(sys.argv[3]) if len(sys.argv) > 3 else 4
+        iters = int(sys.argv[4]) if len(sys.argv) > 4 else 25
+        pop = int(os.environ.get("POP", "36"))
+        runs = [(1.0, NOMINAL, 1.0), (1.5, NOMINAL, 1.0), (2.0, NOMINAL, 1.0),
+                (1.5, dict(play_deg=3.0, mu=0.3, servo_scale=1.0), 1.0),
+                (1.5, dict(play_deg=3.0, mu=1.0, servo_scale=1.0), 1.0), (1.5, NOMINAL, 3.0)]
+        print(f"== CATCH RISE SEARCH: the fall arrest fixed at {json.dumps(x)}; the rise from its crouch searched "
+              f"({len(RISE_NAMES)} parameters: three free keyframes, then stand); every candidate run at kicks 1.0 / 1.5 / "
+              f"2.0 x tip, mu 0.3 and 1.0, and 3x slower; CEM {restarts} x {iters} x {pop}, restart 0 seeded from the "
+              f"seat push's own rise; workers {GN.n_workers()}", flush=True)
+        evalf = lambda rs: GN.pmap(_eval_catchrise, [(x, r, runs) for r in rs])
+        best = cem(RISE_NAMES, RISE_BOUNDS, evalf, restarts, iters, pop, max(4, pop // 6), seeds=[RISE_SEED], tag="catchrise")
+        print(f"\n== catchrise: OVERALL BEST {best[0]:+.3f}  {_brief(best[2])}\n   rise {json.dumps({k: round(v, 2) for k, v in best[1].items()})}",
+              flush=True)
     elif mode == "catchsearch":
         restarts = int(sys.argv[2]) if len(sys.argv) > 2 else 6
         iters = int(sys.argv[3]) if len(sys.argv) > 3 else 40
