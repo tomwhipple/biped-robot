@@ -5,21 +5,18 @@ needs, and how to slice and send it. The CAD is `cad/v6/`; its code map is
 [README.md](README.md). What to buy is [docs/bom.md](../docs/bom.md), and how it
 goes together is [docs/assembly.md](../docs/assembly.md).
 
-**Print the `ARMS=1` set.** The arms are the decided design: they are how the
-robot gets up. The code's default build is armless, and it differs in exactly
-three ways:
-
-- `neck_collar` holds the neck servo;
-- there is no girdle and there are no arm links;
-- the pelvis has no girdle pilots.
-
-**A pelvis printed from the default build cannot take the arms.**
+**The code's default build is the robot to print**: arms on, the pelvis with
+the girdle's deck pilots, 17 × STS3215 in the mass line. The `ARMS=0` variant
+(`neck_collar` for the neck, no girdle, no arm links, no pilots) exists for
+the CAD checks and is **not a print target**: the collar's flange screws have
+nothing to bite (their holes land in the Pi slide slot and the General Driver
+lead slot, and there is no deck under the rest of the flange).
 
 ## Status
 
-| can print now | waits |
+| can print now | provisional |
 |---|---|
-| `foot_L`, `foot_R`, `sole_tpu_L`, `sole_tpu_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `head_shell`, `head_face`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`pelvis_v7` and the two yaw carriers** wait on the hip-yaw bearing option (#75). The pelvis also needs the two fixes below. Option E adds a cap and a retainer per hip. |
+| `foot_L`, `foot_R`, `sole_tpu_L`, `sole_tpu_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`pelvis_v7` and the two yaw carriers are provisional, waiting on #75** (the hip-yaw bearing option). The code exports option C as a placeholder; option E adds a cap and a retainer per hip. |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -31,27 +28,29 @@ three ways:
 ## The parts
 
 **How the masses are computed:** build123d volume × PETG 1.27 g/cm³ × 0.90
-print factor (`parts_v6.mass_g`); TPU is 1.21 g/cm³ with no print factor. They
-were built from the current code on 2026-09-29 without exporting anything.
+print factor (`parts_v6.mass_g`); TPU is 1.21 g/cm³ with the same factor. They
+are the rollup's, `docs/design-v6/parts_v6_rollup.txt`
+(`cad/v6/parts_v6.py --no-export`).
 
 **Bounding boxes** are in the model frame (mm). **Supports** are what to tell
 the slicer; see [Supports](#supports-are-the-slicers-job).
 
 | part | qty | g each | bbox | orientation on the bed | supports | notes |
 |---|---|---|---|---|---|---|
-| `pelvis_v7` | 1 | 194 (C) · 190 (A) · 193 (E) | 105 × 162 × 83 (C) | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso. Waits on #75 and the fixes below |
-| yaw carrier (`yaw_carrier_v6` for C, `yaw_carrier_v6_optA` for A, or option E's) | 2 | 29.9 (C) · 23.8 (A) · 24.5 (E) | 55 × 55 × 44 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | waits on #75; carries the hip-roll servo in its bay |
-| *option E:* yaw cap, yaw retainer | 2 + 2 | 1.8, 2.7 | Ø57 × 1.0; 75 × 78 × 2.4 | flat | no | screwed rings that retain the bearing races |
-| `hip_yoke_v6` | 2 | 25.4 | 48 × 44 × 74 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
-| `leg_link_v6` | 4 | 26.0 | 31 × 44 × 117 | standing on the lower fork end | no; brim recommended | thigh and shin are the same part |
-| `ankle_link` | 2 | 12.1 | 44 × 44 × 65 | on its back (model +X up) | **yes** (ceiling/island class) | grips the ankle-pitch servo, forks onto the ankle-roll servo |
+| `pelvis_v7` | 1 | 194 (C) · 190 (A) · 193 (E) | 162 × 105 × 83 (C) | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots. **Provisional, waits on #75.** The A / E versions export as `pelvis_v7_optA` / `pelvis_v7_optE` |
+| yaw carrier (`yaw_carrier_v6` for C, `yaw_carrier_v6_optA` for A, `yaw_carrier_v6_optE` for E) | 2 | 29.9 (C) · 23.8 (A) · 24.5 (E) | 55 × 55 × 44 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay. **Provisional, waits on #75** |
+| *option E:* `yaw_cap_optE`, `yaw_retainer_optE` | 2 + 2 | 1.8, 2.7 | Ø57 × 1.0; 78 × 75 × 2.4 | flat | no | screwed rings that retain the bearing races; one retainer part serves both hips (turned 180°). **Provisional, waits on #75** |
+| `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
+| `leg_link_v6` | 4 | 26.0 | 117 × 44 × 31 | standing on the lower fork end | no; brim recommended | thigh and shin are the same part |
+| `ankle_link` | 2 | 12.1 | 65 × 44 × 44 | on its back (model +X up) | **yes** (ceiling/island class) | grips the ankle-pitch servo, forks onto the ankle-roll servo |
 | `foot_L`, `foot_R` | 1 + 1 | 52.0 | 130 × 84 × 30 | sole down | no | a mirrored pair |
 | `sole_tpu_L`, `sole_tpu_R` | 1 + 1 | 23.2 | 130 × 84 × 2 | flat | no | **TPU 95A**; glued to the foot plate's underside |
-| `head_shell` | 1 | 26.1 | 50 × 62 × 60 | base (horn plate) down; the dome is ≥ 45° | none expected | from `head.py` |
-| `head_face` | 1 | 8.6 | 6 × 62 × 56 | flat, camera bosses up | no | |
-| `shoulder_girdle_v6` | 1 | 75.6 | 58 × 200 × 33 | base down | **yes**, build plate only | carries both shoulder servos and the neck tube |
-| `arm_upper_v6_L`, `_R` | 1 + 1 | 33.1 | 29 × 44 × 182 | on its back, web face down | **yes**, build plate only: the two elbow-pad undersides start 5 mm off the bed | a mirror pair; the front wall prints as a 6.4 mm bridge |
-| `arm_fore_v6_L`, `_R` | 1 + 1 | 33.7 | 28 × 38 × 169 | on its back | no | a mirror pair; grips the elbow servo; 12 mm hand knuckle |
+| `head_shell` | 1 | 26.1 | 62 × 60 × 50 | base (horn plate) down; the dome is ≥ 45° | none expected | from `head.py` |
+| `head_face` | 1 | 8.6 | 62 × 56 × 6 | flat, camera bosses up | no | |
+| `neck_floor` | 1 | 4.0 | 46 × 45 × 5 | flat, bottom face down, pads and lugs up | no | the neck servo's seat (#90): screwed up into the neck tube's four bosses; the stator screws go up through it |
+| `shoulder_girdle_v6` | 1 | 77.1 | 200 × 58 × 33 | base down | **yes**, build plate only | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`) |
+| `arm_upper_v6_L`, `_R` | 1 + 1 | 33.1 | 182 × 44 × 29 | on its back, web face down | **yes**, build plate only: the two elbow-pad undersides start 5 mm off the bed | a mirror pair; the front wall prints as a 6.4 mm bridge |
+| `arm_fore_v6_L`, `_R` | 1 + 1 | 33.7 | 169 × 38 × 28 | on its back | no | a mirror pair; grips the elbow servo; 12 mm hand knuckle |
 
 **Part notes:**
 
@@ -59,6 +58,8 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - The yaw-cell ceilings need support because the servo fills its cell to
     0.3 mm, so no support-free ceiling geometry exists.
   - Check the slice preview at the window roofs and at the deck-slot edges.
+  - The deck does not seat the neck servo: its battery aperture runs under the
+    whole servo. The seat is `neck_floor`.
 - **Yaw carrier**
   - The carrier is not covered by the robot's printability audits.
   - The CAD models no break-away support under the connector window's ceiling
@@ -72,70 +73,41 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   line.
 - **`head_shell`:** the printability audit flags a ceiling at the dome seam. It
   is believed to be a boolean artifact; confirm in the slice preview.
+- **`neck_floor`:** a separate print because it hangs 5 mm below the girdle's
+  print plane. Its counterbores and countersinks open onto the bed; the audit
+  finds nothing to support.
 - **`shoulder_girdle_v6`**
   - It is 200 mm long, so **centre it on the bed**.
   - Supports go under the trapezius-web window tops (34 mm spans), the
     grip-plate rib-relief roofs, and the bay disc-relief tops.
 
-**Totals:** 22 prints (20 PETG, 2 TPU) from 16 STLs, before supports and brims:
+**Totals:** 23 prints (21 PETG, 2 TPU) from 17 STLs with bearing C, before
+supports and brims (option E adds 4 prints from 2 STLs):
 
-- PETG: ≈ 781 g with bearing option C, ≈ 765 g with option A;
+- PETG: ≈ 787 g with bearing option C, ≈ 771 g with A, ≈ 784 g with E;
 - TPU: 46 g.
 
 **Not printed:**
 
-- `head.stl`: the shell and face fused, used for mass and assembly checks.
-- `neck_collar.stl`: armless build only; its four deck pilots also miss the
-  deck.
-- Whichever yaw carrier the chosen bearing option does not name.
-
-### Before the pelvis prints
-
-Three things the code does not do yet (#76):
-
-1. **Nothing exports the pelvis the robot needs.**
-   - `parts_v6.py` calls `pelvis_v7()` with its defaults (bearing C, no girdle
-     pilots), even under `ARMS=1`. So `cad/v6/stl/pelvis_v7.stl` has no pilots
-     for the girdle.
-   - The part needed is `pelvis_v7(bearing_variant=<chosen>, arm_mounts=True)`.
-     The option E builder, `yaw_retention_optE.pelvis_optE()`, has no arm-mount
-     switch at all.
-   - Drilling the ten blind 2.05 × 4.5 mm pilots into a printed pelvis is
-     possible, but they sit tight against the Pi slot and the deck's R3 top
-     fillet.
-2. **The neck servo has no seat.**
-   - The deck's battery aperture (x −36.5 … +10.4 mm) covers the whole neck well
-     (x −35.4 … +10.4).
-   - Probing the solid finds 1 mm³ of deck under the neck servo's
-     45.8 × 25.3 mm footprint, so its four stator screws have nothing to go
-     through.
-   - The girdle's neck tube locates the servo sideways only.
-   - Fix this before printing the pelvis.
-3. **`parts_v6.py` always exports option C's carrier** (`yaw_carrier_v6`),
-   whatever `YAW_BEARING_VARIANT` says. That variable is read by
-   `assembly_v6.py`, not by the part export.
-
-**Stale records:**
-
-- `docs/design-v6/parts_v6_rollup.txt` dates from 2026-09-14. It lists
-  `yoke_roll` + `yoke_pitch_v6` (the pair `hip_yoke_v6` replaces) and the
-  unmodified carrier.
-- `parts_v6.py` has no rollup-only mode: every run rewrites the STLs and STEPs.
-  The masses above were computed without exporting.
-- `parts_v6.SERVO_COUNT` still counts 6 × STS3250 in the mass line. The robot
-  has 17 × STS3215.
+- `head.stl`: the shell and face fused, used for mass, the assembly checks and
+  the sim plant.
+- `neck_collar.stl` and anything built with `ARMS=0` (see the top of this
+  page).
+- Whichever yaw carrier and pelvis the chosen bearing option does not name.
 
 ## Regenerating
 
 ```bash
-ARMS=1 .venv/bin/python cad/v6/parts_v6.py            # every part -> cad/v6/stl + cad/v6/step, bed check, mass rollup
-ARMS=1 .venv/bin/python cad/v6/parts_v6.py --only foot_L foot_R
+.venv/bin/python cad/v6/parts_v6.py                    # every part -> cad/v6/stl + cad/v6/step, bed check, mass rollup
+.venv/bin/python cad/v6/parts_v6.py --only foot_L foot_R
+.venv/bin/python cad/v6/parts_v6.py --no-export        # the rollup alone
+YAW_BEARING_VARIANT=E .venv/bin/python cad/v6/parts_v6.py --only pelvis_v7_optE yaw_carrier_v6_optE yaw_cap_optE yaw_retainer_optE
 .venv/bin/python cad/v6/head.py                        # head_shell + head_face (+ the fused head), audits
 ```
 
 - Each part module's `__main__` exports that part and runs its own audits.
-  `leg_link_v6`, `hip_yoke_v6`, `shoulder_girdle_v6` and `arm_v6` rewrite their
-  STL as they go.
+  `leg_link_v6`, `hip_yoke_v6`, `shoulder_girdle_v6`, `neck_floor` and `arm_v6`
+  rewrite their STL as they go.
 - Run `sh cad/run_checks.sh` after any CAD change and before printing (see
   [README.md](README.md#the-gate)).
 

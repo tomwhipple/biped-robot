@@ -1,0 +1,224 @@
+# sim/gate_no3250.py walk, run unchanged against the REGENERATED CAD-inertial plant
+# (sim/build_v6_inertia.plant_xml, commit bd30d95: the robot as drawn -- 17 actuators,
+# one-print hip yoke, girdle + arms, neck floor, bearing C placeholder with its 2 x 83 g
+# 6811-2RS, servo masses on their CAD mocks). mira, 2026-09-29, taskset -c 12-15:
+#   python -c "import os,sys,runpy; os.cpu_count=lambda: 6; sys.argv=['sim/gate_no3250.py','walk']; runpy.run_path('sim/gate_no3250.py', run_name='__main__')"
+# (the cpu_count override only sizes the process pool to the 4 pinned cores).
+#
+# Compare docs/design-v6/no3250_walk.txt (the armless 1.673 kg plant it replaces).
+# Two things to read these rows with:
+#  * the arms are NOT at the walking hold here: static_gait.run_walk pads every
+#    actuator after the 12 leg joints with a 0 target, so the shoulders go from the
+#    plant's rest pose (15 deg back) to hanging (0) at the start of each walk. The
+#    plant has no arm-vs-leg collision pairs (self_collide off), so they do not touch
+#    the legs. The arms walk WITH the hold and with self-collision is
+#    no3250_arms_walk_plant17.txt.
+#  * the CoM margins roughly triple (C8, Plan B: 33-37 mm vs 7.5-12.2). That is the
+#    hip-yaw bearing mass, which the old plant did not carry: the same walk on this
+#    builder without the arms gives 31.7 mm, and without the arms AND with the bearing
+#    mass zeroed 13.5 mm (the old plant: 12.2). Option A/E's bearing is 52 g, not 83 g.
+== Gate D, 4 cases (8 steps, step 6 cm, lift 4 cm, shift 1.6 s/60 mm, swing 1.6 s, land 0.5 s), CAD-inertial plant, deploy servo model
+   plant masses: cad3250 2.401 kg, cad3215 2.284 kg, cad3215 torso -60 g 2.224, -120 g 2.164, legs 100/100 2.284
+A  design: STS3250 rolls+knees                 | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   22 mm  air>= 0.66 s  CoM margin>=  36.1 mm  slip  1.8 mm  tilt  4.3  x +21.9 y  -0.1 cm  hdg  +0.6  OK
+A  design: STS3250 rolls+knees                 | turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   21 mm  air>= 0.70 s  CoM margin>=  33.0 mm  slip  2.4 mm  tilt  7.5  x +14.6 y +13.5 cm  hdg +98.2  OK
+A  design: STS3250 rolls+knees                 | turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   18 mm  air>= 0.66 s  CoM margin>=  34.4 mm  slip  1.8 mm  tilt  4.4  x +20.0 y  +0.1 cm  hdg  -0.4  OK
+A  design: STS3250 rolls+knees                 | turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   19 mm  air>= 0.62 s  CoM margin>=  24.0 mm  slip  2.3 mm  tilt  4.4  x +12.0 y -12.4 cm  hdg -95.0  OK
+   -> 4/4 stayed up 8/8, 4/4 OK (clearance rule too)
+
+A2 STS3250 only 3x the 3215's stiffness        | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   19 mm  air>= 0.60 s  CoM margin>=  34.7 mm  slip  1.9 mm  tilt  5.1  x +22.0 y  +0.2 cm  hdg  +0.1  OK
+A2 STS3250 only 3x the 3215's stiffness        | turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   15 mm  air>= 0.54 s  CoM margin>=  15.2 mm  slip  2.5 mm  tilt  9.7  x +15.2 y +12.7 cm  hdg +93.6  OK
+A2 STS3250 only 3x the 3215's stiffness        | turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   15 mm  air>= 0.54 s  CoM margin>=  30.5 mm  slip  1.9 mm  tilt  5.6  x +19.9 y  -0.0 cm  hdg  +0.0  FAIL
+A2 STS3250 only 3x the 3215's stiffness        | turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   13 mm  air>= 0.48 s  CoM margin>=  12.5 mm  slip  5.4 mm  tilt  9.1  x +14.0 y -11.8 cm  hdg -86.4  FAIL
+   -> 4/4 stayed up 8/8, 2/4 OK (clearance rule too)
+
+A3 STS3250 only 2x the 3215's stiffness        | turn  +0 mu 0.7 play 3 FELL@12.2s steps 2/8  clear>=   10 mm  air>= 0.42 s  CoM margin>=  11.6 mm  slip  4.3 mm  tilt 53.4  x  +6.1 y -35.6 cm  hdg  +2.3  FAIL
+A3 STS3250 only 2x the 3215's stiffness        | turn +15 mu 0.7 play 3  FELL@7.2s steps 1/8  clear>=   15 mm  air>= 0.92 s  CoM margin>=  25.7 mm  slip  3.7 mm  tilt 55.0  x -26.9 y +20.0 cm  hdg +21.6  FAIL
+A3 STS3250 only 2x the 3215's stiffness        | turn  +0 mu 0.3 play 5  FELL@6.5s steps 1/8  clear>=   41 mm  air>= 0.52 s  CoM margin>=   6.0 mm  slip 14.2 mm  tilt 53.5  x  -0.0 y +35.8 cm  hdg  +2.1  FAIL
+A3 STS3250 only 2x the 3215's stiffness        | turn -15 mu 0.9 play 3 FELL@11.9s steps 2/8  clear>=   16 mm  air>= 0.54 s  CoM margin>=  10.1 mm  slip 16.4 mm  tilt 53.8  x  -9.4 y -35.3 cm  hdg -29.8  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+A5 STS3250 at 3x + sag comp k 1                | turn  +0 mu 0.7 play 3  FELL@6.7s steps 1/8  clear>=   29 mm  air>= 0.76 s  CoM margin>=  11.3 mm  slip  9.9 mm  tilt 54.9  x  -0.4 y +37.3 cm  hdg  +2.6  FAIL
+A5 STS3250 at 3x + sag comp k 1                | turn +15 mu 0.7 play 3  FELL@6.6s steps 1/8  clear>=   31 mm  air>= 0.80 s  CoM margin>=   9.8 mm  slip  9.7 mm  tilt 53.4  x  +1.3 y +35.7 cm  hdg  +2.4  FAIL
+A5 STS3250 at 3x + sag comp k 1                | turn  +0 mu 0.3 play 5 FELL@11.7s steps 2/8  clear>=   25 mm  air>= 0.58 s  CoM margin>=   5.7 mm  slip 16.2 mm  tilt 54.8  x  +3.4 y -33.7 cm  hdg  -1.2  FAIL
+A5 STS3250 at 3x + sag comp k 1                | turn -15 mu 0.9 play 3  FELL@6.7s steps 1/8  clear>=   28 mm  air>= 0.76 s  CoM margin>=  12.0 mm  slip 10.4 mm  tilt 54.7  x  -0.6 y +37.1 cm  hdg  -0.7  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+A6 STS3250 at 2x + sag comp k 1                | turn  +0 mu 0.7 play 3  FELL@6.6s steps 1/8  clear>=   37 mm  air>= 0.56 s  CoM margin>=   8.2 mm  slip 14.2 mm  tilt 53.6  x  -1.0 y +36.7 cm  hdg  +3.9  FAIL
+A6 STS3250 at 2x + sag comp k 1                | turn +15 mu 0.7 play 3  FELL@6.5s steps 1/8  clear>=   55 mm  air>= 0.62 s  CoM margin>=   7.3 mm  slip 18.1 mm  tilt 54.8  x -16.4 y +30.3 cm  hdg +23.7  FAIL
+A6 STS3250 at 2x + sag comp k 1                | turn  +0 mu 0.3 play 5 FELL@11.8s steps 2/8  clear>=   27 mm  air>= 0.56 s  CoM margin>=   0.8 mm  slip 13.7 mm  tilt 56.3  x  +4.3 y -36.8 cm  hdg  -0.4  FAIL
+A6 STS3250 at 2x + sag comp k 1                | turn -15 mu 0.9 play 3  FELL@6.5s steps 1/8  clear>=   41 mm  air>= 0.54 s  CoM margin>=   8.7 mm  slip 18.6 mm  tilt 56.4  x  -2.0 y +37.9 cm  hdg  +1.4  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+A4 design, faster: shift 1.2 swing 1.2 land 0.4 | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   17 mm  air>= 0.46 s  CoM margin>=  32.5 mm  slip  1.5 mm  tilt  4.6  x +21.7 y  +0.0 cm  hdg  +0.8  OK
+A4 design, faster: shift 1.2 swing 1.2 land 0.4 | turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   16 mm  air>= 0.44 s  CoM margin>=  20.7 mm  slip  2.2 mm  tilt  4.8  x +13.8 y +11.5 cm  hdg +93.0  OK
+A4 design, faster: shift 1.2 swing 1.2 land 0.4 | turn  +0 mu 0.3 play 5  FELL@5.9s steps 1/8  clear>=   13 mm  air>= 0.44 s  CoM margin>=  12.3 mm  slip  3.2 mm  tilt 56.6  x  +0.3 y +36.7 cm  hdg  +1.7  FAIL
+A4 design, faster: shift 1.2 swing 1.2 land 0.4 | turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   15 mm  air>= 0.40 s  CoM margin>=  14.4 mm  slip  3.4 mm  tilt  6.8  x +12.0 y -12.1 cm  hdg -94.6  FAIL
+   -> 3/4 stayed up 8/8, 2/4 OK (clearance rule too)
+
+B  STS3215 everywhere                          | turn  +0 mu 0.7 play 3  FELL@5.1s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 42.0 mm  tilt 58.3  x  -3.1 y +38.8 cm  hdg  +8.3  FAIL
+B  STS3215 everywhere                          | turn +15 mu 0.7 play 3  FELL@6.7s steps 1/8  clear>=   26 mm  air>= 1.04 s  CoM margin>=  13.4 mm  slip  5.3 mm  tilt 56.4  x -11.9 y +35.6 cm  hdg +25.6  FAIL
+B  STS3215 everywhere                          | turn  +0 mu 0.3 play 5  FELL@4.7s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 17.4 mm  tilt 55.5  x  -3.2 y +35.8 cm  hdg  +9.3  FAIL
+B  STS3215 everywhere                          | turn -15 mu 0.9 play 3  FELL@4.9s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 42.1 mm  tilt 58.5  x  -3.2 y +38.9 cm  hdg  +4.9  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B1 3215 + sag comp k 0.5                       | turn  +0 mu 0.7 play 3  FELL@6.6s steps 1/8  clear>=   29 mm  air>= 0.18 s  CoM margin>=   5.0 mm  slip 12.2 mm  tilt 54.8  x  -2.4 y +37.2 cm  hdg  +6.9  FAIL
+B1 3215 + sag comp k 0.5                       | turn +15 mu 0.7 play 3  FELL@6.3s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 28.6 mm  tilt 53.4  x -29.8 y  +5.7 cm  hdg  +9.9  FAIL
+B1 3215 + sag comp k 0.5                       | turn  +0 mu 0.3 play 5  FELL@4.5s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip  8.3 mm  tilt 53.9  x  -3.4 y +34.7 cm  hdg  +9.9  FAIL
+B1 3215 + sag comp k 0.5                       | turn -15 mu 0.9 play 3  FELL@6.5s steps 1/8  clear>=   44 mm  air>= 0.28 s  CoM margin>=   9.5 mm  slip 21.9 mm  tilt 55.8  x  -3.4 y +37.8 cm  hdg  +5.1  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B2 3215 + sag comp k 1.0                       | turn  +0 mu 0.7 play 3  FELL@6.5s steps 1/8  clear>=   53 mm  air>= 0.22 s  CoM margin>=   3.8 mm  slip 23.7 mm  tilt 54.7  x -13.1 y +33.9 cm  hdg +18.4  FAIL
+B2 3215 + sag comp k 1.0                       | turn +15 mu 0.7 play 3  FELL@6.3s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 23.5 mm  tilt 53.9  x -28.8 y +10.6 cm  hdg +16.6  FAIL
+B2 3215 + sag comp k 1.0                       | turn  +0 mu 0.3 play 5  FELL@4.6s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 12.0 mm  tilt 53.8  x  -3.3 y +34.6 cm  hdg  +9.9  FAIL
+B2 3215 + sag comp k 1.0                       | turn -15 mu 0.9 play 3  FELL@6.5s steps 1/8  clear>=   51 mm  air>= 0.24 s  CoM margin>=   3.2 mm  slip 26.5 mm  tilt 56.0  x  -3.0 y +37.5 cm  hdg  +3.3  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B3 3215 slower: shift 2.4 swing 2.0 land 0.8   | turn  +0 mu 0.7 play 3  FELL@7.8s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 42.2 mm  tilt 58.6  x  -2.8 y +38.8 cm  hdg  +7.6  FAIL
+B3 3215 slower: shift 2.4 swing 2.0 land 0.8   | turn +15 mu 0.7 play 3  FELL@8.1s steps 1/8  clear>=   43 mm  air>= 1.00 s  CoM margin>=  18.3 mm  slip 10.1 mm  tilt 54.0  x -18.7 y +29.6 cm  hdg +27.4  FAIL
+B3 3215 slower: shift 2.4 swing 2.0 land 0.8   | turn  +0 mu 0.3 play 5  FELL@5.2s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip  8.8 mm  tilt 54.8  x  -3.2 y +35.6 cm  hdg  +9.4  FAIL
+B3 3215 slower: shift 2.4 swing 2.0 land 0.8   | turn -15 mu 0.9 play 3  FELL@7.7s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 36.0 mm  tilt 54.8  x  -2.4 y +37.4 cm  hdg  +3.7  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B4 3215 slower: shift 3.2 swing 2.4 land 1.0   | turn  +0 mu 0.7 play 3  FELL@9.1s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 33.5 mm  tilt 53.6  x  -2.9 y +36.8 cm  hdg  +8.3  FAIL
+B4 3215 slower: shift 3.2 swing 2.4 land 1.0   | turn +15 mu 0.7 play 3  FELL@8.9s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 42.4 mm  tilt 56.7  x  -8.6 y +37.1 cm  hdg +24.4  FAIL
+B4 3215 slower: shift 3.2 swing 2.4 land 1.0   | turn  +0 mu 0.3 play 5  FELL@5.9s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip  0.0 mm  tilt 55.9  x  -2.9 y +36.0 cm  hdg  +8.8  FAIL
+B4 3215 slower: shift 3.2 swing 2.4 land 1.0   | turn -15 mu 0.9 play 3  FELL@6.8s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 40.1 mm  tilt 57.5  x  -2.8 y +38.5 cm  hdg  +4.2  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B5 3215 lift 3 cm                              | turn  +0 mu 0.7 play 3  FELL@5.1s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 40.3 mm  tilt 57.5  x  -3.0 y +38.5 cm  hdg  +8.2  FAIL
+B5 3215 lift 3 cm                              | turn +15 mu 0.7 play 3  FELL@6.9s steps 1/8  clear>=   12 mm  air>= 0.46 s  CoM margin>=  14.8 mm  slip  2.5 mm  tilt 55.3  x  -1.1 y +37.4 cm  hdg  +7.0  FAIL
+B5 3215 lift 3 cm                              | turn  +0 mu 0.3 play 5  FELL@4.7s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 19.1 mm  tilt 54.4  x  -3.0 y +35.8 cm  hdg  +8.9  FAIL
+B5 3215 lift 3 cm                              | turn -15 mu 0.9 play 3  FELL@4.9s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 40.2 mm  tilt 57.5  x  -3.1 y +38.5 cm  hdg  +4.7  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B6 3215 CoM aim 10 mm inboard                  | turn  +0 mu 0.7 play 3  FELL@6.6s steps 1/8  clear>=   20 mm  air>= 0.16 s  CoM margin>=   1.3 mm  slip  9.2 mm  tilt 56.2  x  -2.2 y +37.8 cm  hdg  +6.0  FAIL
+B6 3215 CoM aim 10 mm inboard                  | turn +15 mu 0.7 play 3  FELL@6.6s steps 1/8  clear>=   18 mm  air>= 0.42 s  CoM margin>=  -0.3 mm  slip 10.5 mm  tilt 54.2  x -29.0 y +10.2 cm  hdg  +3.1  FAIL
+B6 3215 CoM aim 10 mm inboard                  | turn  +0 mu 0.3 play 5  FELL@4.9s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 18.7 mm  tilt 57.3  x  -3.3 y +35.9 cm  hdg  +9.7  FAIL
+B6 3215 CoM aim 10 mm inboard                  | turn -15 mu 0.9 play 3  FELL@6.6s steps 1/8  clear>=   25 mm  air>= 0.22 s  CoM margin>=   2.9 mm  slip 12.9 mm  tilt 56.0  x  -3.5 y +37.9 cm  hdg  +5.1  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B7 3215 land_out 20 mm, swing_out 15 mm        | turn  +0 mu 0.7 play 3  FELL@5.1s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 41.7 mm  tilt 58.4  x  -3.2 y +38.8 cm  hdg  +8.5  FAIL
+B7 3215 land_out 20 mm, swing_out 15 mm        | turn +15 mu 0.7 play 3  FELL@6.7s steps 1/8  clear>=   23 mm  air>= 0.82 s  CoM margin>=  21.5 mm  slip  5.9 mm  tilt 56.7  x -19.4 y +30.8 cm  hdg +29.3  FAIL
+B7 3215 land_out 20 mm, swing_out 15 mm        | turn  +0 mu 0.3 play 5  FELL@4.7s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 17.3 mm  tilt 55.5  x  -3.2 y +35.8 cm  hdg  +9.2  FAIL
+B7 3215 land_out 20 mm, swing_out 15 mm        | turn -15 mu 0.9 play 3  FELL@4.9s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 42.3 mm  tilt 58.5  x  -3.1 y +38.9 cm  hdg  +4.9  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B8 3215 torso -60 g                            | turn  +0 mu 0.7 play 3  FELL@5.4s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 33.7 mm  tilt 54.1  x  -2.8 y +37.1 cm  hdg  +8.0  FAIL
+B8 3215 torso -60 g                            | turn +15 mu 0.7 play 3  FELL@6.7s steps 1/8  clear>=   29 mm  air>= 0.46 s  CoM margin>=   4.7 mm  slip  7.9 mm  tilt 54.8  x  -9.9 y +35.9 cm  hdg +23.4  FAIL
+B8 3215 torso -60 g                            | turn  +0 mu 0.3 play 5  FELL@4.7s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 24.3 mm  tilt 59.5  x  -2.9 y +37.3 cm  hdg  +8.4  FAIL
+B8 3215 torso -60 g                            | turn -15 mu 0.9 play 3  FELL@5.0s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 37.8 mm  tilt 55.8  x  -2.7 y +37.9 cm  hdg  +4.3  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B9 3215 torso -120 g                           | turn  +0 mu 0.7 play 3  FELL@6.6s steps 1/8  clear>=   24 mm  air>= 0.34 s  CoM margin>=   9.5 mm  slip  9.2 mm  tilt 55.8  x  -0.9 y +38.0 cm  hdg  +3.6  FAIL
+B9 3215 torso -120 g                           | turn +15 mu 0.7 play 3  FELL@6.7s steps 1/8  clear>=   26 mm  air>= 0.74 s  CoM margin>=  11.9 mm  slip  6.4 mm  tilt 56.7  x -10.3 y +36.6 cm  hdg +24.9  FAIL
+B9 3215 torso -120 g                           | turn  +0 mu 0.3 play 5  FELL@4.7s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 20.2 mm  tilt 55.9  x  -2.6 y +36.2 cm  hdg  +7.7  FAIL
+B9 3215 torso -120 g                           | turn -15 mu 0.9 play 3  FELL@5.4s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 35.3 mm  tilt 54.6  x  -2.9 y +37.3 cm  hdg  +4.8  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B10 3215 legs 100/100 mm                       | turn  +0 mu 0.7 play 3  FELL@6.8s steps 1/8  clear>=    8 mm  air>= 0.38 s  CoM margin>=  21.9 mm  slip  3.7 mm  tilt 54.1  x  -2.2 y +35.5 cm  hdg  +6.6  FAIL
+B10 3215 legs 100/100 mm                       | turn +15 mu 0.7 play 3  FELL@6.9s steps 1/8  clear>=   12 mm  air>= 0.64 s  CoM margin>=  23.3 mm  slip  2.9 mm  tilt 53.8  x  -5.1 y +34.7 cm  hdg +18.8  FAIL
+B10 3215 legs 100/100 mm                       | turn  +0 mu 0.3 play 5  FELL@4.7s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 30.7 mm  tilt 57.5  x  -2.6 y +35.5 cm  hdg  +8.0  FAIL
+B10 3215 legs 100/100 mm                       | turn -15 mu 0.9 play 3  FELL@6.6s steps 1/8  clear>=   29 mm  air>= 0.24 s  CoM margin>=  18.0 mm  slip 10.7 mm  tilt 53.9  x  -1.2 y +35.6 cm  hdg  +1.4  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+B11 3215 torso -120 g + sag comp k 1 + slower  | turn  +0 mu 0.7 play 3  FELL@7.6s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 46.4 mm  tilt 55.7  x  -3.7 y +38.3 cm  hdg  +8.1  FAIL
+B11 3215 torso -120 g + sag comp k 1 + slower  | turn +15 mu 0.7 play 3  FELL@7.3s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 19.3 mm  tilt 55.6  x -30.1 y  +1.2 cm  hdg +15.8  FAIL
+B11 3215 torso -120 g + sag comp k 1 + slower  | turn  +0 mu 0.3 play 5  FELL@5.7s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 20.8 mm  tilt 54.9  x  -2.5 y +35.9 cm  hdg  +8.3  FAIL
+B11 3215 torso -120 g + sag comp k 1 + slower  | turn -15 mu 0.9 play 3  FELL@7.6s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 38.5 mm  tilt 53.3  x  -2.0 y +36.8 cm  hdg  +2.2  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+C1 3215, roll P coef x2 (kp_scale 2)           | turn  +0 mu 0.7 play 3  FELL@7.3s steps 1/8  clear>=   12 mm  air>= 0.44 s  CoM margin>=  26.1 mm  slip  3.0 mm  tilt 55.6  x  -2.8 y +37.0 cm  hdg  +8.7  FAIL
+C1 3215, roll P coef x2 (kp_scale 2)           | turn +15 mu 0.7 play 3 FELL@12.3s steps 2/8  clear>=    6 mm  air>= 0.26 s  CoM margin>=  24.2 mm  slip  4.9 mm  tilt 56.1  x +13.7 y -36.0 cm  hdg +11.9  FAIL
+C1 3215, roll P coef x2 (kp_scale 2)           | turn  +0 mu 0.3 play 5  FELL@5.0s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 19.9 mm  tilt 57.7  x  -2.8 y +36.1 cm  hdg  +9.2  FAIL
+C1 3215, roll P coef x2 (kp_scale 2)           | turn -15 mu 0.9 play 3  FELL@6.8s steps 1/8  clear>=    9 mm  air>= 0.38 s  CoM margin>=  22.8 mm  slip  6.7 mm  tilt 56.3  x  -4.5 y +37.6 cm  hdg  +8.4  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+C2 3215, roll P coef x2 + sag comp k 1         | turn  +0 mu 0.7 play 3  FELL@6.3s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 26.8 mm  tilt 53.8  x -29.1 y  +7.7 cm  hdg  +4.7  FAIL
+C2 3215, roll P coef x2 + sag comp k 1         | turn +15 mu 0.7 play 3  FELL@6.3s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 26.6 mm  tilt 54.6  x -29.4 y  -1.8 cm  hdg  +1.1  FAIL
+C2 3215, roll P coef x2 + sag comp k 1         | turn  +0 mu 0.3 play 5  FELL@6.7s steps 1/8  clear>=   22 mm  air>= 0.46 s  CoM margin>=   8.3 mm  slip  9.6 mm  tilt 55.2  x  -2.0 y +35.8 cm  hdg  +7.7  FAIL
+C2 3215, roll P coef x2 + sag comp k 1         | turn -15 mu 0.9 play 3  FELL@6.5s steps 1/8  clear>=   39 mm  air>= 0.20 s  CoM margin>=  10.0 mm  slip 25.4 mm  tilt 55.5  x -26.2 y +21.2 cm  hdg +12.5  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+C3 3215, roll P coef x3 (kp_scale 3)           | turn  +0 mu 0.7 play 3 FELL@44.1s steps 8/8  clear>=   11 mm  air>= 0.36 s  CoM margin>=  24.6 mm  slip  4.6 mm  tilt 56.2  x +29.5 y -35.1 cm  hdg  -4.0  FAIL
+C3 3215, roll P coef x3 (kp_scale 3)           | turn +15 mu 0.7 play 3 FELL@43.6s steps 8/8  clear>=    9 mm  air>= 0.32 s  CoM margin>=  22.9 mm  slip  7.0 mm  tilt 53.3  x +54.1 y +20.8 cm  hdg +88.7  FAIL
+C3 3215, roll P coef x3 (kp_scale 3)           | turn  +0 mu 0.3 play 5  FELL@6.5s steps 1/8  clear>=   33 mm  air>= 0.26 s  CoM margin>=   9.0 mm  slip 13.0 mm  tilt 55.7  x  -2.1 y +36.0 cm  hdg  +6.9  FAIL
+C3 3215, roll P coef x3 (kp_scale 3)           | turn -15 mu 0.9 play 3  FELL@7.0s steps 1/8  clear>=   11 mm  air>= 0.36 s  CoM margin>=  21.7 mm  slip  6.0 mm  tilt 56.5  x  -4.7 y +37.5 cm  hdg  +8.8  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+C4 3215, roll P coef x3 + sag comp k 1         | turn  +0 mu 0.7 play 3  FELL@6.8s steps 1/8  clear>=   15 mm  air>= 0.50 s  CoM margin>=  12.3 mm  slip  7.9 mm  tilt 55.8  x -28.4 y +17.7 cm  hdg  +8.4  FAIL
+C4 3215, roll P coef x3 + sag comp k 1         | turn +15 mu 0.7 play 3  FELL@6.7s steps 1/8  clear>=   20 mm  air>= 0.60 s  CoM margin>=  11.2 mm  slip  7.3 mm  tilt 56.3  x -30.3 y +10.4 cm  hdg +14.5  FAIL
+C4 3215, roll P coef x3 + sag comp k 1         | turn  +0 mu 0.3 play 5 FELL@12.0s steps 2/8  clear>=   18 mm  air>= 0.48 s  CoM margin>=   9.9 mm  slip  8.0 mm  tilt 57.9  x  +5.5 y -36.6 cm  hdg  -1.7  FAIL
+C4 3215, roll P coef x3 + sag comp k 1         | turn -15 mu 0.9 play 3  FELL@6.5s steps 1/8  clear>=   29 mm  air>= 0.38 s  CoM margin>=  13.0 mm  slip 19.8 mm  tilt 56.0  x -27.2 y +18.9 cm  hdg  +5.3  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+C5 3215, roll P coef x4 (= the 3250's modelled kp) | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   13 mm  air>= 0.38 s  CoM margin>=  24.2 mm  slip  4.4 mm  tilt 14.5  x +29.0 y  +0.7 cm  hdg  -0.3  FAIL
+C5 3215, roll P coef x4 (= the 3250's modelled kp) | turn +15 mu 0.7 play 3 FELL@44.4s steps 8/8  clear>=   10 mm  air>= 0.36 s  CoM margin>=  22.5 mm  slip  6.7 mm  tilt 54.0  x +51.8 y +17.3 cm  hdg +83.9  FAIL
+C5 3215, roll P coef x4 (= the 3250's modelled kp) | turn  +0 mu 0.3 play 5  FELL@7.1s steps 1/8  clear>=   15 mm  air>= 0.50 s  CoM margin>=  27.3 mm  slip  2.3 mm  tilt 53.9  x  -2.6 y +34.8 cm  hdg  +8.8  FAIL
+C5 3215, roll P coef x4 (= the 3250's modelled kp) | turn -15 mu 0.9 play 3  FELL@7.2s steps 1/8  clear>=   12 mm  air>= 0.38 s  CoM margin>=  21.1 mm  slip  5.4 mm  tilt 54.5  x  -4.5 y +36.4 cm  hdg  +8.0  FAIL
+   -> 1/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+C6 3215, P coef x2 rolls + knees               | turn  +0 mu 0.7 play 3 FELL@12.3s steps 2/8  clear>=   12 mm  air>= 0.44 s  CoM margin>=  16.2 mm  slip  3.9 mm  tilt 57.0  x  +6.3 y -37.0 cm  hdg  +1.9  FAIL
+C6 3215, P coef x2 rolls + knees               | turn +15 mu 0.7 play 3  FELL@7.3s steps 1/8  clear>=   17 mm  air>= 1.32 s  CoM margin>=  25.8 mm  slip  3.4 mm  tilt 54.5  x -29.8 y  -1.8 cm  hdg  +0.9  FAIL
+C6 3215, P coef x2 rolls + knees               | turn  +0 mu 0.3 play 5  FELL@6.5s steps 1/8  clear>=   35 mm  air>= 0.86 s  CoM margin>=   8.2 mm  slip 12.4 mm  tilt 55.9  x  -0.8 y +36.5 cm  hdg  +3.7  FAIL
+C6 3215, P coef x2 rolls + knees               | turn -15 mu 0.9 play 3 FELL@12.0s steps 2/8  clear>=   16 mm  air>= 0.52 s  CoM margin>=  10.3 mm  slip 10.8 mm  tilt 53.5  x  -4.5 y -36.3 cm  hdg -19.1  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+C7 3215, P coef x3 rolls + knees               | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   20 mm  air>= 0.60 s  CoM margin>=  36.4 mm  slip  1.9 mm  tilt  5.1  x +22.8 y  +0.2 cm  hdg  +0.4  OK
+C7 3215, P coef x3 rolls + knees               | turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   17 mm  air>= 0.66 s  CoM margin>=  32.0 mm  slip  2.3 mm  tilt  9.8  x +15.1 y +14.7 cm  hdg +102.8  OK
+C7 3215, P coef x3 rolls + knees               | turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   16 mm  air>= 0.60 s  CoM margin>=  31.8 mm  slip  2.2 mm  tilt  5.4  x +20.3 y  +0.2 cm  hdg  +0.4  OK
+C7 3215, P coef x3 rolls + knees               | turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   15 mm  air>= 0.54 s  CoM margin>=  13.5 mm  slip  2.3 mm  tilt  8.2  x +13.0 y -13.0 cm  hdg -96.6  FAIL
+   -> 4/4 stayed up 8/8, 3/4 OK (clearance rule too)
+
+C8 3215, P coef x4 rolls + knees               | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   22 mm  air>= 0.66 s  CoM margin>=  37.4 mm  slip  1.8 mm  tilt  4.4  x +22.6 y  -0.1 cm  hdg  +0.7  OK
+C8 3215, P coef x4 rolls + knees               | turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   22 mm  air>= 0.70 s  CoM margin>=  34.8 mm  slip  2.3 mm  tilt  6.7  x +14.7 y +14.2 cm  hdg +100.2  OK
+C8 3215, P coef x4 rolls + knees               | turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   20 mm  air>= 0.64 s  CoM margin>=  34.1 mm  slip  1.7 mm  tilt  4.3  x +20.8 y  +0.2 cm  hdg  +0.2  OK
+C8 3215, P coef x4 rolls + knees               | turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   21 mm  air>= 0.64 s  CoM margin>=  33.3 mm  slip  1.7 mm  tilt  4.4  x +12.3 y -14.1 cm  hdg -101.1  OK
+   -> 4/4 stayed up 8/8, 4/4 OK (clearance rule too)
+
+C9 3215, P coef x3 rolls + knees, lift 5 cm    | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   28 mm  air>= 0.70 s  CoM margin>=  35.0 mm  slip  1.9 mm  tilt  5.7  x +23.6 y  +0.2 cm  hdg  +0.4  OK
+C9 3215, P coef x3 rolls + knees, lift 5 cm    | turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   24 mm  air>= 0.66 s  CoM margin>=  14.3 mm  slip  3.7 mm  tilt 12.7  x +16.4 y +14.2 cm  hdg +94.8  OK
+C9 3215, P coef x3 rolls + knees, lift 5 cm    | turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   23 mm  air>= 0.66 s  CoM margin>=  31.9 mm  slip  1.8 mm  tilt  6.6  x +21.1 y  +0.1 cm  hdg  -0.0  OK
+C9 3215, P coef x3 rolls + knees, lift 5 cm    | turn -15 mu 0.9 play 3 FELL@12.4s steps 2/8  clear>=   21 mm  air>= 0.70 s  CoM margin>=  12.7 mm  slip  6.6 mm  tilt 55.3  x  -1.5 y -37.5 cm  hdg -12.2  FAIL
+   -> 3/4 stayed up 8/8, 3/4 OK (clearance rule too)
+
+C10 3215, P coef x3 rolls, lift 5 cm           | turn  +0 mu 0.7 play 3 FELL@43.7s steps 8/8  clear>=   19 mm  air>= 0.54 s  CoM margin>=  22.0 mm  slip  5.6 mm  tilt 53.3  x +31.8 y -34.3 cm  hdg  -2.5  FAIL
+C10 3215, P coef x3 rolls, lift 5 cm           | turn +15 mu 0.7 play 3 FELL@17.4s steps 3/8  clear>=   13 mm  air>= 0.56 s  CoM margin>=  12.0 mm  slip  7.2 mm  tilt 55.5  x -23.3 y +16.4 cm  hdg +56.0  FAIL
+C10 3215, P coef x3 rolls, lift 5 cm           | turn  +0 mu 0.3 play 5  FELL@6.5s steps 1/8  clear>=   48 mm  air>= 0.56 s  CoM margin>=   8.2 mm  slip 13.7 mm  tilt 55.4  x -23.6 y +22.5 cm  hdg +24.4  FAIL
+C10 3215, P coef x3 rolls, lift 5 cm           | turn -15 mu 0.9 play 3  FELL@6.9s steps 1/8  clear>=   19 mm  air>= 0.52 s  CoM margin>=  20.8 mm  slip  6.4 mm  tilt 53.8  x  -4.8 y +36.4 cm  hdg  +8.8  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+C11 3215, P coef x2 rolls + knees, lift 5 cm   | turn  +0 mu 0.7 play 3 FELL@12.0s steps 2/8  clear>=   18 mm  air>= 0.66 s  CoM margin>=  10.5 mm  slip  6.6 mm  tilt 55.6  x  +6.2 y -36.4 cm  hdg  +2.1  FAIL
+C11 3215, P coef x2 rolls + knees, lift 5 cm   | turn +15 mu 0.7 play 3  FELL@6.8s steps 1/8  clear>=   26 mm  air>= 1.36 s  CoM margin>=  27.8 mm  slip  5.1 mm  tilt 53.6  x -26.2 y +20.1 cm  hdg +21.5  FAIL
+C11 3215, P coef x2 rolls + knees, lift 5 cm   | turn  +0 mu 0.3 play 5  FELL@6.6s steps 1/8  clear>=   29 mm  air>= 0.96 s  CoM margin>=  10.2 mm  slip 10.2 mm  tilt 53.8  x  -1.0 y +36.0 cm  hdg  +4.2  FAIL
+C11 3215, P coef x2 rolls + knees, lift 5 cm   | turn -15 mu 0.9 play 3 FELL@12.0s steps 2/8  clear>=   23 mm  air>= 0.70 s  CoM margin>=   9.7 mm  slip 10.5 mm  tilt 56.0  x -16.2 y -32.6 cm  hdg -34.0  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+C12 3215, P x4 r+k, faster: shift 1.2 swing 1.2 land 0.4 | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   19 mm  air>= 0.48 s  CoM margin>=  35.0 mm  slip  1.5 mm  tilt  4.6  x +22.5 y  -0.1 cm  hdg  +0.1  OK
+C12 3215, P x4 r+k, faster: shift 1.2 swing 1.2 land 0.4 | turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   17 mm  air>= 0.52 s  CoM margin>=  31.5 mm  slip  1.9 mm  tilt  4.4  x +14.5 y +13.2 cm  hdg +97.5  OK
+C12 3215, P x4 r+k, faster: shift 1.2 swing 1.2 land 0.4 | turn  +0 mu 0.3 play 5  FELL@5.9s steps 1/8  clear>=   12 mm  air>= 0.42 s  CoM margin>=  12.6 mm  slip  4.3 mm  tilt 53.9  x  -0.0 y +36.1 cm  hdg  +2.5  FAIL
+C12 3215, P x4 r+k, faster: shift 1.2 swing 1.2 land 0.4 | turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   16 mm  air>= 0.44 s  CoM margin>=  18.4 mm  slip  2.6 mm  tilt  5.5  x +12.0 y -13.1 cm  hdg -97.7  OK
+   -> 3/4 stayed up 8/8, 3/4 OK (clearance rule too)
+
+C13 3215, P x4 r+k on the 74.5 g plant (mass control) | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   22 mm  air>= 0.66 s  CoM margin>=  36.2 mm  slip  1.8 mm  tilt  4.3  x +21.6 y  -0.1 cm  hdg  +0.6  OK
+C13 3215, P x4 r+k on the 74.5 g plant (mass control) | turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   21 mm  air>= 0.70 s  CoM margin>=  33.2 mm  slip  2.3 mm  tilt  7.8  x +14.6 y +13.4 cm  hdg +98.3  OK
+C13 3215, P x4 r+k on the 74.5 g plant (mass control) | turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   18 mm  air>= 0.66 s  CoM margin>=  34.4 mm  slip  1.8 mm  tilt  4.3  x +19.9 y  +0.1 cm  hdg  -0.3  OK
+C13 3215, P x4 r+k on the 74.5 g plant (mass control) | turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   18 mm  air>= 0.60 s  CoM margin>=  17.1 mm  slip  2.3 mm  tilt  5.3  x +11.9 y -12.2 cm  hdg -95.0  OK
+   -> 4/4 stayed up 8/8, 4/4 OK (clearance rule too)
+
+D1 3215, roll play 1 deg (every case)          | turn  +0 mu 0.7 play 3  FELL@6.6s steps 1/8  clear>=   20 mm  air>= 0.18 s  CoM margin>=  14.0 mm  slip 10.2 mm  tilt 54.1  x  -2.8 y +37.1 cm  hdg  +7.7  FAIL
+D1 3215, roll play 1 deg (every case)          | turn +15 mu 0.7 play 3  FELL@7.0s steps 1/8  clear>=    9 mm  air>= 0.38 s  CoM margin>=   8.8 mm  slip  3.6 mm  tilt 54.4  x  -0.7 y +36.8 cm  hdg  +7.4  FAIL
+D1 3215, roll play 1 deg (every case)          | turn  +0 mu 0.3 play 5  FELL@6.7s steps 1/8  clear>=   14 mm  air>= 0.26 s  CoM margin>=  17.4 mm  slip  7.6 mm  tilt 56.9  x  -2.6 y +36.3 cm  hdg  +8.3  FAIL
+D1 3215, roll play 1 deg (every case)          | turn -15 mu 0.9 play 3  FELL@6.6s steps 1/8  clear>=   28 mm  air>= 0.24 s  CoM margin>=  16.4 mm  slip 12.7 mm  tilt 58.3  x  -3.0 y +38.8 cm  hdg  +5.0  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+D2 3215 + sag comp k 1, roll play 1 deg        | turn  +0 mu 0.7 play 3  FELL@6.4s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 27.8 mm  tilt 54.9  x -29.4 y  +9.5 cm  hdg  +9.0  FAIL
+D2 3215 + sag comp k 1, roll play 1 deg        | turn +15 mu 0.7 play 3  FELL@6.2s steps 0/8  clear>=    0 mm  air>= 0.00 s  CoM margin>=   nan mm  slip 28.2 mm  tilt 54.9  x -29.3 y  -3.5 cm  hdg  +1.4  FAIL
+D2 3215 + sag comp k 1, roll play 1 deg        | turn  +0 mu 0.3 play 5  FELL@6.4s steps 1/8  clear>=   34 mm  air>= 0.18 s  CoM margin>=   5.5 mm  slip 16.0 mm  tilt 55.2  x -27.8 y +12.3 cm  hdg +14.1  FAIL
+D2 3215 + sag comp k 1, roll play 1 deg        | turn -15 mu 0.9 play 3  FELL@6.6s steps 1/8  clear>=   29 mm  air>= 0.22 s  CoM margin>=   9.4 mm  slip 16.2 mm  tilt 55.7  x  -5.0 y +37.4 cm  hdg  +7.6  FAIL
+   -> 0/4 stayed up 8/8, 0/4 OK (clearance rule too)
+
+D3 3215, P x3 rolls + knees, roll play 1 deg   | turn  +0 mu 0.7 play 3   up       steps 8/8  clear>=   17 mm  air>= 0.58 s  CoM margin>=  19.3 mm  slip  1.4 mm  tilt  6.9  x +23.0 y  -0.2 cm  hdg  +0.3  OK
+D3 3215, P x3 rolls + knees, roll play 1 deg   | turn +15 mu 0.7 play 3   up       steps 8/8  clear>=   17 mm  air>= 0.60 s  CoM margin>=  17.6 mm  slip  1.9 mm  tilt  6.5  x +12.5 y +14.7 cm  hdg +98.4  OK
+D3 3215, P x3 rolls + knees, roll play 1 deg   | turn  +0 mu 0.3 play 5   up       steps 8/8  clear>=   18 mm  air>= 0.60 s  CoM margin>=  19.4 mm  slip  1.2 mm  tilt  6.7  x +21.9 y  -0.4 cm  hdg  +0.7  OK
+D3 3215, P x3 rolls + knees, roll play 1 deg   | turn -15 mu 0.9 play 3   up       steps 8/8  clear>=   16 mm  air>= 0.54 s  CoM margin>=  17.6 mm  slip  1.5 mm  tilt  6.9  x +11.6 y -15.6 cm  hdg -98.8  OK
+   -> 4/4 stayed up 8/8, 4/4 OK (clearance rule too)

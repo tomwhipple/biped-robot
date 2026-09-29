@@ -3,19 +3,25 @@
 For every pair of pieces that move relative to each other, pose the chain at
 the joint's ROM extremes (and a few interior samples) and require either zero
 boolean intersection AND a minimum distance >= D.SWEEP_BUFFER, or -- for the
-pairs that are DESIGNED to touch (seats, pads on discs) -- exclude them.
+pairs that are DESIGNED to touch (seats, pads on discs) -- zero intersection
+only. Also: the relatively FIXED pairs that must keep a stated distance (the
+neck floor over the pack, STATIC_PAIRS) and every disc screw's thread
+engagement (check_disc_screws).
 
 The pairs are enumerated, not filtered by contype, exactly as v5 does: a pair
 that is not listed is a pair that was never checked, and the list is printed
 with the result so the omission is visible.
 
-    .venv/bin/python cad/v6/check_assembly_v6.py            # all pairs
+    .venv/bin/python cad/v6/check_assembly_v6.py            # all pairs, the robot (arms)
+    ARMS=0 .venv/bin/python cad/v6/check_assembly_v6.py     # the armless variant
     .venv/bin/python cad/v6/check_assembly_v6.py --joint ankle_roll --samples 9
+    .venv/bin/python cad/v6/check_assembly_v6.py --joint static     # (or screws)
 """
 from __future__ import annotations
 
 import argparse
 import itertools
+import math
 import os
 import sys
 import time
@@ -57,7 +63,7 @@ PAIRS = [
     ("neck", "head", "pelvis_v7", "head shell vs the deck through +-90"),
     ("neck", "head", "servo_neck", "head base vs the neck servo case (rides on its horn)"),
     # the neck's mount is the standalone collar in the armless build and the
-    # shoulder girdle (which absorbs it) with ARMS=1 -- same clearance, one
+    # shoulder girdle (which absorbs it) with the arms -- same clearance, one
     # name or the other depending on what is actually in the assembly.
     ("neck", "head", "shoulder_girdle_v6" if A.arms_on() else "neck_collar",
      "head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)"),
@@ -100,7 +106,7 @@ SINGLE_RENAME = {"yoke_roll_{s}": "hip_yoke_{s}", "yoke_pitch_{s}": "hip_yoke_{s
 SINGLE_SEATED = {("hip_yoke_{s}", "yaw_carrier_{s}"): "one-print yoke vs the bay walls: idler boss rides the bore, volume only",
                  ("hip_yoke_{s}", "servo_hip_roll_{s}"): "one-print yoke on the roll servo discs: seated, must not intersect"}
 
-# ARMS=1 (assembly_v6.arms_on): the get-up arms, docs/design-v6/arms.md.
+# the arms (assembly_v6.arms_on, the default build): docs/design-v6/arms.md.
 # Rows are (joint swept, A, B, note, extra pose) -- the 5th field is what the
 # 4-field PAIRS rows above never needed: the arm has TWO joints, and the poses
 # that matter are not all at elbow 0. The FOLDED rows are study-shoulder-
@@ -143,11 +149,43 @@ ARM_TOUCHING = {("arm_upper_{s}", "servo_shoulder_{s}"), ("arm_fore_{s}", "servo
                 ("servo_elbow_{s}", "arm_upper_{s}")}
 
 
+# YAW_BEARING_VARIANT=E (assembly_v6.yaw_retention_pieces): the bearing (one
+# ring for both races, riding link 1), the screwed cap on the carrier (link 1)
+# and the retainer under the skirt (link 0, pelvis-fixed). The retainer hangs
+# 1.5 mm lower than the skirt it closes, which is the new thing the leg can
+# reach, so the leg rows below sweep toward it. The bearing is DESIGNED to sit
+# in the recess on the retainer's land: volume only.
+E_PAIRS = [
+    ("hip_yaw", "yaw_cap_{s}", "pelvis_v7", "E cap turns under the cell rim through +-45"),
+    ("hip_yaw", "yaw_cap_{s}", "yaw_retainer_{s}", "E cap vs the retainer through +-45"),
+    ("hip_yaw", "bearing_6810_{s}", "pelvis_v7", "E bearing in its recess: seated, must not intersect"),
+    ("hip_yaw", "bearing_6810_{s}", "yaw_retainer_{s}", "E bearing on the retainer's land: seated, must not intersect"),
+    ("hip_yaw", "yaw_carrier_{s}", "yaw_retainer_{s}", "carrier vs the E retainer through +-45"),
+    ("hip_yaw", "servo_hip_roll_{s}", "yaw_retainer_{s}", "roll servo vs the E retainer through +-45"),
+    ("hip_roll", "hip_yoke_{s}", "yaw_retainer_{s}", "yoke at full roll vs the E retainer"),
+    ("hip_roll", "servo_hip_pitch_{s}", "yaw_retainer_{s}", "pitch servo at full roll vs the E retainer"),
+    ("hip_roll", "thigh_{s}", "yaw_retainer_{s}", "thigh at full roll vs the E retainer"),
+    ("hip_pitch", "thigh_{s}", "yaw_retainer_{s}", "thigh at deep flexion vs the E retainer"),
+]
+E_TOUCHING = {("bearing_6810_{s}", "pelvis_v7"), ("bearing_6810_{s}", "yaw_retainer_{s}")}
+# ...and the outer race is a PRESS FIT in the pelvis recess (Ø64.96 on a Ø65
+# race): its overlap is the designed 0.02 mm radial interference ring, and
+# anything more than that ring is a real interference.
+PRESS_FIT = {("bearing_6810_{s}", "pelvis_v7"):
+             math.pi * ((V.YAWA_BRG_OD / 2) ** 2 - V.YAWA_BRG_RECESS_R ** 2) * V.YAWA_BRG_W}
+
+
 def active_pairs():
     """(pairs, touching) for the assembly as built -- unchanged unless the
     one-print hip yoke or the arms are switched on. Rows come back as
     5-tuples (joint, A, B, note, extra pose)."""
     pairs, touching = _yoke_pairs()
+    if A.yaw_bearing_variant() == "E":
+        e_pairs = E_PAIRS
+        if A.hip_yoke_variant() != "single":
+            e_pairs = [(j, "yoke_pitch_{s}" if a == "hip_yoke_{s}" else a, b, n) for j, a, b, n in E_PAIRS]
+        pairs = list(pairs) + e_pairs
+        touching = set(touching) | E_TOUCHING
     if A.arms_on():
         arm_pairs = ARM_PAIRS
         if A.hip_yoke_variant() == "single":
@@ -264,7 +302,7 @@ def main(argv=None):
     if A.hip_yoke_variant() == "single":
         print("HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch")
     if A.arms_on():
-        print(f"ARMS=1: two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM "
+        print(f"arms on (the default build): two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM "
               f"shoulder {V.ARM_ROM['shoulder']}, elbow {V.ARM_ROM['elbow']}; "
               f"every leg row sweeps the leg with the arms in the HANGING idle pose.")
     print(f"{'joint':12s} {'A':22s} {'B':22s} {'overlap mm3':>11s} {'min dist':>9s} {'at deg':>7s}  verdict")
@@ -274,7 +312,10 @@ def main(argv=None):
         ex = {k.format(s=a.side): v for k, v in extra.items()} if extra else None
         vol, dist, ang = check_pair(joint, la, lb, a.samples, a.side, extra=ex)
         touching = (la, lb) in touching_set or (lb, la) in touching_set
-        ok = vol < 0.5 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
+        allowed = PRESS_FIT.get((la, lb), 0.0) if A.yaw_bearing_variant() == "E" else 0.0
+        ok = vol < 0.5 + allowed * 1.02 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
+        if allowed:
+            note = f"{note} (press fit: {allowed:.1f} mm3 of designed interference)"
         fails += 0 if ok else 1
         print(f"{joint:12s} {la.format(s=a.side):22s} {lb.format(s=a.side):22s} {vol:11.2f} {dist:9.2f} {ang if ang is None else round(ang,1)!s:>7s}  {'ok' if ok else 'FAIL'}   {note}")
     # disc-screw thread engagement (no pose involved)

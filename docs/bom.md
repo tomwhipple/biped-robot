@@ -236,8 +236,8 @@ spares of whichever the chosen option names:
 
 | option | bearing | notes |
 |---|---|---|
-| A or E | **6810-2RS**, 50 × 65 × 7 mm, sealed deep-groove | C0 5.8 kN and about 52 g, both from a single spec sheet |
-| C | **6811-2RS**, 55 × 72 × 9 mm, sealed deep-groove | C0 6.2–8.4 kN |
+| A or E | **6810-2RS**, 50 × 65 × 7 mm, sealed deep-groove | C0 5.8 kN (one spec sheet); SKF 61810-2RS1 catalogue mass 0.052 kg |
+| C | **6811-2RS**, 55 × 72 × 9 mm, sealed deep-groove | C0 6.2–8.4 kN; SKF 61811-2RS1 catalogue mass 0.083 kg |
 
 - **Retaining compound**, for A and E, on both seats: Loctite 641 (medium
   strength, fills a 0.15–0.25 mm gap, can be taken apart), or 648 if it never
@@ -250,12 +250,14 @@ spares of whichever the chosen option names:
   confirmed. Only `YAWA_BRG_W` and `YAWA_BRG_OD` would change.
 - **Option E** also prints a cap and a retainer per hip and adds 12 M2.5
   flat-heads (§6).
+- The code builds option C as a placeholder until the selection; the plant
+  and the rollup carry each option's bearing mass
+  ([DESIGN.md §5.2](../DESIGN.md)).
 
 ## 6. Fasteners
 
-The counts come from each part module's `SCREWS()`. The hip yoke and the yaw
-carrier count from `cad/fasteners.py`, whose interfaces they carry. Counts are
-for the robot as built, with arms (`ARMS=1`).
+The counts come from each part module's `SCREWS()` (the robot's build, with
+arms), times the number of each part.
 
 **The build uses no heat-set inserts and no washers.** All servo-case and
 printed-pilot screws are M2.5 flat-head self-tappers. The servo case holes take
@@ -263,13 +265,13 @@ M2.5, not M3.
 
 | fastener | qty | where | have |
 |---|---|---|---|
-| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **106** | leg links 24, ankle links 12, foot tabs 8, yaw-servo stators 8, neck-servo stators 4, yaw-carrier walls 16, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **110** | leg links 24, ankle links 12, foot tabs 8, yaw-servo stators 8, yaw-carrier walls 16, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
 | M2.5 × 10 pan self-tap | 4 | Pi and General Driver, lower row, into standoff bosses | |
 | M2.5 × 6 pan self-tap | 4 | Pi and General Driver, upper row, into wall pilots | |
 | M2.5 × 8 pan self-tap | 2 | the power-pocket bosses | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
-| **M3 button head, disc screws** | **116** = 64 × M3×5 + 44 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
-| *option E only:* M2.5 flat-head self-tap | 6 + 6 | E cap (3 per hip; the CAD does not fix the length) and E retainer (3 per hip, M2.5 × 8) | |
+| **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
+| *option E only:* M2.5 flat-head self-tap | 6 × M2.5×6 + 6 × M2.5×8 | E cap (3 per hip, M2.5 × 6: an × 8 bottoms out in the hub) and E retainer (3 per hip) | |
 
 - **Disc screw lengths.** The horn and idler discs are tapped through a thin
   flange: 2.5 mm on the horn and 2.1 mm on the idler, measured on the bench and
@@ -277,14 +279,16 @@ M2.5, not M3.
   - A disc screw must engage 1.5 mm up to the flange depth, and no more. A
     longer screw bottoms out and jacks the joint apart instead of clamping it.
   - So the length follows the stack under the head, as tabulated per joint in
-    [assembly.md §1](assembly.md#1-the-joint-the-servo-is-the-axle).
-  - The part modules' `SCREWS()` lists still name M3×6 at the horns and
-    M3×8 + washer at the idlers, and `check_assembly_v6` does not assert
-    engagement. Reconciling them is open.
+    [assembly.md §1](assembly.md#1-the-joint-the-servo-is-the-axle). The part
+    modules' `SCREWS()` lists take it from the stack, and `check_assembly_v6`
+    checks every one's engagement.
+  - By length: **M3 × 5** at the leg-link horn pads 16, ankle-link tines 16,
+    hip-yoke pitch horns 8, yaw carriers 8, elbow horns 8; **M3 × 6** at the
+    leg-link idler pads 16, hip-yoke roll horns 8 and pitch idlers 8, shoulder
+    horns 8, elbow idlers 8, head 4; **M3 × 8** at the hip-yoke roll idlers 8.
   - Buy a pack of each length.
-- **The armless build** needs 80 M2.5 × 8 flat-heads (the four neck-collar
-  screws replace the girdle and arm screws) and 92 M3 disc screws
-  (48 × M3×5, 36 × M3×6, 8 × M3×8).
+- **The armless variant** (`ARMS=0`, not a print target) would need 84 M2.5 × 8
+  flat-heads and 92 M3 disc screws (48 × M3×5, 36 × M3×6, 8 × M3×8).
 - **Spares:** add about 20 % to every line, and buy the M2.5 × 8 flat-heads as a
   200-pack.
 
@@ -292,7 +296,7 @@ M2.5, not M3.
 
 | item | qty | notes | have |
 |---|---|---|---|
-| PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.77–0.78 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
+| PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.77–0.79 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
 | TPU 95A, 1.75 mm | 1 spool (500 g is enough) | the two soles, 23 g each | |
 | hook-and-loop strap, **15 mm** wide | 1 | the battery belt, through the pelvis belt slots (`BATT_BELT_W`) | |
 | adhesive for the soles | — | bonds TPU 95A to PETG; type not chosen | |

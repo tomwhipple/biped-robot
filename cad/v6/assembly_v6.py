@@ -190,7 +190,7 @@ def part_pelvis():
 
 
 def part_collar():
-    """The neck's mount. With ARMS=1 this is no longer a standalone collar:
+    """The neck's mount. With the arms (the default) this is not a standalone collar:
     shoulder_girdle_v6 absorbs it, so the neck tube, the two shoulder pods and
     the trapezius webs are ONE print and the head rises out of the same solid
     the arms hang off."""
@@ -492,8 +492,7 @@ def main(argv=None):
     ap.add_argument("--step", default=None)
     a = ap.parse_args(argv)
     if a.step is None:
-        # ARMS=1 writes its own file: the armless assembly_v6.step is what every
-        # existing figure and check refers to, and an opt-in must not overwrite it.
+        # the robot (arms) and the ARMS=0 variant each write their own file
         a.step = os.path.join(OUT_STEP, "assembly_v6_arms.step" if arms_on() else "assembly_v6.step")
     if arms_on() and a.png == os.path.join(OUT_REN, "assembly_v6.png"):
         a.png = os.path.join(OUT_REN, "assembly_v6_arms.png")

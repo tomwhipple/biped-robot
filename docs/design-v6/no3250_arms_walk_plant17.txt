@@ -1,0 +1,35 @@
+# The arms walk (sim/gate_no3250.py arms: the four Gate D cases + the -15 turn at
+# mu 0.7, arm-vs-leg contacts, arms held shoulder +15 / elbow 0 through
+# getup_v6_shoulder.walk_with_arm_contacts) on the REGENERATED CAD-inertial plant
+# (build_v6_inertia, commit bd30d95) with self-collision on, instead of the lumped
+# r5_asdrawn plant `gate_no3250.py arms` builds for itself. mira, 2026-09-29,
+# taskset -c 12-15. Driver (not committed): gate_no3250's SETS / CASES4 / pmap and
+# walk_with_arm_contacts unchanged; the plant is
+#   BI.plant_xml(BI.asdrawn(DesignParams(self_collide=True)), 55.0)   (74.5 for the 3250 rows)
+# so, unlike gate_no3250.py arms, the STS3250 rows here carry the STS3250's mass.
+#
+# `gate_no3250.py arms` itself, run unchanged the same day, reproduces
+# docs/design-v6/no3250_arms_walk.txt line for line (its lumped plant does not read the
+# CAD plant), so it is not repeated here.
+#
+== Gate D, 4 cases x arm contacts, REGENERATED CAD-inertial plant with the as-drawn arms (build_v6_inertia, self-collision on): 55 g servos 2.284 kg, 74.5 g at the six roll + knee joints 2.401 kg; arms held shoulder +15 / elbow 0
+3250     turn  +0 mu 0.7 play 3  up   tilt_max   6.7 deg  arm-vs-leg contacts      0  pairs []
+3250     turn +15 mu 0.7 play 3  up   tilt_max   9.3 deg  arm-vs-leg contacts      0  pairs []
+3250     turn  +0 mu 0.3 play 5  up   tilt_max   6.9 deg  arm-vs-leg contacts      0  pairs []
+3250     turn -15 mu 0.9 play 3  FELL tilt_max 100.9 deg  arm-vs-leg contacts      0  pairs []
+3250     turn -15 mu 0.7 play 3  up   tilt_max   9.6 deg  arm-vs-leg contacts      0  pairs []
+3215     turn  +0 mu 0.7 play 3  FELL tilt_max  99.0 deg  arm-vs-leg contacts      0  pairs []
+3215     turn +15 mu 0.7 play 3  FELL tilt_max  94.1 deg  arm-vs-leg contacts      0  pairs []
+3215     turn  +0 mu 0.3 play 5  FELL tilt_max  96.6 deg  arm-vs-leg contacts      0  pairs []
+3215     turn -15 mu 0.9 play 3  FELL tilt_max  99.8 deg  arm-vs-leg contacts      0  pairs []
+3215     turn -15 mu 0.7 play 3  FELL tilt_max 100.9 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk turn  +0 mu 0.7 play 3  up   tilt_max   8.7 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk turn +15 mu 0.7 play 3  FELL tilt_max  95.3 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk turn  +0 mu 0.3 play 5  FELL tilt_max  94.9 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk turn -15 mu 0.9 play 3  FELL tilt_max  99.3 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk turn -15 mu 0.7 play 3  FELL tilt_max  96.9 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk turn  +0 mu 0.7 play 3  up   tilt_max   6.9 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk turn +15 mu 0.7 play 3  up   tilt_max   9.5 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk turn  +0 mu 0.3 play 5  up   tilt_max   6.5 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk turn -15 mu 0.9 play 3  FELL tilt_max  98.4 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk turn -15 mu 0.7 play 3  up   tilt_max   9.6 deg  arm-vs-leg contacts      0  pairs []

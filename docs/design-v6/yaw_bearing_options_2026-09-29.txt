@@ -1,0 +1,66 @@
+Hip-yaw bearing options A / C / E, the owed checks (issue #75), 2026-09-29.
+The SELECTION stays with the owner; this records the numbers for it. Code: branch
+cad/neck-seat-print-defaults (the neck floor, the robot's default build with arms,
+the disc-screw lengths). Every figure below is from the current CAD.
+
+== masses (cad/v6/parts_v6.py --no-export per YAW_BEARING_VARIANT; PETG 1.27 g/cm3 x 0.90)
+                        C (6811 wrap)      A (6810 round hub)    E (A + retention)
+bearing, each           6811-2RS  83 g     6810-2RS  52 g        6810-2RS  52 g     (SKF 61811-2RS1 / 61810-2RS1 catalogue)
+pelvis_v7 (print)       194.1 g            190.1 g               193.1 g (+ 3 retainer bosses per hip)
+yaw carrier, each       29.9 g             23.8 g                24.5 g (+ lip)
+E cap / retainer, each  -                  -                     1.8 g / 2.7 g
+printed PETG, robot     787 g              771 g                 784 g
+robot (rollup)          ~2284 g            ~2206 g               ~2219 g
+robot (plant, sim/build_v6_inertia.py --bearing X)
+                        2.284 kg           2.206 kg              2.219 kg
+
+== the swept-ROM gate, cad/v6/check_assembly_v6.py, YAW_BEARING_VARIANT=X, both builds
+                        default (arms)     ARMS=0
+C                       ALL CLEAR          ALL CLEAR           (docs/design-v6/cad_rom_check.txt)
+A                       ALL CLEAR          ALL CLEAR
+E                       ALL CLEAR          ALL CLEAR           (first full sweep of E, with E's own rows below)
+
+hip-yaw rows, all three options (min distance over +-45 deg):
+  yaw_carrier vs pelvis_v7            2.30 mm
+  servo_hip_roll vs pelvis_v7         7.30 mm
+option E's rows (the bearing, the cap and the retainer are assembly pieces only in E):
+hip_yaw      yaw_cap_L              pelvis_v7                     0.00      1.10   -45.0  ok   E cap turns under the cell rim through +-45
+hip_yaw      yaw_cap_L              yaw_retainer_L                0.00      7.12    45.0  ok   E cap vs the retainer through +-45
+hip_yaw      bearing_6810_L         pelvis_v7                    28.58      0.00   -22.5  ok   E bearing in its recess: seated, must not intersect (press fit: 28.6 mm3 of designed interference)
+hip_yaw      bearing_6810_L         yaw_retainer_L                0.00      0.00   -45.0  ok   E bearing on the retainer's land: seated, must not intersect
+hip_yaw      yaw_carrier_L          yaw_retainer_L                0.00      2.30    45.0  ok   carrier vs the E retainer through +-45
+hip_yaw      servo_hip_roll_L       yaw_retainer_L                0.00      8.50   -45.0  ok   roll servo vs the E retainer through +-45
+hip_roll     hip_yoke_L             yaw_retainer_L                0.00     20.88    55.0  ok   yoke at full roll vs the E retainer
+hip_roll     servo_hip_pitch_L      yaw_retainer_L                0.00     37.28    55.0  ok   pitch servo at full roll vs the E retainer
+hip_roll     thigh_L                yaw_retainer_L                0.00     47.56    55.0  ok   thigh at full roll vs the E retainer
+hip_pitch    thigh_L                yaw_retainer_L                0.00     35.49  -120.0  ok   thigh at deep flexion vs the E retainer
+(the 28.58 mm3 is exactly the -0.04 mm press fit of the 65 mm race in the 64.96 mm
+recess over its 7 mm width; the checker allows that ring and nothing more)
+
+== fly-in filmstrips (cad/v6/animate_v6.py, the robot's build)
+C  cad/v6/renders/assembly_v6_flyin_arms_strip.png
+A  cad/v6/renders/assembly_v6_flyin_optA_arms_strip.png
+E  cad/v6/renders/assembly_v6_flyin_optE_arms_strip.png   (row 2: bearing + cap down onto the
+   carrier, retainer up under the skirt, then the girdle, neck and arms)
+
+== screws
+E adds per hip 3 x M2.5 x 6 flat-head (cap into the hub: the pilots run 6.0 mm below the
+cap's 1.2 mm top, so an x 8 bottoms out) and 3 x M2.5 x 8 flat-head (retainer into the
+skirt bosses). A and C add none.
+
+== what each still owes
+all three  the real bearing's ring split (inner-ring OD, outer-ring ID): the pelvis
+           shoulder -- and E's cap OD and retainer ID -- are sized to an ESTIMATE
+           (dimensions_v6 YAW_BRG_EST_* / YAWA_EST_*); measure before printing the pelvis.
+           The BOM line (2 + 2 spares).
+C          nothing else built or checked is outstanding; it is the heaviest (+62 g of
+           bearings, +12 g of carriers, +4 g of pelvis vs A) and its skirts are 6 mm
+           apart (bridged).
+A          press fits only: the outer race's single positive stop is the pelvis
+           shoulder; the other three directions are a 0.04 / 0.08 mm interference
+           inside the printer's error band (retaining compound on both seats).
+E          the retaining compound's BOM line; confirm the 0.2 mm preload gaps on the
+           printed parts (the cap and retainer bottom on the races, not the print).
+After the choice: make it the default (parts_v6 / assembly_v6 YAW_BEARING_VARIANT,
+build_v6_inertia --bearing), regenerate the pelvis, carriers and plant, and remove the
+other options' files (#75).
