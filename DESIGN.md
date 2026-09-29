@@ -147,10 +147,31 @@ joints. P × N is modelled as N × the fitted stiffness on the same envelope.
 Measured STS3215 facts: no-load speed 4.04 rad/s at 12 V (14 % under the
 datasheet), stall ≈ 2.94 N·m, dead time ≈ 85 ms plus a first-order lag.
 
-**The shoulder** is the most heavily loaded servo in the get-up: 1.77 N·m (65 %
-of stall) on the recommended sequence. STS overload protection drops a servo to
-20 % torque after > 80 % of stall for 2 s (registers 34–36), so the margin is
-real but not large; the bench should confirm it.
+**The shoulder** is the most heavily loaded servo in the get-up. On the
+recommended sequence it peaks at 1.77 N·m (65 % of stall) at μ 1.0 and 51 % at
+μ 0.7.
+
+The servo protects itself in two ways, and the get-up simulation models both
+(`sim/sts_servo_model.py`):
+
+- **Overload** (memory-table registers 34–36, on by default): once its load
+  stays above 80 % for 2 s, a servo drops to 20 % torque.
+- **Over-current** (datasheet §7-11): above 2 A for 2 s, the output turns off.
+
+On the recommended sequence neither fires, in any of the six robustness
+conditions, at the scripted pace or 3× slower:
+
+- read as torque, no servo reaches 80 %; the shoulder peaks at 78 % of a
+  servo at 65 % strength;
+- read as PWM duty, the longest stretch above 80 % is 1.5 s of the 2 s timer;
+- the shoulder draws at most 1.7 A.
+
+The get-up runs out of strength (servos at 55 %) before the cutoff first fires
+(45 %). A slower tuck and push (3.7 s and 4.3 s) cut the peak load to 66 % and
+the shoulder to 1.52 N·m
+([getup-overload-2026-09-29.md](docs/design-v6/getup-overload-2026-09-29.md)).
+The bench still has to read the registers back and measure the load in the
+seat push (#83).
 
 ## 5. The body
 
@@ -268,10 +289,13 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
 - **One servo bus**: all 17 servos on the General Driver's 1 Mbaud half-duplex
   TTL bus. Bus timing is not expected to bind: 12 servos take ≈ 3.4 ms of the
   20 ms tick; the 17-servo figure has not been computed.
-- **Current is open**: the board's servo power path is rated 5 A continuous,
-  and the servos can draw more than that in transients. The fuse, the bulk
-  capacitor and a current budget from simulated walk and get-up traces are
-  required before the first powered floor run.
+- **Current**: the board's servo power path is rated 5 A continuous, and its
+  XH inlet 3 A per contact. The simulated budget
+  ([wiring.md](docs/wiring.md#current-the-open-constraint)) brackets the walk
+  at 0.9–2.7 A RMS (peak 1.8–5.1 A), and the get-up's push at 5.2–10.3 A peak.
+  The push is over the inlet, and over the board's rating in the upper model.
+  Two measures follow from it: feed `DC_IN` directly, and put one leg and one
+  arm on each port. A shunt on the first powered run confirms both.
 - **Power path**: pack → protection board (≥ 15 A, over-discharge cut-off) →
   10–15 A fuse → switch → board inlet; bulk capacitor (1000 µF, ≥ 25 V) at the
   board; Pololu D24V50F5-class 5 V / 5 A buck for the Pi.
