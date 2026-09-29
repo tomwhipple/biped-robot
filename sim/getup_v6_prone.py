@@ -30,6 +30,9 @@ side-seat push, a third shoulder DOF, legs only -- are not re-searched):
   <family>_fold  the same search, but the roll must end with the arms folded
            up to 180 (the recommended seat push's start) instead of at the
            idle pose (where the searched seat-push entry starts)
+  <family>_sup_fold  the same keyframe search from SUPINE with the arms idle
+           (a real backward fall): get the arms folded up to 180 while ending
+           on the back, e.g. by rolling onto a side and back
 PRONE_MARGIN=1 runs every candidate with the overload cutoff enforced and
 takes 0.3 x (worst servo's seconds above 80 % of stall) + 0.5 x (trips) off
 its score.
@@ -316,7 +319,7 @@ def _set_hk():
 def _base(family):
     """'stow_fold' -> 'stow': the _fold suffix only changes where the roll
     ends (arms folded up to 180, the recommended seat push's start)"""
-    return family[:-5] if family.endswith("_fold") else family
+    return family.split("_")[0]
 
 
 def roll_space(family):
@@ -355,7 +358,7 @@ def roll_keys(family, x, na):
             else:
                 off[j] = x.get(f"k{k}_{j}", 0.0)      # arm-only families: legs straight
         keys.append((f"k{k}", q_of(off, na), x[f"k{k}_t"], x[f"k{k}_h"]))
-    if family.endswith("_fold"):
+    if "_fold" in family:
         keys.append(("arms folded up, legs straight", q_of(dict(**FOLD), na), 1.5, 1.5))
     else:
         keys.append(("arms idle, legs straight", q_of(dict(**IDLE), na), 1.5, 1.5))
@@ -376,8 +379,9 @@ def run_roll(family, x, cond=NOMINAL, time_scale=1.0, chain=False, render=None, 
     env = make_env(p, xml, cond)
     na = env._nq_act
     q0 = q_of(dict(**IDLE), na)
-    G.settle_fallen(env, p, "prone", q0)
-    rec = Recorder(render=render, label=f"prone {family}")
+    start = "supine" if "_sup" in family else "prone"
+    G.settle_fallen(env, p, start, q0)
+    rec = Recorder(render=render, label=f"{start} {family}")
     prot = None
     if protection is not None:
         from sts_servo_model import STSProtection
@@ -386,12 +390,12 @@ def run_roll(family, x, cond=NOMINAL, time_scale=1.0, chain=False, render=None, 
     up, front, side = torso_axes(env)
     qa = env.data.qpos[7:7 + na]
     nm = names_of(env)
-    arm_end = FOLD["shoulder"] if family.endswith("_fold") else IDLE["shoulder"]
+    arm_end = FOLD["shoulder"] if "_fold" in family else IDLE["shoulder"]
     arm_err = max(abs(math.degrees(qa[nm.index(j)]) - arm_end) for j in ("L_shoulder", "R_shoulder"))
     out = dict(front=front, up=up, side=side, front_max=rec.front_max, arm_err=arm_err, z=float(env.data.qpos[2]),
-               roll_ok=bool(front > 0.7), peak_roll=float(pk.max()), peak_roll_joint=nm[int(pk.argmax())])
+               roll_ok=bool(front > 0.7), peak_roll=float(pk.max()), peak_roll_joint=nm[int(pk.argmax())], start=start)
     if chain:
-        tail = seat_push_keys(na) if family.endswith("_fold") else entry_keys(ENTRY_BEST, na)
+        tail = seat_push_keys(na) if "_fold" in family else entry_keys(ENTRY_BEST, na)
         q, t, pk2 = run_keys(env, tail, q, rec, time_scale, t0=t, prot=prot)
         up, front, side = torso_axes(env)
         out.update(stand=standing_state(env, p), up_end=up, z_end=float(env.data.qpos[2]),
@@ -403,6 +407,9 @@ def run_roll(family, x, cond=NOMINAL, time_scale=1.0, chain=False, render=None, 
 
 
 def roll_score(r):
+    if r.get("start") == "supine":
+        # the re-stow from supine: stay (or come back) on the back with the arms folded
+        return r["front"] + (1.0 if (r["roll_ok"] and r["arm_err"] < 15.0) else 0.0) - 0.01 * r["arm_err"]
     return r["front"] + 0.3 * r["front_max"] + (1.0 if r["roll_ok"] else 0.0) - 0.004 * r["arm_err"]
 
 
@@ -659,7 +666,7 @@ def _verify_entry_job(args):
 def verify(family, x):
     if family in ("entry", "catch"):
         chain = ""
-    elif family.endswith("_fold"):
+    elif "_fold" in family:
         chain = "; chain = roll (ends with the arms folded up) + the recommended seat push"
     else:
         chain = "; chain = roll (ends with the arms idle) + the seat push with entry " + json.dumps(ENTRY_BEST)
@@ -736,7 +743,9 @@ def main():
         iters = int(sys.argv[4]) if len(sys.argv) > 4 else 40
         pop = int(os.environ.get("POP", "48"))
         names, bounds = roll_space(family)
-        print(f"== ROLL SEARCH, family {family}: prone (arms idle) -> {NK} free keyframes -> arms up + legs straight; "
+        start = "supine" if "_sup" in family else "prone"
+        end = "arms folded up (180)" if "_fold" in family else "arms idle"
+        print(f"== ROLL SEARCH, family {family}: {start} (arms idle) -> {NK} free keyframes -> {end} + legs straight; "
               f"{len(names)} parameters, CEM {restarts} restarts x {iters} iterations x {pop}, restart 0 seeded from the "
               f"section 12.1 roll; score = front_end + 0.3 front_max + 1[on back] - 0.004 arm error (deg)"
               f"{' - 0.3 x (worst servo seconds above 80 % of stall) - 0.5 x (overload trips), cutoff enforced' if MARGIN else ''}; "
@@ -745,7 +754,7 @@ def main():
         best = cem(names, bounds, evalf, restarts, iters, pop, max(4, pop // 6), seeds=[seed_12_1(family)], tag=family)
         print(f"\n== {family}: OVERALL BEST {best[0]:+.3f}  {_brief(best[2])}\n   x {json.dumps({k: round(v, 2) for k, v in best[1].items()})}",
               flush=True)
-        if best[2].get("roll_ok") and (ENTRY_BEST or family.endswith("_fold")):
+        if best[2].get("roll_ok") and (ENTRY_BEST or "_fold" in family):
             verify(family, best[1])
         elif best[2].get("roll_ok"):
             print("   (no PRONE_ENTRY given: the chain is verified separately with `verify`)", flush=True)
