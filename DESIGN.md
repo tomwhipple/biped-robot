@@ -377,21 +377,31 @@ training plant and referee — is open work.
 
 ## 12. Open decisions and open work
 
-Tracked as GitHub issues. Decisions:
+Everything open is a GitHub issue.
 
-- **Servo route** — Plan B stands or falls on the bench test (#73).
-- **Hip-yaw bearing** — A, C or E (§5.2); the pelvis and yaw carriers wait on it.
-- **Head** — mono camera head, or the stereo periscope head (PR #71).
-- **Default build** — the code still builds armless with bearing C and counts
-  6 × STS3250 by default; once the decisions above land, the defaults, the
-  print list, the rollup (`docs/design-v6/parts_v6_rollup.txt`) and the plant
-  should all describe the same robot.
+| decision | issue |
+|---|---|
+| servo route: Plan B stands or falls on the bench test | #73, then the purchase #74 |
+| hip-yaw bearing A, C or E (§5.2); the pelvis and yaw carriers wait on it | #75 |
+| head: mono camera, or the stereo periscope | PR #71, #87 |
+| make the code's defaults the robot to print (arms on, chosen bearing, 17 × STS3215; rollup and plant regenerated) — today they build armless with bearing C and count 6 × STS3250 | #76 |
 
-Work: the non-servo parts order; the first print and fit check; the assembly
-guide; the 17-servo ID map, wiring and current budget; the firmware port; the
-measured plant and the floor sequence; the shoulder margin; the get-up on
-hardware; the prone get-up; porting the training stack; Pi and camera
-integration; goal-conditioned locomotion.
+| work | issue |
+|---|---|
+| servo ID map, wiring, current budget | #77 |
+| non-servo parts order | #78 |
+| first print and fit check | #79 |
+| assembly guide with figures | #80 |
+| firmware port to 17 joints (with the register-21 check at boot) | #81 |
+| measured plant, then the open-loop floor sequence | #82 |
+| shoulder overload margin | #83 |
+| scripted get-up on hardware | #84 |
+| get-up from prone | #85 |
+| training stack port (Gate E) | #86 |
+| Pi and head camera integration | #87 |
+| goal-conditioned locomotion | #88 |
+| servo model: overload cutoff, sag, thermal | #6 |
+| exteroceptive observation | #11 |
 
 ## 13. Build sequence
 
