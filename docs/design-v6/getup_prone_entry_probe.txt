@@ -1,0 +1,56 @@
+== SEAT PUSH ENTRY PROBE: the recommended seat push (shoulder 90 -> 0), from supine, the arms starting at different poses; its first keyframe moves them to 180 in 0.5 s. r5_asdrawn_rom120 + elbow stops, Plan B, self_collide on. front = world z of the torso's +x (+1 on the back, -1 on the front)
+-- arms start at shoulder +180 elbow +0: STANDING
+   lie          up +0.02 front +1.00 pelvis z 0.057 L_shoulder  178.4  contacts ['L_foot', 'R_foot', 'torso']
+   sit up       up +0.07 front +1.00 pelvis z 0.052 L_shoulder  178.4  contacts ['torso']
+   fold         up +0.07 front +1.00 pelvis z 0.052 L_shoulder  178.4  contacts ['torso']
+   brace        up +0.98 front -0.20 pelvis z 0.103 L_shoulder   88.7  contacts ['L_foot', 'L_thigh', 'R_foot', 'R_thigh']
+   tuck         up +0.79 front +0.61 pelvis z 0.160 L_shoulder   92.9  contacts ['L_foot', 'L_forearm', 'R_foot', 'R_forearm']
+   push         up +0.97 front -0.23 pelvis z 0.234 L_shoulder    0.7  contacts ['L_foot', 'L_forearm', 'R_foot', 'R_forearm']
+   crouch hold  up +0.98 front -0.20 pelvis z 0.234 L_shoulder   58.5  contacts ['L_foot', 'R_foot']
+   rise 2       up +0.71 front -0.71 pelvis z 0.320 L_shoulder   58.5  contacts ['L_foot', 'R_foot']
+   rise 3       up +0.93 front -0.37 pelvis z 0.360 L_shoulder   58.5  contacts ['L_foot', 'R_foot']
+   stand        up +1.00 front +0.09 pelvis z 0.373 L_shoulder   58.7  contacts ['L_foot', 'R_foot']
+   straight     up +1.00 front +0.09 pelvis z 0.387 L_shoulder   58.7  contacts ['L_foot', 'R_foot']
+-- arms start at shoulder +15 elbow +0: not standing
+   lie          up -0.05 front -1.00 pelvis z 0.056 L_shoulder  181.9  contacts ['L_foot', 'R_foot', 'torso']
+   sit up       up -0.59 front -0.81 pelvis z 0.221 L_shoulder  174.8  contacts ['L_foot', 'L_forearm', 'R_foot', 'R_forearm']
+   fold         up -0.62 front -0.78 pelvis z 0.246 L_shoulder  176.3  contacts ['L_foot', 'L_forearm', 'R_foot', 'R_forearm']
+   brace        up -0.94 front -0.34 pelvis z 0.169 L_shoulder   91.3  contacts ['L_foot', 'R_foot', 'head']
+   tuck         up -0.36 front -0.93 pelvis z 0.091 L_shoulder   90.6  contacts ['L_shin', 'R_shin', 'head']
+   push         up -0.36 front -0.93 pelvis z 0.091 L_shoulder   -1.4  contacts ['L_foot', 'L_shin', 'R_foot', 'R_shin', 'head']
+   crouch hold  up -0.36 front -0.93 pelvis z 0.091 L_shoulder   59.3  contacts ['L_foot', 'L_shin', 'R_foot', 'R_shin', 'head']
+   rise 2       up -0.44 front -0.90 pelvis z 0.103 L_shoulder   59.5  contacts ['L_foot', 'R_foot', 'head']
+   rise 3       up -0.23 front -0.97 pelvis z 0.070 L_shoulder   59.2  contacts ['L_foot', 'R_foot', 'head']
+   stand        up -0.03 front -1.00 pelvis z 0.054 L_shoulder   59.1  contacts ['L_foot', 'R_foot', 'torso']
+   straight     up -0.03 front -1.00 pelvis z 0.054 L_shoulder   59.0  contacts ['L_foot', 'R_foot', 'torso']
+-- arms start at shoulder +0 elbow +0: not standing
+   lie          up +0.01 front -1.00 pelvis z 0.052 L_shoulder  180.9  contacts ['L_foot', 'R_foot', 'torso']
+   sit up       up -0.59 front -0.81 pelvis z 0.221 L_shoulder  174.8  contacts ['L_foot', 'L_forearm', 'R_foot', 'R_forearm']
+   fold         up -0.62 front -0.78 pelvis z 0.246 L_shoulder  176.3  contacts ['L_foot', 'L_forearm', 'R_foot', 'R_forearm']
+   brace        up -0.94 front -0.34 pelvis z 0.169 L_shoulder   91.3  contacts ['L_foot', 'R_foot', 'head']
+   tuck         up -0.36 front -0.93 pelvis z 0.091 L_shoulder   90.6  contacts ['L_shin', 'R_shin', 'head']
+   push         up -0.36 front -0.93 pelvis z 0.091 L_shoulder   -1.4  contacts ['L_foot', 'L_shin', 'R_foot', 'R_shin', 'head']
+   crouch hold  up -0.36 front -0.93 pelvis z 0.091 L_shoulder   59.3  contacts ['L_foot', 'L_shin', 'R_foot', 'R_shin', 'head']
+   rise 2       up -0.44 front -0.90 pelvis z 0.103 L_shoulder   59.5  contacts ['L_foot', 'R_foot', 'head']
+   rise 3       up -0.23 front -0.97 pelvis z 0.070 L_shoulder   59.2  contacts ['L_foot', 'R_foot', 'head']
+   stand        up -0.03 front -1.00 pelvis z 0.054 L_shoulder   59.1  contacts ['L_foot', 'R_foot', 'torso']
+   straight     up -0.03 front -1.00 pelvis z 0.054 L_shoulder   59.0  contacts ['L_foot', 'R_foot', 'torso']
+-- arms start at shoulder -90 elbow +0: not standing
+   lie          up -1.00 front -0.05 pelvis z 0.168 L_shoulder  106.4  contacts ['head']
+   sit up       up -0.59 front -0.81 pelvis z 0.221 L_shoulder  174.8  contacts ['L_foot', 'L_forearm', 'R_foot', 'R_forearm']
+   fold         up -0.62 front -0.78 pelvis z 0.246 L_shoulder  176.3  contacts ['L_foot', 'L_forearm', 'R_foot', 'R_forearm']
+   brace        up -0.94 front -0.34 pelvis z 0.169 L_shoulder   91.3  contacts ['L_foot', 'R_foot', 'head']
+   tuck         up -0.36 front -0.93 pelvis z 0.091 L_shoulder   90.6  contacts ['L_shin', 'R_shin', 'head']
+   push         up -0.36 front -0.93 pelvis z 0.091 L_shoulder   -1.4  contacts ['L_foot', 'L_shin', 'R_foot', 'R_shin', 'head']
+   crouch hold  up -0.36 front -0.93 pelvis z 0.091 L_shoulder   59.3  contacts ['L_foot', 'L_shin', 'R_foot', 'R_shin', 'head']
+   rise 2       up -0.44 front -0.90 pelvis z 0.103 L_shoulder   59.5  contacts ['L_foot', 'R_foot', 'head']
+   rise 3       up -0.23 front -0.97 pelvis z 0.070 L_shoulder   59.2  contacts ['L_foot', 'R_foot', 'head']
+   stand        up -0.03 front -1.00 pelvis z 0.054 L_shoulder   59.1  contacts ['L_foot', 'R_foot', 'torso']
+   straight     up -0.03 front -1.00 pelvis z 0.054 L_shoulder   59.0  contacts ['L_foot', 'R_foot', 'torso']
+-- arms start at the idle pose, six conditions:
+   play 3 mu 0.7 servo 1.00: not standing; after the first keyframe front -1.00 (on its front)
+   play 5 mu 0.7 servo 1.00: not standing; after the first keyframe front -1.00 (on its front)
+   play 3 mu 0.3 servo 1.00: not standing; after the first keyframe front -1.00 (on its front)
+   play 3 mu 1.0 servo 1.00: not standing; after the first keyframe front -1.00 (on its front)
+   play 3 mu 0.7 servo 0.80: not standing; after the first keyframe front +0.55 (on its side)
+   play 3 mu 0.7 servo 0.65: not standing; after the first keyframe front +0.92 (on its back)

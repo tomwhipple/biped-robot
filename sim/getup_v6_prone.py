@@ -47,7 +47,9 @@ A roll succeeds when the torso ends on its back (front_z > 0.7, the section
 seat push's start -- and the whole chain (roll + the recommended seat push)
 then has to stand.
 
-    .venv/bin/python sim/getup_v6_prone.py probe                       # stills + the section 12.1 roll per arm pose
+    .venv/bin/python sim/getup_v6_prone.py probe                       # the section 12.1 roll per held arm pose
+    .venv/bin/python sim/getup_v6_prone.py entryprobe                  # the seat push from supine, arms idle
+    .venv/bin/python sim/getup_v6_prone.py entrysearch 8 30             # restarts, iterations
     .venv/bin/python sim/getup_v6_prone.py rollsearch stow 6 40         # family, restarts, iterations
     .venv/bin/python sim/getup_v6_prone.py catchsearch 6 40
     .venv/bin/python sim/getup_v6_prone.py verify <family> '<json x>'   # chain, 6 conditions, x1 and x3
@@ -733,10 +735,53 @@ def probe():
               f"{_brief(r)}  peak {r['peak_roll']:.2f} N*m ({r['peak_roll_joint']})", flush=True)
 
 
+def _entry_probe_job(args):
+    arms, c = args
+    _set_hk()
+    p, xml = plant()
+    env = make_env(p, xml, c)
+    na = env._nq_act
+    q0 = q_of(dict(**arms), na)
+    G.settle_fallen(env, p, "supine", q0)
+    nm = names_of(env)
+    rows, q = [], q0
+    for k in seat_push_keys(na):
+        q, t, pk = run_keys(env, [k], q)
+        up, front, side = torso_axes(env)
+        rows.append((k[0], up, front, float(env.data.qpos[2]),
+                     math.degrees(env.data.qpos[7 + nm.index("L_shoulder")]), G.contacts_summary(env.model, env.data)))
+    return standing_state(env, p), rows
+
+
+def entry_probe():
+    """the recommended seat push from supine, with the arms starting where a
+    real backward fall leaves them (the walk's idle pose) and elsewhere,
+    against the start the scripted sequence assumes (already folded, 180)"""
+    print("== SEAT PUSH ENTRY PROBE: the recommended seat push (shoulder 90 -> 0), from supine, the arms starting at "
+          "different poses; its first keyframe moves them to 180 in 0.5 s. r5_asdrawn_rom120 + elbow stops, Plan B, "
+          "self_collide on. front = world z of the torso's +x (+1 on the back, -1 on the front)", flush=True)
+    starts = [dict(shoulder=180, elbow=0), dict(**IDLE), dict(shoulder=0, elbow=0), dict(shoulder=-90, elbow=0)]
+    res = GN.pmap(_entry_probe_job, [(a, NOMINAL) for a in starts])
+    for arms, (ok, rows) in zip(starts, res):
+        print(f"-- arms start at shoulder {arms['shoulder']:+.0f} elbow {arms['elbow']:+.0f}: "
+              f"{'STANDING' if ok else 'not standing'}", flush=True)
+        for lab, up, front, z, sh, con in rows:
+            print(f"   {lab:12s} up {up:+.2f} front {front:+.2f} pelvis z {z:.3f} L_shoulder {sh:6.1f}  contacts {con}",
+                  flush=True)
+    print("-- arms start at the idle pose, six conditions:", flush=True)
+    res = GN.pmap(_entry_probe_job, [(dict(**IDLE), c) for c in CONDS])
+    for c, (ok, rows) in zip(CONDS, res):
+        print(f"   {GN._cond_label(c)}: {'STANDING' if ok else 'not standing'}; after the first keyframe front "
+              f"{rows[0][2]:+.2f} (on its {'back' if rows[0][2] > 0.7 else 'front' if rows[0][2] < -0.7 else 'side'})",
+              flush=True)
+
+
 def main():
     mode = sys.argv[1]
     if mode == "probe":
         probe()
+    elif mode == "entryprobe":
+        entry_probe()
     elif mode == "rollsearch":
         family = sys.argv[2]
         restarts = int(sys.argv[3]) if len(sys.argv) > 3 else 6
