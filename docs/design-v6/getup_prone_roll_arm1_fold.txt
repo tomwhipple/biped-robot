@@ -1,0 +1,271 @@
+== ROLL SEARCH, family arm1_fold: prone (arms idle) -> 5 free keyframes -> arms up + legs straight; 22 parameters, CEM 6 restarts x 40 iterations x 48, restart 0 seeded from the section 12.1 roll; score = front_end + 0.3 front_max + 1[on back] - 0.004 arm error (deg); r5_asdrawn_rom120 + elbow stops, Plan B, nominal; self_collide on; workers 6
+   arm1_fold restart 0 iter  0: best -1.177  front -1.00 (max -0.58) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter  1: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter  2: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter  3: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter  4: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter  5: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter  6: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter  7: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter  8: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter  9: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 10: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 11: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 12: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 13: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 14: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 15: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 16: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 17: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 18: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 19: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 20: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 21: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 22: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 23: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 24: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 25: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 26: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 27: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 28: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 29: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 30: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 31: best -1.164  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 32: best -1.163  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 33: best -1.163  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 34: best -1.163  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 35: best -1.163  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 36: best -1.163  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 37: best -1.163  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 38: best -1.163  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   arm1_fold restart 0 iter 39: best -1.163  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+-- arm1_fold restart 0 BEST -1.163  front -1.00 (max -0.53) up -0.04 arm err 1 deg 
+   x {"stow_R_shoulder": 48.17, "stow_R_elbow": -7.95, "k0_L_shoulder": 44.7, "k0_L_elbow": 9.16, "k0_t": 1.74, "k0_h": 0.82, "k1_L_shoulder": -90.0, "k1_L_elbow": -5.66, "k1_t": 1.47, "k1_h": 1.39, "k2_L_shoulder": -85.32, "k2_L_elbow": -60.11, "k2_t": 1.32, "k2_h": 0.98, "k3_L_shoulder": -90.0, "k3_L_elbow": 8.75, "k3_t": 0.97, "k3_h": 1.4, "k4_L_shoulder": -29.57, "k4_L_elbow": -9.21, "k4_t": 1.73, "k4_h": 1.37}
+   arm1_fold restart 1 iter  0: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter  1: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter  2: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter  3: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter  4: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter  5: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter  6: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter  7: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter  8: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter  9: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 10: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 11: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 12: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 13: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 14: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 15: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 16: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 17: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 18: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 19: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 20: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 21: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 22: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 23: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 24: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 25: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 26: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 27: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 28: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 29: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 30: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 31: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 32: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 33: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 34: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 35: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 36: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 37: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 38: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 1 iter 39: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+-- arm1_fold restart 1 BEST +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   x {"stow_R_shoulder": 1.08, "stow_R_elbow": -95.29, "k0_L_shoulder": -79.23, "k0_L_elbow": -60.83, "k0_t": 1.32, "k0_h": 1.13, "k1_L_shoulder": -62.55, "k1_L_elbow": -77.65, "k1_t": 1.23, "k1_h": 0.67, "k2_L_shoulder": 130.13, "k2_L_elbow": -97.17, "k2_t": 1.7, "k2_h": 0.89, "k3_L_shoulder": 108.1, "k3_L_elbow": -80.49, "k3_t": 0.96, "k3_h": 0.51, "k4_L_shoulder": 194.84, "k4_L_elbow": 4.44, "k4_t": 0.8, "k4_h": 0.81}
+   arm1_fold restart 2 iter  0: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter  1: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter  2: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter  3: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter  4: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter  5: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter  6: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter  7: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter  8: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter  9: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 10: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 11: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 12: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 13: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 14: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 15: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 16: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 17: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 18: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 19: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 20: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 21: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 22: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 23: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 24: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 25: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 26: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 27: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 28: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 29: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 30: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 31: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 32: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 33: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 34: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 35: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 36: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 37: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 38: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 2 iter 39: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+-- arm1_fold restart 2 BEST +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   x {"stow_R_shoulder": 1.25, "stow_R_elbow": -91.84, "k0_L_shoulder": -43.55, "k0_L_elbow": -92.68, "k0_t": 0.93, "k0_h": 1.18, "k1_L_shoulder": 164.24, "k1_L_elbow": -84.91, "k1_t": 1.49, "k1_h": 0.73, "k2_L_shoulder": 17.68, "k2_L_elbow": -0.04, "k2_t": 1.73, "k2_h": 0.75, "k3_L_shoulder": -67.11, "k3_L_elbow": -69.62, "k3_t": 1.62, "k3_h": 0.8, "k4_L_shoulder": 188.66, "k4_L_elbow": -99.71, "k4_t": 0.56, "k4_h": 1.33}
+   arm1_fold restart 3 iter  0: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter  1: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter  2: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter  3: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter  4: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter  5: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter  6: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter  7: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter  8: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter  9: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 10: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 11: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 12: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 13: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 14: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 15: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 16: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 17: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 18: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 19: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 20: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 21: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 22: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 23: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 24: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 25: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 26: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 27: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 28: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 29: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 30: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 31: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 32: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 33: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 34: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 35: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 36: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 37: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 38: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 3 iter 39: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+-- arm1_fold restart 3 BEST +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   x {"stow_R_shoulder": -39.14, "stow_R_elbow": 6.69, "k0_L_shoulder": 140.01, "k0_L_elbow": -57.64, "k0_t": 1.71, "k0_h": 1.31, "k1_L_shoulder": 121.78, "k1_L_elbow": -60.57, "k1_t": 1.54, "k1_h": 1.01, "k2_L_shoulder": 144.39, "k2_L_elbow": -53.55, "k2_t": 0.92, "k2_h": 0.27, "k3_L_shoulder": -90.0, "k3_L_elbow": -26.82, "k3_t": 0.56, "k3_h": 1.1, "k4_L_shoulder": 122.64, "k4_L_elbow": -58.75, "k4_t": 1.19, "k4_h": 1.5}
+   arm1_fold restart 4 iter  0: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 4 iter  1: best +2.295  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter  2: best +2.295  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter  3: best +2.295  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter  4: best +2.296  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter  5: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter  6: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter  7: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter  8: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter  9: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 10: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 11: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 12: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 13: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 14: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 15: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 16: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 17: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 18: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 19: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 20: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 21: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 22: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 23: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 24: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 25: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 26: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 27: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 28: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 29: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 30: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 31: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 32: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 33: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 34: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 35: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 36: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 37: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 38: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   arm1_fold restart 4 iter 39: best +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+-- arm1_fold restart 4 BEST +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   x {"stow_R_shoulder": -64.04, "stow_R_elbow": -25.53, "k0_L_shoulder": 157.77, "k0_L_elbow": -32.02, "k0_t": 0.53, "k0_h": 0.35, "k1_L_shoulder": 14.15, "k1_L_elbow": -62.8, "k1_t": 1.38, "k1_h": 0.2, "k2_L_shoulder": -43.86, "k2_L_elbow": -81.92, "k2_t": 1.22, "k2_h": 0.97, "k3_L_shoulder": 47.48, "k3_L_elbow": -97.71, "k3_t": 0.92, "k3_h": 1.33, "k4_L_shoulder": 91.48, "k4_L_elbow": -100.0, "k4_t": 1.28, "k4_h": 0.57}
+   arm1_fold restart 5 iter  0: best -0.989  front -1.00 (max +0.05) up -0.04 arm err 1 deg 
+   arm1_fold restart 5 iter  1: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter  2: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter  3: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter  4: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter  5: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter  6: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter  7: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter  8: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter  9: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 10: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 11: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 12: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 13: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 14: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 15: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 16: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 17: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 18: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 19: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 20: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 21: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 22: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 23: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 24: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 25: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 26: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 27: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 28: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 29: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 30: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 31: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 32: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 33: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 34: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 35: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 36: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 37: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 38: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   arm1_fold restart 5 iter 39: best +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+-- arm1_fold restart 5 BEST +2.293  front +1.00 (max +1.00) up +0.02 arm err 2 deg ON BACK
+   x {"stow_R_shoulder": 1.03, "stow_R_elbow": -98.19, "k0_L_shoulder": -43.11, "k0_L_elbow": -70.16, "k0_t": 0.78, "k0_h": 1.07, "k1_L_shoulder": -32.38, "k1_L_elbow": 6.41, "k1_t": 0.76, "k1_h": 1.17, "k2_L_shoulder": 28.06, "k2_L_elbow": -2.51, "k2_t": 1.75, "k2_h": 0.28, "k3_L_shoulder": 35.21, "k3_L_elbow": -98.53, "k3_t": 1.7, "k3_h": 0.86, "k4_L_shoulder": 187.33, "k4_L_elbow": -4.09, "k4_t": 1.81, "k4_h": 0.81}
+
+== arm1_fold: OVERALL BEST +2.297  front +1.00 (max +1.00) up +0.02 arm err 1 deg ON BACK
+   x {"stow_R_shoulder": -64.04, "stow_R_elbow": -25.53, "k0_L_shoulder": 157.77, "k0_L_elbow": -32.02, "k0_t": 0.53, "k0_h": 0.35, "k1_L_shoulder": 14.15, "k1_L_elbow": -62.8, "k1_t": 1.38, "k1_h": 0.2, "k2_L_shoulder": -43.86, "k2_L_elbow": -81.92, "k2_t": 1.22, "k2_h": 0.97, "k3_L_shoulder": 47.48, "k3_L_elbow": -97.71, "k3_t": 0.92, "k3_h": 1.33, "k4_L_shoulder": 91.48, "k4_L_elbow": -100.0, "k4_t": 1.28, "k4_h": 0.57}
+== VERIFY arm1_fold, six conditions, pace x1 and x3 (3x slower), STS overload cutoff enforced (torque reading); chain = roll (ends with the arms folded up) + the recommended seat push
+   x1 play 3 mu 0.7 servo 1.00: roll ON BACK front +1.00 arm err 1 deg, peak 2.72 N*m (R_shoulder);  chain STANDING up +1.00 z 0.387 peak 2.72 N*m (R_shoulder);  peak load R_shoulder 100 %, longest duty>80% L_shoulder 1.30 s, trips none
+   x1 play 5 mu 0.7 servo 1.00: roll ON BACK front +1.00 arm err 1 deg, peak 2.72 N*m (R_shoulder);  chain STANDING up +1.00 z 0.386 peak 2.72 N*m (R_shoulder);  peak load R_shoulder 100 %, longest duty>80% L_shoulder 1.26 s, trips none
+   x1 play 3 mu 0.3 servo 1.00: roll ON BACK front +1.00 arm err 2 deg, peak 2.72 N*m (R_shoulder);  chain STANDING up +1.00 z 0.387 peak 2.72 N*m (R_shoulder);  peak load R_shoulder 100 %, longest duty>80% L_shoulder 1.08 s, trips none
+   x1 play 3 mu 1.0 servo 1.00: roll no      front +0.57 arm err 78 deg, peak 2.72 N*m (R_shoulder);  chain STANDING up +1.00 z 0.386 peak 2.72 N*m (R_shoulder);  peak load R_shoulder 100 %, longest duty>80% L_shoulder 1.44 s, trips none
+   x1 play 3 mu 0.7 servo 0.80: roll no      front -1.00 arm err 1 deg, peak 2.17 N*m (R_shoulder);  chain no       up +0.04 z 0.105 peak 2.17 N*m (R_shoulder);  peak load R_shoulder 100 %, longest duty>80% L_hip_pitch 2.96 s, trips ['L_hip_pitch', 'L_shoulder']
+   x1 play 3 mu 0.7 servo 0.65: roll no      front -1.00 arm err 104 deg, peak 1.77 N*m (L_shoulder);  chain no       up -0.03 z 0.054 peak 1.77 N*m (L_shoulder);  peak load L_shoulder 100 %, longest duty>80% R_shoulder 1.96 s, trips ['L_shoulder', 'R_shoulder']
+   x3 play 3 mu 0.7 servo 1.00: roll no      front -1.00 arm err 1 deg, peak 2.70 N*m (L_hip_roll);  chain no       up -0.02 z 0.054 peak 2.70 N*m (L_hip_roll);  peak load L_hip_roll 99 %, longest duty>80% L_shoulder 1.62 s, trips none
+   x3 play 5 mu 0.7 servo 1.00: roll no      front +0.02 arm err 1 deg, peak 2.64 N*m (L_ankle_roll);  chain no       up +0.07 z 0.102 peak 2.64 N*m (L_ankle_roll);  peak load L_ankle_roll 97 %, longest duty>80% R_shoulder 1.50 s, trips none
+   x3 play 3 mu 0.3 servo 1.00: roll no      front -0.00 arm err 1 deg, peak 2.63 N*m (L_hip_roll);  chain STANDING up +1.00 z 0.387 peak 2.63 N*m (L_hip_roll);  peak load L_hip_roll 97 %, longest duty>80% R_shoulder 1.58 s, trips none
+   x3 play 3 mu 1.0 servo 1.00: roll no      front -0.01 arm err 1 deg, peak 2.61 N*m (R_shoulder);  chain STANDING up +1.00 z 0.386 peak 2.61 N*m (R_shoulder);  peak load R_shoulder 96 %, longest duty>80% L_shoulder 1.62 s, trips none
+   x3 play 3 mu 0.7 servo 0.80: roll no      front -1.00 arm err 1 deg, peak 2.18 N*m (R_shoulder);  chain no       up -0.02 z 0.054 peak 2.18 N*m (R_shoulder);  peak load R_shoulder 100 %, longest duty>80% L_hip_pitch 2.80 s, trips ['L_hip_pitch', 'L_shoulder']
+   x3 play 3 mu 0.7 servo 0.65: roll no      front -1.00 arm err 1 deg, peak 1.77 N*m (R_shoulder);  chain no       up -0.02 z 0.054 peak 1.77 N*m (R_shoulder);  peak load R_shoulder 100 %, longest duty>80% L_shoulder 2.02 s, trips ['L_shoulder', 'R_shoulder']
+-- arm1_fold, pace x1: on the back 3/6, standing 4/6
+-- arm1_fold, pace x3: on the back 0/6, standing 2/6
