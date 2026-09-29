@@ -9,8 +9,8 @@ robot and configures it the way DESIGN.md and docs/training.md say:
 
   * smoke: both envs, zero actions for 300 control steps (6 s): finite,
     no explosion, and the home pose is a stand under the servo model;
-  * the same on a generated 17-servo plant (arms), which is what the
-    committed plant becomes when the CAD track adds the arms;
+  * the same on a generated 17-servo plant (arms, generator inertials); the
+    committed plant carries the arms too, with CAD inertials;
   * per-servo stiffness: the Plan B profile lands on exactly the six roll
     and knee servos, and the PD law applies it (x4 torque for the same
     error, kp AND kd);
@@ -46,6 +46,10 @@ ROBOT_XML = os.path.join(SIM, "bimo_biped_v6ar.xml")
 PROTO_XML = os.path.join(SIM, "bimo_biped_v5body.xml")
 ROLLS_KNEES = {f"{s}_{r}" for s in "LR"
                for r in ("hip_roll", "ankle_roll", "knee")}
+# the committed plant is the robot as drawn: 17 servos, the neck and both
+# arms held at the walking pose
+HELD17 = {"neck_yaw": 0.0, "L_shoulder": 15.0, "L_elbow": 0.0,
+          "R_shoulder": 15.0, "R_elbow": 0.0}
 
 # a precision-style policy env (the --precision preset's observation and
 # reward structure), on top of the robot preset
@@ -78,7 +82,7 @@ def arms_xml(tmp_path_factory):
 # --------------------------------------------------------------------- preset
 def test_robot_preset_resolves_against_the_plant(arms_xml):
     kw = robot_plant.robot_env_kwargs()
-    assert kw["held_joints"] == {"neck_yaw": 0.0}
+    assert kw["held_joints"] == HELD17
     assert set(kw["servo_kp_scale"]) == ROLLS_KNEES
     assert set(kw["servo_kp_scale"].values()) == {4.0}
     assert kw["hip_flex_deg"] == 120.0 and kw["payload_mass"] == 0.0
@@ -95,7 +99,7 @@ def test_robot_preset_resolves_against_the_plant(arms_xml):
 # ---------------------------------------------------------------------- smoke
 def test_smoke_cpu_robot_plant():
     env = _cpu(**_robot_kw(domain_rand=True))
-    assert env._n_servo == 13 and env._nq_act == 12
+    assert env._n_servo == 17 and env._nq_act == 12
     assert env.action_space.shape == (12,)
     assert env.observation_space.shape == (3 * (3 * 12 + 19),)   # 165
     assert "neck_yaw" not in env._act_names
@@ -179,14 +183,14 @@ def test_kp_scale_resolution():
         W.servo_kp_scale_vector(names, {"hip_rol": 4.0})
     with pytest.raises(ValueError):
         W.servo_kp_scale_vector(names, [1.0] * 12)
-    assert np.array_equal(W.servo_kp_scale_vector(names, None), np.ones(13))
+    assert np.array_equal(W.servo_kp_scale_vector(names, None), np.ones(17))
 
 
 def _one_substep_tau(kp_scale, joint, err=0.02):
     """Hoisted robot at rest, every servo on target but `joint` off by
     `err`: one physics substep of the PD law, returns the applied torques."""
     env = _cpu(xml_path=ROBOT_XML, supply_voltage=11.1, ext_cmd=True,
-               servo_kp_scale=kp_scale, held_joints={"neck_yaw": 0.0},
+               servo_kp_scale=kp_scale, held_joints=HELD17,
                domain_rand=False, latency_ms=0.0, backlash_deg=0.0,
                quantize_ticks=False, push_prob=0.0)
     env.reset(seed=0)
@@ -338,7 +342,7 @@ def test_referee_runs_on_the_robot_plant():
     assert {"recover_sit", "recover_fallen"} <= set(E.ROBOT_NOT_APPLICABLE)
     env = E.make_env(cfg, 11.0, False, ROBOT_XML)
     assert env._payload_bid is None and env.action_space.shape == (12,)
-    assert env.held_joints == {"neck_yaw": 0.0}
+    assert env.held_joints == HELD17
     reg = E._registry()
     zero = lambda obs: np.zeros(12, np.float32)                 # noqa: E731
     mass = float(env.model.body_mass.sum())
@@ -348,5 +352,4 @@ def test_referee_runs_on_the_robot_plant():
     assert np.isfinite(res["shared"]["mean_watts"])
     # the quick referee builds the same world from the same config
     renv = R.make_env(cfg)
-    assert renv.action_space.shape == (12,) and renv.held_joints == \
-        {"neck_yaw": 0.0}
+    assert renv.action_space.shape == (12,) and renv.held_joints == HELD17
