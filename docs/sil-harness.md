@@ -156,8 +156,8 @@ The item numbers are cited from code.
    `walker_env`'s joint state, and the synthesised IMU matches the env's
    observation channels.
 3. **Closed loop** (pytest, `sim/sil`, marked `slow`): `stand_10s`,
-   `line_1m` and `goal_home` through `SilActAdapter` on the suite's
-   reference run, with the python referee's seeds. Pass rates must agree
+   `line_1m` and `goal_home` through `SilActAdapter` on the deployed run,
+   with the python referee's seeds. Pass rates must agree
    within one seed per scenario; per-tick observation and action divergence
    is logged, and with the gait clocks pinned together it must be tick
    quantisation only. Any larger divergence is a bug with a name, not a
@@ -213,7 +213,7 @@ Numbered because code cites them.
    an extended frame with `foot_dx` ≠ 0 (clamped to ±0.05 m) puts it ~5·10⁴ σ
    out, so for this policy it must stay at 0. The exporter warns about frozen
    channels and `test_normalizer_frozen_channels_are_known` pins the set for
-   the suite's run.
+   the deployed run.
 3. **The policy takes its weights as a parameter.** `policy::Net` /
    `forwardNet` run an exported `.silw` through exactly the on-target
    arithmetic; `forward()` binds the same code to the generated header.
@@ -229,22 +229,31 @@ UART framing and CRC in the loop (`linkproto` has its own golden tests);
 ESP32 timing (the host build is logic-exact, not cycle-exact); MJX (the CPU
 env is the deployment referee by project convention).
 
-## Current state of the Python suite
+## One run: the deployed one
 
-`pytest sim/sil` is **not** part of the pre-push gate; the C half (pyramid
-item 1) is. The suite currently runs in seconds and has **4 failing tests out
-of 32**, all from one cause: its reference run (`SIL_RUN`, default
-`loco_v8foot`, trained on `bimo_biped_v3yaw.xml`) no longer matches what
-the library is compiled against (`obs_spec.h` and `weights.h` from
-`loco_v41rsi_b_s128r24` on `bimo_biped_v5body.xml`) or the committed goldens
-(`loco_v28crouch_s128r24`).
+The suite, the goldens and the compiled headers are **one run**, the
+deployed one (`loco_v41rsi_b_s128r24` on `bimo_biped_v5body.xml`):
 
-| failing test | what it finds |
-|---|---|
-| `test_policy_goldens_match_exported_weights` | the goldens name `loco_v28crouch_s128r24`, not `loco_v8foot` |
-| `test_env_joint_limits_match_obs_spec` | the plant's joint ranges differ from `obs_spec.h` (e.g. `R_hip_roll` lower limit −0.436 vs −0.960 rad) |
-| `test_target_reproduction_through_env` | the env clips targets to its own, narrower ranges (0.87 rad at `L_knee`) |
-| `test_lib_obs_matches_python` | the phase diverges: the library runs the deployed spec's speed clock and stand freeze, which that run's env does not |
+- The harness does not keep its own default. `harness.DEFAULT_RUN` is
+  `obs::kRunName`, read out of the generated `obs_spec.h`, so
+  `make -C firmware/host deploy-headers RUN=<run>` re-points the suite in
+  the same step (`SIL_RUN` still overrides it).
+- The goldens in `sim/sil/golden/` and the committed sidecar
+  `weights/<run>.silw.json` are exported from the same `params.pkl` as
+  `weights.h`: the sidecar's blob sha256 is the one `gen_policy_weights.py`
+  stamps into the header. `test_goldens_headers_and_harness_agree_on_one_run`
+  pins all of that from committed files alone, so a deploy that forgets to
+  re-export the goldens goes red on any clone.
+- The run's `config.json`, `params.pkl` and `.silw` are gitignored
+  (`sim/runs/`, `sim/sil/weights/*.silw`). Where they are absent, the tests
+  that need them **skip and name what to fetch**; nothing fails for want of a
+  local artifact.
 
-The closed-loop scenarios pass. Fixing this means re-pointing `SIL_RUN` and
-the goldens at one run that matches the deployed headers.
+`pytest sim/sil` is a hard gate in the pre-push hook, after the host build
+that produces the library. On the deployed run it is 33 passed in ~9 s,
+closed loop included (python vs SIL: `stand_10s` 8/8 vs 8/8, `line_1m` 1/8 vs
+1/8, `goal_home` 0/8 vs 0/8); on a clean clone, 14 passed and 19 skipped.
+
+Per-tick parity pins the gait clocks with `pin_gait_clock()` **after** the
+command is set: with the deployed spec's speed clock and stand freeze, the
+firmware's first step depends on the command (`first_clock_step()`).

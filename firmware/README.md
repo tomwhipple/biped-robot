@@ -83,7 +83,8 @@ hardware-touching files are excluded by construction.
 | `client` | the console core in `link/`: intent, frame-length rule, keymap file, MJPEG parser, recorder |
 
 The Python half of software-in-the-loop is [sim/sil/README.md](../sim/sil/README.md);
-`pytest sim/sil` is **not** part of the pre-push gate.
+`pytest sim/sil` runs in the pre-push hook after `check` (it needs the library
+`check` builds), against the deployed run.
 
 Other targets:
 
