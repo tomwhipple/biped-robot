@@ -107,23 +107,26 @@ NK = 5
 ENTRY_PROPPED = {"l_sh": 5.86, "l_el": -100.0, "l_t": 1.04, "p_hip": 0.0, "p_sh": 85.19, "p_el": -100.0, "p_t": 1.5,
                 "su_hip": -75.67, "su_sh": 80.56, "su_el": -88.05, "su_t": 1.25, "f_hip": -117.69, "f_sh": 130.25,
                 "f_el": -77.77, "f_t": 0.88, "b_t": 1.43}
-# prone -> back with the arms held straight back, folding up as it lands
-# (family stow_fold, restart 0); chain it with the recommended seat push
-ROLL_STOW_FOLD = {"stow_L_shoulder": 73.38, "stow_L_elbow": 5.37, "stow_R_shoulder": 89.77, "stow_R_elbow": -11.33,
-                  "k0_L_hip_yaw": -10.11, "k0_L_hip_roll": 1.17, "k0_L_hip_pitch": -23.5, "k0_L_knee": -19.86,
-                  "k0_L_ankle": -12.42, "k0_R_hip_yaw": 38.89, "k0_R_hip_roll": -40.47, "k0_R_hip_pitch": -99.87,
-                  "k0_R_knee": -111.09, "k0_R_ankle": 6.93, "k0_t": 1.46, "k0_h": 0.95, "k1_L_hip_yaw": 0.11,
-                  "k1_L_hip_roll": -26.62, "k1_L_hip_pitch": -100.62, "k1_L_knee": -105.08, "k1_L_ankle": 0.02,
-                  "k1_R_hip_yaw": 36.33, "k1_R_hip_roll": -39.5, "k1_R_hip_pitch": -57.86, "k1_R_knee": -11.1,
-                  "k1_R_ankle": -17.09, "k1_t": 1.85, "k1_h": 1.28, "k2_L_hip_yaw": 5.45, "k2_L_hip_roll": -7.11,
-                  "k2_L_hip_pitch": -63.54, "k2_L_knee": -17.35, "k2_L_ankle": -7.47, "k2_R_hip_yaw": -18.46,
-                  "k2_R_hip_roll": -9.57, "k2_R_hip_pitch": -35.1, "k2_R_knee": -10.07, "k2_R_ankle": -1.54,
-                  "k2_t": 1.51, "k2_h": 1.03, "k3_L_hip_yaw": -17.58, "k3_L_hip_roll": 13.09,
-                  "k3_L_hip_pitch": 10.42, "k3_L_knee": -5.81, "k3_L_ankle": -9.25, "k3_R_hip_yaw": -14.35,
-                  "k3_R_hip_roll": -34.69, "k3_R_hip_pitch": 67.19, "k3_R_knee": -30.5, "k3_R_ankle": -13.36,
-                  "k3_t": 0.91, "k3_h": 1.29, "k4_L_hip_yaw": 0.52, "k4_L_hip_roll": -7.33, "k4_L_hip_pitch": -37.84,
-                  "k4_L_knee": -3.66, "k4_L_ankle": 22.63, "k4_R_hip_yaw": -10.11, "k4_R_hip_roll": 0.02,
-                  "k4_R_hip_pitch": 79.16, "k4_R_knee": -9.36, "k4_R_ankle": -18.95, "k4_t": 1.82, "k4_h": 1.2}
+# prone -> back: the left arm braced forward-down under the chest, the right
+# arm raised back out of the way, the legs roll the body over the right side,
+# and the arms fold up as it lands (family stow_fold, PRONE_MARGIN=1
+# PRONE_ROBUST=1 search, restart 1); chain it with the recommended seat push
+ROLL_STOW_FOLD = {"stow_L_shoulder": -77.05, "stow_L_elbow": -93.1, "stow_R_shoulder": 119.45,
+                  "stow_R_elbow": -81.31, "k0_L_hip_yaw": -28.54, "k0_L_hip_roll": 35.12, "k0_L_hip_pitch": -77.14,
+                  "k0_L_knee": -20.16, "k0_L_ankle": -23.74, "k0_R_hip_yaw": 6.73, "k0_R_hip_roll": -9.57,
+                  "k0_R_hip_pitch": -31.92, "k0_R_knee": -32.55, "k0_R_ankle": 22.12, "k0_t": 1.64, "k0_h": 1.49,
+                  "k1_L_hip_yaw": 20.18, "k1_L_hip_roll": 10.98, "k1_L_hip_pitch": 66.15, "k1_L_knee": -12.64,
+                  "k1_L_ankle": -11.89, "k1_R_hip_yaw": -1.59, "k1_R_hip_roll": -12.31, "k1_R_hip_pitch": -33.02,
+                  "k1_R_knee": -106.73, "k1_R_ankle": 5.48, "k1_t": 1.7, "k1_h": 0.52, "k2_L_hip_yaw": -37.02,
+                  "k2_L_hip_roll": -14.18, "k2_L_hip_pitch": 45.55, "k2_L_knee": -44.9, "k2_L_ankle": -27.4,
+                  "k2_R_hip_yaw": 11.76, "k2_R_hip_roll": 19.06, "k2_R_hip_pitch": 63.35, "k2_R_knee": -30.6,
+                  "k2_R_ankle": 9.0, "k2_t": 1.26, "k2_h": 0.46, "k3_L_hip_yaw": -17.25, "k3_L_hip_roll": -11.9,
+                  "k3_L_hip_pitch": 29.25, "k3_L_knee": -112.24, "k3_L_ankle": -18.58, "k3_R_hip_yaw": 38.84,
+                  "k3_R_hip_roll": -11.86, "k3_R_hip_pitch": -113.84, "k3_R_knee": -83.55, "k3_R_ankle": -26.03,
+                  "k3_t": 1.19, "k3_h": 0.96, "k4_L_hip_yaw": -14.32, "k4_L_hip_roll": -21.7,
+                  "k4_L_hip_pitch": -40.11, "k4_L_knee": -35.21, "k4_L_ankle": 20.6, "k4_R_hip_yaw": 39.78,
+                  "k4_R_hip_roll": -22.47, "k4_R_hip_pitch": -117.69, "k4_R_knee": -20.1, "k4_R_ankle": 12.13,
+                  "k4_t": 1.5, "k4_h": 1.23}
 
 
 # ------------------------------------------------------------------ plant / env
@@ -721,16 +724,19 @@ def seed_12_1(family):
 
 # ------------------------------------------------------------------ verification
 CONDS = GN.GETUP_CONDS
+# which reading of the servo's load the verification enforces the cutoff on
+# (sts_servo_model: 'torque' = |tau| / stall, 'duty' = the PWM duty, stricter)
+VERIFY_LOAD = os.environ.get("PRONE_LOAD", "torque")
 
 
 def _verify_roll_job(args):
     family, x, c, ts = args
-    return run_roll(family, x, cond=c, time_scale=ts, chain=True, protection=dict(enforce=True, load="torque"))
+    return run_roll(family, x, cond=c, time_scale=ts, chain=True, protection=dict(enforce=True, load=VERIFY_LOAD))
 
 
 def _verify_catch_job(args):
     x, c, ts, kick, hd = args
-    return run_catch(x, kick=kick, cond=c, time_scale=ts, heading_deg=hd, protection=dict(enforce=True, load="torque"))
+    return run_catch(x, kick=kick, cond=c, time_scale=ts, heading_deg=hd, protection=dict(enforce=True, load=VERIFY_LOAD))
 
 
 def _prot_line(rep):
@@ -745,7 +751,7 @@ def _prot_line(rep):
 
 def _verify_entry_job(args):
     x, c, ts = args
-    return run_entry(x, cond=c, time_scale=ts, protection=dict(enforce=True, load="torque"))
+    return run_entry(x, cond=c, time_scale=ts, protection=dict(enforce=True, load=VERIFY_LOAD))
 
 
 def verify(family, x):
@@ -756,7 +762,7 @@ def verify(family, x):
     else:
         chain = "; chain = roll (ends with the arms idle) + the seat push with entry " + json.dumps(ENTRY_BEST)
     print(f"== VERIFY {family}, six conditions, pace x1 and x3 (3x slower), STS overload cutoff enforced "
-          f"(torque reading){chain}\n   x {json.dumps({k: round(v, 2) for k, v in x.items()})}", flush=True)
+          f"({VERIFY_LOAD} reading){chain}\n   x {json.dumps({k: round(v, 2) for k, v in x.items()})}", flush=True)
     if family == "entry":
         jobs = [(x, c, ts) for ts in (1.0, 3.0) for c in CONDS]
         res = GN.pmap(_verify_entry_job, jobs)
