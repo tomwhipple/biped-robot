@@ -734,9 +734,15 @@ def _verify_roll_job(args):
     return run_roll(family, x, cond=c, time_scale=ts, chain=True, protection=dict(enforce=True, load=VERIFY_LOAD))
 
 
+# the searched rise from the catch's crouch (catchrise), passed as JSON in
+# PRONE_RISE so that spawned workers see it; empty = the seat push's own rise
+RISE_BEST = json.loads(os.environ.get("PRONE_RISE", "{}"))
+
+
 def _verify_catch_job(args):
     x, c, ts, kick, hd = args
-    return run_catch(x, kick=kick, cond=c, time_scale=ts, heading_deg=hd, protection=dict(enforce=True, load=VERIFY_LOAD))
+    return run_catch(x, kick=kick, cond=c, time_scale=ts, heading_deg=hd, rise=RISE_BEST or None,
+                     protection=dict(enforce=True, load=VERIFY_LOAD))
 
 
 def _prot_line(rep):
@@ -963,7 +969,10 @@ def main():
             print(f"\n#### {tag}", flush=True)
             verify(family, x)
     elif mode == "verify":
-        if len(sys.argv) > 4:
+        if len(sys.argv) > 4 and sys.argv[2] == "catch":
+            RISE_BEST.update(json.loads(sys.argv[4])); os.environ["PRONE_RISE"] = sys.argv[4]
+            print(f"   rise {sys.argv[4]}", flush=True)
+        elif len(sys.argv) > 4:
             ENTRY_BEST.update(json.loads(sys.argv[4])); os.environ["PRONE_ENTRY"] = sys.argv[4]
         verify(sys.argv[2], json.loads(sys.argv[3]))
     elif mode == "render":
