@@ -1,11 +1,15 @@
 """The v6 (ankle-roll) design record must keep passing its own gates.
 
-docs/design-v6/2026-09-13-design-record.md states the numbers these tests pin: the plant
-loads with 12 actuators, the analytic leg IK round-trips through MuJoCo's
-forward kinematics, Gate A finds a static single-foot stance with >= 25 mm of
-CoM margin inside every joint limit, and Gate B finds no STS3215 joint short
-of the torque margin at the design cadence (the knee's speed margin is the
-known exception, covered by the STS3250 assignment).
+docs/design-v6/2026-09-13-design-record.md states the numbers these tests pin:
+the generator's default plant (the 12 leg joints + the neck, what Gates A/B
+and the IK are written against) loads with 13 actuators, the analytic leg IK
+round-trips through MuJoCo's forward kinematics, Gate A finds a static
+single-foot stance with >= 25 mm of CoM margin inside every joint limit, and
+Gate B finds no STS3215 joint short of the torque margin at the design cadence
+(the knee's speed margin is the known exception, covered by Plan B's raised
+gain). The COMMITTED plant, sim/bimo_biped_v6ar.xml, is the robot as drawn
+(17 actuators: legs, neck, two 2-DOF arms held at the walking pose) and must
+be exactly what sim/build_v6_inertia.py generates from the current CAD.
 """
 import os
 import sys
@@ -27,11 +31,41 @@ def p():
 
 
 def test_plant_loads(p):
-    """12 leg actuators + the v7 neck; mass in the modelled band."""
+    """the generator's default plant: 12 leg actuators + the v7 neck; mass in
+    the modelled band."""
     m, d = K.load(p)
     assert m.nu == 13 and m.nq == 20
     assert m.actuator(12).name == "neck_yaw"
     assert 1.4 < m.body_subtreemass[0] < 1.7
+
+
+COMMITTED = os.path.join(HERE, "..", "sim", "bimo_biped_v6ar.xml")
+ACT_ORDER = ([f"{s}_{j}" for s in "LR" for j in ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll")]
+             + ["neck_yaw", "L_shoulder", "L_elbow", "R_shoulder", "R_elbow"])
+
+
+def test_committed_plant_is_the_robot():
+    """sim/bimo_biped_v6ar.xml: 17 actuators in joint order, the shoulders'
+    rest pose at the walking hold, Plan B masses in the as-drawn band."""
+    import mujoco
+    sys.path.insert(0, os.path.join(HERE, "..", "cad", "v6"))
+    import dimensions_v6 as V
+    m = mujoco.MjModel.from_xml_path(COMMITTED)
+    assert m.nu == 17 and m.nq == 24
+    assert [m.actuator(i).name for i in range(m.nu)] == ACT_ORDER
+    for side in "LR":
+        q0 = m.qpos0[m.joint(f"{side}_shoulder").qposadr[0]]
+        assert abs(np.degrees(q0) - V.ARM_WALK_HOLD) < 1e-6
+    assert 2.0 < m.body_subtreemass[0] < 2.4
+
+
+def test_committed_plant_is_generated():
+    """the committed plant is build_v6_inertia's output for the current CAD
+    (AGENTS.md: generated files are generated): regenerate it and compare."""
+    import build_v6_inertia as BI
+    src, _ = BI.plant_xml(DesignParams(), None, bearing="C")
+    with open(COMMITTED) as f:
+        assert f.read() == src, "sim/bimo_biped_v6ar.xml is stale: run sim/build_v6_inertia.py --write"
 
 
 def test_cad_and_sim_agree(p):

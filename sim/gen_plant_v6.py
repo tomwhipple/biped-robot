@@ -126,6 +126,15 @@ class DesignParams:
                                   # at all. Adds the girdle box + both shoulder
                                   # servo boxes to the torso. Needs arm_cad_servos.
     m_girdle: float = 0.084       # shoulder_girdle_v6 print (CAD 2026-09-24: 84.0 g)
+    arm_hold: float = 0.0         # deg: the shoulders' REST pose, i.e. the joint's
+                                  # qpos0 (+ = back). The arm body is authored
+                                  # rotated back by this much with the joint's ref
+                                  # at the same angle, so the joint angle keeps its
+                                  # meaning (0 = hanging) while a reset or an env's
+                                  # default pose (walker_env reads qpos0) holds the
+                                  # arm here. The robot holds 15 deg while walking
+                                  # (cad/v6/dimensions_v6.ARM_WALK_HOLD); 0 = the
+                                  # plants every study so far was run on.
     arm_cad_servos: bool = False  # round 5 (2026-09-19): place the arm's servo
                                   # BOXES where cad/v6/arm_v6.py actually draws
                                   # them, instead of the round-2 placeholder.
@@ -295,6 +304,7 @@ class DesignParams:
                 f"shank {1e3*self.shank:.0f}  d_ankle {1e3*self.d_ankle:.0f}  "
                 f"foot {1e3*self.foot_len:.0f}x{1e3*self.foot_w:.0f}  knee {self.knee}  "
                 f"{'torso v7 (Pi 4B + head)  ' if self.torso_v7 else ''}"
+                f"{f'arms {1e3*self.arm_len:.0f}+{1e3*self.arm_fore_len:.0f} mm (shoulder + elbow), held {self.arm_hold:g} deg back  ' if self.arms and self.arm_elbow else ''}"
                 f"yaw axis {1e3*self.z_yaw_above_sole:.0f} mm, deck top "
                 f"{1e3*(self.z_yaw_above_sole+self.deck_bot+self.deck_t):.0f} mm")
 
@@ -619,7 +629,8 @@ def _arms(p: DesignParams) -> str:
             _cx = p.arm_shoulder_x - (SV_LEN / 2 - SV_AXIS_OUT)
             _cy = sgn * (abs(y) - 0.02295)
             out.append(f'\n      <geom class="servo" type="box" pos="{_f(_cx)} {_f(_cy)} {_f(zs)}" size="{_f(SV_LEN/2)} {_f(SV_T/2)} {_f(SV_WID/2)}" mass="{p.m_neck_servo}"/>')
-        arm_inner = f"""<joint name="{side}_shoulder" axis="0 1 0" range="-90 200"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
+        _ref = f' ref="{p.arm_hold:g}"' if p.arm_hold else ""
+        arm_inner = f"""<joint name="{side}_shoulder" axis="0 1 0" range="-90 200"{_ref}/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
         {_sh_servo}
         <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_len)}" size="0.006" mass="{p.arm_mass}" rgba="0.82 0.84 0.87 1"/>
         {hand}"""
@@ -637,8 +648,9 @@ def _arms(p: DesignParams) -> str:
         </body>
       </body>""")
         else:
+            _eul = f' euler="0 {p.arm_hold:g} 0"' if p.arm_hold else ""
             out.append(f"""
-      <body name="{side}_arm" pos="{_f(p.arm_shoulder_x)} {_f(y)} {_f(zs)}">
+      <body name="{side}_arm" pos="{_f(p.arm_shoulder_x)} {_f(y)} {_f(zs)}"{_eul}>
         {arm_inner}
       </body>""")
     return "".join(out)

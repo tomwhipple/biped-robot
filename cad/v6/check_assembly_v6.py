@@ -61,6 +61,23 @@ PAIRS = [
     # name or the other depending on what is actually in the assembly.
     ("neck", "head", "shoulder_girdle_v6" if A.arms_on() else "neck_collar",
      "head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)"),
+    ("neck", "head", "neck_floor", "head vs the neck servo's floor plate through +-90"),
+]
+# RELATIVELY FIXED pairs: pieces on the same link that must still keep their
+# distance -- the neck servo's floor plate (issue #90) hangs from the neck tube
+# into the deck's battery aperture, over the pack and between the boards.
+# Checked once, at the standing pose: (A, B, note, minimum distance in mm, or
+# None for a DESIGNED contact, where only the overlap volume must be ~0).
+STATIC_PAIRS = [
+    ("neck_floor", "pack_mock", "floor over the pack (the pack goes in first)", 4.0),
+    ("neck_floor", "pelvis_v7", "floor in the deck aperture, off the rear web", 0.25),
+    ("neck_floor", "pi4_mock", "floor vs the Pi 4B (aft column)", 1.0),
+    ("neck_floor", "gd_mock", "floor vs the General Driver (front column)", 1.0),
+    ("neck_floor", "servo_neck", "neck servo seated on the four pads: must not intersect", None),
+    ("neck_floor", "shoulder_girdle_v6" if A.arms_on() else "neck_collar",
+     "floor lugs screwed up to the tube bosses: must not intersect", None),
+    ("servo_neck", "shoulder_girdle_v6" if A.arms_on() else "neck_collar",
+     "neck servo in its tube: must not intersect", None),
 ]
 # pairs designed to touch at the standing pose (seat/disc contacts): checked
 # for intersection VOLUME only (must be ~0), the distance rule is waived
@@ -176,6 +193,37 @@ def piece(P, label, side, pose):
 LEG_PAIRS = [("foot_L", "foot_R"), ("ankle_link_L", "ankle_link_R"), ("shin_L", "shin_R"), ("thigh_L", "thigh_R")]
 
 
+def check_disc_screws(verbose=True):
+    """Thread engagement of every M3 disc screw in the parts' SCREWS() lists.
+    No boolean can see this: a screw that bottoms out in the disc's thin
+    flange (2.5 horn / 2.1 idler) jacks the joint apart instead of clamping
+    it, and one that is short has nothing to hold. Recomputed here from the
+    length's thread (V.DISC_SCREW_THREAD) and the stack each part declares;
+    one row per distinct (part, joint side, stack)."""
+    import importlib
+    mods = ["leg_link_v6", "ankle_link", "hip_yoke_v6", "yaw_carrier_v6", "head"]
+    if A.arms_on():
+        mods.append("arm_v6")
+    fails, seen = 0, {}
+    for mod in mods:
+        for sc in importlib.import_module(mod).SCREWS():
+            if "stack" not in sc:
+                continue
+            L = int(round(sc["length"]))
+            eng = V.DISC_SCREW_THREAD[L] - sc["stack"]
+            ok = D.DISC_THREAD_MIN_ENGAGE - 1e-9 <= eng <= sc["flange"] + 1e-9 and "washer" not in sc["kind"]
+            key = (mod, sc["name"].rsplit("_", 2)[0] if mod != "arm_v6" else sc["name"].rsplit("_", 1)[0], L, round(sc["stack"], 2))
+            n, ok0 = seen.get(key, (0, True))
+            seen[key] = (n + 1, ok0 and ok)
+    for (mod, joint, L, stack), (n, ok) in seen.items():
+        eng = V.DISC_SCREW_THREAD[L] - stack
+        fails += 0 if ok else 1
+        if verbose:
+            print(f"{'discscrew':12s} {mod:22s} {joint:22s} {n:3d} x M3x{L}  stack {stack:4.2f}  engages {eng:4.2f}"
+                  f"  {'ok' if ok else 'FAIL'}")
+    return fails
+
+
 def pieces_by_label(comp):
     return {c.label: c for c in comp.children}
 
@@ -229,6 +277,23 @@ def main(argv=None):
         ok = vol < 0.5 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
         fails += 0 if ok else 1
         print(f"{joint:12s} {la.format(s=a.side):22s} {lb.format(s=a.side):22s} {vol:11.2f} {dist:9.2f} {ang if ang is None else round(ang,1)!s:>7s}  {'ok' if ok else 'FAIL'}   {note}")
+    # disc-screw thread engagement (no pose involved)
+    if not a.joint or a.joint == "screws":
+        fails += check_disc_screws()
+    # relatively fixed pairs, at the standing pose
+    if not a.joint or a.joint == "static":
+        P0 = pieces_by_label(A.robot({}))
+        for la, lb, note, need in STATIC_PAIRS:
+            pa, pb = P0[la], P0[lb]
+            try:
+                vol = (pa & pb).volume
+            except Exception:  # noqa: BLE001
+                vol = 0.0
+            dist = pa.distance_to(pb)
+            ok = vol < 0.5 and (need is None or dist >= need - 1e-6)
+            fails += 0 if ok else 1
+            print(f"{'static':12s} {la:22s} {lb:22s} {vol:11.2f} {dist:9.2f} {'':>7s}  {'ok' if ok else 'FAIL'}   {note}"
+                  + ("" if need is None else f" (>= {need} mm)"))
     # inter-leg: standing, adducted (roll toward each other), and crossed at the swing
     for la, lb in LEG_PAIRS:
         if a.joint and a.joint != "interleg":

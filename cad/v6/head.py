@@ -293,10 +293,14 @@ def mock_camera():
 # ----------------------------------------------------------------------------
 def SCREWS():
     s = []
+    # disc screws through the base plate, length by the stack (V.disc_screw)
+    stack = V.HEAD_BASE_T
+    length, eng, flange = V.disc_screw(stack, "horn")
     for ang in (45, 135, 225, 315):
         x, y = BCD_R * math.cos(math.radians(ang)), BCD_R * math.sin(math.radians(ang))
-        s.append(dict(name=f"horn_{ang}", kind="M3x6 machine (into horn)",
-                      axis=(0, 0, -1), pos=(x, y, 0.0), length=6.0))
+        s.append(dict(name=f"horn_{ang}", kind=f"M3x{length} button head (into horn)",
+                      axis=(0, 0, -1), pos=(x, y, stack), length=float(length),
+                      stack=stack, engage=eng, flange=flange))
     for i, (fy, fz) in enumerate(FACE_SCREW_POS):
         s.append(dict(name=f"face_{i}", kind="M2.5x8 self-tap, flat head",
                       axis=(-1, 0, 0), pos=(FRONT_X + D.PLATE, fy, fz), length=8.0))

@@ -1,13 +1,31 @@
 """v6 part set: export every printed part (STL + STEP), the bed check, the mass
 rollup and the per-segment masses the sim plant needs.
 
-    .venv/bin/python cad/v6/parts_v6.py            # everything
-    .venv/bin/python cad/v6/parts_v6.py --only foot_L head
+    .venv/bin/python cad/v6/parts_v6.py              # the robot: every part + docs/design-v6/parts_v6_rollup.txt
+    .venv/bin/python cad/v6/parts_v6.py --no-export  # the rollup only (builds, measures, writes nothing else)
+    .venv/bin/python cad/v6/parts_v6.py --only foot_L head_shell
 
-PARTS lists (name, builder, qty, print note). The unchanged hip parts come
-from v5 (cad/parts.py); the new ones from their modules in this directory.
-Every entry writes cad/v6/stl/<name>.stl and cad/v6/step/<name>.step from the
-same solid in the same run (v5 rule: the STEPs went stale once).
+The defaults build THE ROBOT TO PRINT (issue #76):
+    ARMS=1 (default) | 0          the shoulder girdle + both arms, and the pelvis
+                                  with the girdle's deck pilots; ARMS=0 is the
+                                  armless variant (neck_collar, no pilots), which
+                                  is not a print target (cad/PRINT_LIST.md).
+    YAW_BEARING_VARIANT=C|A|E     the hip-yaw bearing seat in the pelvis and the
+                                  yaw carriers (E adds a cap and a retainer per
+                                  hip). C is a PLACEHOLDER: the choice is open
+                                  (issue #75), so the pelvis and carriers are
+                                  provisional whatever this says.
+    HIP_YOKE_VARIANT=single|split the one-print hip yoke (default) or the legacy
+                                  bolted yoke_roll + yoke_pitch_v6 pair.
+    SERVO_PLAN=B (default) | 3250 Plan B is 17 x STS3215 (DESIGN.md section 4);
+                                  3250 puts STS3250s (same case, 74.5 g) at the
+                                  six roll + knee joints, the fallback.
+
+PARTS lists (name, builder, qty, print note). Every entry writes
+cad/v6/stl/<name>.stl and cad/v6/step/<name>.step from the same solid in the
+same run (v5 rule: the STEPs went stale once). REFERENCE solids (not printed,
+used by the assembly, the checks and the sim plant) are exported the same way
+but are not in the print total.
 """
 from __future__ import annotations
 
@@ -24,22 +42,67 @@ import dimensions_v6 as V  # noqa: E402
 import parts as v5  # noqa: E402
 D = V.D
 
+ROLLUP = os.path.join(HERE, "..", "..", "docs", "design-v6", "parts_v6_rollup.txt")
 
-def _lazy(mod, fn, *a):
+
+def _on(name, default):
+    return os.environ.get(name, default) not in ("", "0", "no", "false", "off")
+
+
+ARMS = _on("ARMS", "1")
+BEARING = os.environ.get("YAW_BEARING_VARIANT", "C")
+HIP_YOKE = os.environ.get("HIP_YOKE_VARIANT", "single")
+SERVO_PLAN = os.environ.get("SERVO_PLAN", "B")
+if BEARING not in ("A", "C", "E"):
+    raise SystemExit(f"YAW_BEARING_VARIANT={BEARING!r}: expected A, C or E")
+if SERVO_PLAN not in ("B", "3250"):
+    raise SystemExit(f"SERVO_PLAN={SERVO_PLAN!r}: expected B or 3250")
+
+
+def _lazy(mod, fn, *a, **k):
     def f():
-        return getattr(__import__(mod), fn)(*a)
+        return getattr(__import__(mod), fn)(*a, **k)
     f.__name__ = f"{mod}.{fn}"
     return f
 
 
+PROVISIONAL = "PROVISIONAL, waits on #75"
+if BEARING == "E":
+    _pelvis = _lazy("yaw_retention_optE", "pelvis_optE", arm_mounts=ARMS)
+    _carrier = ("yaw_carrier_v6_optE", _lazy("yaw_retention_optE", "carrier_optE"))
+elif BEARING == "A":
+    _pelvis = _lazy("pelvis_v7", "pelvis_v7", bearing_variant="A", arm_mounts=ARMS)
+    _carrier = ("yaw_carrier_v6_optA", _lazy("yaw_carrier_v6_optA", "yaw_carrier_v6_optA"))
+else:
+    _pelvis = _lazy("pelvis_v7", "pelvis_v7", bearing_variant="C", arm_mounts=ARMS)
+    _carrier = ("yaw_carrier_v6", _lazy("yaw_carrier_v6", "yaw_carrier_v6"))
+
+# the pelvis's file name carries the variant, so a variant export never
+# overwrites the robot's own pelvis_v7.stl (the default build)
+PELVIS = "pelvis_v7" + ("" if BEARING == "C" else f"_opt{BEARING}") + ("" if ARMS else "_armless")
+
 PARTS = [
     # name, builder, qty, note
-    ("pelvis_v7", _lazy("pelvis_v7", "pelvis_v7"), 1, "one print, deck-top-down"),
-    ("head", _lazy("head", "head"), 1, "neck horn carrier + shell"),
-    ("neck_collar", _lazy("neck_collar", "neck_collar"), 1, "collar round the neck servo, flange-down"),
-    ("yaw_carrier_v6", _lazy("yaw_carrier_v6", "yaw_carrier_v6"), 2, "v5 carrier + hip-yaw bearing boss (study-yaw-bearing.md)"),
-    ("yoke_roll", v5.yoke_roll, 2, "v5 part, unchanged (slicer supports)"),
-    ("yoke_pitch_v6", _lazy("yoke_pitch_v6", "yoke_pitch_v6"), 2, "v5 clevis + flange chamfer for hip flexion 125 (slicer supports)"),
+    (PELVIS, _pelvis, 1,
+     f"one print, deck-top-down; bearing {BEARING}{', girdle pilots' if ARMS else ''}; {PROVISIONAL}"),
+    ("head_shell", _lazy("head", "head_shell"), 1, "neck horn carrier + shell, base down"),
+    ("head_face", _lazy("head", "head_face"), 1, "camera face plate, flat"),
+    ("neck_floor", _lazy("neck_floor", "neck_floor"), 1, "the neck servo's seat, flat (#90)"),
+    (_carrier[0], _carrier[1], 2, f"hip-yaw carrier, bearing {BEARING}; {PROVISIONAL}"),
+]
+if BEARING == "E":
+    PARTS += [
+        ("yaw_cap_optE", _lazy("yaw_retention_optE", "cap"), 2, f"option E inner-race cap, flat; {PROVISIONAL}"),
+        ("yaw_retainer_optE", _lazy("yaw_retention_optE", "retainer", V.HIP_SEP / 2), 2,
+         f"option E outer-race retainer, flat (the same part both hips); {PROVISIONAL}"),
+    ]
+if HIP_YOKE == "single":
+    PARTS.append(("hip_yoke_v6", _lazy("hip_yoke_v6", "hip_yoke_v6"), 2,
+                  "ONE PRINT: roll + pitch clevis fused, no flange bolts (on edge; supports + brim)"))
+else:
+    PARTS += [("yoke_roll", v5.yoke_roll, 2, "legacy split yoke (slicer supports)"),
+              ("yoke_pitch_v6", _lazy("yoke_pitch_v6", "yoke_pitch_v6"), 2, "legacy split yoke (slicer supports)")]
+PARTS += [
     ("leg_link_v6", _lazy("leg_link_v6", "leg_link_v6"), 4, "thigh + shin, 110 mm, box section"),
     ("ankle_link", _lazy("ankle_link", "ankle_link"), 2, "pitch grip + X fork onto the roll servo"),
     ("foot_L", _lazy("foot_v6", "foot", "L"), 1, "asymmetric sole, mirrored pair"),
@@ -47,36 +110,28 @@ PARTS = [
     ("sole_tpu_L", _lazy("foot_v6", "sole_tpu", "L"), 1, "TPU 95A"),
     ("sole_tpu_R", _lazy("foot_v6", "sole_tpu", "R"), 1, "TPU 95A"),
 ]
+if ARMS:
+    PARTS += [
+        ("shoulder_girdle_v6", _lazy("shoulder_girdle_v6", "shoulder_girdle_v6"), 1,
+         "ONE PRINT: both shoulder pods + the neck tube + the trapezius webs (base down)"),
+        ("arm_upper_v6_L", _lazy("arm_v6", "arm_upper_v6", "L"), 1, "shoulder horn -> elbow fork, 160 mm (on its back)"),
+        ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L"),
+        ("arm_fore_v6_L", _lazy("arm_v6", "arm_fore_v6", "L"), 1, "elbow grip -> hand knuckle, 160 mm (on its back)"),
+        ("arm_fore_v6_R", _lazy("arm_v6", "arm_fore_v6", "R"), 1, "mirror of _L"),
+    ]
+else:
+    PARTS.append(("neck_collar", _lazy("neck_collar", "neck_collar"), 1,
+                  "ARMS=0 only; NOT a print target (its flange pilots miss the deck)"))
 
-# The hip yoke is ONE print, hip_yoke_v6 (default since 2026-09-24, the
-# assembly_v6.hip_yoke_variant switch); HIP_YOKE_VARIANT=split rolls up the
-# legacy bolted pair instead.
-if os.environ.get("HIP_YOKE_VARIANT", "single") == "single":
-    _i = next(i for i, r in enumerate(PARTS) if r[0] == "yoke_roll")
-    PARTS = [r for r in PARTS if r[0] not in ("yoke_roll", "yoke_pitch_v6")]
-    PARTS.insert(_i, ("hip_yoke_v6", _lazy("hip_yoke_v6", "hip_yoke_v6"), 2,
-                      "ONE PRINT: roll + pitch clevis fused, no flange bolts (on edge like yoke_roll; supports + brim)"))
+# not printed: solids the assembly, the checks and the sim plant read
+REFERENCE = [
+    ("head", _lazy("head", "head"), "head_shell + head_face fused (mass, assembly, plant)"),
+]
 
-# ARMS=1 (the assembly_v6.arms_on switch): the two get-up arms. Round 5 (the
-# shoulder girdle, 2026-09-19) made this 3 designs / 5 prints instead of 3/6:
-# the two per-side shoulder cradles became ONE symmetric girdle that also
-# absorbs the neck collar. The arm LINKS are still a MIRROR PAIR, so each is
-# two part numbers. Default (armless) rollup unchanged.
-if os.environ.get("ARMS", "0") not in ("", "0", "no", "false", "off"):
-    PARTS = [r for r in PARTS if r[0] != "neck_collar"]   # absorbed by the girdle
-    for _n, _b, _q, _note in [
-            ("shoulder_girdle_v6", _lazy("shoulder_girdle_v6", "shoulder_girdle_v6"), 1,
-             "ONE PRINT: both shoulder pods + the neck tube + the trapezius webs (base down)"),
-            ("arm_upper_v6_L", _lazy("arm_v6", "arm_upper_v6", "L"), 1, "shoulder horn -> elbow fork, 160 mm (on its back)"),
-            ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L"),
-            ("arm_fore_v6_L", _lazy("arm_v6", "arm_fore_v6", "L"), 1, "elbow grip -> hand knuckle, 160 mm (on its back)"),
-            ("arm_fore_v6_R", _lazy("arm_v6", "arm_fore_v6", "R"), 1, "mirror of _L"),
-    ]:
-        PARTS.append((_n, _b, _q, _note))
-
-SERVO_COUNT = {"STS3250": 6, "STS3215": 7}
-if os.environ.get("ARMS", "0") not in ("", "0", "no", "false", "off"):
-    SERVO_COUNT = dict(SERVO_COUNT, STS3215=SERVO_COUNT["STS3215"] + V.ARM_SERVO_COUNT)
+# servos: 12 legs + the neck (+ 4 in the arms); Plan B = all STS3215
+N_SERVOS = 12 + 1 + (V.ARM_SERVO_COUNT if ARMS else 0)
+N_3250 = 2 * len(V.SERVO_3250_JOINTS) if SERVO_PLAN == "3250" else 0
+SERVO_COUNT = {"STS3215": N_SERVOS - N_3250, "STS3250": N_3250}
 
 
 def mass_g(solid, tpu=False):
@@ -84,15 +139,27 @@ def mass_g(solid, tpu=False):
     return solid.volume * rho * D.PRINT_MASS_FACTOR
 
 
+BEARING_MASS_G = 2 * (V.YAW_BRG_MASS_G if BEARING == "C" else V.YAWA_BRG_MASS_G)   # two hip-yaw bearings
+
+
+def servo_mass_g():
+    return SERVO_COUNT["STS3215"] * V.SERVO_MASS_3215 + SERVO_COUNT["STS3250"] * V.SERVO_MASS_3250
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", nargs="*", default=None)
+    ap.add_argument("--no-export", action="store_true", help="build and measure; write the rollup only")
+    ap.add_argument("--rollup", default=None,
+                    help="where to write the rollup (default: docs/design-v6/parts_v6_rollup.txt, "
+                         "written only for the default build)")
     a = ap.parse_args(argv)
+    export = not a.no_export
     os.makedirs(os.path.join(HERE, "stl"), exist_ok=True)
     os.makedirs(os.path.join(HERE, "step"), exist_ok=True)
     total_print = 0.0
     rows = []
-    for name, fn, qty, note in PARTS:
+    for name, fn, qty, note in PARTS + [(n, f, 0, note) for n, f, note in REFERENCE]:
         if a.only and name not in a.only:
             continue
         try:
@@ -105,19 +172,38 @@ def main(argv=None):
         bed_ok = dims[0] <= 250 and dims[1] <= D.BED and dims[2] <= D.BED
         m = mass_g(s, tpu=name.startswith("sole_tpu"))
         total_print += m * qty
-        export_stl(s, os.path.join(HERE, "stl", f"{name}.stl"))
-        export_step(s, os.path.join(HERE, "step", f"{name}.step"))
-        rows.append((name, qty, m, dims, ("BED-OK" if bed_ok else "** TOO BIG **") + "  " + note))
-    print(f"{'part':14s} {'qty':>3s} {'g each':>7s} {'bbox (mm)':>22s}  note")
+        if export:
+            export_stl(s, os.path.join(HERE, "stl", f"{name}.stl"))
+            export_step(s, os.path.join(HERE, "step", f"{name}.step"))
+        tag = ("BED-OK" if bed_ok else "** TOO BIG **") if qty else "reference, not printed"
+        rows.append((name, qty, m, dims, tag + "  " + note))
+    out = []
+    out.append(f"build: ARMS={int(ARMS)}  YAW_BEARING_VARIANT={BEARING}  HIP_YOKE_VARIANT={HIP_YOKE}  SERVO_PLAN={SERVO_PLAN}")
+    out.append(f"{'part':20s} {'qty':>3s} {'g each':>7s} {'bbox (mm)':>22s}  note")
     for name, qty, m, dims, note in rows:
         if m is None:
-            print(f"{name:14s} {qty:3d} {'-':>7s} {'-':>22s}  {note}")
+            out.append(f"{name:20s} {qty:3d} {'-':>7s} {'-':>22s}  {note}")
         else:
-            print(f"{name:14s} {qty:3d} {m:7.1f} {dims[0]:6.1f}x{dims[1]:6.1f}x{dims[2]:6.1f}  {note}")
-    servos = SERVO_COUNT["STS3250"] * V.SERVO_MASS_3250 + SERVO_COUNT["STS3215"] * V.SERVO_MASS_3215
+            out.append(f"{name:20s} {qty:3d} {m:7.1f} {dims[0]:6.1f}x{dims[1]:6.1f}x{dims[2]:6.1f}  {note}")
     elec = V.BATT_MASS + V.PI4_MASS + V.GD_MASS + V.PWR_MASS + V.CAM3_MASS + V.WIRING_MASS
-    print(f"\nprinted total {total_print:.0f} g; servos {servos:.0f} g ({SERVO_COUNT}); pack + boards + wiring {elec:.0f} g; "
-          f"robot ~{total_print + servos + elec:.0f} g")
+    servos = servo_mass_g()
+    counts = ", ".join(f"{n} x {k}" for k, n in SERVO_COUNT.items() if n)
+    out.append("")
+    brg = "6811-2RS" if BEARING == "C" else "6810-2RS"
+    out.append(f"printed total {total_print:.0f} g; servos {servos:.0f} g ({counts}); "
+               f"hip-yaw bearings {BEARING_MASS_G:.0f} g (2 x {brg}); "
+               f"pack + boards + wiring {elec:.0f} g; robot ~{total_print + servos + BEARING_MASS_G + elec:.0f} g"
+               + ("" if not a.only else "  (partial: --only)"))
+    out.append("masses: build123d volume x PETG 1.27 g/cm3 x 0.90 print factor (TPU 1.21 g/cm3), "
+               "before supports and brims; bought parts at catalogue mass")
+    text = "\n".join(out)
+    print(text)
+    default_build = ARMS and BEARING == "C" and HIP_YOKE == "single" and SERVO_PLAN == "B"
+    path = a.rollup or (ROLLUP if default_build else None)
+    if path and not a.only:
+        with open(path, "w") as f:
+            f.write(text + "\n")
+        print("wrote", os.path.relpath(path))
 
 
 if __name__ == "__main__":

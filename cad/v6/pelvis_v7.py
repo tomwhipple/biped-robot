@@ -99,10 +99,14 @@ PI_SLOT = (2 * PI_CHAN_HY, 14.0)                # slide channel exactly, no sliv
 
 def pelvis_v7(bearing_variant="C", arm_mounts=False):
     """THE WHOLE V7 TORSO. bearing_variant selects the hip-yaw bearing seat
-    (docs/design-v6/study-yaw-bearing.md): "C" (default, unchanged) is the
-    2026-09-17 baseline, a 6811-2RS wrapping the carrier's whole rectangular
-    plate+wall footprint. "A" is the round-hub option (2026-09-18 round 2,
-    same axial envelope, 6810-2RS around the roll servo's own case corner).
+    (docs/design-v6/study-yaw-bearing.md; the choice is open, issue #75): "C"
+    (the code's placeholder default) is a 6811-2RS wrapping the carrier's
+    whole rectangular plate+wall footprint; "A" is the round hub (6810-2RS
+    around the roll servo's own case corner, same axial envelope). Option E
+    is A plus screwed race retention: yaw_retention_optE.pelvis_optE() builds
+    it on top of this function's "A". arm_mounts adds the shoulder girdle's
+    ten deck pilots (the robot's build: parts_v6 and assembly_v6 pass it
+    whenever the arms are on, which is the default).
     See module docstring for the layout; z bands,
     front to back:
 
@@ -112,8 +116,9 @@ def pelvis_v7(bearing_variant="C", arm_mounts=False):
                     two low rails, the power boards forward of the pack
       z [-72, -5]   (beside the cell block in x) the GD column (forward)
                     and the Pi column (aft) -- full height, slide-in boards
-      z [0, -5]     the deck: apertures, board slots, cable slots, the neck
-                    well
+      z [0, -5]     the deck: the battery aperture, board slots, cable
+                    slots (the neck servo is seated by neck_floor.py, in
+                    the aperture, not by the deck)
 
     CLEARANCE IS Z-SEPARATION, as in v5 and v6: everything here stays above
     V.TORSO_FLOOR_Z (-72.80), 1.0 mm over the yaw carrier's horn-plate top --
@@ -392,8 +397,10 @@ def pelvis_v7(bearing_variant="C", arm_mounts=False):
     # wider than what is actually hollow underneath it exposes that wall's
     # own top face with nothing above it in the print, which is exactly the
     # "island"/"beam" the first printability pass caught here.
-    aper_hy = hw - D.WALL
-    p -= box(V.BATT_X[0] - 0.5, min(V.PWR_X[1] + 0.5, cx1), -aper_hy, aper_hy,
+    # (dimensions_v6.DECK_APER_X / DECK_APER_HY: the neck floor is sized
+    # against the same numbers)
+    assert abs(V.DECK_APER_X[1] - min(V.PWR_X[1] + 0.5, cx1)) < 1e-9 and abs(V.DECK_APER_HY - (hw - D.WALL)) < 1e-9
+    p -= box(V.DECK_APER_X[0], V.DECK_APER_X[1], -V.DECK_APER_HY, V.DECK_APER_HY,
              zd, 1)
     # GD board slide slot
     gd_slot_cx = (V.GD_PCB_X0 + V.GD_FRONT_X) / 2 - 1.0
@@ -434,57 +441,20 @@ def pelvis_v7(bearing_variant="C", arm_mounts=False):
     _deck_pocket(V.PI_AFT_X + 3, V.CELL_X[0] - 3, PI_CHAN_HY + 4, hw - 8, (PI_CHAN_HY + hw) / 2)
     _deck_pocket(V.PI_AFT_X + 3, V.CELL_X[0] - 3, -(hw - 8), -(PI_CHAN_HY + 4), -(PI_CHAN_HY + hw) / 2)
 
-    # neck well: a shallow pocket in the deck TOP, same footprint as one yaw
-    # cell (same servo, same fit), 4x M2.5 self-tap UP into the case's
-    # idler-face rows, counterbore opening DOWN (driven from inside, through
-    # the battery aperture, with the pack out); lead relief slot for the
-    # servo's own connector trench.
-    nx0, nx1 = V.NECK_WELL_X
-    nhy = V.NECK_WELL_HW[0]
-    p -= box(nx0, nx1, -nhy, nhy, -V.NECK_WELL_D, 1)
-    for xrow in D.YAW_CASE_HOLES_IDLER:
-        for s in (1, -1):
-            p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zd - 1, -V.NECK_WELL_D + 1,
-                       -xrow, s * D.CASE_HOLE_LAT)
-            p -= csk_z(-xrow, s * D.CASE_HOLE_LAT, zd, -1)
-    p -= box(-D.SV_CONN_L[1], -D.SV_CONN_L[0], -D.SV_CONN_HW, D.SV_CONN_HW,
-             -V.NECK_WELL_D - 0.1, -V.NECK_WELL_D + 1.3)
+    # ---- NECK: no seat here. The neck servo's whole footprint lies inside
+    # the battery aperture above, which the pack has to lift out through, so
+    # the deck has nothing to seat it on. Its seat is neck_floor.py: a plate
+    # screwed into the neck tube (the girdle's, or neck_collar's) that drops
+    # into this aperture at the old well depth (issue #90).
 
-    # ---- NECK COLLAR: now a SEPARATE printed part (cad/v6/neck_collar.py) --
-    # a one-piece collar rising 33 mm above the deck made the collar's own
-    # mouth the model's new z-extreme, which flips which end of a
-    # deck-top-down print touches the bed: the ENTIRE housing (97 x 121 mm)
-    # read as a floating island 33 mm above a tiny collar footprint (a real
-    # printability failure, not a cosmetic finding -- see the prior report).
-    # Splitting it off keeps this part's own orientation untouched. What
-    # stays here: the well, the 4 stator screws, the lead slot (all
-    # unchanged, above) -- plus 4 M2.5 pilot holes for the collar's flange,
-    # at the SAME corner positions neck_collar.py uses (NECK_FLANGE_HOLE_XY
-    # below), 2.05 mm dia x 4.5 mm deep into the 5 mm deck from the top.
-    NECK_FLANGE_MARGIN = 8.0
-    NECK_FLANGE_HOLE_INSET = 4.0
-    nfx = (V.NECK_WELL_X[0] - D.WALL - NECK_FLANGE_HOLE_INSET,
-          V.NECK_WELL_X[1] + D.WALL + NECK_FLANGE_HOLE_INSET)
-    nfy = V.NECK_WELL_HW[0] + D.WALL + NECK_FLANGE_HOLE_INSET
-    NECK_FLANGE_HOLE_XY = [(nfx[0], nfy), (nfx[1], nfy), (nfx[0], -nfy), (nfx[1], -nfy)]
-    for hx, hy in NECK_FLANGE_HOLE_XY:
-        p -= cyl_z(2.05 / 2, -4.5, 0.5, hx, hy)
-
-    # ---- ARM MOUNTS (arm_mounts=True only; docs/design-v6/arms.md) ----------
-    # The get-up arms (cad/v6/arm_v6.py) bolt their shoulder cradles straight
-    # to this deck, with EXACTLY the interface the neck collar above already
-    # uses: M2.5 self-tap into blind 2.05 x 4.5 pilots in the 5 mm deck, driven
-    # from the top. 4 per side, positions in dimensions_v6.ARM_PILOT_XY, mirrored
-    # in y -- and every one of them is checked against this solid by
-    # arm_v6.check_deck_pilots(), because the deck around here is cut by the Pi
-    # slide slot, the leg-bus slots and the R3 top fillet.
-    #
-    # OPT-IN, and it stays opt-in: adding 8 blind holes changes the printed
-    # pelvis, and the default build has to stay byte-identical to what has
-    # already been checked, rendered and (eventually) printed. assembly_v6
-    # passes arm_mounts=arms_on() and nothing else sets it. The flip side is
-    # real and belongs in the sign-off: A PELVIS PRINTED WITHOUT THIS FLAG
-    # CANNOT TAKE THE ARMS WITHOUT BEING DRILLED OR REPRINTED.
+    # ---- ARM MOUNTS (docs/design-v6/arms.md) ------------------------------
+    # The shoulder girdle bolts to this deck with M2.5 self-taps into blind
+    # 2.05 x 4.5 pilots in the 5 mm deck, driven from the top. Positions are
+    # dimensions_v6.GIRDLE_PILOT_XY (both sides), each verified against THIS
+    # solid by shoulder_girdle_v6.check_deck_pilots(), because the deck around
+    # here is cut by the Pi slide slot, the battery aperture, the GD lead slot
+    # and the R3 top fillet. A pelvis built with arm_mounts=False (the
+    # ARMS=0 build) cannot take the girdle without being drilled.
     if arm_mounts:
         # blind pilots for shoulder_girdle_v6. The list is already both sides
         # (dimensions_v6.GIRDLE_PILOT_XY) and every entry is verified against
@@ -692,11 +662,6 @@ def SCREWS():
         s.append(dict(name=f"pwr_boss_{py:+.0f}", kind="M2.5x8 self-tap, pan head",
                       axis=(0, 0, -1),
                       pos=((V.PWR_X[0] + V.PWR_X[1]) / 2, py, zc + 6.0), length=8.0))
-    for xrow in D.YAW_CASE_HOLES_IDLER:
-        for sgn in (1, -1):
-            s.append(dict(name=f"neck_stator_{xrow:.0f}_{sgn:+d}",
-                          kind="M2.5x8 self-tap, flat head", axis=(0, 0, 1),
-                          pos=(-xrow, sgn * D.CASE_HOLE_LAT, zd), length=8.0))
     return s
 
 

@@ -368,8 +368,11 @@ def SCREWS():
     direction a driver approaches from), length}.
 
     6x M2.5x8 flat-head grip screws (case rows, byte-identical to v5's
-    leg_link_screws()) + 4x M3x6 horn pad screws + 4x M3x8 idler pad screws
-    with a thin washer (lower joint, at z = -V.LL_DROP)."""
+    leg_link_screws()) + 4 horn pad and 4 idler pad disc screws on the lower
+    joint (z = -V.LL_DROP), their length chosen by the stack under the head
+    (V.disc_screw: M3x5 on the 3.0 horn pad, M3x6 on the 3.6 idler pad, no
+    washers). `stack` / `engage` / `flange` are what check_assembly_v6's
+    disc-screw audit verifies."""
     t = D.GRIP_PLATE_T
     drop = -V.LL_DROP
     hy1 = D.SV_HORN_FACE + D.PLATE
@@ -388,13 +391,16 @@ def SCREWS():
                       pos=(lx, igo, -D.CASE_HOLES_BOT[1]), axis=(0.0, -1.0, 0.0),
                       length=8.0))
     r = D.BCD / 2
+    h_stack, i_stack = hy1 - D.SV_HORN_FACE, D.SV_IDLER_FACE - iy0      # 3.0, 3.6
+    hl, he, hf = V.disc_screw(h_stack, "horn")
+    il, ie, iflg = V.disc_screw(i_stack, "idler")
     for dx, dz in ((r, 0), (-r, 0), (0, r), (0, -r)):
         s.append(dict(name=f"horn_pad_{dx:+.0f}_{dz:+.0f}",
-                      kind="M3x6 button head", pos=(dx, hy1, drop + dz),
-                      axis=(0.0, 1.0, 0.0), length=6.0))
+                      kind=f"M3x{hl} button head", pos=(dx, hy1, drop + dz),
+                      axis=(0.0, 1.0, 0.0), length=float(hl), stack=h_stack, engage=he, flange=hf))
         s.append(dict(name=f"idler_pad_{dx:+.0f}_{dz:+.0f}",
-                      kind="M3x8 button head + thin washer", pos=(dx, iy0, drop + dz),
-                      axis=(0.0, -1.0, 0.0), length=8.0))
+                      kind=f"M3x{il} button head", pos=(dx, iy0, drop + dz),
+                      axis=(0.0, -1.0, 0.0), length=float(il), stack=i_stack, engage=ie, flange=iflg))
     return s
 
 

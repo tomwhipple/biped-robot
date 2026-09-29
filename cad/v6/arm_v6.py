@@ -424,22 +424,31 @@ def SCREWS():
     s = []
     # the shoulder's own fasteners (deck pilots + the four case screws) moved
     # to shoulder_girdle_v6.SCREWS() with the mount itself.
+    # disc screws, length by the stack under the head (V.disc_screw), no
+    # washers. The shoulder horn plate sits on a 1.0 mm seating boss, so its
+    # stack is 4.0 (plate + boss), not the bare 3.0 of the elbow's horn tine.
+    sh_stack = D.PLATE + D.HORN_BOSS_H                                   # 4.0
+    el_h_stack = D.PLATE                                                 # 3.0
+    el_i_stack = D.SV_IDLER_FACE - (D.IDLER_ARM_INNER - D.PLATE)        # 3.6
+    sh = V.disc_screw(sh_stack, "horn")
+    eh = V.disc_screw(el_h_stack, "horn")
+    ei = V.disc_screw(el_i_stack, "idler")
     for i in range(4):
         ang = math.radians(90 * i)
         s.append(dict(name=f"shoulder_horn_{i}", frame="arm_upper",
-                      kind="M3x6 machine screw into the horn disc",
+                      kind=f"M3x{sh[0]} button head into the shoulder horn disc",
                       pos=(D.BCD / 2 * math.sin(ang), D.PLATE / 2, D.BCD / 2 * math.cos(ang)),
-                      axis=(0, -1, 0), length=6.0))
+                      axis=(0, -1, 0), length=float(sh[0]), stack=sh_stack, engage=sh[1], flange=sh[2]))
         s.append(dict(name=f"elbow_horn_{i}", frame="arm_upper",
-                      kind="M3x6 machine screw into the elbow horn disc",
+                      kind=f"M3x{eh[0]} button head into the elbow horn disc",
                       pos=(D.BCD / 2 * math.sin(ang), D.SV_HORN_FACE + D.PLATE,
                            -V.ARM_UPPER + D.BCD / 2 * math.cos(ang)),
-                      axis=(0, -1, 0), length=6.0))
+                      axis=(0, -1, 0), length=float(eh[0]), stack=el_h_stack, engage=eh[1], flange=eh[2]))
         s.append(dict(name=f"elbow_idler_{i}", frame="arm_upper",
-                      kind="M3x10 machine screw + washer into the elbow idler disc",
+                      kind=f"M3x{ei[0]} button head into the elbow idler disc",
                       pos=(D.BCD / 2 * math.sin(ang), D.IDLER_ARM_INNER - D.PLATE,
                            -V.ARM_UPPER + D.BCD / 2 * math.cos(ang)),
-                      axis=(0, 1, 0), length=10.0))
+                      axis=(0, 1, 0), length=float(ei[0]), stack=el_i_stack, engage=ei[1], flange=ei[2]))
     for zrow in D.CASE_HOLES_TOP:
         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
             s.append(dict(name=f"elbow_grip_horn_{zrow:.0f}_{lx:+.0f}", frame="arm_fore",

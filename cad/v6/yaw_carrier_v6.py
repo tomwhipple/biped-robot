@@ -74,6 +74,30 @@ def yaw_carrier_v6(print_fins=False):
     return p
 
 
+def SCREWS():
+    """The carrier's screws, carrier-local (horn face z = 0), the same in every
+    bearing variant (A and E keep the 3.0 mm horn plate): 4 disc screws up
+    through the bay ceiling into the yaw horn, length by the stack
+    (V.disc_screw), and 8 M2.5 x 8 flat-heads through the bay's front and rear
+    walls into the roll servo (cad/fasteners.py yaw_wall_screws). `axis`
+    points from the head toward the tip."""
+    r = D.BCD / 2
+    stack = D.YAW_CARRIER_PLATE
+    length, eng, flange = V.disc_screw(stack, "horn")
+    s = [dict(name=f"yaw_horn_{dx:+.0f}_{dy:+.0f}", kind=f"M3x{length} button head",
+              pos=(dx, dy, -stack), axis=(0, 0, 1), length=float(length),
+              stack=stack, engage=eng, flange=flange)
+         for dx, dy in ((r, 0), (-r, 0), (0, r), (0, -r))]
+    for face, rows, sgn in (("front", D.CASE_HOLES_TOP, -1), ("rear", D.CASE_HOLES_BOT, +1)):
+        for zrow in rows:
+            for lat in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
+                s.append(dict(name=f"roll_wall_{face}_{zrow:.0f}_{lat:+.0f}",
+                              kind="M2.5x8 self-tap, flat head (bay wall into the roll servo)",
+                              pos=(-sgn * 19.95, lat, D.CARRIER_ROLL_AXIS + zrow), axis=(sgn, 0, 0),
+                              length=8.0))
+    return s
+
+
 if __name__ == "__main__":
     os.makedirs(os.path.join(HERE, "stl"), exist_ok=True)
     os.makedirs(os.path.join(HERE, "step"), exist_ok=True)

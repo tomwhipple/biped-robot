@@ -662,6 +662,32 @@ def disc_seat_zones():
     return idler + horn
 
 
+def SCREWS():
+    """The 16 disc screws this part carries (part-local frame), length by the
+    stack under each head (V.disc_screw, no washers): the roll horn arm sits
+    on a 1.0 mm seating boss (stack 4.0), the roll idler arm's pad is sunk
+    D.ROLL_IDLER_PAD_SINK so its 5.8 stack takes an M3x8, and the pitch
+    clevis is leg_link's horn pad / idler pad pair (3.0 / 3.6). `axis`
+    points from the head toward the tip."""
+    r = D.BCD / 2
+    ring = ((r, 0), (-r, 0), (0, r), (0, -r))
+    rows = (("roll_horn", RX1, RX1 - D.SV_HORN_FACE, "horn", "x", -1),
+            ("roll_idler", RX0 + D.ROLL_IDLER_PAD_SINK, D.SV_IDLER_FACE - (RX0 + D.ROLL_IDLER_PAD_SINK), "idler", "x", +1),
+            ("pitch_horn", PY1, PY1 - D.SV_HORN_FACE, "horn", "y", -1),
+            ("pitch_idler", PY0, D.SV_IDLER_FACE - PY0, "idler", "y", +1))
+    s = []
+    for tag, face, stack, side, ax, sgn in rows:
+        length, eng, flange = V.disc_screw(stack, side)
+        for a, b in ring:
+            if ax == "x":
+                pos, axis = (face, a, b), (sgn, 0, 0)
+            else:
+                pos, axis = (a, face, PZ + b), (0, sgn, 0)
+            s.append(dict(name=f"{tag}_{a:+.0f}_{b:+.0f}", kind=f"M3x{length} button head",
+                          pos=pos, axis=axis, length=float(length), stack=stack, engage=eng, flange=flange))
+    return s
+
+
 def mass_g(solid):
     return solid.volume * D.FILAMENT_RHO * D.PRINT_MASS_FACTOR
 

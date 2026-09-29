@@ -1,25 +1,20 @@
-"""neck_collar: a separate printed part that holds the neck servo upright in
-pelvis_v7's deck well (v6 body, 2026-09-14).
+"""neck_collar: the neck servo's tube in the ARMS=0 (armless) build. With the
+arms on -- the robot's build -- shoulder_girdle_v6 carries the same tube and
+this part is not used.
 
-WHY SEPARATE FROM pelvis_v7 (Tom's own catch): the collar has to rise ~33 mm
-above the deck to reach up near the horn disc -- taller than the deck is
-thick. Built as part of pelvis_v7's own one-piece print (deck-top-down),
-that 33 mm became the model's new z-extreme, which flips which end of the
-part is the print's actual low point: the collar's own mouth would be the
-bed-contact point, and the ENTIRE REST OF THE HOUSING (97 x 121 mm) would
-read as a single unsupported island floating 33 mm above it -- a real
-printability failure (confirmed directly against the exported STL: the
-collar mouth landed at print-z -33.1, the housing floor at +72, with the
-deck's whole footprint an ISLAND finding with 3% first-layer contact), not
-a cosmetic one. Splitting it into its own part sidesteps that completely:
-this prints FLAT, base (flange) down, no supports at all.
+The tube is the girdle's neck tube (same footprint, same YAW_SEAT_GAP fit,
+same height, 2.1 mm short of the horn disc) with a 3 mm flange round its foot.
+The neck servo's seat is neck_floor.py, screwed up into the four bosses on the
+tube's side walls, exactly as in the girdle.
 
-Local frame: z=0 is the flange's own bottom face -- the same plane as
-pelvis_v7's deck top (z=0 there too), so the two align directly when
-assembled: the collar drops over the servo (already standing in the
-pelvis's well) and its flange screws down into 4 pilot holes in the deck
-top (pelvis_v7.py's own NECK_FLANGE_HOLE_XY, same formula, kept in sync
-here).
+NOT A PRINT TARGET: the flange's four screw holes have nothing to bite. Their
+corners land in the Pi slide slot (aft) and the General Driver lead slot
+(forward), and there is no deck under the rest of the flange (the battery
+aperture), so the collar has no way to fasten to the pelvis. The armless build
+exists for the CAD checks and the mass comparison only (cad/PRINT_LIST.md).
+
+Local frame: z = 0 is the flange's bottom face == pelvis_v7's deck top, x/y
+the pelvis's. Prints flat, flange down.
 
 Run:
     .venv/bin/python cad/v6/neck_collar.py   # STL + STEP + checks + render
@@ -53,16 +48,16 @@ OUT_REN = os.path.join(HERE, "renders")
 PRINT_ORIENT = np.eye(3)
 
 # ---------------------------------------------------------------- geometry
-NCX0, NCX1 = V.NECK_WELL_X                      # -35.41, 10.41 -- same as the well
+NCX0, NCX1 = V.NECK_WELL_X                      # -35.41, 10.41 -- the servo footprint + fit
 NC_HY = V.NECK_WELL_HW[0]                       # 12.66
 NC_WALL = D.WALL                                # 2.6
 COLLAR_TOP = V.NECK_AXIS_Z + D.SV_TOPFACE + 1.0  # 33.1 -- 2.1 mm short of the horn disc
 FLANGE_T = 3.0
-FLANGE_MARGIN = 8.0                             # matches pelvis_v7's NECK_FLANGE_MARGIN
-FLANGE_HOLE_INSET = 4.0                         # matches pelvis_v7's NECK_FLANGE_HOLE_INSET
+FLANGE_MARGIN = 8.0
+FLANGE_HOLE_INSET = 4.0
 AFT_WIN = (12.0, 10.0)                          # (y width, z height)
 
-# flange screw positions -- MUST match pelvis_v7.py's NECK_FLANGE_HOLE_XY
+# flange screw positions (they miss the deck -- see the module docstring)
 _nfx = (NCX0 - NC_WALL - FLANGE_HOLE_INSET, NCX1 + NC_WALL + FLANGE_HOLE_INSET)
 _nfy = NC_HY + NC_WALL + FLANGE_HOLE_INSET
 FLANGE_HOLE_XY = [(_nfx[0], _nfy), (_nfx[1], _nfy), (_nfx[0], -_nfy), (_nfx[1], -_nfy)]
@@ -90,15 +85,19 @@ def neck_collar():
         p = fillet(edges, 1.2)
     except Exception as e:  # noqa: BLE001 -- cosmetic
         print(f"  [neck_collar] tube fillet skipped ({type(e).__name__}: {str(e)[:60]})")
-    # the case cavity: open top (the mouth) and open bottom (continuous
-    # with the pelvis's own well pocket once assembled)
+    # the case cavity: open top (the mouth) and open bottom -- the neck
+    # servo's seat is neck_floor.py, screwed up into the four bosses below
+    # (the girdle's neck tube carries the same four)
     p -= box(NCX0, NCX1, -NC_HY, NC_HY, -1.0, COLLAR_TOP + 1.0)
-    # aft window at the case's cable end, alongside the pelvis's own
-    # well-floor lead slot -- an alternative route through the wall itself
+    import neck_floor as NF
+    boss_add, boss_cut = NF.tube_bosses()
+    p += boss_add
+    p -= boss_cut
+    # aft window at the case's cable end
     p -= box(NCX0 - NC_WALL - 1.0, NCX0 + 1.0, -AFT_WIN[0] / 2, AFT_WIN[0] / 2,
              0.0, AFT_WIN[1])
-    # 4x M2.5 clearance holes through the flange (self-tap bites the
-    # pelvis's own deck pilot hole below, not the flange itself)
+    # 4x M2.5 clearance holes through the flange (no deck pilots to meet:
+    # see the module docstring)
     for hx, hy in FLANGE_HOLE_XY:
         p -= cyl_z(D.CASE_SCREW_CLEAR / 2, -0.5, FLANGE_T + 0.5, hx, hy)
     return p
@@ -117,9 +116,9 @@ def mock_neck_servo():
 # fasteners
 # ----------------------------------------------------------------------------
 def SCREWS():
-    """4x M2.5 self-tap, driven from ABOVE down through the flange into the
-    pelvis deck's own pilot hole (2.05 mm dia x 4.5 mm deep, in
-    pelvis_v7.py)."""
+    """4x M2.5 self-tap, driven from ABOVE down through the flange. The deck
+    has no pilots under them (they would land in the Pi slot and the GD lead
+    slot): the armless build is not a print target."""
     return [dict(name=f"flange_{i}", kind="M2.5x8 self-tap (into pelvis deck)",
                  axis=(0, 0, -1), pos=(hx, hy, FLANGE_T), length=8.0)
             for i, (hx, hy) in enumerate(FLANGE_HOLE_XY)]
@@ -146,9 +145,9 @@ def check_flange_access(verbose=True):
 
 
 def check_servo_slide(n=30, verbose=True):
-    """The collar must drop straight down OVER the standing neck servo mock
-    (offered from above, same direction the servo itself sits in the
-    pelvis's well) with zero intersection until fully seated."""
+    """The tube must pass the neck servo straight along the axis with zero
+    intersection until fully seated (checked as the collar moving down over
+    a standing servo; the same clearance as the servo dropping in)."""
     solid = neck_collar()
     servo = mock_neck_servo()
     z_start = COLLAR_TOP + 20.0
