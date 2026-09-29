@@ -5,8 +5,8 @@ Run:  .venv/bin/python link/commander.py --host 192.168.4.1 --source gamepad
           --script square --duration 30
 
 Point --host at the sim twin to drive MuJoCo with the identical bytes the
-robot will get:
-      .venv/bin/python sim/udp_agent.py --run-name cmd_11v1 --render &
+robot will get (the real firmware code, compiled for the host):
+      .venv/bin/python sim/sil_twin.py &
       .venv/bin/python link/commander.py --host 127.0.0.1 --source gamepad
 
 The robot is authoritative about safety (link/protocol.py Watchdog); this

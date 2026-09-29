@@ -4,7 +4,7 @@
 Sends DISABLED stand frames (ENABLE off, vx=wz=0) at 20 Hz to the robot's
 command port and listens for the 10 Hz telemetry beacon. A benched robot
 ignores the commands (ctrl never drains the mailbox in bench mode) and
-reports state RELAX; the point is to prove both wire directions and measure
+reports state BENCH; the point is to prove both wire directions and measure
 loss, without arming anything.
 
     .venv/bin/python link/verify_udp.py --host 192.168.2.121 [--seconds 10]

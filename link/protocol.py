@@ -15,8 +15,8 @@ host we target are LE, so the firmware can memcpy these structs.
 
 This module is pure -- no sockets, no clock. The robot-side half of it
 (decode + Watchdog) is the reference for what the ESP32 firmware must do;
-sim/udp_agent.py runs that exact code against MuJoCo so the protocol is
-exercised before any hardware exists.
+link/link_twin.py runs that exact code on a laptop, so the protocol is
+exercised end to end before any hardware is involved.
 """
 import struct
 from enum import Enum

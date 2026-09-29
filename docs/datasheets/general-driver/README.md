@@ -1,34 +1,30 @@
-# General Driver for Robots — official documentation index
+# General Driver for Robots: manufacturer documents
 
-Waveshare's manufacturer-published documents for this board, all mirrored
-here verbatim:
+These are Waveshare's documents for the robot's controller board, mirrored
+verbatim, plus the datasheets for two parts on it. Waveshare publishes **no user
+manual** for this board. The connector table, the FAQ and the demo code exist only
+on the wiki. Its stable permalink is
+<https://www.waveshare.com/w/index.php?title=General_Driver_for_Robots&oldid=103968>,
+retrieved 2026-08-03.
 
-| File | What it is |
-|---|---|
-| [General_Driver_for_Robots-schematic.pdf](General_Driver_for_Robots-schematic.pdf) | Full circuit schematic |
-| [General_Driver_for_Robots-dimensions.pdf](General_Driver_for_Robots-dimensions.pdf) | Dimension drawing — board outline **65.01 × 56.01 mm**, hole grid 49 × 58 mm (58 along the 65 edge). ⚠️ The wiki's "Dimensions 65 x 65mm" parameter contradicts the drawing; trust the drawing (second wiki discrepancy after the input-voltage one below). |
-| [General_Driver_for_Robots-connector-diagram.jpg](General_Driver_for_Robots-connector-diagram.jpg) | Official annotated board photo — every connector numbered 1–27, front and back |
-| [JST-XH-connector-datasheet.pdf](JST-XH-connector-datasheet.pdf) | JST XH series datasheet (the power-inlet connector family) |
+| file | what it is | source |
+|---|---|---|
+| [General_Driver_for_Robots-schematic.pdf](General_Driver_for_Robots-schematic.pdf) | the full schematic, one A3 sheet. It is the authority for every net and GPIO | [files.waveshare.com](https://files.waveshare.com/upload/3/37/General_Driver_for_Robots.pdf) |
+| [General_Driver_for_Robots-dimensions.pdf](General_Driver_for_Robots-dimensions.pdf) | dimension drawing: outline **65.01 × 56.01 mm**, holes on a 58 × 49 mm grid (58 along the 65 edge) | Waveshare |
+| [General_Driver_for_Robots-connector-diagram.jpg](General_Driver_for_Robots-connector-diagram.jpg) | the official annotated photo, with every connector numbered 1–27, front and back | Waveshare wiki |
+| [JST-XH-connector-datasheet.pdf](JST-XH-connector-datasheet.pdf) | JST XH series, the family of the power inlet: 3 A AC/DC per contact at AWG #22, conductors AWG #30–#22 | [jst-mfg.com](https://www.jst-mfg.com/product/pdf/eng/eXH.pdf) |
+| [QMI8658C-datasheet.pdf](QMI8658C-datasheet.pdf) | QST QMI8658C 6-axis IMU, the robot's IMU at 0x6B. Rev 0.6, 2021-01-13, stamped "advance information" | QST, via Waveshare |
 
-**Waveshare publishes no user manual for this board.** The connector table
-(number → type → function, matching the diagram above), tutorials, and FAQ
-exist only on the official wiki:
-<https://www.waveshare.com/w/index.php?title=General_Driver_for_Robots&oldid=103968>
-(stable permalink, retrieved 2026-08-03). STEP model and demo code are also
-linked there. Our schematic-derived connector→GPIO net map is in
-[sensor-expansion.md](../../sensor-expansion.md) §1.
+Where the documents disagree:
 
-## Power input (the battery connection)
+- **Dimensions.** The wiki lists the board as "65 x 65mm". The drawing says 65.01 × 56.01. Trust the drawing.
+- **Input voltage.**
+  - The wiki says "DC 7-13V" and that the XH port "directly powers the serial bus servo and motor".
+  - The rev 1.2 silkscreen says "DC 9-12.6V", which would exclude 2S.
+  - This is unresolved. A 3S pack is inside both ranges.
+- **Bus current.** The wiki FAQ limits bus-servo current to "5A for long-term operation", which is "up to 5 servos (ensuring that these 5 servos are not stalled simultaneously)". The robot runs 17. That is open; see [wiring.md](../../wiring.md#current-the-open-constraint).
+- **QMI8658C output registers.** The datasheet's Motion-on-Demand text cites output registers 0x25–0x3D, while its dQ/dV register map puts them at 0x49–0x56. Trust the silicon, not the sheet (`imu ae` on the CLI).
 
-Per the official wiki and the connector diagram: power enters at the
-**XH2.54 2-pin port** (diagram № 10, bottom-left, silkscreened **− +**),
-controlled by the adjacent power switch (№ 12); this input directly powers
-the bus servos and motors. Our chain: 3S pack (XT30) → inline switch →
-XH 2-pin pigtail (BOM item 22).
-
-⚠️ Open question for Waveshare support: the wiki states 7–13 V (2S or 3S),
-but the **rev1.2 silkscreen reads "DC 9-12.6V"** — which would exclude 2S.
-Our 11.1 V 3S pack is inside both ranges. Also note the FAQ's **5 A
-continuous limit** on the bus-servo path (~5 ST3215s, not stalled
-simultaneously) vs our 8 servos / ~10 A transient budget — unresolved; see
-BOM item 22.
+The connector → net → GPIO map derived from the schematic is in
+[sensor-expansion.md §1](../../sensor-expansion.md#1-the-boards-connectors). What the
+INA219 measures is in [wiring.md](../../wiring.md#what-the-ina219-measures).

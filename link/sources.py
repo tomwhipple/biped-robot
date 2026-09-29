@@ -332,7 +332,7 @@ class GoalSource(CommandSource):
 
 
 class PoseFeed:
-    """Ground-truth (x, y, yaw) from sim/udp_agent.py's debug pose socket.
+    """Ground-truth (x, y, yaw) from a simulator's debug pose socket.
 
     SIM ONLY, and deliberately not part of the robot protocol: it exists so
     the goal-seeking layer can be built and demonstrated against a real UDP

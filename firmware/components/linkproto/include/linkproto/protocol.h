@@ -265,7 +265,7 @@ struct Telemetry {
     float up_z;          // torso up-vector z; 1.0 = perfectly upright
     float vx_est;
     float wz_est;
-    uint8_t servo_err;   // bitmask, bit i = servo ID i+1 faulted
+    uint8_t servo_err;   // bitmask, bit i = servo ID i+1 faulted; IDs 9-10 fold into bits 0-1 (link_task.cpp)
     uint8_t loop_late_pct;
     // Measured joint angles, radians, obs_spec order. n_joints is 0 on a
     // classic frame -- which is every frame, unless a commander asked with
