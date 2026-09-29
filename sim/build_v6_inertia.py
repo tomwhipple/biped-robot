@@ -87,8 +87,10 @@ def mesh_props(path, offset_mm, rho=RHO, mirror_y=False, mass=None):
         m.apply_scale([1, -1, 1])
         m.fix_normals()
     m.apply_translation(offset_mm)
-    if not m.is_watertight:
-        m.fill_holes()
+    # Several exported STLs are not strictly watertight (tessellation slivers
+    # at fillets); trimesh's fill_holes leaves every one's volume unchanged
+    # (checked 2026-09-29) and needs networkx, so it is not called: the plant
+    # comes out byte-identical on any box.
     vol = abs(m.volume)
     r = rho if mass is None else mass / vol
     com = m.center_mass * 1e-3
