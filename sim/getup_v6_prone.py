@@ -100,6 +100,32 @@ T_MOVE, T_HOLD = (0.4, 2.0), (0.2, 1.5)
 NK = 5
 
 
+# ------------------------------------------------------------------ the verified sequences (2026-09-29)
+# getup-prone-2026-09-29.md: each stands 12/12 in `verify` (six conditions x
+# pace 1 and 3, the overload cutoff enforced). Parameters as logged (2 dp).
+# the seat push's entry from supine with the arms idle: prop up on the elbows
+ENTRY_PROPPED = {"l_sh": 5.86, "l_el": -100.0, "l_t": 1.04, "p_hip": 0.0, "p_sh": 85.19, "p_el": -100.0, "p_t": 1.5,
+                "su_hip": -75.67, "su_sh": 80.56, "su_el": -88.05, "su_t": 1.25, "f_hip": -117.69, "f_sh": 130.25,
+                "f_el": -77.77, "f_t": 0.88, "b_t": 1.43}
+# prone -> back with the arms held straight back, folding up as it lands
+# (family stow_fold, restart 0); chain it with the recommended seat push
+ROLL_STOW_FOLD = {"stow_L_shoulder": 73.38, "stow_L_elbow": 5.37, "stow_R_shoulder": 89.77, "stow_R_elbow": -11.33,
+                  "k0_L_hip_yaw": -10.11, "k0_L_hip_roll": 1.17, "k0_L_hip_pitch": -23.5, "k0_L_knee": -19.86,
+                  "k0_L_ankle": -12.42, "k0_R_hip_yaw": 38.89, "k0_R_hip_roll": -40.47, "k0_R_hip_pitch": -99.87,
+                  "k0_R_knee": -111.09, "k0_R_ankle": 6.93, "k0_t": 1.46, "k0_h": 0.95, "k1_L_hip_yaw": 0.11,
+                  "k1_L_hip_roll": -26.62, "k1_L_hip_pitch": -100.62, "k1_L_knee": -105.08, "k1_L_ankle": 0.02,
+                  "k1_R_hip_yaw": 36.33, "k1_R_hip_roll": -39.5, "k1_R_hip_pitch": -57.86, "k1_R_knee": -11.1,
+                  "k1_R_ankle": -17.09, "k1_t": 1.85, "k1_h": 1.28, "k2_L_hip_yaw": 5.45, "k2_L_hip_roll": -7.11,
+                  "k2_L_hip_pitch": -63.54, "k2_L_knee": -17.35, "k2_L_ankle": -7.47, "k2_R_hip_yaw": -18.46,
+                  "k2_R_hip_roll": -9.57, "k2_R_hip_pitch": -35.1, "k2_R_knee": -10.07, "k2_R_ankle": -1.54,
+                  "k2_t": 1.51, "k2_h": 1.03, "k3_L_hip_yaw": -17.58, "k3_L_hip_roll": 13.09,
+                  "k3_L_hip_pitch": 10.42, "k3_L_knee": -5.81, "k3_L_ankle": -9.25, "k3_R_hip_yaw": -14.35,
+                  "k3_R_hip_roll": -34.69, "k3_R_hip_pitch": 67.19, "k3_R_knee": -30.5, "k3_R_ankle": -13.36,
+                  "k3_t": 0.91, "k3_h": 1.29, "k4_L_hip_yaw": 0.52, "k4_L_hip_roll": -7.33, "k4_L_hip_pitch": -37.84,
+                  "k4_L_knee": -3.66, "k4_L_ankle": 22.63, "k4_R_hip_yaw": -10.11, "k4_R_hip_roll": 0.02,
+                  "k4_R_hip_pitch": 79.16, "k4_R_knee": -9.36, "k4_R_ankle": -18.95, "k4_t": 1.82, "k4_h": 1.2}
+
+
 # ------------------------------------------------------------------ plant / env
 _PLANT_CACHE = {}
 
@@ -275,14 +301,14 @@ def entry_keys(x, na):
     return keys + [(lab, q_of(off, na), m, h) for lab, off, m, h in sp[4:]]
 
 
-def run_entry(x, cond=NOMINAL, time_scale=1.0, render=None, protection=None, start_arms=IDLE):
+def run_entry(x, cond=NOMINAL, time_scale=1.0, render=None, protection=None, start_arms=IDLE, rec=None):
     _set_hk()
     p, xml = plant()
     env = make_env(p, xml, cond)
     na = env._nq_act
     q0 = q_of(dict(**start_arms), na)
     G.settle_fallen(env, p, "supine", q0)
-    rec = Recorder(render=render, label="supine (arms idle), seat push")
+    rec = rec or Recorder(render=render, label="supine (arms idle), seat push")
     prot = None
     if protection is not None:
         from sts_servo_model import STSProtection
@@ -374,7 +400,7 @@ def roll_keys(family, x, na):
 ENTRY_BEST = json.loads(os.environ.get("PRONE_ENTRY", "{}"))
 
 
-def run_roll(family, x, cond=NOMINAL, time_scale=1.0, chain=False, render=None, protection=None):
+def run_roll(family, x, cond=NOMINAL, time_scale=1.0, chain=False, render=None, protection=None, rec=None):
     """prone (arms idle) -> roll keys [-> the seat push with the searched
     entry, ENTRY_BEST]. Returns front/up at the end of the roll, max front
     reached, and whether the chain stands."""
@@ -385,7 +411,7 @@ def run_roll(family, x, cond=NOMINAL, time_scale=1.0, chain=False, render=None, 
     q0 = q_of(dict(**IDLE), na)
     start = "supine" if "_sup" in family else "prone"
     G.settle_fallen(env, p, start, q0)
-    rec = Recorder(render=render, label=f"{start} {family}")
+    rec = rec or Recorder(render=render, label=f"{start} {family}")
     prot = None
     if protection is not None:
         from sts_servo_model import STSProtection

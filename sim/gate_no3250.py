@@ -10,12 +10,15 @@ torque-speed clamp at 11.1 V, 2 Hz shaper + 80 ms dead time, integer ticks,
 with only the servo assignment -- and the servo MASS -- changed:
 
   plants (CAD inertials, sim/build_v6_inertia.plant_xml, written to TMPDIR;
-  the committed sim/bimo_biped_v6ar.xml is never touched):
-    cad3250   74.5 g servos at the six places (the design)
-    cad3215   55.0 g there (-117 g, 1.67 kg)
-  and, for `arms` / `getup`, the as-drawn robot with the elbowed arms
-  (getup_v6_shoulder round 5b, r5_asdrawn[_rom120]: lumped, 2.10 kg, 55 g
-  servos everywhere -- the all-STS3215 mass; its STS3250 rows are 117 g light)
+  the committed sim/bimo_biped_v6ar.xml is never touched). Since 2026-09-29
+  plant_xml builds the robot as drawn: 17 actuators, the arms held 15 deg back
+  (their qpos0; static_gait pads the joints the gait does not drive with the
+  plant's default pose), hip-yaw bearing C:
+    cad3250   74.5 g servos at the six places
+    cad3215   55.0 g there (Plan B)
+  `arms` runs the same plant with self-collision on (arm-vs-leg contacts);
+  `getup` / `overload` run the as-drawn lumped get-up plant (getup_v6_shoulder
+  round 5b, r5_asdrawn_rom120: 2.10 kg, 55 g servos everywhere)
   servo sets (design_gates.SERVOS; the kp_scale entries registered below):
     3250      STS3250 at rolls + knees (the design)
     3215      STS3215 everywhere
@@ -325,32 +328,46 @@ def mode_envelope():
 
 
 # ------------------------------------------------------------------ arms (as drawn)
+def _arms_plant(servo_g: float):
+    """the CAD-inertial robot with its arms as drawn and held at the walking
+    pose (build_v6_inertia.asdrawn: 15 deg back), self-collision on"""
+    import build_v6_inertia as BI
+    p = BI.asdrawn(DesignParams(self_collide=True))
+    src, _ = BI.plant_xml(p, servo_g)
+    path = os.path.join(TMP, f"no3250_arms_{servo_g:g}_{os.getpid()}.xml")
+    with open(path, "w") as fh:
+        fh.write(src)
+    return p, path
+
+
 def mode_arms():
-    """the as-drawn robot with the elbowed arms held at 15 deg (lumped plant,
-    getup_v6_shoulder r5_asdrawn: 2.10 kg with 55 g servos everywhere -- i.e.
-    the all-STS3215 mass; the STS3250 rows run on the same masses, which
-    flatters them by 117 g, as round 5b did)."""
-    import getup_v6_shoulder as S
-    base = dataclasses.replace(S.BASE, **S.CONFIGS["r5_asdrawn"])
-    xml = os.path.join(TMP, f"no3250_arms_{os.getpid()}.xml")
-    open(xml, "w").write(build_xml(base))
-    print(f"== Gate D, 4 cases x arm contacts, as-drawn robot with arms (r5_asdrawn, lumped, {plant_mass(xml):.3f} kg), arms held shoulder +15 / elbow 0")
+    """the robot with its elbowed arms held at 15 deg, walked through the four
+    gate cases + the -15 turn at mu 0.7, with arm-vs-leg contact accounting:
+    the CAD-inertial plant with the arms as drawn (build_v6_inertia.asdrawn,
+    self-collision on), 55 g servos at the six Plan-B places (74.5 g for the
+    STS3250 rows)."""
+    _, x15 = _arms_plant(55.0)
+    _, x50 = _arms_plant(74.5)
+    print(f"== Gate D, 4 cases + the -15 turn at mu 0.7, x arm contacts: the CAD-inertial robot with arms "
+          f"({plant_mass(x15):.3f} kg with STS3215s, {plant_mass(x50):.3f} kg with STS3250s), self-collision on, "
+          f"arms held shoulder +15 / elbow 0")
     jobs = []
     # a fifth case: the -15 turn at the nominal mu 0.7, to tell the sticky-foot
     # knife edge at mu 0.9 (design doc 11.3) from a turning failure
     cases = CASES4 + (("turn -15 mu 0.7 play 3", {}, dict(turn_deg=-15.0)),)
-    for sn, run in (("3250", {}), ("3215", {}), ("3215_p3rk", {}), ("3215_p4rk", {})):
+    for sn in ("3250", "3215", "3215_p3rk", "3215_p4rk"):
         for cl, ckw, tkw in cases:
-            jobs.append((sn, cl, xml, ckw, tkw))
+            jobs.append((sn, cl, x50 if sn.startswith("3250") else x15, ckw, tkw))
     for (sn, cl), r in zip([(j[0], j[1]) for j in jobs], pmap(_arms_job, jobs)):
         print(f"{sn:8s} {cl}  {'FELL' if r['fell'] else 'up  '} tilt_max {r['tilt_max']:5.1f} deg  arm-vs-leg contacts {r['arm_leg_contacts']:6d}", flush=True)
 
 
 def _arms_job(args):
     import getup_v6_shoulder as S
+    import build_v6_inertia as BI
     sn, cl, xml, ckw, tkw = args
-    base = dataclasses.replace(S.BASE, **S.CONFIGS["r5_asdrawn"])
-    return S.walk_with_arm_contacts(base, xml, per_joint=SETS[sn] or None, arm_pose=(15.0, 0.0), **ckw, **tkw)
+    p = BI.asdrawn(DesignParams(self_collide=True))
+    return S.walk_with_arm_contacts(p, xml, per_joint=SETS[sn] or None, arm_pose=(15.0, 0.0), **ckw, **tkw)
 
 
 # ------------------------------------------------------------------ get-up (as drawn)

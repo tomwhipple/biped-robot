@@ -15,14 +15,16 @@ current model of sim/sts_servo_model.py to every control tick:
                         walker_env's power model, what current_budget.py uses
 
 Traces (every 20 ms control tick; tau = the servo model's torque):
-  walk, as drawn     r5_asdrawn (lumped 2.10 kg, 17 servos, arms held at
-                     shoulder +15), the four gate cases + the -15 turn at mu 0.7
-  walk, CAD plant    CAD-inertial all-STS3215 plant (1.67 kg, 13 servos: no
-                     arms), the four gate cases; the arms' four servos are
-                     added at their idle current
-  get-up             r5_asdrawn_rom120, the recommended seat push (shoulder
-                     90 -> 0) and the 60 -> 0 variant, the six robustness
-                     conditions; both start with the arms folded (180)
+  walk, the robot    the CAD-inertial plant (build_v6_inertia: 17 servos,
+                     2.28 kg, arms held 15 deg back, bearing C), the four gate
+                     cases + the -15 turn at mu 0.7
+  walk, lumped       r5_asdrawn (the lumped as-drawn get-up plant, 2.10 kg,
+                     arms held 15 deg), the same five cases, as a cross-check
+  get-up             r5_asdrawn_rom120, the six robustness conditions:
+                     the seat push from the arms folded (180), both sequences;
+                     from a real backward fall (the propped entry,
+                     getup_v6_prone.ENTRY_PROPPED); and from prone (the roll
+                     ROLL_STOW_FOLD + the seat push)
 Plan B everywhere (STS3215, P x4 on the rolls and knees), 11.1 V.
 
 Chains: the General Driver has two servo ports (H5, H6) on one electrical bus;
@@ -66,12 +68,15 @@ SPLITS = {
 
 # ------------------------------------------------------------------ trace jobs
 def _walk_cad_job(args):
+    import mujoco
     label, xml, ckw, tkw = args
     p = DesignParams()
     r = GN.walk_one(p, xml, SET, None, dict(ckw, track_trace=True), tkw)
-    names = list(DG.JN) + ["neck_yaw"]
-    return dict(label=f"walk, CAD plant: {label}", ok=bool(r["ok"]), tau=r["trace_tau"], qd=r["trace_qd"],
-                w0=np.array(r["w0"]), stall=np.array(r["stall"]), names=names[:r["trace_tau"].shape[1]], extra_idle=4)
+    m = mujoco.MjModel.from_xml_path(xml)
+    names = [m.actuator(i).name for i in range(m.nu)]
+    return dict(label=f"walk, the robot: {label}", ok=bool(r["ok"]), tau=r["trace_tau"], qd=r["trace_qd"],
+                w0=np.array(r["w0"]), stall=np.array(r["stall"]), names=names[:r["trace_tau"].shape[1]],
+                extra_idle=17 - m.nu)
 
 
 def _walk_arms_job(args):
@@ -95,6 +100,42 @@ def _getup_job(args):
                       trace=True, **c)
     return dict(label=f"get-up {seq_name}: {GN._cond_label(c)}", ok=bool(rt["ok"]), tau=rt["tau"], qd=rt["qd"],
                 w0=rt["w0"], stall=rt["stall"], names=rt["names"], extra_idle=0)
+
+
+def _trace_rec():
+    import getup_v6_prone as P
+
+    class TraceRec(P.Recorder):
+        """a Recorder that keeps every tick's servo torque and joint speed"""
+        def __init__(self):
+            super().__init__(render=None)
+            self.tau, self.qd = [], []
+
+        def __call__(self, env, step_label, t):
+            super().__call__(env, step_label, t)
+            self.tau.append(np.asarray(env._servo_tau, dtype=float).copy())
+            self.qd.append(np.asarray(env.data.qvel[env._jqvel], dtype=float).copy())
+    return TraceRec()
+
+
+def _getup_real_job(args):
+    """the get-up from where a fall leaves the robot: supine with the arms idle
+    (the propped entry) or prone (the verified roll + the seat push)"""
+    import getup_v6_prone as P
+    kind, c = args
+    rec = _trace_rec()
+    if kind == "supine":
+        r = P.run_entry(P.ENTRY_PROPPED, cond=c, rec=rec)
+        ok = r["stand"]
+    else:
+        r = P.run_roll("stow_fold", P.ROLL_STOW_FOLD, cond=c, chain=True, rec=rec)
+        ok = r["stand"]
+    p, xml = P.plant()
+    env = P.make_env(p, xml, c)
+    kp, kd, stall, w0 = env._servo
+    names = P.names_of(env)[:env._nq_act]
+    return dict(label=f"get-up from {kind}: {GN._cond_label(c)}", ok=bool(ok), tau=np.array(rec.tau), qd=np.array(rec.qd),
+                w0=np.array(w0, dtype=float), stall=np.array(stall, dtype=float), names=names, extra_idle=0)
 
 
 # ------------------------------------------------------------------ statistics
@@ -194,25 +235,33 @@ def main():
           f"Workers {GN.n_workers()}.", flush=True)
     xml15 = GN.cad_plant(55.0)
     import getup_v6_shoulder as S
+    cases5 = GN.CASES4 + (("turn -15 mu 0.7 play 3", {}, dict(turn_deg=-15.0)),)
+    walk_cad = GN.pmap(_walk_cad_job, [(cl, xml15, ckw, tkw) for cl, ckw, tkw in cases5])
+    report_walk("WALK, the robot: CAD-inertial plant (17 servos, 2.28 kg, arms held 15 deg back), 8 steps", walk_cad)
     base = dataclasses.replace(S.BASE, **S.CONFIGS["r5_asdrawn"])
     xml_arms = os.path.join(GN.TMP, f"cb_arms_{os.getpid()}.xml")
     with open(xml_arms, "w") as fh:
         fh.write(build_xml(base))
-    cases5 = GN.CASES4 + (("turn -15 mu 0.7 play 3", {}, dict(turn_deg=-15.0)),)
     walk_arms = GN.pmap(_walk_arms_job, [(cl, xml_arms, ckw, tkw) for cl, ckw, tkw in cases5])
-    ok = [t for t in walk_arms if t["ok"]]
-    report_group("WALK, as-drawn robot with arms (r5_asdrawn, 17 servos), 8 steps, the cases that walk", ok)
-    for t in walk_arms:
+    report_walk("WALK, lumped as-drawn plant (r5_asdrawn, 2.10 kg, arms held 15 deg), 8 steps: a cross-check", walk_arms)
+    for seq_name, seq in GN.GETUP_SEQS.items():
+        gu = GN.pmap(_getup_job, [(seq_name, seq, c) for c in GN.GETUP_CONDS])
+        report_group(f"GET-UP, the seat push from the arms folded: {seq_name}, six conditions (r5_asdrawn_rom120)", gu)
+    for kind, title in (("supine", "from a real backward fall: the propped entry + the seat push"),
+                        ("prone", "from prone: the roll with the arms held back + the seat push")):
+        gu = GN.pmap(_getup_real_job, [(kind, c) for c in GN.GETUP_CONDS])
+        report_group(f"GET-UP {title}, six conditions (r5_asdrawn_rom120 + elbow stops)", gu)
+
+
+def report_walk(title, traces):
+    ok = [t for t in traces if t["ok"]]
+    report_group(title + ", the cases that walk", ok)
+    for t in traces:
         if not t["ok"]:
             for model in ("motor", "bridge"):
                 i, extra = currents(t, model)
                 print(f"   ... and the case that falls ({t['label']}), {model} model, bus total incl. the fall: "
                       f"{fmt(stats(i.sum(1) + extra))}", flush=True)
-    walk_cad = GN.pmap(_walk_cad_job, [(cl, xml15, ckw, tkw) for cl, ckw, tkw in GN.CASES4])
-    report_group("WALK, CAD-inertial all-STS3215 plant (13 servos + 4 idle arm servos), 8 steps, 4 cases", walk_cad)
-    for seq_name, seq in GN.GETUP_SEQS.items():
-        gu = GN.pmap(_getup_job, [(seq_name, seq, c) for c in GN.GETUP_CONDS])
-        report_group(f"GET-UP {seq_name}, six conditions (r5_asdrawn_rom120)", gu)
 
 
 if __name__ == "__main__":

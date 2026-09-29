@@ -1,6 +1,20 @@
-== BUS-CURRENT BUDGET, 17 x STS3215 (Plan B: P x4 on rolls + knees), 11.1 V, open-loop traces, every 20 ms control tick. Current per servo: motor model I = 30 mA + 150 mA x |w|/w0 + |tau|/Kt (Kt 1.079 N*m/A), <= 2.50 A stall; bridge model I = 30 mA + (max(tau w,0) + 3.75 tau^2)/V. Limits: General Driver servo path 5 A continuous (Waveshare FAQ); its H1 inlet JST XH 3 A per contact (JST datasheet); a Molex-5264-class servo lead ~3 A (unverified). Workers 10.
+== BUS-CURRENT BUDGET, 17 x STS3215 (Plan B: P x4 on rolls + knees), 11.1 V, open-loop traces, every 20 ms control tick. Current per servo: motor model I = 30 mA + 150 mA x |w|/w0 + |tau|/Kt (Kt 1.079 N*m/A), <= 2.50 A stall; bridge model I = 30 mA + (max(tau w,0) + 3.75 tau^2)/V. Limits: General Driver servo path 5 A continuous (Waveshare FAQ); its H1 inlet JST XH 3 A per contact (JST datasheet); a Molex-5264-class servo lead ~3 A (unverified). Workers 6.
 
-== WALK, as-drawn robot with arms (r5_asdrawn, 17 servos), 8 steps, the cases that walk  (4 runs; 4 completed OK)
+== WALK, the robot: CAD-inertial plant (17 servos, 2.28 kg, arms held 15 deg back), 8 steps, the cases that walk  (5 runs; 5 completed OK)
+-- motor model (upper bound), bus total, A: peak  4.74  p99  4.39  RMS  3.11  mean  3.05  worst 2 s  3.74
+   split A (3 chains): L leg pk 3.74 / RMS 1.64 / 2 s 2.86;  R leg pk 3.67 / RMS 1.61 / 2 s 2.76;  arms+neck pk 0.64 / RMS 0.24 / 2 s 0.25
+   split B (2 ports): L leg+L arm+neck pk 3.88 / RMS 1.76 / 2 s 2.98;  R leg+R arm pk 3.77 / RMS 1.70 / 2 s 2.87
+   split C (2 ports): both legs pk 4.52 / RMS 2.88 / 2 s 3.51;  arms+neck pk 0.64 / RMS 0.24 / 2 s 0.25
+   hottest servos (peak A): R_ankle_roll 1.47, R_hip_roll 1.23, L_knee 1.23, L_hip_roll 1.22, R_knee 1.22, L_ankle_roll 1.07
+-- bridge model (lower bound), bus total, A: peak  1.67  p99  1.62  RMS  1.04  mean  1.01  worst 2 s  1.31
+   split A (3 chains): L leg pk 1.30 / RMS 0.51 / 2 s 0.94;  R leg pk 1.31 / RMS 0.50 / 2 s 0.91;  arms+neck pk 0.18 / RMS 0.15 / 2 s 0.15
+   split B (2 ports): L leg+L arm+neck pk 1.39 / RMS 0.59 / 2 s 1.04;  R leg+R arm pk 1.37 / RMS 0.55 / 2 s 0.97
+   split C (2 ports): both legs pk 1.52 / RMS 0.89 / 2 s 1.16;  arms+neck pk 0.18 / RMS 0.15 / 2 s 0.15
+   worst run (motor model peak): walk, the robot: turn -15 mu 0.9 play 3
+   overload check, torque reading: peak load 55 % (R_ankle_roll); longest above 80 %: 0.00 s of the 2.0 s protection time
+   overload check, duty reading: peak load 63 % (R_knee); longest above 80 %: 0.00 s of the 2.0 s protection time
+
+== WALK, lumped as-drawn plant (r5_asdrawn, 2.10 kg, arms held 15 deg), 8 steps: a cross-check, the cases that walk  (4 runs; 4 completed OK)
 -- motor model (upper bound), bus total, A: peak  5.08  p99  4.28  RMS  2.71  mean  2.65  worst 2 s  3.38
    split A (3 chains): L leg pk 3.72 / RMS 1.39 / 2 s 2.34;  R leg pk 3.73 / RMS 1.39 / 2 s 2.34;  arms+neck pk 0.61 / RMS 0.24 / 2 s 0.28
    split B (2 ports): L leg+L arm+neck pk 3.85 / RMS 1.51 / 2 s 2.48;  R leg+R arm pk 3.83 / RMS 1.49 / 2 s 2.45
@@ -16,21 +30,7 @@
    ... and the case that falls (walk, as drawn: turn -15 mu 0.9 play 3), motor model, bus total incl. the fall: peak  5.71  p99  4.23  RMS  3.05  mean  2.98  worst 2 s  3.83
    ... and the case that falls (walk, as drawn: turn -15 mu 0.9 play 3), bridge model, bus total incl. the fall: peak  4.03  p99  1.34  RMS  0.91  mean  0.89  worst 2 s  1.27
 
-== WALK, CAD-inertial all-STS3215 plant (13 servos + 4 idle arm servos), 8 steps, 4 cases  (4 runs; 4 completed OK)
--- motor model (upper bound), bus total, A: peak  3.93  p99  2.85  RMS  2.01  mean  1.97  worst 2 s  2.44
-   split A (3 chains): L leg pk 2.53 / RMS 1.04 / 2 s 1.70;  R leg pk 2.46 / RMS 1.04 / 2 s 1.74;  arms+neck pk 0.24 / RMS 0.15 / 2 s 0.15
-   split B (2 ports): L leg+L arm+neck pk 2.62 / RMS 1.12 / 2 s 1.79;  R leg+R arm pk 2.52 / RMS 1.09 / 2 s 1.80
-   split C (2 ports): both legs pk 3.78 / RMS 1.87 / 2 s 2.29;  arms+neck pk 0.24 / RMS 0.15 / 2 s 0.15
-   hottest servos (peak A): L_ankle_roll 1.16, L_hip_roll 0.97, R_hip_roll 0.95, R_ankle_roll 0.95, L_knee 0.87, R_knee 0.82
--- bridge model (lower bound), bus total, A: peak  1.30  p99  0.98  RMS  0.72  mean  0.71  worst 2 s  0.87
-   split A (3 chains): L leg pk 0.81 / RMS 0.31 / 2 s 0.49;  R leg pk 0.81 / RMS 0.30 / 2 s 0.50;  arms+neck pk 0.15 / RMS 0.15 / 2 s 0.15
-   split B (2 ports): L leg+L arm+neck pk 0.90 / RMS 0.39 / 2 s 0.58;  R leg+R arm pk 0.87 / RMS 0.36 / 2 s 0.56
-   split C (2 ports): both legs pk 1.15 / RMS 0.57 / 2 s 0.72;  arms+neck pk 0.15 / RMS 0.15 / 2 s 0.15
-   worst run (motor model peak): walk, CAD plant: turn -15 mu 0.9 play 3
-   overload check, torque reading: peak load 43 % (L_ankle_roll); longest above 80 %: 0.00 s of the 2.0 s protection time
-   overload check, duty reading: peak load 66 % (L_knee); longest above 80 %: 0.00 s of the 2.0 s protection time
-
-== GET-UP sh 90->0 / el -90->0 (recommended), six conditions (r5_asdrawn_rom120)  (6 runs; 6 completed OK)
+== GET-UP, the seat push from the arms folded: sh 90->0 / el -90->0 (recommended), six conditions (r5_asdrawn_rom120)  (6 runs; 6 completed OK)
 -- motor model (upper bound), bus total, A: peak 10.25  p99  7.02  RMS  2.65  mean  2.38  worst 2 s  5.17
    split A (3 chains): L leg pk 2.67 / RMS 0.87 / 2 s 1.34;  R leg pk 2.67 / RMS 0.87 / 2 s 1.34;  arms+neck pk 4.98 / RMS 1.09 / 2 s 2.53
    split B (2 ports): L leg+L arm+neck pk 5.14 / RMS 1.34 / 2 s 2.60;  R leg+R arm pk 5.11 / RMS 1.31 / 2 s 2.57
@@ -44,7 +44,7 @@
    overload check, torque reading: peak load 78 % (R_shoulder); longest above 80 %: 0.00 s of the 2.0 s protection time
    overload check, duty reading: peak load 106 % (L_shoulder); longest above 80 %: 1.48 s (L_knee) of the 2.0 s protection time
 
-== GET-UP sh 60->0 / el -60->0, six conditions (r5_asdrawn_rom120)  (6 runs; 6 completed OK)
+== GET-UP, the seat push from the arms folded: sh 60->0 / el -60->0, six conditions (r5_asdrawn_rom120)  (6 runs; 6 completed OK)
 -- motor model (upper bound), bus total, A: peak 11.77  p99  9.33  RMS  3.04  mean  2.61  worst 2 s  7.58
    split A (3 chains): L leg pk 2.94 / RMS 0.96 / 2 s 2.03;  R leg pk 2.94 / RMS 0.96 / 2 s 2.03;  arms+neck pk 5.89 / RMS 1.28 / 2 s 3.80
    split B (2 ports): L leg+L arm+neck pk 5.90 / RMS 1.54 / 2 s 3.81;  R leg+R arm pk 5.87 / RMS 1.51 / 2 s 3.78
@@ -57,3 +57,31 @@
    worst run (motor model peak): get-up sh 60->0 / el -60->0: play 3 mu 1.0 servo 1.00
    overload check, torque reading: peak load 94 % (R_shoulder); longest above 80 %: 1.00 s (L_shoulder) of the 2.0 s protection time
    overload check, duty reading: peak load 105 % (L_knee); longest above 80 %: 1.90 s (L_knee) of the 2.0 s protection time
+
+== GET-UP from a real backward fall: the propped entry + the seat push, six conditions (r5_asdrawn_rom120 + elbow stops)  (6 runs; 6 completed OK)
+-- motor model (upper bound), bus total, A: peak 10.26  p99  7.77  RMS  2.95  mean  2.66  worst 2 s  5.19
+   split A (3 chains): L leg pk 2.68 / RMS 0.89 / 2 s 1.35;  R leg pk 2.68 / RMS 0.89 / 2 s 1.35;  arms+neck pk 5.78 / RMS 1.37 / 2 s 2.81
+   split B (2 ports): L leg+L arm+neck pk 5.14 / RMS 1.49 / 2 s 2.61;  R leg+R arm pk 5.11 / RMS 1.46 / 2 s 2.58
+   split C (2 ports): both legs pk 5.35 / RMS 1.79 / 2 s 2.70;  arms+neck pk 5.78 / RMS 1.37 / 2 s 2.81
+   hottest servos (peak A): L_shoulder 1.95, R_shoulder 1.95, R_elbow 1.59, L_elbow 1.59, R_knee 1.42, L_knee 1.42
+-- bridge model (lower bound), bus total, A: peak  5.19  p99  3.63  RMS  1.12  mean  0.94  worst 2 s  2.10
+   split A (3 chains): L leg pk 1.28 / RMS 0.30 / 2 s 0.55;  R leg pk 1.28 / RMS 0.30 / 2 s 0.55;  arms+neck pk 3.33 / RMS 0.61 / 2 s 1.36
+   split B (2 ports): L leg+L arm+neck pk 2.61 / RMS 0.57 / 2 s 1.06;  R leg+R arm pk 2.58 / RMS 0.55 / 2 s 1.03
+   split C (2 ports): both legs pk 2.57 / RMS 0.61 / 2 s 1.10;  arms+neck pk 3.33 / RMS 0.61 / 2 s 1.36
+   worst run (motor model peak): get-up from supine: play 3 mu 1.0 servo 1.00
+   overload check, torque reading: peak load 99 % (L_shoulder); longest above 80 %: 0.88 s (L_shoulder) of the 2.0 s protection time
+   overload check, duty reading: peak load 111 % (L_elbow); longest above 80 %: 1.64 s (L_shoulder) of the 2.0 s protection time
+
+== GET-UP from prone: the roll with the arms held back + the seat push, six conditions (r5_asdrawn_rom120 + elbow stops)  (6 runs; 6 completed OK)
+-- motor model (upper bound), bus total, A: peak 15.86  p99 10.33  RMS  3.75  mean  3.18  worst 2 s  8.66
+   split A (3 chains): L leg pk 10.15 / RMS 1.72 / 2 s 4.96;  R leg pk 6.61 / RMS 1.56 / 2 s 3.71;  arms+neck pk 4.81 / RMS 0.91 / 2 s 2.53
+   split B (2 ports): L leg+L arm+neck pk 10.41 / RMS 2.04 / 2 s 5.21;  R leg+R arm pk 6.69 / RMS 1.80 / 2 s 3.92
+   split C (2 ports): both legs pk 15.62 / RMS 3.17 / 2 s 8.01;  arms+neck pk 4.81 / RMS 0.91 / 2 s 2.53
+   hottest servos (peak A): L_hip_yaw 2.50, L_hip_roll 2.50, L_hip_pitch 2.46, L_knee 2.37, R_hip_pitch 2.32, R_hip_roll 1.95
+-- bridge model (lower bound), bus total, A: peak 11.62  p99  5.74  RMS  1.57  mean  1.15  worst 2 s  4.43
+   split A (3 chains): L leg pk 8.32 / RMS 0.86 / 2 s 3.21;  R leg pk 4.13 / RMS 0.58 / 2 s 1.51;  arms+neck pk 2.58 / RMS 0.35 / 2 s 1.00
+   split B (2 ports): L leg+L arm+neck pk 8.41 / RMS 0.96 / 2 s 3.31;  R leg+R arm pk 4.19 / RMS 0.67 / 2 s 1.58
+   split C (2 ports): both legs pk 11.46 / RMS 1.38 / 2 s 4.27;  arms+neck pk 2.58 / RMS 0.35 / 2 s 1.00
+   worst run (motor model peak): get-up from prone: play 5 mu 0.7 servo 1.00
+   overload check, torque reading: peak load 100 % (L_hip_yaw); longest above 80 %: 1.70 s (L_hip_roll) of the 2.0 s protection time
+   overload check, duty reading: peak load 133 % (R_hip_pitch); longest above 80 %: 1.48 s (L_knee) of the 2.0 s protection time

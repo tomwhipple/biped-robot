@@ -219,8 +219,11 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     d0, hi, lo = env._default, env._hi, env._lo
 
     def inv(q):
-        if len(q) < na:                    # neck (and any extra joints) held at 0
-            q = np.concatenate([q, np.zeros(na - len(q))])
+        if len(q) < na:
+            # the joints the gait does not drive (neck, arms) hold the plant's
+            # default pose: 0 for the neck, the arms' walking hold (qpos0, 15 deg
+            # back on the robot's plant; 0 on every plant built before it)
+            q = np.concatenate([q, d0[len(q):]])
         return np.clip(np.where(q >= d0, (q - d0) / np.maximum(hi - d0, 1e-6),
                                 (q - d0) / np.maximum(d0 - lo, 1e-6)), -1, 1)
     dt = env.control_dt
