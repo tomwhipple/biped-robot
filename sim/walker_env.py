@@ -134,6 +134,73 @@ def policy_range(m):
     return lo, hi
 
 
+# -- joint roles and per-servo stiffness: EXACT MIRROR of sim/mjx/env_mjx.py
+# (read the comments there; tests/test_robot_plant.py pins the copies equal).
+# Duplicated rather than imported so this env keeps its jax-free import graph.
+LEG_ROLES = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll")
+ARM_ROLES = ("shoulder", "elbow")
+BODY_JOINTS = ("neck_yaw",)
+
+
+def joint_role(name):
+    """Role of an actuated joint by name, or None (mirror of env_mjx)."""
+    if name in BODY_JOINTS:
+        return name
+    if name[:2] in ("L_", "R_") and name[2:] in LEG_ROLES + ARM_ROLES:
+        return name[2:]
+    return None
+
+
+SERVO_KP_PRESETS = {
+    "stock": {},
+    "planb": {"hip_roll": 4.0, "ankle_roll": 4.0, "knee": 4.0},
+}
+
+
+def servo_kp_scale_vector(names, spec):
+    """Per-actuator stiffness multiplier (mirror of env_mjx)."""
+    n = len(names)
+    if spec is None:
+        return np.ones(n)
+    if isinstance(spec, str):
+        if spec not in SERVO_KP_PRESETS:
+            raise ValueError(f"unknown servo_kp_scale preset {spec!r} "
+                             f"(have {sorted(SERVO_KP_PRESETS)})")
+        spec = SERVO_KP_PRESETS[spec]
+    if isinstance(spec, dict):
+        roles = [joint_role(nm) for nm in names]
+        known = set(names) | {r for r in roles if r is not None}
+        bad = [k for k in spec if k not in known]
+        if bad:
+            raise ValueError(f"servo_kp_scale keys {bad} match no actuator "
+                             f"of this plant ({list(names)})")
+        out = np.ones(n)
+        for i, (nm, r) in enumerate(zip(names, roles)):
+            if nm in spec:
+                out[i] = float(spec[nm])
+            elif r is not None and r in spec:
+                out[i] = float(spec[r])
+        return out
+    arr = np.asarray(spec, dtype=float)
+    if arr.ndim == 0:
+        return np.full(n, float(arr))
+    if arr.shape != (n,):
+        raise ValueError(f"servo_kp_scale needs {n} per-actuator values, "
+                         f"got {arr.shape}")
+    return arr.copy()
+
+
+def _per_servo(value, n, what):
+    """(ref, profile) for a scalar or per-actuator gain (mirror of env_mjx)."""
+    arr = np.asarray(value, dtype=float)
+    if arr.ndim == 0:
+        return float(arr), np.ones(n)
+    if arr.shape != (n,):
+        raise ValueError(f"{what} needs a scalar or {n} per-actuator values, "
+                         f"got {arr.shape}")
+    return 1.0, arr.copy()
+
+
 def _gauss_smooth(field: np.ndarray, sigma: float) -> np.ndarray:
     """Separable Gaussian blur (reflect-padded), sigma in cells. Pure numpy so
     we don't add a scipy dependency for one filter."""
@@ -177,8 +244,17 @@ class BimoWalkerEnv(gym.Env):
         # -- actuator model ("ideal" -> original MJCF position servos) ----------
         actuator_model: str = "ideal", # "ideal" | "sts3215" (torque-speed limited)
         supply_voltage: float = 7.4,   # V; stall torque + no-load speed scale ~V/12
-        servo_kp: float = 12.0,        # sts3215 PD gain, N*m/rad (see fit note)
-        servo_kd: float = 0.25,        # sts3215 PD damping, N*m*s/rad
+        servo_kp: float | tuple = 12.0,  # sts3215 PD gain, N*m/rad (see fit
+        # note); a sequence gives one per actuator
+        servo_kd: float | tuple = 0.25,  # sts3215 PD damping, N*m*s/rad
+        servo_kp_scale=None,           # per-servo P multiplier on kp AND kd:
+        # None, a number, a per-actuator sequence, {actuator | role: factor},
+        # or a preset name (SERVO_KP_PRESETS; mirror of env_mjx)
+        held_joints: dict | None = None,  # {actuator: target deg}: servos
+        # held at a fixed target, out of the action and the observation
+        # (the robot's neck and arms while walking; mirror of env_mjx)
+        mimic_sole_level: bool = False,  # imitation ankle pitch solved level
+        # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
         # the MJCF's 0.6 N*m*s/rad was a stability proxy for the ideal servo and
@@ -521,7 +597,7 @@ class BimoWalkerEnv(gym.Env):
         self.backlash_deg_max = backlash_deg_max
         self._lash_rad = np.deg2rad(backlash_deg)
         self.zero_offset_deg = float(zero_offset_deg)
-        self._zero_off = None            # (n_act,) rad, drawn at reset
+        self._zero_off = None            # (n_servo,) rad, drawn at reset
         self.play_deg = float(play_deg)
         self.play_joints = tuple(play_joints) if play_joints else None
         self._play_rad = np.deg2rad(self.play_deg)
@@ -695,33 +771,108 @@ class BimoWalkerEnv(gym.Env):
         self._payload_bid = (self.model.body("payload").id
                              if (payload_mass > 0 or payload_max) else None)
 
-        # Actuated-joint layout, derived from the model (NOT literals) so the
-        # 8-DOF and 10-DOF hip-yaw plants both work. Action/slice order ==
-        # actuator order == qpos-address order by XML construction.
+        # Actuated-joint layout, derived from the model (NOT literals) so any
+        # plant works (mirror of env_mjx). Two levels:
+        #   SERVO level  -- every actuator, in actuator order == qpos order
+        #                   (checked): _sqpos/_sqvel, _n_servo, _servo_names.
+        #                   The PD loop, the target chain, torque and power.
+        #   POLICY level -- the servos the policy drives: _jqpos/_jqvel,
+        #                   _nq_act, _act_names, _default/_lo/_hi. The action,
+        #                   the observation, the joint reward terms.
+        # They coincide (and _jqpos/_jqvel stay slices) unless held_joints
+        # takes servos out of the policy.
         _jnt = self.model.actuator_trnid[:, 0]
         _qadr = self.model.jnt_qposadr[_jnt]
         _vadr = self.model.jnt_dofadr[_jnt]
         self._jq0, self._jq1 = int(_qadr.min()), int(_qadr.max()) + 1
         self._jv0, self._jv1 = int(_vadr.min()), int(_vadr.max()) + 1
-        self._nq_act = self._jq1 - self._jq0
-        self._jqpos = slice(self._jq0, self._jq1)
-        self._jqvel = slice(self._jv0, self._jv1)
-        self._act_names = [self.model.joint(int(j)).name for j in _jnt]
+        if (not np.array_equal(_qadr, np.arange(self._jq0, self._jq1))
+                or not np.array_equal(_vadr, np.arange(self._jv0, self._jv1))):
+            raise ValueError(
+                "actuators must drive consecutive hinge joints in qpos order "
+                f"(qpos addresses {_qadr.tolist()})")
+        if (self._catch_states is not None
+                and self._catch_states["qpos"].shape[1] != self.model.nq):
+            self._catch_states = None    # harvested on another plant
+        self._n_servo = self._jq1 - self._jq0
+        self._sqpos = slice(self._jq0, self._jq1)
+        self._sqvel = slice(self._jv0, self._jv1)
+        self._servo_names = [self.model.joint(int(j)).name for j in _jnt]
+        self._sname2i = {n: i for i, n in enumerate(self._servo_names)}
+        self.held_joints = ({} if not held_joints else
+                            {str(k): float(v) for k, v in held_joints.items()})
+        _bad = [k for k in self.held_joints if k not in self._sname2i]
+        if _bad:
+            raise ValueError(f"held_joints {_bad} are not actuators of this "
+                             f"plant ({self._servo_names})")
+        if self.held_joints:
+            # the held pose is those joints' home pose: qpos0 carries it
+            # (reset, the target-chain seed, every qpos0-built reference)
+            for k, deg in self.held_joints.items():
+                self.model.qpos0[self._jq0 + self._sname2i[k]] = np.deg2rad(deg)
+            mujoco.mj_setConst(self.model, mujoco.MjData(self.model))
+        self._pi = np.array([i for i, n in enumerate(self._servo_names)
+                             if n not in self.held_joints], dtype=np.int64)
+        if len(self._pi) == 0:
+            raise ValueError("held_joints leaves the policy no joint")
+        self._all_pol = len(self._pi) == self._n_servo
+        self._nq_act = len(self._pi)
+        if self._all_pol:
+            self._jqpos = slice(self._jq0, self._jq1)
+            self._jqvel = slice(self._jv0, self._jv1)
+        else:
+            self._jqpos = self._jq0 + self._pi
+            self._jqvel = self._jv0 + self._pi
+        self._act_names = [self._servo_names[i] for i in self._pi]
         self._jname2i = {n: i for i, n in enumerate(self._act_names)}
-        _roles = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle")
-        self._legL = {r: self._jname2i.get(f"L_{r}") for r in _roles}
-        self._legR = {r: self._jname2i.get(f"R_{r}") for r in _roles}
+        if command_mode:
+            # a policy env: every policy joint needs a reward role (see
+            # env_mjx.joint_role). Scripted-plant users (the design-gate
+            # scripts, whose study plants add tails and shoulder
+            # abductors) drive every joint themselves and skip this.
+            _unroled = [n for n in self._act_names if joint_role(n) is None]
+            if _unroled:
+                raise ValueError(
+                    f"policy joints {_unroled} have no role (joint_role): "
+                    "give them one, or hold them (held_joints)")
+        self._legL = {r: self._jname2i.get(f"L_{r}") for r in LEG_ROLES}
+        self._legR = {r: self._jname2i.get(f"R_{r}") for r in LEG_ROLES}
         # per-role (L, R) action-index pairs (hip_yaw absent on the 8-DOF plant)
         self._i_roll = np.array([self._legL["hip_roll"], self._legR["hip_roll"]])
         self._i_pitch = np.array([self._legL["hip_pitch"],
                                   self._legR["hip_pitch"]])
         self._i_knee = np.array([self._legL["knee"], self._legR["knee"]])
         self._i_ankle = np.array([self._legL["ankle"], self._legR["ankle"]])
+        # ankle roll: the robot's 6th leg joint, None on every prototype
+        _la, _ra = self._legL.get("ankle_roll"), self._legR.get("ankle_roll")
+        self._i_aroll = (None if _la is None or _ra is None
+                         else np.array([_la, _ra]))
+        # joint-axis signs for the sole-levelling reference (mirror of env_mjx)
+        self.mimic_sole_level = bool(mimic_sole_level)
+
+        def _axis_sign(role, comp):
+            out = []
+            for side in ("L", "R"):
+                ax = self.model.jnt_axis[self.model.joint(f"{side}_{role}").id]
+                if abs(abs(ax[comp]) - 1.0) > 1e-9:
+                    raise ValueError(f"{side}_{role} axis {ax} is not along "
+                                     f"{'xyz'[comp]}: the sole-level "
+                                     "reference assumes it is")
+                out.append(float(np.sign(ax[comp])))
+            return np.asarray(out)
+        if self.mimic_sole_level:
+            self._sg_pitch = (_axis_sign("hip_pitch", 1), _axis_sign("knee", 1),
+                              _axis_sign("ankle", 1))
+        if self._i_aroll is not None:
+            self._sg_roll = (_axis_sign("hip_roll", 0),
+                             _axis_sign("ankle_roll", 0))
         self.mimic_knee_w = mimic_knee_w
         self._mimic_w = np.ones(self._nq_act)
         self._mimic_w[self._i_knee] = mimic_knee_w
-        # per-joint encoder direction (nominal calibration -- see _TICK_DIR)
-        self._tick_dir = np.full(self._nq_act, _TICK_DIR, dtype=np.float64)
+        # per-joint encoder direction (nominal calibration -- see _TICK_DIR):
+        # per servo for goal ticks, per policy joint for the observation
+        self._tick_dir = np.full(self._n_servo, _TICK_DIR, dtype=np.float64)
+        self._tick_dir_p = np.full(self._nq_act, _TICK_DIR, dtype=np.float64)
 
         # Realistic actuator model: torque is computed here (PD on the commanded
         # angle) and clamped to the DC-motor torque-speed envelope -- available
@@ -738,22 +889,33 @@ class BimoWalkerEnv(gym.Env):
             for i, n in enumerate(_names):
                 if self.play_joints is None or n in self.play_joints:
                     self._play_h[i] = 0.5 * self._play_rad
+        # per-servo gain profile (mirror of env_mjx): the step's PD uses
+        # _servo[0:2] (the DR-scaled reference kp/kd) times these -- ones for
+        # a scalar gain and no servo_kp_scale, i.e. every run before the
+        # robot's, and every script that writes per-joint arrays into
+        # _servo itself (the design-gate studies) is left untouched
+        kp_ref, kp_prof = _per_servo(servo_kp, self._n_servo, "servo_kp")
+        kd_ref, kd_prof = _per_servo(servo_kd, self._n_servo, "servo_kd")
+        self.servo_kp_scale = servo_kp_scale_vector(self._servo_names,
+                                                    servo_kp_scale)
+        self._kp_prof = kp_prof * self.servo_kp_scale
+        self._kd_prof = kd_prof * self.servo_kp_scale
         if actuator_model == "sts3215":
             v = supply_voltage / 12.0
             # [kp, kd, stall torque, no-load speed] -- DR rescales from nominal
-            self._nom_servo = np.array([servo_kp, servo_kd,
+            self._nom_servo = np.array([kp_ref, kd_ref,
                                         _STS_STALL_12V * v, _STS_NOLOAD_12V * v])
             self._servo = self._nom_servo.copy()
             self.model.actuator_gainprm[:] = 0.0
             self.model.actuator_biasprm[:] = 0.0
-            self.model.dof_damping[self._jqvel] = servo_joint_damping
+            self.model.dof_damping[self._sqvel] = servo_joint_damping
         elif actuator_model == "ideal":
             self._nom_servo = None
             self._servo = None
         else:
             raise ValueError(f"unknown actuator_model {actuator_model!r}")
         self.servo_range = servo_range
-        self._servo_tau = np.zeros(self._nq_act)
+        self._servo_tau = np.zeros(self._n_servo)
         self._torque_on = True         # see set_torque_enabled()
         self.off_frictionloss = off_frictionloss
         self._held_frictionloss = None  # saved joint frictionloss while released
@@ -828,7 +990,7 @@ class BimoWalkerEnv(gym.Env):
         # stop alone; on the legacy plants ctrlrange does not exist and it
         # moves jnt_range exactly as it always did.
         if hip_flex_deg is not None:
-            for i in (self._jname2i["L_hip_pitch"], self._jname2i["R_hip_pitch"]):
+            for i in (self._sname2i["L_hip_pitch"], self._sname2i["R_hip_pitch"]):
                 if self.model.actuator_ctrllimited[i]:
                     self.model.actuator_ctrlrange[i, 0] = -np.deg2rad(hip_flex_deg)
                 else:
@@ -838,15 +1000,18 @@ class BimoWalkerEnv(gym.Env):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
         self._lo, self._hi = policy_range(self.model)
+        self._lo, self._hi = self._lo[self._pi], self._hi[self._pi]  # policy
+        # home pose per servo (held joints at their hold) and per policy joint
+        self._sdefault = self.model.qpos0[self._sqpos].copy()
         self._default = self.model.qpos0[self._jqpos].copy()        # standing pose
         self._scale = 0.5 * (self._hi - self._lo)              # per-joint residual
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
         if joint_frictionloss > 0:
-            self.model.dof_frictionloss[self._jqvel] = joint_frictionloss
+            self.model.dof_frictionloss[self._sqvel] = joint_frictionloss
         if joint_armature > 0:
-            self.model.dof_armature[self._jqvel] = joint_armature
+            self.model.dof_armature[self._sqvel] = joint_armature
         self._foot_bids = (self.model.body("L_foot").id,
                            self.model.body("R_foot").id)
         # soft joint limits (90% of range) for the dof-limit penalty. Measured
@@ -918,6 +1083,19 @@ class BimoWalkerEnv(gym.Env):
         self._step_i = 0
 
     # -- helpers -----------------------------------------------------------
+    def _p(self, x):
+        """Servo-level vector -> policy joints (identity when none is held)."""
+        return x if self._all_pol else np.asarray(x)[..., self._pi]
+
+    def _to_servo(self, x):
+        """Policy-level joint vector -> servo level, held joints at their
+        hold targets (identity when none is held)."""
+        if self._all_pol:
+            return x
+        out = self._sdefault.astype(np.result_type(x, np.float64)).copy()
+        out[self._pi] = x
+        return out
+
     def _action_to_ctrl(self, action: np.ndarray) -> np.ndarray:
         action = np.clip(action, -1.0, 1.0)
         if self.action_map == "full":
@@ -928,7 +1106,7 @@ class BimoWalkerEnv(gym.Env):
         return np.clip(self._default + self._scale * action, self._lo, self._hi)
 
     # -- servo tick quantization (mirrored in sim/mjx/env_mjx.py) -----------
-    def _quant_angle(self, rad):
+    def _quant_angle(self, rad, tick_dir=None):
         """rad -> encoder tick (round-half-to-even, clipped to 0..4095) -> rad.
 
         obs::angleToSteps followed by obs::stepsToAngle under the nominal
@@ -939,20 +1117,22 @@ class BimoWalkerEnv(gym.Env):
         clamps because the firmware does, but every angle this env feeds
         through is already inside [lo, hi] (the physics enforce it for
         observations, _action_to_ctrl for targets)."""
+        dr = self._tick_dir if tick_dir is None else tick_dir
         ticks = np.clip(_TICK_ZERO + np.rint(np.asarray(rad, dtype=np.float64)
-                                             / _TICK_RAD * self._tick_dir),
+                                             / _TICK_RAD * dr),
                         0.0, float(_TICK_MAX))
-        return (ticks - _TICK_ZERO) * _TICK_RAD * self._tick_dir
+        return (ticks - _TICK_ZERO) * _TICK_RAD * dr
 
-    def _quant_vel(self, rad_s):
+    def _quant_vel(self, rad_s, tick_dir=None):
         """rad/s -> integer reg-58 steps/s -> rad/s (harness.rad_s_to_steps_s /
         steps_s_to_rad_s). The wire word is sign-magnitude with a 15-bit
         magnitude, so the reachable range is +/-32767 steps/s (~+/-50 rad/s --
         never binding on this plant, but it is the boundary's real limit)."""
+        dr = self._tick_dir if tick_dir is None else tick_dir
         steps = np.clip(np.rint(np.asarray(rad_s, dtype=np.float64)
-                                / _TICK_RAD * self._tick_dir),
+                                / _TICK_RAD * dr),
                         -float(_TICK_VEL_MAX), float(_TICK_VEL_MAX))
-        return steps * _TICK_RAD * self._tick_dir
+        return steps * _TICK_RAD * dr
 
     # -- terrain -------------------------------------------------------------
     @staticmethod
@@ -1109,13 +1289,14 @@ class BimoWalkerEnv(gym.Env):
             phase = 2 * np.pi * (self._step_i / self.max_steps)
         q_j = d.qpos[self._jqpos]
         if self._zero_off is not None:
-            q_j = q_j - self._zero_off       # calibration-error DR (env_mjx parity)
+            # calibration-error DR (env_mjx parity)
+            q_j = q_j - self._p(self._zero_off)
         dq_j = d.qvel[self._jqvel]
         if self.quantize_ticks:
             # servo-side view: what a SYNC READ can actually report (encoder
             # ticks + reg-58 steps/s). The physics state is untouched.
-            q_j = self._quant_angle(q_j)
-            dq_j = self._quant_vel(dq_j)
+            q_j = self._quant_angle(q_j, self._tick_dir_p)
+            dq_j = self._quant_vel(dq_j, self._tick_dir_p)
         parts = [
             q_j,                                    # 8 joint angles
             dq_j,                                   # 8 joint velocities
@@ -1224,7 +1405,13 @@ class BimoWalkerEnv(gym.Env):
         mag = min(1.0, (float(np.max(np.abs(A))) + abs(B)) / 0.35)
         knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
-        ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
+        if self.mimic_sole_level:
+            # sole pitch = sum of axis-sign * angle over the pitch chain
+            s_h, s_k, s_a = self._sg_pitch
+            ank = d[self._i_ankle] - (s_h * (hipP - hp0)
+                                      + s_k * (knee - kn0)) / s_a
+        else:
+            ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
         if self.crouch_pose_ref:
             g = 0.0 if self._cmd_is_moving(cmd) else 1.0
             oh, ok, oa = self._crouch_pose(float(cmd[3]))
@@ -1238,6 +1425,11 @@ class BimoWalkerEnv(gym.Env):
         q[self._i_pitch] = hipP
         q[self._i_knee] = knee
         q[self._i_ankle] = ank
+        if self._i_aroll is not None:
+            # the ankle roll cancels the hip roll (mirror of env_mjx)
+            s_hr, s_ar = self._sg_roll
+            q[self._i_aroll] = (d[self._i_aroll]
+                                - s_hr * (roll - d[self._i_roll]) / s_ar)
         return np.clip(q, self._lo, self._hi)
 
     def _sample_command(self):
@@ -1373,12 +1565,12 @@ class BimoWalkerEnv(gym.Env):
         # saved value restores cleanly on re-engage.
         if on:
             if self._held_frictionloss is not None:
-                self.model.dof_frictionloss[self._jqvel] = self._held_frictionloss
+                self.model.dof_frictionloss[self._sqvel] = self._held_frictionloss
                 self._held_frictionloss = None
         else:
             self._held_frictionloss = \
-                self.model.dof_frictionloss[self._jqvel].copy()
-            self.model.dof_frictionloss[self._jqvel] = self.off_frictionloss
+                self.model.dof_frictionloss[self._sqvel].copy()
+            self.model.dof_frictionloss[self._sqvel] = self.off_frictionloss
         if self.actuator_model == "ideal":
             if on:
                 # Restore what was there, NOT _nom_gain: under DR this episode
@@ -1506,17 +1698,17 @@ class BimoWalkerEnv(gym.Env):
             # sim/mjx _settle ctrl arg) -- under stand-drive the kneel start
             # settled to h 0.28 > the recovered threshold, so every kneel
             # episode began recovered=1 and trained nothing
-            self.data.ctrl[:] = (np.clip(j, self._lo, self._hi)
+            self.data.ctrl[:] = (self._to_servo(np.clip(j, self._lo, self._hi))
                                  if kind in ("kneel", "squat", "sit")
-                                 else self._default)
+                                 else self._sdefault)
             for _ in range(settle_n):
                 mujoco.mj_step(self.model, self.data)
             mujoco.mj_forward(self.model, self.data)
         else:
             # small noise so the policy can't memorize one trajectory
             self.data.qpos[:] = self.model.qpos0
-            self.data.qpos[self._jqpos] += self.np_random.uniform(
-                -0.03, 0.03, size=self._nq_act)
+            self.data.qpos[self._sqpos] += self.np_random.uniform(
+                -0.03, 0.03, size=self._n_servo)
             if self._mosaic is not None:
                 # mosaic spawn: per-episode roughness = per-episode location
                 # (mirrors sim/mjx _terrain_spawn; margins keep the episode
@@ -1527,7 +1719,7 @@ class BimoWalkerEnv(gym.Env):
                 self.data.qpos[1] += sy
                 self.data.qpos[2] += self._ground_z(sx, sy)
             self.data.qvel[:] = self.np_random.uniform(-0.02, 0.02, size=self.model.nv)
-            self.data.ctrl[:] = self._default
+            self.data.ctrl[:] = self._sdefault
             mujoco.mj_forward(self.model, self.data)
         self._prev_action[:] = 0.0
         # recovery height ratchet: episode-best torso height (mirrors sim/mjx
@@ -1539,7 +1731,8 @@ class BimoWalkerEnv(gym.Env):
             2 * (q[0] * q[3] + q[1] * q[2]),
             1 - 2 * (q[2] * q[2] + q[3] * q[3])))
         # action-latency buffer: past ctrl targets, applied `action_latency` steps late
-        self._ctrl_buf = [self._default.copy() for _ in range(self.action_latency + 1)]
+        self._ctrl_buf = [self._sdefault.copy()
+                          for _ in range(self.action_latency + 1)]
         # sub-step latency: per-episode draw (only draws RNG when enabled, so
         # disabled runs consume the identical random stream as before) and the
         # target that was in force before this control step (= stand at reset)
@@ -1555,7 +1748,7 @@ class BimoWalkerEnv(gym.Env):
             # a DR term: off with domain_rand, so the golden obs vectors
             # (gen_obs_spec, DR off) stay a pure function of scripted inputs
             self._zero_off = np.deg2rad(self.np_random.uniform(
-                -self.zero_offset_deg, self.zero_offset_deg, self._nq_act))
+                -self.zero_offset_deg, self.zero_offset_deg, self._n_servo))
         else:
             self._zero_off = None
         if self._crouch_dr:
@@ -1565,7 +1758,7 @@ class BimoWalkerEnv(gym.Env):
             # runs keep their exact random streams.
             self._cmd_crouch = float(self.np_random.uniform(
                 *self.cmd_crouch_range))
-        self._last_target = self._default.copy()
+        self._last_target = self._sdefault.copy()
         self._shaft = None
         self._air_time[:] = 0.0
         self._last_air[:] = 0.0
@@ -1615,12 +1808,14 @@ class BimoWalkerEnv(gym.Env):
 
     def step(self, action):
         action = np.asarray(action, dtype=np.float32)
-        target = self._action_to_ctrl(action)
+        # policy targets onto the servo vector (held joints at their hold);
+        # everything downstream is per servo
+        target = self._to_servo(self._action_to_ctrl(action))
         if self.act_delay_ticks > 0:
             # servo dead time: serve the target from act_delay_ticks ago,
             # BEFORE the lag cascade -- matching env_mjx's act_hist order
             if self._act_hist is None:
-                self._act_hist = [np.asarray(self._default, dtype=np.float64)
+                self._act_hist = [np.asarray(self._sdefault, dtype=np.float64)
                                   ] * self.act_delay_ticks
             self._act_hist.append(target.astype(np.float64))
             target = self._act_hist.pop(0)
@@ -1631,7 +1826,7 @@ class BimoWalkerEnv(gym.Env):
             if self._lag_y is None:
                 # seeded with the default pose, matching env_mjx reset
                 self._lag_y = np.stack(
-                    [np.asarray(self._default, dtype=np.float64)] * 3)
+                    [np.asarray(self._sdefault, dtype=np.float64)] * 3)
             k = 1.0 - np.exp(-2.0 * np.pi * self.act_lag_hz * self.control_dt)
             self._lag_y[0] += k * (target - self._lag_y[0])
             self._lag_y[1] += k * (self._lag_y[0] - self._lag_y[1])
@@ -1682,8 +1877,12 @@ class BimoWalkerEnv(gym.Env):
                 # PD on the commanded angle, clamped each substep to the
                 # DC-motor torque-speed envelope (linear stall -> no-load).
                 kp, kd, stall, w0 = self._servo
-                q = self.data.qpos[self._jqpos]
-                qd = self.data.qvel[self._jqvel]
+                # per-servo gains: reference x static profile (env_mjx
+                # parity; the profile is all ones unless configured)
+                kp = kp * self._kp_prof
+                kd = kd * self._kd_prof
+                q = self.data.qpos[self._sqpos]
+                qd = self.data.qvel[self._sqvel]
                 cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
                 free = None
                 if self._play_rad > 0.0:
@@ -1709,8 +1908,8 @@ class BimoWalkerEnv(gym.Env):
                 if free is not None:
                     self._servo_tau = np.where(free, 0.0, self._servo_tau)
                 if not self._torque_on:      # released servos: limp, no hold
-                    self._servo_tau = np.zeros(self._nq_act)
-                self.data.qfrc_applied[self._jqvel] = self._servo_tau
+                    self._servo_tau = np.zeros(self._n_servo)
+                self.data.qfrc_applied[self._sqvel] = self._servo_tau
             elif lat_k:
                 # ideal position actuators read data.ctrl -- hold the previous
                 # target for the first lat_k substeps, then switch
@@ -1744,11 +1943,11 @@ class BimoWalkerEnv(gym.Env):
         # (under the sts3215 model the MJCF actuators are silent, so use the
         # torque we actually applied)
         force = self._servo_tau if self._servo is not None else d.actuator_force
-        energy = float(np.sum(np.abs(force) * np.abs(d.qvel[self._jqvel])))
+        energy = float(np.sum(np.abs(force) * np.abs(d.qvel[self._sqvel])))
         action_rate = float(np.sum((action - self._prev_action) ** 2))
         # electrical power draw (W): driven mechanical work + copper losses.
         # Computed always (cheap, reported in info); penalized only if w_power.
-        qd_j = np.asarray(d.qvel[self._jqvel])
+        qd_j = np.asarray(d.qvel[self._sqvel])
         power_w = float(np.sum(np.maximum(np.asarray(force) * qd_j, 0.0)
                                + self._K_CU * np.asarray(force) ** 2))
 

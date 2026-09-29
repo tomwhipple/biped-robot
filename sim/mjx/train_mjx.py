@@ -218,6 +218,22 @@ def main():
     p.add_argument("--xml", default=None,
                    help="plant override (default: v2; precision default: "
                         "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
+    p.add_argument("--robot", action="store_true",
+                   help="train on the ROBOT's plant (robot_plant.py): "
+                        "bimo_biped_v6ar.xml, the 12 leg joints as the "
+                        "policy, neck (and arms, where the plant has them) "
+                        "held at the walking pose, Plan B servo stiffness, "
+                        "hip flexion -120 deg, no payload (the camera is in "
+                        "the head), the sole-level imitation reference, no "
+                        "recovery slots. Explicit flags below still override")
+    p.add_argument("--servo-kp-scale", default=None,
+                   help="per-servo position-loop stiffness multiplier on kp "
+                        "and kd: a preset (planb, stock) or role/actuator="
+                        "factor pairs, e.g. 'hip_roll=4,ankle_roll=4,knee=4'. "
+                        "config.json records the resolved {actuator: factor}")
+    p.add_argument("--mimic-sole-level", action="store_true",
+                   help="imitation reference: ankle pitch solved level from "
+                        "the joint axes (the robot preset sets it)")
     p.add_argument("--fall-cost", type=float, default=None)
     p.add_argument("--family", choices=["all", "loco", "skills", "getup"],
                    default="all",
@@ -534,6 +550,24 @@ def main():
         # live) or an explicit path -- night-queue args use basenames
         env_kw["xml_path"] = (args.xml if os.path.exists(args.xml)
                               else os.path.join(HERE, "..", args.xml))
+    if args.robot:
+        # the robot's plant, resolved against its own actuators -- held_joints
+        # and the stiffness map land in config.json explicitly per actuator
+        import robot_plant
+        env_kw.update(robot_plant.robot_env_kwargs(args.xml))
+        # the legs cannot get the robot up (DESIGN.md, "Get-up"): its get-up
+        # is the scripted arm sequence, so no recovery slots by default
+        env_kw["recover_mix"] = 0.0
+        if args.hip_flex is not None:
+            env_kw["hip_flex_deg"] = args.hip_flex
+    if args.servo_kp_scale is not None:
+        spec = args.servo_kp_scale
+        if "=" in spec:
+            spec = {k.strip(): float(v) for k, v in
+                    (kv.split("=") for kv in spec.split(",") if kv.strip())}
+        env_kw["servo_kp_scale"] = spec
+    if args.mimic_sole_level:
+        env_kw["mimic_sole_level"] = True
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":
@@ -706,6 +740,12 @@ def main():
             getup_start_mix=tuple(float(x) for x in args.getup_mix.split(",")),
         )
     env = BimoMJXEnv(**env_kw)
+    if env_kw.get("servo_kp_scale") is not None:
+        # pin the stiffness the env RESOLVED, per actuator: a preset name in
+        # config.json would re-mean the run if the preset is ever re-tuned
+        env_kw["servo_kp_scale"] = {
+            n: float(f) for n, f in zip(env._servo_names, env.servo_kp_scale)
+            if f != 1.0}
     episode_length = env.max_steps
     wrapped = BatchedEnv(env, episode_length, num_envs=args.envs)
 
@@ -767,10 +807,12 @@ def main():
         # elementwise, so mirroring commutes with the squash.
         import mirror as mirror_mod
         from brax.training.agents.ppo import losses as ppo_losses
+        # over the POLICY joints (held ones are neither observed nor acted)
         operm, osign = mirror_mod.obs_perm_signs(
             env.mj_model, ncmd=(7 if env.ext_cmd else 2),
-            hist_len=env.obs_hist_len)
-        aperm, asign = mirror_mod.action_perm_signs(env.mj_model)
+            hist_len=env.obs_hist_len, joints=env._act_names)
+        aperm, asign = mirror_mod.action_perm_signs(env.mj_model,
+                                                    joints=env._act_names)
         operm_j = jp.asarray(operm); osign_j = jp.asarray(osign)
         aperm_j = jp.asarray(aperm); asign_j = jp.asarray(asign)
         w_mirror = float(args.w_mirror_loss)

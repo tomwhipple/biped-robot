@@ -288,7 +288,7 @@ def main():
                       f, indent=2)
         return
 
-    print(f"CPU referee: {args.run}  (GoPro {cfg.get('payload_mass', 0.154)*1000:.0f} g, "
+    print(f"CPU referee: {args.run}  (payload {cfg.get('payload_mass', 0.154)*1000:.0f} g, "
           f"latency 0-8 ms, backlash 0.5-1.0 deg, IMU-noise DR, "
           f"{args.episodes} eps/scenario)")
     header = f"{'scenario':8s} {'survive':>8s} {'alive_s':>8s} {'vx_err':>7s} {'wz_err':>7s} {'wobble':>7s} {'watts':>6s}"

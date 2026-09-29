@@ -115,7 +115,9 @@ def reel_chapters(run):
     sc_path = os.path.join('runs', run, 'scorecard.json')
     if os.path.exists(sc_path):
         with open(sc_path) as f:
-            names = [k for k in json.load(f) if k != 'summary']
+            # n/a scenarios (robot plant) have no take in the reel
+            names = [k for k, v in json.load(f).items()
+                     if k != 'summary' and 'not_applicable' not in v]
     chapters = []
     for i, (a0, a1) in enumerate(zip(cuts[:-1], cuts[1:])):
         name = names[i] if i < len(names) else f'take{i + 1}'
@@ -256,7 +258,7 @@ def scored(run, scenarios):
     with open(sc_path) as f:
         sc = json.load(f)
     bits = [f"{s} {sc[s]['successes']}/{sc[s]['n']}"
-            for s in scenarios if s in sc]
+            for s in scenarios if s in sc and 'successes' in sc[s]]
     return ' · '.join(bits)
 
 

@@ -10,7 +10,9 @@ arxiv.org/abs/2403.17320) instead of paying per-touchdown.
 
 Everything is DERIVED from the loaded plant, not hardcoded:
 
-  * joint permutation: name-matched L_*/R_* pairs, in qpos order;
+  * joint permutation: name-matched L_*/R_* pairs, in qpos order (or over
+    the env's policy joints when servos are held); an unprefixed joint is
+    on the centreline and maps to itself;
   * joint signs: how a hinge angle transforms under reflection across the
     sagittal (xz) plane -- axis u maps to Mu (M = diag(1,-1,1)) and the
     angle negates, so axes along y keep their sign (pitch/knee/ankle) and
@@ -36,11 +38,18 @@ frames (obs_hist_len > 1) repeat the frame map block-diagonally.
 import numpy as np
 
 
-def joint_perm_signs(model):
+def joint_perm_signs(model, joints=None):
     """(perm, sign) over hinge joints in qpos order: q_mirror = sign * q[perm].
 
     perm swaps each L_<name> with R_<name>; sign is -1 where the hinge axis
-    has any x or z component (roll/yaw-like), +1 for pure-y axes.
+    has any x or z component (roll/yaw-like), +1 for pure-y axes. A joint
+    with no L_/R_ prefix sits on the centreline (the robot's neck yaw) and
+    maps to itself under the same sign rule.
+
+    joints: restrict (and order) the map to these joint names -- the env's
+    POLICY joints (env._act_names) when some servos are held, since held
+    joints are in neither the observation nor the action. None = every
+    hinge joint in qpos order.
     """
     import mujoco
     names, axes, ranges = [], [], []
@@ -50,6 +59,11 @@ def joint_perm_signs(model):
         names.append(mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, j))
         axes.append(model.jnt_axis[j].copy())
         ranges.append(model.jnt_range[j].copy())
+    if joints is not None:
+        idx = [names.index(nm) for nm in joints]
+        names = [names[i] for i in idx]
+        axes = [axes[i] for i in idx]
+        ranges = [ranges[i] for i in idx]
     n = len(names)
     perm = np.zeros(n, dtype=np.int32)
     sign = np.zeros(n)
@@ -59,8 +73,10 @@ def joint_perm_signs(model):
         elif nm.startswith("R_"):
             other = "L_" + nm[2:]
         else:
-            raise ValueError(f"joint {nm} has no L_/R_ prefix; mirror "
-                             "map undefined")
+            other = nm                       # centreline joint
+        if other not in names:
+            raise ValueError(f"joint {nm} has no mirror partner {other} in "
+                             "the mapped set")
         k = names.index(other)
         perm[i] = k
         ax = axes[i]
@@ -83,11 +99,17 @@ def joint_perm_signs(model):
     return perm, sign
 
 
-def action_perm_signs(model):
+def action_perm_signs(model, joints=None):
     """Normalized-action mirror. Equals the joint mirror iff mirrored
-    actuators have mirrored ctrlranges -- asserted here."""
-    perm, sign = joint_perm_signs(model)
+    actuators have mirrored ctrlranges -- asserted here. joints: as in
+    joint_perm_signs (the policy joints = the action vector's order)."""
+    perm, sign = joint_perm_signs(model, joints)
     cr = model.actuator_ctrlrange
+    if joints is not None:
+        # ctrlrange rows of the actuators driving those joints, in order
+        act_of = {model.joint(int(model.actuator_trnid[a, 0])).name: a
+                  for a in range(model.nu)}
+        cr = cr[[act_of[nm] for nm in joints]]
     for i in range(len(perm)):
         k = perm[i]
         exp = cr[i] if sign[i] > 0 else (-cr[i][1], -cr[i][0])
@@ -98,9 +120,10 @@ def action_perm_signs(model):
     return perm, sign
 
 
-def frame_perm_signs(model, ncmd):
-    """(perm, sign) over ONE obs frame (layout in module docstring)."""
-    jp_, js = joint_perm_signs(model)
+def frame_perm_signs(model, ncmd, joints=None):
+    """(perm, sign) over ONE obs frame (layout in module docstring).
+    joints: the policy joints (see joint_perm_signs)."""
+    jp_, js = joint_perm_signs(model, joints)
     nj = len(jp_)
     perm, sign = [], []
 
@@ -127,9 +150,9 @@ def frame_perm_signs(model, ncmd):
     return np.asarray(perm, dtype=np.int32), np.asarray(sign)
 
 
-def obs_perm_signs(model, ncmd, hist_len=1):
+def obs_perm_signs(model, ncmd, hist_len=1, joints=None):
     """Full stacked-obs mirror: the frame map repeated per history slot."""
-    fp, fs = frame_perm_signs(model, ncmd)
+    fp, fs = frame_perm_signs(model, ncmd, joints)
     d = len(fp)
     perm = np.concatenate([fp + h * d for h in range(hist_len)])
     sign = np.concatenate([fs] * hist_len)

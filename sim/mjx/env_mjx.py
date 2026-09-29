@@ -45,14 +45,109 @@ _XML = os.path.join(_HERE, "..", "bimo_biped_v2.xml")
 def _actuated_slices(m):
     """(qpos_lo, qpos_hi, qvel_lo, qvel_hi) spanning the actuated hinge joints,
     derived from the model's actuator transmission targets (free joint
-    excluded). The joints are a contiguous chain after the freejoint, so
-    min..max+1 covers exactly them -- works for the 8-DOF plant AND the
-    10-DOF hip-yaw plant with no literals."""
+    excluded). Every vector the envs keep per servo is in ACTUATOR order and
+    indexed by these slices, so the plant must list its actuators in qpos
+    order with no unactuated joint in between -- checked here rather than
+    assumed, so a plant that breaks it fails loudly at construction instead
+    of driving the wrong joints. Holds for every plant from the 8-DOF v2 to
+    the robot's (12 legs + neck, + arms)."""
     jnt = m.actuator_trnid[:, 0]
     qadr = m.jnt_qposadr[jnt]
     vadr = m.jnt_dofadr[jnt]
-    return (int(qadr.min()), int(qadr.max()) + 1,
-            int(vadr.min()), int(vadr.max()) + 1)
+    q0, v0 = int(qadr.min()), int(vadr.min())
+    if (not np.array_equal(qadr, np.arange(q0, q0 + len(jnt)))
+            or not np.array_equal(vadr, np.arange(v0, v0 + len(jnt)))):
+        raise ValueError(
+            "actuators must drive consecutive hinge joints in qpos order "
+            f"(qpos addresses {qadr.tolist()})")
+    return q0, int(qadr.max()) + 1, v0, int(vadr.max()) + 1
+
+
+# -- joint roles (MIRRORED in sim/walker_env.py; tests/test_robot_plant.py
+# pins the two copies equal) -------------------------------------------------
+# Per-leg roles, as joint-name suffixes after "L_" / "R_". Every POLICY joint
+# must resolve to a role (joint_role below): the per-leg reward terms, the
+# imitation reference and the crouch/rise references address joints by role,
+# and a joint a new plant adds must never slip past them unnoticed -- the
+# ankle roll is the case that made this a check (docs/training.md, "Porting
+# to the robot").
+LEG_ROLES = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll")
+ARM_ROLES = ("shoulder", "elbow")          # L_/R_ prefixed, like the legs
+BODY_JOINTS = ("neck_yaw",)                # centreline joints, bare names
+
+
+def joint_role(name):
+    """Role of an actuated joint by name ('hip_roll', 'neck_yaw', ...), or
+    None for a joint no reward term knows."""
+    if name in BODY_JOINTS:
+        return name
+    if name[:2] in ("L_", "R_") and name[2:] in LEG_ROLES + ARM_ROLES:
+        return name[2:]
+    return None
+
+
+# Per-servo position-loop stiffness multipliers (DESIGN.md section 4). The
+# STS3215's P coefficient (register 21) is set per servo ID; the envs model
+# P x N as N x the fitted stiffness (servo_kp) AND N x the damping (servo_kd)
+# on the same torque-speed envelope -- the model every design gate uses
+# (sim/design_gates.py kp_scale, sim/static_gait.py), and the bench plan
+# (P and D raised together). "planb" is the NOMINAL factor: the bench test
+# (issue #73) measures the real one, and a run pins what it trained with in
+# config.json as an explicit {actuator: factor} map, never as this name.
+SERVO_KP_PRESETS = {
+    "stock": {},
+    "planb": {"hip_roll": 4.0, "ankle_roll": 4.0, "knee": 4.0},
+}
+
+
+def servo_kp_scale_vector(names, spec):
+    """Per-actuator stiffness multiplier (len(names),) from a spec: None (all
+    1), a number (every servo), a per-actuator sequence, a preset name from
+    SERVO_KP_PRESETS, or a mapping whose keys are actuator names or roles
+    (joint_role) -- an actuator name wins over its role. Unknown keys raise:
+    a typo must not silently leave a servo stock."""
+    n = len(names)
+    if spec is None:
+        return np.ones(n)
+    if isinstance(spec, str):
+        if spec not in SERVO_KP_PRESETS:
+            raise ValueError(f"unknown servo_kp_scale preset {spec!r} "
+                             f"(have {sorted(SERVO_KP_PRESETS)})")
+        spec = SERVO_KP_PRESETS[spec]
+    if isinstance(spec, dict):
+        roles = [joint_role(nm) for nm in names]
+        known = set(names) | {r for r in roles if r is not None}
+        bad = [k for k in spec if k not in known]
+        if bad:
+            raise ValueError(f"servo_kp_scale keys {bad} match no actuator "
+                             f"of this plant ({list(names)})")
+        out = np.ones(n)
+        for i, (nm, r) in enumerate(zip(names, roles)):
+            if nm in spec:
+                out[i] = float(spec[nm])
+            elif r is not None and r in spec:
+                out[i] = float(spec[r])
+        return out
+    arr = np.asarray(spec, dtype=float)
+    if arr.ndim == 0:
+        return np.full(n, float(arr))
+    if arr.shape != (n,):
+        raise ValueError(f"servo_kp_scale needs {n} per-actuator values, "
+                         f"got {arr.shape}")
+    return arr.copy()
+
+
+def _per_servo(value, n, what):
+    """(ref, profile): a scalar gain stays the reference with a unit profile
+    (every legacy config, bit-exact); a per-actuator sequence becomes the
+    profile over a unit reference."""
+    arr = np.asarray(value, dtype=float)
+    if arr.ndim == 0:
+        return float(arr), np.ones(n)
+    if arr.shape != (n,):
+        raise ValueError(f"{what} needs a scalar or {n} per-actuator values, "
+                         f"got {arr.shape}")
+    return 1.0, arr.copy()
 
 
 def policy_range(m):
@@ -101,8 +196,9 @@ class State(NamedTuple):
     reward: jax.Array
     done: jax.Array
     rng: jax.Array
-    prev_action: jax.Array    # (n_act,)
-    last_target: jax.Array    # (n_act,) target in force before this control step
+    prev_action: jax.Array    # (n_act,) policy joints
+    last_target: jax.Array    # (n_servo,) target in force before this control
+                              # step, every servo (held ones at their hold)
     step_i: jax.Array         # ()
     air_time: jax.Array       # (2,) per-foot swing clocks
     cmd: jax.Array            # (2,) commanded (vx m/s, yaw rate rad/s), or (7,)
@@ -142,10 +238,12 @@ class State(NamedTuple):
                               # the otherwise-FROZEN cmd[3]=1.0 in sampled
                               # commands (SIL finding #2); 1.0 when the
                               # feature is off
-    servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode)
+    servo: jax.Array          # (4,) kp, kd, stall, no-load speed (per-episode);
+                              # kp/kd are references, times the static
+                              # per-servo profile (_kp_prof/_kd_prof)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
     lash: jax.Array           # ()  per-episode backlash (rad)
-    zero_off: jax.Array       # (n_act,) per-episode joint ZERO OFFSET (rad):
+    zero_off: jax.Array       # (n_servo,) per-episode joint ZERO OFFSET (rad):
                               # the servo's tick zero vs the policy's frame.
                               # The hardware zero is set by eye and moved by
                               # 1-4.7 deg on 2026-09-03 when loose horns were
@@ -158,8 +256,8 @@ class State(NamedTuple):
                               # 2026-08-31 bench walk measured joint motion at
                               # ~0.5x sim dq -- reproduced only by ~2 Hz of
                               # 3-stage filtering, 5x the 10 Hz shaper alone.
-    lag_y: jax.Array          # (3, n_act) cascaded lag filter state
-    act_hist: jax.Array       # (act_delay_max+1, n_act) recent joint TARGETS,
+    lag_y: jax.Array          # (3, n_servo) cascaded lag filter state
+    act_hist: jax.Array       # (act_delay_max+1, n_servo) recent joint TARGETS,
                               # row 0 = this tick; the actuator serves row
                               # act_delay. Servo DEAD TIME DR: 2026-09-05 bench
                               # (one foot clamped, 16 traces, 3 loads, 3-10 deg)
@@ -455,10 +553,27 @@ class BimoMJXEnv:
         w_power: float = 0.0,
         # -- actuator ---------------------------------------------------------
         supply_voltage: float = 11.1,
-        servo_kp: float = 12.0,
-        servo_kd: float = 0.25,
+        servo_kp: float | tuple = 12.0,   # N*m/rad; or one per actuator
+        servo_kd: float | tuple = 0.25,   # N*m*s/rad; or one per actuator
+        servo_kp_scale=None,   # per-servo P multiplier: None, a number, a
+        # per-actuator sequence, {actuator | role: factor}, or a preset name
+        # (SERVO_KP_PRESETS). Scales kp AND kd -- see SERVO_KP_PRESETS.
         servo_range: float = 0.15,
         servo_joint_damping: float = 0.1,
+        # -- held joints (the robot's neck and arms while walking) -------------
+        # {actuator name: target deg}. A held joint is NOT a policy joint: its
+        # servo holds the fixed target under the same actuator model, it is
+        # absent from the action and the observation, and the episode starts
+        # with it at the target (qpos0). None = every actuator is a policy
+        # joint (every plant before the robot's, and the design-gate scripts
+        # that drive the arms themselves).
+        held_joints: dict | None = None,
+        # imitation reference: solve the ankle PITCH from the joint axes so
+        # the reference sole stays level through the swing knee bend. Off =
+        # the formula every prototype run trained on, which tilts the swing
+        # sole toe-down by twice the knee bend (the knee axis is -y). The
+        # ankle ROLL, where a plant has one, is always solved level.
+        mimic_sole_level: bool = False,
         # -- payload (present iff payload_mass > 0 or payload_dr) -------------
         payload_mass: float = 0.0,
         payload_dr: bool = False,   # batch-level mass draw handled in
@@ -773,11 +888,38 @@ class BimoMJXEnv:
         if terrain:
             self.mj_model.hfield_data[:] = (
                 np.asarray(_tm["field"]).ravel() / self._terrain_spec["max_amp"])
-        # actuated-joint layout, derived from the model (NOT literals) so the
-        # 8-DOF and 10-DOF hip-yaw plants both work
+        # actuated-joint layout, derived from the model (NOT literals) so any
+        # plant works: 8 / 10 prototype joints, the robot's 13 or 17. Two
+        # levels: the SERVO level (every actuator, _jq0:_jq1 -- the PD loop,
+        # the target chain, torque and power) and the POLICY level (the
+        # servos the policy drives: the action, the observation, the joint
+        # reward terms). They coincide unless held_joints takes some out.
         (self._jq0, self._jq1, self._jv0,
          self._jv1) = _actuated_slices(self.mj_model)
-        self._nq_act = self._jq1 - self._jq0
+        self._n_servo = self._jq1 - self._jq0
+        _sj = self.mj_model.actuator_trnid[:, 0]
+        self._servo_names = [self.mj_model.joint(int(j)).name for j in _sj]
+        self._sname2i = {n: i for i, n in enumerate(self._servo_names)}
+        self.held_joints = ({} if not held_joints else
+                            {str(k): float(v) for k, v in held_joints.items()})
+        _bad = [k for k in self.held_joints if k not in self._sname2i]
+        if _bad:
+            raise ValueError(f"held_joints {_bad} are not actuators of this "
+                             f"plant ({self._servo_names})")
+        if self.held_joints:
+            # the held pose IS the home pose of those joints: qpos0 carries
+            # it, so reset, the target chain's seed and every reference built
+            # from qpos0 start there instead of slewing to it
+            for k, deg in self.held_joints.items():
+                self.mj_model.qpos0[self._jq0 + self._sname2i[k]] = \
+                    np.deg2rad(deg)
+            mujoco.mj_setConst(self.mj_model, mujoco.MjData(self.mj_model))
+        self._pi = np.array([i for i, n in enumerate(self._servo_names)
+                             if n not in self.held_joints], dtype=np.int32)
+        if len(self._pi) == 0:
+            raise ValueError("held_joints leaves the policy no joint")
+        self._all_pol = len(self._pi) == self._n_servo
+        self._nq_act = len(self._pi)
         if joint_frictionloss > 0:
             self.mj_model.dof_frictionloss[self._jv0:self._jv1] = \
                 joint_frictionloss
@@ -794,14 +936,19 @@ class BimoMJXEnv:
         self.max_steps = int(episode_seconds / self.control_dt)
 
         jnt = m.actuator_trnid[:, 0]
-        # name-based index maps (action/slice order == actuator order ==
-        # qpos-address order by XML construction). Per-leg role -> action
-        # index; hip_yaw is None on the 8-DOF plant, present on v3yaw.
-        self._act_names = [m.joint(int(j)).name for j in jnt]
+        # name-based index maps over the POLICY joints (action order ==
+        # actuator order minus the held ones). Per-leg role -> action index;
+        # hip_yaw is None on the 8-DOF plant, ankle_roll on every prototype.
+        self._act_names = [self._servo_names[i] for i in self._pi]
         self._jname2i = {n: i for i, n in enumerate(self._act_names)}
-        _roles = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle")
-        self._legL = {r: self._jname2i.get(f"L_{r}") for r in _roles}
-        self._legR = {r: self._jname2i.get(f"R_{r}") for r in _roles}
+        _unroled = [n for n in self._act_names if joint_role(n) is None]
+        if _unroled:
+            raise ValueError(
+                f"policy joints {_unroled} have no role (env_mjx.joint_role): "
+                "give them one, or hold them (held_joints), before training "
+                "on this plant -- an unknown joint would drive unregularized")
+        self._legL = {r: self._jname2i.get(f"L_{r}") for r in LEG_ROLES}
+        self._legR = {r: self._jname2i.get(f"R_{r}") for r in LEG_ROLES}
         self._i_roll = jp.array([self._legL["hip_roll"], self._legR["hip_roll"]])
         self._i_pitch = jp.array([self._legL["hip_pitch"],
                                   self._legR["hip_pitch"]])
@@ -811,6 +958,30 @@ class BimoMJXEnv:
         _ly, _ry = self._legL.get("hip_yaw"), self._legR.get("hip_yaw")
         self._i_yaw = (None if _ly is None or _ry is None
                        else jp.array([_ly, _ry]))
+        # ankle roll: the robot's 6th leg joint, None on every prototype
+        _la, _ra = self._legL.get("ankle_roll"), self._legR.get("ankle_roll")
+        self._i_aroll = (None if _la is None or _ra is None
+                         else jp.array([_la, _ra]))
+        # joint-axis signs for the sole-levelling reference: the rotation a
+        # joint adds about the sole's pitch (y) / roll (x) axis per radian
+        self.mimic_sole_level = bool(mimic_sole_level)
+
+        def _axis_sign(role, comp):
+            out = []
+            for side in ("L", "R"):
+                ax = m.jnt_axis[m.joint(f"{side}_{role}").id]
+                if abs(abs(ax[comp]) - 1.0) > 1e-9:
+                    raise ValueError(f"{side}_{role} axis {ax} is not along "
+                                     f"{'xyz'[comp]}: the sole-level "
+                                     "reference assumes it is")
+                out.append(float(np.sign(ax[comp])))
+            return jp.asarray(out)
+        if self.mimic_sole_level:
+            self._sg_pitch = (_axis_sign("hip_pitch", 1), _axis_sign("knee", 1),
+                              _axis_sign("ankle", 1))
+        if self._i_aroll is not None:
+            self._sg_roll = (_axis_sign("hip_roll", 0),
+                             _axis_sign("ankle_roll", 0))
         self.terrain = terrain
         self.quantize_ticks = bool(quantize_ticks)
         self.cmd_crouch_range = tuple(cmd_crouch_range)
@@ -821,8 +992,10 @@ class BimoMJXEnv:
         if float(march_mix) > 0.0 and not ext_cmd:
             raise ValueError("march_mix requires ext_cmd (the knee-high "
                              "march is expressed through c4/c6)")
-        # per-joint encoder direction (nominal calibration -- see _TICK_DIR)
-        self._tick_dir = jp.full((self._nq_act,), _TICK_DIR)
+        # per-joint encoder direction (nominal calibration -- see _TICK_DIR):
+        # per servo for the goal ticks, per policy joint for the observation
+        self._tick_dir = jp.full((self._n_servo,), _TICK_DIR)
+        self._tick_dir_p = jp.full((self._nq_act,), _TICK_DIR)
         self.mimic_knee_w = mimic_knee_w
         _mw = np.ones(self._nq_act)
         _mw[np.asarray(self._i_knee)] = mimic_knee_w
@@ -835,7 +1008,7 @@ class BimoMJXEnv:
         if hip_flex_deg is not None:
             # training-range knob: moves the ctrlrange on a split plant, the
             # joint limit on the legacy ones (mirror of walker_env.py)
-            for i in (self._jname2i["L_hip_pitch"], self._jname2i["R_hip_pitch"]):
+            for i in (self._sname2i["L_hip_pitch"], self._sname2i["R_hip_pitch"]):
                 if m.actuator_ctrllimited[i]:
                     m.actuator_ctrlrange[i, 0] = -np.deg2rad(hip_flex_deg)
                 else:
@@ -846,9 +1019,12 @@ class BimoMJXEnv:
         self.action_map = action_map
         self.hip_flex_deg = hip_flex_deg
         _plo, _phi = policy_range(m)
+        _plo, _phi = _plo[self._pi], _phi[self._pi]
         self._lo = jp.asarray(_plo)
         self._hi = jp.asarray(_phi)
-        self._default = jp.asarray(m.qpos0[self._jq0:self._jq1])
+        # home pose per servo (held joints at their hold) and per policy joint
+        self._sdefault = jp.asarray(m.qpos0[self._jq0:self._jq1])
+        self._default = jp.asarray(m.qpos0[self._jq0:self._jq1][self._pi])
         self._scale = 0.5 * (self._hi - self._lo)
         self._qpos0 = jp.asarray(m.qpos0)
 
@@ -869,7 +1045,16 @@ class BimoMJXEnv:
         self._nominal_h = float(m.body("torso").pos[2])
 
         v = supply_voltage / 12.0
-        self._nom_servo = jp.array([servo_kp, servo_kd,
+        # servo gains: a reference kp/kd (the per-episode DR scales it, as
+        # ever) times a static per-servo profile -- ones for a scalar gain
+        # and no servo_kp_scale, which is every run before the robot's.
+        kp_ref, kp_prof = _per_servo(servo_kp, self._n_servo, "servo_kp")
+        kd_ref, kd_prof = _per_servo(servo_kd, self._n_servo, "servo_kd")
+        self.servo_kp_scale = servo_kp_scale_vector(self._servo_names,
+                                                    servo_kp_scale)
+        self._kp_prof = jp.asarray(kp_prof * self.servo_kp_scale)
+        self._kd_prof = jp.asarray(kd_prof * self.servo_kp_scale)
+        self._nom_servo = jp.array([kp_ref, kd_ref,
                                     _STS_STALL_12V * v, _STS_NOLOAD_12V * v])
 
         self.w_upright = w_upright
@@ -1056,8 +1241,10 @@ class BimoMJXEnv:
         # kneel-rise corridor (harvest_rise_states.py). Optional per-row "t0"
         # aligns each state with its rise-reference phase.
         _cs = os.path.join(os.path.dirname(xml_path), "getup_catch_states.npz")
-        if os.path.exists(_cs):
-            _z = np.load(_cs)
+        _z = np.load(_cs) if os.path.exists(_cs) else None
+        if _z is not None and _z["qpos"].shape[1] != self.mj_model.nq:
+            _z = None          # harvested on another plant (the prototype's)
+        if _z is not None:
             self._catch_qpos = jp.asarray(_z["qpos"], dtype=jp.float32)
             self._catch_qvel = jp.asarray(_z["qvel"], dtype=jp.float32)
             self._catch_t0 = (jp.asarray(_z["t0"], dtype=jp.float32)
@@ -1123,6 +1310,18 @@ class BimoMJXEnv:
             if ext_cmd else ())
 
     # -- pieces ---------------------------------------------------------------
+    def _p(self, x):
+        """Servo-level vector (last axis = every actuator) -> policy joints.
+        The identity when nothing is held (every plant before the robot's)."""
+        return x if self._all_pol else x[..., self._pi]
+
+    def _to_servo(self, x):
+        """Policy-level joint vector -> servo level, held joints at their
+        hold targets. The identity when nothing is held."""
+        if self._all_pol:
+            return x
+        return self._sdefault.astype(x.dtype).at[self._pi].set(x)
+
     def _sample_cmd(self, rng: jax.Array, step_i: jax.Array,
                     cmd_crouch=1.0):
         """(cmd, cmd_next, traj_on): stand / pivot-in-place / walk mix, exactly
@@ -1369,7 +1568,14 @@ class BimoMJXEnv:
         mag = jp.minimum(1.0, (jp.max(jp.abs(A)) + jp.abs(B)) / 0.35)
         knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
-        ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
+        if self.mimic_sole_level:
+            # sole pitch = sum of axis-sign * angle over the pitch chain;
+            # the ankle cancels the hip and knee (the knee axis is -y)
+            s_h, s_k, s_a = self._sg_pitch
+            ank = d[self._i_ankle] - (s_h * (hipP - hp0)
+                                      + s_k * (knee - kn0)) / s_a
+        else:
+            ank = d[self._i_ankle] - (hipP - hp0) - (knee - kn0)
         if self.crouch_pose_ref:
             # the explicit squat (level-foot family, or the deep target),
             # STATIONARY only (a walking episode carries a stance draw too;
@@ -1383,6 +1589,12 @@ class BimoMJXEnv:
         # joints stay at their default (0.0) -> neutral regularization
         q = (d.at[self._i_roll].set(roll).at[self._i_pitch].set(hipP)
              .at[self._i_knee].set(knee).at[self._i_ankle].set(ank))
+        if self._i_aroll is not None:
+            # the ankle roll cancels the hip roll: the sole stays level
+            # laterally through the sidestep oscillation
+            s_hr, s_ar = self._sg_roll
+            q = q.at[self._i_aroll].set(
+                d[self._i_aroll] - s_hr * (roll - d[self._i_roll]) / s_ar)
         return jp.clip(q, self._lo, self._hi)
 
     def _draw_traj(self, rng: jax.Array) -> jax.Array:
@@ -1410,21 +1622,24 @@ class BimoMJXEnv:
         return jp.stack(out)
 
     # -- servo tick quantization (mirror of walker_env's, parity-gated) --------
-    def _quant_angle(self, rad):
+    def _quant_angle(self, rad, tick_dir=None):
         """rad -> encoder tick (round-half-to-even, clipped 0..4095) -> rad.
         jp.round is round-half-to-even, the same rule as np.rint (and
         lrintf()'s default mode) -- that is what makes gate 2i bit-identical
-        rather than merely close."""
-        ticks = jp.clip(_TICK_ZERO + jp.round(rad / _TICK_RAD * self._tick_dir),
+        rather than merely close. tick_dir: per-servo by default (goal
+        ticks); the observation passes the policy joints'."""
+        dr = self._tick_dir if tick_dir is None else tick_dir
+        ticks = jp.clip(_TICK_ZERO + jp.round(rad / _TICK_RAD * dr),
                         0.0, float(_TICK_MAX))
-        return (ticks - _TICK_ZERO) * _TICK_RAD * self._tick_dir
+        return (ticks - _TICK_ZERO) * _TICK_RAD * dr
 
-    def _quant_vel(self, rad_s):
+    def _quant_vel(self, rad_s, tick_dir=None):
         """rad/s -> integer reg-58 steps/s -> rad/s (sign-magnitude wire word,
         15-bit magnitude -> +/-32767 steps/s)."""
-        steps = jp.clip(jp.round(rad_s / _TICK_RAD * self._tick_dir),
+        dr = self._tick_dir if tick_dir is None else tick_dir
+        steps = jp.clip(jp.round(rad_s / _TICK_RAD * dr),
                         -float(_TICK_VEL_MAX), float(_TICK_VEL_MAX))
-        return steps * _TICK_RAD * self._tick_dir
+        return steps * _TICK_RAD * dr
 
     def _apply_crouch(self, cmd, cmd_crouch):
         """Replace a FROZEN full-height crouch channel with this episode's
@@ -1470,17 +1685,17 @@ class BimoMJXEnv:
             phase = gait_phase        # per-episode gait clock (plan v2)
         else:
             phase = 2 * jp.pi * (step_i.astype(jp.float32) / self.max_steps)
-        q_j = data.qpos[self._jq0:self._jq1]
+        q_j = self._p(data.qpos[self._jq0:self._jq1])
         if zero_off is not None:
             # calibration-error DR: the encoder's zero sits zero_off away from
             # the policy's frame, so the reported angle is physical - offset
-            q_j = q_j - zero_off
-        dq_j = data.qvel[self._jv0:self._jv1]
+            q_j = q_j - self._p(zero_off)
+        dq_j = self._p(data.qvel[self._jv0:self._jv1])
         if self.quantize_ticks:
             # servo-side view: what a SYNC READ can actually report (encoder
             # ticks + reg-58 steps/s). The physics state is untouched.
-            q_j = self._quant_angle(q_j)
-            dq_j = self._quant_vel(dq_j)
+            q_j = self._quant_angle(q_j, self._tick_dir_p)
+            dq_j = self._quant_vel(dq_j, self._tick_dir_p)
         return jp.concatenate([
             q_j,
             dq_j,
@@ -1507,12 +1722,13 @@ class BimoMJXEnv:
         else:
             lash = jp.asarray(self.backlash_rad, dtype=jp.float32)
         if self.zero_offset_rad > 0.0:
+            # per SERVO: a held servo's zero is set by eye like any other
             zero_off = jax.random.uniform(jax.random.fold_in(r_lash, 7),
-                                          (self._nq_act,),
+                                          (self._n_servo,),
                                           minval=-self.zero_offset_rad,
                                           maxval=self.zero_offset_rad)
         else:
-            zero_off = jp.zeros((self._nq_act,), dtype=jp.float32)
+            zero_off = jp.zeros((self._n_servo,), dtype=jp.float32)
         if self.domain_rand:
             sf = jp.concatenate([
                 jax.random.uniform(r_servo, (2,), minval=1 - self.gain_range,
@@ -1587,7 +1803,7 @@ class BimoMJXEnv:
 
     def _act_hist0(self):
         # before the policy has acted the served target is the home pose
-        return jp.tile(self._default.astype(jp.float32)[None, :],
+        return jp.tile(self._sdefault.astype(jp.float32)[None, :],
                        (self.act_delay_max + 1, 1))
 
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
@@ -1604,7 +1820,7 @@ class BimoMJXEnv:
         data = mjx.make_data(model)
         data = data.replace(qpos=qpos,
                             ctrl=jp.zeros(self.mj_model.nu)
-                            + (self._default if ctrl is None else ctrl))
+                            + (self._sdefault if ctrl is None else ctrl))
 
         def fall(d, _):
             return mjx.step(model, d), None
@@ -1629,7 +1845,7 @@ class BimoMJXEnv:
                                                minval=-0.6, maxval=0.6)
             * self._scale, self._lo, self._hi)
         q_rag = (self._qpos0.at[2].set(0.35).at[3:7].set(quat)
-                 .at[self._jq0:self._jq1].set(joints))
+                 .at[self._jq0:self._jq1].set(self._to_servo(joints)))
         mix = tuple(self.getup_start_mix)
         mix = mix + (0.0,) * (5 - len(mix))   # (rag, kneel, squat, sit, catch)
         p_rag, p_kneel, p_squat, p_sit, p_catch = mix
@@ -1641,7 +1857,7 @@ class BimoMJXEnv:
                              .at[self._i_ankle].set(-0.6)
         j_kneel = jp.clip(j_kneel, self._lo, self._hi)
         q_kneel = self._qpos0.at[2].set(0.13).at[self._jq0:self._jq1].set(
-            j_kneel)
+            self._to_servo(j_kneel))
         # deep squat, feet flat, torso folded (the study's rise-path start)
         j_squat = jp.zeros(self._nq_act).at[self._i_pitch].set(
                                  self._lo[self._legL["hip_pitch"]] + 0.05) \
@@ -1652,7 +1868,7 @@ class BimoMJXEnv:
         q_squat = (self._qpos0.at[2].set(0.10)
                    .at[3:7].set(jp.array([jp.cos(ang / 2), 0.0,
                                           jp.sin(ang / 2), 0.0]))
-                   .at[self._jq0:self._jq1].set(j_squat))
+                   .at[self._jq0:self._jq1].set(self._to_servo(j_squat)))
         # sit (user 2026-07-19/20 spec): TORSO POINTING UP, waist bent 90
         # deg, feet & legs straight out front. Hip roll splays the feet a
         # few cm apart so the (non-self-colliding) leg meshes can never
@@ -1664,14 +1880,17 @@ class BimoMJXEnv:
                            .at[jp.array([self._legR["hip_roll"]])].set(-0.10)
         j_sit = jp.clip(j_sit, self._lo, self._hi)
         q_sit = (self._qpos0.at[2].set(0.08)
-                 .at[self._jq0:self._jq1].set(j_sit))
+                 .at[self._jq0:self._jq1].set(self._to_servo(j_sit)))
         # staged poses settle 1.0 s: the kneel bounces off the shins to
         # h 0.277 (2 mm ABOVE the recovered threshold -> instant-recovered
         # episode) at 0.25 s before drooping to its true 0.23 static height
         d_rag = self._settle(q_rag, self.getup_settle, model=model)
-        d_kneel = self._settle(q_kneel, 200, ctrl=j_kneel, model=model)
-        d_squat = self._settle(q_squat, 200, ctrl=j_squat, model=model)
-        d_sit = self._settle(q_sit, 200, ctrl=j_sit, model=model)
+        d_kneel = self._settle(q_kneel, 200, ctrl=self._to_servo(j_kneel),
+                               model=model)
+        d_squat = self._settle(q_squat, 200, ctrl=self._to_servo(j_squat),
+                               model=model)
+        d_sit = self._settle(q_sit, 200, ctrl=self._to_servo(j_sit),
+                             model=model)
         u = jax.random.uniform(r_m)
         t_k = p_rag + p_kneel
         t_sq = t_k + p_squat
@@ -1695,7 +1914,7 @@ class BimoMJXEnv:
                                   qvel=self._catch_qvel[row].astype(
                                       d_cat.qvel.dtype),
                                   ctrl=jp.zeros(self.mj_model.nu)
-                                  + self._default)
+                                  + self._sdefault)
             d_cat = mjx.forward(model, d_cat)
         else:
             d_cat = None
@@ -1752,7 +1971,7 @@ class BimoMJXEnv:
             recover_slot = (jax.random.uniform(r_mix)
                             < self.recover_mix).astype(jp.float32)
             qpos = self._qpos0.at[self._jq0:self._jq1].add(
-                jax.random.uniform(r_q, (self._nq_act,),
+                jax.random.uniform(r_q, (self._n_servo,),
                                    minval=-self._init_q_rad,
                                    maxval=self._init_q_rad))
             qpos = self._terrain_spawn(qpos, rng)
@@ -1760,7 +1979,7 @@ class BimoMJXEnv:
                                       minval=-0.02, maxval=0.02)
             d_up = mjx.make_data(model)
             d_up = d_up.replace(qpos=qpos, qvel=qvel,
-                                ctrl=jp.zeros(self.mj_model.nu) + self._default)
+                                ctrl=jp.zeros(self.mj_model.nu) + self._sdefault)
             d_up = mjx.forward(model, d_up)
             d_dn, t0_dn = self._fallen_data(jax.random.fold_in(r_q, 1),
                                             model=model)
@@ -1772,7 +1991,7 @@ class BimoMJXEnv:
             rise_t0 = jp.where(recover_slot > 0, t0_dn, 0.0)
         else:
             qpos = self._qpos0.at[self._jq0:self._jq1].add(
-                jax.random.uniform(r_q, (self._nq_act,),
+                jax.random.uniform(r_q, (self._n_servo,),
                                    minval=-self._init_q_rad,
                                    maxval=self._init_q_rad))
             qpos = self._terrain_spawn(qpos, rng)
@@ -1780,7 +1999,7 @@ class BimoMJXEnv:
                                       minval=-0.02, maxval=0.02)
             data = mjx.make_data(model)
             data = data.replace(qpos=qpos, qvel=qvel,
-                                ctrl=jp.zeros(self.mj_model.nu) + self._default)
+                                ctrl=jp.zeros(self.mj_model.nu) + self._sdefault)
             data = mjx.forward(model, data)
         (servo, lat_ms, lash, imu_R, imu_bias,
          cmd_crouch, act_lag, zero_off) = self._draw_episode(r_ep)
@@ -1789,7 +2008,7 @@ class BimoMJXEnv:
         act_delay = self._draw_act_delay(r_ep)
         if self.init_pose_deg is None:
             act_hist = self._act_hist0()
-            lag_y0 = jp.tile(self._default.astype(jp.float32), (3, 1))
+            lag_y0 = jp.tile(self._sdefault.astype(jp.float32), (3, 1))
         else:
             q_init = data.qpos[self._jq0:self._jq1].astype(jp.float32)
             act_hist = jp.tile(q_init[None, :], (self.act_delay_max + 1, 1))
@@ -1819,18 +2038,20 @@ class BimoMJXEnv:
             cmd_rsi = jp.zeros(7).at[3].set(crouch_c).astype(jp.float32)
             q_rsi = self._mimic_ref(cmd_rsi, 0.0, 1.5)
             drop = self._nominal_h - self._crouch_h_target(crouch_c)
-            qpos_r = (data.qpos.at[self._jq0:self._jq1].set(q_rsi)
+            qpos_r = (data.qpos.at[self._jq0:self._jq1].set(
+                          self._to_servo(q_rsi))
                       .at[2].add(-drop))
             d_rsi = mjx.make_data(model)
             d_rsi = d_rsi.replace(qpos=qpos_r, qvel=jp.zeros_like(data.qvel),
-                                  ctrl=jp.zeros(self.mj_model.nu) + q_rsi)
+                                  ctrl=jp.zeros(self.mj_model.nu)
+                                  + self._to_servo(q_rsi))
             d_rsi = mjx.forward(model, d_rsi)
             data = jax.tree_util.tree_map(
                 lambda a, b: jp.where(crouch_slot > 0, a, b), d_rsi, data)
             cmd = jp.where(crouch_slot > 0, cmd_rsi, cmd)
             traj_on = jp.where(crouch_slot > 0, 0.0, traj_on)
             # the servo chain starts AT the squat, not slewing from standing
-            q_init_r = q_rsi.astype(jp.float32)
+            q_init_r = self._to_servo(q_rsi).astype(jp.float32)
             act_hist = jp.where(crouch_slot > 0,
                                 jp.tile(q_init_r[None, :], (self.act_delay_max + 1, 1)),
                                 act_hist)
@@ -1862,7 +2083,7 @@ class BimoMJXEnv:
         metrics = {k: jp.zeros(()) for k in self._metric_keys}
         return State(data=data, obs=obs, reward=jp.zeros(()),
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
-                     last_target=self._default.astype(jp.float32),
+                     last_target=self._sdefault.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2),
                      last_air=jp.zeros(2),
                      gait_freq=gait_freq, gait_phase=gait_phase,
@@ -1940,7 +2161,7 @@ class BimoMJXEnv:
         return first._replace(
             obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
             prev_action=prev_action,
-            last_target=self._default.astype(jp.float32), step_i=step_i,
+            last_target=self._sdefault.astype(jp.float32), step_i=step_i,
             air_time=jp.zeros(2), last_air=jp.zeros(2),
             gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
@@ -1953,7 +2174,7 @@ class BimoMJXEnv:
             head_ref=_quat_yaw(first.data.qpos[3:7]), cmd_crouch=cmd_crouch,
             servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
             act_lag=act_lag,
-            lag_y=jp.tile(self._default.astype(jp.float32), (3, 1)),
+            lag_y=jp.tile(self._sdefault.astype(jp.float32), (3, 1)),
             act_hist=act_hist, act_delay=act_delay,
             imu_R=imu_R, imu_bias=imu_bias,
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
@@ -1971,6 +2192,9 @@ class BimoMJXEnv:
         else:
             target = jp.clip(self._default + self._scale * action,
                              self._lo, self._hi)
+        # the policy's targets onto the servo vector: held joints get their
+        # fixed hold target, and from here on everything is per servo
+        target = self._to_servo(target)
         # servo dead time DR (see State.act_hist): the actuator serves the
         # target from act_delay ticks ago; row 0 is this tick's. Sits BEFORE
         # the lag cascade, as the real bus write precedes the servo's response.
@@ -2031,7 +2255,11 @@ class BimoMJXEnv:
         lat_k = jp.minimum(jp.round(ms / (self.sim_dt * 1000.0)).astype(jp.int32),
                            self.n_substeps)
 
-        kp, kd, stall, w0 = (state.servo[0], state.servo[1],
+        # per-servo gains: the episode's (DR-scaled) reference times the
+        # static per-servo profile (all ones unless servo_kp_scale / a
+        # per-actuator servo_kp says otherwise)
+        kp, kd, stall, w0 = (state.servo[0] * self._kp_prof,
+                             state.servo[1] * self._kd_prof,
                              state.servo[2], state.servo[3])
         lash = state.lash
         last_target = state.last_target
@@ -2051,7 +2279,7 @@ class BimoMJXEnv:
             return (d, tau), None
 
         (data, tau), _ = jax.lax.scan(
-            substep, (data, jp.zeros(self._nq_act)),
+            substep, (data, jp.zeros(self._n_servo)),
             jp.arange(self.n_substeps))
 
         up_z = data.sensordata[self._up_adr + 2]
@@ -2361,16 +2589,16 @@ class BimoMJXEnv:
             else:
                 pose_gate = 1.0
             reward -= (self.w_pose * pose_gate
-                       * jp.sum((data.qpos[self._jq0:self._jq1]
+                       * jp.sum((self._p(data.qpos[self._jq0:self._jq1])
                                  - self._default) ** 2))
         if self.w_dof_limits:
-            q = data.qpos[self._jq0:self._jq1]
+            q = self._p(data.qpos[self._jq0:self._jq1])
             out = (jp.maximum(self._soft_lo - q, 0.0)
                    + jp.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * jp.sum(out)
         if self.w_mimic:
             q_ref = self._mimic_ref(state.cmd, gait_phase, clock_freq)
-            dq = data.qpos[self._jq0:self._jq1] - q_ref
+            dq = self._p(data.qpos[self._jq0:self._jq1]) - q_ref
             mim_gate = 1.0
             mim_w = self._mimic_w
             if self.ext_cmd:
@@ -2391,14 +2619,14 @@ class BimoMJXEnv:
             # jerk control during the rise (HumanUP/utra lesson)
             reward -= (self.w_rise_dofvel
                        * jp.where(state.recovered < 0.5, 1.0, 0.0)
-                       * jp.sum(qd_j ** 2))
+                       * jp.sum(self._p(qd_j) ** 2))
         if self.w_rise_ref and self.ext_cmd and self.recover_mix > 0:
             # staged-rise reference while DOWN (getup_v3): dense guidance
             # toward the scripted tuck->plant->squat->stand trajectory
             q_rr = self._rise_ref(state.rise_t0
                                   + state.step_i.astype(jp.float32)
                                   * self.control_dt)
-            dq_rr = data.qpos[self._jq0:self._jq1] - q_rr
+            dq_rr = self._p(data.qpos[self._jq0:self._jq1]) - q_rr
             reward += (self.w_rise_ref
                        * jp.where(state.recovered < 0.5, 1.0, 0.0)
                        * jp.exp(-jp.sum(dq_rr ** 2) / self.rise_ref_s2))
@@ -2446,12 +2674,12 @@ class BimoMJXEnv:
             cp_gate = ((state.cmd[3] < 0.97) & (~cmd_moving) & (~lifted)
                        & (state.recovered > 0.5))
             q_cp = self._mimic_ref(state.cmd, gait_phase, clock_freq)
-            dq_cp = data.qpos[self._jq0:self._jq1] - q_cp
+            dq_cp = self._p(data.qpos[self._jq0:self._jq1]) - q_cp
             idx_cp = jp.concatenate([self._i_pitch, self._i_knee, self._i_ankle])
             reward -= (self.w_crouch_pull * jp.where(cp_gate, 1.0, 0.0)
                        * jp.sum(jp.abs(dq_cp[idx_cp])))
         if self.w_hip_yaw and self._i_yaw is not None:
-            q_yaw = data.qpos[self._jq0:self._jq1][self._i_yaw]
+            q_yaw = self._p(data.qpos[self._jq0:self._jq1])[self._i_yaw]
             reward -= self.w_hip_yaw * jp.sum(q_yaw ** 2)
         if self.w_crouch_track and self.ext_cmd:
             # pays only while a crouch is commanded and only near the depth
@@ -2477,7 +2705,7 @@ class BimoMJXEnv:
                 stand_gate = stand_gate & (state.cmd[3] >= 0.97)
             reward -= (self.w_still
                        * jp.where(stand_gate, 1.0, 0.0)
-                       * jp.sum(data.qvel[self._jv0:self._jv1] ** 2))
+                       * jp.sum(self._p(data.qvel[self._jv0:self._jv1]) ** 2))
         if self.w_stand_zero:
             # zero command -> zero action -> home pose (see ctor note)
             # crouch is a COMMAND, not a stand: cmd[3] < 0.97 releases the pull
@@ -2498,7 +2726,7 @@ class BimoMJXEnv:
                        & (state.recovered > 0.5))
             reward -= (self.w_stand_home
                        * jp.where(sh_gate, 1.0, 0.0)
-                       * jp.sum(jp.abs(target - self._default)))
+                       * jp.sum(jp.abs(self._p(target) - self._default)))
         if self.w_stand_com:
             # stand_off diagnosis 2026-08-19: the v21 line parks its standing
             # CoM 26-28 mm AFT of the midfoot point; with torque released,
@@ -2533,7 +2761,7 @@ class BimoMJXEnv:
             sk_gate = ((~cmd_moving)
                        & (~lifted if self.ext_cmd else True)
                        & (state.recovered > 0.5))
-            sk_q = data.qpos[self._jq0:self._jq1][self._i_knee]
+            sk_q = self._p(data.qpos[self._jq0:self._jq1])[self._i_knee]
             sk_kern = jp.mean(jp.exp(
                 -((sk_q - self.stand_knee_target)
                   / self.stand_knee_sigma) ** 2))
