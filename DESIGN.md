@@ -190,9 +190,10 @@ conditions, at the scripted pace or 3× slower:
 - the shoulder draws at most 1.7 A.
 
 The get-up runs out of strength (servos at 55 %) before the cutoff first fires
-(45 %). The propped entry keeps the shoulder above 80 % for at most 0.9 s, with
-the servos at 65 %, and the prone roll's hips come closest (§9). A slower tuck and push (3.7 s and 4.3 s) cut the peak load to 66 % and
-the shoulder to 1.52 N·m
+(45 %). With the servos at 65 %, the propped entry keeps the shoulder above
+80 % for at most 0.9 s, and the prone roll (§9) keeps any servo there for at
+most 0.18 s. A slower tuck and push (3.7 s and 4.3 s) cut the peak load to
+66 % and the shoulder to 1.52 N·m
 ([getup-overload-2026-09-29.md](docs/design-v6/getup-overload-2026-09-29.md)).
 The bench still has to read the registers back and measure the load in the
 seat push (#83).
@@ -317,8 +318,8 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
   XH inlet 3 A per contact. The simulated budget
   ([wiring.md](docs/wiring.md#current-the-open-constraint)) brackets:
   - the walk at 1.0–3.1 A RMS (peak 1.7–4.7 A);
-  - the seat push at 5.2–10.3 A peak;
-  - the prone roll at 11.6–15.9 A peak.
+  - the get-ups (the seat push, and the prone roll before it) at up to
+    5.2–10.3 A peak.
 
   The walk fits the board but not the inlet; the get-ups fit neither. Three
   measures follow from it:
@@ -326,8 +327,7 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
   - put one leg and one arm on each port;
   - keep the 15 A fuse.
 
-  A shunt on the first powered run confirms them, starting with the prone
-  roll.
+  A shunt on the first powered run confirms them.
 - **Power path**: pack → protection board (≥ 15 A, over-discharge cut-off) →
   10–15 A fuse → switch → board inlet; bulk capacitor (1000 µF, ≥ 25 V) at the
   board; Pololu D24V50F5-class 5 V / 5 A buck for the Pi.
@@ -425,22 +425,33 @@ of stall), above the fold-first sequence's 1.77
 
 **Forward falls (prone) → roll onto the back, then the same seat push**:
 
-1. hold the arms straight back, which points them at the sky while prone;
-2. roll over with the legs;
-3. fold the arms up as the back lands;
+1. brace the left arm forward-down under the chest and raise the right one
+   back;
+2. roll over the right side with the legs;
+3. fold both arms up as the back lands;
 4. then the seat push, from the arms-folded start.
 
-It stands, robust 12/12 in the same six conditions at both paces. It was
-found by a continuous search, and 1 of the 6 restart winners verifies at
-12/12. The roll drives the hip roll and hip yaw to stall in short bursts
-(≤ 1.7 s above 80 %). With weak servos, 3× slower, they trip the overload
-cutoff and it still stands. That margin is thin, and it is the load to
-measure on the bench.
+It stands, robust 12/12, in the same six conditions at both paces, and no
+servo trips. It was found by a continuous search that scored every candidate
+on its worst of four runs, with the overload cutoff enforced.
+
+- **Margin**: no servo in the roll reaches stall. The worst in the whole chain
+  is the seat push's shoulder, at 62–68 % at full strength. With weak servos
+  3× slower, a hip pitch spends 0.18 s above 80 %.
+- **Current**: 8.8 A peak in the upper model. An earlier, nominal-scored
+  winner also stood 12/12, but rode the hips at stall and drew 15.9 A.
+- **Config**: `ROLL_STOW_FOLD` in `sim/getup_v6_prone.py`.
 
 Two other ways onto the back are weaker:
 
-- **A one-arm roll**, legs straight: torque-bound, the shoulder at stall.
-- **Catching the fall on the hands**: CATCH_LINE.
+- **A one-arm roll**, legs straight: torque-bound, the shoulder at stall. The
+  best winner stands 9/12.
+- **Catching the fall on the hands**: not found. The same search, run from the
+  fall itself, instead squats, lands face-down on the shins and head, and
+  **rolls forward over the head** onto the back. Then it sits up onto the feet
+  and rises. It stands 54/60 across kicks, conditions and paces, and fails
+  only with the servos at 65 %. It needs a fall reflex the firmware lacks,
+  and it loads the head.
 
 ([getup-prone-2026-09-29.md](docs/design-v6/getup-prone-2026-09-29.md) §3–§4.)
 

@@ -248,7 +248,7 @@ def main():
         gu = GN.pmap(_getup_job, [(seq_name, seq, c) for c in GN.GETUP_CONDS])
         report_group(f"GET-UP, the seat push from the arms folded: {seq_name}, six conditions (r5_asdrawn_rom120)", gu)
     for kind, title in (("supine", "from a real backward fall: the propped entry + the seat push"),
-                        ("prone", "from prone: the roll with the arms held back + the seat push")):
+                        ("prone", "from prone: the roll (getup_v6_prone.ROLL_STOW_FOLD) + the seat push")):
         gu = GN.pmap(_getup_real_job, [(kind, c) for c in GN.GETUP_CONDS])
         report_group(f"GET-UP {title}, six conditions (r5_asdrawn_rom120 + elbow stops)", gu)
 

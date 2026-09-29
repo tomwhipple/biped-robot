@@ -9,12 +9,13 @@ servos ([no3250_getup.txt](no3250_getup.txt)). This study searched for a path
 back to standing from prone that uses the arms.
 
 **Result.** It stands, robust 12/12: every robustness condition, at the
-searched pace and 3× slower, with the servo overload cutoff enforced. The
-path:
+searched pace and 3× slower, with the servo overload cutoff enforced and no
+servo tripping. The path:
 
-1. hold the arms pointing straight back — at the sky while prone;
-2. roll onto the back with the legs;
-3. fold the arms up before landing;
+1. brace the left arm forward-down under the chest and raise the right one
+   back, out of the way;
+2. roll onto the back over the right side with the legs;
+3. fold both arms up as it lands;
 4. then the recommended seat push.
 
 The study also found a flaw in the scripted get-up from a *backward* fall,
@@ -131,43 +132,116 @@ search's own score is a nominal run and does not rank robustness.
 | onearm: the left arm free, the right arm held, legs free | | 6 of 6 restarts | not chained (ends with the arms idle) ([getup_prone_roll_onearm.txt](getup_prone_roll_onearm.txt)) |
 | **arm1_fold** (candidate 3): legs straight, one arm rolls the robot | the left arm per keyframe + the right arm's pose | 5 of 6 restarts | no winner is robust. Three winners reach 9/12 (5/6 at pace ×1, 4/6 at ×3), and every one fails the weak-servo conditions: the rolling shoulder runs at 94–100 % of stall. The other three reach 0–7/12 ([getup_prone_roll_arm1_fold.txt](getup_prone_roll_arm1_fold.txt), [getup_prone_verifyall_arm1_fold.txt](getup_prone_verifyall_arm1_fold.txt)) |
 
-**The verified path (stow_fold, restart 0).** It holds the left arm at 73° and
-the right at 90°: straight back, pointing at the sky while prone. The legs
-roll the body over its right side, and the arms fold to 180° as it lands on
-its back. Then comes the recommended seat push.
+**The first verified path (stow_fold, restart 0 of the nominal search)**
+holds the left arm at 73° and the right at 90°: straight back, pointing at the
+sky while prone. The legs roll the body over its right side, and the arms fold
+to 180° as it lands on its back; then comes the recommended seat push.
 
-- **12/12 standing**: six conditions × both paces, cutoff enforced
-  ([getup_prone_verify_stow_fold.txt](getup_prone_verify_stow_fold.txt)).
-- **The roll uses the hips hard.** The hip roll and hip yaw reach stall in
-  short bursts. The longest time above 80 % of stall is 0.4–0.7 s at full
-  strength and 1.7 s with the servos at 65 %.
-- **At 3× slower with the servos at 65 %**, the left hip yaw and hip roll
-  trip the overload cutoff, and it still stands. That margin is thin.
-  ROBUST_PLACEHOLDER
+- It stands **12/12** ([getup_prone_verify_stow_fold.txt](getup_prone_verify_stow_fold.txt)).
+- But the roll drives the hip roll and hip yaw to stall in bursts: up to
+  1.7 s above 80 % with the servos at 65 %.
+- At 3× slower with weak servos they trip the cutoff, though it still stands.
+- It peaks at 15.9 A on the bus in the upper current model.
 
-![Prone → roll with the arms held straight back → on the back with the arms folded → the seat push → standing](figs/getup_prone_chain_sheet.png)
+**So the search was re-run for margin.** `PRONE_MARGIN=1 PRONE_ROBUST=1`:
 
-Parameters: the `x` line of restart 0 in
-[getup_prone_verify_stow_fold.txt](getup_prone_verify_stow_fold.txt).
+- every candidate runs with the cutoff enforced, and four times (nominal,
+  μ 0.3, servos 65 %, nominal 3× slower);
+- it scores its worst run, minus 0.3 × the worst servo's seconds above 80 % of
+  stall and 0.5 × any trip.
 
-## 4. Catching a forward fall on the hands (candidate 2)
+The log is [getup_prone_roll_stow_fold_robust.txt](getup_prone_roll_stow_fold_robust.txt).
+Its restart-1 winner is **the recommended prone path**
+(`getup_v6_prone.ROLL_STOW_FOLD`):
 
-CATCH_PLACEHOLDER
+- **The arms**: the left arm is braced forward-down under the chest (−77°,
+  elbow −93°), the right raised back past vertical (119°, elbow −81°). The
+  legs roll the body over the right side. The arms fold up as the back lands.
+- **12/12 standing, no trip**, in the six conditions at both paces
+  ([getup_prone_verify_stow_fold_robust.txt](getup_prone_verify_stow_fold_robust.txt)).
+- **The roll stays below stall.** At full strength the worst servo in the
+  whole chain peaks at 62–68 % of stall, the shoulder in the seat push. At
+  servos 65 % and 3× slower, a hip pitch spends 0.18 s above 80 %.
+- On the stricter duty reading it stands 11/12. With the servos at 65 %, the
+  shoulders trip in the seat push part
+  ([…_robust_duty.txt](getup_prone_verify_stow_fold_robust_duty.txt)).
+- **Current**: 8.8 / 3.8 A peak and 5.5 / 1.9 A over the worst 2 s (upper /
+  lower model), against 15.9 / 11.6 A for the first path
+  ([current_budget_v6.txt](current_budget_v6.txt)).
+- ROBUST_PLACEHOLDER
+
+![Prone → one arm braced, the other raised → roll onto the back → arms folded → the seat push → standing](figs/getup_prone_chain_sheet.png)
+
+## 4. Catching a forward fall on the hands (candidate 2): a forward roll instead
+
+The search starts from **standing**, with the arms idle, and kicks the robot
+forward at 1.0, 1.5 and 2.0 × its tip speed (0.50 m/s). When the torso pitches
+past a searched angle, the reaction begins:
+
+- a searched arm-and-leg "catch" pose;
+- three searched push-back keyframes into the seat push's crouch;
+- then the seat push's rise.
+
+It ran as a CEM search, 6 restarts × 40 iterations × 48, scored on the worst
+kick ([getup_prone_catch_search.txt](getup_prone_catch_search.txt)). One
+restart (4) stands at all three kicks.
+
+**It is not a catch on the hands.** Traced over time, the winner does this:
+
+- at 15° of pitch it throws the arms up and drops into a deep squat;
+- it lands face-down on its shins and head;
+- the push-back keyframes then **roll it forward over its head** onto its
+  back, travelling 0.6 m;
+- it sits up onto its feet with the forearms on the floor, into the crouch.
+
+Nothing in 6 restarts found a hands-first catch that holds.
+
+Its own rise from that crouch (the seat push's) stands 13/30 at the searched
+pace and 0/30 3× slower ([getup_prone_verify_catch.txt](getup_prone_verify_catch.txt)).
+The crouch is reached in 25/30 and 29/30. So a second search, `catchrise`,
+kept the fall-and-roll fixed and searched the rise: three free keyframes, each
+candidate run at three kicks, μ 0.3 and 1.0, and 3× slower
+([getup_prone_catchrise.txt](getup_prone_catchrise.txt)).
+
+With that rise the fall-and-roll stands **54/60**
+([getup_prone_verify_catch_rise.txt](getup_prone_verify_catch_rise.txt)):
+
+- six conditions × two paces × five kicks (1.0 / 1.5 / 2.0 × the tip speed
+  straight ahead, and 1.5 × at ±20°);
+- it fails only with the servos at 65 %, at the searched pace (5 of 5), where
+  the shoulders trip the cutoff.
+
+It is not the recommended path:
+
+- it is not robust at 65 % strength;
+- it needs a reflex triggered at 15° of pitch, which the firmware does not
+  have (it disarms on a fall, up_z < 0.4);
+- the forward roll puts the robot's weight on its head, where the camera and
+  the neck servo are. The model does not score what that does to them.
+
+It is the one path found that starts from the fall itself rather than from a
+settled prone robot.
+
+![The forward fall: squat, land on the shins and head, roll forward over the head onto the back, sit up onto the feet, rise](figs/getup_prone_catch_roll_sheet.png)
 
 ## 5. What it says
 
-1. **Prone has a sim-robust path.** The arms, stowed straight back (at the sky
-   while prone), clear the §12.1 leg roll. Folding them up as the body lands
-   gives the seat push its start. The arms that blocked the roll were folded
-   *up*, beside the head; held straight back they do not block it.
-2. **The scripted seat push only works if the arms are already folded.** From
-   a real backward fall they are not, and the fold flips the robot onto its
-   front. The propped-on-the-elbows entry fixes it, robust 12/12. This belongs
-   in #84's hardware sequence.
+1. **Prone has a sim-robust path with margin.**
+   - The arms clear the §12.1 leg roll when one braces forward under the
+     chest and the other is raised back. They blocked it when both lay folded
+     up beside the head.
+   - Folding the arms up as the body lands gives the seat push its start.
+   - Searched for margin, the roll no longer needs stall anywhere.
+2. **The scripted seat push only works if the arms are already folded.**
+   - From a real backward fall they are not, and the fold flips the robot onto
+     its front.
+   - The propped-on-the-elbows entry fixes it, robust 12/12 on both readings
+     of the servo's load. This belongs in #84's hardware sequence.
 3. **A one-arm roll is torque-bound**: 9/12, at stall. It is not the path.
-4. **The roll is the hardest part on the hips.** Its hip roll and yaw touch
-   stall. The robust-scored search is the one to take to the bench, if it
-   holds its margin (§3).
+4. **A search's nominal winner is not a robust winner.** 1 of 6 nominal-scored
+   restart winners verified 12/12. Scoring the worst of four runs, with the
+   cutoff enforced, found one that holds 12/12 with margin. Verify every
+   restart's winner.
 
 **What the firmware needs** (FIRMWARE track, #81/#84):
 
@@ -182,7 +256,8 @@ CATCH_PLACEHOLDER
 - the same "one motion per go, on the floor" rule;
 - the seat-push entry first (supine is the more common landing), then the
   prone roll;
-- measure the hip roll and yaw load during the roll.
+- log the hip and shoulder loads (Present Load / Current) through the roll
+  and the push.
 
 ## Files
 
