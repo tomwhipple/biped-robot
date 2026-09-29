@@ -24,6 +24,15 @@ side-seat push, a third shoulder DOF, legs only -- are not re-searched):
            the left side), the right arm holds one searched pose, legs free:
            "a one-arm roll to supine"
   free     every arm and leg joint free per keyframe (the union)
+  arm1     the left arm free per keyframe, the right arm at one searched pose,
+           the legs held STRAIGHT: can one arm roll the robot by itself?
+  arm2     both arms free per keyframe, legs straight
+  <family>_fold  the same search, but the roll must end with the arms folded
+           up to 180 (the recommended seat push's start) instead of at the
+           idle pose (where the searched seat-push entry starts)
+PRONE_MARGIN=1 runs every candidate with the overload cutoff enforced and
+takes 0.3 x (worst servo's seconds above 80 % of stall) + 0.5 x (trips) off
+its score.
   catch    from STANDING, a forward kick; when the torso pitches past a
            searched angle the arms swing forward to catch the fall on the
            hands, then searched keyframes push back over the feet into the
@@ -314,7 +323,7 @@ def roll_space(family):
     """parameter names and bounds for a roll family"""
     family = _base(family)
     names, bounds = [], []
-    if family in ("stow", "onearm"):
+    if family in ("stow", "onearm", "arm1"):
         arms = ("L_shoulder", "L_elbow", "R_shoulder", "R_elbow") if family == "stow" else ("R_shoulder", "R_elbow")
         for j in arms:
             names.append(f"stow_{j}"); bounds.append(RANGE[j])
@@ -322,8 +331,10 @@ def roll_space(family):
         for j in KEY_JOINTS:
             if family == "stow" and j in ("L_shoulder", "L_elbow", "R_shoulder", "R_elbow"):
                 continue
-            if family == "onearm" and j in ("R_shoulder", "R_elbow"):
+            if family in ("onearm", "arm1") and j in ("R_shoulder", "R_elbow"):
                 continue
+            if family in ("arm1", "arm2") and not j.endswith(("shoulder", "elbow")):
+                continue          # arm-only: the legs stay straight
             names.append(f"k{k}_{j}"); bounds.append(RANGE[j])
         names += [f"k{k}_t", f"k{k}_h"]; bounds += [T_MOVE, T_HOLD]
     return names, np.array(bounds, float)
@@ -342,7 +353,7 @@ def roll_keys(family, x, na):
             if f"stow_{j}" in x:
                 off[j] = x[f"stow_{j}"]
             else:
-                off[j] = x[f"k{k}_{j}"]
+                off[j] = x.get(f"k{k}_{j}", 0.0)      # arm-only families: legs straight
         keys.append((f"k{k}", q_of(off, na), x[f"k{k}_t"], x[f"k{k}_h"]))
     if family.endswith("_fold"):
         keys.append(("arms folded up, legs straight", q_of(dict(**FOLD), na), 1.5, 1.5))
@@ -517,13 +528,21 @@ def catch_score(r):
 
 
 # ------------------------------------------------------------------ search (CEM, pooled)
+MARGIN = os.environ.get("PRONE_MARGIN", "0") == "1"
+
+
 def _eval_roll(args):
     family, x = args
     try:
-        r = run_roll(family, x)
+        r = run_roll(family, x, protection=dict(enforce=True, load="torque") if MARGIN else None)
     except Exception as e:  # noqa: BLE001 -- a diverged sim scores as a failure
         return dict(score=-9.0, err=str(e))
     r["score"] = roll_score(r)
+    if MARGIN:
+        rep = r.pop("prot")
+        r["cum80"] = max(v["cum_torque"] for v in rep.values())
+        r["trips"] = sum(v["trip_t"] is not None for v in rep.values())
+        r["score"] -= 0.3 * r["cum80"] + 0.5 * r["trips"]
     return r
 
 
@@ -571,7 +590,8 @@ def cem(names, bounds, evalf, restarts, iters, pop, n_elite, seeds=(), tag="", s
 def _brief(r):
     if "front" in r:
         return (f"front {r['front']:+.2f} (max {r['front_max']:+.2f}) up {r['up']:+.2f} arm err {r['arm_err']:.0f} deg "
-                f"{'ON BACK' if r['roll_ok'] else ''}")
+                f"{'ON BACK' if r['roll_ok'] else ''}"
+                + (f"  >80% stall {r['cum80']:.2f} s, trips {r['trips']}" if "cum80" in r else ""))
     if "per" in r:
         return f"stands {r['n_stand']}/{len(r['per'])}  " + " | ".join(
             f"up {q.get('up', -1):+.2f} z {q.get('z', 0):.2f} crouch up {q.get('up_crouch', -1):+.2f}{' feet' if q.get('feet_only') else ''}"
@@ -718,7 +738,8 @@ def main():
         names, bounds = roll_space(family)
         print(f"== ROLL SEARCH, family {family}: prone (arms idle) -> {NK} free keyframes -> arms up + legs straight; "
               f"{len(names)} parameters, CEM {restarts} restarts x {iters} iterations x {pop}, restart 0 seeded from the "
-              f"section 12.1 roll; score = front_end + 0.3 front_max + 1[on back] - 0.004 arm error (deg); "
+              f"section 12.1 roll; score = front_end + 0.3 front_max + 1[on back] - 0.004 arm error (deg)"
+              f"{' - 0.3 x (worst servo seconds above 80 % of stall) - 0.5 x (overload trips), cutoff enforced' if MARGIN else ''}; "
               f"r5_asdrawn_rom120 + elbow stops, Plan B, nominal; self_collide on; workers {GN.n_workers()}", flush=True)
         evalf = lambda xs: GN.pmap(_eval_roll, [(family, x) for x in xs])
         best = cem(names, bounds, evalf, restarts, iters, pop, max(4, pop // 6), seeds=[seed_12_1(family)], tag=family)
