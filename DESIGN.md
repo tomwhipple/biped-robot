@@ -288,7 +288,7 @@ The robot as drawn, Plan B, from the CAD-inertial plant
 |---|---|
 | robot | ≈ 2.28 kg with bearing C (2.21 kg A, 2.22 kg E) |
 | servos | 17 × 55 g = 935 g |
-| printed PETG + TPU | ≈ 0.79 + 0.05 kg: pelvis 194 g, girdle 77 g, arm links 134 g, legs and feet ≈ 0.31 kg |
+| printed PETG + TPU | ≈ 0.79 + 0.05 kg: pelvis 194 g, girdle 77 g, arm links 134 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
 | hip-yaw bearings | 166 g (2 × 6811-2RS) or 104 g (2 × 6810-2RS) |
 | pack / boards + wiring | 170 g / ≈ 180 g |
 
