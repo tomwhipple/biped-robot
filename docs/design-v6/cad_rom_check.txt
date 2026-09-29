@@ -1,6 +1,6 @@
 =================== check_assembly_v6 (default build: arms) ===================
 HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch
-ARMS=1: two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM shoulder (-90.0, 200.0), elbow (-100.0, 10.0); every leg row sweeps the leg with the arms in the HANGING idle pose.
+arms on (the default build): two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM shoulder (-90.0, 200.0), elbow (-100.0, 10.0); every leg row sweeps the leg with the arms in the HANGING idle pose.
 joint        A                      B                      overlap mm3  min dist  at deg  verdict
   [girdle] top edges eased: 34/42
   [head] vertical fillet: R4.0 did not fit this section's material, used R1.20 instead
@@ -136,7 +136,7 @@ interleg     foot_L                 foot_R                        0.00     13.67
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (103 s)
+=> ALL CLEAR  (126 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -251,5 +251,5 @@ interleg     foot_L                 foot_R                        0.00     13.67
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (82 s)
+=> ALL CLEAR  (88 s)
 check_assembly_v6 (ARMS=0): PASS
