@@ -158,6 +158,7 @@ DIAG_CASES = [
     (True, True, P.ArmResult.ACCEPTED),
     (False, True, P.ArmResult.ACCEPTED),
     (False, True, P.ArmResult.DISARMED_FALL),
+    (False, True, P.ArmResult.REFUSED_GAINS),
 ]
 DIAG_RAW = [0x00, 0x02, 0x21, 0x13, 0xF0, 0xF3]   # decode-only, incl. unknown
 

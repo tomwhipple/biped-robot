@@ -10,10 +10,12 @@
 #include "obs/obs_spec.h"
 #include "policy/mlp.h"
 #include "scsbus/bus.h"
+#include "scsbus/gains.h"
 #include "board.h"
 #include "cal_store.h"
 #include "imu_sampler.h"
 #include "mech_envelope.h"
+#include "servo_gains.h"
 #include "shared.h"
 #include "wifi_link.h"
 #include "timesync.h"
@@ -813,6 +815,149 @@ void cmdBatt(Sink out, int argc, char** argv) {
     }
 }
 
+// -- position-loop gains (Plan B) -------------------------------------------
+//
+// Registers 21 (P) and 22 (D) live in each servo's EEPROM. Plan B raises P on
+// the rolls and knees, and a factory reset or a swapped spare silently comes
+// back at 32 -- so the robot reads them back at boot and before every arm and
+// refuses on any difference from main/servo_gains.h (docs/servo-map.md
+// section 4). `gains <id> <p> <d>` is the one register write the CLI offers
+// beyond `id` and `middle`, and it is gated like them: bench mode, one servo
+// by ID, and only with that servo's torque OFF (scsbus::writePositionGains).
+
+void eepromSettle() { vTaskDelay(pdMS_TO_TICKS(kEepromCommitMs)); }
+
+// Read 21/22 from every servo the loop drives and compare with the expected
+// table. Prints every row when `verbose`, else only the ones that fail.
+// True when every servo answered with exactly its expected P/D.
+bool checkGains(scsbus::Bus* bus, Sink out, bool verbose) {
+    scsbus::GainExpect want[obs::kNumJoints];
+    const char* names[obs::kNumJoints];
+    size_t n = 0;
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        // servo_gains.h static_asserts that every driven servo has a row.
+        const scsbus::GainExpect* e = robot::expectedGainsFor(obs::kServoId[j]);
+        if (!e) continue;
+        want[n] = *e;
+        names[n] = obs::kJointNames[j];
+        ++n;
+    }
+    scsbus::GainCheck got[obs::kNumJoints];
+    const size_t bad = scsbus::checkPositionGains(*bus, want, n, got);
+    for (size_t i = 0; i < n; ++i) {
+        if (!verbose && got[i].ok) continue;
+        if (!got[i].answered) {
+            say(out, "  %-12s id %2u  expect P %3u D %3u  read: NO REPLY\r\n",
+                names[i], static_cast<unsigned>(got[i].id),
+                static_cast<unsigned>(want[i].gains.p),
+                static_cast<unsigned>(want[i].gains.d));
+            continue;
+        }
+        say(out, "  %-12s id %2u  expect P %3u D %3u  read P %3u D %3u  %s\r\n",
+            names[i], static_cast<unsigned>(got[i].id),
+            static_cast<unsigned>(want[i].gains.p),
+            static_cast<unsigned>(want[i].gains.d),
+            static_cast<unsigned>(got[i].read.p),
+            static_cast<unsigned>(got[i].read.d),
+            got[i].ok ? "ok" : "MISMATCH");
+    }
+    if (bad) {
+        say(out, "gains: %u of %u servo(s) NOT at their expected P/D -- arming "
+            "is refused (docs/servo-map.md section 4)\r\n",
+            static_cast<unsigned>(bad), static_cast<unsigned>(n));
+    } else if (verbose) {
+        say(out, "gains: all %u servos at their expected P/D\r\n",
+            static_cast<unsigned>(n));
+    }
+    return bad == 0;
+}
+
+void cmdGains(Sink out, int argc, char** argv) {
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc == 1) {
+        checkGains(bus, out, true);
+        return;
+    }
+    const long id = num(argv[1]);
+    if (id < 0 || id > scsbus::kMaxId) {
+        out("gains: id must be 0-253 (one servo; never broadcast)\r\n");
+        return;
+    }
+    const uint8_t sid = static_cast<uint8_t>(id);
+    const scsbus::GainExpect* e = robot::expectedGainsFor(sid);
+    if (argc == 2) {
+        scsbus::PositionGains g{0, 0};
+        uint8_t i_gain = 0;
+        const scsbus::Status st = scsbus::readPositionGains(*bus, sid, g);
+        if (st != scsbus::Status::kOk) {
+            say(out, "id %ld: %s\r\n", id, statusName(st));
+            return;
+        }
+        bus->readU8(sid, scsbus::kRegPosI, i_gain);
+        say(out, "id %ld  P %u  D %u  I %u   expected %s", id,
+            static_cast<unsigned>(g.p), static_cast<unsigned>(g.d),
+            static_cast<unsigned>(i_gain), e ? "" : "(no row in servo_gains.h)");
+        if (e) {
+            say(out, "P %u D %u -- %s", static_cast<unsigned>(e->gains.p),
+                static_cast<unsigned>(e->gains.d),
+                (e->gains.p == g.p && e->gains.d == g.d) ? "ok" : "MISMATCH");
+        }
+        out("\r\n");
+        return;
+    }
+    if (argc != 4) {
+        out("usage: gains | gains <id> | gains <id> <P 1-254> <D 0-254>\r\n");
+        return;
+    }
+    const long p = num(argv[2], -1), d = num(argv[3], -1);
+    if (p < 1 || p > 254 || d < 0 || d > 254) {
+        out("gains: P must be 1-254 and D 0-254 (factory 32/32)\r\n");
+        return;
+    }
+    const scsbus::PositionGains want{static_cast<uint8_t>(p),
+                                     static_cast<uint8_t>(d)};
+    say(out, "id %ld: writing P %ld D %ld to EEPROM (torque must be OFF; "
+        "no goal is written) ...\r\n", id, p, d);
+    scsbus::PositionGains rb{0, 0};
+    const scsbus::GainWrite r =
+        scsbus::writePositionGains(*bus, sid, want, &rb, &eepromSettle);
+    switch (r) {
+        case scsbus::GainWrite::kOk:
+            say(out, "id %ld: P %u D %u, verified after commit -- safe to "
+                "power down\r\n", id, static_cast<unsigned>(rb.p),
+                static_cast<unsigned>(rb.d));
+            break;
+        case scsbus::GainWrite::kTorqueOn:
+            say(out, "REFUSED: id %ld has torque ON. `release %ld` first -- "
+                "gains are written only to a servo that is not holding.\r\n",
+                id, id);
+            return;
+        case scsbus::GainWrite::kTorqueUnknown:
+            say(out, "REFUSED: id %ld did not answer the torque read -- "
+                "nothing written\r\n", id);
+            return;
+        case scsbus::GainWrite::kMismatch:
+            say(out, "id %ld: WROTE BUT READ BACK P %u D %u -- the EEPROM did "
+                "not take it; `gains %ld` again before trusting it\r\n", id,
+                static_cast<unsigned>(rb.p), static_cast<unsigned>(rb.d), id);
+            return;
+        default:
+            say(out, "id %ld: FAILED (%s) -- EEPROM re-lock attempted; "
+                "`gains %ld` to see what the servo holds\r\n", id,
+                scsbus::gainWriteName(r), id);
+            return;
+    }
+    if (!e) {
+        say(out, "  note: id %ld has no row in servo_gains.h\r\n", id);
+    } else if (e->gains.p != want.p || e->gains.d != want.d) {
+        say(out, "  note: the robot EXPECTS P %u D %u on id %ld "
+            "(servo_gains.h): arming refuses until they agree\r\n",
+            static_cast<unsigned>(e->gains.p),
+            static_cast<unsigned>(e->gains.d), id);
+    }
+}
+
 void cmdMode(Sink out, bool run) {
     // No valid as-built calibration, no run. The default Calibration (zero
     // 2048, dir +1) is exactly the raw-middle pose that broke the feet on
@@ -829,6 +974,19 @@ void cmdMode(Sink out, bool run) {
             "invalidated by a servo-map change). Run the `cal` workflow "
             "first -- driving the loop on 2048-defaults twists the robot.\r\n");
         return;
+    }
+    // Gains are registers (AGENTS.md): read every servo's 21/22 back before
+    // handing it the loop. A servo that is silent or reset refuses the arm;
+    // re-arming an already-running loop does not re-read (the bus is ctrl's).
+    if (run && robot::g_mode_request.load() != robot::Mode::kRun) {
+        scsbus::Bus* bus = claimBus(out);
+        if (!bus || !checkGains(bus, out, false)) {
+            robot::g_arm_result.store(
+                static_cast<uint8_t>(linkproto::ArmResult::kRefusedGains));
+            out("REFUSED: position-loop gains not verified (see above; "
+                "`gains` for the table)\r\n");
+            return;
+        }
     }
     robot::g_arm_result.store(
         static_cast<uint8_t>(linkproto::ArmResult::kAccepted));
@@ -1736,6 +1894,8 @@ void banner(Sink out) {
         "                       default = SMOOTH min-jerk (auto duration); s<ms> sets it,\r\n"
         "                       tokens h<pct> a<acc> b<ticks> i<ms>; t<ms> unison; N = const speed\r\n");
     out("  reg <id> <addr> [1|2]  READ a servo register (PID 21-23, deadzone 26/27, acc 41)\r\n");
+    out("  gains [id [P D]]     position-loop P/D (21/22): check all vs expected,\r\n"
+        "                       read one, or write one (torque OFF, EEPROM, verified)\r\n");
     out("  home [steps/s]       every joint to its calibrated zero (the stand),\r\n");
     out("                       torque ON and holding -- works after a fall\r\n");
     out("  release [id] | torque [id]   no id = broadcast\r\n");
@@ -1751,6 +1911,18 @@ void banner(Sink out) {
     out("  ntp                  wall clock: SNTP sync state (server from DHCP)\r\n");
     out("  stat                 tick timing and fault counters\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");
+}
+
+bool bootGainCheck(Sink out) {
+    scsbus::Bus* bus = claimBus(out);
+    const bool ok = bus && checkGains(bus, out, false);
+    // Say so on the beacon before anybody tries: the BENCH diag carries the
+    // verdict an arm would get right now (every arm re-reads regardless).
+    if (!ok) {
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kRefusedGains));
+    }
+    return ok;
 }
 
 void linkMode(bool run, Sink out) {
@@ -1802,6 +1974,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "middle")) cmdMiddle(out, argc, argv);
     else if (!strcmp(c, "pose")) cmdPose(out, argc, argv);
     else if (!strcmp(c, "reg")) cmdReg(out, argc, argv);
+    else if (!strcmp(c, "gains")) cmdGains(out, argc, argv);
     else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);

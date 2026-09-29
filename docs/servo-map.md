@@ -28,7 +28,7 @@ is **not yet assigned**. The procedure from a bare board to the first arm is
   reg 1 9 2         # min angle limit, expect 0
   reg 1 11 2        # max angle limit, expect 4095
   reg 1 33          # mode, expect 0 (position)
-  reg 1 21          # position P, factory 32 (then 22 = D, 23 = I)
+  gains 1           # position P / D / I (registers 21/22/23), factory 32/32/0
   id 1 <new>
   ```
 
@@ -45,9 +45,9 @@ is **not yet assigned**. The procedure from a bare board to the first arm is
   - It speaks the Feetech protocol through the stock firmware of Waveshare's *Servo Driver with ESP32*: its web UI at 192.168.4.1 and its `SERIAL_FORWARDING` USB↔bus bridge.
   - This repo's firmware owns the USB port as the CLI.
   - Its `setid` (unlock 55, write 5, lock), `info` and `fixrange` (mode 0, limits 0..4095) remain the register-level reference for these operations.
-- **The CLI cannot write arbitrary registers.** `reg` is read-only by design.
-  - No tool in the repo writes the gain registers yet ([§4](#4-registers)).
-  - Adding a bench-mode register write is **open work**.
+- **The CLI writes no arbitrary register.** `reg` is read-only by design. The
+  register writes it has are named and gated: `id` (5), `middle` (40 ← 128),
+  and `gains <id> <P> <D>` (21/22, [§4](#4-registers)).
 
 ## 2. ID → joint map
 
@@ -313,30 +313,61 @@ table's URL. Things to know about the table:
 - 3× passes only if the printed roll chains measure ≤ 1° of play.
 - A high P can buzz or limit-cycle through gear play. LeRobot lowers the same register to 16 on its STS3215 arms for that reason.
 
-To write the gains, with torque off:
+**Writing the gains: `gains <id> <P> <D>`** (bench mode, one servo by ID,
+never broadcast; `scsbus::writePositionGains`):
 
-1. Unlock (55 ← 0).
-2. Write 21 and 22.
-3. Lock (55 ← 1).
-4. Power-cycle.
-5. Read 21/22/23 back.
+1. Reads register 40 and **refuses unless torque is off** on that servo (an
+   unreadable torque state is a refusal too). `release <id>` first.
+2. Unlocks the EEPROM (55 ← 0).
+3. Writes P and D in one 2-byte write at 21.
+4. Locks the EEPROM (55 ← 1). A failed step 2 or 3 still re-sends the lock.
+5. Waits 2 s for the EEPROM commit, as `id` does.
+6. Reads 21/22 back and prints `verified after commit -- safe to power down`,
+   or `WROTE BUT READ BACK ...`.
 
-No repo tool does this yet (§1).
+It never writes a goal and never touches torque. P must be 1–254 and D 0–254.
+`gains <id>` reads one servo's P, D and I against its expected row; `gains` with
+no argument checks every servo. Power-cycle and `gains` again to prove the value
+persisted.
 
-A factory reset or a swapped spare silently returns to P = 32, and the robot would
-then fall at its first crossover. The firmware needs to read register 21 at boot and
-refuse to arm on a mismatch. That check is part of the open firmware port.
+**The arm gate.** A factory reset or a swapped spare silently returns to P = 32,
+and the robot would then fall at its first crossover. So the firmware reads
+registers 21/22 from every servo it drives **at boot and again before every
+arm**, and compares them with the compiled expected table,
+`firmware/main/servo_gains.h`:
 
-**Per-ID gains.** The bench test will fill these in; none are set yet.
+- any difference, or a servo that does not answer, **refuses the arm** with
+  `ArmResult` `REFUSED_GAINS` (10), which the `BENCH` beacon carries and every
+  console prints ([control-channel.md](control-channel.md#saying-why-the-bench-diagnostic));
+- the tether prints the failing rows (`expect P .. D ..  read P .. D ..`);
+- a boot check that fails puts the same verdict on the beacon before anyone arms.
+  A board powered from USB with the pack off reads no servo, so it says so; the
+  arm re-reads once the pack is on.
+
+The table is compiled in rather than stored in NVS: it is a design value with
+evidence behind it, reviewed in git. `gains <id> <P> <D>` changes a servo, not
+what the robot expects; writing a value the table does not hold makes the next
+arm refuse, and the CLI says so. **Change `servo_gains.h` and the table below
+in the same commit, and name the measurement.**
+
+**Per-ID gains.** Every row is the factory 32/32 until the Plan B bench test
+(issue #73) measures the raised P. The six roll and knee servos then take it.
 
 | ID | joint | P (21) | D (22) | I (23) | evidence |
 |---|---|---|---|---|---|
-| — | `L_hip_roll` | — | — | — | — |
-| — | `R_hip_roll` | — | — | — | — |
-| — | `L_ankle_roll` | — | — | — | — |
-| — | `R_ankle_roll` | — | — | — | — |
-| — | `L_knee` | — | — | — | — |
-| — | `R_knee` | — | — | — | — |
+| 1 | `R_hip_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 2 | `R_hip_pitch` | 32 | 32 | 0 | factory |
+| 3 | `R_knee` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 4 | `R_ankle` | 32 | 32 | 0 | factory |
+| 5 | `L_hip_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 6 | `L_hip_pitch` | 32 | 32 | 0 | factory |
+| 7 | `L_knee` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 8 | `L_ankle` | 32 | 32 | 0 | factory |
+| 9 | `R_hip_yaw` | 32 | 32 | 0 | factory |
+| 10 | `L_hip_yaw` | 32 | 32 | 0 | factory |
+
+The gate checks P and D; I is shown by `gains <id>` but not gated (it stays 0
+until the integral fallback, which needs an integral term in the sim first).
 
 **Protections** (C018 sheet §7-11; thresholds in registers 28 and 34–38):
 

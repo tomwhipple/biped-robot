@@ -212,6 +212,11 @@ class ArmResult(Enum):
     # then says DISARMED_HOME -- or HOME_NOT_REACHED.
     HOME_PENDING = 8     # reset WRITTEN: joints slewing, readback not yet done
     HOME_NOT_REACHED = 9  # reset FAILED: readback found joints off their zeros
+    # Plan B (issue #81): the position-loop gains live in each servo's EEPROM,
+    # and a factory reset or a swapped spare silently comes back at P = 32.
+    # The robot reads registers 21/22 back before every arm and refuses on
+    # any difference from its compiled expected table.
+    REFUSED_GAINS = 10   # arm refused: a servo's P/D (reg 21/22) is not the expected value
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
@@ -269,6 +274,10 @@ def diag_reason(diag: int) -> str:
     if r is ArmResult.HOME_NOT_REACHED:
         return ("servo reset FAILED -- readback found joints OFF their zeros "
                 "(see the tether for which; `scan`)")
+    if r is ArmResult.REFUSED_GAINS:
+        return ("arm REFUSED -- a servo's position-loop gains (reg 21/22) "
+                "are not the expected values, or did not read back (run "
+                "`gains`)")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")

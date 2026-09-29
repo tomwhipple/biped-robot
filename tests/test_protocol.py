@@ -508,7 +508,8 @@ def test_diag_values_are_append_only():
         ("NONE", 0), ("ACCEPTED", 1), ("REFUSED_NO_CAL", 2),
         ("DISARMED_FALL", 3), ("DISARMED_HOME", 4), ("HOME_NO_CAL", 5),
         ("HOME_LOW_BATT", 6), ("HOME_BUS_FAILED", 7),
-        ("HOME_PENDING", 8), ("HOME_NOT_REACHED", 9)]
+        ("HOME_PENDING", 8), ("HOME_NOT_REACHED", 9),
+        ("REFUSED_GAINS", 10)]
     assert DIAG_RUN == 1 and DIAG_CAL_OK == 2 and DIAG_ARM_SHIFT == 4
 
 
@@ -530,6 +531,10 @@ def test_diag_reason_names_the_gate_that_actually_refused():
     assert "REFUSED" in diag_reason(pack_diag(False, False, ArmResult.NONE))
     assert "ready to arm" in diag_reason(pack_diag(False, True,
                                                    ArmResult.NONE))
+    # Plan B: a servo whose gains read back wrong (or not at all) says so,
+    # instead of reading like a calibration problem.
+    g = diag_reason(pack_diag(False, True, ArmResult.REFUSED_GAINS))
+    assert "REFUSED" in g and "gains" in g and "calibration" not in g
 
 
 def test_diag_from_a_newer_firmware_is_not_mistaken_for_an_old_reason():

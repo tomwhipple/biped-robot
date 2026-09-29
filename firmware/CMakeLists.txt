@@ -22,3 +22,16 @@ idf_build_set_property(CXX_COMPILE_OPTIONS
                        "-std=gnu++17;-fno-exceptions;-fno-rtti" APPEND)
 
 project(bimo_firmware)
+
+# The partition table is partitions.csv (3 MB app, NVS at its stock offset).
+# sdkconfig is gitignored and sdkconfig.defaults only seeds a NEW one, so a
+# checkout configured before the table changed would silently keep the old
+# 1 MB app partition and fail later on size. Refuse here, with the fix.
+if(NOT CONFIG_PARTITION_TABLE_CUSTOM OR
+   NOT CONFIG_PARTITION_TABLE_CUSTOM_FILENAME STREQUAL "partitions.csv")
+    message(FATAL_ERROR
+        "firmware/sdkconfig predates the custom partition table "
+        "(firmware/partitions.csv). Delete firmware/sdkconfig and build "
+        "again: it is regenerated from sdkconfig.defaults. NVS is not moved, "
+        "so no calibration is lost.")
+endif()

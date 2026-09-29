@@ -43,7 +43,8 @@ else
   SIL_SHARED = -shared
 endif
 
-SRC_SCS   = $(COMPONENTS)/scsbus/packet.cpp $(COMPONENTS)/scsbus/bus.cpp
+SRC_SCS   = $(COMPONENTS)/scsbus/packet.cpp $(COMPONENTS)/scsbus/bus.cpp \
+            $(COMPONENTS)/scsbus/gains.cpp
 SRC_LINK  = $(COMPONENTS)/linkproto/protocol.cpp \
             $(COMPONENTS)/linkproto/watchdog.cpp \
             $(COMPONENTS)/linkproto/framing.cpp

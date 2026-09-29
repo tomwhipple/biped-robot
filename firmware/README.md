@@ -33,8 +33,12 @@ idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
 - `export.sh` uses the first `python3` on `PATH`, and it must be the Python
   ESP-IDF's `install.sh` was run with. ninja is optional (`brew install
   ninja` for faster incremental builds).
-- The image is 1 008 672 B against the 1 MB app partition (4 % free), and the
-  build says so with a warning.
+- The partition table is `partitions.csv`: a 3 MB app partition, with `nvs`
+  and `phy_init` at the stock offsets so a reflash keeps the calibration. The
+  image is 1 012 832 B, 68 % of the app partition free.
+- `sdkconfig` is gitignored and `sdkconfig.defaults` only seeds a new one. A
+  checkout configured before the partition table changed is refused at
+  configure time: delete `firmware/sdkconfig` and build again.
 - The board enumerates as a CP2102N (`/dev/cu.usbserial-*`; macOS may need the
   [CP210x driver](https://files.waveshare.com/wiki/common/CP210x_USB_TO_UART.zip)).
   **Only the USB-C port silkscreened `USB` flashes**; the one silkscreened
@@ -72,7 +76,7 @@ hardware-touching files are excluded by construction.
 | suite | covers |
 |---|---|
 | `protocol` | `linkproto` against golden vectors generated from `link/protocol.py`: frames, CRC, watchdog, arm and home latches, bench diagnostic, UART demux |
-| `scsbus` | packet codec against the worked examples in Feetech's protocol manual; transactions against a scripted fake port (a missing servo mid-sync-read, a reply from the wrong ID) |
+| `scsbus` | packet codec against the worked examples in Feetech's protocol manual; transactions against a scripted fake port (a missing servo mid-sync-read, a reply from the wrong ID); the guarded gain write (refused with torque on or unreadable, re-locks on failure, never a goal) and the gain check |
 | `obs` | the assembler against real `walker_env._obs()` frames, history order, gait clock, action/angle/tick maps, command shaper, calibration blob pack/unpack |
 | `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder |
 | `battguard` | the pack guard's thresholds, debounce and landing ramp |
@@ -107,7 +111,9 @@ deploy.
 firmware/
   CMakeLists.txt        ESP-IDF project; -Wall -Wextra -Werror, no exceptions/RTTI
   sdkconfig.defaults    240 MHz, dual core, 1 kHz FreeRTOS tick, static allocation,
-                        1 s task watchdog, 4 MB flash / no PSRAM, SNTP settings
+                        1 s task watchdog, 4 MB flash / no PSRAM, SNTP settings,
+                        the custom partition table
+  partitions.csv        nvs + phy_init at the stock offsets, a 3 MB app partition
   main/                 everything that touches ESP-IDF
     board.h             the pinout, from the vendor schematic
     app_main.cpp        NVS, UARTs, IMU, calibration restore, torque off, start tasks
@@ -119,13 +125,15 @@ firmware/
     cli.cpp             the bench CLI
     cal_store.cpp       servo and IMU calibration blobs in NVS, CRC'd
     asbuilt_cal.h       the as-built zero table (reference for blob migration)
+    servo_gains.h       expected position-loop P/D per servo ID (the arm gate)
     mech_envelope.h     per-joint mechanical limits for bench moves
     obs_dump.cpp        the observation dump (`obsdump`)
     joint_pose.h        measured pose, core 1 -> the beacon (mirror mode)
     scs_port_idf.cpp    scsbus::Port over UART1 -- the one servo-bus hardware seam
     shared.h            the only cross-core state, and the rules for it
   components/
-    scsbus/             Feetech SCS/STS protocol: codec, transactions, registers
+    scsbus/             Feetech SCS/STS protocol: codec, transactions, registers;
+                        the guarded gain write and the gain check (gains.h)
     linkproto/          C++ port of link/protocol.py: frames, Watchdog, latches, UART demux
     obs/                obs assembler, history, gait clock, actuation maps, shaper;
                         obs_spec.h (generated)
@@ -156,6 +164,7 @@ write NVS are bench-only because a flash write stalls the control tick.
 | `pose <t0..t9> [...]` | all ten targets in joint order, streamed as a smooth minimum-jerk move by default |
 | `trace` | dump the per-servo trace recorded during the last `pose` stream |
 | `reg <id> <addr> [1\|2]` | read a servo register |
+| `gains [id [P D]]` | position-loop P/D (registers 21/22): no id checks every driven servo against `main/servo_gains.h` (the arm gate); `<id>` reads one; `<id> <P> <D>` writes one, only with its torque off (EEPROM unlock, write, lock, read back; no goal) |
 | `home [steps/s]` | every joint to its calibrated zero, hip play take-up, readback, torque released |
 | `release [id]` / `torque [id]` | torque off / on; no id = broadcast |
 | `middle <id>` | latch the current angle as the servo's 2048 (register 40 ← 128), torque off |
@@ -164,7 +173,7 @@ write NVS are bench-only because a flash write stalls the control tick.
 | `cal [show\|zero [j]\|dir j d\|set j z d\|migrate\|save\|load\|reset]` | per-joint zero and direction in NVS |
 | `shape [hz]` | command-shaper pole; 0 = raw targets |
 | `obsfreeze [none\|up\|gyro\|imu\|dq\|gain=k]` | pin or scale parts of the policy observation (diagnostic, not persisted) |
-| `run` / `bench` | hand the bus to the control loop / take it back |
+| `run` / `bench` | hand the bus to the control loop / take it back; `run` refuses without an NVS calibration or with any servo's gains off the expected table |
 | `imu [scan\|raw [n]\|ring [ms]\|avg [on\|off]\|gscale [x y z]\|reinit\|bias\|mount\|forget\|ae]` | IMU status, I²C scan, raw axes, ringing meter, calibration |
 | `wifi [<ssid> <psk>\|clear]` | link status and counters; credentials in NVS |
 | `ntp` | SNTP sync state and server |

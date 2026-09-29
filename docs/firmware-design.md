@@ -66,7 +66,7 @@ below are enough and Rust is not needed.
 
 | | |
 |---|---|
-| board | Waveshare **General Driver for Robots** rev 1.2; ESP32-D0WD-V3 rev 3.1, dual LX6 at 240 MHz, 4 MB flash, no PSRAM, single-app partition table |
+| board | Waveshare **General Driver for Robots** rev 1.2; ESP32-D0WD-V3 rev 3.1, dual LX6 at 240 MHz, 4 MB flash, no PSRAM; partition table `firmware/partitions.csv` (a 3 MB app, NVS at the stock 0x9000) |
 | servo bus | UART1, **GPIO 18 RX / GPIO 19 TX**, 1 Mbaud 8N1; half-duplex direction switched in hardware off the TX line (no direction GPIO). Feetech STS3215, ST protocol (little-endian) |
 | host link | UART0 at 115200 over the CP2102N on the USB-C port silkscreened `USB`. The port silkscreened `LIDAR` is a second bridge that enumerates but never flashes |
 | I²C | **GPIO 32 SDA / 33 SCL** at 400 kHz, also on header P1. QMI8658C IMU at 0x6B (used); AK09918C magnetometer at 0x0C (unused: beside the servos it measures their current, not north); BMP280 at 0x77 on the schematic (did not answer the bench scan; unused); INA219 power monitor at 0x42 (unused). 0x4A/0x4B are reserved for a BNO085 on P1 |
@@ -335,8 +335,9 @@ stages, both in `components/obs`, so the SIL library runs them too:
   touch the bus.
 - **One decision point.** `cmdMode()`, on the housekeeping task, decides every
   mode request: a typed `run`/`bench` and a wireless ARM edge alike. It
-  refuses `run` without an as-built calibration from NVS and records its
-  verdict in `g_arm_result`, which the `BENCH` beacon carries.
+  refuses `run` without an as-built calibration from NVS, or unless every
+  driven servo's position-loop gains read back as expected (§5.7), and
+  records its verdict in `g_arm_result`, which the `BENCH` beacon carries.
 - **Arming over the radio.** `ctrl` runs `linkproto::ArmLatch` on every
   drained frame in both modes and publishes each edge; housekeeping applies it
   between CLI lines, so a wireless arm never lands inside a bench-mode bus
@@ -399,6 +400,31 @@ an STS goal write enables torque and moves the joint; `home` is the one
 command that enables torque itself, by name. The bench rules are in
 [AGENTS.md](../AGENTS.md).
 
+### 5.7 Position-loop gains (Plan B)
+
+Plan B raises the position-loop P (register 21, with D in 22) on the roll and
+knee servos ([DESIGN.md](../DESIGN.md) §4). Those values live in each servo's
+EEPROM, and a factory reset or a swapped spare comes back at P = 32 without a
+word. Two pieces, both in `components/scsbus/gains.{h,cpp}` and host-tested
+against a scripted port:
+
+- **The arm gate** (`checkPositionGains`): one 2-byte read at register 21 per
+  driven servo, compared with the compiled table `main/servo_gains.h` (per
+  servo ID; factory 32/32 on every row until the bench test, issue #73,
+  measures the raised values). It runs at boot, after the torque-off
+  broadcast, and again inside `cmdMode()` before every arm. A difference or a
+  silent servo refuses the arm with `ArmResult::kRefusedGains`, and a failed
+  boot check puts that verdict on the `BENCH` beacon before anyone asks.
+- **The write** (`gains <id> <P> <D>`, `writePositionGains`): bench mode, one
+  servo by ID, and only if that servo reports torque off. It unlocks the
+  EEPROM (55 ← 0), writes 21/22 in one frame, locks it again (also on every
+  failure path), waits 2 s for the commit and reads the pair back. It writes
+  no goal and no torque register: a gain write with torque off does not move
+  the servo, and the torque gate keeps it that way.
+
+The table is compiled in rather than kept in NVS because it is a design value
+with evidence behind it; the procedure is [servo-map.md](servo-map.md) §4.
+
 ## 6. Fitting the network
 
 The training nets are (512, 256, 128): ~232 k parameters, ~930 KB of fp32.
@@ -407,10 +433,13 @@ the measured forward-pass rate it would not fit the tick either. So the
 deployed net is **distilled** to (128, 128): ~38 k parameters, ~150 KB,
 7.2 ms per forward pass, resident in flash (§5.2).
 
-Flash is now the tight resource. `idf.py -C firmware build` gives a
-1 008 672 B image (0xf6420) against the 0x100000 single-app partition:
-4 % free. The 4 MB flash has room for a larger app partition; none is
-configured. The distillation
+Flash is not the constraint. `firmware/partitions.csv` gives the app 3 MB
+of the 4 MB flash, with `nvs` and `phy_init` at the stock single-app offsets,
+so the NVS calibration survives the table change. `idf.py -C firmware build`
+gives a 1 012 832 B image (0xf7460) against the 0x300000 app partition: 68 %
+free (2 132 896 B). A checkout whose gitignored `sdkconfig` predates the
+table is refused at configure time with the fix (delete `firmware/sdkconfig`).
+The distillation
 (`sim/mjx/distill_student.py`, DAgger against the frozen teacher normaliser)
 is described in [training.md](training.md) §9.
 
@@ -492,8 +521,6 @@ joint all look the same from outside. `obsdump` measures them.
   friction measures 0.235 N·m (8 % of stall at 200 steps/s), a lower bound on
   unpowered backdrive; `home` already ends with torque released and friction
   holding the stand.
-- **Flash headroom.** The app image fills 96 % of the 1 MB partition (§6); a
-  bigger net or a wider observation needs a larger partition table first.
 - **The 17-joint port** (issue #81). Joint count, servo map, calibration
   blob, telemetry frame, SIL ABI and the mechanical envelope are all 10 wide
   today.

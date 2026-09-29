@@ -184,8 +184,9 @@ sends moves the robot. `ARM` (bit 2) arms it over the radio;
   no edge against a robot armed over the tether, but its `ARM=0` frames
   interleaved with an arming console's `ARM=1` frames make 1→0 edges and
   bench the robot. `link/arm_script.py` holds `ARM` itself.
-- **Refused without an as-built calibration in NVS**, the same gate as the
-  typed `run`.
+- **Refused without an as-built calibration in NVS**, and **refused unless
+  every servo's position-loop gains read back as expected** (registers 21/22,
+  read before every arm), the same gates as the typed `run`.
 - The control loop only publishes the edge; the housekeeping task applies it
   through the same `cmdMode()` as the tethered `run`, between CLI lines, so a
   wireless arm never lands inside a bench-mode bus command.
@@ -219,6 +220,7 @@ a false fault.)
 | 7 `HOME_BUS_FAILED` | home failed: the servo bus did not accept it |
 | 8 `HOME_PENDING` | home written, joints moving, readback not done |
 | 9 `HOME_NOT_REACHED` | home failed: readback found joints off their zeros |
+| 10 `REFUSED_GAINS` | arm refused: a servo's position-loop P/D (registers 21/22) is not its expected value, or did not read back ([servo-map.md §4](servo-map.md#4-registers)) |
 
 The layout is **append-only**, like `LinkState`: reserved bits are sent zero
 and ignored, the upper 24 bits of `seq_echo` are reserved zero, and a value a

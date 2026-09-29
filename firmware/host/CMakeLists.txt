@@ -60,7 +60,8 @@ target_include_directories(test_client PRIVATE
 
 bimo_test(test_scsbus test_scsbus.cpp
           ${COMPONENTS}/scsbus/packet.cpp
-          ${COMPONENTS}/scsbus/bus.cpp)
+          ${COMPONENTS}/scsbus/bus.cpp
+          ${COMPONENTS}/scsbus/gains.cpp)
 
 # cal_store.cpp lives in main/ but its pack/unpack half is plain data (the NVS
 # half is behind #ifdef ESP_PLATFORM), and test_obs.cpp exercises it. The

@@ -205,6 +205,12 @@ enum class ArmResult : uint8_t {
     // stores kDisarmedHome only when all ten sit at their zeros -- or this:
     kHomePending = 8,    // reset WRITTEN: joints slewing, readback not yet done
     kHomeNotReached = 9, // reset FAILED: readback found joints off their zeros
+    // Plan B (issue #81): the position-loop gains live in each servo's
+    // EEPROM, and a factory reset or a swapped spare silently comes back at
+    // P = 32. The robot reads registers 21/22 back before every arm
+    // (scsbus::checkPositionGains) and refuses on any difference from the
+    // compiled expected table (main/servo_gains.h).
+    kRefusedGains = 10,  // arm refused: a servo's P/D is not the expected value
 };
 
 // True for every verdict a kFlagHome request can produce. A console that

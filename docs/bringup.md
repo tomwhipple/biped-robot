@@ -59,6 +59,7 @@ idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
 - The board boots in **bench mode with torque released**. Nothing moves until `run`, or an arm over the radio.
 - The boot log reports:
   - `cal:` either `restored from NVS` or `DEFAULTS`;
+  - `gains:` whether every servo's position-loop P/D read back as expected. With the pack off no servo answers, so this says `NOT verified`; `run` re-reads once the pack is on;
   - the IMU driver and whether its calibration came from NVS;
   - the joint count, the observation width, and the policy run (or `PLACEHOLDER`).
 - `help` lists the commands.
@@ -97,7 +98,7 @@ For each servo:
    - `reg 1 3 2` = **777** (STS3215);
    - `reg 1 9 2` = 0 and `reg 1 11 2` = 4095 (angle limits);
    - `reg 1 33` = 0 (position mode);
-   - `reg 1 21` / `22` / `23` = 32 / 32 / 0.
+   - `gains 1` = P 32, D 32, I 0 (registers 21/22/23).
 4. `id 1 <new>`. Wait for `ok, verified after commit -- safe to power down`. `WROTE BUT DID NOT VERIFY` means rescan before trusting it.
 5. Check it is alive:
    - `torque <new>`, then `move <new> 2048 0 200`, then a second target, then `release <new>`;
@@ -112,16 +113,11 @@ For each servo:
 
 **Gains.**
 
-- Read registers 21/22/23 on every servo and keep the numbers.
-- The six hip-roll, ankle-roll and knee servos get P ≈ 4× only after the stiffness bench test passes (issue #73).
-- Writing the gains needs a register-write path that does not exist yet ([servo-map.md §4](servo-map.md#4-registers)). Its sequence:
-  1. Torque off.
-  2. Unlock: 55 ← 0.
-  3. Write 21/22.
-  4. Lock: 55 ← 1.
-  5. Power-cycle.
-  6. Read 21/22/23 back.
-- Record the values per ID in servo-map.md §4.
+- `gains` reads registers 21/22 on every servo the firmware drives and compares them with the expected table (`firmware/main/servo_gains.h`, [servo-map.md §4](servo-map.md#4-registers)). It must end `all N servos at their expected P/D`: `run` refuses otherwise (`REFUSED_GAINS` on the beacon).
+- The six hip-roll, ankle-roll and knee servos get P ≈ 4× only after the stiffness bench test passes (issue #73). The expected table changes first, in a commit that names the measurement; then each servo is written.
+- To write one servo: `release <id>`, then `gains <id> <P> <D>`. It refuses unless that servo's torque is off, unlocks the EEPROM (55 ← 0), writes 21/22, locks it again (55 ← 1), waits for the commit and reads back: wait for `verified after commit -- safe to power down`. It writes no goal.
+- Power-cycle, then `gains` again: the values must have persisted.
+- A replacement servo arrives at the factory 32/32. It fails the gate until it is written.
 
 ## 3. Calibrate: zeros, directions, IMU, clock
 
