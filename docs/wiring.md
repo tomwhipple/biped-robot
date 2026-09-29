@@ -129,49 +129,93 @@ a maximum current of 5A for long-term operation". For ST3215s that means "up to 
 servos (ensuring that these 5 servos are not stalled simultaneously)". All of the
 servo current crosses H1 (3 A per contact), the AO4407 and SW1.
 
-- **Per servo** (ST-3215-C018 sheet):
-  - 2.7 A at stall.
-  - 180 mA running with no load.
-  - 30 mA idle.
-  - Over-current protection turns the output off after more than 2 A for 2 s.
-- **17 servos on this path is an open question.** The bus current has been neither computed nor measured.
-- The bus timing is open too. Twelve servos take ≈ 3.4 ms of the 20 ms tick ([design record](design-v6/2026-09-13-design-record.md) §4.5); nobody has computed the figure for 17.
+- **Per servo** (ST-3215-C018 sheet §5, §7-11; memory table V3.7):
+  - 2.7 A at stall (30 kg·cm at 12 V); Kt 11 kg·cm/A (1.08 N·m/A).
+  - 180 mA running with no load; 30 mA idle.
+  - Over-current protection turns the output off after more than 2 A for 2 s
+    (datasheet). The memory table's default for the same register (28) is
+    3.25 A; the two documents disagree, and at 11.1 V only the datasheet's
+    2 A can ever be reached.
+  - Overload protection drops the servo to 20 % torque after its load stays
+    above 80 % for 2 s (registers 34–36, enabled by default).
+- The bus timing for 17 servos is open. Twelve servos take ≈ 3.4 ms of the 20
+  ms tick ([design record](design-v6/2026-09-13-design-record.md) §4.5).
 
-The answer has to come from two places. The first is simulation, before the first
-powered floor run:
+### The simulated budget
 
-- `walker_env` prices each joint's electrical power as P = max(τω, 0) + K_CU·τ², with `_K_CU` = 3.75 W/(N·m)².
-- K_CU is calibrated so that the 2.94 N·m stall draws ~32 W, i.e. 2.7 A at 12 V. Bus current is then ΣP / V.
-- `sim/current_budget.py --run <run> [--volts 10.5]` drives a trained policy through the referee's six command scenarios. It reports peak, p99, RMS and mean current for the whole bus, the worst leg and the worst joint.
-- The script needs a policy trained on the robot's plant, and none exists yet.
-- Until one does, the same formula has to be applied to the torque traces of the Gate D walk (`sim/gate_no3250.py walk`) and the scripted get-up. That has not been done.
+`sim/current_budget_v6.py` (log: [current_budget_v6.txt](design-v6/current_budget_v6.txt))
+applies a per-servo current model to every 20 ms control tick of the design's
+open-loop motions, under Plan B at 11.1 V:
 
-The second is a bench measurement:
+- **walk**: the Gate D cases on the as-drawn plant with arms (17 servos, arms
+  held at +15°), and on the CAD-inertial plant (13 servos, the four arm servos
+  added at idle);
+- **get-up**: the scripted seat push (`r5_asdrawn_rom120`), both sequences,
+  the six robustness conditions.
 
-- Put an inline watt meter (≥ 60 A, with peak hold) on the pack lead during the floor sequence ([bringup.md §6](bringup.md#6-staged-hardware-gates)).
-- A sim figure is a ranking, not a measurement.
+The documents give the current along the servo's full-duty line; a PWM bridge
+holding a load at part duty draws less from the supply. So two models bracket
+it, and the shunt on the first powered run settles which end is true:
 
-How to read the numbers:
+| model | per-servo current | constants |
+|---|---|---|
+| **upper** (supply = motor current) | 30 mA + 150 mA × \|ω\|/ω₀ + \|τ\|/Kt, capped at the stall current (2.50 A at 11.1 V) | documented: Kt, idle, no-load and stall current. Fitted: the no-load term's straight line in speed |
+| **lower** (lossless bridge) | 30 mA + (max(τω, 0) + K_CU·τ²)/V | K_CU = 3.75 W/(N·m)², fitted so that the 2.94 N·m stall draws 2.7 A at 12 V (walker_env's power model, also `sim/current_budget.py`'s) |
 
-- **RMS** sizes copper and contacts.
-- **The peak** sizes the fuse and the brown-out margin. The FAQ's "not stalled simultaneously" is about peaks.
+Whole bus, amperes, upper / lower:
 
-For scale, here is the same method on the 10-servo prototype's walking policy.
-These are sim-derived figures and were never measured:
-
-| | peak | p99 | RMS | mean |
+| motion | peak | RMS | mean | worst 2 s |
 |---|---|---|---|---|
-| whole bus | 6.8 A | 5.0 A | 1.4 A | 0.85 A |
-| worst leg | 4.0 A | — | ~0.7 A | — |
-| worst joint | 3.0 A | — | — | — |
+| walk, 17 servos (the four cases that walk) | 5.1 / 1.8 | 2.7 / 0.9 | 2.7 / 0.9 | 3.4 / 1.2 |
+| walk, CAD plant, 13 + 4 idle servos | 3.9 / 1.3 | 2.0 / 0.7 | 2.0 / 0.7 | 2.4 / 0.9 |
+| get-up, recommended sequence (shoulder 90 → 0) | 10.3 / 5.2 | 2.7 / 1.0 | 2.4 / 0.8 | 5.2 / 2.1 |
+| get-up, shoulder 60 → 0 | 11.8 / 6.7 | 3.0 / 1.2 | 2.6 / 0.9 | 7.6 / 3.4 |
 
-The robot's get-up loads several servos at once. With P × 4 on the rolls and knees,
-the shoulders reach 74 % of stall, and the knees and hip pitches about 52–53 %
-(design record §14.2).
+The walk case that falls (−15° turn at μ 0.9) peaks at 5.7 / 4.0 A in the fall.
+The get-up's peak is the push: shoulders, elbows, hip pitches and knees loaded
+together (shoulders 1.7 A each, knees 1.4 A, hip pitches 1.3 A in the upper
+model). The worst run is at μ 1.0.
 
-If the budget comes out over the limit, two options have been named so far. The
-first is to feed `DC_IN` directly, bypassing the XH inlet and SW1. The second is to
-keep the scripted motions from loading many servos at once. Neither is chosen.
+Per chain, upper / lower, for three ways to split the bus:
+
+| split | chain | walk peak / RMS | get-up (recommended) peak / worst 2 s |
+|---|---|---|---|
+| **B: two ports** | L leg + L arm + neck | 3.9 / 1.5 — 1.4 / 0.5 | 5.1 / 2.6 — 2.6 / 1.1 |
+| | R leg + R arm | 3.8 / 1.5 — 1.4 / 0.5 | 5.1 / 2.6 — 2.6 / 1.0 |
+| C: two ports | both legs | 4.9 / 2.5 — 1.7 / 0.8 | 5.3 / 2.7 — 2.6 / 1.1 |
+| | arms + neck | 0.6 / 0.2 — 0.2 / 0.2 | 5.0 / 2.5 — 2.7 / 1.0 |
+| A: three chains (a splitter) | L leg / R leg / arms + neck | 3.7 / 1.4 each leg; 0.6 / 0.2 | 2.7 / 1.3 each leg; 5.0 / 2.5 |
+
+What the numbers say:
+
+- **The walk fits the board's 5 A continuous rating** in both models (RMS
+  0.9–2.7 A, worst 2 s 1.2–3.4 A); the upper model's peaks touch 5 A.
+- **The get-up's push does not**: 5.2–10.3 A peak, and in the upper model a 2 s
+  mean of 5.2 A, the length of the push. The 60 → 0 sequence is worse on every
+  line, which is one more reason the 90 → 0 one is recommended.
+- **H1 is the tightest part.** All of the servo current crosses one 3 A XH
+  contact. The walk's upper RMS (2.7 A) is 90 % of it and the get-up exceeds
+  it. Feeding `DC_IN` directly, bypassing the XH inlet and SW1, is the
+  indicated power path; the shunt run confirms it.
+- **Split B** (one leg and one arm per port, the neck on either) spreads the
+  get-up evenly: 5.1 A peak and 2.6 A worst 2 s per port in the upper model,
+  against ≈ 3 A for a Molex-5264-class lead (not verified from a datasheet).
+  Split C puts both legs on one lead (4.9 A walk peak, 2.5 A RMS); split A
+  needs a splitter and puts all four arm servos on one lead.
+- **Fuse**: stay at 15 A. The upper model's get-up peaks (10–12 A) sit at a
+  10 A fuse's rating; drop to 10 A only once the shunt shows the real peak.
+- **Servo protection**: no servo in the walk passes 54 % of stall (70 % on the
+  duty reading), so neither cutoff can fire there. In the get-up the shoulders
+  peak at 1.7 A, under the datasheet's 2 A over-current line; the overload
+  margin is in [DESIGN.md §4](../DESIGN.md#4-actuation-one-servo-type-with-a-raised-position-gain).
+
+Not in the budget: pack sag under load (the traces run at a fixed 11.1 V),
+servo heating, and the Pi's ≈ 1.4 A from its own buck.
+
+**Then the bench**: an inline watt meter (≥ 60 A, with peak hold) on the pack
+lead during the floor sequence ([bringup.md §6](bringup.md#6-staged-hardware-gates)).
+A sim figure is a ranking, not a measurement. RMS sizes copper and contacts;
+the peak sizes the fuse and the brown-out margin.
 
 ## Servo bus
 
