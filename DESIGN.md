@@ -376,9 +376,11 @@ The software stack runs on hardware today and is shared by every body:
   [docs/sil-harness.md](docs/sil-harness.md).
 
 **It is currently configured for the 10-joint prototype** (5 DOF per leg, no
-arms or neck; plant `sim/bimo_biped_v5body.xml`, servo IDs 1–10). Porting it to
-the robot's 17 joints — obs spec, telemetry frame, calibration, SIL ABI,
-training plant and referee — is open work.
+arms or neck; plant `sim/bimo_biped_v5body.xml`, servo IDs 1–10). The training
+envs and the referee also run on the robot's plant (12 leg joints driven, neck
+and arms held, per-servo stiffness; [docs/training.md](docs/training.md) §13);
+the rest of the port to the robot's 17 joints — obs spec, telemetry frame,
+calibration, SIL ABI — is open work.
 
 ## 12. Open decisions and open work
 

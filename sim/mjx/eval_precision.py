@@ -36,6 +36,7 @@ Run:
       [--sil] [--scenarios balance_L,line_1m,...]
 """
 import argparse
+import functools
 import inspect
 import json
 import math
@@ -101,6 +102,37 @@ def load_policy(run_dir, obs_size, act_size=8):
     return act
 
 
+PROTOTYPE_PAYLOAD_KG = 0.154    # the prototype's GoPro, which its plant lacks
+
+# Scenarios that do not apply on the ROBOT's plant: scored n/a with the
+# reason, and left out of the totals (a /N total is over the scenarios run).
+_NO_RL_GETUP = ("the robot gets up with the scripted arm sequence (DESIGN.md, "
+                "Get-up); the policy drives the legs only, and legs alone "
+                "cannot get this body up")
+ROBOT_NOT_APPLICABLE = {
+    "recover_sit": _NO_RL_GETUP,
+    "recover_fallen": _NO_RL_GETUP,
+    "handover_stand": ("the prototype's bench-hold handover probe (#29); the "
+                       "robot's bench hold is not built yet"),
+}
+
+
+@functools.lru_cache(maxsize=None)
+def is_robot_plant(xml):
+    """Robot plant (6-DOF legs + head camera) vs a prototype plant; decides
+    the pinned payload and which scenarios apply."""
+    import mujoco
+    import robot_plant
+    return robot_plant.is_robot_model(mujoco.MjModel.from_xml_path(xml))
+
+
+def referee_payload(xml):
+    """The payload the referee pins: the prototype's 154 g GoPro, which its
+    plant does not model; none on the robot, whose plant models the camera
+    in the head."""
+    return 0.0 if is_robot_plant(xml) else PROTOTYPE_PAYLOAD_KG
+
+
 def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
              act_delay_ticks=0):
     """Eval env: ext_cmd precision plant mirroring config.json construction,
@@ -108,12 +140,14 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
     extra: per-scenario env overrides (e.g. recover_mix=1.0).
     act_lag_hz: PINNED referee-side servo lag pole (never inherited from the
     run's own training DR -- the referee models the measured servo, not the
-    training distribution)."""
+    training distribution). The plant's own settings in config.json (held
+    joints, per-servo stiffness, hip range) ARE inherited: they are the
+    robot, not training conditions."""
     kw = {k: v for k, v in cfg.items() if k in _ENV_PARAMS}
     kw.update(
         xml_path=xml, command_mode=True, ext_cmd=True,
         actuator_model="sts3215", imu_obs=True, getup=False, cmd_fixed=None,
-        payload_mass=0.154, payload_max=None,
+        payload_mass=referee_payload(xml), payload_max=None,
         episode_seconds=episode_seconds, render_mode="rgb_array",
         act_lag_hz=act_lag_hz, act_delay_ticks=act_delay_ticks,
     )
@@ -1031,26 +1065,32 @@ def _handover_setup(env, drv, settle_s=1.5):
     Draws no RNG in the settle, so the per-seed DR draws stay untouched.
     """
     import mujoco
+    # every SERVO holds its home (held ones at their hold): the servo-level
+    # slices and home pose, which equal the policy's on every prototype plant
+    home = env._sdefault
+    sq, sv = env._sqpos, env._sqvel
     d = env.data
     d.qpos[:] = env.model.qpos0
-    d.qpos[env._jqpos] = env._default          # kJointDefault zeros
+    d.qpos[sq] = home                          # kJointDefault zeros
     d.qvel[:] = 0.0
-    d.ctrl[:] = env._default
+    d.ctrl[:] = home
     mujoco.mj_forward(env.model, d)
     n = int(round(settle_s / env.sim_dt))
     if env._servo is not None:
         kp, kd, stall, w0 = env._servo         # this episode's DR-scaled servo
+        kp = kp * env._kp_prof                 # per-servo stiffness profile
+        kd = kd * env._kd_prof
         for _ in range(n):
-            q = d.qpos[env._jqpos]
-            qd = d.qvel[env._jqvel]
+            q = d.qpos[sq]
+            qd = d.qvel[sv]
             cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
-            err = env._default - q
+            err = home - q
             if env._lash_rad > 0.0:
                 err = np.sign(err) * np.maximum(
                     np.abs(err) - 0.5 * env._lash_rad, 0.0)
-            d.qfrc_applied[env._jqvel] = np.clip(kp * err - kd * qd, -cap, cap)
+            d.qfrc_applied[sv] = np.clip(kp * err - kd * qd, -cap, cap)
             mujoco.mj_step(env.model, d)
-        d.qfrc_applied[env._jqvel] = 0.0
+        d.qfrc_applied[sv] = 0.0
     else:
         for _ in range(n):                     # ideal actuators read data.ctrl
             mujoco.mj_step(env.model, d)
@@ -1060,8 +1100,8 @@ def _handover_setup(env, drv, settle_s=1.5):
     env.set_command(0, 0, 0, 1, 0)
     env._prev_action[:] = 0.0
     env._best_h = float(d.qpos[2])
-    env._last_target = env._default.copy()
-    env._ctrl_buf = [env._default.copy() for _ in range(env.action_latency + 1)]
+    env._last_target = home.copy()
+    env._ctrl_buf = [home.copy() for _ in range(env.action_latency + 1)]
     if env.obs_hist_len > 1:
         # firmware priming, mirrored: ONE frame, copied into every slot
         # (g_hist.fill + build feeds the policy [f0, f0, f0])
@@ -1827,6 +1867,15 @@ def main():
         unknown = [w for w in want if w not in reg]
         if unknown:
             print(f"warning: unknown scenarios ignored: {unknown}", file=sys.stderr)
+    robot = is_robot_plant(xml)
+    not_applicable = {n: ROBOT_NOT_APPLICABLE[n] for n in names
+                      if robot and n in ROBOT_NOT_APPLICABLE}
+    names = [n for n in names if n not in not_applicable]
+    for n, why in not_applicable.items():
+        print(f"[n/a on the robot plant] {n}: {why}")
+    if robot and args.sil:
+        raise SystemExit("the SIL column is not ported to the robot's plant "
+                         "(docs/training.md, 'Porting to the robot')")
 
     # one env per distinct (episode length, scenario override) pair
     env_cache = {}
@@ -1866,8 +1915,10 @@ def main():
         def act_for(env):
             return act
 
+    load = ("no payload (camera in the modelled head)" if robot
+            else f"GoPro {PROTOTYPE_PAYLOAD_KG * 1000:.0f} g")
     cond = "nominal (no DR)" if args.nominal else \
-        "hardware-claim (GoPro 154 g, 4 ms latency, 0.7 deg backlash, DR, IMU obs)"
+        f"hardware-claim ({load}, 4 ms latency, 0.7 deg backlash, DR, IMU obs)"
     if args.act_lag_hz > 0.0:
         cond += (f"; MEASURED servo lag {args.act_lag_hz:g} Hz "
                  "(3-stage act-lag cascade)")
@@ -1968,6 +2019,10 @@ def main():
                     end=round((reel_frames + len(frames)) / MOV_FPS, 3)))
                 reel_frames += len(frames)
 
+    for name, why in not_applicable.items():
+        scorecard[name] = dict(not_applicable=why)
+        md_rows.append((name, "n/a", "not applicable", "-", "-"))
+
     if mov_writer is not None:
         mov_writer.close()
         print(f"  render -> {mov_path}")
@@ -1987,6 +2042,7 @@ def main():
         conditions=cond, claim=stack, stack=("sil" if args.sil else "python"),
         episodes=args.episodes, plant=os.path.basename(xml),
         scenarios_run=len(names),
+        scenarios_not_applicable=sorted(not_applicable),
         scenarios_all_pass=scen_all_pass,
         seed_pass=f"{tot_succ}/{tot_runs}",
         seed_pass_rate=round(tot_succ / max(tot_runs, 1), 3),

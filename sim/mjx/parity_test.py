@@ -24,7 +24,12 @@ Gates (run in float64 so precision is not the limiter):
      manifolds agree.
   3. float32 free-rollout drift: informational only (chaos, not error).
 
-Run:  .venv/bin/python sim/mjx/parity_test.py
+  R. the ROBOT's plant (blocks R1-R3, see robot_blocks below): the same
+     airborne/stance gates with 12 policy joints, the neck and arms held,
+     per-servo (Plan B) stiffness and the sole-level imitation reference.
+
+Run:  .venv/bin/python sim/mjx/parity_test.py               # both plants
+      .venv/bin/python sim/mjx/parity_test.py --robot-only  # R1-R3 only
 """
 import os
 import sys
@@ -107,8 +112,9 @@ def run_block(name, n_steps, act_fn, prep_cpu, gates, matched_only=False,
               min_frac=0.8, envs=None):
     cpu_e, gpu_e, step_e = envs if envs is not None else (cpu, gpu, step_mjx)
     # actuated qpos/qvel slices derived from the env (8-DOF -> [7:15]/[6:14];
-    # 10-DOF hip-yaw -> [7:17]/[6:16]) so the gate works on either plant
-    jq, jv = cpu_e._jqpos, cpu_e._jqvel
+    # 10-DOF hip-yaw -> [7:17]/[6:16]; every SERVO, held ones included, on
+    # the robot's plant) so the gate works on any plant
+    jq, jv = cpu_e._sqpos, cpu_e._sqvel
     obs_c, _ = cpu_e.reset(seed=0)
     prep_cpu(cpu_e)
     state = gpu_e.reset(jax.random.PRNGKey(0))
@@ -165,6 +171,129 @@ def hoist(env):
 
 # hip-roll offsets splay the legs; modest amplitude keeps feet apart
 _SPLAY = np.array([0.5, 0.0, 0.0, 0.0, -0.5, 0.0, 0.0, 0.0])
+
+
+# -- R. the ROBOT's plant ------------------------------------------------------
+# sim/bimo_biped_v6ar.xml under the robot preset (robot_plant.py): the 12 leg
+# joints as the policy, the neck (and arms) HELD at fixed targets, Plan B
+# per-servo stiffness (kp AND kd x4 on hip roll, ankle roll, knee), hip
+# flexion -120, the sole-level imitation reference with the ankle roll in it,
+# tick quantization. R1 airborne arithmetic under a moving command (the mimic
+# reference's hip-roll oscillation drives the ankle-roll term), R2 grounded
+# stance on the 16 sole pads, R3 the same airborne gate on a generated
+# 17-servo plant with both arms held at the walking pose. `--robot-only` runs
+# just these (tests/test_robot_plant.py does, in a subprocess).
+def robot_blocks():
+    import tempfile
+    import robot_plant
+    from mujoco import mj_forward
+
+    def rob_kw(xml=None, **over):
+        kw = dict(
+            supply_voltage=11.1, w_energy=0.002, w_action_rate=0.05,
+            w_power=0.02, w_feet_air=0.1, w_single_support=0.05,
+            w_lateral=0.5, w_pitch_rate=0.05, w_track_v=2.0, w_track_w=2.0,
+            w_track_h=1.0, w_lift=1.0, w_track_foot=1.0, w_symmetry=0.5,
+            gait_clock=True, w_feet_phase=1.0, w_feet_slip=0.25,
+            w_orientation=1.0, w_ang_vel_xy=0.15, w_pose=0.5,
+            w_dof_limits=1.0, obs_hist_len=3, joint_frictionloss=0.05,
+            joint_armature=0.028, w_mimic=1.0, w_com_stance=0.75,
+            w_heading=1.0, w_foot_under=0.75, latency_ms=6.0,
+            backlash_deg=0.5, ext_cmd=True, fall_cost=10.0, cmd_dense=True,
+            cmd_fixed=(0.3, -0.1, 0.2, 0.85, 0.0, 0.0, 0.0), imu_obs=False,
+            action_map="full", quantize_ticks=True)
+        kw.update(robot_plant.robot_env_kwargs(xml))
+        kw.update(over)
+        return kw
+
+    def envs_for(kw):
+        c = BimoWalkerEnv(actuator_model="sts3215", command_mode=True,
+                          domain_rand=False, **kw)
+        g = BimoMJXEnv(domain_rand=False, **kw)
+        return c, g, jax.jit(g.step)
+
+    def air_acts(env):
+        n = env._nq_act
+        splay = np.zeros(n)
+        splay[env._legL["hip_roll"]] = 0.5
+        splay[env._legR["hip_roll"]] = -0.5
+
+        def act(t):
+            if t % 20 == 0:
+                hoist(env)
+            return (splay + 0.3 * np.sin(0.353 * t + np.arange(n) * 0.7)
+                    ).astype(np.float32)
+        return act
+
+    def layout_ok(c, g, n_servo, n_held):
+        """The preset is really on, identically in both engines: policy vs
+        servo counts, the x4 profile on exactly the six roll/knee servos,
+        the held joints at their hold in qpos0."""
+        prof = np.asarray(c._kp_prof)
+        four = {n for n, p in zip(c._servo_names, prof) if p == 4.0}
+        want = {f"{s}_{r}" for s in "LR"
+                for r in ("hip_roll", "ankle_roll", "knee")}
+        held_q = [float(c.model.qpos0[c._jq0 + c._sname2i[k]])
+                  for k in c.held_joints]
+        want_q = [np.deg2rad(v) for v in c.held_joints.values()]
+        return (c._n_servo == n_servo and c._nq_act == 12
+                and g.action_size == 12 and len(c.held_joints) == n_held
+                and four == want
+                and np.array_equal(prof, np.asarray(g._kp_prof))
+                and np.array_equal(np.asarray(c._kd_prof),
+                                   np.asarray(g._kd_prof))
+                and np.allclose(held_q, want_q)
+                and c.observation_space.shape[0] == g.obs_size == 3 * 55)
+
+    c1, g1, s1 = envs_for(rob_kw())
+    lay1 = layout_ok(c1, g1, 13, 1)
+    okr1 = run_block(
+        "R1. ROBOT plant airborne arithmetic (12 policy + neck held, Plan B "
+        "kp/kd, sole-level mimic, quantized)", 100, air_acts(c1), hoist,
+        dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+        envs=(c1, g1, s1)) and lay1
+    print(f"   layout: {c1._n_servo} servos, {c1._nq_act} policy joints, held "
+          f"{c1.held_joints}, x4 on "
+          f"{[n for n, p in zip(c1._servo_names, c1._kp_prof) if p != 1]}"
+          f" -> {'OK' if lay1 else 'WRONG'}")
+
+    c2, g2, s2 = envs_for(rob_kw(cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                                            0.0)))
+    n2 = c2._nq_act
+    okr2 = run_block(
+        "R2. ROBOT plant grounded stance (16 sole pads, matched manifolds)",
+        100, lambda t: (0.05 * np.sin(0.25 * t + np.arange(n2))
+                        ).astype(np.float32),
+        lambda env: None, dict(qpos=1e-6, qvel=1e-4, reward=1e-3, obs=1e-3),
+        matched_only=True, min_frac=0.5, envs=(c2, g2, s2))
+
+    with tempfile.TemporaryDirectory() as td:
+        xml17 = robot_plant.write_arms_test_plant(
+            os.path.join(td, "arms17.xml"))
+        c3, g3, s3 = envs_for(rob_kw(xml17))
+        lay3 = layout_ok(c3, g3, 17, 5)
+        okr3 = run_block(
+            "R3. 17-servo plant (arms held 15 deg back, elbows straight) "
+            "airborne arithmetic", 100, air_acts(c3), hoist,
+            dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+            envs=(c3, g3, s3)) and lay3
+        # the held arms actually HOLD: after the block the shoulders sit at
+        # their 15 deg target (within the backlash band + sag), not hanging
+        mj_forward(c3.model, c3.data)
+        sh = [float(np.degrees(c3.data.qpos[c3._jq0 + c3._sname2i[k]]))
+              for k in ("L_shoulder", "R_shoulder")]
+        held_live = all(abs(v - 15.0) < 3.0 for v in sh)
+        okr3 = okr3 and held_live
+        print(f"   layout {'OK' if lay3 else 'WRONG'}; shoulders at "
+              f"{sh[0]:.1f} / {sh[1]:.1f} deg (hold 15)")
+    return okr1 and okr2 and okr3
+
+
+if "--robot-only" in sys.argv:
+    _ok = robot_blocks()
+    print("\nPARITY (robot plant):", "PASS" if _ok else "FAIL")
+    sys.exit(0 if _ok else 1)
+
 
 class AirActs:
     def __call__(self, t):
@@ -841,7 +970,8 @@ print(f"   deadband honoured: {int(_in_band.sum())} steps inside 5 deg pay "
       f"{_h_band:.1e}; +/-30 deg ROLL sweep pays {_h_roll:.1e}")
 ok_e11 = ok_e11 and ok_e12 and ok_e13
 
+ok_robot = robot_blocks()
 ok_all = (ok1 and ok2 and ok3 and ok_e1 and ok_e2 and ok_e3 and ok_e4
-          and ok_e5 and ok_e6 and ok_e7 and ok_e8 and ok_e11)
+          and ok_e5 and ok_e6 and ok_e7 and ok_e8 and ok_e11 and ok_robot)
 print("\nPARITY:", "PASS" if ok_all else "FAIL")
 sys.exit(0 if ok_all else 1)
