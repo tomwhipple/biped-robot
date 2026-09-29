@@ -4,7 +4,8 @@ Motivated by the first foot print: the TPU-pad recess ceiling bridged 46 mm
 and drooped badly in PETG, and nothing in the pipeline would have caught it --
 check_assembly.py proves parts don't collide, not that they print. This closes
 that gap: it loads each exported STL, rotates it into the orientation it is
-actually printed in (per PARTS in parts.py / PRINT_LIST.md), and hunts for
+actually printed in (its ORIENT table; cad/v6's audits patch in the robot's
+parts), and hunts for
 geometry a PETG print will sag or fail on:
 
 Down-facing facet clusters (steeper than 45 deg, above the first layer) are

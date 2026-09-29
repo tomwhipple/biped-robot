@@ -1,287 +1,369 @@
-# Servo address map
+# Servo reference
 
-Bus address (ST3215 servo ID) → physical joint on the robot. Ten servos on one
-half-duplex TTL chain at 1 Mbaud off the Waveshare ESP32 driver board.
+Every joint on the robot is a Feetech **STS3215**: the 12 V class, part number
+ST-3215-C018. All of them sit on one half-duplex TTL bus at 1 Mbaud off the General
+Driver board ([wiring.md](wiring.md#servo-bus)).
 
-Generated-source of truth: `firmware/components/obs/include/obs/obs_spec.h`
-(`kJointNames` / `kServoId`), which `tools/gen_obs_spec.py` emits from the
-deployed run's config and its plant MJCF (currently
-`sim/bimo_biped_v5body.xml`). The host tests (`firmware/host/test_obs.cpp`) pin
-the permutation, so this table and the firmware cannot drift by hand.
+This page covers:
 
-## By servo address
+- ID assignment, and the ID → joint map;
+- calibration, and how it is stored;
+- the registers the robot depends on;
+- what has been measured on the servo.
 
-| Servo ID | Part location   | Sim joint     | Action index | Bus port  | ROM        | Axis            |
-| -------- | --------------- | ------------- | ------------ | --------- | ---------- | --------------- |
-| 1        | **right** hip roll  | `R_hip_roll`  | 6        | A (right) | −25°…+25°  | X (roll)        |
-| 2        | **right** hip pitch | `R_hip_pitch` | 7        | A (right) | −110°…+60° | Y (pitch)       |
-| 3        | **right** knee      | `R_knee`      | 8        | A (right) | ±95° meas. | Y (pitch)       |
-| 4        | **right** ankle     | `R_ankle`     | 9        | A (right) | −40°…+40°  | Y (pitch)       |
-| 5        | **left** hip roll   | `L_hip_roll`  | 1        | B (left)  | −25°…+25°  | X (roll)        |
-| 6        | **left** hip pitch  | `L_hip_pitch` | 2        | B (left)  | −110°…+60° | Y (pitch)       |
-| 7        | **left** knee       | `L_knee`      | 3        | B (left)  | ±95° meas. | Y (pitch)       |
-| 8        | **left** ankle      | `L_ankle`     | 4        | B (left)  | −40°…+40°  | Y (pitch)       |
-| 9        | **right** hip yaw   | `R_hip_yaw`   | 5        | A (right) | −45°…+45°  | Z (yaw)         |
-| 10       | **left** hip yaw    | `L_hip_yaw`   | 0        | B (left)  | −45°…+45°  | Z (yaw)         |
+The firmware currently drives the 10-joint prototype. The robot's 17-servo ID map
+is **not yet assigned**. The procedure from a bare board to the first arm is
+[bringup.md](bringup.md). The bench-safety rules are in
+[AGENTS.md](../AGENTS.md#bench-safety).
 
-"Left" is the robot's own left: +Y in the plant, with the robot facing +X.
+## 1. The bus and ID assignment
 
-> **Assembly errata, 2026-08-02 — the two bus chains went onto opposite legs.**
-> Port A is the **right** leg and port B is the **left**, the reverse of the
-> plan. This was found in stages: first the hip-yaw pair looked swapped
-> (commit `eb062cf`), then the rest of the chain turned out to be swapped with
-> it. Confirmed on the robot, not inferred:
->
-> - driving servo **9**'s hip yaw rotates the **right** leg (toe-in at +20°),
-> - hip-pitch servo **2** is on the **right**, servo **6** on the **left**,
-> - knee servo **3** is the **right** knee, servo **7** the **left**.
->
-> The servos are not coming back out, so the firmware map absorbs it:
-> `kServoId = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4}`. Note the yaw entries are
-> unchanged from the first fix — a whole-chain swap and a yaw-only swap agree
-> on the yaw servos, which is why the yaw-only reading survived as long as it
-> did. The rows above are the as-built truth.
+- **Every servo ships as ID 1.** Two servos with the same ID on the bus do not enumerate reliably.
+- **Assign IDs one servo at a time.** Put exactly one servo on the bus, with the board powered off between swaps (do not hot-plug the bus). Set its ID, then label the case with the ID and the joint name on a face that stays readable after assembly.
+- **Use the firmware CLI to set IDs.** Run it over the `USB` port at 115200, in bench mode:
 
-## By chain position
+  ```
+  scan              # expect exactly one servo, at id 1
+  reg 1 3 2         # Model_Number: 777 = STS3215 (an STS3250 reads 2825)
+  reg 1 9 2         # min angle limit, expect 0
+  reg 1 11 2        # max angle limit, expect 4095
+  reg 1 33          # mode, expect 0 (position)
+  reg 1 21          # position P, factory 32 (then 22 = D, 23 = I)
+  id 1 <new>
+  ```
 
-The board's two bus ports are electrically the same bus — they are split one
-per leg purely for cable routing. Each leg chains outward from the pelvis:
+- **What `id` does** (`cmdId` in `firmware/main/cli.cpp`):
+  1. It refuses if `<new>` already answers.
+  2. It unlocks the EEPROM (register 55 ← 0), writes register 5, and locks it again under the new ID.
+  3. It waits 2 s for the EEPROM commit, then pings the new ID.
+  4. On success it prints `ok, verified after commit -- safe to power down`. `WROTE BUT DID NOT VERIFY` means rescan before trusting it.
+- **Checking the whole bus.**
+  - `scan` names each ID's joint in the firmware's map.
+  - `ping` with no argument checks exactly the IDs the firmware expects, in joint order.
+- **The duplicate-ID signature.** One servo answers intermittently, returns `bad-reply` and a nonsense 0.0 V, and another ID is missing. That is two servos answering to one ID. **Suspect a duplicate ID before suspecting the wiring.**
+- **`tools/servo_tool.py` does not work with this firmware.**
+  - It speaks the Feetech protocol through the stock firmware of Waveshare's *Servo Driver with ESP32*: its web UI at 192.168.4.1 and its `SERIAL_FORWARDING` USB↔bus bridge.
+  - This repo's firmware owns the USB port as the CLI.
+  - Its `setid` (unlock 55, write 5, lock), `info` and `fixrange` (mode 0, limits 0..4095) remain the register-level reference for these operations.
+- **The CLI cannot write arbitrary registers.** `reg` is read-only by design.
+  - No tool in the repo writes the gain registers yet ([§4](#4-registers)).
+  - Adding a bench-mode register write is **open work**.
 
-- **Port A → RIGHT leg**: ID **9** hip yaw → ID **1** hip roll → ID **2** hip
-  pitch → ID **3** knee → ID **4** ankle
-- **Port B → LEFT leg**: ID **10** hip yaw → ID **5** hip roll → ID **6** hip
-  pitch → ID **7** knee → ID **8** ankle
+## 2. ID → joint map
 
-The yaw servos carry IDs 9/10 rather than 1/2 because they were added to the
-design (v3yaw, 2026-07-23) after IDs 1–8 had already been assigned to the
-8-DOF plant. This is why the address column is not in chain order.
+### 2.1 The robot: not yet assigned
 
-## Policy action order ≠ bus ID order
+The robot has 17 servos: 12 in the legs, one in the neck, four in the arms. **No
+IDs are assigned, and neither is the chain order.** When the map is chosen:
 
-The policy's action vector is in sim actuator order:
+- it goes in `ID_BY_ROLE` in `tools/gen_obs_spec.py`;
+- that script regenerates `kServoId` in `obs_spec.h` (which the host tests pin);
+- this table and the calibration tables below follow it.
+
+The rest of the firmware port is open work too: the observation spec, telemetry,
+calibration, the SIL ABI, and the bench tools that hard-code the prototype's
+calibration.
+
+| joint | ID | position P (Plan B) |
+|---|---|---|
+| `L_hip_yaw`, `R_hip_yaw` | — | stock |
+| `L_hip_roll`, `R_hip_roll` | — | **≈ 4×** |
+| `L_hip_pitch`, `R_hip_pitch` | — | stock |
+| `L_knee`, `R_knee` | — | **≈ 4×** |
+| `L_ankle`, `R_ankle` (pitch) | — | stock |
+| `L_ankle_roll`, `R_ankle_roll` | — | **≈ 4×** |
+| `neck_yaw` | — | stock |
+| `L_shoulder`, `R_shoulder` | — | stock |
+| `L_elbow`, `R_elbow` | — | stock |
+
+The joint names are the plant's: `sim/bimo_biped_v6ar.xml`, with the arms from
+`sim/gen_plant_v6.py`.
+
+### 2.2 What the firmware drives today: the 10-joint prototype
+
+The source of truth is `firmware/components/obs/include/obs/obs_spec.h`
+(`kJointNames`, `kServoId`):
+
+- `tools/gen_obs_spec.py` generates it from the deployed run's config, the plant `sim/bimo_biped_v5body.xml`, and `ID_BY_ROLE`.
+- `firmware/host/test_obs.cpp` pins it.
+
+| servo ID | joint | action index | bus port |
+|---|---|---|---|
+| 1 | `R_hip_roll` | 6 | A (right) |
+| 2 | `R_hip_pitch` | 7 | A (right) |
+| 3 | `R_knee` | 8 | A (right) |
+| 4 | `R_ankle` | 9 | A (right) |
+| 5 | `L_hip_roll` | 1 | B (left) |
+| 6 | `L_hip_pitch` | 2 | B (left) |
+| 7 | `L_knee` | 3 | B (left) |
+| 8 | `L_ankle` | 4 | B (left) |
+| 9 | `R_hip_yaw` | 5 | A (right) |
+| 10 | `L_hip_yaw` | 0 | B (left) |
+
+- Each leg chains outward from the pelvis:
+  - Port A is the right leg: 9 → 1 → 2 → 3 → 4.
+  - Port B is the left leg: 10 → 5 → 6 → 7 → 8.
+- "Left" is the robot's own left: +Y in the plant, with the robot facing +X.
+
+**The policy's action order is not bus-ID order.** The action vector is in sim
+actuator order:
 
 ```
 [L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle,
  R_hip_yaw, R_hip_roll, R_hip_pitch, R_knee, R_ankle]
 ```
 
-so **action 0 drives bus ID 10**, not ID 1. The firmware applies the
-permutation `obs::kServoId = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4}` — index by
-action, read the bus ID. (It was `{9, 1, 2, 3, 4, 10, 5, 6, 7, 8}` as designed,
-briefly `{10, 1, …, 9, …}` after the yaw-only fix; see the errata note above.)
+The firmware indexes `obs::kServoId = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4}` by action
+index, so action 0 drives bus ID 10.
 
-## As-built zero calibration
+## 3. Calibration: zero, direction, envelope
 
-> **Re-zeroed 2026-09-03** after loose servo-horn screws were found and tightened on
-> both legs. Stand set by eye on the desk, `cal zero` + `cal save`. Shifts from the
-> 2026-08-02 values: L hip pitch −3.8°, L knee −4.7°, L ankle +1.7°, R hip pitch −1.9°,
-> R knee +1.1°, R ankle −1.1°; yaws and rolls under 0.3°. Table below is the new set.
+**Standing is angle zero for every joint** (`kJointDefault` is all zeros). Each
+joint has two calibration values:
 
-Measured 2026-08-02 on the assembled robot, held at the standing pose on a test
-stand, via `cal zero` + `cal save`. Standing **is** angle zero for every joint
-(`kJointDefault` is all zeros), so these ticks are each joint's `zero_steps`.
-They are stored in NVS; the boot log reads `cal: restored from NVS`.
+- `zero_steps`: the encoder ticks at the standing pose;
+- `dir`: the sign that maps the sim's joint angle onto servo ticks.
 
-This table is also compiled into the firmware as
-`firmware/main/asbuilt_cal.h`, where it gates the automatic v1→v2
-calibration-blob migration (a v1 blob cannot prove its servo map, but one
-that exactly matches this measurement is this measurement). **If the robot is
-re-zeroed, update both files in the same commit.**
+There are two zeroing mechanisms, and they are **not interchangeable**:
 
-Re-measured after the legs-swapped remap — `cal` is stored per *joint index*,
-so remapping invalidated every entry and the blob was erased (`cal reset`)
-rather than left to look valid.
+| | `middle <id>` | `cal …` |
+|---|---|---|
+| writes | the servo's own offset (register 40 ← 128 latches the current position as 2048) | the firmware's calibration in NVS |
+| lives | in the servo's EEPROM. It travels with the servo and survives reflashing the board | on the board. It is bound to the servo map |
+| sets | a coarse zero, and keeps the zero away from the 0/4095 encoder wrap | a fine zero trim, plus the direction sign, which the servo cannot express |
+| side effect | leaves torque **off** | none |
 
-| Joint | ID | zero (ticks) | Δ from 2048 | dir |
-| ----- | -- | ------------ | ----------- | --- |
-| `L_hip_yaw`   | 10 | 1692 | −356  | +1 |
-| `L_hip_roll`  | 5  | 2418 | +370  | **−1** |
-| `L_hip_pitch` | 6  | 2001 | −47    | +1 |
-| `L_knee`      | 7  | 1581 | −467  | **−1** |
-| `L_ankle`     | 8  | 3535 | +1487 | +1 |
-| `R_hip_yaw`   | 9  | 1806 | −242  | +1 |
-| `R_hip_roll`  | 1  | 3532 | +1484 | **−1** |
-| `R_hip_pitch` | 2  | 2479 | +431  | +1 |
-| `R_knee`      | 3  | 2063 | +15    | **−1** |
-| `R_ankle`     | 4  | 3437 | +1389 | +1 |
+1. Hold the assembled robot at the neutral (standing) pose.
+2. Run `middle` on each servo. Never run it on a bare servo: it defines 2048 wherever the horn happens to sit.
+3. Run `cal zero` to absorb the residual. The horn seats on a 25-tooth spline, so a purely mechanical zero is never exact.
+4. Run `cal save`.
 
-The large offsets are ordinary horn clocking — the ST3215 horn seats on discrete
-splines, so a mechanical zero is never exact and `middle` was never run at the
-CAD-neutral pose. **Before this was measured the firmware still believed zero
-was 2048 for all ten**, which would have driven a knee 168° on the first `run`.
-`R_knee` and `L_hip_pitch` sit at ~2048 because their encoders were
-deliberately re-centred (R_knee at bring-up — see below; L_hip_pitch on
-2026-08-03, when its old zero of 3273 capped backward pitch at +72° against
-the 4095 wrap during the +90° envelope test); the rest are wherever the horn
-happened to seat.
+A zero left near 0 or 4095 truncates the joint's range at the wrap.
 
-### Direction signs — all ten verified 2026-08-02
+The `cal` subcommands, all in bench mode:
 
-**`dir` cannot be read off the encoder**, which only reports the servo's own
-frame; the sign is a physical convention, so every one was settled by driving
-that joint alone and having a human say which way it went. The reference for
-"which way is positive" is the sim itself: `tools/` aside, a throwaway MuJoCo
-script set each joint to +20° in isolation and reported where the toe moved in
-the torso frame, giving an unambiguous prediction per joint:
+```
+cal show                          # per joint: id, zero, dir, and whether NVS was loaded
+cal zero [joint]                  # latch the current position as zero (all joints, or one)
+cal dir <joint> <1|-1>
+cal set <joint> <zero> <1|-1>     # type a row in by hand, when the robot cannot be posed
+cal save | load | reset           # reset erases NVS and returns to 2048 / +1
+cal migrate                       # explicit v1-blob path; see below
+```
+
+**How calibration is stored.**
+
+- The servo calibration is a versioned NVS blob (`firmware/main/cal_store.h`, magic "BMC1", version 2). It holds:
+  - the joint count;
+  - `zero_steps` and `dir` per joint;
+  - the servo map (`kServoId`) it was measured under;
+  - a CRC-32.
+- The boot load rejects a blob in any of these cases, and the robot then boots uncalibrated:
+  - it was measured under a different servo map;
+  - its joint count is different;
+  - it is corrupt.
+- An uncalibrated robot refuses `run` and `home`.
+- A v1 blob cannot prove its map. It migrates automatically only if it exactly equals the compiled reference table, `firmware/main/asbuilt_cal.h`. Otherwise `cal migrate` loads it into the live calibration for a human to check against §3.1 before `cal save`.
+- The IMU calibration (bias, mount, gyro scale) is a separate blob. It does not depend on the servo map.
+- **Re-zero after any horn or mechanical work.** Horn screws work loose.
+
+**Directions.**
+
+- `dir` cannot be read from the encoder.
+- To settle each one, drive the joint alone (`torque <id>`, then small `move` steps) and compare with the sim's prediction for that joint at +20°.
+- **Never infer a sign from a compound motion.**
+
+**Travel probes.**
+
+- Set the goal to the present position *before* enabling torque.
+- Drive one servo at a time, in small steps (20 ticks at 200 steps/s), watching load in `pos`.
+
+**The mechanical envelope.**
+
+- `firmware/main/mech_envelope.h` is the bench clamp that `move`, `pose` and `home` apply to the firmware's joints.
+- It is deliberately separate from the policy range (`kJointLo`/`kJointHi` in `obs_spec.h`). Widening the policy range rescales the action map and invalidates trained runs.
+- A `static_assert` requires the envelope to contain the policy range.
+- Change the header and §3.3 in the same commit, and name the evidence for every widening.
+
+### 3.1 As-built zero calibration
+
+These are the prototype's current values, measured at the standing pose with
+`cal zero` + `cal save` after the horn screws were tightened on both legs. They are
+also compiled into `firmware/main/asbuilt_cal.h` as the migration reference. **If
+the robot is re-zeroed, update both files in the same commit.**
+
+| joint | ID | zero (ticks) | Δ from 2048 | dir |
+|---|---|---|---|---|
+| `L_hip_yaw` | 10 | 1692 | −356 | +1 |
+| `L_hip_roll` | 5 | 2418 | +370 | **−1** |
+| `L_hip_pitch` | 6 | 2001 | −47 | +1 |
+| `L_knee` | 7 | 1581 | −467 | **−1** |
+| `L_ankle` | 8 | 3535 | +1487 | +1 |
+| `R_hip_yaw` | 9 | 1806 | −242 | +1 |
+| `R_hip_roll` | 1 | 3532 | +1484 | **−1** |
+| `R_hip_pitch` | 2 | 2479 | +431 | +1 |
+| `R_knee` | 3 | 2063 | +15 | **−1** |
+| `R_ankle` | 4 | 3437 | +1389 | +1 |
+
+- The large offsets are horn clocking.
+- `R_knee` and `L_hip_pitch` sit near 2048 because `middle` re-centred them at the standing pose, which keeps their range clear of the 4095 wrap.
+
+### 3.2 Direction signs
+
+This is where the toe moves at +20° in the prototype plant, for each joint in
+isolation:
 
 | joint | sim-positive moves the toe |
-| ----- | -------------------------- |
-| hip yaw   | toward the robot's **left** (right leg toe-in, left leg toe-out) |
-| hip roll  | toward the robot's **left** (left leg abducts, right leg adducts) |
-| hip pitch | **backward** — hip extension |
-| knee      | **forward/up** — hyperextension; flexion is **negative** ¹ |
-| ankle     | **down** — plantarflexion |
+|---|---|
+| hip yaw | toward the robot's **left** (right leg toe-in, left leg toe-out) |
+| hip roll | toward the robot's **left** (left leg abducts, right leg adducts) |
+| hip pitch | **backward**: hip extension |
+| knee | forward/up: hyperextension. **Flexion is negative** (knee axis `0 -1 0`) |
+| ankle | **down**: plantarflexion |
 
-¹ The knee row was **restated on 2026-08-02** when the plant's knee sign was
-corrected (see "Measured knee ROM" below). It read "backward/down" while
-`bimo_biped_v3yaw.xml` still had `axis="0 1 0"` on the knees. The `dir` column
-did **not** change: `−1` was chosen so that the *policy's* negative knee means
-flexion on the robot, and the corrected plant now agrees with the robot instead
-of contradicting it. Nothing on the board was reflashed or re-zeroed for this.
+- On the prototype, roll and knee have `dir` −1 on both legs; yaw, pitch and ankle have +1. The servos are mounted the same way on each side, not mirrored.
+- The robot adds ankle roll, the neck, the shoulders and the elbows, and remounts the legs. **Every sign is re-derived on the robot.**
 
-The result is symmetric between the legs: **roll and knee are inverted, yaw,
-pitch and ankle are not.** Both legs share the same pattern, which fits servos
-mounted the same way on each side rather than mirrored.
+### 3.3 Mechanical envelope
 
-Two things this caught that no encoder-only check could:
+The prototype's bench clamp, as it stands in `mech_envelope.h`. Angles are in the
+sim joint frame.
 
-- **The knees.** At `+1` the sim's negative knee angle — which the policy
-  treats as flexion — drove the joint into *hyperextension*. This is the exact
-  failure `docs/assembly.md` warns about. (At the time this also disagreed with
-  the MJCF, whose knee axis made negative mean hyperextension too; the robot
-  was left calibrated the human-natural way and the **plant** was corrected on
-  2026-08-02 to match it.)
-- **`L_hip_yaw` was briefly recorded wrong.** It was first inferred from a
-  collision during a four-joint compound pose, which attributed the leg's
-  inward swing to the yaw. A clean single-joint test showed the opposite, and
-  the real culprit was `L_hip_roll` (`−1`, so positive ticks swing that leg
-  *inward*). Inferring a sign from a compound motion does not work; drive one
-  joint at a time.
+| joint | envelope | evidence |
+|---|---|---|
+| hip yaw | ±45° | plant range; the stops have never been probed wider |
+| hip roll | 25° adduction / **55° abduction** | CAD buffer sweep: 0.60 mm at 55°, under the buffer at 70°, touching at 90°. Creep-verify on hardware before a full 55° sweep |
+| hip pitch | −110° … **+90°** | +90° backward: 0.70 mm CAD buffer, hardware-verified with both hips at +90° |
+| knee | **±95°** | measured, both directions, ≤ 5.9 % load |
+| ankle | ±40° | plant range; the toes clear the shin at both extremes |
 
-### Travel probe
+Pose-dependent leg-on-leg contact is not in this table, because a per-joint clamp
+cannot express it. The plant handles it with inter-leg collision geoms.
 
-Each joint was driven ±10° from its zero, one servo at a time, in 20-tick steps
-at 200 steps/s, with goal set to present position *before* torque enable so
-engaging could not produce a jump. All ten tracked to ≤2 ticks of following
-error at ≤24/1000 load, no fault flags, and returned to zero within 7 ticks.
-End stops were not probed for nine of the ten and remain unrecorded.
+### 3.4 Model-range sweep and measured knee ROM
 
-### Mechanical envelope — the bench clamp's table (2026-08-03)
+These are prototype measurements.
 
-The CLI bench clamp no longer uses the plant's policy range: it clamps to
-`firmware/main/mech_envelope.h`, the measured/CAD-verified mechanical truth.
-The split exists because the two ranges answer different questions — what a
-policy trains in (widening it rescales action maps and invalidates runs)
-vs how far the bench may drive a joint. **Change the envelope header and
-this table in the same commit**, and name the evidence for every widening:
+`tools/bench_rom_sweep.py` swept every joint to 90 % of its model range on the
+test stand. It uses single-servo torque, stepped waypoints, a webcam frame plus
+position and load at each waypoint, and auto-release on any anomaly. Results:
 
-| joint | envelope (sim frame) | evidence |
-| ----- | -------------------- | -------- |
-| hip yaw   | ±45°           | plant range; stops never probed wider |
-| hip roll  | 25° adduction / **55° abduction** | CAD buffer sweep 2026-08-03: 0.60 mm at 55°, under-buffer at 70°, touching at 90°. Creep-verify on hardware before a full 55° sweep |
-| hip pitch | −110°…+60°     | plant range; stand blocks measuring past +45° back |
-| knee      | **±95°**       | measured 2026-08-02, both directions, ≤5.9 % load |
-| ankle     | ±40°           | plant range; toes clear the shin at both extremes |
+- Every joint tracked. Following error was ≤ 8 ticks and loads ≤ 72/1000, at 33–35 °C, with no fault flags and a clean return to zero.
+- Hip-roll adduction brings the legs into contact from about **−9°**. A torque-off leg rests at −7°, leaning on the other one.
+  - The plant's inter-leg collision capsules are calibrated to these onsets.
+  - The sweep tool caps inward roll at 6°.
+- Yaw toe-in was clean to 20°, and the ankles to ±36°.
 
-Pose-dependent leg-on-leg contact (adduction ~9° standing, yaw cross ~8.5°
-with thighs raised) is deliberately NOT in this table — a per-joint clamp
-cannot express it; the plant needs inter-leg collision geoms instead.
+The knee drives cleanly to **−94.6° and +94.5°**:
 
-### Model-range sweep — all ten joints, visually confirmed (2026-08-02 night)
+- load ≤ 172/1000 (5.9 % of stall), 31 °C flat, over two continuous full-range sweeps at 400–450 steps/s;
+- reaching +95° needed the encoder re-centred (`middle`), because the zero it had left only +11.4° before the 4095 wrap. That is an encoder-placement limit, not a mechanical one.
 
-`tools/bench_rom_sweep.py` (single-servo torque, stepped waypoints, webcam
-frame + pos/load at each, auto-release on anomaly) swept every joint to 90 %
-of its model range on the test stand, after the knee-sign fix (`0e7d866`):
+The two plants set the knee range differently:
 
-- **All ten joints track their commanded range**: following error ≤8 ticks,
-  loads ≤72/1000 (worst: hip pitch holding the thigh near-horizontal at
-  −99°), temps 33–35 °C, no fault flags, clean return to zero every time.
-- **Directions visually confirmed on camera** at the extremes, including
-  knee −85.5° = deep human-style flexion (heel toward buttock) and hip
-  pitch −99° = leg raised far forward — both as the corrected convention
-  predicts.
-- **Finding — inter-leg contact the sim cannot see:** hip-roll *adduction*
-  brings the legs into contact from ≈ **−9°** (load onset; torque-off the
-  left leg rests at −7° leaning on its neighbor). The plant's ±25° roll
-  range is optimistic inward: internal parts have no collision geoms, so
-  sim legs pass through each other. `feet_distance`/`foot_cross` penalties
-  are the current mitigation; the sweep tool caps inward roll at 6°.
-  Outward (abduction) 22.5° is clean.
-- Yaw toe-in swept to the errata-tested 20°, clean; ankles ±36° clean
-  (toe-down droop is also each ankle's torque-off rest). Frames + JSON log
-  in `sweeps/` (local only, gitignored).
+- The prototype plant (`sim/bimo_biped_v5body.xml`) allows ±95°.
+- The robot's plant (`sim/bimo_biped_v6ar.xml`) allows −130° to +5°: flexion is negative, and hyperextension is capped at 5°.
 
-### Measured knee ROM — and the plant fix it forced
+## 4. Registers
 
-Servo 3 — the **right** knee — was then taken further, and the MJCF's
-`range="-95 5"` did **not** describe the built joint. Measured 2026-08-02: the
-knee drives cleanly to **−94.6° and +94.5°**, i.e. at least ±95°, at ≤172/1000
-load (5.9% of a 2.94 N·m stall) and a flat 31 °C across two continuous
-full-range sweeps at 400–450 steps/s. The `5°` was a modelling choice — an
-anatomical knee that hyperextends barely at all. The hardware has no such stop,
-and on the model's wrong axis that cap had landed on *flexion*, the one
-direction the robot actually uses. The cap is **kept**, on the correct side
-now, as the deliberate hyperextension limit (see the callout below). (This
-measurement was taken while servo 3 was still mis-named `L_knee`; the joint is
-physically the right knee either way.)
+Addresses come from the Feetech ST3215 memory table v3.7. The firmware constants
+are in `firmware/components/scsbus/include/scsbus/registers.h`, which also cites the
+table's URL. Things to know about the table:
 
-Reaching +95° needed the encoder re-centred first. The as-found zero of 3965
-left only 130 ticks (+11.4°) before the 4095 wrap, so `middle` (bring-up step 4,
-never previously run) was used to latch standing as 2048; servo 3 (`R_knee`) is
-the only joint whose zero is centred, and ±95° = 967…3129 ticks. **This is an
-encoder-placement limit, not a mechanical one** — the other joints whose zeros
-sit near the ends (`R_hip_roll` 3533, `L_ankle` 3516, `R_ankle` 3450) will hit
-the same wall if their real ROM also exceeds the model, and would need the same
-treatment. `L_knee` (servo 7) needs none: its zero of 1634 leaves −143°/+216°.
+- Two-byte values are **little-endian**. The older SC series is big-endian.
+- EEPROM writes stick only while the lock (register 55) is 0.
+- The defaults below are the memory table's. That table was written against the 7.4 V part (its voltage-limit defaults, registers 14/15, are 8.0/4.0 V). **Read the registers on a C018; don't assume the defaults.**
 
-> **Sim-to-real gap — RESOLVED 2026-08-02, in the sim.**
->
-> *What was wrong.* `sim/bimo_biped_v3yaw.xml` had `axis="0 1 0" range="-95 5"`
-> on both knees. Driving `L_knee` to −95° in MuJoCo put the toe forward and
-> up — the shank swung forward, a bird-style backward-bending knee. Human
-> flexion (heel toward buttock) was the model's `+` direction, capped at 5°.
-> So as modelled the knee had 95° of hyperextension and 5° of flexion, while
-> the robot — calibrated `dir −1` — flexed the human way on the *same*
-> negative command. Sim and robot bent opposite ways.
->
-> *The fix.* Both knee joints became **`axis="0 -1 0"`**. The range string is
-> unchanged, and that is the point: `−95 … +5` now means **95° of flexion and
-> 5° of hyperextension** instead of the reverse. Re-checked in MuJoCo after the
-> change: `L_knee`/`R_knee` at −20° put the foot 3.1 cm **backward** and at
-> −95° put it 9.0 cm backward and 9.8 cm up. On the robot, servo 3 at raw 2278
-> (= −20° through zero 2050 / `dir −1`) was filmed doing exactly that — shank
-> back, heel lifted. Same command, same motion, both sides.
->
-> *Why −95 / +5 and not ±95.* ±95° is the measured **mechanical** envelope, not
-> a sensible operating range. The flexion limit is set to the measured travel
-> (−95°). Hyperextension is capped at +5°: a knee that folds backward is a
-> failure mode, and holding the modelled envelope strictly inside the measured
-> one means nothing a policy learns is beyond what the joint can do. Widening
-> it later is a deliberate decision, not a default.
->
-> *Hardware impact: none.* `zero_steps` and `dir` are untouched, and the
-> generated `obs_spec.h` limits are byte-identical (the numbers did not move,
-> only their meaning), so the firmware bench clamp still resolves to servo 3
-> ticks `[1993..3131]` — which is now correctly read as +5° of hyperextension
-> through 95° of flexion. **No reflash and no recalibration are required.**
->
-> *Everything trained before this is invalid.* Every policy in `sim/runs/`
-> learned the mirrored knee; their scorecards describe a plant that no longer
-> exists. Runs and scorecards are kept as history, not as claims. See
-> `DESIGN.md`, "The knees bent the wrong way".
+| addr | name | bytes | default | notes |
+|---|---|---|---|---|
+| 3 | Model_Number (the table lists 3/4 as servo major/minor version, 9/3) | 2, read-only | 777 | STS3215 = **777**, STS3250 = **2825** (LeRobot's Feetech table). The check for a genuine part on arrival |
+| 5 | ID | 1 | 1 | 0–253; 254 is broadcast |
+| 9 / 11 | min / max angle limit | 2 | 0 / 4095 | must read 0 / 4095 in position mode |
+| 21 | **position-loop P** | 1 | 32 | 0–254. Plan B: ≈ 4× (≈ 128) on hip roll, ankle roll and knee |
+| 22 | position-loop D | 1 | 32 | raised with P |
+| 23 | position-loop I | 1 | 0 | the first fallback if the P route fails (needs an integral term in the sim servo model first) |
+| 26 / 27 | CW / CCW dead zone | 1 | 1 / 1 step | |
+| 28 | protection current | 2 | 500 (× 6.5 mA) | |
+| 33 | operating mode | 1 | 0 | 0 = position |
+| 34 | protective torque | 1 | 20 % | output after overload protection trips |
+| 35 | protection time | 1 | 200 (× 10 ms = 2 s) | how long the overload must last |
+| 36 | overload torque | 1 | 80 % | the threshold that starts that timer |
+| 38 | over-current protection time | 1 | 200 (× 10 ms) | |
+| 40 | torque enable | 1 | 0 | 0 off, 1 on, **128 latches the current position as 2048** |
+| 41 | acceleration | 1 | 0 | 100 steps/s² per LSB |
+| 42 | goal position | 2 | | **a write auto-enables torque**: any goal write is a motion command |
+| 46 | goal speed | 2 | | steps/s; 0 = unlimited |
+| 48 | torque limit | 2 | | loaded from register 16 at power-on |
+| 55 | EEPROM lock | 1 | | 0 = unlocked (writes persist), 1 = locked |
+| 56 | present position | 2 | | sign in bit 15 |
+| 58 | present speed | 2 | | steps/s, sign in bit 15 |
+| 60 | present load | 2 | | 0.1 % duty, sign in bit 10 |
+| 62 | present voltage | 1 | | 0.1 V. battguard and telemetry read this |
+| 63 | present temperature | 1 | | °C |
+| 65 | status | 1 | | error bits: voltage, sensor, temperature, current, angle, overload |
+| 69 | present current | 2 | | 6.5 mA per LSB |
 
-## Assigning these IDs
+**Plan B gains.**
 
-Servos ship from the factory as ID 1, and two servos with the same ID will not
-enumerate on the bus. At bring-up, connect **one servo at a time** and set its
-ID before chaining it in — either through the board's web UI (AP mode,
-`192.168.4.1`) or with `tools/servo_tool.py`:
+- The robot needs about 4× the stock static stiffness at the six roll and knee joints. Stock STS3215s there fail every walk and get-up gate ([DESIGN.md §4](../DESIGN.md)).
+- The plan is register 21 at ≈ 4×, with D raised with it, on those six servos.
+- That rests on one bench measurement (issue #73). Pass means:
+  - ≥ 4× the P = 32 stiffness in the same rig;
+  - with ≤ ±1 count of hold jitter.
+- 3× passes only if the printed roll chains measure ≤ 1° of play.
+- A high P can buzz or limit-cycle through gear play. LeRobot lowers the same register to 16 on its STS3215 arms for that reason.
 
-```
-.venv/bin/python tools/servo_tool.py http-setid 9 --yes
-```
+To write the gains, with torque off:
 
-Label each case with its ID as you go.
+1. Unlock (55 ← 0).
+2. Write 21 and 22.
+3. Lock (55 ← 1).
+4. Power-cycle.
+5. Read 21/22/23 back.
 
-See [wiring.md](wiring.md) for the bus electrical details, lead lengths per
-hop, and current budget.
+No repo tool does this yet (§1).
+
+A factory reset or a swapped spare silently returns to P = 32, and the robot would
+then fall at its first crossover. The firmware needs to read register 21 at boot and
+refuse to arm on a mismatch. That check is part of the open firmware port.
+
+**Per-ID gains.** The bench test will fill these in; none are set yet.
+
+| ID | joint | P (21) | D (22) | I (23) | evidence |
+|---|---|---|---|---|---|
+| — | `L_hip_roll` | — | — | — | — |
+| — | `R_hip_roll` | — | — | — | — |
+| — | `L_ankle_roll` | — | — | — | — |
+| — | `R_ankle_roll` | — | — | — | — |
+| — | `L_knee` | — | — | — | — |
+| — | `R_knee` | — | — | — | — |
+
+**Protections** (C018 sheet §7-11; thresholds in registers 28 and 34–38):
+
+- **Overload.** More than 80 % of stall held for 2 s drops the output to 20 % torque. A new position command clears the flag.
+  - In the get-up, the shoulder runs at 74–78 % of stall, which is close. Watch it on the bench.
+- **Over-current.** More than 2 A for 2 s turns the output off.
+- **Voltage.** Above 14 V or below 4 V the servo protects itself and recovers automatically.
+- **Temperature.** Above 70 °C, torque goes off.
+
+## 5. Measured STS3215 behaviour
+
+| quantity | value | source |
+|---|---|---|
+| stall torque | 30 kg·cm = **2.94 N·m** at 12 V (±10 %) | C018 sheet; `_STS_STALL_12V` in `sim/walker_env.py` |
+| current | stall 2.7 A, no-load running 180 mA, stopped 30 mA | C018 sheet |
+| no-load speed | **4.04 rad/s at 12 V**, measured: a ceiling of ~2700 steps/s at 12.3 V (4.14 rad/s), 14 % under the datasheet's 0.222 s/60° | `tools/measure_servo_speed.py`, `R_knee` free sweeps over 2140 ticks. `_STS_NOLOAD_12V` |
+| speed tracking | commanded goal speeds of 500–2000 steps/s are exact to 0.5 %. Lifting a leg, the speed derates to ~1650 steps/s | same run |
+| response | **≈ 85 ms of pure dead time plus a ≈ 30 ms first-order lag (5 Hz)**, independent of amplitude and load. No rate limit below 650 steps/s | clamped-foot step test, 16 traces at 3 loads. The referee uses `act_delay_ticks` 4 (80 ms) and training randomises dead time |
+| static stiffness at P = 32 | stance hip roll 1.2° short at load 120 (≈ 0.35 N·m), i.e. **≈ 17 N·m/rad**. The deploy model fits 12 N·m/rad, on the soft side | [design record](design-v6/2026-09-13-design-record.md) §4.4 |
+| powered friction | **≈ 0.235 N·m** (8 % of stall): load ≈ 80/1000 at a steady 200 steps/s, four servos | `move <id> 3600 0 200` while polling `pos` |
+| unpowered backdrive friction | **not measured**. The sim assumes 0.35 N·m (`off_frictionloss`); 0.235 N·m is a lower bound | |
+| gear backlash | ≤ 0.5° (datasheet). The deploy model uses 1° | C018 sheet |
+| joint play, printed chains | 1–2° in the yaw/roll chains and 2–3° free at the hip roll, by tilt hysteresis. Pitch chains ≤ 1.5° once the horn screws were tightened | prototype. The robot's rule: ≤ 3° per roll joint, ≤ 1° targeted, measured before the first walk |
+| resolution | 4096 steps/rev (0.088°/step); middle = 2048 | |
+| mass | 55 ± 1 g | C018 sheet |
+
+The measurements behind the speed, response and friction rows are in
+`docs/archive/2026-07-to-09-prototype-design-log.md`,
+`docs/archive/2026-09-04-joystick-roadmap.md` and
+`docs/archive/2026-07-26-bringup-day1.md`.

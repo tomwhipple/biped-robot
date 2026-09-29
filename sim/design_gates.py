@@ -1,4 +1,4 @@
-"""Design-stage gates A and B for the v6 body (docs/design-stage-simulation-gates.md).
+"""Design-stage gates A and B for the v6 body (docs/archive/2026-09-13-design-stage-simulation-gates.md).
 
 Gate A -- kinematic capability map, no dynamics, no policy:
   A1  lateral weight shift with both soles flat (hip roll / ankle roll
@@ -21,7 +21,7 @@ Gate B -- actuator envelope: one step (shift, arc swing, shift back) is run
     .venv/bin/python sim/design_gates.py                     # default design
     .venv/bin/python sim/design_gates.py --knee bwd
     .venv/bin/python sim/design_gates.py --sweep             # hip_sep x foot_w x leg x knee
-Results and the design record: docs/design-v6-ankle-roll.md, docs/design-v6/.
+Results and the design record: docs/design-v6/2026-09-13-design-record.md, docs/design-v6/.
     .venv/bin/python sim/design_gates.py --set hip_sep=0.070 --json out.json
 """
 from __future__ import annotations
@@ -54,7 +54,7 @@ V = 11.1 / 12.0
 SERVOS = {
     "sts3215": dict(stall=2.94 * V, w0=4.04 * V, kp_scale=1.0),
     "sts3250": dict(stall=4.90 * V, w0=7.87 * 0.86 * V, kp_scale=4.0),
-    # study only (docs/design-v6-ankle-roll.md section 8): Dynamixel XL430-W250,
+    # study only (docs/design-v6/2026-09-13-design-record.md section 8): Dynamixel XL430-W250,
     # 1.5 N*m stall / 57 rpm at 12 V per Robotis, derated 0.86 like the 3215;
     # stiffness UNKNOWN (kp_scale 1.0 = no credit until measured)
     "xl430": dict(stall=1.50 * V, w0=5.97 * 0.86 * V, kp_scale=1.0),
@@ -438,7 +438,7 @@ def gate_b(p: DesignParams, y_lift: float, verbose=True, scale=1.0, servos=("sts
     """one step at the design cadence under each servo's envelope. Per joint:
     speed margin = servo no-load speed / peak demanded speed, torque margin =
     stall / peak torque (both at 11.1 V), saturation fraction, tracking error.
-    Gate pass (docs/design-stage-simulation-gates.md Gate B): speed margin
+    Gate pass (docs/archive/2026-09-13-design-stage-simulation-gates.md Gate B): speed margin
     >= 2 and torque margin >= 1.5 on every joint, no saturation, body up,
     swing foot clearly off the ground."""
     out = {}

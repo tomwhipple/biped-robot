@@ -1,5 +1,7 @@
 # v6 body: a biped that can stand on one foot — sim-validated design spec (2026-09-13)
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
+
 **Status: kinematic design validated in simulation through Gates A–D; awaiting Tom's sign-off before CAD.** No part has been drawn, printed or ordered. Everything below is reproducible from `sim/gen_plant_v6.py`, `sim/design_gates.py` and `sim/static_gait.py`; the raw tables are in `docs/design-v6/`.
 
 Goal (Tom, 2026-09-13): *a new physical robot design able to walk by lifting one foot completely off the ground*; consider a backward-bent knee, different or more servos; no GoPro; room for an onboard Raspberry Pi + camera later.
@@ -27,7 +29,7 @@ Cost of the servo change: 6 × STS3250 at $43–65 from US stock ($48–55 on Al
 
 ## 1. What the record says, and what it asks of a new body
 
-Read for this design: `lessons-learned-2026-09-13-walking.md`, `design-stage-simulation-gates.md`, `hw_sessions/2026-09-13/notes.md`, `hip-yaw-study.md`, `servo-map.md`, `DESIGN.md` §2/§6 and the dated log, the BOM and camera docs, `cad/dimensions.py`, `sim/bimo_biped_v5body.xml`, `walker_env.py`'s servo model. The requirements that fall out, each traceable to a measurement:
+Read for this design: `../archive/2026-09-13-lessons-learned-walking.md`, `../archive/2026-09-13-design-stage-simulation-gates.md`, `hw_sessions/2026-09-13/notes.md`, `hip-yaw-study.md`, `servo-map.md`, `DESIGN.md` §2/§6 and the dated log, the BOM and camera docs, `cad/dimensions.py`, `sim/bimo_biped_v5body.xml`, `walker_env.py`'s servo model. The requirements that fall out, each traceable to a measurement:
 
 - **R1 — a static single-foot stance must exist** (Gate A). v5 has none: with no ankle roll a planted foot pins the pelvis level, the roll servos slide the feet (loads 88–168) or stall (1.2° short at load 120), and shortening a leg tips the body *toward* the lifted side (8.0° = atan(1.1 cm / 8 cm)). The only regime was a dynamic edge-rock with no margin; the attempt put the robot off the table.
 - **R2 — margins measured on the body, before any policy** (process changes §5 of the lessons doc): bench before policy; calibrate the sim where the question lives; dynamic tests need a per-attempt go. This spec is Gates A–D on the kinematics and the deploy servo model; Gate E (a policy) is deliberately last.
@@ -415,7 +417,7 @@ aft, hanging at the sides when idle** (`top_elbow_16_16_aft`). The full
 record of what was tried, what failed and why, and what the design still
 owes before CAD is `docs/design-v6/getup-decision-2026-09-17.md`; the
 studies themselves are `study-shoulder-arms.md`,
-`study-side-mounted-legs.md` and `study-wide-hip-gait.md`. The flat bird
+`../archive/2026-09-16-study-side-mounted-legs.md` and `../archive/2026-09-17-study-wide-hip-gait.md`. The flat bird
 body is documented there as the working alternative (gets up from supine
 and prone, falls better, walks on the wide-hip gait) and the reasons it
 was not chosen.
@@ -581,7 +583,7 @@ buttock pull drags the heels *forward under the pelvis*, pushing the CoM back),
 while holding hip flexion at **−90 to −100° keeps the CoM +33 to +69 mm over
 the feet** — a genuine, margin-positive support pose the record never tried.
 
-![Seated crouch comparison: hip −125° vs hip −90°](design-v6/figs/getup_noappendage_seated_compare.png)
+![Seated crouch comparison: hip −125° vs hip −90°](figs/getup_noappendage_seated_compare.png)
 *The full-flexion tuck (left) pulls the heels forward under the pelvis and
 parks the CoM **17 mm behind the heel**; holding hip −90° (right) keeps the
 CoM **+52 mm over the feet** — a margin-positive support pose. Marker = CoM
@@ -596,13 +598,13 @@ rock-forward and skid-seat roll-off variants both tip). With no far-behind
 push, the CoM cannot be held forward of the heels through the rise corridor —
 the narrow ±20–28 mm CoP that §11/§12 documented.
 
-![The rise corridor kills the open-loop rise](design-v6/figs/getup_noappendage_rise_corridor.png)
+![The rise corridor kills the open-loop rise](figs/getup_noappendage_rise_corridor.png)
 *CoM margin per keyframe across the rise, from `sim/getup_v6_rise_feas.py`:
 7 of 9 keyframes sit BEHIND HEEL (buttup knee-100 = −101 mm … rise hip-45 =
 −31 mm) and only the last two are margin-positive (+38, +56 mm). The corridor
 the open-loop keyframes cannot cross.*
 
-![Bumper chair-rise sweep: extend up_z and pelvis z vs skid_x](design-v6/figs/getup_noappendage_bumper_sweep.png)
+![Bumper chair-rise sweep: extend up_z and pelvis z vs skid_x](figs/getup_noappendage_bumper_sweep.png)
 *From `sim/getup_v6_bumper.py` (skid_h=0.03): monotone in `skid_x` — extend
 up_z 0.32→**0.47**, pelvis z 0.095→**0.147 m** as the bumper moves rearward
 (−0.04→−0.08). The rear bumper is the lever that turns a seat into a chair.*

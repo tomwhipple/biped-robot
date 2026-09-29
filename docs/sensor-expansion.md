@@ -1,261 +1,136 @@
-# Adding a camera or other sensors to the General Driver board
+# Sensors and perception on the General Driver
 
-*2026-07-29. Answers "suppose I want to add a camera or other sensors — how
-would they be integrated?" for the proposed controller swap
-([wiring-general-driver.svg](wiring-general-driver.svg),
-[datasheets/general-driver/](datasheets/general-driver/)).*
+This page covers three things: what the controller board's connectors carry, where
+a new sensor would plug in, and how the robot's perception (a Raspberry Pi 4B and
+a head camera) connects to the ESP32.
 
-Everything below about connectors and nets is read off the board's own
-schematic, which is in the repo. Where the schematic does not answer a
-question it says so rather than guessing.
+- Everything about nets and GPIOs is read off the vendor schematic, `datasheets/general-driver/General_Driver_for_Robots-schematic.pdf`.
+- Power and current are in [wiring.md](wiring.md).
 
-## 1. What the board actually gives you
+## 1. The board's connectors
 
-The current harness uses three connectors: power in, and one servo port per
-leg. Everything else on the board is unused. Full inventory:
+The item numbers (№) refer to the vendor's annotated photo,
+`datasheets/general-driver/General_Driver_for_Robots-connector-diagram.jpg`.
 
-| Ref | Connector | Nets | Used by bimo? |
-|---|---|---|---|
-| H1 | XH2.54 2-pin | V+ (`DC_IN`), GND — power inlet | **yes** |
-| H5, H6 | Header 3 | `DATA` / `DC_IN` / GND — bus servo, GPIO 18 RX / 19 TX | **yes** (one per leg) |
-| P1 | Header 4 | 3V3 · GND · `IIC_SDA` (GPIO 32) · `IIC_SCL` (GPIO 33) | free — BNO085 upgrade path |
-| P2 + P4 | 2 × 40-pin | Raspberry-Pi-format GPIO header — the board is built to carry a host SBC | free (**but see §4**) |
-| P3 | Header 7 | 3V3 · GND · `IO16` · `IO27` · UART (`P_RX`/`U0RX`) | free |
-| H7 | PH2.0 4-pin | **`LIDAR`** — the LD19/LD06-class interface | free |
-| H2 | Header 3 | 5V · GND · `IO4` through a 10 R series — WS2812 RGB LED | free |
-| H3, H4 | Header 6+0 | motor lead ×2 · GND · **3V3** · **two encoder inputs** (`A_C1`/`A_C2`, `B_C1`/`B_C2`, each through 10 R) — A_C1/A_C2 = **GPIO34/35**, B_C1 = **GPIO27** | free |
-| MOTOR-A1/A2/B1/B2 | Header 2+0 | DC motor screw terminals (TB6612) | free |
-| TF1 | microSD socket | SPI mass storage — GPIO 12–15. **Not a boot device** | free |
-| Type-C ×1, silkscreen **`USB`** | CP2102N + auto-program | **ESP32 console / flashing** — DTR/RTS → RST/GPIO0 | bring-up only |
-| Type-C ×1, silkscreen **`LIDAR`** | second CP2102N | USB-to-UART bridge **to a host computer** (`P_TX`/`P_RX`) | free |
+| ref | № | connector | nets | robot use |
+|---|---|---|---|---|
+| H1 | 10 | JST XH 2-pin | 1 V+ (`VDD_DC_JACK`) · 2 GND, then the AO4407 reverse-polarity FET and SW1, onto `DC_IN` | **power in** |
+| SW1 | 12 | slide switch | switches `DC_IN` | on/off |
+| H5, H6 | 13 | 3-pin, "D V G" | 1 `DATA` · 2 `DC_IN` · 3 GND. UART1, GPIO 18 RX / 19 TX | **the servo bus** |
+| USB-C `USB` | 9 | CP2102N | ESP32 UART0, with the DTR/RTS auto-program circuit on `EN`/`GPIO0` | **flashing, CLI** |
+| USB-C `LIDAR` | 8 | CP2102N | its RXD takes `CP_RX` from H7; its TXD is unconnected | free; not wired to the ESP32 |
+| P1 | — | 4-pin | 1 3V3 · 2 GND · 3 `IIC_SDA` (GPIO 32) · 4 `IIC_SCL` (GPIO 33) | free |
+| P2 + P4 | 23, 24 | 2 × 40-pin, Raspberry Pi pinout | 5 V rail. Pins 3/5 are the board's I²C (GPIO 32/33). Pins 8/10 are `P_TX`/`P_RX`, i.e. ESP32 UART0 | free |
+| P3 | — | 7-pin | 1 IO5 (10 Ω) · 2 3V3 · 3 GND · 4 IO16 · 5 IO27 · 6 `CP_RX` · 7 `U0RX` | free |
+| H7 | — | PH2.0 4-pin, "LIDAR" | 1 `CP_RX` · 2 n/c · 3 GND · 4 5 V | free |
+| H2 | — | 3-pin | 1 IO4 (10 Ω) · 2 5 V · 3 GND. The schematic labels it 舵机接口 ("servo port") | free. The firmware names GPIO 4 `kRgbLed` |
+| H3 | 15 | 6-pin | 1 motor A · 2 GND · 3 `A_C2` = GPIO 35 · 4 `A_C1` = GPIO 34 (10 Ω each) · 5 3V3 · 6 motor A | free |
+| H4 | 14 | 6-pin | 1 motor B · 2 GND · 3 `B_C2` = GPIO 16 · 4 `B_C1` = GPIO 27 (10 Ω each) · 5 3V3 · 6 motor B | free |
+| MOTOR-A1/A2, B1/B2 | 16, 17 | 2-pin connectors | TB6612 motor outputs; the driver is powered from `DC_IN` | free |
+| TF1 | 22 | microSD | SPI: CS IO15 · MOSI IO13 · CLK IO14 · MISO IO12 | free |
 
-The two Type-C ports are silkscreened `USB` and `LIDAR` (bench, 2026-08-06):
-**`USB` is the one that flashes the ESP32.** Both of them, plus the XH power
-inlet and the power switch, sit on ONE 56.01 mm edge of the board — see
-`BOARD_GD_SVC_EDGE` in `cad/dimensions.py` for what that costs the pelvis.
+Physical layout:
 
-Two things worth noticing immediately:
+- The service edge is a 56.01 mm edge. It carries the XH inlet and both USB-Cs.
+- SW1 sits on the adjacent bus edge, near that corner (`BOARD_GD_U_*` in `cad/dimensions.py`).
+- In the robot the board stands vertical on the pelvis front wall. Its service edge faces +y through a side window (`cad/v6/dimensions_v6.py`).
 
-- **The board is designed around a host SBC.** The 40-pin header, the second
-  Type-C, and the `P_TX`/`P_RX` UART all exist so a Raspberry Pi or Jetson can
-  sit on top doing perception while the ESP32 does real-time servo and IMU
-  work. That is the vendor's intended camera story.
-- **H3/H4 are four free digital inputs with power, on plug-in connectors.**
-  They are meant for quadrature encoders, but electrically they are GPIO + 3V3
-  + GND on a 6-pin housing. That is exactly a foot-contact-switch harness with
-  no soldering.
+The on-board I²C bus (GPIO 32/33, 400 kHz) already carries these parts:
 
-## 2. The question that decides everything: does it touch the 20 ms tick?
-
-Sensors on this robot fall into three tiers, and the tier — not the wiring —
-is what makes integration cheap or expensive.
-
-**Tier 1 — in the policy observation.** Must be read on the ESP32, inside the
-tick, *and* must exist in the MuJoCo model, *and* the policy must be retrained.
-The obs frame (`sim/mjx/env_mjx.py:_obs`) is
-
-```
-[ joint qpos | joint qvel | up-vector | linvel | gyro | prev_action | height | sin φ, cos φ | cmd ]
-```
-
-with `linvel` and `height` **zeroed** whenever `imu_obs` is set, because the
-robot cannot measure them. Adding a channel changes the input width, which
-invalidates every trained policy. This tier is a training project, not a
-wiring job.
-
-**Tier 2 — supervisory / telemetry.** Battery voltage, temperature, current,
-fault flags. Runs off-tick on the other core or at a few Hz, never feeds the
-net. Cheap: read the datasheet, write a driver, ship it.
-
-**Tier 3 — off-board perception.** Camera, lidar, anything that produces more
-data than a 240 MHz Xtensa should be looking at during a hard 20 ms loop.
-These never enter the obs at all. They enter through **`cmd`** — the last
-block of the obs frame, already plumbed end to end as `ext_cmd` over the
-wireless link ([control-channel.md](control-channel.md)) at whatever rate the
-perception stack can manage.
-
-That last point is the important one, and it is the clean seam this design
-already has: **perception sets the goal; the policy walks.** A camera at 10 Hz
-feeding `cmd` needs no retrain, no sim change, and no new obs dimension. A
-camera trying to enter the obs needs all three plus a renderer in the sim.
-
-Tick budget is not the constraint. Measured worst case today is 4.58 ms of 20,
-and `firmware-design.md` expects ~8 ms once the real policy net replaces the
-placeholder. There is ~12 ms of slack for sensor reads.
-
-## 3. Camera — the recommendation
-
-**The ESP32-WROOM-32UE cannot take a camera directly.** No DVP interface, no
-PSRAM for a framebuffer. This is not a board limitation to work around; it is
-why the vendor put a 40-pin SBC header on the board. Two real options:
-
-### (a) Separate WiFi camera module — recommended, and already the plan
-
-A **Seeed XIAO ESP32S3 Sense** (~5 g, OV2640/OV3660, 21 × 17.8 mm) streaming
-MJPEG to the laptop, powered from the board's 5 V rail. The laptop does
-perception and goal inference and sends `cmd` to the robot at ≤50 Hz over the
-existing control channel. Latency ~100 ms, or 90–110 ms measured with the
-`hx-esp32-cam-fpv` firmware. This is the path already worked out in
-[gopro-vision-input.md](gopro-vision-input.md), under "Recommended perception path".
-
-Why it wins here:
-
-- **Zero coupling to the real-time loop.** The camera cannot make the servo
-  tick late, because it is not on the same processor.
-- **Zero connectors consumed.** 5 V and GND off any convenient point; nothing
-  plugs into P1, P2 or P3.
-- **5 g at the top** against a 921 g robot, versus the 154 g GoPro the plant
-  already carries and was retrained for.
-- Power is negligible: <300 mA at 5 V worst case, and it rides the buck, so
-  the onboard INA219 sees it.
-
-Cost: it is a second 2.4 GHz radio next to the robot's own link. Channel
-planning matters — see gopro-vision-input.md §7.
-
-### (b) Host SBC on the 40-pin header — the vendor's path, blocked by the tower
-
-Pi Zero 2 W on P2, camera on its CSI ribbon, Pi ↔ ESP32 over `P_TX`/`P_RX`.
-This is architecturally the nicest answer — on-robot autonomy, no laptop in
-the loop, and the ESP32 keeps its hard loop untouched.
-
-**It does not physically fit the tower as currently dimensioned.** From
-`cad/dimensions.py`: the PCB's +x face sits at 15.23 mm and the tower interior
-wall is at 25.4 — **10.2 mm of clearance**, of which `BOARD_GD_COMP = 9.0` is
-the fitted 40-pin header itself. There is about 1 mm above the header. Nothing
-can plug into it.
-
-Taking this path means one of:
-
-- grow `TOWER_W` past 56 and re-roll the plant (again — the last tower resize
-  cost a 31.5 mm GoPro rise and a full retrain), or
-- use a low-profile FFC off the header and remote the Pi to the deck or the
-  top plate, or
-- skip the header and talk to the Pi over the second Type-C instead, mounting
-  it wherever it fits. **This is the cheap version of (b)** and it costs no
-  CAD work at all.
-
-Mass is the other gate: a Pi Zero 2 W is ~10 g and defensible; a Pi 4/5 is not,
-on a 921 g biped running a 3S 850 mAh pack.
-
-**Verdict:** ship (a). Revisit (b) — in its Type-C form — only when you want
-the laptop out of the loop.
-
-## 4. Other sensors, by where they land
-
-### Foot contact switches — best value, and the connector already exists
-
-Two microswitches per foot into H3 and H4: 3V3 and GND are on the housing, the
-two encoder lines are the inputs. No soldering, no board mods, ~2 g.
-
-Three cautions, the first two read off the module pin block on the sheet:
-
-- **H3's two inputs are input-only pins with no internal pull-up.**
-  `A_C1` = **GPIO34** (module pin 6), `A_C2` = **GPIO35** (pin 7). GPIO34–39 on
-  the ESP32 cannot be outputs *and* have no internal pull-up or pull-down at
-  all — a switch on either needs an **external pull-up resistor**. The 10 R
-  series parts on the header are protection, not pull-ups. H4's `B_C1` =
-  **GPIO27** (pin 12) is a normal bidirectional pin with internal pulls.
-- **H4 and P3 share pins.** `B_C1` is GPIO27, which is *also* P3 pin 5; P3
-  pin 4 is GPIO16, which is almost certainly `B_C2` (confirm on the sheet).
-  So the four inputs are real, but you cannot use both encoder ports *and*
-  P3's GPIOs — pick one.
-- **Contact only helps if it is in the obs**, i.e. Tier 1. That means MuJoCo
-  touch sensors on the foot geoms, a noise/bounce model for the switches
-  (real ones chatter, sim ones do not), and a retrain. Budget it as a
-  training project.
-
-### I²C sensors → P1
-
-Four wires, GPIO 32/33. Address space already occupied: **0x6B** QMI8658C,
-**0x0C** AK09918C, **0x77** BMP280, **0x42** INA219, and **0x4A/0x4B** should
-stay reserved for the BNO085 upgrade. Everything else is free.
-
-This bus is read every tick for the IMU, so each added device is in the
-critical path unless you move it to the other core. A 400 kHz burst is ~0.4 ms;
-two or three more sensors still fit the slack comfortably.
-
-Still unverified on P1: its physical connector type, and whether it carries
-pull-ups. Confirm on the board in hand before ordering a cable.
-
-### Lidar → H7
-
-A dedicated PH2.0 4-pin LD19/LD06 interface, free. But nothing in the current
-policy or sim consumes range data, and the unit rides at the top of the robot
-where mass hurts most — weigh it and re-roll the torso inertial before
-believing any policy trained without it. Tier 3: it would feed goal inference,
-not the obs.
-
-### Serial sensors (GPS, ToF, a second IMU in UART-RVC) → P3
-
-Seven pins: 3V3, GND, `IO16`, `IO27`, and UART. Note the sharing with H4 above
-— these are the same two nets as encoder channel B.
-
-### microSD logging → TF1, already fitted
-
-**The SD slot has nothing to do with firmware.** The ESP32 boots from the SPI
-flash die inside the WROOM-32UE module (module pins 17–22 go to that flash and
-are not brought out), and you flash it over USB exactly as on the current
-board — see "Flashing" below. TF1 is plain optional mass storage.
-
-`firmware-design.md` lists full-rate logging as a v1 non-goal. The slot removes
-the reason for that. No mass, no power, no CAD, no retrain — do it first.
-
-Wired for SPI mode: socket pin 2 (`CD/D3`) → `SD_CS`, pin 3 (`CMD`) →
-`SPI_MO`, pin 5 (`CLK`) → `SPI_CK`, pin 7 (`D0`) → `SPI_SO`, on **GPIO 12–15**.
-Confirmed off the module pin block: `SPI_CK` = **GPIO14** (pin 13), `SPI_SO` =
-**GPIO12** (pin 14); CS and MOSI take the remaining IO13/IO15.
-
-⚠ **`SPI_SO` is GPIO12 = MTDI, a strapping pin.** At reset the ESP32 samples
-MTDI to choose its internal flash voltage (high → 1.8 V), so a card driving
-that line high during reset is the classic "board won't boot with a card
-inserted" failure. WROOM-32 modules normally have the flash-voltage eFuse
-burned, which makes the strap moot — but do not assume it. **Bring-up check:
-power-cycle the board with a card in the slot and confirm it boots.**
-
-### Flashing → Type-C, not the SD slot
-
-Same story as the current board: **CP2102N** bridge onto the ESP32's
-`U0TXD`/`U0RXD`, plus the sheet's `AUTO PROGRAM CIRCUIT` — DTR/RTS through two
-S8050 transistors driving `RST` and `GPIO0`, with the truth table printed on
-the schematic. So `esptool`/`idf.py flash` works with no button-holding, and
-macOS needs the same CP210x VCP driver already installed
-([bringup-day1.md](bringup-day1.md)). `S2` (`KEY_RST/USER`) is there for a
-manual reset.
-
-One new gotcha: **the board has two USB-C ports and only one flashes the
-ESP32.** The other is a second CP2102N acting as a host-computer bridge on
-`P_TX`/`P_RX`. Label them the first time you find out which is which.
-
-### Status LED → H2
-
-5 V, GND, `IO4` through 10 R: a WS2812 header. Free, and genuinely useful at
-bring-up for signalling link-dead / watchdog-tripped states without a laptop.
-
-## 5. The constraints that actually bind
-
-Ranked by how much trouble they cause, which is *not* the order you would
-guess:
-
-1. **Volume and mass above the deck.** ~10 mm of clearance over the PCB face,
-   9 of it already spoken for. Every gram at tower height moves the CoM, and
-   the plant + policy are downstream of that.
-2. **The obs contract.** Tier-1 sensors invalidate trained policies and need a
-   sim model including their noise. Tier-3 sensors feeding `cmd` cost nothing.
-3. **Input current.** H1's XH2.54 is rated 3 A and the whole servo bus crosses
-   it, against a 6.8 A sim-derived peak — already the board's weak point. New
-   5 V loads ride the buck rather than `DC_IN`, so a camera module is not the
-   problem; just do not add anything large.
-4. **Tick time.** ~12 ms spare. Effectively a non-issue.
-5. **Pins and connectors.** The most abundant resource on the board. Nine free
-   connectors, of which the design needs at most two.
-
-## 6. Suggested order
-
-| # | Change | Cost |
+| address | part | status |
 |---|---|---|
-| 1 | microSD logging on TF1 | firmware only |
-| 2 | Status LED on H2 | one part, bring-up quality of life |
-| 3 | Camera as XIAO ESP32S3 Sense → laptop → `cmd` | no board change, no CAD, **no retrain** |
-| 4 | Foot contacts on H3/H4 | wiring is free; sim model + retrain is not |
-| 5 | Host SBC over the second Type-C | mass + power budget |
-| 6 | Lidar on H7, or a Pi on the 40-pin | needs tower rework and a plant re-roll |
+| 0x6B | QMI8658C 6-axis IMU | the robot's IMU. It sits behind an LSF0204 level shifter. If the bus is flaky at 400 kHz, try 100 kHz before suspecting the driver (`board.h`) |
+| 0x0C | AK09918C magnetometer | unused. Beside the servos it measures their current, not north |
+| 0x77 | BMP280 barometer | on the schematic; it did not answer the bench scan |
+| 0x42 | INA219 | unused. It measures pack voltage and the board's own logic current, never servo current ([wiring.md](wiring.md#what-the-ina219-measures)) |
+| 0x4A / 0x4B | reserved | for a BNO085 on P1, the firmware's named upgrade path from the QMI8658C. `imu scan` recognises it |
+
+What the robot uses: H1, SW1, H5/H6, the `USB` port and the on-board IMU.
+Everything else is free.
+
+A few things about the USB ports:
+
+- Both USB-C ports power the logic. Their VBUS lines are diode-OR'd into the 5 V rail.
+- Neither port powers `DC_IN`. The servos need the pack.
+- Only `USB` flashes. `LIDAR` enumerates as a serial port that never syncs.
+
+## 2. Where a new sensor goes: does it touch the 20 ms tick?
+
+The tier a sensor falls into, not its wiring, decides what integrating it costs.
+
+- **Tier 1: in the policy observation.**
+  - The sensor is read on the ESP32 inside the tick. It must also exist in the MuJoCo plant, with a noise model, and the policy must be retrained.
+  - Adding a channel changes the observation width (`obs_spec.h`), which invalidates every trained policy.
+  - Foot contacts would be Tier 1.
+- **Tier 2: supervisory.**
+  - Pack voltage, temperature, current, fault flags.
+  - Read off-tick at a few Hz. Never fed to the network.
+  - It needs a driver, not a retrain.
+- **Tier 3: perception.**
+  - The camera, lidar, and anything else that produces more data than a 240 MHz Xtensa should look at inside a hard 20 ms loop.
+  - Tier 3 never enters the observation. It enters through **`cmd`**, the command block the policy already consumes. That block is plumbed end to end over the link ([control-channel.md](control-channel.md)).
+  - A camera setting `cmd` at 10 Hz needs no retrain, no sim change and no new observation dimension.
+
+The tick has room, though the robot's figure is unmeasured:
+
+- On the 10-joint prototype, policy inference (a 128 × 128 network) measured 7.2 ms of the 20 ms tick.
+- `stat` reports the per-phase times.
+- The robot's 17-joint network has not been measured.
+
+## 3. Perception: the Pi and the head camera
+
+- **Camera.** A Raspberry Pi Camera Module 3 **Wide** (IMX708, 102° horizontal FOV).
+  - It sits on M2 bosses in `head_face`, about 30 mm above the neck horn; the camera is 0.53 m above the floor.
+  - Its 300 mm ribbon runs through a slot beside the neck axis to the Pi's CSI port.
+- **Neck.** An STS3215 standing on the deck, with ±90° of yaw.
+  - It is on the ESP32's servo bus like every other joint, so the Pi can only turn the head through the ESP32.
+  - How head yaw is commanded is part of the open firmware port.
+- **Pi.**
+  - A Raspberry Pi 4B stands vertical on the pelvis aft wall.
+  - It has a low-profile heatsink and no fan, because there is 16 mm of component depth.
+  - USB and Ethernet come out through a side window.
+  - It is powered from its own D24V50F5 buck ([wiring.md](wiring.md#pi-supply)).
+  - It is not on the board's 40-pin header.
+- **Division of labour.**
+  - The ESP32 runs the 50 Hz loop, the servo bus, the IMU and the guards.
+  - The Pi runs vision and navigation. It sends intent (`cmd`: velocity, crouch, and so on), never joint targets.
+
+**The Pi ↔ ESP32 link is not chosen yet.** These are the options:
+
+| option | wiring | what it takes | caveats |
+|---|---|---|---|
+| Wi-Fi UDP | none | Works today. The Pi runs a commander that speaks `link/protocol.py` to port 4210 and reads the 10 Hz beacon on 4211 | Two boards 10 cm apart talk through the access point. One commander at a time (control-channel "Taking control") |
+| USB to the `USB` port | one cable | The CP2102N reaches UART0, the CLI console at 115200. Needs a binary host mode in firmware | Opening the port toggles DTR/RTS, which the auto-program circuit turns into an ESP32 reset. UART0 is also the console |
+| Wired UART | 3–4 wires | Option 1: UART0, on P3 pin 7 (`U0RX`) and on the 40-pin's `P_TX`/`P_RX`, shared with the `USB` bridge through 1 kΩ. Option 2: a second UART (the ESP32's UART2 through the GPIO matrix) on P3's IO16/IO27/IO5. Both sides are 3.3 V logic | Either option needs firmware work. The Pi is not on the header, so it is a small harness |
+
+Also open: pack voltage for the Pi's low-battery shutdown. The telemetry beacon
+carries `vbat` from register 62, so the Wi-Fi option gets it for free. The INA219 is
+not read.
+
+## 4. Other sensors, by connector
+
+- **Foot contact switches → H3 / H4.**
+  - The wiring is free: 3V3, GND and two inputs per housing, no soldering.
+  - H3's inputs are GPIO 34/35. These are input-only pins with **no internal pull-up or pull-down**, so each switch needs an external pull-up. The 10 Ω series parts are protection, not pull-ups.
+  - H4's GPIO 27/16 are normal bidirectional pins, but they are shared with P3 pins 5/4. You can use H4 or those two P3 pins, not both.
+  - Contacts are Tier 1. They need MuJoCo touch sensors, a bounce/chatter model (real switches chatter; simulated ones do not) and a retrain.
+- **I²C sensors → P1.**
+  - Four wires on GPIO 32/33. Avoid the addresses listed in §1.
+  - The IMU sampler reads this bus every 4 ms (250 Hz), so every added device shares the IMU's critical path.
+  - Unverified: P1's physical connector type, and whether it has pull-ups. Check both on the board in hand before ordering a cable.
+  - A BNO085 on P1 is the named IMU upgrade path. Fitting one is a firmware driver plus one 4-wire cable.
+- **Lidar → H7.** A PH2.0 4-pin connector wired for an LD19/LD06-class unit: its data line (`CP_RX`) goes to the `LIDAR` USB-C bridge and to P3 pin 6. It is Tier 3. Nothing in the plant or the policy consumes range data.
+- **Serial sensors → P3.** IO5, IO16 and IO27 with 3V3 and GND, through a UART routed in firmware. Mind the H4 sharing above.
+- **Logging → TF1.**
+  - A microSD card on SPI. It is not a boot device: the ESP32 boots from the module's own flash.
+  - **GPIO 12 (`SPI_SO`) is the MTDI strapping pin.** A card that drives it high at reset selects the wrong flash voltage.
+  - Check that the board boots with a card inserted before relying on it.
+- **Signal header → H2.** IO4, 5 V and GND.
+
+## 5. The constraints that bind
+
+1. **The observation contract.** Tier 1 sensors invalidate trained policies and need a sim model that includes their noise. Tier 3 sensors that feed `cmd` cost nothing on that side.
+2. **Input current.** The whole servo bus crosses the 3 A XH contact and a path that Waveshare rates at 5 A continuous ([wiring.md](wiring.md#current-the-open-constraint)). A 5 V sensor load rides the board's buck and the INA219 shunt instead, so small sensors are not the problem.
+3. **Volume and mass.** The pelvis has the Pi bay and the head, and no reserved sensor volume beyond them. Mass above the deck moves the CoM, and the plant and the policy are downstream of that.
+4. **Tick time and the I²C bus.** Anything read inside the tick, or on the IMU's bus, spends the loop's slack.
+5. **Pins and connectors.** The most abundant resource on the board.

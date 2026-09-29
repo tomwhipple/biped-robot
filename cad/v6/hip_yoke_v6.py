@@ -18,7 +18,7 @@ WHAT CHANGED vs the two parts
     roll flange, O4.1 heat-set pilots in the pitch flange -- are filled back
     to solid (one cylinder per column, trimmed by the flexion chamfer where
     the front pair grazes it, exactly as the heat-set bores did)
-  - the hip-flexion chamfer (V.YOKE_FLEX_CHAMFER, docs/design-v6-ankle-roll.md
+  - the hip-flexion chamfer (V.YOKE_FLEX_CHAMFER, docs/design-v6/2026-09-13-design-record.md
     section 11.3) is kept as-is: the thigh's grip plates still sweep the same
     flange corner at -125 deg, and this part's envelope is the union of the
     two it replaces, so the clearance cannot get worse. Re-verified by

@@ -14,6 +14,11 @@ import os, base64, io, subprocess, tempfile
 import numpy as np
 import imageio.v2 as imageio
 
+# ffmpeg on a long reel is slow, but a wedged encoder must not hang the
+# morning report (issue #36).
+FFMPEG_TIMEOUT = 600
+GIT_TIMEOUT = 60
+
 os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__))))
 CAD_RENDERS = os.path.join(os.path.dirname(os.getcwd()), 'cad', 'renders')
 
@@ -50,7 +55,7 @@ def strip_from_mov(path, t0, t1, n=8, factor=4):
         with tempfile.NamedTemporaryFile(suffix='.png') as f:
             subprocess.run(['ffmpeg', '-y', '-loglevel', 'error',
                             '-ss', f'{t:.2f}', '-i', path,
-                            '-frames:v', '1', f.name], check=True)
+                            '-frames:v', '1', f.name], check=True, timeout=FFMPEG_TIMEOUT)
             frames.append(imageio.imread(f.name)[..., :3])
     strip = np.concatenate(frames, axis=1)
     return strip[::factor, ::factor]
@@ -97,7 +102,7 @@ def reel_chapters(run):
         ['ffmpeg', '-v', 'error', '-i', mov,
          '-vf', f'crop=in_w:44:0:0,scale={W}:{H}',
          '-f', 'rawvideo', '-pix_fmt', 'gray', '-'],
-        capture_output=True, check=True).stdout
+        capture_output=True, check=True, timeout=FFMPEG_TIMEOUT).stdout
     a = np.frombuffer(band, np.uint8)
     n = a.size // (W * H)
     a = a[:n * W * H].reshape(n, W * H).astype(np.int16)
@@ -137,7 +142,7 @@ def _encode(mov, t0, t1, out):
                     '-vf', f'scale={CLIP_W}:-2', '-an',
                     '-c:v', 'libx264', '-crf', str(CLIP_CRF),
                     '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
-                    '-movflags', '+faststart', out], check=True)
+                    '-movflags', '+faststart', out], check=True, timeout=FFMPEG_TIMEOUT)
 
 
 def clip_from_reel(run, scenarios, name):
@@ -189,9 +194,9 @@ def clip_from_reel(run, scenarios, name):
                 subprocess.run(['ffmpeg', '-y', '-loglevel', 'error',
                                 '-f', 'concat', '-safe', '0', '-i', lst,
                                 '-c', 'copy', '-movflags', '+faststart',
-                                out], check=True)
+                                out], check=True, timeout=FFMPEG_TIMEOUT)
         subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', '0.5',
-                        '-i', out, '-frames:v', '1', poster], check=True)
+                        '-i', out, '-frames:v', '1', poster], check=True, timeout=FFMPEG_TIMEOUT)
         print(f"clip {name}: {secs:.0f}s, "
               f"{os.path.getsize(out) // 1024} KB")
     return (os.path.relpath(out, 'runs'), os.path.relpath(poster, 'runs'),
@@ -220,19 +225,19 @@ def video_file(path, blurb, name=None):
                 os.path.getmtime(poster) < os.path.getmtime(path):
             subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss',
                             '0.5', '-i', path, '-frames:v', '1', poster],
-                           check=True)
+                           check=True, timeout=FFMPEG_TIMEOUT)
     elif not fresh:
         subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', path,
                         '-vf', f'scale={CLIP_W * 2}:-2', '-an',
                         '-c:v', 'libx264', '-crf', str(CLIP_CRF),
                         '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
-                        '-movflags', '+faststart', out], check=True)
+                        '-movflags', '+faststart', out], check=True, timeout=FFMPEG_TIMEOUT)
         subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', '0.5',
-                        '-i', out, '-frames:v', '1', poster], check=True)
+                        '-i', out, '-frames:v', '1', poster], check=True, timeout=FFMPEG_TIMEOUT)
         print(f"clip {name}: {os.path.getsize(out) // 1024} KB")
     probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries',
                             'format=duration', '-of', 'csv=p=0', out],
-                           capture_output=True, text=True).stdout.strip()
+                           capture_output=True, text=True, timeout=FFMPEG_TIMEOUT).stdout.strip()
     secs = float(probe) if probe else 0.0
     return f"""<figure>
       <video class="film" controls preload="none" playsinline muted loop
@@ -2230,7 +2235,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   distillation plan is retired. Soft spots, named: one walk seed in eight
   falls; heading wanders during straight walks (loose yaw-rate tracking,
   next reward iteration); pivot turn-rate authority still to be quantified.
-  Full details in DESIGN.md §Stage 2b.</p>
+  Full details in docs/archive/2026-07-to-09-prototype-design-log.md §Stage 2b.</p>
 
   <h2><span class="n">02</span> It sits up — and that's a design finding</h2>
   <p>New scenario: get up after a fall. Trained from 2048 settled ragdoll
@@ -2394,7 +2399,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       fine-tunes (<b>dash_11v1_hardlat3</b>: 28/32, median 2.72 s at 4 ms +
       GoPro; <b>dash_7v4_hardlat</b>: 32/32, 4.50 s) push the cliff to
       ~10–14 ms — beyond that it's a firmware call (run the loop on the
-      ESP32), not a training problem. Details in DESIGN.md §sub-step latency.</li>
+      ESP32), not a training problem. Details in docs/archive/2026-07-to-09-prototype-design-log.md §sub-step latency.</li>
       <li><s><b>2S or 3S</b> — the battery-bay decision above.</s> Decided: 3S,
       bay reworked for tool-free swap, order unblocked.</li>
       <li><b>Overnight (day 4):</b> the robot got its real sensor suite in sim.
@@ -2406,7 +2411,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
       or payload-focused training.</li>
       <li><s><b>Stop-and-stand is an open problem.</b></s> <b>Solved</b> — by
       changing the question. Three dash_stop attempts each found a new
-      reward exploit (all documented in DESIGN.md); the fix was retiring the
+      reward exploit (all documented in docs/archive/2026-07-to-09-prototype-design-log.md); the fix was retiring the
       finish-line structure for <b>command-conditioned locomotion</b>
       (track a commanded velocity + yaw rate, where zero = stand). The
       command policy stands on command 8/8 with ~4 cm drift, from any
@@ -2441,7 +2446,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   copy it. Reproduce the headline:
   <code>cd sim &amp;&amp; python mjx/eval_ref.py --run mjx_cmd_v1 --video</code>
   · CPU-era policies: <code>python eval_policy.py --run-name dash_11v1_hard --render</code>
-  · full write-up in <code>DESIGN.md</code> · CAD in <code>cad/</code>.</p>
+  · full write-up in <code>DESIGN.md</code> (history: <code>docs/archive/</code>) · CAD in <code>cad/</code>.</p>
 </div>
 """
 
@@ -2460,7 +2465,7 @@ def _imgs(html):
 try:
     old = subprocess.run(
         ['git', 'show', 'HEAD:sim/runs/night_summary.html'],
-        capture_output=True, text=True, check=True).stdout
+        capture_output=True, text=True, check=True, timeout=GIT_TIMEOUT).stdout
     committed = _imgs(old)
     swapped = 0
     for alt, src in _imgs(HTML).items():

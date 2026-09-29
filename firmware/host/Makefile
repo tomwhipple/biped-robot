@@ -346,7 +346,7 @@ vectors:
 # because somebody said which run to deploy -- an argument-less run of either
 # silently re-points the firmware at a different policy. Hence:
 #
-#   make -C firmware/host deploy-headers RUN=loco_v27tilt_b_s128r24
+#   make -C firmware/host deploy-headers RUN=loco_v41rsi_b_s128r24
 #
 deploy-headers:
 	@test -n "$(RUN)" || { echo "name the run: make deploy-headers RUN=<run>"; exit 2; }

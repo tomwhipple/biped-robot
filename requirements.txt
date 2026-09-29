@@ -1,15 +1,14 @@
 gymnasium==1.3.0
 ImageIO==2.37.3
 mujoco==3.10.0
+mujoco-mjx==3.10.0 # sim/mjx/ (training env, referee) and the tests that import it
 numpy==2.5.1
-rich==15.0.0
-stable_baselines3==2.9.0
-tensorboard==2.21.0
-torch==2.13.0
-tqdm==4.68.4
+jax              # CPU here; the GPU training box installs jax[cuda12]
+brax             # PPO trainer (sim/mjx/train_mjx.py)
+optax            # distillation (sim/mjx/distill_student.py)
 build123d>=0.11
 imageio-ffmpeg
-trimesh          # mesh inertia for bimo_biped_v2 (sim/build_v2_inertia.py)
+trimesh          # mesh inertia for the robot's plant (sim/build_v6_inertia.py)
 pytest           # tests/
 pygame           # optional: gamepad command source (link/sources.py)
 pyserial        # tools/servo_tool.py (ST3215 bench tool over the USB bridge)

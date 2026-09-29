@@ -56,7 +56,7 @@ USAGE
     .venv/bin/python tools/servo_tool.py move 9 2048
     .venv/bin/python tools/servo_tool.py bridge off
 
-See docs/bringup-day1.md.
+See docs/bringup.md.
 """
 from __future__ import annotations
 
@@ -262,7 +262,7 @@ def find_port(explicit: str | None) -> str:
              + sorted(glob.glob("/dev/cu.wchusbserial*")))
     if not cands:
         sys.exit("no CP2102-style port found. Plug in USB, or pass --port. "
-                 "macOS may need the CP210x driver (see docs/bringup-day1.md).")
+                 "macOS may need the CP210x driver (see docs/bringup.md).")
     if len(cands) > 1:
         print(f"note: several ports, using {cands[0]} of {cands}")
     return cands[0]

@@ -1,5 +1,7 @@
 # Arms in CAD (2026-09-19): drawing the get-up decision
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
+
 > **Partly superseded the same day by
 > [`shoulder-girdle.md`](shoulder-girdle.md) (round 5).** Tom, on seeing these
 > arms in FreeCAD: *"looks like the arms are just bolted on. Aside from being

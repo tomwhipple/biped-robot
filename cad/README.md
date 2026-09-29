@@ -1,270 +1,230 @@
-# Printable CAD — the biped
+# CAD
 
-Parametric CAD in Python ([build123d](https://build123d.readthedocs.io/)), realizing the
-kinematics of `sim/bimo_biped.xml` with **10× Feetech STS3215** bus servos
-(v3yaw: 8 leg + 2 hip-yaw — see [hip-yaw study](../docs/hip-yaw-study.md)).
+The robot's parametric CAD, written in Python with
+[build123d](https://build123d.readthedocs.io/). It lives in **`cad/v6/`**.
+
+- **Dimensions:** every dimension comes from `cad/v6/dimensions_v6.py`. That file
+  takes every servo-interface number from `cad/dimensions.py`, which is measured
+  from the servo vendor's STEP model.
+- **Related docs:** the design is [DESIGN.md §5](../DESIGN.md); what to print and
+  how is [PRINT_LIST.md](PRINT_LIST.md); assembly is
+  [docs/assembly.md](../docs/assembly.md).
 
 ```
 cad/
-├── dimensions.py      # ALL dimensions (single source of truth) + servo datasheet notes
-├── parts.py           # part builders; exports STLs + STEPs + BOTH assemblies
-├── fasteners.py       # every screw as a solid, in its host part's frame --
-│                      #   feeds the head-clearance audit AND the assembly STEPs
-├── check_assembly.py  # boolean interference checks over the full joint ranges
-│                      #   (both ROM extremes + 0.5 mm sweep buffer, screws aboard)
-├── export_step.py     # DEPRECATED shim -> parts.py (which now writes STEPs too)
-├── export_assembly.py # assembled robot -> cad/step/assembly.step (+ camera mock)
-├── dress.py           # posable dressed robot: + cables, zip ties, board, pigtail
-├── export_assembly_full.py  # dressed robot -> step/assembly_full.step + stills
-├── animate_dressed_rom.py   # leg ROM video with the wiring following the joints
-├── render_assembly.py # PNG render of the assembly via MuJoCo
-├── render_assembly_steps.py  # per-step figures for docs/assembly.md
-├── animate_assembly.py # fly-in feasibility animation (real insertion paths)
-├── freecad_articulate.py  # build the POSEABLE FreeCAD assembly (10 revolute joints)
-├── freecad_pose.py    # FreeCAD macro: joint sliders + red collision bodies
-├── export_pose.py     # one frozen articulated pose -> step/poses/*.step
-├── stl/               # exported STLs (one per unique part)
-├── step/              # exported STEPs + assembly.step / assembly_full.step
-│                      #   + screws_*.step (fastener groups, for FreeCAD)
-│                      #   + bimo_v3yaw_articulated[_PANHEADS].FCStd (poseable)
-└── bimo_like_biped.scad  # (older massing concept, superseded by parts.py)
+├── v6/                     the robot: part modules, assembly, gates (map below)
+│   ├── stl/  step/         exported parts and assemblies (generated)
+│   └── renders/            part renders, assembly views, fly-in filmstrips
+├── dimensions.py           servo ground truth and shared constants
+├── parts.py                shared solid helpers; the prototype's part builders
+├── check_assembly.py       servo mocks (used by cad/v6); the prototype's interference check
+├── check_printability.py   the printability audit engine
+├── fasteners.py            screws as solids (prototype); the hip interfaces' screw sets
+├── run_checks.sh           the CAD gate
+├── slice.py, orca_profile.py        OrcaSlicer CLI wrapper (PRINT_LIST.md, Slicing)
+├── render_part.py, render_assembly.py, animate_assembly.py   renders (below)
+├── vendor/ST3215.step      the servo's vendor STEP
+└── stl/  step/  renders/   the prototype's parts and renders
 ```
+
+The prototype's part builders in `parts.py`, and its `cad/stl` and `cad/step`,
+exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
+`cad/stl`.
+
+## `cad/v6` module map
+
+| module | what it is |
+|---|---|
+| `dimensions_v6.py` | every dimension the robot adds or changes: kinematics, feet, torso, pack, Pi, neck and head, the bearing options (`YAW_BRG_*` = C, `YAWA_*` = A/E), arms and girdle. It re-exports `cad/dimensions.py` as `D`, and `SIM_EXPECT` is the set of numbers the plant must share (pinned by `tests/test_v6_design_gates.py`) |
+| `parts_v6.py` | exports every printed part to `stl/` and `step/`, with a bed check and a mass rollup (`--only <names>`) |
+| `assembly_v6.py` | the articulated robot: one kinematic chain of parts, servo mocks and electronics mocks, posable (`--pose knee=-60,...`). Writes `step/assembly_v6.step` (`_arms` with `ARMS=1`) and `renders/assembly_v6.png`. The checker and the fly-in read this chain |
+| `check_assembly_v6.py` | the ROM interference gate: every pair of pieces that move relative to each other, at the ROM extremes plus interior samples (`--joint`, `--samples`, `--side`) |
+| `animate_v6.py` | fly-in along each part's insertion path. Writes `renders/assembly_v6_flyin*.mp4` (gitignored) and a committed `_strip.png` |
+| `pelvis_v7.py` | the torso, one print: `pelvis_v7(bearing_variant, arm_mounts)`, its `SCREWS()`, a driver-access check and the board slide checks |
+| `yaw_carrier_v6.py` | the bearing option C carrier: the prototype's carrier plus a 6811-2RS boss |
+| `yaw_carrier_v6_optA.py` | the option A carrier: a round hub for a 6810-2RS |
+| `yaw_retention_optE.py` | option E: carrier with lip, cap and retainer, and a pelvis with retainer bosses. Writes `step/yaw_bearing_optE/` |
+| `hip_yoke_v6.py` | the hip roll and pitch clevises fused into one print |
+| `yoke_pitch_v6.py` | the pitch clevis alone. `hip_yoke_v6` is built from it; it is printed only under `HIP_YOKE_VARIANT=split` |
+| `leg_link_v6.py` | thigh and shin (one part): a 110 mm box section |
+| `ankle_link.py` | grips the ankle-pitch servo and forks onto the ankle-roll servo |
+| `foot_v6.py` | `foot_L`/`foot_R` and the TPU soles `sole_tpu_L`/`_R` |
+| `head.py` | `head_shell`, `head_face`, and `head` (the two fused, for checks) |
+| `neck_collar.py` | the armless build's neck-servo mount |
+| `shoulder_girdle_v6.py` | the girdle: both shoulder pods and the neck tube in one print |
+| `arm_v6.py` | upper arm and forearm (mirror pairs), the elbow-servo mock, and the elbow ROM check |
+| `audit_torso.py` | printability report for `pelvis_v7`, the head parts and `neck_collar` |
+| `audit_ankle_foot.py` | printability report for `ankle_link` and `foot_L/R` |
+| `audit_leg_link.py` | printability and interface audit for `leg_link_v6` |
+| `check_hip_yoke_clearance.py` | clearance A/B between the hip yoke's raw union and the styled part |
+| `check_yaw_bearing_combo.py` | option C with the bearing modelled as two rings, swept through yaw × roll × pitch |
+| `check_yaw_bearing_optA.py` | the same check for option A |
+| `export_yaw_bearing_joint.py` | per-option STEP of the changed parts plus a cropped joint sub-assembly. Writes `step/yaw_bearing_recommended/` (A) and `step/yaw_bearing_runner_up/` (C) |
+| `render_yaw_bearing.py`, `render_yaw_bearing_optA.py` | before/after and section stills of the yaw joint (C, A) |
+
+## Shared builders in `cad/`
+
+- **`dimensions.py`** is the single source of servo truth. It holds:
+  - the case, the horn and idler discs and their tapped flanges, the screw rows,
+    the rib and platform detents, the idler face, the connector trench and the
+    countersinks;
+  - the walls and fits (`FIT = 0.30`), the filament density and print factor,
+    and the bed size.
+
+  Every `cad/v6` module takes these from here and never retypes them.
+- **`parts.py`** provides two things:
+  - the solid helpers every `cad/v6` module uses: `box`, `cyl_x/y/z`, `teardrop_x/y`,
+    `wedge_x/y/z`, `csk_x/y/z`, `bcd_x`;
+  - the prototype parts the robot reuses: `yaw_carrier` (under all three bearing
+    options), `yoke_roll` and `yoke_pitch` (inside `hip_yoke_v6`), and
+    `leg_link` (the basis of `leg_link_v6`).
+
+  Its `main()` exports the prototype's parts to `cad/stl` and `cad/step`.
+- **`check_assembly.py`** provides `servo_mock()`: the STS3215 in one canonical
+  frame, built from the vendor STEP. `servo_mock_x/_y/_z` are rotations of it,
+  so the three orientations cannot drift apart. It also has the board mocks.
+  The `cad/v6` assembly and part modules use these. Its `main()` is the prototype's
+  own interference check, and it holds the disc-screw engagement rule
+  ([docs/assembly.md §1](../docs/assembly.md#1-the-joint-the-servo-is-the-axle)).
+- **`check_printability.py`** is the audit engine.
+  - It rotates each STL into its print orientation and classifies down-facing
+    facets as CEILING, LEDGE, ISLAND, BEAM, first-layer CONTACT or thin wall.
+  - Parts listed in `SUPPORTED` are expected to need slicer supports, so their
+    overhang findings are reported as support needs, not failures.
+  - The v6 audits point its `STL` directory and `ORIENT` table at `cad/v6` at
+    runtime.
+- **`fasteners.py`** models the prototype's screws as solids. The robot's fastener
+  counts take the hip interfaces from it:
+  - `disc_screws_x` / `disc_screws_y`, for the hip yoke's roll and pitch
+    clevises;
+  - `yaw_horn_screws` + `yaw_wall_screws`, for the carrier.
+
+## Regenerate
 
 ```bash
-../.venv/bin/python parts.py            # STLs + STEPs + assembly.step + assembly_full.step
-../.venv/bin/python fasteners.py        # step/screws_*.step (fastener groups for FreeCAD)
-../.venv/bin/python parts.py --no-assembly   # skip the ~55 s assemblies while iterating
-../.venv/bin/python check_assembly.py   # must print ALL CLEAR
-# (export_assembly.py / export_assembly_full.py still run standalone if wanted)
-../.venv/bin/python export_assembly_full.py   # dressed: wiring/board/battery mocks
-../.venv/bin/python render_assembly_steps.py  # refresh docs/assembly.md figures
-../.venv/bin/python animate_assembly.py       # fly-in animation (gif+mov, gitignored)
+ARMS=1 .venv/bin/python cad/v6/parts_v6.py              # every printed part -> cad/v6/stl + cad/v6/step, bed check, mass rollup
+.venv/bin/python cad/v6/head.py                          # head_shell, head_face (+ the fused head), audits, render
+ARMS=1 .venv/bin/python cad/v6/assembly_v6.py            # step/assembly_v6_arms.step + renders/assembly_v6_arms.png
+.venv/bin/python cad/v6/assembly_v6.py --pose hip_pitch=-60,knee=90 --step /tmp/posed.step --png /tmp/posed.png
+ARMS=1 .venv/bin/python cad/v6/animate_v6.py             # fly-in mp4 (gitignored) + filmstrip
+.venv/bin/python cad/v6/<module>.py                      # one part: STL + STEP + its own audits + render
+.venv/bin/python cad/parts.py                            # the prototype's parts -> cad/stl, cad/step (the training plant meshes them)
 ```
 
-## Pose it in FreeCAD (10-DOF articulated assembly)
+- **Each part module's `__main__`** exports that part and runs its own audits.
+- **Renders on the Mac need `MUJOCO_GL=cgl`.** The scripts default it to `egl`
+  (Linux), and on macOS they then skip the render.
+- **The exports are generated files:** regenerate them, never edit them. See
+  [AGENTS.md](../AGENTS.md).
+- **`parts_v6.py` has no rollup-only mode:** every run rewrites the STLs and
+  STEPs. `docs/design-v6/parts_v6_rollup.txt` is a saved copy of its output
+  dated 2026-09-14, and it is stale.
 
-`freecad_articulate.py` builds an **Assembly-workbench** model you can drag
-through its full range of motion — one **Revolute** joint per axis, with the
-sim's limits baked in (hip yaw ±45°, hip roll ±25°, hip pitch −110/+60°, knee
-−95/+5°, ankle ±40°). The torso is grounded; both legs share the same part
-STEPs, and since 2026-07-28 every body also carries its **modeled fasteners**
-(`step/screws_*.step`) — the screw heads are what actually collide. Build it
-(STEPs must exist — run `parts.py` then `fasteners.py` first):
+**Environment flags:**
+
+| flag | default | read by | effect |
+|---|---|---|---|
+| `ARMS` | off | `parts_v6.py`, `assembly_v6.py` (and so `check_assembly_v6.py`, `animate_v6.py`) | `1` adds `shoulder_girdle_v6` and the four arm links, and drops `neck_collar`. In `assembly_v6` it also builds the pelvis with `arm_mounts=True` (the ten girdle pilots). **`parts_v6.py` does not:** it always exports the default pelvis |
+| `YAW_BEARING_VARIANT` | `C` | `assembly_v6.py` (and so the checker and the fly-in); forced to `A` inside `check_yaw_bearing_optA.py` | selects the carrier and pelvis for bearing option `A`, `C` or `E`; `E` adds the bearing, cap and retainer pieces. **`parts_v6.py` ignores it** and always exports option C's carrier |
+| `HIP_YOKE_VARIANT` | `single` | `parts_v6.py`, `assembly_v6.py` | `split` builds the bolted `yoke_roll` + `yoke_pitch_v6` pair instead of `hip_yoke_v6` |
+| `MUJOCO_GL` | `egl` (set by default) | every render | set `cgl` on macOS |
+
+**The defaults are not the robot to print.** The code builds armless, with
+bearing C, and its mass line counts 6 × STS3250. Making the defaults the robot
+(arms on, the chosen bearing, 17 × STS3215, rollup and plant regenerated) is
+#76. [PRINT_LIST.md](PRINT_LIST.md) lists what that leaves undone for the
+pelvis.
+
+## The gate
 
 ```bash
-# macOS (adjust the path on Linux/Windows to your freecadcmd)
-/Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd cad/freecad_articulate.py
-# -> cad/step/bimo_v3yaw_articulated.FCStd
-BIMO_PAN_HEADS=1 ... freecadcmd cad/freecad_articulate.py
-# -> ..._PANHEADS.FCStd: the AS-FITTED proud pan heads instead of flush flat ones
+sh cad/run_checks.sh          # exit 0 = clear; "CHECKS FAILED -- do not print" otherwise
 ```
 
-or from the GUI: **Macro → Macros… → add `freecad_articulate.py` → Execute**.
+It runs four things with `.venv/bin/python`:
 
-### To pose it
+1. **`check_assembly_v6.py` on the default build.** Every relatively-moving pair
+   is posed at its joint's ROM extremes and interior samples.
+   - Each pair must show zero intersection and at least `SWEEP_BUFFER` of
+     clearance. Designed contacts (pads on discs, seats) are excluded by name.
+   - The pair list is printed with the result, because a pair that is not listed
+     was never checked.
+   - Results are recorded in `docs/design-v6/cad_rom_check.txt`.
+2. **The same check with `ARMS=1`:** the girdle, arms and arm-versus-leg pairs.
+3. **`audit_torso.py`**, a printability report on `cad/v6/stl`.
+4. **`audit_ankle_foot.py`**, likewise.
 
-Open `cad/step/bimo_v3yaw_articulated.FCStd` and switch to the **Assembly**
-workbench. Two ways to move the joints:
+The two printability reports do not fail the run: `pelvis_v7` and `ankle_link`
+carry ceilings and islands by design, and supports are the slicer's job. Read
+their `**` lines against the slice preview.
 
-1. **Drag a part** with the mouse — the solver keeps every joint honest and
-   stops each axis at its ROM limit. Good for feel; undo puts it back.
-2. **Run `freecad_pose.py`** (Macro → Macros… → Execute) for a slider panel:
-   one slider per axis, clamped to the ROM, driving both legs live — plus a
-   **Check collisions** button that boolean-intersects every moving pair at the
-   current pose (however you got there) and drops a solid **red `COLLIDE_*`
-   body** in the tree wherever parts actually overlap. Gaps print to the Report
-   view, tightest first. Batch/headless equivalent:
-   `BIMO_POSE="hip=-60,knee=-95" freecadcmd cad/freecad_pose.py`.
+**What the gate does not cover:**
 
-A plain Revolute joint has **no driving angle** in FreeCAD 1.1 (the `Angle`
-field belongs to the *Angle* joint type), so the slider panel sets the rigid
-bodies' placements from the same kinematics `export_pose.py` uses rather than
-asking the solver for an angle.
+- **The other printed parts** audit themselves from their module's `__main__`
+  (`leg_link_v6`, `hip_yoke_v6`, `shoulder_girdle_v6`, `arm_v6`). Those rewrite
+  their STL as they run, so run them when that part changes.
+- **A bearing option other than C:**
+  `YAW_BEARING_VARIANT=A .venv/bin/python cad/v6/check_assembly_v6.py` plus the
+  ring check `check_yaw_bearing_optA.py`. The full sweep for option E has not
+  been run.
+- **Insertion paths:** on a layout change, `animate_v6.py` proves that the parts
+  fly in along them.
 
-Reading the gap table: **0.30 mm** carrier-vs-yoke is the designed bay-bore
-slip fit and **0.40 mm** shin-vs-foot at the ankle extremes is the locked
-fork/wall band — both intentional. The one that matters on the bench is
-**yoke-vs-thigh: 0.70 mm** with flush flat heads, and a hard collision
-(10.7 mm³ per leg at hip −60°) in the `_PANHEADS` file.
+`run_checks.sh` is not in the pre-push hook. Run it for any CAD change
+([AGENTS.md](../AGENTS.md)).
 
-The neutral pose is the CAD standing pose (feet on the ground). The macro
-injects a `GuiDocument.xml`
-(view state + fitted isometric camera) so the file opens visible even though it
-was built headless. *(FreeCAD prints ~20 benign "invalid Reference" warnings on
-open — a PartDesign migration quirk that doesn't apply to these LCS joints; they
-solve and pose fine.)*
+## Viewing in FreeCAD
 
-If a future FreeCAD version still opens with hidden parts: **select-all in the
-tree → press Space → View ▸ Fit All**.
+Open the STEP exports:
 
-`assembly_full.step` is the "approximate complete" model: everything in
-`assembly.step` plus mock dress — driver board under the tower top, battery,
-XT30 pigtail, per-leg servo daisy-chain cables (splines through the real
-ST3215 rear-end connector positions, tied to the web raceways with zip-tie
-mocks). Approximate by design: wire paths are plausible, not catalog-exact.
-The BNO055 IMU now rides its printed `imu_carrier` under the gopro_base and
-IS in the model (`docs/assembly.md` §9b, figures from
-`render_electronics_steps.py`); the power switch mount is still undesigned.
-The cable
-segments regenerate from the posed joint frames, so `dress.dressed_robot(
-roll, hip, knee, ankle)` and the ROM video show the wiring following the
-legs rather than a rigid cable tearing off.
+- **the robot:** `cad/v6/step/assembly_v6_arms.step`, or `assembly_v6.step`
+  without the arms;
+- **each part:** `cad/v6/step/<part>.step`;
+- **each bearing option's joint sub-assembly** (pelvis cell region, carrier,
+  both races as rings, yaw and roll servo mocks):
+  `step/yaw_bearing_recommended/` (A), `step/yaw_bearing_runner_up/` (C) and
+  `step/yaw_bearing_optE/`.
 
-Servo dimensions were taken from the **official Waveshare ST3215 STEP model and
-2D drawing** (measured programmatically, not eyeballed) — sources in the
-`dimensions.py` docstring. Every joint is closed on **both** sides: the servo's
-metal horn (Ø19.2, 4× M3 on a Ø14 bolt circle) on one side and its built-in
-free-spinning **rear idler disc** (same Ø19.2 / 4× M3 pattern, recessed in a Ø25
-opening) on the other — no extra bearings needed. Two honest caveats on the
-idler side (issue #5): the printed Ø19 boss inside the Ø25 recess is a
-**locator, not a precision seat** (~3 mm radial clearance) — concentricity
-comes from the 4× M3 pattern, so *snug the idler screws with the joint at
-mechanical zero and check runout before final torque*; and the idler disc's
-molded M3 threads carry the far-side bending shear — inspect them after the
-first hours of walking, and if they wear, the upgrade path is a shoulder
-bolt through the disc or a thin 19×27 washer-bearing under the arm.
+A posed robot is `assembly_v6.py --pose ... --step <file>`. Use the CAD, not
+the PNGs, to judge a design: the renders are for documentation.
 
-## Part list (14 prints, 8 unique)
+**Optional: the FreeCAD MCP addon** lets an agent drive a running FreeCAD.
 
-| part | qty | bbox (mm) | ~mass | role |
-|---|---|---|---|---|
-| `pelvis` | 1 | 46 × 104 × 48 | 47 g | deck + two hanging bays clamping the hip-roll servos |
-| `yoke_roll` | 2 | 48 × 34 × 32 | 12 g | clevis on roll-servo horn/idler, flange down |
-| `yoke_pitch` | 2 | 32 × 45 × 42 | 12 g | clevis on thigh-servo horn/idler, bolts under `yoke_roll` rotated 90° (hip universal joint) |
-| *(`v6/hip_yoke_v6`)* | *(2)* | 48 × 44 × 74 | 23 g | v6 opt-in (`HIP_YOKE_VARIANT=single`): `yoke_roll` + `yoke_pitch_v6` as ONE print, the 4 flange bolts and heat-sets gone — [docs/design-v6/hip-yoke-single-print.md](../docs/design-v6/hip-yoke-single-print.md) |
-| `leg_link` | 4 | 28 × 45 × 99 | 18 g | thigh **and** shin (same part): grips a servo case, forks 90 mm down to the next servo's horn/idler |
-| `foot` | 2 | 100 × 52 × 30 | 36 g | flat sole + ankle-servo pocket + heel bulkhead tying the retention tabs into a U-channel (glued rubber sole pad) |
-| `tower` | 1 | 45 × 96 × 43.5 | 39 g | electronics: driver board hangs face-down on standoffs INSIDE; 3S battery tilt-loads through the rear-wall window onto the deck (tool-free swap: peel belt, tug ribbon); GoPro bosses on top |
-| `gopro_base` | 1 | 30 × 24 × 21 | 5 g | GoPro three-prong mount, bolts to the tower top (crash fuse — cheap to reprint) |
-| `imu_carrier` | 1 | 30 × 48.5 × 7.5 | 5 g | BNO055 carrier between the tower top and gopro_base — same 4 screws (M3×12); IMU screws to bosses on its true 21.59 × 15.24 hole pattern, jumpers drop down the tower's open rear end |
+- It is installed in FreeCAD's `v1-1/Mod` and registered user-scope with
+  `uvx --with 'mcp[cli]<2' freecad-mcp`.
+- It needs the FreeCAD GUI running; the addon's RPC listens on port 9875.
 
-Printed plastic ≈ 286 g (PETG). Total robot ≈ **0.88 kg** bare, **1.04 kg with
-the GoPro MAX** (8 servos 440 g, 3S LiPo ~80 g, board ~20 g, fasteners ~47 g,
-TPU 16 g, camera 154 g). Heights: ankle 16.9, knee 106.9, hip-pitch 196.9,
-hip-roll 246.9, torso top 330.5 mm, camera CG ≈ 384 mm. Standing CG rises from
-≈ 165 mm (bare) to ≈ 197 mm with the camera (**+32 mm**) — expect gait retuning.
+## Servo geometry: the ground truth
 
-### GoPro mount (`gopro_base`)
+**The sources:**
 
-Receives the GoPro MAX's built-in folding two-finger mount, lens axis fore-aft.
-Prong geometry follows the proven [GoProScad](https://github.com/ridercz/GoProScad)
-standard: 3.0 mm prongs, Ø15 rounded tops, M5 hole (printed Ø5.5) 9.5 mm above
-the base top, 17 mm legs. Slots are **3.2 mm** (≈0.25 mm clearance on ~2.95 mm
-camera fingers) — snugger than GoProScad's 3.5 mm; if your camera's fingers
-bind, ream the slots or set `GP_SLOT = 3.5` in `dimensions.py` and reprint.
-Clamp with the camera's own thumbscrew or any M5×20. The base bolts down with
-4× M3×12 self-tappers through the `imu_carrier` beneath it into bosses under
-the tower top plate; the driver board
-moved inside the tower (face-down on 6 mm standoffs) to make room and lower
-the electronics CG.
+- `cad/vendor/ST3215.step`, Waveshare's STEP model;
+- the dimensioned drawing and the Feetech datasheet in
+  `docs/datasheets/st3215/`.
 
-All legs use identical parts: every pitch-joint horn faces **+Y (robot left)** —
-legs are translations, not mirrors.
+`cad/dimensions.py` measures from these programmatically; nothing comes from
+photos. The STS3235 and STS3250 share this case, horn and disc pattern, so a
+servo swap changes no geometry.
 
-## BOM
+| feature | value |
+|---|---|
+| case | 45.22 × 24.72 mm, 34.7 across the output axis (35 with the boss); output axis 10.11 from the output end |
+| discs | metal horn and free-spinning idler, both Ø19.2 with 4 × M3 on Ø14, tapped through a 2.5 mm (horn) and 2.1 mm (idler) flange |
+| case holes | M2.5 at rows 8.30 / 29.00 behind the axis (horn face) and 8.30 / 32.75 (idler face), ±10.25 across |
+| idler face | the disc and its hub rotate and stand proud; the stator screw bosses sit 1.78 below the cover slab (mounts land on pads); a horn-side rib sits on the cable half |
+| **connector trench, on the idler face** | the two bus ports side by side across the width, in a trench 11.75–16.35 mm from the axis toward the cable end, ±10.9 wide, floor 4.78 below the slab (`SV_CONN_*`) |
 
-| item | qty | notes |
-|---|---|---|
-| Waveshare ST3215, 12 V version (6–12.6 V) | 8 | 30 kg·cm@12 V; includes metal horn + idler disc + M3×6 screws; do NOT buy the 4–7.4 V class (see docs/hardware-order.md) |
-| BNO055 IMU breakout (ordered: Amazon B0GVK81HXR, classic layout) | 1 | mounts on the printed imu_carrier; 4× F-F jumpers to the ESP32 |
-| Waveshare Servo Driver with ESP32 | 1 | 65 × 30 mm; `dimensions.py::BOARD_HOLES` = published Ø2.75 @ 58 × 23 — **still verify against your board before printing the tower** |
-| 3S 850 mAh XT30 pack (2-pack) | 2 | BOM pick Tattu 45C, 60 × 30 × 22 mm, 76 g. Bay envelope `BATT` = 68 × 31 × 26.5 is a superset of the 3S 850 field (see `docs/bom-by-vendor.md` fit table); mocks/inertia model the worst case `BATT_PACK` = 62 × 30 × 25, 80 g. Taller pack → edit `BATT` + reprint tower |
-| 20 mm hook-loop strap ~250 mm + pull ribbon | 1 | battery belt (rides in the tower guide ribs) + extraction tab under the pack |
-| M3×6 button head | 32 | horn pads (4 per joint × 8) — servo kits include some |
-| M3×8 button head + M3 thin washer | 24 | idler pads at hip-pitch, knee, ankle (4 × 6 joints); washer stops the tip short of the gears |
-| M3×10 button head | 16 | yoke_roll idler arms (4 × 2, through the long boss) + hip flange bolts (4 × 2) |
-| M3×8 self-tapping (or machine after M3-tapping the case) | 48 | case grips: 6 per leg_link (24), 8 per pelvis bay (16), 4 per foot (8) |
-| M3 heat-set insert (Ø4.6 × 4–6) | 12 | 4 per yoke_pitch flange (8) + 4 in the pelvis deck for the tower |
-| M3×12 self-tapping | 4 | gopro_base + imu_carrier stack down into the tower-top bosses |
-| M5×20 GoPro thumbscrew | 1 | or use the camera's own folding-mount screw |
-| M2.5×8 self-tapping | 8 | driver board, from below into the standoffs under the tower top (4) + BNO055 onto the imu_carrier bosses (4) |
-| Self-adhesive rubber sole pad (~0.5 mm) | 2 | stick onto the flat foot underside, trim to fit; keep thin so stance height is unchanged |
-| zip ties 2.5 mm | ~10 | cable dressing through leg_link web holes |
+**Lead openings belong over the connector trench.** The ports are not on the
+cable-end face.
 
-Servo case mounting holes measure Ø3.5 in the vendor STEP; the community
-practice (glass-filled nylon case) is M3 self-tappers or tapping M3.
-**Verify on one real servo first** — if the holes are truly Ø3.5, use M4
-self-tappers in the pelvis/foot walls (clearance holes are parametric).
+## Renders of the prototype plant
 
-## Print settings
+These three scripts render the prototype's parts in `cad/stl`. The training
+report (`sim/build_report.py`) reads `cad/renders/assembly_mujoco.png` and
+`assembly_flyin.gif`.
 
-PLA or PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters (all walls ≥ 2.4 mm are
-perimeter-only), 30–40 % infill, no slicer supports needed — and this is now
-**verified geometrically** by `check_printability.py`, which audits every STL
-in its print orientation for bridges / >45° overhangs / floating starts and
-must report `ALL PARTS PRINT CLEAN` (run it alongside `check_assembly.py`
-after any CAD change):
-
-| part | orientation | note |
-|---|---|---|
-| pelvis | upside-down (deck top on bed) | bay walls print vertically; bore is a downward-open slot; deck top is flush (no bosses) so the first layer is the whole deck face |
-| yoke_roll / yoke_pitch | flange face on bed | arms vertical → layer lines ⟂ arm bending is avoided; idler boss prints as a short horizontal stub (1–4 mm) — slight underside droop is cosmetic, the seat face prints clean |
-| leg_link | on its back (web on bed) | strongest orientation for fore-aft bending; **slice `leg_link_print.stl`** — it adds 3 break-away fins under the fork slabs, which float 4.7 mm above the bed (the swept joint envelope forbids solid material there); peel the fins out after printing |
-| foot | sole down | heel tabs, bulkhead and buttress are vertical faces or top-side slopes — nothing bridges |
-| tower | upside-down (top plate on bed) | fully support-free: the battery window is **open to the deck** (no sill — the belt retains the pack; 45° corner detents park it), feet-tab gussets and rail stubs are true ≥45° wedges, belt-rib undersides chamfered. Only ceilings: the Ø6.6 feet-screw counterbores (normal short bridges) |
-| gopro_base | base down, prongs up | standard orientation for printed GoPro mounts; use PETG or 100 % infill PLA — the M5 clamp squeezes across layer lines |
-| imu_carrier | flat on bed, bosses up | trivial print; the only notes are the intentional 0.4 mm pilot floors under the M2.5 bosses |
-
-All horizontal M3 bores are teardropped toward each part's print-up direction
-(self-supporting 45° bore roofs — no sagged strands where screws clamp).
-
-## Assembly order
-
-**Illustrated step-by-step guide: [docs/assembly.md](../docs/assembly.md)**
-(one figure per step, rendered from the CAD by `render_assembly_steps.py` —
-regenerate after any CAD change). Condensed order:
-
-1. **Servos**: set IDs 1–8 and center all servos (position 2048) *before* assembly.
-   Bolt the metal horn on each servo at center with its spline screw.
-2. **Feet**: drop the ankle servo into the pocket (output end forward, cable aft),
-   4× M3 through the rear walls into the case. Glue TPU pads.
-3. **Leg links** (×4): slide onto a servo case from below (horn-side plate has a
-   circular relief that clears the output boss), 6× M3 into the case holes.
-4. **Knees/ankles**: offer the link fork to the next servo: 4× M3×6 into the horn
-   (+Y side), 4× M3×8+washer into the idler disc (−Y side). Do horn side first,
-   check the mechanical zero, then the idler side.
-5. **Hips**: press heat-set inserts into the yoke_pitch flanges; bolt yoke_pitch
-   to the thigh-servo horn/idler; bolt yoke_roll on top (rotated 90°, 4× M3×10).
-6. **Pelvis**: slide the two roll servos up into the bays (output end down, horn
-   forward, cables up through the deck cutouts), 8× M3 each through the walls.
-   Attach each hip: yoke_roll horn arm to the roll-servo horn (4× M3×6, in front),
-   idler arm boss through the rear wall slot into the idler disc (4× M3×10).
-7. **Torso**: press 4 inserts into the deck bosses; screw the driver board
-   face-down onto the standoffs under the tower top (4× M2.5×8 from below,
-   connectors toward an open end) BEFORE bolting the tower down; bolt the
-   tower down (4× M3 through the feet tabs — driver access holes are in the
-   top plate). Lay the pull ribbon across the deck, tilt the battery in
-   through the rear-wall window (over the sill, onto the far-wall rails),
-   and close the hook-loop belt around the tower in its guide ribs — the
-   battery goes in LAST and swaps without touching a screw. Screw the
-   `gopro_base` onto the top bosses (4× M3×8); the camera clamps with its
-   M5 thumbscrew, lens fore-aft.
-8. **Wiring**: daisy chain — board → both roll servos (connectors are inside the
-   torso) → down the back of each leg (zip ties through the web holes, leave a
-   slack loop across each joint sized at full flexion) → thigh → shin → ankle.
-9. Verify each joint's direction/sign against the sim (`DESIGN.md` TODO) before
-   trusting any gait; run range-of-motion slowly at low torque limit first.
-
-## Open questions
-
-- **Servo case thread**: M3 self-tap vs tap vs M4 (see BOM note). Measure a real case.
-- **Idler screw length**: M3×8 + washer assumes the disc's 3.35 mm thread depth;
-  confirm screws don't bottom against the gear behind the disc.
-- **Driver board**: exact model + hole pattern (`BOARD_HOLES`) — it now hangs
-  inside the tower; confirm its component heights (< ~4 mm toward the battery).
-  That 4 mm assumption is what sets the 3.5 mm clearance to a 26.5 mm pack
-  (`TOWER_H = BATT[2] + 13.5 + 3.5`); taller underside parts eat it directly.
-- **Battery swap fit**: test-fit the real pack through the window before final
-  assembly — sill height 2.5 mm, opening sized to the `BATT` envelope
-  (68 × 26.5); a pack taller than 26.5 means editing `BATT` and reprinting the
-  tower. Short packs (59–62 mm vs the 68 mm bay) have up to 8 mm of Y slop —
-  confirm the belt + ribbon actually restrain it, or add a shim.
-- **GoPro fit**: measure your MAX's finger thickness — slots are printed 3.2 mm
-  (GoProScad standard is 3.5); confirm the folded-finger depth clears the
-  17 mm prong height, and that 154 g up top (+29 mm CG) is retrained/retuned
-  in sim before real walking.
-- **Cable service loops** across knee (95°) — verify lengths with real 150 mm leads;
-  extension cables may be needed shin→ankle depends on port placement.
-- **Foot pad material**: TPU sheet vs printed TPU vs adhesive rubber; friction
-  should roughly match sim (μ ≈ 1.0).
-- Ankle axis is 16.9 mm (not 14) above ground → use `sim/bimo_biped_v2.xml`.
+| script | output |
+|---|---|
+| `render_part.py <name or path.stl>` | one STL as a strip of views: `cad/renders/<name>.png`. It takes any STL path, so it works on `cad/v6/stl` parts too |
+| `render_assembly.py` | `cad/renders/assembly_mujoco.png` |
+| `animate_assembly.py` | `cad/renders/assembly_flyin.gif` and `.mov`, both gitignored |

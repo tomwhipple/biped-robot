@@ -7,7 +7,7 @@
 #   link-tests          ->  python3 -m pytest tests/ -q
 #   cmake-ctest         ->  cmake configure / build / ctest  (hard when cmake
 #                           is installed; skips with a note otherwise)
-#   esp32-build         ->  idf.py build (firmware/main); needs ESP-IDF on
+#   esp32-build         ->  idf.py build (the project in firmware/); needs ESP-IDF on
 #                           PATH or IDF_PATH (SKIP_ESP32=1 overrides)
 #   clang-tidy          ->  run-clang-tidy over the host build, when clang-tidy
 #                           is installed (WarningsAsErrors per .clang-tidy)

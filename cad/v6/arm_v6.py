@@ -100,7 +100,7 @@ PRINT_ORIENT = {
     "arm_fore_v6": (RY_XUP, "on its back: web face on bed, arm length in the bed plane"),
 }
 # Parts printed WITH OrcaSlicer supports (check_printability waives their
-# overhang findings; docs/design-v6/print-list.md's "supports" column says the
+# overhang findings; cad/PRINT_LIST.md's "supports" column says the
 # same). Support work is the slicer's job wherever it can do it -- only what a
 # slicer cannot clean up (small horizontal bores: teardropped) is designed in.
 SUPPORT_NOTE = {

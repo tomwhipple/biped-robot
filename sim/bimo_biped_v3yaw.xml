@@ -1,5 +1,5 @@
 <!-- HIP-YAW 10-DOF variant of bimo_biped_v2_asbuilt.xml (2026-07-23,
-     morphology A/B for docs/hip-yaw-study.md). Two changes vs the as-built
+     morphology A/B for docs/archive/2026-07-23-hip-yaw-study.md). Two changes vs the as-built
      plant:
        1. A hip-yaw joint per side (yaw-first stack, Open Duck arrangement):
           a new L_hip_yaw / R_hip_yaw hinge (axis 0 0 1, range +/-45 deg,

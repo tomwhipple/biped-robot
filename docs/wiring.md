@@ -1,360 +1,259 @@
-# Wiring & control architecture
+# Wiring and power
 
-*Status 2026-07-11. One serial bus, one battery, no custom electronics —
-the entire harness is the servo leads that ship in the box plus one XT30
-pigtail and a switch.*
+The robot runs on one 3S pack and one controller board, the Waveshare **General
+Driver for Robots** (ESP32). The board carries all 17 servos on one serial bus. A
+Raspberry Pi 4B has its own 5 V buck. There is no custom electronics.
 
-**Circuit diagram** (pin-level: connectors, nets, wire colors):
+Related documents:
 
-<img src="circuit-diagram.svg" title="" alt="Circuit diagram" width="1112">
+- board connectors and sensor headers: [sensor-expansion.md §1](sensor-expansion.md#1-the-boards-connectors)
+- servo IDs, registers and calibration: [servo-map.md](servo-map.md)
+- the procedure from a bare board to the first arm: [bringup.md](bringup.md)
+- bench safety: [AGENTS.md](../AGENTS.md#bench-safety)
 
-**System block diagram** (physical layout view of the same thing):
+The firmware currently drives the 10-joint prototype (servo IDs 1–10). What this
+page says about 17 servos is the robot's design. Anything marked **open** is not
+settled yet.
 
-![Wiring diagram](wiring-diagram.svg)
+## The board
 
-**Connector field guide** (photos, pinouts, counts, measured hop lengths):
-[connector-guide.html](connector-guide.html) — self-contained, open in a browser.
+| | |
+|---|---|
+| board | Waveshare General Driver for Robots, rev 1.2. ESP32-WROOM-32UE module (ESP32-D0WD-V3), 4 MB flash |
+| outline | **65.01 × 56.01 mm**, holes on a 58 × 49 mm grid, per the dimension drawing. The wiki says "65 × 65 mm"; that is wrong |
+| power in | H1, a JST XH 2-pin connector (item 10 on the vendor's connector diagram), silkscreened "− +" |
+| input range | The wiki says "DC 7-13V". The rev 1.2 silkscreen says "DC 9-12.6V". This is unresolved. A 3S pack, used between 9.9 and 12.6 V, is inside both |
+| servo bus | H5 and H6 (item 13). UART1 at 1 Mbaud, GPIO 18 RX / 19 TX |
+| console | the USB-C port silkscreened `USB`: a CP2102N to UART0 at 115200, with DTR/RTS auto-program |
+| IMU | the on-board QMI8658C, 0x6B on I²C (GPIO 32/33) |
+
+- GPIO constants are in `firmware/main/board.h`.
+- The schematic and dimension drawing are in [datasheets/general-driver/](datasheets/general-driver/).
 
 ## Power path
 
 ```
-3S LiPo (XT30) ── inline switch ── CN1, DC-044 5.5×2.1 barrel jack
-                                        │   (the board's ONLY power input)
-                                        ├── U5 buck ── 5 V ── AMS1117 ── 3V3 logic
-                                        └── H2 / H3 pin 2 = servo bus V+
-                                            (same `6-12V` net, straight through)
+3S LiPo, 11.1 V nominal, 12.6 V full
+  │
+3S protection board ─────────── ≥ 15 A continuous, over-discharge cut-off ~3.0 V/cell
+  │
+inline fuse ─────────────────── ATM mini-blade, 15 A (10 A once the peak is measured)
+  │
+switch ──────────────────────── the E-stop that does not need the radio
+  ├── Pololu D24V50F5, 5 V / 5 A ── USB-C ── Raspberry Pi 4B        (tap point: open)
+  ├── bulk capacitor, 1000 µF ≥ 25 V low-ESR, across V+/GND
+  │
+H1  JST XH 2-pin inlet ──────── 3 A per contact; everything below is on the board
+  │
+AO4407 P-FET (reverse polarity) ── SW1 slide switch
+  │
+DC_IN ─┬── H5, H6 servo ports: all of the servo current
+       │
+       └── R11 0.01 Ω (INA219) ── VIN ── MP8759 5 V buck ── 5 V rail ── AMS1117 ── 3V3
+                                          (ESP32, on-board sensors, 40-pin header 5 V)
 ```
 
-**Pigtail correction, 2026-07-26:** this doc previously said "screw terminal /
-DC 5.5×2.1". The schematic shows **no screw terminal** — CN1 is the only power
-input. The XT30 pigtail must therefore terminate in a **5.5 × 2.1 mm barrel
-plug** (centre positive: CN1 pin 4 = VCC, pins 2/3 = GND). The board's other
-3-pin header, H1 (XH1.25), is **5 V / GND / LED-OUT** for addressable LEDs —
-it is an output, not an alternative power inlet. Do not feed the pack into it.
+The board side of this diagram is read off the vendor schematic. The parts above
+H1 are the robot's harness.
 
-- The battery is a 3S 850 mAh XT30 pack — BOM pick
-  [Tattu 75C](https://www.amazon.com/s?k=Tattu+850mAh+3S+75C+XT30&tag=tommwhipple-20) (decided
-  2026-07-11, re-sourced 2026-07-15; buy two, so one charges while one flies).
-  Any pack passing the `bom-by-vendor.md` spec filter works — **11.1 V, not
-  11.4 V HV**, which would exceed the servos' 12.6 V ceiling. It swaps
-  tool-free through the window in the rear tower wall: peel the belt, tug the
-  pull-ribbon, tilt the pack out; reverse to insert (lead-end toward whichever
-  y-pocket the XT30 pigtail lives in).
+### Pack
 
-- The **Servo Driver with ESP32** accepts 6–12.6 V, so it runs directly from
-  2S (7.4 V) or 3S (11.1 V, 12.6 V fully charged) — no regulator needed. Its
-  logic is powered from an onboard buck; the servo bus carries raw battery
-  voltage, which is what sets torque (the whole 2S/3S performance story in
-  [hardware-order.md](hardware-order.md)).
+The pack is a 3S LiPo, bought to a spec filter:
 
-- **Current sizing** (revised 2026-07-26 — the old "~10 A transient" was a
-  hand estimate of "2–3 joints near stall"; it is now computed). The env's
-  electrical model is calibrated to the ST3215 stall point (`_K_CU` =
-  3.75 W/(N·m)², i.e. 2.94 N·m → ~32 W → 2.9 A at 11.1 V), so bus current is
-  just watts over volts. `sim/current_budget.py` runs the referee's scenarios
-  and reports the distribution — `loco_v5t`, 10 joints, 11.1 V, hardware-claim
-  DR, 3 eps × 6 scenarios:
-  
-  |                    | peak  | p99   | **RMS**   | mean   |
-  | ------------------ | ----- | ----- | --------- | ------ |
-  | whole bus          | 6.8 A | 5.0 A | **1.4 A** | 0.85 A |
-  | worst single leg   | 4.0 A | —     | ~0.7 A    | —      |
-  | worst single joint | 3.0 A | —     | —         | —      |
-  
-  **RMS is the number that sizes copper and contacts**; the 6.8 A peaks are
-  millisecond gait transients that heat nothing. So: the real peak is ~1.5×
-  *lower* than the old estimate, and sustained draw is ~7× lower again.
-  XT30 (30 A) and 20 AWG are hugely comfortable; JST-terminated packs (~3 A)
-  stay ruled out on peak. Regenerate with
-  `.venv/bin/python sim/current_budget.py --run loco_v5t`.
+- 11.1 V nominal. Not 11.4 V "HV": a HV pack charges to 13.05 V, which is above the board's 12.6 V silkscreen.
+- 2200–2600 mAh.
+- ≤ 105 × 36 × 26 mm. That is the pelvis battery layer, `BATT` in `cad/v6/dimensions_v6.py`.
+- 150–190 g.
+- XT30 or XT60 connector, 25C or better.
 
-- **Does 6.8 A peak hurt the 5 A-rated driver board? No — the servo V+ is a
-  bare passthrough.** Confirmed from Waveshare's
-  [schematic](https://files.waveshare.com/wiki/Servo-Driver-with-ESP32/Servo_Driver_with_ESP32.pdf)
-  (read 2026-07-26): CN1 (DC-044 5.5×2.1) VCC and both servo headers H2/H3
-  pin 2 sit on the same `6-12V` net. **No fuse, no polyfuse, no e-fuse, no
-  sense resistor, no INA219, no protection FET anywhere in that path** — the
-  only other loads on the net are the U5 buck's Vin (logic) and C17/C22/C23.
-  So there is nothing to trip: the 5 A is the barrel jack's and the copper's
-  thermal rating, and 1.4 A RMS sits ~3.5× under it. **There is no current
-  sensing on this board at all**, which is why telemetry reports volts and
-  not amps.
+An RC LiPo has no protection circuit inside it. If a pack will sit for more than a
+few days, storage-charge it to 3.8 V/cell.
 
-- **Correction 2026-07-27 — there is no voltage ADC either.** This doc
-  previously credited the board with an "R18 560 K / R19 4.7 K divider into an
-  ADC". `firmware/main/board.h` establishes otherwise, and it is the grounded
-  account: **every ADC-capable pin is unconnected, the vendor firmware contains
-  no `analogRead()`, and the "V:" on the board's OLED is the SERVO's own
-  reported voltage** (STS register 62, 0.1 V units). So the robot's only
-  pack-voltage sense is the servo bus, at 0.1 V resolution. That is adequate
-  against the thresholds below, but note what it implies: **lose the bus and
-  you lose the voltage reading too** — the two are not independent.
+### Protection board
 
-- **The tighter constraint is the daisy chain, and it is not the board's
-  fault.** Each 3-pin lead carries the current of every servo downstream of
-  it, so the first lead in a leg sees the whole leg: **4.0 A peak, ~0.7 A
-  RMS**. Molex-5264-class contacts are ~3 A; the peak is over that, the RMS
-  is well under. Fine as built, but it is why the two board ports are used
-  one-per-leg (halving both) rather than chaining all 8–10 off one port —
-  a routing choice that is now also an electrical one.
+- 3S, ≥ 15 A continuous on the pack lead, over-discharge cut-off about 3.0 V/cell, on the balance leads.
+- It is the backstop that does not depend on the firmware, below battguard's 3.3 V/cell landing line ([Battery protection](#battery-protection)).
+- A UART "smart" BMS (JBD/Daly 3S class) in its place would report per-cell voltages. Whether that is wanted is **open**.
+- The protection board and the buck share a 60 × 8.4 × 25 mm pocket beside the pack (`PWR_BOARD`).
+- The pelvis bosses in that pocket are placeholders until both boards are in hand (`cad/v6/pelvis_v7.py`).
 
-- **Recommended cheap insurance**: a low-ESR **470–1000 µF** electrolytic
-  across servo V+/GND at the board. The 6-12V net carries only 10 µF + 0.1 µF
-  of local bulk, so a 6.8 A step is sourced through the pack leads and jack;
-  a bulk cap sources it locally, cutting rail sag and the transient the jack
-  actually sees. **Bench-verify** the peak with an inline shunt or clamp
-  during the first walks — the table above is sim-derived, not measured.
+### Fuse
 
-- The board's OLED shows measured bus voltage — but it faces the deck once
-  the board is mounted, so it's a **bench-side** tool (bring-up, servo IDs).
-  In operation the low-battery check is the bus voltage in the 10 Hz radio
-  telemetry ([control-channel.md](control-channel.md)). Land the robot by
-  **10.5 V on 3S** (3.5 V/cell) / 7.0 V on 2S. (A tower viewing window for
-  the OLED is filed as a future improvement.)
+- The fuse is a mini-blade (ATM) fuse in an inline holder on the pack lead.
+- It protects against a dead short. The board's own servo path has a reverse-polarity FET and a switch, but no fuse.
+- Start at 15 A. Drop to 10 A only after the real peak has been measured.
+- **Never use a polyfuse/PPTC.** It takes seconds to trip, and its series resistance sags the rail the rest of the time.
 
-- GoPro MAX is self-powered; zero wiring to the robot.
+### Switch
 
-## Battery protection
+- An inline switch on the pack lead. It is the robot's real E-stop ([control-channel.md](control-channel.md)).
+- The board's own SW1 switches `DC_IN` behind the inlet. The schematic gives no rating for it. The Waveshare FAQ says the bus-servo current "is controlled by a switch" ([Current](#current-the-open-constraint)).
 
-*Added 2026-07-27.* The question "do we need to guard against overdraw?" has
-three separate answers, and only one of them was a real gap.
+### Inlet
 
-**Overcurrent: no guard needed.** The current budget above is computed, not
-estimated: 1.4 A RMS against a 5 A jack rating. There is no operating
-scenario that overdraws this pack. Nothing to add.
+- H1 is a JST XH 2-pin connector, 2.50 mm pitch.
+- JST rates each contact at 3 A AC/DC at AWG #22, and the contacts take AWG #30–#22 (`JST-XH-connector-datasheet.pdf`).
+- A 20 AWG pack lead does not go into the housing. Splice it to a 22 AWG XH pigtail.
+- Pin 1 is V+ (`VDD_DC_JACK`) and pin 2 is GND. Pigtail wire colours are not standardised, so check against the "− +" silkscreen before the first plug-in.
 
-**Overvoltage: handled by BOM discipline.** 11.1 V nominal, never 11.4 V HV —
-a charged HV 3S is 13.05 V against the servos' 12.6 V ceiling. This is a
-purchasing rule, enforced by the [spec filter](bom-by-vendor.md#notes--caveats),
-not by a circuit.
+### Bulk capacitor
 
-**Over-discharge: this was the gap, and it is now closed in firmware.** Three
-facts stack up badly:
+- 1000 µF (470 µF at minimum), ≥ 25 V (a full 3S is 12.6 V), low-ESR, 105 °C. Mind the polarity.
+- `DC_IN` carries only 10 µF + 0.1 µF of local bulk (C23, C28). A servo current step is therefore sourced through the pack leads and the inlet.
+- The board has no free `DC_IN` connector, because both servo ports carry chains. The capacitor therefore goes across V+/GND on the inlet pigtail.
+- There it cuts rail sag, but it does not relieve the XH contact itself. Soldering it to `DC_IN` on the board would.
 
-- A Tattu-class RC LiPo has **no protection circuit inside it** (unlike a
-  protected 18650). A smart charger protects the charge direction only.
-- The STS3215's own under-voltage flag trips near its ~6 V operating floor —
-  far below the ~9 V (3.0 V/cell) where a 3S pack takes permanent damage. The
-  servos will cheerfully drain the pack to destruction.
-- Nothing in the power path has a fuse, polyfuse, e-fuse, or protection FET.
+### Pi supply
 
-So the only thing that can stop a discharge is the control loop.
-`firmware/components/battguard/` is that supervisor. It is pure (injected
-clock, like `linkproto::Watchdog`), so its behaviour is asserted on the host in
-`firmware/host/test_battguard.cpp` rather than discovered on a ruined pack:
+- A Pololu D24V50F5 (5 V, 5 A, 17.8 × 25.4 mm) drives a USB-C lead to the Pi 4B.
+- The Pi wants 3 A peaks. That is about 1.4 A from an 11.1 V pack (15 W before converter loss).
+- Where the buck taps the pack line is **open**. Tapping upstream of H1 keeps this current off the 3 A inlet contact.
+- The board has its own 5 V buck: an MP8759 labelled "5V-5A … 5V Power for RPi/Jetson nano", feeding the 40-pin header's 5 V pins. The robot powers the Pi from the D24V50F5 instead.
 
-| level   | 3S       | 2S      | what the robot does                                        |
-| ------- | -------- | ------- | ---------------------------------------------------------- |
-| `ok`    | > 10.5 V | > 7.0 V | normal operation                                           |
-| `warn`  | ≤ 10.5 V | ≤ 7.0 V | telemetry flag only — **you** land it                      |
-| `vland` | ≤ 9.9 V  | ≤ 6.6 V | stops travelling, crouches to the trained floor over 1.5 s |
-| `vsafe` | —        | —       | torque off, **latched**                                    |
+### What the INA219 measures
 
-Design points that are load-bearing:
+This was checked against the schematic and the firmware.
 
-- **Debounced, not instantaneous.** A trip needs 25 consecutive control ticks
-  (0.5 s at 50 Hz) below the line. The 6.8 A gait transients above sag the rail
-  through the pack leads and the barrel jack; a bare comparator would false-fire
-  mid-stride.
-- **Latched, and it must be.** An unloaded flat 3S rebounds well above 10.5 V
-  within seconds of torque dropping. A guard that cleared on recovery would sit
-  the robot down, watch the rail recover, stand it back up, and cycle until the
-  cells were ruined. Clearing it takes a pack swap plus `batt reset` (bench
-  mode) or a reboot.
-- **The landing stays in-distribution.** It ramps the crouch-height command to
-  `walker_env`'s `crouch_range[0]` (0.6) — the lowest stance the deployed policy
-  was actually trained to hold — rather than cutting torque and letting a
-  standing biped topple. It also zeroes vx/wz, so an operator holding a live
-  walk command cannot override it.
-- **A dropped bus frame is not 0 V.** Voltage arrives on servo feedback, so a
-  tick where no servo answered reports 0; the guard treats that as "no data"
-  and neither counts it nor clears the count.
-- **It is not independent of the bus.** Per the correction above, the voltage
-  sense *is* the servo bus. This is the argument for the hardware alarm below
-  rather than against the firmware guard.
+- **Wiring.** The INA219 (U2, address 0x42) has IN+ on `DC_IN` and IN− on `VIN`, across R11 (0.01 Ω).
+- **What `VIN` feeds.** Only the board's MP8759 buck, and through it the 5 V rail and the 3V3 regulator.
+- **Where the servos tap in.** H5 and H6 tap `DC_IN` upstream of R11.
+- **What it measures.** Pack voltage at `VIN`, behind the reverse-polarity FET, SW1 and the shunt. That reading does not depend on the servo bus and is valid with torque released. It also measures the current into the board's own logic supply.
+- **What it does not see.** None of the servo current. None of the Pi's current, which comes from its own buck.
+- **The firmware does not read it.** `board::kPowerAddr` is marked unused, `imu scan` labels 0x42 "(unused)", and battguard reads the servos' register 62 instead.
+- **Open:** reading the INA219 in firmware, and getting pack voltage to the Pi for a low-battery shutdown.
 
-**Still recommended in hardware** — see
-[bom-supplemental.md](bom-supplemental.md) for the shopping list:
+## Current: the open constraint
 
-- A **balance-lead low-voltage alarm** (~$5). This is the one to buy first. It
-  is independent of the firmware — it still sounds if the ESP32 hangs or the
-  servo bus drops, which is also how the guard goes blind. It also monitors
-  **per cell**, which pack voltage cannot: one weak cell can sit at 2.9 V while
-  the pack still reads a healthy 10.6 V.
-- An **inline fuse** (10–15 A) in the XT30 pigtail. Not for operating current —
-  for the dead-short case, where an 850 mAh 75C pack can deliver ~60 A into a
-  pinched or chafed lead. A robot that falls over repeatedly, with servo leads
-  under strain, is exactly where that happens.
-- The **470–1000 µF bulk cap** already recommended above. It cuts rail sag under
-  the 6.8 A step, which incidentally makes the guard's trip less twitchy.
+The Waveshare wiki FAQ says the bus-servo current "is controlled by a switch, with
+a maximum current of 5A for long-term operation". For ST3215s that means "up to 5
+servos (ensuring that these 5 servos are not stalled simultaneously)". All of the
+servo current crosses H1 (3 A per contact), the AO4407 and SW1.
+
+- **Per servo** (ST-3215-C018 sheet):
+  - 2.7 A at stall.
+  - 180 mA running with no load.
+  - 30 mA idle.
+  - Over-current protection turns the output off after more than 2 A for 2 s.
+- **17 servos on this path is an open question.** The bus current has been neither computed nor measured.
+- The bus timing is open too. Twelve servos take ≈ 3.4 ms of the 20 ms tick ([design record](design-v6/2026-09-13-design-record.md) §4.5); nobody has computed the figure for 17.
+
+The answer has to come from two places. The first is simulation, before the first
+powered floor run:
+
+- `walker_env` prices each joint's electrical power as P = max(τω, 0) + K_CU·τ², with `_K_CU` = 3.75 W/(N·m)².
+- K_CU is calibrated so that the 2.94 N·m stall draws ~32 W, i.e. 2.7 A at 12 V. Bus current is then ΣP / V.
+- `sim/current_budget.py --run <run> [--volts 10.5]` drives a trained policy through the referee's six command scenarios. It reports peak, p99, RMS and mean current for the whole bus, the worst leg and the worst joint.
+- The script needs a policy trained on the robot's plant, and none exists yet.
+- Until one does, the same formula has to be applied to the torque traces of the Gate D walk (`sim/gate_no3250.py walk`) and the scripted get-up. That has not been done.
+
+The second is a bench measurement:
+
+- Put an inline watt meter (≥ 60 A, with peak hold) on the pack lead during the floor sequence ([bringup.md §6](bringup.md#6-staged-hardware-gates)).
+- A sim figure is a ranking, not a measurement.
+
+How to read the numbers:
+
+- **RMS** sizes copper and contacts.
+- **The peak** sizes the fuse and the brown-out margin. The FAQ's "not stalled simultaneously" is about peaks.
+
+For scale, here is the same method on the 10-servo prototype's walking policy.
+These are sim-derived figures and were never measured:
+
+| | peak | p99 | RMS | mean |
+|---|---|---|---|---|
+| whole bus | 6.8 A | 5.0 A | 1.4 A | 0.85 A |
+| worst leg | 4.0 A | — | ~0.7 A | — |
+| worst joint | 3.0 A | — | — | — |
+
+The robot's get-up loads several servos at once. With P × 4 on the rolls and knees,
+the shoulders reach 74 % of stall, and the knees and hip pitches about 52–53 %
+(design record §14.2).
+
+If the budget comes out over the limit, two options have been named so far. The
+first is to feed `DC_IN` directly, bypassing the XH inlet and SW1. The second is to
+keep the scripted motions from loading many servos at once. Neither is chosen.
 
 ## Servo bus
 
-- 3-pin daisy chain, half-duplex TTL at **1 Mbaud** (driver board UART1,
-  GPIO 18/19). Pin order on every connector (Molex-5264-style): **1 GND
-  (black) · 2 V+ (red) · 3 DATA (white/blue)**. Every ST3215 has two
-  identical, internally-paralleled ports, so chains just hop case to case
-  with the included 150 mm leads.
+- **The bus.**
+  - One bus: UART1 at 1 Mbaud, half-duplex TTL, GPIO 18 RX / 19 TX.
+  - The direction is switched in hardware off the TX line (SN74LVC1G125/126 buffers). There is no direction GPIO.
+  - The firmware never sees its own transmission. A reply can start microseconds after the last stop bit.
+- **Pinout.**
+  - H5 and H6 carry the same three nets: pin 1 `DATA`, pin 2 `DC_IN` (V+), pin 3 GND. The silkscreen reads "D V G".
+  - The servo's 5264-3P lead numbers its pins the other way: 1 GND, 2 V+, 3 signal (C018 sheet). The middle pin is V+ either way.
+- **Chaining.** Every ST3215 has two paralleled ports, so a chain hops from case to case on the stock 150 mm leads.
+- **The first lead of a chain carries the whole chain's current.**
+  - A Molex-5264-class contact is roughly a 3 A part. No connector datasheet is mirrored here, so that figure is unverified.
+  - The chains are split one per port for this reason.
+  - With 17 servos and two ports, at least one chain carries nine or more servos, unless a splitter is added. None is specified.
+- **Open:**
+  - The robot's chain layout: which servos go on which port, and in what order.
+  - The routed lead length of each hop on the robot's CAD.
 
-- Per-servo current (12 V class): **2.7 A stall, 0.18 A idle** — the ~10 A
-  transient budget in the circuit diagram comes from 2–3 joints near stall
-  simultaneously in the gauntlet's worst gaits.
+## Battery protection
 
-- The board's two bus ports are **electrically the same bus** — we use one
-  per leg purely for cable routing:
-  
-  - **Port A → left leg**: ID 1 hip roll → ID 2 hip pitch → ID 3 knee → ID 4 ankle
-  - **Port B → right leg**: ID 5 hip roll → ID 6 hip pitch → ID 7 knee → ID 8 ankle
+The pack has three layers of protection against over-discharge:
 
-- **ID order needs a permutation table** (corrected 2026-07-26 — this
-  previously claimed the action vector "maps to IDs 1–8 with no permutation
-  table", which was true only on the retired 8-DOF plant). On the deployed
-  10-DOF v3yaw plant the sim's action order is
-  `[L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, R_hip_yaw, R_hip_roll,
-  R_hip_pitch, R_knee, R_ankle]` — action 0 is bus **ID 9**, not ID 1. The
-  physical ID map above is unchanged; the firmware carries
-  `obs::kServoId = {9,1,2,3,4,10,5,6,7,8}`, generated from the sim and
-  covered by the host tests, so the two can't drift by hand.
+1. **The protection board** cuts off at about 3.0 V/cell. This is hardware and does not depend on the firmware.
+2. **battguard** (`firmware/components/battguard/`) is the firmware supervisor. It is pure, and its behaviour is asserted on the host in `firmware/host/test_battguard.cpp`.
+3. **The operator** lands the robot by 10.5 V. Pack voltage arrives in the 10 Hz telemetry (`vbat`, mV) and from `volt` on the CLI.
 
-- Servos ship with ID 1: at bring-up, connect **one at a time** and assign
-  IDs via the board's web UI (AP mode, `192.168.4.1`), then chain them.
-  Two same-ID servos on the bus fail to enumerate.
+Nothing else stops a discharge. The servos' own under-voltage protection sits at 4 V
+(C018 sheet), far below the ~9 V (3.0 V/cell) at which a 3S pack is damaged.
 
-- **Segment lengths** (worst pose over the full ROM, measured on the routed
-  paths in `cad/dress.py`, slack loops included — 2026-07-16):
-  
-  | Hop                  | Worst routed                                                                                                                                                                                                                         | Lead                                                                                                                        |
-  | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-  | board → hip-yaw      | ~50 mm (straight down from the tower into the yaw **connector deck hole** over each seat — the servo's two idler-face plugs poke UP through it; connector correction 2026-07-24)                                                     | stock 150 mm (coil excess in the tower)                                                                                     |
-  | hip-yaw → hip-roll   | ~85 mm incl. the ~15 mm service loop across the ±45° yaw sweep (back out the same deck hole, over the deck rear edge, down the back to the roll plugs sticking rearward out of the carrier's opened rear wall at the `SV_CONN` band) | stock 150 mm                                                                                                                |
-  | hip-roll → hip-pitch | **170 mm**                                                                                                                                                                                                                           | **≥200 mm extension required** (BOM item 19) — crosses both the roll and hip-pitch joints; longest at the knee-flexion pose |
-  | hip-pitch → knee     | 111 mm                                                                                                                                                                                                                               | stock 150 mm (~35 % slack)                                                                                                  |
-  | knee → ankle         | 82 mm                                                                                                                                                                                                                                | stock 150 mm (worst at ankle −40°)                                                                                          |
-  
-  (v3yaw 2026-07-23: the old "board → hip-roll 33 mm" hop became the two
-  hops above when hip yaw entered the chain — see docs/hip-yaw-study.md §6
-  for the routing openings, corrected 2026-07-24 when the STS3215's ports
-  were confirmed on the idler-side face beside the disc (`SV_CONN` in
-  cad/dimensions.py; the old `WIRE_CHASE_1/2` cuts aimed at ports that
-  don't exist and are deleted). The two ~mm figures are estimates from
-  that geometry; re-measure via dress.py routed paths — and confirm the
-  exact port offset on a physical servo — before ordering leads. Bus grows to 10 servos, IDs 9/10 =
-  L/R hip yaw; sync-read 3.5 → ~4.3 ms, still inside the 20 ms tick.)
-  
-  The routed paths already include the service loops, so the stock-lead
-  margins above are true flex margin, not taut-string numbers. An earlier
-  guess here that shin→ankle was the long run was wrong — it's the shortest
-  joint-crossing hop.
+battguard's levels are below. The firmware builds the guard with the 3S thresholds;
+the 2S constants exist in `guard.h`.
 
-## IMU (torso attitude feedback)
+| level | 3S | 2S | what the robot does |
+|---|---|---|---|
+| ok | > 10.5 V | > 7.0 V | normal |
+| warn | ≤ 10.5 V (3.50 V/cell) | ≤ 7.0 V | a telemetry flag only: **you** land it |
+| land (`VLAND`) | ≤ 9.9 V (3.30 V/cell) | ≤ 6.6 V | zeroes vx, vy, wz and lift, and ramps the crouch command to 0.60 over 1.5 s |
+| safe (`VSAFE`) | 1.5 s after land | | torque off, latched |
 
-**Part correction, 2026-07-28:** this section described a **BNO055 at 0x28**.
-That was superseded on 2026-07-22 — the part in the BOM and the firmware is a
-**GY-BNO085** (Teyleten, [B0CL26J81F](https://www.amazon.com/dp/B0CL26J81F?tag=tommwhipple-20),
-[item 18](bom-sourced.md)), a different chip with a different protocol
-(SH-2 sensor-hub, not a register map) at a different address (**0x4A**/0x4B).
-See [firmware-design.md §3](firmware-design.md). `assembly.md` §9b and
-`hardware-order.md` still say BNO055 and are stale in the same way.
+These design points carry load:
 
-**Pinout:**
+- **Debounced.** A trip needs 25 consecutive ticks (0.5 s at 50 Hz) at or below the line. Gait transients sag the rail through the pack leads and the inlet, so an instantaneous comparator would false-fire mid-stride.
+- **Latched.** An unloaded flat 3S pack rebounds above 10.5 V within seconds of torque dropping. A guard that cleared on recovery would cycle the robot up and down on a ruined pack.
+  - To clear it, swap the pack, then run `batt reset` (bench mode) or reboot.
+  - While it holds, `home` refuses.
+- **Landing stays in distribution.** 0.60 is `walker_env`'s `crouch_range[0]`, the lowest stance the deployed policy was trained to hold. The guard does not cut torque on a standing biped.
+- **A dropped bus frame is not 0 V.** The voltage comes from servo feedback, specifically register 62 of the first servo that answers each tick. A tick in which no servo answered counts as "no data".
+- **It guards only while armed.** The benched loop reads no servos. On the bench, only the protection board guards the pack.
+- **It shares the bus's failure.** Lose the bus and the guard goes blind. The INA219 would remove that coupling, and it is not read.
 
-![IMU pinout: GY-BNO085 breakout to the driver board](imu-pinout.svg)
+The advisory landing voltage (`board::kLandVoltage3s` = 10.5 V) and `battguard::kWarn3S` (105 dV) are the same number, and they must agree.
 
-| Breakout pin | Board side               | Wire  | Note                                              |
-| ------------ | ------------------------ | ----- | ------------------------------------------------- |
-| `VIN`        | 3V3 (AMS1117 out)        | red   | **not 5 V** unless the carrier's regulator is confirmed |
-| `GND`        | any GND pad              | black | common ground                                     |
-| `SDA`        | **GPIO 21**              | blue  | shared with the OLED                              |
-| `SCL`        | **GPIO 22**              | yellow | shared with the OLED                             |
-| `RST` `INT` `CS` `SDO` `P0` `P1` | — | —   | leave unconnected for I2C; see the figure's notes |
+## Control path
 
-- **There is no I2C header on the driver board — these four wires are solder
-  joints.** Read off Waveshare's schematic (URL in `firmware/main/board.h`,
-  re-checked 2026-07-28): the board's only connectors are **CN1** (barrel),
-  **H1** (5V / GND / **LED-OUT**, the WS2812B expansion output), **H2/H3**
-  (servo bus) and USB-C. None of them expose I2C or 3V3, and no GPIO is broken
-  out. H1 pins 1–2 are the one solder-free 5 V + GND source, usable for `VIN`
-  *only* if a bench check confirms the carrier regulates it — **pin 3 is the
-  output of the second WS2812B, not a GPIO**, so it cannot carry a signal.
-  (`connector-guide.html` says the jumpers plug onto "the board's GPIO header";
-  no such header exists, and that card needs the same correction.)
+| link | rate | role |
+|---|---|---|
+| ESP32 ↔ servos, UART1 | 1 Mbaud | sync-write targets and read feedback, every 20 ms tick |
+| commander ↔ ESP32, Wi-Fi UDP | 20 Hz commands in (port 4210), 10 Hz telemetry out (4211) | the control channel: intent in, state out ([control-channel.md](control-channel.md)) |
+| laptop ↔ ESP32, USB-C `USB` | 115200 | flashing, the CLI, `obsdump` |
+| Pi ↔ ESP32 | — | **open**; the options are in [sensor-expansion.md §3](sensor-expansion.md#3-perception-the-pi-and-the-head-camera) |
 
-- **The solder targets are the ESP-32S module's castellated pads**, on the
-  **back** of the board (the same face as the PH1.25-3P LED seat — the front
-  carries the OLED, USB-C, barrel jack and both servo ports):
+The 50 Hz loop and the policy both run on the ESP32. The radio carries a command,
+never joint angles. When the link dies, the robot decays to the trained stand, then
+releases torque.
 
-  ![Waveshare schematic, M1 module, with the four solder pads marked](imu-solder-pads.png)
+## Diagrams
 
-  | Net | Module pin | Name     |
-  | --- | ---------- | -------- |
-  | SDA | **33**     | `GPIO21` |
-  | SCL | **36**     | `GPIO22` |
-  | GND | **38**     | `GND`    |
-  | 3V3 | **2**      | `VDD33`  |
+`docs/wiring-general-driver.svg` shows the 10-servo prototype harness on this board:
 
-  33 / 36 / 38 are on one edge within six pads of each other; pin 2 is on the
-  opposite edge. **Minimum job is two joints** — SDA and SCL — if `VIN` and GND
-  come off H1 instead.
+- an 850 mAh pack, a GoPro and a BNO085 on P1;
+- no protection board, buck or Pi;
+- a port and ID layout that does not match the firmware's.
 
-- **Identify the pads with a meter, not by counting.** Before soldering, buzz
-  continuity from the candidate pad to a known point: SDA and SCL each go to
-  the OLED and to their 4.7 kΩ pull-up (**R16** = SCL, **R17** = SDA, both to
-  3V3), and GND to the barrel jack sleeve. Miscounting pads puts 3V3 on a
-  flash pin.
-
-- **Do not add pull-ups.** The board already pulls SDA/SCL up to 3V3 with
-  4.7 kΩ beside the OLED. Address **0x4A** (SA0 low) or 0x4B (SA0 high) — no
-  conflict with the OLED's 0x3C, and the firmware tries both.
-
-- Mounts on the printed **`imu_carrier`** sandwiched between the tower
-  top and the gopro_base on the same 4 screws (now M3×12): 4× M2.5×8 into
-  bosses on the board's true 21.59 × 15.24 hole pattern — see
-  [assembly.md §9b](assembly.md). Mounted long-axis-on-x; orientation is set
-  in the SH-2 driver at bring-up (the BNO085 has no `AXIS_MAP_CONFIG` register
-  — that was the BNO055's mechanism) to match the silkscreen arrows to the
-  robot frame (+x forward, +z up).
-
-- Why: the policy's observation vector needs the torso **up-vector and
-  angular velocity** — servo encoders only cover the joints. The BNO085
-  does sensor fusion on-chip and emits the rotation vector directly, so the
-  ESP32's 50 Hz loop just reads it.
-- Torso *linear velocity* and *height* have no direct sensor — see the
-  observation-ablation results in DESIGN.md for how much they matter.
-
-## Control path (and where latency lives)
-
-| Link                   | Rate                        | Role                                                                                                               |
-| ---------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Laptop ↔ ESP32 WiFi    | 20 Hz cmd / 10 Hz telemetry | **the control channel**: high-level `(vx, yaw_rate)` intent + telemetry — [control-channel.md](control-channel.md) |
-| Laptop ↔ USB-C (UART0) | 115200                      | flashing, serial bridge, tethered debug                                                                            |
-| ESP32 ↔ servos (UART1) | 1,000,000                   | position commands + state readback                                                                                 |
-
-The latency work in DESIGN.md bears directly on this: at 115200 baud a full
-8-servo command + state readback cycle eats most of a 20 ms control tick,
-and WiFi adds jitter on top. The servo bus itself at 1 Mbaud is ~10× faster
-than the link to the laptop. So the plan of record is the one the latency
-sims validated: **run the 50 Hz policy loop on the ESP32**. No parts change —
-the ESP32 on the order sheet does both jobs.
-
-That decision is also what makes the robot **untethered**: with the policy
-loop on-board, the radio never carries joint angles. It carries only the
-`(vx, yaw_rate)` command the policy already consumes, 14 bytes at 20 Hz, so a
-dropped packet costs staleness rather than a bad servo target — and a link
-that goes quiet decays to the zero command, which is a *trained* stand
-(`cmd_stand_prob`), not a bolted-on emergency pose. USB-C is for flashing and
-debug; nothing about operating the robot needs it. Protocol, failsafe
-timings, and the sim-verified loss measurements are in
-[control-channel.md](control-channel.md).
+It does not describe the robot, and redrawing it is **open**.
 
 ## Bring-up checklist
 
-1. Bench-power the bare board (no servos), confirm OLED + web UI.
-2. Set servo IDs 1–8 one at a time via web UI; label each case.
-3. Chain one leg at a time; confirm enumeration count on the OLED.
-4. Torque-off ("Release") all servos, assemble, then use "Set Middle
-   Position" at the CAD-neutral pose before first powered stand.
-5. Bring up the command link before the first walk: with the robot on a
-   stand (feet off the floor), run `link/commander.py --host <ip> --source
-   script --script stand` and confirm telemetry comes back, then walk the
-   watchdog through its states — kill the commander and check the servos
-   release ~5 s later. [control-channel.md](control-channel.md).
+The full procedure is [bringup.md](bringup.md). In short:
+
+1. Flash over the `USB` port. USB powers the logic but not the servos ([§1](bringup.md#1-flash-and-first-power)).
+2. First power through the XH inlet, current-limited ([§1](bringup.md#1-flash-and-first-power)).
+3. Set the servo IDs with one servo on the bus at a time, and read the gains back ([§2](bringup.md#2-servo-ids-and-gains)).
+4. At the assembled neutral pose, run `middle` per servo, then `cal zero`, `cal dir` and `cal save` ([§3](bringup.md#3-calibrate-zeros-directions-imu-clock)).
+5. Run the torque drills: release, reset, and the watchdog decay ([§4](bringup.md#4-torque-drills)).

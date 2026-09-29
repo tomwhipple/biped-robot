@@ -27,7 +27,7 @@ extern "C" {
 //     slot = bus_id - 1              (bus IDs are 1..10 on this robot)
 //     joint j  <->  slot obs::kServoId[j] - 1
 //
-// kServoId is {9,1,2,3,4,10,5,6,7,8}, so slot 0 is servo ID 1 == L_hip_roll
+// kServoId is {10,5,6,7,8,9,1,2,3,4}, so slot 0 is servo ID 1 == L_hip_roll
 // == joint 1, NOT joint 0. This is the permutation docs/wiring.md wrongly
 // called an identity, and putting it on the C boundary is what makes it
 // testable end to end. sil_spec() reports "sensor_index":"bus_id-1" plus the

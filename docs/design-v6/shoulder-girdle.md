@@ -1,5 +1,7 @@
 # The shoulder girdle (2026-09-19): rotating the servos into the torso
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
+
 Tom, 2026-09-19:
 
 > we need to revisit the arm design... looks like the arms are just bolted on.
@@ -275,7 +277,7 @@ Unchanged in kind, shorter in practice:
 | the part | `cad/v6/shoulder_girdle_v6.py` → `stl/`, `step/` |
 | whole robot with arms, STEP for FreeCAD | `cad/v6/step/assembly_v6_arms.step` |
 | whole robot, three views | `cad/v6/renders/assembly_v6_arms.png` |
-| the girdle alone | `cad/renders/shoulder_girdle_v6.png` |
+| the girdle alone | `cad/v6/renders/shoulder_girdle_v6.png` |
 | fly-in filmstrip | `cad/v6/renders/assembly_v6_flyin_arms_strip.png` |
 | full ROM + interference sweep | `docs/design-v6/girdle_check_assembly.txt` |
 | walk gate, x=0 vs aft | `docs/design-v6/getup_search_hipplane_*.txt` |

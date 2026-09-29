@@ -1,236 +1,250 @@
 # Software-in-the-loop (SIL) harness — design
 
-*2026-07-30, task: run the REAL control code against the simulated plant.
-Sensors flow sim → firmware logic; firmware output drives the simulated
-servos. Every sim-to-real translation layer gets exercised and SCORED by
-the same CPU referee that grades policies.*
+*The contract between the simulated plant and the firmware's own control
+code. How to build, run and read it: [sim/sil/README.md](../sim/sil/README.md).
+Where it sits in the pipeline: [training.md](training.md) §9.*
 
 ## Why
 
-The bench found an entire class of bugs the python stack can never see:
-byte order (the vendor UI's SC/ST swap), the kServoId permutation that
-wiring.md wrongly called an identity, calibration zeros, swish-vs-tanh in
-the MLP, the 147-not-129 obs width. The SIL harness makes each of those a
-red test on a laptop instead of a robot walking into a wall.
+The Python stack cannot see a whole class of deployment bugs: byte order,
+the action-index → bus-ID permutation, calibration zeros and signs, the
+network's activation function, the observation width. SIL runs the
+firmware's real control code against the CPU referee plant, so each of
+those is a red test on a laptop instead of a robot walking into a wall, and
+the same referee that grades policies grades the firmware stack.
 
 ## Loop topology (one 20 ms tick)
 
 ```
-walker_env (CPU referee plant, hardware-claim DR)
-  |  SERVO-SIDE VIEW: per-joint angle -> calibrated ticks (uint16,
-  |    per-joint zero_steps/dir, 4096/rev quantization); velocity ->
-  |    signed steps/s. IMU: up-vector + gyro through the env's mounting
-  |    error + noise. Exactly what SYNC READ + the IMU driver deliver.
+walker_env (CPU referee plant)
+  |  SERVO-SIDE VIEW: joint angle -> calibrated ticks (uint16, per-joint
+  |    zero_steps/dir, 4096/rev); velocity -> register-58 sign-magnitude
+  |    steps/s. IMU: up-vector + gyro taken from the env's own obs frame
+  |    (its mounting error and noise included). Exactly what SYNC READ and
+  |    the IMU driver deliver.
   v
-struct SilSensors                                  [C boundary, below]
+struct SilSensors                                   [C boundary]
   v
-libctrl_sil -- REAL CODE, no sim knowledge:
-  stepsToAngle(Calibration) -> obs::assembleFrame -> obs::History
-  -> gait clock -> policy::forward (exported weights + obs normalizer)
-  -> action -> target angles -> angleToSteps(Calibration)
-  -> per-BUS-ID targets (kServoId order)
+libctrl_sil -- the firmware's code, no sim knowledge:
+  stepsToAngle -> gait clock -> obs::assembleFrame -> obs::History
+  -> policy::forwardNet (exported weights + normaliser)
+  -> actionToAngles -> CommandShaper -> angleToSteps + goal speed
+  -> per-bus-ID targets
   v
-struct SilTargets                                  [C boundary, below]
+struct SilTargets                                   [C boundary]
   v
-harness: permute bus IDs back to sim joint order -> invert the env's
-  action->target map -> env.step(action). Driver/eval_precision scenarios
-  run UNCHANGED, so referee claims apply to the SIL stack directly.
+harness: bus order back to joint order -> ticks to angles -> invert the
+  env's action map -> env.step(action). The eval_precision scenarios run
+  unchanged, so referee results apply to the firmware stack directly.
 ```
 
-## C ABI (firmware/host/sil_lib.cpp -> libctrl_sil.so/.dylib)
+## C ABI (`firmware/host/sil.h` → `libctrl_sil.{dylib,so}`)
 
 ```c
-typedef struct {            // what the bus + IMU actually deliver
-    uint16_t pos_ticks[10]; // present position, reg 56 semantics, BUS-ID
-                            //   order kServoId = {9,1,2,3,4,10,5,6,7,8}
-    int16_t  vel_ticks[10]; // steps/s, sign-magnitude BIT15 like reg 58
-    float    up[3];         // IMU up-vector, body frame
+typedef struct {            // what the bus + IMU deliver
+    uint16_t pos_ticks[10]; // present position, register 56 semantics, bus-ID order
+    int16_t  vel_ticks[10]; // present speed: the register-58 sign-magnitude
+                            //   word (sign in bit 15), carried in an int16
+    float    up[3];         // IMU up-vector
     float    gyro[3];       // rad/s
     float    cmd[7];        // command channels (harness-supplied)
 } SilSensors;
 
 typedef struct {
-    uint16_t goal_ticks[10];  // SYNC WRITE view, BUS-ID order (C2-shaped
-                              //   when the shaper is on -- the boot default)
-    float    action[10];      // the raw [-1,1] policy action (diagnostics)
-    float    obs[147];        // the assembled obs (diagnostics/golden)
-    uint16_t goal_speed[10];  // sil_abi 2: per-servo reg-46 goal speed the
-                              //   SYNC WRITE carries; 0 when shaping is off
+    uint16_t goal_ticks[10];  // SYNC WRITE view, bus-ID order; shaped when the
+                              //   shaper is on (the default, as deployed)
+    float    action[10];      // the raw [-1, 1] policy action (diagnostics)
+    float    obs[147];        // the assembled observation (diagnostics, goldens)
+    uint16_t goal_speed[10];  // per-servo register-46 goal speed, bus-ID order;
+                              //   0 when shaping is off
 } SilTargets;
 
-int  sil_init(const char* weights_path, const char* cal_path,
-              float gait_freq_hz);       // 0 on success
-void sil_reset(void);                    // history refill + clock zero
+int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in weights
+              const char* cal_path,       // JSON; NULL/"" = nominal (2048, +1)
+              float gait_freq_hz);        // <= 0 = the firmware's 1.5 Hz; 0 on success
+void sil_reset(void);                     // history refill + clock zero, like an arm
 int  sil_tick(const SilSensors* in, SilTargets* out);
-const char* sil_spec(void);              // obs_spec hash + dims, drift check
-void sil_set_shaper(float pole_hz);      // sil_abi 2: mirror of CLI `shape`;
-                                         //   0 = raw targets; sil_init resets
-                                         //   it to the firmware boot default
+const char* sil_spec(void);               // JSON: dims, offsets, kServoId, layout hash,
+                                          //   loaded weights, "sil_abi": 2
+const char* sil_last_error(void);         // text of the last failure, never NULL
+void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw targets;
+                                          //   sil_init resets it to the firmware default
 ```
 
-sil_abi 2 (2026-08-02, firmware-design §7c): the act path shapes targets
-through `obs::CommandShaper` and streams per-servo goal speeds, and the
-library mirrors it because it compiles the same component sources. The
-python probe resolves array-order conventions with `sil_set_shaper(0)` (the
-raw map is the invertible reference) and restores the pole afterwards, so
-closed-loop scoring always runs against the as-deployed shaped plant.
+- **Array order is bus ID**: `slot = bus_id − 1`, and joint *j* sits in slot
+  `kServoId[j] − 1`. With the generated `kServoId = {10, 5, 6, 7, 8, 9, 1, 2,
+  3, 4}`, slot 0 is servo 1, which is joint 6 (`R_hip_roll`). Putting the
+  permutation on the boundary is what makes it testable end to end.
+  `sil_spec()` reports the convention and the permutation, and the Python
+  side **probes** the built library rather than assuming either (see the
+  README).
+- **The widths are the prototype's**: every array is static-asserted against
+  `obs_spec.h` in `sil_lib.cpp`, so a retrain that changes a dimension breaks
+  the build rather than silently reinterpreting bytes. The 17-joint port
+  (issue #81) changes this ABI.
+- `sil_abi` 2 is the current ABI: goal speeds in `SilTargets` and
+  `sil_set_shaper()`, mirroring the firmware's command shaper
+  ([firmware-design.md](firmware-design.md) §5.3). The harness resolves
+  array order with the shaper off (the raw map is the invertible reference)
+  and restores the pole, so closed-loop scoring runs against the shaped plant
+  as deployed.
 
-Rules: the library links obs::, policy::, and the actuation/Calibration
-code VERBATIM. No `#ifdef SIL` forks inside components. If a component
-cannot be reused without modification, that is a finding to REPORT (and
-minimally fix), not to design around.
+## Rules
 
-## Weight export (tools/export_policy_weights.py)
+- **The components are linked verbatim.** `obs/`, `policy/` and the
+  actuation and calibration code are the firmware's own sources; there is no
+  `#ifdef SIL` inside a component. A component that cannot be reused
+  unmodified is a finding to report and fix minimally, not a thing to design
+  around.
+- **The tick sequence mirrors `main/ctrl_task.cpp`'s acting path line by
+  line**: advance the gait clock (speed-scaled, frozen at a plain stand, as
+  the spec says), assemble the frame, refill the ring on the first tick after
+  a reset, build the observation, run the policy, then push the frame and
+  latch `prev_action`, then shape. Getting that order wrong shifts the
+  history by one tick, which no unit test of a single piece can see.
+- **Not mirrored**, because they mean nothing without hardware: the bus
+  transaction, the IMU driver, the pack guard, the link watchdog, the torque
+  state machine and the takeover ramp. The watchdog's hold-last-target
+  behaviour is a harness-side test (pyramid item 4).
+- The shared library is built **without** sanitizers (a sanitized dylib
+  cannot be `dlopen`ed into a stock Python); the same translation units are
+  built with ASan/UBSan into `test_sil`, which feeds the parsers adversarial
+  input.
 
-params.pkl (brax) -> `<run>.silw`: little-endian f32 blob + JSON sidecar
-{layer_sizes, activation:"swish", obs_dim, act_dim, normalizer:{mean,std}}.
-The obs normalizer (brax running_statistics) MUST ship with the weights --
-the firmware net consumes NORMALIZED obs. Exporter asserts activation and
-dims against the run config.
+## Weight export (`tools/export_policy_weights.py`)
 
-## Calibration file (cal file for sil_init)
+`params.pkl` (brax) → `sim/sil/weights/<run>.silw` plus a JSON sidecar
+`<run>.silw.json`. The canonical `.silw` is a self-describing binary: `SILW`
+magic, dimensions, activation, layer sizes, then the normaliser mean and std
+and every layer's weights and biases (layout in the README). The sidecar
+carries `layer_sizes`, `activation: "swish"`, `obs_dim`, `act_dim`,
+`normalizer.{mean,std}` and a `blob` block with the byte count and sha256.
 
-JSON: per-joint {bus_id, zero_steps, dir}. The harness generates the
-NOMINAL one (zero_steps=2048, dir from the sim sign convention vs servo
-convention) and one PERTURBED one (random zeros) for the roundtrip test.
+- **The observation normaliser must ship with the weights**: the firmware
+  net consumes normalised observations.
+- The exporter asserts activation and dimensions against the run's config.
+  The C reader accepts the headed blob or a headerless `--raw` one,
+  cross-checks the sidecar when present, and errors on disagreement.
+- The exporter also writes golden vectors to `sim/sil/golden/` unless given
+  `--no-golden`. Those files are committed and consumed by the firmware host
+  tests, so only a deliberate re-point should overwrite them.
+- `.silw` blobs are gitignored and regenerated from the run's `params.pkl`;
+  sidecars, golden vectors and calibration files are committed.
 
-## Test pyramid (all must pass)
+## Calibration file (for `sil_init`)
 
-1. **Unit (ctest, firmware/host)**: angle->ticks->angle roundtrip |err| <=
-   one tick quantum under both cal files; permutation is kServoId exactly;
-   obs frame vs frozen vectors (existing) plus NEW vectors generated from
-   walker_env states; policy forward vs brax golden pairs, atol 1e-5.
-2. **Boundary (pytest, sim/sil)**: harness's servo-side view roundtrips
-   against walker_env's joint state; IMU synth matches env obs channels.
-3. **Closed loop (pytest, sim/sil)**: stand_10s, line_1m, goal_home via
-   the SIL adapter on loco_v6creep (complete run), same seeds as the
-   python referee -- pass rates within 1 seed per scenario, and per-tick
-   obs/action divergence logged (expect ~tick-quantization noise only).
-4. **Timing/watchdog semantics**: a sil_tick that is skipped (simulated
-   overrun) must hold the last target -- mirror of the firmware watchdog;
-   test that a 3-tick dropout does not fall the standing robot.
+JSON with per-joint `{bus_id, zero_steps, dir}`, plus the same three as flat
+joint-indexed arrays. The harness writes a **nominal** file (every zero
+2048, every `dir` +1, identical to `obs::Calibration`'s default) and a
+**perturbed** one (random zeros in 2048 ± 350); the tests also build one
+with flipped directions. None of them is the as-built calibration, and none
+is meant to be: they are round-trip fixtures for a robot whose servos agree
+with the plant. A consistent `dir` cancels through angle → ticks → angle, so
+closed-loop scores do not depend on the choice.
 
-## Acceptance
+## Test pyramid
 
-`make -C firmware/host sil && ctest` green, `pytest sim/sil -q` green,
-and a SIL-vs-python referee table appended to the harness README. Any
-divergence beyond tick quantization is a bug with a name, not tolerance.
+The item numbers are cited from code.
 
-## Non-goals (this round)
+1. **Unit** (C, `make -C firmware/host test`): `test_sil` covers the C
+   boundary end to end — angle → ticks → angle within one tick quantum under
+   each calibration, the bus permutation, the parsers; `test_sil_golden`
+   checks the firmware's frames and actions against the sim's own numbers in
+   `sim/sil/golden/`; `test_policy` checks the compiled-in net against numpy
+   goldens.
+2. **Boundary** (pytest, `sim/sil`): the servo-side view round-trips against
+   `walker_env`'s joint state, and the synthesised IMU matches the env's
+   observation channels.
+3. **Closed loop** (pytest, `sim/sil`, marked `slow`): `stand_10s`,
+   `line_1m` and `goal_home` through `SilActAdapter` on the suite's
+   reference run, with the python referee's seeds. Pass rates must agree
+   within one seed per scenario; per-tick observation and action divergence
+   is logged, and with the gait clocks pinned together it must be tick
+   quantisation only. Any larger divergence is a bug with a name, not a
+   tolerance.
+4. **Timing and watchdog semantics**: a skipped `sil_tick` (a simulated
+   overrun) holds the last target, and a three-tick dropout does not fell the
+   standing robot.
 
-UART framing/CRC in the loop (linkproto has its own golden tests); ESP32
-timing (host build is logic-exact, not cycle-exact); MJX (referee plant
-only -- the CPU env is the deployment referee by project convention).
+## The standing referee column
 
-## Work split
-
-- **Agent A (C++)**: sil_lib.cpp + CMake/Makefile `sil` target + ctests
-  (roundtrip, permutation, policy-vs-golden consuming Agent B's exports).
-  Files: firmware/host/** only (report component bugs, minimal fixes OK).
-- **Agent B (python)**: tools/export_policy_weights.py, golden-vector
-  generator, sim/sil/harness.py + SilActAdapter + pytest suite. Files:
-  tools/export_policy_weights.py, sim/sil/** only. ctypes on the ABI
-  above; skip-if-missing when the lib is not yet built.
-- Integrator (main session): build both, run the closed loop, write the
-  results table, commit.
-
----
-
-## As built (2026-07-30, integration notes)
-
-- **Canonical `.silw` = the headed self-describing binary** (v1: SILW
-  magic, dims, activation, layer sizes, then norm_mean/std + layers).
-  The JSON sidecar is written alongside and cross-checked when present;
-  `--raw` exists for a headerless blob. The C reader accepts both and
-  errors on disagreement. The 949 KB blob is regenerable
-  (tools/export_policy_weights.py) and gitignored; sidecar, golden
-  vectors and calibration JSONs are committed.
-- **Sensor/target array order: ascending bus id (`slot = bus_id - 1`)**,
-  published by `sil_spec()`; the python harness PROBES the built library
-  (tick-domain probe) instead of assuming, and asserts agreement.
-- `vel_ticks` carries the raw reg-58 sign-magnitude word in the int16.
-- Results: host suites ALL GREEN (sil 3950 checks, golden 2959); python
-  31/31. Exported policy vs brax through the REAL firmware inference:
-  worst action err 6.6e-7. Closed loop (loco_v6creep, 8 seeds):
-  stand_10s 8/8 vs 8/8, line_1m 8/8 vs 8/8, goal_home 7/8 vs 8/8 --
-  within the one-seed budget; per-tick divergence at tick-quantization
-  scale (4.9e-3) once the referee bug below was fixed.
-
-## Standing referee column (2026-07-31)
-
-The SIL stack is no longer an on-demand pytest suite: **every collected
-training run is scored through it**, next to the python column.
+Every collected training run is scored through the firmware stack as well as
+the python policy:
 
 ```sh
-cd sim/mjx && JAX_PLATFORMS=cpu ../../.venv/bin/python \
-    eval_precision.py --run-name <run> --sil
+cd sim/mjx && JAX_PLATFORMS=cpu ../../.venv/bin/python eval_precision.py --run-name <run> --sil
 ```
 
-- `--sil` swaps the brax policy in the referee's `act()` slot for
-  `SilActAdapter` (one adapter per episode, so the library's history ring and
-  gait clock reset with the env) over `libctrl_sil` + the run's exported
-  weights + `sim/sil/cal/cal_nominal.json`. Scenarios, seeds
-  (`100*i + 7`), plant and scoring are byte-identical to the python column;
-  the only difference is who computes the action.
-- Prerequisites are handled automatically and never half-run: a missing
-  library triggers `make -C firmware/host sil`; a missing or `params.pkl`-stale
-  `sim/sil/weights/<run>.silw` triggers `tools/export_policy_weights.py --run
-  <run> --no-golden` (`--no-golden` on purpose — `sim/sil/golden/*.json` are
-  committed vectors for the harness's reference run and the firmware ctests
-  consume them). Any failure is a `SystemExit` carrying the build/export
-  output; no scorecard is written.
-- Output is `scorecard_sil.md` / `scorecard_sil.json` in the run dir, headed
-  `[SIL (firmware stack)]` with the library, weights, calibration and gait
-  frequency named, plus `summary.claim` / `summary.sil` in the JSON. The
-  python-path `scorecard.md` is **never** touched. `--render` gifs get the
-  same `_sil` suffix.
-- `infra/night_collect.sh` runs the SIL leg after the python leg for every
-  collected run and prints both scorecard paths. A missing compiler or a
-  broken build prints a loud `SIL REFEREE SKIPPED` banner with the retry
-  command and collection continues — the night's data is never lost to the
-  SIL leg.
-- The closed loop deliberately does **not** pin the gait clock (see
-  `sim/sil/README.md`): on hardware the firmware runs its own 1.5 Hz clock
-  while the episode starts wherever it starts, and the referee grades the
-  outcome. Per-tick parity with the clocks aligned is what
-  `pytest sim/sil -q` covers.
+- `--sil` puts `SilActAdapter` in the referee's `act()` slot (one adapter per
+  episode, so the library's history ring and gait clock reset with the env)
+  over `libctrl_sil`, the run's exported weights and the nominal
+  calibration. Scenarios, seeds (`100·i + 7`), plant and scoring are
+  identical to the python column; only who computes the action differs.
+- Prerequisites are built on demand and never half-run: a missing library
+  runs `make -C firmware/host sil`; a missing or stale `.silw` runs the
+  exporter with `--no-golden`. Any failure exits with the build output and
+  writes no scorecard.
+- Output: `scorecard_sil.{md,json}` in the run directory, headed
+  `[SIL (firmware stack)]`. The python `scorecard.md` is never touched.
+- `infra/night_collect_local.sh` runs the SIL leg after the python leg and
+  never loses a collection over it.
+- The closed loop does **not** pin the gait clock: on the robot the firmware
+  runs its own clock from wherever the episode starts, and the referee grades
+  the outcome. Per-tick parity with aligned clocks is pytest's job.
 
-Validation (`loco_v7knee_b`, hardware-claim plant `bimo_biped_v3yaw.xml`,
-8 seeds, both columns): `stand_10s` 0/8 vs 0/8, `line_1m` 0/8 vs 0/8,
-`goal_home` 1/8 vs 1/8 — Δ = 0 seeds everywhere. Absolute rates are poor
-because that run trained on a different plant; what the column proves is that
-the firmware stack reproduces the python referee's verdict. Firmware MLP vs
-brax on the same obs: 6.6e-7. See the README's results table.
+## Findings
 
-## Findings the harness paid for on day one
+Numbered because code cites them.
 
-1. **Referee obs-stacking bug (FIXED)**: eval_precision.Driver re-read
-   env._obs() after the post-step history push, feeding
-   [f_t, f_t, f_{t-1}] (and a redrawn IMU-noise realization) instead of
-   the training stacking [f_t, f_{t-1}, f_{t-2}]. Action divergence vs
-   brax: 0.48 through the old path. The Driver now reuses env.step's
-   returned obs and patches only the head frame's cmd channels. Every
-   historical referee score ran through the old path -- current
-   policies re-refereed; historical scorecards carry the caveat.
-2. **Frozen-normalizer deployment hazard (OPEN)**: 8 obs channels have
-   normalizer std ~= 1e-6 (linvel, height, cmd[3..6]) because training
-   never varied them. cmd[3] (crouch) is frozen at exactly 1.0 -- but
-   the firmware feeds it battguard's crouch(), which RAMPS BELOW 1.0 on
-   a sagging pack, normalizing to ~-1.5e5: five orders out of
-   distribution exactly when the battery is dying. Fix before deploy:
-   either train with a varied crouch command (preferred) or floor the
-   exported normalizer std / pin cmd[3]=1 in ctrl_task until then.
-3. policy component had no runtime-weight entry point (compile-time
-   weights only) -- additive policy::Net/forwardNet added, forward()
-   unchanged (test_policy still 433/433).
-4. **Sensor path was clamping to the joint range (FIXED 2026-08-02)**:
-   `SilLib.make_sensors` synthesised the encoder word with
-   `angle_to_steps(...)`, which mirrors `obs::angleToSteps` and therefore
-   clamped to `kJointLo/kJointHi`. That clamp belongs to the GOAL direction
-   ("a target outside the mechanical range is how you stall a horn against a
-   printed part"); an encoder reports where the joint *is*. MuJoCo joint
-   limits are soft, so a joint leaning on its stop sits past it -- 1.5 deg /
-   17 ticks in the case that exposed this (the corrected knee sign let a
-   stale policy push the +5 deg hyperextension stop) -- and the firmware was
-   being fed an angle walker_env never had. `clamp_joint_range=False` on that
-   path; the goal direction is unchanged.
+1. **The referee feeds the training stacking.** The observation handed to the
+   policy is `[f_t, f_{t−1}, f_{t−2}]`, as training and `obs::History` build
+   it. `eval_precision.Driver` reuses the observation `env.step` returned and
+   patches only the head frame's command channels; re-reading `env._obs()`
+   would prepend a recomputed `f_t` to a ring that already holds it.
+   `test_referee_driver_feeds_training_stacking` pins this.
+2. **Frozen normaliser channels are a deployment hazard.** brax floors the
+   normaliser std at 1e-6, so a channel training never varied turns any
+   deviation *d* into *d*·10⁶ at the first layer. The crouch channel
+   (`cmd[3]`) is fed by the pack guard's landing ramp on the robot, so
+   training varies it (the crouch-command variation in `walker_env` and
+   `env_mjx`). In the deployed run, `loco_v41rsi_b_s128r24`, the frozen
+   channels are `linvel` (3), `height` and `cmd[5]` (`foot_dx`). The first
+   four are hard zeros on the robot. `foot_dx` is not: a console that sends
+   an extended frame with `foot_dx` ≠ 0 (clamped to ±0.05 m) puts it ~5·10⁴ σ
+   out, so for this policy it must stay at 0. The exporter warns about frozen
+   channels and `test_normalizer_frozen_channels_are_known` pins the set for
+   the suite's run.
+3. **The policy takes its weights as a parameter.** `policy::Net` /
+   `forwardNet` run an exported `.silw` through exactly the on-target
+   arithmetic; `forward()` binds the same code to the generated header.
+4. **The encoder path never clamps to the joint range.** Only goals clamp
+   (a target outside the mechanical range stalls a horn against a printed
+   part); an encoder reports where the joint *is*. MuJoCo joint limits are
+   soft, so a joint leaning on its stop sits past it, and the sensor path
+   (`angle_to_steps(..., clamp_joint_range=False)`) must pass that through.
+
+## Non-goals
+
+UART framing and CRC in the loop (`linkproto` has its own golden tests);
+ESP32 timing (the host build is logic-exact, not cycle-exact); MJX (the CPU
+env is the deployment referee by project convention).
+
+## Current state of the Python suite
+
+`pytest sim/sil` is **not** part of the pre-push gate; the C half (pyramid
+item 1) is. The suite currently runs in seconds and has **4 failing tests out
+of 32**, all from one cause: its reference run (`SIL_RUN`, default
+`loco_v8foot`, trained on `bimo_biped_v3yaw.xml`) no longer matches what
+the library is compiled against (`obs_spec.h` and `weights.h` from
+`loco_v41rsi_b_s128r24` on `bimo_biped_v5body.xml`) or the committed goldens
+(`loco_v28crouch_s128r24`).
+
+| failing test | what it finds |
+|---|---|
+| `test_policy_goldens_match_exported_weights` | the goldens name `loco_v28crouch_s128r24`, not `loco_v8foot` |
+| `test_env_joint_limits_match_obs_spec` | the plant's joint ranges differ from `obs_spec.h` (e.g. `R_hip_roll` lower limit −0.436 vs −0.960 rad) |
+| `test_target_reproduction_through_env` | the env clips targets to its own, narrower ranges (0.87 rad at `L_knee`) |
+| `test_lib_obs_matches_python` | the phase diverges: the library runs the deployed spec's speed clock and stand freeze, which that run's env does not |
+
+The closed-loop scenarios pass. Fixing this means re-pointing `SIL_RUN` and
+the goldens at one run that matches the deployed headers.

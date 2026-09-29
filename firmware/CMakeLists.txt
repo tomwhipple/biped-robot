@@ -1,4 +1,4 @@
-# ESP-IDF project for the Waveshare "Servo Driver with ESP32" board.
+# ESP-IDF project for the Waveshare "General Driver for Robots" board (ESP32).
 #
 #   . $IDF_PATH/export.sh
 #   idf.py set-target esp32

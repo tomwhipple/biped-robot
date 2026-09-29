@@ -1,499 +1,499 @@
-# Firmware design — Waveshare ESP32 servo board
+# Firmware design
 
-**Status:** design, 2026-07-22. No firmware exists yet; this document defines
-what gets built so bring-up day is "flash and calibrate," not "start coding."
-Companion docs: [control-channel.md](control-channel.md) (the wireless
-protocol this firmware implements), [wiring.md](wiring.md) (electrical + bus
-timing), [controls-and-training-overview.md](controls-and-training-overview.md)
-(what the policy is).
+*What runs on the ESP32 and why it is built the way it is. Usage (build,
+flash, CLI, host tests) is [firmware/README.md](../firmware/README.md); the
+wire protocol is [control-channel.md](control-channel.md); electrical is
+[wiring.md](wiring.md); servo IDs and calibration values are
+[servo-map.md](servo-map.md); first power-up is [bringup.md](bringup.md).*
+
+**Status:** built, flashed and running on the prototype. The firmware is
+currently sized for the prototype's 10 joints (5 per leg, plant
+`sim/bimo_biped_v5body.xml`, servo IDs 1–10): `obs::kNumJoints`,
+`obs::kServoId`, the calibration blob, the telemetry frame, the SIL ABI and
+the mechanical-envelope table are all 10 wide. Porting it to the robot's 17
+joints is open work (issue #81). The compiled-in policy is `loco_v41rsi_b_s128r24`.
 
 ## 1. Job description
 
-The board runs the robot. Once per **20 ms tick (50 Hz)** it must:
+The board runs the robot. Every 20 ms (50 Hz) the control task `ctrl`
+(`main/ctrl_task.cpp`):
 
-1. read all 8 servo positions (+ velocities derived or read) off the
-   1 Mbaud Feetech bus,
-2. read the BNO085 (fused orientation → gravity vector, plus gyro rates),
-3. assemble the policy observation exactly as the simulator defines it,
-4. run the policy network,
-5. write 8 position targets back to the bus (sync write),
-6. service the wireless command link and its watchdog (link dead ⇒ torque
-   release — the robot goes limp rather than cooking servos; it is 34 cm
-   tall and falls better than it overheats).
+1. drains the command mailbox, feeding every frame to the arm and home
+   latches (in both modes) and to the link watchdog (armed only);
+2. reads every joint's position and speed in one SYNC READ on the 1 Mbaud
+   servo bus;
+3. takes the latest attitude and the tick-averaged gyro from the 250 Hz IMU
+   sampler;
+4. updates the pack guard (from servo register 62) and the fall latch;
+5. if any safety state says limp — pack latched off, fallen, link `RELAX`,
+   `ESTOP` — releases torque, reports, and stops there;
+6. otherwise assembles the observation exactly as the simulator defines it,
+   runs the policy, maps actions to joint angles, shapes them, blends them
+   during the takeover ramp, and writes every target plus a per-servo goal
+   speed in one SYNC WRITE;
+7. publishes telemetry, the measured pose for the beacon and, when enabled,
+   the observation dump.
 
-Non-goals for v1: navigation/odometry (command-conditioned only — field
-standard, see plan v2), camera anything, OTA model updates mid-run, logging
-at full rate.
+Benched, it does only steps 1 and 3 (so the attitude filter has converged by
+the time the loop arms) and touches nothing else.
 
-## 2. Language decision: C++17 on ESP-IDF
+Non-goals: navigation or odometry (the robot is command-conditioned and has
+no pose estimate), camera processing (the Pi's job), changing the policy
+without a reflash, full-rate logging.
 
-| Option | Verdict | Why |
-|---|---|---|
-| **C++17 (ESP-IDF)** | **chosen** | First-class on ESP-IDF; the vendor ecosystem we want to reuse (Waveshare's ST3215/SCServo servo library, the Adafruit BNO08x/sh2 driver) is already C++; zero-cost abstractions fit a hard-real-time loop (namespaces, `std::array`, templates for the MLP dims — no heap needed); single toolchain, no glue. |
-| C | viable fallback | Everything works, but we'd hand-roll abstractions C++ gives free, and we'd wrap the C++ servo lib anyway. Used at the boundary where ESP-IDF APIs are C. |
-| Rust (esp-rs) | rejected for v1 | Genuinely maturing, but: Xtensa needs Espressif's forked toolchain; every driver we'd otherwise reuse (SCServo, BNO055) would be rewritten; and our safety story is dominated by *timing* and *torque-release semantics*, not memory bugs — the loop is small, statically allocated, and heap-free after init, which mutes Rust's core advantage. Worth revisiting if the firmware grows past ~5 kLOC. |
-| Go (TinyGo) | rejected | No mature ESP32/Xtensa support, and a garbage collector inside a 20 ms hard loop is disqualifying regardless. |
+## 2. Language and house rules
 
-House rules that buy most of Rust's safety in C++: **no heap after init**
-(all buffers static), `-Werror -Wall -Wextra`, no exceptions/RTTI, every
-shared datum between cores goes through a FreeRTOS queue or an atomic,
-fixed-size types only, and the pure modules (§5) compile on the host under
-sanitizers.
+**C++17 on ESP-IDF v5.4**, not the Arduino core: ESP-IDF gives deterministic
+task control, dual-core pinning and first-party UART/I²C/timer APIs. The
+safety story here is timing and torque-release semantics rather than memory
+bugs, and the loop is small and heap-free, which is why the house rules
+below are enough and Rust is not needed.
 
-Framework: **ESP-IDF, not the Arduino core** — deterministic task control,
-proper dual-core pinning, and first-party UART/I2C/timer APIs. Arduino-only
-vendor snippets get ported into thin IDF components.
+- **No heap after init.** Every task, queue and buffer is statically
+  allocated in `app_main` or at file scope; driver allocation happens once at
+  init.
+- `-Wall -Wextra -Werror`, no exceptions, no RTTI (`firmware/CMakeLists.txt`,
+  `sdkconfig.defaults`); the host build adds `-Wshadow -Wconversion
+  -Wsign-conversion`.
+- Every datum that crosses cores goes through a FreeRTOS queue or an atomic
+  and has exactly one writer. No mutex in the control path.
+- Fixed-size types only.
+- The pure modules compile and run on the host under ASan/UBSan (§7).
 
-## 3. Hardware assumptions (verify on delivery)
+## 3. Hardware
 
-- Waveshare ESP32 servo-driver board (BOM): ESP32-WROOM class — **~520 KB
-  SRAM, no PSRAM assumed**, single-precision HW FPU, dual LX6 cores.
-- Feetech STS3215 bus @ 1 Mbaud half-duplex on one UART (board has the
-  direction circuitry).
-- **IMU: QMI8658C, on the General Driver board itself** — 2026-08-14,
-  superseding the external GY-BNO085 breakout (and the BNO055 before it).
-  No part to buy, no carrier to print, no wires: it is already on the
-  board's I²C bus at **0x6B, GPIO 32/33**, verified at 400 kHz alongside
-  the AK09918C (0x0C) and INA219 (0x42). *(Bench note: the BMP280 our own
-  notes place at 0x77 did NOT answer — it is not on this board revision.)*
+`main/board.h` is the authority and cites the vendor schematic.
 
-  **The consequence is real work, not a driver swap.** The BNO085 was a
-  sensor *hub* that fused on-chip and returned a quaternion; the QMI8658C
-  is raw. The fusion moves onto the ESP32 — `imu::Fusion`, a complementary
-  filter over accel + gyro, host-tested in `firmware/host/test_fusion.cpp`.
+| | |
+|---|---|
+| board | Waveshare **General Driver for Robots** rev 1.2; ESP32-D0WD-V3 rev 3.1, dual LX6 at 240 MHz, 4 MB flash, no PSRAM, single-app partition table |
+| servo bus | UART1, **GPIO 18 RX / GPIO 19 TX**, 1 Mbaud 8N1; half-duplex direction switched in hardware off the TX line (no direction GPIO). Feetech STS3215, ST protocol (little-endian) |
+| host link | UART0 at 115200 over the CP2102N on the USB-C port silkscreened `USB`. The port silkscreened `LIDAR` is a second bridge that enumerates but never flashes |
+| I²C | **GPIO 32 SDA / 33 SCL** at 400 kHz, also on header P1. QMI8658C IMU at 0x6B (used); AK09918C magnetometer at 0x0C (unused: beside the servos it measures their current, not north); BMP280 at 0x77 on the schematic (did not answer the bench scan; unused); INA219 power monitor at 0x42 (unused). 0x4A/0x4B are reserved for a BNO085 on P1 |
+| pack voltage | servo register 62 (0.1 V), from the first servo that answers each tick. The INA219 sees the pack ahead of the buck but is not read yet (§8) |
+| RGB LED | GPIO 4, header H2 |
+| OLED, RTC | none; wall-clock time comes from SNTP ([control-channel.md](control-channel.md#time-on-the-wire)) |
 
-  Two things that bite, both measured rather than assumed:
+`imu scan` lists what answers on the I²C bus.
 
-  - **Gyro bias is not optional.** Untrimmed zero-rate offset on this part
-    is ~0.45 rad/s on x. Against the filter's 0.5/s correction gain that
-    settles at sin(e) = 0.9 — about **64° of steady-state attitude error**.
-    Bias is calibrated by `imu bias` and persisted to NVS; a boot without
-    it is reported, not silently tolerated.
+### The IMU
 
-    **Calibrate it on the robot, in the standing pose — not on the bench.**
-    Bias is orientation- and temperature-dependent, so it does not survive
-    being moved. Measured 2026-08-14: a calibration taken flat on a desk,
-    then bolted upright into the pelvis, was off by 0.0187 rad/s on the
-    sensor's y axis. The mount maps sensor y onto body z, so that landed
-    entirely in **yaw — the one axis gravity cannot correct** — as ~1°/s of
-    heading drift, 29° over a 30 s run, with the tilt magnitude meanwhile
-    rock steady. Recalibrating in place cut it to 0.07°/s (2.2° per 30 s).
-    A drift of constant `up[2]` with a rotating horizontal component is the
-    signature; `imu` prints the drift estimate directly. Measured end state
-    on the standing robot: **0.0038 over 30 s, which is the noise floor** —
-    it wobbles rather than creeping, so there is no systematic yaw error
-    left to speak of. That is ~100x better than the bench calibration.
-  - **The AttitudeEngine does not work on this silicon.** The part
-    advertises an on-chip 1 kHz coning/sculling-compensated quaternion
-    increment, which would have been strictly better than 50 Hz sampling.
-    Enabling it (CTRL7 sEN + CTRL6 sMoD, `CTRL_CMD_REQ_MoD`) leaves the
-    dQ/dV registers holding **static bytes that never change between
-    reads** and decode to |dQ| = 0.05 and dV = −25.7 m/s at rest. That is
-    uninitialised memory, not motion. Our datasheet copy is QST rev 0.6,
-    stamped ADVANCE INFORMATION, and the part reports revision 0x7C rather
-    than the documented 0x79. `imu ae` re-runs this check in one command.
-    The driver probes for AE at init and falls back to the raw path on its
-    own, so if a later part does support it, nothing else changes.
+The QMI8658C is a raw 6-axis part, so attitude fusion runs on the ESP32:
+`imu::Fusion`, a complementary filter (accelerometer gain 0.5/s, crossover
+near 0.08 Hz; the gravity correction is skipped whenever |accel| leaves
+(1 ± 0.15) g, so a footfall does not drag the estimate). A core-0 task
+(`main/imu_sampler.cpp`) reads the part and runs the filter every 4 ms
+(250 Hz); the control tick takes the latest attitude plus the gyro
+**averaged over the tick**, which anti-aliases it (`imu avg off` hands over
+the latest 4 ms sample instead). Full scales are ±8 g and ±1024 °/s.
 
-  **Mount, measured on the robot 2026-08-14:** `0.505654 0.494116 0.485838
-  0.513931` (w x y z, sensor→body), in NVS via `imu mount`. The chip's **+Y
-  points up** and its **+Z points FORWARD** — note the second half, because
-  CAD reasoning from "components face aft" (`cad/dimensions.py:999`) gives
-  the opposite and is *wrong*. Gravity alone cannot tell the two apart: they
-  differ by 180° about the vertical, and both map an upright stance to
-  (0,0,1) exactly. Only a deliberate tilt separates them. Leaning the robot
-  forward must send `projgrav.x` negative and `up.x` positive; with the
-  flipped mount it reads a forward lean as a backward one, and the policy
-  corrects the wrong way on its first step. `imu` prints both vectors and
-  the filter quaternion so the check is a look, not an argument.
+The policy's `up` is the torso z-axis in the **world** frame, the sim's
+`framezaxis`. Gravity cannot observe yaw and no magnetometer is used, so the
+fused yaw is a drifting gyro integral. The driver therefore strips the ZYX
+yaw from the quaternion before taking `up`
+(`imu::upYawStrippedFromQuaternion`), which equals the sim's `up` at zero
+yaw, where every sim episode starts.
 
-  The BNO085 stays the documented upgrade path onto header P1 (0x4A/0x4B
-  are reserved for it) — a driver change plus one 4-wire cable, no CAD.
-- WiFi UDP for the command link (the protocol in control-channel.md).
+Calibration is stored in NVS (§5.4) and is specific to how the board is
+mounted; the values below were measured on the prototype, and the robot's
+board mount will need its own.
 
-## 4. The 20 ms tick budget (from wiring.md's analysis)
+- **Gyro bias is not optional.** The untrimmed zero-rate offset is
+  ~0.45 rad/s on x; against the 0.5/s filter gain that settles at about 64°
+  of attitude error. Calibrate with `imu bias` **with the board installed,
+  the body in the standing pose**: bias moves with orientation and
+  temperature. A bench calibration later bolted into the prototype's pelvis
+  left ~1°/s of heading drift; calibrated in place it is 0.07°/s.
+- **Mount** (`imu mount`). In the prototype the board stands vertical and
+  transverse in the pelvis, so sensor→body is a ~90° rotation, not a trim.
+  Measured (w x y z): `0.505654 0.494116 0.485838 0.513931` — chip +Y up,
+  chip +Z **forward**. Gravity alone cannot tell this from the same mount
+  flipped 180° about the vertical; check any mount with a deliberate tilt.
+  Leaning the body forward must give `projgrav.x` negative and `up.x`
+  positive (`imu` prints both).
+- **Gyro scale** (`imu gscale x y z`, its own NVS record, unity when absent).
+  The sensor x gyro over-reads by 18 % against the accelerometer's tilt;
+  y and z by 2–3 %.
+- `applyImuCalFromNvs()` applies bias, mount and scale at boot and again
+  after `imu reinit`.
 
-| Step | Budget | **Measured 2026-07-26** | Notes |
+Also:
+
+- **The on-chip AttitudeEngine does not work on this silicon.** Enabling it
+  leaves the dQ/dV registers holding static bytes. The part reports revision
+  0x7C; the datasheet (QST rev 0.6, ADVANCE INFORMATION) documents 0x79. The
+  driver probes for AE at init and falls back to the raw path; `imu ae`
+  re-runs the check.
+- **I²C bus recovery at init.** A reset that lands mid-transaction can leave
+  the sensor holding SDA low; the driver clocks it free. If the part still
+  does not answer, the loop runs on `imu::StubImu` (level and still) and the
+  boot log names which one is live.
+- The upgrade path is a BNO085 on P1: a driver change plus one 4-wire cable.
+
+## 4. Tick budget, tasks and cores
+
+| task | core | priority | job |
 |---|---|---|---|
-| Sync-read servo positions | ~3.5 ms (8) / ~4.3 ms (10) | **2.80 ms** | one SYNC READ transaction + replies @1 Mbaud, 10 servos |
-| QMI8658C read + fusion | ~0.5 ms | **0.47 ms** | one 12-byte I²C burst @400 kHz plus a quaternion update. Measured 2026-08-14 over 50 reads (`imu`), first time this row has ever been anything but an estimate — nothing was fitted before |
-| Obs assembly + history push | ~0.1 ms | **0.02 ms** | pure math |
-| Policy inference | ~2–4 ms | **0.88 ms** | placeholder 147→32→32→20; see caveat below |
-| Sync-write targets | ~0.7 ms | **0.07 ms** | one SYNC WRITE, no replies |
-| Link service + watchdog | ~0.2 ms | **0.07 ms** | drain mailbox, stamp liveness |
-| **Total** | **~8–10 ms** | **3.9 ms typ / 4.58 ms worst** | 40 s soak, 3922 ticks, **0 late**, servo_err 0x0000 |
+| `ctrl` | 1 | `configMAX_PRIORITIES - 2` | the §1 loop. An `esp_timer` fires every 20 ms and wakes it with `vTaskNotifyGiveFromISR`, so wake jitter is microseconds, not scheduler ticks |
+| `link` | 0 | 5 | UART0 reader: demultiplexes binary command frames from CLI text lines |
+| `wifi_link` | 0 | 5 | UDP command frames in on 4210; the 10 Hz telemetry beacon out on 4211 |
+| `imu` | 0 | 4 | the 250 Hz IMU sampler and fusion |
+| `housekeeping` | 0 | 2 | the CLI, arm and home requests, the home readback, pose streaming, UART telemetry, the observation dump |
 
-The budget was pessimistic almost everywhere; real headroom in the 20 ms tick
-is ~4.4×, not ~2×.
+The WiFi/LwIP tasks stay on core 0 (IDF default), so nothing they do can
+preempt `ctrl`. All tasks are created once at init, and the control loop is
+paced by the hardware timer, never by `vTaskDelay`.
 
-**Two caveats on that number.**
+How data crosses cores (`main/shared.h` states the rules beside each item):
 
-1. **Inference will grow.** 0.88 ms is the *placeholder* net (147→32→32→20,
-   ~6.4 k MACs). §6's recommended distilled 128×128 is ~37.8 k MACs — roughly
-   6× — so expect ~5 ms and a ~8 ms total. Still inside budget, but the
-   4.4× headroom becomes ~2.5×. Worth re-measuring the moment real weights
-   exist. (0.88 ms for 6.4 k MACs on a 240 MHz FPU is itself ~30× slower than
-   one-MAC-per-cycle, which suggests the weights are being fetched from flash
-   through the cache rather than sitting in IRAM — an easy win if inference
-   ever becomes the binding constraint.)
-2. **The IMU line is untested.** Nothing is fitted, so the stub returns
-   instantly; the ~1.0 ms estimate stands unverified.
+- **Command mailbox**: a length-1 queue written with `xQueueOverwrite` by
+  both link tasks and read non-blocking by `ctrl`. Latest command wins; a
+  stale command can never queue up behind a late tick.
+- **Telemetry snapshot**: atomics with `ctrl` as the single writer. A read
+  may tear across fields; every reader is a 10 Hz human-facing report.
+- **Payloads too big to tear harmlessly** (the observation dump, the measured
+  pose for the beacon) are double-buffered with a sequence counter; `ctrl`
+  writes the slot the reader is not in, and a copy the writer overran is
+  dropped, never reported.
+- **IMU sample**: the one lock the tick takes is the sampler's `portMUX`
+  critical section around a sample copy.
+- **Requests from the link** (arm and home edges) are counters bumped by
+  `ctrl` and consumed by housekeeping, so each atomic keeps one writer.
 
-### The bug this table replaced
+Measured cost of each phase of the 20 ms tick, 10 servos, 240 MHz (`stat`
+prints the live values — `us_read`, `us_imu`, `us_obs`, `us_net`,
+`us_write`, `us_other` — plus overruns and the worst tick):
 
-The first hardware run measured **29.9 ms** for the sync read alone — a 32 ms
-tick against a 20 ms period, every tick late, and yet `servo_err 0x0000`.
+| phase | measured |
+|---|---|
+| SYNC READ, 10 servos | 2.80 ms |
+| IMU burst read + fusion | 0.47 ms, in the sampler task; the tick only copies the sample |
+| observation assembly + history | 0.02 ms |
+| policy forward, 147 → 128 → 128 → 20 | 7.2 ms |
+| SYNC WRITE | 0.07 ms |
+| mailbox drain + watchdog | 0.07 ms |
 
-`Bus::syncReadFeedback` asked `port_.read()` for *the whole remaining buffer*,
-and `uart_read_bytes()` returns only when it has the requested count or the
-timeout expires. The request could never be satisfied, so every read slept out
-its full `reply_timeout_us × n` = 30 ms deadline — while the ten replies had
-actually landed in ~1.4 ms and parsed fine, which is exactly why no fault bit
-was ever set. The fix is to request only the bytes still outstanding
-(`(n - answered) * kSyncReplyLen`), capped by buffer space.
+About 10 ms of the 20 ms tick is used, with 0 % late ticks on the prototype.
+The robot's 17 servos add to the SYNC READ and SYNC WRITE lines.
 
-**The lesson generalises:** a phase that always costs the same as its timeout
-is not slow, it is waiting on a condition that cannot occur. Per-phase timing
-found this in one run after a session of guessing at it.
+A phase that always costs exactly its timeout is not slow; it is waiting on
+a condition that cannot occur. `Bus::syncReadFeedback` requests only the
+bytes still outstanding, because `uart_read_bytes()` returns only when it
+has the full count: asking for the whole buffer makes every read sleep out
+its timeout while the replies have long since landed.
 
-Core split: **core 1 = control task only** (pinned, highest priority,
-tick-timer driven, owns bus + I2C). **Core 0 = WiFi stack, UDP link,
-telemetry, CLI** — communicates with core 1 via a single-slot command
-mailbox (latest-wins) and a telemetry queue. Nothing on core 0 can block
-the loop.
+Supervision:
 
-### FreeRTOS usage (brief)
-
-ESP-IDF *is* a FreeRTOS application — the dual-core SMP FreeRTOS fork is
-the substrate under everything (WiFi stack included). We use it
-deliberately and minimally:
-
-- **Tasks (all created once at init, statically allocated):**
-  `ctrl` (core 1, highest app priority — the entire §1 loop),
-  `link` (core 0, blocks on the UDP socket, decodes commands),
-  `housekeeping` (core 0, low priority — telemetry drain, CLI, voltage).
-  WiFi/LwIP tasks are IDF-managed and stay on core 0, so nothing they do
-  can preempt `ctrl` on core 1.
-- **Tick pacing:** a hardware `esp_timer` fires every 20 ms and sends a
-  **direct-to-task notification** to `ctrl` (`vTaskNotifyGiveFromISR`) —
-  the task blocks on `ulTaskNotifyTake`, giving jitter of microseconds,
-  not scheduler ticks. `ctrl` timestamps each wake and logs any overrun.
-- **Inter-core traffic:** the command mailbox is a **length-1 queue
-  written with `xQueueOverwrite`** (latest command wins; stale commands
-  can never pile up), read non-blocking by `ctrl` each tick. Telemetry
-  goes the other way through a drop-oldest ring buffer; the watchdog
-  liveness stamp is a single `std::atomic<uint32_t>` tick count. **No
-  mutexes anywhere in the control path** — every shared object has one
-  writer.
-- **Supervision:** the IDF Task Watchdog is armed on `ctrl`; a tick
-  overrunning ~2 periods trips torque-release before reset, and the
-  link-watchdog (protocol-level, from control-channel.md) is checked
-  inside `ctrl` itself so its timeout action runs in the loop that owns
-  the bus.
-- **Not used:** dynamic task creation after init, software timers in the
-  control path, `vTaskDelay` for pacing (drifts), or core-0 work of any
-  kind that holds a resource `ctrl` needs.
+- A tick that takes longer than two periods (40 ms) releases torque on every
+  servo with one broadcast frame: the loop is no longer in control.
+- The IDF task watchdog watches `ctrl` with a 1 s timeout. It reports only
+  (`CONFIG_ESP_TASK_WDT_PANIC` is off) and does not reset the board.
 
 ## 5. Modules
 
 ```mermaid
 graph LR
-  RC[UDP link + watchdog<br/>core 0] -->|command mailbox| LOOP
-  subgraph core 1 - 50 Hz loop
-    BUS[Feetech bus driver] --> OBS[Obs assembler<br/>129-dim + history + gait clock]
-    IMU[BNO085 driver] --> OBS
-    OBS --> NET[MLP inference<br/>static weights]
-    NET --> BUS
-    SAFE[Safety: watchdog, fall detect,<br/>voltage floor => torque release] --- LOOP((tick))
+  UART[UART0 link<br/>core 0] -->|mailbox| LOOP
+  UDP[WiFi/UDP link<br/>core 0] -->|mailbox| LOOP
+  IMUS[IMU sampler 250 Hz<br/>core 0] -->|up + tick-avg gyro| LOOP
+  subgraph core 1 - 50 Hz ctrl
+    LOOP((tick)) --> RD[scsbus SYNC READ]
+    RD --> OBS[obs assembler<br/>3 x 49 = 147]
+    OBS --> NET[policy MLP<br/>147-128-128-20]
+    NET --> SHP[command shaper<br/>+ takeover ramp]
+    SHP --> WR[scsbus SYNC WRITE<br/>+ goal speed]
+    SAFE[link watchdog, fall latch,<br/>pack guard, overrun => torque off] --- LOOP
   end
-  CAL[Calibration store NVS<br/>servo zeros + IMU mount] --> OBS
-  TEL[Telemetry ring -> core 0] --- LOOP
+  CAL[NVS: servo cal, IMU cal] --> OBS
+  LOOP -->|telemetry, pose, obsdump| HK[housekeeping + beacon<br/>core 0]
 ```
 
-- **bus/**: Feetech SCS protocol — SYNC WRITE targets, SYNC READ positions,
-  torque enable/release register broadcast, per-servo error flags. Port of
-  Waveshare's C++ library into an IDF component with our timing.
-- **imu/**: QMI8658C over I²C plus the attitude fusion the part does not
-  do for us. Split three ways on purpose: `imu.cpp` (frame maths) and
-  `fusion.cpp` (the complementary filter) are pure and host-tested;
-  `qmi8658_idf.cpp` is the only file with I²C in it. Mounting rotation and
-  gyro bias both come from NVS (`ImuCalBlob`) — on this robot the board
-  stands vertical and transverse in the pelvis recess, so the mount is a
-  ~90° rotation, not a trim.
-- **obs/**: byte-exact reimplementation of the simulator's `_obs()` frame
-  (encoders, encoder-derived velocities, gravity vector, gyro, previous
-  action, gait-clock sin/cos advanced on-board, command channels) + the
-  3-frame history ring. The obs SPEC (ordering, scaling, history depth) is
-  exported from the sim as a generated header so it cannot drift by hand.
-- **policy/**: static float32 MLP (weights compiled in as a generated
-  header from the training checkpoint; normalizer folded into layer 0).
-  Supports up to 3 resident specialist nets (loco/skills/getup) selected by
-  command type; tanh/identity activations to match brax exactly.
-- **link/**: C port of `link/protocol.py` decode + the Watchdog semantics,
-  validated against golden vectors generated by the Python reference.
-- **safety/**: link-watchdog timeout ⇒ torque release; tilt beyond the
-  policy's trained envelope ⇒ (v1) torque release, (later) switch to the
-  getup specialist; pack-voltage floor ⇒ release + beep.
-- **idle torque-off (power saving):** when the command is *stand still* and the
-  robot has been quiet for a short debounce, **release servo torque** to stop
-  the standing servos drawing hold current, then **re-engage** on the next
-  motion command or on a disturbance (wake-on-command, or wake-on-IMU-delta:
-  a tilt/gyro excursion past a small threshold re-asserts torque and hands
-  back to the loco policy). The CPU referee's `stand_off` scenario says this
-  is feasible in sim — the biped stays standing on passive joint friction
-  alone with drift < 10 cm and essentially zero electrical draw (vs ~0.3 W
-  holding powered). **Caveat — measured-on-arrival:** the sim models the
-  unpowered STS3215 as a raised joint frictionloss (`off_frictionloss`, est.
-  0.35 N·m from the ~1:345 gear-train class); feasibility flips *off* below
-  ~0.25 N·m.
+| module | what it is | on the host |
+|---|---|---|
+| `components/scsbus/` | Feetech SCS/STS protocol: packet codec and transactions (PING, READ/WRITE, REG WRITE + ACTION, RESET, SYNC READ, SYNC WRITE, torque enable incl. broadcast, EEPROM lock, ID change, set-middle, error-flag decode). The golden packets are the worked examples in Feetech's own protocol manual | tested against a scripted fake port |
+| `components/linkproto/` | byte-exact port of `link/protocol.py`: frames, CRC, `Watchdog`, `ArmLatch`, `HomeLatch`, envelope clamps, the bench diagnostic, the UART demux | golden vectors from the Python reference |
+| `components/obs/` | observation assembler, history ring, gait clock, action ↔ angle ↔ tick maps, `Calibration`, `CommandShaper`, goal speed, velocity estimator. `obs_spec.h` is generated | vectors from real `walker_env._obs()` frames |
+| `components/policy/` | static MLP forward pass. `weights.h` is generated | numpy golden vectors |
+| `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
+| `components/battguard/` | pack under-voltage guard | yes |
+| `main/` | everything that touches ESP-IDF: tasks, UART/WiFi/NVS/SNTP, the CLI (file list in [firmware/README.md](../firmware/README.md)) | the plain-data halves of `cal_store` and `obs_dump` |
 
-  **Status 2026-07-27: v1 ships with idle torque-off DISABLED.** Powered
-  friction measured **0.235 N·m** (8.0 % of stall; four servos, steady
-  200 steps/s, tight spread). That is a *lower bound* on the unpowered
-  backdrive figure — back-driving a ~1:345 reduction is far less efficient
-  than forward-driving it — and it sits too close to the 0.25 N·m threshold
-  to call either way. No bench tools for the spring-scale test, and none are
-  needed: the deciding experiment is this scenario itself, run on the
-  assembled robot. Stand it up, release torque, watch. Holds ⇒ ship the
-  feature; collapses or drifts > 10 cm ⇒ do not. The robot's own ~0.9 kg
-  applies exactly the joint torques in question. Fold it into the on-target
-  bring-up (§7) torque-release drills; see docs/bringup-day1.md §4.
-- **cal/**: NVS-stored per-servo zero offsets + IMU mounting quaternion;
-  a guided calibration CLI over USB serial (ToddlerBot's zero-point lesson).
+### 5.1 Observation
 
-## 6. Fitting the network (decision needed before export)
+The frame is the byte-exact on-board twin of `walker_env._obs()`. The obs
+SPEC (ordering, scaling, history depth, joint table, action map, clock
+flags) **is exported from the sim as a generated header so it cannot drift
+by hand**: `tools/gen_obs_spec.py --run <run>` writes `obs/obs_spec.h` from
+the run's `config.json` and MJCF. Nothing downstream hardcodes a width.
 
-The current training nets (512,256,128) are ~232k params ≈ **930 KB fp32 —
-they do not fit** WROOM SRAM. Options:
+One frame is 49 floats, and the policy sees three of them, newest first
+(147):
 
-1. **Distill to a deployment net (~128×128 ≈ 88 KB) — recommended.** Train
-   big, distill small (sim/distill.py machinery exists); 3 specialists
-   resident = ~264 KB, fine. Inference ~1 ms.
-2. int8 quantization of the big net (~232 KB) — fits, but quantization
-   error on a balance-critical policy needs its own referee pass.
-3. PSRAM board variant — hardware change; keep as escape hatch.
+```
+q(10) | dq(10) | up(3) | linvel(3) | gyro(3) | prev_action(10) | height(1) | sin,cos(2) | cmd(7)
+```
 
-Either way the **referee gates the deployed artifact**: the exported
-(distilled/quantized) net re-runs the full scenario suite on the CPU
-referee before it is ever flashed.
+- **q**: servo position through the calibration (`stepsToAngle`). A servo
+  that does not answer keeps its last angle and sets its fault bit.
+- **dq**: servo register 58 (steps/s, sign-magnitude) in rad/s. A filtered
+  finite difference is computed beside it and not used (§8).
+- **up, gyro**: from the IMU sampler (§3).
+- **linvel, height**: hard zeros. The run trains with `imu_obs`, because the
+  robot has no sensor for either.
+- **prev_action**: the raw policy output of the previous tick, not the shaped
+  or ramped target, because that is what the policy saw in training.
+- **phase**: a gait clock at a base 1.5 Hz, the centre of training's
+  per-episode draw U(1.25, 1.75). With `kSpeedClock` the rate is scaled by
+  clip(sqrt(v / 0.35 m/s), 0.7, 1.25), v the commanded planar speed; with
+  `kClockStandFreeze` the phase holds at a plain stand (|vx|, |vy|, |wz| ≤
+  0.05 and |lift| < 0.5). Both flags come from the run, as in training.
+- **cmd**: vx, vy, wz, crouch, lift, foot_dx, foot_dz (defaults 0, 0, 0, 1,
+  0, 0, 0), from the watchdog: the operator's command only while `LIVE`,
+  clamped to the trained envelope. Crouch is the lower of the link's value
+  and the pack guard's landing ramp; the travel channels are zeroed while the
+  guard is latched.
+- The history ring is refilled with the first frame after every arm (as
+  `walker_env.reset()` does) and pushed after the policy has been fed.
 
-## 7. Deployment + test pipeline (host-first, hardware-last)
+Actions map to angles with `action_map = "full"`: 0 is the standing pose
+(`kJointDefault`), ±1 are the policy range `kJointLo`/`kJointHi`,
+piecewise-linear on each side. Angles become ticks through the calibration
+and are clamped to that range.
 
-1. `sim/export_policy.py` (to be written): checkpoint → obs-spec header +
-   weights header + golden I/O vectors (1000 obs→action pairs from JAX).
-2. **Host builds** of obs/, policy/, link/ as native binaries with unit
-   tests: policy output must match JAX golden vectors to 1e-6; protocol
-   decode must match Python reference vectors; obs assembler tested against
-   recorded sim traces. All runnable in CI today, zero hardware.
-3. On-target bring-up order (when servos arrive): bus echo test → single
-   servo → 8-servo sync loop timing capture → IMU cal → torque-release
-   drills → policy loop with props off the ground → floor.
+### 5.2 Policy
 
-## 7b. Changelog — decisions made while building v1 (2026-07-26)
+- The arithmetic is brax's: the `running_statistics` normaliser
+  x = (obs − mean) / std (no clip), **swish** hidden layers, a linear head
+  2 × act_dim wide (mean ‖ log-std), and the deterministic action
+  tanh(mean). The normaliser ships in the header beside the weights.
+- The compiled-in net is 147 → 128 → 128 → 20: 38 036 weights plus a
+  147-wide normaliser, ~150 KB of fp32 `constexpr` in flash `.rodata`, so
+  DRAM is unaffected.
+- `weights.h` is written by `tools/gen_policy_weights.py --run <run>` from
+  the run's exported `.silw`; there is no argument-less default.
+  `test_policy` asserts `kWeightsArePlaceholder == false` and
+  `kWeightsRun == obs::kRunName`: the net and the observation spec come from
+  the same run.
+- `policy::forwardNet` takes the weights as a parameter and `forward()`
+  binds it to the generated header, so the SIL library runs an exported
+  `.silw` through the identical arithmetic.
 
-The firmware skeleton now exists (`firmware/`, see its README for what is real
-vs. scaffolded). Five things in this document turned out to be wrong or
-under-specified; recorded here rather than silently edited above.
+### 5.3 Command shaper and goal speed
 
-- **Pinout confirmed** against Waveshare's schematic, user manual and firmware
-  source (URLs in `firmware/main/board.h`): servo bus is UART1 at 1 Mbaud with
-  **GPIO 18 = RX, GPIO 19 = TX**; I2C is GPIO 21/22 at 0x3C for a 128×32
-  SSD1306. Two corrections to wiring.md: the half-duplex direction is switched
-  **in hardware** (a PNP off the TX line drives the transceiver OE pins — there
-  is no direction GPIO), and **there is no IMU and no battery-voltage ADC on
-  the board**. Pack voltage therefore comes from a servo's register 62 at 0.1 V
-  resolution, and the BNO085 is an external breakout sharing the OLED's pins.
-- **Joint count is 10, not 8.** All sims run on `bimo_biped_v3yaw.xml`, so the
-  obs, action vector and bus map are 10-wide. It is a compile-time constant in
-  a generated header (`obs/obs_spec.h` from `tools/gen_obs_spec.py`), not a
-  literal. wiring.md's "maps to IDs 1–8 with no permutation table" no longer
-  holds: the sim's action order starts at `L_hip_yaw` (index 0) but that servo
-  is bus ID 9, so there **is** a permutation and it is generated and tested.
-- **Obs is 147-dim, not 129** — §5's figure predates the plant change. The
-  deployed `loco_v5t` frame is 49 wide (10 q + 10 dq + 3 up + 3 linvel + 3 gyro
-  + 10 prev-action + 1 height + 2 phase + 7 ext-cmd) × 3 history frames. Torso
-  linear velocity and height are hard zeros, matching the `imu_obs=True`
-  training config.
-- **§5's "tanh/identity activations to match brax exactly" is wrong.** brax's
-  `make_ppo_networks` defaults to **`linen.swish`** for hidden layers; the
-  output layer is linear and `2 × action_size` wide (mean ‖ log-std), and the
-  only tanh is `NormalTanhDistribution.mode() = tanh(mean)` at inference. The C
-  port implements that, checked against numpy golden vectors.
-- **§6 stands, and it is the v1 blocker for the policy.** The deployed net is
-  (512, 256, 128); the firmware ships a placeholder weights header at the real
-  147→…→20 widths so the forward pass and its test harness are real code. The
-  distillation + `sim/export_policy.py` are the v2 seam.
-- **Bus ownership** is not in §4: the bring-up CLI lives on core 0 but needs
-  the bus. Rather than a mutex in the control path, the board boots into a
-  `bench` mode where `ctrl` releases torque and gives up the bus, and `run`
-  hands it back. Single owner at all times, no lock.
+Written raw with goal speed 0 (unlimited), each 50 Hz target makes a servo
+slam toward it at full speed (~3000 steps/s measured) and stop mid-tick: a
+50 Hz velocity square wave on every joint. The act path therefore has two
+stages, both in `components/obs`, so the SIL library runs them too:
 
-## 7c. Command shaping — C2 targets + goal-speed streaming (2026-08-02)
+- **`obs::CommandShaper`** (`obs/actuation.h`): three cascaded first-order
+  lags, all poles at 10 Hz, each the exact zero-order-hold discretisation
+  (stable for any pole, no overshoot, output inside the hull of its inputs).
+  The commanded trajectory has continuous velocity and acceleration. It is
+  reseeded from **measured** q on every torque (re)engage or bus handover,
+  so the first shaped target is never a jump.
+- **Per-servo goal speed** (register 46) in the same SYNC WRITE: the speed
+  that closes the gap from the measured position to the shaped target in one
+  tick, × 1.25, floored at 50 steps/s (0 would mean unlimited) and capped at
+  3400. While tracking, that is the trajectory's own speed; under a
+  disturbance the error term grows it, so smoothing costs no stiffness.
+- 10 Hz is the strongest smoothing that kept SIL-vs-python referee parity in
+  a closed-loop pole sweep; 8 Hz measurably cost task performance.
+- `shape [hz]` sets the pole live; `shape 0` writes raw targets at unlimited
+  speed. The SIL equivalent is `sil_set_shaper()`.
 
-The v1 act path wrote each 50 Hz position target raw: goal time 0, goal speed
-0 (**unlimited**), acceleration 0. The servo executed every tick as a
-max-speed slam toward the new target (~3000 steps/s, measured 2026-07-26),
-arriving mid-tick and stopping dead — a 50 Hz velocity square wave on every
-joint. That is the "jerking": velocity was discontinuous at every tick and
-the acceleration impulsive.
+### 5.4 Calibration in NVS
 
-Two changes, both in the components the SIL library compiles verbatim, so
-sim validation covers the deployed plant:
+- **Two mechanisms, not interchangeable.** `middle <id>` writes the servo's
+  own offset (register 40 ← 128); it lives in the servo's EEPROM and travels
+  with the servo. `cal …` writes the firmware's per-joint `zero_steps` and
+  `dir` to NVS; `dir` is something the servo cannot express. `middle` at the
+  neutral pose first, then `cal zero` to absorb the residual the horn
+  splines cannot. Procedure: [bringup.md](bringup.md); the values:
+  [servo-map.md](servo-map.md).
+- **Servo blob** (`main/cal_store.h`): magic `BMC1`, version 2, joint count,
+  `zero_steps[10]`, `dir[10]`, the servo map (`kServoId`) it was measured
+  under, CRC-32. A joint-count or servo-map mismatch rejects it: the robot
+  boots uncalibrated and arming is refused. A version-1 blob, which carries
+  no map, is adopted only if it equals the compiled as-built table exactly;
+  `cal migrate` is the manual path.
+- **`main/asbuilt_cal.h`** holds that as-built table as a reference for the
+  migration check, not as a default. NVS is the runtime source of truth.
+  Change it and [servo-map.md](servo-map.md) in the same commit.
+- **IMU blob** (`BMI1`): gyro bias and mount quaternion, kept separate so a
+  servo-map change does not discard them. The gyro scale is its own record.
+- **WiFi credentials** are NVS strings (`wifi <ssid> <psk>`), never in git.
+- All NVS writes are bench-only: a flash write stalls both cores' cache, and
+  with them the control tick.
 
-- **`obs::CommandShaper`** (`obs/actuation.h`): the policy's raw targets go
-  through three cascaded first-order lags, all poles at 10 Hz. Each stage is
-  the exact ZOH discretization (stable for any pole/dt, no overshoot, output
-  stays in the hull of its inputs), and each adds one derivative of
-  smoothness — the commanded trajectory has continuous velocity **and
-  acceleration** (finite jerk, i.e. the second derivative is continuous).
-  The shaper reseeds from **measured** q on every torque (re)engage or bus
-  handover, so the first shaped target after an engage can never be a jump.
-  `prev_action` stays the RAW policy output — that is what the policy saw in
-  training.
-- **Per-servo goal speed** (reg 46, `Bus::syncWritePositions` overload): each
-  SYNC WRITE carries the speed that closes the gap from the joint's measured
-  position to the shaped target in one tick, ×1.25 headroom, floored at 50
-  (never 0 — 0 means unlimited) and clamped at the servo's 3400. While
-  tracking this is the trajectory's own speed; under a disturbance the error
-  term grows it back to the old max-speed behaviour, so smoothing costs no
-  stiffness.
+### 5.5 Modes, arming and handover
 
-The pole is the plant-vs-policy tradeoff and was picked by closed-loop
-referee sweep through the SIL stack (loco_v8foot, 8 seeds): `stand_10s` and
-`line_1m` 8/8 at every pole tried; `goal_home` python 7/8 vs SIL raw 5/8,
-16 Hz 7/8, **10 Hz 6/8**, 8 Hz 4/8 (outside the parity budget — too much lag
-for the policy). 10 Hz is the strongest smoothing that keeps referee parity.
-Live-tunable from the CLI: `shape [hz]`, 0 = off (raw/legacy); the SIL twin
-is `sil_set_shaper()` and the pytest gate re-runs the referee against it.
+- **Two modes, one bus owner, no lock.** `kBench` (boot default): torque
+  released, the CLI owns the bus, `ctrl` only drains the mailbox and keeps
+  the IMU filter warm. `kRun`: `ctrl` owns the bus and bus-touching CLI
+  commands are refused. The mode changes only between ticks; going to bench,
+  `ctrl` releases torque and clears `g_ctrl_owns_bus` before the CLI may
+  touch the bus.
+- **One decision point.** `cmdMode()`, on the housekeeping task, decides every
+  mode request: a typed `run`/`bench` and a wireless ARM edge alike. It
+  refuses `run` without an as-built calibration from NVS and records its
+  verdict in `g_arm_result`, which the `BENCH` beacon carries.
+- **Arming over the radio.** `ctrl` runs `linkproto::ArmLatch` on every
+  drained frame in both modes and publishes each edge; housekeeping applies it
+  between CLI lines, so a wireless arm never lands inside a bench-mode bus
+  command. The latch outlives the watchdog, so it sees the 1 → 0 edge that
+  ends a run.
+- **Every arm starts clean**: a fresh watchdog, history ring, shaper, fall
+  latch and takeover ramp.
+- **Takeover ramp** (issue #29). For the first 1000 ms of acting ticks after
+  an arm, the written targets blend from the pose measured at takeover to the
+  policy's shaped targets. Without it the first acting tick snaps the joints
+  from the bench hold to the policy's targets — a step training never
+  produced — into an empty history. The ramp sits after the shaper and before
+  the angle → tick map, so goal-speed streaming follows the blend;
+  `prev_action` stays raw. It is not in the SIL library, which has no
+  bench → run handover.
+- **Home** (the wireless `HOME` edge, or typed `home`). Housekeeping benches
+  the loop, waits for the handover, then — refused without calibration or
+  while the pack guard holds torque off — enables torque and streams a
+  minimum-jerk move of every joint to its calibrated zero (clamped to the
+  mechanical envelope; duration from the longest move at 300 steps/s,
+  2.5–8 s). It then rolls each hip 5° out and back to take up roll play,
+  reads every joint back (±12 ticks) and **releases torque**; gear friction
+  holds the stand. It reports `HOME_PENDING` while moving, then
+  `DISARMED_HOME` or `HOME_NOT_REACHED`. It never arms.
 
-## 7d. §6 closed — the real weights are compiled in (2026-08-03)
+### 5.6 Failsafes
 
-The v1 policy blocker is done. Option 1 (distil, not quantise) was taken as
-written; nothing in §6 needed revising.
+In the order the tick applies them:
 
-- **`sim/mjx/distill_student.py`** is the brax-era replacement for the day-5
-  `sim/distill.py`: DAgger on the GPU MJX env, rebuilt from the teacher run's
-  own `config.json` so the state distribution is the plant/DR/command
-  curriculum the teacher trained on. The label is the teacher's deterministic
-  action, `tanh(mean)`, and the regression is done in tanh space — a saturated
-  logit of 4 and one of 40 are the same command, and only the first is
-  learnable at 128 wide. Round 0 is pure BC; from round 1 a decaying fraction
-  β of the env slots are teacher-driven and the rest run the student's own
-  actions **for whole trajectories**, which is what puts its compounding
-  mistakes in the dataset.
-- **The teacher's normaliser is reused verbatim and frozen.** The firmware net
-  consumes normalised obs and ships the normaliser beside the weights; a
-  refitted one would mean re-deriving the frozen-channel analysis
-  (sil-harness.md finding 2) for no gain.
-- **`loco_v12knee_warm` (512, 256, 128) → `loco_v12knee_warm_s128`
-  (128, 128)**: 38 036 weights, 150 KB fp32, 1.57 M env steps of DAgger over
-  12 rounds, holdout action MAE 0.033 on a ±1 action.
-- **The referee gate was the point, and the student did not merely survive
-  it.** Both columns, 8 seeds, 11 scenarios, hardware-claim plant:
+1. **Pack guard** (`components/battguard`). The only over-discharge
+   protection: the pack has none, and the servos' own under-voltage flag
+   trips near 6 V. On 3S it warns at 10.5 V and lands at 9.9 V held for 25
+   ticks (0.5 s): travel commands go to zero and crouch ramps to 0.60 (the
+   lowest trained stance) over 1.5 s (`VLAND`), then torque goes off
+   (`VSAFE`), latched until `batt reset` (bench only, after a pack swap) or a
+   power cycle. A tick with no servo reply is "no data", never 0 V.
+   Thresholds and the power path: [wiring.md](wiring.md).
+2. **Fall latch.** `up_z` below 0.4 (walker_env's `fall_up_z`) for 200 ms:
+   report `FALLEN`, release torque, record `DISARMED_FALL` and bench the loop.
+   Past that line the policy is outside anything it trained on, and holding
+   torque only grinds the servos against the floor. There is no auto-clear;
+   re-arming is a fresh ARM edge or `run`. `StubImu` pins `up_z` at 1, so an
+   IMU-less board never trips it.
+3. **Link watchdog** (`linkproto::Watchdog`, armed only): `STAND` after
+   250 ms without a valid frame (the command decays to the trained stand),
+   `RELAX` after 5 s (torque off), `ESTOP` on the operator's flag (torque
+   off, latched until a frame with `ENABLE` off). See
+   [control-channel.md](control-channel.md).
+4. **Overrun**: a tick longer than 40 ms releases torque (§4).
 
-  | column | teacher | student (128,128) |
-  |---|---|---|
-  | python | 51/88 | **52/88** |
-  | SIL (firmware stack) | 37/88 | **48/88** |
+Every limp state releases torque with one broadcast frame and invalidates
+the shaper, so a re-engage reseeds from wherever the joints are.
 
-  The python column is a wash (`stand_off` 4→6 and `line_1m` 6→7 pay for
-  `backward_1m` 8→7 and `goal_home` 1→0). The **SIL column is +11 seeds**, and
-  that is the number that matters, because it is the one the robot runs.
-  Distillation acted as a regulariser against exactly the plant/quantiser
-  mismatch the SIL leg exposes: `stand_off` 3→8, `backward_1m` 1→3,
-  `line_rough` 5→7, `line_1m` 4→6. Watts fell 10.4→8.4 and falls 34→22 %.
-  The four goal-relative scenarios (`turn_180`, `square_return`,
-  `circle_return`, `goal_home`) are 0/8 for teacher and student alike — a
-  teacher deficit, faithfully inherited, not a distillation loss.
-- **The student is a normal brax run dir.** It is saved as
-  `(normalizer, policy, value)` in `params.pkl`, so `eval_precision.py`,
-  `eval_precision.py --sil` and `tools/export_policy_weights.py` load it with
-  no shim — `_hidden_sizes()` already derived the widths from the checkpoint.
-- **`tools/gen_policy_weights.py` grew a real mode** (`--run <run>` /
-  `--silw <path>`) that reads the exported `.silw`, cross-checks its sidecar,
-  and emits the same header contract with `kWeightsArePlaceholder = false`
-  plus a new `kWeightsRun`. `test_policy` now asserts both, that
-  `kWeightsRun == obs::kRunName`, and that the net is neither the scaffold nor
-  degenerate. The placeholder is still regenerable (`--placeholder`) and turns
-  that test red on purpose; the tool no longer has an argument-less default,
-  because that default used to be "silently un-deploy the policy".
-- **Flash, not SRAM, as §6 predicted.** The image went 0x3cce0 → 0x60d20
-  (62 % of the app partition still free); the weights are `constexpr` in flash
-  `.rodata` and DRAM did not move (17.5 %).
-- **Gait clock confirmed, not changed.** `ctrl_task.cpp` runs
-  `obs::GaitClock g_clock(1.5f)`; training draws `gait_freq ~ U(1.25, 1.75)`
-  per episode in both envs, so 1.5 Hz is the midpoint of the distribution the
-  policy was trained across, and it is what both SIL columns were scored at.
-  §8's "fixed 1.5 Hz vs commanded" question is unaffected.
+The **mechanical envelope** (`main/mech_envelope.h`) is the per-joint
+measured or CAD-verified travel. Only the CLI's bench moves (`move`, `pose`,
+`home`) clamp to it; the act path clamps to the policy range from
+`obs_spec.h`. It pairs with [servo-map.md](servo-map.md). The CLI also
+refuses a goal write to a servo whose torque is off (`torqueGate`), because
+an STS goal write enables torque and moves the joint; `home` is the one
+command that enables torque itself, by name. The bench rules are in
+[AGENTS.md](../AGENTS.md).
 
-## 7e. `obsdump` — reading the observation off the armed robot (2026-08-30)
+## 6. Fitting the network
 
-The deployed policy walks in SIL and produces garbage motion on hardware.
-SIL (docs/sil-harness.md) runs the firmware's **own** assembler, history ring,
-quantiser and network, so every layer from the observation to the servo write
-is already covered by a green gate. The one thing it cannot supply is the
-numbers the **real sensors** put into `obs::Inputs`. A degrees-for-radians
-scale error, a sign flip, a swapped IMU axis and a permuted joint index all
-look identical from outside — the loop runs, the servos move, the robot falls
-— so the difference has to be **measured**, not reasoned about.
+The training nets are (512, 256, 128): ~232 k parameters, ~930 KB of fp32.
+That does not fit beside the application in the 1 MB app partition, and at
+the measured forward-pass rate it would not fit the tick either. So the
+deployed net is **distilled** to (128, 128): ~38 k parameters, ~150 KB,
+7.2 ms per forward pass, resident in flash (§5.2).
 
-- **`main/obs_dump.h`** publishes, once per tick and only when a dump is
-  enabled, one `ObsRecord`: `tick`, the raw `obs::Inputs` (`q[10]`, `dq[10]`,
-  `up[3]`, `gyro[3]`, `phase`, `cmd[7]`) **and** the assembled `kFrameDim`
-  frame. Both halves, because they answer different questions: the raw block
-  catches a sensor/unit fault, the frame block catches an assembler fault
-  (a section at the wrong offset, a stale `prev_action`).
-- **Ownership follows §4 exactly.** ctrl writes the buffer and only *reads*
-  the mode; housekeeping writes the mode (`obsdump on|off|once`) and only
-  *reads* the buffer. No lock in the tick, no allocation. The payload is too
-  big to tear harmlessly — tick *t*'s `q` beside tick *t+1*'s frame would
-  manufacture the very disagreement the dump exists to find — so unlike
-  `TelemetrySnapshot` it is **double-buffered**: two slots plus a sequence
-  counter, ctrl writes the slot the reader is not in, and a copy the writer
-  overran is **dropped**, never reported torn.
-- **The publish is the last thing in the tick**, after the servos already have
-  their targets: a diagnostic must never sit between sensing and acting. Off
-  it costs one relaxed load; on it costs ~350 bytes of copy, which lands in
-  `stat`'s `us_other` rather than in any budgeted phase line.
-- **Only while armed.** In bench mode `ctrl` warms the attitude filter and
-  returns — no servo read, no `assembleFrame`, no observation. `obsdump on`
-  while benched therefore refuses **and says that**, rather than streaming
-  zeros that look like a dead sensor.
-- **The wire format is text, on the tether, beside the binary telemetry.**
-  `OBSHDR,tick,q_L_hip_yaw,…` once when a dump is enabled, then
-  `OBS,<tick>,<83 values>` at **5 Hz** (a ~1.1 kB record at the loop's 50 Hz
-  would be 550 kB/s into an 11.5 kB/s link; 5 Hz is about half of it, leaving
-  room for the 10 Hz telemetry and typed commands). Both the records and the
-  telemetry frames are written by the **one** housekeeping task, so a record
-  is never split by a binary frame — but binary bytes do land between records,
-  which is why the host tool finds records by their `OBS,` tag rather than by
-  position. The WiFi wire format is untouched.
-- **Column names come from the generated obs spec**, including the frame block
-  (`f_q_*`, `f_dq_*`, `f_up_*`, `f_linvel_*`, `f_gyro_*`, `f_pa_*`,
-  `f_height`, `f_sin`, `f_cos`, `f_cmd_*`). The host tool keeps no second copy
-  of the joint order and refuses a capture with no header rather than guessing
-  it.
-- **`tools/obs_capture.py`** drives it: `off`, `on`, read for N seconds, `off`,
-  write `captures/obs_<ts>.csv`, then print per-channel min/max/mean/RMS.
-  `--compare A.csv B.csv` prints the per-channel **RMS ratio** of two
-  captures — the hardware-vs-sim test, where ~57.3 is degrees where radians
-  belong, ~1 is agreement, and 0 on one side is a channel not reaching the
-  observation at all. Generating the sim-side capture is a separate job; the
-  comparison mechanics work on any two CSVs the tool wrote. `--replay` parses
-  a saved console log with no serial port, which is how the parser is
-  exercised off-hardware.
-- **Host gate:** `firmware/host/test_obsdump.cpp` covers the double buffer
-  (empty read, round trip, the slot flip, sequence staleness) and the CSV
-  writer (column count against `kObsDumpCols`, value round trip, header names
-  against the generated offsets, truncation refusing rather than clipping, the
-  worst-case line fitting, NaN surviving).
+Flash is now the tight resource. `idf.py -C firmware build` gives a
+1 008 672 B image (0xf6420) against the 0x100000 single-app partition:
+4 % free. The 4 MB flash has room for a larger app partition; none is
+configured. The distillation
+(`sim/mjx/distill_student.py`, DAgger against the frozen teacher normaliser)
+is described in [training.md](training.md) §9.
+
+The referee gates the deployed artifact: the distilled net is scored on both
+scorecard columns — the python referee and the SIL column through the
+firmware's own code — before its headers are generated and flashed.
+
+## 7. Test and deploy (host first, hardware last)
+
+- **Host tests.** The pure modules compile on the host with the firmware's
+  warnings plus `-Wshadow -Wconversion -Wsign-conversion`, under ASan/UBSan:
+  `make -C firmware/host test`. The protocol vectors are generated by running
+  `link/protocol.py`; the obs vectors are real `walker_env._obs()` frames; the
+  policy vectors are numpy forward passes of the deployed weights. The target
+  for the policy is 1e-6 against the golden vectors; the test allows 2e-6,
+  because float32 accumulation order differs from numpy's over a 147-wide
+  dot product. `main/cal_store.cpp` and `main/obs_dump.cpp` keep their
+  ESP-IDF calls behind `#ifdef ESP_PLATFORM` or out of the file so their
+  logic is covered too.
+- **SIL.** The same component sources are linked into `libctrl_sil` and run
+  against the CPU plant, scored by the same referee
+  ([sil-harness.md](sil-harness.md)).
+- **Deploy.** `make -C firmware/host deploy-headers RUN=<run>` regenerates
+  `obs_spec.h` and `weights.h` (and their vectors) together, from one run;
+  then `make -C firmware/host test`, `idf.py -C firmware build`, flash. The
+  path from a trained run to the flash is [training.md](training.md) §9.
+- **On the robot**: bring-up order and checks are
+  [bringup.md](bringup.md).
+
+### 7.1 `obsdump`: the observation off the armed robot
+
+SIL covers every layer from `obs::Inputs` to the servo write. What it cannot
+supply is the numbers the real sensors put into `obs::Inputs`; a
+degrees-for-radians error, a sign flip, a swapped IMU axis and a permuted
+joint all look the same from outside. `obsdump` measures them.
+
+- `main/obs_dump.h` publishes, once per tick while enabled, one record: the
+  tick, the raw `obs::Inputs` (q, dq, up, gyro, phase, cmd) and the
+  assembled 49-float frame. The raw half catches sensor and unit faults; the
+  frame half catches assembler faults.
+- It is double-buffered with a sequence counter (§4) and published **last**
+  in the tick, after the servos have their targets. Off, it costs one relaxed
+  load; on, ~350 bytes of copy, which lands in `us_other`.
+- Armed only. Benched, the loop reads no servos and assembles nothing, so
+  `obsdump on` refuses and says so.
+- Output is text on the tether beside the binary telemetry: `OBSHDR,…` once,
+  then `OBS,<tick>,…` at 5 Hz. Housekeeping writes both, so a record is
+  never split, and host tools find records by their `OBS,` tag. Column names
+  come from the generated obs spec.
+- `tools/obs_capture.py` drives it and writes `captures/obs_<ts>.csv` with
+  per-channel statistics; `--compare A.csv B.csv` prints per-channel RMS
+  ratios, where ~57.3 means degrees where radians belong and 0 on one side a
+  channel that never reaches the observation. `sim/sil_twin.py --obs-csv`
+  writes the sim side in the same format.
+- `obsfreeze [none|up|gyro|imu|dq|gain=k]` pins parts of the observation at
+  nominal (or scales the gyro) while the beacon and the guards keep the real
+  values; it does not persist.
+- `firmware/host/test_obsdump.cpp` covers the double buffer and the CSV
+  writer.
 
 ## 8. Open questions
 
-- Exact Waveshare SKU on the BOM → confirm SRAM/PSRAM and UART wiring.
-- Encoder velocity: read from servo registers vs finite-difference on
-  positions (sim uses true qvel; ToddlerBot finite-differences — decide
-  during sys-ID, and match the sim's DR to whichever ships).
-- Whether specialist switching needs hysteresis/blending at boundaries
-  (v1: switch only through a stand command).
-- Gait-clock frequency source on hardware (fixed 1.5 Hz vs commanded).
+- **Velocity source.** The loop feeds register 58; a filtered finite
+  difference is computed beside it (`obs::VelocityEstimator`), so the switch
+  is one branch in `ctrl_task.cpp`. A bench check put the reported/differenced
+  slope at 0.69: a scale question, not a unit error. The sim uses true
+  `qvel`; decide in sys-ID and match the sim's randomisation to whichever
+  ships.
+- **Gait base frequency.** Fixed at 1.5 Hz, speed-scaled (§5.1). A commanded
+  frequency is not on the wire.
+- **Pack sense.** `battguard` reads register 62 (0.1 V, and only while a
+  servo answers). The INA219 sees the pack even with the bus released;
+  switching to it is not done.
+- **Telemetry gaps.** The servo-fault field is 8 bits against 10 joints
+  (joints 8 and 9 are OR-ed into bits 0 and 1), and the firmware does not
+  estimate `vx_est`/`wz_est` (it sends 0). Widening the frame is a
+  `link/protocol.py` change first.
+- **Idle torque-off** while standing still is not implemented. Powered
+  friction measures 0.235 N·m (8 % of stall at 200 steps/s), a lower bound on
+  unpowered backdrive; `home` already ends with torque released and friction
+  holding the stand.
+- **Flash headroom.** The app image fills 96 % of the 1 MB partition (§6); a
+  bigger net or a wider observation needs a larger partition table first.
+- **The 17-joint port** (issue #81). Joint count, servo map, calibration
+  blob, telemetry frame, SIL ABI and the mechanical envelope are all 10 wide
+  today.

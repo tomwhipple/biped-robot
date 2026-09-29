@@ -10,7 +10,8 @@
 #   [4/8] clang-tidy      run-clang-tidy -p build -quiet  (toolchain-guarded)
 #   [5/8] clang-tidy-gui  firmware/host/clang-tidy-gui.sh (toolchain-guarded; runs make deps)
 #   [6/8] cppcheck        firmware/host/cppcheck.sh    (toolchain-guarded)
-#   [7-8/8] esp32-build   idf.py build (firmware/main) — detection: idf.py on
+#   [7-8/8] esp32-build   idf.py build (the project in firmware/; firmware/main is
+#                         a component) — detection: idf.py on
 #                         PATH, else source $IDF_PATH/export.sh, else hardcoded
 #                         $HOME/.espressif/frameworks/esp-idf-v5.4; SKIP_ESP32=1
 #                         overrides a missing toolchain.
@@ -140,10 +141,10 @@ fi
 
 # --- [7-8/8] esp32 firmware build (idf.py link step) ---------------------------
 echo "" >&2
-echo "== [esp32-build] verifying ESP-IDF compiles firmware/main =="
+echo "== [esp32-build] verifying ESP-IDF builds the firmware project (firmware/) =="
 
 esp_build() {
-  ( cd "$ROOT/firmware/main" && idf.py fullclean >/dev/null 2>&1 && idf.py build )
+  ( cd "$ROOT/firmware" && idf.py fullclean >/dev/null 2>&1 && idf.py build )
 }
 
 if [ "${SKIP_ESP32:-0}" != "0" ]; then

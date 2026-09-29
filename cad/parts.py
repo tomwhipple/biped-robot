@@ -1683,58 +1683,5 @@ def main():
           f"stands {D.BR_TOP_Z:.1f}) -- v5 26.6, v4 74.0")
 
 
-def export_assemblies():
-    """assembly.step + assembly_full.step, from the geometry just exported.
-
-    Chained here (user, 2026-07-27) for the same reason STEP was: they are
-    built from the same parts and go stale the moment someone changes a
-    dimension and only runs parts.py. Imported lazily -- both modules import
-    parts, so a top-level import would be circular.
-
-    BLOCKED AS OF 2026-08-04 (pelvis v6): export_assembly.py,
-    export_assembly_full.py, check_assembly.py and fasteners.py still place the
-    v5 torso -- parts.battery_tray(), parts.board_frame(), D.BT_FLOOR_*/PAD_*/
-    SCREW_* and the whole v5 D.BF_* set -- none of which exist any more. v6 was
-    scoped to dimensions.py and parts.py, so those four are a follow-up edit.
-    Rather than let this raise a bare AttributeError after a successful part
-    export, say what is wrong and stop.
-    """
-    try:
-        import export_assembly
-        import export_assembly_full
-    except (ImportError, AttributeError) as e:      # pragma: no cover
-        _stale(e)
-        return
-    try:
-        export_assembly.main()
-        export_assembly_full.main()
-    except AttributeError as e:
-        _stale(e)
-
-
-def _stale(e):
-    import sys
-    print("\n*** assemblies NOT refreshed -- the downstream scripts are still "
-          "on the v5 torso ***")
-    print(f"    {type(e).__name__}: {e}")
-    print("    to update, in one change set: cad/export_assembly.py, "
-          "cad/export_assembly_full.py,\n"
-          "    cad/check_assembly.py, cad/fasteners.py -- battery_tray and "
-          "board_frame are not parts\n"
-          "    any more (they are pelvis features: BT_SEAT_* and BR_*), the "
-          "board takes 2 M2.5 from\n"
-          "    aft at (+/-29, BR_SCREW_Z), and gopro_base is back on 4 M3 at "
-          "GP_MOUNT_X +/- GP_SCREW_XY.")
-    print("    the STLs and per-part STEPs above ARE current.")
-    sys.exit(1)
-
-
 if __name__ == "__main__":
-    import sys
     main()
-    # ~55 s of the run is the two assemblies; --no-assembly skips them while
-    # iterating on a single part. The default is to keep everything current.
-    if "--no-assembly" in sys.argv:
-        print("\n(--no-assembly: assembly.step / assembly_full.step NOT refreshed)")
-    else:
-        export_assemblies()

@@ -1,64 +1,62 @@
 #!/bin/sh
-# Every automated interference check, in one command.
+# Every automated CAD gate for the robot, in one command.
 #
-#   sh cad/run_checks.sh          # exit 0 = clear, 1 = something interferes
-#   sh cad/run_checks.sh 25       # finer ROM sampling (slower)
+#   sh cad/run_checks.sh          # exit 0 = clear, 1 = something fails
 #
-# Two checks, because they cover different things and neither subsumes the other:
+# Two kinds of check:
 #
-#   check_assembly.py       build123d solids at POSE EXTREMES plus a handful of
-#                           combined poses, and the insertion-path scans. Catches
-#                           anything the articulated FCStd does not model
-#                           (torso: battery lift-out / board mount, servo
-#                           mocks, screw reach).
-#   freecad_rom_collide.py  the real articulated assembly, every joint SWEPT
-#                           across its whole travel. Catches fouls that live in
-#                           the MIDDLE of the range, which endpoint checks miss
-#                           by construction.
+#   check_assembly_v6.py    the articulated v6 assembly (cad/v6/assembly_v6.py)
+#                           posed through every joint's ROM -- extremes plus
+#                           interior samples -- for every pair of pieces that
+#                           move relative to each other. Run twice: the default
+#                           build, and ARMS=1 (shoulder girdle + the two arms).
+#                           Results are what docs/design-v6/cad_rom_check.txt
+#                           records.
+#   audit_torso.py,         printability REPORTS (cad/check_printability.py's
+#   audit_ankle_foot.py     engine: bridges, ceilings, islands, first-layer
+#                           contact) on the exported STLs in cad/v6/stl. They
+#                           do not fail the run: pelvis_v7 and ankle_link carry
+#                           ceilings and islands by design, and supports are
+#                           the slicer's job (cad/PRINT_LIST.md). Read the
+#                           ** lines against the slice preview.
 #
-# The two run under different interpreters -- check_assembly needs the venv's
-# build123d, freecad_rom_collide needs FreeCAD's own Python -- which is why this
-# is a shell script and not one more Python entry point.
+# The other parts audit themselves from their own module's __main__
+# (leg_link_v6, hip_yoke_v6, shoulder_girdle_v6, arm_v6) -- those rewrite
+# their STL as they go, so they are run when the part changes, not here.
 set -u
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-FREECADCMD=${FREECADCMD:-/Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd}
-STEPS=${1:-}
+PY="$ROOT/.venv/bin/python"
 
 rc=0
 
-echo "=================== check_assembly.py (pose extremes) ==================="
-if "$ROOT/.venv/bin/python" "$ROOT/cad/check_assembly.py"; then
-    echo "check_assembly: PASS"
-else
-    echo "check_assembly: FAIL"
-    rc=1
-fi
-
-echo
-echo "================= freecad_rom_collide.py (swept ROM) ===================="
-if [ ! -x "$FREECADCMD" ]; then
-    echo "freecad_rom_collide: SKIPPED -- no freecadcmd at $FREECADCMD"
-    echo "  (set FREECADCMD=/path/to/freecadcmd to run it)"
-    rc=1        # a skipped check is not a passed check
-else
-    # freecadcmd chatters on stderr (3Dconnexion) and spews carriage-returned
-    # "(42 %)" progress bars on stdout, which bury the report. Strip those, but
-    # take the exit status from freecadcmd itself, not from the filter.
-    out=$(mktemp)
-    "$FREECADCMD" "$ROOT/cad/freecad_rom_collide.py" $STEPS >"$out" 2>/dev/null
-    sweep_rc=$?
-    tr '\r' '\n' <"$out" | grep -vE '\([0-9]+ %\)|^\s*$|^(Importing|Postprocessing|Recompute|MbD:|Time =|FreeCAD 1|\(C\) 2|FreeCAD is free)'
-    rm -f "$out"
-    if [ "$sweep_rc" -eq 0 ]; then
-        echo "freecad_rom_collide: PASS"
+run() {
+    label=$1
+    shift
+    echo "=================== $label ==================="
+    if "$@"; then
+        echo "$label: PASS"
     else
-        echo "freecad_rom_collide: FAIL"
+        echo "$label: FAIL"
         rc=1
     fi
-fi
+    echo
+}
 
-echo
+run "check_assembly_v6 (default build)" "$PY" "$ROOT/cad/v6/check_assembly_v6.py"
+run "check_assembly_v6 (ARMS=1)" env ARMS=1 "$PY" "$ROOT/cad/v6/check_assembly_v6.py"
+
+report() {
+    label=$1
+    shift
+    echo "=================== $label (report) ==================="
+    "$@" || echo "$label: findings above -- check them in the slice preview"
+    echo
+}
+
+report "audit_torso" "$PY" "$ROOT/cad/v6/audit_torso.py"
+report "audit_ankle_foot" "$PY" "$ROOT/cad/v6/audit_ankle_foot.py"
+
 if [ "$rc" -eq 0 ]; then
     echo "ALL CHECKS PASS"
 else

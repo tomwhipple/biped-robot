@@ -1,6 +1,6 @@
 """The v6 (ankle-roll) design record must keep passing its own gates.
 
-docs/design-v6-ankle-roll.md states the numbers these tests pin: the plant
+docs/design-v6/2026-09-13-design-record.md states the numbers these tests pin: the plant
 loads with 12 actuators, the analytic leg IK round-trips through MuJoCo's
 forward kinematics, Gate A finds a static single-foot stance with >= 25 mm of
 CoM margin inside every joint limit, and Gate B finds no STS3215 joint short

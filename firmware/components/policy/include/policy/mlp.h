@@ -7,8 +7,8 @@
 //       x = (obs - mean) / std,  element-wise over the FULL stacked obs
 //   * hidden layers are flax Dense with kernel shape (in, out), row-major,
 //     activation = linen.swish  (x * sigmoid(x))  -- brax's make_ppo_networks
-//     default. NOTE: docs/firmware-design.md section 5 said "tanh/identity";
-//     that is wrong and the changelog records the correction.
+//     default (docs/firmware-design.md section 5.2). Only the final mode is a
+//     tanh; the hidden layers are not.
 //   * the output layer is linear and 2 * action_size wide: the first half is
 //     the distribution mean, the second half the (state-independent) log-std
 //   * deterministic inference is NormalTanhDistribution.mode() = tanh(mean)

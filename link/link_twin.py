@@ -8,7 +8,7 @@ does -- BENCH until an ARM edge, LIVE/STAND/RELAX/ESTOP from the reference
 Watchdog, 10 Hz telemetry -- and prints every state change and command it
 would hand the policy. It exists so a commander (link/tui.cpp above all) can
 be exercised end to end on a laptop with nothing else running; the full
-sim twin with a plant is sim/udp_agent.py, which shares the Supervisor.
+sim twin with a plant is sim/sil_twin.py, which runs the firmware's own code.
 
 Telemetry is synthetic: vx_est/wz_est echo the applied command, vbat is a
 fixed 11.4 V, up_z is 1.0.

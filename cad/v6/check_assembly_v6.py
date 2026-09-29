@@ -234,7 +234,7 @@ def main(argv=None):
         if a.joint and a.joint != "interleg":
             continue
         worst = (0.0, 1e9, None)
-        # the poses the WALK uses (docs/design-v6-ankle-roll.md 4.3): the
+        # the poses the WALK uses (docs/design-v6/2026-09-13-design-record.md 4.3): the
         # parallelogram shift (both hips rolled the same way, ankles opposite),
         # the lifted swing at that shift, and a 3 deg mutual adduction. (Both
         # hips rolled TOWARD each other by 8 deg is not a pose this body can

@@ -1,5 +1,7 @@
 # Hip-yaw bearing study (2026-09-17, round 2 2026-09-18)
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
+
 Tom, 2026-09-17: *"What about the hip yaw? The servo axle is the only
 connection between the leg and the rest of the robot ... it seems to me
 we're fighting a lot of mechanical leverage there."* Confirmed in the CAD
@@ -25,7 +27,7 @@ recommends it. Selection is left to Tom -- BOM not touched.
 
 **Before:** body weight (thrust, ~15 N of the ~1.5 kg robot's mass in
 single support) + the single-support roll moment (~0.65 N-m,
-`docs/design-v6-ankle-roll.md` §4.4) + any side load at the foot x 0.335 m
+`docs/design-v6/2026-09-13-design-record.md` §4.4) + any side load at the foot x 0.335 m
 lever all go through: the servo's internal output bearing -> the horn
 spline -> 4x M3 horn screws -> the carrier's flat plate. The plate mates the
 horn by friction/screw clamp only; nothing pelvis-side reacts a moment

@@ -194,8 +194,9 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--cmd-dense", action="store_true")
     p.add_argument("--terrain", action="store_true",
-                   help="train on the tiled terrain mosaic (0-20 mm rough "
-                        "ground, per-episode spawn = per-episode roughness)")
+                   help="train on the tiled terrain mosaic (2-6 mm carpet-like "
+                        "ground, sim/terrain_mosaic.npz; per-episode spawn = "
+                        "per-episode roughness)")
     p.add_argument("--mimic-knee-w", type=float, default=1.0,
                    help="knee weight in the gait-imitation kernel (the "
                         "lump-sum kernel let the knee stay jammed straight)")
@@ -519,7 +520,7 @@ def main():
             # articulation exercises + feet-crossing guard (user 2026-07-20)
             ext_mix=(0.15, 0.08, 0.12, 0.10, 0.08, 0.10, 0.07),
             w_foot_cross=0.5,
-            # plan-v2 Phase A (docs/training-plan-v2.md): Playground-recipe
+            # plan-v2 Phase A (docs/archive/2026-07-20-training-prior-art.md): Playground-recipe
             # terms + Open Duck BAM servo constants + obs history
             gait_clock=True, w_feet_phase=1.0, swing_height=0.06,
             w_feet_slip=0.25, w_orientation=1.0, w_ang_vel_xy=0.15,

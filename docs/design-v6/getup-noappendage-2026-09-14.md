@@ -1,5 +1,7 @@
 # No-appendage fall-recovery search on the v6 body (2026-09-14 / 15)
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). The chosen get-up is the arm-assisted seat push.
+
 Tom: *"return the robot (v6/v7) to standing if it falls ... without the tail
 or arms ... thinking creatively, remembering the robot can rotate most of its
 joints further than humans."*

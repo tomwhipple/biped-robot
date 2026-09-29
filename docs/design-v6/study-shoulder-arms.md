@@ -1,8 +1,10 @@
 # Get-up study, round 4: top-of-torso shoulder arms (2026-09-16/17)
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
+
 Tom's Option 2: *"add arms with some kind of crude shoulder joint. (we should
 put the shoulders at the TOP of the torso)."* Companion to
-`docs/design-v6-ankle-roll.md` §12 (round 2: hip-level arms/tail, 10-12/12
+`docs/design-v6/2026-09-13-design-record.md` §12 (round 2: hip-level arms/tail, 10-12/12
 seat-push, 6/6 robust) and §11-12.2 (legs-only, negative). Round 2's
 shoulder-height arms (deck top, `arm_z=None` == 0.059 m above the yaw axis,
 a 1-DOF 200 mm stub) were 0/N: every push pivoted the body about the head

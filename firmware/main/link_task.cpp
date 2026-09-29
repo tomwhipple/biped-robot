@@ -162,7 +162,7 @@ void houseTask(void*) {
                 t.wz_est = g_telemetry.wz_est.load();
                 // The wire field is 8 bits (one bit per servo ID 1-8); the
                 // 10-DOF plant has two more joints, so the hip-yaw faults are
-                // folded into the top bits. Widening the frame is a protocol
+                // OR'd into bits 0 and 1. Widening the frame is a protocol
                 // change and therefore a link/protocol.py change first.
                 const uint16_t f = g_telemetry.servo_err.load();
                 t.servo_err = static_cast<uint8_t>(f & 0xFF) |

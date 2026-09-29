@@ -1,709 +1,488 @@
 # Wireless command channel
 
-*Status 2026-07-15. Untethered by design. No parts change: the ESP32 already
-on the order sheet does this. Specified in `link/protocol.py`, exercised
-against MuJoCo over real UDP by `sim/udp_agent.py`, tested in `tests/`.*
+*The link between a laptop console and the robot. `link/protocol.py` is the
+reference implementation; `firmware/components/linkproto` is its byte-exact
+C++ port, diffed against golden vectors the Python generates
+(`tools/gen_protocol_vectors.py`). Tests: `tests/test_protocol.py`,
+`firmware/host/test_protocol.cpp`, and the console end-to-end tests
+`tests/test_tui_e2e.py` and `tests/test_gui_e2e.py`. How the firmware runs
+it: [firmware-design.md](firmware-design.md). The robot drawn from its own
+telemetry: [mirror-mode.md](mirror-mode.md).*
 
-The USB-C tether stays for flashing and debug ([wiring.md](wiring.md)), but
-nothing about running the robot needs it.
+The USB-C tether stays for flashing and bench work; running the robot does
+not need it.
 
 ## The idea: the radio carries intent, not the control loop
 
-This is the whole design, and everything else follows from it.
-
-The 50 Hz policy loop runs **on the ESP32**, next to the 1 Mbaud servo bus —
-already the plan of record, because an 8-servo command+readback cycle at
-115200 baud eats most of a 20 ms tick (DESIGN.md's latency work). So the
-radio does not carry joint angles at 50 Hz. It carries the **2-vector
-`(vx, yaw_rate)`** that `walker_env.set_command()` already takes, at 20 Hz.
-
-Consequences worth being explicit about:
+The 50 Hz policy loop runs on the ESP32, beside the servo bus. The radio
+carries only the operator's intent — the command vector
+`walker_env.set_command()` takes (`vx`, `wz`, optionally `vy`, crouch, lift
+and foot offsets) — at 20 Hz.
 
 - **A lost packet costs staleness, never a bad joint angle.** The worst a
-  dropped frame can do is leave the robot tracking the previous intent for
-  another 50 ms. Compare a radio in the control loop, where a dropout is a
-  gap in the servo command stream.
-- **The failsafe is a trained behavior, not an emergency pose.** When the
-  link goes stale the command decays to `(0, 0)` — and `walker_env` draws a
-  stand command 30 % of the time during training (`cmd_stand_prob`). The
-  robot's response to losing its radio is the single most-practiced thing it
-  knows. Nothing bespoke to write, tune, or trust.
-- **Bandwidth is a non-issue.** 14 bytes at 20 Hz is 2.2 kbit/s. The link
-  budget stops being an engineering problem.
+  dropped frame does is leave the robot tracking the previous intent for
+  another 50 ms.
+- **The failsafe is a trained behaviour, not an emergency pose.** A stale
+  link decays to the zero command, and training draws that stand command a
+  fixed share of the time (`cmd_stand_prob`, default 0.3). Losing the radio
+  puts the robot in its most-practised state.
+- **Bandwidth is a non-issue**: 14 B at 20 Hz is 2.2 kbit/s.
 
 ## Wire format
 
-Little-endian (ESP32 and host are both LE, so the firmware can memcpy).
-Identical framing over UDP and over UART0 for tethered debug — one encoder,
-both paths.
+Little-endian (ESP32 and host are both LE). **Identical framing over UDP and
+UART0**: one encoder, both paths. On UART0 the frames share the line with
+CLI text, and `linkproto::Demux` separates the two.
 
-**Command** — laptop → robot, 14 B, UDP port 4210, 20 Hz:
+**Command**, console → robot, UDP port 4210, 20 Hz, 14 B or 24 B:
 
 | off | size | field | notes |
 |---|---|---|---|
 | 0 | 2 | magic | `"BM"` |
 | 2 | 1 | version | 1 |
-| 3 | 1 | flags | bit0 `ENABLE`, bit1 `ESTOP`, bit2 `ARM`, bit3 `POSE`, bit4 `HOME` |
-| 4 | 4 | seq | u32, monotonic |
-| 8 | 2 | vx | i16, mm/s, body-frame forward |
-| 10 | 2 | wz | i16, mrad/s, yaw rate |
-| 12 | 2 | crc16 | CCITT-FALSE over bytes 0–11 |
+| 3 | 1 | flags | below |
+| 4 | 4 | seq | u32, monotonic per sender |
+| 8 | 2 | vx | i16 mm/s, body-frame forward |
+| 10 | 2 | wz | i16 mrad/s, yaw rate |
+| 12 | 10 | vy, crouch, lift, foot_dx, foot_dz | 5 × i16 milli-units, **24 B frame only** |
+| last | 2 | crc16 | CRC-16/CCITT-FALSE over everything before it |
 
-**Telemetry** — robot → laptop, 28 B, UDP port 4211, 10 Hz: magic `"BT"`,
-version, link state, echoed seq, bus millivolts, torso up-z, estimated vx/wz,
-a per-servo fault bitmask, the percentage of control ticks that overran
-20 ms, and — since 2026-09-02 — the robot's wall clock, `t_us`, as
-microseconds since the Unix epoch. The OLED shows bus voltage too, but
-telemetry is what a laptop can log.
-The echoed-seq field does double duty while the state is `BENCH` — see
-[the bench diagnostic](#saying-why-over-the-radio-2026-08-30). The joints
-extension (48 B, [mirror-mode.md](mirror-mode.md)) and the timestamp are
-described in [Time on the wire](#time-on-the-wire-2026-09-02).
+Length selects the layout. A 14 B frame decodes with the extra channels at
+their trained defaults (0, 1.0, 0, 0, 0), and senders emit the 24 B frame
+only when an extra is off its default. The UART path takes 14 B frames only.
+
+| bit | flag | meaning |
+|---|---|---|
+| 0 | `ENABLE` | 0 = stand still whatever the channels say |
+| 1 | `ESTOP` | latching torque release |
+| 2 | `ARM` | the operator wants the loop armed; the robot acts on its edges |
+| 3 | `POSE` | beacon joint angles too (a level) |
+| 4 | `HOME` | reset the servos to the stand (rising edge) |
+| 5 | `ATT` | beacon the torso up vector too (a level) |
+
+**Telemetry**, robot → the last console that commanded it, UDP port 4211,
+10 Hz:
 
 | off | size | field | notes |
 |---|---|---|---|
 | 0 | 2 | magic | `"BT"` |
 | 2 | 1 | version | 1 |
-| 3 | 1 | state | `LinkState`, declaration order |
-| 4 | 4 | seq_echo | u32; the bench diagnostic byte while `BENCH` |
-| 8 | 2 | vbat | u16, mV |
-| 10 | 2 | up_z | i16, milli |
-| 12 | 2 | vx_est | i16, mm/s |
-| 14 | 2 | wz_est | i16, mrad/s |
-| 16 | 1 | servo_err | bitmask, obs_spec joint order |
-| 17 | 1 | loop_late_pct | u8 |
-| 18 | 8 | **t_us** | u64, µs since the epoch, UTC, robot clock; **0 = not synced** |
-| 26 | 20 | joints | 10 × i16 milli-rad, **48 B frame only** (`FLAG_POSE`) |
-| last | 2 | crc16 | CCITT-FALSE over everything before it |
+| 3 | 1 | state | `LinkState`, wire value below |
+| 4 | 4 | seq_echo | u32, the last command seq applied; the [bench diagnostic](#saying-why-the-bench-diagnostic) while `BENCH` |
+| 8 | 2 | vbat | u16 mV |
+| 10 | 2 | up_z | i16 milli; torso up-vector z, 1.0 = upright |
+| 12 | 2 | vx_est | i16 mm/s; the firmware does not estimate it and sends 0 |
+| 14 | 2 | wz_est | i16 mrad/s; likewise 0 |
+| 16 | 1 | servo_err | fault bit per joint in obs_spec order; the prototype's joints 8 and 9 are OR-ed into bits 0 and 1 |
+| 17 | 1 | loop_late_pct | % of control ticks over 20 ms |
+| 18 | 8 | t_us | u64 µs since the Unix epoch, UTC, robot clock; **0 = not synced** |
+| 26 | 20 | joints | 10 × i16 milli-rad, obs_spec joint order; **only when asked with `POSE`** |
+| next | 4 | up_x, up_y | 2 × i16 milli; **only when asked with `ATT`** |
+| last | 2 | crc16 | over everything before it |
 
-Fixed-point milli-units rather than float32 so the frame is byte-identical
-across the Python sender and a C firmware. ±32.7 m/s of headroom on a plant
-that does 1.0.
+Four lengths: 28 base, 32 + attitude, 48 + joints, 52 + both. Every block
+has a fixed size, so the length alone selects the layout and the version
+byte stays 1. Decoders also accept 20 B and 40 B frames without the
+timestamp (read as `t_us = 0`); nothing emits them. The UART tether sends
+the 28 B frame only, and only while armed: it shares 115200 baud with CLI
+text and the observation dump.
 
-**Why a CRC when UDP already checksums?** Not bit rot. It (a) rejects stray
-traffic that hits the port — in AP mode the robot's network is open — and (b)
-lets the same frame ride UART0, where there is no transport checksum at all.
-`crc16_ccitt(b"123456789") == 0x29B1`, the standard check value, so a C port
-can be diffed against a number rather than against "whatever Python said".
+The rules behind the format:
+
+- **Fixed-point milli-units**, not float32, so the frame is byte-identical
+  from Python and C.
+- **A CRC although UDP checksums**: it rejects stray traffic on an open port
+  and covers UART0, which has no checksum at all.
+  `crc16_ccitt(b"123456789") == 0x29B1`, the standard check value, so a C
+  port can be diffed against a number rather than against "whatever Python
+  said".
+- **Telemetry blocks are requested, never volunteered** (`POSE`, `ATT`). The
+  robot is the sender and every client rejects a length it does not know, so
+  an unrequested new length would blind every console at once. A client that
+  asks is by construction one that can read the answer.
+- **The timestamp is the one exception**: it is on every frame, because its
+  value is that any frame from any console can be laid against a video.
+- **10 joints is the prototype's count.** The 17-joint port (issue #81) changes
+  `NUM_JOINTS` in `link/protocol.py` first; the firmware static-asserts its
+  copy against the generated obs spec.
 
 ## Link states (the failsafe)
 
 ![Link-state filmstrip](control-channel-failsafe.png)
 
-*Real UDP, real policy, commander killed mid-stride. Stripe colour is the
-watchdog's own per-tick state: amber `STAND` (powered up, no commander yet) →
+*Sim over real UDP, a trained policy, commander killed mid-stride. The stripe
+is the watchdog's per-frame state: amber `STAND` (armed, no commander yet) →
 green `LIVE` (walking under command) → amber `STAND` (radio dead, decayed to
-the trained zero command) → red `RELAX` (torque released). Regenerate with
-`.venv/bin/python sim/render_link_demo.py --run-name cmd_11v1`.*
+the stand) → red `RELAX` (torque released; a straight-legged robot stays up,
+which is why RELAX is verified by torque, not by eye).*
 
-`link/protocol.py:Watchdog` is the reference implementation. It takes its
-clock as an argument, so link loss is tested exactly and instantly rather
-than slept through.
+`link/protocol.py:Watchdog` is the reference. It takes its clock as an
+argument, so link loss is tested exactly rather than slept through.
 
-| state | entered when | robot does |
-|---|---|---|
-| `LIVE` | valid frame < 250 ms ago | track the command |
-| `STAND` | no valid frame for 250 ms | command `(0,0)` — the trained stand |
-| `RELAX` | no valid frame for 5 s | **torque off**; servos release |
-| `ESTOP` | operator flag; latching | torque off immediately |
-| `VLAND` | pack ≤ 9.9 V for 0.5 s | stop travelling, crouch down under control |
-| `VSAFE` | 1.5 s after `VLAND` | **torque off**, latched until a pack swap |
-| `FALLEN` | torso `up_z` < 0.4 for 200 ms | **torque off**, latched; clears when righted |
-| `BENCH` | boot, or an `ARM` 1→0 edge, or the tethered `bench` | **torque off**; CLI owns the bus; the link commands nothing |
+| state | wire | entered when | robot does |
+|---|---|---|---|
+| `LIVE` | 0 | a valid frame less than 250 ms ago | track the command |
+| `STAND` | 1 | no valid frame for 250 ms, or none yet since arming | command decays to the trained stand |
+| `RELAX` | 2 | no valid frame for 5 s | torque off |
+| `ESTOP` | 3 | the `ESTOP` flag | torque off, latched |
+| `VLAND` | 4 | pack ≤ 9.9 V for 0.5 s | stop travelling, crouch down under control |
+| `VSAFE` | 5 | 1.5 s after `VLAND` | torque off, latched until `batt reset` or a power cycle |
+| `FALLEN` | 6 | `up_z` < 0.4 for 200 ms | torque off; the run ends and the loop benches |
+| `BENCH` | 7 | boot, an `ARM` 1→0 edge, a fall, a home, or the tethered `bench` | the CLI owns the bus; the link commands nothing |
 
-The first four come from the watchdog and describe the *link*. The rest are
-decided by the ROBOT and appended to the enum, so existing states keep their
-wire encoding. `VLAND`/`VSAFE` come from `battguard::Guard`, describe the
-*pack*, outrank everything, and no command clears them (see
-[wiring.md](wiring.md#battery-protection)). `FALLEN` (2026-08-26) is the
-control loop reading its own IMU: below `up_z` 0.4 — the sim's own
-`fall_up_z` termination threshold — the policy is outside anything training
-produced, and holding torque only grinds the servos against the floor, so the
-robot goes limp and says why. Unlike the pack states it clears without a
-reboot, but deliberately: upright (`up_z` > 0.7) for 2 s **and** the
-operator's frames saying `ENABLE` off — so a robot picked up mid-fumble
-cannot spring back to life in someone's hands, and a dead link leaves it
-safely down. Tethered equivalent: `bench` then `run`.
+The first four describe the link. The rest are decided by the robot and
+appended to the enum, so existing states keep their encoding. The pack
+states outrank everything and no command clears them; `FALLEN` outranks the
+link states. Details of the pack guard: [firmware-design.md](firmware-design.md)
+§5.6 and [wiring.md](wiring.md).
 
-- **250 ms** is 5 missed packets at 20 Hz — long enough that one ordinary
-  WiFi hiccup is invisible, short enough that a runaway is brief.
-- **5 s → RELAX** exists because holding a stand forever on a dead link
-  cooks eight servos and drains the pack to hold a pose nobody wants. Limp
-  is the right state for an unattended 28 cm robot; it falls better than it
-  overheats. (`walker_env.set_torque_enabled()` — the sim analogue of the
-  STS3215's torque-enable register, i.e. the "Release" in wiring.md's
-  bring-up checklist.)
-- **Before the first packet ever arrives** the state is `STAND`, not
-  `RELAX`: a robot powered up on its feet with no commander yet should stand,
-  not flop.
-- **E-stop latches** and clears only via a frame with `ENABLE` *off*, so a
-  released dead-man cannot re-arm straight back into motion.
+One line of reason per rule:
+
+- **250 ms** is 5 missed frames at 20 Hz: an ordinary WiFi hiccup is
+  invisible, a runaway is brief.
+- **5 s → `RELAX`**: holding a stand forever on a dead link heats the
+  servos and drains the pack for a pose nobody wants; limp is the right
+  state for an unattended robot.
+- **An armed loop that has heard no frame is `STAND`, not `RELAX`**: a robot
+  armed on its feet with no commander yet should stand, not fold.
+- **E-stop clears only through a frame with `ENABLE` off**, so a released
+  dead-man cannot re-arm straight into motion. Every arm also starts a fresh
+  watchdog.
+- **Stale and reordered frames are dropped by sequence number and do not pet
+  the watchdog**; otherwise a reordered burst could hold the robot `LIVE` on
+  a command from the past. A backwards jump of more than 1000 means the
+  sender restarted, and the watchdog resyncs to it.
+- **`FALLEN` ends the run.** Below the sim's own `fall_up_z` the policy is
+  outside its training and holding torque only grinds the servos against the
+  floor. There is no auto-clear: re-arming is a fresh `ARM` edge or `run`,
+  by someone looking at the robot.
 - **The real E-stop is the inline battery switch.** No flag that has to
-  arrive over a radio can be a safety guarantee; the watchdog is the property
-  that holds when the radio is gone, and the switch is what holds when
-  everything is gone.
+  arrive over a radio can be a safety guarantee.
 
-## Arming over the link (2026-08-27)
+Measured against the sim twin with injected loss, walking at 20 Hz for 8 s:
+30 % packet loss caused 0 dropouts to `STAND`, 60 % caused 5 and 85 %
+caused 16 (the 0.6⁵-per-window prediction); even at 85 % the failure is a
+brief stand. Killing the commander decays exactly as specified: `LIVE` →
+`STAND` at +250 ms, `STAND` → `RELAX` at +5.0 s. `RELAX` is verified by
+torque, not by watching: `tests/test_torque_release.py` asserts that a
+released sim servo applies exactly 0 N·m.
 
-The control loop boots **benched**: the CLI owns the servo bus and nothing
-the link sends moves the robot. Until now only the tethered `run` armed it.
-The `ARM` flag (bit 2) does the same over the radio, and everything about it
-is in `link/protocol.py:ArmLatch` (C++: `linkproto::ArmLatch`):
+## Arming over the link
 
-- `ARM` is a **level** on the wire — "the operator wants the loop armed",
-  held in every frame like `ENABLE` — but the robot acts on its **edges**
-  only. 0→1 is `run`; 1→0 is `bench` (torque off, bus back to the CLI).
+The loop boots **benched**: the CLI owns the servo bus and nothing the link
+sends moves the robot. `ARM` (bit 2) arms it over the radio;
+`link/protocol.py:ArmLatch` is the reference (`linkproto::ArmLatch`).
+
+- `ARM` is a **level** on the wire, held in every frame like `ENABLE`, but
+  the robot acts on its **edges**: 0→1 is `run`, 1→0 is `bench` (torque off,
+  bus back to the CLI).
 - **The first frame from a sender never counts.** A robot that reboots under
   a console still holding `ARM=1` stays `BENCH` until that console
-  deliberately re-arms; the console sees `BENCH` in telemetry and says so.
-- **A sender that never sets the bit never makes an edge**, so the
-  script/gamepad commanders can still drive a robot armed over the tether
-  without benching it on their first frame.
-- Same refusal as the typed `run`: no as-built calibration in NVS, no run.
-  ~~The refusal is printed on the tether; the link only sees the robot stay
-  `BENCH`.~~ The refusal now rides the radio — next section.
+  deliberately re-arms; the console sees `BENCH` and says so.
+- **There is one latch per robot**, fed every decoded frame in arrival order
+  whoever sent it. A sender that never sets `ARM` (`link/commander.py`) makes
+  no edge against a robot armed over the tether, but its `ARM=0` frames
+  interleaved with an arming console's `ARM=1` frames make 1→0 edges and
+  bench the robot. `link/arm_script.py` holds `ARM` itself.
+- **Refused without an as-built calibration in NVS**, the same gate as the
+  typed `run`.
+- The control loop only publishes the edge; the housekeeping task applies it
+  through the same `cmdMode()` as the tethered `run`, between CLI lines, so a
+  wireless arm never lands inside a bench-mode bus command.
 
-Firmware-side the latch lives in the control loop, which now drains the
-mailbox in bench mode too; the edge is published to the housekeeping task,
-which calls the same `cmdMode()` as the CLI. That keeps the mode's single
-writer, and — because housekeeping only looks between CLI lines — a
-wireless arm can never land in the middle of a bench-mode bus command.
+## Saying why: the bench diagnostic
 
-## Saying WHY, over the radio (2026-08-30)
-
-**The incident.** The robot ignored six seconds of `ARM` frames and sat in
-`BENCH`. Every part of the mechanism above worked; the refusal happened
-exactly where it should, in `cmdMode()` — and its explanation went to the
-UART sink, which nobody was plugged into. Diagnosing "the robot is not
-listening" required fetching a cable. That is the failure this closes: a
-silent `BENCH` beacon is not a diagnostic, it is a shrug.
-
-### The wire decision, and the two options it beat
-
-A **protocol version bump appending bytes** to telemetry was the obvious
-move and is the wrong one. Both decoders check the length *and* the version
-(`decode_telemetry`, `decodeTelemetry`), so every commander built before the
-bump — including the console already running on the operator's screen —
-would reject every frame. The change would blind the client at precisely the
-moment the diagnostic matters. Rejected.
-
-**Overloading `servo_err` or `loop_late_pct`** keeps compatibility but lies:
-an old console would draw `servo FAULT 00100000`, or `137% late ticks`, and
-send someone hunting a servo that is fine. A diagnostic that produces a
-false alarm on old clients is worse than silence. Rejected.
-
-**The diagnostic rides `seq_echo`, and only while the state is `BENCH`.**
-`seq_echo` is defined as *the last command sequence the robot applied*, and
-a benched loop applies nothing — so in exactly that state, and no other, the
-field carries no information to destroy. No version bump, no length change:
-**every existing commander decodes every frame unmodified**, and what it
-shows is a small sequence number, which is what a fresh boot looks like
-anyway. The one client-side cost is that `bimo_tui` must not compute a "lag"
-from it while benched, so it prints the raw byte instead.
-
-The byte is `linkproto::packDiag` / `protocol.py:pack_diag`, and its layout
-is **append-only** like the `LinkState` enum — reserved bits are sent zero
-and a reader ignores what it does not know:
+While the state is `BENCH`, `seq_echo` carries a diagnostic byte instead of
+a sequence number: a benched loop applies no commands, so in exactly that
+state the field has nothing to lose. There is no version bump and no length
+change, so every console decodes every frame. (The alternatives are worse: a
+new length or version is dropped by every existing decoder, which checks
+both; overloading `servo_err` or `loop_late_pct` makes an older console show
+a false fault.)
 
 | bits | meaning |
 |---|---|
-| 0 | `RUN` — mode is `kRun` (0 = benched) |
-| 1 | `CAL_OK` — as-built calibration was loaded from NVS |
-| 2–3 | reserved, sent zero |
-| 4–7 | `ArmResult`: 0 none yet, 1 accepted, 2 **refused, no calibration** |
+| 0 | `RUN`: mode is run (0 = benched) |
+| 1 | `CAL_OK`: the as-built calibration was loaded from NVS |
+| 2–3 | reserved, sent 0 |
+| 4–7 | `ArmResult` |
 
-A future refusal reason takes value 3. A client that meets a value it does
-not know says *"reason unknown to this client (newer firmware)"* rather than
-reporting an older reason — guessing "no calibration?" at an unrelated fault
-is how an operator ends up re-running `cal` for nothing. The upper 24 bits of
-`seq_echo` are reserved zero, so the diagnostic can grow past a byte without
-another wire decision.
+| `ArmResult` | meaning |
+|---|---|
+| 0 `NONE` | nothing has asked for a mode change yet |
+| 1 `ACCEPTED` | the last request was honoured (arm or disarm) |
+| 2 `REFUSED_NO_CAL` | arm refused: no as-built calibration in NVS |
+| 3 `DISARMED_FALL` | the fall latch tripped; run over |
+| 4 `DISARMED_HOME` | a home request benched the loop; joints read back at their zeros |
+| 5 `HOME_NO_CAL` | home refused: no calibration |
+| 6 `HOME_LOW_BATT` | home refused: the pack guard holds torque off |
+| 7 `HOME_BUS_FAILED` | home failed: the servo bus did not accept it |
+| 8 `HOME_PENDING` | home written, joints moving, readback not done |
+| 9 `HOME_NOT_REACHED` | home failed: readback found joints off their zeros |
 
-The reason *sentences* are frozen in the golden vectors alongside the bytes.
-Two copies of a message drift the moment one side is reworded, and the
-sentence is the part the operator actually reads.
+The layout is **append-only**, like `LinkState`: reserved bits are sent zero
+and ignored, the upper 24 bits of `seq_echo` are reserved zero, and a value a
+client does not know reads *"reason unknown to this client (newer
+firmware)"*, never an older reason. The operator-facing sentences
+(`diag_reason` / `linkproto::diagReason`) are frozen in the golden vectors
+beside the bytes, because the sentence is what the operator reads.
 
-**Firmware-side** `cmdMode()` — the one place that decides an arm request —
-publishes its verdict to `robot::g_arm_result` before printing it, and
-`wifi_link.cpp` folds it into the `BENCH` beacon with `g_cal_from_nvs`. No
-new task: `cmdMode()` only ever runs on the housekeeping loop (a typed
-`run`/`bench` through `cli::execute`, a wireless edge through
-`cli::linkMode`), so the atomic keeps its single writer, exactly like the
-mode itself.
+`bimo_tui` and `bimo_gui` draw the reason whenever the beacon says `BENCH`,
+so an uncalibrated robot is diagnosable the moment a console opens;
+`link/commander.py` appends it to its status line. `link/link_twin.py
+--no-cal` emits it for tests.
 
-**Client-side**, `bimo_tui` draws the reason whenever the beacon says
-`BENCH` — not only after a failed arm. An uncalibrated robot therefore reads
-*"BENCH: no arm requested yet — and there is NO calibration in NVS, so
-arming will be REFUSED"* the moment the console opens, instead of after a
-silent 1.5 s and a press of `[a]`. `link/commander.py` appends the same
-sentence to its status line and repeats it on exit. `link/link_twin.py`
-emits the byte faithfully, `--no-cal` included, which is what
-`tests/test_tui_e2e.py` asserts the console displays.
+## Reset the servos (`HOME`)
 
-Reordered and duplicate frames are dropped by sequence number, and — subtly —
-**a stale frame must not pet the watchdog**. If it did, a reordered burst
-could hold the robot `LIVE` on a command from the past. A backwards seq jump
-larger than 1000 is read as "the commander restarted", not "ancient packet",
-so a restarted sender at seq 0 resyncs instead of being ignored forever.
+`HOME` (bit 4) is the consoles' **RESET SERVOS**: every joint to its
+calibrated zero, the standing pose. It is the one request honoured while the
+robot is benched, fallen or E-stopped — the states in which every other
+channel correctly refuses to move anything, and exactly the states a robot
+on the floor is in.
 
-## Time on the wire (2026-09-02)
+- **A rising edge, and the first frame from a sender never counts**, so a
+  client that reboots with the bit set cannot move a robot nobody is
+  watching.
+- **It benches the loop first**, because the move is a bench-mode bus
+  transaction, then homes. **It never arms**: re-arming stays a deliberate
+  `ARM` edge.
+- **Refused without calibration** (the defaults are 2048 on every joint, not
+  a stand) and **refused while the pack guard holds torque off**. Targets are
+  clamped to the mechanical envelope, and the move is slow: minimum-jerk,
+  the longest joint at no more than 300 steps/s, 2.5–8 s, then each hip
+  rolled 5° out and back to take up roll play.
+- **It reports the verdict, not the intention**: `HOME_PENDING` while
+  moving, then a readback of every joint (±12 ticks) and `DISARMED_HOME` or
+  `HOME_NOT_REACHED`. Torque is then released; gear friction holds the stand.
+- The console holds the `HOME` level for 8 frames (400 ms), so one dropped
+  packet does not lose the request and the level falls again before the next
+  press. If no home verdict arrives within 1.5 s, it says the robot's
+  firmware may not know the request or the frames never arrived.
+  `link_twin.py --deaf-home` plays that robot in `tests/test_gui_e2e.py`.
 
-**The problem.** A hardware take is video plus a telemetry log, and until
-today nothing joined them better than a second. The robot had no clock at
-all: the Waveshare board has no RTC chip, no 32 kHz crystal and no backup
-cell (the vendor schematic, read end to end — GPIO32/33, the only pins that
-could take a slow crystal, are the I2C bus), and the firmware never asked
-for the time. Telemetry carried none. Host side, the recorder's `t` column
-was seconds since the recording started, the video's only anchor was the
-mp4's whole-second mtime, and "where in the video is the beacon that says
-the robot fell" was a guess.
+## Time on the wire
 
-**The design.** One time base, NTP, on both ends:
+One time base, NTP, on both ends, so a video frame and a telemetry line can
+be joined by subtraction.
 
-- **The robot syncs itself.** `firmware/main/timesync.{h,cpp}` runs SNTP
-  from the moment the WiFi link holds a DHCP lease. The server comes with
-  the lease (DHCP option 42 — the LAN router hands it out), with
-  `pool.ntp.org` as the static fallback; polls every 30 s, so the crystal's
-  drift between steps stays in the low milliseconds; the RFC 4330 startup
-  delay (a random 1–5 min before the first request) is off. The tethered
-  `ntp` command is the only diagnostic, since logging is silenced after
-  boot — type it after a flash and before trusting a single stamp.
-- **Every beacon carries `t_us`.** A u64 at offset 18, microseconds since
-  the Unix epoch on the robot's clock. **0 means "not synced"** — the robot
-  has not heard from NTP yet, or the frame came from firmware older than
-  this section. Nothing ever sends the boot-relative time dressed up as an
-  epoch. When the frame carries joints (mirror mode) the stamp is the
-  instant they were read off the servo bus (the midpoint of the ten reads),
-  not the instant the beacon was sent; otherwise it is the beacon's assembly
-  time. Either way it is within one 20 ms tick of the values beside it.
+- **The robot syncs itself.** `firmware/main/timesync.{h,cpp}` starts SNTP as
+  soon as the WiFi link holds a DHCP lease. The server comes with the lease
+  (DHCP option 42), with `pool.ntp.org` as the fallback; it polls every 30 s
+  and skips the RFC 4330 startup delay. The board has no RTC, so time is 0
+  until the first reply.
+- **Every beacon carries `t_us`**; 0 means not synced. With joints, the stamp
+  is the instant they were read (the middle of the bus read); otherwise it is
+  the beacon's assembly time. Either way it is within one 20 ms tick of the
+  values beside it.
 - **Every video frame carries its capture time.** `tools/cam_record.sh`
-  records a webcam with the UTC time burned into the picture to the
-  millisecond and a `.pts` sidecar of one epoch-ms per frame, from the
-  kernel's V4L2 capture timestamps converted to `CLOCK_REALTIME` — which
-  chrony disciplines to NTP on mira (0.1 ms, measured). Verified against
-  `date` on `/dev/video0`. `tools/record_attempt.sh` uses it for both
-  cameras and records whether the host clock was NTP-synced at the time.
-- **Every log line carries both clocks.** `link/recorder.cpp` (bimo_gui's
-  JSONL) writes `utc` (host, CLOCK_REALTIME) on every record and
-  `robot_utc` (from `t_us`, `null` when 0) plus the joints `q` on every
-  beacon, and says in its header whether the host clock was disciplined
-  (`host_clock`, from the kernel's own flag). `link/arm_script.py` prints
-  `utc=` and `robot=` on every line. `utc − robot_utc` is link latency plus
-  the two clocks' disagreement, and is the number to look at when a
-  filmstrip and a joint trace disagree.
+  burns UTC into the picture to the millisecond and writes a `.pts` sidecar
+  of one epoch-ms per frame; `tools/record_attempt.sh` records both cameras
+  and whether the host clock was NTP-synced.
+- **Every log line carries both clocks.** `link/recorder.cpp` (`bimo_gui`'s
+  JSONL in `hw_sessions/`) writes `utc` (host) on every record, `robot_utc`
+  (from `t_us`, `null` when 0) and the joints on every beacon, and
+  `host_clock` in its header. `link/arm_script.py` prints `utc=` and `robot=`
+  on every line. `utc − robot_utc` is link latency plus the two clocks'
+  disagreement.
 
-### The wire decision, and why this one is volunteered
+Checking it:
 
-The mirror-mode extension established the rule for telemetry: the robot is
-the sender, every client rejects an unknown length, so **a new length is
-requested, never volunteered** ([mirror-mode.md](mirror-mode.md)). The
-timestamp breaks that rule on purpose, and both halves of the reasoning are
-worth writing down.
-
-*Why not request it with a flag bit.* A timestamp is not a payload a client
-opts into; it is metadata about the frame, and its whole value is that the
-log of *any* frame from *any* commander can be laid against a video. Making
-it depend on each commander remembering to set a bit is exactly the "thing
-nobody writes down at the time" that `link/recorder.cpp` exists to prevent.
-A passive listener on port 4211 would get stamps only if someone else had
-asked.
-
-*Why it is safe anyway.* Both decoders — `decode_telemetry` and
-`decodeTelemetry` — now accept **four** lengths: 28 and 48 with the stamp,
-and the legacy 20 and 40 without it (decoded with `t_us = 0`, never
-emitted). So a console built from this tree keeps working against a robot
-flashed before the change, which is the case that matters on the bench
-(the robot as flashed on 2026-09-02, `2f38b0c`, beacons 20/40 B). The only
-pairing that goes blind is an *old* console against *new* firmware, and
-every console lives in this tree and is rebuilt with it. The version byte
-stays 1: length selects the layout, as it has for every extension so far.
-
-### Checking it
-
-1. Flash; on the tether, `wifi` until CONNECTED, then `ntp` — expect
-   `synced` with a server address from DHCP and a step in the low ms.
-   `UNSYNCED` after a minute means the router is not handing out option 42
-   and pool.ntp.org is unreachable from the robot's network.
-2. `bimo_gui --host <robot>`: the JSONL in `hw_sessions/` has `robot_utc`
-   on every beacon (not `null`) and `"host_clock":"ntp"` in its header.
+1. Flash; on the tether, `wifi` until CONNECTED, then `ntp`: expect `synced`
+   with a server from DHCP. `UNSYNCED` after a minute means the router hands
+   out no option 42 and `pool.ntp.org` is unreachable from the robot's
+   network.
+2. `bimo_gui --host <robot>`: the session JSONL has `robot_utc` on every
+   beacon (not `null`) and `"host_clock":"ntp"` in its header.
 3. `tools/record_attempt.sh <name> ...`: `<name>_timing.txt` has
-   `host_ntp_synced: yes` and `cam0_first_frame_epoch`, and frame *i* of
-   `<name>_cam0.mp4` shows the time on line *i+2* of `<name>_cam0.pts`.
-4. Cross-check: pick a beacon with a state change in `<name>_arm.log`,
-   read its `utc=`, find the first sidecar line ≥ that value; the burned-in
-   time on that frame agrees to the millisecond and the picture agrees with
-   the state.
-
-Firmware-side the module is 10 kB of flash (esp_netif_sntp), and the
-beacon grows by 8 B at 10 Hz — 0.6 kbit/s, still a non-issue.
-
-## Reset the servos, from the states that refuse to move (2026-09-02)
-
-`HOME` (bit 4) is the console's **RESET SERVOS** button: *every joint to its
-calibrated zero — the standing pose — now.* It is the only bit on this wire
-that moves the robot without arming it, and it exists because of a gap the
-other four leave open.
-
-Consider the state an operator is actually in when they need it. The robot
-fell: the fall latch tripped, the run is over, torque is off, and the robot
-is a heap on the floor. Or they hit E-stop: same picture, on purpose. In both
-states every channel here correctly refuses — `ENABLE` is gated on an armed
-loop, `ARM` is refused after a fall until a deliberate fresh edge, and the
-E-stop latch outranks the lot. All of that is right, and none of it helps:
-the one thing wanted is the robot back on its feet, and until 2026-09-02 the
-only way to get it was to walk over with a USB cable and type `pose`.
-
-The design, and what each piece is buying:
-
-- **An edge, not a level** (`linkproto::HomeLatch`, mirrored in
-  `protocol.py`). A level would re-issue the move 20 times a second. And, as
-  with `ARM`, *the first frame from a sender never counts*: a client that
-  reboots with the bit set makes no edge, so it cannot re-pose ten joints on
-  a robot nobody is watching. That rule matters more here than it does for
-  arming — this request moves the robot from a standstill.
-- **It benches the loop first.** The move is a servo-bus transaction, and on
-  this firmware the bench half (the CLI) owns the bus while the loop is
-  benched. So `ctrl_task` only *publishes* the edge (`g_link_home_edges`,
-  exactly like an arm edge) and the housekeeping task benches, waits for the
-  handover, and runs `cmdHome`. One writer for the mode, no bus command
-  landing mid-tick, and a request that is honoured identically whether it
-  arrived benched, fallen or E-stopped.
-- **It does not arm.** Re-arming stays what it was: a deliberate ARM edge.
-  The BENCH beacon says why the robot is benched — a new `ArmResult`,
-  `kDisarmedHome`, reading *"disarmed — servos reset to the standing pose;
-  torque is HOLDING it, re-arm to walk"*.
-- **It turns torque back ON, deliberately.** Everything else in the CLI
-  refuses to write a goal while torque is off — an STS servo auto-enables
-  torque on a goal write, which is what broke both feet on 2026-08-02, and
-  `torqueGate` exists so that can never happen *silently*. This command *is*
-  the motion, asked for by name, so it enables torque itself and says so. The
-  safety is bought elsewhere instead: **no calibration, no home** (the
-  default zeros are 2048 everywhere — the raw-middle pose that broke the
-  feet — so the gate is the same one `run` uses), targets clamped to the
-  measured mechanical envelope, and a slew of 300 steps/s (~0.45 rad/s), half
-  the already-gentle bench default, because the robot may be lying in a pose
-  the move has to walk out of and a slow limb is one a hand can catch.
-- **Torque stays on at the end,** holding the stand. A robot that homed and
-  then went limp has only fallen over more tidily.
-- **The pack guard still outranks it.** A latched under-voltage guard is the
-  robot's own decision, not the operator's, and a flat pack is exactly when
-  powering ten servos to hold a stand is the wrong answer. Home is refused
-  there, and says so.
-
-### Every outcome comes back over the radio (2026-09-02, same day)
-
-The button shipped and did nothing on the first press, for the dullest
-possible reason: the console had been rebuilt and the robot had not been
-re-flashed. Old firmware ignores bit 4 — it is a bit it has never heard of —
-and the console's request rides in alongside an ordinary disarm, so the robot
-benches, reports *"disarmed on request"*, and every field on screen reads
-perfectly plausibly. From the operator's chair that is indistinguishable from
-a dead button, a dead radio or a seized servo.
-
-Two changes, both the same lesson this channel already learned once for
-arming:
-
-1. **The robot reports the verdict, not the intention.** `linkHome` used to
-   publish "reset done" *before* attempting it. It now publishes what
-   actually happened: `kDisarmedHome`, or `kHomeNoCal` / `kHomeLowBatt` /
-   `kHomeBusFailed`. A refusal that only ever reached the UART is a refusal
-   the wireless operator never sees.
-2. **The console notices silence.** All four verdicts are recognisable *as*
-   home verdicts (`isHomeResult`). If none arrives within `kArmSyncMs` of the
-   request — the same grace the arm-sync rule uses — the console says: *"no
-   answer to the reset: this robot's firmware may predate the request
-   (re-flash it), or the frames never arrived."*
-
-`link_twin.py --deaf-home` is that old robot, and
-`tests/test_gui_e2e.py` drives the real console against it, so the failure
-that shipped is now a test.
-
-Console-side the request is a `HOME` *level* held for 8 frames (400 ms at
-20 Hz): the robot acts on the first flagged frame it receives and ignores the
-rest, so the hold costs nothing and buys survival of a dropped packet — and
-the level must fall again, or the next press would make no edge at all.
+   `host_ntp_synced: yes` and `cam0_first_frame_epoch`.
+4. Pick a beacon with a state change in `<name>_arm.log`, read its `utc=`,
+   find the first sidecar line at or after it: the burned-in time on that
+   frame agrees to the millisecond and the picture agrees with the state.
 
 ## The training envelope is part of the protocol
 
-`walker_env` draws commands from a stand `(0,0)` or a walk in
-**[0.3, 1.0] m/s**. The band **(0, 0.3) was never trained** — it is a hole in
-the distribution, not a slow walk. A gamepad stick nudged to 20 % asking for
-0.2 m/s is an out-of-distribution query whose behavior is undefined.
+Training draws a stand or a walk with |vx| in **[0.3, 1.0] m/s** and
+|wz| ≤ 1.0 rad/s. The band (0, 0.3) was never trained: it is a hole in the
+distribution, not a slow walk. So `clamp_to_envelope()` snaps it to a stand,
+**robot-side**, because the robot is what eats a bad command and not every
+future sender is ours. Turn-in-place (`vx = 0, wz ≠ 0`) is trained, so the
+snap keeps `wz`. The extra channels are clamped to their training draws too
+(|vy| ≤ 0.3, crouch 0.6–1.0, lift ±1, foot offsets ±0.05 m).
+`sources.stick_to_speed()` maps stick travel onto [0.3, 1.0] for the same
+reason. `V_MIN_WALK`, `V_MAX`, `W_MAX` and the extra-channel limits in
+`protocol.py` (and their `linkproto` copies) must track the training config
+of the deployed policy.
 
-So `clamp_to_envelope()` snaps that band to a stand, and it runs **robot-side**
-— the robot eats the bad command, and we do not control every future sender.
-Turn-in-place (`vx=0, wz≠0`) *is* trained, so the snap preserves yaw.
-`sources.stick_to_speed()` maps stick travel onto `[0.3, 1.0]` for the same
-reason. If `cmd_v_range` changes in training, `V_MIN_WALK`/`V_MAX` in
-`protocol.py` must change with it.
+**Legal is not reliable.** Commanding the edge of the envelope (pivots at
+`wz = 1.0`, sprints at 1.0 m/s) measurably falls; walking while turning is
+the best-trained regime. Aim at the middle: the goal source cruises at
+0.6 m/s, caps yaw at 0.8, arcs toward the goal and pivots only when the goal
+is behind it.
 
-## Topology
+## Network
 
-Station mode (robot joins your WiFi) is the default; the laptop keeps its
-internet and can drive the robot from anywhere on the network. AP mode (robot
-hosts its own SSID, `192.168.4.1`) is the fallback for testing away from a
-router — the board's stock web UI already uses it, so it is known-good. The
-ESP32-WROOM-32 supports STA, AP, and both at once; it is a config choice, not
-a hardware fork.
+Station mode only: the robot joins the LAN (WPA2 minimum, hostname `bimo`)
+with credentials stored in NVS by `wifi <ssid> <psk>` on the tether (bench
+mode). Modem power save is off, because its ~100 ms latency spikes are the
+wrong trade on a 20 Hz link with a 250 ms stale window. The robot beacons to
+the address of the last valid command frame, and to nobody else.
 
-## Commanders
+## Consoles
 
-All of them live laptop-side, so the robot learns exactly one wire format and
-another commander is a class in `link/sources.py`, not a firmware change.
+All commanders live laptop-side, so the robot learns one wire format and a
+new commander is a class in `link/sources.py` or a front end on
+`link/client.h`, not a firmware change.
 
-- **`bimo_tui`** (`link/tui.cpp`) — the operator's console, and the only
-  commander that arms. Single keystrokes: `a` arm/disarm, arrows walk
-  (`up`/`down`, 0.4 m/s) and turn (`left`/`right`, ±0.5 rad/s) **while
-  held**, `space` stand, `e` E-stop, `h` reset servos (works E-stopped or
-  fallen — see [above](#reset-the-servos-from-the-states-that-refuse-to-move-2026-09-02)),
-  `q` quit (disarms first). Shows every
-  telemetry field live. Built from the firmware's own `linkproto` sources
-  (`make -C firmware/host tui`), so the bytes it sends come from the code
-  the robot decodes with. A terminal has no key-up event, only auto-repeat:
-  a motion key extends a hold that expires `--hold-ms` (default 700) after
-  the last repeat, and the console measures the terminal's repeat delay on
-  screen so that number is set from evidence. Exercised end to end by
-  `tests/test_tui_e2e.py` against `link/link_twin.py`, the plant-free twin.
-- **`bimo_gui`** (`link/gui.cpp`) — the windowed console (Dear ImGui + GLFW;
-  `brew install glfw && make -C firmware/host deps gui`). Everything about
-  arming, the E-stop latch and the frame that goes out at 20 Hz is *shared*
-  with `bimo_tui` in `link/client.h`, so the two consoles cannot disagree
-  about what a keypress puts on the wire. What a window buys, and a terminal
-  cannot:
-  - **A real dead-man.** True key-release, so `--hold-ms` is gone: letting go
-    stands the robot on the very next frame, and so does clicking away from
-    the window. That last one is the only new failure mode a window
-    introduces, and it is handled explicitly.
-  - **The extended channels.** `crouch` / `lift` / `foot_dx` / `foot_dz` are
-    sliders — the only commander that reaches them. Off their defaults the
-    frame becomes 24 B, which is drawn on screen, because firmware older than
-    2026-08-31 drops a long frame by length.
-  - **Telemetry as a shape.** 30-second strip charts of `vbat`, `up_z` and
-    each commanded channel against its estimate.
-  - **The sim, in the window.** The SIM panel starts `sim/sil_twin.py` and
-    draws its MJPEG view, so a policy can be flown before it is flown.
-  - **A RESET SERVOS button** (`h`), on its own row below the row that stops
-    things, amber rather than red because it is not an emergency control — it
-    is the way out of one. Needs no arm and reaches the robot through a
-    latched E-stop or a tripped fall latch.
+- **`bimo_tui`** (`link/tui.cpp`; `make -C firmware/host tui`): the terminal
+  console, for SSH. Built from the firmware's own `linkproto` sources, so the
+  bytes it sends come from the code the robot decodes with. Keys: `a`
+  arm/disarm, arrows walk (0.4 m/s) and turn (±0.5 rad/s) while held,
+  `space`/`s` stand (also clears an E-stop), `e` E-stop, `h` reset servos,
+  `q` quit (disarms first). A terminal has no key-up event, so a motion key
+  holds for `--hold-ms` (default 700) after the last auto-repeat; the console
+  measures the repeat delay on screen.
+- **`bimo_gui`** (`link/gui.cpp`; `brew install glfw`, then
+  `make -C firmware/host deps gui`): the windowed console. Arming, the E-stop
+  latch and frame building are shared with `bimo_tui` in `link/client.h`, so
+  the two cannot disagree about what a keypress puts on the wire. A window
+  adds:
+  - **a real dead-man**: key release stands the robot on the next frame, and
+    so does the window losing focus;
+  - **the extended channels** as sliders (the 24 B frame, shown on screen);
+  - **strip charts** of `vbat`, `up_z` and each commanded channel against its
+    estimate;
+  - **a SIM panel** that starts `sim/sil_twin.py` and draws its view in the
+    window;
+  - **RESET SERVOS** (`h`), amber and apart from the controls that stop
+    things, because it is the way out of an emergency, not one;
+  - **a SETTINGS panel** with every command-line flag editable live;
+    socket-binding fields are applied on a button, not per keystroke.
 
-  - **A SETTINGS panel** (2026-09-03) — *every* command-line flag, editable
-    live, so trying the same console against the twin, raising the walk
-    speed, or starting a relay for a watcher who has just asked to see it no
-    longer costs a restart (and with it the link, the recording and the sim
-    child). `--host`/`--cmd-port`/`--tlm-port` relink on a button (disarming
-    the robot being left first); `--vx`/`--vy`/`--wz`/`--rate` are live
-    sliders clamped to the trained envelope, with the rate floored well above
-    the robot's own `kStaleMs` dead-man so a setting cannot starve it;
-    `--watch`, `--sim-view`, `--stream-port`, `--sim-cmd-port`, `--repo`,
-    `--sessions`, `--keymap` and `--screenshot` each apply on their own
-    button. Fields that rebind a socket are edited into buffers and applied
-    deliberately — binding them live would relink to `192.168.2.9` on the way
-    to typing `.90`. `--headless` is the only flag with no control, because it
-    decides whether there is a window at all.
-
-  Keys default to arrows *translating* on the surface (`up`/`down` = `vx`,
-  `left`/`right` = `vy` strafe) and `PgUp`/`PgDn` *rotating*, differing from
-  the console because a window can hold two at once. Every action is also a
-  button labelled with its binding, and every binding is rebindable in-app
-  (`~/.bimo/keymap.conf`). `--headless` runs the identical link loop with no
+  Default keys: arrows translate (`vx`, `vy`), PgUp/PgDn rotate, `a` arm,
+  `space` stand, `e` E-stop, `h` reset servos, `r` record, `0` reset the
+  extended channels, `q` quit. Every binding is rebindable in-app
+  (`~/.bimo/keymap.conf`). `--headless` runs the same link loop with no
   window, taking `press forward` / `release forward` / `set crouch 0.8` on
-  stdin; that is what `tests/test_gui_e2e.py` drives, and what makes the
-  client testable in CI. Sessions record to `hw_sessions/*.jsonl`.
-- **`bimo_gui --readonly`** — the **observer**: the same window, watching a
-  robot somebody else is driving, and unable to touch it. Added 2026-09-02 so
-  a second pair of eyes (or a person watching an agent session drive) can see
-  the state, the battery and the estimates live without the risk that a
-  stray keypress fights the console that is actually flying the robot.
+  stdin; the end-to-end tests drive it that way, and it makes any figure
+  reproducible from a command line. Sessions record to `hw_sessions/*.jsonl`.
+- **`bimo_gui --readonly`**: an observer that cannot touch the robot.
+  - **It has no transmit socket.** The socket is closed entering readonly
+    and created leaving it, so the promise is enforced by the file
+    descriptor, not the UI. Every control refuses out loud, and E-STOP reads
+    **"(not yours)"**: an E-stop that seems to work while nothing goes out is
+    worse than none.
+  - **It draws no command traces**, since the beacon carries what the robot
+    measured, never what another console asked for, and records telemetry
+    rows only.
+  - **TAKE CONTROL** (a button; unbound by default, because a stray key would
+    hand the robot between consoles) makes it the commander; **WATCH ONLY**
+    closes the socket again. Taking control needs `--host`: the beacons come
+    from the relaying console, so the robot's address cannot be guessed.
+- **A watcher needs the driver's help.** The robot beacons only to its last
+  commander, and the only way to become that is to send a command, which
+  steals the beacon and drives the robot. So the driving console relays:
+  `--watch HOST[:PORT]` re-sends every accepted beacon byte for byte, and the
+  watcher runs the same decode over the same bytes. `--watch` exists on
+  `bimo_gui`, `bimo_tui` and `link/commander.py`; a `--readonly` console
+  refuses it at startup.
 
-  It is a **starting** mode, not a permanent one: **TAKE CONTROL** (`t`, or
-  the button above the controls it governs) opens the socket and makes this
-  console the commander; **WATCH ONLY** closes it again. Both directions are
-  covered below — the takeover is the one genuinely sharp edge in the
-  feature.
+  ```sh
+  # driving machine
+  bimo_gui --host 192.168.2.90 --watch 192.168.2.30
+  # watching machine
+  bimo_gui --readonly
+  ```
 
-  Two things make it a mode rather than a promise:
+- **Taking control must not drop the robot.** The arm latch tracks a level
+  across all senders, so a console that starts commanding an armed robot
+  with `ARM` low puts a 1→0 edge on the wire and benches it mid-stride.
+  `Intent::adopt()` adopts the level the beacon reports instead:
 
-  - **It has no transmit socket.** `Link::listen()` binds the beacon port and
-    never creates one, so `tx` stays `-1`. The socket is *closed* entering
-    readonly and *created* leaving it, so `readonly` and `tx < 0` are never
-    briefly out of step — a flag guarding a live socket would be a weaker
-    promise. This
-    is not a UI that hides buttons; it is a console that *cannot* emit a
-    frame. `Intent::refuseReadonly()` then makes every control say so out
-    loud, because an E-STOP that darkens on click while nothing goes out is
-    worse than no E-STOP at all — it invites the operator to press it in the
-    second that matters and believe the robot was told. On screen the
-    emergency controls are greyed and drained of colour, and E-STOP is
-    relabelled **"(not yours)"**.
-  - **It is fed by the driver, not by the robot.** See below.
+  | beacon says | adopted | why |
+  |---|---|---|
+  | any state but `BENCH` | armed | the loop is running; includes `FALLEN` and the pack states, where torque is off but the level is still high |
+  | `ESTOP` | armed + E-stopped | the E-stop latch is a level too; dropping it would clear it at handover |
+  | `BENCH` | disarmed | adopting "armed" would be a rising edge nobody asked for |
+  | no fresh beacon | disarmed | nothing to adopt; benching a robot you cannot see is the right answer |
 
-  It quits, records (`hw_sessions/*.jsonl`, telemetry rows only — it put no
-  commands on the wire and must not write any) and can ghost the robot's
-  measured joints into a local sim. It draws **no `cmd` traces**: the beacon
-  carries what the robot *measured*, never what the other console *asked
-  for*, and a flat-zero `vx cmd` under a moving `vx est` reads as exactly the
-  fault an operator most wants to catch.
+  Releasing control sends no parting disarm: someone else's frames hold the
+  level high, and a disarm would bench the robot out from under them. With
+  nobody driving, the robot's own watchdog is the failsafe.
+- **`link/commander.py`**: streams a `link/sources.py` source at 20 Hz and
+  never sets `ARM`. `--source script --script <name>` runs a timed sequence
+  (`stand`, `walk`, `dash_stop`, `line_1m`, `turn`, `pivot`, `square`,
+  `march`, `stride1`, `sidestep1`, `crouch1`, `rom_feet`); `--source
+  gamepad` reads sticks through pygame with a **held** dead-man (right
+  shoulder; letting go must stop the robot) and B/circle as E-stop.
+  `--source goal --goal X Y` is a goal-seeker that needs a world (x, y, yaw)
+  feed as 12-byte datagrams on UDP 4212 (`sources.PoseFeed`); the robot has
+  no odometry to provide one and neither twin publishes one.
+- **`link/arm_script.py`**: arms over the radio, runs a `sources.py` script
+  with `ARM` held, then disarms. It E-stops, disarms and exits 2 on
+  `FALLEN`, a servo fault or `up_z` < 0.5 for 0.3 s.
 
-### Why a watcher needs the driver's help
+## Simulated robots behind the link
 
-The robot beacons **to whoever commanded last, and to nobody else**
-(`firmware/main/wifi_link.cpp`, the `Commander` snapshot). A second console
-therefore cannot simply listen in: nothing is addressed to it, and the only
-way to *become* the destination is to send a command — which both steals the
-beacon from the real driver and drives the robot. Exactly the two things an
-observer exists not to do.
+Both answer on the robot's ports (4210/4211 by default) with the same
+`link/protocol.py:Supervisor` composition the firmware runs, so every
+console can be exercised on a laptop.
 
-So the **driving** console forwards. `--watch HOST[:PORT]` re-sends every
-beacon it accepts, byte for byte, from the socket it already commands with.
-Verbatim on purpose: the watcher then runs the same `decodeTelemetry` over the
-same bytes the robot signed, so the two consoles cannot come to different
-conclusions about what the robot said. Only decoded frames are relayed —
-stray traffic on an open port is dropped where it lands. No port in the spec
-means the one the driver is bound to, which is where a stock watcher listens.
+- **`link/link_twin.py`**: plant-free. Protocol, arm latch, watchdog, mode
+  and 10 Hz telemetry, nothing else: `vx_est`/`wz_est` echo the applied
+  command, `vbat` is 11.4 V, `up_z` 1.0, and requested joint angles are a
+  slow deterministic wobble. Flags: `--boot-armed`, `--no-cal` (refuses to
+  arm, like an uncalibrated robot), `--deaf-home` (ignores `HOME`, like
+  firmware that does not know it). It is what the console end-to-end tests
+  drive.
+- **`sim/sil_twin.py`**: the firmware's own control code (`libctrl_sil`:
+  observation, gait clock, network, actuation) driving the CPU plant behind
+  the real link, so a console drives the same control law the robot runs.
+  `--run-name` picks the policy (it needs `sim/runs/<run>/config.json` and
+  `sim/sil/weights/<run>.silw.json`), `--hang` welds the torso at stand
+  height (the test-stand analogue), `--stream-port` serves the rendered view
+  that `bimo_gui`'s SIM panel draws, `--record` writes an mp4, `--obs-csv`
+  writes the fed observations in `obsdump` format, and `--plant`,
+  `--act-delay-ticks`, `--act-lag-hz`, `--play-deg` load it like the
+  hardware. `--viewer` is [mirror mode](mirror-mode.md).
 
-```
-# on the machine driving (a second session, another host, ssh):
-bimo_gui  --host 192.168.2.90 --watch 192.168.2.30      # windowed
-bimo_tui  --host 192.168.2.90 --watch 192.168.2.30      # over ssh
-python link/commander.py --host 192.168.2.90 --watch 192.168.2.30
-
-# on the machine watching:
-bimo_gui --readonly                       # --tlm-port to use another port
-```
-
-`--watch` is available on `bimo_gui`, `bimo_tui` and `link/commander.py`, so
-whichever commander is driving can feed a watcher. Asking a `--readonly`
-console to `--watch` is refused at startup rather than ignored: it receives no
-beacon to forward and has no socket to forward it on, and an operator who
-asked for a fan-out should learn there wasn't one.
-
-### Taking control must not drop the robot
-
-The sharp edge, and it is not obvious. `linkproto::ArmLatch` is a **single
-latch on the robot**, fed every decoded frame in arrival order *whoever sent
-it*, and it tracks a **level** — not a per-sender session. So a console that
-starts commanding a `LIVE` robot with `ARM` low does not "begin disarmed": it
-puts a **1 → 0 edge** on the wire, and the robot benches with torque off and
-falls over, mid-stride, as the direct result of clicking a button labelled
-*take control*.
-
-So `Intent::adopt()` **adopts the level the robot is already reporting**, and
-the handover is a no-op on the wire by construction:
-
-| beacon says | adopted | why |
-|---|---|---|
-| any state but `BENCH` | armed | the loop is running; hold the level. Includes `FALLEN` and the low-battery pair, where torque is off but the loop still holds ARM — reading only `LIVE` here would bench them |
-| `ESTOP` | armed + E-stopped | the latch is a level too; dropping it would silently clear the latch at the moment of handover |
-| `BENCH` | disarmed | adopting "armed" would be a *rising* edge arming a robot nobody asked to arm |
-| no fresh beacon | disarmed | nothing to adopt and nothing safe to assume; benching a robot you cannot see is the right answer to not knowing |
-
-No axis is ever held, so the robot keeps standing until a key is pressed.
-
-Releasing control is the mirror image and deliberately sends **no parting
-disarm**: the robot is being watched precisely because somebody else is flying
-it, and *their* frames hold the arm level high — a disarm here would be an
-edge that benches the robot out from under the console that owns it. With
-nobody else driving, going quiet is what the robot's own watchdog is for
-(`kStaleMs` → stand, `kRelaxMs` → torque off), which is a better failsafe than
-anything this end can send.
-
-Taking control needs a `--host`: the beacon's sender is the console
-*forwarding* it, not the robot, so the address cannot be guessed from the
-traffic. Without one the button is greyed and says so.
-
-Add `--mirror` on **both** ends to watch in 3D: the driver's mirror mode is
-what puts joint angles in the beacon (`kFlagPose`), and the watcher pushes
-them into its own sim to draw. The watcher cannot ask for them itself — that
-would be a frame on the wire — so it says which console has to, instead of
-showing an empty ghost that looks like a broken sim.
-
-Exercised end to end over real UDP by `tests/test_gui_e2e.py`: one test points
-a watcher straight at the twin with the robot's own `--host` and `--cmd-port`
-and tries every control on it, proving nothing arrives (the twin beacons only
-to a commander, so the watcher getting *no telemetry* is the causal proof);
-the other wires driver-`--watch` to watcher-`--readonly` and checks the
-watcher reports `LIVE`, a state only the driver could have caused.
-
-- **`script`** — time-scripted sequences (`walk`, `dash_stop`, `line_1m`,
-  `turn`, `pivot`, `square`). The on-hardware twin of `sim/eval_commands.py`,
-  so a real run and a sim eval are the same shape of test. Never sets `ARM`:
-  needs a robot armed by the console or the tether.
-- **`gamepad`** — sticks via pygame, **held** dead-man (letting go must stop
-  the robot; a toggle fails that test), B/circle for E-stop.
-- **`goal`** — proportional goal-seeker; the seam the goal-conditioning work
-  plugs into. **Sim-only today**: it needs world `(x, y, yaw)`, which MuJoCo
-  hands over for free but the robot cannot produce — the BNO085 gives
-  attitude, and torso linear velocity/height have no direct sensor at all.
-  `sources.PoseFeed` isolates that gap to one swappable object; closing it
-  (encoder dead-reckoning, or the GoPro) is its own piece of work.
-
-**Aim at the middle of the trained distribution, not its edge.** The obvious
-goal-seeker — high yaw gain, turn-to-face, then sprint at `V_MAX` — measurably
-does not work. It asks for pivots at `wz=1.0`, the exact upper bound of
-`cmd_w_range` and a regime `eval_commands` only ever validates at ±0.5, and
-`cmd_11v1` falls over repeatedly instead of arriving. Every value it commands
-is legal; the policy is simply worst there. Backing off to a mid-band 0.6 m/s
-cruise, yaw capped at 0.8, and arcing toward the goal (walking-while-turning
-is the best-trained regime there is — 60 % of `walker_env`'s moving commands
-pair a `v` with a `w`) reaches a goal 2.5 m away, closest approach 0.18 m.
-Pivot in place only when the goal is genuinely behind you. This generalizes
-to any future commander: legal ≠ reliable, and the envelope has a *shape*,
-not just bounds.
-
-## Verification
-
-The robot-side protocol half is ordinary Python, so it runs against MuJoCo
-over a real UDP socket. Every byte, timeout, and stale-sequence rejection is
-exercised before a part is ordered:
-
-```
-.venv/bin/python sim/udp_agent.py --run-name cmd_11v1 --render &
-.venv/bin/python link/commander.py --host 127.0.0.1 --source gamepad
+```sh
+.venv/bin/python link/link_twin.py                       # plant-free robot
+.venv/bin/python sim/sil_twin.py --hang                  # firmware stack + plant
+firmware/host/build/bimo_tui --host 127.0.0.1
 ```
 
-`--drop` and `--delay-ms` inject WiFi loss and latency. Measured, commanding
-`walk` at 20 Hz for 8 s (`cmd_11v1`):
+## Checking the link
 
-| packet loss | dropouts to `STAND` |
-|---|---|
-| 0 % | 0 |
-| 30 % | 0 |
-| 60 % | 5 |
-| 85 % | 16 |
+```sh
+.venv/bin/python link/verify_udp.py --host <robot-ip> [--seconds 10]
+```
 
-30 % loss is invisible; real WiFi is typically under 5 %. At 60 % the count
-matches the `0.6^5`-per-5-packet-window prediction, and even at 85 % the
-failure mode is benign — brief stands, then resume.
+Sends **disabled** stand frames (`ENABLE` off, zero command, no `ARM`) at
+20 Hz and listens for the beacon: proves both directions and measures loss
+without moving anything. A benched robot answers `BENCH`. It passes if at
+least one valid frame arrives and more than half the expected 10 Hz beacons
+are heard. Point it at a benched robot only: its `ARM`-off frames disarm a
+robot another console has armed. On the tether, `wifi` shows association,
+IP, RSSI, frame counters (`cmd rx`, `bad`, `tlm tx`) and the current
+commander; `ntp` shows the clock.
 
-Killing the commander mid-stride decays exactly as specified:
-`live -> stand` at +250 ms, `stand -> relax` at +5.0 s.
+## How the firmware implements it
 
-**A note on watching RELAX:** a released robot in the straight-legged
-standing pose is a column at a symmetric equilibrium — on a flat plane with
-no perturbation it keeps standing, torque or no torque. Torque release is
-therefore *not* visible as a slump in a clean sim render. Verify it by torque
-(`tests/test_torque_release.py` asserts exactly 0.000 N·m), not by watching.
+The C side is a transcription of the Python reference, checked against its
+bytes:
 
-## Porting to firmware
+1. `crc16Ccitt`, `encode/decodeCommand`, `encode/decodeTelemetry`: ports,
+   checked against `0x29B1` and the golden vectors.
+2. `Watchdog`: a port with no I/O; it takes `now_ms`.
+3. `clampToEnvelope` / `clampExtToEnvelope`: the limits must match
+   `protocol.py` and the deployed policy's training config.
+4. The loop: receive → decode → `ArmLatch` / `HomeLatch` →
+   `Watchdog.accept()` → `state()` → `commandExt()` → policy → servo bus at
+   50 Hz. `link/protocol.py:Supervisor` is that composition in Python, used
+   by both twins. On the robot: `main/wifi_link.cpp` (UDP),
+   `main/link_task.cpp` (UART), `main/ctrl_task.cpp` (the loop).
+5. `RELAX`, `ESTOP`, `FALLEN`, `VSAFE` and `BENCH` → torque-enable
+   (register 40) off, one broadcast frame to every servo.
 
-*Ported 2026-08-24: `firmware/main/wifi_link.cpp` carries this protocol over
-station-mode WiFi, verified two-way against mira with `link/verify_udp.py`.*
-
-The C side is a transcription of a debugged module, not a design job.
-
-1. `crc16_ccitt`, `encode/decode_command` — direct ports. Check against
-   `0x29B1`, then against `tests/test_protocol.py`'s vectors.
-2. `Watchdog` — direct port. It has no I/O and takes `now_ms`, so feed it
-   `millis()`. The bit-flip and reordering tests transfer as-is.
-3. `clamp_to_envelope` — must match `V_MIN_WALK`/`V_MAX`/`W_MAX` in the
-   training config the deployed policy came from.
-4. The loop: `recv` non-blocking → decode → `ArmLatch` → `accept()` →
-   `state()` → `command()` → policy → servo bus at 50 Hz.
-   `link/protocol.py:Supervisor` is that composition in Python, and
-   `sim/udp_agent.py:run()` / `link/link_twin.py` are the loop, in order.
-5. `RELAX`/`ESTOP`/`BENCH` → STS3215 torque-enable (register 40) off on
-   IDs 1–8.
-
-Not yet modeled anywhere: WiFi's real jitter distribution, and ESP32 socket
-behavior under load.
+Not modelled anywhere: WiFi's real jitter distribution, and ESP32 socket
+behaviour under load.
