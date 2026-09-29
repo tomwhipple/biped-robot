@@ -1,0 +1,16 @@
+== VERIFY entry, six conditions, pace x1 and x3 (3x slower), STS overload cutoff enforced (torque reading)
+   x {"l_sh": 5.86, "l_el": -100.0, "l_t": 1.04, "p_hip": 0.0, "p_sh": 85.19, "p_el": -100.0, "p_t": 1.5, "su_hip": -75.67, "su_sh": 80.56, "su_el": -88.05, "su_t": 1.25, "f_hip": -117.69, "f_sh": 130.25, "f_el": -77.77, "f_t": 0.88, "b_t": 1.43}
+   x1 play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  peak 2.02 N*m (L_shoulder)  peak load L_shoulder 74 %, longest >80% of stall L_hip_yaw 0.00 s, longest duty>80% L_knee 0.58 s, trips none
+   x1 play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  peak 2.02 N*m (L_shoulder)  peak load L_shoulder 74 %, longest >80% of stall L_hip_yaw 0.00 s, longest duty>80% L_knee 0.58 s, trips none
+   x1 play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  peak 2.03 N*m (L_shoulder)  peak load L_shoulder 75 %, longest >80% of stall L_hip_yaw 0.00 s, longest duty>80% L_shoulder 0.52 s, trips none
+   x1 play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.387  peak 2.02 N*m (L_shoulder)  peak load L_shoulder 74 %, longest >80% of stall L_hip_yaw 0.00 s, longest duty>80% L_knee 0.68 s, trips none
+   x1 play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  peak 1.75 N*m (R_shoulder)  peak load R_shoulder 81 %, longest >80% of stall L_shoulder 0.04 s, longest duty>80% L_knee 1.00 s, trips none
+   x1 play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  peak 1.75 N*m (L_shoulder)  peak load L_shoulder 99 %, longest >80% of stall L_shoulder 0.88 s, longest duty>80% L_shoulder 1.64 s, trips none
+   x3 play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  peak 1.72 N*m (L_shoulder)  peak load L_shoulder 63 %, longest >80% of stall L_hip_yaw 0.00 s, longest duty>80% L_hip_yaw 0.00 s, trips none
+   x3 play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.386  peak 1.72 N*m (L_shoulder)  peak load L_shoulder 63 %, longest >80% of stall L_hip_yaw 0.00 s, longest duty>80% L_hip_yaw 0.00 s, trips none
+   x3 play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  peak 1.73 N*m (L_shoulder)  peak load L_shoulder 64 %, longest >80% of stall L_hip_yaw 0.00 s, longest duty>80% L_hip_yaw 0.00 s, trips none
+   x3 play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.386  peak 1.72 N*m (L_shoulder)  peak load L_shoulder 63 %, longest >80% of stall L_hip_yaw 0.00 s, longest duty>80% L_hip_yaw 0.00 s, trips none
+   x3 play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  peak 1.72 N*m (L_shoulder)  peak load L_shoulder 79 %, longest >80% of stall L_hip_yaw 0.00 s, longest duty>80% L_shoulder 0.60 s, trips none
+   x3 play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  peak 1.61 N*m (L_shoulder)  peak load L_shoulder 91 %, longest >80% of stall L_shoulder 0.86 s, longest duty>80% L_shoulder 1.40 s, trips none
+-- entry, pace x1: stands 6/6
+-- entry, pace x3: stands 6/6
