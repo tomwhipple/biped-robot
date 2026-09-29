@@ -148,8 +148,24 @@ class DesignParams:
     tail_z: float = 0.0          # root height above the torso origin (yaw axis)
     tail_mass: float = 0.030     # printed rod + tip
     tail_rest: float = 0.0       # deg; the rod is MODELLED at this angle so joint 0 = rest (walk study: -90 = hanging)
+    skid: bool = False           # a rigid curved sole under/behind the pelvis
+                                 # that the seated body rests on instead of the
+                                 # thigh tops; lets the legs reposition under a
+                                 # braced torso. Modelled as a rounded shell.
+    skid_len: float = 0.11       # fore-aft extent of the skid contact patch (m)
+    skid_bot: float = 0.0        # height of the skid's bottom REL to the torso
+                                 # origin (yaw axis); 0 = at hip-yaw level
+    skid_x: float = -0.02        # fore-aft centre of the skid patch (m; - = aft)
+    skid_w: float = 0.10         # width (m)
+    skid_mass: float = 0.030     # print mass (kg)
+    # ---- pelvis skid ALIAS (no-appendage study, PR #64): the PR's static
+    # feasibility scripts (getup_v6_seated_feas / getup_v6_rise_feas /
+    # getup_v6_bumper / getup_v6_skid_rise / getup_v6_rockrise /
+    # getup_v6_toesweep) use the synonym `skid_h` ("skid bottom height BELOW
+    # the yaw axis", the same geometry as `skid_bot` with opposite sign). The
+    # capsule plant is unchanged; the alias is resolved once in
+    # `sim/skid_alias.replace_skid_h` (the only translation point).
     fall_collision: bool = True  # torso, head, links, feet collide with the FLOOR (contype 2),
-                                 # so falls and get-ups are physical; soles stay the 8 pads
     self_collide: bool = False   # OPT-OUT self-collision: every solid part collides with
                                  # every other, except same-body and parent<->child pairs
                                  # (MuJoCo excludes those automatically). The default plant
@@ -167,17 +183,6 @@ class DesignParams:
                                            # links (modelled: same joints, servo mass
                                            # moved up, linkage lumps at the ankle)
     m_linkage: float = 0.015     # per ankle DOF: rod ends + link + lever
-    # ---- pelvis skid (round-3 get-up; no servo, a printed bumper) ----------
-    skid: bool = False           # a rigid curved sole under/behind the pelvis
-                                 # that the seated body rests on instead of the
-                                 # thigh tops; lets the legs reposition under a
-                                 # braced torso. Modelled as a rounded shell.
-    skid_len: float = 0.11       # fore-aft extent of the skid contact patch (m)
-    skid_bot: float = 0.0        # height of the skid's bottom REL to the torso
-                                 # origin (yaw axis); 0 = at hip-yaw level
-    skid_x: float = -0.02        # fore-aft centre of the skid patch (m; - = aft)
-    skid_w: float = 0.10         # width (m)
-    skid_mass: float = 0.030     # print mass (kg)
     # ---- side-mounted / "bird" leg study (2026-09-16, Option 1: "legs on the
     # SIDES, frog/bird style") ----------------------------------------------
     hip_z: float = 0.0           # height of the hip YAW axis ABOVE the torso

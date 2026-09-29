@@ -553,6 +553,77 @@ Against that: +117 g, 4.2 A stall on an over-budget bus, and the same ≥ 4× ac
    4. the ST-3025-C002 with a CAD redo;
    5. §8.2's XC430.
 
+## 15. Get-up without the tail or the arms — no-appendage search (2026-09-14, later; rebased 2026-09-29)
+
+Tom: *"return the robot (v6/v7) to standing if it falls, without the tail or
+arms, thinking creatively, remembering the robot can rotate most of its joints
+further than humans."* This swept the appendage-free design space on the bare
+130/125 body under the deploy servo (STS3250 rolls+knees, 2 Hz shaper, 80 ms
+dead time, torque–speed clamp), plus a new passive-pelvis-skid lever.
+
+**The physics wall (re-confirmed across every static family).** The appended
+study isolated the mechanism: the pelvis only lifts if something pushes **from
+far behind the hips**. Without a tail/arm, every static candidate either (a)
+pikes the boxy torso onto its head (prone bear), (b) cannot reach the floor far
+enough behind the hips (side/heel-to-buttock plants — the heel probe shows the
+planted foot stays ≥23 mm off the floor), (c) cannot move the CoM forward over
+the feet from the 4 cm seat (tripod wide-splay, kneel, deep-crouch rise). A
+dynamic kip (backward somersault, gymnast arms-free) is **servo-bandwidth
+bound, not torque-bound**: the deploy 2 Hz actuator can't generate the hip/knee
+whip (peak torso up_z ~0.5–0.73, max_tau 1.8 N·m of the ~4 N·m stall available).
+The design doc's conclusions hold.
+
+**The one genuinely novel finding — full-flexion tuck is self-defeating.** The
+record's `flex130` skid study always tucked the feet all the way to hip −125°,
+and always failed. A static CoM sweep (`sim/getup_v6_seated_feas.py`) shows
+*why*: tucking to −125° parks the CoM **17 mm behind the heel** (the heel-to-
+buttock pull drags the heels *forward under the pelvis*, pushing the CoM back),
+while holding hip flexion at **−90 to −100° keeps the CoM +33 to +69 mm over
+the feet** — a genuine, margin-positive support pose the record never tried.
+
+![Seated crouch comparison: hip −125° vs hip −90°](design-v6/figs/getup_noappendage_seated_compare.png)
+*The full-flexion tuck (left) pulls the heels forward under the pelvis and
+parks the CoM **17 mm behind the heel**; holding hip −90° (right) keeps the
+CoM **+52 mm over the feet** — a margin-positive support pose. Marker = CoM
+projected on the floor; shaded band = heel→toe contact span. Numbers in
+`sim/getup_v6_seated_feas.py`.*
+
+**Why it still doesn't stand.** Reaching that CoM-over-feet crouch works
+(up_z 1.00, pelvis 10 cm, feet planted, 0.67 N·m — a tenth of the servo). But
+*extending* the hips from the foot anchor to rise drives the torso **backward**
+out of balance (the identical backward-tip as every prior rise; the tall-squat
+rock-forward and skid-seat roll-off variants both tip). With no far-behind
+push, the CoM cannot be held forward of the heels through the rise corridor —
+the narrow ±20–28 mm CoP that §11/§12 documented.
+
+![The rise corridor kills the open-loop rise](design-v6/figs/getup_noappendage_rise_corridor.png)
+*CoM margin per keyframe across the rise, from `sim/getup_v6_rise_feas.py`:
+7 of 9 keyframes sit BEHIND HEEL (buttup knee-100 = −101 mm … rise hip-45 =
+−31 mm) and only the last two are margin-positive (+38, +56 mm). The corridor
+the open-loop keyframes cannot cross.*
+
+![Bumper chair-rise sweep: extend up_z and pelvis z vs skid_x](design-v6/figs/getup_noappendage_bumper_sweep.png)
+*From `sim/getup_v6_bumper.py` (skid_h=0.03): monotone in `skid_x` — extend
+up_z 0.32→**0.47**, pelvis z 0.095→**0.147 m** as the bumper moves rearward
+(−0.04→−0.08). The rear bumper is the lever that turns a seat into a chair.*
+
+**Recommendation stands:** on the v6 body, a **robust no-appendage get-up does
+not exist quasi-statically or open-loop-dynamically under the deploy servo**.
+The options are unchanged: (a) the tail (already 5/5 standing, incl. prone→back,
+§12.1) — the cheaper complete answer; (b) a passive pelvis skid **plus a
+learned RL rise** (the skid removes the 4 cm-seat blocker; a policy with IMU
+feedback can hold the CoM over the feet through the corridor that kills our
+open-loop keyframes — this is the one path this study suggests is now worth
+training on); (c) manual reset. The novel finding to hand to the RL work is
+the concrete "hold hip −90…−100, don't tuck to −125" crouch target.
+
+New/updated files (all gitignored-run, clean on the scanner): `sim/gen_plant_v6.py`
+gains the passive `skid` (+`skid_h/skid_x/skid_len/skid_w`, default-off → plant
+unchanged); `sim/getup_v6_seated_feas.py`, `getup_v6_rise_feas.py` (static CoM
+feasibility), `getup_v6_noappendage.py`, `getup_v6_bear.py`, `getup_v6_crow.py`,
+`getup_v6_bridge.py`, `getup_v6_kip*.py`, `getup_v6_skid.py`, `getup_v6_skid_rise.py`,
+`getup_v6_rockrise.py` (the swept families).
+
 ## Files
 
 - `sim/gate_no3250.py` — §14: the no-STS3250 study (walk, adversity sweep, envelope, arms walk, get-up per servo set); logs `docs/design-v6/no3250_*.txt`
@@ -567,4 +638,6 @@ Against that: +117 g, 4.2 A stall on an over-budget bus, and the same ≥ 4× ac
 - `sim/getup_v6.py` — fall-recovery sequences under the deploy model (supine/prone start, stub-arm and deep-flexion variants via DesignParams)
 - `sim/getup_v6_appendage.py` — round 2: hip-level tail / arms seat-push and the prone roll chain
 - `sim/getup_v6_legs.py` — round 3: legs-only study (IK keyframe probe, bridge/pike/seiza paths, continuous keyframe search); negative, geometry measured in §12.2
+- `sim/getup_v6_noappendage.py`, `getup_v6_bear.py`, `getup_v6_crow.py`, `getup_v6_bridge.py`, `getup_v6_kipfromsit.py`, `getup_v6_kiprock.py`, `getup_v6_skid_rise.py`, `getup_v6_rockrise.py` — the no-appendage search families (§15)
+- `sim/getup_v6_seated_feas.py`, `sim/getup_v6_rise_feas.py`, `sim/getup_v6_bumper.py` — static CoM-over-feet feasibility of the get-up crouch and rise keyframes, and the bumper chair-rise sweep (§15)
 - `sim/renders/v6_static_walk_strip.png`, `sim/renders/v6_arc_walk_strip.png` (+ the gitignored `.mp4`s)
