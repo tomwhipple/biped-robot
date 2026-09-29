@@ -234,8 +234,8 @@ graph LR
 
 The frame is the byte-exact on-board twin of `walker_env._obs()`. The obs
 SPEC (ordering, scaling, history depth, joint table, action map, clock
-flags) **is exported from the sim as a generated header so it cannot drift
-by hand**: `tools/gen_obs_spec.py --run <run>` writes `obs/obs_spec.h` from
+flags, and the run's held servos and per-servo stiffness) **is exported
+from the sim as a generated header so it cannot drift by hand**: `tools/gen_obs_spec.py --run <run>` writes `obs/obs_spec.h` from
 the run's `config.json` and MJCF. Nothing downstream hardcodes a width.
 
 One frame is 49 floats, and the policy sees three of them, newest first
@@ -446,6 +446,12 @@ against a scripted port:
 
 The table is compiled in rather than kept in NVS because it is a design value
 with evidence behind it; the procedure is [servo-map.md](servo-map.md) §4.
+It is cross-checked against the deployed policy at compile time: the run's
+per-servo stiffness factor (`obs_spec.h` `kServoKpScale`, from its
+`servo_kp_scale`; Plan B trains ×4 on hip roll, ankle roll and knee) must be
+above 1 exactly where the table raises P. A Plan B policy flashed onto a
+factory-P table, or the reverse, does not build. The factor-to-register
+value is the bench measurement (#73), so the check is on the pattern.
 
 ### 5.8 Bus joints and policy joints
 
@@ -461,12 +467,21 @@ joint sets and never confuses them:
 
 While armed, `ctrl` SYNC READs every fitted servo (the list is taken from
 the calibration at the arm handover), feeds the policy its joints, and in
-the SYNC WRITE sends the policy's targets plus a **hold** at the measured
-takeover position for every fitted servo the policy does not drive, so the
-robot's ankle rolls, neck and arms stay where they were under a 10-joint
-policy. A held servo that has not answered since the arm is left off the
-frame rather than sent a guess. The SIL library mirrors the hold (its
-non-policy slots hold what they sensed on the first tick after a reset).
+the SYNC WRITE sends the policy's targets plus a **hold** for every fitted
+servo the policy does not drive:
+
+- a servo the deployed run itself holds -- the robot's runs hold the neck
+  at 0 and the arms at their walking pose (`obs_spec.h` `kHeldServoId` /
+  `kHeldTarget`, generated from the run's `held_joints`) -- is driven from
+  its takeover position to that trained target along the takeover ramp, then
+  held there (clamped to the mechanical envelope);
+- any other fitted servo (the robot's ankle rolls, neck and arms under the
+  prototype's 10-joint policy) stays at its measured takeover position.
+
+A held servo that has not answered since the arm is left off the frame
+rather than sent a guess. The SIL library mirrors the hold without the ramp
+(its non-policy slots hold the trained target, or what they sensed on the
+first tick after a reset).
 
 `pose` takes either 17 targets in servo-ID order or 10 in policy order (the
 prototype's bench tools send that form; the other servos are left alone);
@@ -573,7 +588,13 @@ joint all look the same from outside. `obsdump` measures them.
     time from `stat`;
   - the robot's leg rows in the mechanical envelope, and every direction
     sign, measured on the robot (the leg rows are the prototype's);
-  - a 17-joint policy (#86): `obs_spec.h` then generates 17 policy joints,
-    and the hold path covers nothing;
+  - a policy trained on the robot's plant (#86). `tools/gen_obs_spec.py`
+    already handles one (the 12 leg joints as the policy, the held neck and
+    arms with their targets, the per-servo stiffness; the SIL suite runs it
+    on a robot config), and the firmware already holds the held servos.
+    What deploying one still changes, each enforced at compile time: the
+    SIL ABI's `action`/`obs` widths (10/147 today), and the leg rows of the
+    mechanical envelope, which must contain the robot's policy ranges (knee
+    −130°, hip pitch −120°);
   - the Plan B gain values (#73) in `main/servo_gains.h`;
   - the bench tools in `tools/` that hard-code the prototype's calibration.

@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include "obs/bus_map.h"
+#include "obs/obs_spec.h"
 #include "scsbus/gains.h"
 
 namespace robot {
@@ -71,7 +72,26 @@ constexpr bool expectedGainIdsAreUnique() {
     }
     return true;
 }
+// The deployed policy trained with a per-servo stiffness (obs_spec.h
+// kServoKpScale; Plan B = x4 on hip roll, ankle roll and knee). The table
+// must raise P exactly on the servos the policy was trained stiffer on: a
+// Plan B policy flashed onto a factory-P table (or the reverse) does not
+// build. The register VALUE that realises a factor is the #73 bench
+// measurement, so this checks the pattern, not the number.
+constexpr bool gainsMatchTheTrainedStiffness() {
+    for (int i = 0; i < obs::kNumPlantServos; ++i) {
+        const scsbus::GainExpect* e = expectedGainsFor(obs::kPlantServoId[i]);
+        if (e == nullptr) return false;
+        const bool raised = e->gains.p != scsbus::kFactoryGains.p;
+        const bool trained_stiffer = obs::kServoKpScale[i] != 1.0f;
+        if (raised != trained_stiffer) return false;
+    }
+    return true;
+}
 }  // namespace detail
+static_assert(detail::gainsMatchTheTrainedStiffness(),
+              "main/servo_gains.h does not raise P exactly where the deployed "
+              "policy trained with a stiffer servo (obs_spec.h kServoKpScale)");
 static_assert(detail::everyBusServoHasExpectedGains(),
               "a servo on the bus (obs/bus_map.h) has no expected-gain row");
 static_assert(detail::expectedGainIdsAreUnique(),

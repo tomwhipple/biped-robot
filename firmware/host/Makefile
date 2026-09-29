@@ -218,7 +218,8 @@ $(BUILD)/test_client: test_client.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
                       test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) -I../../link $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
-$(BUILD)/test_scsbus: test_scsbus.cpp $(SRC_SCS) test_util.h $(COMP_HDRS) | $(BUILD)
+$(BUILD)/test_scsbus: test_scsbus.cpp $(SRC_SCS) ../main/servo_gains.h $(SPEC_H) \
+                     test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # cal_store.cpp lives in main/ but its pack/unpack half is plain data and

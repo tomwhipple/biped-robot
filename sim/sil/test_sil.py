@@ -188,6 +188,62 @@ def test_bus_map_is_one_map_everywhere():
         assert H.BUS_NAMES[sid - 1] == name
 
 
+def test_obs_spec_generator_on_a_robot_run(tmp_path):
+    """tools/gen_obs_spec.py on a run of the ROBOT's plant (the 12 leg joints
+    as the policy, the neck held, Plan B stiffness; sim/mjx/robot_plant.py):
+    every servo gets its ID from the one bus map, the held servo and its
+    target are emitted, and so is the per-servo stiffness factor the gain
+    table is checked against. No trained robot policy exists yet, so this
+    builds the run's config the way train_mjx.py --robot records it and
+    writes the header to a temporary file -- never over the deployed one."""
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import gen_obs_spec
+    import robot_plant
+    kw = robot_plant.robot_env_kwargs()
+    cfg = dict(xml_path=kw["xml_path"], held_joints=kw["held_joints"],
+               servo_kp_scale=kw["servo_kp_scale"],
+               hip_flex_deg=kw["hip_flex_deg"], payload_mass=0.0,
+               mimic_sole_level=True, obs_hist_len=3, action_map="full",
+               imu_obs=True, gait_clock=True)
+    run = tmp_path / "robot_test_run"
+    run.mkdir()
+    (run / "config.json").write_text(json.dumps(cfg))
+    cfg2, env = gen_obs_spec.build_env(str(run))
+    cfg2["_run"] = str(run)
+    out = tmp_path / "obs_spec.h"
+    gen_obs_spec.write_spec(cfg2, env, str(out))
+    spec = H._parse_obs_spec(str(out))
+    txt = out.read_text()
+    names = list(spec.joint_names)
+    assert spec.num_joints == len(names) == 12
+    assert {"L_ankle_roll", "R_ankle_roll"} <= set(names)
+    ids = dict(zip(names, spec.servo_id))
+    for n, sid in ids.items():
+        assert H.BUS_NAMES[sid - 1] == n
+    assert ids["R_ankle_roll"] == 11 and ids["L_ankle_roll"] == 12
+
+    def arr(name, cast):
+        import re
+        m = re.search(name + r"\[[^\]]*\]\s*=\s*\{([^}]*)\}", txt)
+        return [cast(x.strip().rstrip("f").strip('"'))
+                for x in m.group(1).split(",") if x.strip()]
+    import re
+    n_held = int(re.search(r"kNumHeld = (\d+);", txt).group(1))
+    held_ids = arr("kHeldServoId", int)[:n_held]
+    held_tgt = arr("kHeldTarget", float)[:n_held]
+    want = {H.BUS_IDS[H.BUS_NAMES.index(n)]: math.radians(d)
+            for n, d in kw["held_joints"].items()}
+    assert dict(zip(held_ids, held_tgt)) == pytest.approx(want)
+    assert 13 in held_ids                                   # the neck
+    assert not set(held_ids) & set(spec.servo_id)           # never both
+    plant_ids = arr("kPlantServoId", int)
+    kp = dict(zip(plant_ids, arr("kServoKpScale", float)))
+    assert sorted(plant_ids) == sorted(list(spec.servo_id) + held_ids)
+    raised = {sid for sid, f in kp.items() if f != 1.0}
+    assert raised == {1, 3, 5, 7, 11, 12}                   # rolls + knees
+    assert all(kp[sid] == 4.0 for sid in raised)
+
+
 def test_silw_sidecar_agrees_with_blob(silw):
     with open(silw["path"] + ".json") as f:
         side = json.load(f)

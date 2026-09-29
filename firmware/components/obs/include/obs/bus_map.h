@@ -122,6 +122,43 @@ constexpr int busToPolicy(int b) {
     return -1;
 }
 
+// The deployed run's HELD servos (obs_spec.h kHeld*: the robot's neck and
+// arms, at a fixed trained target): index into kHeld* of bus joint b, or -1.
+constexpr int heldIndexOfBus(int b) {
+    // cppcheck-suppress knownConditionTrueFalse -- kNumHeld is 0 for a
+    // prototype run and not for a robot run: generated, not a constant.
+    for (int h = 0; h < kNumHeld; ++h) {
+        if (kHeldServoId[h] == kBusServoId[b]) return h;
+    }
+    return -1;
+}
+
+namespace detail {
+constexpr bool heldServosAreUndrivenBusJoints() {
+    for (int h = 0; h < kNumHeld; ++h) {
+        const int b = busIndexOfId(kHeldServoId[h]);
+        if (b < 0) return false;
+        if (!sameName(kHeldNames[h], kBusJointNames[b])) return false;
+        for (int j = 0; j < kNumJoints; ++j) {
+            if (kServoId[j] == kHeldServoId[h]) return false;
+        }
+    }
+    return true;
+}
+constexpr bool plantServosAreBusJoints() {
+    for (int i = 0; i < kNumPlantServos; ++i) {
+        if (busIndexOfId(kPlantServoId[i]) < 0) return false;
+    }
+    return true;
+}
+}  // namespace detail
+
+static_assert(detail::heldServosAreUndrivenBusJoints(),
+              "a held servo of the deployed spec is not a bus joint the "
+              "policy leaves alone");
+static_assert(detail::plantServosAreBusJoints(),
+              "a servo of the deployed run's plant is not on the bus");
+
 static_assert(kNumBusJoints >= kNumJoints,
               "the policy drives more joints than the bus carries");
 static_assert(detail::busIdsAreIndexPlusOne(),

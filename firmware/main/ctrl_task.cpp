@@ -16,6 +16,7 @@
 #include "freertos/task.h"
 #include "imu_sampler.h"
 #include "linkproto/watchdog.h"
+#include "mech_envelope.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
 #include "policy/mlp.h"
@@ -86,8 +87,10 @@ int g_fit_pol[obs::kNumBusJoints];           // fitted slot -> policy index, -1
 uint8_t g_fit_id[obs::kNumBusJoints];        // fitted slot -> servo ID
 scsbus::Feedback g_fit_fb[obs::kNumBusJoints];
 bool g_fit_ok[obs::kNumBusJoints];
-// The hold target of a fitted servo the policy does not drive: its measured
-// ticks at the first acting tick after an arm (or the first tick it answers).
+// The hold of a fitted servo the policy does not drive: its measured ticks at
+// the first acting tick after an arm (or the first tick it answers). A servo
+// the deployed run holds at a trained target (obs_spec.h kHeld*) ramps from
+// there to that target; any other stays where it was measured.
 int32_t g_hold_steps[obs::kNumBusJoints];
 bool g_hold_valid[obs::kNumBusJoints];
 // One SYNC WRITE's worth, in fitted-slot order.
@@ -531,6 +534,25 @@ void ctrlTask(void*) {
                 }
                 if (!g_hold_valid[b]) continue;
                 steps = g_hold_steps[b];
+                const int h = obs::heldIndexOfBus(b);
+                if (h >= 0) {
+                    // A servo the deployed run HOLDS at a trained target
+                    // (obs_spec.h kHeldTarget: the robot's neck, its arms 15
+                    // deg back): reached from the takeover pose along the
+                    // same ramp as the policy's joints, then held there.
+                    float tgt = obs::kHeldTarget[h];
+                    if (tgt < kMechLo[b]) tgt = kMechLo[b];
+                    if (tgt > kMechHi[b]) tgt = kMechHi[b];
+                    const int32_t goal = obs::busAngleToStepsRaw(b, tgt, g_cal);
+                    const float r =
+                        g_ramp_ticks >= kArmRampTicks
+                            ? 1.0f
+                            : static_cast<float>(g_ramp_ticks) /
+                                  static_cast<float>(kArmRampTicks);
+                    steps = g_hold_steps[b] +
+                            static_cast<int32_t>(lrintf(
+                                r * static_cast<float>(goal - g_hold_steps[b])));
+                }
                 g_wr_speed[nwr] = obs::goalSpeedSteps(steps, g_fb[b].position);
             }
             g_wr_id[nwr] = g_fit_id[k];

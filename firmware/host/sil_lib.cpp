@@ -334,10 +334,15 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     if (!g_primed) {
         g_hist.fill(g_frame);
         g_primed = true;
-        // Hold every slot the policy does not drive where it is now.
+        // Hold every slot the policy does not drive: at the deployed run's
+        // trained target when it holds that servo (obs_spec.h kHeld*),
+        // otherwise where it is now. (No takeover ramp: sil_reset is an
+        // episode start, not a bench->run handover.)
         for (int b = 0; b < obs::kNumBusJoints; ++b) {
+            const int h = obs::heldIndexOfBus(b);
             g_hold[b] = static_cast<uint16_t>(
-                scsbus::signMag(in->pos_ticks[b], 15));
+                h >= 0 ? obs::busAngleToStepsRaw(b, obs::kHeldTarget[h], g_cal)
+                       : scsbus::signMag(in->pos_ticks[b], 15));
         }
     }
     g_hist.build(g_frame, g_obs);

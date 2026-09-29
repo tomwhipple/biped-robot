@@ -33,8 +33,9 @@ extern "C" {
 // called an identity, and putting it on the C boundary is what makes it
 // testable end to end. The slots of servos the policy does not drive (IDs
 // 11-17 under a 10-joint policy: ankle rolls, neck, arms) are sensed but not
-// observed, and their goals HOLD the position sensed on the first tick after
-// sil_reset -- ctrl_task's hold for a fitted servo the policy does not drive.
+// observed, and their goals HOLD: the deployed run's trained target for a
+// servo it holds (obs_spec.h kHeld*), else the position sensed on the first
+// tick after sil_reset -- ctrl_task's hold, without its takeover ramp.
 // sil_spec() reports "sensor_index":"bus_id-1", the kServoId array and the
 // bus map, so the python side asserts the convention rather than assume it.
 // ---------------------------------------------------------------------------

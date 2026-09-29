@@ -195,5 +195,5 @@ write NVS are bench-only because a flash write stalls the control tick.
 - The IDF task watchdog on `ctrl` reports only; the loop's own overrun check
   (> 40 ms → torque off) is the protection.
 - The 17-servo bus is verified on the host only: a 17-servo `pose` on the
-  bench, the robot's leg envelope rows and a 17-joint policy (#86) remain
-  (docs/firmware-design.md §8).
+  bench, the robot's leg envelope rows and a policy trained on the robot's
+  plant (#86) remain (docs/firmware-design.md §8).

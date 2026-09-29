@@ -80,9 +80,10 @@ void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw 
   the Python side **probes** the built library rather than assuming either
   (see the README).
 - **Slots the policy does not drive** (IDs 11–17 under the 10-joint policy)
-  are sensed but not observed, and their goals **hold** the position sensed
-  on the first tick after `sil_reset()` -- the firmware's hold for a fitted
-  servo the policy does not drive ([firmware-design.md](firmware-design.md)
+  are sensed but not observed, and their goals **hold**: the deployed run's
+  trained target for a servo it holds (`obs_spec.h` `kHeld*`), otherwise the
+  position sensed on the first tick after `sil_reset()` -- the firmware's
+  hold, without its takeover ramp ([firmware-design.md](firmware-design.md)
   §5.8). The harness fills them with 2048.
 - **The widths are static-asserted** against `bus_map.h` and `obs_spec.h` in
   `sil_lib.cpp`, so a retrain that changes a dimension breaks the build

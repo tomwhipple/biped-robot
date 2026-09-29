@@ -7,6 +7,7 @@
 #include <deque>
 #include <vector>
 
+#include "../main/servo_gains.h"
 #include "scsbus/bus.h"
 #include "scsbus/gains.h"
 #include "scsbus/packet.h"
@@ -536,6 +537,23 @@ void testGainCheck() {
     CHECK_EQ(checkPositionGains(bus2, want, 3, got), 0u);
 }
 
+// The compiled expected-gain table (main/servo_gains.h; its static_asserts
+// -- every bus servo has a row, P raised exactly where the deployed policy
+// trained stiffer -- are compiled here too): one row per bus servo, and
+// factory P/D on every row until #73 measures the Plan B values.
+void testExpectedGainTable() {
+    CHECK_EQ(robot::kNumExpectedGains, static_cast<size_t>(obs::kNumBusJoints));
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        const GainExpect* e = robot::expectedGainsFor(obs::kBusServoId[b]);
+        CHECK(e != nullptr);
+        if (!e) continue;
+        CHECK_EQ(e->gains.p, kFactoryGains.p);
+        CHECK_EQ(e->gains.d, kFactoryGains.d);
+    }
+    CHECK(robot::expectedGainsFor(0) == nullptr);
+    CHECK(robot::expectedGainsFor(18) == nullptr);
+}
+
 }  // namespace
 
 int main() {
@@ -558,5 +576,6 @@ int main() {
     testGainWriteRelocksOnFailure();
     testGainWriteDetectsAMismatchedReadback();
     testGainCheck();
+    testExpectedGainTable();
     return testutil::report("scsbus");
 }

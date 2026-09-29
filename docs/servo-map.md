@@ -173,9 +173,13 @@ index, so action 0 drives bus ID 10. `obs::policyToBus(j)` is the bus joint of
 policy joint *j*.
 
 While armed, the loop reads every **fitted** bus servo, feeds the policy its
-joints, and **holds every other fitted servo where it was measured at the
-takeover** (on the robot, under a 10-joint policy, the ankle rolls, neck and
-arms). `run` refuses unless every policy joint is fitted.
+joints, and **holds every other fitted servo**: at the trained target when
+the deployed run holds that servo (the robot's runs hold the neck at 0 and
+the arms at their walking pose; `kHeldServoId`/`kHeldTarget` in
+`obs_spec.h`), reached along the takeover ramp; otherwise where it was
+measured at the takeover (on the robot, under the prototype's 10-joint
+policy, the ankle rolls, neck and arms). `run` refuses unless every policy
+joint is fitted.
 
 ## 3. Calibration: zero, direction, envelope
 
@@ -426,7 +430,13 @@ arm**, and compares them with the compiled expected table,
   arm re-reads once the pack is on.
 
 The table is compiled in rather than stored in NVS: it is a design value with
-evidence behind it, reviewed in git. `gains <id> <P> <D>` changes a servo, not
+evidence behind it, reviewed in git. It is also checked at compile time
+against the deployed policy: the run's per-servo stiffness factor
+(`kServoKpScale` in the generated `obs_spec.h`, from its `servo_kp_scale`;
+Plan B trains ×4 on hip roll, ankle roll and knee) must be above 1 exactly
+where the table raises P, so a Plan B policy cannot be flashed onto
+factory-P servos, nor a stock policy onto raised ones. The register value
+that realises a factor is the #73 measurement; the check is on the pattern. `gains <id> <P> <D>` changes a servo, not
 what the robot expects; writing a value the table does not hold makes the next
 arm refuse, and the CLI says so. **Change `servo_gains.h` and the table below
 in the same commit, and name the measurement.**

@@ -239,6 +239,22 @@ void testBusMap() {
     CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(11)], "R_ankle_roll") == 0);
     CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(13)], "neck_yaw") == 0);
     CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(17)], "L_elbow") == 0);
+
+    // The deployed run's servo tables: every servo of its plant is a policy
+    // joint or a held one, each on the bus, and no held servo is driven.
+    CHECK_EQ(obs::kNumPlantServos, obs::kNumJoints + obs::kNumHeld);
+    for (int i = 0; i < obs::kNumPlantServos; ++i) {
+        const int b = obs::busIndexOfId(obs::kPlantServoId[i]);
+        CHECK(b >= 0);
+        if (b < 0) continue;
+        CHECK((obs::busToPolicy(b) >= 0) != (obs::heldIndexOfBus(b) >= 0));
+        CHECK(obs::kServoKpScale[i] >= 1.0f);
+    }
+    // cppcheck-suppress knownConditionTrueFalse -- 0 for a prototype run
+    for (int h = 0; h < obs::kNumHeld; ++h) {
+        const int b = obs::busIndexOfId(obs::kHeldServoId[h]);
+        CHECK(b >= 0 && obs::busToPolicy(b) < 0);
+    }
 }
 
 void testVelocityEstimator() {

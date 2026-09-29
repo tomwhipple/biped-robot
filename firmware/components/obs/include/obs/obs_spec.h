@@ -52,4 +52,20 @@ inline constexpr float kJointLo[kNumJoints] = {-0.785398163f, -0.436332313f, -1.
 inline constexpr float kJointHi[kNumJoints] = {0.785398163f, 0.959931089f, 1.57079633f, 1.65806279f, 0.698131701f, 0.785398163f, 0.436332313f, 1.57079633f, 1.65806279f, 0.698131701f};
 inline constexpr float kJointDefault[kNumJoints] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
+// -- servos beyond the policy's joints ----------------------------------
+// HELD servos: actuated by the plant at a fixed target the policy never
+// commands (the robot's neck and arms). The firmware writes each one its
+// target every armed tick. kNumHeld may be 0; the arrays then carry one
+// unused entry, because C++ has no zero-length arrays.
+inline constexpr int kNumHeld = 0;
+inline constexpr const char* kHeldNames[1] = {""};
+inline constexpr uint8_t kHeldServoId[1] = {0};
+inline constexpr float kHeldTarget[1] = {0.0f};   // rad, sim joint frame
+// Position-loop stiffness factor per actuated servo, as trained
+// (servo_kp_scale): 1 = the servo's factory P. main/servo_gains.h must
+// raise P exactly where this is above 1.
+inline constexpr int kNumPlantServos = 10;
+inline constexpr uint8_t kPlantServoId[kNumPlantServos] = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4};
+inline constexpr float kServoKpScale[kNumPlantServos] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+
 }  // namespace obs
