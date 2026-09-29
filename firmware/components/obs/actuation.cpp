@@ -30,9 +30,9 @@ void anglesToAction(const float* angle_rad, float* action) {
     }
 }
 
-int32_t angleToStepsRaw(int joint, float rad, const Calibration& cal) {
-    const float ticks = rad / kRadPerStep * static_cast<float>(cal.dir[joint]);
-    int32_t steps = cal.zero_steps[joint] + static_cast<int32_t>(lrintf(ticks));
+int32_t busAngleToStepsRaw(int bus, float rad, const Calibration& cal) {
+    const float ticks = rad / kRadPerStep * static_cast<float>(cal.dir[bus]);
+    int32_t steps = cal.zero_steps[bus] + static_cast<int32_t>(lrintf(ticks));
     // Steps-domain guard. The caller bounds the ANGLE against whichever range
     // applies to it, but a wrong zero_steps (miscalibration, or NVS restored
     // from a different build of the robot) still shifts the result off the
@@ -50,19 +50,23 @@ int32_t angleToSteps(int joint, float rad, const Calibration& cal) {
     // you stall a horn against a printed part.
     if (rad < kJointLo[joint]) rad = kJointLo[joint];
     if (rad > kJointHi[joint]) rad = kJointHi[joint];
-    return angleToStepsRaw(joint, rad, cal);
+    return busAngleToStepsRaw(policyToBus(joint), rad, cal);
+}
+
+float busStepsToAngle(int bus, int32_t steps, const Calibration& cal) {
+    const int32_t d = steps - cal.zero_steps[bus];
+    return static_cast<float>(d) * kRadPerStep *
+           static_cast<float>(cal.dir[bus]);
 }
 
 float stepsToAngle(int joint, int32_t steps, const Calibration& cal) {
-    const int32_t d = steps - cal.zero_steps[joint];
-    return static_cast<float>(d) * kRadPerStep *
-           static_cast<float>(cal.dir[joint]);
+    return busStepsToAngle(policyToBus(joint), steps, cal);
 }
 
 float stepsPerSecToRadPerSec(int joint, int32_t steps_per_s,
                              const Calibration& cal) {
     return static_cast<float>(steps_per_s) * kRadPerStep *
-           static_cast<float>(cal.dir[joint]);
+           static_cast<float>(cal.dir[policyToBus(joint)]);
 }
 
 void CommandShaper::setPole(float pole_hz, float dt) {

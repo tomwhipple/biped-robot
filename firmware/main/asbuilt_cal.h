@@ -20,8 +20,6 @@
 #pragma once
 #include <stdint.h>
 
-#include "obs/obs_spec.h"
-
 namespace robot {
 
 // Re-zeroed 2026-09-03 after Tom found and tightened loose servo-horn screws
@@ -29,7 +27,9 @@ namespace robot {
 // -1.1 deg R; yaw and roll < 0.3 deg). Stand set by eye, `cal zero` + `cal save`.
 // Joint order (obs_spec kJointNames): L hip yaw/roll/pitch, knee, ankle,
 // then R the same.
-inline constexpr int32_t kAsBuiltZeroSteps[obs::kNumJoints] = {
+// Row i is the servo kLegacyServoId[i] (cal_store.h): the prototype's
+// policy joint order, which is also the order below.
+inline constexpr int32_t kAsBuiltZeroSteps[10] = {
     1692,   // L_hip_yaw    (id 10)
     2418,   // L_hip_roll   (id 5)
     2001,   // L_hip_pitch  (id 6)  re-centred 2026-08-03: old zero 3273 left
@@ -55,7 +55,7 @@ inline constexpr int32_t kAsBuiltZeroSteps[obs::kNumJoints] = {
 // same command. That was fixed in sim/bimo_biped_v3yaw.xml (axis "0 -1 0"), on
 // the SIM side: these numbers, the NVS blob and obs_spec's joint limits are all
 // unchanged, so the fix needs no reflash and no re-zero.
-inline constexpr int8_t kAsBuiltDir[obs::kNumJoints] = {
+inline constexpr int8_t kAsBuiltDir[10] = {
     +1, -1, +1, -1, +1,     // left leg
     +1, -1, +1, -1, +1,     // right leg
 };

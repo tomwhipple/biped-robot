@@ -169,6 +169,25 @@ def test_goldens_headers_and_harness_agree_on_one_run():
         side["source"]["xml"], H.SPEC.plant_xml)
 
 
+def test_bus_map_is_one_map_everywhere():
+    """The 17-servo bus map (docs/servo-map.md 2.1) lives in three places that
+    must agree: the firmware's obs/bus_map.h (calibration, pose, SIL arrays),
+    link/protocol.py's JOINT_NAMES (the telemetry joint block) and
+    tools/gen_obs_spec.py's ID_BY_ROLE (a policy's generated kServoId)."""
+    sys.path.insert(0, os.path.join(ROOT, "link"))
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import protocol
+    import gen_obs_spec
+    assert H.BUS_IDS == tuple(range(1, H.NUM_BUS + 1))
+    assert tuple(protocol.JOINT_NAMES) == H.BUS_NAMES
+    assert protocol.NUM_JOINTS == H.NUM_BUS
+    assert {n: i for n, i in zip(H.BUS_NAMES, H.BUS_IDS)} == \
+        gen_obs_spec.ID_BY_ROLE
+    # the policy's joints are a subset, under the same names and servos
+    for name, sid in zip(H.SPEC.joint_names, H.SPEC.servo_id):
+        assert H.BUS_NAMES[sid - 1] == name
+
+
 def test_silw_sidecar_agrees_with_blob(silw):
     with open(silw["path"] + ".json") as f:
         side = json.load(f)

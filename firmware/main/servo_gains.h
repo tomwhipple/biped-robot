@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "obs/obs_spec.h"
+#include "obs/bus_map.h"
 #include "scsbus/gains.h"
 
 namespace robot {
@@ -36,6 +36,13 @@ inline constexpr scsbus::GainExpect kExpectedGains[] = {
     {8, scsbus::kFactoryGains},    // L_ankle
     {9, scsbus::kFactoryGains},    // R_hip_yaw
     {10, scsbus::kFactoryGains},   // L_hip_yaw
+    {11, scsbus::kFactoryGains},   // R_ankle_roll (Plan B: raised, #73)
+    {12, scsbus::kFactoryGains},   // L_ankle_roll (Plan B: raised, #73)
+    {13, scsbus::kFactoryGains},   // neck_yaw
+    {14, scsbus::kFactoryGains},   // R_shoulder
+    {15, scsbus::kFactoryGains},   // R_elbow
+    {16, scsbus::kFactoryGains},   // L_shoulder
+    {17, scsbus::kFactoryGains},   // L_elbow
 };
 inline constexpr size_t kNumExpectedGains =
     sizeof kExpectedGains / sizeof kExpectedGains[0];
@@ -49,9 +56,9 @@ constexpr const scsbus::GainExpect* expectedGainsFor(uint8_t id) {
 }
 
 namespace detail {
-constexpr bool everyDrivenServoHasExpectedGains() {
-    for (int j = 0; j < obs::kNumJoints; ++j) {
-        if (expectedGainsFor(obs::kServoId[j]) == nullptr) return false;
+constexpr bool everyBusServoHasExpectedGains() {
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (expectedGainsFor(obs::kBusServoId[b]) == nullptr) return false;
     }
     return true;
 }
@@ -65,8 +72,8 @@ constexpr bool expectedGainIdsAreUnique() {
     return true;
 }
 }  // namespace detail
-static_assert(detail::everyDrivenServoHasExpectedGains(),
-              "a servo the firmware drives has no expected-gain row");
+static_assert(detail::everyBusServoHasExpectedGains(),
+              "a servo on the bus (obs/bus_map.h) has no expected-gain row");
 static_assert(detail::expectedGainIdsAreUnique(),
               "kExpectedGains: duplicate id or P == 0");
 

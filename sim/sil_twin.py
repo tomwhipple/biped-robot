@@ -45,7 +45,8 @@ for p in ("mjx", "sil", ""):
     sys.path.insert(0, os.path.join(HERE, p))
 sys.path.insert(0, os.path.join(ROOT, "link"))
 
-from protocol import (CMD_PORT, NUM_JOINTS, TLM_PORT, LinkState,  # noqa: E402
+from protocol import (CMD_PORT, JOINT_NAMES, NUM_JOINTS, TLM_PORT,  # noqa: E402
+                      LinkState,
                       ProtocolError, Supervisor, Telemetry, decode_command,
                       encode_telemetry)
 
@@ -178,14 +179,23 @@ def run(args):
     ghost_q = None
     ghost_up = None
     ghost_at = 0.0
-    ghost_adr = []
-    for jn in json.loads(lib.spec_string())["joint_names"]:
+    # The wire's joint block is the robot's BUS, servo-ID order
+    # (protocol.JOINT_NAMES, 17 wide). Both directions map it onto this
+    # plant BY NAME: the ghost poses the plant joints it has (the prototype
+    # plant has no ankle rolls, neck or arms), and our own beacon reports the
+    # policy's joints and 0.0 for the rest -- what the 10-servo prototype's
+    # firmware sends for servos it does not carry.
+    ghost_adr = []                       # (wire index, qpos address)
+    for k, jn in enumerate(JOINT_NAMES):
         jid = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_JOINT, jn)
-        ghost_adr.append(int(env.model.jnt_qposadr[jid]) if jid >= 0 else -1)
-    if any(a < 0 for a in ghost_adr):
-        print("sil_twin: some joints are not in this plant -- ghost disabled",
+        if jid >= 0:
+            ghost_adr.append((k, int(env.model.jnt_qposadr[jid])))
+    if not ghost_adr:
+        print("sil_twin: no wire joint is in this plant -- ghost disabled",
               flush=True)
-        ghost_adr = []
+    _pol_names = json.loads(lib.spec_string())["joint_names"]
+    beacon_src = [(_pol_names.index(jn) if jn in _pol_names else -1)
+                  for jn in JOINT_NAMES]     # wire index -> policy joint
     # The torso free joint, for the attitude half of a pose. qpos layout is
     # [x y z qw qx qy qz] at its address; -1 when the plant is welded (--hang),
     # where the torso has no pose to set and the joints are the whole picture.
@@ -274,10 +284,10 @@ def run(args):
 
             for cmd in _stdin_commands():
                 if cmd.startswith("pose "):
-                    # "pose q0 .. q9 [ux uy uz]": the ten joint angles the
+                    # "pose q1 .. q17 [ux uy uz]": the bus joint angles the
                     # console just read off the real robot, radians in
-                    # obs_spec order, optionally followed by the torso up
-                    # vector from its IMU. The up vector is what turns a set
+                    # servo-ID order (protocol.JOINT_NAMES), optionally
+                    # followed by the torso up vector from its IMU. The up vector is what turns a set
                     # of joint angles into an ATTITUDE -- without it a robot
                     # lying on its face draws standing to attention.
                     try:
@@ -330,8 +340,8 @@ def run(args):
                     fresh = ghost_q is not None and \
                         (time.monotonic() - ghost_at) < 1.0
                     if fresh and ghost_adr:
-                        for adr, q in zip(ghost_adr, ghost_q):
-                            env.data.qpos[adr] = q
+                        for k, adr in ghost_adr:
+                            env.data.qpos[adr] = ghost_q[k]
                         if root_adr >= 0:
                             # Attitude from the IMU; position PINNED. There is
                             # no odometry on this robot, so a world position
@@ -414,8 +424,8 @@ def run(args):
                     (time.monotonic() - ghost_at) < 1.0
                 if fresh and ghost_adr:
                     saved = env.data.qpos.copy()
-                    for adr, q in zip(ghost_adr, ghost_q):
-                        env.data.qpos[adr] = q
+                    for k, adr in ghost_adr:
+                        env.data.qpos[adr] = ghost_q[k]
                     mujoco.mj_forward(env.model, env.data)
                     ghost_rgb = env.render()
                     env.data.qpos[:] = saved
@@ -439,9 +449,10 @@ def run(args):
                     loop_late_pct=int(100 * late / max(1, i)),
                     t_us=int(time.time() * 1e6),   # the host clock IS ours
                     # Only for a commander that asked. obs frame_offsets put
-                    # the joint angles at the front of the frame, in the same
-                    # obs_spec order the wire uses.
-                    joints=(tuple(float(q) for q in obs[:NUM_JOINTS])
+                    # the policy's joint angles at the front of the frame;
+                    # the wire wants every bus joint in servo-ID order.
+                    joints=(tuple(float(obs[j]) if j >= 0 else 0.0
+                                  for j in beacon_src)
                             if want_pose else ()),
                 )), (peer, args.tlm_port))
 

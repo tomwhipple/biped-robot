@@ -69,8 +69,31 @@ uint16_t g_target_speed[obs::kNumJoints];
 obs::CommandShaper g_shaper;
 static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
               "obs's speed ceiling must match the servo's");
-scsbus::Feedback g_fb[obs::kNumJoints];
-bool g_fb_ok[obs::kNumJoints];
+// The BUS side (obs/bus_map.h). The loop reads and writes every FITTED bus
+// joint (Calibration::fitted), not just the policy's: the policy's joints
+// get the policy's targets, and every other fitted servo -- the robot's
+// ankle rolls, neck and arms under a 10-joint policy -- is HELD where it was
+// measured at takeover. Unfitted servos (IDs 11-17 on the prototype) are not
+// on the wire at all: a SYNC READ that waits on an absent servo costs its
+// whole timeout every tick. The fitted list is taken from the calibration
+// at the arm handover, when the CLI cannot be changing it.
+scsbus::Feedback g_fb[obs::kNumBusJoints];   // bus-indexed, last reply kept
+bool g_fb_ok[obs::kNumBusJoints];            // answered THIS tick
+float g_qbus[obs::kNumBusJoints];            // measured, rad; 0 if never read
+int g_nfit = 0;
+int g_fit_bus[obs::kNumBusJoints];           // fitted slot -> bus index
+int g_fit_pol[obs::kNumBusJoints];           // fitted slot -> policy index, -1
+uint8_t g_fit_id[obs::kNumBusJoints];        // fitted slot -> servo ID
+scsbus::Feedback g_fit_fb[obs::kNumBusJoints];
+bool g_fit_ok[obs::kNumBusJoints];
+// The hold target of a fitted servo the policy does not drive: its measured
+// ticks at the first acting tick after an arm (or the first tick it answers).
+int32_t g_hold_steps[obs::kNumBusJoints];
+bool g_hold_valid[obs::kNumBusJoints];
+// One SYNC WRITE's worth, in fitted-slot order.
+uint8_t g_wr_id[obs::kNumBusJoints];
+int32_t g_wr_steps[obs::kNumBusJoints];
+uint16_t g_wr_speed[obs::kNumBusJoints];
 bool g_torque_on = false;
 bool g_primed = false;
 
@@ -123,25 +146,44 @@ void engageAll() {
     g_torque_on = true;
 }
 
-// Read the bus, fill g_q / g_dq, and return the fault bitmask.
-uint16_t readJoints(float dt) {
-    uint16_t faults = 0;
-    if (!g_bus) return 0xFFFF;
-    g_bus->syncReadFeedback(servoIds(), obs::kNumJoints, g_fb, g_fb_ok);
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        if (!g_fb_ok[i]) {
-            faults |= static_cast<uint16_t>(1u << i);
+uint32_t fittedMask() {
+    uint32_t m = 0;
+    for (int k = 0; k < g_nfit; ++k) m |= 1u << g_fit_bus[k];
+    return m;
+}
+
+// Read every fitted servo in one SYNC READ, fill g_qbus and the policy's
+// g_q / g_dq, and return the fault bitmask (bit b = bus joint b).
+uint32_t readJoints(float dt) {
+    uint32_t faults = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) g_fb_ok[b] = false;
+    if (!g_bus || g_nfit == 0) return fittedMask();
+    g_bus->syncReadFeedback(g_fit_id, static_cast<size_t>(g_nfit), g_fit_fb,
+                            g_fit_ok);
+    for (int k = 0; k < g_nfit; ++k) {
+        const int b = g_fit_bus[k];
+        if (!g_fit_ok[k]) {
+            faults |= 1u << b;
             continue;                       // hold the last angle for this one
         }
-        g_q[i] = obs::stepsToAngle(i, g_fb[i].position, g_cal);
-        if (g_fb[i].status) faults |= static_cast<uint16_t>(1u << i);
+        g_fb[b] = g_fit_fb[k];
+        g_fb_ok[b] = true;
+        g_qbus[b] = obs::busStepsToAngle(b, g_fb[b].position, g_cal);
+        if (g_fb[b].status) faults |= 1u << b;
+    }
+    // The policy's view: its joints are fitted (cmdMode refuses to arm
+    // otherwise), so each one's angle is its bus joint's.
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        const int b = obs::policyToBus(i);
+        if (g_fb_ok[b]) g_q[i] = obs::stepsToAngle(i, g_fb[b].position, g_cal);
     }
     // Velocity source: the servo's own register 58. The finite-difference
     // alternative is kept alive (and fed) so the sys-ID open question in
     // firmware-design section 8 can be settled by flipping one branch.
     for (int i = 0; i < obs::kNumJoints; ++i) {
-        g_dq[i] = g_fb_ok[i]
-                      ? obs::stepsPerSecToRadPerSec(i, g_fb[i].speed, g_cal)
+        const int b = obs::policyToBus(i);
+        g_dq[i] = g_fb_ok[b]
+                      ? obs::stepsPerSecToRadPerSec(i, g_fb[b].speed, g_cal)
                       : 0.0f;
     }
     float fd[obs::kNumJoints];
@@ -150,7 +192,7 @@ uint16_t readJoints(float dt) {
     return faults;
 }
 
-void publish(linkproto::LinkState st, uint16_t faults, const float up[3],
+void publish(linkproto::LinkState st, uint32_t faults, const float up[3],
              uint8_t vbat_dv, uint32_t tick_us) {
     g_telemetry.state.store(static_cast<uint8_t>(st));
     g_telemetry.seq_echo.store(g_dog.lastSeq());
@@ -192,6 +234,15 @@ void ctrlTask(void*) {
                 g_shaper.invalidate();
             }
         } else if (!g_ctrl_owns_bus.load()) {
+            // The fitted bus set for this run, from the calibration as it
+            // stands at the handover (the CLI writes it only while benched).
+            g_nfit = fittedBusJoints(g_cal, g_fit_bus, g_fit_id);
+            for (int k = 0; k < g_nfit; ++k) {
+                g_fit_pol[k] = obs::busToPolicy(g_fit_bus[k]);
+            }
+            for (int b = 0; b < obs::kNumBusJoints; ++b) {
+                g_hold_valid[b] = false;
+            }
             g_ctrl_owns_bus.store(true);
             g_dog = linkproto::Watchdog();
             g_hist = obs::History();
@@ -256,7 +307,7 @@ void ctrlTask(void*) {
 
         // -- sense ---------------------------------------------------------
         const int64_t t_read0 = esp_timer_get_time();
-        const uint16_t faults = readJoints(obs::kControlDt);
+        const uint32_t faults = readJoints(obs::kControlDt);
         const int64_t t_read1 = esp_timer_get_time();
         // Publish the measured pose for the mirror-mode beacon (shared.h
         // g_joint_pose) -- every armed tick, LIVE or limp, because the pose
@@ -264,9 +315,10 @@ void ctrlTask(void*) {
         // its own thing. A faulted servo's entry is its last good angle
         // (readJoints holds it); `faults` says which, and rides the same
         // beacon. One 40-byte copy and a release store; lands in us_other.
-        // Stamped with the middle of the bus read: ten servos are polled one
-        // after another, so the mean sample instant is the honest one.
-        g_joint_pose.publish(g_q, g_ticks, (t_read0 + t_read1) / 2);
+        // Stamped with the middle of the bus read: the servos are polled one
+        // after another, so the mean sample instant is the honest one. Every
+        // bus joint, servo-ID order; an unfitted servo stays 0.
+        g_joint_pose.publish(g_qbus, g_ticks, (t_read0 + t_read1) / 2);
         // read() == false means "no new report this tick"; the contract
         // (imu/imu.h) is that the caller REUSES the previous sample. Holding
         // it in a static and only overwriting on a successful read is that
@@ -289,8 +341,8 @@ void ctrlTask(void*) {
         // old 1 Hz decimation bought nothing and only slowed the trip.
         // 0 == "no servo answered", which the guard must not read as 0 volts.
         uint8_t fresh_dv = 0;
-        for (int i = 0; i < obs::kNumJoints; ++i) {
-            if (g_fb_ok[i]) { fresh_dv = g_fb[i].voltage_dv; break; }
+        for (int b = 0; b < obs::kNumBusJoints; ++b) {
+            if (g_fb_ok[b]) { fresh_dv = g_fb[b].voltage_dv; break; }
         }
         if (fresh_dv != 0) vbat_dv = fresh_dv;
         g_batt.update(fresh_dv, now_ms);
@@ -454,20 +506,45 @@ void ctrlTask(void*) {
 
         for (int i = 0; i < obs::kNumJoints; ++i) {
             g_target_steps[i] = obs::angleToSteps(i, angle[i], g_cal);
-            // g_fb[i].position holds the last servo that answered; a joint
+            // g_fb[b].position holds the last reply from that servo; a joint
             // that has never answered reads 0, the error saturates and the
             // speed clamps to max -- exactly the legacy behaviour.
-            g_target_speed[i] =
-                obs::goalSpeedSteps(g_target_steps[i], g_fb[i].position);
+            g_target_speed[i] = obs::goalSpeedSteps(
+                g_target_steps[i], g_fb[obs::policyToBus(i)].position);
+        }
+        // One SYNC WRITE over the fitted bus: the policy's targets, and a
+        // hold at the takeover pose for every fitted servo it does not
+        // drive. A held servo that has not answered since the arm is left
+        // off the frame rather than sent a guess.
+        int nwr = 0;
+        for (int k = 0; k < g_nfit; ++k) {
+            const int b = g_fit_bus[k];
+            const int j = g_fit_pol[k];
+            int32_t steps = 0;
+            if (j >= 0) {
+                steps = g_target_steps[j];
+                g_wr_speed[nwr] = g_target_speed[j];
+            } else {
+                if (!g_hold_valid[b] && g_fb_ok[b]) {
+                    g_hold_steps[b] = g_fb[b].position;
+                    g_hold_valid[b] = true;
+                }
+                if (!g_hold_valid[b]) continue;
+                steps = g_hold_steps[b];
+                g_wr_speed[nwr] = obs::goalSpeedSteps(steps, g_fb[b].position);
+            }
+            g_wr_id[nwr] = g_fit_id[k];
+            g_wr_steps[nwr] = steps;
+            ++nwr;
         }
         const int64_t t_wr0 = esp_timer_get_time();
-        if (g_bus) {
+        if (g_bus && nwr > 0) {
             if (shape_hz > 0.0f) {
-                g_bus->syncWritePositions(servoIds(), g_target_steps,
-                                          g_target_speed, obs::kNumJoints);
+                g_bus->syncWritePositions(g_wr_id, g_wr_steps, g_wr_speed,
+                                          static_cast<size_t>(nwr));
             } else {
-                g_bus->syncWritePositions(servoIds(), g_target_steps,
-                                          obs::kNumJoints);
+                g_bus->syncWritePositions(g_wr_id, g_wr_steps,
+                                          static_cast<size_t>(nwr));
             }
         }
         const int64_t t_wr1 = esp_timer_get_time();
@@ -510,6 +587,18 @@ void ctrlTask(void*) {
 
 std::atomic<bool> g_cal_from_nvs{false};
 obs::Calibration& calibration() { return g_cal; }
+
+int fittedBusJoints(const obs::Calibration& cal, int* bus_out,
+                    uint8_t* id_out) {
+    int n = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!cal.fitted[b]) continue;
+        if (bus_out) bus_out[n] = b;
+        if (id_out) id_out[n] = obs::kBusServoId[b];
+        ++n;
+    }
+    return n;
+}
 battguard::Guard& battGuard() { return g_batt; }
 
 void startCtrlTask(imu::Imu& imu) {

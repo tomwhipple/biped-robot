@@ -47,6 +47,20 @@ const char* stateName(LinkState s) {
     return "?";
 }
 
+const char* faultIds(uint32_t servo_err, char* buf, size_t cap) {
+    if (cap == 0) return buf;
+    buf[0] = 0;
+    size_t at = 0;
+    for (unsigned b = 0; b < 32; ++b) {
+        if (!((servo_err >> b) & 1u)) continue;
+        const int n = snprintf(buf + at, cap - at, "%s%u", at ? " " : "",
+                               b + 1u);
+        if (n < 0 || static_cast<size_t>(n) >= cap - at) break;   // truncated
+        at += static_cast<size_t>(n);
+    }
+    return buf;
+}
+
 bool splitHostPort(const char* spec, char* host, size_t cap, int& port) {
     if (spec == nullptr || cap == 0) return false;
     const char* colon = strrchr(spec, ':');

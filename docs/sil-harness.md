@@ -42,8 +42,8 @@ harness: bus order back to joint order -> ticks to angles -> invert the
 
 ```c
 typedef struct {            // what the bus + IMU deliver
-    uint16_t pos_ticks[10]; // present position, register 56 semantics, bus-ID order
-    int16_t  vel_ticks[10]; // present speed: the register-58 sign-magnitude
+    uint16_t pos_ticks[17]; // present position, register 56 semantics, servo-ID order
+    int16_t  vel_ticks[17]; // present speed: the register-58 sign-magnitude
                             //   word (sign in bit 15), carried in an int16
     float    up[3];         // IMU up-vector
     float    gyro[3];       // rad/s
@@ -51,12 +51,12 @@ typedef struct {            // what the bus + IMU deliver
 } SilSensors;
 
 typedef struct {
-    uint16_t goal_ticks[10];  // SYNC WRITE view, bus-ID order; shaped when the
-                              //   shaper is on (the default, as deployed)
+    uint16_t goal_ticks[17];  // SYNC WRITE view, servo-ID order; shaped when
+                              //   the shaper is on (the default, as deployed)
     float    action[10];      // the raw [-1, 1] policy action (diagnostics)
     float    obs[147];        // the assembled observation (diagnostics, goldens)
-    uint16_t goal_speed[10];  // per-servo register-46 goal speed, bus-ID order;
-                              //   0 when shaping is off
+    uint16_t goal_speed[17];  // per-servo register-46 goal speed, servo-ID
+                              //   order; 0 when shaping is off
 } SilTargets;
 
 int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in weights
@@ -64,30 +64,35 @@ int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in we
               float gait_freq_hz);        // <= 0 = the firmware's 1.5 Hz; 0 on success
 void sil_reset(void);                     // history refill + clock zero, like an arm
 int  sil_tick(const SilSensors* in, SilTargets* out);
-const char* sil_spec(void);               // JSON: dims, offsets, kServoId, layout hash,
-                                          //   loaded weights, "sil_abi": 2
+const char* sil_spec(void);               // JSON: dims, offsets, kServoId, the bus map,
+                                          //   layout hash, loaded weights, "sil_abi": 3
 const char* sil_last_error(void);         // text of the last failure, never NULL
 void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw targets;
                                           //   sil_init resets it to the firmware default
 ```
 
-- **Array order is bus ID**: `slot = bus_id − 1`, and joint *j* sits in slot
-  `kServoId[j] − 1`. With the generated `kServoId = {10, 5, 6, 7, 8, 9, 1, 2,
-  3, 4}`, slot 0 is servo 1, which is joint 6 (`R_hip_roll`). Putting the
-  permutation on the boundary is what makes it testable end to end.
-  `sil_spec()` reports the convention and the permutation, and the Python
-  side **probes** the built library rather than assuming either (see the
-  README).
-- **The widths are the prototype's**: every array is static-asserted against
-  `obs_spec.h` in `sil_lib.cpp`, so a retrain that changes a dimension breaks
-  the build rather than silently reinterpreting bytes. The 17-joint port
-  (issue #81) changes this ABI.
-- `sil_abi` 2 is the current ABI: goal speeds in `SilTargets` and
-  `sil_set_shaper()`, mirroring the firmware's command shaper
-  ([firmware-design.md](firmware-design.md) §5.3). The harness resolves
-  array order with the shaper off (the raw map is the invertible reference)
-  and restores the pole, so closed-loop scoring runs against the shaped plant
-  as deployed.
+- **The arrays are the robot's bus**: 17 slots, one per servo
+  (`obs/bus_map.h`), `slot = servo ID − 1`. Policy joint *j* sits in slot
+  `kServoId[j] − 1`: with the generated `kServoId = {10, 5, 6, 7, 8, 9, 1, 2,
+  3, 4}`, slot 0 is servo 1, which is policy joint 6 (`R_hip_roll`). Putting
+  the permutation on the boundary is what makes it testable end to end.
+  `sil_spec()` reports the convention, the permutation and the bus map, and
+  the Python side **probes** the built library rather than assuming either
+  (see the README).
+- **Slots the policy does not drive** (IDs 11–17 under the 10-joint policy)
+  are sensed but not observed, and their goals **hold** the position sensed
+  on the first tick after `sil_reset()` -- the firmware's hold for a fitted
+  servo the policy does not drive ([firmware-design.md](firmware-design.md)
+  §5.8). The harness fills them with 2048.
+- **The widths are static-asserted** against `bus_map.h` and `obs_spec.h` in
+  `sil_lib.cpp`, so a retrain that changes a dimension breaks the build
+  rather than silently reinterpreting bytes.
+- `sil_abi` 3 is the current ABI: the 17-slot bus arrays. `sil_abi` 2 added
+  goal speeds in `SilTargets` and `sil_set_shaper()`, mirroring the
+  firmware's command shaper ([firmware-design.md](firmware-design.md) §5.3).
+  The harness resolves array order with the shaper off (the raw map is the
+  invertible reference) and restores the pole, so closed-loop scoring runs
+  against the shaped plant as deployed.
 
 ## Rules
 
@@ -134,7 +139,8 @@ carries `layer_sizes`, `activation: "swish"`, `obs_dim`, `act_dim`,
 ## Calibration file (for `sil_init`)
 
 JSON with per-joint `{bus_id, zero_steps, dir}`, plus the same three as flat
-joint-indexed arrays. The harness writes a **nominal** file (every zero
+joint-indexed arrays: an entry for every servo the policy drives, and at
+most one per bus servo; each lands on its servo's slot. The harness writes a **nominal** file (every zero
 2048, every `dir` +1, identical to `obs::Calibration`'s default) and a
 **perturbed** one (random zeros in 2048 ± 350); the tests also build one
 with flipped directions. None of them is the as-built calibration, and none

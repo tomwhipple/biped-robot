@@ -10,6 +10,7 @@
 
 #include "../main/joint_pose.h"
 #include "../main/obs_dump.h"
+#include "obs/bus_map.h"
 #include "test_util.h"
 
 namespace {
@@ -335,14 +336,14 @@ void testColumnCountMatchesTheSpec() {
 // -- which is what wifi_link.cpp uses to tell a fresh pose from a stale one.
 
 void poseOf(float base, float* q) {
-    for (int i = 0; i < obs::kNumJoints; ++i) {
+    for (int i = 0; i < obs::kNumBusJoints; ++i) {
         q[i] = base + 0.01f * static_cast<float>(i);
     }
 }
 
 void testJointPoseEmptyReadsNothing() {
     robot::JointPose p;
-    float q[obs::kNumJoints];
+    float q[obs::kNumBusJoints];
     uint32_t seq = 99;
     CHECK_EQ(p.sequence(), 0u);
     CHECK_EQ(p.read(q, seq), false);
@@ -351,7 +352,7 @@ void testJointPoseEmptyReadsNothing() {
 
 void testJointPoseNewestWins() {
     robot::JointPose p;
-    float in[obs::kNumJoints], out[obs::kNumJoints];
+    float in[obs::kNumBusJoints], out[obs::kNumBusJoints];
     uint32_t seq = 0, tick = 0;
     int64_t t_us = 0;
     // Enough publishes to use both slots several times over.
@@ -364,7 +365,7 @@ void testJointPoseNewestWins() {
         CHECK_EQ(tick, 1000u + k);
         // The read instant travels with the pose it belongs to.
         CHECK_EQ(t_us == 20000 * static_cast<int64_t>(k), true);
-        for (int i = 0; i < obs::kNumJoints; ++i) {
+        for (int i = 0; i < obs::kNumBusJoints; ++i) {
             CHECK_EQ(out[i] == in[i], true);
         }
     }
@@ -374,7 +375,7 @@ void testJointPoseSequenceIsStillWhenTheLoopIs() {
     // wifi_link.cpp's freshness rule: the same sequence twice means ctrl is
     // benched and the beacon must drop back to the classic frame.
     robot::JointPose p;
-    float in[obs::kNumJoints], out[obs::kNumJoints];
+    float in[obs::kNumBusJoints], out[obs::kNumBusJoints];
     poseOf(3.0f, in);
     p.publish(in, 1, 0);
     uint32_t s1 = 0, s2 = 0;
@@ -389,8 +390,8 @@ void testJointPoseSequenceIsStillWhenTheLoopIs() {
 void testJointPoseIsTheWireWidth() {
     // The beacon memcpy's the buffer straight into linkproto::Telemetry
     // .joints; shared.h static_asserts the counts agree, this pins the
-    // payload size that assertion is protecting.
-    CHECK_EQ(sizeof(float) * static_cast<size_t>(obs::kNumJoints), 40u);
+    // payload size that assertion is protecting: one float per BUS joint.
+    CHECK_EQ(sizeof(float) * static_cast<size_t>(obs::kNumBusJoints), 68u);
 }
 
 }  // namespace

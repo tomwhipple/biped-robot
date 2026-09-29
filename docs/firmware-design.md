@@ -6,12 +6,21 @@ wire protocol is [control-channel.md](control-channel.md); electrical is
 [wiring.md](wiring.md); servo IDs and calibration values are
 [servo-map.md](servo-map.md); first power-up is [bringup.md](bringup.md).*
 
-**Status:** built, flashed and running on the prototype. The firmware is
-currently sized for the prototype's 10 joints (5 per leg, plant
-`sim/bimo_biped_v5body.xml`, servo IDs 1–10): `obs::kNumJoints`,
-`obs::kServoId`, the calibration blob, the telemetry frame, the SIL ABI and
-the mechanical-envelope table are all 10 wide. Porting it to the robot's 17
-joints is open work (issue #81). The compiled-in policy is `loco_v41rsi_b_s128r24`.
+**Status:** built, flashed and running on the prototype. Two joint sets
+(§5.8):
+
+- the **bus joint set** is the robot's 17 servos (`obs/bus_map.h`, the
+  proposed ID map of [servo-map.md](servo-map.md) §2.1): calibration, the
+  mechanical envelope, `pose`/`home`, the readback, the gain check, the
+  telemetry joint block and the SIL arrays are all 17 wide;
+- the **policy joint set** is what the compiled policy observes and commands:
+  the prototype's 10 joints (5 per leg, plant `sim/bimo_biped_v5body.xml`,
+  servo IDs 1–10), policy `loco_v41rsi_b_s128r24`.
+
+The prototype carries IDs 1–10, and its calibration marks 11–17 not fitted.
+The 17-joint port is done on the bus side and verified on the host (issue
+#81); a 17-servo `pose` on the bench and a 17-joint policy (#86) are what
+remain (§8).
 
 ## 1. Job description
 
@@ -20,8 +29,8 @@ The board runs the robot. Every 20 ms (50 Hz) the control task `ctrl`
 
 1. drains the command mailbox, feeding every frame to the arm and home
    latches (in both modes) and to the link watchdog (armed only);
-2. reads every joint's position and speed in one SYNC READ on the 1 Mbaud
-   servo bus;
+2. reads every fitted servo's position and speed in one SYNC READ on the
+   1 Mbaud servo bus;
 3. takes the latest attitude and the tick-averaged gyro from the 250 Hz IMU
    sampler;
 4. updates the pack guard (from servo register 62) and the fall latch;
@@ -30,7 +39,8 @@ The board runs the robot. Every 20 ms (50 Hz) the control task `ctrl`
 6. otherwise assembles the observation exactly as the simulator defines it,
    runs the policy, maps actions to joint angles, shapes them, blends them
    during the takeover ramp, and writes every target plus a per-servo goal
-   speed in one SYNC WRITE;
+   speed in one SYNC WRITE, together with a hold target for every fitted
+   servo the policy does not drive;
 7. publishes telemetry, the measured pose for the beacon and, when enabled,
    the observation dump.
 
@@ -174,7 +184,9 @@ prints the live values — `us_read`, `us_imu`, `us_obs`, `us_net`,
 | mailbox drain + watchdog | 0.07 ms |
 
 About 10 ms of the 20 ms tick is used, with 0 % late ticks on the prototype.
-The robot's 17 servos add to the SYNC READ and SYNC WRITE lines.
+The SYNC READ covers the fitted servos only; at the measured ~0.28 ms per
+servo, 17 would take about 4.8 ms, which has not been measured (`stat` on the
+robot will).
 
 A phase that always costs exactly its timeout is not slow; it is waiting on
 a condition that cannot occur. `Bus::syncReadFeedback` requests only the
@@ -212,7 +224,7 @@ graph LR
 |---|---|---|
 | `components/scsbus/` | Feetech SCS/STS protocol: packet codec and transactions (PING, READ/WRITE, REG WRITE + ACTION, RESET, SYNC READ, SYNC WRITE, torque enable incl. broadcast, EEPROM lock, ID change, set-middle, error-flag decode). The golden packets are the worked examples in Feetech's own protocol manual | tested against a scripted fake port |
 | `components/linkproto/` | byte-exact port of `link/protocol.py`: frames, CRC, `Watchdog`, `ArmLatch`, `HomeLatch`, envelope clamps, the bench diagnostic, the UART demux | golden vectors from the Python reference |
-| `components/obs/` | observation assembler, history ring, gait clock, action ↔ angle ↔ tick maps, `Calibration`, `CommandShaper`, goal speed, velocity estimator. `obs_spec.h` is generated | vectors from real `walker_env._obs()` frames |
+| `components/obs/` | observation assembler, history ring, gait clock, action ↔ angle ↔ tick maps, `Calibration`, `CommandShaper`, goal speed, velocity estimator; the bus joint map `bus_map.h` (hand-written) and the policy spec `obs_spec.h` (generated) | vectors from real `walker_env._obs()` frames; the bus map |
 | `components/policy/` | static MLP forward pass. `weights.h` is generated | numpy golden vectors |
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
 | `components/battguard/` | pack under-voltage guard | yes |
@@ -310,12 +322,21 @@ stages, both in `components/obs`, so the SIL library runs them too:
   neutral pose first, then `cal zero` to absorb the residual the horn
   splines cannot. Procedure: [bringup.md](bringup.md); the values:
   [servo-map.md](servo-map.md).
-- **Servo blob** (`main/cal_store.h`): magic `BMC1`, version 2, joint count,
-  `zero_steps[10]`, `dir[10]`, the servo map (`kServoId`) it was measured
-  under, CRC-32. A joint-count or servo-map mismatch rejects it: the robot
-  boots uncalibrated and arming is refused. A version-1 blob, which carries
-  no map, is adopted only if it equals the compiled as-built table exactly;
-  `cal migrate` is the manual path.
+- **Servo blob** (`main/cal_store.h`): magic `BMC1`, version 3, indexed by
+  bus joint: the joint count (17), `zero_steps`, `dir` and `fitted` per bus
+  joint, the bus map (`kBusServoId`) it was measured under, CRC-32. A
+  joint-count or map mismatch rejects it: the robot boots uncalibrated and
+  arming is refused.
+- **Fitted** says which bus servos this robot carries. The loop, `pose`,
+  `home`, `ping`, `volt` and the gain check touch fitted servos only, and
+  `run` refuses unless every policy joint is fitted. `cal zero` over all
+  joints sets it from who answers; `cal fit` sets it by hand.
+- **Migration.** A version-2 blob (the prototype's: 10 policy joints with
+  their servo map) proves its map, so boot migrates it exactly: each servo's
+  zero and direction on its bus joint, IDs 1–10 fitted, 11–17 not, re-saved
+  as v3 under the same key. No re-calibration. A version-1 blob, which
+  carries no map, is adopted only if it equals the compiled as-built table
+  exactly; `cal migrate` is the manual path.
 - **`main/asbuilt_cal.h`** holds that as-built table as a reference for the
   migration check, not as a default. NVS is the runtime source of truth.
   Change it and [servo-map.md](servo-map.md) in the same commit.
@@ -356,10 +377,10 @@ stages, both in `components/obs`, so the SIL library runs them too:
 - **Home** (the wireless `HOME` edge, or typed `home`). Housekeeping benches
   the loop, waits for the handover, then — refused without calibration or
   while the pack guard holds torque off — enables torque and streams a
-  minimum-jerk move of every joint to its calibrated zero (clamped to the
-  mechanical envelope; duration from the longest move at 300 steps/s,
+  minimum-jerk move of every fitted servo to its calibrated zero (clamped to
+  the mechanical envelope; duration from the longest move at 300 steps/s,
   2.5–8 s). It then rolls each hip 5° out and back to take up roll play,
-  reads every joint back (±12 ticks) and **releases torque**; gear friction
+  reads every fitted servo back (±12 ticks) and **releases torque**; gear friction
   holds the stand. It reports `HOME_PENDING` while moving, then
   `DISARMED_HOME` or `HOME_NOT_REACHED`. It never arms.
 
@@ -391,8 +412,9 @@ In the order the tick applies them:
 Every limp state releases torque with one broadcast frame and invalidates
 the shaper, so a re-engage reseeds from wherever the joints are.
 
-The **mechanical envelope** (`main/mech_envelope.h`) is the per-joint
-measured or CAD-verified travel. Only the CLI's bench moves (`move`, `pose`,
+The **mechanical envelope** (`main/mech_envelope.h`) is the per-bus-joint
+measured or CAD-verified travel; the leg rows are the prototype's, and the
+robot's legs need their own ([servo-map.md](servo-map.md) §3.3). Only the CLI's bench moves (`move`, `pose`,
 `home`) clamp to it; the act path clamps to the policy range from
 `obs_spec.h`. It pairs with [servo-map.md](servo-map.md). The CLI also
 refuses a goal write to a servo whose torque is off (`torqueGate`), because
@@ -424,6 +446,31 @@ against a scripted port:
 
 The table is compiled in rather than kept in NVS because it is a design value
 with evidence behind it; the procedure is [servo-map.md](servo-map.md) §4.
+
+### 5.8 Bus joints and policy joints
+
+The robot carries 17 servos; the policy it runs may drive fewer (the
+prototype's 10 today, a 17-joint one after #86). So the firmware keeps two
+joint sets and never confuses them:
+
+| | bus joints | policy joints |
+|---|---|---|
+| defined by | `obs/bus_map.h`, hand-written: 17, index *b* = servo ID *b* + 1 | `obs/obs_spec.h`, generated from the deployed run: `kNumJoints`, sim actuator order |
+| sized by it | the calibration blob, the envelope, `pose`/`home`/`ping`/`volt`, the gain check, the SYNC READ and WRITE, the telemetry joint block and `servo_err`, the SIL arrays | the observation, the action, the shaper, the takeover ramp, `obsdump` |
+| mapping | `obs::policyToBus(j)` / `obs::busToPolicy(b)`, checked at compile time: every policy joint is a bus joint with the same name and servo | |
+
+While armed, `ctrl` SYNC READs every fitted servo (the list is taken from
+the calibration at the arm handover), feeds the policy its joints, and in
+the SYNC WRITE sends the policy's targets plus a **hold** at the measured
+takeover position for every fitted servo the policy does not drive, so the
+robot's ankle rolls, neck and arms stay where they were under a 10-joint
+policy. A held servo that has not answered since the arm is left off the
+frame rather than sent a guess. The SIL library mirrors the hold (its
+non-policy slots hold what they sensed on the first tick after a reset).
+
+`pose` takes either 17 targets in servo-ID order or 10 in policy order (the
+prototype's bench tools send that form; the other servos are left alone);
+targets for servos that are not fitted are ignored.
 
 ## 6. Fitting the network
 
@@ -513,14 +560,20 @@ joint all look the same from outside. `obsdump` measures them.
 - **Pack sense.** `battguard` reads register 62 (0.1 V, and only while a
   servo answers). The INA219 sees the pack even with the bus released;
   switching to it is not done.
-- **Telemetry gaps.** The servo-fault field is 8 bits against 10 joints
-  (joints 8 and 9 are OR-ed into bits 0 and 1), and the firmware does not
-  estimate `vx_est`/`wz_est` (it sends 0). Widening the frame is a
-  `link/protocol.py` change first.
+- **Telemetry gaps.** The firmware does not estimate `vx_est`/`wz_est` (it
+  sends 0).
 - **Idle torque-off** while standing still is not implemented. Powered
   friction measures 0.235 N·m (8 % of stall at 200 steps/s), a lower bound on
   unpowered backdrive; `home` already ends with torque released and friction
   holding the stand.
-- **The 17-joint port** (issue #81). Joint count, servo map, calibration
-  blob, telemetry frame, SIL ABI and the mechanical envelope are all 10 wide
-  today.
+- **What the 17-joint port still needs** (issue #81):
+  - the owner's sign-off on the ID map (#77) -- the bus map is compiled in
+    as proposed;
+  - a 17-servo `pose` and `home` on the bench, and the 17-servo SYNC READ
+    time from `stat`;
+  - the robot's leg rows in the mechanical envelope, and every direction
+    sign, measured on the robot (the leg rows are the prototype's);
+  - a 17-joint policy (#86): `obs_spec.h` then generates 17 policy joints,
+    and the hold path covers nothing;
+  - the Plan B gain values (#73) in `main/servo_gains.h`;
+  - the bench tools in `tools/` that hard-code the prototype's calibration.

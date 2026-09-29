@@ -17,7 +17,12 @@ namespace linkproto {
 // -- framing ---------------------------------------------------------------
 constexpr uint8_t kMagicCmd[2] = {'B', 'M'};   // laptop -> robot
 constexpr uint8_t kMagicTlm[2] = {'B', 'T'};   // robot -> laptop
-constexpr uint8_t kVersion = 1;
+// Protocol version 2 (issue #81): the telemetry frame carries the 17-servo
+// bus -- servo_err is a u32 (bit b = servo ID b + 1) and the joint block is
+// 17 angles in servo-ID order. The BASE block changed, which a length cannot
+// say, so the version is 2 in both directions and a version-1 peer's frames
+// are refused (kBadVersion) rather than half-read. protocol.py VERSION.
+constexpr uint8_t kVersion = 2;
 constexpr size_t kCmdLen = 14;
 // Extended command frame (2026-08-31): the same 12-byte prefix, then five
 // more int16 milli-channels (vy, crouch, lift, foot_dx, foot_dz) completing
@@ -27,51 +32,41 @@ constexpr size_t kCmdLen = 14;
 // working. protocol.py is the reference for the sender-side rule (emit the
 // short frame whenever the extras are at defaults).
 constexpr size_t kCmdLenExt = 24;
-// Telemetry lengths. TIMESTAMPED (2026-09-02): the 18-byte body, then a u64
+// Telemetry lengths. The 21-byte body (magic, version, state, seq_echo,
+// vbat, up_z, vx_est, wz_est, the u32 servo_err, loop_late_pct), then a u64
 // t_us (microseconds since the Unix epoch, UTC, from the robot's SNTP-
-// disciplined clock; 0 until the first sync), then the optional joints, then
+// disciplined clock; 0 until the first sync), then the optional blocks, then
 // the CRC. The stamp rides EVERY beacon -- docs/control-channel.md "Time on
-// the wire" says why this one is volunteered where the joints were not. The
-// pre-stamp lengths are still DECODED (t_us -> 0), never emitted, so a
-// console from this tree keeps working against a robot flashed before the
-// change.
-constexpr size_t kTlmLen = 28;
-constexpr size_t kTlmLenV1 = 20;    // legacy: no timestamp, decode-only
-constexpr size_t kTlmTimeOff = 18;  // the u64 sits right after the body
-// Extended TELEMETRY (2026-09-01): the same 18-byte body, then one int16
-// milli-radian per joint, then the CRC. For mirror mode -- driving the real
-// robot while a sim follows its observed pose.
+// the wire" says why this one is volunteered where the joints are not.
+constexpr size_t kTlmTimeOff = 21;  // the u64 sits right after the body
+constexpr size_t kTlmLen = kTlmTimeOff + 8 + 2;   // 31
+// The JOINT block (mirror mode): one int16 milli-radian per BUS joint, in
+// servo-ID order (obs/bus_map.h; protocol.py JOINT_NAMES), then the CRC. For
+// driving the real robot while a sim follows its observed pose.
 //
-// This could NOT be done the way the extended command frame was. There the
-// robot is the decoder and was taught both lengths; here the robot is the
-// SENDER and every client rejects an unexpected length, so a robot that
-// simply began beaconing 40 B would blind every existing commander at once.
-// Hence kFlagPose: the long frame is REQUESTED, never volunteered. See
-// docs/mirror-mode.md.
-constexpr size_t kNumJoints = 10;   // obs_spec order, NOT servo-id order
-constexpr size_t kTlmLenExt = kTlmLen + 2 * kNumJoints;
-constexpr size_t kTlmLenExtV1 = kTlmLenV1 + 2 * kNumJoints;   // legacy
+// The robot is the SENDER and every client rejects an unexpected length, so
+// a robot that simply began beaconing the long frame would blind every
+// existing commander at once. Hence kFlagPose: the long frame is REQUESTED,
+// never volunteered. See docs/mirror-mode.md.
+constexpr size_t kNumJoints = 17;   // bus order: servo ID = index + 1
+constexpr size_t kTlmLenExt = kTlmLen + 2 * kNumJoints;   // 65
 
-// ATTITUDE (2026-09-03): up_x and up_y, int16 milli, appended AFTER the joint
-// block and before the CRC. up_z has been in the base frame since the
-// beginning, but alone it is only the tilt MAGNITUDE -- it says how far from
-// upright the torso is and nothing about which way it fell. All three
-// components are what mirror mode needs to draw the robot in the attitude it
-// is actually in rather than upright-and-wrong.
+// ATTITUDE: up_x and up_y, int16 milli, appended AFTER the joint block and
+// before the CRC. up_z is in the base frame, but alone it is only the tilt
+// MAGNITUDE -- it says how far from upright the torso is and nothing about
+// which way it fell. All three components are what mirror mode needs to draw
+// the robot in the attitude it is actually in rather than upright-and-wrong.
 //
 // Requested, never volunteered -- kFlagAtt, for exactly the reason kFlagPose
 // exists and spelled out above: the robot is the SENDER, and a client that
-// gets a length it does not know drops the frame. Independent of kFlagPose
-// rather than folded into the ext frame, because lengthening the ext frame
-// would blind every mirror-mode client already built.
+// gets a length it does not know drops the frame.
 //
 // Four lengths, and they stay unambiguous because each block has a fixed
-// size: 28 base (18 body + 8 t_us), 32 +att, 48 +joints, 52 +joints+att.
-// The CRC is already "over len-2, appended at len-2", so the framing needed
-// no change at all.
+// size: 31 base, 35 +att, 65 +joints, 69 +joints+att. The CRC is "over
+// len-2, appended at len-2".
 constexpr size_t kTlmAttBytes = 4;
-constexpr size_t kTlmLenAtt = kTlmLen + kTlmAttBytes;              // 32
-constexpr size_t kTlmLenExtAtt = kTlmLenExt + kTlmAttBytes;        // 52
+constexpr size_t kTlmLenAtt = kTlmLen + kTlmAttBytes;              // 35
+constexpr size_t kTlmLenExtAtt = kTlmLenExt + kTlmAttBytes;        // 69
 constexpr size_t kTlmLenMax = kTlmLenExtAtt;
 
 constexpr uint16_t kCmdPort = 4210;
@@ -271,11 +266,11 @@ struct Telemetry {
     float up_z;          // torso up-vector z; 1.0 = perfectly upright
     float vx_est;
     float wz_est;
-    uint8_t servo_err;   // bitmask, bit i = servo ID i+1 faulted; IDs 9-10 fold into bits 0-1 (link_task.cpp)
+    uint32_t servo_err;  // bitmask, bit b = bus joint b (servo ID b+1) faulted
     uint8_t loop_late_pct;
-    // Measured joint angles, radians, obs_spec order. n_joints is 0 on a
-    // classic frame -- which is every frame, unless a commander asked with
-    // kFlagPose.
+    // Measured joint angles, radians, bus order (servo ID = index + 1).
+    // n_joints is 0 on a classic frame -- which is every frame, unless a
+    // commander asked with kFlagPose.
     uint8_t n_joints = 0;
     float joints[kNumJoints] = {0};
     // Microseconds since the Unix epoch (UTC) on the robot's clock. 0 = not
@@ -331,8 +326,8 @@ Err decodeCommand(const uint8_t* buf, size_t len, Command& out);
 // have room for kTlmLenMax. Returns the bytes written -- USE IT: sending
 // kTlmLen of a long frame truncates it and every CRC downstream fails.
 size_t encodeTelemetry(uint8_t* out, const Telemetry& t);
-// Accepts kTlmLen and kTlmLenExt, plus the legacy kTlmLenV1 / kTlmLenExtV1
-// (t_us -> 0). n_joints is kNumJoints on the two long lengths, else 0.
+// Accepts the four lengths above. n_joints is kNumJoints on the two long
+// lengths, else 0; have_att is 1 on the two +att lengths.
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out);
 
 }  // namespace linkproto

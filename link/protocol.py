@@ -25,7 +25,14 @@ from typing import NamedTuple
 # -- framing ---------------------------------------------------------------
 MAGIC_CMD = b"BM"          # laptop -> robot ("BiMo")
 MAGIC_TLM = b"BT"          # robot -> laptop
-VERSION = 1
+# Protocol version 2 (issue #81): the telemetry frame carries the robot's
+# 17-servo bus -- servo_err widens from one byte to a u32 (bit b = servo ID
+# b + 1) and the joint block is 17 angles in servo-ID order. The BASE block
+# changed, which a length cannot say, so the version byte is 2 in BOTH
+# directions: a version-1 console and a version-2 robot refuse each other's
+# frames outright instead of one of them driving blind. Consoles and firmware
+# from one tree always agree.
+VERSION = 2
 CMD_LEN = 14
 # Extended command frame (2026-08-31): same 12-byte prefix, then FIVE more
 # int16 milli-channels -- vy, crouch, lift, foot_dx, foot_dz -- completing
@@ -36,52 +43,47 @@ CMD_LEN = 14
 # short frame whenever the extras ARE at defaults; old firmware drops long
 # frames by length, which the arming handshake surfaces immediately.
 CMD_LEN_EXT = 24
-# Telemetry frame lengths. TIMESTAMPED (2026-09-02): the 18-byte body, then
-# a u64 `t_us` -- microseconds since the Unix epoch, UTC, from the robot's
-# SNTP-disciplined clock, 0 until the first sync -- then the optional joints,
+# Telemetry frame lengths. The 21-byte body (magic, version, state, seq_echo,
+# vbat, up_z, vx_est, wz_est, the u32 servo_err, loop_late_pct), then a u64
+# `t_us` -- microseconds since the Unix epoch, UTC, from the robot's
+# SNTP-disciplined clock, 0 until the first sync -- then the optional blocks,
 # then the CRC. The stamp is on EVERY beacon; see "Time on the wire" in
 # docs/control-channel.md for why this one is volunteered rather than
-# requested. The pre-stamp lengths (20 B / 40 B) are still DECODED, with
-# t_us = 0, so a console built from this tree keeps working against a robot
-# flashed before the change; they are never emitted.
-TLM_LEN = 28
-TLM_LEN_V1 = 20            # legacy: no timestamp (firmware before 2026-09-02)
-# Extended TELEMETRY (2026-09-01): the same body (and, since 2026-09-02, the
-# same timestamp), then one int16 milli-radian per joint, then the CRC. For mirror mode -- driving the real
-# robot while a sim follows its observed pose.
+# requested.
+_TLM_BODY = "<2sBBIHhhhIB"
+_TLM_TIME_OFF = struct.calcsize(_TLM_BODY)          # 21: the u64 t_us
+TLM_LEN = _TLM_TIME_OFF + 8 + 2                     # 31
+# The JOINT block (mirror mode): one int16 milli-radian per bus joint, in
+# servo-ID order (JOINT_NAMES), for driving the real robot while a sim
+# follows its observed pose. The robot is the SENDER here and every client is
+# a decoder that rejects a length it does not know, so the long frame is
+# REQUESTED (FLAG_POSE), never volunteered: a client that asks is by
+# construction one that can read the answer.
 #
-# This one could NOT be done the way the extended command frame was. There the
-# robot is the decoder and was updated to accept both lengths; here the robot
-# is the SENDER and every client is a decoder that checks `len != TLM_LEN` and
-# rejects. A robot that simply started beaconing 40 B would blind bimo_tui,
-# commander.py and both twins at once -- the same trap the bench diagnostic
-# had to dodge (see docs/control-channel.md, 2026-08-30).
-#
-# So the long frame is REQUESTED: a client sets FLAG_POSE in its commands and
-# only then does the robot answer with joint angles. A client that never asks
-# never sees a byte it does not understand, and a client that asks is by
-# construction one that can read the answer. No version bump, no length
-# surprise, and the request rides a flags bit that was already spare.
-NUM_JOINTS = 10            # obs_spec order: L yaw,roll,pitch,knee,ankle; R same
-TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS
-TLM_LEN_EXT_V1 = TLM_LEN_V1 + 2 * NUM_JOINTS   # legacy, decode-only
-_TLM_TIME_OFF = 18         # u64 t_us sits right after the classic body
+# The joint set is the BUS joint set -- every servo the robot carries
+# (firmware/components/obs/include/obs/bus_map.h, docs/servo-map.md section
+# 2.1) -- not the policy's: the 10-joint prototype reports 0.0 for the seven
+# servos it does not have. A consumer maps angles to its plant BY NAME.
+JOINT_NAMES = (
+    "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle",
+    "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle",
+    "R_hip_yaw", "L_hip_yaw", "R_ankle_roll", "L_ankle_roll",
+    "neck_yaw", "R_shoulder", "R_elbow", "L_shoulder", "L_elbow",
+)
+NUM_JOINTS = len(JOINT_NAMES)                       # 17; servo ID = index + 1
+TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS              # 65
 
-# ATTITUDE (2026-09-03): up_x and up_y appended after the joint block. up_z
-# has always been in the base frame, but alone it is only the tilt MAGNITUDE
-# -- how far from upright, never which way. Requested with FLAG_ATT, for the
-# same reason FLAG_POSE exists: the robot is the sender, and an unexpected
-# length is a dropped frame. Six lengths, unambiguous because every block is
-# fixed size: 28 base, 32 +att, 48 +joints, 52 +joints+att, plus the two
-# legacy pre-timestamp lengths (20/40) that are still decoded, t_us -> 0.
+# ATTITUDE: up_x and up_y appended after the joint block. up_z is in the base
+# frame, but alone it is only the tilt MAGNITUDE -- how far from upright,
+# never which way. Requested with FLAG_ATT, for the same reason FLAG_POSE
+# exists. Four lengths, unambiguous because every block is fixed size:
+# 31 base, 35 +att, 65 +joints, 69 +joints+att.
 # Firmware reference: linkproto::kTlmLenAtt / kTlmLenExtAtt.
 TLM_ATT_BYTES = 4
 TLM_LEN_ATT = TLM_LEN + TLM_ATT_BYTES
 TLM_LEN_EXT_ATT = TLM_LEN_EXT + TLM_ATT_BYTES
-# Every length a decoder accepts: the four current (timestamped) layouts
-# plus the two legacy pre-timestamp ones. Encode never emits the legacy pair.
+# Every length a decoder accepts.
 TLM_LENS = (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT)
-_TLM_LENS = TLM_LENS + (TLM_LEN_V1, TLM_LEN_EXT_V1)
 
 CMD_PORT = 4210            # robot listens here
 TLM_PORT = 4211            # laptop listens here
@@ -337,13 +339,13 @@ class Telemetry(NamedTuple):
     up_z: float            # torso up-vector z; 1.0 = perfectly upright
     vx_est: float          # m/s, body-frame forward
     wz_est: float          # rad/s
-    servo_err: int         # bitmask, bit i = JOINT INDEX i faulted (obs_spec
-                           # order: L yaw,roll,pitch,knee,ankle then R same --
-                           # ctrl readJoints sets 1<<i; NOT servo id i+1, the
-                           # ids are not in joint order)
+    servo_err: int         # u32 bitmask, bit b = BUS joint b faulted, i.e.
+                           # servo ID b + 1 (JOINT_NAMES order); only fitted
+                           # servos ever set a bit
     loop_late_pct: int     # % of control ticks that overran 20 ms
-    # Measured joint angles, radians, obs_spec order. Empty on a classic
-    # frame -- which is every frame, unless a commander asked with FLAG_POSE.
+    # Measured joint angles, radians, bus order (JOINT_NAMES: servo ID =
+    # index + 1). Empty on a classic frame -- which is every frame, unless a
+    # commander asked with FLAG_POSE.
     joints: tuple = ()
     # Microseconds since the Unix epoch (UTC) on the robot's clock, which is
     # SNTP-disciplined over the same WiFi link. 0 = the robot has not synced
@@ -486,10 +488,10 @@ _TLM_STATES = list(LinkState)
 
 def encode_telemetry(t: Telemetry) -> bytes:
     body = struct.pack(
-        "<2sBBIHhhhBB", MAGIC_TLM, VERSION, _TLM_STATES.index(t.state),
+        _TLM_BODY, MAGIC_TLM, VERSION, _TLM_STATES.index(t.state),
         t.seq_echo & 0xFFFFFFFF, _milli_u16(t.vbat_v),
         _milli(t.up_z), _milli(t.vx_est), _milli(t.wz_est),
-        t.servo_err & 0xFF, max(0, min(255, int(t.loop_late_pct))),
+        t.servo_err & 0xFFFFFFFF, max(0, min(255, int(t.loop_late_pct))),
     )
     if not 0 <= t.t_us < 2 ** 64:
         raise ProtocolError(f"t_us {t.t_us} does not fit a u64")
@@ -506,11 +508,11 @@ def encode_telemetry(t: Telemetry) -> bytes:
 
 
 def decode_telemetry(buf: bytes) -> Telemetry:
-    if len(buf) not in _TLM_LENS:
+    if len(buf) not in TLM_LENS:
         raise ProtocolError(f"telemetry frame is {len(buf)} B, want one of "
-                            f"{_TLM_LENS}")
+                            f"{TLM_LENS}")
     (magic, ver, state, seq, vbat_mv, up_z, vx, wz, err,
-     late) = struct.unpack("<2sBBIHhhhBB", buf[:18])
+     late) = struct.unpack(_TLM_BODY, buf[:_TLM_TIME_OFF])
     if magic != MAGIC_TLM:
         raise ProtocolError(f"bad magic {magic!r}")
     if ver != VERSION:
@@ -520,23 +522,20 @@ def decode_telemetry(buf: bytes) -> Telemetry:
         raise ProtocolError("CRC mismatch")
     if state >= len(_TLM_STATES):
         raise ProtocolError(f"unknown link state {state}")
-    # Length selects the layout: the timestamp is present on the four current
-    # lengths, absent (t_us = 0) on the two legacy ones; joints are present
-    # on the two long ones, the attitude pair on the two +att ones.
-    t_us = 0
+    # Length selects the layout: joints on the two long lengths, the
+    # attitude pair on the two +att ones.
     at = _TLM_TIME_OFF
-    if len(buf) in (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT):
-        (t_us,) = struct.unpack("<Q", buf[at:at + 8])
-        at += 8
-    joints, up_xy = (), ()
-    if len(buf) in (TLM_LEN_EXT, TLM_LEN_EXT_ATT, TLM_LEN_EXT_V1):
-        joints = tuple(q / 1000.0 for q in
+    (t_us,) = struct.unpack("<Q", buf[at:at + 8])
+    at += 8
+    joints = ()
+    if len(buf) in (TLM_LEN_EXT, TLM_LEN_EXT_ATT):
+        joints = tuple(v / 1000.0 for v in
                        struct.unpack(f"<{NUM_JOINTS}h",
                                      buf[at:at + 2 * NUM_JOINTS]))
         at += 2 * NUM_JOINTS
+    up_xy = ()
     if len(buf) in (TLM_LEN_ATT, TLM_LEN_EXT_ATT):
-        up_xy = tuple(v / 1000.0 for v in
-                      struct.unpack("<2h", buf[at:at + TLM_ATT_BYTES]))
+        up_xy = tuple(v / 1000.0 for v in struct.unpack("<2h", buf[at:at + 4]))
     return Telemetry(seq_echo=seq, state=_TLM_STATES[state],
                      vbat_v=vbat_mv / 1000.0, up_z=up_z / 1000.0,
                      vx_est=vx / 1000.0, wz_est=wz / 1000.0,

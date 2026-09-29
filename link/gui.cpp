@@ -369,7 +369,9 @@ void tick(App& a, double now_ms) {
         // Mirror: hand the robot's measured pose to the sim, once per beacon,
         // so the ghost is drawn from the same 10 Hz the robot reports at.
         if (a.mirror && t.n_joints == linkproto::kNumJoints && a.sim.running()) {
-            char line[256];
+            // "pose" + one angle per BUS joint (servo-ID order, 17) + the
+            // optional up vector: ~200 characters at the widest.
+            char line[384];
             int at = snprintf(line, sizeof line, "pose");
             for (size_t j = 0; j < linkproto::kNumJoints; ++j) {
                 at += snprintf(line + at, sizeof line - static_cast<size_t>(at),
@@ -1332,11 +1334,10 @@ void drawTelemetry(App& a, double now_ms) {
     const Telemetry& t = a.link.tlm;
     ImGui::SameLine();
     if (t.servo_err) {
-        char bits[16];
-        for (int b = 7; b >= 0; --b) bits[7 - b] = (t.servo_err >> b) & 1 ? '1' : '0';
-        bits[8] = 0;
+        char ids[96];
         ImGui::TextColored(ImVec4(0.95f, 0.25f, 0.20f, 1.0f),
-                           "servo FAULT %s (bit i = ID i+1)", bits);
+                           "servo FAULT on id %s",
+                           bimo::faultIds(t.servo_err, ids, sizeof ids));
     } else {
         ImGui::TextDisabled("servo ok    loop %u%% late ticks", t.loop_late_pct);
     }

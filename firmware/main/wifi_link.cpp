@@ -203,10 +203,8 @@ void wifiLinkTask(void*) {
             t.up_z = g_telemetry.up_z.load();
             t.vx_est = g_telemetry.vx_est.load();
             t.wz_est = g_telemetry.wz_est.load();
-            // 10 joints folded into the 8-bit wire field, same as link_task.
-            const uint16_t f = g_telemetry.servo_err.load();
-            t.servo_err = static_cast<uint8_t>(f & 0xFF) |
-                          static_cast<uint8_t>((f >> 8) & 0x03);
+            // Bit b = bus joint b = servo ID b + 1, same as link_task.
+            t.servo_err = g_telemetry.servo_err.load();
             t.loop_late_pct = g_telemetry.loop_late_pct.load();
             // The wall-clock stamp (timesync.h): the assembly instant, or 0
             // while SNTP has not answered yet. A pose frame below replaces
@@ -215,7 +213,7 @@ void wifiLinkTask(void*) {
             // The long frame, REQUESTED and FRESH only (see Commander and
             // pose_seq_sent above). Everything before this line is the
             // classic body byte for byte; a commander that never asks gets
-            // exactly the 28 B frame it always did. The request and the
+            // exactly the 31 B classic frame. The request and the
             // destination below are the same snapshot, so the long frame
             // can only ever go to the address that asked for it.
             if (cmdr.att) {
@@ -228,7 +226,8 @@ void wifiLinkTask(void*) {
                 t.up_y = g_telemetry.up_y.load();
             }
             if (cmdr.pose) {
-                float q[obs::kNumJoints];
+                // Every bus joint, servo-ID order; an unfitted servo reads 0.
+                float q[obs::kNumBusJoints];
                 uint32_t seq = 0;
                 int64_t read_us = 0;
                 if (g_joint_pose.read(q, seq, nullptr, &read_us) &&

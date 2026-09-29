@@ -130,7 +130,13 @@ action = tanh(logits[:act_dim])      NormalTanhDistribution.mode()
 ```
 
 The three flat arrays are joint-indexed mirrors of `joints`; a reader may
-use either shape. `bus_id` follows the generated `kServoId`.
+use either shape. `bus_id` follows the generated `kServoId`. The library
+takes an entry for every servo the policy drives and accepts one for any
+servo on the 17-servo bus; the harness's files carry the policy's ten.
+
+The ctypes structs are bus-wide (17 slots, servo-ID order, `sil_abi` 3); the
+harness reads the width from `firmware/components/obs/include/obs/bus_map.h`
+(`harness.NUM_BUS`) and fills the slots the policy does not drive with 2048.
 `cal_nominal.json` is `zero_steps = 2048, dir = +1` (identical to
 `obs::Calibration`'s default); `cal_perturbed.json` has random zeros in
 2048 ± 350. Neither is the as-built calibration: they describe a robot whose

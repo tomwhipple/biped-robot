@@ -228,11 +228,11 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
     put16(out + 10, static_cast<uint16_t>(milli(t.up_z)));
     put16(out + 12, static_cast<uint16_t>(milli(t.vx_est)));
     put16(out + 14, static_cast<uint16_t>(milli(t.wz_est)));
-    out[16] = t.servo_err;
-    out[17] = t.loop_late_pct;
+    put32(out + 16, t.servo_err);
+    out[20] = t.loop_late_pct;
     put64(out + kTlmTimeOff, t.t_us);
     // Blocks in a FIXED order and of fixed size, so the length alone still
-    // names the layout: [base 18][t_us 8][joints 20?][att 4?][crc 2].
+    // names the layout: [base 21][t_us 8][joints 34?][att 4?][crc 2].
     size_t at = kTlmTimeOff + 8;
     if (t.n_joints == kNumJoints) {
         for (size_t i = 0; i < kNumJoints; ++i) {
@@ -250,17 +250,10 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
 }
 
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
-    // Length selects the layout, exactly as protocol.py. Four current
-    // lengths (timestamped, with/without joints and attitude) plus the two
-    // legacy pre-timestamp ones, decode-only.
-    const bool has_time = (len == kTlmLen || len == kTlmLenAtt ||
-                           len == kTlmLenExt || len == kTlmLenExtAtt);
-    const bool has_joints = (len == kTlmLenExt || len == kTlmLenExtAtt ||
-                             len == kTlmLenExtV1);
+    // Length selects the layout, exactly as protocol.py.
+    const bool has_joints = (len == kTlmLenExt || len == kTlmLenExtAtt);
     const bool has_att = (len == kTlmLenAtt || len == kTlmLenExtAtt);
-    if (!has_time && len != kTlmLenV1 && len != kTlmLenExtV1) {
-        return Err::kBadLength;
-    }
+    if (len != kTlmLen && !has_joints && !has_att) return Err::kBadLength;
     if (buf[0] != kMagicTlm[0] || buf[1] != kMagicTlm[1]) return Err::kBadMagic;
     if (buf[2] != kVersion) return Err::kBadVersion;
     const size_t body = len - 2;
@@ -274,17 +267,11 @@ Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
     out.up_z = static_cast<int16_t>(get16(buf + 10)) / 1000.0f;
     out.vx_est = static_cast<int16_t>(get16(buf + 12)) / 1000.0f;
     out.wz_est = static_cast<int16_t>(get16(buf + 14)) / 1000.0f;
-    out.servo_err = buf[16];
-    out.loop_late_pct = buf[17];
-    // Length selects the layout, exactly as protocol.py: the timestamp is
-    // present on the two current lengths (absent -> 0 on the legacy pair),
-    // the joints on the two long ones.
+    out.servo_err = get32(buf + 16);
+    out.loop_late_pct = buf[20];
     size_t at = kTlmTimeOff;
-    out.t_us = 0;
-    if (has_time) {
-        out.t_us = get64(buf + at);
-        at += 8;
-    }
+    out.t_us = get64(buf + at);
+    at += 8;
     out.n_joints = 0;
     for (size_t i = 0; i < kNumJoints; ++i) out.joints[i] = 0.0f;
     out.have_att = 0;

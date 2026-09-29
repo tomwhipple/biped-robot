@@ -26,7 +26,7 @@ namespace {
 
 constexpr int kLinkStackWords = 3072;
 constexpr int kHouseStackWords = 4096;
-constexpr size_t kCliLineMax = 96;
+constexpr size_t kCliLineMax = linkproto::kMaxCliLine + 1;
 constexpr int kCliQueueLen = 4;
 
 StackType_t g_link_stack[kLinkStackWords];
@@ -148,7 +148,7 @@ void houseTask(void*) {
         // Honouring the flag here would also mean carrying the commander's
         // level from linkTask to this task across the mailbox. If a tethered
         // consumer ever appears, do it the way wifi_link.cpp does; until
-        // then the decision is: the UART beacon is always kTlmLen (28 B).
+        // then the decision is: the UART beacon is always kTlmLen (31 B).
         if (xTaskGetTickCount() >= next_tlm) {
             next_tlm += pdMS_TO_TICKS(100);
             if (g_mode_request.load() == Mode::kRun) {
@@ -160,13 +160,8 @@ void houseTask(void*) {
                 t.up_z = g_telemetry.up_z.load();
                 t.vx_est = g_telemetry.vx_est.load();
                 t.wz_est = g_telemetry.wz_est.load();
-                // The wire field is 8 bits (one bit per servo ID 1-8); the
-                // 10-DOF plant has two more joints, so the hip-yaw faults are
-                // OR'd into bits 0 and 1. Widening the frame is a protocol
-                // change and therefore a link/protocol.py change first.
-                const uint16_t f = g_telemetry.servo_err.load();
-                t.servo_err = static_cast<uint8_t>(f & 0xFF) |
-                              static_cast<uint8_t>((f >> 8) & 0x03);
+                // Bit b = bus joint b = servo ID b + 1, all 17 of them.
+                t.servo_err = g_telemetry.servo_err.load();
                 t.loop_late_pct = g_telemetry.loop_late_pct.load();
                 t.t_us = timeNowUs();   // 0 until SNTP answers (timesync.h)
                 uint8_t wire[linkproto::kTlmLen];

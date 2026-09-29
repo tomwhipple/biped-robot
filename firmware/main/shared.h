@@ -121,7 +121,7 @@ struct TelemetrySnapshot {
     std::atomic<float> up_z{0.0f};
     std::atomic<float> vx_est{0.0f};
     std::atomic<float> wz_est{0.0f};
-    std::atomic<uint16_t> servo_err{0};      // bit i = joint index i faulted
+    std::atomic<uint32_t> servo_err{0};      // bit b = bus joint b (servo ID b+1)
     std::atomic<uint8_t> loop_late_pct{0};
     std::atomic<uint32_t> ticks{0};
     std::atomic<uint32_t> overruns{0};
@@ -131,7 +131,7 @@ struct TelemetrySnapshot {
     // budgeted the whole tick at ~8-10 ms; the first hardware run measured 32
     // ms with every tick late and no servo faults, which none of the budget
     // lines explains. These say where it actually goes instead of guessing.
-    std::atomic<uint32_t> us_read{0};    // sync-read 10 servos
+    std::atomic<uint32_t> us_read{0};    // sync-read the fitted servos
     std::atomic<uint32_t> us_imu{0};     // IMU sample (stub today)
     std::atomic<uint32_t> us_obs{0};     // obs assembly + history
     std::atomic<uint32_t> us_net{0};     // policy forward
@@ -160,11 +160,13 @@ extern ObsDump g_obs_dump;
 // (joint_pose.h). Same double-buffer-plus-counter shape as ObsDump, same
 // reason: ten loose atomics would tear across ticks.
 extern JointPose g_joint_pose;
-// The wire frame carries exactly the plant's joints, in the plant's order.
-// A 12-DOF retrain that changes obs_spec must change protocol.py first.
+// The wire frame carries every BUS joint, in servo-ID order (obs/bus_map.h),
+// whatever the policy drives. Changing the bus changes protocol.py first.
 static_assert(linkproto::kNumJoints ==
-                  static_cast<size_t>(obs::kNumJoints),
-              "linkproto::kNumJoints must match the generated obs spec");
+                  static_cast<size_t>(obs::kNumBusJoints),
+              "linkproto::kNumJoints must match the bus joint set");
+static_assert(obs::kNumBusJoints <= 32,
+              "servo_err is a u32: one bit per bus joint");
 
 // The bus object itself: constructed once in app_main, used by ctrl during a
 // run and by the CLI while benched. See g_mode_request for the handover rule.
@@ -193,8 +195,12 @@ extern std::atomic<bool> g_cal_from_nvs;
 // returns before touching the guard, so there is no cross-core race.
 battguard::Guard& battGuard();
 
-// Servo IDs in policy-action order, from the generated obs spec.
-inline const uint8_t* servoIds() { return obs::kServoId; }
+// The fitted bus joints, from the live calibration: their bus indices and
+// servo IDs in bus order. Returns the count. Housekeeping and ctrl both call
+// it, each at a point where the calibration cannot change underneath (the
+// CLI writes it only while benched; ctrl reads it at the arm handover).
+int fittedBusJoints(const obs::Calibration& cal, int* bus_out,
+                    uint8_t* id_out);
 
 // The on-board IMU, for the bring-up CLI. Null when the part did not answer
 // at boot and the loop is running on the stub -- callers must check, because

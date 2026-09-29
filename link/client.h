@@ -55,6 +55,11 @@ double nowMs();
 
 const char* stateName(LinkState s);
 
+// The servo-fault field (a u32, bit b = servo ID b + 1) as the IDs that are
+// faulted, "3 11 17", into `buf`. Returns buf. Both consoles print this: a
+// 17-bit string is not something an operator can read at a glance.
+const char* faultIds(uint32_t servo_err, char* buf, size_t cap);
+
 // "192.168.2.30" or "192.168.2.30:9101" -> address and port, for --watch.
 // `port` is left UNTOUCHED when the spec carries none, so the caller's
 // default -- the telemetry port it is already bound to, which is what a

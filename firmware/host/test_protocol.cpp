@@ -459,60 +459,47 @@ void testClassicTelemetryIsUntouched() {
         CHECK_EQ(back.n_joints, 0);
     }
     // Every length that is none of the four is refused -- including the
-    // ones a truncated or padded frame of each kind would produce.
+    // ones a truncated or padded frame of each kind would produce, and the
+    // version-1 lengths (28 B classic, 48 B with ten joints).
     Telemetry junk{};
-    uint8_t buf[kTlmLenExt + 1] = {0};
-    const size_t bad[] = {0, kTlmLenV1 - 1, kTlmLenV1 + 1, kTlmLen - 1,
-                          kTlmLen + 1, kTlmLenExtV1 - 1, kTlmLenExtV1 + 1,
-                          kTlmLenExt - 1, kTlmLenExt + 1};
+    uint8_t buf[kTlmLenMax + 1] = {0};
+    const size_t bad[] = {0,  20, 28, 40, 48, kTlmLen - 1, kTlmLen + 1,
+                          kTlmLenAtt + 1, kTlmLenExt - 1, kTlmLenExt + 1,
+                          kTlmLenExtAtt + 1};
     for (size_t n : bad) {
         CHECK(decodeTelemetry(buf, n, junk) == Err::kBadLength);
     }
 }
 
-// Timestamps (2026-09-02). Two properties: the u64 is carried byte-exact
-// (the vectors above already diffed every byte, including 2^64-1 and the
-// real-clock value); and a frame from PRE-stamp firmware -- the robot as
-// flashed the day this was written -- still decodes, with t_us == 0 and
-// everything else intact. The legacy bytes were packed by the generator,
-// since protocol.py can no longer emit them, and what Python decoded from
-// them was asserted there; this is the same check for the C++ side.
-void testLegacyTelemetryDecodes() {
-    for (size_t c = 0; c < V::kNumTlm; ++c) {
-        const V::TlmCase& k = V::kTlm[c];
-        Telemetry back{};
-        back.t_us = 99;                       // must be overwritten, not kept
-        CHECK(decodeTelemetry(k.legacy, kTlmLenV1, back) == Err::kOk);
-        CHECK(back.t_us == 0);
-        CHECK_EQ(back.n_joints, 0);
-        CHECK_EQ(back.seq_echo, k.seq);
-        CHECK_EQ(static_cast<int>(back.state), k.state);
-        CHECK_EQ(back.servo_err, k.servo_err);
-        CHECK_EQ(back.loop_late_pct, k.late);
-        CHECK_NEAR(back.up_z, k.up_z, 1e-3);
-        CHECK_EQ(telemetryDiag(back), k.diag);
-        // The legacy frame is the stamped frame minus its stamp: same body.
-        CHECK_BYTES(k.legacy, k.wire, kTlmTimeOff);
-    }
-    for (size_t c = 0; c < V::kNumTlmExt; ++c) {
-        const V::TlmExtCase& k = V::kTlmExt[c];
-        Telemetry back{};
-        CHECK(decodeTelemetry(k.legacy, kTlmLenExtV1, back) == Err::kOk);
-        CHECK(back.t_us == 0);
-        CHECK_EQ(back.n_joints, kNumJoints);
-        for (size_t i = 0; i < kNumJoints; ++i) {
-            const float want = k.joints[i] > 32.767f    ? 32.767f
-                             : k.joints[i] < -32.768f   ? -32.768f
-                                                        : k.joints[i];
-            CHECK_NEAR(back.joints[i], want, 0.001f);
-        }
-    }
-    // The CRC covers the stamp: flip one bit of it and the frame is refused.
+// Timestamps: the u64 is carried byte-exact (the vectors above already diffed
+// every byte, including 2^64-1 and the real-clock value), and the CRC covers
+// it: flip one bit of it and the frame is refused.
+void testTimestampIsInsideTheCrc() {
     uint8_t wire[kTlmLen];
     memcpy(wire, V::kTlm[1].wire, kTlmLen);
     wire[kTlmTimeOff + 3] ^= 0x10;
     Telemetry junk{};
     CHECK(decodeTelemetry(wire, kTlmLen, junk) == Err::kBadCrc);
+}
+
+// Protocol version 2 (issue #81): a version-1 frame is refused outright, in
+// both directions, rather than half-read -- a v1 beacon's servo_err byte and
+// joint block mean something else. The v1 command frame is one of the
+// generated bad-command cases; this is the telemetry side: a well-formed v2
+// frame with only the version byte (and so its CRC) set back to 1.
+void testVersionOneTelemetryIsRefused() {
+    uint8_t wire[kTlmLen];
+    memcpy(wire, V::kTlm[1].wire, kTlmLen);
+    wire[2] = 1;
+    const uint16_t crc = crc16Ccitt(wire, kTlmLen - 2);
+    wire[kTlmLen - 2] = static_cast<uint8_t>(crc & 0xFF);
+    wire[kTlmLen - 1] = static_cast<uint8_t>(crc >> 8);
+    Telemetry junk{};
+    CHECK(decodeTelemetry(wire, kTlmLen, junk) == Err::kBadVersion);
+    CHECK_EQ(kVersion, 2);
+    CHECK_EQ(kNumJoints, 17u);
+    CHECK_EQ(kTlmLen, 31u);
+    CHECK_EQ(kTlmLenExt, 65u);
 }
 
 // kFlagPose is a level on the wire and must not disturb the other three.
@@ -599,15 +586,15 @@ void testAttitudeIsAdditive() {
     const size_t n_plain = encodeTelemetry(plain, t);
     CHECK(n_plain == kTlmLen);
 
-    // Same telemetry, now asking for attitude: 4 bytes longer, and the first
-    // 18 bytes IDENTICAL. Only the CRC moves.
+    // Same telemetry, now asking for attitude: 4 bytes longer, and the body
+    // and stamp IDENTICAL. Only the CRC moves.
     t.have_att = 1;
     t.up_x = 0.450f;
     t.up_y = -0.100f;
     uint8_t att[kTlmLenMax] = {0};
     const size_t n_att = encodeTelemetry(att, t);
     CHECK(n_att == kTlmLenAtt);
-    CHECK(memcmp(plain, att, 18) == 0);
+    CHECK(memcmp(plain, att, kTlmLen - 2) == 0);
 
     Telemetry got = {};
     CHECK(decodeTelemetry(att, n_att, got) == Err::kOk);
@@ -618,7 +605,7 @@ void testAttitudeIsAdditive() {
     CHECK(got.n_joints == 0);
 
     // With joints as well: the longest frame, joints BEFORE attitude, and the
-    // 38-byte prefix still byte-identical to the joints-only frame.
+    // joints-only frame's prefix still byte-identical.
     for (size_t i = 0; i < kNumJoints; ++i) {
         t.joints[i] = 0.1f * static_cast<float>(i) - 0.4f;
     }
@@ -683,14 +670,14 @@ void testAttitudeFrameMatchesPython() {
     t.have_att = 1;
     t.up_x = 0.450f;
     t.up_y = -0.100f;
-    // Pinned to link/protocol.py's encoder, MERGED format: the u64 t_us
-    // (zero here -- never synced) sits at offset 18, THEN the att block,
-    // then the CRC. Regenerate with tools/gen_protocol_vectors.py when the
-    // frame layout changes.
+    // Pinned to link/protocol.py's encoder, version 2: the u32 servo_err at
+    // 16, loop_late_pct at 20, the u64 t_us (zero here -- never synced) at
+    // 21, THEN the att block, then the CRC. Same literal as
+    // tests/test_protocol.py asserts; re-pin both when the layout changes.
     const uint8_t want[] = {
-        0x42, 0x54, 0x01, 0x00, 0x92, 0x10, 0x00, 0x00, 0xEC, 0x2C, 0x77, 0x03,
-        0x90, 0x01, 0x06, 0xFF, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0xC2, 0x01, 0x9C, 0xFF, 0x3E, 0xF6
+        0x42, 0x54, 0x02, 0x00, 0x92, 0x10, 0x00, 0x00, 0xEC, 0x2C, 0x77, 0x03,
+        0x90, 0x01, 0x06, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0xC2, 0x01, 0x9C, 0xFF, 0x04, 0x4D
     };
     uint8_t got[kTlmLenMax] = {0};
     const size_t n = encodeTelemetry(got, t);
@@ -727,7 +714,8 @@ int main() {
     testTelemetryFrames();
     testExtendedTelemetryFrames();
     testClassicTelemetryIsUntouched();
-    testLegacyTelemetryDecodes();
+    testTimestampIsInsideTheCrc();
+    testVersionOneTelemetryIsRefused();
     testPoseFlag();
     testHomeFlag();
     testHomeLatch();

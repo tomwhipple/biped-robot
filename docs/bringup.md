@@ -8,9 +8,13 @@ assembled robot to a first armed run. The references it uses:
 - the CLI and firmware internals: [firmware/README.md](../firmware/README.md)
 - the link: [control-channel.md](control-channel.md)
 
-The firmware currently drives the 10-joint prototype. On the robot, every step that
-depends on the joint list (IDs, `cal`, `pose`, `home`, the IMU check scripts,
-policies) needs the 17-joint firmware port first. That port is open work.
+The firmware carries the robot's 17-servo bus (the proposed ID map,
+[servo-map.md §2.1](servo-map.md#21-the-robot-the-proposed-map)): `cal`,
+`pose`, `home`, `ping` and the gain check cover all 17, and touch only the
+servos the calibration marks fitted. The compiled policy drives the
+prototype's 10 joints. On the robot, the IMU check scripts in `tools/` still
+hard-code the prototype's calibration, and the leg rows of the mechanical
+envelope are the prototype's until they are probed on the robot (§3).
 
 **Bench safety.** The rules are in [AGENTS.md](../AGENTS.md#bench-safety). Read
 them before a session. Two of them are procedure, and every step below assumes them:
@@ -132,11 +136,13 @@ There are two mechanisms, and they are not interchangeable (`cli.cpp`, "calibrat
 
 1. Hold the robot at the standing pose, which is angle zero for every joint, with torque released.
 2. `middle <id>` for each servo. It latches the current angle as 2048 and leaves that servo's torque **off**. This keeps every zero away from the 0/4095 encoder wrap. Never run it on a bare servo.
-3. `cal zero` (all joints) or `cal zero <joint>`, then `cal show`.
-4. `cal save`. Reboot, and check the boot log says `cal: restored from NVS`.
+3. `cal zero` (all joints) or `cal zero <joint>` (a joint name or a servo ID), then `cal show`. With no joint named it also sets the **fitted** set: every servo that answers is fitted, and one that does not is marked `NOT FITTED`. Check that the fitted set is exactly the servos the robot carries (`cal fit <joint> 0|1` corrects it).
+4. `cal save`. Reboot, and check the boot log says `cal: restored from NVS, N of 17 bus servos fitted`.
 
 `run` and `home` refuse while the calibration is missing, or was measured under
-another servo map.
+another servo map; `run` also refuses while a joint the policy drives is not
+fitted. A prototype calibrated before the 17-servo port boots with
+`cal: migrated v2 -> v3`: its values carry over, IDs 1–10 fitted.
 
 ### Directions
 
@@ -145,7 +151,7 @@ another servo map.
 1. `torque <id>`.
 2. `move <id> <zero ± ~228 ticks> 0 200` (about 20°, at 200 steps/s).
 3. Watch which way it goes, and compare with the sim's prediction for +20° on that joint ([servo-map.md §3.2](servo-map.md#32-direction-signs)).
-4. `cal dir <joint> <1|-1>`, then `release <id>`.
+4. `cal dir <joint> <1|-1>` (joint name or servo ID), then `release <id>`.
 5. `cal save` at the end.
 
 Never infer a sign from a compound motion.

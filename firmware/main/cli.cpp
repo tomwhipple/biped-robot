@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "linkproto/framing.h"
 #include "obs/actuation.h"
 #include "obs/obs_spec.h"
 #include "policy/mlp.h"
@@ -102,11 +103,32 @@ long num(const char* s, long fallback = -1) {
 
 // -- commands --------------------------------------------------------------
 
+// A bus joint named on the command line: its joint name (`L_knee`) or its
+// servo ID (`7`). Returns the bus index (obs/bus_map.h), or -1.
+int parseBusJoint(const char* s) {
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!strcmp(s, obs::kBusJointNames[b])) return b;
+    }
+    char* end = nullptr;
+    const long id = strtol(s, &end, 10);
+    if (end && end != s && *end == 0) {
+        return obs::busIndexOfId(static_cast<int>(id));
+    }
+    return -1;
+}
+
+bool isNumber(const char* s) {
+    char* end = nullptr;
+    strtol(s, &end, 0);
+    return end && end != s && *end == 0;
+}
+
 void cmdScan(Sink out) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     out("scanning IDs 0-253 ...\r\n");
     int found = 0;
+    const obs::Calibration& cal = robot::calibration();
     for (int id = 0; id <= scsbus::kMaxId; ++id) {
         if (!bus->ping(static_cast<uint8_t>(id))) continue;
         ++found;
@@ -116,13 +138,11 @@ void cmdScan(Sink out) {
         bus->readVoltageDeciVolts(static_cast<uint8_t>(id), volt);
         bus->readStatus(static_cast<uint8_t>(id), flags);
         // Name it if it is one of ours, so a mis-numbered servo is obvious.
-        const char* role = "-";
-        for (int j = 0; j < obs::kNumJoints; ++j) {
-            if (obs::kServoId[j] == id) role = obs::kJointNames[j];
-        }
-        say(out, "  id %3d  pos %5ld  %4.1f V  err 0x%02X  %s\r\n", id,
+        const int b = obs::busIndexOfId(id);
+        say(out, "  id %3d  pos %5ld  %4.1f V  err 0x%02X  %s%s\r\n", id,
             static_cast<long>(pos), volt / 10.0, static_cast<unsigned>(flags),
-            role);
+            b >= 0 ? obs::kBusJointNames[b] : "-",
+            (b >= 0 && !cal.fitted[b]) ? " (NOT FITTED in cal)" : "");
     }
     say(out, "%d servo(s)\r\n", found);
 }
@@ -136,16 +156,23 @@ void cmdPing(Sink out, int argc, char** argv) {
             bus->ping(static_cast<uint8_t>(id)) ? "present" : "no reply");
         return;
     }
-    // No argument: ping exactly the IDs the policy expects, in action order.
-    int missing = 0;
-    for (int j = 0; j < obs::kNumJoints; ++j) {
-        const bool ok = bus->ping(obs::kServoId[j]);
-        if (!ok) ++missing;
-        say(out, "  %-12s id %2d  %s\r\n", obs::kJointNames[j],
-            obs::kServoId[j], ok ? "ok" : "MISSING");
+    // No argument: every bus joint, servo-ID order, against the fitted set.
+    const obs::Calibration& cal = robot::calibration();
+    int missing = 0, fitted = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        const uint8_t id = obs::kBusServoId[b];
+        const bool ok = bus->ping(id);
+        if (cal.fitted[b]) {
+            ++fitted;
+            if (!ok) ++missing;
+        }
+        say(out, "  %-12s id %2d  port %c  %s\r\n", obs::kBusJointNames[b], id,
+            obs::kBusPort[b],
+            cal.fitted[b] ? (ok ? "ok" : "MISSING")
+                          : (ok ? "answers, but NOT FITTED in cal"
+                                : "not fitted"));
     }
-    say(out, "%d of %d present\r\n", obs::kNumJoints - missing,
-        obs::kNumJoints);
+    say(out, "%d of %d fitted servos present\r\n", fitted - missing, fitted);
 }
 
 void cmdId(Sink out, int argc, char** argv) {
@@ -225,32 +252,30 @@ bool torqueGate(scsbus::Bus* bus, Sink out, uint8_t id) {
 }
 
 // Clamp bench ticks to the joint's CALIBRATED mechanical envelope, when the
-// target servo is one of the policy's. Raw 0..4095 is the encoder's range,
-// not the mechanism's -- the difference is a horn driving a printed part
-// past its stop. The envelope (mech_envelope.h) is the measured mechanical
-// truth, deliberately separate from the plant's policy range: the bench can
-// e.g. hyperextend a knee to its measured -95..+95 even though policies
-// train in -95..+5 (split introduced 2026-08-03 after the clamp cut short
-// a manual ROM session at the plant's limits).
+// target servo is one of the bus's. Raw 0..4095 is the encoder's range, not
+// the mechanism's -- the difference is a horn driving a printed part past its
+// stop. The envelope (mech_envelope.h, one row per bus joint) is the measured
+// mechanical truth, deliberately separate from the plant's policy range: the
+// bench can e.g. hyperextend a knee to its measured -95..+95 even though
+// policies train in -95..+5 (split introduced 2026-08-03 after the clamp cut
+// short a manual ROM session at the plant's limits).
 int32_t clampToJointRange(uint8_t id, int32_t ticks, Sink out) {
-    for (int j = 0; j < obs::kNumJoints; ++j) {
-        if (robot::servoIds()[j] != id) continue;
-        const obs::Calibration& cal = robot::calibration();
-        const int32_t a = obs::angleToStepsRaw(j, robot::kMechLo[j], cal);
-        const int32_t b = obs::angleToStepsRaw(j, robot::kMechHi[j], cal);
-        const int32_t lo = a < b ? a : b, hi = a < b ? b : a;
-        if (ticks < lo || ticks > hi) {
-            const int32_t c = ticks < lo ? lo : hi;
-            say(out, "id %d: %ld is outside joint %d's range [%ld..%ld]%s, "
-                "clamped to %ld\r\n", id, static_cast<long>(ticks), j,
-                static_cast<long>(lo), static_cast<long>(hi),
-                robot::g_cal_from_nvs ? "" : " (UNCALIBRATED defaults!)",
-                static_cast<long>(c));
-            return c;
-        }
-        return ticks;
+    const int b = obs::busIndexOfId(id);
+    if (b < 0) return ticks;    // not a bus servo: encoder range only
+    const obs::Calibration& cal = robot::calibration();
+    const int32_t a = obs::busAngleToStepsRaw(b, robot::kMechLo[b], cal);
+    const int32_t c = obs::busAngleToStepsRaw(b, robot::kMechHi[b], cal);
+    const int32_t lo = a < c ? a : c, hi = a < c ? c : a;
+    if (ticks < lo || ticks > hi) {
+        const int32_t k = ticks < lo ? lo : hi;
+        say(out, "id %d: %ld is outside %s's range [%ld..%ld]%s, clamped to "
+            "%ld\r\n", id, static_cast<long>(ticks), obs::kBusJointNames[b],
+            static_cast<long>(lo), static_cast<long>(hi),
+            robot::g_cal_from_nvs ? "" : " (UNCALIBRATED defaults!)",
+            static_cast<long>(k));
+        return k;
     }
-    return ticks;               // not a policy servo: encoder range only
+    return ticks;
 }
 
 void cmdMove(Sink out, int argc, char** argv) {
@@ -313,11 +338,50 @@ static uint16_t s_trace_ms[kTraceMax];
 static int s_trace_n = 0;
 static bool s_trace_on = false;
 static TickType_t s_trace_until = 0;
-static int32_t s_traj_start[obs::kNumJoints];
-static int32_t s_traj_tgt[obs::kNumJoints];
-static int32_t s_traj_sent[obs::kNumJoints];     // last goal written per joint
-static uint16_t s_traj_spd[obs::kNumJoints];     // ... and its speed
-static TickType_t s_traj_tsent[obs::kNumJoints]; // ... and when
+// Per BUS joint (obs/bus_map.h), with a mask of the joints this stream moves:
+// a 10-target policy-order `pose` streams the policy's joints and leaves the
+// rest alone; an unfitted servo is never on the wire.
+static bool s_traj_on[obs::kNumBusJoints];
+static int32_t s_traj_start[obs::kNumBusJoints];
+static int32_t s_traj_tgt[obs::kNumBusJoints];
+static int32_t s_traj_sent[obs::kNumBusJoints];     // last goal written per joint
+static uint16_t s_traj_spd[obs::kNumBusJoints];     // ... and its speed
+static TickType_t s_traj_tsent[obs::kNumBusJoints]; // ... and when
+
+// Start the smooth streamer (poseTick) for the joints in `on`, from their
+// CURRENT positions to tgt over dur_ms, with the default tuning. false = a
+// servo did not answer (nothing written).
+bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, const bool* on,
+                 long dur_ms, Sink out, const char* who) {
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        s_traj_on[b] = false;
+        if (!on[b]) continue;
+        int32_t cur = tgt[b];
+        if (bus->readPosition(obs::kBusServoId[b], cur) != scsbus::Status::kOk) {
+            say(out, "%s: id %u did not answer -- no move\r\n", who,
+                static_cast<unsigned>(obs::kBusServoId[b]));
+            for (int k = 0; k < obs::kNumBusJoints; ++k) s_traj_on[k] = false;
+            return false;
+        }
+        s_traj_on[b] = true;
+        s_traj_start[b] = cur;
+        s_traj_tgt[b] = tgt[b];
+        s_traj_sent[b] = cur;
+        s_traj_spd[b] = 15;
+        s_traj_tsent[b] = xTaskGetTickCount();
+    }
+    s_traj_ms = dur_ms;
+    s_traj_headroom = 1.0f;
+    s_traj_acc = 0;
+    s_traj_bigstep = 1;
+    s_traj_minint_ms = 20;
+    s_traj_zv_ms = 0;
+    s_traj_floor = 15.0f;
+    s_traj_t0 = xTaskGetTickCount();
+    s_traj_last = s_traj_t0;
+    s_traj_active = true;
+    return true;
+}
 
 // `reg <id> <addr> [1|2]` -- READ a servo register (EEPROM or RAM), never
 // write. Added 2026-09-03 to inspect PosP/PosD/PosI (21-23), dead zones
@@ -347,34 +411,69 @@ void cmdReg(Sink out, int argc, char** argv) {
 
 void cmdPose(Sink out, int argc, char** argv) {
     // The whole pose in ONE broadcast SYNC WRITE -- the same frame the
-    // control loop uses, so all ten servos latch their targets together
-    // instead of rippling through ten `move`s. Targets are ticks in JOINT
-    // order (obs_spec kJointNames: L_hip_yaw..L_ankle, R_hip_yaw..R_ankle);
-    // the servo-map permutation and its errata are applied here, exactly as
-    // in the act path.
+    // control loop uses, so the servos latch their targets together instead
+    // of rippling through separate `move`s. Two forms, told apart by how many
+    // numbers lead the line:
+    //   17 targets  every BUS joint, servo-ID order 1..17 (obs/bus_map.h);
+    //   10 targets  the policy's joints, obs_spec order (L yaw, roll, pitch,
+    //               knee, ankle, then R) -- the prototype's bench tools speak
+    //               this one; the other servos are left alone.
+    // Either may be followed by one plain number (the constant-speed form).
+    // Targets for servos not fitted in `cal` are ignored, never sent.
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
-    if (argc < 1 + obs::kNumJoints) {
-        out("usage: pose <t0..t9 ticks, joint order> [steps/s]\r\n");
-        out("       joints: L yaw,roll,pitch,knee,ankle then R same\r\n");
+    int nnum = 0;
+    while (1 + nnum < argc && isNumber(argv[1 + nnum])) ++nnum;
+    int ntgt = 0;
+    bool bus_form = false;
+    if (nnum == obs::kNumBusJoints || nnum == obs::kNumBusJoints + 1) {
+        ntgt = obs::kNumBusJoints;
+        bus_form = true;
+    } else if (obs::kNumJoints != obs::kNumBusJoints &&
+               (nnum == obs::kNumJoints || nnum == obs::kNumJoints + 1)) {
+        ntgt = obs::kNumJoints;
+    } else {
+        say(out, "usage: pose <%d ticks, servo-ID order 1..%d> [s<ms>|t<ms>|"
+            "steps/s] [tokens]\r\n", obs::kNumBusJoints, obs::kNumBusJoints);
+        say(out, "       pose <%d ticks, policy order: L yaw,roll,pitch,knee,"
+            "ankle then R> [...]\r\n", obs::kNumJoints);
         return;
     }
-    int32_t tgt[obs::kNumJoints];
-    for (int i = 0; i < obs::kNumJoints; ++i) {
+    const obs::Calibration& cal = robot::calibration();
+    int32_t tgt[obs::kNumBusJoints] = {};
+    bool on[obs::kNumBusJoints] = {};
+    int nmove = 0, skipped = 0;
+    for (int i = 0; i < ntgt; ++i) {
         const long t = num(argv[1 + i]);
         if (t < 0 || t > 4095) {
             say(out, "arg %d: ticks must be 0-4095 (2048 == middle)\r\n",
                 i + 1);
             return;
         }
-        tgt[i] = clampToJointRange(robot::servoIds()[i],
+        const int b = bus_form ? i : obs::policyToBus(i);
+        if (b < 0 || b >= obs::kNumBusJoints) continue;
+        if (!cal.fitted[b]) {
+            ++skipped;
+            continue;
+        }
+        tgt[b] = clampToJointRange(obs::kBusServoId[b],
                                    static_cast<int32_t>(t), out);
+        on[b] = true;
+        ++nmove;
+    }
+    if (skipped) {
+        say(out, "pose: %d target(s) for servos not fitted in `cal` -- "
+            "ignored\r\n", skipped);
+    }
+    if (nmove == 0) {
+        out("pose: no fitted servo to move\r\n");
+        return;
     }
     // Gate on every servo BEFORE the first byte hits the wire: this is one
     // broadcast frame, so there is no such thing as moving only the safe
     // ones.
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        if (!torqueGate(bus, out, robot::servoIds()[i])) return;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (on[b] && !torqueGate(bus, out, obs::kBusServoId[b])) return;
     }
     // Bench default is a GENTLE sweep (~0.9 rad/s), not the servo's max --
     // a hand-typed pose with a typo shouldn't snap a limb across its range.
@@ -382,9 +481,8 @@ void cmdPose(Sink out, int argc, char** argv) {
     // UNISON mode (2026-09-03, Tom: "the ankle/hip servos move, then the
     // knees catch up -- all three should move in unison to stay balanced"):
     // a trailing `t<ms>` gives every servo its OWN speed from its own
-    // distance, so all ten arrive together, instead of one speed for all.
-    const char* last = argc >= 2 + obs::kNumJoints ? argv[1 + obs::kNumJoints]
-                                                    : nullptr;
+    // distance, so all of them arrive together, instead of one speed for all.
+    const char* last = argc >= 2 + ntgt ? argv[1 + ntgt] : nullptr;
     // DEFAULT IS SMOOTH (Tom 2026-09-03: "if a position is commanded, the
     // controller should take it there smoothly"): with no mode argument the
     // duration comes from the longest move at 300 steps/s (>= 1 s). A
@@ -397,10 +495,12 @@ void cmdPose(Sink out, int argc, char** argv) {
             ms = num(last + 1, 3000);
         } else {
             int32_t worst = 0;
-            for (int i = 0; i < obs::kNumJoints; ++i) {
-                int32_t cur = tgt[i];
-                if (bus->readPosition(robot::servoIds()[i], cur) == scsbus::Status::kOk) {
-                    const int32_t d = cur > tgt[i] ? cur - tgt[i] : tgt[i] - cur;
+            for (int b = 0; b < obs::kNumBusJoints; ++b) {
+                if (!on[b]) continue;
+                int32_t cur = tgt[b];
+                if (bus->readPosition(obs::kBusServoId[b], cur) ==
+                    scsbus::Status::kOk) {
+                    const int32_t d = cur > tgt[b] ? cur - tgt[b] : tgt[b] - cur;
                     if (d > worst) worst = d;
                 }
             }
@@ -411,32 +511,13 @@ void cmdPose(Sink out, int argc, char** argv) {
             out("pose s<ms>: duration must be 200-20000 ms\r\n");
             return;
         }
-        for (int i = 0; i < obs::kNumJoints; ++i) {
-            int32_t cur = tgt[i];
-            if (bus->readPosition(robot::servoIds()[i], cur) !=
-                scsbus::Status::kOk) {
-                say(out, "id %u did not answer -- no smooth pose\r\n",
-                    robot::servoIds()[i]);
-                return;
-            }
-            s_traj_start[i] = cur;
-            s_traj_tgt[i] = tgt[i];
-            s_traj_sent[i] = cur;
-            s_traj_spd[i] = 15;
-            s_traj_tsent[i] = xTaskGetTickCount();
-        }
+        if (!startSmooth(bus, tgt, on, ms, out, "pose")) return;
         // optional tuning tokens after s<ms>: h<pct> speed headroom (servo
         // speed = profile speed x pct/100; <100 keeps the servo running
         // continuously behind the stream instead of stop-starting at 50 Hz),
         // a<n> servo acceleration register (100 steps/s^2 per LSB, 0 = max).
-        s_traj_headroom = 1.0f;
-        s_traj_acc = 0;
-        s_traj_bigstep = 1;
-        s_traj_minint_ms = 20;
-        s_traj_zv_ms = 0;
-        s_traj_floor = 15.0f;
         s_trace_id = 0;
-        for (int k = 1 + obs::kNumJoints; k < argc; ++k) {
+        for (int k = 1 + ntgt; k < argc; ++k) {
             if (argv[k][0] == 's') continue;
             if (argv[k][0] == 'h') {
                 long pct = num(argv[k] + 1, 90);
@@ -469,57 +550,59 @@ void cmdPose(Sink out, int argc, char** argv) {
                 s_traj_minint_ms = iv;
             }
         }
-        s_traj_ms = ms;
-        s_traj_t0 = xTaskGetTickCount();
-        s_traj_last = s_traj_t0;
-        s_traj_active = true;
         s_trace_n = 0;
         s_trace_on = s_trace_id != 0;
         s_trace_until = s_traj_t0 + pdMS_TO_TICKS(ms + s_traj_zv_ms + kTraceTailMs);
         say(out, "pose -> %d joints, SMOOTH minimum-jerk over %ld ms (speed x%.2f, "
                  "acc %u, step %ld ticks / %ld ms, ZV %ld ms): streaming\r\n",
-            obs::kNumJoints, ms, static_cast<double>(s_traj_headroom),
+            nmove, ms, static_cast<double>(s_traj_headroom),
             static_cast<unsigned>(s_traj_acc), static_cast<long>(s_traj_bigstep),
             s_traj_minint_ms, s_traj_zv_ms);
         return;
     }
+    // The two single-frame forms write the moved joints only.
+    uint8_t ids[obs::kNumBusJoints];
+    int32_t steps[obs::kNumBusJoints];
+    int n = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!on[b]) continue;
+        ids[n] = obs::kBusServoId[b];
+        steps[n] = tgt[b];
+        ++n;
+    }
     if (last && last[0] == 't') {
+        uint16_t spds[obs::kNumBusJoints] = {};
         const long ms = num(last + 1, 2000);
         if (ms < 100 || ms > 20000) {
             out("pose t<ms>: duration must be 100-20000 ms\r\n");
             return;
         }
-        uint16_t spds[obs::kNumJoints];
         long lo = 100000, hi = 0;
-        for (int i = 0; i < obs::kNumJoints; ++i) {
-            int32_t cur = tgt[i];
-            if (bus->readPosition(robot::servoIds()[i], cur) !=
-                scsbus::Status::kOk) {
-                say(out, "id %u did not answer -- no unison pose\r\n",
-                    robot::servoIds()[i]);
+        for (int k = 0; k < n; ++k) {
+            int32_t cur = steps[k];
+            if (bus->readPosition(ids[k], cur) != scsbus::Status::kOk) {
+                say(out, "id %u did not answer -- no unison pose\r\n", ids[k]);
                 return;
             }
-            const long d = cur > tgt[i] ? cur - tgt[i] : tgt[i] - cur;
+            const long d = cur > steps[k] ? cur - steps[k] : steps[k] - cur;
             long v = (d * 1000L) / ms;
             if (v < 10) v = 10;          // 0 means unlimited on the wire
             if (v > 3400) v = 3400;
-            spds[i] = static_cast<uint16_t>(v);
+            spds[k] = static_cast<uint16_t>(v);
             if (v < lo) lo = v;
             if (v > hi) hi = v;
         }
         const scsbus::Status st = bus->syncWritePositions(
-            robot::servoIds(), tgt, spds, obs::kNumJoints, 0);
+            ids, steps, spds, static_cast<size_t>(n), 0);
         say(out, "pose -> %d joints in UNISON over %ld ms (speeds %ld..%ld "
                  "steps/s): %s\r\n",
-            obs::kNumJoints, ms, lo, hi, statusName(st));
+            n, ms, lo, hi, statusName(st));
         return;
     }
     const long spd = last ? num(last, 600) : 600;
     const scsbus::Status st = bus->syncWritePositions(
-        robot::servoIds(), tgt, obs::kNumJoints, 0,
-        static_cast<uint16_t>(spd), 0);
-    say(out, "pose -> %d joints, spd %ld: %s\r\n", obs::kNumJoints, spd,
-        statusName(st));
+        ids, steps, static_cast<size_t>(n), 0, static_cast<uint16_t>(spd), 0);
+    say(out, "pose -> %d joints, spd %ld: %s\r\n", n, spd, statusName(st));
 }
 
 // -- reset the servos ------------------------------------------------------
@@ -562,7 +645,8 @@ void cmdPose(Sink out, int argc, char** argv) {
 // homeVerify all run there), so plain statics.
 static bool s_home_pending = false;
 static TickType_t s_home_deadline = 0;
-static int32_t s_home_tgt[obs::kNumJoints];
+static int32_t s_home_tgt[obs::kNumBusJoints];
+static bool s_home_on[obs::kNumBusJoints];
 constexpr int32_t kHomeTolTicks = 12;      // ~1 deg: the servo's own deadband is ~3
 // The play take-up after the slew: stage 0 = slewing to zero, then L out,
 // L back, R out, R back (1..4), then the readback + release.
@@ -570,36 +654,9 @@ static int s_home_stage = 0;
 constexpr float kHomeWiggleDeg = 5.0f;     // abduction per hip; 5 deg measured 2026-09-13 (loads <= 88, pelvis level)
 constexpr long kHomeWiggleMs = 600L;       // per move (smooth), + settle before the next
 constexpr long kHomeWiggleSettleMs = 250L;
-constexpr int kIdxLRoll = 1, kIdxRRoll = 6;   // kJointNames order
-
-// Start the smooth streamer (poseTick) from the joints' CURRENT positions to
-// tgt over dur_ms. false = a servo did not answer (nothing written).
-static bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, long dur_ms, Sink out) {
-    for (int j = 0; j < obs::kNumJoints; ++j) {
-        int32_t cur = tgt[j];
-        if (bus->readPosition(robot::servoIds()[j], cur) != scsbus::Status::kOk) {
-            say(out, "home: id %u did not answer -- no move\r\n",
-                robot::servoIds()[j]);
-            return false;
-        }
-        s_traj_start[j] = cur;
-        s_traj_tgt[j] = tgt[j];
-        s_traj_sent[j] = cur;
-        s_traj_spd[j] = 15;
-        s_traj_tsent[j] = xTaskGetTickCount();
-    }
-    s_traj_ms = dur_ms;
-    s_traj_headroom = 1.0f;
-    s_traj_acc = 0;
-    s_traj_bigstep = 1;
-    s_traj_minint_ms = 20;
-    s_traj_zv_ms = 0;
-    s_traj_floor = 15.0f;
-    s_traj_t0 = xTaskGetTickCount();
-    s_traj_last = s_traj_t0;
-    s_traj_active = true;
-    return true;
-}
+// The hip rolls, by servo (obs/bus_map.h): 5 is L_hip_roll, 1 is R_hip_roll.
+constexpr int kBusLRoll = obs::busIndexOfId(5), kBusRRoll = obs::busIndexOfId(1);
+static_assert(kBusLRoll >= 0 && kBusRRoll >= 0, "hip rolls must be on the bus");
 
 linkproto::ArmResult homeAll(Sink out, long spd) {
     s_home_pending = false;
@@ -613,18 +670,23 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
     }
     // The pack guard outranks the link everywhere else (ctrl_task's safety
     // block), so it outranks this too: a flat pack is exactly when powering
-    // ten servos to hold a stand is the wrong answer, and unlike the E-stop
+    // the servos to hold a stand is the wrong answer, and unlike the E-stop
     // this latch is the ROBOT's, not the operator's, to clear.
     if (robot::battGuard().torqueMustRelease()) {
         out("REFUSED: the pack under-voltage guard has torque latched off. "
             "Swap the pack, then `batt reset` -- see `batt`.\r\n");
         return linkproto::ArmResult::kHomeLowBatt;
     }
+    // Every FITTED bus joint to its calibrated zero -- the legs, and on the
+    // robot the ankle rolls, neck and arms too.
     const obs::Calibration& cal = robot::calibration();
-    int32_t tgt[obs::kNumJoints];
-    for (int j = 0; j < obs::kNumJoints; ++j) {
-        tgt[j] = clampToJointRange(robot::servoIds()[j], cal.zero_steps[j],
-                                   out);
+    int32_t tgt[obs::kNumBusJoints] = {};
+    int n = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        s_home_on[b] = cal.fitted[b] != 0;
+        if (!s_home_on[b]) continue;
+        tgt[b] = clampToJointRange(obs::kBusServoId[b], cal.zero_steps[b], out);
+        ++n;
     }
     // Torque first, then the goal -- the explicit two-step, just with both
     // halves on one line because that is what was asked for. Broadcast, so
@@ -639,10 +701,11 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
     // a broadcast with no reply, and on 2026-09-02 one "ok" moved nothing,
     // so the verdict now waits for the joints to actually get there.
     int32_t worst = 0;
-    for (int j = 0; j < obs::kNumJoints; ++j) {
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!s_home_on[b]) continue;
         int32_t cur = 0;
-        if (bus->readPosition(robot::servoIds()[j], cur) == scsbus::Status::kOk) {
-            const int32_t d = cur > tgt[j] ? cur - tgt[j] : tgt[j] - cur;
+        if (bus->readPosition(obs::kBusServoId[b], cur) == scsbus::Status::kOk) {
+            const int32_t d = cur > tgt[b] ? cur - tgt[b] : tgt[b] - cur;
             if (d > worst) worst = d;
         } else {
             worst = 4096;             // unknown start: allow the full slew
@@ -656,19 +719,23 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
     long dur_ms = spd > 0 ? (worst * 1000L) / spd : 1500L;
     if (dur_ms < 2500L) dur_ms = 2500L;      // gentle: the crouch runs rang least at >= 3 s
     if (dur_ms > 8000L) dur_ms = 8000L;
-    if (!startSmooth(bus, tgt, dur_ms, out)) {
+    if (!startSmooth(bus, tgt, s_home_on, dur_ms, out, "home")) {
         return linkproto::ArmResult::kHomeBusFailed;
     }
     say(out, "home -> %d joints to their calibrated zero, SMOOTH over %ld ms "
              "(worst move %ld ticks): streaming\r\n",
-        obs::kNumJoints, dur_ms, static_cast<long>(worst));
+        n, dur_ms, static_cast<long>(worst));
     const long slew_ms = dur_ms + 700L;
     memcpy(s_home_tgt, tgt, sizeof s_home_tgt);
     s_home_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(slew_ms);
-    s_home_stage = 0;
+    // The play take-up needs both hip rolls; a robot without them fitted
+    // goes straight to the readback.
+    s_home_stage = (s_home_on[kBusLRoll] && s_home_on[kBusRRoll]) ? 0 : 4;
     s_home_pending = true;
-    say(out, "  then hips out/back %.0f deg each (play take-up), readback, release\r\n",
-        static_cast<double>(kHomeWiggleDeg));
+    if (s_home_stage == 0) {
+        say(out, "  then hips out/back %.0f deg each (play take-up), readback, "
+            "release\r\n", static_cast<double>(kHomeWiggleDeg));
+    }
     return linkproto::ArmResult::kHomePending;
 }
 
@@ -758,9 +825,11 @@ void cmdVolt(Sink out) {
     // pack-voltage sense is each servo's own register 62, at 0.1 V.
     int n = 0;
     int sum = 0;
-    for (int j = 0; j < obs::kNumJoints; ++j) {
+    const obs::Calibration& cal = robot::calibration();
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!cal.fitted[b]) continue;
         uint8_t dv = 0;
-        if (bus->readVoltageDeciVolts(obs::kServoId[j], dv) ==
+        if (bus->readVoltageDeciVolts(obs::kBusServoId[b], dv) ==
             scsbus::Status::kOk) {
             sum += dv;
             ++n;
@@ -831,18 +900,23 @@ void eepromSettle() { vTaskDelay(pdMS_TO_TICKS(kEepromCommitMs)); }
 // table. Prints every row when `verbose`, else only the ones that fail.
 // True when every servo answered with exactly its expected P/D.
 bool checkGains(scsbus::Bus* bus, Sink out, bool verbose) {
-    scsbus::GainExpect want[obs::kNumJoints];
-    const char* names[obs::kNumJoints];
+    // Every FITTED bus joint: a servo the robot does not carry has nothing
+    // to verify, and one it does carry is checked whether or not the policy
+    // drives it (the loop holds the others).
+    scsbus::GainExpect want[obs::kNumBusJoints];
+    const char* names[obs::kNumBusJoints];
     size_t n = 0;
-    for (int j = 0; j < obs::kNumJoints; ++j) {
-        // servo_gains.h static_asserts that every driven servo has a row.
-        const scsbus::GainExpect* e = robot::expectedGainsFor(obs::kServoId[j]);
+    const obs::Calibration& cal = robot::calibration();
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!cal.fitted[b]) continue;
+        // servo_gains.h static_asserts that every bus servo has a row.
+        const scsbus::GainExpect* e = robot::expectedGainsFor(obs::kBusServoId[b]);
         if (!e) continue;
         want[n] = *e;
-        names[n] = obs::kJointNames[j];
+        names[n] = obs::kBusJointNames[b];
         ++n;
     }
-    scsbus::GainCheck got[obs::kNumJoints];
+    scsbus::GainCheck got[obs::kNumBusJoints];
     const size_t bad = scsbus::checkPositionGains(*bus, want, n, got);
     for (size_t i = 0; i < n; ++i) {
         if (!verbose && got[i].ok) continue;
@@ -958,6 +1032,38 @@ void cmdGains(Sink out, int argc, char** argv) {
     }
 }
 
+// The two arm gates after the calibration one, for a loop not yet running
+// (re-arming a running loop re-reads nothing: the bus is ctrl's). Stores the
+// verdict and returns true when the arm is refused.
+bool armRefused(Sink out) {
+    // Every joint the policy drives must be fitted: the loop reads and writes
+    // fitted servos only, and a policy joint that is not on the wire would be
+    // fed a stale angle forever.
+    const obs::Calibration& cal = robot::calibration();
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        if (cal.fitted[obs::policyToBus(j)]) continue;
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kRefusedNoCal));
+        say(out, "REFUSED: %s (id %d) drives the policy but is NOT FITTED "
+            "in the calibration -- `cal zero %s` or `cal fit %s 1`, then "
+            "`cal save`\r\n", obs::kJointNames[j],
+            static_cast<int>(obs::kServoId[j]), obs::kJointNames[j],
+            obs::kJointNames[j]);
+        return true;
+    }
+    // Gains are registers (AGENTS.md): read every fitted servo's 21/22 back
+    // before handing it the loop. A servo that is silent or reset refuses.
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus || !checkGains(bus, out, false)) {
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kRefusedGains));
+        out("REFUSED: position-loop gains not verified (see above; "
+            "`gains` for the table)\r\n");
+        return true;
+    }
+    return false;
+}
+
 void cmdMode(Sink out, bool run) {
     // No valid as-built calibration, no run. The default Calibration (zero
     // 2048, dir +1) is exactly the raw-middle pose that broke the feet on
@@ -975,18 +1081,9 @@ void cmdMode(Sink out, bool run) {
             "first -- driving the loop on 2048-defaults twists the robot.\r\n");
         return;
     }
-    // Gains are registers (AGENTS.md): read every servo's 21/22 back before
-    // handing it the loop. A servo that is silent or reset refuses the arm;
-    // re-arming an already-running loop does not re-read (the bus is ctrl's).
-    if (run && robot::g_mode_request.load() != robot::Mode::kRun) {
-        scsbus::Bus* bus = claimBus(out);
-        if (!bus || !checkGains(bus, out, false)) {
-            robot::g_arm_result.store(
-                static_cast<uint8_t>(linkproto::ArmResult::kRefusedGains));
-            out("REFUSED: position-loop gains not verified (see above; "
-                "`gains` for the table)\r\n");
-            return;
-        }
+    if (run && robot::g_mode_request.load() != robot::Mode::kRun &&
+        armRefused(out)) {
+        return;
     }
     robot::g_arm_result.store(
         static_cast<uint8_t>(linkproto::ArmResult::kAccepted));
@@ -1010,12 +1107,15 @@ void cmdMode(Sink out, bool run) {
 // residual the horn splines cannot -- the ST3215 horn seats on discrete teeth,
 // so a purely mechanical zero is never exact.
 void cmdCal(Sink out, int argc, char** argv) {
+    // Joints are named by joint name (`L_knee`) or servo ID (`7`); rows are
+    // bus joints, servo-ID order (obs/bus_map.h).
     obs::Calibration& cal = robot::calibration();
     if (argc < 2 || !strcmp(argv[1], "show")) {
-        for (int j = 0; j < obs::kNumJoints; ++j) {
-            say(out, "  %-12s id %2d  zero %4ld  dir %+d\r\n",
-                obs::kJointNames[j], obs::kServoId[j],
-                static_cast<long>(cal.zero_steps[j]), cal.dir[j]);
+        for (int b = 0; b < obs::kNumBusJoints; ++b) {
+            say(out, "  %-12s id %2d  zero %4ld  dir %+d  %s\r\n",
+                obs::kBusJointNames[b], obs::kBusServoId[b],
+                static_cast<long>(cal.zero_steps[b]), cal.dir[b],
+                cal.fitted[b] ? "fitted" : "NOT FITTED");
         }
         say(out, "%s\r\n", robot::g_cal_from_nvs
                                 ? "loaded from NVS at boot"
@@ -1026,21 +1126,39 @@ void cmdCal(Sink out, int argc, char** argv) {
         scsbus::Bus* bus = claimBus(out);
         if (!bus) return;
         // Latch wherever the joints are RIGHT NOW as angle zero. Only correct
-        // when the robot is physically held at the CAD-neutral pose.
-        const long only = argc >= 3 ? num(argv[2], -1) : -1;
+        // when the robot is physically held at the CAD-neutral pose. With no
+        // joint named, every bus joint is tried, and the answer also sets
+        // the fitted set: a servo that replies is fitted, one that does not
+        // is marked NOT FITTED (a 10-servo prototype comes out as IDs 1-10).
+        int only = -1;
+        if (argc >= 3) {
+            only = parseBusJoint(argv[2]);
+            if (only < 0) {
+                say(out, "cal zero: no joint '%s' (a joint name or a servo "
+                    "ID)\r\n", argv[2]);
+                return;
+            }
+        }
         int done = 0;
-        for (int j = 0; j < obs::kNumJoints; ++j) {
-            if (only >= 0 && j != only) continue;
+        for (int b = 0; b < obs::kNumBusJoints; ++b) {
+            if (only >= 0 && b != only) continue;
             int32_t pos = 0;
-            if (bus->readPosition(obs::kServoId[j], pos) !=
+            if (bus->readPosition(obs::kBusServoId[b], pos) !=
                 scsbus::Status::kOk) {
-                say(out, "  %-12s NO REPLY -- left unchanged\r\n",
-                    obs::kJointNames[j]);
+                if (only < 0) {
+                    cal.fitted[b] = 0;
+                    say(out, "  %-12s NO REPLY -- marked NOT FITTED\r\n",
+                        obs::kBusJointNames[b]);
+                } else {
+                    say(out, "  %-12s NO REPLY -- left unchanged\r\n",
+                        obs::kBusJointNames[b]);
+                }
                 continue;
             }
-            cal.zero_steps[j] = pos;
+            cal.zero_steps[b] = pos;
+            cal.fitted[b] = 1;
             ++done;
-            say(out, "  %-12s zero <- %ld\r\n", obs::kJointNames[j],
+            say(out, "  %-12s zero <- %ld\r\n", obs::kBusJointNames[b],
                 static_cast<long>(pos));
         }
         say(out, "%d joint(s) zeroed -- NOT saved yet, run `cal save`\r\n",
@@ -1049,58 +1167,76 @@ void cmdCal(Sink out, int argc, char** argv) {
     }
     if (!strcmp(argv[1], "dir") && argc >= 4) {
         if (!claimBus(out)) return;           // writer-vs-ctrl-reader guard
-        const long j = num(argv[2], -1), d = num(argv[3], 0);
-        if (j < 0 || j >= obs::kNumJoints || (d != 1 && d != -1)) {
-            out("usage: cal dir <joint 0-9> <1|-1>\r\n");
+        const int b = parseBusJoint(argv[2]);
+        const long d = num(argv[3], 0);
+        if (b < 0 || (d != 1 && d != -1)) {
+            out("usage: cal dir <joint name|servo id> <1|-1>\r\n");
             return;
         }
-        cal.dir[j] = static_cast<int8_t>(d);
+        cal.dir[b] = static_cast<int8_t>(d);
         say(out, "%s dir <- %+ld -- run `cal save`\r\n",
-            obs::kJointNames[j], d);
+            obs::kBusJointNames[b], d);
         return;
     }
     if (!strcmp(argv[1], "set") && argc >= 5) {
         // Type a row of docs/servo-map.md's as-built table straight in --
         // recovery path when the robot cannot be posed (e.g. broken parts).
         if (!claimBus(out)) return;           // writer-vs-ctrl-reader guard
-        const long j = num(argv[2], -1);
+        const int b = parseBusJoint(argv[2]);
         const long z = num(argv[3], -1);
         const long d = num(argv[4], 0);
-        if (j < 0 || j >= obs::kNumJoints || z < 0 || z > 4095 ||
-            (d != 1 && d != -1)) {
-            out("usage: cal set <joint 0-9> <zero 0-4095> <1|-1>\r\n");
+        if (b < 0 || z < 0 || z > 4095 || (d != 1 && d != -1)) {
+            out("usage: cal set <joint name|servo id> <zero 0-4095> <1|-1>\r\n");
             return;
         }
-        cal.zero_steps[j] = static_cast<int32_t>(z);
-        cal.dir[j] = static_cast<int8_t>(d);
-        say(out, "%s zero <- %ld dir <- %+ld -- run `cal save`\r\n",
-            obs::kJointNames[j], z, d);
+        cal.zero_steps[b] = static_cast<int32_t>(z);
+        cal.dir[b] = static_cast<int8_t>(d);
+        cal.fitted[b] = 1;
+        say(out, "%s zero <- %ld dir <- %+ld (fitted) -- run `cal save`\r\n",
+            obs::kBusJointNames[b], z, d);
+        return;
+    }
+    if (!strcmp(argv[1], "fit") && argc >= 4) {
+        // Say by hand which servos this robot carries: the loop, `pose`,
+        // `home`, `ping` and the gain check touch fitted servos only.
+        if (!claimBus(out)) return;           // writer-vs-ctrl-reader guard
+        const int b = parseBusJoint(argv[2]);
+        const long f = num(argv[3], -1);
+        if (b < 0 || (f != 0 && f != 1)) {
+            out("usage: cal fit <joint name|servo id> <0|1>\r\n");
+            return;
+        }
+        cal.fitted[b] = static_cast<uint8_t>(f);
+        say(out, "%s %s -- run `cal save`\r\n", obs::kBusJointNames[b],
+            f ? "fitted" : "NOT FITTED");
         return;
     }
     if (!strcmp(argv[1], "migrate")) {
-        // Normally unnecessary -- boot auto-migrates a v1 blob that matches
-        // the compiled as-built table (asbuilt_cal.h). This is the manual
-        // path for everything else: a v1 blob with UNKNOWN values loads into
-        // the live cal only, and a human decides before `cal save`.
+        // Normally unnecessary -- boot migrates a v2 blob, and a v1 blob that
+        // matches the compiled as-built table (asbuilt_cal.h), to v3 by
+        // itself. This is the manual path for everything else: a v1 blob
+        // with UNKNOWN values loads into the live cal only, and a human
+        // decides before `cal save`.
         if (!claimBus(out)) return;
         obs::Calibration old;
         if (!robot::calLoadV1(old)) {
-            out("no readable v1 blob in NVS (already v2, empty, or corrupt)\r\n");
+            out("no readable v1 blob in NVS (already v2/v3, empty, or corrupt)\r\n");
             return;
         }
         cal = old;
         if (robot::calIsAsBuilt(cal)) {
             const bool ok = robot::calSave(cal);
             robot::g_cal_from_nvs = ok;
-            say(out, "v1 blob matches the as-built table -- saved as v2: "
+            say(out, "v1 blob matches the as-built table -- saved as v3: "
                 "%s\r\n", ok ? "ok" : "FAILED");
             return;
         }
-        robot::g_cal_from_nvs = false;        // not blessed until saved as v2
-        for (int j = 0; j < obs::kNumJoints; ++j) {
+        robot::g_cal_from_nvs = false;        // not blessed until saved as v3
+        for (int b = 0; b < obs::kNumBusJoints; ++b) {
+            if (!cal.fitted[b]) continue;
             say(out, "  %-12s id %2d  zero %4ld  dir %+d\r\n",
-                obs::kJointNames[j], obs::kServoId[j],
-                static_cast<long>(cal.zero_steps[j]), cal.dir[j]);
+                obs::kBusJointNames[b], obs::kBusServoId[b],
+                static_cast<long>(cal.zero_steps[b]), cal.dir[b]);
         }
         out("v1 blob does NOT match asbuilt_cal.h -- loaded into the LIVE\r\n"
             "cal only. Verify against docs/servo-map.md, then `cal save`,\r\n"
@@ -1126,10 +1262,11 @@ void cmdCal(Sink out, int argc, char** argv) {
         cal = obs::Calibration();
         robot::calErase();
         robot::g_cal_from_nvs = false;
-        out("cal reset to defaults (zero 2048, dir +1) and erased\r\n");
+        out("cal reset to defaults (zero 2048, dir +1, all fitted) and erased\r\n");
         return;
     }
-    out("usage: cal [show] | zero [joint] | dir <joint> <1|-1> | set <joint> <zero> <1|-1>\r\n       | migrate | save | load | reset\r\n");
+    out("usage: cal [show] | zero [joint] | dir <joint> <1|-1> | set <joint> <zero> <1|-1>\r\n"
+        "       | fit <joint> <0|1> | migrate | save | load | reset   (joint = name or servo id)\r\n");
 }
 
 void cmdStat(Sink out) {
@@ -1155,6 +1292,9 @@ void cmdStat(Sink out) {
     say(out, "policy: %s, %d joints, obs %d, run %s\r\n",
         policy::kWeightsArePlaceholder ? "PLACEHOLDER WEIGHTS" : "exported",
         obs::kNumJoints, obs::kObsDim, obs::kRunName);
+    say(out, "bus: %d of %d servos fitted (cal)\r\n",
+        robot::fittedBusJoints(robot::calibration(), nullptr, nullptr),
+        obs::kNumBusJoints);
 }
 
 // -- obsdump ---------------------------------------------------------------
@@ -1289,23 +1429,28 @@ void poseTick(Sink out) {
     // being poked one tick every 20 ms against its dead zone.
     const int32_t kBigStep = s_traj_bigstep;
     const long kMinIntervalMs = s_traj_minint_ms;
-    int32_t steps[obs::kNumJoints];
-    uint16_t spds[obs::kNumJoints];
+    uint8_t ids[obs::kNumBusJoints];
+    int32_t steps[obs::kNumBusJoints];
+    uint16_t spds[obs::kNumBusJoints];
+    int n = 0;
     bool changed = false;
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        const float d = static_cast<float>(s_traj_tgt[i] - s_traj_start[i]);
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!s_traj_on[b]) continue;
+        const float d = static_cast<float>(s_traj_tgt[b] - s_traj_start[b]);
         const int32_t want = tau >= 1.0f
-            ? s_traj_tgt[i]
-            : s_traj_start[i] + static_cast<int32_t>(lroundf(sc * d));
-        const int32_t dstep = want - s_traj_sent[i];
+            ? s_traj_tgt[b]
+            : s_traj_start[b] + static_cast<int32_t>(lroundf(sc * d));
+        const int32_t dstep = want - s_traj_sent[b];
         const int32_t mag = dstep < 0 ? -dstep : dstep;
-        const long since_ms = static_cast<long>(pdTICKS_TO_MS(now - s_traj_tsent[i]));
+        const long since_ms = static_cast<long>(pdTICKS_TO_MS(now - s_traj_tsent[b]));
         const bool go = (mag >= kBigStep) ||
                         (mag >= 1 && since_ms >= kMinIntervalMs) ||
                         (tau >= 1.0f && mag >= 1);
+        ids[n] = obs::kBusServoId[b];
         if (!go) {
-            steps[i] = s_traj_sent[i];
-            spds[i] = s_traj_spd[i];
+            steps[n] = s_traj_sent[b];
+            spds[n] = s_traj_spd[b];
+            ++n;
             continue;
         }
         changed = true;
@@ -1314,8 +1459,8 @@ void poseTick(Sink out) {
         // one tick. Open-loop "profile speed x 0.9" let lag accumulate to ~10 %
         // of the move, which the servo then crept off at the floor speed for
         // a second after the profile ended -- the wobbly finish.
-        int32_t actual = s_traj_sent[i];
-        bus->readPosition(robot::servoIds()[i], actual);
+        int32_t actual = s_traj_sent[b];
+        bus->readPosition(obs::kBusServoId[b], actual);
         const int32_t gap = want - actual;
         const int32_t gapmag = gap < 0 ? -gap : gap;
         const long dt_ms = since_ms < 20 ? 20 : since_ms;
@@ -1323,14 +1468,15 @@ void poseTick(Sink out) {
                   s_traj_headroom;
         if (v < s_traj_floor) v = s_traj_floor;
         if (v > 3400.0f) v = 3400.0f;
-        steps[i] = want;
-        spds[i] = static_cast<uint16_t>(v);
-        s_traj_sent[i] = want;
-        s_traj_spd[i] = spds[i];
-        s_traj_tsent[i] = now;
+        steps[n] = want;
+        spds[n] = static_cast<uint16_t>(v);
+        s_traj_sent[b] = want;
+        s_traj_spd[b] = spds[n];
+        s_traj_tsent[b] = now;
+        ++n;
     }
-    if (changed) {
-        bus->syncWritePositions(robot::servoIds(), steps, spds, obs::kNumJoints,
+    if (changed && n > 0) {
+        bus->syncWritePositions(ids, steps, spds, static_cast<size_t>(n),
                                 s_traj_acc);
     }
     traceTick(bus, now);
@@ -1363,7 +1509,7 @@ void homeVerify(Sink out) {
         // the play take-up: one hip at a time, out then back to zero
         ++s_home_stage;
         const obs::Calibration& cal = robot::calibration();
-        int32_t tgt[obs::kNumJoints];
+        int32_t tgt[obs::kNumBusJoints];
         memcpy(tgt, s_home_tgt, sizeof tgt);
         const bool left = s_home_stage <= 2;
         const bool outward = (s_home_stage % 2) == 1;
@@ -1371,14 +1517,14 @@ void homeVerify(Sink out) {
             // abduction is +roll on the LEFT joint and -roll on the RIGHT in
             // the joint frame (mech_envelope.h / servo-map.md); the cal dir
             // maps joint sign to servo ticks
-            const int j = left ? kIdxLRoll : kIdxRRoll;
+            const int b = left ? kBusLRoll : kBusRRoll;
             const float deg = left ? kHomeWiggleDeg : -kHomeWiggleDeg;
-            const float ticks = deg * (4096.0f / 360.0f) * static_cast<float>(cal.dir[j]);
-            tgt[j] = clampToJointRange(robot::servoIds()[j],
-                                       s_home_tgt[j] + static_cast<int32_t>(ticks + (ticks >= 0 ? 0.5f : -0.5f)),
+            const float ticks = deg * (4096.0f / 360.0f) * static_cast<float>(cal.dir[b]);
+            tgt[b] = clampToJointRange(obs::kBusServoId[b],
+                                       s_home_tgt[b] + static_cast<int32_t>(ticks + (ticks >= 0 ? 0.5f : -0.5f)),
                                        out);
         }
-        if (!startSmooth(bus, tgt, kHomeWiggleMs, out)) {
+        if (!startSmooth(bus, tgt, s_home_on, kHomeWiggleMs, out, "home")) {
             s_home_pending = false;
             robot::g_arm_result.store(
                 static_cast<uint8_t>(linkproto::ArmResult::kHomeNotReached));
@@ -1392,20 +1538,22 @@ void homeVerify(Sink out) {
         return;
     }
     s_home_pending = false;
-    int off = 0;
-    for (int j = 0; j < obs::kNumJoints; ++j) {
+    int off = 0, n = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!s_home_on[b]) continue;
+        ++n;
         int32_t cur = 0;
-        const uint8_t id = robot::servoIds()[j];
+        const uint8_t id = obs::kBusServoId[b];
         if (bus->readPosition(id, cur) != scsbus::Status::kOk) {
             say(out, "home readback: id %u did not answer\r\n", id);
             ++off;
             continue;
         }
-        const int32_t d = cur - s_home_tgt[j];
+        const int32_t d = cur - s_home_tgt[b];
         if (d > kHomeTolTicks || d < -kHomeTolTicks) {
             say(out, "home readback: %s id %u at %ld, zero %ld (%+ld ticks)\r\n",
-                obs::kJointNames[j], id, static_cast<long>(cur),
-                static_cast<long>(s_home_tgt[j]), static_cast<long>(d));
+                obs::kBusJointNames[b], id, static_cast<long>(cur),
+                static_cast<long>(s_home_tgt[b]), static_cast<long>(d));
             ++off;
         }
     }
@@ -1413,8 +1561,8 @@ void homeVerify(Sink out) {
     // friction holds the stand; arming re-engages torque.
     const scsbus::Status rs = bus->torqueEnable(scsbus::kBroadcastId, false);
     if (off == 0) {
-        say(out, "home readback: all 10 joints at their zeros -- torque "
-                 "RELEASED (%s); arm to walk\r\n", statusName(rs));
+        say(out, "home readback: all %d joints at their zeros -- torque "
+                 "RELEASED (%s); arm to walk\r\n", n, statusName(rs));
         robot::g_arm_result.store(
             static_cast<uint8_t>(linkproto::ArmResult::kDisarmedHome));
     } else {
@@ -1886,11 +2034,11 @@ void cmdWifi(Sink out, int argc, char** argv) {
 void banner(Sink out) {
     out("\r\nbimo firmware v1 -- bench mode (nothing moves until `run`)\r\n");
     out("  scan                 ping IDs 0-253, report position/voltage/faults\r\n");
-    out("  ping [id]            no id = check exactly the policy's servos\r\n");
+    out("  ping [id]            no id = every bus servo against the fitted set\r\n");
     out("  id <old> <new>       assign a servo ID (EEPROM, one servo on the bus)\r\n");
     out("  pos <id>             position, speed, load, voltage, temp, faults\r\n");
     out("  move <id> <ticks> [ms] [steps/s]   2048 == middle, 4096 ticks/rev\r\n");
-    out("  pose <t0..t9> [s<ms>|t<ms>|steps/s]  all 10 targets (joint order);\r\n"
+    out("  pose <17 ticks, id 1..17 | 10 ticks, policy order> [s<ms>|t<ms>|steps/s]\r\n"
         "                       default = SMOOTH min-jerk (auto duration); s<ms> sets it,\r\n"
         "                       tokens h<pct> a<acc> b<ticks> i<ms>; t<ms> unison; N = const speed\r\n");
     out("  reg <id> <addr> [1|2]  READ a servo register (PID 21-23, deadzone 26/27, acc 41)\r\n");
@@ -1902,7 +2050,7 @@ void banner(Sink out) {
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
     out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");
     out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
-    out("  cal [show|zero|dir|set|migrate|save|load|reset]   zero + dir (NVS)\r\n");
+    out("  cal [show|zero|dir|set|fit|migrate|save|load|reset]   zero, dir, fitted (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  obsfreeze [none|up|gyro|imu|dq|gain=k]  bench: freeze/scale policy-obs parts\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
@@ -1951,15 +2099,15 @@ void linkHome(Sink out) {
 }
 
 void execute(const char* line, Sink out) {
-    char buf[96];
+    char buf[linkproto::kMaxCliLine + 1];
     strncpy(buf, line, sizeof buf - 1);
     buf[sizeof buf - 1] = 0;
-    // 24 tokens: `pose` + 10 targets + mode + up to a dozen tuning tokens
-    // (h/a/b/i/f/z/T). It was 13 until 2026-09-03, which silently dropped
-    // every tuning token after the first -- three "A/B/C" bench comparisons
-    // were run on identical settings before this was found.
-    char* argv[24];
-    const int argc = split(buf, argv, 24);
+    // 40 tokens: `pose` + 17 targets + mode + up to a dozen tuning tokens
+    // (h/a/b/i/f/z/T), with room to spare. It was 13 until 2026-09-03, which
+    // silently dropped every tuning token after the first -- three "A/B/C"
+    // bench comparisons were run on identical settings before this was found.
+    char* argv[40];
+    const int argc = split(buf, argv, 40);
     if (argc == 0) return;
     const char* c = argv[0];
 

@@ -106,7 +106,8 @@ def _status(t, vx, wz, flags, tlm):
         link = (f"{tlm.state.value:5s} {tlm.vbat_v:4.1f}V "
                 f"up{tlm.up_z:4.2f} vx{tlm.vx_est:+5.2f}")
         if tlm.servo_err:
-            link += f" ERR{tlm.servo_err:08b}"
+            ids = [str(b + 1) for b in range(32) if tlm.servo_err >> b & 1]
+            link += f" ERR id {','.join(ids)}"
         if tlm.state is LinkState.BENCH:
             # A benched robot ignores every command in this stream. Say why
             # here instead of leaving the operator to watch a status line

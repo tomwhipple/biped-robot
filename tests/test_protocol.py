@@ -19,8 +19,7 @@ from protocol import (CMD_LEN, DIAG_ARM_SHIFT, DIAG_CAL_OK,  # noqa: E402
                       DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,
                       FLAG_POSE,
                       NUM_JOINTS, RELAX_MS,
-                      STALE_MS, TLM_LEN, TLM_LEN_EXT, TLM_LEN_EXT_V1,
-                      TLM_LEN_V1, V_MAX, W_MAX,
+                      STALE_MS, TLM_LEN, TLM_LEN_EXT, V_MAX, W_MAX,
                       ArmLatch, ArmResult, HomeLatch, is_home_result,
                       Command, LinkState, ProtocolError, Supervisor,
                       Telemetry, Watchdog, clamp_to_envelope, crc16_ccitt,
@@ -116,29 +115,18 @@ def test_telemetry_rejects_command_frame():
 T_REAL = 1788390475605401       # 2026-09-02T22:27:55.605401Z, a real reading
 
 
-def _legacy(t):
-    """What a robot flashed before the stamp beacons: body [+ joints] + CRC.
-
-    protocol.py cannot emit this any more, so the test packs it by hand from
-    the stamped frame -- which is also the claim being made: the legacy
-    frame IS the stamped frame with 8 bytes cut out of the middle."""
-    wire = encode_telemetry(t)
-    body = wire[:18] + wire[26:-2]
-    return body + struct.pack("<H", crc16_ccitt(body))
-
-
 def test_timestamp_round_trips_on_both_lengths():
     t = Telemetry(seq_echo=1, state=LinkState.LIVE, vbat_v=11.4, up_z=1.0,
                   vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
                   t_us=T_REAL)
     wire = encode_telemetry(t)
-    assert len(wire) == TLM_LEN == 28
-    assert struct.unpack("<Q", wire[18:26]) == (T_REAL,)     # LE, after body
+    assert len(wire) == TLM_LEN == 31
+    assert struct.unpack("<Q", wire[21:29]) == (T_REAL,)     # LE, after body
     got = decode_telemetry(wire)
     assert got.t_us == T_REAL
     assert got.t_utc == pytest.approx(1788390475.605401, abs=1e-6)
     long = encode_telemetry(t._replace(joints=(0.1,) * NUM_JOINTS))
-    assert len(long) == TLM_LEN_EXT == 48
+    assert len(long) == TLM_LEN_EXT == 65
     assert decode_telemetry(long).t_us == T_REAL
     assert decode_telemetry(long).joints == pytest.approx((0.1,) * NUM_JOINTS)
 
@@ -160,28 +148,41 @@ def test_u64_range_is_enforced():
             encode_telemetry(Telemetry(t_us=bad, **base))
 
 
-def test_legacy_frames_still_decode_with_no_time():
-    """A console from this tree against the robot as flashed on 2026-09-02.
-
-    The pre-stamp lengths (20 B, 40 B) decode with t_us = 0 and everything
-    else intact; they are the one kind of frame that says "unsynced" for a
-    reason other than SNTP."""
+def test_version_one_frames_are_refused():
+    """Protocol version 2 (issue #81) changed the telemetry BASE block (a u32
+    servo_err, 17 joints), which no length can express. So the version byte
+    is 2 in both directions and a version-1 frame of either kind is refused
+    outright -- never half-read as the new layout."""
     t = Telemetry(seq_echo=4242, state=LinkState.STAND, vbat_v=11.2,
                   up_z=0.97, vx_est=0.25, wz_est=-0.1, servo_err=0x03,
                   loop_late_pct=4, t_us=T_REAL)
-    short = _legacy(t)
-    assert len(short) == TLM_LEN_V1 == 20
-    got = decode_telemetry(short)
-    assert got.t_us == 0 and got.t_utc is None and got.joints == ()
-    assert got.seq_echo == 4242 and got.state is LinkState.STAND
-    assert got.vbat_v == pytest.approx(11.2, abs=1e-3)
-    assert got.servo_err == 0x03 and got.loop_late_pct == 4
+    for wire in (encode_telemetry(t), encode_command(7, 0.5, 0.0, FLAG_ENABLE)):
+        body = bytearray(wire[:-2])
+        assert body[2] == P.VERSION == 2
+        body[2] = 1
+        v1 = bytes(body) + struct.pack("<H", crc16_ccitt(bytes(body)))
+        with pytest.raises(ProtocolError, match="version"):
+            (decode_telemetry if wire[1:2] == b"T" else decode_command)(v1)
+    # ... and the v1 lengths (28 B classic, 48 B with ten joints) are not
+    # layouts any more.
+    long = encode_telemetry(t._replace(joints=(0.0,) * NUM_JOINTS))
+    for n in (20, 28, 40, 48):
+        with pytest.raises(ProtocolError):
+            decode_telemetry(long[:n])
 
-    q = tuple(0.1 * i - 0.5 for i in range(NUM_JOINTS))
-    long = _legacy(t._replace(joints=q))
-    assert len(long) == TLM_LEN_EXT_V1 == 40
-    got = decode_telemetry(long)
-    assert got.t_us == 0 and got.joints == pytest.approx(q, abs=1e-3)
+
+def test_servo_err_carries_all_seventeen_servos():
+    """Bit b = servo ID b + 1; the prototype's byte-wide field folded IDs 9
+    and 10 onto bits 0 and 1, and could not name 11-17 at all."""
+    for err in (1 << 16, 1 << 9, 0x1FFFF, 0xFFFFFFFF):
+        t = Telemetry(seq_echo=1, state=LinkState.LIVE, vbat_v=11.4,
+                      up_z=1.0, vx_est=0.0, wz_est=0.0, servo_err=err,
+                      loop_late_pct=0)
+        assert decode_telemetry(encode_telemetry(t)).servo_err == err
+    assert P.NUM_JOINTS == len(P.JOINT_NAMES) == 17
+    assert P.JOINT_NAMES[:10] == (
+        "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle", "L_hip_roll",
+        "L_hip_pitch", "L_knee", "L_ankle", "R_hip_yaw", "L_hip_yaw")
 
 
 def test_the_crc_covers_the_timestamp():
@@ -189,7 +190,7 @@ def test_the_crc_covers_the_timestamp():
                   vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
                   t_us=T_REAL)
     wire = bytearray(encode_telemetry(t))
-    wire[21] ^= 0x10                       # a bit inside t_us
+    wire[24] ^= 0x10                       # a bit inside t_us
     with pytest.raises(ProtocolError):
         decode_telemetry(bytes(wire))
 
@@ -559,13 +560,14 @@ def test_diag_rides_seq_echo_only_while_benched():
 
 
 def test_diag_frame_still_decodes_on_a_client_that_knows_nothing_of_it():
-    # An old commander sees an ordinary v1 frame with a small seq_echo --
-    # indistinguishable from a fresh boot, and never a false servo fault.
+    # A commander that knows nothing of the diag sees an ordinary frame with a
+    # small seq_echo -- indistinguishable from a fresh boot, and never a false
+    # servo fault.
     t = Telemetry(seq_echo=pack_diag(False, True, ArmResult.REFUSED_NO_CAL),
                   state=LinkState.BENCH, vbat_v=11.4, up_z=0.0, vx_est=0.0,
                   wz_est=0.0, servo_err=0, loop_late_pct=0)
     wire = encode_telemetry(t)
-    assert len(wire) == TLM_LEN and wire[2] == 1        # unchanged version
+    assert len(wire) == TLM_LEN and wire[2] == P.VERSION
     got = decode_telemetry(wire)
     assert got.servo_err == 0 and got.loop_late_pct == 0
 
@@ -629,7 +631,7 @@ def test_not_asking_changes_nothing():
     A robot that is not asked for joint angles must beacon the classic frame,
     byte for byte -- otherwise bimo_tui, commander.py and both twins go blind
     at once, which is why this frame is requested rather than volunteered.
-    (Since 2026-09-02 "classic" is the 28 B stamped frame.)
+    ("Classic" is the 31 B stamped frame.)
     """
     t = _tlm()
     assert len(encode_telemetry(t)) == TLM_LEN
@@ -639,8 +641,7 @@ def test_not_asking_changes_nothing():
 def test_a_length_between_the_four_is_refused():
     wire = encode_telemetry(_tlm(joints=(0.0,) * NUM_JOINTS))
     for bad in (wire[:TLM_LEN + 2], wire[:-1], wire + b"\x00",
-                wire[:TLM_LEN_V1 + 1], wire[:TLM_LEN_EXT_V1 + 1],
-                wire[:TLM_LEN_V1 - 1]):
+                wire[:28], wire[:48], wire[:TLM_LEN - 1]):
         with pytest.raises(ProtocolError):
             decode_telemetry(bad)
 
@@ -648,7 +649,7 @@ def test_a_length_between_the_four_is_refused():
 def test_the_crc_covers_the_joints():
     q = [0.0] * NUM_JOINTS
     wire = bytearray(encode_telemetry(_tlm(joints=tuple(q))))
-    wire[28] ^= 0x01                       # flip a bit inside a joint field
+    wire[TLM_LEN] ^= 0x01                  # flip a bit inside a joint field
     with pytest.raises(ProtocolError):
         decode_telemetry(bytes(wire))
 
@@ -686,7 +687,7 @@ def test_attitude_block_is_additive():
 
     att = P.encode_telemetry(P.Telemetry(**base, up_xy=(0.45, -0.10)))
     assert len(att) == P.TLM_LEN_ATT
-    assert att[:18] == plain[:18]          # only the CRC moved
+    assert att[:TLM_LEN - 2] == plain[:TLM_LEN - 2]   # only the CRC moved
 
     got = P.decode_telemetry(att)
     assert got.up_xy == pytest.approx((0.45, -0.10), abs=1e-3)
@@ -729,13 +730,14 @@ def test_attitude_frame_matches_firmware():
     until they don't; the house rule is that the port is diffed against a
     number, not against whatever the other side said.
     """
-    # Pinned to link/protocol.py's encoder, MERGED format: the u64 t_us
-    # (zero here -- never synced) at offset 18, then the att block, then the
-    # CRC. Same literal as firmware/host/test_protocol.cpp asserts; regenerate
-    # with tools/gen_protocol_vectors.py when the frame layout changes.
+    # Pinned to link/protocol.py's encoder, version 2: the u32 servo_err at
+    # 16, loop_late_pct at 20, the u64 t_us (zero here -- never synced) at 21,
+    # then the att block, then the CRC. Same literal as
+    # firmware/host/test_protocol.cpp asserts; re-pin both when the layout
+    # changes.
     want = bytes.fromhex(
-        "4254010092100000ec2c7703900106ff0003"
-        "0000000000000000c2019cff3ef6")
+        "4254020092100000ec2c7703900106ff0000000003"
+        "0000000000000000c2019cff044d")
     got = P.encode_telemetry(P.Telemetry(
         seq_echo=4242, state=P.LinkState.LIVE, vbat_v=11.5, up_z=0.887,
         vx_est=0.4, wz_est=-0.25, servo_err=0, loop_late_pct=3,

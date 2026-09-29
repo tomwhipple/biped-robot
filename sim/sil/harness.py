@@ -39,6 +39,8 @@ ROOT = os.path.dirname(SIM)
 FIRMWARE = os.path.join(ROOT, "firmware")
 SPEC_H = os.path.join(FIRMWARE, "components", "obs", "include", "obs",
                       "obs_spec.h")
+BUS_MAP_H = os.path.join(FIRMWARE, "components", "obs", "include", "obs",
+                         "bus_map.h")
 
 WEIGHTS_DIR = os.path.join(HERE, "weights")
 GOLDEN_DIR = os.path.join(HERE, "golden")
@@ -178,6 +180,25 @@ def _parse_obs_spec(path=SPEC_H) -> ObsSpec:
 
 
 SPEC = _parse_obs_spec()
+
+
+
+def _parse_bus_map(path=BUS_MAP_H):
+    """obs/bus_map.h: every servo on the robot's bus, servo-ID order. The SIL
+    arrays (SilSensors.pos_ticks, SilTargets.goal_ticks ...) are this wide."""
+    txt = open(path).read()
+    n = int(re.search(r"kNumBusJoints\s*=\s*(\d+);", txt).group(1))
+    m = re.search(r"kBusJointNames\[kNumBusJoints\]\s*=\s*\{(.*?)\};", txt,
+                  re.S)
+    names = tuple(re.findall(r'"([^"]+)"', m.group(1)))
+    m = re.search(r"kBusServoId\[kNumBusJoints\]\s*=\s*\{([^}]*)\}", txt)
+    ids = tuple(int(x) for x in m.group(1).replace("\n", " ").split(",")
+                if x.strip())
+    assert len(names) == len(ids) == n, (len(names), len(ids), n)
+    return n, names, ids
+
+
+NUM_BUS, BUS_NAMES, BUS_IDS = _parse_bus_map()
 
 # Joint limits, read from the same generated header, so the harness's inverse
 # action map is the firmware's forward map run backwards -- not a second copy
@@ -393,21 +414,23 @@ def joint_to_slot_perm(spec: ObsSpec = SPEC):
     return np.asarray(spec.servo_id, dtype=np.int64) - 1
 
 
-def to_bus(values, order, spec: ObsSpec = SPEC):
-    """Joint-indexed -> the wire array the library expects."""
+def to_bus(values, order, spec: ObsSpec = SPEC, fill=0):
+    """Policy-joint-indexed -> the NUM_BUS-wide wire array the library
+    expects. Slots no policy joint maps to get `fill`."""
     v = np.asarray(values)
+    out = np.full(NUM_BUS, fill, dtype=v.dtype)
     if order == "joint":
-        return v
-    out = np.empty_like(v)
-    out[joint_to_slot_perm(spec)] = v
+        out[:len(v)] = v
+    else:
+        out[joint_to_slot_perm(spec)] = v
     return out
 
 
 def from_bus(values, order, spec: ObsSpec = SPEC):
-    """The library's wire array -> joint-indexed."""
+    """The library's NUM_BUS-wide wire array -> policy-joint-indexed."""
     v = np.asarray(values)
     if order == "joint":
-        return v
+        return v[:spec.num_joints]
     return v[joint_to_slot_perm(spec)]
 
 
@@ -415,6 +438,7 @@ def from_bus(values, order, spec: ObsSpec = SPEC):
 #  the C ABI
 # =====================================================================
 NJ = SPEC.num_joints
+NB = NUM_BUS             # the SIL arrays are bus-wide (sil_abi 3)
 NCMD = SPEC.num_cmd
 NOBS = SPEC.obs_dim
 NACT = SPEC.act_dim
@@ -423,8 +447,8 @@ NACT = SPEC.act_dim
 class SilSensors(ctypes.Structure):
     """docs/sil-harness.md: what the bus + IMU actually deliver."""
     _fields_ = [
-        ("pos_ticks", ctypes.c_uint16 * NJ),
-        ("vel_ticks", ctypes.c_int16 * NJ),
+        ("pos_ticks", ctypes.c_uint16 * NB),
+        ("vel_ticks", ctypes.c_int16 * NB),
         ("up", ctypes.c_float * 3),
         ("gyro", ctypes.c_float * 3),
         ("cmd", ctypes.c_float * NCMD),
@@ -433,12 +457,12 @@ class SilSensors(ctypes.Structure):
 
 class SilTargets(ctypes.Structure):
     _fields_ = [
-        ("goal_ticks", ctypes.c_uint16 * NJ),
+        ("goal_ticks", ctypes.c_uint16 * NB),
         ("action", ctypes.c_float * NACT),
         ("obs", ctypes.c_float * NOBS),
         # sil_abi 2: the per-servo goal speed (reg 46, steps/s) the SYNC WRITE
         # carries with the C2-shaped targets; 0 when shaping is off.
-        ("goal_speed", ctypes.c_uint16 * NJ),
+        ("goal_speed", ctypes.c_uint16 * NB),
     ]
 
 
@@ -566,6 +590,8 @@ class SilLib:
         vsteps = np.full(n, -137, dtype=np.int64)     # constant: order-blind
 
         s = SilSensors()
+        for i in range(NB):              # servos no policy joint maps to sit
+            s.pos_ticks[i] = CENTER_STEPS  # at their middle
         for i in range(n):
             s.pos_ticks[i] = int(ticks[i])
             s.vel_ticks[i] = int(vsteps[i])
@@ -606,9 +632,9 @@ class SilLib:
         act = np.asarray(out.action, dtype=np.float64)
         want = angle_to_steps(action_to_angles(act), self.cal)
         got = np.asarray(out.goal_ticks, dtype=np.int64)
-        d_joint = int(np.max(np.abs(got - want)))
-        d_bus = int(np.max(np.abs(got - to_bus(want, "ascending_id",
-                                               self.spec))))
+        d_joint = int(np.max(np.abs(from_bus(got, "joint", self.spec) - want)))
+        d_bus = int(np.max(np.abs(from_bus(got, "ascending_id", self.spec)
+                                  - want)))
         if forced not in ("joint", "ascending_id"):
             self.out_order = "joint" if d_joint <= d_bus else "ascending_id"
         if min(d_joint, d_bus) > 1:
@@ -639,12 +665,11 @@ class SilLib:
         boundary bug and was really the harness lying about the encoder.  Found
         2026-08-02 when the corrected knee sign let a stale policy lean on the
         +5 deg hyperextension stop (1.5 deg over, 17 ticks)."""
-        n = self.spec.num_joints
         ticks = to_bus(angle_to_steps(q, self.cal, clamp_joint_range=False),
-                       self.in_order, self.spec)
+                       self.in_order, self.spec, fill=CENTER_STEPS)
         vel = to_bus(rad_s_to_steps_s(dq, self.cal), self.in_order, self.spec)
         s = SilSensors()
-        for i in range(n):
+        for i in range(NB):
             s.pos_ticks[i] = int(ticks[i])
             v = int(vel[i])
             if self.vel_sign_magnitude:

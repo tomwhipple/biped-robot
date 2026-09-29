@@ -21,7 +21,8 @@
 
 namespace linkproto {
 
-constexpr size_t kMaxCliLine = 96;
+// Long enough for a 17-target `pose` line with its mode and tuning tokens.
+constexpr size_t kMaxCliLine = 192;
 
 class Demux {
   public:

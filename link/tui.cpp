@@ -189,10 +189,9 @@ void draw(const Options& o, const Link& link, const Intent& in, const Hold& hold
         mvprintw(row++, R, "vx_est   %+.2f m/s   wz_est %+.2f rad/s",
                  static_cast<double>(t.vx_est), static_cast<double>(t.wz_est));
         if (t.servo_err) {
-            char bits[16];
-            for (int b = 7; b >= 0; --b) bits[7 - b] = (t.servo_err >> b) & 1 ? '1' : '0';
-            bits[8] = 0;
-            mvprintw(row++, R, "servo    FAULT %s (bit i = ID i+1)", bits);
+            char ids[96];
+            mvprintw(row++, R, "servo    FAULT on id %s",
+                     bimo::faultIds(t.servo_err, ids, sizeof ids));
         } else {
             mvprintw(row++, R, "servo    ok");
         }

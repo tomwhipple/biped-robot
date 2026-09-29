@@ -21,30 +21,38 @@
 namespace robot {
 
 // Versioned, self-describing blob. The joint count is stored because the plant
-// changed from 8 to 10 DOF mid-project: restoring an 8-joint calibration into
-// a 10-joint build would silently leave two joints at defaults, which is the
-// kind of thing that is only noticed when a leg moves wrong.
+// changed from 8 to 10 DOF, and then the bus from 10 to 17 servos: restoring a
+// calibration into a build with a different joint list would silently leave
+// joints at defaults, which is the kind of thing that is only noticed when a
+// leg moves wrong.
 //
-// v2 also stores the SERVO MAP the calibration was measured under. The blob is
-// joint-indexed, so it only means anything relative to kServoId at measurement
-// time: on 2026-08-02 the whole-chain leg-swap errata changed the map after an
+// Every version also stores the SERVO MAP it was measured under: on
+// 2026-08-02 the whole-chain leg-swap errata changed the map after an
 // as-built calibration had been persisted, silently pairing 8 of 10 joints'
-// zeros and directions with the WRONG physical servos. A map mismatch (or a
-// v1 blob, which cannot prove its map) is now rejected -- the robot boots
-// uncalibrated and `run` refuses, instead of twisting.
+// zeros and directions with the WRONG physical servos. A map mismatch is
+// rejected -- the robot boots uncalibrated and `run` refuses, instead of
+// twisting.
+//
+// v3 (issue #81) is indexed by BUS joint (obs/bus_map.h: index b is servo ID
+// b + 1), covers all 17 servos, and records which of them are fitted. v2 was
+// indexed by the prototype's 10 policy joints; a v2 blob migrates to v3
+// exactly and automatically at boot (calMigrateV2), so the robot keeps its
+// calibration across the change.
+constexpr int kCalPad = 4 - (3 * obs::kNumBusJoints) % 4;   // 1..4
 struct CalBlob {
     uint32_t magic;          // kCalMagic
     uint16_t version;        // kCalVersion
-    uint16_t joints;         // must equal obs::kNumJoints
-    int32_t zero_steps[obs::kNumJoints];
-    int8_t dir[obs::kNumJoints];
-    uint8_t servo_id[obs::kNumJoints];   // kServoId at measurement time
-    uint8_t pad[3];
+    uint16_t joints;         // must equal obs::kNumBusJoints
+    int32_t zero_steps[obs::kNumBusJoints];
+    int8_t dir[obs::kNumBusJoints];
+    uint8_t fitted[obs::kNumBusJoints];     // 1 = on the robot, 0 = absent
+    uint8_t servo_id[obs::kNumBusJoints];   // kBusServoId at measurement time
+    uint8_t pad[kCalPad];
     uint32_t crc;            // CRC-32 over everything above
 };
 
 constexpr uint32_t kCalMagic = 0x424D4331;   // "BMC1"
-constexpr uint16_t kCalVersion = 2;
+constexpr uint16_t kCalVersion = 3;
 
 // Pure, host-testable: pack/unpack + integrity. Unpack returns false and
 // leaves `out` untouched on any mismatch, so a corrupt or stale blob falls
@@ -53,17 +61,44 @@ void calPack(const obs::Calibration& cal, CalBlob& out);
 bool calUnpack(const CalBlob& blob, obs::Calibration& out);
 uint32_t calCrc32(const void* data, size_t len);
 
+// -- the prototype-era layouts ----------------------------------------------
+// v1 and v2 were indexed by the 10-DOF prototype's POLICY joint order, under
+// this servo map (the generated kServoId of every 10-joint run since the
+// 2026-08-02 errata). It is spelled out here, not taken from obs_spec.h, so a
+// future policy with a different joint list cannot change how an old blob is
+// read.
+inline constexpr int kLegacyJoints = 10;
+inline constexpr uint8_t kLegacyServoId[kLegacyJoints] = {10, 5, 6, 7, 8,
+                                                          9,  1, 2, 3, 4};
+
+// v2: joint-indexed, with its servo map. Proves its map, so it migrates to v3
+// automatically: each servo's zero and direction land on that servo's bus
+// joint, the ten are marked fitted, and IDs 11-17 are marked absent.
+struct CalBlobV2 {
+    uint32_t magic;
+    uint16_t version;        // 2
+    uint16_t joints;         // 10
+    int32_t zero_steps[kLegacyJoints];
+    int8_t dir[kLegacyJoints];
+    uint8_t servo_id[kLegacyJoints];
+    uint8_t pad[3];
+    uint32_t crc;
+};
+
+bool calUnpackV2(const CalBlobV2& blob, obs::Calibration& out);   // pure
+bool calMigrateV2(obs::Calibration& out);                         // ESP side
+
 // The v1 layout, kept verbatim for one purpose: an EXPLICIT operator-driven
 // migration (CLI `cal migrate`). A v1 blob cannot prove which servo map it
-// was measured under, so boot rejects it; but the as-built table in
-// docs/servo-map.md lets a HUMAN verify the values, bless them, and re-save
-// as v2. The machine never trusts v1 on its own.
+// was measured under, so boot rejects it unless it equals the as-built table;
+// otherwise a HUMAN verifies the values against docs/servo-map.md, and
+// `cal save` re-saves them as v3. The machine never trusts v1 on its own.
 struct CalBlobV1 {
     uint32_t magic;
     uint16_t version;        // 1
     uint16_t joints;
-    int32_t zero_steps[obs::kNumJoints];
-    int8_t dir[obs::kNumJoints];
+    int32_t zero_steps[kLegacyJoints];
+    int8_t dir[kLegacyJoints];
     uint8_t pad[3];
     uint32_t crc;
 };
@@ -71,16 +106,17 @@ struct CalBlobV1 {
 bool calUnpackV1(const CalBlobV1& blob, obs::Calibration& out);   // pure
 bool calLoadV1(obs::Calibration& out);                            // ESP side
 
-// True iff `cal` equals the compiled as-built table (asbuilt_cal.h) exactly.
-// This is what lets a v1 blob migrate WITHOUT an operator eyeballing it: the
-// blob cannot prove its servo map, but matching the table -- which was
-// measured under the current map -- proves it is that measurement.
+// True iff `cal` holds the compiled as-built table (asbuilt_cal.h) exactly on
+// the prototype's ten servos, all fitted. This is what lets a v1 blob migrate
+// WITHOUT an operator eyeballing it: the blob cannot prove its servo map, but
+// matching the table -- which was measured under the current map -- proves
+// it is that measurement.
 bool calIsAsBuilt(const obs::Calibration& cal);
 
-// The full automatic path, called at boot when the v2 load fails: v1 blob
-// present AND equal to the as-built table -> adopt it and re-save as v2
-// (bound to the current map), return true. Anything else -> false, robot
-// boots uncalibrated, `run` refuses.
+// The v1 automatic path, called at boot when the v3 and v2 loads fail: v1
+// blob present AND equal to the as-built table -> adopt it and re-save as v3,
+// return true. Anything else -> false, robot boots uncalibrated, `run`
+// refuses.
 bool calMigrateV1(obs::Calibration& out);                         // ESP side
 
 // ESP-IDF side. calLoad leaves `out` at its constructed defaults and returns
