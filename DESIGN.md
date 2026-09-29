@@ -147,9 +147,9 @@ joints. P × N is modelled as N × the fitted stiffness on the same envelope.
 Measured STS3215 facts: no-load speed 4.04 rad/s at 12 V (14 % under the
 datasheet), stall ≈ 2.94 N·m, dead time ≈ 85 ms plus a first-order lag.
 
-**The shoulder** is the most heavily loaded servo in the get-up. On the
-recommended sequence it peaks at 1.77 N·m (65 % of stall) at μ 1.0 and 51 % at
-μ 0.7.
+**The shoulder** is the most heavily loaded servo in the get-up. In the seat
+push it peaks at 1.77 N·m (65 % of stall) at μ 1.0 and 51 % at μ 0.7. The
+propped entry from a real backward fall (§9) takes it to 2.02 N·m (74 %).
 
 The servo protects itself in two ways, and the get-up simulation models both
 (`sim/sts_servo_model.py`):
@@ -167,7 +167,8 @@ conditions, at the scripted pace or 3× slower:
 - the shoulder draws at most 1.7 A.
 
 The get-up runs out of strength (servos at 55 %) before the cutoff first fires
-(45 %). A slower tuck and push (3.7 s and 4.3 s) cut the peak load to 66 % and
+(45 %). The propped entry keeps the shoulder above 80 % for at most 0.9 s, with
+the servos at 65 %, and the prone roll's hips come closest (§9). A slower tuck and push (3.7 s and 4.3 s) cut the peak load to 66 % and
 the shoulder to 1.52 N·m
 ([getup-overload-2026-09-29.md](docs/design-v6/getup-overload-2026-09-29.md)).
 The bench still has to read the registers back and measure the load in the
@@ -364,17 +365,48 @@ on the measured plant with the measured masses, stiffness and play in it —
 ## 9. Get-up
 
 **Backward falls (supine) → the seat push with the arms**, a scripted sequence:
-sit up with the arms folded up along the torso, plant the hands behind the
-hips, tuck to hip −120° / knee −130°, and push (shoulder 90° → 0°, elbow −90° →
-0°) while the ankles dorsiflex. On the as-drawn robot it stands, robust 6/6
-(play 5°, μ 0.3–1.0, servos at 65–100 %), with 1° of margin on hip flexion (the
-tuck needs ≥ 119°; the leg link's relief gives 120°). Config
-`r5_asdrawn_rom120` in `sim/getup_v6_shoulder.py`.
 
-**Forward falls (prone) are open.** The legs-only roll prone → side → supine
-works on the bare body, but with the arms folded it fails 0/6 for every servo
-choice — the arms block the roll. Candidates: an arm stow that clears the roll,
-catching a forward fall on the hands, a one-arm roll.
+1. prop up on the elbows and sit up;
+2. fold the arms up along the torso;
+3. plant the hands behind the hips;
+4. tuck to hip −120° / knee −130°;
+5. push (shoulder 90° → 0°, elbow −90° → 0°) while the ankles dorsiflex;
+6. rise.
+
+On the as-drawn robot it stands, robust 12/12: the six robustness conditions
+(play 3/5°, μ 0.3/0.7/1.0, servos 100/80/65 %), each at the scripted pace and
+3× slower, with the servos' overload cutoff modelled and never firing. There is
+1° of margin on hip flexion: the tuck needs ≥ 119°, and the leg link's relief
+gives 120°. Config `r5_asdrawn_rom120` in `sim/getup_v6_shoulder.py`; the
+entry is in `sim/getup_v6_prone.py`.
+
+**The entry is not optional.** The robot walks with its arms at +15°. Folding
+them up to 180° on the back sweeps them through "straight back", into the
+floor, and levers the robot onto its front, 0/6. The propped entry starts from
+the arms where the fall leaves them. It peaks the shoulder at 2.02 N·m (74 %
+of stall), above the fold-first sequence's 1.77
+([getup-prone-2026-09-29.md](docs/design-v6/getup-prone-2026-09-29.md) §2).
+
+**Forward falls (prone) → roll onto the back, then the same seat push**:
+
+1. hold the arms straight back, which points them at the sky while prone;
+2. roll over with the legs;
+3. fold the arms up as the back lands;
+4. then the seat push, from the arms-folded start.
+
+It stands, robust 12/12 in the same six conditions at both paces. It was
+found by a continuous search, and 1 of the 6 restart winners verifies at
+12/12. The roll drives the hip roll and hip yaw to stall in short bursts
+(≤ 1.7 s above 80 %). With weak servos, 3× slower, they trip the overload
+cutoff and it still stands. That margin is thin, and it is the load to
+measure on the bench.
+
+Two other ways onto the back are weaker:
+
+- **A one-arm roll**, legs straight: torque-bound, the shoulder at stall.
+- **Catching the fall on the hands**: CATCH_LINE.
+
+([getup-prone-2026-09-29.md](docs/design-v6/getup-prone-2026-09-29.md) §3–§4.)
 
 **Paths that do not work**, each measured (full record in
 [getup-decision-2026-09-17.md](docs/design-v6/getup-decision-2026-09-17.md) and
@@ -390,10 +422,18 @@ catching a forward fall on the hands, a one-arm roll.
 | a flat "bird" chassis with side-mounted hips | stands up in sim and is the documented fallback if the arm path fails on hardware, but needs a new chassis, hip and gait; most falls end on an edge |
 | RL (PPO) reward shaping | reaches the kneel, never the rise (≈ 1.3 B steps) |
 
-**Rules for get-up work**: search continuously before declaring a path dead;
-verify a winner at 3× slower and across play, μ and servo strength; always run
-with full self-collision; gate every idle pose of a hanging part in a walk; on
-hardware, only with a sim margin, one motion per go, on the floor.
+**Rules for get-up work**:
+
+- Search continuously before declaring a path dead.
+- Verify a winner at 3× slower and across play, μ and servo strength. Verify
+  every restart's winner: the search's nominal score does not rank
+  robustness.
+- Always run with full self-collision.
+- Start from the state the fall leaves (arms at the walk's idle pose), not
+  the pose the script wants.
+- Run the servo's overload cutoff.
+- Gate every idle pose of a hanging part in a walk.
+- On hardware, only with a sim margin, one motion per go, on the floor.
 
 ## 10. Validation method
 
@@ -405,7 +445,7 @@ gates, in order:
 | A — kinematic capability | does a static single-foot stance exist, with margin, inside every joint limit and without self-contact? | `sim/design_gates.py` |
 | B — actuator envelope | do the needed motions leave ≥ 2× speed and ≥ 1.5× torque at 11.1 V? | `sim/design_gates.py` |
 | C — contact realism | does it survive μ 0.3–1.0, play as free travel, self-collision, the measured actuation lag and dead time? | built into D |
-| D — open-loop capability | does the scripted walk (and get-up) hold across the adversity matrix? then: the same script on the bench | `sim/static_gait.py`, `sim/gate_no3250.py walk|sweep|envelope|arms|getup`, `sim/getup_v6_shoulder.py` |
+| D — open-loop capability | does the scripted walk (and get-up) hold across the adversity matrix? then: the same script on the bench | `sim/static_gait.py`, `sim/gate_no3250.py walk|sweep|envelope|arms|getup|overload`, `sim/getup_v6_shoulder.py`, `sim/getup_v6_prone.py` |
 | E — policy | only after D passes on hardware | [docs/training.md](docs/training.md) |
 
 `tests/test_v6_design_gates.py` pins the plant, the IK and Gates A/B in the
@@ -529,5 +569,6 @@ Everything open is a GitHub issue.
 | the assembly and ROM gate | `cad/v6/assembly_v6.py`, `cad/v6/check_assembly_v6.py` |
 | the plant | `sim/gen_plant_v6.py`, `sim/build_v6_inertia.py` → `sim/bimo_biped_v6ar.xml` |
 | gait, IK, gates | `sim/static_gait.py`, `sim/v6_kin.py`, `sim/design_gates.py`, `sim/gate_no3250.py` |
-| get-up | `sim/getup_v6_shoulder.py` (with `sim/getup_v6.py`) |
+| get-up | `sim/getup_v6_shoulder.py` (with `sim/getup_v6.py`); from prone and the seat push's entry: `sim/getup_v6_prone.py` |
+| servo protection and supply current | `sim/sts_servo_model.py` |
 | records and evidence | `docs/design-v6/` |
