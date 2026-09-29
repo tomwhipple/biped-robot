@@ -167,7 +167,9 @@ No extra lens: the Camera Module 3 Wide's own lens is used as-is.
 | — | Raspberry Pi **Camera Module 3 Wide** (already on the robot) — [product page](https://www.raspberrypi.com/products/camera-module-3/) | — | |
 
 Glass **$29–40 delivered** (the V squares from eBay or Amazon), **no
-cutting**, arriving mid-October.
+cutting**, arriving mid-October. The full sourcing record is
+[`stereo-head-mirror-sourcing.md`](stereo-head-mirror-sourcing.md): every candidate found, how
+and when each was checked, what was rejected and why, and the size study.
 
 - **No manufacturer datasheets.** That's Tom's call for this part: cheap
   mirrors glued in and calibrated. It is a deliberate exception to the repo's
