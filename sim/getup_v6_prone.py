@@ -216,24 +216,45 @@ def seat_push_keys(na):
 # The recommended seat push starts with the arms already folded up to 180.
 # A real backward fall lands supine with the arms at the walk's idle pose
 # (+15), and every arm path from there to 180 passes "straight back" (+90),
-# which on the back points into the floor. So the entry -- the arm path
-# through the lie / sit-up / fold keyframes, before the brace -- is searched,
-# from supine with the arms idle. The legs keep the recommended keyframes;
-# from the brace on the sequence is the recommended one.
-ENTRY_NAMES = ["l_sh", "l_el", "l_t", "su_sh", "su_el", "su_t", "f_sh", "f_el", "b_t"]
-ENTRY_BOUNDS = np.array([RANGE["L_shoulder"], RANGE["L_elbow"], (0.5, 3.0), RANGE["L_shoulder"], RANGE["L_elbow"],
-                         (1.0, 3.0), RANGE["L_shoulder"], RANGE["L_elbow"], (0.5, 3.0)], float)
-ENTRY_SEEDS = [dict(l_sh=-90, l_el=0, l_t=1.0, su_sh=-90, su_el=0, su_t=1.5, f_sh=-45, f_el=-100, b_t=1.5),   # arms forward
-               dict(l_sh=0, l_el=0, l_t=1.0, su_sh=0, su_el=0, su_t=1.5, f_sh=30, f_el=-90, b_t=1.5),        # arms at the sides
-               dict(l_sh=180, l_el=0, l_t=2.5, su_sh=180, su_el=0, su_t=1.5, f_sh=180, f_el=0, b_t=1.0)]     # the recommended fold, slowly
+# which on the back points into the floor. So the entry -- the arm path and
+# the hip flexion through lie / prop / sit-up / fold, before the brace -- is
+# searched, from supine with the arms idle, and every candidate is also run
+# 3x slower so that the winner is quasi-static (the method's check). From the
+# brace on, the sequence is the recommended one.
+ENTRY_NAMES = ["l_sh", "l_el", "l_t", "p_hip", "p_sh", "p_el", "p_t", "su_hip", "su_sh", "su_el", "su_t",
+               "f_hip", "f_sh", "f_el", "f_t", "b_t"]
+_T = (0.5, 3.0)
+ENTRY_BOUNDS = np.array([RANGE["L_shoulder"], RANGE["L_elbow"], _T,
+                         (-120, 0), RANGE["L_shoulder"], RANGE["L_elbow"], _T,
+                         (-120, -30), RANGE["L_shoulder"], RANGE["L_elbow"], _T,
+                         (-120, -60), RANGE["L_shoulder"], RANGE["L_elbow"], _T, _T], float)
+ENTRY_SEEDS = [
+    # arms forward (up to the sky), then sit up
+    dict(l_sh=-90, l_el=0, l_t=1.0, p_hip=0, p_sh=-90, p_el=0, p_t=1.0, su_hip=-90, su_sh=-90, su_el=0, su_t=1.5,
+         f_hip=-110, f_sh=-45, f_el=-100, f_t=1.0, b_t=1.5),
+    # prop up on the forearms at the sides, then sit up
+    dict(l_sh=15, l_el=-100, l_t=1.0, p_hip=0, p_sh=60, p_el=-100, p_t=1.5, su_hip=-90, su_sh=60, su_el=-100, su_t=1.5,
+         f_hip=-110, f_sh=60, f_el=-90, f_t=1.0, b_t=1.5),
+    # the round-1 winner of the 9-parameter entry (6/6 at x1, 0/6 at x3)
+    dict(l_sh=-21.86, l_el=-2.07, l_t=0.68, p_hip=0, p_sh=-21.86, p_el=-2.07, p_t=0.5, su_hip=-90, su_sh=-29.12,
+         su_el=0.67, su_t=1.44, f_hip=-110, f_sh=33.63, f_el=-97.89, f_t=1.0, b_t=0.86),
+    # the recommended fold to 180, slowly, elbow bent
+    dict(l_sh=180, l_el=-100, l_t=3.0, p_hip=0, p_sh=180, p_el=0, p_t=1.0, su_hip=-90, su_sh=180, su_el=0, su_t=1.5,
+         f_hip=-110, f_sh=180, f_el=0, f_t=1.0, b_t=1.0)]
 
 
 def entry_keys(x, na):
+    """supine (arms idle) -> lie (arms move) -> prop -> sit up -> fold ->
+    brace (the recommended 90 / -90) -> the recommended tuck, push, crouch
+    hold and rise"""
     sp = S.seat_push(False, 90, 0, 2.0, -25, elbow=(-90, 0))
     arms = lambda s, e: dict(shoulder=s, elbow=e)
+    g = lambda k, d: x.get(k, d)
     keys = [("lie (arms move)", q_of(arms(x["l_sh"], x["l_el"]), na), x["l_t"], 0.8),
-            ("sit up", q_of(dict(hip_pitch=-90, **arms(x["su_sh"], x["su_el"])), na), x["su_t"], 0.8),
-            ("fold", q_of(dict(hip_pitch=-110, **arms(x["f_sh"], x["f_el"])), na), 1.0, 0.6),
+            ("prop", q_of(dict(hip_pitch=g("p_hip", 0.0), **arms(g("p_sh", x["l_sh"]), g("p_el", x["l_el"]))), na),
+             g("p_t", 0.5), 0.6),
+            ("sit up", q_of(dict(hip_pitch=g("su_hip", -90.0), **arms(x["su_sh"], x["su_el"])), na), x["su_t"], 0.8),
+            ("fold", q_of(dict(hip_pitch=g("f_hip", -110.0), **arms(x["f_sh"], x["f_el"])), na), g("f_t", 1.0), 0.6),
             ("brace", q_of(dict(hip_pitch=-110, **arms(90, -90)), na), x["b_t"], 0.8)]
     return keys + [(lab, q_of(off, na), m, h) for lab, off, m, h in sp[4:]]
 
@@ -266,11 +287,12 @@ def _entry_run_score(r):
 
 
 def _eval_entry(args):
+    """conds: (condition dict, time scale) pairs"""
     x, conds = args
     rs = []
-    for c in conds:
+    for c, ts in conds:
         try:
-            rs.append(run_entry(x, cond=c))
+            rs.append(run_entry(x, cond=c, time_scale=ts))
         except Exception as e:  # noqa: BLE001
             rs.append(dict(stand=False, up=-1.0, z=0.0, err=str(e)))
     sc = [_entry_run_score(r) for r in rs]
@@ -702,12 +724,12 @@ def main():
         restarts = int(sys.argv[2]) if len(sys.argv) > 2 else 6
         iters = int(sys.argv[3]) if len(sys.argv) > 3 else 30
         pop = int(os.environ.get("POP", "36"))
-        conds3 = [GN.GETUP_CONDS[0], GN.GETUP_CONDS[2], GN.GETUP_CONDS[5]]
+        conds3 = [(GN.GETUP_CONDS[0], 1.0), (GN.GETUP_CONDS[2], 1.0), (GN.GETUP_CONDS[5], 1.0), (GN.GETUP_CONDS[0], 3.0)]
         print(f"== SEAT-PUSH ENTRY SEARCH: supine with the arms at the idle pose (a real backward fall, or a roll "
               f"that ends on the back) -> searched arm path through lie / sit up / fold -> the recommended brace, "
-              f"tuck, push and rise; {len(ENTRY_NAMES)} parameters, CEM {restarts} x {iters} x {pop}, restarts 0-2 "
-              f"seeded (arms forward / at the sides / the recommended fold, slowly); each candidate run at "
-              f"{', '.join(GN._cond_label(c) for c in conds3)}; score = worst run + 0.2 mean, run = 3 x standing + "
+              f"tuck, push and rise; {len(ENTRY_NAMES)} parameters, CEM {restarts} x {iters} x {pop}, restarts 0-3 "
+              f"seeded (arms forward / propped on the forearms / the 9-parameter round's winner / the fold to 180, slowly); each candidate run at "
+              f"{', '.join(GN._cond_label(c) + f' x{ts:.0f}' for c, ts in conds3)}; score = worst run + 0.2 mean, run = 3 x standing + "
               f"up + 4 x pelvis z; workers {GN.n_workers()}", flush=True)
         base = GN.pmap(_eval_entry, [(s, conds3) for s in ENTRY_SEEDS])
         for s, b in zip(ENTRY_SEEDS, base):
