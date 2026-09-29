@@ -133,9 +133,9 @@ servo current crosses H1 (3 A per contact), the AO4407 and SW1.
   - 2.7 A at stall (30 kg·cm at 12 V); Kt 11 kg·cm/A (1.08 N·m/A).
   - 180 mA running with no load; 30 mA idle.
   - Over-current protection turns the output off after more than 2 A for 2 s
-    (datasheet). The memory table's default for the same register (28) is
-    3.25 A; the two documents disagree, and at 11.1 V only the datasheet's
-    2 A can ever be reached.
+    (datasheet). The memory table's default over-current threshold
+    (register 28) is 3.25 A. The two documents disagree, and at 11.1 V only
+    the datasheet's 2 A can ever be reached.
   - Overload protection drops the servo to 20 % torque after its load stays
     above 80 % for 2 s (registers 34–36, enabled by default).
 - The bus timing for 17 servos is open. Twelve servos take ≈ 3.4 ms of the 20
