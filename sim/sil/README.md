@@ -55,8 +55,8 @@ map) always run.
 ## Current status
 
 `pytest sim/sil` is a hard gate in the pre-push hook. On the deployed run
-(`loco_v41rsi_b_s128r24`, plant `bimo_biped_v5body.xml`) it is **33 passed**
-in ~9 s, closed loop included; on a clean clone, 14 passed and 19 skipped.
+(`loco_v41rsi_b_s128r24`, plant `bimo_biped_v5body.xml`) it is **35 passed**
+in ~15 s, closed loop included; on a clean clone, 16 passed and 19 skipped.
 The headers, the goldens and the harness default are the same run, and
 `test_goldens_headers_and_harness_agree_on_one_run` keeps them so
 ([docs/sil-harness.md](../../docs/sil-harness.md#one-run-the-deployed-one)).

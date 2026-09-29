@@ -78,15 +78,28 @@ def test_mjcf_policy_range_matches_rom(model):
         assert got[1] == pytest.approx(hi, abs=TOL), f"{name} ctrlrange hi"
 
 
+def _bus_joint_names():
+    """obs/bus_map.h: the envelope has one row per BUS servo, servo-ID order."""
+    path = os.path.join(ROOT, "firmware", "components", "obs", "include",
+                        "obs", "bus_map.h")
+    with open(path) as fh:
+        src = fh.read()
+    m = re.search(r"kBusJointNames\[kNumBusJoints\]\s*=\s*\{(.*?)\};", src,
+                  re.S)
+    return re.findall(r'"([^"]+)"', m.group(1))
+
+
 def test_firmware_mech_envelope_matches_rom():
+    """The envelope's rows for the prototype's joints (found by name among
+    the bus rows) are the measured ROM."""
     lo = _c_float_array(MECH_H, "kMechLo")
     hi = _c_float_array(MECH_H, "kMechHi")
-    want = joint_rom.all_sim_ranges()
-    order = list(want)
-    assert len(lo) == len(hi) == len(order)
-    for i, name in enumerate(order):
-        assert lo[i] == pytest.approx(want[name][0], abs=TOL), f"kMechLo {name}"
-        assert hi[i] == pytest.approx(want[name][1], abs=TOL), f"kMechHi {name}"
+    rows = _bus_joint_names()
+    assert len(lo) == len(hi) == len(rows)
+    for name, (want_lo, want_hi) in joint_rom.all_sim_ranges().items():
+        i = rows.index(name)
+        assert lo[i] == pytest.approx(want_lo, abs=TOL), f"kMechLo {name}"
+        assert hi[i] == pytest.approx(want_hi, abs=TOL), f"kMechHi {name}"
 
 
 def test_firmware_policy_range_matches_rom():

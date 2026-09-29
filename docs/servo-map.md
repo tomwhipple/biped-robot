@@ -41,7 +41,7 @@ prototype's 10 joints, IDs 1–10 ([§2.2](#22-what-the-policy-drives-today-the-
   4. On success it prints `ok, verified after commit -- safe to power down`. `WROTE BUT DID NOT VERIFY` means rescan before trusting it.
 - **Checking the whole bus.**
   - `scan` names each ID's joint in the firmware's map.
-  - `ping` with no argument checks exactly the IDs the firmware expects, in joint order.
+  - `ping` with no argument checks every bus servo (IDs 1–17) against the fitted set in the calibration.
 - **The duplicate-ID signature.** One servo answers intermittently, returns `bad-reply` and a nonsense 0.0 V, and another ID is missing. That is two servos answering to one ID. **Suspect a duplicate ID before suspecting the wiring.**
 - **`tools/servo_tool.py` does not work with this firmware.**
   - It speaks the Feetech protocol through the stock firmware of Waveshare's *Servo Driver with ESP32*: its web UI at 192.168.4.1 and its `SERIAL_FORWARDING` USB↔bus bridge.

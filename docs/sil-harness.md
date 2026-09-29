@@ -257,9 +257,9 @@ deployed one (`loco_v41rsi_b_s128r24` on `bimo_biped_v5body.xml`):
   local artifact.
 
 `pytest sim/sil` is a hard gate in the pre-push hook, after the host build
-that produces the library. On the deployed run it is 33 passed in ~9 s,
+that produces the library. On the deployed run it is 35 passed in ~15 s,
 closed loop included (python vs SIL: `stand_10s` 8/8 vs 8/8, `line_1m` 1/8 vs
-1/8, `goal_home` 0/8 vs 0/8); on a clean clone, 14 passed and 19 skipped.
+1/8, `goal_home` 0/8 vs 0/8); on a clean clone, 16 passed and 19 skipped.
 
 Per-tick parity pins the gait clocks with `pin_gait_clock()` **after** the
 command is set: with the deployed spec's speed clock and stand freeze, the
