@@ -169,7 +169,8 @@ def make_env(p: DesignParams, xml_path, mu=0.7, play_deg=3.0, backlash_deg=1.0, 
 def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, play_deg=3.0, backlash_deg=1.0,
              mass_scale=1.0, servo_scale=1.0, payload=0.0, floor_tilt_deg=0.0, per_joint=None,
              lag_hz=2.0, delay_ticks=4, render=None, verbose=False, fb_ankle=0.0, fb_hip=0.0, fb_i=0.0,
-             fb_sag=0.0, fb_sag_joints=None, track_torque=False, track_sway=False, track_speed=False):
+             fb_sag=0.0, fb_sag_joints=None, track_torque=False, track_sway=False, track_speed=False,
+             track_trace=False):
     """fb_ankle / fb_hip: proportional IMU-roll feedback (rad per rad of torso
     roll error) added to the ankle-roll / hip-roll targets of BOTH legs -- the
     simplest compliance-aware controller, what a policy would learn first.
@@ -186,6 +187,9 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     track_sway (2026-09-17, wide_gait.py): also return res["traj_t"] /
     res["traj_x"] / res["traj_y"], the pelvis (torso freejoint) x/y position
     every tick -- for measuring lateral sway vs forward stride per step.
+    track_trace (2026-09-29, current_budget_v6.py): also return
+    res["trace_tau"] / res["trace_qd"] (ticks x joints, every control tick:
+    the servo model's torque and the joint speed) and res["w0"].
     Off by default -- no effect on the existing return dict."""
     env = make_env(p, xml_path, mu=mu, play_deg=play_deg, backlash_deg=backlash_deg, lag_hz=lag_hz,
                    delay_ticks=delay_ticks, payload=payload)
@@ -241,6 +245,7 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     peak_tau = np.zeros(na) if track_torque else None
     peak_qd = np.zeros(na) if track_speed else None
     traj_t, traj_x, traj_y = ([], [], []) if track_sway else (None, None, None)
+    tr_tau, tr_qd = ([], []) if track_trace else (None, None)
     for k in range(n_ticks):
         key = tl.at(t)
         try:
@@ -268,6 +273,9 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
             np.maximum(peak_tau, np.abs(env._servo_tau.astype(np.float64)), out=peak_tau)
         if track_speed:
             np.maximum(peak_qd, np.abs(env.data.qvel[env._jqvel]), out=peak_qd)
+        if track_trace:
+            tr_tau.append(np.asarray(env._servo_tau, dtype=np.float64).copy())
+            tr_qd.append(np.asarray(env.data.qvel[env._jqvel], dtype=np.float64).copy())
         if track_sway:
             traj_t.append(t); traj_x.append(float(env.data.qpos[0])); traj_y.append(float(env.data.qpos[1]))
         d = env.data
@@ -315,6 +323,11 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     if track_speed:
         res["peak_qd"] = peak_qd.tolist()
         res["w0"] = w0.tolist()
+    if track_trace:
+        res["trace_tau"] = np.array(tr_tau)
+        res["trace_qd"] = np.array(tr_qd)
+        res["w0"] = w0.tolist()
+        res["stall"] = stall.tolist()
     if track_sway:
         res["traj_t"] = traj_t
         res["traj_x"] = traj_x

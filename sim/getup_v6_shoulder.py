@@ -312,7 +312,8 @@ def run_traced(p, xml_path, seq, start="supine", track=("L_shoulder", "R_shoulde
     return out
 
 
-def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_deg=3.0, per_joint=None, arm_pose=(0.0, 0.0)):
+def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_deg=3.0, per_joint=None, arm_pose=(0.0, 0.0),
+                           trace=False):
     """Gate D's own walk (static_gait.walk_timeline / run_walk's stepping
     loop, copied here to add arm-vs-leg contact accounting -- run_walk
     itself does not expose per-step contacts). The arm/elbow actuators are
@@ -323,7 +324,10 @@ def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_de
     whole walk instead. Round 5 (2026-09-19) needs this: with the shoulder
     joint moved into the hip plane (arm_shoulder_x=0) the hanging arm is
     directly beside the swinging thigh, and the held pose is the one lever
-    that clears it without moving the JOINT or widening the shoulders."""
+    that clears it without moving the JOINT or widening the shoulders.
+
+    trace=True (2026-09-29, current_budget_v6.py) also returns "tau" / "qd"
+    (ticks x joints, every control tick), "names" and "w0"."""
     import mujoco as mj
     from static_gait import walk_timeline, make_env
     from design_gates import q_of, JN as _JN
@@ -362,11 +366,15 @@ def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_de
     pairs_seen = set()
     tilt_max = 0.0
     fell = False
+    taus, qds = [], []
     for k in range(n_ticks):
         t = k * dt
         key = tl.at(t)
         qc = q_of(p, key)
         obs, r, term, trunc, _ = env.step(inv(qc))
+        if trace:
+            taus.append(np.asarray(env._servo_tau, dtype=float).copy())
+            qds.append(np.asarray(d.qvel[env._jqvel], dtype=float).copy())
         up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
         tilt_max = max(tilt_max, math.degrees(math.acos(max(-1.0, min(1.0, up)))) if up <= 1.0 else 0.0)
         if up < 0.5:
@@ -377,7 +385,11 @@ def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_de
             if (b1 in arm_bodies and b2 in leg_bodies) or (b2 in arm_bodies and b1 in leg_bodies):
                 arm_leg_contacts += 1
                 pairs_seen.add(tuple(sorted((m.body(b1).name, m.body(b2).name))))
-    return dict(fell=fell, tilt_max=tilt_max, arm_leg_contacts=arm_leg_contacts, pairs=sorted(pairs_seen), t_final=tl.T)
+    out = dict(fell=fell, tilt_max=tilt_max, arm_leg_contacts=arm_leg_contacts, pairs=sorted(pairs_seen), t_final=tl.T)
+    if trace:
+        out.update(tau=np.array(taus), qd=np.array(qds), names=[m.actuator(i).name for i in range(m.nu)],
+                   w0=np.array(np.broadcast_to(np.asarray(env._servo[3], dtype=float), (na,))))
+    return out
 
 
 def main():
