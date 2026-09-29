@@ -3,8 +3,8 @@
 Dated records from the project's history, kept for context: what was tried,
 what was measured, and the lessons that shaped the current design. Each one
 describes what was true **when it was written** and is not kept up to date —
-the current design is [DESIGN.md](../DESIGN.md), and the current practices are
-in [AGENTS.md](../AGENTS.md). Paths and file names inside these records may
+the current design is [DESIGN.md](../../DESIGN.md), and the current practices are
+in [AGENTS.md](../../AGENTS.md). Paths and file names inside these records may
 point at files that have since been removed; `git log --all -- <path>` finds
 them.
 

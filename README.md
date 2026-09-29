@@ -3,11 +3,11 @@
 A ~46 cm (to the deck; 56 cm to the top of the head) 3D-printed **bipedal
 robot**: 17 serial-bus servos — six per leg, a neck, and two 2-DOF arms that
 push it back up after a fall — an ESP32 running the 50 Hz control loop, and a
-Raspberry Pi with a head camera. It walks by genuinely lifting a foot: a
-static single-foot stance exists with 30 mm of margin, and the first walk is
-an open-loop gait validated in simulation against the deployed actuation
-chain; a reinforcement-learning policy comes after the body has proven its
-margins on the floor.
+Raspberry Pi with a head camera. It is designed to walk by lifting a foot
+clear of the ground: a static single-foot stance exists with 30 mm of margin,
+and the first walk is an open-loop gait validated in simulation against the
+measured actuation chain; a reinforcement-learning policy comes after the
+body has proven its margins on the floor.
 
 ![The robot as drawn: front 3/4, side, front](cad/v6/renders/assembly_v6_arms.png)
 
