@@ -1,0 +1,319 @@
+== CATCH SEARCH: stand (arms idle) -> forward kick 1.0 / 1.5 / 2.0 x the tip speed (0.50 m/s) -> trigger at a searched pitch -> catch -> push back -> the seat push's crouch hold and rise; 26 parameters, CEM 6 x 40 x 48; score = worst-kick standing / up / height (+ crouch terms) + 0.2 mean; workers 12
+   catch restart 0 iter  0: best +0.858  stands 0/3  up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42
+   catch restart 0 iter  1: best +0.858  stands 0/3  up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42
+   catch restart 0 iter  2: best +0.858  stands 0/3  up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42
+   catch restart 0 iter  3: best +0.858  stands 0/3  up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42
+   catch restart 0 iter  4: best +0.858  stands 0/3  up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42
+   catch restart 0 iter  5: best +0.858  stands 0/3  up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42 | up -0.65 z 0.13 crouch up +0.42
+   catch restart 0 iter  6: best +0.863  stands 0/3  up -0.65 z 0.13 crouch up +0.43 | up -0.65 z 0.13 crouch up +0.43 | up -0.65 z 0.13 crouch up +0.43
+   catch restart 0 iter  7: best +0.867  stands 0/3  up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter  8: best +0.867  stands 0/3  up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter  9: best +0.867  stands 0/3  up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter 10: best +0.867  stands 0/3  up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter 11: best +0.870  stands 0/3  up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter 12: best +0.870  stands 0/3  up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter 13: best +0.870  stands 0/3  up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter 14: best +0.870  stands 0/3  up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter 15: best +0.870  stands 0/3  up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter 16: best +0.870  stands 0/3  up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 | up -0.65 z 0.13 crouch up +0.38 feet
+   catch restart 0 iter 17: best +0.876  stands 0/3  up -0.65 z 0.13 crouch up +0.37 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39
+   catch restart 0 iter 18: best +0.876  stands 0/3  up -0.65 z 0.13 crouch up +0.37 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39
+   catch restart 0 iter 19: best +0.907  stands 0/3  up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 20: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 21: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 22: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 23: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 24: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 25: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 26: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 27: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 28: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 29: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 30: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 31: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 32: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 33: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 34: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 35: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 36: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 37: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 38: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   catch restart 0 iter 39: best +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+-- catch restart 0 BEST +0.910  stands 0/3  up -0.65 z 0.13 crouch up +0.39 feet | up -0.65 z 0.13 crouch up +0.39 | up -0.65 z 0.13 crouch up +0.39 feet
+   x {"trig_deg": 19.28, "c_sh": 79.86, "c_el": -14.7, "c_hip": 1.76, "c_knee": -68.44, "c_ankle": 28.01, "c_t": 0.46, "p1_sh": -39.86, "p1_el": -78.87, "p1_hip": -49.05, "p1_knee": -25.58, "p1_ankle": 40.0, "p1_t": 1.97, "p1_h": 0.7, "p2_sh": -74.22, "p2_el": -14.22, "p2_hip": 57.58, "p2_knee": -37.32, "p2_ankle": 40.0, "p2_t": 1.96, "p2_h": 0.68, "p3_sh": -52.23, "p3_el": -46.71, "p3_ankle": -39.83, "p3_t": 1.12, "p3_h": 0.36}
+   catch restart 1 iter  0: best +0.791  stands 0/3  up -0.65 z 0.13 crouch up +0.30 | up -0.65 z 0.13 crouch up +0.30 | up -0.65 z 0.13 crouch up +0.30
+   catch restart 1 iter  1: best +0.799  stands 0/3  up -0.65 z 0.13 crouch up +0.32 | up -0.65 z 0.13 crouch up +0.32 | up -0.65 z 0.13 crouch up +0.32
+   catch restart 1 iter  2: best +0.946  stands 0/3  up -0.65 z 0.13 crouch up +0.51 | up -0.65 z 0.13 crouch up +0.51 | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 1 iter  3: best +0.946  stands 0/3  up -0.65 z 0.13 crouch up +0.51 | up -0.65 z 0.13 crouch up +0.51 | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 1 iter  4: best +1.399  stands 0/3  up -0.65 z 0.13 crouch up +0.32 feet | up -0.65 z 0.13 crouch up +0.33 feet | up -0.65 z 0.13 crouch up +0.32 feet
+   catch restart 1 iter  5: best +1.452  stands 0/3  up -0.65 z 0.13 crouch up +0.41 feet | up -0.65 z 0.13 crouch up +0.41 feet | up -0.65 z 0.13 crouch up +0.41 feet
+   catch restart 1 iter  6: best +1.483  stands 0/3  up -0.65 z 0.13 crouch up +0.46 feet | up -0.65 z 0.13 crouch up +0.46 feet | up -0.65 z 0.13 crouch up +0.46 feet
+   catch restart 1 iter  7: best +1.483  stands 0/3  up -0.65 z 0.13 crouch up +0.46 feet | up -0.65 z 0.13 crouch up +0.46 feet | up -0.65 z 0.13 crouch up +0.46 feet
+   catch restart 1 iter  8: best +1.515  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter  9: best +1.515  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 10: best +1.515  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 11: best +1.515  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 12: best +1.515  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 13: best +1.515  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 14: best +1.515  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 15: best +1.515  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 16: best +1.515  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 17: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 1 iter 18: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 1 iter 19: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 20: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 21: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 22: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 23: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 24: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 25: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 26: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 27: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 28: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 29: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 30: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 31: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 32: best +1.516  stands 0/3  up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 33: best +1.517  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 34: best +1.517  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 35: best +1.517  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 36: best +1.518  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 37: best +1.518  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 38: best +1.518  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 1 iter 39: best +1.518  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet
+-- catch restart 1 BEST +1.518  stands 0/3  up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   x {"trig_deg": 11.33, "c_sh": 95.2, "c_el": -85.07, "c_hip": -79.64, "c_knee": -13.34, "c_ankle": 34.06, "c_t": 0.52, "p1_sh": -40.96, "p1_el": -15.11, "p1_hip": -79.57, "p1_knee": -6.05, "p1_ankle": 21.88, "p1_t": 1.95, "p1_h": 0.47, "p2_sh": 164.14, "p2_el": -15.33, "p2_hip": -31.86, "p2_knee": -108.33, "p2_ankle": 13.82, "p2_t": 1.29, "p2_h": 0.62, "p3_sh": -87.59, "p3_el": -58.56, "p3_ankle": -40.0, "p3_t": 1.95, "p3_h": 0.98}
+   catch restart 2 iter  0: best +0.757  stands 0/3  up -0.65 z 0.13 crouch up +0.25 | up -0.65 z 0.13 crouch up +0.25 | up -0.65 z 0.13 crouch up +0.25
+   catch restart 2 iter  1: best +0.765  stands 0/3  up -0.65 z 0.13 crouch up +0.26 | up -0.65 z 0.13 crouch up +0.26 | up -0.65 z 0.13 crouch up +0.26
+   catch restart 2 iter  2: best +1.208  stands 0/3  up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet
+   catch restart 2 iter  3: best +1.208  stands 0/3  up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet
+   catch restart 2 iter  4: best +1.208  stands 0/3  up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet
+   catch restart 2 iter  5: best +1.208  stands 0/3  up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet
+   catch restart 2 iter  6: best +1.208  stands 0/3  up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet | up -0.65 z 0.13 crouch up -0.79 feet
+   catch restart 2 iter  7: best +1.466  stands 0/3  up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet
+   catch restart 2 iter  8: best +1.466  stands 0/3  up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet
+   catch restart 2 iter  9: best +1.466  stands 0/3  up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet
+   catch restart 2 iter 10: best +1.466  stands 0/3  up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet
+   catch restart 2 iter 11: best +1.466  stands 0/3  up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet
+   catch restart 2 iter 12: best +1.466  stands 0/3  up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet
+   catch restart 2 iter 13: best +1.466  stands 0/3  up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet
+   catch restart 2 iter 14: best +1.466  stands 0/3  up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet
+   catch restart 2 iter 15: best +1.466  stands 0/3  up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet | up -0.65 z 0.13 crouch up +0.43 feet
+   catch restart 2 iter 16: best +1.472  stands 0/3  up -0.65 z 0.13 crouch up +0.44 feet | up -0.65 z 0.13 crouch up +0.44 feet | up -0.65 z 0.13 crouch up +0.44 feet
+   catch restart 2 iter 17: best +1.472  stands 0/3  up -0.65 z 0.13 crouch up +0.44 feet | up -0.65 z 0.13 crouch up +0.44 feet | up -0.65 z 0.13 crouch up +0.44 feet
+   catch restart 2 iter 18: best +1.489  stands 0/3  up -0.65 z 0.13 crouch up +0.47 feet | up -0.65 z 0.13 crouch up +0.47 feet | up -0.65 z 0.13 crouch up +0.47 feet
+   catch restart 2 iter 19: best +1.489  stands 0/3  up -0.65 z 0.13 crouch up +0.47 feet | up -0.65 z 0.13 crouch up +0.47 feet | up -0.65 z 0.13 crouch up +0.47 feet
+   catch restart 2 iter 20: best +1.489  stands 0/3  up -0.65 z 0.13 crouch up +0.47 feet | up -0.65 z 0.13 crouch up +0.47 feet | up -0.65 z 0.13 crouch up +0.47 feet
+   catch restart 2 iter 21: best +1.489  stands 0/3  up -0.65 z 0.13 crouch up +0.47 feet | up -0.65 z 0.13 crouch up +0.47 feet | up -0.65 z 0.13 crouch up +0.47 feet
+   catch restart 2 iter 22: best +1.527  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.48 feet | up -0.65 z 0.13 crouch up +0.48 feet
+   catch restart 2 iter 23: best +1.527  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.48 feet | up -0.65 z 0.13 crouch up +0.48 feet
+   catch restart 2 iter 24: best +1.527  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.48 feet | up -0.65 z 0.13 crouch up +0.48 feet
+   catch restart 2 iter 25: best +1.527  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.48 feet | up -0.65 z 0.13 crouch up +0.48 feet
+   catch restart 2 iter 26: best +1.527  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.48 feet | up -0.65 z 0.13 crouch up +0.48 feet
+   catch restart 2 iter 27: best +1.527  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.48 feet | up -0.65 z 0.13 crouch up +0.48 feet
+   catch restart 2 iter 28: best +1.527  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.48 feet | up -0.65 z 0.13 crouch up +0.48 feet
+   catch restart 2 iter 29: best +1.527  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.48 feet | up -0.65 z 0.13 crouch up +0.48 feet
+   catch restart 2 iter 30: best +1.527  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.48 feet | up -0.65 z 0.13 crouch up +0.48 feet
+   catch restart 2 iter 31: best +1.538  stands 0/3  up +0.62 z 0.27 crouch up -0.00 | up -0.65 z 0.13 crouch up +0.50 feet | up -0.65 z 0.13 crouch up +0.50 feet
+   catch restart 2 iter 32: best +1.545  stands 0/3  up +0.62 z 0.27 crouch up +0.00 | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 2 iter 33: best +1.545  stands 0/3  up +0.62 z 0.27 crouch up +0.00 | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 2 iter 34: best +1.545  stands 0/3  up +0.62 z 0.27 crouch up +0.00 | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 2 iter 35: best +1.546  stands 0/3  up +0.62 z 0.27 crouch up +0.04 | up -0.65 z 0.13 crouch up +0.51 feet | up -0.65 z 0.13 crouch up +0.52 feet
+   catch restart 2 iter 36: best +1.570  stands 0/3  up +0.62 z 0.27 crouch up +0.01 | up +0.62 z 0.27 crouch up +0.01 | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 2 iter 37: best +1.570  stands 0/3  up +0.62 z 0.27 crouch up +0.01 | up +0.62 z 0.27 crouch up +0.01 | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 2 iter 38: best +1.570  stands 0/3  up +0.62 z 0.27 crouch up +0.01 | up +0.62 z 0.27 crouch up +0.01 | up -0.65 z 0.13 crouch up +0.51 feet
+   catch restart 2 iter 39: best +1.570  stands 0/3  up +0.62 z 0.27 crouch up +0.01 | up +0.62 z 0.27 crouch up +0.01 | up -0.65 z 0.13 crouch up +0.51 feet
+-- catch restart 2 BEST +1.570  stands 0/3  up +0.62 z 0.27 crouch up +0.01 | up +0.62 z 0.27 crouch up +0.01 | up -0.65 z 0.13 crouch up +0.51 feet
+   x {"trig_deg": 5.73, "c_sh": 159.0, "c_el": -100.0, "c_hip": 85.87, "c_knee": -20.34, "c_ankle": 33.25, "c_t": 0.74, "p1_sh": 20.77, "p1_el": -75.9, "p1_hip": 43.78, "p1_knee": -82.77, "p1_ankle": -8.05, "p1_t": 1.92, "p1_h": 0.93, "p2_sh": -23.62, "p2_el": -45.38, "p2_hip": 64.02, "p2_knee": -35.9, "p2_ankle": 13.82, "p2_t": 1.64, "p2_h": 0.79, "p3_sh": -88.05, "p3_el": -97.53, "p3_ankle": -37.89, "p3_t": 1.19, "p3_h": 0.37}
+   catch restart 3 iter  0: best +1.102  stands 0/3  up -0.65 z 0.13 crouch up +0.83 | up -0.65 z 0.13 crouch up +0.82 | up -0.65 z 0.13 crouch up +0.82
+   catch restart 3 iter  1: best +1.102  stands 0/3  up -0.65 z 0.13 crouch up +0.83 | up -0.65 z 0.13 crouch up +0.82 | up -0.65 z 0.13 crouch up +0.82
+   catch restart 3 iter  2: best +1.102  stands 0/3  up -0.65 z 0.13 crouch up +0.83 | up -0.65 z 0.13 crouch up +0.82 | up -0.65 z 0.13 crouch up +0.82
+   catch restart 3 iter  3: best +1.102  stands 0/3  up -0.65 z 0.13 crouch up +0.83 | up -0.65 z 0.13 crouch up +0.82 | up -0.65 z 0.13 crouch up +0.82
+   catch restart 3 iter  4: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter  5: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter  6: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter  7: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter  8: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter  9: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 10: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 11: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 12: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 13: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 14: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 15: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 16: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 17: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 18: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 19: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 20: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 21: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 22: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 23: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 24: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 25: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 26: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 27: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 28: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 29: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 30: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 31: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 32: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 33: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 34: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 35: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 36: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 37: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 38: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   catch restart 3 iter 39: best +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+-- catch restart 3 BEST +1.605  stands 0/3  up -0.65 z 0.13 crouch up +0.66 feet | up -0.65 z 0.13 crouch up +0.67 feet | up -0.65 z 0.13 crouch up +0.66 feet
+   x {"trig_deg": 22.94, "c_sh": -22.57, "c_el": 5.43, "c_hip": -69.3, "c_knee": -58.92, "c_ankle": 9.59, "c_t": 0.7, "p1_sh": -90.0, "p1_el": -46.53, "p1_hip": 54.39, "p1_knee": -79.5, "p1_ankle": -22.9, "p1_t": 0.76, "p1_h": 1.19, "p2_sh": -11.61, "p2_el": -36.57, "p2_hip": -120.0, "p2_knee": -13.47, "p2_ankle": 17.98, "p2_t": 0.48, "p2_h": 1.17, "p3_sh": -20.93, "p3_el": -73.33, "p3_ankle": -40.0, "p3_t": 0.65, "p3_h": 0.2}
+   catch restart 4 iter  0: best +2.526  stands 0/3  up +0.61 z 0.27 crouch up +0.83 | up +0.62 z 0.27 crouch up +0.83 | up +0.62 z 0.27 crouch up +0.83
+   catch restart 4 iter  1: best +2.526  stands 0/3  up +0.61 z 0.27 crouch up +0.83 | up +0.62 z 0.27 crouch up +0.83 | up +0.62 z 0.27 crouch up +0.83
+   catch restart 4 iter  2: best +2.526  stands 0/3  up +0.61 z 0.27 crouch up +0.83 | up +0.62 z 0.27 crouch up +0.83 | up +0.62 z 0.27 crouch up +0.83
+   catch restart 4 iter  3: best +2.526  stands 0/3  up +0.61 z 0.27 crouch up +0.83 | up +0.62 z 0.27 crouch up +0.83 | up +0.62 z 0.27 crouch up +0.83
+   catch restart 4 iter  4: best +2.595  stands 0/3  up +0.62 z 0.27 crouch up +0.89 feet | up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89
+   catch restart 4 iter  5: best +2.595  stands 0/3  up +0.62 z 0.27 crouch up +0.89 feet | up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89
+   catch restart 4 iter  6: best +2.595  stands 0/3  up +0.62 z 0.27 crouch up +0.89 feet | up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89
+   catch restart 4 iter  7: best +2.617  stands 0/3  up +0.62 z 0.27 crouch up +0.98 | up +0.62 z 0.27 crouch up +0.98 | up +0.62 z 0.27 crouch up +0.98
+   catch restart 4 iter  8: best +3.229  stands 0/3  up +0.62 z 0.27 crouch up +1.00 feet | up +0.62 z 0.27 crouch up +1.00 feet | up +0.62 z 0.27 crouch up +1.00 feet
+   catch restart 4 iter  9: best +7.849  stands 3/3  up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet
+   catch restart 4 iter 10: best +7.849  stands 3/3  up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet
+   catch restart 4 iter 11: best +7.849  stands 3/3  up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet
+   catch restart 4 iter 12: best +7.849  stands 3/3  up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet
+   catch restart 4 iter 13: best +7.849  stands 3/3  up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet | up +1.00 z 0.39 crouch up +0.99 feet
+   catch restart 4 iter 14: best +7.851  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 15: best +7.851  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 16: best +7.851  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 17: best +7.851  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 18: best +7.851  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 19: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 20: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 21: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 22: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 23: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 24: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 25: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 26: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 27: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 28: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 29: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 30: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 31: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 32: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 33: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 34: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 35: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 36: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 37: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 38: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   catch restart 4 iter 39: best +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+-- catch restart 4 BEST +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   x {"trig_deg": 15.01, "c_sh": 174.91, "c_el": -18.7, "c_hip": -100.49, "c_knee": -115.6, "c_ankle": -30.25, "c_t": 0.88, "p1_sh": -65.0, "p1_el": -65.29, "p1_hip": 85.58, "p1_knee": -42.6, "p1_ankle": -12.46, "p1_t": 1.71, "p1_h": 0.85, "p2_sh": 150.98, "p2_el": -85.45, "p2_hip": 21.83, "p2_knee": -4.93, "p2_ankle": -12.36, "p2_t": 0.75, "p2_h": 0.85, "p3_sh": 20.66, "p3_el": -17.39, "p3_ankle": -23.64, "p3_t": 1.33, "p3_h": 0.55}
+   catch restart 5 iter  0: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter  1: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter  2: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter  3: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter  4: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter  5: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter  6: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter  7: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter  8: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter  9: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 10: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 11: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 12: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 13: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 14: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 15: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 16: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 17: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 18: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 19: best +2.211  stands 0/3  up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30 | up +0.62 z 0.27 crouch up +0.30
+   catch restart 5 iter 20: best +2.451  stands 0/3  up +0.62 z 0.27 crouch up +0.70 | up +0.62 z 0.27 crouch up +0.70 | up +0.62 z 0.27 crouch up +0.70
+   catch restart 5 iter 21: best +2.451  stands 0/3  up +0.62 z 0.27 crouch up +0.70 | up +0.62 z 0.27 crouch up +0.70 | up +0.62 z 0.27 crouch up +0.70
+   catch restart 5 iter 22: best +2.481  stands 0/3  up +0.62 z 0.27 crouch up +0.75 | up +0.62 z 0.27 crouch up +0.75 | up +0.62 z 0.27 crouch up +0.75
+   catch restart 5 iter 23: best +2.481  stands 0/3  up +0.62 z 0.27 crouch up +0.75 | up +0.62 z 0.27 crouch up +0.75 | up +0.62 z 0.27 crouch up +0.75
+   catch restart 5 iter 24: best +2.481  stands 0/3  up +0.62 z 0.27 crouch up +0.75 | up +0.62 z 0.27 crouch up +0.75 | up +0.62 z 0.27 crouch up +0.75
+   catch restart 5 iter 25: best +2.483  stands 0/3  up +0.62 z 0.27 crouch up +0.76 | up +0.62 z 0.27 crouch up +0.76 | up +0.62 z 0.27 crouch up +0.76
+   catch restart 5 iter 26: best +2.484  stands 0/3  up +0.62 z 0.27 crouch up +0.76 | up +0.62 z 0.27 crouch up +0.76 | up +0.62 z 0.27 crouch up +0.76
+   catch restart 5 iter 27: best +2.545  stands 0/3  up +0.62 z 0.27 crouch up +0.86 | up +0.62 z 0.27 crouch up +0.86 | up +0.62 z 0.27 crouch up +0.86
+   catch restart 5 iter 28: best +2.556  stands 0/3  up +0.61 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88
+   catch restart 5 iter 29: best +2.556  stands 0/3  up +0.61 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88
+   catch restart 5 iter 30: best +2.556  stands 0/3  up +0.61 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88
+   catch restart 5 iter 31: best +2.558  stands 0/3  up +0.61 z 0.27 crouch up +0.88 | up +0.61 z 0.27 crouch up +0.88 | up +0.61 z 0.27 crouch up +0.88
+   catch restart 5 iter 32: best +2.558  stands 0/3  up +0.62 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88
+   catch restart 5 iter 33: best +2.558  stands 0/3  up +0.62 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88 | up +0.62 z 0.27 crouch up +0.88
+   catch restart 5 iter 34: best +2.561  stands 0/3  up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89
+   catch restart 5 iter 35: best +2.563  stands 0/3  up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89
+   catch restart 5 iter 36: best +2.564  stands 0/3  up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89
+   catch restart 5 iter 37: best +2.564  stands 0/3  up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89
+   catch restart 5 iter 38: best +2.566  stands 0/3  up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89 | up +0.62 z 0.27 crouch up +0.89
+   catch restart 5 iter 39: best +2.569  stands 0/3  up +0.62 z 0.27 crouch up +0.90 | up +0.62 z 0.27 crouch up +0.90 | up +0.62 z 0.27 crouch up +0.90
+-- catch restart 5 BEST +2.569  stands 0/3  up +0.62 z 0.27 crouch up +0.90 | up +0.62 z 0.27 crouch up +0.90 | up +0.62 z 0.27 crouch up +0.90
+   x {"trig_deg": 22.41, "c_sh": -77.01, "c_el": -93.99, "c_hip": 77.2, "c_knee": -81.74, "c_ankle": -29.86, "c_t": 0.99, "p1_sh": 4.89, "p1_el": -45.44, "p1_hip": 77.32, "p1_knee": -117.39, "p1_ankle": 19.75, "p1_t": 1.98, "p1_h": 0.61, "p2_sh": 1.21, "p2_el": -69.51, "p2_hip": 30.42, "p2_knee": 0.0, "p2_ankle": -34.27, "p2_t": 1.1, "p2_h": 1.43, "p3_sh": 75.82, "p3_el": -63.42, "p3_ankle": -40.0, "p3_t": 1.34, "p3_h": 1.39}
+
+== catch: OVERALL BEST +7.852  stands 3/3  up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet | up +1.00 z 0.39 crouch up +1.00 feet
+   x {"trig_deg": 15.01, "c_sh": 174.91, "c_el": -18.7, "c_hip": -100.49, "c_knee": -115.6, "c_ankle": -30.25, "c_t": 0.88, "p1_sh": -65.0, "p1_el": -65.29, "p1_hip": 85.58, "p1_knee": -42.6, "p1_ankle": -12.46, "p1_t": 1.71, "p1_h": 0.85, "p2_sh": 150.98, "p2_el": -85.45, "p2_hip": 21.83, "p2_knee": -4.93, "p2_ankle": -12.36, "p2_t": 0.75, "p2_h": 0.85, "p3_sh": 20.66, "p3_el": -17.39, "p3_ankle": -23.64, "p3_t": 1.33, "p3_h": 0.55}
+== VERIFY catch, six conditions, pace x1 and x3 (3x slower), STS overload cutoff enforced (torque reading)
+   x1 play 3 mu 0.7 servo 1.00 kick 1.0x tip heading +0: STANDING up +1.00 z 0.387  crouch up +1.00 z 0.230 feet only  trig t 1.4600000000000009  peak 2.67 N*m (R_shoulder)  peak load R_shoulder 98 %, longest duty>80% L_shoulder 1.54 s, trips none
+   x1 play 3 mu 0.7 servo 1.00 kick 1.5x tip heading +0: STANDING up +1.00 z 0.387  crouch up +1.00 z 0.230 feet only  trig t 0.19999999999999998  peak 2.71 N*m (L_elbow)  peak load L_elbow 100 %, longest duty>80% L_shoulder 1.52 s, trips none
+   x1 play 3 mu 0.7 servo 1.00 kick 2.0x tip heading +0: STANDING up +1.00 z 0.387  crouch up +1.00 z 0.230 feet only  trig t 0.14  peak 2.59 N*m (L_elbow)  peak load L_elbow 95 %, longest duty>80% L_shoulder 1.54 s, trips none
+   x1 play 3 mu 0.7 servo 1.00 kick 1.5x tip heading -20: STANDING up +1.00 z 0.387  crouch up +1.00 z 0.230 feet only  trig t 0.21999999999999997  peak 2.64 N*m (L_elbow)  peak load L_elbow 97 %, longest duty>80% L_shoulder 1.56 s, trips none
+   x1 play 3 mu 0.7 servo 1.00 kick 1.5x tip heading +20: STANDING up +1.00 z 0.387  crouch up +1.00 z 0.230 feet only  trig t 0.21999999999999997  peak 2.64 N*m (R_elbow)  peak load R_elbow 97 %, longest duty>80% R_shoulder 1.56 s, trips none
+   x1 play 5 mu 0.7 servo 1.00 kick 1.0x tip heading +0: STANDING up +1.00 z 0.387  crouch up +1.00 z 0.230 feet only  trig t 1.4600000000000009  peak 2.67 N*m (R_shoulder)  peak load R_shoulder 98 %, longest duty>80% L_shoulder 1.54 s, trips none
+   x1 play 5 mu 0.7 servo 1.00 kick 1.5x tip heading +0: STANDING up +1.00 z 0.387  crouch up +1.00 z 0.230 feet only  trig t 0.19999999999999998  peak 2.71 N*m (L_elbow)  peak load L_elbow 100 %, longest duty>80% L_shoulder 1.52 s, trips none
+   x1 play 5 mu 0.7 servo 1.00 kick 2.0x tip heading +0: STANDING up +1.00 z 0.387  crouch up +1.00 z 0.230 feet only  trig t 0.14  peak 2.59 N*m (L_elbow)  peak load L_elbow 95 %, longest duty>80% L_shoulder 1.54 s, trips none
+   x1 play 5 mu 0.7 servo 1.00 kick 1.5x tip heading -20: STANDING up +1.00 z 0.386  crouch up +1.00 z 0.230 feet only  trig t 0.21999999999999997  peak 2.68 N*m (R_elbow)  peak load R_elbow 98 %, longest duty>80% L_shoulder 1.56 s, trips none
+   x1 play 5 mu 0.7 servo 1.00 kick 1.5x tip heading +20: STANDING up +1.00 z 0.386  crouch up +1.00 z 0.230 feet only  trig t 0.21999999999999997  peak 2.68 N*m (L_elbow)  peak load L_elbow 98 %, longest duty>80% R_shoulder 1.56 s, trips none
+   x1 play 3 mu 0.3 servo 1.00 kick 1.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230 feet only  trig t 1.620000000000001  peak 2.55 N*m (L_shoulder)  peak load L_shoulder 94 %, longest duty>80% L_shoulder 1.48 s, trips none
+   x1 play 3 mu 0.3 servo 1.00 kick 1.5x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.23999999999999996  peak 2.47 N*m (R_elbow)  peak load R_elbow 91 %, longest duty>80% L_shoulder 1.48 s, trips none
+   x1 play 3 mu 0.3 servo 1.00 kick 2.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230 feet only  trig t 0.19999999999999998  peak 2.44 N*m (L_elbow)  peak load L_elbow 90 %, longest duty>80% L_shoulder 1.48 s, trips none
+   x1 play 3 mu 0.3 servo 1.00 kick 1.5x tip heading -20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.27999999999999997  peak 2.71 N*m (L_elbow)  peak load L_elbow 100 %, longest duty>80% L_shoulder 1.50 s, trips none
+   x1 play 3 mu 0.3 servo 1.00 kick 1.5x tip heading +20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.27999999999999997  peak 2.71 N*m (R_elbow)  peak load R_elbow 100 %, longest duty>80% L_shoulder 1.50 s, trips none
+   x1 play 3 mu 1.0 servo 1.00 kick 1.0x tip heading +0: no       up +0.61 z 0.269  crouch up +0.99 z 0.227  trig t 1.2600000000000007  peak 2.63 N*m (L_knee)  peak load L_knee 97 %, longest duty>80% L_shoulder 1.58 s, trips none
+   x1 play 3 mu 1.0 servo 1.00 kick 1.5x tip heading +0: no       up +0.61 z 0.269  crouch up +0.99 z 0.227 feet only  trig t 0.19999999999999998  peak 2.71 N*m (R_hip_pitch)  peak load R_hip_pitch 99 %, longest duty>80% L_shoulder 1.56 s, trips none
+   x1 play 3 mu 1.0 servo 1.00 kick 2.0x tip heading +0: no       up +0.61 z 0.269  crouch up +0.99 z 0.227  trig t 0.14  peak 2.51 N*m (R_elbow)  peak load R_elbow 92 %, longest duty>80% L_shoulder 1.56 s, trips none
+   x1 play 3 mu 1.0 servo 1.00 kick 1.5x tip heading -20: no       up +0.61 z 0.269  crouch up +1.00 z 0.229 feet only  trig t 0.21999999999999997  peak 2.62 N*m (L_elbow)  peak load L_elbow 96 %, longest duty>80% R_shoulder 1.56 s, trips none
+   x1 play 3 mu 1.0 servo 1.00 kick 1.5x tip heading +20: no       up +0.61 z 0.269  crouch up +1.00 z 0.229 feet only  trig t 0.21999999999999997  peak 2.62 N*m (R_elbow)  peak load R_elbow 96 %, longest duty>80% L_shoulder 1.56 s, trips none
+   x1 play 3 mu 0.7 servo 0.80 kick 1.0x tip heading +0: no       up +0.62 z 0.269  crouch up +0.99 z 0.227 feet only  trig t 1.540000000000001  peak 2.14 N*m (L_hip_pitch)  peak load L_hip_pitch 98 %, longest duty>80% L_shoulder 1.96 s, trips none
+   x1 play 3 mu 0.7 servo 0.80 kick 1.5x tip heading +0: no       up +0.62 z 0.269  crouch up +0.99 z 0.226 feet only  trig t 0.19999999999999998  peak 2.06 N*m (R_shoulder)  peak load R_shoulder 95 %, longest duty>80% L_shoulder 1.94 s, trips none
+   x1 play 3 mu 0.7 servo 0.80 kick 2.0x tip heading +0: no       up +0.62 z 0.269  crouch up +0.99 z 0.226  trig t 0.14  peak 2.07 N*m (L_shoulder)  peak load L_shoulder 95 %, longest duty>80% L_shoulder 1.94 s, trips none
+   x1 play 3 mu 0.7 servo 0.80 kick 1.5x tip heading -20: no       up +0.62 z 0.269  crouch up +1.00 z 0.228 feet only  trig t 0.21999999999999997  peak 2.10 N*m (L_shoulder)  peak load L_shoulder 97 %, longest duty>80% R_shoulder 1.96 s, trips none
+   x1 play 3 mu 0.7 servo 0.80 kick 1.5x tip heading +20: no       up +0.62 z 0.269  crouch up +1.00 z 0.228 feet only  trig t 0.21999999999999997  peak 2.10 N*m (R_shoulder)  peak load R_shoulder 97 %, longest duty>80% L_shoulder 1.96 s, trips none
+   x1 play 3 mu 0.7 servo 0.65 kick 1.0x tip heading +0: no       up -0.65 z 0.127  crouch up +0.02 z 0.056  trig t 1.740000000000001  peak 1.62 N*m (L_shoulder)  peak load L_shoulder 92 %, longest duty>80% L_shoulder 2.32 s, trips none
+   x1 play 3 mu 0.7 servo 0.65 kick 1.5x tip heading +0: no       up -0.65 z 0.127  crouch up +0.02 z 0.056  trig t 0.19999999999999998  peak 1.72 N*m (R_shoulder)  peak load R_shoulder 97 %, longest duty>80% L_shoulder 2.50 s, trips none
+   x1 play 3 mu 0.7 servo 0.65 kick 2.0x tip heading +0: no       up -0.65 z 0.127  crouch up +0.03 z 0.056  trig t 0.14  peak 1.76 N*m (R_shoulder)  peak load R_shoulder 100 %, longest duty>80% L_shoulder 2.48 s, trips none
+   x1 play 3 mu 0.7 servo 0.65 kick 1.5x tip heading -20: no       up -0.65 z 0.127  crouch up +0.03 z 0.056  trig t 0.21999999999999997  peak 1.71 N*m (L_shoulder)  peak load L_shoulder 97 %, longest duty>80% L_shoulder 2.50 s, trips none
+   x1 play 3 mu 0.7 servo 0.65 kick 1.5x tip heading +20: no       up -0.65 z 0.127  crouch up +0.03 z 0.056  trig t 0.21999999999999997  peak 1.71 N*m (R_shoulder)  peak load R_shoulder 97 %, longest duty>80% L_shoulder 2.50 s, trips none
+   x3 play 3 mu 0.7 servo 1.00 kick 1.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 1.4600000000000009  peak 2.67 N*m (R_shoulder)  peak load R_shoulder 98 %, longest duty>80% L_shoulder 1.02 s, trips none
+   x3 play 3 mu 0.7 servo 1.00 kick 1.5x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.19999999999999998  peak 2.43 N*m (L_shoulder)  peak load L_shoulder 89 %, longest duty>80% L_shoulder 0.94 s, trips none
+   x3 play 3 mu 0.7 servo 1.00 kick 2.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.14  peak 2.50 N*m (R_shoulder)  peak load R_shoulder 92 %, longest duty>80% L_shoulder 0.94 s, trips none
+   x3 play 3 mu 0.7 servo 1.00 kick 1.5x tip heading -20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.21999999999999997  peak 2.63 N*m (R_elbow)  peak load R_elbow 97 %, longest duty>80% R_shoulder 0.90 s, trips none
+   x3 play 3 mu 0.7 servo 1.00 kick 1.5x tip heading +20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.21999999999999997  peak 2.63 N*m (L_elbow)  peak load L_elbow 97 %, longest duty>80% L_shoulder 0.90 s, trips none
+   x3 play 5 mu 0.7 servo 1.00 kick 1.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 1.4600000000000009  peak 2.67 N*m (R_shoulder)  peak load R_shoulder 98 %, longest duty>80% L_shoulder 1.02 s, trips none
+   x3 play 5 mu 0.7 servo 1.00 kick 1.5x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.19999999999999998  peak 2.43 N*m (L_shoulder)  peak load L_shoulder 89 %, longest duty>80% L_shoulder 0.94 s, trips none
+   x3 play 5 mu 0.7 servo 1.00 kick 2.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.14  peak 2.50 N*m (R_shoulder)  peak load R_shoulder 92 %, longest duty>80% L_shoulder 0.94 s, trips none
+   x3 play 5 mu 0.7 servo 1.00 kick 1.5x tip heading -20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.21999999999999997  peak 2.44 N*m (R_elbow)  peak load R_elbow 90 %, longest duty>80% R_shoulder 0.92 s, trips none
+   x3 play 5 mu 0.7 servo 1.00 kick 1.5x tip heading +20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.21999999999999997  peak 2.44 N*m (L_elbow)  peak load L_elbow 90 %, longest duty>80% L_shoulder 0.92 s, trips none
+   x3 play 3 mu 0.3 servo 1.00 kick 1.0x tip heading +0: no       up +0.61 z 0.272  crouch up +1.00 z 0.230  trig t 1.620000000000001  peak 2.59 N*m (L_elbow)  peak load L_elbow 95 %, longest duty>80% L_shoulder 1.00 s, trips none
+   x3 play 3 mu 0.3 servo 1.00 kick 1.5x tip heading +0: no       up +0.61 z 0.272  crouch up +1.00 z 0.230  trig t 0.23999999999999996  peak 2.50 N*m (L_shoulder)  peak load L_shoulder 92 %, longest duty>80% L_shoulder 0.86 s, trips none
+   x3 play 3 mu 0.3 servo 1.00 kick 2.0x tip heading +0: no       up +0.61 z 0.272  crouch up +1.00 z 0.230  trig t 0.19999999999999998  peak 2.65 N*m (L_elbow)  peak load L_elbow 97 %, longest duty>80% L_shoulder 0.84 s, trips none
+   x3 play 3 mu 0.3 servo 1.00 kick 1.5x tip heading -20: no       up +0.61 z 0.272  crouch up +1.00 z 0.230  trig t 0.27999999999999997  peak 2.31 N*m (L_shoulder)  peak load L_shoulder 85 %, longest duty>80% L_shoulder 0.84 s, trips none
+   x3 play 3 mu 0.3 servo 1.00 kick 1.5x tip heading +20: no       up +0.61 z 0.272  crouch up +1.00 z 0.230  trig t 0.27999999999999997  peak 2.31 N*m (R_shoulder)  peak load R_shoulder 85 %, longest duty>80% L_shoulder 0.84 s, trips none
+   x3 play 3 mu 1.0 servo 1.00 kick 1.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.229  trig t 1.2600000000000007  peak 2.44 N*m (L_shoulder)  peak load L_shoulder 90 %, longest duty>80% L_shoulder 1.50 s, trips none
+   x3 play 3 mu 1.0 servo 1.00 kick 1.5x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.229  trig t 0.19999999999999998  peak 2.65 N*m (R_elbow)  peak load R_elbow 98 %, longest duty>80% L_shoulder 1.50 s, trips none
+   x3 play 3 mu 1.0 servo 1.00 kick 2.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.229  trig t 0.14  peak 2.50 N*m (L_elbow)  peak load L_elbow 92 %, longest duty>80% L_shoulder 1.48 s, trips none
+   x3 play 3 mu 1.0 servo 1.00 kick 1.5x tip heading -20: no       up +0.61 z 0.271  crouch up +1.00 z 0.229  trig t 0.21999999999999997  peak 2.42 N*m (L_shoulder)  peak load L_shoulder 89 %, longest duty>80% L_shoulder 1.50 s, trips none
+   x3 play 3 mu 1.0 servo 1.00 kick 1.5x tip heading +20: no       up +0.61 z 0.271  crouch up +1.00 z 0.229  trig t 0.21999999999999997  peak 2.42 N*m (R_shoulder)  peak load R_shoulder 89 %, longest duty>80% R_shoulder 1.50 s, trips none
+   x3 play 3 mu 0.7 servo 0.80 kick 1.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 1.540000000000001  peak 2.03 N*m (R_shoulder)  peak load R_shoulder 93 %, longest duty>80% L_shoulder 1.98 s, trips none
+   x3 play 3 mu 0.7 servo 0.80 kick 1.5x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.19999999999999998  peak 2.14 N*m (L_shoulder)  peak load L_shoulder 99 %, longest duty>80% L_shoulder 1.98 s, trips none
+   x3 play 3 mu 0.7 servo 0.80 kick 2.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.14  peak 2.14 N*m (L_elbow)  peak load L_elbow 98 %, longest duty>80% L_shoulder 1.98 s, trips none
+   x3 play 3 mu 0.7 servo 0.80 kick 1.5x tip heading -20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.21999999999999997  peak 2.06 N*m (R_ankle)  peak load R_ankle 94 %, longest duty>80% L_shoulder 1.94 s, trips none
+   x3 play 3 mu 0.7 servo 0.80 kick 1.5x tip heading +20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.21999999999999997  peak 2.06 N*m (L_ankle)  peak load L_ankle 94 %, longest duty>80% R_shoulder 1.94 s, trips none
+   x3 play 3 mu 0.7 servo 0.65 kick 1.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 1.740000000000001  peak 1.75 N*m (R_elbow)  peak load R_elbow 99 %, longest duty>80% L_shoulder 3.26 s, trips none
+   x3 play 3 mu 0.7 servo 0.65 kick 1.5x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.19999999999999998  peak 1.69 N*m (L_shoulder)  peak load L_shoulder 95 %, longest duty>80% L_shoulder 3.34 s, trips none
+   x3 play 3 mu 0.7 servo 0.65 kick 2.0x tip heading +0: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.14  peak 1.74 N*m (R_elbow)  peak load R_elbow 98 %, longest duty>80% L_shoulder 3.30 s, trips none
+   x3 play 3 mu 0.7 servo 0.65 kick 1.5x tip heading -20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.21999999999999997  peak 1.71 N*m (R_shoulder)  peak load R_shoulder 96 %, longest duty>80% R_shoulder 3.30 s, trips none
+   x3 play 3 mu 0.7 servo 0.65 kick 1.5x tip heading +20: no       up +0.61 z 0.271  crouch up +1.00 z 0.230  trig t 0.21999999999999997  peak 1.71 N*m (L_shoulder)  peak load L_shoulder 96 %, longest duty>80% L_shoulder 3.30 s, trips none
+-- catch, pace x1: stands 10/30
+-- catch, pace x3: stands 0/30

@@ -147,11 +147,14 @@ servo current crosses H1 (3 A per contact), the AO4407 and SW1.
 applies a per-servo current model to every 20 ms control tick of the design's
 open-loop motions, under Plan B at 11.1 V:
 
-- **walk**: the Gate D cases on the as-drawn plant with arms (17 servos, arms
-  held at +15°), and on the CAD-inertial plant (13 servos, the four arm servos
-  added at idle);
-- **get-up**: the scripted seat push (`r5_asdrawn_rom120`), both sequences,
-  the six robustness conditions.
+- **walk**: the Gate D cases (the four gate cases and the −15° turn at μ 0.7)
+  on the robot's CAD-inertial plant: 17 servos, 2.28 kg, arms held at their
+  15° walking pose;
+- **get-up**, on the lumped as-drawn get-up plant (`r5_asdrawn_rom120`), in
+  the six robustness conditions:
+  - the scripted seat push, both sequences, from the arms already folded;
+  - the seat push from a real backward fall, via the propped entry;
+  - the get-up from prone: the roll, then the seat push.
 
 The documents give the current along the servo's full-duty line; a PWM bridge
 holding a load at part duty draws less from the supply. So two models bracket
@@ -166,48 +169,60 @@ Whole bus, amperes, upper / lower:
 
 | motion | peak | RMS | mean | worst 2 s |
 |---|---|---|---|---|
-| walk, 17 servos (the four cases that walk) | 5.1 / 1.8 | 2.7 / 0.9 | 2.7 / 0.9 | 3.4 / 1.2 |
-| walk, CAD plant, 13 + 4 idle servos | 3.9 / 1.3 | 2.0 / 0.7 | 2.0 / 0.7 | 2.4 / 0.9 |
-| get-up, recommended sequence (shoulder 90 → 0) | 10.3 / 5.2 | 2.7 / 1.0 | 2.4 / 0.8 | 5.2 / 2.1 |
-| get-up, shoulder 60 → 0 | 11.8 / 6.7 | 3.0 / 1.2 | 2.6 / 0.9 | 7.6 / 3.4 |
+| walk, the robot (17 servos, 5 cases) | 4.7 / 1.7 | 3.1 / 1.0 | 3.1 / 1.0 | 3.7 / 1.3 |
+| get-up: seat push, arms folded, shoulder 90 → 0 | 10.3 / 5.2 | 2.7 / 1.0 | 2.4 / 0.8 | 5.2 / 2.1 |
+| get-up: seat push, arms folded, shoulder 60 → 0 | 11.8 / 6.7 | 3.0 / 1.2 | 2.6 / 0.9 | 7.6 / 3.4 |
+| get-up from a backward fall (propped entry + seat push) | 10.3 / 5.2 | 3.0 / 1.1 | 2.7 / 0.9 | 5.2 / 2.1 |
+| get-up from prone (roll + seat push) | **15.9 / 11.6** | 3.8 / 1.6 | 3.2 / 1.2 | **8.7 / 4.4** |
 
-The walk case that falls (−15° turn at μ 0.9) peaks at 5.7 / 4.0 A in the fall.
-The get-up's peak is the push: shoulders, elbows, hip pitches and knees loaded
-together (shoulders 1.7 A each, knees 1.4 A, hip pitches 1.3 A in the upper
-model). The worst run is at μ 1.0.
+- **The seat push's peak** is the push. The shoulders, elbows, hip pitches
+  and knees are loaded together: shoulders 1.7 A each (2.0 A in the propped
+  entry), knees 1.4 A, hip pitches 1.3 A in the upper model. The worst run is
+  at μ 1.0.
+- **The prone roll is the heaviest motion the robot makes.** One leg's hip
+  yaw, hip roll, hip pitch and knee sit at their stall current (2.5 A)
+  together, for part of a second.
 
 Per chain, upper / lower, for three ways to split the bus:
 
-| split | chain | walk peak / RMS | get-up (recommended) peak / worst 2 s |
-|---|---|---|---|
-| **B: two ports** | L leg + L arm + neck | 3.9 / 1.5 — 1.4 / 0.5 | 5.1 / 2.6 — 2.6 / 1.1 |
-| | R leg + R arm | 3.8 / 1.5 — 1.4 / 0.5 | 5.1 / 2.6 — 2.6 / 1.0 |
-| C: two ports | both legs | 4.9 / 2.5 — 1.7 / 0.8 | 5.3 / 2.7 — 2.6 / 1.1 |
-| | arms + neck | 0.6 / 0.2 — 0.2 / 0.2 | 5.0 / 2.5 — 2.7 / 1.0 |
-| A: three chains (a splitter) | L leg / R leg / arms + neck | 3.7 / 1.4 each leg; 0.6 / 0.2 | 2.7 / 1.3 each leg; 5.0 / 2.5 |
+| split | chain | walk peak / RMS | seat push from a fall, peak / worst 2 s | prone roll, peak / worst 2 s |
+|---|---|---|---|---|
+| **B: two ports** | L leg + L arm + neck | 3.9 / 1.8 — 1.4 / 0.6 | 5.1 / 2.6 — 2.6 / 1.1 | 10.4 / 5.2 — 8.4 / 3.3 |
+| | R leg + R arm | 3.8 / 1.7 — 1.4 / 0.6 | 5.1 / 2.6 — 2.6 / 1.0 | 6.7 / 3.9 — 4.2 / 1.6 |
+| C: two ports | both legs | 4.5 / 2.9 — 1.5 / 0.9 | 5.4 / 2.7 — 2.6 / 1.1 | 15.6 / 8.0 — 11.5 / 4.3 |
+| | arms + neck | 0.6 / 0.2 — 0.2 / 0.2 | 5.8 / 2.8 — 3.3 / 1.4 | 4.8 / 2.5 — 2.6 / 1.0 |
+| A: three chains (a splitter) | L leg / R leg / arms + neck | 3.7 / 1.6 each leg; 0.6 / 0.2 | 2.7 / 1.4 each leg; 5.8 / 2.8 | 10.2 / 5.0, 6.6 / 3.7; 4.8 / 2.5 |
 
 What the numbers say:
 
 - **The walk fits the board's 5 A continuous rating** in both models (RMS
-  0.9–2.7 A, worst 2 s 1.2–3.4 A); the upper model's peaks touch 5 A.
-- **The get-up's push does not**: 5.2–10.3 A peak, and in the upper model a 2 s
-  mean of 5.2 A, the length of the push. The 60 → 0 sequence is worse on every
-  line, which is one more reason the 90 → 0 one is recommended.
+  1.0–3.1 A, worst 2 s 1.3–3.7 A, peak 1.7–4.7 A).
+- **The get-ups do not.** The seat push peaks at 5.2–10.3 A, and its upper
+  model holds 5.2 A for 2 s. The prone roll peaks at 11.6–15.9 A and holds
+  4.4–8.7 A for 2 s. The 60 → 0 sequence is worse than 90 → 0 on every line.
 - **H1 is the tightest part.** All of the servo current crosses one 3 A XH
-  contact. The walk's upper RMS (2.7 A) is 90 % of it and the get-up exceeds
-  it. Feeding `DC_IN` directly, bypassing the XH inlet and SW1, is the
-  indicated power path; the shunt run confirms it.
+  contact. The walk's upper RMS (3.1 A) already exceeds it. **Feed `DC_IN`
+  directly**, bypassing the XH inlet and SW1; the shunt run confirms it.
 - **Split B** (one leg and one arm per port, the neck on either) spreads the
-  get-up evenly: 5.1 A peak and 2.6 A worst 2 s per port in the upper model,
-  against ≈ 3 A for a Molex-5264-class lead (not verified from a datasheet).
-  Split C puts both legs on one lead (4.9 A walk peak, 2.5 A RMS); split A
-  needs a splitter and puts all four arm servos on one lead.
-- **Fuse**: stay at 15 A. The upper model's get-up peaks (10–12 A) sit at a
-  10 A fuse's rating; drop to 10 A only once the shunt shows the real peak.
-- **Servo protection**: no servo in the walk passes 54 % of stall (70 % on the
-  duty reading), so neither cutoff can fire there. In the get-up the shoulders
-  peak at 1.7 A, under the datasheet's 2 A over-current line; the overload
-  margin is in [DESIGN.md §4](../DESIGN.md#4-actuation-one-servo-type-with-a-raised-position-gain).
+  seat push evenly: 5.1 A peak and 2.6 A worst 2 s per port in the upper
+  model, against ≈ 3 A for a Molex-5264-class lead (not verified from a
+  datasheet). The prone roll loads one leg, so its port sees up to 10.4 A
+  peak. Split C puts both legs on one lead: 15.6 A in the roll, 2.9 A RMS
+  walking. Split A needs a splitter.
+- **Fuse**: the prone roll's upper peak (15.9 A) reaches the 15 A fuse for a
+  moment, and its lower peak (11.6 A) passes 10 A. So the fuse stays at
+  15 A, and the roll is the motion to measure first with the shunt, with a
+  sequence that loads the hips less if the peak is real. A slow-blow ATM
+  fuse carries 15 A peaks of a fraction of a second, but that is the fuse's
+  curve to check, not this model's.
+- **Servo protection**:
+  - In the walk no servo passes 55 % of stall (63 % on the duty reading), so
+    neither cutoff can fire there.
+  - In the seat push the shoulders peak at 1.7–2.0 A, under the datasheet's
+    2 A over-current line.
+  - In the prone roll the loaded hips reach the 2.5 A stall current, briefly.
+  - The overload margin is in
+    [DESIGN.md §4](../DESIGN.md#4-actuation-one-servo-type-with-a-raised-position-gain).
 
 Not in the budget: pack sag under load (the traces run at a fixed 11.1 V),
 servo heating, and the Pi's ≈ 1.4 A from its own buck.
