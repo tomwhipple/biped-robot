@@ -31,7 +31,11 @@ def test_plant_loads(p):
     m, d = K.load(p)
     assert m.nu == 13 and m.nq == 20
     assert m.actuator(12).name == "neck_yaw"
-    assert 1.4 < m.body_subtreemass[0] < 1.7
+    # upper bound 1.7 -> 1.8 on 2026-09-24 for the stereo-periscope head
+    # (docs/design-v6/stereo-head.md). Prism-free it is 90.6 g, not the mono
+    # head's 39: this model is 1.699 kg, 1.4 g under the old bound, and the
+    # CAD-true plant is 1.84 kg
+    assert 1.4 < m.body_subtreemass[0] < 1.8
 
 
 def test_cad_and_sim_agree(p):

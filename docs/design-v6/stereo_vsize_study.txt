@@ -1,0 +1,20 @@
+# .venv/bin/python cad/v6/periscope_optics.py --sizes (2026-09-27) -- which pre-cut V squares work, see stereo-head.md section 3.1.
+# 're-searched' = the V layout search re-run for that part (3 seeds, +-1 deg); 'as laid out today' = the part dropped into DESIGN (only the printed pockets change).
+V squares (outer mirrors 50 x 50 x 1.1; 3 search seeds each)
+along x tall x thick (mm)  | re-searched: eyes L/R, total, shared, baseline   | as laid out today
+25 x 20 x 1.1              | 35/26, total 46, shared 16, 62.0 mm              | 37/26, total 47, shared 16
+20 x 25 x 1.1              | 38/25, total 47, shared 16, 59.4 mm              | 36/24, total 47, shared 13
+24 x 20 x 1.1              | 35/26, total 46, shared 16, 62.0 mm              | 36/26, total 47, shared 15
+20 x 20 x 1.1              | 35/26, total 46, shared 16, 62.0 mm              | 36/24, total 47, shared 13
+20 x 15 x 1.1              | 34/24, total 42, shared 16, 65.6 mm              | 35/24, total 47, shared 12
+15 x 20 x 1.1              | 34/24, total 42, shared 16, 65.5 mm              | 34/22, total 47, shared  9
+25 x 25 x 1.1              | 37/27, total 48, shared 16, 59.4 mm              | 37/26, total 47, shared 16
+25.4 x 25.4 x 1            | 37/28, total 49, shared 16, 59.8 mm              | 37/26, total 48, shared 16
+30 x 30 x 1.1              | 36/28, total 48, shared 16, 61.0 mm              | 38/26, total 47, shared 17
+26 x 32.5 x 1.1            | 37/28, total 49, shared 16, 59.3 mm              | 37/26, total 47, shared 16
+32.5 x 26 x 1.1            | 37/28, total 49, shared 16, 53.4 mm              | glass clash or no field
+35 x 35 x 1.1              | 37/28, total 49, shared 16, 57.1 mm              | glass clash or no field
+25 x 20 x 1.6              | 36/22, total 42, shared 16, 61.8 mm              | 37/22, total 44, shared 16
+25 x 20 x 2                | 36/21, total 41, shared 16, 60.8 mm              | 37/20, total 41, shared 16
+30 x 30 x 2                | 36/23, total 43, shared 16, 60.8 mm              | 38/20, total 41, shared 17
+25 x 20 x 3                | 35/17, total 36, shared 16, 62.0 mm              | 37/16, total 36, shared 16

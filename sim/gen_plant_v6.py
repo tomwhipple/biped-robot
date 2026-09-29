@@ -256,8 +256,16 @@ class DesignParams:
     m_pi4: float = 0.066         # Pi 4B 46 g + heatsink/standoffs 20 g
     m_power: float = 0.060       # 3S protection/UPS module + 5 V buck + leads
     m_neck_servo: float = 0.055  # STS3215
-    m_head: float = 0.039        # head 34.7 g + Camera Module 3 (CAD 2026-09-14)
-    head_h: float = 0.050        # neck horn face -> head CoM
+    # the STEREO-PERISCOPE head (cad/v6/head.py; numbers from dimensions_v6.
+    # HEAD_*). Was one 39 g box; now ~90 g and 145 mm wide, the two outer
+    # mirrors out at y +-45 mm -- the yaw inertia and the top-of-tower mass
+    # both change, so each part is its own geom. Prism-free since 2026-09-26:
+    # the split is a V of two small front-surface squares.
+    m_head: float = 0.0701       # PETG: shell + lid + camera sled
+    head_box: tuple = (-0.0418, 0.0105, 0.0724, 0.0699)   # envelope x0, x1, half-width, height (horn-face frame)
+    m_head_vtile: float = 0.00138  # each V square (25 x 20 x 1.1, measured on arrival)
+    m_head_mirror: float = 0.00688  # each outer square (50 x 50 x 1.1, measured on arrival)
+    m_head_cam: float = 0.004    # Camera Module 3 Wide
 
     @property
     def z_hip_pitch_above_sole(self) -> float:
@@ -678,12 +686,24 @@ def _head(p: DesignParams) -> str:
     if not p.torso_v7 or p.bird_body:   # bird_body: the slab IS the head, no neck servo/joint
         return ""
     zn = p.deck_bot + p.deck_t
+    hb = p.head_box
+    hx, hdx = (hb[0] + hb[1]) / 2, (hb[1] - hb[0]) / 2
     head_body = f"""
       <body name="head" pos="0 0 {_f(zn + SV_T + 0.004)}">
         <joint name="neck_yaw" axis="0 0 1" range="-90 90"/>
-        <geom name="head_shell" {_fc(p)}type="box" pos="0.005 0 {_f(p.head_h/2)}" size="0.028 0.030 {_f(p.head_h/2)}" mass="{p.m_head}" rgba="0.82 0.84 0.87 1" group="1"/>
-        <geom type="box" pos="0.036 0 {_f(p.head_h*0.6)}" size="0.005 0.012 0.012" mass="0.003" rgba="0.1 0.1 0.1 1" group="1"/>
-        <site name="camera" pos="0.041 0 {_f(p.head_h*0.6)}" size="0.003" rgba="0 1 0 0.6"/>
+        <geom name="head_shell" {_fc(p)}type="box" pos="{_f(hx)} 0 {_f(hb[3]/2)}" size="{_f(hdx)} {_f(hb[2])} {_f(hb[3]/2)}" mass="{p.m_head}" rgba="0.20 0.20 0.22 1" group="1"/>
+        <!-- the glass and the camera: mass only (they sit inside the shell) -->
+        <geom name="head_vtile_L" type="box" pos="-0.0189 0.0084 0.0465" euler="0 0 45" size="0.00055 0.0125 0.010" mass="{p.m_head_vtile}" contype="0" conaffinity="0" rgba="0.6 0.8 0.95 1" group="1"/>
+        <geom name="head_vtile_R" type="box" pos="-0.0197 -0.0092 0.0465" euler="0 0 -45" size="0.00055 0.0125 0.010" mass="{p.m_head_vtile}" contype="0" conaffinity="0" rgba="0.6 0.8 0.95 1" group="1"/>
+        <geom name="head_mirror_L" type="box" pos="-0.0230 0.0458 0.0418" euler="0 0 -30" size="0.00055 0.025 0.025" mass="{p.m_head_mirror}" contype="0" conaffinity="0" rgba="0.7 0.85 0.95 1" group="1"/>
+        <geom name="head_mirror_R" type="box" pos="-0.0230 -0.0458 0.0418" euler="0 0 30" size="0.00055 0.025 0.025" mass="{p.m_head_mirror}" contype="0" conaffinity="0" rgba="0.7 0.85 0.95 1" group="1"/>
+        <geom name="head_cam" type="box" pos="-0.0018 0 0.0448" size="0.0062 0.0125 0.012" mass="{p.m_head_cam}" contype="0" conaffinity="0" rgba="0.1 0.45 0.2 1" group="1"/>
+        <!-- camera: the real lens pupil (it looks AFT, into the prism). eye_L / eye_R:
+             the stereo pair's VIRTUAL pupils, behind the mirrors -- where each eye
+             effectively sees from; 62.2 mm apart. -->
+        <site name="camera" pos="-0.0065 0 0.0485" size="0.003" rgba="0 1 0 0.6"/>
+        <site name="eye_L" pos="-0.0698 0.0311 0.0536" size="0.003" rgba="0 1 0 0.6"/>
+        <site name="eye_R" pos="-0.0698 -0.0311 0.0536" size="0.003" rgba="0 1 0 0.6"/>
       </body>"""
     tx, tz, pitch, identity = _torso_transform(p)
     if identity:

@@ -1,0 +1,9 @@
+# .venv/bin/python cad/v6/periscope_tb.py (2026-09-24) -- the top/bottom split, see stereo-head.md section 7.
+# 'glass needed' = each plane's footprint (mm), the prism first where there is one; mirrors unbounded.
+ceiling, perfect optics, top/bottom split, 20 deg band: 96 deg per eye
+ceiling, perfect optics, top/bottom split, 26 deg band: 80 deg per eye
+ceiling, perfect optics, top/bottom split, 30 deg band: 54 deg per eye
+fold2   (fwd camera): per eye 33.0 deg, total 53, overlap 13, baseline 120 mm; glass needed [(15, 10), (41, 24), (454, 216)]
+fold3   (fwd camera): per eye 27.0 deg, total 44, overlap 10, baseline 169 mm; glass needed [(16, 7), (23, 21), (59, 52), (106, 77)]
+prism2  (aft camera): per eye 9.0 deg, total 20, overlap 0, baseline 80 mm; glass needed [(25, 25), (24, 27), (20, 54)]
+prism3  (fwd camera): per eye 36.0 deg, total 50, overlap 22, baseline 76 mm; glass needed [(25, 25), (17, 35), (62, 38), (98, 70)]
