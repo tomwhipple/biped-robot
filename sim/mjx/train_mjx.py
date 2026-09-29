@@ -194,8 +194,9 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--cmd-dense", action="store_true")
     p.add_argument("--terrain", action="store_true",
-                   help="train on the tiled terrain mosaic (0-20 mm rough "
-                        "ground, per-episode spawn = per-episode roughness)")
+                   help="train on the tiled terrain mosaic (2-6 mm carpet-like "
+                        "ground, sim/terrain_mosaic.npz; per-episode spawn = "
+                        "per-episode roughness)")
     p.add_argument("--mimic-knee-w", type=float, default=1.0,
                    help="knee weight in the gait-imitation kernel (the "
                         "lump-sum kernel let the knee stay jammed straight)")

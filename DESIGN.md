@@ -139,7 +139,8 @@ the firmware port). Per-ID gains are recorded in
 
 **Deploy servo model** used by every gate: kp 12 N·m/rad fitted to the
 STS3215 (the bench measured ≈ 17), a torque–speed clamp at 11.1 V, the
-firmware's 2 Hz three-stage command shaper plus 80 ms dead time, integer goal
+bench-measured actuation response as a 2 Hz lag plus 80 ms dead time (the
+firmware's 10 Hz command shaper and the servo's own response), integer goal
 ticks, 5 ms bus latency, 1° gear backlash and 3° of free play on the four roll
 joints. P × N is modelled as N × the fitted stiffness on the same envelope.
 Measured STS3215 facts: no-load speed 4.04 rad/s at 12 V (14 % under the
@@ -277,7 +278,7 @@ throughout. On hardware the same keyframes stream through the firmware's
 
 - **Cadence**: shift 1.6 s per 60 mm, swing 1.6 s, land 0.5 s — 5.25 s per 6 cm
   step. A step command is a fall; the swing leg lags its command ~0.3 s through
-  the shaper and dead time, so the 0.5 s settle before the next shift is what
+  the actuation lag and dead time, so the 0.5 s settle before the next shift is what
   separates a walk from a fall at the crossover. A 4 cm commanded lift gives
   15–25 mm of real clearance.
 - **Turning** is walking in an arc: each swing foot is placed in a frame
@@ -334,7 +335,7 @@ gates, in order:
 |---|---|---|
 | A — kinematic capability | does a static single-foot stance exist, with margin, inside every joint limit and without self-contact? | `sim/design_gates.py` |
 | B — actuator envelope | do the needed motions leave ≥ 2× speed and ≥ 1.5× torque at 11.1 V? | `sim/design_gates.py` |
-| C — contact realism | does it survive μ 0.3–1.0, play as free travel, self-collision, the deployed shaper and dead time? | built into D |
+| C — contact realism | does it survive μ 0.3–1.0, play as free travel, self-collision, the measured actuation lag and dead time? | built into D |
 | D — open-loop capability | does the scripted walk (and get-up) hold across the adversity matrix? then: the same script on the bench | `sim/static_gait.py`, `sim/gate_no3250.py walk|sweep|envelope|arms|getup`, `sim/getup_v6_shoulder.py` |
 | E — policy | only after D passes on hardware | [docs/training.md](docs/training.md) |
 
@@ -434,7 +435,7 @@ Everything open is a GitHub issue.
   domain-randomization range makes a policy robust to a thing the robot does
   not do.
 - Calibrate the simulation where the question lives, and run the deployed
-  actuation chain (shaper, dead time, ticks, play) inside every gate.
+  actuation chain (lag, dead time, ticks, play) inside every gate.
 - Stiffness of the roll chains is the whole game: double-support every roll
   joint, thread-lock horn screws, measure play per joint before the first walk.
 - Every relatively-moving pair is enumerated and swept; a pair that is not

@@ -9,9 +9,8 @@ MLP -- ~232k params, ~930 KB fp32 -- which does not fit the WROOM. The decided
 path is "train big, distill small": a (128, 128) student is ~38k params,
 ~150 KB fp32, and that lives in flash DROM as a constexpr, not in SRAM.
 
-This is the brax-era replacement for sim/distill.py (SB3, day-5 vintage, one
-student from four command-region experts). Same spirit -- DAgger, aggregated
-dataset, teacher-mix schedule -- rebuilt on the pieces this project now has:
+The method is DAgger -- aggregated dataset, teacher-mix schedule -- built on
+the training stack's own pieces:
 
   * rollouts in BimoMJXEnv on the GPU, from the teacher's OWN config.json, so
     the state distribution is the plant/DR/command curriculum it was trained
