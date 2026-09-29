@@ -35,6 +35,11 @@ Modes (logs in docs/design-v6/no3250_*.txt):
     .venv/bin/python sim/gate_no3250.py envelope  > docs/design-v6/no3250_envelope.txt
     .venv/bin/python sim/gate_no3250.py arms      > docs/design-v6/no3250_arms_walk.txt
     .venv/bin/python sim/gate_no3250.py getup     > docs/design-v6/no3250_getup.txt
+    .venv/bin/python sim/gate_no3250.py overload  > docs/design-v6/getup_overload.txt
+
+`overload` (2026-09-29, #83 / #6) re-runs the get-up with the documented STS
+overload cutoff modelled (sim/sts_servo_model.py). Pool size = the process's
+CPU affinity (taskset) on Linux; SIM_WORKERS overrides.
 
 On the Mac: MUJOCO_GL=cgl in the environment (the sim modules setdefault egl).
 Design record: docs/design-v6/2026-09-13-design-record.md section 14.
@@ -134,11 +139,22 @@ def _walk_job(args):
     return label, r
 
 
+def n_workers():
+    """pool size: the cores this process may run on (taskset / the CPU
+    affinity mask on Linux -- the shared box's core cap), else cpu_count - 2;
+    SIM_WORKERS overrides."""
+    if os.environ.get("SIM_WORKERS"):
+        return max(1, int(os.environ["SIM_WORKERS"]))
+    if hasattr(os, "sched_getaffinity"):
+        return max(1, len(os.sched_getaffinity(0)))
+    return max(1, (os.cpu_count() or 4) - 2)
+
+
 def pmap(fn, jobs, n=None):
     from multiprocessing import Pool
     if not jobs:
         return []
-    with Pool(n or min(len(jobs), max(1, (os.cpu_count() or 4) - 2))) as pool:
+    with Pool(n or min(len(jobs), n_workers())) as pool:
         return pool.map(fn, jobs)
 
 
@@ -445,6 +461,124 @@ def _front_ok(p, xml, seq, c):
     return r["front"] > 0.7
 
 
+# ------------------------------------------------------------------ overload protection (#83, #6)
+GETUP_CONDS = [dict(play_deg=3.0, mu=0.7, servo_scale=1.0), dict(play_deg=5.0, mu=0.7, servo_scale=1.0),
+               dict(play_deg=3.0, mu=0.3, servo_scale=1.0), dict(play_deg=3.0, mu=1.0, servo_scale=1.0),
+               dict(play_deg=3.0, mu=0.7, servo_scale=0.8), dict(play_deg=3.0, mu=0.7, servo_scale=0.65)]
+# the two as-drawn winners (no3250_getup.txt): (s0, e0), (s1, e1), ankle push
+GETUP_SEQS = {"sh 90->0 / el -90->0 (recommended)": ((90, -90), (0, 0), -25),
+              "sh 60->0 / el -60->0": ((60, -60), (0, 0), -25)}
+ROLES = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll", "neck_yaw", "shoulder", "elbow")
+
+
+def _cond_label(c):
+    return f"play {c['play_deg']:.0f} mu {c['mu']:.1f} servo {c['servo_scale']:.2f}"
+
+
+def _overload_job(args):
+    """one get-up run with the STS protection model: (seq, time_scale, load,
+    enforce, cond, set_name, overcurrent_a) -> (ok, up, pelvis_z, report)."""
+    import getup_v6_shoulder as S
+    import getup_v6 as G
+    seq, ts, load, enforce, c, sn, oc = args
+    S.H, S.K = -120.0, -130.0
+    G.PJ_DEFAULT = SETS[sn]
+    p, xml = S.plant("r5_asdrawn_rom120")
+    if isinstance(seq, tuple):
+        (s0, e0), (s1, e1), a_push = seq
+        seq = S.seat_push(False, s0, s1, 2.0, a_push, elbow=(e0, e1))
+    rt = S.run_traced(p, xml, seq, start="supine", track=(), time_scale=ts,
+                      protection=dict(enforce=enforce, load=load, overcurrent_a=oc), **c)
+    return bool(rt["ok"]), rt["up"], rt["pelvis_z"], rt["prot"]
+
+
+def _role_rows(reports):
+    """max over L/R and over the given per-condition reports, per joint role"""
+    rows = {}
+    for rep in reports:
+        for jn, v in rep.items():
+            role = jn[2:] if jn[:2] in ("L_", "R_") else jn
+            r = rows.setdefault(role, dict(peak=0.0, cont_max=0.0, cum=0.0, trips=0, peak_i=0.0, oc_cont_max=0.0))
+            r["peak"] = max(r["peak"], v["peak"]); r["cont_max"] = max(r["cont_max"], v["cont_max"])
+            r["cum"] = max(r["cum"], v["cum"]); r["peak_i"] = max(r["peak_i"], v["peak_i"])
+            r["oc_cont_max"] = max(r["oc_cont_max"], v["oc_cont_max"])
+    for rep in reports:        # trips counted per condition (a role trips if either side trips)
+        seen = set()
+        for jn, v in rep.items():
+            role = jn[2:] if jn[:2] in ("L_", "R_") else jn
+            if v["trip_t"] is not None and role not in seen:
+                rows[role]["trips"] += 1; seen.add(role)
+    return rows
+
+
+def mode_overload():
+    """#83 / #6: the documented STS overload cutoff (sim/sts_servo_model.py,
+    memory-table defaults: load > 80 % of max for 2.0 s -> 20 % torque) in
+    the as-drawn get-up under Plan B, both seat-push sequences, the six
+    robustness conditions, at the scripted pace and 3x slower. Two readings
+    of the servo's "load": |tau| / stall (the datasheet's "stalled above 80 %
+    of stall", = motor current) and the PWM duty (memory table reg 60).
+    Per role (max over L/R and the six conditions): peak load, the longest
+    CONTINUOUS time above 80 % (the protection timer), the cumulative time
+    above it, trips, and the longest time above the datasheet's 2 A
+    over-current line (output OFF after 2 s)."""
+    import sts_servo_model as SM
+    sn = "3215_p4rk"
+    print(f"== OVERLOAD PROTECTION in the as-drawn get-up (r5_asdrawn_rom120, lumped 2.10 kg, Plan B = STS3215 with P x4 "
+          f"on rolls + knees), tuck hip -120 knee -130. Documented STS3215 defaults (memory table V3.7): overload "
+          f"threshold {100 * SM.OVERLOAD_FRAC:.0f} % (reg 36), protection time {SM.PROTECT_TIME_S:.1f} s (reg 35), "
+          f"protection torque {100 * SM.PROTECT_FRAC:.0f} % (reg 34); over-current {SM.OVERCURRENT_A_DS:.1f} A "
+          f"for {SM.OVERCURRENT_TIME_S:.0f} s (C018 datasheet 7-11; the memory table's reg 28 says "
+          f"{SM.OVERCURRENT_A_MT:.2f} A). Timer continuous, protection latched once tripped, enforced "
+          f"(the tripped servo's envelope drops to 20 %). Stall at 11.1 V: {DG.SERVOS['sts3215']['stall']:.2f} N*m "
+          f"x servo scale. Load = torque: |tau| / stall; load = duty: |tau/stall + w/w0|.", flush=True)
+    for seq_name, seq in GETUP_SEQS.items():
+        for ts in (1.0, 3.0):
+            for load in ("torque", "duty"):
+                jobs = [(seq, ts, load, True, c, sn, SM.OVERCURRENT_A_DS) for c in GETUP_CONDS]
+                res = pmap(_overload_job, jobs)
+                n_ok = sum(r[0] for r in res)
+                print(f"\n-- {seq_name}, pace x{ts:.0f}{' (3x slower)' if ts > 1 else ''}, load = {load}: "
+                      f"stands {n_ok}/6 with the cutoff enforced", flush=True)
+                for c, (ok, up, z, rep) in zip(GETUP_CONDS, res):
+                    trips = sorted({(jn, v['trip_t']) for jn, v in rep.items() if v['trip_t'] is not None})
+                    hot = max(rep.items(), key=lambda kv: kv[1]["cont_max"])
+                    print(f"   {_cond_label(c)}: {'STANDING' if ok else 'no      '} up {up:+.2f} z {z:.3f}  "
+                          f"longest above 80 %: {hot[0]} {hot[1]['cont_max']:.2f} s  "
+                          f"trips: {', '.join(f'{j} @ {t:.1f} s' for j, t in trips) or 'none'}", flush=True)
+                _print_role_table(_role_rows([r[3] for r in res]))
+    # where is the edge? weaker and weaker servos (play 3, mu 0.7), the
+    # recommended sequence at the scripted pace: first trip, first failure
+    print("\n-- margin in servo strength: the recommended sequence, play 3 mu 0.7, pace x1, servo scale swept down "
+          "(stall AND no-load speed x scale; the protection threshold is 80 % of the weakened servo's own maximum)",
+          flush=True)
+    seq = GETUP_SEQS["sh 90->0 / el -90->0 (recommended)"]
+    scales = (0.65, 0.6, 0.55, 0.5, 0.45, 0.4)
+    for load in ("torque", "duty"):
+        jobs = [(seq, 1.0, load, enf, dict(play_deg=3.0, mu=0.7, servo_scale=s), sn, SM.OVERCURRENT_A_DS)
+                for s in scales for enf in (True, False)]
+        res = pmap(_overload_job, jobs)
+        for k, s in enumerate(scales):
+            ok_e, up_e, z_e, rep_e = res[2 * k]
+            ok_m, _, _, rep_m = res[2 * k + 1]
+            trips = sorted({(jn, v['trip_t']) for jn, v in rep_e.items() if v['trip_t'] is not None})
+            hot = max(rep_m.items(), key=lambda kv: kv[1]["cont_max"])
+            print(f"   load {load:6s} servo {s:.2f}: cutoff enforced {'STANDING' if ok_e else 'no      '} "
+                  f"(up {up_e:+.2f} z {z_e:.3f}); without it {'STANDING' if ok_m else 'no      '};  longest above 80 %: "
+                  f"{hot[0]} {hot[1]['cont_max']:.2f} s (peak {100 * hot[1]['peak']:.0f} %);  trips: "
+                  f"{', '.join(f'{j} @ {t:.1f} s' for j, t in trips) or 'none'}", flush=True)
+
+
+def _print_role_table(rows, indent="   "):
+    print(f"{indent}{'role':11s} {'peak load':>9s} {'longest >80%':>12s} {'total >80%':>10s} {'trips':>6s} "
+          f"{'peak I':>7s} {'longest >2A':>11s}", flush=True)
+    for role in ROLES:
+        if role in rows:
+            r = rows[role]
+            print(f"{indent}{role:11s} {100 * r['peak']:8.0f}% {r['cont_max']:11.2f}s {r['cum']:9.2f}s "
+                  f"{r['trips']:4d}/6 {r['peak_i']:6.2f}A {r['oc_cont_max']:10.2f}s", flush=True)
+
+
 if __name__ == "__main__":
     {"walk": mode_walk, "sweep": mode_sweep, "envelope": mode_envelope, "arms": mode_arms,
-     "getup": mode_getup}[sys.argv[1]]()
+     "getup": mode_getup, "overload": mode_overload}[sys.argv[1]]()

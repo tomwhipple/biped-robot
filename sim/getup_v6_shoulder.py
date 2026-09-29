@@ -233,12 +233,23 @@ def pushup_seq(has_abd, s_floor, s_push1, s_push2, abd_out=0.0, elbow=None):
                                       **({"elbow": elbow[2]} if elbow else {})), 2.0, 1.5)]
 
 
-def run_traced(p, xml_path, seq, start="supine", track=("L_shoulder", "R_shoulder", "L_elbow", "R_elbow"), **kw):
+def run_traced(p, xml_path, seq, start="supine", track=("L_shoulder", "R_shoulder", "L_elbow", "R_elbow"),
+               protection=None, trace=False, time_scale=1.0, **kw):
     """Like G.run_sequence, but tracks the PEAK |torque| on the named joints
     over every control substep (run_sequence's own log only samples torque
     at each labelled step's END, which can miss a mid-move peak). Copies
     run_sequence's loop (sim/getup_v6.py) rather than editing the shared
-    helper, since other studies depend on its existing per-label sampling."""
+    helper, since other studies depend on its existing per-label sampling.
+
+    Options added 2026-09-29 (all default off, so earlier logs reproduce):
+      protection  dict of sts_servo_model.STSProtection kwargs (enforce,
+                  load, timer, release, overcurrent_a): the documented STS
+                  overload cutoff per servo; the result gains "prot", its
+                  per-joint report.
+      trace       also return "tau" / "qd" (ticks x joints, every control
+                  tick) and "names", for the supply-current budget.
+      time_scale  every keyframe's move and hold times x this (3.0 = the
+                  method's "3x slower" quasi-static check)."""
     import numpy as np, mujoco as mj
     env = G.make_env(p, xml_path, mu=kw.get("mu", 0.7), play_deg=kw.get("play_deg", 3.0))
     obs, _ = env.reset(seed=0)
@@ -267,21 +278,38 @@ def run_traced(p, xml_path, seq, start="supine", track=("L_shoulder", "R_shoulde
     G.settle_fallen(env, p, start, q_prev)
     dt = env.control_dt
     peak = {n: 0.0 for n in idx}
+    prot = None
+    if protection is not None:
+        from sts_servo_model import STSProtection
+        prot = STSProtection(env, names, **protection)
+    taus, qds = [], []
     for label, off, move_s, hold_s in seq:
         q_tgt = G.q_from_offsets(off)
-        n_steps = int(move_s / dt)
-        for i in range(n_steps + int(hold_s / dt)):
+        n_steps = int(move_s * time_scale / dt)
+        for i in range(n_steps + int(hold_s * time_scale / dt)):
             s = min(1.0, (i + 1) / max(n_steps, 1))
             s = 10 * s ** 3 - 15 * s ** 4 + 6 * s ** 5
             q = q_prev + (q_tgt - q_prev) * s
             env.step(inv(q))
             for n, j in idx.items():
                 peak[n] = max(peak[n], abs(float(env._servo_tau[j])))
+            if prot is not None:
+                prot.tick(env, dt)
+            if trace:
+                taus.append(np.asarray(env._servo_tau, dtype=float).copy())
+                qds.append(np.asarray(env.data.qvel[env._jqvel], dtype=float).copy())
         q_prev = q_tgt
     d = env.data
     up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
+    front = d.xmat[env._torso_bid].reshape(3, 3)[2, 0]
     ok = up > 0.9 and d.qpos[2] > 0.8 * p.z_yaw_above_sole
-    return dict(ok=ok, pelvis_z=float(d.qpos[2]), peak=peak)
+    out = dict(ok=ok, pelvis_z=float(d.qpos[2]), peak=peak, up=float(up), front=float(front))
+    if prot is not None:
+        out["prot"] = prot.report()
+    if trace:
+        out.update(tau=np.array(taus), qd=np.array(qds), names=names[:na], w0=np.array(env._servo[3], dtype=float),
+                   stall=np.array(env._servo[2], dtype=float), dt=dt)
+    return out
 
 
 def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_deg=3.0, per_joint=None, arm_pose=(0.0, 0.0)):
