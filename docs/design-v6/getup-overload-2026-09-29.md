@@ -184,9 +184,18 @@ The recommended sequence's shoulder reaches 51–65 %, up to 1.77 N·m at μ 1.0
    load drops to 66 % and the time above 80 % duty to 0.8 s, at a cost of 5 s.
    The bench should try this timing if the real servo's timer turns out to be
    cumulative, or its threshold lower.
-4. **The walk never approaches the cutoff.** No servo in the Gate D walk
-   passes 54 % of stall (70 % on the duty reading)
+4. **The walk never approaches the cutoff.** In the Gate D walk, no servo
+   passes 55 % of stall (63 % on the duty reading) on the robot's
+   17-actuator CAD-inertial plant, nor 54 % (70 %) on the lumped one
    ([current_budget_v6.txt](current_budget_v6.txt)).
+5. **The get-ups from a real fall come closer**
+   ([getup-prone-2026-09-29.md](getup-prone-2026-09-29.md)):
+   - The propped seat-push entry keeps the shoulder above 80 % of stall for
+     at most 0.9 s.
+   - The prone roll's hip roll and yaw reach stall in bursts, up to 1.7 s
+     above 80 % with the servos at 65 %. At 3× slower with weak servos they
+     trip, and the robot still stands.
+   - The roll is where the cutoff has the least margin.
 
 Every sequence here starts with the arms already folded up to 180°. From a
 real backward fall they start at the walk's idle pose. See
@@ -209,7 +218,7 @@ real backward fall they start at the walk's idle pose. See
 `env.data`, so walker_env can use it unchanged. Whether the training
 environments need it:
 
-- **The walk does not.** Its loads stay under 54 % of stall, so the cutoff
+- **The walk does not.** Its loads stay under 55 % of stall, so the cutoff
   cannot fire.
 - **A learned get-up or recovery does.** A policy can learn to hold a joint at
   stall indefinitely, which the real servo does not allow. Any task that can
