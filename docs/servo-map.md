@@ -12,7 +12,8 @@ This page covers:
 - what has been measured on the servo.
 
 The firmware currently drives the 10-joint prototype. The robot's 17-servo ID map
-is **not yet assigned**. The procedure from a bare board to the first arm is
+is **proposed** in [§2.1](#21-the-robot-the-proposed-map), awaiting the owner's
+sign-off. The procedure from a bare board to the first arm is
 [bringup.md](bringup.md). The bench-safety rules are in
 [AGENTS.md](../AGENTS.md#bench-safety).
 
@@ -51,33 +52,75 @@ is **not yet assigned**. The procedure from a bare board to the first arm is
 
 ## 2. ID → joint map
 
-### 2.1 The robot: not yet assigned
+### 2.1 The robot: the proposed map
 
-The robot has 17 servos: 12 in the legs, one in the neck, four in the arms. **No
-IDs are assigned, and neither is the chain order.** When the map is chosen:
+> **PROPOSED — awaiting the owner's sign-off (issue #77).** Nothing is
+> assigned on hardware yet. Until it is signed off, treat IDs 11–17 and the
+> splitter topology as a proposal.
 
-- it goes in `ID_BY_ROLE` in `tools/gen_obs_spec.py`;
-- that script regenerates `kServoId` in `obs_spec.h` (which the host tests pin);
-- this table and the calibration tables below follow it.
+The robot has 17 servos: 12 in the legs, one in the neck, four in the arms.
+The rules behind the proposal:
 
-The rest of the firmware port is open work too: the observation spec, telemetry,
-calibration, the SIL ABI, and the bench tools that hard-code the prototype's
-calibration.
+- **IDs 1–10 keep the prototype's joints.** The prototype's servos, their case
+  labels, the NVS calibration and the deployed 10-joint policy's `kServoId`
+  all carry over unchanged; the robot's map is a superset of the prototype's.
+- **New servos are appended, right before left**, as the hip yaws were (9 right,
+  10 left): the ankle rolls are 11/12, then the neck 13, then the arms,
+  shoulder before elbow, which is also their chain order.
+- **Port A (H5) is the robot's right side, port B (H6) its left**, as on the
+  prototype. Each leg is one chain outward from the pelvis, ending at the
+  ankle roll.
+- **The upper body needs a third and fourth branch.** Every STS3215 has two
+  paralleled ports, so a chain is a line: two board ports make two lines, and
+  two legs, two arms and a neck cannot be covered by two lines that start at
+  the pelvis without leading the bus out to an elbow first. So each port
+  feeds a passive bus splitter at the board: one branch down the leg, one up
+  to the shoulder girdle. The neck rides the right arm's branch, which
+  balances the ports at 9 and 8 servos.
 
-| joint | ID | position P (Plan B) |
-|---|---|---|
-| `L_hip_yaw`, `R_hip_yaw` | — | stock |
-| `L_hip_roll`, `R_hip_roll` | — | **≈ 4×** |
-| `L_hip_pitch`, `R_hip_pitch` | — | stock |
-| `L_knee`, `R_knee` | — | **≈ 4×** |
-| `L_ankle`, `R_ankle` (pitch) | — | stock |
-| `L_ankle_roll`, `R_ankle_roll` | — | **≈ 4×** |
-| `neck_yaw` | — | stock |
-| `L_shoulder`, `R_shoulder` | — | stock |
-| `L_elbow`, `R_elbow` | — | stock |
+| ID | joint | port | hop from the board | position P (Plan B) |
+|---|---|---|---|---|
+| 9 | `R_hip_yaw` | A, leg branch | 1 | stock |
+| 1 | `R_hip_roll` | A, leg branch | 2 | **≈ 4×** |
+| 2 | `R_hip_pitch` | A, leg branch | 3 | stock |
+| 3 | `R_knee` | A, leg branch | 4 | **≈ 4×** |
+| 4 | `R_ankle` (pitch) | A, leg branch | 5 | stock |
+| 11 | `R_ankle_roll` | A, leg branch | 6 | **≈ 4×** |
+| 13 | `neck_yaw` | A, upper branch | 1 | stock |
+| 14 | `R_shoulder` | A, upper branch | 2 | stock |
+| 15 | `R_elbow` | A, upper branch | 3 | stock |
+| 10 | `L_hip_yaw` | B, leg branch | 1 | stock |
+| 5 | `L_hip_roll` | B, leg branch | 2 | **≈ 4×** |
+| 6 | `L_hip_pitch` | B, leg branch | 3 | stock |
+| 7 | `L_knee` | B, leg branch | 4 | **≈ 4×** |
+| 8 | `L_ankle` (pitch) | B, leg branch | 5 | stock |
+| 12 | `L_ankle_roll` | B, leg branch | 6 | **≈ 4×** |
+| 16 | `L_shoulder` | B, upper branch | 1 | stock |
+| 17 | `L_elbow` | B, upper branch | 2 | stock |
+
+```
+H5 (A) ── splitter ─┬─ 9 R_hip_yaw ─ 1 R_hip_roll ─ 2 R_hip_pitch ─ 3 R_knee ─ 4 R_ankle ─ 11 R_ankle_roll
+                    └─ 13 neck_yaw ─ 14 R_shoulder ─ 15 R_elbow
+H6 (B) ── splitter ─┬─ 10 L_hip_yaw ─ 5 L_hip_roll ─ 6 L_hip_pitch ─ 7 L_knee ─ 8 L_ankle ─ 12 L_ankle_roll
+                    └─ 16 L_shoulder ─ 17 L_elbow
+```
+
+Open with the proposal (issue #77):
+
+- **The splitter** is not selected. It must be a passive 3-way part for the
+  servo's 3-pin lead with manufacturer documentation, like every other part.
+- **Current.** Each board port and its splitter carry that side's whole
+  current: 9 servos on A, 8 on B, on a ~3 A-class connector
+  ([wiring.md](wiring.md#servo-bus)); the budget is open.
+- **Lead lengths** per hop, from the CAD.
 
 The joint names are the plant's: `sim/bimo_biped_v6ar.xml`, with the arms from
-`sim/gen_plant_v6.py`.
+`sim/gen_plant_v6.py`. When the map is signed off:
+
+- `ID_BY_ROLE` in `tools/gen_obs_spec.py` takes the new roles, so a policy
+  trained on the 17-joint plant generates its `kServoId` from them;
+- the firmware's bus table and this table change together;
+- calibration (§3) and the gain table (§4) gain rows for IDs 11–17.
 
 ### 2.2 What the firmware drives today: the 10-joint prototype
 

@@ -86,9 +86,9 @@ idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
 
 ## 2. Servo IDs and gains
 
-The robot's ID map is **not yet assigned** ([servo-map.md §2.1](servo-map.md#21-the-robot-not-yet-assigned)).
-Assign it before this step. Every servo ships as ID 1, so set IDs **one servo on
-the bus at a time**.
+The robot's ID map is **proposed, awaiting sign-off** ([servo-map.md §2.1](servo-map.md#21-the-robot-the-proposed-map)).
+Assign IDs only from the signed-off map. Every servo ships as ID 1, so set IDs
+**one servo on the bus at a time**.
 
 For each servo:
 
