@@ -388,7 +388,8 @@ def walk_with_arm_contacts(p, xml_path, n_steps=8, turn_deg=0.0, mu=0.7, play_de
     out = dict(fell=fell, tilt_max=tilt_max, arm_leg_contacts=arm_leg_contacts, pairs=sorted(pairs_seen), t_final=tl.T)
     if trace:
         out.update(tau=np.array(taus), qd=np.array(qds), names=[m.actuator(i).name for i in range(m.nu)],
-                   w0=np.array(np.broadcast_to(np.asarray(env._servo[3], dtype=float), (na,))))
+                   w0=np.array(np.broadcast_to(np.asarray(env._servo[3], dtype=float), (na,))),
+                   stall=np.array(np.broadcast_to(np.asarray(env._servo[2], dtype=float), (na,))))
     return out
 
 

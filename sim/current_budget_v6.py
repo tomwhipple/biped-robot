@@ -71,7 +71,7 @@ def _walk_cad_job(args):
     r = GN.walk_one(p, xml, SET, None, dict(ckw, track_trace=True), tkw)
     names = list(DG.JN) + ["neck_yaw"]
     return dict(label=f"walk, CAD plant: {label}", ok=bool(r["ok"]), tau=r["trace_tau"], qd=r["trace_qd"],
-                w0=np.array(r["w0"]), names=names[:r["trace_tau"].shape[1]], extra_idle=4)
+                w0=np.array(r["w0"]), stall=np.array(r["stall"]), names=names[:r["trace_tau"].shape[1]], extra_idle=4)
 
 
 def _walk_arms_job(args):
@@ -80,7 +80,7 @@ def _walk_arms_job(args):
     base = dataclasses.replace(S.BASE, **S.CONFIGS["r5_asdrawn"])
     r = S.walk_with_arm_contacts(base, xml, per_joint=GN.SETS[SET], arm_pose=(15.0, 0.0), trace=True, **ckw, **tkw)
     return dict(label=f"walk, as drawn: {label}", ok=not r["fell"], tau=r["tau"], qd=r["qd"], w0=r["w0"],
-                names=r["names"], extra_idle=0)
+                stall=r["stall"], names=r["names"], extra_idle=0)
 
 
 def _getup_job(args):
@@ -94,7 +94,7 @@ def _getup_job(args):
     rt = S.run_traced(p, xml, S.seat_push(False, s0, s1, 2.0, a, elbow=(e0, e1)), start="supine", track=(),
                       trace=True, **c)
     return dict(label=f"get-up {seq_name}: {GN._cond_label(c)}", ok=bool(rt["ok"]), tau=rt["tau"], qd=rt["qd"],
-                w0=rt["w0"], names=rt["names"], extra_idle=0)
+                w0=rt["w0"], stall=rt["stall"], names=rt["names"], extra_idle=0)
 
 
 # ------------------------------------------------------------------ statistics
@@ -156,7 +156,32 @@ def report_group(title, traces):
             print("   hottest servos (peak A): " + ", ".join(f"{n} {v:.2f}" for n, v in top), flush=True)
     worst = max(traces, key=lambda t: currents(t, "motor")[0].sum(1).max())
     print(f"   worst run (motor model peak): {worst['label']}", flush=True)
+    overload_check(traces)
     return traces
+
+
+def overload_check(traces):
+    """the STS overload check on the same traces (sts_servo_model: > 80 % for 2 s)"""
+    for reading in ("torque", "duty"):
+        pk, pk_j, lng, lng_j = 0.0, "", 0.0, ""
+        for tr in traces:
+            st = tr["stall"][None, :]
+            if reading == "torque":
+                ld = np.abs(tr["tau"]) / st
+            else:
+                ld = np.abs(tr["tau"] / st + tr["qd"] / tr["w0"][None, :])
+            for k, n in enumerate(tr["names"]):
+                if ld[:, k].max() > pk:
+                    pk, pk_j = float(ld[:, k].max()), n
+                run = best = 0
+                for o in ld[:, k] > SM.OVERLOAD_FRAC:
+                    run = run + 1 if o else 0
+                    best = max(best, run)
+                if best * 0.02 > lng:
+                    lng, lng_j = best * 0.02, n
+        where = f" ({lng_j})" if lng_j else ""
+        print(f"   overload check, {reading} reading: peak load {100 * pk:.0f} % ({pk_j}); longest above 80 %: "
+              f"{lng:.2f} s{where} of the 2.0 s protection time", flush=True)
 
 
 def main():
