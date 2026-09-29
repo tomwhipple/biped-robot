@@ -304,8 +304,15 @@ def _set_hk():
 
 
 # ------------------------------------------------------------------ roll families
+def _base(family):
+    """'stow_fold' -> 'stow': the _fold suffix only changes where the roll
+    ends (arms folded up to 180, the recommended seat push's start)"""
+    return family[:-5] if family.endswith("_fold") else family
+
+
 def roll_space(family):
     """parameter names and bounds for a roll family"""
+    family = _base(family)
     names, bounds = [], []
     if family in ("stow", "onearm"):
         arms = ("L_shoulder", "L_elbow", "R_shoulder", "R_elbow") if family == "stow" else ("R_shoulder", "R_elbow")
@@ -324,9 +331,10 @@ def roll_space(family):
 
 def roll_keys(family, x, na):
     """x: {name: value} -> keyframe list. The roll ends with a fixed keyframe
-    that puts the arms back at the idle pose and straightens the legs -- the
-    state a backward fall lands in, where the seat push's searched entry
-    (entry_keys) starts."""
+    that straightens the legs and either puts the arms back at the idle pose
+    -- the state a backward fall lands in, where the seat push's searched
+    entry (entry_keys) starts -- or, for a '_fold' family, folds them up to
+    180, where the recommended seat push starts."""
     keys = []
     for k in range(NK):
         off = {}
@@ -336,7 +344,10 @@ def roll_keys(family, x, na):
             else:
                 off[j] = x[f"k{k}_{j}"]
         keys.append((f"k{k}", q_of(off, na), x[f"k{k}_t"], x[f"k{k}_h"]))
-    keys.append(("arms idle, legs straight", q_of(dict(**IDLE), na), 1.5, 1.5))
+    if family.endswith("_fold"):
+        keys.append(("arms folded up, legs straight", q_of(dict(**FOLD), na), 1.5, 1.5))
+    else:
+        keys.append(("arms idle, legs straight", q_of(dict(**IDLE), na), 1.5, 1.5))
     return keys
 
 
@@ -364,11 +375,13 @@ def run_roll(family, x, cond=NOMINAL, time_scale=1.0, chain=False, render=None, 
     up, front, side = torso_axes(env)
     qa = env.data.qpos[7:7 + na]
     nm = names_of(env)
-    arm_err = max(abs(math.degrees(qa[nm.index(j)]) - IDLE["shoulder"]) for j in ("L_shoulder", "R_shoulder"))
+    arm_end = FOLD["shoulder"] if family.endswith("_fold") else IDLE["shoulder"]
+    arm_err = max(abs(math.degrees(qa[nm.index(j)]) - arm_end) for j in ("L_shoulder", "R_shoulder"))
     out = dict(front=front, up=up, side=side, front_max=rec.front_max, arm_err=arm_err, z=float(env.data.qpos[2]),
                roll_ok=bool(front > 0.7), peak_roll=float(pk.max()), peak_roll_joint=nm[int(pk.argmax())])
     if chain:
-        q, t, pk2 = run_keys(env, entry_keys(ENTRY_BEST, na), q, rec, time_scale, t0=t, prot=prot)
+        tail = seat_push_keys(na) if family.endswith("_fold") else entry_keys(ENTRY_BEST, na)
+        q, t, pk2 = run_keys(env, tail, q, rec, time_scale, t0=t, prot=prot)
         up, front, side = torso_axes(env)
         out.update(stand=standing_state(env, p), up_end=up, z_end=float(env.data.qpos[2]),
                    peak_chain=float(np.maximum(pk, pk2).max()), peak_chain_joint=nm[int(np.maximum(pk, pk2).argmax())])
@@ -620,9 +633,14 @@ def _verify_entry_job(args):
 
 
 def verify(family, x):
+    if family in ("entry", "catch"):
+        chain = ""
+    elif family.endswith("_fold"):
+        chain = "; chain = roll (ends with the arms folded up) + the recommended seat push"
+    else:
+        chain = "; chain = roll (ends with the arms idle) + the seat push with entry " + json.dumps(ENTRY_BEST)
     print(f"== VERIFY {family}, six conditions, pace x1 and x3 (3x slower), STS overload cutoff enforced "
-          f"(torque reading){'; chain = roll + the seat push with entry ' + json.dumps(ENTRY_BEST) if family not in ('entry', 'catch') else ''}",
-          flush=True)
+          f"(torque reading){chain}", flush=True)
     if family == "entry":
         jobs = [(x, c, ts) for ts in (1.0, 3.0) for c in CONDS]
         res = GN.pmap(_verify_entry_job, jobs)
@@ -702,7 +720,7 @@ def main():
         best = cem(names, bounds, evalf, restarts, iters, pop, max(4, pop // 6), seeds=[seed_12_1(family)], tag=family)
         print(f"\n== {family}: OVERALL BEST {best[0]:+.3f}  {_brief(best[2])}\n   x {json.dumps({k: round(v, 2) for k, v in best[1].items()})}",
               flush=True)
-        if best[2].get("roll_ok") and ENTRY_BEST:
+        if best[2].get("roll_ok") and (ENTRY_BEST or family.endswith("_fold")):
             verify(family, best[1])
         elif best[2].get("roll_ok"):
             print("   (no PRONE_ENTRY given: the chain is verified separately with `verify`)", flush=True)
