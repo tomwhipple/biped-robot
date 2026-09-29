@@ -489,7 +489,11 @@ def run_catch(x, kick=1.5, cond=NOMINAL, time_scale=1.0, render=None, heading_de
         from sts_servo_model import STSProtection
         prot = STSProtection(env, names_of(env), **protection)
     ck = catch_keys(x, na)
-    q, t, pk = run_keys(env, ck, q, rec, time_scale, t0=t, prot=prot)
+    # the catch itself is a reflex during the fall and runs at its own pace;
+    # time_scale (the 3x-slower check) slows the push-back and the rise
+    q, t, pk0 = run_keys(env, ck[:1], q, rec, 1.0, t0=t, prot=prot)
+    q, t, pk = run_keys(env, ck[1:], q, rec, time_scale, t0=t, prot=prot)
+    pk = np.maximum(pk0, pk)
     up_c, front_c, _ = torso_axes(env)
     z_c = float(env.data.qpos[2])
     feet_only = set(G.contacts_summary(env.model, env.data)) <= {"L_foot", "R_foot"}
