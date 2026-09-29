@@ -6,13 +6,16 @@ The wire protocol it rides on is [control-channel.md](control-channel.md).*
 `bimo_gui --mirror` (or the mirror toggle) does three things:
 
 1. sets `POSE` and `ATT` in its command frames, so the robot's beacon
-   carries its measured joint angles and torso up vector (the 52 B frame);
+   carries its measured joint angles and torso up vector (the 69 B frame);
 2. starts `sim/sil_twin.py --viewer` as a child process;
 3. for each beacon that carries joints, writes one line to the child's stdin:
-   `pose q0 … q9 [ux uy uz]` (radians, obs_spec order, then the up vector
+   `pose q1 … q17 [ux uy uz]` (radians, servo-ID order, then the up vector
    when the robot sent one).
 
-The viewer poses the plant from that line and renders it. **No policy, no
+The viewer poses the plant from that line, **by joint name**
+(`protocol.JOINT_NAMES`): a plant joint the line names is posed, and a wire
+joint the plant does not have (the prototype plant has no ankle rolls, neck
+or arms) is skipped. It renders the result. **No policy, no
 physics, no integration**: the picture is a mannequin held in the last state
 the robot reported, and every part of it is a measurement. The console draws
 the viewer's stream in its own window.
@@ -31,7 +34,7 @@ says *"a BENCHED robot measures nothing; the pose appears on arm"*.
 
 ## Attitude
 
-`up_z` alone is the tilt magnitude, never its direction: ten joint angles and
+`up_z` alone is the tilt magnitude, never its direction: joint angles and
 `up_z` draw a robot lying on its face as one standing to attention. `ATT`
 adds `up_x` and `up_y`, the torso's z axis in the **world** frame (obs_spec
 `kOffUp`, `imu::Sample::up`, MuJoCo's `framezaxis`).
@@ -54,22 +57,24 @@ that sets `POSE` is by construction one that can read the answer.
 
 | length | blocks | asked for with |
 |---|---|---|
-| 28 | base (with `t_us`) | — |
-| 32 | base + attitude | `ATT` |
-| 48 | base + joints | `POSE` |
-| 52 | base + joints + attitude | both |
+| 31 | base (with `t_us`) | — |
+| 35 | base + attitude | `ATT` |
+| 65 | base + joints | `POSE` |
+| 69 | base + joints + attitude | both |
 
-- The joint block is 10 × i16 milli-radians in **obs_spec joint order**:
-  `L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle`, then the same five
-  on the right. It is not servo-ID order; mixing the two draws a robot that
-  looks mirrored. Ten is the prototype's joint count; the 17-joint port
-  (issue #81) changes `NUM_JOINTS` in `link/protocol.py` first.
+- The joint block is 17 × i16 milli-radians, one per **bus** servo in
+  **servo-ID order** (`protocol.JOINT_NAMES`, `obs/bus_map.h`): IDs 1–10 the
+  legs as on the prototype, then the ankle rolls, the neck and the arms
+  ([servo-map.md](servo-map.md) §2.1). It is not the policy's joint order;
+  consumers map it by name. A servo the robot does not carry (IDs 11–17 on
+  the prototype) reads 0.0.
 - With joints present, `t_us` is the instant they were read off the bus.
 - The robot publishes the pose every armed tick through `main/joint_pose.h`
   (a double buffer with a sequence counter, so one beacon never mixes two
   ticks' joints) and sends the long frame only when the publish count has
   moved since the last beacon, so a stale pose is never sent as fresh.
-- The UART tether stays at 28 B; nothing consumes joints over the cable.
+- The UART tether stays at the 31 B base frame; nothing consumes joints
+  over the cable.
 
 ### The invariant the firmware must hold: {peer, pose} is one snapshot
 

@@ -15,19 +15,30 @@
 #pragma once
 #include <stdint.h>
 
+#include "obs/bus_map.h"
 #include "obs/obs_spec.h"
 
 namespace obs {
 
-// Per-servo calibration, restored from NVS at boot. Defaults are what a
+// Per-servo calibration, restored from NVS at boot, indexed by BUS joint
+// (obs/bus_map.h: index b is servo ID b + 1), so it covers every servo the
+// robot carries, not just the ones the policy drives. Defaults are what a
 // freshly "Set Middle Position"-ed, correctly-oriented servo gives you.
+//
+// `fitted` says which bus joints this robot actually has: the 10-joint
+// prototype carries IDs 1-10 and not 11-17. The control loop and the bench
+// commands read and write fitted servos only -- a SYNC READ that waits on a
+// servo which is not there costs its whole timeout every tick. `cal` sets it
+// (a joint that answers `cal zero` is fitted; `cal fit` sets it by hand).
 struct Calibration {
-    int32_t zero_steps[kNumJoints];   // encoder value at joint angle 0
-    int8_t dir[kNumJoints];           // +1 or -1: servo CW vs. joint positive
+    int32_t zero_steps[kNumBusJoints];   // encoder value at joint angle 0
+    int8_t dir[kNumBusJoints];           // +1 or -1: servo CW vs. joint positive
+    uint8_t fitted[kNumBusJoints];       // 1 = this servo is on the robot
     Calibration() {
-        for (int i = 0; i < kNumJoints; ++i) {
-            zero_steps[i] = 2048;     // scsbus::kCenterSteps
-            dir[i] = 1;
+        for (int b = 0; b < kNumBusJoints; ++b) {
+            zero_steps[b] = 2048;     // scsbus::kCenterSteps
+            dir[b] = 1;
+            fitted[b] = 1;            // expect every servo until told otherwise
         }
     }
 };
@@ -41,21 +52,24 @@ void actionToAngles(const float* action, float* angle_rad);
 // not handed a discontinuity.
 void anglesToAction(const float* angle_rad, float* action);
 
-// Angle <-> encoder ticks. 4096 ticks per revolution.
+// Angle <-> encoder ticks, 4096 ticks per revolution, for POLICY joint j
+// (obs_spec order): the calibration row is policyToBus(j)'s. angleToSteps
+// clamps to the policy range kJointLo/Hi first -- that clamp is SIL-pinned.
 int32_t angleToSteps(int joint, float rad, const Calibration& cal);
-
-// angleToSteps without the policy-range clamp: converts any angle through
-// the calibration, bounded only by the encoder's 0..4095. For callers that
-// clamp against a DIFFERENT range first (the CLI bench clamps to the
-// measured mechanical envelope, main/mech_envelope.h). The act path must
-// keep using angleToSteps -- the kJointLo/Hi clamp there is SIL-pinned.
-int32_t angleToStepsRaw(int joint, float rad, const Calibration& cal);
 float stepsToAngle(int joint, int32_t steps, const Calibration& cal);
+
+// The same maps for BUS joint b, without any joint-range clamp: bounded only
+// by the encoder's 0..4095. For callers that clamp against a DIFFERENT range
+// first (the CLI bench clamps to the measured mechanical envelope,
+// main/mech_envelope.h) or that report where a joint is.
+int32_t busAngleToStepsRaw(int bus, float rad, const Calibration& cal);
+float busStepsToAngle(int bus, int32_t steps, const Calibration& cal);
 
 // The servo reports speed in steps/s (register 58). Whether the policy is fed
 // this or a finite difference of positions is an open sys-ID question
 // (docs/firmware-design.md section 8) -- the sim uses true qvel and ToddlerBot
 // finite-differences. Both paths are provided; the control task picks one.
+// Policy joint j, like angleToSteps.
 float stepsPerSecToRadPerSec(int joint, int32_t steps_per_s,
                              const Calibration& cal);
 

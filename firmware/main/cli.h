@@ -23,6 +23,14 @@ void execute(const char* line, Sink out);
 // The banner printed at boot and by `help`.
 void banner(Sink out);
 
+// The boot half of the Plan B gain gate (docs/servo-map.md section 4): read
+// registers 21/22 from every servo the loop drives and compare with
+// main/servo_gains.h. On any mismatch or silent servo it stores
+// kRefusedGains in g_arm_result, so the BENCH beacon says so before anyone
+// arms. `run` re-reads regardless; this is the early warning. Call it only
+// while the CLI owns the bus (boot, before the control task starts).
+bool bootGainCheck(Sink out);
+
 // `run` / `bench` on behalf of the wireless link (an ARM edge, see
 // linkproto::ArmLatch). Called from the housekeeping loop, never from the
 // link tasks. Same refusal as the typed `run`: no as-built calibration, no

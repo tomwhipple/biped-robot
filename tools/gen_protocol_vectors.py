@@ -66,26 +66,31 @@ CMD_EXT_CASES = [
     (15, 0.0, 0.0, 0xFF, 99.0, -99.0, 99.0, 99.0, -99.0),     # saturation
 ]
 
-# Extended telemetry (mirror mode): the classic body plus 10 joint angles.
-# Frozen as BYTES like everything else here, so the C++ port is diffed against
-# numbers rather than against whatever the Python happened to do that day.
-# A real robot clock reading: 2026-09-02T22:27:55.605401Z, the instant of the
-# first webcam frame in the capture that motivated the field. Frozen so the
-# byte order of the u64 is diffed against a value with every byte non-zero.
+# Extended telemetry (mirror mode): the classic body plus one angle per bus
+# joint (17, servo-ID order). Frozen as BYTES like everything else here, so the
+# C++ port is diffed against numbers rather than against whatever the Python
+# happened to do that day. A real robot clock reading:
+# 2026-09-02T22:27:55.605401Z, the instant of the first webcam frame in the
+# capture that motivated the field. Frozen so the byte order of the u64 is
+# diffed against a value with every byte non-zero.
 T_REAL = 1788390475605401
+assert P.NUM_JOINTS == 17, "the joint tuples below are 17 wide"
 TLM_EXT_CASES = [
     # (seq_echo, state, vbat_v, up_z, vx_est, wz_est, err, late, joints, t_us)
     (1, P.LinkState.LIVE, 12.0, 1.0, 0.0, 0.0, 0x00, 0,
-     (0.0,) * 10, 0),                                # a clean zero stand, unsynced
+     (0.0,) * 17, 0),                                # a clean zero stand, unsynced
+    # mid-stride, near-mirrored legs (IDs 1-10), ankle rolls, neck, arms
     (2, P.LinkState.LIVE, 12.0, 0.99, 0.4, 0.0, 0x00, 2,
-     (0.05, -0.12, 0.63, -1.21, 0.58,
-      -0.05, 0.12, 0.61, -1.19, 0.57), T_REAL),      # mid-stride, near-mirrored
-    (3, P.LinkState.STAND, 11.0, 0.95, 0.0, 0.0, 0x03, 9,
-     (0.0625, -0.0625, 0.0005, -0.0005, 0.0015,      # milli ties, both signs
-      -0.0015, 0.5, -0.5, 1.5707963, -1.5707963), T_REAL + 20000),
-    (4, P.LinkState.FALLEN, 10.5, 0.1, 0.0, 0.0, 0xFF, 100,
-     (99.0, -99.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-     2 ** 64 - 1),                                   # saturation, incl. the u64
+     (0.12, 0.61, -1.19, 0.57, -0.12, 0.63, -1.21, 0.58, -0.05, 0.05,
+      0.03, -0.03, 0.4, 0.26, -0.3, 0.27, -0.31), T_REAL),
+    # milli ties, both signs; a fault on servo 17 (bit 16) and servo 1
+    (3, P.LinkState.STAND, 11.0, 0.95, 0.0, 0.0, 0x00010001, 9,
+     (0.0625, -0.0625, 0.0005, -0.0005, 0.0015, -0.0015, 0.5, -0.5,
+      1.5707963, -1.5707963, 0.0625, -0.0625, 3.1415927, -1.5, 2.6,
+      -2.6, 0.0), T_REAL + 20000),
+    # saturation, every servo faulted, incl. the u64 and the u32
+    (4, P.LinkState.FALLEN, 10.5, 0.1, 0.0, 0.0, 0xFFFFFFFF, 100,
+     (99.0, -99.0) + (0.0,) * 15, 2 ** 64 - 1),
 ]
 
 TLM_CASES = [
@@ -93,9 +98,11 @@ TLM_CASES = [
     #  t_us)
     (0, P.LinkState.LIVE, 11.4, 1.0, 0.0, 0.0, 0x00, 0, 0),
     (99, P.LinkState.STAND, 11.4, 0.98, 0.55, -0.1, 0b100, 3, T_REAL),
-    (7, P.LinkState.RELAX, 7.35, -0.2, -0.75, 0.4, 0xFF, 100, T_REAL + 100000),
-    (2 ** 32 - 1, P.LinkState.ESTOP, 0.0, 0.0, 0.0, 0.0, 0x81, 255, 2 ** 64 - 1),
-    (11, P.LinkState.LIVE, 12.6005, 0.9995, 0.0625, -0.1875, 0x02, 7, 1),
+    (7, P.LinkState.RELAX, 7.35, -0.2, -0.75, 0.4, 0x1FFFF, 100,
+     T_REAL + 100000),                               # all 17 servos faulted
+    (2 ** 32 - 1, P.LinkState.ESTOP, 0.0, 0.0, 0.0, 0.0, 0x80000081, 255,
+     2 ** 64 - 1),                                   # every byte of the u32
+    (11, P.LinkState.LIVE, 12.6005, 0.9995, 0.0625, -0.1875, 0x00400, 7, 1),
     # The robot-latched under-voltage states. Included so the C++ port's
     # decodeTelemetry range check is diffed against the real top-of-enum
     # rather than against whichever value it was written for.
@@ -136,17 +143,6 @@ for _c in TLM_CASES:
     assert P._milli_u16(float(np.float32(_mv / 1000.0))) == _mv, (_c[2], _mv)
 
 
-def legacy_wire(t):
-    """The frame a robot flashed BEFORE 2026-09-02 beacons: body, joints if
-    any, CRC -- no timestamp. protocol.py cannot emit it any more, so the
-    generator packs it by hand; the vectors then pin what BOTH decoders make
-    of it (t_us = 0, everything else intact)."""
-    body = P.encode_telemetry(t._replace(t_us=0))[:P._TLM_TIME_OFF]
-    if t.joints:
-        body += struct.pack(f"<{P.NUM_JOINTS}h",
-                            *(P._milli(q) for q in t.joints))
-    return body + struct.pack("<H", P.crc16_ccitt(body))
-
 # -- bench diagnostics -------------------------------------------------------
 # Every packing, plus a value from a hypothetical NEWER firmware (0xF0) that
 # this client must not mis-report as an older reason.
@@ -158,6 +154,7 @@ DIAG_CASES = [
     (True, True, P.ArmResult.ACCEPTED),
     (False, True, P.ArmResult.ACCEPTED),
     (False, True, P.ArmResult.DISARMED_FALL),
+    (False, True, P.ArmResult.REFUSED_GAINS),
 ]
 DIAG_RAW = [0x00, 0x02, 0x21, 0x13, 0xF0, 0xF3]   # decode-only, incl. unknown
 
@@ -312,6 +309,9 @@ def main():
         ("kBadLength", good + b"\x00"),
         ("kBadMagic", b"XX" + good[2:]),
         ("kBadVersion", good[:2] + b"\x09" + good[3:]),
+        # a version-1 frame: the same layout, refused all the same
+        ("kBadVersion", good[:2] + b"\x01" + good[3:12]
+         + struct.pack("<H", P.crc16_ccitt(good[:2] + b"\x01" + good[3:12]))),
         ("kBadCrc", good[:8] + b"\xff\xff" + good[10:]),
     ]
     w("struct BadCase { uint8_t wire[%d]; size_t len; const char* err; };"
@@ -327,12 +327,10 @@ def main():
     # -- telemetry frames --------------------------------------------------
     w("struct TlmCase {")
     w("    uint32_t seq; uint8_t state; float vbat; float up_z;")
-    w("    float vx; float wz; uint8_t servo_err; uint8_t late;")
+    w("    float vx; float wz; uint32_t servo_err; uint8_t late;")
     w("    uint64_t t_us;")
     w("    uint8_t wire[%d];" % P.TLM_LEN)
     w("    uint8_t diag;   // Telemetry.diag: seq_echo's low byte, BENCH only")
-    w("    uint8_t legacy[%d];   // the same frame from pre-stamp firmware"
-      % P.TLM_LEN_V1)
     w("};")
     w("inline const TlmCase kTlm[] = {")
     for seq, st, vb, up, vx, wz, err, late, t_us in TLM_CASES:
@@ -342,13 +340,11 @@ def main():
                         loop_late_pct=late, t_us=t_us)
         wire = P.encode_telemetry(t)
         assert len(wire) == P.TLM_LEN, len(wire)
-        leg = legacy_wire(t)
-        assert len(leg) == P.TLM_LEN_V1, len(leg)
-        d = P.decode_telemetry(leg)
-        assert d.t_us == 0 and d.seq_echo == (seq & 0xFFFFFFFF)
-        w("    {%du, %d, %s, %s, %s, %s, 0x%02X, %d, %dull, %s, 0x%02X, %s},"
+        d = P.decode_telemetry(wire)
+        assert d.t_us == t_us and d.servo_err == err
+        w("    {%du, %d, %s, %s, %s, %s, 0x%08Xu, %d, %dull, %s, 0x%02X},"
           % (seq & 0xFFFFFFFF, list(P.LinkState).index(st), fl(vb), fl(up),
-             fl(vx), fl(wz), err, late, t_us, carr(wire), t.diag, carr(leg)))
+             fl(vx), fl(wz), err, late, t_us, carr(wire), t.diag))
     w("};")
     w("inline constexpr size_t kNumTlm = sizeof kTlm / sizeof kTlm[0];")
     w("")
@@ -356,12 +352,10 @@ def main():
     # -- extended telemetry (mirror mode) ----------------------------------
     w("struct TlmExtCase {")
     w("    uint32_t seq; uint8_t state; float vbat; float up_z;")
-    w("    float vx; float wz; uint8_t servo_err; uint8_t late;")
+    w("    float vx; float wz; uint32_t servo_err; uint8_t late;")
     w("    float joints[%d];" % P.NUM_JOINTS)
     w("    uint64_t t_us;")
     w("    uint8_t wire[%d];" % P.TLM_LEN_EXT)
-    w("    uint8_t legacy[%d];   // the same frame from pre-stamp firmware"
-      % P.TLM_LEN_EXT_V1)
     w("};")
     w("inline const TlmExtCase kTlmExt[] = {")
     for seq, st, vb, up, vx, wz, err, late, joints, t_us in TLM_EXT_CASES:
@@ -372,14 +366,12 @@ def main():
                         loop_late_pct=late, joints=joints, t_us=t_us)
         wire = P.encode_telemetry(t)
         assert len(wire) == P.TLM_LEN_EXT, len(wire)
-        leg = legacy_wire(t)
-        assert len(leg) == P.TLM_LEN_EXT_V1, len(leg)
-        d = P.decode_telemetry(leg)
-        assert d.t_us == 0 and len(d.joints) == P.NUM_JOINTS
-        w("    {%du, %d, %s, %s, %s, %s, 0x%02X, %d, {%s}, %dull, %s, %s},"
+        d = P.decode_telemetry(wire)
+        assert d.t_us == t_us and len(d.joints) == P.NUM_JOINTS
+        w("    {%du, %d, %s, %s, %s, %s, 0x%08Xu, %d, {%s}, %dull, %s},"
           % (seq & 0xFFFFFFFF, list(P.LinkState).index(st), fl(vb), fl(up),
              fl(vx), fl(wz), err, late, ", ".join(fl(q) for q in joints),
-             t_us, carr(wire), carr(leg)))
+             t_us, carr(wire)))
     w("};")
     w("inline constexpr size_t kNumTlmExt = sizeof kTlmExt / sizeof kTlmExt[0];")
     w("")

@@ -8,6 +8,8 @@
 #include "imu/imu.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
+#include <string.h>
+
 #include "test_util.h"
 #include "vectors/obs_vectors.h"
 
@@ -158,23 +160,26 @@ void testAngleToSteps() {
     CHECK_EQ(obs::angleToSteps(0, obs::kJointHi[0], cal), 2048 + 512);
     const float quarter = 1.5707963f;
     CHECK_EQ(obs::angleToSteps(0, quarter, cal), 2048 + 512);
-    // Direction and zero offset are honoured.
-    cal.dir[3] = -1;
-    cal.zero_steps[3] = 1900;
+    // Direction and zero offset are honoured -- on the policy joint's BUS
+    // row (the calibration is bus-indexed, obs/bus_map.h).
+    cal.dir[obs::policyToBus(3)] = -1;
+    cal.zero_steps[obs::policyToBus(3)] = 1900;
     const float a = -0.5f;
     const int32_t s = obs::angleToSteps(3, a, cal);
     CHECK_NEAR(obs::stepsToAngle(3, s, cal), a, 2e-3);
     CHECK(s > 1900);                            // negative angle, inverted dir
 }
 
-void testAngleToStepsRaw() {
+void testBusAngleToStepsRaw() {
     obs::Calibration cal;
-    // Inside the policy range the two functions agree exactly.
-    CHECK_EQ(obs::angleToStepsRaw(0, 0.0f, cal), obs::angleToSteps(0, 0.0f, cal));
-    CHECK_EQ(obs::angleToStepsRaw(0, obs::kJointHi[0], cal),
+    const int b0 = obs::policyToBus(0), b3 = obs::policyToBus(3);
+    // Inside the policy range the bus map and the policy map agree exactly.
+    CHECK_EQ(obs::busAngleToStepsRaw(b0, 0.0f, cal),
+             obs::angleToSteps(0, 0.0f, cal));
+    CHECK_EQ(obs::busAngleToStepsRaw(b0, obs::kJointHi[0], cal),
              obs::angleToSteps(0, obs::kJointHi[0], cal));
     // Past the policy range: angleToSteps clamps (SIL-pinned act-path
-    // behavior), Raw converts through -- the bench envelope clamp
+    // behavior), the bus map converts through -- the bench envelope clamp
     // (main/mech_envelope.h) depends on this.
     // DERIVED from kJointHi, not hard-coded: this was 0.5f, picked when the
     // knee policy range stopped at +5 deg. Opening it to the measured +-95 on
@@ -182,13 +187,74 @@ void testAngleToStepsRaw() {
     // check silently inverted. Anything past the limit exercises the clamp.
     const float hyper = obs::kJointHi[3] + 0.4f;
     CHECK_EQ(obs::angleToSteps(3, hyper, cal),
-             obs::angleToStepsRaw(3, obs::kJointHi[3], cal));
-    const int32_t r = obs::angleToStepsRaw(3, hyper, cal);
+             obs::busAngleToStepsRaw(b3, obs::kJointHi[3], cal));
+    const int32_t r = obs::busAngleToStepsRaw(b3, hyper, cal);
     CHECK(r != obs::angleToSteps(3, hyper, cal));
     CHECK_NEAR(obs::stepsToAngle(3, r, cal), hyper, 2e-3);
+    CHECK_NEAR(obs::busStepsToAngle(b3, r, cal), hyper, 2e-3);
     // Encoder-domain guard still applies.
-    CHECK_EQ(obs::angleToStepsRaw(0, 100.0f, cal), 4095);
-    CHECK_EQ(obs::angleToStepsRaw(0, -100.0f, cal), 0);
+    CHECK_EQ(obs::busAngleToStepsRaw(b0, 100.0f, cal), 4095);
+    CHECK_EQ(obs::busAngleToStepsRaw(b0, -100.0f, cal), 0);
+    // A bus joint no policy drives converts through its own row.
+    constexpr int neck = obs::busIndexOfId(13);
+    static_assert(neck >= 0, "servo 13 (neck) is on the bus");
+    CHECK(obs::busToPolicy(neck) < 0);
+    cal.zero_steps[neck] = 1000;
+    cal.dir[neck] = -1;
+    CHECK_EQ(obs::busAngleToStepsRaw(neck, 0.0f, cal), 1000);
+    CHECK(obs::busAngleToStepsRaw(neck, 0.5f, cal) < 1000);
+}
+
+// The bus joint set (obs/bus_map.h) against the generated policy spec: the
+// map the telemetry block, the SIL arrays and the calibration all index by.
+void testBusMap() {
+    CHECK_EQ(obs::kNumBusJoints, 17);
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        CHECK_EQ(obs::kBusServoId[b], b + 1);          // index b == ID b + 1
+        CHECK_EQ(obs::busIndexOfId(b + 1), b);
+        CHECK(obs::kBusPort[b] == 'A' || obs::kBusPort[b] == 'B');
+    }
+    CHECK_EQ(obs::busIndexOfId(0), -1);
+    CHECK_EQ(obs::busIndexOfId(18), -1);
+    // Every policy joint is a bus joint with the same name and servo, and
+    // the two maps are inverse on the policy's joints.
+    int driven = 0;
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        const int b = obs::policyToBus(j);
+        if (b < 0 || b >= obs::kNumBusJoints) {
+            CHECK(false);
+            continue;
+        }
+        CHECK_EQ(obs::kBusServoId[b], obs::kServoId[j]);
+        CHECK(strcmp(obs::kBusJointNames[b], obs::kJointNames[j]) == 0);
+        CHECK_EQ(obs::busToPolicy(b), j);
+    }
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (obs::busToPolicy(b) >= 0) ++driven;
+    }
+    CHECK_EQ(driven, obs::kNumJoints);
+    // The proposed map (docs/servo-map.md 2.1): IDs 1-10 the prototype's,
+    // then the ankle rolls, the neck and the arms.
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(9)], "R_hip_yaw") == 0);
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(11)], "R_ankle_roll") == 0);
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(13)], "neck_yaw") == 0);
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(17)], "L_elbow") == 0);
+
+    // The deployed run's servo tables: every servo of its plant is a policy
+    // joint or a held one, each on the bus, and no held servo is driven.
+    CHECK_EQ(obs::kNumPlantServos, obs::kNumJoints + obs::kNumHeld);
+    for (int i = 0; i < obs::kNumPlantServos; ++i) {
+        const int b = obs::busIndexOfId(obs::kPlantServoId[i]);
+        CHECK(b >= 0);
+        if (b < 0) continue;
+        CHECK((obs::busToPolicy(b) >= 0) != (obs::heldIndexOfBus(b) >= 0));
+        CHECK(obs::kServoKpScale[i] >= 1.0f);
+    }
+    // cppcheck-suppress knownConditionTrueFalse -- 0 for a prototype run
+    for (int h = 0; h < obs::kNumHeld; ++h) {
+        const int b = obs::busIndexOfId(obs::kHeldServoId[h]);
+        CHECK(b >= 0 && obs::busToPolicy(b) < 0);
+    }
 }
 
 void testVelocityEstimator() {
@@ -281,19 +347,24 @@ void testImuMaths() {
 // The blob format is plain data, so it is testable here even though the NVS
 // side of cal_store only compiles under ESP-IDF.
 void testCalBlob() {
+    // v3: bus-indexed, every servo on the bus, with the fitted set.
     obs::Calibration cal;
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        cal.zero_steps[i] = 1000 + i * 37;
-        cal.dir[i] = (i % 3 == 0) ? -1 : 1;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        cal.zero_steps[b] = 1000 + b * 37;
+        cal.dir[b] = (b % 3 == 0) ? -1 : 1;
+        cal.fitted[b] = b < 10 ? 1 : 0;              // the prototype
     }
     robot::CalBlob blob{};
     robot::calPack(cal, blob);
+    CHECK_EQ(blob.version, 3);
+    CHECK_EQ(blob.joints, obs::kNumBusJoints);
 
     obs::Calibration back;
     CHECK(robot::calUnpack(blob, back));   // round-trip unpack succeeds
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        CHECK(back.zero_steps[i] == cal.zero_steps[i]);   // zero survives
-        CHECK(back.dir[i] == cal.dir[i]);   // dir survives
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        CHECK(back.zero_steps[b] == cal.zero_steps[b]);   // zero survives
+        CHECK(back.dir[b] == cal.dir[b]);                 // dir survives
+        CHECK(back.fitted[b] == cal.fitted[b]);           // fitted survives
     }
 
     // Every rejection path must leave the destination untouched, so a bad
@@ -312,9 +383,9 @@ void testCalBlob() {
     bad = blob; bad.version = 99;
     CHECK(!robot::calUnpack(bad, guard));   // wrong version rejected
 
-    // The 8-DOF -> 10-DOF plant change is exactly why joints is stored.
-    bad = blob; bad.joints = 8;
-    robot::calPack(cal, bad); bad.joints = 8;
+    // A different joint list (8 -> 10 DOF once, 10 -> 17 servos now) is
+    // exactly why the count is stored.
+    bad = blob; bad.joints = 10;
     bad.crc = robot::calCrc32(&bad, sizeof bad - sizeof bad.crc);
     CHECK(!robot::calUnpack(bad, guard));   // joint-count mismatch rejected
 
@@ -326,10 +397,14 @@ void testCalBlob() {
     bad.crc = robot::calCrc32(&bad, sizeof bad - sizeof bad.crc);
     CHECK(!robot::calUnpack(bad, guard));   // invalid dir rejected
 
-    // v2: the blob is joint-indexed, so it is only meaningful under the
-    // servo map it was measured with. A blob carrying a different kServoId
-    // (the 2026-08-02 leg-swap errata scenario: cal measured, THEN the map
-    // changed) must be rejected, not silently applied to the wrong servos.
+    bad = blob; bad.fitted[12] = 2;
+    bad.crc = robot::calCrc32(&bad, sizeof bad - sizeof bad.crc);
+    CHECK(!robot::calUnpack(bad, guard));   // invalid fitted flag rejected
+
+    // The blob only means anything under the servo map it was measured with
+    // (the 2026-08-02 leg-swap errata: cal measured, THEN the map changed).
+    // A blob carrying a different map must be rejected, not silently applied
+    // to the wrong servos.
     bad = blob;
     const uint8_t tmp_id = bad.servo_id[0];
     bad.servo_id[0] = bad.servo_id[5];
@@ -337,28 +412,90 @@ void testCalBlob() {
     bad.crc = robot::calCrc32(&bad, sizeof bad - sizeof bad.crc);
     CHECK(!robot::calUnpack(bad, guard));   // stale servo map rejected
     CHECK(guard.zero_steps[0] == sentinel);
-    // ... and calPack records the CURRENT map, so a fresh cal round-trips.
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        CHECK_EQ(blob.servo_id[i], obs::kServoId[i]);
+    // ... and calPack records the CURRENT bus map, so a fresh cal round-trips.
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        CHECK_EQ(blob.servo_id[b], obs::kBusServoId[b]);
     }
 
+    // v2 -> v3 (the automatic boot migration): a prototype v2 blob, joint-
+    // indexed in the legacy map, lands each servo's zero and direction on
+    // that servo's bus joint; those ten are fitted and IDs 11-17 are not.
+    robot::CalBlobV2 v2{};
+    v2.magic = robot::kCalMagic;
+    v2.version = 2;
+    v2.joints = robot::kLegacyJoints;
+    for (int i = 0; i < robot::kLegacyJoints; ++i) {
+        v2.zero_steps[i] = robot::kAsBuiltZeroSteps[i];
+        v2.dir[i] = robot::kAsBuiltDir[i];
+        v2.servo_id[i] = robot::kLegacyServoId[i];
+    }
+    v2.crc = robot::calCrc32(&v2, sizeof v2 - sizeof v2.crc);
+    obs::Calibration m2;
+    CHECK(robot::calUnpackV2(v2, m2));
+    for (int i = 0; i < robot::kLegacyJoints; ++i) {
+        const int b = obs::busIndexOfId(robot::kLegacyServoId[i]);
+        if (b < 0) {
+            CHECK(false);
+            continue;
+        }
+        CHECK_EQ(m2.zero_steps[b], v2.zero_steps[i]);
+        CHECK_EQ(m2.dir[b], v2.dir[i]);
+        CHECK_EQ(m2.fitted[b], 1);
+    }
+    for (int id = 11; id <= 17; ++id) {
+        CHECK_EQ(m2.fitted[obs::busIndexOfId(id)], 0);
+    }
+    // It is the as-built measurement, and after a v3 round trip it still is.
+    CHECK(robot::calIsAsBuilt(m2));
+    robot::CalBlob v3{};
+    robot::calPack(m2, v3);
+    obs::Calibration m3;
+    CHECK(robot::calUnpack(v3, m3));
+    CHECK(robot::calIsAsBuilt(m3));
+    // The policy's view through the migrated cal equals the v2 blob's: the
+    // prototype's joints read exactly as before the change.
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        const int b = obs::policyToBus(j);
+        CHECK_NEAR(obs::stepsToAngle(j, 2048, m3),
+                   static_cast<float>(2048 - m3.zero_steps[b]) *
+                       (6.283185307f / 4096.0f) *
+                       static_cast<float>(m3.dir[b]),
+                   1e-6);
+    }
+    // A v2 blob under another map proves nothing and is refused.
+    robot::CalBlobV2 v2bad = v2;
+    v2bad.servo_id[0] = 9;
+    v2bad.servo_id[5] = 10;
+    v2bad.crc = robot::calCrc32(&v2bad, sizeof v2bad - sizeof v2bad.crc);
+    CHECK(!robot::calUnpackV2(v2bad, guard));
+    v2bad = v2; v2bad.crc ^= 1u;
+    CHECK(!robot::calUnpackV2(v2bad, guard));    // corrupt v2 rejected
+    CHECK(guard.zero_steps[0] == sentinel);
+
     // The explicit v1 migration path (`cal migrate`): a well-formed v1 blob
-    // unpacks THERE (and only there -- boot's calUnpack requires v2).
+    // unpacks THERE (and only there -- boot's calUnpack requires v3).
     robot::CalBlobV1 v1{};
     v1.magic = robot::kCalMagic;
     v1.version = 1;
-    v1.joints = static_cast<uint16_t>(obs::kNumJoints);
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        v1.zero_steps[i] = cal.zero_steps[i];
-        v1.dir[i] = cal.dir[i];
+    v1.joints = robot::kLegacyJoints;
+    for (int i = 0; i < robot::kLegacyJoints; ++i) {
+        v1.zero_steps[i] = 1500 + i;
+        v1.dir[i] = (i % 2) ? -1 : 1;
     }
     v1.crc = robot::calCrc32(&v1, sizeof v1 - sizeof v1.crc);
     obs::Calibration mig;
     CHECK(robot::calUnpackV1(v1, mig));
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        CHECK(mig.zero_steps[i] == cal.zero_steps[i]);
-        CHECK(mig.dir[i] == cal.dir[i]);
+    for (int i = 0; i < robot::kLegacyJoints; ++i) {
+        const int b = obs::busIndexOfId(robot::kLegacyServoId[i]);
+        if (b < 0) {
+            CHECK(false);
+            continue;
+        }
+        CHECK(mig.zero_steps[b] == v1.zero_steps[i]);
+        CHECK(mig.dir[b] == v1.dir[i]);
+        CHECK(mig.fitted[b] == 1);
     }
+    CHECK(!robot::calIsAsBuilt(mig));            // not the as-built values
     robot::CalBlobV1 v1bad = v1;
     v1bad.crc ^= 1u;
     CHECK(!robot::calUnpackV1(v1bad, guard));    // corrupt v1 rejected
@@ -366,18 +503,18 @@ void testCalBlob() {
     v1bad.crc = robot::calCrc32(&v1bad, sizeof v1bad - sizeof v1bad.crc);
     CHECK(!robot::calUnpackV1(v1bad, guard));    // v2 does not sneak in here
 
-    // The auto-migration gate: the compiled as-built table matches itself,
-    // and any single-value drift (a different measurement) is refused.
-    obs::Calibration asb;
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        asb.zero_steps[i] = robot::kAsBuiltZeroSteps[i];
-        asb.dir[i] = robot::kAsBuiltDir[i];
-    }
-    CHECK(robot::calIsAsBuilt(asb));
-    asb.zero_steps[4] += 1;                      // one tick off on L_ankle
+    // The auto-migration gate: any single-value drift from the as-built table
+    // (a different measurement), or an unfitted prototype servo, is refused.
+    obs::Calibration asb = m2;
+    const int l_ankle = obs::busIndexOfId(8);
+    asb.zero_steps[l_ankle] += 1;                // one tick off on L_ankle
     CHECK(!robot::calIsAsBuilt(asb));
-    asb.zero_steps[4] -= 1;
-    asb.dir[3] = static_cast<int8_t>(-asb.dir[3]);
+    asb = m2;
+    asb.dir[obs::busIndexOfId(7)] =
+        static_cast<int8_t>(-asb.dir[obs::busIndexOfId(7)]);
+    CHECK(!robot::calIsAsBuilt(asb));
+    asb = m2;
+    asb.fitted[obs::busIndexOfId(3)] = 0;
     CHECK(!robot::calIsAsBuilt(asb));
 
     CHECK(robot::calCrc32("123456789", 9) == 0xCBF43926u);   // CRC-32 matches the standard check value
@@ -387,7 +524,7 @@ void testStepsClamp() {
     // A wrong zero_steps must not produce a target off the encoder range --
     // that is a horn parked on a hard stop drawing stall current.
     obs::Calibration cal;
-    for (int i = 0; i < obs::kNumJoints; ++i) cal.zero_steps[i] = 4090;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) cal.zero_steps[b] = 4090;
     float angles[obs::kNumJoints];
     float act[obs::kNumJoints];
     for (int i = 0; i < obs::kNumJoints; ++i) act[i] = 1.0f;
@@ -396,7 +533,7 @@ void testStepsClamp() {
         const int32_t st = obs::angleToSteps(i, angles[i], cal);
         CHECK(st >= 0 && st <= 4095);   // clamped high-side zero stays in range
     }
-    for (int i = 0; i < obs::kNumJoints; ++i) cal.zero_steps[i] = 5;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) cal.zero_steps[b] = 5;
     for (int i = 0; i < obs::kNumJoints; ++i) act[i] = -1.0f;
     obs::actionToAngles(act, angles);
     for (int i = 0; i < obs::kNumJoints; ++i) {
@@ -502,7 +639,8 @@ int main() {
     testGaitClockWraps();
     testActionToAngles();
     testAngleToSteps();
-    testAngleToStepsRaw();
+    testBusAngleToStepsRaw();
+    testBusMap();
     testVelocityEstimator();
     testCommandShaper();
     testGoalSpeed();

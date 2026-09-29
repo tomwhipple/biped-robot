@@ -4,13 +4,16 @@
 #
 # Per Tom (2026-09-16): "disable all CI on this project and make it run as a
 # pre-push hook instead." ALL gates the old CI ran execute here:
-#   [1/8] host check      make -C firmware/host check  (hard, always)
-#   [2/8] link-tests      python3 -m pytest tests/ -q  (hard, always)
-#   [3/8] cmake-ctest     cmake configure/build/ctest  (hard when cmake installed; skip with note otherwise)
-#   [4/8] clang-tidy      run-clang-tidy -p build -quiet  (toolchain-guarded)
-#   [5/8] clang-tidy-gui  firmware/host/clang-tidy-gui.sh (toolchain-guarded; runs make deps)
-#   [6/8] cppcheck        firmware/host/cppcheck.sh    (toolchain-guarded)
-#   [7-8/8] esp32-build   idf.py build (the project in firmware/; firmware/main is
+#   [1/9] host check      make -C firmware/host check  (hard, always)
+#   [2/9] link-tests      python3 -m pytest tests/ -q  (hard, always)
+#   [3/9] sil-suite       python3 -m pytest sim/sil -q (hard, always; the tests
+#                         that need the deployed run's gitignored artifacts
+#                         SKIP with a reason on a machine without them)
+#   [4/9] cmake-ctest     cmake configure/build/ctest  (hard when cmake installed; skip with note otherwise)
+#   [5/9] clang-tidy      run-clang-tidy -p build -quiet  (toolchain-guarded)
+#   [6/9] clang-tidy-gui  firmware/host/clang-tidy-gui.sh (toolchain-guarded; runs make deps)
+#   [7/9] cppcheck        firmware/host/cppcheck.sh    (toolchain-guarded)
+#   [8-9/9] esp32-build   idf.py build (the project in firmware/; firmware/main is
 #                         a component) — detection: idf.py on
 #                         PATH, else source $IDF_PATH/export.sh, else hardcoded
 #                         $HOME/.espressif/frameworks/esp-idf-v5.4; SKIP_ESP32=1
@@ -35,7 +38,7 @@ mkbuild() { mktemp -d 2>/dev/null || mktemp -d '/tmp/biped-robot-ci-build.XXXXXX
 echo "== pre-push: making sure everything compiles, linked, and tested =="
 echo "(same set CI used to check — now local instead of GitHub Actions)"
 
-# --- [1/8] host gate (the mjpeg.cpp lesson) + tui (console client) ----------
+# --- [1/9] host gate (the mjpeg.cpp lesson) + tui (console client) ----------
 echo "" >&2
 echo "== [host-tests + console/tui] make -C firmware/host check =="
 if ! make -C "$ROOT/firmware/host" check; then
@@ -43,7 +46,7 @@ if ! make -C "$ROOT/firmware/host" check; then
   rc=1
 fi
 
-# --- [2/8] link-test suite (protocol, sources, e2e simulation tests) -------
+# --- [2/9] link-test suite (protocol, sources, e2e simulation tests) -------
 echo "" >&2
 echo "== [link-tests] pytest over link/test suite =="
 if ! python3 -m pytest "$ROOT/tests/" -q; then
@@ -51,7 +54,18 @@ if ! python3 -m pytest "$ROOT/tests/" -q; then
   rc=1
 fi
 
-# --- [3/8] cmake + ctest (both build files must agree) -----------------------
+# --- [3/9] SIL suite (the firmware's control code against the CPU plant) ---
+# Runs after [1/9], which built firmware/host/build/libctrl_sil. Tests that
+# need the deployed run's gitignored artifacts (sim/runs/<run>/, the .silw)
+# skip with a reason where they are absent; the rest always run (issue #89).
+echo "" >&2
+echo "== [sil-suite] pytest sim/sil =="
+if ! python3 -m pytest "$ROOT/sim/sil" -q; then
+  echo "FAIL: SIL suite failed" >&2
+  rc=1
+fi
+
+# --- [4/9] cmake + ctest (both build files must agree) -----------------------
 echo "" >&2
 echo "== [cmake-ctest] verifying cmake builds and tests pass =="
 build_dir=""
@@ -73,13 +87,13 @@ else
   fi
 fi
 
-# --- [4/8] clang-tidy over host firmware (bugprone/readability classes) ------
+# --- [5/9] clang-tidy over host firmware (bugprone/readability classes) ------
 echo "" >&2
 echo "== [clang-tidy] static analysis over host firmware =="
 if ! command -v run-clang-tidy >/dev/null 2>&1; then
   echo "SKIP: clang-tidy not installed — 'apt-get install clang-tidy' / 'brew install llvm'" >&2
 elif [ -z "$build_dir" ] || [ ! -f "$build_dir/compile_commands.json" ]; then
-  # No configured build from [3/8] (cmake absent or configure failed — already
+  # No configured build from [4/9] (cmake absent or configure failed — already
   # counted there if it failed).
   echo "SKIP: no compile_commands.json (cmake gate skipped/failed above)" >&2
 elif ! run-clang-tidy -p "$build_dir" -quiet; then
@@ -87,14 +101,14 @@ elif ! run-clang-tidy -p "$build_dir" -quiet; then
   rc=1
 fi
 
-# --- [5/8] clang-tidy over GUI sources ----------------------------------------
+# --- [6/9] clang-tidy over GUI sources ----------------------------------------
 echo "" >&2
 echo "== [clang-tidy-gui] static analysis over GUI/console sources =="
 if ! command -v clang-tidy >/dev/null 2>&1; then
   echo "SKIP: clang-tidy not installed" >&2
 else
   # clang-tidy-gui.sh needs deps fetched and a compile_commands.json under
-  # firmware/host/build (separate from the [3/8] scratch dir, as in old CI).
+  # firmware/host/build (separate from the [4/9] scratch dir, as in old CI).
   gui_build="$ROOT/firmware/host/build"
   gui_created=""
   if [ ! -f "$gui_build/compile_commands.json" ]; then
@@ -123,7 +137,7 @@ else
   fi
 fi
 
-# --- [6/8] cppcheck (whole-program, fails on ANY finding) ----------------------
+# --- [7/9] cppcheck (whole-program, fails on ANY finding) ----------------------
 echo "" >&2
 echo "== [cppcheck] static analysis over firmware + link =="
 if ! command -v cppcheck >/dev/null 2>&1; then
@@ -133,13 +147,13 @@ elif ! "$ROOT/firmware/host/cppcheck.sh"; then
   rc=1
 fi
 
-# Scratch cmake build cleanup (kept across the tidy gates on purpose: [4/8]
+# Scratch cmake build cleanup (kept across the tidy gates on purpose: [5/9]
 # reuses its compile_commands.json).
 if [ -n "$build_dir" ] && [ -d "$build_dir" ]; then
   rm -rf "$build_dir"
 fi
 
-# --- [7-8/8] esp32 firmware build (idf.py link step) ---------------------------
+# --- [8-9/9] esp32 firmware build (idf.py link step) ---------------------------
 echo "" >&2
 echo "== [esp32-build] verifying ESP-IDF builds the firmware project (firmware/) =="
 

@@ -37,11 +37,12 @@ void calPack(const obs::Calibration& cal, CalBlob& out) {
     memset(&out, 0, sizeof out);
     out.magic = kCalMagic;
     out.version = kCalVersion;
-    out.joints = static_cast<uint16_t>(obs::kNumJoints);
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        out.zero_steps[i] = cal.zero_steps[i];
-        out.dir[i] = cal.dir[i];
-        out.servo_id[i] = obs::kServoId[i];
+    out.joints = static_cast<uint16_t>(obs::kNumBusJoints);
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        out.zero_steps[b] = cal.zero_steps[b];
+        out.dir[b] = cal.dir[b];
+        out.fitted[b] = cal.fitted[b] ? 1 : 0;
+        out.servo_id[b] = obs::kBusServoId[b];
     }
     out.crc = calCrc32(&out, sizeof out - sizeof out.crc);
 }
@@ -49,47 +50,78 @@ void calPack(const obs::Calibration& cal, CalBlob& out) {
 bool calUnpack(const CalBlob& blob, obs::Calibration& out) {
     if (blob.magic != kCalMagic) return false;
     if (blob.version != kCalVersion) return false;
-    if (blob.joints != static_cast<uint16_t>(obs::kNumJoints)) return false;
+    if (blob.joints != static_cast<uint16_t>(obs::kNumBusJoints)) return false;
     if (blob.crc != calCrc32(&blob, sizeof blob - sizeof blob.crc)) return false;
-    for (int i = 0; i < obs::kNumJoints; ++i) {
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
         // Reject implausible values rather than trusting a blob that passed
         // CRC but was written by a build with a different convention.
-        if (blob.zero_steps[i] < 0 || blob.zero_steps[i] > 4095) return false;
-        if (blob.dir[i] != 1 && blob.dir[i] != -1) return false;
+        if (blob.zero_steps[b] < 0 || blob.zero_steps[b] > 4095) return false;
+        if (blob.dir[b] != 1 && blob.dir[b] != -1) return false;
+        if (blob.fitted[b] > 1) return false;
         // The map the calibration was measured under must be THIS build's
-        // map -- a joint-indexed blob under a different kServoId pairs zeros
-        // with the wrong physical servos (see the v2 note in cal_store.h).
-        if (blob.servo_id[i] != obs::kServoId[i]) return false;
+        // map -- a blob under a different bus map pairs zeros with the wrong
+        // physical servos (see the note in cal_store.h).
+        if (blob.servo_id[b] != obs::kBusServoId[b]) return false;
     }
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        out.zero_steps[i] = blob.zero_steps[i];
-        out.dir[i] = blob.dir[i];
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        out.zero_steps[b] = blob.zero_steps[b];
+        out.dir[b] = blob.dir[b];
+        out.fitted[b] = blob.fitted[b];
     }
     return true;
+}
+
+namespace {
+// A prototype-era calibration (v1/v2 values in kLegacyServoId order) as a v3
+// calibration: each value lands on its servo's bus joint, those ten are
+// fitted, and every other bus joint is absent at its defaults.
+bool legacyToBus(const int32_t* zero, const int8_t* dir,
+                 obs::Calibration& out) {
+    obs::Calibration c;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) c.fitted[b] = 0;
+    for (int i = 0; i < kLegacyJoints; ++i) {
+        if (zero[i] < 0 || zero[i] > 4095) return false;
+        if (dir[i] != 1 && dir[i] != -1) return false;
+        const int b = obs::busIndexOfId(kLegacyServoId[i]);
+        if (b < 0) return false;
+        c.zero_steps[b] = zero[i];
+        c.dir[b] = dir[i];
+        c.fitted[b] = 1;
+    }
+    out = c;
+    return true;
+}
+}  // namespace
+
+bool calUnpackV2(const CalBlobV2& blob, obs::Calibration& out) {
+    if (blob.magic != kCalMagic) return false;
+    if (blob.version != 2) return false;
+    if (blob.joints != static_cast<uint16_t>(kLegacyJoints)) return false;
+    if (blob.crc != calCrc32(&blob, sizeof blob - sizeof blob.crc)) return false;
+    // v2 proves its map: only a blob measured under the prototype's map is
+    // the prototype's calibration.
+    for (int i = 0; i < kLegacyJoints; ++i) {
+        if (blob.servo_id[i] != kLegacyServoId[i]) return false;
+    }
+    return legacyToBus(blob.zero_steps, blob.dir, out);
 }
 
 bool calUnpackV1(const CalBlobV1& blob, obs::Calibration& out) {
     if (blob.magic != kCalMagic) return false;
     if (blob.version != 1) return false;
-    if (blob.joints != static_cast<uint16_t>(obs::kNumJoints)) return false;
+    if (blob.joints != static_cast<uint16_t>(kLegacyJoints)) return false;
     if (blob.crc != calCrc32(&blob, sizeof blob - sizeof blob.crc)) {
         return false;
     }
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        if (blob.zero_steps[i] < 0 || blob.zero_steps[i] > 4095) return false;
-        if (blob.dir[i] != 1 && blob.dir[i] != -1) return false;
-    }
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        out.zero_steps[i] = blob.zero_steps[i];
-        out.dir[i] = blob.dir[i];
-    }
-    return true;
+    return legacyToBus(blob.zero_steps, blob.dir, out);
 }
 
 bool calIsAsBuilt(const obs::Calibration& cal) {
-    for (int i = 0; i < obs::kNumJoints; ++i) {
-        if (cal.zero_steps[i] != kAsBuiltZeroSteps[i]) return false;
-        if (cal.dir[i] != kAsBuiltDir[i]) return false;
+    for (int i = 0; i < kLegacyJoints; ++i) {
+        const int b = obs::busIndexOfId(kLegacyServoId[i]);
+        if (b < 0 || !cal.fitted[b]) return false;
+        if (cal.zero_steps[b] != kAsBuiltZeroSteps[i]) return false;
+        if (cal.dir[b] != kAsBuiltDir[i]) return false;
     }
     return true;
 }
@@ -101,7 +133,21 @@ bool calMigrateV1(obs::Calibration& out) {
     if (!calLoadV1(v1)) return false;
     if (!calIsAsBuilt(v1)) return false;   // unknown v1 values: recalibrate
     out = v1;
-    return calSave(out);                   // re-persist as v2, map-bound
+    return calSave(out);                   // re-persist as v3, map-bound
+}
+
+bool calMigrateV2(obs::Calibration& out) {
+    nvs_handle_t h;
+    if (nvs_open(kNs, NVS_READONLY, &h) != ESP_OK) return false;
+    CalBlobV2 blob{};
+    size_t len = sizeof blob;
+    const esp_err_t err = nvs_get_blob(h, kKey, &blob, &len);
+    nvs_close(h);
+    if (err != ESP_OK || len != sizeof blob) return false;
+    obs::Calibration v2;
+    if (!calUnpackV2(blob, v2)) return false;
+    out = v2;
+    return calSave(out);                   // re-persist as v3, same key
 }
 
 bool calLoadV1(obs::Calibration& out) {

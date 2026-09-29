@@ -475,17 +475,20 @@ bool loadCalibration(const char* path, obs::Calibration& cal,
             return false;
         }
     }
+    // One entry per servo the policy drives at least (every one of them
+    // must be calibrated), any bus servo at most (obs/bus_map.h).
     if (!list->isArr() ||
-        list->arr.size() != static_cast<size_t>(obs::kNumJoints)) {
+        list->arr.size() < static_cast<size_t>(obs::kNumJoints) ||
+        list->arr.size() > static_cast<size_t>(obs::kNumBusJoints)) {
         char msg[128];
-        snprintf(msg, sizeof msg, ": expected %d calibration entries",
-                 obs::kNumJoints);
+        snprintf(msg, sizeof msg, ": expected %d..%d calibration entries",
+                 obs::kNumJoints, obs::kNumBusJoints);
         err = std::string(path) + msg;
         return false;
     }
 
     obs::Calibration out;
-    bool seen[obs::kNumJoints] = {};
+    bool seen[obs::kNumBusJoints] = {};
     for (const siljson::Value& e : list->arr) {
         const siljson::Value* bus = e.get("bus_id");
         const siljson::Value* zero = e.get("zero_steps");
@@ -497,13 +500,10 @@ bool loadCalibration(const char* path, obs::Calibration& cal,
             return false;
         }
         const int id = static_cast<int>(bus->num);
-        int joint = -1;
-        for (int j = 0; j < obs::kNumJoints; ++j) {
-            if (obs::kServoId[j] == id) { joint = j; break; }
-        }
+        const int joint = obs::busIndexOfId(id);   // the bus slot
         if (joint < 0) {
             char msg[96];
-            snprintf(msg, sizeof msg, ": bus_id %d is not in kServoId", id);
+            snprintf(msg, sizeof msg, ": bus_id %d is not on the bus", id);
             err = std::string(path) + msg;
             return false;
         }
@@ -528,7 +528,7 @@ bool loadCalibration(const char* path, obs::Calibration& cal,
         out.dir[joint] = static_cast<int8_t>(d);
     }
     for (int j = 0; j < obs::kNumJoints; ++j) {
-        if (!seen[j]) {
+        if (!seen[obs::policyToBus(j)]) {
             char msg[96];
             snprintf(msg, sizeof msg, ": no entry for bus_id %d",
                      static_cast<int>(obs::kServoId[j]));

@@ -1,0 +1,13 @@
+# Partition table for the General Driver's 4 MB flash (docs/firmware-design.md
+# section 6). Selected by CONFIG_PARTITION_TABLE_CUSTOM in sdkconfig.defaults.
+#
+# nvs and phy_init are the stock single-app layout, at the SAME explicit
+# offsets and sizes: the servo and IMU calibration, the WiFi credentials and
+# every other NVS record survive a reflash with this table, and nothing has to
+# be re-measured. Only the app partition grows, from 1 MB to 3 MB, for a
+# larger policy net and the 17-joint firmware. 0x310000-0x3FFFFF stays free.
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x300000,

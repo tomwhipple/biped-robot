@@ -34,14 +34,15 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "obs/obs_spec.h"
+#include "obs/bus_map.h"
 
 namespace robot {
 
 class JointPose {
   public:
     // -- control task (the writer) ----------------------------------------
-    // q: obs::kNumJoints radians, obs_spec order. t_us: when the bus was
+    // q: obs::kNumBusJoints radians, bus order (servo ID = index + 1);
+    // an unfitted servo is 0. t_us: when the bus was
     // read, on esp_timer's clock (boot-relative microseconds) -- the beacon
     // turns it into wall time (timesync.h) so the stamp on a pose frame is
     // the measurement instant, not the send instant. Cheap enough to call
@@ -69,7 +70,7 @@ class JointPose {
             const uint32_t s0 = seq_.load(std::memory_order_acquire);
             if (s0 == 0) return false;              // nothing published yet
             const Slot& src = slot_[s0 & 1u];
-            float q[obs::kNumJoints];
+            float q[obs::kNumBusJoints];
             memcpy(q, src.q, sizeof q);
             const uint32_t tick = src.tick;
             const int64_t t_us = src.t_us;
@@ -95,7 +96,7 @@ class JointPose {
     struct Slot {
         uint32_t tick;                 // g_ticks at publish time
         int64_t t_us;                  // esp_timer us when the bus was read
-        float q[obs::kNumJoints];      // rad, sim sign convention
+        float q[obs::kNumBusJoints];      // rad, sim sign convention
     };
     Slot slot_[2] = {};
     // Incremented once per publish, AFTER the slot is written. The slot last

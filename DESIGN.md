@@ -133,9 +133,10 @@ Dynamixel XC430 (new bus and board).
 
 The gain is a register, so it can silently revert: a factory reset or a
 swapped spare comes back at 32 and the robot falls at its first crossover. The
-firmware must read register 21 at boot and refuse to arm on a mismatch (part of
-the firmware port). Per-ID gains are recorded in
-[docs/servo-map.md](docs/servo-map.md) once the bench sets them.
+firmware reads registers 21/22 at boot and before every arm and refuses to arm
+on a mismatch with its per-ID table, which is recorded in
+[docs/servo-map.md](docs/servo-map.md) §4 (factory values until the bench sets
+them).
 
 **Deploy servo model** used by every gate: kp 12 N·m/rad fitted to the
 STS3215 (the bench measured ≈ 17), a torque–speed clamp at 11.1 V, the
@@ -418,12 +419,15 @@ The software stack runs on hardware today and is shared by every body:
 - **SIL** (`sim/sil/`): the real firmware code against the simulated plant —
   [docs/sil-harness.md](docs/sil-harness.md).
 
-**It is currently configured for the 10-joint prototype** (5 DOF per leg, no
-arms or neck; plant `sim/bimo_biped_v5body.xml`, servo IDs 1–10). The training
+**The deployed policy is the 10-joint prototype's** (5 DOF per leg, no arms
+or neck; plant `sim/bimo_biped_v5body.xml`, servo IDs 1–10). The training
 envs and the referee also run on the robot's plant (12 leg joints driven, neck
-and arms held, per-servo stiffness; [docs/training.md](docs/training.md) §13);
-the rest of the port to the robot's 17 joints — obs spec, telemetry frame,
-calibration, SIL ABI — is open work.
+and arms held, per-servo stiffness; [docs/training.md](docs/training.md) §13).
+The firmware's bus side is the robot's 17 servos (calibration, `pose`,
+telemetry, SIL ABI; the proposed ID map in
+[docs/servo-map.md](docs/servo-map.md) §2.1), and the obs-spec generator
+handles a robot run; a 17-servo bench test and a policy trained on the robot's
+plant are open work (#81, #86).
 
 ## 12. Open decisions and open work
 

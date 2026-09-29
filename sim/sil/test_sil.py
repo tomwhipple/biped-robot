@@ -42,7 +42,10 @@ QUANTUM = H.RAD_PER_STEP
 # =====================================================================
 @pytest.fixture(scope="session")
 def cfg():
-    with open(os.path.join(SIM, "runs", RUN, "config.json")) as f:
+    why = H.missing_run_artifacts(RUN, ("config.json",))
+    if why:
+        pytest.skip(why)
+    with open(os.path.join(H.run_dir(RUN), "config.json")) as f:
         return json.load(f)
 
 
@@ -77,7 +80,9 @@ def hw_env(cfg, xml, eval_mod):
 def silw():
     path = H.default_weights(RUN)
     if not os.path.exists(path):
-        pytest.skip(f"{path} missing -- run tools/export_policy_weights.py")
+        pytest.skip(f"{os.path.relpath(path, ROOT)} absent (gitignored) -- "
+                    f"`tools/export_policy_weights.py --run {RUN} --no-golden`"
+                    f" regenerates it from sim/runs/{RUN}/params.pkl")
     return H.read_silw(path)
 
 
@@ -101,7 +106,10 @@ def lib(cal_files):
 
 @pytest.fixture(scope="session")
 def py_act(nominal_env, eval_mod):
-    return eval_mod.load_policy(os.path.join(SIM, "runs", RUN),
+    why = H.missing_run_artifacts(RUN, ("params.pkl",))
+    if why:
+        pytest.skip(why)
+    return eval_mod.load_policy(H.run_dir(RUN),
                                 int(nominal_env.observation_space.shape[0]),
                                 int(nominal_env.action_space.shape[0]))
 
@@ -117,6 +125,123 @@ def test_obs_spec_parsed():
     # bus chains went onto the OPPOSITE legs -- port A (9,1,2,3,4) is the
     # right leg, port B (10,5,6,7,8) the left.
     assert tuple(H.SPEC.servo_id) == (10, 5, 6, 7, 8, 9, 1, 2, 3, 4)
+
+
+def _weights_h_source_sha():
+    """The sha256 prefix gen_policy_weights.py stamped into weights.h."""
+    import re
+    path = os.path.join(ROOT, "firmware", "components", "policy", "include",
+                        "policy", "weights.h")
+    with open(path) as f:
+        head = f.read(2000)
+    m = re.search(r"Source\s*:\s*\S+\.silw \(sha256 ([0-9a-f]+)\)", head)
+    run = re.search(r"Run\s*:\s*(\S+)", head)
+    return (m.group(1) if m else None), (run.group(1) if run else None)
+
+
+def test_goldens_headers_and_harness_agree_on_one_run():
+    """Issue #89: the compiled headers, the committed goldens and the suite's
+    default run are ONE run. Runs on a clean clone -- it needs only committed
+    files -- so a deploy that forgets to re-export the goldens is red here
+    even where the run's gitignored artifacts are absent."""
+    assert H.DEPLOYED_RUN, "could not read kRunName from obs_spec.h"
+    assert H.DEFAULT_RUN == H.DEPLOYED_RUN
+    sha, wrun = _weights_h_source_sha()
+    assert wrun == H.DEPLOYED_RUN, (wrun, H.DEPLOYED_RUN)
+    for name in ("policy_vectors.json", "obs_vectors.json"):
+        g = H.load_golden(name)
+        assert g["run"] == H.DEPLOYED_RUN, (
+            f"sim/sil/golden/{name} is {g['run']}, the headers are "
+            f"{H.DEPLOYED_RUN}: re-export with tools/export_policy_weights.py "
+            f"--run {H.DEPLOYED_RUN}")
+    # The committed sidecar is the bridge from the goldens to the flashed
+    # bytes: its blob hash is the one gen_policy_weights.py stamped into
+    # weights.h, so goldens, sidecar and compiled net are one export.
+    side_path = H.default_weights(H.DEPLOYED_RUN) + ".json"
+    assert os.path.exists(side_path), f"{side_path} not committed"
+    with open(side_path) as f:
+        side = json.load(f)
+    assert sha and side["blob"]["sha256"].startswith(sha), (
+        side["blob"]["sha256"], sha)
+    assert side["obs_dim"] == H.SPEC.obs_dim
+    assert side["act_dim"] == H.SPEC.act_dim
+    assert side["source"]["xml"] == H.SPEC.plant_xml, (
+        side["source"]["xml"], H.SPEC.plant_xml)
+
+
+def test_bus_map_is_one_map_everywhere():
+    """The 17-servo bus map (docs/servo-map.md 2.1) lives in three places that
+    must agree: the firmware's obs/bus_map.h (calibration, pose, SIL arrays),
+    link/protocol.py's JOINT_NAMES (the telemetry joint block) and
+    tools/gen_obs_spec.py's ID_BY_ROLE (a policy's generated kServoId)."""
+    sys.path.insert(0, os.path.join(ROOT, "link"))
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import protocol
+    import gen_obs_spec
+    assert H.BUS_IDS == tuple(range(1, H.NUM_BUS + 1))
+    assert tuple(protocol.JOINT_NAMES) == H.BUS_NAMES
+    assert protocol.NUM_JOINTS == H.NUM_BUS
+    assert {n: i for n, i in zip(H.BUS_NAMES, H.BUS_IDS)} == \
+        gen_obs_spec.ID_BY_ROLE
+    # the policy's joints are a subset, under the same names and servos
+    for name, sid in zip(H.SPEC.joint_names, H.SPEC.servo_id):
+        assert H.BUS_NAMES[sid - 1] == name
+
+
+def test_obs_spec_generator_on_a_robot_run(tmp_path):
+    """tools/gen_obs_spec.py on a run of the ROBOT's plant (the 12 leg joints
+    as the policy, the neck held, Plan B stiffness; sim/mjx/robot_plant.py):
+    every servo gets its ID from the one bus map, the held servo and its
+    target are emitted, and so is the per-servo stiffness factor the gain
+    table is checked against. No trained robot policy exists yet, so this
+    builds the run's config the way train_mjx.py --robot records it and
+    writes the header to a temporary file -- never over the deployed one."""
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import gen_obs_spec
+    import robot_plant
+    kw = robot_plant.robot_env_kwargs()
+    cfg = dict(xml_path=kw["xml_path"], held_joints=kw["held_joints"],
+               servo_kp_scale=kw["servo_kp_scale"],
+               hip_flex_deg=kw["hip_flex_deg"], payload_mass=0.0,
+               mimic_sole_level=True, obs_hist_len=3, action_map="full",
+               imu_obs=True, gait_clock=True)
+    run = tmp_path / "robot_test_run"
+    run.mkdir()
+    (run / "config.json").write_text(json.dumps(cfg))
+    cfg2, env = gen_obs_spec.build_env(str(run))
+    cfg2["_run"] = str(run)
+    out = tmp_path / "obs_spec.h"
+    gen_obs_spec.write_spec(cfg2, env, str(out))
+    spec = H._parse_obs_spec(str(out))
+    txt = out.read_text()
+    names = list(spec.joint_names)
+    assert spec.num_joints == len(names) == 12
+    assert {"L_ankle_roll", "R_ankle_roll"} <= set(names)
+    ids = dict(zip(names, spec.servo_id))
+    for n, sid in ids.items():
+        assert H.BUS_NAMES[sid - 1] == n
+    assert ids["R_ankle_roll"] == 11 and ids["L_ankle_roll"] == 12
+
+    def arr(name, cast):
+        import re
+        m = re.search(name + r"\[[^\]]*\]\s*=\s*\{([^}]*)\}", txt)
+        return [cast(x.strip().rstrip("f").strip('"'))
+                for x in m.group(1).split(",") if x.strip()]
+    import re
+    n_held = int(re.search(r"kNumHeld = (\d+);", txt).group(1))
+    held_ids = arr("kHeldServoId", int)[:n_held]
+    held_tgt = arr("kHeldTarget", float)[:n_held]
+    want = {H.BUS_IDS[H.BUS_NAMES.index(n)]: math.radians(d)
+            for n, d in kw["held_joints"].items()}
+    assert dict(zip(held_ids, held_tgt)) == pytest.approx(want)
+    assert 13 in held_ids                                   # the neck
+    assert not set(held_ids) & set(spec.servo_id)           # never both
+    plant_ids = arr("kPlantServoId", int)
+    kp = dict(zip(plant_ids, arr("kServoKpScale", float)))
+    assert sorted(plant_ids) == sorted(list(spec.servo_id) + held_ids)
+    raised = {sid for sid, f in kp.items() if f != 1.0}
+    assert raised == {1, 3, 5, 7, 11, 12}                   # rolls + knees
+    assert all(kp[sid] == 4.0 for sid in raised)
 
 
 def test_silw_sidecar_agrees_with_blob(silw):
@@ -140,7 +265,10 @@ def test_policy_goldens_match_exported_weights(silw):
     atol the firmware test uses.  This is the whole reason the normalizer
     ships with the weights."""
     g = H.load_golden("policy_vectors.json")
-    assert g["run"] == RUN and len(g["cases"]) == 16
+    if g["run"] != RUN:
+        pytest.skip(f"the goldens are {g['run']}'s; SIL_RUN={RUN} overrides "
+                    "the deployed run")
+    assert len(g["cases"]) == 16
     worst_raw = worst_norm = 0.0
     for c in g["cases"]:
         a = H.silw_forward(silw, np.array(c["obs"], np.float32))
@@ -158,29 +286,34 @@ def test_normalizer_frozen_channels_are_known(silw):
     """Channels the run never varied get std == std_eps (1e-6) from brax's
     running_statistics, so a deviation of d from the recorded mean arrives at
     the net as d * 1e6.  Pin the set: if it changes, every consumer that feeds
-    one of these a "harmless" different value has to be re-checked.
+    one of these a "harmless" different value has to be re-checked
+    (docs/sil-harness.md finding 2).
 
-    Live hazard as of loco_v6creep: slot 45 is cmd[3] (crouch), frozen at
-    exactly 1.0 -- and ctrl_task.cpp feeds it battguard::Guard::crouch(),
-    which RAMPS BELOW 1.0 on a flat pack.  crouch = 0.85 normalises to
-    -1.5e5."""
+    The deployed run trains the crouch channel (cmd[3]), which the pack
+    guard's landing ramp feeds on the robot. Frozen: linvel and height (hard
+    zeros on the robot, harmless) and cmd[5] = foot_dx -- the live hazard: a
+    console that sends an extended frame with foot_dx != 0 puts it ~1e4 sigma
+    out, so for this policy it must stay at 0."""
+    if RUN != H.DEPLOYED_RUN:
+        pytest.skip(f"the pinned set is the deployed run's; SIL_RUN={RUN}")
     frozen = np.where(silw["std"] <= 1e-5)[0]
     fd = H.SPEC.frame_dim
     slots = sorted(set(int(i) % fd for i in frozen))
     off = H.SPEC.off
     expect = ([off["linvel"] + i for i in range(3)] + [off["height"]]
-              + [off["cmd"] + i for i in range(3, H.SPEC.num_cmd)])
+              + [off["cmd"] + 5])
     assert slots == sorted(expect), (
         f"frozen obs slots changed: {slots} (expected {sorted(expect)})")
     # they repeat identically in every history frame
     assert len(frozen) == len(slots) * H.SPEC.hist_len
     crouch = off["cmd"] + 3
-    assert silw["mean"][crouch] == 1.0
-    amplified = abs(0.85 - silw["mean"][crouch]) / silw["std"][crouch]
+    assert silw["std"][crouch] > 1e-3, "crouch must be a trained channel"
+    foot_dx = off["cmd"] + 5
+    amplified = abs(0.05 - silw["mean"][foot_dx]) / silw["std"][foot_dx]
     assert amplified > 1e4, amplified          # the hazard, made explicit
 
 
-def test_policy_goldens_are_not_degenerate(silw):
+def test_policy_goldens_are_not_degenerate():
     """A net that ignored the normalizer would still 'pass' if every golden
     action were saturated or identical -- check the vectors have spread."""
     g = H.load_golden("policy_vectors.json")
@@ -189,7 +322,7 @@ def test_policy_goldens_are_not_degenerate(silw):
     assert np.abs(acts).max() < 1.0
 
 
-def test_obs_goldens_assemble(silw):
+def test_obs_goldens_assemble():
     """Pure-python obs::assembleFrame over the golden Inputs must reproduce
     the walker_env frame exactly -- this is the layout contract."""
     g = H.load_golden("obs_vectors.json")
@@ -450,8 +583,8 @@ def test_lib_obs_matches_python(lib, nominal_env, py_act):
     obs and walker_env's must be tick quantization."""
     env = nominal_env
     env.reset(seed=21)
-    H.pin_gait_clock(env, lib.gait_hz)
     env.set_command(0.3, 0, 0, 1, 0)
+    H.pin_gait_clock(env, lib.gait_hz)      # after the command: speed clock
     # Raw targets for this test: it pins NUMERICAL parity, and walker_env
     # writes the action it was stepped with into its own prev_action channel
     # -- with shaping on, the env would see shaped actions while the firmware
@@ -560,12 +693,15 @@ def test_lib_survives_perturbed_calibration(cal_files, nominal_env):
     A cal handled inconsistently shows up here as a face-plant."""
     if H.find_lib() is None:
         pytest.skip("libctrl_sil not built")
-    lib = H.open_lib(RUN, cal="perturbed")
+    try:
+        lib = H.open_lib(RUN, cal="perturbed")
+    except H.LibMissing as e:
+        pytest.skip(str(e))
     assert not np.all(lib.cal.zero_steps == H.CENTER_STEPS)
     env = nominal_env
     env.reset(seed=41)
-    H.pin_gait_clock(env, lib.gait_hz)
     env.set_command(0, 0, 0, 1, 0)
+    H.pin_gait_clock(env, lib.gait_hz)
     ad = H.SilActAdapter(lib, env)
     for _ in range(250):
         obs = env._obs()

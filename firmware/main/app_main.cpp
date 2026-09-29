@@ -168,14 +168,21 @@ extern "C" void app_main(void) {
     // but `cal` reports which of the two you are running on, because the
     // difference is invisible until a leg moves the wrong way.
     g_cal_from_nvs = calLoad(calibration());
-    bool cal_migrated = false;
-    if (!g_cal_from_nvs) {
-        // v1 -> v2, automatically and safely: a v1 blob that exactly matches
+    const char* cal_how = g_cal_from_nvs ? "restored from NVS" : "DEFAULTS";
+    if (!g_cal_from_nvs && calMigrateV2(calibration())) {
+        // v2 -> v3, automatically and exactly: a v2 blob proves its servo
+        // map, so each servo's zero and direction land on its bus joint,
+        // IDs 1-10 fitted and 11-17 absent (cal_store.h). Re-saved as v3.
+        g_cal_from_nvs = true;
+        cal_how = "migrated v2 -> v3 (IDs 1-10 fitted)";
+    }
+    if (!g_cal_from_nvs && calMigrateV1(calibration())) {
+        // v1 -> v3, automatically and safely: a v1 blob that exactly matches
         // the compiled as-built table (asbuilt_cal.h, the servo-map.md
         // measurement) IS that measurement, so it migrates without an
         // operator; anything else stays rejected and `run` refuses.
-        cal_migrated = calMigrateV1(calibration());
-        g_cal_from_nvs = cal_migrated;
+        g_cal_from_nvs = true;
+        cal_how = "migrated v1 -> v3 (matched as-built table)";
     }
 
     // Bench mode, torque off: docs/wiring.md's bring-up order starts with a
@@ -183,10 +190,26 @@ extern "C" void app_main(void) {
     // cooks servos while you are still plugging things in.
     g_bus->torqueEnable(scsbus::kBroadcastId, false);
 
-    ESP_LOGI(kTag, "cal: %s",
-             cal_migrated ? "migrated v1 -> v2 (matched as-built table)"
-                          : (g_cal_from_nvs ? "restored from NVS"
-                                            : "DEFAULTS"));
+    // Plan B gain gate, boot half: registers 21/22 of every driven servo
+    // against main/servo_gains.h. Reads only. A mismatch (or a servo that
+    // does not answer -- e.g. the pack is not connected yet) is logged here
+    // and put on the BENCH beacon; `run` re-reads before every arm.
+    const bool gains_ok = cli::bootGainCheck([](const char* line) {
+        char buf[160];
+        size_t n = strlen(line);
+        if (n >= sizeof buf) n = sizeof buf - 1;
+        memcpy(buf, line, n);
+        while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) --n;
+        buf[n] = 0;
+        ESP_LOGW(kTag, "%s", buf);
+    });
+
+    ESP_LOGI(kTag, "cal: %s, %d of %d bus servos fitted", cal_how,
+             fittedBusJoints(calibration(), nullptr, nullptr),
+             obs::kNumBusJoints);
+    ESP_LOGI(kTag, "gains: %s", gains_ok ? "every servo at its expected P/D"
+                                          : "NOT verified -- `run` will refuse "
+                                            "until `gains` is clean");
     ESP_LOGI(kTag, "imu: %s, cal %s", g_imu->name(),
              g_imu_cal_from_nvs ? "from NVS" : "MISSING (run `imu bias`)");
     ESP_LOGI(kTag, "bus %d baud on GPIO %d/%d, %d joints, obs %d, policy %s",

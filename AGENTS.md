@@ -48,6 +48,7 @@ git config core.hooksPath .githooks
 |---|---|---|
 | `python -m pytest tests/` | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B) | hard |
 | `make -C firmware/host check` | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles | hard |
+| `python -m pytest sim/sil` | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason | hard |
 | cmake configure / build / ctest of `firmware/host` | CMakeLists.txt and the Makefile agree | when cmake is installed |
 | `run-clang-tidy`, `firmware/host/clang-tidy-gui.sh` | `.clang-tidy`, WarningsAsErrors | when clang-tidy is installed |
 | `firmware/host/cppcheck.sh` | whole-program, fails on any finding | when cppcheck is installed |
@@ -56,8 +57,6 @@ git config core.hooksPath .githooks
 
 A toolchain-guarded gate prints a SKIP note when its tool is absent — a skip is
 visible, never silent. `git push --no-verify` skips everything; know why.
-
-`pytest sim/sil` (the SIL suite) is not in the hook.
 
 ## Generated files are generated
 

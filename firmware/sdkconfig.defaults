@@ -30,6 +30,13 @@ CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 CONFIG_SPIRAM=n
 
+# The app partition is 3 MB of the 4 MB, with nvs/phy_init exactly where the
+# stock single-app table put them (partitions.csv says why). A checkout whose
+# sdkconfig predates this keeps its old 1 MB table -- sdkconfig.defaults only
+# seeds a NEW sdkconfig -- so CMakeLists.txt refuses to build with it.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
 # Console stays on UART0 for the boot banner; app_main silences the logger
 # before the link starts so log text cannot interleave with binary frames.
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y

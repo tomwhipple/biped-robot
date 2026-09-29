@@ -762,7 +762,23 @@ void test_taking_control_adopts_the_robots_arm_level() {
 
 }  // namespace
 
+// The fault field is a u32 over the 17-servo bus (bit b = servo ID b + 1);
+// the consoles print the IDs, and a too-small buffer truncates, never overruns.
+void test_fault_ids_name_the_servos() {
+    char buf[96];
+    CHECK(strcmp(bimo::faultIds(0u, buf, sizeof buf), "") == 0);
+    CHECK(strcmp(bimo::faultIds(1u, buf, sizeof buf), "1") == 0);
+    CHECK(strcmp(bimo::faultIds((1u << 2) | (1u << 10) | (1u << 16), buf,
+                                sizeof buf),
+                 "3 11 17") == 0);
+    char tiny[4];
+    bimo::faultIds(0x1FFFFu, tiny, sizeof tiny);
+    CHECK(strlen(tiny) < sizeof tiny);
+    CHECK(strncmp(tiny, "1 2", 3) == 0);
+}
+
 int main() {
+    test_fault_ids_name_the_servos();
     test_frame_length_rule();
     test_ext_clamped_to_the_trained_draw();
     test_disarmed_refuses_motion();

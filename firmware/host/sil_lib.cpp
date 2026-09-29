@@ -40,18 +40,21 @@ namespace {
 // The ABI's fixed widths are the contract with python's ctypes. If a retrain
 // regenerates obs_spec.h with different dimensions, this file must be looked
 // at rather than silently reinterpreting the harness's bytes.
-static_assert(obs::kNumJoints == 10, "SilSensors arrays are 10 wide");
+static_assert(obs::kNumBusJoints == 17, "SilSensors/goal arrays are 17 wide");
 static_assert(obs::kActDim == 10, "SilTargets.action is 10 wide");
 static_assert(obs::kNumCmd == 7, "SilSensors.cmd is 7 wide");
 static_assert(obs::kObsDim == 147, "SilTargets.obs is 147 wide");
 static_assert(obs::kFrameDim * obs::kHistLen == obs::kObsDim,
               "obs is hist_len frames");
 
-// Slot in the bus-ID-ordered arrays for a given policy/joint index.
-// See the ARRAY ORDER note in sil.h: slot = bus_id - 1.
-inline int slotOf(int joint) {
-    return static_cast<int>(obs::kServoId[joint]) - 1;
-}
+// Slot in the servo-ID-ordered arrays for a given policy joint: its bus
+// index (obs/bus_map.h). See the ARRAY ORDER note in sil.h: slot = bus_id - 1.
+inline int slotOf(int joint) { return obs::policyToBus(joint); }
+
+// The goal of a bus slot the policy does not drive: the position sensed on
+// the first tick after a reset (ctrl_task holds such a servo where it was
+// measured at takeover).
+uint16_t g_hold[obs::kNumBusJoints];
 
 bool g_ready = false;
 bool g_primed = false;
@@ -112,7 +115,7 @@ void buildSpec() {
     char buf[512];
     g_spec = "{";
     snprintf(buf, sizeof buf,
-             "\"sil_abi\":2,\"run\":\"%s\",\"plant\":\"%s\","
+             "\"sil_abi\":3,\"run\":\"%s\",\"plant\":\"%s\","
              "\"action_map\":\"%s\",\"spec_hash\":\"0x%016llx\",",
              obs::kRunName, obs::kPlantXml, obs::kActionMap,
              static_cast<unsigned long long>(specHash()));
@@ -158,6 +161,21 @@ void buildSpec() {
     for (int j = 0; j < obs::kNumJoints; ++j) {
         snprintf(buf, sizeof buf, "%s\"%s\"", j ? "," : "",
                  obs::kJointNames[j]);
+        g_spec += buf;
+    }
+    // The bus map: every servo the arrays carry, servo-ID order.
+    g_spec += "],\"num_bus_joints\":";
+    g_spec += std::to_string(obs::kNumBusJoints);
+    g_spec += ",\"bus_servo_id\":[";
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        snprintf(buf, sizeof buf, "%s%d", b ? "," : "",
+                 static_cast<int>(obs::kBusServoId[b]));
+        g_spec += buf;
+    }
+    g_spec += "],\"bus_joint_names\":[";
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        snprintf(buf, sizeof buf, "%s\"%s\"", b ? "," : "",
+                 obs::kBusJointNames[b]);
         g_spec += buf;
     }
     // The one thing a harness cannot guess. Spelled out so the python side
@@ -316,6 +334,16 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     if (!g_primed) {
         g_hist.fill(g_frame);
         g_primed = true;
+        // Hold every slot the policy does not drive: at the deployed run's
+        // trained target when it holds that servo (obs_spec.h kHeld*),
+        // otherwise where it is now. (No takeover ramp: sil_reset is an
+        // episode start, not a bench->run handover.)
+        for (int b = 0; b < obs::kNumBusJoints; ++b) {
+            const int h = obs::heldIndexOfBus(b);
+            g_hold[b] = static_cast<uint16_t>(
+                h >= 0 ? obs::busAngleToStepsRaw(b, obs::kHeldTarget[h], g_cal)
+                       : scsbus::signMag(in->pos_ticks[b], 15));
+        }
     }
     g_hist.build(g_frame, g_obs);
 
@@ -333,6 +361,15 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
         g_shaper.update(angle, angle);
     }
 
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (obs::busToPolicy(b) >= 0) continue;
+        out->goal_ticks[b] = g_hold[b];
+        out->goal_speed[b] =
+            g_shape_hz > 0.0f
+                ? obs::goalSpeedSteps(g_hold[b],
+                                      scsbus::signMag(in->pos_ticks[b], 15))
+                : 0;
+    }
     for (int j = 0; j < obs::kNumJoints; ++j) {
         const int32_t steps = obs::angleToSteps(j, angle[j], g_cal);
         // angleToSteps already clamps to the encoder's 0..4095; the cast is

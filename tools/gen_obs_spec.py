@@ -62,10 +62,19 @@ VEC_OUT = os.path.join(ROOT, "firmware", "host", "vectors", "obs_vectors.h")
 # The servos are not coming back out, so the map absorbs it. Note the yaw
 # entries are the SAME as the first errata fix -- 9 is right, 10 is left --
 # because a whole-chain swap and a yaw-only swap agree on the yaw servos.
+#
+# The robot's seven further servos (docs/servo-map.md section 2.1, PROPOSED,
+# awaiting sign-off -- issue #77) are appended right before left: ankle rolls
+# 11/12, neck 13, arms 14-17. Only the roles the run's plant actuates are
+# looked up, so the 10-DOF prototype's spec is unchanged by them. This table
+# and the firmware's bus map (firmware/components/obs/include/obs/bus_map.h)
+# are the same map; the SIL suite checks that they agree.
 ID_BY_ROLE = {
     "L_hip_roll": 5, "L_hip_pitch": 6, "L_knee": 7, "L_ankle": 8,
     "R_hip_roll": 1, "R_hip_pitch": 2, "R_knee": 3, "R_ankle": 4,
     "L_hip_yaw": 10, "R_hip_yaw": 9,
+    "R_ankle_roll": 11, "L_ankle_roll": 12, "neck_yaw": 13,
+    "R_shoulder": 14, "R_elbow": 15, "L_shoulder": 16, "L_elbow": 17,
 }
 
 
@@ -229,11 +238,59 @@ def write_spec(cfg, env, path):
     w("inline constexpr float kJointDefault[kNumJoints] = %s;"
       % farr(env._default))
     w("")
+    write_servo_tables(w, env)
+    w("")
     w("}  // namespace obs")
     w("")
     with open(path, "w") as f:
         f.write("\n".join(L))
     return ids
+
+
+def write_servo_tables(w, env):
+    """Every servo the run's plant actuates, beyond the policy's joints.
+
+    The robot's runs (sim/mjx/robot_plant.py) HOLD some servos at a fixed
+    target the policy never commands (the neck, the arms): the firmware must
+    write each of them its target every armed tick, so their IDs and targets
+    are part of the deployed spec. And they train with a per-servo position-
+    loop stiffness (servo_kp_scale; Plan B = x4 on hip roll, ankle roll and
+    knee), which the robot's servos must realise: the firmware's gain table
+    (main/servo_gains.h) is checked against it at compile time. A prototype
+    run has no held servos and every factor 1."""
+    names = list(getattr(env, "_servo_names", env._act_names))
+    held = dict(getattr(env, "held_joints", {}) or {})
+    scale = np.asarray(getattr(env, "servo_kp_scale", np.ones(len(names))),
+                       dtype=float)
+    assert len(scale) == len(names), (len(scale), len(names))
+    missing = [n for n in names if n not in ID_BY_ROLE]
+    if missing:
+        raise SystemExit("no servo ID for %s: add the role to ID_BY_ROLE "
+                         "(docs/servo-map.md section 2.1)" % missing)
+    held_names = [n for n in names if n in held]
+    cap = max(1, len(held_names))       # C++ has no zero-length arrays
+    pad = cap - len(held_names)
+    w("// -- servos beyond the policy's joints ----------------------------------")
+    w("// HELD servos: actuated by the plant at a fixed target the policy never")
+    w("// commands (the robot's neck and arms). The firmware writes each one its")
+    w("// target every armed tick. kNumHeld may be 0; the arrays then carry one")
+    w("// unused entry, because C++ has no zero-length arrays.")
+    w("inline constexpr int kNumHeld = %d;" % len(held_names))
+    w("inline constexpr const char* kHeldNames[%d] = {%s};"
+      % (cap, ", ".join(['"%s"' % n for n in held_names] + ['""'] * pad)))
+    w("inline constexpr uint8_t kHeldServoId[%d] = {%s};"
+      % (cap, ", ".join([str(ID_BY_ROLE[n]) for n in held_names]
+                        + ["0"] * pad)))
+    w("inline constexpr float kHeldTarget[%d] = %s;   // rad, sim joint frame"
+      % (cap, farr([np.deg2rad(held[n]) for n in held_names] + [0.0] * pad)))
+    w("// Position-loop stiffness factor per actuated servo, as trained")
+    w("// (servo_kp_scale): 1 = the servo's factory P. main/servo_gains.h must")
+    w("// raise P exactly where this is above 1.")
+    w("inline constexpr int kNumPlantServos = %d;" % len(names))
+    w("inline constexpr uint8_t kPlantServoId[kNumPlantServos] = {%s};"
+      % ", ".join(str(ID_BY_ROLE[n]) for n in names))
+    w("inline constexpr float kServoKpScale[kNumPlantServos] = %s;"
+      % farr(scale))
 
 
 def write_vectors(env, samples, path):

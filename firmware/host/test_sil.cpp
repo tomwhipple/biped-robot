@@ -692,6 +692,108 @@ void testSpec() {
     CHECK(strlen(sil_spec()) > 100);
 }
 
+// -- 6b. the bus slots the policy does not drive (sil_abi 3) --------------
+// The arrays are 17 wide, servo-ID order. Slots no policy joint maps to are
+// sensed but never observed, and their goals HOLD the position sensed on the
+// first tick after a reset -- ctrl_task's hold for a fitted servo the policy
+// does not drive. And a calibration file may carry those servos too.
+void testBusSlots() {
+    const std::string nom = g_tmp_prefix + "cal_nominal.json";
+    CHECK_EQ(sil_init(nullptr, nom.c_str(), 1.5f), 0);
+    SilSensors in{};
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        in.pos_ticks[b] = static_cast<uint16_t>(1500 + 40 * b);
+    }
+    in.up[2] = 1.0f;
+    in.cmd[3] = 1.0f;
+    SilTargets first{};
+    CHECK_EQ(sil_tick(&in, &first), 0);
+    int held = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (obs::busToPolicy(b) >= 0) continue;
+        ++held;
+        CHECK_EQ(first.goal_ticks[b], in.pos_ticks[b]);
+        // shaping on (the boot default): the floor speed, never 0 (unlimited)
+        CHECK_EQ(first.goal_speed[b], obs::goalSpeedSteps(in.pos_ticks[b],
+                                                          in.pos_ticks[b]));
+    }
+    CHECK_EQ(held, obs::kNumBusJoints - obs::kNumJoints);
+    // Moving a held servo's sensor does not move its goal (it HOLDS), and
+    // does not reach the observation either.
+    SilSensors moved = in;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (obs::busToPolicy(b) < 0) moved.pos_ticks[b] = 3000;
+    }
+    SilTargets second{};
+    CHECK_EQ(sil_tick(&moved, &second), 0);
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (obs::busToPolicy(b) >= 0) continue;
+        CHECK_EQ(second.goal_ticks[b], in.pos_ticks[b]);
+    }
+    // ... until a reset, which takes the hold afresh.
+    sil_reset();
+    SilTargets third{};
+    CHECK_EQ(sil_tick(&moved, &third), 0);
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (obs::busToPolicy(b) >= 0) continue;
+        CHECK_EQ(third.goal_ticks[b], 3000);
+    }
+
+    // A calibration file with every bus servo loads; the extra rows land on
+    // their servos' slots and the policy's rows are unchanged.
+    std::string all = "[\n";
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        all += "  {\"bus_id\": " + num(obs::kBusServoId[b]) +
+               ", \"zero_steps\": " + num(1900 + b) + ", \"dir\": 1}";
+        all += (b + 1 < obs::kNumBusJoints) ? ",\n" : "\n";
+    }
+    all += "]\n";
+    const std::string full = g_tmp_prefix + "cal_bus.json";
+    CHECK(writeText(full, all));
+    obs::Calibration cal;
+    std::string err;
+    CHECK(sil::loadCalibration(full.c_str(), cal, err));
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        CHECK_EQ(cal.zero_steps[b], 1900 + b);
+    }
+    // ... but one that leaves out a servo the POLICY drives is refused.
+    std::string partial = "[\n";
+    int written = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (obs::kBusServoId[b] == obs::kServoId[0]) continue;
+        partial += std::string(written ? ",\n" : "") + "  {\"bus_id\": " +
+                   num(obs::kBusServoId[b]) +
+                   ", \"zero_steps\": 2048, \"dir\": 1}";
+        ++written;
+    }
+    partial += "\n]\n";
+    CHECK(writeText(full, partial));
+    obs::Calibration guard;
+    CHECK(!sil::loadCalibration(full.c_str(), guard, err));
+
+    // The spec publishes the bus map the arrays are laid out by.
+    siljson::Value v;
+    CHECK(siljson::parse(sil_spec(), v, err));
+    const siljson::Value* d = v.get("sil_abi");
+    CHECK(d && static_cast<int>(d->num) == 3);
+    d = v.get("num_bus_joints");
+    CHECK(d && static_cast<int>(d->num) == obs::kNumBusJoints);
+    d = v.get("bus_servo_id");
+    std::vector<int> ids;
+    CHECK(d && d->asInts(ids) &&
+          ids.size() == static_cast<size_t>(obs::kNumBusJoints));
+    for (int b = 0; b < obs::kNumBusJoints && b < static_cast<int>(ids.size());
+         ++b) {
+        CHECK_EQ(ids[static_cast<size_t>(b)], obs::kBusServoId[b]);
+    }
+    d = v.get("bus_joint_names");
+    CHECK(d && d->isArr() &&
+          d->arr.size() == static_cast<size_t>(obs::kNumBusJoints));
+    static_assert(sizeof(SilSensors{}.pos_ticks) / sizeof(uint16_t) ==
+                      static_cast<size_t>(obs::kNumBusJoints),
+                  "the SIL arrays are the bus's width");
+}
+
 // -- 7. error paths -------------------------------------------------------
 
 void testErrors() {
@@ -713,7 +815,7 @@ void testErrors() {
 
 void cleanup() {
     const char* names[] = {"cal_nominal.json", "cal_perturbed.json",
-                           "cal_bad.json",     "net.silw",
+                           "cal_bad.json",     "cal_bus.json", "net.silw",
                            "net.silw.json",    "trunc.silw",
                            "trunc.silw.json"};
     for (const char* n : names) remove((g_tmp_prefix + n).c_str());
@@ -733,6 +835,7 @@ int main(int argc, char** argv) {
     testSequencingAndReset();
     testShaping();             // needs testExportedWeights' net.silw fixture
     testSpec();
+    testBusSlots();
     testErrors();
     cleanup();
     return testutil::report("sil");

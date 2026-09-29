@@ -42,8 +42,8 @@ harness: bus order back to joint order -> ticks to angles -> invert the
 
 ```c
 typedef struct {            // what the bus + IMU deliver
-    uint16_t pos_ticks[10]; // present position, register 56 semantics, bus-ID order
-    int16_t  vel_ticks[10]; // present speed: the register-58 sign-magnitude
+    uint16_t pos_ticks[17]; // present position, register 56 semantics, servo-ID order
+    int16_t  vel_ticks[17]; // present speed: the register-58 sign-magnitude
                             //   word (sign in bit 15), carried in an int16
     float    up[3];         // IMU up-vector
     float    gyro[3];       // rad/s
@@ -51,12 +51,12 @@ typedef struct {            // what the bus + IMU deliver
 } SilSensors;
 
 typedef struct {
-    uint16_t goal_ticks[10];  // SYNC WRITE view, bus-ID order; shaped when the
-                              //   shaper is on (the default, as deployed)
+    uint16_t goal_ticks[17];  // SYNC WRITE view, servo-ID order; shaped when
+                              //   the shaper is on (the default, as deployed)
     float    action[10];      // the raw [-1, 1] policy action (diagnostics)
     float    obs[147];        // the assembled observation (diagnostics, goldens)
-    uint16_t goal_speed[10];  // per-servo register-46 goal speed, bus-ID order;
-                              //   0 when shaping is off
+    uint16_t goal_speed[17];  // per-servo register-46 goal speed, servo-ID
+                              //   order; 0 when shaping is off
 } SilTargets;
 
 int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in weights
@@ -64,30 +64,36 @@ int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in we
               float gait_freq_hz);        // <= 0 = the firmware's 1.5 Hz; 0 on success
 void sil_reset(void);                     // history refill + clock zero, like an arm
 int  sil_tick(const SilSensors* in, SilTargets* out);
-const char* sil_spec(void);               // JSON: dims, offsets, kServoId, layout hash,
-                                          //   loaded weights, "sil_abi": 2
+const char* sil_spec(void);               // JSON: dims, offsets, kServoId, the bus map,
+                                          //   layout hash, loaded weights, "sil_abi": 3
 const char* sil_last_error(void);         // text of the last failure, never NULL
 void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw targets;
                                           //   sil_init resets it to the firmware default
 ```
 
-- **Array order is bus ID**: `slot = bus_id − 1`, and joint *j* sits in slot
-  `kServoId[j] − 1`. With the generated `kServoId = {10, 5, 6, 7, 8, 9, 1, 2,
-  3, 4}`, slot 0 is servo 1, which is joint 6 (`R_hip_roll`). Putting the
-  permutation on the boundary is what makes it testable end to end.
-  `sil_spec()` reports the convention and the permutation, and the Python
-  side **probes** the built library rather than assuming either (see the
-  README).
-- **The widths are the prototype's**: every array is static-asserted against
-  `obs_spec.h` in `sil_lib.cpp`, so a retrain that changes a dimension breaks
-  the build rather than silently reinterpreting bytes. The 17-joint port
-  (issue #81) changes this ABI.
-- `sil_abi` 2 is the current ABI: goal speeds in `SilTargets` and
-  `sil_set_shaper()`, mirroring the firmware's command shaper
-  ([firmware-design.md](firmware-design.md) §5.3). The harness resolves
-  array order with the shaper off (the raw map is the invertible reference)
-  and restores the pole, so closed-loop scoring runs against the shaped plant
-  as deployed.
+- **The arrays are the robot's bus**: 17 slots, one per servo
+  (`obs/bus_map.h`), `slot = servo ID − 1`. Policy joint *j* sits in slot
+  `kServoId[j] − 1`: with the generated `kServoId = {10, 5, 6, 7, 8, 9, 1, 2,
+  3, 4}`, slot 0 is servo 1, which is policy joint 6 (`R_hip_roll`). Putting
+  the permutation on the boundary is what makes it testable end to end.
+  `sil_spec()` reports the convention, the permutation and the bus map, and
+  the Python side **probes** the built library rather than assuming either
+  (see the README).
+- **Slots the policy does not drive** (IDs 11–17 under the 10-joint policy)
+  are sensed but not observed, and their goals **hold**: the deployed run's
+  trained target for a servo it holds (`obs_spec.h` `kHeld*`), otherwise the
+  position sensed on the first tick after `sil_reset()` -- the firmware's
+  hold, without its takeover ramp ([firmware-design.md](firmware-design.md)
+  §5.8). The harness fills them with 2048.
+- **The widths are static-asserted** against `bus_map.h` and `obs_spec.h` in
+  `sil_lib.cpp`, so a retrain that changes a dimension breaks the build
+  rather than silently reinterpreting bytes.
+- `sil_abi` 3 is the current ABI: the 17-slot bus arrays. `sil_abi` 2 added
+  goal speeds in `SilTargets` and `sil_set_shaper()`, mirroring the
+  firmware's command shaper ([firmware-design.md](firmware-design.md) §5.3).
+  The harness resolves array order with the shaper off (the raw map is the
+  invertible reference) and restores the pole, so closed-loop scoring runs
+  against the shaped plant as deployed.
 
 ## Rules
 
@@ -134,7 +140,8 @@ carries `layer_sizes`, `activation: "swish"`, `obs_dim`, `act_dim`,
 ## Calibration file (for `sil_init`)
 
 JSON with per-joint `{bus_id, zero_steps, dir}`, plus the same three as flat
-joint-indexed arrays. The harness writes a **nominal** file (every zero
+joint-indexed arrays: an entry for every servo the policy drives, and at
+most one per bus servo; each lands on its servo's slot. The harness writes a **nominal** file (every zero
 2048, every `dir` +1, identical to `obs::Calibration`'s default) and a
 **perturbed** one (random zeros in 2048 ± 350); the tests also build one
 with flipped directions. None of them is the as-built calibration, and none
@@ -156,8 +163,8 @@ The item numbers are cited from code.
    `walker_env`'s joint state, and the synthesised IMU matches the env's
    observation channels.
 3. **Closed loop** (pytest, `sim/sil`, marked `slow`): `stand_10s`,
-   `line_1m` and `goal_home` through `SilActAdapter` on the suite's
-   reference run, with the python referee's seeds. Pass rates must agree
+   `line_1m` and `goal_home` through `SilActAdapter` on the deployed run,
+   with the python referee's seeds. Pass rates must agree
    within one seed per scenario; per-tick observation and action divergence
    is logged, and with the gait clocks pinned together it must be tick
    quantisation only. Any larger divergence is a bug with a name, not a
@@ -213,7 +220,7 @@ Numbered because code cites them.
    an extended frame with `foot_dx` ≠ 0 (clamped to ±0.05 m) puts it ~5·10⁴ σ
    out, so for this policy it must stay at 0. The exporter warns about frozen
    channels and `test_normalizer_frozen_channels_are_known` pins the set for
-   the suite's run.
+   the deployed run.
 3. **The policy takes its weights as a parameter.** `policy::Net` /
    `forwardNet` run an exported `.silw` through exactly the on-target
    arithmetic; `forward()` binds the same code to the generated header.
@@ -229,22 +236,31 @@ UART framing and CRC in the loop (`linkproto` has its own golden tests);
 ESP32 timing (the host build is logic-exact, not cycle-exact); MJX (the CPU
 env is the deployment referee by project convention).
 
-## Current state of the Python suite
+## One run: the deployed one
 
-`pytest sim/sil` is **not** part of the pre-push gate; the C half (pyramid
-item 1) is. The suite currently runs in seconds and has **4 failing tests out
-of 32**, all from one cause: its reference run (`SIL_RUN`, default
-`loco_v8foot`, trained on `bimo_biped_v3yaw.xml`) no longer matches what
-the library is compiled against (`obs_spec.h` and `weights.h` from
-`loco_v41rsi_b_s128r24` on `bimo_biped_v5body.xml`) or the committed goldens
-(`loco_v28crouch_s128r24`).
+The suite, the goldens and the compiled headers are **one run**, the
+deployed one (`loco_v41rsi_b_s128r24` on `bimo_biped_v5body.xml`):
 
-| failing test | what it finds |
-|---|---|
-| `test_policy_goldens_match_exported_weights` | the goldens name `loco_v28crouch_s128r24`, not `loco_v8foot` |
-| `test_env_joint_limits_match_obs_spec` | the plant's joint ranges differ from `obs_spec.h` (e.g. `R_hip_roll` lower limit −0.436 vs −0.960 rad) |
-| `test_target_reproduction_through_env` | the env clips targets to its own, narrower ranges (0.87 rad at `L_knee`) |
-| `test_lib_obs_matches_python` | the phase diverges: the library runs the deployed spec's speed clock and stand freeze, which that run's env does not |
+- The harness does not keep its own default. `harness.DEFAULT_RUN` is
+  `obs::kRunName`, read out of the generated `obs_spec.h`, so
+  `make -C firmware/host deploy-headers RUN=<run>` re-points the suite in
+  the same step (`SIL_RUN` still overrides it).
+- The goldens in `sim/sil/golden/` and the committed sidecar
+  `weights/<run>.silw.json` are exported from the same `params.pkl` as
+  `weights.h`: the sidecar's blob sha256 is the one `gen_policy_weights.py`
+  stamps into the header. `test_goldens_headers_and_harness_agree_on_one_run`
+  pins all of that from committed files alone, so a deploy that forgets to
+  re-export the goldens goes red on any clone.
+- The run's `config.json`, `params.pkl` and `.silw` are gitignored
+  (`sim/runs/`, `sim/sil/weights/*.silw`). Where they are absent, the tests
+  that need them **skip and name what to fetch**; nothing fails for want of a
+  local artifact.
 
-The closed-loop scenarios pass. Fixing this means re-pointing `SIL_RUN` and
-the goldens at one run that matches the deployed headers.
+`pytest sim/sil` is a hard gate in the pre-push hook, after the host build
+that produces the library. On the deployed run it is 35 passed in ~15 s,
+closed loop included (python vs SIL: `stand_10s` 8/8 vs 8/8, `line_1m` 1/8 vs
+1/8, `goal_home` 0/8 vs 0/8); on a clean clone, 16 passed and 19 skipped.
+
+Per-tick parity pins the gait clocks with `pin_gait_clock()` **after** the
+command is set: with the deployed spec's speed clock and stand freeze, the
+firmware's first step depends on the command (`first_clock_step()`).

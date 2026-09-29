@@ -39,7 +39,7 @@ CLI text, and `linkproto::Demux` separates the two.
 | off | size | field | notes |
 |---|---|---|---|
 | 0 | 2 | magic | `"BM"` |
-| 2 | 1 | version | 1 |
+| 2 | 1 | version | 2 |
 | 3 | 1 | flags | below |
 | 4 | 4 | seq | u32, monotonic per sender |
 | 8 | 2 | vx | i16 mm/s, body-frame forward |
@@ -66,26 +66,24 @@ only when an extra is off its default. The UART path takes 14 B frames only.
 | off | size | field | notes |
 |---|---|---|---|
 | 0 | 2 | magic | `"BT"` |
-| 2 | 1 | version | 1 |
+| 2 | 1 | version | 2 |
 | 3 | 1 | state | `LinkState`, wire value below |
 | 4 | 4 | seq_echo | u32, the last command seq applied; the [bench diagnostic](#saying-why-the-bench-diagnostic) while `BENCH` |
 | 8 | 2 | vbat | u16 mV |
 | 10 | 2 | up_z | i16 milli; torso up-vector z, 1.0 = upright |
 | 12 | 2 | vx_est | i16 mm/s; the firmware does not estimate it and sends 0 |
 | 14 | 2 | wz_est | i16 mrad/s; likewise 0 |
-| 16 | 1 | servo_err | fault bit per joint in obs_spec order; the prototype's joints 8 and 9 are OR-ed into bits 0 and 1 |
-| 17 | 1 | loop_late_pct | % of control ticks over 20 ms |
-| 18 | 8 | t_us | u64 µs since the Unix epoch, UTC, robot clock; **0 = not synced** |
-| 26 | 20 | joints | 10 × i16 milli-rad, obs_spec joint order; **only when asked with `POSE`** |
+| 16 | 4 | servo_err | u32, bit *b* = servo ID *b* + 1 faulted (no reply, or a status flag); only servos fitted in the calibration set a bit |
+| 20 | 1 | loop_late_pct | % of control ticks over 20 ms |
+| 21 | 8 | t_us | u64 µs since the Unix epoch, UTC, robot clock; **0 = not synced** |
+| 29 | 34 | joints | 17 × i16 milli-rad, one per bus servo in servo-ID order (`JOINT_NAMES`); 0 for a servo the robot does not carry; **only when asked with `POSE`** |
 | next | 4 | up_x, up_y | 2 × i16 milli; **only when asked with `ATT`** |
 | last | 2 | crc16 | over everything before it |
 
-Four lengths: 28 base, 32 + attitude, 48 + joints, 52 + both. Every block
-has a fixed size, so the length alone selects the layout and the version
-byte stays 1. Decoders also accept 20 B and 40 B frames without the
-timestamp (read as `t_us = 0`); nothing emits them. The UART tether sends
-the 28 B frame only, and only while armed: it shares 115200 baud with CLI
-text and the observation dump.
+Four lengths: 31 base, 35 + attitude, 65 + joints, 69 + both. Every block
+has a fixed size, so the length alone selects the layout. The UART tether
+sends the 31 B frame only, and only while armed: it shares 115200 baud with
+CLI text and the observation dump.
 
 The rules behind the format:
 
@@ -102,9 +100,20 @@ The rules behind the format:
   asks is by construction one that can read the answer.
 - **The timestamp is the one exception**: it is on every frame, because its
   value is that any frame from any console can be laid against a video.
-- **10 joints is the prototype's count.** The 17-joint port (issue #81) changes
-  `NUM_JOINTS` in `link/protocol.py` first; the firmware static-asserts its
-  copy against the generated obs spec.
+- **The joint block and `servo_err` cover the robot's bus, not the policy.**
+  They carry all 17 servos (`firmware/components/obs/include/obs/bus_map.h`,
+  [servo-map.md](servo-map.md) §2.1) whatever the compiled policy drives; a
+  consumer maps the angles by name. The firmware static-asserts
+  `linkproto::kNumJoints` against the bus map, and a change to the bus
+  changes `JOINT_NAMES` in `link/protocol.py` first.
+- **A change the length cannot express bumps the version, in both
+  directions.** Version 2 widened `servo_err` from one byte to a u32 and the
+  joint block from the prototype's 10 policy joints to the 17 bus servos:
+  the base block itself changed. A version-1 frame of either kind is refused
+  (`kBadVersion`), so an old console and a new robot refuse each other
+  outright instead of one driving blind. Consoles and firmware from one tree
+  always agree; a robot flashed before the bump needs a reflash before a
+  console from this tree can command it.
 
 ## Link states (the failsafe)
 
@@ -184,8 +193,9 @@ sends moves the robot. `ARM` (bit 2) arms it over the radio;
   no edge against a robot armed over the tether, but its `ARM=0` frames
   interleaved with an arming console's `ARM=1` frames make 1→0 edges and
   bench the robot. `link/arm_script.py` holds `ARM` itself.
-- **Refused without an as-built calibration in NVS**, the same gate as the
-  typed `run`.
+- **Refused without an as-built calibration in NVS**, and **refused unless
+  every servo's position-loop gains read back as expected** (registers 21/22,
+  read before every arm), the same gates as the typed `run`.
 - The control loop only publishes the edge; the housekeeping task applies it
   through the same `cmdMode()` as the tethered `run`, between CLI lines, so a
   wireless arm never lands inside a bench-mode bus command.
@@ -219,6 +229,7 @@ a false fault.)
 | 7 `HOME_BUS_FAILED` | home failed: the servo bus did not accept it |
 | 8 `HOME_PENDING` | home written, joints moving, readback not done |
 | 9 `HOME_NOT_REACHED` | home failed: readback found joints off their zeros |
+| 10 `REFUSED_GAINS` | arm refused: a servo's position-loop P/D (registers 21/22) is not its expected value, or did not read back ([servo-map.md §4](servo-map.md#4-registers)) |
 
 The layout is **append-only**, like `LinkState`: reserved bits are sent zero
 and ignored, the upper 24 bits of `seq_echo` are reserved zero, and a value a

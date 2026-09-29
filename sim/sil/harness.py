@@ -39,13 +39,51 @@ ROOT = os.path.dirname(SIM)
 FIRMWARE = os.path.join(ROOT, "firmware")
 SPEC_H = os.path.join(FIRMWARE, "components", "obs", "include", "obs",
                       "obs_spec.h")
+BUS_MAP_H = os.path.join(FIRMWARE, "components", "obs", "include", "obs",
+                         "bus_map.h")
 
 WEIGHTS_DIR = os.path.join(HERE, "weights")
 GOLDEN_DIR = os.path.join(HERE, "golden")
 CAL_DIR = os.path.join(HERE, "cal")
-# first policy trained on the corrected printed foot (f58a412); v6creep
-# predates it and no longer stands on the current plant (2026-08-01)
-DEFAULT_RUN = "loco_v8foot"
+RUNS_DIR = os.path.join(SIM, "runs")
+
+
+def _parse_run_name(path=SPEC_H):
+    """obs::kRunName: the run the compiled-in headers were generated from."""
+    try:
+        txt = open(path).read()
+    except OSError:
+        return None
+    m = re.search(r'kRunName\s*=\s*"([^"]+)"', txt)
+    return m.group(1) if m else None
+
+
+# The suite's run is the DEPLOYED run -- the one obs_spec.h and weights.h were
+# generated from -- read out of the header rather than written down a second
+# time. A hand-kept default drifted once (it named a v3yaw run while the
+# library compiled a v5body spec, issue #89); reading it here means a
+# `make deploy-headers RUN=...` re-points the suite in the same step.
+DEPLOYED_RUN = _parse_run_name()
+DEFAULT_RUN = DEPLOYED_RUN or "unknown-run"
+
+
+def run_dir(run=DEFAULT_RUN):
+    return os.path.join(RUNS_DIR, run)
+
+
+def missing_run_artifacts(run=DEFAULT_RUN, need=("config.json",)):
+    """The gitignored run files this machine lacks, as a skip reason, or None.
+
+    sim/runs/ is a local-artifact directory (AGENTS.md): a clean clone has
+    none of it, so a test that needs the run's plant config, params or
+    exported blob must SKIP and say what to fetch, never fail."""
+    gone = [f for f in need if not os.path.exists(os.path.join(run_dir(run), f))]
+    if not gone:
+        return None
+    return (f"run artifacts absent on this machine: sim/runs/{run}/"
+            f"{{{','.join(gone)}}} (sim/runs/ is gitignored). Copy the run "
+            f"directory here, then `tools/export_policy_weights.py --run {run} "
+            f"--no-golden` for the .silw, to run these tests")
 
 # Servo units.  4096 ticks / revolution (scsbus::kStepsPerRev), encoder full
 # scale 0..4095, "middle" 2048.
@@ -81,6 +119,7 @@ class ObsSpec:
     servo_id: tuple = (9, 1, 2, 3, 4, 10, 5, 6, 7, 8)
     joint_names: tuple = ()
     off: dict = field(default_factory=dict)
+    plant_xml: str = ""
 
     def __post_init__(self):
         if not self.off:
@@ -118,6 +157,8 @@ def _parse_obs_spec(path=SPEC_H) -> ObsSpec:
     if m:
         names = tuple(x.strip().strip('"') for x in m.group(1).split(",")
                       if x.strip())
+    m = re.search(r'kPlantXml\s*=\s*"([^"]+)"', txt)
+    plant = m.group(1) if m else ""
     spec = ObsSpec(
         num_joints=ints.get("kNumJoints", 10),
         act_dim=ints.get("kActDim", 10),
@@ -128,6 +169,7 @@ def _parse_obs_spec(path=SPEC_H) -> ObsSpec:
         control_dt=floats.get("kControlDt", 0.02),
         servo_id=ids or (9, 1, 2, 3, 4, 10, 5, 6, 7, 8),
         joint_names=names,
+        plant_xml=plant,
         off=dict(q=ints["kOffQ"], dq=ints["kOffDq"], up=ints["kOffUp"],
                  linvel=ints["kOffLinVel"], gyro=ints["kOffGyro"],
                  prev_action=ints["kOffPrevAction"],
@@ -138,6 +180,25 @@ def _parse_obs_spec(path=SPEC_H) -> ObsSpec:
 
 
 SPEC = _parse_obs_spec()
+
+
+
+def _parse_bus_map(path=BUS_MAP_H):
+    """obs/bus_map.h: every servo on the robot's bus, servo-ID order. The SIL
+    arrays (SilSensors.pos_ticks, SilTargets.goal_ticks ...) are this wide."""
+    txt = open(path).read()
+    n = int(re.search(r"kNumBusJoints\s*=\s*(\d+);", txt).group(1))
+    m = re.search(r"kBusJointNames\[kNumBusJoints\]\s*=\s*\{(.*?)\};", txt,
+                  re.S)
+    names = tuple(re.findall(r'"([^"]+)"', m.group(1)))
+    m = re.search(r"kBusServoId\[kNumBusJoints\]\s*=\s*\{([^}]*)\}", txt)
+    ids = tuple(int(x) for x in m.group(1).replace("\n", " ").split(",")
+                if x.strip())
+    assert len(names) == len(ids) == n, (len(names), len(ids), n)
+    return n, names, ids
+
+
+NUM_BUS, BUS_NAMES, BUS_IDS = _parse_bus_map()
 
 # Joint limits, read from the same generated header, so the harness's inverse
 # action map is the firmware's forward map run backwards -- not a second copy
@@ -353,21 +414,23 @@ def joint_to_slot_perm(spec: ObsSpec = SPEC):
     return np.asarray(spec.servo_id, dtype=np.int64) - 1
 
 
-def to_bus(values, order, spec: ObsSpec = SPEC):
-    """Joint-indexed -> the wire array the library expects."""
+def to_bus(values, order, spec: ObsSpec = SPEC, fill=0):
+    """Policy-joint-indexed -> the NUM_BUS-wide wire array the library
+    expects. Slots no policy joint maps to get `fill`."""
     v = np.asarray(values)
+    out = np.full(NUM_BUS, fill, dtype=v.dtype)
     if order == "joint":
-        return v
-    out = np.empty_like(v)
-    out[joint_to_slot_perm(spec)] = v
+        out[:len(v)] = v
+    else:
+        out[joint_to_slot_perm(spec)] = v
     return out
 
 
 def from_bus(values, order, spec: ObsSpec = SPEC):
-    """The library's wire array -> joint-indexed."""
+    """The library's NUM_BUS-wide wire array -> policy-joint-indexed."""
     v = np.asarray(values)
     if order == "joint":
-        return v
+        return v[:spec.num_joints]
     return v[joint_to_slot_perm(spec)]
 
 
@@ -375,6 +438,7 @@ def from_bus(values, order, spec: ObsSpec = SPEC):
 #  the C ABI
 # =====================================================================
 NJ = SPEC.num_joints
+NB = NUM_BUS             # the SIL arrays are bus-wide (sil_abi 3)
 NCMD = SPEC.num_cmd
 NOBS = SPEC.obs_dim
 NACT = SPEC.act_dim
@@ -383,8 +447,8 @@ NACT = SPEC.act_dim
 class SilSensors(ctypes.Structure):
     """docs/sil-harness.md: what the bus + IMU actually deliver."""
     _fields_ = [
-        ("pos_ticks", ctypes.c_uint16 * NJ),
-        ("vel_ticks", ctypes.c_int16 * NJ),
+        ("pos_ticks", ctypes.c_uint16 * NB),
+        ("vel_ticks", ctypes.c_int16 * NB),
         ("up", ctypes.c_float * 3),
         ("gyro", ctypes.c_float * 3),
         ("cmd", ctypes.c_float * NCMD),
@@ -393,12 +457,12 @@ class SilSensors(ctypes.Structure):
 
 class SilTargets(ctypes.Structure):
     _fields_ = [
-        ("goal_ticks", ctypes.c_uint16 * NJ),
+        ("goal_ticks", ctypes.c_uint16 * NB),
         ("action", ctypes.c_float * NACT),
         ("obs", ctypes.c_float * NOBS),
         # sil_abi 2: the per-servo goal speed (reg 46, steps/s) the SYNC WRITE
         # carries with the C2-shaped targets; 0 when shaping is off.
-        ("goal_speed", ctypes.c_uint16 * NJ),
+        ("goal_speed", ctypes.c_uint16 * NB),
     ]
 
 
@@ -526,6 +590,8 @@ class SilLib:
         vsteps = np.full(n, -137, dtype=np.int64)     # constant: order-blind
 
         s = SilSensors()
+        for i in range(NB):              # servos no policy joint maps to sit
+            s.pos_ticks[i] = CENTER_STEPS  # at their middle
         for i in range(n):
             s.pos_ticks[i] = int(ticks[i])
             s.vel_ticks[i] = int(vsteps[i])
@@ -566,9 +632,9 @@ class SilLib:
         act = np.asarray(out.action, dtype=np.float64)
         want = angle_to_steps(action_to_angles(act), self.cal)
         got = np.asarray(out.goal_ticks, dtype=np.int64)
-        d_joint = int(np.max(np.abs(got - want)))
-        d_bus = int(np.max(np.abs(got - to_bus(want, "ascending_id",
-                                               self.spec))))
+        d_joint = int(np.max(np.abs(from_bus(got, "joint", self.spec) - want)))
+        d_bus = int(np.max(np.abs(from_bus(got, "ascending_id", self.spec)
+                                  - want)))
         if forced not in ("joint", "ascending_id"):
             self.out_order = "joint" if d_joint <= d_bus else "ascending_id"
         if min(d_joint, d_bus) > 1:
@@ -599,12 +665,11 @@ class SilLib:
         boundary bug and was really the harness lying about the encoder.  Found
         2026-08-02 when the corrected knee sign let a stale policy lean on the
         +5 deg hyperextension stop (1.5 deg over, 17 ticks)."""
-        n = self.spec.num_joints
         ticks = to_bus(angle_to_steps(q, self.cal, clamp_joint_range=False),
-                       self.in_order, self.spec)
+                       self.in_order, self.spec, fill=CENTER_STEPS)
         vel = to_bus(rad_s_to_steps_s(dq, self.cal), self.in_order, self.spec)
         s = SilSensors()
-        for i in range(n):
+        for i in range(NB):
             s.pos_ticks[i] = int(ticks[i])
             v = int(vel[i])
             if self.vel_sign_magnitude:
@@ -665,16 +730,41 @@ def gait_step(freq_hz, dt=None):
     return 2.0 * math.pi * (dt if dt is not None else SPEC.control_dt) * freq_hz
 
 
+def first_clock_step(env, freq_hz=DEFAULT_GAIT_HZ):
+    """The phase the firmware's clock gains on a tick under env's CURRENT
+    command: 0 at a plain stand when the spec freezes the clock there,
+    otherwise 2*pi*dt*f, with f speed-scaled when the spec has the speed
+    clock -- ctrl_task.cpp's rule, which walker_env mirrors at the end of
+    step()."""
+    c = np.asarray(env._cmd, dtype=np.float64)
+    ext = len(c) > 2
+    moving = bool(abs(c[0]) > 0.05 or abs(c[1]) > 0.05
+                  or (ext and abs(c[2]) > 0.05))
+    lifted = bool(ext and len(c) > 4 and abs(c[4]) > 0.5)
+    if getattr(env, "clock_stand_freeze", False) and not moving \
+            and not lifted:
+        return 0.0
+    f = float(freq_hz)
+    if getattr(env, "speed_clock", False):
+        v = float(np.hypot(c[0], c[1])) if ext else abs(float(c[0]))
+        f *= float(np.clip(np.sqrt(max(v, 0.0) / 0.35),
+                           env.speed_clock_lo, env.speed_clock_hi))
+    return gait_step(f, env.control_dt)
+
+
 def pin_gait_clock(env, freq_hz=DEFAULT_GAIT_HZ):
-    """Align walker_env's gait clock with the firmware's, AFTER env.reset().
+    """Align walker_env's gait clock with the firmware's, AFTER env.reset()
+    AND env.set_command() -- the first step depends on the command.
 
     The two advance the clock at opposite ends of the tick: ctrl_task.cpp
     calls GaitClock::advance() BEFORE assembling the frame, walker_env.step()
     advances at the END of the step.  So the firmware's phase at tick k is
-    (k+1)*w and walker_env's is p0 + k*w; setting p0 = w makes them equal.
-    The history ring is refilled so tick 0 is not fed a stale phase.
+    (k+1)*w and walker_env's is p0 + k*w; setting p0 = w makes them equal,
+    where w is this command's per-tick step (speed-scaled, or 0 at a frozen
+    stand -- first_clock_step).  The history ring is refilled so tick 0 is
+    not fed a stale phase.
     """
-    w = gait_step(freq_hz, env.control_dt)
+    w = first_clock_step(env, freq_hz)
     env._gait_freq = float(freq_hz)
     env._gait_phase = float(w)
     if getattr(env, "obs_hist_len", 1) > 1:
@@ -849,8 +939,9 @@ def open_lib(run=DEFAULT_RUN, cal="nominal", gait_hz=DEFAULT_GAIT_HZ,
     weights = default_weights(run)
     if not os.path.exists(weights):
         raise LibMissing(
-            f"{weights} missing -- run tools/export_policy_weights.py "
-            f"--run {run}")
+            f"{os.path.relpath(weights, ROOT)} missing (gitignored) -- "
+            f"`tools/export_policy_weights.py --run {run} --no-golden` "
+            f"regenerates it from sim/runs/{run}/params.pkl")
     cal_path = cal if os.path.sep in str(cal) else os.path.join(
         CAL_DIR, f"cal_{cal}.json")
     if not os.path.exists(cal_path):

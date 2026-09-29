@@ -7,7 +7,9 @@
 #include <deque>
 #include <vector>
 
+#include "../main/servo_gains.h"
 #include "scsbus/bus.h"
+#include "scsbus/gains.h"
 #include "scsbus/packet.h"
 #include "test_util.h"
 
@@ -369,6 +371,189 @@ void testTxFailureIsReported() {
              static_cast<int>(Status::kTxFail));
 }
 
+// -- position-loop gains (scsbus/gains.h) ------------------------------------
+// Each request the guarded write sends, decoded from the tx stream: the
+// instruction, the register it addresses and the first data byte. Lets the
+// tests say "exactly these writes, in this order, and NO goal write" rather
+// than comparing offsets by hand.
+struct Req { uint8_t id, inst, addr, b0, n; };
+std::vector<Req> requests(const std::vector<uint8_t>& tx) {
+    std::vector<Req> out;
+    size_t i = 0;
+    while (i + 5 < tx.size()) {
+        if (tx[i] != 0xFF || tx[i + 1] != 0xFF) { ++i; continue; }
+        const uint8_t len = tx[i + 3];
+        Req r{tx[i + 2], tx[i + 4], tx[i + 5],
+              len >= 4 ? tx[i + 6] : uint8_t{0},
+              static_cast<uint8_t>(len >= 3 ? len - 3 : 0)};
+        out.push_back(r);
+        i += 4u + len;
+    }
+    return out;
+}
+
+bool touchesGoalOrTorqueWrite(const std::vector<Req>& rs) {
+    for (const Req& r : rs) {
+        if (r.inst != static_cast<uint8_t>(Inst::kWrite) &&
+            r.inst != static_cast<uint8_t>(Inst::kSyncWrite) &&
+            r.inst != static_cast<uint8_t>(Inst::kRegWrite)) {
+            continue;
+        }
+        if (r.addr != kRegEepromLock && r.addr != kRegPosP) return true;
+    }
+    return false;
+}
+
+void testGainWriteHappyPath() {
+    FakePort p;
+    Bus bus(p);
+    p.queueStatus(3, 0, {0});          // reg 40: torque OFF
+    p.queueStatus(3, 0, {});           // unlock ack
+    p.queueStatus(3, 0, {});           // 21/22 write ack
+    p.queueStatus(3, 0, {});           // lock ack
+    p.queueStatus(3, 0, {128, 64});    // read-back
+    int settled = 0;
+    static int* s_settled = nullptr;
+    s_settled = &settled;
+    PositionGains rb{0, 0};
+    const GainWrite r = writePositionGains(
+        bus, 3, PositionGains{128, 64}, &rb, [] { ++*s_settled; });
+    CHECK_EQ(static_cast<int>(r), static_cast<int>(GainWrite::kOk));
+    CHECK_EQ(rb.p, 128);
+    CHECK_EQ(rb.d, 64);
+    CHECK_EQ(settled, 1);
+    const std::vector<Req> rs = requests(p.tx);
+    CHECK_EQ(rs.size(), 5u);
+    if (rs.size() == 5) {
+        // read torque, unlock, write P+D together, lock, read P+D back
+        CHECK_EQ(rs[0].inst, static_cast<uint8_t>(Inst::kRead));
+        CHECK_EQ(rs[0].addr, kRegTorqueEnable);
+        CHECK_EQ(rs[1].inst, static_cast<uint8_t>(Inst::kWrite));
+        CHECK_EQ(rs[1].addr, kRegEepromLock);
+        CHECK_EQ(rs[1].b0, 0);
+        CHECK_EQ(rs[2].inst, static_cast<uint8_t>(Inst::kWrite));
+        CHECK_EQ(rs[2].addr, kRegPosP);
+        CHECK_EQ(rs[2].n, 2);
+        CHECK_EQ(rs[2].b0, 128);
+        CHECK_EQ(rs[3].addr, kRegEepromLock);
+        CHECK_EQ(rs[3].b0, 1);
+        CHECK_EQ(rs[4].inst, static_cast<uint8_t>(Inst::kRead));
+        CHECK_EQ(rs[4].addr, kRegPosP);
+        for (const Req& q : rs) CHECK_EQ(q.id, 3);   // never broadcast
+    }
+    CHECK(!touchesGoalOrTorqueWrite(rs));
+}
+
+void testGainWriteRefusesWithTorqueOn() {
+    // Torque ON: refused after the one read. Nothing written -- not the
+    // lock, not a gain, and above all not a goal.
+    FakePort p;
+    Bus bus(p);
+    p.queueStatus(5, 0, {1});
+    CHECK_EQ(static_cast<int>(writePositionGains(bus, 5, PositionGains{96, 32})),
+             static_cast<int>(GainWrite::kTorqueOn));
+    const std::vector<Req> rs = requests(p.tx);
+    CHECK_EQ(rs.size(), 1u);
+    if (!rs.empty()) CHECK_EQ(rs[0].inst, static_cast<uint8_t>(Inst::kRead));
+
+    // Torque state unreadable (servo silent): refused the same way.
+    FakePort q;
+    Bus bus2(q);
+    CHECK_EQ(static_cast<int>(writePositionGains(bus2, 5, PositionGains{96, 32})),
+             static_cast<int>(GainWrite::kTorqueUnknown));
+    CHECK_EQ(requests(q.tx).size(), 1u);
+}
+
+void testGainWriteRejectsBadArgsBeforeTheWire() {
+    FakePort p;
+    Bus bus(p);
+    CHECK_EQ(static_cast<int>(writePositionGains(bus, kBroadcastId,
+                                                 PositionGains{64, 32})),
+             static_cast<int>(GainWrite::kBadArg));
+    CHECK_EQ(static_cast<int>(writePositionGains(bus, 1, PositionGains{0, 32})),
+             static_cast<int>(GainWrite::kBadArg));
+    CHECK(p.tx.empty());
+}
+
+void testGainWriteRelocksOnFailure() {
+    // The gain write is not acknowledged: the EEPROM must still be locked
+    // again, and the verdict must say it failed.
+    FakePort p;
+    Bus bus(p);
+    p.queueStatus(2, 0, {0});          // torque off
+    p.queueStatus(2, 0, {});           // unlock ack
+    // (no ack to the gain write)
+    const GainWrite r = writePositionGains(bus, 2, PositionGains{64, 40});
+    CHECK_EQ(static_cast<int>(r), static_cast<int>(GainWrite::kWriteFailed));
+    const std::vector<Req> rs = requests(p.tx);
+    CHECK(!rs.empty());
+    if (!rs.empty()) {
+        CHECK_EQ(rs.back().addr, kRegEepromLock);
+        CHECK_EQ(rs.back().b0, 1);
+    }
+    CHECK(!touchesGoalOrTorqueWrite(rs));
+}
+
+void testGainWriteDetectsAMismatchedReadback() {
+    FakePort p;
+    Bus bus(p);
+    p.queueStatus(4, 0, {0});
+    p.queueStatus(4, 0, {});
+    p.queueStatus(4, 0, {});
+    p.queueStatus(4, 0, {});
+    p.queueStatus(4, 0, {32, 32});     // the write did not take
+    PositionGains rb{0, 0};
+    CHECK_EQ(static_cast<int>(writePositionGains(bus, 4, PositionGains{128, 64},
+                                                 &rb)),
+             static_cast<int>(GainWrite::kMismatch));
+    CHECK_EQ(rb.p, 32);
+}
+
+void testGainCheck() {
+    FakePort p;
+    Bus bus(p);
+    const GainExpect want[3] = {{1, {32, 32}}, {2, {128, 64}}, {3, {32, 32}}};
+    p.queueStatus(1, 0, {32, 32});     // as expected
+    p.queueStatus(2, 0, {32, 32});     // a factory-reset spare: P = 32
+    // servo 3 silent
+    GainCheck got[3];
+    CHECK_EQ(checkPositionGains(bus, want, 3, got), 2u);
+    CHECK(got[0].answered && got[0].ok);
+    CHECK(got[1].answered && !got[1].ok);
+    CHECK_EQ(got[1].read.p, 32);
+    CHECK(!got[2].answered && !got[2].ok);
+    // A check is reads only.
+    for (const Req& r : requests(p.tx)) {
+        CHECK_EQ(r.inst, static_cast<uint8_t>(Inst::kRead));
+        CHECK_EQ(r.addr, kRegPosP);
+        CHECK_EQ(r.b0, 2);             // one READ of two bytes (21, 22)
+    }
+
+    FakePort q;
+    Bus bus2(q);
+    q.queueStatus(1, 0, {32, 32});
+    q.queueStatus(2, 0, {128, 64});
+    q.queueStatus(3, 0, {32, 32});
+    CHECK_EQ(checkPositionGains(bus2, want, 3, got), 0u);
+}
+
+// The compiled expected-gain table (main/servo_gains.h; its static_asserts
+// -- every bus servo has a row, P raised exactly where the deployed policy
+// trained stiffer -- are compiled here too): one row per bus servo, and
+// factory P/D on every row until #73 measures the Plan B values.
+void testExpectedGainTable() {
+    CHECK_EQ(robot::kNumExpectedGains, static_cast<size_t>(obs::kNumBusJoints));
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        const GainExpect* e = robot::expectedGainsFor(obs::kBusServoId[b]);
+        CHECK(e != nullptr);
+        if (!e) continue;
+        CHECK_EQ(e->gains.p, kFactoryGains.p);
+        CHECK_EQ(e->gains.d, kFactoryGains.d);
+    }
+    CHECK(robot::expectedGainsFor(0) == nullptr);
+    CHECK(robot::expectedGainsFor(18) == nullptr);
+}
+
 }  // namespace
 
 int main() {
@@ -385,5 +570,12 @@ int main() {
     testBusSyncReadFeedback();
     testBusErrorFlagsSurface();
     testTxFailureIsReported();
+    testGainWriteHappyPath();
+    testGainWriteRefusesWithTorqueOn();
+    testGainWriteRejectsBadArgsBeforeTheWire();
+    testGainWriteRelocksOnFailure();
+    testGainWriteDetectsAMismatchedReadback();
+    testGainCheck();
+    testExpectedGainTable();
     return testutil::report("scsbus");
 }

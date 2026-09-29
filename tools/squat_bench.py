@@ -83,7 +83,7 @@ def release():
 o = cmd("cal show", until=r"(NVS|DEFAULTS)")
 got = {m.group(1): (int(m.group(2)), int(m.group(3)), int(m.group(4)))
        for m in re.finditer(r"(\w+)\s+id\s+(\d+)\s+zero\s+(\d+)\s+dir\s+([+-]\d)", o)}
-if len(got) == 10:
+if all(n in got for n in NAMES):     # `cal show` lists all 17 bus servos
     for j, n in enumerate(NAMES):
         i, z, d = got[n]
         if (i, z, d) != (IDS[j], ZERO[j], DIR[j]):
@@ -91,7 +91,8 @@ if len(got) == 10:
         IDS[j], ZERO[j], DIR[j] = i, z, d
     say("cal source:", "NVS" if "NVS" in o else "DEFAULTS (not saved!)")
 else:
-    say(f"cal show parsed {len(got)}/10 joints -- using asbuilt_cal.h values")
+    say(f"cal show named {sum(n in got for n in NAMES)}/{len(NAMES)} leg "
+        "joints -- using asbuilt_cal.h values")
 
 def triple(theta):
     return (-theta, -2 * theta, -theta)          # the level-foot family

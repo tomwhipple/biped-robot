@@ -11,8 +11,10 @@ This page covers:
 - the registers the robot depends on;
 - what has been measured on the servo.
 
-The firmware currently drives the 10-joint prototype. The robot's 17-servo ID map
-is **not yet assigned**. The procedure from a bare board to the first arm is
+The robot's 17-servo ID map is **proposed** in
+[§2.1](#21-the-robot-the-proposed-map), awaiting the owner's sign-off. The
+firmware carries it as its bus joint set; the compiled policy drives the
+prototype's 10 joints, IDs 1–10 ([§2.2](#22-what-the-policy-drives-today-the-10-joint-prototype)). The procedure from a bare board to the first arm is
 [bringup.md](bringup.md). The bench-safety rules are in
 [AGENTS.md](../AGENTS.md#bench-safety).
 
@@ -28,7 +30,7 @@ is **not yet assigned**. The procedure from a bare board to the first arm is
   reg 1 9 2         # min angle limit, expect 0
   reg 1 11 2        # max angle limit, expect 4095
   reg 1 33          # mode, expect 0 (position)
-  reg 1 21          # position P, factory 32 (then 22 = D, 23 = I)
+  gains 1           # position P / D / I (registers 21/22/23), factory 32/32/0
   id 1 <new>
   ```
 
@@ -39,50 +41,103 @@ is **not yet assigned**. The procedure from a bare board to the first arm is
   4. On success it prints `ok, verified after commit -- safe to power down`. `WROTE BUT DID NOT VERIFY` means rescan before trusting it.
 - **Checking the whole bus.**
   - `scan` names each ID's joint in the firmware's map.
-  - `ping` with no argument checks exactly the IDs the firmware expects, in joint order.
+  - `ping` with no argument checks every bus servo (IDs 1–17) against the fitted set in the calibration.
 - **The duplicate-ID signature.** One servo answers intermittently, returns `bad-reply` and a nonsense 0.0 V, and another ID is missing. That is two servos answering to one ID. **Suspect a duplicate ID before suspecting the wiring.**
 - **`tools/servo_tool.py` does not work with this firmware.**
   - It speaks the Feetech protocol through the stock firmware of Waveshare's *Servo Driver with ESP32*: its web UI at 192.168.4.1 and its `SERIAL_FORWARDING` USB↔bus bridge.
   - This repo's firmware owns the USB port as the CLI.
   - Its `setid` (unlock 55, write 5, lock), `info` and `fixrange` (mode 0, limits 0..4095) remain the register-level reference for these operations.
-- **The CLI cannot write arbitrary registers.** `reg` is read-only by design.
-  - No tool in the repo writes the gain registers yet ([§4](#4-registers)).
-  - Adding a bench-mode register write is **open work**.
+- **The CLI writes no arbitrary register.** `reg` is read-only by design. The
+  register writes it has are named and gated: `id` (5), `middle` (40 ← 128),
+  and `gains <id> <P> <D>` (21/22, [§4](#4-registers)).
 
 ## 2. ID → joint map
 
-### 2.1 The robot: not yet assigned
+### 2.1 The robot: the proposed map
 
-The robot has 17 servos: 12 in the legs, one in the neck, four in the arms. **No
-IDs are assigned, and neither is the chain order.** When the map is chosen:
+> **PROPOSED — awaiting the owner's sign-off (issue #77).** Nothing is
+> assigned on hardware yet. Until it is signed off, treat IDs 11–17 and the
+> splitter topology as a proposal.
 
-- it goes in `ID_BY_ROLE` in `tools/gen_obs_spec.py`;
-- that script regenerates `kServoId` in `obs_spec.h` (which the host tests pin);
-- this table and the calibration tables below follow it.
+The robot has 17 servos: 12 in the legs, one in the neck, four in the arms.
+The rules behind the proposal:
 
-The rest of the firmware port is open work too: the observation spec, telemetry,
-calibration, the SIL ABI, and the bench tools that hard-code the prototype's
-calibration.
+- **IDs 1–10 keep the prototype's joints.** The prototype's servos, their case
+  labels, the NVS calibration and the deployed 10-joint policy's `kServoId`
+  all carry over unchanged; the robot's map is a superset of the prototype's.
+- **New servos are appended, right before left**, as the hip yaws were (9 right,
+  10 left): the ankle rolls are 11/12, then the neck 13, then the arms,
+  shoulder before elbow, which is also their chain order.
+- **Port A (H5) is the robot's right side, port B (H6) its left**, as on the
+  prototype. Each leg is one chain outward from the pelvis, ending at the
+  ankle roll.
+- **The upper body needs a third and fourth branch.** Every STS3215 has two
+  paralleled ports, so a chain is a line: two board ports make two lines, and
+  two legs, two arms and a neck cannot be covered by two lines that start at
+  the pelvis without leading the bus out to an elbow first. So each port
+  feeds a passive bus splitter at the board: one branch down the leg, one up
+  to the shoulder girdle. The neck rides the right arm's branch, which
+  balances the ports at 9 and 8 servos.
 
-| joint | ID | position P (Plan B) |
-|---|---|---|
-| `L_hip_yaw`, `R_hip_yaw` | — | stock |
-| `L_hip_roll`, `R_hip_roll` | — | **≈ 4×** |
-| `L_hip_pitch`, `R_hip_pitch` | — | stock |
-| `L_knee`, `R_knee` | — | **≈ 4×** |
-| `L_ankle`, `R_ankle` (pitch) | — | stock |
-| `L_ankle_roll`, `R_ankle_roll` | — | **≈ 4×** |
-| `neck_yaw` | — | stock |
-| `L_shoulder`, `R_shoulder` | — | stock |
-| `L_elbow`, `R_elbow` | — | stock |
+| ID | joint | port | hop from the board | position P (Plan B) |
+|---|---|---|---|---|
+| 9 | `R_hip_yaw` | A, leg branch | 1 | stock |
+| 1 | `R_hip_roll` | A, leg branch | 2 | **≈ 4×** |
+| 2 | `R_hip_pitch` | A, leg branch | 3 | stock |
+| 3 | `R_knee` | A, leg branch | 4 | **≈ 4×** |
+| 4 | `R_ankle` (pitch) | A, leg branch | 5 | stock |
+| 11 | `R_ankle_roll` | A, leg branch | 6 | **≈ 4×** |
+| 13 | `neck_yaw` | A, upper branch | 1 | stock |
+| 14 | `R_shoulder` | A, upper branch | 2 | stock |
+| 15 | `R_elbow` | A, upper branch | 3 | stock |
+| 10 | `L_hip_yaw` | B, leg branch | 1 | stock |
+| 5 | `L_hip_roll` | B, leg branch | 2 | **≈ 4×** |
+| 6 | `L_hip_pitch` | B, leg branch | 3 | stock |
+| 7 | `L_knee` | B, leg branch | 4 | **≈ 4×** |
+| 8 | `L_ankle` (pitch) | B, leg branch | 5 | stock |
+| 12 | `L_ankle_roll` | B, leg branch | 6 | **≈ 4×** |
+| 16 | `L_shoulder` | B, upper branch | 1 | stock |
+| 17 | `L_elbow` | B, upper branch | 2 | stock |
+
+```
+H5 (A) ── splitter ─┬─ 9 R_hip_yaw ─ 1 R_hip_roll ─ 2 R_hip_pitch ─ 3 R_knee ─ 4 R_ankle ─ 11 R_ankle_roll
+                    └─ 13 neck_yaw ─ 14 R_shoulder ─ 15 R_elbow
+H6 (B) ── splitter ─┬─ 10 L_hip_yaw ─ 5 L_hip_roll ─ 6 L_hip_pitch ─ 7 L_knee ─ 8 L_ankle ─ 12 L_ankle_roll
+                    └─ 16 L_shoulder ─ 17 L_elbow
+```
+
+Open with the proposal (issue #77):
+
+- **The splitter** is not selected. It must be a passive 3-way part for the
+  servo's 3-pin lead with manufacturer documentation, like every other part.
+- **Current.** Each board port and its splitter carry that side's whole
+  current: 9 servos on A, 8 on B, on a ~3 A-class connector
+  ([wiring.md](wiring.md#servo-bus)); the budget is open.
+- **Lead lengths** per hop, from the CAD.
 
 The joint names are the plant's: `sim/bimo_biped_v6ar.xml`, with the arms from
 `sim/gen_plant_v6.py`.
 
-### 2.2 What the firmware drives today: the 10-joint prototype
+The proposal is already compiled in, as a proposal, in three places that
+must agree (the SIL suite's `test_bus_map_is_one_map_everywhere` checks it):
 
-The source of truth is `firmware/components/obs/include/obs/obs_spec.h`
-(`kJointNames`, `kServoId`):
+- `firmware/components/obs/include/obs/bus_map.h`, the firmware's **bus joint
+  set**: calibration, the mechanical envelope, `pose`, `home`, the readback,
+  the gain check, the telemetry joint block and the SIL arrays are all
+  indexed by it (index *b* is servo ID *b* + 1);
+- `JOINT_NAMES` in `link/protocol.py`, the telemetry joint block;
+- `ID_BY_ROLE` in `tools/gen_obs_spec.py`, so a policy trained on the
+  17-joint plant generates its `kServoId` from the same map.
+
+On the 10-servo prototype, IDs 11–17 are **not fitted** (§3), and nothing
+touches them. If the owner changes the map, those three, this table, and the
+rows of §3.3 and §4 change in one commit.
+
+### 2.2 What the policy drives today: the 10-joint prototype
+
+The **policy joint set** is the joints the compiled policy observes and
+commands, a subset of the bus joints. Its source of truth is
+`firmware/components/obs/include/obs/obs_spec.h` (`kJointNames`, `kServoId`):
 
 - `tools/gen_obs_spec.py` generates it from the deployed run's config, the plant `sim/bimo_biped_v5body.xml`, and `ID_BY_ROLE`.
 - `firmware/host/test_obs.cpp` pins it.
@@ -114,7 +169,17 @@ actuator order:
 ```
 
 The firmware indexes `obs::kServoId = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4}` by action
-index, so action 0 drives bus ID 10.
+index, so action 0 drives bus ID 10. `obs::policyToBus(j)` is the bus joint of
+policy joint *j*.
+
+While armed, the loop reads every **fitted** bus servo, feeds the policy its
+joints, and **holds every other fitted servo**: at the trained target when
+the deployed run holds that servo (the robot's runs hold the neck at 0 and
+the arms at their walking pose; `kHeldServoId`/`kHeldTarget` in
+`obs_spec.h`), reached along the takeover ramp; otherwise where it was
+measured at the takeover (on the robot, under the prototype's 10-joint
+policy, the ankle rolls, neck and arms). `run` refuses unless every policy
+joint is fitted.
 
 ## 3. Calibration: zero, direction, envelope
 
@@ -140,29 +205,39 @@ There are two zeroing mechanisms, and they are **not interchangeable**:
 
 A zero left near 0 or 4095 truncates the joint's range at the wrap.
 
-The `cal` subcommands, all in bench mode:
+The `cal` subcommands, all in bench mode. Rows are the 17 bus joints; a
+`<joint>` is a joint name (`L_knee`) or a servo ID (`7`):
 
 ```
-cal show                          # per joint: id, zero, dir, and whether NVS was loaded
+cal show                          # per joint: id, zero, dir, fitted; and whether NVS was loaded
 cal zero [joint]                  # latch the current position as zero (all joints, or one)
 cal dir <joint> <1|-1>
 cal set <joint> <zero> <1|-1>     # type a row in by hand, when the robot cannot be posed
-cal save | load | reset           # reset erases NVS and returns to 2048 / +1
+cal fit <joint> <0|1>             # say by hand whether this robot carries the servo
+cal save | load | reset           # reset erases NVS and returns to 2048 / +1, all fitted
 cal migrate                       # explicit v1-blob path; see below
 ```
 
+**Fitted.** Each bus joint is fitted (the robot carries it) or not. The loop,
+`pose`, `home`, `ping`, `volt` and the gain check touch fitted servos only: a
+SYNC READ that waits on an absent servo costs its whole timeout every tick.
+`cal zero` with no joint named sets it from the bus: a servo that answers is
+fitted, one that does not is marked `NOT FITTED` (a 10-servo prototype comes
+out as IDs 1–10). `cal fit` sets it by hand.
+
 **How calibration is stored.**
 
-- The servo calibration is a versioned NVS blob (`firmware/main/cal_store.h`, magic "BMC1", version 2). It holds:
-  - the joint count;
-  - `zero_steps` and `dir` per joint;
-  - the servo map (`kServoId`) it was measured under;
+- The servo calibration is a versioned NVS blob (`firmware/main/cal_store.h`, magic "BMC1", version 3). It holds, for every bus joint:
+  - the joint count (17);
+  - `zero_steps`, `dir` and `fitted`;
+  - the bus map (`kBusServoId`) it was measured under;
   - a CRC-32.
 - The boot load rejects a blob in any of these cases, and the robot then boots uncalibrated:
   - it was measured under a different servo map;
   - its joint count is different;
   - it is corrupt.
 - An uncalibrated robot refuses `run` and `home`.
+- **A version-2 blob migrates at boot, exactly, with no re-calibration.** v2 was the prototype's: indexed by its 10 policy joints, with their servo map. Boot checks that map, puts each servo's zero and direction on that servo's bus joint, marks IDs 1–10 fitted and 11–17 not, and re-saves the result as v3 under the same NVS key. The boot log says `cal: migrated v2 -> v3`.
 - A v1 blob cannot prove its map. It migrates automatically only if it exactly equals the compiled reference table, `firmware/main/asbuilt_cal.h`. Otherwise `cal migrate` loads it into the live calibration for a human to check against §3.1 before `cal save`.
 - The IMU calibration (bias, mount, gyro scale) is a separate blob. It does not depend on the servo map.
 - **Re-zero after any horn or mechanical work.** Horn screws work loose.
@@ -180,7 +255,7 @@ cal migrate                       # explicit v1-blob path; see below
 
 **The mechanical envelope.**
 
-- `firmware/main/mech_envelope.h` is the bench clamp that `move`, `pose` and `home` apply to the firmware's joints.
+- `firmware/main/mech_envelope.h` is the bench clamp that `move`, `pose` and `home` apply, one row per bus joint.
 - It is deliberately separate from the policy range (`kJointLo`/`kJointHi` in `obs_spec.h`). Widening the policy range rescales the action map and invalidates trained runs.
 - A `static_assert` requires the envelope to contain the policy range.
 - Change the header and §3.3 in the same commit, and name the evidence for every widening.
@@ -236,6 +311,16 @@ sim joint frame.
 | hip pitch | −110° … **+90°** | +90° backward: 0.70 mm CAD buffer, hardware-verified with both hips at +90° |
 | knee | **±95°** | measured, both directions, ≤ 5.9 % load |
 | ankle | ±40° | plant range; the toes clear the shin at both extremes |
+| ankle roll (11, 12) | ±25° | plant range (`sim/bimo_biped_v6ar.xml`); never probed |
+| neck yaw (13) | ±90° | plant range; never probed |
+| shoulder (14, 16) | −90° … +200° | plant range (`sim/gen_plant_v6.py`: 0 hanging, 90 straight back, 180 up along the torso); never probed |
+| elbow (15, 17) | ±150° | plant range; never probed |
+
+The leg rows (IDs 1–10) are the **prototype's** legs, measured on it. The
+robot's legs are different mechanisms: its knee hyperextends only 5° (the
+prototype's +95° row would let the bench drive it past its stop) and its hip
+pitch flexes to −125°. They need their own rows, probed on the robot, before
+the bench drives the robot's legs toward either limit.
 
 Pose-dependent leg-on-leg contact is not in this table, because a per-joint clamp
 cannot express it. The plant handles it with inter-leg collision geoms.
@@ -313,30 +398,74 @@ table's URL. Things to know about the table:
 - 3× passes only if the printed roll chains measure ≤ 1° of play.
 - A high P can buzz or limit-cycle through gear play. LeRobot lowers the same register to 16 on its STS3215 arms for that reason.
 
-To write the gains, with torque off:
+**Writing the gains: `gains <id> <P> <D>`** (bench mode, one servo by ID,
+never broadcast; `scsbus::writePositionGains`):
 
-1. Unlock (55 ← 0).
-2. Write 21 and 22.
-3. Lock (55 ← 1).
-4. Power-cycle.
-5. Read 21/22/23 back.
+1. Reads register 40 and **refuses unless torque is off** on that servo (an
+   unreadable torque state is a refusal too). `release <id>` first.
+2. Unlocks the EEPROM (55 ← 0).
+3. Writes P and D in one 2-byte write at 21.
+4. Locks the EEPROM (55 ← 1). A failed step 2 or 3 still re-sends the lock.
+5. Waits 2 s for the EEPROM commit, as `id` does.
+6. Reads 21/22 back and prints `verified after commit -- safe to power down`,
+   or `WROTE BUT READ BACK ...`.
 
-No repo tool does this yet (§1).
+It never writes a goal and never touches torque. P must be 1–254 and D 0–254.
+`gains <id>` reads one servo's P, D and I against its expected row; `gains` with
+no argument checks every servo. Power-cycle and `gains` again to prove the value
+persisted.
 
-A factory reset or a swapped spare silently returns to P = 32, and the robot would
-then fall at its first crossover. The firmware needs to read register 21 at boot and
-refuse to arm on a mismatch. That check is part of the open firmware port.
+**The arm gate.** A factory reset or a swapped spare silently returns to P = 32,
+and the robot would then fall at its first crossover. So the firmware reads
+registers 21/22 from every fitted servo **at boot and again before every
+arm**, and compares them with the compiled expected table,
+`firmware/main/servo_gains.h`:
 
-**Per-ID gains.** The bench test will fill these in; none are set yet.
+- any difference, or a servo that does not answer, **refuses the arm** with
+  `ArmResult` `REFUSED_GAINS` (10), which the `BENCH` beacon carries and every
+  console prints ([control-channel.md](control-channel.md#saying-why-the-bench-diagnostic));
+- the tether prints the failing rows (`expect P .. D ..  read P .. D ..`);
+- a boot check that fails puts the same verdict on the beacon before anyone arms.
+  A board powered from USB with the pack off reads no servo, so it says so; the
+  arm re-reads once the pack is on.
+
+The table is compiled in rather than stored in NVS: it is a design value with
+evidence behind it, reviewed in git. It is also checked at compile time
+against the deployed policy: the run's per-servo stiffness factor
+(`kServoKpScale` in the generated `obs_spec.h`, from its `servo_kp_scale`;
+Plan B trains ×4 on hip roll, ankle roll and knee) must be above 1 exactly
+where the table raises P, so a Plan B policy cannot be flashed onto
+factory-P servos, nor a stock policy onto raised ones. The register value
+that realises a factor is the #73 measurement; the check is on the pattern. `gains <id> <P> <D>` changes a servo, not
+what the robot expects; writing a value the table does not hold makes the next
+arm refuse, and the CLI says so. **Change `servo_gains.h` and the table below
+in the same commit, and name the measurement.**
+
+**Per-ID gains.** Every row is the factory 32/32 until the Plan B bench test
+(issue #73) measures the raised P. The six roll and knee servos then take it.
 
 | ID | joint | P (21) | D (22) | I (23) | evidence |
 |---|---|---|---|---|---|
-| — | `L_hip_roll` | — | — | — | — |
-| — | `R_hip_roll` | — | — | — | — |
-| — | `L_ankle_roll` | — | — | — | — |
-| — | `R_ankle_roll` | — | — | — | — |
-| — | `L_knee` | — | — | — | — |
-| — | `R_knee` | — | — | — | — |
+| 1 | `R_hip_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 2 | `R_hip_pitch` | 32 | 32 | 0 | factory |
+| 3 | `R_knee` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 4 | `R_ankle` | 32 | 32 | 0 | factory |
+| 5 | `L_hip_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 6 | `L_hip_pitch` | 32 | 32 | 0 | factory |
+| 7 | `L_knee` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 8 | `L_ankle` | 32 | 32 | 0 | factory |
+| 9 | `R_hip_yaw` | 32 | 32 | 0 | factory |
+| 10 | `L_hip_yaw` | 32 | 32 | 0 | factory |
+| 11 | `R_ankle_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 12 | `L_ankle_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
+| 13 | `neck_yaw` | 32 | 32 | 0 | factory |
+| 14 | `R_shoulder` | 32 | 32 | 0 | factory |
+| 15 | `R_elbow` | 32 | 32 | 0 | factory |
+| 16 | `L_shoulder` | 32 | 32 | 0 | factory |
+| 17 | `L_elbow` | 32 | 32 | 0 | factory |
+
+The gate checks P and D; I is shown by `gains <id>` but not gated (it stays 0
+until the integral fallback, which needs an integral term in the sim first).
 
 **Protections** (C018 sheet §7-11; thresholds in registers 28 and 34–38):
 
