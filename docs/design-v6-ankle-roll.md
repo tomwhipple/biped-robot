@@ -581,7 +581,7 @@ buttock pull drags the heels *forward under the pelvis*, pushing the CoM back),
 while holding hip flexion at **−90 to −100° keeps the CoM +33 to +69 mm over
 the feet** — a genuine, margin-positive support pose the record never tried.
 
-![Seated crouch comparison: hip −125° vs hip −90°](figs/getup_noappendage_seated_compare.png)
+![Seated crouch comparison: hip −125° vs hip −90°](design-v6/figs/getup_noappendage_seated_compare.png)
 *The full-flexion tuck (left) pulls the heels forward under the pelvis and
 parks the CoM **17 mm behind the heel**; holding hip −90° (right) keeps the
 CoM **+52 mm over the feet** — a margin-positive support pose. Marker = CoM
@@ -596,13 +596,13 @@ rock-forward and skid-seat roll-off variants both tip). With no far-behind
 push, the CoM cannot be held forward of the heels through the rise corridor —
 the narrow ±20–28 mm CoP that §11/§12 documented.
 
-![The rise corridor kills the open-loop rise](figs/getup_noappendage_rise_corridor.png)
+![The rise corridor kills the open-loop rise](design-v6/figs/getup_noappendage_rise_corridor.png)
 *CoM margin per keyframe across the rise, from `sim/getup_v6_rise_feas.py`:
 7 of 9 keyframes sit BEHIND HEEL (buttup knee-100 = −101 mm … rise hip-45 =
 −31 mm) and only the last two are margin-positive (+38, +56 mm). The corridor
 the open-loop keyframes cannot cross.*
 
-![Bumper chair-rise sweep: extend up_z and pelvis z vs skid_x](figs/getup_noappendage_bumper_sweep.png)
+![Bumper chair-rise sweep: extend up_z and pelvis z vs skid_x](design-v6/figs/getup_noappendage_bumper_sweep.png)
 *From `sim/getup_v6_bumper.py` (skid_h=0.03): monotone in `skid_x` — extend
 up_z 0.32→**0.47**, pelvis z 0.095→**0.147 m** as the bumper moves rearward
 (−0.04→−0.08). The rear bumper is the lever that turns a seat into a chair.*

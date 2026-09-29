@@ -13,6 +13,7 @@ import dataclasses as dc
 import numpy as np
 from gen_plant_v6 import DesignParams, build_xml
 import getup_v6 as G
+from skid_alias import replace_skid_h
 from static_gait import make_env
 import mujoco
 
@@ -65,7 +66,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skid-h", type=float, default=0.06)
     a = ap.parse_args()
-    base = dc.replace(DesignParams(), skid=True, skid_h=a.skid_h, skid_x=-0.02, skid_len=0.08)
+    base = replace_skid_h(DesignParams(), skid_h=a.skid_h, skid_x=-0.02, skid_len=0.08)
     print(f"skid_h={a.skid_h} (sweeping HEEL: keep toe fixed, grow foot_len rearward)")
     print(f"{'heel':>7} {'foot_len':>9} {'foot_toe':>9} | {'sit':>7} {'fold':>7} {'buttup':>7} {'unfold(up/pelZ)':>16}")
     # heel grows: foot_len increases, foot_toe stays 0.075 (foot extends backward)

@@ -14,6 +14,7 @@ import dataclasses as dc
 import numpy as np
 from gen_plant_v6 import DesignParams, build_xml
 import getup_v6 as G
+from skid_alias import replace_skid_h
 from static_gait import make_env
 
 def qq(off):
@@ -67,7 +68,7 @@ def main():
     print(f"### rear-bumper chair-sweep: skid_h={a.skid_h}, lean fwd then extend ###")
     print(f"{'skid_x':>7} {'skid_len':>8} | {'sit':>6} {'fold':>6} {'chair(u)':>8} {'extend(up/pelZ)':>16}")
     for skid_x, skid_len in ((-0.04, 0.10), (-0.05, 0.11), (-0.06, 0.12), (-0.07, 0.13), (-0.08, 0.14)):
-        p = dc.replace(DesignParams(), skid=True, skid_h=a.skid_h, skid_x=skid_x, skid_len=skid_len)
+        p = replace_skid_h(DesignParams(), skid_h=a.skid_h, skid_x=skid_x, skid_len=skid_len)
         r = run_rise(p)
         u, z = r["push off seat + extend"]
         mark = " <== STANDS" if u > 0.9 and z > 0.3 else ""

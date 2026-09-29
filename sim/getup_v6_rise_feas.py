@@ -17,6 +17,7 @@ import dataclasses as dc
 import numpy as np
 from gen_plant_v6 import DesignParams, build_xml
 import getup_v6 as G
+from skid_alias import replace_skid_h
 from static_gait import make_env
 import mujoco
 
@@ -66,7 +67,7 @@ def place_and_check(env, off, label):
 
 def main():
     # skid body: passive pelvis seat at a moderate height (belly flush + pad)
-    p = dc.replace(DesignParams(), skid=True, skid_h=0.10, skid_x=-0.02, skid_len=0.08)
+    p = replace_skid_h(DesignParams(), skid_h=0.10, skid_x=-0.02, skid_len=0.08)
     xml = "/tmp/v6_rise_feas.xml"; open(xml, "w").write(build_xml(p))
     env = make_env(p, xml); obs, _ = env.reset(seed=0)
 

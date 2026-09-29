@@ -160,10 +160,11 @@ class DesignParams:
     skid_mass: float = 0.030     # print mass (kg)
     # ---- pelvis skid ALIAS (no-appendage study, PR #64): the PR's static
     # feasibility scripts (getup_v6_seated_feas / getup_v6_rise_feas /
-    # getup_v6_bumper) use the synonym `skid_h` ("skid bottom height BELOW the
-    # yaw axis", the same geometry as `skid_bot` with opposite sign). The
-    # capsule plant is unchanged; skid_h is only a name alias resolved by the
-    # study script before it calls dc.replace (see getup_v6_seated_feas.py).
+    # getup_v6_bumper / getup_v6_skid_rise / getup_v6_rockrise /
+    # getup_v6_toesweep) use the synonym `skid_h` ("skid bottom height BELOW
+    # the yaw axis", the same geometry as `skid_bot` with opposite sign). The
+    # capsule plant is unchanged; the alias is resolved once in
+    # `sim/skid_alias.replace_skid_h` (the only translation point).
     fall_collision: bool = True  # torso, head, links, feet collide with the FLOOR (contype 2),
     self_collide: bool = False   # OPT-OUT self-collision: every solid part collides with
                                  # every other, except same-body and parent<->child pairs
@@ -803,7 +804,6 @@ def build_xml(p: DesignParams) -> str:
       <body name="torso" pos="0 0 {_f(z0)}">
       <freejoint/>
 {_torso(p)}
-{_skid(p)}
 {_leg(p, "L")}
 {_leg(p, "R")}{_head(p)}{_arms(p)}{_tail(p)}{_skid(p)}
     </body>

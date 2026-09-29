@@ -55,6 +55,19 @@ CoM **17 mm behind the heel**. Static CoM sweeps show holding hip **−90…−1
 keeps the CoM **+33…+69 mm over the feet** — a margin-positive crouch the record
 never tried.
 
+![Seated crouch comparison: hip −125° vs hip −90°](figs/getup_noappendage_seated_compare.png)
+*Same camera, same body. **Left (hip −125°):** heels pulled forward under the
+pelvis; CoM marker lands **17 mm behind the heel** (outside the shaded heel→toe
+span). **Right (hip −90°):** CoM marker lands **+52 mm over the feet** (deep
+inside the shaded span). Marker = CoM projected on the floor; shaded band =
+heel→toe contact span. Numbers in `sim/getup_v6_seated_feas.py`.*
+
+![The rise corridor](figs/getup_noappendage_rise_corridor.png)
+*Per-keyframe CoM margin from `sim/getup_v6_rise_feas.py`: 7 of 9 keyframes
+are BEHIND HEEL (buttup knee-100 = −101 mm … rise hip-45 = −31 mm). Only the
+last two rise keyframes are margin-positive (+38, +56 mm) once the pelvis is
+already high — the corridor the open-loop rise cannot cross.*
+
 **3. Rear-extended skid bumper → chair-rise (the strongest lever).** Testing the
 body-mod idea directly: moving the skid rearward (`skid_x` −0.04→−0.08) turns
 the unfold into a **chair-rise** — "lean forward onto the toes, then push off
@@ -64,6 +77,12 @@ improvement, ~halfway to standing, versus the bare body's 0.23 collapse.
 Longer heel and longer toe sweeps both did **nothing** to the unfold (the pivot
 is the heel; foot-length levers miss it), which isolates exactly what the rear
 bumper fixes.
+
+![Bumper chair-rise sweep](figs/getup_noappendage_bumper_sweep.png)
+*From `sim/getup_v6_bumper.py` (skid_h=0.03): the chair-rise is monotone in
+`skid_x` — extend up_z 0.32→**0.47**, pelvis z 0.095→**0.147 m** as the bumper
+moves rearward (−0.04→−0.08 m). The rear bumper is the lever that turns a seat
+into a chair.*
 
 ## Recommendation (the no-appendage path worth building)
 

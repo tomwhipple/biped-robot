@@ -23,6 +23,7 @@ import dataclasses as dc
 import numpy as np
 from gen_plant_v6 import DesignParams, build_xml
 import getup_v6 as G
+from skid_alias import replace_skid_h
 from static_gait import make_env, _write_video
 import mujoco
 
@@ -91,7 +92,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--render", default=None); ap.add_argument("--skid-h", type=float, default=0.08)
     a = ap.parse_args()
-    p = dc.replace(DesignParams(), skid=True, skid_h=a.skid_h, skid_x=-0.02, skid_len=0.08)
+    p = replace_skid_h(DesignParams(), skid_h=a.skid_h, skid_x=-0.02, skid_len=0.08)
     xml = "/tmp/v6_rockrise.xml"; open(xml, "w").write(build_xml(p))
     env = make_env(p, xml); obs, _ = env.reset(seed=0)
     kp, kd, stall_s, w0_s = env._servo; na = env._nq_act

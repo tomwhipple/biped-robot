@@ -12,6 +12,7 @@ import dataclasses as dc
 import numpy as np
 from gen_plant_v6 import DesignParams, build_xml
 import getup_v6 as G
+from skid_alias import replace_skid_h
 from static_gait import make_env
 import mujoco
 
@@ -35,7 +36,7 @@ def foot_x(env):
 
 # seated on the skid at hip height hip_z = skid_h, deep-flexed, feet tucked under
 for skid_h in (0.04, 0.06, 0.08, 0.10, 0.12, 0.15):
-    p = dc.replace(DesignParams(), skid=True, skid_h=skid_h, skid_x=-0.02, skid_len=0.08)
+    p = replace_skid_h(DesignParams(), skid_h=skid_h, skid_x=-0.02, skid_len=0.08)
     xml = f"/tmp/v6_seat_{int(skid_h*100)}.xml"; open(xml, "w").write(build_xml(p))
     env = make_env(p, xml); obs, _ = env.reset(seed=0)
     m, d = env.model, env.data
