@@ -35,7 +35,8 @@ side-seat push, a third shoulder DOF, legs only -- are not re-searched):
            on the back, e.g. by rolling onto a side and back
 PRONE_MARGIN=1 runs every candidate with the overload cutoff enforced and
 takes 0.3 x (worst servo's seconds above 80 % of stall) + 0.5 x (trips) off
-its score.
+its score. PRONE_ROBUST=1 scores every candidate on its worst of four runs
+(nominal, mu 0.3, servos 65 %, nominal 3x slower).
   catch    from STANDING, a forward kick; when the torso pitches past a
            searched angle the arms swing forward to catch the fall on the
            hands, then searched keyframes push back over the feet into the
@@ -540,10 +541,17 @@ def catch_score(r):
 MARGIN = os.environ.get("PRONE_MARGIN", "0") == "1"
 
 
-def _eval_roll(args):
-    family, x = args
+ROBUST = os.environ.get("PRONE_ROBUST", "0") == "1"
+# PRONE_ROBUST=1: every candidate runs four times -- nominal, mu 0.3, servos at
+# 65 %, and nominal 3x slower -- and scores its worst run + 0.2 x the mean
+ROBUST_CONDS = [(NOMINAL, 1.0), (dict(play_deg=3.0, mu=0.3, servo_scale=1.0), 1.0),
+                (dict(play_deg=3.0, mu=0.7, servo_scale=0.65), 1.0), (NOMINAL, 3.0)]
+
+
+def _eval_roll_one(family, x, cond=NOMINAL, ts=1.0):
     try:
-        r = run_roll(family, x, protection=dict(enforce=True, load="torque") if MARGIN else None)
+        r = run_roll(family, x, cond=cond, time_scale=ts,
+                     protection=dict(enforce=True, load="torque") if MARGIN else None)
     except Exception as e:  # noqa: BLE001 -- a diverged sim scores as a failure
         return dict(score=-9.0, err=str(e))
     r["score"] = roll_score(r)
@@ -553,6 +561,20 @@ def _eval_roll(args):
         r["trips"] = sum(v["trip_t"] is not None for v in rep.values())
         r["score"] -= 0.3 * r["cum80"] + 0.5 * r["trips"]
     return r
+
+
+def _eval_roll(args):
+    family, x = args
+    if not ROBUST:
+        return _eval_roll_one(family, x)
+    rs = [_eval_roll_one(family, x, c, ts) for c, ts in ROBUST_CONDS]
+    if any("err" in r for r in rs):
+        return dict(score=-9.0, err="diverged")
+    sc = [r["score"] for r in rs]
+    out = dict(min(rs, key=lambda r: r["score"]))
+    out["score"] = min(sc) + 0.2 * float(np.mean(sc))
+    out["n_back"] = sum(r["roll_ok"] for r in rs)
+    return out
 
 
 def _eval_catch(args):
@@ -600,7 +622,8 @@ def _brief(r):
     if "front" in r:
         return (f"front {r['front']:+.2f} (max {r['front_max']:+.2f}) up {r['up']:+.2f} arm err {r['arm_err']:.0f} deg "
                 f"{'ON BACK' if r['roll_ok'] else ''}"
-                + (f"  >80% stall {r['cum80']:.2f} s, trips {r['trips']}" if "cum80" in r else ""))
+                + (f"  >80% stall {r['cum80']:.2f} s, trips {r['trips']}" if "cum80" in r else "")
+                + (f"  on the back {r['n_back']}/4 (worst run shown)" if "n_back" in r else ""))
     if "per" in r:
         return f"stands {r['n_stand']}/{len(r['per'])}  " + " | ".join(
             f"up {q.get('up', -1):+.2f} z {q.get('z', 0):.2f} crouch up {q.get('up_crouch', -1):+.2f}{' feet' if q.get('feet_only') else ''}"
@@ -795,7 +818,8 @@ def main():
         print(f"== ROLL SEARCH, family {family}: {start} (arms idle) -> {NK} free keyframes -> {end} + legs straight; "
               f"{len(names)} parameters, CEM {restarts} restarts x {iters} iterations x {pop}, restart 0 seeded from the "
               f"section 12.1 roll; score = front_end + 0.3 front_max + 1[on back] - 0.004 arm error (deg)"
-              f"{' - 0.3 x (worst servo seconds above 80 % of stall) - 0.5 x (overload trips), cutoff enforced' if MARGIN else ''}; "
+              f"{' - 0.3 x (worst servo seconds above 80 % of stall) - 0.5 x (overload trips), cutoff enforced' if MARGIN else ''}"
+              f"{'; each candidate run nominal, mu 0.3, servos 65 %, nominal x3: worst + 0.2 mean' if ROBUST else ''}; "
               f"r5_asdrawn_rom120 + elbow stops, Plan B, nominal; self_collide on; workers {GN.n_workers()}", flush=True)
         evalf = lambda xs: GN.pmap(_eval_roll, [(family, x) for x in xs])
         best = cem(names, bounds, evalf, restarts, iters, pop, max(4, pop // 6), seeds=[seed_12_1(family)], tag=family)

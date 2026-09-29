@@ -1,0 +1,12 @@
+== PROBE: r5_asdrawn_rom120 + elbow stops, Plan B, nominal (play 3, mu 0.7); prone start with the arms at (shoulder, elbow) = idle {'shoulder': 15, 'elbow': 0}
+   settled prone: up -0.02 front -1.00 side +0.00, pelvis z 0.054, contacts ['L_foot', 'R_foot', 'torso']
+   12.1 roll, arms held at shoulder  +15 elbow   +0: front -1.00 (max -0.63) up -0.02 arm err 1 deg   peak 2.72 N*m (R_hip_roll)
+   12.1 roll, arms held at shoulder   +0 elbow   +0: front -1.00 (max -0.69) up -0.02 arm err 1 deg   peak 2.72 N*m (L_hip_roll)
+   12.1 roll, arms held at shoulder   +0 elbow -100: front -1.00 (max -0.87) up -0.02 arm err 1 deg   peak 2.22 N*m (R_shoulder)
+   12.1 roll, arms held at shoulder  +90 elbow   +0: front -1.00 (max -0.08) up -0.02 arm err 2 deg   peak 2.70 N*m (L_hip_roll)
+   12.1 roll, arms held at shoulder  +90 elbow -100: front -1.00 (max -0.34) up -0.02 arm err 1 deg   peak 2.50 N*m (L_hip_roll)
+   12.1 roll, arms held at shoulder +180 elbow   +0: front -1.00 (max -0.63) up -0.02 arm err 1 deg   peak 1.38 N*m (R_hip_pitch)
+   12.1 roll, arms held at shoulder +200 elbow   +0: front -1.00 (max -0.64) up -0.02 arm err 1 deg   peak 1.41 N*m (R_hip_pitch)
+   12.1 roll, arms held at shoulder  -90 elbow   +0: front +1.00 (max +1.00) up -0.02 arm err 4 deg ON BACK  peak 2.17 N*m (R_hip_pitch)
+   12.1 roll, arms held at shoulder  -45 elbow -100: front +1.00 (max +1.00) up -0.02 arm err 4 deg ON BACK  peak 2.71 N*m (L_hip_roll)
+   12.1 roll, arms held at shoulder +135 elbow -100: front -1.00 (max -0.65) up -0.02 arm err 1 deg   peak 1.43 N*m (R_hip_pitch)
