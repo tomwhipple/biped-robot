@@ -215,7 +215,7 @@ With the arms, the pelvis is built with ten extra deck pilots for the girdle
 
 ### 5.4 Arms and shoulder girdle
 
-- **`shoulder_girdle_v6`** (one print, ~84 g, 200 × 58 × 33 mm) sits on the
+- **`shoulder_girdle_v6`** (one print, ≈ 76 g, 200 × 58 × 33 mm) sits on the
   deck and holds both shoulder servos in open-top pods plus the neck servo's
   tube. Ten M2.5 × 8 flat-heads into deck pilots on two edge rails. **The pack
   goes in before the girdle**; it cannot pass the neck tube afterwards.
@@ -230,7 +230,9 @@ With the arms, the pelvis is built with ten extra deck pilots for the girdle
 
 ### 5.5 Neck and head
 
-The neck STS3215 stands on the deck, ±90° yaw. The head (`head_shell` +
+The neck STS3215 stands on the deck, ±90° yaw. Its seat is open: the deck's
+battery aperture currently cuts through the neck well, leaving the stator
+screws nothing to bite (#90). The head (`head_shell` +
 `head_face`, ~35 g) bolts to its horn with 4 × M3 and carries the Camera
 Module 3 Wide on M2 bosses; the ribbon runs through a slot beside the axis.
 A stereo alternative from one camera and four mirrors is proposed in PR #71
@@ -260,7 +262,7 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
 |---|---|---|
 | robot, all STS3215 | ≈ 1.67 kg (CAD-inertial plant) | ≈ 2.10 kg (as-drawn get-up plant) |
 | servos | 13 × 55 g | 17 × 55 g |
-| printed PETG + TPU | ≈ 0.59 + 0.05 kg | + girdle ≈ 84 g, arm links ≈ 134 g |
+| printed PETG + TPU | ≈ 0.59 + 0.05 kg | + girdle ≈ 76 g, arm links ≈ 134 g |
 | pack / boards + wiring | 170 g / ≈ 180 g | same |
 
 The simulation plants carry these as CAD-derived inertias
@@ -386,6 +388,7 @@ Everything open is a GitHub issue.
 | hip-yaw bearing A, C or E (§5.2); the pelvis and yaw carriers wait on it | #75 |
 | head: mono camera, or the stereo periscope | PR #71, #87 |
 | make the code's defaults the robot to print (arms on, chosen bearing, 17 × STS3215; rollup and plant regenerated) — today they build armless with bearing C and count 6 × STS3250 | #76 |
+| neck servo seat (the battery aperture cuts through the neck well) | #90 |
 
 | work | issue |
 |---|---|

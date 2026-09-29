@@ -33,7 +33,7 @@ FLATPAK_ID = "com.orcaslicer.OrcaSlicer"
 VENDOR = os.path.join(orca_profile.FLATPAK_PROFILES, "Flashforge")
 
 # The sandbox is locked down (no network, no devices, only cad/stl,
-# cad/gcode and cad/print_profiles are visible) -- see docs/slicing.md.
+# cad/gcode and cad/print_profiles are visible) -- see cad/PRINT_LIST.md, Slicing.
 SANDBOX_ENV = {
     "XDG_RUNTIME_DIR": f"/run/user/{os.getuid()}",
     "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{os.getuid()}/bus",

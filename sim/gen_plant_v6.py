@@ -13,8 +13,8 @@ Everything is a parameter (DesignParams). Masses are ESTIMATES until CAD
 exists: servos at their catalogue mass in their real case envelope at the
 real place in the chain (this is 55-60 % of the robot and dominates the
 inertia), printed parts as lumped boxes at the masses the current parts
-weigh (cad/PRINT_LIST.md), battery/board at catalogue mass. When the CAD
-lands, sim/build_v2_inertia.py replaces the lumps -- same as v5body.
+weigh, battery/board at catalogue mass. sim/build_v6_inertia.py builds the
+CAD-inertial plant from the exported STLs instead.
 
 Conventions kept from sim/bimo_biped_v5body.xml so walker_env / the tools
 work unchanged: +X forward, +Y left, torso freejoint, joint names
