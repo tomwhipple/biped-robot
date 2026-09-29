@@ -54,6 +54,7 @@ then has to stand.
     .venv/bin/python sim/getup_v6_prone.py rollsearch stow 6 40         # family, restarts, iterations
     .venv/bin/python sim/getup_v6_prone.py catchsearch 6 40
     .venv/bin/python sim/getup_v6_prone.py verify <family> '<json x>'   # chain, 6 conditions, x1 and x3
+    .venv/bin/python sim/getup_v6_prone.py verifylog <family> <search log>   # every restart's winner
     .venv/bin/python sim/getup_v6_prone.py render <family> '<json x>' out.mp4
 """
 from __future__ import annotations
@@ -863,6 +864,23 @@ def main():
               flush=True)
         if best[2]["n_stand"] == len(conds3):
             verify("entry", best[1])
+    elif mode == "verifylog":
+        # verify EVERY restart's winner in a search log, not only the best by
+        # the nominal score (the score does not rank robustness)
+        family, path = sys.argv[2], sys.argv[3]
+        if len(sys.argv) > 4:
+            ENTRY_BEST.update(json.loads(sys.argv[4])); os.environ["PRONE_ENTRY"] = sys.argv[4]
+        lines = open(path).read().splitlines()
+        wins = []
+        for i, ln in enumerate(lines):
+            if " BEST " in ln and "restart" in ln and ln.startswith("--") and i + 1 < len(lines):
+                nxt = lines[i + 1].strip()
+                if nxt.startswith("x {"):
+                    wins.append((ln.split(" BEST")[0].lstrip("- "), json.loads(nxt[2:])))
+        print(f"== VERIFY every restart winner of {path} ({len(wins)} winners)", flush=True)
+        for tag, x in wins:
+            print(f"\n#### {tag}", flush=True)
+            verify(family, x)
     elif mode == "verify":
         if len(sys.argv) > 4:
             ENTRY_BEST.update(json.loads(sys.argv[4])); os.environ["PRONE_ENTRY"] = sys.argv[4]
