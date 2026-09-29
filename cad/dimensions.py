@@ -23,7 +23,7 @@ Key verified facts (STEP-measured, matches 2D drawing):
     M3 machine screws after tapping - community practice, e.g. thingiverse 7074577):
       horn-side face : rows 8.30 and 29.00 behind the axis, +/-10.25 across width
       idler-side face: rows 8.30 and 32.75 behind the axis, +/-10.25 across width
-  - Servo mass ~55 g (DESIGN.md measured; vendor 55-60 g).
+  - Servo mass ~55 g (measured; vendor 55-60 g).
 """
 import math
 
@@ -318,7 +318,7 @@ TOWER_FOOT_Y = 42.0     # lands over the bay cheek walls: heat-set pilots run
 # `yaw_carrier` bolts to the horn and carries the hip-roll bay that used to
 # hang off the pelvis. The roll-bay geometry is UNCHANGED (same BAY_BORE,
 # BAY_WALL_DROP, BAY_CHEEK_GAP, cheek walls, U-slot, CASE_HOLES retention) --
-# it just moves from `pelvis` onto `yaw_carrier`.  See docs/hip-yaw-study.md.
+# it just moves from `pelvis` onto `yaw_carrier`.  See docs/archive/2026-07-23-hip-yaw-study.md.
 #
 # Servo orientation: case LENGTH along X (fore-aft), width (24.72) along Y,
 # case thickness (34.70) along the vertical output axis.  Length-along-Y also
@@ -357,7 +357,7 @@ YAW_CASE_X_REAR = -SV_AXIS_FROM_REAR                # -35.11 cable end (rear)
 # on a keyed pocket, grip both discs, deck counterbore for the idler arm) buys
 # a second bearing at the cost of stator rigidity + a tolerance stack; it is
 # the flagged v3.1 upgrade if bench testing shows output-shaft bending play.
-# See docs/hip-yaw-study.md "as-designed".
+# See docs/archive/2026-07-23-hip-yaw-study.md "as-designed".
 YAW_CARRIER_PLATE = PLATE          # 3.0 horn mount plate (== every joint arm).
                                    # Sits flat on the O19.2 horn disc; only the
                                    # recessed centre screw needs a relief

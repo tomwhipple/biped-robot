@@ -1,5 +1,7 @@
 # Hip yoke as one print (2026-09-19)
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
+
 Tom: make the link below the hip-yaw carrier — the hip-roll clevis
 `yoke_roll` (v5, `cad/parts.py`) and the hip-pitch clevis `yoke_pitch_v6`
 (`cad/v6/yoke_pitch_v6.py`), today screwed flange to flange — ONE print.
@@ -15,7 +17,7 @@ pre-existing clearance findings it exposed are open (section 6).
 | joint | two 4 mm flanges, 4 × M3×10 button head down through `yoke_roll` into 4 × M3 heat-set inserts in `yoke_pitch` (`fasteners.flange_bolts`) | one 8 mm block, bolt columns filled (+356.5 mm³ = exactly the four O3.4 + four O4.1 bores) |
 | servo interfaces | roll horn boss + sunk idler pad on X; pitch horn plate + r14 idler hub on Y | **identical** — the merged solid is `yoke_roll() + Pos(0,0,-ROLL_TO_PITCH) * yoke_pitch_v6()`, the v5 geometry itself, not a copy |
 | kinematics | `HIP_ROLL_Z`, `HIP_PITCH_Z`, `ROLL_TO_PITCH` 50, `ROLL_AXIS_TO_FLANGE` 16, `PITCH_ARM_REACH` 26 | unchanged; the part is placed at `HIP_ROLL_Z` alone and carries the pitch clevis at −50 in its own frame |
-| hip-flexion chamfer (`YOKE_FLEX_CHAMFER`, [design-v6-ankle-roll §11.3](../design-v6-ankle-roll.md)) | on `yoke_pitch_v6` | kept, via the shared `yoke_pitch_v6.flex_chamfer_wedge()` (also trims the two front bolt fills where the heat-set bores grazed it). `yoke_pitch_v6()` volume unchanged to the last digit after the refactor (9534.799917594863 mm³) |
+| hip-flexion chamfer (`YOKE_FLEX_CHAMFER`, [design record §11.3](2026-09-13-design-record.md)) | on `yoke_pitch_v6` | kept, via the shared `yoke_pitch_v6.flex_chamfer_wedge()` (also trims the two front bolt fills where the heat-set bores grazed it). `yoke_pitch_v6()` volume unchanged to the last digit after the refactor (9534.799917594863 mm³) |
 | envelope | union of the two | the same union — no new material outside either part, so no pair can get *worse* |
 
 Deliberately **not** done: thinning the 8 mm block or trimming the flange

@@ -519,7 +519,7 @@ def main():
             # articulation exercises + feet-crossing guard (user 2026-07-20)
             ext_mix=(0.15, 0.08, 0.12, 0.10, 0.08, 0.10, 0.07),
             w_foot_cross=0.5,
-            # plan-v2 Phase A (docs/training-plan-v2.md): Playground-recipe
+            # plan-v2 Phase A (docs/archive/2026-07-20-training-prior-art.md): Playground-recipe
             # terms + Open Duck BAM servo constants + obs history
             gait_clock=True, w_feet_phase=1.0, swing_height=0.06,
             w_feet_slip=0.25, w_orientation=1.0, w_ang_vel_xy=0.15,

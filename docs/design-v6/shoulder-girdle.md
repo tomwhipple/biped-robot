@@ -1,5 +1,7 @@
 # The shoulder girdle (2026-09-19): rotating the servos into the torso
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
+
 Tom, 2026-09-19:
 
 > we need to revisit the arm design... looks like the arms are just bolted on.

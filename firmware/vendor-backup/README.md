@@ -39,4 +39,4 @@ byte-swapped. Measured on servo 9: it reported position 772 for an actual
 instead of 20 and 1003. Only 8-bit registers (ID, mode, torque) survive the
 trip intact.
 
-See [docs/bringup-day1.md](../../docs/bringup-day1.md) for the full measurement.
+See [docs/bringup.md](../../docs/bringup.md) for the full measurement.

@@ -1,5 +1,7 @@
 # v6 body: a biped that can stand on one foot — sim-validated design spec (2026-09-13)
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
+
 **Status: kinematic design validated in simulation through Gates A–D; awaiting Tom's sign-off before CAD.** No part has been drawn, printed or ordered. Everything below is reproducible from `sim/gen_plant_v6.py`, `sim/design_gates.py` and `sim/static_gait.py`; the raw tables are in `docs/design-v6/`.
 
 Goal (Tom, 2026-09-13): *a new physical robot design able to walk by lifting one foot completely off the ground*; consider a backward-bent knee, different or more servos; no GoPro; room for an onboard Raspberry Pi + camera later.
@@ -27,7 +29,7 @@ Cost of the servo change: 6 × STS3250 at $43–65 from US stock ($48–55 on Al
 
 ## 1. What the record says, and what it asks of a new body
 
-Read for this design: `lessons-learned-2026-09-13-walking.md`, `design-stage-simulation-gates.md`, `hw_sessions/2026-09-13/notes.md`, `hip-yaw-study.md`, `servo-map.md`, `DESIGN.md` §2/§6 and the dated log, the BOM and camera docs, `cad/dimensions.py`, `sim/bimo_biped_v5body.xml`, `walker_env.py`'s servo model. The requirements that fall out, each traceable to a measurement:
+Read for this design: `../archive/2026-09-13-lessons-learned-walking.md`, `../archive/2026-09-13-design-stage-simulation-gates.md`, `hw_sessions/2026-09-13/notes.md`, `hip-yaw-study.md`, `servo-map.md`, `DESIGN.md` §2/§6 and the dated log, the BOM and camera docs, `cad/dimensions.py`, `sim/bimo_biped_v5body.xml`, `walker_env.py`'s servo model. The requirements that fall out, each traceable to a measurement:
 
 - **R1 — a static single-foot stance must exist** (Gate A). v5 has none: with no ankle roll a planted foot pins the pelvis level, the roll servos slide the feet (loads 88–168) or stall (1.2° short at load 120), and shortening a leg tips the body *toward* the lifted side (8.0° = atan(1.1 cm / 8 cm)). The only regime was a dynamic edge-rock with no margin; the attempt put the robot off the table.
 - **R2 — margins measured on the body, before any policy** (process changes §5 of the lessons doc): bench before policy; calibrate the sim where the question lives; dynamic tests need a per-attempt go. This spec is Gates A–D on the kinematics and the deploy servo model; Gate E (a policy) is deliberately last.
@@ -415,7 +417,7 @@ aft, hanging at the sides when idle** (`top_elbow_16_16_aft`). The full
 record of what was tried, what failed and why, and what the design still
 owes before CAD is `docs/design-v6/getup-decision-2026-09-17.md`; the
 studies themselves are `study-shoulder-arms.md`,
-`study-side-mounted-legs.md` and `study-wide-hip-gait.md`. The flat bird
+`../archive/2026-09-16-study-side-mounted-legs.md` and `../archive/2026-09-17-study-wide-hip-gait.md`. The flat bird
 body is documented there as the working alternative (gets up from supine
 and prone, falls better, walks on the wide-hip gait) and the reasons it
 was not chosen.

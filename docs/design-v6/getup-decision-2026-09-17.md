@@ -1,14 +1,16 @@
 # Get-up design decision (2026-09-17): two arms with elbows, and the paths not to walk again
 
+> Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
+
 Tom, 2026-09-17: *"write up these findings so we don't go down these paths
 again. We'll settle on the two arms with elbows."*
 
 This is the record of the 2026-09-14 to 09-17 get-up studies: what was
 tried, what the sim measured, why each dead end is dead, and what the chosen
 design still owes before CAD. Every number here traces to a log under
-`docs/design-v6/` or a section of `design-v6-ankle-roll.md`,
-`study-shoulder-arms.md`, `study-side-mounted-legs.md`,
-`study-wide-hip-gait.md`. All runs: deploy servo model (2 Hz shaper + 80 ms,
+`docs/design-v6/` or a section of `2026-09-13-design-record.md`,
+`study-shoulder-arms.md`, `../archive/2026-09-16-study-side-mounted-legs.md`,
+`../archive/2026-09-17-study-wide-hip-gait.md`. All runs: deploy servo model (2 Hz shaper + 80 ms,
 play 3 deg, STS3250 at rolls + knees), whole body colliding with the floor,
 and from 09-16 on `self_collide=True` (opt-out self-collision; results
 before that could pass a limb through the torso). Videos, local only:
@@ -74,7 +76,7 @@ idea reduces to one of these, the answer is already known.
   ways, abduction 120, yaw 180: torso reaches fully upright but the rise
   stalls at pelvis 0.211 m on the shins, 176 mm short; the bird's exact
   path jams a hip roll at 4.5 N-m and ends on its side
-  (`study-side-mounted-legs.md` R3.7, `getup_search_pincer_stock.txt`).
+  (`../archive/2026-09-16-study-side-mounted-legs.md` R3.7, `getup_search_pincer_stock.txt`).
   Lever: supine CoM sits 0.096 m from the hip line on the v7 torso vs
   0.036 m on the slab.
 - **From the kneel** (R3.8, `getup_search_kneel_rise.txt`): foot brace /
@@ -112,7 +114,7 @@ idea reduces to one of these, the answer is already known.
 - **Hips raised or outboard on the existing vertical stack** (rounds 1-2,
   incl. the stack tipped horizontal): 0/220, and above hip_z ~100 mm the
   torso belly grounds and removes the sit-up. Not the bird body; do not
-  cite these as a bird negative (`study-side-mounted-legs.md` §1-§4,
+  cite these as a bird negative (`../archive/2026-09-16-study-side-mounted-legs.md` §1-§4,
   R2.1-R2.3).
 - **The real flat bird body** (rounded 200 x 140 x 55 mm slab on the hips,
   hips at its sides, knee both ways, abduction 90, hip_sep 0.18, 1.44 kg,
@@ -136,7 +138,7 @@ idea reduces to one of these, the answer is already known.
 
 ### 2.4 Walking gait findings that carry over to the v7 body
 
-`sim/wide_gait.py` (`study-wide-hip-gait.md`): the stock static gait
+`sim/wide_gait.py` (`../archive/2026-09-17-study-wide-hip-gait.md`): the stock static gait
 shifts a level pelvis sideways until the CoM is over the stance foot, and
 that shift exceeds the 0.220 m leg reach once hips widen. The `combo`
 gait (30 mm crouch + feet adducted to 140 mm + 8 deg body roll) passes
@@ -189,15 +191,15 @@ tests are unchanged (8/8).
 
 ## Files
 
-- `docs/design-v6-ankle-roll.md` §11-§12: 09-14 studies (legs only, deep
+- `docs/design-v6/2026-09-13-design-record.md` §11-§12: 09-14 studies (legs only, deep
   flexion, tail / hip arms, prone roll, skid)
 - `docs/design-v6/study-shoulder-arms.md` + `getup_search_shoulder_*.txt`,
   `gateD_shoulder.txt`: the chosen design
-- `docs/design-v6/study-side-mounted-legs.md` (§1-§5, R2.x, R3.1-R3.8) +
+- `docs/archive/2026-09-16-study-side-mounted-legs.md` (§1-§5, R2.x, R3.1-R3.8) +
   `getup_search_side*.txt`, `getup_search_bird3_*.txt`,
   `getup_search_pincer_stock.txt`, `getup_search_kneel_rise.txt`,
   `gateD_side*.txt`, `gateD_bird3.txt`
-- `docs/design-v6/study-wide-hip-gait.md` + `gateD_wide_gait*.txt`
+- `docs/archive/2026-09-17-study-wide-hip-gait.md` + `gateD_wide_gait*.txt`
 - Scripts: `sim/getup_v6.py`, `getup_v6_appendage.py`, `getup_v6_legs.py`,
   `getup_v6_skid.py`, `getup_v6_shoulder.py`, `getup_v6_side.py`,
   `getup_v6_bird3_verify.py`, `wide_gait.py`, `joint_puppet.py`

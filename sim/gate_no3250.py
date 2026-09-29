@@ -37,7 +37,7 @@ Modes (logs in docs/design-v6/no3250_*.txt):
     .venv/bin/python sim/gate_no3250.py getup     > docs/design-v6/no3250_getup.txt
 
 On the Mac: MUJOCO_GL=cgl in the environment (the sim modules setdefault egl).
-Design record: docs/design-v6-ankle-roll.md section 14.
+Design record: docs/design-v6/2026-09-13-design-record.md section 14.
 """
 from __future__ import annotations
 

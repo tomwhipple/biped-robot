@@ -840,7 +840,7 @@ void cmdMode(Sink out, bool run) {
 
 // -- calibration -----------------------------------------------------------
 //
-// Two mechanisms exist and they are NOT interchangeable; docs/bringup-day1.md
+// Two mechanisms exist and they are NOT interchangeable; docs/bringup.md
 // records the split:
 //   `middle <id>`  writes the SERVO's own offset (reg 40 <- 128). Coarse zero,
 //                  lives in the servo's EEPROM, travels with the servo, and

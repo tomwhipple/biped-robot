@@ -6,7 +6,7 @@ fits) is imported unchanged from ../dimensions.py as `D` and re-exported; a
 v6 part must take a servo-interface number from `D`, never retype it. What
 changes for v6 is the KINEMATICS (ankle roll, 84 mm hips, 110 mm segments),
 the FOOT, the TORSO (Pi 4B, bigger pack, neck + head) and the LEG LINK's
-section. Design record: docs/design-v6-ankle-roll.md; the numbers below are
+section. Design record: docs/design-v6/2026-09-13-design-record.md; the numbers below are
 the ones the gates were run with (sim/gen_plant_v6.py DesignParams must
 agree -- tests/test_v6_design_gates.py pins the shared ones).
 
@@ -27,7 +27,7 @@ import dimensions as D  # noqa: E402  (v5 -- servo truth, walls, fits, screws)
 # ----------------------------------------------------------------------------
 # STS3250 == STS3215 case, horn, idler, screw rows (vendor: 45.22 x 24.72 x
 # 35 mm, same 4x M3 on O14 discs). Only the mass differs. Assignment per the
-# option study (docs/design-v6-ankle-roll.md section 8):
+# option study (docs/design-v6/2026-09-13-design-record.md section 8):
 SERVO_3250_JOINTS = ("hip_roll", "ankle_roll", "knee")        # 6x STS3250
 SERVO_3215_JOINTS = ("hip_yaw", "hip_pitch", "ankle_pitch", "neck")   # 7x STS3215
 SERVO_MASS_3215 = 55.0

@@ -293,9 +293,9 @@ class GoalSource(CommandSource):
 
     SIM-ONLY until the robot can estimate its own pose. pose_fn wants world
     (x, y, yaw); MuJoCo hands that over for free, but the real robot has no
-    odometry -- the BNO085 gives attitude, and DESIGN.md notes torso linear
-    velocity and height have no direct sensor at all. Closing that gap
-    (encoder dead-reckoning, or the GoPro) is its own piece of work.
+    odometry -- the IMU gives attitude only, and torso linear velocity and
+    height have no direct sensor at all. Closing that gap (leg odometry on
+    the ESP32, or visual odometry on the Pi) is its own piece of work.
     """
 
     name = "goal"

@@ -1,7 +1,7 @@
 """Hip-pitch clevis, v6 (qty 2): cad/parts.py::yoke_pitch (v5, geometry
 unchanged) with the flange's front-bottom edge chamfered (V.YOKE_FLEX_CHAMFER,
 45 deg, full width) so the thigh's grip plates clear it to ~127 deg of hip
-flexion instead of 123 (docs/design-v6-ankle-roll.md section 11.3). The
+flexion instead of 123 (docs/design-v6/2026-09-13-design-record.md section 11.3). The
 alternative -- relieving the thigh plate's front edge -- is not available:
 the lower grip screw's countersink sits exactly where the flange lands.
 Print as v5 (on its back, brim + slicer supports); the chamfer is on the

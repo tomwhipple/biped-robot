@@ -7,7 +7,7 @@ idler (-Y) at z = -V.LL_DROP (110, not v5's 90).
 Two changes from v5's leg_link():
 
 1. LINK_DROP 90 -> 110 (V.LL_DROP / V.LINK_DROP -- thigh and shank both grew
-   to 110 mm, docs/design-v6-ankle-roll.md section 2). Every constant that is
+   to 110 mm, docs/design-v6/2026-09-13-design-record.md section 2). Every constant that is
    anchored to the LOWER joint axis moves down with it (see the shift table
    below); everything anchored to the UPPER (gripped) servo -- the whole grip
    channel, jog blocks, cable window, rib/platform detents -- is untouched,

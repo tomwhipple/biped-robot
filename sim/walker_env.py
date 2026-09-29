@@ -265,7 +265,7 @@ class BimoWalkerEnv(gym.Env):
         # including zero = stand still) and is rewarded for TRACKING it.
         # Stopping and turning become continuously-practiced behaviors instead
         # of a terminal event -- which is what made the dash_stop objective
-        # exploitable three different ways (see DESIGN.md). Obs grows by 2
+        # exploitable three different ways (see docs/archive/2026-07-to-09-prototype-design-log.md). Obs grows by 2
         # (the command), so command policies don't warm-start from dash ones.
         command_mode: bool = False,
         cmd_v_range: tuple = (0.3, 1.0),   # forward-speed command draw (m/s)
@@ -498,7 +498,7 @@ class BimoWalkerEnv(gym.Env):
         # = 0.972, so the whole lean costs 0.022/step at loco_v11gait's
         # w_upright 0.8 against a 2.0/step velocity income), and
         # the CoM-over-stance kernel is clearance-gated and never binds
-        # during the walk cycle (refuted, docs/precision-progress.md day 12).
+        # during the walk cycle (refuted, docs/archive/2026-07-precision-progress.md day 12).
         # This penalizes |pitch| itself, quadratically past a free deadband.
         # PITCH ONLY -- roll is untouched, sidestep gaits legitimately roll.
         self.w_pitch_hinge = w_pitch_hinge
@@ -1780,7 +1780,7 @@ class BimoWalkerEnv(gym.Env):
                 # recovery primary (matches sim/mjx): height + HEIGHT-GATED
                 # uprightness progress, standing bonus (half up, half still).
                 # The gate keeps the upright kneel from being an absorbing
-                # local optimum (see env_mjx.py / DESIGN.md get-up v3).
+                # local optimum (see env_mjx.py / docs/archive/2026-07-to-09-prototype-design-log.md get-up v3).
                 planar_g = float(np.hypot(d.qvel[0], d.qvel[1]))
                 standing = float((height > 0.85 * self._nominal_h)
                                  and (up_z > 0.9))
