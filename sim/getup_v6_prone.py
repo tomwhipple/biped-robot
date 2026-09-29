@@ -654,10 +654,12 @@ def _verify_catch_job(args):
 
 def _prot_line(rep):
     worst = max(rep.items(), key=lambda kv: kv[1]["peak_torque"])
+    hot_t = max(rep.items(), key=lambda kv: kv[1]["cont_max_torque"])
     hot = max(rep.items(), key=lambda kv: kv[1]["cont_max_duty"])
     trips = [j for j, v in rep.items() if v["trip_t"] is not None]
-    return (f"peak load {worst[0]} {100 * worst[1]['peak_torque']:.0f} %, longest duty>80% {hot[0]} "
-            f"{hot[1]['cont_max_duty']:.2f} s, trips {trips or 'none'}")
+    return (f"peak load {worst[0]} {100 * worst[1]['peak_torque']:.0f} %, longest >80% of stall {hot_t[0]} "
+            f"{hot_t[1]['cont_max_torque']:.2f} s, longest duty>80% {hot[0]} {hot[1]['cont_max_duty']:.2f} s, "
+            f"trips {trips or 'none'}")
 
 
 def _verify_entry_job(args):
@@ -673,7 +675,7 @@ def verify(family, x):
     else:
         chain = "; chain = roll (ends with the arms idle) + the seat push with entry " + json.dumps(ENTRY_BEST)
     print(f"== VERIFY {family}, six conditions, pace x1 and x3 (3x slower), STS overload cutoff enforced "
-          f"(torque reading){chain}", flush=True)
+          f"(torque reading){chain}\n   x {json.dumps({k: round(v, 2) for k, v in x.items()})}", flush=True)
     if family == "entry":
         jobs = [(x, c, ts) for ts in (1.0, 3.0) for c in CONDS]
         res = GN.pmap(_verify_entry_job, jobs)
