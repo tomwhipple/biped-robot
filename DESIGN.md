@@ -312,13 +312,15 @@ choice — the arms block the roll. Candidates: an arm stow that clears the roll
 catching a forward fall on the hands, a one-arm roll.
 
 **Paths that do not work**, each measured (full record in
-[getup-decision-2026-09-17.md](docs/design-v6/getup-decision-2026-09-17.md)):
+[getup-decision-2026-09-17.md](docs/design-v6/getup-decision-2026-09-17.md) and
+[getup-noappendage-2026-09-14.md](docs/design-v6/getup-noappendage-2026-09-14.md)):
 
 | path | why not |
 |---|---|
 | legs only (≈ 150 sequences + continuous searches, deep flexion, kneel, pincer) | legs (0.335 m) are shorter than torso + head (0.55 m): every pivot on a leg contact lands the head, and below pelvis ~0.33 m no grounded pose puts the CoM over a sole |
 | arms with reach ≤ 0.30 m | they push on the torso, not the floor behind the hips; the body pivots over the head |
 | a third shoulder DOF; a one-arm side push; a prone push-up | 0 of hundreds of variants |
+| no appendage at all: kip, bear, crow, bridge, rock-rise, a pelvis skid or rear bumper | the pelvis only lifts with a push from far behind the hips; a kip is bandwidth-bound under the deploy servo, not torque-bound. A hip −90…−100° crouch does keep the CoM 33–69 mm over the feet (full −125° flexion parks it behind the heel) — the target if a learned rise is ever tried |
 | a tail at the hips | works in sim, rejected for the robot |
 | a flat "bird" chassis with side-mounted hips | stands up in sim and is the documented fallback if the arm path fails on hardware, but needs a new chassis, hip and gait; most falls end on an edge |
 | RL (PPO) reward shaping | reaches the kneel, never the rise (≈ 1.3 B steps) |
