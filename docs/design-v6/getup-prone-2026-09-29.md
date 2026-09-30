@@ -227,7 +227,9 @@ pace and 0/30 3× slower ([getup_prone_verify_catch.txt](getup_prone_verify_catc
 The crouch is reached in 25/30 and 29/30. So a second search, `catchrise`,
 kept the fall-and-roll fixed and searched the rise: three free keyframes, each
 candidate run at three kicks, μ 0.3 and 1.0, and 3× slower
-([getup_prone_catchrise.txt](getup_prone_catchrise.txt)).
+([getup_prone_catchrise.txt](getup_prone_catchrise.txt)). Only the restart
+seeded from the seat push's own rise found one that stands in all six runs;
+the three random restarts stall half-risen.
 
 With that rise the fall-and-roll stands **54/60**
 ([getup_prone_verify_catch_rise.txt](getup_prone_verify_catch_rise.txt)):
@@ -274,15 +276,15 @@ settled prone robot.
 
 - A fall that ends prone is now recoverable. The fall guard currently
   disarms the robot at up_z < 0.4. The recovery would start from the disarmed,
-  settled state, with the robot re-armed into the stow pose. That is a
-  sequencing decision, not a new control law.
+  settled state, with the robot re-armed into the recovery sequence. That is
+  a sequencing decision, not a new control law.
 - The sequences are keyframe lists at the shaper's pace, like the seat push.
 
 **What the bench owes:**
 
 - the same "one motion per go, on the floor" rule;
-- the seat-push entry first (supine is the more common landing), then the
-  prone roll;
+- the seat-push entry first, then the prone roll. The 2026-09-16 fall census
+  had more supine landings than prone: 11 and 7 of 36 kicks, on the v7 body;
 - log the hip and shoulder loads (Present Load / Current) through the roll
   and the push.
 
@@ -290,9 +292,13 @@ settled prone robot.
 
 - `sim/getup_v6_prone.py`:
   - `probe` and `entryprobe`;
-  - `rollsearch <family>`, `entrysearch` and `catchsearch`;
+  - `rollsearch <family>`, `entrysearch`, `catchsearch` and `catchrise`;
   - `verify` and `verifylog`;
   - `render`, which writes an mp4 and a contact sheet (the mp4 is not
     committed).
-- Logs: `getup_prone_*.txt`. Figures: `figs/getup_prone_chain_sheet.png`,
-  `figs/getup_supine_entry_sheet.png`, `figs/getup_supine_armsidle_flip_sheet.png`.
+  - `ENTRY_PROPPED` and `ROLL_STOW_FOLD`, the verified sequences.
+- Logs: `getup_prone_*.txt`.
+- Figures: `figs/getup_prone_chain_sheet.png`,
+  `figs/getup_supine_entry_sheet.png`,
+  `figs/getup_supine_armsidle_flip_sheet.png` and
+  `figs/getup_prone_catch_roll_sheet.png`.
