@@ -189,7 +189,63 @@ keep the scripted motions from loading many servos at once. Neither is chosen.
   - With 17 servos and two ports, at least one chain carries nine or more servos, unless a splitter is added. None is specified.
 - **Open:**
   - The robot's chain layout: which servos go on which port, and in what order.
-  - The routed lead length of each hop on the robot's CAD.
+
+### Per-hop lead lengths (from the v6 CAD, ARMS=1)
+
+The spans below are **geometric minima** at the standing pose, measured from
+the CAD constants and cross-checked against the built assembly mocks
+(`python cad/v6/lead_lengths.py` and its `--assembly` sweep; the hop model and
+every routing caveat are in that file's docstring). "loop" is the fold loop
+the lead needs to cross the joint named (arc over the joint's ROM at the
+cable's own standoff), already folded into "need". Verdicts are against the
+150 mm stock lead with a 20 mm plug tail. The board→splitter stub rides on
+top of the first hop as a 30 mm allowance — the splitter itself is not
+selected.
+
+| hop (chain order, both legs symmetric except where shown) | span | loop | need | buy ~ | 150 ok? |
+|---|---|---|---|---|---|
+| port (H5/H6) → leg-bus deck slot (via splitter) | 102 | — | 102 | 150 | ✓ |
+| deck slot → battery layer (yaw riser mouth) | 48 | — | 48 | 90 | ✓ |
+| battery layer → hip yaw | 1 | — | 1 | stock | ✓ |
+| hip yaw → hip roll | 56 | 7 | 63 | 110 | ✓ |
+| hip roll → hip pitch | 55 | 9 | 64 | 110 | ✓ |
+| hip pitch → knee | 110 | 17 | 127 | 170 | ✓ |
+| knee → ankle | 110 | 18 | 128 | 170 | ✓ |
+| ankle → ankle roll (R / L) | 81 / 87 | 6 | 87 / 93 | 130 / 140 | ✓ |
+| port (H5) → neck (upper branch, port A, via deck slot) | 103 + 53 | — | 156 | 190 | ✓ with a short stretch; the 150 mm stock reaches if routed taut over the battery layer |
+| shoulder lead leaving the pod (both sides: → R/L shoulder) | 49–101 | — | under 130 | 90–150 | ✓ |
+| **shoulder → elbow (both arms)** | **158** | **31** | **189** | **~240** | **NO — does not fit stock** |
+
+What the CAD says about the two named geometry problems:
+
+- **The shoulder→elbow hop is the only hop that cannot ride the stock 150 mm
+  lead.** The shoulder servo hangs in the girdle pod at the top of the torso;
+  the elbow servo hangs 160 mm down the upper arm. The lead crosses the
+  **shoulder fold, −90°…+200° (290° of sweep)** at the girdle's open notch —
+  the notch is cut open to the pod top so the plug exits upward
+  (`shoulder_girdle_v6.py:216`), and the lead then rides the moving upper arm
+  down the side away from the body. There is **no strain relief drawn at the
+  fold** (docs/design-v6/arms.md open item 8). The 158 mm number is the
+  assembly-measured minimum between the two servos' connector windows; the
+  189 mm includes the fold loops. Plan on a ~240 mm lead for this hop.
+- **The elbow lead's own strain relief is also not drawn.** The lead leaves
+  the elbow case down the forearm and crosses the 110° elbow fold into the
+  upper arm's cable window (`arm_v6.py`). Its slack folds into the same
+  shoulder→elbow piece by design (one lead, shoulder plug to elbow plug,
+  riding both links) — which is why the loop above carries both folds.
+- What is **flagged, not invented**: the yaw carrier has no raceway drawn for
+  the yaw→roll hop (straight-line minimum), the leg links carry cable
+  *windows*, not routed channels, and the ankle link's "raceway" named at
+  `dimensions_v6.py:180` is not drawn. All three are straight-line minima in
+  the table.
+
+Sources: the hop model, anchor placements and the measured arm span are
+`cad/v6/lead_lengths.py`; placements come from `assembly_v6`'s own mock
+chains (the interference gate's placement truth), and the fold/ROM figures
+from `dimensions_v6.py` and `docs/design-v6/arms.md` §5.
+
+- **Open (remaining):** the splitter part (both ports feed one, not
+  selected); the bus-timing figure for 17 servos.
 
 ## Battery protection
 
