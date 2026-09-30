@@ -65,24 +65,31 @@ SV_GRIP_SPAN = SV_HORN_FACE - SV_IDLER_FACE   # 37.25 (drawing-confirmed)
 BCD = 14.0
 PAD_HOLE = 3.4          # M3 clearance in printed pads
 # Disc-bolt pad OD. 24.0 -> 20.0 on 2026-07-27 (user found it on the bench).
-# The pad is centred on the joint axis, and the SERVO'S OWN case screws sit at
-# radius hypot(CASE_HOLE_LAT, CASE_HOLES_x[0]) = 13.19 with 5.7 heads standing
-# 1.65 proud of each case face -- so their heads reach IN to radius 10.34, and
-# a 12.0 pad radius buried 1.66 mm into them. Measured: 18.92 mm3 on
-# yoke_pitch's drive side, 7.45 mm3 on yoke_roll's.
-# 10.0 clears by 0.34 and still leaves 1.3 mm of rim outboard of the O14 bolt
-# circle -- the same rim minimum yoke_pitch's hub cut already works to.
+# The pad is centred on the joint axis. The servo's OWN case screws (B-PA2.0,
+# the ones holding the case together) are on the HORN face only, at its four
+# corners: two at the output end, 7.10 ahead of the axis and +/-9.35 across
+# (O3.5 in the outline drawing: radius 11.74, reaching IN to 9.99), and two at
+# the cable end, 32.75 behind. The IDLER face has none -- its 8.30 / 32.75
+# holes are all free mounting holes. (ST-3215-C018 datasheet section 9 and
+# docs/datasheets/st3215/ST3215-outline-drawing.dxf, read 2026-09-30.)
+# The 2026-07-27 sizing modelled the heads at radius 13.19 (the 8.30 row, O5.7,
+# reaching in to 10.34), found a 12.0 pad radius buried 1.66 mm into them
+# (18.92 mm3 on yoke_pitch's drive side, 7.45 mm3 on yoke_roll's) and cut the
+# pad to 10.0, which leaves 1.3 mm of rim outboard of the O14 bolt circle --
+# the same rim minimum yoke_pitch's hub cut already works to. In plan the real
+# output-end heads come within ~0.01 of r 10.0; what clears them is the axial
+# separation in (1) below, which does not depend on where they sit.
 #
 # HELD AT 20.0 on 2026-07-30 after re-deriving it (user: "check the wheel end
 # of the servos for fit"). Two things changed since the note above and neither
 # moves the number:
 #   (1) the radial fight is over. Every arm seats on the DISC, and the vendor
 #       solid puts the disc faces 3.10 (horn) / 2.05 (idler) PROUD of their
-#       case faces, so the PAD PLATE passes UNDER a 1.65-proud case-screw head
-#       with 1.45 mm (horn: plate 20.45 vs head top 19.00) and 1.60 (idler:
-#       plate -18.00 vs head top -16.40) to spare. No pad radius reaches it.
-#       Only the SEATING BOSS shares the head's axial band, and IDLER_BOSS_D
-#       stays 20.0, inside the head's 10.34 reach.
+#       case faces, so the PAD PLATE passes UNDER a case-screw head (modelled
+#       1.65 proud; the datasheet gives no height) with 1.45 mm to spare on the
+#       horn face (plate 20.45 vs head top 19.00). No pad radius reaches it.
+#       Only the idler SEATING BOSS shares a head's axial band, and the idler
+#       face has no case screws, so IDLER_BOSS_D 20.0 has nothing to meet.
 #   (2) so the binding constraint is now the HEAD LAND: bolt circle r 7 against
 #       a 10.0 rim leaves 3.0 mm, i.e. O6.0. The M3x6 horn buttons (O5.7) bear
 #       fully with 0.15 to spare. The idler M3x8 + THIN WASHER (O7.0) overhangs
