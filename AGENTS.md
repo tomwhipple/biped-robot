@@ -32,7 +32,9 @@ Y", no version narrative. When a change lands, update the doc it affects to the
 new state. History lives in git. Dated records — decision records, studies,
 bench-session write-ups, lessons learned — are welcome, but they go in
 `docs/design-v6/` (records and evidence for the current design) or
-`docs/archive/` (everything older), never inside a design document.
+`docs/archive/` (everything older), never inside a design document. An
+experiment keeps everything specific to it (its tool, rig CAD and parts,
+figures and dated session records) together in `experiments/<name>/`.
 
 ## The gates
 
@@ -72,6 +74,7 @@ them:
 | `firmware/host/vectors/obs_vectors.h`, `policy_vectors.h` | `gen_obs_spec.py` / `gen_policy_weights.py`, both `--run <deployed run>` (`make -C firmware/host deploy-headers RUN=...`) |
 | `cad/v6/stl/*`, `cad/v6/step/*`, `docs/design-v6/parts_v6_rollup.txt` | `python cad/v6/parts_v6.py` (`ARMS=1` for the arm set) |
 | `cad/stl/*`, `cad/step/*` | `python cad/parts.py` (the prototype's parts; the training plant meshes them) |
+| `experiments/plan-b-bench/stl/*`, `experiments/plan-b-bench/figs/*` | `python experiments/plan-b-bench/plan_b_rig.py` (the Plan B bench rig) |
 | `sim/bimo_biped_v6ar.xml` | `sim/build_v6_inertia.py --write` (or `sim/gen_plant_v6.py`) |
 
 Regenerated binary artifacts (STLs, STEPs) are rebuilt from source rather than

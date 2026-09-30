@@ -32,7 +32,8 @@ sockets open out of this face: a window the plugs and leads pass through). A
 cradle hugs the case's two long sides so the lever torque is also taken in
 bearing.
 
-Run:  .venv/bin/python cad/plan_b_rig.py        (writes cad/stl/plan_b_*.stl,
+Run:  .venv/bin/python experiments/plan-b-bench/plan_b_rig.py   (writes stl/plan_b_*.stl
+      beside it,
       print orientation, and prints the fit checks)
 """
 import math
@@ -43,8 +44,9 @@ import sys
 from build123d import (Box, Cone, Cylinder, Location, Plane, Pos, Rot,
                        export_stl, extrude, Polygon)
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+HERE = os.path.dirname(os.path.abspath(__file__))          # experiments/plan-b-bench/
+ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "cad"))                 # dimensions, parts, check_assembly
 import dimensions as D  # noqa: E402
 import parts as PT  # noqa: E402  (the leg link's own helpers, for idler_seat)
 
@@ -385,9 +387,9 @@ def main():
         print(f"  {name}: {foot:.0f} mm2 on the bed")
         path = os.path.join(out, f"plan_b_{name}.stl")
         export_stl(p, path)
-        print(f"  wrote {os.path.relpath(path, os.path.dirname(HERE))}  "
+        print(f"  wrote {os.path.relpath(path, ROOT)}  "
               f"({bb.size.X:.0f} x {bb.size.Y:.0f} x {bb.size.Z:.0f} mm on the bed)")
-    figs = os.path.join(os.path.dirname(HERE), "docs", "design-v6", "figs")
+    figs = os.path.join(HERE, "figs")
     render(os.path.join(figs, "plan_b_rig_render.png"))
     diagram_svg(os.path.join(figs, "plan_b_rig_side.svg"))
     print("ALL CLEAR" if ok else "FIT CHECK FAILED")
@@ -463,7 +465,7 @@ def render(path, px=900):
         ren.update_scene(data, cam)
         frames.append(ren.render())
     imageio.imwrite(path, np.concatenate(frames, axis=1))
-    print(f"  rendered {os.path.relpath(path, os.path.dirname(HERE))}")
+    print(f"  rendered {os.path.relpath(path, ROOT)}")
 
 
 def diagram_svg(path):
@@ -676,7 +678,7 @@ def diagram_svg(path):
 """
     with open(path, "w") as f:
         f.write(svg)
-    print(f"  drew {os.path.relpath(path, os.path.dirname(HERE))}")
+    print(f"  drew {os.path.relpath(path, ROOT)}")
 
 
 if __name__ == "__main__":
