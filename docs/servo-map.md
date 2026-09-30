@@ -406,6 +406,24 @@ table's URL. Things to know about the table:
 - 3× passes only if the printed roll chains measure ≤ 1° of play.
 - A high P can buzz or limit-cycle through gear play. LeRobot lowers the same register to 16 on its STS3215 arms for that reason.
 
+**The measurement: `tools/gain_bench.py`.** It drives this CLI over the tether,
+one typed `go` per motion. Raw data goes to `hw_sessions/<date>/gain_bench/`;
+the record goes in `docs/design-v6/`.
+
+1. `read <id>`: P, D, I, the dead zones, the protection registers and the model number (777).
+2. `stiffness <id>`: at each P the servo holds a horizontal lever while 0.5 / 1.0 / 1.5 N·m is hung on it.
+   - k is the slope of deflection on torque over the loaded points, with an intercept so the friction share drops out.
+   - What passes is the ratio to P = 32.
+   - The ladder is 32 / 64 / 96 / 128 / 160, with D raised with P. 128 is exactly 4 × 32, so a servo whose stiffness is proportional to P lands on the line there and a tick decides; 160 shows whether the trend carries on. A ratio within one standard error under a threshold reads MARGINAL.
+3. `hold <id>`: the leg-like inertia, hanging down (the gear play floats) and horizontal (preloaded).
+   - At each P: a quiet hold, then a 2° step out and back.
+   - Quiet means ≤ 2 counts peak to peak and no protection bit.
+   - If a raised P buzzes with D raised too, re-run it with D at 32 (`--ladder 128:32`). D differentiates a quantized encoder.
+4. `stance`: step 1. It writes each P to whichever servo sits in the stance hip roll, runs `squat_bench.py --balance <side>:8:0 --balance-mode stance`, reads the roll's shortfall and restores the gains.
+5. `report`: the tables and the verdict.
+
+`--rehearse` runs the servo steps against a simulated servo, with no hardware.
+
 **Writing the gains: `gains <id> <P> <D>`** (bench mode, one servo by ID,
 never broadcast; `scsbus::writePositionGains`):
 

@@ -459,8 +459,9 @@ Everything open is a GitHub issue.
 
 ## 13. Build sequence
 
-0. **Bench, no purchase** (#73): one spare STS3215 — read registers 21/22/23;
-   torque off, write P 32 → 64 → 96 → 128 with D scaled; measure stiffness from
+0. **Bench, no purchase** (#73, `tools/gain_bench.py`): one spare STS3215 — read registers 21/22/23;
+   torque off, write P 32 → 64 → 96 → 128 → 160 with D scaled (128 is exactly
+   4 × 32, so 160 shows which side of the line it falls); measure stiffness from
    Present Position with 0.5 / 1.0 / 1.5 N·m on a lever; hold a leg-like
    inertia and watch for buzz; confirm the protections don't trip.
 1. **Stance test**: that servo in a hip-roll mount, 8° of roll with a planted
