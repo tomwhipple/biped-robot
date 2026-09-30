@@ -173,45 +173,52 @@ Whole bus, amperes, upper / lower:
 | get-up: seat push, arms folded, shoulder 90 → 0 | 10.3 / 5.2 | 2.7 / 1.0 | 2.4 / 0.8 | 5.2 / 2.1 |
 | get-up: seat push, arms folded, shoulder 60 → 0 | 11.8 / 6.7 | 3.0 / 1.2 | 2.6 / 0.9 | 7.6 / 3.4 |
 | get-up from a backward fall (propped entry + seat push) | 10.3 / 5.2 | 3.0 / 1.1 | 2.7 / 0.9 | 5.2 / 2.1 |
-| get-up from prone (roll + seat push) | 8.8 / 3.8 | 3.0 / 1.0 | 2.7 / 0.9 | 5.5 / 1.9 |
+| get-up from prone (roll + seat push) | 9.4 / 4.6 | 2.8 / 1.0 | 2.6 / 0.9 | 5.0 / 2.0 |
 
 - **The seat push's peak** is the push. The shoulders, elbows, hip pitches
   and knees are loaded together: shoulders 1.7 A each (2.0 A in the propped
   entry), knees 1.4 A, hip pitches 1.3 A in the upper model. The worst run is
   at μ 1.0.
 - **The prone roll** is the one searched for margin
-  (`getup_v6_prone.ROLL_STOW_FOLD`), and it draws less than the seat push
+  (`getup_v6_prone.ROLL_STOW_FOLD`), and it draws no more than the seat push
   that follows it. An earlier roll that also stood rode one leg's hips at
   their stall current together. It peaked at 15.9 / 11.6 A and held
   8.7 / 4.4 A for 2 s, so the choice of roll sequence matters to the bus.
 
-Per chain, upper / lower, for three ways to split the bus:
+Per port and per branch, upper / lower. The layout is the one proposed in
+[servo-map.md §2.1](servo-map.md): port A carries the right leg, the neck and
+the right arm; port B the left leg and left arm; each through a splitter into
+a leg branch and an upper branch.
 
-| split | chain | walk peak / RMS | seat push from a fall, peak / worst 2 s | prone roll, peak / worst 2 s |
-|---|---|---|---|---|
-| **B: two ports** | L leg + L arm + neck | 3.9 / 1.8 — 1.4 / 0.6 | 5.1 / 2.6 — 2.6 / 1.1 | 6.1 / 3.0 — 3.0 / 1.1 |
-| | R leg + R arm | 3.8 / 1.7 — 1.4 / 0.6 | 5.1 / 2.6 — 2.6 / 1.0 | 5.1 / 2.8 — 2.4 / 1.0 |
-| C: two ports | both legs | 4.5 / 2.9 — 1.5 / 0.9 | 5.4 / 2.7 — 2.6 / 1.1 | 7.7 / 4.4 — 3.4 / 1.4 |
-| | arms + neck | 0.6 / 0.2 — 0.2 / 0.2 | 5.8 / 2.8 — 3.3 / 1.4 | 4.2 / 2.3 — 2.5 / 0.8 |
-| A: three chains (a splitter) | L leg / R leg / arms + neck | 3.7 / 1.6 each leg; 0.6 / 0.2 | 2.7 / 1.4 each leg; 5.8 / 2.8 | 4.6 / 2.3, 4.6 / 2.7; 4.2 / 2.3 |
+| lead | walk, peak / RMS | seat push from a fall, peak / worst 2 s | prone get-up, peak / worst 2 s |
+|---|---|---|---|
+| port A (R leg + neck + R arm) | 3.8 / 1.7 — 1.4 / 0.6 | 5.1 / 2.6 — 2.6 / 1.1 | 4.8 / 2.8 — 2.3 / 1.0 |
+| port B (L leg + L arm) | 3.9 / 1.7 — 1.4 / 0.6 | 5.1 / 2.6 — 2.6 / 1.0 | 4.8 / 2.6 — 2.4 / 1.0 |
+| A leg branch | 3.7 / 1.6 — 1.3 / 0.5 | 2.7 / 1.4 — 1.3 / 0.6 | 4.3 / 2.3 — 1.9 / 0.8 |
+| A upper branch (neck + R arm) | 0.4 / 0.1 — 0.1 / 0.1 | 2.9 / 1.4 — 1.7 / 0.7 | 2.2 / 1.2 — 1.2 / 0.5 |
+| B leg branch | 3.7 / 1.6 — 1.3 / 0.5 | 2.7 / 1.4 — 1.3 / 0.6 | 3.0 / 1.5 — 1.2 / 0.5 |
+| B upper branch (L arm) | 0.3 / 0.1 — 0.1 / 0.1 | 2.9 / 1.4 — 1.7 / 0.7 | 2.3 / 1.3 — 1.2 / 0.5 |
+
+For comparison, a legs | arms + neck split puts 4.5 A peak and 2.9 A RMS of
+walking on the legs' lead, and 6.1 A of the prone get-up.
 
 What the numbers say:
 
 - **The walk fits the board's 5 A continuous rating** in both models (RMS
   1.0–3.1 A, worst 2 s 1.3–3.7 A, peak 1.7–4.7 A).
 - **The get-ups do not.** The seat push peaks at 5.2–10.3 A, and its upper
-  model holds 5.2 A for 2 s. From prone, roll and seat push together peak at
-  3.8–8.8 A and hold 1.9–5.5 A for 2 s. The 60 → 0 sequence is worse than
+  model holds 5.2 A for 2 s. From prone, the roll and seat push together peak
+  at 4.6–9.4 A and hold 2.0–5.0 A for 2 s. The 60 → 0 sequence is worse than
   90 → 0 on every line.
 - **H1 is the tightest part.** All of the servo current crosses one 3 A XH
   contact. The walk's upper RMS (3.1 A) already exceeds it. **Feed `DC_IN`
   directly**, bypassing the XH inlet and SW1; the shunt run confirms it.
-- **Split B** (one leg and one arm per port, the neck on either) spreads the
-  seat push evenly: 5.1 A peak and 2.6 A worst 2 s per port in the upper
-  model, against ≈ 3 A for a Molex-5264-class lead (not verified from a
-  datasheet). Split C puts both legs on one lead: 7.7 A in the prone
-  get-up, 2.9 A RMS walking. Split A needs a splitter.
-- **Fuse**: stay at 15 A. The upper model's get-up peaks (8.8–11.8 A) sit
+- **The proposed layout balances the ports**: 3.8–3.9 A peak and 1.7 A RMS
+  each while walking, and 4.8–5.1 A peak and 2.6–2.8 A over the worst 2 s in
+  the get-ups (upper model). A Molex-5264-class lead is ≈ 3 A (not verified
+  from a datasheet). The walk's RMS per lead fits under that; its peaks
+  (3.8 A) and the get-ups' (4.8–5.1 A) exceed it for moments.
+- **Fuse**: stay at 15 A. The upper model's get-up peaks (9.4–11.8 A) sit
   near a 10 A fuse's rating. Drop to 10 A only once the shunt shows the real
   peak.
 - **Servo protection**:
@@ -219,7 +226,8 @@ What the numbers say:
     neither cutoff can fire there.
   - In the seat push the shoulders peak at 1.7–2.0 A, under the datasheet's
     2 A over-current line.
-  - In the prone roll no servo reaches stall; the hips peak at 1.8 A.
+  - In the prone roll no servo passes 80 % of stall; the hip roll peaks at
+    1.7 A.
   - The overload margin is in
     [DESIGN.md §4](../DESIGN.md#4-actuation-one-servo-type-with-a-raised-position-gain).
 

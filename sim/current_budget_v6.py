@@ -29,9 +29,10 @@ Plan B everywhere (STS3215, P x4 on the rolls and knees), 11.1 V.
 
 Chains: the General Driver has two servo ports (H5, H6) on one electrical bus;
 the first lead of a chain carries the whole chain. Splits reported:
-  A  three chains  L leg | R leg | arms + neck          (needs a splitter)
-  B  two ports     L leg + L arm + neck | R leg + R arm
-  C  two ports     both legs | arms + neck
+  proposed   docs/servo-map.md 2.1: port A = R leg + neck + R arm, port B =
+             L leg + L arm, each through a splitter into a leg branch and an
+             upper branch (per port, and per branch lead)
+  C          two ports: both legs | arms + neck (for comparison)
 
     .venv/bin/python sim/current_budget_v6.py > docs/design-v6/current_budget_v6.txt
 """
@@ -56,11 +57,15 @@ VOLTS = 11.1
 SET = "3215_p4rk"
 ARM_JOINTS = ("L_shoulder", "L_elbow", "R_shoulder", "R_elbow")
 SPLITS = {
-    "A (3 chains)": {"L leg": lambda n: n.startswith("L_") and n not in ARM_JOINTS,
-                     "R leg": lambda n: n.startswith("R_") and n not in ARM_JOINTS,
-                     "arms+neck": lambda n: n in ARM_JOINTS or n == "neck_yaw"},
-    "B (2 ports)": {"L leg+L arm+neck": lambda n: n.startswith("L_") or n == "neck_yaw",
-                    "R leg+R arm": lambda n: n.startswith("R_")},
+    # docs/servo-map.md 2.1 (proposed): port A (H5) = the right side, port B
+    # (H6) = the left; each port feeds a splitter with a leg branch and an
+    # upper branch; the neck rides the right upper branch
+    "proposed, per port": {"A: R leg+neck+R arm": lambda n: n.startswith("R_") or n == "neck_yaw",
+                           "B: L leg+L arm": lambda n: n.startswith("L_")},
+    "proposed, per branch": {"A leg": lambda n: n.startswith("R_") and n not in ARM_JOINTS,
+                             "A upper (neck+R arm)": lambda n: n in ("neck_yaw", "R_shoulder", "R_elbow"),
+                             "B leg": lambda n: n.startswith("L_") and n not in ARM_JOINTS,
+                             "B upper (L arm)": lambda n: n in ("L_shoulder", "L_elbow")},
     "C (2 ports)": {"both legs": lambda n: n not in ARM_JOINTS and n != "neck_yaw",
                     "arms+neck": lambda n: n in ARM_JOINTS or n == "neck_yaw"},
 }
@@ -174,12 +179,6 @@ def report_group(title, traces):
                 for ch, sel in chs.items():
                     idx = [k for k, n in enumerate(tr["names"]) if sel(n)]
                     add = 0.0
-                    if tr["extra_idle"] and ch in ("arms+neck",):
-                        add = tr["extra_idle"] * SM.I_IDLE
-                    elif tr["extra_idle"] and ch == "L leg+L arm+neck":
-                        add = 2 * SM.I_IDLE
-                    elif tr["extra_idle"] and ch == "R leg+R arm":
-                        add = 2 * SM.I_IDLE
                     chain_all[sp][ch].append(i[:, idx].sum(1) + add)
             for k, n in enumerate(tr["names"]):
                 per_joint_pk[n] = max(per_joint_pk.get(n, 0.0), float(i[:, k].max()))

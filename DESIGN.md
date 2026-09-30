@@ -191,8 +191,8 @@ conditions, at the scripted pace or 3× slower:
 
 The get-up runs out of strength (servos at 55 %) before the cutoff first fires
 (45 %). With the servos at 65 %, the propped entry keeps the shoulder above
-80 % for at most 0.9 s, and the prone roll (§9) keeps any servo there for at
-most 0.18 s. A slower tuck and push (3.7 s and 4.3 s) cut the peak load to
+80 % for at most 0.9 s, and the prone roll (§9) never takes a servo above
+80 %. A slower tuck and push (3.7 s and 4.3 s) cut the peak load to
 66 % and the shoulder to 1.52 N·m
 ([getup-overload-2026-09-29.md](docs/design-v6/getup-overload-2026-09-29.md)).
 The bench still has to read the registers back and measure the load in the
@@ -425,22 +425,22 @@ of stall), above the fold-first sequence's 1.77
 
 **Forward falls (prone) → roll onto the back, then the same seat push**:
 
-1. brace the left arm forward-down under the chest and raise the right one
-   back;
-2. roll over the right side with the legs;
-3. fold both arms up as the back lands;
+1. raise both arms, the left overhead and the right up and back;
+2. roll onto the back with the legs;
+3. fold the arms to 180° as it lands;
 4. then the seat push, from the arms-folded start.
 
-It stands, robust 12/12, in the same six conditions at both paces, and no
-servo trips. It was found by a continuous search that scored every candidate
-on its worst of four runs, with the overload cutoff enforced.
+It stands, robust 12/12, in the same six conditions at both paces. The
+overload cutoff is enforced on either reading of the servo's load, and no
+servo trips or passes 80 % of stall (64 % at full strength). The bus draws
+9.4 A peak in the upper model, the seat push's own level. Config:
+`ROLL_STOW_FOLD` in `sim/getup_v6_prone.py`.
 
-- **Margin**: no servo in the roll reaches stall. The worst in the whole chain
-  is the seat push's shoulder, at 62–68 % at full strength. With weak servos
-  3× slower, a hip pitch spends 0.18 s above 80 %.
-- **Current**: 8.8 A peak in the upper model. An earlier, nominal-scored
-  winner also stood 12/12, but rode the hips at stall and drew 15.9 A.
-- **Config**: `ROLL_STOW_FOLD` in `sim/getup_v6_prone.py`.
+It was found by a continuous search that scores every candidate on its worst
+of four runs, with the cutoff enforced. All six of that search's restart
+winners verify 12/12, with arm poses from both overhead to one braced under
+the chest. The folded arms never blocked the roll; §12.1's hand-built leg
+sequence did.
 
 Two other ways onto the back are weaker:
 

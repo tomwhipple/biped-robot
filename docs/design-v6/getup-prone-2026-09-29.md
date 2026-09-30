@@ -9,14 +9,19 @@ servos ([no3250_getup.txt](no3250_getup.txt)). This study searched for a path
 back to standing from prone that uses the arms.
 
 **Result.** It stands, robust 12/12: every robustness condition, at the
-searched pace and 3× slower, with the servo overload cutoff enforced and no
-servo tripping. The path:
+searched pace and 3× slower. The overload cutoff is enforced on either reading
+of the servo's load, and no servo trips or even passes 80 % of stall. The
+path:
 
-1. brace the left arm forward-down under the chest and raise the right one
-   back, out of the way;
-2. roll onto the back over the right side with the legs;
-3. fold both arms up as it lands;
+1. raise both arms, the left overhead and the right up and back;
+2. roll onto the back with the legs;
+3. fold the arms to 180° as it lands;
 4. then the recommended seat push.
+
+A continuous search scored on its worst run finds such a roll every time: all
+six of its restart winners verify 12/12, with arm poses from both overhead to
+one braced under the chest. What blocked §12.1's roll was its hand-built leg
+sequence, not the folded arms.
 
 The study also found a flaw in the scripted get-up from a *backward* fall,
 and a fix that is also robust 12/12 (§2).
@@ -129,6 +134,7 @@ search's own score is a nominal run and does not rank robustness.
 |---|---|---|---|
 | **stow** (candidate 1): arms held at one searched pose, legs roll | the stow pose + every leg joint per keyframe | 6 of 6 restarts | ends with the arms idle. The best winner reaches the back 12/12, but chained onto the §2 entry it stands only 1/6 and 0/6: its roll holds the hip roll and pitch at stall long enough to trip them, and the tripped hips fail the seat push ([getup_prone_roll_stow.txt](getup_prone_roll_stow.txt), [getup_prone_verify_stow_entry.txt](getup_prone_verify_stow_entry.txt)) |
 | **stow_fold** (candidate 1, ending folded) | the same, and the roll must end with the arms at 180 | 6 of 6 restarts | **restart 0: 12/12 standing**; restart 2: 11/12; the other four 2–7/12 ([getup_prone_verifyall_stow_fold.txt](getup_prone_verifyall_stow_fold.txt)) |
+| **stow_fold, scored for robustness and margin** | the same; every candidate is run four times, cutoff enforced | 6 of 6 restarts | **all six winners 12/12**, 71 of 72 runs with no trip ([getup_prone_verifyall_stow_fold_robust.txt](getup_prone_verifyall_stow_fold_robust.txt)) |
 | onearm: the left arm free, the right arm held, legs free | | 6 of 6 restarts | not chained (ends with the arms idle) ([getup_prone_roll_onearm.txt](getup_prone_roll_onearm.txt)) |
 | **arm1_fold** (candidate 3): legs straight, one arm rolls the robot | the left arm per keyframe + the right arm's pose | 5 of 6 restarts | no winner is robust. Three winners reach 9/12 (5/6 at pace ×1, 4/6 at ×3), and every one fails the weak-servo conditions: the rolling shoulder runs at 94–100 % of stall. The other three reach 0–7/12 ([getup_prone_roll_arm1_fold.txt](getup_prone_roll_arm1_fold.txt), [getup_prone_verifyall_arm1_fold.txt](getup_prone_verifyall_arm1_fold.txt)) |
 
@@ -151,27 +157,46 @@ to 180° as it lands on its back; then comes the recommended seat push.
   stall and 0.5 × any trip.
 
 The log is [getup_prone_roll_stow_fold_robust.txt](getup_prone_roll_stow_fold_robust.txt).
-Its restart-1 winner is **the recommended prone path**
+
+**All six restart winners verify 12/12**, and 71 of their 72 runs trip no
+servo ([getup_prone_verifyall_stow_fold_robust.txt](getup_prone_verifyall_stow_fold_robust.txt)).
+Their arm poses differ widely:
+
+| restart | left arm | right arm |
+|---|---|---|
+| 0 | 170° | 162° |
+| 1 | −77° (braced under the chest) | 119° |
+| 2 | 110° | −34° |
+| 3 | 115° | 90° |
+| 4 | 195° | 140° |
+| 5 | 146° | −78° |
+
+So the arm stow is not what clears the roll. A searched leg sequence rolls
+the robot with the arms nearly folded (restart 0), and §12.1's hand-built one
+could not.
+
+**Restart 4 has the most margin, and it is the recommended prone path**
 (`getup_v6_prone.ROLL_STOW_FOLD`):
 
-- **The arms**: the left arm is braced forward-down under the chest (−77°,
-  elbow −93°), the right raised back past vertical (119°, elbow −81°). The
-  legs roll the body over the right side. The arms fold up as the back lands.
-- **12/12 standing, no trip**, in the six conditions at both paces
+- **The motion**: the left arm goes overhead (195°, elbow −23°) and the right
+  up and back (140°, elbow −69°). The legs roll the body onto its back. The
+  arms fold to 180° as it lands.
+- **12/12 standing** in the six conditions at both paces, with the cutoff
+  enforced on the torque reading
   ([getup_prone_verify_stow_fold_robust.txt](getup_prone_verify_stow_fold_robust.txt)).
-- **The roll stays below stall.** At full strength the worst servo in the
-  whole chain peaks at 62–68 % of stall, the shoulder in the seat push. At
-  servos 65 % and 3× slower, a hip pitch spends 0.18 s above 80 %.
-- On the stricter duty reading it stands 11/12. With the servos at 65 %, the
-  shoulders trip in the seat push part
-  ([…_robust_duty.txt](getup_prone_verify_stow_fold_robust_duty.txt)).
-- **Current**: 8.8 / 3.8 A peak and 5.5 / 1.9 A over the worst 2 s (upper /
-  lower model) ([current_budget_v6.txt](current_budget_v6.txt)). The first
-  path, in the same script before `ROLL_STOW_FOLD` was switched, drew 15.9 /
-  11.6 A peak and 8.7 / 4.4 A over 2 s (in git history).
-- ROBUST_PLACEHOLDER
+  It is 12/12 on the stricter duty reading too
+  ([…_robust_duty.txt](getup_prone_verify_stow_fold_robust_duty.txt)). No
+  trip in any of the 24 runs.
+- **No servo passes 80 % of stall**, in any run. At full strength the worst
+  in the whole chain peaks at 64 % (a hip roll); with the servos at 65 %, 77 %.
+  The roll's peak torque is 1.75 N·m.
+- **Current**: 9.4 / 4.6 A peak and 5.0 / 2.0 A over the worst 2 s (upper /
+  lower model) ([current_budget_v6.txt](current_budget_v6.txt)). That is the
+  seat push's own level. The first path, in the same script before
+  `ROLL_STOW_FOLD` was switched, drew 15.9 / 11.6 A peak and 8.7 / 4.4 A over
+  2 s (in git history).
 
-![Prone → one arm braced, the other raised → roll onto the back → arms folded → the seat push → standing](figs/getup_prone_chain_sheet.png)
+![Prone → arms raised → roll onto the back → arms folded → the seat push → standing](figs/getup_prone_chain_sheet.png)
 
 ## 4. Catching a forward fall on the hands (candidate 2): a forward roll instead
 
@@ -228,21 +253,22 @@ settled prone robot.
 ## 5. What it says
 
 1. **Prone has a sim-robust path with margin.**
-   - The arms clear the §12.1 leg roll when one braces forward under the
-     chest and the other is raised back. They blocked it when both lay folded
-     up beside the head.
-   - Folding the arms up as the body lands gives the seat push its start.
-   - Searched for margin, the roll no longer needs stall anywhere.
+   - With the leg sequence searched, the robot rolls onto its back with its
+     arms held almost anywhere, folded up included.
+   - Folding them to 180° as the body lands gives the seat push its start.
+   - Scored for margin, the recommended roll never takes a servo above 80 % of
+     stall.
 2. **The scripted seat push only works if the arms are already folded.**
    - From a real backward fall they are not, and the fold flips the robot onto
      its front.
    - The propped-on-the-elbows entry fixes it, robust 12/12 on both readings
      of the servo's load. This belongs in #84's hardware sequence.
 3. **A one-arm roll is torque-bound**: 9/12, at stall. It is not the path.
-4. **A search's nominal winner is not a robust winner.** 1 of 6 nominal-scored
-   restart winners verified 12/12. Scoring the worst of four runs, with the
-   cutoff enforced, found one that holds 12/12 with margin. Verify every
-   restart's winner.
+4. **A search's nominal winner is not a robust winner.**
+   - Only 1 of 6 nominal-scored restart winners verified 12/12.
+   - Scoring the worst of four runs with the cutoff enforced made all 6 of 6
+     robust.
+   - Score robustness in the search, and verify every restart's winner.
 
 **What the firmware needs** (FIRMWARE track, #81/#84):
 

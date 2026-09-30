@@ -107,26 +107,26 @@ NK = 5
 ENTRY_PROPPED = {"l_sh": 5.86, "l_el": -100.0, "l_t": 1.04, "p_hip": 0.0, "p_sh": 85.19, "p_el": -100.0, "p_t": 1.5,
                 "su_hip": -75.67, "su_sh": 80.56, "su_el": -88.05, "su_t": 1.25, "f_hip": -117.69, "f_sh": 130.25,
                 "f_el": -77.77, "f_t": 0.88, "b_t": 1.43}
-# prone -> back: the left arm braced forward-down under the chest, the right
-# arm raised back out of the way, the legs roll the body over the right side,
-# and the arms fold up as it lands (family stow_fold, PRONE_MARGIN=1
-# PRONE_ROBUST=1 search, restart 1); chain it with the recommended seat push
-ROLL_STOW_FOLD = {"stow_L_shoulder": -77.05, "stow_L_elbow": -93.1, "stow_R_shoulder": 119.45,
-                  "stow_R_elbow": -81.31, "k0_L_hip_yaw": -28.54, "k0_L_hip_roll": 35.12, "k0_L_hip_pitch": -77.14,
-                  "k0_L_knee": -20.16, "k0_L_ankle": -23.74, "k0_R_hip_yaw": 6.73, "k0_R_hip_roll": -9.57,
-                  "k0_R_hip_pitch": -31.92, "k0_R_knee": -32.55, "k0_R_ankle": 22.12, "k0_t": 1.64, "k0_h": 1.49,
-                  "k1_L_hip_yaw": 20.18, "k1_L_hip_roll": 10.98, "k1_L_hip_pitch": 66.15, "k1_L_knee": -12.64,
-                  "k1_L_ankle": -11.89, "k1_R_hip_yaw": -1.59, "k1_R_hip_roll": -12.31, "k1_R_hip_pitch": -33.02,
-                  "k1_R_knee": -106.73, "k1_R_ankle": 5.48, "k1_t": 1.7, "k1_h": 0.52, "k2_L_hip_yaw": -37.02,
-                  "k2_L_hip_roll": -14.18, "k2_L_hip_pitch": 45.55, "k2_L_knee": -44.9, "k2_L_ankle": -27.4,
-                  "k2_R_hip_yaw": 11.76, "k2_R_hip_roll": 19.06, "k2_R_hip_pitch": 63.35, "k2_R_knee": -30.6,
-                  "k2_R_ankle": 9.0, "k2_t": 1.26, "k2_h": 0.46, "k3_L_hip_yaw": -17.25, "k3_L_hip_roll": -11.9,
-                  "k3_L_hip_pitch": 29.25, "k3_L_knee": -112.24, "k3_L_ankle": -18.58, "k3_R_hip_yaw": 38.84,
-                  "k3_R_hip_roll": -11.86, "k3_R_hip_pitch": -113.84, "k3_R_knee": -83.55, "k3_R_ankle": -26.03,
-                  "k3_t": 1.19, "k3_h": 0.96, "k4_L_hip_yaw": -14.32, "k4_L_hip_roll": -21.7,
-                  "k4_L_hip_pitch": -40.11, "k4_L_knee": -35.21, "k4_L_ankle": 20.6, "k4_R_hip_yaw": 39.78,
-                  "k4_R_hip_roll": -22.47, "k4_R_hip_pitch": -117.69, "k4_R_knee": -20.1, "k4_R_ankle": 12.13,
-                  "k4_t": 1.5, "k4_h": 1.23}
+# prone -> back: both arms raised (left 195 deg, overhead; right 140 deg, up
+# and back), the legs roll the body over onto its back, and the arms fold to
+# 180 as it lands (family stow_fold, PRONE_MARGIN=1 PRONE_ROBUST=1 search,
+# restart 4: the most margin of its six robust winners); chain it with the
+# recommended seat push
+ROLL_STOW_FOLD = {"stow_L_shoulder": 194.57, "stow_L_elbow": -22.98, "stow_R_shoulder": 140.4,
+                  "stow_R_elbow": -68.65, "k0_L_hip_yaw": -32.42, "k0_L_hip_roll": -12.28, "k0_L_hip_pitch": -10.43,
+                  "k0_L_knee": -31.41, "k0_L_ankle": 31.13, "k0_R_hip_yaw": -34.05, "k0_R_hip_roll": -36.22,
+                  "k0_R_hip_pitch": 17.78, "k0_R_knee": -34.04, "k0_R_ankle": 6.44, "k0_t": 1.09, "k0_h": 0.65,
+                  "k1_L_hip_yaw": 39.87, "k1_L_hip_roll": 15.23, "k1_L_hip_pitch": 76.29, "k1_L_knee": -31.8,
+                  "k1_L_ankle": -33.6, "k1_R_hip_yaw": -28.6, "k1_R_hip_roll": 22.35, "k1_R_hip_pitch": -30.56,
+                  "k1_R_knee": -46.48, "k1_R_ankle": -31.38, "k1_t": 0.88, "k1_h": 0.75, "k2_L_hip_yaw": -0.08,
+                  "k2_L_hip_roll": 14.11, "k2_L_hip_pitch": 38.42, "k2_L_knee": -97.48, "k2_L_ankle": 32.88,
+                  "k2_R_hip_yaw": 38.96, "k2_R_hip_roll": 3.54, "k2_R_hip_pitch": -91.32, "k2_R_knee": -112.17,
+                  "k2_R_ankle": -15.34, "k2_t": 0.96, "k2_h": 0.72, "k3_L_hip_yaw": -6.9, "k3_L_hip_roll": -16.9,
+                  "k3_L_hip_pitch": -28.45, "k3_L_knee": -119.22, "k3_L_ankle": -35.15, "k3_R_hip_yaw": 42.29,
+                  "k3_R_hip_roll": -27.88, "k3_R_hip_pitch": -70.59, "k3_R_knee": -48.42, "k3_R_ankle": -29.5,
+                  "k3_t": 0.47, "k3_h": 0.41, "k4_L_hip_yaw": 2.1, "k4_L_hip_roll": 33.31, "k4_L_hip_pitch": 84.78,
+                  "k4_L_knee": -51.29, "k4_L_ankle": 32.12, "k4_R_hip_yaw": 39.12, "k4_R_hip_roll": 25.49,
+                  "k4_R_hip_pitch": -92.81, "k4_R_knee": -16.53, "k4_R_ankle": -24.32, "k4_t": 2.0, "k4_h": 0.96}
 
 
 # ------------------------------------------------------------------ plant / env
