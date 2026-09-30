@@ -14,20 +14,32 @@ training runs use supply_voltage=11.1. This measures where the real
 servos sit at the actual pack voltage.
 """
 import json
+import os
 import re
+import sys
 import time
 from pathlib import Path
 
 import serial
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bus_cal import BUS_NAMES, BUS_IDS
 
 PORT = "/dev/ttyUSB0"
 TICKS_PER_RAD = 4096.0 / (2.0 * 3.141592653589793)
 POS_RE = re.compile(r"id\s+(\d+)\s+pos\s+(-?\d+)\s+spd\s+(-?\d+)\s+load\s+(-?\d+)"
                     r"\s+([\d.]+)\s*V")
 
-# (label, servo id, sweep lo ticks, sweep hi ticks)  -- inside the envelope
-KNEE = ("R_knee", 3, 1000, 3100)          # ~184 deg of free travel
-HIP = ("L_hip_pitch", 6, 2044, 2900)      # +75 deg backward, lifts the leg
+
+def _id_of(name: str) -> int:
+    """Servo ID for the joint name on the 17-servo bus map (bus_map.h)."""
+    return BUS_IDS[BUS_NAMES.index(name)]
+
+
+# (label, servo id, sweep lo ticks, sweep hi ticks)  -- inside the envelope.
+# IDs are looked up from the bus map so a rename/renumber lands here too.
+KNEE = ("R_knee", _id_of("R_knee"), 1000, 3100)          # ~184 deg of free travel
+HIP = ("L_hip_pitch", _id_of("L_hip_pitch"), 2044, 2900)  # +75 deg backward, lifts the leg
 SPEEDS = [500, 1000, 2000, 3400, 0]       # reg-46 goal speeds; 0 = unlimited
 
 

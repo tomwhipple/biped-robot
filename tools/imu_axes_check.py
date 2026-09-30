@@ -1,6 +1,11 @@
-"""Raw sensor-frame IMU check: accel rotation axis vs gyro integral through slow hip-pitch moves (2026-09-03)."""
-import serial, time, re, math
-CAL=[("L_hip_yaw",10,1692,+1),("L_hip_roll",5,2418,-1),("L_hip_pitch",6,2001,+1),("L_knee",7,1581,-1),("L_ankle",8,3535,+1),("R_hip_yaw",9,1806,+1),("R_hip_roll",1,3532,-1),("R_hip_pitch",2,2479,+1),("R_knee",3,2063,-1),("R_ankle",4,3437,+1)]
+"""Raw sensor-frame IMU check: accel rotation axis vs gyro integral through slow hip-pitch moves (2026-09-03).
+
+Calibration from the board's `cal show` (blob v3, 17-servo bus map);
+asbuilt fallback. Pose strings are 17-wide in servo-ID order.
+"""
+import serial, time, re, math, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bus_cal import BusCal, BusCalError, asbuilt_prototype_cal, fetch_cal
 TPD=4096/360
 s=serial.Serial('/dev/ttyUSB0',115200,timeout=0.15); time.sleep(1.5); s.read(65536); s.write(b'\r\n'); time.sleep(0.4); s.read(65536)
 def cmd(c, until, timeout=3.0, tries=3):
@@ -10,6 +15,9 @@ def cmd(c, until, timeout=3.0, tries=3):
             o+=s.read(4096).decode(errors='replace')
             if re.search(until,o): time.sleep(0.1); return o
     return o
+
+CAL, CAL_SOURCE = fetch_cal(lambda c, until: cmd(c, until))
+print(f'cal source: {CAL_SOURCE}', flush=True)
 pat=re.compile(r'a\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+\|a\|\s+[\d.]+\s+g\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)')
 def burst(n):
     s.read(65536); s.write(f'imu raw {n}\r\n'.encode()); t0=time.time(); o=''
@@ -20,7 +28,8 @@ def burst(n):
 def mean3(rows, k): return [sum(r[k+i] for r in rows)/len(rows) for i in range(3)]
 def unit(v): n=math.sqrt(sum(x*x for x in v)) or 1; return [x/n for x in v]
 def pose(deg, ms=3000):
-    off={'L_hip_pitch':deg,'R_hip_pitch':deg}; t=[int(round(z+d*off.get(n,0)*TPD)) for n,i,z,d in CAL]
+    off={'L_hip_pitch':deg,'R_hip_pitch':deg}
+    t = CAL.pose_ticks(off)
     return cmd('pose '+' '.join(map(str,t))+f' s{ms}', until=r'(streaming|refus|OFF)')
 print(cmd('home', r'(streaming|REFUSED)').strip().splitlines()[0][:40]); time.sleep(3.5)
 for amp in (+12.0, 0.0, -12.0, 0.0):

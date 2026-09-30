@@ -2,11 +2,16 @@
 produce accurate results"): the stance ankle pitches the whole robot; the
 accelerometer at rest before/after is the truth for the tilt change; the 250 Hz
 ring integral through the move is the gyro's answer. Ratio = scale error.
-    .venv/bin/python tools/imu_scale_check.py --leg L   (left foot CLAMPED)"""
-import serial, time, re, math, argparse
+    .venv/bin/python tools/imu_scale_check.py --leg L   (left foot CLAMPED)
+
+Calibration from the board's `cal show` (blob v3, 17-servo bus map);
+asbuilt fallback. Pose strings are 17-wide in servo-ID order.
+"""
+import serial, time, re, math, argparse, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bus_cal import BusCal, BusCalError, asbuilt_prototype_cal, fetch_cal
 ap=argparse.ArgumentParser(); ap.add_argument('--leg', choices=['L','R'], required=True, help='clamped (stance) leg'); ap.add_argument('--joint', default='ankle', choices=['ankle','hip_roll','hip_pitch'], help='stance joint to drive'); ap.add_argument('--amp', type=float, default=8.0); ap.add_argument('--ms', type=int, default=2000)
 A=ap.parse_args()
-CAL=[("L_hip_yaw",10,1692,+1),("L_hip_roll",5,2418,-1),("L_hip_pitch",6,2001,+1),("L_knee",7,1581,-1),("L_ankle",8,3535,+1),("R_hip_yaw",9,1806,+1),("R_hip_roll",1,3532,-1),("R_hip_pitch",2,2479,+1),("R_knee",3,2063,-1),("R_ankle",4,3437,+1)]
 TPD=4096/360; free='R' if A.leg=='L' else 'L'; ankle=f'{A.leg}_{A.joint}'
 s=serial.Serial('/dev/ttyUSB0',115200,timeout=0.15); time.sleep(1.5); s.read(65536); s.write(b'\r\n'); time.sleep(0.4); s.read(65536)
 def cmd(c, until, timeout=4.0, tries=3):
@@ -16,8 +21,14 @@ def cmd(c, until, timeout=4.0, tries=3):
             o+=s.read(4096).decode(errors='replace')
             if re.search(until,o): time.sleep(0.1); return o
     return o
+
+CAL, CAL_SOURCE = fetch_cal(lambda c, until: cmd(c, until))
+print(f'cal source: {CAL_SOURCE}', flush=True)
+if not (CAL.by_name(ankle).fitted and CAL.by_name(f'{free}_hip_pitch').fitted):
+    print('!! a needed joint is NOT FITTED on this robot -- refusing', flush=True); s.close(); sys.exit(2)
 def pose(off, ms):
-    t=[int(round(z+d*off.get(n,0)*TPD)) for n,i,z,d in CAL]; return cmd('pose '+' '.join(map(str,t))+f' s{ms}', until=r'(streaming|refus|OFF)')
+    t = CAL.pose_ticks(off)
+    return cmd('pose '+' '.join(map(str,t))+f' s{ms}', until=r'(streaming|refus|OFF)')
 def base(ank=0.0):
     abd=10.0 if free=='L' else -10.0
     return {f'{free}_hip_pitch':-25.0, f'{free}_knee':-50.0, f'{free}_ankle':-25.0, f'{free}_hip_roll':abd, ankle:ank}

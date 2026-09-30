@@ -7,17 +7,21 @@ after each segment. Reports, per segment: the sample where the servo load
 changes sign, the shaft position step across it (a jump = gearbox lash inside
 the servo; a glide = play outside it), and the torso's peak rate.
     .venv/bin/python tools/ankle_probe.py hw_sessions/<day>/ankleR.csv --leg R
+
+Calibration comes from the board's `cal show` (blob v3, 17-servo bus map);
+the asbuilt prototype table is the fallback. Pose strings are 17-wide in
+servo-ID order.
 """
-import serial, time, re, csv, math, sys, argparse
+import serial, time, re, csv, math, sys, argparse, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bus_cal import BusCal, BusCalError, asbuilt_prototype_cal, fetch_cal
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('out'); ap.add_argument('--leg', choices=['L','R'], required=True, help='stance (clamped) leg')
 ap.add_argument('--amp', type=float, default=3.0); ap.add_argument('--seg-ms', type=int, default=6000)
 A = ap.parse_args()
-CAL = [("L_hip_yaw",10,1692,+1),("L_hip_roll",5,2418,-1),("L_hip_pitch",6,2001,+1),("L_knee",7,1581,-1),("L_ankle",8,3535,+1),
-       ("R_hip_yaw",9,1806,+1),("R_hip_roll",1,3532,-1),("R_hip_pitch",2,2479,+1),("R_knee",3,2063,-1),("R_ankle",4,3437,+1)]
 TPD = 4096/360.0
 free = 'L' if A.leg == 'R' else 'R'
-ankle_name = f'{A.leg}_ankle'; ankle_id = [c[1] for c in CAL if c[0] == ankle_name][0]
+ankle_name = f'{A.leg}_ankle'
 log = open(A.out.replace('.csv','.log'),'w')
 s = serial.Serial('/dev/ttyUSB0', 115200, timeout=0.15); time.sleep(1.5); s.read(65536); s.write(b'\r\n'); time.sleep(0.4); s.read(65536)
 def cmd(c, until, timeout=3.0, tries=3):
@@ -29,7 +33,20 @@ def cmd(c, until, timeout=3.0, tries=3):
         log.write(f'>>> {c} [try {attempt+1}]\n{o}'); log.flush()
         if re.search(until, o): time.sleep(0.15); return o
     return o
-def ticks(off): return [int(round(z + d*off.get(n,0.0)*TPD)) for n,i,z,d in CAL]
+
+# Calibration from the board (`cal show`, blob v3, 17-servo bus map); the
+# asbuilt table is the fallback only when the bus stays a 10-servo prototype.
+CAL, CAL_SOURCE = fetch_cal(lambda c, until: cmd(c, until))
+log.write(f'# cal source: {CAL_SOURCE}\n'); log.flush()
+print(f'cal source: {CAL_SOURCE}', flush=True)
+ankle_id = CAL.by_name(ankle_name).servo_id
+if not CAL.by_name(ankle_name).fitted:
+    print(f'!! {ankle_name} id {ankle_id} is NOT FITTED on this robot -- refusing to run', flush=True)
+    s.close(); sys.exit(2)
+def ticks(off):
+    """17-wide bus-order pose. Offsets in `off` move; everything else holds
+    its calibrated zero. Unfitted servos are skipped by the firmware."""
+    return CAL.pose_ticks(off)
 def base(ankle_deg=0.0):
     # abduction is +roll on the LEFT leg and -roll on the RIGHT (model ranges
     # L -25..+55, R -55..+25); +10 on the right swung it INTO the left leg

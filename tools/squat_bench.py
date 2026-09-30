@@ -6,8 +6,9 @@ minimum-jerk moves, N reps, both cameras recording, every hold read back.
     tools/squat_bench.py hw_sessions/2026-09-13/openloop_dry --thetas 15
 
 Per theta: pose down (s<ms>), settle, read every joint + tilt, pose back to
-zero, settle, read again. Zeros/dirs come from the robot's own `cal show`
-(NVS), asbuilt_cal.h only as the fallback. Guard: torso tilt beyond
+zero, settle, read again. Calibration comes from the robot itself (`cal show`,
+calibration blob v3, 17-servo bus map); the asbuilt prototype table is the
+fallback when the bus cannot be parsed. Guard: torso tilt beyond
 --tilt-abort or a joint stalled far from target -> `release` (torque off;
 gear friction holds the pose, Tom 2026-09-05) and exit 2. Ends with
 `release` (idle = torque released). Opening the port reboots the board to
@@ -15,6 +16,9 @@ BENCH (harmless; the WiFi link re-homes it later with RESET SERVOS).
 """
 import argparse, csv, math, os, re, subprocess, sys, time
 import serial
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bus_cal import (N_BUS, POLICY_ORDER, TICKS_PER_DEG, BusCal, BusCalError,
+                     asbuilt_prototype_cal, fetch_cal)
 
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument("out", help="output base (no extension)")
@@ -45,12 +49,8 @@ ap.add_argument("--cams", default="/dev/video0,/dev/video2")
 ap.add_argument("--no-cam", action="store_true")
 A = ap.parse_args()
 
-NAMES = ["L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle",
-         "R_hip_yaw", "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle"]
-IDS = [10, 5, 6, 7, 8, 9, 1, 2, 3, 4]
-ZERO = [1692, 2418, 2001, 1581, 3535, 1806, 3532, 2479, 2063, 3437]   # asbuilt_cal.h
-DIR = [+1, -1, +1, -1, +1, +1, -1, +1, -1, +1]
-TPD = 4096 / 360.0
+NAMES = list(POLICY_ORDER)         # legacy label list, L row then R row
+TPD = TICKS_PER_DEG
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 log = open(A.out + ".log", "w")
@@ -80,19 +80,34 @@ def release():
     say("!! RELEASED (torque off)")
 
 # --- calibration from the robot itself -------------------------------------
-o = cmd("cal show", until=r"(NVS|DEFAULTS)")
-got = {m.group(1): (int(m.group(2)), int(m.group(3)), int(m.group(4)))
-       for m in re.finditer(r"(\w+)\s+id\s+(\d+)\s+zero\s+(\d+)\s+dir\s+([+-]\d)", o)}
-if all(n in got for n in NAMES):     # `cal show` lists all 17 bus servos
-    for j, n in enumerate(NAMES):
-        i, z, d = got[n]
-        if (i, z, d) != (IDS[j], ZERO[j], DIR[j]):
-            say(f"cal: {n} robot says id {i} zero {z} dir {d:+d} (header {IDS[j]} {ZERO[j]} {DIR[j]:+d}) -- using the robot's")
-        IDS[j], ZERO[j], DIR[j] = i, z, d
-    say("cal source:", "NVS" if "NVS" in o else "DEFAULTS (not saved!)")
+# The board's `cal show` (v3 blob: 17 rows, servo-ID order, `fitted` flag)
+# is the only calibration this script trusts. On a parse failure the
+# fallback is the compiled-in prototype table (bus_cal.asbuilt_prototype_cal);
+# the script aborts unless the fitted set is exactly the ten leg+hip servos
+# it knows how to drive. Zeros/dirs land in `IDS/ZERO/DIR` for the per-joint
+# math below, in the policy order the CSV was originally written in.
+def _cmd_for_cal(c, until):
+    return cmd(c, until=until)
+
+CAL, CAL_SOURCE = fetch_cal(_cmd_for_cal)
+say("cal source:", CAL_SOURCE)
+_by_name = {j.name: j for j in CAL.joints}
+IDS = [_by_name[n].servo_id for n in NAMES]
+ZERO = [_by_name[n].zero_steps for n in NAMES]
+DIR = [_by_name[n].direction for n in NAMES]
+if CAL.source == "asbuilt":
+    fitted_leg = [n for n in NAMES if _by_name[n].fitted]
+    if fitted_leg != NAMES:
+        say(f"!! asbuilt fallback fitted-set mismatch: {fitted_leg} -- refusing to run");
+        sys.exit(2)
+    say("cal show did not parse cleanly; using the compiled-in asbuilt table")
 else:
-    say(f"cal show named {sum(n in got for n in NAMES)}/{len(NAMES)} leg "
-        "joints -- using asbuilt_cal.h values")
+    for j, n in enumerate(NAMES):
+        bj = _by_name[n]
+        if not bj.fitted:
+            say(f"!! {n} id {bj.servo_id}: NOT FITTED on this robot -- refusing to run"); sys.exit(2)
+    say(f"cal: {sum(j.fitted for j in CAL.joints)} of {N_BUS} bus servos fitted; "
+        f"legs all present")
 
 def triple(theta):
     return (-theta, -2 * theta, -theta)          # the level-foot family
@@ -107,12 +122,14 @@ def targets(tr):
             "L_hip_roll": +rl, "R_hip_roll": -rr}
 
 def ticks(tr):
-    off = targets(tr)
-    return [int(round(ZERO[j] + DIR[j] * off.get(n, 0.0) * TPD)) for j, n in enumerate(NAMES)]
+    """17-servo bus-order tick list for firmware pose -- the canonical form
+    (kNumBusJoints since #81/#94). Any joint not named in `tr` is held at its
+    calibrated zero; unfitted joints are skipped by the firmware itself."""
+    return CAL.pose_ticks(targets(tr))
 
 def readback():
     ang, load = [], []
-    for j in range(10):
+    for j in range(len(NAMES)):
         o = cmd(f"pos {IDS[j]}", until=r"load\s+-?\d+.*err", timeout=1.5)
         m = re.search(r"pos\s+(-?\d+)\s+spd\s+(-?\d+)\s+load\s+(-?\d+)", o)
         if m:

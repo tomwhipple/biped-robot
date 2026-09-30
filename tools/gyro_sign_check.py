@@ -8,11 +8,16 @@ The sim's up is framezaxis = body z in WORLD at yaw 0 (column 3 of R), so
 near upright d up_x = +int(gyro_y), d up_y = -int(gyro_x). Verified in sim on
 bimo_biped_v5body (ankle +6: d_up (-0.11, 0), int y -6.28 deg) and on the
 robot after the yaw-strip fix (d_up (-0.100, -0.005), int y -6.55 deg).
-    .venv/bin/python tools/gyro_sign_check.py --joint ankle --amp 6"""
-import serial, time, re, argparse
+    .venv/bin/python tools/gyro_sign_check.py --joint ankle --amp 6
+
+Calibration from the board's `cal show` (blob v3, 17-servo bus map);
+asbuilt fallback. Pose strings are 17-wide in servo-ID order.
+"""
+import serial, time, re, argparse, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bus_cal import BusCal, BusCalError, asbuilt_prototype_cal, fetch_cal
 ap=argparse.ArgumentParser(); ap.add_argument('--joint', default='ankle', choices=['ankle','hip_roll','hip_pitch','knee']); ap.add_argument('--amp', type=float, default=6.0); ap.add_argument('--ms', type=int, default=2000); ap.add_argument('--no-release', action='store_true')
 A=ap.parse_args()
-CAL=[("L_hip_yaw",10,1692,+1),("L_hip_roll",5,2418,-1),("L_hip_pitch",6,2001,+1),("L_knee",7,1581,-1),("L_ankle",8,3535,+1),("R_hip_yaw",9,1806,+1),("R_hip_roll",1,3532,-1),("R_hip_pitch",2,2479,+1),("R_knee",3,2063,-1),("R_ankle",4,3437,+1)]
 TPD=4096/360
 s=serial.Serial('/dev/ttyUSB0',115200,timeout=0.15); time.sleep(1.5); s.read(65536); s.write(b'\r\n'); time.sleep(0.4); s.read(65536)
 def cmd(c, until, timeout=4.0, tries=3):
@@ -22,8 +27,15 @@ def cmd(c, until, timeout=4.0, tries=3):
             o+=s.read(4096).decode(errors='replace')
             if re.search(until,o): time.sleep(0.1); return o
     return o
+
+CAL, CAL_SOURCE = fetch_cal(lambda c, until: cmd(c, until))
+print(f'cal source: {CAL_SOURCE}', flush=True)
+L_name, R_name = f'L_{A.joint}', f'R_{A.joint}'
+if not (CAL.by_name(L_name).fitted and CAL.by_name(R_name).fitted):
+    print(f'!! {L_name}/{R_name} not both FITTED on this robot -- refusing', flush=True); s.close(); sys.exit(2)
 def pose(off, ms):
-    t=[int(round(z+d*off.get(n,0)*TPD)) for n,i,z,d in CAL]; return cmd('pose '+' '.join(map(str,t))+f' s{ms}', until=r'(streaming|refus|OFF)')
+    t = CAL.pose_ticks(off)
+    return cmd('pose '+' '.join(map(str,t))+f' s{ms}', until=r'(streaming|refus|OFF)')
 UP=re.compile(r'up\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)')
 def up_avg(n=5):
     acc=[0.0,0.0,0.0]; k=0
