@@ -113,7 +113,15 @@ Open with the proposal (issue #77):
 - **Current.** Each board port and its splitter carry that side's whole
   current: 9 servos on A, 8 on B, on a ~3 A-class connector
   ([wiring.md](wiring.md#servo-bus)); the budget is open.
-- **Lead lengths** per hop, from the CAD.
+- **Lead lengths** per hop are measured in
+  [wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1): every hop
+  fits the stock 150 mm lead with the fold loop folded in **except the
+  shoulder→elbow hop, which needs ~240 mm** — it crosses the 290° shoulder
+  fold with no strain relief drawn (docs/design-v6/arms.md open item 8). The
+  shoulder lead itself exits the pod through the girdle's open-to-top notch
+  (shoulder_girdle_v6.py §216); the elbow lead's own fold is folded into the
+  same piece. Source: `cad/v6/lead_lengths.py` (constants + an assembly-sweep
+  crosscheck).
 
 The joint names are the plant's: `sim/bimo_biped_v6ar.xml`, with the arms from
 `sim/gen_plant_v6.py`.
