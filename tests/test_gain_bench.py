@@ -432,3 +432,33 @@ def test_the_bench_session_runs_through_lost_acks(tmp_path, monkeypatch):
                            2, 0.0)
     assert [r["gain_write"] for r in res["rows"]] == ["ok", "landed, ack lost",
                                                       "landed, ack lost"]
+
+
+# -- a loaded lever that creeps while released (the salt-cup hold, horizontal) ------
+
+@pytest.mark.parametrize("droop,reseats", [(150, 0), (300, 1)])
+def test_a_creeping_lever_is_lifted_or_reseated(droop, reseats, monkeypatch):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+    script = Script()
+    fake = gb.FakeBoard(sid=30, droop=droop)
+    res = gb.run_hold(fake, gb.Operator(ask=script, say=lambda s: None), 30,
+                      [(32, 32), (64, 64), (128, 128)], ["horizontal"], quiet_s=0.02,
+                      step_ticks=23, step_s=0.03, settle_s=0.0, inertia="salt cup")
+    assert len(res["rows"]) == 3
+    assert all(gb.hold_row(r)["is_quiet"] for r in res["rows"])
+    asked = sum("back at the hold position" in p for p in script.prompts)
+    assert asked == reseats * 2                    # before rungs 2 and 3 (released after 1, 2)
+
+
+def test_a_lever_that_will_not_reseat_aborts(monkeypatch):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+
+    class Stuck(gb.FakeBoard):
+        def rig(self, tau=None, reseat=None, **_):
+            super().rig(tau=tau)                       # the re-seat never happens
+    fake = Stuck(sid=30, droop=300)
+    with pytest.raises(gb.Abort, match="re-seat the rig"):
+        gb.run_hold(fake, gb.Operator(ask=Script(), say=lambda s: None), 30,
+                    [(32, 32), (64, 64)], ["horizontal"], quiet_s=0.02, step_ticks=23,
+                    step_s=0.03, settle_s=0.0, inertia="salt cup")
+    assert not fake.torque

@@ -104,7 +104,11 @@ DEFAULT_LADDER = "32,64,96,128,160"
 # How far a torque-on may move the joint before the script calls it a jump,
 # and how far the hold goal may sit from where the servo is (ticks).
 JUMP_TICKS = 20
-PIN_TICKS = 60
+# A released servo under a load near its gearbox friction (the 0.25 kg hold
+# inertia held horizontal is ~0.28 N*m) can creep between rungs -- onto a rig's
+# stop, 15 deg = 171 ticks below. The torque-on go may lift it back that far
+# at PIN_SPEED; further than this is a re-seat by hand, then an abort.
+PIN_TICKS = 200
 PIN_SPEED = 100                 # steps/s for the move that pins the hold goal
 PARK_SPEED = 200                # steps/s for `park`, a bare horn
 EEPROM_COMMIT_S = 2.0           # firmware/main/cli.cpp kEepromCommitMs
@@ -573,19 +577,22 @@ class FakeBoard:
 
     def __init__(self, sid: int = 30, k32: float = 17.0, buzz_p: int = 255,
                  friction_nm: float = 0.05, pos: int = 2048, latency_s: float = 0.0,
-                 ack_loss: int = 0, log=lambda s: None):
+                 ack_loss: int = 0, droop: int = 0, log=lambda s: None):
         self.sid, self.k32, self.buzz_p, self.fric = sid, k32, buzz_p, friction_nm
         self.latency_s = latency_s
         self.ack_loss = ack_loss      # this many value-CHANGING gain writes land unacked
+        self.droop = droop            # ticks a released, loaded lever creeps down
         self.lock = 1
         self.p, self.d, self.i = 32, 32, 0
         self.torque, self.goal, self.rest, self.tau, self.n = False, pos, pos, 0.0, 0
         self.late = ""
         self.log = log
 
-    def rig(self, tau: Optional[float] = None, **_event) -> None:
+    def rig(self, tau: Optional[float] = None, reseat: Optional[int] = None, **_event) -> None:
         if tau is not None:
             self.tau = tau
+        if reseat is not None:
+            self.rest = reseat
 
     def _pos(self) -> Tuple[int, int]:
         self.n += 1
@@ -653,6 +660,8 @@ class FakeBoard:
             on = c == "torque"
             if on and not self.torque:
                 self.goal = self.rest                 # holds where it is
+            if not on and self.torque:
+                self.rest -= self.droop               # a loaded lever creeps once released
             self.torque = on
             out = f"{c} {a[1] if len(a) > 1 else 'all'}: ok\r\n"
         elif c == "move":
@@ -858,16 +867,26 @@ def capture_goal(board, op: Operator, sid: int, how: str) -> int:
     if read_reg(board, sid, 40) != 0:
         op.say("  torque is ON -- releasing it (the load may drop; hands clear)")
         release(board, sid)
-    op.wait(f"Torque is OFF. {how}. Let go of it")
-    return int(round(_mean([s["pos"] for s in sample(board, sid, n=3)])))
+    op.wait(f"Torque is OFF. {how}. HOLD it there and press enter -- the reading is "
+            f"taken while you hold it")
+    goal = int(round(_mean([s["pos"] for s in sample(board, sid, n=3)])))
+    op.say(f"  hold goal {goal}: let go (a loaded lever may settle onto its stop; the "
+           f"torque-on go lifts it back)")
+    return goal
 
 
 def hold_at(board, op: Operator, sid: int, goal: int, what: str, settle_s: float) -> None:
     """Torque on, then pin the goal to the rig's hold position -- one motion."""
     before = read_pos(board, sid)
     if abs(before["pos"] - goal) > PIN_TICKS:
-        raise Abort(f"id {sid} sits at {before['pos']}, {abs(before['pos'] - goal)} ticks from "
-                    f"the hold goal {goal}: re-seat the rig and start again")
+        op.wait(f"id {sid} sits at {before['pos']}, {abs(before['pos'] - goal)} ticks from the "
+                f"hold goal {goal} (torque is OFF). Put the lever back at the hold position "
+                f"by hand")
+        board.rig(reseat=goal)
+        before = read_pos(board, sid)
+        if abs(before["pos"] - goal) > PIN_TICKS:
+            raise Abort(f"id {sid} sits at {before['pos']}, {abs(before['pos'] - goal)} ticks "
+                        f"from the hold goal {goal}: re-seat the rig and start again")
     op.go(what)
     board.cmd(f"torque {sid}", until=r"torque \S+: \S+\r?\n")
     after = read_pos(board, sid)
@@ -993,8 +1012,10 @@ def run_park(board, op: Operator, sid: int, target: Optional[int],
 
 
 ORIENT_TEXT = {
-    "down": "Let the inertia HANG STRAIGHT DOWN (no static torque: the gear play floats)",
-    "horizontal": "Set the inertia's lever HORIZONTAL (preloaded)",
+    "down": ("Let the inertia HANG STRAIGHT DOWN (no static torque: the gear play floats); "
+             "clear any stop out of its path"),
+    "horizontal": ("Set the inertia's lever HORIZONTAL (preloaded); a stop below it may go "
+                   "back in, clear of the lever"),
 }
 
 
