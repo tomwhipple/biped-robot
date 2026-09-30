@@ -46,9 +46,11 @@ GAINS_READ_FMT = '"id %ld  P %u  D %u  I %u   expected %s"'
 GAINS_OK_FMT = '"id %ld: P %u D %u, verified after commit -- safe to "'
 REG_FMT = '"id %ld reg %ld = %u (0x%02X)\\r\\n"'
 MOVE_FMT = '"move id %ld -> %ld ticks, %ld ms, spd %ld, acc %ld: %s\\r\\n"'
+SCAN_FMT = '"  id %3d  pos %5ld  %4.1f V  err 0x%02X  %s%s\\r\\n"'
 
 
 @pytest.mark.parametrize("fragment", [*POS_FMT, GAINS_READ_FMT, GAINS_OK_FMT, REG_FMT, MOVE_FMT,
+                                      SCAN_FMT, '"%d servo(s)\\r\\n"', "clamped to",
                                       '"%s %s: %s\\r\\n", on ? "torque" : "release"',
                                       'out("? (try `help`)\\r\\n")',
                                       '"busy: the control loop owns the bus'])
@@ -76,11 +78,45 @@ def test_parse_gains_and_reg():
     assert gb.parse_reg(reg, 30, 35) is None
 
 
+def test_parse_scan():
+    fmt = SCAN_FMT.strip('"').replace("\\r\\n", "\r\n")
+    text = ("scanning IDs 0-253 ...\r\n"
+            + c_format(fmt, 1, 3532, 12.1, 0, "R_hip_roll", "")
+            + c_format(fmt, 30, 2048, 12.0, 0x20, "-", "")
+            + "2 servo(s)\r\n")
+    got = gb.parse_scan(text)
+    assert [(g["id"], g["pos"], g["joint"], g["err"]) for g in got] == \
+        [(1, 3532, "R_hip_roll", 0), (30, 2048, "-", 0x20)]
+    assert gb.parse_pos(text, 30) is None                  # not mistaken for a `pos` reply
+
+
+def test_bus_map_ids_are_refused_for_motion(tmp_path, monkeypatch):
+    monkeypatch.setattr("builtins.input", Script())
+    assert gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "1"]) == 2
+    assert "clamps" in open(tmp_path / "session.log").read()
+    assert gb.main(["--rehearse", "--session", str(tmp_path), "read", "1"]) == 0
+
+
+def test_a_clamped_move_releases():
+    class Clamped(gb.FakeBoard):
+        def cmd(self, line, until="", timeout=0.0):
+            out = super().cmd(line, until, timeout)
+            if line.startswith("move"):
+                out = "id 30: 2048 is outside x's range [0..10], clamped to 10\r\n" + out
+            return out
+    fake = Clamped(sid=30)
+    op = gb.Operator(ask=lambda p: "go" if "type go" in p else "", say=lambda s: None)
+    with pytest.raises(gb.Abort, match="pin move"):
+        gb.run_stiffness(fake, op, 30, [(32, 32)], 0.1, [0.5], 2, 0.0)
+    assert not fake.torque
+
+
 def test_the_rehearsal_servo_prints_what_the_firmware_prints():
     fake = gb.FakeBoard(sid=30)
     fmt = POS_FMT[0].strip('"') + POS_FMT[1].strip('"').replace("\\r\\n", "\r\n")
     want = c_format(fmt.replace("%4.1f", "%4.1f"), 30, 2048, 0, 0, 12.1, 31, 0)
     assert fake.cmd("pos 30") == want
+    assert gb.parse_scan(fake.cmd("scan"))[0]["id"] == 30
     assert fake.cmd("gains 30").startswith(
         c_format(GAINS_READ_FMT.strip('"'), 30, 32, 32, 0, "(no row in servo_gains.h)"))
     assert c_format(REG_FMT.strip('"').replace("\\r\\n", "\r\n"), 30, 36, 80, 80) == \
@@ -208,6 +244,18 @@ def test_no_go_stops_before_the_motion(tmp_path):
     with pytest.raises(gb.Abort):
         gb.run_stiffness(fake, op, 30, [(64, 64)], 0.1, [0.5], 2, 0.0)
     assert not fake.torque
+
+
+def test_no_terminal_aborts_and_restores(tmp_path, monkeypatch):
+    def eof(prompt):
+        raise EOFError
+    monkeypatch.setattr("builtins.input", eof)
+    rc = gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "30",
+                  "--ladder", "32,128", "--samples", "2"])
+    assert rc == 2
+    log = open(tmp_path / "session.log").read()
+    assert "no operator on stdin" in log
+    assert re.findall(r">>> gains 30 (\d+) (\d+)\n", log)[-1] == ("32", "32")
 
 
 def test_a_jump_at_torque_on_releases(tmp_path):

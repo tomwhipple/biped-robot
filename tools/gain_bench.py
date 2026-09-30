@@ -8,9 +8,11 @@ its guarded `gains <id> <P> <D>` (refused unless that servo's torque is off;
 EEPROM unlock, write, lock, read back), and every motion is a plain `torque`,
 `move` or `release`. This script sends nothing a human at the CLI could not.
 
-    # step 0 -- one spare STS3215 alone on the bus, on a lever. Give it an ID
-    # the robot does not use (`id 1 30`), or `move` clamps it to that joint's
-    # calibrated envelope.
+    # step 0 -- one spare STS3215 alone on the bus, on a lever. `stiffness` and
+    # `hold` refuse an ID on the robot's bus map (1-17): the firmware clamps a
+    # `move` to that joint's calibrated envelope, AFTER sending it. Re-ID the
+    # spare at the CLI first (`id 1 30`, one servo on the bus).
+    tools/gain_bench.py scan                                # which ID it answers to
     tools/gain_bench.py read      30
     tools/gain_bench.py stiffness 30 --lever-m 0.10
     tools/gain_bench.py hold      30
@@ -126,6 +128,7 @@ POS_RE = re.compile(r"id (\d+)\s+pos\s+(-?\d+)\s+spd\s+(-?\d+)\s+load\s+(-?\d+)\
 GAINS_READ_RE = re.compile(r"id (\d+)\s+P (\d+)\s+D (\d+)\s+I (\d+)")
 GAINS_OK_RE = re.compile(r"id (\d+): P (\d+) D (\d+), verified after commit")
 REG_RE = re.compile(r"id (\d+) reg (\d+) = (\d+)")
+SCAN_RE = re.compile(r"id\s+(\d+)\s+pos\s+(-?\d+)\s+(-?[\d.]+) V\s+err 0x([0-9A-Fa-f]{2})\s+(\S+)")
 UNKNOWN_RE = re.compile(r"\? \(try")
 BUSY_RE = re.compile(r"busy: ")
 
@@ -183,6 +186,11 @@ def parse_gains_write(text: str, sid: int) -> Optional[Tuple[int, int]]:
         if int(m.group(1)) == sid:
             return int(m.group(2)), int(m.group(3))
     return None
+
+
+def parse_scan(text: str) -> List[dict]:
+    return [{"id": int(m.group(1)), "pos": int(m.group(2)), "volt": float(m.group(3)),
+             "err": int(m.group(4), 16), "joint": m.group(5)} for m in SCAN_RE.finditer(text)]
 
 
 def parse_reg(text: str, sid: int, addr: int) -> Optional[int]:
@@ -585,6 +593,9 @@ class FakeBoard:
             load = int(round(1000 * self.tau / STALL_NM)) if self.torque else 0
             out = (f"id {sid}  pos {p:5d}  spd {spd:5d}  load {load:4d}  12.1 V  31 C  "
                    f"err 0x00\r\n")
+        elif c == "scan":
+            out = (f"scanning IDs 0-253 ...\r\n  id {self.sid:3d}  pos {self.rest:5d}  12.1 V  "
+                   f"err 0x00  -\r\n1 servo(s)\r\n")
         elif c == "reg":
             addr = int(a[2])
             v = int(self.torque) if addr == 40 else {21: self.p, 22: self.d, 23: self.i}.get(
@@ -629,8 +640,19 @@ class Operator:
 
     def __init__(self, ask: Optional[Callable[[str], str]] = None,
                  say: Callable[[str], None] = print):
-        self.ask = ask or (lambda prompt: input(prompt))
+        self.ask = ask or self._stdin
         self.say = say
+
+    @staticmethod
+    def _stdin(prompt: str) -> str:
+        # No terminal behind the prompt (a pipe that ran dry, an agent's shell)
+        # is a stop, not a traceback: the session aborts through the same path
+        # as a refused go, which releases and restores the gains. An agent
+        # drives this from a tmux pane with the human's go typed into it.
+        try:
+            return input(prompt)
+        except EOFError:
+            raise Abort("no operator on stdin (EOF) -- run it in a terminal") from None
 
     def go(self, what: str) -> None:
         a = self.ask(f"\n  NEXT MOTION: {what}\n  hands clear of the horn; type go: ")
@@ -736,7 +758,7 @@ def hold_at(board, op: Operator, sid: int, goal: int, what: str, settle_s: float
         raise Abort(f"id {sid} jumped {after['pos'] - before['pos']} ticks at torque-on "
                     f"(a stale goal register?) -- released")
     out = board.cmd(f"move {sid} {goal} 0 {PIN_SPEED}", until=MOVE_UNTIL)
-    if not re.search(r"move id .*: ok", out):
+    if "clamped" in out or not re.search(r"move id .*: ok", out):
         release(board, sid)
         raise Abort(f"id {sid}: the pin move failed: {out.strip()[-80:]!r}")
     time.sleep(settle_s)
@@ -842,7 +864,7 @@ def run_hold(board, op: Operator, sid: int, ladder, orients: Sequence[str], quie
             for leg, frm, to in (("out", goal, goal + step_ticks), ("back", goal + step_ticks, goal)):
                 op.go(f"P {p}: step {to - frm:+d} ticks ({(to - frm) / TICKS_PER_DEG:+.1f}°) at full speed")
                 out = board.cmd(f"move {sid} {to} 0 0", until=MOVE_UNTIL)
-                if not re.search(r"move id .*: ok", out):
+                if "clamped" in out or not re.search(r"move id .*: ok", out):
                     release(board, sid)
                     raise Abort(f"id {sid}: step move failed: {out.strip()[-80:]!r}")
                 row[leg] = {"target": to, "samples": sample(board, sid, seconds=step_s)}
@@ -889,6 +911,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--rehearse", action="store_true",
                     help="run the prompts against a simulated servo -- no hardware")
     sub = ap.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("scan", help="every ID on the bus (the firmware's `scan`), read-only")
 
     s = sub.add_parser("read", help="step 0a: registers, read-only")
     s.add_argument("id", type=int)
@@ -953,6 +977,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if A.rehearse:
                 raise SystemExit("stance drives the whole robot through squat_bench: no rehearsal")
             return run_stance(A, session, op, log)
+        if A.cmd == "scan":
+            return run_scan(A, session, op, log)
         return run_servo(A, session, op, log)
     except (Abort, ValueError) as e:
         op.say(f"\n!! ABORT: {e}")
@@ -960,12 +986,46 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 2
 
 
+def run_scan(A, session: str, op: Operator, log) -> int:
+    if not A.rehearse:
+        op.say("opening the tether: the board reboots, and its boot releases every servo")
+    board = FakeBoard(log=log) if A.rehearse else Board(find_port(A.port), log)
+    try:
+        found, out = [], ""
+        for _ in range(2):                  # the boot may have eaten the first one
+            out = board.cmd("scan", until=r"\d+ servo\(s\)|busy: |\? \(try", timeout=30.0)
+            if BUSY_RE.search(out):
+                raise Abort("the control loop owns the bus -- `bench` it by hand first")
+            if re.search(r"\d+ servo\(s\)", out):
+                found = parse_scan(out)
+                break
+        else:
+            raise Abort(f"no scan reply: {out.strip()[-80:]!r}")
+    finally:
+        board.close()
+    for f in found:
+        op.say(f"  id {f['id']:3d}  pos {f['pos']:5d}  {f['volt']:.1f} V  "
+               f"status {status_names(f['err'])}  {f['joint']}")
+    op.say(f"{len(found)} servo(s)")
+    on_map = [f["id"] for f in found if 1 <= f["id"] <= len(BUS)]
+    if len(found) == 1 and on_map:
+        op.say(f"  id {on_map[0]} is on the robot's bus map: re-ID it at the CLI before "
+               f"stiffness/hold (`id {on_map[0]} 30`)")
+    print("saved", _saver(session, "scan.json")({"servos": found}))
+    return 0
+
+
 def run_servo(A, session: str, op: Operator, log) -> int:
     """read / stiffness / hold: one servo on the bench."""
     sid = A.id
     if 1 <= sid <= len(BUS):
-        op.say(f"note: id {sid} is the robot's {BUS[sid - 1][0]}; `move` clamps to that "
-               f"joint's calibrated envelope. A spare wants an unused ID (`id {sid} 30`).")
+        if A.cmd != "read":
+            raise Abort(f"id {sid} is the robot's {BUS[sid - 1][0]}: the firmware clamps a "
+                        f"`move` to that joint's calibrated envelope after sending it, so "
+                        f"the lever could be driven somewhere else. Re-ID the spare first "
+                        f"(`id {sid} 30` at the CLI, one servo on the bus).")
+        op.say(f"note: id {sid} is the robot's {BUS[sid - 1][0]}; re-ID it (`id {sid} 30`) "
+               f"before stiffness/hold.")
     ladder = parse_ladder(A.ladder, A.d_ratio) if A.cmd != "read" else []
     if not A.rehearse:
         op.say("opening the tether: the board reboots, and its boot releases every servo")
