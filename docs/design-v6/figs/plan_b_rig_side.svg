@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 650" width="830" height="650" font-family="Helvetica, Arial, sans-serif">
+<defs>
+ <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+ <marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+</defs>
+<style>
+ .table{fill:#d9bf97;stroke:#6b5234;stroke-width:1.2}.hat{stroke:#8a6a44;stroke-width:1}
+ .clamp{fill:#8d949c;stroke:#333}.clampf{fill:#5f666e;stroke:#333}.screw{stroke:#333;stroke-width:3}
+ .print{fill:#fbd49b;stroke:#b86e12;stroke-width:1.3}.print2{fill:#f6b25a;stroke:#b86e12;stroke-width:1.3}
+ .servo{fill:#2b2f36;stroke:#111}.horn{fill:#a9b1b9;stroke:#555}.screwhead{fill:#555}.axis{fill:#fff}
+ .lever{fill:#f39a1e;stroke:#9a5b00;stroke-width:1.3}.leverfill{fill:#f39a1e;stroke:none}.notch{fill:#fff;stroke:#9a5b00;stroke-width:1}
+ .ghost{fill:none;stroke:#b86e12;stroke-width:1.4;stroke-dasharray:5 4}.ghostin{fill:none;stroke:#b86e12;stroke-width:1;stroke-dasharray:2 4}
+ .pin{fill:#d0392b;stroke:#7a1d14;stroke-width:1.2}
+ .string{fill:none;stroke:#444;stroke-width:1.4}
+ .bag{fill:#eef2f5;fill-opacity:.7;stroke:#8795a1;stroke-width:1.2}.bottle{fill:#8cc4f2;stroke:#3f7fb5;stroke-width:1.2}
+ .thin{fill:none;stroke:#666;stroke-width:1;stroke-dasharray:3 3}
+ .dim{stroke:#333;stroke-width:1;fill:none}.ext{stroke:#666;stroke-width:.8}.extg{stroke:#666;stroke-width:.8;stroke-dasharray:2 3}
+ .arrow{fill:none;stroke:#333;stroke-width:1.4}
+ .lead{fill:none;stroke:#888;stroke-width:.9}.dot{fill:#888}
+ .t{font-size:12.5px;fill:#222}.b{font-weight:bold}.ts{font-size:11px;fill:#444}.td{font-size:12px;fill:#222}.tw{font-size:8px;fill:#fff}
+</style>
+<rect width="830" height="650" fill="#fff"/>
+<polygon class="table" points="60.0,237.5 195.0,237.5 195.0,200.0 60.0,200.0"/>
+<line class="hat" x1="60.0" y1="203.0" x2="63.0" y2="200.0"/>
+<line class="hat" x1="60.0" y1="213.5" x2="73.5" y2="200.0"/>
+<line class="hat" x1="60.0" y1="224.0" x2="84.0" y2="200.0"/>
+<line class="hat" x1="60.0" y1="234.5" x2="94.5" y2="200.0"/>
+<line class="hat" x1="67.5" y1="237.5" x2="105.0" y2="200.0"/>
+<line class="hat" x1="78.0" y1="237.5" x2="115.5" y2="200.0"/>
+<line class="hat" x1="88.5" y1="237.5" x2="126.0" y2="200.0"/>
+<line class="hat" x1="99.0" y1="237.5" x2="136.5" y2="200.0"/>
+<line class="hat" x1="109.5" y1="237.5" x2="147.0" y2="200.0"/>
+<line class="hat" x1="120.0" y1="237.5" x2="157.5" y2="200.0"/>
+<line class="hat" x1="130.5" y1="237.5" x2="168.0" y2="200.0"/>
+<line class="hat" x1="141.0" y1="237.5" x2="178.5" y2="200.0"/>
+<line class="hat" x1="151.5" y1="237.5" x2="189.0" y2="200.0"/>
+<line class="hat" x1="162.0" y1="237.5" x2="195.0" y2="204.5"/>
+<line class="hat" x1="172.5" y1="237.5" x2="195.0" y2="215.0"/>
+<line class="hat" x1="183.0" y1="237.5" x2="195.0" y2="225.5"/>
+<line class="hat" x1="193.5" y1="237.5" x2="195.0" y2="236.0"/>
+<polygon class="clamp" points="88.5,176.0 115.5,176.0 115.5,191.0 88.5,191.0"/>
+<polygon class="clamp" points="88.5,237.5 115.5,237.5 115.5,246.5 88.5,246.5"/>
+<polygon class="clampf" points="57.0,167.0 115.5,167.0 115.5,176.0 66.0,176.0 66.0,255.5 115.5,255.5 115.5,264.5 57.0,264.5"/>
+<line class="screw" x1="102.0" y1="246.5" x2="102.0" y2="264.5"/>
+<polygon class="print" points="105.0,200.0 345.0,200.0 345.0,125.0 105.0,125.0"/>
+<polygon class="print" points="198.0,224.0 345.0,224.0 345.0,200.0 198.0,200.0"/>
+<polygon class="print2" points="75.0,200.0 195.0,200.0 195.0,191.0 75.0,191.0"/>
+<polygon class="print2" points="186.0,191.0 193.5,191.0 193.5,128.0 186.0,128.0"/>
+<polygon class="print2" points="105.0,191.0 112.5,191.0 112.5,128.0 105.0,128.0"/>
+<polygon class="print2" points="222.0,151.1 279.0,151.1 279.0,145.1 222.0,145.1"/>
+<polygon class="print2" points="222.0,194.9 279.0,194.9 279.0,188.9 222.0,188.9"/>
+<polygon class="servo" points="217.3,188.5 285.2,188.5 285.2,151.5 217.3,151.5"/>
+<text class="tw" x="220.3" y="172.2">STS3215</text>
+<polygon class="ghost" points="256.5,320.0 283.5,320.0 283.5,170.0 256.5,170.0"/>
+<circle class="ghost" cx="270.0" cy="320.0" r="44.2"/>
+<circle class="ghostin" cx="270.0" cy="320.0" r="40.5"/>
+<circle class="lever" cx="270.0" cy="170.0" r="18.0"/>
+<polygon class="lever" points="270.0,183.5 451.5,183.5 451.5,156.5 270.0,156.5"/>
+<circle class="lever" cx="451.5" cy="170.0" r="13.5"/>
+<polygon class="leverfill" points="270.0,182.9 451.5,182.9 451.5,157.1 270.0,157.1"/>
+<polygon class="notch" points="340.5,156.1 349.5,156.1 345.0,161.0"/>
+<polygon class="notch" points="340.5,183.9 349.5,183.9 345.0,179.0"/>
+<polygon class="notch" points="378.0,156.1 387.0,156.1 382.5,161.0"/>
+<polygon class="notch" points="378.0,183.9 387.0,183.9 382.5,179.0"/>
+<polygon class="notch" points="415.5,156.1 424.5,156.1 420.0,161.0"/>
+<polygon class="notch" points="415.5,183.9 424.5,183.9 420.0,179.0"/>
+<circle class="horn" cx="270.0" cy="170.0" r="14.4"/>
+<circle class="screwhead" cx="277.4" cy="162.6" r="3.9"/>
+<circle class="screwhead" cx="262.6" cy="162.6" r="3.9"/>
+<circle class="screwhead" cx="262.6" cy="177.4" r="3.9"/>
+<circle class="screwhead" cx="277.4" cy="177.4" r="3.9"/>
+<circle class="axis" cx="270.0" cy="170.0" r="1.8"/>
+<line class="thin" x1="270.0" y1="170.0" x2="359.8" y2="194.1"/>
+<path class="thin" d="M354.0,170.0 A84.0,84.0 0 0 1 351.1,191.7"/>
+<text class="ts" x="360.0" y="192.0">15°</text>
+<circle class="pin" cx="322.1" cy="207.3" r="9.0"/>
+<ellipse class="string" cx="420.0" cy="171.0" rx="4" ry="14.5"/>
+<line class="string" x1="420.0" y1="185.0" x2="420.0" y2="266.0"/>
+<polygon class="bag" points="402.0,266.0 438.0,266.0 480.0,299.0 483.0,614.0 357.0,614.0 360.0,299.0"/>
+<polygon class="bottle" points="400.5,311.0 439.5,311.0 439.5,323.0 465.0,348.5 468.0,611.0 372.0,611.0 375.0,348.5 400.5,323.0"/>
+<path class="arrow" d="M474.0,158.0 q9,14 0,28" marker-end="url(#ah)"/>
+<path class="arrow" d="M75.0,380.0 v40" marker-end="url(#ah)"/><text class="t" x="83.0" y="405.0">g</text>
+<line class="ext" x1="270.0" y1="150.5" x2="270.0" y2="113.0"/>
+<line class="ext" x1="420.0" y1="153.5" x2="420.0" y2="113.0"/>
+<path class="dim" d="M270.0,117.5 H420.0" marker-start="url(#ahs)" marker-end="url(#ah)"/>
+<text class="td" x="345.0" y="112.5" text-anchor="middle">100.0 mm (3.94 in): the lever arm</text>
+<line class="ext" x1="195.0" y1="237.5" x2="195.0" y2="255.5"/>
+<line class="extg" x1="270.0" y1="186.5" x2="270.0" y2="255.5"/>
+<path class="dim" d="M195.0,251.0 H270.0" marker-start="url(#ahs)" marker-end="url(#ah)"/>
+<text class="td" x="232.5" y="265.0" text-anchor="middle">50 mm</text>
+<text class="t" x="520.0" y="118.0"><tspan class="b" x="520.0" dy="0">Stiffness lever (printed)</tspan><tspan x="520.0" dy="15">130 mm long, 18 × 8 mm; V-notches on both</tspan><tspan x="520.0" dy="15">edges at 50 / 75 / 100 mm</tspan></text>
+<path class="lead" d="M516.0,114.0 L442.5,156.5"/><circle class="dot" cx="442.5" cy="156.5" r="2.2"/>
+<text class="t" x="520.0" y="176.0"><tspan class="b" x="520.0" dy="0">θ = deflection under load</tspan><tspan x="520.0" dy="15">read by the servo's own encoder</tspan><tspan x="520.0" dy="15">(lever bending does not count)</tspan></text>
+<path class="lead" d="M516.0,172.0 L484.0,174.0"/><circle class="dot" cx="484.0" cy="174.0" r="2.2"/>
+<text class="t" x="520.0" y="234.0"><tspan class="b" x="520.0" dy="0">Stop pin (printed, Ø12)</tspan><tspan x="520.0" dy="15">15° below horizontal: catches the lever if</tspan><tspan x="520.0" dy="15">torque drops with weights on.</tspan><tspan x="520.0" dy="15">Pull it for the hanging-down hold.</tspan></text>
+<path class="lead" d="M516.0,230.0 L328.1,211.8"/><circle class="dot" cx="328.1" cy="211.8" r="2.2"/>
+<text class="t" x="520.0" y="308.0"><tspan class="b" x="520.0" dy="0">String loop</tspan><tspan x="520.0" dy="15">seated in the 100 mm notch</tspan></text>
+<path class="lead" d="M516.0,304.0 L421.5,248.0"/><circle class="dot" cx="421.5" cy="248.0" r="2.2"/>
+<text class="t" x="520.0" y="380.0"><tspan class="b" x="520.0" dy="0">Bag + 1 / 2 / 3 full 500 mL bottles</tspan><tspan x="520.0" dy="15">(16.9 fl oz), side by side along the axis:</tspan><tspan x="520.0" dy="15">≈ 0.51 / 1.02 / 1.53 kg (1.12 / 2.25 / 3.37 lb)</tspan><tspan x="520.0" dy="15">→ 0.5 / 1.0 / 1.5 N·m at 100 mm.</tspan><tspan x="520.0" dy="15">Weigh bag + bottles; type what the scale says.</tspan></text>
+<path class="lead" d="M516.0,376.0 L465.0,401.0"/><circle class="dot" cx="465.0" cy="401.0" r="2.2"/>
+<text class="t" x="22.0" y="22.0"><tspan class="b" x="22.0" dy="0">Bracket (printed)</tspan><tspan x="22.0" dy="15">base on the tabletop under a C-clamp; the plate holds the servo's</tspan><tspan x="22.0" dy="15">back (idler) face on two pads, 2 × M2.5×8 flat-head; cradle walls</tspan><tspan x="22.0" dy="15">hug the case and take the torque</tspan></text>
+<path class="lead" d="M150.0,70.0 L150.0,131.0"/><circle class="dot" cx="150.0" cy="131.0" r="2.2"/>
+<text class="t" x="452.0" y="60.0"><tspan class="b" x="452.0" dy="0">Horn</tspan><tspan x="452.0" dy="15">4 × M3×10 button head, Ø14 circle</tspan></text>
+<path class="lead" d="M448.0,56.0 L277.5,161.0"/><circle class="dot" cx="277.5" cy="161.0" r="2.2"/>
+<text class="t" x="22.0" y="470.0"><tspan class="b" x="22.0" dy="0">Hold test, hanging down (dashed)</tspan><tspan x="22.0" dy="15">the hold lever, its cup packed full of table salt:</tspan><tspan x="22.0" dy="15">≈ 0.25 kg (8.8 oz) rigid at 100 mm; stop pin out</tspan></text>
+<path class="lead" d="M160.0,456.0 L249.0,353.0"/><circle class="dot" cx="249.0" cy="353.0" r="2.2"/>
+<text class="t" x="22.0" y="290.0"><tspan x="22.0" dy="0">C-clamp</tspan></text>
+<path class="lead" d="M70.0,286.0 L61.5,230.0"/><circle class="dot" cx="61.5" cy="230.0" r="2.2"/>
+<text class="t" x="22.0" y="322.0"><tspan x="22.0" dy="0">table edge</tspan><tspan x="22.0" dy="15">(section)</tspan></text>
+<path class="lead" d="M80.0,318.0 L135.0,218.0"/><circle class="dot" cx="135.0" cy="218.0" r="2.2"/>
+<text class="ts" x="18" y="636">Side view along the servo's output axis, from the lever side, to scale (1.5 px/mm). Generated by cad/plan_b_rig.py.</text>
+</svg>
