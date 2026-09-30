@@ -122,7 +122,7 @@ This was checked against the schematic and the firmware.
 - **The firmware does not read it.** `board::kPowerAddr` is marked unused, `imu scan` labels 0x42 "(unused)", and battguard reads the servos' register 62 instead.
 - **Open:** reading the INA219 in firmware, and getting pack voltage to the Pi for a low-battery shutdown.
 
-## Current: the open constraint
+## Current: measured budget (issue #77)
 
 The Waveshare wiki FAQ says the bus-servo current "is controlled by a switch, with
 a maximum current of 5A for long-term operation". For ST3215s that means "up to 5
@@ -134,30 +134,47 @@ servo current crosses H1 (3 A per contact), the AO4407 and SW1.
   - 180 mA running with no load.
   - 30 mA idle.
   - Over-current protection turns the output off after more than 2 A for 2 s.
-- **17 servos on this path is an open question.** The bus current has been neither computed nor measured.
-- The bus timing is open too. Twelve servos take ≈ 3.4 ms of the 20 ms tick ([design record](design-v6/2026-09-13-design-record.md) §4.5); nobody has computed the figure for 17.
+- **The per-port budget is computed from the sim's electrical model**, on the
+  committed plant under the deploy servo model, for the two scripted motions
+  the design uses: the Gate D walk and the seat-push get-up. Sim figure, not a
+  measurement; the bench number with a watt meter on the pack lead is still owed
+  ([bringup.md §6](bringup.md#6-staged-hardware-gates)).
+- The bus timing is open. Twelve servos take ≈ 3.4 ms of the 20 ms tick ([design record](design-v6/2026-09-13-design-record.md) §4.5); nobody has computed the figure for 17.
 
-The answer has to come from two places. The first is simulation, before the first
-powered floor run:
+The method (`sim/current_budget.py`):
 
 - `walker_env` prices each joint's electrical power as P = max(τω, 0) + K_CU·τ², with `_K_CU` = 3.75 W/(N·m)².
-- K_CU is calibrated so that the 2.94 N·m stall draws ~32 W, i.e. 2.7 A at 12 V. Bus current is then ΣP / V.
-- `sim/current_budget.py --run <run> [--volts 10.5]` drives a trained policy through the referee's six command scenarios. It reports peak, p99, RMS and mean current for the whole bus, the worst leg and the worst joint.
-- The script needs a policy trained on the robot's plant, and none exists yet.
-- Until one does, the same formula has to be applied to the torque traces of the Gate D walk (`sim/gate_no3250.py walk`) and the scripted get-up. That has not been done.
+- K_CU is calibrated so that the 2.94 N·m stall draws ~32 W, i.e. 2.7 A at 12 V. Bus current is then ΣP / V per tick, summed per port under the proposed ID map (issue #77).
+- `--trace walk` drives the Gate D open-loop walk (8 steps, 1.6 s swing) on `sim/bimo_biped_v6ar.xml`.
+- `--trace getup` drives the scripted seat-push (`getup_v6_shoulder.py` config `r5_asdrawn_rom120`, the design's chosen get-up: shoulder 90 → 0°, elbow (0, 0), tuck at hip −120 / knee −130). The variant stands (up_z +1.00, pelvis 0.387 m).
+- `--run <run>` drives a trained policy through the referee's six command scenarios, for use once a policy exists for this plant.
 
-The second is a bench measurement:
+Per-port figures (amps at an 11.1 V bus; the 10.5 V landing-floor figures are in the JSON):
 
-- Put an inline watt meter (≥ 60 A, with peak hold) on the pack lead during the floor sequence ([bringup.md §6](bringup.md#6-staged-hardware-gates)).
-- A sim figure is a ranking, not a measurement.
+| trace | measure | peak | p99 | RMS | mean |
+|---|---|---|---|---|---|
+| **Gate D walk** (8 steps) | total | 3.34 | 2.53 | 0.54 | 0.36 |
+| | port A (9 servos: R leg, neck, R arm) | 2.28 | 0.87 | 0.22 | 0.17 |
+| | port B (8 servos: L leg, L arm) | 2.46 | 1.77 | 0.35 | 0.20 |
+| | worst joint | 2.46 | 0.65 | 0.22 | 0.17 |
+| **Seat-push get-up** | total | 4.54 | 2.13 | 0.64 | 0.37 |
+| | port A | 2.27 | 1.07 | 0.32 | 0.18 |
+| | port B | 2.27 | 1.07 | 0.32 | 0.18 |
+| | worst joint | 1.16 | 0.74 | 0.21 | 0.12 |
+
+The get-up's per-port figures are equal because the chosen script is left/right
+symmetric: each port carries one leg plus one arm, and the two legs do the same
+work on the symmetric pose.
 
 How to read the numbers:
 
-- **RMS** sizes copper and contacts.
-- **The peak** sizes the fuse and the brown-out margin. The FAQ's "not stalled simultaneously" is about peaks.
+- **RMS** sizes copper and contacts. Per-port RMS stays under 0.4 A on both traces.
+- **The peak** sizes the fuse and the brown-out margin. Neither trace exceeds 3 A on any port, or 5 A on the whole bus. The FAQ's "not stalled simultaneously" is about peaks, and the scripted motions do not stall a servo.
+- The shoulder is an STS3215 in both designs; at 74–78 % of stall in the get-up (design record §14.2) it sits close to the servo's 2 A / 2 s overload protection (registers 34–36), and the in-sim 0.22 A per-joint RMS is consistent with being far from trip on the chosen script. **Watch on the bench.**
 
-For scale, here is the same method on the 10-servo prototype's walking policy.
-These are sim-derived figures and were never measured:
+These figures are from the scripted motions only. A trained walking policy can
+load the bus differently — for scale, the same method on the 10-servo
+prototype's learned walk (`--run`, never measured on hardware):
 
 | | peak | p99 | RMS | mean |
 |---|---|---|---|---|
@@ -165,13 +182,19 @@ These are sim-derived figures and were never measured:
 | worst leg | 4.0 A | — | ~0.7 A | — |
 | worst joint | 3.0 A | — | — | — |
 
-The robot's get-up loads several servos at once. With P × 4 on the rolls and knees,
-the shoulders reach 74 % of stall, and the knees and hip pitches about 52–53 %
-(design record §14.2).
+Two implications, both unset:
 
-If the budget comes out over the limit, two options have been named so far. The
-first is to feed `DC_IN` directly, bypassing the XH inlet and SW1. The second is to
-keep the scripted motions from loading many servos at once. Neither is chosen.
+- The scripted figures clear both the 5 A board limit and the ~3 A-class per-port connector under the proposed ID map, at the deploy servo model. The trained-policy row does not. Whether the eventual trained walk fits the same envelope is an open question, which is why the budget is per-port and re-runnable: `--run <run>` once a policy for `bimo_biped_v6ar.xml` exists.
+- If a later trace puts a port over ~3 A, two options have been named so far. The first is to feed `DC_IN` directly, bypassing the XH inlet and SW1. The second is to keep the scripted motions from loading many servos at once. Neither is chosen — and the choice of inlet, fuse and bulk capacitor stays with the owner.
+
+Reproduce:
+
+```bash
+.venv/bin/python sim/current_budget.py --trace walk  --volts 11.1 --out sim/runs/current_budget_walk.json
+.venv/bin/python sim/current_budget.py --trace getup --volts 11.1 --out sim/runs/current_budget_getup.json
+```
+
+(`sim/runs/` is gitignored; the JSON is a build artifact, not a deliverable.)
 
 ## Servo bus
 
