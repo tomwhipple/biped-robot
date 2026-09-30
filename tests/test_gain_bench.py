@@ -387,3 +387,48 @@ def test_allow_bus_id(tmp_path, monkeypatch):
             "--samples", "2"]
     assert gb.main(args) == 2                                  # refused without the flag
     assert gb.main(args + ["--allow-bus-id"]) == 0
+
+
+# -- a gain write whose ack is lost (#101) -------------------------------------------
+
+def test_a_landed_write_with_a_lost_ack_is_accepted(monkeypatch):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+    fake = gb.FakeBoard(sid=11, ack_loss=1)
+    assert gb.write_gains(fake, 11, 64, 64) == "landed, ack lost"
+    assert (fake.p, fake.d) == (64, 64)
+    assert gb.write_gains(fake, 11, 32, 32) == "ok"
+
+
+def test_an_unlocked_eeprom_is_not_accepted_the_retry_relocks(monkeypatch):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+    fake = gb.FakeBoard(sid=11, ack_loss=1)
+    fake.lock = 0                                  # the re-lock never landed either
+    assert gb.write_gains(fake, 11, 64, 64) == "ok"   # same-value retry: verified, locked
+    assert fake.lock == 1
+
+
+def test_a_write_that_never_lands_is_retried_once_then_refused(monkeypatch):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+
+    class Dead(gb.FakeBoard):
+        def _reply(self, line):
+            if line.startswith("gains") and len(line.split()) == 4:
+                self.writes += 1
+                return "id 11: FAILED (write-failed) -- EEPROM re-lock attempted\r\n"
+            return super()._reply(line)
+    fake = Dead(sid=11)
+    fake.writes = 0
+    with pytest.raises(gb.Abort, match="not verified"):
+        gb.write_gains(fake, 11, 64, 64)
+    assert fake.writes == 2 and (fake.p, fake.d) == (32, 32)
+
+
+def test_the_bench_session_runs_through_lost_acks(tmp_path, monkeypatch):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+    script = Script()
+    op = gb.Operator(ask=script, say=lambda s: None)
+    fake = gb.FakeBoard(sid=30, ack_loss=2)
+    res = gb.run_stiffness(fake, op, 30, [(32, 32), (64, 64), (128, 128)], 0.1, [0.5, 1.0],
+                           2, 0.0)
+    assert [r["gain_write"] for r in res["rows"]] == ["ok", "landed, ack lost",
+                                                      "landed, ack lost"]

@@ -107,6 +107,7 @@ JUMP_TICKS = 20
 PIN_TICKS = 60
 PIN_SPEED = 100                 # steps/s for the move that pins the hold goal
 PARK_SPEED = 200                # steps/s for `park`, a bare horn
+EEPROM_COMMIT_S = 2.0           # firmware/main/cli.cpp kEepromCommitMs
 # Room a hold goal needs around it: the load's deflection either way (1.5 N*m
 # at the model's soft 12 N*m/rad is ~81 ticks) plus the step. The encoder wraps
 # 4095 -> 0, and a bus-map joint's `move` is clamped to its envelope.
@@ -572,9 +573,11 @@ class FakeBoard:
 
     def __init__(self, sid: int = 30, k32: float = 17.0, buzz_p: int = 255,
                  friction_nm: float = 0.05, pos: int = 2048, latency_s: float = 0.0,
-                 log=lambda s: None):
+                 ack_loss: int = 0, log=lambda s: None):
         self.sid, self.k32, self.buzz_p, self.fric = sid, k32, buzz_p, friction_nm
         self.latency_s = latency_s
+        self.ack_loss = ack_loss      # this many value-CHANGING gain writes land unacked
+        self.lock = 1
         self.p, self.d, self.i = 32, 32, 0
         self.torque, self.goal, self.rest, self.tau, self.n = False, pos, pos, 0.0, 0
         self.late = ""
@@ -623,8 +626,8 @@ class FakeBoard:
                    f"err 0x00  -\r\n1 servo(s)\r\n")
         elif c == "reg":
             addr = int(a[2])
-            v = int(self.torque) if addr == 40 else {21: self.p, 22: self.d, 23: self.i}.get(
-                addr, self.REGS.get(addr, 0))
+            v = int(self.torque) if addr == 40 else {21: self.p, 22: self.d, 23: self.i,
+                                                     55: self.lock}.get(addr, self.REGS.get(addr, 0))
             out = f"id {sid} reg {addr} = {v} (0x{v:02X})\r\n"
         elif c == "gains" and len(a) == 2:
             out = (f"id {sid}  P {self.p}  D {self.d}  I {self.i}   expected "
@@ -634,10 +637,18 @@ class FakeBoard:
                 out = (f"REFUSED: id {sid} has torque ON. `release {sid}` first -- gains "
                        f"are written only to a servo that is not holding.\r\n")
             else:
+                changed = (int(a[2]), int(a[3])) != (self.p, self.d)
                 self.p, self.d = int(a[2]), int(a[3])
                 out = (f"id {sid}: writing P {self.p} D {self.d} to EEPROM (torque must be "
-                       f"OFF; no goal is written) ...\r\nid {sid}: P {self.p} D {self.d}, "
-                       f"verified after commit -- safe to power down\r\n")
+                       f"OFF; no goal is written) ...\r\n")
+                if changed and self.ack_loss > 0:       # it landed; the ack did not (#101)
+                    self.ack_loss -= 1
+                    out += (f"id {sid}: FAILED (write-failed) -- EEPROM re-lock attempted; "
+                            f"`gains {sid}` to see what the servo holds\r\n")
+                else:
+                    self.lock = 1                        # the firmware locks, then verifies
+                    out += (f"id {sid}: P {self.p} D {self.d}, verified after commit -- safe "
+                            f"to power down\r\n")
         elif c in ("torque", "release"):
             on = c == "torque"
             if on and not self.torque:
@@ -814,15 +825,33 @@ def release(board, sid: Optional[int] = None) -> None:
     board.cmd("release" + (f" {sid}" if sid is not None else ""), until=r"release \S+: \S+\r?\n")
 
 
-def write_gains(board, sid: int, p: int, d: int) -> None:
-    """The firmware's guarded write, after the release that makes it legal."""
+def write_gains(board, sid: int, p: int, d: int) -> str:
+    """The firmware's guarded write, after the release that makes it legal.
+
+    A write that CHANGES an EEPROM cell can land with its ack lost: the bus
+    waits 3 ms for a reply (scsbus/bus.h) and the cell write takes longer
+    (#101; on the bench 32 -> 64 reported `FAILED (write-failed)` twice with
+    64/64 and the lock in the servo). So on FAILED the read-back decides, by
+    the firmware's own verify rule -- after the commit time its failure path
+    skips: P/D equal and register 55 locked is `landed, ack lost`. Anything
+    else is retried once, then aborts. Returns "ok" or "landed, ack lost"."""
     release(board, sid)
-    out = board.cmd(f"gains {sid} {p} {d}", until=GAINS_WRITE_UNTIL, timeout=8.0)
-    got = parse_gains_write(out, sid)
-    if got != (p, d):
-        raise Abort(f"id {sid}: gains {p}/{d} not verified: {out.strip()[-120:]!r}")
-    if read_gains(board, sid)[:2] != (p, d):
-        raise Abort(f"id {sid}: gains read back differently after the write")
+    out = ""
+    for attempt in (1, 2):
+        out = board.cmd(f"gains {sid} {p} {d}", until=GAINS_WRITE_UNTIL, timeout=8.0)
+        if parse_gains_write(out, sid) == (p, d):
+            if read_gains(board, sid)[:2] != (p, d):
+                raise Abort(f"id {sid}: gains read back differently after the write")
+            return "ok"
+        if not re.search(r"FAILED \(", out):
+            break                                 # refused, or a read-back mismatch
+        time.sleep(EEPROM_COMMIT_S)
+        g, lock = read_gains(board, sid), read_reg(board, sid, 55)
+        board.log(f"# gains {p}/{d} FAILED (attempt {attempt}); read back P {g[0]} D {g[1]}, "
+                  f"lock {lock}")
+        if g[:2] == (p, d) and lock == 1:
+            return "landed, ack lost"
+    raise Abort(f"id {sid}: gains {p}/{d} not verified: {out.strip()[-120:]!r}")
 
 
 def capture_goal(board, op: Operator, sid: int, how: str) -> int:
@@ -895,10 +924,13 @@ def run_stiffness(board, op: Operator, sid: int, ladder, lever_m: float,
            "ladder": ladder, "rows": []}
     for p, d in ladder:
         op.say(f"\n== P {p} D {d}")
-        write_gains(board, sid, p, d)
+        wrote = write_gains(board, sid, p, d)
+        if wrote != "ok":
+            op.say(f"  gains {p}/{d}: {wrote} (read back equal, EEPROM locked; #101)")
         hold_at(board, op, sid, goal, f"P {p} D {d}: torque on, hold the bare lever at "
                                       f"{goal}", settle_s)
-        row = {"p": p, "d": d, "steps": [{"tau": 0.0, "samples": sample(board, sid, n=n)}]}
+        row = {"p": p, "d": d, "gain_write": wrote,
+               "steps": [{"tau": 0.0, "samples": sample(board, sid, n=n)}]}
         for tau in loads_nm:
             m = tau / (G * lever_m)
             m_act = ask_mass(op, f"P {p}: hang {m:.3f} kg in total at {lever_m * 1000:.0f} mm "
@@ -979,10 +1011,12 @@ def run_hold(board, op: Operator, sid: int, ladder, orients: Sequence[str], quie
                    goal + max(0, step_ticks) + DEFLECT_TICKS, env)
         for p, d in ladder:
             op.say(f"\n== {orient}: P {p} D {d}")
-            write_gains(board, sid, p, d)
+            wrote = write_gains(board, sid, p, d)
+            if wrote != "ok":
+                op.say(f"  gains {p}/{d}: {wrote} (read back equal, EEPROM locked; #101)")
             hold_at(board, op, sid, goal, f"P {p} D {d}: torque on, hold the inertia {orient}",
                     settle_s)
-            row = {"p": p, "d": d, "orient": orient, "goal": goal,
+            row = {"p": p, "d": d, "orient": orient, "goal": goal, "gain_write": wrote,
                    "quiet": {"samples": sample(board, sid, seconds=quiet_s)}}
             q = window_stats(row["quiet"]["samples"])
             op.say(f"  hold: range {q['range']} ticks, moving {q['moving']}/{q['n']} "
