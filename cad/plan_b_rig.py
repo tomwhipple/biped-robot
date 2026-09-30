@@ -20,14 +20,17 @@ World frame (the rig on the table): x = the servo's output axis (horn +x),
 y = away from the table (edge at y = 0, table at y < 0), z = up (tabletop
 at z = 0). The servo's idler case face is the plane x = 0.
 
-Seating, from the repo's servo mock (check_assembly.servo_mock): the idler
-side is NOT flat. The back-cover platform stands 1.90 proud of the case face,
-the idler disc 2.05, its hub 2.60 -- and the disc and hub ROTATE. The 8.30
-case-hole row carries the servo's own case screws (heads 1.65 proud). So the
-plate stands off on two 2.5 mm pads at the free 32.75 row (the same row the
-leg's idler grip plate uses), clears everything else by >= 0.6, and a
-cradle hugs the case's two long sides so the lever torque is taken in
-bearing, not by two self-tappers.
+Seating: the servo is screwed to ONE face of the bracket -- its idler face --
+through all four of that face's case holes (rows 8.30 and 32.75 behind the
+axis, +/-10.25 across; ST3215 outline drawing), on a CONFORMAL seat built from
+the leg link's idler grip plate (parts.leg_link): the plate bears on the real
+case face at GRIP_SEAT_CLR, with the back-cover platform detent, M2.5x8 flat
+heads countersunk flush in teardrop bores, and head/driver access through the
+plate behind. Past the leg link's footprint the seat also has to clear the
+idler disc and hub (they ROTATE: a pocket) and the connector trench (the
+sockets open out of this face: a window the plugs and leads pass through). A
+cradle hugs the case's two long sides so the lever torque is also taken in
+bearing.
 
 Run:  .venv/bin/python cad/plan_b_rig.py        (writes cad/stl/plan_b_*.stl,
       print orientation, and prints the fit checks)
@@ -43,6 +46,7 @@ from build123d import (Box, Cone, Cylinder, Location, Plane, Pos, Rot,
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import dimensions as D  # noqa: E402
+import parts as PT  # noqa: E402  (the leg link's own helpers, for idler_seat)
 
 # ------------------------------------------------------------------ the rig
 AXIS_Y = 50.0          # output axis past the table edge
@@ -51,13 +55,23 @@ MID_X = -D.SV_IDLER_CASE_FACE           # servo mid-plane: idler case face at x 
 HORN_X = MID_X + D.SV_HORN_FACE         # 35.20, lever seats here
 
 # ------------------------------------------------------------------ bracket
-PAD_H = 2.5            # standoff: clears platform 1.90 and case-screw heads 1.65
-PAD_D = 6.0            # stays short of the platform band (starts 20.49 from the end)
-SLAB_T = 6.0           # plate thickness behind the pads
-SLAB_X0 = -PAD_H - SLAB_T               # -8.5, the back face (on the bed)
-SCREW_PATH = 5.2       # plastic under an M2.5x8 head: the yaw carrier's 5.2
-                       # (2.8 into the case, fasteners.yaw_wall_screws)
-RELIEF_D = 24.0        # idler disc + hub rotate; the moat reaches r 11.0
+# The idler seat, in the servo frame (x across the case, y the output axis
+# with the horn +y, z along the case, cable end -z): leg_link's idler grip
+# plate -- the same expressions -- run the full case length.
+SEAT_IN = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR             # -14.90, bears on the case
+SEAT_OUT = SEAT_IN - D.GRIP_PLATE_T_IDLER                    # -17.90, heads flush here
+SEAT_X = (-12.36 - D.WEB_GAP - 2.4, 13.2)                    # leg_link's plate width
+SEAT_Z = (D.GRIP_BOT, D.SV_AXIS_FROM_OUT_END + 0.5)          # -36 .. past the output end
+DISC_R = D.GRIP_HORN_RELIEF                                  # 10.30 round the O19.2 disc
+DISC_FLOOR = D.SV_BOTFACE - 0.3                              # -17.65: 0.3 past the hub
+# the bracket plate (world): its front face is the seat's back face
+PLATE_X1 = SEAT_OUT - D.SV_IDLER_CASE_FACE                   # -3.15
+SLAB_T = 6.0
+SLAB_X0 = PLATE_X1 - SLAB_T                                  # -9.15, back face (on the bed)
+# connector WINDOW over the measured trench, through seat and plate (the roll
+# bay's margins, parts.py: 0.45 axis side, 1.0 cable-end side, +/-0.5 across)
+WIN_Z = (-D.SV_CONN_L[1] - 1.0, -D.SV_CONN_L[0] + 0.45)      # servo frame
+WIN_HW = D.SV_CONN_HW + 0.5
 CRADLE_CLR = 0.25      # per side, across the case width
 CRADLE_T = 4.0
 CRADLE_X1 = 10.0       # cradle walls reach 10 mm up the case side
@@ -123,42 +137,75 @@ def pin_centre():
 
 
 def case_holes():
-    """The free idler-side row, world (y, z)."""
-    y = AXIS_Y - D.CASE_HOLES_BOT[1]
-    return [(y, AXIS_Z + s * D.CASE_HOLE_LAT) for s in (1, -1)]
+    """The idler face's four case holes, servo frame (x, z): rows 8.30 and
+    32.75 behind the axis, +/-10.25 across (the outline drawing's idler view)."""
+    return [(s * D.CASE_HOLE_LAT, -row) for row in D.CASE_HOLES_BOT for s in (1, -1)]
+
+
+def idler_seat():
+    """The conformal seat on the idler face, servo frame. leg_link's idler
+    grip plate (seat, platform detent + its ramp, teardrop bores, flush
+    countersinks), run the whole case length so it takes BOTH hole rows,
+    plus the two features that length meets: the rotating disc and hub (a
+    pocket) and the connector trench (a window, cut in bracket())."""
+    p = PT.box(*SEAT_X, SEAT_OUT, SEAT_IN, *SEAT_Z)
+    # platform DETENT and its ramp (leg_link, verbatim)
+    _ix = D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR
+    _iy0 = SEAT_IN
+    _iy1 = D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR
+    _iz0 = D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR
+    _iz1 = D.SV_IDLER_BOSS_Z[1] + D.RIB_RELIEF_CLR
+    p -= PT.box(-_ix, _ix, _iy1, _iy0 + 0.01, _iz0, _iz1)
+    _irr = 1.2 * (_iy0 - _iy1)
+    p -= PT.wedge_z([(_ix, _iy0), (_ix, _iy1), (_ix + _irr, _iy0)], _iz0 - 0.6, _iz1 + 0.6)
+    # the idler disc and hub turn with the joint: never touched
+    p -= PT.cyl_y(DISC_R, DISC_FLOOR, SEAT_IN + 1, 0, 0)
+    # case screws, M2.5x8 flat head countersunk flush (leg_link's idler row,
+    # on both rows)
+    for x, z in case_holes():
+        p -= PT.teardrop_y(D.CASE_SCREW_CLEAR / 2, SEAT_OUT - 1, SEAT_IN + 1, x, z, roll=90)
+        p -= PT.csk_y(x, z, SEAT_OUT, -1)
+    return p
+
+
+def access_bores():
+    """Head/driver access behind each seat countersink, servo frame: leg_link's
+    idler access bore (0.05 into the seat), carried through the plate."""
+    a = None
+    for x, z in case_holes():
+        t = PT.teardrop_y(D.CASE_CS_D / 2 + 0.4, SEAT_OUT - SLAB_T - 1, SEAT_OUT + 0.05,
+                          x, z, roll=90)
+        a = t if a is None else a + t
+    return a
 
 
 def bracket():
-    b = box(SLAB_X0, -PAD_H, *PLATE_Y, 0.0, PLATE_Z1)
-    b += box(SLAB_X0, -PAD_H, TAB_Y0, PLATE_Y[1], TAB_Z0, 0.0)
+    b = box(SLAB_X0, PLATE_X1, *PLATE_Y, 0.0, PLATE_Z1)
+    b += box(SLAB_X0, PLATE_X1, TAB_Y0, PLATE_Y[1], TAB_Z0, 0.0)
     # base on the tabletop, on the servo side, over the table only
     b += box(SLAB_X0, BASE_X1, BASE_Y0, 0.0, 0.0, BASE_T)
     for y0 in (-GUSSET_T - 1.0, PLATE_Y[0]):
         b += _gusset(y0)
-    # pads + cradle
-    for y, z in case_holes():
-        b += cyl_x(PAD_D / 2, -PAD_H, 0.0, y, z)
+    # the conformal seat on the plate's front face, and the cradle
+    b += servo_frame() * idler_seat()
+    seat_x = -D.GRIP_SEAT_CLR                        # the seat face, world
     half = D.SV_WID / 2 + CRADLE_CLR
     for z0, z1 in ((AXIS_Z + half, AXIS_Z + half + CRADLE_T),
                    (AXIS_Z - half - CRADLE_T, AXIS_Z - half)):
-        b += box(-PAD_H, CRADLE_X1, *CRADLE_Y, z0, z1)
-    # cuts: disc relief, stop-pin hole, screws (counterbore from the back to
-    # leave SCREW_PATH of plastic, then the 90 deg countersink)
-    b -= cyl_x(RELIEF_D / 2, SLAB_X0 - 1, 1.0, AXIS_Y, AXIS_Z)
+        b += box(seat_x, CRADLE_X1, *CRADLE_Y, z0, z1)
+    # through seat + plate: the connector window; through the plate: each
+    # screw's head/driver access (leg_link's access bore, carried to the back
+    # face); and the stop-pin hole
+    b -= servo_frame() * PT.box(-WIN_HW, WIN_HW, SEAT_OUT - SLAB_T - 1, SEAT_IN + 1, *WIN_Z)
+    b -= servo_frame() * access_bores()
     py, pz = pin_centre()
     b -= cyl_x(PIN_HOLE_D / 2, SLAB_X0 - 1, 1.0, py, pz)
-    seat = -SCREW_PATH
-    for y, z in case_holes():
-        b -= cyl_x(D.CASE_SCREW_CLEAR / 2, SLAB_X0 - 1, 1.0, y, z)
-        b -= cyl_x(3.2, SLAB_X0 - 1, seat - D.CASE_CS_DEPTH, y, z)
-        b -= cone_x(D.CASE_CS_D / 2, D.CASE_SCREW_CLEAR / 2,
-                    seat - D.CASE_CS_DEPTH, seat, y, z)
     return b
 
 
 def _gusset(y0):
     """Triangular rib in the plane y = const, slab face to base top."""
-    x0, x1, z0, z1 = -PAD_H, BASE_X1 - 5.0, BASE_T, PLATE_Z1 - 2.0
+    x0, x1, z0, z1 = PLATE_X1, BASE_X1 - 5.0, BASE_T, PLATE_Z1 - 2.0
     tri = Polygon((x0, z0), (x1, z0), (x0, z1), align=None)
     # Polygon lives in XY; stand it up into XZ and give it thickness in +y
     return Pos(0, y0, 0) * Rot(90, 0, 0) * extrude(tri, amount=-GUSSET_T)
@@ -192,8 +239,14 @@ def lever_stiff():
     for x in NOTCHES:
         for s in (1, -1):
             e = s * LEVER_H / 2
-            tri = Polygon((x - NOTCH_DEPTH, e + s * 0.01), (x + NOTCH_DEPTH, e + s * 0.01),
-                          (x, e - s * NOTCH_DEPTH), align=None)
+            pts = [(x - NOTCH_DEPTH, e + s * 0.01), (x + NOTCH_DEPTH, e + s * 0.01),
+                   (x, e - s * NOTCH_DEPTH)]
+            if s > 0:
+                # counter-clockwise on BOTH edges: extrude() follows the face
+                # normal, and a clockwise triangle extrudes -z, away from the
+                # lever -- which silently left the +y edge un-notched
+                pts.reverse()
+            tri = Polygon(*pts, align=None)
             p -= Pos(0, 0, -1) * extrude(tri, amount=LEVER_T + 2)
     return root_holes(p)
 
@@ -237,10 +290,14 @@ def stop_pin_in_world(part):
     return pl.location * part
 
 
+def servo_frame():
+    """Servo frame -> world, shared by the servo mock and its seat."""
+    return Plane(origin=(MID_X, AXIS_Y, AXIS_Z), x_dir=(0, 0, 1), z_dir=(0, 1, 0)).location
+
+
 def servo_in_world():
     import check_assembly as CA
-    pl = Plane(origin=(MID_X, AXIS_Y, AXIS_Z), x_dir=(0, 0, 1), z_dir=(0, 1, 0))
-    return pl.location * CA.servo_mock()
+    return servo_frame() * CA.servo_mock()
 
 
 def table():
@@ -274,6 +331,17 @@ def main():
 
     print("fit checks (mm3 of overlap; the servo is the repo's conservative mock):")
     check("bracket vs servo", vol(br, sv))
+    check("bracket BEARS on the idler case face (servo 0.2 toward it)",
+          vol(br, Pos(-0.2, 0, 0) * sv), want_zero=False)
+    for d in (0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 20.0):   # its way on: straight onto the face
+        check(f"servo {d:g} mm off the face along the axis (seats straight on)",
+              vol(br, Pos(d, 0, 0) * sv))
+    # the seat IS leg_link's idler grip plate over that plate's footprint
+    # below the connector window (servo frame)
+    reg = PT.box(*SEAT_X, SEAT_OUT, SEAT_IN, D.GRIP_BOT, WIN_Z[0] - 0.01)
+    ref, ours = PT.leg_link() & reg, (idler_seat() - access_bores()) & reg
+    check("seat vs parts.leg_link's idler grip plate (symmetric difference)",
+          ref.volume + ours.volume - 2 * (ref & ours).volume)
     check("bracket vs table", vol(br, tb))
     check("servo vs table", vol(sv, tb))
     for name, lev in (("stiff lever", ls), ("hold lever", lh)):
@@ -287,6 +355,10 @@ def main():
         check(f"{name} 16 deg down HITS the stop pin",
               vol(lever_in_world(lev, PIN_DROP_DEG + 1), pin_w), want_zero=False)
     check("stop pin vs servo", vol(pin_w, sv))
+    for x in NOTCHES:                       # a notch on BOTH edges at every station
+        for sg, edge in ((1, "top"), (-1, "bottom")):
+            probe = Pos(x, sg * (LEVER_H / 2 - 1.0), LEVER_T / 2) * Box(1.0, 1.0, LEVER_T - 1.0)
+            check(f"stiff lever {x:g} mm notch, {edge} edge: cut", vol(ls, probe))
 
     py, pz = pin_centre()
     print(f"axis at y {AXIS_Y}, z {AXIS_Z}; horn face x {HORN_X:.2f}; "
@@ -563,7 +635,7 @@ def diagram_svg(path):
            "Weigh bag + bottles; type what the scale says."], P(ny + 30, bag_top - 90))
     label(22, 22, "Bracket (printed)",
           ["base on the tabletop under a C-clamp; the plate holds the servo's",
-           "back (idler) face on two pads, 2 × M2.5×8 flat-head; cradle walls",
+           "idler face on a conformal seat, 4 × M2.5×8 flat-head; cradle walls",
            "hug the case and take the torque"], P(-30, PLATE_Z1 - 4))
     L[-1] = leader((150, 70), P(-30, PLATE_Z1 - 4))
     label(452, 60, "Horn", ["4 × M3×10 button head, Ø14 circle"], P(AXIS_Y + 5, AXIS_Z + 6))

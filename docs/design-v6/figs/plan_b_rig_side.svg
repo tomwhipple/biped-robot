@@ -98,7 +98,7 @@
 <path class="lead" d="M516.0,304.0 L421.5,248.0"/><circle class="dot" cx="421.5" cy="248.0" r="2.2"/>
 <text class="t" x="520.0" y="380.0"><tspan class="b" x="520.0" dy="0">Bag + 1 / 2 / 3 full 500 mL bottles</tspan><tspan x="520.0" dy="15">(16.9 fl oz), side by side along the axis:</tspan><tspan x="520.0" dy="15">≈ 0.51 / 1.02 / 1.53 kg (1.12 / 2.25 / 3.37 lb)</tspan><tspan x="520.0" dy="15">→ 0.5 / 1.0 / 1.5 N·m at 100 mm.</tspan><tspan x="520.0" dy="15">Weigh bag + bottles; type what the scale says.</tspan></text>
 <path class="lead" d="M516.0,376.0 L465.0,401.0"/><circle class="dot" cx="465.0" cy="401.0" r="2.2"/>
-<text class="t" x="22.0" y="22.0"><tspan class="b" x="22.0" dy="0">Bracket (printed)</tspan><tspan x="22.0" dy="15">base on the tabletop under a C-clamp; the plate holds the servo's</tspan><tspan x="22.0" dy="15">back (idler) face on two pads, 2 × M2.5×8 flat-head; cradle walls</tspan><tspan x="22.0" dy="15">hug the case and take the torque</tspan></text>
+<text class="t" x="22.0" y="22.0"><tspan class="b" x="22.0" dy="0">Bracket (printed)</tspan><tspan x="22.0" dy="15">base on the tabletop under a C-clamp; the plate holds the servo's</tspan><tspan x="22.0" dy="15">idler face on a conformal seat, 4 × M2.5×8 flat-head; cradle walls</tspan><tspan x="22.0" dy="15">hug the case and take the torque</tspan></text>
 <path class="lead" d="M150.0,70.0 L150.0,131.0"/><circle class="dot" cx="150.0" cy="131.0" r="2.2"/>
 <text class="t" x="452.0" y="60.0"><tspan class="b" x="452.0" dy="0">Horn</tspan><tspan x="452.0" dy="15">4 × M3×10 button head, Ø14 circle</tspan></text>
 <path class="lead" d="M448.0,56.0 L277.5,161.0"/><circle class="dot" cx="277.5" cy="161.0" r="2.2"/>
