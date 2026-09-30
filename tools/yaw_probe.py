@@ -9,15 +9,18 @@ on the measured gravity axis, bias-corrected from a stationary burst just
 before each 1 deg step and integrated over a burst covering the slow move.
 
     .venv/bin/python tools/yaw_probe.py hw_sessions/<day>/yaw1.csv [--modes both,left,right]
+
+Calibration from the board's `cal show` (blob v3); asbuilt fallback.
+Pose strings are 17-wide in servo-ID order.
 """
-import serial, time, re, csv, math, sys, argparse
+import serial, time, re, csv, math, sys, argparse, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bus_cal import BusCal, BusCalError, asbuilt_prototype_cal, fetch_cal
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('out'); ap.add_argument('--modes', default='both,left,right,opposite')
 ap.add_argument('--max', type=float, default=4.0); ap.add_argument('--step', type=float, default=2.0)
 ap.add_argument('--spd', type=int, default=15); ap.add_argument('--tilt-abort', type=float, default=6.0)
 A = ap.parse_args()
-CAL = [("L_hip_yaw",10,1692,+1),("L_hip_roll",5,2418,-1),("L_hip_pitch",6,2001,+1),("L_knee",7,1581,-1),("L_ankle",8,3535,+1),
-       ("R_hip_yaw",9,1806,+1),("R_hip_roll",1,3532,-1),("R_hip_pitch",2,2479,+1),("R_knee",3,2063,-1),("R_ankle",4,3437,+1)]
 TPD = 4096/360.0
 N = int(round(A.max/A.step))
 STEPS = [k*A.step for k in range(1, N+1)] + [k*A.step for k in range(N-1, -N-1, -1)] + [k*A.step for k in range(-N+1, 1)]
@@ -68,17 +71,22 @@ def unit(v):
 def mean(rows): return tuple(sum(r[i] for r in rows)/len(rows) for i in range(3))
 def dot(a,b): return sum(x*y for x,y in zip(a,b))
 def pose_ticks(yawL, yawR):
-    t=[]
-    for name,i,zero,d in CAL:
-        deg = yawL if name=='L_hip_yaw' else yawR if name=='R_hip_yaw' else 0.0
-        t.append(int(round(zero + d*deg*TPD)))
-    return t
+    """17-wide bus-order pose: yaw L by yawL, R by yawR, hold others at zero."""
+    return CAL.pose_ticks({'L_hip_yaw': yawL, 'R_hip_yaw': yawR})
 def servo_pos(i):
     o,_ = cmd(f'pos {i}', until=r'load\s+-?\d+.*err'); m = re.search(r'pos\s+(-?\d+)', o)
     return int(m.group(1)) if m else None
 def pose(yawL, yawR):
     o,_ = cmd('pose ' + ' '.join(map(str, pose_ticks(yawL, yawR))) + f' {A.spd}', until=r'(ok|refus|OFF|usage|busy)')
     return o
+
+# Calibration from the board (`cal show`, blob v3, 17-servo bus map).
+# cmd() returns (reply, seconds); bus_cal's callback wants just the reply.
+CAL, CAL_SOURCE = fetch_cal(lambda c, until: cmd(c, until)[0])
+log.write(f'# cal source: {CAL_SOURCE}\n'); log.flush()
+print(f'cal source: {CAL_SOURCE}', flush=True)
+if not (CAL.by_name('L_hip_yaw').fitted and CAL.by_name('R_hip_yaw').fitted):
+    print('!! a hip yaw is NOT FITTED on this robot -- refusing', flush=True); s.close(); sys.exit(2)
 # torque pre-check: goals at zero must be accepted (never auto-enable torque from here)
 o = pose(0.0, 0.0)
 if 'ok' not in o: print('!! pose refused:', o.strip()[:120]); sys.exit(2)

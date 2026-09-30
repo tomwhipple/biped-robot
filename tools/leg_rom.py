@@ -8,8 +8,14 @@ Pose family (torso level, foot level, foot stays under the hip):
 Every step: `pose` (one sync write), settle, then per-joint position error and
 load for the moving joints, torso tilt vs the start pose, free-leg loads, and a
 camera frame. Aborts back to zero on tilt > --tilt-abort or a stalled joint.
+
+Calibration comes from the board's `cal show` (blob v3, 17-servo bus map);
+the asbuilt prototype table is the fallback. Pose strings are sent in the
+canonical 17-wide servo-ID order (the firmware skips non-fitted joints).
 """
 import serial, time, re, csv, math, sys, argparse, subprocess, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bus_cal import BusCal, BusCalError, asbuilt_prototype_cal, fetch_cal
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('out'); ap.add_argument('--legs', choices=['L','R','both'], required=True)
 ap.add_argument('--thetas', default='10,20,30,40,45,40,30,20,10,0')
@@ -23,8 +29,6 @@ ap.add_argument('--roll', type=float, default=0.0, help='hip roll (abduction, +)
 ap.add_argument('--cam', default='/dev/video0')
 ap.add_argument('--burst', type=int, default=0, help='IMU raw samples to stream right after each pose (~11/s): captures the move + ringing; gyro rows go to <out>_gyro.csv')
 A = ap.parse_args()
-CAL = [("L_hip_yaw",10,1692,+1),("L_hip_roll",5,2418,-1),("L_hip_pitch",6,2001,+1),("L_knee",7,1581,-1),("L_ankle",8,3535,+1),
-       ("R_hip_yaw",9,1806,+1),("R_hip_roll",1,3532,-1),("R_hip_pitch",2,2479,+1),("R_knee",3,2063,-1),("R_ankle",4,3437,+1)]
 TPD = 4096/360.0
 log = open(A.out.replace('.csv','.log'),'w')
 def openport():
@@ -33,6 +37,24 @@ def openport():
         except Exception: time.sleep(0.5)
     raise SystemExit('serial port never came back')
 s = openport(); time.sleep(1.5); s.read(65536); s.write(b'\r\n'); time.sleep(0.4); s.read(65536)
+
+# --- Calibration from the board (blob v3, 17-servo bus map) ------------------
+# `cal show` is the source of truth; asbuilt fallback is refused unless the
+# fitted set still matches the prototype's ten leg servos (this script knows
+# only hip/knee/ankle poses — there is no plan for it on the robot's arms
+# and neck yet).
+def _cmd_for_cal(c, until):
+    return cmd(c, until=until)
+
+# cmd() is defined below; defer the fetch until after it exists. We do a
+# forward declaration here so the calibration is in scope for the pose helpers.
+CAL = None
+def _load_cal():
+    global CAL
+    CAL, source = fetch_cal(_cmd_for_cal)
+    log.write(f'# cal source: {source}\n'); log.flush()
+    print(f'cal source: {source}', flush=True)
+    return CAL
 def cmd(c, until, timeout=3.0, tries=4):
     global s
     for attempt in range(tries):
@@ -61,18 +83,22 @@ def offsets(theta):
         off[f'{side}_hip_pitch'] = -theta; off[f'{side}_knee'] = -2*theta; off[f'{side}_ankle'] = -theta
         if A.legs != 'both': off[f'{side}_hip_roll'] = A.roll if side == 'L' else -A.roll   # abduction: +L, -R (model ranges)
     return off
-def ticks(off): return [int(round(z + d*off.get(n,0.0)*TPD)) for n,i,z,d in CAL]
+def ticks(off):
+    """17-wide bus-order tick list. Joint names in `off` move; unfitted servos
+    are skipped by the firmware on the wire."""
+    return CAL.pose_ticks(off)
 def pose(off):
     """Send ONE pose; verify by reply, else by watching the witness joint move.
     Never resend a pose that may already be running (a resend mid-move restarts
     the profile from mid-travel -- found 2026-09-03 via the knee trace)."""
     tail = (f's{A.smooth_ms} {A.stream_opts}' + (f' T{A.trace_id}' if A.trace_id else '')).strip() if A.smooth_ms else f't{A.unison_ms}' if A.unison_ms else f'{A.spd}'
-    tk = ticks(off); names = [c[0] for c in CAL]
+    tk = ticks(off)
     cur = {}
-    for n,i,z,d in CAL:
-        p = pos(i)
-        if p: cur[n] = p[0]
-    wit = max(cur, key=lambda n: abs(tk[names.index(n)] - cur[n])) if cur else None
+    for j in CAL.joints:
+        if not j.fitted: continue
+        p = pos(j.servo_id)
+        if p: cur[j.name] = p[0]
+    wit = max(cur, key=lambda n: abs(tk[CAL.by_name(n).bus_index] - cur[n])) if cur else None
     for attempt in range(3):
         s.read(65536); s.write(('pose ' + ' '.join(map(str, tk)) + f' {tail}\r\n').encode())
         t0 = time.time(); o = ''
@@ -83,10 +109,10 @@ def pose(off):
         if re.search(r'(ok|streaming|refus|OFF|usage|busy|answer)', o): return o
         if wit is None: return o
         time.sleep(0.6)
-        p = pos(CAL[names.index(wit)][1])
+        p = pos(CAL.by_name(wit).servo_id)
         if p and abs(p[0] - cur[wit]) >= 3:
             log.write(f'   (no reply, but {wit} moved: taken)\n'); return 'streaming (verified by motion)'
-        if abs(tk[names.index(wit)] - cur[wit]) < 3: return 'ok (no move needed)'
+        if abs(tk[CAL.by_name(wit).bus_index] - cur[wit]) < 3: return 'ok (no move needed)'
     return o
 def burst(n):
     pat = re.compile(r'a\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+\|a\|\s+[\d.]+\s+g\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)')
@@ -111,15 +137,16 @@ def frame(tag):
     f = A.out.replace('.csv', f'_{tag}.jpg')
     subprocess.run(['ffmpeg','-loglevel','error','-y','-f','v4l2','-video_size','1280x720','-input_format','mjpeg','-i',A.cam,'-frames:v','1',f], timeout=20)
     return os.path.basename(f) if os.path.exists(f) else ''
-moving = [c for c in CAL if c[0] in offsets(1.0)]
-watch = [c for c in CAL if c[0] not in offsets(1.0) and c[0].endswith(('_ankle','_knee','_hip_pitch'))]
+_load_cal()
+moving = [j for j in CAL.joints if j.fitted and j.name in offsets(1.0)]
+watch = [j for j in CAL.joints if j.fitted and j.name not in offsets(1.0) and j.name.endswith(('_ankle','_knee','_hip_pitch'))]
 o = pose(offsets(0.0))
 if not re.search(r'ok|streaming', o): print('!! pose refused:', o.strip()[:120]); sys.exit(2)
 time.sleep(1.5); base = imu(); print(f'start pose ok; tilt reference {base}', flush=True)
 gw = None
 if A.burst:
     gw = csv.writer(open(A.out.replace('.csv','_gyro.csv'),'w',newline='')); gw.writerow(['theta','k','ax','ay','az','gx','gy','gz'])
-w = csv.writer(open(A.out,'w',newline='')); w.writerow(['theta','tilt_deg','frame','ring_axis','ring_peak_rad_s','ring_rms_tail','ring_f_hz'] + [f'{c[0]}_err' for c in moving] + [f'{c[0]}_load' for c in moving] + [f'{c[0]}_load' for c in watch])
+w = csv.writer(open(A.out,'w',newline='')); w.writerow(['theta','tilt_deg','frame','ring_axis','ring_peak_rad_s','ring_rms_tail','ring_f_hz'] + [f'{j.name}_err' for j in moving] + [f'{j.name}_load' for j in moving] + [f'{j.name}_load' for j in watch])
 prev_theta = 0.0
 for theta in [float(x) for x in A.thetas.split(',')]:
     off = offsets(theta); tk = ticks(off); o = pose(off)
@@ -163,15 +190,16 @@ for theta in [float(x) for x in A.thetas.split(',')]:
         time.sleep(((A.smooth_ms or A.unison_ms)/1000.0 if (A.smooth_ms or A.unison_ms) else 2*abs(theta-prev_theta)*TPD/A.spd) + A.settle)
     prev_theta = theta
     errs=[]; loads=[]
-    for n,i,z,d in moving:
-        p = pos(i); j = [c[0] for c in CAL].index(n)
-        errs.append(p[0]-tk[j] if p else None); loads.append(p[2] if p else None)
-    wl = [ (pos(i) or (None,None,None))[2] for n,i,z,d in watch ]
+    for j in moving:
+        bj = j.bus_index
+        p = pos(j.servo_id)
+        errs.append(p[0]-tk[bj] if p else None); loads.append(p[2] if p else None)
+    wl = [ (pos(j.servo_id) or (None,None,None))[2] for j in watch ]
     a = imu(); tilt = ang(base, a) if (a and base) else float('nan'); fr = frame(f't{int(theta):02d}')
     rs = [ring['axis'], f"{ring['peak']:.3f}", f"{ring['rms_tail']:.4f}", f"{ring['f_hz']:.2f}"] if ring else ['','','','']
     w.writerow([theta, f'{tilt:.2f}', fr] + rs + errs + loads + wl)
     print((f"  ring: axis {ring['axis']} peak {ring['peak']:.2f} rad/s, tail RMS {ring['rms_tail']:.3f}, ~{ring['f_hz']:.1f} Hz over {ring['n']} samples @ {ring['hz']:.0f} Hz" if ring else ''), flush=True)
-    print(f'theta {theta:4.0f}  knee {-2*theta:+.0f}  tilt {tilt:4.1f}  err ' + ' '.join(f'{c[0]}={e}' for c,e in zip(moving,errs)) + '  load ' + ' '.join(f'{c[0]}={l}' for c,l in zip(moving,loads)) + ('  other-leg ' + ' '.join(f'{c[0]}={l}' for c,l in zip(watch,wl)) if watch else ''), flush=True)
+    print(f'theta {theta:4.0f}  knee {-2*theta:+.0f}  tilt {tilt:4.1f}  err ' + ' '.join(f'{j.name}={e}' for j,e in zip(moving,errs)) + '  load ' + ' '.join(f'{j.name}={l}' for j,l in zip(moving,loads)) + ('  other-leg ' + ' '.join(f'{j.name}={l}' for j,l in zip(watch,wl)) if watch else ''), flush=True)
     if tilt > A.tilt_abort: print('!! tilt guard -- back to zero', flush=True); pose(offsets(0.0)); sys.exit(2)
     if any(e is not None and abs(e) > A.stall_ticks for e in errs): print('!! stalled joint -- back to zero', flush=True); pose(offsets(0.0)); sys.exit(2)
 pose(offsets(0.0)); time.sleep(2.0); print('back at zero', flush=True)

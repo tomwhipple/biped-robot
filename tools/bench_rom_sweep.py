@@ -24,6 +24,7 @@ docs/servo-map.md travel notes.
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -32,36 +33,35 @@ from pathlib import Path
 
 import serial
 
-TICKS_PER_DEG = 4096.0 / 360.0
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bus_cal import (
+    BusCal, BusCalError, TICKS_PER_DEG,
+    asbuilt_prototype_cal, fetch_cal,
+)
 
 # (joint, servo id, zero ticks, dir, model range deg (lo, hi), sweep cap deg)
 # zero/dir = as-built calibration (docs/servo-map.md). Range = the plant
 # model's joint range IN THE SIM SIGN CONVENTION current at flash time --
-# UPDATE THE KNEE ROWS when the corrected model lands, and re-check dir
-# signs against asbuilt_cal.h if the fix rotates conventions.
-# sweep cap: hard per-direction limit for collision-prone moves, sim-frame
-# degrees, applied after --frac. Inward roll (toward the other leg) is
-# capped at 12 deg: 56 mm hip separation / 46 mm wide feet, uncleared.
-# Inward/backward caps derive from the servo-map direction table:
-# sim-positive roll/yaw move the toe toward the robot's LEFT, so positive
-# adducts (inward) the RIGHT leg and negative adducts the LEFT. Yaw toe-in
-# capped at 20 deg (live-tested 2026-08-02 errata value); roll inward at
-# 12 deg (feet inner edges ~10 mm apart, uncleared); hip pitch backward at
-# +30 deg (test-stand column sits behind the robot).
+# JOINTS are name + per-servo sweep bounds. Zero/direction come from the
+# board's `cal show` (cal blob v3, 17-servo bus map); the asbuilt table is
+# the fallback when `cal show` cannot be parsed and the robot is the
+# prototype. The bounds below are the bench clamp *for this script*
+# (docs/servo-map.md §3.3): they agree with firmware/main/mech_envelope.h
+# on the leg rows.
 JOINTS = [
-    # name          id  zero   dir  lo     hi    cap_lo  cap_hi
-    ("L_hip_yaw",   10, 1693,  +1, -45.0,  45.0, -20.0,  None),  # - = L toe-in
-    ("L_hip_roll",   5, 2420,  -1, -25.0,  25.0,  -6.0,  None),  # - = L inward;
+    # name          lo      hi      cap_lo  cap_hi
+    ("L_hip_yaw",   -45.0,  45.0,  -20.0,   None),  # - = L toe-in
+    ("L_hip_roll",  -25.0,  25.0,   -6.0,   None),  # - = L inward;
     # measured 2026-08-02: leg-on-leg contact begins ~-9 deg (load onset),
     # sim can't see it (no inter-leg collision geoms) -- keep 6 deg margin
-    ("L_hip_pitch",  6, 3273,  +1, -110.0, 60.0,  None,  30.0),  # + = backward
-    ("L_knee",       7, 1634,  -1, -95.0,   5.0,  None,  None),  # full flex proven
-    ("L_ankle",      8, 3516,  +1, -40.0,  40.0,  None,  None),
-    ("R_hip_yaw",    9, 1803,  +1, -45.0,  45.0,  None,  20.0),  # + = R toe-in
-    ("R_hip_roll",   1, 3533,  -1, -25.0,  25.0,  None,   6.0),  # + = R inward
-    ("R_hip_pitch",  2, 2501,  +1, -110.0, 60.0,  None,  30.0),  # + = backward
-    ("R_knee",       3, 2050,  -1, -95.0,   5.0,  None,  None),  # full flex proven
-    ("R_ankle",      4, 3450,  +1, -40.0,  40.0,  None,  None),
+    ("L_hip_pitch", -110.0, 60.0,   None,   30.0),  # + = backward
+    ("L_knee",      -95.0,   5.0,   None,   None),  # full flex proven
+    ("L_ankle",     -40.0,  40.0,   None,   None),
+    ("R_hip_yaw",   -45.0,  45.0,   None,   20.0),  # + = R toe-in
+    ("R_hip_roll",  -25.0,  25.0,   None,    6.0),  # + = R inward
+    ("R_hip_pitch", -110.0, 60.0,   None,   30.0),  # + = backward
+    ("R_knee",      -95.0,   5.0,   None,   None),  # full flex proven
+    ("R_ankle",     -40.0,  40.0,   None,   None),
 ]
 
 POS_RE = re.compile(
@@ -115,8 +115,11 @@ def snap(outdir, tag):
     return f.name
 
 
-def sweep_joint(b, outdir, log, name, sid, zero, dirn, lo, hi, cap_lo, cap_hi,
+def sweep_joint(b, outdir, log, joint, lo, hi, cap_lo, cap_hi,
                 frac, n_steps):
+    """`joint` is a bus_cal.BusJoint (the live calibration row). The other
+    arguments are the script-local envelope bounds from the JOINTS table."""
+    name, sid, zero, dirn = joint.name, joint.servo_id, joint.zero_steps, joint.direction
     lo, hi = lo * frac, hi * frac
     if cap_lo is not None: lo = max(lo, cap_lo)
     if cap_hi is not None: hi = min(hi, cap_hi)
@@ -173,7 +176,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--joints", default="",
-                    help="comma-separated subset, default all ten")
+                    help="comma-separated subset, default all rows in the JOINTS table")
     ap.add_argument("--frac", type=float, default=0.9)
     ap.add_argument("--steps", type=int, default=4)
     ap.add_argument("--outdir", default="")
@@ -189,11 +192,22 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
     log = []
     b = Bench(args.port)
+    # Calibration comes from the board (`cal show`, cal blob v3, 17-servo bus
+    # map). The asbuilt prototype table is the fallback. Joints the script
+    # sweeps MUST be fitted on this robot, or refuse. `b.cmd` accepts no
+    # `until` regex; we pass a longer wait so the 17-row reply has drained.
+    cal, cal_source = fetch_cal(lambda c, _until: b.cmd(c, wait=1.6))
+    print(f"cal source: {cal_source}")
+    for r in rows:
+        bj = cal.by_name(r[0])
+        if not bj.fitted:
+            sys.exit(f"!! {r[0]} (id {bj.servo_id}) is NOT FITTED on this robot")
     try:
         snap(outdir, "00_all_zero")
         for r in rows:
-            sweep_joint(b, outdir, log, *r, frac=args.frac,
-                        n_steps=args.steps)
+            joint = cal.by_name(r[0])
+            sweep_joint(b, outdir, log, joint, r[1], r[2], r[3], r[4],
+                        frac=args.frac, n_steps=args.steps)
     except Exception as e:
         print(f"!! ABORT: {e}\n!! releasing all servos", file=sys.stderr)
         try:
