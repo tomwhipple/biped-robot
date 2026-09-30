@@ -304,3 +304,55 @@ def test_stance_shortfall_from_squat_bench_csv(tmp_path):
 
 def test_roll_ids_are_the_bus_maps():
     assert gb.roll_id("L") == 5 and gb.roll_id("R") == 1
+
+
+# -- a bus-map ID on the bench (--allow-bus-id) ------------------------------------
+
+def test_the_envelope_is_the_firmwares():
+    lo, hi = gb.mech_envelope_deg()
+    assert len(lo) == len(hi) == 17
+    assert (lo[10], hi[10]) == (-25.0, 25.0)                 # id 11, R_ankle_roll
+    joint = gb.BusJoint("R_ankle_roll", 10, 11, "A", 2048, 1, False)
+    assert gb.envelope_ticks(joint, -25.0, 25.0) == (1764, 2332)
+    flipped = gb.BusJoint("R_ankle_roll", 10, 11, "A", 2048, -1, False)
+    assert gb.envelope_ticks(flipped, -25.0, 25.0) == (1764, 2332)
+    near_top = gb.BusJoint("R_ankle_roll", 10, 11, "A", 4000, 1, False)
+    assert gb.envelope_ticks(near_top, -25.0, 25.0) == (3716, 4095)
+
+
+def test_room_refuses_the_wrap_and_the_clamp():
+    env = (1764, 2332, "R_ankle_roll")
+    gb.check_room(11, 2048, 2048 - 120, 2048 + 23 + 120, env)
+    with pytest.raises(gb.Abort, match="wrap"):
+        gb.check_room(11, 4094, 4094 - 120, 4094 + 120, None)   # the bench servo as found
+    with pytest.raises(gb.Abort, match="envelope"):
+        gb.check_room(11, 2250, 2250 - 120, 2250 + 120, env)
+
+
+def test_park_turns_the_bare_horn_to_mid_band():
+    fake = gb.FakeBoard(sid=11, pos=4094)
+    op = gb.Operator(ask=lambda p: "go" if "type go" in p else "", say=lambda s: None)
+    env = gb.bus_envelope(fake, 11)
+    assert env[:2] == (1764, 2332)
+    res = gb.run_park(fake, op, 11, None, env)
+    assert (res["start"], res["target"], res["end"]) == (4094, 2048, 2048)
+    assert not fake.torque
+    with pytest.raises(gb.Abort, match="envelope"):
+        gb.run_park(fake, op, 11, 3000, env)
+
+
+def test_a_goal_on_the_wrap_is_refused_before_any_motion():
+    script = Script()
+    fake = gb.FakeBoard(sid=11, pos=4094)
+    with pytest.raises(gb.Abort, match="wrap"):
+        gb.run_stiffness(fake, gb.Operator(ask=script, say=lambda s: None), 11, [(32, 32)],
+                         0.1, [0.5], 2, 0.0, env=gb.bus_envelope(fake, 11))
+    assert script.gos() == [] and not fake.torque
+
+
+def test_allow_bus_id(tmp_path, monkeypatch):
+    monkeypatch.setattr("builtins.input", Script())
+    args = ["--rehearse", "--session", str(tmp_path), "stiffness", "11", "--ladder", "32",
+            "--samples", "2"]
+    assert gb.main(args) == 2                                  # refused without the flag
+    assert gb.main(args + ["--allow-bus-id"]) == 0

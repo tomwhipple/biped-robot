@@ -410,7 +410,9 @@ table's URL. Things to know about the table:
 one typed `go` per motion. Raw data goes to `hw_sessions/<date>/gain_bench/`;
 the record goes in `docs/design-v6/`.
 
-1. `read <id>`: P, D, I, the dead zones, the protection registers and the model number (777).
+1. `scan`, then `read <id>`: which ID answers; P, D, I, the dead zones, the protection registers and the model number (777).
+   - An ID on the bus map (1–17) has its `move` clamped to that joint's envelope, after it is sent. The motion steps take one only with `--allow-bus-id`, and then check every target against the envelope computed from the board's `cal show` and `mech_envelope.h`.
+   - `park <id>` turns the bare horn into that band, and clear of the 0/4095 encoder wrap, before the lever goes on. It writes no EEPROM.
 2. `stiffness <id>`: at each P the servo holds a horizontal lever while 0.5 / 1.0 / 1.5 N·m is hung on it.
    - k is the slope of deflection on torque over the loaded points, with an intercept so the friction share drops out.
    - What passes is the ratio to P = 32.

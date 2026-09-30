@@ -8,12 +8,16 @@ its guarded `gains <id> <P> <D>` (refused unless that servo's torque is off;
 EEPROM unlock, write, lock, read back), and every motion is a plain `torque`,
 `move` or `release`. This script sends nothing a human at the CLI could not.
 
-    # step 0 -- one spare STS3215 alone on the bus, on a lever. `stiffness` and
-    # `hold` refuse an ID on the robot's bus map (1-17): the firmware clamps a
-    # `move` to that joint's calibrated envelope, AFTER sending it. Re-ID the
-    # spare at the CLI first (`id 1 30`, one servo on the bus).
+    # step 0 -- one spare STS3215 alone on the bus, on a lever. An ID on the
+    # robot's bus map (1-17) has its `move` clamped by the firmware to that
+    # joint's calibrated envelope, AFTER sending it: stiffness/hold/park take
+    # one only with --allow-bus-id, and then check every target against the
+    # envelope computed from this board's `cal show` and mech_envelope.h.
+    # `park` turns the BARE horn into that band (and off the 0/4095 wrap)
+    # before the lever goes on.
     tools/gain_bench.py scan                                # which ID it answers to
     tools/gain_bench.py read      30
+    tools/gain_bench.py park      30                        # bare horn to mid-band
     tools/gain_bench.py stiffness 30 --lever-m 0.10
     tools/gain_bench.py hold      30
     # step 1 -- the prototype's stance hip roll, robot supported between runs
@@ -79,7 +83,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bus_cal import BUS  # noqa: E402
+from bus_cal import BUS, BusCalError, BusJoint, fetch_cal  # noqa: E402
 
 TICKS_PER_RAD = 4096 / (2 * math.pi)
 TICKS_PER_DEG = 4096 / 360.0
@@ -102,6 +106,13 @@ DEFAULT_LADDER = "32,64,96,128,160"
 JUMP_TICKS = 20
 PIN_TICKS = 60
 PIN_SPEED = 100                 # steps/s for the move that pins the hold goal
+PARK_SPEED = 200                # steps/s for `park`, a bare horn
+# Room a hold goal needs around it: the load's deflection either way (1.5 N*m
+# at the model's soft 12 N*m/rad is ~81 ticks) plus the step. The encoder wraps
+# 4095 -> 0, and a bus-map joint's `move` is clamped to its envelope.
+DEFLECT_TICKS = 120
+WRAP_MARGIN = 150
+MECH_H = os.path.join(ROOT, "firmware", "main", "mech_envelope.h")
 
 STATUS_BITS = ((0x01, "voltage"), (0x02, "sensor"), (0x04, "temperature"),
                (0x08, "current"), (0x10, "angle"), (0x20, "overload"))
@@ -664,6 +675,68 @@ class Operator:
 
 
 # =====================================================================
+#  where `move` may go
+# =====================================================================
+def mech_envelope_deg(path: str = MECH_H) -> Tuple[List[float], List[float]]:
+    """kMechLo / kMechHi (degrees, one per bus joint) out of the firmware
+    header the board was built from: the band its `move` clamps to."""
+    text = open(path).read()
+
+    def block(name: str) -> List[float]:
+        m = re.search(name + r"\[obs::kNumBusJoints\]\s*=\s*\{(.*?)\};", text, re.S)
+        if not m:
+            raise Abort(f"{name} not found in {path}")
+        return [float(v) for v in re.findall(r"(-?[\d.]+)f\s*\*\s*kDeg", m.group(1))]
+    lo, hi = block("kMechLo"), block("kMechHi")
+    if not len(lo) == len(hi) == len(BUS):
+        raise Abort(f"{path}: {len(lo)}/{len(hi)} envelope rows for {len(BUS)} bus joints")
+    return lo, hi
+
+
+def envelope_ticks(joint: BusJoint, lo_deg: float, hi_deg: float) -> Tuple[int, int]:
+    """The joint's envelope in encoder ticks, as busAngleToStepsRaw computes
+    it (zero + dir x angle, clamped to 0..4095)."""
+    a, b = (max(0, min(4095, joint.deg_to_ticks(d))) for d in (lo_deg, hi_deg))
+    return min(a, b), max(a, b)
+
+
+def bus_envelope(board, sid: int) -> Optional[Tuple[int, int, str]]:
+    """(lo, hi, label) for a bus-map ID on this board; None off the map."""
+    if not 1 <= sid <= len(BUS):
+        return None
+    if isinstance(board, FakeBoard):                 # rehearsal: an uncalibrated joint
+        joint = BusJoint(BUS[sid - 1][0], sid - 1, sid, BUS[sid - 1][2], 2048, 1, False)
+        src = "rehearsal defaults"
+    else:
+        try:
+            cal, src = fetch_cal(lambda c, until: board.cmd(c, until, timeout=3.0),
+                                 allow_asbuilt_fallback=False)
+        except BusCalError as e:
+            raise Abort(f"`cal show` did not parse ({e}): no envelope, no motion on id {sid}")
+        joint = cal.by_id(sid)
+    lo_deg, hi_deg = mech_envelope_deg()
+    lo, hi = envelope_ticks(joint, lo_deg[sid - 1], hi_deg[sid - 1])
+    return lo, hi, (f"{joint.name} ({src}: zero {joint.zero_steps}, dir {joint.direction:+d}, "
+                    f"{lo_deg[sid - 1]:g}..{hi_deg[sid - 1]:g} deg)")
+
+
+def check_room(sid: int, goal: int, lo_need: int, hi_need: int,
+               env: Optional[Tuple[int, int, str]]) -> None:
+    """Refuse a hold whose travel (goal + deflection + step) could cross the
+    encoder's 0/4095 wrap, or leave a bus joint's envelope where `move`
+    would be clamped -- i.e. sent somewhere else."""
+    if lo_need < WRAP_MARGIN or hi_need > 4095 - WRAP_MARGIN:
+        raise Abort(f"hold goal {goal}: its travel {lo_need}..{hi_need} comes within "
+                    f"{WRAP_MARGIN} ticks of the 0/4095 wrap. `park {sid}` the bare horn "
+                    f"off it, then re-seat the lever")
+    if env and (lo_need < env[0] or hi_need > env[1]):
+        raise Abort(f"hold goal {goal}: its travel {lo_need}..{hi_need} leaves {env[2]}'s "
+                    f"envelope {env[0]}..{env[1]}, where `move` clamps. `park {sid} "
+                    f"--allow-bus-id` the bare horn to {(env[0] + env[1]) // 2}, then "
+                    f"re-seat the lever")
+
+
+# =====================================================================
 #  bench primitives
 # =====================================================================
 POS_UNTIL = r"(err 0x[0-9A-Fa-f]{2}|id \d+: [a-z-]+\r?\n|busy: |\? \(try)"
@@ -797,9 +870,11 @@ def ask_mass(op: Operator, what: str, default: float) -> float:
 
 def run_stiffness(board, op: Operator, sid: int, ladder, lever_m: float,
                   loads_nm: Sequence[float], n: int, settle_s: float,
-                  on_row: Callable[[dict], None] = lambda res: None) -> dict:
+                  on_row: Callable[[dict], None] = lambda res: None,
+                  env: Optional[Tuple[int, int, str]] = None) -> dict:
     goal = capture_goal(board, op, sid, "Set the lever HORIZONTAL, hook on the loading "
                                         "side, nothing hung on it")
+    check_room(sid, goal, goal - DEFLECT_TICKS, goal + DEFLECT_TICKS, env)
     res = {"id": sid, "lever_m": lever_m, "goal": goal, "loads_nm": list(loads_nm),
            "ladder": ladder, "rows": []}
     for p, d in ladder:
@@ -834,6 +909,41 @@ def run_stiffness(board, op: Operator, sid: int, ladder, lever_m: float,
     return res
 
 
+def run_park(board, op: Operator, sid: int, target: Optional[int],
+             env: Optional[Tuple[int, int, str]]) -> dict:
+    """Turn the BARE horn to `target` (default: mid-envelope, or 2048), then
+    release: the lever goes on afterwards, clear of the wrap and inside the
+    band `move` allows. No EEPROM write -- the servo's zero is untouched."""
+    if target is None:
+        target = (env[0] + env[1]) // 2 if env else 2048
+    check_room(sid, target, target, target, env)
+    start = read_pos(board, sid)
+    if read_reg(board, sid, 40) != 0:
+        raise Abort(f"id {sid} has torque ON: `release {sid}` and take everything off the horn")
+    op.go(f"park: turn the BARE horn (nothing mounted) {start['pos']} -> {target} "
+          f"({abs(target - start['pos']) / TICKS_PER_DEG:.0f} deg at {PARK_SPEED} steps/s), "
+          f"then release")
+    board.cmd(f"torque {sid}", until=r"torque \S+: \S+\r?\n")
+    after = read_pos(board, sid)
+    if abs(after["pos"] - start["pos"]) > JUMP_TICKS:
+        release(board, sid)
+        raise Abort(f"id {sid} jumped {after['pos'] - start['pos']} ticks at torque-on -- released")
+    out = board.cmd(f"move {sid} {target} 0 {PARK_SPEED}", until=MOVE_UNTIL)
+    if "clamped" in out or not re.search(r"move id .*: ok", out):
+        release(board, sid)
+        raise Abort(f"id {sid}: the park move failed: {out.strip()[-100:]!r} -- released")
+    t_end = time.monotonic() + abs(target - start["pos"]) / PARK_SPEED + 3.0
+    now = after
+    while time.monotonic() < t_end:
+        now = read_pos(board, sid)
+        if abs(now["pos"] - target) <= 3:
+            break
+    release(board, sid)
+    op.say(f"id {sid}: parked at {now['pos']} (target {target}) -- released")
+    return {"id": sid, "start": start["pos"], "target": target, "end": now["pos"],
+            "envelope": list(env) if env else None}
+
+
 ORIENT_TEXT = {
     "down": "Let the inertia HANG STRAIGHT DOWN (no static torque: the gear play floats)",
     "horizontal": "Set the inertia's lever HORIZONTAL (preloaded)",
@@ -842,14 +952,15 @@ ORIENT_TEXT = {
 
 def run_hold(board, op: Operator, sid: int, ladder, orients: Sequence[str], quiet_s: float,
              step_ticks: int, step_s: float, settle_s: float, inertia: str,
-             on_row: Callable[[dict], None] = lambda res: None) -> dict:
+             on_row: Callable[[dict], None] = lambda res: None,
+             env: Optional[Tuple[int, int, str]] = None) -> dict:
     res = {"id": sid, "ladder": ladder, "inertia": inertia, "step_ticks": step_ticks, "rows": []}
     for orient in orients:
         if orient not in ORIENT_TEXT:
             raise Abort(f"orientation {orient!r}: one of {', '.join(ORIENT_TEXT)}")
         goal = capture_goal(board, op, sid, f"Mount the inertia ({inertia}). {ORIENT_TEXT[orient]}")
-        if not 0 <= goal + step_ticks <= 4095:
-            raise Abort(f"hold goal {goal} + step {step_ticks} leaves 0..4095")
+        check_room(sid, goal, goal + min(0, step_ticks) - DEFLECT_TICKS,
+                   goal + max(0, step_ticks) + DEFLECT_TICKS, env)
         for p, d in ladder:
             op.say(f"\n== {orient}: P {p} D {d}")
             write_gains(board, sid, p, d)
@@ -917,6 +1028,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s = sub.add_parser("read", help="step 0a: registers, read-only")
     s.add_argument("id", type=int)
 
+    bus_help = ("take an ID on the robot's bus map (1-17): every target is checked against "
+                "that joint's envelope on this board, where `move` clamps")
+    s = sub.add_parser("park", help="turn the bare horn into a safe band, then release")
+    s.add_argument("id", type=int)
+    s.add_argument("ticks", type=int, nargs="?", help="default: mid-envelope, or 2048")
+    s.add_argument("--allow-bus-id", action="store_true", help=bus_help)
+
     ladder_help = "P or P:D, comma-separated; a bare P takes D = P x --d-ratio"
     s = sub.add_parser("stiffness", help="step 0b: static stiffness vs P on a lever")
     s.add_argument("id", type=int)
@@ -927,6 +1045,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--samples", type=int, default=20)
     s.add_argument("--settle", type=float, default=3.0, help="s after each load change")
     s.add_argument("--keep", action="store_true", help="leave the last P in the servo")
+    s.add_argument("--allow-bus-id", action="store_true", help=bus_help)
 
     s = sub.add_parser("hold", help="step 0c: hold and step response with a leg-like inertia")
     s.add_argument("id", type=int)
@@ -939,6 +1058,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--settle", type=float, default=2.0)
     s.add_argument("--inertia", default="0.25 kg at 0.10 m")
     s.add_argument("--keep", action="store_true")
+    s.add_argument("--allow-bus-id", action="store_true", help=bus_help)
 
     s = sub.add_parser("stance", help="step 1: stance hip roll shortfall per P (squat_bench)")
     s.add_argument("--roll", choices=("L", "R"), default="L", help="the stance side")
@@ -1018,15 +1138,13 @@ def run_scan(A, session: str, op: Operator, log) -> int:
 def run_servo(A, session: str, op: Operator, log) -> int:
     """read / stiffness / hold: one servo on the bench."""
     sid = A.id
-    if 1 <= sid <= len(BUS):
-        if A.cmd != "read":
-            raise Abort(f"id {sid} is the robot's {BUS[sid - 1][0]}: the firmware clamps a "
-                        f"`move` to that joint's calibrated envelope after sending it, so "
-                        f"the lever could be driven somewhere else. Re-ID the spare first "
-                        f"(`id {sid} 30` at the CLI, one servo on the bus).")
-        op.say(f"note: id {sid} is the robot's {BUS[sid - 1][0]}; re-ID it (`id {sid} 30`) "
-               f"before stiffness/hold.")
-    ladder = parse_ladder(A.ladder, A.d_ratio) if A.cmd != "read" else []
+    on_map = 1 <= sid <= len(BUS)
+    if on_map and A.cmd != "read" and not A.allow_bus_id:
+        raise Abort(f"id {sid} is the robot's {BUS[sid - 1][0]}: the firmware clamps a "
+                    f"`move` to that joint's calibrated envelope after sending it. Re-ID "
+                    f"the spare (`id {sid} 30`), or pass --allow-bus-id to have every "
+                    f"target checked against that envelope first.")
+    ladder = parse_ladder(A.ladder, A.d_ratio) if A.cmd in ("stiffness", "hold") else []
     if not A.rehearse:
         op.say("opening the tether: the board reboots, and its boot releases every servo")
     board = (FakeBoard(sid=sid, latency_s=0.02, log=log) if A.rehearse   # ~ the tether's poll rate
@@ -1039,22 +1157,28 @@ def run_servo(A, session: str, op: Operator, log) -> int:
         if A.cmd == "read":                       # reads only, start to finish
             print("saved", _saver(session, "read.json")(run_read(board, op, sid)))
             return 0
+        env = bus_envelope(board, sid) if on_map else None
+        if env:
+            op.say(f"id {sid}: `move` allows {env[0]}..{env[1]} on this board ({env[2]})")
+        if A.cmd == "park":
+            print("saved", _saver(session, "park.json")(run_park(board, op, sid, A.ticks, env)))
+            return 0
         if A.cmd == "stiffness":
             save = _saver(session, "stiffness.json", start_gains=list(start))
             save(run_stiffness(board, op, sid, ladder, A.lever_m,
                                [float(x) for x in A.loads.split(",")], A.samples, settle,
-                               on_row=save))
+                               on_row=save, env=env))
         else:
             save = _saver(session, "hold.json", start_gains=list(start))
             save(run_hold(board, op, sid, ladder, A.orient.split(","), A.quiet_s, A.step,
-                          A.step_s, settle, A.inertia, on_row=save))
+                          A.step_s, settle, A.inertia, on_row=save, env=env))
         print(render_report(session))
         return 0
     finally:
         if A.cmd != "read":
             try:
                 release(board, sid)
-                if start and not A.keep:
+                if start and A.cmd != "park" and not A.keep:
                     write_gains(board, sid, start[0], start[1])
                     op.say(f"id {sid}: released; gains back to P {start[0]} D {start[1]}")
             except Abort as e:
