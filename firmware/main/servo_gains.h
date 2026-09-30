@@ -57,9 +57,23 @@ constexpr const scsbus::GainExpect* expectedGainsFor(uint8_t id) {
 }
 
 namespace detail {
+// The index of the row for `id`, or kNumExpectedGains when the table has none.
+//
+// The compile-time checks below use this rather than `expectedGainsFor`: taking
+// the address of an array element and comparing it with nullptr is not a
+// constant expression under `-fsanitize=undefined` (GCC rejects it outright, and
+// with -Werror the address-of check that would otherwise merely warn is fatal).
+// The pointer API stays for the runtime callers -- the CLI's gain check and the
+// host tests -- where it reads better and is a constant expression.
+constexpr size_t expectedGainsIndexOf(uint8_t id) {
+    for (size_t i = 0; i < kNumExpectedGains; ++i) {
+        if (kExpectedGains[i].id == id) return i;
+    }
+    return kNumExpectedGains;
+}
 constexpr bool everyBusServoHasExpectedGains() {
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
-        if (expectedGainsFor(obs::kBusServoId[b]) == nullptr) return false;
+        if (expectedGainsIndexOf(obs::kBusServoId[b]) == kNumExpectedGains) return false;
     }
     return true;
 }
@@ -80,9 +94,9 @@ constexpr bool expectedGainIdsAreUnique() {
 // measurement, so this checks the pattern, not the number.
 constexpr bool gainsMatchTheTrainedStiffness() {
     for (int i = 0; i < obs::kNumPlantServos; ++i) {
-        const scsbus::GainExpect* e = expectedGainsFor(obs::kPlantServoId[i]);
-        if (e == nullptr) return false;
-        const bool raised = e->gains.p != scsbus::kFactoryGains.p;
+        const size_t idx = expectedGainsIndexOf(obs::kPlantServoId[i]);
+        if (idx == kNumExpectedGains) return false;
+        const bool raised = kExpectedGains[idx].gains.p != scsbus::kFactoryGains.p;
         const bool trained_stiffer = obs::kServoKpScale[i] != 1.0f;
         if (raised != trained_stiffer) return false;
     }
