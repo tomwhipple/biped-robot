@@ -11,6 +11,7 @@ not a version among others.
 | record | what it decided or measured |
 |---|---|
 | [2026-09-13-design-record.md](2026-09-13-design-record.md) | the validation record: requirements, kinematics sweeps, Gates A–D, servo choice, body revisions, fall-recovery studies, and **§14 Plan B** (STS3215 everywhere with raised P). Code comments cite its sections |
+| [2026-09-30-plan-b-bench.md](2026-09-30-plan-b-bench.md) | Plan B bench, session 1 (#73): the bench servo's registers, and the P ladder on a bare horn (quiet at every rung to P 160, which only rules out an unloaded buzz; stiffness not yet measured); gain-write ack loss (#101) |
 | [getup-decision-2026-09-17.md](getup-decision-2026-09-17.md) | the get-up decision (two elbowed arms) and **every dead end with its measured reason**, so none is retried |
 | [getup-noappendage-2026-09-14.md](getup-noappendage-2026-09-14.md) | the no-appendage get-up search (kip, bear, crow, bridge, skid, bumper): negative, and the hip −90…−100° crouch finding; figures in `figs/` |
 | [study-shoulder-arms.md](study-shoulder-arms.md) | the arm study behind that decision: reach threshold, elbow, mount position |
