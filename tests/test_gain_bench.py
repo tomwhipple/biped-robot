@@ -67,6 +67,37 @@ def test_parse_pos_reads_the_firmware_line():
     assert gb.parse_pos("id 30: timeout\r\n", 30) is None
 
 
+GAINS_WRITE_FMTS = [
+    ('"id %ld: writing P %ld D %ld to EEPROM (torque must be OFF; "', False),   # progress
+    ('"id %ld: P %u D %u, verified after commit -- safe to "', True),
+    ('"REFUSED: id %ld has torque ON. `release %ld` first -- "', True),
+    ('"REFUSED: id %ld did not answer the torque read -- "', True),
+    ('"id %ld: WROTE BUT READ BACK P %u D %u -- the EEPROM did "', True),
+    ('"id %ld: FAILED (%s) -- EEPROM re-lock attempted; "', True),
+    ('"gains: id must be 0-253 (one servo; never broadcast)\\r\\n"', True),
+    ('"gains: P must be 1-254 and D 0-254 (factory 32/32)\\r\\n"', True),
+]
+
+
+@pytest.mark.parametrize("fmt,ends", GAINS_WRITE_FMTS)
+def test_only_a_verdict_ends_the_gain_write(fmt, ends):
+    """The progress line comes at once and the verdict ~2 s later: a pattern
+    that stops on the progress line reads no verdict (bench, 2026-09-30)."""
+    assert fmt in CLI_CPP
+    line = re.sub(r"%\w+", "30", fmt.strip('"'))
+    line = line.replace("safe to ", "safe to power down")
+    assert bool(re.search(gb.GAINS_WRITE_UNTIL, line)) == ends, line
+
+
+def test_the_rehearsal_servo_delivers_late_like_the_tether():
+    fake = gb.FakeBoard(sid=30)
+    first = fake.cmd("gains 30 64 64", until=r"must be")          # the old, wrong pattern
+    assert "writing P 64" in first and "verified" not in first
+    assert "verified after commit" in fake.cmd("release 30", until=r"release \S+: \S+\r?\n")
+    ok = fake.cmd("gains 30 96 96", until=gb.GAINS_WRITE_UNTIL)
+    assert gb.parse_gains_write(ok, 30) == (96, 96)
+
+
 def test_parse_gains_and_reg():
     line = c_format(GAINS_READ_FMT.strip('"'), 30, 128, 64, 0, "(no row in servo_gains.h)")
     assert gb.parse_gains_read(line, 30) == (128, 64, 0)

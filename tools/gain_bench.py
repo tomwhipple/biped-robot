@@ -577,6 +577,7 @@ class FakeBoard:
         self.latency_s = latency_s
         self.p, self.d, self.i = 32, 32, 0
         self.torque, self.goal, self.rest, self.tau, self.n = False, pos, pos, 0.0, 0
+        self.late = ""
         self.log = log
 
     def rig(self, tau: Optional[float] = None, **_event) -> None:
@@ -594,7 +595,20 @@ class FakeBoard:
         return self.rest, (40 if buzz else 0)
 
     def cmd(self, line: str, until: str = "", timeout: float = 0.0) -> str:
+        """Like the tether: the read ends at the end of the line where `until`
+        first matches, and whatever follows arrives late -- in the NEXT
+        command's reply. A pattern that matches too early shows up here."""
         time.sleep(self.latency_s)
+        out, self.late = self.late + self._reply(line), ""
+        m = re.search(until, out) if until else None
+        if m:
+            nl = out.find("\n", m.end())
+            if nl >= 0:
+                out, self.late = out[:nl + 1], out[nl + 1:]
+        self.log(f">>> {line}\n{out.rstrip()}")
+        return out
+
+    def _reply(self, line: str) -> str:
         a = line.split()
         c, sid = a[0], (int(a[1]) if len(a) > 1 and a[1].isdigit() else None)
         if sid is not None and sid != self.sid and c in ("pos", "reg", "gains", "move"):
@@ -639,7 +653,6 @@ class FakeBoard:
                 out = f"move id {sid} -> {a[2]} ticks, 0 ms, spd 0, acc 0: ok\r\n"
         else:
             out = "? (try `help`)\r\n"
-        self.log(f">>> {line}\n{out.rstrip()}")
         return out
 
     def close(self) -> None:
@@ -741,6 +754,11 @@ def check_room(sid: int, goal: int, lo_need: int, hi_need: int,
 # =====================================================================
 POS_UNTIL = r"(err 0x[0-9A-Fa-f]{2}|id \d+: [a-z-]+\r?\n|busy: |\? \(try)"
 MOVE_UNTIL = r"(move id .*: \S+\r?\n|torque is OFF|\? \(try|busy: )"
+# The gain write prints a progress line at once ("... (torque must be OFF; no
+# goal is written) ...") and its verdict ~2 s later, after the EEPROM commit:
+# only a verdict (or a refusal before the write) may end the read.
+GAINS_WRITE_UNTIL = (r"(verified after commit -- safe to power down|REFUSED: |WROTE BUT READ "
+                     r"BACK|FAILED \(|usage: gains|gains: (id|P) must be|busy: |no bus|\? \(try)")
 
 
 def read_pos(board, sid: int, tries: int = 1) -> dict:
@@ -799,9 +817,7 @@ def release(board, sid: Optional[int] = None) -> None:
 def write_gains(board, sid: int, p: int, d: int) -> None:
     """The firmware's guarded write, after the release that makes it legal."""
     release(board, sid)
-    out = board.cmd(f"gains {sid} {p} {d}",
-                    until=r"(verified after commit|REFUSED|WROTE BUT|FAILED|usage|must be|\? \(try)",
-                    timeout=8.0)
+    out = board.cmd(f"gains {sid} {p} {d}", until=GAINS_WRITE_UNTIL, timeout=8.0)
     got = parse_gains_write(out, sid)
     if got != (p, d):
         raise Abort(f"id {sid}: gains {p}/{d} not verified: {out.strip()[-120:]!r}")
