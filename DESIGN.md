@@ -459,7 +459,7 @@ Everything open is a GitHub issue.
 
 ## 13. Build sequence
 
-0. **Bench, no purchase** (#73, `tools/gain_bench.py`): one spare STS3215 — read registers 21/22/23;
+0. **Bench, no purchase** (#73, [experiments/plan-b-bench/](experiments/plan-b-bench/)): one spare STS3215 — read registers 21/22/23;
    torque off, write P 32 → 64 → 96 → 128 → 160 with D scaled (128 is exactly
    4 × 32, so 160 shows which side of the line it falls); measure stiffness from
    Present Position with 0.5 / 1.0 / 1.5 N·m on a lever; hold a leg-like

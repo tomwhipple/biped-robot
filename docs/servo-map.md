@@ -406,9 +406,9 @@ table's URL. Things to know about the table:
 - 3× passes only if the printed roll chains measure ≤ 1° of play.
 - A high P can buzz or limit-cycle through gear play. LeRobot lowers the same register to 16 on its STS3215 arms for that reason.
 
-**The measurement: `tools/gain_bench.py`.** It drives this CLI over the tether,
+**The measurement: `experiments/plan-b-bench/gain_bench.py`.** It drives this CLI over the tether,
 one typed `go` per motion. Raw data goes to `hw_sessions/<date>/gain_bench/`;
-the record goes in `docs/design-v6/`.
+the record goes in `experiments/plan-b-bench/`, with the rig and its dated sessions.
 
 1. `scan`, then `read <id>`: which ID answers; P, D, I, the dead zones, the protection registers and the model number (777).
    - An ID on the bus map (1–17) has its `move` clamped to that joint's envelope, after it is sent. The motion steps take one only with `--allow-bus-id`, and then check every target against the envelope computed from the board's `cal show` and `mech_envelope.h`.

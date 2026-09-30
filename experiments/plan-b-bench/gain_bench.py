@@ -15,18 +15,18 @@ EEPROM unlock, write, lock, read back), and every motion is a plain `torque`,
     # envelope computed from this board's `cal show` and mech_envelope.h.
     # `park` turns the BARE horn into that band (and off the 0/4095 wrap)
     # before the lever goes on.
-    tools/gain_bench.py scan                                # which ID it answers to
-    tools/gain_bench.py read      30
-    tools/gain_bench.py park      30                        # bare horn to mid-band
-    tools/gain_bench.py stiffness 30 --lever-m 0.10
-    tools/gain_bench.py hold      30
+    experiments/plan-b-bench/gain_bench.py scan                                # which ID it answers to
+    experiments/plan-b-bench/gain_bench.py read      30
+    experiments/plan-b-bench/gain_bench.py park      30                        # bare horn to mid-band
+    experiments/plan-b-bench/gain_bench.py stiffness 30 --lever-m 0.10
+    experiments/plan-b-bench/gain_bench.py hold      30
     # step 1 -- the prototype's stance hip roll, robot supported between runs
-    tools/gain_bench.py stance    --roll L --ladder 32,128 -- --no-cam
-    # the tables for the record (docs/design-v6/<date>-plan-b-bench.md)
-    tools/gain_bench.py report
+    experiments/plan-b-bench/gain_bench.py stance    --roll L --ladder 32,128 -- --no-cam
+    # the tables for the record (experiments/plan-b-bench/<date>-plan-b-bench.md)
+    experiments/plan-b-bench/gain_bench.py report
 
     # every prompt of a subcommand against a simulated servo, no hardware
-    tools/gain_bench.py --rehearse stiffness 30
+    experiments/plan-b-bench/gain_bench.py --rehearse stiffness 30
 
 The session directory (default hw_sessions/<today>/gain_bench, gitignored)
 collects read.json, stiffness.json, hold.json, stance.json and session.log;
@@ -81,8 +81,9 @@ import sys
 import time
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))      # experiments/plan-b-bench/ -> repo
+sys.path.insert(0, os.path.join(ROOT, "tools"))             # bus_cal, shared with the bench tools
 from bus_cal import BUS, BusCalError, BusJoint, fetch_cal  # noqa: E402
 
 TICKS_PER_RAD = 4096 / (2 * math.pi)

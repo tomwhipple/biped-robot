@@ -1,4 +1,4 @@
-"""Offline tests for tools/gain_bench.py -- the Plan B bench (issue #73).
+"""Offline tests for experiments/plan-b-bench/gain_bench.py -- the Plan B bench (issue #73).
 
 Covers:
   * the reply parsers against the firmware's own printf formats, read out of
@@ -27,6 +27,7 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
+sys.path.insert(0, os.path.join(ROOT, "experiments", "plan-b-bench"))
 
 import gain_bench as gb  # noqa: E402
 from bus_cal import POLICY_ORDER  # noqa: E402

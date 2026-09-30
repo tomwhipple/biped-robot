@@ -6,7 +6,7 @@ masses, no inertia. It could therefore rule out a servo that buzzes unloaded,
 but it could not measure stiffness. The stiffness table and the stance number
 (steps 0 and 1 as written) are still to be taken.
 
-Tool: `tools/gain_bench.py` at main eef3abe. The session was run by the Claude
+Tool: `gain_bench.py` in this folder (then `tools/gain_bench.py`), at main eef3abe. The session was run by the Claude
 session on Mira as `claw`, on Tom's instructions. The raw data (JSON per step
 and `session.log`) is gitignored; it is on Mira under
 `hw_sessions/2026-09-30/gain_bench/` (the reads) and
