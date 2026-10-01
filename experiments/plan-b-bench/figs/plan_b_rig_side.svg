@@ -42,13 +42,13 @@
 <polygon class="clamp" points="88.5,237.5 115.5,237.5 115.5,246.5 88.5,246.5"/>
 <polygon class="clampf" points="57.0,167.0 115.5,167.0 115.5,176.0 66.0,176.0 66.0,255.5 115.5,255.5 115.5,264.5 57.0,264.5"/>
 <line class="screw" x1="102.0" y1="246.5" x2="102.0" y2="264.5"/>
-<polygon class="print" points="105.0,200.0 345.0,200.0 345.0,125.0 105.0,125.0"/>
-<polygon class="print" points="198.0,224.0 345.0,224.0 345.0,200.0 198.0,200.0"/>
+<polygon class="print" points="105.0,200.0 198.0,200.0 203.4,205.4 282.0,205.4 310.0,224.8 312.2,226.1 314.5,227.2 317.0,227.9 319.5,228.4 322.0,228.6 324.6,228.4 327.1,228.0 329.6,227.2 331.9,226.2 334.1,224.9 336.1,223.3 337.9,221.5 339.5,219.5 340.9,217.4 342.0,215.0 342.8,212.6 343.2,210.1 343.4,207.5 343.3,205.0 342.9,202.5 342.2,200.0 341.1,197.7 339.9,195.5 338.3,193.4 288.0,134.6 183.0,134.6 105.0,182.0"/>
 <polygon class="print2" points="75.0,200.0 195.0,200.0 195.0,191.0 75.0,191.0"/>
-<polygon class="print2" points="186.0,191.0 193.5,191.0 193.5,128.0 186.0,128.0"/>
-<polygon class="print2" points="105.0,191.0 112.5,191.0 112.5,128.0 105.0,128.0"/>
+<polygon class="print2" points="186.0,191.0 193.5,191.0 193.5,137.6 186.0,137.6"/>
 <polygon class="print2" points="222.0,151.1 279.0,151.1 279.0,145.1 222.0,145.1"/>
+<polygon class="print" points="222.0,145.1 279.0,145.1 279.0,139.1 222.0,139.1"/>
 <polygon class="print2" points="222.0,194.9 279.0,194.9 279.0,188.9 222.0,188.9"/>
+<polygon class="print" points="222.0,200.9 279.0,200.9 279.0,194.9 222.0,194.9"/>
 <polygon class="servo" points="217.3,188.5 285.2,188.5 285.2,151.5 217.3,151.5"/>
 <text class="tw" x="220.3" y="172.2">STS3215</text>
 <polygon class="ghost" points="256.5,320.0 283.5,320.0 283.5,170.0 256.5,170.0"/>
@@ -76,8 +76,8 @@
 <circle class="pin" cx="322.1" cy="207.3" r="9.0"/>
 <ellipse class="string" cx="420.0" cy="171.0" rx="4" ry="14.5"/>
 <line class="string" x1="420.0" y1="185.0" x2="420.0" y2="266.0"/>
-<polygon class="bag" points="402.0,266.0 438.0,266.0 480.0,299.0 483.0,614.0 357.0,614.0 360.0,299.0"/>
-<polygon class="bottle" points="400.5,311.0 439.5,311.0 439.5,323.0 465.0,348.5 468.0,611.0 372.0,611.0 375.0,348.5 400.5,323.0"/>
+<polygon class="bag" points="402.0,266.0 438.0,266.0 478.5,299.0 481.5,569.0 358.5,569.0 361.5,299.0"/>
+<polygon class="bottle" points="400.5,311.0 439.5,311.0 439.5,323.0 463.5,348.5 466.5,566.0 373.5,566.0 376.5,348.5 400.5,323.0"/>
 <path class="arrow" d="M474.0,158.0 q9,14 0,28" marker-end="url(#ah)"/>
 <path class="arrow" d="M75.0,380.0 v40" marker-end="url(#ah)"/><text class="t" x="83.0" y="405.0">g</text>
 <line class="ext" x1="270.0" y1="150.5" x2="270.0" y2="113.0"/>
@@ -96,10 +96,10 @@
 <path class="lead" d="M516.0,230.0 L328.1,211.8"/><circle class="dot" cx="328.1" cy="211.8" r="2.2"/>
 <text class="t" x="520.0" y="308.0"><tspan class="b" x="520.0" dy="0">String loop</tspan><tspan x="520.0" dy="15">seated in the 100 mm notch</tspan></text>
 <path class="lead" d="M516.0,304.0 L421.5,248.0"/><circle class="dot" cx="421.5" cy="248.0" r="2.2"/>
-<text class="t" x="520.0" y="380.0"><tspan class="b" x="520.0" dy="0">Bag + 1 / 2 / 3 full 500 mL bottles</tspan><tspan x="520.0" dy="15">(16.9 fl oz), side by side along the axis:</tspan><tspan x="520.0" dy="15">≈ 0.51 / 1.02 / 1.53 kg (1.12 / 2.25 / 3.37 lb)</tspan><tspan x="520.0" dy="15">→ 0.5 / 1.0 / 1.5 N·m at 100 mm.</tspan><tspan x="520.0" dy="15">Weigh bag + bottles; type what the scale says.</tspan></text>
+<text class="t" x="520.0" y="380.0"><tspan class="b" x="520.0" dy="0">Bag + 1 to 4 full 12 fl oz bottles</tspan><tspan x="520.0" dy="15">(355 mL), side by side along the axis,</tspan><tspan x="520.0" dy="15">≈ 0.39 kg (0.86 lb) each → 0.38 / 0.77 /</tspan><tspan x="520.0" dy="15">1.15 / 1.53 N·m at 100 mm.</tspan><tspan x="520.0" dy="15">Weigh them; type what the scale says.</tspan></text>
 <path class="lead" d="M516.0,376.0 L465.0,401.0"/><circle class="dot" cx="465.0" cy="401.0" r="2.2"/>
-<text class="t" x="22.0" y="22.0"><tspan class="b" x="22.0" dy="0">Bracket (printed)</tspan><tspan x="22.0" dy="15">base on the tabletop under a C-clamp; the plate holds the servo's</tspan><tspan x="22.0" dy="15">idler face on a conformal seat, 4 × M2.5×8 flat-head; cradle walls</tspan><tspan x="22.0" dy="15">hug the case and take the torque</tspan></text>
-<path class="lead" d="M150.0,70.0 L150.0,131.0"/><circle class="dot" cx="150.0" cy="131.0" r="2.2"/>
+<text class="t" x="22.0" y="22.0"><tspan class="b" x="22.0" dy="0">Bracket (printed)</tspan><tspan x="22.0" dy="15">base on the tabletop under a C-clamp; the plate holds the servo's</tspan><tspan x="22.0" dy="15">idler face on a conformal seat, 4 × M2.5×8 flat-head; cradle walls</tspan><tspan x="22.0" dy="15">rooted in the plate hug the case and take the torque</tspan></text>
+<path class="lead" d="M150.0,70.0 L159.0,155.2"/><circle class="dot" cx="159.0" cy="155.2" r="2.2"/>
 <text class="t" x="452.0" y="60.0"><tspan class="b" x="452.0" dy="0">Horn</tspan><tspan x="452.0" dy="15">4 × M3×10 button head, Ø14 circle</tspan></text>
 <path class="lead" d="M448.0,56.0 L277.5,161.0"/><circle class="dot" cx="277.5" cy="161.0" r="2.2"/>
 <text class="t" x="22.0" y="470.0"><tspan class="b" x="22.0" dy="0">Hold test, hanging down (dashed)</tspan><tspan x="22.0" dy="15">the hold lever, its cup packed full of table salt:</tspan><tspan x="22.0" dy="15">≈ 0.25 kg (8.8 oz) rigid at 100 mm; stop pin out</tspan></text>
@@ -108,5 +108,5 @@
 <path class="lead" d="M70.0,286.0 L61.5,230.0"/><circle class="dot" cx="61.5" cy="230.0" r="2.2"/>
 <text class="t" x="22.0" y="322.0"><tspan x="22.0" dy="0">table edge</tspan><tspan x="22.0" dy="15">(section)</tspan></text>
 <path class="lead" d="M80.0,318.0 L135.0,218.0"/><circle class="dot" cx="135.0" cy="218.0" r="2.2"/>
-<text class="ts" x="18" y="636">Side view along the servo's output axis, from the lever side, to scale (1.5 px/mm). Generated by cad/plan_b_rig.py.</text>
+<text class="ts" x="18" y="636">Side view along the servo's output axis, from the lever side, to scale (1.5 px/mm). Generated by experiments/plan-b-bench/plan_b_rig.py.</text>
 </svg>
