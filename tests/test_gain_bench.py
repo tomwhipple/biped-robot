@@ -138,7 +138,7 @@ def test_a_clamped_move_releases():
             return out
     fake = Clamped(sid=30, pos=3072)
     op = gb.Operator(ask=lambda p: "go" if "type go" in p else "", say=lambda s: None)
-    with pytest.raises(gb.Abort, match="raise to straight out failed.*torque stays ON"):
+    with pytest.raises(gb.Abort, match="move to straight out failed.*torque stays ON"):
         gb.run_stiffness(fake, op, 30, [(32, 32)], 0.1, [0.5], 2, 0.0, 2048, 3072)
     assert fake.torque                    # off rest: held, never released
 
@@ -497,7 +497,7 @@ def test_stiffness_releases_only_at_rest(monkeypatch):
     assert len(res["rows"]) == 2 and not fake.torque
     assert fake.released_at and all(abs(p - 3072) <= gb.REST_TOL for p in fake.released_at)
     assert len(script.gos()) == 4                    # raise + lower per rung
-    assert any("LOWER" in g for g in script.gos()) and any("RAISE" in g for g in script.gos())
+    assert any("LOWER" in g for g in script.gos()) and any("straight out" in g for g in script.gos())
 
 
 def test_refuses_to_start_off_rest():
@@ -540,7 +540,7 @@ def test_safe_to_release():
 def test_loop_slope_is_the_load_per_tick_and_needs_a_span():
     w = lambda pos, load: {"n": 3, "pos_mean": pos, "load_mean": load}
     assert gb.loop_slope([w(2059, 24), w(2063, 56), w(2065, 72)]) == pytest.approx(8.0, rel=0.02)
-    assert gb.loop_slope([w(2059, 24), w(2060, 56)]) != gb.loop_slope([w(2059, 24), w(2060, 56)])  # nan
+    assert gb.loop_slope([w(2059, 24), w(2059, 56)]) != gb.loop_slope([w(2059, 24), w(2059, 56)])  # nan: no span
     assert gb.loop_slope([w(2059, 24)]) != gb.loop_slope([w(2059, 24)])
 
 
@@ -553,3 +553,52 @@ def test_the_report_carries_the_loop_ratio(tmp_path, monkeypatch):
     assert by_p[32]["loop_ratio"] == pytest.approx(1.0)
     assert by_p[128]["loop_ratio"] == pytest.approx(4.0, rel=0.25)
     assert "loop × P 32" in gb.render_report(str(tmp_path))
+
+
+# -- a level REST (rest == goal): the bare arm released level; never loaded ---------
+
+def test_level_rest_releases_only_bare_at_goal(monkeypatch):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+    script = Script()
+    fake = Recorder(sid=30, pos=2056)
+    state = {}
+    res = gb.run_stiffness(fake, gb.Operator(ask=script, say=lambda s: None), 30,
+                           [(32, 32), (128, 128)], 0.1, [0.38, 0.77, 1.15, 1.53], 2, 0.0,
+                           2057, 2057, state=state)
+    assert len(res["rows"]) == 2 and not fake.torque and state["loaded"] is False
+    assert all(abs(p - 2057) <= 3 for p in fake.released_at)
+    assert not any("LOWER" in g for g in script.gos())   # level: nothing to lower
+    # each release is asked for only after the bag comes off
+    order = [("bagoff" if "lift the bag off" in p else "release")
+             for p in script.prompts if "lift the bag off" in p or "release the BARE" in p]
+    assert order == ["bagoff", "release"] * 2
+
+
+def test_a_stop_with_bottles_on_keeps_torque_on(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+    boards = []
+
+    class Kept(gb.FakeBoard):
+        def __init__(self, **kw):
+            super().__init__(**kw)
+            boards.append(self)
+
+    def ask(prompt):                                 # stop at the bag-off prompt: EOF
+        if "lift the bag off" in prompt:
+            raise EOFError
+        return "go" if "type go" in prompt else ""
+    monkeypatch.setattr(gb, "FakeBoard", Kept)
+    monkeypatch.setattr("builtins.input", ask)
+    rc = gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "30", "--ladder", "32",
+                  "--samples", "2", "--goal", "2057", "--rest", "2057"])
+    assert rc == 2 and boards[0].torque              # level is "at rest" -- but loaded: held
+    out = capsys.readouterr().out
+    assert "TORQUE STAYS ON" in out and "Lift the bag off" in out
+
+
+def test_loop_slope_leaves_out_the_dead_zone():
+    w = lambda pos, load: {"n": 3, "pos_mean": pos, "load_mean": load}
+    # the bench's P 128 rung: bare (0, 0), 1 bottle (+3, 80), 2 bottles (+4, 112), return (-1, 0)
+    assert gb.loop_slope([w(2057, 0), w(2060, 80), w(2061, 112), w(2056, 0)]) == pytest.approx(32.0)
+    # P 32: the bare point is outside the dead zone (load 24) and stays in
+    assert gb.loop_slope([w(2059, 24), w(2063, 56), w(2065, 72), w(2059, 24)]) == pytest.approx(8.0)

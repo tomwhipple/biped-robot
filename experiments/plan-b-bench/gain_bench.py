@@ -288,12 +288,17 @@ def loop_slope(windows: Sequence[dict]) -> float:
     register by 32 units, not ~130), so the hung-mass k overstates stiffness
     and compresses the P ratios; the register is what the loop actually
     commands per tick, so its ratio to P 32 is friction-free and needs no
-    torque calibration. NaN when the windows span under 2 ticks."""
-    pts = [(w["pos_mean"], w["load_mean"]) for w in windows if w.get("n")]
+    torque calibration. Windows reading load 0 are left out: they sit inside
+    the servo's dead zone (registers 26/27, 1 step each way), where the loop
+    commands nothing whatever P is. On the bench (2026-10-01) the loaded
+    windows gave 8 / 32 / 40 units per tick at P 32 / 128 / 160 -- exactly
+    P / 4, the controller's own law. NaN without two loaded windows a tick
+    apart."""
+    pts = [(w["pos_mean"], w["load_mean"]) for w in windows if w.get("n") and w["load_mean"] != 0]
     if len(pts) < 2:
         return float("nan")
     xs, ys = [x for x, _ in pts], [y for _, y in pts]
-    if max(xs) - min(xs) < 2:
+    if max(xs) - min(xs) < 1:
         return float("nan")
     mx, my = _mean(xs), _mean(ys)
     sxx = sum((x - mx) ** 2 for x in xs)
@@ -988,20 +993,26 @@ def move_to(board, sid: int, target: int, what: str) -> int:
 def run_stiffness(board, op: Operator, sid: int, ladder, lever_m: float,
                   loads_nm: Sequence[float], n: int, settle_s: float, goal: int, rest: int,
                   on_row: Callable[[dict], None] = lambda res: None,
-                  env: Optional[Tuple[int, int, str]] = None) -> dict:
+                  env: Optional[Tuple[int, int, str]] = None,
+                  state: Optional[dict] = None) -> dict:
     """The servo does ALL the positioning; nobody holds the lever (Tom,
-    2026-10-01: bottles go on only with the arm straight out). REST is the bare
-    lever hanging straight down -- the ONLY place torque is released or gains
-    written, because a released lever off the vertical falls (a bare one went
-    81 deg in 2.5 s). GOAL is straight out, given in ticks. Per rung: gains at
-    REST; go -> torque on, raise to GOAL; bare sample, the loads, bare again;
-    go -> lower to REST; release. Off REST, nothing here releases: an abort
-    keeps torque on (run_servo's end says where and how to bring it down)."""
+    2026-10-01: bottles go on only with the arm straight out). REST is where
+    the BARE lever is released and gains written -- either hanging straight
+    down (|rest - goal| ~1024) or level at GOAL itself (rest within REST_TOL
+    of goal: "friction will keep the bare arm in place", Tom; it held level).
+    The hard rule: nothing is released with a load hung -- every release comes
+    after "lift the bag off", and `state["loaded"]` tells run_servo's end to
+    hold torque if a session stops with bottles on. Per rung: gains at REST;
+    go -> torque on, to GOAL at 100 steps/s; bare sample, the loads, bag off,
+    bare again; go -> back to REST; release."""
+    state = state if state is not None else {}
+    state["loaded"] = False
     check_room(sid, goal, goal - DEFLECT_TICKS, goal + DEFLECT_TICKS, env)
     check_room(sid, rest, rest, rest, env)
-    if not 700 <= abs(rest - goal) <= 1350:
-        raise Abort(f"rest {rest} is {abs(rest - goal)} ticks from goal {goal}: hanging "
-                    f"straight down is ~1024 (90 deg) from straight out")
+    level = abs(rest - goal) <= REST_TOL
+    if not level and not 700 <= abs(rest - goal) <= 1350:
+        raise Abort(f"rest {rest} is {abs(rest - goal)} ticks from goal {goal}: give rest = "
+                    f"goal (level) or the hanging position (~1024, 90 deg, from straight out)")
     at, torque = read_pos(board, sid)["pos"], read_reg(board, sid, 40)
     if torque != 0:
         raise Abort(f"id {sid} has torque ON at {at}: bring it to rest first "
@@ -1016,7 +1027,7 @@ def run_stiffness(board, op: Operator, sid: int, ladder, lever_m: float,
         wrote = write_gains(board, sid, p, d)          # at REST: its release is safe
         if wrote != "ok":
             op.say(f"  gains {p}/{d}: {wrote} (read back equal, EEPROM locked; #101)")
-        op.go(f"P {p} D {d}: torque on at rest, then RAISE the bare lever to straight out "
+        op.go(f"P {p} D {d}: torque on at rest, then the bare lever to straight out "
               f"({goal}) at {PIN_SPEED} steps/s")
         before = read_pos(board, sid)
         board.cmd(f"torque {sid}", until=r"torque \S+: \S+\r?\n")
@@ -1025,12 +1036,13 @@ def run_stiffness(board, op: Operator, sid: int, ladder, lever_m: float,
             release(board, sid)                         # still at REST: hanging, safe
             raise Abort(f"id {sid} jumped {after['pos'] - before['pos']} ticks at torque-on "
                         f"(a stale goal register?) -- released at rest")
-        move_to(board, sid, goal, "the raise to straight out")
+        move_to(board, sid, goal, "the move to straight out")
         time.sleep(settle_s)
         row = {"p": p, "d": d, "gain_write": wrote,
                "steps": [{"tau": 0.0, "samples": sample(board, sid, n=n)}]}
         for tau in loads_nm:
             m = tau / (G * lever_m)
+            state["loaded"] = True                      # from the first hang prompt on
             m_act = ask_mass(op, f"P {p}: hang {m:.3f} kg in total at {lever_m * 1000:.0f} mm "
                                  f"({tau:g} N·m). Enter = that; or type the mass actually hung (kg)",
                              m)
@@ -1043,13 +1055,17 @@ def run_stiffness(board, op: Operator, sid: int, ladder, lever_m: float,
             op.say(f"  {tau_act:.3f} N·m: pos {w['pos_mean']:.1f} (range {w['range']}), "
                    f"load {w['load_mean']:.0f}, status {status_names(w['err'])}")
         op.wait(f"P {p}: lift the bag off (bare lever)")
+        state["loaded"] = False
         board.rig(tau=0.0)
         time.sleep(settle_s)
         row["return"] = {"samples": sample(board, sid, n=n)}
-        op.go(f"P {p}: LOWER the bare lever to rest ({rest}) at {PIN_SPEED} steps/s, "
-              f"then release")
-        move_to(board, sid, rest, "the lower to rest")
-        release(board, sid)                             # at REST only
+        if level:
+            op.go(f"P {p}: release the BARE lever level at {rest} (bag off)")
+        else:
+            op.go(f"P {p}: LOWER the bare lever to rest ({rest}) at {PIN_SPEED} steps/s, "
+                  f"then release")
+            move_to(board, sid, rest, "the lower to rest")
+        release(board, sid)                             # bare, at REST only
         s = stiffness_row(row)
         op.say(f"  P {p} D {d}: k {s['k']:.1f} N·m/rad (±{s['k'] * s['k_rel_se']:.1f}), "
                f"return {s['return_offset']:+.1f} ticks -- at rest, released")
@@ -1058,10 +1074,19 @@ def run_stiffness(board, op: Operator, sid: int, ladder, lever_m: float,
     return res
 
 
-def safe_to_release(board, sid: int, rest: Optional[int]) -> Tuple[bool, str]:
-    """Whether the end of a session may release: always when no REST applies
-    (the hand-held flows); with a REST, only if torque is already off or the
-    lever is at REST. An unreadable servo is NOT safe -- nothing is sent."""
+def safe_to_release(board, sid: int, rest: Optional[int],
+                    loaded: bool = False) -> Tuple[bool, str]:
+    """Whether the end of a session may release: never with a load hung;
+    always when no REST applies (the hand-held flows); with a REST, only if
+    torque is already off or the lever is at REST. An unreadable servo is NOT
+    safe -- nothing is sent."""
+    if loaded:
+        try:
+            torque = read_reg(board, sid, 40)
+        except Abort:
+            torque = None
+        if torque != 0:
+            return False, "has a load hung (lift the bag off first)"
     if rest is None:
         return True, ""
     try:
@@ -1333,6 +1358,7 @@ def run_servo(A, session: str, op: Operator, log) -> int:
              else Board(find_port(A.port), log))
     settle = 0.2 if A.rehearse else getattr(A, "settle", 0.0)
     start = None
+    state: dict = {}                       # run_stiffness: whether a load is hung
     try:
         connect(board, sid)
         start = read_gains(board, sid)
@@ -1349,7 +1375,7 @@ def run_servo(A, session: str, op: Operator, log) -> int:
             save = _saver(session, "stiffness.json", start_gains=list(start))
             save(run_stiffness(board, op, sid, ladder, A.lever_m,
                                [float(x) for x in A.loads.split(",")], A.samples, settle,
-                               A.goal, A.rest, on_row=save, env=env))
+                               A.goal, A.rest, on_row=save, env=env, state=state))
         else:
             save = _saver(session, "hold.json", start_gains=list(start))
             save(run_hold(board, op, sid, ladder, A.orient.split(","), A.quiet_s, A.step,
@@ -1358,11 +1384,15 @@ def run_servo(A, session: str, op: Operator, log) -> int:
         return 0
     finally:
         rest = getattr(A, "rest", None) if A.cmd == "stiffness" else None
-        ok, why = safe_to_release(board, sid, rest) if A.cmd != "read" else (False, "")
+        ok, why = (safe_to_release(board, sid, rest, state.get("loaded", False))
+                   if A.cmd != "read" else (False, ""))
         if A.cmd != "read" and not ok:
-            op.say(f"!! TORQUE STAYS ON: id {sid} {why}. Bring it down under torque: "
-                   f"`move {sid} {rest} 0 {PIN_SPEED}`, then `release {sid}` -- never "
-                   f"release it off the vertical")
+            if state.get("loaded"):
+                op.say(f"!! TORQUE STAYS ON: id {sid} {why}. Lift the bag off, then "
+                       f"`release {sid}` -- never release with a load hung")
+            else:
+                op.say(f"!! TORQUE STAYS ON: id {sid} {why}. Bring it to rest under torque: "
+                       f"`move {sid} {rest} 0 {PIN_SPEED}`, then `release {sid}`")
         if A.cmd != "read" and ok:
             try:
                 release(board, sid)
