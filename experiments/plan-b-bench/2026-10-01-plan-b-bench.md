@@ -12,8 +12,9 @@ Step 1 (stance) was not run: the v5 robot will not be repaired.
   **3.5 ± 0.4×** the P 32 stiffness at P 128 and **4.8 ± 0.6×** at P 160.
 - **With a rigid inertia on the lever (a C-clamp, run D), P 160 oscillates
   while holding still, whatever the D and with the clamp in or out of the
-  lever's plane.** Up to P 128 / D 32 it holds quietly and
-  small moves settle. Slow 90° sweeps shake at P 96 and above, where P 32 does not.
+  lever's plane.** Up to P 128 / D 32 it holds still quietly. Small 2° moves
+  while hanging settle with the clamp off-plane, but ring at P 96–128 with it in
+  plane. Slow 90° sweeps shake at P 96 and above, where P 32 does not.
 
 How the session ran:
 
