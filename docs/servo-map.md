@@ -413,7 +413,7 @@ the record goes in `experiments/plan-b-bench/`, with the rig and its dated sessi
 1. `scan`, then `read <id>`: which ID answers; P, D, I, the dead zones, the protection registers and the model number (777).
    - An ID on the bus map (1–17) has its `move` clamped to that joint's envelope, after it is sent. The motion steps take one only with `--allow-bus-id`, and then check every target against the envelope computed from the board's `cal show` and `mech_envelope.h`.
    - `park <id>` turns the bare horn into that band, and clear of the 0/4095 encoder wrap, before the lever goes on. It writes no EEPROM.
-2. `stiffness <id>`: at each P the servo holds a horizontal lever while 0.5 / 1.0 / 1.5 N·m is hung on it.
+2. `stiffness <id> --goal <ticks> --rest <ticks>`: at each P the servo raises the bare lever from hanging straight down (REST) to straight out (GOAL), holds it there while the loads are hung, and lowers it back. Torque is released, and gains written, only at REST.
    - k is the slope of deflection on torque over the loaded points, with an intercept so the friction share drops out.
    - What passes is the ratio to P = 32.
    - The ladder is 32 / 64 / 96 / 128 / 160, with D raised with P. 128 is exactly 4 × 32, so a servo whose stiffness is proportional to P lands on the line there and a tick decides; 160 shows whether the trend carries on. A ratio within one standard error under a threshold reads MARGINAL.

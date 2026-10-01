@@ -20,6 +20,6 @@ because the pre-push gate collects that folder. Raw bench data goes to
 `<date>-plan-b-bench.md`.
 
 ```bash
-.venv/bin/python experiments/plan-b-bench/gain_bench.py --rehearse stiffness 30
+.venv/bin/python experiments/plan-b-bench/gain_bench.py --rehearse stiffness 30 --goal 2048 --rest 3072
 MUJOCO_GL=cgl .venv/bin/python experiments/plan-b-bench/plan_b_rig.py   # Mac; egl on Linux
 ```
