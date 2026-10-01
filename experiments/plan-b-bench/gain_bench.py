@@ -1055,6 +1055,14 @@ def run_hold(board, op: Operator, sid: int, ladder, orients: Sequence[str], quie
                 op.say(f"  step {leg}: overshoot {s['overshoot']:.0f}, settle "
                        f"{_f(s['settle_s'], '.2f')} s, residual range {s['residual_range']}, "
                        f"offset {s['offset']:+.1f}")
+            if orient != "down":
+                # Released, a lever loaded off the vertical back-drives the
+                # gearbox the moment friction lets go -- a rotor turning 345x
+                # the output, braked by whatever stops the lever (2026-10-01:
+                # a one-bottle lever released on the bench fell past the pin).
+                # Hanging down, the load holds no torque on the joint.
+                op.wait(f"P {p}: SUPPORT the lever by hand -- torque is released next for "
+                        f"the gain write; keep holding it until the next go")
             release(board, sid)
             h = hold_row(row)
             op.say(f"  {'quiet' if h['is_quiet'] else 'NOT QUIET'} -- released")

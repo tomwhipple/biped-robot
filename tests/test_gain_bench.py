@@ -463,3 +463,13 @@ def test_a_lever_that_will_not_reseat_aborts(monkeypatch):
                     [(32, 32), (64, 64)], ["horizontal"], quiet_s=0.02, step_ticks=23,
                     step_s=0.03, settle_s=0.0, inertia="salt cup")
     assert not fake.torque
+
+
+@pytest.mark.parametrize("orient,supports", [("horizontal", 2), ("down", 0)])
+def test_a_loaded_lever_is_supported_before_every_release(orient, supports, monkeypatch):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+    script = Script()
+    gb.run_hold(gb.FakeBoard(sid=30), gb.Operator(ask=script, say=lambda s: None), 30,
+                [(32, 32), (64, 64)], [orient], quiet_s=0.02, step_ticks=23, step_s=0.03,
+                settle_s=0.0, inertia="salt cup")
+    assert sum("SUPPORT the lever" in p for p in script.prompts) == supports
