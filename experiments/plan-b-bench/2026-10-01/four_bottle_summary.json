@@ -1,0 +1,439 @@
+{
+ "id": 30,
+ "goal": 2057,
+ "probe_ticks": 23,
+ "spd": 100,
+ "bottle_kg_nominal": 0.39,
+ "lever_m": 0.1,
+ "rows": [
+  {
+   "p": 32,
+   "states": [
+    {
+     "bottles": 0,
+     "tau_nominal": 0.0,
+     "static_pos": 2056.0,
+     "static_load": 0.0,
+     "static_range": 0,
+     "above_pos": 2058.0,
+     "above_load": 0.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2056.0,
+     "below_load": 0.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 1,
+     "tau_nominal": 0.38245935,
+     "static_pos": 2059.0,
+     "static_load": 24.0,
+     "static_range": 0,
+     "above_pos": 2068.0,
+     "above_load": 96.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2057.0,
+     "below_load": 0.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 2,
+     "tau_nominal": 0.7649187,
+     "static_pos": 2062.0,
+     "static_load": 48.0,
+     "static_range": 0,
+     "above_pos": 2076.0,
+     "above_load": 160.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.298,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2062.0,
+     "below_load": 48.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2982,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 3,
+     "tau_nominal": 1.14737805,
+     "static_pos": 2064.0,
+     "static_load": 64.0,
+     "static_range": 0,
+     "above_pos": 2085.0,
+     "above_load": 232.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2652,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2067.0,
+     "below_load": 88.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.0342,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 4,
+     "tau_nominal": 1.5298374,
+     "static_pos": 2070.0,
+     "static_load": 112.0,
+     "static_range": 0,
+     "above_pos": 2092.0,
+     "above_load": 288.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.0343,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2081.0,
+     "below_load": 200.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.0342,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 0,
+     "tau_nominal": 0.0,
+     "static_pos": 2058.0,
+     "static_load": 0.0,
+     "static_range": 0,
+     "above_pos": 2059.0,
+     "above_load": 24.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2056.0,
+     "below_load": 0.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.265,
+      "residual_range": 0,
+      "err": 0
+     }
+    }
+   ]
+  },
+  {
+   "p": 128,
+   "states": [
+    {
+     "bottles": 0,
+     "tau_nominal": 0.0,
+     "static_pos": 2056.0,
+     "static_load": 0.0,
+     "static_range": 0,
+     "above_pos": 2056.0,
+     "above_load": 0.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2652,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2058.0,
+     "below_load": 0.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2652,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 1,
+     "tau_nominal": 0.38245935,
+     "static_pos": 2059.0,
+     "static_load": 48.0,
+     "static_range": 0,
+     "above_pos": 2059.0,
+     "above_load": 48.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.3311,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2059.0,
+     "below_load": 48.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2652,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 2,
+     "tau_nominal": 0.7649187,
+     "static_pos": 2060.0,
+     "static_load": 80.0,
+     "static_range": 0,
+     "above_pos": 2061.0,
+     "above_load": 112.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2981,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2060.0,
+     "below_load": 80.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2649,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 3,
+     "tau_nominal": 1.14737805,
+     "static_pos": 2063.0,
+     "static_load": 176.0,
+     "static_range": 0,
+     "above_pos": 2064.0,
+     "above_load": 208.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.265,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2061.0,
+     "below_load": 112.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 4,
+     "tau_nominal": 1.5298374,
+     "static_pos": 2063.0,
+     "static_load": 176.0,
+     "static_range": 0,
+     "above_pos": 2068.0,
+     "above_load": 336.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2063.0,
+     "below_load": 176.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 0,
+     "tau_nominal": 0.0,
+     "static_pos": 2057.0,
+     "static_load": 0.0,
+     "static_range": 0,
+     "above_pos": 2057.0,
+     "above_load": 0.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2653,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2057.0,
+     "below_load": 0.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     }
+    }
+   ]
+  },
+  {
+   "p": 160,
+   "states": [
+    {
+     "bottles": 0,
+     "tau_nominal": 0.0,
+     "static_pos": 2057.0,
+     "static_load": 0.0,
+     "static_range": 0,
+     "above_pos": 2057.0,
+     "above_load": 0.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2981,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2058.0,
+     "below_load": 0.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 1,
+     "tau_nominal": 0.38245935,
+     "static_pos": 2059.0,
+     "static_load": 56.0,
+     "static_range": 0,
+     "above_pos": 2059.0,
+     "above_load": 56.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2321,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2058.0,
+     "below_load": 0.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2652,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 2,
+     "tau_nominal": 0.7649187,
+     "static_pos": 2061.0,
+     "static_load": 136.0,
+     "static_range": 0,
+     "above_pos": 2061.0,
+     "above_load": 136.0,
+     "above_step": {
+      "overshoot": 1.0,
+      "settle_s": 0.2652,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2061.0,
+     "below_load": 136.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 3,
+     "tau_nominal": 1.14737805,
+     "static_pos": 2063.0,
+     "static_load": 216.0,
+     "static_range": 0,
+     "above_pos": 2063.0,
+     "above_load": 216.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2652,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2060.0,
+     "below_load": 96.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.265,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 4,
+     "tau_nominal": 1.5298374,
+     "static_pos": 2062.0,
+     "static_load": 176.0,
+     "static_range": 0,
+     "above_pos": 2065.0,
+     "above_load": 296.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2062.0,
+     "below_load": 176.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2651,
+      "residual_range": 0,
+      "err": 0
+     }
+    },
+    {
+     "bottles": 0,
+     "tau_nominal": 0.0,
+     "static_pos": 2056.0,
+     "static_load": 0.0,
+     "static_range": 0,
+     "above_pos": 2057.0,
+     "above_load": 0.0,
+     "above_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2321,
+      "residual_range": 0,
+      "err": 0
+     },
+     "below_pos": 2056.0,
+     "below_load": 0.0,
+     "below_step": {
+      "overshoot": 0.0,
+      "settle_s": 0.2321,
+      "residual_range": 0,
+      "err": 0
+     }
+    }
+   ]
+  }
+ ]
+}

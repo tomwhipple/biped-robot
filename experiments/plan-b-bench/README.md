@@ -13,6 +13,8 @@ experiment is in this folder.
 | `figs/` | the rig's side view and render, drawn by `plan_b_rig.py` |
 | [2026-09-30-plan-b-rig.md](2026-09-30-plan-b-rig.md) | the rig: loads, parts, seating, fit checks, procedure |
 | [2026-09-30-plan-b-bench.md](2026-09-30-plan-b-bench.md) | session 1: the bench servo's registers and the unloaded P ladder |
+| [2026-10-01-plan-b-bench.md](2026-10-01-plan-b-bench.md) | session 2: loaded stiffness on the rig, 1/2/4 bottles; friction-free k ×3.5 at P 128, ×4.8 at P 160, quiet; two drops |
+| `2026-10-01/` | session 2's one-off run scripts and the 4-bottle per-state summary |
 
 Its offline tests are `tests/test_gain_bench.py`. They stay in `tests/`,
 because the pre-push gate collects that folder. Raw bench data goes to
