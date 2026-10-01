@@ -4,12 +4,15 @@ Issue #73, [DESIGN.md §13](../../DESIGN.md) step 0, first loaded runs. This
 session put the bench STS3215 on the printed rig
 ([2026-09-30-plan-b-rig.md](2026-09-30-plan-b-rig.md)), with a 100 mm lever
 and Gatorade bottles hung from its notch. It measured stiffness at P 32, 128 and
-160. It did not run the hold test (the salt cup) or step 1 (stance).
+160, then held a rigid inertia (a C-clamp in place of the unprinted salt cup).
+Step 1 (stance) was not run: the v5 robot will not be repaired.
 
-**Result: stiffness rises with P.** Measured with the gearbox friction
-cancelled, it is **3.5 ± 0.4×** the P 32 stiffness at P 128 and **4.8 ± 0.6×**
-at P 160. The servo was quiet at every load: position range 0, overshoot at
-most 1 tick, no status bits.
+**Result.**
+- **Stiffness rises with P.** Measured with the gearbox friction cancelled, it is
+  **3.5 ± 0.4×** the P 32 stiffness at P 128 and **4.8 ± 0.6×** at P 160.
+- **With a rigid inertia on the lever (a C-clamp, run D), P 160 oscillates
+  while holding still, whatever the D.** Up to P 128 / D 32 it holds quietly and
+  small moves settle. Slow 90° sweeps shake at P 96 and above, where P 32 does not.
 
 How the session ran:
 
@@ -154,16 +157,86 @@ probe returns was at most 1 tick, and no status bit was set. The probes return
 at 100 steps/s, so this is not a step response at full speed. The loads hang on
 a string, so they do not couple to the lever as a rigid inertia.
 
+
+## Run D: hold with a rigid inertia, a C-clamp (15:30–16:05)
+
+The salt-cup lever was not printed, so a C-clamp went on the stiffness lever near
+the 100 mm notch. Script: `2026-10-01/hold_clamp.py`, on ID 30.
+
+**The clamp, as estimated:**
+- **Mass:** about 0.8 lb (0.36 kg), Tom's estimate; there is no scale.
+- **Torque:** at P 32 the probe midpoint sat 8.5 ticks below level. Against run
+  C's P 32 stiffness that is about 0.45 N·m, which puts the clamp's centre of
+  mass about 126 mm out.
+- **Inertia:** about 0.006 kg·m², roughly 2.3× #73's "leg-like" 0.25 kg at
+  0.1 m (0.0025). These are estimates.
+- **Off-plane mass:** the clamp's centre of mass sits off the lever's plane. Tom
+  observed that part of the shaking comes from that.
+
+**Per P:**
+1. With the arm hanging plumb (3081) and released: write the gains.
+2. Torque on, then a quiet hold for 5 s and four 2° moves out and back.
+3. Raise to level (2057), traced. Quiet hold, two slow probes, four 2° moves.
+4. Lower to hanging, traced. Release.
+
+Nothing is ever released with the clamp on unless the arm is within 60 ticks of
+plumb.
+
+**Moves.** The first pass used full-speed steps. Tom: "the jerkiness of the
+motion is a real problem". After that, every move was acceleration-limited
+(register 41 = 2, i.e. 200 steps/s²):
+- 2° moves at up to 200 steps/s
+- 90° travels at 100 steps/s
+
+Each travel was sampled throughout. "Backward" counts the samples whose reported
+speed had the wrong sign for the move.
+
+| pass | P / D | holding still, level: range (ticks), moving samples | holding still, hanging | 2° moves: worst overshoot / residual range, settled? | raise: speed spread, backward samples | lower: speed spread, backward samples |
+|---|---|---|---|---|---|---|
+| full-speed steps | 32 / 32 | 0, 0/152 | 0 | 1 / 0, yes | 25, 0/308 | 70, 4/265 |
+| smooth | 32 / 32 | 0 | 0 | 1 / 0, yes | 29, 0/306 | 80, 5/260 |
+| smooth | 128 / 128 | 0 | 0 | 4 / 7, one never settles (hanging) | 140, 41/268 | 193, 84/276 |
+| smooth | 160 / 160 | **13, 114/152** | 0 | 7 / 11, none settle | 139, 68/325 | 696, 176/395 |
+| smooth | 32 / 32 | 0 | 0 | 1 / 0, yes | 29, 0/308 | 43, 0/290 |
+| smooth | 128 / 32 | 0 | 0 | 3 / 0, yes | 201, 78/303 | 173, 60/277 |
+| smooth | 160 / 32 | **18, 148/152** | 0 | 10 / 19, none settle | 243, 98/384 | 244, 132/359 |
+| smooth, clamp refitted | 32 / 32 | 0 | 0 | 0 / 0, yes | 27, 0/308 | 71, 3/269 |
+| smooth, clamp refitted | 96 / 32 | 0 | 0 | 3 / 1, yes | 117, 36/275 | 133, 37/243 |
+
+- **Speed spread** is the standard deviation of the reported speed, in steps/s,
+  about a commanded 100.
+- **P 160 lowering with D = 160:** the load hit ±1000 (full scale), and the
+  move ended 15 ticks over with a 29-tick residual range.
+- **No status bit** was set in any pass.
+- **Stiffness from the clamp.** Its probe midpoints at level were 7.5–8.5 ticks
+  at P 32, 3.0 at P 96 and 2.5 at P 128. That is about 2.8× (P 96) and 3.0×
+  (P 128) against P 32. Run C's bottles gave 3.5× at P 128.
+
+Per-pass numbers are in `2026-10-01/hold_clamp_summary.json`. The video is on Mira:
+`hw_sessions/2026-10-01/gain_bench_hold/`, `run_attempt1.mp4` 15:29–15:34,
+`run2.mp4` 15:37–15:55, `run3.mp4` 16:00–16:04.
+
+**Reading:**
+- **P 160** limit-cycles holding still with this inertia, at D 160 and D 32
+  alike.
+- **D 32 against D = P at P 128:** the small moves settle with D 32 and ring
+  with D 128.
+- **The 90° sweeps** shake at every P from 96 up: tens of backward samples and
+  load swings of ±200–400. P 32 sweeps hardly do (0–5 backward samples). Tom saw
+  it most on the downward motion.
+- **This inertia is about 2.3× #73's leg-like value,** so P 160 might behave
+  differently with a true leg. These runs do not show that either way.
+
 ## Against #73
 
 | #73 line | result |
 |---|---|
-| pass: ≥ 4× the P 32 stiffness, ≤ ±1 count at hold | P 160: 4.8 ± 0.6×, static range 0 |
-| conditional pass: 3× and quiet | P 128: 3.5 ± 0.4×, quiet |
-| hold with a leg-like inertia, no limit cycle | **not run**: the salt-cup lever |
-| step 1: stance shortfall ≤ 0.3° | **not run** |
+| pass: ≥ 4× the P 32 stiffness, ≤ ±1 count at hold | 4.8 ± 0.6× only at P 160, which **oscillates** holding the clamp |
+| conditional pass: 3× and quiet | P 128 / D 32: 3.5 ± 0.4× (bottles), about 3.0× (clamp). Quiet at hold and settles after 2° moves; 90° sweeps shake |
+| hold with a leg-like inertia, no limit cycle | clamp at about 2.3× the leg-like inertia: none up to P 128 / D 32; **limit cycle at P 160** (D 160 and D 32) |
+| step 1: stance shortfall ≤ 0.3° | **not run**; the v5 robot will not be repaired |
 
-## Incidents: two drops
+## Incidents
 
 **Drop 1, about 12:24–12:27.**
 - Run A ended (12:24:28) with a `release` while the bottle was still hung. The
@@ -184,6 +257,12 @@ a string, so they do not couple to the lever as a rigid inertia.
   "friction will keep the bare arm in place". The bare arm did hold, released
   level, at every rung of runs B and C.
 
+**Run D, attempt 1 (15:30–15:33).** While the clamped arm was lowered to hanging
+(after the P 32 level block), the C-clamp ran into the clamp holding the stand
+to the table. The servo then stopped answering (`id 30: timeout`), and the script
+stopped with the torque state unknown. Tom cut power, refitted the clamps and
+powered back on. The video is `run_attempt1.mp4`.
+
 **What changed afterwards:**
 - Every hardware session is filmed as video, from before the first command to a
   few seconds after the last (Tom).
@@ -192,8 +271,9 @@ a string, so they do not couple to the lever as a rigid inertia.
 
 ## Deviations from the tool
 
-- Runs A–C used one-off scripts, copied here into `2026-10-01/`, not
-  `gain_bench.py`.
+- Runs A–D used one-off scripts, kept in `2026-10-01/`, not
+  `gain_bench.py`. Run D's `hold_clamp.py` was written there and runs from
+  the repo root.
 - Run B started on Tom's "go. now" before `gain_bench`'s servo-positioned
   mode had landed. Run C needed probes the tool did not have yet.
 - The scripts reuse `gain_bench`'s guarded gains write, reads and step
@@ -204,7 +284,11 @@ a string, so they do not couple to the lever as a rigid inertia.
 
 ## Open
 
-- **The hold test with the salt-cup lever (rigid inertia)**, at P 128 and 160.
-- **Step 1:** the stance test on a robot hip roll.
-- **ID:** rename the servo back to 11 when bench work on it is done.
+- **The decision #73 feeds:** whether the STS3250 is still needed, given its cost
+  and availability. The bench evidence is above. It has no measurement of the
+  STS3250 itself.
+- **A true leg-sized inertia:** the salt cup, or about 0.25 kg rigid at 100 mm.
+  It would show whether P 160 holds still with the inertia #73 specifies.
+- **ID:** the servo is still ID 30. Rename it back to 11 when bench work on it
+  is done.
 - **Bottle mass:** weigh one bottle, if absolute stiffness is wanted.
