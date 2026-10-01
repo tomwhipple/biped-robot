@@ -124,7 +124,7 @@ def test_parse_scan():
 
 def test_bus_map_ids_are_refused_for_motion(tmp_path, monkeypatch):
     monkeypatch.setattr("builtins.input", Script())
-    assert gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "1"]) == 2
+    assert gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "1", "--goal", "2048", "--rest", "3072"]) == 2
     assert "clamps" in open(tmp_path / "session.log").read()
     assert gb.main(["--rehearse", "--session", str(tmp_path), "read", "1"]) == 0
 
@@ -136,11 +136,11 @@ def test_a_clamped_move_releases():
             if line.startswith("move"):
                 out = "id 30: 2048 is outside x's range [0..10], clamped to 10\r\n" + out
             return out
-    fake = Clamped(sid=30)
+    fake = Clamped(sid=30, pos=3072)
     op = gb.Operator(ask=lambda p: "go" if "type go" in p else "", say=lambda s: None)
-    with pytest.raises(gb.Abort, match="pin move"):
-        gb.run_stiffness(fake, op, 30, [(32, 32)], 0.1, [0.5], 2, 0.0)
-    assert not fake.torque
+    with pytest.raises(gb.Abort, match="raise to straight out failed.*torque stays ON"):
+        gb.run_stiffness(fake, op, 30, [(32, 32)], 0.1, [0.5], 2, 0.0, 2048, 3072)
+    assert fake.torque                    # off rest: held, never released
 
 
 def test_the_rehearsal_servo_prints_what_the_firmware_prints():
@@ -233,14 +233,14 @@ def test_stiffness_session_recovers_p_times_4(tmp_path, monkeypatch):
     script = Script()
     monkeypatch.setattr("builtins.input", script)
     rc = gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "30",
-                  "--samples", "3"])
+                  "--samples", "3", "--goal", "2048", "--rest", "3072"])
     assert rc == 0
     res = json.load(open(tmp_path / "stiffness.json"))
     assert [(r["p"], r["d"]) for r in res["rows"]] == [(32, 32), (64, 64), (96, 96),
                                                        (128, 128), (160, 160)]
     assert res["start_gains"] == [32, 32, 0]
-    # one go per motion: the torque-on/pin at each P, nothing else moves
-    assert len(script.gos()) == 5
+    # one go per motion: the raise and the lower at each P
+    assert len(script.gos()) == 10
     summ = gb.summarise(res, None)
     by_p = {j["p"]: j for j in summ["joined"]}
     assert by_p[32]["k"] == pytest.approx(17.0, rel=0.05)     # the fake's P = 32 stiffness
@@ -271,10 +271,10 @@ def test_hold_session_catches_a_limit_cycle(tmp_path):
 
 
 def test_no_go_stops_before_the_motion(tmp_path):
-    fake = gb.FakeBoard(sid=30)
+    fake = gb.FakeBoard(sid=30, pos=3072)
     op = gb.Operator(ask=lambda p: "no" if "type go" in p else "", say=lambda s: None)
     with pytest.raises(gb.Abort):
-        gb.run_stiffness(fake, op, 30, [(64, 64)], 0.1, [0.5], 2, 0.0)
+        gb.run_stiffness(fake, op, 30, [(64, 64)], 0.1, [0.5], 2, 0.0, 2048, 3072)
     assert not fake.torque
 
 
@@ -283,7 +283,7 @@ def test_no_terminal_aborts_and_restores(tmp_path, monkeypatch):
         raise EOFError
     monkeypatch.setattr("builtins.input", eof)
     rc = gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "30",
-                  "--ladder", "32,128", "--samples", "2"])
+                  "--ladder", "32,128", "--samples", "2", "--goal", "2048", "--rest", "3072"])
     assert rc == 2
     log = open(tmp_path / "session.log").read()
     assert "no operator on stdin" in log
@@ -297,11 +297,11 @@ def test_a_jump_at_torque_on_releases(tmp_path):
             if line.startswith("torque"):
                 self.goal = self.rest + 200                   # a stale goal register
             return out
-    fake = Jumpy(sid=30)
+    fake = Jumpy(sid=30, pos=3072)
     op = gb.Operator(ask=lambda p: "go" if "type go" in p else "", say=lambda s: None)
     with pytest.raises(gb.Abort, match="jumped"):
-        gb.run_stiffness(fake, op, 30, [(32, 32)], 0.1, [0.5], 2, 0.0)
-    assert not fake.torque
+        gb.run_stiffness(fake, op, 30, [(32, 32)], 0.1, [0.5], 2, 0.0, 2048, 3072)
+    assert not fake.torque                # at rest: hanging, so released
 
 
 # -- step 1 ----------------------------------------------------------------------
@@ -378,14 +378,13 @@ def test_a_goal_on_the_wrap_is_refused_before_any_motion():
     fake = gb.FakeBoard(sid=11, pos=4094)
     with pytest.raises(gb.Abort, match="wrap"):
         gb.run_stiffness(fake, gb.Operator(ask=script, say=lambda s: None), 11, [(32, 32)],
-                         0.1, [0.5], 2, 0.0, env=gb.bus_envelope(fake, 11))
+                         0.1, [0.5], 2, 0.0, 4094, 3072, env=gb.bus_envelope(fake, 11))
     assert script.gos() == [] and not fake.torque
 
 
 def test_allow_bus_id(tmp_path, monkeypatch):
     monkeypatch.setattr("builtins.input", Script())
-    args = ["--rehearse", "--session", str(tmp_path), "stiffness", "11", "--ladder", "32",
-            "--samples", "2"]
+    args = ["--rehearse", "--session", str(tmp_path), "park", "11"]
     assert gb.main(args) == 2                                  # refused without the flag
     assert gb.main(args + ["--allow-bus-id"]) == 0
 
@@ -428,9 +427,9 @@ def test_the_bench_session_runs_through_lost_acks(tmp_path, monkeypatch):
     monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
     script = Script()
     op = gb.Operator(ask=script, say=lambda s: None)
-    fake = gb.FakeBoard(sid=30, ack_loss=2)
+    fake = gb.FakeBoard(sid=30, ack_loss=2, pos=3072)
     res = gb.run_stiffness(fake, op, 30, [(32, 32), (64, 64), (128, 128)], 0.1, [0.5, 1.0],
-                           2, 0.0)
+                           2, 0.0, 2048, 3072)
     assert [r["gain_write"] for r in res["rows"]] == ["ok", "landed, ack lost",
                                                       "landed, ack lost"]
 
@@ -473,3 +472,66 @@ def test_a_loaded_lever_is_supported_before_every_release(orient, supports, monk
                 [(32, 32), (64, 64)], [orient], quiet_s=0.02, step_ticks=23, step_s=0.03,
                 settle_s=0.0, inertia="salt cup")
     assert sum("SUPPORT the lever" in p for p in script.prompts) == supports
+
+
+# -- the servo does all the positioning: release only at REST ------------------------
+
+class Recorder(gb.FakeBoard):
+    """Notes where the lever was at every release."""
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.released_at = []
+
+    def _reply(self, line):
+        if line.startswith("release"):
+            self.released_at.append(self.rest)
+        return super()._reply(line)
+
+
+def test_stiffness_releases_only_at_rest(monkeypatch):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+    script = Script()
+    fake = Recorder(sid=30, pos=2990)                # a released lever stops short of plumb
+    res = gb.run_stiffness(fake, gb.Operator(ask=script, say=lambda s: None), 30,
+                           [(32, 32), (128, 128)], 0.1, [0.38, 0.77], 2, 0.0, 2048, 3072)
+    assert len(res["rows"]) == 2 and not fake.torque
+    assert fake.released_at and all(abs(p - 3072) <= gb.REST_TOL for p in fake.released_at)
+    assert len(script.gos()) == 4                    # raise + lower per rung
+    assert any("LOWER" in g for g in script.gos()) and any("RAISE" in g for g in script.gos())
+
+
+def test_refuses_to_start_off_rest():
+    script = Script()
+    fake = gb.FakeBoard(sid=30, pos=2048)            # lever straight out, released
+    with pytest.raises(gb.Abort, match="hang straight down"):
+        gb.run_stiffness(fake, gb.Operator(ask=script, say=lambda s: None), 30, [(32, 32)],
+                         0.1, [0.5], 2, 0.0, 2048, 3072)
+    assert script.gos() == [] and not fake.torque
+
+
+def test_an_abort_off_rest_keeps_torque_on(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(gb, "EEPROM_COMMIT_S", 0.0)
+    boards = []
+
+    class Kept(gb.FakeBoard):
+        def __init__(self, **kw):
+            super().__init__(**kw)
+            boards.append(self)
+
+    def ask(prompt):                                 # go to raise, refuse to lower
+        return "no" if "LOWER" in prompt else ("go" if "type go" in prompt else "")
+    monkeypatch.setattr(gb, "FakeBoard", Kept)
+    monkeypatch.setattr("builtins.input", ask)
+    rc = gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "30", "--ladder", "32",
+                  "--samples", "2", "--goal", "2048", "--rest", "3072"])
+    assert rc == 2
+    assert boards[0].torque                          # held straight out, never released
+    assert "TORQUE STAYS ON" in capsys.readouterr().out
+
+
+def test_safe_to_release():
+    fake = gb.FakeBoard(sid=30, pos=3072)
+    assert gb.safe_to_release(fake, 30, 3072)[0]     # torque off
+    fake.cmd("torque 30"); fake.cmd("move 30 2048 0 100")
+    assert not gb.safe_to_release(fake, 30, 3072)[0] # held off rest
+    assert gb.safe_to_release(fake, 30, None)[0]     # no REST: the hand-held flows
