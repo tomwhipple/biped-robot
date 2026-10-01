@@ -212,9 +212,30 @@ speed had the wrong sign for the move.
   at P 32, 3.0 at P 96 and 2.5 at P 128. That is about 2.8× (P 96) and 3.0×
   (P 128) against P 32. Run C's bottles gave 3.5× at P 128.
 
+**Clamp turned into the rotation plane (16:10–16:16).** Tom turned the clamp
+perpendicular to its earlier position, so its mass lies in the lever's rotation
+plane, and the D 32 ladder was run again with P 96 included. The clamp's torque
+was about the same: the P 32 probe midpoint was 9.0 ticks, against 7.5–8.5.
+
+| P / D (clamp in plane) | holding still, level | holding still, hanging | 2° moves hanging: worst overshoot / residual, settled? | 2° moves level | raise: spread, backward | lower: spread, backward |
+|---|---|---|---|---|---|---|
+| 32 / 32 | 0 | 0 | 1 / 0, yes | 0 / 0, yes | 24, 0/311 | 107, 29/279 |
+| 96 / 32 | 0 | 0 | 5 / 6, one took 2.0 s | 0 / 0, yes | 123, 39/294 | 176, 60/304 |
+| 128 / 32 | 0 | 0 | 5 / 10, **none settle** | 0 / 0, yes | 191, 95/296 | 237, 142/375 |
+| 160 / 32 | **18, 152/152 moving** | 0 | 7 / 12, none settle | 10 / 18, none | 259, 137/401 | 249, 201/386 |
+
+Against the off-plane clamp:
+- **The same:** P 160 limit-cycles holding level (range 18 in both), P ≤ 128
+  holds level quietly, and sweeps shake from P 96 up.
+- **Different:** in plane, the hanging 2° moves ring at P 96 and P 128, where
+  the off-plane clamp settled, and every lowering sweep shakes more.
+- **Not separated:** turning the clamp also changed its mass distribution about
+  the axis, and this run cannot separate that from the in-plane effect.
+- **Conclusion:** the out-of-plane mass is not what makes P 160 unstable.
+
 Per-pass numbers are in `2026-10-01/hold_clamp_summary.json`. The video is on Mira:
 `hw_sessions/2026-10-01/gain_bench_hold/`, `run_attempt1.mp4` 15:29–15:34,
-`run2.mp4` 15:37–15:55, `run3.mp4` 16:00–16:04.
+`run2.mp4` 15:37–15:55, `run3.mp4` 16:00–16:04, `run4.mp4` 16:10–16:16 (clamp in plane).
 
 **Reading:**
 - **P 160** limit-cycles holding still with this inertia, at D 160 and D 32
