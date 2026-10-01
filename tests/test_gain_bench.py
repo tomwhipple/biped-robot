@@ -535,3 +535,21 @@ def test_safe_to_release():
     fake.cmd("torque 30"); fake.cmd("move 30 2048 0 100")
     assert not gb.safe_to_release(fake, 30, 3072)[0] # held off rest
     assert gb.safe_to_release(fake, 30, None)[0]     # no REST: the hand-held flows
+
+
+def test_loop_slope_is_the_load_per_tick_and_needs_a_span():
+    w = lambda pos, load: {"n": 3, "pos_mean": pos, "load_mean": load}
+    assert gb.loop_slope([w(2059, 24), w(2063, 56), w(2065, 72)]) == pytest.approx(8.0, rel=0.02)
+    assert gb.loop_slope([w(2059, 24), w(2060, 56)]) != gb.loop_slope([w(2059, 24), w(2060, 56)])  # nan
+    assert gb.loop_slope([w(2059, 24)]) != gb.loop_slope([w(2059, 24)])
+
+
+def test_the_report_carries_the_loop_ratio(tmp_path, monkeypatch):
+    monkeypatch.setattr("builtins.input", Script())
+    assert gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "30", "--ladder",
+                    "32,128", "--samples", "2", "--goal", "2048", "--rest", "3072"]) == 0
+    summ = gb.summarise(json.load(open(tmp_path / "stiffness.json")), None)
+    by_p = {j["p"]: j for j in summ["joined"]}
+    assert by_p[32]["loop_ratio"] == pytest.approx(1.0)
+    assert by_p[128]["loop_ratio"] == pytest.approx(4.0, rel=0.25)
+    assert "loop × P 32" in gb.render_report(str(tmp_path))

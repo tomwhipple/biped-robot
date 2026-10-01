@@ -280,6 +280,26 @@ def fit_stiffness(points: Sequence[Tuple[float, float]]) -> dict:
             "intercept_ticks": icpt}
 
 
+def loop_slope(windows: Sequence[dict]) -> float:
+    """The position loop's own stiffness: least-squares slope of the load
+    register (0.1 % duty) on position (ticks) over a P's windows -- bare, each
+    load, bare again. Gearbox friction carries part of every hung increment
+    without a position change (2026-10-01: a 0.38 N*m bottle moved the P 32
+    register by 32 units, not ~130), so the hung-mass k overstates stiffness
+    and compresses the P ratios; the register is what the loop actually
+    commands per tick, so its ratio to P 32 is friction-free and needs no
+    torque calibration. NaN when the windows span under 2 ticks."""
+    pts = [(w["pos_mean"], w["load_mean"]) for w in windows if w.get("n")]
+    if len(pts) < 2:
+        return float("nan")
+    xs, ys = [x for x, _ in pts], [y for _, y in pts]
+    if max(xs) - min(xs) < 2:
+        return float("nan")
+    mx, my = _mean(xs), _mean(ys)
+    sxx = sum((x - mx) ** 2 for x in xs)
+    return abs(sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx)
+
+
 def stiffness_row(row: dict) -> dict:
     """Summarise one P of a stiffness block: deflection per load, the fit."""
     steps = row["steps"]
@@ -298,7 +318,9 @@ def stiffness_row(row: dict) -> dict:
                     "secant_k": (st["tau"] / (defl / TICKS_PER_RAD)) if defl > 0 else float("inf"),
                     "load_mean": ws["load_mean"], "range": ws["range"]})
     fit = fit_stiffness(pts)
+    windows = [base] + [window_stats(st["samples"]) for st in steps[1:]] + ([ret] if ret["n"] else [])
     return {"p": row["p"], "d": row["d"], "k": fit["k"], "k_rel_se": fit["k_rel_se"],
+            "loop": loop_slope(windows),
             "intercept_ticks": fit["intercept_ticks"], "loads": per,
             "return_offset": (ret["pos_mean"] - base["pos_mean"]) if ret["n"] and base["n"] else float("nan"),
             "err": err}
@@ -385,7 +407,10 @@ def summarise(stiff: Optional[dict], hold: Optional[dict]) -> dict:
         err = (s["err"] if s else 0)
         for h in hs:
             err |= h["err"]
+        loop_ratio = (s["loop"] / ref["loop"]) if (s and ref and ref["loop"] == ref["loop"]
+                                                      and ref["loop"] > 0) else float("nan")
         joined.append({"p": p, "d": d, "k": s["k"] if s else float("nan"),
+                       "loop_ratio": loop_ratio,
                        "ratio": ratio, "ratio_se": rse, "quiet": quiet, "err": err,
                        "verdict": verdict(ratio, quiet, err, rse)})
     passing = [j for j in joined if j["verdict"] == "PASS"]
@@ -466,15 +491,16 @@ def render_report(session: str) -> str:
     if st:
         L += [f"## Stiffness vs P (lever {st['lever_m'] * 1000:.0f} mm, hold goal {st['goal']})", "",
               "| P | D | deflection at " + " / ".join(f"{t:g}" for t in st["loads_nm"]) +
-              " N·m (ticks) | k fit (N·m/rad) | × P 32 | load reg at max | return (ticks) | flags |",
-              "|---|---|---|---|---|---|---|---|"]
+              " N·m (ticks) | k fit (N·m/rad) | × P 32 | loop (load/tick) | loop × P 32 | load reg at max | return (ticks) | flags |",
+              "|---|---|---|---|---|---|---|---|---|---|"]
         by_pd = {(j["p"], j["d"]): j for j in summ["joined"]}
         for s in summ["stiffness"]:
             j = by_pd[(s["p"], s["d"])]
             defl = " / ".join(_f(x["defl_ticks"]) for x in s["loads"])
             lmax = _f(s["loads"][-1]["load_mean"], ".0f") if s["loads"] else "—"
             L.append(f"| {s['p']} | {s['d']} | {defl} | {_f(s['k'])} ± {_f(s['k'] * s['k_rel_se'])} | "
-                     f"{_f(j['ratio'], '.2f')} ± {_f(j['ratio_se'], '.2f')} | {lmax} | "
+                     f"{_f(j['ratio'], '.2f')} ± {_f(j['ratio_se'], '.2f')} | "
+                     f"{_f(s['loop'], '.1f')} | {_f(j['loop_ratio'], '.2f')} | {lmax} | "
                      f"{_f(s['return_offset'])} | {status_names(s['err'])} |")
         ref = next((s for s in summ["stiffness"] if s["p"] == 32), None)
         if ref and ref["k"] == ref["k"]:
@@ -495,10 +521,15 @@ def render_report(session: str) -> str:
                      f"{status_names(h['err'])} | {'yes' if h['is_quiet'] else '**no**'} |")
         L.append("")
     if st or hd:
-        L += ["## Verdict per P", "", "| P | D | × P 32 | quiet | verdict |", "|---|---|---|---|---|"]
+        L += ["## Verdict per P", "",
+              "`× P 32` is the hung-mass stiffness ratio (gearbox friction compresses it at "
+              "light loads); `loop × P 32` is the position loop's own, from the load register "
+              "per tick -- friction-free, no torque calibration.", "",
+              "| P | D | × P 32 | loop × P 32 | quiet | verdict |", "|---|---|---|---|---|---|"]
         for j in summ["joined"]:
             q = "—" if j["quiet"] is None else ("yes" if j["quiet"] else "no")
-            L.append(f"| {j['p']} | {j['d']} | {_f(j['ratio'], '.2f')} | {q} | {j['verdict']} |")
+            L.append(f"| {j['p']} | {j['d']} | {_f(j['ratio'], '.2f')} | "
+                     f"{_f(j.get('loop_ratio', float('nan')), '.2f')} | {q} | {j['verdict']} |")
         L += ["", f"**Step 0: {summ['overall']}.**", ""]
     if sn:
         L += [f"## Stance (step 1): {sn['side']}_hip_roll id {sn['roll_id']}, "
