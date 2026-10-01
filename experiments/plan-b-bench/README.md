@@ -9,7 +9,8 @@ experiment is in this folder.
 |---|---|
 | `gain_bench.py` | the bench tool: `scan`, `read`, `park`, `stiffness`, `hold`, `stance`, `report`, and `--rehearse` against a simulated servo. It drives the firmware's bench CLI over the tether. The procedure is in [docs/servo-map.md](../../docs/servo-map.md) §4 |
 | `plan_b_rig.py` | the rig's CAD: bracket, stiffness lever, hold lever with its lid, and stop pin. Running it writes `stl/`, redraws `figs/` and runs the fit checks |
-| `stl/` | the rig's printable parts, written by `plan_b_rig.py`; don't edit them by hand |
+| `plan_b_rig_v3.py` | rig v3, held on both faces: a bracket that is leg_link's two-face case grip in a closed box, and a fork lever on the horn and the idler disc. M10 bolt weights go through the fork's floor at r 40 / 70 / 100, head under the floor. Running it writes `stl/plan_b_v3_*.stl` and runs the fit checks, including the fork and weights swept from level to hanging |
+| `stl/` | the rig's printable parts, written by `plan_b_rig.py` and `plan_b_rig_v3.py`; don't edit them by hand |
 | `figs/` | the rig's side view and render, drawn by `plan_b_rig.py` |
 | [2026-09-30-plan-b-rig.md](2026-09-30-plan-b-rig.md) | the rig: loads, parts, seating, fit checks, procedure |
 | [2026-09-30-plan-b-bench.md](2026-09-30-plan-b-bench.md) | session 1: the bench servo's registers and the unloaded P ladder |
@@ -24,4 +25,5 @@ because the pre-push gate collects that folder. Raw bench data goes to
 ```bash
 .venv/bin/python experiments/plan-b-bench/gain_bench.py --rehearse stiffness 30 --goal 2048 --rest 3072
 MUJOCO_GL=cgl .venv/bin/python experiments/plan-b-bench/plan_b_rig.py   # Mac; egl on Linux
+MUJOCO_GL=cgl .venv/bin/python experiments/plan-b-bench/plan_b_rig_v3.py
 ```
