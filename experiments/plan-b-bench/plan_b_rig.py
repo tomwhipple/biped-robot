@@ -1,7 +1,7 @@
 """Plan B bench rig (issue #73): the printed parts that put a lever and weights
-on ONE loose STS3215 for tools/gain_bench.py `stiffness` and `hold`.
+on ONE loose STS3215 for gain_bench.py `stiffness` and `hold` (beside this file).
 
-Design note, diagram and procedure: docs/design-v6/2026-09-30-plan-b-rig.md.
+Design note, diagram and procedure: 2026-09-30-plan-b-rig.md, beside this file.
 
     bracket     clamps to a table edge; holds the servo by its idler face,
                 output axis horizontal and PARALLEL to the edge, 50 mm out
@@ -30,11 +30,17 @@ plate behind. Past the leg link's footprint the seat also has to clear the
 idler disc and hub (they ROTATE: a pocket) and the connector trench (the
 sockets open out of this face: a window the plugs and leads pass through). A
 cradle hugs the case's two long sides so the lever torque is also taken in
-bearing.
+bearing; each wall is rooted on the plate across its whole thickness, with a
+root chamfer outside it.
 
-Run:  .venv/bin/python experiments/plan-b-bench/plan_b_rig.py   (writes stl/plan_b_*.stl
-      beside it,
-      print orientation, and prints the fit checks)
+The bracket is trimmed to its load path: the plate is one profile (a band
+round the seat and cradle past the edge, a boss round the stop-pin hole, a web
+over the table that tapers toward the clamp), one gusset at the table edge,
+and the base under the clamp.
+
+Run:  MUJOCO_GL=cgl .venv/bin/python experiments/plan-b-bench/plan_b_rig.py
+      (cgl on the Mac, egl on Linux) writes stl/plan_b_*.stl beside it in
+      print orientation, redraws figs/, and prints the fit checks.
 """
 import math
 import os
@@ -78,14 +84,24 @@ CRADLE_CLR = 0.25      # per side, across the case width
 CRADLE_T = 4.0
 CRADLE_X1 = 10.0       # cradle walls reach 10 mm up the case side
 CRADLE_Y = (18.0, 56.0)
-PLATE_Y = (-60.0, 100.0)
-PLATE_Z1 = 50.0
-TAB_Z0 = -16.0         # below the tabletop, only past the edge
-TAB_Y0 = 2.0
+CRADLE_HALF = D.SV_WID / 2 + CRADLE_CLR      # 12.61: wall inner faces off the axis
+CRADLE_ROOT_C = 4.0    # 45 deg root chamfer, wall's outer face to the plate
+# The plate is one 6 mm profile in y-z. Past the edge: a band 3 mm past each
+# wall's root chamfer, out past the seat's output end, then tapering to a
+# boss round the stop-pin hole. Over the table: a web tapering from the
+# gusset to the clamp, where the overturning moment it carries runs out.
+PLATE_EDGE = 3.0
+PLATE_Z = (AXIS_Z - CRADLE_HALF - CRADLE_T - CRADLE_ROOT_C - PLATE_EDGE,
+           AXIS_Z + CRADLE_HALF + CRADLE_T + CRADLE_ROOT_C + PLATE_EDGE)   # -3.61, 43.61
+PLATE_Y0 = -60.0       # the web's rear end, over the base
+PLATE_REAR_Z = 12.0    # the web's height there
+PLATE_Y_SERVO = 62.0   # full band to here (the seat ends at 60.61)
+TAB_Y0 = 2.0           # below the tabletop only from 2 mm past the edge
 BASE_Y0 = -80.0
 BASE_X1 = 60.0
 BASE_T = 6.0
 GUSSET_T = 5.0
+GUSSET_Y0 = -GUSSET_T - 1.0                  # one gusset, at the table edge
 
 # ------------------------------------------------------------------ levers
 LEVER_T = 8.0          # M3x10 button head -> 2.0 into the horn's 2.5 thread
@@ -111,6 +127,7 @@ PIN_DROP_DEG = 15.0
 PIN_HEAD_D = 18.0
 PIN_HEAD_T = 4.0
 PIN_REACH_X = HORN_X + LEVER_T + 4.0    # past the lever's outer face
+PIN_BOSS_R = PIN_HOLE_D / 2 + 8.0       # 14.2: 8 mm of plate all round the hole
 
 
 def box(x0, x1, y0, y1, z0, z1):
@@ -181,20 +198,79 @@ def access_bores():
     return a
 
 
+def _tangent(p, c, r, side):
+    """(y, z) where a line from the outside point p touches the circle (c, r);
+    side +1 turns the line counter-clockwise off p->c, -1 clockwise."""
+    dy, dz = c[0] - p[0], c[1] - p[1]
+    d = math.hypot(dy, dz)
+    t = math.atan2(dz, dy) + side * math.asin(r / d)
+    s = math.sqrt(d * d - r * r)
+    return p[0] + s * math.cos(t), p[1] + s * math.sin(t)
+
+
+def plate_outline(arc_steps=0):
+    """The plate's (y, z) profile, counter-clockwise from the web's rear foot.
+    The pin boss is closed by a chord (the solid unions the boss circle), or
+    with arc_steps > 0, by that many segments of its arc (the side view)."""
+    c = pin_centre()
+    lo = (CRADLE_Y[1] + 2.0, PLATE_Z[0])          # band bottom, past the walls
+    hi = (PLATE_Y_SERVO, PLATE_Z[1])              # band top, past the seat
+    t_lo, t_hi = _tangent(lo, c, PIN_BOSS_R, -1), _tangent(hi, c, PIN_BOSS_R, +1)
+    arc = []
+    if arc_steps:
+        a0 = math.atan2(t_lo[1] - c[1], t_lo[0] - c[0])
+        a1 = math.atan2(t_hi[1] - c[1], t_hi[0] - c[0])
+        a1 += 2 * math.pi if a1 < a0 else 0.0
+        arc = [(c[0] + PIN_BOSS_R * math.cos(a0 + (a1 - a0) * k / arc_steps),
+                c[1] + PIN_BOSS_R * math.sin(a0 + (a1 - a0) * k / arc_steps))
+               for k in range(1, arc_steps)]
+    return [(PLATE_Y0, 0.0), (TAB_Y0, 0.0), (TAB_Y0 - PLATE_Z[0], PLATE_Z[0]),
+            lo, t_lo, *arc, t_hi, hi, (GUSSET_Y0 - 2.0, PLATE_Z[1]),
+            (PLATE_Y0, PLATE_REAR_Z)]
+
+
+def plate():
+    """The plate's outline, solid, before any hole: SLAB_X0 .. PLATE_X1."""
+    py, pz = pin_centre()
+    return (PT.wedge_x(plate_outline(), SLAB_X0, PLATE_X1)
+            + cyl_x(PIN_BOSS_R, SLAB_X0, PLATE_X1, py, pz))
+
+
+def cradle_walls():
+    """The two walls that hug the case's long sides, CRADLE_CLR off it, each
+    rooted on the plate's front face across its whole thickness: the free wall
+    from the seat face, a filler from the plate to the seat face beside the
+    seat block (never into it, so no seat void gets filled), and a 45 deg
+    chamfer on the outer side. Returns [(wall, (z0, z1)), ...], top then bottom,
+    z0..z1 being the wall's own thickness."""
+    seat_x = -D.GRIP_SEAT_CLR                        # the seat face, world
+    seat_z = (AXIS_Z + SEAT_X[0], AXIS_Z + SEAT_X[1])  # the seat block, world z
+    c = CRADLE_ROOT_C
+    out = []
+    for sgn in (1, -1):
+        z_in = AXIS_Z + sgn * CRADLE_HALF              # face toward the case
+        z_out = z_in + sgn * CRADLE_T
+        z0, z1 = min(z_in, z_out), max(z_in, z_out)
+        w = box(seat_x, CRADLE_X1, *CRADLE_Y, z0, z1)
+        if sgn > 0:
+            w += box(PLATE_X1, seat_x, *CRADLE_Y, max(z0, seat_z[1]), z1)
+        else:
+            w += box(PLATE_X1, seat_x, *CRADLE_Y, z0, min(z1, seat_z[0]))
+        w += PT.wedge_y([(PLATE_X1 - 0.01, z_out), (PLATE_X1 + c, z_out),
+                         (PLATE_X1 - 0.01, z_out + sgn * c)], *CRADLE_Y)
+        out.append((w, (z0, z1)))
+    return out
+
+
 def bracket():
-    b = box(SLAB_X0, PLATE_X1, *PLATE_Y, 0.0, PLATE_Z1)
-    b += box(SLAB_X0, PLATE_X1, TAB_Y0, PLATE_Y[1], TAB_Z0, 0.0)
+    b = plate()
     # base on the tabletop, on the servo side, over the table only
     b += box(SLAB_X0, BASE_X1, BASE_Y0, 0.0, 0.0, BASE_T)
-    for y0 in (-GUSSET_T - 1.0, PLATE_Y[0]):
-        b += _gusset(y0)
+    b += _gusset(GUSSET_Y0)
     # the conformal seat on the plate's front face, and the cradle
     b += servo_frame() * idler_seat()
-    seat_x = -D.GRIP_SEAT_CLR                        # the seat face, world
-    half = D.SV_WID / 2 + CRADLE_CLR
-    for z0, z1 in ((AXIS_Z + half, AXIS_Z + half + CRADLE_T),
-                   (AXIS_Z - half - CRADLE_T, AXIS_Z - half)):
-        b += box(seat_x, CRADLE_X1, *CRADLE_Y, z0, z1)
+    for w, _ in cradle_walls():
+        b += w
     # through seat + plate: the connector window; through the plate: each
     # screw's head/driver access (leg_link's access bore, carried to the back
     # face); and the stop-pin hole
@@ -207,10 +283,9 @@ def bracket():
 
 def _gusset(y0):
     """Triangular rib in the plane y = const, slab face to base top."""
-    x0, x1, z0, z1 = PLATE_X1, BASE_X1 - 5.0, BASE_T, PLATE_Z1 - 2.0
-    tri = Polygon((x0, z0), (x1, z0), (x0, z1), align=None)
-    # Polygon lives in XY; stand it up into XZ and give it thickness in +y
-    return Pos(0, y0, 0) * Rot(90, 0, 0) * extrude(tri, amount=-GUSSET_T)
+    x0, x1, z0, z1 = PLATE_X1, BASE_X1 - 5.0, BASE_T, PLATE_Z[1] - 2.0
+    return PT.wedge_y([(x0 - 0.01, z0 - 0.01), (x1, z0 - 0.01), (x0 - 0.01, z1)],
+                      y0, y0 + GUSSET_T)
 
 
 def lever_root():
@@ -319,6 +394,11 @@ def vol(a, b):
         return 0.0
 
 
+def section(part, x, y0, y1, z0, z1, t=0.05):
+    """mm2 of part cut by the plane x (a t-thick slab), over [y0, y1] x [z0, z1]."""
+    return vol(part, box(x, x + t, y0, y1, z0, z1)) / t
+
+
 def main():
     br, ls, lh, li, pin = bracket(), lever_stiff(), lever_hold(), lid(), stop_pin()
     sv, tb = servo_in_world(), table()
@@ -331,8 +411,37 @@ def main():
         ok &= good
         print(f"  {'ok ' if good else 'BAD'} {name}: {v:.3f} mm3")
 
+    def check_ge(name, got, need):
+        nonlocal ok
+        good = got >= need - 1e-3
+        ok &= good
+        print(f"  {'ok ' if good else 'BAD'} {name}: {got:.1f} >= {need:.1f} mm2")
+
     print("fit checks (mm3 of overlap; the servo is the repo's conservative mock):")
     check("bracket vs servo", vol(br, sv))
+    # each cradle wall is rooted: across the seat's depth, from the plate's
+    # front face to the seat face where the free wall starts, no section of
+    # the bracket (over the wall's own y band, from its inner face out past
+    # its root chamfer) is smaller than the free wall's own
+    seat_x = -D.GRIP_SEAT_CLR
+    for (_, (z0, z1)), name in zip(cradle_walls(), ("top", "bottom")):
+        zw = (z0, z1 + CRADLE_ROOT_C + 1) if name == "top" else (z0 - CRADLE_ROOT_C - 1, z1)
+        free = section(br, (seat_x + CRADLE_X1) / 2, *CRADLE_Y, *zw)
+        root = [section(br, PLATE_X1 + 0.1 + k * (seat_x - PLATE_X1 - 0.1) / 6, *CRADLE_Y, *zw)
+                for k in range(7)]
+        check_ge(f"{name} cradle wall root, weakest section plate face to seat face "
+                 f"(at the plate face {root[0]:.0f}) vs the free wall", min(root), free)
+    # the trimmed outline still backs everything on the plate's front face
+    front = box(SLAB_X0, PLATE_X1, CRADLE_Y[0], CRADLE_Y[1],
+                PLATE_Z[0] + PLATE_EDGE, PLATE_Z[1] - PLATE_EDGE)
+    sbb = (servo_frame() * idler_seat()).bounding_box()
+    front += box(SLAB_X0, PLATE_X1, sbb.min.Y, sbb.max.Y, sbb.min.Z, sbb.max.Z)
+    check("seat + cradle roots NOT backed by the plate's outline", (front - plate()).volume)
+    py, pz = pin_centre()
+    ring = (cyl_x(PIN_BOSS_R, SLAB_X0, PLATE_X1, py, pz)
+            - cyl_x(PIN_HOLE_D / 2, SLAB_X0 - 1, PLATE_X1 + 1, py, pz))
+    check(f"stop-pin hole: plate MISSING from its {PIN_BOSS_R - PIN_HOLE_D / 2:g} mm ring",
+          max(0.0, ring.volume - vol(ring, br)))
     check("bracket BEARS on the idler case face (servo 0.2 toward it)",
           vol(br, Pos(-0.2, 0, 0) * sv), want_zero=False)
     for d in (0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 20.0):   # its way on: straight onto the face
@@ -423,7 +532,7 @@ def render(path, px=900):
     lx = (HORN_X + LEVER_T / 2) / 1000        # lever mid-plane, m
     ny = (AXIS_Y + ARM) / 1000
     top = (AXIS_Z - LEVER_H / 2) / 1000
-    bag_top, bottle_h, bottle_r = top - 0.055, 0.20, 0.032
+    bag_top, bottle_h, bottle_r = top - 0.055, 0.17, 0.031   # 12 fl oz, by eye
 
     def scene(which):
         geoms = []
@@ -435,14 +544,14 @@ def render(path, px=900):
         if which == "stiff":
             geoms.append(f'<geom type="capsule" fromto="{lx} {ny} {top + 0.012} {lx} {ny} {bag_top}" '
                          f'size="0.0012" rgba="0.9 0.9 0.85 1"/>')
-            for i, dx in enumerate((-0.068, 0.0, 0.068)):
+            for i, dx in enumerate((-0.099, -0.033, 0.033, 0.099)):
                 zc = bag_top - 0.03 - bottle_h / 2
                 geoms.append(f'<geom type="cylinder" pos="{lx + dx} {ny} {zc}" '
                              f'size="{bottle_r} {bottle_h / 2}" rgba="0.45 0.70 0.95 0.85"/>')
                 geoms.append(f'<geom type="cylinder" pos="{lx + dx} {ny} {zc + bottle_h / 2 + 0.012}" '
                              f'size="0.013 0.012" rgba="0.45 0.70 0.95 0.85"/>')
             geoms.append(f'<geom type="box" pos="{lx} {ny} {bag_top - 0.03 - bottle_h / 2 + 0.01}" '
-                         f'size="0.106 0.036 {bottle_h / 2 + 0.03}" rgba="0.9 0.9 0.9 0.25"/>')
+                         f'size="0.136 0.036 {bottle_h / 2 + 0.03}" rgba="0.9 0.9 0.9 0.25"/>')
         meshes = "".join(f'<mesh name="{k}" file="{os.path.join(tmp, k)}.stl" '
                          f'scale="0.001 0.001 0.001"/>' for k in solids)
         return f"""<mujoco><asset>{meshes}</asset>
@@ -471,8 +580,8 @@ def render(path, px=900):
 def diagram_svg(path):
     """The annotated side view for the doc, drawn to scale (1.5 px/mm) from
     THIS file's constants, looking along the output axis from the lever side.
-    The bag hangs below at true size; bottles line up along the axis, so one
-    silhouette stands for 1-3."""
+    The bag and bottles are drawn at about their real size; bottles line up
+    along the axis, so one silhouette stands for 1-4."""
     S, X0, Y0 = 1.5, 60.0, 200.0
 
     def P(y, z):
@@ -532,15 +641,16 @@ def diagram_svg(path):
     e.append(poly([(cx - 30, BASE_T + 16), (cx + 9, BASE_T + 16), (cx + 9, BASE_T + 10), (cx - 24, BASE_T + 10),
                    (cx - 24, -37), (cx + 9, -37), (cx + 9, -43), (cx - 30, -43)], "clampf"))
     e.append(line((cx, -31), (cx, -43), "screw"))
-    # bracket: plate (behind), base + gussets + cradle (in front of it)
-    e.append(poly([(PLATE_Y[0], 0), (PLATE_Y[1], 0), (PLATE_Y[1], PLATE_Z1), (PLATE_Y[0], PLATE_Z1)], "print"))
-    e.append(rect(TAB_Y0, PLATE_Y[1], TAB_Z0, 0, "print"))
+    # bracket: plate (behind), base + gusset + cradle (in front of it); each
+    # cradle wall's root chamfer shows as the paler band outside it
+    e.append(poly(plate_outline(arc_steps=24), "print"))
     e.append(rect(BASE_Y0, 0, 0, BASE_T, "print2"))
-    for y0 in (-GUSSET_T - 1.0, PLATE_Y[0]):
-        e.append(rect(y0, y0 + GUSSET_T, BASE_T, PLATE_Z1 - 2, "print2"))
-    half = D.SV_WID / 2 + CRADLE_CLR
-    for z0, z1 in ((AXIS_Z + half, AXIS_Z + half + CRADLE_T), (AXIS_Z - half - CRADLE_T, AXIS_Z - half)):
+    e.append(rect(GUSSET_Y0, GUSSET_Y0 + GUSSET_T, BASE_T, PLATE_Z[1] - 2, "print2"))
+    for z0, z1, zc in ((AXIS_Z + CRADLE_HALF, AXIS_Z + CRADLE_HALF + CRADLE_T, +CRADLE_ROOT_C),
+                       (AXIS_Z - CRADLE_HALF - CRADLE_T, AXIS_Z - CRADLE_HALF, -CRADLE_ROOT_C)):
         e.append(rect(*CRADLE_Y, z0, z1, "print2"))
+        zr = z1 if zc > 0 else z0
+        e.append(rect(*CRADLE_Y, min(zr, zr + zc), max(zr, zr + zc), "print"))
     # servo, horn
     e.append(rect(AXIS_Y - D.SV_AXIS_FROM_REAR, AXIS_Y + D.SV_AXIS_FROM_OUT_END,
                   AXIS_Z - D.SV_WID / 2, AXIS_Z + D.SV_WID / 2, "servo"))
@@ -583,12 +693,12 @@ def diagram_svg(path):
     bx, by0 = P(ny, AXIS_Z + hw - NOTCH_DEPTH)
     e.append('<ellipse class="string" cx="%.1f" cy="%.1f" rx="4" ry="%.1f"/>' % (bx, P(ny, AXIS_Z)[1] + 1, S * hw + 1))
     e.append(line((ny, AXIS_Z - hw - 1), (ny, bag_top), "string"))
-    bw, bh = 34.0, 200.0
+    bw, bh = 33.0, 170.0
     e.append(poly([(ny - 12, bag_top), (ny + 12, bag_top), (ny + bw + 6, bag_top - 22),
                    (ny + bw + 8, bag_top - 32 - bh), (ny - bw - 8, bag_top - 32 - bh), (ny - bw - 6, bag_top - 22)], "bag"))
     bt = bag_top - 30
-    e.append(poly([(ny - 13, bt), (ny + 13, bt), (ny + 13, bt - 8), (ny + 30, bt - 25), (ny + 32, bt - bh),
-                   (ny - 32, bt - bh), (ny - 30, bt - 25), (ny - 13, bt - 8)], "bottle"))
+    e.append(poly([(ny - 13, bt), (ny + 13, bt), (ny + 13, bt - 8), (ny + 29, bt - 25), (ny + 31, bt - bh),
+                   (ny - 31, bt - bh), (ny - 29, bt - 25), (ny - 13, bt - 8)], "bottle"))
     # theta at the tip
     tx, ty = P(AXIS_Y + LEVER_L + 6, AXIS_Z)
     e.append('<path class="arrow" d="M%.1f,%.1f q9,14 0,28" marker-end="url(#ah)"/>' % (tx, ty - 12))
@@ -630,16 +740,18 @@ def diagram_svg(path):
           ["15° below horizontal: catches the lever if", "torque drops with weights on.",
            "Pull it for the hanging-down hold."], P(py + 4, pz - 3))
     label(R, 308, "String loop", ["seated in the 100 mm notch"], P(ny + 1, bag_top + 12))
-    label(R, 380, "Bag + 1 / 2 / 3 full 500 mL bottles",
-          ["(16.9 fl oz), side by side along the axis:",
-           "≈ 0.51 / 1.02 / 1.53 kg (1.12 / 2.25 / 3.37 lb)",
-           "→ 0.5 / 1.0 / 1.5 N·m at 100 mm.",
-           "Weigh bag + bottles; type what the scale says."], P(ny + 30, bag_top - 90))
+    label(R, 380, "Bag + 1 to 4 full 12 fl oz bottles",
+          ["(355 mL), side by side along the axis,",
+           "≈ 0.39 kg (0.86 lb) each → 0.38 / 0.77 /",
+           "1.15 / 1.53 N·m at 100 mm.",
+           "Weigh them; type what the scale says."], P(ny + 30, bag_top - 90))
+    gy, wy = GUSSET_Y0 - 2.0, -24.0               # web's full-height end; leader on the web
+    web = (wy, PLATE_Z[1] - (PLATE_Z[1] - PLATE_REAR_Z) * (gy - wy) / (gy - PLATE_Y0) - 4.0)
     label(22, 22, "Bracket (printed)",
           ["base on the tabletop under a C-clamp; the plate holds the servo's",
            "idler face on a conformal seat, 4 × M2.5×8 flat-head; cradle walls",
-           "hug the case and take the torque"], P(-30, PLATE_Z1 - 4))
-    L[-1] = leader((150, 70), P(-30, PLATE_Z1 - 4))
+           "rooted in the plate hug the case and take the torque"], P(*web))
+    L[-1] = leader((150, 70), P(*web))
     label(452, 60, "Horn", ["4 × M3×10 button head, Ø14 circle"], P(AXIS_Y + 5, AXIS_Z + 6))
     label(22, 470, "Hold test, hanging down (dashed)",
           ["the hold lever, its cup packed full of table salt:",
@@ -673,7 +785,7 @@ def diagram_svg(path):
 </style>
 <rect width="830" height="650" fill="#fff"/>
 """ + "\n".join(e) + "\n" + "\n".join(L) + """
-<text class="ts" x="18" y="636">Side view along the servo's output axis, from the lever side, to scale (1.5 px/mm). Generated by cad/plan_b_rig.py.</text>
+<text class="ts" x="18" y="636">Side view along the servo's output axis, from the lever side, to scale (1.5 px/mm). Generated by experiments/plan-b-bench/plan_b_rig.py.</text>
 </svg>
 """
     with open(path, "w") as f:
