@@ -258,6 +258,52 @@ Acceleration RMS above 5 Hz in mg, y / x, and the dominant frequency:
 and video on Mira under `hw_sessions/2026-10-02/sweep_bno/`, and the setup and
 flash videos in `hw_sessions/2026-10-02/bno_setup/`.
 
+## How the motion is commanded, and the command rate (14:57–15:10)
+
+Every motion is the firmware's `move <id> <target> <ms> <speed> <acc>`, which
+writes the servo's goal position, goal speed and acceleration registers. The
+servo's own controller makes the motion.
+
+- **A / B, one command:** the final position, a speed (100 steps/s) and an
+  acceleration (200 or 100 steps/s²). The servo plans its own ramp.
+- **C, a stream:** the host computes a minimum-jerk curve and sends the next
+  point every cycle (about 15 Hz). Speed is 1.5× the curve's, and acceleration
+  is 0, which is unlimited. The servo reaches each small target early and stops,
+  so it moves stop-start at the command rate.
+- **Cf / Cs:** the same stream at about 24 Hz (position read only every 4th
+  cycle) and about 9 Hz.
+- **C1:** the same as C, but speed equal to the curve's (1.0×) and acceleration
+  4 (400 steps/s²).
+
+The robot's own pose streaming sends small targets too, with speed set from
+the gap to the next one.
+
+Acceleration y (the rotation direction), RMS above 5 Hz in mg, raise / lower:
+
+| profile, target rate | P 96 / D 0 | P 96 / D 32 | P 128 / D 0 | dominant y frequency |
+|---|---|---|---|---|
+| A, one move | 91 / 230 | 112 / 327 | 234 / 297 | 14–17 Hz |
+| C, 15.1 Hz | 201 / 336 | 318 / 537 | 452 / 459 | 15.2 Hz |
+| Cf, 24.2 Hz | 145 / 184 | 175 / 256 | 449 / 298 | 12.1–12.3 Hz |
+| Cs, 9.2 Hz | 249 / 184 | 243 / 238 | 393 / 244 | 9.1 Hz |
+| C1, 15.1 Hz, exact speed + acceleration limit | 81 / 120 | 96 / 482 | 419 / 401 | 11–16 Hz |
+
+- **Streamed shaking is forced by the stepping, not a resonance.** Its frequency
+  follows the target rate: 15.1 → 15.2 Hz, 9.2 → 9.1 Hz, and 24.2 → 12.1 Hz,
+  half the rate. The 14:43 run's "15 Hz" for C was its 15 Hz command rate.
+- **Matching speed (C1) cuts it about 2.5–3× at P 96 / D 0,** a little below a
+  single move. But C1 trails its target by about 36 ticks (3°), because it has
+  no lead. At P 128 / D 0 it helps by only about 10 %.
+- **A single move still shakes at 14–17 Hz,** and that grows with P: 58–74 at
+  P 32 (14:43 run), 91–230 at P 96 / D 0, 137–297 at P 128 / D 0. This part
+  belongs to the servo and rig.
+- **D 0 beats D 32 at P 96** in A, C, Cf and C1.
+- No status bit was set in any sweep.
+
+**Implication:** how targets are streamed matters as much as the gain. A
+matched-speed stream with a lead, or interpolation in the firmware, is the next
+thing to test.
+
 ## Open
 
 - **Weights:** record their radius and mass, to place the inertia against #73's

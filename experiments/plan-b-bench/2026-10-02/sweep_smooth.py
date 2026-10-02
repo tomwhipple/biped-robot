@@ -124,18 +124,38 @@ def sweep(b, frm, to, prof):
         while time.monotonic() - t0 < abs(to - frm) / SLOW + 1.0 + 2.0:
             r = at(b); r["t"] = time.monotonic() - t0; r["tgt"] = None; tr.append(r)
     else:
+        # C: target + position read every cycle (~18 Hz); Cf: read every 4th
+        # cycle, so targets go out faster; Cs: one cycle per >= 0.11 s (~9 Hz)
+        read_every = 4 if prof == "Cf" else 1         # C1 like C: read every cycle
+        min_period = 0.11 if prof == "Cs" else 0.0
         d = to - frm
+        k = 0
+        sweep.cmds = 0
         while True:
-            t = time.monotonic() - t0
+            tc = time.monotonic()
+            t = tc - t0
             if t > T_SWEEP + 2.0:
                 break
             s, sd = minjerk(t, T_SWEEP)
             tgt = frm + d * s
-            spd = max(30, min(1000, abs(d * sd) * 1.5))
+            # C/Cf/Cs: speed 1.5x the curve's, ACC 0 (unlimited): the servo reaches
+            # each small target early and waits -> stop-start at the command rate.
+            # C1: speed = the curve's own speed, ACC 4 (400 steps/s^2): no early stop.
+            if prof == "C1":
+                spd, acc = max(20, min(1000, abs(d * sd))), 4
+            else:
+                spd, acc = max(30, min(1000, abs(d * sd) * 1.5)), 0
             if t <= T_SWEEP:
-                move(b, tgt, spd, 0)
-            r = at(b); r["t"] = time.monotonic() - t0; r["tgt"] = tgt if t <= T_SWEEP else to
-            tr.append(r)
+                move(b, tgt, spd, acc)
+                sweep.cmds += 1
+            if k % read_every == 0 or t > T_SWEEP:
+                r = at(b); r["t"] = time.monotonic() - t0; r["tgt"] = tgt if t <= T_SWEEP else to
+                tr.append(r)
+            k += 1
+            if min_period:
+                rest = min_period - (time.monotonic() - tc)
+                if rest > 0:
+                    time.sleep(rest)
     return tr
 
 
@@ -218,6 +238,8 @@ def main():
                                           else (abs(to - frm) / SLOW + 1.5) * 1000)
                     tr = sweep(b, frm, to, prof)
                     m = metrics(tr, frm, to)
+                    if prof.startswith("C"):
+                        m["cmd_hz"] = round(getattr(sweep, "cmds", 0) / T_SWEEP, 1)
                     row = {"p": p, "d": d, "profile": prof, "way": way, "metrics": m, "trace": tr}
                     if BNO:
                         acc = bno_collect(b)
@@ -230,7 +252,8 @@ def main():
                     trk = "-" if m["track_rms"] is None else f"{m['track_rms']:.1f}"
                     say(f"  {prof} {way:5s}: backward {m['backward']}/{m['moving_n']}, jitter {m['jitter_rms']:.2f} "
                         f"ticks rms, track {trk}, load {m['load_min']}..{m['load_max']}, end "
-                        f"{m['end_offset']:+.1f} (range {m['end_range']}), {m['hz']:.0f} Hz, err {m['err']}")
+                        f"{m['end_offset']:+.1f} (range {m['end_range']}), {m['hz']:.0f} Hz, err {m['err']}"
+                        + (f", targets {m['cmd_hz']} Hz" if "cmd_hz" in m else ""))
                     time.sleep(1.5)
             say(f"  released at plumb: pos {release_at_down(b)}")
         if GB.read_gains(b, SID)[:2] != (32, 32):

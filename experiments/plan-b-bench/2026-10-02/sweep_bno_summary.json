@@ -1,469 +1,1370 @@
 {
- "axes": "z along the arm (-1 g at plumb), y tangential = rotation direction (+1 g at level), x mostly out of plane (~+220..280 mg offset: sensor tilted ~15 deg)",
- "rows": [
-  {
-   "p": 32,
-   "d": 32,
-   "profile": "A",
-   "way": "raise",
-   "servo": {
-    "n": 400,
-    "hz": 30.288,
-    "moving_n": 303,
-    "backward": 0,
-    "jitter_rms": 1.227,
-    "track_rms": null,
-    "load_min": 20,
-    "load_max": 100,
-    "end_offset": 8.0,
-    "end_range": 0,
-    "err": 0
+ "run1_14:43": {
+  "axes": "z along the arm (-1 g at plumb), y tangential = rotation direction (+1 g at level), x mostly out of plane (~+220..280 mg offset: sensor tilted ~15 deg)",
+  "rows": [
+   {
+    "p": 32,
+    "d": 32,
+    "profile": "A",
+    "way": "raise",
+    "servo": {
+     "n": 400,
+     "hz": 30.288,
+     "moving_n": 303,
+     "backward": 0,
+     "jitter_rms": 1.227,
+     "track_rms": null,
+     "load_min": 20,
+     "load_max": 100,
+     "end_offset": 8.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 25.41,
+     "peak_x_hz": 33.9,
+     "rms_y_mg": 58.07,
+     "peak_y_hz": 17.3,
+     "rms_z_mg": 26.4,
+     "peak_z_hz": 17.3
+    }
    },
-   "accel": {
-    "n": 5901,
-    "fs_hz": 502.6,
-    "rms_x_mg": 25.41,
-    "peak_x_hz": 33.9,
-    "rms_y_mg": 58.07,
-    "peak_y_hz": 17.3,
-    "rms_z_mg": 26.4,
-    "peak_z_hz": 17.3
-   }
-  },
-  {
-   "p": 32,
-   "d": 32,
-   "profile": "A",
-   "way": "lower",
-   "servo": {
-    "n": 400,
-    "hz": 30.29,
-    "moving_n": 301,
-    "backward": 0,
-    "jitter_rms": 1.321,
-    "track_rms": null,
-    "load_min": -52,
-    "load_max": 60,
-    "end_offset": -2.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 32,
+    "d": 32,
+    "profile": "A",
+    "way": "lower",
+    "servo": {
+     "n": 400,
+     "hz": 30.29,
+     "moving_n": 301,
+     "backward": 0,
+     "jitter_rms": 1.321,
+     "track_rms": null,
+     "load_min": -52,
+     "load_max": 60,
+     "end_offset": -2.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.5,
+     "rms_x_mg": 25.28,
+     "peak_x_hz": 34.0,
+     "rms_y_mg": 73.83,
+     "peak_y_hz": 17.0,
+     "rms_z_mg": 26.81,
+     "peak_z_hz": 17.0
+    }
    },
-   "accel": {
-    "n": 5899,
-    "fs_hz": 502.5,
-    "rms_x_mg": 25.28,
-    "peak_x_hz": 34.0,
-    "rms_y_mg": 73.83,
-    "peak_y_hz": 17.0,
-    "rms_z_mg": 26.81,
-    "peak_z_hz": 17.0
-   }
-  },
-  {
-   "p": 32,
-   "d": 32,
-   "profile": "C",
-   "way": "raise",
-   "servo": {
-    "n": 215,
-    "hz": 17.571,
-    "moving_n": 121,
-    "backward": 0,
-    "jitter_rms": 0.798,
-    "track_rms": 12.927,
-    "load_min": -24,
-    "load_max": 108,
-    "end_offset": 8.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 32,
+    "d": 32,
+    "profile": "C",
+    "way": "raise",
+    "servo": {
+     "n": 215,
+     "hz": 17.571,
+     "moving_n": 121,
+     "backward": 0,
+     "jitter_rms": 0.798,
+     "track_rms": 12.927,
+     "load_min": -24,
+     "load_max": 108,
+     "end_offset": 8.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 32.35,
+     "peak_x_hz": 15.2,
+     "rms_y_mg": 95.03,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 27.12,
+     "peak_z_hz": 15.2
+    }
    },
-   "accel": {
-    "n": 5900,
-    "fs_hz": 502.5,
-    "rms_x_mg": 32.35,
-    "peak_x_hz": 15.2,
-    "rms_y_mg": 95.03,
-    "peak_y_hz": 15.2,
-    "rms_z_mg": 27.12,
-    "peak_z_hz": 15.2
-   }
-  },
-  {
-   "p": 32,
-   "d": 32,
-   "profile": "C",
-   "way": "lower",
-   "servo": {
-    "n": 215,
-    "hz": 17.573,
-    "moving_n": 118,
-    "backward": 1,
-    "jitter_rms": 0.845,
-    "track_rms": 9.005,
-    "load_min": -64,
-    "load_max": 72,
-    "end_offset": -2.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 32,
+    "d": 32,
+    "profile": "C",
+    "way": "lower",
+    "servo": {
+     "n": 215,
+     "hz": 17.573,
+     "moving_n": 118,
+     "backward": 1,
+     "jitter_rms": 0.845,
+     "track_rms": 9.005,
+     "load_min": -64,
+     "load_max": 72,
+     "end_offset": -2.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 34.98,
+     "peak_x_hz": 15.2,
+     "rms_y_mg": 125.72,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 28.28,
+     "peak_z_hz": 15.2
+    }
    },
-   "accel": {
-    "n": 5901,
-    "fs_hz": 502.6,
-    "rms_x_mg": 34.98,
-    "peak_x_hz": 15.2,
-    "rms_y_mg": 125.72,
-    "peak_y_hz": 15.2,
-    "rms_z_mg": 28.28,
-    "peak_z_hz": 15.2
-   }
-  },
-  {
-   "p": 128,
-   "d": 32,
-   "profile": "A",
-   "way": "raise",
-   "servo": {
-    "n": 400,
-    "hz": 30.282,
-    "moving_n": 300,
-    "backward": 0,
-    "jitter_rms": 1.498,
-    "track_rms": null,
-    "load_min": -32,
-    "load_max": 184,
-    "end_offset": 3.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 128,
+    "d": 32,
+    "profile": "A",
+    "way": "raise",
+    "servo": {
+     "n": 400,
+     "hz": 30.282,
+     "moving_n": 300,
+     "backward": 0,
+     "jitter_rms": 1.498,
+     "track_rms": null,
+     "load_min": -32,
+     "load_max": 184,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 49.13,
+     "peak_x_hz": 14.2,
+     "rms_y_mg": 242.04,
+     "peak_y_hz": 14.2,
+     "rms_z_mg": 36.5,
+     "peak_z_hz": 14.2
+    }
    },
-   "accel": {
-    "n": 5901,
-    "fs_hz": 502.6,
-    "rms_x_mg": 49.13,
-    "peak_x_hz": 14.2,
-    "rms_y_mg": 242.04,
-    "peak_y_hz": 14.2,
-    "rms_z_mg": 36.5,
-    "peak_z_hz": 14.2
-   }
-  },
-  {
-   "p": 128,
-   "d": 32,
-   "profile": "A",
-   "way": "lower",
-   "servo": {
-    "n": 400,
-    "hz": 30.296,
-    "moving_n": 300,
-    "backward": 0,
-    "jitter_rms": 1.714,
-    "track_rms": null,
-    "load_min": -120,
-    "load_max": 52,
-    "end_offset": 0.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 128,
+    "d": 32,
+    "profile": "A",
+    "way": "lower",
+    "servo": {
+     "n": 400,
+     "hz": 30.296,
+     "moving_n": 300,
+     "backward": 0,
+     "jitter_rms": 1.714,
+     "track_rms": null,
+     "load_min": -120,
+     "load_max": 52,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5902,
+     "fs_hz": 502.7,
+     "rms_x_mg": 88.03,
+     "peak_x_hz": 27.9,
+     "rms_y_mg": 344.51,
+     "peak_y_hz": 13.6,
+     "rms_z_mg": 45.37,
+     "peak_z_hz": 13.6
+    }
    },
-   "accel": {
-    "n": 5902,
-    "fs_hz": 502.7,
-    "rms_x_mg": 88.03,
-    "peak_x_hz": 27.9,
-    "rms_y_mg": 344.51,
-    "peak_y_hz": 13.6,
-    "rms_z_mg": 45.37,
-    "peak_z_hz": 13.6
-   }
-  },
-  {
-   "p": 128,
-   "d": 32,
-   "profile": "C",
-   "way": "raise",
-   "servo": {
-    "n": 216,
-    "hz": 17.652,
-    "moving_n": 118,
-    "backward": 0,
-    "jitter_rms": 0.936,
-    "track_rms": 6.804,
-    "load_min": -32,
-    "load_max": 124,
-    "end_offset": 3.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 128,
+    "d": 32,
+    "profile": "C",
+    "way": "raise",
+    "servo": {
+     "n": 216,
+     "hz": 17.652,
+     "moving_n": 118,
+     "backward": 0,
+     "jitter_rms": 0.936,
+     "track_rms": 6.804,
+     "load_min": -32,
+     "load_max": 124,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 178.84,
+     "peak_x_hz": 30.5,
+     "rms_y_mg": 482.51,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 59.3,
+     "peak_z_hz": 15.2
+    }
    },
-   "accel": {
-    "n": 5901,
-    "fs_hz": 502.6,
-    "rms_x_mg": 178.84,
-    "peak_x_hz": 30.5,
-    "rms_y_mg": 482.51,
-    "peak_y_hz": 15.2,
-    "rms_z_mg": 59.3,
-    "peak_z_hz": 15.2
-   }
-  },
-  {
-   "p": 128,
-   "d": 32,
-   "profile": "C",
-   "way": "lower",
-   "servo": {
-    "n": 215,
-    "hz": 17.573,
-    "moving_n": 118,
-    "backward": 5,
-    "jitter_rms": 2.197,
-    "track_rms": 6.326,
-    "load_min": -232,
-    "load_max": 80,
-    "end_offset": 0.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 128,
+    "d": 32,
+    "profile": "C",
+    "way": "lower",
+    "servo": {
+     "n": 215,
+     "hz": 17.573,
+     "moving_n": 118,
+     "backward": 5,
+     "jitter_rms": 2.197,
+     "track_rms": 6.326,
+     "load_min": -232,
+     "load_max": 80,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 212.48,
+     "peak_x_hz": 30.1,
+     "rms_y_mg": 587.28,
+     "peak_y_hz": 15.0,
+     "rms_z_mg": 74.27,
+     "peak_z_hz": 15.0
+    }
    },
-   "accel": {
-    "n": 5901,
-    "fs_hz": 502.6,
-    "rms_x_mg": 212.48,
-    "peak_x_hz": 30.1,
-    "rms_y_mg": 587.28,
-    "peak_y_hz": 15.0,
-    "rms_z_mg": 74.27,
-    "peak_z_hz": 15.0
-   }
-  },
-  {
-   "p": 128,
-   "d": 0,
-   "profile": "A",
-   "way": "raise",
-   "servo": {
-    "n": 400,
-    "hz": 30.29,
-    "moving_n": 300,
-    "backward": 1,
-    "jitter_rms": 1.417,
-    "track_rms": null,
-    "load_min": 0,
-    "load_max": 144,
-    "end_offset": 3.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "A",
+    "way": "raise",
+    "servo": {
+     "n": 400,
+     "hz": 30.29,
+     "moving_n": 300,
+     "backward": 1,
+     "jitter_rms": 1.417,
+     "track_rms": null,
+     "load_min": 0,
+     "load_max": 144,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.5,
+     "rms_x_mg": 39.68,
+     "peak_x_hz": 100.7,
+     "rms_y_mg": 136.7,
+     "peak_y_hz": 14.2,
+     "rms_z_mg": 29.86,
+     "peak_z_hz": 14.2
+    }
    },
-   "accel": {
-    "n": 5899,
-    "fs_hz": 502.5,
-    "rms_x_mg": 39.68,
-    "peak_x_hz": 100.7,
-    "rms_y_mg": 136.7,
-    "peak_y_hz": 14.2,
-    "rms_z_mg": 29.86,
-    "peak_z_hz": 14.2
-   }
-  },
-  {
-   "p": 128,
-   "d": 0,
-   "profile": "A",
-   "way": "lower",
-   "servo": {
-    "n": 400,
-    "hz": 30.287,
-    "moving_n": 300,
-    "backward": 0,
-    "jitter_rms": 1.642,
-    "track_rms": null,
-    "load_min": -112,
-    "load_max": 48,
-    "end_offset": 0.387,
-    "end_range": 4,
-    "err": 0
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "A",
+    "way": "lower",
+    "servo": {
+     "n": 400,
+     "hz": 30.287,
+     "moving_n": 300,
+     "backward": 0,
+     "jitter_rms": 1.642,
+     "track_rms": null,
+     "load_min": -112,
+     "load_max": 48,
+     "end_offset": 0.387,
+     "end_range": 4,
+     "err": 0
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 63.93,
+     "peak_x_hz": 14.2,
+     "rms_y_mg": 287.04,
+     "peak_y_hz": 14.2,
+     "rms_z_mg": 40.38,
+     "peak_z_hz": 14.2
+    }
    },
-   "accel": {
-    "n": 5900,
-    "fs_hz": 502.5,
-    "rms_x_mg": 63.93,
-    "peak_x_hz": 14.2,
-    "rms_y_mg": 287.04,
-    "peak_y_hz": 14.2,
-    "rms_z_mg": 40.38,
-    "peak_z_hz": 14.2
-   }
-  },
-  {
-   "p": 128,
-   "d": 0,
-   "profile": "C",
-   "way": "raise",
-   "servo": {
-    "n": 215,
-    "hz": 17.574,
-    "moving_n": 118,
-    "backward": 0,
-    "jitter_rms": 0.998,
-    "track_rms": 6.703,
-    "load_min": 0,
-    "load_max": 144,
-    "end_offset": 3.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "C",
+    "way": "raise",
+    "servo": {
+     "n": 215,
+     "hz": 17.574,
+     "moving_n": 118,
+     "backward": 0,
+     "jitter_rms": 0.998,
+     "track_rms": 6.703,
+     "load_min": 0,
+     "load_max": 144,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5892,
+     "fs_hz": 501.8,
+     "rms_x_mg": 123.68,
+     "peak_x_hz": 30.6,
+     "rms_y_mg": 406.45,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 50.38,
+     "peak_z_hz": 15.2
+    }
    },
-   "accel": {
-    "n": 5892,
-    "fs_hz": 501.8,
-    "rms_x_mg": 123.68,
-    "peak_x_hz": 30.6,
-    "rms_y_mg": 406.45,
-    "peak_y_hz": 15.2,
-    "rms_z_mg": 50.38,
-    "peak_z_hz": 15.2
-   }
-  },
-  {
-   "p": 128,
-   "d": 0,
-   "profile": "C",
-   "way": "lower",
-   "servo": {
-    "n": 215,
-    "hz": 17.573,
-    "moving_n": 117,
-    "backward": 0,
-    "jitter_rms": 1.136,
-    "track_rms": 6.06,
-    "load_min": -112,
-    "load_max": 80,
-    "end_offset": 0.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "C",
+    "way": "lower",
+    "servo": {
+     "n": 215,
+     "hz": 17.573,
+     "moving_n": 117,
+     "backward": 0,
+     "jitter_rms": 1.136,
+     "track_rms": 6.06,
+     "load_min": -112,
+     "load_max": 80,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.5,
+     "rms_x_mg": 139.45,
+     "peak_x_hz": 30.2,
+     "rms_y_mg": 386.67,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 49.45,
+     "peak_z_hz": 15.2
+    }
    },
-   "accel": {
-    "n": 5899,
-    "fs_hz": 502.5,
-    "rms_x_mg": 139.45,
-    "peak_x_hz": 30.2,
-    "rms_y_mg": 386.67,
-    "peak_y_hz": 15.2,
-    "rms_z_mg": 49.45,
-    "peak_z_hz": 15.2
-   }
-  },
-  {
-   "p": 160,
-   "d": 0,
-   "profile": "A",
-   "way": "raise",
-   "servo": {
-    "n": 400,
-    "hz": 30.29,
-    "moving_n": 300,
-    "backward": 18,
-    "jitter_rms": 1.836,
-    "track_rms": null,
-    "load_min": -56,
-    "load_max": 176,
-    "end_offset": 2.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 160,
+    "d": 0,
+    "profile": "A",
+    "way": "raise",
+    "servo": {
+     "n": 400,
+     "hz": 30.29,
+     "moving_n": 300,
+     "backward": 18,
+     "jitter_rms": 1.836,
+     "track_rms": null,
+     "load_min": -56,
+     "load_max": 176,
+     "end_offset": 2.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.6,
+     "rms_x_mg": 82.49,
+     "peak_x_hz": 14.2,
+     "rms_y_mg": 388.8,
+     "peak_y_hz": 13.9,
+     "rms_z_mg": 48.95,
+     "peak_z_hz": 13.9
+    }
    },
-   "accel": {
-    "n": 5900,
-    "fs_hz": 502.6,
-    "rms_x_mg": 82.49,
-    "peak_x_hz": 14.2,
-    "rms_y_mg": 388.8,
-    "peak_y_hz": 13.9,
-    "rms_z_mg": 48.95,
-    "peak_z_hz": 13.9
-   }
-  },
-  {
-   "p": 160,
-   "d": 0,
-   "profile": "A",
-   "way": "lower",
-   "servo": {
-    "n": 400,
-    "hz": 30.288,
-    "moving_n": 300,
-    "backward": 0,
-    "jitter_rms": 1.71,
-    "track_rms": null,
-    "load_min": -136,
-    "load_max": 56,
-    "end_offset": 1.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 160,
+    "d": 0,
+    "profile": "A",
+    "way": "lower",
+    "servo": {
+     "n": 400,
+     "hz": 30.288,
+     "moving_n": 300,
+     "backward": 0,
+     "jitter_rms": 1.71,
+     "track_rms": null,
+     "load_min": -136,
+     "load_max": 56,
+     "end_offset": 1.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 70.44,
+     "peak_x_hz": 28.5,
+     "rms_y_mg": 302.62,
+     "peak_y_hz": 13.2,
+     "rms_z_mg": 41.32,
+     "peak_z_hz": 13.2
+    }
    },
-   "accel": {
-    "n": 5900,
-    "fs_hz": 502.5,
-    "rms_x_mg": 70.44,
-    "peak_x_hz": 28.5,
-    "rms_y_mg": 302.62,
-    "peak_y_hz": 13.2,
-    "rms_z_mg": 41.32,
-    "peak_z_hz": 13.2
-   }
-  },
-  {
-   "p": 160,
-   "d": 0,
-   "profile": "C",
-   "way": "raise",
-   "servo": {
-    "n": 215,
-    "hz": 17.574,
-    "moving_n": 119,
-    "backward": 2,
-    "jitter_rms": 1.001,
-    "track_rms": 6.39,
-    "load_min": -56,
-    "load_max": 136,
-    "end_offset": 2.0,
-    "end_range": 0,
-    "err": 0
+   {
+    "p": 160,
+    "d": 0,
+    "profile": "C",
+    "way": "raise",
+    "servo": {
+     "n": 215,
+     "hz": 17.574,
+     "moving_n": 119,
+     "backward": 2,
+     "jitter_rms": 1.001,
+     "track_rms": 6.39,
+     "load_min": -56,
+     "load_max": 136,
+     "end_offset": 2.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.4,
+     "rms_x_mg": 195.67,
+     "peak_x_hz": 30.5,
+     "rms_y_mg": 526.6,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 64.82,
+     "peak_z_hz": 15.2
+    }
    },
-   "accel": {
-    "n": 5899,
-    "fs_hz": 502.4,
-    "rms_x_mg": 195.67,
-    "peak_x_hz": 30.5,
-    "rms_y_mg": 526.6,
-    "peak_y_hz": 15.2,
-    "rms_z_mg": 64.82,
-    "peak_z_hz": 15.2
+   {
+    "p": 160,
+    "d": 0,
+    "profile": "C",
+    "way": "lower",
+    "servo": {
+     "n": 216,
+     "hz": 17.638,
+     "moving_n": 116,
+     "backward": 7,
+     "jitter_rms": 1.715,
+     "track_rms": 5.725,
+     "load_min": -296,
+     "load_max": 96,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5898,
+     "fs_hz": 502.5,
+     "rms_x_mg": 182.38,
+     "peak_x_hz": 30.1,
+     "rms_y_mg": 499.44,
+     "peak_y_hz": 15.1,
+     "rms_z_mg": 63.63,
+     "peak_z_hz": 15.1
+    }
    }
-  },
-  {
-   "p": 160,
-   "d": 0,
-   "profile": "C",
-   "way": "lower",
-   "servo": {
-    "n": 216,
-    "hz": 17.638,
-    "moving_n": 116,
-    "backward": 7,
-    "jitter_rms": 1.715,
-    "track_rms": 5.725,
-    "load_min": -296,
-    "load_max": 96,
-    "end_offset": 0.0,
-    "end_range": 0,
-    "err": 0
+  ]
+ },
+ "run2_14:57_rate": {
+  "profiles": "A one move; C stream ~15 Hz speed 1.5x acc 0; Cf ~24 Hz; Cs ~9 Hz; C1 ~15 Hz speed 1.0x acc 4",
+  "rows": [
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "A",
+    "way": "raise",
+    "servo": {
+     "n": 400,
+     "hz": 30.287,
+     "moving_n": 301,
+     "backward": 2,
+     "jitter_rms": 1.356,
+     "track_rms": null,
+     "load_min": 0,
+     "load_max": 112,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 33.97,
+     "peak_x_hz": 34.1,
+     "rms_y_mg": 91.09,
+     "peak_y_hz": 17.0,
+     "rms_z_mg": 27.57,
+     "peak_z_hz": 17.0
+    }
    },
-   "accel": {
-    "n": 5898,
-    "fs_hz": 502.5,
-    "rms_x_mg": 182.38,
-    "peak_x_hz": 30.1,
-    "rms_y_mg": 499.44,
-    "peak_y_hz": 15.1,
-    "rms_z_mg": 63.63,
-    "peak_z_hz": 15.1
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "A",
+    "way": "lower",
+    "servo": {
+     "n": 400,
+     "hz": 30.283,
+     "moving_n": 301,
+     "backward": 0,
+     "jitter_rms": 1.525,
+     "track_rms": null,
+     "load_min": -112,
+     "load_max": 40,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 47.31,
+     "peak_x_hz": 14.2,
+     "rms_y_mg": 230.07,
+     "peak_y_hz": 14.2,
+     "rms_z_mg": 35.86,
+     "peak_z_hz": 14.2
+    }
+   },
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "C",
+    "way": "raise",
+    "servo": {
+     "n": 216,
+     "hz": 17.644,
+     "moving_n": 118,
+     "backward": 0,
+     "jitter_rms": 0.882,
+     "track_rms": 7.651,
+     "load_min": 0,
+     "load_max": 112,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.1
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 42.18,
+     "peak_x_hz": 15.2,
+     "rms_y_mg": 200.73,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 32.81,
+     "peak_z_hz": 15.2
+    }
+   },
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "C",
+    "way": "lower",
+    "servo": {
+     "n": 216,
+     "hz": 17.64,
+     "moving_n": 118,
+     "backward": 0,
+     "jitter_rms": 1.034,
+     "track_rms": 6.463,
+     "load_min": -88,
+     "load_max": 64,
+     "end_offset": -1.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.1
+    },
+    "accel": {
+     "n": 5902,
+     "fs_hz": 502.7,
+     "rms_x_mg": 96.67,
+     "peak_x_hz": 30.1,
+     "rms_y_mg": 336.38,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 44.04,
+     "peak_z_hz": 15.2
+    }
+   },
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "Cf",
+    "way": "raise",
+    "servo": {
+     "n": 123,
+     "hz": 10.007,
+     "moving_n": 47,
+     "backward": 1,
+     "jitter_rms": 0.867,
+     "track_rms": 4.971,
+     "load_min": -40,
+     "load_max": 136,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 24.2
+    },
+    "accel": {
+     "n": 5895,
+     "fs_hz": 502.1,
+     "rms_x_mg": 36.98,
+     "peak_x_hz": 30.4,
+     "rms_y_mg": 144.95,
+     "peak_y_hz": 12.2,
+     "rms_z_mg": 29.39,
+     "peak_z_hz": 12.2
+    }
+   },
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "Cf",
+    "way": "lower",
+    "servo": {
+     "n": 123,
+     "hz": 10.015,
+     "moving_n": 47,
+     "backward": 0,
+     "jitter_rms": 1.128,
+     "track_rms": 4.301,
+     "load_min": -88,
+     "load_max": 40,
+     "end_offset": -1.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 24.2
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.4,
+     "rms_x_mg": 43.66,
+     "peak_x_hz": 12.1,
+     "rms_y_mg": 183.9,
+     "peak_y_hz": 12.1,
+     "rms_z_mg": 31.83,
+     "peak_z_hz": 12.1
+    }
+   },
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "Cs",
+    "way": "raise",
+    "servo": {
+     "n": 112,
+     "hz": 9.112,
+     "moving_n": 71,
+     "backward": 16,
+     "jitter_rms": 0.665,
+     "track_rms": 13.707,
+     "load_min": 0,
+     "load_max": 136,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 9.2
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.5,
+     "rms_x_mg": 76.72,
+     "peak_x_hz": 27.4,
+     "rms_y_mg": 249.09,
+     "peak_y_hz": 9.1,
+     "rms_z_mg": 37.02,
+     "peak_z_hz": 9.1
+    }
+   },
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "Cs",
+    "way": "lower",
+    "servo": {
+     "n": 112,
+     "hz": 9.117,
+     "moving_n": 70,
+     "backward": 0,
+     "jitter_rms": 0.739,
+     "track_rms": 13.046,
+     "load_min": -112,
+     "load_max": 64,
+     "end_offset": -1.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 9.2
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 40.57,
+     "peak_x_hz": 18.3,
+     "rms_y_mg": 183.83,
+     "peak_y_hz": 9.1,
+     "rms_z_mg": 32.3,
+     "peak_z_hz": 9.1
+    }
+   },
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "C1",
+    "way": "raise",
+    "servo": {
+     "n": 216,
+     "hz": 17.652,
+     "moving_n": 131,
+     "backward": 1,
+     "jitter_rms": 0.943,
+     "track_rms": 37.148,
+     "load_min": 0,
+     "load_max": 136,
+     "end_offset": 2.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.1
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 36.33,
+     "peak_x_hz": 31.9,
+     "rms_y_mg": 80.98,
+     "peak_y_hz": 15.1,
+     "rms_z_mg": 26.94,
+     "peak_z_hz": 15.1
+    }
+   },
+   {
+    "p": 96,
+    "d": 0,
+    "profile": "C1",
+    "way": "lower",
+    "servo": {
+     "n": 215,
+     "hz": 17.568,
+     "moving_n": 129,
+     "backward": 0,
+     "jitter_rms": 1.037,
+     "track_rms": 36.271,
+     "load_min": -88,
+     "load_max": 40,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.2
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 38.36,
+     "peak_x_hz": 31.9,
+     "rms_y_mg": 120.44,
+     "peak_y_hz": 15.8,
+     "rms_z_mg": 28.54,
+     "peak_z_hz": 15.8
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "A",
+    "way": "raise",
+    "servo": {
+     "n": 400,
+     "hz": 30.283,
+     "moving_n": 299,
+     "backward": 0,
+     "jitter_rms": 1.352,
+     "track_rms": null,
+     "load_min": -28,
+     "load_max": 140,
+     "end_offset": 2.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.4,
+     "rms_x_mg": 38.08,
+     "peak_x_hz": 34.1,
+     "rms_y_mg": 111.67,
+     "peak_y_hz": 14.2,
+     "rms_z_mg": 28.41,
+     "peak_z_hz": 14.2
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "A",
+    "way": "lower",
+    "servo": {
+     "n": 400,
+     "hz": 30.297,
+     "moving_n": 301,
+     "backward": 1,
+     "jitter_rms": 1.693,
+     "track_rms": null,
+     "load_min": -120,
+     "load_max": 44,
+     "end_offset": 1.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5902,
+     "fs_hz": 502.7,
+     "rms_x_mg": 72.83,
+     "peak_x_hz": 14.0,
+     "rms_y_mg": 327.37,
+     "peak_y_hz": 14.0,
+     "rms_z_mg": 43.54,
+     "peak_z_hz": 14.0
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "C",
+    "way": "raise",
+    "servo": {
+     "n": 216,
+     "hz": 17.651,
+     "moving_n": 119,
+     "backward": 1,
+     "jitter_rms": 0.945,
+     "track_rms": 7.381,
+     "load_min": -20,
+     "load_max": 116,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.1
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 72.91,
+     "peak_x_hz": 15.2,
+     "rms_y_mg": 318.01,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 42.09,
+     "peak_z_hz": 15.2
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "C",
+    "way": "lower",
+    "servo": {
+     "n": 216,
+     "hz": 17.652,
+     "moving_n": 118,
+     "backward": 6,
+     "jitter_rms": 2.09,
+     "track_rms": 6.615,
+     "load_min": -200,
+     "load_max": 64,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.1
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.4,
+     "rms_x_mg": 173.75,
+     "peak_x_hz": 29.9,
+     "rms_y_mg": 537.42,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 66.87,
+     "peak_z_hz": 15.2
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "Cf",
+    "way": "raise",
+    "servo": {
+     "n": 122,
+     "hz": 9.936,
+     "moving_n": 47,
+     "backward": 2,
+     "jitter_rms": 0.952,
+     "track_rms": 5.126,
+     "load_min": 0,
+     "load_max": 144,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 24.3
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 44.52,
+     "peak_x_hz": 12.2,
+     "rms_y_mg": 174.6,
+     "peak_y_hz": 12.2,
+     "rms_z_mg": 30.89,
+     "peak_z_hz": 12.2
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "Cf",
+    "way": "lower",
+    "servo": {
+     "n": 123,
+     "hz": 10.017,
+     "moving_n": 47,
+     "backward": 0,
+     "jitter_rms": 1.302,
+     "track_rms": 4.62,
+     "load_min": -128,
+     "load_max": 64,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 24.2
+    },
+    "accel": {
+     "n": 5902,
+     "fs_hz": 502.7,
+     "rms_x_mg": 64.14,
+     "peak_x_hz": 18.2,
+     "rms_y_mg": 255.75,
+     "peak_y_hz": 12.1,
+     "rms_z_mg": 37.18,
+     "peak_z_hz": 12.1
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "Cs",
+    "way": "raise",
+    "servo": {
+     "n": 112,
+     "hz": 9.11,
+     "moving_n": 72,
+     "backward": 12,
+     "jitter_rms": 0.755,
+     "track_rms": 14.107,
+     "load_min": 0,
+     "load_max": 172,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 9.2
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.6,
+     "rms_x_mg": 71.98,
+     "peak_x_hz": 18.2,
+     "rms_y_mg": 242.86,
+     "peak_y_hz": 9.1,
+     "rms_z_mg": 36.62,
+     "peak_z_hz": 9.1
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "Cs",
+    "way": "lower",
+    "servo": {
+     "n": 112,
+     "hz": 9.111,
+     "moving_n": 70,
+     "backward": 4,
+     "jitter_rms": 0.796,
+     "track_rms": 13.393,
+     "load_min": -124,
+     "load_max": 64,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 9.2
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 50.71,
+     "peak_x_hz": 18.2,
+     "rms_y_mg": 237.72,
+     "peak_y_hz": 9.1,
+     "rms_z_mg": 36.12,
+     "peak_z_hz": 9.1
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "C1",
+    "way": "raise",
+    "servo": {
+     "n": 216,
+     "hz": 17.652,
+     "moving_n": 131,
+     "backward": 3,
+     "jitter_rms": 0.91,
+     "track_rms": 37.053,
+     "load_min": -24,
+     "load_max": 140,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.1
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.4,
+     "rms_x_mg": 38.37,
+     "peak_x_hz": 31.9,
+     "rms_y_mg": 96.25,
+     "peak_y_hz": 15.1,
+     "rms_z_mg": 27.46,
+     "peak_z_hz": 18.3
+    }
+   },
+   {
+    "p": 96,
+    "d": 32,
+    "profile": "C1",
+    "way": "lower",
+    "servo": {
+     "n": 215,
+     "hz": 17.572,
+     "moving_n": 130,
+     "backward": 8,
+     "jitter_rms": 2.157,
+     "track_rms": 36.089,
+     "load_min": -208,
+     "load_max": 84,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.2
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 135.32,
+     "peak_x_hz": 21.7,
+     "rms_y_mg": 481.85,
+     "peak_y_hz": 10.9,
+     "rms_z_mg": 61.79,
+     "peak_z_hz": 10.9
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "A",
+    "way": "raise",
+    "servo": {
+     "n": 400,
+     "hz": 30.292,
+     "moving_n": 301,
+     "backward": 12,
+     "jitter_rms": 1.636,
+     "track_rms": null,
+     "load_min": 0,
+     "load_max": 144,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.5,
+     "rms_x_mg": 63.89,
+     "peak_x_hz": 34.1,
+     "rms_y_mg": 233.62,
+     "peak_y_hz": 14.2,
+     "rms_z_mg": 35.71,
+     "peak_z_hz": 14.2
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "A",
+    "way": "lower",
+    "servo": {
+     "n": 400,
+     "hz": 30.304,
+     "moving_n": 300,
+     "backward": 1,
+     "jitter_rms": 1.738,
+     "track_rms": null,
+     "load_min": -112,
+     "load_max": 48,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.4,
+     "rms_x_mg": 69.43,
+     "peak_x_hz": 14.2,
+     "rms_y_mg": 296.82,
+     "peak_y_hz": 14.2,
+     "rms_z_mg": 41.08,
+     "peak_z_hz": 14.2
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "C",
+    "way": "raise",
+    "servo": {
+     "n": 216,
+     "hz": 17.646,
+     "moving_n": 118,
+     "backward": 2,
+     "jitter_rms": 1.136,
+     "track_rms": 6.579,
+     "load_min": 0,
+     "load_max": 144,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.1
+    },
+    "accel": {
+     "n": 5899,
+     "fs_hz": 502.4,
+     "rms_x_mg": 136.75,
+     "peak_x_hz": 30.5,
+     "rms_y_mg": 452.38,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 56.05,
+     "peak_z_hz": 15.2
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "C",
+    "way": "lower",
+    "servo": {
+     "n": 215,
+     "hz": 17.571,
+     "moving_n": 118,
+     "backward": 5,
+     "jitter_rms": 1.852,
+     "track_rms": 5.994,
+     "load_min": -272,
+     "load_max": 80,
+     "end_offset": -1.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.2
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 155.83,
+     "peak_x_hz": 29.7,
+     "rms_y_mg": 459.34,
+     "peak_y_hz": 15.2,
+     "rms_z_mg": 58.39,
+     "peak_z_hz": 15.2
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "Cf",
+    "way": "raise",
+    "servo": {
+     "n": 122,
+     "hz": 9.937,
+     "moving_n": 47,
+     "backward": 5,
+     "jitter_rms": 1.292,
+     "track_rms": 4.683,
+     "load_min": -48,
+     "load_max": 240,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 24.3
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 152.55,
+     "peak_x_hz": 24.4,
+     "rms_y_mg": 449.43,
+     "peak_y_hz": 12.3,
+     "rms_z_mg": 61.85,
+     "peak_z_hz": 12.3
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "Cf",
+    "way": "lower",
+    "servo": {
+     "n": 122,
+     "hz": 9.935,
+     "moving_n": 47,
+     "backward": 0,
+     "jitter_rms": 1.299,
+     "track_rms": 4.458,
+     "load_min": -144,
+     "load_max": 80,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 24.3
+    },
+    "accel": {
+     "n": 5900,
+     "fs_hz": 502.5,
+     "rms_x_mg": 75.66,
+     "peak_x_hz": 18.2,
+     "rms_y_mg": 297.68,
+     "peak_y_hz": 12.2,
+     "rms_z_mg": 41.69,
+     "peak_z_hz": 12.2
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "Cs",
+    "way": "raise",
+    "servo": {
+     "n": 112,
+     "hz": 9.111,
+     "moving_n": 70,
+     "backward": 28,
+     "jitter_rms": 0.894,
+     "track_rms": 13.927,
+     "load_min": 0,
+     "load_max": 208,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 9.2
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.7,
+     "rms_x_mg": 117.71,
+     "peak_x_hz": 18.2,
+     "rms_y_mg": 393.41,
+     "peak_y_hz": 9.2,
+     "rms_z_mg": 55.0,
+     "peak_z_hz": 9.2
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "Cs",
+    "way": "lower",
+    "servo": {
+     "n": 112,
+     "hz": 9.111,
+     "moving_n": 69,
+     "backward": 7,
+     "jitter_rms": 0.693,
+     "track_rms": 12.7,
+     "load_min": -112,
+     "load_max": 80,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 9.2
+    },
+    "accel": {
+     "n": 5901,
+     "fs_hz": 502.6,
+     "rms_x_mg": 55.07,
+     "peak_x_hz": 18.2,
+     "rms_y_mg": 243.64,
+     "peak_y_hz": 9.1,
+     "rms_z_mg": 36.97,
+     "peak_z_hz": 18.2
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "C1",
+    "way": "raise",
+    "servo": {
+     "n": 216,
+     "hz": 17.649,
+     "moving_n": 131,
+     "backward": 13,
+     "jitter_rms": 1.897,
+     "track_rms": 36.344,
+     "load_min": -48,
+     "load_max": 240,
+     "end_offset": 3.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.1
+    },
+    "accel": {
+     "n": 5902,
+     "fs_hz": 502.6,
+     "rms_x_mg": 133.15,
+     "peak_x_hz": 23.0,
+     "rms_y_mg": 418.69,
+     "peak_y_hz": 11.5,
+     "rms_z_mg": 57.56,
+     "peak_z_hz": 11.5
+    }
+   },
+   {
+    "p": 128,
+    "d": 0,
+    "profile": "C1",
+    "way": "lower",
+    "servo": {
+     "n": 216,
+     "hz": 17.646,
+     "moving_n": 130,
+     "backward": 14,
+     "jitter_rms": 1.821,
+     "track_rms": 35.854,
+     "load_min": -208,
+     "load_max": 80,
+     "end_offset": 0.0,
+     "end_range": 0,
+     "err": 0,
+     "cmd_hz": 15.1
+    },
+    "accel": {
+     "n": 5895,
+     "fs_hz": 502.1,
+     "rms_x_mg": 114.77,
+     "peak_x_hz": 30.6,
+     "rms_y_mg": 400.8,
+     "peak_y_hz": 15.1,
+     "rms_z_mg": 53.04,
+     "peak_z_hz": 15.1
+    }
    }
-  }
- ]
+  ]
+ }
 }
