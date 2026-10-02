@@ -23,6 +23,9 @@ sys.path.insert(0, os.path.dirname(HERE))
 import gain_bench as GB
 
 SID, LEVEL, DOWN = 30, 2057, 3081          # DOWN = LEVEL + 1024 (90 deg, load pushes +)
+# v3 rig (2026-10-02): plumb read off the servo with the fork aligned to a hanging
+# string by Tom = 3531, so LEVEL 2507; pass them in rather than editing defaults
+LEVEL = int(os.environ.get("LEVEL_T", LEVEL)); DOWN = int(os.environ.get("DOWN_T", DOWN))
 LADDER = [tuple(int(v) for v in x.split(":")) for x in os.environ.get(
     "LADDER", "32:32,128:128,160:160").split(",")]
 A, SLOW, START_TOL, DOWN_TOL = 23, 100, 60, 60
@@ -145,13 +148,75 @@ def block(b, where, goal, probes):
     return out
 
 
+def find_level(b):
+    """v3 rig (2026-10-02): the fork's angle on the horn is new, so LEVEL is
+    found, not assumed. Torque on where the arm rests; probe +-40 to learn
+    which way gravity pulls (that side stops short with more load); then step
+    AGAINST gravity 64 ticks at a time, holding, and read the load: the
+    holding torque peaks at level. Stop two steps past the peak (<= ~11 deg
+    above level). A parabola through the top three gives LEVEL."""
+    p0 = GB.read_pos(b, SID)["pos"]
+    torque_on(b)
+    move(b, p0, SLOW); time.sleep(1.5)
+    side = {}
+    for s_ in (+1, -1):
+        move(b, p0 + 40 * s_, SLOW); time.sleep(1.5)
+        move(b, p0, SLOW); time.sleep(2.0)
+        w = GB.window_stats(GB.sample(b, SID, n=10))
+        side[s_] = (abs(w["pos_mean"] - p0), abs(w["load_mean"]))
+    say(f"  gravity probe at {p0}: from +40 err/load {side[+1]}, from -40 err/load {side[-1]}")
+    if side[+1] == side[-1]:
+        raise GB.Abort("gravity direction not resolved by the probe (both sides equal)")
+    g = +1 if side[+1] > side[-1] else -1      # approach from the gravity side stops short
+    say(f"  gravity pulls toward {'+' if g > 0 else '-'} ticks")
+    pts, pos = [], p0
+    for k in range(16):
+        tgt = pos - g * 64                       # one step against gravity
+        move(b, tgt, SLOW); time.sleep(2.5)
+        w = GB.window_stats(GB.sample(b, SID, n=10))
+        pts.append((tgt, abs(w["load_mean"]), w["pos_mean"]))
+        say(f"    step to {tgt}: pos {w['pos_mean']:.1f}, |load| {abs(w['load_mean']):.0f}")
+        pos = tgt
+        best = max(range(len(pts)), key=lambda i: pts[i][1])
+        if len(pts) - 1 - best >= 2 and pts[-1][1] < 0.9 * pts[best][1]:
+            break
+    else:
+        raise GB.Abort("no load peak within 16 steps (90 deg) -- level not found")
+    best = max(range(len(pts)), key=lambda i: pts[i][1])
+    if 0 < best < len(pts) - 1:
+        (x0, y0, _), (x1, y1, _), (x2, y2, _) = pts[best - 1], pts[best], pts[best + 1]
+        den = (y0 - 2 * y1 + y2)
+        lvl = x1 + (0.5 * (y0 - y2) / den) * (x2 - x1) if den else x1
+    else:
+        lvl = pts[best][0]
+    level = int(round(lvl))
+    say(f"  LEVEL = {level} (peak |load| {pts[best][1]:.0f}); DOWN = {level + g * 1024}")
+    return level, level + g * 1024, pts, g
+
+
 def main():
+    global LEVEL, DOWN
     say(f"# {time.strftime('%Y-%m-%dT%H:%M:%S')} hold_clamp.py id {SID} LEVEL {LEVEL} DOWN {DOWN} "
         f"A {A} ladder {LADDER}")
     b = GB.Board(GB.find_port(None), log)
     res = {"id": SID, "level": LEVEL, "down": DOWN, "step_ticks": A, "rows": []}
     try:
         p0 = GB.read_pos(b, SID, tries=4)["pos"]
+        if os.environ.get("CAL"):
+            if GB.read_reg(b, SID, 40) != 0 or GB.read_gains(b, SID)[:2] != (32, 32):
+                raise GB.Abort("calibration needs torque off and gains 32/32 (no release possible)")
+            go(f"CALIBRATE: torque on at {p0} (weights on), probe +-40, step against gravity "
+               f"64 ticks at a time until the holding load peaks (<= ~11 deg past level), "
+               f"then lower to hanging and release there")
+            LEVEL, DOWN, pts, g = find_level(b)
+            res.update({"level": LEVEL, "down": DOWN, "cal": {"points": pts, "gravity": g}})
+            for x in (LEVEL, DOWN):
+                if not 200 <= x <= 3895:                 # +-A and travel overshoot stay off the wrap
+                    raise GB.Abort(f"{x} is too close to the 0/4095 wrap -- move the fork one "
+                                   f"horn-hole position; torque stays ON (lower it by hand cmd)")
+            travel(b, DOWN)
+            say(f"  released hanging: pos {release(b)}")
+            p0 = GB.read_pos(b, SID)["pos"]
         start_down = abs(p0 - DOWN) <= DOWN_TOL
         if GB.read_reg(b, SID, 40) != 0:
             raise GB.Abort(f"start refused: torque is on at {p0}")
@@ -173,7 +238,7 @@ def main():
             travel(b, LEVEL)
             ask("\nCLAMP(S) ON near the 100 mm notch (rigid, nothing dangling); press enter when done")
             time.sleep(SETTLE)
-        if start_down and abs(p0 - DOWN) <= DOWN_TOL:      # started hanging, maybe bare
+        if start_down and not os.environ.get("CAL"):         # started hanging, maybe bare
             ask("\nArm hangs released. Put the CLAMP ON near the 100 mm notch (rigid, as before); "
                 "press enter when it is on")
         for i, (p, d) in enumerate(LADDER):
