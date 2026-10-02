@@ -206,6 +206,58 @@ out of the rotation plane, which is what Tom sees by eye. The plan:
 The bench's current controller is the older board, so the bench moves to the
 new one first.
 
+## The accelerometer: a ~15 Hz oscillation in the rotation direction (14:43–14:51)
+
+The bench moved to the newer controller, a General Driver (MAC 30:76:f5:7e:55:ec).
+Tom OKed the flash: it carries `main` plus the bench `bno` command (2e9516b).
+The "BNO055" breakout turned out to be a **GY-BNO08X** at 0x4B. It is wired to
+the board's P1 "IIC" connector (`figs/bno055_wiring.png`) and glued near the fork
+tip.
+
+`bno` streams its calibrated accelerometer report at about 500 Hz in the
+background while `sweep_smooth.py BNO=1` drives the sweeps. At rest |a| =
+988 mg, with a standard deviation of 4.5 mg.
+
+**Axes, from gravity:**
+- z runs along the arm: −1006 mg at plumb.
+- **y is the rotation direction**, tangential: +970 mg at level.
+- x is mostly out of plane: a constant offset of about 250 mg, so the sensor is
+  tilted about 15°.
+
+**Before the ladder,** the arm was lowered from 1899, where Tom had left it after
+working on it, to plumb, and released at 3529.
+
+Acceleration RMS above 5 Hz in mg, y / x, and the dominant frequency:
+
+| gains | A raise | A lower | C raise | C lower | peak y / x |
+|---|---|---|---|---|---|
+| P 32 / D 32 | 58 / 25 | 74 / 25 | 95 / 32 | 126 / 35 | 15–17 / 15–34 Hz |
+| P 128 / D 32 | 242 / 49 | 345 / 88 | 483 / 179 | 587 / 212 | 14–15 / 28–31 Hz |
+| P 128 / D 0 | 137 / 40 | 287 / 64 | 406 / 124 | 387 / 139 | 14–15 / 14–31 Hz |
+| P 160 / D 0 | 389 / 82 | 303 / 70 | 527 / 196 | 499 / 182 | 13–15 / 14–31 Hz |
+
+- **The dominant shaking is about 15 Hz in the rotation direction.** It is the
+  position loop oscillating the arm, not an out-of-plane wobble. The x axis,
+  about 30 Hz, is smaller.
+- **A resonance near 15 Hz exists even at stock P 32** (60–125 mg).
+  P 128 / D 32 multiplies it by about 4–5. **D 0 roughly halves P 128's**
+  (about 0.6–0.85× of D 32), and P 160 is worse again.
+- **Streamed minimum-jerk targets (C) excite it more than a single move (A)**
+  at every gain.
+- **In angle** (assuming the sensor is about 100 mm from the axis, which was not
+  measured): θ_rms ≈ a_rms / (r·ω²), so at 15 Hz:
+  - P 32: about 0.04–0.08° RMS;
+  - P 128 / D 32: about 0.15–0.37° RMS;
+  - P 128 / D 0: about 0.09–0.26° RMS.
+- **Servo telemetry did not see most of this.** Its 30 Hz poll is blind at
+  15 Hz. In this run it reported 0 backward samples at P 128 / D 32, where the
+  old controller run reported about 20 of 300. Why that changed (the new board,
+  or the arm work) was not tested.
+
+**Files:** per-sweep metrics in `2026-10-02/sweep_bno_summary.json`; raw data
+and video on Mira under `hw_sessions/2026-10-02/sweep_bno/`, and the setup and
+flash videos in `hw_sessions/2026-10-02/bno_setup/`.
+
 ## Open
 
 - **Weights:** record their radius and mass, to place the inertia against #73's

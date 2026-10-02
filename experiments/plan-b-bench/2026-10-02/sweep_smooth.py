@@ -178,12 +178,27 @@ def main():
     res = {"level": LEVEL, "down": DOWN, "gains": GAINS, "profiles": PROFILES, "rows": []}
     try:
         p0 = at(b)["pos"]
-        if GB.read_reg(b, SID, 40) != 0 or abs(p0 - DOWN) > DOWN_TOL:
-            raise GB.Abort(f"start refused: pos {p0}; need torque off, hanging within {DOWN_TOL} of {DOWN}")
+        if GB.read_reg(b, SID, 40) != 0:
+            raise GB.Abort(f"start refused: torque is on at {p0}")
+        # Tom may leave the arm above level after working on it: accept up to ~60 deg
+        # past level on the far side of plumb (2026-10-02, 1899 seen)
+        g = 1 if DOWN > LEVEL else -1
+        lo, hi = sorted((LEVEL - g * 700, DOWN + g * DOWN_TOL))
+        if abs(p0 - DOWN) > DOWN_TOL:
+            if not lo <= p0 <= hi:
+                raise GB.Abort(f"start refused: pos {p0} is outside level..plumb ({LEVEL}..{DOWN})")
+            go(f"torque on at {p0} (weights on) and lower to plumb {DOWN} at {SLOW} steps/s, then release")
+            before = at(b)["pos"]
+            b.cmd(f"torque {SID}", until=r"torque \S+: \S+\r?\n"); state["torque"] = True
+            if abs(at(b)["pos"] - before) > GB.JUMP_TICKS:
+                raise GB.Abort("jump at torque-on")
+            move(b, DOWN, SLOW, 2)
+            time.sleep(abs(DOWN - p0) / SLOW + 3.0)
+            say(f"  released at plumb: pos {release_at_down(b)}")
         if BNO:
             out = b.cmd("bno", until=r"bno: .*\n|\? \(try", timeout=3)
-            if "0xA0" not in out or "ACCONLY" not in out:
-                raise GB.Abort(f"BNO055 not ready: {out.strip()[-120:]!r}")
+            if "READY" not in out:          # BNO055 or BNO08x (firmware 2e9516b)
+                raise GB.Abort(f"accelerometer not ready: {out.strip()[-120:]!r}")
             say(f"  {out.strip()}")
         go(f"the whole ladder {GAINS}: per gain, write at plumb, torque on, then per profile "
            f"{PROFILES} raise to level and lower to plumb (90 deg, ~10 s each way), release at plumb")
@@ -199,8 +214,8 @@ def main():
             for prof in PROFILES:
                 for frm, to, way in ((DOWN, LEVEL, "raise"), (LEVEL, DOWN, "lower")):
                     if BNO:
-                        bno_t = bno_start(b, (T_SWEEP + 4.0) * 1000 if prof == "C"
-                                          else (abs(to - frm) / SLOW + 5.0) * 1000)
+                        bno_t = bno_start(b, (T_SWEEP + 1.5) * 1000 if prof == "C"
+                                          else (abs(to - frm) / SLOW + 1.5) * 1000)
                     tr = sweep(b, frm, to, prof)
                     m = metrics(tr, frm, to)
                     row = {"p": p, "d": d, "profile": prof, "way": way, "metrics": m, "trace": tr}
