@@ -565,6 +565,30 @@ Mixed sets ran on both servo-mass plants. Logs: `no3250_mixed_{arms,noarms}.txt`
   question.
 - **The get-up was not rerun.**
 
+**Update the same day: the tuned STS3215 limited to 2.8×.** The bench's
+accelerometer later showed P 96 / D 0 to be the smoothest high-gain setting at
+walking speeds. Its stiffness is about 2.8× (clamp probes); P 128 shakes more
+and P 160 oscillates. The rerun with kp_scale 2.8:
+- `MIX_KP=2.8x` gives `no3250_mixed28_*` and `no3250_mixsweep28_*`;
+- `MIX_KP=2.8x-rolls` gives `no3250_mixsweep28rolls_*`.
+
+| servo set (adversity matrix, 18 cases × 3 seeds) | with arms | no arms |
+|---|---|---|
+| 6 STS3250 (the design) | 18/18 | 17/18 |
+| 0 STS3250, six STS3215 at 2.8× | 15/18, one fall | 13/18, falls at play 5° |
+| 2 STS3250 at the knees, others 2.8× | 14/18, falls | 14/18, falls |
+| 2 STS3250 at the ankle rolls, others 2.8× | 15/18, one fall | 15/18, falls |
+| **2 STS3250 at the hip rolls, others 2.8×** (55 g plant / 74.5 g plant) | **18/18** / 17/18 | **18/18** / 16/18 |
+| 4 STS3250 at all four rolls, knees 2.8× | 17/18 | 18/18 |
+
+- **Where the extra stiffness matters:** with the STS3215 at 2.8×, it is the
+  **hip rolls**, not the knees.
+- **Two STS3250s at the hip rolls match the design** on both plants. A real set
+  of two STS3250s is 39 g heavier than all-STS3215, so the 55 g plant is the
+  closer of the two.
+- **If P 128 (3.5×) proves acceptable** for walking, no STS3250 is needed by
+  these gates (17/18, see above).
+
 ### 14.5 CAD, mass, sim
 
 - **CAD: no part changes.** The v6 parts are drawn around the STS3215's STEP-measured case, v5's servo truth in `cad/dimensions.py`: `SV_LEN` 45.22, `SV_WID` 24.72, `SV_CASE_T` 34.70, horn face, rib band, idler face. The STS3250 was only ever assumed identical and carried as a mass (`dimensions_v6.SERVO_MASS_3250`). An STS3215 at the six joints is the servo the CAD was literally drawn around, so `check_assembly_v6` / ROM results stand. The rollup (`parts_v6.SERVO_COUNT`) would read 17 × STS3215.

@@ -70,6 +70,9 @@ DG.SERVOS["sts3215_p4"] = dict(stall=_s["stall"], w0=_s["w0"], kp_scale=4.0)
 # STABLE setting under a leg-like load and measures 3.5 +- 0.4x the P 32
 # stiffness (friction-cancelled); P 160 (4.8x) limit-cycles
 DG.SERVOS["sts3215_p35"] = dict(stall=_s["stall"], w0=_s["w0"], kp_scale=3.5)
+# bench 2026-10-02: P 96 / D 0 -- quiet at hold, near-stock shaking at walking
+# speeds -- measures ~2.8x (clamp probes); P 128 is rougher with a leg-like load
+DG.SERVOS["sts3215_p28"] = dict(stall=_s["stall"], w0=_s["w0"], kp_scale=2.8)
 # ...and the STS3250 if it is less stiff than the third-party 4x (design doc 8.1)
 _b = DG.SERVOS["sts3250"]
 DG.SERVOS["sts3250_k3"] = dict(stall=_b["stall"], w0=_b["w0"], kp_scale=3.0)
@@ -456,7 +459,7 @@ MIX_PLACEMENTS = [  # (label, joints given an STS3250)
     ("4 STS3250: all four rolls", ROLLS),
     ("4 STS3250: hip rolls + knees", HIP_ROLLS + KNEES),
 ]
-MIX_TUNED = (("sts3215_p35", "3.5x"), ("sts3215_p3", "3.0x"))
+MIX_TUNED = (("sts3215_p35", "3.5x"), ("sts3215_p3", "3.0x"), ("sts3215_p28", "2.8x"))
 
 
 def _mix_name(kp, j50):
@@ -484,7 +487,10 @@ def mode_mixed():
     x50, x15 = cad_plant(74.5, arms=arms), cad_plant(55.0, arms=arms)
     print(f"   plant: CAD-inertial, {'WITH the as-drawn arms' if arms else 'no arms (as in section 14)'}")
     variants = [("6 STS3250 (the design)", "6", x50, "74.5 g")]
+    only = os.environ.get("MIX_KP")                      # e.g. "2.8x": just that level
     for tuned, kp in MIX_TUNED:
+        if only and kp not in only.split(","):
+            continue
         for lab, j50 in MIX_PLACEMENTS:
             masses = [(x15, "55 g")] if not j50 else [(x15, "55 g"), (x50, "74.5 g")]
             for xml, mtag in masses:
@@ -519,6 +525,21 @@ def mode_mixsweep():
     and STS3250s on the knees only. MIX_ARMS=0 for section 14's no-arms plant."""
     arms = os.environ.get("MIX_ARMS", "1") != "0"
     print(f"   plant: CAD-inertial, {'WITH the as-drawn arms' if arms else 'no arms (as in section 14)'}")
+    if os.environ.get("MIX_KP") == "2.8x-rolls":     # which rolls carry the gain
+        mode_sweep(lambda x50, x15: [
+            ("M7 2 STS3250 at the hip rolls, others 2.8x (55 g plant)", x15, _mix_name("2.8x", HIP_ROLLS), {}),
+            ("M7b the same on the 74.5 g plant", x50, _mix_name("2.8x", HIP_ROLLS), {}),
+            ("M8 2 STS3250 at the ankle rolls, others 2.8x (55 g plant)", x15, _mix_name("2.8x", ANKLE_ROLLS), {}),
+        ], arms=arms)
+        return
+    if os.environ.get("MIX_KP") == "2.8x":
+        mode_sweep(lambda x50, x15: [
+            ("A  design: 6 STS3250", x50, "3250", {}),
+            ("M4 0 STS3250, all six tuned 3215 at 2.8x (bench P 96 / D 0)", x15, _mix_name("2.8x", ()), {}),
+            ("M5 2 STS3250 at the knees, others 2.8x (55 g plant)", x15, _mix_name("2.8x", KNEES), {}),
+            ("M6 4 STS3250 at the rolls, knees 2.8x (55 g plant)", x15, _mix_name("2.8x", ROLLS), {}),
+        ], arms=arms)
+        return
     mode_sweep(lambda x50, x15: [
         ("A  design: 6 STS3250", x50, "3250", {}),
         ("M1 0 STS3250, all six tuned 3215 at 3.5x", x15, _mix_name("3.5x", ()), {}),

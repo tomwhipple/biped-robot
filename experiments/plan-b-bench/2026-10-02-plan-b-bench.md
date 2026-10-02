@@ -357,10 +357,43 @@ Acceleration y, RMS above 5 Hz in mg, raise / lower:
 
 The per-run numbers are in `2026-10-02/sweep_bno_summary.json`.
 
+## Repeats at walking speeds (16:1x–16:26)
+
+Tom stepped away; the stand was free. Same rig and weights, with no one at
+the rig. Acceleration y RMS above 5 Hz in mg, one value per repeat:
+
+| condition | raise | lower |
+|---|---|---|
+| P 96 / D 0, 300 steps/s | 56, 58, 58 | 76, 76, 83 |
+| P 96 / D 0, 1,500 steps/s | 90, 95 | 112, 109 |
+| P 128 / D 0, 300 steps/s | 71, 61, 62 | 105, 102, 107 |
+| P 128 / D 0, 1,500 steps/s | 111, 135 | 199, 191 |
+
+- **P 96 / D 0 is repeatable** to within a few mg.
+- **The earlier 682 mg at P 128 / D 0, 300 steps/s did not recur** (61–71 mg).
+  Neither did 356 at 1,500 steps/s (111–135).
+- At walking speeds **P 128 / D 0 shakes about 1.1–1.8× as much as P 96 / D 0**.
+- No status bit was set.
+
+## What the bench now says (summary)
+
+| setting | stiffness × P 32 | holding still | 2° moves | walking-speed single moves (y RMS, mg) | streamed slow sweeps |
+|---|---|---|---|---|---|
+| P 32 / D 32 (stock) | 1 | quiet | settle | 52–85 | quiet |
+| **P 96 / D 0** | **≈ 2.8** (clamp probes) | quiet, level and hanging | settle | **57–111** | shaking at the command rate unless speed-matched |
+| P 128 / D 0 | ≈ 3.0–3.5 | quiet, level and hanging | mostly settle | 61–199 | rougher |
+| P 160 / D 0 | ≈ 4.8 (bottles, D 32) | quiet level; **oscillates after a 2° move while hanging** | no | — | — |
+
+The sim side, with the tuned 3215 at 2.8×, is in the design record §14.4a.
+
 ## Open
 
 - **Weights:** record their radius and mass, to place the inertia against #73's
   leg-like spec.
+- **P 96 / D 0 stiffness with bottles** (needs someone to hang them). P 96's
+  2.8× comes from clamp probes only.
+- **Streaming:** a speed-matched stream with a lead, as the firmware's 50 Hz
+  loop would use, at 50 Hz.
 - **The decision #73 feeds:** STS3250 or STS3215. The sim study (design
   record §14.4a) and the gain choice (P 128 / D 0 is the smoothest stable
   setting so far) both bear on it.
