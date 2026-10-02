@@ -20,7 +20,7 @@ The item numbers (№) refer to the vendor's annotated photo,
 | USB-C `USB` | 9 | CP2102N | ESP32 UART0, with the DTR/RTS auto-program circuit on `EN`/`GPIO0` | **flashing, CLI** |
 | USB-C `LIDAR` | 8 | CP2102N | its RXD takes `CP_RX` from H7; its TXD is unconnected | free; not wired to the ESP32 |
 | P1 | — | 4-pin | 1 3V3 · 2 GND · 3 `IIC_SDA` (GPIO 32) · 4 `IIC_SCL` (GPIO 33) | free |
-| P2 + P4 | 23, 24 | 2 × 40-pin, Raspberry Pi pinout | 5 V rail. Pins 3/5 are the board's I²C (GPIO 32/33). Pins 8/10 are `P_TX`/`P_RX`, i.e. ESP32 UART0 | free |
+| P2 + P4 | 23, 24 | 2 × 40-pin, the Raspberry Pi footprint, **numbered mirrored** in the schematic | Per the schematic (re-read 2026-10-02): pins **1 and 3 are 5 V**, **4 is `IIC_SDA`**, **6 is `IIC_SCL`**, 7/9 are `P_TX`/`P_RX` (ESP32 UART0). The earlier "pins 3/5 are I²C" was wrong. Which physical corner is pin 1 is unverified, so wire I²C sensors to P1, whose silkscreen names each pin | free |
 | P3 | — | 7-pin | 1 IO5 (10 Ω) · 2 3V3 · 3 GND · 4 IO16 · 5 IO27 · 6 `CP_RX` · 7 `U0RX` | free |
 | H7 | — | PH2.0 4-pin, "LIDAR" | 1 `CP_RX` · 2 n/c · 3 GND · 4 5 V | free |
 | H2 | — | 3-pin | 1 IO4 (10 Ω) · 2 5 V · 3 GND. The schematic labels it 舵机接口 ("servo port") | free. The firmware names GPIO 4 `kRgbLed` |
