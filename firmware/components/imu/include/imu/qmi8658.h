@@ -100,6 +100,9 @@ class Qmi8658Imu : public Imu {
     void* addDevice(uint8_t addr, uint32_t hz);
     static bool devRead(void* dev, uint8_t reg, uint8_t* buf, size_t len);
     static bool devWrite(void* dev, uint8_t reg, uint8_t val);
+    // Register-less transfers (a BNO08x speaks SHTP packets, not registers).
+    static bool devRawRead(void* dev, uint8_t* buf, size_t len);
+    static bool devRawWrite(void* dev, const uint8_t* buf, size_t len);
 
     // Raw sensor-frame readings, mount NOT applied: m/s^2 and rad/s. This is
     // the call that tells you which physical axis is which, which is the

@@ -21,6 +21,7 @@
 #include "wifi_link.h"
 #include "timesync.h"
 
+#include "driver/i2c_master.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -1582,46 +1583,33 @@ void homeVerify(Sink out) {
 // reading the schematic tells you reliably which physical axis the chip calls
 // X. Tilting the board by hand while watching `imu raw` does.
 // ---------------------------------------------------------------------------
-// `bno`: a BNO055 breakout glued to a bench lever and wired to header P1 (or
-// the 40-pin header's I2C pins), read as a plain accelerometer -- Plan B
-// bench (issue #73), 2026-10-02. The servo's own telemetry stops near 15 Hz,
-// in its own axis, at 1 tick; this sees shaking above that and out of plane.
-//   bno            init: chip id, ACCONLY mode, +-4 g, 1 kHz bandwidth, mg
-//   bno rec <ms>   record in the BACKGROUND at ~1 kHz (the CLI stays free for
-//                  `move` / `pos`); replies with the esp_timer time it started
+// `bno`: an accelerometer breakout glued to a bench lever and wired to header
+// P1 "IIC" -- Plan B bench (issue #73), 2026-10-02. The servo's own telemetry
+// stops near 15 Hz, in its own axis, at 1 tick; this sees shaking above that
+// and out of plane. Two chips are understood:
+//   BNO055 at 0x28/0x29: register map, ACCONLY mode, +-4 g, 1 kHz bandwidth
+//   BNO08x at 0x4B/0x4A (e.g. a "GY-BNO08X" board): SHTP packets; the
+//     calibrated Accelerometer report (0x01, Q8 m/s^2) is enabled at 400 Hz
+//   bno            init: find the chip, configure it, print one sample
+//   bno rec <ms>   record in the BACKGROUND (the CLI stays free for `move` /
+//                  `pos`); replies with the esp_timer time it started
 //   bno status     recording? samples so far
 //   bno dump       print the samples (t_us since start, ax ay az in mg), free
 // Bench only: it shares the I2C bus (and its lock) with the board IMU.
 namespace {
-constexpr uint8_t kBnoAddr = 0x28;          // ADR pin open
+enum class BnoKind { kNone, k055, k08x };
 struct BnoSample { uint32_t t_us; int16_t x, y, z; };
 void* s_bno_dev = nullptr;
+BnoKind s_bno_kind = BnoKind::kNone;
+uint8_t s_bno_addr = 0;
 BnoSample* s_bno_buf = nullptr;
 volatile int s_bno_n = 0;
 int s_bno_cap = 0;
 int s_bno_ms = 0;
 volatile bool s_bno_rec = false;
 int64_t s_bno_t0 = 0;
-
-void bnoTask(void*) {
-    TickType_t last = xTaskGetTickCount();
-    const int64_t t0 = s_bno_t0;
-    while (s_bno_n < s_bno_cap && esp_timer_get_time() - t0 < int64_t(s_bno_ms) * 1000) {
-        uint8_t raw[6];
-        const int64_t t = esp_timer_get_time();
-        if (imu::Qmi8658Imu::devRead(s_bno_dev, 0x08, raw, 6)) {
-            BnoSample& b = s_bno_buf[s_bno_n];
-            b.t_us = static_cast<uint32_t>(t - t0);
-            b.x = static_cast<int16_t>(raw[0] | (raw[1] << 8));
-            b.y = static_cast<int16_t>(raw[2] | (raw[3] << 8));
-            b.z = static_cast<int16_t>(raw[4] | (raw[5] << 8));
-            s_bno_n = s_bno_n + 1;
-        }
-        vTaskDelayUntil(&last, 1);          // 1 tick = 1 ms (CONFIG_FREERTOS_HZ 1000)
-    }
-    s_bno_rec = false;
-    vTaskDelete(nullptr);
-}
+uint8_t s_shtp_seq[6] = {0};
+uint8_t s_shtp_pkt[512];
 
 imu::Qmi8658Imu* bnoBus() {
     imu::Qmi8658Imu* dev = robot::onboardImu();
@@ -1630,37 +1618,164 @@ imu::Qmi8658Imu* bnoBus() {
         board::kImuAddr, false, 8, 1024});
     return dev ? dev : &probe_dev;
 }
+
+// SHTP over I2C: a 4-byte header (length LSB, MSB with bit 15 = continuation,
+// channel, sequence), the length counting the header. Read the header, then
+// the whole packet (which repeats the header). Returns the length, 0 if none.
+int shtpRead(uint8_t* pkt, int cap) {
+    uint8_t h[4];
+    if (!imu::Qmi8658Imu::devRawRead(s_bno_dev, h, 4)) return -1;
+    int len = (h[0] | (h[1] << 8)) & 0x7FFF;
+    if (len <= 4 || len == 0x7FFF) return 0;
+    if (len > cap) len = cap;
+    if (!imu::Qmi8658Imu::devRawRead(s_bno_dev, pkt, len)) return -1;
+    return len;
+}
+
+bool shtpWrite(uint8_t chan, const uint8_t* payload, int n) {
+    uint8_t pkt[32];
+    const int len = n + 4;
+    pkt[0] = static_cast<uint8_t>(len & 0xFF);
+    pkt[1] = static_cast<uint8_t>(len >> 8);
+    pkt[2] = chan;
+    pkt[3] = s_shtp_seq[chan]++;
+    memcpy(pkt + 4, payload, n);
+    return imu::Qmi8658Imu::devRawWrite(s_bno_dev, pkt, len);
+}
+
+// Accelerometer reports (0x01) out of one channel-3 packet, in mg; returns how
+// many it stored. Q8 m/s^2 -> mg is x * 1000 / (256 * 9.80665).
+int bno08xParse(const uint8_t* pkt, int len, uint32_t t_us, BnoSample* out, int room) {
+    if (len < 5 || pkt[2] != 3) return 0;
+    int i = 4, n = 0;
+    while (i < len && n < room) {
+        const uint8_t id = pkt[i];
+        if (id == 0xFB || id == 0xFA) { i += 5; continue; }       // timebase / rebase
+        if (id == 0x01 && i + 10 <= len) {
+            const int16_t x = static_cast<int16_t>(pkt[i + 4] | (pkt[i + 5] << 8));
+            const int16_t y = static_cast<int16_t>(pkt[i + 6] | (pkt[i + 7] << 8));
+            const int16_t z = static_cast<int16_t>(pkt[i + 8] | (pkt[i + 9] << 8));
+            out[n].t_us = t_us;
+            out[n].x = static_cast<int16_t>(x * 1000L / 2510L);    // 256 * 9.80665 = 2510.5
+            out[n].y = static_cast<int16_t>(y * 1000L / 2510L);
+            out[n].z = static_cast<int16_t>(z * 1000L / 2510L);
+            ++n;
+            i += 10;
+            continue;
+        }
+        break;                                                     // unknown report: stop
+    }
+    return n;
+}
+
+bool bno08xEnableAccel(uint32_t interval_us) {
+    uint8_t p[17] = {0};
+    p[0] = 0xFD;                     // Set Feature
+    p[1] = 0x01;                     // Accelerometer (calibrated, Q8 m/s^2)
+    p[5] = interval_us & 0xFF; p[6] = (interval_us >> 8) & 0xFF;
+    p[7] = (interval_us >> 16) & 0xFF; p[8] = (interval_us >> 24) & 0xFF;
+    return shtpWrite(2, p, sizeof p);
+}
+
+void bnoTask(void*) {
+    TickType_t last = xTaskGetTickCount();
+    const int64_t t0 = s_bno_t0;
+    while (s_bno_n < s_bno_cap && esp_timer_get_time() - t0 < int64_t(s_bno_ms) * 1000) {
+        const int64_t t = esp_timer_get_time();
+        if (s_bno_kind == BnoKind::k055) {
+            uint8_t raw[6];
+            if (imu::Qmi8658Imu::devRead(s_bno_dev, 0x08, raw, 6)) {
+                BnoSample& b = s_bno_buf[s_bno_n];
+                b.t_us = static_cast<uint32_t>(t - t0);
+                b.x = static_cast<int16_t>(raw[0] | (raw[1] << 8));
+                b.y = static_cast<int16_t>(raw[2] | (raw[3] << 8));
+                b.z = static_cast<int16_t>(raw[4] | (raw[5] << 8));
+                s_bno_n = s_bno_n + 1;
+            }
+        } else {
+            for (int k = 0; k < 4; ++k) {            // drain what is queued
+                const int len = shtpRead(s_shtp_pkt, sizeof s_shtp_pkt);
+                if (len <= 0) break;
+                s_bno_n = s_bno_n + bno08xParse(s_shtp_pkt, len, static_cast<uint32_t>(t - t0),
+                                                &s_bno_buf[s_bno_n], s_bno_cap - s_bno_n);
+            }
+        }
+        vTaskDelayUntil(&last, 1);          // 1 tick = 1 ms (CONFIG_FREERTOS_HZ 1000)
+    }
+    s_bno_rec = false;
+    vTaskDelete(nullptr);
+}
+
+bool bnoFind() {
+    const uint8_t cands[][2] = {{0x28, 0}, {0x29, 0}, {0x4B, 1}, {0x4A, 1}};
+    for (const auto& c : cands) {
+        void* d = bnoBus()->addDevice(c[0], 400000);
+        if (!d) continue;
+        uint8_t tmp[4];
+        const bool ok = c[1] == 0 ? imu::Qmi8658Imu::devRead(d, 0x00, tmp, 1)
+                                  : imu::Qmi8658Imu::devRawRead(d, tmp, 4);
+        if (ok) {
+            s_bno_dev = d; s_bno_addr = c[0];
+            s_bno_kind = c[1] == 0 ? BnoKind::k055 : BnoKind::k08x;
+            return true;
+        }
+        i2c_master_bus_rm_device(static_cast<i2c_master_dev_handle_t>(d));
+    }
+    return false;
+}
 }  // namespace
 
 void cmdBno(Sink out, int argc, char** argv) {
     const char* sub = argc >= 2 ? argv[1] : "init";
     if (!strcmp(sub, "init")) {
         if (s_bno_rec) { out("bno: recording -- `bno status`\r\n"); return; }
-        if (s_bno_dev == nullptr) s_bno_dev = bnoBus()->addDevice(kBnoAddr, 400000);
-        uint8_t id = 0;
-        if (!s_bno_dev || !imu::Qmi8658Imu::devRead(s_bno_dev, 0x00, &id, 1)) {
-            out("bno: no reply at 0x28 -- `imu scan`; check VIN/GND/SDA/SCL\r\n");
+        if (s_bno_dev == nullptr && !bnoFind()) {
+            out("bno: nothing at 0x28/0x29/0x4A/0x4B -- `imu scan`; check 3V3/GND/SD/SC\r\n");
             return;
         }
-        // CONFIG mode, page 1: ACC_Config = +-4 g | 1000 Hz bandwidth | normal
-        // power (0b000_111_01 = 0x1D); page 0: accel unit mg; then ACCONLY.
-        bool ok = imu::Qmi8658Imu::devWrite(s_bno_dev, 0x3D, 0x00);
-        vTaskDelay(pdMS_TO_TICKS(25));
-        ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x07, 0x01);
-        ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x08, 0x1D);
-        uint8_t acc_cfg = 0;
-        ok = ok && imu::Qmi8658Imu::devRead(s_bno_dev, 0x08, &acc_cfg, 1);
-        ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x07, 0x00);
-        ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x3B, 0x01);
-        ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x3D, 0x01);
-        vTaskDelay(pdMS_TO_TICKS(20));
-        uint8_t raw[6] = {0};
-        ok = ok && imu::Qmi8658Imu::devRead(s_bno_dev, 0x08, raw, 6);
-        say(out, "bno: chip id 0x%02X (BNO055 = 0xA0), ACC_Config 0x%02X (want 0x1D), %s; "
-                 "a = %d %d %d mg\r\n", id, acc_cfg, ok ? "ACCONLY" : "CONFIG FAILED",
-            static_cast<int16_t>(raw[0] | (raw[1] << 8)),
-            static_cast<int16_t>(raw[2] | (raw[3] << 8)),
-            static_cast<int16_t>(raw[4] | (raw[5] << 8)));
+        if (s_bno_kind == BnoKind::k055) {
+            uint8_t id = 0;
+            imu::Qmi8658Imu::devRead(s_bno_dev, 0x00, &id, 1);
+            // CONFIG mode, page 1: ACC_Config = +-4 g | 1000 Hz bandwidth | normal
+            // power (0b000_111_01 = 0x1D); page 0: accel unit mg; then ACCONLY.
+            bool ok = imu::Qmi8658Imu::devWrite(s_bno_dev, 0x3D, 0x00);
+            vTaskDelay(pdMS_TO_TICKS(25));
+            ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x07, 0x01);
+            ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x08, 0x1D);
+            uint8_t acc_cfg = 0;
+            ok = ok && imu::Qmi8658Imu::devRead(s_bno_dev, 0x08, &acc_cfg, 1);
+            ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x07, 0x00);
+            ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x3B, 0x01);
+            ok = ok && imu::Qmi8658Imu::devWrite(s_bno_dev, 0x3D, 0x01);
+            vTaskDelay(pdMS_TO_TICKS(20));
+            uint8_t raw[6] = {0};
+            ok = ok && imu::Qmi8658Imu::devRead(s_bno_dev, 0x08, raw, 6);
+            say(out, "bno: BNO055 at 0x%02X, chip id 0x%02X (want 0xA0), ACC_Config 0x%02X (want 0x1D), "
+                     "%s; a = %d %d %d mg\r\n", s_bno_addr, id, acc_cfg, ok ? "READY" : "CONFIG FAILED",
+                static_cast<int16_t>(raw[0] | (raw[1] << 8)),
+                static_cast<int16_t>(raw[2] | (raw[3] << 8)),
+                static_cast<int16_t>(raw[4] | (raw[5] << 8)));
+            return;
+        }
+        // BNO08x: drain the start-up advertisement / reset messages, enable the
+        // accelerometer at 400 Hz, then wait for the first report.
+        int drained = 0;
+        for (int k = 0; k < 40; ++k) {
+            const int len = shtpRead(s_shtp_pkt, sizeof s_shtp_pkt);
+            if (len > 0) { ++drained; continue; }
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        const bool en = bno08xEnableAccel(2500);
+        BnoSample one = {0, 0, 0, 0};
+        int got = 0, pkts = 0;
+        for (int k = 0; k < 100 && !got; ++k) {
+            const int len = shtpRead(s_shtp_pkt, sizeof s_shtp_pkt);
+            if (len > 0) { ++pkts; got = bno08xParse(s_shtp_pkt, len, 0, &one, 1); }
+            else vTaskDelay(pdMS_TO_TICKS(5));
+        }
+        say(out, "bno: BNO08x at 0x%02X, drained %d start-up packet(s), Set Feature %s, %d packet(s) "
+                 "after; %s a = %d %d %d mg\r\n", s_bno_addr, drained, en ? "sent" : "FAILED", pkts,
+            got ? "READY" : "NO ACCEL REPORT YET", one.x, one.y, one.z);
         return;
     }
     if (!strcmp(sub, "rec")) {
@@ -1742,7 +1857,7 @@ void cmdImu(Sink out, int argc, char** argv) {
                 case 0x0C: who = "AK09918C  magnetometer (unused)"; break;
                 case 0x77: who = "BMP280    barometer (unused)"; break;
                 case 0x42: who = "INA219    power monitor (unused)"; break;
-                case 0x4A: case 0x4B: who = "BNO085    (P1 upgrade path)"; break;
+                case 0x4A: case 0x4B: who = "BNO08x    (P1; bench accelerometer, `bno`)"; break;
                 case 0x28: case 0x29: who = "BNO055    (bench accelerometer, `bno`)"; break;
                 default: break;
             }
