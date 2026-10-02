@@ -15,6 +15,7 @@ experiment is in this folder.
 | [2026-09-30-plan-b-rig.md](2026-09-30-plan-b-rig.md) | the rig: loads, parts, seating, fit checks, procedure |
 | [2026-09-30-plan-b-bench.md](2026-09-30-plan-b-bench.md) | session 1: the bench servo's registers and the unloaded P ladder |
 | [2026-10-01-plan-b-bench.md](2026-10-01-plan-b-bench.md) | session 2: loaded stiffness (bottles) and hold with a rigid inertia (C-clamp); friction-free k ×3.5 at P 128, ×4.8 at P 160, but P 160 limit-cycles with the clamp; P ≤ 128 / D 32 quiet at hold, sweeps shake from P 96 up; incidents |
+| [2026-10-02-oscillation-research.md](2026-10-02-oscillation-research.md) | research: how STS3215 users (LeRobot, Open Duck Mini), Dynamixel humanoids and the control literature deal with the high-P limit cycle, and which remedies the registers allow |
 | `2026-10-01/` | session 2's run scripts (incl. `hold_clamp.py`) and per-state / per-pass summaries |
 | [2026-10-02-plan-b-bench.md](2026-10-02-plan-b-bench.md) | session 3: hold on the v3 rig (fork, both-face grip, washer weights); plumb from Tom's string; P ≤ 128 / D 32 quiet and settles, P 160 limit-cycles hanging, sweeps clean only to P 96 |
 | `2026-10-02/` | session 3's per-pass summary |
