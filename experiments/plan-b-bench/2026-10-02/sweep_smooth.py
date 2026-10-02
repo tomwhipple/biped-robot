@@ -35,6 +35,7 @@ DOWN_TOL, SLOW, T_SWEEP = 60, 100, 10.24
 GAINS = [tuple(int(v) for v in x.split(":")) for x in
          os.environ.get("GAINS", "32:32,128:32,128:64,128:128").split(",")]
 PROFILES = os.environ.get("PROFILES", "A,B,C").split(",")
+BNO = os.environ.get("BNO", "0") == "1"   # BNO055 on the fork, firmware `bno` (new controller)
 OUT = os.path.join(os.getcwd(), "hw_sessions", time.strftime("%Y-%m-%d"), "sweep_smooth")
 os.makedirs(OUT, exist_ok=True)
 logf = open(os.path.join(OUT, "session.log"), "a")
@@ -64,6 +65,50 @@ def move(b, to, spd, acc):
 
 def at(b):
     return GB.read_pos(b, SID)
+
+
+def bno_start(b, ms):
+    out = b.cmd(f"bno rec {int(ms)}", until=r"bno rec: started.*\n|bno: .*\n|\? \(try", timeout=3)
+    if "started" not in out:
+        raise GB.Abort(f"bno rec failed: {out.strip()[-90:]!r}")
+    return time.monotonic()
+
+
+def bno_collect(b):
+    t_end = time.monotonic() + 15
+    while time.monotonic() < t_end:
+        st = b.cmd("bno status", until=r"bno: .*\n", timeout=2)
+        if "idle" in st:
+            break
+        time.sleep(0.2)
+    out = b.cmd("bno dump", until=r"bno dump end\r?\n|bno: .*\n", timeout=30)
+    samples = []
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) == 4 and all(x.lstrip("-").isdigit() for x in parts):
+            samples.append([int(x) for x in parts])
+    return samples
+
+
+def bno_metrics(samples):
+    """3-axis acceleration (mg): RMS above 5 Hz per axis, and the dominant
+    frequency of that high-passed signal (FFT)."""
+    import numpy as np
+    if len(samples) < 64:
+        return {"n": len(samples)}
+    a = np.array(samples, float)
+    t = a[:, 0] * 1e-6
+    fs = (len(t) - 1) / (t[-1] - t[0])
+    out = {"n": len(samples), "fs_hz": round(float(fs), 1)}
+    for i, ax in enumerate("xyz"):
+        x = a[:, i + 1] - a[:, i + 1].mean()
+        f = np.fft.rfftfreq(len(x), 1 / fs)
+        hp = f >= 5.0
+        xh = np.fft.irfft(np.where(hp, np.fft.rfft(x), 0), len(x))      # unwindowed: RMS
+        out[f"rms_{ax}_mg"] = round(float(np.sqrt(np.mean(xh ** 2))), 2)
+        W = np.abs(np.fft.rfft(x * np.hanning(len(x)))) * hp              # windowed: peak
+        out[f"peak_{ax}_hz"] = round(float(f[int(np.argmax(W))]), 1)
+    return out
 
 
 def minjerk(t, T):
@@ -135,6 +180,11 @@ def main():
         p0 = at(b)["pos"]
         if GB.read_reg(b, SID, 40) != 0 or abs(p0 - DOWN) > DOWN_TOL:
             raise GB.Abort(f"start refused: pos {p0}; need torque off, hanging within {DOWN_TOL} of {DOWN}")
+        if BNO:
+            out = b.cmd("bno", until=r"bno: .*\n|\? \(try", timeout=3)
+            if "0xA0" not in out or "ACCONLY" not in out:
+                raise GB.Abort(f"BNO055 not ready: {out.strip()[-120:]!r}")
+            say(f"  {out.strip()}")
         go(f"the whole ladder {GAINS}: per gain, write at plumb, torque on, then per profile "
            f"{PROFILES} raise to level and lower to plumb (90 deg, ~10 s each way), release at plumb")
         for p, d in GAINS:
@@ -148,9 +198,20 @@ def main():
             move(b, DOWN, SLOW, 2); time.sleep(2.0)
             for prof in PROFILES:
                 for frm, to, way in ((DOWN, LEVEL, "raise"), (LEVEL, DOWN, "lower")):
+                    if BNO:
+                        bno_t = bno_start(b, (T_SWEEP + 4.0) * 1000 if prof == "C"
+                                          else (abs(to - frm) / SLOW + 5.0) * 1000)
                     tr = sweep(b, frm, to, prof)
                     m = metrics(tr, frm, to)
-                    res["rows"].append({"p": p, "d": d, "profile": prof, "way": way, "metrics": m, "trace": tr})
+                    row = {"p": p, "d": d, "profile": prof, "way": way, "metrics": m, "trace": tr}
+                    if BNO:
+                        acc = bno_collect(b)
+                        row.update({"bno": acc, "bno_host_t0": bno_t, "bno_metrics": bno_metrics(acc)})
+                        bm = row["bno_metrics"]
+                        say(f"    accel >5 Hz rms x/y/z {bm.get('rms_x_mg')}/{bm.get('rms_y_mg')}/{bm.get('rms_z_mg')} mg, "
+                            f"peak {bm.get('peak_x_hz')}/{bm.get('peak_y_hz')}/{bm.get('peak_z_hz')} Hz, "
+                            f"{bm.get('n')} samples @ {bm.get('fs_hz')} Hz")
+                    res["rows"].append(row)
                     trk = "-" if m["track_rms"] is None else f"{m['track_rms']:.1f}"
                     say(f"  {prof} {way:5s}: backward {m['backward']}/{m['moving_n']}, jitter {m['jitter_rms']:.2f} "
                         f"ticks rms, track {trk}, load {m['load_min']}..{m['load_max']}, end "

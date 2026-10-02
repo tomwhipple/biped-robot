@@ -93,6 +93,14 @@ class Qmi8658Imu : public Imu {
     // writes up to `max` addresses.
     int scanBus(uint8_t* found, int max);
 
+    // Bench extension (2026-10-02, Plan B accelerometer): register another
+    // 7-bit device on THIS bus -- e.g. a BNO055 breakout on header P1 -- and
+    // read/write its registers under the same lock the IMU sampler uses.
+    // addDevice() initialises the bus if needed; it returns nullptr on failure.
+    void* addDevice(uint8_t addr, uint32_t hz);
+    static bool devRead(void* dev, uint8_t reg, uint8_t* buf, size_t len);
+    static bool devWrite(void* dev, uint8_t reg, uint8_t val);
+
     // Raw sensor-frame readings, mount NOT applied: m/s^2 and rad/s. This is
     // the call that tells you which physical axis is which, which is the
     // whole job of bring-up.
