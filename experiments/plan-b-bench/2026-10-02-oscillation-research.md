@@ -1,27 +1,33 @@
 # Plan B: how others deal with the high-P limit cycle (research, 2026-10-02)
 
-Issue #73. Session 2 ([2026-10-01-plan-b-bench.md](2026-10-01-plan-b-bench.md))
-found that the bench STS3215 at P 160 limit-cycles while holding a rigid
-inertia. This note collects how other STS3215 users, Dynamixel humanoids and
-the control literature deal with that kind of oscillation, and which of their
-remedies this servo's registers allow. Quotes were checked against the source
-(code via `gh api`, papers via their PDFs) unless marked otherwise.
+Issue #73. Sessions 2 and 3 ([2026-10-01-plan-b-bench.md](2026-10-01-plan-b-bench.md),
+[2026-10-02-plan-b-bench.md](2026-10-02-plan-b-bench.md)) found that the bench
+STS3215 limit-cycles at P 160 with a rigid inertia, and that its sweeps get
+rough from P 96–128. This note collects how other STS3215 users, Dynamixel
+humanoids and the control literature deal with that kind of oscillation, and
+which of their remedies this servo's registers allow. Quotes were checked
+against the source (code via `gh api`, papers via their PDFs) unless marked
+otherwise.
 
 ## What our bench shows
 
-Taken from the session-2 tables:
+| rig, load | P 160 / D 32 holding still | source |
+|---|---|---|
+| v2, bottles on a string (load, no rigid inertia) | holds; probe overshoot ≤ 1 tick | session 2, run C |
+| v2, C-clamp, hanging | holds (range 0) | session 2, run D |
+| v2, C-clamp, level | **limit cycle**: range 13–18 ticks, moving on 114–152 of 152 samples; D 160 the same | session 2, run D |
+| v3, washer weights, level | holds (range 0) | session 3 |
+| v3, washer weights, hanging | **limit cycle**: range 14, moving on 145 of 152, load ±284 | session 3 |
+| v3, washer weights, hanging, **D 0** | holds (range 0), but a 2° move starts an oscillation that does not die out | session 3 |
 
-| condition | P 160 holding still |
-|---|---|
-| bottles on a string (load, no rigid inertia), 1–4 bottles | holds; probe overshoot ≤ 1 tick, status 0 (run C) |
-| rigid clamp, lever **hanging** (inertia, no gravity load) | holds still (range 0) |
-| rigid clamp, lever **level** (inertia and gravity load) | **limit cycle**: range 13–18 ticks, moving on 114–152 of 152 samples, at D 160 and D 32 alike (run D) |
-
-- P ≤ 128 with D 32 holds still level.
-- Hanging 2° moves ring at P 96–128 with the clamp in plane.
-- Slow 90° sweeps shake at P ≥ 96, and more when lowering.
-- So the limit cycle needs all three: high P, a rigid inertia, and a gravity
-  load on the gear train. D does not remove it.
+- **At P ≤ 128 with D 32:** the servo holds still on both rigs, level and
+  hanging, and its 2° moves settle on v3.
+- **Sweeps at P 128, by D:** lower D is smoother. D 0 is 4–6× smoother than
+  D 32; D 128 doubles the jitter.
+- **Sweeps at P 128, by command:** smoothing the command does not help. The
+  gentler acceleration register was the same, and host-streamed minimum-jerk
+  targets cut only the backward count (session 3).
+- **Hanging 2° moves at P 128 / D 0:** one of four kept moving (residual 6).
 
 ## What others do
 
@@ -92,55 +98,63 @@ Taken from the session-2 tables:
 
 ## Reading (inference, not measured)
 
-The bench pattern fits backlash inside the loop, together with a gearbox that is
-harder to back-drive than to drive:
-- **Hanging:** with no gravity load, the inertia sits in the play without
-  forcing the gears through it.
-- **Level:** the motor holds the load against the mesh, so a correction in the
-  load's direction back-drives the train. That direction has different friction.
-- **Lowering sweeps** are the back-driven direction, and they shake most.
-
-This would also explain why D 160 and D 32 behave alike. It is a hypothesis
-that matches the sources. Nothing here measured it.
+The pattern matches backlash inside a load-side-feedback loop:
+- **Where it cycles:** on v3 the cycle appears hanging, where nothing preloads
+  the gears and the play floats. Level, gravity holds the mesh to one side and
+  the servo is quiet.
+- **On v2 it cycled level instead.** That bracket twisted under load (Tom,
+  2026-10-01), which puts more compliance inside the loop. The two rigs cannot
+  separate those effects.
+- **D:** the servo's D can only act on the output encoder's signal. That signal
+  is quantized to 0.088° and the backlash corrupts it, which is the wrong place
+  to take damping from. More D makes the sweeps rougher, and D 0 is the
+  smoothest. That is the literature's argument for motor-side damping, and Open
+  Duck Mini runs D 0.
+- **Without D, P 160 has nothing to stop a disturbance ringing on.** So D 0
+  only moves P 160's problem from rest to small moves.
 
 ## Remedies this servo allows
 
 The STS3215 has no motor-side encoder and closed firmware, so the dual loop is
 out. In order of evidence:
 
-1. **Stay at P ≤ 128, D 32.** This was quiet at hold on our bench, with 3.5×
-   the P 32 stiffness (#73's conditional pass). Field practice is lower still
-   (LeRobot 16, Open Duck 32).
-2. **Put the missing stiffness in the command, not the gain.** Feed-forward:
-   add the predicted sag (load / k(P)) to the goal, as NimbRo does with
-   torque. Our policy outputs goal positions, so it can learn this, provided
-   the plant carries the servo as identified: k at the chosen P, friction,
-   back-drive asymmetry. That is the Open Duck / BAM / ToddlerBot route. It
-   needs the bench numbers we are already taking, at one P.
-3. **Smooth the goal stream** (register 41, or ramps from the host): a cure
-   for sweep shake (ROBOTIS, S-curve practice). It does not touch the
-   hold-still cycle.
+1. **Stay at P ≤ 128.** It holds still on both rigs (about 3.5× the P 32
+   stiffness, #73's conditional pass). Every project found runs at or below the
+   factory 32 (LeRobot 16, Open Duck 32).
+2. **Take D down from 32.** It is bench-confirmed for sweeps: at P 128, D 0 is
+   4–6× smoother than D 32. Open Duck runs D 0. The cost: at P 128 / D 0 one of
+   four hanging 2° moves did not settle. D 8–16 is the untested middle.
+3. **Put the missing stiffness in the command, not the gain.** Feed-forward:
+   add the predicted sag (load / k(P)) to the goal, as NimbRo does with torque.
+   Our policy outputs goal positions, so it can learn this, provided the plant
+   carries the servo as identified: k at the chosen P, friction, D. That is the
+   Open Duck / BAM / ToddlerBot route, and it uses the bench numbers we already
+   take, at one P.
 4. **Dead zone 26/27 at 2–3 ticks** (0.18–0.26°): the AX-12 compliance-margin
    idea, and the backlash literature's deadband. No STS3215 user is on record
    doing it, and it costs exactly the static accuracy Plan B is after.
-5. **Gain scheduling** (high P only in stance): only practical if a write to
-   register 21 takes effect while the lock (55) is 1, without an EEPROM commit.
-   Feetech's lock flag is described as stopping writes "from being saved after
-   power off", which suggests yes. Not tested.
+5. **Gain scheduling** (high P only in stance, where the load preloads the
+   gears): only practical if a write to register 21 takes effect while the lock
+   (55) is 1, without an EEPROM commit. Feetech's lock flag is described as
+   stopping writes "from being saved after power off", which suggests yes. Not
+   tested.
 6. **The velocity-loop registers 37/39** exist, but no project found tunes them.
    Their effect is unknown.
+7. **Smoothing the commands** (register 41, minimum-jerk streaming): the
+   literature and ROBOTIS advise it, but session 3 measured no change in sweep
+   jitter at P 128.
 
 ## Bench questions this raises
 
 For the Mira session, which owns the bench and its scripts:
 
-1. **#73's leg-like inertia at P 160, level:** two M10 bolts × 12 washers at r 100 + 70 on the
-   v3 fork (≈ 0.0023 kg·m², estimated masses). Does the limit cycle survive at
-   the inertia #73 specifies?
-2. **P 160 with dead zone 2 and 3, clamp level:** does the cycle stop, and what
-   sag does the wider band add?
+1. **Hold and hanging 2° moves at P 128 / D 8 and D 16:** smoother sweeps than
+   D 32, but do small moves still settle?
+2. **P 160 with dead zone 2 and 3, hanging:** does the cycle stop, and what sag
+   does the wider band add?
 3. **Register 21 written with the lock at 1:** read it back, re-probe the
-   stiffness, power-cycle and read again. This settles whether gain
-   scheduling is possible.
-4. **Back-drive asymmetry:** the probes from above and below at each load may
-   already show it. If they do, fit it into the plant with the stiffness.
+   stiffness, power-cycle and read again. This settles whether gain scheduling
+   is possible.
+4. **Record the weights:** their radii and piece counts (session 3 used 16
+   washers per bolt). Without them, the inertia relative to #73's leg-like
+   0.0025 kg·m² is unknown.
