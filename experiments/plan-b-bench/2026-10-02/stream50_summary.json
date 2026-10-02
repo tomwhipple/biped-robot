@@ -1,0 +1,605 @@
+{
+ "what": "firmware `stream` at 50 Hz: mode 0 = ctrl_task's rule (goalSpeedSteps gap/20ms x1.25, acc 0); mode 1 = speed = curve speed, 40 ms lead, acc limit",
+ "rows": [
+  {
+   "p": 32,
+   "d": 32,
+   "case": "robot rule, 4 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 32.14,
+    "track_max": 54,
+    "backward": 0,
+    "end_range": 0,
+    "load_min": 0,
+    "load_max": 196
+   },
+   "accel": {
+    "n": 3025,
+    "fs_hz": 504.0,
+    "rms_x_mg": 21.91,
+    "peak_x_hz": 35.0,
+    "rms_y_mg": 68.77,
+    "peak_y_hz": 19.3,
+    "rms_z_mg": 35.75,
+    "peak_z_hz": 19.5
+   }
+  },
+  {
+   "p": 32,
+   "d": 32,
+   "case": "robot rule, 4 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 28.3,
+    "track_max": 48,
+    "backward": 0,
+    "end_range": 0,
+    "load_min": -148,
+    "load_max": 72
+   },
+   "accel": {
+    "n": 3024,
+    "fs_hz": 503.9,
+    "rms_x_mg": 23.2,
+    "peak_x_hz": 19.7,
+    "rms_y_mg": 90.08,
+    "peak_y_hz": 17.2,
+    "rms_z_mg": 36.48,
+    "peak_z_hz": 19.7
+   }
+  },
+  {
+   "p": 32,
+   "d": 32,
+   "case": "matched, 4 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 131.79,
+    "track_max": 180,
+    "backward": 0,
+    "end_range": 14,
+    "load_min": -24,
+    "load_max": 184
+   },
+   "accel": {
+    "n": 3023,
+    "fs_hz": 503.8,
+    "rms_x_mg": 38.07,
+    "peak_x_hz": 33.3,
+    "rms_y_mg": 83.61,
+    "peak_y_hz": 17.8,
+    "rms_z_mg": 33.22,
+    "peak_z_hz": 17.8
+   }
+  },
+  {
+   "p": 32,
+   "d": 32,
+   "case": "matched, 4 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 127.58,
+    "track_max": 175,
+    "backward": 0,
+    "end_range": 14,
+    "load_min": -132,
+    "load_max": 72
+   },
+   "accel": {
+    "n": 3024,
+    "fs_hz": 503.9,
+    "rms_x_mg": 29.05,
+    "peak_x_hz": 17.2,
+    "rms_y_mg": 100.55,
+    "peak_y_hz": 17.2,
+    "rms_z_mg": 34.0,
+    "peak_z_hz": 17.2
+   }
+  },
+  {
+   "p": 32,
+   "d": 32,
+   "case": "robot rule, 2 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 82.41,
+    "track_max": 138,
+    "backward": 0,
+    "end_range": 0,
+    "load_min": 0,
+    "load_max": 324
+   },
+   "accel": {
+    "n": 2022,
+    "fs_hz": 505.3,
+    "rms_x_mg": 33.66,
+    "peak_x_hz": 35.2,
+    "rms_y_mg": 65.19,
+    "peak_y_hz": 18.0,
+    "rms_z_mg": 43.6,
+    "peak_z_hz": 18.2
+   }
+  },
+  {
+   "p": 32,
+   "d": 32,
+   "case": "robot rule, 2 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 78.61,
+    "track_max": 133,
+    "backward": 0,
+    "end_range": 0,
+    "load_min": -268,
+    "load_max": 72
+   },
+   "accel": {
+    "n": 2022,
+    "fs_hz": 505.4,
+    "rms_x_mg": 38.11,
+    "peak_x_hz": 28.7,
+    "rms_y_mg": 80.5,
+    "peak_y_hz": 17.2,
+    "rms_z_mg": 43.69,
+    "peak_z_hz": 17.2
+   }
+  },
+  {
+   "p": 32,
+   "d": 32,
+   "case": "matched, 2 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 149.32,
+    "track_max": 208,
+    "backward": 0,
+    "end_range": 12,
+    "load_min": -32,
+    "load_max": 300
+   },
+   "accel": {
+    "n": 2023,
+    "fs_hz": 505.5,
+    "rms_x_mg": 52.12,
+    "peak_x_hz": 34.2,
+    "rms_y_mg": 85.01,
+    "peak_y_hz": 19.7,
+    "rms_z_mg": 39.68,
+    "peak_z_hz": 19.7
+   }
+  },
+  {
+   "p": 32,
+   "d": 32,
+   "case": "matched, 2 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 145.05,
+    "track_max": 202,
+    "backward": 0,
+    "end_range": 14,
+    "load_min": -252,
+    "load_max": 72
+   },
+   "accel": {
+    "n": 2022,
+    "fs_hz": 505.4,
+    "rms_x_mg": 45.02,
+    "peak_x_hz": 31.2,
+    "rms_y_mg": 98.64,
+    "peak_y_hz": 16.7,
+    "rms_z_mg": 38.57,
+    "peak_z_hz": 16.7
+   }
+  },
+  {
+   "p": 96,
+   "d": 0,
+   "case": "robot rule, 4 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 22.7,
+    "track_max": 39,
+    "backward": 1,
+    "end_range": 0,
+    "load_min": 0,
+    "load_max": 208
+   },
+   "accel": {
+    "n": 3024,
+    "fs_hz": 503.9,
+    "rms_x_mg": 30.1,
+    "peak_x_hz": 34.7,
+    "rms_y_mg": 94.65,
+    "peak_y_hz": 17.2,
+    "rms_z_mg": 37.11,
+    "peak_z_hz": 19.7
+   }
+  },
+  {
+   "p": 96,
+   "d": 0,
+   "case": "robot rule, 4 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 21.93,
+    "track_max": 38,
+    "backward": 0,
+    "end_range": 0,
+    "load_min": -160,
+    "load_max": 64
+   },
+   "accel": {
+    "n": 3025,
+    "fs_hz": 504.0,
+    "rms_x_mg": 27.47,
+    "peak_x_hz": 17.2,
+    "rms_y_mg": 123.42,
+    "peak_y_hz": 17.2,
+    "rms_z_mg": 37.76,
+    "peak_z_hz": 17.2
+   }
+  },
+  {
+   "p": 96,
+   "d": 0,
+   "case": "matched, 4 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 123.75,
+    "track_max": 167,
+    "backward": 2,
+    "end_range": 13,
+    "load_min": 0,
+    "load_max": 184
+   },
+   "accel": {
+    "n": 3023,
+    "fs_hz": 503.8,
+    "rms_x_mg": 45.49,
+    "peak_x_hz": 34.0,
+    "rms_y_mg": 121.48,
+    "peak_y_hz": 17.7,
+    "rms_z_mg": 34.66,
+    "peak_z_hz": 17.7
+   }
+  },
+  {
+   "p": 96,
+   "d": 0,
+   "case": "matched, 4 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 122.88,
+    "track_max": 166,
+    "backward": 0,
+    "end_range": 13,
+    "load_min": -136,
+    "load_max": 64
+   },
+   "accel": {
+    "n": 3024,
+    "fs_hz": 503.9,
+    "rms_x_mg": 38.72,
+    "peak_x_hz": 17.2,
+    "rms_y_mg": 166.06,
+    "peak_y_hz": 17.2,
+    "rms_z_mg": 36.71,
+    "peak_z_hz": 17.2
+   }
+  },
+  {
+   "p": 96,
+   "d": 0,
+   "case": "robot rule, 2 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 66.19,
+    "track_max": 114,
+    "backward": 0,
+    "end_range": 0,
+    "load_min": 0,
+    "load_max": 328
+   },
+   "accel": {
+    "n": 2022,
+    "fs_hz": 505.4,
+    "rms_x_mg": 69.88,
+    "peak_x_hz": 28.5,
+    "rms_y_mg": 181.19,
+    "peak_y_hz": 13.2,
+    "rms_z_mg": 47.84,
+    "peak_z_hz": 13.2
+   }
+  },
+  {
+   "p": 96,
+   "d": 0,
+   "case": "robot rule, 2 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 65.39,
+    "track_max": 112,
+    "backward": 1,
+    "end_range": 0,
+    "load_min": -280,
+    "load_max": 64
+   },
+   "accel": {
+    "n": 2022,
+    "fs_hz": 505.4,
+    "rms_x_mg": 40.25,
+    "peak_x_hz": 28.0,
+    "rms_y_mg": 90.87,
+    "peak_y_hz": 18.7,
+    "rms_z_mg": 44.43,
+    "peak_z_hz": 18.7
+   }
+  },
+  {
+   "p": 96,
+   "d": 0,
+   "case": "matched, 2 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 135.81,
+    "track_max": 186,
+    "backward": 0,
+    "end_range": 17,
+    "load_min": 0,
+    "load_max": 328
+   },
+   "accel": {
+    "n": 2023,
+    "fs_hz": 505.5,
+    "rms_x_mg": 60.08,
+    "peak_x_hz": 35.2,
+    "rms_y_mg": 140.75,
+    "peak_y_hz": 18.0,
+    "rms_z_mg": 41.39,
+    "peak_z_hz": 18.0
+   }
+  },
+  {
+   "p": 96,
+   "d": 0,
+   "case": "matched, 2 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 134.96,
+    "track_max": 184,
+    "backward": 0,
+    "end_range": 12,
+    "load_min": -256,
+    "load_max": 40
+   },
+   "accel": {
+    "n": 2021,
+    "fs_hz": 505.0,
+    "rms_x_mg": 54.63,
+    "peak_x_hz": 29.2,
+    "rms_y_mg": 152.68,
+    "peak_y_hz": 13.0,
+    "rms_z_mg": 41.13,
+    "peak_z_hz": 13.0
+   }
+  },
+  {
+   "p": 128,
+   "d": 0,
+   "case": "robot rule, 4 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 21.57,
+    "track_max": 39,
+    "backward": 1,
+    "end_range": 0,
+    "load_min": 0,
+    "load_max": 272
+   },
+   "accel": {
+    "n": 3025,
+    "fs_hz": 504.0,
+    "rms_x_mg": 174.56,
+    "peak_x_hz": 24.0,
+    "rms_y_mg": 341.41,
+    "peak_y_hz": 12.5,
+    "rms_z_mg": 56.97,
+    "peak_z_hz": 12.5
+   }
+  },
+  {
+   "p": 128,
+   "d": 0,
+   "case": "robot rule, 4 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 21.17,
+    "track_max": 37,
+    "backward": 1,
+    "end_range": 0,
+    "load_min": -176,
+    "load_max": 80
+   },
+   "accel": {
+    "n": 3022,
+    "fs_hz": 503.8,
+    "rms_x_mg": 35.58,
+    "peak_x_hz": 15.7,
+    "rms_y_mg": 155.07,
+    "peak_y_hz": 15.7,
+    "rms_z_mg": 39.59,
+    "peak_z_hz": 15.7
+   }
+  },
+  {
+   "p": 128,
+   "d": 0,
+   "case": "matched, 4 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 122.73,
+    "track_max": 166,
+    "backward": 2,
+    "end_range": 14,
+    "load_min": 0,
+    "load_max": 272
+   },
+   "accel": {
+    "n": 3025,
+    "fs_hz": 504.0,
+    "rms_x_mg": 195.88,
+    "peak_x_hz": 25.0,
+    "rms_y_mg": 386.85,
+    "peak_y_hz": 12.5,
+    "rms_z_mg": 59.39,
+    "peak_z_hz": 12.5
+   }
+  },
+  {
+   "p": 128,
+   "d": 0,
+   "case": "matched, 4 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 226,
+    "track_rms": 122.29,
+    "track_max": 166,
+    "backward": 1,
+    "end_range": 14,
+    "load_min": -176,
+    "load_max": 80
+   },
+   "accel": {
+    "n": 3024,
+    "fs_hz": 504.0,
+    "rms_x_mg": 65.03,
+    "peak_x_hz": 15.5,
+    "rms_y_mg": 318.53,
+    "peak_y_hz": 15.5,
+    "rms_z_mg": 45.51,
+    "peak_z_hz": 15.5
+   }
+  },
+  {
+   "p": 128,
+   "d": 0,
+   "case": "robot rule, 2 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 64.18,
+    "track_max": 110,
+    "backward": 0,
+    "end_range": 0,
+    "load_min": 0,
+    "load_max": 336
+   },
+   "accel": {
+    "n": 2022,
+    "fs_hz": 505.3,
+    "rms_x_mg": 40.0,
+    "peak_x_hz": 35.7,
+    "rms_y_mg": 80.8,
+    "peak_y_hz": 16.7,
+    "rms_z_mg": 45.27,
+    "peak_z_hz": 16.5
+   }
+  },
+  {
+   "p": 128,
+   "d": 0,
+   "case": "robot rule, 2 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 63.79,
+    "track_max": 109,
+    "backward": 0,
+    "end_range": 0,
+    "load_min": -304,
+    "load_max": 80
+   },
+   "accel": {
+    "n": 2023,
+    "fs_hz": 505.8,
+    "rms_x_mg": 43.11,
+    "peak_x_hz": 28.8,
+    "rms_y_mg": 127.4,
+    "peak_y_hz": 14.3,
+    "rms_z_mg": 46.22,
+    "peak_z_hz": 14.3
+   }
+  },
+  {
+   "p": 128,
+   "d": 0,
+   "case": "matched, 2 s",
+   "way": "raise",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 134.1,
+    "track_max": 182,
+    "backward": 0,
+    "end_range": 14,
+    "load_min": 0,
+    "load_max": 304
+   },
+   "accel": {
+    "n": 2021,
+    "fs_hz": 505.3,
+    "rms_x_mg": 51.47,
+    "peak_x_hz": 35.0,
+    "rms_y_mg": 144.61,
+    "peak_y_hz": 16.8,
+    "rms_z_mg": 42.2,
+    "peak_z_hz": 16.8
+   }
+  },
+  {
+   "p": 128,
+   "d": 0,
+   "case": "matched, 2 s",
+   "way": "lower",
+   "stream": {
+    "ticks": 126,
+    "track_rms": 133.71,
+    "track_max": 182,
+    "backward": 0,
+    "end_range": 13,
+    "load_min": -272,
+    "load_max": 0
+   },
+   "accel": {
+    "n": 2021,
+    "fs_hz": 505.0,
+    "rms_x_mg": 57.51,
+    "peak_x_hz": 29.5,
+    "rms_y_mg": 191.35,
+    "peak_y_hz": 12.7,
+    "rms_z_mg": 41.96,
+    "peak_z_hz": 13.0
+   }
+  }
+ ]
+}

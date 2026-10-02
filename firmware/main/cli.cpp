@@ -1826,6 +1826,115 @@ void cmdBno(Sink out, int argc, char** argv) {
     out("usage: bno | bno rec <ms> | bno status | bno dump\r\n");
 }
 
+// ---------------------------------------------------------------------------
+// `stream`: one servo through a minimum-jerk sweep, streamed FROM THE BOARD at
+// the control loop's own 50 Hz -- Plan B bench (issue #73), 2026-10-02. The
+// host can only stream ~15-24 Hz over the CLI; this runs the real rate.
+//   stream <id> <from> <to> <ms> <mode> [lead_ms] [acc]
+//     mode 0: the control loop's rule -- target on the curve now, goal speed
+//             obs::goalSpeedSteps(target, present) (= gap/20 ms x 1.25, floor
+//             50), acceleration 0 (unlimited); exactly ctrl_task's write
+//     mode 1: matched -- target `lead_ms` ahead on the curve, goal speed = the
+//             curve's own speed there (floor 20), acceleration register `acc`
+//   stream status | stream dump   (t_ms target pos spd load per tick)
+// Runs in a background task; send NO other servo-bus command until `stream
+// status` says idle. Torque must already be on (the host's hold); it leaves the
+// servo holding the end target.
+namespace {
+struct StreamLog { uint16_t t_ms; int16_t tgt, pos, spd, load; };
+constexpr int kStreamMax = 700;
+StreamLog s_slog[kStreamMax];
+volatile int s_sn = 0;
+volatile bool s_srun = false;
+struct StreamCfg { uint8_t id; int32_t from, to; int ms, mode, lead_ms, acc; } s_scfg;
+
+float mjPos(float x) { x = x < 0 ? 0 : (x > 1 ? 1 : x); return x * x * x * (10 - 15 * x + 6 * x * x); }
+float mjVel(float x) { if (x <= 0 || x >= 1) return 0; return 30 * x * x * (1 - 2 * x + x * x); }
+
+void streamTask(void*) {
+    scsbus::Bus* bus = robot::g_bus;
+    const StreamCfg c = s_scfg;
+    const float d = static_cast<float>(c.to - c.from), T = c.ms / 1000.0f;
+    TickType_t last = xTaskGetTickCount();
+    const int64_t t0 = esp_timer_get_time();
+    const int ticks = c.ms / 20 + 25;                      // the sweep + 0.5 s of hold
+    for (int k = 0; k <= ticks && s_sn < kStreamMax; ++k) {
+        const float t = (esp_timer_get_time() - t0) / 1e6f;
+        scsbus::Feedback fb{};
+        const bool ok = bus->readFeedback(c.id, fb) == scsbus::Status::kOk;
+        float tq = c.mode == 1 ? t + c.lead_ms / 1000.0f : t;
+        const int32_t tgt = c.from + static_cast<int32_t>(lrintf(d * mjPos(tq / T)));
+        uint16_t spd;
+        uint8_t acc;
+        if (c.mode == 1) {
+            float v = fabsf(d) * mjVel(tq / T) / T;
+            spd = static_cast<uint16_t>(v < 20 ? 20 : (v > 3400 ? 3400 : v));
+            acc = static_cast<uint8_t>(c.acc);
+        } else {
+            spd = obs::goalSpeedSteps(tgt, ok ? fb.position : tgt);
+            acc = 0;
+        }
+        const uint8_t ids[1] = {c.id};
+        const int32_t tg[1] = {tgt};
+        const uint16_t sp[1] = {spd};
+        bus->syncWritePositions(ids, tg, sp, 1, acc);
+        StreamLog& L = s_slog[s_sn];
+        L.t_ms = static_cast<uint16_t>(t * 1000);
+        L.tgt = static_cast<int16_t>(tgt);
+        L.pos = static_cast<int16_t>(ok ? fb.position : -1);
+        L.spd = static_cast<int16_t>(ok ? fb.speed : 0);
+        L.load = static_cast<int16_t>(ok ? fb.load : 0);
+        s_sn = s_sn + 1;
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(20));          // the control loop's 50 Hz
+    }
+    s_srun = false;
+    vTaskDelete(nullptr);
+}
+}  // namespace
+
+void cmdStream(Sink out, int argc, char** argv) {
+    if (argc >= 2 && !strcmp(argv[1], "status")) {
+        say(out, "stream: %s, %d ticks\r\n", s_srun ? "RUNNING" : "idle", int(s_sn));
+        return;
+    }
+    if (argc >= 2 && !strcmp(argv[1], "dump")) {
+        if (s_srun) { out("stream: still running\r\n"); return; }
+        say(out, "stream dump n=%d\r\n", int(s_sn));
+        for (int i = 0; i < s_sn; ++i) {
+            const StreamLog& L = s_slog[i];
+            say(out, "%u %d %d %d %d\r\n", unsigned(L.t_ms), L.tgt, L.pos, L.spd, L.load);
+            if ((i & 63) == 63) vTaskDelay(1);
+        }
+        out("stream dump end\r\n");
+        return;
+    }
+    if (argc < 6) {
+        out("usage: stream <id> <from> <to> <ms> <mode 0|1> [lead_ms] [acc] | status | dump\r\n");
+        return;
+    }
+    if (s_srun) { out("stream: already running\r\n"); return; }
+    if (!claimBus(out)) return;
+    s_scfg = StreamCfg{static_cast<uint8_t>(atol(argv[1])), atol(argv[2]), atol(argv[3]),
+                       static_cast<int>(atol(argv[4])), static_cast<int>(atol(argv[5])),
+                       argc >= 7 ? static_cast<int>(atol(argv[6])) : 40,
+                       argc >= 8 ? static_cast<int>(atol(argv[7])) : 0};
+    if (s_scfg.ms < 200 || s_scfg.ms > 12000 || s_scfg.from < 0 || s_scfg.from > 4095 ||
+        s_scfg.to < 0 || s_scfg.to > 4095) {
+        out("stream: ms 200-12000, positions 0-4095\r\n");
+        return;
+    }
+    s_sn = 0;
+    s_srun = true;
+    if (xTaskCreatePinnedToCore(streamTask, "stream", 4096, nullptr, 6, nullptr, 1) != pdPASS) {
+        s_srun = false;
+        out("stream: task create failed\r\n");
+        return;
+    }
+    say(out, "stream: started id %d %ld -> %ld in %d ms, mode %d, lead %d ms, acc %d\r\n",
+        s_scfg.id, static_cast<long>(s_scfg.from), static_cast<long>(s_scfg.to), s_scfg.ms,
+        s_scfg.mode, s_scfg.lead_ms, s_scfg.acc);
+}
+
 void cmdImu(Sink out, int argc, char** argv) {
     imu::Qmi8658Imu* dev = robot::onboardImu();
 
@@ -2381,6 +2490,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "cal")) cmdCal(out, argc, argv);
     else if (!strcmp(c, "imu")) cmdImu(out, argc, argv);
     else if (!strcmp(c, "bno")) cmdBno(out, argc, argv);
+    else if (!strcmp(c, "stream")) cmdStream(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
     else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);

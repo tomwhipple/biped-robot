@@ -375,12 +375,53 @@ the rig. Acceleration y RMS above 5 Hz in mg, one value per repeat:
 - At walking speeds **P 128 / D 0 shakes about 1.1–1.8× as much as P 96 / D 0**.
 - No status bit was set.
 
+## Streaming at the control loop's real 50 Hz (16:33–16:39)
+
+The host's CLI can only stream about 15–24 Hz. So a firmware bench command,
+`stream` (cli.cpp), sweeps one servo along a minimum-jerk curve **from the
+board, at 50 Hz**, two ways:
+
+- **mode 0, the control loop's own rule** (`ctrl_task.cpp`): target on the curve
+  now, speed `obs::goalSpeedSteps` (gap / 20 ms × 1.25), acceleration 0;
+- **mode 1, "matched":** target 40 ms ahead, speed = the curve's own speed,
+  acceleration limit 600 or 2,300 steps/s².
+
+Script: `2026-10-02/stream50.py`, plumb ↔ level over 4 s (peaking at about 480
+steps/s) and 2 s (about 960 steps/s).
+
+**Bus recovery.** At the first try the I²C bus was held: nothing answered,
+including the board's own sensors, presumably the BNO08x after a reset
+mid-read. `imu reinit` freed it, and both scripts now do that before giving
+up.
+
+Acceleration y RMS above 5 Hz in mg, raise / lower, and tracking RMS in ticks:
+
+| gains | rule, 4 s | rule, 2 s | matched, 4 s | matched, 2 s |
+|---|---|---|---|---|
+| P 32 / D 32 | 69 / 90; track 28–32 | 65 / 81; 79–82 | 84 / 101; 128–132 | 85 / 99; 145–149 |
+| P 96 / D 0 | 95 / 123; 22–23 | 181 / 91; 65–66 | 121 / 166; 123–124 | 141 / 153; 135–136 |
+| P 128 / D 0 | 341 / 155; 21–22 | 81 / 127; 64 | 387 / 319; 122–123 | 145 / 191; 134 |
+
+- **At 50 Hz the control loop's rule shakes about as much as a single move**
+  (P 32: 65–90 mg; P 96 / D 0: 91–181). The dominant frequency is 13–19 Hz,
+  not the command rate.
+- **The stop-start forcing measured earlier is a slow-stream artifact:** the
+  host at 9–24 Hz, with 1.5× speed. Plan B does not need a change to the
+  firmware's streaming.
+- **The rule trails the curve** by about 21–32 ticks RMS (2–3°) on 4 s sweeps
+  and 64–82 on 2 s. That is inherent in "target now, speed ∝ gap". Whether the
+  sim's actuation lag model matches it was not checked.
+- **"Matched" as written is worse:** 122–149 ticks of lag, ends not settling
+  (range 12–17), and no less shaking. Its acceleration limit and end-speed floor
+  are too low, so it needs rework before it says anything.
+- No status bit was set. P 128 / D 0 again had one high reading (341 mg).
+
 ## What the bench now says (summary)
 
 | setting | stiffness × P 32 | holding still | 2° moves | walking-speed single moves (y RMS, mg) | streamed slow sweeps |
 |---|---|---|---|---|---|
 | P 32 / D 32 (stock) | 1 | quiet | settle | 52–85 | quiet |
-| **P 96 / D 0** | **≈ 2.8** (clamp probes) | quiet, level and hanging | settle | **57–111** | shaking at the command rate unless speed-matched |
+| **P 96 / D 0** | **≈ 2.8** (clamp probes) | quiet, level and hanging | settle | **57–111** | host 9–24 Hz: command-rate forcing; firmware 50 Hz (the robot's rule): 91–181, like single moves |
 | P 128 / D 0 | ≈ 3.0–3.5 | quiet, level and hanging | mostly settle | 61–199 | rougher |
 | P 160 / D 0 | ≈ 4.8 (bottles, D 32) | quiet level; **oscillates after a 2° move while hanging** | no | — | — |
 
@@ -392,8 +433,8 @@ The sim side, with the tuned 3215 at 2.8×, is in the design record §14.4a.
   leg-like spec.
 - **P 96 / D 0 stiffness with bottles** (needs someone to hang them). P 96's
   2.8× comes from clamp probes only.
-- **Streaming:** a speed-matched stream with a lead, as the firmware's 50 Hz
-  loop would use, at 50 Hz.
+- **Streaming:** done at 50 Hz (above). The robot's rule is fine; its 2–3°
+  lag against the sim's actuation model is unchecked.
 - **The decision #73 feeds:** STS3250 or STS3215. The sim study (design
   record §14.4a) and the gain choice (P 128 / D 0 is the smoothest stable
   setting so far) both bear on it.

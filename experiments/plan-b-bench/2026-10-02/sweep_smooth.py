@@ -246,6 +246,9 @@ def main():
             say(f"  released at plumb: pos {release_at_down(b)}")
         if BNO:
             out = b.cmd("bno", until=r"bno: .*\n|\? \(try", timeout=3)
+            if "READY" not in out:          # bus held after a reset: free it, retry
+                b.cmd("imu reinit", until=r"imu reinit: .*\n|\? \(try", timeout=5)
+                out = b.cmd("bno", until=r"bno: .*\n|\? \(try", timeout=5)
             if "READY" not in out:          # BNO055 or BNO08x (firmware 2e9516b)
                 raise GB.Abort(f"accelerometer not ready: {out.strip()[-120:]!r}")
             say(f"  {out.strip()}")
