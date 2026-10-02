@@ -119,6 +119,35 @@ def minjerk(t, T):
 def sweep(b, frm, to, prof):
     """One sweep frm -> to; returns telemetry samples (t, pos, spd, load, err, tgt)."""
     tr, t0 = [], time.monotonic()
+    sweep.t_retarget = None
+    if prof in ("R-", "R+", "RL-", "RL+"):
+        # Tom 2026-10-02: write the currently known goal and change it in flight.
+        # R-: goal = `to`, at half the travel time change it to 10 deg (114
+        # ticks) short; R+: goal 10 deg short, extended to `to` at half time.
+        sg = 1 if to > frm else -1
+        short = to - sg * 114
+        first, second = (to, short) if prof.endswith("-") else (short, to)
+        # R: change at half the travel time (cruising); RL: at 85 %, when the
+        # servo is already close to its goal and braking or about to
+        t_mid = abs(to - frm) / SLOW * (0.85 if prof.startswith("RL") else 0.5)
+        move(b, first, SLOW, 2)
+        while time.monotonic() - t0 < abs(to - frm) / SLOW + 3.0:
+            if sweep.t_retarget is None and time.monotonic() - t0 >= t_mid:
+                move(b, second, SLOW, 2)
+                sweep.t_retarget = time.monotonic() - t0
+            r = at(b); r["t"] = time.monotonic() - t0; r["tgt"] = None; tr.append(r)
+        sweep.final = second
+        return tr
+    sweep.final = to
+    if prof.startswith("A") and prof[1:].isdigit():
+        # fast single moves (walk speeds: rolls ~320 steps/s, knee up to ~1470 in
+        # sim/no3250_envelope.txt): speed N, ramp to it in ~0.15 s
+        spd = int(prof[1:])
+        acc = max(1, min(254, round(spd / 15)))
+        move(b, to, spd, acc)
+        while time.monotonic() - t0 < abs(to - frm) / spd + 1.0 + 2.0:
+            r = at(b); r["t"] = time.monotonic() - t0; r["tgt"] = None; tr.append(r)
+        return tr
     if prof in ("A", "B"):
         move(b, to, SLOW, 2 if prof == "A" else 1)
         while time.monotonic() - t0 < abs(to - frm) / SLOW + 1.0 + 2.0:
@@ -234,13 +263,22 @@ def main():
             for prof in PROFILES:
                 for frm, to, way in ((DOWN, LEVEL, "raise"), (LEVEL, DOWN, "lower")):
                     if BNO:
-                        bno_t = bno_start(b, (T_SWEEP + 1.5) * 1000 if prof == "C"
-                                          else (abs(to - frm) / SLOW + 1.5) * 1000)
+                        v = int(prof[1:]) if prof.startswith("A") and prof[1:].isdigit() else SLOW
+                        bno_t = bno_start(b, (T_SWEEP + 1.5) * 1000 if prof.startswith("C")
+                                          else (abs(to - frm) / v + 2.5) * 1000)
+                    here = at(b)["pos"]
+                    if abs(here - frm) > 20:                     # a previous R- stopped short
+                        move(b, frm, SLOW, 2)
+                        time.sleep(abs(here - frm) / SLOW + 1.5)
+                    sweep_t0 = time.monotonic()
                     tr = sweep(b, frm, to, prof)
-                    m = metrics(tr, frm, to)
+                    m = metrics(tr, frm, sweep.final)
+                    if sweep.t_retarget is not None:
+                        m["t_retarget"] = round(sweep.t_retarget, 3)
                     if prof.startswith("C"):
                         m["cmd_hz"] = round(getattr(sweep, "cmds", 0) / T_SWEEP, 1)
-                    row = {"p": p, "d": d, "profile": prof, "way": way, "metrics": m, "trace": tr}
+                    row = {"p": p, "d": d, "profile": prof, "way": way, "metrics": m, "trace": tr,
+                           "sweep_host_t0": sweep_t0}
                     if BNO:
                         acc = bno_collect(b)
                         row.update({"bno": acc, "bno_host_t0": bno_t, "bno_metrics": bno_metrics(acc)})

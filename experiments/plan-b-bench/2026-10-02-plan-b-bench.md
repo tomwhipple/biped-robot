@@ -304,6 +304,59 @@ Acceleration y (the rotation direction), RMS above 5 Hz in mg, raise / lower:
 matched-speed stream with a lead, or interpolation in the firmware, is the next
 thing to test.
 
+## Changing the goal in flight, and walking speeds (15:21–15:40)
+
+**Goal changes in flight (Tom: "always write the currently known final goal").**
+- **R− / R+:** one `move` at 100 steps/s and acceleration 2, with the goal changed
+  at half the travel time. R− changes it to 10° (114 ticks) short; R+ goes from
+  10° short to the full end.
+- **RL− / RL+:** the same change at 85 % of the travel, while the servo is
+  already near its goal.
+
+`retarget_analysis.py` compares y RMS in [−0.3, +0.8] s around the change
+with the rest of the move:
+- **Halfway (cruising): seamless at every gain.** The servo keeps cruising at
+  100 steps/s, and the window ratio is 0.3–1.1, with one 1.47 at P 32.
+- **At 85 %:** P 32 and P 96 / D 0 show no added shaking (0.4–1.0; one P 32
+  raise at 1.5×, 74 mg). P 128 / D 0 lowering adds 1.2–1.5× (380–450 mg).
+- **Lowering is stop-start even in a plain move at P 96 and P 128.** The
+  reported speed alternates 0 / 200 / 50 / 250 instead of 100, while raising
+  holds 100. With gravity helping, the servo's speed control itself oscillates.
+  That is the 14–17 Hz component seen in single moves.
+
+**Walking speeds.** The sim's walk peaks (`docs/design-v6/no3250_envelope.txt`)
+are about 0.5 rad/s at the rolls (about 320 steps/s) and up to 2.25 rad/s at a
+knee (about 1,470 steps/s). The ladder ran single moves at 300, 600 and 1,500
+steps/s, ramping to speed in about 0.15 s (acceleration = speed / 15).
+
+Acceleration y, RMS above 5 Hz in mg, raise / lower:
+
+| speed | P 32 / D 32 | P 96 / D 0 | P 128 / D 0 |
+|---|---|---|---|
+| 100 steps/s (14:43 and 14:57 runs) | 49–74 | 91–269 | 137–316 |
+| 300 | 52 / 58 | 58 / 87 | **682** / 137 |
+| 600 | 62 / 61 | 62 / 67 | 70 / 78 |
+| 1,500 | 82 / 85 | 93 / 111 | 356 / 188 |
+
+- **At walking speeds P 96 / D 0 shakes about as little as stock P 32.** The
+  slow 100 steps/s sweeps were the worst case.
+- **P 128 / D 0 is uneven:** 70–78 at 600 steps/s, but 356 at 1,500, and one
+  682 mg raise at 300 steps/s, not repeated.
+- **A speed-locked vibration is present at every gain, stock included:** 12.7 Hz
+  at 300 steps/s and 25.4 Hz at 600. That is one cycle per about 24 ticks (2.1°)
+  of travel, a mechanical periodicity in the servo (gear mesh or encoder, not
+  identified).
+- **Every move settled exactly** (end range 0), and no status bit was set.
+
+**Reading:**
+- **P 96 / D 0** (about 2.8× stock stiffness, below the sim's 3–4× target) is
+  quiet at hold, settles, and stays near stock shaking at walking speeds and
+  through late goal changes.
+- **P 128** is worse with this load.
+- **P 160** limit-cycled in the hold test.
+
+The per-run numbers are in `2026-10-02/sweep_bno_summary.json`.
+
 ## Open
 
 - **Weights:** record their radius and mass, to place the inertia against #73's
