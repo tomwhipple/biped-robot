@@ -526,6 +526,45 @@ Feetech's TTL catalogue (checked 2026-09-26) lists exactly three 12 V servos in 
 
 Against that: +117 g, 4.2 A stall on an over-budget bus, and the same ≥ 4× acceptance number. One bench rig answers both routes.
 
+### 14.4a Update 2026-10-02: mixed sets at the bench-measured stiffness
+
+The bench (`experiments/plan-b-bench/`, sessions 2–3) measured a tuned STS3215:
+- **Stiffness:** about 3.5× at P 128 / D 32, the highest setting stable under a
+  leg-like load. P 160 (about 4.8×) limit-cycles.
+- **Motion:** slow 90° sweeps are rough from P 96 up.
+
+`sim/gate_no3250.py mixed` / `mixsweep` reran Gate D on today's CAD plant. Every
+joint without an STS3250 was a tuned STS3215 at kp_scale 3.5 or 3.0; the STS3250
+kept the model's third-party 4×.
+
+**Plants:**
+- with the as-drawn arms: 2.28 / 2.40 kg;
+- no arms: 1.87 / 1.99 kg. That is heavier than this section's 1.67 / 1.79 kg,
+  because the CAD has changed since 09-26.
+
+Mixed sets ran on both servo-mass plants. Logs: `no3250_mixed_{arms,noarms}.txt`,
+`no3250_mixsweep_{arms,noarms}.txt`.
+
+**Adversity matrix** (18 cases × 3 seeds), sets OK on every seed:
+
+| servo set | with arms | no arms |
+|---|---|---|
+| 6 STS3250 (the design) | 18/18 | 17/18 |
+| 0 STS3250, six STS3215 at 3.5× | 17/18 (backlash 2°: clearance, no fall) | 17/18 (the design's own miss: floor tilt +2°) |
+| 2 STS3250 at the knees, others 3.5× | 18/18 | 17/18 |
+| 0 STS3250, six STS3215 at 3.0× | 14/18, falls at play 5° | 15/18, falls at play 5° |
+
+- **Gate D's four cases:** every set at 3.5× is 4/4 OK, with any placement of 0,
+  2 or 4 STS3250s, at 3° and at 1° play. Six STS3215s at 3.0× are 3/4 at 3° play
+  and 4/4 at 1°.
+- **Reading:** at the bench's stable 3.5×, six tuned STS3215s are within one
+  clearance case of the design. Two STS3250s at the knees close that case on the
+  arms plant, and four or six add nothing in these gates.
+- **The model does not represent** the bench's sweep roughness at P ≥ 96 or the
+  P 160 limit cycle. Whether that roughness costs a real 1.6 s swing is the open
+  question.
+- **The get-up was not rerun.**
+
 ### 14.5 CAD, mass, sim
 
 - **CAD: no part changes.** The v6 parts are drawn around the STS3215's STEP-measured case, v5's servo truth in `cad/dimensions.py`: `SV_LEN` 45.22, `SV_WID` 24.72, `SV_CASE_T` 34.70, horn face, rib band, idler face. The STS3250 was only ever assumed identical and carried as a mass (`dimensions_v6.SERVO_MASS_3250`). An STS3215 at the six joints is the servo the CAD was literally drawn around, so `check_assembly_v6` / ROM results stand. The rollup (`parts_v6.SERVO_COUNT`) would read 17 × STS3215.

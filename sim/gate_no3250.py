@@ -66,6 +66,10 @@ _s = DG.SERVOS["sts3215"]
 DG.SERVOS["sts3215_p2"] = dict(stall=_s["stall"], w0=_s["w0"], kp_scale=2.0)
 DG.SERVOS["sts3215_p3"] = dict(stall=_s["stall"], w0=_s["w0"], kp_scale=3.0)
 DG.SERVOS["sts3215_p4"] = dict(stall=_s["stall"], w0=_s["w0"], kp_scale=4.0)
+# bench, 2026-10-01/02 (experiments/plan-b-bench): P 128 / D 32 is the highest
+# STABLE setting under a leg-like load and measures 3.5 +- 0.4x the P 32
+# stiffness (friction-cancelled); P 160 (4.8x) limit-cycles
+DG.SERVOS["sts3215_p35"] = dict(stall=_s["stall"], w0=_s["w0"], kp_scale=3.5)
 # ...and the STS3250 if it is less stiff than the third-party 4x (design doc 8.1)
 _b = DG.SERVOS["sts3250"]
 DG.SERVOS["sts3250_k3"] = dict(stall=_b["stall"], w0=_b["w0"], kp_scale=3.0)
@@ -95,20 +99,21 @@ GAIT = dict(n_steps=8, step=0.06, lift_h=0.04)       # the CAD-inertial walk
 
 
 # ------------------------------------------------------------------ plants
-def cad_plant(servo_g: float, torso_minus_g: float = 0.0, p: DesignParams | None = None) -> str:
+def cad_plant(servo_g: float, torso_minus_g: float = 0.0, p: DesignParams | None = None,
+              arms: bool = True) -> str:
     """CAD-inertial plant with `servo_g` servos at the six STS3250 places,
     optionally with `torso_minus_g` taken off the torso (mass and inertia
     scaled together, CoM unchanged -- a lighter-torso lever estimate)."""
     import build_v6_inertia as BI
     p = p or DesignParams()
-    src, _ = BI.plant_xml(p, servo_g)
+    src, _ = BI.plant_xml(p, servo_g, arms=arms)
     if torso_minus_g:
         m = re.search(r'(<body name="torso"[^>]*>\n\s*<freejoint[^>]*/>\n\s*<inertial [^>]*mass=")([0-9.]+)(" diaginertia=")([^"]+)(")', src)
         M = float(m.group(2))
         f = (M - torso_minus_g * 1e-3) / M
         I = " ".join(f"{float(x) * f:.4e}" for x in m.group(4).split())
         src = src[:m.start()] + m.group(1) + f"{M * f:.4f}" + m.group(3) + I + m.group(5) + src[m.end():]
-    tag = f"v6_{servo_g:g}g_t{torso_minus_g:g}_{p.thigh * 1e3:.0f}_{os.getpid()}.xml"
+    tag = f"v6_{servo_g:g}g_t{torso_minus_g:g}_{p.thigh * 1e3:.0f}_{'a' if arms else 'na'}_{os.getpid()}.xml"
     path = os.path.join(TMP, tag)
     with open(path, "w") as fh:
         fh.write(src)
@@ -211,11 +216,11 @@ def mode_walk():
     print(f"   -> {n_up}/4 stayed up 8/8, {n_ok}/4 OK (clearance rule too)")
 
 
-def mode_sweep():
+def mode_sweep(variants_fn=None, arms=True):
     """static_gait's full Gate C/D adversity matrix, 8 steps, worst of 3
     seeds, on the CAD-inertial plants: the design and the best STS3215 fallbacks."""
     p = DesignParams()
-    x50, x15 = cad_plant(74.5), cad_plant(55.0)
+    x50, x15 = cad_plant(74.5, arms=arms), cad_plant(55.0, arms=arms)
     cases = [("nominal (mu 0.7, play 3, lash 1, lag 2 Hz + 80 ms)", {})]
     for mu in (0.3, 0.5, 1.0):
         cases.append((f"friction mu {mu}", dict(mu=mu)))
@@ -236,6 +241,8 @@ def mode_sweep():
                 ("B  STS3215 everywhere", x15, "3215", {}),
                 ("C8 3215, P coef x4 rolls + knees", x15, "3215_p4rk", {}),
                 ("C7 3215, P coef x3 rolls + knees", x15, "3215_p3rk", {})]
+    if variants_fn:
+        variants = variants_fn(x50, x15)
     for vl, xml, sn, run in variants:
         print(f"== {vl}  (CAD-inertial plant {plant_mass(xml):.3f} kg, 8 steps, lift 4 cm, worst of 3 seeds)", flush=True)
         jobs = [(f"{cl}#{s}", p, xml, sn, {}, dict(run, seed=s, **ckw), {}) for cl, ckw in cases for s in range(3)]
@@ -438,6 +445,88 @@ def _prone_roll(sn, name, c):
     return _front_ok(p, xml, seq, c), _front_ok.front, rt["peak"]
 
 
+# ------------------------------------------------------------------ mixed
+HIP_ROLLS = ("L_hip_roll", "R_hip_roll")
+ANKLE_ROLLS = ("L_ankle_roll", "R_ankle_roll")
+MIX_PLACEMENTS = [  # (label, joints given an STS3250)
+    ("0 STS3250 (all six tuned 3215)", ()),
+    ("2 STS3250: knees", KNEES),
+    ("2 STS3250: hip rolls", HIP_ROLLS),
+    ("2 STS3250: ankle rolls", ANKLE_ROLLS),
+    ("4 STS3250: all four rolls", ROLLS),
+    ("4 STS3250: hip rolls + knees", HIP_ROLLS + KNEES),
+]
+MIX_TUNED = (("sts3215_p35", "3.5x"), ("sts3215_p3", "3.0x"))
+
+
+def _mix_name(kp, j50):
+    return f"mix_{kp}_{len(j50)}_{'-'.join(j50) or 'none'}"
+
+
+# registered at import: pool workers re-import this module and need the sets
+for _tuned, _kp in MIX_TUNED:
+    for _lab, _j50 in MIX_PLACEMENTS:
+        SETS[_mix_name(_kp, _j50)] = {j: ("sts3250" if j in _j50 else _tuned) for j in ROLLS + KNEES}
+SETS["6"] = SETS["3250"]
+
+
+def mode_mixed():
+    """Tom 2026-10-02: given the bench (a tuned STS3215 is stable to ~3.5x,
+    not 4x), does the STS3250 still matter, and do all six joints need it or
+    would 2 or 4 do? Every joint not given an STS3250 is an STS3215 tuned to
+    the bench's stable stiffness (kp_scale 3.5, and 3.0 for margin); the
+    STS3250 keeps the model's third-party 4x. Gate D's four cases, at the
+    cases' own roll play (3 deg; 5 in one case) and at 1 deg everywhere.
+    The plant builder takes one servo mass for all six places, so a MIXED set
+    runs on both the 55 g and the 74.5 g plant (it brackets the true mass)."""
+    p = DesignParams()
+    arms = os.environ.get("MIX_ARMS", "1") != "0"     # 0: section 14's no-arms CAD plant
+    x50, x15 = cad_plant(74.5, arms=arms), cad_plant(55.0, arms=arms)
+    print(f"   plant: CAD-inertial, {'WITH the as-drawn arms' if arms else 'no arms (as in section 14)'}")
+    variants = [("6 STS3250 (the design)", "6", x50, "74.5 g")]
+    for tuned, kp in MIX_TUNED:
+        for lab, j50 in MIX_PLACEMENTS:
+            masses = [(x15, "55 g")] if not j50 else [(x15, "55 g"), (x50, "74.5 g")]
+            for xml, mtag in masses:
+                variants.append((f"{lab}, others {kp}", _mix_name(kp, j50), xml, mtag))
+    plays = (("roll play per case (3 / 5 deg)", {}), ("roll play 1 deg", dict(play_deg=1.0)))
+    print("== Gate D, 4 cases (8 steps, step 6 cm, lift 4 cm, design cadence), CAD-inertial plant, deploy servo model")
+    print(f"   plants: 55 g servos {plant_mass(x15):.3f} kg, 74.5 g {plant_mass(x50):.3f} kg; "
+          f"tuned STS3215 = kp_scale 3.5 (bench P 128 / D 32) or 3.0; STS3250 = kp_scale 4 (model)\n")
+    jobs = []
+    for vl, sn, xml, mtag in variants:
+        for pl, pkw in plays:
+            for cl, ckw, tkw in CASES4:
+                jobs.append((f"{vl} [{mtag}] | {pl} | {cl}", p, xml, sn, {}, dict(ckw, **pkw), tkw))
+    res = pmap(_walk_job, jobs)
+    summary = {}
+    for label, r in res:
+        v, pl, cl = (t.strip() for t in label.split("|"))
+        e = summary.setdefault((v, pl), [0, 0, []])
+        e[0] += (not r["fell"]) and r["steps_completed"] == r["n_steps"]
+        e[1] += bool(r["ok"])
+        e[2].append(r)
+        print(SG.fmt_row(f"{v[:52]:52s} | {pl[:14]:14s} | {cl}", r), flush=True)
+    print("\n== summary: stayed up 8/8 / OK (clearance >= 15 mm, >= 0.3 s airborne), of 4 cases")
+    for (v, pl), (up, ok, rs) in summary.items():
+        print(f"   {v:62s} | {pl:31s} | up {up}/4  OK {ok}/4")
+
+
+
+def mode_mixsweep():
+    """the full adversity matrix for the sets that decide Tom's 2026-10-02
+    question: the design, all six tuned 3215 at the bench's 3.5x and 3.0x,
+    and STS3250s on the knees only. MIX_ARMS=0 for section 14's no-arms plant."""
+    arms = os.environ.get("MIX_ARMS", "1") != "0"
+    print(f"   plant: CAD-inertial, {'WITH the as-drawn arms' if arms else 'no arms (as in section 14)'}")
+    mode_sweep(lambda x50, x15: [
+        ("A  design: 6 STS3250", x50, "3250", {}),
+        ("M1 0 STS3250, all six tuned 3215 at 3.5x", x15, _mix_name("3.5x", ()), {}),
+        ("M2 0 STS3250, all six tuned 3215 at 3.0x", x15, _mix_name("3.0x", ()), {}),
+        ("M3 2 STS3250 at the knees, others 3.5x (55 g plant)", x15, _mix_name("3.5x", KNEES), {}),
+    ], arms=arms)
+
+
 def _front_ok(p, xml, seq, c):
     import getup_v6 as G
     r = G.run_sequence(p, xml, seq, start="prone", per_joint=G.PJ_DEFAULT or None, verbose=False, **c)
@@ -447,4 +536,4 @@ def _front_ok(p, xml, seq, c):
 
 if __name__ == "__main__":
     {"walk": mode_walk, "sweep": mode_sweep, "envelope": mode_envelope, "arms": mode_arms,
-     "getup": mode_getup}[sys.argv[1]]()
+     "getup": mode_getup, "mixed": mode_mixed, "mixsweep": mode_mixsweep}[sys.argv[1]]()
