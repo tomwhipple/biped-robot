@@ -1,6 +1,6 @@
 # Bipedal Robot — Sourced Bill of Materials
 
-*Compiled 2026-07-11. Prices in USD, delivering to Lyons, CO 80540.*
+*Compiled 2026-07-11. Prices in USD.*
 
 Robot: ~34 cm, ~0.9 kg 3D-printed biped, 8× Feetech STS3215 serial-bus servos.
 BOM source: [`cad/README.md`](../cad/README.md). Print settings and assembly

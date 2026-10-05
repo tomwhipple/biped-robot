@@ -4,7 +4,7 @@ silence. The ESTOP latch is the link-side torque release (Tom 2026-09-13:
 "always release torque ... zeroing the servos implies released torque").
 The next non-ESTOP frame clears the latch, so this tool sends nothing after.
 
-    .venv/bin/python link/release.py --host 192.168.2.90
+    .venv/bin/python link/release.py --host <robot-ip>
 """
 import argparse, sys
 from pathlib import Path

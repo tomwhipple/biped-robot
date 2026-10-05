@@ -177,7 +177,7 @@ timestamps and real calibration, ~45-55 g) — not an action camera.
    shows `phy0: Soft blocked: yes`; `rfkill unblock wifi` and
    `nmcli radio wifi on` both need root, and NetworkManager reports
    `enable-disable-wifi: no` / `wifi.scan: auth` for this user. mira reaches
-   the LAN over USB ethernet (`enxf8e43b5e358e`, 192.168.2.5), so nothing
+   the LAN over USB ethernet (`enx<mac>`, `<host-ip>`), so nothing
    depends on the WiFi card today.
 
 Once someone with root has run:

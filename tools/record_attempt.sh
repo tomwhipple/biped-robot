@@ -3,7 +3,7 @@
 # MUST be started just prior to the robot motion").
 #
 #   tools/record_attempt.sh <name> <arm_script args...>
-#   e.g. tools/record_attempt.sh step2 --host 192.168.2.90 --phase script \
+#   e.g. tools/record_attempt.sh step2 --host <robot-ip> --phase script \
 #          --script stride1 --settle 3 --duration 6 --tail 3
 #
 # Starts both webcam recorders, WAITS until frames are actually flowing,
@@ -23,7 +23,7 @@
 # number, not a time.
 set -uo pipefail
 NAME=${1:?usage: record_attempt.sh <name> <arm_script args...>}; shift
-ROOT=/home/claw/code/robot
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DIR=$ROOT/hw_sessions/$(date +%F)
 DUR=${DUR:-30}
 mkdir -p "$DIR"

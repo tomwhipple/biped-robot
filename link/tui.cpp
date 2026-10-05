@@ -1,7 +1,7 @@
 // bimo console: single-keystroke control of the robot over the WiFi link.
 //
 //   make -C firmware/host tui
-//   firmware/host/build/bimo_tui --host 192.168.2.90
+//   firmware/host/build/bimo_tui --host <robot-ip>
 //
 // Every byte this sends is produced by firmware/components/linkproto -- the
 // same translation units the ESP32 decodes with -- so the client and the

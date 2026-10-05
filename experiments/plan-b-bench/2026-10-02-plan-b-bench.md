@@ -208,7 +208,7 @@ new one first.
 
 ## The accelerometer: a ~15 Hz oscillation in the rotation direction (14:43–14:51)
 
-The bench moved to the newer controller, a General Driver (MAC 30:76:f5:7e:55:ec).
+The bench moved to the newer controller, a General Driver.
 Tom OKed the flash: it carries `main` plus the bench `bno` command (2e9516b).
 The "BNO055" breakout turned out to be a **GY-BNO08X** at 0x4B. It is wired to
 the board's P1 "IIC" connector (`figs/bno055_wiring.png`) and glued near the fork

@@ -38,9 +38,9 @@ flatpak override --user \
   --nofilesystem=home --nofilesystem=/media --nofilesystem=/run/media \
   --nofilesystem=/mnt --nofilesystem=xdg-run/gvfs \
   --system-no-talk-name=org.freedesktop.UDisks2 \
-  --filesystem=/home/claw/code/robot/cad/stl:ro \
-  --filesystem=/home/claw/code/robot/cad/print_profiles:ro \
-  --filesystem=/home/claw/code/robot/cad/gcode \
+  --filesystem=$HOME/code/robot/cad/stl:ro \
+  --filesystem=$HOME/code/robot/cad/print_profiles:ro \
+  --filesystem=$HOME/code/robot/cad/gcode \
   com.orcaslicer.OrcaSlicer
 ```
 
@@ -48,7 +48,7 @@ Verify with `flatpak info --show-permissions com.orcaslicer.OrcaSlicer`.
 
 Slicing needs **no device access at all** — tested, works with `--nodevice=all`,
 so not even `--device=dri` is granted. Network is off: slicing is pure geometry,
-and pushing gcode to the printer at `192.168.2.116` is a separate host-side step
+and pushing gcode to the printer at `<printer-ip>` is a separate host-side step
 (see [flashforge notes](printer-order.md)), so the slicer needs no egress.
 
 Reviewed by Percy under kanban `t_19e6d082` (approved with conditions; all

@@ -99,14 +99,14 @@ top_elbow_16_16      play 3 mu 0.7 servo 0.80  STANDING z 0.387  peak: L_shoulde
 top_elbow_16_16      play 3 mu 0.7 servo 0.65  STANDING z 0.387  peak: L_shoulder 1.29 R_shoulder 1.29 L_elbow 0.91 R_elbow 0.91
 -- top_elbow_16_16: 6/6 robust
 Traceback (most recent call last):
-  File [35m"/home/claw/code/robot/.claude/worktrees/agent-a10564d1cbff1264e/sim/getup_v6_shoulder.py"[0m, line [35m430[0m, in [35m<module>[0m
+  File [35m"sim/getup_v6_shoulder.py"[0m, line [35m430[0m, in [35m<module>[0m
     [31mmain[0m[1;31m()[0m
     [31m~~~~[0m[1;31m^^[0m
-  File [35m"/home/claw/code/robot/.claude/worktrees/agent-a10564d1cbff1264e/sim/getup_v6_shoulder.py"[0m, line [35m319[0m, in [35mmain[0m
+  File [35m"sim/getup_v6_shoulder.py"[0m, line [35m319[0m, in [35mmain[0m
     rt = run_traced(p, xml, seq, start="supine", **c)
-  File [35m"/home/claw/code/robot/.claude/worktrees/agent-a10564d1cbff1264e/sim/getup_v6_shoulder.py"[0m, line [35m170[0m, in [35mrun_traced[0m
+  File [35m"sim/getup_v6_shoulder.py"[0m, line [35m170[0m, in [35mrun_traced[0m
     env = G.make_env(p, xml_path, mu=kw.get("mu", 0.7), play_deg=kw.get("play_deg", 3.0))
-  File [35m"/home/claw/code/robot/.claude/worktrees/agent-a10564d1cbff1264e/sim/static_gait.py"[0m, line [35m160[0m, in [35mmake_env[0m
+  File [35m"sim/static_gait.py"[0m, line [35m160[0m, in [35mmake_env[0m
     payload_cg_x=0.028, payload_cg_z=[1;31mp.housing_h[0m + p.deck_t + 0.008,   # the Pi bay
                                      [1;31m^^^^^^^^^^^[0m
 [1;35mAttributeError[0m: [35m'tuple' object has no attribute 'housing_h'[0m

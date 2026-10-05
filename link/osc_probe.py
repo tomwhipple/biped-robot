@@ -8,7 +8,7 @@ angles, a CSV of every beacon, and a guard that e-stops + disarms BEFORE the
 fall -- on torso tilt, or on any joint's peak-to-peak swing over the last
 second.  Built on arm_script.Driver (same latch preamble, same seq rule).
 
-    .venv/bin/python link/osc_probe.py --host 192.168.2.90 \
+    .venv/bin/python link/osc_probe.py --host <robot-ip> \
         --duration 8 --tilt 0.90 --pp-rad 0.5 --csv hw_sessions/x.csv
 """
 import argparse

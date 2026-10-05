@@ -1032,7 +1032,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     still open. On the tooling side the swing guard, written for the
     standing tests, stopped one perfectly good step (Tom: "look at the
     pose") and is now off for drive replays. Data: hw_sessions/2026-09-06/
-    replay_*, the GUI file 2026-09-06T21-30-06Z-192.168.2.90.jsonl.</p>
+    replay_*, the GUI file 2026-09-06T21-30-06Z-&lt;robot-ip&gt;.jsonl.</p>
   </div>
 
   <div class="card accent">

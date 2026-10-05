@@ -633,12 +633,12 @@ void test_watch_spec_splits() {
     char host[64] = "";
     int port = 4211;
 
-    CHECK(splitHostPort("192.168.2.30", host, sizeof host, port));
-    CHECK(!strcmp(host, "192.168.2.30"));
+    CHECK(splitHostPort("192.0.2.30", host, sizeof host, port));
+    CHECK(!strcmp(host, "192.0.2.30"));
     CHECK(port == 4211);
 
-    CHECK(splitHostPort("192.168.2.30:9101", host, sizeof host, port));
-    CHECK(!strcmp(host, "192.168.2.30"));
+    CHECK(splitHostPort("192.0.2.30:9101", host, sizeof host, port));
+    CHECK(!strcmp(host, "192.0.2.30"));
     CHECK(port == 9101);
 
     // Rejected, and the caller's port left alone in every case: a --watch
@@ -652,7 +652,7 @@ void test_watch_spec_splits() {
     CHECK(!splitHostPort("host:99x", host, sizeof host, port));
     CHECK(!splitHostPort(nullptr, host, sizeof host, port));
     char tiny[4] = "";
-    CHECK(!splitHostPort("192.168.2.30", tiny, sizeof tiny, port));
+    CHECK(!splitHostPort("192.0.2.30", tiny, sizeof tiny, port));
     CHECK(port == 4211);
 }
 

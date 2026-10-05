@@ -6,7 +6,7 @@ firmware was flashed for the first time.
 
     sha256  5ef7db3e1ea47654016b060016979e3e4b9758780dd5bf3262e1d1ac54f6db0f
     size    4194304 bytes
-    chip    ESP32-D0WD-V3 rev 3.1, MAC 28:05:a5:c2:a6:20
+    chip    ESP32-D0WD-V3 rev 3.1, MAC xx:xx:xx:xx:xx:xx
 
 **The .bin is deliberately not in git** (4 MB binary — see `../.gitignore`).
 If it is missing and the board still runs vendor firmware, retake it:

@@ -1,6 +1,6 @@
 # Supplemental BOM — battery protection & power bench
 
-*Compiled 2026-07-27. Prices in USD, delivering to Lyons, CO 80540.*
+*Compiled 2026-07-27. Prices in USD.*
 
 Everything here came out of the "do we need to guard against overdraw?"
 question. The reasoning behind each line is in

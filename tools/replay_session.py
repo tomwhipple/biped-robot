@@ -16,7 +16,7 @@ plant) and against the robot again, and the beacons compared.
         --host 127.0.0.1 --port 4210 --tlm-port 4211 --from 75 --to 110 \
         --csv /tmp/twin_replay_beacons.csv
 
-    # robot (Tom spotting): same, --host 192.168.2.90, default ports
+    # robot (Tom spotting): same, --host <robot-ip>, default ports
     # --home-first sends RESET SERVOS + a 4 s home before the recording starts.
 
 Safety (robot): the tilt and joint-swing guards of link/osc_probe.py run on

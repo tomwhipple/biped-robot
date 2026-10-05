@@ -9,7 +9,7 @@ this prints the per-joint min/max/peak-to-peak (rad and deg) live and at the
 end, and writes every beacon to CSV. ARM=0 at the end benches the robot.
 Keep the mailbox full (100 Hz): a starved handover tick reports STAND.
 
-    .venv/bin/python link/play_probe.py --host 192.168.2.90 --duration 60 \
+    .venv/bin/python link/play_probe.py --host <robot-ip> --duration 60 \
         --csv hw_sessions/2026-09-02/play1.csv
 """
 import argparse

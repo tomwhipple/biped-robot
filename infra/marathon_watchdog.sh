@@ -12,7 +12,7 @@ set -uo pipefail
 BASE="$HOME/code/robot-mjx"
 REPO="$HOME/code/robot"
 N="$BASE/night"
-SLACK="slack:C0BD7Q39KG8"
+SLACK="${MARATHON_SLACK:-}"   # e.g. slack:<channel-id>; unset = log only
 STATUS="$N/STATUS"
 ALERTED="$N/.watchdog_alerted"
 
@@ -31,8 +31,12 @@ alert() {   # only once per distinct reason, so we do not spam
   local key=$1 msg=$2
   grep -qxF "$key" "$ALERTED" 2>/dev/null && return 0
   echo "$key" >> "$ALERTED"
-  hermes send -t "$SLACK" "robot marathon: $msg" >/dev/null 2>&1 \
-    || echo "(slack send failed) $msg"
+  if [[ -z "$SLACK" ]]; then
+    echo "(no MARATHON_SLACK set) $msg"
+  else
+    hermes send -t "$SLACK" "robot marathon: $msg" >/dev/null 2>&1 \
+      || echo "(slack send failed) $msg"
+  fi
 }
 
 runner_up=0

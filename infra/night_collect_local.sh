@@ -17,9 +17,9 @@
 # place, untouched, as history.
 set -uo pipefail
 
-REPO=/home/claw/code/robot
-NIGHT=/home/claw/code/robot-mjx/night
-SRC=/home/claw/code/robot-mjx/sim/runs
+REPO=$HOME/code/robot
+NIGHT=$HOME/code/robot-mjx/night
+SRC=$HOME/code/robot-mjx/sim/runs
 PY="$REPO/.venv/bin/python"
 LOG="$REPO/sim/runs/night_collect.log"
 

@@ -7,7 +7,7 @@ ignores the commands (ctrl never drains the mailbox in bench mode) and
 reports state BENCH; the point is to prove both wire directions and measure
 loss, without arming anything.
 
-    .venv/bin/python link/verify_udp.py --host 192.168.2.121 [--seconds 10]
+    .venv/bin/python link/verify_udp.py --host <robot-ip> [--seconds 10]
 
 Exit 0 iff at least one valid telemetry frame arrived and >50% of the
 expected beacons were heard.

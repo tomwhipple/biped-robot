@@ -221,7 +221,7 @@ python3 cad/slice.py foot --nozzle 0.6 --layer 0.28 --filament PETG
 
 ### The printer
 
-The printer is a **FlashForge Adventurer 5M Pro** at **192.168.2.116**, on
+The printer is a **FlashForge Adventurer 5M Pro** at **`<printer-ip>`**, on
 DHCP.
 
 - **Fixed address:** if one is wanted, use a router DHCP reservation. Never set
@@ -238,7 +238,7 @@ DHCP.
 - **Upload over the LAN from OrcaSlicer.** Set these keys in the machine
   profile:
   - `host_type: flashforge`
-  - `print_host: 192.168.2.116` (bare IP; Orca adds port 8898 itself)
+  - `print_host: <printer-ip>` (bare IP; Orca adds port 8898 itself)
   - the printer's serial number, and its access code in `printhost_apikey`.
     Both are on the printer's panel under Settings → Network. **Keep them out
     of the repo.**

@@ -7,7 +7,8 @@
 set -uo pipefail
 pkill -f 'serial_holder\.py' 2>/dev/null
 sleep 0.5
-exec sg dialout -c "/home/claw/code/robot/.venv/bin/python - <<'EOF'
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+exec sg dialout -c "$ROOT/.venv/bin/python - <<'EOF'
 import time, serial
 ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=0.2)
 time.sleep(2.5)                       # DTR-reset boot

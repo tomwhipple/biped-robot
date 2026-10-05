@@ -399,7 +399,7 @@ new commander is a class in `link/sources.py` or a front end on
 
   ```sh
   # driving machine
-  bimo_gui --host 192.168.2.90 --watch 192.168.2.30
+  bimo_gui --host <robot-ip> --watch <watch-ip>
   # watching machine
   bimo_gui --readonly
   ```

@@ -60,7 +60,7 @@ const char* stateName(LinkState s);
 // 17-bit string is not something an operator can read at a glance.
 const char* faultIds(uint32_t servo_err, char* buf, size_t cap);
 
-// "192.168.2.30" or "192.168.2.30:9101" -> address and port, for --watch.
+// "192.0.2.30" or "192.0.2.30:9101" -> address and port, for --watch.
 // `port` is left UNTOUCHED when the spec carries none, so the caller's
 // default -- the telemetry port it is already bound to, which is what a
 // watcher on a stock build will be listening on -- survives. Returns false on

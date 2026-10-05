@@ -35,7 +35,7 @@
 //     DTR/RTS auto-program circuit; the one silkscreened "LIDAR" is a
 //     separate bridge to P_TX/P_RX for a host computer. Plugging into LIDAR
 //     still enumerates a /dev/ttyUSB*, which is the trap -- it just never
-//     syncs. Confirmed on the bench 2026-08-14: MAC 30:76:f5:7e:55:ec,
+//     syncs. Confirmed on the bench 2026-08-14: MAC xx:xx:xx:xx:xx:xx,
 //     ESP32-D0WD-V3 rev 3.1.
 //
 // Sources: the vendor schematic (docs/datasheets/general-driver/

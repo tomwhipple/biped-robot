@@ -2,7 +2,7 @@
 //
 //   brew install glfw
 //   make -C firmware/host deps gui
-//   firmware/host/build/bimo_gui --host 192.168.2.90     # the robot
+//   firmware/host/build/bimo_gui --host <robot-ip>       # the robot
 //   firmware/host/build/bimo_gui --host 127.0.0.1        # the sim; press Start
 //
 // Same wire, same core, same robot as link/tui.cpp: everything about arming,
@@ -135,7 +135,7 @@ void usage(const char* argv0) {
             "\n"
             "  --readonly needs a beacon to watch, and the robot beacons only\n"
             "  to whoever commanded it last. So the DRIVING console forwards:\n"
-            "    driver:   bimo_gui --host ROBOT --watch 192.168.2.30\n"
+            "    driver:   bimo_gui --host ROBOT --watch <watch-ip>\n"
             "    watcher:  bimo_gui --readonly --host ROBOT\n",
             argv0, kCmdPort, kTlmPort, bimo::kDefaultVx, bimo::kDefaultVy,
             bimo::kDefaultWz, static_cast<double>(kSendHz), kDefaultStreamPort);
@@ -250,7 +250,7 @@ struct App {
 
     // -- SETTINGS: every command-line flag, editable in the window ----------
     // Edited into buffers and APPLIED on a button, not bound live to the
-    // fields they set. Typing "192.168.2.9" on the way to ".90" would
+    // fields they set. Typing "192.0.2.9" on the way to ".90" would
     // otherwise relink to a robot that does not exist, halfway through the
     // keystroke -- and the ones that rebind a socket or restart a stream have
     // to happen once, deliberately, not per character. The live-safe ones

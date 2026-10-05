@@ -7,7 +7,7 @@ and the RESET SERVOS edge (still armed) after.
 the toes inward during the hold and nobody could say whether that was the
 policy's commanded hip yaw or the mechanics -- this writes the angles down.
 
-    .venv/bin/python link/crouch_probe.py --host 192.168.2.90 \
+    .venv/bin/python link/crouch_probe.py --host <robot-ip> \
         --csv hw_sessions/2026-09-11/crouch2_beacons.csv
 """
 import argparse
