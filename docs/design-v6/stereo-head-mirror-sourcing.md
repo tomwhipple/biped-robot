@@ -200,7 +200,7 @@ The head as drawn gives 47° total with 16° shared.
   every eBay fact here is dated 09-26; check price and stock in a browser.
 - **Amazon** product pages were read live on 2026-09-27: title, price, stock,
   delivery and variants.
-  - Amazon priced them for its default location, Lyons CO 80540, so fees and
+  - Amazon priced them for its default delivery location, so fees and
     dates may differ at your ZIP.
   - Amazon's search pages are bot-gated, so listings were found through web
     search and product-page carousels. Others may exist.
