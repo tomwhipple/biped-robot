@@ -3,6 +3,15 @@
 *For anyone — human or agent — making changes here. The design is
 [DESIGN.md](DESIGN.md); how training works is [docs/training.md](docs/training.md).*
 
+## Workflow & status
+
+**Project status lives in GitHub issues** — the current state of the work,
+what's planned and what's next; the design documents hold only the current
+design. Each issue says enough for someone else (human or AI) to pick it up
+cold: the goal, what's done (commits, PRs and records linked), what's next, and
+what blocks it. Update the issue when its status changes. Everything being
+worked on or planned has one.
+
 ## Branching
 
 **Meaningful changes go on a branch with a pull request.** A new capability, a
@@ -21,8 +30,7 @@ Keep local `main` in sync with `origin/main`: fetch and rebase before working,
 push after. `origin/main` moves often — expect to rebase mid-task, and re-check
 any claim your change depends on when it does.
 
-Commit at each real milestone without being asked. Track work in GitHub
-issues: everything being worked on or planned has one.
+Commit at each real milestone without being asked.
 
 ## Documentation
 
@@ -46,16 +54,16 @@ clone:
 git config core.hooksPath .githooks
 ```
 
-| gate | covers | in the hook |
-|---|---|---|
-| `python -m pytest tests/` | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B) | hard |
-| `make -C firmware/host check` | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles | hard, on C/C++ pushes (otherwise only the SIL library is built) |
-| `python -m pytest sim/sil` | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason | hard |
-| cmake configure / build / ctest of `firmware/host` | CMakeLists.txt and the Makefile agree | C/C++ pushes, when cmake is installed |
-| `run-clang-tidy`, `firmware/host/clang-tidy-gui.sh` | `.clang-tidy`, WarningsAsErrors | C/C++ pushes, when clang-tidy is installed |
-| `firmware/host/cppcheck.sh` | whole-program, fails on any finding | C/C++ pushes, when cppcheck is installed |
-| `idf.py -C firmware build` | the ESP32 target links | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip) |
-| `sh cad/run_checks.sh` | swept-ROM interference on the armless and `ARMS=1` builds; printability reports | not in the hook: run it for any CAD change |
+| gate                                                | covers                                                                                                                                                  | in the hook                                                     |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `python -m pytest tests/`                           | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B)                                                      | hard                                                            |
+| `make -C firmware/host check`                       | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles                                                                        | hard, on C/C++ pushes (otherwise only the SIL library is built) |
+| `python -m pytest sim/sil`                          | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason | hard                                                            |
+| cmake configure / build / ctest of `firmware/host`  | CMakeLists.txt and the Makefile agree                                                                                                                   | C/C++ pushes, when cmake is installed                           |
+| `run-clang-tidy`, `firmware/host/clang-tidy-gui.sh` | `.clang-tidy`, WarningsAsErrors                                                                                                                         | C/C++ pushes, when clang-tidy is installed                      |
+| `firmware/host/cppcheck.sh`                         | whole-program, fails on any finding                                                                                                                     | C/C++ pushes, when cppcheck is installed                        |
+| `idf.py -C firmware build`                          | the ESP32 target links                                                                                                                                  | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip)    |
+| `sh cad/run_checks.sh`                              | swept-ROM interference on the armless and `ARMS=1` builds; printability reports                                                                         | not in the hook: run it for any CAD change                      |
 
 A **C/C++ push** changes a C/C++ source or header anywhere, anything under
 `firmware/`, or the root `.clang-tidy`. Other pushes skip the C/C++ gates, and
@@ -70,16 +78,16 @@ These are exported from the sim or the CAD and **must not be hand-edited** —
 the headers carry a "GENERATED by ... do not edit" line, and host tests pin
 them:
 
-| file | generator |
-|---|---|
-| `firmware/components/obs/include/obs/obs_spec.h` | `tools/gen_obs_spec.py` |
-| `firmware/components/policy/include/policy/weights.h` | `tools/gen_policy_weights.py` |
-| `firmware/host/vectors/protocol_vectors.h` | `tools/gen_protocol_vectors.py` (`make -C firmware/host vectors`) |
-| `firmware/host/vectors/obs_vectors.h`, `policy_vectors.h` | `gen_obs_spec.py` / `gen_policy_weights.py`, both `--run <deployed run>` (`make -C firmware/host deploy-headers RUN=...`) |
-| `cad/v6/stl/*`, `cad/v6/step/*`, `docs/design-v6/parts_v6_rollup.txt` | `python cad/v6/parts_v6.py` (`ARMS=1` for the arm set) |
-| `cad/stl/*`, `cad/step/*` | `python cad/parts.py` (the prototype's parts; the training plant meshes them) |
-| `experiments/plan-b-bench/stl/*`, `experiments/plan-b-bench/figs/*` | `python experiments/plan-b-bench/plan_b_rig.py` (the Plan B bench rig; `plan_b_rig_v3.py` for `stl/plan_b_v3_*`) |
-| `sim/bimo_biped_v6ar.xml` | `sim/build_v6_inertia.py --write` (or `sim/gen_plant_v6.py`) |
+| file                                                                  | generator                                                                                                                 |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `firmware/components/obs/include/obs/obs_spec.h`                      | `tools/gen_obs_spec.py`                                                                                                   |
+| `firmware/components/policy/include/policy/weights.h`                 | `tools/gen_policy_weights.py`                                                                                             |
+| `firmware/host/vectors/protocol_vectors.h`                            | `tools/gen_protocol_vectors.py` (`make -C firmware/host vectors`)                                                         |
+| `firmware/host/vectors/obs_vectors.h`, `policy_vectors.h`             | `gen_obs_spec.py` / `gen_policy_weights.py`, both `--run <deployed run>` (`make -C firmware/host deploy-headers RUN=...`) |
+| `cad/v6/stl/*`, `cad/v6/step/*`, `docs/design-v6/parts_v6_rollup.txt` | `python cad/v6/parts_v6.py` (`ARMS=1` for the arm set)                                                                    |
+| `cad/stl/*`, `cad/step/*`                                             | `python cad/parts.py` (the prototype's parts; the training plant meshes them)                                             |
+| `experiments/plan-b-bench/stl/*`, `experiments/plan-b-bench/figs/*`   | `python experiments/plan-b-bench/plan_b_rig.py` (the Plan B bench rig; `plan_b_rig_v3.py` for `stl/plan_b_v3_*`)          |
+| `sim/bimo_biped_v6ar.xml`                                             | `sim/build_v6_inertia.py --write` (or `sim/gen_plant_v6.py`)                                                              |
 
 Regenerated binary artifacts (STLs, STEPs) are rebuilt from source rather than
 merged. Rendered movies (`.mov`/`.mp4`/`.gif`) are **never committed** — they
