@@ -12,7 +12,7 @@ bench-measured servo lag.
 **Note on this document:** §§1–8 below are the *design* record and are kept
 current. The long dated sections between them are a **historical log** — they
 record what was true when written and are deliberately not rewritten.
-For how training works today, see **[docs/training.md](docs/training.md)**; for
+For how training works today, see **[docs/training.md](../training.md)**; for
 running results, `sim/runs/night_summary.html`.
 
 **Last updated:** 2026-09-03
@@ -22,7 +22,7 @@ running results, `sim/runs/night_summary.html`.
 
 ## 0. Working process
 
-Moved to [AGENTS.md](AGENTS.md) — branching, the gate list, generated-file
+Moved to [AGENTS.md](../../AGENTS.md) — branching, the gate list, generated-file
 rules, training discipline and bench safety, in one place.
 
 ## 1. Goal
@@ -50,7 +50,7 @@ measures on the real machine goes back into the plant as a modelled term.
   uses the measured number (`tools/measure_servo_speed.py`).
 - **DOF layout:** 5 per leg = **hip-yaw (Z), hip-roll (X), hip-pitch (Y), knee (Y),
   ankle (Y)** → 10 total. Started at 4 per leg; hip-yaw was added 2026-07-24
-  after an A/B study found it decisive for turning ([docs/hip-yaw-study.md](docs/hip-yaw-study.md)).
+  after an A/B study found it decisive for turning ([docs/hip-yaw-study.md](2026-07-23-hip-yaw-study.md)).
 - **CAD tool:** parametric **build123d** (Python/OCC) — `cad/dimensions.py` is the
   single source of truth, `cad/parts.py` builds every part. The original
   **OpenSCAD** massing model (`cad/bimo_like_biped.scad`) is superseded and kept
@@ -66,8 +66,8 @@ measures on the real machine goes back into the plant as a modelled term.
 ## 3. Folder contents
 
 Top-level map is in [README.md](README.md); each major directory carries its own
-README with the detail ([cad/](cad/README.md), [firmware/](firmware/README.md),
-[sim/sil/](sim/sil/README.md)) — kept there so this file cannot drift from them.
+README with the detail ([cad/](../../cad/README.md), [firmware/](../../firmware/README.md),
+[sim/sil/](../../sim/sil/README.md)) — kept there so this file cannot drift from them.
 
 The three source-of-truth files worth knowing by name: `cad/dimensions.py` (every
 dimension), `sim/bimo_biped_v5body.xml` (the plant), and each run's
@@ -95,7 +95,7 @@ dimension), `sim/bimo_biped_v5body.xml` (the plant), and each run's
   command-conditioned policy covering stand / walk / backward / sidestep / turn /
   crouch / one-leg balance / march. Graded by `sim/mjx/eval_precision.py` on 28
   scenarios × 8 seeds, in three columns (python, real-C++-code SIL, and
-  bench-measured servo lag). Full write-up: [docs/training.md](docs/training.md).
+  bench-measured servo lag). Full write-up: [docs/training.md](../training.md).
 - **Firmware:** the 50 Hz policy loop runs on the ESP32 itself, with the
   distilled (128,128) network in flash, a 250 Hz IMU sampler, a C2 command
   shaper, calibration in NVS, an arming latch and a fall latch. The observation
@@ -107,7 +107,7 @@ dimension), `sim/bimo_biped_v5body.xml` (the plant), and each run's
 ## 5. How to run
 
 > **Current commands live in [README.md](README.md) → Quickstart**, and the
-> training pipeline in [docs/training.md](docs/training.md). What follows in
+> training pipeline in [docs/training.md](../training.md). What follows in
 > this section is the **day-1 through day-5 recipe**, kept because the dated
 > log below refers to it: the OpenSCAD massing model, the CPU Gymnasium env,
 > and the Stable-Baselines3 trainer. None of it is the current path — the
@@ -1269,7 +1269,7 @@ Directive: "we've been trying to run before we walk" — a skill round focused
 on *control*: one-leg balance (10 s each), air circles with a lifted foot,
 a straight 1 m line, circle/square return-to-start, 0.5 m sidestep, 1 m
 backward walk, crouches (both/each leg). Full spec + acceptance criteria:
-[docs/precision-curriculum.md](docs/precision-curriculum.md). Everything
+[docs/precision-curriculum.md](../precision-curriculum.md). Everything
 below landed and is parity/bit-exactness gated; training round 1 follows.
 
 - **`ext_cmd` mode, both engines** (obs 38→43): 7-channel commands (vx incl.
@@ -1359,7 +1359,7 @@ honest PASS/FAIL captions per take) is the per-round visual artifact.
 ### Precision rounds 3-4: skills unlock via compliance gating (2026-07-18/19)
 
 Full narrative + current scorecard:
-[docs/precision-progress.md](docs/precision-progress.md). Summary:
+[docs/precision-progress.md](2026-07-precision-progress.md). Summary:
 
 - **User feedback round (2026-07-18):** camera tracks both planar axes;
   single-leg crouch dropped; **recovery-from-fallen integrated into the
@@ -1386,7 +1386,7 @@ Full narrative + current scorecard:
 User directive after the Xiaomi review: research before more GPU nights.
 Three deep-dives (Playground source extraction, AMP/get-up literature,
 small-biped sim-to-real survey) produced
-[docs/training-plan-v2.md](docs/training-plan-v2.md). Highlights: Open Duck
+[docs/training-plan-v2.md](https://github.com/tomwhipple/biped-robot/blob/d3f0b043272e15be9e1ce283e527ba88ab8448ab/docs/training-plan-v2.md). Highlights: Open Duck
 Mini (same STS3215 servos, same MJX+brax stack, sim-to-real WORKS) uses
 procedural reference-gait imitation, not AMP — our route to natural gait;
 IMU-only command-conditioned obs is the field standard (no onboard velocity
@@ -1875,12 +1875,12 @@ actually sits.
   ideal-actuator policy (`terrain_v4` and its generation) is physically
   unbuildable — they demand ~3 N·m at 4.4 rad/s, outside the servo envelope at
   any voltage — and is kept only for provenance. See
-  [docs/training.md](docs/training.md).
+  [docs/training.md](../training.md).
 - **Stage 3 — Sim-to-real:** DONE and ongoing. Servos system-ID'd on the bench
   (torque, no-load speed, actuation lag, joint play); policy distilled to
   (128,128) and compiled into the ESP32 firmware as a `constexpr`, not ONNX;
   the wireless command channel is specified in
-  [docs/control-channel.md](docs/control-channel.md) and flying. **Open:** the
+  [docs/control-channel.md](../control-channel.md) and flying. **Open:** the
   roll limit cycle (§ "Known limitations"), rhythm under the measured servo lag.
 - **Stage 4 — Goal-conditioned locomotion:** the next abstraction. Requires an
   onboard pose estimate the robot cannot yet produce.
@@ -1888,7 +1888,7 @@ actually sits.
   single-foot stance (no ankle roll). The redesign — 6 DOF/leg with ankle
   roll, 84 mm hips, 110 mm segments, STS3250 at the roll joints and knees —
   is specified and validated through design-stage Gates A–D in
-  [docs/design-v6-ankle-roll.md](docs/design-v6-ankle-roll.md). 2026-09-14:
+  [docs/design-v6-ankle-roll.md](https://github.com/tomwhipple/biped-robot/blob/d3f0b043272e15be9e1ce283e527ba88ab8448ab/docs/design-v6-ankle-roll.md). 2026-09-14:
   Tom chose the STS3250 route with a Pi 4B torso, a head on a neck servo and a
   bigger pack; the printed part set is drawn and gated under `cad/v6/`
   (design doc §9–10, `docs/design-v6/print-list.md`, `bom-delta.md`). Next:

@@ -12,7 +12,7 @@ Supersedes the first cut of this file, which answered the wrong question.*
 > a reactive control loop**. That work will happen on a local workstation
 > (mira)." — Tom, 2026-08-31
 
-That is exactly the Tier-3 seam [sensor-expansion.md](sensor-expansion.md) §2
+That is exactly the Tier-3 seam [sensor-expansion.md](../sensor-expansion.md) §2
 already describes: *perception sets the goal; the policy walks.* Perception
 never enters the obs frame, so it needs no retrain, no sim change, and no new
 obs dimension — it arrives through `cmd`/`ext_cmd` at whatever rate mira can
@@ -37,11 +37,11 @@ What actually matters, in order:
 Unchanged repo constraints (read off the tree, not assumed):
 
 - `gopro_base` is a **standard GoPro three-prong finger mount**, 3.2 mm slots,
-  M5×20 thumbscrew ([assembly.md](assembly.md) §11), and is the deliberate
+  M5×20 thumbscrew ([assembly.md](../assembly.md) §11), and is the deliberate
   sacrificial crash fuse — cheap to reprint into a different adapter.
 - The camera is **already unpowered by the robot**
-  ([hardware-order.md](hardware-order.md)).
-- Payload DR covers **0–170 g** ([DESIGN.md](../DESIGN.md), `payload_mass=0.154`,
+  ([hardware-order.md](../hardware-order.md)).
+- Payload DR covers **0–170 g** ([DESIGN.md](../../DESIGN.md), `payload_mass=0.154`,
   `payload_cg_z=0.0945`), so anything under 154 g needs **no retrain**. [I]
 - The servo command link is **2.4 GHz-only** (gopro-vision-input.md §7), so
   every option below competes with it for air.
@@ -156,7 +156,7 @@ this project.
 **The deferral costs nothing architecturally, provided one thing:** write the
 high-level controller as a process that *produces `cmd`/`ext_cmd`* and does not
 care which host it runs on. `ext_cmd` is already 7-wide over the wire
-(`8002802`), and [sensor-expansion.md](sensor-expansion.md) §2 is explicit that
+(`8002802`), and [sensor-expansion.md](../sensor-expansion.md) §2 is explicit that
 Tier-3 perception enters through `cmd` and nothing else — "perception sets the
 goal; the policy walks". Build it on mira against that seam now and the
 eventual move to the Pi is a **deployment change, not a rewrite**. The way to

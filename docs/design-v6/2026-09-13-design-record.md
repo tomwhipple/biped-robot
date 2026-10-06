@@ -130,7 +130,7 @@ Final configuration (STS3250 at rolls + knees), worst of 3 seeds per case (`docs
 
 Filmstrip (2 × 4 frames across steps two and three; the video is `sim/renders/v6_static_walk.mp4`, gitignored, regenerate with `static_gait.py --render`):
 
-![v6 static walk](../sim/renders/v6_static_walk_strip.png)
+![v6 static walk](../../sim/renders/v6_static_walk_strip.png)
 
 ### 4.4 What the dynamic plant taught that the kinematics could not
 
@@ -176,7 +176,7 @@ Tom's follow-up: verify the body can change its bearing by walking in an arc. Th
 
 The body turns at up to 20° per step (a 134° bearing change in eight steps, radius ≈ 0.17 m) with the same margins as the straight walk; the hip yaws never exceed ±10°. The 10–15 % shortfall in achieved heading is the yaw chain's compliance and lash plus sole pivot under the yaw torque, i.e. the sim's version of the hardware's yaw play; a heading-conditioned controller closes it, and it is the quantity to compare against the bench (Gate D) rather than a design limit. One implementation detail worth keeping: the mid-swing outward bump must be applied in the swing foot's own yawed frame — applied in world y it turned into a fore-aft error past 60° of heading and the 15°/20° arcs fell at steps 7 and 5 (`gateD_turning.txt` history in git).
 
-![v6 arc walk](../sim/renders/v6_arc_walk_strip.png)
+![v6 arc walk](../../sim/renders/v6_arc_walk_strip.png)
 
 ## 5. Assumptions to retire on the bench before ordering
 

@@ -161,7 +161,7 @@ worth not rediscovering:
   until the next keyframe. `-fflags nobuffer -flags low_delay` alone locks on
   cleanly. The tool counts and suppresses the remaining lock-on lines.
 
-See [camera-replacement-options.md](camera-replacement-options.md) for what to
+See [camera-replacement-options.md](https://github.com/tomwhipple/biped-robot/blob/d3f0b043272e15be9e1ce283e527ba88ab8448ab/docs/camera-replacement-options.md) for what to
 buy instead — short version: for navigation
 perception processed on mira, a **Pi Zero 2 W + Camera Module 3** (frame
 timestamps and real calibration, ~45-55 g) — not an action camera.

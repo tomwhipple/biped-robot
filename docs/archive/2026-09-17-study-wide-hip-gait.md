@@ -195,8 +195,8 @@ own foot placements exactly).
 `_turn15.mp4` (`sim/wide_gait.py render combo 0` / `render combo 15`),
 filmstrips alongside and copied into this directory:
 
-![combo straight](gateD_wide_gait_bird3_combo_straight_strip.png)
-![combo turn 15](gateD_wide_gait_bird3_combo_turn15_strip.png)
+![combo straight](../design-v6/gateD_wide_gait_bird3_combo_straight_strip.png)
+![combo turn 15](../design-v6/gateD_wide_gait_bird3_combo_turn15_strip.png)
 
 ## 9. Sway vs stride (2026-09-17 follow-up)
 
@@ -269,7 +269,7 @@ cases' extra demand.
 12°, cadence 0.8 s) at step 90 mm — `sim/renders/getup_options/side/
 bird3_walk_combo_fast_straight.mp4`, filmstrip alongside and copied here:
 
-![combo_fast straight](bird3_walk_combo_fast_straight_strip.png)
+![combo_fast straight](../design-v6/bird3_walk_combo_fast_straight_strip.png)
 
 **Parallelism**: the gate/frontier/robustness sweeps above run through a
 `multiprocessing.Pool(12, fork context)` added to `sim/wide_gait.py` this
