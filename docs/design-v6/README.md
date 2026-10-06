@@ -19,6 +19,7 @@ not a version among others.
 | [arms.md](arms.md) | the arm parts in CAD, their ROM and open items |
 | [hip-yoke-single-print.md](hip-yoke-single-print.md) | the hip roll and pitch clevises as one print; hip-flexion relief to −120° |
 | [study-yaw-bearing.md](study-yaw-bearing.md) | hip-yaw bearing options A / C / E, their checks and what is owed; the selection is open |
+| [2026-10-06-power-circuit.md](2026-10-06-power-circuit.md) | the Power circuit milestone (#106–#109): a custom power board (BQ76922 protection and monitor, TPS48111 servo-rail E-stop switch, servo distribution), the Pi on the General Driver's 5 V, the auto-off sequence, telemetry and the bench checks; proposed, with Tom's 2026-10-06 decisions |
 
 Records here describe what was true on their date; where one disagrees with
 DESIGN.md, DESIGN.md is current. Evidence logs for options not taken (legs-only
