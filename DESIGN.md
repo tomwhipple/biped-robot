@@ -41,7 +41,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | joints | **17**: per leg hip yaw, hip roll, hip pitch, knee, ankle pitch, ankle roll (12); neck yaw (1); per arm shoulder pitch, elbow (4) |
 | servos | 17 × Feetech STS3215 (12 V, ST-3215-C018) with a raised position-loop gain on the six roll and knee servos — "Plan B", §4 |
 | height | deck top 460 mm, camera 530 mm, head top 555 mm |
-| mass | ≈ 2.2–2.3 kg as drawn, depending on the hip-yaw bearing option (§7) |
+| mass | ≈ 2.21 kg as drawn (§7) |
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
@@ -176,39 +176,31 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
 
 - **Yaw carrier** (×2): hangs from the yaw servo's horn and carries the hip-roll
   servo in its bay.
-- **Hip-yaw bearing — option not yet selected.** Today the yaw servo's horn
-  spline and four M3 screws are the only connection between a 0.335 m leg and
-  the pelvis (single-support thrust ~15 N, roll moment ~0.65 N·m). A
-  thin-section deep-groove bearing between carrier and pelvis moves thrust and
-  moment into the pelvis and leaves the servo shaft carrying torque only.
-  Neither option grows the hip stack.
-  - **A** — round hub, 6810-2RS (50 × 65 × 7 mm): smallest, recommended on
-    geometry; press fits only.
-  - **E** — A plus positive retention of both races: a printed lip and a
-    screwed cap on the carrier, a shoulder and a screwed retainer on the
-    pelvis, 0.2 mm preload. Addresses the concern that a press fit in PETG
-    creeps loose.
-  - **C** — 6811-2RS wrapped round the existing carrier; larger and heavier.
-    The code builds C by default (`YAW_BEARING_VARIANT`) as a placeholder
-    until the selection, so the pelvis and carriers are provisional.
-
-  | | C | A | E |
-  |---|---|---|---|
-  | bearing (SKF catalogue mass) | 6811-2RS, 83 g | 6810-2RS, 52 g | 6810-2RS, 52 g |
-  | pelvis / carrier (print) | 194 / 29.9 g | 190 / 23.8 g | 193 / 24.5 g + cap 1.8 g, retainer 2.7 g |
-  | robot, CAD-inertial plant | 2.284 kg | 2.206 kg | 2.219 kg |
-
-  Load margin is > 100× for every option. All three pass the swept-ROM gate
-  on both builds. Details and checks:
-  [study-yaw-bearing.md](docs/design-v6/study-yaw-bearing.md),
-  [yaw_bearing_options_2026-09-29.txt](docs/design-v6/yaw_bearing_options_2026-09-29.txt).
+- **Hip-yaw bearing: a 6810-2RS** (50 × 65 × 7 mm, sealed deep-groove,
+  52 g) per hip. Without it the yaw servo's horn and four M3 screws would be
+  the only connection between a 0.335 m leg and the pelvis (single-support
+  thrust ~15 N, roll moment ~0.65 N·m). The bearing moves thrust and moment
+  into the pelvis and leaves the servo shaft carrying torque only.
+  - The inner race sits on a round hub on the carrier (Ø50.08, +0.08 mm), the
+    outer race in a recess in the pelvis skirt (Ø64.96, −0.04 mm) against a
+    shoulder that takes the thrust. Both seats get retaining compound: the
+    fits are inside the printer's error band.
+  - The bearing band is the top 7 mm of the carrier, so the hip stack is no
+    taller. The bore is sized to clear the roll servo's case inside the band
+    (22.23 mm corner reach, with a 1.5 mm wall).
+  - The pelvis shoulder is sized to an *estimated* outer-ring ID: measure a
+    real bearing before printing the pelvis.
+  - Load margin > 100×. Selection, alternatives (a 6811-2RS wrapping the
+    rectangular carrier; screwed race retention) and checks:
+    [study-yaw-bearing.md](docs/design-v6/study-yaw-bearing.md) (option A,
+    #75).
 - **`hip_yoke_v6`** (×2): the hip-roll clevis and hip-pitch clevis fused into
   one print, straddling the roll servo's discs and the pitch servo's discs. No
   flange bolts or inserts.
 
 ### 5.3 Torso
 
-**`pelvis_v7`**, one print, deck-top-down (190–194 g with the bearing seat, §5.2):
+**`pelvis_v7`**, one print, deck-top-down (190 g with the bearing seats, §5.2):
 
 - two yaw cells at y = ±42 mm, each with a ceiling carrying the yaw servo's four
   stator screws;
@@ -287,22 +279,22 @@ The robot as drawn, Plan B, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.28 kg with bearing C (2.21 kg A, 2.22 kg E) |
+| robot | ≈ 2.21 kg (the plant: 2.205 kg) |
 | servos | 17 × 55 g = 935 g |
-| printed PETG + TPU | ≈ 0.79 + 0.05 kg: pelvis 194 g, girdle 77 g, arm links 134 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
-| hip-yaw bearings | 166 g (2 × 6811-2RS) or 104 g (2 × 6810-2RS) |
+| printed PETG + TPU | ≈ 0.77 + 0.05 kg: pelvis 190 g, girdle 77 g, arm links 134 g, legs from the yaw carriers down ≈ 0.33 kg, head 35 g, neck floor 4 g |
+| hip-yaw bearings | 104 g (2 × 6810-2RS) |
 | pack / boards + wiring | 170 g / ≈ 180 g |
 
 With STS3250s at the six roll and knee joints (the fallback) it is 117 g
 heavier. The simulation gates in §4, §8 and §9 were run on earlier plants:
 the armless CAD-inertial plant (1.67 kg) for the walk, the lumped as-drawn
 get-up plant (2.10 kg, no bearings) for the arms. On this plant Plan B
-(P × 4, rolls + knees) walks the four gate cases 4/4, with 33–37 mm of CoM
-margin, most of the gain from the bearings' mass; stock STS3215s still fall
-0/4; and with the arms held at 15° and self-collision on, Plan B stays up in
-4 of 5 cases with no arm-to-leg contact (the μ 0.9 turn falls, as before)
-(`docs/design-v6/no3250_walk_plant17.txt`,
-`no3250_arms_walk_plant17.txt`).
+(P × 4, rolls + knees) walks the four gate cases 4/4, with 32–37 mm of CoM
+margin, and stock STS3215s still fall 0/4
+(`docs/design-v6/no3250_walk_bearingA.txt`). With the arms held at 15° and
+self-collision on, Plan B stays up in 4 of 5 cases with no arm-to-leg contact
+(the μ 0.9 turn falls), measured on a plant with 83 g bearings, 79 g heavier
+(`no3250_arms_walk_plant17.txt`).
 
 The plant carries every part at its CAD inertia (`sim/build_v6_inertia.py`):
 the printed parts from their STLs, each servo on its case mock at its CAD
@@ -399,7 +391,7 @@ flies the parts in along their insertion paths to prove they assemble.
 **Plants**: `sim/gen_plant_v6.py` builds a parametric plant (`DesignParams`) for
 design sweeps; `sim/build_v6_inertia.py` builds the CAD-inertial plant of the robot as
 drawn (17 actuators, arms at rest at the 15° walking hold, Plan B masses,
-the bearing option's parts); `sim/bimo_biped_v6ar.xml` is the committed plant,
+the hip-yaw bearings split between the pelvis and the carriers); `sim/bimo_biped_v6ar.xml` is the committed plant,
 pinned by the tests.
 
 ## 11. Software
@@ -436,9 +428,8 @@ Everything open is a GitHub issue.
 | decision | issue |
 |---|---|
 | servo route: Plan B stands or falls on the bench test | #73, then the purchase #74 |
-| hip-yaw bearing A, C or E (§5.2); the pelvis and yaw carriers wait on it | #75 |
 | head: mono camera, or the stereo periscope | PR #71, #87 |
-| make the code's defaults the robot to print: arms, 17 × STS3215, rollup and plant regenerated are done; the bearing default follows #75 | #76 |
+| make the code's defaults the robot to print: arms, 17 × STS3215, the 6810-2RS bearing, rollup and plant are done; the head follows PR #71 | #76 |
 
 | work | issue |
 |---|---|
@@ -466,8 +457,8 @@ Everything open is a GitHub issue.
    inertia and watch for buzz; confirm the protections don't trip.
 1. **Stance test**: that servo in a hip-roll mount, 8° of roll with a planted
    foot; pass ≤ 0.3° short at load 120 (≤ 0.4° on the 3× route).
-2. **Buy** 7 × STS3215 (17 needed, 12 on hand, 2 spare), the bearings once
-   selected, and the non-servo parts ([docs/bom.md](docs/bom.md)).
+2. **Buy** 7 × STS3215 (17 needed, 12 on hand, 2 spare), the two 6810-2RS
+   bearings (+ 2 spares), and the non-servo parts ([docs/bom.md](docs/bom.md)).
 3. **Configure** P and D per ID; record them in `docs/servo-map.md`.
 4. **Print and assemble** ([cad/PRINT_LIST.md](cad/PRINT_LIST.md),
    [docs/assembly.md](docs/assembly.md)); weigh every part; measure play per roll

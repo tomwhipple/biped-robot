@@ -14,9 +14,9 @@ lead slot, and there is no deck under the rest of the flange).
 
 ## Status
 
-| can print now | provisional |
+| can print now | after measuring the bearing |
 |---|---|
-| `foot_L`, `foot_R`, `sole_tpu_L`, `sole_tpu_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`pelvis_v7` and the two yaw carriers are provisional, waiting on #75** (the hip-yaw bearing option). The code exports option C as a placeholder; option E adds a cap and a retainer per hip. |
+| `foot_L`, `foot_R`, `sole_tpu_L`, `sole_tpu_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`pelvis_v7`**: its bearing shoulder is sized to an *estimated* outer-ring ID of the 6810-2RS ([docs/bom.md §5](../docs/bom.md)). Measure a real bearing's rings first. |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -37,9 +37,8 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 
 | part | qty | g each | bbox | orientation on the bed | supports | notes |
 |---|---|---|---|---|---|---|
-| `pelvis_v7` | 1 | 194 (C) · 190 (A) · 193 (E) | 162 × 105 × 83 (C) | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots. **Provisional, waits on #75.** The A / E versions export as `pelvis_v7_optA` / `pelvis_v7_optE` |
-| yaw carrier (`yaw_carrier_v6` for C, `yaw_carrier_v6_optA` for A, `yaw_carrier_v6_optE` for E) | 2 | 29.9 (C) · 23.8 (A) · 24.5 (E) | 55 × 55 × 44 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay. **Provisional, waits on #75** |
-| *option E:* `yaw_cap_optE`, `yaw_retainer_optE` | 2 + 2 | 1.8, 2.7 | Ø57 × 1.0; 78 × 75 × 2.4 | flat | no | screwed rings that retain the bearing races; one retainer part serves both hips (turned 180°). **Provisional, waits on #75** |
+| `pelvis_v7` | 1 | 190.1 | 155 × 101 × 81 | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots and the two bearing skirts (Ø64.96 recess, −0.04 mm on the 6810-2RS) |
+| `yaw_carrier_v6` | 2 | 23.8 | 50 × 50 × 44 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay; its round hub (Ø50.08, +0.08 mm) takes the bearing's inner race |
 | `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
 | `leg_link_v6` | 4 | 26.0 | 117 × 44 × 31 | standing on the lower fork end | no; brim recommended | thigh and shin are the same part |
 | `ankle_link` | 2 | 12.1 | 65 × 44 × 44 | on its back (model +X up) | **yes** (ceiling/island class) | grips the ankle-pitch servo, forks onto the ankle-roll servo |
@@ -81,10 +80,10 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - Supports go under the trapezius-web window tops (34 mm spans), the
     grip-plate rib-relief roofs, and the bay disc-relief tops.
 
-**Totals:** 23 prints (21 PETG, 2 TPU) from 17 STLs with bearing C, before
-supports and brims (option E adds 4 prints from 2 STLs):
+**Totals:** 23 prints (21 PETG, 2 TPU) from 17 STLs, before supports and
+brims:
 
-- PETG: ≈ 787 g with bearing option C, ≈ 771 g with A, ≈ 784 g with E;
+- PETG: ≈ 771 g;
 - TPU: 46 g.
 
 **Not printed:**
@@ -93,7 +92,6 @@ supports and brims (option E adds 4 prints from 2 STLs):
   the sim plant.
 - `neck_collar.stl` and anything built with `ARMS=0` (see the top of this
   page).
-- Whichever yaw carrier and pelvis the chosen bearing option does not name.
 
 ## Regenerating
 
@@ -101,7 +99,6 @@ supports and brims (option E adds 4 prints from 2 STLs):
 .venv/bin/python cad/v6/parts_v6.py                    # every part -> cad/v6/stl + cad/v6/step, bed check, mass rollup
 .venv/bin/python cad/v6/parts_v6.py --only foot_L foot_R
 .venv/bin/python cad/v6/parts_v6.py --no-export        # the rollup alone
-YAW_BEARING_VARIANT=E .venv/bin/python cad/v6/parts_v6.py --only pelvis_v7_optE yaw_carrier_v6_optE yaw_cap_optE yaw_retainer_optE
 .venv/bin/python cad/v6/head.py                        # head_shell + head_face (+ the fused head), audits
 ```
 

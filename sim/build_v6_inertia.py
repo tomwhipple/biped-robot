@@ -15,12 +15,11 @@ the committed plant, which is THE ROBOT AS DRAWN:
   * Plan B: an STS3215 (55 g) at every joint. --servo-plan 3250 puts the
     STS3250's 74.5 g at the six roll + knee joints (the fallback).
   * the one-print hip yoke (hip_yoke_v6), the girdle, the neck floor, the
-    arm links, and the hip-yaw bearing variant's pelvis, carriers and bearing
-    (--bearing, default YAW_BEARING_VARIANT or C, a placeholder until #75).
+    arm links, and the two hip-yaw bearings (6810-2RS) split between the
+    pelvis and the carriers.
 
     .venv/bin/python sim/build_v6_inertia.py                      # print the per-body table
     .venv/bin/python sim/build_v6_inertia.py --write              # regenerate sim/bimo_biped_v6ar.xml
-    .venv/bin/python sim/build_v6_inertia.py --bearing E          # the table for option E
     .venv/bin/python sim/build_v6_inertia.py --armless -o /tmp/armless.xml --write
 
 Body frames (torso origin = the hip yaw axis on the centreline, at the yaw horn
@@ -28,9 +27,9 @@ face; leg and arm bodies at their joint axes; see gen_plant_v6): each mass
 lands in the body whose joint moves it.
     torso      pelvis, yaw servos, pack, boards, wiring, neck servo, neck floor,
                girdle + both shoulder servos (or neck_collar, armless), the
-               bearings' outer halves (+ option E's retainers)
+               bearings' outer halves
     head       head (shell + face fused) + camera
-    _hip_yaw   yaw carrier + hip-roll servo + the bearing's inner half (+ E's cap)
+    _hip_yaw   yaw carrier + hip-roll servo + the bearing's inner half
     _hip       hip_yoke_v6
     _thigh / _shin / _ankle_blk   leg_link_v6 / leg_link_v6 / ankle_link + their servo
     _foot      foot + TPU sole + the ankle-roll servo
@@ -63,7 +62,6 @@ from gen_plant_v6 import DesignParams, build_xml, SV_T  # noqa: E402
 STL = os.path.join(HERE, "..", "cad", "v6", "stl")
 RHO = V.D.FILAMENT_RHO * V.D.PRINT_MASS_FACTOR * 1e-3   # kg/mm^3
 RHO_TPU = 1.21e-3 * V.D.PRINT_MASS_FACTOR * 1e-3
-BEARINGS = ("A", "C", "E")
 
 
 def asdrawn(p: DesignParams | None = None, hold: float = V.ARM_WALK_HOLD) -> DesignParams:
@@ -172,33 +170,21 @@ def have(name):
     return os.path.exists(stl(name))
 
 
-def bearing_files(bearing, arms=True):
-    """(pelvis STL, carrier STL, bearing kg, ring radii mm (id/2, od/2), ring
-    z band mm below the yaw horn face) for a bearing variant -- what
-    cad/v6/parts_v6.py exports for it."""
-    suffix = "" if arms else "_armless"
-    if bearing == "C":
-        return (f"pelvis_v7{suffix}", "yaw_carrier_v6", V.YAW_BRG_MASS_G * 1e-3,
-                (V.YAW_BRG_ID / 2, V.YAW_BRG_OD / 2), (-V.YAW_BRG_W, 0.0))
-    import yaw_retention_optE as E
-    band = (V.YAWA_BAND_Z[0], V.YAWA_BAND_Z[1]) if bearing == "A" else E.E_RACE_Z
-    return (f"pelvis_v7_opt{bearing}{suffix}", f"yaw_carrier_v6_opt{bearing}", V.YAWA_BRG_MASS_G * 1e-3,
-            (V.YAWA_BRG_ID / 2, V.YAWA_BRG_OD / 2), band)
-
-
-def bodies(p: DesignParams, m3250_g: float | None = None, bearing: str = "C"):
+def bodies(p: DesignParams, m3250_g: float | None = None):
     """dict body -> list of (mass kg, com m, I) in the BODY frame.
     m3250_g: servo mass at the SERVO_3250_JOINTS places (hip roll, knee,
     ankle roll); None = Plan B, an STS3215 (55 g) there too."""
     g15 = V.SERVO_MASS_3215
     g50 = V.SERVO_MASS_3215 if m3250_g is None else m3250_g
     zdeck = V.DECK_TOP_Z - V.HIP_YAW_Z          # pelvis-local z = 0 is the deck top
-    pelvis, carrier, brg_kg, (ri, ro), (bz0, bz1) = bearing_files(bearing, p.arms)
+    pelvis, carrier = "pelvis_v7" + ("" if p.arms else "_armless"), "yaw_carrier_v6"
+    brg_kg = V.YAW_BRG_MASS_G * 1e-3
+    ri, ro = V.YAW_BRG_ID / 2, V.YAW_BRG_OD / 2
+    bz0, bz1 = V.YAW_BRG_BAND_Z
     for n in (pelvis, carrier):
         if not have(n):
             raise FileNotFoundError(f"{stl(n)} missing -- export it: "
-                                    f"YAW_BEARING_VARIANT={bearing}{'' if p.arms else ' ARMS=0'} "
-                                    f"python cad/v6/parts_v6.py --only {n}")
+                                    f"{'' if p.arms else 'ARMS=0 '}python cad/v6/parts_v6.py --only {n}")
     out = {}
     # ---- torso
     t = [mesh_props(stl(pelvis), [0, 0, zdeck]),
@@ -216,8 +202,6 @@ def bodies(p: DesignParams, m3250_g: float | None = None, bearing: str = "C"):
         t.append(mesh_props(stl("neck_collar"), [0, 0, zdeck]))
     for sgn in (1, -1):   # the bearing's outer half rides the pelvis
         t.append(ring_props(brg_kg / 2, (ri + ro) / 2, ro, bz0, bz1, 0, sgn * V.HIP_SEP / 2))
-        if bearing == "E":
-            t.append(mesh_props(stl("yaw_retainer_optE"), [0, 0, zdeck], mirror_y=sgn < 0))
     out["torso"] = t
     # ---- head (frame: the neck horn face)
     out["head"] = [mesh_props(stl("head"), [0, 0, 0]),
@@ -226,8 +210,6 @@ def bodies(p: DesignParams, m3250_g: float | None = None, bearing: str = "C"):
     for side in ("L", "R"):
         hy = [mesh_props(stl(carrier), [0, 0, 0]), servo("roll", g50),
               ring_props(brg_kg / 2, ri, (ri + ro) / 2, bz0, bz1)]      # the bearing's inner half turns with the leg
-        if bearing == "E":
-            hy.append(mesh_props(stl("yaw_cap_optE"), [0, 0, 0]))
         out[f"{side}_hip_yaw"] = hy
         out[f"{side}_hip"] = [mesh_props(stl("hip_yoke_v6"), [0, 0, 0])]
         out[f"{side}_thigh"] = [mesh_props(stl("leg_link_v6"), [0, 0, 0]), servo("pitch", g15)]
@@ -250,15 +232,14 @@ def inertial_xml(name, items):
 
 
 def plant_xml(p: DesignParams, m3250_g: float | None = None, verbose: bool = False,
-              arms: bool = True, bearing: str | None = None):
+              arms: bool = True):
     """the generator's MJCF with the CAD-true <inertial> blocks patched in.
     arms=True adds the as-drawn arms (asdrawn()) unless p already has them.
     Returns (xml text, total mass kg)."""
     import re
-    bearing = bearing or os.environ.get("YAW_BEARING_VARIANT", "C")
     if arms and not p.arms:
         p = asdrawn(p)
-    B = bodies(p, m3250_g, bearing)
+    B = bodies(p, m3250_g)
     total = 0.0
     blocks = {}
     if verbose:
@@ -279,7 +260,7 @@ def plant_xml(p: DesignParams, m3250_g: float | None = None, verbose: bool = Fal
         if n == 0:
             raise RuntimeError(f"could not place the inertial for body {name!r}")
     servos = "Plan B, STS3215 everywhere" if m3250_g is None else f"{m3250_g:g} g servos at the STS3250 places"
-    tag = f"CAD-true inertials, {servos}, hip-yaw bearing {bearing}"
+    tag = f"CAD-true inertials, {servos}, hip-yaw bearings 6810-2RS"
     return src.replace("GENERATED by sim/gen_plant_v6.py", f"GENERATED by sim/gen_plant_v6.py + build_v6_inertia.py ({tag})"), total
 
 
@@ -289,13 +270,12 @@ def main(argv=None):
     ap.add_argument("--servo-plan", choices=("B", "3250"), default="B",
                     help="B: STS3215 (55 g) everywhere; 3250: 74.5 g at the hip roll / knee / ankle roll")
     ap.add_argument("--all-3215", action="store_true", help="the same as --servo-plan B (the default)")
-    ap.add_argument("--bearing", choices=BEARINGS, default=os.environ.get("YAW_BEARING_VARIANT", "C"))
     ap.add_argument("--armless", action="store_true", help="the ARMS=0 variant (13 actuators)")
     ap.add_argument("-o", "--out", default=os.path.join(HERE, "bimo_biped_v6ar.xml"))
     a = ap.parse_args(argv)
     p = DesignParams()
     m3250 = V.SERVO_MASS_3250 if a.servo_plan == "3250" else None
-    src, total = plant_xml(p, m3250, verbose=True, arms=not a.armless, bearing=a.bearing)
+    src, total = plant_xml(p, m3250, verbose=True, arms=not a.armless)
     if a.write:
         with open(a.out, "w") as f:
             f.write(src)

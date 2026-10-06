@@ -2,6 +2,15 @@
 
 > Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
 
+**Decision, 2026-10-06 (Tom, #75): option A**, the 6810-2RS round hub. It is
+now the only build: `yaw_carrier_v6` is the round-hub carrier, `pelvis_v7` has
+A's seats, and the `YAW_BRG_*` constants in `cad/v6/dimensions_v6.py` are A's
+(this record's `YAWA_*`; its `YAW_BRG_*` were option C's). Option C's and E's
+code, exports and review STEPs, and the scripts named below
+(`yaw_carrier_v6_optA.py`, `yaw_retention_optE.py`, `check_yaw_bearing_*.py`,
+`export_yaw_bearing_joint.py`, `render_yaw_bearing*.py`), are in git history
+before that date. The two-ring check now runs in `check_assembly_v6.py`.
+
 Tom, 2026-09-17: *"What about the hip yaw? The servo axle is the only
 connection between the leg and the rest of the robot ... it seems to me
 we're fighting a lot of mechanical leverage there."* Confirmed in the CAD

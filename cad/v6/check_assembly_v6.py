@@ -84,6 +84,8 @@ STATIC_PAIRS = [
      "floor lugs screwed up to the tube bosses: must not intersect", None),
     ("servo_neck", "shoulder_girdle_v6" if A.arms_on() else "neck_collar",
      "neck servo in its tube: must not intersect", None),
+    ("bearing_inner_L", "yaw_carrier_L", "inner race pressed on the hub", None),
+    ("bearing_outer_L", "pelvis_v7", "outer race pressed into the recess, under the shoulder", None),
 ]
 # pairs designed to touch at the standing pose (seat/disc contacts): checked
 # for intersection VOLUME only (must be ~0), the distance rule is waived
@@ -149,30 +151,33 @@ ARM_TOUCHING = {("arm_upper_{s}", "servo_shoulder_{s}"), ("arm_fore_{s}", "servo
                 ("servo_elbow_{s}", "arm_upper_{s}")}
 
 
-# YAW_BEARING_VARIANT=E (assembly_v6.yaw_retention_pieces): the bearing (one
-# ring for both races, riding link 1), the screwed cap on the carrier (link 1)
-# and the retainer under the skirt (link 0, pelvis-fixed). The retainer hangs
-# 1.5 mm lower than the skirt it closes, which is the new thing the leg can
-# reach, so the leg rows below sweep toward it. The bearing is DESIGNED to sit
-# in the recess on the retainer's land: volume only.
-E_PAIRS = [
-    ("hip_yaw", "yaw_cap_{s}", "pelvis_v7", "E cap turns under the cell rim through +-45"),
-    ("hip_yaw", "yaw_cap_{s}", "yaw_retainer_{s}", "E cap vs the retainer through +-45"),
-    ("hip_yaw", "bearing_6810_{s}", "pelvis_v7", "E bearing in its recess: seated, must not intersect"),
-    ("hip_yaw", "bearing_6810_{s}", "yaw_retainer_{s}", "E bearing on the retainer's land: seated, must not intersect"),
-    ("hip_yaw", "yaw_carrier_{s}", "yaw_retainer_{s}", "carrier vs the E retainer through +-45"),
-    ("hip_yaw", "servo_hip_roll_{s}", "yaw_retainer_{s}", "roll servo vs the E retainer through +-45"),
-    ("hip_roll", "hip_yoke_{s}", "yaw_retainer_{s}", "yoke at full roll vs the E retainer"),
-    ("hip_roll", "servo_hip_pitch_{s}", "yaw_retainer_{s}", "pitch servo at full roll vs the E retainer"),
-    ("hip_roll", "thigh_{s}", "yaw_retainer_{s}", "thigh at full roll vs the E retainer"),
-    ("hip_pitch", "thigh_{s}", "yaw_retainer_{s}", "thigh at deep flexion vs the E retainer"),
+# The hip-yaw bearing (assembly_v6.yaw_bearing_pieces), two races split at the
+# estimated ball gap: the inner race turns with the carrier (link 1), the outer
+# race sits in the pelvis recess (link 0). Through the yaw sweep the turning
+# side must clear the fixed race and vice versa -- this is what keeps the
+# pelvis shoulder off the inner race -- and the leg must clear the races'
+# exposed bottom faces at full roll and flexion.
+BEARING_PAIRS = [
+    ("hip_yaw", "yaw_carrier_{s}", "bearing_outer_{s}", "turning carrier vs the fixed outer race through +-45"),
+    ("hip_yaw", "servo_hip_roll_{s}", "bearing_outer_{s}", "roll servo (inside the hub) vs the fixed outer race"),
+    ("hip_yaw", "bearing_inner_{s}", "pelvis_v7", "turning inner race vs the pelvis shoulder (estimated race split)"),
+    ("hip_roll", "hip_yoke_{s}", "bearing_inner_{s}", "yoke at full roll vs the inner race"),
+    ("hip_roll", "hip_yoke_{s}", "bearing_outer_{s}", "yoke at full roll vs the outer race"),
+    ("hip_roll", "servo_hip_pitch_{s}", "bearing_outer_{s}", "pitch servo at full roll vs the outer race"),
+    ("hip_roll", "thigh_{s}", "bearing_inner_{s}", "thigh at full roll vs the inner race"),
+    ("hip_roll", "thigh_{s}", "bearing_outer_{s}", "thigh at full roll vs the outer race"),
+    ("hip_pitch", "thigh_{s}", "bearing_inner_{s}", "thigh at deep flexion vs the inner race"),
+    ("hip_pitch", "thigh_{s}", "bearing_outer_{s}", "thigh at deep flexion vs the outer race"),
 ]
-E_TOUCHING = {("bearing_6810_{s}", "pelvis_v7"), ("bearing_6810_{s}", "yaw_retainer_{s}")}
-# ...and the outer race is a PRESS FIT in the pelvis recess (Ø64.96 on a Ø65
-# race): its overlap is the designed 0.02 mm radial interference ring, and
-# anything more than that ring is a real interference.
-PRESS_FIT = {("bearing_6810_{s}", "pelvis_v7"):
-             math.pi * ((V.YAWA_BRG_OD / 2) ** 2 - V.YAWA_BRG_RECESS_R ** 2) * V.YAWA_BRG_W}
+# ...and each race is a PRESS FIT on its own link: the overlap must be the
+# designed radial interference ring (+0.04 mm on the hub's radius, -0.02 on
+# the recess's), no more (a real interference) and no less (a loose seat).
+PRESS_FIT = {
+    ("bearing_inner_L", "yaw_carrier_L"):
+        math.pi * (V.YAW_BRG_BOSS_R ** 2 - (V.YAW_BRG_ID / 2) ** 2) * V.YAW_BRG_W,
+    ("bearing_outer_L", "pelvis_v7"):
+        math.pi * ((V.YAW_BRG_OD / 2) ** 2 - V.YAW_BRG_RECESS_R ** 2) * V.YAW_BRG_W,
+}
 
 
 def active_pairs():
@@ -180,12 +185,10 @@ def active_pairs():
     one-print hip yoke or the arms are switched on. Rows come back as
     5-tuples (joint, A, B, note, extra pose)."""
     pairs, touching = _yoke_pairs()
-    if A.yaw_bearing_variant() == "E":
-        e_pairs = E_PAIRS
-        if A.hip_yoke_variant() != "single":
-            e_pairs = [(j, "yoke_pitch_{s}" if a == "hip_yoke_{s}" else a, b, n) for j, a, b, n in E_PAIRS]
-        pairs = list(pairs) + e_pairs
-        touching = set(touching) | E_TOUCHING
+    b_pairs = BEARING_PAIRS
+    if A.hip_yoke_variant() != "single":
+        b_pairs = [(j, "yoke_pitch_{s}" if a == "hip_yoke_{s}" else a, b, n) for j, a, b, n in BEARING_PAIRS]
+    pairs = list(pairs) + b_pairs
     if A.arms_on():
         arm_pairs = ARM_PAIRS
         if A.hip_yoke_variant() == "single":
@@ -312,10 +315,7 @@ def main(argv=None):
         ex = {k.format(s=a.side): v for k, v in extra.items()} if extra else None
         vol, dist, ang = check_pair(joint, la, lb, a.samples, a.side, extra=ex)
         touching = (la, lb) in touching_set or (lb, la) in touching_set
-        allowed = PRESS_FIT.get((la, lb), 0.0) if A.yaw_bearing_variant() == "E" else 0.0
-        ok = vol < 0.5 + allowed * 1.02 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
-        if allowed:
-            note = f"{note} (press fit: {allowed:.1f} mm3 of designed interference)"
+        ok = vol < 0.5 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
         fails += 0 if ok else 1
         print(f"{joint:12s} {la.format(s=a.side):22s} {lb.format(s=a.side):22s} {vol:11.2f} {dist:9.2f} {ang if ang is None else round(ang,1)!s:>7s}  {'ok' if ok else 'FAIL'}   {note}")
     # disc-screw thread engagement (no pose involved)
@@ -331,7 +331,12 @@ def main(argv=None):
             except Exception:  # noqa: BLE001
                 vol = 0.0
             dist = pa.distance_to(pb)
-            ok = vol < 0.5 and (need is None or dist >= need - 1e-6)
+            fit = PRESS_FIT.get((la, lb))
+            if fit is not None:
+                ok = 0.98 * fit <= vol <= 1.02 * fit + 0.5
+                note = f"{note} (designed {fit:.1f} mm3)"
+            else:
+                ok = vol < 0.5 and (need is None or dist >= need - 1e-6)
             fails += 0 if ok else 1
             print(f"{'static':12s} {la:22s} {lb:22s} {vol:11.2f} {dist:9.2f} {'':>7s}  {'ok' if ok else 'FAIL'}   {note}"
                   + ("" if need is None else f" (>= {need} mm)"))

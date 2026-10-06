@@ -1,41 +1,38 @@
-"""yaw_carrier_v6: v5's yaw_carrier (cad/parts.py) plus a hip-yaw bearing boss
-(2026-09-17, docs/design-v6/study-yaw-bearing.md; REVISED after coordinator
-review -- see the write-up's history section for the two rejected passes).
+"""yaw_carrier_v6: v5's yaw_carrier (cad/parts.py) with a round hub for the
+hip-yaw bearing's inner race (6810-2RS, dimensions_v6 YAW_BRG_*;
+docs/design-v6/study-yaw-bearing.md, option A).
 
-Today the yaw servo's horn spline + 4 horn screws are the ONLY connection
-between the carrier (the whole leg, a 0.335 m lever) and the pelvis -- every
-thrust and moment load at the hip goes through the servo's output shaft. This
-adds a boss that WRAPS the OUTSIDE of the carrier's ENTIRE horn-mount plate
-AND the top of the roll bay's walls below it (they share the same footprint)
-for a 6811-2RS deep-groove ball bearing's inner race -- NOT a boss concentric
-with just the servo's O19.2 horn disc (leaves an unprintable 0.4 mm wall) and
-NOT a boss sized to the disc-or-case footprint alone (the carrier's own
-plate/wall corner, 25.12 mm from the axis, is bigger than either and sweeps
-through the bearing band regardless).
+The bearing band adds no height: it runs from the horn face (carrier z = 0)
+down the bearing's width, V.YAW_BRG_BAND_Z = (-7, 0), so HIP_YAW_Z,
+CARRIER_ROLL_AXIS and d_yaw_roll are untouched. Within the band the carrier
+holds its horn plate (z 0..-3) and, below that, the top of the roll-servo bay,
+where the ROLL servo's cable end sits (V.YAW_ROLL_CASE_TOP_Z = -5.00). The hub
+is sized to clear that case's corner reach (V.YAW_BAND_CASE_CORNER_R = 22.23
+mm, measured), which is why the bore is 50 mm.
 
-Boss radius V.YAW_BRG_BOSS_R (27.54 mm) encloses that 25.12 mm corner with a
-2.42 mm wall -- nothing is trimmed off the carrier's existing plate or bay
-walls; the boss is purely ADDED material outside them. It also clears the
-servo case's own (smaller) corner, hypot(D.SV_AXIS_FROM_OUT_END, D.SV_WID/2)
-= 15.97 mm, by 11.6 mm.
+Construction, entirely within z in [-7, 0]; v5's bay walls, U-slot, retention
+screw rows and idler seat below the band are unchanged:
+  1. trim the plate corners and the top of the bay walls back to a cylinder
+     of radius V.YAW_BRG_BOSS_R (25.04). That clips the 25.12 mm corners of
+     the rectangle by 0.08 mm, under print tolerance and not a load path (the
+     load goes through the horn screws at the centre and the bearing at the
+     OD), and adds material along the flat sides (19.95 and 15.26 mm
+     half-widths): the top of the carrier becomes a true cylinder.
+  2. re-open the bay's own rectangular cavity for z in [-7, -3], where the
+     roll servo's case passes through, so the hub does not seal it off.
+  3. re-cut the 4 horn screw bores and the centre relief, which step 1's disk
+     refills where they fall within the band.
 
-Construction: add a full disk (radius YAW_BRG_BOSS_R) below the horn plate's
-z=0 face, out to YAW_BRG_BOSS_H (9 mm -- the plate's own 3 mm plus 6 mm of
-the bay walls below it, which share the same X/Y footprint so wrapping them
-costs no extra radius), THEN re-open the roll bay's own interior footprint
-(the same x/y box the front/rear/cheek walls already bound) through the
-part of that height BELOW the plate (z = -9..-3), so the bay's cavity (where
-the roll servo slides up) is simply 6 mm deeper at its mouth -- unchanged
-everywhere it already mattered. The plate itself (z = -3..0) is untouched
-(still solid, still where the 4 horn screws seat). Nothing is subtracted
-from the carrier anywhere by this module -- see check_yaw_bearing_combo.py
-for the interference-ring proof that the boss's OD is the carrier's true
-outer radius at every z in the band.
+The horn screws are v5's (4 x M3 on the r 7 bolt circle through the 3 mm
+plate), with 16 mm of hub wall outside their heads. Both roll-servo retention
+screw rows stay below the band (V.YAW_ROLL_SCREW_ROWS_Z, asserted in
+dimensions_v6.py); only the top ~2 mm of the idler-side seat pad, which
+reached up to -5.00, is trimmed.
 
-Print: SAME orientation as v5's yaw_carrier (RX180, horn-plate face on the
-bed, bay walls rise) -- the boss sits at MORE NEGATIVE local z than the
-plate's z=0 face, i.e. it rises in print with the bay walls, not against
-them; no new orientation, no new overhang class.
+The bearing goes onto the hub from the horn-face side: below the band the
+bay's rectangular corners (r 25.12) are bigger than the 25.0 mm bore.
+
+Print: v5's orientation (RX180, horn-plate face on the bed, bay walls rise).
 
     .venv/bin/python cad/v6/yaw_carrier_v6.py       # STL + STEP
 """
@@ -59,24 +56,29 @@ box, cyl_z = P.box, P.cyl_z
 def yaw_carrier_v6(print_fins=False):
     p = P.yaw_carrier(print_fins=print_fins)
 
-    r_boss = V.YAW_BRG_BOSS_OD / 2
-    z0, z1 = V.YAW_BRG_BOSS_CARRIER_Z          # (-9.0, 0.0), carrier-local
-    p += cyl_z(r_boss, z0, z1, 0, 0)
+    r_hub = V.YAW_BRG_BOSS_R
+    z0, z1 = V.YAW_BRG_BAND_Z          # (-7.0, 0.0), carrier-local
 
-    # re-open the roll bay's own footprint through the part of the new boss
-    # BELOW the existing plate (z = z0 .. -PLATE) -- the SAME x/y bound the
-    # front/rear/cheek walls already use, so nothing that was solid before
-    # (the walls, the plate, the screw-hole seating) changes; the plate's
-    # own z-band (-PLATE..0) is left alone -- it was already solid out to
-    # its own +-19.95/+-hw corner, and the boss simply wraps further out.
+    # 1. trim everything OUTSIDE the round hub, within the band only
+    p -= box(-100, 100, -100, 100, z0, z1 + 1) - cyl_z(r_hub, z0 - 1, z1 + 1, 0, 0)
+    # 2. add the full round hub for the whole band height
+    p += cyl_z(r_hub, z0, z1, 0, 0)
+    # 3. re-open the bay's interior footprint below the plate (z0 .. -PLATE):
+    # the box v5's front/rear/cheek walls bound, so the roll servo's case
+    # (cable end at V.YAW_ROLL_CASE_TOP_Z, inside this range) keeps its
+    # clearance; the plate's own band (-PLATE..0) stays solid.
     cy0 = D.SV_WID / 2 + D.BAY_CHEEK_GAP        # 12.66, cheek inner face
     p -= box(-D.SV_TOPFACE, D.SV_TOPFACE, -cy0, cy0, z0 - 0.5, -D.YAW_CARRIER_PLATE + 0.001)
+    # 4. re-cut the 4 horn screw bores + centre relief (z in [-4, 1], like v5's)
+    r = D.BCD / 2
+    for dx, dy in ((r, 0), (-r, 0), (0, r), (0, -r)):
+        p -= cyl_z(D.PAD_HOLE / 2, -4, 1, dx, dy)
+    p -= cyl_z(D.HORN_CENTER_RELIEF_D / 2, -4, 1, 0, 0)
     return p
 
 
 def SCREWS():
-    """The carrier's screws, carrier-local (horn face z = 0), the same in every
-    bearing variant (A and E keep the 3.0 mm horn plate): 4 disc screws up
+    """The carrier's screws, carrier-local (horn face z = 0): 4 disc screws up
     through the bay ceiling into the yaw horn, length by the stack
     (V.disc_screw), and 8 M2.5 x 8 flat-heads through the bay's front and rear
     walls into the roll servo (cad/fasteners.py yaw_wall_screws). `axis`

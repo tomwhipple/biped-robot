@@ -233,11 +233,11 @@ def check_pack_clearance(verbose=True):
     return ok
 
 
-def check_pelvis_clearance(verbose=True, bearing_variant="C"):
+def check_pelvis_clearance(verbose=True):
     """The plate drops into the aperture: it must not touch the pelvis."""
     import pelvis_v7 as PV
     f = neck_floor()
-    pel = PV.pelvis_v7(bearing_variant=bearing_variant, arm_mounts=True)
+    pel = PV.pelvis_v7(arm_mounts=True)
     vol = (f & pel).volume
     d = f.distance_to(pel)
     good = vol < 0.01 and d >= 0.25

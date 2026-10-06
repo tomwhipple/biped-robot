@@ -77,7 +77,7 @@ hip_roll     hip_yoke_L~seats       servo_hip_roll_L              0.00      0.58
 hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
 hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    37.5  ok   grip channel vs its own servo: seated, must not intersect
 hip_pitch    thigh_L                yaw_carrier_L                 0.00     13.90  -120.0  ok   thigh top vs the carrier at deep flexion
-hip_pitch    thigh_L                pelvis_v7                     0.00     34.38  -120.0  ok   thigh vs the housing at deep flexion
+hip_pitch    thigh_L                pelvis_v7                     0.00     37.82  -120.0  ok   thigh vs the housing at deep flexion
 hip_pitch    thigh_L                servo_hip_roll_L              0.00      8.94  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
 knee         shin_L                 thigh_L                       0.00      0.60   130.0  ok   shin grip plates vs the thigh fork; shin case vs the thigh box
 knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's box (r 16 rule)
@@ -91,16 +91,26 @@ neck         head                   pelvis_v7                     0.00     35.20
 neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
 neck         head                   shoulder_girdle_v6            0.00      2.10   -90.0  ok   head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)
 neck         head                   neck_floor                    0.00     35.20   -90.0  ok   head vs the neck servo's floor plate through +-90
-shoulder     arm_upper_L            pelvis_v7                     0.00     22.37   -17.5  ok   upper arm vs the torso through the whole sweep, hanging
+hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      4.42   -45.0  ok   turning carrier vs the fixed outer race through +-45
+hip_yaw      servo_hip_roll_L       bearing_outer_L               0.00      8.24   -22.5  ok   roll servo (inside the hub) vs the fixed outer race
+hip_yaw      bearing_inner_L        pelvis_v7                     0.00      2.30   -45.0  ok   turning inner race vs the pelvis shoulder (estimated race split)
+hip_roll     hip_yoke_L             bearing_inner_L               0.00     23.08    55.0  ok   yoke at full roll vs the inner race
+hip_roll     hip_yoke_L             bearing_outer_L               0.00     23.08    55.0  ok   yoke at full roll vs the outer race
+hip_roll     servo_hip_pitch_L      bearing_outer_L               0.00     41.25    55.0  ok   pitch servo at full roll vs the outer race
+hip_roll     thigh_L                bearing_inner_L               0.00     54.78    55.0  ok   thigh at full roll vs the inner race
+hip_roll     thigh_L                bearing_outer_L               0.00     52.68    55.0  ok   thigh at full roll vs the outer race
+hip_pitch    thigh_L                bearing_inner_L               0.00     41.90  -120.0  ok   thigh at deep flexion vs the inner race
+hip_pitch    thigh_L                bearing_outer_L               0.00     39.71  -120.0  ok   thigh at deep flexion vs the outer race
+shoulder     arm_upper_L            pelvis_v7                     0.00     25.87   -17.5  ok   upper arm vs the torso through the whole sweep, hanging
 shoulder     arm_upper_L            head                          0.00     70.65   -17.5  ok   upper arm vs the head at the fold-up (shoulder 180)
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the neck tube at the fold-up (shoulder 180)
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the girdle it hangs off, whole sweep
 shoulder     arm_upper_L            servo_shoulder_L              0.00      0.00   -90.0  ok   horn plate seated on the shoulder disc: must not intersect
-shoulder     arm_fore_L             pelvis_v7                     0.00     74.28   -17.5  ok   forearm vs the torso through the whole sweep, hanging
+shoulder     arm_fore_L             pelvis_v7                     0.00     77.47   -17.5  ok   forearm vs the torso through the whole sweep, hanging
 shoulder     arm_fore_L             head                          0.00     84.88   200.0  ok   forearm vs the head, FOLDED (elbow -90, the sit-up pose)
-shoulder     arm_fore_L             pelvis_v7                     0.00     49.60   -17.5  ok   forearm vs the torso, FOLDED (elbow -90, the sit-up pose)
+shoulder     arm_fore_L             pelvis_v7                     0.00     50.69    55.0  ok   forearm vs the torso, FOLDED (elbow -90, the sit-up pose)
 shoulder     arm_fore_L             shoulder_girdle_v6            0.00    108.11   127.5  ok   forearm vs the girdle, FOLDED
-shoulder     servo_elbow_L          pelvis_v7                     0.00     50.14   -17.5  ok   the elbow servo case vs the torso through the sweep
+shoulder     servo_elbow_L          pelvis_v7                     0.00     53.52   -17.5  ok   the elbow servo case vs the torso through the sweep
 elbow        arm_fore_L             arm_upper_L                   0.00      0.70  -100.0  ok   THE ELBOW LIMIT: forearm grip vs the fork (sets V.ARM_ROM)
 elbow        arm_fore_L             servo_elbow_L                 0.00      0.00  -100.0  ok   forearm grip channel on its own servo: seated, must not intersect
 elbow        servo_elbow_L          arm_upper_L                   0.00      0.00  -100.0  ok   elbow servo discs on the fork tines: seated, must not intersect
@@ -132,11 +142,13 @@ static       neck_floor             gd_mock                       0.00     13.55
 static       neck_floor             servo_neck                    0.00      0.00          ok   neck servo seated on the four pads: must not intersect
 static       neck_floor             shoulder_girdle_v6            0.00      0.00          ok   floor lugs screwed up to the tube bosses: must not intersect
 static       servo_neck             shoulder_girdle_v6            0.00      0.30          ok   neck servo in its tube: must not intersect
+static       bearing_inner_L        yaw_carrier_L                44.02      0.00          ok   inner race pressed on the hub (designed 44.0 mm3)
+static       bearing_outer_L        pelvis_v7                    28.58      0.00          ok   outer race pressed into the recess, under the shoulder (designed 28.6 mm3)
 interleg     foot_L                 foot_R                        0.00     13.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (126 s)
+=> ALL CLEAR  (87 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -216,7 +228,7 @@ hip_roll     hip_yoke_L~seats       servo_hip_roll_L              0.00      0.58
 hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
 hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    37.5  ok   grip channel vs its own servo: seated, must not intersect
 hip_pitch    thigh_L                yaw_carrier_L                 0.00     13.90  -120.0  ok   thigh top vs the carrier at deep flexion
-hip_pitch    thigh_L                pelvis_v7                     0.00     34.38  -120.0  ok   thigh vs the housing at deep flexion
+hip_pitch    thigh_L                pelvis_v7                     0.00     37.82  -120.0  ok   thigh vs the housing at deep flexion
 hip_pitch    thigh_L                servo_hip_roll_L              0.00      8.94  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
 knee         shin_L                 thigh_L                       0.00      0.60   130.0  ok   shin grip plates vs the thigh fork; shin case vs the thigh box
 knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's box (r 16 rule)
@@ -230,6 +242,16 @@ neck         head                   pelvis_v7                     0.00     35.20
 neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
 neck         head                   neck_collar                   0.00      2.10   -90.0  ok   head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)
 neck         head                   neck_floor                    0.00     35.20   -90.0  ok   head vs the neck servo's floor plate through +-90
+hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      4.42   -45.0  ok   turning carrier vs the fixed outer race through +-45
+hip_yaw      servo_hip_roll_L       bearing_outer_L               0.00      8.24   -22.5  ok   roll servo (inside the hub) vs the fixed outer race
+hip_yaw      bearing_inner_L        pelvis_v7                     0.00      2.30   -45.0  ok   turning inner race vs the pelvis shoulder (estimated race split)
+hip_roll     hip_yoke_L             bearing_inner_L               0.00     23.08    55.0  ok   yoke at full roll vs the inner race
+hip_roll     hip_yoke_L             bearing_outer_L               0.00     23.08    55.0  ok   yoke at full roll vs the outer race
+hip_roll     servo_hip_pitch_L      bearing_outer_L               0.00     41.25    55.0  ok   pitch servo at full roll vs the outer race
+hip_roll     thigh_L                bearing_inner_L               0.00     54.78    55.0  ok   thigh at full roll vs the inner race
+hip_roll     thigh_L                bearing_outer_L               0.00     52.68    55.0  ok   thigh at full roll vs the outer race
+hip_pitch    thigh_L                bearing_inner_L               0.00     41.90  -120.0  ok   thigh at deep flexion vs the inner race
+hip_pitch    thigh_L                bearing_outer_L               0.00     39.71  -120.0  ok   thigh at deep flexion vs the outer race
 discscrew    leg_link_v6            horn_pad                 4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    leg_link_v6            idler_pad                4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    ankle_link             tine_horn                4 x M3x5  stack 3.00  engages 1.60  ok
@@ -247,9 +269,368 @@ static       neck_floor             gd_mock                       0.00     13.55
 static       neck_floor             servo_neck                    0.00      0.00          ok   neck servo seated on the four pads: must not intersect
 static       neck_floor             neck_collar                   0.00      0.00          ok   floor lugs screwed up to the tube bosses: must not intersect
 static       servo_neck             neck_collar                   0.00      0.30          ok   neck servo in its tube: must not intersect
+static       bearing_inner_L        yaw_carrier_L                44.02      0.00          ok   inner race pressed on the hub (designed 44.0 mm3)
+static       bearing_outer_L        pelvis_v7                    28.58      0.00          ok   outer race pressed into the recess, under the shoulder (designed 28.6 mm3)
 interleg     foot_L                 foot_R                        0.00     13.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (88 s)
+=> ALL CLEAR  (71 s)
 check_assembly_v6 (ARMS=0): PASS
+
+=================== audit_torso (report) ===================
+
+== pelvis_v7  [upside down: deck top on bed (v7 torso)]
+  first-layer contact    3983 mm2  (25.3% of 101x155 bbox)
+  **LEDGE       410 mm2   97.2 x 120.8 mm  at z   0.3  anchored one side (50% ring)
+  **LEDGE       307 mm2   64.1 x  20.2 mm  at z  72.0  anchored one side (31% ring)
+  **CEILING     253 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
+    CEILING       3 mm2   15.4 x   0.2 mm  at z  69.0  over 61.0 mm cavity
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+    CEILING       3 mm2   15.4 x   0.2 mm  at z  69.0  over 61.0 mm cavity
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+  **CEILING     365 mm2   18.1 x  20.3 mm  at z  69.0  over 61.0 mm cavity
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+  **CEILING     253 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
+  **LEDGE       307 mm2   64.1 x  20.2 mm  at z  72.0  anchored one side (31% ring)
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+  **CEILING     365 mm2   18.1 x  20.3 mm  at z  69.0  over 61.0 mm cavity
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+    CEILING       3 mm2   15.4 x   0.2 mm  at z  69.0  over 61.0 mm cavity
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+    CEILING       3 mm2   15.4 x   0.2 mm  at z  69.0  over 61.0 mm cavity
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+  **LEDGE        53 mm2    7.7 x  27.7 mm  at z  72.0  anchored one side (44% ring)
+  **LEDGE        53 mm2    7.7 x  27.7 mm  at z  72.0  anchored one side (44% ring)
+  **LEDGE       106 mm2   17.4 x  25.5 mm  at z  72.0  anchored one side (69% ring)
+  **LEDGE       198 mm2   42.5 x  20.2 mm  at z  72.0  anchored one side (38% ring)
+    CEILING     120 mm2    7.4 x  27.7 mm  at z  72.0  over 33.4 mm cavity
+  **LEDGE      1149 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
+    CEILING     120 mm2    7.4 x  27.7 mm  at z  72.0  over 33.4 mm cavity
+  **LEDGE       198 mm2   42.5 x  20.2 mm  at z  72.0  anchored one side (38% ring)
+  **LEDGE       106 mm2   17.4 x  25.5 mm  at z  72.0  anchored one side (69% ring)
+  **LEDGE       454 mm2   30.0 x  18.4 mm  at z  76.8  anchored one side (50% ring)
+  **BEAM         22 mm2    0.2 x  90.0 mm  at z   5.0  end-anchored ribbon, 90 mm between anchors
+    BEAM          2 mm2    1.0 x   1.6 mm  at z  19.6  through-wall strip, 2 mm between anchors
+    BEAM          2 mm2    1.0 x   1.6 mm  at z  19.6  through-wall strip, 2 mm between anchors
+    BEAM         14 mm2    5.5 x   2.6 mm  at z  37.3  through-wall strip, 6 mm between anchors
+  **LEDGE      1149 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
+    BEAM          2 mm2    1.0 x   1.6 mm  at z  20.3  through-wall strip, 2 mm between anchors
+    BEAM          2 mm2    1.0 x   1.6 mm  at z  20.3  through-wall strip, 2 mm between anchors
+    CEILING      11 mm2    6.0 x   1.6 mm  at z  69.3  over 2.0 mm cavity
+    BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
+    bore-top      0 mm2    0.1 x   0.1 mm  at z  35.7  over 30.7 mm cavity
+    BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
+    CEILING      11 mm2    6.0 x   1.6 mm  at z  69.3  over 2.0 mm cavity
+    BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
+    bore-top      0 mm2    0.1 x   0.1 mm  at z  35.7  over 30.7 mm cavity
+    BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.1 x   2.0 mm  at z   4.5  roof of a through-void
+  **BEAM        120 mm2    1.1 x 109.3 mm  at z   5.0  end-anchored ribbon, 109 mm between anchors
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.1 x   2.0 mm  at z   4.5  roof of a through-void
+  **ISLAND      201 mm2    9.9 x  28.0 mm  at z  36.0  nothing below or around -> support
+    BEAM          1 mm2    0.3 x   5.4 mm  at z  38.6  through-wall strip, 5 mm between anchors
+    BEAM          4 mm2    1.3 x   5.0 mm  at z  38.7  end-anchored ribbon, 5 mm between anchors
+    BEAM          1 mm2    0.3 x   5.4 mm  at z  38.6  through-wall strip, 5 mm between anchors
+    BEAM          4 mm2    1.3 x   5.0 mm  at z  38.7  end-anchored ribbon, 5 mm between anchors
+    bore-top      3 mm2    3.5 x   2.8 mm  at z  38.6  over 1.2 mm cavity
+    CEILING      12 mm2    7.0 x   1.6 mm  at z  68.6  over 2.0 mm cavity
+    CEILING      12 mm2    7.0 x   1.6 mm  at z  68.6  over 2.0 mm cavity
+    bore-top      3 mm2    3.5 x   2.8 mm  at z  38.6  over 1.2 mm cavity
+    bore-top      3 mm2    3.5 x   2.8 mm  at z  38.6  over 1.2 mm cavity
+    bore-top      3 mm2    3.5 x   2.8 mm  at z  38.6  over 1.2 mm cavity
+  **ISLAND       35 mm2    7.0 x   7.0 mm  at z  30.0  nothing below or around -> support
+  **ISLAND       35 mm2    7.0 x   7.0 mm  at z  30.0  nothing below or around -> support
+    bore-top      4 mm2    2.2 x   2.2 mm  at z  36.1  roof of a through-void
+    bore-top      4 mm2    2.2 x   2.2 mm  at z  36.1  roof of a through-void
+    BEAM         16 mm2   11.4 x   1.4 mm  at z   5.0  through-wall strip, 11 mm between anchors
+    CEILING      61 mm2   11.4 x   5.4 mm  at z   5.0  over 1.9 mm cavity
+    CEILING      61 mm2   11.4 x   5.4 mm  at z   5.0  over 1.9 mm cavity
+    BEAM         16 mm2   11.4 x   1.4 mm  at z   5.0  through-wall strip, 11 mm between anchors
+  **THIN       10.3 mm2  wall < 0.85 mm  around (-57, 57, 70)
+  **THIN        6.6 mm2  wall < 0.85 mm  around (30, 57, 70)
+  **THIN       11.1 mm2  wall < 0.85 mm  around (-63, 57, 70)
+  **THIN       11.1 mm2  wall < 0.85 mm  around (-63, -57, 70)
+  **THIN        6.6 mm2  wall < 0.85 mm  around (30, -57, 70)
+  **THIN       10.3 mm2  wall < 0.85 mm  around (-57, -57, 70)
+  **THIN       10.0 mm2  wall < 0.85 mm  around (30, 57, 70)
+  **THIN       10.0 mm2  wall < 0.85 mm  around (30, -57, 70)
+    thin-note    2.7 mm2  wall < 0.85 mm  around (-11, 52, 38)
+    thin-note    2.7 mm2  wall < 0.85 mm  around (-11, -52, 38)
+
+== head  [base down: neck-horn plate on bed]
+  first-layer contact    1021 mm2  (31.1% of 53x62 bbox)
+  **CEILING    3143 mm2   50.0 x  62.0 mm  at z  44.0  roof of a through-void
+    CEILING      28 mm2    6.0 x   4.2 mm  at z   9.0  over 5.1 mm cavity
+    CEILING      28 mm2    6.0 x   4.2 mm  at z  35.0  over 20.4 mm cavity
+    CEILING      28 mm2    6.0 x   4.3 mm  at z  35.0  over 20.4 mm cavity
+    CEILING      28 mm2    6.0 x   4.3 mm  at z   9.0  over 5.1 mm cavity
+  **LEDGE       185 mm2    3.0 x  62.0 mm  at z   4.0  anchored one side (31% ring)
+    bore-top     11 mm2    3.0 x   3.1 mm  at z  25.5  over 21.7 mm cavity
+    BEAM         11 mm2    3.0 x   3.1 mm  at z  38.0  through-wall strip, 3 mm between anchors
+    BEAM         29 mm2    3.0 x   8.6 mm  at z  38.2  through-wall strip, 9 mm between anchors
+    bore-top     11 mm2    3.0 x   3.1 mm  at z  25.5  over 21.7 mm cavity
+    BEAM         11 mm2    3.0 x   3.1 mm  at z  38.0  through-wall strip, 3 mm between anchors
+    CEILING      10 mm2    6.0 x   1.5 mm  at z  12.8  over 2.1 mm cavity
+    CEILING      10 mm2    6.0 x   1.5 mm  at z  38.8  over 2.1 mm cavity
+    CEILING      10 mm2    6.0 x   1.5 mm  at z  12.8  over 2.1 mm cavity
+    CEILING      10 mm2    6.0 x   1.5 mm  at z  38.8  over 2.1 mm cavity
+  **LEDGE      1895 mm2   43.0 x  55.0 mm  at z   2.7  anchored one side (25% ring)
+    bore-top      4 mm2    3.0 x   2.1 mm  at z  13.0  over 2.6 mm cavity
+    BEAM          4 mm2    3.0 x   2.1 mm  at z  39.0  through-wall strip, 3 mm between anchors
+  **BEAM         90 mm2    1.8 x  50.0 mm  at z  54.0  through-wall strip, 50 mm between anchors
+    BEAM          4 mm2    3.0 x   2.1 mm  at z  39.0  through-wall strip, 3 mm between anchors
+    bore-top      4 mm2    3.0 x   2.1 mm  at z  13.0  over 2.6 mm cavity
+    bore-top      5 mm2    3.1 x   1.4 mm  at z  28.4  over 1.8 mm cavity
+    bore-top      5 mm2    3.1 x   1.4 mm  at z  40.9  over 1.8 mm cavity
+  **BEAM         46 mm2    1.8 x  22.9 mm  at z  18.0  through-wall strip, 23 mm between anchors
+    bore-top      5 mm2    3.1 x   1.4 mm  at z  28.4  over 1.8 mm cavity
+    bore-top      5 mm2    3.1 x   1.4 mm  at z  40.9  over 1.8 mm cavity
+  **THIN       51.6 mm2  wall < 0.85 mm  around (0, 9, 52)
+  **THIN       15.3 mm2  wall < 0.85 mm  around (20, -30, 43)
+  **THIN        5.8 mm2  wall < 0.85 mm  around (-20, -29, 44)
+  **THIN       15.3 mm2  wall < 0.85 mm  around (20, 30, 42)
+  **THIN        5.8 mm2  wall < 0.85 mm  around (-20, 29, 44)
+    thin-note    1.3 mm2  wall < 0.85 mm  around (14, -10, 56)
+    thin-note    1.1 mm2  wall < 0.85 mm  around (23, 7, 58)
+  **THIN        8.7 mm2  wall < 0.85 mm  around (18, 9, 57)
+  **THIN        3.6 mm2  wall < 0.85 mm  around (12, 9, 57)
+  **THIN       38.7 mm2  wall < 0.85 mm  around (-23, -27, 22)
+  **THIN       38.7 mm2  wall < 0.85 mm  around (-21, -29, 22)
+  **THIN        7.7 mm2  wall < 0.85 mm  around (20, -29, 7)
+  **THIN       26.4 mm2  wall < 0.85 mm  around (20, -29, 25)
+  **THIN       18.0 mm2  wall < 0.85 mm  around (21, -29, 25)
+    thin-note    2.7 mm2  wall < 0.85 mm  around (24, -7, 57)
+    thin-note    2.5 mm2  wall < 0.85 mm  around (16, -9, 56)
+    thin-note    1.1 mm2  wall < 0.85 mm  around (17, -9, 56)
+    thin-note    1.1 mm2  wall < 0.85 mm  around (17, 9, 56)
+    thin-note    1.3 mm2  wall < 0.85 mm  around (13, 9, 56)
+    thin-note    1.5 mm2  wall < 0.85 mm  around (10, 9, 56)
+  **THIN       19.7 mm2  wall < 0.85 mm  around (21, 29, 25)
+  **THIN        5.1 mm2  wall < 0.85 mm  around (20, 29, 7)
+  **THIN       26.4 mm2  wall < 0.85 mm  around (20, 29, 25)
+  **THIN       38.7 mm2  wall < 0.85 mm  around (-23, 27, 22)
+  **THIN       38.7 mm2  wall < 0.85 mm  around (-21, 29, 22)
+    thin-note    2.0 mm2  wall < 0.85 mm  around (27, 25, 32)
+    thin-note    2.0 mm2  wall < 0.85 mm  around (27, -25, 32)
+
+== head_shell  [base down: neck-horn plate on bed]
+  first-layer contact    1021 mm2  (32.9% of 50x62 bbox)
+  **CEILING    3143 mm2   50.0 x  62.0 mm  at z  44.0  roof of a through-void
+    CEILING      28 mm2    6.0 x   4.3 mm  at z   9.0  over 5.1 mm cavity
+    CEILING      28 mm2    6.0 x   4.3 mm  at z  35.0  over 20.4 mm cavity
+    CEILING      28 mm2    6.0 x   4.3 mm  at z   9.0  over 5.1 mm cavity
+    CEILING      28 mm2    6.0 x   4.3 mm  at z  35.0  over 20.4 mm cavity
+    CEILING      10 mm2    6.0 x   1.5 mm  at z  12.8  over 2.1 mm cavity
+    CEILING      10 mm2    6.0 x   1.5 mm  at z  38.8  over 2.1 mm cavity
+    CEILING      10 mm2    6.0 x   1.5 mm  at z  12.8  over 2.1 mm cavity
+    CEILING      10 mm2    6.0 x   1.5 mm  at z  38.8  over 2.1 mm cavity
+  **LEDGE      1895 mm2   43.0 x  55.0 mm  at z   2.7  anchored one side (25% ring)
+  **THIN       57.5 mm2  wall < 0.85 mm  around (0, 9, 52)
+  **THIN       18.9 mm2  wall < 0.85 mm  around (20, -29, 42)
+  **THIN       86.3 mm2  wall < 0.85 mm  around (-20, -29, 22)
+  **THIN       19.4 mm2  wall < 0.85 mm  around (20, 29, 42)
+  **THIN       86.3 mm2  wall < 0.85 mm  around (-20, 29, 22)
+  **THIN        4.3 mm2  wall < 0.85 mm  around (22, -9, 57)
+    thin-note    1.5 mm2  wall < 0.85 mm  around (15, -7, 58)
+  **THIN        8.5 mm2  wall < 0.85 mm  around (17, -8, 57)
+  **THIN       24.5 mm2  wall < 0.85 mm  around (17, 8, 57)
+    thin-note    0.8 mm2  wall < 0.85 mm  around (24, 10, 56)
+  **THIN        7.7 mm2  wall < 0.85 mm  around (20, -29, 7)
+  **THIN       26.4 mm2  wall < 0.85 mm  around (20, -29, 25)
+  **THIN       22.1 mm2  wall < 0.85 mm  around (21, -29, 25)
+    thin-note    0.8 mm2  wall < 0.85 mm  around (19, -6, 58)
+  **THIN        5.1 mm2  wall < 0.85 mm  around (24, -8, 57)
+  **THIN       11.0 mm2  wall < 0.85 mm  around (16, -8, 56)
+    thin-note    0.9 mm2  wall < 0.85 mm  around (11, -8, 56)
+    thin-note    0.8 mm2  wall < 0.85 mm  around (15, 4, 58)
+  **THIN        3.3 mm2  wall < 0.85 mm  around (15, -0, 58)
+    thin-note    1.6 mm2  wall < 0.85 mm  around (14, -3, 58)
+    thin-note    0.8 mm2  wall < 0.85 mm  around (17, -3, 59)
+    thin-note    0.8 mm2  wall < 0.85 mm  around (19, 6, 58)
+    thin-note    1.6 mm2  wall < 0.85 mm  around (24, 8, 56)
+    thin-note    1.8 mm2  wall < 0.85 mm  around (22, 8, 56)
+  **THIN        5.3 mm2  wall < 0.85 mm  around (17, 9, 56)
+  **THIN        7.6 mm2  wall < 0.85 mm  around (14, 8, 57)
+    thin-note    1.5 mm2  wall < 0.85 mm  around (10, 9, 56)
+    thin-note    2.7 mm2  wall < 0.85 mm  around (21, 29, 5)
+  **THIN       22.2 mm2  wall < 0.85 mm  around (21, 29, 25)
+  **THIN        5.1 mm2  wall < 0.85 mm  around (20, 29, 7)
+  **THIN       26.4 mm2  wall < 0.85 mm  around (20, 29, 25)
+
+== head_face  [face plate flat on bed, camera bosses up]
+  first-layer contact     185 mm2  (49.7% of 6x62 bbox)
+    bore-top      4 mm2    3.0 x   2.1 mm  at z   9.0  over 2.6 mm cavity
+    BEAM          4 mm2    3.0 x   2.1 mm  at z  35.0  through-wall strip, 3 mm between anchors
+  **LEDGE        11 mm2    3.0 x   3.1 mm  at z  21.5  anchored one side (31% ring)
+    BEAM         11 mm2    3.0 x   3.1 mm  at z  34.0  through-wall strip, 3 mm between anchors
+    bore-top      4 mm2    3.0 x   2.1 mm  at z   9.0  over 2.6 mm cavity
+    BEAM         29 mm2    3.0 x   8.6 mm  at z  34.2  through-wall strip, 9 mm between anchors
+  **LEDGE        11 mm2    3.0 x   3.1 mm  at z  21.5  anchored one side (31% ring)
+    BEAM         11 mm2    3.0 x   3.1 mm  at z  34.0  through-wall strip, 3 mm between anchors
+    BEAM          4 mm2    3.0 x   2.1 mm  at z  35.0  through-wall strip, 3 mm between anchors
+  **BEAM         90 mm2    1.8 x  50.0 mm  at z  50.0  through-wall strip, 50 mm between anchors
+    bore-top      5 mm2    3.1 x   1.4 mm  at z  24.4  over 1.8 mm cavity
+    bore-top      5 mm2    3.1 x   1.4 mm  at z  36.9  over 1.8 mm cavity
+  **BEAM         46 mm2    1.8 x  22.9 mm  at z  14.0  through-wall strip, 23 mm between anchors
+    bore-top      5 mm2    3.1 x   1.4 mm  at z  24.4  over 1.8 mm cavity
+    bore-top      5 mm2    3.1 x   1.4 mm  at z  36.9  over 1.8 mm cavity
+    thin-note    2.0 mm2  wall < 0.85 mm  around (27, 25, 28)
+    thin-note    2.0 mm2  wall < 0.85 mm  around (27, -25, 28)
+
+SAG RISKS FOUND:
+  pelvis_v7    LEDGE       410 mm2   97.2 x 120.8 mm  at z   0.3  anchored one side (50% ring)
+  pelvis_v7    LEDGE       307 mm2   64.1 x  20.2 mm  at z  72.0  anchored one side (31% ring)
+  pelvis_v7    CEILING     253 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
+  pelvis_v7    CEILING     365 mm2   18.1 x  20.3 mm  at z  69.0  over 61.0 mm cavity
+  pelvis_v7    CEILING     253 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
+  pelvis_v7    LEDGE       307 mm2   64.1 x  20.2 mm  at z  72.0  anchored one side (31% ring)
+  pelvis_v7    CEILING     365 mm2   18.1 x  20.3 mm  at z  69.0  over 61.0 mm cavity
+  pelvis_v7    LEDGE        53 mm2    7.7 x  27.7 mm  at z  72.0  anchored one side (44% ring)
+  pelvis_v7    LEDGE        53 mm2    7.7 x  27.7 mm  at z  72.0  anchored one side (44% ring)
+  pelvis_v7    LEDGE       106 mm2   17.4 x  25.5 mm  at z  72.0  anchored one side (69% ring)
+  pelvis_v7    LEDGE       198 mm2   42.5 x  20.2 mm  at z  72.0  anchored one side (38% ring)
+  pelvis_v7    LEDGE      1149 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
+  pelvis_v7    LEDGE       198 mm2   42.5 x  20.2 mm  at z  72.0  anchored one side (38% ring)
+  pelvis_v7    LEDGE       106 mm2   17.4 x  25.5 mm  at z  72.0  anchored one side (69% ring)
+  pelvis_v7    LEDGE       454 mm2   30.0 x  18.4 mm  at z  76.8  anchored one side (50% ring)
+  pelvis_v7    BEAM         22 mm2    0.2 x  90.0 mm  at z   5.0  end-anchored ribbon, 90 mm between anchors
+  pelvis_v7    LEDGE      1149 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
+  pelvis_v7    BEAM        120 mm2    1.1 x 109.3 mm  at z   5.0  end-anchored ribbon, 109 mm between anchors
+  pelvis_v7    ISLAND      201 mm2    9.9 x  28.0 mm  at z  36.0  nothing below or around -> support
+  pelvis_v7    ISLAND       35 mm2    7.0 x   7.0 mm  at z  30.0  nothing below or around -> support
+  pelvis_v7    ISLAND       35 mm2    7.0 x   7.0 mm  at z  30.0  nothing below or around -> support
+  pelvis_v7    THIN       10.3 mm2  wall < 0.85 mm  around (-57, 57, 70)
+  pelvis_v7    THIN        6.6 mm2  wall < 0.85 mm  around (30, 57, 70)
+  pelvis_v7    THIN       11.1 mm2  wall < 0.85 mm  around (-63, 57, 70)
+  pelvis_v7    THIN       11.1 mm2  wall < 0.85 mm  around (-63, -57, 70)
+  pelvis_v7    THIN        6.6 mm2  wall < 0.85 mm  around (30, -57, 70)
+  pelvis_v7    THIN       10.3 mm2  wall < 0.85 mm  around (-57, -57, 70)
+  pelvis_v7    THIN       10.0 mm2  wall < 0.85 mm  around (30, 57, 70)
+  pelvis_v7    THIN       10.0 mm2  wall < 0.85 mm  around (30, -57, 70)
+  head         CEILING    3143 mm2   50.0 x  62.0 mm  at z  44.0  roof of a through-void
+  head         LEDGE       185 mm2    3.0 x  62.0 mm  at z   4.0  anchored one side (31% ring)
+  head         LEDGE      1895 mm2   43.0 x  55.0 mm  at z   2.7  anchored one side (25% ring)
+  head         BEAM         90 mm2    1.8 x  50.0 mm  at z  54.0  through-wall strip, 50 mm between anchors
+  head         BEAM         46 mm2    1.8 x  22.9 mm  at z  18.0  through-wall strip, 23 mm between anchors
+  head         THIN       51.6 mm2  wall < 0.85 mm  around (0, 9, 52)
+  head         THIN       15.3 mm2  wall < 0.85 mm  around (20, -30, 43)
+  head         THIN        5.8 mm2  wall < 0.85 mm  around (-20, -29, 44)
+  head         THIN       15.3 mm2  wall < 0.85 mm  around (20, 30, 42)
+  head         THIN        5.8 mm2  wall < 0.85 mm  around (-20, 29, 44)
+  head         THIN        8.7 mm2  wall < 0.85 mm  around (18, 9, 57)
+  head         THIN        3.6 mm2  wall < 0.85 mm  around (12, 9, 57)
+  head         THIN       38.7 mm2  wall < 0.85 mm  around (-23, -27, 22)
+  head         THIN       38.7 mm2  wall < 0.85 mm  around (-21, -29, 22)
+  head         THIN        7.7 mm2  wall < 0.85 mm  around (20, -29, 7)
+  head         THIN       26.4 mm2  wall < 0.85 mm  around (20, -29, 25)
+  head         THIN       18.0 mm2  wall < 0.85 mm  around (21, -29, 25)
+  head         THIN       19.7 mm2  wall < 0.85 mm  around (21, 29, 25)
+  head         THIN        5.1 mm2  wall < 0.85 mm  around (20, 29, 7)
+  head         THIN       26.4 mm2  wall < 0.85 mm  around (20, 29, 25)
+  head         THIN       38.7 mm2  wall < 0.85 mm  around (-23, 27, 22)
+  head         THIN       38.7 mm2  wall < 0.85 mm  around (-21, 29, 22)
+  head_shell   CEILING    3143 mm2   50.0 x  62.0 mm  at z  44.0  roof of a through-void
+  head_shell   LEDGE      1895 mm2   43.0 x  55.0 mm  at z   2.7  anchored one side (25% ring)
+  head_shell   THIN       57.5 mm2  wall < 0.85 mm  around (0, 9, 52)
+  head_shell   THIN       18.9 mm2  wall < 0.85 mm  around (20, -29, 42)
+  head_shell   THIN       86.3 mm2  wall < 0.85 mm  around (-20, -29, 22)
+  head_shell   THIN       19.4 mm2  wall < 0.85 mm  around (20, 29, 42)
+  head_shell   THIN       86.3 mm2  wall < 0.85 mm  around (-20, 29, 22)
+  head_shell   THIN        4.3 mm2  wall < 0.85 mm  around (22, -9, 57)
+  head_shell   THIN        8.5 mm2  wall < 0.85 mm  around (17, -8, 57)
+  head_shell   THIN       24.5 mm2  wall < 0.85 mm  around (17, 8, 57)
+  head_shell   THIN        7.7 mm2  wall < 0.85 mm  around (20, -29, 7)
+  head_shell   THIN       26.4 mm2  wall < 0.85 mm  around (20, -29, 25)
+  head_shell   THIN       22.1 mm2  wall < 0.85 mm  around (21, -29, 25)
+  head_shell   THIN        5.1 mm2  wall < 0.85 mm  around (24, -8, 57)
+  head_shell   THIN       11.0 mm2  wall < 0.85 mm  around (16, -8, 56)
+  head_shell   THIN        3.3 mm2  wall < 0.85 mm  around (15, -0, 58)
+  head_shell   THIN        5.3 mm2  wall < 0.85 mm  around (17, 9, 56)
+  head_shell   THIN        7.6 mm2  wall < 0.85 mm  around (14, 8, 57)
+  head_shell   THIN       22.2 mm2  wall < 0.85 mm  around (21, 29, 25)
+  head_shell   THIN        5.1 mm2  wall < 0.85 mm  around (20, 29, 7)
+  head_shell   THIN       26.4 mm2  wall < 0.85 mm  around (20, 29, 25)
+  head_face    LEDGE        11 mm2    3.0 x   3.1 mm  at z  21.5  anchored one side (31% ring)
+  head_face    LEDGE        11 mm2    3.0 x   3.1 mm  at z  21.5  anchored one side (31% ring)
+  head_face    BEAM         90 mm2    1.8 x  50.0 mm  at z  50.0  through-wall strip, 50 mm between anchors
+  head_face    BEAM         46 mm2    1.8 x  22.9 mm  at z  14.0  through-wall strip, 23 mm between anchors
+audit_torso: findings above -- check them in the slice preview
+
+=================== audit_ankle_foot (report) ===================
+
+== ankle_link  [on its back like leg_link (RY_XUP): the copied grip-channel bores keep their teardrop roofs]
+  first-layer contact      71 mm2  ( 2.5% of 65x43 bbox)
+    bore-top      1 mm2    0.8 x   1.6 mm  at z  38.1  over 32.1 mm cavity
+    ISLAND        3 mm2    3.2 x   0.7 mm  at z   0.4  nothing below or around -> support
+    CEILING     532 mm2   28.8 x  24.0 mm  at z  41.2  over 37.2 mm cavity
+    ISLAND       17 mm2    4.3 x   4.3 mm  at z   3.1  nothing below or around -> support
+    ISLAND      737 mm2   33.0 x  40.1 mm  at z   5.6  nothing below or around -> support
+    CEILING      13 mm2    6.3 x   2.7 mm  at z  38.1  over 33.9 mm cavity
+    ISLAND      512 mm2   28.8 x  23.2 mm  at z   1.0  nothing below or around -> support
+    BEAM          0 mm2    0.0 x   0.1 mm  at z   4.1  end-anchored ribbon, 0 mm between anchors
+    LEDGE        14 mm2    5.1 x   3.2 mm  at z   1.1  anchored one side (31% ring)
+    ISLAND       19 mm2    4.9 x   4.3 mm  at z   2.6  nothing below or around -> support
+    bore-top      3 mm2    1.6 x   2.6 mm  at z  39.3  over 34.1 mm cavity
+    BEAM         13 mm2    4.7 x   2.4 mm  at z  27.9  through-wall strip, 5 mm between anchors
+    BEAM          3 mm2    2.4 x   1.5 mm  at z  31.7  through-wall strip, 2 mm between anchors
+    bore-top      0 mm2    0.3 x   1.3 mm  at z  31.7  over 1.3 mm cavity
+    BEAM          4 mm2    2.9 x   1.5 mm  at z  31.7  through-wall strip, 3 mm between anchors
+    BEAM          4 mm2    2.9 x   1.5 mm  at z  11.2  through-wall strip, 3 mm between anchors
+    BEAM          3 mm2    2.4 x   1.5 mm  at z  11.2  through-wall strip, 2 mm between anchors
+    BEAM          0 mm2    0.3 x   1.3 mm  at z  11.2  through-wall strip, 1 mm between anchors
+    bore-top      6 mm2    2.9 x   2.1 mm  at z  11.2  over 2.6 mm cavity
+    BEAM          6 mm2    2.9 x   2.1 mm  at z  31.7  through-wall strip, 3 mm between anchors
+    BEAM         11 mm2    4.3 x   2.8 mm  at z  15.0  through-wall strip, 4 mm between anchors
+    BEAM          7 mm2    4.4 x   4.0 mm  at z  20.3  through-wall strip, 4 mm between anchors
+    CEILING       0 mm2    5.9 x   0.0 mm  at z  11.8  over 4.5 mm cavity
+  **THIN       19.5 mm2  wall < 0.85 mm  around (35, 19, 21)
+  **THIN        4.0 mm2  wall < 0.85 mm  around (43, -11, 5)
+  **THIN       15.6 mm2  wall < 0.85 mm  around (21, 18, 21)
+  SLICER SUPPORTS REQUIRED -- supports on (top-plate/tine transition has no support-free orientation once the ankle-roll clearance cut is applied)
+    [support] CONTACT  part stands on 71 mm2 first layer
+    [support] CEILING     532 mm2   28.8 x  24.0 mm  at z  41.2  over 37.2 mm cavity
+    [support] ISLAND       17 mm2    4.3 x   4.3 mm  at z   3.1  nothing below or around -> support
+    [support] ISLAND      737 mm2   33.0 x  40.1 mm  at z   5.6  nothing below or around -> support
+    [support] ISLAND      512 mm2   28.8 x  23.2 mm  at z   1.0  nothing below or around -> support
+    [support] LEDGE        14 mm2    5.1 x   3.2 mm  at z   1.1  anchored one side (31% ring)
+    [support] ISLAND       19 mm2    4.9 x   4.3 mm  at z   2.6  nothing below or around -> support
+
+== foot_L  [sole down (v5 convention)]
+  first-layer contact   10752 mm2  (98.5% of 130x84 bbox)
+    BEAM          7 mm2    3.4 x   2.9 mm  at z   6.7  through-wall strip, 3 mm between anchors
+    bore-top      6 mm2    2.4 x   2.9 mm  at z   6.7  over 2.6 mm cavity
+    BEAM          1 mm2    0.8 x   2.8 mm  at z   6.0  through-wall strip, 3 mm between anchors
+    BEAM          3 mm2    2.2 x   2.9 mm  at z  27.2  through-wall strip, 3 mm between anchors
+    BEAM          0 mm2    0.3 x   0.9 mm  at z   6.0  through-wall strip, 1 mm between anchors
+    BEAM          6 mm2    2.3 x   2.9 mm  at z  27.2  through-wall strip, 3 mm between anchors
+    thin-note    1.0 mm2  wall < 0.85 mm  around (18, 34, 29)
+  PASS
+
+== foot_R  [sole down (v5 convention)]
+  first-layer contact   10752 mm2  (98.5% of 130x84 bbox)
+    BEAM          7 mm2    3.4 x   2.9 mm  at z   6.7  through-wall strip, 3 mm between anchors
+    bore-top      6 mm2    2.4 x   2.9 mm  at z   6.7  over 2.6 mm cavity
+    BEAM          1 mm2    0.8 x   2.8 mm  at z   6.0  through-wall strip, 3 mm between anchors
+    BEAM          3 mm2    2.2 x   2.9 mm  at z  27.2  through-wall strip, 3 mm between anchors
+    BEAM          0 mm2    0.3 x   0.9 mm  at z   6.0  through-wall strip, 1 mm between anchors
+    BEAM          6 mm2    2.3 x   2.9 mm  at z  27.2  through-wall strip, 3 mm between anchors
+    thin-note    1.0 mm2  wall < 0.85 mm  around (18, -34, 29)
+  PASS
+
+SAG RISKS FOUND:
+  ankle_link  THIN       19.5 mm2  wall < 0.85 mm  around (35, 19, 21)
+  ankle_link  THIN        4.0 mm2  wall < 0.85 mm  around (43, -11, 5)
+  ankle_link  THIN       15.6 mm2  wall < 0.85 mm  around (21, 18, 21)
+audit_ankle_foot: findings above -- check them in the slice preview
+
+ALL CHECKS PASS

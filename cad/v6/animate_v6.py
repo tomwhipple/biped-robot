@@ -14,12 +14,11 @@ committed next to it.
 
     .venv/bin/python cad/v6/animate_v6.py            # renders/assembly_v6_flyin_arms.mp4 + _strip.png (the robot)
     ARMS=0 .venv/bin/python cad/v6/animate_v6.py     # ..._flyin.mp4 + _strip.png (armless)
-    YAW_BEARING_VARIANT=E .venv/bin/python cad/v6/animate_v6.py   # ..._flyin_optE_arms...
 
 The filmstrip is two rows: the whole build at even intervals, then the parts
 this build is ABOUT caught halfway along their insertion paths (FEATURE_GROUPS:
 the girdle and neck floor going down, the neck servo dropping into its tube,
-the arms; plus the bearing parts for option E).
+the arms, and the hip-yaw bearings going onto the carrier hubs).
 """
 from __future__ import annotations
 
@@ -55,11 +54,10 @@ INSERT = [
                                               # discs from above (same path the pair took; the roll servo then slides in)
     ("servo_hip_roll_",    (1, 0, 0), 7),    # roll servo slides into the carrier bay from the front
     ("yaw_carrier_",       (0, 0, 1), 7),
-    ("bearing_6810_",      (0, 0, 1), 8),    # option E: bearing slid DOWN over the hub onto the lip (horn-face side)
-    ("yaw_cap_",           (0, 0, 1), 8),    # option E: cap down onto the race, screwed, carrier still on the bench
+    ("bearing_inner_",     (0, 0, 1), 8),    # bearing pressed DOWN onto the hub from the horn-face side
+    ("bearing_outer_",     (0, 0, 1), 8),    # (one part: both races travel together)
     ("servo_hip_yaw_",     (0, 0, -1), 8),   # yaw servo offered UP into its cell (arrives from below)
     ("pelvis_v7",          (0, 0, 1), 9),    # pelvis lowered onto the yaw servos
-    ("yaw_retainer_",      (0, 0, -1), 10),  # option E: retainer offered UP under the skirt, screwed from below
     ("gd_mock",            (0, 0, 1), 10),   # boards down through the deck slots
     ("pi4_mock",           (0, 0, 1), 10),
     ("pack_mock",          (0, 0, 1), 11),   # pack down through the aperture -- BEFORE the girdle:
@@ -88,9 +86,8 @@ INSERT = [
     ("servo_elbow_",       (1, 0, 0), 17),
     ("arm_fore_",          (0, 0, -1), 18),
 ]
-# filmstrip row 2, by (option E?, arms?): the insertion groups the strip shows
-FEATURE_GROUPS = {False: {True: (12, 13, 16, 18), False: (11, 12, 13, 14)},
-                  True: {True: (8, 10, 12, 13, 16, 18), False: (8, 10, 12, 13)}}
+# filmstrip row 2, by arms?: the insertion groups the strip shows
+FEATURE_GROUPS = {True: (8, 12, 13, 16, 18), False: (8, 11, 12, 13, 14)}
 FLY_MM = 60.0
 FRAMES_PER_GROUP = 14
 HOLD = 6
@@ -171,8 +168,7 @@ def main():
         r.update_scene(d, cam)
         frames.append(r.render().copy())
     os.makedirs(os.path.join(HERE, "renders"), exist_ok=True)
-    variant = A.yaw_bearing_variant()
-    suffix = "" if variant == "C" else f"_opt{variant}"
+    suffix = ""
     if A.hip_yoke_variant() == "split":       # the one-print yoke is the default now
         suffix += "_split"
     if A.arms_on():
@@ -186,7 +182,7 @@ def main():
     # samples of 19 groups land mostly on the legs and miss the thing the
     # film was made to prove).
     present = {g for _, _, _, g in pieces}
-    feature = [g for g in FEATURE_GROUPS[variant == "E"][A.arms_on()] if g in present]
+    feature = [g for g in FEATURE_GROUPS[A.arms_on()] if g in present]
     n = len(feature)
     per = FRAMES_PER_GROUP + HOLD
     top = np.linspace(0, len(frames) - 1, n).astype(int)

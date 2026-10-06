@@ -7,8 +7,7 @@ and its protection, fasteners, filament and tools. The printed parts are in
 [assembly.md](assembly.md); power and wiring detail is [wiring.md](wiring.md).
 
 **Status.** Nothing for the robot has been bought. The servo purchase waits on
-the bench test in issue #73, then #74. The non-servo order is #78. The hip-yaw
-bearing waits on the option selection (#75).
+the bench test in issue #73, then #74. The non-servo order is #78.
 
 **Buying rules**
 
@@ -228,31 +227,27 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 - **Servo extension leads.** Which hops need them has not been measured on this
   robot (#77). On the prototype, the hip-roll → hip-pitch hop routed at 170 mm.
 
-## 5. Hip-yaw bearing (size open)
+## 5. Hip-yaw bearing
 
-The option is not selected (#75; [DESIGN.md §5.2](../DESIGN.md),
-[study-yaw-bearing.md](design-v6/study-yaw-bearing.md)). Buy 2 fitted plus 2
-spares of whichever the chosen option names:
+A thin-section bearing between each yaw carrier and the pelvis
+([DESIGN.md §5.2](../DESIGN.md); background:
+[study-yaw-bearing.md](design-v6/study-yaw-bearing.md), option A). Buy 2
+fitted plus 2 spares:
 
-| option | bearing | notes |
-|---|---|---|
-| A or E | **6810-2RS**, 50 × 65 × 7 mm, sealed deep-groove | C0 5.8 kN (one spec sheet); SKF 61810-2RS1 catalogue mass 0.052 kg |
-| C | **6811-2RS**, 55 × 72 × 9 mm, sealed deep-groove | C0 6.2–8.4 kN; SKF 61811-2RS1 catalogue mass 0.083 kg |
+| bearing | qty | spec | notes |
+|---|---|---|---|
+| **6810-2RS**, 50 × 65 × 7 mm, sealed deep-groove | 2 + 2 spares | C0 5.8 kN (one spec sheet); SKF 61810-2RS1 catalogue mass 0.052 kg | inner race on the carrier hub (+0.08 mm), outer race in the pelvis recess (−0.04 mm) |
 
-- **Retaining compound**, for A and E, on both seats: Loctite 641 (medium
-  strength, fills a 0.15–0.25 mm gap, can be taken apart), or 648 if it never
-  needs to come apart. The CAD's 0.04 / 0.08 mm interference fits are inside
-  the printer's error band, and PETG creeps.
-- **Buy from a maker that publishes the ring dimensions.** The pelvis shoulder,
-  the E cap and the E retainer are sized against an *estimated* inner-ring OD
-  and outer-ring ID. Verify those on the real bearing before printing.
-- **6710-2RS (50 × 62 × 6 mm)** can replace the 6810 in A/E if its rating is
-  confirmed. Only `YAWA_BRG_W` and `YAWA_BRG_OD` would change.
-- **Option E** also prints a cap and a retainer per hip and adds 12 M2.5
-  flat-heads (§6).
-- The code builds option C as a placeholder until the selection; the plant
-  and the rollup carry each option's bearing mass
-  ([DESIGN.md §5.2](../DESIGN.md)).
+- **Retaining compound**, on both seats: Loctite 641 (medium strength, fills a
+  0.15–0.25 mm gap, can be taken apart), or 648 if it never needs to come
+  apart. The CAD's 0.04 / 0.08 mm interference fits are inside the printer's
+  error band, and PETG creeps.
+- **Buy from a maker that publishes the ring dimensions.** The pelvis shoulder
+  is sized against an *estimated* inner-ring OD and outer-ring ID. Verify those
+  on the real bearing before printing the pelvis.
+- **6710-2RS (50 × 62 × 6 mm)** can replace the 6810 if its rating is
+  confirmed. Only `YAW_BRG_W` and `YAW_BRG_OD` in `cad/v6/dimensions_v6.py`
+  would change.
 
 ## 6. Fasteners
 
@@ -271,7 +266,6 @@ M2.5, not M3.
 | M2.5 × 8 pan self-tap | 2 | the power-pocket bosses | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
 | **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
-| *option E only:* M2.5 flat-head self-tap | 6 × M2.5×6 + 6 × M2.5×8 | E cap (3 per hip, M2.5 × 6: an × 8 bottoms out in the hub) and E retainer (3 per hip) | |
 
 - **Disc screw lengths.** The horn and idler discs are tapped through a thin
   flange: 2.5 mm on the horn and 2.1 mm on the idler, measured on the bench and

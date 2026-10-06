@@ -7,8 +7,7 @@ been built yet**: the first build (#79) will correct this guide.
 (`cad/v6/render_steps_v6.py`, into `docs/assembly/v6_*.png`): installed parts
 in their own colours, the part going in orange, backed off along its insertion
 path, with a ghost at its seat. They show the left leg and arm; the right side
-is built the same way. The hip-yaw bearing is not drawn: its option is open
-(#75).
+is built the same way.
 
 **Other visual references:**
 
@@ -17,8 +16,6 @@ is built the same way. The hip-yaw bearing is not drawn: its option is open
   that build is about:
   - [the robot](../cad/v6/renders/assembly_v6_flyin_arms_strip.png)
     (and the armless variant's [strip](../cad/v6/renders/assembly_v6_flyin_strip.png))
-  - bearing options [A](../cad/v6/renders/assembly_v6_flyin_optA_arms_strip.png)
-    and [E](../cad/v6/renders/assembly_v6_flyin_optE_arms_strip.png)
 
   The `.mp4`s are gitignored; regenerate them with the script.
 - **STEP models to open in FreeCAD:** `cad/v6/step/assembly_v6_arms.step` (the
@@ -143,7 +140,6 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §6 hip pitch (hip-yoke pitch clevis) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
 | §7a yaw-servo stators | M2.5 × 8 flat | 8 |
 | §7b carrier to the yaw horn | M3 × 5 | 8 |
-| §7b option E only: cap / retainer | M2.5 × 6 flat / M2.5 × 8 flat | 6 / 6 |
 | §7c hip-roll servo into the carrier bay | M2.5 × 8 flat | 16 |
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
 | §9a–b Pi and General Driver | M2.5 × 10 pan (lower row) / M2.5 × 6 pan (upper row) | 4 / 4 |
@@ -270,51 +266,38 @@ Everything in the battery layer is done **before the pack goes in** (§10).
 
 ### 7b. Yaw carrier and the hip-yaw bearing
 
-**The bearing option is not selected (#75).** The code builds option C as a
-placeholder, so the pelvis and carriers are provisional. What goes between
-carrier and pelvis depends on the choice (details in
-[study-yaw-bearing.md](design-v6/study-yaw-bearing.md)). The same steps hold
-for every option:
+The bearing is a **6810-2RS** (50 × 65 × 7 mm, sealed). Its inner race goes on
+the carrier's round hub (Ø50.08, +0.08 mm interference) and its outer race into
+the pelvis recess (Ø64.96, −0.04 mm), up against a shoulder. The shoulder is the
+only positive stop: it takes the leg's thrust. Background:
+[study-yaw-bearing.md](design-v6/study-yaw-bearing.md) (option A).
 
-1. **Seat the carrier on the yaw horn** with the yaw servo at mechanical zero.
-   Its horn plate mates the horn disc and its roll bay opens downward. **Square
-   it before torquing**: a clocked carrier is a permanent yaw offset.
-2. **Drive 4 × M3 × 5 up into the horn** through the bay ceiling, from inside
+1. **Measure the bearing and the printed seats first.** Both fits are inside the
+   printer's error band, so the pelvis and carrier print at nominal and are
+   fitted with **retaining compound** (Loctite 641) on both seats.
+2. **Press the bearing onto the carrier's hub, on the bench**, from the horn-face
+   side, pushing on the **inner race only**, until it is flush with the horn
+   face. It cannot go on from the other end: the bay's corners below the hub
+   are bigger than the bore.
+3. **Seat the carrier on the yaw horn** with the yaw servo at mechanical zero.
+   Its horn plate mates the horn disc and its roll bay opens downward. The outer
+   race enters the pelvis recess as the carrier goes up. **Push it home against
+   the shoulder by hand**, on the outer race, before any screw goes in: the horn
+   screws must not be what draws it in. **Square the carrier before torquing**:
+   a clocked carrier is a permanent yaw offset.
+4. **Drive 4 × M3 × 5 up into the horn** through the bay ceiling, from inside
    the bay. Do this before the roll servo goes in.
+5. **Turn the leg through ±45° by hand** before the compound sets: the carrier
+   should turn on the bearing without touching the pelvis.
 
-![Yaw carrier up onto the yaw horn](assembly/v6_08_yaw_carrier.png)
-
-The bearing depends on the option:
-
-- **A (6810-2RS, round hub).**
-  - The inner race goes on the carrier's round hub (Ø50.08, +0.08 mm
-    interference); the outer race goes into the pelvis recess (Ø64.96,
-    −0.04 mm), under a shoulder.
-  - Those fits are inside the printer's error band, so print at nominal,
-    measure, and fit both seats with **retaining compound** (Loctite 641).
-  - The shoulder is the only positive stop.
-- **E (A plus positive retention).**
-  - **Carrier side, on the bench, with the carrier out of the pelvis** (there
-    is no driver access in the gap afterwards):
-    1. Slide the race down over the hub from the horn-face side onto the printed
-       lip.
-    2. Screw the 1 mm cap over it with 3 × M2.5 × 6 flat-heads at r 22 mm
-       (an × 8 would bottom out in the hub's pilots).
-  - **Pelvis side,** after the carrier is on: offer the retainer up under the
-    skirt and drive 3 × M2.5 × 8 flat-heads up into the skirt bosses.
-  - **Preload 0.2 mm.** The cap and the retainer bottom on the races with a
-    0.2 mm gap to the print behind them, so tightening clamps the race, not the
-    plastic. Take up the radial fits with retaining compound.
-- **C (6811-2RS).** The bearing wraps the carrier's plate and upper bay walls
-  (a boss of Ø55.08) and sits in a Ø71.96 recess in the pelvis skirt. Press
-  fits only.
-
-**For every option:**
+![Yaw carrier, bearing on its hub, up onto the yaw horn](assembly/v6_08_yaw_carrier.png)
 
 - **Never heat-set a bearing into PETG.** PETG must reach about 230 °C to flow,
   and a 2RS bearing's seals and grease are good to roughly 100 °C.
-- **Measure the real bearing's rings before printing the pelvis.** The shoulder,
-  cap and retainer are sized to an estimated inner-ring OD and outer-ring ID.
+- **Measure the real bearing's rings before printing the pelvis.** The pelvis
+  shoulder is sized to an *estimated* outer-ring ID (r 29.5 mm, against the
+  shoulder's r 31.3), and the CAD check keeps the carrier off the outer race
+  and the pelvis off the inner race on those estimates.
 
 ### 7c. Hip-roll servo up into the carrier bay
 
@@ -567,6 +550,5 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 
 | item | where |
 |---|---|
-| hip-yaw bearing option; the pelvis and yaw carriers wait on it | #75 |
 | ID map, harness, lead lengths, current budget, fixing of the power boards | #77 |
 | 17-joint firmware: calibration, IMU mounting rotation, register-21 check | #81 |

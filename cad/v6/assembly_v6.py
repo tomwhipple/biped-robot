@@ -22,9 +22,6 @@ Variants (env vars; the defaults are the robot to print):
                                 built with the girdle's deck pilots. ARMS=0 is
                                 the armless variant: neck_collar instead of the
                                 girdle, a pelvis without the pilots.
-    YAW_BEARING_VARIANT=C|A|E   hip-yaw bearing option (docs/design-v6/
-                                study-yaw-bearing.md). C is a PLACEHOLDER
-                                default; the choice is open (issue #75).
     HIP_YOKE_VARIANT=single|split  the one-print hip yoke (default) or the
                                 legacy bolted yoke_roll + yoke_pitch pair.
 
@@ -77,15 +74,6 @@ def _try(modname, fn, *a, **k):
         return None, False
 
 
-def yaw_bearing_variant():
-    """Which hip-yaw bearing option the assembly builds (docs/design-v6/
-    study-yaw-bearing.md): "C" (the placeholder default -- the selection is
-    open, issue #75), "A", or "E" (A + positive retention: lip, screwed cap,
-    screwed retainer), via the YAW_BEARING_VARIANT env var. parts_v6 reads
-    the same switch, so the exported pelvis and carriers match the assembly."""
-    return os.environ.get("YAW_BEARING_VARIANT", "C")
-
-
 def hip_yoke_variant():
     """Which hip yoke (link 2, the roll/pitch universal joint) the assembly
     builds: "single" (DEFAULT since 2026-09-24: cad/v6/hip_yoke_v6.py, the roll
@@ -129,19 +117,12 @@ def posed_hip_yoke_seats(side, pose):
 
 
 def part_yaw_carrier():
-    """v6 carrier (v5's + the hip-yaw bearing boss); falls back to v5's."""
-    variant = yaw_bearing_variant()
+    """v6 carrier (v5's + the hip-yaw bearing hub); falls back to v5's."""
     try:
-        if variant == "E":
-            import yaw_retention_optE
-            return yaw_retention_optE.carrier_optE()
-        if variant == "A":
-            import yaw_carrier_v6_optA
-            return yaw_carrier_v6_optA.yaw_carrier_v6_optA()
         import yaw_carrier_v6
         return yaw_carrier_v6.yaw_carrier_v6()
     except Exception as e:  # noqa: BLE001
-        print(f"  [assembly_v6] yaw_carrier_v6 (variant {variant}) unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
+        print(f"  [assembly_v6] yaw_carrier_v6 unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
         return v5parts.yaw_carrier()
 
 
@@ -179,10 +160,7 @@ def part_foot(side):
 
 
 def part_pelvis():
-    if yaw_bearing_variant() == "E":
-        s, ok = _try("yaw_retention_optE", "pelvis_optE", arms_on())
-    else:
-        s, ok = _try("pelvis_v7", "pelvis_v7", yaw_bearing_variant(), arms_on())
+    s, ok = _try("pelvis_v7", "pelvis_v7", arms_on())
     if ok:
         return s
     x0, x1 = V.HOUSING_X
@@ -278,7 +256,7 @@ def _leg_chain(side):
     pieces = [
         (0, f"servo_hip_yaw_{side}", COL_SERVO, Pos(0, y, V.HIP_YAW_Z + D.SV_HORN_FACE) * CA.servo_mock_z()),
         (1, f"yaw_carrier_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * part_yaw_carrier()),
-        *yaw_retention_pieces(side, y),
+        *yaw_bearing_pieces(side, y),
         (1, f"servo_hip_roll_{side}", COL_SERVO, at(V.HIP_ROLL_Z) * CA.servo_mock_x()),
         *hip_yoke_pieces(side, at),
         (3, f"servo_hip_pitch_{side}", COL_SERVO, at(V.HIP_PITCH_Z) * CA.servo_mock_y()),
@@ -306,19 +284,18 @@ def hip_yoke_pieces(side, at):
             (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch())]
 
 
-def yaw_retention_pieces(side, y):
-    """Option E only: the bearing (one ring, bought part), the cap (turns
-    with the carrier, link 1) and the retainer (pelvis-fixed, link 0)."""
-    if yaw_bearing_variant() != "E":
-        return []
-    import yaw_retention_optE as E
-    from build123d import Cylinder
-    z0, z1 = V.HIP_YAW_Z + E.E_RACE_Z[0], V.HIP_YAW_Z + E.E_RACE_Z[1]
-    bearing = Pos(0, y, (z0 + z1) / 2) * (Cylinder(V.YAWA_BRG_OD / 2, z1 - z0) - Cylinder(V.YAWA_BRG_ID / 2, z1 - z0 + 2))
+def yaw_bearing_pieces(side, y):
+    """The hip-yaw bearing (6810-2RS, bought), drawn as its two races split at
+    the ESTIMATED ball gap (V.YAW_BRG_EST_*): the inner race on the carrier's
+    hub turns with the leg (link 1), the outer race in the pelvis recess
+    stays put (link 0)."""
+    z0, z1 = V.HIP_YAW_Z + V.YAW_BRG_BAND_Z[0], V.HIP_YAW_Z + V.YAW_BRG_BAND_Z[1]
+
+    def ring(r0, r1):
+        return Pos(0, y, (z0 + z1) / 2) * (Cylinder(r1, z1 - z0) - Cylinder(r0, z1 - z0 + 2))
     return [
-        (1, f"bearing_6810_{side}", COL_MOCK, bearing),
-        (1, f"yaw_cap_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * E.cap()),
-        (0, f"yaw_retainer_{side}", COL_PRINT, Pos(0, 0, V.DECK_TOP_Z) * E.retainer(y)),
+        (1, f"bearing_inner_{side}", COL_MOCK, ring(V.YAW_BRG_ID / 2, V.YAW_BRG_EST_INNER_RING_R)),
+        (0, f"bearing_outer_{side}", COL_MOCK, ring(V.YAW_BRG_EST_OUTER_RING_R, V.YAW_BRG_OD / 2)),
     ]
 
 

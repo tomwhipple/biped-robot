@@ -11,8 +11,7 @@ seat and a dashed leader between the two. The paths are animate_v6.INSERT's
 (the fly-in's), except where the bench goes in a different direction than the
 bottom-up fly-in, each named in BENCH below with the part module that says so.
 
-Everything is the robot to print: the default build (ARMS=1, bearing C -- a
-placeholder until #75, so the bearing itself is not drawn), both legs built
+Everything is the robot to print: the default build (ARMS=1), both legs built
 the same way (the left one is shown).
 """
 from __future__ import annotations
@@ -48,6 +47,8 @@ BENCH = {
     "servo_knee_L": (0, 0, -1),
     "servo_hip_pitch_L": (0, 0, -1),
     "yaw_carrier_L": (0, 0, -1),         # offered UP onto the yaw horn, pelvis upright on a stand
+    "bearing_inner_L": (0, 0, -1),       # pressed on the carrier's hub on the bench, goes up with it
+    "bearing_outer_L": (0, 0, -1),
     "servo_hip_roll_L": (0, 0, -1),      # up into the downward-open bay (cad/check_assembly SERVO_INSERT yaw_carrier)
     "neck_floor": (0, 0, -1),            # up into the tube from below, on the bench (neck_floor.INSERT)
 }
@@ -55,7 +56,8 @@ BENCH = {
 LEG = ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L", "servo_knee_L", "shin_L",
        "servo_ankle_pitch_L", "ankle_link_L", "servo_ankle_roll_L", "foot_L"]
 LEG_R = [n[:-1] + "R" for n in LEG]
-HIP = ["servo_hip_yaw_L", "yaw_carrier_L", "servo_hip_roll_L"]
+BEARING = ["bearing_inner_L", "bearing_outer_L"]
+HIP = ["servo_hip_yaw_L", "yaw_carrier_L", *BEARING, "servo_hip_roll_L"]
 HIP_R = [n[:-1] + "R" for n in HIP]
 TORSO = ["pelvis_v7"]
 BOARDS = ["pi4_mock", "gd_mock"]
@@ -81,10 +83,11 @@ STEPS = [
      LEG[1:], ["hip_yoke_L"], 40, (135, -10), ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L"]),
     ("07_yaw_servo", "7a. Yaw servo up into its cell, horn down",
      TORSO, ["servo_hip_yaw_L"], 45, (150, 20), ["servo_hip_yaw_L", "yaw_carrier_L"]),
-    ("08_yaw_carrier", "7b. Yaw carrier up onto the yaw horn (bearing not drawn: option open, #75)",
-     TORSO + ["servo_hip_yaw_L"], ["yaw_carrier_L"], 40, (150, 15), ["servo_hip_yaw_L", "yaw_carrier_L"]),
+    ("08_yaw_carrier", "7b. Yaw carrier, bearing pressed on its hub, up onto the yaw horn",
+     TORSO + ["servo_hip_yaw_L"], ["yaw_carrier_L"] + BEARING, 40, (150, 15),
+     ["servo_hip_yaw_L", "yaw_carrier_L"] + BEARING),
     ("09_hip_roll_servo", "7c. Hip-roll servo up into the carrier's bay",
-     TORSO + ["servo_hip_yaw_L", "yaw_carrier_L"], ["servo_hip_roll_L"], 50, (150, 10),
+     TORSO + ["servo_hip_yaw_L", "yaw_carrier_L"] + BEARING, ["servo_hip_roll_L"], 50, (150, 10),
      ["yaw_carrier_L", "servo_hip_roll_L"]),
     ("10_leg_to_hip", "8. The leg offered up: the yoke's roll clevis onto the roll servo",
      TORSO + HIP + HIP_R + LEG_R, LEG, 45, (145, -8), ["servo_hip_roll_L", "yaw_carrier_L", "hip_yoke_L"]),

@@ -10,11 +10,6 @@ The defaults build THE ROBOT TO PRINT (issue #76):
                                   with the girdle's deck pilots; ARMS=0 is the
                                   armless variant (neck_collar, no pilots), which
                                   is not a print target (cad/PRINT_LIST.md).
-    YAW_BEARING_VARIANT=C|A|E     the hip-yaw bearing seat in the pelvis and the
-                                  yaw carriers (E adds a cap and a retainer per
-                                  hip). C is a PLACEHOLDER: the choice is open
-                                  (issue #75), so the pelvis and carriers are
-                                  provisional whatever this says.
     HIP_YOKE_VARIANT=single|split the one-print hip yoke (default) or the legacy
                                   bolted yoke_roll + yoke_pitch_v6 pair.
     SERVO_PLAN=B (default) | 3250 Plan B is 17 x STS3215 (DESIGN.md section 4);
@@ -50,11 +45,8 @@ def _on(name, default):
 
 
 ARMS = _on("ARMS", "1")
-BEARING = os.environ.get("YAW_BEARING_VARIANT", "C")
 HIP_YOKE = os.environ.get("HIP_YOKE_VARIANT", "single")
 SERVO_PLAN = os.environ.get("SERVO_PLAN", "B")
-if BEARING not in ("A", "C", "E"):
-    raise SystemExit(f"YAW_BEARING_VARIANT={BEARING!r}: expected A, C or E")
 if SERVO_PLAN not in ("B", "3250"):
     raise SystemExit(f"SERVO_PLAN={SERVO_PLAN!r}: expected B or 3250")
 
@@ -66,36 +58,19 @@ def _lazy(mod, fn, *a, **k):
     return f
 
 
-PROVISIONAL = "PROVISIONAL, waits on #75"
-if BEARING == "E":
-    _pelvis = _lazy("yaw_retention_optE", "pelvis_optE", arm_mounts=ARMS)
-    _carrier = ("yaw_carrier_v6_optE", _lazy("yaw_retention_optE", "carrier_optE"))
-elif BEARING == "A":
-    _pelvis = _lazy("pelvis_v7", "pelvis_v7", bearing_variant="A", arm_mounts=ARMS)
-    _carrier = ("yaw_carrier_v6_optA", _lazy("yaw_carrier_v6_optA", "yaw_carrier_v6_optA"))
-else:
-    _pelvis = _lazy("pelvis_v7", "pelvis_v7", bearing_variant="C", arm_mounts=ARMS)
-    _carrier = ("yaw_carrier_v6", _lazy("yaw_carrier_v6", "yaw_carrier_v6"))
-
-# the pelvis's file name carries the variant, so a variant export never
-# overwrites the robot's own pelvis_v7.stl (the default build)
-PELVIS = "pelvis_v7" + ("" if BEARING == "C" else f"_opt{BEARING}") + ("" if ARMS else "_armless")
+# the armless pelvis exports under its own name, so it never overwrites the
+# robot's pelvis_v7.stl
+PELVIS = "pelvis_v7" + ("" if ARMS else "_armless")
 
 PARTS = [
     # name, builder, qty, note
-    (PELVIS, _pelvis, 1,
-     f"one print, deck-top-down; bearing {BEARING}{', girdle pilots' if ARMS else ''}; {PROVISIONAL}"),
+    (PELVIS, _lazy("pelvis_v7", "pelvis_v7", arm_mounts=ARMS), 1,
+     f"one print, deck-top-down; 6810-2RS seats{', girdle pilots' if ARMS else ''}"),
     ("head_shell", _lazy("head", "head_shell"), 1, "neck horn carrier + shell, base down"),
     ("head_face", _lazy("head", "head_face"), 1, "camera face plate, flat"),
     ("neck_floor", _lazy("neck_floor", "neck_floor"), 1, "the neck servo's seat, flat (#90)"),
-    (_carrier[0], _carrier[1], 2, f"hip-yaw carrier, bearing {BEARING}; {PROVISIONAL}"),
+    ("yaw_carrier_v6", _lazy("yaw_carrier_v6", "yaw_carrier_v6"), 2, "hip-yaw carrier, round hub for the 6810-2RS"),
 ]
-if BEARING == "E":
-    PARTS += [
-        ("yaw_cap_optE", _lazy("yaw_retention_optE", "cap"), 2, f"option E inner-race cap, flat; {PROVISIONAL}"),
-        ("yaw_retainer_optE", _lazy("yaw_retention_optE", "retainer", V.HIP_SEP / 2), 2,
-         f"option E outer-race retainer, flat (the same part both hips); {PROVISIONAL}"),
-    ]
 if HIP_YOKE == "single":
     PARTS.append(("hip_yoke_v6", _lazy("hip_yoke_v6", "hip_yoke_v6"), 2,
                   "ONE PRINT: roll + pitch clevis fused, no flange bolts (on edge; supports + brim)"))
@@ -139,7 +114,7 @@ def mass_g(solid, tpu=False):
     return solid.volume * rho * D.PRINT_MASS_FACTOR
 
 
-BEARING_MASS_G = 2 * (V.YAW_BRG_MASS_G if BEARING == "C" else V.YAWA_BRG_MASS_G)   # two hip-yaw bearings
+BEARING_MASS_G = 2 * V.YAW_BRG_MASS_G   # two hip-yaw bearings
 
 
 def servo_mass_g():
@@ -178,7 +153,7 @@ def main(argv=None):
         tag = ("BED-OK" if bed_ok else "** TOO BIG **") if qty else "reference, not printed"
         rows.append((name, qty, m, dims, tag + "  " + note))
     out = []
-    out.append(f"build: ARMS={int(ARMS)}  YAW_BEARING_VARIANT={BEARING}  HIP_YOKE_VARIANT={HIP_YOKE}  SERVO_PLAN={SERVO_PLAN}")
+    out.append(f"build: ARMS={int(ARMS)}  HIP_YOKE_VARIANT={HIP_YOKE}  SERVO_PLAN={SERVO_PLAN}")
     out.append(f"{'part':20s} {'qty':>3s} {'g each':>7s} {'bbox (mm)':>22s}  note")
     for name, qty, m, dims, note in rows:
         if m is None:
@@ -189,16 +164,15 @@ def main(argv=None):
     servos = servo_mass_g()
     counts = ", ".join(f"{n} x {k}" for k, n in SERVO_COUNT.items() if n)
     out.append("")
-    brg = "6811-2RS" if BEARING == "C" else "6810-2RS"
     out.append(f"printed total {total_print:.0f} g; servos {servos:.0f} g ({counts}); "
-               f"hip-yaw bearings {BEARING_MASS_G:.0f} g (2 x {brg}); "
+               f"hip-yaw bearings {BEARING_MASS_G:.0f} g (2 x 6810-2RS); "
                f"pack + boards + wiring {elec:.0f} g; robot ~{total_print + servos + BEARING_MASS_G + elec:.0f} g"
                + ("" if not a.only else "  (partial: --only)"))
     out.append("masses: build123d volume x PETG 1.27 g/cm3 x 0.90 print factor (TPU 1.21 g/cm3), "
                "before supports and brims; bought parts at catalogue mass")
     text = "\n".join(out)
     print(text)
-    default_build = ARMS and BEARING == "C" and HIP_YOKE == "single" and SERVO_PLAN == "B"
+    default_build = ARMS and HIP_YOKE == "single" and SERVO_PLAN == "B"
     path = a.rollup or (ROLLUP if default_build else None)
     if path and not a.only:
         with open(path, "w") as f:
