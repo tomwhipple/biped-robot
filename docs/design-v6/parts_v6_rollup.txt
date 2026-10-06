@@ -1,4 +1,4 @@
-build: ARMS=1  HIP_YOKE_VARIANT=single  SERVO_PLAN=B
+build: ARMS=1  HIP_YOKE_VARIANT=single  SERVO_PLAN=hips
 part                 qty  g each              bbox (mm)  note
 pelvis_v7              1   190.1  155.0x 101.4x  81.3  BED-OK  one print, deck-top-down; 6810-2RS seats, girdle pilots
 head_shell             1    26.1   62.0x  60.0x  50.0  BED-OK  neck horn carrier + shell, base down
@@ -19,5 +19,5 @@ arm_fore_v6_L          1    33.7  169.0x  37.6x  28.4  BED-OK  elbow grip -> han
 arm_fore_v6_R          1    33.7  169.0x  37.6x  28.4  BED-OK  mirror of _L
 head                   0    34.7   62.0x  60.0x  53.0  reference, not printed  head_shell + head_face fused (mass, assembly, plant)
 
-printed total 817 g; servos 935 g (17 x STS3215); hip-yaw bearings 104 g (2 x 6810-2RS); pack + boards + wiring 350 g; robot ~2206 g
+printed total 817 g; servos 974 g (15 x STS3215, 2 x STS3250); hip-yaw bearings 104 g (2 x 6810-2RS); pack + boards + wiring 350 g; robot ~2245 g
 masses: build123d volume x PETG 1.27 g/cm3 x 0.90 print factor (TPU 1.21 g/cm3), before supports and brims; bought parts at catalogue mass

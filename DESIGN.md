@@ -39,7 +39,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | | |
 |---|---|
 | joints | **17**: per leg hip yaw, hip roll, hip pitch, knee, ankle pitch, ankle roll (12); neck yaw (1); per arm shoulder pitch, elbow (4) |
-| servos | 17 × Feetech STS3215 (12 V, ST-3215-C018) with a raised position-loop gain on the six roll and knee servos — "Plan B", §4 |
+| servos | 15 × Feetech STS3215 (12 V, ST-3215-C018), with a raised position-loop gain on the ankle rolls and knees, and 2 × STS3250 at the hip rolls (§4) |
 | height | deck top 460 mm, camera 530 mm, head top 555 mm |
 | mass | ≈ 2.21 kg as drawn (§7) |
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
@@ -91,21 +91,46 @@ roll 58 mm.
 - **Hip yaw on every leg.** It is what makes turning work (the walk turns up to
   20° per step, §8).
 
-## 4. Actuation: one servo type, with a raised position gain
+## 4. Actuation: STS3215s, with an STS3250 at each hip roll
 
-Every joint is an STS3215. The walk and get-up are limited by **roll-chain
-compliance, not torque or speed**: under single-support load a soft hip or
-ankle roll sags, the pelvis drifts toward the swing side, and the closed chain
-springs it outward at touchdown. With stock STS3215s at the rolls and knees the
-design walks 0/4 gate cases and gets up 0/12 (`docs/design-v6/no3250_*.txt`).
-Nothing that leaves joint stiffness alone moves that — cadence, lift, CoM aim,
-landing offsets, a lighter torso or shorter legs.
+Fifteen joints are STS3215s. The two **hip rolls are STS3250s**: same case,
+horn and screw rows, +19.5 g, and ≈ 4× the STS3215's stiffness in the model.
+The walk and get-up are limited by **roll-chain compliance, not torque or
+speed**: under single-support load a soft hip or ankle roll sags, the pelvis
+drifts toward the swing side, and the closed chain springs it outward at
+touchdown. With stock STS3215s at the rolls and knees the design walks 0/4
+gate cases and gets up 0/12 (`docs/design-v6/no3250_*.txt`). Nothing that
+leaves joint stiffness alone moves that — cadence, lift, CoM aim, landing
+offsets, a lighter torso or shorter legs.
 
-**The plan ("Plan B"): raise the position-loop P coefficient (register 21,
-default 32) about 4× on the six hip-roll, ankle-roll and knee servos.** The walk
-loads (≤ 1.2 N·m, under 45 % of stall) sit in the servo's linear region, so P
-should raise static stiffness roughly in proportion. In simulation, P × 4 on
-rolls and knees matches the stiffer STS3250 case for case:
+**The plan: STS3250s at the hip rolls, and a raised position-loop P
+(register 21, default 32) on the ankle-roll and knee STS3215s.** The bench
+(#73, [experiments/plan-b-bench/](experiments/plan-b-bench/README.md)) found
+P 96 / D 0 the smoothest high-gain setting at walking speeds, at ≈ 2.8× the
+stock stiffness; P 128 (≈ 3.5×) shakes more, and P 160 (≈ 4.8×) limit-cycles
+under a rigid inertia. With the tuned STS3215s at 2.8×, the extra stiffness
+matters at the hip rolls, and two STS3250s there match the six-STS3250
+assignment (design record §14.4a; on the robot's plant with the arms,
+`docs/design-v6/no3250_mixsweep28_arms_bearingA.txt` and
+`no3250_mixsweep28rolls_arms_bearingA.txt`):
+
+| servo set (the other rolls and knees: STS3215 at 2.8×) | adversity matrix (18 cases × 3 seeds) |
+|---|---|
+| 6 STS3250, rolls + knees | 18/18 |
+| no STS3250 | 15/18 |
+| 2 STS3250 at the knees | 15/18 |
+| 2 STS3250 at the ankle rolls | 15/18 |
+| **2 STS3250 at the hip rolls** | **18/18** (17/18 on the 74.5 g plant) |
+| 4 STS3250 at all four rolls | 17/18 |
+
+The plant builder gives the sweep one servo mass for all six roll and knee
+places, so a mixed set runs on the 55 g plant and is bracketed by the 74.5 g
+one. The model does not represent the bench's sweep roughness at P ≥ 96.
+
+**What raising P buys, in the model.** The walk loads (≤ 1.2 N·m, under 45 %
+of stall) sit in the servo's linear region, so P raises static stiffness
+roughly in proportion. At P × 4 on rolls and knees, above what the bench could
+hold smoothly, the STS3215 matches the STS3250 case for case:
 
 | | walk, CAD plant (4 cases) | adversity matrix (18 × 3 seeds) | walk with arms (5 cases) | get-up, as drawn |
 |---|---|---|---|---|
@@ -119,17 +144,14 @@ Envelope under P × 4 at the design cadence: torque margins 2.7× (hip roll),
 under the 2× speed rule at a 1.2 s swing (1.7×), so **the gait keeps a ≥ 1.6 s
 swing**. Torque is not what binds: "servos −30 %" still passes.
 
-**This rests on one assumption that has to be measured**: that a higher P
-actually yields proportionally higher static stiffness without buzzing. A high
-P can limit-cycle through gear play (LeRobot lowers the same register on its
-STS3215 arms for that reason). The bench test is issue #73 — pass is ≥ 4× the
-P = 32 stiffness with ≤ ±1 count of hold jitter; 3× passes only if the printed
-roll chains measure ≤ 1° of play. If it fails, the fallbacks in order are the I
-term (register 23), one STS3235 (same case, metal gears) to see whether the
-gears are what is soft, a genuine STS3250 (same case, ≈ 4× stiffer, +19.5 g,
-4.2 A stall; Model_Number 2825 — see [docs/bom.md](docs/bom.md) for verified
-sources), the ST-3025 (brushless, different case: a CAD redo), and last a
-Dynamixel XC430 (new bus and board).
+**Still to measure:** the STS3250's ≈ 4× is a third-party figure that the
+model adopts. The two on order go on the #73 rig first, for a direct comparison
+with the STS3215 data, and the per-ID P/D table follows from that. If they fall
+short, the fallbacks in order are the I term (register 23), one STS3235 (same
+case, metal gears) to see whether the gears are what is soft, the ST-3025
+(brushless, different case: a CAD redo), and last a Dynamixel XC430 (new bus
+and board). Verified STS3250 sources and its Model_Number (2825) are in
+[docs/bom.md](docs/bom.md).
 
 The gain is a register, so it can silently revert: a factory reset or a
 swapped spare comes back at 32 and the robot falls at its first crossover. The
@@ -273,28 +295,28 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
 
 ## 7. Mass
 
-The robot as drawn, Plan B, from the CAD-inertial plant
+The robot as drawn, from the CAD-inertial plant
 (`sim/bimo_biped_v6ar.xml`) and the rollup
 (`docs/design-v6/parts_v6_rollup.txt`):
 
 | | |
 |---|---|
-| robot | ≈ 2.21 kg (the plant: 2.205 kg) |
-| servos | 17 × 55 g = 935 g |
+| robot | ≈ 2.25 kg (the plant: 2.245 kg) |
+| servos | 15 × 55 g + 2 × 74.5 g = 974 g |
 | printed PETG + TPU | ≈ 0.77 + 0.05 kg: pelvis 190 g, girdle 77 g, arm links 134 g, legs from the yaw carriers down ≈ 0.33 kg, head 35 g, neck floor 4 g |
 | hip-yaw bearings | 104 g (2 × 6810-2RS) |
 | pack / boards + wiring | 170 g / ≈ 180 g |
 
-With STS3250s at the six roll and knee joints (the fallback) it is 117 g
-heavier. The simulation gates in §4, §8 and §9 were run on earlier plants:
-the armless CAD-inertial plant (1.67 kg) for the walk, the lumped as-drawn
-get-up plant (2.10 kg, no bearings) for the arms. On this plant Plan B
-(P × 4, rolls + knees) walks the four gate cases 4/4, with 32–37 mm of CoM
-margin, and stock STS3215s still fall 0/4
-(`docs/design-v6/no3250_walk_bearingA.txt`). With the arms held at 15° and
-self-collision on, Plan B stays up in 4 of 5 cases with no arm-to-leg contact
-(the μ 0.9 turn falls), measured on a plant with 83 g bearings, 79 g heavier
-(`no3250_arms_walk_plant17.txt`).
+With STS3215s at the hip rolls too it is 39 g lighter, and with STS3250s at
+all six roll and knee joints 78 g heavier. The P × 4 table in §4 and the gates
+in §8 and §9 were run on earlier plants: the armless CAD-inertial plant (1.67 kg) for the
+walk, the lumped as-drawn get-up plant (2.10 kg, no bearings) for the arms. On
+this plant with STS3215s at the hip rolls (2.205 kg), P × 4 on the rolls and
+knees walks the four gate cases 4/4, with 32–37 mm of CoM margin, and stock
+STS3215s still fall 0/4 (`docs/design-v6/no3250_walk_bearingA.txt`). With the
+arms held at 15° and self-collision on, P × 4 stays up in 4 of 5 cases with no
+arm-to-leg contact (the μ 0.9 turn falls), measured on a plant with 83 g
+bearings, 79 g heavier (`no3250_arms_walk_plant17.txt`).
 
 The plant carries every part at its CAD inertia (`sim/build_v6_inertia.py`):
 the printed parts from their STLs, each servo on its case mock at its CAD
@@ -390,7 +412,7 @@ flies the parts in along their insertion paths to prove they assemble.
 
 **Plants**: `sim/gen_plant_v6.py` builds a parametric plant (`DesignParams`) for
 design sweeps; `sim/build_v6_inertia.py` builds the CAD-inertial plant of the robot as
-drawn (17 actuators, arms at rest at the 15° walking hold, Plan B masses,
+drawn (17 actuators, arms at rest at the 15° walking hold, the servo set's masses,
 the hip-yaw bearings split between the pelvis and the carriers); `sim/bimo_biped_v6ar.xml` is the committed plant,
 pinned by the tests.
 
@@ -427,9 +449,9 @@ Everything open is a GitHub issue.
 
 | decision | issue |
 |---|---|
-| servo route: Plan B stands or falls on the bench test | #73, then the purchase #74 |
+| servo set: the STS3250s' bench comparison and the per-ID gains | #73, then the purchase #74 |
 | head: mono camera, or the stereo periscope | PR #71, #87 |
-| make the code's defaults the robot to print: arms, 17 × STS3215, the 6810-2RS bearing, rollup and plant are done; the head follows PR #71 | #76 |
+| make the code's defaults the robot to print: arms, the servo set, the 6810-2RS bearing, rollup and plant are done; the head follows PR #71 | #76 |
 
 | work | issue |
 |---|---|
@@ -457,7 +479,8 @@ Everything open is a GitHub issue.
    inertia and watch for buzz; confirm the protections don't trip.
 1. **Stance test**: that servo in a hip-roll mount, 8° of roll with a planted
    foot; pass ≤ 0.3° short at load 120 (≤ 0.4° on the 3× route).
-2. **Buy** 7 × STS3215 (17 needed, 12 on hand, 2 spare), the two 6810-2RS
+2. **Buy** the STS3215s (15 needed, 12 on hand, plus spares), the two
+   STS3250s for the hip rolls (ordered 2026-10-02, #74), the two 6810-2RS
    bearings (+ 2 spares), and the non-servo parts ([docs/bom.md](docs/bom.md)).
 3. **Configure** P and D per ID; record them in `docs/servo-map.md`.
 4. **Print and assemble** ([cad/PRINT_LIST.md](cad/PRINT_LIST.md),

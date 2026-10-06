@@ -12,8 +12,9 @@ the committed plant, which is THE ROBOT AS DRAWN:
     the shoulders' rest pose (qpos0) at the WALKING HOLD, ARM_WALK_HOLD = 15
     deg back (gen_plant_v6 DesignParams.arm_hold: the joint angle still reads
     0 = hanging).
-  * Plan B: an STS3215 (55 g) at every joint. --servo-plan 3250 puts the
-    STS3250's 74.5 g at the six roll + knee joints (the fallback).
+  * the robot's servos (DESIGN.md section 4): an STS3250 (74.5 g) at each
+    hip roll, an STS3215 (55 g) everywhere else. --servo-plan B is 17 x
+    STS3215; 3250 puts STS3250s at the six roll + knee joints.
   * the one-print hip yoke (hip_yoke_v6), the girdle, the neck floor, the
     arm links, and the two hip-yaw bearings (6810-2RS) split between the
     pelvis and the carriers.
@@ -37,7 +38,8 @@ lands in the body whose joint moves it.
     _forearm   arm_fore_v6 + the elbow servo
 
 For studies, plant_xml(p, m3250_g) returns the same plant for a DesignParams
-p (arms added unless arms=False) with m3250_g grams at the six STS3250 places.
+p (arms added unless arms=False) with m3250_g grams at all six roll and knee
+places (V.SERVO_3250_JOINTS_SIX), whatever the plan.
 """
 from __future__ import annotations
 
@@ -170,12 +172,23 @@ def have(name):
     return os.path.exists(stl(name))
 
 
-def bodies(p: DesignParams, m3250_g: float | None = None):
+SERVO_PLANS = {"hips": V.SERVO_3250_JOINTS, "B": (), "3250": V.SERVO_3250_JOINTS_SIX}
+
+
+def servo_grams(joint, plan="hips", m3250_g=None):
+    """the servo mass at a roll or knee joint: m3250_g at all six places when
+    given (studies), else the plan's STS3250 or STS3215 mass."""
+    if m3250_g is not None:
+        return m3250_g if joint in V.SERVO_3250_JOINTS_SIX else V.SERVO_MASS_3215
+    return V.SERVO_MASS_3250 if joint in SERVO_PLANS[plan] else V.SERVO_MASS_3215
+
+
+def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     """dict body -> list of (mass kg, com m, I) in the BODY frame.
-    m3250_g: servo mass at the SERVO_3250_JOINTS places (hip roll, knee,
-    ankle roll); None = Plan B, an STS3215 (55 g) there too."""
+    plan: the servo set (SERVO_PLANS); m3250_g overrides it with that mass at
+    all six roll and knee places."""
     g15 = V.SERVO_MASS_3215
-    g50 = V.SERVO_MASS_3215 if m3250_g is None else m3250_g
+    g_roll, g_knee, g_aroll = (servo_grams(j, plan, m3250_g) for j in ("hip_roll", "knee", "ankle_roll"))
     zdeck = V.DECK_TOP_Z - V.HIP_YAW_Z          # pelvis-local z = 0 is the deck top
     pelvis, carrier = "pelvis_v7" + ("" if p.arms else "_armless"), "yaw_carrier_v6"
     brg_kg = V.YAW_BRG_MASS_G * 1e-3
@@ -208,17 +221,17 @@ def bodies(p: DesignParams, m3250_g: float | None = None):
                    box_props(V.CAM3_MASS * 1e-3, [V.HEAD_D / 2 - 5, 0, V.HEAD_BASE_T + V.CAM_Z_ABOVE_HORN], [2, 25, 24])]
     # ---- legs (the same parts both sides; the feet are a mirrored pair)
     for side in ("L", "R"):
-        hy = [mesh_props(stl(carrier), [0, 0, 0]), servo("roll", g50),
+        hy = [mesh_props(stl(carrier), [0, 0, 0]), servo("roll", g_roll),
               ring_props(brg_kg / 2, ri, (ri + ro) / 2, bz0, bz1)]      # the bearing's inner half turns with the leg
         out[f"{side}_hip_yaw"] = hy
         out[f"{side}_hip"] = [mesh_props(stl("hip_yoke_v6"), [0, 0, 0])]
         out[f"{side}_thigh"] = [mesh_props(stl("leg_link_v6"), [0, 0, 0]), servo("pitch", g15)]
-        out[f"{side}_shin"] = [mesh_props(stl("leg_link_v6"), [0, 0, 0]), servo("pitch", g50)]
+        out[f"{side}_shin"] = [mesh_props(stl("leg_link_v6"), [0, 0, 0]), servo("pitch", g_knee)]
         out[f"{side}_ankle_blk"] = [mesh_props(stl("ankle_link"), [0, 0, 0]), servo("pitch", g15)]
         z_foot = -V.ANKLE_ROLL_Z + V.TPU_SOLE_T
         out[f"{side}_foot"] = [mesh_props(stl(f"foot_{side}"), [0, 0, z_foot]),
                                mesh_props(stl(f"sole_tpu_{side}"), [0, 0, z_foot], rho=RHO_TPU),
-                               servo(f"foot_{side}", g50)]
+                               servo(f"foot_{side}", g_aroll)]
         if p.arms:
             out[f"{side}_arm"] = [mesh_props(stl(f"arm_upper_v6_{side}"), [0, 0, 0])]
             out[f"{side}_forearm"] = [mesh_props(stl(f"arm_fore_v6_{side}"), [0, 0, 0]), servo(f"elbow_{side}", g15)]
@@ -232,14 +245,14 @@ def inertial_xml(name, items):
 
 
 def plant_xml(p: DesignParams, m3250_g: float | None = None, verbose: bool = False,
-              arms: bool = True):
+              arms: bool = True, plan: str = "hips"):
     """the generator's MJCF with the CAD-true <inertial> blocks patched in.
     arms=True adds the as-drawn arms (asdrawn()) unless p already has them.
     Returns (xml text, total mass kg)."""
     import re
     if arms and not p.arms:
         p = asdrawn(p)
-    B = bodies(p, m3250_g)
+    B = bodies(p, m3250_g, plan)
     total = 0.0
     blocks = {}
     if verbose:
@@ -259,7 +272,9 @@ def plant_xml(p: DesignParams, m3250_g: float | None = None, verbose: bool = Fal
         src, n = pat.subn(lambda mo: mo.group(1) + "        " + xml + "\n", src, count=1)
         if n == 0:
             raise RuntimeError(f"could not place the inertial for body {name!r}")
-    servos = "Plan B, STS3215 everywhere" if m3250_g is None else f"{m3250_g:g} g servos at the STS3250 places"
+    servos = (f"{m3250_g:g} g servos at the six roll and knee places" if m3250_g is not None else
+              {"hips": "STS3250 at the hip rolls, STS3215 elsewhere", "B": "STS3215 everywhere",
+               "3250": "STS3250 at the rolls and knees"}[plan])
     tag = f"CAD-true inertials, {servos}, hip-yaw bearings 6810-2RS"
     return src.replace("GENERATED by sim/gen_plant_v6.py", f"GENERATED by sim/gen_plant_v6.py + build_v6_inertia.py ({tag})"), total
 
@@ -267,15 +282,16 @@ def plant_xml(p: DesignParams, m3250_g: float | None = None, verbose: bool = Fal
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
-    ap.add_argument("--servo-plan", choices=("B", "3250"), default="B",
-                    help="B: STS3215 (55 g) everywhere; 3250: 74.5 g at the hip roll / knee / ankle roll")
-    ap.add_argument("--all-3215", action="store_true", help="the same as --servo-plan B (the default)")
+    ap.add_argument("--servo-plan", choices=tuple(SERVO_PLANS), default="hips",
+                    help="hips: STS3250 (74.5 g) at the hip rolls; B: STS3215 (55 g) everywhere; "
+                         "3250: STS3250 at the hip roll / knee / ankle roll")
+    ap.add_argument("--all-3215", action="store_true", help="the same as --servo-plan B")
     ap.add_argument("--armless", action="store_true", help="the ARMS=0 variant (13 actuators)")
     ap.add_argument("-o", "--out", default=os.path.join(HERE, "bimo_biped_v6ar.xml"))
     a = ap.parse_args(argv)
     p = DesignParams()
-    m3250 = V.SERVO_MASS_3250 if a.servo_plan == "3250" else None
-    src, total = plant_xml(p, m3250, verbose=True, arms=not a.armless)
+    plan = "B" if a.all_3215 else a.servo_plan
+    src, total = plant_xml(p, None, verbose=True, arms=not a.armless, plan=plan)
     if a.write:
         with open(a.out, "w") as f:
             f.write(src)

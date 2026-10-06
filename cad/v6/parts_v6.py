@@ -12,9 +12,11 @@ The defaults build THE ROBOT TO PRINT (issue #76):
                                   is not a print target (cad/PRINT_LIST.md).
     HIP_YOKE_VARIANT=single|split the one-print hip yoke (default) or the legacy
                                   bolted yoke_roll + yoke_pitch_v6 pair.
-    SERVO_PLAN=B (default) | 3250 Plan B is 17 x STS3215 (DESIGN.md section 4);
-                                  3250 puts STS3250s (same case, 74.5 g) at the
-                                  six roll + knee joints, the fallback.
+    SERVO_PLAN=hips (default) | B | 3250
+                                  hips: an STS3250 (same case, 74.5 g) at each
+                                  hip roll, STS3215s everywhere else (DESIGN.md
+                                  section 4); B: 17 x STS3215; 3250: STS3250s at
+                                  the six roll + knee joints.
 
 PARTS lists (name, builder, qty, print note). Every entry writes
 cad/v6/stl/<name>.stl and cad/v6/step/<name>.step from the same solid in the
@@ -46,9 +48,10 @@ def _on(name, default):
 
 ARMS = _on("ARMS", "1")
 HIP_YOKE = os.environ.get("HIP_YOKE_VARIANT", "single")
-SERVO_PLAN = os.environ.get("SERVO_PLAN", "B")
-if SERVO_PLAN not in ("B", "3250"):
-    raise SystemExit(f"SERVO_PLAN={SERVO_PLAN!r}: expected B or 3250")
+SERVO_PLAN = os.environ.get("SERVO_PLAN", "hips")
+SERVO_PLANS = {"hips": V.SERVO_3250_JOINTS, "B": (), "3250": V.SERVO_3250_JOINTS_SIX}
+if SERVO_PLAN not in SERVO_PLANS:
+    raise SystemExit(f"SERVO_PLAN={SERVO_PLAN!r}: expected one of {', '.join(SERVO_PLANS)}")
 
 
 def _lazy(mod, fn, *a, **k):
@@ -103,9 +106,9 @@ REFERENCE = [
     ("head", _lazy("head", "head"), "head_shell + head_face fused (mass, assembly, plant)"),
 ]
 
-# servos: 12 legs + the neck (+ 4 in the arms); Plan B = all STS3215
+# servos: 12 legs + the neck (+ 4 in the arms); the STS3250s are leg joints, one per leg each
 N_SERVOS = 12 + 1 + (V.ARM_SERVO_COUNT if ARMS else 0)
-N_3250 = 2 * len(V.SERVO_3250_JOINTS) if SERVO_PLAN == "3250" else 0
+N_3250 = 2 * len(SERVO_PLANS[SERVO_PLAN])
 SERVO_COUNT = {"STS3215": N_SERVOS - N_3250, "STS3250": N_3250}
 
 
@@ -172,7 +175,7 @@ def main(argv=None):
                "before supports and brims; bought parts at catalogue mass")
     text = "\n".join(out)
     print(text)
-    default_build = ARMS and HIP_YOKE == "single" and SERVO_PLAN == "B"
+    default_build = ARMS and HIP_YOKE == "single" and SERVO_PLAN == "hips"
     path = a.rollup or (ROLLUP if default_build else None)
     if path and not a.only:
         with open(path, "w") as f:

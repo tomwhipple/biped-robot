@@ -26,15 +26,17 @@ import dimensions as D  # noqa: E402  (v5 -- servo truth, walls, fits, screws)
 # servos
 # ----------------------------------------------------------------------------
 # STS3250 == STS3215 case, horn, idler, screw rows (vendor: 45.22 x 24.72 x
-# 35 mm, same 4x M3 on O14 discs). Only the mass differs. Assignment per the
-# option study (docs/design-v6/2026-09-13-design-record.md section 8):
-SERVO_3250_JOINTS = ("hip_roll", "ankle_roll", "knee")        # 6x STS3250
-SERVO_3215_JOINTS = ("hip_yaw", "hip_pitch", "ankle_pitch", "neck")   # 7x STS3215
+# 35 mm, same 4x M3 on O14 discs). Only the mass differs. The robot
+# (DESIGN.md section 4; design record 2026-09-13 section 14.4a): an STS3250 at
+# each HIP ROLL, STS3215s everywhere else, the ankle rolls and knees with a
+# raised position-loop P.
+SERVO_3250_JOINTS = ("hip_roll",)                             # 2x STS3250
+# the six-joint STS3250 set of the original assignment (design record
+# section 8): the studies that bracket a mixed set read it (parts_v6
+# SERVO_PLAN=3250, sim/build_v6_inertia.plant_xml(m3250_g=...))
+SERVO_3250_JOINTS_SIX = ("hip_roll", "ankle_roll", "knee")
 SERVO_MASS_3215 = 55.0
 SERVO_MASS_3250 = 74.5
-# Plan B (DESIGN.md section 4): every joint is an STS3215, with a raised
-# position-loop P on the six joints above. SERVO_3250_JOINTS stays as the
-# fallback's assignment (cad/v6/parts_v6.py SERVO_PLAN=3250).
 
 # --- disc screws: M3 button heads into a servo's horn or idler disc --------
 # The discs are tapped through a thin FLANGE at the O14 bolt circle: 2.5 mm on

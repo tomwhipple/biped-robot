@@ -1,6 +1,6 @@
 """No-STS3250 study (2026-09-26): can the v6 body walk and get up with
 STS3215s at the hip rolls, ankle rolls and knees -- the six joints the design
-gives to the STS3250 (cad/v6/dimensions_v6.SERVO_3250_JOINTS)?
+gave to the STS3250 (cad/v6/dimensions_v6.SERVO_3250_JOINTS_SIX)?
 
 Tom asked for a plan under the assumption that no genuine STS3250 can be
 bought. Every gate here is the design's own gate, re-run on the CURRENT plant

@@ -122,7 +122,7 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 |---|---|---|---|
 | `ARMS` | `1` | `parts_v6.py`, `assembly_v6.py` (and so `check_assembly_v6.py`, `animate_v6.py`, `render_steps_v6.py`) | the girdle, the four arm links, and the pelvis with the ten girdle pilots. `0` is the armless variant: `neck_collar`, no pilots, no arms |
 | `HIP_YOKE_VARIANT` | `single` | `parts_v6.py`, `assembly_v6.py` | `split` builds the bolted `yoke_roll` + `yoke_pitch_v6` pair instead of `hip_yoke_v6` |
-| `SERVO_PLAN` | `B` | `parts_v6.py` | `B`: 17 × STS3215; `3250`: STS3250s at the six roll and knee joints (the mass line only; same case) |
+| `SERVO_PLAN` | `hips` | `parts_v6.py` (`sim/build_v6_inertia.py --servo-plan`) | `hips`: STS3250s at the two hip rolls, STS3215s elsewhere; `B`: 17 × STS3215; `3250`: STS3250s at the six roll and knee joints (masses only; same case) |
 | `MUJOCO_GL` | `egl` (set by default) | every render | set `cgl` on macOS |
 
 ## The gate

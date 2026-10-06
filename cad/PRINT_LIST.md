@@ -6,7 +6,8 @@ needs, and how to slice and send it. The CAD is `cad/v6/`; its code map is
 goes together is [docs/assembly.md](../docs/assembly.md).
 
 **The code's default build is the robot to print**: arms on, the pelvis with
-the girdle's deck pilots, 17 × STS3215 in the mass line. The `ARMS=0` variant
+the girdle's deck pilots, 15 × STS3215 + 2 × STS3250 (the hip rolls) in the
+mass line. The `ARMS=0` variant
 (`neck_collar` for the neck, no girdle, no arm links, no pilots) exists for
 the CAD checks and is **not a print target**: the collar's flange screws have
 nothing to bite (their holes land in the Pi slide slot and the General Driver

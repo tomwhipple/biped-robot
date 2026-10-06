@@ -170,9 +170,10 @@ The robot has no heat-set inserts and no washers.
    - Centring first keeps each joint's travel clear of the encoder's 0/4095
      wrap. On the prototype, a zero at 3273 capped a hip's backward pitch at
      +72°.
-4. **Gains (Plan B).** On the six hip-roll, ankle-roll and knee servos, write
-   the position-loop P (register 21) and D (register 22) that the bench test
-   (#73) settled. They are EEPROM registers: clear the lock flag (register 55)
+4. **Gains.** On the four ankle-roll and knee STS3215s, write the
+   position-loop P (register 21) and D (register 22) that the bench test (#73)
+   settled. The hip rolls are STS3250s; their row in the table comes from the
+   same bench. They are EEPROM registers: clear the lock flag (register 55)
    first.
    - **Do it with torque off. Every bus write is a motion command.**
    - Record the values per ID in servo-map.md.
@@ -523,7 +524,7 @@ open (#81). The procedure is the one the prototype uses:
 2. **Directions.** Verify every joint's sign against the simulation at low
    torque limit and slow speed before trusting any gait. A wrong knee sign
    drives the knee into hyperextension.
-3. **Gains.** Read registers 21 and 22 back on the six Plan B servos.
+3. **Gains.** Read registers 21 and 22 back on every servo the table raises.
 4. **Pack.** Land the robot by 3.5 V/cell (10.5 V).
 
 ## 14. Play test, per roll joint

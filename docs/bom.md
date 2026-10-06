@@ -28,10 +28,12 @@ lab. A blank means buy it.
 
 | item | qty | spec | have |
 |---|---|---|---|
-| **Feetech STS3215, 12 V class: ST-3215-C018** | 17 + 2 spares | 12 V, 30 kg·cm; case 45.22 × 24.72 × 35 mm; 55 ± 1 g; 25T spline; half-duplex TTL bus; 5264 3-pin connector with a 150 mm lead | **12 on hand** (10 of them are in the prototype today): **buy 7** |
+| **Feetech STS3215, 12 V class: ST-3215-C018** | 15 + spares | 12 V, 30 kg·cm; case 45.22 × 24.72 × 35 mm; 55 ± 1 g; 25T spline; half-duplex TTL bus; 5264 3-pin connector with a 150 mm lead | **12 on hand** (10 of them are in the prototype today) |
+| **Feetech STS3250 (ST-3250-C001 / C002)** | 2 | the two hip rolls; same case, horn and connector; 12 V, 50 kg·cm, 74.5 ± 1 g | **2 ordered** 2026-10-02 (#74) |
 
-- **Why 17:** 12 in the legs, the neck, and 4 in the arms. Buy only after #73
-  passes.
+- **Why 15 + 2:** 12 in the legs, the neck, and 4 in the arms, with the two hip
+  rolls on STS3250s ([DESIGN.md §4](../DESIGN.md)). How many STS3215s to buy,
+  with spares, is #74.
 - **Datasheet, drawing and STEP model:** `docs/datasheets/st3215/` and
   `cad/vendor/ST3215.step`.
 - **Never buy the 7.4 V class** (STS3215 C001, rated 4–7.4 V). It cannot run
@@ -42,10 +44,10 @@ lab. A blank means buy it.
     12 V / 30 kg·cm version. It was $21.99 on 2026-07-11.
   - Amazon RCmall 6-pack, B0FLPQQ4FR. This listing was checked and is the
     12 V class.
-- **Plan B setup** ([DESIGN.md §4](../DESIGN.md)): on the six hip-roll,
-  ankle-roll and knee servos, raise the position-loop P (register 21, default
-  32) to the value #73 establishes (≈ 4×), and scale D (register 22) with it.
-  Record the values per ID in [servo-map.md](servo-map.md).
+- **Gain setup** ([DESIGN.md §4](../DESIGN.md)): on the four ankle-roll and
+  knee STS3215s, raise the position-loop P (register 21, default 32) and set D
+  (register 22) to the values #73 establishes (the sim assumes P 96 / D 0,
+  ≈ 2.8×). Record the values per ID in [servo-map.md](servo-map.md).
 
 **Incoming check.** Run it on every servo before it shares the bus with another:
 
@@ -72,7 +74,7 @@ I term. Both are the same case, horn and protocol, so no CAD change:
 | item | qty | spec | role |
 |---|---|---|---|
 | Feetech STS3235 (ST-3235-C001) | 1 | 12 V, 30 kg·cm, 70.5 g, aluminium case, steel gears 1:345, backlash ≤ 0.5°, 2.7 A stall (Feetech spec A/0, 2021-11-19) | shows whether the gear train, not the loop gain, is what is soft |
-| Feetech STS3250 (ST-3250-C001 / C002) | 2 for the bench, then 6 (hip roll, ankle roll, knee) | 12 V, 50 kg·cm, 74.5 ± 1 g, aluminium case, 4.2 A stall, measured loaded backlash 0.33° (third-party bench) | must show ≥ 4× the STS3215's stiffness on the same rig |
+| Feetech STS3250 (ST-3250-C001 / C002), beyond the two hip rolls | up to 4 more (ankle rolls, knees) | 12 V, 50 kg·cm, 74.5 ± 1 g, aluminium case, 4.2 A stall, measured loaded backlash 0.33° (third-party bench) | only if the bench comparison (#73) calls for them |
 
 **STS3250 sources** (checked 2026-09-26):
 

@@ -46,7 +46,7 @@ ACT_ORDER = ([f"{s}_{j}" for s in "LR" for j in ("hip_yaw", "hip_roll", "hip_pit
 
 def test_committed_plant_is_the_robot():
     """sim/bimo_biped_v6ar.xml: 17 actuators in joint order, the shoulders'
-    rest pose at the walking hold, Plan B masses in the as-drawn band."""
+    rest pose at the walking hold, the robot's masses in the as-drawn band."""
     import mujoco
     sys.path.insert(0, os.path.join(HERE, "..", "cad", "v6"))
     import dimensions_v6 as V
