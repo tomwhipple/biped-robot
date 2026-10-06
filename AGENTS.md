@@ -146,6 +146,13 @@ learned by breaking something:
   body tips; end a probe with the reset edge while still armed.
 - **Gains are registers.** A servo whose position-loop P was raised comes back at
   the factory value after a reset or a swap; read it back before arming.
+- **Never release torque with a load on a lever** unless the lever hangs plumb.
+  A released, loaded STS3215 back-drives: the Plan B bench dropped a bottle
+  this way (2026-10-01, experiments/plan-b-bench). Any abort away from plumb
+  keeps torque on.
+- **Film every hardware session**, from before the port opens until a few
+  seconds after it closes (`tools/cam_record.sh`). Still frames before and
+  after could not show how that drop happened.
 
 ## Sourcing and documentation
 

@@ -23,8 +23,12 @@ How the session ran:
 - **Video:** from 12:36 every hardware command was filmed (`tools/cam_record.sh`,
   `/dev/video0`, wall-clock burn-in), from before the port opened until a few
   seconds after it closed.
-- **Raw data:** the per-run JSON, `session.log` and the clips are gitignored.
-  They are on Mira under `hw_sessions/2026-10-01/gain_bench_{onebottle,2bottle,4bottle}/`.
+- **Raw data:** the per-run JSON, `session.log` and console of every run are in
+  [`2026-10-01/raw/`](2026-10-01/raw/) (`gain_bench_onebottle`, `_2bottle`,
+  `_4bottle`, `_hold`). The clips are video and are not in git; they are on
+  Mira under `hw_sessions/2026-10-01/`. Each run's numbers are in a
+  `*_summary.json` beside its script. How to repeat it:
+  [REPRODUCE.md](REPRODUCE.md).
 
 ## The rig and the loads
 
@@ -74,6 +78,8 @@ are ticks from 2057, with the load register in brackets.
   26/27 = 1) plus quantization.
 - One bottle cannot resolve the higher P values. The script's printed "k"
   assumed the full bottle torque with no friction, and is wrong; it is not used.
+- Per-approach numbers: `2026-10-01/one_bottle_summary.json`. This run was
+  not filmed; filming started at 12:36.
 
 ## Run B: two bottles (12:39–12:53)
 
@@ -89,6 +95,12 @@ written level. For each P: bare, 1 bottle, 2 bottles, bottles off.
 
 The sag is only 3–4 ticks at P 128 and 160. That cannot separate 3× from 4×,
 so the run was repeated with four bottles and probes.
+
+- After P 128's "bottles off", `two_bottle.py` asked for a go to lower the bare
+  arm to hanging, which was not given. It stopped there with torque held at
+  level (2056). `two_bottle_level.py` then ran P 160 without lowering.
+- The P 160 gains write reported its ack lost but landed (read back, #101).
+- Per-state numbers: `2026-10-01/two_bottle_summary.json`.
 
 ## Run C: four bottles, with probes (13:02–13:18)
 
@@ -151,6 +163,10 @@ the bare and 1–4-bottle states. Torque uses the nominal 0.39 kg per bottle.
     verified, so it is not used for the verdict.
 - **Resolution.** At P 128 and 160 the deflections are 2–11 ticks, read as
   integers (1 tick = 0.088°). That is where the ± on the ratios comes from.
+- **The script's console prints a different "load per tick"** (8.16 / 29.12 /
+  34.92, ×3.57 and ×4.28; `raw/gain_bench_4bottle/console.txt`). It includes
+  the windows where the load register reads 0. The table uses only the windows
+  with nonzero load.
 
 ### Quiet
 
@@ -279,6 +295,18 @@ Per-pass numbers are in `2026-10-01/hold_clamp_summary.json`. The video is on Mi
 - Tom's statement: "the level arm only falls with a bottle attached", and
   "friction will keep the bare arm in place". The bare arm did hold, released
   level, at every rung of runs B and C.
+- **Cause: unknown.** Tom: "we have no reason to believe the gearbox is
+  damaged". Nothing after the drops showed damage: the same servo gave runs
+  B–D and session 3.
+
+**What the evidence is.**
+- Neither drop is in any raw file. Run A's `session.log` ends at 12:24:28, and
+  the next log starts at 12:39.
+- The readings above (2803, the 2803 → 2059 recovery, the 2065 → 2988 release)
+  and the two webcam frames were taken interactively and not logged. Only the
+  2988 reappears in a file: `raw/gain_bench_2bottle/reid_11_30.log`.
+- Filming of every command started at 12:36 (`camtest.mp4` 12:34 is the first
+  clip), after both drops.
 
 **Run D, attempt 1 (15:30–15:33).** While the clamped arm was lowered to hanging
 (after the P 32 level block), the C-clamp ran into the clamp holding the stand
@@ -291,6 +319,11 @@ powered back on. The video is `run_attempt1.mp4`.
   few seconds after the last (Tom).
 - Nothing is released while a bottle may be hung; a loaded abort keeps torque on.
 - The bare arm is released level; there are no lowering moves.
+- **Agreed after the drops:** bench motion goes through `gain_bench.py`'s
+  guarded code, and missing features are added there rather than scripted
+  around. In practice runs B–D, and session 3, still used one-off scripts.
+  They import `gain_bench`'s guarded gains write, reads and step statistics,
+  and each one enforces the release rule above. See "Deviations".
 
 ## Deviations from the tool
 
@@ -300,12 +333,18 @@ powered back on. The video is `run_attempt1.mp4`.
 - Run B started on Tom's "go. now" before `gain_bench`'s servo-positioned
   mode had landed. Run C needed probes the tool did not have yet.
 - The scripts reuse `gain_bench`'s guarded gains write, reads and step
-  statistics. They import it through a path relative to `hw_sessions/`,
-  where they ran.
+  statistics. They ran from `hw_sessions/` and imported `gain_bench` by a
+  path relative to it. Since 2026-10-06 they import it from this folder, write
+  to `hw_sessions/<date>/<run>/` under the working directory, and take
+  `LEVEL_T` / `DOWN_T` (and `SID` for run A). That way they run as committed;
+  see [REPRODUCE.md](REPRODUCE.md).
 - From this session on, Tom has given the bench scripts to the Mira session to
   own. Probes will move into `gain_bench.py`.
 
 ## Open
+
+The live list for the whole bench is in [README.md](README.md), "Status and
+open items". As of this session:
 
 - **The decision #73 feeds:** whether the STS3250 is still needed, given its cost
   and availability. The bench evidence is above. It has no measurement of the

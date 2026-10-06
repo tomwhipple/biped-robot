@@ -8,9 +8,19 @@ but it could not measure stiffness. The stiffness table and the stance number
 
 Tool: `gain_bench.py` in this folder (then `tools/gain_bench.py`), at main eef3abe. The session was run by the Claude
 session on Mira as `claw`, on Tom's instructions. The raw data (JSON per step
-and `session.log`) is gitignored; it is on Mira under
-`hw_sessions/2026-09-30/gain_bench/` (the reads) and
-`hw_sessions/2026-09-30/gain_bench_bare/` (the pass).
+and `session.log`) is in [`2026-09-30/raw/`](2026-09-30/raw/): `gain_bench/` (the
+scan and register reads) and `gain_bench_bare/` (the pass). The table below is
+[`2026-09-30/bare_ladder_summary.json`](2026-09-30/bare_ladder_summary.json),
+written from the raw files by `summarise_raw.py`. How to repeat it on your own
+bench: [REPRODUCE.md](REPRODUCE.md).
+
+**Two attempts stopped before the pass** (both in `gain_bench_bare/session.log`):
+- **11:24:** the first gains write was judged on the firmware's progress line,
+  not its verdict. That was fixed in 1e231d0 at 11:27.
+- **11:28:** the P 64 write reported `FAILED (write-failed)` although it may
+  have landed (#101, below). `hold.112838.json` holds that one rung.
+
+The pass in the table ran at **11:32**.
 
 ## The rig
 

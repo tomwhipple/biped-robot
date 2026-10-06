@@ -14,8 +14,13 @@ How the session ran:
   and gave the goes.
 - **Script:** `2026-10-01/hold_clamp.py`, now taking level and plumb as inputs.
 - **Video:** every servo session was filmed (`tools/cam_record.sh`, `/dev/video0`).
-- **Raw data** (gitignored) is on Mira under `hw_sessions/2026-10-02/gain_bench_hold/`.
-  The per-pass numbers are in `2026-10-02/hold_v3_summary.json`.
+- **Raw data:** every run's JSON, `session.log` and console are in
+  [`2026-10-02/raw/`](2026-10-02/raw/) (`gain_bench_hold`, `sweep_smooth`,
+  `bno_setup`, `sweep_bno`, `stream50`). The first line of each console gives
+  the exact parameters. Videos are not in git; they are on Mira under
+  `hw_sessions/2026-10-02/`.
+- **Summaries:** the per-pass numbers are in `2026-10-02/*_summary.json`.
+- **Repeating it:** [REPRODUCE.md](REPRODUCE.md).
 
 **Result.**
 - **P 160 still limit-cycles.** This time it happens hanging plumb (range 14
@@ -54,6 +59,9 @@ How the session ran:
   The load rose from 56 to a plateau of 96–104 between 2679 and 2551. A parabola
   through the top three points put level at **2660**, so plumb at 3684.
 - The plateau is flat and noisy, so the peak was poorly defined.
+- Every step is in `2026-10-02/calibration_summary.json`, parsed from
+  `raw/gain_bench_hold/console.txt`. This attempt's own JSON was overwritten by
+  the 10:02 run.
 
 **2. Incident.**
 - The script then lowered toward 3684 and the fork pushed against the C-clamp
@@ -164,8 +172,10 @@ and nothing under 1 tick.
 
 - **Smoother commands do not remove the roughness at P 128.** B is the same as
   A. C cuts the backward count but not the jitter.
-- **More D makes it worse, less D makes it better.** D 128 roughly doubles the
-  jitter of D 32. D 0 is the smoothest P 128 setting, though still above P 32.
+- **More D makes it worse, less D makes it better.** D 128 raises D 32's jitter
+  by about 1.2–1.8× (2.0–2.5 → 2.6–3.5 ticks). It raises the backward count by
+  up to about 5× (A raising: 21 → 104), though C lowering does not change. D 0
+  is the smoothest P 128 setting, though still above P 32.
 - In angle the jitter is small: about 0.15–0.2° RMS at P 128.
 
 ## Hold with D 0 (11:05–11:09)
@@ -181,14 +191,22 @@ and nothing under 1 tick.
 
 - **D 0 removes P 160's limit cycle at rest,** but a 2° move while hanging (no
   gravity preload) starts an oscillation that does not die out.
-- **P 128 / D 0 sweeps are about 4–6× smoother than P 128 / D 32,** and it holds
-  quietly in both positions.
+- **How much smoother P 128 / D 0 is than D 32 depends on the metric:**
+  - **Backward samples:** 4–6× fewer (74 → 17 raising, 70 → 12 lowering, against
+    the 10:02 ladder).
+  - **Jitter:** 2.0–2.1 → 1.6–1.8 ticks, about 0.8×.
+  - **Shaking:** the accelerometer later read 0.6–0.85× of D 32's (14:43).
+
+  It holds quietly in both positions, but one of four hanging 2° moves did
+  not settle.
 
 **Files:**
 - Per-run metrics: `2026-10-02/sweep_summary.json`, and `hold_v3_summary.json`
   (the D 0 pass is added there).
-- Video on Mira: `sweep_smooth/run.mp4`, `sweep_smooth/run_d.mp4` and
-  `gain_bench_hold/run_d0.mp4`.
+- Raw: `raw/sweep_smooth/` (`sweep_smooth_run1.json` is the 10:52 run) and
+  `raw/gain_bench_hold/hold_v3_washers_D0.json`.
+- Video (not in git) on Mira: `sweep_smooth/run.mp4`, `sweep_smooth/run_d.mp4`
+  and `gain_bench_hold/run_d0.mp4`.
 - At 10:50 a first sweep attempt found no servo on the bus: the scan showed 0
   servos with the servo unpowered, and nothing moved (`run_nobus.mp4`). Tom
   powered it back on.
@@ -208,15 +226,24 @@ new one first.
 
 ## The accelerometer: a ~15 Hz oscillation in the rotation direction (14:43–14:51)
 
-The bench moved to the newer controller, a General Driver.
-Tom OKed the flash: it carries `main` plus the bench `bno` command (2e9516b).
-The "BNO055" breakout turned out to be a **GY-BNO08X** at 0x4B. It is wired to
-the board's P1 "IIC" connector (`figs/bno055_wiring.png`) and glued near the fork
-tip.
+The bench moved to the newer controller, a General Driver. Tom OKed the flash,
+which took two goes (`raw/bno_setup/check.log`):
+- **14:31, 1d86445** (`main` plus a BNO055 `bno`): the "BNO055" breakout did not
+  answer at 0x28.
+- **14:39, 2e9516b:** `bno` reads a BNO08x over SHTP. The breakout is a
+  **GY-BNO08X** at 0x4B.
+
+It is wired to the board's P1 "IIC" connector (`figs/bno055_wiring.png`) and
+glued near the fork tip.
 
 `bno` streams its calibrated accelerometer report at about 500 Hz in the
-background while `sweep_smooth.py BNO=1` drives the sweeps. At rest |a| =
-988 mg, with a standard deviation of 4.5 mg.
+background while `sweep_smooth.py BNO=1` drives the sweeps.
+- **At rest:** |a| = 988 mg, with a standard deviation of 3.5 mg (1,021 samples
+  at 511 Hz, `2026-10-02/bno_check_summary.json`). The firmware's own "sd 4.5"
+  is the x axis alone.
+- **Two starts stopped before moving** (`raw/sweep_bno/console.txt`):
+  - 14:42:19, because the arm was at 1899, outside level..plumb;
+  - 14:42:51, because the script's ready check expected BNO055 wording.
 
 **Axes, from gravity:**
 - z runs along the arm: −1006 mg at plumb.
@@ -250,13 +277,22 @@ Acceleration RMS above 5 Hz in mg, y / x, and the dominant frequency:
   - P 128 / D 32: about 0.15–0.37° RMS;
   - P 128 / D 0: about 0.09–0.26° RMS.
 - **Servo telemetry did not see most of this.** Its 30 Hz poll is blind at
-  15 Hz. In this run it reported 0 backward samples at P 128 / D 32, where the
-  old controller run reported about 20 of 300. Why that changed (the new board,
-  or the arm work) was not tested.
+  15 Hz.
+- **The backward-sample count drifted across the day for the same move**
+  (P 128 / D 32, 90° at 100 steps/s, acceleration 2, raising):
+  - 74 of 291 at 10:02, in the hold ladder;
+  - 21 of 301 at 10:52 and 20 at 11:01, in the sweep runs;
+  - 0 of 300 at 14:43, on the new board after Tom's work on the arm.
 
-**Files:** per-sweep metrics in `2026-10-02/sweep_bno_summary.json`; raw data
-and video on Mira under `hw_sessions/2026-10-02/sweep_bno/`, and the setup and
-flash videos in `hw_sessions/2026-10-02/bno_setup/`.
+  None of these causes was tested: the board, the arm work, or the two
+  scripts' sampling. So compare backward counts only within one run. The
+  accelerometer is the measure to trust across runs.
+
+**Files:**
+- Per-sweep metrics: `2026-10-02/sweep_bno_summary.json`.
+- Raw data: `raw/sweep_bno/` and `raw/bno_setup/`.
+- Video (not in git) on Mira: `hw_sessions/2026-10-02/sweep_bno/` and
+  `bno_setup/`.
 
 ## How the motion is commanded, and the command rate (14:57–15:10)
 
@@ -298,6 +334,8 @@ Acceleration y (the rotation direction), RMS above 5 Hz in mg, raise / lower:
   P 32 (14:43 run), 91–230 at P 96 / D 0, 137–297 at P 128 / D 0. This part
   belongs to the servo and rig.
 - **D 0 beats D 32 at P 96** in A, C, Cf and C1.
+- **The servo's own telemetry sees the slow stream:** Cs had 12–28 backward
+  samples of about 70 raising, and 0–7 lowering (`raw/sweep_bno/console2.txt`).
 - No status bit was set in any sweep.
 
 **Implication:** how targets are streamed matters as much as the gain. A
@@ -346,6 +384,8 @@ Acceleration y, RMS above 5 Hz in mg, raise / lower:
   at 300 steps/s and 25.4 Hz at 600. That is one cycle per about 24 ticks (2.1°)
   of travel, a mechanical periodicity in the servo (gear mesh or encoder, not
   identified).
+- **A second peak, about 100–105 Hz in x and z,** shows at 300 and 600 steps/s
+  at all three gains (`raw/sweep_bno/console4.txt`). It is not identified.
 - **Every move settled exactly** (end range 0), and no status bit was set.
 
 **Reading:**
@@ -357,7 +397,7 @@ Acceleration y, RMS above 5 Hz in mg, raise / lower:
 
 The per-run numbers are in `2026-10-02/sweep_bno_summary.json`.
 
-## Repeats at walking speeds (16:1x–16:26)
+## Repeats at walking speeds (16:22–16:26)
 
 Tom stepped away; the stand was free. Same rig and weights, with no one at
 the rig. Acceleration y RMS above 5 Hz in mg, one value per repeat:
@@ -389,10 +429,12 @@ board, at 50 Hz**, two ways:
 Script: `2026-10-02/stream50.py`, plumb ↔ level over 4 s (peaking at about 480
 steps/s) and 2 s (about 960 steps/s).
 
-**Bus recovery.** At the first try the I²C bus was held: nothing answered,
-including the board's own sensors, presumably the BNO08x after a reset
-mid-read. `imu reinit` freed it, and both scripts now do that before giving
-up.
+**Bus recovery.** At the first try (16:32, `raw/stream50/console.txt`) the
+I²C bus was held: nothing answered, including the board's own sensors,
+presumably the BNO08x after a reset mid-read.
+- An `imu reinit` freed it. It was typed by hand and is not in the logs, which
+  show only the failed start and the clean run at 16:34.
+- Both scripts now do that before giving up.
 
 Acceleration y RMS above 5 Hz in mg, raise / lower, and tracking RMS in ticks:
 
@@ -421,22 +463,47 @@ Acceleration y RMS above 5 Hz in mg, raise / lower, and tracking RMS in ticks:
 | setting | stiffness × P 32 | holding still | 2° moves | walking-speed single moves (y RMS, mg) | streamed slow sweeps |
 |---|---|---|---|---|---|
 | P 32 / D 32 (stock) | 1 | quiet | settle | 52–85 | quiet |
-| **P 96 / D 0** | **≈ 2.8** (clamp probes) | quiet, level and hanging | settle | **57–111** | host 9–24 Hz: command-rate forcing; firmware 50 Hz (the robot's rule): 91–181, like single moves |
-| P 128 / D 0 | ≈ 3.0–3.5 | quiet, level and hanging | mostly settle | 61–199 | rougher |
-| P 160 / D 0 | ≈ 4.8 (bottles, D 32) | quiet level; **oscillates after a 2° move while hanging** | no | — | — |
+| **P 96 / D 0** | **≈ 2.8–3.6** (clamp probes at D 32 only, see below) | **not run at D 0**; at D 32 quiet, level and hanging | **not run at D 0**; at D 32 settle | **57–111** | host 9–24 Hz: command-rate forcing; firmware 50 Hz (the robot's rule): 91–181, like single moves |
+| P 128 / D 0 | ≈ 3.0–3.5 (clamp at D 32, bottles at D 128) | quiet, level and hanging | 3 of 4 settle hanging | 61–199 | rougher |
+| P 160 / D 0 | ≈ 4.8 (bottles, D 160) | quiet level; **oscillates after a 2° move while hanging** | no | — | — |
 
-The sim side, with the tuned 3215 at 2.8×, is in the design record §14.4a.
+**How solid these numbers are:**
+- **Stiffness at P 96 has never been measured with bottles.** It comes from
+  session 2's clamp probes at D 32, at 1-tick resolution. The P 32 midpoint
+  is 8.5 against P 96's 3.0 off-plane (2.8×), and 9.0 against 2.5 in plane
+  (3.6×). In plane, P 96 and P 128 both read 2.5, so the probes do not
+  separate them.
+- Half a tick on a 2.5–3-tick midpoint is ±20 %. The sim uses the low end,
+  2.8×.
+- **P 96 / D 0 was never run in the hold test.** Its "quiet, settles" is
+  carried over from P 96 / D 32. The D 0 hold ladder ran only P 128 and 160.
+  Its sweeps, walking-speed moves and 50 Hz streaming were all measured at
+  D 0.
+
+**The sim side**, with the tuned 3215 at 2.8×, is in the design record §14.4a.
+Two STS3250 at the hip rolls score 18/18 with and without arms on the 55 g
+servo-mass plant, the closer one to a real two-STS3250 build. On the 74.5 g
+plant they score 17/18 and 16/18.
 
 ## Open
 
+The live list for the whole bench is in [README.md](README.md), "Status and
+open items". As of this session:
+
+- **The bench's best candidate is P 96 / D 0** (the choice is Tom's). It is the
+  only high-gain setting
+  that shook about as little as stock P 32 at walking speeds, through late
+  goal changes, and in the repeats.
+  - P 128 / D 0 shook 1.1–1.8× more than P 96 / D 0 at walking speeds, and one
+    of its four hanging 2° moves did not settle.
+  - P 160 oscillates.
+  - Not yet measured for P 96 / D 0: its stiffness with bottles, and its hold
+    test.
+- **The decision #73 feeds:** STS3250 or STS3215. At P 96's ≈ 2.8×, the sim
+  (design record §14.4a) needs two STS3250s, at the hip rolls.
 - **Weights:** record their radius and mass, to place the inertia against #73's
   leg-like spec.
-- **P 96 / D 0 stiffness with bottles** (needs someone to hang them). P 96's
-  2.8× comes from clamp probes only.
 - **Streaming:** done at 50 Hz (above). The robot's rule is fine; its 2–3°
   lag against the sim's actuation model is unchecked.
-- **The decision #73 feeds:** STS3250 or STS3215. The sim study (design
-  record §14.4a) and the gain choice (P 128 / D 0 is the smoothest stable
-  setting so far) both bear on it.
 - **ID:** the servo is still ID 30. Rename it back to 11 when bench work on it
   is done.

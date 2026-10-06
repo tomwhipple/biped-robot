@@ -22,8 +22,9 @@ otherwise.
 
 - **At P ≤ 128 with D 32:** the servo holds still on both rigs, level and
   hanging, and its 2° moves settle on v3.
-- **Sweeps at P 128, by D:** lower D is smoother. D 0 is 4–6× smoother than
-  D 32; D 128 doubles the jitter.
+- **Sweeps at P 128, by D:** lower D is smoother. D 0 has 4–6× fewer backward
+  samples than D 32, but only about 0.8× the jitter and 0.6–0.85× the
+  accelerometer's shaking. D 128 raises the jitter about 1.2–1.8×.
 - **Sweeps at P 128, by command:** smoothing the command does not help. The
   gentler acceleration register was the same, and host-streamed minimum-jerk
   targets cut only the backward count (session 3).
@@ -102,8 +103,10 @@ The pattern matches backlash inside a load-side-feedback loop:
 - **Where it cycles:** on v3 the cycle appears hanging, where nothing preloads
   the gears and the play floats. Level, gravity holds the mesh to one side and
   the servo is quiet.
-- **On v2 it cycled level instead.** That bracket twisted under load (Tom,
-  2026-10-01), which puts more compliance inside the loop. The two rigs cannot
+- **On v2 it cycled level instead.** Tom saw that bracket twist under load
+  (2026-10-01: "a fair amount of twisting on the vertical plate", quoted in
+  `plan_b_rig_v3.py`; it was observed, not measured). That puts more
+  compliance inside the loop. The two rigs cannot
   separate those effects.
 - **D:** the servo's D can only act on the output encoder's signal. That signal
   is quantized to 0.088° and the backlash corrupts it, which is the wrong place
@@ -121,8 +124,8 @@ out. In order of evidence:
 1. **Stay at P ≤ 128.** It holds still on both rigs (about 3.5× the P 32
    stiffness, #73's conditional pass). Every project found runs at or below the
    factory 32 (LeRobot 16, Open Duck 32).
-2. **Take D down from 32.** It is bench-confirmed for sweeps: at P 128, D 0 is
-   4–6× smoother than D 32. Open Duck runs D 0. The cost: at P 128 / D 0 one of
+2. **Take D down from 32.** It is bench-confirmed for sweeps: at P 128, D 0 has
+   4–6× fewer backward samples than D 32 and about 0.6–0.85× its shaking. Open Duck runs D 0. The cost: at P 128 / D 0 one of
    four hanging 2° moves did not settle. D 8–16 is the untested middle.
 3. **Put the missing stiffness in the command, not the gain.** Feed-forward:
    add the predicted sag (load / k(P)) to the goal, as NimbRo does with torque.
