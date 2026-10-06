@@ -1,8 +1,8 @@
 # Bring-up day 1 — board power-on + servo IDs
 
 *2026-07-26, the day the Servo Driver with ESP32 arrived. Companion to
-[wiring.md](wiring.md) §Bring-up checklist (the short form) and
-[firmware-design.md](firmware-design.md) §7 (what happens after this).*
+[wiring.md](../wiring.md) §Bring-up checklist (the short form) and
+[firmware-design.md](../firmware-design.md) §7 (what happens after this).*
 
 > ## ⚑ SUPERSEDED, 2026-07-26 — we flashed. Use the USB CLI.
 >
@@ -54,7 +54,7 @@ Vendor facts confirmed 2026-07-26 from Waveshare's docs (sources at bottom):
   
       65 × 30 mm. If it says **"Bus Servo Driver HAT (A)"** (65 × 57 mm), it
       is the wrong board — 9–25 V in, Pi form factor, won't fit the tower.
-      See [hardware-order.md](hardware-order.md) caveat 2.
+      See [hardware-order.md](../hardware-order.md) caveat 2.
 - [x] **Mounting holes — VERIFIED 2026-07-27.** The board test-fits the
       printed tower with all four screws landing, which checks both spans and
       the hole diameter together. `BOARD_HOLES = (58.0, 23.0)`, Ø2.75, stands
@@ -109,7 +109,7 @@ Target map — **unchanged, keep assigning to this**:
 10-DOF. If only 8 servos are in hand, assign 1–8 and leave 9/10 for the
 yaw pair.)
 
-> **Correction 2026-07-26.** [wiring.md](wiring.md) claimed this map means
+> **Correction 2026-07-26.** [wiring.md](../wiring.md) claimed this map means
 > "the policy's action vector maps to IDs 1–8 with no permutation table."
 > That was true on the retired 8-DOF plant and is **false on the deployed
 > 10-DOF v3yaw plant**: the sim's action order is
@@ -248,7 +248,7 @@ That ordering is the first hardware confirmation of
 `obs::kServoId = {9,1,2,3,4,10,5,6,7,8}` — the permutation wiring.md wrongly
 called an identity. Bus voltage fell only 12.0 → 11.9 V worst-case with all
 ten powered, consistent with the ~0.85 A mean in
-[wiring.md § Power path](wiring.md).
+[wiring.md § Power path](../wiring.md).
 
 ### The duplicate-ID signature, worth recognising
 
@@ -306,7 +306,7 @@ Both feed sim decisions and are far easier now than after assembly.
       **off**, being driven backwards, and back-driving a ~1:345 reduction is
       far less efficient than forward-driving it — so 0.235 N·m is a **lower
       bound**, not the answer. Against
-      [firmware-design.md](firmware-design.md) §5's 0.35 N·m estimate and the
+      [firmware-design.md](../firmware-design.md) §5's 0.35 N·m estimate and the
       ~0.25 N·m threshold where idle torque-off flips infeasible, that is
       "probably marginal, cannot call it".
 
@@ -328,7 +328,7 @@ Both feed sim decisions and are far easier now than after assembly.
 
 - [ ] **Servo case thread**: M3 self-tapping, tapped M3, or M4? Vendor STEP
   
-      shows Ø3.5. Open question 1 in [bom-sourced.md](bom-sourced.md); it
+      shows Ø3.5. Open question 1 in [bom-sourced.md](../bom-sourced.md); it
       decides the horn/bracket screws.
 - [x] While you're at it, confirm the connector ports really are on the
   
@@ -340,7 +340,7 @@ Both feed sim decisions and are far easier now than after assembly.
 
 - **"Set Middle Position"** — do *not* run it now. It defines the servo's
   2047 centre at wherever the horn currently sits. It belongs at the
-  CAD-neutral pose during assembly ([wiring.md](wiring.md) checklist step 4),
+  CAD-neutral pose during assembly ([wiring.md](../wiring.md) checklist step 4),
   not on a naked servo.
 - Flashing our firmware. After IDs are set and labelled.
 
@@ -349,7 +349,7 @@ Both feed sim decisions and are far easier now than after assembly.
 ## Resolved: the 5 A rating vs. our 10 A budget — no action needed
 
 Both halves turned out to be wrong in our favour. Detail in
-[wiring.md § Power path](wiring.md); the short version:
+[wiring.md § Power path](../wiring.md); the short version:
 
 - **The board's servo V+ is a bare passthrough.** Waveshare's schematic puts
   CN1 (the barrel jack) and both servo headers on the same `6-12V` net, with

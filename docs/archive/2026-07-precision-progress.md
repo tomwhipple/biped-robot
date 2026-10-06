@@ -90,7 +90,7 @@ Overall: 29/112 under the *stricter* criteria (v4's 37 included bogus circle
 passes). Falls 17%, wobble 0.43, CoT 3.9.
 **Charter:** "We've been trying to run before we walk." Seven user-specified
 precision skills, one command-conditioned policy, severe fall penalties, and
-honest referee scenarios for each skill. Spec: [precision-curriculum.md](precision-curriculum.md).
+honest referee scenarios for each skill. Spec: [precision-curriculum.md](../precision-curriculum.md).
 **Montage:** `sim/renders/precision_reel_precision_v4.mov` — every maneuver,
 PASS/FAIL captioned per take, honest takes (first passing seed, else best
 non-fall attempt).
