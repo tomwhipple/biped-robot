@@ -49,16 +49,20 @@ git config core.hooksPath .githooks
 | gate | covers | in the hook |
 |---|---|---|
 | `python -m pytest tests/` | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B) | hard |
-| `make -C firmware/host check` | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles | hard |
+| `make -C firmware/host check` | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles | hard, on C/C++ pushes (otherwise only the SIL library is built) |
 | `python -m pytest sim/sil` | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason | hard |
-| cmake configure / build / ctest of `firmware/host` | CMakeLists.txt and the Makefile agree | when cmake is installed |
-| `run-clang-tidy`, `firmware/host/clang-tidy-gui.sh` | `.clang-tidy`, WarningsAsErrors | when clang-tidy is installed |
-| `firmware/host/cppcheck.sh` | whole-program, fails on any finding | when cppcheck is installed |
-| `idf.py -C firmware build` | the ESP32 target links | when ESP-IDF is found (`SKIP_ESP32=1` to skip) |
+| cmake configure / build / ctest of `firmware/host` | CMakeLists.txt and the Makefile agree | C/C++ pushes, when cmake is installed |
+| `run-clang-tidy`, `firmware/host/clang-tidy-gui.sh` | `.clang-tidy`, WarningsAsErrors | C/C++ pushes, when clang-tidy is installed |
+| `firmware/host/cppcheck.sh` | whole-program, fails on any finding | C/C++ pushes, when cppcheck is installed |
+| `idf.py -C firmware build` | the ESP32 target links | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip) |
 | `sh cad/run_checks.sh` | swept-ROM interference on the armless and `ARMS=1` builds; printability reports | not in the hook: run it for any CAD change |
 
-A toolchain-guarded gate prints a SKIP note when its tool is absent — a skip is
-visible, never silent. `git push --no-verify` skips everything; know why.
+A **C/C++ push** changes a C/C++ source or header anywhere, anything under
+`firmware/`, or the root `.clang-tidy`. Other pushes skip the C/C++ gates, and
+the hook says so. `PREPUSH_ALL=1 git push` forces them, and so does any push the
+hook cannot diff. A toolchain-guarded gate prints a SKIP note when its tool is
+absent — a skip is visible, never silent. `git push --no-verify` skips
+everything; know why.
 
 ## Generated files are generated
 
