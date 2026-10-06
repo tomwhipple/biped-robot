@@ -1,0 +1,659 @@
+# 2026-10-01T12:39:45 two_bottle.py id 30 GOAL 2057 REST 3081 ladder [(32, 32), (128, 128), (160, 160)]
+>>> pos 30
+id 30  pos  2988  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> reg 30 40 1
+id 30 reg 40 = 0 (0x00)
+
+== P 32 D 32
+>>> release 30
+release 30: ok
+>>> gains 30 32 32
+id 30: writing P 32 D 32 to EEPROM (torque must be OFF; no goal is written) ...
+id 30: P 32 D 32, verified after commit -- safe to power down
+  note: id 30 has no row in servo_gains.h
+>>> gains 30
+id 30  P 32  D 32  I 0   expected (no row in servo_gains.h)
+  gains 32/32: ok
+
+NEXT MOTION: P 32: torque on at rest, then raise the arm to straight out (2057) at 100 steps/s
+  type go:
+< 'go'
+>>> pos 30
+id 30  pos  2988  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> torque 30
+torque 30: ok
+>>> pos 30
+id 30  pos  2988  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> move 30 3081 0 100
+move id 30 -> 3081 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 30
+id 30  pos  3079  spd     0  load  -24  12.1 V  32 C  err 0x00
+>>> move 30 2057 0 100
+move id 30 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+  at goal: pos 2059
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+  0 bottle(s): pos 2059.00 (dev +2.00), range 0, load 24, err 0
+
+HANG 1 bottle at the 100 mm notch; press enter when done
+< ''
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2063  spd     0  load   56  12.1 V  32 C  err 0x00
+  1 bottle(s): pos 2063.00 (dev +6.00), range 0, load 56, err 0
+
+HANG the 2nd bottle; press enter when done
+< ''
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2065  spd     0  load   72  12.1 V  32 C  err 0x00
+  2 bottle(s): pos 2065.00 (dev +8.00), range 0, load 72, err 0
+
+LIFT the bag/bottles OFF; press enter when done
+< ''
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   24  12.1 V  32 C  err 0x00
+  0 bottle(s): pos 2059.00 (dev +2.00), range 0, load 24, err 0
+
+NEXT MOTION: P 32: lower the bare arm to hanging (3081) at 100 steps/s, then release
+  type go:
+< 'go'
+>>> move 30 3081 0 100
+move id 30 -> 3081 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 30
+id 30  pos  3079  spd     0  load  -24  12.1 V  33 C  err 0x00
+>>> release 30
+release 30: ok
+>>> pos 30
+id 30  pos  3079  spd     0  load    0  12.1 V  33 C  err 0x00
+  released at rest: pos 3079
+
+== P 128 D 128
+>>> release 30
+release 30: ok
+>>> gains 30 128 128
+id 30: writing P 128 D 128 to EEPROM (torque must be OFF; no goal is written) ...
+id 30: P 128 D 128, verified after commit -- safe to power down
+  note: id 30 has no row in servo_gains.h
+>>> gains 30
+id 30  P 128  D 128  I 0   expected (no row in servo_gains.h)
+  gains 128/128: ok
+
+NEXT MOTION: P 128: torque on at rest, then raise the arm to straight out (2057) at 100 steps/s
+  type go:
+< 'go'
+>>> pos 30
+id 30  pos  3079  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> torque 30
+torque 30: ok
+>>> pos 30
+id 30  pos  3079  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> move 30 3081 0 100
+move id 30 -> 3081 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 30
+id 30  pos  3081  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> move 30 2057 0 100
+move id 30 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+  at goal: pos 2057
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2057  spd     0  load    0  12.1 V  33 C  err 0x00
+  0 bottle(s): pos 2057.00 (dev +0.00), range 0, load 0, err 0
+
+HANG 1 bottle at the 100 mm notch; press enter when done
+< ''
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+>>> pos 30
+id 30  pos  2060  spd     0  load   80  12.1 V  33 C  err 0x00
+  1 bottle(s): pos 2060.00 (dev +3.00), range 0, load 80, err 0
+
+HANG the 2nd bottle; press enter when done
+< ''
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  112  12.1 V  34 C  err 0x00
+  2 bottle(s): pos 2061.00 (dev +4.00), range 0, load 112, err 0
+
+LIFT the bag/bottles OFF; press enter when done
+< ''
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+  0 bottle(s): pos 2056.00 (dev -1.00), range 0, load 0, err 0
+
+NEXT MOTION: P 128: lower the bare arm to hanging (3081) at 100 steps/s, then release
+  type go:
+< 'skip'
+!! STOPPED: Abort('no go for: P 128: lower the bare arm to hanging (3081) at 100 steps/s, then release')
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+!! HOLDING TORQUE at pos 2056 (off rest). Lift any load off, then lower with: move 30 3081 0 100 -- do NOT release here.
+P  32: dev bare +2.00, 1b +6.00, 2b +8.00, return +2.00  (1b-bare +4.00, 2b-1b +2.00)
+P 128: dev bare +0.00, 1b +3.00, 2b +4.00, return -1.00  (1b-bare +3.00, 2b-1b +1.00)
+# end 2026-10-01T12:50:59
+# 2026-10-01T12:51:02 two_bottle_level.py id 30 GOAL 2057 REST 3081 ladder [(160, 160)]
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+
+== P 160 D 160
+>>> release 30
+release 30: ok
+>>> gains 30 160 160
+id 30: writing P 160 D 160 to EEPROM (torque must be OFF; no goal is written) ...
+id 30: FAILED (write-failed) -- EEPROM re-lock attempted; `gains 30` to see what the servo holds
+>>> gains 30
+id 30  P 160  D 160  I 0   expected (no row in servo_gains.h)
+>>> reg 30 55 1
+id 30 reg 55 = 1 (0x01)
+# gains 160/160 FAILED (attempt 1); read back P 160 D 160, lock 1
+  gains 160/160: landed, ack lost
+
+NEXT MOTION: P 160: torque on at level, then hold straight out (2057) at 100 steps/s
+  type go:
+< 'go'
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> torque 30
+torque 30: ok
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> move 30 2057 0 100
+move id 30 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+  at goal: pos 2056
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+  0 bottle(s): pos 2056.00 (dev -1.00), range 0, load 0, err 0
+
+HANG 1 bottle at the 100 mm notch; press enter when done
+< ''
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2059  spd     0  load   56  12.1 V  34 C  err 0x00
+  1 bottle(s): pos 2059.00 (dev +2.00), range 0, load 56, err 0
+
+HANG the 2nd bottle; press enter when done
+< ''
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.0 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.0 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2061  spd     0  load  136  12.1 V  34 C  err 0x00
+  2 bottle(s): pos 2061.00 (dev +4.00), range 0, load 136, err 0
+
+LIFT the bag/bottles OFF; press enter when done
+< ''
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+  0 bottle(s): pos 2056.00 (dev -1.00), range 0, load 0, err 0
+>>> release 30
+release 30: ok
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+  released level, bare: pos 2056
+>>> pos 30
+id 30  pos  2056  spd     0  load    0  12.1 V  34 C  err 0x00
+>>> release 30
+release 30: ok
+>>> gains 30 32 32
+id 30: writing P 32 D 32 to EEPROM (torque must be OFF; no goal is written) ...
+id 30: P 32 D 32, verified after commit -- safe to power down
+  note: id 30 has no row in servo_gains.h
+>>> gains 30
+id 30  P 32  D 32  I 0   expected (no row in servo_gains.h)
+>>> gains 30
+id 30  P 32  D 32  I 0   expected (no row in servo_gains.h)
+  gains back to (32, 32)
+P 160: dev bare -1.00, 1b +2.00, 2b +4.00, return -1.00  (1b-bare +3.00, 2b-1b +2.00)
+# end 2026-10-01T12:53:36

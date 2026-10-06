@@ -12,13 +12,17 @@ Run from the repo root:
 """
 import json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "experiments", "plan-b-bench"))
+sys.path.insert(0, os.path.dirname(HERE))   # experiments/plan-b-bench: gain_bench
+# raw output goes where the other bench scripts put it: hw_sessions/<date>/gain_bench_onebottle/ under the cwd
+OUT = os.path.join(os.getcwd(), "hw_sessions", time.strftime("%Y-%m-%d"), "gain_bench_onebottle")
+os.makedirs(OUT, exist_ok=True)
 import gain_bench as GB
 
-SID, G, A = 11, 2057, 40
+SID, A = int(os.environ.get("SID", 11)), 40
+G = int(os.environ.get("LEVEL_T", 2057))   # this rig's level
 LADDER = [(32, 32), (64, 64), (96, 96), (128, 128), (160, 160), (32, 32)]
 SPD, SETTLE_S, SAMPLE_S, REPS = 100, 6.0, 3.0, 2
-log_f = open(os.path.join(HERE, "session.log"), "a")
+log_f = open(os.path.join(OUT, "session.log"), "a")
 
 
 def log(s):
@@ -87,7 +91,7 @@ def main():
             op.say(f"id {SID}: released; gains {GB.read_gains(board, SID)[:2]}")
         finally:
             board.close()
-            with open(os.path.join(HERE, "one_bottle.json"), "w") as f:
+            with open(os.path.join(OUT, "one_bottle.json"), "w") as f:
                 json.dump(res, f, indent=1)
     if res["rows"]:
         ref = res["rows"][0]["sag_ticks"]

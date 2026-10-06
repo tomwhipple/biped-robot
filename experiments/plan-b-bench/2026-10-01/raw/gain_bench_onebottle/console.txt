@@ -1,0 +1,13 @@
+P  32 D  32: sag  +6.00 ticks, friction band +-6.00, from+ 2069.00 from- 2057.00, load 52, max range 0, err 0 (ok) -- released
+P  64 D  64: sag  +4.00 ticks, friction band +-2.00, from+ 2063.00 from- 2059.00, load 64, max range 0, err 0 (ok) -- released
+P  96 D  96: sag  +2.50 ticks, friction band +-0.50, from+ 2060.00 from- 2059.00, load 52, max range 0, err 0 (landed, ack lost) -- released
+P 128 D 128: sag  +2.25 ticks, friction band +-0.25, from+ 2059.50 from- 2059.00, load 56, max range 0, err 0 (ok) -- released
+P 160 D 160: sag  +2.00 ticks, friction band +-0.00, from+ 2059.00 from- 2059.00, load 56, max range 0, err 0 (landed, ack lost) -- released
+P  32 D  32: sag  +6.00 ticks, friction band +-6.00, from+ 2069.00 from- 2057.00, load 52, max range 0, err 0 (ok) -- released
+id 11: released; gains (32, 32)
+  P  32: x P32  1.00   k ~ 42.1 N*m/rad (tau ~0.39 N*m, unweighed)
+  P  64: x P32  1.50   k ~ 63.1 N*m/rad (tau ~0.39 N*m, unweighed)
+  P  96: x P32  2.40   k ~101.0 N*m/rad (tau ~0.39 N*m, unweighed)
+  P 128: x P32  2.67   k ~112.2 N*m/rad (tau ~0.39 N*m, unweighed)
+  P 160: x P32  3.00   k ~126.3 N*m/rad (tau ~0.39 N*m, unweighed)
+  P  32: x P32  1.00   k ~ 42.1 N*m/rad (tau ~0.39 N*m, unweighed)

@@ -9,13 +9,17 @@ envelope clamp. Reuses gain_bench's write_gains/read_pos/sample/window_stats.
 """
 import json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "experiments", "plan-b-bench"))
+sys.path.insert(0, os.path.dirname(HERE))   # experiments/plan-b-bench: gain_bench
+# raw output goes where the other bench scripts put it: hw_sessions/<date>/gain_bench_2bottle/ under the cwd
+OUT = os.path.join(os.getcwd(), "hw_sessions", time.strftime("%Y-%m-%d"), "gain_bench_2bottle")
+os.makedirs(OUT, exist_ok=True)
 import gain_bench as GB
 
-SID, GOAL, REST, TOL, SPD = 30, 2057, 3081, 150, 100
+SID, TOL, SPD = 30, 150, 100
+GOAL = int(os.environ.get("LEVEL_T", 2057)); REST = int(os.environ.get("DOWN_T", 3081))   # this rig's level / plumb
 LADDER = [(32, 32), (128, 128), (160, 160)]
 BOTTLE_KG, LEVER_M, N, SETTLE = 0.39, 0.100, 20, 5.0
-logf = open(os.path.join(HERE, "session.log"), "a")
+logf = open(os.path.join(OUT, "session.log"), "a")
 
 
 def log(s):
@@ -112,7 +116,7 @@ def main():
             say(f"  released at rest: pos {pos}")
         res["stopped"] = repr(e)
     finally:
-        with open(os.path.join(HERE, "two_bottle.json"), "w") as f:
+        with open(os.path.join(OUT, "two_bottle.json"), "w") as f:
             json.dump(res, f, indent=1)
         for r in res["rows"]:
             dev = [s["stats"]["pos_mean"] - GOAL for s in r["steps"]]

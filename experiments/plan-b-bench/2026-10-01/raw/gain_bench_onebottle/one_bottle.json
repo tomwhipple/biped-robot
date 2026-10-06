@@ -1,0 +1,262 @@
+{
+ "id": 11,
+ "goal": 2057,
+ "approach": 40,
+ "spd": 100,
+ "settle_s": 6.0,
+ "load": "one ~12 fl oz Gatorade bottle (unweighed, ~0.39-0.40 kg est.) at 100 mm",
+ "rows": [
+  {
+   "p": 32,
+   "d": 32,
+   "gain_write": "ok",
+   "plus": [
+    {
+     "pos_mean": 2069.0,
+     "range": 0,
+     "load_mean": 104.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2069.0,
+     "range": 0,
+     "load_mean": 104.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "minus": [
+    {
+     "pos_mean": 2057.0,
+     "range": 0,
+     "load_mean": 0.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2057.0,
+     "range": 0,
+     "load_mean": 0.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "sag_ticks": 6.0,
+   "band_ticks": 6.0,
+   "load_mean": 52.0,
+   "max_range": 0,
+   "err": 0
+  },
+  {
+   "p": 64,
+   "d": 64,
+   "gain_write": "ok",
+   "plus": [
+    {
+     "pos_mean": 2063.0,
+     "range": 0,
+     "load_mean": 96.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2063.0,
+     "range": 0,
+     "load_mean": 96.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "minus": [
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 32.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 32.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "sag_ticks": 4.0,
+   "band_ticks": 2.0,
+   "load_mean": 64.0,
+   "max_range": 0,
+   "err": 0
+  },
+  {
+   "p": 96,
+   "d": 96,
+   "gain_write": "landed, ack lost",
+   "plus": [
+    {
+     "pos_mean": 2060.0,
+     "range": 0,
+     "load_mean": 64.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2060.0,
+     "range": 0,
+     "load_mean": 64.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "minus": [
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 40.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 40.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "sag_ticks": 2.5,
+   "band_ticks": 0.5,
+   "load_mean": 52.0,
+   "max_range": 0,
+   "err": 0
+  },
+  {
+   "p": 128,
+   "d": 128,
+   "gain_write": "ok",
+   "plus": [
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 48.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2060.0,
+     "range": 0,
+     "load_mean": 80.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "minus": [
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 48.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 48.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "sag_ticks": 2.25,
+   "band_ticks": 0.25,
+   "load_mean": 56.0,
+   "max_range": 0,
+   "err": 0
+  },
+  {
+   "p": 160,
+   "d": 160,
+   "gain_write": "landed, ack lost",
+   "plus": [
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 56.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 56.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "minus": [
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 56.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2059.0,
+     "range": 0,
+     "load_mean": 56.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "sag_ticks": 2.0,
+   "band_ticks": 0.0,
+   "load_mean": 56.0,
+   "max_range": 0,
+   "err": 0
+  },
+  {
+   "p": 32,
+   "d": 32,
+   "gain_write": "ok",
+   "plus": [
+    {
+     "pos_mean": 2069.0,
+     "range": 0,
+     "load_mean": 104.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2069.0,
+     "range": 0,
+     "load_mean": 104.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "minus": [
+    {
+     "pos_mean": 2057.0,
+     "range": 0,
+     "load_mean": 0.0,
+     "err": 0,
+     "n": 91
+    },
+    {
+     "pos_mean": 2057.0,
+     "range": 0,
+     "load_mean": 0.0,
+     "err": 0,
+     "n": 91
+    }
+   ],
+   "sag_ticks": 6.0,
+   "band_ticks": 6.0,
+   "load_mean": 52.0,
+   "max_range": 0,
+   "err": 0
+  }
+ ]
+}

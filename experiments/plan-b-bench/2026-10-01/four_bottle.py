@@ -9,13 +9,17 @@ Reuses gain_bench's write_gains/read_pos/sample/window_stats/step_stats.
 """
 import json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "experiments", "plan-b-bench"))
+sys.path.insert(0, os.path.dirname(HERE))   # experiments/plan-b-bench: gain_bench
+# raw output goes where the other bench scripts put it: hw_sessions/<date>/gain_bench_4bottle/ under the cwd
+OUT = os.path.join(os.getcwd(), "hw_sessions", time.strftime("%Y-%m-%d"), "gain_bench_4bottle")
+os.makedirs(OUT, exist_ok=True)
 import gain_bench as GB
 
-SID, GOAL, SPD, A = 30, 2057, 100, 23
+SID, SPD, A = 30, 100, 23
+GOAL = int(os.environ.get("LEVEL_T", 2057))   # this rig's level
 LADDER = [(32, 32), (128, 128), (160, 160)]
 BOTTLE_KG, LEVER_M, N, SETTLE = 0.39, 0.100, 20, 5.0
-logf = open(os.path.join(HERE, "session.log"), "a")
+logf = open(os.path.join(OUT, "session.log"), "a")
 
 
 def log(s):
@@ -114,7 +118,7 @@ def main():
             say(f"  released bare at pos {GB.read_pos(b, SID)['pos']}")
         res["stopped"] = repr(e)
     finally:
-        with open(os.path.join(HERE, "four_bottle.json"), "w") as f:
+        with open(os.path.join(OUT, "four_bottle.json"), "w") as f:
             json.dump(res, f, indent=1)
         ref = None
         for r in res["rows"]:

@@ -1,0 +1,79 @@
+# 2026-10-02T14:57:12 sweep_smooth.py id 30 LEVEL 2507 DOWN 3531 gains [(96, 0), (96, 32), (128, 0)] profiles ['A', 'C', 'Cf', 'Cs', 'C1']
+  bno: BNO08x at 0x4B, drained 33 start-up packet(s), Set Feature sent, 1 packet(s) after; READY a = 277 -117 -1008 mg
+
+NEXT MOTION: the whole ladder [(96, 0), (96, 32), (128, 0)]: per gain, write at plumb, torque on, then per profile ['A', 'C', 'Cf', 'Cs', 'C1'] raise to level and lower to plumb (90 deg, ~10 s each way), release at plumb
+  type go:
+> 
+== P 96 D 0
+  gains 96/0: landed, ack lost
+    accel >5 Hz rms x/y/z 33.97/91.09/27.57 mg, peak 34.1/17.0/17.0 Hz, 5900 samples @ 502.5 Hz
+  A raise: backward 2/301, jitter 1.36 ticks rms, track -, load 0..112, end +3.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 47.31/230.07/35.86 mg, peak 14.2/14.2/14.2 Hz, 5901 samples @ 502.6 Hz
+  A lower: backward 0/301, jitter 1.52 ticks rms, track -, load -112..40, end +0.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 42.18/200.73/32.81 mg, peak 15.2/15.2/15.2 Hz, 5901 samples @ 502.6 Hz
+  C raise: backward 0/118, jitter 0.88 ticks rms, track 7.7, load 0..112, end +3.0 (range 0), 18 Hz, err 0, targets 15.1 Hz
+    accel >5 Hz rms x/y/z 96.67/336.38/44.04 mg, peak 30.1/15.2/15.2 Hz, 5902 samples @ 502.7 Hz
+  C lower: backward 0/118, jitter 1.03 ticks rms, track 6.5, load -88..64, end -1.0 (range 0), 18 Hz, err 0, targets 15.1 Hz
+    accel >5 Hz rms x/y/z 36.98/144.95/29.39 mg, peak 30.4/12.2/12.2 Hz, 5895 samples @ 502.1 Hz
+  Cf raise: backward 1/47, jitter 0.87 ticks rms, track 5.0, load -40..136, end +3.0 (range 0), 10 Hz, err 0, targets 24.2 Hz
+    accel >5 Hz rms x/y/z 43.66/183.9/31.83 mg, peak 12.1/12.1/12.1 Hz, 5899 samples @ 502.4 Hz
+  Cf lower: backward 0/47, jitter 1.13 ticks rms, track 4.3, load -88..40, end -1.0 (range 0), 10 Hz, err 0, targets 24.2 Hz
+    accel >5 Hz rms x/y/z 76.72/249.09/37.02 mg, peak 27.4/9.1/9.1 Hz, 5899 samples @ 502.5 Hz
+  Cs raise: backward 16/71, jitter 0.66 ticks rms, track 13.7, load 0..136, end +3.0 (range 0), 9 Hz, err 0, targets 9.2 Hz
+    accel >5 Hz rms x/y/z 40.57/183.83/32.3 mg, peak 18.3/9.1/9.1 Hz, 5901 samples @ 502.6 Hz
+  Cs lower: backward 0/70, jitter 0.74 ticks rms, track 13.0, load -112..64, end -1.0 (range 0), 9 Hz, err 0, targets 9.2 Hz
+    accel >5 Hz rms x/y/z 36.33/80.98/26.94 mg, peak 31.9/15.1/15.1 Hz, 5901 samples @ 502.6 Hz
+  C1 raise: backward 1/131, jitter 0.94 ticks rms, track 37.1, load 0..136, end +2.0 (range 0), 18 Hz, err 0, targets 15.1 Hz
+    accel >5 Hz rms x/y/z 38.36/120.44/28.54 mg, peak 31.9/15.8/15.8 Hz, 5901 samples @ 502.6 Hz
+  C1 lower: backward 0/129, jitter 1.04 ticks rms, track 36.3, load -88..40, end +0.0 (range 0), 18 Hz, err 0, targets 15.2 Hz
+  released at plumb: pos 3531
+
+== P 96 D 32
+  gains 96/32: ok
+    accel >5 Hz rms x/y/z 38.08/111.67/28.41 mg, peak 34.1/14.2/14.2 Hz, 5899 samples @ 502.4 Hz
+  A raise: backward 0/299, jitter 1.35 ticks rms, track -, load -28..140, end +2.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 72.83/327.37/43.54 mg, peak 14.0/14.0/14.0 Hz, 5902 samples @ 502.7 Hz
+  A lower: backward 1/301, jitter 1.69 ticks rms, track -, load -120..44, end +1.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 72.91/318.01/42.09 mg, peak 15.2/15.2/15.2 Hz, 5900 samples @ 502.5 Hz
+  C raise: backward 1/119, jitter 0.95 ticks rms, track 7.4, load -20..116, end +3.0 (range 0), 18 Hz, err 0, targets 15.1 Hz
+    accel >5 Hz rms x/y/z 173.75/537.42/66.87 mg, peak 29.9/15.2/15.2 Hz, 5899 samples @ 502.4 Hz
+  C lower: backward 6/118, jitter 2.09 ticks rms, track 6.6, load -200..64, end +0.0 (range 0), 18 Hz, err 0, targets 15.1 Hz
+    accel >5 Hz rms x/y/z 44.52/174.6/30.89 mg, peak 12.2/12.2/12.2 Hz, 5900 samples @ 502.5 Hz
+  Cf raise: backward 2/47, jitter 0.95 ticks rms, track 5.1, load 0..144, end +3.0 (range 0), 10 Hz, err 0, targets 24.3 Hz
+    accel >5 Hz rms x/y/z 64.14/255.75/37.18 mg, peak 18.2/12.1/12.1 Hz, 5902 samples @ 502.7 Hz
+  Cf lower: backward 0/47, jitter 1.30 ticks rms, track 4.6, load -128..64, end +0.0 (range 0), 10 Hz, err 0, targets 24.2 Hz
+    accel >5 Hz rms x/y/z 71.98/242.86/36.62 mg, peak 18.2/9.1/9.1 Hz, 5900 samples @ 502.6 Hz
+  Cs raise: backward 12/72, jitter 0.75 ticks rms, track 14.1, load 0..172, end +3.0 (range 0), 9 Hz, err 0, targets 9.2 Hz
+    accel >5 Hz rms x/y/z 50.71/237.72/36.12 mg, peak 18.2/9.1/9.1 Hz, 5900 samples @ 502.5 Hz
+  Cs lower: backward 4/70, jitter 0.80 ticks rms, track 13.4, load -124..64, end +0.0 (range 0), 9 Hz, err 0, targets 9.2 Hz
+    accel >5 Hz rms x/y/z 38.37/96.25/27.46 mg, peak 31.9/15.1/18.3 Hz, 5899 samples @ 502.4 Hz
+  C1 raise: backward 3/131, jitter 0.91 ticks rms, track 37.1, load -24..140, end +3.0 (range 0), 18 Hz, err 0, targets 15.1 Hz
+    accel >5 Hz rms x/y/z 135.32/481.85/61.79 mg, peak 21.7/10.9/10.9 Hz, 5900 samples @ 502.5 Hz
+  C1 lower: backward 8/130, jitter 2.16 ticks rms, track 36.1, load -208..84, end +0.0 (range 0), 18 Hz, err 0, targets 15.2 Hz
+  released at plumb: pos 3531
+
+== P 128 D 0
+  gains 128/0: landed, ack lost
+    accel >5 Hz rms x/y/z 63.89/233.62/35.71 mg, peak 34.1/14.2/14.2 Hz, 5899 samples @ 502.5 Hz
+  A raise: backward 12/301, jitter 1.64 ticks rms, track -, load 0..144, end +3.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 69.43/296.82/41.08 mg, peak 14.2/14.2/14.2 Hz, 5899 samples @ 502.4 Hz
+  A lower: backward 1/300, jitter 1.74 ticks rms, track -, load -112..48, end +0.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 136.75/452.38/56.05 mg, peak 30.5/15.2/15.2 Hz, 5899 samples @ 502.4 Hz
+  C raise: backward 2/118, jitter 1.14 ticks rms, track 6.6, load 0..144, end +3.0 (range 0), 18 Hz, err 0, targets 15.1 Hz
+    accel >5 Hz rms x/y/z 155.83/459.34/58.39 mg, peak 29.7/15.2/15.2 Hz, 5900 samples @ 502.5 Hz
+  C lower: backward 5/118, jitter 1.85 ticks rms, track 6.0, load -272..80, end -1.0 (range 0), 18 Hz, err 0, targets 15.2 Hz
+    accel >5 Hz rms x/y/z 152.55/449.43/61.85 mg, peak 24.4/12.3/12.3 Hz, 5900 samples @ 502.5 Hz
+  Cf raise: backward 5/47, jitter 1.29 ticks rms, track 4.7, load -48..240, end +3.0 (range 0), 10 Hz, err 0, targets 24.3 Hz
+    accel >5 Hz rms x/y/z 75.66/297.68/41.69 mg, peak 18.2/12.2/12.2 Hz, 5900 samples @ 502.5 Hz
+  Cf lower: backward 0/47, jitter 1.30 ticks rms, track 4.5, load -144..80, end +0.0 (range 0), 10 Hz, err 0, targets 24.3 Hz
+    accel >5 Hz rms x/y/z 117.71/393.41/55.0 mg, peak 18.2/9.2/9.2 Hz, 5901 samples @ 502.7 Hz
+  Cs raise: backward 28/70, jitter 0.89 ticks rms, track 13.9, load 0..208, end +3.0 (range 0), 9 Hz, err 0, targets 9.2 Hz
+    accel >5 Hz rms x/y/z 55.07/243.64/36.97 mg, peak 18.2/9.1/18.2 Hz, 5901 samples @ 502.6 Hz
+  Cs lower: backward 7/69, jitter 0.69 ticks rms, track 12.7, load -112..80, end +0.0 (range 0), 9 Hz, err 0, targets 9.2 Hz
+    accel >5 Hz rms x/y/z 133.15/418.69/57.56 mg, peak 23.0/11.5/11.5 Hz, 5902 samples @ 502.6 Hz
+  C1 raise: backward 13/131, jitter 1.90 ticks rms, track 36.3, load -48..240, end +3.0 (range 0), 18 Hz, err 0, targets 15.1 Hz
+    accel >5 Hz rms x/y/z 114.77/400.8/53.04 mg, peak 30.6/15.1/15.1 Hz, 5895 samples @ 502.1 Hz
+  C1 lower: backward 14/130, jitter 1.82 ticks rms, track 35.9, load -208..80, end +0.0 (range 0), 18 Hz, err 0, targets 15.1 Hz
+  released at plumb: pos 3531
+  gains back to (32, 32)
+# end 2026-10-02T15:10:38

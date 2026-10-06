@@ -1,0 +1,72 @@
+{
+ "session": "2026-10-02, session 3, calibration (09:47-09:53)",
+ "method": "probe +-40 ticks at the rest position to find gravity's side, then step 64 ticks at a time against gravity reading the holding load; level = vertex of a parabola through the top three loads",
+ "rest": 3063,
+ "probe_from_plus40": {
+  "err": 6.0,
+  "load": 56.0
+ },
+ "probe_from_minus40": {
+  "err": 0.0,
+  "load": 0.0
+ },
+ "steps": [
+  {
+   "target": 2999,
+   "pos": 3005.0,
+   "abs_load": 56
+  },
+  {
+   "target": 2935,
+   "pos": 2942.0,
+   "abs_load": 64
+  },
+  {
+   "target": 2871,
+   "pos": 2878.0,
+   "abs_load": 64
+  },
+  {
+   "target": 2807,
+   "pos": 2815.0,
+   "abs_load": 72
+  },
+  {
+   "target": 2743,
+   "pos": 2751.0,
+   "abs_load": 72
+  },
+  {
+   "target": 2679,
+   "pos": 2691.0,
+   "abs_load": 104
+  },
+  {
+   "target": 2615,
+   "pos": 2626.0,
+   "abs_load": 96
+  },
+  {
+   "target": 2551,
+   "pos": 2562.0,
+   "abs_load": 96
+  },
+  {
+   "target": 2487,
+   "pos": 2497.0,
+   "abs_load": 88
+  }
+ ],
+ "level_found": 2660,
+ "peak_abs_load": 104,
+ "plumb_found": 3684,
+ "lowering_to_plumb_found": "spd 98 (sd 27, 50..150), backward samples 0/355, load -388..76, end overshoot 0, residual range 0, err 0",
+ "released_at": 3619,
+ "plumb_by_eye": 3531,
+ "level_by_eye": 2507,
+ "error_ticks": 153,
+ "note": "the lowering toward the found plumb pushed the fork into the stand's C-clamp (load -388); the per-step JSON of this attempt was overwritten by the 10:02 run, so the console is the only record",
+ "source": [
+  "2026-10-02/raw/gain_bench_hold/console.txt"
+ ]
+}

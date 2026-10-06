@@ -1,0 +1,4610 @@
+# 2026-10-01T12:19:27 one_bottle.py G 2057 A 40 ladder [(32, 32), (64, 64), (96, 96), (128, 128), (160, 160), (32, 32)]
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> gains 11
+id 11  P 32  D 32  I 0   expected P 32 D 32 -- ok
+>>> release 11
+release 11: ok
+>>> gains 11 32 32
+id 11: writing P 32 D 32 to EEPROM (torque must be OFF; no goal is written) ...
+id 11: P 32 D 32, verified after commit -- safe to power down
+>>> gains 11
+id 11  P 32  D 32  I 0   expected P 32 D 32 -- ok
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+NEXT MOTION: P 32 D 32: torque on at 2057
+  hands clear of the horn; type go:
+>>> torque 11
+torque 11: ok
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.0 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  26 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  28 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> release 11
+release 11: ok
+P  32 D  32: sag  +6.00 ticks, friction band +-6.00, from+ 2069.00 from- 2057.00, load 52, max range 0, err 0 (ok) -- released
+>>> release 11
+release 11: ok
+>>> gains 11 64 64
+id 11: writing P 64 D 64 to EEPROM (torque must be OFF; no goal is written) ...
+id 11: P 64 D 64, verified after commit -- safe to power down
+  note: the robot EXPECTS P 32 D 32 on id 11 (servo_gains.h): arming refuses until they agree
+>>> gains 11
+id 11  P 64  D 64  I 0   expected P 32 D 32 -- MISMATCH
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+NEXT MOTION: P 64 D 64: torque on at 2057
+  hands clear of the horn; type go:
+>>> torque 11
+torque 11: ok
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  27 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.2 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2063  spd     0  load   96  12.1 V  28 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   32  12.1 V  28 C  err 0x00
+>>> release 11
+release 11: ok
+P  64 D  64: sag  +4.00 ticks, friction band +-2.00, from+ 2063.00 from- 2059.00, load 64, max range 0, err 0 (ok) -- released
+>>> release 11
+release 11: ok
+>>> gains 11 96 96
+id 11: writing P 96 D 96 to EEPROM (torque must be OFF; no goal is written) ...
+id 11: FAILED (write-failed) -- EEPROM re-lock attempted; `gains 11` to see what the servo holds
+>>> gains 11
+id 11  P 96  D 96  I 0   expected P 32 D 32 -- MISMATCH
+>>> reg 11 55 1
+id 11 reg 55 = 1 (0x01)
+# gains 96/96 FAILED (attempt 1); read back P 96 D 96, lock 1
+>>> pos 11
+id 11  pos  2059  spd     0  load    0  12.1 V  28 C  err 0x00
+NEXT MOTION: P 96 D 96: torque on at 2057
+  hands clear of the horn; type go:
+>>> torque 11
+torque 11: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load    0  12.1 V  28 C  err 0x00
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  28 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   64  12.1 V  29 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   40  12.1 V  29 C  err 0x00
+>>> release 11
+release 11: ok
+P  96 D  96: sag  +2.50 ticks, friction band +-0.50, from+ 2060.00 from- 2059.00, load 52, max range 0, err 0 (landed, ack lost) -- released
+>>> release 11
+release 11: ok
+>>> gains 11 128 128
+id 11: writing P 128 D 128 to EEPROM (torque must be OFF; no goal is written) ...
+id 11: P 128 D 128, verified after commit -- safe to power down
+  note: the robot EXPECTS P 32 D 32 on id 11 (servo_gains.h): arming refuses until they agree
+>>> gains 11
+id 11  P 128  D 128  I 0   expected P 32 D 32 -- MISMATCH
+>>> pos 11
+id 11  pos  2059  spd     0  load    0  12.1 V  29 C  err 0x00
+NEXT MOTION: P 128 D 128: torque on at 2057
+  hands clear of the horn; type go:
+>>> torque 11
+torque 11: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load    0  12.1 V  29 C  err 0x00
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2060  spd     0  load   80  12.1 V  29 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.0 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   48  12.1 V  29 C  err 0x00
+>>> release 11
+release 11: ok
+P 128 D 128: sag  +2.25 ticks, friction band +-0.25, from+ 2059.50 from- 2059.00, load 56, max range 0, err 0 (ok) -- released
+>>> release 11
+release 11: ok
+>>> gains 11 160 160
+id 11: writing P 160 D 160 to EEPROM (torque must be OFF; no goal is written) ...
+id 11: FAILED (write-failed) -- EEPROM re-lock attempted; `gains 11` to see what the servo holds
+>>> gains 11
+id 11  P 160  D 160  I 0   expected P 32 D 32 -- MISMATCH
+>>> reg 11 55 1
+id 11 reg 55 = 1 (0x01)
+# gains 160/160 FAILED (attempt 1); read back P 160 D 160, lock 1
+>>> pos 11
+id 11  pos  2059  spd     0  load    0  12.1 V  29 C  err 0x00
+NEXT MOTION: P 160 D 160: torque on at 2057
+  hands clear of the horn; type go:
+>>> torque 11
+torque 11: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load    0  12.1 V  29 C  err 0x00
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2059  spd     0  load   56  12.1 V  30 C  err 0x00
+>>> release 11
+release 11: ok
+P 160 D 160: sag  +2.00 ticks, friction band +-0.00, from+ 2059.00 from- 2059.00, load 56, max range 0, err 0 (landed, ack lost) -- released
+>>> release 11
+release 11: ok
+>>> gains 11 32 32
+id 11: writing P 32 D 32 to EEPROM (torque must be OFF; no goal is written) ...
+id 11: P 32 D 32, verified after commit -- safe to power down
+>>> gains 11
+id 11  P 32  D 32  I 0   expected P 32 D 32 -- ok
+>>> pos 11
+id 11  pos  2059  spd     0  load    0  12.1 V  30 C  err 0x00
+NEXT MOTION: P 32 D 32: torque on at 2057
+  hands clear of the horn; type go:
+>>> torque 11
+torque 11: ok
+>>> pos 11
+id 11  pos  2059  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  31 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.2 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> move 11 2097 0 100
+move id 11 -> 2097 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2069  spd     0  load  104  12.1 V  30 C  err 0x00
+>>> move 11 2017 0 100
+move id 11 -> 2017 ticks, 0 ms, spd 100, acc 0: ok
+>>> move 11 2057 0 100
+move id 11 -> 2057 ticks, 0 ms, spd 100, acc 0: ok
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.6 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> pos 11
+id 11  pos  2057  spd     0  load    0  12.1 V  30 C  err 0x00
+>>> release 11
+release 11: ok
+P  32 D  32: sag  +6.00 ticks, friction band +-6.00, from+ 2069.00 from- 2057.00, load 52, max range 0, err 0 (ok) -- released
+>>> release 11
+release 11: ok
+>>> gains 11
+id 11  P 32  D 32  I 0   expected P 32 D 32 -- ok
+>>> gains 11
+id 11  P 32  D 32  I 0   expected P 32 D 32 -- ok
+id 11: released; gains (32, 32)
+  P  32: x P32  1.00   k ~ 42.1 N*m/rad (tau ~0.39 N*m, unweighed)
+  P  64: x P32  1.50   k ~ 63.1 N*m/rad (tau ~0.39 N*m, unweighed)
+  P  96: x P32  2.40   k ~101.0 N*m/rad (tau ~0.39 N*m, unweighed)
+  P 128: x P32  2.67   k ~112.2 N*m/rad (tau ~0.39 N*m, unweighed)
+  P 160: x P32  3.00   k ~126.3 N*m/rad (tau ~0.39 N*m, unweighed)
+  P  32: x P32  1.00   k ~ 42.1 N*m/rad (tau ~0.39 N*m, unweighed)

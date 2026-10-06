@@ -1,0 +1,269 @@
+{
+ "session": "2026-09-30, session 1: bare horn, no lever, no masses",
+ "id": 11,
+ "inertia": "none (bare horn)",
+ "step_ticks": 23,
+ "registers_as_found": {
+  "gains_pdi": [
+   32,
+   32,
+   0
+  ],
+  "model_number": 777,
+  "fw_major": 3,
+  "fw_minor": 10,
+  "max_torque": 1000,
+  "min_start_force": 16,
+  "cw_dead_zone": 1,
+  "ccw_dead_zone": 1,
+  "protect_current": 310,
+  "mode": 0,
+  "protect_torque": 20,
+  "protect_time": 200,
+  "overload_torque": 80,
+  "speed_p": 10,
+  "overcurrent_time": 200,
+  "speed_i": 200,
+  "torque_enable": 0,
+  "torque_limit": 1000,
+  "status": 0
+ },
+ "position_as_found": {
+  "pos": 4094,
+  "spd": 0,
+  "load": 0,
+  "volt": 12.1,
+  "temp": 31,
+  "err": 0
+ },
+ "rows": [
+  {
+   "p": 32,
+   "d": 32,
+   "gain_write": "ok",
+   "goal": 2052,
+   "hold": {
+    "range": 0,
+    "moving": 0,
+    "n": 152,
+    "load_min": 0,
+    "load_max": 0,
+    "temp_max": 32,
+    "err": 0
+   },
+   "step_out": {
+    "overshoot": 0.0,
+    "settle_s": 0.17,
+    "residual_range": 0,
+    "offset": -2.0,
+    "err": 0
+   },
+   "step_back": {
+    "overshoot": 0.0,
+    "settle_s": 0.17,
+    "residual_range": 0,
+    "offset": 2.0,
+    "err": 0
+   },
+   "quiet": true
+  },
+  {
+   "p": 64,
+   "d": 64,
+   "gain_write": "landed, ack lost",
+   "goal": 2052,
+   "hold": {
+    "range": 0,
+    "moving": 0,
+    "n": 152,
+    "load_min": 0,
+    "load_max": 0,
+    "temp_max": 32,
+    "err": 0
+   },
+   "step_out": {
+    "overshoot": 0.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": -1.0,
+    "err": 0
+   },
+   "step_back": {
+    "overshoot": 0.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": 1.0,
+    "err": 0
+   },
+   "quiet": true
+  },
+  {
+   "p": 96,
+   "d": 96,
+   "gain_write": "ok",
+   "goal": 2052,
+   "hold": {
+    "range": 0,
+    "moving": 0,
+    "n": 152,
+    "load_min": 0,
+    "load_max": 0,
+    "temp_max": 32,
+    "err": 0
+   },
+   "step_out": {
+    "overshoot": 1.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": -1.0,
+    "err": 0
+   },
+   "step_back": {
+    "overshoot": 0.0,
+    "settle_s": 0.17,
+    "residual_range": 0,
+    "offset": 0.0,
+    "err": 0
+   },
+   "quiet": true
+  },
+  {
+   "p": 128,
+   "d": 128,
+   "gain_write": "landed, ack lost",
+   "goal": 2052,
+   "hold": {
+    "range": 0,
+    "moving": 0,
+    "n": 152,
+    "load_min": 0,
+    "load_max": 0,
+    "temp_max": 32,
+    "err": 0
+   },
+   "step_out": {
+    "overshoot": 1.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": -1.0,
+    "err": 0
+   },
+   "step_back": {
+    "overshoot": 0.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": 0.0,
+    "err": 0
+   },
+   "quiet": true
+  },
+  {
+   "p": 160,
+   "d": 160,
+   "gain_write": "ok",
+   "goal": 2052,
+   "hold": {
+    "range": 0,
+    "moving": 0,
+    "n": 152,
+    "load_min": 0,
+    "load_max": 0,
+    "temp_max": 32,
+    "err": 0
+   },
+   "step_out": {
+    "overshoot": 0.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": 1.0,
+    "err": 0
+   },
+   "step_back": {
+    "overshoot": 0.0,
+    "settle_s": 0.17,
+    "residual_range": 0,
+    "offset": 0.0,
+    "err": 0
+   },
+   "quiet": true
+  },
+  {
+   "p": 128,
+   "d": 32,
+   "gain_write": "landed, ack lost",
+   "goal": 2052,
+   "hold": {
+    "range": 0,
+    "moving": 0,
+    "n": 152,
+    "load_min": 0,
+    "load_max": 0,
+    "temp_max": 32,
+    "err": 0
+   },
+   "step_out": {
+    "overshoot": 0.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": -1.0,
+    "err": 0
+   },
+   "step_back": {
+    "overshoot": 0.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": 0.0,
+    "err": 0
+   },
+   "quiet": true
+  },
+  {
+   "p": 160,
+   "d": 32,
+   "gain_write": "ok",
+   "goal": 2052,
+   "hold": {
+    "range": 0,
+    "moving": 0,
+    "n": 152,
+    "load_min": 0,
+    "load_max": 0,
+    "temp_max": 32,
+    "err": 0
+   },
+   "step_out": {
+    "overshoot": 0.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": 0.0,
+    "err": 0
+   },
+   "step_back": {
+    "overshoot": 0.0,
+    "settle_s": 0.13,
+    "residual_range": 0,
+    "offset": 0.0,
+    "err": 0
+   },
+   "quiet": true
+  }
+ ],
+ "gain_write_acks": [
+  "ok",
+  "landed, ack lost",
+  "ok",
+  "landed, ack lost",
+  "ok",
+  "landed, ack lost",
+  "ok"
+ ],
+ "first_attempt": {
+  "file": "raw/gain_bench_bare/hold.112838.json",
+  "rows": 1,
+  "stopped": null
+ },
+ "source": [
+  "2026-09-30/raw/gain_bench/read.json",
+  "2026-09-30/raw/gain_bench_bare/hold.json"
+ ]
+}

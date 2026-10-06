@@ -1,0 +1,42 @@
+# 2026-10-02T16:32:09 stream50.py id 30 LEVEL 2507 DOWN 3531 gains [(32, 32), (96, 0), (128, 0)] cases ['robot rule, 4 s', 'matched, 4 s', 'robot rule, 2 s', 'matched, 2 s']
+!! STOPPED: Abort("accelerometer not ready: 'bno: nothing at 0x28/0x29/0x4A/0x4B -- `imu scan`; check 3V3/GND/SD/SC'")
+# end 2026-10-02T16:32:12
+# 2026-10-02T16:34:24 stream50.py id 30 LEVEL 2507 DOWN 3531 gains [(32, 32), (96, 0), (128, 0)] cases ['robot rule, 4 s', 'matched, 4 s', 'robot rule, 2 s', 'matched, 2 s']
+  bno: BNO08x at 0x4B, drained 33 start-up packet(s), Set Feature sent, 1 packet(s) after; READY a = 265 -101 -1004 mg
+
+== P 32 D 32
+  robot rule, 4 s  raise: accel y/x 68.77/21.91 mg (peak 19.3/35.0 Hz) | track rms 32.14 max 54 | backward 0/226 | end range 0 | load 0..196
+  robot rule, 4 s  lower: accel y/x 90.08/23.2 mg (peak 17.2/19.7 Hz) | track rms 28.3 max 48 | backward 0/226 | end range 0 | load -148..72
+  matched, 4 s     raise: accel y/x 83.61/38.07 mg (peak 17.8/33.3 Hz) | track rms 131.79 max 180 | backward 0/226 | end range 14 | load -24..184
+  matched, 4 s     lower: accel y/x 100.55/29.05 mg (peak 17.2/17.2 Hz) | track rms 127.58 max 175 | backward 0/226 | end range 14 | load -132..72
+  robot rule, 2 s  raise: accel y/x 65.19/33.66 mg (peak 18.0/35.2 Hz) | track rms 82.41 max 138 | backward 0/126 | end range 0 | load 0..324
+  robot rule, 2 s  lower: accel y/x 80.5/38.11 mg (peak 17.2/28.7 Hz) | track rms 78.61 max 133 | backward 0/126 | end range 0 | load -268..72
+  matched, 2 s     raise: accel y/x 85.01/52.12 mg (peak 19.7/34.2 Hz) | track rms 149.32 max 208 | backward 0/126 | end range 12 | load -32..300
+  matched, 2 s     lower: accel y/x 98.64/45.02 mg (peak 16.7/31.2 Hz) | track rms 145.05 max 202 | backward 0/126 | end range 14 | load -252..72
+  released at plumb: pos 3530
+
+== P 96 D 0
+  gains 96/0: ok
+  robot rule, 4 s  raise: accel y/x 94.65/30.1 mg (peak 17.2/34.7 Hz) | track rms 22.7 max 39 | backward 1/226 | end range 0 | load 0..208
+  robot rule, 4 s  lower: accel y/x 123.42/27.47 mg (peak 17.2/17.2 Hz) | track rms 21.93 max 38 | backward 0/226 | end range 0 | load -160..64
+  matched, 4 s     raise: accel y/x 121.48/45.49 mg (peak 17.7/34.0 Hz) | track rms 123.75 max 167 | backward 2/226 | end range 13 | load 0..184
+  matched, 4 s     lower: accel y/x 166.06/38.72 mg (peak 17.2/17.2 Hz) | track rms 122.88 max 166 | backward 0/226 | end range 13 | load -136..64
+  robot rule, 2 s  raise: accel y/x 181.19/69.88 mg (peak 13.2/28.5 Hz) | track rms 66.19 max 114 | backward 0/126 | end range 0 | load 0..328
+  robot rule, 2 s  lower: accel y/x 90.87/40.25 mg (peak 18.7/28.0 Hz) | track rms 65.39 max 112 | backward 1/126 | end range 0 | load -280..64
+  matched, 2 s     raise: accel y/x 140.75/60.08 mg (peak 18.0/35.2 Hz) | track rms 135.81 max 186 | backward 0/126 | end range 17 | load 0..328
+  matched, 2 s     lower: accel y/x 152.68/54.63 mg (peak 13.0/29.2 Hz) | track rms 134.96 max 184 | backward 0/126 | end range 12 | load -256..40
+  released at plumb: pos 3531
+
+== P 128 D 0
+  gains 128/0: landed, ack lost
+  robot rule, 4 s  raise: accel y/x 341.41/174.56 mg (peak 12.5/24.0 Hz) | track rms 21.57 max 39 | backward 1/226 | end range 0 | load 0..272
+  robot rule, 4 s  lower: accel y/x 155.07/35.58 mg (peak 15.7/15.7 Hz) | track rms 21.17 max 37 | backward 1/226 | end range 0 | load -176..80
+  matched, 4 s     raise: accel y/x 386.85/195.88 mg (peak 12.5/25.0 Hz) | track rms 122.73 max 166 | backward 2/226 | end range 14 | load 0..272
+  matched, 4 s     lower: accel y/x 318.53/65.03 mg (peak 15.5/15.5 Hz) | track rms 122.29 max 166 | backward 1/226 | end range 14 | load -176..80
+  robot rule, 2 s  raise: accel y/x 80.8/40.0 mg (peak 16.7/35.7 Hz) | track rms 64.18 max 110 | backward 0/126 | end range 0 | load 0..336
+  robot rule, 2 s  lower: accel y/x 127.4/43.11 mg (peak 14.3/28.8 Hz) | track rms 63.79 max 109 | backward 0/126 | end range 0 | load -304..80
+  matched, 2 s     raise: accel y/x 144.61/51.47 mg (peak 16.8/35.0 Hz) | track rms 134.1 max 182 | backward 0/126 | end range 14 | load 0..304
+  matched, 2 s     lower: accel y/x 191.35/57.51 mg (peak 12.7/29.5 Hz) | track rms 133.71 max 182 | backward 0/126 | end range 13 | load -272..0
+  released at plumb: pos 3532
+  gains back to (32, 32)
+# end 2026-10-02T16:39:10

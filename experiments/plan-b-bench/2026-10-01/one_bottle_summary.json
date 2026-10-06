@@ -1,0 +1,213 @@
+{
+ "session": "2026-10-01, session 2, run A (12:19-12:24)",
+ "id": 11,
+ "goal": 2057,
+ "approach_ticks": 40,
+ "speed": 100,
+ "settle_s": 6.0,
+ "load": "one ~12 fl oz Gatorade bottle (unweighed, ~0.39-0.40 kg est.) at 100 mm",
+ "note": "ticks are position minus goal; + is lower (the load side). The script's printed k assumed the full bottle torque with no friction and is not used.",
+ "rows": [
+  {
+   "p": 32,
+   "d": 32,
+   "gain_write": "ok",
+   "from_above": [
+    {
+     "ticks": 12.0,
+     "load": 104.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 12.0,
+     "load": 104.0,
+     "range": 0,
+     "err": 0
+    }
+   ],
+   "from_below": [
+    {
+     "ticks": 0.0,
+     "load": 0.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 0.0,
+     "load": 0.0,
+     "range": 0,
+     "err": 0
+    }
+   ]
+  },
+  {
+   "p": 64,
+   "d": 64,
+   "gain_write": "ok",
+   "from_above": [
+    {
+     "ticks": 6.0,
+     "load": 96.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 6.0,
+     "load": 96.0,
+     "range": 0,
+     "err": 0
+    }
+   ],
+   "from_below": [
+    {
+     "ticks": 2.0,
+     "load": 32.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 2.0,
+     "load": 32.0,
+     "range": 0,
+     "err": 0
+    }
+   ]
+  },
+  {
+   "p": 96,
+   "d": 96,
+   "gain_write": "landed, ack lost",
+   "from_above": [
+    {
+     "ticks": 3.0,
+     "load": 64.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 3.0,
+     "load": 64.0,
+     "range": 0,
+     "err": 0
+    }
+   ],
+   "from_below": [
+    {
+     "ticks": 2.0,
+     "load": 40.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 2.0,
+     "load": 40.0,
+     "range": 0,
+     "err": 0
+    }
+   ]
+  },
+  {
+   "p": 128,
+   "d": 128,
+   "gain_write": "ok",
+   "from_above": [
+    {
+     "ticks": 2.0,
+     "load": 48.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 3.0,
+     "load": 80.0,
+     "range": 0,
+     "err": 0
+    }
+   ],
+   "from_below": [
+    {
+     "ticks": 2.0,
+     "load": 48.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 2.0,
+     "load": 48.0,
+     "range": 0,
+     "err": 0
+    }
+   ]
+  },
+  {
+   "p": 160,
+   "d": 160,
+   "gain_write": "landed, ack lost",
+   "from_above": [
+    {
+     "ticks": 2.0,
+     "load": 56.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 2.0,
+     "load": 56.0,
+     "range": 0,
+     "err": 0
+    }
+   ],
+   "from_below": [
+    {
+     "ticks": 2.0,
+     "load": 56.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 2.0,
+     "load": 56.0,
+     "range": 0,
+     "err": 0
+    }
+   ]
+  },
+  {
+   "p": 32,
+   "d": 32,
+   "gain_write": "ok",
+   "from_above": [
+    {
+     "ticks": 12.0,
+     "load": 104.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 12.0,
+     "load": 104.0,
+     "range": 0,
+     "err": 0
+    }
+   ],
+   "from_below": [
+    {
+     "ticks": 0.0,
+     "load": 0.0,
+     "range": 0,
+     "err": 0
+    },
+    {
+     "ticks": 0.0,
+     "load": 0.0,
+     "range": 0,
+     "err": 0
+    }
+   ]
+  }
+ ],
+ "source": [
+  "2026-10-01/raw/gain_bench_onebottle/one_bottle.json"
+ ]
+}

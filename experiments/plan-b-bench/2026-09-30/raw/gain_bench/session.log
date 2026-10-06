@@ -1,0 +1,63 @@
+# 2026-09-30T11:13:14 tools/gain_bench.py scan
+>>> scan
+scanning IDs 0-253 ...
+  id   1  pos  4094  12.1 V  err 0x00  R_hip_roll
+1 servo(s)
+# 2026-09-30T11:13:22 tools/gain_bench.py read 1
+>>> pos 1
+id 1  pos  4094  spd     0  load    0  12.1 V  31 C  err 0x00
+>>> gains 1
+? (try `help`)
+!! ABORT: this firmware has no `gains` command: flash main (PR #94) first
+# 2026-09-30T11:15:49 tools/gain_bench.py scan
+>>> scan
+scanning IDs 0-253 ...
+  id  11  pos  4094  12.1 V  err 0x00  R_ankle_roll (NOT FITTED in cal)
+1 servo(s)
+# 2026-09-30T11:15:53 tools/gain_bench.py read 11
+>>> pos 11
+id 11  pos  4094  spd     0  load    0  12.1 V  31 C  err 0x00
+>>> gains 11
+id 11  P 32  D 32  I 0   expected P 32 D 32 -- ok
+>>> gains 11
+id 11  P 32  D 32  I 0   expected P 32 D 32 -- ok
+>>> gains 11
+id 11  P 32  D 32  I 0   expected P 32 D 32 -- ok
+>>> reg 11 3 2
+id 11 reg 3 = 777 (0x0309)
+>>> reg 11 0 1
+id 11 reg 0 = 3 (0x03)
+>>> reg 11 1 1
+id 11 reg 1 = 10 (0x0A)
+>>> reg 11 16 2
+id 11 reg 16 = 1000 (0x03E8)
+>>> reg 11 24 2
+id 11 reg 24 = 16 (0x0010)
+>>> reg 11 26 1
+id 11 reg 26 = 1 (0x01)
+>>> reg 11 27 1
+id 11 reg 27 = 1 (0x01)
+>>> reg 11 28 2
+id 11 reg 28 = 310 (0x0136)
+>>> reg 11 33 1
+id 11 reg 33 = 0 (0x00)
+>>> reg 11 34 1
+id 11 reg 34 = 20 (0x14)
+>>> reg 11 35 1
+id 11 reg 35 = 200 (0xC8)
+>>> reg 11 36 1
+id 11 reg 36 = 80 (0x50)
+>>> reg 11 37 1
+id 11 reg 37 = 10 (0x0A)
+>>> reg 11 38 1
+id 11 reg 38 = 200 (0xC8)
+>>> reg 11 39 1
+id 11 reg 39 = 200 (0xC8)
+>>> reg 11 40 1
+id 11 reg 40 = 0 (0x00)
+>>> reg 11 48 2
+id 11 reg 48 = 1000 (0x03E8)
+>>> reg 11 65 1
+id 11 reg 65 = 0 (0x00)
+>>> pos 11
+id 11  pos  4094  spd     0  load    0  12.1 V  31 C  err 0x00

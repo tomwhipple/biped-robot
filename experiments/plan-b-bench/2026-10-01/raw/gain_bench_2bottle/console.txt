@@ -1,0 +1,69 @@
+# 2026-10-01T12:39:45 two_bottle.py id 30 GOAL 2057 REST 3081 ladder [(32, 32), (128, 128), (160, 160)]
+
+== P 32 D 32
+  gains 32/32: ok
+
+NEXT MOTION: P 32: torque on at rest, then raise the arm to straight out (2057) at 100 steps/s
+  type go:
+>   at goal: pos 2059
+  0 bottle(s): pos 2059.00 (dev +2.00), range 0, load 24, err 0
+
+HANG 1 bottle at the 100 mm notch; press enter when done
+>   1 bottle(s): pos 2063.00 (dev +6.00), range 0, load 56, err 0
+
+HANG the 2nd bottle; press enter when done
+>   2 bottle(s): pos 2065.00 (dev +8.00), range 0, load 72, err 0
+
+LIFT the bag/bottles OFF; press enter when done
+>   0 bottle(s): pos 2059.00 (dev +2.00), range 0, load 24, err 0
+
+NEXT MOTION: P 32: lower the bare arm to hanging (3081) at 100 steps/s, then release
+  type go:
+>   released at rest: pos 3079
+
+== P 128 D 128
+  gains 128/128: ok
+
+NEXT MOTION: P 128: torque on at rest, then raise the arm to straight out (2057) at 100 steps/s
+  type go:
+>   at goal: pos 2057
+  0 bottle(s): pos 2057.00 (dev +0.00), range 0, load 0, err 0
+
+HANG 1 bottle at the 100 mm notch; press enter when done
+>   1 bottle(s): pos 2060.00 (dev +3.00), range 0, load 80, err 0
+
+HANG the 2nd bottle; press enter when done
+>   2 bottle(s): pos 2061.00 (dev +4.00), range 0, load 112, err 0
+
+LIFT the bag/bottles OFF; press enter when done
+>   0 bottle(s): pos 2056.00 (dev -1.00), range 0, load 0, err 0
+
+NEXT MOTION: P 128: lower the bare arm to hanging (3081) at 100 steps/s, then release
+  type go:
+> !! STOPPED: Abort('no go for: P 128: lower the bare arm to hanging (3081) at 100 steps/s, then release')
+!! HOLDING TORQUE at pos 2056 (off rest). Lift any load off, then lower with: move 30 3081 0 100 -- do NOT release here.
+press enter only when the arm is safe to leave HELD; the port stays open > P  32: dev bare +2.00, 1b +6.00, 2b +8.00, return +2.00  (1b-bare +4.00, 2b-1b +2.00)
+P 128: dev bare +0.00, 1b +3.00, 2b +4.00, return -1.00  (1b-bare +3.00, 2b-1b +1.00)
+# end 2026-10-01T12:50:59
+# 2026-10-01T12:51:02 two_bottle_level.py id 30 GOAL 2057 REST 3081 ladder [(160, 160)]
+
+== P 160 D 160
+  gains 160/160: landed, ack lost
+
+NEXT MOTION: P 160: torque on at level, then hold straight out (2057) at 100 steps/s
+  type go:
+>   at goal: pos 2056
+  0 bottle(s): pos 2056.00 (dev -1.00), range 0, load 0, err 0
+
+HANG 1 bottle at the 100 mm notch; press enter when done
+>   1 bottle(s): pos 2059.00 (dev +2.00), range 0, load 56, err 0
+
+HANG the 2nd bottle; press enter when done
+>   2 bottle(s): pos 2061.00 (dev +4.00), range 0, load 136, err 0
+
+LIFT the bag/bottles OFF; press enter when done
+>   0 bottle(s): pos 2056.00 (dev -1.00), range 0, load 0, err 0
+  released level, bare: pos 2056
+  gains back to (32, 32)
+P 160: dev bare -1.00, 1b +2.00, 2b +4.00, return -1.00  (1b-bare +3.00, 2b-1b +2.00)
+# end 2026-10-01T12:53:36

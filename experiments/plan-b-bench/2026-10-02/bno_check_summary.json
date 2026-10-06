@@ -1,0 +1,38 @@
+{
+ "session": "2026-10-02, session 3, accelerometer setup (14:28-14:40)",
+ "sequence": [
+  "14:28 old firmware on the new controller: no `bno` command; `imu scan` finds 0x4B",
+  "14:31 flashed main + bench `bno` (1d86445, BNO055 driver): `bno: no reply at 0x28`",
+  "14:39 flashed 2e9516b (`bno` reads a BNO08x over SHTP): BNO08x at 0x4B, READY"
+ ],
+ "i2c_devices": [
+  "0x0C AK09918C",
+  "0x42 INA219",
+  "0x4B BNO08x (the bench breakout)",
+  "0x6B QMI8658C"
+ ],
+ "at_rest_mg": {
+  "n": 1021,
+  "x": {
+   "mean": 238.6,
+   "sd": 4.5
+  },
+  "y": {
+   "mean": 646.6,
+   "sd": 3.41
+  },
+  "z": {
+   "mean": 707.7,
+   "sd": 3.42
+  },
+  "abs_a": {
+   "mean": 987.9,
+   "sd": 3.48
+  }
+ },
+ "firmware_summary_line": "SUMMARY n 1021 over 2.00 s = 511 Hz; mean x 239 y 647 z 708 mg; |a| 988 mg; sd x 4.5",
+ "note": "the firmware's 'sd x 4.5' is the x axis only; |a| varies less",
+ "source": [
+  "2026-10-02/raw/bno_setup/check.log"
+ ]
+}

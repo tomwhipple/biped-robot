@@ -1,0 +1,24 @@
+# 2026-10-01T12:36:51
+>>> pos 11
+id 11  pos  2988  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> pos 11
+id 11  pos  2988  spd     0  load    0  12.1 V  32 C  err 0x00
+>>> reg 11 40 1
+id 11 reg 40 = 0 (0x00)
+>>> ping 30
+id 30: no reply
+>>> id 11 30
+id 11 -> 30: timeout
+>>> scan
+scanning IDs 0-253 ...
+  id  30  pos  2988  12.1 V  err 0x00  -
+1 servo(s)
+>>> reg 30 5 1
+id 30 reg 5 = 30 (0x1E)
+>>> reg 30 55 1
+id 30 reg 55 = 0 (0x00)
+>>> reg 30 40 1
+id 30 reg 40 = 0 (0x00)
+>>> pos 30
+id 30  pos  2988  spd     0  load    0  12.1 V  32 C  err 0x00
+# 2026-10-01T12:36:55

@@ -1,0 +1,78 @@
+# 2026-10-02T10:50:14 sweep_smooth.py id 30 LEVEL 2507 DOWN 3531 gains [(32, 32), (128, 32), (128, 64), (128, 128)] profiles ['A', 'B', 'C']
+!! STOPPED: Abort("id 30: no position reply ('id 30: timeout') -- pack on? right ID?")
+# end 2026-10-02T10:50:17
+# 2026-10-02T10:52:06 sweep_smooth.py id 30 LEVEL 2507 DOWN 3531 gains [(32, 32), (128, 32), (128, 64), (128, 128)] profiles ['A', 'B', 'C']
+
+NEXT MOTION: the whole ladder [(32, 32), (128, 32), (128, 64), (128, 128)]: per gain, write at plumb, torque on, then per profile ['A', 'B', 'C'] raise to level and lower to plumb (90 deg, ~10 s each way), release at plumb
+  type go:
+> 
+== P 32 D 32
+  A raise: backward 0/303, jitter 1.21 ticks rms, track -, load 0..100, end +8.0 (range 0), 30 Hz, err 0
+  A lower: backward 0/301, jitter 1.30 ticks rms, track -, load -52..64, end -1.0 (range 0), 30 Hz, err 0
+  B raise: backward 0/307, jitter 1.05 ticks rms, track -, load 0..104, end +8.0 (range 0), 30 Hz, err 0
+  B lower: backward 0/305, jitter 1.10 ticks rms, track -, load -48..60, end -1.9 (range 2), 30 Hz, err 0
+  C raise: backward 0/121, jitter 0.82 ticks rms, track 12.9, load 0..116, end +8.0 (range 0), 18 Hz, err 0
+  C lower: backward 0/118, jitter 0.88 ticks rms, track 9.0, load -60..72, end -1.0 (range 0), 18 Hz, err 0
+  released at plumb: pos 3530
+
+== P 128 D 32
+  gains 128/32: ok
+  A raise: backward 21/301, jitter 1.99 ticks rms, track -, load -64..192, end +2.0 (range 0), 30 Hz, err 0
+  A lower: backward 20/299, jitter 2.13 ticks rms, track -, load -196..168, end +0.1 (range 8), 30 Hz, err 0
+  B raise: backward 24/305, jitter 1.85 ticks rms, track -, load -96..196, end +2.0 (range 0), 30 Hz, err 0
+  B lower: backward 28/303, jitter 2.01 ticks rms, track -, load -228..160, end +0.1 (range 9), 30 Hz, err 0
+  C raise: backward 17/119, jitter 2.42 ticks rms, track 6.9, load -124..228, end +3.0 (range 0), 18 Hz, err 0
+  C lower: backward 18/117, jitter 2.46 ticks rms, track 6.0, load -192..168, end +0.0 (range 8), 18 Hz, err 0
+  released at plumb: pos 3536
+
+== P 128 D 64
+  gains 128/64: landed, ack lost
+  A raise: backward 42/302, jitter 2.44 ticks rms, track -, load -160..256, end +2.0 (range 0), 30 Hz, err 0
+  A lower: backward 21/300, jitter 2.19 ticks rms, track -, load -216..192, end +0.0 (range 9), 30 Hz, err 0
+  B raise: backward 50/305, jitter 2.32 ticks rms, track -, load -112..256, end +2.0 (range 0), 30 Hz, err 0
+  B lower: backward 30/304, jitter 2.16 ticks rms, track -, load -256..176, end +0.3 (range 8), 30 Hz, err 0
+  C raise: backward 18/119, jitter 2.62 ticks rms, track 7.0, load -136..272, end +3.0 (range 0), 18 Hz, err 0
+  C lower: backward 17/117, jitter 2.71 ticks rms, track 6.2, load -248..200, end +0.1 (range 8), 18 Hz, err 0
+  released at plumb: pos 3538
+
+== P 128 D 128
+  gains 128/128: ok
+  A raise: backward 104/302, jitter 3.43 ticks rms, track -, load -256..400, end +1.8 (range 12), 30 Hz, err 0
+  A lower: backward 30/300, jitter 2.59 ticks rms, track -, load -384..368, end +0.2 (range 11), 30 Hz, err 0
+  B raise: backward 102/305, jitter 3.44 ticks rms, track -, load -240..416, end +1.5 (range 11), 30 Hz, err 0
+  B lower: backward 89/303, jitter 3.50 ticks rms, track -, load -336..368, end +0.3 (range 10), 30 Hz, err 0
+  C raise: backward 31/118, jitter 3.03 ticks rms, track 7.2, load -144..416, end +3.0 (range 0), 18 Hz, err 0
+  C lower: backward 17/116, jitter 2.76 ticks rms, track 6.4, load -288..288, end +0.3 (range 8), 18 Hz, err 0
+  released at plumb: pos 3532
+  gains back to (32, 32)
+# end 2026-10-02T10:58:42
+# 2026-10-02T11:01:25 sweep_smooth.py id 30 LEVEL 2507 DOWN 3531 gains [(128, 32), (128, 16), (128, 0)] profiles ['A', 'C']
+
+NEXT MOTION: the whole ladder [(128, 32), (128, 16), (128, 0)]: per gain, write at plumb, torque on, then per profile ['A', 'C'] raise to level and lower to plumb (90 deg, ~10 s each way), release at plumb
+  type go:
+> 
+== P 128 D 32
+  gains 128/32: ok
+  A raise: backward 20/302, jitter 1.79 ticks rms, track -, load -100..192, end +3.0 (range 0), 30 Hz, err 0
+  A lower: backward 19/300, jitter 2.02 ticks rms, track -, load -184..124, end +0.0 (range 6), 30 Hz, err 0
+  C raise: backward 11/118, jitter 2.13 ticks rms, track 6.7, load -88..228, end +3.0 (range 0), 18 Hz, err 0
+  C lower: backward 12/117, jitter 2.30 ticks rms, track 6.0, load -228..124, end +1.0 (range 3), 18 Hz, err 0
+  released at plumb: pos 3532
+
+== P 128 D 16
+  gains 128/16: landed, ack lost
+  A raise: backward 18/301, jitter 1.74 ticks rms, track -, load -56..182, end +3.0 (range 0), 30 Hz, err 0
+  A lower: backward 14/300, jitter 1.95 ticks rms, track -, load -186..120, end +1.0 (range 0), 30 Hz, err 0
+  C raise: backward 13/117, jitter 1.92 ticks rms, track 6.8, load -48..218, end +3.0 (range 0), 18 Hz, err 0
+  C lower: backward 8/117, jitter 2.24 ticks rms, track 6.1, load -184..86, end +0.0 (range 0), 18 Hz, err 0
+  released at plumb: pos 3531
+
+== P 128 D 0
+  gains 128/0: ok
+  A raise: backward 15/301, jitter 1.61 ticks rms, track -, load -48..176, end +2.0 (range 0), 30 Hz, err 0
+  A lower: backward 7/300, jitter 1.80 ticks rms, track -, load -176..80, end +1.0 (range 0), 30 Hz, err 0
+  C raise: backward 9/118, jitter 1.61 ticks rms, track 6.7, load 0..176, end +3.0 (range 0), 18 Hz, err 0
+  C lower: backward 5/118, jitter 1.65 ticks rms, track 6.0, load -176..80, end -1.0 (range 0), 18 Hz, err 0
+  released at plumb: pos 3530
+  gains back to (32, 32)
+# end 2026-10-02T11:04:53
