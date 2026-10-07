@@ -66,6 +66,12 @@ MOV_FPS = 20          # referee reel playback rate (see reel_index.json)
 _ENV_PARAMS = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
 CROUCH_H_TARGET = None   # set in main() from the run's env (crouch_pose_ref)
 
+# gradebook trace capture (design §3): set by --trace in main(); a dict so
+# run_one reads the active (dir, scenario name) without new plumbing args.
+# None/absent "dir" = capture off (default; the rollout is untouched).
+_trace_dir = {"dir": None, "scenario": ""}
+TRACE_RUN_ROOT = None   # run_dir; makes res["trace"] a run-relative path
+
 
 # =====================================================================
 #  policy + env loading (mirrors eval_ref.py)
@@ -298,6 +304,7 @@ class Driver:
         self.fell = False
         self.frames = []
         self.rows = []
+        self.cmds = []               # the command tuple applied per tick
         # shared-metric accumulators
         self.slip = []                 # per-contact sole planar speed samples
         self.air_l = self.air_r = 0
@@ -316,6 +323,7 @@ class Driver:
     def step(self, cmd):
         env = self.env
         env.set_command(*cmd)
+        self.cmds.append(tuple(float(c) for c in cmd))
         # Feed the TRAINING-correct stacking (SIL harness finding,
         # 2026-07-30): env.step() already returned [f_t, f_{t-1}, f_{t-2}]
         # and pushed f_t, so re-reading env._obs() here prepends a fresh
@@ -1856,6 +1864,23 @@ def run_one(env, act, factory, seed, record, N, mass):
     shared = drv.shared_metrics(mass)
     res = evaluate(drv.rows, ev, drv.fell, N, shared)
     res.update(fell=drv.fell, shared=shared, frames=drv.frames)
+    # ---- gradebook trace capture (design §3) -----------------------------
+    # Additive & read-only: the rollout, evaluate() inputs, and the
+    # scorecard pipeline are untouched. Enabled per `--trace <dir>` in main.
+    traces_dir = _trace_dir.get("dir")
+    if traces_dir:
+        from gradebook import trace as gb_trace
+        name = _trace_dir.get("scenario", "")
+        events = {k: v for k, v in ev.items() if not k.startswith("_")}
+        path = os.path.join(traces_dir, f"{name}_s{seed}.npz")
+        gb_trace.save(path, scenario=name, seed=seed, dt=drv.dt,
+                      episode_seconds=env.episode_seconds,
+                      rows=drv.rows, cmds=drv.cmds, fell=res["fell"],
+                      success=res["success"], events=events,
+                      swing_summary=drv.swings.summary(), shared=shared,
+                      headline=res.get("headline", ""),
+                      metrics=res.get("metrics"))
+        res["trace"] = os.path.relpath(path, TRACE_RUN_ROOT)
     return res
 
 
@@ -1882,6 +1907,12 @@ def main():
                         "2026-08-31 bench measurement). Writes "
                         "scorecard_lag.{md,json} -- the lag-less columns "
                         "stay untouched for historical comparability")
+    p.add_argument("--trace", metavar="DIR", default=None,
+                   help="gradebook trace capture (design §3): write one "
+                        "traces/<scenario>_s<seed>.npz per episode under DIR "
+                        "(run-relative or absolute). ADDITIVE — the rollout "
+                        "and scorecard numbers are unchanged; parity is the "
+                        "gate (tests/test_gradebook.py).")
     args = p.parse_args()
     suffix = "_sil" if args.sil else ""
     if args.act_lag_hz > 0.0 or args.act_delay_ticks > 0:
@@ -1895,6 +1926,15 @@ def main():
     stack = "SIL (firmware stack)" if args.sil else "python policy"
 
     run_dir = os.path.join(RUNS, args.run_name)
+    if args.trace:
+        tdir = (args.trace if os.path.isabs(args.trace)
+                else os.path.join(run_dir, args.trace))
+        _trace_dir["dir"] = tdir
+        _trace_dir["scenario"] = ""
+        os.makedirs(tdir, exist_ok=True)
+        print(f"gradebook trace capture -> {tdir}")
+    global TRACE_RUN_ROOT
+    TRACE_RUN_ROOT = run_dir if args.trace else None
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
     xml = args.xml or cfg.get("xml_path") or DEFAULT_XML
@@ -1993,6 +2033,8 @@ def main():
     for name in names:
         secs, factory, is_loco = reg[name]
         env = get_env(secs, name)
+        if _trace_dir["dir"]:
+            _trace_dir["scenario"] = name
         results = [run_one(env, act_for(env), factory, seed=100 * i + 7,
                            record=(args.render and i == 0), N=N, mass=mass)
                    for i in range(args.episodes)]
