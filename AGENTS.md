@@ -103,7 +103,13 @@ rsync of a hand-curated file list once silently missed a plant XML and trained
 against a stale robot for two days.
 
 Training runs at night only (22:00, no new job after 05:00, hard stop 07:00);
-days belong to the box's owner.
+days belong to the owner of the box. GPU BOUNDARY: the 07:00 hard stop
+binds EVERY GPU job on this box, not just night_run-launched trainings.
+Standalone GPU runs (foot-contacts probes and friends) must wait for the
+hard stop like queued jobs — a probe launched a few minutes after 07:00
+starves the daytime GPU owner (vision classify) for hours (2026-10-07
+incident: foot_probes.sh launched its probe at 07:05:51, watchdog fired
+wichita STARVING; both probes were killed, the backlog drained on GPU).
 
 After every training round, **refresh the visual log**
 (`python sim/build_report.py` → `sim/runs/night_summary.html`) — the results
