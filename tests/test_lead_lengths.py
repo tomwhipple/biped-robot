@@ -43,7 +43,7 @@ def test_spans_stable():
     # pin a few spans to their current derived values (mm, +-1):
     want = {("hip pitch", "knee"): 110.0, ("knee", "ankle"): 110.0,
             ("port", "deck slot"): 102.0, ("deck slot", "battery layer"): 48.1,
-            ("hip yaw", "hip roll"): 56.3, ("hip roll", "hip pitch"): 55.3}
+            ("hip yaw", "hip roll"): 61.3, ("hip roll", "hip pitch"): 55.3}
     for r in LL.rows():
         if (r["a"], r["b"]) in want:
             assert abs(r["span"] - want[(r["a"], r["b"])]) < 1.0, \

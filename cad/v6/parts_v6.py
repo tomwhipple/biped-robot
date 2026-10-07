@@ -68,7 +68,9 @@ PELVIS = "pelvis_v7" + ("" if ARMS else "_armless")
 PARTS = [
     # name, builder, qty, note
     (PELVIS, _lazy("pelvis_v7", "pelvis_v7", arm_mounts=ARMS), 1,
-     f"one print, deck-top-down; 6810-2RS seats{', girdle pilots' if ARMS else ''}"),
+     f"one print, deck-top-down; bearing-housing pilots{', girdle pilots' if ARMS else ''}"),
+    ("yaw_bearing_housing", _lazy("yaw_bearing_housing", "yaw_bearing_housing"), 1,
+     "one print, top face down; both 6810-2RS outer-race seats, screwed up under the pelvis"),
     ("head_shell", _lazy("head", "head_shell"), 1, "neck horn carrier + shell, base down"),
     ("head_face", _lazy("head", "head_face"), 1, "camera face plate, flat"),
     ("neck_floor", _lazy("neck_floor", "neck_floor"), 1, "the neck servo's seat, flat (#90)"),

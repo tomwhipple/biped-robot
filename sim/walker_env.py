@@ -154,6 +154,10 @@ def joint_role(name):
 SERVO_KP_PRESETS = {
     "stock": {},
     "planb": {"hip_roll": 4.0, "ankle_roll": 4.0, "knee": 4.0},
+    # the robot's servo set (DESIGN.md section 4): an STS3250 at each hip roll
+    # (the model's 4x credit) and the ankle-roll and knee STS3215s at the
+    # bench's P 96 / D 0, ~2.8x (experiments/plan-b-bench, issue #73)
+    "robot": {"hip_roll": 4.0, "ankle_roll": 2.8, "knee": 2.8},
 }
 
 

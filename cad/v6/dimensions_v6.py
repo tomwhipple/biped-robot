@@ -96,7 +96,15 @@ ANKLE_PITCH_Z = ANKLE_ROLL_Z + ANKLE_PITCH_TO_ROLL                   # 72.36
 KNEE_Z = ANKLE_PITCH_Z + SHIN                                        # 182.36
 HIP_PITCH_Z = KNEE_Z + THIGH                                         # 292.36
 HIP_ROLL_Z = HIP_PITCH_Z + ROLL_TO_PITCH                             # 342.36
-HIP_YAW_Z = HIP_ROLL_Z - D.CARRIER_ROLL_AXIS                         # yaw horn face
+# The yaw carrier (yaw_carrier_v6.py) is v5's with a spacer of YAW_CARRIER_DROP
+# between its horn plate and the roll-servo bay: it puts the roll servo and its
+# two upper wall screws below the hip-yaw bearing band with a full ACCESS_D
+# driver path once the bearing and its housing are on (check_assembly_v6
+# --joint access). v5's D.CARRIER_ROLL_AXIS (-40.11) stays as it is: the
+# prototype's carrier and the 10-joint training plant mesh it.
+YAW_CARRIER_DROP = 5.0
+CARRIER_ROLL_AXIS = D.CARRIER_ROLL_AXIS - YAW_CARRIER_DROP           # -45.11, carrier-local (horn face z = 0)
+HIP_YAW_Z = HIP_ROLL_Z - CARRIER_ROLL_AXIS                           # yaw horn face
 DECK_BOT_Z = HIP_ROLL_Z + D.ROLL_BELOW_DECK_YAW                      # v5 stack...
 # ...plus the v7 torso's battery layer (see TORSO) -- DECK_BOT_Z is redefined below.
 
@@ -256,19 +264,27 @@ LL_HIP_RELIEF_X0 = D.SV_WID / 2 + D.FIT + 0.24      # 12.90: 0.24 clear of the c
 LL_HIP_RELIEF_UP = 3.0
 LL_WEB_END = -(LL_DROP - 32.0)                # v5's WEB_END rule: 32 above the lower axis
 LL_CABLE_WINDOW_Z = (-48.0, -37.0)            # v5 (upper-anchored: the lead leaves the case bottom)
+LL_WEB_RAMP = 1.3                             # web bottom V: rise over run of its ramps (self-supporting standing)
 LL_BRACE_Z = (LL_BOX_BOT - 4.0, LL_BOX_BOT)   # gable brace at the box bottom
 # DEEP-FLEXION relief (2026-09-14, Tom: "we could probably bend the existing
 # knees further ... with slight modifications of the leg links"): the knee is
 # clear to 105 deg as drawn; from 110 to 130 the only contact is the SHIN's
 # rear-top corner in the idler tine band (web top + the idler grip plate's
 # outer skin, 16-33 mm below the knee axis) sweeping into the THIGH's idler
-# tine 8-32 mm above the axis. A triangular wedge off that corner (height
-# below WEB_TOP, run forward from the web outer face; the idler band only)
-# clears it; ~132 deg is the hard limit where the shin's web and the knee
-# servo case meet the thigh's web end full-width. Same part serves the thigh,
-# where the identical corner faces the pitch yoke at hip extension (+90,
-# already 0.7 mm clear -- removing material only helps).
-LL_FLEX_CUT = (20.0, 24.0)                    # (height below WEB_TOP, run from the web face), mm
+# tine 8-32 mm above the axis. LL_FLEX_CUT is the outline (x, z in the link
+# frame) of what that tine sweeps through on the corner from 90 to 131 deg --
+# every pose nests inside 131's, 105 mm3, bounded below by a 40 deg and a
+# 24 deg edge -- offset 0.6 mm; its rear and top vertices sit outside the
+# part. Cut through the idler band only, it leaves the lower idler grip
+# screw's access bore 3.6 mm of wall. ~132 deg is the hard limit where the
+# shin's web and the knee servo case meet the thigh's web end full-width.
+# Same part serves the thigh, where the identical corner faces the pitch yoke
+# at hip extension (+90, already 0.7 mm clear -- removing material only helps).
+LL_FLEX_CUT = ((-16.16, -15.0), (-16.16, -29.0), (-8.1, -22.15), (8.1, -15.0))
+# The idler grip plate stops 5 mm above its screws' countersinks, square
+# across (Tom, 2026-10-06). Above the screws it is only the ~1 mm outer wall
+# over the idler-platform detent; LL_FLEX_CUT still trims its rear corner.
+LL_IDLER_PLATE_TOP = -D.CASE_HOLES_BOT[1] + D.CASE_CS_D / 2 + 5.0     # -25.05
 # hip flexion: the thigh's grip plates' front edge sweeps the pitch yoke's
 # flange front-bottom corner (x 16, z 26 above the axis) at 123 deg; the
 # plate cannot be relieved (the lower grip screw's countersink sits exactly
@@ -279,10 +295,10 @@ YOKE_FLEX_CHAMFER = 4.0
 # The fold limit after LL_FLEX_CUT is 131 deg: the two links' REAR faces
 # meet -- the shin's jog-block rear-top corner (x web_x0, z -33, r 36.6
 # about the knee) lands on the thigh's rear face 33 mm above the knee (the
-# web-end corner in the idler band; the horn slab's face in the horn band).
+# web end, at both feet of its V; the horn slab's face in the horn band).
 # Two 45 deg corner chamfers buy the last 2 deg + buffer: the web end's
-# outer-bottom corner (idler band) and the jog block's rear-top corner (horn
-# band only, y > the web's upper limit so the web is not notched).
+# outer-bottom corner (its whole width) and the jog block's rear-top corner
+# (horn band only, y > the web's upper limit so the web is not notched).
 LL_FOLD_CHAMFER = 3.0
 # anchor classification for anyone porting v5's constants: UPPER-anchored
 # (unchanged): GRIP_*, jog -36.5..-33, cable window, rib/platform detents.
@@ -313,67 +329,73 @@ DECK_TOP_Z = DECK_BOT_Z + DECK_T
 
 # ----------------------------------------------------------------------------
 # hip-yaw bearing: a 6810-2RS (50 x 65 x 7) between the yaw carrier's round
-# hub and a recess in the pelvis skirt (docs/design-v6/study-yaw-bearing.md,
-# option A; #75). Without it the yaw servo's horn and its 4 horn screws are
+# hub and a recess in the bearing housing screwed under the pelvis
+# (yaw_bearing_housing.py; docs/design-v6/study-yaw-bearing.md, option A; #75). Without it the yaw servo's horn and its 4 horn screws are
 # the only connection between the carrier (the whole leg, a 0.335 m lever)
 # and the pelvis, and the thrust (~15 N single-support) and roll moment
 # (~0.65 N-m) all go through the servo's output shaft.
 #
-# The bearing band adds no height: it runs from the horn face (carrier z = 0)
-# down the bearing's own width, so HIP_YAW_Z, CARRIER_ROLL_AXIS and d_yaw_roll
-# are untouched (Tom, 2026-09-18). Within that band the carrier holds its
-# horn plate (z 0..-3) and, below -3, the top of the roll-servo bay: the ROLL
-# servo's case, whose cable end is at CARRIER_ROLL_AXIS + SV_AXIS_FROM_REAR =
-# -40.11 + 35.11 = -5.00. The hub has to clear that case's corner reach from
-# the yaw axis, measured (`CA.servo_mock_x()` intersected with a box at
-# carrier-local z in [-10.11, -5.00], the horn-side rib included):
-YAW_BAND_CASE_CORNER_R = 22.23
-# Smallest of the bore classes (45: 6709/6809, 50: 6710/6810, 55: 6711/6811)
-# that clears it with a 1.5 mm wall (bore >= 47.46 mm) is 50 mm, with 2.81 mm.
+# The bearing band is the top of the carrier, from the horn face (carrier z =
+# 0) down the bearing's own width. In it the carrier holds its horn plate
+# (z 0..-3) and the top of the bay walls (the spacer, YAW_CARRIER_DROP); the
+# roll servo starts below it (YAW_ROLL_CASE_TOP_Z). The hub wraps the walls'
+# rectangular footprint (corners 25.12 from the yaw axis, trimmed 0.08 to the
+# hub) and keeps the bay's open interior, which the horn screws are driven
+# through; the bore is the smallest class (45: 6709/6809, 50: 6710/6810, 55:
+# 6711/6811) whose hub leaves a 1.5 mm wall around that interior's corners:
+YAW_BAY_VOID_CORNER_R = math.hypot(D.SV_TOPFACE, D.SV_WID / 2 + D.BAY_CHEEK_GAP)   # 21.48
 YAW_BRG_ID = 50.0             # 6810-2RS bore
 YAW_BRG_OD = 65.0             # 6810-2RS OD (6710-2RS is 62 mm, but its C0 varies
                               # 2.6-3.1 kN across sources; either is overkill here)
 YAW_BRG_W = 7.0               # 6810-2RS width
-YAW_BRG_C0_KN = 5.8           # 6810-2RS, one full spec sheet (50x65x7)
-YAW_BRG_MASS_G = 52.0         # SKF 61810-2RS1 catalogue mass 0.052 kg (as listed by SKF distributors)
+# SKF 61810-2RS1 product data (SKF-generated sheet, https://docs.rs-online.com/
+# f06f/A700000007138802.pdf): the ring shoulder diameters on the seal side,
+# d1 (inner ring) and D2 (outer ring), the abutment limits da/Da, r1,2 min.
+YAW_BRG_D1 = 54.67            # inner ring shoulder (approx.)
+YAW_BRG_D2 = 61.8             # outer ring shoulder (approx.)
+YAW_BRG_DA_MAX = 63.0         # largest abutment diameter on the outer ring face
+YAW_BRG_R_MIN = 0.3           # ring chamfer
+YAW_BRG_C_KN = 6.76
+YAW_BRG_C0_KN = 6.8
+YAW_BRG_MASS_G = 53.0
 YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.08           # 50.08, +0.08 interference on the inner race
 YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2          # 25.04
 YAW_BRG_BOSS_H = YAW_BRG_W                    # 7.0, full bore engagement: the band IS carrier z [-7, 0]
-assert YAW_BRG_BOSS_R - YAW_BAND_CASE_CORNER_R >= 1.5, \
-    "hub must enclose the roll servo's own case corner (within the band) with >= 1.5 mm wall"
+assert YAW_BRG_BOSS_R - YAW_BAY_VOID_CORNER_R >= 1.5, \
+    "hub must keep a 1.5 mm wall around the bay interior's corners (within the band)"
 _bore45_r = (45.0 + 0.08) / 2
-assert _bore45_r - YAW_BAND_CASE_CORNER_R < 1.5, \
+assert _bore45_r - YAW_BAY_VOID_CORNER_R < 1.5, \
     "45 mm bore is supposed to FAIL this margin (negative control) -- re-check the 50 mm pick if this trips"
 YAW_BRG_RECESS_ID = YAW_BRG_OD - 0.04         # 64.96, -0.04 interference on the outer race
 YAW_BRG_RECESS_R = YAW_BRG_RECESS_ID / 2      # 32.48
-# ESTIMATED race split -- not a published spec (no internal geometry in the
-# catalogue data found): an illustrative 6709 split (inner ring 2 mm, ball and
-# cage gap 1 mm, outer ring 2 mm over a 5 mm radial span) scaled to this
-# bearing's 7.5 mm span. Used only to keep the pelvis shoulder off the turning
-# inner race and the carrier off the fixed outer race; measure the real
-# bearing before printing the pelvis.
-_brg_factor = (YAW_BRG_OD - YAW_BRG_ID) / 2 / 5.0
-YAW_BRG_EST_INNER_RING_R = YAW_BRG_BOSS_R + 2.0 * _brg_factor            # ~28.04, inner race outer radius
-YAW_BRG_EST_OUTER_RING_R = YAW_BRG_EST_INNER_RING_R + 1.0 * _brg_factor  # ~29.54, outer race inner radius
+# the race split at the ring shoulders: the inner race (turning) out to d1/2,
+# the outer race (fixed) in from D2/2. The housing shoulder must bear on the
+# outer ring face only -- outside D2 (the seal), inside Da max -- and keep off
+# the inner race; the carrier must keep off the outer race.
+YAW_BRG_INNER_RING_R = YAW_BRG_D1 / 2         # 27.335
+YAW_BRG_OUTER_RING_R = YAW_BRG_D2 / 2         # 30.9
 YAW_BRG_SHOULDER_LAND = 1.2                   # the ledge that stops the outer race's top face
 YAW_BRG_SHOULDER_ID = YAW_BRG_OD - 2 * YAW_BRG_SHOULDER_LAND   # 62.6 (r 31.3)
-assert YAW_BRG_SHOULDER_ID / 2 > YAW_BRG_EST_OUTER_RING_R, \
-    "shoulder must not reach the (estimated) outer race's own ID"
-YAW_BRG_SKIRT_OD = YAW_BRG_OD + 6.0           # 71.0, ~3 mm wall around the recess; the two
-                                              # skirts are 13 mm apart and bridged (pelvis_v7.py)
+assert YAW_BRG_D2 < YAW_BRG_SHOULDER_ID <= YAW_BRG_DA_MAX, \
+    "the housing shoulder must bear on the outer ring face: outside D2 (the seal), inside Da max"
+YAW_BRG_SKIRT_OD = YAW_BRG_OD + 6.0           # 71.0, ~3 mm wall around the recess (yaw_bearing_housing.py)
 YAW_BRG_BAND_Z = (-YAW_BRG_BOSS_H, 0.0)       # carrier-local
-YAW_ROLL_CASE_TOP_Z = D.CARRIER_ROLL_AXIS + D.SV_AXIS_FROM_REAR      # -5.00, carrier-local
-# roll-servo retention screw rows (carrier-local): both stay below the band
-YAW_ROLL_SCREW_ROWS_Z = (D.CARRIER_ROLL_AXIS + D.CASE_HOLES_TOP[1],
-                         D.CARRIER_ROLL_AXIS + D.CASE_HOLES_BOT[1])  # -11.11, -7.36
-assert YAW_ROLL_SCREW_ROWS_Z[1] < YAW_BRG_BAND_Z[0], \
-    "the idler-side retention screw row must stay below (outside) the band"
-# pelvis-local: the recess ends flush at the horn face, and the shoulder fills
-# the existing 1.8 mm gap up to the cell-tube rim (D.YAW_BOX_CARRIER_GAP)
+YAW_ROLL_CASE_TOP_Z = CARRIER_ROLL_AXIS + D.SV_AXIS_FROM_REAR        # -10.00, carrier-local
+assert YAW_ROLL_CASE_TOP_Z < YAW_BRG_BAND_Z[0], "the roll servo's case must start below the bearing band"
+# roll-servo retention screw rows (carrier-local, the upper row of each wall):
+# a driver on either must pass under the band (and the housing skirt hanging
+# 0.5 mm below it) with ~1 mm to spare
+YAW_ROLL_SCREW_ROWS_Z = (CARRIER_ROLL_AXIS + D.CASE_HOLES_TOP[1],
+                         CARRIER_ROLL_AXIS + D.CASE_HOLES_BOT[1])    # -16.11, -12.36
+assert max(YAW_ROLL_SCREW_ROWS_Z) + D.ACCESS_D / 2 <= YAW_BRG_BAND_Z[0] - 0.5 - 1.0, \
+    "the upper roll-servo wall screws need a driver path under the bearing band and housing"
+# pelvis-local: the recess ends flush at the horn face, and the housing's
+# shoulder fills the existing 1.8 mm gap up to the cell-tube rim
+# (D.YAW_BOX_CARRIER_GAP), against which the housing is screwed
 YAW_BRG_RECESS_Z = (YAW_HORN_FACE_Z - YAW_BRG_W, YAW_HORN_FACE_Z)   # -80.80..-73.80
 YAW_BRG_SHOULDER_Z = (YAW_BRG_RECESS_Z[1], YAW_BOX_BOT_Z)           # -73.80..-72.0
 assert YAW_BRG_SHOULDER_Z[1] == YAW_BOX_BOT_Z, \
-    "skirt must hang from the EXISTING rim, unmoved (no axial growth)"
+    "the housing must hang from the cell-tube rim it screws to"
 
 # housing plan
 # +4: an outer skin outboard of the yaw cell walls, so the housing can taper
@@ -426,7 +448,13 @@ HOUSING_LEN = HOUSING_X[1] - HOUSING_X[0]                             # 98.95
 BATT = (105.0, 36.0, 26.0)                    # length (y), width (x), height (z)
 BATT_MASS = 170.0
 BATT_X = (CELL_X[0] + 2.0, CELL_X[0] + 2.0 + BATT[1])                # -36.01..-0.01 (over the cells)
-BATT_Z = (CELL_TOP_Z + 0.5, CELL_TOP_Z + 0.5 + BATT[2])              # -35.5..-9.5
+# The pack lies on two 1.0 mm adhesive foam pads on the cell ceiling (BOM),
+# not on the ceiling itself: the yaw servos' free-hub posts come up flush with
+# the ceiling's top face (pelvis_v7: the post hole), and they turn with the
+# hip. Printed rails there would be islands (the ceiling's pack face prints
+# facing the bed), so the clearance is the pads'.
+BATT_PAD_T = 1.0
+BATT_Z = (CELL_TOP_Z + BATT_PAD_T, CELL_TOP_Z + BATT_PAD_T + BATT[2])  # -35.0..-9.0
 BATT_HY = BATT[0] / 2                         # 52.5 half length
 assert BATT_Z[1] <= -DECK_T - 1.0, "pack does not fit under the deck"
 assert BATT_HY + 1.0 <= HOUSING_HW - D.WALL, "pack is longer than the housing is wide"
@@ -442,6 +470,41 @@ PWR_X = (BATT_X[1] + 1.5, BATT_X[1] + 1.5 + PWR_BOARD[1])            # +1.5..+9.
 PWR_Z = BATT_Z
 assert PWR_X[1] <= CELL_X[1] - D.YAW_SEAT_WALL - 0.5, "power pocket runs into the cell block's front web"
 assert PWR_X[1] < GD_PCB_X0 - 2.0, "power boards collide with the General Driver standoffs"
+# hip-yaw bearing HOUSING (yaw_bearing_housing.py): the bearings' outer-race
+# seats (skirt, recess, shoulder) for both hips in one print, screwed UP to
+# the underside of the cell block after the yaw servos, carriers, roll servos
+# and bearings are in. It is not part of the pelvis print because the yaw
+# servo goes up into its cell through the space the shoulder ring occupies
+# (its cable end reaches SV_AXIS_FROM_REAR = 35.11 from the yaw axis; the
+# ring is r 31.3..35.5), and the roll servo's upper idler-side screws are
+# driven through the space the bearing and skirt occupy.
+YAW_HOUSING_Z = (YAW_BRG_RECESS_Z[0] - 0.5, YAW_BOX_BOT_Z)   # -81.3..-72.0, pelvis-local
+YAW_HOUSING_EAR_T = 4.0                  # the screw bars, from the top face down
+YAW_HOUSING_SCREW_L = 8.0                # M2.5 x 8 flat head: 4.0 through the bar, 4.0 into the pelvis
+YAW_HOUSING_PILOT_DEPTH = 5.0            # pelvis pilot, above YAW_BOX_BOT_Z
+YAW_HOUSING_BOSS_H = 7.0                 # pelvis pilot boss, above YAW_BOX_BOT_Z (then a 45 deg cone)
+YAW_HOUSING_BOSS_R = 3.0
+# screw positions, pelvis-local (x, y). Where there is pelvis material
+# outside the skirts, far enough from both hip axes that a 7 mm driver
+# (D.ACCESS_D) clears each skirt, and off the Pi board (y edge 42.5, solder
+# side x -41.51), the General Driver (PCB from x 18.01) and the servo cells:
+# - rear-outboard: the rear cell wall where it meets the Pi channel wall;
+# - rear-inboard: the inner cheek's rear end beside the centre channel;
+# - front, on the centre line: the cell block's front web (x 10.41..13.01,
+#   |y| < 14). The front end cap is only 2.6 mm thick, so a boss there would
+#   stand proud of the pelvis's front face.
+YAW_HOUSING_SCREWS_L = (
+    (-40.0, 46.8),    # rear-outboard (L; R mirrors in y)
+    (-36.5, 25.5),    # rear-inboard
+)
+YAW_HOUSING_SCREW_FRONT = (11.7, 0.0)
+YAW_HOUSING_SCREWS = tuple((x, s * y) for s in (1, -1) for x, y in YAW_HOUSING_SCREWS_L) + (YAW_HOUSING_SCREW_FRONT,)
+for _hx, _hy in YAW_HOUSING_SCREWS:
+    for _by in (HIP_SEP / 2, -HIP_SEP / 2):
+        assert math.hypot(_hx, _hy - _by) >= YAW_BRG_SKIRT_OD / 2 + D.ACCESS_D / 2 + 0.5, \
+            "a housing screw is too close to a skirt for the driver"
+assert D.YAW_CASE_X_FRONT + D.YAW_SEAT_GAP <= YAW_HOUSING_SCREW_FRONT[0] <= CELL_X[1], \
+    "the front housing screw must land on the cell block's front web"
 # deck
 DECK_X = HOUSING_X                            # the deck is the housing's lid, full footprint
 DECK_HW = HOUSING_HW
@@ -573,7 +636,7 @@ ARM_SHOULDER_X = 0.0     # "the same plane as the hips": directly above the hip
                          # yaw axis, not 50 mm aft. This undoes round 4b's aft
                          # mount, whose ONLY job was keeping the hanging arm
                          # clear of the swinging leg -- so it was re-measured,
-                         # not assumed. See ARM_WALK_HOLD below and
+                         # not assumed. See ARM_REST below and
                          # docs/design-v6/shoulder-girdle.md section 2.
 GIRDLE_FLOOR = 4.0       # bay floor under the servo's lower long face. Same
                          # 4.0 the round-4 cradle used, and it is what keeps
@@ -634,29 +697,26 @@ assert GIRDLE_WIDTH <= D.BED, "the girdle must fit the print bed in one piece"
 # shoulder comes forward to x = 0, so the structural number and the measured
 # one agree instead of fighting. See docs/design-v6/shoulder-girdle.md.
 
-# --- the held arm pose during locomotion -----------------------------------
-# The one thing the aft mount really bought was fore-aft separation between
-# the hanging arm and the swinging leg. With the joint in the hip plane that
-# separation has to come from somewhere, and it comes from the POSE, which is
-# free: the arm actuators are not in the walk timeline, so whatever they are
-# commanded to is what they hold.
-#
-# Measured (docs/design-v6/getup_search_girdle_pose.txt, the 8-step walk with
-# self-collision on, as-drawn servo boxes):
-#     shoulder  0 deg (straight down):  592 arm-vs-leg contacts, and the
-#                                       mu 0.3 / play 5 gate case FALLS
-#     shoulder 10 deg back:             0 contacts
-#     shoulder 15 deg back:             0 contacts
-#     shoulder 25 deg back:             0 contacts
-# and at both 10 and 15 the full four-case gate is 4/4 with zero contacts
-# (getup_search_girdle_gate4_pose.txt) -- strictly better than round 4b's aft
-# mount, which scored 4/4 with 0/126/0/184. 15 is the middle of the measured
-# zero band, so 15 is the number.
-ARM_WALK_HOLD = 15.0     # deg, shoulder held BACK while walking/standing
-                         # (+ = backward, 0 = straight down). Costs ~0.02 N-m
-                         # of holding torque per shoulder against a 2.72 N-m
-                         # stall; it is a controller default, not geometry.
-ARM_WALK_HOLD_BAND = (10.0, 25.0)   # the measured zero-contact band
+# --- the arms' rest pose ---------------------------------------------------
+# Folded (Tom, 2026-10-06): the shoulder 15 deg FORWARD and the elbow folded
+# 95 deg, so the forearm points forward and 20 deg up. The arm actuators are
+# not in the walk timeline; this is what they are commanded to whenever they
+# are not doing something else (standing, walking), and the plant's qpos0.
+# Chosen by sweep (every leg joint through its full ROM, one at a time as
+# check_assembly_v6 does, plus a walking grid hip roll +-15 x hip pitch
+# -45..30 x knee 0..70; docs/design-v6/arm_rest_search_2026-10-06.txt):
+#   shoulder 0..+60 (down or back), elbow -90..-100: the forearm sits at the
+#     hip yoke's height and an outward hip roll past ~30 deg drives the yoke,
+#     the pitch servo and the thigh into it (up to 12000 mm3);
+#   shoulder -10: 99 mm3 at full roll; -12.5: clear by 2.65 mm;
+#   shoulder -15 .. -35: clear, by >= 7.4 mm (a bounding-box floor; the CAD
+#     gate measures -15 / -95 at >= 8.55 mm); the walking grid by >= 6.0 mm.
+# -15 is the smallest forward lean with the full margin, which keeps the arms'
+# mass forward shift smallest (+69 mm per arm, about +7 mm on the robot's
+# CoM); -95 leaves 5 deg to the elbow's -100 limit.
+ARM_REST_SHOULDER = -15.0   # deg (+ = backward, 0 = straight down)
+ARM_REST_ELBOW = -95.0      # deg (- = folded, the forearm swinging forward)
+ARM_REST = (ARM_REST_SHOULDER, ARM_REST_ELBOW)
 
 # --- the arm links --------------------------------------------------------
 # Section: an open C -- back web + two side rails, opening FORWARD (+x). Not a
@@ -826,7 +886,8 @@ SERVO_MASS_3215_ARM = None   # see parts_v6 rollup; kept out of the servo count
 SIM_EXPECT = dict(hip_sep=HIP_SEP / 1e3, thigh=THIGH / 1e3, shank=SHIN / 1e3,
                   d_ankle=ANKLE_PITCH_TO_ROLL / 1e3, roll_h=ANKLE_ROLL_Z / 1e3,
                   foot_len=FOOT_L_LEN / 1e3, foot_w=FOOT_W / 1e3, foot_toe=FOOT_TOE / 1e3,
-                  foot_y_off=FOOT_Y_OFF / 1e3, batt_layer_h=BATT_LAYER / 1e3)
+                  foot_y_off=FOOT_Y_OFF / 1e3, batt_layer_h=BATT_LAYER / 1e3,
+                  d_yaw_roll=-CARRIER_ROLL_AXIS / 1e3)
 
 if __name__ == "__main__":
     print(f"deck bottom {DECK_BOT_Z:.1f}, deck top {DECK_TOP_Z:.1f}, neck horn {NECK_HORN_Z:.1f}, "

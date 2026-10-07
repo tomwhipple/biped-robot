@@ -138,9 +138,10 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §5 ankle roll (ankle-link tines) | M3 × 5 | 16 |
 | §5 ankle pitch, knee (leg-link forks) | M3 × 5 horn / M3 × 6 idler | 16 / 16 |
 | §6 hip pitch (hip-yoke pitch clevis) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
-| §7a yaw-servo stators | M2.5 × 8 flat | 8 |
+| §7a yaw-servo stators | M2.5 × 5 flat | 8 |
 | §7b carrier to the yaw horn | M3 × 5 | 8 |
 | §7c hip-roll servo into the carrier bay | M2.5 × 8 flat | 16 |
+| §7e bearing housing up into the pelvis | M2.5 × 8 flat | 5 |
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
 | §9a–b Pi and General Driver | M2.5 × 10 pan (lower row) / M2.5 × 6 pan (upper row) | 4 / 4 |
 | §9c power-pocket bosses | M2.5 × 8 pan | 2 |
@@ -170,6 +171,10 @@ The robot has no heat-set inserts and no washers.
    - Centring first keeps each joint's travel clear of the encoder's 0/4095
      wrap. On the prototype, a zero at 3273 capped a hip's backward pitch at
      +72°.
+   - **The two hip-yaw servos go in without their idler disc.** Nothing rides
+     their idler side, which seats flat on the cell ceiling (§7a). Leave the
+     disc off and keep it in the bag as a spare; the other 15 servos keep
+     theirs.
 4. **Gains.** On the four ankle-roll and knee STS3215s, write the
    position-loop P (register 21) and D (register 22) that the bench test (#73)
    settled. The hip rolls are STS3250s; their row in the table comes from the
@@ -252,53 +257,34 @@ Everything in the battery layer is done **before the pack goes in** (§10).
 
 1. **Offer the servo up into its cell from below** (the mouth has a 1.2 mm
    lead-in).
-   - Output axis vertical, **horn down**, case length fore-aft.
-   - The idler face goes up against the cell ceiling, landing on 1.5 mm pads
-     over the case's recessed screw bosses.
+   - Output axis vertical, **horn down**, case length fore-aft, **no idler
+     disc** (§2).
+   - The idler-side case face goes up flat against the cell ceiling. Its four
+     mounting holes are flush with the face, so the ceiling clamps them
+     directly. The free-hub post (2.6 mm proud) passes into a hole in the
+     ceiling, and the moulded back-cover platform (1.9 mm proud) into a
+     relief: the face should sit flat with no rocking.
 2. **Plug its leads first.** The bus ports sit in the connector trench on the
    idler face. A riser through the ceiling opens over the trench into the
    battery layer, so plug the leads in from above. From there they run through
    the battery layer to the deck's leg-bus slot.
-3. **Drive 4 × M2.5 × 8 flat-heads down through the cell ceiling** into the
+3. **Drive 4 × M2.5 × 5 flat-heads down through the cell ceiling** into the
    idler-face rows (8.30 and 32.75). Reach them from above, through the deck's
-   battery aperture, with the pack out.
+   battery aperture, with the pack out. A 5 mm screw takes 2.4 mm of the hole,
+   which the vendor STEP shows 3.0 deep; **check the hole depth on the first
+   servo**, and use an × 6 only if it is at least 3.6 mm deep.
 
 ![Yaw servo up into its cell](assembly/v6_07_yaw_servo.png)
 
-### 7b. Yaw carrier and the hip-yaw bearing
+### 7b. Yaw carrier up onto the yaw horn
 
-The bearing is a **6810-2RS** (50 × 65 × 7 mm, sealed). Its inner race goes on
-the carrier's round hub (Ø50.08, +0.08 mm interference) and its outer race into
-the pelvis recess (Ø64.96, −0.04 mm), up against a shoulder. The shoulder is the
-only positive stop: it takes the leg's thrust. Background:
-[study-yaw-bearing.md](design-v6/study-yaw-bearing.md) (option A).
+1. **Seat the carrier on the yaw horn** with the yaw servo at mechanical zero.
+   Its horn plate mates the horn disc and its roll bay opens downward. **Square
+   it before torquing**: a clocked carrier is a permanent yaw offset.
+2. **Drive 4 × M3 × 5 up into the horn** through the bay ceiling, from inside
+   the empty bay. Do this before the roll servo goes in.
 
-1. **Measure the bearing and the printed seats first.** Both fits are inside the
-   printer's error band, so the pelvis and carrier print at nominal and are
-   fitted with **retaining compound** (Loctite 641) on both seats.
-2. **Press the bearing onto the carrier's hub, on the bench**, from the horn-face
-   side, pushing on the **inner race only**, until it is flush with the horn
-   face. It cannot go on from the other end: the bay's corners below the hub
-   are bigger than the bore.
-3. **Seat the carrier on the yaw horn** with the yaw servo at mechanical zero.
-   Its horn plate mates the horn disc and its roll bay opens downward. The outer
-   race enters the pelvis recess as the carrier goes up. **Push it home against
-   the shoulder by hand**, on the outer race, before any screw goes in: the horn
-   screws must not be what draws it in. **Square the carrier before torquing**:
-   a clocked carrier is a permanent yaw offset.
-4. **Drive 4 × M3 × 5 up into the horn** through the bay ceiling, from inside
-   the bay. Do this before the roll servo goes in.
-5. **Turn the leg through ±45° by hand** before the compound sets: the carrier
-   should turn on the bearing without touching the pelvis.
-
-![Yaw carrier, bearing on its hub, up onto the yaw horn](assembly/v6_08_yaw_carrier.png)
-
-- **Never heat-set a bearing into PETG.** PETG must reach about 230 °C to flow,
-  and a 2RS bearing's seals and grease are good to roughly 100 °C.
-- **Measure the real bearing's rings before printing the pelvis.** The pelvis
-  shoulder is sized to an *estimated* outer-ring ID (r 29.5 mm, against the
-  shoulder's r 31.3), and the CAD check keeps the carrier off the outer race
-  and the pelvis off the inner race on those estimates.
+![Yaw carrier up onto the yaw horn](assembly/v6_08_yaw_carrier.png)
 
 ### 7c. Hip-roll servo up into the carrier bay
 
@@ -308,13 +294,65 @@ only positive stop: it takes the leg's thrust. Background:
      moulded back-cover platform, so the servo should feel **snug against the
      rear wall** before any screw goes in. If it does not, check that the
      platform is running in the channel rather than sitting on top of it.
-2. **Plug both leads.** Its bus ports face rearward through the window in the
-   bay's rear wall (the trench band, just above the idler bore). Plug both
-   leads there and route them out of the bay's open rear.
-3. **Drive 8 × M2.5 × 8 flat-heads:** 4 through the front (horn) wall and 4
-   through the rear (idler) wall, into the case.
+2. **Drive 8 × M2.5 × 8 flat-heads:** 4 through the front (horn) wall and 4
+   through the rear (idler) wall, into the case. The carrier's 5 mm spacer
+   keeps all eight below the bearing, so they can also be reached with the hip
+   fully assembled (to change a roll servo, take the leg off and these eight
+   out; the bearing and housing stay).
+
+Do 7a–7c for **both hips** before the bearing housing: it carries both bearings.
 
 ![Hip-roll servo up into the carrier's bay](assembly/v6_09_hip_roll_servo.png)
+
+### 7d. The hip-yaw bearings into the housing (bench)
+
+Each hip turns on a **6810-2RS** (50 × 65 × 7 mm, sealed; generic, so measure it
+first: [bom.md §5](bom.md#5-hip-yaw-bearing)). Its outer race sits
+in a recess of the **bearing housing** (`yaw_bearing_housing`, one print for
+both hips, Ø64.96, −0.04 mm) against a shoulder, which takes the leg's thrust.
+Its inner race goes on the carrier's round hub (Ø50.08, +0.08 mm). The housing
+is a separate print screwed under the pelvis because the yaw servo goes up into
+its cell, and the driver reaches the roll servo's upper screws, through the
+space the housing occupies. Background:
+[study-yaw-bearing.md](design-v6/study-yaw-bearing.md) (option A).
+
+1. **Measure the bearings and the printed seats first.** Both fits are inside
+   the printer's error band, so the housing and carriers print at nominal and
+   are fitted with **retaining compound** (Loctite 641) on both seats.
+2. **Press each bearing into its recess, pushing on the outer race only**,
+   until it bottoms on the shoulder. The housing lies face down (the face that
+   goes against the pelvis), recess mouth up.
+
+![Both bearings pressed into the housing](assembly/v6_09a_bearings_into_housing.png)
+
+### 7e. Housing and bearings up onto both hubs
+
+1. **Compound on both hubs**, then **offer the housing up from below**, square,
+   over both carriers and roll servos: the bearings' bores clear everything
+   below the hubs (the carriers' corners are trimmed to r 24.8 under the 25 mm
+   bore).
+2. **Push it home evenly** until its top face meets the cell block. The inner
+   races slide onto the hubs as it goes. The fit is light; if a hub binds,
+   ease the hub rather than force it, since that force goes through the balls.
+3. **Drive 5 × M2.5 × 8 flat-heads up** into the pelvis's pilot bosses: four
+   through the housing's rear bar and one through the bridge between the hips,
+   on the centre line, into the cell block's front web.
+4. **Turn each hip through ±45° by hand** before the compound sets: the carrier
+   should turn on the bearing without touching the housing or the pelvis.
+5. **Plug the hip-roll servo's leads** in the trench on its idler face,
+   through the window in the bay's rear wall, and route them outside the
+   housing.
+
+![Housing and bearings up onto both hubs](assembly/v6_09b_housing.png)
+
+- **Never heat-set a bearing into PETG.** PETG must reach about 230 °C to flow,
+  and a 2RS bearing's seals and grease are good to roughly 100 °C.
+- **Until the generic bearings are measured, the ring dimensions in the CAD
+  are SKF's** (61810-2RS1: inner ring
+  shoulder d1 ≈ 54.67, outer ring shoulder D2 ≈ 61.8 mm). The housing's
+  shoulder (Ø62.6) bears on the outer ring face, outside D2 and inside SKF's Da
+  max of 63. Measure the bearings you have against those numbers before
+  fitting; a different value goes into `cad/v6/dimensions_v6.py`.
 
 ## 8. Legs onto the roll servos
 
@@ -376,9 +414,12 @@ own slot in the deck.
 
 1. **Finish everything in the battery layer first:** the yaw stators (§7a),
    the yaw leads, the power pocket (§9c).
-2. **Lower the pack through the deck aperture.** It lies transverse on the
-   cell ceilings.
-3. **Belt it** with the 15 mm hook-and-loop strap through the belt slots.
+2. **Stick two 1 mm adhesive foam pads on the cell ceilings**, one per cell,
+   clear of the post holes. The yaw servos' free-hub posts come up flush with
+   the ceiling and turn with the hip; the pads hold the pack 1 mm off them.
+3. **Lower the pack through the deck aperture.** It lies transverse on the
+   pads.
+4. **Belt it** with the 15 mm hook-and-loop strap through the belt slots.
 
 ![The pack down through the deck aperture](assembly/v6_12_pack.png)
 
@@ -389,7 +430,7 @@ the girdle.
 
 ## 11. Girdle, neck, shoulders, arms, head
 
-The bench order, girdle first. The neck floor sits 4.5 mm over the pack, so
+The bench order, girdle first. The neck floor sits 4.0 mm over the pack, so
 the neck is built into the girdle before the girdle goes onto the robot.
 
 ### 11a. Neck into the girdle (on the bench)

@@ -10,6 +10,14 @@ code, exports and review STEPs, and the scripts named below
 (`yaw_carrier_v6_optA.py`, `yaw_retention_optE.py`, `check_yaw_bearing_*.py`,
 `export_yaw_bearing_joint.py`, `render_yaw_bearing*.py`), are in git history
 before that date. The two-ring check now runs in `check_assembly_v6.py`.
+Later on 2026-10-06 the outer-race seat moved out of the pelvis into a
+separate screwed housing (`yaw_bearing_housing`), because the yaw servo cannot
+pass a one-print skirt on its way up into its cell. The hub covered the roll
+servo's two upper idler-side screws; instead of notching it, the carrier got
+a 5 mm spacer between its horn plate and the roll bay (the hip stack grew
+5 mm), which puts all eight roll-servo screws below the bearing with the hip
+assembled. The hip-yaw servos go in without their idler discs and seat flat on
+the cell ceiling.
 
 Tom, 2026-09-17: *"What about the hip yaw? The servo axle is the only
 connection between the leg and the rest of the robot ... it seems to me

@@ -230,7 +230,7 @@ selected.
 | port (H5/H6) → leg-bus deck slot (via splitter) | 102 | — | 102 | 150 | ✓ |
 | deck slot → battery layer (yaw riser mouth) | 48 | — | 48 | 90 | ✓ |
 | battery layer → hip yaw | 1 | — | 1 | stock | ✓ |
-| hip yaw → hip roll | 56 | 7 | 63 | 110 | ✓ |
+| hip yaw → hip roll | 61 | 7 | 68 | 110 | ✓ |
 | hip roll → hip pitch | 55 | 9 | 64 | 110 | ✓ |
 | hip pitch → knee | 110 | 17 | 127 | 170 | ✓ |
 | knee → ankle | 110 | 18 | 128 | 170 | ✓ |

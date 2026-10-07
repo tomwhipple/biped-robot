@@ -11,12 +11,16 @@ value explicitly (the kp map as {actuator: factor}, the holds as
                      replace them once the parts exist, issue #82)
     policy joints    the 12 leg joints -- 6 per leg, ankle roll included
     held joints      neck yaw at 0 (the camera looks ahead), and -- where
-                     the plant has them -- both shoulders 15 deg back with
-                     the elbows straight: the walking hold (DESIGN.md 5.4:
-                     hanging straight, the forearms touch the swinging legs)
-    stiffness        Plan B: position-loop P x4 on the hip-roll, ankle-roll
-                     and knee servos (DESIGN.md section 4), NOMINAL until the
-                     bench (issue #73) measures the factor
+                     the plant has them -- both arms at their folded rest
+                     pose, shoulder 15 deg forward and elbow folded 95 deg
+                     (cad/v6/dimensions_v6.ARM_REST, DESIGN.md 5.4: there the
+                     arms clear every leg joint's full range)
+    stiffness        the robot's servo set (DESIGN.md section 4): the hip
+                     rolls are STS3250s (the model's 4x), the ankle-roll and
+                     knee STS3215s run the bench's P 96 / D 0 (~2.8x). The
+                     STS3250's larger stall and speed are not modelled (the
+                     env has one STS3215 envelope), which under-credits the
+                     hip rolls
     hip pitch        policy range -120 deg flexion (the leg link's relief
                      gives 120; DESIGN.md section 3)
     payload          none: the camera is in the head, which the plant models
@@ -33,10 +37,11 @@ import mujoco
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROBOT_XML = "bimo_biped_v6ar.xml"
 
-# walking hold per held joint role (deg); a joint the plant does not have is
-# simply not held
-HOLD_DEG = {"neck_yaw": 0.0, "shoulder": 15.0, "elbow": 0.0}
-KP_SCALE = "planb"              # env_mjx.SERVO_KP_PRESETS
+# rest pose per held joint role (deg); a joint the plant does not have is
+# simply not held. The arms' values are cad/v6/dimensions_v6.ARM_REST
+# (tests/test_v6_design_gates.py pins them to it and to the plant's qpos0).
+HOLD_DEG = {"neck_yaw": 0.0, "shoulder": -15.0, "elbow": -95.0}
+KP_SCALE = "robot"              # env_mjx.SERVO_KP_PRESETS
 HIP_FLEX_DEG = 120.0
 
 
@@ -51,6 +56,7 @@ ARMS_TEST_PARAMS = dict(
     arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
     arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
     arm_girdle=True, arm_mass=0.0331, arm_fore_mass=0.0337, m_girdle=0.084,
+    arm_hold=HOLD_DEG["shoulder"], arm_elbow_hold=HOLD_DEG["elbow"],
     hip_pitch_range=(-120.0, 90.0))
 
 

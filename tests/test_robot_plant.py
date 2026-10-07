@@ -47,9 +47,9 @@ PROTO_XML = os.path.join(SIM, "bimo_biped_v5body.xml")
 ROLLS_KNEES = {f"{s}_{r}" for s in "LR"
                for r in ("hip_roll", "ankle_roll", "knee")}
 # the committed plant is the robot as drawn: 17 servos, the neck and both
-# arms held at the walking pose
-HELD17 = {"neck_yaw": 0.0, "L_shoulder": 15.0, "L_elbow": 0.0,
-          "R_shoulder": 15.0, "R_elbow": 0.0}
+# arms held at their folded rest pose (dimensions_v6.ARM_REST)
+HELD17 = {"neck_yaw": 0.0, "L_shoulder": -15.0, "L_elbow": -95.0,
+          "R_shoulder": -15.0, "R_elbow": -95.0}
 
 # a precision-style policy env (the --precision preset's observation and
 # reward structure), on top of the robot preset
@@ -84,12 +84,13 @@ def test_robot_preset_resolves_against_the_plant(arms_xml):
     kw = robot_plant.robot_env_kwargs()
     assert kw["held_joints"] == HELD17
     assert set(kw["servo_kp_scale"]) == ROLLS_KNEES
-    assert set(kw["servo_kp_scale"].values()) == {4.0}
+    # the robot's servo set: STS3250 hip rolls (4x), the ankle rolls and
+    # knees at the bench's P 96 (2.8x)
+    assert {k: v for k, v in kw["servo_kp_scale"].items()} == {
+        f"{s}_{r}": f for s in "LR" for r, f in (("hip_roll", 4.0), ("ankle_roll", 2.8), ("knee", 2.8))}
     assert kw["hip_flex_deg"] == 120.0 and kw["payload_mass"] == 0.0
     kw17 = robot_plant.robot_env_kwargs(arms_xml)
-    assert kw17["held_joints"] == {"neck_yaw": 0.0, "L_shoulder": 15.0,
-                                   "L_elbow": 0.0, "R_shoulder": 15.0,
-                                   "R_elbow": 0.0}
+    assert kw17["held_joints"] == HELD17
     m = mujoco.MjModel.from_xml_path
     assert robot_plant.is_robot_model(m(ROBOT_XML))
     assert robot_plant.is_robot_model(m(arms_xml))
@@ -153,8 +154,8 @@ def test_smoke_17_servo_plant(arms_xml):
     for side in "LR":
         sh = cpu.data.qpos[cpu._jq0 + cpu._sname2i[f"{side}_shoulder"]]
         el = cpu.data.qpos[cpu._jq0 + cpu._sname2i[f"{side}_elbow"]]
-        assert np.degrees(sh) == pytest.approx(15.0, abs=2.0)
-        assert np.degrees(el) == pytest.approx(0.0, abs=2.0)
+        assert np.degrees(sh) == pytest.approx(HELD17["L_shoulder"], abs=2.0)
+        assert np.degrees(el) == pytest.approx(HELD17["L_elbow"], abs=2.0)
     g = BimoMJXEnv(**kw)
     assert g.action_size == 12 and g.obs_size == 165
 
@@ -165,7 +166,7 @@ def test_smoke_17_servo_plant(arms_xml):
     st, h = jax.jit(lambda s: jax.lax.scan(roll, s, None, length=100))(st)
     assert bool(jp.isfinite(h).all()) and float(h[-1]) > 0.85 * g._nominal_h
     sh = np.degrees(np.asarray(st.data.qpos)[g._jq0 + g._sname2i["L_shoulder"]])
-    assert sh == pytest.approx(15.0, abs=2.0)
+    assert sh == pytest.approx(HELD17["L_shoulder"], abs=2.0)
 
 
 # ----------------------------------------------------------- servo stiffness

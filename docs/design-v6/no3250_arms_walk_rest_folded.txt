@@ -1,0 +1,42 @@
+# The arms walk at the folded rest pose: gate_no3250's four Gate D cases + the -15 turn at mu 0.7, arm-vs-leg
+# contacts, through getup_v6_shoulder.walk_with_arm_contacts with arm_pose = ARM_REST (shoulder -15 / elbow -95).
+# branch cad/yaw-bearing-a on 32b7037 + working tree, 2026-10-06 (after 20:00), this laptop (MUJOCO_GL=cgl).
+# The robot as drawn: hip-yaw bearings 2 x 6810-2RS in a screwed housing; the yaw carrier with its 5 mm
+# spacer (hip roll axis 45.11 below the yaw horn face; d_yaw_roll 0.04511 in gen_plant_v6); hip-yaw servos
+# without idler discs; the leg link as on main 972537f (27.1 g); the pack on 1 mm foam pads (BATT_Z +0.5 mm);
+# the arms' rest pose (qpos0) folded, shoulder -15 / elbow -95 (dimensions_v6.ARM_REST).
+# Plant: BI.plant_xml(BI.asdrawn(DesignParams(self_collide=True)), servo_g) -- 55 g at the six roll + knee
+# places for the 3215 sets, 74.5 g for the 3250 set -- and plan="hips" (the committed masses) for the robot's
+# set (mix_2.8x_2_L_hip_roll-R_hip_roll: STS3250 at the hip rolls, the other rolls and knees STS3215 at 2.8x).
+# Driver (not committed): a wrapper around gate_no3250's SETS / CASES4 / pmap / _mix_name and
+# walk_with_arm_contacts, unchanged.
+# vs no3250_arms_walk_plant17.txt (arms held shoulder +15 / elbow 0, bearing C plant, 2026-09-29): zero
+# arm-vs-leg contacts in every case, as there; stayed up 3250 4/5 -> 5/5, 3215_p4rk 4/5 -> 5/5, 3215_p3rk
+# 1/5 -> 2/5, 3215 0/5 -> 0/5; the robot's set 4/5 (the mu 0.9 -15 turn falls). Plant and arm pose both
+# changed since that log, so these differences are not attributed to the pose.
+== Gate D, 4 cases + the -15 turn at mu 0.7 x arm contacts, CAD-inertial plant with the as-drawn arms (build_v6_inertia, self-collision on), arms held at the folded rest pose shoulder -15 / elbow -95: 55 g servos 2.224 kg, 74.5 g at the six roll + knee joints 2.341 kg, the robot's set (STS3250 at the hip rolls) 2.263 kg
+3250                         turn  +0 mu 0.7 play 3  up   tilt_max   9.2 deg  arm-vs-leg contacts      0  pairs []
+3250                         turn +15 mu 0.7 play 3  up   tilt_max  10.0 deg  arm-vs-leg contacts      0  pairs []
+3250                         turn  +0 mu 0.3 play 5  up   tilt_max   9.2 deg  arm-vs-leg contacts      0  pairs []
+3250                         turn -15 mu 0.9 play 3  up   tilt_max   9.6 deg  arm-vs-leg contacts      0  pairs []
+3250                         turn -15 mu 0.7 play 3  up   tilt_max   9.1 deg  arm-vs-leg contacts      0  pairs []
+3215                         turn  +0 mu 0.7 play 3  FELL tilt_max 106.2 deg  arm-vs-leg contacts      0  pairs []
+3215                         turn +15 mu 0.7 play 3  FELL tilt_max 111.1 deg  arm-vs-leg contacts      0  pairs []
+3215                         turn  +0 mu 0.3 play 5  FELL tilt_max  91.3 deg  arm-vs-leg contacts      0  pairs []
+3215                         turn -15 mu 0.9 play 3  FELL tilt_max 101.7 deg  arm-vs-leg contacts      0  pairs []
+3215                         turn -15 mu 0.7 play 3  FELL tilt_max 101.3 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk                    turn  +0 mu 0.7 play 3  FELL tilt_max 108.7 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk                    turn +15 mu 0.7 play 3  up   tilt_max   9.7 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk                    turn  +0 mu 0.3 play 5  FELL tilt_max  98.4 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk                    turn -15 mu 0.9 play 3  FELL tilt_max 100.9 deg  arm-vs-leg contacts      0  pairs []
+3215_p3rk                    turn -15 mu 0.7 play 3  up   tilt_max   9.4 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk                    turn  +0 mu 0.7 play 3  up   tilt_max   8.4 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk                    turn +15 mu 0.7 play 3  up   tilt_max   9.2 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk                    turn  +0 mu 0.3 play 5  up   tilt_max   7.7 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk                    turn -15 mu 0.9 play 3  up   tilt_max   8.6 deg  arm-vs-leg contacts      0  pairs []
+3215_p4rk                    turn -15 mu 0.7 play 3  up   tilt_max   7.8 deg  arm-vs-leg contacts      0  pairs []
+mix_2.8x_2_L_hip_roll-R_hip_ turn  +0 mu 0.7 play 3  up   tilt_max   8.7 deg  arm-vs-leg contacts      0  pairs []
+mix_2.8x_2_L_hip_roll-R_hip_ turn +15 mu 0.7 play 3  up   tilt_max   9.0 deg  arm-vs-leg contacts      0  pairs []
+mix_2.8x_2_L_hip_roll-R_hip_ turn  +0 mu 0.3 play 5  up   tilt_max   6.2 deg  arm-vs-leg contacts      0  pairs []
+mix_2.8x_2_L_hip_roll-R_hip_ turn -15 mu 0.9 play 3  FELL tilt_max 103.2 deg  arm-vs-leg contacts      0  pairs []
+mix_2.8x_2_L_hip_roll-R_hip_ turn -15 mu 0.7 play 3  up   tilt_max   8.9 deg  arm-vs-leg contacts      0  pairs []

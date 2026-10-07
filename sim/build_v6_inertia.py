@@ -9,15 +9,15 @@ the committed plant, which is THE ROBOT AS DRAWN:
     shoulder pitch and the elbow. The arms are the generator's as-drawn arm
     (the get-up plant r5_asdrawn: girdle-mounted shoulder servos, CAD servo
     placement), with every arm number taken from dimensions_v6 (ARM_*), and
-    the shoulders' rest pose (qpos0) at the WALKING HOLD, ARM_WALK_HOLD = 15
-    deg back (gen_plant_v6 DesignParams.arm_hold: the joint angle still reads
+    the arms' rest pose (qpos0) FOLDED, ARM_REST = shoulder -15 / elbow -95
+    (gen_plant_v6 DesignParams.arm_hold / arm_elbow_hold: the joint angles still read
     0 = hanging).
   * the robot's servos (DESIGN.md section 4): an STS3250 (74.5 g) at each
     hip roll, an STS3215 (55 g) everywhere else. --servo-plan B is 17 x
     STS3215; 3250 puts STS3250s at the six roll + knee joints.
   * the one-print hip yoke (hip_yoke_v6), the girdle, the neck floor, the
-    arm links, and the two hip-yaw bearings (6810-2RS) split between the
-    pelvis and the carriers.
+    arm links, the bearing housing, and the two hip-yaw bearings (6810-2RS)
+    split between the housing and the carriers.
 
     .venv/bin/python sim/build_v6_inertia.py                      # print the per-body table
     .venv/bin/python sim/build_v6_inertia.py --write              # regenerate sim/bimo_biped_v6ar.xml
@@ -26,9 +26,9 @@ the committed plant, which is THE ROBOT AS DRAWN:
 Body frames (torso origin = the hip yaw axis on the centreline, at the yaw horn
 face; leg and arm bodies at their joint axes; see gen_plant_v6): each mass
 lands in the body whose joint moves it.
-    torso      pelvis, yaw servos, pack, boards, wiring, neck servo, neck floor,
-               girdle + both shoulder servos (or neck_collar, armless), the
-               bearings' outer halves
+    torso      pelvis, bearing housing, yaw servos, pack, boards, wiring, neck
+               servo, neck floor, girdle + both shoulder servos (or
+               neck_collar, armless), the bearings' outer halves
     head       head (shell + face fused) + camera
     _hip_yaw   yaw carrier + hip-roll servo + the bearing's inner half
     _hip       hip_yoke_v6
@@ -66,16 +66,17 @@ RHO = V.D.FILAMENT_RHO * V.D.PRINT_MASS_FACTOR * 1e-3   # kg/mm^3
 RHO_TPU = 1.21e-3 * V.D.PRINT_MASS_FACTOR * 1e-3
 
 
-def asdrawn(p: DesignParams | None = None, hold: float = V.ARM_WALK_HOLD) -> DesignParams:
+def asdrawn(p: DesignParams | None = None, rest: tuple = V.ARM_REST) -> DesignParams:
     """p with the robot's arms as drawn (the r5_asdrawn get-up plant's arm
-    options), every number from dimensions_v6, held `hold` deg back."""
+    options), every number from dimensions_v6, at rest = (shoulder, elbow) deg."""
     p = p or DesignParams()
     y_default = p.deck_w / 2 + SV_T / 2 + 0.004          # the generator's torso-hugging arm plane
     return dataclasses.replace(
         p, arms=True, arm_elbow=True, arm_cad_servos=True, arm_girdle=True,
         arm_len=V.ARM_UPPER / 1e3, arm_fore_len=V.ARM_FORE / 1e3,
         arm_shoulder_x=V.ARM_SHOULDER_X / 1e3, arm_z=V.ARM_SHOULDER_ABOVE_YAW / 1e3,
-        arm_shoulder_y_extra=round(V.ARM_Y / 1e3 - y_default, 6), arm_hold=hold)
+        arm_shoulder_y_extra=round(V.ARM_Y / 1e3 - y_default, 6),
+        arm_hold=rest[0], arm_elbow_hold=rest[1])
 
 
 # ------------------------------------------------------------------ mass items
@@ -138,8 +139,8 @@ def _mock_stl(key):
     import arm_v6
     zdeck = V.DECK_TOP_Z - V.HIP_YAW_Z
     solids = {
-        "yaw_L": lambda: Pos(0, V.HIP_SEP / 2, V.D.SV_HORN_FACE) * CA.servo_mock_z(),
-        "yaw_R": lambda: Pos(0, -V.HIP_SEP / 2, V.D.SV_HORN_FACE) * CA.servo_mock_z(),
+        "yaw_L": lambda: Pos(0, V.HIP_SEP / 2, V.D.SV_HORN_FACE) * CA.servo_mock_z(idler_disc=False),
+        "yaw_R": lambda: Pos(0, -V.HIP_SEP / 2, V.D.SV_HORN_FACE) * CA.servo_mock_z(idler_disc=False),
         "neck": lambda: Pos(V.NECK_X, 0, zdeck + V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z(),
         "shoulder_L": lambda: Pos(0, 0, zdeck) * SG.shoulder_servo_mock("L"),
         "shoulder_R": lambda: Pos(0, 0, zdeck) * SG.shoulder_servo_mock("R"),
@@ -194,13 +195,13 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     brg_kg = V.YAW_BRG_MASS_G * 1e-3
     ri, ro = V.YAW_BRG_ID / 2, V.YAW_BRG_OD / 2
     bz0, bz1 = V.YAW_BRG_BAND_Z
-    for n in (pelvis, carrier):
+    for n in (pelvis, carrier, "yaw_bearing_housing"):
         if not have(n):
             raise FileNotFoundError(f"{stl(n)} missing -- export it: "
                                     f"{'' if p.arms else 'ARMS=0 '}python cad/v6/parts_v6.py --only {n}")
     out = {}
     # ---- torso
-    t = [mesh_props(stl(pelvis), [0, 0, zdeck]),
+    t = [mesh_props(stl(pelvis), [0, 0, zdeck]), mesh_props(stl("yaw_bearing_housing"), [0, 0, zdeck]),
          servo("yaw_L", g15), servo("yaw_R", g15), servo("neck", g15),
          mesh_props(stl("neck_floor"), [0, 0, zdeck])]
     t.append(box_props(V.BATT_MASS * 1e-3, [(V.BATT_X[0] + V.BATT_X[1]) / 2, 0, zdeck + (V.BATT_Z[0] + V.BATT_Z[1]) / 2], [V.BATT[1], V.BATT[0], V.BATT[2]]))
@@ -213,7 +214,7 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
               servo("shoulder_L", g15), servo("shoulder_R", g15)]
     else:
         t.append(mesh_props(stl("neck_collar"), [0, 0, zdeck]))
-    for sgn in (1, -1):   # the bearing's outer half rides the pelvis
+    for sgn in (1, -1):   # the bearing's outer half rides the housing, on the torso
         t.append(ring_props(brg_kg / 2, (ri + ro) / 2, ro, bz0, bz1, 0, sgn * V.HIP_SEP / 2))
     out["torso"] = t
     # ---- head (frame: the neck horn face)

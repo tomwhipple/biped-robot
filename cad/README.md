@@ -41,8 +41,9 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 | `check_assembly_v6.py` | the CAD gate: every pair of pieces that move relative to each other, at the ROM extremes plus interior samples; the relatively fixed pairs that must keep their distance (`--joint static`); every disc screw's thread engagement (`--joint screws`). Options: `--joint`, `--samples`, `--side` |
 | `animate_v6.py` | fly-in along each part's insertion path. Writes `renders/assembly_v6_flyin*.mp4` (gitignored) and a committed `_strip.png` |
 | `render_steps_v6.py` | the assembly guide's step figures, `docs/assembly/v6_*.png`: bench order, the incoming part orange along its insertion path |
-| `pelvis_v7.py` | the torso, one print: `pelvis_v7(arm_mounts)` with the hip-yaw bearings' outer-race seats, its `SCREWS()`, a driver-access check and the board slide checks |
-| `yaw_carrier_v6.py` | the prototype's carrier with a round hub for the 6810-2RS's inner race, and its `SCREWS()` |
+| `pelvis_v7.py` | the torso, one print: `pelvis_v7(arm_mounts)` with the yaw servos' seats and the bearing housing's five pilot bosses, its `SCREWS()`, a driver-access check and the board slide checks |
+| `yaw_bearing_housing.py` | the hip-yaw bearings' outer-race seats for both hips, one print screwed up under the pelvis, and its `SCREWS()` |
+| `yaw_carrier_v6.py` | the prototype's carrier with a 5 mm spacer under its horn plate (`YAW_CARRIER_DROP`: the roll servo and its screws sit below the bearing band) and a round hub for the 6810-2RS's inner race (trimmed below to pass the bearing), and its `SCREWS()` |
 | `hip_yoke_v6.py` | the hip roll and pitch clevises fused into one print |
 | `yoke_pitch_v6.py` | the pitch clevis alone. `hip_yoke_v6` is built from it; it is printed only under `HIP_YOKE_VARIANT=split` |
 | `leg_link_v6.py` | thigh and shin (one part): a 110 mm box section |
@@ -136,8 +137,9 @@ It runs four things with `.venv/bin/python`:
 1. **`check_assembly_v6.py` on the default build (the robot, with arms).**
    Every relatively-moving pair is posed at its joint's ROM extremes and
    interior samples. The hip-yaw bearing is in the chain as its two races,
-   split at the estimated ball gap: the turning side must clear the fixed
-   race through the yaw sweep, and the leg must clear both.
+   split at SKF's ring shoulders: the turning side must clear the fixed race
+   and the bearing housing through the yaw sweep, and the leg must clear both
+   races and the housing.
    - Each pair must show zero intersection and at least `SWEEP_BUFFER` of
      clearance. Designed contacts (pads on discs, seats) are checked for
      volume only, by name.
@@ -145,6 +147,14 @@ It runs four things with `.venv/bin/python`:
      and the boards) are checked at the standing pose, each against its own
      minimum distance. The bearing's two press fits must overlap by exactly
      their designed interference volume.
+   - The hip's bench order (`--joint insert`): each part swept up its
+     insertion path into the state the earlier steps left -- yaw servo,
+     carrier, roll servo, bearings into the housing, housing and bearings
+     onto the hubs. Only the press fits may overlap; one KNOWN pre-existing
+     defect (the seated yaw servo against the cell ceiling) is reported, not
+     failed.
+   - A 7 mm driver's straight path to every carrier and bearing-housing screw
+     in the state that screw is driven in (`--joint access`).
    - Every disc screw's thread engagement is checked against its flange.
    - The pair list is printed with the result, because a pair that is not listed
      was never checked.

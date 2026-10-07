@@ -15,10 +15,13 @@ the bench test in issue #73, then #74. The non-servo order is #78.
   pack the prototype was designed around disappeared mid-project. Anything that
   meets the filter fits. A cached listing title is not a live listing, so check
   stock and price in a browser.
-- **Only parts with real manufacturer documentation**: a datasheet with specs
+- **Electronics need real manufacturer documentation**: a datasheet with specs
   and a connector or outline drawing. Reseller renders and self-authored
-  "manuals" do not count. When a part is bought, mirror its datasheet into
-  `docs/datasheets/`.
+  "manuals" do not count. When one is bought, mirror its datasheet into
+  `docs/datasheets/`. The rule is for electronics only: mechanical and passive
+  parts (bearings, mirrors, fasteners) can be generic. Measure any dimension
+  the CAD depends on when the part arrives, and put the measured value in the
+  design.
 - Prices are indicative and dated, and none has been re-checked.
 
 In the **have** column, *on hand* means the repo's records say it is in the
@@ -231,22 +234,29 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 
 ## 5. Hip-yaw bearing
 
-A thin-section bearing between each yaw carrier and the pelvis
-([DESIGN.md §5.2](../DESIGN.md); background:
-[study-yaw-bearing.md](design-v6/study-yaw-bearing.md), option A). Buy 2
-fitted plus 2 spares:
+A thin-section bearing between each yaw carrier and the bearing housing
+screwed under the pelvis ([DESIGN.md §5.2](../DESIGN.md); background:
+[study-yaw-bearing.md](design-v6/study-yaw-bearing.md), option A):
 
-| bearing | qty | spec | notes |
+| bearing | qty | spec | have |
 |---|---|---|---|
-| **6810-2RS**, 50 × 65 × 7 mm, sealed deep-groove | 2 + 2 spares | C0 5.8 kN (one spec sheet); SKF 61810-2RS1 catalogue mass 0.052 kg | inner race on the carrier hub (+0.08 mm), outer race in the pelvis recess (−0.04 mm) |
+| **6810-2RS**, 50 × 65 × 7 mm, rubber-sealed deep-groove | 2 | inner race on the carrier hub (+0.08 mm), outer race in the bearing housing's recess (−0.04 mm) | **2 ordered** 2026-10-06: generic, no brand, USA Bearings & Belts, $16.04 each ([listing](https://usbearingsandbelts.com/products/6810-2rs)) |
+
+- **Generic, so measure on arrival:** OD, bore and width (65 / 50 / 7); the
+  outer ring's inside diameter at the seal (D2), which must be under 62.6 so
+  the housing's shoulder bears on the outer ring face and not the seal; the
+  inner ring's outside diameter at the seal (d1); the radial and tilting play
+  by hand (the bearing is there to remove yaw play); the weight. Put the
+  measured values into `cad/v6/dimensions_v6.py` (`YAW_BRG_*`) and re-run the
+  CAD gate before printing the housing. Until then the CAD carries SKF's
+  published 61810-2RS1 values: d1 ≈ 54.67, D2 ≈ 61.8, Da max 63, r1,2 min
+  0.3, C 6.76 / C0 6.8 kN, 0.053 kg
+  ([SKF sheet](https://docs.rs-online.com/f06f/A700000007138802.pdf)).
 
 - **Retaining compound**, on both seats: Loctite 641 (medium strength, fills a
   0.15–0.25 mm gap, can be taken apart), or 648 if it never needs to come
   apart. The CAD's 0.04 / 0.08 mm interference fits are inside the printer's
   error band, and PETG creeps.
-- **Buy from a maker that publishes the ring dimensions.** The pelvis shoulder
-  is sized against an *estimated* inner-ring OD and outer-ring ID. Verify those
-  on the real bearing before printing the pelvis.
 - **6710-2RS (50 × 62 × 6 mm)** can replace the 6810 if its rating is
   confirmed. Only `YAW_BRG_W` and `YAW_BRG_OD` in `cad/v6/dimensions_v6.py`
   would change.
@@ -262,7 +272,8 @@ M2.5, not M3.
 
 | fastener | qty | where | have |
 |---|---|---|---|
-| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **110** | leg links 24, ankle links 12, foot tabs 8, yaw-servo stators 8, yaw-carrier walls 16, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **107** | leg links 24, ankle links 12, foot tabs 8, yaw-carrier walls 16, bearing housing to the pelvis 5, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| M2.5 × 5 flat-head self-tapping | 8 | yaw-servo stators: 2.6 mm through the cell ceiling, 2.4 mm into the idler-face holes (3.0 deep in the vendor STEP; an × 8 would bottom out) | |
 | M2.5 × 10 pan self-tap | 4 | Pi and General Driver, lower row, into standoff bosses | |
 | M2.5 × 6 pan self-tap | 4 | Pi and General Driver, upper row, into wall pilots | |
 | M2.5 × 8 pan self-tap | 2 | the power-pocket bosses | |
@@ -295,6 +306,7 @@ M2.5, not M3.
 | PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.77–0.79 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
 | TPU 95A, 1.75 mm | 1 spool (500 g is enough) | the two soles, 23 g each | |
 | hook-and-loop strap, **15 mm** wide | 1 | the battery belt, through the pelvis belt slots (`BATT_BELT_W`) | |
+| adhesive foam pads, **1 mm** thick | 2 (about 30 × 20 mm) | under the pack, one per cell ceiling, clear of the yaw servos' post holes (`BATT_PAD_T`) | |
 | adhesive for the soles | — | bonds TPU 95A to PETG; type not chosen | |
 | thread-locker, medium strength (removable) | 1 | on the M3 disc screws (the design calls for thread-locked horn screws); keep it off the printed parts | |
 | retaining compound | — | §5 | |

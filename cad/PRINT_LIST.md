@@ -15,9 +15,9 @@ lead slot, and there is no deck under the rest of the flange).
 
 ## Status
 
-| can print now | after measuring the bearing |
+| can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `sole_tpu_L`, `sole_tpu_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`pelvis_v7`**: its bearing shoulder is sized to an *estimated* outer-ring ID of the 6810-2RS ([docs/bom.md §5](../docs/bom.md)). Measure a real bearing's rings first. |
+| `foot_L`, `foot_R`, `sole_tpu_L`, `sole_tpu_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v7`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`yaw_bearing_housing`**: its shoulder is sized to SKF's published ring dimensions; measure the generic bearings first ([docs/bom.md §5](../docs/bom.md)). |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -38,10 +38,11 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 
 | part | qty | g each | bbox | orientation on the bed | supports | notes |
 |---|---|---|---|---|---|---|
-| `pelvis_v7` | 1 | 190.1 | 155 × 101 × 81 | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots and the two bearing skirts (Ø64.96 recess, −0.04 mm on the 6810-2RS) |
-| `yaw_carrier_v6` | 2 | 23.8 | 50 × 50 × 44 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay; its round hub (Ø50.08, +0.08 mm) takes the bearing's inner race |
+| `pelvis_v7` | 1 | 173.8 | 99 × 124 × 72 | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots and the bearing housing's five pilot bosses; each yaw cell's ceiling has a hole for the servo's free-hub post and a relief for its back-cover platform |
+| `yaw_bearing_housing` | 1 | 24.5 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into the pelvis |
+| `yaw_carrier_v6` | 2 | 25.8 | 50 × 50 × 49 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø50.08, +0.08 mm) takes the bearing's inner race |
 | `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
-| `leg_link_v6` | 4 | 26.0 | 117 × 44 × 31 | standing on the lower fork end | no; brim recommended | thigh and shin are the same part |
+| `leg_link_v6` | 4 | 27.1 | 117 × 44 × 31 | standing on the lower fork end | no; brim recommended | thigh and shin are the same part |
 | `ankle_link` | 2 | 12.1 | 65 × 44 × 44 | on its back (model +X up) | **yes** (ceiling/island class) | grips the ankle-pitch servo, forks onto the ankle-roll servo |
 | `foot_L`, `foot_R` | 1 + 1 | 52.0 | 130 × 84 × 30 | sole down | no | a mirrored pair |
 | `sole_tpu_L`, `sole_tpu_R` | 1 + 1 | 23.2 | 130 × 84 × 2 | flat | no | **TPU 95A**; glued to the foot plate's underside |
@@ -81,10 +82,10 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - Supports go under the trapezius-web window tops (34 mm spans), the
     grip-plate rib-relief roofs, and the bay disc-relief tops.
 
-**Totals:** 23 prints (21 PETG, 2 TPU) from 17 STLs, before supports and
+**Totals:** 24 prints (22 PETG, 2 TPU) from 18 STLs, before supports and
 brims:
 
-- PETG: ≈ 771 g;
+- PETG: ≈ 787 g;
 - TPU: 46 g.
 
 **Not printed:**

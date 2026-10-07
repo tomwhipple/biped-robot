@@ -53,7 +53,8 @@ class DesignParams:
                                  # (sweep), but the swing foot drifts ~13 mm inward under roll
                                  # sag/play and landed ON the stance foot at a 12 mm gap; 84 gives
                                  # a 24 mm gap and a 32 mm battery channel between the yaw servos
-    d_yaw_roll: float = 0.041    # hip yaw axis -> hip roll axis (v5 stack)
+    d_yaw_roll: float = 0.04511  # hip yaw horn face -> hip roll axis: the v6 carrier
+                                 # (dimensions_v6.CARRIER_ROLL_AXIS: v5's 40.11 + a 5 mm spacer)
     d_roll_pitch: float = 0.050  # hip roll axis -> hip pitch axis (yoke pair)
     thigh: float = 0.110         # hip pitch -> knee (v5: 0.090; longer = lower joint rates for the same step)
     shank: float = 0.110         # knee -> ankle pitch (v5: 0.090)
@@ -132,9 +133,13 @@ class DesignParams:
                                   # at the same angle, so the joint angle keeps its
                                   # meaning (0 = hanging) while a reset or an env's
                                   # default pose (walker_env reads qpos0) holds the
-                                  # arm here. The robot holds 15 deg while walking
-                                  # (cad/v6/dimensions_v6.ARM_WALK_HOLD); 0 = the
+                                  # arm here. The robot rests folded, shoulder
+                                  # -15 (cad/v6/dimensions_v6.ARM_REST); 0 = the
                                   # plants every study so far was run on.
+    arm_elbow_hold: float = 0.0   # deg: the elbows' REST pose (qpos0), authored the
+                                  # same way as arm_hold (the forearm body rotated,
+                                  # the joint's ref at the same angle; 0 = straight,
+                                  # - = folded forward). dimensions_v6.ARM_REST: -95.
     arm_cad_servos: bool = False  # round 5 (2026-09-19): place the arm's servo
                                   # BOXES where cad/v6/arm_v6.py actually draws
                                   # them, instead of the round-2 placeholder.
@@ -304,7 +309,7 @@ class DesignParams:
                 f"shank {1e3*self.shank:.0f}  d_ankle {1e3*self.d_ankle:.0f}  "
                 f"foot {1e3*self.foot_len:.0f}x{1e3*self.foot_w:.0f}  knee {self.knee}  "
                 f"{'torso v7 (Pi 4B + head)  ' if self.torso_v7 else ''}"
-                f"{f'arms {1e3*self.arm_len:.0f}+{1e3*self.arm_fore_len:.0f} mm (shoulder + elbow), held {self.arm_hold:g} deg back  ' if self.arms and self.arm_elbow else ''}"
+                f"{f'arms {1e3*self.arm_len:.0f}+{1e3*self.arm_fore_len:.0f} mm (shoulder + elbow), at rest shoulder {self.arm_hold:g} / elbow {self.arm_elbow_hold:g} deg  ' if self.arms and self.arm_elbow else ''}"
                 f"yaw axis {1e3*self.z_yaw_above_sole:.0f} mm, deck top "
                 f"{1e3*(self.z_yaw_above_sole+self.deck_bot+self.deck_t):.0f} mm")
 
@@ -615,8 +620,10 @@ def _arms(p: DesignParams) -> str:
         _el_z = -(SV_LEN / 2 - SV_AXIS_OUT) if p.arm_cad_servos else 0.0
         hand = f'<geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>'
         if p.arm_elbow:
-            hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}">
-          <joint name="{side}_elbow" axis="0 1 0" range="-150 150"/>
+            _el_eul = f' euler="0 {p.arm_elbow_hold:g} 0"' if p.arm_elbow_hold else ""
+            _el_ref = f' ref="{p.arm_elbow_hold:g}"' if p.arm_elbow_hold else ""
+            hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}"{_el_eul}>
+          <joint name="{side}_elbow" axis="0 1 0" range="-150 150"{_el_ref}/>
           <geom class="servo" type="box" pos="0 {_f(_el_y)} {_f(_el_z)}" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
           <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_fore_len)}" size="0.006" mass="{p.arm_mass*0.6 if p.arm_fore_mass is None else p.arm_fore_mass}" rgba="0.82 0.84 0.87 1"/>
           <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_fore_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>

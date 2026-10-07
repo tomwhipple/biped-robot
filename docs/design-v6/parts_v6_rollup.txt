@@ -1,12 +1,13 @@
 build: ARMS=1  HIP_YOKE_VARIANT=single  SERVO_PLAN=hips
 part                 qty  g each              bbox (mm)  note
-pelvis_v7              1   190.1  155.0x 101.4x  81.3  BED-OK  one print, deck-top-down; 6810-2RS seats, girdle pilots
+pelvis_v7              1   173.8  123.5x  99.0x  72.0  BED-OK  one print, deck-top-down; bearing-housing pilots, girdle pilots
+yaw_bearing_housing    1    24.5  155.0x  80.0x   9.3  BED-OK  one print, top face down; both 6810-2RS outer-race seats, screwed up under the pelvis
 head_shell             1    26.1   62.0x  60.0x  50.0  BED-OK  neck horn carrier + shell, base down
 head_face              1     8.6   62.0x  56.0x   6.0  BED-OK  camera face plate, flat
 neck_floor             1     4.0   46.3x  44.5x   5.0  BED-OK  the neck servo's seat, flat (#90)
-yaw_carrier_v6         2    23.8   50.1x  50.1x  44.0  BED-OK  hip-yaw carrier, round hub for the 6810-2RS
+yaw_carrier_v6         2    25.8   50.1x  50.1x  49.0  BED-OK  hip-yaw carrier, round hub for the 6810-2RS
 hip_yoke_v6            2    25.4   74.0x  48.4x  43.9  BED-OK  ONE PRINT: roll + pitch clevis fused, no flange bolts (on edge; supports + brim)
-leg_link_v6            4    26.0  117.0x  43.9x  31.2  BED-OK  thigh + shin, 110 mm, box section
+leg_link_v6            4    27.1  117.0x  43.9x  31.2  BED-OK  thigh + shin, 110 mm, box section
 ankle_link             2    12.1   65.0x  44.3x  43.5  BED-OK  pitch grip + X fork onto the roll servo
 foot_L                 1    52.0  130.0x  84.0x  30.0  BED-OK  asymmetric sole, mirrored pair
 foot_R                 1    52.0  130.0x  84.0x  30.0  BED-OK  asymmetric sole, mirrored pair
@@ -19,5 +20,5 @@ arm_fore_v6_L          1    33.7  169.0x  37.6x  28.4  BED-OK  elbow grip -> han
 arm_fore_v6_R          1    33.7  169.0x  37.6x  28.4  BED-OK  mirror of _L
 head                   0    34.7   62.0x  60.0x  53.0  reference, not printed  head_shell + head_face fused (mass, assembly, plant)
 
-printed total 817 g; servos 974 g (15 x STS3215, 2 x STS3250); hip-yaw bearings 104 g (2 x 6810-2RS); pack + boards + wiring 350 g; robot ~2245 g
+printed total 833 g; servos 974 g (15 x STS3215, 2 x STS3250); hip-yaw bearings 106 g (2 x 6810-2RS); pack + boards + wiring 350 g; robot ~2263 g
 masses: build123d volume x PETG 1.27 g/cm3 x 0.90 print factor (TPU 1.21 g/cm3), before supports and brims; bought parts at catalogue mass

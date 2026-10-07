@@ -167,6 +167,13 @@ def part_pelvis():
     return Pos((x0 + x1) / 2, 0, V.YAW_BOX_BOT_Z / 2) * Box(x1 - x0, 2 * V.HOUSING_HW, -V.YAW_BOX_BOT_Z)
 
 
+def part_bearing_housing():
+    """The hip-yaw bearings' outer-race seats, screwed under the pelvis
+    (yaw_bearing_housing.py); pelvis-local like the pelvis."""
+    import yaw_bearing_housing
+    return yaw_bearing_housing.yaw_bearing_housing()
+
+
 def part_collar():
     """The neck's mount. With the arms (the default) this is not a standalone collar:
     shoulder_girdle_v6 absorbs it, so the neck tube, the two shoulder pods and
@@ -254,7 +261,7 @@ def _leg_chain(side):
               ("ankle_pitch", (0, 1, 0), (0, y, V.ANKLE_PITCH_Z)),
               ("ankle_roll", (1, 0, 0), (0, y, V.ANKLE_ROLL_Z))]
     pieces = [
-        (0, f"servo_hip_yaw_{side}", COL_SERVO, Pos(0, y, V.HIP_YAW_Z + D.SV_HORN_FACE) * CA.servo_mock_z()),
+        (0, f"servo_hip_yaw_{side}", COL_SERVO, Pos(0, y, V.HIP_YAW_Z + D.SV_HORN_FACE) * CA.servo_mock_z(idler_disc=False)),
         (1, f"yaw_carrier_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * part_yaw_carrier()),
         *yaw_bearing_pieces(side, y),
         (1, f"servo_hip_roll_{side}", COL_SERVO, at(V.HIP_ROLL_Z) * CA.servo_mock_x()),
@@ -286,16 +293,16 @@ def hip_yoke_pieces(side, at):
 
 def yaw_bearing_pieces(side, y):
     """The hip-yaw bearing (6810-2RS, bought), drawn as its two races split at
-    the ESTIMATED ball gap (V.YAW_BRG_EST_*): the inner race on the carrier's
-    hub turns with the leg (link 1), the outer race in the pelvis recess
-    stays put (link 0)."""
+    SKF's ring shoulders (V.YAW_BRG_INNER_RING_R / _OUTER_RING_R): the inner
+    race on the carrier's hub turns with the leg (link 1), the outer race in
+    the bearing housing's recess stays put (link 0)."""
     z0, z1 = V.HIP_YAW_Z + V.YAW_BRG_BAND_Z[0], V.HIP_YAW_Z + V.YAW_BRG_BAND_Z[1]
 
     def ring(r0, r1):
         return Pos(0, y, (z0 + z1) / 2) * (Cylinder(r1, z1 - z0) - Cylinder(r0, z1 - z0 + 2))
     return [
-        (1, f"bearing_inner_{side}", COL_MOCK, ring(V.YAW_BRG_ID / 2, V.YAW_BRG_EST_INNER_RING_R)),
-        (0, f"bearing_outer_{side}", COL_MOCK, ring(V.YAW_BRG_EST_OUTER_RING_R, V.YAW_BRG_OD / 2)),
+        (1, f"bearing_inner_{side}", COL_MOCK, ring(V.YAW_BRG_ID / 2, V.YAW_BRG_INNER_RING_R)),
+        (0, f"bearing_outer_{side}", COL_MOCK, ring(V.YAW_BRG_OUTER_RING_R, V.YAW_BRG_OD / 2)),
     ]
 
 
@@ -307,6 +314,7 @@ def _torso_pieces():
     z = V.DECK_TOP_Z
     return [
         (0, "pelvis_v7", COL_PRINT, Pos(0, 0, z) * part_pelvis()),
+        (0, "yaw_bearing_housing", COL_PRINT, Pos(0, 0, z) * part_bearing_housing()),
         (0, "pack_mock", COL_MOCK, Pos(0, 0, z) * mock_pack()),
         (0, "pi4_mock", COL_MOCK, Pos(0, 0, z) * mock_pi()),
         (0, "gd_mock", COL_MOCK, Pos(0, 0, z) * mock_gd()),

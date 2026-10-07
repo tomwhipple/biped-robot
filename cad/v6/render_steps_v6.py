@@ -47,8 +47,6 @@ BENCH = {
     "servo_knee_L": (0, 0, -1),
     "servo_hip_pitch_L": (0, 0, -1),
     "yaw_carrier_L": (0, 0, -1),         # offered UP onto the yaw horn, pelvis upright on a stand
-    "bearing_inner_L": (0, 0, -1),       # pressed on the carrier's hub on the bench, goes up with it
-    "bearing_outer_L": (0, 0, -1),
     "servo_hip_roll_L": (0, 0, -1),      # up into the downward-open bay (cad/check_assembly SERVO_INSERT yaw_carrier)
     "neck_floor": (0, 0, -1),            # up into the tube from below, on the bench (neck_floor.INSERT)
 }
@@ -57,9 +55,14 @@ LEG = ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L", "servo_knee_L", "shin_L",
        "servo_ankle_pitch_L", "ankle_link_L", "servo_ankle_roll_L", "foot_L"]
 LEG_R = [n[:-1] + "R" for n in LEG]
 BEARING = ["bearing_inner_L", "bearing_outer_L"]
-HIP = ["servo_hip_yaw_L", "yaw_carrier_L", *BEARING, "servo_hip_roll_L"]
+BEARING_R = [n[:-1] + "R" for n in BEARING]
+HIP0 = ["servo_hip_yaw_L", "yaw_carrier_L", "servo_hip_roll_L"]      # before the bearing
+HIP0_R = [n[:-1] + "R" for n in HIP0]
+HIP = HIP0 + BEARING
 HIP_R = [n[:-1] + "R" for n in HIP]
+HOUSING = ["yaw_bearing_housing"]
 TORSO = ["pelvis_v7"]
+TORSO_DONE = TORSO + HOUSING                                            # once the hips are built
 BOARDS = ["pi4_mock", "gd_mock"]
 NECK = ["shoulder_girdle_v6", "neck_floor", "servo_neck"]
 ARM = ["servo_shoulder_L", "arm_upper_L", "servo_elbow_L", "arm_fore_L"]
@@ -83,29 +86,34 @@ STEPS = [
      LEG[1:], ["hip_yoke_L"], 40, (135, -10), ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L"]),
     ("07_yaw_servo", "7a. Yaw servo up into its cell, horn down",
      TORSO, ["servo_hip_yaw_L"], 45, (150, 20), ["servo_hip_yaw_L", "yaw_carrier_L"]),
-    ("08_yaw_carrier", "7b. Yaw carrier, bearing pressed on its hub, up onto the yaw horn",
-     TORSO + ["servo_hip_yaw_L"], ["yaw_carrier_L"] + BEARING, 40, (150, 15),
-     ["servo_hip_yaw_L", "yaw_carrier_L"] + BEARING),
-    ("09_hip_roll_servo", "7c. Hip-roll servo up into the carrier's bay",
-     TORSO + ["servo_hip_yaw_L", "yaw_carrier_L"] + BEARING, ["servo_hip_roll_L"], 50, (150, 10),
+    ("08_yaw_carrier", "7b. Yaw carrier up onto the yaw horn",
+     TORSO + ["servo_hip_yaw_L"], ["yaw_carrier_L"], 40, (150, 15),
+     ["servo_hip_yaw_L", "yaw_carrier_L"]),
+    ("09_hip_roll_servo", "7c. Hip-roll servo up into the carrier's bay, all 8 screws",
+     TORSO + ["servo_hip_yaw_L", "yaw_carrier_L"], ["servo_hip_roll_L"], 50, (150, 10),
      ["yaw_carrier_L", "servo_hip_roll_L"]),
+    ("09a_bearings_into_housing", "7d (bench). Both bearings pressed into the housing, against the shoulders",
+     HOUSING, BEARING + BEARING_R, 30, (150, 25), None),
+    ("09b_housing", "7e. Housing and bearings up onto both hubs, five screws from below",
+     TORSO + HIP0 + HIP0_R, HOUSING + BEARING + BEARING_R, 45, (150, -15),
+     HOUSING + ["yaw_carrier_L", "yaw_carrier_R", "servo_hip_roll_L", "servo_hip_roll_R"]),
     ("10_leg_to_hip", "8. The leg offered up: the yoke's roll clevis onto the roll servo",
-     TORSO + HIP + HIP_R + LEG_R, LEG, 45, (145, -8), ["servo_hip_roll_L", "yaw_carrier_L", "hip_yoke_L"]),
+     TORSO_DONE + HIP + HIP_R + LEG_R, LEG, 45, (145, -8), ["servo_hip_roll_L", "yaw_carrier_L", "hip_yoke_L"]),
     ("11_boards", "9. Pi 4B (aft) and General Driver (front) down their channels",
-     TORSO + HIP + HIP_R + LEG + LEG_R, BOARDS, 45, (150, -20), ["pelvis_v7"]),
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R, BOARDS, 45, (150, -20), ["pelvis_v7"]),
     ("12_pack", "10. The pack down through the deck aperture, before the girdle",
-     TORSO + HIP + HIP_R + LEG + LEG_R + BOARDS, ["pack_mock"], 45, (150, -30), ["pelvis_v7"]),
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS, ["pack_mock"], 45, (150, -30), ["pelvis_v7"]),
     ("13_neck_floor", "11 (bench). Neck floor up into the girdle's tube, four screws into the bosses",
      ["shoulder_girdle_v6"], ["neck_floor"], 30, (150, 25), ["neck_floor"]),
     ("14_neck_servo", "11 (bench). Neck servo down into the tube onto the floor's pads",
      ["shoulder_girdle_v6", "neck_floor"], ["servo_neck"], 45, (150, -25), ["shoulder_girdle_v6"]),
     ("15_girdle", "11a. The girdle, neck built in, lowered onto the deck",
-     TORSO + HIP + HIP_R + LEG + LEG_R + BOARDS + ["pack_mock"], NECK, 45, (150, -25), ["pelvis_v7", "shoulder_girdle_v6"]),
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS + ["pack_mock"], NECK, 45, (150, -25), ["pelvis_v7", "shoulder_girdle_v6"]),
     ("16_shoulder_servos", "11b. Shoulder servos down into their pods, screwed from outboard",
-     TORSO + BOARDS + ["pack_mock"] + NECK, ["servo_shoulder_L", "servo_shoulder_R"], 45, (150, -30),
+     TORSO_DONE + BOARDS + ["pack_mock"] + NECK, ["servo_shoulder_L", "servo_shoulder_R"], 45, (150, -30),
      ["shoulder_girdle_v6"]),
     ("17_upper_arm", "11c. Upper arm straight in onto the shoulder horn",
-     TORSO + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["arm_upper_L"], 45, (110, -10),
+     TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["arm_upper_L"], 45, (110, -10),
      ["servo_shoulder_L", "arm_upper_L"]),
     ("18_elbow_servo", "11c. Elbow servo into the forearm's grip channel, from the front",
      ["arm_fore_L"], ["servo_elbow_L"], 45, (150, -10), None),
@@ -113,16 +121,17 @@ STEPS = [
      ["arm_upper_L", "servo_shoulder_L"], ["arm_fore_L", "servo_elbow_L"], 45, (120, -5),
      ["arm_fore_L", "servo_elbow_L", "arm_upper_L"]),
     ("20_head", "11e. Head down onto the neck horn",
-     TORSO + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["head"], 45, (150, -15),
+     TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["head"], 45, (150, -15),
      ["head", "shoulder_girdle_v6"]),
     ("21_complete", "The robot as drawn",
-     TORSO + HIP + HIP_R + LEG + LEG_R + BOARDS + ["pack_mock", "head"] + NECK
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS + ["pack_mock", "head"] + NECK
      + ["servo_shoulder_L", "servo_shoulder_R"] + ARM[1:] + ARM_R[1:], [], 0, (150, -10), None),
 ]
 
 
 # per-step camera distance, in units of "the framed box's diagonal just fits"
-ZOOM = {"07_yaw_servo": 2.2, "08_yaw_carrier": 2.0, "09_hip_roll_servo": 2.0, "10_leg_to_hip": 1.6,
+ZOOM = {"07_yaw_servo": 2.2, "08_yaw_carrier": 2.0, "09_hip_roll_servo": 2.0, "09a_bearings_into_housing": 1.3,
+        "09b_housing": 1.3, "10_leg_to_hip": 1.6,
         "13_neck_floor": 2.4, "14_neck_servo": 1.4, "17_upper_arm": 1.5}
 
 

@@ -1,6 +1,6 @@
 =================== check_assembly_v6 (default build: arms) ===================
 HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch
-arms on (the default build): two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM shoulder (-90.0, 200.0), elbow (-100.0, 10.0); every leg row sweeps the leg with the arms in the HANGING idle pose.
+arms on (the default build): two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM shoulder (-90.0, 200.0), elbow (-100.0, 10.0); leg rows sweep the leg against the arms HANGING (torque off) and at REST (folded: shoulder -15, elbow -95).
 joint        A                      B                      overlap mm3  min dist  at deg  verdict
   [girdle] top edges eased: 34/42
   [head] vertical fillet: R4.0 did not fit this section's material, used R1.20 instead
@@ -68,8 +68,8 @@ joint        A                      B                      overlap mm3  min dist
       roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
       pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
   [ankle_link] rounded 2/4 outer top-plate corners
-hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      2.30   -45.0  ok   carrier under the cell through +-45
-hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00      7.30   -45.0  ok   roll servo in the carrier bay vs the housing floor
+hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      1.80   -45.0  ok   carrier under the cell through +-45
+hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00     11.80   -45.0  ok   roll servo in the carrier bay vs the housing floor
 hip_roll     hip_yoke_L             yaw_carrier_L                 0.00      0.30     0.0  ok   one-print yoke vs the bay walls: idler boss rides the bore, volume only
 hip_roll     hip_yoke_L~seats       yaw_carrier_L                 0.00      1.00   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
 hip_roll     hip_yoke_L             servo_hip_roll_L              0.00      0.00   -55.0  ok   one-print yoke on the roll servo discs: seated, must not intersect
@@ -77,7 +77,7 @@ hip_roll     hip_yoke_L~seats       servo_hip_roll_L              0.00      0.58
 hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
 hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    37.5  ok   grip channel vs its own servo: seated, must not intersect
 hip_pitch    thigh_L                yaw_carrier_L                 0.00     13.90  -120.0  ok   thigh top vs the carrier at deep flexion
-hip_pitch    thigh_L                pelvis_v7                     0.00     37.82  -120.0  ok   thigh vs the housing at deep flexion
+hip_pitch    thigh_L                pelvis_v7                     0.00     51.35  -120.0  ok   thigh vs the housing at deep flexion
 hip_pitch    thigh_L                servo_hip_roll_L              0.00      8.94  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
 knee         shin_L                 thigh_L                       0.00      0.60   130.0  ok   shin grip plates vs the thigh fork; shin case vs the thigh box
 knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's box (r 16 rule)
@@ -91,37 +91,66 @@ neck         head                   pelvis_v7                     0.00     35.20
 neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
 neck         head                   shoulder_girdle_v6            0.00      2.10   -90.0  ok   head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)
 neck         head                   neck_floor                    0.00     35.20   -90.0  ok   head vs the neck servo's floor plate through +-90
-hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      4.42   -45.0  ok   turning carrier vs the fixed outer race through +-45
-hip_yaw      servo_hip_roll_L       bearing_outer_L               0.00      8.24   -22.5  ok   roll servo (inside the hub) vs the fixed outer race
-hip_yaw      bearing_inner_L        pelvis_v7                     0.00      2.30   -45.0  ok   turning inner race vs the pelvis shoulder (estimated race split)
-hip_roll     hip_yoke_L             bearing_inner_L               0.00     23.08    55.0  ok   yoke at full roll vs the inner race
-hip_roll     hip_yoke_L             bearing_outer_L               0.00     23.08    55.0  ok   yoke at full roll vs the outer race
-hip_roll     servo_hip_pitch_L      bearing_outer_L               0.00     41.25    55.0  ok   pitch servo at full roll vs the outer race
-hip_roll     thigh_L                bearing_inner_L               0.00     54.78    55.0  ok   thigh at full roll vs the inner race
-hip_roll     thigh_L                bearing_outer_L               0.00     52.68    55.0  ok   thigh at full roll vs the outer race
-hip_pitch    thigh_L                bearing_inner_L               0.00     41.90  -120.0  ok   thigh at deep flexion vs the inner race
-hip_pitch    thigh_L                bearing_outer_L               0.00     39.71  -120.0  ok   thigh at deep flexion vs the outer race
-shoulder     arm_upper_L            pelvis_v7                     0.00     25.87   -17.5  ok   upper arm vs the torso through the whole sweep, hanging
+hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      5.86    22.5  ok   turning carrier vs the fixed outer race through +-45
+hip_yaw      servo_hip_roll_L       bearing_outer_L               0.00     10.06   -45.0  ok   roll servo (inside the hub) vs the fixed outer race
+hip_yaw      bearing_inner_L        yaw_bearing_housing           0.00      3.97    45.0  ok   turning inner race vs the housing's shoulder (SKF d1)
+hip_yaw      bearing_inner_L        pelvis_v7                     0.00      1.80   -45.0  ok   turning inner race vs the cell block's rim
+hip_yaw      yaw_carrier_L          yaw_bearing_housing           0.00      6.26    22.5  ok   turning carrier vs the housing through +-45
+hip_yaw      servo_hip_roll_L       yaw_bearing_housing           0.00     11.57   -22.5  ok   roll servo vs the housing through +-45
+hip_roll     hip_yoke_L             bearing_inner_L               0.00     28.08    55.0  ok   yoke at full roll vs the inner race
+hip_roll     hip_yoke_L             bearing_outer_L               0.00     28.08    55.0  ok   yoke at full roll vs the outer race
+hip_roll     hip_yoke_L             yaw_bearing_housing           0.00     27.58    55.0  ok   yoke at full roll vs the housing
+hip_roll     servo_hip_pitch_L      bearing_outer_L               0.00     46.05    55.0  ok   pitch servo at full roll vs the outer race
+hip_roll     servo_hip_pitch_L      yaw_bearing_housing           0.00     44.86    55.0  ok   pitch servo at full roll vs the housing
+hip_roll     thigh_L                bearing_inner_L               0.00     59.49    55.0  ok   thigh at full roll vs the inner race
+hip_roll     thigh_L                bearing_outer_L               0.00     57.21    55.0  ok   thigh at full roll vs the outer race
+hip_roll     thigh_L                yaw_bearing_housing           0.00     55.60    55.0  ok   thigh at full roll vs the housing
+hip_pitch    thigh_L                bearing_inner_L               0.00     46.59  -120.0  ok   thigh at deep flexion vs the inner race
+hip_pitch    thigh_L                bearing_outer_L               0.00     44.08  -120.0  ok   thigh at deep flexion vs the outer race
+hip_pitch    thigh_L                yaw_bearing_housing           0.00     42.21  -120.0  ok   thigh at deep flexion vs the housing
+shoulder     arm_upper_L            pelvis_v7                     0.00     39.89   -17.5  ok   upper arm vs the torso through the whole sweep, hanging
 shoulder     arm_upper_L            head                          0.00     70.65   -17.5  ok   upper arm vs the head at the fold-up (shoulder 180)
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the neck tube at the fold-up (shoulder 180)
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the girdle it hangs off, whole sweep
 shoulder     arm_upper_L            servo_shoulder_L              0.00      0.00   -90.0  ok   horn plate seated on the shoulder disc: must not intersect
-shoulder     arm_fore_L             pelvis_v7                     0.00     77.47   -17.5  ok   forearm vs the torso through the whole sweep, hanging
+shoulder     arm_fore_L             pelvis_v7                     0.00     79.62    55.0  ok   forearm vs the torso through the whole sweep, hanging
 shoulder     arm_fore_L             head                          0.00     84.88   200.0  ok   forearm vs the head, FOLDED (elbow -90, the sit-up pose)
 shoulder     arm_fore_L             pelvis_v7                     0.00     50.69    55.0  ok   forearm vs the torso, FOLDED (elbow -90, the sit-up pose)
 shoulder     arm_fore_L             shoulder_girdle_v6            0.00    108.11   127.5  ok   forearm vs the girdle, FOLDED
-shoulder     servo_elbow_L          pelvis_v7                     0.00     53.52   -17.5  ok   the elbow servo case vs the torso through the sweep
+shoulder     servo_elbow_L          pelvis_v7                     0.00     59.33    55.0  ok   the elbow servo case vs the torso through the sweep
 elbow        arm_fore_L             arm_upper_L                   0.00      0.70  -100.0  ok   THE ELBOW LIMIT: forearm grip vs the fork (sets V.ARM_ROM)
 elbow        arm_fore_L             servo_elbow_L                 0.00      0.00  -100.0  ok   forearm grip channel on its own servo: seated, must not intersect
 elbow        servo_elbow_L          arm_upper_L                   0.00      0.00  -100.0  ok   elbow servo discs on the fork tines: seated, must not intersect
-hip_pitch    thigh_L                arm_fore_L                    0.00     22.97    37.5  ok   THE WALK ROW: thigh swept against the hanging forearm
+hip_pitch    thigh_L                arm_fore_L                    0.00     23.70  -120.0  ok   THE WALK ROW: thigh swept against the hanging forearm
 hip_pitch    thigh_L                arm_upper_L                   0.00     20.53  -120.0  ok   thigh swept against the hanging upper arm / elbow fork
 hip_pitch    servo_hip_pitch_L      arm_fore_L                    0.00     23.00  -120.0  ok   hip pitch servo case vs the hanging forearm
-knee         shin_L                 arm_fore_L                    0.00     29.90   -38.8  ok   shin swept against the hanging forearm (the plant's own contact pair)
+knee         shin_L                 arm_fore_L                    0.00     29.90    17.5  ok   shin swept against the hanging forearm (the plant's own contact pair)
 knee         servo_knee_L           arm_fore_L                    0.00     32.90   -95.0  ok   knee servo case vs the hanging forearm
-hip_roll     hip_yoke_L             arm_fore_L                    0.00      1.00    55.0  ok   hip abduction swings the yoke out toward the arm plane
-hip_yaw      yaw_carrier_L          arm_fore_L                    0.00     45.77   -45.0  ok   hip yaw swings the carrier toward the arm plane
-ankle_pitch  ankle_link_L           arm_fore_L                    0.00     70.58    40.0  ok   ankle link vs the hanging forearm (the arm reaches to z 154)
+hip_yaw      hip_yoke_L             arm_upper_L                   0.00     19.37    45.0  ok   hip yaw: yoke vs the upper arm, arms at rest (folded)
+hip_yaw      hip_yoke_L             servo_elbow_L                 0.00     26.38     0.0  ok   hip yaw: yoke vs the elbow servo, arms at rest (folded)
+hip_yaw      hip_yoke_L             arm_fore_L                    0.00     41.03    22.5  ok   hip yaw: yoke vs the forearm, arms at rest (folded)
+hip_roll     hip_yoke_L             arm_upper_L                   0.00      8.55    55.0  ok   hip roll: yoke vs the upper arm, arms at rest (folded)
+hip_roll     hip_yoke_L             servo_elbow_L                 0.00     15.71    55.0  ok   hip roll: yoke vs the elbow servo, arms at rest (folded)
+hip_roll     hip_yoke_L             arm_fore_L                    0.00     33.74    55.0  ok   hip roll: yoke vs the forearm, arms at rest (folded)
+hip_roll     servo_hip_pitch_L      arm_upper_L                   0.00     10.15    55.0  ok   hip roll: pitch servo vs the upper arm, arms at rest (folded)
+hip_roll     servo_hip_pitch_L      servo_elbow_L                 0.00     15.33    55.0  ok   hip roll: pitch servo vs the elbow servo, arms at rest (folded)
+hip_roll     servo_hip_pitch_L      arm_fore_L                    0.00     35.06    55.0  ok   hip roll: pitch servo vs the forearm, arms at rest (folded)
+hip_roll     thigh_L                arm_upper_L                   0.00     10.78    55.0  ok   hip roll: thigh vs the upper arm, arms at rest (folded)
+hip_roll     thigh_L                servo_elbow_L                 0.00     14.81    55.0  ok   hip roll: thigh vs the elbow servo, arms at rest (folded)
+hip_roll     thigh_L                arm_fore_L                    0.00     32.99    55.0  ok   hip roll: thigh vs the forearm, arms at rest (folded)
+hip_pitch    thigh_L                arm_upper_L                   0.00     17.50  -120.0  ok   hip pitch: thigh vs the upper arm, arms at rest (folded)
+hip_pitch    thigh_L                servo_elbow_L                 0.00     20.55  -120.0  ok   hip pitch: thigh vs the elbow servo, arms at rest (folded)
+hip_pitch    thigh_L                arm_fore_L                    0.00     20.00  -120.0  ok   hip pitch: thigh vs the forearm, arms at rest (folded)
+hip_pitch    servo_hip_pitch_L      arm_fore_L                    0.00     39.19  -120.0  ok   hip pitch: pitch servo vs the forearm, arms at rest (folded)
+knee         shin_L                 servo_elbow_L                 0.00    106.86   130.0  ok   knee: shin vs the elbow servo, arms at rest (folded)
+knee         shin_L                 arm_fore_L                    0.00    112.70   -95.0  ok   knee: shin vs the forearm, arms at rest (folded)
+knee         servo_knee_L           arm_fore_L                    0.00    122.64   -95.0  ok   knee: knee servo vs the forearm, arms at rest (folded)
+ankle_pitch  ankle_link_L           arm_fore_L                    0.00    241.62   -40.0  ok   ankle pitch: ankle link vs the forearm, arms at rest (folded)
+hip_yaw      yaw_carrier_L          arm_fore_L                    0.00     41.38   -45.0  ok   hip yaw swings the carrier toward the arm plane
+ankle_pitch  ankle_link_L           arm_fore_L                    0.00     74.95    40.0  ok   ankle link vs the hanging forearm (the arm reaches to z 154)
+shoulder     arm_upper_L            yaw_bearing_housing           0.00     25.87   -17.5  ok   upper arm vs the bearing housing, whole sweep
+shoulder     arm_fore_L             yaw_bearing_housing           0.00     77.47   -17.5  ok   forearm vs the bearing housing, hanging
+shoulder     arm_fore_L             yaw_bearing_housing           0.00     53.48   -17.5  ok   forearm vs the bearing housing, FOLDED
 discscrew    leg_link_v6            horn_pad                 4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    leg_link_v6            idler_pad                4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    ankle_link             tine_horn                4 x M3x5  stack 3.00  engages 1.60  ok
@@ -135,7 +164,7 @@ discscrew    head                   horn                     4 x M3x6  stack 4.0
 discscrew    arm_v6                 shoulder_horn            4 x M3x6  stack 4.00  engages 1.60  ok
 discscrew    arm_v6                 elbow_horn               4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    arm_v6                 elbow_idler              4 x M3x6  stack 3.60  engages 2.00  ok
-static       neck_floor             pack_mock                     0.00      4.50          ok   floor over the pack (the pack goes in first) (>= 4.0 mm)
+static       neck_floor             pack_mock                     0.00      4.00          ok   floor over the pack (the pack goes in first) (>= 4.0 mm)
 static       neck_floor             pelvis_v7                     0.00      0.30          ok   floor in the deck aperture, off the rear web (>= 0.25 mm)
 static       neck_floor             pi4_mock                      0.00     13.81          ok   floor vs the Pi 4B (aft column) (>= 1.0 mm)
 static       neck_floor             gd_mock                       0.00     13.55          ok   floor vs the General Driver (front column) (>= 1.0 mm)
@@ -143,12 +172,27 @@ static       neck_floor             servo_neck                    0.00      0.00
 static       neck_floor             shoulder_girdle_v6            0.00      0.00          ok   floor lugs screwed up to the tube bosses: must not intersect
 static       servo_neck             shoulder_girdle_v6            0.00      0.30          ok   neck servo in its tube: must not intersect
 static       bearing_inner_L        yaw_carrier_L                44.02      0.00          ok   inner race pressed on the hub (designed 44.0 mm3)
-static       bearing_outer_L        pelvis_v7                    28.58      0.00          ok   outer race pressed into the recess, under the shoulder (designed 28.6 mm3)
+static       bearing_outer_L        yaw_bearing_housing          28.58      0.00          ok   outer race pressed into the housing's recess, under the shoulder (designed 28.6 mm3)
+static       yaw_bearing_housing    pelvis_v7                     0.00      0.00          ok   housing screwed up against the cell block: must not intersect
+static       servo_hip_yaw_L        pelvis_v7                     0.00      0.00          ok   yaw servo seated, idler case face on the cell ceiling (no idler disc): must not intersect
+static       servo_hip_yaw_L        pack_mock                     0.00      1.00          ok   the yaw servo's free-hub post under the pack (on its 1 mm foam pads) (>= 0.8 mm)
+static       yaw_bearing_housing    pi4_mock                      0.00      0.70          ok   housing under the Pi 4B's bottom edge (>= 0.5 mm)
+static       yaw_bearing_housing    gd_mock                       0.00      0.00          ok   the General Driver's bottom edge on the housing's top face: must not intersect
+insert       7a yaw servo up into its cell        no overlap                         approach clearance  0.30 mm (vs pelvis_v7, 1 mm out)  ok
+insert       7b carrier up onto the yaw horn      no overlap                         approach clearance  1.00 mm (vs servo_hip_yaw_L, 1 mm out)  ok
+insert       7c roll servo up into the bay        no overlap                         approach clearance  0.00 mm (vs yaw_carrier_L, 1 mm out)  ok
+insert       7d bearing into the housing (bench)  no overlap                         approach clearance  4.09 mm (vs yaw_bearing_housing, 1 mm out)  ok
+insert       7e housing + bearings up onto the hubs no overlap                         approach clearance  1.00 mm (vs pelvis_v7, 1 mm out)  ok
+insert       press fits allowed along the paths: inner race on the hub 44.0 mm3, outer race in the housing 28.6 mm3 (designed)
+access       carrier horn screws, from inside the empty bay        4 screws, 7 mm driver: no part in the way  ok
+access       roll-servo wall screws, before the bearing            8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
+access       roll-servo wall screws, hip fully assembled           8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
+access       bearing-housing screws, before the legs               5 screws, 7 mm driver: no part in the way  ok
 interleg     foot_L                 foot_R                        0.00     13.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (87 s)
+=> ALL CLEAR  (187 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -219,8 +263,8 @@ joint        A                      B                      overlap mm3  min dist
       roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
       pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
   [ankle_link] rounded 2/4 outer top-plate corners
-hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      2.30   -45.0  ok   carrier under the cell through +-45
-hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00      7.30   -45.0  ok   roll servo in the carrier bay vs the housing floor
+hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      1.80   -45.0  ok   carrier under the cell through +-45
+hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00     11.80   -45.0  ok   roll servo in the carrier bay vs the housing floor
 hip_roll     hip_yoke_L             yaw_carrier_L                 0.00      0.30     0.0  ok   one-print yoke vs the bay walls: idler boss rides the bore, volume only
 hip_roll     hip_yoke_L~seats       yaw_carrier_L                 0.00      1.00   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
 hip_roll     hip_yoke_L             servo_hip_roll_L              0.00      0.00   -55.0  ok   one-print yoke on the roll servo discs: seated, must not intersect
@@ -228,7 +272,7 @@ hip_roll     hip_yoke_L~seats       servo_hip_roll_L              0.00      0.58
 hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
 hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    37.5  ok   grip channel vs its own servo: seated, must not intersect
 hip_pitch    thigh_L                yaw_carrier_L                 0.00     13.90  -120.0  ok   thigh top vs the carrier at deep flexion
-hip_pitch    thigh_L                pelvis_v7                     0.00     37.82  -120.0  ok   thigh vs the housing at deep flexion
+hip_pitch    thigh_L                pelvis_v7                     0.00     51.35  -120.0  ok   thigh vs the housing at deep flexion
 hip_pitch    thigh_L                servo_hip_roll_L              0.00      8.94  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
 knee         shin_L                 thigh_L                       0.00      0.60   130.0  ok   shin grip plates vs the thigh fork; shin case vs the thigh box
 knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's box (r 16 rule)
@@ -242,16 +286,23 @@ neck         head                   pelvis_v7                     0.00     35.20
 neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
 neck         head                   neck_collar                   0.00      2.10   -90.0  ok   head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)
 neck         head                   neck_floor                    0.00     35.20   -90.0  ok   head vs the neck servo's floor plate through +-90
-hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      4.42   -45.0  ok   turning carrier vs the fixed outer race through +-45
-hip_yaw      servo_hip_roll_L       bearing_outer_L               0.00      8.24   -22.5  ok   roll servo (inside the hub) vs the fixed outer race
-hip_yaw      bearing_inner_L        pelvis_v7                     0.00      2.30   -45.0  ok   turning inner race vs the pelvis shoulder (estimated race split)
-hip_roll     hip_yoke_L             bearing_inner_L               0.00     23.08    55.0  ok   yoke at full roll vs the inner race
-hip_roll     hip_yoke_L             bearing_outer_L               0.00     23.08    55.0  ok   yoke at full roll vs the outer race
-hip_roll     servo_hip_pitch_L      bearing_outer_L               0.00     41.25    55.0  ok   pitch servo at full roll vs the outer race
-hip_roll     thigh_L                bearing_inner_L               0.00     54.78    55.0  ok   thigh at full roll vs the inner race
-hip_roll     thigh_L                bearing_outer_L               0.00     52.68    55.0  ok   thigh at full roll vs the outer race
-hip_pitch    thigh_L                bearing_inner_L               0.00     41.90  -120.0  ok   thigh at deep flexion vs the inner race
-hip_pitch    thigh_L                bearing_outer_L               0.00     39.71  -120.0  ok   thigh at deep flexion vs the outer race
+hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      5.86    22.5  ok   turning carrier vs the fixed outer race through +-45
+hip_yaw      servo_hip_roll_L       bearing_outer_L               0.00     10.06   -45.0  ok   roll servo (inside the hub) vs the fixed outer race
+hip_yaw      bearing_inner_L        yaw_bearing_housing           0.00      3.97    45.0  ok   turning inner race vs the housing's shoulder (SKF d1)
+hip_yaw      bearing_inner_L        pelvis_v7                     0.00      1.80   -45.0  ok   turning inner race vs the cell block's rim
+hip_yaw      yaw_carrier_L          yaw_bearing_housing           0.00      6.26    22.5  ok   turning carrier vs the housing through +-45
+hip_yaw      servo_hip_roll_L       yaw_bearing_housing           0.00     11.57   -22.5  ok   roll servo vs the housing through +-45
+hip_roll     hip_yoke_L             bearing_inner_L               0.00     28.08    55.0  ok   yoke at full roll vs the inner race
+hip_roll     hip_yoke_L             bearing_outer_L               0.00     28.08    55.0  ok   yoke at full roll vs the outer race
+hip_roll     hip_yoke_L             yaw_bearing_housing           0.00     27.58    55.0  ok   yoke at full roll vs the housing
+hip_roll     servo_hip_pitch_L      bearing_outer_L               0.00     46.05    55.0  ok   pitch servo at full roll vs the outer race
+hip_roll     servo_hip_pitch_L      yaw_bearing_housing           0.00     44.86    55.0  ok   pitch servo at full roll vs the housing
+hip_roll     thigh_L                bearing_inner_L               0.00     59.49    55.0  ok   thigh at full roll vs the inner race
+hip_roll     thigh_L                bearing_outer_L               0.00     57.21    55.0  ok   thigh at full roll vs the outer race
+hip_roll     thigh_L                yaw_bearing_housing           0.00     55.60    55.0  ok   thigh at full roll vs the housing
+hip_pitch    thigh_L                bearing_inner_L               0.00     46.59  -120.0  ok   thigh at deep flexion vs the inner race
+hip_pitch    thigh_L                bearing_outer_L               0.00     44.08  -120.0  ok   thigh at deep flexion vs the outer race
+hip_pitch    thigh_L                yaw_bearing_housing           0.00     42.21  -120.0  ok   thigh at deep flexion vs the housing
 discscrew    leg_link_v6            horn_pad                 4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    leg_link_v6            idler_pad                4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    ankle_link             tine_horn                4 x M3x5  stack 3.00  engages 1.60  ok
@@ -262,7 +313,7 @@ discscrew    hip_yoke_v6            pitch_horn               4 x M3x5  stack 3.0
 discscrew    hip_yoke_v6            pitch_idler              4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    yaw_carrier_v6         yaw_horn                 4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    head                   horn                     4 x M3x6  stack 4.00  engages 1.60  ok
-static       neck_floor             pack_mock                     0.00      4.50          ok   floor over the pack (the pack goes in first) (>= 4.0 mm)
+static       neck_floor             pack_mock                     0.00      4.00          ok   floor over the pack (the pack goes in first) (>= 4.0 mm)
 static       neck_floor             pelvis_v7                     0.00      0.30          ok   floor in the deck aperture, off the rear web (>= 0.25 mm)
 static       neck_floor             pi4_mock                      0.00     13.81          ok   floor vs the Pi 4B (aft column) (>= 1.0 mm)
 static       neck_floor             gd_mock                       0.00     13.55          ok   floor vs the General Driver (front column) (>= 1.0 mm)
@@ -270,84 +321,177 @@ static       neck_floor             servo_neck                    0.00      0.00
 static       neck_floor             neck_collar                   0.00      0.00          ok   floor lugs screwed up to the tube bosses: must not intersect
 static       servo_neck             neck_collar                   0.00      0.30          ok   neck servo in its tube: must not intersect
 static       bearing_inner_L        yaw_carrier_L                44.02      0.00          ok   inner race pressed on the hub (designed 44.0 mm3)
-static       bearing_outer_L        pelvis_v7                    28.58      0.00          ok   outer race pressed into the recess, under the shoulder (designed 28.6 mm3)
+static       bearing_outer_L        yaw_bearing_housing          28.58      0.00          ok   outer race pressed into the housing's recess, under the shoulder (designed 28.6 mm3)
+static       yaw_bearing_housing    pelvis_v7                     0.00      0.00          ok   housing screwed up against the cell block: must not intersect
+static       servo_hip_yaw_L        pelvis_v7                     0.00      0.00          ok   yaw servo seated, idler case face on the cell ceiling (no idler disc): must not intersect
+static       servo_hip_yaw_L        pack_mock                     0.00      1.00          ok   the yaw servo's free-hub post under the pack (on its 1 mm foam pads) (>= 0.8 mm)
+static       yaw_bearing_housing    pi4_mock                      0.00      0.70          ok   housing under the Pi 4B's bottom edge (>= 0.5 mm)
+static       yaw_bearing_housing    gd_mock                       0.00      0.00          ok   the General Driver's bottom edge on the housing's top face: must not intersect
+insert       7a yaw servo up into its cell        no overlap                         approach clearance  0.30 mm (vs pelvis_v7, 1 mm out)  ok
+insert       7b carrier up onto the yaw horn      no overlap                         approach clearance  1.00 mm (vs servo_hip_yaw_L, 1 mm out)  ok
+insert       7c roll servo up into the bay        no overlap                         approach clearance  0.00 mm (vs yaw_carrier_L, 1 mm out)  ok
+insert       7d bearing into the housing (bench)  no overlap                         approach clearance  4.09 mm (vs yaw_bearing_housing, 1 mm out)  ok
+insert       7e housing + bearings up onto the hubs no overlap                         approach clearance  1.00 mm (vs pelvis_v7, 1 mm out)  ok
+insert       press fits allowed along the paths: inner race on the hub 44.0 mm3, outer race in the housing 28.6 mm3 (designed)
+access       carrier horn screws, from inside the empty bay        4 screws, 7 mm driver: no part in the way  ok
+access       roll-servo wall screws, before the bearing            8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
+access       roll-servo wall screws, hip fully assembled           8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
+access       bearing-housing screws, before the legs               5 screws, 7 mm driver: no part in the way  ok
 interleg     foot_L                 foot_R                        0.00     13.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (71 s)
+=> ALL CLEAR  (140 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================
 
 == pelvis_v7  [upside down: deck top on bed (v7 torso)]
-  first-layer contact    3983 mm2  (25.3% of 101x155 bbox)
+  first-layer contact    3983 mm2  (32.6% of 99x124 bbox)
   **LEDGE       410 mm2   97.2 x 120.8 mm  at z   0.3  anchored one side (50% ring)
-  **LEDGE       307 mm2   64.1 x  20.2 mm  at z  72.0  anchored one side (31% ring)
-  **CEILING     253 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
+  **CEILING     244 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
     CEILING       3 mm2   15.4 x   0.2 mm  at z  69.0  over 61.0 mm cavity
-    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
     CEILING       3 mm2   15.4 x   0.2 mm  at z  69.0  over 61.0 mm cavity
-    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
   **CEILING     365 mm2   18.1 x  20.3 mm  at z  69.0  over 61.0 mm cavity
     BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
     BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
-  **CEILING     253 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
-  **LEDGE       307 mm2   64.1 x  20.2 mm  at z  72.0  anchored one side (31% ring)
     BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+  **CEILING     244 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
   **CEILING     365 mm2   18.1 x  20.3 mm  at z  69.0  over 61.0 mm cavity
-    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+    CEILING       3 mm2   15.4 x   0.2 mm  at z  69.0  over 61.0 mm cavity
     CEILING       3 mm2   15.4 x   0.2 mm  at z  69.0  over 61.0 mm cavity
     BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
-    CEILING       3 mm2   15.4 x   0.2 mm  at z  69.0  over 61.0 mm cavity
     BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
-  **LEDGE        53 mm2    7.7 x  27.7 mm  at z  72.0  anchored one side (44% ring)
-  **LEDGE        53 mm2    7.7 x  27.7 mm  at z  72.0  anchored one side (44% ring)
-  **LEDGE       106 mm2   17.4 x  25.5 mm  at z  72.0  anchored one side (69% ring)
-  **LEDGE       198 mm2   42.5 x  20.2 mm  at z  72.0  anchored one side (38% ring)
-    CEILING     120 mm2    7.4 x  27.7 mm  at z  72.0  over 33.4 mm cavity
-  **LEDGE      1149 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
-    CEILING     120 mm2    7.4 x  27.7 mm  at z  72.0  over 33.4 mm cavity
-  **LEDGE       198 mm2   42.5 x  20.2 mm  at z  72.0  anchored one side (38% ring)
-  **LEDGE       106 mm2   17.4 x  25.5 mm  at z  72.0  anchored one side (69% ring)
-  **LEDGE       454 mm2   30.0 x  18.4 mm  at z  76.8  anchored one side (50% ring)
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+    BEAM          2 mm2    4.0 x   0.6 mm  at z   7.0  end-anchored ribbon, 4 mm between anchors
+  **LEDGE      1110 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
   **BEAM         22 mm2    0.2 x  90.0 mm  at z   5.0  end-anchored ribbon, 90 mm between anchors
+    BEAM          2 mm2    4.4 x   1.2 mm  at z  64.4  end-anchored ribbon, 4 mm between anchors
+    BEAM          0 mm2    0.2 x   0.1 mm  at z  64.2  end-anchored ribbon, 0 mm between anchors
+    BEAM          0 mm2    0.4 x   0.3 mm  at z  64.0  end-anchored ribbon, 0 mm between anchors
+    LEDGE         0 mm2    0.1 x   0.2 mm  at z  63.9  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.2 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.3 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.3 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.3 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.3 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.2 mm  at z  63.8  anchored one side (50% ring)
+    LEDGE         0 mm2    0.1 x   0.2 mm  at z  63.9  anchored one side (56% ring)
+    BEAM          0 mm2    0.6 x   0.3 mm  at z  64.0  end-anchored ribbon, 1 mm between anchors
+    CEILING       5 mm2    6.0 x   4.8 mm  at z  62.9  over 24.7 mm cavity
+    BEAM          0 mm2    0.1 x   0.1 mm  at z  64.0  end-anchored ribbon, 0 mm between anchors
+    CEILING       5 mm2    6.0 x   4.8 mm  at z  62.9  over 24.7 mm cavity
+    BEAM          2 mm2    4.4 x   1.2 mm  at z  64.4  end-anchored ribbon, 4 mm between anchors
+    BEAM          0 mm2    0.6 x   0.3 mm  at z  64.0  end-anchored ribbon, 1 mm between anchors
+    LEDGE         0 mm2    0.1 x   0.2 mm  at z  63.9  anchored one side (56% ring)
+    LEDGE         0 mm2    0.1 x   0.2 mm  at z  63.8  anchored one side (50% ring)
+    LEDGE         0 mm2    0.1 x   0.3 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.3 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.3 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.3 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.2 mm  at z  63.8  anchored one side (44% ring)
+    LEDGE         0 mm2    0.1 x   0.2 mm  at z  63.9  anchored one side (44% ring)
+    BEAM          0 mm2    0.4 x   0.3 mm  at z  64.0  end-anchored ribbon, 0 mm between anchors
+    BEAM          0 mm2    0.2 x   0.1 mm  at z  64.2  end-anchored ribbon, 0 mm between anchors
     BEAM          2 mm2    1.0 x   1.6 mm  at z  19.6  through-wall strip, 2 mm between anchors
     BEAM          2 mm2    1.0 x   1.6 mm  at z  19.6  through-wall strip, 2 mm between anchors
     BEAM         14 mm2    5.5 x   2.6 mm  at z  37.3  through-wall strip, 6 mm between anchors
-  **LEDGE      1149 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
+    CEILING       2 mm2    1.7 x   5.3 mm  at z  64.7  over 59.8 mm cavity
+    bore-top      0 mm2    0.1 x   0.2 mm  at z  64.2  over 59.2 mm cavity
+    bore-top      0 mm2    0.3 x   0.5 mm  at z  63.8  over 59.0 mm cavity
+    bore-top      0 mm2    0.0 x   0.1 mm  at z  63.6  over 58.6 mm cavity
+    bore-top      0 mm2    0.2 x   0.3 mm  at z  63.4  over 58.5 mm cavity
+    bore-top      0 mm2    0.2 x   0.1 mm  at z  63.4  over 58.4 mm cavity
+    bore-top      0 mm2    0.3 x   0.1 mm  at z  63.3  over 58.4 mm cavity
+    bore-top      0 mm2    0.3 x   0.0 mm  at z  63.3  over 58.4 mm cavity
+    bore-top      0 mm2    0.3 x   0.1 mm  at z  63.3  over 58.4 mm cavity
+    bore-top      0 mm2    0.3 x   0.1 mm  at z  63.3  over 58.4 mm cavity
+    bore-top      0 mm2    0.2 x   0.1 mm  at z  63.4  over 58.4 mm cavity
+    bore-top      0 mm2    0.1 x   0.1 mm  at z  64.5  over 59.5 mm cavity
+    bore-top      0 mm2    0.4 x   0.3 mm  at z  64.1  over 59.2 mm cavity
+    bore-top      0 mm2    0.2 x   0.1 mm  at z  63.4  over 58.5 mm cavity
+    bore-top      0 mm2    0.3 x   0.2 mm  at z  63.8  over 58.9 mm cavity
+    bore-top      0 mm2    0.0 x   0.1 mm  at z  63.9  over 58.9 mm cavity
+    bore-top      0 mm2    0.0 x   0.1 mm  at z  63.6  over 58.6 mm cavity
     BEAM          2 mm2    1.0 x   1.6 mm  at z  20.3  through-wall strip, 2 mm between anchors
     BEAM          2 mm2    1.0 x   1.6 mm  at z  20.3  through-wall strip, 2 mm between anchors
-    CEILING      11 mm2    6.0 x   1.6 mm  at z  69.3  over 2.0 mm cavity
+  **LEDGE      1110 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
+    CEILING       3 mm2    5.7 x   2.2 mm  at z  64.4  over 56.8 mm cavity
+    bore-top      0 mm2    0.3 x   0.4 mm  at z  63.6  over 55.8 mm cavity
+    bore-top      0 mm2    0.3 x   0.4 mm  at z  63.2  over 55.4 mm cavity
+    bore-top      0 mm2    0.2 x   0.1 mm  at z  63.0  over 55.0 mm cavity
+    bore-top      0 mm2    0.1 x   0.2 mm  at z  62.9  over 55.0 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.9  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.4 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.0 x   0.4 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.0 x   0.4 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.4 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.2 x   0.4 mm  at z  64.0  over 56.1 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.2 x   0.3 mm  at z  62.9  over 54.9 mm cavity
+    bore-top      0 mm2    0.2 x   0.4 mm  at z  63.7  over 55.8 mm cavity
+    bore-top      0 mm2    0.2 x   0.4 mm  at z  63.3  over 55.4 mm cavity
+    bore-top      0 mm2    0.1 x   0.1 mm  at z  63.1  over 55.1 mm cavity
     BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
     bore-top      0 mm2    0.1 x   0.1 mm  at z  35.7  over 30.7 mm cavity
     BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
-    CEILING      11 mm2    6.0 x   1.6 mm  at z  69.3  over 2.0 mm cavity
-    BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
-    bore-top      0 mm2    0.1 x   0.1 mm  at z  35.7  over 30.7 mm cavity
-    BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
-    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
-    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
-    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
-    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
-    bore-top      3 mm2    2.1 x   2.0 mm  at z   4.5  roof of a through-void
   **BEAM        120 mm2    1.1 x 109.3 mm  at z   5.0  end-anchored ribbon, 109 mm between anchors
+    BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
+    bore-top      0 mm2    0.1 x   0.1 mm  at z  35.7  over 30.7 mm cavity
+    BEAM          0 mm2    0.1 x   0.1 mm  at z  35.7  through-wall strip, 0 mm between anchors
+  **ISLAND      201 mm2    9.9 x  28.0 mm  at z  36.0  nothing below or around -> support
+    CEILING       3 mm2    5.7 x   2.2 mm  at z  64.4  over 56.8 mm cavity
+    bore-top      0 mm2    0.2 x   0.4 mm  at z  64.0  over 56.1 mm cavity
+    bore-top      0 mm2    0.2 x   0.4 mm  at z  63.7  over 55.8 mm cavity
+    bore-top      0 mm2    0.2 x   0.4 mm  at z  63.3  over 55.4 mm cavity
+    bore-top      0 mm2    0.1 x   0.1 mm  at z  63.1  over 55.1 mm cavity
+    bore-top      0 mm2    0.2 x   0.3 mm  at z  62.9  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.4 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.0 x   0.4 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.0 x   0.4 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.4 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.8  over 54.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.3 mm  at z  62.9  over 54.9 mm cavity
+    bore-top      0 mm2    0.7 x   0.4 mm  at z  63.6  over 55.9 mm cavity
+    bore-top      0 mm2    0.1 x   0.2 mm  at z  62.9  over 55.0 mm cavity
+    bore-top      0 mm2    0.3 x   0.4 mm  at z  63.2  over 55.4 mm cavity
+    bore-top      0 mm2    0.2 x   0.1 mm  at z  63.0  over 55.0 mm cavity
     bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
     bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
     bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
     bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
     bore-top      3 mm2    2.1 x   2.0 mm  at z   4.5  roof of a through-void
-  **ISLAND      201 mm2    9.9 x  28.0 mm  at z  36.0  nothing below or around -> support
-    BEAM          1 mm2    0.3 x   5.4 mm  at z  38.6  through-wall strip, 5 mm between anchors
-    BEAM          4 mm2    1.3 x   5.0 mm  at z  38.7  end-anchored ribbon, 5 mm between anchors
-    BEAM          1 mm2    0.3 x   5.4 mm  at z  38.6  through-wall strip, 5 mm between anchors
-    BEAM          4 mm2    1.3 x   5.0 mm  at z  38.7  end-anchored ribbon, 5 mm between anchors
-    bore-top      3 mm2    3.5 x   2.8 mm  at z  38.6  over 1.2 mm cavity
-    CEILING      12 mm2    7.0 x   1.6 mm  at z  68.6  over 2.0 mm cavity
-    CEILING      12 mm2    7.0 x   1.6 mm  at z  68.6  over 2.0 mm cavity
-    bore-top      3 mm2    3.5 x   2.8 mm  at z  38.6  over 1.2 mm cavity
-    bore-top      3 mm2    3.5 x   2.8 mm  at z  38.6  over 1.2 mm cavity
-    bore-top      3 mm2    3.5 x   2.8 mm  at z  38.6  over 1.2 mm cavity
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.0 x   2.0 mm  at z   4.5  roof of a through-void
+    bore-top      3 mm2    2.1 x   2.0 mm  at z   4.5  roof of a through-void
+    CEILING      12 mm2    7.0 x   1.6 mm  at z  68.6  over 1.9 mm cavity
+    CEILING      12 mm2    7.0 x   1.6 mm  at z  68.6  over 1.9 mm cavity
+    CEILING      11 mm2    6.0 x   1.6 mm  at z  69.3  over 2.0 mm cavity
+    BEAM          1 mm2    1.7 x   5.3 mm  at z  64.6  through-wall strip, 5 mm between anchors
+    BEAM          0 mm2    0.1 x   0.2 mm  at z  64.2  through-wall strip, 0 mm between anchors
+    BEAM          0 mm2    0.3 x   1.0 mm  at z  63.5  through-wall strip, 1 mm between anchors
+    bore-top      0 mm2    0.2 x   0.1 mm  at z  63.4  over 24.8 mm cavity
+    bore-top      0 mm2    0.3 x   0.1 mm  at z  63.3  over 24.8 mm cavity
+    bore-top      0 mm2    0.3 x   0.1 mm  at z  63.3  over 24.8 mm cavity
+    bore-top      0 mm2    0.3 x   0.1 mm  at z  63.3  over 24.8 mm cavity
+    bore-top      0 mm2    0.3 x   0.1 mm  at z  63.3  over 24.8 mm cavity
+    bore-top      0 mm2    0.3 x   0.1 mm  at z  63.3  over 24.8 mm cavity
+    bore-top      0 mm2    0.3 x   0.1 mm  at z  63.3  over 24.8 mm cavity
+    BEAM          0 mm2    0.2 x   0.3 mm  at z  63.4  through-wall strip, 0 mm between anchors
+    BEAM          0 mm2    0.1 x   0.2 mm  at z  64.5  through-wall strip, 0 mm between anchors
+    BEAM          0 mm2    0.1 x   0.2 mm  at z  64.1  through-wall strip, 0 mm between anchors
+    BEAM          0 mm2    0.3 x   0.3 mm  at z  63.8  through-wall strip, 0 mm between anchors
+    BEAM          0 mm2    0.1 x   0.3 mm  at z  63.5  through-wall strip, 0 mm between anchors
+    CEILING      11 mm2    6.0 x   1.6 mm  at z  69.3  over 2.0 mm cavity
   **ISLAND       35 mm2    7.0 x   7.0 mm  at z  30.0  nothing below or around -> support
   **ISLAND       35 mm2    7.0 x   7.0 mm  at z  30.0  nothing below or around -> support
     bore-top      4 mm2    2.2 x   2.2 mm  at z  36.1  roof of a through-void
@@ -357,15 +501,27 @@ check_assembly_v6 (ARMS=0): PASS
     CEILING      61 mm2   11.4 x   5.4 mm  at z   5.0  over 1.9 mm cavity
     BEAM         16 mm2   11.4 x   1.4 mm  at z   5.0  through-wall strip, 11 mm between anchors
   **THIN       10.3 mm2  wall < 0.85 mm  around (-57, 57, 70)
-  **THIN        6.6 mm2  wall < 0.85 mm  around (30, 57, 70)
+  **THIN       10.3 mm2  wall < 0.85 mm  around (24, 57, 70)
   **THIN       11.1 mm2  wall < 0.85 mm  around (-63, 57, 70)
   **THIN       11.1 mm2  wall < 0.85 mm  around (-63, -57, 70)
-  **THIN        6.6 mm2  wall < 0.85 mm  around (30, -57, 70)
+  **THIN       10.3 mm2  wall < 0.85 mm  around (24, -57, 70)
   **THIN       10.3 mm2  wall < 0.85 mm  around (-57, -57, 70)
-  **THIN       10.0 mm2  wall < 0.85 mm  around (30, 57, 70)
-  **THIN       10.0 mm2  wall < 0.85 mm  around (30, -57, 70)
-    thin-note    2.7 mm2  wall < 0.85 mm  around (-11, 52, 38)
-    thin-note    2.7 mm2  wall < 0.85 mm  around (-11, -52, 38)
+  **THIN       11.1 mm2  wall < 0.85 mm  around (30, 57, 70)
+  **THIN       11.1 mm2  wall < 0.85 mm  around (30, -57, 70)
+    thin-note    0.7 mm2  wall < 0.85 mm  around (-36, -57, 71)
+    thin-note    0.7 mm2  wall < 0.85 mm  around (11, -57, 71)
+    thin-note    0.7 mm2  wall < 0.85 mm  around (-36, 57, 71)
+    thin-note    0.7 mm2  wall < 0.85 mm  around (11, 57, 71)
+  **THIN      228.3 mm2  wall < 0.85 mm  around (-23, 43, 36)
+  **THIN      228.3 mm2  wall < 0.85 mm  around (-23, -43, 36)
+    thin-note    2.2 mm2  wall < 0.85 mm  around (-11, 50, 38)
+    thin-note    2.2 mm2  wall < 0.85 mm  around (-11, -50, 38)
+  **THIN      223.7 mm2  wall < 0.85 mm  around (-23, 42, 36)
+  **THIN      223.7 mm2  wall < 0.85 mm  around (-23, -42, 36)
+
+== yaw_bearing_housing  [upside down: the face against the pelvis on bed]
+  first-layer contact    3333 mm2  (26.9% of 80x155 bbox)
+  PASS
 
 == head  [base down: neck-horn plate on bed]
   first-layer contact    1021 mm2  (31.1% of 53x62 bbox)
@@ -489,34 +645,29 @@ check_assembly_v6 (ARMS=0): PASS
 
 SAG RISKS FOUND:
   pelvis_v7    LEDGE       410 mm2   97.2 x 120.8 mm  at z   0.3  anchored one side (50% ring)
-  pelvis_v7    LEDGE       307 mm2   64.1 x  20.2 mm  at z  72.0  anchored one side (31% ring)
-  pelvis_v7    CEILING     253 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
+  pelvis_v7    CEILING     244 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
   pelvis_v7    CEILING     365 mm2   18.1 x  20.3 mm  at z  69.0  over 61.0 mm cavity
-  pelvis_v7    CEILING     253 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
-  pelvis_v7    LEDGE       307 mm2   64.1 x  20.2 mm  at z  72.0  anchored one side (31% ring)
+  pelvis_v7    CEILING     244 mm2   34.9 x   9.8 mm  at z  69.0  over 61.0 mm cavity
   pelvis_v7    CEILING     365 mm2   18.1 x  20.3 mm  at z  69.0  over 61.0 mm cavity
-  pelvis_v7    LEDGE        53 mm2    7.7 x  27.7 mm  at z  72.0  anchored one side (44% ring)
-  pelvis_v7    LEDGE        53 mm2    7.7 x  27.7 mm  at z  72.0  anchored one side (44% ring)
-  pelvis_v7    LEDGE       106 mm2   17.4 x  25.5 mm  at z  72.0  anchored one side (69% ring)
-  pelvis_v7    LEDGE       198 mm2   42.5 x  20.2 mm  at z  72.0  anchored one side (38% ring)
-  pelvis_v7    LEDGE      1149 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
-  pelvis_v7    LEDGE       198 mm2   42.5 x  20.2 mm  at z  72.0  anchored one side (38% ring)
-  pelvis_v7    LEDGE       106 mm2   17.4 x  25.5 mm  at z  72.0  anchored one side (69% ring)
-  pelvis_v7    LEDGE       454 mm2   30.0 x  18.4 mm  at z  76.8  anchored one side (50% ring)
+  pelvis_v7    LEDGE      1110 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
   pelvis_v7    BEAM         22 mm2    0.2 x  90.0 mm  at z   5.0  end-anchored ribbon, 90 mm between anchors
-  pelvis_v7    LEDGE      1149 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
+  pelvis_v7    LEDGE      1110 mm2   47.4 x  30.5 mm  at z  35.7  anchored one side (38% ring)
   pelvis_v7    BEAM        120 mm2    1.1 x 109.3 mm  at z   5.0  end-anchored ribbon, 109 mm between anchors
   pelvis_v7    ISLAND      201 mm2    9.9 x  28.0 mm  at z  36.0  nothing below or around -> support
   pelvis_v7    ISLAND       35 mm2    7.0 x   7.0 mm  at z  30.0  nothing below or around -> support
   pelvis_v7    ISLAND       35 mm2    7.0 x   7.0 mm  at z  30.0  nothing below or around -> support
   pelvis_v7    THIN       10.3 mm2  wall < 0.85 mm  around (-57, 57, 70)
-  pelvis_v7    THIN        6.6 mm2  wall < 0.85 mm  around (30, 57, 70)
+  pelvis_v7    THIN       10.3 mm2  wall < 0.85 mm  around (24, 57, 70)
   pelvis_v7    THIN       11.1 mm2  wall < 0.85 mm  around (-63, 57, 70)
   pelvis_v7    THIN       11.1 mm2  wall < 0.85 mm  around (-63, -57, 70)
-  pelvis_v7    THIN        6.6 mm2  wall < 0.85 mm  around (30, -57, 70)
+  pelvis_v7    THIN       10.3 mm2  wall < 0.85 mm  around (24, -57, 70)
   pelvis_v7    THIN       10.3 mm2  wall < 0.85 mm  around (-57, -57, 70)
-  pelvis_v7    THIN       10.0 mm2  wall < 0.85 mm  around (30, 57, 70)
-  pelvis_v7    THIN       10.0 mm2  wall < 0.85 mm  around (30, -57, 70)
+  pelvis_v7    THIN       11.1 mm2  wall < 0.85 mm  around (30, 57, 70)
+  pelvis_v7    THIN       11.1 mm2  wall < 0.85 mm  around (30, -57, 70)
+  pelvis_v7    THIN      228.3 mm2  wall < 0.85 mm  around (-23, 43, 36)
+  pelvis_v7    THIN      228.3 mm2  wall < 0.85 mm  around (-23, -43, 36)
+  pelvis_v7    THIN      223.7 mm2  wall < 0.85 mm  around (-23, 42, 36)
+  pelvis_v7    THIN      223.7 mm2  wall < 0.85 mm  around (-23, -42, 36)
   head         CEILING    3143 mm2   50.0 x  62.0 mm  at z  44.0  roof of a through-void
   head         LEDGE       185 mm2    3.0 x  62.0 mm  at z   4.0  anchored one side (31% ring)
   head         LEDGE      1895 mm2   43.0 x  55.0 mm  at z   2.7  anchored one side (25% ring)

@@ -18,7 +18,8 @@ committed next to it.
 The filmstrip is two rows: the whole build at even intervals, then the parts
 this build is ABOUT caught halfway along their insertion paths (FEATURE_GROUPS:
 the girdle and neck floor going down, the neck servo dropping into its tube,
-the arms, and the hip-yaw bearings going onto the carrier hubs).
+the arms, and the bearing housing going up with the bearings onto the
+carrier hubs).
 """
 from __future__ import annotations
 
@@ -54,13 +55,14 @@ INSERT = [
                                               # discs from above (same path the pair took; the roll servo then slides in)
     ("servo_hip_roll_",    (1, 0, 0), 7),    # roll servo slides into the carrier bay from the front
     ("yaw_carrier_",       (0, 0, 1), 7),
-    ("bearing_inner_",     (0, 0, 1), 8),    # bearing pressed DOWN onto the hub from the horn-face side
-    ("bearing_outer_",     (0, 0, 1), 8),    # (one part: both races travel together)
     ("servo_hip_yaw_",     (0, 0, -1), 8),   # yaw servo offered UP into its cell (arrives from below)
     ("pelvis_v7",          (0, 0, 1), 9),    # pelvis lowered onto the yaw servos
-    ("gd_mock",            (0, 0, 1), 10),   # boards down through the deck slots
-    ("pi4_mock",           (0, 0, 1), 10),
-    ("pack_mock",          (0, 0, 1), 11),   # pack down through the aperture -- BEFORE the girdle:
+    ("yaw_bearing_housing", (0, 0, -1), 10), # housing UP from below with both bearings pressed into it:
+    ("bearing_inner_",     (0, 0, -1), 10),  # the inner races slide onto the carriers' hubs, the housing
+    ("bearing_outer_",     (0, 0, -1), 10),  # meets the cell block and is screwed from below
+    ("gd_mock",            (0, 0, 1), 11),   # boards down through the deck slots
+    ("pi4_mock",           (0, 0, 1), 11),
+    ("pack_mock",          (0, 0, 1), 12),   # pack down through the aperture -- BEFORE the girdle:
                                               # it cannot pass the neck tube or the neck floor afterwards
     # The neck is built into its tube ON THE BENCH (neck_floor.py): the floor
     # screwed up into the tube's bosses, the servo dropped in onto it and
@@ -69,11 +71,11 @@ INSERT = [
     # film shows the tube + floor going down together, then the servo going
     # into the tube from above -- on the bench the servo is in before the
     # tube goes on (its stator screws are under the floor, over the pack).
-    ("shoulder_girdle_v6", (0, 0, 1), 12),
-    ("neck_collar",        (0, 0, 1), 12),
-    ("neck_floor",         (0, 0, 1), 12),
-    ("servo_neck",         (0, 0, 1), 13),   # dropped into the tube from above, onto the floor's pads
-    ("head",               (0, 0, 1), 14),
+    ("shoulder_girdle_v6", (0, 0, 1), 13),
+    ("neck_collar",        (0, 0, 1), 13),
+    ("neck_floor",         (0, 0, 1), 13),
+    ("servo_neck",         (0, 0, 1), 14),   # dropped into the tube from above, onto the floor's pads
+    ("head",               (0, 0, 1), 15),
     # ARMS (cad/v6/arm_v6.py): each shoulder servo dropped straight into its
     # open pod from above (the only way in: a roof over a 32 mm span is
     # unprintable) and screwed from OUTBOARD -> upper arm offered straight IN
@@ -81,13 +83,13 @@ INSERT = [
     # horn plate can arrive from -> elbow servo slid into the forearm's grip
     # channel from the FRONT (the same channel entry leg_link uses) -> forearm
     # lifted UP between the fork tines onto the two discs.
-    ("servo_shoulder_",    (0, 0, 1), 15),
-    ("arm_upper_",         (0, 1, 0), 16),
-    ("servo_elbow_",       (1, 0, 0), 17),
-    ("arm_fore_",          (0, 0, -1), 18),
+    ("servo_shoulder_",    (0, 0, 1), 16),
+    ("arm_upper_",         (0, 1, 0), 17),
+    ("servo_elbow_",       (1, 0, 0), 18),
+    ("arm_fore_",          (0, 0, -1), 19),
 ]
 # filmstrip row 2, by arms?: the insertion groups the strip shows
-FEATURE_GROUPS = {True: (8, 12, 13, 16, 18), False: (8, 11, 12, 13, 14)}
+FEATURE_GROUPS = {True: (10, 13, 14, 17, 19), False: (10, 12, 13, 14, 15)}
 FLY_MM = 60.0
 FRAMES_PER_GROUP = 14
 HOLD = 6
