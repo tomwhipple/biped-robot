@@ -18,6 +18,7 @@ not a version among others.
 | [shoulder-girdle.md](shoulder-girdle.md) | shoulders into the torso in the hip plane; assembly order; §11 the get-up re-run on the robot as drawn |
 | [arms.md](arms.md) | the arm parts in CAD, their ROM and open items |
 | [hip-yoke-single-print.md](hip-yoke-single-print.md) | the hip roll and pitch clevises as one print; hip-flexion relief to −120° |
+| [failure_sweep_2026-10-07.md](failure_sweep_2026-10-07.md) | failure modes of the kinematic walk on the robot plant: 434k random walks; roll play, lift height, actuation lag and swing time decide falls and lift |
 | [study-yaw-bearing.md](study-yaw-bearing.md) | hip-yaw bearing options A / C / E and their checks; A selected 2026-10-06 (#75) |
 
 Records here describe what was true on their date; where one disagrees with
