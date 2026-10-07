@@ -152,6 +152,71 @@ def joint_role(name):
 
 
 
+def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
+    """Calibration for the imitation reference's swing lift (mimic_lift):
+    per leg (L, R), the hip-pitch and knee offsets from the home pose
+    (qpos0) that raise the sole straight up by h with no fore-aft move,
+    solved by Newton on MuJoCo kinematics (torso fixed) on the flexion
+    branch, and fitted through the origin in u = sqrt(h):
+        d(h) = u * (c0 + c1 u + c2 u^2)
+    (the joint angles grow like sqrt(h) out of a straight leg). sg_pitch:
+    the env's (hip, knee, ankle) pitch-axis signs; when given, the ankle
+    keeps the sole level during the solve exactly as the reference does
+    (mimic_sole_level), so the lift is the levelled sole's. Returns
+    (ch, ck), each (2, 3), radians. Jax-free; both envs call it on their own
+    model so the reference is identical in both."""
+    import mujoco
+    d = mujoco.MjData(model)
+    q0 = model.qpos0.copy()
+    torso = model.body("torso").id
+    ch, ck = [], []
+    for li, side in enumerate("LR"):
+        jh, jk = model.joint(f"{side}_hip_pitch"), model.joint(f"{side}_knee")
+        ah, ak = model.jnt_qposadr[jh.id], model.jnt_qposadr[jk.id]
+        aa = model.jnt_qposadr[model.joint(f"{side}_ankle").id]
+        sole = model.geom(f"{side}_sole").id
+
+        def fk(x):
+            d.qpos[:] = q0
+            d.qpos[ah] += x[0]
+            d.qpos[ak] += x[1]
+            if sg_pitch is not None:
+                s_h, s_k, s_a = (float(np.ravel(np.asarray(v))[li]) for v in sg_pitch)
+                d.qpos[aa] -= (s_h * x[0] + s_k * x[1]) / s_a
+            mujoco.mj_kinematics(model, d)
+            R = d.xmat[torso].reshape(3, 3)
+            p = R.T @ (d.geom_xpos[sole] - d.xpos[torso])
+            return np.array([p[0], p[2]])
+        base = fk(np.zeros(2))
+        hs = np.linspace(0.0, hmax, n)
+        sol, x = [np.zeros(2)], np.zeros(2)
+        for h in hs[1:]:
+            if not x.any():
+                x = np.array([-0.08, -0.13])   # leave the straight leg on the flexion branch
+            for _ in range(50):
+                f0 = fk(x) - base - np.array([0.0, h])
+                if np.abs(f0).max() < 1e-9:
+                    break
+                J = np.empty((2, 2))
+                for j in range(2):
+                    e = np.zeros(2)
+                    e[j] = 1e-6
+                    J[:, j] = (fk(x + e) - fk(x - e)) / 2e-6
+                x = x - np.linalg.solve(J, f0)
+            for jnt, v in ((jh, x[0]), (jk, x[1])):
+                lo, hi = model.jnt_range[jnt.id]
+                if model.jnt_limited[jnt.id] and not lo <= q0[model.jnt_qposadr[jnt.id]] + v <= hi:
+                    raise ValueError(f"mimic_lift: {jnt.name} leaves its range at {h * 100:.1f} cm "
+                                     f"({np.degrees(v):.1f} deg): wrong IK branch or lift too high")
+            sol.append(x.copy())
+        sol = np.array(sol)
+        u = np.sqrt(hs)
+        V = np.stack([u, u ** 2, u ** 3], axis=1)
+        ch.append(np.linalg.lstsq(V, sol[:, 0], rcond=None)[0])
+        ck.append(np.linalg.lstsq(V, sol[:, 1], rcond=None)[0])
+    return np.array(ch), np.array(ck)
+
+
 def apply_floor_contacts(model, floor_contacts):
     """Training-only collision set. "all" (default): the plant as drawn.
     "feet": only the sole pads (contype 1) touch the floor -- the servo
@@ -280,6 +345,7 @@ class BimoWalkerEnv(gym.Env):
         # (the robot's neck and arms while walking; mirror of env_mjx)
         mimic_sole_level: bool = False,  # imitation ankle pitch solved level
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
+        mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -1048,6 +1114,10 @@ class BimoWalkerEnv(gym.Env):
         self._sdefault = self.model.qpos0[self._sqpos].copy()
         self._default = self.model.qpos0[self._jqpos].copy()        # standing pose
         self._scale = 0.5 * (self._hi - self._lo)              # per-joint residual
+        self.mimic_lift = float(mimic_lift)
+        if self.mimic_lift > 0.0:
+            self._lift_ch, self._lift_ck = mimic_lift_coefs(
+                self.model, self._sg_pitch if self.mimic_sole_level else None)
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -1446,7 +1516,18 @@ class BimoWalkerEnv(gym.Env):
         # knee swing-bend scales with commanded activity: zero command ->
         # the reference IS the standing pose (no knee pumping)
         mag = min(1.0, (float(np.max(np.abs(A))) + abs(B)) / 0.35)
-        knee = kn0 - 0.55 * mag * sw
+        if self.mimic_lift > 0.0:
+            # swing lift by IK (mimic_lift_coefs): the sole rises straight up
+            # by mimic_lift * sw**2 at any walking speed (zero vertical speed
+            # at liftoff and touchdown, and u = sqrt(h) stays smooth); the
+            # stance leg and the standing reference are unchanged
+            g = 1.0 if self._cmd_is_moving(cmd) else 0.0
+            u = np.sqrt(self.mimic_lift) * sw * g
+            ch, ck = self._lift_ch, self._lift_ck
+            hipP = hipP + u * (ch[:, 0] + u * (ch[:, 1] + u * ch[:, 2]))
+            knee = kn0 + u * (ck[:, 0] + u * (ck[:, 1] + u * ck[:, 2]))
+        else:
+            knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain

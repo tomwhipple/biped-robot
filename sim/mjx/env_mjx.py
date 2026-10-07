@@ -579,6 +579,7 @@ class BimoMJXEnv:
         # ankle ROLL, where a plant has one, is always solved level.
         mimic_sole_level: bool = False,
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
+        mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
         # -- payload (present iff payload_mass > 0 or payload_dr) -------------
         payload_mass: float = 0.0,
         payload_dr: bool = False,   # batch-level mass draw handled in
@@ -1037,6 +1038,11 @@ class BimoMJXEnv:
         self._sdefault = jp.asarray(m.qpos0[self._jq0:self._jq1])
         self._default = jp.asarray(m.qpos0[self._jq0:self._jq1][self._pi])
         self._scale = 0.5 * (self._hi - self._lo)
+        self.mimic_lift = float(mimic_lift)
+        if self.mimic_lift > 0.0:
+            from walker_env import mimic_lift_coefs      # jax-free, shared with the CPU env
+            ch, ck = mimic_lift_coefs(m, self._sg_pitch if self.mimic_sole_level else None)
+            self._lift_ch, self._lift_ck = jp.asarray(ch), jp.asarray(ck)
         self._qpos0 = jp.asarray(m.qpos0)
 
         self._torso_bid = m.body("torso").id
@@ -1577,7 +1583,15 @@ class BimoMJXEnv:
         # knee swing-bend scales with commanded activity: zero command ->
         # the reference IS the standing pose (no knee pumping)
         mag = jp.minimum(1.0, (jp.max(jp.abs(A)) + jp.abs(B)) / 0.35)
-        knee = kn0 - 0.55 * mag * sw
+        if self.mimic_lift > 0.0:
+            # swing lift by IK (walker_env.mimic_lift_coefs), mirror of the CPU env
+            g = jp.where(self._cmd_is_moving(cmd), 1.0, 0.0)
+            u = float(np.sqrt(self.mimic_lift)) * sw * g
+            ch, ck = self._lift_ch, self._lift_ck
+            hipP = hipP + u * (ch[:, 0] + u * (ch[:, 1] + u * ch[:, 2]))
+            knee = kn0 + u * (ck[:, 0] + u * (ck[:, 1] + u * ck[:, 2]))
+        else:
+            knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain;

@@ -233,6 +233,10 @@ def make_parser():
                         "and kd: a preset (planb, stock) or role/actuator="
                         "factor pairs, e.g. 'hip_roll=4,ankle_roll=4,knee=4'. "
                         "config.json records the resolved {actuator: factor}")
+    p.add_argument("--mimic-lift", type=float, default=0.0,
+                   help="imitation reference: the swing sole rises this high (m, IK "
+                        "from the home pose) at any walking speed; 0 = the knee-bend "
+                        "reference, which lifts the robot's foot only 0-2 cm")
     p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
                    help="training-only collision set: 'feet' lets only the sole "
                         "pads touch the floor (MJX contact slots 182 -> 56 on the "
@@ -581,6 +585,8 @@ def build_env_kw(args):
         env_kw["mimic_sole_level"] = True
     if args.floor_contacts != "all":
         env_kw["floor_contacts"] = args.floor_contacts
+    if args.mimic_lift > 0.0:
+        env_kw["mimic_lift"] = args.mimic_lift
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":

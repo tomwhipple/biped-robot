@@ -181,7 +181,8 @@ _SPLAY = np.array([0.5, 0.0, 0.0, 0.0, -0.5, 0.0, 0.0, 0.0])
 # tick quantization. R1 airborne arithmetic under a moving command (the mimic
 # reference's hip-roll oscillation drives the ankle-roll term), R2 grounded
 # stance on the 16 sole pads, R3 the same airborne gate on a generated
-# 17-servo plant with both arms held at the walking pose. `--robot-only` runs
+# 17-servo plant with both arms held at the walking pose, R4 R1's gate with
+# the IK swing-lift reference (mimic_lift). `--robot-only` runs
 # just these (tests/test_robot_plant.py does, in a subprocess).
 def robot_blocks():
     import tempfile
@@ -256,6 +257,15 @@ def robot_blocks():
           f"{[n for n, p in zip(c1._servo_names, c1._kp_prof) if p != 1]}"
           f" -> {'OK' if lay1 else 'WRONG'}")
 
+    # R4. the IK swing-lift imitation reference (--mimic-lift) under the same
+    # moving command: the mimic term of the reward carries it
+    c4, g4, s4 = envs_for(rob_kw(mimic_lift=0.05))
+    okr4 = run_block(
+        "R4. ROBOT plant airborne arithmetic, IK swing-lift reference "
+        "(mimic_lift 5 cm)", 100, air_acts(c4), hoist,
+        dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+        envs=(c4, g4, s4))
+
     c2, g2, s2 = envs_for(rob_kw(cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
                                             0.0)))
     n2 = c2._nq_act
@@ -290,7 +300,7 @@ def robot_blocks():
         print(f"   layout {'OK' if lay3 else 'WRONG'}; shoulders at "
               f"{sh[0]:.1f} / {sh[1]:.1f} deg, elbows at {el[0]:.1f} / {el[1]:.1f} deg "
               f"(rest {hold['shoulder']:g} / {hold['elbow']:g})")
-    return okr1 and okr2 and okr3
+    return okr1 and okr2 and okr3 and okr4
 
 
 if "--robot-only" in sys.argv:

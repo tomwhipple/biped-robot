@@ -288,7 +288,21 @@ pitch is solved from the joint axes and the sole stays level through the whole
 swing; without it — every prototype run — the ankle cancels the hip but not
 the knee bend (the knee axis is −y), so the swing sole tilts toe-down by twice
 the bend. Where the plant has an ankle roll, it cancels the hip roll. At zero
-command the reference is the home pose. It pays
+command the reference is the home pose.
+
+On the robot plant the home pose is a straight leg, and a knee bend out of a
+straight leg mostly swings the foot back: the 0.55 rad bend raises the sole
+only 0–2.2 cm, and policies trained on it shuffle. `--mimic-lift H` (metres)
+replaces the knee bend with an IK lift: the swing sole rises straight up by
+`H·sw²` (sw = the swing half of the clock's sine), so it leaves and lands with
+no vertical speed. `mimic_lift_coefs` (`sim/walker_env.py`) solves the hip-pitch
+and knee offsets per leg on the plant's own kinematics (torso fixed, flexion
+branch, the ankle keeping the sole level), and fits them as cubics in √h;
+both environments call it on their own model. The stride's hip swing only adds
+height at the ends of the swing (up to 1 cm at 0.35 m/s). The stance leg and
+the standing reference are unchanged. `tests/test_mimic_lift.py` pins the
+lift, the levelled sole, and the CPU/MJX agreement; parity block R4 runs the
+full step with it. It pays
 `exp(−Σ w_j (q − q_ref)² / 0.72)` over every policy joint, with the knee
 weighted by `--mimic-knee-w`.
 It supplies backward and sideways walking, which shaping alone did not
