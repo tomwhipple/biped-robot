@@ -254,19 +254,27 @@ LL_HIP_RELIEF_X0 = D.SV_WID / 2 + D.FIT + 0.24      # 12.90: 0.24 clear of the c
 LL_HIP_RELIEF_UP = 3.0
 LL_WEB_END = -(LL_DROP - 32.0)                # v5's WEB_END rule: 32 above the lower axis
 LL_CABLE_WINDOW_Z = (-48.0, -37.0)            # v5 (upper-anchored: the lead leaves the case bottom)
+LL_WEB_RAMP = 1.3                             # web bottom V: rise over run of its ramps (self-supporting standing)
 LL_BRACE_Z = (LL_BOX_BOT - 4.0, LL_BOX_BOT)   # gable brace at the box bottom
 # DEEP-FLEXION relief (2026-09-14, Tom: "we could probably bend the existing
 # knees further ... with slight modifications of the leg links"): the knee is
 # clear to 105 deg as drawn; from 110 to 130 the only contact is the SHIN's
 # rear-top corner in the idler tine band (web top + the idler grip plate's
 # outer skin, 16-33 mm below the knee axis) sweeping into the THIGH's idler
-# tine 8-32 mm above the axis. A triangular wedge off that corner (height
-# below WEB_TOP, run forward from the web outer face; the idler band only)
-# clears it; ~132 deg is the hard limit where the shin's web and the knee
-# servo case meet the thigh's web end full-width. Same part serves the thigh,
-# where the identical corner faces the pitch yoke at hip extension (+90,
-# already 0.7 mm clear -- removing material only helps).
-LL_FLEX_CUT = (20.0, 24.0)                    # (height below WEB_TOP, run from the web face), mm
+# tine 8-32 mm above the axis. LL_FLEX_CUT is the outline (x, z in the link
+# frame) of what that tine sweeps through on the corner from 90 to 131 deg --
+# every pose nests inside 131's, 105 mm3, bounded below by a 40 deg and a
+# 24 deg edge -- offset 0.6 mm; its rear and top vertices sit outside the
+# part. Cut through the idler band only, it leaves the lower idler grip
+# screw's access bore 3.6 mm of wall. ~132 deg is the hard limit where the
+# shin's web and the knee servo case meet the thigh's web end full-width.
+# Same part serves the thigh, where the identical corner faces the pitch yoke
+# at hip extension (+90, already 0.7 mm clear -- removing material only helps).
+LL_FLEX_CUT = ((-16.16, -15.0), (-16.16, -29.0), (-8.1, -22.15), (8.1, -15.0))
+# The idler grip plate stops 5 mm above its screws' countersinks, square
+# across (Tom, 2026-10-06). Above the screws it is only the ~1 mm outer wall
+# over the idler-platform detent; LL_FLEX_CUT still trims its rear corner.
+LL_IDLER_PLATE_TOP = -D.CASE_HOLES_BOT[1] + D.CASE_CS_D / 2 + 5.0     # -25.05
 # hip flexion: the thigh's grip plates' front edge sweeps the pitch yoke's
 # flange front-bottom corner (x 16, z 26 above the axis) at 123 deg; the
 # plate cannot be relieved (the lower grip screw's countersink sits exactly
@@ -277,10 +285,10 @@ YOKE_FLEX_CHAMFER = 4.0
 # The fold limit after LL_FLEX_CUT is 131 deg: the two links' REAR faces
 # meet -- the shin's jog-block rear-top corner (x web_x0, z -33, r 36.6
 # about the knee) lands on the thigh's rear face 33 mm above the knee (the
-# web-end corner in the idler band; the horn slab's face in the horn band).
+# web end, at both feet of its V; the horn slab's face in the horn band).
 # Two 45 deg corner chamfers buy the last 2 deg + buffer: the web end's
-# outer-bottom corner (idler band) and the jog block's rear-top corner (horn
-# band only, y > the web's upper limit so the web is not notched).
+# outer-bottom corner (its whole width) and the jog block's rear-top corner
+# (horn band only, y > the web's upper limit so the web is not notched).
 LL_FOLD_CHAMFER = 3.0
 # anchor classification for anyone porting v5's constants: UPPER-anchored
 # (unchanged): GRIP_*, jog -36.5..-33, cable window, rib/platform detents.

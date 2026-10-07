@@ -81,14 +81,14 @@
           <geom type="box" pos="0 0 -0.025" size="0.0175 0.0125 0.025" mass="0.03" rgba="0.82 0.84 0.87 1" group="1"/>
           <body name="L_thigh" pos="0 0 -0.05">
             <joint name="L_hip_pitch" axis="0 1 0" range="-125 90"/>
-        <inertial pos="0.0001 0.0016 -0.0279" quat="0.6995 -0.0028 -0.7146 -0.0025" mass="0.0810" diaginertia="1.9347e-05 7.3905e-05 8.2238e-05"/>
+        <inertial pos="-0.0001 0.0018 -0.0283" quat="0.0023 0.7122 0.0063 -0.7019" mass="0.0821" diaginertia="1.9747e-05 7.5018e-05 8.3271e-05"/>
             <!-- hip-pitch servo case sits in the thigh, axis at its upper end -->
             <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261" mass="0.055"/>
             <geom class="fallcol" type="box" pos="0 0 -0.055" size="0.012 0.019 0.055" mass="0.027" rgba="0.82 0.84 0.87 1" group="1"/>
             <geom name="L_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
             <body name="L_shin" pos="0 0 -0.11">
               <joint name="L_knee" axis="0 -1 0" range="-130 5"/>
-        <inertial pos="0.0001 0.0016 -0.0279" quat="0.6995 -0.0028 -0.7146 -0.0025" mass="0.0810" diaginertia="1.9347e-05 7.3905e-05 8.2238e-05"/>
+        <inertial pos="-0.0001 0.0018 -0.0283" quat="0.0023 0.7122 0.0063 -0.7019" mass="0.0821" diaginertia="1.9747e-05 7.5018e-05 8.3271e-05"/>
               <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261" mass="0.055"/>
               <geom name="L_shin_link" class="fallcol" type="box" pos="0 0 -0.055" size="0.012 0.019 0.055" mass="0.027" rgba="0.82 0.84 0.87 1" group="1"/>
               <geom name="L_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
@@ -144,14 +144,14 @@
           <geom type="box" pos="0 0 -0.025" size="0.0175 0.0125 0.025" mass="0.03" rgba="0.82 0.84 0.87 1" group="1"/>
           <body name="R_thigh" pos="0 0 -0.05">
             <joint name="R_hip_pitch" axis="0 1 0" range="-125 90"/>
-        <inertial pos="0.0001 0.0016 -0.0279" quat="0.6995 -0.0028 -0.7146 -0.0025" mass="0.0810" diaginertia="1.9347e-05 7.3905e-05 8.2238e-05"/>
+        <inertial pos="-0.0001 0.0018 -0.0283" quat="0.0023 0.7122 0.0063 -0.7019" mass="0.0821" diaginertia="1.9747e-05 7.5018e-05 8.3271e-05"/>
             <!-- hip-pitch servo case sits in the thigh, axis at its upper end -->
             <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261" mass="0.055"/>
             <geom class="fallcol" type="box" pos="0 0 -0.055" size="0.012 0.019 0.055" mass="0.027" rgba="0.82 0.84 0.87 1" group="1"/>
             <geom name="R_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
             <body name="R_shin" pos="0 0 -0.11">
               <joint name="R_knee" axis="0 -1 0" range="-130 5"/>
-        <inertial pos="0.0001 0.0016 -0.0279" quat="0.6995 -0.0028 -0.7146 -0.0025" mass="0.0810" diaginertia="1.9347e-05 7.3905e-05 8.2238e-05"/>
+        <inertial pos="-0.0001 0.0018 -0.0283" quat="0.0023 0.7122 0.0063 -0.7019" mass="0.0821" diaginertia="1.9747e-05 7.5018e-05 8.3271e-05"/>
               <geom class="servo" type="box" pos="0 0 -0.0125" size="0.01236 0.01735 0.02261" mass="0.055"/>
               <geom name="R_shin_link" class="fallcol" type="box" pos="0 0 -0.055" size="0.012 0.019 0.055" mass="0.027" rgba="0.82 0.84 0.87 1" group="1"/>
               <geom name="R_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>

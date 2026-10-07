@@ -81,6 +81,14 @@ PRINT_ORIENT = ((1.0, 0.0, 0.0),
 ROLL_UP = 0
 
 
+def _seg_dist(p, a, b):
+    """Distance from point p to segment ab, all (x, z)."""
+    (px, pz), (ax, az), (bx, bz) = p, a, b
+    dx, dz = bx - ax, bz - az
+    t = max(0.0, min(1.0, ((px - ax) * dx + (pz - az) * dz) / (dx * dx + dz * dz)))
+    return math.hypot(px - ax - t * dx, pz - az - t * dz)
+
+
 def leg_link_v6(print_fins=False):
     """Thigh / shin link v6 (same part, qty 4). See module docstring.
     print_fins: accepted for API parity with v5's leg_link; a no-op here --
@@ -101,7 +109,8 @@ def leg_link_v6(print_fins=False):
     SLAB_MID_TOP = drop + 20        # v5: axis+20 (was -70)
     SLAB_IDLER_TOP = drop + 36      # v5: axis+36 (was -54)
 
-    # --- grip channel on the servo case (BYTE IDENTICAL to v5's leg_link;
+    # --- grip channel on the servo case (v5's leg_link but for the idler
+    # plate's top, V.LL_IDLER_PLATE_TOP: square, 5 mm above its screws;
     # everything here is anchored to the UPPER (gripped) servo, not the lower
     # axis, so LINK_DROP does not touch it). Plates reach the web outer face.
     grip_x1 = 13.2
@@ -110,22 +119,33 @@ def leg_link_v6(print_fins=False):
     p -= parts.cyl_y(D.GRIP_HORN_RELIEF, D.SV_TOPFACE - 1, D.SV_TOPFACE + t + 1, 0, 0)
     idler_seat = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR          # -14.90
     _igo = idler_seat - D.GRIP_PLATE_T_IDLER                     # -17.90 outer
-    p += parts.box(web_x0, grip_x1, _igo, idler_seat, D.GRIP_BOT, D.GRIP_TOP_IDLER)
+    p += parts.box(web_x0, grip_x1, _igo, idler_seat, D.GRIP_BOT, V.LL_IDLER_PLATE_TOP)
     # web: WEB_END is one of the LOWER-anchored shifts (v5 -58 -> V.LL_WEB_END
     # -78, see the module docstring's shift table), so unlike the grip
     # channel this edge is not byte-identical and is free to change shape.
     # Printed standing, the web's bottom face (z = LL_WEB_END) is a down-
-    # facing overhang -- fine over the idler tine band (iy0..iy1, backed by
-    # the slab fill below) but floating over the rest of its span (iy1
-    # upward: no tine ever reaches that y at any z, the web's own upper y
-    # limit stops short of the horn tine at hy0). Arched instead of flat for
-    # the same reason as the front plate: flat where a tine backs it, a ramp
-    # (1.3x rise-over-run, see the box comment above) everywhere else,
-    # rising until it is self-supporting.
+    # facing overhang wherever nothing is under it. It has a tine under each
+    # end -- the idler tine (iy0..iy1) and, past the web's own upper y limit,
+    # the horn fork arm (wide band from _web_y1, horn slab from hy0, both down
+    # past LL_WEB_END) -- and only the open insertion channel between them.
+    # So it is the front plate's V: flat at LL_WEB_END over each tine, a
+    # LL_WEB_RAMP rise-over-run ramp from each up to a ridge at mid-span. The
+    # horn foot runs on to hy0 below FORK_WIDE_Z so the web lands on the slab.
+    # The web stays a full back wall down to the ridge, so the box is a closed
+    # section there, and the cable window and holes keep >= 1 mm of wall.
     _web_y1 = D.SV_TOPFACE + t
+    _web_mid = (iy1 + hy0) / 2
+    _web_ridge = V.LL_WEB_END + (_web_mid - iy1) * V.LL_WEB_RAMP
     p += parts.wedge_x([(iy0, D.WEB_TOP), (iy0, V.LL_WEB_END), (iy1, V.LL_WEB_END),
-                        (_web_y1, V.LL_WEB_END + (_web_y1 - iy1) * 1.3), (_web_y1, D.WEB_TOP)],
+                        (_web_mid, _web_ridge), (hy0, V.LL_WEB_END), (hy0, FORK_WIDE_Z),
+                        (_web_y1, FORK_WIDE_Z), (_web_y1, D.WEB_TOP)],
                        web_x0, web_x1)
+    _ramp_n = math.hypot(1.0, V.LL_WEB_RAMP)
+    for _ly, _lz, _lr in ((9.0, -40.0, 2.25), (-9.0, -40.0, 2.25),
+                          (4.5, V.LL_CABLE_WINDOW_Z[0], 0.0), (-4.5, V.LL_CABLE_WINDOW_Z[0], 0.0)):
+        _ramp_z = V.LL_WEB_END + (min(_ly - iy1, hy0 - _ly)) * V.LL_WEB_RAMP
+        assert (_lz - _ramp_z) / _ramp_n - _lr >= 1.0, \
+            f"web V leaves < 1 mm under the cable hole/window at y {_ly}"
 
     # --- NEW: close the U into a box. Front plate spans tine to tine
     # (iy0..hy1) at V.LL_FRONT_X, from the box top (just under the jog
@@ -204,27 +224,28 @@ def leg_link_v6(print_fins=False):
     # already had at -95 (SWEEP_BUFFER only requires 0.5).
     p -= parts.wedge_y([(web_x0 - 1, SLAB_MID_TOP + 1), (web_x0 - 1, SLAB_MID_TOP - 17),
                         (web_x0 + 4.5, SLAB_MID_TOP + 1)], iy0 - 1, iy1 + 1)
-    # DEEP-FLEXION RELIEF (V.LL_FLEX_CUT, see dimensions_v6): triangular wedge
-    # off the rear-top corner in the idler tine band only (y iy0..iy1, plus
-    # the 0.6 mm the thigh's idler-boss taper protrudes past the tine face),
-    # from WEB_TOP down LL_FLEX_CUT[0] on the web's outer face and forward
-    # LL_FLEX_CUT[1] along the top edge. Sized so knee flexion clears to 130
-    # deg (cad/v6/check_assembly_v6.py) with the lower idler grip screw's
-    # countersink (CASE_HOLES_BOT, x -10.25, z -32.75) outside the wedge.
+    # DEEP-FLEXION RELIEF (V.LL_FLEX_CUT, see dimensions_v6): the polygon
+    # (x, z) cut through the idler tine band only (y iy0..iy1, plus the 0.6
+    # mm the thigh's idler-boss taper protrudes past the tine face). It is the
+    # region the thigh's idler tine sweeps through on this corner up to 131
+    # deg of knee flexion, plus 0.6 mm -- no more -- so the lower idler grip
+    # screw's access bore keeps >= 1 mm of wall (asserted below).
     # NOTE on signs: assembly +knee = human flexion (shin swings BACK); the
     # sim's knee axis is -Y so that is sim -130. The "+95 (hyperextension)"
     # label on the wedge above is the same corner in the same direction.
-    _fh, _fw = V.LL_FLEX_CUT
-    p -= parts.wedge_y([(web_x0 - 1, D.WEB_TOP + 1), (web_x0 - 1, D.WEB_TOP + 1 - _fh),
-                        (web_x0 - 1 + _fw, D.WEB_TOP + 1)], iy0 - 1, iy1 + 0.6)
+    p -= parts.wedge_y(list(V.LL_FLEX_CUT), iy0 - 1, iy1 + 0.6)
+    _fc = list(V.LL_FLEX_CUT)
+    _cs = (-D.CASE_HOLE_LAT, -D.CASE_HOLES_BOT[1])
+    _cs_wall = min(_seg_dist(_cs, a, b) for a, b in zip(_fc, _fc[1:] + _fc[:1])) - (D.CASE_CS_D / 2 + 0.4)
+    assert _cs_wall >= 1.0, f"LL_FLEX_CUT leaves {_cs_wall:.2f} mm to the idler grip screw's access bore"
     # FOLD CHAMFERS (V.LL_FOLD_CHAMFER): the last 2 deg to 130 -- the web
-    # end's outer-bottom corner (idler band) and the jog block's rear-top
-    # corner (horn tine band only, above the web's y limit _web_y1).
+    # end's outer-bottom corner and the jog block's rear-top corner (horn
+    # tine band only, above the web's y limit _web_y1).
     _c = V.LL_FOLD_CHAMFER
-    # (y range runs past the idler band into the arched web's ramp start --
-    # the shin's rear face touches the web end out to y ~ -16 at 131 deg)
+    # (y range: the web end's whole width -- both feet of its V sit at
+    # LL_WEB_END, and the shin's rear face lands on each at 131 deg)
     p -= parts.wedge_y([(web_x0 - 1, V.LL_WEB_END - 1), (web_x0 - 1, V.LL_WEB_END + _c),
-                        (web_x0 + _c, V.LL_WEB_END - 1)], iy0 - 1, iy1 + 4.5)
+                        (web_x0 + _c, V.LL_WEB_END - 1)], iy0 - 1, hy0 - 0.01)
     # (the jog-block corner chamfer is applied AFTER the jog blocks, below)
     # idler boss: OD tapered (45 deg run==rise) so the print-underside band
     # never exceeds 45 deg. Unchanged formula -- moves with `drop` for free.

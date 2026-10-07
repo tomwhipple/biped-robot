@@ -41,7 +41,7 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | yaw carrier (`yaw_carrier_v6` for C, `yaw_carrier_v6_optA` for A, `yaw_carrier_v6_optE` for E) | 2 | 29.9 (C) · 23.8 (A) · 24.5 (E) | 55 × 55 × 44 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay. **Provisional, waits on #75** |
 | *option E:* `yaw_cap_optE`, `yaw_retainer_optE` | 2 + 2 | 1.8, 2.7 | Ø57 × 1.0; 78 × 75 × 2.4 | flat | no | screwed rings that retain the bearing races; one retainer part serves both hips (turned 180°). **Provisional, waits on #75** |
 | `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
-| `leg_link_v6` | 4 | 26.0 | 117 × 44 × 31 | standing on the lower fork end | no; brim recommended | thigh and shin are the same part |
+| `leg_link_v6` | 4 | 27.1 | 117 × 44 × 31 | standing on the lower fork end | no; brim recommended | thigh and shin are the same part |
 | `ankle_link` | 2 | 12.1 | 65 × 44 × 44 | on its back (model +X up) | **yes** (ceiling/island class) | grips the ankle-pitch servo, forks onto the ankle-roll servo |
 | `foot_L`, `foot_R` | 1 + 1 | 52.0 | 130 × 84 × 30 | sole down | no | a mirrored pair |
 | `sole_tpu_L`, `sole_tpu_R` | 1 + 1 | 23.2 | 130 × 84 × 2 | flat | no | **TPU 95A**; glued to the foot plate's underside |
