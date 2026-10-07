@@ -145,6 +145,7 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
     robot, not training conditions."""
     kw = {k: v for k, v in cfg.items() if k in _ENV_PARAMS}
     kw.update(
+        floor_contacts="all",       # a training-only setting: grade the plant as drawn
         xml_path=xml, command_mode=True, ext_cmd=True,
         actuator_model="sts3215", imu_obs=True, getup=False, cmd_fixed=None,
         payload_mass=referee_payload(xml), payload_max=None,

@@ -151,6 +151,27 @@ def joint_role(name):
     return None
 
 
+
+def apply_floor_contacts(model, floor_contacts):
+    """Training-only collision set. "all" (default): the plant as drawn.
+    "feet": only the sole pads (contype 1) touch the floor -- the servo
+    boxes, the torso / leg fall colliders and the arms (contype 2) stop
+    colliding with it; the explicit self-collision pairs are untouched. The
+    non-foot floor contacts only matter in a fall, which ends the episode,
+    but MJX reserves and solves their slots every step: on the robot plant
+    "feet" cuts the contact slots 182 -> 56 and the physics step ~3.5x
+    (laptop CPU, 2026-10-07). The referee always grades with "all"."""
+    if floor_contacts == "all":
+        return model
+    if floor_contacts != "feet":
+        raise ValueError(f"floor_contacts={floor_contacts!r}: expected 'all' or 'feet'")
+    import mujoco
+    f = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "floor")
+    if f < 0:
+        raise ValueError("floor_contacts='feet' needs a geom named 'floor'")
+    model.geom_conaffinity[f] &= 1
+    return model
+
 SERVO_KP_PRESETS = {
     "stock": {},
     "planb": {"hip_roll": 4.0, "ankle_roll": 4.0, "knee": 4.0},
@@ -258,6 +279,7 @@ class BimoWalkerEnv(gym.Env):
         # held at a fixed target, out of the action and the observation
         # (the robot's neck and arms while walking; mirror of env_mjx)
         mimic_sole_level: bool = False,  # imitation ankle pitch solved level
+        floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -771,6 +793,8 @@ class BimoWalkerEnv(gym.Env):
             self.model = mujoco.MjModel.from_xml_string(xml_src)
         else:
             self.model = mujoco.MjModel.from_xml_path(xml_path)
+        apply_floor_contacts(self.model, floor_contacts)
+        self.floor_contacts = floor_contacts
         self.data = mujoco.MjData(self.model)
         self._payload_bid = (self.model.body("payload").id
                              if (payload_mass > 0 or payload_max) else None)

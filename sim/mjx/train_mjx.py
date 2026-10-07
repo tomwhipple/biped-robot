@@ -231,6 +231,10 @@ def main():
                         "and kd: a preset (planb, stock) or role/actuator="
                         "factor pairs, e.g. 'hip_roll=4,ankle_roll=4,knee=4'. "
                         "config.json records the resolved {actuator: factor}")
+    p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
+                   help="training-only collision set: 'feet' lets only the sole "
+                        "pads touch the floor (MJX contact slots 182 -> 56 on the "
+                        "robot plant); the referee always grades with 'all'")
     p.add_argument("--mimic-sole-level", action="store_true",
                    help="imitation reference: ankle pitch solved level from "
                         "the joint axes (the robot preset sets it)")
@@ -568,6 +572,8 @@ def main():
         env_kw["servo_kp_scale"] = spec
     if args.mimic_sole_level:
         env_kw["mimic_sole_level"] = True
+    if args.floor_contacts != "all":
+        env_kw["floor_contacts"] = args.floor_contacts
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":

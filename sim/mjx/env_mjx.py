@@ -578,6 +578,7 @@ class BimoMJXEnv:
         # sole toe-down by twice the knee bend (the knee axis is -y). The
         # ankle ROLL, where a plant has one, is always solved level.
         mimic_sole_level: bool = False,
+        floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
         # -- payload (present iff payload_mass > 0 or payload_dr) -------------
         payload_mass: float = 0.0,
         payload_dr: bool = False,   # batch-level mass draw handled in
@@ -931,6 +932,12 @@ class BimoMJXEnv:
             self.mj_model.dof_armature[self._jv0:self._jv1] = joint_armature
         if payload_mass > 0:
             self.mj_model.body_mass[self.mj_model.body("payload").id] = payload_mass
+        import sys
+        if os.path.dirname(_HERE) not in sys.path:
+            sys.path.insert(0, os.path.dirname(_HERE))
+        from walker_env import apply_floor_contacts   # jax-free, shared with the CPU env
+        apply_floor_contacts(self.mj_model, floor_contacts)
+        self.floor_contacts = floor_contacts
         self.model = mjx.put_model(self.mj_model)
         m = self.mj_model
 
