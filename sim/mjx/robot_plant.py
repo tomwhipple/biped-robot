@@ -41,7 +41,7 @@ ROBOT_XML = "bimo_biped_v6ar.xml"
 # simply not held. The arms' values are cad/v6/dimensions_v6.ARM_REST
 # (tests/test_v6_design_gates.py pins them to it and to the plant's qpos0).
 HOLD_DEG = {"neck_yaw": 0.0, "shoulder": -15.0, "elbow": -95.0}
-KP_SCALE = "robot"              # env_mjx.SERVO_KP_PRESETS
+KP_SCALE = "planb"              # env_mjx.SERVO_KP_PRESETS; "robot" (STS3250 hip rolls) is passed explicitly until the SIL obs-spec test follows it
 HIP_FLEX_DEG = 120.0
 
 

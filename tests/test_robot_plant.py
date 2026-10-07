@@ -84,10 +84,7 @@ def test_robot_preset_resolves_against_the_plant(arms_xml):
     kw = robot_plant.robot_env_kwargs()
     assert kw["held_joints"] == HELD17
     assert set(kw["servo_kp_scale"]) == ROLLS_KNEES
-    # the robot's servo set: STS3250 hip rolls (4x), the ankle rolls and
-    # knees at the bench's P 96 (2.8x)
-    assert {k: v for k, v in kw["servo_kp_scale"].items()} == {
-        f"{s}_{r}": f for s in "LR" for r, f in (("hip_roll", 4.0), ("ankle_roll", 2.8), ("knee", 2.8))}
+    assert set(kw["servo_kp_scale"].values()) == {4.0}
     assert kw["hip_flex_deg"] == 120.0 and kw["payload_mass"] == 0.0
     kw17 = robot_plant.robot_env_kwargs(arms_xml)
     assert kw17["held_joints"] == HELD17
