@@ -168,10 +168,11 @@ learned by breaking something:
 
 ## Sourcing and documentation
 
-- Only source parts that have **real manufacturer documentation** — connector
-  graphics and specs. Rendered web snapshots and self-authored "manuals" do not
-  count as a datasheet. (Cheap passive parts whose error calibration absorbs,
-  such as mirrors, are the exception.)
+- **Electronics** need **real manufacturer documentation**: connector graphics
+  and specs. Rendered web snapshots and self-authored "manuals" do not count as
+  a datasheet. The rule is for electronics only: mechanical and passive parts
+  (bearings, mirrors, fasteners) can be generic. Measure any dimension the CAD
+  depends on when the part arrives, and put the measured value in the design.
 - Buy to spec filters, not to listing IDs.
 - Deliverables are files in this repo with a path, not cloud artifacts.
 - When the bench measures something the sim does not model, model it — but only
