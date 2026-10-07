@@ -39,6 +39,8 @@ import time
 
 import numpy as np
 
+# before anything imports mujoco (static_gait sets egl, which only Linux has)
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "cad", "v6"))
@@ -184,9 +186,10 @@ def run(out, n=None, until=None, procs=None, seed0=0):
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, "results.csv")
     start = 0
-    if os.path.exists(path):
+    new = not os.path.exists(path) or os.path.getsize(path) == 0
+    if not new:
         with open(path) as f:
-            start = sum(1 for _ in f) - 1
+            start = max(0, sum(1 for _ in f) - 1)
     rng = np.random.default_rng(seed0 + start)
     deadline = None
     if until:
@@ -196,7 +199,6 @@ def run(out, n=None, until=None, procs=None, seed0=0):
         if deadline <= now:
             deadline += dt.timedelta(days=1)
     procs = procs or max(1, (os.cpu_count() or 4) - 2)
-    new = not os.path.exists(path)
     with open(path, "a", newline="") as fh, Pool(procs, initializer=_init_worker) as pool:
         w = csv.DictWriter(fh, fieldnames=COLUMNS)
         if new:
