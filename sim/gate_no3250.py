@@ -116,7 +116,8 @@ def cad_plant(servo_g: float, torso_minus_g: float = 0.0, p: DesignParams | None
         f = (M - torso_minus_g * 1e-3) / M
         I = " ".join(f"{float(x) * f:.4e}" for x in m.group(4).split())
         src = src[:m.start()] + m.group(1) + f"{M * f:.4f}" + m.group(3) + I + m.group(5) + src[m.end():]
-    tag = f"v6_{servo_g:g}g_t{torso_minus_g:g}_{p.thigh * 1e3:.0f}_{'a' if arms else 'na'}_{os.getpid()}.xml"
+    tag = (f"v6_{servo_g:g}g_t{torso_minus_g:g}_{p.thigh * 1e3:.0f}_fy{p.foot_y_off * 1e4:.0f}"
+           f"_{'a' if arms else 'na'}_{os.getpid()}.xml")
     path = os.path.join(TMP, tag)
     with open(path, "w") as fh:
         fh.write(src)

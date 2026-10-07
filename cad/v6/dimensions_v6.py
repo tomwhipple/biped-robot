@@ -139,23 +139,23 @@ ROM = {
 # Sole 130 x 84 with its centreline FOOT_Y_OFF OUTBOARD of the ankle roll
 # axis: the open-loop walk's failure direction is outward (the swing foot
 # lands, the closed chain springs the pelvis outboard), so the margin goes
-# there -- 54 mm outboard, 30 inboard, 24 mm between the feet's inner edges.
-# Gate D on the 1.55 kg torso passes only with this bias
-# (docs/design-v6/gateD_torso_v7.txt). Foot-local frame: ankle roll axis
+# there -- 60.5 mm outboard, 23.5 inboard, 37 mm between the feet's inner
+# edges. The inboard half is as wide as the feet can be and still clear each
+# other at the walk's 3 deg mutual hip-roll adduction (2.7 mm, check_assembly_v6
+# interleg); the walk's margin is inboard-limited, ~1 mm per mm of inboard
+# sole (Tom, 2026-10-07: docs/design-v6/foot_outline_2026-10-07.md). Foot-local frame: ankle roll axis
 # vertical projection at the origin, +X toe, +Y toward the robot's LEFT for
 # foot_L (so outboard is +Y on foot_L and -Y on foot_R), z = 0 at the PLATE
 # bottom (the TPU sole hangs TPU_SOLE_T below).
 FOOT_L_LEN = 130.0
 FOOT_TOE = 75.0         # ankle axis -> toe edge
 FOOT_HEEL = FOOT_L_LEN - FOOT_TOE                                    # 55
-FOOT_W = 84.0           # 76 -> 84 on 2026-09-14: with the CAD part masses (1.65 kg)
-                        # the walk's margin was INBOARD-limited at 8 mm; 30 mm of
-                        # inboard sole restores >= 12 mm at every pelvis mass tried
-FOOT_Y_OFF = 12.0       # sole centreline outboard of the roll axis
-FOOT_IN = FOOT_W / 2 - FOOT_Y_OFF                                    # 30 inboard half
-FOOT_OUT = FOOT_W / 2 + FOOT_Y_OFF                                   # 54 outboard half
+FOOT_W = 84.0
+FOOT_Y_OFF = 18.5       # sole centreline outboard of the roll axis
+FOOT_IN = FOOT_W / 2 - FOOT_Y_OFF                                    # 23.5 inboard half
+FOOT_OUT = FOOT_W / 2 + FOOT_Y_OFF                                   # 60.5 outboard half
 FOOT_CORNER_R = 14.0
-FOOT_INNER_GAP = HIP_SEP - 2 * FOOT_IN                               # 24
+FOOT_INNER_GAP = HIP_SEP - 2 * FOOT_IN                               # 37
 # roll servo placement: output (horn) end FORWARD (+X), case length along Y
 # with the CABLE END OUTBOARD -- the case spans y -10.11..+35.11 (foot_L,
 # outboard = +y) and sits on the plate top. Its horn disc face is at

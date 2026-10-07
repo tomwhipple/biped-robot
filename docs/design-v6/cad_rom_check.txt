@@ -188,11 +188,11 @@ access       carrier horn screws, from inside the empty bay        4 screws, 7 m
 access       roll-servo wall screws, before the bearing            8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
 access       roll-servo wall screws, hip fully assembled           8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
 access       bearing-housing screws, before the legs               5 screws, 7 mm driver: no part in the way  ok
-interleg     foot_L                 foot_R                        0.00     13.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
+interleg     foot_L                 foot_R                        0.00      2.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (622 s)
+=> ALL CLEAR  (319 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -337,11 +337,11 @@ access       carrier horn screws, from inside the empty bay        4 screws, 7 m
 access       roll-servo wall screws, before the bearing            8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
 access       roll-servo wall screws, hip fully assembled           8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
 access       bearing-housing screws, before the legs               5 screws, 7 mm driver: no part in the way  ok
-interleg     foot_L                 foot_R                        0.00     13.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
+interleg     foot_L                 foot_R                        0.00      2.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (374 s)
+=> ALL CLEAR  (225 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================

@@ -76,16 +76,17 @@ roll 58 mm; hip roll to hip yaw 45.1 mm (the yaw carrier, §5.2).
   whatever the hips do, so the foot is the margin budget and the hips set roll
   torque: narrower is stiffer (3.4× torque margin at 70 mm, 1.0× — stalled — at
   96 mm). At 72 mm the swing foot, which sags 12–15 mm inward while it hangs,
-  lands on the stance foot. 84 mm leaves 24 mm between the soles and room for
+  lands on the stance foot. 84 mm leaves 37 mm between the soles and room for
   the pack between the yaw servos.
 - **Legs 110 + 110 mm.** Longer levers lower the joint rates for the same step:
   the swing knee's speed margin goes 1.1× → 1.64× from 90 to 110 mm links.
-- **Feet 130 × 84 mm, sole centreline 12 mm outboard of the ankle-roll axis**
-  (30 mm inboard half, 54 mm outboard; 75 mm toe, 55 mm heel). The open-loop walk
-  fails outward — the pelvis swings inward in single support and the closed
-  chain throws it out at touchdown — so the sole extends outboard; the inboard
-  half is sized for the swing-phase inward drift. 4 mm PETG plate, 2 mm TPU 95A
-  sole glued flat; mirrored left/right.
+- **Feet 130 × 84 mm, sole centreline 18.5 mm outboard of the ankle-roll axis**
+  (23.5 mm inboard half, 60.5 mm outboard; 75 mm toe, 55 mm heel). The open-loop
+  walk fails outward — the pelvis swings inward in single support and the closed
+  chain throws it out at touchdown — so the sole extends outboard. The inboard
+  half is as wide as the two feet allow: at the walk's 3° mutual hip-roll
+  adduction they clear each other by 2.7 mm. 4 mm PETG plate, 2 mm TPU 95A sole
+  glued flat; mirrored left/right.
 - **Forward knee.** A backward knee is the forward knee with time reversed in
   the sagittal plane; it gains nothing here and needs ±55° of ankle pitch.
 - **Hip yaw on every leg.** It is what makes turning work (the walk turns up to

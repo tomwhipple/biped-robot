@@ -105,7 +105,7 @@ def test_ik_roundtrip(knee):
 def test_gate_a_passes(p):
     A = G.gate_a(p, verbose=False)
     assert A["A_pass"]
-    assert A["A2"]["poses"]["mid_swing"]["margin"] >= 0.0249   # = the inboard sole half-width
+    assert A["A2"]["poses"]["mid_swing"]["margin"] >= (p.foot_w / 2 - p.foot_y_off) - 1e-4   # = the inboard sole half-width
     assert A["A2"]["poses"]["mid_swing"]["jok"]
     assert A["A2"]["poses"]["mid_swing"]["ncon"] == 0
     assert A["A5"]["crouch_depth"] >= 0.05

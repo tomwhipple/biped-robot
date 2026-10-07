@@ -64,11 +64,11 @@ class DesignParams:
     roll_h: float = 0.01836      # ankle roll axis above the sole bottom: 4 mm plate + 12.36
                                  # (axis centred in the 24.72 case width) + 2 mm TPU sole
     foot_len: float = 0.130
-    foot_w: float = 0.084        # sole width; with foot_y_off the inboard half is 30 mm
-                                 # (inner gap 24 mm), the outboard half 54 mm (2026-09-14)
+    foot_w: float = 0.084        # sole width; with foot_y_off the inboard half is 23.5 mm
+                                 # (inner gap 37 mm), the outboard half 60.5 mm
     foot_toe: float = 0.075      # ankle axis -> toe edge (heel = len - toe)
     foot_r: float = 0.014        # corner radius (pad octagon like v5)
-    foot_y_off: float = 0.012    # sole centreline OUTBOARD of the ankle roll axis (m):
+    foot_y_off: float = 0.0185   # sole centreline OUTBOARD of the ankle roll axis (m):
                                  # an asymmetric sole with more width outside the ankle,
                                  # because the open-loop walk's failure direction is outward
     knee: str = "fwd"            # "fwd" = human knee, "bwd" = bird knee, "both" =
