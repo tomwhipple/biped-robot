@@ -7,8 +7,9 @@ the committed plant, which is THE ROBOT AS DRAWN:
 
   * 17 joints and 17 position actuators: 6 per leg, the neck, and per arm the
     shoulder pitch and the elbow. The arms are the generator's as-drawn arm
-    (the get-up plant r5_asdrawn: girdle-mounted shoulder servos, CAD servo
-    placement), with every arm number taken from dimensions_v6 (ARM_*), and
+    (the get-up plant r6_asdrawn: girdle-mounted shoulder servos, CAD servo
+    placement, the elbow servo on the upper arm), with every arm number taken
+    from dimensions_v6 (ARM_*), and
     the arms' rest pose (qpos0) FOLDED, ARM_REST = shoulder -15 / elbow -95
     (gen_plant_v6 DesignParams.arm_hold / arm_elbow_hold: the joint angles still read
     0 = hanging).
@@ -34,8 +35,8 @@ lands in the body whose joint moves it.
     _hip       hip_yoke_v6
     _thigh / _shin / _ankle_blk   leg_link_v6 / leg_link_v6 / ankle_link + their servo
     _foot      foot + silicone sole + the ankle-roll servo
-    _arm       arm_upper_v6
-    _forearm   arm_fore_v6 + the elbow servo
+    _arm       arm_upper_v6 + the elbow servo (its case runs up the upper arm)
+    _forearm   arm_fore_v6
 
 For studies, plant_xml(p, m3250_g) returns the same plant for a DesignParams
 p (arms added unless arms=False) with m3250_g grams at all six roll and knee
@@ -69,12 +70,12 @@ RHO_SOLE = 1.21e-3 * 1e-3
 
 
 def asdrawn(p: DesignParams | None = None, rest: tuple = V.ARM_REST) -> DesignParams:
-    """p with the robot's arms as drawn (the r5_asdrawn get-up plant's arm
+    """p with the robot's arms as drawn (the r6_asdrawn get-up plant's arm
     options), every number from dimensions_v6, at rest = (shoulder, elbow) deg."""
     p = p or DesignParams()
     y_default = p.deck_w / 2 + SV_T / 2 + 0.004          # the generator's torso-hugging arm plane
     return dataclasses.replace(
-        p, arms=True, arm_elbow=True, arm_cad_servos=True, arm_girdle=True,
+        p, arms=True, arm_elbow=True, arm_cad_servos=True, arm_elbow_servo_upper=True, arm_girdle=True,
         arm_len=V.ARM_UPPER / 1e3, arm_fore_len=V.ARM_FORE / 1e3,
         arm_shoulder_x=V.ARM_SHOULDER_X / 1e3, arm_z=V.ARM_SHOULDER_ABOVE_YAW / 1e3,
         arm_shoulder_y_extra=round(V.ARM_Y / 1e3 - y_default, 6),
@@ -150,8 +151,8 @@ def _mock_stl(key):
         "pitch": lambda: CA.servo_mock_y(),
         "foot_L": lambda: _foot_roll_mock("L"),
         "foot_R": lambda: _foot_roll_mock("R"),
-        "elbow_L": lambda: arm_v6.elbow_servo_mock("L"),
-        "elbow_R": lambda: arm_v6.elbow_servo_mock("R"),
+        "elbow_L": lambda: Pos(0, 0, -V.ARM_UPPER) * arm_v6.elbow_servo_mock("L"),
+        "elbow_R": lambda: Pos(0, 0, -V.ARM_UPPER) * arm_v6.elbow_servo_mock("R"),
     }
     path = os.path.join(tempfile.gettempdir(), f"v6inertia_{os.getpid()}_{key}.stl")
     export_stl(solids[key](), path)
@@ -236,8 +237,8 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
                                mesh_props(stl(f"sole_tpu_{side}"), [0, 0, z_foot], rho=RHO_SOLE),
                                servo(f"foot_{side}", g_aroll)]
         if p.arms:
-            out[f"{side}_arm"] = [mesh_props(stl(f"arm_upper_v6_{side}"), [0, 0, 0])]
-            out[f"{side}_forearm"] = [mesh_props(stl(f"arm_fore_v6_{side}"), [0, 0, 0]), servo(f"elbow_{side}", g15)]
+            out[f"{side}_arm"] = [mesh_props(stl(f"arm_upper_v6_{side}"), [0, 0, 0]), servo(f"elbow_{side}", g15)]
+            out[f"{side}_forearm"] = [mesh_props(stl(f"arm_fore_v6_{side}"), [0, 0, 0])]
     return out
 
 

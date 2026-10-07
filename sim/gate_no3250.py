@@ -14,7 +14,7 @@ with only the servo assignment -- and the servo MASS -- changed:
     cad3250   74.5 g servos at the six places (the design)
     cad3215   55.0 g there (-117 g, 1.67 kg)
   and, for `arms` / `getup`, the as-drawn robot with the elbowed arms
-  (getup_v6_shoulder round 5b, r5_asdrawn[_rom120]: lumped, 2.10 kg, 55 g
+  (getup_v6_shoulder round 6, r6_asdrawn[_rom120]: lumped, 2.10 kg, 55 g
   servos everywhere -- the all-STS3215 mass; its STS3250 rows are 117 g light)
   servo sets (design_gates.SERVOS; the kp_scale entries registered below):
     3250      STS3250 at rolls + knees (the design)
@@ -322,14 +322,14 @@ def mode_envelope():
 # ------------------------------------------------------------------ arms (as drawn)
 def mode_arms():
     """the as-drawn robot with the elbowed arms held at 15 deg (lumped plant,
-    getup_v6_shoulder r5_asdrawn: 2.10 kg with 55 g servos everywhere -- i.e.
+    getup_v6_shoulder r6_asdrawn: 2.10 kg with 55 g servos everywhere -- i.e.
     the all-STS3215 mass; the STS3250 rows run on the same masses, which
     flatters them by 117 g, as round 5b did)."""
     import getup_v6_shoulder as S
-    base = dataclasses.replace(S.BASE, **S.CONFIGS["r5_asdrawn"])
+    base = dataclasses.replace(S.BASE, **S.CONFIGS["r6_asdrawn"])
     xml = os.path.join(TMP, f"no3250_arms_{os.getpid()}.xml")
     open(xml, "w").write(build_xml(base))
-    print(f"== Gate D, 4 cases x arm contacts, as-drawn robot with arms (r5_asdrawn, lumped, {plant_mass(xml):.3f} kg), arms held shoulder +15 / elbow 0")
+    print(f"== Gate D, 4 cases x arm contacts, as-drawn robot with arms (r6_asdrawn, lumped, {plant_mass(xml):.3f} kg), arms held shoulder +15 / elbow 0")
     jobs = []
     # a fifth case: the -15 turn at the nominal mu 0.7, to tell the sticky-foot
     # knife edge at mu 0.9 (design doc 11.3) from a turning failure
@@ -344,20 +344,20 @@ def mode_arms():
 def _arms_job(args):
     import getup_v6_shoulder as S
     sn, cl, xml, ckw, tkw = args
-    base = dataclasses.replace(S.BASE, **S.CONFIGS["r5_asdrawn"])
+    base = dataclasses.replace(S.BASE, **S.CONFIGS["r6_asdrawn"])
     return S.walk_with_arm_contacts(base, xml, per_joint=SETS[sn] or None, arm_pose=(15.0, 0.0), **ckw, **tkw)
 
 
 # ------------------------------------------------------------------ get-up (as drawn)
 def mode_getup():
-    """the as-drawn get-up (getup_v6_shoulder round 5b, r5_asdrawn_rom120,
+    """the as-drawn get-up (getup_v6_shoulder round 6, r6_asdrawn_rom120,
     tuck hip -120 knee -130): the same 12-variant seat-push grid and the six
     robustness conditions, per servo set, with the peak |torque| of EVERY
     joint tracked over every control step; then the prone roll (legs only,
     design doc section 12.1) on the same plant."""
     import getup_v6_shoulder as S
     S.H, S.K = -120.0, -130.0
-    name = "r5_asdrawn_rom120"
+    name = "r6_asdrawn_rom120"
     conds = [dict(play_deg=3.0, mu=0.7, servo_scale=1.0), dict(play_deg=5.0, mu=0.7, servo_scale=1.0),
              dict(play_deg=3.0, mu=0.3, servo_scale=1.0), dict(play_deg=3.0, mu=1.0, servo_scale=1.0),
              dict(play_deg=3.0, mu=0.7, servo_scale=0.8), dict(play_deg=3.0, mu=0.7, servo_scale=0.65)]

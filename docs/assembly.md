@@ -109,9 +109,9 @@ washer is never the fix. The length therefore follows the stack under the head:
 
 | stack under the head | where | screw | engagement |
 |---|---|---|---|
-| 3.0 mm: a 3 mm plate straight on the **horn** | leg-link fork horn pads; ankle-link front tine; hip-yoke pitch horn arm; yaw carrier; upper arm at the elbow horn | **M3 × 5** | ≈ 1.6–2.0 of 2.5 |
+| 3.0 mm: a 3 mm plate straight on the **horn** | leg-link fork horn pads; ankle-link front tine; hip-yoke pitch horn arm; yaw carrier; forearm at the elbow horn | **M3 × 5** | ≈ 1.6–2.0 of 2.5 |
 | 3.0 mm: a 3 mm plate straight on the **idler** | ankle-link rear tine | **M3 × 5** | ≈ 1.6–2.0 of 2.1 |
-| 3.6 mm: plate + 0.6 mm locating boss, **idler** | leg-link fork idler pads; hip-yoke pitch idler; upper arm at the elbow idler | **M3 × 6** | 2.0 of 2.1 |
+| 3.6 mm: plate + 0.6 mm locating boss, **idler** | leg-link fork idler pads; hip-yoke pitch idler; forearm at the elbow idler | **M3 × 6** | 2.0 of 2.1 |
 | 4.0 mm: plate on a 1 mm boss, or the head's 4 mm base, **horn** | hip-yoke roll horn arm; upper arm at the shoulder horn; head | **M3 × 6** | ≈ 1.6 of 2.5 |
 | 5.8 mm: the pad sunk 1.35 mm behind the carrier's bay wall, **idler** | hip-yoke roll idler | **M3 × 8** | 1.8 of 2.1 |
 
@@ -149,8 +149,8 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §11b girdle to deck | M2.5 × 8 flat | 10 |
 | §11c shoulder servos | M2.5 × 8 flat | 8 |
 | §11d shoulder horns | M3 × 6 | 8 |
-| §11d elbow grips (forearms) | M2.5 × 8 flat | 12 |
-| §11d elbows (upper-arm forks) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
+| §11d elbow grips (upper arms) | M2.5 × 8 flat | 12 |
+| §11d elbows (forearm forks) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
 | §11e head to neck horn / head face / camera | M3 × 6 / M2.5 × 8 flat / M2 × 4 self-tap | 4 / 4 / 4 |
 
 The robot has no heat-set inserts and no washers.
@@ -488,17 +488,20 @@ the neck is built into the girdle before the girdle goes onto the robot.
 
    ![Upper arm onto the shoulder horn](assembly/v6_17_upper_arm.png)
 
-2. **Elbow servo into the forearm.** Slide it into the forearm's grip channel,
-   with **6 × M2.5 × 8 flat-heads**.
+2. **Elbow servo into the upper arm.** Slide it into the grip channel at the
+   upper arm's lower end from the front, output end down, horn outboard, so the
+   case runs up the arm. **6 × M2.5 × 8 flat-heads**: four from outboard, two
+   from inboard. Plug the shoulder-to-elbow lead in first and take it out
+   through the web window just above the case.
 
-   ![Elbow servo into the forearm](assembly/v6_18_elbow_servo.png)
+   ![Elbow servo into the upper arm](assembly/v6_18_elbow_servo.png)
 
-3. **Forearm onto the upper arm.** Lift it up between the upper arm's fork
-   tines onto the elbow's two discs, with the elbow straight:
+3. **Forearm onto the elbow servo.** Lift it up so its fork tines pass either
+   side of the servo's output end onto the two discs, with the elbow straight:
    - horn side **4 × M3 × 5**;
    - idler side **4 × M3 × 6**.
 
-   ![Forearm onto the upper arm's fork](assembly/v6_19_forearm.png)
+   ![Forearm onto the elbow servo](assembly/v6_19_forearm.png)
 
 ### 11e. Head and camera
 

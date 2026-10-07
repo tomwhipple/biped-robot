@@ -50,8 +50,8 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `head_face` | 1 | 8.6 | 62 × 56 × 6 | flat, camera bosses up | no | |
 | `neck_floor` | 1 | 4.0 | 46 × 45 × 5 | flat, bottom face down, pads and lugs up | no | the neck servo's seat (#90): screwed up into the neck tube's four bosses; the stator screws go up through it |
 | `shoulder_girdle_v6` | 1 | 77.1 | 200 × 58 × 33 | base down | **yes**, build plate only | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`) |
-| `arm_upper_v6_L`, `_R` | 1 + 1 | 33.1 | 182 × 44 × 29 | on its back, web face down | **yes**, build plate only: the two elbow-pad undersides start 5 mm off the bed | a mirror pair; the front wall prints as a 6.4 mm bridge |
-| `arm_fore_v6_L`, `_R` | 1 + 1 | 33.7 | 169 × 38 × 28 | on its back | no | a mirror pair; grips the elbow servo; 12 mm hand knuckle |
+| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no | a mirror pair; open-front U with two end walls; grips the elbow servo |
+| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **yes**, build plate only: the two elbow-pad undersides start 5 mm off the bed | a mirror pair; the elbow fork, an end wall, 12 mm hand knuckle |
 
 **Part notes:**
 
@@ -83,7 +83,7 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - Supports go under the trapezius-web window tops (34 mm spans), the
     grip-plate rib-relief roofs, and the bay disc-relief tops.
 
-**Totals:** 22 prints, all PETG, from 16 STLs: ≈ 787 g before supports and
+**Totals:** 22 prints, all PETG, from 16 STLs: ≈ 797 g before supports and
 brims.
 
 **Not printed:**

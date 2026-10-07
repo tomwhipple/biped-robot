@@ -20,8 +20,8 @@ Generated from `cad/v6/parts_v6.py` (`docs/design-v6/parts_v6_rollup.txt`). PETG
 | part | qty | g each | orientation | supports | notes |
 |---|---|---|---|---|---|
 | `shoulder_girdle_v6` | 1 | 84 | base down on the deck face | **yes**, build plate only: trapezius-web window tops (34 mm spans), grip-plate rib-relief roofs, bay disc-relief tops | 200 × 58 × 33 mm — centre it on the bed. Both shoulder servos + the neck tube. 10 × M2.5×8 flat-head into deck pilots on the two edge rails; the pack goes in **before** the girdle |
-| `arm_upper_v6_L`, `_R` | 1 + 1 | 33 | on its back, web face on bed (`RY_XUP`) | **yes**, build plate only: the two elbow-pad undersides (5 mm off the bed) | closed-box head, screw-access bore on the outboard face; the front wall prints as a 6.4 mm bridge |
-| `arm_fore_v6_L`, `_R` | 1 + 1 | 34 | on its back (`RY_XUP`) | no | grips the elbow servo; 12 mm hand knuckle |
+| `arm_upper_v6_L`, `_R` | 1 + 1 | 28 | on its back, web face on bed (`RY_XUP`) | no | open-front U with two end walls, screw-access bore on the outboard face; grips the elbow servo |
+| `arm_fore_v6_L`, `_R` | 1 + 1 | 42 | on its back, web face on bed (`RY_XUP`) | **yes**, build plate only: the two elbow-pad undersides (5 mm off the bed) | the elbow fork, an end wall; 12 mm hand knuckle |
 
 Totals (default build, `parts_v6.py` rollup 2026-09-24): 15 PETG + 2 TPU prints, 11 unique STLs, ≈ 592 g PETG + 46 g TPU. Robot ≈ 1.82 kg with 6 × STS3250 + 7 × STS3215 (832 g), a 170 g pack and 180 g of boards and wiring. With `ARMS=1`: ≈ 2.23 kg (11 × STS3215; the girdle replaces `neck_collar`).
 

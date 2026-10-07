@@ -41,7 +41,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | joints | **17**: per leg hip yaw, hip roll, hip pitch, knee, ankle pitch, ankle roll (12); neck yaw (1); per arm shoulder pitch, elbow (4) |
 | servos | 15 × Feetech STS3215 (12 V, ST-3215-C018), with a raised position-loop gain on the ankle rolls and knees, and 2 × STS3250 at the hip rolls (§4) |
 | height | deck top 465 mm, camera 534 mm, head top 560 mm |
-| mass | ≈ 2.26 kg as drawn (§7) |
+| mass | ≈ 2.28 kg as drawn (§7) |
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
@@ -63,7 +63,7 @@ pitch → knee → ankle pitch → ankle roll.
 | ankle roll | X | ±25° | lies across the foot, output axis fore-aft; the ankle link forks onto its horn (front) and idler (rear) |
 | neck yaw | Z | ±90° | stands on the deck, horn up; the head bolts to the horn |
 | shoulder pitch | Y | −90° … +200° (0 = hanging, 90 = straight back, 180 = up along the torso) | lies fore-aft inside the shoulder girdle, horn outboard |
-| elbow | Y | −100° … +10° | in the forearm's grip channel; the upper arm forks round it on both discs |
+| elbow | Y | −100° … +10° | in the upper arm's grip channel, case running up the arm; the forearm forks round it on both discs |
 
 **Axis stack** above the sole: ankle roll 18.4 → ankle pitch 76.4 → knee 186.4 →
 hip pitch 296.4 → hip roll 346.4 → hip yaw 391.5 → deck top 465.3 → shoulder
@@ -277,14 +277,24 @@ them; that variant is kept for the CAD checks and is not a print target.
 - **Upper arm 160 mm, forearm 160 mm.** The 0.32 m reach is a measured
   threshold: the hand must reach the floor behind the hips at hip level; 0.30 m
   never stands.
+- **Arm links** (`arm_upper_v6`, `arm_fore_v6`, mirror pairs, 28 g and 42 g):
+  the leg links' section, an open-front U printed on its back, with an end wall
+  across each end of the open span against twist. The upper arm is
+  single-sided on the shoulder horn, its four disc screws driven through a bore
+  in the outboard flange; at the elbow it grips the **elbow servo's case**, the
+  leg link's grip channel turned end for end so the case runs up the arm. The
+  forearm forks round the elbow servo's horn and idler discs. So the elbow
+  servo turns with the upper arm, and its lead crosses only the shoulder. The
+  elbow clears −118° … +60° as drawn.
 - Hand: a 12 mm-radius knuckle, bare PETG.
 - **Rest pose: folded** — shoulder 15° forward, elbow folded 95°, so the
   forearm points forward and 20° up (`ARM_REST` in `cad/v6/dimensions_v6.py`;
   the plant's rest pose and the training preset's held targets). The arms hold
   it whenever they are not doing something else, standing and walking
   included. There, every leg joint clears the arm through its full range by
-  ≥ 8.5 mm (the CAD gate), and the walking range by ≥ 6.6 mm
-  ([arm_rest_search_2026-10-06.txt](docs/design-v6/arm_rest_search_2026-10-06.txt)).
+  ≥ 8.8 mm (the CAD gate), and a walking grid (hip roll ±15°, hip pitch
+  −45° … +30°, knee 0 … 70°) by ≥ 17.8 mm
+  ([arm_walk_grid_2026-10-07.txt](docs/design-v6/arm_walk_grid_2026-10-07.txt)).
   - **Why forward.** With the upper arm down or back, a folded forearm sits at
     the hip yoke's height, and rolling a leg outward past about 30° drives the
     yoke, the hip-pitch servo and the thigh into it. Raising the elbow forward
@@ -338,9 +348,9 @@ The robot as drawn, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.27 kg (the plant: 2.274 kg) |
+| robot | ≈ 2.28 kg (the plant: 2.279 kg) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
-| printed PETG + silicone soles | ≈ 0.79 + 0.05 kg: pelvis 174 g, bearing housing 25 g, girdle 77 g, arm links 134 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
+| printed PETG + silicone soles | ≈ 0.80 + 0.05 kg: pelvis 174 g, bearing housing 25 g, girdle 77 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
 | hip-yaw bearings | 106 g (2 × 6810-2RS) |
 | pack / boards + wiring | 170 g / ≈ 180 g |
 

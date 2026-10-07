@@ -776,58 +776,79 @@ ARM_RAIL_T = D.WALL              # 2.6 rail thickness in y. In the jog the rails
 # the three the shaft already has -- aft web + inboard flange (the horn plate)
 # + outboard flange -- opening FORWARD, and the head simply stops being an
 # exception to the rest of the arm.
-# ...and CLOSED at the front. Tom, 2026-09-24: "strengthen the forearm-
-# shoulder joint by connecting the inner and outer face in front. If there is
-# to be an opening, have it on the side facing away from the body." So the
-# head is a closed four-sided box -- aft web, FRONT WALL, inboard flange (the
-# horn plate), outboard flange -- and its only opening is the screw-access
-# bore through the outboard flange.
+# ...open at the FRONT, with an END WALL -- the leg link's section (Tom,
+# 2026-10-07: the leg links dropped their enclosed box to minimise bridging;
+# "consider the same approach" for the upper arm). A front wall joining the
+# flanges is, in RY_XUP, a ceiling at the top of the print: a 6.4 x 48 mm
+# bridge over a 23.5 mm cavity (check_printability's CEILING finding). The
+# flanges are tied instead by a plate in the X-Y plane just below the access
+# bore (ARM_HEAD_WALL_Z), web to front, inboard flange to outboard flange,
+# which prints as a wall rising off the bed. The only opening on the side
+# facing away from the body is still the screw-access bore.
 #
-# The front wall IS printable here, where it was not in an open-outboard box:
-# its first layer (in RY_XUP the front is the TOP of the print) spans from the
-# inboard flange to the outboard flange, a BRIDGE anchored on both sides of
-# ~6.4 mm, under check_printability's BRIDGE_OK of 8. Without the outboard
-# flange under it, it would have been a 9 mm one-sided ledge.
-#
-# The front wall cannot stay at ARM_FRONT_X (12.0): its inner face would be at
-# 9.4, and the forward disc screw's O5.7 head reaches x = 7 + 2.85 = 9.85 --
-# the wall would sit ON the screw. So the head's front edge moves forward to
-# give the head its clearance, and the shaft keeps its own 12.0.
+# The outboard flange keeps its front strip ahead of the bore, so the flange
+# stays a closed ring round it. The strip's inner face is the bore's flat
+# roof, and it cannot sit further aft than this: the forward disc screw's O5.7
+# head reaches x = 7 + 2.85 = 9.85, so the bore has to stay open to there.
 ARM_HEAD_FRONT_CLR = 0.95
-ARM_HEAD_WALL_IN_X = D.BCD / 2 + D.M3_HEAD_D / 2 + ARM_HEAD_FRONT_CLR   # 10.80
-ARM_HEAD_FRONT_X = ARM_HEAD_WALL_IN_X + D.WALL                           # 13.40
+ARM_HEAD_BORE_ROOF_X = D.BCD / 2 + D.M3_HEAD_D / 2 + ARM_HEAD_FRONT_CLR  # 10.80
+ARM_HEAD_FRONT_X = ARM_HEAD_BORE_ROOF_X + D.WALL                         # 13.40
 # The opening on the side away from the body: one bore through the OUTBOARD
 # flange on the shoulder axis. r >= 9.85 to pass the button heads; and r is
-# capped from above too, because the bore's teardrop roof now ends against the
-# front wall's underside, leaving a flat bridge 2*(r*sqrt2 - WALL_IN_X) wide
+# capped from above too, because the bore's teardrop roof ends against the
+# flange's front strip, leaving a flat bridge 2*(r*sqrt2 - BORE_ROOF_X) wide
 # that has to stay under BRIDGE_OK (8 mm). 10.3 -> 7.5 mm.
 ARM_HEAD_ACCESS_R = 10.3
 assert ARM_HEAD_ACCESS_R > D.BCD / 2 + D.M3_HEAD_D / 2, \
     "the head's access bore must clear the four M3 button heads"
-assert 2 * (ARM_HEAD_ACCESS_R * 2 ** 0.5 - ARM_HEAD_WALL_IN_X) < 8.0, \
-    "the access bore's roof, truncated by the front wall, would be an unbridgeable span"
+assert 2 * (ARM_HEAD_ACCESS_R * 2 ** 0.5 - ARM_HEAD_BORE_ROOF_X) < 8.0, \
+    "the access bore's roof, truncated by the flange's front strip, would be an unbridgeable span"
+# The head's end wall: just below the bore (and so below the lowest disc
+# screw's head, z -9.85), out of the screws' and the driver's path.
+ARM_HEAD_WALL_CLR = 0.5
+ARM_HEAD_WALL_Z = (-ARM_HEAD_ACCESS_R - ARM_HEAD_WALL_CLR - LL_WALL_T,
+                   -ARM_HEAD_ACCESS_R - ARM_HEAD_WALL_CLR)               # (-13.2, -10.8)
+assert ARM_HEAD_WALL_Z[1] < -(D.BCD / 2 + D.M3_HEAD_D / 2), \
+    "the head's end wall sits on the lowest disc screw's head"
 
 ARM_SHAFT_CLR = 1.5
 ARM_SHAFT_Y = (GIRDLE_Y1 + ARM_SHAFT_CLR - ARM_Y, 10.5)     # (-1.70, 10.5)
 assert ARM_Y + ARM_SHAFT_Y[0] >= GIRDLE_Y1 + 1.0, \
     "the upper arm's shaft sweeps into the girdle"
 ARM_FORE_SHAFT_HY = 8.0          # forearm shaft half width (nothing inboard to dodge)
-ARM_JOG_Z = (-108.0, -136.0)     # upper arm: shaft -> elbow fork, widening band
+# The elbow servo's CASE rides the upper arm, running up it from the elbow
+# axis (output end 10.11 below the axis, cable end 35.11 above); the forearm
+# forks round its two discs. The upper arm's grip channel is leg_link's
+# turned end for end, so every leg-link number anchored to the gripped axis
+# carries over with its sign flipped, measured UP from the elbow axis.
+ARM_JOG_Z = (-ARM_UPPER - D.GRIP_BOT + 16.0, -ARM_UPPER - D.GRIP_BOT)   # (-108, -124)
+                                 # upper arm: shaft -> grip channel, widening
+                                 # band; ends at the grip's cable-end edge
+ARM_CABLE_WINDOW_Z = (-ARM_UPPER - LL_CABLE_WINDOW_Z[1], -ARM_UPPER - LL_CABLE_WINDOW_Z[0])  # (-123, -112)
+ARM_CABLE_WINDOW_Y = (-3.0, 6.0) # inside the widening web at its narrow end (y -5.7 at z -112)
+# the bottom END WALL of the upper arm's open span: 2 mm past the cable
+# window, as on the leg link, so the lead leaves through the web below it
+ARM_LOW_WALL_Z = (-ARM_UPPER - LL_TOP_WALL_Z[1], -ARM_UPPER - LL_TOP_WALL_Z[0])        # (-110, -107.6)
+ARM_FORE_JOG_Z = (-24.0, -52.0)  # forearm: fork tines -> shaft, narrowing band
+# the forearm's END WALL, where its fork tines end. At the elbow's fold limit
+# the servo case reaches 14.7 mm below the elbow axis inside the fork and the
+# upper arm's grip plates 15.5 mm (x <= ARM_FRONT_X); both pass above it.
+ARM_FORE_WALL_Z = (ARM_FORE_JOG_Z[0] - LL_WALL_T, ARM_FORE_JOG_Z[0])     # (-26.4, -24.0)
 ARM_HAND_R = 12.0                # hand knuckle radius == the plant's hand sphere
                                  # (12 mm, friction 1.0 0.02 0.001). BARE PETG here;
                                  # the robustness sweep covered mu 0.3-1.0, 6/6.
 ARM_EDGE_R = 3.0                 # outer vertical edge fillet ("no sharp corners")
-ARM_R16_BUFFER = 1.0             # how far the upper arm's fork web stands off the
-                                 # elbow servo's own swept circle (r = hypot(
+ARM_R16_BUFFER = 1.0             # how far the forearm's fork web stands off the
+                                 # elbow servo's output-end corners (r = hypot(
                                  # SV_WID/2, SV_AXIS_FROM_OUT_END) = 15.97 -- the
                                  # "r 16 rule" leg_link's check_r16 guards). The
-                                 # case turns WITH the forearm, so a web that
+                                 # forearm turns ABOUT the case, so a web that
                                  # crosses that circle is an interference, not a
-                                 # clearance question: see arm_v6.arm_upper_v6.
+                                 # clearance question: see arm_v6._elbow_fork.
 
 # Declared ROM. The plant's ranges are shoulder -90..200 and elbow -150..150;
-# the CAD elbow is limited by the forearm's own grip channel meeting the upper
-# arm's fork, which cad/v6/check_assembly_v6.py measures. The get-up only ever
+# the CAD elbow is limited by the forearm's fork meeting the upper arm's grip
+# channel, which cad/v6/check_assembly_v6.py measures. The get-up only ever
 # uses shoulder 90 -> 0 and elbow -90 -> 0, and the fold-up reaches shoulder 180.
 # Sign: + about +Y, so + shoulder swings the arm BACKWARD, 0 = hanging down.
 ARM_ROM = {"shoulder": (-90.0, 200.0), "elbow": (-100.0, 10.0)}

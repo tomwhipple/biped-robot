@@ -2,6 +2,12 @@
 
 > Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
 
+> **The elbow's halves swapped links on 2026-10-07**
+> ([elbow-servo-upper-arm-2026-10-07.md](elbow-servo-upper-arm-2026-10-07.md)):
+> the upper arm now grips the elbow servo's case and the forearm carries the
+> fork, so §1's `arm_upper_v6` / `arm_fore_v6` descriptions of the elbow end
+> are of the earlier drawing.
+
 > **Partly superseded the same day by
 > [`shoulder-girdle.md`](shoulder-girdle.md) (round 5).** Tom, on seeing these
 > arms in FreeCAD: *"looks like the arms are just bolted on. Aside from being

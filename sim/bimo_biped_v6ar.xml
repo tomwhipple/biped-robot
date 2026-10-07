@@ -38,21 +38,21 @@
     <mesh name="cad_ankle_link" file="cad/v6/stl/ankle_link.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_pitch" file="sim/meshes/v6/servo_pitch.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_arm_upper_v6_L" file="cad/v6/stl/arm_upper_v6_L.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="servo_elbow_L" file="sim/meshes/v6/servo_elbow_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_foot_L" file="cad/v6/stl/foot_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_sole_tpu_L" file="cad/v6/stl/sole_tpu_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_foot_L" file="sim/meshes/v6/servo_foot_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_arm_fore_v6_L" file="cad/v6/stl/arm_fore_v6_L.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="servo_elbow_L" file="sim/meshes/v6/servo_elbow_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_hip_yoke_v6" file="cad/v6/stl/hip_yoke_v6.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_yaw_carrier_v6" file="cad/v6/stl/yaw_carrier_v6.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_roll" file="sim/meshes/v6/servo_roll.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_leg_link_v6" file="cad/v6/stl/leg_link_v6.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_arm_upper_v6_R" file="cad/v6/stl/arm_upper_v6_R.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="servo_elbow_R" file="sim/meshes/v6/servo_elbow_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_foot_R" file="cad/v6/stl/foot_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_sole_tpu_R" file="cad/v6/stl/sole_tpu_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_foot_R" file="sim/meshes/v6/servo_foot_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_arm_fore_v6_R" file="cad/v6/stl/arm_fore_v6_R.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="servo_elbow_R" file="sim/meshes/v6/servo_elbow_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_head" file="cad/v6/stl/head.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_pelvis_v7" file="cad/v6/stl/pelvis_v7.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_yaw_bearing_housing" file="cad/v6/stl/yaw_bearing_housing.stl" scale="0.001 0.001 0.001"/>
@@ -269,34 +269,34 @@
       <geom type="box" pos="-0.0125 0.08195 0.09016" size="0.02261 0.0189 0.01236" class="servo" mass="0.055"/>
       <body name="L_arm" pos="0 0.10335 0.09016" euler="0 -15 0">
         <joint name="L_shoulder" axis="0 1 0" range="-90 200" ref="-15"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
-        <inertial pos="-0.0034 0.0034 -0.0800" quat="0.6977 -0.0169 0.7162 0.0055" mass="0.0331" diaginertia="6.0690e-06 9.2364e-05 9.3667e-05"/>
+        <inertial pos="-0.0014 0.0023 -0.1209" quat="0.0030 -0.6993 -0.0167 -0.7146" mass="0.0828" diaginertia="1.2078e-05 1.9043e-04 1.9270e-04"/>
         <geom name="L_arm_cad_arm_upper_v6_L" class="cad" mesh="cad_arm_upper_v6_L" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
-        
-        <geom type="box" pos="-0.00088 0.00153 -0.079" size="0.01428 0.02193 0.091" class="fallcol" mass="0.02" rgba="0.82 0.84 0.87 1"/>
+        <geom name="L_arm_servo_elbow_L" class="cad" mesh="servo_elbow_L" rgba="0.12 0.12 0.14 1"/>
+        <geom type="box" pos="0 0.00155 -0.1475" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
+        <geom type="box" pos="-0.00088 0.00093 -0.0725" size="0.01428 0.01882 0.0845" class="fallcol" mass="0.02" rgba="0.82 0.84 0.87 1"/>
         <body name="L_forearm" pos="0 0 -0.16" euler="0 -95 0">
           <joint name="L_elbow" axis="0 1 0" range="-150 150" ref="-95"/>
-        <inertial pos="-0.0016 0.0010 -0.0458" quat="0.0020 0.6991 -0.0069 -0.7150" mass="0.0887" diaginertia="1.2847e-05 2.6021e-04 2.6287e-04"/>
+        <inertial pos="-0.0038 0.0004 -0.0847" quat="0.0027 0.7095 -0.0034 -0.7047" mass="0.0415" diaginertia="7.1437e-06 1.3153e-04 1.3343e-04"/>
         <geom name="L_forearm_cad_arm_fore_v6_L" class="cad" mesh="cad_arm_fore_v6_L" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
-        <geom name="L_forearm_servo_elbow_L" class="cad" mesh="servo_elbow_L" rgba="0.12 0.12 0.14 1"/>
-          <geom type="box" pos="0 0.00155 -0.0125" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
-          <geom type="box" pos="-0.00098 0.00093 -0.0875" size="0.01418 0.01882 0.0845" class="fallcol" mass="0.012" rgba="0.82 0.84 0.87 1"/>
+          
+          <geom type="box" pos="-0.00158 0.00153 -0.081" size="0.01358 0.02193 0.091" class="fallcol" mass="0.012" rgba="0.82 0.84 0.87 1"/>
           <geom class="fallcol" type="sphere" pos="0 0 -0.16" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
         </body>
       </body>
       <geom type="box" pos="-0.0125 -0.08195 0.09016" size="0.02261 0.0189 0.01236" class="servo" mass="0.055"/>
       <body name="R_arm" pos="0 -0.10335 0.09016" euler="0 -15 0">
         <joint name="R_shoulder" axis="0 1 0" range="-90 200" ref="-15"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
-        <inertial pos="-0.0034 -0.0034 -0.0800" quat="0.0169 -0.6977 0.0055 0.7162" mass="0.0331" diaginertia="6.0690e-06 9.2364e-05 9.3667e-05"/>
+        <inertial pos="-0.0014 -0.0023 -0.1209" quat="0.6993 -0.0030 -0.7146 -0.0167" mass="0.0828" diaginertia="1.2078e-05 1.9043e-04 1.9270e-04"/>
         <geom name="R_arm_cad_arm_upper_v6_R" class="cad" mesh="cad_arm_upper_v6_R" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
-        
-        <geom type="box" pos="-0.00088 -0.00153 -0.079" size="0.01428 0.02193 0.091" class="fallcol" mass="0.02" rgba="0.82 0.84 0.87 1"/>
+        <geom name="R_arm_servo_elbow_R" class="cad" mesh="servo_elbow_R" rgba="0.12 0.12 0.14 1"/>
+        <geom type="box" pos="0 -0.00155 -0.1475" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
+        <geom type="box" pos="-0.00088 -0.00093 -0.0725" size="0.01428 0.01882 0.0845" class="fallcol" mass="0.02" rgba="0.82 0.84 0.87 1"/>
         <body name="R_forearm" pos="0 0 -0.16" euler="0 -95 0">
           <joint name="R_elbow" axis="0 1 0" range="-150 150" ref="-95"/>
-        <inertial pos="-0.0016 -0.0010 -0.0458" quat="0.6991 0.0020 0.7150 0.0069" mass="0.0887" diaginertia="1.2847e-05 2.6021e-04 2.6287e-04"/>
+        <inertial pos="-0.0038 -0.0004 -0.0847" quat="0.7095 0.0027 0.7047 0.0034" mass="0.0415" diaginertia="7.1437e-06 1.3153e-04 1.3343e-04"/>
         <geom name="R_forearm_cad_arm_fore_v6_R" class="cad" mesh="cad_arm_fore_v6_R" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
-        <geom name="R_forearm_servo_elbow_R" class="cad" mesh="servo_elbow_R" rgba="0.12 0.12 0.14 1"/>
-          <geom type="box" pos="0 -0.00155 -0.0125" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
-          <geom type="box" pos="-0.00098 -0.00093 -0.0875" size="0.01418 0.01882 0.0845" class="fallcol" mass="0.012" rgba="0.82 0.84 0.87 1"/>
+          
+          <geom type="box" pos="-0.00158 -0.00153 -0.081" size="0.01358 0.02193 0.091" class="fallcol" mass="0.012" rgba="0.82 0.84 0.87 1"/>
           <geom class="fallcol" type="sphere" pos="0 0 -0.16" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
         </body>
       </body>

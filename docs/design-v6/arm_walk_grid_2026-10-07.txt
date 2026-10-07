@@ -1,0 +1,1131 @@
+# Arm walking-grid clearance at the folded rest pose, 2026-10-07 (branch cad/elbow-servo-in-upper-arm).
+# The walking-grid column of arm_rest_search_2026-10-06.txt, at the chosen pose only and measured EXACTLY:
+# the LEFT arm (upper arm, elbow servo, forearm) at ARM_REST (shoulder -15 / elbow -95) against every
+# left-leg piece (assembly_v6.leg_chain), over hip roll -15/0/15 x hip pitch -45/-20/0/15/30 x knee
+# 0/35/70, the other leg joints 0. Pairs whose bounding boxes are more than 12 mm apart are skipped (their
+# distance is at least 12). Each pose's closest pair is listed. Cross-check: the same code at hip roll 55
+# (the CAD gate's binding rest row) gives 8.55 mm on main and 8.85 mm here, as check_assembly_v6 does.
+# Driver: a one-off script around assembly_v6.leg_chain / arm_chain / pose_transforms (not committed).
+# BEFORE = main 88f1e68 (the elbow servo's case in the forearm); AFTER = this branch (case in the upper arm).
+# arm_rest_search_2026-10-06.txt's 6.66 mm walk minimum was measured on an earlier geometry (an uncommitted
+# working tree before the hip changes of b47607d); main 88f1e68 measures 15.55 mm by this code.
+
+== BEFORE (main 88f1e68)
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+roll -15.0 pitch -45.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -45.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -45.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -20.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -20.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -20.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch  +0.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch  +0.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch  +0.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +15.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +15.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +15.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +30.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +30.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +30.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -45.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -45.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -45.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -20.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -20.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -20.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch  +0.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch  +0.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch  +0.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +15.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +15.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +15.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +30.0 knee  +0.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +30.0 knee +35.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +30.0 knee +70.0  min  28.02  arm_upper_L vs bearing_outer_L
+roll +15.0 pitch -45.0 knee  +0.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -45.0 knee +35.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -45.0 knee +70.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -20.0 knee  +0.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -20.0 knee +35.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -20.0 knee +70.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch  +0.0 knee  +0.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch  +0.0 knee +35.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch  +0.0 knee +70.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +15.0 knee  +0.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +15.0 knee +35.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +15.0 knee +70.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +30.0 knee  +0.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +30.0 knee +35.0  min  15.55  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +30.0 knee +70.0  min  15.55  arm_upper_L vs hip_yoke_L
+== MIN 15.55 mm at roll/pitch/knee (15.0, -45.0, 0.0): arm_upper_L vs hip_yoke_L
+
+== AFTER (this branch)
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
+  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
+  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
+  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
+  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
+  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
+  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
+  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
+  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
+  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
+  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
+  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
+  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
+  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
+  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
+  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
+  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
+  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
+  [hip_yoke_v6] 6 edge(s) NOT rounded:
+      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
+      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
+      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
+      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
+      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
+      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [ankle_link] rounded 2/4 outer top-plate corners
+roll -15.0 pitch -45.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -45.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -45.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -20.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -20.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch -20.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch  +0.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch  +0.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch  +0.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +15.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +15.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +15.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +30.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +30.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll -15.0 pitch +30.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -45.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -45.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -45.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -20.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -20.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch -20.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch  +0.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch  +0.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch  +0.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +15.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +15.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +15.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +30.0 knee  +0.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +30.0 knee +35.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll  +0.0 pitch +30.0 knee +70.0  min  27.73  arm_upper_L vs bearing_outer_L
+roll +15.0 pitch -45.0 knee  +0.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -45.0 knee +35.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -45.0 knee +70.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -20.0 knee  +0.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -20.0 knee +35.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch -20.0 knee +70.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch  +0.0 knee  +0.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch  +0.0 knee +35.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch  +0.0 knee +70.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +15.0 knee  +0.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +15.0 knee +35.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +15.0 knee +70.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +30.0 knee  +0.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +30.0 knee +35.0  min  17.85  arm_upper_L vs hip_yoke_L
+roll +15.0 pitch +30.0 knee +70.0  min  17.85  arm_upper_L vs hip_yoke_L
+== MIN 17.85 mm at roll/pitch/knee (15.0, -45.0, 0.0): arm_upper_L vs hip_yoke_L

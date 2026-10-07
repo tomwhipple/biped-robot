@@ -156,6 +156,14 @@ class DesignParams:
                                   # the forearm collide with the leg far more
                                   # than the drawn one does. Default False so
                                   # every round 1-4 number stays reproducible.
+    arm_elbow_servo_upper: bool = False  # 2026-10-07 (cad/v6/arm_v6.py): the elbow
+                                  # servo's CASE rides the UPPER arm, running up
+                                  # it from the elbow axis (centre 12.5 mm ABOVE
+                                  # the axis, on the arm plane), and the forearm
+                                  # forks round its discs. Its 55 g box moves
+                                  # from the forearm body to the arm body. Needs
+                                  # arm_cad_servos. Default False so every round
+                                  # 5 number stays reproducible.
     tail: bool = False           # kangaroo tail: one STS3215 (pitch) at the housing rear, a rod
     tail_len: float = 0.20       # with a rubber tip; 0 deg = straight back, + = tip up
     tail_x: float = -0.062       # root x (behind the deck's aft edge -0.058)
@@ -618,13 +626,21 @@ def _arms(p: DesignParams) -> str:
         # below the elbow axis; the round-2 placeholder put it inboard+centred.
         _el_y = 0.0 if p.arm_cad_servos else -sgn * SV_T / 2
         _el_z = -(SV_LEN / 2 - SV_AXIS_OUT) if p.arm_cad_servos else 0.0
+        _el_box = f'size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"'
+        assert not p.arm_elbow_servo_upper or p.arm_cad_servos, "arm_elbow_servo_upper needs arm_cad_servos"
+        # the elbow servo's box: on the forearm, or (arm_elbow_servo_upper) on
+        # the upper arm, case running up from the elbow axis
+        _fore_servo = "" if p.arm_elbow_servo_upper else \
+            f'<geom class="servo" type="box" pos="0 {_f(_el_y)} {_f(_el_z)}" {_el_box}/>'
+        _upper_servo = "" if not (p.arm_elbow and p.arm_elbow_servo_upper) else \
+            f'<geom class="servo" type="box" pos="0 0 {_f(-p.arm_len + (SV_LEN / 2 - SV_AXIS_OUT))}" {_el_box}/>'
         hand = f'<geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>'
         if p.arm_elbow:
             _el_eul = f' euler="0 {p.arm_elbow_hold:g} 0"' if p.arm_elbow_hold else ""
             _el_ref = f' ref="{p.arm_elbow_hold:g}"' if p.arm_elbow_hold else ""
             hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}"{_el_eul}>
           <joint name="{side}_elbow" axis="0 1 0" range="-150 150"{_el_ref}/>
-          <geom class="servo" type="box" pos="0 {_f(_el_y)} {_f(_el_z)}" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
+          {_fore_servo}
           <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_fore_len)}" size="0.006" mass="{p.arm_mass*0.6 if p.arm_fore_mass is None else p.arm_fore_mass}" rgba="0.82 0.84 0.87 1"/>
           <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_fore_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
         </body>"""
@@ -638,7 +654,7 @@ def _arms(p: DesignParams) -> str:
             out.append(f'\n      <geom class="servo" type="box" pos="{_f(_cx)} {_f(_cy)} {_f(zs)}" size="{_f(SV_LEN/2)} {_f(SV_T/2)} {_f(SV_WID/2)}" mass="{p.m_neck_servo}"/>')
         _ref = f' ref="{p.arm_hold:g}"' if p.arm_hold else ""
         arm_inner = f"""<joint name="{side}_shoulder" axis="0 1 0" range="-90 200"{_ref}/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
-        {_sh_servo}
+        {_sh_servo}{_upper_servo}
         <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_len)}" size="0.006" mass="{p.arm_mass}" rgba="0.82 0.84 0.87 1"/>
         {hand}"""
         if p.arm_abd:

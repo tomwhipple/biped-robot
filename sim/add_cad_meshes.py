@@ -34,7 +34,7 @@ SERVOS = {"torso": ["yaw_L", "yaw_R", "neck", "shoulder_L", "shoulder_R"],
           "L_thigh": ["pitch"], "R_thigh": ["pitch"], "L_shin": ["pitch"], "R_shin": ["pitch"],
           "L_ankle_blk": ["pitch"], "R_ankle_blk": ["pitch"],
           "L_foot": ["foot_L"], "R_foot": ["foot_R"],
-          "L_forearm": ["elbow_L"], "R_forearm": ["elbow_R"]}
+          "L_arm": ["elbow_L"], "R_arm": ["elbow_R"]}
 
 
 def parts(arms=True):
