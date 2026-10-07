@@ -427,6 +427,78 @@ Training runs **at night only**; days belong to the box's owner.
   finished run into the working checkout and referees it: the python column
   with `--render`, and the SIL column. The lag column is run by hand (§8).
 
+### Training on the Mac (CPU physics + MPS)
+
+`sim/mac_train.py` trains on the laptop (Apple M5 Max: 18 CPU cores, 40-core
+GPU). It splits the work:
+
+- **Physics:** `walker_env.BimoWalkerEnv`, the referee's own env, runs in N
+  worker processes (default: cores − 2). Each worker steps its slice of the
+  envs and runs the policy on its own CPU.
+- **Training:** the policy and value networks train on the GPU through
+  PyTorch's Metal backend (`--device mps`, falling back to CPU).
+
+MJX itself has no supported path onto the Mac GPU: JAX here is CPU-only and
+MuJoCo Warp needs CUDA.
+
+**Same command line and run layout as `train_mjx.py`.** It uses train_mjx's
+own `make_parser()` / `build_env_kw()`, so one set of flags means one env
+config. Its additions are `--workers`, `--device`, `--hours` and `--resume`.
+
+- `config.json` gains `"trainer": "mac_ppo"`.
+- `params.pkl` is brax's `(normalizer, policy, value)` tuple, so the referee,
+  the distiller and `tools/export_policy_weights.py` read a Mac run
+  unchanged. A saved checkpoint acts identically in the referee's brax loader
+  and in PyTorch (max |Δaction| 2e-7).
+- `--init-from` reads a brax run, so a run can move from MJX to the Mac and
+  back.
+
+**The PPO is brax 0.14's, term for term:**
+
+- a tanh-normal policy;
+- (512, 256, 128) swish MLPs with lecun-uniform kernels;
+- brax's own `running_statistics` normalizer, updated on each batch before the
+  SGD;
+- GAE (λ 0.95) recomputed per minibatch;
+- clip 0.3, normalized advantages, value coefficient 0.5;
+- entropy with the tanh log-det term;
+- Adam with no gradient clipping;
+- one set of parameters per iteration, then trajectory-shuffled minibatches.
+
+With 16 workers the batch layout is brax's exactly: 2048 envs, 32,768
+trajectories of 20 steps. Other worker counts round the trajectory count up
+to whole rounds.
+
+**Rate on the robot's plant (2026-10-07):** 16,200–17,100 env steps/s with 16
+workers, measured while another CPU sweep shared the machine. That is about
+12× mira's MJX rate on the same plant (1,310 steps/s). Physics is ~95 % of an
+iteration (≈ 38 s of rollout against ≈ 2 s of update per 655,360 steps).
+
+**What differs from an MJX run:**
+
+| item | Mac trainer | consequence |
+|---|---|---|
+| contact physics | CPU MuJoCo, the referee's engine | none against the referee; the MJX-vs-CPU contact-manifold difference (§8) is gone, not modelled |
+| mass / friction DR | drawn per episode | MJX draws per env batch; the per-episode distribution is the same |
+| action-chain lag DR | per episode, uniform(`act_lag_hz`, `act_lag_hz_max`), via the CPU env's `act_lag_dr_max` | named apart from the config key so a referee rebuilding from `config.json` keeps its one pinned pole |
+| feet-crossing reward (`w_foot_cross`) | applied (`foot_cross_term=True`) | the referee's env leaves it off; its scores do not use reward |
+| eval curve | `eval/*` in `progress.jsonl` are the training episodes that ended in that iteration (stochastic policy) | MJX runs a separate eval env; the two curves are close but not identical |
+| non-`--precision` value net | (128, 128), the policy's size | MJX uses (256, 256) without `--precision` |
+
+With the per-episode draws pinned, the robot preset's training config
+(k1's flags) matches MJX step for step on synced airborne states while the
+legs are splayed apart (200 steps: |Δqpos| 6e-9, |Δreward| 3e-7). The match
+ends when the legs touch each other. With the hip rolls driven inward, the
+legs touch on 194 of 200 steps, and qpos differs by up to 1e-3 and reward by
+up to 0.06 from step 6. That is the same engine-level contact difference as
+on the floor. The Mac trainer has the referee's version of it.
+
+```bash
+.venv/bin/python sim/mac_train.py --out <run> --robot --precision --family loco \
+    --walk-submix 0,0 --cmd-v-range 0.05,0.35 --w-mimic 1.5 --servo-kp-scale robot \
+    --act-lag 2,12 --steps 400000000 --hours 6        # --workers 16 by default here
+```
+
 ### Burst compute on RunPod
 
 `infra/runpod/` rents a GPU pod through `runpodctl` when mira is busy or too
