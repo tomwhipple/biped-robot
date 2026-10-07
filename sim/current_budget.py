@@ -32,7 +32,7 @@ Two modes (issue #77):
                                 on the committed robot plant (bimo_biped_v6ar)
                       getup  -- the scripted seat-push get-up
                                 (getup_v6_shoulder.py seat_push, the chosen
-                                variant on the r5_asdrawn_rom120 plant)
+                                variant on the r6_asdrawn_rom120 plant)
 
 Run:  .venv/bin/python sim/current_budget.py --trace walk
       .venv/bin/python sim/current_budget.py --trace getup
@@ -182,8 +182,8 @@ def trace_walk(volts):
 
 def trace_getup(volts):
     """The scripted seat-push get-up, on the as-drawn robot
-    (getup_v6_shoulder.py `r5_asdrawn_rom120`, the plant after the
-    shoulder-girdle restyle at the CAD hip ROM -120). The variant is the
+    (getup_v6_shoulder.py `r6_asdrawn_rom120`: the shoulder girdle, the
+    elbow servo on the upper arm, the CAD hip ROM -120). The variant is the
     round-5b robust winner: shoulder 90 -> 0 degress, elbow (0, 0), ankle
     -25, push over 2 s (`no3250_getup.txt` -- 12 variants x 6 robustness
     conditions, this and ((60,-60),(0,0),-25) stand 6/6; the (90,-90)
@@ -193,7 +193,7 @@ def trace_getup(volts):
     from gen_plant_v6 import build_xml
     import getup_v6_shoulder as GUS
 
-    p = dataclasses.replace(GUS.BASE, **GUS.CONFIGS["r5_asdrawn_rom120"])
+    p = dataclasses.replace(GUS.BASE, **GUS.CONFIGS["r6_asdrawn_rom120"])
     xml = os.path.join(os.environ.get("TMPDIR", "/tmp"),
                        f"gu_budget_{os.getpid()}.xml")
     with open(xml, "w") as fh:
@@ -348,7 +348,7 @@ def main():
         t, a, b, j, ok, up, pelvis_z = trace_getup(args.volts)
         extra = (f"get-up outcome: {'STANDING' if ok else 'NOT standing'}  "
                  f"up_z {up:+.2f}  pelvis_z {pelvis_z:.3f}")
-        row = report("trace=getup (seat push, r5_asdrawn_rom120)",
+        row = report("trace=getup (seat push, r6_asdrawn_rom120)",
                      args.volts, t, a, b, j, extra=extra)
         row["trace"] = "getup"
         row["stood"] = bool(ok)

@@ -48,14 +48,16 @@ HIP_FLEX_DEG = 120.0
 # A 17-servo stand-in for tests, until the committed plant carries the arms:
 # sim/gen_plant_v6.py with the as-drawn arm geometry (upper arm and forearm
 # 160 mm with an elbow servo, the shoulder girdle and its servos on the
-# torso, CAD link masses -- the get-up study's r5_asdrawn_rom120 arms).
+# torso, CAD link masses, the elbow servo on the upper arm -- the get-up
+# study's r6_asdrawn_rom120 arms).
 # Generator defaults otherwise (geometry-derived inertials, not the CAD ones
 # the committed plant carries): it exercises the 17-servo layout, it is not
 # the robot's mass model.
 ARMS_TEST_PARAMS = dict(
     arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
     arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
-    arm_girdle=True, arm_mass=0.0331, arm_fore_mass=0.0337, m_girdle=0.084,
+    arm_elbow_servo_upper=True,
+    arm_girdle=True, arm_mass=0.0278, arm_fore_mass=0.0415, m_girdle=0.084,
     arm_hold=HOLD_DEG["shoulder"], arm_elbow_hold=HOLD_DEG["elbow"],
     hip_pitch_range=(-120.0, 90.0))
 

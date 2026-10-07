@@ -35,8 +35,9 @@ def test_arm_hop_is_the_measured_span():
     for r in LL.rows():
         if r["b"] in ("R elbow", "L elbow"):
             assert r["span"] == LL.SHOULDER_ELBOW_SPAN
-            # both folds ride this hop:
-            assert r["loop"] > 25.0
+            # only the shoulder fold rides this hop: the elbow servo is on
+            # the upper arm, so the lead never crosses the elbow
+            assert abs(r["loop"] - LL._fold(LL.SHOULDER_FOLD)) < 1e-9
 
 
 def test_spans_stable():

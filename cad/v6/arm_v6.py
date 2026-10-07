@@ -27,18 +27,31 @@ WHAT IS HERE (2 designs, 4 prints -- arms are mirror pairs, like the feet)
     arm_upper_v6(side)       shoulder horn -> elbow. Single-sided horn plate at
                              the top (the hip YAW joint's proven grip: the
                              shoulder servo's idler face looks inboard over the
-                             deck, so a clevis there is not drawable), a fork
-                             at the bottom straddling the elbow servo's horn
-                             AND idler discs.
-    arm_fore_v6(side)        elbow -> hand. Grips the elbow servo's case in a
-                             leg_link-style channel and runs 160 mm to a 12 mm
-                             knuckle -- the plant's hand sphere, same radius.
+                             deck, so a clevis there is not drawable), and at
+                             the bottom leg_link's grip channel turned end for
+                             end: the elbow servo's CASE rides the upper arm,
+                             running up it from the elbow axis.
+    arm_fore_v6(side)        elbow -> hand. A fork at the top straddling the
+                             elbow servo's horn AND idler discs, then 160 mm to
+                             a 12 mm knuckle -- the plant's hand sphere, same
+                             radius.
 
-PRINT ORIENTATION -- the one thing not copied from leg_link_v6
---------------------------------------------------------------
+WHY THE CASE IS IN THE UPPER ARM (2026-10-07)
+---------------------------------------------
+Nothing ever chose the forearm: it was the plant's round-2 placeholder and the
+leg's pattern (the distal link grips), and in the leg that pattern is forced
+by one part serving four joints. The upper arm grips no servo at its shoulder
+end -- the shoulder servo lives in the girdle -- so the elbow servo can ride
+it. Then the servo's lead crosses only the shoulder fold, not the elbow, and
+55 g sits 25 mm nearer the shoulder (the arm's inertia about the shoulder
+drops ~10 %). docs/design-v6/elbow-servo-upper-arm-2026-10-07.md has the
+numbers.
+
+PRINT ORIENTATION -- leg_link_v6's
+----------------------------------
 Both arm links print ON THEIR BACK (model +X up, check_printability's RY_XUP),
-NOT standing on the fork end like leg_link_v6. This is deliberate and it is
-the whole reason the sections below are open C's rather than closed boxes.
+as leg_link_v6 does. This is deliberate and it is the whole reason the
+sections below are open C's rather than closed boxes.
 
 Read the block above `yoke_roll` in cad/parts.py: both hip clevises used to
 print flange-down, arms rising as vertical columns, which lays the layer lines
@@ -60,6 +73,12 @@ as in leg_link_v6, because a front plate would be a flat ceiling spanning tine
 to tine in this orientation. The C is weaker in TORSION, not in the bending
 that matters, and peak measured joint torque here is 1.59 N-m
 (shoulder) / 1.18 (elbow) against the STS3215's 2.72 N-m simulated stall.
+Against twist, the leg link's answer: an END WALL across the C at each end of
+its open span (plates in the X-Y plane, web to front, side to side), which
+print as walls rising off the bed. Upper arm: below the shoulder head's
+access bore (V.ARM_HEAD_WALL_Z) and just past the cable window above the
+elbow servo (V.ARM_LOW_WALL_Z). Forearm: where the fork tines end
+(V.ARM_FORE_WALL_Z); the hand knuckle closes the other end.
 
     .venv/bin/python cad/v6/arm_v6.py          # STL + STEP + audits + renders
     .venv/bin/python cad/v6/arm_v6.py --only arm_upper_v6_L
@@ -103,8 +122,8 @@ PRINT_ORIENT = {
 # same). Support work is the slicer's job wherever it can do it -- only what a
 # slicer cannot clean up (small horizontal bores: teardropped) is designed in.
 SUPPORT_NOTE = {
-    "arm_upper_v6": "supports on: the two elbow pads' undersides start 5 mm off the bed "
-                    "(the fork prints on its back); support touching the build plate only",
+    "arm_fore_v6": "supports on: the two elbow pads' undersides start 5 mm off the bed "
+                   "(the fork prints on its back); support touching the build plate only",
 }
 # print-up for this orientation is model +X, so every horizontal bore's
 # teardrop peak points that way (teardrop_*'s roll=90). Named, not a bare 90,
@@ -126,212 +145,37 @@ def _mirrored(solid, side):
 
 
 # ===========================================================================
-# 2. arm_upper_v6 -- shoulder horn to elbow fork
+# 1. the elbow's two halves, drawn where their parent links already draw them
 # ===========================================================================
-def arm_upper_v6(side="L"):
-    """Upper arm. Local frame: the SHOULDER axis is the Y axis at the origin,
-    local y = 0 is the arm plane (== the elbow servo's mid-plane, so the arm
-    is straight, no jog between the two joints); +x robot forward, the arm
-    hangs to -z, the elbow axis is at z = -V.ARM_UPPER. +y is OUTBOARD.
-    Qty 2 (mirror pair). Print: on its back, RY_XUP (see the module docstring).
-
-    Top end is SINGLE-SIDED on the shoulder horn -- the horn plate + 1.0
-    seating boss + the 4x M3 disc bolt circle, exactly yoke_roll's horn arm.
-    But it is no longer a bare plate: the arm's BOX SECTION runs all the way to
-    the shoulder (inboard flange + aft web + outboard flange, opening forward),
-    with one access bore through the outboard flange for the disc screws. As a
-    flat 3 mm plate this head had Z = 41 mm3 about X and a 20 N knock at the
-    hand put ~157 MPa in it; as the box it is 583 mm3 and ~11 MPa. There is no
-    idler-side arm and there cannot be one: the shoulder servo's idler face
-    looks INBOARD, straight over the deck, so a second tine would have to wrap
-    round the case and sweep the deck and the head every time the arm folds up.
-    The precedent for carrying a real load on one disc is the hip YAW joint,
-    which hangs the entire leg (and half the robot) off one horn.
-
-    Bottom end is a FORK straddling the elbow servo's horn AND idler discs,
-    which is what keeps the forearm in the same plane as the upper arm; going
-    single-sided at the elbow instead would push the forearm 15-18 mm INBOARD,
-    straight at the thigh. The fork is the widest thing on the robot after the
-    feet (y +23.45 local) and its inboard tine is the closest thing to the leg
-    (y -20.40); check_assembly_v6's arm rows are where that gets measured, not
-    argued.
-    """
-    wx0, wx1 = V.ARM_WEB_X                    # -15.16, -12.76
-    fx = V.ARM_FRONT_X                        # 12.0
-    sy0, sy1 = V.ARM_SHAFT_Y                  # -3.5, +10.5
-    rt = V.ARM_RAIL_T                         # 2.8
-    hy0, hy1 = D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE           # 20.45..23.45
-    iy1, iy0 = D.IDLER_ARM_INNER, D.IDLER_ARM_INNER - D.PLATE     # -17.40, -20.40
-    drop = -V.ARM_UPPER                       # -160, the elbow axis
-    jz0, jz1 = V.ARM_JOG_Z                    # -108, -136
-    boss_y0, boss_y1 = -D.PLATE / 2 - D.HORN_BOSS_H, -D.PLATE / 2  # -2.5, -1.5
-    py1 = D.PLATE / 2                                              # +1.5
-    head_top = 12.0                           # plate reaches above the axis to
-                                              # cover the upper bolt-circle pair
-    shaft_top = -24.0
-    trans_z = -40.0                           # head plate -> full shaft section
-
-    # --- head: a CLOSED box, not a plate. The arm's section runs all the way
-    # to the shoulder (Tom, 2026-09-21) and is closed at the front (Tom,
-    # 2026-09-24: "connecting the inner and outer face in front"): inboard
-    # flange + aft web + outboard flange + front wall. Its only opening is the
-    # screw-access bore on the side facing AWAY from the body.
-    #   inboard flange == the horn plate: still D.PLATE thick, still bearing on
-    #   the horn at boss_y1, so the four disc screws and their stack are
-    #   untouched and ARM_Y is untouched. The head runs forward to
-    #   ARM_HEAD_FRONT_X so the front wall clears the forward screw head.
-    hfx = V.ARM_HEAD_FRONT_X                  # 13.4
-    p = parts.box(wx0, hfx, boss_y1, py1, trans_z, head_top)
-    p += parts.cyl_y(D.HORN_BOSS_D / 2, boss_y0, boss_y1, 0, 0)
-    #   aft web and outboard flange, carried up from the shaft at full depth
-    p += parts.box(wx0, wx1, sy0, sy1, trans_z, head_top)
-    p += parts.box(wx0, hfx, sy1 - rt, sy1, trans_z, head_top)
-    #   THE OPENING, away from the body: one bore through the outboard flange
-    #   on the shoulder axis to drop the four M3s in. Teardropped (horizontal
-    #   bore in this print); its roof is then cut off by the front wall below,
-    #   which leaves a flat bridge ARM_HEAD_ACCESS_R is sized to keep < 8 mm.
-    p -= parts.teardrop_y(V.ARM_HEAD_ACCESS_R, sy1 - rt - 1, sy1 + 1, 0, 0, roll=ROLL_UP)
-    #   the FRONT WALL, added after the bore so the bore never cuts it: joins
-    #   the inboard and outboard flanges and closes the box. In print it is a
-    #   bridge between the two flanges, not a ledge.
-    p += parts.box(V.ARM_HEAD_WALL_IN_X, hfx, boss_y1, sy1, trans_z, head_top)
-    # knock the two top corners off (no sharp external corners; also keeps the
-    # plate from reaching further round the servo than it needs to)
-    # The two chamfers are NOT the same shape, and that is a print result. In
-    # RY_XUP the bed is model -x, so the AFT corner's chamfer is a DOWN-facing
-    # slope starting at the first layer: at the old 7.0 x 7.5 it was 47 deg and
-    # the audit called it a LEDGE the moment the box gave it the outboard
-    # flange to cut through as well. 8.0 x 6.0 is 37 deg -- self-supporting.
-    # The forward corner faces UP and is free, so it keeps the tighter shape.
-    for cx in (wx0, hfx):
-        s = 1 if cx > 0 else -1
-        dx, dz = (8.0, 6.0) if cx < 0 else (6.5, 7.0)
-        p -= parts.wedge_y([(cx + s * 0.5, head_top + 0.5),
-                            (cx + s * 0.5, head_top - dz),
-                            (cx - s * dx, head_top + 0.5)],
-                           boss_y1 - 1, sy1 + 1)
-
-    # --- no transition any more. The old solid wedge existed to flare a 3 mm
-    # plate out to the C section over 16 mm; with the box run to the shoulder
-    # there is nothing to flare, and a hollow section of the same envelope is
-    # both stiffer and lighter than the solid one it replaces.
-
-    # --- shaft: open C, back web + two rails, opening forward. The rails taper
-    # from ARM_FRONT_X at the shoulder (where the bending moment is the hand
-    # force x 320 mm) to ARM_TIP_X at the elbow (x 160 mm) -- the section
-    # follows the moment. Free in print: x is the print HEIGHT in RY_XUP, so a
-    # shrinking x-extent is an up-facing slope, never an overhang.
-    tip = V.ARM_TIP_X
-    p += parts.box(wx0, wx1, sy0, sy1, jz0, trans_z)
-    for a0, a1 in ((sy0, sy0 + rt), (sy1 - rt, sy1)):
-        p += parts.wedge_y([(wx0, trans_z), (fx, trans_z), (tip, jz0), (wx0, jz0)], a0, a1)
-
-    # --- jog: the C widens into the fork. Web full width, rails follow the
-    # outer edges (slanted, so their perpendicular thickness is rt*cos(~30) =
-    # 2.4 -- still three perimeters, and well clear of the THIN gate).
-    p += parts.wedge_x([(sy0, jz0), (iy0, jz1), (hy1, jz1), (sy1, jz0)], wx0, wx1)
-    p += parts.wedge_x([(sy0, jz0), (sy0 + rt, jz0), (iy0 + rt, jz1), (iy0, jz1)], wx0, fx)
-    p += parts.wedge_x([(sy1, jz0), (sy1 - rt, jz0), (hy1 - rt, jz1), (hy1, jz1)], wx0, fx)
-    # the jog's rails re-grow the shaft's tapered depth back to ARM_FRONT_X
-    p -= parts.wedge_y([(tip + 0.01, jz0), (fx + 1, jz0), (fx + 1, jz0 - 8.0)], iy0 - 1, hy1 + 1)
-
-    # --- fork: two tines onto the elbow servo's discs, joined by the web for
-    # as long as the elbow servo's own SWEEP allows, then two independent tines
-    # (exactly as the leg's fork is below LL_WEB_END).
-    #
-    # WEB_END IS NOT A STYLE CHOICE. The elbow servo's case turns WITH the
-    # forearm about the elbow axis, and its nearest corner sits at
-    # hypot(SV_WID/2, SV_AXIS_FROM_OUT_END) = 15.97 mm -- leg_link's "r 16
-    # rule", the same number check_r16 guards there. The web spans the full
-    # tine-to-tine width at x -15.16..-12.76, i.e. straight through that circle,
-    # so it has to stop before it. First cut ended it at drop + 2 and
-    # check_assembly_v6's `servo_elbow vs arm_upper` row caught it immediately:
-    # 174 mm3 of overlap at elbow -27 deg. The web now clears r 16 by
-    # V.ARM_R16_BUFFER at its innermost corner (x = ARM_WEB_X[1]).
-    _r16 = math.hypot(D.SV_WID / 2, D.SV_AXIS_FROM_OUT_END) + V.ARM_R16_BUFFER
-    web_end = drop + math.sqrt(_r16 ** 2 - wx1 ** 2)
-    p += parts.box(wx0, wx1, iy0, hy1, web_end, jz1)
-    # NO modelled pad support. Printed on its back, the bed is model -x and the
-    # pad's lowest point sits 5.16 mm above it facing straight down -- that is
-    # OrcaSlicer's job, not this part's (Tom, 2026-09-24: "leave the print
-    # support work to OrcaSlicer as long as it is capable of handling it").
-    # The rectangular slab that used to sit under each pad stuck out past it,
-    # and was also the thing the forearm hit at elbow +20 deg; without it the
-    # CAD elbow range opens to +60. SUPPORT_NOTE below registers the part as
-    # printed with slicer supports, so the audit waives the pad undersides.
-    for a0, a1 in ((iy0, iy1), (hy0, hy1)):
-        p += parts.box(wx0, fx, a0, a1, drop, jz1)
-        p += parts.cyl_y(D.PAD_D / 2, a0, a1, 0, drop)
-    # idler boss, OD tapered 45 deg so its print-underside band never exceeds 45
-    _ibh = abs(D.IDLER_BOSS_H)
-    p += Pos(0, (D.SV_IDLER_FACE + iy1) / 2, drop) * Rot(90, 0, 0) * Cone(
-        D.IDLER_BOSS_D / 2 - _ibh, D.IDLER_BOSS_D / 2, _ibh)
-
-    # --- holes: the elbow disc bolt circle straight through both tines, and
-    # the two centre reliefs (horn screw head / idler free-hub post)
-    for h in parts.bcd_y(iy0 - 1, hy1 + 1, 0, drop, roll=ROLL_UP):
-        p -= h
-    p -= parts.cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, drop)
-    p -= parts.cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 6,
-                     D.SV_IDLER_FACE + 0.7, 0, drop)
-    # --- holes: the shoulder disc bolt circle through the horn plate
-    # (only through the INBOARD flange: the access bore already opened the
-    # outboard flange over the whole bolt circle)
-    for h in parts.bcd_y(boss_y0 - 1, py1 + 1, 0, 0, roll=ROLL_UP):
-        p -= h
-    p -= parts.cyl_y(D.HORN_CENTER_RELIEF_D / 2, boss_y0 - 1, py1 + 1, 0, 0)
-
-    # --- cable window through the shaft web: the elbow servo's lead runs up
-    # the inside of the C to the deck, and wants a hole to change sides at.
-    p -= parts.box(wx0 - 1, wx1 + 1, -4.5, 4.5, -96.0, -78.0)
-
-    # --- trim anything that ran below the elbow axis outside the pad radius
-    _below = parts.box(-40, 40, -40, 40, drop - 60, drop)
-    p -= _below - parts.cyl_y(D.PAD_D / 2, -40, 40, 0, drop)
-    return _mirrored(p, side)
+def _mz(solid):
+    """Mirror about the XY plane (z -> -z). The STS3215 is symmetric across its
+    width (x), so a part drawn round a HANGING servo, mirrored, is that part
+    round the same servo turned end for end about its own axis. That is how
+    the elbow's grip channel (leg_link's, round a hanging case) and its fork
+    (drawn reaching up from the axis) are carried onto the two arm links
+    without being redrawn. Teardrops (+x) and countersinks (y) are unmoved."""
+    return mirror(solid, Plane.XY)
 
 
-# ===========================================================================
-# 3. arm_fore_v6 -- elbow grip to hand
-# ===========================================================================
-def arm_fore_v6(side="L"):
-    """Forearm. Local frame: the ELBOW axis is the Y axis at the origin and is
-    the gripped servo's own axis (its case hangs down the forearm, output end
-    +10.11 above the axis, cable end -35.11); +x forward, +y is the horn side
-    (== outboard). Hand centre at z = -V.ARM_FORE. Qty 2 (mirror pair).
-    Print: on its back, RY_XUP.
-
-    The grip channel is leg_link's, unchanged in y and z -- same servo, same
-    two case faces, same 2.4/3.0 plates, same GRIP_HORN_RELIEF for the horn
-    disc and the same GRIP_TOP_IDLER that keeps the idler plate clear of the
-    idler disc. Printed on its back like leg_link_v6, the web's z extent lies
-    in the BED PLANE, so it is a plain rectangular web.
-
-    The hand is a plain PETG knuckle at V.ARM_HAND_R -- the same 12 mm radius
-    the plant contacts the floor with. The plant gave it friction 1.0; bare
-    PETG is nearer 0.3-0.4, which is inside the study's own robustness sweep
-    (mu 0.3 / 0.7 / 1.0, 6/6 standing), so a rubber cap is an improvement, not
-    a prerequisite. It is listed as an open item in the design note.
-    """
+def _elbow_grip():
+    """The elbow servo's grip channel in the CANONICAL servo frame (axis +Y at
+    the origin, horn +Y, case hanging to -z, web on -x). leg_link_v6's, y and z
+    unchanged -- same two case faces, same 2.4/3.0 plates, same
+    GRIP_HORN_RELIEF for the horn disc, the rib and platform detents with their
+    print ramps, the countersunk case screws -- and, as on the leg link, the
+    idler plate stops square at V.LL_IDLER_PLATE_TOP, 5 mm above its screws.
+    arm_upper_v6 carries it end for end (_mz) at the elbow axis."""
     t = D.GRIP_PLATE_T                            # 2.4
     wx0, wx1 = V.ARM_WEB_X
-    fx = V.ARM_FRONT_X
-    rt = V.ARM_RAIL_T
     grip_x1 = 13.2                                # leg_link's grip plate front edge
-    hy = V.ARM_FORE_SHAFT_HY                      # 8.0
-    drop = -V.ARM_FORE                            # -160, the hand centre
-    r = V.ARM_HAND_R                              # 12
     idler_seat = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR      # -14.90
     _igo = idler_seat - D.GRIP_PLATE_T_IDLER                 # -17.90
     grip_bot = D.GRIP_BOT                                    # -36.0
-    tip = V.ARM_TIP_X
-    taper_z = -52.0
 
-    # --- grip channel on the elbow servo's case (leg_link's, y/z unchanged)
     p = parts.box(wx0, grip_x1, D.SV_TOPFACE, D.SV_TOPFACE + t,
                   grip_bot, D.GRIP_TOP_HORN)
     p -= parts.cyl_y(D.GRIP_HORN_RELIEF, D.SV_TOPFACE - 1, D.SV_TOPFACE + t + 1, 0, 0)
-    p += parts.box(wx0, grip_x1, _igo, idler_seat, grip_bot, D.GRIP_TOP_IDLER)
+    p += parts.box(wx0, grip_x1, _igo, idler_seat, grip_bot, V.LL_IDLER_PLATE_TOP)
     p += parts.box(wx0, wx1, _igo, D.SV_TOPFACE + t, grip_bot, D.WEB_TOP)
 
     # --- detents for the two moulded features on the case (leg_link's, byte
@@ -364,16 +208,234 @@ def arm_fore_v6(side="L"):
                        D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR - 0.6,
                        D.SV_IDLER_BOSS_Z[1] + D.RIB_RELIEF_CLR + 0.6)
 
-    # --- taper from the grip channel down to the shaft, then the shaft itself
-    p += parts.wedge_x([(_igo, grip_bot), (-hy, taper_z), (hy, taper_z),
-                        (D.SV_TOPFACE + t, grip_bot)], wx0, wx1)
-    p += parts.wedge_x([(_igo, grip_bot), (_igo + rt, grip_bot),
-                        (-hy + rt, taper_z), (-hy, taper_z)], wx0, fx)
-    p += parts.wedge_x([(D.SV_TOPFACE + t, grip_bot), (D.SV_TOPFACE + t - rt, grip_bot),
-                        (hy - rt, taper_z), (hy, taper_z)], wx0, fx)
-    p += parts.box(wx0, wx1, -hy, hy, drop, taper_z)
+    # --- holes: the case grip screws (horn-side rows both, idler-side lower
+    # row only -- the upper idler row is under the back-cover platform)
+    for zrow in D.CASE_HOLES_TOP:
+        for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
+            p -= parts.teardrop_y(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1,
+                                  D.SV_TOPFACE + t + 1, lx, -zrow, roll=ROLL_UP)
+            p -= parts.csk_y(lx, -zrow, D.SV_TOPFACE + t, +1)
+    for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
+        p -= parts.teardrop_y(D.CASE_SCREW_CLEAR / 2, _igo - 1, idler_seat + 1,
+                              lx, -D.CASE_HOLES_BOT[1], roll=ROLL_UP)
+        p -= parts.csk_y(lx, -D.CASE_HOLES_BOT[1], _igo, -1)
+    return p
+
+
+def _elbow_fork():
+    """The elbow fork, drawn REACHING UP from the elbow axis at the origin (the
+    frame the upper arm used to carry it in): two tines onto the servo's horn
+    and idler discs, each ending in an O20 pad with the O14 bolt circle, joined
+    by the web for as long as the servo allows. arm_fore_v6 carries it end for
+    end (_mz), tines reaching down the forearm.
+
+    Straddling BOTH discs is what keeps the forearm in the same plane as the
+    upper arm; going single-sided at the elbow would push the forearm 15-18 mm
+    INBOARD, straight at the thigh. The fork is the widest thing on the robot
+    after the feet (y +23.45 local) and its inboard tine is the closest thing
+    to the leg (y -20.40); check_assembly_v6's arm rows are where that gets
+    measured, not argued.
+
+    WEB_END IS NOT A STYLE CHOICE. The forearm turns about the elbow servo,
+    whose output-end corners sit at hypot(SV_WID/2, SV_AXIS_FROM_OUT_END) =
+    15.97 mm from the axis -- leg_link's "r 16 rule", the same number check_r16
+    guards there. The web spans the full tine-to-tine width at x -15.16..-12.76,
+    so it has to stop before that circle: it clears r 16 by V.ARM_R16_BUFFER at
+    its innermost corner (x = ARM_WEB_X[1])."""
+    wx0, wx1 = V.ARM_WEB_X
+    fx = V.ARM_FRONT_X
+    hy0, hy1 = D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE           # 20.45..23.45
+    iy1, iy0 = D.IDLER_ARM_INNER, D.IDLER_ARM_INNER - D.PLATE     # -17.40, -20.40
+    tine = -V.ARM_FORE_JOG_Z[0]                                    # 24: tine length
+    _r16 = math.hypot(D.SV_WID / 2, D.SV_AXIS_FROM_OUT_END) + V.ARM_R16_BUFFER
+    web_end = math.sqrt(_r16 ** 2 - wx1 ** 2)
+    p = parts.box(wx0, wx1, iy0, hy1, web_end, tine)
+    # NO modelled pad support. Printed on its back, the bed is model -x and the
+    # pad's lowest point sits 5.16 mm above it facing straight down -- that is
+    # OrcaSlicer's job, not this part's (SUPPORT_NOTE registers it).
+    for a0, a1 in ((iy0, iy1), (hy0, hy1)):
+        p += parts.box(wx0, fx, a0, a1, 0, tine)
+        p += parts.cyl_y(D.PAD_D / 2, a0, a1, 0, 0)
+    # idler boss, OD tapered 45 deg so its print-underside band never exceeds 45
+    _ibh = abs(D.IDLER_BOSS_H)
+    p += Pos(0, (D.SV_IDLER_FACE + iy1) / 2, 0) * Rot(90, 0, 0) * Cone(
+        D.IDLER_BOSS_D / 2 - _ibh, D.IDLER_BOSS_D / 2, _ibh)
+    # --- holes: the disc bolt circle straight through both tines, and the two
+    # centre reliefs (horn screw head / idler free-hub post)
+    for h in parts.bcd_y(iy0 - 1, hy1 + 1, 0, 0, roll=ROLL_UP):
+        p -= h
+    p -= parts.cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, 0)
+    p -= parts.cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 6,
+                     D.SV_IDLER_FACE + 0.7, 0, 0)
+    # --- trim anything past the axis outside the pad radius
+    _past = parts.box(-40, 40, -40, 40, -60, 0)
+    p -= _past - parts.cyl_y(D.PAD_D / 2, -40, 40, 0, 0)
+    return p
+
+
+# ===========================================================================
+# 2. arm_upper_v6 -- shoulder horn to the elbow servo's grip channel
+# ===========================================================================
+def arm_upper_v6(side="L"):
+    """Upper arm. Local frame: the SHOULDER axis is the Y axis at the origin,
+    local y = 0 is the arm plane (== the elbow servo's mid-plane, so the arm
+    is straight, no jog between the two joints); +x robot forward, the arm
+    hangs to -z, the elbow axis is at z = -V.ARM_UPPER. +y is OUTBOARD.
+    Qty 2 (mirror pair). Print: on its back, RY_XUP (see the module docstring).
+
+    Top end is SINGLE-SIDED on the shoulder horn -- the horn plate + 1.0
+    seating boss + the 4x M3 disc bolt circle, exactly yoke_roll's horn arm --
+    with the arm's section run all the way up to it: inboard flange (the horn
+    plate) + aft web + outboard flange, open at the front like the rest of the
+    arm, and one access bore through the outboard flange for the disc screws.
+    As a flat 3 mm plate this head had Z = 41 mm3 about X and a 20 N knock at
+    the hand put ~157 MPa in it. There is no idler-side arm and there cannot be
+    one: the shoulder servo's idler face looks INBOARD, straight over the deck,
+    so a second tine would have to wrap round the case and sweep the deck and
+    the head every time the arm folds up. The precedent for carrying a real
+    load on one disc is the hip YAW joint, which hangs the entire leg (and half
+    the robot) off one horn.
+
+    Bottom end grips the ELBOW servo's case: _elbow_grip() turned end for end
+    at the elbow axis, so the case runs up the arm (output end 10.11 below the
+    axis, cable end 35.11 above) with its horn still outboard. The forearm's
+    fork straddles the two discs.
+    """
+    wx0, wx1 = V.ARM_WEB_X                    # -15.16, -12.76
+    fx = V.ARM_FRONT_X                        # 12.0
+    sy0, sy1 = V.ARM_SHAFT_Y                  # -1.70, +10.5
+    rt = V.ARM_RAIL_T                         # 2.6
+    drop = -V.ARM_UPPER                       # -160, the elbow axis
+    jz0, jz1 = V.ARM_JOG_Z                    # -108, -124
+    gy0 = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - D.GRIP_PLATE_T_IDLER   # -17.90 grip, idler outer face
+    gy1 = D.SV_TOPFACE + D.GRIP_PLATE_T                                   # +19.75 grip, horn outer face
+    boss_y0, boss_y1 = -D.PLATE / 2 - D.HORN_BOSS_H, -D.PLATE / 2  # -2.5, -1.5
+    py1 = D.PLATE / 2                                              # +1.5
+    head_top = 12.0                           # plate reaches above the axis to
+                                              # cover the upper bolt-circle pair
+    trans_z = -40.0                           # head plate -> full shaft section
+
+    # --- head: the shaft's section run to the shoulder (Tom, 2026-09-21), OPEN
+    # at the front like the leg link and tied by an end wall (2026-10-07):
+    #   inboard flange == the horn plate: still D.PLATE thick, still bearing on
+    #   the horn at boss_y1, so the four disc screws and their stack are
+    #   untouched and ARM_Y is untouched. The flanges run forward to
+    #   ARM_HEAD_FRONT_X, which the outboard flange's ring round the bore needs.
+    hfx = V.ARM_HEAD_FRONT_X                  # 13.4
+    p = parts.box(wx0, hfx, boss_y1, py1, trans_z, head_top)
+    p += parts.cyl_y(D.HORN_BOSS_D / 2, boss_y0, boss_y1, 0, 0)
+    #   aft web and outboard flange, carried up from the shaft at full depth
+    p += parts.box(wx0, wx1, sy0, sy1, trans_z, head_top)
+    p += parts.box(wx0, hfx, sy1 - rt, sy1, trans_z, head_top)
+    #   THE OPENING, away from the body: one bore through the outboard flange
+    #   on the shoulder axis to drop the four M3s in. Teardropped (horizontal
+    #   bore in this print); its peak is then filled back by the flange's own
+    #   front strip, a flat roof ARM_HEAD_ACCESS_R is sized to keep < 8 mm.
+    p -= parts.teardrop_y(V.ARM_HEAD_ACCESS_R, sy1 - rt - 1, sy1 + 1, 0, 0, roll=ROLL_UP)
+    p += parts.box(V.ARM_HEAD_BORE_ROOF_X, hfx, sy1 - rt, sy1, trans_z, head_top)
+    #   the END WALL: flange to flange, web to front, just below the bore --
+    #   out of the screws' path, and where the horn's load enters the section.
+    p += parts.box(wx0, hfx, boss_y1, sy1, *V.ARM_HEAD_WALL_Z)
+    # knock the two top corners off (no sharp external corners; also keeps the
+    # plate from reaching further round the servo than it needs to)
+    # The two chamfers are NOT the same shape, and that is a print result. In
+    # RY_XUP the bed is model -x, so the AFT corner's chamfer is a DOWN-facing
+    # slope starting at the first layer: at 7.0 x 7.5 it was 47 deg and the
+    # audit called it a LEDGE once the outboard flange gave it something to cut
+    # through as well. 8.0 x 6.0 is 37 deg -- self-supporting. The forward
+    # corner faces UP and is free, so it keeps the tighter shape.
+    for cx in (wx0, hfx):
+        s = 1 if cx > 0 else -1
+        dx, dz = (8.0, 6.0) if cx < 0 else (6.5, 7.0)
+        p -= parts.wedge_y([(cx + s * 0.5, head_top + 0.5),
+                            (cx + s * 0.5, head_top - dz),
+                            (cx - s * dx, head_top + 0.5)],
+                           boss_y1 - 1, sy1 + 1)
+
+    # --- shaft: open C, back web + two rails, opening forward. The rails taper
+    # from ARM_FRONT_X at the shoulder (where the bending moment is the hand
+    # force x 320 mm) to ARM_TIP_X at the elbow (x 160 mm) -- the section
+    # follows the moment. Free in print: x is the print HEIGHT in RY_XUP, so a
+    # shrinking x-extent is an up-facing slope, never an overhang.
+    tip = V.ARM_TIP_X
+    p += parts.box(wx0, wx1, sy0, sy1, jz0, trans_z)
+    for a0, a1 in ((sy0, sy0 + rt), (sy1 - rt, sy1)):
+        p += parts.wedge_y([(wx0, trans_z), (fx, trans_z), (tip, jz0), (wx0, jz0)], a0, a1)
+
+    # --- jog: the C widens into the grip channel, whose plates it meets at
+    # their cable-end edge (jz1). Web full width, rails follow the outer edges
+    # (slanted, so their perpendicular thickness is ~2.3 -- still well clear of
+    # the THIN gate).
+    p += parts.wedge_x([(sy0, jz0), (gy0, jz1), (gy1, jz1), (sy1, jz0)], wx0, wx1)
+    p += parts.wedge_x([(sy0, jz0), (sy0 + rt, jz0), (gy0 + rt, jz1), (gy0, jz1)], wx0, fx)
+    p += parts.wedge_x([(sy1, jz0), (sy1 - rt, jz0), (gy1 - rt, jz1), (gy1, jz1)], wx0, fx)
+    # the jog's rails re-grow the shaft's tapered depth back to ARM_FRONT_X
+    p -= parts.wedge_y([(tip + 0.01, jz0), (fx + 1, jz0), (fx + 1, jz0 - 8.0)], gy0 - 1, gy1 + 1)
+    # the bottom END WALL of the open span (leg link's top wall, end for end):
+    # 2 mm past the cable window, so the elbow servo's lead leaves through the
+    # web below it.
+    p += parts.box(wx0, tip, sy0, sy1, *V.ARM_LOW_WALL_Z)
+
+    # --- the grip channel on the elbow servo's case, end for end
+    p += Pos(0, 0, drop) * _mz(_elbow_grip())
+
+    # --- cable window through the jog's web, just past the case's cable end
+    # (leg link's, end for end): the elbow servo's lead leaves to the back of
+    # the arm here and runs up the web to the shoulder.
+    p -= parts.box(wx0 - 1, wx1 + 1, *V.ARM_CABLE_WINDOW_Y, *V.ARM_CABLE_WINDOW_Z)
+
+    # --- holes: the shoulder disc bolt circle through the horn plate
+    # (only through the INBOARD flange: the access bore already opened the
+    # outboard flange over the whole bolt circle)
+    for h in parts.bcd_y(boss_y0 - 1, py1 + 1, 0, 0, roll=ROLL_UP):
+        p -= h
+    p -= parts.cyl_y(D.HORN_CENTER_RELIEF_D / 2, boss_y0 - 1, py1 + 1, 0, 0)
+    return _mirrored(p, side)
+
+
+# ===========================================================================
+# 3. arm_fore_v6 -- elbow fork to hand
+# ===========================================================================
+def arm_fore_v6(side="L"):
+    """Forearm. Local frame: the ELBOW axis is the Y axis at the origin; +x
+    forward, +y outboard (the servo's horn side); the forearm hangs to -z with
+    the hand centre at z = -V.ARM_FORE. Qty 2 (mirror pair). Print: on its
+    back, RY_XUP; the two pad ends take slicer supports (SUPPORT_NOTE).
+
+    Top end is the elbow FORK, _elbow_fork() turned end for end: tines reaching
+    down from the axis, an end wall where they stop (V.ARM_FORE_WALL_Z), then
+    a jog narrowing to the shaft. Printed on its back like leg_link_v6, every
+    one of those is a wall rising off the bed.
+
+    The hand is a plain PETG knuckle at V.ARM_HAND_R -- the same 12 mm radius
+    the plant contacts the floor with. The plant gave it friction 1.0; bare
+    PETG is nearer 0.3-0.4, which is inside the study's own robustness sweep
+    (mu 0.3 / 0.7 / 1.0, 6/6 standing), so a rubber cap is an improvement, not
+    a prerequisite. It is listed as an open item in the design note.
+    """
+    wx0, wx1 = V.ARM_WEB_X
+    fx = V.ARM_FRONT_X
+    rt = V.ARM_RAIL_T
+    hy = V.ARM_FORE_SHAFT_HY                      # 8.0
+    drop = -V.ARM_FORE                            # -160, the hand centre
+    r = V.ARM_HAND_R                              # 12
+    tip = V.ARM_TIP_X
+    fz0, fz1 = V.ARM_FORE_JOG_Z                   # -24, -52
+    hy0, hy1 = D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE           # 20.45..23.45
+    iy1, iy0 = D.IDLER_ARM_INNER, D.IDLER_ARM_INNER - D.PLATE     # -17.40, -20.40
+
+    # --- the fork on the elbow servo's discs, end for end
+    p = _mz(_elbow_fork())
+    # --- the END WALL where the tines end: tine to tine, web to front
+    p += parts.box(wx0, fx, iy1 - 0.01, hy0 + 0.01, *V.ARM_FORE_WALL_Z)
+
+    # --- jog from the fork's width down to the shaft, then the shaft itself
+    p += parts.wedge_x([(iy0, fz0), (-hy, fz1), (hy, fz1), (hy1, fz0)], wx0, wx1)
+    p += parts.wedge_x([(iy0, fz0), (iy0 + rt, fz0), (-hy + rt, fz1), (-hy, fz1)], wx0, fx)
+    p += parts.wedge_x([(hy1, fz0), (hy1 - rt, fz0), (hy - rt, fz1), (hy, fz1)], wx0, fx)
+    p += parts.box(wx0, wx1, -hy, hy, drop, fz1)
     for a0, a1 in ((-hy, -hy + rt), (hy - rt, hy)):
-        p += parts.wedge_y([(wx0, taper_z), (fx, taper_z), (tip, drop), (wx0, drop)], a0, a1)
+        p += parts.wedge_y([(wx0, fz1), (fx, fz1), (tip, drop), (wx0, drop)], a0, a1)
 
     # --- the hand: a knuckle at the plant's own contact radius (its hand is a
     # 12 mm sphere), PRISMATIC across y so the only down-facing geometry is in
@@ -388,29 +450,15 @@ def arm_fore_v6(side="L"):
     _ramp = (-q - wx0) / 1.3                  # 1.3:1, comfortably inside 45 deg
     p += parts.wedge_y([(wx0, drop + q - _ramp), (-q, drop + q),
                         (-q, drop - q), (wx0, drop - q + _ramp)], -hy, hy)
-
-    # --- holes: the case grip screws (horn-side rows both, idler-side lower
-    # row only -- the upper idler row is under the back-cover platform)
-    for zrow in D.CASE_HOLES_TOP:
-        for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-            p -= parts.teardrop_y(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1,
-                                  D.SV_TOPFACE + t + 1, lx, -zrow, roll=ROLL_UP)
-            p -= parts.csk_y(lx, -zrow, D.SV_TOPFACE + t, +1)
-    for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-        p -= parts.teardrop_y(D.CASE_SCREW_CLEAR / 2, _igo - 1, idler_seat + 1,
-                              lx, -D.CASE_HOLES_BOT[1], roll=ROLL_UP)
-        p -= parts.csk_y(lx, -D.CASE_HOLES_BOT[1], _igo, -1)
-
-    # --- cable window through the web (the elbow servo's lead leaves here)
-    p -= parts.box(wx0 - 1, wx1 + 1, -4.5, 4.5, -72.0, -60.0)
     return _mirrored(p, side)
 
 
 def elbow_servo_mock(side="L"):
-    """The elbow STS3215 in the FOREARM's local frame: the canonical mock
-    unrotated (axis +Y, horn +Y, case hanging to -z), exactly how leg_link
-    grips the knee servo."""
-    return _mirrored(CA.servo_mock(), side)
+    """The elbow STS3215 in the ELBOW frame -- origin on the elbow axis, the
+    upper arm's orientation: the canonical mock turned end for end about its
+    own axis, horn still +Y (outboard), case running UP the upper arm (output
+    end 10.11 below the axis, cable end 35.11 above). It rides the upper arm."""
+    return _mirrored(Rot(0, 180, 0) * CA.servo_mock(), side)
 
 
 # ===========================================================================
@@ -437,27 +485,28 @@ def SCREWS():
                       kind=f"M3x{sh[0]} button head into the shoulder horn disc",
                       pos=(D.BCD / 2 * math.sin(ang), D.PLATE / 2, D.BCD / 2 * math.cos(ang)),
                       axis=(0, -1, 0), length=float(sh[0]), stack=sh_stack, engage=sh[1], flange=sh[2]))
-        s.append(dict(name=f"elbow_horn_{i}", frame="arm_upper",
+        s.append(dict(name=f"elbow_horn_{i}", frame="arm_fore",
                       kind=f"M3x{eh[0]} button head into the elbow horn disc",
                       pos=(D.BCD / 2 * math.sin(ang), D.SV_HORN_FACE + D.PLATE,
-                           -V.ARM_UPPER + D.BCD / 2 * math.cos(ang)),
+                           D.BCD / 2 * math.cos(ang)),
                       axis=(0, -1, 0), length=float(eh[0]), stack=el_h_stack, engage=eh[1], flange=eh[2]))
-        s.append(dict(name=f"elbow_idler_{i}", frame="arm_upper",
+        s.append(dict(name=f"elbow_idler_{i}", frame="arm_fore",
                       kind=f"M3x{ei[0]} button head into the elbow idler disc",
                       pos=(D.BCD / 2 * math.sin(ang), D.IDLER_ARM_INNER - D.PLATE,
-                           -V.ARM_UPPER + D.BCD / 2 * math.cos(ang)),
+                           D.BCD / 2 * math.cos(ang)),
                       axis=(0, 1, 0), length=float(ei[0]), stack=el_i_stack, engage=ei[1], flange=ei[2]))
+    # the grip screws, in the upper arm: the case runs UP from the elbow axis
     for zrow in D.CASE_HOLES_TOP:
         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-            s.append(dict(name=f"elbow_grip_horn_{zrow:.0f}_{lx:+.0f}", frame="arm_fore",
+            s.append(dict(name=f"elbow_grip_horn_{zrow:.0f}_{lx:+.0f}", frame="arm_upper",
                           kind="M2.5x8 self-tap, flat head (into the servo case)",
-                          pos=(lx, D.SV_TOPFACE + D.GRIP_PLATE_T, -zrow),
+                          pos=(lx, D.SV_TOPFACE + D.GRIP_PLATE_T, -V.ARM_UPPER + zrow),
                           axis=(0, -1, 0), length=8.0))
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-        s.append(dict(name=f"elbow_grip_idler_{lx:+.0f}", frame="arm_fore",
+        s.append(dict(name=f"elbow_grip_idler_{lx:+.0f}", frame="arm_upper",
                       kind="M2.5x8 self-tap, flat head (into the servo case)",
                       pos=(lx, D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - D.GRIP_PLATE_T_IDLER,
-                           -D.CASE_HOLES_BOT[1]), axis=(0, 1, 0), length=8.0))
+                           -V.ARM_UPPER + D.CASE_HOLES_BOT[1]), axis=(0, 1, 0), length=8.0))
     return s
 
 
@@ -465,8 +514,8 @@ def SCREWS():
 INSERT = {
     "servo_shoulder": (0, 0, 1),     # dropped into the open cradle from above
     "arm_upper": (0, 1, 0),          # offered straight in onto the horn, outboard->in
-    "servo_elbow": (1, 0, 0),        # slid into the forearm's grip channel from the front
-    "arm_fore": (0, 0, -1),          # lifted up between the fork tines onto the discs
+    "servo_elbow": (1, 0, 0),        # slid into the upper arm's grip channel from the front
+    "arm_fore": (0, 0, -1),          # lifted up, its fork tines either side of the discs
 }
 
 
@@ -474,31 +523,32 @@ INSERT = {
 # audits
 # ===========================================================================
 def check_elbow_rom(samples=41, verbose=True):
-    """The elbow's real limit: sweep the forearm AND the elbow servo it carries
-    against the upper arm's fork, and report the widest band that clears
+    """The elbow's real limit: sweep the forearm against the upper arm AND the
+    elbow servo it carries, and report the widest band that clears
     D.SWEEP_BUFFER. The plant assumed -150..150; the get-up only ever uses
     -90..0.
 
-    The SERVO is in the sweep on purpose. Its case turns with the forearm and
-    its nearest corner is 15.97 mm from the elbow axis, which is a bigger
-    circle than anything on the forearm itself -- leaving it out is how the
-    fork web got drawn straight through it (see arm_upper_v6's r16 block).
+    The SERVO is in the sweep on purpose. The forearm turns about its case,
+    whose output-end corners are 15.97 mm from the elbow axis -- inside the
+    fork, which is how a fork web gets drawn straight through it (see
+    _elbow_fork's r16 note).
 
     The servo is scored on OVERLAP only, never on distance: its two discs are
     bolted flat to the fork tines, so their distance is 0 by design -- the same
     "designed to touch" split check_assembly_v6 makes with its TOUCHING set."""
+    el = Pos(0, 0, -V.ARM_UPPER)
     upper = arm_upper_v6("L")
     fore = arm_fore_v6("L")
-    servo = elbow_servo_mock("L")
+    servo = el * elbow_servo_mock("L")
     lo, hi = -170.0, 60.0
     good = []
     for k in range(samples):
         ang = lo + (hi - lo) * k / (samples - 1)
-        at = Pos(0, 0, -V.ARM_UPPER) * Rot(0, ang, 0)
+        at = el * Rot(0, ang, 0)
         vol = 0.0
-        for child in (at * fore, at * servo):
+        for fixed in (upper, servo):
             try:
-                vol += (upper & child).volume
+                vol += (fixed & (at * fore)).volume
             except Exception:  # noqa: BLE001
                 pass
         try:
@@ -547,7 +597,7 @@ def run_audits(built, verbose=True):
 
     # (deck pilots moved with the mount: shoulder_girdle_v6.check_deck_pilots)
 
-    print("\n== elbow range of motion (CAD, forearm vs the upper arm's fork) ==")
+    print("\n== elbow range of motion (CAD, forearm's fork vs the upper arm + elbow servo) ==")
     band = check_elbow_rom()
     if not (band[0] <= -90.0 and band[1] >= 0.0):
         ok = False

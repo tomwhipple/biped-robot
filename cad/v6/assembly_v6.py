@@ -364,7 +364,8 @@ def _arm_chain(side):
         # servo itself rides link 0 here.
         (0, f"servo_shoulder_{side}", COL_SERVO, deck * SG.shoulder_servo_mock(side)),
         (1, f"arm_upper_{side}", COL_PRINT, at_sh * arm_v6.arm_upper_v6(side)),
-        (2, f"servo_elbow_{side}", COL_SERVO, at_el * arm_v6.elbow_servo_mock(side)),
+        # the elbow servo's case rides the UPPER arm (arm_v6.elbow_servo_mock)
+        (1, f"servo_elbow_{side}", COL_SERVO, at_el * arm_v6.elbow_servo_mock(side)),
         (2, f"arm_fore_{side}", COL_PRINT, at_el * arm_v6.arm_fore_v6(side)),
     ]
     return pieces, joints

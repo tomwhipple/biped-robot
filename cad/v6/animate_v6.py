@@ -81,9 +81,9 @@ INSERT = [
     # open pod from above (the only way in: a roof over a 32 mm span is
     # unprintable) and screwed from OUTBOARD -> upper arm offered straight IN
     # onto the horn along the joint axis, the one direction a single-sided
-    # horn plate can arrive from -> elbow servo slid into the forearm's grip
+    # horn plate can arrive from -> elbow servo slid into the upper arm's grip
     # channel from the FRONT (the same channel entry leg_link uses) -> forearm
-    # lifted UP between the fork tines onto the two discs.
+    # lifted UP, its fork tines either side of the two discs.
     ("servo_shoulder_",    (0, 0, 1), 16),
     ("arm_upper_",         (0, 1, 0), 17),
     ("servo_elbow_",       (1, 0, 0), 18),

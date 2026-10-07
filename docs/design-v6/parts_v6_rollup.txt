@@ -14,11 +14,11 @@ foot_R                 1    52.0  130.0x  84.0x  30.0  BED-OK  asymmetric sole, 
 sole_tpu_L             1    25.8  130.0x  84.0x   2.0  BED-OK  silicone sole, cut (outline)
 sole_tpu_R             1    25.8  130.0x  84.0x   2.0  BED-OK  silicone sole, cut (outline)
 shoulder_girdle_v6     1    77.1  200.3x  58.0x  33.1  BED-OK  ONE PRINT: both shoulder pods + the neck tube + the trapezius webs (base down)
-arm_upper_v6_L         1    33.1  182.0x  43.9x  28.6  BED-OK  shoulder horn -> elbow fork, 160 mm (on its back)
-arm_upper_v6_R         1    33.1  182.0x  43.9x  28.6  BED-OK  mirror of _L
-arm_fore_v6_L          1    33.7  169.0x  37.6x  28.4  BED-OK  elbow grip -> hand knuckle, 160 mm (on its back)
-arm_fore_v6_R          1    33.7  169.0x  37.6x  28.4  BED-OK  mirror of _L
+arm_upper_v6_L         1    27.8  169.0x  37.7x  28.6  BED-OK  shoulder horn -> elbow servo grip, 160 mm (on its back)
+arm_upper_v6_R         1    27.8  169.0x  37.7x  28.6  BED-OK  mirror of _L
+arm_fore_v6_L          1    41.5  182.0x  43.9x  27.2  BED-OK  elbow fork -> hand knuckle, 160 mm (on its back)
+arm_fore_v6_R          1    41.5  182.0x  43.9x  27.2  BED-OK  mirror of _L
 head                   0    34.7   62.0x  60.0x  53.0  reference, not printed  head_shell + head_face fused (mass, assembly, plant)
 
-printed total 844 g; servos 974 g (15 x STS3215, 2 x STS3250); hip-yaw bearings 106 g (2 x 6810-2RS); pack + boards + wiring 350 g; robot ~2274 g
+printed total 849 g; servos 974 g (15 x STS3215, 2 x STS3250); hip-yaw bearings 106 g (2 x 6810-2RS); pack + boards + wiring 350 g; robot ~2279 g
 masses: build123d volume x PETG 1.27 g/cm3 x 0.90 print factor (silicone soles: 1.21 g/cm3, solid), before supports and brims; bought parts at catalogue mass

@@ -138,6 +138,19 @@ CONFIGS = {
                               arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
                               arm_girdle=True, arm_mass=0.0331, arm_fore_mass=0.0337, m_girdle=0.084,
                               hip_pitch_range=(-120.0, 90.0)),
+    # ROUND 6 (2026-10-07): the elbow servo's CASE rides the upper arm
+    # (arm_elbow_servo_upper; cad/v6/arm_v6.py) and the forearm carries the
+    # fork, so the printed links are arm_upper_v6 27.8 g / arm_fore_v6 41.5 g.
+    # Everything else is r5_asdrawn[_rom120].
+    "r6_asdrawn": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
+                       arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
+                       arm_elbow_servo_upper=True,
+                       arm_girdle=True, arm_mass=0.0278, arm_fore_mass=0.0415, m_girdle=0.084),
+    "r6_asdrawn_rom120": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
+                              arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
+                              arm_elbow_servo_upper=True,
+                              arm_girdle=True, arm_mass=0.0278, arm_fore_mass=0.0415, m_girdle=0.084,
+                              hip_pitch_range=(-120.0, 90.0)),
 }
 hits = []
 

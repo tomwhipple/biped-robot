@@ -237,25 +237,24 @@ selected.
 | ankle → ankle roll (R / L) | 81 / 87 | 6 | 87 / 93 | 130 / 140 | ✓ |
 | port (H5) → neck (upper branch, port A, via deck slot) | 103 + 53 | — | 156 | 190 | ✓ with a short stretch; the 150 mm stock reaches if routed taut over the battery layer |
 | shoulder lead leaving the pod (both sides: → R/L shoulder) | 49–101 | — | under 130 | 90–150 | ✓ |
-| **shoulder → elbow (both arms)** | **158** | **31** | **189** | **~240** | **NO — does not fit stock** |
+| **shoulder → elbow (both arms)** | **130** | **23** | **152** | **~200** | **NO — does not fit stock** |
 
 What the CAD says about the two named geometry problems:
 
 - **The shoulder→elbow hop is the only hop that cannot ride the stock 150 mm
   lead.** The shoulder servo hangs in the girdle pod at the top of the torso;
-  the elbow servo hangs 160 mm down the upper arm. The lead crosses the
-  **shoulder fold, −90°…+200° (290° of sweep)** at the girdle's open notch —
-  the notch is cut open to the pod top so the plug exits upward
-  (`shoulder_girdle_v6.py:216`), and the lead then rides the moving upper arm
-  down the side away from the body. There is **no strain relief drawn at the
-  fold** (docs/design-v6/arms.md open item 8). The 158 mm number is the
-  assembly-measured minimum between the two servos' connector windows; the
-  189 mm includes the fold loops. Plan on a ~240 mm lead for this hop.
-- **The elbow lead's own strain relief is also not drawn.** The lead leaves
-  the elbow case down the forearm and crosses the 110° elbow fold into the
-  upper arm's cable window (`arm_v6.py`). Its slack folds into the same
-  shoulder→elbow piece by design (one lead, shoulder plug to elbow plug,
-  riding both links) — which is why the loop above carries both folds.
+  the elbow servo's case rides the upper arm, running up it from the elbow
+  axis, so its connector sits 146 mm below the shoulder axis. The lead crosses
+  the **shoulder fold, −90°…+200° (290° of sweep)** at the girdle's open
+  notch — the notch is cut open to the pod top so the plug exits upward
+  (`shoulder_girdle_v6.py:216`) — and then runs down the back of the upper
+  arm's web to the window just above the elbow servo's case (`arm_v6.py`).
+  There is **no strain relief drawn at the fold**. The 130 mm number is the
+  assembly-measured minimum between the two servos' connectors; the 152 mm
+  includes the shoulder fold's loop. Plan on a ~200 mm lead for this hop.
+- **The lead never crosses the elbow.** The elbow servo turns with the upper
+  arm (the forearm forks round its discs), so shoulder plug to elbow plug is
+  one piece on one link below the shoulder.
 - What is **flagged, not invented**: the yaw carrier has no raceway drawn for
   the yaw→roll hop (straight-line minimum), the leg links carry cable
   *windows*, not routed channels, and the ankle link's "raceway" named at

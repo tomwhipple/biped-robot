@@ -108,49 +108,50 @@ hip_roll     thigh_L                yaw_bearing_housing           0.00     55.60
 hip_pitch    thigh_L                bearing_inner_L               0.00     50.98  -120.0  ok   thigh at deep flexion vs the inner race
 hip_pitch    thigh_L                bearing_outer_L               0.00     48.08  -120.0  ok   thigh at deep flexion vs the outer race
 hip_pitch    thigh_L                yaw_bearing_housing           0.00     46.12  -120.0  ok   thigh at deep flexion vs the housing
-shoulder     arm_upper_L            pelvis_v7                     0.00     39.89   -17.5  ok   upper arm vs the torso through the whole sweep, hanging
-shoulder     arm_upper_L            head                          0.00     70.65   -17.5  ok   upper arm vs the head at the fold-up (shoulder 180)
+shoulder     arm_upper_L            pelvis_v7                     0.00     39.49    55.0  ok   upper arm vs the torso through the whole sweep, hanging
+shoulder     arm_upper_L            head                          0.00     67.98   200.0  ok   upper arm vs the head at the fold-up (shoulder 180)
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the neck tube at the fold-up (shoulder 180)
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the girdle it hangs off, whole sweep
 shoulder     arm_upper_L            servo_shoulder_L              0.00      0.00   -90.0  ok   horn plate seated on the shoulder disc: must not intersect
-shoulder     arm_fore_L             pelvis_v7                     0.00     79.62    55.0  ok   forearm vs the torso through the whole sweep, hanging
-shoulder     arm_fore_L             head                          0.00     84.88   200.0  ok   forearm vs the head, FOLDED (elbow -90, the sit-up pose)
-shoulder     arm_fore_L             pelvis_v7                     0.00     50.69    55.0  ok   forearm vs the torso, FOLDED (elbow -90, the sit-up pose)
-shoulder     arm_fore_L             shoulder_girdle_v6            0.00    108.11   127.5  ok   forearm vs the girdle, FOLDED
-shoulder     servo_elbow_L          pelvis_v7                     0.00     59.33    55.0  ok   the elbow servo case vs the torso through the sweep
-elbow        arm_fore_L             arm_upper_L                   0.00      0.70  -100.0  ok   THE ELBOW LIMIT: forearm grip vs the fork (sets V.ARM_ROM)
-elbow        arm_fore_L             servo_elbow_L                 0.00      0.00  -100.0  ok   forearm grip channel on its own servo: seated, must not intersect
-elbow        servo_elbow_L          arm_upper_L                   0.00      0.00  -100.0  ok   elbow servo discs on the fork tines: seated, must not intersect
-hip_pitch    thigh_L                arm_fore_L                    0.00     23.70  -120.0  ok   THE WALK ROW: thigh swept against the hanging forearm
-hip_pitch    thigh_L                arm_upper_L                   0.00     20.45  -120.0  ok   thigh swept against the hanging upper arm / elbow fork
-hip_pitch    servo_hip_pitch_L      arm_fore_L                    0.00     23.00  -120.0  ok   hip pitch servo case vs the hanging forearm
+shoulder     arm_fore_L             pelvis_v7                     0.00     60.92    55.0  ok   forearm vs the torso through the whole sweep, hanging
+shoulder     arm_fore_L             head                          0.00     82.95   200.0  ok   forearm vs the head, FOLDED (elbow -90, the sit-up pose)
+shoulder     arm_fore_L             pelvis_v7                     0.00     51.47    55.0  ok   forearm vs the torso, FOLDED (elbow -90, the sit-up pose)
+shoulder     arm_fore_L             shoulder_girdle_v6            0.00    106.20    55.0  ok   forearm vs the girdle, FOLDED
+shoulder     servo_elbow_L          pelvis_v7                     0.00     42.58    55.0  ok   the elbow servo case vs the torso through the sweep
+elbow        arm_fore_L             arm_upper_L                   0.00      0.70  -100.0  ok   THE ELBOW LIMIT: forearm fork vs the upper arm's grip channel (sets V.ARM_ROM)
+elbow        arm_fore_L             servo_elbow_L                 0.00      0.00  -100.0  ok   forearm fork tines on the elbow servo's discs: seated, must not intersect
+elbow        servo_elbow_L          arm_upper_L                   0.00      0.00  -100.0  ok   upper arm's grip channel on the elbow servo: seated, must not intersect
+hip_pitch    thigh_L                arm_fore_L                    0.00     20.51  -120.0  ok   THE WALK ROW: thigh swept against the hanging forearm
+hip_pitch    thigh_L                arm_upper_L                   0.00     32.00  -120.0  ok   thigh swept against the hanging upper arm / elbow grip
+hip_pitch    thigh_L                servo_elbow_L                 0.00     24.80  -120.0  ok   thigh swept against the hanging elbow servo case
+hip_pitch    servo_hip_pitch_L      arm_fore_L                    0.00     20.50  -120.0  ok   hip pitch servo case vs the hanging forearm
 knee         shin_L                 arm_fore_L                    0.00     29.90    17.5  ok   shin swept against the hanging forearm (the plant's own contact pair)
 knee         servo_knee_L           arm_fore_L                    0.00     32.90   -95.0  ok   knee servo case vs the hanging forearm
-hip_yaw      hip_yoke_L             arm_upper_L                   0.00     19.37    45.0  ok   hip yaw: yoke vs the upper arm, arms at rest (folded)
-hip_yaw      hip_yoke_L             servo_elbow_L                 0.00     26.38     0.0  ok   hip yaw: yoke vs the elbow servo, arms at rest (folded)
-hip_yaw      hip_yoke_L             arm_fore_L                    0.00     41.03    22.5  ok   hip yaw: yoke vs the forearm, arms at rest (folded)
-hip_roll     hip_yoke_L             arm_upper_L                   0.00      8.55    55.0  ok   hip roll: yoke vs the upper arm, arms at rest (folded)
-hip_roll     hip_yoke_L             servo_elbow_L                 0.00     15.71    55.0  ok   hip roll: yoke vs the elbow servo, arms at rest (folded)
-hip_roll     hip_yoke_L             arm_fore_L                    0.00     33.74    55.0  ok   hip roll: yoke vs the forearm, arms at rest (folded)
-hip_roll     servo_hip_pitch_L      arm_upper_L                   0.00     10.15    55.0  ok   hip roll: pitch servo vs the upper arm, arms at rest (folded)
-hip_roll     servo_hip_pitch_L      servo_elbow_L                 0.00     15.33    55.0  ok   hip roll: pitch servo vs the elbow servo, arms at rest (folded)
-hip_roll     servo_hip_pitch_L      arm_fore_L                    0.00     35.06    55.0  ok   hip roll: pitch servo vs the forearm, arms at rest (folded)
-hip_roll     thigh_L                arm_upper_L                   0.00     10.78    55.0  ok   hip roll: thigh vs the upper arm, arms at rest (folded)
-hip_roll     thigh_L                servo_elbow_L                 0.00     14.81    55.0  ok   hip roll: thigh vs the elbow servo, arms at rest (folded)
-hip_roll     thigh_L                arm_fore_L                    0.00     33.01    55.0  ok   hip roll: thigh vs the forearm, arms at rest (folded)
-hip_pitch    thigh_L                arm_upper_L                   0.00     17.50  -120.0  ok   hip pitch: thigh vs the upper arm, arms at rest (folded)
+hip_yaw      hip_yoke_L             arm_upper_L                   0.00     21.35    45.0  ok   hip yaw: yoke vs the upper arm, arms at rest (folded)
+hip_yaw      hip_yoke_L             servo_elbow_L                 0.00     24.57    45.0  ok   hip yaw: yoke vs the elbow servo, arms at rest (folded)
+hip_yaw      hip_yoke_L             arm_fore_L                    0.00     23.37     0.0  ok   hip yaw: yoke vs the forearm, arms at rest (folded)
+hip_roll     hip_yoke_L             arm_upper_L                   0.00      8.85    55.0  ok   hip roll: yoke vs the upper arm, arms at rest (folded)
+hip_roll     hip_yoke_L             servo_elbow_L                 0.00     12.16    55.0  ok   hip roll: yoke vs the elbow servo, arms at rest (folded)
+hip_roll     hip_yoke_L             arm_fore_L                    0.00     19.95    27.5  ok   hip roll: yoke vs the forearm, arms at rest (folded)
+hip_roll     servo_hip_pitch_L      arm_upper_L                   0.00     10.19    55.0  ok   hip roll: pitch servo vs the upper arm, arms at rest (folded)
+hip_roll     servo_hip_pitch_L      servo_elbow_L                 0.00     13.46    55.0  ok   hip roll: pitch servo vs the elbow servo, arms at rest (folded)
+hip_roll     servo_hip_pitch_L      arm_fore_L                    0.00     19.05    55.0  ok   hip roll: pitch servo vs the forearm, arms at rest (folded)
+hip_roll     thigh_L                arm_upper_L                   0.00     11.44    55.0  ok   hip roll: thigh vs the upper arm, arms at rest (folded)
+hip_roll     thigh_L                servo_elbow_L                 0.00     13.58    55.0  ok   hip roll: thigh vs the elbow servo, arms at rest (folded)
+hip_roll     thigh_L                arm_fore_L                    0.00     20.65    55.0  ok   hip roll: thigh vs the forearm, arms at rest (folded)
+hip_pitch    thigh_L                arm_upper_L                   0.00     23.67  -120.0  ok   hip pitch: thigh vs the upper arm, arms at rest (folded)
 hip_pitch    thigh_L                servo_elbow_L                 0.00     20.55  -120.0  ok   hip pitch: thigh vs the elbow servo, arms at rest (folded)
-hip_pitch    thigh_L                arm_fore_L                    0.00     20.00  -120.0  ok   hip pitch: thigh vs the forearm, arms at rest (folded)
-hip_pitch    servo_hip_pitch_L      arm_fore_L                    0.00     39.19  -120.0  ok   hip pitch: pitch servo vs the forearm, arms at rest (folded)
-knee         shin_L                 servo_elbow_L                 0.00    106.86   130.0  ok   knee: shin vs the elbow servo, arms at rest (folded)
-knee         shin_L                 arm_fore_L                    0.00    115.81   -95.0  ok   knee: shin vs the forearm, arms at rest (folded)
-knee         servo_knee_L           arm_fore_L                    0.00    122.64   -95.0  ok   knee: knee servo vs the forearm, arms at rest (folded)
-ankle_pitch  ankle_link_L           arm_fore_L                    0.00    241.62   -40.0  ok   ankle pitch: ankle link vs the forearm, arms at rest (folded)
-hip_yaw      yaw_carrier_L          arm_fore_L                    0.00     41.38   -45.0  ok   hip yaw swings the carrier toward the arm plane
+hip_pitch    thigh_L                arm_fore_L                    0.00     17.50  -120.0  ok   hip pitch: thigh vs the forearm, arms at rest (folded)
+hip_pitch    servo_hip_pitch_L      arm_fore_L                    0.00     23.52  -120.0  ok   hip pitch: pitch servo vs the forearm, arms at rest (folded)
+knee         shin_L                 servo_elbow_L                 0.00    105.90   130.0  ok   knee: shin vs the elbow servo, arms at rest (folded)
+knee         shin_L                 arm_fore_L                    0.00    110.65   130.0  ok   knee: shin vs the forearm, arms at rest (folded)
+knee         servo_knee_L           arm_fore_L                    0.00    114.29   -95.0  ok   knee: knee servo vs the forearm, arms at rest (folded)
+ankle_pitch  ankle_link_L           arm_fore_L                    0.00    233.83   -40.0  ok   ankle pitch: ankle link vs the forearm, arms at rest (folded)
+hip_yaw      yaw_carrier_L          arm_fore_L                    0.00     19.73   -45.0  ok   hip yaw swings the carrier toward the arm plane
 ankle_pitch  ankle_link_L           arm_fore_L                    0.00     74.95    40.0  ok   ankle link vs the hanging forearm (the arm reaches to z 154)
-shoulder     arm_upper_L            yaw_bearing_housing           0.00     25.87   -17.5  ok   upper arm vs the bearing housing, whole sweep
-shoulder     arm_fore_L             yaw_bearing_housing           0.00     77.47   -17.5  ok   forearm vs the bearing housing, hanging
-shoulder     arm_fore_L             yaw_bearing_housing           0.00     53.48   -17.5  ok   forearm vs the bearing housing, FOLDED
+shoulder     arm_upper_L            yaw_bearing_housing           0.00     25.29   -17.5  ok   upper arm vs the bearing housing, whole sweep
+shoulder     arm_fore_L             yaw_bearing_housing           0.00     52.00   -17.5  ok   forearm vs the bearing housing, hanging
+shoulder     arm_fore_L             yaw_bearing_housing           0.00     50.15   -17.5  ok   forearm vs the bearing housing, FOLDED
 discscrew    leg_link_v6            horn_pad                 4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    leg_link_v6            idler_pad                4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    ankle_link             tine_horn                4 x M3x5  stack 3.00  engages 1.60  ok
@@ -192,7 +193,7 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (319 s)
+=> ALL CLEAR  (210 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -341,7 +342,7 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (225 s)
+=> ALL CLEAR  (164 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================
