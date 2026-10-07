@@ -69,7 +69,7 @@ def test_committed_plant_is_generated():
     """the committed plant is build_v6_inertia's output for the current CAD
     (AGENTS.md: generated files are generated): regenerate it and compare."""
     import build_v6_inertia as BI
-    src, _ = BI.plant_xml(DesignParams(), None)
+    src = BI.committed_xml(COMMITTED)
     with open(COMMITTED) as f:
         assert f.read() == src, "sim/bimo_biped_v6ar.xml is stale: run sim/build_v6_inertia.py --write"
 
