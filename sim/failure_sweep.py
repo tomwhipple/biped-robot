@@ -68,15 +68,39 @@ SPACE = {
     "turn_deg": (-20.0, 20.0),
     "straight": (True, False),        # half the walks go straight (turn 0)
 }
+# the envelope the robot is expected to meet (bench and design numbers): roll
+# play within the <= 3 deg requirement, backlash as measured on the
+# prototype, ordinary floors, a mild slope, the bench's stiffness band, and
+# normal walking (no stunt gaits)
+SPACE_REALISTIC = {
+    "mu": (0.5, 1.0),
+    "play_deg": (0.0, 3.0),
+    "backlash_deg": (0.0, 1.5),
+    "servo_scale": (0.85, 1.0),
+    "k_tuned": (2.5, 3.2),
+    "k_3250": (3.5, 4.0),
+    "mass_scale": (0.95, 1.1),
+    "payload": (0.0, 0.06),
+    "tilt_fore_deg": (-1.5, 1.5),
+    "lag_hz": (1.0, 2.0, 3.0),
+    "delay_ticks": (2, 4, 6),
+    "step": (0.04, 0.08),
+    "lift_h": (0.03, 0.05),
+    "t_swing": (0.8, 1.6),
+    "t_shift": (0.8, 1.6),
+    "turn_deg": (-10.0, 10.0),
+    "straight": (True, False),
+}
+SPACES = {"wide": SPACE, "realistic": SPACE_REALISTIC}
 COLUMNS = (["idx", "seed"] + list(SPACE) +
            ["fell", "t_fell", "steps_completed", "n_steps", "min_clear_mm", "min_t_air", "min_margin_mm",
             "slip_mm", "tilt_max", "heading_deg", "x_final", "y_final", "tau_frac", "qd_frac", "worst_tau_joint",
             "failures", "secs"])
 
 
-def sample(rng):
+def sample(rng, space=None):
     s = {}
-    for k, v in SPACE.items():
+    for k, v in (space or SPACE).items():
         if len(v) == 2 and all(isinstance(x, float) for x in v):
             s[k] = float(rng.uniform(*v))
         else:
@@ -181,7 +205,7 @@ def run_one(job):
 
 
 # ---------------------------------------------------------------- driver side
-def run(out, n=None, until=None, procs=None, seed0=0):
+def run(out, n=None, until=None, procs=None, seed0=0, space="wide"):
     from multiprocessing import Pool
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, "results.csv")
@@ -211,7 +235,7 @@ def run(out, n=None, until=None, procs=None, seed0=0):
             if deadline and dt.datetime.now() >= deadline:
                 break
             k = batch if n is None else min(batch, start + n - idx)
-            jobs = [(idx + i, int(rng.integers(1 << 30)), sample(rng)) for i in range(k)]
+            jobs = [(idx + i, int(rng.integers(1 << 30)), sample(rng, SPACES[space])) for i in range(k)]
             for row in pool.imap_unordered(run_one, jobs):
                 w.writerow(row)
             fh.flush()
@@ -232,7 +256,7 @@ def report(out):
     pct = lambda m: f"{100.0 * np.mean(m):.1f} %" if len(m) else "-"
     lines = [f"# Failure sweep: {os.path.basename(os.path.normpath(out))}", "",
              f"{n} walks of the kinematic gait (8 steps) on `sim/bimo_biped_v6ar.xml`, conditions sampled "
-             f"uniformly from `sim/failure_sweep.py` SPACE. Written {dt.datetime.now():%Y-%m-%d %H:%M}.", "",
+             f"uniformly from `sim/failure_sweep.py` (SPACE or SPACE_REALISTIC, see --space). Written {dt.datetime.now():%Y-%m-%d %H:%M}.", "",
              f"- **clean** (no failure category): {pct(np.array([f == '' for f in fl]))}",
              f"- **errors** (gait not solvable): {pct(np.array([f.startswith('error') for f in fl]))}", "",
              "| category | rate |", "|---|---|"]
@@ -268,12 +292,14 @@ def main(argv=None):
     ap.add_argument("--procs", type=int, default=None)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--report", action="store_true", help="only rewrite summary.md from results.csv")
+    ap.add_argument("--space", choices=sorted(SPACES), default="wide",
+                    help="sampled ranges: wide (find the edges) or realistic (the expected envelope)")
     a = ap.parse_args(argv)
     if a.report:
         report(a.out)
         return
     n = a.n if (a.n is not None or a.until) else 200
-    run(a.out, n=n, until=a.until, procs=a.procs, seed0=a.seed)
+    run(a.out, n=n, until=a.until, procs=a.procs, seed0=a.seed, space=a.space)
 
 
 if __name__ == "__main__":
