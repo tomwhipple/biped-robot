@@ -125,9 +125,9 @@ ROM = {
                                    # (2026-09-24): -125 was never reachable -- the thigh's front wall met
                                    # the ROLL flange from -118.4 in BOTH yoke variants, a pair the split
                                    # sweep never listed. -120 is the deepest the joint clears at the
-                                   # 0.7 mm rule after LL_HIP_RELIEF; past it the thigh's own servo case
+                                   # 0.7 mm rule with LL_HIP_RELIEF_X0; past it the thigh's own servo case
                                    # is next. The get-up needs >= 119 (getup_search_r5_asdrawn_hip*.txt).
-    "knee": (-95.0, 130.0),        # + = flexion (see the sign note); 95 -> 130 with LL_FLEX_CUT + LL_FOLD_CHAMFER; hard limit ~132
+    "knee": (-95.0, 130.0),        # + = flexion (see the sign note); 95 -> 130 with LL_FLEX_CUT + LL_KNEE_POCKET + LL_FOLD_CHAMFER; hard limit ~132
     "ankle_pitch": (-40.0, 40.0),
     "ankle_roll": (-25.0, 25.0),
     "neck": (-90.0, 90.0),
@@ -225,62 +225,56 @@ AL_TOP_PLATE_T = D.WALL
 assert (-AL_TOP_PLATE_Z - AL_TOP_PLATE_T) < AL_DROP - D.SV_WID / 2 - 2.0, "ankle link top plate hits the roll servo"
 
 # ----------------------------------------------------------------------------
-# leg link v6 (qty 4): thigh AND shin, LINK_DROP 110, stiff closed section
+# leg link v6 (qty 4): thigh AND shin, LINK_DROP 110, open-front U, end walls
 # ----------------------------------------------------------------------------
-# Everything about the grip channel and the fork pads is leg_link's; the two
-# changes are the length and the SECTION. v5 is a U (back web + two tines)
-# and racks as a parallelogram about the web under lateral load. v6 closes
-# the U into a box between the grip zone and the fork: a FRONT plate at
-# LL_FRONT_X spanning tine to tine from LL_BOX_TOP down to LL_BOX_BOT, where
-# the next servo's case top (r 16.0 about the lower axis: hypot(10.11,
-# 12.36)) starts to sweep. Round the four outer vertical edges (LL_EDGE_R)
-# and taper the tines below the box; print STANDING (lower fork down) so the
-# box prints as four walls with no bridge -- the pad bores are horizontal
-# and teardropped, the cross plates are 45 deg gables (check_printability
-# is the arbiter, as always).
+# Everything about the grip channel and the fork pads is leg_link's. The
+# section is v5's open U (back web + two side walls). An open U twists about
+# its web, so two END WALLS tie the side walls together at the ends of the
+# open span: plates in the X-Y plane, web to the tines' front edge (x 12),
+# tine to tine. The part prints on its back (web face on the bed), so the web,
+# the side walls and both end walls rise off the bed and nothing spans the
+# open front.
 LL_DROP = LINK_DROP
-LL_FRONT_X = (D.SV_WID / 2 + D.FIT + 0.8, D.SV_WID / 2 + D.FIT + 0.8 + D.WALL)   # 13.46..16.06
-LL_BOX_TOP = -36.5                            # below the servo case bottom (-35.11) + jog
-LL_BOX_BOT = -(LL_DROP - 16.0 - D.SWEEP_BUFFER - 1.0)                 # -92.5
-LL_EDGE_R = 5.0
-# HIP-FLEXION RELIEF (2026-09-24, hip-yoke-single-print.md section 6 item 1).
-# At deep hip flexion the thigh's front wall -- the TOP edge of this box --
-# swings up into the roll flange's front (in BOTH yoke variants: the flange is
-# the same; the split sweep never listed the pair). First contact -118.4 deg.
-# The get-up needs the tuck at -119 or deeper (it stands at -119/-121/-125
-# and not at -118/-117, docs/design-v6/getup_search_r5_asdrawn_hip*.txt), and
-# -125 is out of reach without cutting through this wall or the roll horn
-# arm's root. So ROM["hip_pitch"] comes back to -122 and the box's top-front
-# edge gets a chamfer (x run from the front face, z drop from LL_BOX_TOP),
-# sized by check_assembly_v6's thigh-vs-hip_yoke row at -122 with the 0.7 mm
-# rule. It faces UP-forward in this part's standing print: self-supporting.
-LL_HIP_RELIEF = (3.5, 4.0)
-# ...and, once that chamfer cleared the wall, the next thing the flange's
-# front-bottom edge met at -121 was the idler jog block's front, 0.5 mm ABOVE
-# the box top at x 13.2 -- 0.54 mm forward of the servo case face (SV_WID/2
-# + FIT = 12.66), so that sliver locates nothing. Everything forward of
-# LL_HIP_RELIEF_X0 is trimmed for LL_HIP_RELIEF_UP above the box top.
-LL_HIP_RELIEF_X0 = D.SV_WID / 2 + D.FIT + 0.24      # 12.90: 0.24 clear of the case's fit
-LL_HIP_RELIEF_UP = 3.0
 LL_WEB_END = -(LL_DROP - 32.0)                # v5's WEB_END rule: 32 above the lower axis
 LL_CABLE_WINDOW_Z = (-48.0, -37.0)            # v5 (upper-anchored: the lead leaves the case bottom)
-LL_WEB_RAMP = 1.3                             # web bottom V: rise over run of its ramps (self-supporting standing)
-LL_BRACE_Z = (LL_BOX_BOT - 4.0, LL_BOX_BOT)   # gable brace at the box bottom
+LL_WALL_T = 2.4                               # end walls: the web's thickness
+# TOP wall: 2 mm below the cable window, where v5's single cross brace sat --
+# the servo lead leaves through the web above it.
+LL_TOP_WALL_Z = (LL_CABLE_WINDOW_Z[0] - 2.0 - LL_WALL_T, LL_CABLE_WINDOW_Z[0] - 2.0)
+# BOTTOM wall: where the web ends and the fork begins. It cannot sit lower: at
+# deep knee flexion the shin's web swings up inside the thigh's fork to ~33 mm
+# above the knee axis, all across the channel.
+LL_BOT_WALL_Z = (LL_WEB_END + 2.0, LL_WEB_END + 2.0 + LL_WALL_T)
+# HIP-FLEXION RELIEF (2026-09-24, hip-yoke-single-print.md section 6 item 1).
+# At deep hip flexion the roll flange's front-bottom edge meets the grip
+# plates' front strip just above the jog blocks, 0.54 mm forward of the servo
+# case face (SV_WID/2 + FIT = 12.66), so that sliver locates nothing.
+# Everything forward of LL_HIP_RELIEF_X0 is trimmed for LL_HIP_RELIEF_UP above
+# the jog blocks' bottom.
+LL_HIP_RELIEF_X0 = D.SV_WID / 2 + D.FIT + 0.24      # 12.90: 0.24 clear of the case's fit
+LL_HIP_RELIEF_UP = 3.0
 # DEEP-FLEXION relief (2026-09-14, Tom: "we could probably bend the existing
-# knees further ... with slight modifications of the leg links"): the knee is
-# clear to 105 deg as drawn; from 110 to 130 the only contact is the SHIN's
-# rear-top corner in the idler tine band (web top + the idler grip plate's
-# outer skin, 16-33 mm below the knee axis) sweeping into the THIGH's idler
-# tine 8-32 mm above the axis. LL_FLEX_CUT is the outline (x, z in the link
-# frame) of what that tine sweeps through on the corner from 90 to 131 deg --
-# every pose nests inside 131's, 105 mm3, bounded below by a 40 deg and a
-# 24 deg edge -- offset 0.6 mm; its rear and top vertices sit outside the
-# part. Cut through the idler band only, it leaves the lower idler grip
-# screw's access bore 3.6 mm of wall. ~132 deg is the hard limit where the
-# shin's web and the knee servo case meet the thigh's web end full-width.
-# Same part serves the thigh, where the identical corner faces the pitch yoke
-# at hip extension (+90, already 0.7 mm clear -- removing material only helps).
+# knees further ... with slight modifications of the leg links"): past ~100
+# deg the only contact is the SHIN's rear-top corner in the idler tine band
+# (web top + the idler grip plate's outer skin, which sits 0.5 mm outboard of
+# the tine's inner face) sweeping into the THIGH's idler tine above the knee
+# axis. LL_FLEX_CUT is the outline (x, z in the link frame) of what that tine
+# sweeps through on the corner up to 131 deg, offset 0.6 mm; its rear and top
+# vertices sit outside the part. ~132 deg is the hard limit where the shin's
+# web and the knee servo case meet the thigh's web end full-width. Same part
+# serves the thigh, where the identical corner faces the pitch yoke at hip
+# extension (removing material only helps there).
 LL_FLEX_CUT = ((-16.16, -15.0), (-16.16, -29.0), (-8.1, -22.15), (8.1, -15.0))
+# KNEE POCKET: past 122 deg of knee flexion that shin corner, trimmed by
+# LL_FLEX_CUT as far as the lower idler grip screw allows, still sweeps into
+# the THIGH's idler slab, 20.7-31.0 mm above the knee axis and up to 3.9 mm
+# off the web face. The slab gives way there: a pocket the full slab depth (to
+# FORK_NARROW_X), 0.6 mm clear of the swept corner, with ends sloped
+# LL_KNEE_POCKET_RAMP (rise off the bed per mm along z: steeper than 45 deg)
+# so the web-down print bridges only its 6.6 mm roof. LL_KNEE_POCKET_Z is its
+# extent on the web face, mm above the lower axis.
+LL_KNEE_POCKET_Z = (20.0, 33.8)
+LL_KNEE_POCKET_RAMP = 1.3
 # The idler grip plate stops 5 mm above its screws' countersinks, square
 # across (Tom, 2026-10-06). Above the screws it is only the ~1 mm outer wall
 # over the idler-platform detent; LL_FLEX_CUT still trims its rear corner.
@@ -295,10 +289,10 @@ YOKE_FLEX_CHAMFER = 4.0
 # The fold limit after LL_FLEX_CUT is 131 deg: the two links' REAR faces
 # meet -- the shin's jog-block rear-top corner (x web_x0, z -33, r 36.6
 # about the knee) lands on the thigh's rear face 33 mm above the knee (the
-# web end, at both feet of its V; the horn slab's face in the horn band).
-# Two 45 deg corner chamfers buy the last 2 deg + buffer: the web end's
-# outer-bottom corner (its whole width) and the jog block's rear-top corner
-# (horn band only, y > the web's upper limit so the web is not notched).
+# web end; the horn slab's face in the horn band). Two 45 deg corner chamfers
+# buy the last 2 deg + buffer: the web end's outer-bottom corner (its whole
+# width) and the jog block's rear-top corner (horn band only, y > the web's
+# upper limit so the web is not notched).
 LL_FOLD_CHAMFER = 3.0
 # anchor classification for anyone porting v5's constants: UPPER-anchored
 # (unchanged): GRIP_*, jog -36.5..-33, cable window, rib/platform detents.
@@ -719,8 +713,8 @@ ARM_REST_ELBOW = -95.0      # deg (- = folded, the forearm swinging forward)
 ARM_REST = (ARM_REST_SHOULDER, ARM_REST_ELBOW)
 
 # --- the arm links --------------------------------------------------------
-# Section: an open C -- back web + two side rails, opening FORWARD (+x). Not a
-# closed box like leg_link_v6: this part prints on its back (model +X up, v5
+# Section: an open C -- back web + two side rails, opening FORWARD (+x), like
+# leg_link_v6 and for the same reason: it prints on its back (model +X up, v5
 # leg_link's proven "the filament runs the length of the leg" orientation, the
 # control case in cad/parts.py's yoke_roll comment), and in that orientation a
 # front plate is a flat ceiling spanning the full tine-to-tine width. The load

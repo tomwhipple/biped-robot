@@ -186,8 +186,10 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
 
 - **`leg_link_v6`** (×4, thigh = shin): the servo is the axle — a grip channel
   holds one servo's case, and a fork at the other end straddles the next
-  servo's horn and idler discs. Closed box section, 110 mm, relief cuts for
-  130° of knee flexion and for −120° of hip flexion.
+  servo's horn and idler discs. 110 mm, an open-front U (back web, two side
+  walls) with a wall between the sides at each end of the open span against
+  twist; it prints on its back. Relief cuts for 130° of knee flexion and for
+  −120° of hip flexion.
 - **`ankle_link`** (×2): grips the ankle-pitch servo and forks fore/aft onto the
   ankle-roll servo's discs.
 - **`foot_L` / `foot_R`**: the roll servo lies across the foot plate in a

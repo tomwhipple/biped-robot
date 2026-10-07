@@ -83,7 +83,7 @@ else:
     PARTS += [("yoke_roll", v5.yoke_roll, 2, "legacy split yoke (slicer supports)"),
               ("yoke_pitch_v6", _lazy("yoke_pitch_v6", "yoke_pitch_v6"), 2, "legacy split yoke (slicer supports)")]
 PARTS += [
-    ("leg_link_v6", _lazy("leg_link_v6", "leg_link_v6"), 4, "thigh + shin, 110 mm, box section"),
+    ("leg_link_v6", _lazy("leg_link_v6", "leg_link_v6"), 4, "thigh + shin, 110 mm, open U, end walls"),
     ("ankle_link", _lazy("ankle_link", "ankle_link"), 2, "pitch grip + X fork onto the roll servo"),
     ("foot_L", _lazy("foot_v6", "foot", "L"), 1, "asymmetric sole, mirrored pair"),
     ("foot_R", _lazy("foot_v6", "foot", "R"), 1, "asymmetric sole, mirrored pair"),

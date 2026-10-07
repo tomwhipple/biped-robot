@@ -42,7 +42,7 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `yaw_bearing_housing` | 1 | 24.5 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into the pelvis |
 | `yaw_carrier_v6` | 2 | 25.8 | 50 × 50 × 49 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø50.08, +0.08 mm) takes the bearing's inner race |
 | `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
-| `leg_link_v6` | 4 | 27.1 | 117 × 44 × 31 | standing on the lower fork end | no; brim recommended | thigh and shin are the same part |
+| `leg_link_v6` | 4 | 28.6 | 117 × 44 × 28 | on its back: web face on the bed | **yes**, build plate only: under the two round pad ends | thigh and shin are the same part |
 | `ankle_link` | 2 | 12.1 | 65 × 44 × 44 | on its back (model +X up) | **yes** (ceiling/island class) | grips the ankle-pitch servo, forks onto the ankle-roll servo |
 | `foot_L`, `foot_R` | 1 + 1 | 52.0 | 130 × 84 × 30 | sole down | no | a mirrored pair |
 | `sole_tpu_L`, `sole_tpu_R` | 1 + 1 | 23.2 | 130 × 84 × 2 | flat | no | **TPU 95A**; glued to the foot plate's underside |
@@ -70,8 +70,9 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
     arm plates start in mid-air.
   - The underside of the pitch horn arm is a support-interface face that clamps
     onto the horn disc. Check that it seats flat.
-- **`leg_link_v6`:** the brim is there because the round pads meet the bed on a
-  line.
+- **`leg_link_v6`:** the back web and both side walls sit on the bed. Only the
+  lower-rear quarter of each round pad end overhangs, 5 mm up; support it from
+  the plate. The knee pocket in the idler side wall prints with a 6.6 mm roof.
 - **`head_shell`:** the printability audit flags a ceiling at the dome seam. It
   is believed to be a boolean artifact; confirm in the slice preview.
 - **`neck_floor`:** a separate print because it hangs 5 mm below the girdle's
@@ -148,7 +149,7 @@ OrcaSlicer settings that work:
 | Threshold angle | 30° |
 | Top Z distance | **0.2 mm** (PETG welds to support at 0.1) |
 | Support/object XY distance | 0.35 mm |
-| Brim | outer only, **5 mm**, for tall narrow parts: `hip_yoke_v6`, and recommended for `leg_link_v6` |
+| Brim | outer only, **5 mm**, for tall narrow parts: `hip_yoke_v6` |
 
 - Put the supported parts on their own plate so the setting does not leak onto
   the others.

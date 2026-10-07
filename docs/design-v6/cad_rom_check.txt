@@ -76,14 +76,14 @@ hip_roll     hip_yoke_L             servo_hip_roll_L              0.00      0.00
 hip_roll     hip_yoke_L~seats       servo_hip_roll_L              0.00      0.58   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
 hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
 hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    37.5  ok   grip channel vs its own servo: seated, must not intersect
-hip_pitch    thigh_L                yaw_carrier_L                 0.00     13.90  -120.0  ok   thigh top vs the carrier at deep flexion
-hip_pitch    thigh_L                pelvis_v7                     0.00     51.35  -120.0  ok   thigh vs the housing at deep flexion
-hip_pitch    thigh_L                servo_hip_roll_L              0.00      8.94  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
-knee         shin_L                 thigh_L                       0.00      0.60   130.0  ok   shin grip plates vs the thigh fork; shin case vs the thigh box
-knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's box (r 16 rule)
+hip_pitch    thigh_L                yaw_carrier_L                 0.00     17.60  -120.0  ok   thigh top vs the carrier at deep flexion
+hip_pitch    thigh_L                pelvis_v7                     0.00     55.41  -120.0  ok   thigh vs the housing at deep flexion
+hip_pitch    thigh_L                servo_hip_roll_L              0.00     13.01  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
+knee         shin_L                 thigh_L                       0.00      0.58   130.0  ok   shin grip plates vs the thigh fork; shin vs the thigh's end walls and pocket
+knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's bottom end wall (r 16 rule)
 ankle_pitch  ankle_link_L           shin_L                        0.00      0.70   -40.0  ok   ankle link grip plates vs the shin fork (0.7 mm)
-ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin box
-ankle_pitch  foot_L                 shin_L                        0.00     37.29    20.0  ok   foot tabs / cradle vs the shin tines at +-40
+ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin's fork and bottom end wall
+ankle_pitch  foot_L                 shin_L                        0.00     35.19    40.0  ok   foot tabs / cradle vs the shin tines at +-40
 ankle_roll   foot_L                 ankle_link_L                  0.43      0.00    25.0  ok   foot tabs vs the ankle link tines (0.7 mm), sole vs the web
 ankle_roll   servo_ankle_roll_L     ankle_link_L                  0.00      0.00   -25.0  ok   THE 54 mm pair: roll servo case sweep under the link
 ankle_roll   servo_ankle_roll_L     servo_ankle_pitch_L           0.00      1.05    25.0  ok   roll case vs the pitch servo hanging above it
@@ -105,9 +105,9 @@ hip_roll     servo_hip_pitch_L      yaw_bearing_housing           0.00     44.86
 hip_roll     thigh_L                bearing_inner_L               0.00     59.49    55.0  ok   thigh at full roll vs the inner race
 hip_roll     thigh_L                bearing_outer_L               0.00     57.21    55.0  ok   thigh at full roll vs the outer race
 hip_roll     thigh_L                yaw_bearing_housing           0.00     55.60    55.0  ok   thigh at full roll vs the housing
-hip_pitch    thigh_L                bearing_inner_L               0.00     46.59  -120.0  ok   thigh at deep flexion vs the inner race
-hip_pitch    thigh_L                bearing_outer_L               0.00     44.08  -120.0  ok   thigh at deep flexion vs the outer race
-hip_pitch    thigh_L                yaw_bearing_housing           0.00     42.21  -120.0  ok   thigh at deep flexion vs the housing
+hip_pitch    thigh_L                bearing_inner_L               0.00     50.98  -120.0  ok   thigh at deep flexion vs the inner race
+hip_pitch    thigh_L                bearing_outer_L               0.00     48.08  -120.0  ok   thigh at deep flexion vs the outer race
+hip_pitch    thigh_L                yaw_bearing_housing           0.00     46.12  -120.0  ok   thigh at deep flexion vs the housing
 shoulder     arm_upper_L            pelvis_v7                     0.00     39.89   -17.5  ok   upper arm vs the torso through the whole sweep, hanging
 shoulder     arm_upper_L            head                          0.00     70.65   -17.5  ok   upper arm vs the head at the fold-up (shoulder 180)
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the neck tube at the fold-up (shoulder 180)
@@ -122,7 +122,7 @@ elbow        arm_fore_L             arm_upper_L                   0.00      0.70
 elbow        arm_fore_L             servo_elbow_L                 0.00      0.00  -100.0  ok   forearm grip channel on its own servo: seated, must not intersect
 elbow        servo_elbow_L          arm_upper_L                   0.00      0.00  -100.0  ok   elbow servo discs on the fork tines: seated, must not intersect
 hip_pitch    thigh_L                arm_fore_L                    0.00     23.70  -120.0  ok   THE WALK ROW: thigh swept against the hanging forearm
-hip_pitch    thigh_L                arm_upper_L                   0.00     20.53  -120.0  ok   thigh swept against the hanging upper arm / elbow fork
+hip_pitch    thigh_L                arm_upper_L                   0.00     20.45  -120.0  ok   thigh swept against the hanging upper arm / elbow fork
 hip_pitch    servo_hip_pitch_L      arm_fore_L                    0.00     23.00  -120.0  ok   hip pitch servo case vs the hanging forearm
 knee         shin_L                 arm_fore_L                    0.00     29.90    17.5  ok   shin swept against the hanging forearm (the plant's own contact pair)
 knee         servo_knee_L           arm_fore_L                    0.00     32.90   -95.0  ok   knee servo case vs the hanging forearm
@@ -137,13 +137,13 @@ hip_roll     servo_hip_pitch_L      servo_elbow_L                 0.00     15.33
 hip_roll     servo_hip_pitch_L      arm_fore_L                    0.00     35.06    55.0  ok   hip roll: pitch servo vs the forearm, arms at rest (folded)
 hip_roll     thigh_L                arm_upper_L                   0.00     10.78    55.0  ok   hip roll: thigh vs the upper arm, arms at rest (folded)
 hip_roll     thigh_L                servo_elbow_L                 0.00     14.81    55.0  ok   hip roll: thigh vs the elbow servo, arms at rest (folded)
-hip_roll     thigh_L                arm_fore_L                    0.00     32.99    55.0  ok   hip roll: thigh vs the forearm, arms at rest (folded)
+hip_roll     thigh_L                arm_fore_L                    0.00     33.01    55.0  ok   hip roll: thigh vs the forearm, arms at rest (folded)
 hip_pitch    thigh_L                arm_upper_L                   0.00     17.50  -120.0  ok   hip pitch: thigh vs the upper arm, arms at rest (folded)
 hip_pitch    thigh_L                servo_elbow_L                 0.00     20.55  -120.0  ok   hip pitch: thigh vs the elbow servo, arms at rest (folded)
 hip_pitch    thigh_L                arm_fore_L                    0.00     20.00  -120.0  ok   hip pitch: thigh vs the forearm, arms at rest (folded)
 hip_pitch    servo_hip_pitch_L      arm_fore_L                    0.00     39.19  -120.0  ok   hip pitch: pitch servo vs the forearm, arms at rest (folded)
 knee         shin_L                 servo_elbow_L                 0.00    106.86   130.0  ok   knee: shin vs the elbow servo, arms at rest (folded)
-knee         shin_L                 arm_fore_L                    0.00    112.70   -95.0  ok   knee: shin vs the forearm, arms at rest (folded)
+knee         shin_L                 arm_fore_L                    0.00    115.81   -95.0  ok   knee: shin vs the forearm, arms at rest (folded)
 knee         servo_knee_L           arm_fore_L                    0.00    122.64   -95.0  ok   knee: knee servo vs the forearm, arms at rest (folded)
 ankle_pitch  ankle_link_L           arm_fore_L                    0.00    241.62   -40.0  ok   ankle pitch: ankle link vs the forearm, arms at rest (folded)
 hip_yaw      yaw_carrier_L          arm_fore_L                    0.00     41.38   -45.0  ok   hip yaw swings the carrier toward the arm plane
@@ -192,7 +192,7 @@ interleg     foot_L                 foot_R                        0.00     13.67
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (187 s)
+=> ALL CLEAR  (622 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -271,14 +271,14 @@ hip_roll     hip_yoke_L             servo_hip_roll_L              0.00      0.00
 hip_roll     hip_yoke_L~seats       servo_hip_roll_L              0.00      0.58   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
 hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
 hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    37.5  ok   grip channel vs its own servo: seated, must not intersect
-hip_pitch    thigh_L                yaw_carrier_L                 0.00     13.90  -120.0  ok   thigh top vs the carrier at deep flexion
-hip_pitch    thigh_L                pelvis_v7                     0.00     51.35  -120.0  ok   thigh vs the housing at deep flexion
-hip_pitch    thigh_L                servo_hip_roll_L              0.00      8.94  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
-knee         shin_L                 thigh_L                       0.00      0.60   130.0  ok   shin grip plates vs the thigh fork; shin case vs the thigh box
-knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's box (r 16 rule)
+hip_pitch    thigh_L                yaw_carrier_L                 0.00     17.60  -120.0  ok   thigh top vs the carrier at deep flexion
+hip_pitch    thigh_L                pelvis_v7                     0.00     55.41  -120.0  ok   thigh vs the housing at deep flexion
+hip_pitch    thigh_L                servo_hip_roll_L              0.00     13.01  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
+knee         shin_L                 thigh_L                       0.00      0.58   130.0  ok   shin grip plates vs the thigh fork; shin vs the thigh's end walls and pocket
+knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's bottom end wall (r 16 rule)
 ankle_pitch  ankle_link_L           shin_L                        0.00      0.70   -40.0  ok   ankle link grip plates vs the shin fork (0.7 mm)
-ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin box
-ankle_pitch  foot_L                 shin_L                        0.00     37.29    20.0  ok   foot tabs / cradle vs the shin tines at +-40
+ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin's fork and bottom end wall
+ankle_pitch  foot_L                 shin_L                        0.00     35.19    40.0  ok   foot tabs / cradle vs the shin tines at +-40
 ankle_roll   foot_L                 ankle_link_L                  0.43      0.00    25.0  ok   foot tabs vs the ankle link tines (0.7 mm), sole vs the web
 ankle_roll   servo_ankle_roll_L     ankle_link_L                  0.00      0.00   -25.0  ok   THE 54 mm pair: roll servo case sweep under the link
 ankle_roll   servo_ankle_roll_L     servo_ankle_pitch_L           0.00      1.05    25.0  ok   roll case vs the pitch servo hanging above it
@@ -300,9 +300,9 @@ hip_roll     servo_hip_pitch_L      yaw_bearing_housing           0.00     44.86
 hip_roll     thigh_L                bearing_inner_L               0.00     59.49    55.0  ok   thigh at full roll vs the inner race
 hip_roll     thigh_L                bearing_outer_L               0.00     57.21    55.0  ok   thigh at full roll vs the outer race
 hip_roll     thigh_L                yaw_bearing_housing           0.00     55.60    55.0  ok   thigh at full roll vs the housing
-hip_pitch    thigh_L                bearing_inner_L               0.00     46.59  -120.0  ok   thigh at deep flexion vs the inner race
-hip_pitch    thigh_L                bearing_outer_L               0.00     44.08  -120.0  ok   thigh at deep flexion vs the outer race
-hip_pitch    thigh_L                yaw_bearing_housing           0.00     42.21  -120.0  ok   thigh at deep flexion vs the housing
+hip_pitch    thigh_L                bearing_inner_L               0.00     50.98  -120.0  ok   thigh at deep flexion vs the inner race
+hip_pitch    thigh_L                bearing_outer_L               0.00     48.08  -120.0  ok   thigh at deep flexion vs the outer race
+hip_pitch    thigh_L                yaw_bearing_housing           0.00     46.12  -120.0  ok   thigh at deep flexion vs the housing
 discscrew    leg_link_v6            horn_pad                 4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    leg_link_v6            idler_pad                4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    ankle_link             tine_horn                4 x M3x5  stack 3.00  engages 1.60  ok
@@ -341,7 +341,7 @@ interleg     foot_L                 foot_R                        0.00     13.67
 interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (140 s)
+=> ALL CLEAR  (374 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================

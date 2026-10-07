@@ -1,49 +1,49 @@
 """Thigh / shin link, v6 (qty 4, same part serves both -- see cad/parts.py's
-leg_link, of which this is a lightly-modified copy). Local frame: upper joint
-axis == Y axis at the origin (the gripped servo's horn axis); the servo hangs
-below; +X = robot forward; the lower fork grips the NEXT servo's horn (+Y) /
-idler (-Y) at z = -V.LL_DROP (110, not v5's 90).
+leg_link, of which this is a modified copy). Local frame: upper joint axis ==
+Y axis at the origin (the gripped servo's horn axis); the servo hangs below;
++X = robot forward; the lower fork grips the NEXT servo's horn (+Y) / idler
+(-Y) at z = -V.LL_DROP (110, not v5's 90).
 
-Two changes from v5's leg_link():
+The section is v5's open-front U: a back web and two side walls (the grip
+plates up top, the fork tines below), nothing across the front. What v6
+changes:
 
-1. LINK_DROP 90 -> 110 (V.LL_DROP / V.LINK_DROP -- thigh and shank both grew
-   to 110 mm, docs/design-v6/2026-09-13-design-record.md section 2). Every constant that is
-   anchored to the LOWER joint axis moves down with it (see the shift table
-   below); everything anchored to the UPPER (gripped) servo -- the whole grip
-   channel, jog blocks, cable window, rib/platform detents -- is untouched,
-   copied byte-for-byte from cad/parts.py::leg_link().
+1. LINK_DROP 90 -> 110 (V.LL_DROP -- thigh and shank both grew to 110 mm,
+   docs/design-v6/2026-09-13-design-record.md section 2). Every constant
+   anchored to the LOWER joint axis moves down with it (shift table below);
+   everything anchored to the UPPER (gripped) servo -- grip channel, jog
+   blocks, cable window, rib/platform detents -- is v5's.
 
-2. The open U section (back web + two fork tines, nothing across the front)
-   is closed into a box for ~56 mm of the length (V.LL_BOX_TOP..LL_BOX_BOT):
-   a front plate at V.LL_FRONT_X spans tine to tine, and the tines' front
-   edge grows out to meet it. This is what stops the link racking as a
-   parallelogram under lateral load -- the failure mode a plain open U has no
-   resistance to.
+2. END WALLS. An open U twists about its web; two walls tie the side walls
+   together, one at each end of the open span. Each is a plate in the X-Y
+   plane, web to the tines' front edge, tine to tine:
+   - the TOP wall (V.LL_TOP_WALL_Z) just below the cable window, where v5's
+     single cross brace sat, so the servo lead still leaves through the web;
+   - the BOTTOM wall (V.LL_BOT_WALL_Z) where the web ends and the fork
+     begins. It cannot sit lower: at deep knee flexion the shin's web swings
+     up inside the thigh's fork as far as ~33 mm above the knee axis, all the
+     way across the channel.
+   Rooted on the web, both print as walls rising off the bed.
 
-PRINT ORIENTATION: standing on the lower fork end (pads down), not v5's
-web-down. The new front plate is a wall whose broad face is normal to X; in
-v5's web-down orientation (RY_XUP, print-up = model +X) that face is a
-horizontal ceiling spanning the full ~42 mm tine-to-tine width -- self
--supporting only as a full 45 deg tent, which (worked through below) costs
-~25 g of plastic on its own, well past the whole part's mass budget. Standing
-the part on the lower fork end instead makes X and Y both horizontal print
-axes and Z (the joint-to-joint axis) vertical: the front plate becomes a
-plain vertical wall (no bridge at all), and the fork pads -- previously
-floating 4.7 mm off the bed and needing break-away fins -- are now the first
-layer. The trade is that every horizontal-bore teardrop needs its `roll`
-re-aimed at the new print-up direction (model +Z, so roll=0 instead of v5's
-roll=90); the byte-identical grip-channel geometry (positions, sizes) is
-untouched, only that print-support parameter changes. print_fins is kept in
-the signature for API parity with v5's leg_link but is a no-op here: nothing
-in this orientation floats unsupported (see audit_leg_link.py).
+3. Side walls without needless cuts. v5's 16 mm window in the idler side
+   wall (a clearance for a v5 foot wall) is now LL_KNEE_POCKET: only where
+   the shin's corner passes at deep knee flexion, with sloped ends so it
+   prints with a 6.6 mm roof. v5's knee-hyperextension chamfer on that wall and
+   its rear corner chamfer beside the pads are gone: nothing sweeps them. The
+   relief cuts for deep knee flexion (LL_FLEX_CUT, LL_FOLD_CHAMFER) and hip
+   flexion (LL_HIP_RELIEF_X0) are sized against this geometry.
 
-Anchor shift table (LINK_DROP 90 -> 110, i.e. lower-anchored positions move
-another 20 mm from the upper axis): v5's -92 (slab backing top) -> SLAB_TOP
--112; -70 (fork-wide/slab-mid boundary) -> SLAB_MID_TOP -90; -54 (idler slab
-top) -> SLAB_IDLER_TOP -74; FORK_WIDE_Z -50 -> -70; WEB_END -58 -> V.LL_WEB_END
--78 (already computed in dimensions_v6.py by the same "32 above the lower
-axis" rule). v5's cross BRACE_Z (-54..-50) is DELETED -- superseded by the
-new box, which stiffens far more of the length far more thoroughly.
+4. The idler grip plate stops square 5 mm above its screws
+   (V.LL_IDLER_PLATE_TOP).
+
+PRINT ORIENTATION: on its back, web face on the bed (v5's, RY_XUP: print-up =
+model +X). The web, both side walls and both end walls are walls rising off
+the bed; nothing spans the open front. Horizontal bores are teardropped
+toward +X (roll 90). The fork's round pad ends sit a few mm above the bed past
+the slab: the slicer supports them (build plate only), nothing is modelled.
+
+Anchor shift table (LINK_DROP 90 -> 110): v5's -92 (slab backing top) ->
+SLAB_TOP -112; FORK_WIDE_Z -50 -> -70; WEB_END -58 -> V.LL_WEB_END -78.
 """
 import math
 import os
@@ -53,7 +53,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
 
-from build123d import (Pos, Rot, Cone, Axis, export_step, export_stl)
+from build123d import (Pos, Rot, Cone, export_step, export_stl)
 import dimensions_v6 as V  # noqa: E402
 D = V.D
 import parts  # noqa: E402  (v5 helpers: box/cyl_*/teardrop_*/wedge_*/csk_*/bcd_*)
@@ -63,22 +63,17 @@ OUT_STL = os.path.join(HERE, "stl")
 OUT_STEP = os.path.join(HERE, "step")
 OUT_REN = os.path.join(HERE, "renders")
 
-# print orientation: standing on the lower fork end. No rotation from the
-# design frame is needed -- model Z already runs from the very negative fork
-# pads (bottom) up to the near-zero grip plate (top), and check_printability's
-# audit() shifts every part so its own minimum sits at print z = 0. Kept as an
-# explicit 3x3 (like check_printability.ORIENT/IDENT) so a caller doesn't have
-# to know that "no rotation" is the deliberate choice, not an oversight.
-PRINT_ORIENT = ((1.0, 0.0, 0.0),
+# print orientation: on its back, web face down (check_printability.RY_XUP,
+# model +X -> print +Z), kept here as the explicit 3x3.
+PRINT_ORIENT = ((0.0, 0.0, -1.0),
                 (0.0, 1.0, 0.0),
-                (0.0, 0.0, 1.0))
+                (1.0, 0.0, 0.0))
 
-# --- print-up direction for this orientation (model +Z) drives every
-# horizontal-bore `roll`. teardrop_y's roll=0 means "peak toward +z" -- which
-# is exactly print-up here (v5's leg_link uses roll=90, peak +x, because ITS
-# print-up is model +x). Named so the intent reads at each call site instead
-# of a bare 0.
-ROLL_UP = 0
+# teardrop_y's roll toward print-up: 90 = model +X.
+ROLL_UP = 90
+
+# jog blocks (v5, upper-anchored): the grip plates step out to the fork tines here
+JOG_Z = (-36.5, -33.0)
 
 
 def _seg_dist(p, a, b):
@@ -91,28 +86,21 @@ def _seg_dist(p, a, b):
 
 def leg_link_v6(print_fins=False):
     """Thigh / shin link v6 (same part, qty 4). See module docstring.
-    print_fins: accepted for API parity with v5's leg_link; a no-op here --
-    printed standing on the lower fork end, the pads ARE the first layer and
-    nothing else floats (audit_leg_link.py confirms no ISLAND/LEDGE finding).
+    print_fins: accepted for API parity with v5's leg_link; a no-op -- the
+    pad ends are left to the slicer's supports.
     """
     t = D.GRIP_PLATE_T
     drop = -V.LL_DROP                                # -110, the lower axis
     web_x1 = -12.36 - D.WEB_GAP                      # web inner face (cable gap)
     web_x0 = web_x1 - 2.4                            # web outer face, -15.16
     hy0, hy1 = D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE          # 20.45..23.45
-    iy1, iy0 = D.IDLER_ARM_INNER, D.IDLER_ARM_INNER - D.PLATE    # -18..-21
-    # anchor-shift locals (see module docstring's shift table). Written as
-    # offsets from `drop` rather than retyped literals, so the formula (not
-    # just the v6 number) is checkable against v5's -axis+K pattern.
+    iy1, iy0 = D.IDLER_ARM_INNER, D.IDLER_ARM_INNER - D.PLATE    # -17.4..-20.4
     FORK_WIDE_Z = drop + 40         # v5: axis+40 (was -50 at drop=-90)
     SLAB_TOP = drop - 2             # v5: axis-2  (was -92)
-    SLAB_MID_TOP = drop + 20        # v5: axis+20 (was -70)
-    SLAB_IDLER_TOP = drop + 36      # v5: axis+36 (was -54)
 
     # --- grip channel on the servo case (v5's leg_link but for the idler
-    # plate's top, V.LL_IDLER_PLATE_TOP: square, 5 mm above its screws;
-    # everything here is anchored to the UPPER (gripped) servo, not the lower
-    # axis, so LINK_DROP does not touch it). Plates reach the web outer face.
+    # plate's top, V.LL_IDLER_PLATE_TOP: square, 5 mm above its screws).
+    # Plates reach the web outer face.
     grip_x1 = 13.2
     p = parts.box(web_x0, grip_x1, D.SV_TOPFACE, D.SV_TOPFACE + t,
                   D.GRIP_BOT, D.GRIP_TOP_HORN)
@@ -120,110 +108,28 @@ def leg_link_v6(print_fins=False):
     idler_seat = D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR          # -14.90
     _igo = idler_seat - D.GRIP_PLATE_T_IDLER                     # -17.90 outer
     p += parts.box(web_x0, grip_x1, _igo, idler_seat, D.GRIP_BOT, V.LL_IDLER_PLATE_TOP)
-    # web: WEB_END is one of the LOWER-anchored shifts (v5 -58 -> V.LL_WEB_END
-    # -78, see the module docstring's shift table), so unlike the grip
-    # channel this edge is not byte-identical and is free to change shape.
-    # Printed standing, the web's bottom face (z = LL_WEB_END) is a down-
-    # facing overhang wherever nothing is under it. It has a tine under each
-    # end -- the idler tine (iy0..iy1) and, past the web's own upper y limit,
-    # the horn fork arm (wide band from _web_y1, horn slab from hy0, both down
-    # past LL_WEB_END) -- and only the open insertion channel between them.
-    # So it is the front plate's V: flat at LL_WEB_END over each tine, a
-    # LL_WEB_RAMP rise-over-run ramp from each up to a ridge at mid-span. The
-    # horn foot runs on to hy0 below FORK_WIDE_Z so the web lands on the slab.
-    # The web stays a full back wall down to the ridge, so the box is a closed
-    # section there, and the cable window and holes keep >= 1 mm of wall.
+
+    # --- web, WEB_TOP down to LL_WEB_END, straight across. Its horn end runs
+    # on to hy0 below FORK_WIDE_Z, closing the 0.7 slot to the horn slab.
     _web_y1 = D.SV_TOPFACE + t
-    _web_mid = (iy1 + hy0) / 2
-    _web_ridge = V.LL_WEB_END + (_web_mid - iy1) * V.LL_WEB_RAMP
-    p += parts.wedge_x([(iy0, D.WEB_TOP), (iy0, V.LL_WEB_END), (iy1, V.LL_WEB_END),
-                        (_web_mid, _web_ridge), (hy0, V.LL_WEB_END), (hy0, FORK_WIDE_Z),
-                        (_web_y1, FORK_WIDE_Z), (_web_y1, D.WEB_TOP)],
+    p += parts.wedge_x([(iy0, D.WEB_TOP), (iy0, V.LL_WEB_END), (hy0, V.LL_WEB_END),
+                        (hy0, FORK_WIDE_Z), (_web_y1, FORK_WIDE_Z), (_web_y1, D.WEB_TOP)],
                        web_x0, web_x1)
-    _ramp_n = math.hypot(1.0, V.LL_WEB_RAMP)
-    for _ly, _lz, _lr in ((9.0, -40.0, 2.25), (-9.0, -40.0, 2.25),
-                          (4.5, V.LL_CABLE_WINDOW_Z[0], 0.0), (-4.5, V.LL_CABLE_WINDOW_Z[0], 0.0)):
-        _ramp_z = V.LL_WEB_END + (min(_ly - iy1, hy0 - _ly)) * V.LL_WEB_RAMP
-        assert (_lz - _ramp_z) / _ramp_n - _lr >= 1.0, \
-            f"web V leaves < 1 mm under the cable hole/window at y {_ly}"
 
-    # --- NEW: close the U into a box. Front plate spans tine to tine
-    # (iy0..hy1) at V.LL_FRONT_X, from the box top (just under the jog
-    # blocks) to the box bottom (1.5 mm clear of the next servo's case-top
-    # sweep, r 16 about the lower axis -- see check_r16 below). The tines'
-    # own front edge (x=12, v5's fork-arm bound) is grown out to meet the
-    # plate's outer face so the section is a true closed tube wherever the
-    # web still exists (LL_BOX_TOP..LL_WEB_END) and a stiff 3-sided C (front
-    # + 2 sides, backed by the solid slab fill behind it) below that, where
-    # the web has already ended.
-    #
-    # Printed standing, this box is a set of plain VERTICAL walls (fine on
-    # their own -- each layer sits on the one below) EXCEPT at its own
-    # bottom edge, which starts fresh partway up the print (V.LL_BOX_BOT is
-    # ~27.5 mm above the bed) with nothing under it: the side walls' extra
-    # width (x 12..LL_FRONT_X[1]) has no material below outside the tine's
-    # own x<=12 footprint, and the front plate's middle span (over the open
-    # insertion channel, y iy1..hy0) has NO tine there at any height to land
-    # on. Both are tapered self-supporting (45 deg, run==rise, the same rule
-    # the idler-boss taper already uses in this file) instead of presenting
-    # a flat floating cap: the side walls grow from the existing x=12 tine
-    # edge up to full width over a short run, and the front plate's bottom
-    # boundary is an ARCH -- flat at LL_BOX_BOT where a tine is directly
-    # behind it (y in [iy0,iy1] / [hy0,hy1]), rising to a ridge at mid-span
-    # over the open channel (y in [iy1,hy0]) where nothing is ever behind it.
-    # 1.3x rise-over-run margin (~37 deg from vertical, not a knife-edge 45):
-    # an exact 45 deg ramp sits right on check_printability's COS45 boundary
-    # and tessellation/round-off pushed a few facets a hair past it (found
-    # by audit_leg_link.py -- 4 tiny ~4-5 mm2 ISLAND slivers at the ramp
-    # feet). Comfortably under 45 costs a little more box depth, nothing
-    # else.
-    _margin = 1.6
-    _sw_rise = (V.LL_FRONT_X[1] - 12.0) * _margin          # side-wall taper rise
-    for a0, a1 in ((hy0, hy1), (iy0, iy1)):
-        p += parts.wedge_y([(12.0, V.LL_BOX_BOT), (V.LL_FRONT_X[1], V.LL_BOX_BOT + _sw_rise),
-                            (V.LL_FRONT_X[1], V.LL_BOX_TOP), (12.0, V.LL_BOX_TOP)],
-                           a0, a1)
-    _fp_mid = (iy1 + hy0) / 2
-    _fp_peak = V.LL_BOX_BOT + (hy0 - iy1) / 2 * _margin    # ridge, margin
-    p += parts.wedge_x([(iy0, V.LL_BOX_TOP), (iy0, V.LL_BOX_BOT), (iy1, V.LL_BOX_BOT),
-                        (_fp_mid, _fp_peak), (hy0, V.LL_BOX_BOT), (hy1, V.LL_BOX_BOT),
-                        (hy1, V.LL_BOX_TOP)],
-                       V.LL_FRONT_X[0], V.LL_FRONT_X[1])
-
-    # --- fork arms down to the next servo (wide near the web, narrow below).
+    # --- fork arms down to the next servo (wide near the web, narrow below),
+    # and the slab backing that makes each side wall solid to the web face.
     for a0, a1, wide0 in ((hy0, hy1, D.SV_TOPFACE + t), (iy0, iy1, iy0)):
-        p += parts.box(web_x0, 12, wide0, a1, FORK_WIDE_Z, -33)
+        p += parts.box(web_x0, 12, wide0, a1, FORK_WIDE_Z, JOG_Z[1])
         p += parts.box(D.FORK_NARROW_X, 12, a0, a1, drop, FORK_WIDE_Z)
         p += parts.cyl_y(D.PAD_D / 2, a0, a1, 0, drop)
-    # NOTE (jog-block backing, tried and reverted): the jog blocks (BYTE
-    # IDENTICAL, below) sit slightly wider in y than the "wide" fork band
-    # above them (horn: SV_TOPFACE..SV_TOPFACE+t vs the fork's SV_TOPFACE+t
-    # ..hy1; idler: iy1..idler_seat vs the fork's iy0..iy1) -- a 2.4-2.5 mm x
-    # 24.8-27 mm strip that was a plain SIDE wall in v5's web-down print and
-    # reads as a down-facing overhang standing up. Nothing (slab/narrow-fork/
-    # web) backs it anywhere below at this x,y, at any depth, so no fill of
-    # any height fixes it -- it only relocates the same-width overhang to a
-    # new z. Left as v5 drew it and reported below as a residual: an
-    # end-anchored ~25 mm x 2.4 mm rib, 5 mm past the BEAM_OK guideline
-    # (which is itself conservative for a rib this narrow).
-    # --- permanent slab backing (v5 "make it solid" rule; anchor-shifted).
-    p += parts.box(web_x0, D.FORK_NARROW_X, hy0, hy1, SLAB_TOP, FORK_WIDE_Z)
-    p += parts.box(web_x0, D.FORK_NARROW_X, iy0, iy1, SLAB_IDLER_TOP, FORK_WIDE_Z)
-    p += parts.box(web_x0, D.FORK_NARROW_X, iy0, iy1, SLAB_TOP, SLAB_MID_TOP)
-    # KNEE ROM FIX (found by cad/v6/check_assembly_v6.py --joint knee, this
-    # part gripping itself as thigh+shin): at knee +95 deg (hyperextension)
-    # the SHIN's arched web (its outer-top corner, near WEB_TOP -16, y in the
-    # idler tine band) swings down into the THIGH's own idler slab right at
-    # ITS outer-top corner (x = web_x0, z near SLAB_MID_TOP) -- 3.48 mm3
-    # overlap, 0 mm clearance where v5's leg_link (90 mm drop, same relative
-    # geometry) had 0.5 mm to spare. Not a grip-channel/pad feature -- a
-    # corner of the slab fill added above -- so it is the one to cut back.
-    # Chamfered (not squared off) to remove the least material: a triangular
-    # wedge off the slab's outer-top corner, sized (search, see the module's
-    # commit note) so BOTH +-95 clear by the full 0.7 mm the un-clipped pair
-    # already had at -95 (SWEEP_BUFFER only requires 0.5).
-    p -= parts.wedge_y([(web_x0 - 1, SLAB_MID_TOP + 1), (web_x0 - 1, SLAB_MID_TOP - 17),
-                        (web_x0 + 4.5, SLAB_MID_TOP + 1)], iy0 - 1, iy1 + 1)
+        p += parts.box(web_x0, D.FORK_NARROW_X, a0, a1, SLAB_TOP, FORK_WIDE_Z)
+
+    # --- END WALLS (V.LL_TOP_WALL_Z, V.LL_BOT_WALL_Z): web outer face to the
+    # tines' front edge, from the idler tine's inner face to the horn tine's
+    # (hy0: below FORK_WIDE_Z the horn tine starts there, not at _web_y1).
+    for z0, z1 in (V.LL_TOP_WALL_Z, V.LL_BOT_WALL_Z):
+        p += parts.box(web_x0, 12, iy1 - 0.01, hy0 + 0.01, z0, z1)
+
     # DEEP-FLEXION RELIEF (V.LL_FLEX_CUT, see dimensions_v6): the polygon
     # (x, z) cut through the idler tine band only (y iy0..iy1, plus the 0.6
     # mm the thigh's idler-boss taper protrudes past the tine face). It is the
@@ -231,37 +137,43 @@ def leg_link_v6(print_fins=False):
     # deg of knee flexion, plus 0.6 mm -- no more -- so the lower idler grip
     # screw's access bore keeps >= 1 mm of wall (asserted below).
     # NOTE on signs: assembly +knee = human flexion (shin swings BACK); the
-    # sim's knee axis is -Y so that is sim -130. The "+95 (hyperextension)"
-    # label on the wedge above is the same corner in the same direction.
-    p -= parts.wedge_y(list(V.LL_FLEX_CUT), iy0 - 1, iy1 + 0.6)
-    _fc = list(V.LL_FLEX_CUT)
-    _cs = (-D.CASE_HOLE_LAT, -D.CASE_HOLES_BOT[1])
-    _cs_wall = min(_seg_dist(_cs, a, b) for a, b in zip(_fc, _fc[1:] + _fc[:1])) - (D.CASE_CS_D / 2 + 0.4)
-    assert _cs_wall >= 1.0, f"LL_FLEX_CUT leaves {_cs_wall:.2f} mm to the idler grip screw's access bore"
-    # FOLD CHAMFERS (V.LL_FOLD_CHAMFER): the last 2 deg to 130 -- the web
-    # end's outer-bottom corner and the jog block's rear-top corner (horn
-    # tine band only, above the web's y limit _web_y1).
+    # sim's knee axis is -Y so that is sim -130.
+    if V.LL_FLEX_CUT:
+        p -= parts.wedge_y(list(V.LL_FLEX_CUT), iy0 - 1, iy1 + 0.6)
+        _fc = list(V.LL_FLEX_CUT)
+        _cs = (-D.CASE_HOLE_LAT, -D.CASE_HOLES_BOT[1])
+        _cs_wall = min(_seg_dist(_cs, a, b) for a, b in zip(_fc, _fc[1:] + _fc[:1])) - (D.CASE_CS_D / 2 + 0.4)
+        assert _cs_wall >= 1.0, f"LL_FLEX_CUT leaves {_cs_wall:.2f} mm to the idler grip screw's access bore"
+    # KNEE POCKET (V.LL_KNEE_POCKET_Z): where the shin's corner passes the
+    # idler slab at deep flexion. Full slab depth; its ends slope
+    # LL_KNEE_POCKET_RAMP so the web-down print bridges only the roof.
+    _kz0, _kz1 = drop + V.LL_KNEE_POCKET_Z[0], drop + V.LL_KNEE_POCKET_Z[1]
+    _kh = D.FORK_NARROW_X - web_x0
+    _kr = V.LL_KNEE_POCKET_RAMP
+    p -= parts.wedge_y([(web_x0 - 1, _kz0 - 1 / _kr), (web_x0 - 1, _kz1 + 1 / _kr),
+                        (D.FORK_NARROW_X, _kz1 - _kh / _kr), (D.FORK_NARROW_X, _kz0 + _kh / _kr)],
+                       iy0 - 1, iy1)
+    # FOLD CHAMFERS (V.LL_FOLD_CHAMFER): the web end's outer-bottom corner
+    # across its whole width (the shin's rear face lands on it at 131 deg) and
+    # the horn jog block's rear-top corner (applied after the block, below).
     _c = V.LL_FOLD_CHAMFER
-    # (y range: the web end's whole width -- both feet of its V sit at
-    # LL_WEB_END, and the shin's rear face lands on each at 131 deg)
     p -= parts.wedge_y([(web_x0 - 1, V.LL_WEB_END - 1), (web_x0 - 1, V.LL_WEB_END + _c),
                         (web_x0 + _c, V.LL_WEB_END - 1)], iy0 - 1, hy0 - 0.01)
-    # (the jog-block corner chamfer is applied AFTER the jog blocks, below)
-    # idler boss: OD tapered (45 deg run==rise) so the print-underside band
-    # never exceeds 45 deg. Unchanged formula -- moves with `drop` for free.
+    # idler boss: OD tapered (45 deg run==rise) so its print-underside band
+    # never exceeds 45 deg.
     _ibh = abs(D.IDLER_BOSS_H)
     p += Pos(0, (D.SV_IDLER_FACE + iy1) / 2, drop) * Rot(90, 0, 0) * Cone(
         D.IDLER_BOSS_D / 2 - _ibh, D.IDLER_BOSS_D / 2, _ibh)
 
-    # --- jog blocks (BYTE IDENTICAL, upper-anchored)
-    p += parts.box(web_x0, 12, D.SV_TOPFACE, hy1, -36.5, -33)
-    p += parts.box(web_x0, 12, iy0, idler_seat, -36.5, -33)
-    # FOLD CHAMFER 2 (V.LL_FOLD_CHAMFER, see above): the horn-side jog block's
-    # rear-top corner, horn tine band only (must come after the block is added)
-    p -= parts.wedge_y([(web_x0 - 1, -33 + 1), (web_x0 - 1, -33 - _c),
-                        (web_x0 + _c, -33 + 1)], _web_y1 + 0.05, hy1 + 1)
+    # --- jog blocks (v5, upper-anchored)
+    p += parts.box(web_x0, 12, D.SV_TOPFACE, hy1, *JOG_Z)
+    p += parts.box(web_x0, 12, iy0, idler_seat, *JOG_Z)
+    p -= parts.wedge_y([(web_x0 - 1, JOG_Z[1] + 1), (web_x0 - 1, JOG_Z[1] - _c),
+                        (web_x0 + _c, JOG_Z[1] + 1)], _web_y1 + 0.05, hy1 + 1)
 
-    # --- DETENT for the servo's horn-side RIB (BYTE IDENTICAL to v5).
+    # --- DETENT for the servo's horn-side RIB (v5), with its print ramp: the
+    # pocket's +X wall is where plate material resumes over the void when the
+    # part prints web-down, so it is ramped instead of bridged.
     p -= parts.box(-D.SV_HORN_RIB_HW - D.RIB_RELIEF_CLR, D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR,
                    D.SV_TOPFACE - 0.01, D.SV_TOPFACE + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR,
                    -D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR,
@@ -273,7 +185,7 @@ def leg_link_v6(print_fins=False):
     p -= parts.wedge_z([(_rx, _ry0), (_rx, _ry1), (_rx + _rr, _ry0)],
                        -D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR - 0.6,
                        -D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR + 0.6)
-    # DETENT for the idler-side PLATFORM (BYTE IDENTICAL to v5).
+    # DETENT for the idler-side PLATFORM (v5), same print ramp.
     _ix = D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR
     _iy0 = idler_seat
     _iy1 = D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR
@@ -284,8 +196,7 @@ def leg_link_v6(print_fins=False):
     p -= parts.wedge_z([(_ix, _iy0), (_ix, _iy1), (_ix + _irr, _iy0)],
                        _iz0 - 0.6, _iz1 + 0.6)
 
-    # --- holes: case grip screws (BYTE IDENTICAL positions/sizes; roll
-    # re-aimed to this part's print-up, model +Z -- ROLL_UP=0, not v5's 90).
+    # --- holes: case grip screws (v5 positions/sizes, teardropped toward +X)
     for zrow in D.CASE_HOLES_TOP:
         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
             p -= parts.teardrop_y(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1,
@@ -298,15 +209,14 @@ def leg_link_v6(print_fins=False):
         p -= parts.teardrop_y(D.CASE_CS_D / 2 + 0.4, iy0 - 1, _igo + 0.05,
                               lx, -D.CASE_HOLES_BOT[1], roll=ROLL_UP)
 
-    # --- holes: lower joint pads (BYTE IDENTICAL positions/sizes; roll
-    # re-aimed the same way).
+    # --- holes: lower joint pads (v5 positions/sizes)
     for h in parts.bcd_y(iy0 - 1, hy1 + 1, 0, drop, roll=ROLL_UP):
         p -= h
     p -= parts.cyl_y(D.HORN_CENTER_RELIEF_D / 2, hy0 - 1, hy1 + 1, 0, drop)
     p -= parts.cyl_y(D.IDLER_CENTER_RELIEF_D / 2, D.SV_IDLER_FACE - 6,
                      D.SV_IDLER_FACE + 0.7, 0, drop)
 
-    # --- cable window through the web (BYTE IDENTICAL, upper-anchored)
+    # --- cable window through the web (v5, upper-anchored)
     p -= parts.box(web_x0 - 1, web_x1 + 1, -4.5, 4.5,
                    V.LL_CABLE_WINDOW_Z[1], V.LL_CABLE_WINDOW_Z[0])
     for ly in (9, -9):
@@ -315,69 +225,22 @@ def leg_link_v6(print_fins=False):
     # --- trim everything below the lower joint axis back to the pad radius.
     _below = parts.box(-40, 40, -40, 40, -220, drop)
     p -= _below - parts.cyl_y(D.PAD_D / 2, -40, 40, 0, drop)
-    # --- chamfer the two corners beside the axis (unchanged formula).
+    # --- chamfer the front corner beside the axis (v5 formula). v5's matching
+    # rear chamfer is gone: nothing sweeps that corner (knee 0.58 mm at 130,
+    # ankle clear), and it held the fork end off the bed in the web-down print.
     _pr = D.PAD_D / 2
-    _yl, _yh = iy0 - 1, hy1 + 1
     p -= parts.wedge_y([(_pr, drop), (12.0, drop),
-                        (12.0, drop + D.LEG_CORNER_CUT_FRONT_H)], _yl, _yh)
-    p -= parts.wedge_y([(-_pr, drop), (web_x0, drop),
-                        (web_x0, drop + D.LEG_CORNER_CUT_REAR_H)], _yl, _yh)
+                        (12.0, drop + D.LEG_CORNER_CUT_FRONT_H)], iy0 - 1, hy1 + 1)
 
-    # --- fillet the box's outer vertical edges (LL_EDGE_R). Selected by
-    # location: the four corners where the new front plate / side fills meet
-    # the box top/bottom planes, picked from the edge list rather than
-    # constructed, so a boolean-cut change elsewhere can't silently orphan a
-    # fillet reference. Mating faces (grip seats, pad faces, web inner face)
-    # are never in this list -- none of them sit at the box's outer x/y
-    # extremes.
-    corners = ((V.LL_FRONT_X[1], iy0), (V.LL_FRONT_X[1], hy1),
-              (web_x0, iy0), (web_x0, hy1))
-    edges = []
-    for e in p.edges():
-        c = e.center()
-        if abs(e.length - abs(V.LL_BOX_TOP - V.LL_BOX_BOT)) > 0.6:
-            continue
-        for cx, cy in corners:
-            if abs(c.X - cx) < 0.05 and abs(c.Y - cy) < 0.05:
-                edges.append(e)
-                break
-    if edges:
-        try:
-            from build123d import fillet
-            p = fillet(edges, radius=V.LL_EDGE_R)
-        except Exception as e:  # noqa: BLE001 -- report, don't crash the build
-            print(f"  [leg_link_v6] fillet failed on {len(edges)} edges "
-                  f"({type(e).__name__}: {str(e)[:80]}); trying chamfer")
-            try:
-                from build123d import chamfer
-                p = chamfer(edges, length=V.LL_EDGE_R)
-            except Exception as e2:  # noqa: BLE001
-                print(f"  [leg_link_v6] chamfer also failed "
-                      f"({type(e2).__name__}: {str(e2)[:80]}); "
-                      f"box edges left sharp")
-    else:
-        print("  [leg_link_v6] no box-corner edges found to fillet "
-              "(geometry changed?) -- left sharp")
-
-    # HIP-FLEXION RELIEF (V.LL_HIP_RELIEF): chamfer the box's top-front edge,
-    # AFTER the corner fillet above -- that fillet picks the box's vertical
-    # edges by their full box-height LENGTH, and cutting first shortened the
-    # two front ones, so they silently went unrounded (+571 mm3 of square
-    # corner, and a bigger ISLAND at the box bottom).
-    # full width, so the thigh's front wall clears the roll flange to the
-    # declared hip ROM. Harmless on the shin (same part): it only removes
-    # material, and there the edge sits under the knee axis, facing nothing.
-    _rx, _rz = V.LL_HIP_RELIEF
-    _fx1 = V.LL_FRONT_X[1]
-    p -= parts.wedge_y([(_fx1 - _rx, V.LL_BOX_TOP + 0.01), (_fx1 + 1.0, V.LL_BOX_TOP + 0.01),
-                        (_fx1 + 1.0, V.LL_BOX_TOP - _rz - 1.0), (_fx1, V.LL_BOX_TOP - _rz)],
-                       iy0 - 1.0, hy1 + 1.0)
-    p -= parts.box(V.LL_HIP_RELIEF_X0, _fx1 + 1.0, iy0 - 1.0, hy1 + 1.0,
-                   V.LL_BOX_TOP - 0.01, V.LL_BOX_TOP + V.LL_HIP_RELIEF_UP)
+    # HIP-FLEXION RELIEF (V.LL_HIP_RELIEF_X0 / _UP): at deep hip flexion the
+    # roll flange's front-bottom edge meets the grip plates' front strip just
+    # above the jog blocks; everything forward of LL_HIP_RELIEF_X0 is trimmed
+    # there. Harmless on the shin (same part).
+    p -= parts.box(V.LL_HIP_RELIEF_X0, grip_x1 + 1.0, iy0 - 1.0, hy1 + 1.0,
+                   JOG_Z[0] - 0.01, JOG_Z[0] + V.LL_HIP_RELIEF_UP)
 
     if print_fins:
-        pass  # no-op: standing on the lower fork end, nothing floats (see
-              # audit_leg_link.py -- no ISLAND/LEDGE finding on the pads)
+        pass  # no-op: supports are the slicer's job (cad/PRINT_LIST.md)
     return p
 
 
@@ -425,78 +288,43 @@ def SCREWS():
     return s
 
 
-# --------------------------------------------------------------- insertion path
-# The upper (gripped) servo enters the grip channel by sliding along +Z from
-# below (case 24.72 mm wide in X must pass between the web inner face,
-# -12.76, and the new front plate's inner face, V.LL_FRONT_X[0]=13.46 -- a
-# 26.22 mm gap against a 24.72 mm case). Given as {start, direction, distance}
-# spanning the NEW box channel specifically (see check_insertion's docstring
-# for why the full case-length/horn-boss travel is not part of this claim).
-SERVO_INSERT = dict(start=(0.0, 0.0, V.LL_BOX_BOT),
-                    direction=(0.0, 0.0, 1.0),
-                    distance=V.LL_BOX_TOP - V.LL_BOX_BOT)
-
-
 # --------------------------------------------------------------- audits
 def check_r16(verbose=True):
     """Requirement 2: the next servo's case top sweeps r 16 mm about the
     lower axis (hypot(SV_AXIS_FROM_OUT_END, SV_WID/2) ~= 16.0) as the joint
-    rotates -- nothing of the NEW box-closing geometry may exist inside that
-    circle (this is what sets V.LL_BOX_BOT: dz = LL_DROP-16-buffer already
-    clears it by construction). Checked against just the added box (front
-    plate + side fills), not the whole part: the pre-existing v5 fork/pad/
-    taper geometry below the box was already shaped (PAD_D trim, idler-boss
-    taper, corner chamfers) against the servo's REAL, ROM-limited sweep via
-    check_assembly's joint-angle sampling, not this full-360 deg circle --
-    re-litigating that geometry here would flag proven, unchanged design."""
+    rotates -- the end walls may not reach inside that circle (plus
+    SWEEP_BUFFER). The rest of the fork was shaped against the servo's real,
+    ROM-limited sweep by check_assembly_v6."""
     drop = -V.LL_DROP
-    hy0, hy1 = D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE
-    iy1, iy0 = D.IDLER_ARM_INNER, D.IDLER_ARM_INNER - D.PLATE
-    box_add = parts.box(V.LL_FRONT_X[0], V.LL_FRONT_X[1], iy0, hy1,
-                        V.LL_BOX_TOP, V.LL_BOX_BOT)
-    box_add += parts.box(12.0, V.LL_FRONT_X[1], hy0, hy1, V.LL_BOX_TOP, V.LL_BOX_BOT)
-    box_add += parts.box(12.0, V.LL_FRONT_X[1], iy0, iy1, V.LL_BOX_TOP, V.LL_BOX_BOT)
-    circle = parts.cyl_y(16.0, -60, 60, 0, drop)
-    vol = (box_add & circle).volume
+    hy0 = D.SV_HORN_FACE
+    iy1 = D.IDLER_ARM_INNER
+    walls = None
+    for z0, z1 in (V.LL_TOP_WALL_Z, V.LL_BOT_WALL_Z):
+        w = parts.box(-12.36 - D.WEB_GAP - 2.4, 12, iy1, hy0, z0, z1)
+        walls = w if walls is None else walls + w
+    circle = parts.cyl_y(16.0 + D.SWEEP_BUFFER, -60, 60, 0, drop)
+    vol = (walls & circle).volume
     if verbose:
-        print(f"  r16 sweep clearance (new box vs the next servo's case-top "
-              f"circle): {vol:.3f} mm3 overlap ({'OK' if vol < 0.5 else 'FAIL'})")
+        print(f"  r16 sweep clearance (end walls vs the next servo's case-top "
+              f"circle + {D.SWEEP_BUFFER} mm): {vol:.3f} mm3 overlap "
+              f"({'OK' if vol < 0.5 else 'FAIL'})")
     return vol
 
 
 def check_insertion(p, verbose=True):
-    """Requirement 2: "case 24.72 mm wide in x must pass between the web
-    inner face and the front plate inner face -- 26.3 mm available". Checked
-    as the literal claim: the case's WIDTH ENVELOPE (X +-SV_WID/2, Y =
-    SV_IDLER_CASE_FACE..SV_TOPFACE -- the plain case body, constant along its
-    own length) extended the full length of the new box channel
-    (V.LL_BOX_TOP..LL_BOX_BOT) must not intersect the part.
-
-    NOT tested as a rigid translation of the full servo_mock_y (case + horn
-    boss + idler disc + horn rib) along the whole part length: that fails
-    for v5's OWN unmodified leg_link too (confirmed -- up to ~3975 mm3 of
-    overlap sweeping the full mock through v5's 90 mm channel, worse than
-    here), because the horn boss / idler disc / rib are anchored at the
-    joint axis (mock Z=0) and are never actually translated 90+ mm down the
-    leg during assembly -- a straight axial slide of the COMPLETE rigid
-    servo is not the real insertion motion (side/angled approach, most
-    likely) either here or in v5, so re-litigating it here would flag a
-    pre-existing v5 characteristic, not a v6 regression."""
+    """Requirement 2: the gripped servo goes in from the TOP -- its horn boss
+    drops into the horn plate's relief notch, which is open at the top edge;
+    from below or the front the boss would meet the plate. So the plain case
+    body (X +-SV_WID/2, Y = SV_IDLER_CASE_FACE..SV_TOPFACE) swept from above
+    the part down to its seat (bottom at -35.11) must not intersect the part.
+    The horn boss and rib travel down the relief notch and the rib detent,
+    both open at the top."""
     env = parts.box(-D.SV_WID / 2, D.SV_WID / 2, D.SV_IDLER_CASE_FACE, D.SV_TOPFACE,
-                    V.LL_BOX_TOP, V.LL_BOX_BOT)
+                    -D.SV_AXIS_FROM_REAR, 60.0)
     vol = (p & env).volume
     if verbose:
-        print(f"  case-width envelope vs the box channel "
-              f"(V.LL_BOX_TOP={V.LL_BOX_TOP} .. LL_BOX_BOT={V.LL_BOX_BOT}): "
+        print(f"  case body swept down from the top to its seat: "
               f"{vol:.3f} mm3 overlap ({'OK' if vol < 0.5 else 'FAIL'})")
-        full = Pos(0, 0, -20) * CA.servo_mock_y()
-        try:
-            note = (p & full).volume
-        except Exception:  # noqa: BLE001
-            note = 0.0
-        print(f"  (full servo_mock_y rigid-slide sweep, for reference only, "
-              f"is NOT clear at every z -- see module docstring / report; "
-              f"e.g. at z=-20: {note:.1f} mm3)")
     return vol
 
 
@@ -539,15 +367,15 @@ def run_audits(p, stl_path):
     import check_printability as CP  # noqa: E402  (v5 -- runtime override only)
 
     ok = True
-    print("\n== printability (check_printability.py, standing orientation) ==")
+    print("\n== printability (check_printability.py, on its back: web face on the bed) ==")
     CP.STL = os.path.dirname(stl_path)                       # runtime only
-    CP.ORIENT["leg_link_v6"] = (np.array(PRINT_ORIENT), "standing on the lower fork end")
+    CP.ORIENT["leg_link_v6"] = (np.array(PRINT_ORIENT), "on its back: web face on the bed")
     CP.PRINT_STL["leg_link_v6"] = os.path.basename(stl_path)
     findings = CP.audit("leg_link_v6")
     if findings:
         ok = False
 
-    print("\n== requirement 2: r16 sweep + servo insertion channel ==")
+    print("\n== requirement 2: r16 sweep + servo insertion ==")
     if check_r16() >= 0.5:
         ok = False
     if check_insertion(p) >= 0.5:
@@ -605,6 +433,7 @@ def render(stl_path, png_path, px=640):
         frames.append(ren.render())
     imageio.imwrite(png_path, np.concatenate(frames, axis=1))
     return png_path
+
 
 
 if __name__ == "__main__":

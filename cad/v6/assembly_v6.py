@@ -81,7 +81,7 @@ def hip_yoke_variant():
     v5 yoke_roll + yoke_pitch_v6 bolted flange to flange) via the
     HIP_YOKE_VARIANT env var. Promoted once both clearance findings its sweep
     exposed were resolved (hip-yoke-single-print.md section 6): the roll-
-    corner relief, and hip flexion -120 with the leg link's LL_HIP_RELIEF."""
+    corner relief, and hip flexion -120 with the leg link's LL_HIP_RELIEF_X0 trim."""
     return os.environ.get("HIP_YOKE_VARIANT", "single")
 
 

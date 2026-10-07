@@ -55,11 +55,10 @@ vertical walls. The only thing that is a real overhang in this orientation is
 a bore along Y, and those are teardropped with roll = ROLL_UP (90, peak toward
 model +x = print up), exactly as v5's leg_link does.
 
-What it costs: an open C section (back web + two side rails, opening forward)
-instead of leg_link_v6's closed box, because a front plate would be a flat
-ceiling spanning tine to tine in this orientation -- the exact finding that
-made leg_link_v6 stand up instead. The C is weaker in TORSION, not in the
-bending that matters, and peak measured joint torque here is 1.59 N-m
+What it costs: an open C section (back web + two side rails, opening forward),
+as in leg_link_v6, because a front plate would be a flat ceiling spanning tine
+to tine in this orientation. The C is weaker in TORSION, not in the bending
+that matters, and peak measured joint torque here is 1.59 N-m
 (shoulder) / 1.18 (elbow) against the STS3215's 2.72 N-m simulated stall.
 
     .venv/bin/python cad/v6/arm_v6.py          # STL + STEP + audits + renders
@@ -305,9 +304,8 @@ def arm_fore_v6(side="L"):
     The grip channel is leg_link's, unchanged in y and z -- same servo, same
     two case faces, same 2.4/3.0 plates, same GRIP_HORN_RELIEF for the horn
     disc and the same GRIP_TOP_IDLER that keeps the idler plate clear of the
-    idler disc. What is NOT copied is leg_link_v6's arched web and its front
-    plate: printed on its back, the web's z extent lies in the BED PLANE, so a
-    plain rectangular web has no overhang to arch away from.
+    idler disc. Printed on its back like leg_link_v6, the web's z extent lies
+    in the BED PLANE, so it is a plain rectangular web.
 
     The hand is a plain PETG knuckle at V.ARM_HAND_R -- the same 12 mm radius
     the plant contacts the floor with. The plant gave it friction 1.0; bare

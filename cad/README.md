@@ -46,7 +46,7 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 | `yaw_carrier_v6.py` | the prototype's carrier with a 5 mm spacer under its horn plate (`YAW_CARRIER_DROP`: the roll servo and its screws sit below the bearing band) and a round hub for the 6810-2RS's inner race (trimmed below to pass the bearing), and its `SCREWS()` |
 | `hip_yoke_v6.py` | the hip roll and pitch clevises fused into one print |
 | `yoke_pitch_v6.py` | the pitch clevis alone. `hip_yoke_v6` is built from it; it is printed only under `HIP_YOKE_VARIANT=split` |
-| `leg_link_v6.py` | thigh and shin (one part): a 110 mm box section |
+| `leg_link_v6.py` | thigh and shin (one part): a 110 mm open-front U with an end wall at each end of the open span |
 | `ankle_link.py` | grips the ankle-pitch servo and forks onto the ankle-roll servo |
 | `foot_v6.py` | `foot_L`/`foot_R` and the TPU soles `sole_tpu_L`/`_R` |
 | `head.py` | `head_shell`, `head_face`, and `head` (the two fused, for checks) |
