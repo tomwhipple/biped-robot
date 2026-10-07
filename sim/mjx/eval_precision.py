@@ -302,6 +302,7 @@ class Driver:
         self.air_l = self.air_r = 0
         self._prev_sole = [env.data.geom_xpos[g][:2].copy()
                            for g in env._sole_gids]
+        self.swings = SwingTracker()
 
     def initial_gt(self):
         d = self.env.data
@@ -344,6 +345,8 @@ class Driver:
             self.air_l += 1
         if not cr:
             self.air_r += 1
+        z0 = getattr(env, "_sole_z0", 0.0)
+        self.swings.update((cl, cr), [float(d.geom_xpos[g][2]) - z0 for g in env._sole_gids])
         t_post = len(self.rows) * self.dt + self.dt
         self.rows.append(dict(
             t=t_post, x=float(d.qpos[0]), y=float(d.qpos[1]), yaw=_yaw(d.qpos),
@@ -380,7 +383,51 @@ class Driver:
         mean_air = 0.5 * (al + ar)
         sym = abs(al - ar) / max(mean_air, 1e-6)
         return dict(wobble_rms=wob, mean_watts=watts, mean_speed=vbar,
-                    cot=cot, foot_slip=slip, air_l=al, air_r=ar, symmetry=sym)
+                    cot=cot, foot_slip=slip, air_l=al, air_r=ar, symmetry=sym,
+                    **self.swings.summary())
+
+
+
+SWING_CLEAR = 0.03      # m: a swing counts as a real lift when its sole peaks this high
+SWING_MIN_TICKS = 3     # a swing shorter than this is contact chatter, not a step
+
+
+class SwingTracker:
+    """Per-foot swings (the sole out of contact) and each swing's peak sole
+    height above its standing height. A swing ends at touchdown; one shorter
+    than SWING_MIN_TICKS is chatter and is not counted. lift_ticks counts the
+    ticks with a foot airborne at least SWING_CLEAR high. Tom (2026-10-06):
+    make sure one foot actually lifts off the ground -- the scorecard had no
+    clearance number for walking."""
+
+    def __init__(self):
+        self.peaks = []
+        self._peak = [0.0, 0.0]
+        self._ticks = [0, 0]
+        self.lift_ticks = 0
+        self.ticks = 0
+
+    def update(self, contacts, heights):
+        self.ticks += 1
+        lifted = False
+        for i in (0, 1):
+            if not contacts[i]:
+                self._ticks[i] += 1
+                self._peak[i] = max(self._peak[i], heights[i])
+                lifted |= heights[i] >= SWING_CLEAR
+            else:
+                if self._ticks[i] >= SWING_MIN_TICKS:
+                    self.peaks.append(self._peak[i])
+                self._ticks[i] = 0
+                self._peak[i] = 0.0
+        self.lift_ticks += int(lifted)
+
+    def summary(self):
+        p = np.array(self.peaks, float)
+        return dict(swing_n=int(p.size),
+                    swing_clear_frac=(float(np.mean(p >= SWING_CLEAR)) if p.size else None),
+                    swing_peak_med=(float(np.median(p)) if p.size else None),
+                    lift_frac=self.lift_ticks / max(self.ticks, 1))
 
 
 # --- window helpers ---------------------------------------------------
@@ -1931,7 +1978,8 @@ def main():
     scorecard = {}
     all_shared = {k: [] for k in
                   ("wobble_rms", "mean_watts", "foot_slip")}
-    loco_shared = {k: [] for k in ("cot", "symmetry")}
+    loco_shared = {k: [] for k in ("cot", "symmetry", "swing_clear_frac",
+                                   "swing_peak_med", "lift_frac")}
     tot_succ = tot_runs = tot_fall = 0
     scen_all_pass = 0
     md_rows = []
@@ -1963,7 +2011,7 @@ def main():
         metrics = {k: _agg([r["metrics"][k] for r in results
                             if k in r["metrics"]]) for k in mkeys}
         shared_keys = ("wobble_rms", "mean_watts", "mean_speed", "foot_slip",
-                       "symmetry")
+                       "symmetry", "swing_clear_frac", "swing_peak_med", "lift_frac")
         sh = {k: _agg([r["shared"][k] for r in results]) for k in shared_keys}
         cot = _agg([r["shared"]["cot"] for r in results])
         sh["cot"] = cot
@@ -1974,6 +2022,9 @@ def main():
             loco_shared["symmetry"].extend(r["shared"]["symmetry"] for r in results)
             loco_shared["cot"].extend(r["shared"]["cot"] for r in results
                                       if r["shared"]["cot"] is not None)
+            for k in ("swing_clear_frac", "swing_peak_med", "lift_frac"):
+                loco_shared[k].extend(r["shared"][k] for r in results
+                                      if r["shared"][k] is not None)
 
         scorecard[name] = dict(
             n=args.episodes, successes=int(succ), fall_count=int(falls),
@@ -1983,9 +2034,12 @@ def main():
         head = _headline(name, metrics)          # across-seed mean
         wob = sh["wobble_rms"]["mean"]
         wts = sh["mean_watts"]["mean"]
+        scf = sh["swing_clear_frac"]["mean"] if is_loco else None
+        spm = sh["swing_peak_med"]["mean"] if is_loco else None
         md_rows.append((name, f"{succ}/{args.episodes}", head,
                         f"{wob:.2f}" if wob is not None else "-",
-                        f"{wts:.1f}" if wts is not None else "-"))
+                        f"{wts:.1f}" if wts is not None else "-",
+                        (f"{scf*100:.0f}% / {spm*100:.1f}" if scf is not None and spm is not None else "-")))
 
         if args.render:
             frames = results[0]["frames"]
@@ -2021,7 +2075,7 @@ def main():
 
     for name, why in not_applicable.items():
         scorecard[name] = dict(not_applicable=why)
-        md_rows.append((name, "n/a", "not applicable", "-", "-"))
+        md_rows.append((name, "n/a", "not applicable", "-", "-", "-"))
 
     if mov_writer is not None:
         mov_writer.close()
@@ -2052,6 +2106,9 @@ def main():
         foot_slip_mean=_m(all_shared["foot_slip"]),
         cot_locomotion=_m(loco_shared["cot"]),
         symmetry_locomotion=_m(loco_shared["symmetry"]),
+        swing_clear_frac_locomotion=_m(loco_shared["swing_clear_frac"]),
+        swing_peak_med_locomotion=_m(loco_shared["swing_peak_med"]),
+        lift_frac_locomotion=_m(loco_shared["lift_frac"]),
     )
     if sil_info:
         summary["sil"] = sil_info
@@ -2074,10 +2131,10 @@ def main():
                      f"`{sil_info['cal']}`, gait clock "
                      f"{sil_info['gait_hz']:.2f} Hz. See docs/sil-harness.md._")
     lines.append("")
-    lines.append(f"| {'scenario':14s} | pass | {'headline':18s} | wobble | watts |")
-    lines.append(f"|{'-'*16}|------|{'-'*20}|--------|-------|")
-    for nm, pv, hd, wb, wt in md_rows:
-        lines.append(f"| {nm:14s} | {pv:4s} | {hd:18s} | {wb:>6s} | {wt:>5s} |")
+    lines.append(f"| {'scenario':14s} | pass | {'headline':18s} | wobble | watts | swings >= 3 cm / median peak cm |")
+    lines.append(f"|{'-'*16}|------|{'-'*20}|--------|-------|---------------------------------|")
+    for nm, pv, hd, wb, wt, sw in md_rows:
+        lines.append(f"| {nm:14s} | {pv:4s} | {hd:18s} | {wb:>6s} | {wt:>5s} | {sw:>31s} |")
     lines.append("")
     cot = summary["cot_locomotion"]
     overall = (f"**overall {tot_succ}/{tot_runs} seed-pass** "
@@ -2091,6 +2148,10 @@ def main():
     sym = summary["symmetry_locomotion"]
     if sym is not None:
         overall += f"; gait asym {sym*100:.0f}%"
+    scf, spm = summary["swing_clear_frac_locomotion"], summary["swing_peak_med_locomotion"]
+    if scf is not None and spm is not None:
+        overall += (f"; swings >= 3 cm {scf*100:.0f}% (median peak {spm*100:.1f} cm, "
+                    f"a foot >= 3 cm up {summary['lift_frac_locomotion']*100:.0f}% of the time)")
     lines.append(overall)
     md = "\n".join(lines) + "\n"
     md_path = os.path.join(run_dir, f"scorecard{suffix}.md")
