@@ -197,8 +197,9 @@ The robot has no heat-set inserts and no washers.
 
 ![Ankle-roll servo into the foot](assembly/v6_01_foot_servo.png)
 
-1. **Glue the TPU sole** (`sole_tpu_L/R`) to the foot plate's flat underside.
-   The underside is pocketed inside a 6 mm perimeter for the bond.
+1. **Stick the rubber sole** to the foot plate's flat underside: 2 mm
+   self-adhesive rubber cut to the plate's outline (130 × 84 mm, R14 corners;
+   `sole_tpu_L/R`). Degrease the PETG first.
 2. **Drop the ankle-roll servo into the cradle** from above.
    - Its output axis runs fore-aft, with the horn forward.
    - Its output end sits against the inboard end stop, and the cable end points

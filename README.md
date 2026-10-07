@@ -95,4 +95,4 @@ docs/       build, electrical, software and design records
 
 17 × Feetech STS3215 (12 V) · Waveshare General Driver for Robots (ESP32,
 onboard IMU) · Raspberry Pi 4B + Camera Module 3 Wide · 3S 2200–2600 mAh LiPo ·
-PETG prints + TPU 95A soles. Full list: [docs/bom.md](docs/bom.md).
+PETG prints + self-adhesive rubber soles. Full list: [docs/bom.md](docs/bom.md).

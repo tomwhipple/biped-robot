@@ -17,7 +17,7 @@ lead slot, and there is no deck under the rest of the flange).
 
 | can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `sole_tpu_L`, `sole_tpu_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v7`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`yaw_bearing_housing`**: its shoulder is sized to SKF's published ring dimensions; measure the generic bearings first ([docs/bom.md §5](../docs/bom.md)). |
+| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v7`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`yaw_bearing_housing`**: its shoulder is sized to SKF's published ring dimensions; measure the generic bearings first ([docs/bom.md §5](../docs/bom.md)). |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -29,7 +29,8 @@ lead slot, and there is no deck under the rest of the flange).
 ## The parts
 
 **How the masses are computed:** build123d volume × PETG 1.27 g/cm³ × 0.90
-print factor (`parts_v6.mass_g`); TPU is 1.21 g/cm³ with the same factor. They
+print factor (`parts_v6.mass_g`); the cut rubber soles are estimated at 1.21 g/cm³
+with the same factor until weighed. They
 are the rollup's, `docs/design-v6/parts_v6_rollup.txt`
 (`cad/v6/parts_v6.py --no-export`).
 
@@ -45,7 +46,6 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `leg_link_v6` | 4 | 28.6 | 117 × 44 × 28 | on its back: web face on the bed | **yes**, build plate only: under the two round pad ends | thigh and shin are the same part |
 | `ankle_link` | 2 | 12.1 | 65 × 44 × 44 | on its back (model +X up) | **yes** (ceiling/island class) | grips the ankle-pitch servo, forks onto the ankle-roll servo |
 | `foot_L`, `foot_R` | 1 + 1 | 52.0 | 130 × 84 × 30 | sole down | no | a mirrored pair |
-| `sole_tpu_L`, `sole_tpu_R` | 1 + 1 | 23.2 | 130 × 84 × 2 | flat | no | **TPU 95A**; glued to the foot plate's underside |
 | `head_shell` | 1 | 26.1 | 62 × 60 × 50 | base (horn plate) down; the dome is ≥ 45° | none expected | from `head.py` |
 | `head_face` | 1 | 8.6 | 62 × 56 × 6 | flat, camera bosses up | no | |
 | `neck_floor` | 1 | 4.0 | 46 × 45 × 5 | flat, bottom face down, pads and lugs up | no | the neck servo's seat (#90): screwed up into the neck tube's four bosses; the stator screws go up through it |
@@ -83,14 +83,15 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - Supports go under the trapezius-web window tops (34 mm spans), the
     grip-plate rib-relief roofs, and the bay disc-relief tops.
 
-**Totals:** 24 prints (22 PETG, 2 TPU) from 18 STLs, before supports and
-brims:
-
-- PETG: ≈ 787 g;
-- TPU: 46 g.
+**Totals:** 22 prints, all PETG, from 16 STLs: ≈ 787 g before supports and
+brims.
 
 **Not printed:**
 
+- `sole_tpu_L/R`: the soles are cut from 2 mm self-adhesive rubber sheet
+  ([docs/bom.md §7](../docs/bom.md)), not printed. Each is the foot plate's
+  outline: 130 × 84 mm with 14 mm corner radii, the same for left and right.
+  The STLs are that outline.
 - `head.stl`: the shell and face fused, used for mass, the assembly checks and
   the sim plant.
 - `neck_collar.stl` and anything built with `ARMS=0` (see the top of this
@@ -113,7 +114,7 @@ brims:
 
 ## Global print settings
 
-**PETG for every structural part; TPU 95A for the soles.**
+**PETG for every part.**
 
 - **Base settings:** 0.4 mm nozzle, 0.2 mm layers, 3 perimeters (every wall
   ≥ 2.4 mm is then perimeter-only), 30–40 % infill.
@@ -125,9 +126,7 @@ brims:
   hotter and strings more than PLA. On the first parts, check the snug
   interfaces: the grip channels on a servo case, the foot cradle, the pads on
   the discs. If anything binds, tune the flow or print a size test.
-- **Filament:** keep PETG and TPU dry.
-- **TPU 95A soles:** they print flat, 2 mm thick. No tuned profile is recorded
-  yet, so use the slicer's TPU preset and print slowly.
+- **Filament:** keep PETG dry.
 - **Bores:** small horizontal bores are teardropped toward each part's print-up
   direction, so their tops print without support. That is designed in;
   supports are not.

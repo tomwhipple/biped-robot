@@ -11,8 +11,8 @@ leg_link_v6            4    28.6  117.0x  43.9x  28.4  BED-OK  thigh + shin, 110
 ankle_link             2    12.1   65.0x  44.3x  43.5  BED-OK  pitch grip + X fork onto the roll servo
 foot_L                 1    52.0  130.0x  84.0x  30.0  BED-OK  asymmetric sole, mirrored pair
 foot_R                 1    52.0  130.0x  84.0x  30.0  BED-OK  asymmetric sole, mirrored pair
-sole_tpu_L             1    23.2  130.0x  84.0x   2.0  BED-OK  TPU 95A
-sole_tpu_R             1    23.2  130.0x  84.0x   2.0  BED-OK  TPU 95A
+sole_tpu_L             1    23.2  130.0x  84.0x   2.0  BED-OK  rubber sole, cut (outline)
+sole_tpu_R             1    23.2  130.0x  84.0x   2.0  BED-OK  rubber sole, cut (outline)
 shoulder_girdle_v6     1    77.1  200.3x  58.0x  33.1  BED-OK  ONE PRINT: both shoulder pods + the neck tube + the trapezius webs (base down)
 arm_upper_v6_L         1    33.1  182.0x  43.9x  28.6  BED-OK  shoulder horn -> elbow fork, 160 mm (on its back)
 arm_upper_v6_R         1    33.1  182.0x  43.9x  28.6  BED-OK  mirror of _L

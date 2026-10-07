@@ -304,10 +304,9 @@ M2.5, not M3.
 | item | qty | notes | have |
 |---|---|---|---|
 | PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.77–0.79 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
-| TPU 95A, 1.75 mm | 1 spool (500 g is enough) | the two soles, 23 g each | |
+| self-adhesive rubber sheet, **2 mm** thick | 1 (≥ 130 × 170 mm: two soles) | the soles, cut to the foot plate's outline (130 × 84 mm, R14 corners) and stuck to its flat underside; 2 mm is the design's sole (`TPU_SOLE_T`) | |
 | hook-and-loop strap, **15 mm** wide | 1 | the battery belt, through the pelvis belt slots (`BATT_BELT_W`) | |
 | adhesive foam pads, **1 mm** thick | 2 (about 30 × 20 mm) | under the pack, one per cell ceiling, clear of the yaw servos' post holes (`BATT_PAD_T`) | |
-| adhesive for the soles | — | bonds TPU 95A to PETG; type not chosen | |
 | thread-locker, medium strength (removable) | 1 | on the M3 disc screws (the design calls for thread-locked horn screws); keep it off the printed parts | |
 | retaining compound | — | §5 | |
 | zip ties, 2.5 mm | 1 pack | cable dressing | |

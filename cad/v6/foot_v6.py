@@ -1,7 +1,7 @@
 """foot_L / foot_R (mirrored pair) -- cad/v6/foot_v6.py
 
 Sole plate + ankle-ROLL servo cradle. Local frame: the roll axis' vertical
-projection at the origin, +X toe, z = 0 at the PLATE BOTTOM (the TPU sole
+projection at the origin, +X toe, z = 0 at the PLATE BOTTOM (the rubber sole
 hangs TPU_SOLE_T below that). For foot_L, outboard is +Y; foot_R is built as
 foot_L then mirrored about the X-Z plane (mirror(..., about=Plane.XZ)), which
 also flips the roll servo's long (cable) side to outboard on the right.
@@ -76,10 +76,11 @@ def _extrude_outline(t, r=V.FOOT_CORNER_R):
 
 
 def sole_tpu(side):
-    """The TPU 95A sole (print separately): same outline, TPU_SOLE_T thick,
-    hanging BELOW the plate bottom (z 0 down to -TPU_SOLE_T), 1 mm chamfer
-    on the bottom (ground-facing) edge -- best-effort; an OCC chamfer that
-    fails just leaves that edge square rather than aborting the build."""
+    """The sole's outline: 2 mm self-adhesive rubber is cut to it (not
+    printed). TPU_SOLE_T thick, hanging BELOW the plate bottom (z 0 down to
+    -TPU_SOLE_T), 1 mm chamfer on the bottom (ground-facing) edge --
+    best-effort; an OCC chamfer that fails just leaves that edge square
+    rather than aborting the build."""
     t = V.TPU_SOLE_T
     solid = Pos(0, 0, -t) * _extrude_outline(t)
     try:

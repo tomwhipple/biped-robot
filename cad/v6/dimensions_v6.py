@@ -87,7 +87,7 @@ ANKLE_PITCH_TO_ROLL = 58.0   # 57 left the roll and pitch servo bodies 0.15 mm a
 _roll_rise_25 = D.SV_WID / 2 * math.cos(math.radians(25)) + D.SV_TOPFACE * math.sin(math.radians(25))
 assert ANKLE_PITCH_TO_ROLL - 36.0 - _roll_rise_25 >= 2.0, "roll servo top edge reaches the pitch servo at 25 deg"
 FOOT_PLATE_T = 4.0      # printed sole plate (v5 FOOT_T 6 with a 2 mm pocket)
-TPU_SOLE_T = 2.0        # printed TPU 95A sole glued under the plate
+TPU_SOLE_T = 2.0        # the sole: 2 mm self-adhesive rubber, cut, stuck under the plate
 # roll servo lies on the plate top, output axis along +X (horn FORWARD),
 # case width (24.72) vertical -> axis centred 12.36 above the plate top
 ANKLE_ROLL_ABOVE_PLATE = FOOT_PLATE_T + D.SV_WID / 2                 # 16.36
@@ -189,7 +189,7 @@ FOOT_TAB_REAR_X = (D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - FOOT_TAB_T, D.SV_IDL
 # (D.SV_CONN_L along the length -> y +11.75..+16.35, on the -x face) and runs
 # aft and up the ankle link's raceway.
 FOOT_CRADLE_H = 6.0                           # rails beside the case, above the plate
-FOOT_TPU_POCKET = 0.0                         # TPU sole glued to the FLAT underside (v5 lesson)
+FOOT_TPU_POCKET = 0.0                         # the sole sticks to the FLAT underside (v5 lesson)
 # the tine pads (O20 on the discs) dip below the plate top by 10 - 16.36 -> no,
 # they clear it: pad bottom = 16.36 - 10 = 6.36 above the plate bottom, 2.36
 # above the plate top. No relief slots needed (v5 needed them at 16.36-12).

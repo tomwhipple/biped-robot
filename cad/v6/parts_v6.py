@@ -87,8 +87,8 @@ PARTS += [
     ("ankle_link", _lazy("ankle_link", "ankle_link"), 2, "pitch grip + X fork onto the roll servo"),
     ("foot_L", _lazy("foot_v6", "foot", "L"), 1, "asymmetric sole, mirrored pair"),
     ("foot_R", _lazy("foot_v6", "foot", "R"), 1, "asymmetric sole, mirrored pair"),
-    ("sole_tpu_L", _lazy("foot_v6", "sole_tpu", "L"), 1, "TPU 95A"),
-    ("sole_tpu_R", _lazy("foot_v6", "sole_tpu", "R"), 1, "TPU 95A"),
+    ("sole_tpu_L", _lazy("foot_v6", "sole_tpu", "L"), 1, "rubber sole, cut (outline)"),
+    ("sole_tpu_R", _lazy("foot_v6", "sole_tpu", "R"), 1, "rubber sole, cut (outline)"),
 ]
 if ARMS:
     PARTS += [
