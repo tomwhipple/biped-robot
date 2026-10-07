@@ -379,6 +379,23 @@ fig_0913hw = "\n    ".join(f for f in [
                'what the firmware loop predicted before the flash',
                name='hw0913_v41_twin_crouch1'),
 ] if f)
+# 2026-10-07 card: the first night on the robot plant (v6ar, 17 servos, arms
+# folded), kinematic start. Seed-1 referee takes; k1 shown for the
+# comparison, not just k2's passes.
+fig_1007 = "\n    ".join(f for f in [
+    video_figure('robot_walk_k2', ['line_1m', 'push_gauntlet'],
+                 'robot_walk_k2_line_push',
+                 'from k1 at the normal imitation weight · the straight line '
+                 'and the push course, both passes'),
+    video_figure('robot_walk_k2', ['turn_180', 'stand_10s'],
+                 'robot_walk_k2_turn_stand',
+                 'the turn it cannot do yet (80° short) and the 10 s stand '
+                 'it can (6 cm drift)'),
+    video_figure('robot_walk_k1', ['line_1m', 'line_rough'],
+                 'robot_walk_k1_line_rough',
+                 'the kinematic prior alone (w-mimic 4.0) · falls within 1.6 s '
+                 'on the flat line, passes the rough one'),
+] if f)
 watch_figs = [video_figure(*w) for w in WATCH]
 watch_grid = "\n    ".join(f for f in watch_figs if f)
 watch_html = f"""
@@ -507,6 +524,35 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·07 · training thread</span></p>
+    <p><b>The first walking policies on the robot plant.</b> One night on
+    mira, after the v6 changes landed (6810 hip-yaw bearing, roll bay 5 mm
+    lower, arms resting folded, STS3250 at the hip rolls, the
+    <code>robot</code> stiffness preset). Tom's ask: start from a kinematic
+    solution, optimize from there, and make sure a foot actually lifts.
+    <b>robot_walk_k1</b> imitates the sole-level kinematic gait hard
+    (w-mimic 4.0, 24.9M steps): 11/144, falls 76%, line 2/8.
+    <b>robot_walk_k2</b> starts from it at the normal weight (w-mimic 1.5,
+    21.0M steps, stopped at 07:00): <b>20/144</b>, falls 71%, the 1 m line
+    6/8 with no falls, the push course 7/8, the 10 s stand 4/8. Turns,
+    sidesteps, backward, returns and the skills are 0/8 for both. The
+    from-scratch control (c0) waits for another night, so "does the
+    kinematic start help" is still open. Foot clearance is not on the
+    scorecard yet (the referee measures slip, not swing height); the clips
+    are the evidence for now.</p>
+    <p><b>The failure sweep</b> ran alongside on the CPU: 253,888 walks of
+    the kinematic gait under random conditions, 10% clean. Falls follow
+    joint play (46 → 92% across its range) and backlash (58 → 84%), and a
+    small forward lean helps (84 → 64%). A swing foot that never leaves
+    the floor is set by the commanded lift height (75 → 16%). The servo
+    stiffness parameters barely move either rate.
+    <code>sim/runs/failure_sweep/20261006_mira/summary.md</code>.</p>
+    <div class="vidgrid">
+    {fig_1007}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·13 · hardware thread</span></p>
