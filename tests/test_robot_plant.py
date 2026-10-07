@@ -351,3 +351,25 @@ def test_referee_runs_on_the_robot_plant():
     # the quick referee builds the same world from the same config
     renv = R.make_env(cfg)
     assert renv.action_space.shape == (12,) and renv.held_joints == HELD17
+
+
+# ------------------------------------------------------- floor contacts
+def test_floor_contacts_feet_only_in_both_envs():
+    """--floor-contacts feet (training-only): the floor accepts only the
+    sole pads in both engines, the self-collision pairs stay, and the
+    default leaves the plant as drawn."""
+    import mujoco
+    from mujoco import mjx
+    c_all = _cpu(xml_path=ROBOT_XML)
+    c_feet = _cpu(xml_path=ROBOT_XML, floor_contacts="feet")
+    f = mujoco.mj_name2id(c_feet.model, mujoco.mjtObj.mjOBJ_GEOM, "floor")
+    assert c_all.model.geom_conaffinity[f] == 3 and c_feet.model.geom_conaffinity[f] == 1
+    assert c_feet.model.npair == c_all.model.npair            # self-collision untouched
+    d_all = mjx.make_data(mjx.put_model(c_all.model))
+    d_feet = mjx.make_data(mjx.put_model(c_feet.model))
+    assert d_feet.contact.dist.shape[-1] < d_all.contact.dist.shape[-1]
+    import env_mjx as E
+    g = E.BimoMJXEnv(xml_path=ROBOT_XML, floor_contacts="feet")
+    assert int(g.mj_model.geom_conaffinity[f]) == 1
+    with pytest.raises(ValueError):
+        _cpu(xml_path=ROBOT_XML, floor_contacts="hands")

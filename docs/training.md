@@ -98,6 +98,7 @@ Around the PD loop:
 | effect | model | knob |
 |---|---|---|
 | per-servo stiffness | kp and kd × a factor per servo — the position-loop P raised on chosen IDs, modelled as N × the fitted stiffness on the same envelope, as the design gates model it. `robot` = × 4 on the hip rolls (the STS3250s, the model's credit) and × 2.8 on the ankle rolls and knees (the bench's P 96 / D 0); `planb` = × 4 on all six (DESIGN.md §4); config.json records the resolved `{actuator: factor}` | `servo_kp_scale`, `--servo-kp-scale`; `servo_kp` / `servo_kd` also take one value per actuator |
+| floor contacts | `all`: the plant as drawn. `feet` (training only): only the sole pads touch the floor; the servo boxes, the fall colliders and the arms stop colliding with it, and the explicit self-collision pairs stay. Those contacts only matter in a fall, which ends the episode, but MJX reserves and solves their slots every step: on the robot plant `feet` cuts 182 contact slots to 56 and the physics step about 3.5× (laptop CPU). The referee always grades with `all` | `floor_contacts`, `--floor-contacts feet` |
 | bus latency | the first sub-steps of each tick still serve the previous target; 0–8 ms per episode, ±1 ms jitter per tick | `latency_ms`, `latency_ms_max`, `latency_jitter_ms` |
 | gear backlash | a deadzone of ±lash/2 on the PD error; 0.5–1.0° per episode | `--backlash-deg lo,hi` |
 | actuation lag | three cascaded first-order stages on the commanded target (the firmware command shaper's structure), pole drawn per episode | `--act-lag lo,hi` (Hz) |
