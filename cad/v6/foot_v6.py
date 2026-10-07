@@ -65,7 +65,7 @@ def _extrude_outline(t, r=V.FOOT_CORNER_R):
     """Rounded-rectangle sole outline (centreline V.FOOT_Y_OFF outboard),
     extruded to thickness t."""
     x0, x1 = -V.FOOT_HEEL, V.FOOT_TOE
-    y0, y1 = V.FOOT_Y_OFF - V.FOOT_IN, V.FOOT_Y_OFF + V.FOOT_OUT
+    y0, y1 = -V.FOOT_IN, V.FOOT_OUT          # FOOT_IN/OUT are measured from the roll axis
     p = parts.box(x0 + r, x1 - r, y0, y1, 0, t)
     p += parts.box(x1 - r, x1, y0 + r, y1 - r, 0, t)
     p += parts.box(x0, x0 + r, y0 + r, y1 - r, 0, t)
