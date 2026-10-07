@@ -104,6 +104,52 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·07 · training thread</span></p>
+    <p><b>The first walking policies on the robot plant.</b> One night on
+    mira, after the v6 changes landed (6810 hip-yaw bearing, roll bay 5 mm
+    lower, arms resting folded, STS3250 at the hip rolls, the
+    <code>robot</code> stiffness preset). Tom's ask: start from a kinematic
+    solution, optimize from there, and make sure a foot actually lifts.
+    <b>robot_walk_k1</b> imitates the sole-level kinematic gait hard
+    (w-mimic 4.0, 24.9M steps): 11/144, falls 76%, line 2/8.
+    <b>robot_walk_k2</b> starts from it at the normal weight (w-mimic 1.5,
+    21.0M steps, stopped at 07:00): <b>20/144</b>, falls 71%, the 1 m line
+    6/8 with no falls, the push course 7/8, the 10 s stand 4/8. Turns,
+    sidesteps, backward, returns and the skills are 0/8 for both. The
+    from-scratch control (c0) waits for another night, so "does the
+    kinematic start help" is still open. Foot clearance is not on the
+    scorecard yet (the referee measures slip, not swing height); the clips
+    are the evidence for now.</p>
+    <p><b>The failure sweep</b> ran alongside on the CPU: 253,888 walks of
+    the kinematic gait under random conditions, 10% clean. Falls follow
+    joint play (46 → 92% across its range) and backlash (58 → 84%), and a
+    small forward lean helps (84 → 64%). A swing foot that never leaves
+    the floor is set by the commanded lift height (75 → 16%). The servo
+    stiffness parameters barely move either rate.
+    <code>sim/runs/failure_sweep/20261006_mira/summary.md</code>.</p>
+    <div class="vidgrid">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_walk_k2_line_push.jpg" src="_clips/robot_walk_k2_line_push.mp4"></video>
+      <figcaption><b>robot_walk_k2</b> · from k1 at the normal imitation weight · the straight line and the push course, both passes<br>line_1m 6/8 · push_gauntlet 7/8
+        · seed 1/8 takes, verdict burned in · 23s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_walk_k2_turn_stand.jpg" src="_clips/robot_walk_k2_turn_stand.mp4"></video>
+      <figcaption><b>robot_walk_k2</b> · the turn it cannot do yet (80° short) and the 10 s stand it can (6 cm drift)<br>turn_180 0/8 · stand_10s 4/8
+        · seed 1/8 takes, verdict burned in · 17s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_walk_k1_line_rough.jpg" src="_clips/robot_walk_k1_line_rough.mp4"></video>
+      <figcaption><b>robot_walk_k1</b> · the kinematic prior alone (w-mimic 4.0) · falls within 1.6 s on the flat line, passes the rough one<br>line_1m 2/8 · line_rough 5/8
+        · seed 1/8 takes, verdict burned in · 13s</figcaption>
+    </figure>
+    </div>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·13 · hardware thread</span></p>
     <p><b>The robot squats.</b> Three methods, three reps each, Tom
     spotting. First the <b>open-loop reference</b> over the tether — the
