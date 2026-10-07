@@ -33,7 +33,7 @@ lands in the body whose joint moves it.
     _hip_yaw   yaw carrier + hip-roll servo + the bearing's inner half
     _hip       hip_yoke_v6
     _thigh / _shin / _ankle_blk   leg_link_v6 / leg_link_v6 / ankle_link + their servo
-    _foot      foot + TPU sole + the ankle-roll servo
+    _foot      foot + silicone sole + the ankle-roll servo
     _arm       arm_upper_v6
     _forearm   arm_fore_v6 + the elbow servo
 
@@ -63,7 +63,9 @@ from gen_plant_v6 import DesignParams, build_xml, SV_T  # noqa: E402
 
 STL = os.path.join(HERE, "..", "cad", "v6", "stl")
 RHO = V.D.FILAMENT_RHO * V.D.PRINT_MASS_FACTOR * 1e-3   # kg/mm^3
-RHO_TPU = 1.21e-3 * V.D.PRINT_MASS_FACTOR * 1e-3
+# the sole is a 2 mm silicone sheet cut to the outline (not printed): solid,
+# so no print factor; 1.21 g/cm^3 stands until a cut sole is weighed (silicone 1.1-1.2)
+RHO_SOLE = 1.21e-3 * 1e-3
 
 
 def asdrawn(p: DesignParams | None = None, rest: tuple = V.ARM_REST) -> DesignParams:
@@ -231,7 +233,7 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
         out[f"{side}_ankle_blk"] = [mesh_props(stl("ankle_link"), [0, 0, 0]), servo("pitch", g15)]
         z_foot = -V.ANKLE_ROLL_Z + V.TPU_SOLE_T
         out[f"{side}_foot"] = [mesh_props(stl(f"foot_{side}"), [0, 0, z_foot]),
-                               mesh_props(stl(f"sole_tpu_{side}"), [0, 0, z_foot], rho=RHO_TPU),
+                               mesh_props(stl(f"sole_tpu_{side}"), [0, 0, z_foot], rho=RHO_SOLE),
                                servo(f"foot_{side}", g_aroll)]
         if p.arms:
             out[f"{side}_arm"] = [mesh_props(stl(f"arm_upper_v6_{side}"), [0, 0, 0])]

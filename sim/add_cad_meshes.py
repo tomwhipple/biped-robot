@@ -26,7 +26,7 @@ V = B.V
 SERVO_DIR = os.path.join(HERE, "meshes", "v6")
 PLA = "0.82 0.84 0.87 1"
 SERVO = "0.12 0.12 0.14 1"
-TPU = "0.20 0.21 0.24 1"
+SOLE = "0.93 0.93 0.91 1"     # the white 2 mm silicone sheet
 
 # servo mock keys of build_v6_inertia._mock_stl, per body
 SERVOS = {"torso": ["yaw_L", "yaw_R", "neck", "shoulder_L", "shoulder_R"],
@@ -53,7 +53,7 @@ def parts(arms=True):
         out[f"{s}_thigh"] = [("leg_link_v6", (0, 0, 0), PLA)]
         out[f"{s}_shin"] = [("leg_link_v6", (0, 0, 0), PLA)]
         out[f"{s}_ankle_blk"] = [("ankle_link", (0, 0, 0), PLA)]
-        out[f"{s}_foot"] = [(f"foot_{s}", (0, 0, z_foot), PLA), (f"sole_tpu_{s}", (0, 0, z_foot), TPU)]
+        out[f"{s}_foot"] = [(f"foot_{s}", (0, 0, z_foot), PLA), (f"sole_tpu_{s}", (0, 0, z_foot), SOLE)]
         if arms:
             out[f"{s}_arm"] = [(f"arm_upper_v6_{s}", (0, 0, 0), PLA)]
             out[f"{s}_forearm"] = [(f"arm_fore_v6_{s}", (0, 0, 0), PLA)]

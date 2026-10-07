@@ -62,7 +62,7 @@ class DesignParams:
                                  # below its axis like every other joint; 50 = the hip's
                                  # ROLL_TO_PITCH, so the ankle link is a short leg_link)
     roll_h: float = 0.01836      # ankle roll axis above the sole bottom: 4 mm plate + 12.36
-                                 # (axis centred in the 24.72 case width) + 2 mm TPU sole
+                                 # (axis centred in the 24.72 case width) + 2 mm silicone sole
     foot_len: float = 0.130
     foot_w: float = 0.084        # sole width; with foot_y_off the inboard half is 23.5 mm
                                  # (inner gap 37 mm), the outboard half 60.5 mm
@@ -91,7 +91,7 @@ class DesignParams:
     m_hip_yokes: float = 0.030   # yoke_roll + yoke_pitch (v5 L_hip 29.6 g)
     m_leg_link: float = 0.027    # leg_link_v6 (CAD 2026-09-14: 26.7 g)
     m_ankle_link: float = 0.009  # ankle_link (CAD 2026-09-14: 8.9 g)
-    m_foot: float = 0.071        # foot_v6 47 g + TPU sole 23 g (CAD 2026-09-14)
+    m_foot: float = 0.071        # foot_v6 47 g + sole 23 g (CAD 2026-09-14; generator estimate -- build_v6_inertia weighs the CAD)
     m_battery: float = 0.170     # 3S 2200-2600 mAh class LiPo (150-190 g)
     m_board: float = 0.030       # General Driver 65x65
     m_wiring: float = 0.030      # leads, ties, switch
