@@ -115,7 +115,7 @@ What changes from the path in [wiring.md](../wiring.md):
 
 ## 5. The power board
 
-One custom PCB, designed here (KiCad, proposed under `pcb/power-board/`) and
+One custom PCB, designed here (KiCad, in `pcb/power-board/`) and
 made and assembled by PCBWay or similar. Every IC on it has a manufacturer
 datasheet. It sits in the redrawn torso (#108).
 
@@ -312,9 +312,9 @@ readings come with the right IC at no extra cost.
    expires, or no Pi is fitted.
 5. The ESP32 asserts `KILL`, which holds `RST_SHUT` high for 1 s. The
    BQ76922 shuts down, opening its FETs, and draws 1–3 µA.
-6. **Holding POWER for about 5 s** drives `RST_SHUT` through an RC delay. That
-   forces the robot off in hardware, independent of the firmware. The circuit
-   is to be confirmed in the schematic.
+6. There is no hardware hold-off. If the firmware cannot assert `KILL`,
+   unplugging the pack turns the robot off. The E-stop still cuts the servo
+   rail in hardware.
 
 **Low battery** (P4):
 
@@ -435,7 +435,7 @@ recommended option is the working design until there is a reason to change it.
 | D1 | Pack capacity (§3) | **decided** | a 4000 mAh 3S LiPo; the bay is drawn for it | 2200 mAh, which meets 45 min only under the lower current model |
 | D2 | Cell protection and battery state (§5.2) | working default | option A, the BQ76922 (per-cell voltages come with it) | B (ISL94202 + INA228), C (pack-level only), D/E (JBD modules) |
 | D3 | Servo-rail switch / E-stop (§5.3) | working default | the TPS48111-Q1 with the button's NC contact on `EN` | a relay switched by the button (fail-safe contacts, but a 1.4 W coil); the LM5069 |
-| D4 | POWER button behaviour (§7) | working default | press: on; press while on: orderly shutdown; hold ≈ 5 s: forced off | no hardware hold-off (unplug the pack instead) |
+| D4 | POWER button behaviour (§7) | working default | press: on; press while on: orderly shutdown; no hardware hold-off (unplug the pack instead) | hold ≈ 5 s: forced off in hardware, by an RC from POWER to `RST_SHUT` |
 | D5 | Who draws the power board | **decided** | KiCad; Claude drafts the schematic and layout in `pcb/power-board/`, and Tom reviews before ordering | an outside designer from this spec |
 | D6 | Order of work | working default | the schematic first, with the BQ76922EVM on the bench to test the configuration and the sequences while the power board is made | wait for the power board |
 | D7 | Fuse | working default | 15 A until §10 V7 measures the peak | — |
