@@ -1,0 +1,124 @@
+{
+  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. cad/slice.py writes a part's 'orient', 'copies' and 'settings' back here when its project was saved from the GUI. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job.",
+  "printer": "Flashforge Adventurer 5M Pro 0.4 Nozzle",
+  "process": {
+    "preset": "0.20mm Standard @Flashforge AD5M Pro 0.4 Nozzle",
+    "settings": {
+      "curr_bed_type": "Textured PEI Plate",
+      "layer_height": "0.2",
+      "sparse_infill_density": "35%",
+      "wall_loops": "3"
+    }
+  },
+  "filament": {
+    "preset": "Flashforge Generic PETG",
+    "settings": {
+      "nozzle_temperature": [
+        "255"
+      ],
+      "nozzle_temperature_initial_layer": [
+        "255"
+      ],
+      "textured_plate_temp": [
+        "85"
+      ],
+      "textured_plate_temp_initial_layer": [
+        "85"
+      ]
+    }
+  },
+  "supports": {
+    "enable_support": "1",
+    "support_object_xy_distance": "0.35",
+    "support_on_build_plate_only": "1",
+    "support_threshold_angle": "30",
+    "support_top_z_distance": "0.2",
+    "support_type": "normal(auto)"
+  },
+  "parts": {
+    "ankle_link": {
+      "orient": "RY_XUP",
+      "supports": true,
+      "note": "on its back (model +X up): the copied grip-channel bores' teardrop roofs assume print-up = model +X (ankle_link.py). Only ~68 mm2 touches the bed; the rest starts on supports"
+    },
+    "arm_fore_v6_L": {
+      "orient": "RY_XUP",
+      "supports": true,
+      "note": "on its back, web face down"
+    },
+    "arm_fore_v6_R": {
+      "orient": "RY_XUP",
+      "supports": true,
+      "note": "on its back, web face down"
+    },
+    "arm_upper_v6_L": {
+      "orient": "RY_XUP",
+      "supports": false,
+      "note": "on its back, web face down"
+    },
+    "arm_upper_v6_R": {
+      "orient": "RY_XUP",
+      "supports": false,
+      "note": "on its back, web face down"
+    },
+    "foot_L": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "sole down"
+    },
+    "foot_R": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "sole down"
+    },
+    "head_face": {
+      "orient": "RY_XDOWN",
+      "supports": true,
+      "note": "flat, outer (+X) face down, camera bosses up; the outer-face pocket is then a ~50 x 44 mm ceiling 1.8 mm up, so supports (PRINT_LIST says none: open question). head.py PRINT_ORIENT_FACE = eye(3) stands it on edge; the STL is in the assembly frame"
+    },
+    "head_shell": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "base (horn plate) down"
+    },
+    "hip_yoke_v6": {
+      "orient": "RY_ROLL_WALL",
+      "supports": true,
+      "settings": {
+        "brim_type": "outer_only",
+        "brim_width": "5"
+      },
+      "note": "on edge, model -Y on the bed; 5 mm outer brim"
+    },
+    "leg_link_v6": {
+      "orient": "RY_XUP",
+      "supports": true,
+      "note": "on its back, web face on the bed"
+    },
+    "neck_floor": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "flat, bottom face down"
+    },
+    "pelvis_v7": {
+      "orient": "RX180",
+      "supports": true,
+      "note": "deck top down"
+    },
+    "shoulder_girdle_v6": {
+      "orient": "IDENT",
+      "supports": true,
+      "note": "base down"
+    },
+    "yaw_bearing_housing": {
+      "orient": "RX180",
+      "supports": false,
+      "note": "the face against the pelvis down"
+    },
+    "yaw_carrier_v6": {
+      "orient": "RX180",
+      "supports": true,
+      "note": "horn-plate face down, bay walls rising"
+    }
+  }
+}

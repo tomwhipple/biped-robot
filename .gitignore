@@ -43,10 +43,8 @@ sweeps/
 # tools/obs_capture.py writes one CSV per hardware capture
 captures/
 
-# cad/slice.py output -- gcode is a build artifact, regenerate it
+# cad/slice.py output: projects + gcode are build artifacts, regenerate them
 cad/gcode/
-# flattened OrcaSlicer presets, rebuilt from the installed flatpak on demand
-cad/print_profiles/
 hw_sessions/
 
 # Fetched C++ deps for bimo_gui (make -C firmware/host deps) -- pinned, never
