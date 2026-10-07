@@ -177,7 +177,9 @@ class BatchedEnv(brax_base.Env):
                                metrics=dict(st.metrics), info=info)
 
 
-def main():
+def make_parser():
+    """The CLI, shared with sim/mac_train.py (the CPU-physics + MPS trainer):
+    one set of flags means one env config, whichever trainer runs it."""
     p = argparse.ArgumentParser()
     p.add_argument("--out", default="mjx_cmd_v1")
     p.add_argument("--steps", type=int, default=150_000_000)
@@ -464,7 +466,12 @@ def main():
                         "response: the 2026-08-31 bench walk measured joint "
                         "motion at ~0.5x sim, reproduced only by ~2 Hz of "
                         "3-stage filtering. e.g. '2,12'")
-    args = p.parse_args()
+    return p
+
+
+def build_env_kw(args):
+    """The env kwargs a run trains with (both trainers; config.json records
+    them). Mutates args.entropy for the --precision preset, as before."""
     if args.precision and args.entropy == 1e-2:
         args.entropy = 0.005          # Playground's biped setting (plan v2)
 
@@ -745,6 +752,12 @@ def main():
             w_recover_h=1.0, w_recover_up=0.8, stand_bonus=1.0,
             getup_start_mix=tuple(float(x) for x in args.getup_mix.split(",")),
         )
+    return env_kw
+
+
+def main():
+    args = make_parser().parse_args()
+    env_kw = build_env_kw(args)
     env = BimoMJXEnv(**env_kw)
     if env_kw.get("servo_kp_scale") is not None:
         # pin the stiffness the env RESOLVED, per actuator: a preset name in

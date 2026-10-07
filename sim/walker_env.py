@@ -407,6 +407,11 @@ class BimoWalkerEnv(gym.Env):
         walk_submix: tuple = (0.15, 0.15),  # of walks: (backward, sidestep)
         turn_emph: bool = False,       # mirrors sim/mjx turn_emph (loco_v5t)
         w_foot_cross: float = 0.0,     # feet-crossing guard (mirrors sim/mjx)
+        # The guard's reward term, as env_mjx applies it. Off by default: the
+        # referee rebuilds from config.json (which carries w_foot_cross) and
+        # its scores do not involve reward; the Mac trainer turns it on.
+        foot_cross_term: bool = False,
+        foot_cross_sep: float = 0.051,   # env_mjx default: sole width + 5 mm
         sway_vy: float = 0.12,         # sway-command vy amplitude (m/s)
         # -- knee-high marching (2026-08-01; mirrors sim/mjx) -----------------
         march_mix: float = 0.0,        # fraction of ext_cmd command draws that
@@ -556,6 +561,12 @@ class BimoWalkerEnv(gym.Env):
         # 0.0 = pass-through (bit-exact legacy behavior). Same law as
         # env_mjx: 3 cascaded first-order stages before tick quantization.
         act_lag_hz: float = 0.0,
+        # Per-episode pole DR, as env_mjx --act-lag lo,hi (its act_lag_hz_max;
+        # named apart so a referee rebuilding from config.json never inherits
+        # it and keeps its one pinned pole): when set, each
+        # episode draws its pole uniform(act_lag_hz, act_lag_dr_max). None
+        # (the referee) keeps the one fixed pole and the RNG stream unchanged.
+        act_lag_dr_max: float | None = None,
         # -- servo dead time (referee-side, 2026-09-06) ------------------------
         # The 2026-09-05 clamped-foot step test measured ~85 ms of PURE delay
         # before the STS3215 follows a target (amplitude/load independent) --
@@ -675,6 +686,8 @@ class BimoWalkerEnv(gym.Env):
         _cs = os.path.join(os.path.dirname(xml_path), "getup_catch_states.npz")
         self._catch_states = np.load(_cs) if os.path.exists(_cs) else None
         self.w_foot_cross = w_foot_cross
+        self.foot_cross_term = bool(foot_cross_term)
+        self.foot_cross_sep = float(foot_cross_sep)
         self.sway_vy = sway_vy
         self.march_mix = float(march_mix)
         self.w_knee_high = w_knee_high
@@ -729,6 +742,8 @@ class BimoWalkerEnv(gym.Env):
             self._cmd[3] = 1.0            # crouch channel: 1 = full height
         self.quantize_ticks = bool(quantize_ticks)
         self.act_lag_hz = float(act_lag_hz)
+        self.act_lag_dr_max = None if act_lag_dr_max is None else float(act_lag_dr_max)
+        self._act_lag_ep = self.act_lag_hz   # this episode's pole (DR draws it in reset)
         self._lag_y = None       # (3, n_act) cascade state; seeded on 1st step
         self.act_delay_ticks = int(act_delay_ticks)
         self.crouch_pose_ref = bool(crouch_pose_ref)
@@ -1826,6 +1841,11 @@ class BimoWalkerEnv(gym.Env):
             self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
         self._lag_y = None                    # re-seed the act-lag cascade
+        if self.act_lag_dr_max is not None:
+            self._act_lag_ep = float(self.np_random.uniform(self.act_lag_hz,
+                                                            self.act_lag_dr_max))
+        else:
+            self._act_lag_ep = self.act_lag_hz
         self._act_hist = None                 # re-seed the dead-time ring
         if self.obs_hist_len > 1:
             self._obs_hist = []
@@ -1847,7 +1867,7 @@ class BimoWalkerEnv(gym.Env):
                                   ] * self.act_delay_ticks
             self._act_hist.append(target.astype(np.float64))
             target = self._act_hist.pop(0)
-        if self.act_lag_hz > 0.0:
+        if self._act_lag_ep > 0.0:
             # action-chain lag (3 cascaded first-order stages, the firmware C2
             # shaper's structure) BEFORE quantization, matching env_mjx and
             # the deploy path's shaper -> angleToSteps order
@@ -1855,7 +1875,7 @@ class BimoWalkerEnv(gym.Env):
                 # seeded with the default pose, matching env_mjx reset
                 self._lag_y = np.stack(
                     [np.asarray(self._sdefault, dtype=np.float64)] * 3)
-            k = 1.0 - np.exp(-2.0 * np.pi * self.act_lag_hz * self.control_dt)
+            k = 1.0 - np.exp(-2.0 * np.pi * self._act_lag_ep * self.control_dt)
             self._lag_y[0] += k * (target - self._lag_y[0])
             self._lag_y[1] += k * (self._lag_y[0] - self._lag_y[1])
             self._lag_y[2] += k * (self._lag_y[1] - self._lag_y[2])
@@ -2203,6 +2223,15 @@ class BimoWalkerEnv(gym.Env):
             # command block, mirrors sim/mjx)
             reward += self.w_lift * lift_ok
             reward += self.w_track_foot * foot_kernel
+            if self.foot_cross_term and self.w_foot_cross:
+                # feet-crossing guard (env_mjx): the torso-frame lateral
+                # separation of the two sole centres must stay >= sole
+                # width + 5 mm
+                pL = d.geom_xpos[self._sole_gids[0]] - d.xpos[self._torso_bid]
+                pR = d.geom_xpos[self._sole_gids[1]] - d.xpos[self._torso_bid]
+                y_sep = abs((-sth * pL[0] + cth * pL[1]) - (-sth * pR[0] + cth * pR[1]))
+                reward -= self.w_foot_cross * float(np.clip(
+                    (self.foot_cross_sep - y_sep) / self.foot_cross_sep, 0.0, 1.0))
             # clearance-gated (mirrors sim/mjx -- skills_v2 leaning loophole)
             reward += (self.w_com_stance * float(lifted) * com_kernel
                        * float(np.clip(foot_clear / self.lift_clear,
