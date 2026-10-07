@@ -15,7 +15,7 @@ what a trained policy can recover.
 |---|---|---|---|
 | wide | laptop, 20:50–03:03 | 382,200 | `--space wide`: edges (play to 6°, backlash to 3°, mu 0.3–1.2, servos down to 65 %, tilt ±3°, any lag, stunt gaits) |
 | realistic | laptop, 03:16–06:45 | 52,224 | `--space realistic`: the expected envelope (play ≤ 3°, backlash ≤ 1.5°, mu 0.5–1.0, servos 85–100 %, the bench's stiffness band, tilt ±1.5°, normal walking) |
-| wide | Mira CPU, 22:00–06:45 | (pending) | seed 100000 |
+| wide | Mira CPU, 22:00–06:45 | 253,888 | `--space wide`, independent seeds: every category rate within 0.3 points of the laptop's, every marginal below within 0.6 |
 
 Classes: **fell**; **no_lift** (a completed step whose swing sole peaked under
 15 mm); short_air (< 0.3 s airborne); slip (stance foot > 10 mm); low_margin;
@@ -72,6 +72,7 @@ Single-parameter marginals of a uniform sample: interactions are not separated.
 7. **Servo strength and stiffness inside the bench's band hardly matter** to
    the open-loop walk; play, backlash and lag dominate.
 
-Data: `sim/runs/failure_sweep/20261006_laptop/` and
-`sim/runs/failure_sweep/20261007_laptop_realistic/` (results.csv, summary.md;
-gitignored, regenerate with the commands in `sim/failure_sweep.py`).
+Data: `sim/runs/failure_sweep/20261006_laptop/`,
+`sim/runs/failure_sweep/20261007_laptop_realistic/` and Mira's
+`sim/runs/failure_sweep/20261006_mira/` (results.csv, summary.md; gitignored,
+regenerate with the commands in `sim/failure_sweep.py`).
