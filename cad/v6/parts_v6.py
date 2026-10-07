@@ -87,8 +87,8 @@ PARTS += [
     ("ankle_link", _lazy("ankle_link", "ankle_link"), 2, "pitch grip + X fork onto the roll servo"),
     ("foot_L", _lazy("foot_v6", "foot", "L"), 1, "asymmetric sole, mirrored pair"),
     ("foot_R", _lazy("foot_v6", "foot", "R"), 1, "asymmetric sole, mirrored pair"),
-    ("sole_tpu_L", _lazy("foot_v6", "sole_tpu", "L"), 1, "rubber sole, cut (outline)"),
-    ("sole_tpu_R", _lazy("foot_v6", "sole_tpu", "R"), 1, "rubber sole, cut (outline)"),
+    ("sole_tpu_L", _lazy("foot_v6", "sole_tpu", "L"), 1, "silicone sole, cut (outline)"),
+    ("sole_tpu_R", _lazy("foot_v6", "sole_tpu", "R"), 1, "silicone sole, cut (outline)"),
 ]
 if ARMS:
     PARTS += [
@@ -115,8 +115,9 @@ SERVO_COUNT = {"STS3215": N_SERVOS - N_3250, "STS3250": N_3250}
 
 
 def mass_g(solid, tpu=False):
-    rho = 1.21e-3 if tpu else D.FILAMENT_RHO
-    return solid.volume * rho * D.PRINT_MASS_FACTOR
+    if tpu:     # the soles: cut from solid 2 mm silicone sheet, no print factor
+        return solid.volume * 1.21e-3
+    return solid.volume * D.FILAMENT_RHO * D.PRINT_MASS_FACTOR
 
 
 BEARING_MASS_G = 2 * V.YAW_BRG_MASS_G   # two hip-yaw bearings
@@ -173,7 +174,7 @@ def main(argv=None):
                f"hip-yaw bearings {BEARING_MASS_G:.0f} g (2 x 6810-2RS); "
                f"pack + boards + wiring {elec:.0f} g; robot ~{total_print + servos + BEARING_MASS_G + elec:.0f} g"
                + ("" if not a.only else "  (partial: --only)"))
-    out.append("masses: build123d volume x PETG 1.27 g/cm3 x 0.90 print factor (TPU 1.21 g/cm3), "
+    out.append("masses: build123d volume x PETG 1.27 g/cm3 x 0.90 print factor (silicone soles: 1.21 g/cm3, solid), "
                "before supports and brims; bought parts at catalogue mass")
     text = "\n".join(out)
     print(text)

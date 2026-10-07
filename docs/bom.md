@@ -304,7 +304,8 @@ M2.5, not M3.
 | item | qty | notes | have |
 |---|---|---|---|
 | PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.77–0.79 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
-| self-adhesive rubber sheet, **2 mm** thick | 1 (≥ 130 × 170 mm: two soles) | the soles, cut to the foot plate's outline (130 × 84 mm, R14 corners) and stuck to its flat underside; 2 mm is the design's sole (`TPU_SOLE_T`) | |
+| silicone rubber sheet, **2 mm** thick: BENECREAT white silicone, 300 × 300 mm, 2 sheets ([bom-sourced](bom-sourced.md) item 16, [Amazon B08P7P69WQ](https://www.amazon.com/dp/B08P7P69WQ)) | 1 sheet cuts both soles | the soles, cut to the foot plate's outline (130 × 84 mm, R14 corners) and bonded to its flat underside; 2 mm is the design's sole (`TPU_SOLE_T`) | |
+| adhesive for the soles | — | needed unless the sheet is self-adhesive (the listing shows no backing): a silicone-rubber adhesive. Plain CA and epoxy don't hold silicone; CA does over a polyolefin primer | |
 | hook-and-loop strap, **15 mm** wide | 1 | the battery belt, through the pelvis belt slots (`BATT_BELT_W`) | |
 | adhesive foam pads, **1 mm** thick | 2 (about 30 × 20 mm) | under the pack, one per cell ceiling, clear of the yaw servos' post holes (`BATT_PAD_T`) | |
 | thread-locker, medium strength (removable) | 1 | on the M3 disc screws (the design calls for thread-locked horn screws); keep it off the printed parts | |

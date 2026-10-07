@@ -52,7 +52,7 @@ BENCH = {
 }
 
 LEG = ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L", "servo_knee_L", "shin_L",
-       "servo_ankle_pitch_L", "ankle_link_L", "servo_ankle_roll_L", "foot_L"]
+       "servo_ankle_pitch_L", "ankle_link_L", "servo_ankle_roll_L", "foot_L", "sole_L"]
 LEG_R = [n[:-1] + "R" for n in LEG]
 BEARING = ["bearing_inner_L", "bearing_outer_L"]
 BEARING_R = [n[:-1] + "R" for n in BEARING]
@@ -71,16 +71,16 @@ ARM_R = [n[:-1] + "R" for n in ARM]
 # (file stem, caption, installed, incoming, offset mm, (azimuth, elevation), frame-on or None)
 STEPS = [
     ("01_foot_servo", "3. Ankle-roll servo down into the foot cradle",
-     ["foot_L"], ["servo_ankle_roll_L"], 45, (135, -25), None),
+     ["foot_L", "sole_L"], ["servo_ankle_roll_L"], 45, (135, -25), None),
     ("02_ankle_link_grip", "4. Ankle-pitch servo up into the ankle link's grip channel",
      ["ankle_link_L"], ["servo_ankle_pitch_L"], 45, (140, -5), None),
     ("03_ankle_roll_fork", "5. Ankle link lowered onto the roll servo's two discs",
-     ["foot_L", "servo_ankle_roll_L"], ["ankle_link_L", "servo_ankle_pitch_L"], 45, (135, -15), None),
+     ["foot_L", "sole_L", "servo_ankle_roll_L"], ["ankle_link_L", "servo_ankle_pitch_L"], 45, (135, -15), None),
     ("04_shin_on_ankle", "5. Shin (knee servo in its grip) lowered onto the ankle-pitch servo",
-     ["foot_L", "servo_ankle_roll_L", "ankle_link_L", "servo_ankle_pitch_L"],
+     ["foot_L", "sole_L", "servo_ankle_roll_L", "ankle_link_L", "servo_ankle_pitch_L"],
      ["shin_L", "servo_knee_L"], 50, (135, -10), ["shin_L", "servo_knee_L", "ankle_link_L"]),
     ("05_thigh_on_knee", "5. Thigh (hip-pitch servo in its grip) lowered onto the knee servo",
-     ["foot_L", "servo_ankle_roll_L", "ankle_link_L", "servo_ankle_pitch_L", "shin_L", "servo_knee_L"],
+     ["foot_L", "sole_L", "servo_ankle_roll_L", "ankle_link_L", "servo_ankle_pitch_L", "shin_L", "servo_knee_L"],
      ["thigh_L", "servo_hip_pitch_L"], 50, (135, -10), ["thigh_L", "servo_hip_pitch_L", "shin_L"]),
     ("06_hip_yoke", "6. Hip yoke's pitch clevis lowered onto the hip-pitch servo",
      LEG[1:], ["hip_yoke_L"], 40, (135, -10), ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L"]),

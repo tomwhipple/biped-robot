@@ -87,7 +87,7 @@ ANKLE_PITCH_TO_ROLL = 58.0   # 57 left the roll and pitch servo bodies 0.15 mm a
 _roll_rise_25 = D.SV_WID / 2 * math.cos(math.radians(25)) + D.SV_TOPFACE * math.sin(math.radians(25))
 assert ANKLE_PITCH_TO_ROLL - 36.0 - _roll_rise_25 >= 2.0, "roll servo top edge reaches the pitch servo at 25 deg"
 FOOT_PLATE_T = 4.0      # printed sole plate (v5 FOOT_T 6 with a 2 mm pocket)
-TPU_SOLE_T = 2.0        # the sole: 2 mm self-adhesive rubber, cut, stuck under the plate
+TPU_SOLE_T = 2.0        # the sole: 2 mm silicone rubber sheet, cut, bonded under the plate
 # roll servo lies on the plate top, output axis along +X (horn FORWARD),
 # case width (24.72) vertical -> axis centred 12.36 above the plate top
 ANKLE_ROLL_ABOVE_PLATE = FOOT_PLATE_T + D.SV_WID / 2                 # 16.36

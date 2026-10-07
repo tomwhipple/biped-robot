@@ -29,8 +29,8 @@ lead slot, and there is no deck under the rest of the flange).
 ## The parts
 
 **How the masses are computed:** build123d volume × PETG 1.27 g/cm³ × 0.90
-print factor (`parts_v6.mass_g`); the cut rubber soles are estimated at 1.21 g/cm³
-with the same factor until weighed. They
+print factor (`parts_v6.mass_g`); the cut silicone soles are solid sheet,
+estimated at 1.21 g/cm³ (no print factor) until weighed. They
 are the rollup's, `docs/design-v6/parts_v6_rollup.txt`
 (`cad/v6/parts_v6.py --no-export`).
 
@@ -88,7 +88,7 @@ brims.
 
 **Not printed:**
 
-- `sole_tpu_L/R`: the soles are cut from 2 mm self-adhesive rubber sheet
+- `sole_tpu_L/R`: the soles are cut from 2 mm silicone rubber sheet
   ([docs/bom.md §7](../docs/bom.md)), not printed. Each is the foot plate's
   outline: 130 × 84 mm with 14 mm corner radii, the same for left and right.
   The STLs are that outline.

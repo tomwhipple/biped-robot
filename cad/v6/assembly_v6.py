@@ -57,6 +57,7 @@ OUT_REN = os.path.join(HERE, "renders")
 COL_PRINT = Color(0.82, 0.84, 0.87)
 COL_SERVO = Color(0.22, 0.23, 0.27)
 COL_FOOT = Color(0.30, 0.31, 0.34)
+COL_SOLE = Color(0.93, 0.93, 0.91)       # white silicone rubber sheet
 COL_MOCK = Color(0.15, 0.45, 0.75)
 COL_HEAD = Color(0.90, 0.88, 0.80)
 
@@ -149,6 +150,16 @@ def part_ankle_link():
     if ok:
         return s
     return Pos(0, 1.0, -V.AL_DROP / 2) * Box(44, 44, V.AL_DROP + 20)
+
+
+def part_sole(side):
+    """The 2 mm silicone sole stuck under the foot plate (foot_v6.sole_tpu, the
+    cutting outline): z -TPU_SOLE_T..0 in the foot frame."""
+    s, ok = _try("foot_v6", "sole_tpu", side)
+    if ok:
+        return s
+    sgn = 1 if side == "L" else -1
+    return Pos(V.FOOT_TOE - V.FOOT_L_LEN / 2, sgn * V.FOOT_Y_OFF, -V.TPU_SOLE_T / 2) * Box(V.FOOT_L_LEN, V.FOOT_W, V.TPU_SOLE_T)
 
 
 def part_foot(side):
@@ -274,6 +285,7 @@ def _leg_chain(side):
         (5, f"ankle_link_{side}", COL_PRINT, at(V.ANKLE_PITCH_Z) * part_ankle_link()),
         (6, f"servo_ankle_roll_{side}", COL_SERVO, at(V.ANKLE_ROLL_Z) * mock_roll_servo_in_foot(side)),
         (6, f"foot_{side}", COL_FOOT, at(V.TPU_SOLE_T) * part_foot(side)),
+        (6, f"sole_{side}", COL_SOLE, at(V.TPU_SOLE_T) * part_sole(side)),
     ]
     return pieces, joints
 

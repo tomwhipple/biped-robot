@@ -41,6 +41,7 @@ import dimensions_v6 as V  # noqa: E402
 # direction = where the part COMES FROM (unit vector), applied as an offset
 INSERT = [
     ("foot_",              (0, 0, -1), 0),   # feet placed on the floor
+    ("sole_",              (0, 0, -1), 0),   # silicone sole stuck on from below
     ("servo_ankle_roll_",  (0, 0, 1), 1),    # roll servo dropped into the cradle
     ("ankle_link_",        (0, 0, 1), 2),    # link lowered onto the roll servo discs
     ("servo_ankle_pitch_", (0, 0, 1), 3),    # already in its grip channel (entered along +z from below on

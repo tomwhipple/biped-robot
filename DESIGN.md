@@ -46,7 +46,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
 | power | 3S LiPo 2200–2600 mAh (≤ 105 × 36 × 26 mm, ~170 g), protection board, inline fuse, 5 V / 5 A buck for the Pi |
-| structure | PETG prints, 2 mm self-adhesive rubber soles; M2.5 flat-head self-tappers into printed pilots, M3 screws on the servo horns and idler discs |
+| structure | PETG prints, 2 mm silicone rubber soles; M2.5 flat-head self-tappers into printed pilots, M3 screws on the servo horns and idler discs |
 
 ## 3. Kinematics
 
@@ -85,8 +85,8 @@ roll 58 mm; hip roll to hip yaw 45.1 mm (the yaw carrier, §5.2).
   walk fails outward — the pelvis swings inward in single support and the closed
   chain throws it out at touchdown — so the sole extends outboard. The inboard
   half is as wide as the two feet allow: at the walk's 3° mutual hip-roll
-  adduction they clear each other by 2.7 mm. 4 mm PETG plate, 2 mm self-adhesive
-  rubber sole stuck flat; mirrored left/right.
+  adduction they clear each other by 2.7 mm. 4 mm PETG plate, 2 mm silicone
+  rubber sole bonded flat; mirrored left/right.
 - **Forward knee.** A backward knee is the forward knee with time reversed in
   the sagittal plane; it gains nothing here and needs ±55° of ankle pitch.
 - **Hip yaw on every leg.** It is what makes turning work (the walk turns up to
@@ -195,7 +195,7 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   ankle-roll servo's discs.
 - **`foot_L` / `foot_R`**: the roll servo lies across the foot plate in a
   cradle with two screwed retention tabs; the sole (`sole_tpu_L/R`, the
-  outline) is 2 mm self-adhesive rubber, cut, for edge compliance and grip.
+  outline) is 2 mm silicone rubber, cut, for edge compliance and grip.
 
 ### 5.2 Hip
 
@@ -338,9 +338,9 @@ The robot as drawn, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.26 kg (the plant: 2.263 kg) |
+| robot | ≈ 2.27 kg (the plant: 2.274 kg) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
-| printed PETG + rubber soles | ≈ 0.79 + 0.05 kg: pelvis 174 g, bearing housing 25 g, girdle 77 g, arm links 134 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
+| printed PETG + silicone soles | ≈ 0.79 + 0.05 kg: pelvis 174 g, bearing housing 25 g, girdle 77 g, arm links 134 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
 | hip-yaw bearings | 106 g (2 × 6810-2RS) |
 | pack / boards + wiring | 170 g / ≈ 180 g |
 

@@ -48,7 +48,7 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 | `yoke_pitch_v6.py` | the pitch clevis alone. `hip_yoke_v6` is built from it; it is printed only under `HIP_YOKE_VARIANT=split` |
 | `leg_link_v6.py` | thigh and shin (one part): a 110 mm open-front U with an end wall at each end of the open span |
 | `ankle_link.py` | grips the ankle-pitch servo and forks onto the ankle-roll servo |
-| `foot_v6.py` | `foot_L`/`foot_R` and the soles' outline `sole_tpu_L`/`_R` (cut from rubber sheet) |
+| `foot_v6.py` | `foot_L`/`foot_R` and the soles' outline `sole_tpu_L`/`_R` (cut from 2 mm silicone sheet) |
 | `head.py` | `head_shell`, `head_face`, and `head` (the two fused, for checks) |
 | `neck_floor.py` | the neck servo's seat: a plate screwed up into the neck tube's bosses, in the deck's battery aperture (#90); its checks and `tube_bosses()` |
 | `neck_collar.py` | the `ARMS=0` variant's neck tube (not a print target: its flange pilots miss the deck) |
