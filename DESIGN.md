@@ -191,8 +191,13 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   walls) with a wall between the sides at each end of the open span against
   twist; it prints on its back. Relief cuts for 130° of knee flexion and for
   −120° of hip flexion.
-- **`ankle_link`** (×2): grips the ankle-pitch servo and forks fore/aft onto the
-  ankle-roll servo's discs.
+- **`ankle_link`** (×2): grips the ankle-pitch servo with the leg link's grip
+  plates and forks fore/aft onto the ankle-roll servo's discs. The grip is a
+  box around the servo's base: the back web, both plates, and the front tine
+  carried up across the full width as the front wall, on a floor the rear
+  tine hangs from. The plates cannot reach straight down: beside the servo
+  the rolling ankle-roll servo leaves no room under them. It prints on its
+  back, with supports.
 - **`foot_L` / `foot_R`**: the roll servo lies across the foot plate in a
   cradle with two screwed retention tabs; the sole (`sole_tpu_L/R`, the
   outline) is 2 mm silicone rubber, cut, for edge compliance and grip.

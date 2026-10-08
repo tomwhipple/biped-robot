@@ -142,14 +142,14 @@
 
               <body name="L_ankle_blk" pos="0 0 -0.11">
                 <joint name="L_ankle" axis="0 1 0" range="-45 45"/>
-        <inertial pos="-0.0003 0.0012 -0.0167" quat="0.7088 -0.0197 0.7045 -0.0286" mass="0.0671" diaginertia="1.2358e-05 2.2789e-05 2.4256e-05"/>
+        <inertial pos="0.0004 0.0013 -0.0171" quat="0.7280 -0.0342 0.6847 -0.0076" mass="0.0686" diaginertia="1.3234e-05 2.4022e-05 2.4869e-05"/>
         <geom name="L_ankle_blk_cad_ankle_link" class="cad" mesh="cad_ankle_link" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_ankle_blk_servo_pitch" class="cad" mesh="servo_pitch" rgba="0.12 0.12 0.14 1"/>
                 <!-- ankle-pitch servo case hangs below the axis inside the
                      ankle link (the hip's roll->pitch stack, upside down) -->
                 <geom type="box" pos="0 0.00155 -0.0125" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
-                <geom type="box" pos="0.00133 -0.00099 -0.0355" size="0.02212 0.02174 0.0325" class="fallcol" mass="0.009" rgba="0.82 0.84 0.87 1" group="3"/>
-                <geom type="box" pos="0.00133 -0.00099 -0.0355" size="0.02212 0.02174 0.0325" name="L_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
+                <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" class="fallcol" mass="0.009" rgba="0.82 0.84 0.87 1" group="3"/>
+                <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" name="L_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="L_foot" pos="0 0 -0.058">
                   <joint name="L_ankle_roll" axis="1 0 0" range="-25 25"/>
         <inertial pos="0.0063 0.0160 -0.0088" quat="0.9992 -0.0306 0.0212 0.0140" mass="0.1328" diaginertia="6.4892e-05 1.2167e-04 1.6588e-04"/>
@@ -217,14 +217,14 @@
 
               <body name="R_ankle_blk" pos="0 0 -0.11">
                 <joint name="R_ankle" axis="0 1 0" range="-45 45"/>
-        <inertial pos="-0.0003 0.0012 -0.0167" quat="0.7088 -0.0197 0.7045 -0.0286" mass="0.0671" diaginertia="1.2358e-05 2.2789e-05 2.4256e-05"/>
+        <inertial pos="0.0004 0.0013 -0.0171" quat="0.7280 -0.0342 0.6847 -0.0076" mass="0.0686" diaginertia="1.3234e-05 2.4022e-05 2.4869e-05"/>
         <geom name="R_ankle_blk_cad_ankle_link" class="cad" mesh="cad_ankle_link" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_ankle_blk_servo_pitch" class="cad" mesh="servo_pitch" rgba="0.12 0.12 0.14 1"/>
                 <!-- ankle-pitch servo case hangs below the axis inside the
                      ankle link (the hip's roll->pitch stack, upside down) -->
                 <geom type="box" pos="0 0.00155 -0.0125" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
-                <geom type="box" pos="0.00133 -0.00099 -0.0355" size="0.02212 0.02174 0.0325" class="fallcol" mass="0.009" rgba="0.82 0.84 0.87 1" group="3"/>
-                <geom type="box" pos="0.00133 -0.00099 -0.0355" size="0.02212 0.02174 0.0325" name="R_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
+                <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" class="fallcol" mass="0.009" rgba="0.82 0.84 0.87 1" group="3"/>
+                <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" name="R_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="R_foot" pos="0 0 -0.058">
                   <joint name="R_ankle_roll" axis="1 0 0" range="-25 25"/>
         <inertial pos="0.0063 -0.0160 -0.0088" quat="0.9992 0.0306 0.0212 -0.0140" mass="0.1328" diaginertia="6.4892e-05 1.2167e-04 1.6588e-04"/>

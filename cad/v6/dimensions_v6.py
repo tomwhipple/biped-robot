@@ -200,29 +200,38 @@ assert ANKLE_ROLL_ABOVE_PLATE - D.PAD_D / 2 > FOOT_PLATE_T + 1.0, "tine pads wou
 # forks in X down to the roll servo's horn (+X) and idler (-X) discs
 # ----------------------------------------------------------------------------
 # Local frame: pitch axis == Y axis through the origin; roll axis == X axis
-# at z = -ANKLE_PITCH_TO_ROLL. The grip channel (web on -x, plates on +-y,
-# rib/platform detents, csk M2.5 grip screws, cable window) is leg_link's,
-# byte for byte (import the helpers, do not redraw). The fork below is NEW:
-# two tines in the X-Z plane, front tine inner face on the horn disc face
-# (x = SV_HORN_FACE), rear tine inner face on the idler disc face
-# (x = SV_IDLER_FACE) -- a 37.25 grip span, like every joint -- each ending
-# in an O20 pad with the O14 BCD and the centre relief, joined to the grip
-# channel by a plate across the top and a web up the -y side (outside the
-# roll servo's +10.11 inboard end... note the roll servo's LONG side is
-# OUTBOARD, +y on the left leg, so the ankle link's web goes INBOARD, -y,
-# where the case ends 10.11 from the axis).
+# at z = -ANKLE_PITCH_TO_ROLL. The grip plates (horn +y, idler -y, rib and
+# platform detents, csk M2.5 grip screws) and the back web are leg_link_v6's,
+# idler plate square at LL_IDLER_PLATE_TOP. The fork: two tines across X,
+# front tine inner face on the horn disc face (x = SV_HORN_FACE), rear tine
+# inner face on the idler disc face (x = SV_IDLER_FACE) -- a 37.25 grip span,
+# like every joint -- each ending in an O20 pad with the O14 BCD and the
+# centre relief.
+#
+# The roll servo's case, swept through the ankle-roll ROM in both mounting
+# orientations (same part both legs, mirrored feet), reaches z -37.0 under the
+# idler plate and -35.8 under the horn plate; the pitch servo's case bottom is
+# at -35.11. Beside the case there is no room to join the plates to anything
+# below them, so the link is a box around the servo's base: web, both plates
+# and a front wall (the front tine carried up across the full width), from
+# GRIP_BOT to LL_IDLER_PLATE_TOP, on a floor. The rear tine hangs from the
+# floor behind the web.
 AL_DROP = ANKLE_PITCH_TO_ROLL
 AL_TINE_T = D.PLATE                           # 3.0
 AL_TINE_FRONT_X = (D.SV_HORN_FACE, D.SV_HORN_FACE + AL_TINE_T)      # 20.45..23.45
 AL_TINE_REAR_X = (D.SV_IDLER_FACE - AL_TINE_T, D.SV_IDLER_FACE)     # -19.80..-16.80
 AL_TINE_W = 24.0                              # tine width along y at the pad
-AL_WEB_Y = (-D.SV_AXIS_FROM_OUT_END - D.FIT - D.WALL, -D.SV_AXIS_FROM_OUT_END - D.FIT)  # -13.01..-10.41 inboard web
-AL_TOP_PLATE_Z = -36.0 - 0.6                  # under the grip plates' bottom (GRIP_BOT -36)
-AL_TOP_PLATE_T = D.WALL
-# roll servo case top under the link: -AL_DROP + SV_WID/2 = -41.64; the plate
-# bottom at -39.2 leaves 2.44 -- the swept corner (+-25 deg, see above) is
-# what really sets it and check_assembly_v6 sweeps it
-assert (-AL_TOP_PLATE_Z - AL_TOP_PLATE_T) < AL_DROP - D.SV_WID / 2 - 2.0, "ankle link top plate hits the roll servo"
+# floor under the pitch servo's case, rear tine to front wall. Its +y edge
+# stops at 14: further out the roll sweep thins it below 1.4 mm (it reaches
+# -36 at |y| 16.9). Its -y edge runs under the idler plate.
+AL_FLOOR_Z = (D.GRIP_BOT - D.WALL - 0.6, D.GRIP_BOT)               # -39.2..-36.0
+AL_FLOOR_Y = (-15.5, 14.0)
+# each tine widens 45 deg from AL_TINE_W to +-AL_SHOULDER_Y at the floor:
+# inside the foot's front retention tab, whose inner-top edge swings in to
+# |y| 15.5, z -35.7 at full roll (ankle_link._tab_keepout).
+AL_SHOULDER_Y = 14.5
+# roll servo case top under the link at rest: -AL_DROP + SV_WID/2 = -45.64
+assert -AL_FLOOR_Z[0] < AL_DROP - D.SV_WID / 2 - 2.0, "ankle link floor hits the roll servo"
 
 # ----------------------------------------------------------------------------
 # leg link v6 (qty 4): thigh AND shin, LINK_DROP 110, open-front U, end walls
