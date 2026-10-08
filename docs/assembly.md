@@ -133,7 +133,7 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 
 | step | fastener | total |
 |---|---|---|
-| §3 foot tabs | M2.5 × 8 flat-head self-tap | 8 |
+| §3 foot tabs and near-row bosses | M2.5 × 8 flat-head self-tap | 12 |
 | §4 grip channels (4 leg links, 2 ankle links) | M2.5 × 8 flat | 36 |
 | §5 ankle roll (ankle-link tines) | M3 × 5 | 16 |
 | §5 ankle pitch, knee (leg-link forks) | M3 × 5 horn / M3 × 6 idler | 16 / 16 |
@@ -208,7 +208,12 @@ The robot has no heat-set inserts and no washers.
      outboard. The lead leaves through the notch in the rear rail.
 3. **Screw the two retention tabs:** the front tab onto the horn-side case face,
    the rear tab onto the idler face. Each takes **2 × M2.5 × 8 flat-heads** into
-   the far hole rows.
+   the far hole rows, driven from outside between the tab's two bracing fins.
+4. **Screw the two near-row bosses:** the short bosses beside the discs, one
+   on each case face, take **1 × M2.5 × 8 flat-head** each into the low hole of
+   the row nearest the output end. The idler-side boss stands just short of
+   the connector trench, so plug the lead in before the servo goes into the
+   cradle.
 
 ## 4. Grip channels: ankle link, shin, thigh
 

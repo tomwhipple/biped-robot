@@ -183,6 +183,46 @@ FOOT_SCREW_Z = tuple(FOOT_PLATE_T + D.SV_WID / 2 + s * D.CASE_HOLE_LAT for s in 
 # side) tab seats on the REAL idler face (SV_IDLER_CASE_FACE), like v5's foot
 FOOT_TAB_FRONT_X = (D.SV_TOPFACE + D.GRIP_SEAT_CLR, D.SV_TOPFACE + D.GRIP_SEAT_CLR + FOOT_TAB_T)   # 17.50..19.90
 FOOT_TAB_REAR_X = (D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - FOOT_TAB_T, D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR)  # -17.30..-14.90
+# bracing: a tab alone is a thin plate standing 26 mm straight up off the
+# plate, and printed sole-down it bends fore/aft across its own layer lines
+# at the root -- the way printed tabs break off. Each tab carries two
+# buttress fins on its OUTER face (the case is against the inner one), one at
+# each end, with the screw column between them open to a D.ACCESS_D driver.
+# The inboard fin stays inside the tab's own y-span: the ankle link is cut
+# clear of the tab's inboard face at full roll (ankle_link._tab_keepout), so
+# nothing may stand further inboard than it. The outboard fin has no link
+# beside it and runs FOOT_FIN_T past the channel, 1 mm past the tab's end.
+# The rear tine's outboard corner sweeps down over the rear tab's INBOARD
+# top corner at roll +20..+25, so that corner is chamfered and the fin at
+# that end stops lower.
+FOOT_FIN_T = 3.0                              # outboard fin, along y
+FOOT_FIN_RUN = 16.0                           # base run along x, out from the tab's outer face
+FOOT_FIN_GAP_HW = D.ACCESS_D / 2              # 3.5: the driver channel between a tab's fins
+FOOT_FIN_IN_T = FOOT_TAB_HW - FOOT_FIN_GAP_HW  # 2.0: inboard fin, inside the tab's span
+FOOT_FIN_REAR_IN_H = 20.0                     # the rear tab's inboard fin, above the plate top
+FOOT_TAB_REAR_CHAMFER = 4.0                   # 45 deg off the rear tab's inboard top corner
+assert FOOT_FIN_GAP_HW >= D.CASE_CS_D / 2 + 0.5, "fins crowd the tab screws' countersinks"
+assert FOOT_FIN_IN_T >= 2.0, "inboard fin thinner than 5 perimeters"
+# near-row bosses (the v5 foot's front retention bosses): the tabs hold the
+# case only at its far hole rows, 29 / 32.75 out along the length, which
+# leaves the output end -- the end the ankle link loads -- levering off them.
+# A short boss on each case face takes the NEAR row (8.30 from the axis, both
+# faces), LOW hole only (z 6.11): the high one sits in the tine pads' sweep.
+# Each boss seats on its own case face (horn 17.50, idler -14.90, like the
+# tabs), stays below the discs (an arc about the roll axis keeps it off the
+# O19.2 horn disc and, on the idler side, where it reaches 0.5 mm into the
+# rear tine's band, off the O20 pad with D.SWEEP_BUFFER), and on the idler
+# side stops short of the connector trench (D.SV_CONN_L, 11.75..16.35).
+FOOT_NEAR_ROW = D.CASE_HOLES_TOP[0]           # 8.30 on the horn face ...
+assert D.CASE_HOLES_BOT[0] == FOOT_NEAR_ROW   # ... and on the idler face
+FOOT_NEAR_SCREW_Z = FOOT_SCREW_Z[0]           # 6.11 above the plate bottom
+FOOT_NEAR_BOSS_HW = 4.5                       # along y, either side of the row
+FOOT_NEAR_BOSS_TOP = 9.6                      # above the plate bottom (v5: >= 9.11 carries the csk mouth)
+FOOT_NEAR_BOSS_IDLER_Y1 = D.SV_CONN_L[0] - 0.15                     # 11.60
+FOOT_ROTOR_CLEAR_R = D.SV_HORN_D / 2 + 0.7                          # 10.30
+FOOT_PAD_CLEAR_R = D.PAD_D / 2 + D.SWEEP_BUFFER                     # 10.50
+assert FOOT_NEAR_SCREW_Z + D.CASE_CS_D / 2 + 0.5 <= FOOT_NEAR_BOSS_TOP, "near boss too low for its countersink"
+assert FOOT_NEAR_ROW + D.CASE_CS_D / 2 + 0.5 <= FOOT_NEAR_BOSS_IDLER_Y1, "idler near boss too short for its countersink"
 # an end stop on the INBOARD end of the case (y = -10.11 - FIT) and a low
 # cradle rail either side of the case bottom keep it located; the outboard
 # (cable) end is open for the lead, which exits the idler-side face ports
