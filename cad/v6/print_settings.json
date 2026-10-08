@@ -48,7 +48,7 @@
     "ankle_link": {
       "orient": "RY_XUP",
       "supports": true,
-      "note": "on its back (model +X up): the copied grip-channel bores' teardrop roofs assume print-up = model +X (ankle_link.py). Only ~68 mm2 touches the bed; the rest starts on supports"
+      "note": "on its back (model +X up), the rear tine on the bed: the grip screws' teardrop roofs assume print-up = model +X (ankle_link.py). Supports under the web and the front tine"
     },
     "arm_fore_v6_L": {
       "orient": "RY_XUP",

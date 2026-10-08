@@ -218,13 +218,11 @@ python3 cad/slice.py --harvest               # only read saved projects back
   (`ORCA_APP` overrides the path). Elsewhere it runs the Flathub flatpak
   headless, as on mira. How it works and the upstream quirks it works around are
   in [docs/slicing.md](../docs/slicing.md).
-- **Two parts depart from the table above** in `print_settings.json`:
-  - **`head_face`** is built in the assembly frame. Printed flat, outer face
-    down and bosses up, its outer-face pocket becomes a ceiling of about
-    50 × 44 mm, 1.8 mm above the bed. It is sliced with supports. Open: whether
-    to keep the pocket and the supports.
-  - **`ankle_link`**, on its back, touches the bed over only about 68 mm². The
-    rest starts on supports.
+- **One part departs from the table above** in `print_settings.json`:
+  **`head_face`** is built in the assembly frame. Printed flat, outer face down
+  and bosses up, its outer-face pocket becomes a ceiling of about 50 × 44 mm,
+  1.8 mm above the bed. It is sliced with supports. Open: whether to keep the
+  pocket and the supports.
 
 ### The printer
 
