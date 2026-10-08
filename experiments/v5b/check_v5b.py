@@ -17,6 +17,7 @@ cad/v6/check_assembly_v6.py.
 
     .venv/bin/python experiments/v5b/check_v5b.py            # exit 0 = clear
     .venv/bin/python experiments/v5b/check_v5b.py --jobs 8 --samples 9
+    .venv/bin/python experiments/v5b/check_v5b.py --ankle-pitch 45   # the plant's range
 """
 from __future__ import annotations
 
@@ -122,8 +123,13 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--samples", type=int, default=9)
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    ap.add_argument("--ankle-pitch", type=float, default=None,
+                    help="sweep ankle pitch +-this many deg instead of the ROM's")
     a = ap.parse_args(argv)
     t0 = time.time()
+    if a.ankle_pitch is not None:
+        import assembly_v5b as A
+        A.ROM["ankle_pitch"] = (-a.ankle_pitch, a.ankle_pitch)
     todo = jobs(a.samples)
     with ProcessPoolExecutor(a.jobs) as ex:
         res = list(ex.map(run_one, todo, chunksize=4))
