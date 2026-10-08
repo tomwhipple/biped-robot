@@ -58,6 +58,7 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 | `audit_ankle_foot.py` | printability report for `ankle_link` and `foot_L/R` |
 | `audit_leg_link.py` | printability and interface audit for `leg_link_v6` |
 | `check_hip_yoke_clearance.py` | clearance A/B between the hip yoke's raw union and the styled part |
+| `print_settings.json` | what `cad/slice.py` slices with: the print spec over Flashforge's presets, and each part's print orientation, supports, copies and overrides. Settings saved in a part's project from the OrcaSlicer GUI are written back here ([PRINT_LIST.md](PRINT_LIST.md), Slicing) |
 
 ## Shared builders in `cad/`
 

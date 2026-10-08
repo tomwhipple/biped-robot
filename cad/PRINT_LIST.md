@@ -167,56 +167,62 @@ and thin walls. The rules:
 
 ## Slicing
 
-Parts can be sliced with the OrcaSlicer CLI on **mira** (the GPU box),
-headless, through `cad/slice.py`, or in the OrcaSlicer GUI.
+`cad/slice.py` slices a part, or a **plate** of parts printed together, into an
+**OrcaSlicer project**, each part in its print orientation with the settings
+above. Open the project in the GUI, check it, and print it from there.
 
 ```bash
-python3 cad/slice.py foot --filament PETG               # -> cad/gcode/foot.gcode (gitignored)
-python3 cad/slice.py --all --filament PETG
-python3 cad/slice.py foot --nozzle 0.6 --layer 0.28 --filament PETG
+python3 cad/slice.py leg_link_v6             # -> cad/gcode/leg_link_v6.3mf + .gcode (gitignored)
+python3 cad/slice.py leg_link_v6 --copies 4  # four on the plate, this run only
+python3 cad/slice.py feet                    # both feet, one plate -> cad/gcode/feet.3mf
+python3 cad/slice.py --all                   # every plate, and every part on no plate
+python3 cad/slice.py --harvest               # only read saved projects back
 ```
 
-- **Defaults** are a 0.4 mm nozzle, 0.20 mm layers and **PLA**, so pass
-  `--filament PETG`. For each part it prints the time, grams, layers, bed
-  footprint and centre, and flags a part that lands off the bed. The footprint
-  excludes the start gcode's purge line.
-- **It only sees `cad/stl`, the prototype's parts.**
-  - `STL_DIR` is `cad/stl`.
-  - The flatpak sandbox exposes only `cad/stl` (read-only),
-    `cad/print_profiles` (read-only) and `cad/gcode`, so passing a
-    `cad/v6/stl/...` path does not help.
-  - Slicing the robot's parts this way needs `STL_DIR` and the sandbox widened
-    to `cad/v6/stl` (open). Until then, slice them in the GUI.
-- **How it is installed.** OrcaSlicer 2.4.2 is a user-scope Flathub flatpak,
-  `com.orcaslicer.OrcaSlicer`. The upstream AppImage needs glibc 2.38; mira
-  runs Pop!_OS 22.04 with 2.35. Flathub serves signed commits, whereas the
-  GitHub release publishes no checksum.
-- **Headless.** The slicer runs under `xvfb-run`, because no X display is
-  available to the user on mira.
-- **Sandbox.** Without it the slicer would see `/dev/ttyUSB0` (the live servo
-  bus) and `~/.ssh`. So it gets no devices, no network and no home directory:
+- **Open `cad/gcode/<part or plate>.3mf`** with File → Open Project.
+  - The printer is the GUI's own printer preset, the one that holds the print
+    host, so the plate prints from the GUI.
+  - The process and filament are Flashforge's "0.20mm Standard" and "Generic
+    PETG", marked as modified. The modified values are this file's spec.
+  - The plate is already sliced: check the preview, then print it.
+- **The settings live in `cad/v6/print_settings.json`.** They are layered:
+  1. Flashforge's presets.
+  2. The spec on top, from Global print settings and Supports above.
+  3. One entry per part, with:
+     - the orientation: `IDENT`, `RX180`, `RY_XUP`, `RY_XDOWN`, `RY_ROLL_WALL`,
+       or a 3×3 matrix whose rows are the print axes in model coordinates;
+     - supports, and copies;
+     - overrides, in OrcaSlicer's own keys.
+  4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`. One
+     process slices a plate, so its parts must agree on supports and overrides
+     (`slice.py` refuses a plate whose parts don't). A plate's copies are its
+     own: `--copies 2` puts two of each foot on it.
+- **Changes made in the GUI carry forward.** Save the project (Cmd+S). The next
+  `slice.py` run on that part or plate reads the saved project's changes back
+  into `print_settings.json`:
+  - any process or filament setting, including per-object settings (on a
+    plate, for every part on it);
+  - a part tipped onto another face (on a plate, that part only);
+  - the number of copies.
 
-  ```bash
-  flatpak override --user \
-    --nodevice=all --unshare=network \
-    --nofilesystem=home --nofilesystem=/media --nofilesystem=/run/media \
-    --nofilesystem=/mnt --nofilesystem=xdg-run/gvfs \
-    --system-no-talk-name=org.freedesktop.UDisks2 \
-    --filesystem=<repo>/cad/stl:ro \
-    --filesystem=<repo>/cad/print_profiles:ro \
-    --filesystem=<repo>/cad/gcode \
-    com.orcaslicer.OrcaSlicer
-  ```
-
-  Verify with `flatpak info --show-permissions com.orcaslicer.OrcaSlicer`.
-- **Two upstream quirks the wrapper works around:**
-  - The CLI's `--load-settings` does not resolve a preset's `inherits` chain
-    from a file path. `cad/orca_profile.py` flattens the vendor chain into a
-    standalone preset (the `from` key must survive). A thin user filament preset
-    loaded by path otherwise falls back to PLA without a word.
-  - Upstream's AD5M preset sets relative extrusion but has no `G92 E0` in its
-    layer-change gcode, so upstream's own validator rejects it (return code
-    −51). `slice.py` appends `G92 E0`.
+  It prints what it changed, and keeps the saved project under
+  `cad/gcode/.work/saved/`. Commit the JSON.
+  - **Printer settings are not carried.** Change those in the GUI's printer
+    preset.
+  - **Painted supports or seams, modifier volumes and height-range modifiers
+    cannot be carried.** `slice.py` then leaves that project alone and says so.
+- **For each part it prints** the time, grams, height, supports, bed footprint
+  and centre, and flags a part that lands off the bed. The footprint excludes the
+  start gcode's purge line.
+- **Where it runs.** On the Mac it drives `/Applications/OrcaSlicer.app`
+  (`ORCA_APP` overrides the path). Elsewhere it runs the Flathub flatpak
+  headless, as on mira. How it works and the upstream quirks it works around are
+  in [docs/slicing.md](../docs/slicing.md).
+- **One part departs from the table above** in `print_settings.json`:
+  **`head_face`** is built in the assembly frame. Printed flat, outer face down
+  and bosses up, its outer-face pocket becomes a ceiling of about 50 × 44 mm,
+  1.8 mm above the bed. It is sliced with supports. Open: whether to keep the
+  pocket and the supports.
 
 ### The printer
 
