@@ -580,6 +580,13 @@ class BimoMJXEnv:
         mimic_sole_level: bool = False,
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
+        # -- physics backend ---------------------------------------------------
+        # "jax": MJX's JAX pipeline. "warp": MuJoCo Warp (CUDA kernels through
+        # mjx impl="warp"; MuJoCo >= 3.15). Warp pools contacts across all envs:
+        # warp_envs x warp_nacon_per_env slots, and njmax constraint rows per env.
+        mjx_impl: str = "jax",
+        warp_envs: int = 2048,
+        warp_nacon_per_env: int = 96,
         # -- payload (present iff payload_mass > 0 or payload_dr) -------------
         payload_mass: float = 0.0,
         payload_dr: bool = False,   # batch-level mass draw handled in
@@ -939,7 +946,15 @@ class BimoMJXEnv:
         from walker_env import apply_floor_contacts   # jax-free, shared with the CPU env
         apply_floor_contacts(self.mj_model, floor_contacts)
         self.floor_contacts = floor_contacts
-        self.model = mjx.put_model(self.mj_model)
+        if mjx_impl not in ("jax", "warp"):
+            raise ValueError(f"unknown mjx_impl {mjx_impl!r}")
+        if mjx_impl == "warp" and getattr(self, "_terrain_spec", None) is not None:
+            raise ValueError("mjx_impl='warp' needs a flat floor: its foot-contact "
+                             "test is the pads' height (Warp pools contacts across envs)")
+        self.mjx_impl = mjx_impl
+        self._warp_naconmax = int(warp_envs * warp_nacon_per_env)
+        self._warp_njmax = int(6 * warp_nacon_per_env + 64)
+        self.model = self._put_model(self.mj_model)
         m = self.mj_model
 
         self.sim_dt = float(m.opt.timestep)
@@ -1025,7 +1040,7 @@ class BimoMJXEnv:
                     m.actuator_ctrlrange[i, 0] = -np.deg2rad(hip_flex_deg)
                 else:
                     m.jnt_range[jnt[i], 0] = -np.deg2rad(hip_flex_deg)
-            self.model = mjx.put_model(m)      # re-upload patched ranges
+            self.model = self._put_model(m)      # re-upload patched ranges
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
@@ -1058,6 +1073,7 @@ class BimoMJXEnv:
                       or "").startswith(f"{side}_pad")) or (sole,)
             for side, sole in (("L", self._sole_gids[0]),
                                ("R", self._sole_gids[1])))
+        self._pad_radius = float(m.geom_size[self._pad_gids[0][0], 0])
         self._up_adr = m.sensor("torso_up").adr[0]
         self._nominal_h = float(m.body("torso").pos[2])
 
@@ -1634,8 +1650,28 @@ class BimoMJXEnv:
         phase0 = jax.random.uniform(r4, maxval=2 * jp.pi)
         return jp.stack([rad, omega, phase0])
 
+    def _put_model(self, m):
+        if self.mjx_impl == "warp":
+            return mjx.put_model(m, impl="warp")
+        return mjx.put_model(m)
+
+    def _make_data(self, model):
+        """mjx.make_data for the env's backend. Warp sizes its buffers from the
+        host model (shapes only, so a batched/traced `model` needs nothing)."""
+        if self.mjx_impl == "warp":
+            return mjx.make_data(self.mj_model, impl="warp",
+                                 naconmax=self._warp_naconmax, njmax=self._warp_njmax)
+        return mjx.make_data(model)
+
     def _foot_contacts(self, data) -> jax.Array:
-        """(2,) bool: sole-in-contact flags from the MJX contact set."""
+        """(2,) bool: sole-in-contact flags from the MJX contact set. Under
+        Warp (contacts pooled across envs, no per-env view) a foot is down when
+        any of its pad spheres is within 1 mm of the flat floor (z = 0) --
+        the referee's contact test on the plants both engines use."""
+        if self.mjx_impl == "warp":
+            r = self._pad_radius
+            out = [jp.any(data.geom_xpos[jp.array(g), 2] - r < 1e-3) for g in self._pad_gids]
+            return jp.stack(out)
         c = data.contact
         hit = c.dist < 0.0
         out = []
@@ -1842,7 +1878,7 @@ class BimoMJXEnv:
         # started recovered=1 and trained nothing. Staged starts must settle
         # holding their OWN pose.
         model = self.model if model is None else model
-        data = mjx.make_data(model)
+        data = self._make_data(model)
         data = data.replace(qpos=qpos,
                             ctrl=jp.zeros(self.mj_model.nu)
                             + (self._sdefault if ctrl is None else ctrl))
@@ -1932,7 +1968,7 @@ class BimoMJXEnv:
             row = jax.random.randint(r_c, (), 0, self._catch_qpos.shape[0])
             if self._catch_t0 is not None:
                 t0_bank = self._catch_t0[row]
-            d_cat = mjx.make_data(model)
+            d_cat = self._make_data(model)
             d_cat = d_cat.replace(qpos=self._catch_qpos[row].astype(jp.float64)
                                   if d_cat.qpos.dtype == jp.float64
                                   else self._catch_qpos[row],
@@ -2002,7 +2038,7 @@ class BimoMJXEnv:
             qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
-            d_up = mjx.make_data(model)
+            d_up = self._make_data(model)
             d_up = d_up.replace(qpos=qpos, qvel=qvel,
                                 ctrl=jp.zeros(self.mj_model.nu) + self._sdefault)
             d_up = mjx.forward(model, d_up)
@@ -2022,7 +2058,7 @@ class BimoMJXEnv:
             qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
-            data = mjx.make_data(model)
+            data = self._make_data(model)
             data = data.replace(qpos=qpos, qvel=qvel,
                                 ctrl=jp.zeros(self.mj_model.nu) + self._sdefault)
             data = mjx.forward(model, data)
@@ -2066,7 +2102,7 @@ class BimoMJXEnv:
             qpos_r = (data.qpos.at[self._jq0:self._jq1].set(
                           self._to_servo(q_rsi))
                       .at[2].add(-drop))
-            d_rsi = mjx.make_data(model)
+            d_rsi = self._make_data(model)
             d_rsi = d_rsi.replace(qpos=qpos_r, qvel=jp.zeros_like(data.qvel),
                                   ctrl=jp.zeros(self.mj_model.nu)
                                   + self._to_servo(q_rsi))
