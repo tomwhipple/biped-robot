@@ -17,14 +17,25 @@ clone). Everyone who clones the repo runs the same hook.
 
 ## What it runs
 
-The Python gates run on every push. The C/C++ gates run only on a **C/C++
-push**: one whose commits change a C/C++ source or header anywhere, anything
-under `firmware/`, or the root `.clang-tidy`. The hook diffs each pushed ref
-against the remote's tip (a new branch against its merge base with
-`origin/main`) and prints which way it went. A push it cannot diff runs
-everything.
+The hook diffs each pushed ref against the remote's tip (a new branch
+against its merge base with `origin/main`, renames counted as a delete and an
+add) and runs only the gates the change can reach. It prints which gates ran
+and why. A push it cannot diff runs everything.
 
-Every push:
+- **Docs-only push**: every changed file is one no gate reads. That means
+  anything under `docs/`, `*.md`, images (`png`, `jpg`, `gif`, `svg`,
+  `webp`), PDFs, HTML reports (`night_summary.html`), `.github/` and
+  `.claude/`. It runs no gate. Neither the test suites, the modules they
+  import, nor the firmware build read these files; code mentions them only
+  in comments, or writes them.
+- **C/C++ push**: some other changed file is a C/C++ source or header
+  anywhere, anything under `firmware/`, or the root `.clang-tidy`. It runs
+  every gate.
+- **Any other push** runs the Python gates. The suites read `sim/`, `cad/`
+  (the plant's meshes), `tools/`, `link/`, `firmware/` sources and headers,
+  and `experiments/`, so every non-docs file triggers both.
+
+Python gates (every push but a docs-only one):
 
 - **link-tests** — `python3 -m pytest tests/ -q`: protocol, sources, and the
   console e2e suite. **Hard** (needs pytest + numpy installed).
@@ -33,7 +44,7 @@ Every push:
   gitignored artifacts skip with a reason. On a push with no C/C++ changes the hook
   first builds only its library, `make -C firmware/host sil`.
 
-C/C++ pushes:
+C/C++ pushes only:
 
 - **host check** — `make -C firmware/host check`: the ASan/UBSan host gate
   (the thing that caught the `mjpeg.cpp` format-truncation break) plus the
@@ -55,13 +66,14 @@ C/C++ pushes:
   toolchain is found unless `SKIP_ESP32=1` is set.
 
 Toolchain-guarded gates (cmake, clang-tidy, cppcheck, esp32) print a SKIP
-note when the tool is absent, and the C/C++ gates print one when the push has
-no C/C++ changes — a skip is visible in the hook output, never silent.
+note when the tool is absent, and the C/C++ and Python gates print one when
+the push does not reach them — a skip is visible in the hook output, never
+silent.
 
 ## Escape hatches
 
 ```bash
 git push --no-verify    # skip all gates (you know what you're doing)
 SKIP_ESP32=1 git push   # skip just the esp32-build gate
-PREPUSH_ALL=1 git push  # run the C/C++ gates even with no C/C++ changes
+PREPUSH_ALL=1 git push  # run every gate, whatever the push changes
 ```
