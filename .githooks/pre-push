@@ -2,19 +2,27 @@
 # Pre-push gate: runs the CI gate-set locally before every push,
 # so nothing CI caught is lost when .github/workflows/ci.yml fires no jobs.
 #
+# The hook diffs the pushed refs and runs only the gates the change can
+# affect. Inert files -- anything under docs/, *.md, images, PDFs, HTML
+# reports, .github/ and .claude/ -- are read by no gate, so they trigger
+# none: a push of only those runs nothing.
 # The C/C++ gates ([1], [4]-[9]) run only when the push changes C/C++: a
-# source or header anywhere, anything under firmware/, or the root
+# source or header anywhere, anything else under firmware/, or the root
 # .clang-tidy (Tom, 2026-10-06: "the C++ checks should only fire when there
-# are C++ changes"). Otherwise [1] just builds the SIL suite's library. The
-# Python gates [2] and [3] always run. PREPUSH_ALL=1 forces every gate, and
-# so does a push the hook cannot diff (run by hand, a remote tip it does not
-# have, no merge base with origin/main).
+# are C++ changes"). The Python gates [2] and [3] run when the push changes
+# any other file (Tom, 2026-10-08: "updating an .md file shouldn't trigger
+# python/sil tests"); the suites read sim/, cad/, tools/, link/, firmware/
+# and experiments/, so any non-inert file triggers them. Without C/C++
+# changes [1] just builds the SIL suite's library. PREPUSH_ALL=1 forces
+# every gate, and so does a push the hook cannot diff (run by hand, a remote
+# tip it does not have, no merge base with origin/main).
 #
 # Per Tom (2026-09-16): "disable all CI on this project and make it run as a
 # pre-push hook instead." ALL gates the old CI ran execute here:
-#   [1/9] host check      make -C firmware/host check  (hard; C/C++ pushes, else make sil)
-#   [2/9] link-tests      python3 -m pytest tests/ -q  (hard, always)
-#   [3/9] sil-suite       python3 -m pytest sim/sil -q (hard, always; the tests
+#   [1/9] host check      make -C firmware/host check  (hard; C/C++ pushes, else make sil
+#                         when [3/9] runs)
+#   [2/9] link-tests      python3 -m pytest tests/ -q  (hard; non-inert pushes)
+#   [3/9] sil-suite       python3 -m pytest sim/sil -q (hard; non-inert pushes; the tests
 #                         that need the deployed run's gitignored artifacts
 #                         SKIP with a reason on a machine without them)
 #   [4/9] cmake-ctest     cmake configure/build/ctest  (C/C++ pushes; hard when cmake installed, skip with note otherwise)
@@ -63,19 +71,29 @@ mkbuild() { mktemp -d 2>/dev/null || mktemp -d '/tmp/biped-robot-ci-build.XXXXXX
 # --- which gates this push needs ----------------------------------------------
 # git feeds "<local ref> <local sha> <remote ref> <remote sha>" per pushed ref.
 zero=0000000000000000000000000000000000000000
+# Files no gate reads (checked 2026-10-08: tests/, sim/sil, the modules they
+# import and the firmware build name these only in comments, or write them).
+is_inert() {
+  case "$1" in
+    docs/*|*.md|*.png|*.jpg|*.jpeg|*.gif|*.svg|*.webp|*.pdf|*.html|.github/*|.claude/*) return 0 ;;
+  esac
+  return 1
+}
 is_cpp() {
   case "$1" in
     *.c|*.cc|*.cpp|*.cxx|*.h|*.hh|*.hpp|*.hxx|*.ino|firmware/*|.clang-tidy) return 0 ;;
   esac
   return 1
 }
+# Set when the hook cannot tell what changed: every gate runs.
+force=""
 cpp_files=""
+py_files=""
 if [ "${PREPUSH_ALL:-0}" != "0" ]; then
-  cpp="PREPUSH_ALL=$PREPUSH_ALL"
+  force="PREPUSH_ALL=$PREPUSH_ALL"
 elif [ -t 0 ]; then
-  cpp="run by hand, no pushed refs to diff"
+  force="run by hand, no pushed refs to diff"
 else
-  cpp=""
   nlines=0
   while read -r _lref lsha _rref rsha; do
     [ -n "${lsha:-}" ] || continue
@@ -89,14 +107,21 @@ else
       base=""
     fi
     if [ -z "$base" ]; then
-      cpp="cannot diff $lsha against the remote"
+      force="cannot diff $lsha against the remote"
       continue
     fi
-    if ! names="$(git -c core.quotePath=false diff --name-only "$base" "$lsha" 2>/dev/null)"; then
-      cpp="cannot diff $lsha against the remote"
+    if ! names="$(git -c core.quotePath=false diff --no-renames --name-only "$base" "$lsha" 2>/dev/null)"; then
+      force="cannot diff $lsha against the remote"
       continue
     fi
-    hits="$(printf '%s\n' "$names" |
+    live="$(printf '%s\n' "$names" |
+      while IFS= read -r f; do
+        if [ -n "$f" ] && ! is_inert "$f"; then printf '%s\n' "$f"; fi
+      done)"
+    [ -n "$live" ] || continue
+    py_files="$py_files$live
+"
+    hits="$(printf '%s\n' "$live" |
       while IFS= read -r f; do if is_cpp "$f"; then printf '%s\n' "$f"; fi; done)"
     if [ -n "$hits" ]; then
       cpp_files="$cpp_files$hits
@@ -104,16 +129,34 @@ else
     fi
   done
   if [ "$nlines" -eq 0 ]; then
-    cpp="no pushed refs on stdin"
+    force="no pushed refs on stdin"
   fi
-  if [ -z "$cpp" ] && [ -n "$cpp_files" ]; then
-    cpp="$(printf '%s' "$cpp_files" | sort -u | wc -l | tr -d ' ') C/C++ file(s) changed, e.g. $(printf '%s' "$cpp_files" | sort -u | head -3 | tr '\n' ' ')"
-  fi
+fi
+# "<n> <what> file(s) changed, e.g. a b c" for a newline-separated list.
+changed() {
+  list="$(printf '%s\n' "$1" | sed '/^$/d' | sort -u)"
+  printf '%s %s file(s) changed, e.g. %s' \
+    "$(printf '%s\n' "$list" | wc -l | tr -d ' ')" "$2" \
+    "$(printf '%s\n' "$list" | head -3 | tr '\n' ' ')"
+}
+if [ -n "$force" ]; then
+  cpp="$force"
+  py="$force"
+else
+  cpp=""
+  py=""
+  if [ -n "$cpp_files" ]; then cpp="$(changed "$cpp_files" C/C++)"; fi
+  if [ -n "$py_files" ]; then py="$(changed "$py_files" non-doc)"; fi
 fi
 if [ -n "$cpp" ]; then
   echo "C/C++ gates: ON ($cpp)"
 else
   echo "C/C++ gates: SKIP -- this push changes no C/C++, firmware/ or .clang-tidy file (PREPUSH_ALL=1 forces them)"
+fi
+if [ -n "$py" ]; then
+  echo "Python gates: ON ($py)"
+else
+  echo "Python gates: SKIP -- this push changes only docs/, *.md, images, PDFs, HTML, .github/ or .claude/ (PREPUSH_ALL=1 forces them)"
 fi
 
 echo "== pre-push: making sure everything compiles, linked, and tested =="
@@ -127,7 +170,7 @@ if [ -n "$cpp" ]; then
     echo "FAIL: host/tests/gui compile or test failed" >&2
     rc=1
   fi
-else
+elif [ -n "$py" ]; then
   # [3/9] still needs libctrl_sil, which the host check would have built.
   echo "== [sil-lib] make -C firmware/host sil (C/C++ gates skipped) =="
   if ! make -C "$ROOT/firmware/host" sil; then
@@ -136,23 +179,28 @@ else
   fi
 fi
 
-# --- [2/9] link-test suite (protocol, sources, e2e simulation tests) -------
-echo "" >&2
-echo "== [link-tests] pytest over link/test suite =="
-if ! "$PY" -m pytest "$ROOT/tests/" -q; then
-  echo "FAIL: link-test suite failed" >&2
-  rc=1
-fi
+if [ -z "$py" ]; then
+  echo "SKIP: host-check, sil-lib, link-tests, sil-suite (only docs, images and the like changed)" >&2
+else
 
-# --- [3/9] SIL suite (the firmware's control code against the CPU plant) ---
-# Runs after [1/9], which built firmware/host/build/libctrl_sil. Tests that
-# need the deployed run's gitignored artifacts (sim/runs/<run>/, the .silw)
-# skip with a reason where they are absent; the rest always run (issue #89).
-echo "" >&2
-echo "== [sil-suite] pytest sim/sil =="
-if ! "$PY" -m pytest "$ROOT/sim/sil" -q; then
-  echo "FAIL: SIL suite failed" >&2
-  rc=1
+  # --- [2/9] link-test suite (protocol, sources, e2e simulation tests) -------
+  echo "" >&2
+  echo "== [link-tests] pytest over link/test suite =="
+  if ! "$PY" -m pytest "$ROOT/tests/" -q; then
+    echo "FAIL: link-test suite failed" >&2
+    rc=1
+  fi
+
+  # --- [3/9] SIL suite (the firmware's control code against the CPU plant) ---
+  # Runs after [1/9], which built firmware/host/build/libctrl_sil. Tests that
+  # need the deployed run's gitignored artifacts (sim/runs/<run>/, the .silw)
+  # skip with a reason where they are absent; the rest always run (issue #89).
+  echo "" >&2
+  echo "== [sil-suite] pytest sim/sil =="
+  if ! "$PY" -m pytest "$ROOT/sim/sil" -q; then
+    echo "FAIL: SIL suite failed" >&2
+    rc=1
+  fi
 fi
 
 # --- [4/9]..[8-9/9]: the C/C++ toolchain gates, on C/C++ pushes only -----------
@@ -285,7 +333,11 @@ fi
 
 if [ "$rc" -eq 0 ]; then
   echo "" >&2
-  echo "All gates passed. Safe to push."
+  if [ -z "$py" ]; then
+    echo "No gate applies to this push. Safe to push."
+  else
+    echo "All gates passed. Safe to push."
+  fi
   exit 0
 else
   echo "" >&2
