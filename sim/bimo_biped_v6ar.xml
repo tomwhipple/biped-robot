@@ -76,7 +76,7 @@
     <!-- torso origin = hip yaw axis height, on the centreline -->
       <body name="torso" pos="0 0 0.39147">
       <freejoint/>
-        <inertial pos="-0.0126 -0.0000 0.0492" quat="0.4856 -0.5142 -0.5140 0.4854" mass="0.9534" diaginertia="1.4053e-03 2.4268e-03 2.8134e-03"/>
+        <inertial pos="-0.0126 -0.0000 0.0492" quat="0.5142 0.4856 0.4854 0.5140" mass="0.9534" diaginertia="1.4053e-03 2.4268e-03 2.8134e-03"/>
         <geom name="torso_cad_pelvis_v7" class="cad" mesh="cad_pelvis_v7" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_yaw_bearing_housing" class="cad" mesh="cad_yaw_bearing_housing" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_neck_floor" class="cad" mesh="cad_neck_floor" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
@@ -110,7 +110,7 @@
 
       <body name="L_hip_yaw" pos="0 0.042 0">
         <joint name="L_hip_yaw" axis="0 0 1" range="-45 45"/>
-        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.5205 0.5205 0.4786 -0.4786" mass="0.1268" diaginertia="3.9621e-05 5.4798e-05 5.8862e-05"/>
+        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.4786 -0.4786 -0.5205 -0.5205" mass="0.1268" diaginertia="3.9621e-05 5.4798e-05 5.8862e-05"/>
         <geom name="L_hip_yaw_cad_yaw_carrier_v6" class="cad" mesh="cad_yaw_carrier_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_hip_yaw_servo_roll" class="cad" mesh="servo_roll" rgba="0.12 0.12 0.14 1"/>
         <!-- yaw carrier print + the hip ROLL servo riding in it (axis X) -->
@@ -118,13 +118,13 @@
         <geom type="box" pos="0.00155 0 -0.03261" size="0.0189 0.01236 0.02261" class="servo" mass="0.055"/>
         <body name="L_hip" pos="0 0 -0.04511">
           <joint name="L_hip_roll" axis="1 0 0" range="-30 45"/>
-        <inertial pos="-0.0023 0.0010 -0.0218" quat="0.1987 -0.7286 -0.6536 -0.0498" mass="0.0254" diaginertia="8.9971e-06 9.1438e-06 9.7387e-06"/>
+        <inertial pos="-0.0023 0.0010 -0.0218" quat="0.6536 0.0498 0.1987 -0.7286" mass="0.0254" diaginertia="8.9971e-06 9.1438e-06 9.7387e-06"/>
         <geom name="L_hip_cad_hip_yoke_v6" class="cad" mesh="cad_hip_yoke_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
           <!-- yoke_roll + yoke_pitch (the hip universal, 50 mm axis offset) -->
           <geom type="box" pos="0 0 -0.025" size="0.0175 0.0125 0.025" mass="0.03" rgba="0.82 0.84 0.87 1" group="3"/>
           <body name="L_thigh" pos="0 0 -0.05">
             <joint name="L_hip_pitch" axis="0 1 0" range="-125 90"/>
-        <inertial pos="-0.0013 0.0018 -0.0293" quat="0.7193 0.0016 -0.6947 0.0006" mass="0.0836" diaginertia="1.8850e-05 7.8741e-05 8.7586e-05"/>
+        <inertial pos="-0.0013 0.0018 -0.0293" quat="0.6947 -0.0006 0.7193 0.0016" mass="0.0836" diaginertia="1.8850e-05 7.8741e-05 8.7586e-05"/>
         <geom name="L_thigh_cad_leg_link_v6" class="cad" mesh="cad_leg_link_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_thigh_servo_pitch" class="cad" mesh="servo_pitch" rgba="0.12 0.12 0.14 1"/>
             <!-- hip-pitch servo case sits in the thigh, axis at its upper end -->
@@ -133,7 +133,7 @@
             <geom type="capsule" fromto="-0.00098 0.00153 -0.02493 -0.00098 0.00153 -0.09807" size="0.02193" name="L_col_thigh" class="legcol"/>
             <body name="L_shin" pos="0 0 -0.11">
               <joint name="L_knee" axis="0 -1 0" range="-130 5"/>
-        <inertial pos="-0.0013 0.0018 -0.0293" quat="0.7193 0.0016 -0.6947 0.0006" mass="0.0836" diaginertia="1.8850e-05 7.8741e-05 8.7586e-05"/>
+        <inertial pos="-0.0013 0.0018 -0.0293" quat="0.6947 -0.0006 0.7193 0.0016" mass="0.0836" diaginertia="1.8850e-05 7.8741e-05 8.7586e-05"/>
         <geom name="L_shin_cad_leg_link_v6" class="cad" mesh="cad_leg_link_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_shin_servo_pitch" class="cad" mesh="servo_pitch" rgba="0.12 0.12 0.14 1"/>
               <geom type="box" pos="0 0.00155 -0.0125" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
@@ -142,17 +142,17 @@
 
               <body name="L_ankle_blk" pos="0 0 -0.11">
                 <joint name="L_ankle" axis="0 1 0" range="-45 45"/>
-        <inertial pos="-0.0003 0.0012 -0.0167" quat="0.7045 -0.0286 -0.7088 0.0197" mass="0.0671" diaginertia="1.2358e-05 2.2789e-05 2.4256e-05"/>
+        <inertial pos="0.0004 0.0013 -0.0171" quat="0.7280 -0.0342 0.6847 -0.0076" mass="0.0686" diaginertia="1.3234e-05 2.4022e-05 2.4869e-05"/>
         <geom name="L_ankle_blk_cad_ankle_link" class="cad" mesh="cad_ankle_link" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_ankle_blk_servo_pitch" class="cad" mesh="servo_pitch" rgba="0.12 0.12 0.14 1"/>
                 <!-- ankle-pitch servo case hangs below the axis inside the
                      ankle link (the hip's roll->pitch stack, upside down) -->
                 <geom type="box" pos="0 0.00155 -0.0125" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
-                <geom type="box" pos="0.00133 -0.00099 -0.0355" size="0.02212 0.02174 0.0325" class="fallcol" mass="0.009" rgba="0.82 0.84 0.87 1" group="3"/>
-                <geom type="box" pos="0.00133 -0.00099 -0.0355" size="0.02212 0.02174 0.0325" name="L_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
+                <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" class="fallcol" mass="0.009" rgba="0.82 0.84 0.87 1" group="3"/>
+                <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" name="L_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="L_foot" pos="0 0 -0.058">
                   <joint name="L_ankle_roll" axis="1 0 0" range="-25 25"/>
-        <inertial pos="0.0063 0.0160 -0.0088" quat="0.9992 -0.0306 0.0212 0.0140" mass="0.1328" diaginertia="6.4892e-05 1.2167e-04 1.6588e-04"/>
+        <inertial pos="0.0062 0.0162 -0.0087" quat="0.9993 -0.0284 0.0211 0.0116" mass="0.1351" diaginertia="6.5687e-05 1.2329e-04 1.6798e-04"/>
         <geom name="L_foot_cad_foot_L" class="cad" mesh="cad_foot_L" pos="0.00000 0.00000 -0.01636" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_foot_cad_sole_tpu_L" class="cad" mesh="cad_sole_tpu_L" pos="0.00000 0.00000 -0.01636" rgba="0.93 0.93 0.91 1"/>
         <geom name="L_foot_servo_foot_L" class="cad" mesh="servo_foot_L" rgba="0.12 0.12 0.14 1"/>
@@ -185,7 +185,7 @@
 
       <body name="R_hip_yaw" pos="0 -0.042 0">
         <joint name="R_hip_yaw" axis="0 0 1" range="-45 45"/>
-        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.5205 0.5205 0.4786 -0.4786" mass="0.1268" diaginertia="3.9621e-05 5.4798e-05 5.8862e-05"/>
+        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.4786 -0.4786 -0.5205 -0.5205" mass="0.1268" diaginertia="3.9621e-05 5.4798e-05 5.8862e-05"/>
         <geom name="R_hip_yaw_cad_yaw_carrier_v6" class="cad" mesh="cad_yaw_carrier_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_hip_yaw_servo_roll" class="cad" mesh="servo_roll" rgba="0.12 0.12 0.14 1"/>
         <!-- yaw carrier print + the hip ROLL servo riding in it (axis X) -->
@@ -193,13 +193,13 @@
         <geom type="box" pos="0.00155 0 -0.03261" size="0.0189 0.01236 0.02261" class="servo" mass="0.055"/>
         <body name="R_hip" pos="0 0 -0.04511">
           <joint name="R_hip_roll" axis="1 0 0" range="-45 30"/>
-        <inertial pos="-0.0023 0.0010 -0.0218" quat="0.1987 -0.7286 -0.6536 -0.0498" mass="0.0254" diaginertia="8.9971e-06 9.1438e-06 9.7387e-06"/>
+        <inertial pos="-0.0023 0.0010 -0.0218" quat="0.6536 0.0498 0.1987 -0.7286" mass="0.0254" diaginertia="8.9971e-06 9.1438e-06 9.7387e-06"/>
         <geom name="R_hip_cad_hip_yoke_v6" class="cad" mesh="cad_hip_yoke_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
           <!-- yoke_roll + yoke_pitch (the hip universal, 50 mm axis offset) -->
           <geom type="box" pos="0 0 -0.025" size="0.0175 0.0125 0.025" mass="0.03" rgba="0.82 0.84 0.87 1" group="3"/>
           <body name="R_thigh" pos="0 0 -0.05">
             <joint name="R_hip_pitch" axis="0 1 0" range="-125 90"/>
-        <inertial pos="-0.0013 0.0018 -0.0293" quat="0.7193 0.0016 -0.6947 0.0006" mass="0.0836" diaginertia="1.8850e-05 7.8741e-05 8.7586e-05"/>
+        <inertial pos="-0.0013 0.0018 -0.0293" quat="0.6947 -0.0006 0.7193 0.0016" mass="0.0836" diaginertia="1.8850e-05 7.8741e-05 8.7586e-05"/>
         <geom name="R_thigh_cad_leg_link_v6" class="cad" mesh="cad_leg_link_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_thigh_servo_pitch" class="cad" mesh="servo_pitch" rgba="0.12 0.12 0.14 1"/>
             <!-- hip-pitch servo case sits in the thigh, axis at its upper end -->
@@ -208,7 +208,7 @@
             <geom type="capsule" fromto="-0.00098 0.00153 -0.02493 -0.00098 0.00153 -0.09807" size="0.02193" name="R_col_thigh" class="legcol"/>
             <body name="R_shin" pos="0 0 -0.11">
               <joint name="R_knee" axis="0 -1 0" range="-130 5"/>
-        <inertial pos="-0.0013 0.0018 -0.0293" quat="0.7193 0.0016 -0.6947 0.0006" mass="0.0836" diaginertia="1.8850e-05 7.8741e-05 8.7586e-05"/>
+        <inertial pos="-0.0013 0.0018 -0.0293" quat="0.6947 -0.0006 0.7193 0.0016" mass="0.0836" diaginertia="1.8850e-05 7.8741e-05 8.7586e-05"/>
         <geom name="R_shin_cad_leg_link_v6" class="cad" mesh="cad_leg_link_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_shin_servo_pitch" class="cad" mesh="servo_pitch" rgba="0.12 0.12 0.14 1"/>
               <geom type="box" pos="0 0.00155 -0.0125" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
@@ -217,17 +217,17 @@
 
               <body name="R_ankle_blk" pos="0 0 -0.11">
                 <joint name="R_ankle" axis="0 1 0" range="-45 45"/>
-        <inertial pos="-0.0003 0.0012 -0.0167" quat="0.7045 -0.0286 -0.7088 0.0197" mass="0.0671" diaginertia="1.2358e-05 2.2789e-05 2.4256e-05"/>
+        <inertial pos="0.0004 0.0013 -0.0171" quat="0.7280 -0.0342 0.6847 -0.0076" mass="0.0686" diaginertia="1.3234e-05 2.4022e-05 2.4869e-05"/>
         <geom name="R_ankle_blk_cad_ankle_link" class="cad" mesh="cad_ankle_link" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_ankle_blk_servo_pitch" class="cad" mesh="servo_pitch" rgba="0.12 0.12 0.14 1"/>
                 <!-- ankle-pitch servo case hangs below the axis inside the
                      ankle link (the hip's roll->pitch stack, upside down) -->
                 <geom type="box" pos="0 0.00155 -0.0125" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
-                <geom type="box" pos="0.00133 -0.00099 -0.0355" size="0.02212 0.02174 0.0325" class="fallcol" mass="0.009" rgba="0.82 0.84 0.87 1" group="3"/>
-                <geom type="box" pos="0.00133 -0.00099 -0.0355" size="0.02212 0.02174 0.0325" name="R_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
+                <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" class="fallcol" mass="0.009" rgba="0.82 0.84 0.87 1" group="3"/>
+                <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" name="R_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="R_foot" pos="0 0 -0.058">
                   <joint name="R_ankle_roll" axis="1 0 0" range="-25 25"/>
-        <inertial pos="0.0063 -0.0160 -0.0088" quat="0.9992 0.0306 0.0212 -0.0140" mass="0.1328" diaginertia="6.4892e-05 1.2167e-04 1.6588e-04"/>
+        <inertial pos="0.0062 -0.0162 -0.0087" quat="0.9993 0.0284 0.0211 -0.0116" mass="0.1351" diaginertia="6.5687e-05 1.2329e-04 1.6798e-04"/>
         <geom name="R_foot_cad_foot_R" class="cad" mesh="cad_foot_R" pos="0.00000 0.00000 -0.01636" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_foot_cad_sole_tpu_R" class="cad" mesh="cad_sole_tpu_R" pos="0.00000 0.00000 -0.01636" rgba="0.93 0.93 0.91 1"/>
         <geom name="R_foot_servo_foot_R" class="cad" mesh="servo_foot_R" rgba="0.12 0.12 0.14 1"/>
@@ -269,14 +269,14 @@
       <geom type="box" pos="-0.0125 0.08195 0.09016" size="0.02261 0.0189 0.01236" class="servo" mass="0.055"/>
       <body name="L_arm" pos="0 0.10335 0.09016" euler="0 -15 0">
         <joint name="L_shoulder" axis="0 1 0" range="-90 200" ref="-15"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
-        <inertial pos="-0.0014 0.0023 -0.1209" quat="0.0030 -0.6993 -0.0167 -0.7146" mass="0.0828" diaginertia="1.2078e-05 1.9043e-04 1.9270e-04"/>
+        <inertial pos="-0.0014 0.0023 -0.1209" quat="0.7146 -0.0167 0.6993 0.0030" mass="0.0828" diaginertia="1.2078e-05 1.9043e-04 1.9270e-04"/>
         <geom name="L_arm_cad_arm_upper_v6_L" class="cad" mesh="cad_arm_upper_v6_L" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_arm_servo_elbow_L" class="cad" mesh="servo_elbow_L" rgba="0.12 0.12 0.14 1"/>
         <geom type="box" pos="0 0.00155 -0.1475" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
         <geom type="box" pos="-0.00088 0.00093 -0.0725" size="0.01428 0.01882 0.0845" class="fallcol" mass="0.02" rgba="0.82 0.84 0.87 1"/>
         <body name="L_forearm" pos="0 0 -0.16" euler="0 -95 0">
           <joint name="L_elbow" axis="0 1 0" range="-150 150" ref="-95"/>
-        <inertial pos="-0.0038 0.0004 -0.0847" quat="0.0027 0.7095 -0.0034 -0.7047" mass="0.0415" diaginertia="7.1437e-06 1.3153e-04 1.3343e-04"/>
+        <inertial pos="-0.0038 0.0004 -0.0847" quat="0.7095 -0.0027 0.7047 -0.0034" mass="0.0415" diaginertia="7.1437e-06 1.3153e-04 1.3343e-04"/>
         <geom name="L_forearm_cad_arm_fore_v6_L" class="cad" mesh="cad_arm_fore_v6_L" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
           
           <geom type="box" pos="-0.00158 0.00153 -0.081" size="0.01358 0.02193 0.091" class="fallcol" mass="0.012" rgba="0.82 0.84 0.87 1"/>
@@ -286,7 +286,7 @@
       <geom type="box" pos="-0.0125 -0.08195 0.09016" size="0.02261 0.0189 0.01236" class="servo" mass="0.055"/>
       <body name="R_arm" pos="0 -0.10335 0.09016" euler="0 -15 0">
         <joint name="R_shoulder" axis="0 1 0" range="-90 200" ref="-15"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
-        <inertial pos="-0.0014 -0.0023 -0.1209" quat="0.6993 -0.0030 -0.7146 -0.0167" mass="0.0828" diaginertia="1.2078e-05 1.9043e-04 1.9270e-04"/>
+        <inertial pos="-0.0014 -0.0023 -0.1209" quat="0.7146 0.0167 0.6993 -0.0030" mass="0.0828" diaginertia="1.2078e-05 1.9043e-04 1.9270e-04"/>
         <geom name="R_arm_cad_arm_upper_v6_R" class="cad" mesh="cad_arm_upper_v6_R" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_arm_servo_elbow_R" class="cad" mesh="servo_elbow_R" rgba="0.12 0.12 0.14 1"/>
         <geom type="box" pos="0 -0.00155 -0.1475" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>

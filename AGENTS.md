@@ -18,6 +18,10 @@ worked on or planned has one.
 plant or reward change, a firmware change that will be flashed, a rework of how
 something is done — those get a branch, so there is a place to see them whole.
 
+When a PR's primary work is a change or addition of a physical component, include 
+rendered images to illustrate the change in the PR message so the reviewer can 
+understand the change.
+
 Small ones do not. A typo, a doc touch-up, a report, a regenerated artifact, a
 number corrected after a bench session: commit those straight to `main`.
 

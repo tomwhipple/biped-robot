@@ -183,6 +183,46 @@ FOOT_SCREW_Z = tuple(FOOT_PLATE_T + D.SV_WID / 2 + s * D.CASE_HOLE_LAT for s in 
 # side) tab seats on the REAL idler face (SV_IDLER_CASE_FACE), like v5's foot
 FOOT_TAB_FRONT_X = (D.SV_TOPFACE + D.GRIP_SEAT_CLR, D.SV_TOPFACE + D.GRIP_SEAT_CLR + FOOT_TAB_T)   # 17.50..19.90
 FOOT_TAB_REAR_X = (D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR - FOOT_TAB_T, D.SV_IDLER_CASE_FACE - D.GRIP_SEAT_CLR)  # -17.30..-14.90
+# bracing: a tab alone is a thin plate standing 26 mm straight up off the
+# plate, and printed sole-down it bends fore/aft across its own layer lines
+# at the root -- the way printed tabs break off. Each tab carries two
+# buttress fins on its OUTER face (the case is against the inner one), one at
+# each end, with the screw column between them open to a D.ACCESS_D driver.
+# The inboard fin stays inside the tab's own y-span: the ankle link is cut
+# clear of the tab's inboard face at full roll (ankle_link._tab_keepout), so
+# nothing may stand further inboard than it. The outboard fin has no link
+# beside it and runs FOOT_FIN_T past the channel, 1 mm past the tab's end.
+# The rear tine's outboard corner sweeps down over the rear tab's INBOARD
+# top corner at roll +20..+25, so that corner is chamfered and the fin at
+# that end stops lower.
+FOOT_FIN_T = 3.0                              # outboard fin, along y
+FOOT_FIN_RUN = 16.0                           # base run along x, out from the tab's outer face
+FOOT_FIN_GAP_HW = D.ACCESS_D / 2              # 3.5: the driver channel between a tab's fins
+FOOT_FIN_IN_T = FOOT_TAB_HW - FOOT_FIN_GAP_HW  # 2.0: inboard fin, inside the tab's span
+FOOT_FIN_REAR_IN_H = 20.0                     # the rear tab's inboard fin, above the plate top
+FOOT_TAB_REAR_CHAMFER = 4.0                   # 45 deg off the rear tab's inboard top corner
+assert FOOT_FIN_GAP_HW >= D.CASE_CS_D / 2 + 0.5, "fins crowd the tab screws' countersinks"
+assert FOOT_FIN_IN_T >= 2.0, "inboard fin thinner than 5 perimeters"
+# near-row bosses (the v5 foot's front retention bosses): the tabs hold the
+# case only at its far hole rows, 29 / 32.75 out along the length, which
+# leaves the output end -- the end the ankle link loads -- levering off them.
+# A short boss on each case face takes the NEAR row (8.30 from the axis, both
+# faces), LOW hole only (z 6.11): the high one sits in the tine pads' sweep.
+# Each boss seats on its own case face (horn 17.50, idler -14.90, like the
+# tabs), stays below the discs (an arc about the roll axis keeps it off the
+# O19.2 horn disc and, on the idler side, where it reaches 0.5 mm into the
+# rear tine's band, off the O20 pad with D.SWEEP_BUFFER), and on the idler
+# side stops short of the connector trench (D.SV_CONN_L, 11.75..16.35).
+FOOT_NEAR_ROW = D.CASE_HOLES_TOP[0]           # 8.30 on the horn face ...
+assert D.CASE_HOLES_BOT[0] == FOOT_NEAR_ROW   # ... and on the idler face
+FOOT_NEAR_SCREW_Z = FOOT_SCREW_Z[0]           # 6.11 above the plate bottom
+FOOT_NEAR_BOSS_HW = 4.5                       # along y, either side of the row
+FOOT_NEAR_BOSS_TOP = 9.6                      # above the plate bottom (v5: >= 9.11 carries the csk mouth)
+FOOT_NEAR_BOSS_IDLER_Y1 = D.SV_CONN_L[0] - 0.15                     # 11.60
+FOOT_ROTOR_CLEAR_R = D.SV_HORN_D / 2 + 0.7                          # 10.30
+FOOT_PAD_CLEAR_R = D.PAD_D / 2 + D.SWEEP_BUFFER                     # 10.50
+assert FOOT_NEAR_SCREW_Z + D.CASE_CS_D / 2 + 0.5 <= FOOT_NEAR_BOSS_TOP, "near boss too low for its countersink"
+assert FOOT_NEAR_ROW + D.CASE_CS_D / 2 + 0.5 <= FOOT_NEAR_BOSS_IDLER_Y1, "idler near boss too short for its countersink"
 # an end stop on the INBOARD end of the case (y = -10.11 - FIT) and a low
 # cradle rail either side of the case bottom keep it located; the outboard
 # (cable) end is open for the lead, which exits the idler-side face ports
@@ -200,29 +240,38 @@ assert ANKLE_ROLL_ABOVE_PLATE - D.PAD_D / 2 > FOOT_PLATE_T + 1.0, "tine pads wou
 # forks in X down to the roll servo's horn (+X) and idler (-X) discs
 # ----------------------------------------------------------------------------
 # Local frame: pitch axis == Y axis through the origin; roll axis == X axis
-# at z = -ANKLE_PITCH_TO_ROLL. The grip channel (web on -x, plates on +-y,
-# rib/platform detents, csk M2.5 grip screws, cable window) is leg_link's,
-# byte for byte (import the helpers, do not redraw). The fork below is NEW:
-# two tines in the X-Z plane, front tine inner face on the horn disc face
-# (x = SV_HORN_FACE), rear tine inner face on the idler disc face
-# (x = SV_IDLER_FACE) -- a 37.25 grip span, like every joint -- each ending
-# in an O20 pad with the O14 BCD and the centre relief, joined to the grip
-# channel by a plate across the top and a web up the -y side (outside the
-# roll servo's +10.11 inboard end... note the roll servo's LONG side is
-# OUTBOARD, +y on the left leg, so the ankle link's web goes INBOARD, -y,
-# where the case ends 10.11 from the axis).
+# at z = -ANKLE_PITCH_TO_ROLL. The grip plates (horn +y, idler -y, rib and
+# platform detents, csk M2.5 grip screws) and the back web are leg_link_v6's,
+# idler plate square at LL_IDLER_PLATE_TOP. The fork: two tines across X,
+# front tine inner face on the horn disc face (x = SV_HORN_FACE), rear tine
+# inner face on the idler disc face (x = SV_IDLER_FACE) -- a 37.25 grip span,
+# like every joint -- each ending in an O20 pad with the O14 BCD and the
+# centre relief.
+#
+# The roll servo's case, swept through the ankle-roll ROM in both mounting
+# orientations (same part both legs, mirrored feet), reaches z -37.0 under the
+# idler plate and -35.8 under the horn plate; the pitch servo's case bottom is
+# at -35.11. Beside the case there is no room to join the plates to anything
+# below them, so the link is a box around the servo's base: web, both plates
+# and a front wall (the front tine carried up across the full width), from
+# GRIP_BOT to LL_IDLER_PLATE_TOP, on a floor. The rear tine hangs from the
+# floor behind the web.
 AL_DROP = ANKLE_PITCH_TO_ROLL
 AL_TINE_T = D.PLATE                           # 3.0
 AL_TINE_FRONT_X = (D.SV_HORN_FACE, D.SV_HORN_FACE + AL_TINE_T)      # 20.45..23.45
 AL_TINE_REAR_X = (D.SV_IDLER_FACE - AL_TINE_T, D.SV_IDLER_FACE)     # -19.80..-16.80
 AL_TINE_W = 24.0                              # tine width along y at the pad
-AL_WEB_Y = (-D.SV_AXIS_FROM_OUT_END - D.FIT - D.WALL, -D.SV_AXIS_FROM_OUT_END - D.FIT)  # -13.01..-10.41 inboard web
-AL_TOP_PLATE_Z = -36.0 - 0.6                  # under the grip plates' bottom (GRIP_BOT -36)
-AL_TOP_PLATE_T = D.WALL
-# roll servo case top under the link: -AL_DROP + SV_WID/2 = -41.64; the plate
-# bottom at -39.2 leaves 2.44 -- the swept corner (+-25 deg, see above) is
-# what really sets it and check_assembly_v6 sweeps it
-assert (-AL_TOP_PLATE_Z - AL_TOP_PLATE_T) < AL_DROP - D.SV_WID / 2 - 2.0, "ankle link top plate hits the roll servo"
+# floor under the pitch servo's case, rear tine to front wall. Its +y edge
+# stops at 14: further out the roll sweep thins it below 1.4 mm (it reaches
+# -36 at |y| 16.9). Its -y edge runs under the idler plate.
+AL_FLOOR_Z = (D.GRIP_BOT - D.WALL - 0.6, D.GRIP_BOT)               # -39.2..-36.0
+AL_FLOOR_Y = (-15.5, 14.0)
+# each tine widens 45 deg from AL_TINE_W to +-AL_SHOULDER_Y at the floor:
+# inside the foot's front retention tab, whose inner-top edge swings in to
+# |y| 15.5, z -35.7 at full roll (ankle_link._tab_keepout).
+AL_SHOULDER_Y = 14.5
+# roll servo case top under the link at rest: -AL_DROP + SV_WID/2 = -45.64
+assert -AL_FLOOR_Z[0] < AL_DROP - D.SV_WID / 2 - 2.0, "ankle link floor hits the roll servo"
 
 # ----------------------------------------------------------------------------
 # leg link v6 (qty 4): thigh AND shin, LINK_DROP 110, open-front U, end walls
