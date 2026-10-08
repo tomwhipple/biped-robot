@@ -35,7 +35,6 @@ joint        A                      B                      overlap mm3  min dist
       roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
       roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
       pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
-  [ankle_link] rounded 2/4 outer top-plate corners
   [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
   [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
   [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
@@ -67,7 +66,6 @@ joint        A                      B                      overlap mm3  min dist
       roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
       roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
       pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
-  [ankle_link] rounded 2/4 outer top-plate corners
 hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      1.80   -45.0  ok   carrier under the cell through +-45
 hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00     11.80   -45.0  ok   roll servo in the carrier bay vs the housing floor
 hip_roll     hip_yoke_L             yaw_carrier_L                 0.00      0.30     0.0  ok   one-print yoke vs the bay walls: idler boss rides the bore, volume only
@@ -84,7 +82,7 @@ knee         servo_knee_L           thigh_L                       0.00      0.00
 ankle_pitch  ankle_link_L           shin_L                        0.00      0.70   -40.0  ok   ankle link grip plates vs the shin fork (0.7 mm)
 ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin's fork and bottom end wall
 ankle_pitch  foot_L                 shin_L                        0.00     35.19    40.0  ok   foot tabs / cradle vs the shin tines at +-40
-ankle_roll   foot_L                 ankle_link_L                  0.43      0.00    25.0  ok   foot tabs vs the ankle link tines (0.7 mm), sole vs the web
+ankle_roll   foot_L                 ankle_link_L                  0.00      0.50    25.0  ok   foot tabs vs the ankle link tines (0.7 mm), sole vs the web
 ankle_roll   servo_ankle_roll_L     ankle_link_L                  0.00      0.00   -25.0  ok   THE 54 mm pair: roll servo case sweep under the link
 ankle_roll   servo_ankle_roll_L     servo_ankle_pitch_L           0.00      1.05    25.0  ok   roll case vs the pitch servo hanging above it
 neck         head                   pelvis_v7                     0.00     35.20   -90.0  ok   head shell vs the deck through +-90
@@ -190,10 +188,10 @@ access       roll-servo wall screws, before the bearing            8 screws, 7 m
 access       roll-servo wall screws, hip fully assembled           8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
 access       bearing-housing screws, before the legs               5 screws, 7 mm driver: no part in the way  ok
 interleg     foot_L                 foot_R                        0.00      2.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
+interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (210 s)
+=> ALL CLEAR  (469 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -231,7 +229,6 @@ joint        A                      B                      overlap mm3  min dist
       roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
       roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
       pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
-  [ankle_link] rounded 2/4 outer top-plate corners
   [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
   [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
   [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
@@ -263,7 +260,6 @@ joint        A                      B                      overlap mm3  min dist
       roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
       roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
       pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
-  [ankle_link] rounded 2/4 outer top-plate corners
 hip_yaw      yaw_carrier_L          pelvis_v7                     0.00      1.80   -45.0  ok   carrier under the cell through +-45
 hip_yaw      servo_hip_roll_L       pelvis_v7                     0.00     11.80   -45.0  ok   roll servo in the carrier bay vs the housing floor
 hip_roll     hip_yoke_L             yaw_carrier_L                 0.00      0.30     0.0  ok   one-print yoke vs the bay walls: idler boss rides the bore, volume only
@@ -280,7 +276,7 @@ knee         servo_knee_L           thigh_L                       0.00      0.00
 ankle_pitch  ankle_link_L           shin_L                        0.00      0.70   -40.0  ok   ankle link grip plates vs the shin fork (0.7 mm)
 ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin's fork and bottom end wall
 ankle_pitch  foot_L                 shin_L                        0.00     35.19    40.0  ok   foot tabs / cradle vs the shin tines at +-40
-ankle_roll   foot_L                 ankle_link_L                  0.43      0.00    25.0  ok   foot tabs vs the ankle link tines (0.7 mm), sole vs the web
+ankle_roll   foot_L                 ankle_link_L                  0.00      0.50    25.0  ok   foot tabs vs the ankle link tines (0.7 mm), sole vs the web
 ankle_roll   servo_ankle_roll_L     ankle_link_L                  0.00      0.00   -25.0  ok   THE 54 mm pair: roll servo case sweep under the link
 ankle_roll   servo_ankle_roll_L     servo_ankle_pitch_L           0.00      1.05    25.0  ok   roll case vs the pitch servo hanging above it
 neck         head                   pelvis_v7                     0.00     35.20   -90.0  ok   head shell vs the deck through +-90
@@ -339,10 +335,10 @@ access       roll-servo wall screws, before the bearing            8 screws, 7 m
 access       roll-servo wall screws, hip fully assembled           8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
 access       bearing-housing screws, before the legs               5 screws, 7 mm driver: no part in the way  ok
 interleg     foot_L                 foot_R                        0.00      2.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-interleg     ankle_link_L           ankle_link_R                  0.00      9.84          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
+interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (164 s)
+=> ALL CLEAR  (227 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================
@@ -720,42 +716,31 @@ audit_torso: findings above -- check them in the slice preview
 
 =================== audit_ankle_foot (report) ===================
 
-== ankle_link  [on its back like leg_link (RY_XUP): the copied grip-channel bores keep their teardrop roofs]
-  first-layer contact      71 mm2  ( 2.5% of 65x43 bbox)
-    bore-top      1 mm2    0.8 x   1.6 mm  at z  38.1  over 32.1 mm cavity
-    ISLAND        3 mm2    3.2 x   0.7 mm  at z   0.4  nothing below or around -> support
-    CEILING     532 mm2   28.8 x  24.0 mm  at z  41.2  over 37.2 mm cavity
-    ISLAND       17 mm2    4.3 x   4.3 mm  at z   3.1  nothing below or around -> support
-    ISLAND      737 mm2   33.0 x  40.1 mm  at z   5.6  nothing below or around -> support
-    CEILING      13 mm2    6.3 x   2.7 mm  at z  38.1  over 33.9 mm cavity
-    ISLAND      512 mm2   28.8 x  23.2 mm  at z   1.0  nothing below or around -> support
-    BEAM          0 mm2    0.0 x   0.1 mm  at z   4.1  end-anchored ribbon, 0 mm between anchors
-    LEDGE        14 mm2    5.1 x   3.2 mm  at z   1.1  anchored one side (31% ring)
-    ISLAND       19 mm2    4.9 x   4.3 mm  at z   2.6  nothing below or around -> support
-    bore-top      3 mm2    1.6 x   2.6 mm  at z  39.3  over 34.1 mm cavity
-    BEAM         13 mm2    4.7 x   2.4 mm  at z  27.9  through-wall strip, 5 mm between anchors
-    BEAM          3 mm2    2.4 x   1.5 mm  at z  31.7  through-wall strip, 2 mm between anchors
-    bore-top      0 mm2    0.3 x   1.3 mm  at z  31.7  over 1.3 mm cavity
-    BEAM          4 mm2    2.9 x   1.5 mm  at z  31.7  through-wall strip, 3 mm between anchors
-    BEAM          4 mm2    2.9 x   1.5 mm  at z  11.2  through-wall strip, 3 mm between anchors
-    BEAM          3 mm2    2.4 x   1.5 mm  at z  11.2  through-wall strip, 2 mm between anchors
-    BEAM          0 mm2    0.3 x   1.3 mm  at z  11.2  through-wall strip, 1 mm between anchors
-    bore-top      6 mm2    2.9 x   2.1 mm  at z  11.2  over 2.6 mm cavity
-    BEAM          6 mm2    2.9 x   2.1 mm  at z  31.7  through-wall strip, 3 mm between anchors
-    BEAM         11 mm2    4.3 x   2.8 mm  at z  15.0  through-wall strip, 4 mm between anchors
-    BEAM          7 mm2    4.4 x   4.0 mm  at z  20.3  through-wall strip, 4 mm between anchors
-    CEILING       0 mm2    5.9 x   0.0 mm  at z  11.8  over 4.5 mm cavity
-  **THIN       19.5 mm2  wall < 0.85 mm  around (35, 19, 21)
-  **THIN        4.0 mm2  wall < 0.85 mm  around (43, -11, 5)
-  **THIN       15.6 mm2  wall < 0.85 mm  around (21, 18, 21)
-  SLICER SUPPORTS REQUIRED -- supports on (top-plate/tine transition has no support-free orientation once the ankle-roll clearance cut is applied)
-    [support] CONTACT  part stands on 71 mm2 first layer
-    [support] CEILING     532 mm2   28.8 x  24.0 mm  at z  41.2  over 37.2 mm cavity
-    [support] ISLAND       17 mm2    4.3 x   4.3 mm  at z   3.1  nothing below or around -> support
-    [support] ISLAND      737 mm2   33.0 x  40.1 mm  at z   5.6  nothing below or around -> support
-    [support] ISLAND      512 mm2   28.8 x  23.2 mm  at z   1.0  nothing below or around -> support
-    [support] LEDGE        14 mm2    5.1 x   3.2 mm  at z   1.1  anchored one side (31% ring)
-    [support] ISLAND       19 mm2    4.9 x   4.3 mm  at z   2.6  nothing below or around -> support
+== ankle_link  [on its back like leg_link (RY_XUP): the rear tine on the bed, the grip screws' teardrop roofs up]
+  first-layer contact     630 mm2  (25.7% of 65x38 bbox)
+    ISLAND      719 mm2   33.0 x  37.6 mm  at z   4.6  nothing below or around -> support
+    LEDGE         2 mm2    1.9 x   1.5 mm  at z   5.4  anchored one side (44% ring)
+    BEAM         13 mm2    4.7 x   2.4 mm  at z  26.9  through-wall strip, 5 mm between anchors
+    BEAM          4 mm2    2.9 x   1.5 mm  at z  10.2  through-wall strip, 3 mm between anchors
+    BEAM          3 mm2    2.4 x   1.5 mm  at z  10.2  through-wall strip, 2 mm between anchors
+    BEAM          4 mm2    2.9 x   1.5 mm  at z  30.7  through-wall strip, 3 mm between anchors
+    BEAM          3 mm2    2.4 x   1.5 mm  at z  30.7  through-wall strip, 2 mm between anchors
+    BEAM          6 mm2    2.9 x   2.1 mm  at z  10.2  through-wall strip, 3 mm between anchors
+    BEAM          6 mm2    2.9 x   2.1 mm  at z  30.7  through-wall strip, 3 mm between anchors
+    CEILING     900 mm2   42.9 x  32.2 mm  at z  40.2  over 37.2 mm cavity
+    bore-top      0 mm2    0.3 x   1.3 mm  at z  30.7  over 1.3 mm cavity
+    BEAM          0 mm2    0.3 x   1.3 mm  at z  10.2  through-wall strip, 1 mm between anchors
+    bore-top      3 mm2    1.8 x   3.6 mm  at z  37.1  over 32.1 mm cavity
+    CEILING       6 mm2    2.5 x   5.1 mm  at z  37.1  over 32.1 mm cavity
+  **THIN       18.9 mm2  wall < 0.85 mm  around (35, 19, 21)
+    thin-note    1.1 mm2  wall < 0.85 mm  around (36, 18, 5)
+    thin-note    0.2 mm2  wall < 0.85 mm  around (36, -17, 5)
+  **THIN       15.6 mm2  wall < 0.85 mm  around (21, 18, 20)
+    thin-note    0.8 mm2  wall < 0.85 mm  around (36, -15, 39)
+  SLICER SUPPORTS REQUIRED -- supports on (the web starts 4.6 mm over the bed; the front wall and tine overhang the box and the roll servo's space)
+    [support] ISLAND      719 mm2   33.0 x  37.6 mm  at z   4.6  nothing below or around -> support
+    [support] LEDGE         2 mm2    1.9 x   1.5 mm  at z   5.4  anchored one side (44% ring)
+    [support] CEILING     900 mm2   42.9 x  32.2 mm  at z  40.2  over 37.2 mm cavity
 
 == foot_L  [sole down (v5 convention)]
   first-layer contact   10752 mm2  (98.5% of 130x84 bbox)
@@ -780,9 +765,8 @@ audit_torso: findings above -- check them in the slice preview
   PASS
 
 SAG RISKS FOUND:
-  ankle_link  THIN       19.5 mm2  wall < 0.85 mm  around (35, 19, 21)
-  ankle_link  THIN        4.0 mm2  wall < 0.85 mm  around (43, -11, 5)
-  ankle_link  THIN       15.6 mm2  wall < 0.85 mm  around (21, 18, 21)
+  ankle_link  THIN       18.9 mm2  wall < 0.85 mm  around (35, 19, 21)
+  ankle_link  THIN       15.6 mm2  wall < 0.85 mm  around (21, 18, 20)
 audit_ankle_foot: findings above -- check them in the slice preview
 
 ALL CHECKS PASS
