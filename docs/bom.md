@@ -272,7 +272,7 @@ M2.5, not M3.
 
 | fastener | qty | where | have |
 |---|---|---|---|
-| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **107** | leg links 24, ankle links 12, foot tabs 8, yaw-carrier walls 16, bearing housing to the pelvis 5, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **111** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
 | M2.5 × 5 flat-head self-tapping | 8 | yaw-servo stators: 2.6 mm through the cell ceiling, 2.4 mm into the idler-face holes (3.0 deep in the vendor STEP; an × 8 would bottom out) | |
 | M2.5 × 10 pan self-tap | 4 | Pi and General Driver, lower row, into standoff bosses | |
 | M2.5 × 6 pan self-tap | 4 | Pi and General Driver, upper row, into wall pilots | |

@@ -12,7 +12,9 @@ to +SV_AXIS_FROM_REAR outboard/cable end), case width (24.72) VERTICAL --
 axis at V.ANKLE_ROLL_ABOVE_PLATE (16.36) above the plate top. The ankle
 link's tines bolt onto the horn disc (x = SV_HORN_FACE, front) and the idler
 disc (x = SV_IDLER_FACE, rear) from above; the foot only has to hold the case
-down and located, not carry the joint load (that is the tine pads' job).
+down and located, not carry the joint load (that is the tine pads' job). Six
+M2.5 flat-heads do that: two through each braced tab at the case's far hole
+rows, and one through a short boss at each face's near row, beside the discs.
 
     .venv/bin/python cad/v6/foot_v6.py
 """
@@ -148,7 +150,26 @@ def foot(side):
     p += parts.box(rail_x0, CASE_X[1] + D.FIT + D.WALL, stop_y - D.WALL, stop_y,
                    V.FOOT_PLATE_T, V.FOOT_PLATE_T + rail_h)
 
-    # --- retention tabs, gusseted to the plate. Grown 0.8 mm PAST
+    # --- near-row bosses (dimensions_v6 FOOT_NEAR_*): one on each case face
+    # at the hole row nearest the output end, LOW hole only, seated like the
+    # tabs; an arc about the roll axis keeps each off its disc (and the idler
+    # one off the rear tine's pad). After the rail notch, which would take
+    # them away, and before the insertion clearance, which trims the horn rib.
+    for seat_x, out_x, y1, clear_r in (
+            (V.FOOT_TAB_FRONT_X[0], V.FOOT_TAB_FRONT_X[1],
+             V.FOOT_NEAR_ROW + V.FOOT_NEAR_BOSS_HW, V.FOOT_ROTOR_CLEAR_R),
+            (V.FOOT_TAB_REAR_X[1], V.FOOT_TAB_REAR_X[0],
+             V.FOOT_NEAR_BOSS_IDLER_Y1, V.FOOT_PAD_CLEAR_R)):
+        bx0, bx1 = min(seat_x, out_x), max(seat_x, out_x)
+        boss = parts.box(bx0, bx1, V.FOOT_NEAR_ROW - V.FOOT_NEAR_BOSS_HW, y1,
+                         V.FOOT_PLATE_T, V.FOOT_NEAR_BOSS_TOP)
+        p += boss - parts.cyl_x(clear_r, bx0 - 1, bx1 + 1, 0, AXIS_Z)
+        p -= parts.teardrop_x(D.CASE_SCREW_CLEAR / 2, bx0 - 1, bx1 + 1,
+                              V.FOOT_NEAR_ROW, V.FOOT_NEAR_SCREW_Z, roll=0)
+        p -= parts.csk_x(V.FOOT_NEAR_ROW, V.FOOT_NEAR_SCREW_Z, out_x,
+                         1 if out_x > seat_x else -1)
+
+    # --- retention tabs, braced to the plate. Grown 0.8 mm PAST
     # V.FOOT_TAB_FRONT_X/REAR_X on the OUTER face only (inner/seat face
     # unchanged) -- the horn rib / idler platform relief below
     # (_vertical_insertion_clearance) eats most of V.FOOT_TAB_T at the seat,
@@ -159,14 +180,27 @@ def foot(side):
                         (V.FOOT_TAB_REAR_X[0] - TAB_GROW, V.FOOT_TAB_REAR_X[1], V.FOOT_TAB_ROW_IDLER)):
         y0, y1 = row - V.FOOT_TAB_HW, row + V.FOOT_TAB_HW
         p += parts.box(x0, x1, y0, y1, V.FOOT_PLATE_T, V.FOOT_PLATE_T + V.FOOT_TAB_H)
-        # gusset (vertical face against the tab, sloped top -- support-free
-        # printing sole-down)
-        outer_x = x1 if x0 == V.FOOT_TAB_FRONT_X[0] else x0
-        run = 8.0
-        sgn = 1 if outer_x > 0 else -1
-        p += parts.wedge_y([(outer_x, V.FOOT_PLATE_T + V.FOOT_TAB_H),
-                            (outer_x - sgn * run, V.FOOT_PLATE_T),
-                            (outer_x, V.FOOT_PLATE_T)], y0, y1)
+        front = x0 == V.FOOT_TAB_FRONT_X[0]
+        sgn = 1 if front else -1               # outward along x
+        seat_x, outer_x = (x0, x1) if front else (x1, x0)
+        # buttress fins (dimensions_v6 FOOT_FIN_*): one at each end of the
+        # tab, the screw column between them open. A fin's profile starts at
+        # the seat face, so it backs the tab across its whole thickness; the
+        # inboard one stays inside the tab's span, the outboard one carries
+        # it past its outboard end. Sloped tops face up (support-free
+        # sole-down).
+        for end, t in ((-1, V.FOOT_FIN_IN_T), (1, V.FOOT_FIN_T)):   # inboard (-y), outboard (+y)
+            ya = row + end * V.FOOT_FIN_GAP_HW
+            h = V.FOOT_FIN_REAR_IN_H if (not front and end < 0) else V.FOOT_TAB_H
+            z0, z1 = V.FOOT_PLATE_T, V.FOOT_PLATE_T + h
+            p += parts.wedge_y([(seat_x, z0), (seat_x, z1), (outer_x, z1),
+                                (outer_x + sgn * V.FOOT_FIN_RUN, z0)],
+                               ya, ya + end * t)
+        if not front:
+            # the rear tine's outboard corner sweeps this corner at roll +20..+25
+            c, zt = V.FOOT_TAB_REAR_CHAMFER, V.FOOT_PLATE_T + V.FOOT_TAB_H
+            p -= parts.wedge_x([(y0 - 1, zt - c - 1), (y0 + c + 1, zt + 1), (y0 - 1, zt + 1)],
+                               x0 - 1, x1 + 1)
         for zh in V.FOOT_SCREW_Z:
             sign = 1 if x0 == V.FOOT_TAB_FRONT_X[0] else -1
             face = x1 if sign > 0 else x0
@@ -206,7 +240,7 @@ def foot(side):
 
 PRINT_ORIENT = "IDENT"     # sole down, flat on the bed -- the standard v5
                             # foot orientation; every added face here (rails,
-                            # tabs, gussets, end stop) is vertical or a
+                            # tabs, fins, end stop) is vertical or a
                             # support-free upward slope.
 
 SERVO_INSERT = {"foot": ((0, 0, -1), 30.0)}   # servo drops in from above
@@ -221,6 +255,10 @@ def SCREWS():
         for zh in V.FOOT_SCREW_Z:
             s.append({"name": f"tab_{tag}_{zh:.1f}", "kind": "M2.5x8 flat self-tap",
                       "pos": ((x0 + x1) / 2, row, zh), "axis": (1, 0, 0), "length": 8.0})
+    for (x0, x1), tag in ((V.FOOT_TAB_FRONT_X, "front"), (V.FOOT_TAB_REAR_X, "rear")):
+        s.append({"name": f"near_{tag}_{V.FOOT_NEAR_SCREW_Z:.1f}", "kind": "M2.5x8 flat self-tap",
+                  "pos": ((x0 + x1) / 2, V.FOOT_NEAR_ROW, V.FOOT_NEAR_SCREW_Z),
+                  "axis": (1, 0, 0), "length": 8.0})
     return s
 
 

@@ -152,7 +152,7 @@
                 <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" name="L_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="L_foot" pos="0 0 -0.058">
                   <joint name="L_ankle_roll" axis="1 0 0" range="-25 25"/>
-        <inertial pos="0.0063 0.0160 -0.0088" quat="0.9992 -0.0306 0.0212 0.0140" mass="0.1328" diaginertia="6.4892e-05 1.2167e-04 1.6588e-04"/>
+        <inertial pos="0.0062 0.0162 -0.0087" quat="0.9993 -0.0284 0.0211 0.0116" mass="0.1351" diaginertia="6.5687e-05 1.2329e-04 1.6798e-04"/>
         <geom name="L_foot_cad_foot_L" class="cad" mesh="cad_foot_L" pos="0.00000 0.00000 -0.01636" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_foot_cad_sole_tpu_L" class="cad" mesh="cad_sole_tpu_L" pos="0.00000 0.00000 -0.01636" rgba="0.93 0.93 0.91 1"/>
         <geom name="L_foot_servo_foot_L" class="cad" mesh="servo_foot_L" rgba="0.12 0.12 0.14 1"/>
@@ -227,7 +227,7 @@
                 <geom type="box" pos="0.00183 0.00093 -0.0355" size="0.02162 0.01882 0.0325" name="R_col_ankle" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="R_foot" pos="0 0 -0.058">
                   <joint name="R_ankle_roll" axis="1 0 0" range="-25 25"/>
-        <inertial pos="0.0063 -0.0160 -0.0088" quat="0.9992 0.0306 0.0212 -0.0140" mass="0.1328" diaginertia="6.4892e-05 1.2167e-04 1.6588e-04"/>
+        <inertial pos="0.0062 -0.0162 -0.0087" quat="0.9993 0.0284 0.0211 -0.0116" mass="0.1351" diaginertia="6.5687e-05 1.2329e-04 1.6798e-04"/>
         <geom name="R_foot_cad_foot_R" class="cad" mesh="cad_foot_R" pos="0.00000 0.00000 -0.01636" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_foot_cad_sole_tpu_R" class="cad" mesh="cad_sole_tpu_R" pos="0.00000 0.00000 -0.01636" rgba="0.93 0.93 0.91 1"/>
         <geom name="R_foot_servo_foot_R" class="cad" mesh="servo_foot_R" rgba="0.12 0.12 0.14 1"/>

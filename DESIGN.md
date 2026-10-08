@@ -200,7 +200,17 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   back, with supports.
 - **`foot_L` / `foot_R`**: the roll servo lies across the foot plate in a
   cradle with two screwed retention tabs; the sole (`sole_tpu_L/R`, the
-  outline) is 2 mm silicone rubber, cut, for edge compliance and grip.
+  outline) is 2 mm silicone rubber, cut, for edge compliance and grip. A tab
+  is a thin plate standing 26 mm off the plate, and printed sole-down it
+  bends across its own layer lines at the root, so each one is braced by two
+  buttress fins on its outer face, one at each end, with the screws driven
+  between them (a 7 mm driver channel); the inboard fins stay inside the
+  tab's width, where the ankle link is cut clear of the tab at full roll. The
+  rear tab's inboard top corner is chamfered out of the rear tine's sweep. The
+  tabs hold the case only at its far hole rows, so a short boss on each case
+  face also takes the low hole of the row nearest the output end (one M2.5
+  each, six per foot), kept off the discs and the rear tine's pad by an arc
+  about the roll axis.
 
 ### 5.2 Hip
 
