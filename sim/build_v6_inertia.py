@@ -126,6 +126,13 @@ def combine(items):
         d = c - com
         I += Ic + m * (np.dot(d, d) * np.eye(3) - np.outer(d, d))
     w, v = np.linalg.eigh(I)
+    # eigh's eigenvector signs are arbitrary and differ between LAPACK builds
+    # (scipy 1.18.0 vs 1.18.1 flipped the arms' frames): pin each axis so its
+    # largest component is positive, then keep the frame right-handed --
+    # the committed plant must regenerate byte-identically on any machine
+    for k in range(3):
+        if v[np.argmax(np.abs(v[:, k])), k] < 0:
+            v[:, k] *= -1
     if np.linalg.det(v) < 0:
         v[:, 0] *= -1
     q = trimesh.transformations.quaternion_from_matrix(np.vstack([np.hstack([v, [[0], [0], [0]]]), [0, 0, 0, 1]]))

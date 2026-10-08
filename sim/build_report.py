@@ -396,6 +396,37 @@ fig_1007 = "\n    ".join(f for f in [
                  'the kinematic prior alone (w-mimic 4.0) · falls within 1.6 s '
                  'on the flat line, passes the rough one'),
 ] if f)
+# 2026-10-07 afternoon card: the from-scratch control and the lift reference,
+# both trained on the Mac (mac_train.py) with the same flags; seed-1 takes.
+fig_1007b = "\n    ".join(f for f in [
+    video_figure('robot_walk_l0_mac', ['line_1m', 'pursuit'],
+                 'robot_walk_l0_mac_line_pursuit',
+                 'with the 5 cm swing-lift reference · the straight line '
+                 'and pursuit'),
+    video_figure('robot_walk_c0_mac', ['line_1m', 'pursuit'],
+                 'robot_walk_c0_mac_line_pursuit',
+                 'the control: the same flags, no lift reference'),
+] if f)
+# 2026-10-08 card: the first night on MuJoCo Warp -- five swing-lift runs on
+# the final plant. Foot-height overlay renders (render_walk_feet.py) of the two
+# fine-tuned runs, then referee takes incl. the from-scratch control.
+fig_1008 = "\n    ".join(f for f in [
+    video_file('runs/_clips/robot_walk_l2_line1m_feet.mp4',
+               '<b>robot_walk_l2</b> (lift 0.05 prior → w-mimic 1.5) · line_1m '
+               'seed 1 with live sole heights and the 3 cm line: 12 swings, 33 % '
+               'clear 3 cm, median peak 2.4 cm, no fall -- it stops stepping '
+               'short of the line', name='robot_walk_l2_line1m_feet'),
+    video_file('runs/_clips/robot_walk_l4_line1m_feet.mp4',
+               '<b>robot_walk_l4</b> (lift 0.07 prior → w-mimic 1.5) · the same '
+               'take: 17 swings, 6 % clear 3 cm, median 1.9 cm',
+               name='robot_walk_l4_line1m_feet'),
+    video_figure('robot_walk_l2', ['line_1m', 'stand_10s'],
+                 'robot_walk_l2_line_stand',
+                 'the referee takes: the line and the 10 s stand (8/8)'),
+    video_figure('robot_walk_c1', ['line_1m', 'stand_10s'],
+                 'robot_walk_c1_line_stand',
+                 'the control: the same lift, trained from scratch'),
+] if f)
 watch_figs = [video_figure(*w) for w in WATCH]
 watch_grid = "\n    ".join(f for f in watch_figs if f)
 watch_html = f"""
@@ -524,6 +555,49 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·08 · training thread</span></p>
+    <p><b>The first night on MuJoCo Warp: the feet start to lift.</b> Mira
+    moved to MuJoCo 3.15 and its CUDA backend (<code>--mjx-impl warp</code>):
+    the robot plant trains at about <b>131k env steps/s</b>, 35× the night
+    before, so five 290M-step runs fit between 22:18 and 01:38 (the camera
+    classifier paused meanwhile). All on the final plant (feet 23.5/60.5,
+    silicone soles, CAD collision) with the 5 or 7 cm swing-lift reference.
+    The share of swings that clear 3 cm went from 9 % (k2) to 20–31 %, the
+    median swing peak from 1.4 to 2.2 cm -- better, still under 3. The
+    kinematic start pays: the fine-tuned runs <b>l2</b> (16/144, stand 8/8)
+    and <b>l4</b> (18/144, stand 8/8) beat the from-scratch control
+    <b>c1</b> (10/144, stand 1/8). Lift 5 vs 7 cm is a wash: l2 lifts more
+    and stays symmetric, l4 passes two more seeds and limps (asymmetry 35 %).
+    Falls are still 74–92 %, and turns, sidesteps and the skills stay at 0.
+    Scorecards and the full table: issue #86.</p>
+    <div class="vidgrid">
+    {fig_1008}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·07 afternoon · training thread</span></p>
+    <p><b>A swing-lift reference, against its control.</b> Two runs on the
+    Mac (<code>sim/mac_train.py</code>), 400.4M steps each, on the robot
+    plant before the 23.5/60.5 mm foot outline landed. Same flags (w-mimic
+    1.5, the <code>robot</code> stiffness preset, act-lag 2–12); the only
+    difference is <code>--mimic-lift 0.05</code>, which makes the imitation
+    reference lift the swing sole up to 5 cm, level.
+    <b>robot_walk_c0_mac</b>, the control: <b>12/144</b>, falls 78%.
+    <b>robot_walk_l0_mac</b>, with the lift: <b>21/144</b>, falls 78%. The
+    gains are the 1 m line 3/8 → 5/8, pursuit 0/8 → 5/8, the 10 s stand
+    4/8 → 7/8 (drift 26 → 14 cm), the rough line 2/8 → 3/8 and one square
+    return; the push course goes 3/8 → 0/8. The feet still barely lift:
+    swings that reach 3 cm go 15% → 20%, and the median swing peak 1.5 →
+    1.9 cm, against the 5 cm reference. One training seed per arm, so a
+    few passes either way are within what a second seed could change. Both
+    are old-feet results, like k1 and k2 below.</p>
+    <div class="vidgrid">
+    {fig_1007b}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·07 · training thread</span></p>

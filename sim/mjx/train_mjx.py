@@ -165,6 +165,11 @@ class BatchedEnv(brax_base.Env):
             reseeded = jax.vmap(self._env.reseed)(first, st.rng)
 
         def pick(a, b):
+            # Warp (mjx impl="warp") pools some Data leaves across envs (the
+            # contact buffers: leading dim naconmax, or empty) -- no per-env
+            # row to select; they are rebuilt every physics step, keep b's.
+            if a.ndim == 0 or a.shape[0] != done.shape[0]:
+                return b
             d = done.reshape(done.shape + (1,) * (a.ndim - 1))
             return jp.where(d > 0, a, b)
 
@@ -241,6 +246,9 @@ def make_parser():
                    help="training-only collision set: 'feet' lets only the sole "
                         "pads touch the floor (MJX contact slots 182 -> 56 on the "
                         "robot plant); the referee always grades with 'all'")
+    p.add_argument("--mjx-impl", choices=["jax", "warp"], default="jax",
+                   help="physics backend: MJX's JAX pipeline, or MuJoCo Warp "
+                        "(CUDA kernels; flat floor only)")
     p.add_argument("--mimic-sole-level", action="store_true",
                    help="imitation reference: ankle pitch solved level from "
                         "the joint axes (the robot preset sets it)")
@@ -585,6 +593,9 @@ def build_env_kw(args):
         env_kw["mimic_sole_level"] = True
     if args.floor_contacts != "all":
         env_kw["floor_contacts"] = args.floor_contacts
+    if getattr(args, "mjx_impl", "jax") != "jax":
+        env_kw["mjx_impl"] = args.mjx_impl
+        env_kw["warp_envs"] = int(args.envs)
     if args.mimic_lift > 0.0:
         env_kw["mimic_lift"] = args.mimic_lift
     if args.fall_cost is not None:
