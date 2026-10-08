@@ -407,6 +407,26 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-08 card: the first night on MuJoCo Warp -- five swing-lift runs on
+# the final plant. Foot-height overlay renders (render_walk_feet.py) of the two
+# fine-tuned runs, then referee takes incl. the from-scratch control.
+fig_1008 = "\n    ".join(f for f in [
+    video_file('runs/_clips/robot_walk_l2_line1m_feet.mp4',
+               '<b>robot_walk_l2</b> (lift 0.05 prior → w-mimic 1.5) · line_1m '
+               'seed 1 with live sole heights and the 3 cm line: 12 swings, 33 % '
+               'clear 3 cm, median peak 2.4 cm, no fall -- it stops stepping '
+               'short of the line', name='robot_walk_l2_line1m_feet'),
+    video_file('runs/_clips/robot_walk_l4_line1m_feet.mp4',
+               '<b>robot_walk_l4</b> (lift 0.07 prior → w-mimic 1.5) · the same '
+               'take: 17 swings, 6 % clear 3 cm, median 1.9 cm',
+               name='robot_walk_l4_line1m_feet'),
+    video_figure('robot_walk_l2', ['line_1m', 'stand_10s'],
+                 'robot_walk_l2_line_stand',
+                 'the referee takes: the line and the 10 s stand (8/8)'),
+    video_figure('robot_walk_c1', ['line_1m', 'stand_10s'],
+                 'robot_walk_c1_line_stand',
+                 'the control: the same lift, trained from scratch'),
+] if f)
 watch_figs = [video_figure(*w) for w in WATCH]
 watch_grid = "\n    ".join(f for f in watch_figs if f)
 watch_html = f"""
@@ -535,6 +555,27 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·08 · training thread</span></p>
+    <p><b>The first night on MuJoCo Warp: the feet start to lift.</b> Mira
+    moved to MuJoCo 3.15 and its CUDA backend (<code>--mjx-impl warp</code>):
+    the robot plant trains at about <b>131k env steps/s</b>, 35× the night
+    before, so five 290M-step runs fit between 22:18 and 01:38 (the camera
+    classifier paused meanwhile). All on the final plant (feet 23.5/60.5,
+    silicone soles, CAD collision) with the 5 or 7 cm swing-lift reference.
+    The share of swings that clear 3 cm went from 9 % (k2) to 20–31 %, the
+    median swing peak from 1.4 to 2.2 cm -- better, still under 3. The
+    kinematic start pays: the fine-tuned runs <b>l2</b> (16/144, stand 8/8)
+    and <b>l4</b> (18/144, stand 8/8) beat the from-scratch control
+    <b>c1</b> (10/144, stand 1/8). Lift 5 vs 7 cm is a wash: l2 lifts more
+    and stays symmetric, l4 passes two more seeds and limps (asymmetry 35 %).
+    Falls are still 74–92 %, and turns, sidesteps and the skills stay at 0.
+    Scorecards and the full table: issue #86.</p>
+    <div class="vidgrid">
+    {fig_1008}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·07 afternoon · training thread</span></p>
