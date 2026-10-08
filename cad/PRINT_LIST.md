@@ -167,18 +167,19 @@ and thin walls. The rules:
 
 ## Slicing
 
-`cad/slice.py` slices a part into an **OrcaSlicer project**, in its print
-orientation with the settings above. Open the project in the GUI, check it, and
-print it from there.
+`cad/slice.py` slices a part, or a **plate** of parts printed together, into an
+**OrcaSlicer project**, each part in its print orientation with the settings
+above. Open the project in the GUI, check it, and print it from there.
 
 ```bash
 python3 cad/slice.py leg_link_v6             # -> cad/gcode/leg_link_v6.3mf + .gcode (gitignored)
 python3 cad/slice.py leg_link_v6 --copies 4  # four on the plate, this run only
-python3 cad/slice.py --all
+python3 cad/slice.py feet                    # both feet, one plate -> cad/gcode/feet.3mf
+python3 cad/slice.py --all                   # every plate, and every part on no plate
 python3 cad/slice.py --harvest               # only read saved projects back
 ```
 
-- **Open `cad/gcode/<part>.3mf`** with File → Open Project.
+- **Open `cad/gcode/<part or plate>.3mf`** with File → Open Project.
   - The printer is the GUI's own printer preset, the one that holds the print
     host, so the plate prints from the GUI.
   - The process and filament are Flashforge's "0.20mm Standard" and "Generic
@@ -192,11 +193,16 @@ python3 cad/slice.py --harvest               # only read saved projects back
        or a 3×3 matrix whose rows are the print axes in model coordinates;
      - supports, and copies;
      - overrides, in OrcaSlicer's own keys.
+  4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`. One
+     process slices a plate, so its parts must agree on supports and overrides
+     (`slice.py` refuses a plate whose parts don't). A plate's copies are its
+     own: `--copies 2` puts two of each foot on it.
 - **Changes made in the GUI carry forward.** Save the project (Cmd+S). The next
-  `slice.py` run on that part reads the saved project's changes back into
-  `print_settings.json`:
-  - any process or filament setting, including per-object settings;
-  - the part tipped onto another face;
+  `slice.py` run on that part or plate reads the saved project's changes back
+  into `print_settings.json`:
+  - any process or filament setting, including per-object settings (on a
+    plate, for every part on it);
+  - a part tipped onto another face (on a plate, that part only);
   - the number of copies.
 
   It prints what it changed, and keeps the saved project under

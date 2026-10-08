@@ -44,6 +44,31 @@ def test_every_printed_part_has_an_entry_and_an_stl():
         assert isinstance(entry["supports"], bool), part
 
 
+def test_plates_hold_known_parts_that_share_a_process():
+    for name, plate in SPEC.get("plates", {}).items():
+        assert name not in SPEC["parts"], name
+        assert len(plate["parts"]) > 1 and set(plate["parts"]) <= set(SPEC["parts"]), name
+        S.job_entry(SPEC, name)           # raises if the parts disagree
+    jobs = S.jobs(SPEC)
+    on_plates = [p for plate in SPEC.get("plates", {}).values() for p in plate["parts"]]
+    # every printed part is in exactly one --all project
+    assert sorted(on_plates + [j for j in jobs if j in SPEC["parts"]]) == sorted(SPEC["parts"])
+
+
+def test_both_feet_are_one_print():
+    assert S.plate_parts(SPEC, "feet") == ["foot_L", "foot_R"]
+    jobs = S.jobs(SPEC)
+    assert "feet" in jobs and "foot_L" not in jobs and "foot_R" not in jobs
+
+
+def test_a_plate_whose_parts_disagree_is_refused():
+    spec = {"parts": {"a": {"orient": "IDENT", "supports": True},
+                      "b": {"orient": "IDENT", "supports": False}},
+            "plates": {"ab": {"parts": ["a", "b"]}}}
+    with pytest.raises(SystemExit, match="disagree on 'supports'"):
+        S.job_entry(spec, "ab")
+
+
 # part -> (module, constant, key in a dict-valued constant). yaw_carrier_v6
 # has no constant of its own; its RX180 is the prototype's, checked by
 # test_yaw_carrier_horn_plate_down.
@@ -170,18 +195,28 @@ RX90_ROW = "1 0 0 0 0 1 0 -1 0"      # row-vector 3MF form of +90 deg about X
 
 
 def write_project(path, cfg, items, object_meta="", paint=False):
+    write_plate(path, cfg, [("widget.stl", items)], object_meta, paint)
+
+
+def write_plate(path, cfg, objects, object_meta="", paint=False):
+    """A project as Orca writes one: ``objects`` is [(name, [item rotation rows])]."""
+    resources, build, settings = "", "", ""
+    for i, (name, items) in enumerate(objects):
+        oid = 2 * i + 2
+        resources += (f'<object id="{oid}" type="model"><components>'
+                      f'<component p:path="/3D/Objects/o.model" objectid="{oid - 1}" '
+                      'transform="1 0 0 0 1 0 0 0 1 5 5 5"/></components></object>')
+        build += "".join(f'<item objectid="{oid}" transform="{rot} 50 50 0" printable="1"/>'
+                         for rot in items)
+        settings += (f'<object id="{oid}"><metadata key="name" value="{name}"/>'
+                     f'<metadata key="extruder" value="1"/>{object_meta}'
+                     f'<part id="1" subtype="normal_part"><metadata key="name" value="{name}"/>'
+                     '</part></object>')
     model = ('<?xml version="1.0" encoding="UTF-8"?>\n'
              '<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" '
              'xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">'
-             '<resources><object id="2" type="model"><components>'
-             '<component p:path="/3D/Objects/o.model" objectid="1" transform="1 0 0 0 1 0 0 0 1 5 5 5"/>'
-             '</components></object></resources><build>'
-             + "".join(f'<item objectid="2" transform="{rot} 50 50 0" printable="1"/>' for rot in items)
-             + "</build></model>")
-    settings = ('<?xml version="1.0" encoding="UTF-8"?>\n<config><object id="2">'
-                '<metadata key="name" value="widget.stl"/><metadata key="extruder" value="1"/>'
-                f'{object_meta}<part id="1" subtype="normal_part"><metadata key="name" value="widget.stl"/>'
-                '</part></object></config>')
+             f'<resources>{resources}</resources><build>{build}</build></model>')
+    settings = f'<?xml version="1.0" encoding="UTF-8"?>\n<config>{settings}</config>'
     tri = b'<triangle v1="0" v2="1" v3="2"' + (b' paint_supports="4"' if paint else b"") + b"/>"
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("Metadata/project_settings.config", json.dumps(cfg))
@@ -200,9 +235,11 @@ def generated(tmp_path, monkeypatch):
     path = tmp_path / "widget.3mf"
     write_project(path, cfg, [RZ180_ROW])
     (tmp_path / ".work").mkdir()
-    state = {"sha256": S.sha256(str(path)), "orient": "RY_XUP",
-             "rotation": [list(r) for r in S.read_3mf(str(path))["rotations"][0]],
-             "copies": 1, "config": {k: v for k, v in cfg.items() if k != "print_host"}}
+    state = {"sha256": S.sha256(str(path)), "copies": 1,
+             "objects": {"widget.stl": {
+                 "part": "widget", "orient": "RY_XUP",
+                 "rotation": [list(r) for r in S.read_3mf(str(path))["rotations"][0]]}},
+             "config": {k: v for k, v in cfg.items() if k != "print_host"}}
     (tmp_path / ".work" / "widget.state.json").write_text(json.dumps(state))
     return tmp_path, spec, cfg
 
@@ -268,6 +305,86 @@ def test_painted_project_is_not_overwritten(generated):
     assert spec == STUB_SPEC
 
 
+PLATE_SPEC = {
+    "printer": "Printer",
+    "process": {"preset": "Proc", "settings": {"wall_loops": "3"}},
+    "filament": {"preset": "Fil", "settings": {}},
+    "supports": {"enable_support": "1"},
+    "plates": {"pair": {"parts": ["left", "right"]}},
+    "parts": {"left": {"orient": "IDENT", "supports": False},
+              "right": {"orient": "IDENT", "supports": False}},
+}
+IDENT_ROW = "1 0 0 0 1 0 0 0 1"
+
+
+@pytest.fixture
+def generated_plate(tmp_path, monkeypatch):
+    """A two-part plate as slice_part leaves it."""
+    monkeypatch.setattr(S, "REPO", str(tmp_path))
+    spec = json.loads(json.dumps(PLATE_SPEC))
+    cfg = {"wall_loops": "3", "sparse_infill_density": "15%", "enable_support": "0",
+           "brim_type": "no_brim", "nozzle_temperature": ["250"]}
+    path = tmp_path / "pair.3mf"
+    write_plate(path, cfg, [("left.stl", [IDENT_ROW]), ("right.stl", [IDENT_ROW])])
+    (tmp_path / ".work").mkdir()
+    ident = [list(r) for r in S.ROTATIONS["IDENT"]]
+    state = {"sha256": S.sha256(str(path)), "copies": 1,
+             "objects": {f"{p}.stl": {"part": p, "orient": "IDENT", "rotation": ident}
+                         for p in ("left", "right")},
+             "config": cfg}
+    (tmp_path / ".work" / "pair.state.json").write_text(json.dumps(state))
+    return tmp_path, spec, cfg
+
+
+def harvest_plate(tmp_path, spec):
+    return S.harvest("pair", spec, StubLib(), str(tmp_path), "Printer")
+
+
+def test_saved_plate_shares_settings_and_keeps_each_parts_orientation(generated_plate):
+    tmp_path, spec, cfg = generated_plate
+    # wall_loops changed for the plate; only the left part tipped onto its side
+    write_plate(tmp_path / "pair.3mf", dict(cfg, wall_loops="4"),
+                [("left.stl", [RX90_ROW]), ("right.stl", [RZ180_ROW])])
+    changes, problem = harvest_plate(tmp_path, spec)
+    assert problem is None and changes
+    assert spec["parts"]["left"]["settings"] == spec["parts"]["right"]["settings"] \
+        == {"wall_loops": "4"}
+    rx90 = S.transpose(S._transform(RX90_ROW + " 0 0 0")[0])
+    assert np.allclose(S.orient_matrix(spec["parts"]["left"]["orient"]), rx90)
+    assert spec["parts"]["right"]["orient"] == "IDENT"
+    assert "copies" not in spec["plates"]["pair"]
+
+
+def test_plate_copies_go_to_the_plate(generated_plate):
+    tmp_path, spec, cfg = generated_plate
+    write_plate(tmp_path / "pair.3mf", cfg, [("left.stl", [IDENT_ROW] * 2),
+                                             ("right.stl", [IDENT_ROW] * 2)])
+    harvest_plate(tmp_path, spec)
+    assert spec["plates"]["pair"]["copies"] == 2
+    assert "copies" not in spec["parts"]["left"]
+
+
+def test_plate_saved_with_a_stranger_is_not_overwritten(generated_plate):
+    tmp_path, spec, cfg = generated_plate
+    write_plate(tmp_path / "pair.3mf", cfg, [("left.stl", [IDENT_ROW]), ("right.stl", [IDENT_ROW]),
+                                             ("bolt.stl", [IDENT_ROW])])
+    changes, problem = harvest_plate(tmp_path, spec)
+    assert changes == [] and "bolt.stl" in problem
+    assert spec == PLATE_SPEC
+
+
+def test_state_from_before_plates_still_harvests(generated):
+    tmp_path, spec, cfg = generated
+    state_path = tmp_path / ".work" / "widget.state.json"
+    state = json.loads(state_path.read_text())
+    obj = state.pop("objects")["widget.stl"]
+    state.update(orient=obj["orient"], rotation=obj["rotation"])
+    state_path.write_text(json.dumps(state))
+    write_project(tmp_path / "widget.3mf", dict(cfg, wall_loops="4"), [RZ180_ROW])
+    changes, problem = harvest(tmp_path, spec)
+    assert problem is None and spec["parts"]["widget"]["settings"] == {"wall_loops": "4"}
+
+
 # ---------------------------------------------------------------- the real slicer
 
 ORCA = os.path.join(S.orca_profile.MAC_APP, "Contents", "MacOS", "OrcaSlicer")
@@ -286,3 +403,16 @@ def test_real_slice_keeps_the_spec_in_the_project(tmp_path):
     assert {"wall_loops", "sparse_infill_density", "curr_bed_type"} <= set(listed)
     assert "printhost_apikey" not in json.dumps(cfg) or cfg.get("printhost_apikey") in (None, "")
     assert stats["in_bounds"] and os.path.exists(os.path.join(tmp_path, "neck_floor.gcode"))
+
+
+@pytest.mark.skipif(sys.platform != "darwin" or not os.path.exists(ORCA),
+                    reason="OrcaSlicer.app not installed")
+def test_real_slice_of_the_feet_puts_both_on_one_plate(tmp_path):
+    lib = S.orca_profile.Library()
+    printer = S.choose_printer(lib, SPEC)
+    path, stats = S.slice_part("feet", SPEC, lib, str(tmp_path), printer)
+    project = S.read_3mf(path)
+    assert sorted(name for name, _ in project["items"]) == ["foot_L.stl", "foot_R.stl"]
+    assert stats["in_bounds"] and os.path.exists(os.path.join(tmp_path, "feet.gcode"))
+    state = json.loads((tmp_path / ".work" / "feet.state.json").read_text())
+    assert set(state["objects"]) == {"foot_L.stl", "foot_R.stl"}

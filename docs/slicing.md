@@ -1,26 +1,30 @@
 # Slicing with the OrcaSlicer CLI
 
-`cad/slice.py` turns a v6 part into an OrcaSlicer project for the **FlashForge
-Adventurer 5M Pro**: the part in its print orientation, the print spec's
-settings, the plate already sliced. The workflow (open, check, print, save) is
+`cad/slice.py` turns a v6 part, or a plate of parts printed together (`feet`:
+both feet), into an OrcaSlicer project for the **FlashForge Adventurer 5M
+Pro**: each part in its print orientation, the print spec's settings, the plate
+already sliced. The workflow (open, check, print, save) is
 in [cad/PRINT_LIST.md](../cad/PRINT_LIST.md), Slicing; this page is how it
 works.
 
 ```bash
 python3 cad/slice.py leg_link_v6       # -> cad/gcode/leg_link_v6.3mf + leg_link_v6.gcode
-python3 cad/slice.py --all
+python3 cad/slice.py feet              # -> cad/gcode/feet.3mf: foot_L + foot_R
+python3 cad/slice.py --all             # every plate, and every part on no plate
 python3 cad/slice.py --harvest
 ```
 
 Output goes to `cad/gcode/` (gitignored: regenerate, don't commit). Its
 `.work/` holds the staged STLs and presets, OrcaSlicer's data dirs, each
 project's state, and copies of projects saved from the GUI (`.work/saved/`).
-Parts slice in parallel (`--jobs`, default half the cores).
+Projects slice in parallel (`--jobs`, default half the cores).
 
 ## What one slice does
 
-1. **Orient.** The part's STL from `cad/v6/stl` is rotated into its print
-   orientation (`cad/v6/print_settings.json`) and written to `.work/<part>/`.
+1. **Orient.** Each part's STL from `cad/v6/stl` is rotated into its print
+   orientation (`cad/v6/print_settings.json`) and written to `.work/<name>/`.
+   A plate (`plates` in the JSON) hands all its parts to one CLI run, which
+   arranges them on the bed.
 2. **Build the presets.** `cad/orca_profile.py` flattens three presets by name,
    from the GUI's user presets first, then the bundled Flashforge profiles:
    - the printer: the GUI's own printer preset if exactly one inherits the
@@ -28,15 +32,16 @@ Parts slice in parallel (`--jobs`, default half the cores).
      picks one);
    - the process and the filament: Flashforge's system presets.
 
-   The spec and the part's overrides go on top. The print host's access code is
+   The spec and the part's overrides go on top. A plate is one process, so
+   its parts must share supports and overrides. The print host's access code is
    dropped from what the CLI sees.
 3. **Slice and export.** The CLI slices and writes the project
    (`--export-3mf`) and the plate's gcode.
 4. **Fill in `different_settings_to_system`** in the project's
    `Metadata/project_settings.config` (below).
-5. **Record the project's state**: its sha256, the orientation and instance
-   rotation it was generated with, its copies, and every process and filament
-   value. The next run compares a saved project against this.
+5. **Record the project's state**: its sha256, each object's part,
+   orientation and first instance rotation, its copies, and every process and
+   filament value. The next run compares a saved project against this.
 
 ## Upstream quirks it works around
 
@@ -75,26 +80,31 @@ change.
 ## Reading a saved project back
 
 A project whose sha256 no longer matches its state was saved from the GUI.
-Before slicing that part again, `slice.py` copies the project to
+Before slicing that part or plate again, `slice.py` copies the project to
 `.work/saved/` and folds what changed into `print_settings.json`:
 
 - **Settings.** Every process and filament value in
   `project_settings.config` that differs from the generated one, and every
   per-object or per-part `<metadata>` in `Metadata/model_settings.config`,
-  becomes a part override. If the value equals the spec's, any override is
-  dropped instead. Printer keys are reported and ignored.
+  becomes a part override (on a plate, an override of every part on it). If
+  the value equals the spec's, any override is dropped instead. Printer keys are reported and ignored.
 - **Orientation.** The project's mesh is the part already oriented, so the
   instance rotation (`3D/3dmodel.model`: item transform × component transform)
   acts on top of the orientation it was generated with. The new orientation is
-  that rotation times the old one.
+  that rotation times the old one. On a plate, each build item is matched to
+  its part by object name (`model_settings.config`), and the first copy of
+  each part decides.
   - Only a change in the rotation's bottom row, the up direction, counts. A
     spin on the bed does not.
   - 3MF transforms are row-vector matrices, `m00 m01 m02 m10 … m32`, so the
     rotation as `print = R · model` is the transpose.
-- **Copies.** The number of build items.
+- **Copies.** The number of build items per part, written to the part, or to
+  the plate. A plate saved with different counts per part is reported, not
+  carried.
 
 Painted supports, seams or colour, modifier and support-blocker volumes,
-height-range modifiers, and objects other than the part cannot be written back.
+height-range modifiers, and objects other than the project's parts cannot be
+written back.
 For those, `slice.py` leaves the project in place, says why, and does not
 re-slice that part. A project it cannot read is treated the same way.
 

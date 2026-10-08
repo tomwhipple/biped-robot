@@ -9,14 +9,17 @@ For each part, cad/gcode/ (gitignored) gets:
     <part>.gcode  the same slice, for the numbers (time, grams, footprint).
 
 The settings are cad/v6/print_settings.json: the print spec on top of
-Flashforge's own presets, and one entry per part (orientation, supports,
-copies, overrides). If a project is changed in the GUI and saved (Cmd+S), the
-next run reads the change back -- settings, orientation, copies -- into
-print_settings.json before it slices that part again, so it carries forward.
+Flashforge's own presets, one entry per part (orientation, supports,
+copies, overrides), and plates: parts printed together, sliced into one
+<plate>.3mf + .gcode. If a project is changed in the GUI and saved (Cmd+S),
+the next run reads the change back -- settings, orientation, copies -- into
+print_settings.json before it slices that part or plate again, so it carries
+forward.
 
     python3 cad/slice.py leg_link_v6
     python3 cad/slice.py leg_link_v6 --copies 4
-    python3 cad/slice.py --all
+    python3 cad/slice.py feet            # a plate: both feet, one project
+    python3 cad/slice.py --all           # every plate, and every part on no plate
     python3 cad/slice.py --harvest       # only read saved projects back
 
 On the Mac it drives /Applications/OrcaSlicer.app; elsewhere the Flathub
@@ -189,6 +192,43 @@ def part_entry(spec, part):
         raise SystemExit(f"{part}: not in {os.path.relpath(SETTINGS, REPO)} 'parts'") from None
 
 
+def plate_parts(spec, name):
+    """The parts a job puts on the bed: a plate's parts, or the part alone."""
+    plate = spec.get("plates", {}).get(name)
+    if plate is None:
+        part_entry(spec, name)
+        return [name]
+    for part in plate["parts"]:
+        part_entry(spec, part)
+    return list(plate["parts"])
+
+
+def job_entry(spec, name):
+    """The entry whose supports, settings and copies slice job ``name``.
+
+    One process slices the whole plate, so a plate's parts must agree on
+    supports and settings; its copies are the plate's own.
+    """
+    plate = spec.get("plates", {}).get(name)
+    if plate is None:
+        return part_entry(spec, name)
+    entries = [part_entry(spec, p) for p in plate["parts"]]
+    for key in ("supports", "settings"):
+        if len({json.dumps(e.get(key), sort_keys=True) for e in entries}) > 1:
+            raise SystemExit(f"plate {name}: its parts disagree on {key!r}, and one "
+                             "process slices the whole plate")
+    return {"supports": entries[0].get("supports", False),
+            "settings": dict(entries[0].get("settings", {})),
+            "copies": plate.get("copies", 1)}
+
+
+def jobs(spec):
+    """Every project --all makes: each plate, and each part on no plate."""
+    plates = spec.get("plates", {})
+    on_plates = {p for plate in plates.values() for p in plate["parts"]}
+    return sorted(plates) + sorted(p for p in spec["parts"] if p not in on_plates)
+
+
 def choose_printer(lib, spec, wanted=None):
     """The GUI's own printer preset for this printer (it holds the print host),
     else the system preset. A project naming the GUI's preset prints from the
@@ -276,19 +316,14 @@ def read_3mf(path):
     for obj in model.iterfind("m:resources/m:object", NS):
         comp = obj.find("m:components/m:component", NS)
         objects[obj.get("id")] = _transform(comp.get("transform") if comp is not None else None)[0]
-    rotations = []
-    for item in model.iterfind("m:build/m:item", NS):
-        item_rot = _transform(item.get("transform"))[0]
-        comp_rot = objects.get(item.get("objectid"), ROTATIONS["IDENT"])
-        # Row-vector convention: v' = v . C . I, so as a column rotation R = (C I)^T.
-        rotations.append(transpose(matmul(comp_rot, item_rot)))
-    overrides, object_names, extras = {}, set(), []
+    overrides, object_names, id_names, extras = {}, set(), {}, []
     if settings_xml is not None:
         for obj in settings_xml.iterfind("object"):
             for md in obj.iterfind("metadata"):
                 k, v = md.get("key"), md.get("value")
                 if k == "name":
                     object_names.add(v)
+                    id_names[obj.get("id")] = v
                 elif k not in OBJECT_META:
                     overrides[k] = v
             for part in obj.iterfind("part"):
@@ -302,8 +337,15 @@ def read_3mf(path):
             extras.append("height-range modifiers")
     if painted:
         extras.append("painted supports/seams/colour")
-    return {"config": cfg, "rotations": rotations, "overrides": overrides,
-            "object_names": object_names, "extras": extras}
+    items = []
+    for item in model.iterfind("m:build/m:item", NS):
+        item_rot = _transform(item.get("transform"))[0]
+        comp_rot = objects.get(item.get("objectid"), ROTATIONS["IDENT"])
+        # Row-vector convention: v' = v . C . I, so as a column rotation R = (C I)^T.
+        items.append((id_names.get(item.get("objectid")),
+                      transpose(matmul(comp_rot, item_rot))))
+    return {"config": cfg, "items": items, "rotations": [r for _, r in items],
+            "overrides": overrides, "object_names": object_names, "extras": extras}
 
 
 def finalize_3mf(path, cfg_patch):
@@ -332,10 +374,24 @@ def sha256(path):
 # --------------------------------------------------------------------------
 # harvest: a project saved from the GUI -> print_settings.json
 
-def harvest(part, spec, lib, outdir, printer):
-    """Fold a GUI-saved project's changes into ``spec``. Returns (changes, problem)."""
-    path = os.path.join(outdir, f"{part}.3mf")
-    state_path = os.path.join(outdir, ".work", f"{part}.state.json")
+def state_objects(state, name):
+    """{object name: {part, orient, rotation}} from a job's state file. A
+    state written before plates existed holds one part's orient + rotation."""
+    if "objects" in state:
+        return state["objects"]
+    return {f"{name}.stl": {"part": name, "orient": state["orient"],
+                            "rotation": state["rotation"]}}
+
+
+def harvest(name, spec, lib, outdir, printer):
+    """Fold a GUI-saved project's changes into ``spec``. Returns (changes, problem).
+
+    ``name`` is a part or a plate. A plate's settings are shared, so a
+    changed setting goes to every part on it; a part tipped onto another
+    face changes that part's orientation only.
+    """
+    path = os.path.join(outdir, f"{name}.3mf")
+    state_path = os.path.join(outdir, ".work", f"{name}.state.json")
     if not (os.path.exists(path) and os.path.exists(state_path)):
         return [], None
     with open(state_path) as fh:
@@ -345,23 +401,24 @@ def harvest(part, spec, lib, outdir, printer):
 
     backup_dir = os.path.join(outdir, ".work", "saved")
     os.makedirs(backup_dir, exist_ok=True)
-    backup = os.path.join(backup_dir, f"{part}-{time.strftime('%Y%m%d-%H%M%S')}.3mf")
+    backup = os.path.join(backup_dir, f"{name}-{time.strftime('%Y%m%d-%H%M%S')}.3mf")
     shutil.copy2(path, backup)
     rel_backup = os.path.relpath(backup, REPO)
     try:
         saved = read_3mf(path)
     except (KeyError, ValueError, zipfile.BadZipFile, ET.ParseError) as exc:
-        return [], (f"{part}.3mf changed but cannot be read ({type(exc).__name__}: {exc}); "
+        return [], (f"{name}.3mf changed but cannot be read ({type(exc).__name__}: {exc}); "
                     f"not re-slicing it (copy kept at {rel_backup})")
 
-    foreign = saved["object_names"] - {f"{part}.stl"}
+    objects = state_objects(state, name)
+    foreign = saved["object_names"] - set(objects)
     if saved["extras"] or foreign:
         what = saved["extras"] + [f"another object ({', '.join(sorted(foreign))})"] * bool(foreign)
-        return [], (f"{part}.3mf was saved with {', '.join(what)}, which slice.py cannot "
+        return [], (f"{name}.3mf was saved with {', '.join(what)}, which slice.py cannot "
                     f"carry over; not re-slicing it (copy kept at {rel_backup}). Encode "
                     "it in print_settings.json, or delete the project to start over.")
 
-    entry = spec["parts"][part]
+    entry = job_entry(spec, name)
     changes = []
     _, base_process, base_filament = build_presets(lib, spec, entry, printer, with_part=False)
     base = {**base_process, **base_filament}
@@ -382,24 +439,41 @@ def harvest(part, spec, lib, outdir, printer):
             settings[key] = value
         changes.append(f"{key}: {old!r} -> {value!r}")
     if settings != entry.get("settings", {}):
-        if settings:
-            entry["settings"] = settings
-        else:
-            entry.pop("settings", None)
+        for part in plate_parts(spec, name):
+            if settings:
+                spec["parts"][part]["settings"] = dict(settings)
+            else:
+                spec["parts"][part].pop("settings", None)
 
-    if saved["rotations"]:
+    counts = {}
+    for obj_name, r_saved in saved["items"]:
+        if obj_name is None and len(objects) == 1:
+            obj_name = next(iter(objects))
+        if obj_name not in objects:
+            continue
+        counts[obj_name] = counts.get(obj_name, 0) + 1
+        if counts[obj_name] > 1:
+            continue
         # The project's mesh is the part already in its print orientation, so
         # the saved instance rotation acts on top of that. Its bottom row says
         # which way is up; a change there means the part was tipped onto
-        # another face, not just spun on the bed.
-        r_saved, r_gen = saved["rotations"][0], state["rotation"]
-        if any(abs(r_saved[2][i] - r_gen[2][i]) > 1e-4 for i in range(3)):
-            new = snap(matmul(r_saved, orient_matrix(state["orient"])))
-            entry["orient"] = orient_name(new)
-            changes.append(f"orient: {state['orient']} -> {entry['orient']}")
-        if len(saved["rotations"]) != state["copies"]:
-            entry["copies"] = len(saved["rotations"])
-            changes.append(f"copies: {state['copies']} -> {entry['copies']}")
+        # another face, not just spun on the bed. The first copy decides.
+        gen = objects[obj_name]
+        if any(abs(r_saved[2][i] - gen["rotation"][2][i]) > 1e-4 for i in range(3)):
+            new = orient_name(snap(matmul(r_saved, orient_matrix(gen["orient"]))))
+            spec["parts"][gen["part"]]["orient"] = new
+            label = "orient" if len(objects) == 1 else f"{gen['part']} orient"
+            changes.append(f"{label}: {gen['orient']} -> {new}")
+    copies = set(counts.values())
+    if len(copies) == 1 and copies != {state["copies"]}:
+        n = copies.pop()
+        owner = spec["plates"][name] if name in spec.get("plates", {}) else spec["parts"][name]
+        owner["copies"] = n
+        changes.append(f"copies: {state['copies']} -> {n}")
+    elif len(copies) > 1:
+        changes.append("copies differ between the parts ("
+                       + ", ".join(f"{k} x{v}" for k, v in sorted(counts.items()))
+                       + "); not carried over")
     if changes:
         changes.append(f"(the saved project is kept at {rel_backup})")
     return changes, None
@@ -417,19 +491,24 @@ def orca_command():
     return ["xvfb-run", "-a", "flatpak", "run", FLATPAK_ID], dict(os.environ, **SANDBOX_ENV)
 
 
-def slice_part(part, spec, lib, outdir, printer, copies=None):
-    entry = part_entry(spec, part)
-    stl = os.path.join(STL_DIR, f"{part}.stl")
-    if not os.path.exists(stl):
-        raise SystemExit(f"{part}: no {os.path.relpath(stl, REPO)} (run cad/v6/parts_v6.py)")
-    work = os.path.join(outdir, ".work", part)
+def slice_part(name, spec, lib, outdir, printer, copies=None):
+    """Slice job ``name`` -- a part, or a plate of parts -- into one project."""
+    entry = job_entry(spec, name)
+    work = os.path.join(outdir, ".work", name)
     shutil.rmtree(os.path.join(work, "out"), ignore_errors=True)
     os.makedirs(os.path.join(work, "out"), exist_ok=True)
-
-    rot = orient_matrix(entry.get("orient", "IDENT"))
-    work_stl = os.path.join(work, f"{part}.stl")
-    size = write_rotated_stl(read_stl(stl), rot, work_stl)
     n = copies or entry.get("copies", 1)
+
+    inputs, objects, heights = [], {}, []
+    for part in plate_parts(spec, name):
+        stl = os.path.join(STL_DIR, f"{part}.stl")
+        if not os.path.exists(stl):
+            raise SystemExit(f"{part}: no {os.path.relpath(stl, REPO)} (run cad/v6/parts_v6.py)")
+        rot = orient_matrix(part_entry(spec, part).get("orient", "IDENT"))
+        work_stl = os.path.join(work, f"{part}.stl")
+        heights.append(write_rotated_stl(read_stl(stl), rot, work_stl)[2])
+        inputs += [work_stl] * n
+        objects[f"{part}.stl"] = {"part": part, "orient": orient_name(rot)}
 
     machine, process, filament = build_presets(lib, spec, entry, printer)
     paths = {}
@@ -438,7 +517,7 @@ def slice_part(part, spec, lib, outdir, printer, copies=None):
         with open(paths[kind], "w") as fh:
             json.dump(data, fh, indent=1)
 
-    datadir = os.path.join(outdir, ".work", "datadir", part)
+    datadir = os.path.join(outdir, ".work", "datadir", name)
     os.makedirs(datadir, exist_ok=True)     # the CLI only creates the last level
     cmd, env = orca_command()
     cmd = cmd + [
@@ -449,16 +528,16 @@ def slice_part(part, spec, lib, outdir, printer, copies=None):
         # only the CLI's normative check insists on it.
         "--normative-check=0",
         "--slice", "0", "--arrange", "1",
-        "--export-3mf", f"{part}.3mf",
+        "--export-3mf", f"{name}.3mf",
         "--outputdir", os.path.join(work, "out"),
         "--logfile", os.path.join(work, "orca.log"), "--debug", "3",
-    ] + [work_stl] * n
+    ] + inputs
     proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
     gcode = os.path.join(work, "out", "plate_1.gcode")
-    project = os.path.join(work, "out", f"{part}.3mf")
+    project = os.path.join(work, "out", f"{name}.3mf")
     if proc.returncode != 0 or not (os.path.exists(gcode) and os.path.exists(project)):
         detail = (proc.stdout + proc.stderr).strip().splitlines()[-3:]
-        raise SystemExit(f"{part}: OrcaSlicer exit {proc.returncode}: {' | '.join(detail)} "
+        raise SystemExit(f"{name}: OrcaSlicer exit {proc.returncode}: {' | '.join(detail)} "
                          f"(log: {os.path.relpath(os.path.join(work, 'orca.log'), REPO)})")
 
     system_process = lib.resolve("process", spec["process"]["preset"])
@@ -474,22 +553,27 @@ def slice_part(part, spec, lib, outdir, printer, copies=None):
         different_keys(cfg, system_printer, also=set(lib.get("machine", printer))),
     ]})
 
-    final_3mf = os.path.join(outdir, f"{part}.3mf")
-    final_gcode = os.path.join(outdir, f"{part}.gcode")
+    final_3mf = os.path.join(outdir, f"{name}.3mf")
+    final_gcode = os.path.join(outdir, f"{name}.gcode")
     os.replace(project, final_3mf)
     os.replace(gcode, final_gcode)
     keys = (set(process) | set(filament) | PROJECT_KEYS) - META_KEYS - SECRET_KEYS
+    for obj_name, rot in reversed(read_3mf(final_3mf)["items"]):
+        if obj_name in objects:
+            objects[obj_name]["rotation"] = [list(r) for r in rot]
+    missing = [o for o, v in objects.items() if "rotation" not in v]
+    if missing:
+        raise SystemExit(f"{name}: the project names no object {', '.join(missing)}")
     state = {
         "sha256": sha256(final_3mf),
-        "orient": orient_name(rot),
-        "rotation": [list(r) for r in read_3mf(final_3mf)["rotations"][0]],
         "copies": n,
+        "objects": objects,
         "config": {k: cfg[k] for k in sorted(keys) if k in cfg},
     }
-    with open(os.path.join(outdir, ".work", f"{part}.state.json"), "w") as fh:
+    with open(os.path.join(outdir, ".work", f"{name}.state.json"), "w") as fh:
         json.dump(state, fh, indent=1)
     stats = gcode_stats(final_gcode)
-    stats.update(height=f"{size[2]:.1f}", copies=n, supports=bool(entry.get("supports")))
+    stats.update(height=f"{max(heights):.1f}", copies=n, supports=bool(entry.get("supports")))
     return final_3mf, stats
 
 
@@ -536,8 +620,10 @@ def gcode_stats(path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("parts", nargs="*", help="part names, as in cad/v6/stl")
-    ap.add_argument("--all", action="store_true", help="every part in print_settings.json")
+    ap.add_argument("names", nargs="*", metavar="name",
+                    help="part names (as in cad/v6/stl) or plate names (print_settings.json 'plates')")
+    ap.add_argument("--all", action="store_true",
+                    help="every plate, and every part on no plate")
     ap.add_argument("--harvest", action="store_true",
                     help="only read projects saved from the GUI back into print_settings.json")
     ap.add_argument("--copies", type=int, help="copies on the plate, this run only")
@@ -548,28 +634,30 @@ def main():
     args = ap.parse_args()
 
     spec = load_settings()
-    if args.all or (args.harvest and not args.parts):
-        parts = sorted(spec["parts"])
-    elif args.parts:
-        parts = args.parts
-        for p in parts:
-            part_entry(spec, p)
+    if args.all:
+        names = jobs(spec)
+    elif args.names:
+        names = args.names
+        for n in names:
+            job_entry(spec, n)
+    elif args.harvest:
+        names = sorted(spec.get("plates", {})) + sorted(spec["parts"])
     else:
-        ap.error("name at least one part, or pass --all or --harvest")
+        ap.error("name at least one part or plate, or pass --all or --harvest")
 
     lib = orca_profile.Library()
     printer = choose_printer(lib, spec, args.printer)
     os.makedirs(os.path.join(args.outdir, ".work"), exist_ok=True)
 
     blocked, harvested = set(), False
-    for part in parts:
-        changes, problem = harvest(part, spec, lib, args.outdir, printer)
+    for name in names:
+        changes, problem = harvest(name, spec, lib, args.outdir, printer)
         if problem:
             print(f"!! {problem}")
-            blocked.add(part)
+            blocked.add(name)
         if changes:
             harvested = True
-            print(f"{part}: read back from the saved project")
+            print(f"{name}: read back from the saved project")
             for c in changes:
                 print(f"    {c}")
     if harvested:
@@ -578,29 +666,29 @@ def main():
     if args.harvest:
         return 1 if blocked else 0
 
-    todo = [p for p in parts if p not in blocked]
+    todo = [n for n in names if n not in blocked]
     print(f"AD5M Pro | printer preset {printer!r} | {spec['process']['preset']} "
           f"+ spec | {spec['filament']['preset']} + spec")
     failures = len(blocked)
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = {pool.submit(slice_part, p, spec, lib, args.outdir, printer, args.copies): p
-                   for p in todo}
+        futures = {pool.submit(slice_part, n, spec, lib, args.outdir, printer, args.copies): n
+                   for n in todo}
         results = {}
         for fut in concurrent.futures.as_completed(futures):
-            part = futures[fut]
+            name = futures[fut]
             try:
-                results[part] = fut.result()
+                results[name] = fut.result()
             except SystemExit as exc:
-                results[part] = exc
-    for part in todo:
-        res = results[part]
+                results[name] = exc
+    for name in todo:
+        res = results[name]
         if isinstance(res, SystemExit):
-            print(f"  {part:20s} FAILED: {res}")
+            print(f"  {name:20s} FAILED: {res}")
             failures += 1
             continue
         path, st = res
         flag = "" if st.get("in_bounds", True) else "  !! OFF BED"
-        print(f"  {part:20s} x{st['copies']}  {st.get('time', '?'):>10s}  "
+        print(f"  {name:20s} x{st['copies']}  {st.get('time', '?'):>10s}  "
               f"{st.get('grams', '?'):>6s} g  {st['height']:>5s} mm tall  "
               f"{'supports' if st['supports'] else 'no supports':11s}  "
               f"{st.get('footprint', '?'):>13s} mm  centre {st.get('centre', '?')}{flag}"

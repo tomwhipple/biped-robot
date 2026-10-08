@@ -1,5 +1,5 @@
 {
-  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. cad/slice.py writes a part's 'orient', 'copies' and 'settings' back here when its project was saved from the GUI. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job.",
+  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. 'plates' are parts printed together, sliced into one project; one process slices a plate, so its parts share supports and settings, and the plate holds its own 'copies'. cad/slice.py writes 'orient', 'copies' and 'settings' back here when a project was saved from the GUI. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job.",
   "printer": "Flashforge Adventurer 5M Pro 0.4 Nozzle",
   "process": {
     "preset": "0.20mm Standard @Flashforge AD5M Pro 0.4 Nozzle",
@@ -34,6 +34,15 @@
     "support_threshold_angle": "30",
     "support_top_z_distance": "0.2",
     "support_type": "normal(auto)"
+  },
+  "plates": {
+    "feet": {
+      "parts": [
+        "foot_L",
+        "foot_R"
+      ],
+      "note": "both feet on one plate, sole down"
+    }
   },
   "parts": {
     "ankle_link": {
