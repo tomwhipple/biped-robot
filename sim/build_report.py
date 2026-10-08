@@ -396,6 +396,17 @@ fig_1007 = "\n    ".join(f for f in [
                  'the kinematic prior alone (w-mimic 4.0) · falls within 1.6 s '
                  'on the flat line, passes the rough one'),
 ] if f)
+# 2026-10-07 afternoon card: the from-scratch control and the lift reference,
+# both trained on the Mac (mac_train.py) with the same flags; seed-1 takes.
+fig_1007b = "\n    ".join(f for f in [
+    video_figure('robot_walk_l0_mac', ['line_1m', 'pursuit'],
+                 'robot_walk_l0_mac_line_pursuit',
+                 'with the 5 cm swing-lift reference · the straight line '
+                 'and pursuit'),
+    video_figure('robot_walk_c0_mac', ['line_1m', 'pursuit'],
+                 'robot_walk_c0_mac_line_pursuit',
+                 'the control: the same flags, no lift reference'),
+] if f)
 watch_figs = [video_figure(*w) for w in WATCH]
 watch_grid = "\n    ".join(f for f in watch_figs if f)
 watch_html = f"""
@@ -524,6 +535,28 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·07 afternoon · training thread</span></p>
+    <p><b>A swing-lift reference, against its control.</b> Two runs on the
+    Mac (<code>sim/mac_train.py</code>), 400.4M steps each, on the robot
+    plant before the 23.5/60.5 mm foot outline landed. Same flags (w-mimic
+    1.5, the <code>robot</code> stiffness preset, act-lag 2–12); the only
+    difference is <code>--mimic-lift 0.05</code>, which makes the imitation
+    reference lift the swing sole up to 5 cm, level.
+    <b>robot_walk_c0_mac</b>, the control: <b>12/144</b>, falls 78%.
+    <b>robot_walk_l0_mac</b>, with the lift: <b>21/144</b>, falls 78%. The
+    gains are the 1 m line 3/8 → 5/8, pursuit 0/8 → 5/8, the 10 s stand
+    4/8 → 7/8 (drift 26 → 14 cm), the rough line 2/8 → 3/8 and one square
+    return; the push course goes 3/8 → 0/8. The feet still barely lift:
+    swings that reach 3 cm go 15% → 20%, and the median swing peak 1.5 →
+    1.9 cm, against the 5 cm reference. One training seed per arm, so a
+    few passes either way are within what a second seed could change. Both
+    are old-feet results, like k1 and k2 below.</p>
+    <div class="vidgrid">
+    {fig_1007b}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·07 · training thread</span></p>
