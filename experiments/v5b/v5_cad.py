@@ -10,6 +10,7 @@ with the current `cad/` modules that the v6 parts import (`parts`,
     import v5_cad
     v5 = v5_cad.load()
     v5.parts.leg_link(), v5.D.HIP_SEP, v5.check_assembly.board_pcb_mock()
+    v5_cad.v5body_xml()      # the v5 sim plant at the same commit, with its meshes
 """
 from __future__ import annotations
 
@@ -27,19 +28,38 @@ V5_COMMIT = "357aacf563a86d52cf1ee27155b37f624d4d725d"
 MODULES = ("dimensions", "parts", "fasteners", "check_assembly")
 CACHE = os.path.join(HERE, ".v5cache", V5_COMMIT[:12])
 
+# the v5 sim plant and the meshes it reads (meshdir="../cad/stl")
+V5BODY = "sim/bimo_biped_v5body.xml"
+V5BODY_MESHES = ("pelvis", "gopro_base", "yoke_roll", "yoke_pitch", "leg_link", "foot", "yaw_carrier")
+
 _LOADED = None
 
 
+def _git_file(repo_path, dest):
+    """`git show V5_COMMIT:repo_path` to dest, once."""
+    if os.path.exists(dest):
+        return dest
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    blob = subprocess.run(["git", "-C", REPO, "show", f"{V5_COMMIT}:{repo_path}"],
+                          check=True, capture_output=True).stdout
+    with open(dest + ".tmp", "wb") as f:
+        f.write(blob)
+    os.replace(dest + ".tmp", dest)
+    return dest
+
+
 def _materialize():
-    os.makedirs(CACHE, exist_ok=True)
     for name in MODULES:
-        path = os.path.join(CACHE, f"{name}.py")
-        if not os.path.exists(path):
-            src = subprocess.run(["git", "-C", REPO, "show", f"{V5_COMMIT}:cad/{name}.py"],
-                                 check=True, capture_output=True, text=True).stdout
-            with open(path + ".tmp", "w") as f:
-                f.write(src)
-            os.replace(path + ".tmp", path)
+        _git_file(f"cad/{name}.py", os.path.join(CACHE, f"{name}.py"))
+
+
+def v5body_xml():
+    """Path to the v5 plant XML at V5_COMMIT, its meshes beside it in the same
+    relative layout, so it loads as it did then."""
+    root = os.path.join(CACHE, "tree")
+    for m in V5BODY_MESHES:
+        _git_file(f"cad/stl/{m}.stl", os.path.join(root, "cad", "stl", f"{m}.stl"))
+    return _git_file(V5BODY, os.path.join(root, V5BODY))
 
 
 def load():
