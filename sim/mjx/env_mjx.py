@@ -1650,6 +1650,28 @@ class BimoMJXEnv:
         phase0 = jax.random.uniform(r4, maxval=2 * jp.pi)
         return jp.stack([rad, omega, phase0])
 
+    def _tree_sel(self, fn, *trees):
+        """jax.tree_util.tree_map(fn, *trees) for per-env Data selections
+        (jp.where over alternative start states inside the vmapped reset).
+        Under Warp some Data leaves are POOLED across envs (the contact buffer,
+        naconmax long, and the size scalars): a per-env where over them turns
+        the pool into a batched array and leaks a tracer out of the FFI (the
+        2026-10-09 getup probe). They are rebuilt by the next physics step, so
+        those leaves pass through from the first tree untouched."""
+        if self.mjx_impl != "warp":
+            return jax.tree_util.tree_map(fn, *trees)
+        from mujoco.mjx._src.types import tree_path_to_attr_str
+        from mujoco.mjx.warp import types as _wt
+        batch = _wt._BATCH_DIM["Data"]
+
+        def leaf(path, *xs):
+            name = tree_path_to_attr_str(path)
+            if batch.get(name, True) is False or batch.get(name, True) == 0:
+                return xs[0]
+            return fn(*xs)
+
+        return jax.tree_util.tree_map_with_path(leaf, *trees)
+
     def _put_model(self, m):
         if self.mjx_impl == "warp":
             return mjx.put_model(m, impl="warp")
@@ -1995,11 +2017,11 @@ class BimoMJXEnv:
         t0 = jp.where(pick_catch, t0_bank,
                       jp.where(pick_kneel, self.rise_secs / 3.0, 0.0))
         if d_cat is not None:
-            data = jax.tree_util.tree_map(
+            data = self._tree_sel(
                 lambda a, b, c, s, t: sel(a, b, c, s, t),
                 d_rag, d_kneel, d_squat, d_sit, d_cat)
         else:
-            data = jax.tree_util.tree_map(sel4, d_rag, d_kneel, d_squat, d_sit)
+            data = self._tree_sel(sel4, d_rag, d_kneel, d_squat, d_sit)
         return data, t0
 
     def _terrain_spawn(self, qpos, rng):
@@ -2048,7 +2070,7 @@ class BimoMJXEnv:
             def pick(a, b):
                 return jp.where(recover_slot > 0, a, b)
 
-            data = jax.tree_util.tree_map(pick, d_dn, d_up)
+            data = self._tree_sel(pick, d_dn, d_up)
             rise_t0 = jp.where(recover_slot > 0, t0_dn, 0.0)
         else:
             qpos = self._qpos0.at[self._jq0:self._jq1].add(
@@ -2107,7 +2129,7 @@ class BimoMJXEnv:
                                   ctrl=jp.zeros(self.mj_model.nu)
                                   + self._to_servo(q_rsi))
             d_rsi = mjx.forward(model, d_rsi)
-            data = jax.tree_util.tree_map(
+            data = self._tree_sel(
                 lambda a, b: jp.where(crouch_slot > 0, a, b), d_rsi, data)
             cmd = jp.where(crouch_slot > 0, cmd_rsi, cmd)
             traj_on = jp.where(crouch_slot > 0, 0.0, traj_on)
