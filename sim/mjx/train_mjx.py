@@ -288,6 +288,14 @@ def make_parser():
                    help="raised-foot-under-hip kernel (knee-flexion lifts)")
     p.add_argument("--w-up-vel", type=float, default=None,
                    help="momentum-friendly rise incentive while down")
+    p.add_argument("--robot-arms", action="store_true",
+                   help="with --robot: the policy drives the shoulders and "
+                        "elbows (the neck stays held); for the get-up")
+    p.add_argument("--rise-ref", default=None,
+                   help="recorded get-up reference .npz (sim/record_getup_ref.py): "
+                        "replaces the staged rise; recovery starts are RSI along it")
+    p.add_argument("--rise-ref-rsi", type=float, default=None,
+                   help="P(recovery start at a random reference phase) (default 0.7)")
     p.add_argument("--w-rise-ref", type=float, default=None,
                    help="override the staged-rise reference weight")
     p.add_argument("--turn-emph", action="store_true",
@@ -578,6 +586,9 @@ def build_env_kw(args):
         # and the stiffness map land in config.json explicitly per actuator
         import robot_plant
         env_kw.update(robot_plant.robot_env_kwargs(args.xml))
+        if args.robot_arms:
+            env_kw["held_joints"] = {k: v for k, v in env_kw["held_joints"].items()
+                                     if robot_plant._role(k) not in ("shoulder", "elbow")}
         # the legs cannot get the robot up (DESIGN.md, "Get-up"): its get-up
         # is the scripted arm sequence, so no recovery slots by default
         env_kw["recover_mix"] = 0.0
@@ -689,6 +700,10 @@ def build_env_kw(args):
         env_kw["w_up_vel"] = args.w_up_vel
     if args.w_rise_ref is not None:
         env_kw["w_rise_ref"] = args.w_rise_ref
+    if args.rise_ref:
+        env_kw["rise_ref_npz"] = args.rise_ref
+    if args.rise_ref_rsi is not None:
+        env_kw["rise_ref_rsi"] = args.rise_ref_rsi
     if args.w_com_stance is not None:
         env_kw["w_com_stance"] = args.w_com_stance
     # knee-high marching (2026-08-01). Applied AFTER the family blocks so a

@@ -763,6 +763,15 @@ class BimoMJXEnv:
         # squat -> stand, piecewise-linear over rise_secs. Time-based phase,
         # like the gait clock.)
         rise_secs: float = 4.0,     # scripted rise duration
+        # recorded get-up reference (2026-10-09): an .npz from
+        # sim/record_getup_ref.py -- per control step the servo targets of an
+        # open-loop get-up that stands the plant up (t, q[T, n_servo] with
+        # joint_names, qpos, qvel). When set it REPLACES the legs-only staged
+        # rise: _rise_ref tracks it over every policy joint (arms included
+        # with --robot-arms), rise_secs becomes its length, and the recovery
+        # starts are reference states (RSI) along it.
+        rise_ref_npz: str | None = None,
+        rise_ref_rsi: float = 0.7,  # P(start at a random reference phase); else its t=0 (lying)
         rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
@@ -1227,6 +1236,26 @@ class BimoMJXEnv:
         self.w_rise_dofvel = w_rise_dofvel
         self.w_rise_ref = w_rise_ref
         self.rise_secs = rise_secs
+        self._rr = None
+        if rise_ref_npz:
+            z = np.load(rise_ref_npz if os.path.isabs(rise_ref_npz)
+                        else os.path.join(_HERE, "..", rise_ref_npz), allow_pickle=False)
+            names = [str(n) for n in z["joint_names"]]
+            miss = [n for n in self._servo_names if n not in names]
+            if miss:
+                raise ValueError(f"rise_ref_npz lacks servos {miss}")
+            col = np.array([names.index(n) for n in self._servo_names])
+            q_srv = np.asarray(z["q"])[:, col]                       # (T, n_servo)
+            qpos = np.asarray(z["qpos"]); qvel = np.asarray(z["qvel"])
+            if qpos.shape[1] != self.mj_model.nq or qvel.shape[1] != self.mj_model.nv:
+                raise ValueError("rise_ref_npz was recorded on a different plant "
+                                 f"(nq {qpos.shape[1]} vs {self.mj_model.nq})")
+            self._rr = dict(q=jp.asarray(q_srv[:, self._pi], dtype=jp.float32),
+                            qpos=jp.asarray(qpos, dtype=jp.float32),
+                            qvel=jp.asarray(qvel, dtype=jp.float32),
+                            dt=float(z["control_dt"]), T=int(q_srv.shape[0]))
+            self.rise_secs = self._rr["T"] * self._rr["dt"]
+            self.rise_ref_rsi = float(rise_ref_rsi)
         # getup_v9: a stand only counts as "recovered" after this many
         # CONSECUTIVE standing steps (0.5 s) -- an instantaneous crossing
         # was farmable by ballistic bank starts
@@ -1504,6 +1533,12 @@ class BimoMJXEnv:
         Time-based phase from episode start (recovery episodes begin DOWN at
         t=0 with the command pinned to stand). Symmetric L/R, roll/yaw at
         default. Mirrored EXACTLY in walker_env.py."""
+        if self._rr is not None:
+            # the recorded get-up (rise_ref_npz): nearest control step, held at
+            # its last (standing) frame
+            k = jp.clip(jp.round(t_s / self._rr["dt"]).astype(jp.int32),
+                        0, self._rr["T"] - 1)
+            return jp.clip(self._rr["q"][k], self._lo, self._hi)
         d = self._default
         # stage targets (hip_pitch, knee, ankle) inside the joint limits
         # (-1.92..1.05 / -1.66..0.087 / +-0.70)
@@ -1917,6 +1952,24 @@ class BimoMJXEnv:
         feet-loaded deep squat -- the latter two are the reverse-curriculum
         seeds (learn the rise backward from near the goal)."""
         model = self.model if model is None else model
+        if self._rr is not None:
+            # reference-state initialisation along the recorded get-up
+            # (DeepMimic RSI): a random phase in its first 85 % with
+            # P(rise_ref_rsi), else its start (lying supine); small joint noise
+            r_i, r_s, r_n = jax.random.split(r_q, 3)
+            hi_k = max(1, int(0.85 * self._rr["T"]))
+            k = jp.where(jax.random.uniform(r_s) < self.rise_ref_rsi,
+                         jax.random.randint(r_i, (), 0, hi_k), 0)
+            qpos = self._rr["qpos"][k]
+            qpos = qpos.at[self._jq0:self._jq1].add(
+                jax.random.uniform(r_n, (self._jq1 - self._jq0,), minval=-0.02, maxval=0.02))
+            d = self._make_data(model)
+            d = d.replace(qpos=qpos.astype(d.qpos.dtype),
+                          qvel=self._rr["qvel"][k].astype(d.qvel.dtype),
+                          ctrl=(jp.zeros(self.mj_model.nu)
+                                + self._to_servo(self._rr["q"][k])).astype(d.ctrl.dtype))
+            d = mjx.forward(model, d)
+            return d, k.astype(jp.float32) * self._rr["dt"]
         r_m, r_o, r_j = jax.random.split(r_q, 3)
         u1, u2, u3 = jax.random.uniform(r_o, (3,))
         quat = jp.array([jp.sqrt(u1) * jp.cos(2 * jp.pi * u3),
