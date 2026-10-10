@@ -297,6 +297,9 @@ def make_parser():
     p.add_argument("--rise-ref", default=None,
                    help="recorded get-up reference .npz (sim/record_getup_ref.py): "
                         "replaces the staged rise; recovery starts are RSI along it")
+    p.add_argument("--rise-ref-et", type=float, default=None,
+                   help="m: end a not-yet-recovered recovery episode when the pelvis strays "
+                        "this far from the reference's (DeepMimic early termination)")
     p.add_argument("--rise-ref-rsi", type=float, default=None,
                    help="P(recovery start at a random reference phase) (default 0.7)")
     p.add_argument("--w-rise-ref", type=float, default=None,
@@ -710,6 +713,8 @@ def build_env_kw(args):
         env_kw["rise_ref_npz"] = args.rise_ref
     if args.rise_ref_rsi is not None:
         env_kw["rise_ref_rsi"] = args.rise_ref_rsi
+    if args.rise_ref_et is not None:
+        env_kw["rise_ref_et"] = args.rise_ref_et
     if args.w_com_stance is not None:
         env_kw["w_com_stance"] = args.w_com_stance
     # knee-high marching (2026-08-01). Applied AFTER the family blocks so a

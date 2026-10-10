@@ -773,6 +773,8 @@ class BimoMJXEnv:
         # starts are reference states (RSI) along it.
         rise_ref_npz: str | None = None,
         rise_ref_rsi: float = 0.7,  # P(start at a random reference phase); else its t=0 (lying)
+        rise_ref_et: float = 0.0,   # m; >0: DeepMimic early termination -- a recovery episode not yet
+                                    # recovered ends when the pelvis strays this far from the reference's
         rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
@@ -1262,6 +1264,7 @@ class BimoMJXEnv:
                             dt=float(z["control_dt"]), T=int(q_srv.shape[0]))
             self.rise_secs = self._rr["T"] * self._rr["dt"]
             self.rise_ref_rsi = float(rise_ref_rsi)
+        self.rise_ref_et = float(rise_ref_et)
         # getup_v9: a stand only counts as "recovered" after this many
         # CONSECUTIVE standing steps (0.5 s) -- an instantaneous crossing
         # was farmable by ballistic bank starts
@@ -2950,6 +2953,17 @@ class BimoMJXEnv:
         else:
             reward = reward - self.fall_cost * fell.astype(jp.float32)
             done_flag = fell.astype(jp.float32)
+        if (self._rr is not None and self.rise_ref_et > 0.0
+                and self.ext_cmd and self.recover_mix > 0):
+            # DeepMimic early termination (2026-10-10): RSI alone let lying
+            # starts idle for the whole episode on partial tracking reward
+            # (robot_getup_g3/g3k: up from late phases, never from supine)
+            k_rr = jp.clip(jp.round((state.rise_t0 + step_i.astype(jp.float32)
+                                     * self.control_dt) / self._rr["dt"]
+                                    ).astype(jp.int32), 0, self._rr["T"] - 1)
+            stray = jp.abs(data.qpos[2] - self._rr["qpos"][k_rr, 2]) > self.rise_ref_et
+            et = stray & (state.recover_slot > 0.5) & (recovered < 0.5)
+            done_flag = jp.maximum(done_flag, et.astype(jp.float32))
 
         # resample AFTER the reward graded the command the policy saw
         new_cmd, new_next, new_traj_on = self._sample_cmd(r_cmd, step_i,
