@@ -18,9 +18,9 @@ value explicitly (the kp map as {actuator: factor}, the holds as
     stiffness        the robot's servo set (DESIGN.md section 4): the hip
                      rolls are STS3250s (the model's 4x), the ankle-roll and
                      knee STS3215s run the bench's P 96 / D 0 (~2.8x). The
-                     STS3250's larger stall and speed are not modelled (the
-                     env has one STS3215 envelope), which under-credits the
-                     hip rolls
+                     STS3250s' larger stall and speed ARE modelled since
+                     2026-10-10 (SERVO_TYPES_ROBOT -> servo_types; before,
+                     the env had one STS3215 envelope)
     hip pitch        policy range -120 deg flexion (the leg link's relief
                      gives 120; DESIGN.md section 3)
     payload          none: the camera is in the head, which the plant models
@@ -41,6 +41,7 @@ ROBOT_XML = "bimo_biped_v6ar.xml"
 # simply not held. The arms' values are cad/v6/dimensions_v6.ARM_REST
 # (tests/test_v6_design_gates.py pins them to it and to the plant's qpos0).
 HOLD_DEG = {"neck_yaw": 0.0, "shoulder": -15.0, "elbow": -95.0}
+SERVO_TYPES_ROBOT = {"hip_roll": "sts3250"}   # walker_env.SERVO_TYPES; the rest are STS3215
 KP_SCALE = "planb"              # env_mjx.SERVO_KP_PRESETS; "robot" (STS3250 hip rolls) is passed explicitly until the SIL obs-spec test follows it
 HIP_FLEX_DEG = 120.0
 
@@ -111,6 +112,9 @@ def robot_env_kwargs(xml=None):
     held = {n: HOLD_DEG[_role(n)] for n in names if _role(n) in HOLD_DEG}
     scale = servo_kp_scale_vector(names, KP_SCALE)
     kp_map = {n: float(s) for n, s in zip(names, scale) if s != 1.0}
-    return dict(xml_path=path, held_joints=held, servo_kp_scale=kp_map,
+    # the robot as built (DESIGN.md section 4): STS3250 at the hip rolls --
+    # their stall/speed envelope, not just the stiffness credit (2026-10-10)
+    types = {n: SERVO_TYPES_ROBOT[_role(n)] for n in names if _role(n) in SERVO_TYPES_ROBOT}
+    return dict(xml_path=path, held_joints=held, servo_kp_scale=kp_map, servo_types=types,
                 hip_flex_deg=HIP_FLEX_DEG, payload_mass=0.0,
                 mimic_sole_level=True)

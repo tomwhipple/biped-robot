@@ -247,6 +247,39 @@ SERVO_KP_PRESETS = {
 }
 
 
+# Servo torque/speed envelopes relative to the STS3215 the env models
+# (stall 2.94 N*m, no-load 4.04 rad/s at 12 V): (stall ratio, no-load ratio).
+# STS3250: 4.90 N*m stall, 7.87 rad/s no-load derated 0.86 like the 3215
+# (sim/design_gates.py SERVOS). Before 2026-10-10 the env had ONE envelope for
+# every servo (robot_plant: "the STS3250's larger stall and speed are not
+# modelled") -- the get-up study found the elbow-arm seat push stands the
+# plant up only with STS3250 knees, which the single envelope cannot show.
+SERVO_TYPES = {"sts3215": (1.0, 1.0),
+               "sts3250": (4.90 / 2.94, 7.87 * 0.86 / 4.04)}
+
+
+def servo_envelope_vectors(names, spec):
+    """(stall_prof, w0_prof) per actuator from {actuator or role: type name}
+    (mirror of env_mjx). None -> all ones (one STS3215 envelope)."""
+    n = len(names)
+    stall, w0 = np.ones(n), np.ones(n)
+    if not spec:
+        return stall, w0
+    roles = [joint_role(nm) for nm in names]
+    known = set(names) | {r for r in roles if r is not None}
+    bad = [k for k in spec if k not in known]
+    if bad:
+        raise ValueError(f"servo_types keys {bad} match no actuator of this plant")
+    for k, t in spec.items():
+        if t not in SERVO_TYPES:
+            raise ValueError(f"unknown servo type {t!r} (have {sorted(SERVO_TYPES)})")
+    for i, (nm, r) in enumerate(zip(names, roles)):
+        t = spec.get(nm, spec.get(r))
+        if t is not None:
+            stall[i], w0[i] = SERVO_TYPES[t]
+    return stall, w0
+
+
 def servo_kp_scale_vector(names, spec):
     """Per-actuator stiffness multiplier (mirror of env_mjx)."""
     n = len(names)
@@ -337,6 +370,7 @@ class BimoWalkerEnv(gym.Env):
         servo_kp: float | tuple = 12.0,  # sts3215 PD gain, N*m/rad (see fit
         # note); a sequence gives one per actuator
         servo_kd: float | tuple = 0.25,  # sts3215 PD damping, N*m*s/rad
+        servo_types=None,              # {actuator or role: "sts3250"}: per-servo stall/speed envelope
         servo_kp_scale=None,           # per-servo P multiplier on kp AND kd:
         # None, a number, a per-actuator sequence, {actuator | role: factor},
         # or a preset name (SERVO_KP_PRESETS; mirror of env_mjx)
@@ -1008,6 +1042,9 @@ class BimoWalkerEnv(gym.Env):
         self.servo_kp_scale = servo_kp_scale_vector(self._servo_names,
                                                     servo_kp_scale)
         self._kp_prof = kp_prof * self.servo_kp_scale
+        self.servo_types = dict(servo_types) if servo_types else None
+        self._stall_prof, self._w0_prof = servo_envelope_vectors(
+            self._servo_names, self.servo_types)
         self._kd_prof = kd_prof * self.servo_kp_scale
         if actuator_model == "sts3215":
             v = supply_voltage / 12.0
@@ -2010,6 +2047,8 @@ class BimoWalkerEnv(gym.Env):
                 # parity; the profile is all ones unless configured)
                 kp = kp * self._kp_prof
                 kd = kd * self._kd_prof
+                stall = stall * self._stall_prof
+                w0 = w0 * self._w0_prof
                 q = self.data.qpos[self._sqpos]
                 qd = self.data.qvel[self._sqvel]
                 cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)

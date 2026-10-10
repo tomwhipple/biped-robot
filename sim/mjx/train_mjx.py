@@ -288,6 +288,9 @@ def make_parser():
                    help="raised-foot-under-hip kernel (knee-flexion lifts)")
     p.add_argument("--w-up-vel", type=float, default=None,
                    help="momentum-friendly rise incentive while down")
+    p.add_argument("--servo-3250", default=None,
+                   help="comma roles/actuators given the STS3250 stall/speed "
+                        "envelope on top of the robot's (e.g. knee): a servo-set study")
     p.add_argument("--robot-arms", action="store_true",
                    help="with --robot: the policy drives the shoulders and "
                         "elbows (the neck stays held); for the get-up")
@@ -586,6 +589,9 @@ def build_env_kw(args):
         # and the stiffness map land in config.json explicitly per actuator
         import robot_plant
         env_kw.update(robot_plant.robot_env_kwargs(args.xml))
+        if args.servo_3250:
+            env_kw["servo_types"] = dict(env_kw.get("servo_types") or {},
+                                         **{r.strip(): "sts3250" for r in args.servo_3250.split(",") if r.strip()})
         if args.robot_arms:
             env_kw["held_joints"] = {k: v for k, v in env_kw["held_joints"].items()
                                      if robot_plant._role(k) not in ("shoulder", "elbow")}

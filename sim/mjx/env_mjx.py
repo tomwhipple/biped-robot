@@ -559,6 +559,7 @@ class BimoMJXEnv:
         supply_voltage: float = 11.1,
         servo_kp: float | tuple = 12.0,   # N*m/rad; or one per actuator
         servo_kd: float | tuple = 0.25,   # N*m*s/rad; or one per actuator
+        servo_types=None,      # {actuator or role: "sts3250"}: per-servo stall/speed envelope (walker_env.SERVO_TYPES)
         servo_kp_scale=None,   # per-servo P multiplier: None, a number, a
         # per-actuator sequence, {actuator | role: factor}, or a preset name
         # (SERVO_KP_PRESETS). Scales kp AND kd -- see SERVO_KP_PRESETS.
@@ -1096,6 +1097,11 @@ class BimoMJXEnv:
                                                     servo_kp_scale)
         self._kp_prof = jp.asarray(kp_prof * self.servo_kp_scale)
         self._kd_prof = jp.asarray(kd_prof * self.servo_kp_scale)
+        from walker_env import servo_envelope_vectors
+        self.servo_types = dict(servo_types) if servo_types else None
+        _sp, _wp = servo_envelope_vectors(self._servo_names, self.servo_types)
+        self._stall_prof = jp.asarray(_sp)
+        self._w0_prof = jp.asarray(_wp)
         self._nom_servo = jp.array([kp_ref, kd_ref,
                                     _STS_STALL_12V * v, _STS_NOLOAD_12V * v])
 
@@ -2396,7 +2402,8 @@ class BimoMJXEnv:
         # per-actuator servo_kp says otherwise)
         kp, kd, stall, w0 = (state.servo[0] * self._kp_prof,
                              state.servo[1] * self._kd_prof,
-                             state.servo[2], state.servo[3])
+                             state.servo[2] * self._stall_prof,
+                             state.servo[3] * self._w0_prof)
         lash = state.lash
         last_target = state.last_target
 

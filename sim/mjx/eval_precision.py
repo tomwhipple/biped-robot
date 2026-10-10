@@ -139,6 +139,15 @@ def referee_payload(xml):
     return 0.0 if is_robot_plant(xml) else PROTOTYPE_PAYLOAD_KG
 
 
+def _rise_ref_path(p):
+    return p if os.path.isabs(p) else os.path.join(HERE, "..", p)
+
+
+def _rise_ref_secs(p):
+    z = np.load(_rise_ref_path(p))
+    return float(len(z["t"]) * float(z["control_dt"]))
+
+
 def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
              act_delay_ticks=0):
     """Eval env: ext_cmd precision plant mirroring config.json construction,
@@ -162,6 +171,11 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
     # training-time recover_mix in the config must not leak into e.g.
     # the balance scenarios (fallen resets would break every script)
     kw["recover_mix"] = 0.0
+    if cfg.get("rise_ref_npz"):
+        # the policy's phase channel (c5) ramps over the RECORDED get-up
+        # (env_mjx rise_ref_npz sets rise_secs to its length); the CPU env
+        # does not load the reference, so pass its length here
+        kw["rise_secs"] = _rise_ref_secs(cfg["rise_ref_npz"])
     if nominal:
         kw.update(domain_rand=False, latency_ms=0.0, latency_ms_max=None,
                   latency_jitter_ms=0.0, backlash_deg=0.0, backlash_deg_max=None)
@@ -906,6 +920,65 @@ def scen_recover_fallen(deadline=6.0):
                         time_to_stand=(t_up if t_up is not None
                                        else float("nan")),
                         end_height=held),
+                    headline=(f"up in {t_up:.1f}s" if t_up is not None
+                              else "no-stand"))
+    return build, evaluate
+
+
+def _supine_setup(env, drv):
+    """recover_supine start: the recorded get-up's first frame (lying on the
+    back, arms folded up along the torso) -- the seat-push start state the
+    plan of record solves (docs/design-v6/getup-decision-2026-09-17.md)."""
+    import mujoco
+    z = np.load(_rise_ref_path("getup_ref_v6ar.npz"))
+    d = env.data
+    if z["qpos"].shape[1] != env.model.nq:
+        raise ValueError("getup_ref_v6ar.npz does not match this plant")
+    d.qpos[:] = z["qpos"][0]
+    d.qvel[:] = z["qvel"][0]
+    names = [str(n) for n in z["joint_names"]]
+    tgt = np.array([z["q"][0][names.index(n)] for n in env._servo_names])
+    d.ctrl[:] = tgt
+    mujoco.mj_forward(env.model, d)
+    env._best_h = float(d.qpos[2])
+    env._recovered = False
+    env._recover_ep = True
+    env._rise_t0 = 0.0
+    env._last_target = tgt.copy()
+    env._ctrl_buf = [tgt.copy() for _ in range(env.action_latency + 1)]
+    env._prev_action[:] = 0.0
+    if env.obs_hist_len > 1:
+        env._obs_hist = []
+        first = env._obs()
+        env._obs_hist = [first.copy() for _ in range(env.obs_hist_len - 1)]
+        drv.obs = np.concatenate([first] + list(env._obs_hist))
+    else:
+        drv.obs = env._obs()
+    env.mark_xy = (float(d.qpos[0]), float(d.qpos[1]))
+    drv._prev_sole = [d.geom_xpos[g][:2].copy() for g in env._sole_gids]
+
+
+def scen_recover_supine(deadline=28.0):
+    """Get up from lying on the back (the elbow-arm seat push's start): stand
+    command; success = first stand within the deadline AND still tall over the
+    last 3 s of the 32 s episode."""
+    def build():
+        ev = {"_setup": _supine_setup}
+
+        def ctrl(t, gt, ev):
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        t_up = next((r["t"] for r in rows if r["recovered"] > 0.5), None)
+        hold = _win(rows, 29.0, 32.0)
+        held = _mean(hold, "height") if hold else float("nan")
+        success = bool(t_up is not None and t_up <= deadline
+                       and hold and held >= 0.85 * N)
+        return dict(success=success,
+                    metrics=dict(time_to_stand=(t_up if t_up is not None
+                                                else float("nan")),
+                                 end_height=held),
                     headline=(f"up in {t_up:.1f}s" if t_up is not None
                               else "no-stand"))
     return build, evaluate
@@ -1735,6 +1808,7 @@ def _registry():
     # since the hard part (getting onto the feet) starts closer to done
     reg["recover_sit"] = (12.0, scen_recover_fallen(deadline=5.0), False)
     reg["recover_fallen"] = (12.0, scen_recover_fallen(), False)
+    reg["recover_supine"] = (32.0, scen_recover_supine(), False)
     reg["stand_10s"] = (11.0, scen_stand_10s(), False)
     # torque-off idle: 1.5 s powered settle + 8 s released (user 2026-07-23)
     reg["stand_off"] = (9.5, scen_stand_off(), False)
@@ -1762,6 +1836,8 @@ ENV_EXTRA = {
                            recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
     "recover_sit": dict(recover_mix=1.0,
                         recover_start_mix=(0.0, 0.0, 0.0, 1.0)),
+    "recover_supine": dict(recover_mix=1.0,
+                           recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
     # rough-ground claim (loco_v7knee): the line walk on the 0-20 mm tiled
     # mosaic; the spawn draw puts each seed on a different tile
     "line_rough": dict(terrain_mosaic=True),
@@ -1780,7 +1856,7 @@ FAMILY_SCENARIOS = {
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
                "march_in_place", "march_10s", "hip_sway", "crouch_hold",
                "stand_10s", "metronome", "squat_reps", "weight_shift"],
-    "getup": ["recover_sit", "recover_fallen"],
+    "getup": ["recover_sit", "recover_fallen", "recover_supine"],
 }
 
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
@@ -1794,7 +1870,9 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
 
 # scenarios that exist ONLY behind the --scenarios filter (issue #29): never
 # part of the default suite, so the comparable 144-card totals never move.
-EXTRA_SCENARIOS = ["handover_stand"]
+# recover_supine: the get-up family scores it (FAMILY_SCENARIOS), nothing else
+# runs it -- it needs the robot plant (it starts from getup_ref_v6ar.npz)
+EXTRA_SCENARIOS = ["handover_stand", "recover_supine"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
@@ -1811,6 +1889,7 @@ HEADLINE = {
     "circle_air": ("traced_radius", lambda v: f"r={v*100:.1f}cm"),
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_sit": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
+    "recover_supine": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "line_1m": ("time_to_1m", lambda v: f"t={v:.1f}s"),
     "line_rough": ("time_to_1m", lambda v: f"t={v:.1f}s"),
     "backward_1m": ("time", lambda v: f"t={v:.1f}s"),
@@ -1947,7 +2026,7 @@ def main():
     names = ORDER
     fam = (cfg.get("train", {}) or {}).get("family", "all")
     if not args.scenarios and fam in FAMILY_SCENARIOS:
-        names = [n for n in ORDER if n in FAMILY_SCENARIOS[fam]]
+        names = [n for n in ORDER + EXTRA_SCENARIOS if n in FAMILY_SCENARIOS[fam]]
         print(f"[family={fam}] scoring {len(names)} scenarios")
     if args.scenarios:
         want = [s.strip() for s in args.scenarios.split(",") if s.strip()]
@@ -1956,8 +2035,14 @@ def main():
         if unknown:
             print(f"warning: unknown scenarios ignored: {unknown}", file=sys.stderr)
     robot = is_robot_plant(xml)
+    # a --robot-arms run (shoulders/elbows NOT in held_joints) drives the arms:
+    # the get-up scenarios apply to it
+    arms_policy = robot and not any(
+        robot_role in k for k in (cfg.get("held_joints") or {})
+        for robot_role in ("shoulder", "elbow"))
     not_applicable = {n: ROBOT_NOT_APPLICABLE[n] for n in names
-                      if robot and n in ROBOT_NOT_APPLICABLE}
+                      if robot and n in ROBOT_NOT_APPLICABLE
+                      and not (arms_policy and n.startswith("recover_"))}
     names = [n for n in names if n not in not_applicable]
     for n, why in not_applicable.items():
         print(f"[n/a on the robot plant] {n}: {why}")
