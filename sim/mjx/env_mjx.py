@@ -773,6 +773,7 @@ class BimoMJXEnv:
         # starts are reference states (RSI) along it.
         rise_ref_npz: str | None = None,
         rise_ref_rsi: float = 0.7,  # P(start at a random reference phase); else its t=0 (lying)
+        rise_ref_rsi_window: tuple = (0.0, 0.85),   # RSI phase window, fractions of the reference
         rise_ref_et: float = 0.0,   # m; >0: DeepMimic early termination -- a recovery episode not yet
                                     # recovered ends when the pelvis strays this far from the reference's
         rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
@@ -1264,6 +1265,10 @@ class BimoMJXEnv:
                             dt=float(z["control_dt"]), T=int(q_srv.shape[0]))
             self.rise_secs = self._rr["T"] * self._rr["dt"]
             self.rise_ref_rsi = float(rise_ref_rsi)
+            lo, hi = (float(x) for x in rise_ref_rsi_window)
+            if not 0.0 <= lo < hi <= 1.0:
+                raise ValueError(f"rise_ref_rsi_window {rise_ref_rsi_window} not in [0, 1]")
+            self._rr_k = (int(lo * self._rr["T"]), max(int(lo * self._rr["T"]) + 1, int(hi * self._rr["T"])))
         self.rise_ref_et = float(rise_ref_et)
         # getup_v9: a stand only counts as "recovered" after this many
         # CONSECUTIVE standing steps (0.5 s) -- an instantaneous crossing
@@ -1963,12 +1968,12 @@ class BimoMJXEnv:
         model = self.model if model is None else model
         if self._rr is not None:
             # reference-state initialisation along the recorded get-up
-            # (DeepMimic RSI): a random phase in its first 85 % with
+            # (DeepMimic RSI): a random phase in rise_ref_rsi_window (default
+            # its first 85 %) with
             # P(rise_ref_rsi), else its start (lying supine); small joint noise
             r_i, r_s, r_n = jax.random.split(r_q, 3)
-            hi_k = max(1, int(0.85 * self._rr["T"]))
             k = jp.where(jax.random.uniform(r_s) < self.rise_ref_rsi,
-                         jax.random.randint(r_i, (), 0, hi_k), 0)
+                         jax.random.randint(r_i, (), self._rr_k[0], self._rr_k[1]), 0)
             qpos = self._rr["qpos"][k]
             qpos = qpos.at[self._jq0:self._jq1].add(
                 jax.random.uniform(r_n, (self._jq1 - self._jq0,), minval=-0.02, maxval=0.02))

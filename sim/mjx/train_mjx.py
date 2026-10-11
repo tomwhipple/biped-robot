@@ -300,6 +300,9 @@ def make_parser():
     p.add_argument("--rise-ref-et", type=float, default=None,
                    help="m: end a not-yet-recovered recovery episode when the pelvis strays "
                         "this far from the reference's (DeepMimic early termination)")
+    p.add_argument("--rise-ref-rsi-window", default=None,
+                   help="lo,hi fractions of the reference where RSI starts are drawn "
+                        "(default 0,0.85); e.g. 0.5,0.85 practises the crouch -> stand")
     p.add_argument("--rise-ref-s2", type=float, default=None,
                    help="rise-reference tracking kernel denominator (rad^2 summed over the "
                         "policy joints; default 2.0 -- smaller = stricter tracking)")
@@ -720,6 +723,8 @@ def build_env_kw(args):
         env_kw["rise_ref_et"] = args.rise_ref_et
     if args.rise_ref_s2 is not None:
         env_kw["rise_ref_s2"] = args.rise_ref_s2
+    if args.rise_ref_rsi_window is not None:
+        env_kw["rise_ref_rsi_window"] = tuple(float(x) for x in args.rise_ref_rsi_window.split(","))
     if args.w_com_stance is not None:
         env_kw["w_com_stance"] = args.w_com_stance
     # knee-high marching (2026-08-01). Applied AFTER the family blocks so a
