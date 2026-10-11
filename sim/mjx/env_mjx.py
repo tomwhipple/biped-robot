@@ -780,6 +780,10 @@ class BimoMJXEnv:
         rise_ref_npz: str | None = None,
         rise_ref_rsi: float = 0.7,  # P(start at a random reference phase); else its t=0 (lying)
         rise_ref_rsi_window: tuple = (0.0, 0.85),   # RSI phase window, fractions of the reference
+        rise_ref_residual: float = 0.0,  # rad; >0: RESIDUAL get-up -- while a recovery episode is not yet
+                                         # recovered, the target is the recorded reference at the current
+                                         # phase + rise_ref_residual * action (the policy learns corrections
+                                         # to a script that already works), clipped to the policy range
         gravity_scale: float = 1.0,  # training curriculum (2026-10-11): scales gravity (get-up under
                                      # reduced gravity, then annealed back to 1.0); the referee is unaffected
         rise_ref_et: float = 0.0,   # m; >0: DeepMimic early termination -- a recovery episode not yet
@@ -1282,6 +1286,9 @@ class BimoMJXEnv:
                 raise ValueError(f"rise_ref_rsi_window {rise_ref_rsi_window} not in [0, 1]")
             self._rr_k = (int(lo * self._rr["T"]), max(int(lo * self._rr["T"]) + 1, int(hi * self._rr["T"])))
         self.rise_ref_et = float(rise_ref_et)
+        self.rise_ref_residual = float(rise_ref_residual)
+        if self.rise_ref_residual > 0.0 and self._rr is None:
+            raise ValueError("rise_ref_residual needs rise_ref_npz")
         # getup_v9: a stand only counts as "recovered" after this many
         # CONSECUTIVE standing steps (0.5 s) -- an instantaneous crossing
         # was farmable by ballistic bank starts
@@ -2354,6 +2361,14 @@ class BimoMJXEnv:
         else:
             target = jp.clip(self._default + self._scale * action,
                              self._lo, self._hi)
+        if (self.rise_ref_residual > 0.0 and self.ext_cmd
+                and self.recover_mix > 0):
+            # residual get-up (2026-10-11): reference + correction while down
+            t_rr = state.rise_t0 + state.step_i.astype(jp.float32) * self.control_dt
+            res = jp.clip(self._rise_ref(t_rr) + self.rise_ref_residual * action,
+                          self._lo, self._hi)
+            down = (state.recover_slot > 0.5) & (state.recovered < 0.5)
+            target = jp.where(down, res, target)
         # the policy's targets onto the servo vector: held joints get their
         # fixed hold target, and from here on everything is per servo
         target = self._to_servo(target)

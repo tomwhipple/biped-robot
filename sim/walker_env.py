@@ -582,6 +582,8 @@ class BimoWalkerEnv(gym.Env):
                                        # down (mirrors sim/mjx _rise_ref)
         rise_secs: float = 4.0,
         rise_ref_s2: float = 2.0,
+        rise_ref_npz: str | None = None,   # recorded get-up reference (mirror of env_mjx; sim/record_getup_ref.py)
+        rise_ref_residual: float = 0.0,    # rad: residual get-up (mirror of env_mjx)
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         w_foot_under: float = 0.0,     # mirrors sim/mjx w_foot_under
@@ -1153,6 +1155,19 @@ class BimoWalkerEnv(gym.Env):
         self.action_map = action_map
         self._lo, self._hi = policy_range(self.model, physical=ctrl_physical)
         self.ctrl_physical = bool(ctrl_physical)
+        # recorded get-up reference (mirror of env_mjx rise_ref_npz)
+        self._rr = None
+        if rise_ref_npz:
+            z = np.load(rise_ref_npz if os.path.isabs(rise_ref_npz)
+                        else os.path.join(os.path.dirname(os.path.abspath(__file__)), rise_ref_npz))
+            names = [str(n) for n in z["joint_names"]]
+            col = np.array([names.index(n) for n in self._servo_names])
+            self._rr = dict(q=np.asarray(z["q"])[:, col][:, self._pi],
+                            dt=float(z["control_dt"]), T=int(len(z["t"])))
+            self.rise_secs = self._rr["T"] * self._rr["dt"]
+        self.rise_ref_residual = float(rise_ref_residual)
+        if self.rise_ref_residual > 0.0 and self._rr is None:
+            raise ValueError("rise_ref_residual needs rise_ref_npz")
         self._lo, self._hi = self._lo[self._pi], self._hi[self._pi]  # policy
         # home pose per servo (held joints at their hold) and per policy joint
         self._sdefault = self.model.qpos0[self._sqpos].copy()
@@ -1255,6 +1270,12 @@ class BimoWalkerEnv(gym.Env):
 
     def _action_to_ctrl(self, action: np.ndarray) -> np.ndarray:
         action = np.clip(action, -1.0, 1.0)
+        if (self.rise_ref_residual > 0.0 and self.ext_cmd
+                and self._recover_ep and not self._recovered):
+            # residual get-up (mirror of env_mjx step): reference + correction
+            t_rr = self._rise_t0 + self._step_i * self.control_dt
+            return np.clip(self._rise_ref(t_rr) + self.rise_ref_residual * action,
+                           self._lo, self._hi)
         if self.action_map == "full":
             # piecewise-linear: full range on both sides, action 0 = stand
             span = np.where(action >= 0.0, self._hi - self._default,
@@ -1487,6 +1508,9 @@ class BimoWalkerEnv(gym.Env):
 
     def _rise_ref(self, t_s):
         """Numpy mirror of sim/mjx BimoMJXEnv._rise_ref (parity-gated)."""
+        if self._rr is not None:
+            k = int(np.clip(np.round(t_s / self._rr["dt"]), 0, self._rr["T"] - 1))
+            return np.clip(self._rr["q"][k], self._lo, self._hi)
         d = self._default
         stages = np.array([
             [-1.92, -1.62, -0.55],
