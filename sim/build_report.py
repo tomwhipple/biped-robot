@@ -407,6 +407,22 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-10 card: marathon days 1-2 (2026-10-09/10) -- walking c-line on
+# Warp, and the first get-up policies tracking the recorded elbow-arm seat push.
+fig_1010 = "\n    ".join(f for f in [
+    video_figure('robot_walk_c5', ['line_1m', 'push_gauntlet'],
+                 'robot_walk_c5_line_push',
+                 'the best walker (62/144): the line and the push course'),
+    video_figure('robot_walk_c5', ['sidestep_L', 'goal_home'],
+                 'robot_walk_c5_side_home',
+                 'sidestep and goal-home, trained since c1/c2'),
+    video_figure('robot_getup_g4k', ['recover_supine'],
+                 'robot_getup_g4k_supine',
+                 'get-up from supine: sits up, braces, nearly upright, topples back'),
+    video_figure('robot_getup_g7k', ['recover_supine'],
+                 'robot_getup_g7k_supine',
+                 'stricter tracking: pelvis up on the arms, then sits back down'),
+] if f)
 # 2026-10-08 card: the first night on MuJoCo Warp -- five swing-lift runs on
 # the final plant. Foot-height overlay renders (render_walk_feet.py) of the two
 # fine-tuned runs, then referee takes incl. the from-scratch control.
@@ -555,6 +571,32 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·10 · marathon days 1–2</span></p>
+    <p><b>Walking gets good; the get-up is learned up to the last step.</b>
+    Tom opened mira Friday 11:00 → Tuesday 07:00. On MuJoCo Warp (~115k env
+    steps/s) the walking line went: a sharper swing-height kernel (a1) →
+    1.2B steps (b1: two thirds of swings clear 3 cm) → backward/sidestep,
+    0.5 m/s and turn emphasis (c2, 54/144) → continuations to <b>c5:
+    62/144, falls 43 %, three quarters of swings clear 3 cm (median 3.9
+    cm)</b>. Most remaining falls are scenarios it never trains (the
+    skills, reversal, speeds above 0.5 m/s).</p>
+    <p><b>Fall recovery</b> follows the decision record (two elbow arms).
+    The open-loop seat push stands the committed plant up only with
+    <b>STS3250 knees</b> (0/24 with the robot's set, 4/4 with them) -- a
+    hardware question for Tom -- and even then only 4/8 under the referee's
+    hardware-claim conditions. Policies now drive the arms
+    (<code>--robot-arms</code>, full action map) and track the recorded
+    seat push phase-indexed with DeepMimic RSI and early termination. They
+    learned the sit-up, the arm brace and the push; the crouch → stand
+    transition is the step still missing (the new referee scenario
+    <code>recover_supine</code>: 0/8 so far). The env now models each
+    servo's own stall/speed envelope (STS3250 vs STS3215). Details: #86.</p>
+    <div class="vidgrid">
+    {fig_1010}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·08 · training thread</span></p>

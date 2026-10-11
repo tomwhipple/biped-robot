@@ -104,6 +104,55 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·10 · marathon days 1–2</span></p>
+    <p><b>Walking gets good; the get-up is learned up to the last step.</b>
+    Tom opened mira Friday 11:00 → Tuesday 07:00. On MuJoCo Warp (~115k env
+    steps/s) the walking line went: a sharper swing-height kernel (a1) →
+    1.2B steps (b1: two thirds of swings clear 3 cm) → backward/sidestep,
+    0.5 m/s and turn emphasis (c2, 54/144) → continuations to <b>c5:
+    62/144, falls 43 %, three quarters of swings clear 3 cm (median 3.9
+    cm)</b>. Most remaining falls are scenarios it never trains (the
+    skills, reversal, speeds above 0.5 m/s).</p>
+    <p><b>Fall recovery</b> follows the decision record (two elbow arms).
+    The open-loop seat push stands the committed plant up only with
+    <b>STS3250 knees</b> (0/24 with the robot's set, 4/4 with them) -- a
+    hardware question for Tom -- and even then only 4/8 under the referee's
+    hardware-claim conditions. Policies now drive the arms
+    (<code>--robot-arms</code>, full action map) and track the recorded
+    seat push phase-indexed with DeepMimic RSI and early termination. They
+    learned the sit-up, the arm brace and the push; the crouch → stand
+    transition is the step still missing (the new referee scenario
+    <code>recover_supine</code>: 0/8 so far). The env now models each
+    servo's own stall/speed envelope (STS3250 vs STS3215). Details: #86.</p>
+    <div class="vidgrid">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_walk_c5_line_push.jpg" src="_clips/robot_walk_c5_line_push.mp4"></video>
+      <figcaption><b>robot_walk_c5</b> · the best walker (62/144): the line and the push course<br>line_1m 7/8 · push_gauntlet 2/8
+        · seed 1/8 takes, verdict burned in · 23s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_walk_c5_side_home.jpg" src="_clips/robot_walk_c5_side_home.mp4"></video>
+      <figcaption><b>robot_walk_c5</b> · sidestep and goal-home, trained since c1/c2<br>sidestep_L 3/8 · goal_home 5/8
+        · seed 1/8 takes, verdict burned in · 24s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_getup_g4k_supine.jpg" src="_clips/robot_getup_g4k_supine.mp4"></video>
+      <figcaption><b>robot_getup_g4k</b> · get-up from supine: sits up, braces, nearly upright, topples back<br>recover_supine 0/8
+        · seed 1/8 takes, verdict burned in · 27s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_getup_g7k_supine.jpg" src="_clips/robot_getup_g7k_supine.mp4"></video>
+      <figcaption><b>robot_getup_g7k</b> · stricter tracking: pelvis up on the arms, then sits back down<br>recover_supine 0/8
+        · seed 1/8 takes, verdict burned in · 27s</figcaption>
+    </figure>
+    </div>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·08 · training thread</span></p>
     <p><b>The first night on MuJoCo Warp: the feet start to lift.</b> Mira
     moved to MuJoCo 3.15 and its CUDA backend (<code>--mjx-impl warp</code>):
@@ -141,8 +190,8 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
     <figure>
       <video class="film" controls preload="none" playsinline muted loop
              poster="_clips/robot_walk_c1_line_stand.jpg" src="_clips/robot_walk_c1_line_stand.mp4"></video>
-      <figcaption><b>robot_walk_c1</b> · the control: the same lift, trained from scratch<br>line_1m 1/8 · stand_10s 1/8
-        · seed 1/8 takes, verdict burned in · 20s</figcaption>
+      <figcaption><b>robot_walk_c1</b> · the control: the same lift, trained from scratch<br>line_1m 6/8 · stand_10s 8/8
+        · seed 1/8 takes, verdict burned in · 11s</figcaption>
     </figure>
     </div>
   </div>
