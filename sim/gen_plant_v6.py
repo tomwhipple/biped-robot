@@ -75,9 +75,19 @@ class DesignParams:
                                  # double-jointed: the CAD ROM in both directions
     # ---- joint ranges (deg) ----------------------------------------------
     yaw_range: float = 45.0
-    hip_roll_add: float = 30.0   # adduction (toward the other leg)
-    hip_roll_abd: float = 45.0   # abduction
-    hip_pitch_range: tuple = (-125.0, 90.0)   # -110 -> -125: yoke_pitch_v6 flange chamfer (cad/v6, 2026-09-14)
+    # JOINT STOPS vs POLICY RANGES (2026-10-11, Tom: "make sure the servo limits are correct for the
+    # physical design and not set too conservatively"): every joint's MJCF range is the CAD envelope
+    # (cad/v6/dimensions_v6.ROM / ARM_ROM -- the mechanical stop); the actuator ctrlrange stays the
+    # TRAINING range (walker_env.policy_range: moving it rescales every trained policy's actions), so
+    # existing policies command what they always did and the physics stops where the metal does.
+    hip_roll_add: float = 30.0   # adduction (toward the other leg) -- policy range
+    hip_roll_abd: float = 45.0   # abduction -- policy range
+    hip_roll_phys: float = 55.0  # the stop both ways (dimensions_v6.ROM["hip_roll"]; the legs meet
+                                 # before it in adduction, which the collision pairs model)
+    ankle_phys: float = 40.0     # ankle pitch stop (dimensions_v6.ROM["ankle_pitch"])
+    elbow_phys: tuple = (-100.0, 10.0)   # dimensions_v6.ARM_ROM["elbow"] (the fork meets the grip channel)
+    hip_pitch_range: tuple = (-120.0, 90.0)   # stop AND policy range: -125 was never reachable (the thigh's
+                                              # front wall meets the roll flange from -118.4; dimensions_v6.ROM)
     knee_flex: float = 130.0     # flexion travel (either direction); 95 -> 130 with the leg-link relief cuts (cad/v6, 2026-09-14)
     knee_hyper: float = 5.0      # hyperextension cap (modelling cap, v5)
     knee_back: float = 95.0      # CAD ROM the OTHER way (cad/v6/dimensions_v6.ROM["knee"]
@@ -385,6 +395,9 @@ def _leg(p: DesignParams, side: str) -> str:
         roll_rng = (-p.hip_roll_abd, p.hip_roll_add)
     ar = p.ankle_roll_range
     kr = p.knee_range
+    # the knee's STOP: a human ("fwd") knee also bends backward to knee_back in the CAD
+    # (dimensions_v6.ROM["knee"] = (-95, +130), + = flexion); the policy range keeps kr
+    kj = (-p.knee_flex, p.knee_back) if p.knee == "fwd" else kr
     hp = p.hip_pitch_range
     sv = p.servo_mass
     servo_rgba = "0.22 0.23 0.27 1"
@@ -410,7 +423,7 @@ def _leg(p: DesignParams, side: str) -> str:
         <geom type="box" pos="0 0 {_f(-p.d_yaw_roll/2)}" size="0.014 0.020 {_f(p.d_yaw_roll/2)}" mass="{p.m_carrier}" rgba="{link_rgba}" group="1"/>
         <geom class="servo" type="box" pos="0 0 {_f(-p.d_yaw_roll + z_servo_case_up)}" size="{_f(sx_v[0])} {_f(sx_v[1])} {_f(sx_v[2])}" mass="{sv}"/>
         <body name="{side}_hip" pos="0 0 {_f(-p.d_yaw_roll)}">
-          <joint name="{side}_hip_roll" axis="1 0 0" range="{roll_rng[0]:.0f} {roll_rng[1]:.0f}"/>
+          <joint name="{side}_hip_roll" axis="1 0 0" range="{-p.hip_roll_phys:.0f} {p.hip_roll_phys:.0f}"/>
           <!-- yoke_roll + yoke_pitch (the hip universal, 50 mm axis offset) -->
           <geom type="box" pos="0 0 {_f(-p.d_roll_pitch/2)}" size="0.0175 0.0125 {_f(p.d_roll_pitch/2)}" mass="{p.m_hip_yokes}" rgba="{link_rgba}" group="1"/>
           <body name="{side}_thigh" pos="0 0 {_f(-p.d_roll_pitch)}">
@@ -420,13 +433,13 @@ def _leg(p: DesignParams, side: str) -> str:
             <geom {_fc(p)}type="box" pos="0 0 {_f(-p.thigh/2)}" size="0.012 0.019 {_f(p.thigh/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
             <geom name="{side}_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
             <body name="{side}_shin" pos="0 0 {_f(-p.thigh)}">
-              <joint name="{side}_knee" axis="0 -1 0" range="{kr[0]:.0f} {kr[1]:.0f}"/>
+              <joint name="{side}_knee" axis="0 -1 0" range="{kj[0]:.0f} {kj[1]:.0f}"/>
               <geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>
               <geom name="{side}_shin_link" {_fc(p)}type="box" pos="0 0 {_f(-p.shank/2)}" size="0.012 0.019 {_f(p.shank/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
               <geom name="{side}_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
 {_shank_ankle_servos(p, side)}
               <body name="{side}_ankle_blk" pos="0 0 {_f(-p.shank)}">
-                <joint name="{side}_ankle" axis="0 1 0" range="{-p.ankle_range:.0f} {p.ankle_range:.0f}"/>
+                <joint name="{side}_ankle" axis="0 1 0" range="{-min(p.ankle_range, p.ankle_phys):.0f} {min(p.ankle_range, p.ankle_phys):.0f}"/>
                 <!-- ankle-pitch servo case hangs below the axis inside the
                      ankle link (the hip's roll->pitch stack, upside down) -->
                 {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>'}
@@ -639,7 +652,7 @@ def _arms(p: DesignParams) -> str:
             _el_eul = f' euler="0 {p.arm_elbow_hold:g} 0"' if p.arm_elbow_hold else ""
             _el_ref = f' ref="{p.arm_elbow_hold:g}"' if p.arm_elbow_hold else ""
             hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}"{_el_eul}>
-          <joint name="{side}_elbow" axis="0 1 0" range="-150 150"{_el_ref}/>
+          <joint name="{side}_elbow" axis="0 1 0" range="{p.elbow_phys[0]:.0f} {p.elbow_phys[1]:.0f}"{_el_ref}/>
           {_fore_servo}
           <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_fore_len)}" size="0.006" mass="{p.arm_mass*0.6 if p.arm_fore_mass is None else p.arm_fore_mass}" rgba="0.82 0.84 0.87 1"/>
           <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_fore_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
@@ -771,7 +784,7 @@ def build_xml(p: DesignParams) -> str:
                 acts.append(f'    <position name="{side}_abd" joint="{side}_abd" ctrlrange="{r(abd_lo):.10f} {r(abd_hi):.10f}"/>')
             acts.append(f'    <position name="{side}_shoulder" joint="{side}_shoulder" ctrlrange="{r(-90):.10f} {r(200):.10f}"/>')
             if p.arm_elbow:
-                acts.append(f'    <position name="{side}_elbow" joint="{side}_elbow" ctrlrange="{r(-150):.10f} {r(150):.10f}"/>')
+                acts.append(f'    <position name="{side}_elbow" joint="{side}_elbow" ctrlrange="{r(p.elbow_phys[0]):.10f} {r(p.elbow_phys[1]):.10f}"/>')
     if p.tail:
         acts.append(f'    <position name="tail_pitch" joint="tail_pitch" ctrlrange="{r(-150):.10f} {r(120):.10f}"/>')
     acts_s = "\n".join(acts)

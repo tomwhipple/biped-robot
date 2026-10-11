@@ -2,8 +2,11 @@
 push 2.0 s) on the committed plant as a tracking reference: per control step the commanded
 servo targets for all actuators (radians, actuator order), the full qpos/qvel, and time."""
 import os, sys, numpy as np
-ROOT = "/home/claw/code/robot"; sys.path.insert(0, os.path.join(ROOT, "sim")); os.chdir(os.path.join(ROOT, "sim"))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "sim")); os.chdir(os.path.join(ROOT, "sim"))
 import getup_v6_shoulder as S, getup_v6 as G
+# hip flexion -120: the joint's real stop (dimensions_v6.ROM; the study's -125 was never reachable)
+S.H = -120.0
 OUT = sys.argv[1]   # e.g. sim/getup_ref_v6ar.npz (train_mjx --rise-ref getup_ref_v6ar.npz)
 XML = os.path.join(ROOT, "sim", "bimo_biped_v6ar.xml")
 P, _ = S.plant("r6_asdrawn_rom120")

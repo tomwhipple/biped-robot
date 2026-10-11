@@ -96,7 +96,7 @@ _TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
 _TICK_DIR = 1.0
 
 
-def policy_range(m):
+def policy_range(m, physical=False):
     """Per-actuator (lo, hi) the POLICY trains in, radians. MIRRORED in
     sim/mjx/env_mjx.py -- keep the two identical.
 
@@ -128,6 +128,11 @@ def policy_range(m):
     jnt = m.actuator_trnid[:, 0]
     lo = np.array(m.jnt_range[jnt, 0], dtype=float)
     hi = np.array(m.jnt_range[jnt, 1], dtype=float)
+    if physical:
+        # ctrl_physical (2026-10-11): the policy may command the whole
+        # mechanical stop (the CAD envelope) -- for the get-up, which needs
+        # hip roll / knee travel the walking range never used
+        return lo, hi
     lim = np.asarray(m.actuator_ctrllimited).astype(bool)
     lo[lim] = np.asarray(m.actuator_ctrlrange)[lim, 0]
     hi[lim] = np.asarray(m.actuator_ctrlrange)[lim, 1]
@@ -371,6 +376,7 @@ class BimoWalkerEnv(gym.Env):
         # note); a sequence gives one per actuator
         servo_kd: float | tuple = 0.25,  # sts3215 PD damping, N*m*s/rad
         servo_types=None,              # {actuator or role: "sts3250"}: per-servo stall/speed envelope
+        ctrl_physical=False,           # policy range = the joints' mechanical stops (not the ctrlrange)
         servo_kp_scale=None,           # per-servo P multiplier on kp AND kd:
         # None, a number, a per-actuator sequence, {actuator | role: factor},
         # or a preset name (SERVO_KP_PRESETS; mirror of env_mjx)
@@ -1145,7 +1151,8 @@ class BimoWalkerEnv(gym.Env):
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
-        self._lo, self._hi = policy_range(self.model)
+        self._lo, self._hi = policy_range(self.model, physical=ctrl_physical)
+        self.ctrl_physical = bool(ctrl_physical)
         self._lo, self._hi = self._lo[self._pi], self._hi[self._pi]  # policy
         # home pose per servo (held joints at their hold) and per policy joint
         self._sdefault = self.model.qpos0[self._sqpos].copy()

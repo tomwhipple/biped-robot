@@ -300,6 +300,9 @@ def make_parser():
     p.add_argument("--rise-ref-et", type=float, default=None,
                    help="m: end a not-yet-recovered recovery episode when the pelvis strays "
                         "this far from the reference's (DeepMimic early termination)")
+    p.add_argument("--ctrl-physical", action="store_true",
+                   help="the policy commands the joints' whole mechanical stops (the CAD "
+                        "envelope) instead of the plant's ctrlrange training range (get-up)")
     p.add_argument("--gravity-scale", type=float, default=None,
                    help="scale gravity in the TRAINING env (curriculum: learn a get-up under "
                         "reduced gravity, then anneal to 1.0); the referee always grades at 1.0")
@@ -726,6 +729,8 @@ def build_env_kw(args):
         env_kw["rise_ref_et"] = args.rise_ref_et
     if args.rise_ref_s2 is not None:
         env_kw["rise_ref_s2"] = args.rise_ref_s2
+    if args.ctrl_physical:
+        env_kw["ctrl_physical"] = True
     if args.gravity_scale is not None:
         env_kw["gravity_scale"] = args.gravity_scale
     if args.rise_ref_rsi_window is not None:

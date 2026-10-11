@@ -154,7 +154,7 @@ def _per_servo(value, n, what):
     return 1.0, arr.copy()
 
 
-def policy_range(m):
+def policy_range(m, physical=False):
     """Per-actuator (lo, hi) the POLICY trains in, radians. EXACT MIRROR of
     sim/walker_env.py's policy_range() -- read the docstring there for why the
     policy range and the joint's mechanical stop are separate numbers, and why
@@ -164,6 +164,11 @@ def policy_range(m):
     jnt = m.actuator_trnid[:, 0]
     lo = np.array(m.jnt_range[jnt, 0], dtype=float)
     hi = np.array(m.jnt_range[jnt, 1], dtype=float)
+    if physical:
+        # ctrl_physical (2026-10-11): the policy may command the whole
+        # mechanical stop (the CAD envelope) -- for the get-up, which needs
+        # hip roll / knee travel the walking range never used
+        return lo, hi
     lim = np.asarray(m.actuator_ctrllimited).astype(bool)
     lo[lim] = np.asarray(m.actuator_ctrlrange)[lim, 0]
     hi[lim] = np.asarray(m.actuator_ctrlrange)[lim, 1]
@@ -560,6 +565,7 @@ class BimoMJXEnv:
         servo_kp: float | tuple = 12.0,   # N*m/rad; or one per actuator
         servo_kd: float | tuple = 0.25,   # N*m*s/rad; or one per actuator
         servo_types=None,      # {actuator or role: "sts3250"}: per-servo stall/speed envelope (walker_env.SERVO_TYPES)
+        ctrl_physical=False,           # policy range = the joints' mechanical stops (not the ctrlrange)
         servo_kp_scale=None,   # per-servo P multiplier: None, a number, a
         # per-actuator sequence, {actuator | role: factor}, or a preset name
         # (SERVO_KP_PRESETS). Scales kp AND kd -- see SERVO_KP_PRESETS.
@@ -1063,7 +1069,8 @@ class BimoMJXEnv:
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
         self.hip_flex_deg = hip_flex_deg
-        _plo, _phi = policy_range(m)
+        _plo, _phi = policy_range(m, physical=ctrl_physical)
+        self.ctrl_physical = bool(ctrl_physical)
         _plo, _phi = _plo[self._pi], _phi[self._pi]
         self._lo = jp.asarray(_plo)
         self._hi = jp.asarray(_phi)
