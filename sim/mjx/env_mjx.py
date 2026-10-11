@@ -774,6 +774,8 @@ class BimoMJXEnv:
         rise_ref_npz: str | None = None,
         rise_ref_rsi: float = 0.7,  # P(start at a random reference phase); else its t=0 (lying)
         rise_ref_rsi_window: tuple = (0.0, 0.85),   # RSI phase window, fractions of the reference
+        gravity_scale: float = 1.0,  # training curriculum (2026-10-11): scales gravity (get-up under
+                                     # reduced gravity, then annealed back to 1.0); the referee is unaffected
         rise_ref_et: float = 0.0,   # m; >0: DeepMimic early termination -- a recovery episode not yet
                                     # recovered ends when the pelvis strays this far from the reference's
         rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
@@ -959,6 +961,9 @@ class BimoMJXEnv:
         from walker_env import apply_floor_contacts   # jax-free, shared with the CPU env
         apply_floor_contacts(self.mj_model, floor_contacts)
         self.floor_contacts = floor_contacts
+        if gravity_scale != 1.0:
+            self.mj_model.opt.gravity[:] = self.mj_model.opt.gravity * float(gravity_scale)
+        self.gravity_scale = float(gravity_scale)
         if mjx_impl not in ("jax", "warp"):
             raise ValueError(f"unknown mjx_impl {mjx_impl!r}")
         if mjx_impl == "warp" and getattr(self, "_terrain_spec", None) is not None:
