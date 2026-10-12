@@ -342,6 +342,27 @@ def _gauss_smooth(field: np.ndarray, sigma: float) -> np.ndarray:
     return np.apply_along_axis(conv, 0, np.apply_along_axis(conv, 1, field))
 
 
+
+RISE_ROOT_SIG_Z = 0.05    # m: pelvis-height scale of the root-tracking kernel
+RISE_ROOT_SIG_UP = 0.2    # torso up-z scale
+
+
+def rise_root_ref(qpos):
+    """(T, 2) [pelvis z, torso up-z] of a recorded reference's root pose
+    (qpos[:, 3:7] = w, x, y, z): up-z = 1 - 2 (x^2 + y^2)."""
+    qpos = np.asarray(qpos)
+    up = 1.0 - 2.0 * (qpos[:, 4] ** 2 + qpos[:, 5] ** 2)
+    return np.stack([qpos[:, 2], up], axis=1)
+
+
+def rise_root_kernel(z, quat, ref, xp):
+    """exp(-[(dz/0.05)^2 + (dup/0.2)^2]) of the root against ref = [z, up_z];
+    xp = jax.numpy or numpy, so both envs share the exact formula."""
+    up = 1.0 - 2.0 * (quat[1] ** 2 + quat[2] ** 2)
+    return xp.exp(-(((z - ref[0]) / RISE_ROOT_SIG_Z) ** 2
+                    + ((up - ref[1]) / RISE_ROOT_SIG_UP) ** 2))
+
+
 class BimoWalkerEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"], "render_fps": 50}
 
@@ -584,6 +605,7 @@ class BimoWalkerEnv(gym.Env):
         rise_ref_s2: float = 2.0,
         rise_ref_npz: str | None = None,   # recorded get-up reference (mirror of env_mjx; sim/record_getup_ref.py)
         rise_ref_residual: float = 0.0,    # rad: residual get-up (mirror of env_mjx)
+        w_rise_root: float = 0.0,          # root tracking while down (mirror of env_mjx)
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         w_foot_under: float = 0.0,     # mirrors sim/mjx w_foot_under
@@ -1163,11 +1185,15 @@ class BimoWalkerEnv(gym.Env):
             names = [str(n) for n in z["joint_names"]]
             col = np.array([names.index(n) for n in self._servo_names])
             self._rr = dict(q=np.asarray(z["q"])[:, col][:, self._pi],
+                            root=rise_root_ref(z["qpos"]),
                             dt=float(z["control_dt"]), T=int(len(z["t"])))
             self.rise_secs = self._rr["T"] * self._rr["dt"]
         self.rise_ref_residual = float(rise_ref_residual)
         if self.rise_ref_residual > 0.0 and self._rr is None:
             raise ValueError("rise_ref_residual needs rise_ref_npz")
+        self.w_rise_root = float(w_rise_root)
+        if self.w_rise_root > 0.0 and self._rr is None:
+            raise ValueError("w_rise_root needs rise_ref_npz")
         self._lo, self._hi = self._lo[self._pi], self._hi[self._pi]  # policy
         # home pose per servo (held joints at their hold) and per policy joint
         self._sdefault = self.model.qpos0[self._sqpos].copy()
@@ -2514,6 +2540,13 @@ class BimoWalkerEnv(gym.Env):
                 dq_rr = np.asarray(d.qpos[self._jqpos]) - q_rr
                 reward += self.w_rise_ref * float(np.exp(
                     -np.sum(dq_rr ** 2) / self.rise_ref_s2))
+        if self.w_rise_root and self.ext_cmd and self.recover_mix > 0:
+            if not self._recovered:
+                # root tracking while down (mirrors sim/mjx exactly)
+                k_rt = int(np.clip(np.round((self._rise_t0 + self._step_i * self.control_dt)
+                                            / self._rr["dt"]), 0, self._rr["T"] - 1))
+                reward += self.w_rise_root * float(rise_root_kernel(
+                    float(d.qpos[2]), np.asarray(d.qpos[3:7]), self._rr["root"][k_rt], np))
         if self.w_up_vel and self.ext_cmd and self.recover_mix > 0:
             # getup_v5 momentum incentive (mirrors sim/mjx)
             if not self._recovered:

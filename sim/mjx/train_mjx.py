@@ -303,6 +303,9 @@ def make_parser():
     p.add_argument("--rise-ref-residual", type=float, default=None,
                    help="rad: residual get-up -- while down, target = the recorded reference + "
                         "this x action (needs --rise-ref)")
+    p.add_argument("--w-rise-root", type=float, default=None,
+                   help="DeepMimic root tracking while down: kernel on pelvis height + torso up-z vs "
+                        "the recorded reference (needs --rise-ref)")
     p.add_argument("--ctrl-physical", action="store_true",
                    help="the policy commands the joints' whole mechanical stops (the CAD "
                         "envelope) instead of the plant's ctrlrange training range (get-up)")
@@ -734,6 +737,8 @@ def build_env_kw(args):
         env_kw["rise_ref_s2"] = args.rise_ref_s2
     if args.rise_ref_residual is not None:
         env_kw["rise_ref_residual"] = args.rise_ref_residual
+    if args.w_rise_root is not None:
+        env_kw["w_rise_root"] = args.w_rise_root
     if args.ctrl_physical:
         env_kw["ctrl_physical"] = True
     if args.gravity_scale is not None:

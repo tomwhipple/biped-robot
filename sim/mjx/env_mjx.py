@@ -786,6 +786,9 @@ class BimoMJXEnv:
                                          # to a script that already works), clipped to the policy range
         gravity_scale: float = 1.0,  # training curriculum (2026-10-11): scales gravity (get-up under
                                      # reduced gravity, then annealed back to 1.0); the referee is unaffected
+        w_rise_root: float = 0.0,   # DeepMimic ROOT tracking while down (2026-10-12): kernel on the pelvis
+                                    # height and the torso up-z vs the recorded reference at the current
+                                    # phase -- joint-only tracking let a hunched half-stand (up_z ~0.6) pay
         rise_ref_et: float = 0.0,   # m; >0: DeepMimic early termination -- a recovery episode not yet
                                     # recovered ends when the pelvis strays this far from the reference's
         rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
@@ -1275,7 +1278,9 @@ class BimoMJXEnv:
             if qpos.shape[1] != self.mj_model.nq or qvel.shape[1] != self.mj_model.nv:
                 raise ValueError("rise_ref_npz was recorded on a different plant "
                                  f"(nq {qpos.shape[1]} vs {self.mj_model.nq})")
+            from walker_env import rise_root_ref as _wenv_rise_root_ref   # jax-free, shared with the CPU env
             self._rr = dict(q=jp.asarray(q_srv[:, self._pi], dtype=jp.float32),
+                            root=jp.asarray(_wenv_rise_root_ref(qpos), dtype=jp.float32),
                             qpos=jp.asarray(qpos, dtype=jp.float32),
                             qvel=jp.asarray(qvel, dtype=jp.float32),
                             dt=float(z["control_dt"]), T=int(q_srv.shape[0]))
@@ -1286,6 +1291,9 @@ class BimoMJXEnv:
                 raise ValueError(f"rise_ref_rsi_window {rise_ref_rsi_window} not in [0, 1]")
             self._rr_k = (int(lo * self._rr["T"]), max(int(lo * self._rr["T"]) + 1, int(hi * self._rr["T"])))
         self.rise_ref_et = float(rise_ref_et)
+        self.w_rise_root = float(w_rise_root)
+        if self.w_rise_root > 0.0 and self._rr is None:
+            raise ValueError("w_rise_root needs rise_ref_npz")
         self.rise_ref_residual = float(rise_ref_residual)
         if self.rise_ref_residual > 0.0 and self._rr is None:
             raise ValueError("rise_ref_residual needs rise_ref_npz")
@@ -2808,6 +2816,15 @@ class BimoMJXEnv:
             reward += (self.w_rise_ref
                        * jp.where(state.recovered < 0.5, 1.0, 0.0)
                        * jp.exp(-jp.sum(dq_rr ** 2) / self.rise_ref_s2))
+        if self.w_rise_root and self.ext_cmd and self.recover_mix > 0:
+            # root tracking while DOWN (mirrored in walker_env; one shared kernel)
+            from walker_env import rise_root_kernel as _wenv_rise_root_kernel
+            k_rt = jp.clip(jp.round((state.rise_t0 + state.step_i.astype(jp.float32)
+                                     * self.control_dt) / self._rr["dt"]
+                                    ).astype(jp.int32), 0, self._rr["T"] - 1)
+            reward += (self.w_rise_root
+                       * jp.where(state.recovered < 0.5, 1.0, 0.0)
+                       * _wenv_rise_root_kernel(data.qpos[2], data.qpos[3:7], self._rr["root"][k_rt], jp))
         if self.w_up_vel and self.ext_cmd and self.recover_mix > 0:
             # getup_v5: momentum-friendly rise incentive -- positive root
             # vertical velocity pays while down (capped; the height ratchet
@@ -3111,6 +3128,7 @@ class BimoMJXEnv:
                      imu_bias=state.imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
                      gyro_gain=state.gyro_gain, metrics=metrics)
+
 
 
 def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
