@@ -407,6 +407,22 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-11 card: marathon day 3 -- the residual get-up (scripted seat push +
+# learned correction) stands up from supine 8/8; contrasts with the runs that fail.
+fig_1011 = "\n    ".join(f for f in [
+    video_figure('robot_getup_r5k', ['recover_supine'],
+                 'robot_getup_r5k_supine',
+                 'residual get-up, trained without pushes: up in 20 s, 8/8 under the hardware claim'),
+    video_figure('robot_getup_r4k', ['recover_supine'],
+                 'robot_getup_r4k_supine',
+                 'the same line with full training pushes switched back on: up, but does not hold (0/8)'),
+    video_figure('robot_getup_r1k', ['recover_supine'],
+                 'robot_getup_r1k_supine',
+                 'the first residual run, trained with pushes: rises at 21 s, falls back (0/8)'),
+    video_figure('robot_getup_r1', ['recover_supine'],
+                 'robot_getup_r1_supine',
+                 'the robot AS BUILT (no STS3250 knees): reaches standing at 19.6 s, falls back (0/8)'),
+] if f)
 # 2026-10-10 card: marathon days 1-2 (2026-10-09/10) -- walking c-line on
 # Warp, and the first get-up policies tracking the recorded elbow-arm seat push.
 fig_1010 = "\n    ".join(f for f in [
@@ -571,6 +587,29 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·11 · marathon day 3</span></p>
+    <p><b>The robot gets up from its back: 8/8 in sim.</b> Every learned
+    get-up so far (g3 … g15k) was 0/8. The new policies are <b>residual</b>
+    (<code>--rise-ref-residual</code>): the joint target is the recorded
+    elbow-arm seat push at the current phase plus a small learned correction,
+    so the policy starts from a script that already works. The other
+    finding: the training pushes (5 N, ~16 per 32 s episode) stalled even
+    the bare script mid-rise (1/16 recovered with them, 12/16 without), so
+    training never saw a successful stand. Trained without pushes,
+    <b>r2k passed 5/8 and its continuation r5k 8/8</b> under the referee's
+    hardware claim, which keeps its pushes: up in 20.2 s, full height held
+    to the end. Switching full pushes back on in training (r4k) undid it.</p>
+    <p>All of this is with <b>STS3250 knees</b>. The robot as built (r1)
+    now reaches standing too, but falls back; the same continuation recipe
+    runs on it next (r2, r3). Joint stops now match the CAD envelope
+    (hip roll ±55°, knee back 95°, hip pitch −120°, ankle ±40°, elbow
+    −100/+10°). Walking unchanged (c5/c6 ≈ 62/144). Details: #86.</p>
+    <div class="vidgrid">
+    {fig_1011}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·10 · marathon days 1–2</span></p>
