@@ -30,22 +30,31 @@ def _quat_pitch(theta):
 
 def test_reference_root_ends_upright():
     root = W.rise_root_ref(np.load(REF)["qpos"])
-    assert root.shape[1] == 2
-    assert root[-1, 1] > 0.98            # torso vertical at the end
+    assert root.shape[1] == 4
+    assert root[-1, 3] > 0.98            # torso vertical at the end
     assert 0.37 < root[-1, 0] < 0.41     # pelvis at standing height
     assert root[0, 0] < 0.1              # starts lying
 
 
 def test_kernel_values():
-    ref = np.array([0.39, 1.0])
+    ref = np.array([0.39, 0.0, 0.0, 1.0])
     assert np.isclose(W.rise_root_kernel(0.39, _quat_pitch(0.0), ref, np), 1.0)
     # the hunched half-stand the policies parked in: z 0.27, up-z 0.6
     hunched = W.rise_root_kernel(0.27, _quat_pitch(np.arccos(0.6)), ref, np)
     assert hunched < 0.05
-    # up-z from the quaternion matches cos(pitch)
+    # a pitch of theta moves the up vector by |du|^2 = 2 - 2 cos(theta)
     for th in (0.3, 0.9, 1.4):
         k = W.rise_root_kernel(0.39, _quat_pitch(th), ref, np)
-        assert np.isclose(k, np.exp(-((np.cos(th) - 1.0) / W.RISE_ROOT_SIG_UP) ** 2))
+        assert np.isclose(k, np.exp(-(2.0 - 2.0 * np.cos(th)) / W.RISE_ROOT_SIG_UP ** 2))
+
+
+def test_kernel_tells_face_down_from_face_up():
+    """Lying face-down vs face-up: same height, torso up-z ~0 for both, but the
+    up vector in the torso frame is opposite -- the prone roll gets credit."""
+    down, up = _quat_pitch(np.pi / 2), _quat_pitch(-np.pi / 2)
+    ref_up = W.rise_root_ref(np.array([[0, 0, 0.05, *up]]))[0]
+    assert np.isclose(W.rise_root_kernel(0.05, up, ref_up, np), 1.0)
+    assert W.rise_root_kernel(0.05, down, ref_up, np) < 1e-6
 
 
 def test_kernel_numpy_matches_jax():
@@ -53,7 +62,8 @@ def test_kernel_numpy_matches_jax():
     rng = np.random.default_rng(0)
     for _ in range(5):
         q = rng.normal(size=4); q /= np.linalg.norm(q)
-        z, ref = rng.uniform(0.05, 0.4), np.array([rng.uniform(0.05, 0.4), rng.uniform(-1, 1)])
+        r = rng.normal(size=3); r /= np.linalg.norm(r)
+        z, ref = rng.uniform(0.05, 0.4), np.array([rng.uniform(0.05, 0.4), *r])
         a = W.rise_root_kernel(z, q, ref, np)
         b = float(W.rise_root_kernel(jp.float32(z), jp.asarray(q, jp.float32), jp.asarray(ref, jp.float32), jp))
         assert np.isclose(a, b, rtol=1e-4, atol=1e-6)

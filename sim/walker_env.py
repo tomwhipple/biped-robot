@@ -344,24 +344,30 @@ def _gauss_smooth(field: np.ndarray, sigma: float) -> np.ndarray:
 
 
 RISE_ROOT_SIG_Z = 0.05    # m: pelvis-height scale of the root-tracking kernel
-RISE_ROOT_SIG_UP = 0.2    # torso up-z scale
+RISE_ROOT_SIG_UP = 0.4    # scale on |world-up in the torso frame - reference's|
+
+
+def _root_up_body(w, x, y, z):
+    """World-up expressed in the torso frame (the third row of R(quat)): yaw
+    invariant, but it tells face-down, side and face-up apart (torso up-z
+    alone is ~0 for all three, which gave the prone roll no root signal)."""
+    return (2.0 * (x * z - w * y), 2.0 * (y * z + w * x), 1.0 - 2.0 * (x * x + y * y))
 
 
 def rise_root_ref(qpos):
-    """(T, 2) [pelvis z, torso up-z] of a recorded reference's root pose
-    (qpos[:, 3:7] = w, x, y, z): up-z = 1 - 2 (x^2 + y^2)."""
+    """(T, 4) [pelvis z, world-up in the torso frame (3)] of a recorded
+    reference's root pose (qpos[:, 3:7] = w, x, y, z)."""
     qpos = np.asarray(qpos)
-    up = 1.0 - 2.0 * (qpos[:, 4] ** 2 + qpos[:, 5] ** 2)
-    return np.stack([qpos[:, 2], up], axis=1)
+    ux, uy, uz = _root_up_body(qpos[:, 3], qpos[:, 4], qpos[:, 5], qpos[:, 6])
+    return np.stack([qpos[:, 2], ux, uy, uz], axis=1)
 
 
 def rise_root_kernel(z, quat, ref, xp):
-    """exp(-[(dz/0.05)^2 + (dup/0.2)^2]) of the root against ref = [z, up_z];
+    """exp(-[(dz/0.05)^2 + |du|^2/0.4^2]) of the root against ref = [z, u(3)];
     xp = jax.numpy or numpy, so both envs share the exact formula."""
-    up = 1.0 - 2.0 * (quat[1] ** 2 + quat[2] ** 2)
-    return xp.exp(-(((z - ref[0]) / RISE_ROOT_SIG_Z) ** 2
-                    + ((up - ref[1]) / RISE_ROOT_SIG_UP) ** 2))
-
+    ux, uy, uz = _root_up_body(quat[0], quat[1], quat[2], quat[3])
+    du2 = (ux - ref[1]) ** 2 + (uy - ref[2]) ** 2 + (uz - ref[3]) ** 2
+    return xp.exp(-(((z - ref[0]) / RISE_ROOT_SIG_Z) ** 2 + du2 / RISE_ROOT_SIG_UP ** 2))
 
 class BimoWalkerEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"], "render_fps": 50}
