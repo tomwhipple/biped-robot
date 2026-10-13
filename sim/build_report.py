@@ -262,6 +262,21 @@ def scored(run, scenarios):
     return ' · '.join(bits)
 
 
+def file_figure(name, title, blurb):
+    """<figure> for a clip already in runs/_clips/<name>.mp4 (+ .jpg poster),
+    e.g. a multi-policy chain rendered outside the referee; '' when absent."""
+    src = os.path.join(CLIP_DIR, f'{name}.mp4')
+    if not os.path.exists(src):
+        return ''
+    rel = os.path.relpath(src, 'runs')
+    poster = rel[:-4] + '.jpg'
+    return f"""<figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="{poster}" src="{rel}"></video>
+      <figcaption><b>{title}</b> · {blurb}</figcaption>
+    </figure>"""
+
+
 def video_figure(run, scenarios, name, blurb):
     """<figure> with a playable clip, or '' when the reel isn't here."""
     src, poster, secs = clip_from_reel(run, scenarios, name)
@@ -406,6 +421,22 @@ fig_1007b = "\n    ".join(f for f in [
     video_figure('robot_walk_c0_mac', ['line_1m', 'pursuit'],
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
+] if f)
+# 2026-10-12 card: marathon day 4 -- fall recovery as a funnel (roll to the
+# back -> the supine get-up -> hand over to the walker), plus the best walker.
+fig_1012 = "\n    ".join(f for f in [
+    file_figure('funnel_q1k_r5k_c8', 'face-down funnel',
+                'roll skill q1k → get-up r5k → walker c8 (arms ramped to rest), '
+                'hardware claim, seed 1 · 15/16 seeds standing at 52 s'),
+    video_figure('robot_getup_p1k', ['recover_prone'],
+                 'robot_getup_p1k_prone',
+                 'one long face-down policy: 6/8, but the same recipe with other seeds is 0/8'),
+    video_figure('robot_getup_p10k', ['recover_prone'],
+                 'robot_getup_p10k_prone',
+                 'with root tracking: rolls every seed, then fails the rise out of the crouch'),
+    video_figure('robot_walk_c8', ['line_1m', 'push_gauntlet'],
+                 'robot_walk_c8_line_push',
+                 'best walker (69/144): the line and the push course'),
 ] if f)
 # 2026-10-11 card: marathon day 3 -- the residual get-up (scripted seat push +
 # learned correction) stands up from supine 8/8; contrasts with the runs that fail.
@@ -587,6 +618,31 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·12 · marathon day 4</span></p>
+    <p><b>Fall recovery as a funnel: 15/16 from face-down in sim.</b>
+    One long face-down policy was not reliable (p1k 6/8, the same recipe
+    with other seeds 0/8; continuations parked in a hunched half-stand,
+    pelvis 0.27 m, torso pitched ~50°). Root tracking (pelvis height +
+    world-up in the torso frame) fixed the roll but not the rise. What
+    works is chaining short skills: a <b>roll skill</b> (q1k, roll-only
+    reference: face-down → settled on the back) → the <b>supine get-up</b>
+    (r5k, 8/8) → the <b>walker</b> c8 takes over the stand at "recovered",
+    with the held arms ramped to rest over 2 s. 16 seeds, hardware claim:
+    face-down <b>15/16</b> standing at 52 s (16/16 roll, 16/16 stand),
+    the same with both roll-skill training seeds (q1k, q2k);
+    from the back 15/16 (r5k alone, held to 40 s: 11/16 -- the walker
+    hand-over removes the post-stand falls).</p>
+    <p>All of it needs <b>STS3250 knees</b> (4 × STS3250 in total, hip
+    rolls + knees): the robot as built stalls in a crouch at 0.27 m.
+    Walking: <b>c8 69/144</b>, falls 35 %, three quarters of swings clear
+    3 cm. Next: side and random-fall starts, the funnel as a referee
+    scenario, firmware reference playback. Details: #86.</p>
+    <div class="vidgrid">
+    {fig_1012}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·11 · marathon day 3</span></p>
