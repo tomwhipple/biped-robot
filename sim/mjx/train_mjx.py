@@ -288,6 +288,12 @@ def make_parser():
                    help="raised-foot-under-hip kernel (knee-flexion lifts)")
     p.add_argument("--w-up-vel", type=float, default=None,
                    help="momentum-friendly rise incentive while down")
+    p.add_argument("--joint-frictionloss", type=float, default=None,
+                   help="Coulomb friction per actuated DOF (N*m; default keeps "
+                        "the loco default 0.05). The powered STS3215/3250 "
+                        "gearbox backdrive stiction measures ~0.35 N*m "
+                        "(off_frictionloss) -- pass that for a plant whose "
+                        "static pose-hold matches hardware")
     p.add_argument("--servo-3250", default=None,
                    help="comma roles/actuators given the STS3250 stall/speed "
                         "envelope on top of the robot's (e.g. knee): a servo-set study")
@@ -600,6 +606,12 @@ def build_env_kw(args):
             joint_frictionloss=0.05, joint_armature=0.028,
             w_feet_air=5.0, w_pitch_rate=0.1,
         )
+    if args.joint_frictionloss is not None:
+        # Tom 2026-10-12: the powered gearbox's static friction holds the
+        # pose on hardware; 0.05 (BAM base) under-reports it ~7x and the
+        # sim wobbles where the robot does not. Applied AFTER the family
+        # block so any family recipe can be run with the measured level.
+        env_kw["joint_frictionloss"] = args.joint_frictionloss
     if args.xml:
         # accept a bare basename (resolved against sim/, where the plants
         # live) or an explicit path -- night-queue args use basenames
