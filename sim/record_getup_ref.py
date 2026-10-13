@@ -8,12 +8,15 @@ import getup_v6_shoulder as S, getup_v6 as G
 # hip flexion -120: the joint's real stop (dimensions_v6.ROM; the study's -125 was never reachable)
 S.H = -120.0
 OUT = sys.argv[1]   # e.g. sim/getup_ref_v6ar.npz (train_mjx --rise-ref getup_ref_v6ar.npz)
-START = sys.argv[2] if len(sys.argv) > 2 else "supine"   # "prone": roll to the back first (S.prone_roll)
+START = sys.argv[2] if len(sys.argv) > 2 else "supine"   # "prone": roll to the back first (S.prone_roll);
+# "roll": the roll ALONE (face-down -> settled on the back), a short skill that hands over to the supine get-up
 XML = os.path.join(ROOT, "sim", "bimo_biped_v6ar.xml")
 P, _ = S.plant("r6_asdrawn_rom120")
 seq = S.seat_push(False, 60, 0, 2.0, -25.0, elbow=(-60, 0))
 if START == "prone":
     seq = S.prone_roll() + seq[1:]
+elif START == "roll":
+    seq = S.prone_roll()
 env = G.make_env(P, XML, mu=0.7, play_deg=3.0)
 env.reset(seed=0)
 G.EXTRA[:] = [env.model.actuator(i).name for i in range(12, env.model.nu)]
@@ -28,7 +31,7 @@ m, d = env.model, env.data; d0, hi, lo = env._default, env._hi, env._lo
 def inv(q):
     q = q[:na] if len(q) >= na else np.concatenate([q, np.zeros(na - len(q))])
     return np.clip(np.where(q >= d0, (q - d0) / np.maximum(hi - d0, 1e-6), (q - d0) / np.maximum(d0 - lo, 1e-6)), -1, 1)
-q_prev = G.q_from_offsets(seq[0][1]); G.settle_fallen(env, P, START, q_prev)
+q_prev = G.q_from_offsets(seq[0][1]); G.settle_fallen(env, P, "prone" if START == "roll" else START, q_prev)
 dt = env.control_dt; T, Q, QP, QV, LAB = [], [], [], [], []
 t = 0.0
 for label, off, move_s, hold_s in seq:
@@ -43,5 +46,5 @@ up = d.xmat[env._torso_bid].reshape(3, 3)[2, 2]
 names = [env.model.actuator(i).name for i in range(na)]
 np.savez(OUT, t=np.array(T), q=np.array(Q), qpos=np.array(QP), qvel=np.array(QV), label=np.array(LAB),
          joint_names=np.array(names), control_dt=dt, final_up=up, final_z=d.qpos[2],
-         source=("prone_roll() + " if START == "prone" else "") + "open-loop seat_push(60,0,2.0,-25,elbow=(-60,0)) on bimo_biped_v6ar.xml, play 3 deg, PJ_DEFAULT servos")
+         source=("prone_roll() only (no seat push); " if START == "roll" else "") + ("prone_roll() + " if START == "prone" else "") + "open-loop seat_push(60,0,2.0,-25,elbow=(-60,0)) on bimo_biped_v6ar.xml, play 3 deg, PJ_DEFAULT servos")
 print(f"steps {len(T)} ({t:.1f} s), dt {dt}, na {na}, final up {up:+.2f} pelvis {d.qpos[2]:.3f}; joints {names}")
