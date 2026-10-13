@@ -124,17 +124,42 @@ class Bq76922:
     _rst_shut_high_at: float | None = None
     _ocd_since: float | None = None
     _scd_since: float | None = None
+    _cov_since: float | None = None
+    #: seconds a cell must sit at/over COV before the latch fires —
+    #: BQ76922 has a programmable COV delay; we model it conservative-small.
+    cov_delay_s: float = 0.050
+    #: hysteresis on COV: a latched COV releases (charge-FET closed again)
+    #: once every cell is `cov_hyst_v` below the trip point. Stops a single
+    #: 1 mV droop from re-arming charge on the next tick.
+    cov_hyst_v: float = 0.050
 
     # ------------- the public surface used by sequencer_sim -----------------
 
     @property
+    def cov_latched(self) -> bool:
+        return any(f.kind == Protection.COV for f in self.latched_faults)
+
+    @property
+    def charge_fet_closed(self) -> bool:
+        """Q1 (CHG) blocks when a COV latch is standing; everything else
+        passes charge through."""
+        return self.state == BqState.NORMAL and not self.cov_latched
+
+    @property
+    def discharge_fet_closed(self) -> bool:
+        """Q2 (DSG) blocks on any latch that is *not* COV — the real
+        BQ76922 lets discharge continue through a COV event so a full pack
+        on the bench still powers the load (P2-2)."""
+        return self.state == BqState.NORMAL and not any(
+            f.kind != Protection.COV for f in self.latched_faults
+        )
+
+    @property
     def fets_closed(self) -> bool:
-        """Q1 (CHG) and Q2 (DSG) conduct only in NORMAL with no latched
-        protection that opens them. For our purposes a latched fault opens
-        the FETs; a CUV latch releases only on a charger detection, and we
-        never model a charger, so any latch holds until `kill()` reboots.
-        """
-        return self.state == BqState.NORMAL and not self.latched_faults
+        """Both FETs shut. Historic alias for the bench test "are we
+        outputting"; equal to `discharge_fet_closed` for the protections
+        this suite exercises. Kept for callers that predate the COV split."""
+        return self.discharge_fet_closed
 
     @property
     def powered_up(self) -> bool:
@@ -184,7 +209,9 @@ class Bq76922:
         else:
             self._rst_shut_high_at = None
 
-        # -- protections (per-cell first)
+        # -- protections (per-cell first; with the datasheet's programmable
+        #    delays and a hysteresis that stops a 1-mV droop from re-arming
+        #    COV on every other tick — P2-2).
         cells = (cell_taps_v[1] - cell_taps_v[0],
                  cell_taps_v[2] - cell_taps_v[1],
                  cell_taps_v[3] - cell_taps_v[2])
@@ -194,11 +221,26 @@ class Bq76922:
             ):
                 self.latched_faults.append(
                     ProtectionEvent(Protection.CUV, t_s, cv))
-            if cv >= self.cov_v and all(
-                    f.kind != Protection.COV for f in self.latched_faults
-            ):
+
+        # COV with delay + hysteresis. A COV latch affects only the CHARGE
+        # FET (see `charge_fet_closed`); the discharge path stays live so
+        # a fresh, fully-charged pack on the bench at zero load does NOT
+        # false-fail (P2-2).
+        max_cell = max(cells)
+        if max_cell >= self.cov_v and not self.cov_latched:
+            self._cov_since = self._cov_since if self._cov_since is not None else t_s
+            if t_s - self._cov_since >= self.cov_delay_s:
                 self.latched_faults.append(
-                    ProtectionEvent(Protection.COV, t_s, cv))
+                    ProtectionEvent(Protection.COV, t_s, max_cell))
+        else:
+            self._cov_since = None
+        # Hysteresis release: once every cell is cov_hyst_v under the trip,
+        # the latch lets go and the charge FET closes again. Discharge was
+        # never blocked, so release matters only for the charge side.
+        if self.cov_latched and max_cell < (self.cov_v - self.cov_hyst_v):
+            self.latched_faults = [f for f in self.latched_faults
+                                   if f.kind != Protection.COV]
+            self._cov_since = None
 
         # -- over-current with delay
         if pack_i_a >= self.ocd_a:

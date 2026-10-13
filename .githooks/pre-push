@@ -138,6 +138,18 @@ if ! python3 -m pytest "$ROOT/sim/sil" -q; then
   rc=1
 fi
 
+# --- [3b/9] power-board simulation suite --------------------------------------
+# The pbsim suite (pcb/power-board/pbsim/tests/) guards the rev-A board's
+# schematic parse, the TPS48111/BQ76922 protection models, and the PACK+ /
+# SERVO+ sequencing the design record commits to. Wired in as a hard gate
+# (P2-4 of round-2 review).
+echo "" >&2
+echo "== [power-board-sim] pytest pcb/power-board/pbsim =="
+if ! python3 -m pytest "$ROOT/pcb/power-board/pbsim" -q; then
+  echo "FAIL: power-board simulation suite failed" >&2
+  rc=1
+fi
+
 # --- [4/9]..[8-9/9]: the C/C++ toolchain gates, on C/C++ pushes only -----------
 if [ -z "$cpp" ]; then
   echo "" >&2

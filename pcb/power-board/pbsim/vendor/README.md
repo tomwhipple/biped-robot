@@ -34,7 +34,7 @@ as shipped on Debian refuses TI's syntax for two reasons:
   concerned — every parameter TI sets is set in both versions);
 - TI's device names (`NMOS`, `PMOSd`, `DBD`, `DD`, `DDx`, `RTEMP`) kept.
 
-Regenerate with `python pcb/power-board/sim/rewrite_ti_model.py` (kept
+Regenerate with `python pcb/power-board/pbsim/rewrite_ti_model.py` (kept
 here as the script that produced the rewrite, for auditability.
 `test_schematic_intact.py` pins the SHA-256 of both files so the rewrite
 cannot drift silently.

@@ -9,7 +9,7 @@ to run on a laptop that has never seen the robot.
 
 Run it:
 
-    python -m pytest pcb/power-board/sim/tests/ -q
+    python -m pytest pcb/power-board/pbsim/tests/ -q
 
 (From the repo root, with the repo venv activated. The vendored
 ngspice binary is used for the device-level models via ctypes — see

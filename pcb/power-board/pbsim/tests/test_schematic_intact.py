@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from sim.schematicsnapshot import load, parse_si_value
+from pbsim.schematicsnapshot import load, parse_si_value
 
 
 # C3's verified values, keyed by ref. Read directly from the verification

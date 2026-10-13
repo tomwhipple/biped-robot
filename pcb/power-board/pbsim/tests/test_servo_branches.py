@@ -52,9 +52,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sim.schematicsnapshot import parse_si_value
-from sim.sequencer_sim import Buttons, Esp32Stub, PowerBoard
-from sim.pack import Pack3S
+from pbsim.schematicsnapshot import parse_si_value
+from pbsim.sequencer_sim import Buttons, Esp32Stub, PowerBoard
+from pbsim.pack import Pack3S
 
 
 # ----------------- the harness numbers, transcribed ------------------------

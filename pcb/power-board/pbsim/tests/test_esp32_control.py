@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import pytest
 
-from sim.sequencer_sim import (R32_OHM, R33_OHM, BoardState, Buttons,
+from pbsim.sequencer_sim import (R32_OHM, R33_OHM, BoardState, Buttons,
                                Esp32Stub, PowerBoard)
 
 
@@ -138,7 +138,7 @@ def test_rail_v_divider_keeps_gpio34_in_adc_range():
     GPIO 34 (within the ESP32's ADC11 range 150–2450 mV). At 0.5 V rail
     (just above 'off'), GPIO 34 reads 87 mV — below ADC noise floor, fine
     for an off signal."""
-    from sim.sequencer_sim import R38_OHM, R39_OHM
+    from pbsim.sequencer_sim import R38_OHM, R39_OHM
     gnd_at_12_6 = 12.6 * R39_OHM / (R38_OHM + R39_OHM)
     gnd_at_9 = 9.0 * R39_OHM / (R38_OHM + R39_OHM)
     assert 0.15 < gnd_at_12_6 < 2.45  # ESP32 ADC 11 dB range, C7
@@ -151,7 +151,7 @@ def test_kill_pin_voltage_within_rst_shut_spec():
     """C7: ESP32 3.3 V high through R12/R11 must give ≥ 1.2 V at RST_SHUT
     (V(IH) 0.67 × REG18 ≈ 1.2 V, 5.5 V max). Schematic values R12=1 kΩ /
     R11=10 kΩ give 3.3 × 10/11 = 3.0 V."""
-    from sim.sequencer_sim import R11_OHM, R12_OHM
+    from pbsim.sequencer_sim import R11_OHM, R12_OHM
     v = 3.3 * R11_OHM / (R12_OHM + R11_OHM)
     assert v > 1.2, f"KILL voltage {v:.2f} V is under the 1.2 V threshold"
     assert v < 5.5
@@ -171,7 +171,7 @@ def test_stuck_on_rail_is_detectable_by_firmware():
     board = PowerBoard()
 
     # Weld Q3: replace the rail switch with one that never opens on INP.
-    from sim.tps48111 import RailState
+    from pbsim.tps48111 import RailState
     def stuck_update(t_s, dt_s, en_pin_v, inp_pin_v, pack_v, rail_i_a):
         sw = board.rail_sw
         if en_pin_v >= 1.0 and pack_v > 6.0:
@@ -239,10 +239,11 @@ def test_esp32_unpowered_imu_still_boots():
     The model: the IMU is on the ESP32's bus (off-board); the power board
     pulls nothing below 3V3_HOST. Assert J9's pin list matches the harness
     (1 3V3, 2 GND, 3 SDA, 4 SCL) and that the SDA/SCL nets are pulled up
-    (not down) — we observe that the schematic's `SDA` and `SCL` labels
-    appear exactly once each on the BQ76922 and once on the J9 connector,
-    no additional pulldown."""
-    from sim.schematicsnapshot import load
+    (not down): we observe that the schematic carries `SDA` and `SCL` as
+    named labels (membership, not multiplicity — the labels appear on the
+    BQ76922's pins AND on the J9 connector AND on the IMU stub; a set
+    membership check is the truthful form of the assertion)."""
+    from pbsim.schematicsnapshot import load
     s = load()
     j9 = s.components["J9"]
     assert sorted(j9.pins) == ["1", "2", "3", "4"]
@@ -257,7 +258,7 @@ def test_control_signals_on_j12_match_design_pin_map():
     """J12 pin map per harness.md and design §9. If J12 is repinned, tests
     downstream of it (RAIL_V scaling, KILL, etc.) must see the change here
     first."""
-    from sim.schematicsnapshot import load
+    from pbsim.schematicsnapshot import load
     s = load()
     j12 = s.components["J12"]
     assert sorted(j12.pins, key=int) == [str(i) for i in range(1, 9)]

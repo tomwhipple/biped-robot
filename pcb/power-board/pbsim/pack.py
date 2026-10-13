@@ -5,8 +5,12 @@ verification record C13 substitutes the actual ordered OVONIC 4200 mAh
 130C part with **no maker datasheet** for resistance. So:
 
 - Capacity: 4200 mAh (C13 measured value), but the model is parameterised.
-- Internal resistance: a parameter we vary (C13's "depends on the internal
-  resistance" finding). The suite sweeps 5/8/15/35 mΩ cases.
+- Internal resistance: exposed as `Cell.internal_resistance_mohm`;
+  `Pack3S.fresh()` defaults to 3 mΩ/cell (matching a fresh 130C-class
+  pack). C13 deferred the actual IR measurement to the bench (P7), so
+  every test uses the default — call sites that sweep 5/8/15/35 mΩ do
+  not exist as tests; if a future card adds them they must construct
+  `Pack3S.fresh(r_cell_mohm=...)` explicitly.
 - Cell taps: the XHP-4 balance J2 pins (1 B-, 2 c1+, 3 c2+, 4 B+).
 
 This is a behavioural model, not an electrochemical one — no Peukert, no

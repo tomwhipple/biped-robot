@@ -127,8 +127,19 @@ class Tps48111:
         # high is 3.3 V → 3.27 V at INP (matches C3's V(INP_H) ≤ 2 V).
         inp_hi = inp_pin_v >= VINP_H
 
-        # -- Latched states never leave without a power cycle.
+        # -- Latched states: the real part's latch clears on an EN low
+        #    pulse (the OFF transition of the E-STOP feed) or a VCC
+        #    recycle. Modelling the EN-pulse release lets the suite power
+        #    through the "trip, release E-STOP, re-SERVO_EN" recovery
+        #    sequence without reconstructing the board. A latch with EN
+        #    held high stays latched.
         if self.state in (RailState.LATCHED_CB, RailState.LATCHED_SC):
+            if en_lo:
+                self.state = RailState.OFF
+                self.cb_since = self.sc_since = None
+                self._rising_started_at = None
+                self.rail_v = 0.0
+                return
             self.rail_v = 0.0
             return
 
@@ -143,15 +154,34 @@ class Tps48111:
                 self._rising_started_at = t_s
             return
 
-        # -- Gate drive up: rail voltage rises exponentially to pack level
+        # -- Gate drive up: rail voltage rises exponentially to pack level.
+        #    EN/UVLO below 0.3 V or INP below threshold at ANY point in the
+        #    ramp pulls the FET off (datasheet: "off below 0.3 V... no
+        #    firmware involved") — the STARTING state has to honour EN/INP
+        #    just like ON does, otherwise a latched E-STOP during soft
+        #    start lets the rail reach ON anyway (P1-2).
         if self.state == RailState.STARTING:
-            elapsed = t_s - (self._rising_started_at or t_s)
+            if en_lo or not inp_hi:
+                self.state = RailState.OFF
+                self.rail_v = 0.0
+                self.cb_since = self.sc_since = None
+                self._rising_started_at = None
+                return
+            # `_rising_started_at` is always set when STARTING is entered
+            # from OFF above. `is not None`, not `or` — a transition at
+            # t=0.0 exactly must not hang the ramp on the falsy zero.
+            started = self._rising_started_at
+            if started is None:      # defensive; unreachable in the suite
+                started = t_s
+                self._rising_started_at = t_s
+            elapsed = t_s - started
             target = pack_v
             self.rail_v = target * (1.0 - np.exp(-elapsed / _SOFT_START_TAU_S)) \
                 if elapsed > 0 else 0.0
             if elapsed >= SOFT_START_T90_S * 1.05:
                 self.state = RailState.ON
                 self.rail_v = pack_v
+                self._rising_started_at = None
             return
 
         # -- ON: watch for EN falling or INP low → off; overcurrents → trip

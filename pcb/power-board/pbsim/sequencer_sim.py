@@ -25,9 +25,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from sim.bq76922 import (BQ76922_I2C_ADDR, Bq76922, BqState, ProtectionEvent)
-from sim.pack import Pack3S
-from sim.tps48111 import RailState, Tps48111
+from pbsim.bq76922 import (BQ76922_I2C_ADDR, Bq76922, BqState, ProtectionEvent)
+from pbsim.pack import Pack3S
+from pbsim.tps48111 import RailState, Tps48111
 
 
 # R30/R31 on EN/UVLO (C3): rising 7.79 V, falling 7.39 V

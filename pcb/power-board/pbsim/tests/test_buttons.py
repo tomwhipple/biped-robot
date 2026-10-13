@@ -33,8 +33,8 @@ from __future__ import annotations
 
 import pytest
 
-from sim.pack import Pack3S
-from sim.sequencer_sim import (BoardState, Buttons, Esp32Stub, PowerBoard)
+from pbsim.pack import Pack3S
+from pbsim.sequencer_sim import (BoardState, Buttons, Esp32Stub, PowerBoard)
 
 
 class _FirmwareOn(Esp32Stub):
@@ -230,29 +230,44 @@ def test_estop_pressed_opens_servo_rail():
 def test_estop_while_rail_starting_recovers_off():
     """The E-stop can arrive while the rail is still in its 40 ms STARTING
     window; the EN line is what decides, so the partial ramp must abort
-    rather than reach ON."""
+    rather than reach ON.
+
+    Timing measured on this suite at rail_load=0: BQ76922 reaches NORMAL
+    at t=0.281 (wake latency), STARTING is entered that same tick, and the
+    40 ms soft start lands ON at t=0.323. We press mid-ramp at t=0.295 —
+    14 ms into the ~42 ms ramp — which exercises the property the previous
+    version claimed but did not deliver (P1-1: a press at 0.42 s arrived
+    ~97 ms AFTER ON, asserting nothing about the mid-ramp abort)."""
     board = PowerBoard()
     esp = _FirmwareOn()
     def btns(t):
-        if t < 0.35:
+        if t < 0.29:
             return Buttons(power_pressed=True)
-        # press E-stop mid-STARTING — but wait past the wake: the rail
-        # reaches STARTING around t ≈ 0.3+ms at load 0, so pressing at 0.42
-        # hits mid-STARTING.
-        if 0.42 <= t < 0.9:
+        # press E-stop genuinely mid-STARTING — after wake (0.281) but
+        # before the 40 ms soft start completes at 0.323.
+        if 0.295 <= t < 0.9:
             return Buttons(estop_latched=True)
         return Buttons()
     out = _run(board, btns, esp, rail_load=0.0, n_ticks=1500)
-    # At no point after the e-stop latch takes effect is the rail fully ON.
-    # The latch is *released* at t=0.9: the rail could in principle come up
-    # after the release. Assert only that *during* the press the rail did
-    # not stay/live in ON.
-    pressed = [s for s in out if 0.42 < s.t_s < 0.90]
-    # first tick at 0.42 has the state *before* the latch landed; allow one
-    # transitional tick
+    # The rail must never reach ON while the E-stop is pressed. Once the
+    # button is released the rail may legally come up — that is asserted
+    # separately by test_power_on_sequence_order and is not this test's
+    # property.
+    pressed = [s for s in out if 0.295 < s.t_s < 0.90]
+    # first tick at 0.295 has the state *before* the latch landed; allow
+    # one transitional tick.
     assert not any(s.rail_state == "ON" for s in pressed[1:]), (
         f"rail reached ON while E-stop was pressed: "
         f"{[s.rail_state for s in pressed]}"
+    )
+    # and the rail must actually back OUT of STARTING — a model that
+    # ignored EN during STARTING would still reach ON behind the latch.
+    assert any(s.rail_state == "STARTING" for s in out
+               if 0.280 < s.t_s < 0.295), (
+        "setup: rail must have entered STARTING before the press lands"
+    )
+    assert any(s.rail_state == "OFF" for s in pressed[5:]), (
+        "rail never aborted STARTING back to OFF during the press"
     )
 
 
@@ -321,56 +336,81 @@ def test_estop_both_contacts_stuck_means_kill_must_open_main_switch():
 
     Fault injection: *both* contacts welded, plus Q3 (the rail FET)
     welded — the *rail* stays up even with INP low; the F4 sequencer
-    notices (RAIL_V high while ESTOP_N claims pressed), and raises KILL.
+    notices (RAIL_V high while SERVO_EN is commanded low), and raises
+    KILL.
 
-    This test asserts ONLY the chain the design claims: ESTOP_N high →
-    firmware decides → KILL high → PACK+ drops. (The F4 module proper is
-    firmware-side and out of scope here.)"""
+    This test asserts ONLY the chain the design claims: rail-up while
+    commanded-off → firmware decides → KILL high → PACK+ drops. (The F4
+    module proper is firmware-side and out of scope here.)"""
     board = PowerBoard()
+
+    # Weld Q3: replace the rail switch with one that never opens on INP or
+    # on EN. The previous version's docstring promised this monkeypatch but
+    # never installed it (P2-1) — without a welded Q3 the rail falls via
+    # SERVO_EN low alone and the test exercises nothing the simpler
+    # `test_stuck_on_rail_is_detectable_by_firmware` does not already
+    # cover.
+    from pbsim.tps48111 import RailState
+    def welded_q3_update(t_s, dt_s, en_pin_v, inp_pin_v, pack_v, rail_i_a):
+        sw = board.rail_sw
+        if pack_v > 6.0:
+            sw.state = RailState.ON
+            sw.rail_v = pack_v - rail_i_a * (2e-3 + 1.2e-3)
+        else:
+            sw.state = RailState.OFF
+            sw.rail_v = 0.0
+    board.rail_sw.update = welded_q3_update  # type: ignore[method-assign]
+
     class F4Logic(Esp32Stub):
+        """F4 from design §9: sees rail-up while SERVO_EN is commanded
+        low (the disagreement), raises KILL (with the 1 s RST_SHUT window
+        the datasheet sets)."""
         def __init__(self):
+            self.disagree_since: float | None = None
             self.kill_issued_at: float | None = None
+            self.servo_en_v = 3.3
 
-        def tick(self, t, board):
-            if self.kill_issued_at is not None:
-                return {"servo_en_v": 0.0, "kill_v": 3.3, "i2c_start_v": 3.3}
+        def tick(self, t_s, board):
             if board is None:
-                return {"servo_en_v": 3.3, "kill_v": 0.0, "i2c_start_v": 3.3}
-            # F4 sees: E-STOP latched (contact B welded ⇒ ESTOP_N is
-            # pulled low regardless — no wait, contact B STUCK CLOSED means
-            # ESTOP_N stays low even when the button is pressed. The
-            # firmware's actual F4 sees "rail_v high while SERVO_EN is
-            # low" as the stuck-on-rail signature; ESTOP_N is *also*
-            # involved in the real firmware, but here we deliberately cut
-            # to the *rail-up-when-commanded-off* criterion).
-            if t > 1.5 and board.rail_v > 0.5 and t > 0.4:
-                # rail still up after the press — weld-on fault
-                self.kill_issued_at = t
-                return {"servo_en_v": 0.0, "kill_v": 3.3, "i2c_start_v": 3.3}
-            return {"servo_en_v": 3.3, "kill_v": 0.0, "i2c_start_v": 3.3}
+                return {"servo_en_v": 3.3, "kill_v": 0.0,
+                        "i2c_start_v": 3.3}
+            if self.kill_issued_at is not None:
+                return {"servo_en_v": 0.0, "kill_v": 3.3,
+                        "i2c_start_v": 3.3}
+            # command SERVO_EN off once the boot has had a chance to
+            # settle — this is what makes "rail is up" a *disagreement*.
+            if t_s > 0.8:
+                self.servo_en_v = 0.0
+            disagree = (board.rail_v_at_gpio34 > 0.05
+                        and self.servo_en_v < 0.05)
+            if disagree and self.disagree_since is None:
+                self.disagree_since = t_s
+            if disagree and t_s - self.disagree_since > 0.05:
+                self.kill_issued_at = t_s
+                return {"servo_en_v": 0.0, "kill_v": 3.3,
+                        "i2c_start_v": 3.3}
+            if not disagree:
+                self.disagree_since = None
+            return {"servo_en_v": self.servo_en_v, "kill_v": 0.0,
+                    "i2c_start_v": 3.3}
 
-    # We simulate the Q3 weld by pinning the rail: an Esp32 stub cannot do
-    # that, so we monkeypatch the rail switch to never leave ON.
-    from sim.tps48111 import RailState
     def btns(t):
         if t < 0.4:
             return Buttons(power_pressed=True)
         if t >= 1.5:
             # both contacts welded: A stays feeding EN, B stays pulling
-            # ESTOP_N low
+            # ESTOP_N low — firmware cannot see the press at all.
             return Buttons(estop_latched=True,
                            estop_a_stuck_closed=True,
                            estop_b_stuck_closed=True)
         return Buttons()
     esp = F4Logic()
-    out = _run(board, btns, esp, rail_load=3.05, n_ticks=3500)
-    # The fault: after t=1.5, the rail would *normally* fall via EN; here
-    # ESTOP is ineffective (welded A), and INP would drop it but our ESP32
-    # only drops SERVO_EN when it decides to KILL. In the real F4 the
-    # decision is "rail_up AND commanded_off" — we just need to see that
-    # KILL lands and the MAIN switch (BQ76922) takes PACK+ down.
+    out = _run(board, btns, esp, rail_load=3.05, n_ticks=5000)
+    # The fault: after t=0.8 the ESP32 has commanded SERVO_EN off, but the
+    # welded Q3 keeps the rail live. F4 sees RAIL_V high while SERVO_EN is
+    # low for ≥ 50 ms and raises KILL.
     assert esp.kill_issued_at is not None, (
-        "F4 never saw the stuck-on-rail and never issued KILL"
+        "F4 never saw the stuck rail and never issued KILL"
     )
     after_kill = [s for s in out if s.t_s >= esp.kill_issued_at + 1.2]
     assert all(s.bq_state == "SHUTDOWN" for s in after_kill), (
@@ -379,6 +419,44 @@ def test_estop_both_contacts_stuck_means_kill_must_open_main_switch():
     assert all(s.packplus_v < 1.0 for s in after_kill), (
         "PACK+ stayed live after KILL"
     )
+
+
+def test_estop_contact_b_welded_alone_rail_still_dies_via_contact_a():
+    """Fault injection: contact B (ESTOP_N sense) WELDED SHUT — the ESP32
+    never sees the press (ESTOP_N stays low even when the button is
+    latched). This is the asymmetry design §5.3 leans on: with the firmware
+    blind, the hardware stop still has to work through contact A.
+
+    Asserts:
+      * rail falls at the press (contact A still opens EN),
+      * ESTOP_N reads LOW the whole time (ESP32 is blind),
+      * PACK+ stays up (logic untouched)."""
+    board = PowerBoard()
+    esp = _FirmwareOn()   # ESP32 does NOT react to ESTOP_N — weld makes
+                          # the firmware blind to the press.
+
+    def btns(t):
+        if t < 0.4:
+            return Buttons(power_pressed=True)
+        if t >= 1.5:
+            # E-stop pressed but contact B welded closed: ESTOP_N pinned
+            # low even under press; contact A works normally.
+            return Buttons(estop_latched=True, estop_b_stuck_closed=True)
+        return Buttons()
+
+    out = _run(board, btns, esp, rail_load=3.05, n_ticks=2500)
+    before = [s for s in out if 1.0 < s.t_s < 1.5]
+    assert any(s.rail_state == "ON" for s in before), "rail never came up"
+    after = [s for s in out if s.t_s > 1.6]
+    assert all(s.rail_state == "OFF" for s in after), (
+        "with only contact B welded, contact A still must open the rail"
+    )
+    # The ESP32 never sees the press — ESTOP_N stays LOW throughout.
+    assert all(s.estop_n_v < 0.5 for s in after), (
+        "ESTOP_N read high with contact B welded closed — the weld model "
+        "is wrong"
+    )
+    assert all(s.packplus_v > 9.0 for s in after)
 
 
 def test_power_button_does_not_wake_when_kill_latched():

@@ -32,11 +32,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sim.bq76922 import (BQ76922_I2C_ADDR, OTP_COV_V, OTP_CUV_V, OTP_OCD_A,
+from pbsim.bq76922 import (BQ76922_I2C_ADDR, OTP_COV_V, OTP_CUV_V, OTP_OCD_A,
                           OTP_SCD_A, OTP_SUCD_STACK_V, Bq76922, BqState,
                           Protection)
-from sim.pack import Pack3S, v_oc
-from sim.sequencer_sim import BoardState, Buttons, Esp32Stub, PowerBoard
+from pbsim.pack import Pack3S, v_oc
+from pbsim.sequencer_sim import BoardState, Buttons, Esp32Stub, PowerBoard
 
 
 class _QuietEsp(Esp32Stub):
@@ -99,12 +99,18 @@ def test_cov_at_4_2v_per_cell():
     # want cell 2 at 4.25
     # taps: 0, 3.8 (cell1), 3.8+4.25=8.05 (cell1+cell2), 8.05+3.8=11.85
     v_hot = (0.0, 3.8, 8.05, 11.85)
-    for k in range(50):
+    # COV has a programmable delay on the real part (modelled at 50 ms);
+    # drive past it, not just to it.
+    for k in range(200):
         bq.update(k*1e-3, 1e-3, v_hot, pack_v=11.85, pack_i_a=-1.0,
                   ts2_pin_v=5.5, rst_shut_pin_v=0.0)
     kinds = [f.kind for f in bq.latched_faults]
     assert Protection.COV in kinds, f"expected COV, got {kinds}"
-    assert not bq.fets_closed
+    # COV opens the CHARGE FET; discharge continues so a full pack at
+    # rest can still power the board (P2-2 / real BQ76922 semantics).
+    assert not bq.charge_fet_closed
+    assert bq.discharge_fet_closed, "COV must NOT block discharge"
+    assert bq.fets_closed, "legacy fets_closed should equal discharge side"
 
 
 def test_ocd_at_20a_with_delay():
@@ -224,6 +230,64 @@ def test_wake_consumption_is_microwatt_scale():
     # SOC drop after 60 s of 1 µA: 6e-3 mA·min / 60 = 1e-4 mAh min⁻¹
     # → essentially nothing. Assert numerically.
     assert pack.soc_min() > 0.9999
+
+
+def test_fresh_full_pack_at_zero_load_powers_on_and_discharges_normally():
+    """P2-2: a fresh pack at SOC=1.0 sits with v_oc = 4.20 V/cell — exactly
+    at COV. With zero load and no charger, the real BQ76922 must NOT open
+    the discharge FET; the bench test "plug it in, press POWER" must work.
+
+    COV may latch (the cells genuinely are at the ceiling) but it must
+    block the CHARGE side only; the discharge side stays live, and the
+    hysteresis release clears the latch once the cells droop.
+    """
+    pack = Pack3S.fresh()
+    assert pack.pack_v_open == pytest.approx(12.6, rel=1e-3)
+    board = PowerBoard(pack=pack)
+    esp = _QuietEsp()
+    out, last = [], None
+    for _ in range(800):
+        st = board.tick(_press_on_boot(board.t_s), esp,
+                        rail_load_a=0.0, board=last)
+        out.append(st); last = st
+    # board must wake
+    assert any(s.bq_state == "NORMAL" for s in out), (
+        "BQ76922 never woke on a fresh full pack"
+    )
+    # PACK+ must come up and STAY up: the discharge FET never opens even
+    # though a full pack at rest rides exactly on COV.
+    normal = [s for s in out if s.bq_state == "NORMAL"]
+    assert all(s.bq_fets_closed for s in normal), (
+        "discharge FET opened on a full pack at rest — COV must not "
+        "block discharge (P2-2)"
+    )
+    assert all(s.packplus_v > 9.0 for s in normal)
+
+
+def test_cov_hysteresis_releases_latch_once_cells_droop():
+    """COV opens CHG only; a subsequent discharge sags cells under
+    COV-hysteresis and the latch releases. A permanent COV would brick the
+    board's charge path the moment the pack reaches 4.20 V/cell."""
+    bq = Bq76922(); bq.state = BqState.NORMAL
+    # over-voltage present long enough to trip the COV delay
+    v_hot = (0.0, 3.8, 8.05, 11.85)   # cell 2 at 4.25 V
+    for k in range(200):
+        bq.update(k*1e-3, 1e-3, v_hot, pack_v=11.85, pack_i_a=-1.0,
+                  ts2_pin_v=5.5, rst_shut_pin_v=0.0)
+    assert any(f.kind == Protection.COV for f in bq.latched_faults)
+    assert not bq.charge_fet_closed
+    # discharge sags cells back to 3.9 V each (above hysteresis-release
+    # threshold of 4.20 − 0.05 = 4.15): latch clears.
+    v_ok = (0.0, 3.9, 7.8, 11.7)
+    for k in range(200, 300):
+        bq.update(k*1e-3, 1e-3, v_ok, pack_v=11.7, pack_i_a=0.5,
+                  ts2_pin_v=5.5, rst_shut_pin_v=0.0)
+    kinds = [f.kind for f in bq.latched_faults]
+    assert Protection.COV not in kinds, (
+        f"COV latch did not release after cells drooped: {kinds}"
+    )
+    assert bq.charge_fet_closed
+    assert bq.discharge_fet_closed
 
 
 def test_esp32_is_never_required_for_cell_protection():

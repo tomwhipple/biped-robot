@@ -9,8 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sim import ngsim
-from sim.fetmodel import REWRITE_LIB, check_hashes
+from pbsim import ngsim
+from pbsim.fetmodel import REWRITE_LIB, check_hashes
 
 
 def test_vendored_hashes_are_pinned():
