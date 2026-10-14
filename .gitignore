@@ -53,3 +53,6 @@ third_party/
 
 # joint-puppet session logs (hand-posing sessions; export what matters)
 sim/puppet_sessions/
+
+# make: every generated file git does not track (see `make help`)
+build/

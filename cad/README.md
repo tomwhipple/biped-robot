@@ -99,7 +99,14 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 
 ## Regenerate
 
+`make` rebuilds what changed (`make help`); the scripts behind it, by hand, follow.
+
 ```bash
+make cad                                                 # every part whose source changed -> cad/v6/stl + cad/v6/step, and the rollup
+make cad PART=ankle_link                                 # one part
+make cad V=v5                                            # the prototype's parts, screws and servo mocks -> cad/stl, cad/step
+make assembly figures movies                             # the assembly STEPs + renders, the guide's step figures, the fly-ins
+make plant                                               # sim/bimo_biped_v6ar.xml from the exported STLs
 .venv/bin/python cad/v6/parts_v6.py                      # the robot: every printed part -> cad/v6/stl + cad/v6/step, bed check, rollup
 .venv/bin/python cad/v6/parts_v6.py --no-export          # the rollup alone
 .venv/bin/python cad/v6/head.py                          # head_shell, head_face (+ the fused head), audits, render

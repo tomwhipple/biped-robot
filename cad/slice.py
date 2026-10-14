@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Slice the v6 parts into OrcaSlicer projects for the FlashForge Adventurer 5M Pro.
 
-For each part, cad/gcode/ (gitignored) gets:
+For each part, build/v6/gcode/ (gitignored; `make slice` runs this) gets:
 
     <part>.3mf    an OrcaSlicer project: the part in its print orientation, the
                   print spec's settings, the plate already sliced. Open it in
@@ -47,11 +47,11 @@ import orca_profile
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STL_DIR = os.path.join(REPO, "cad", "v6", "stl")
 SETTINGS = os.path.join(REPO, "cad", "v6", "print_settings.json")
-OUT_DIR = os.path.join(REPO, "cad", "gcode")
+OUT_DIR = os.path.join(REPO, "build", "v6", "gcode")
 
 FLATPAK_ID = "com.orcaslicer.OrcaSlicer"
 # The flatpak sandbox has no network, no devices, and of the repo only
-# cad/gcode (docs/slicing.md); everything the slicer reads is staged there.
+# the output directory (docs/slicing.md); everything the slicer reads is staged there.
 SANDBOX_ENV = {
     "XDG_RUNTIME_DIR": f"/run/user/{os.getuid()}",
     "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{os.getuid()}/bus",

@@ -31,22 +31,24 @@ Everything below runs on a laptop with no robot and no GPU.
 ```bash
 python -m venv .venv && source .venv/bin/activate    # direnv does this via .envrc
 pip install -r requirements.txt
+make help                                  # every build, run and test target
 
 # look at the robot: drag its joints under gravity, push it over (native Qt window)
-python sim/joint_puppet.py                 # standing; --pose supine | prone
-python -m mujoco.viewer --mjcf=sim/bimo_biped_v6ar.xml
+make puppet                                # standing; ARGS="--pose supine" or "--pose prone"
+make sim                                   # the plant in MuJoCo's viewer
 
 # the design gates, on the robot's plant
 MUJOCO_GL=cgl python sim/static_gait.py --render sim/renders/walk.mp4   # the open-loop walk
 python sim/gate_no3250.py walk             # the walk across the gate cases
 
 # regenerate the printable parts from the parametric source, then gate them
-ARMS=1 python cad/v6/parts_v6.py           # STLs + STEPs + rollup, with the arms
-sh cad/run_checks.sh                       # swept-ROM interference, must PASS
+make cad                                   # every part whose source changed: STL + STEP, and the mass rollup
+make check-cad                             # swept-ROM interference, must PASS
+make slice                                 # OrcaSlicer projects + gcode, in build/v6/gcode
 
 # the test gates (also run by the pre-push hook)
-python -m pytest tests/ -q                 # ~4 min: physics parity, protocol, ROM, referee, design gates
-make -C firmware/host check                # the firmware's pure modules under ASan/UBSan + the consoles
+make test                                  # the firmware's pure modules under ASan/UBSan + the consoles, then
+                                           # pytest tests/ (~4 min) and the SIL suite
 ```
 
 The console drives a simulated robot over the real command protocol, and

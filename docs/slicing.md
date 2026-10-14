@@ -8,8 +8,10 @@ in [cad/PRINT_LIST.md](../cad/PRINT_LIST.md), Slicing; this page is how it
 works.
 
 ```bash
-python3 cad/slice.py leg_link_v6       # -> cad/gcode/leg_link_v6.3mf + leg_link_v6.gcode
-python3 cad/slice.py feet              # -> cad/gcode/feet.3mf: foot_L + foot_R
+make slice PART=leg_link_v6           # -> build/v6/gcode/leg_link_v6.3mf + leg_link_v6.gcode
+make slice                            # every plate, and every part on no plate, whose STL or settings changed
+python3 cad/slice.py leg_link_v6       # the same job without make (it does not export the STL first)
+python3 cad/slice.py feet              # -> build/v6/gcode/feet.3mf: foot_L + foot_R
 python3 cad/slice.py --all             # every plate, and every part on no plate
 python3 cad/slice.py --harvest
 python3 cad/slice.py --variant hip_yoke_glued hip_yoke_glued   # a build variant's plate
@@ -19,7 +21,7 @@ python3 cad/slice.py --variant hip_yoke_glued hip_yoke_glued   # a build variant
 the run. These are parts of a non-default build, such as the glued hip yoke,
 that the default table leaves out.
 
-Output goes to `cad/gcode/` (gitignored: regenerate, don't commit). Its
+Output goes to `build/v6/gcode/` (gitignored: regenerate, don't commit). Its
 `.work/` holds the staged STLs and presets, OrcaSlicer's data dirs, each
 project's state, and copies of projects saved from the GUI (`.work/saved/`).
 Projects slice in parallel (`--jobs`, default half the cores).
@@ -135,7 +137,7 @@ The flatpak ships with `devices=all`, `filesystems=home` and `shared=network`.
 On mira that would expose `/dev/ttyUSB0` (the live servo bus),
 `~/.config/gh/hosts.yml`, `~/.hermes/`, and `~/.ssh/`. It is locked down to what
 a slicer actually needs. `slice.py` stages every file the slicer reads in
-`cad/gcode/.work`, so `cad/gcode` is the only directory it needs:
+`build/v6/gcode/.work`, so `build/v6/gcode` is the only directory it needs:
 
 ```bash
 flatpak override --user \
@@ -143,7 +145,7 @@ flatpak override --user \
   --nofilesystem=home --nofilesystem=/media --nofilesystem=/run/media \
   --nofilesystem=/mnt --nofilesystem=xdg-run/gvfs \
   --system-no-talk-name=org.freedesktop.UDisks2 \
-  --filesystem=$HOME/code/robot/cad/gcode \
+  --filesystem=$HOME/code/robot/build/v6/gcode \
   com.orcaslicer.OrcaSlicer
 ```
 
