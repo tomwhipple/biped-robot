@@ -39,8 +39,9 @@ over the table that tapers toward the clamp), one gusset at the table edge,
 and the base under the clamp.
 
 Run:  MUJOCO_GL=cgl .venv/bin/python experiments/plan-b-bench/plan_b_rig.py
-      (cgl on the Mac, egl on Linux) writes stl/plan_b_*.stl beside it in
-      print orientation, redraws figs/, and prints the fit checks.
+      (cgl on the Mac, egl on Linux) writes build/bench-v2/stl/plan_b_*.stl in
+      print orientation, redraws the render and side diagram into
+      build/bench-v2/renders/, and prints the fit checks.
 """
 import math
 import os
@@ -53,6 +54,8 @@ from build123d import (Box, Cone, Cylinder, Location, Plane, Pos, Rot,
 HERE = os.path.dirname(os.path.abspath(__file__))          # experiments/plan-b-bench/
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "cad"))                 # dimensions, parts, check_assembly
+sys.path.insert(0, ROOT)                                      # paths
+from paths import build_dir  # noqa: E402
 import dimensions as D  # noqa: E402
 import parts as PT  # noqa: E402  (the leg link's own helpers, for idler_seat)
 
@@ -481,7 +484,7 @@ def main():
                     ("lid", li), ("stop_pin", pin)):
         print(f"  {name}: {p.volume / 1000:.1f} cm3 solid (~{p.volume / 1000 * 1.24:.0f} g PLA at 100%)")
 
-    out = os.path.join(HERE, "stl")
+    out = build_dir("bench-v2", "stl")
     beds = {
         # back face down: countersinks open at the bed, everything else rises
         "bracket": to_bed(br, Rot(0, -90, 0)),
@@ -498,7 +501,8 @@ def main():
         export_stl(p, path)
         print(f"  wrote {os.path.relpath(path, ROOT)}  "
               f"({bb.size.X:.0f} x {bb.size.Y:.0f} x {bb.size.Z:.0f} mm on the bed)")
-    figs = os.path.join(HERE, "figs")
+    # figs/ holds the copies 2026-09-30-plan-b-rig.md cites; a rerun leaves them be
+    figs = build_dir("bench-v2", "renders")
     render(os.path.join(figs, "plan_b_rig_render.png"))
     diagram_svg(os.path.join(figs, "plan_b_rig_side.svg"))
     print("ALL CLEAR" if ok else "FIT CHECK FAILED")
