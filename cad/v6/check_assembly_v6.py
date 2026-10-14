@@ -231,7 +231,7 @@ def _designed_press_fits():
     z0, z1 = zh - V.YAW_BRG_W, zh
     race_in = Pv5.cyl_z(V.YAW_BRG_INNER_RING_R, z0, z1, 0, y) - Pv5.cyl_z(V.YAW_BRG_ID / 2, z0 - 1, z1 + 1, 0, y)
     hub = Pv5.cyl_z(V.YAW_BRG_BOSS_R, z0, z1, 0, y)
-    hub -= Pos(0, y, z0 + YC.HUB_LEAD_IN / 2 - 0.05) * Cone(V.YAW_BRG_BOSS_R + 0.05, V.YAW_BRG_BOSS_R - YC.HUB_LEAD_IN,
+    hub -= Pos(0, y, z1 - YC.HUB_LEAD_IN / 2 + 0.05) * Cone(V.YAW_BRG_BOSS_R - YC.HUB_LEAD_IN, V.YAW_BRG_BOSS_R + 0.05,
                                                          YC.HUB_LEAD_IN + 0.1)
     zd = V.DECK_TOP_Z
     r0, r1 = V.YAW_BRG_RECESS_Z
@@ -359,21 +359,20 @@ def check_pair(joint, la, lb, samples, side="L", extra=None):
 
 # ---------------------------------------------------------------- the hip's bench order
 # docs/assembly.md section 7: each part goes UP from below into the state the
-# steps before it left. (step, moving pieces, pieces already in place). Left
-# hip for the first three; the housing spans both hips, so it goes up with
-# both bearings already pressed into it, under both built hips. A housing
-# whose shoulder sits ABOVE the outer race cannot come up past a race that is
-# already on the hub, so the bearings go into the housing on the bench first.
-_HIP_L = ["servo_hip_yaw_L", "yaw_carrier_L", "servo_hip_roll_L", "bearing_inner_L", "bearing_outer_L"]
-_HIP_R = [n[:-1] + "R" for n in _HIP_L]
+# steps before it left. (step, moving pieces, pieces already in place). The
+# housing spans both hips, so it goes up with both bearings already pressed
+# into it, under both yaw servos; then each carrier goes up through its
+# bearing until its lip seats on the inner race (the lip is wider than the
+# bore, so the bearing cannot come up over a carrier), then its roll servo.
 _BEARINGS = ["bearing_inner_L", "bearing_outer_L", "bearing_inner_R", "bearing_outer_R"]
+_HOUSED = ["pelvis_v7", "servo_hip_yaw_L", "servo_hip_yaw_R", "yaw_bearing_housing"] + _BEARINGS
 INSERT_STEPS = [
     ("7a yaw servo up into its cell", ["servo_hip_yaw_L"], ["pelvis_v7"]),
-    ("7b carrier up onto the yaw horn", ["yaw_carrier_L"], ["pelvis_v7", "servo_hip_yaw_L"]),
-    ("7c roll servo up into the bay", ["servo_hip_roll_L"], ["pelvis_v7", "servo_hip_yaw_L", "yaw_carrier_L"]),
-    ("7d bearing into the housing (bench)", ["bearing_inner_L", "bearing_outer_L"], ["yaw_bearing_housing"]),
-    ("7e housing + bearings up onto the hubs", ["yaw_bearing_housing"] + _BEARINGS,
-     ["pelvis_v7"] + _HIP_L[:3] + _HIP_R[:3]),
+    ("7b bearing into the housing (bench)", ["bearing_inner_L", "bearing_outer_L"], ["yaw_bearing_housing"]),
+    ("7c housing + bearings up under the cells", ["yaw_bearing_housing"] + _BEARINGS,
+     ["pelvis_v7", "servo_hip_yaw_L", "servo_hip_yaw_R"]),
+    ("7d carrier up through the bearing", ["yaw_carrier_L"], _HOUSED),
+    ("7e roll servo up into the bay", ["servo_hip_roll_L"], _HOUSED + ["yaw_carrier_L"]),
 ]
 INSERT_D = (0.0, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0, 30.0, 45.0, 60.0)   # mm below the seat
 INSERT_CLEARANCE_D = (1.0, 5.0, 8.0, 20.0)     # where the approach clearance is measured
@@ -389,6 +388,7 @@ def check_insertion(verbose=True):
     fit_in, fit_out = fits[("bearing_inner_L", "yaw_carrier_L")], fits[("bearing_outer_L", "yaw_bearing_housing")]
     allowed = {("bearing_inner_L", "yaw_carrier_L"): fit_in, ("bearing_inner_R", "yaw_carrier_R"): fit_in,
                ("bearing_outer_L", "yaw_bearing_housing"): fit_out}
+    allowed.update({(b, a): v for (a, b), v in list(allowed.items())})   # whichever side moves
     P0 = pieces_by_label(A.robot({}))
     fails = 0
     for step, moving, static in INSERT_STEPS:
@@ -431,17 +431,13 @@ def check_insertion(verbose=True):
 # Driver access: a D.ACCESS_D cylinder from each screw head straight back out
 # along its axis, in the state the screw is driven in (the bench order above).
 ACCESS_STATES = [
+    ("bearing-housing screws, before the carriers", "yaw_bearing_housing", "housing", "pelvis", _HOUSED),
     ("carrier horn screws, from inside the empty bay", "yaw_carrier_v6", "yaw_horn", "carrier",
-     ["pelvis_v7", "servo_hip_yaw_L", "yaw_carrier_L"]),
-    ("roll-servo wall screws, before the bearing", "yaw_carrier_v6", "roll_wall", "carrier",
-     ["pelvis_v7", "servo_hip_yaw_L", "yaw_carrier_L", "servo_hip_roll_L"]),
-    # the same screws with the hip fully assembled (bearing, housing, pelvis):
-    # the roll servo can come out for service without taking the hip apart
+     _HOUSED + ["yaw_carrier_L"]),
+    # the hip as built is also the service state: the roll servo comes out
+    # without taking the hip apart
     ("roll-servo wall screws, hip fully assembled", "yaw_carrier_v6", "roll_wall", "carrier",
-     ["pelvis_v7", "servo_hip_yaw_L", "yaw_carrier_L", "servo_hip_roll_L",
-      "yaw_bearing_housing", "bearing_inner_L", "bearing_outer_L"]),
-    ("bearing-housing screws, before the legs", "yaw_bearing_housing", "housing", "pelvis",
-     ["pelvis_v7", "yaw_bearing_housing"] + _HIP_L + _HIP_R),
+     _HOUSED + ["yaw_carrier_L", "servo_hip_roll_L"]),
 ]
 ACCESS_REACH = 50.0
 

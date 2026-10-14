@@ -22,10 +22,11 @@ z 0..-3, and the top of the spacer):
      driven up through it.
   3. re-cut the 4 horn screw bores and the centre relief, which step 1's disk
      refills.
-Below the band everything is trimmed to YAW_CARRIER_CORNER_R (24.8), under the
-24.95 bore, and the hub's bottom edge gets a lead-in: the bearings go on last,
-pressed into the housing (yaw_bearing_housing.py) and slid up over the carrier
-and the screwed-in roll servo (docs/assembly.md section 7).
+Under the band, a LIP (V.YAW_CARRIER_LIP_*, r 26.09, 1.2 thick) stops the
+inner race's bottom face: the carrier goes up through the bearing, already in
+its housing under the pelvis, until the lip seats (docs/assembly.md section
+7), and the leg's upward thrust reaches the race on that face. The hub's top
+edge, which enters the bore first, gets a lead-in.
 
 Print: v5's orientation (RX180, horn-plate face on the bed, bay walls rise).
 
@@ -47,8 +48,7 @@ import parts as P  # noqa: E402
 
 D = V.D
 box, cyl_z = P.box, P.cyl_z
-YAW_CARRIER_CORNER_R = 24.8              # everything below the band, under the bearing bore
-HUB_LEAD_IN = 0.3                        # 45 deg chamfer on the hub's bottom edge
+HUB_LEAD_IN = 0.3                        # 45 deg chamfer on the hub's top edge
 
 
 SPLIT_Z = -4.0     # v5 carrier-local: under the 3 mm plate, above every bay feature (constant section -3.05..-4.5)
@@ -87,12 +87,14 @@ def yaw_carrier_v6(print_fins=False):
     for dx, dy in ((r, 0), (-r, 0), (0, r), (0, -r)):
         p -= cyl_z(D.PAD_HOLE / 2, -4, 1, dx, dy)
     p -= cyl_z(D.HORN_CENTER_RELIEF_D / 2, -4, 1, 0, 0)
-    # 5. below the band: nothing outside the bearing bore, and a lead-in at the
-    # hub's bottom edge for the press
-    zlo = p.bounding_box().min.Z - 1
-    p -= box(-100, 100, -100, 100, zlo, z0) - cyl_z(YAW_CARRIER_CORNER_R, zlo - 1, z0 + 1, 0, 0)
-    p -= Pos(0, 0, z0 + HUB_LEAD_IN / 2 - 0.05) * Cone(r_hub + 0.05, r_hub - HUB_LEAD_IN, HUB_LEAD_IN + 0.1) \
-        - cyl_z(r_hub - HUB_LEAD_IN - 0.01, z0 - 1, z0 + 1, 0, 0)
+    # 5. the lip under the band, out to V.YAW_CARRIER_LIP_R, with the bay's
+    # interior open through it like the band's
+    l0, l1 = V.YAW_CARRIER_LIP_Z
+    p += cyl_z(V.YAW_CARRIER_LIP_R, l0, l1, 0, 0)
+    p -= box(-19.95, 19.95, -hw, hw, l0 - 0.5, l1 + 0.001) - base
+    # 6. a lead-in at the hub's top edge, which goes into the bore first
+    p -= Pos(0, 0, z1 - HUB_LEAD_IN / 2 + 0.05) * Cone(r_hub - HUB_LEAD_IN, r_hub + 0.05, HUB_LEAD_IN + 0.1) \
+        - cyl_z(r_hub - HUB_LEAD_IN - 0.01, z1 - 1, z1 + 1, 0, 0)
     return p
 
 

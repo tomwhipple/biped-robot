@@ -18,8 +18,8 @@ png beside it.
 The filmstrip is two rows: the whole build at even intervals, then the parts
 this build is ABOUT caught halfway along their insertion paths (FEATURE_GROUPS:
 the girdle and neck floor going down, the neck servo dropping into its tube,
-the arms, and the bearing housing going up with the bearings onto the
-carrier hubs).
+the arms, and the bearing housing coming down with the bearings onto the
+carrier hubs, to their lips).
 """
 from __future__ import annotations
 
@@ -58,11 +58,11 @@ INSERT = [
                                               # discs from above (same path the pair took; the roll servo then slides in)
     ("servo_hip_roll_",    (1, 0, 0), 7),    # roll servo slides into the carrier bay from the front
     ("yaw_carrier_",       (0, 0, 1), 7),
-    ("servo_hip_yaw_",     (0, 0, -1), 8),   # yaw servo offered UP into its cell (arrives from below)
-    ("pelvis_v7",          (0, 0, 1), 9),    # pelvis lowered onto the yaw servos
-    ("yaw_bearing_housing", (0, 0, -1), 10), # housing UP from below with both bearings pressed into it:
-    ("bearing_inner_",     (0, 0, -1), 10),  # the inner races slide onto the carriers' hubs, the housing
-    ("bearing_outer_",     (0, 0, -1), 10),  # meets the cell block and is screwed from below
+    ("yaw_bearing_housing", (0, 0, 1), 8),   # housing DOWN with both bearings pressed into it, the inner
+    ("bearing_inner_",     (0, 0, 1), 8),    # races onto the hubs until they sit on the carriers' lips (on
+    ("bearing_outer_",     (0, 0, 1), 8),    # the bench each carrier goes up through its bearing: same motion)
+    ("servo_hip_yaw_",     (0, 0, -1), 9),   # yaw servo offered UP into its cell (arrives from below)
+    ("pelvis_v7",          (0, 0, 1), 10),   # pelvis lowered onto the yaw servos and the housing
     ("gd_mock",            (0, 0, 1), 11),   # boards down through the deck slots
     ("pi4_mock",           (0, 0, 1), 11),
     ("pack_mock",          (0, 0, 1), 12),   # pack down through the aperture -- BEFORE the girdle:
@@ -92,7 +92,7 @@ INSERT = [
     ("arm_fore_",          (0, 0, -1), 19),
 ]
 # filmstrip row 2, by arms?: the insertion groups the strip shows
-FEATURE_GROUPS = {True: (10, 13, 14, 17, 19), False: (10, 12, 13, 14, 15)}
+FEATURE_GROUPS = {True: (8, 13, 14, 17, 19), False: (8, 12, 13, 14, 15)}
 FLY_MM = 60.0
 FRAMES_PER_GROUP = 14
 HOLD = 6

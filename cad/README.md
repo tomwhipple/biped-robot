@@ -171,8 +171,8 @@ It runs four things with `.venv/bin/python`:
      their designed interference volume.
    - The hip's bench order (`--joint insert`): each part swept up its
      insertion path into the state the earlier steps left -- yaw servo,
-     carrier, roll servo, bearings into the housing, housing and bearings
-     onto the hubs. Only the press fits may overlap; one KNOWN pre-existing
+     bearings into the housing, housing and bearings under the yaw cells,
+     carrier up through the bearing, roll servo. Only the press fits may overlap; one KNOWN pre-existing
      defect (the seated yaw servo against the cell ceiling) is reported, not
      failed.
    - A 7 mm driver's straight path to every carrier and bearing-housing screw

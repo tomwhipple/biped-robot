@@ -48,7 +48,12 @@ BENCH = {
     "servo_ankle_pitch_L": (0, 0, -1),   # grip channels take the case from below (leg_link_v6.SERVO_INSERT)
     "servo_knee_L": (0, 0, -1),
     "servo_hip_pitch_L": (0, 0, -1),
-    "yaw_carrier_L": (0, 0, -1),         # offered UP onto the yaw horn, pelvis upright on a stand
+    "yaw_bearing_housing": (0, 0, -1),   # up under the yaw cells, bearings in it (the fly-in lowers it onto the hubs)
+    "bearing_inner_L": (0, 0, -1),       # pressed into the recess from its mouth, and up with the housing
+    "bearing_outer_L": (0, 0, -1),
+    "bearing_inner_R": (0, 0, -1),
+    "bearing_outer_R": (0, 0, -1),
+    "yaw_carrier_L": (0, 0, -1),         # up through the bearing onto the yaw horn, pelvis upright on a stand
     "servo_hip_roll_L": (0, 0, -1),      # up into the downward-open bay (cad/check_assembly SERVO_INSERT yaw_carrier)
     "neck_floor": (0, 0, -1),            # up into the tube from below, on the bench (neck_floor.INSERT)
 }
@@ -58,9 +63,8 @@ LEG = ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L", "servo_knee_L", "shin_L",
 LEG_R = [n[:-1] + "R" for n in LEG]
 BEARING = ["bearing_inner_L", "bearing_outer_L"]
 BEARING_R = [n[:-1] + "R" for n in BEARING]
-HIP0 = ["servo_hip_yaw_L", "yaw_carrier_L", "servo_hip_roll_L"]      # before the bearing
-HIP0_R = [n[:-1] + "R" for n in HIP0]
-HIP = HIP0 + BEARING
+YAW = ["servo_hip_yaw_L", "servo_hip_yaw_R"]
+HIP = ["servo_hip_yaw_L", "yaw_carrier_L", "servo_hip_roll_L"] + BEARING
 HIP_R = [n[:-1] + "R" for n in HIP]
 HOUSING = ["yaw_bearing_housing"]
 TORSO = ["pelvis_v7"]
@@ -88,17 +92,16 @@ STEPS = [
      LEG[1:], ["hip_yoke_L"], 40, (135, -10), ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L"]),
     ("07_yaw_servo", "7a. Yaw servo up into its cell, horn down",
      TORSO, ["servo_hip_yaw_L"], 45, (150, 20), ["servo_hip_yaw_L", "yaw_carrier_L"]),
-    ("08_yaw_carrier", "7b. Yaw carrier up onto the yaw horn",
-     TORSO + ["servo_hip_yaw_L"], ["yaw_carrier_L"], 40, (150, 15),
-     ["servo_hip_yaw_L", "yaw_carrier_L"]),
-    ("09_hip_roll_servo", "7c. Hip-roll servo up into the carrier's bay, all 8 screws",
-     TORSO + ["servo_hip_yaw_L", "yaw_carrier_L"], ["servo_hip_roll_L"], 50, (150, 10),
-     ["yaw_carrier_L", "servo_hip_roll_L"]),
-    ("09a_bearings_into_housing", "7d (bench). Both bearings pressed into the housing, against the shoulders",
+    ("08_bearings_into_housing", "7b (bench). Both bearings pressed into the housing, against the shoulders",
      HOUSING, BEARING + BEARING_R, 30, (150, 25), None),
-    ("09b_housing", "7e. Housing and bearings up onto both hubs, five screws from below",
-     TORSO + HIP0 + HIP0_R, HOUSING + BEARING + BEARING_R, 45, (150, -15),
-     HOUSING + ["yaw_carrier_L", "yaw_carrier_R", "servo_hip_roll_L", "servo_hip_roll_R"]),
+    ("09_housing", "7c. Housing and bearings up under both yaw cells, five screws from below",
+     TORSO + YAW, HOUSING + BEARING + BEARING_R, 45, (150, -15), HOUSING + YAW),
+    ("09a_yaw_carrier", "7d. Yaw carrier up through the bearing onto the yaw horn, its lip on the inner race",
+     TORSO + YAW + HOUSING + BEARING + BEARING_R, ["yaw_carrier_L"], 40, (150, -10),
+     ["servo_hip_yaw_L", "yaw_carrier_L"]),
+    ("09b_hip_roll_servo", "7e. Hip-roll servo up into the carrier's bay, all 8 screws",
+     TORSO + YAW + HOUSING + BEARING + BEARING_R + ["yaw_carrier_L"], ["servo_hip_roll_L"], 50, (150, 10),
+     ["yaw_carrier_L", "servo_hip_roll_L"]),
     ("10_leg_to_hip", "8. The leg offered up: the yoke's roll clevis onto the roll servo",
      TORSO_DONE + HIP + HIP_R + LEG_R, LEG, 45, (145, -8), ["servo_hip_roll_L", "yaw_carrier_L", "hip_yoke_L"]),
     ("11_boards", "9. Pi 4B (aft) and General Driver (front) down their channels",
@@ -132,8 +135,8 @@ STEPS = [
 
 
 # per-step camera distance, in units of "the framed box's diagonal just fits"
-ZOOM = {"07_yaw_servo": 2.2, "08_yaw_carrier": 2.0, "09_hip_roll_servo": 2.0, "09a_bearings_into_housing": 1.3,
-        "09b_housing": 1.3, "10_leg_to_hip": 1.6,
+ZOOM = {"07_yaw_servo": 2.2, "08_bearings_into_housing": 1.3, "09_housing": 1.3, "09a_yaw_carrier": 2.0,
+        "09b_hip_roll_servo": 2.0, "10_leg_to_hip": 1.6,
         "13_neck_floor": 2.4, "14_neck_servo": 1.4, "17_upper_arm": 1.5}
 
 

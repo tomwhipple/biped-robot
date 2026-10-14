@@ -153,8 +153,8 @@
     },
     "yaw_carrier_v6": {
       "orient": "RX180",
-      "supports": true,
-      "note": "horn-plate face down, bay walls rising"
+      "supports": false,
+      "note": "horn-plate face down, bay walls rising; the lip's 1.1 mm ledge prints unsupported, so its face that stops the bearing's inner race carries no support interface"
     }
   }
 }

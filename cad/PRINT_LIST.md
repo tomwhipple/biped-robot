@@ -41,7 +41,7 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 |---|---|---|---|---|---|---|
 | `pelvis_v7` | 1 | 173.8 | 99 × 124 × 72 | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots and the bearing housing's five pilot bosses; each yaw cell's ceiling has a hole for the servo's free-hub post and a relief for its back-cover platform |
 | `yaw_bearing_housing` | 1 | 24.5 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into the pelvis |
-| `yaw_carrier_v6` | 2 | 25.7 | 50 × 50 × 49 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø49.98, +0.08 mm on the measured 49.9 bore) takes the bearing's inner race |
+| `yaw_carrier_v6` | 2 | 27.0 | 52 × 52 × 49 | horn-plate face down, bay walls rising | no | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø49.98, +0.08 mm on the measured 49.9 bore) takes the bearing's inner race, which stops on the lip under the hub (Ø52.2) |
 | `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
 | `leg_link_v6` | 4 | 28.6 | 117 × 44 × 28 | on its back: web face on the bed | **yes**, build plate only: under the two round pad ends | thigh and shin are the same part |
 | `ankle_link` | 2 | 13.6 | 65 × 43 × 38 | on its back (model +X up): the rear tine on the bed | **yes**: under the web (4.6 mm, from the plate) and under the front tine below the floor, standing on the rear tine's inner face, which seats the idler disc: clean it flat. The front wall bridges between the side walls | grips the ankle-pitch servo in a box around its base, forks onto the ankle-roll servo |
@@ -63,8 +63,13 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
     whole servo. The seat is `neck_floor`.
 - **Yaw carrier**
   - The carrier is not covered by the robot's printability audits.
-  - The CAD models no break-away support under the connector window's ceiling
-    bar, so the slicer has to support it.
+  - Print it without supports. The lip under the hub is a 1.1 mm ledge, inside
+    what prints unsupported (`check_printability.py` `LEDGE_OK`), and its
+    downward face is the one the bearing's inner race stops on: build-plate
+    supports would stand a ring under it and leave their interface there.
+  - The connector window's ceiling, a 1 mm bar spanning 22.8 mm, bridges.
+    Build-plate supports never reached it, since the part is under it. Check
+    it in the slice preview.
 - **`hip_yoke_v6`**
   - The pitch horn arm is a slab over the servo void, and the roll pad rims and
     arm plates start in mid-air.

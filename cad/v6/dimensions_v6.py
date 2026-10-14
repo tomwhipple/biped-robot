@@ -435,6 +435,20 @@ YAW_ROLL_SCREW_ROWS_Z = (CARRIER_ROLL_AXIS + D.CASE_HOLES_TOP[1],
                          CARRIER_ROLL_AXIS + D.CASE_HOLES_BOT[1])    # -16.11, -12.36
 assert max(YAW_ROLL_SCREW_ROWS_Z) + D.ACCESS_D / 2 <= YAW_BRG_BAND_Z[0] - 0.5 - 1.0, \
     "the upper roll-servo wall screws need a driver path under the bearing band and housing"
+# the carrier's LIP, a ring under the band: its top face stops the inner
+# race's bottom face, so the carrier goes up into the bearing until it seats,
+# and the leg's upward thrust reaches the inner race on a face (the housing
+# shoulder takes it off the outer race's top face). Its reach off the hub
+# stays under what a ledge prints with no support, horn plate on the bed
+# (cad/check_printability.py LEDGE_OK, 1.2); it stays inside d1 (the seal),
+# and is thin enough for the upper idler-side roll-screw driver to pass under.
+YAW_CARRIER_LIP_R = YAW_BRG_BOSS_R + 1.1                                       # 26.09
+YAW_CARRIER_LIP_T = 1.2
+YAW_CARRIER_LIP_Z = (YAW_BRG_BAND_Z[0] - YAW_CARRIER_LIP_T, YAW_BRG_BAND_Z[0])  # -8.2..-7.0, carrier-local
+assert YAW_BRG_ID / 2 + YAW_BRG_R_MIN < YAW_CARRIER_LIP_R <= YAW_BRG_INNER_RING_R - 1.0, \
+    "the lip must bear on the inner ring face past its bore chamfer and keep 1 mm inside the seal (d1)"
+assert max(YAW_ROLL_SCREW_ROWS_Z) + D.ACCESS_D / 2 <= YAW_CARRIER_LIP_Z[0] - 0.5, \
+    "the upper roll-servo wall screws need a driver path under the lip"
 # pelvis-local: the recess ends flush at the horn face, and the housing's
 # shoulder fills the existing 1.8 mm gap up to the cell-tube rim
 # (D.YAW_BOX_CARRIER_GAP), against which the housing is screwed
@@ -518,12 +532,11 @@ assert PWR_X[1] <= CELL_X[1] - D.YAW_SEAT_WALL - 0.5, "power pocket runs into th
 assert PWR_X[1] < GD_PCB_X0 - 2.0, "power boards collide with the General Driver standoffs"
 # hip-yaw bearing HOUSING (yaw_bearing_housing.py): the bearings' outer-race
 # seats (skirt, recess, shoulder) for both hips in one print, screwed UP to
-# the underside of the cell block after the yaw servos, carriers, roll servos
-# and bearings are in. It is not part of the pelvis print because the yaw
-# servo goes up into its cell through the space the shoulder ring occupies
-# (its cable end reaches SV_AXIS_FROM_REAR = 35.11 from the yaw axis; the
-# ring is r 31.3..35.5), and the roll servo's upper idler-side screws are
-# driven through the space the bearing and skirt occupy.
+# the underside of the cell block after the yaw servos, with the bearings in
+# it; the carriers then go up through the bearings. It is not part of the
+# pelvis print because the yaw servo goes up into its cell through the space
+# the shoulder ring occupies (its cable end reaches SV_AXIS_FROM_REAR = 35.11
+# from the yaw axis; the ring is r 31.3..35.5).
 YAW_HOUSING_Z = (YAW_BRG_RECESS_Z[0] - 0.5, YAW_BOX_BOT_Z)   # -81.3..-72.0, pelvis-local
 YAW_HOUSING_EAR_T = 4.0                  # the screw bars, from the top face down
 YAW_HOUSING_SCREW_L = 8.0                # M2.5 x 8 flat head: 4.0 through the bar, 4.0 into the pelvis

@@ -238,12 +238,14 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
     block's front web). It is not part of the pelvis print because the yaw
     servo goes up into its cell through the space it occupies (the servo's
     cable end reaches 35.1 mm from the yaw axis, past the Ø62.6 shoulder). It
-    goes on last, with both bearings pressed into it, sliding onto the hubs
-    from below after the roll servos are screwed in (docs/assembly.md §7).
+    goes up after the yaw servos, with both bearings pressed into it, and each
+    carrier then goes up through its bearing (docs/assembly.md §7).
   - The bearing band is the top 7 mm of the carrier. The hub wraps the bay
     walls' footprint, and the bore is the smallest class that leaves a 1.5 mm
     wall around the bay's open interior (the horn screws are driven up through
-    it). Below the hub the carrier is trimmed to r 24.8, under the 24.95 mm bore.
+    it). Under the band a lip (Ø52.2 × 1.2 mm, inside the seal's Ø54.6) stops
+    the inner race's bottom face: it seats the carrier in the bearing, and the
+    leg's thrust goes lip → inner race → balls → outer race → shoulder.
   - The bearings are generic 6810-2RS. The CAD's bore, OD, width and ring
     shoulders (d1 54.6, D2 62.0) are calipered values of the ones in hand,
     and the mass (50 g) is weighed; their play is not checked yet, and the
@@ -366,7 +368,7 @@ The robot as drawn, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.28 kg (the plant: 2.281 kg) |
+| robot | ≈ 2.28 kg (the plant: 2.283 kg) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
 | printed PETG + silicone soles | ≈ 0.80 + 0.05 kg: pelvis 174 g, bearing housing 25 g, girdle 77 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
 | hip-yaw bearings | 100 g (2 × 6810-2RS) |

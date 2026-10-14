@@ -29,7 +29,10 @@ It is not the bench order; the figures and this text are. The differences:
   pelvis; on the bench the leg is a subassembly offered up onto the hip-roll
   servo (§8).
 - **Hip-roll servo:** the strip brings it in from the front; on the bench it
-  goes up into its bay from below (§7c).
+  goes up into its bay from below (§7e).
+- **Hip-yaw bearings:** the strip lowers the housing and bearings onto the
+  carriers' hubs; on the bench the housing goes up under the yaw cells first,
+  and each carrier goes up through its bearing (§7c–7d).
 - **Neck:** the strip lowers the girdle with its floor, then drops the neck
   servo in; on the bench the servo is screwed to the floor before the girdle
   goes on (§11a).
@@ -140,9 +143,9 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §5 ankle pitch, knee (leg-link forks) | M3 × 5 horn / M3 × 6 idler | 16 / 16 |
 | §6 hip pitch (hip-yoke pitch clevis) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
 | §7a yaw-servo stators | M2.5 × 5 flat | 8 |
-| §7b carrier to the yaw horn | M3 × 5 | 8 |
-| §7c hip-roll servo into the carrier bay | M2.5 × 8 flat | 16 |
-| §7e bearing housing up into the pelvis | M2.5 × 8 flat | 5 |
+| §7c bearing housing up into the pelvis | M2.5 × 8 flat | 5 |
+| §7d carrier to the yaw horn | M3 × 5 | 8 |
+| §7e hip-roll servo into the carrier bay | M2.5 × 8 flat | 16 |
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
 | §9a–b Pi and General Driver | M2.5 × 10 pan (lower row) / M2.5 × 6 pan (upper row) | 4 / 4 |
 | §9c power-pocket bosses | M2.5 × 8 pan | 2 |
@@ -285,44 +288,18 @@ Everything in the battery layer is done **before the pack goes in** (§10).
 
 ![Yaw servo up into its cell](assembly/v6_07_yaw_servo.png)
 
-### 7b. Yaw carrier up onto the yaw horn
+Do 7a for **both hips** before the bearing housing: it carries both bearings.
 
-1. **Seat the carrier on the yaw horn** with the yaw servo at mechanical zero.
-   Its horn plate mates the horn disc and its roll bay opens downward. **Square
-   it before torquing**: a clocked carrier is a permanent yaw offset.
-2. **Drive 4 × M3 × 5 up into the horn** through the bay ceiling, from inside
-   the empty bay. Do this before the roll servo goes in.
-
-![Yaw carrier up onto the yaw horn](assembly/v6_08_yaw_carrier.png)
-
-### 7c. Hip-roll servo up into the carrier bay
-
-1. **Slide the servo up into the downward-open bay**, cable end first: output
-   end down, horn forward.
-   - The rear wall carries an idler seat with a detent channel for the case's
-     moulded back-cover platform, so the servo should feel **snug against the
-     rear wall** before any screw goes in. If it does not, check that the
-     platform is running in the channel rather than sitting on top of it.
-2. **Drive 8 × M2.5 × 8 flat-heads:** 4 through the front (horn) wall and 4
-   through the rear (idler) wall, into the case. The carrier's 5 mm spacer
-   keeps all eight below the bearing, so they can also be reached with the hip
-   fully assembled (to change a roll servo, take the leg off and these eight
-   out; the bearing and housing stay).
-
-Do 7a–7c for **both hips** before the bearing housing: it carries both bearings.
-
-![Hip-roll servo up into the carrier's bay](assembly/v6_09_hip_roll_servo.png)
-
-### 7d. The hip-yaw bearings into the housing (bench)
+### 7b. The hip-yaw bearings into the housing (bench)
 
 Each hip turns on a **6810-2RS** (nominal 50 × 65 × 7 mm, sealed, generic; the
 ones in hand measure 49.9 × 65.0 × 7.0: [bom.md §5](bom.md#5-hip-yaw-bearing)). Its outer race sits
 in a recess of the **bearing housing** (`yaw_bearing_housing`, one print for
 both hips, Ø64.96, −0.04 mm) against a shoulder, which takes the leg's thrust.
-Its inner race goes on the carrier's round hub (Ø49.98, +0.08 mm). The housing
+Its inner race goes on the carrier's round hub (Ø49.98, +0.08 mm) and sits on
+the **lip** under the hub (Ø52.2), which passes that thrust to it. The housing
 is a separate print screwed under the pelvis because the yaw servo goes up into
-its cell, and the driver reaches the roll servo's upper screws, through the
-space the housing occupies. Background:
+its cell through the space the housing occupies. Background:
 [study-yaw-bearing.md](design-v6/study-yaw-bearing.md) (option A).
 
 1. **Measure the bearings and the printed seats first.** Both fits are inside
@@ -332,27 +309,58 @@ space the housing occupies. Background:
    until it bottoms on the shoulder. The housing lies face down (the face that
    goes against the pelvis), recess mouth up.
 
-![Both bearings pressed into the housing](assembly/v6_09a_bearings_into_housing.png)
+![Both bearings pressed into the housing](assembly/v6_08_bearings_into_housing.png)
 
-### 7e. Housing and bearings up onto both hubs
+### 7c. Housing and bearings up under the yaw cells
 
-1. **Compound on both hubs**, then **offer the housing up from below**, square,
-   over both carriers and roll servos: the bearings' bores clear everything
-   below the hubs (the carriers' corners are trimmed to r 24.8 under the 25 mm
-   bore).
-2. **Push it home evenly** until its top face meets the cell block. The inner
-   races slide onto the hubs as it goes. The fit is light; if a hub binds,
-   ease the hub rather than force it, since that force goes through the balls.
-3. **Drive 5 × M2.5 × 8 flat-heads up** into the pelvis's pilot bosses: four
+1. **Offer the housing up from below**, square, recess mouths down, the yaw
+   horns passing inside the shoulders, until its top face meets the cell block.
+2. **Drive 5 × M2.5 × 8 flat-heads up** into the pelvis's pilot bosses: four
    through the housing's rear bar and one through the bridge between the hips,
    on the centre line, into the cell block's front web.
-4. **Turn each hip through ±45° by hand** before the compound sets: the carrier
+
+![Housing and bearings up under both yaw cells](assembly/v6_09_housing.png)
+
+### 7d. Yaw carrier up through the bearing onto the yaw horn
+
+The carrier's lip is wider than the bore, so the carrier goes into the bearing
+from below and the bearing can never go on over it.
+
+1. **Compound on the hub**, then **push the carrier up through the bearing**,
+   horn plate first, roll bay opening downward, with the yaw servo at
+   mechanical zero, until the **lip seats on the inner race**. The hub's top
+   edge has a lead-in. The fit is light; if the hub binds, ease the hub rather
+   than force it, since that force goes through the balls.
+2. **Check the horn plate against the horn disc** with the lip seated. If the
+   plate stands off the horn, shim that gap rather than close it with the horn
+   screws: they would pull the inner race up against the balls and the yaw
+   servo's output shaft down.
+3. **Square it before torquing**: a clocked carrier is a permanent yaw offset.
+4. **Drive 4 × M3 × 5 up into the horn** through the bay ceiling, from inside
+   the empty bay. Do this before the roll servo goes in.
+5. **Turn the hip through ±45° by hand** before the compound sets: the carrier
    should turn on the bearing without touching the housing or the pelvis.
-5. **Plug the hip-roll servo's leads** in the trench on its idler face,
+
+![Yaw carrier up through the bearing onto the yaw horn](assembly/v6_09a_yaw_carrier.png)
+
+### 7e. Hip-roll servo up into the carrier bay
+
+1. **Slide the servo up into the downward-open bay**, cable end first: output
+   end down, horn forward.
+   - The rear wall carries an idler seat with a detent channel for the case's
+     moulded back-cover platform, so the servo should feel **snug against the
+     rear wall** before any screw goes in. If it does not, check that the
+     platform is running in the channel rather than sitting on top of it.
+2. **Drive 8 × M2.5 × 8 flat-heads:** 4 through the front (horn) wall and 4
+   through the rear (idler) wall, into the case. The carrier's 5 mm spacer
+   keeps all eight below the bearing and the lip, so a driver reaches them with
+   the housing on (to change a roll servo, take the leg off and these eight
+   out; the carrier, bearing and housing stay).
+3. **Plug the hip-roll servo's leads** in the trench on its idler face,
    through the window in the bay's rear wall, and route them outside the
    housing.
 
-![Housing and bearings up onto both hubs](assembly/v6_09b_housing.png)
+![Hip-roll servo up into the carrier's bay](assembly/v6_09b_hip_roll_servo.png)
 
 - **Never heat-set a bearing into PETG.** PETG must reach about 230 °C to flow,
   and a 2RS bearing's seals and grease are good to roughly 100 °C.

@@ -15,12 +15,12 @@ make one frame, so a moment on either bearing is shared by all five screws
 and the whole contact face. Nothing stands proud of the pelvis's front face
 but the front of the two skirts.
 
-It is a separate part, not part of the pelvis print, because of what has to
-pass through its space before it goes on: the yaw servo, up into its cell, and
-the driver for the roll servo's two upper idler-side screws (dimensions_v6,
-YAW_HOUSING_*). It goes on last in the hip's bench order (docs/assembly.md
-section 7): offered up from below over the carriers and roll servos, its
-recesses taking the two outer races, and screwed from below.
+It is a separate part, not part of the pelvis print, because the yaw servo
+goes up into its cell through its space (dimensions_v6, YAW_HOUSING_*). In the
+hip's bench order (docs/assembly.md section 7) it goes up after the yaw
+servos, with both outer races pressed into its recesses, and is screwed from
+below; each carrier then goes up through its bearing until the carrier's lip
+seats on the inner race.
 
 Print: top face (the face against the pelvis) on the bed; the skirts and the
 bridge rise from it, the recess (wider than the shoulder) widens upward, and

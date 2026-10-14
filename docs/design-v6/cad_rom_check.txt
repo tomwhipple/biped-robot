@@ -89,7 +89,7 @@ neck         head                   pelvis_v7                     0.00     35.20
 neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
 neck         head                   shoulder_girdle_v6            0.00      2.10   -90.0  ok   head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)
 neck         head                   neck_floor                    0.00     35.20   -90.0  ok   head vs the neck servo's floor plate through +-90
-hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      6.01     0.0  ok   turning carrier vs the fixed outer race through +-45
+hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      4.91   -22.5  ok   turning carrier vs the fixed outer race through +-45
 hip_yaw      servo_hip_roll_L       bearing_outer_L               0.00     10.15   -22.5  ok   roll servo (inside the hub) vs the fixed outer race
 hip_yaw      bearing_inner_L        yaw_bearing_housing           0.00      4.00    45.0  ok   turning inner race vs the housing's shoulder (d1)
 hip_yaw      bearing_inner_L        pelvis_v7                     0.00      1.80   -45.0  ok   turning inner race vs the cell block's rim
@@ -145,7 +145,7 @@ knee         shin_L                 servo_elbow_L                 0.00    105.90
 knee         shin_L                 arm_fore_L                    0.00    110.65   130.0  ok   knee: shin vs the forearm, arms at rest (folded)
 knee         servo_knee_L           arm_fore_L                    0.00    114.29   -95.0  ok   knee: knee servo vs the forearm, arms at rest (folded)
 ankle_pitch  ankle_link_L           arm_fore_L                    0.00    233.83   -40.0  ok   ankle pitch: ankle link vs the forearm, arms at rest (folded)
-hip_yaw      yaw_carrier_L          arm_fore_L                    0.00     19.73   -45.0  ok   hip yaw swings the carrier toward the arm plane
+hip_yaw      yaw_carrier_L          arm_fore_L                    0.00     19.52   -45.0  ok   hip yaw swings the carrier toward the arm plane
 ankle_pitch  ankle_link_L           arm_fore_L                    0.00     74.95    40.0  ok   ankle link vs the hanging forearm (the arm reaches to z 154)
 shoulder     arm_upper_L            yaw_bearing_housing           0.00     25.29   -17.5  ok   upper arm vs the bearing housing, whole sweep
 shoulder     arm_fore_L             yaw_bearing_housing           0.00     52.00   -17.5  ok   forearm vs the bearing housing, hanging
@@ -178,20 +178,19 @@ static       servo_hip_yaw_L        pack_mock                     0.00      1.00
 static       yaw_bearing_housing    pi4_mock                      0.00      0.70          ok   housing under the Pi 4B's bottom edge (>= 0.5 mm)
 static       yaw_bearing_housing    gd_mock                       0.00      0.00          ok   the General Driver's bottom edge on the housing's top face: must not intersect
 insert       7a yaw servo up into its cell        no overlap                         approach clearance  0.30 mm (vs pelvis_v7, 1 mm out)  ok
-insert       7b carrier up onto the yaw horn      no overlap                         approach clearance  1.00 mm (vs servo_hip_yaw_L, 1 mm out)  ok
-insert       7c roll servo up into the bay        no overlap                         approach clearance  0.00 mm (vs yaw_carrier_L, 1 mm out)  ok
-insert       7d bearing into the housing (bench)  no overlap                         approach clearance  4.13 mm (vs yaw_bearing_housing, 1 mm out)  ok
-insert       7e housing + bearings up onto the hubs no overlap                         approach clearance  1.00 mm (vs pelvis_v7, 1 mm out)  ok
+insert       7b bearing into the housing (bench)  no overlap                         approach clearance  4.13 mm (vs yaw_bearing_housing, 1 mm out)  ok
+insert       7c housing + bearings up under the cells no overlap                         approach clearance  1.00 mm (vs pelvis_v7, 1 mm out)  ok
+insert       7d carrier up through the bearing    no overlap                         approach clearance  1.00 mm (vs servo_hip_yaw_L, 1 mm out)  ok
+insert       7e roll servo up into the bay        no overlap                         approach clearance  0.00 mm (vs yaw_carrier_L, 1 mm out)  ok
 insert       press fits allowed along the paths: inner race on the hub 43.9 mm3, outer race in the housing 28.6 mm3 (designed)
+access       bearing-housing screws, before the carriers           5 screws, 7 mm driver: no part in the way  ok
 access       carrier horn screws, from inside the empty bay        4 screws, 7 mm driver: no part in the way  ok
-access       roll-servo wall screws, before the bearing            8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
 access       roll-servo wall screws, hip fully assembled           8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
-access       bearing-housing screws, before the legs               5 screws, 7 mm driver: no part in the way  ok
 interleg     foot_L                 foot_R                        0.00      2.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (146 s)
+=> ALL CLEAR  (162 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -283,7 +282,7 @@ neck         head                   pelvis_v7                     0.00     35.20
 neck         head                   servo_neck                    0.00      0.00   -90.0  ok   head base vs the neck servo case (rides on its horn)
 neck         head                   neck_collar                   0.00      2.10   -90.0  ok   head shell vs the neck-mount top through +-90 (>= 1.5 mm by design)
 neck         head                   neck_floor                    0.00     35.20   -90.0  ok   head vs the neck servo's floor plate through +-90
-hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      6.01     0.0  ok   turning carrier vs the fixed outer race through +-45
+hip_yaw      yaw_carrier_L          bearing_outer_L               0.00      4.91   -22.5  ok   turning carrier vs the fixed outer race through +-45
 hip_yaw      servo_hip_roll_L       bearing_outer_L               0.00     10.15   -22.5  ok   roll servo (inside the hub) vs the fixed outer race
 hip_yaw      bearing_inner_L        yaw_bearing_housing           0.00      4.00    45.0  ok   turning inner race vs the housing's shoulder (d1)
 hip_yaw      bearing_inner_L        pelvis_v7                     0.00      1.80   -45.0  ok   turning inner race vs the cell block's rim
@@ -325,20 +324,19 @@ static       servo_hip_yaw_L        pack_mock                     0.00      1.00
 static       yaw_bearing_housing    pi4_mock                      0.00      0.70          ok   housing under the Pi 4B's bottom edge (>= 0.5 mm)
 static       yaw_bearing_housing    gd_mock                       0.00      0.00          ok   the General Driver's bottom edge on the housing's top face: must not intersect
 insert       7a yaw servo up into its cell        no overlap                         approach clearance  0.30 mm (vs pelvis_v7, 1 mm out)  ok
-insert       7b carrier up onto the yaw horn      no overlap                         approach clearance  1.00 mm (vs servo_hip_yaw_L, 1 mm out)  ok
-insert       7c roll servo up into the bay        no overlap                         approach clearance  0.00 mm (vs yaw_carrier_L, 1 mm out)  ok
-insert       7d bearing into the housing (bench)  no overlap                         approach clearance  4.13 mm (vs yaw_bearing_housing, 1 mm out)  ok
-insert       7e housing + bearings up onto the hubs no overlap                         approach clearance  1.00 mm (vs pelvis_v7, 1 mm out)  ok
+insert       7b bearing into the housing (bench)  no overlap                         approach clearance  4.13 mm (vs yaw_bearing_housing, 1 mm out)  ok
+insert       7c housing + bearings up under the cells no overlap                         approach clearance  1.00 mm (vs pelvis_v7, 1 mm out)  ok
+insert       7d carrier up through the bearing    no overlap                         approach clearance  1.00 mm (vs servo_hip_yaw_L, 1 mm out)  ok
+insert       7e roll servo up into the bay        no overlap                         approach clearance  0.00 mm (vs yaw_carrier_L, 1 mm out)  ok
 insert       press fits allowed along the paths: inner race on the hub 43.9 mm3, outer race in the housing 28.6 mm3 (designed)
+access       bearing-housing screws, before the carriers           5 screws, 7 mm driver: no part in the way  ok
 access       carrier horn screws, from inside the empty bay        4 screws, 7 mm driver: no part in the way  ok
-access       roll-servo wall screws, before the bearing            8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
 access       roll-servo wall screws, hip fully assembled           8 screws, 7 mm driver: worst 0.1 mm3 (roll_wall_front_8_-10 vs servo_hip_roll_L)  ok
-access       bearing-housing screws, before the legs               5 screws, 7 mm driver: no part in the way  ok
 interleg     foot_L                 foot_R                        0.00      2.67          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (115 s)
+=> ALL CLEAR  (124 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================
