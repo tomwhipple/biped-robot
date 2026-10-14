@@ -33,7 +33,7 @@ would be geometry passing through geometry, not a result.
 import sys, os, math, itertools, dataclasses
 import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "egl")
+sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 from gen_plant_v6 import DesignParams, build_xml
 import getup_v6 as G
 

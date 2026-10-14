@@ -36,7 +36,6 @@ Modes (logs in docs/design-v6/no3250_*.txt):
     .venv/bin/python sim/gate_no3250.py arms      > docs/design-v6/no3250_arms_walk.txt
     .venv/bin/python sim/gate_no3250.py getup     > docs/design-v6/no3250_getup.txt
 
-On the Mac: MUJOCO_GL=cgl in the environment (the sim modules setdefault egl).
 Design record: docs/design-v6/2026-09-13-design-record.md section 14.
 """
 from __future__ import annotations
@@ -51,7 +50,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-os.environ.setdefault("MUJOCO_GL", "egl")
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
 import design_gates as DG  # noqa: E402
 import static_gait as SG  # noqa: E402

@@ -400,9 +400,9 @@ def run_audits(p, stl_path):
 
 
 def render(stl_path, png_path, px=640):
-    """MuJoCo offscreen render, like cad/render_part.py (MUJOCO_GL=egl set
+    """MuJoCo offscreen render, like cad/render_part.py (MUJOCO_GL set
     BEFORE importing mujoco)."""
-    os.environ.setdefault("MUJOCO_GL", "egl")
+    os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
     import mujoco  # noqa: E402 -- must follow the env var
     import numpy as np
     import imageio.v2 as imageio

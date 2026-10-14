@@ -38,7 +38,7 @@ import os
 import sys
 import tempfile
 
-os.environ.setdefault("MUJOCO_GL", "egl")   # before anything imports mujoco
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")   # before anything imports mujoco
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -453,7 +453,7 @@ def render(comp: Compound, png_path, views=((150, -12), (90, -8), (0, -12)), siz
     import mujoco
     import numpy as np
     import imageio
-    os.environ.setdefault("MUJOCO_GL", "egl")
+    os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
     tmp = tempfile.mkdtemp(prefix="v6asm_")
     geoms = []
     for i, ch in enumerate(comp.children):

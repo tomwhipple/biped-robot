@@ -37,7 +37,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-os.environ.setdefault("MUJOCO_GL", "egl")
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
 from gen_plant_v6 import DesignParams, build_xml  # noqa: E402
 import getup_v6 as G  # noqa: E402
