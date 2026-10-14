@@ -515,7 +515,7 @@ def render(path, px=900):
     import imageio.v2 as imageio
     import mujoco
     import numpy as np
-    os.environ.setdefault("MUJOCO_GL", "egl")
+    os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
     tmp = tempfile.mkdtemp(prefix="plan_b_render_")
     solids = {
