@@ -12,7 +12,12 @@ python3 cad/slice.py leg_link_v6       # -> cad/gcode/leg_link_v6.3mf + leg_link
 python3 cad/slice.py feet              # -> cad/gcode/feet.3mf: foot_L + foot_R
 python3 cad/slice.py --all             # every plate, and every part on no plate
 python3 cad/slice.py --harvest
+python3 cad/slice.py --variant hip_yoke_glued hip_yoke_glued   # a build variant's plate
 ```
+
+`--variant` adds a `print_settings.json` `variants` entry's parts and plates to
+the run. These are parts of a non-default build, such as the glued hip yoke,
+that the default table leaves out.
 
 Output goes to `cad/gcode/` (gitignored: regenerate, don't commit). Its
 `.work/` holds the staged STLs and presets, OrcaSlicer's data dirs, each

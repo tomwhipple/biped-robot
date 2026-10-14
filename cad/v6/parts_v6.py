@@ -10,8 +10,9 @@ The defaults build THE ROBOT TO PRINT (issue #76):
                                   with the girdle's deck pilots; ARMS=0 is the
                                   armless variant (neck_collar, no pilots), which
                                   is not a print target (cad/PRINT_LIST.md).
-    HIP_YOKE_VARIANT=single|split the one-print hip yoke (default) or the legacy
-                                  bolted yoke_roll + yoke_pitch_v6 pair.
+    HIP_YOKE_VARIANT=single|glued|split the one-print hip yoke (default), the
+                                  glued U-channel pair, or the legacy bolted
+                                  yoke_roll + yoke_pitch_v6 pair.
     SERVO_PLAN=hips (default) | B | 3250
                                   hips: an STS3250 (same case, 74.5 g) at each
                                   hip roll, STS3215s everywhere else (DESIGN.md
@@ -79,6 +80,11 @@ PARTS = [
 if HIP_YOKE == "single":
     PARTS.append(("hip_yoke_v6", _lazy("hip_yoke_v6", "hip_yoke_v6"), 2,
                   "ONE PRINT: roll + pitch clevis fused, no flange bolts (on edge; supports + brim)"))
+elif HIP_YOKE == "glued":
+    PARTS += [("hip_yoke_glued_roll", _lazy("hip_yoke_glued", "roll_u"), 2,
+               "glued yoke, roll U-channel: on edge, no supports, no brim; snaps onto the pitch U"),
+              ("hip_yoke_glued_pitch", _lazy("hip_yoke_glued", "pitch_u"), 2,
+               "glued yoke, pitch U-channel: on its back, no supports, no brim")]
 else:
     PARTS += [("yoke_roll", v5.yoke_roll, 2, "legacy split yoke (slicer supports)"),
               ("yoke_pitch_v6", _lazy("yoke_pitch_v6", "yoke_pitch_v6"), 2, "legacy split yoke (slicer supports)")]

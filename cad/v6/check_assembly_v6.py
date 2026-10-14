@@ -250,12 +250,12 @@ def active_pairs():
     5-tuples (joint, A, B, note, extra pose)."""
     pairs, touching = _yoke_pairs()
     b_pairs = BEARING_PAIRS
-    if A.hip_yoke_variant() != "single":
+    if not A.one_piece_yoke():
         b_pairs = [(j, "yoke_pitch_{s}" if a == "hip_yoke_{s}" else a, b, n) for j, a, b, n in BEARING_PAIRS]
     pairs = list(pairs) + b_pairs
     if A.arms_on():
         arm_pairs = ARM_PAIRS + ARM_HOUSING_PAIRS
-        if A.hip_yoke_variant() == "single":
+        if A.one_piece_yoke():
             # the arm rows name the split yoke too (the abduction row sweeps
             # yoke_pitch toward the arm plane); with the one-print yoke that
             # part does not exist and the row crashed with a KeyError.
@@ -267,7 +267,7 @@ def active_pairs():
 
 
 def _yoke_pairs():
-    if A.hip_yoke_variant() != "single":
+    if not A.one_piece_yoke():
         return PAIRS, TOUCHING
     pairs, seen = [], set()
     for joint, la, lb, note in PAIRS:
@@ -495,6 +495,8 @@ def main(argv=None):
     pairs, touching_set = active_pairs()
     if A.hip_yoke_variant() == "single":
         print("HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch")
+    elif A.hip_yoke_variant() == "glued":
+        print("HIP_YOKE_VARIANT=glued: the glued U-channel pair (hip_yoke_glued) in place of yoke_roll + yoke_pitch")
     if A.arms_on():
         print(f"arms on (the default build): two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM "
               f"shoulder {V.ARM_ROM['shoulder']}, elbow {V.ARM_ROM['elbow']}; "

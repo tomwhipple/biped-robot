@@ -172,8 +172,8 @@ def main():
         frames.append(r.render().copy())
     os.makedirs(os.path.join(HERE, "renders"), exist_ok=True)
     suffix = ""
-    if A.hip_yoke_variant() == "split":       # the one-print yoke is the default now
-        suffix += "_split"
+    if A.hip_yoke_variant() != "single":      # the one-print yoke is the default now
+        suffix += "_" + A.hip_yoke_variant()
     if A.arms_on():
         suffix += "_arms"
     out = os.path.join(HERE, "renders", f"assembly_v6_flyin{suffix}.mp4")

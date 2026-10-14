@@ -1,5 +1,5 @@
 {
-  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. 'plates' are parts printed together, sliced into one project; one process slices a plate, so its parts share supports and settings, and the plate holds its own 'copies'. cad/slice.py writes 'orient', 'copies' and 'settings' back here when a project was saved from the GUI. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job.",
+  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. 'plates' are parts printed together, sliced into one project; one process slices a plate, so its parts share supports and settings, and the plate holds its own 'copies'. cad/slice.py writes 'orient', 'copies' and 'settings' back here when a project was saved from the GUI. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job. 'variants' are parts of a non-default build (e.g. HIP_YOKE_VARIANT=glued) that the default table leaves out; cad/slice.py --variant <name> slices them.",
   "printer": "Flashforge Adventurer 5M Pro 0.4 Nozzle",
   "process": {
     "preset": "0.20mm Standard @Flashforge AD5M Pro 0.4 Nozzle",
@@ -42,6 +42,33 @@
         "foot_R"
       ],
       "note": "both feet on one plate, sole down"
+    }
+  },
+  "variants": {
+    "hip_yoke_glued": {
+      "note": "HIP_YOKE_VARIANT=glued: the hip yoke as two support-free U-channels, snapped and glued (cad/v6/hip_yoke_glued.py)",
+      "parts": {
+        "hip_yoke_glued_roll": {
+          "orient": "RY_ROLL_WALL",
+          "supports": false,
+          "note": "on edge, model -Y (the y -10 bed face) down; no supports, no brim"
+        },
+        "hip_yoke_glued_pitch": {
+          "orient": "RY_XUP",
+          "supports": false,
+          "note": "on its back, model -X (the x -14 bed face) down; no supports, no brim"
+        }
+      },
+      "plates": {
+        "hip_yoke_glued": {
+          "parts": [
+            "hip_yoke_glued_roll",
+            "hip_yoke_glued_pitch"
+          ],
+          "copies": 2,
+          "note": "both pieces for both hips"
+        }
+      }
     }
   },
   "parts": {
