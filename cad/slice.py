@@ -3,7 +3,8 @@
 
 For each part, build/v6/gcode/ (gitignored; `make slice` runs this) gets:
 
-    <part>.3mf    an OrcaSlicer project: the part in its print orientation, the
+    <part>.3mf    an OrcaSlicer project: the part in its print orientation,
+                  every copy square to the bed (walls along X and Y), the
                   print spec's settings, the plate already sliced. Open it in
                   the GUI, check it, print it from there.
     <part>.gcode  the same slice, for the numbers (time, grams, footprint).
@@ -93,6 +94,11 @@ PAINT_ATTRS = (b"paint_supports", b"paint_seam", b"paint_color",
 def matmul(a, b):
     return tuple(tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3))
                  for i in range(3))
+
+
+def angle_diff(a, b):
+    """a - b in degrees, wrapped to (-180, 180]."""
+    return -((b - a + 180.0) % 360.0 - 180.0)
 
 
 def transpose(a):
@@ -408,13 +414,116 @@ def _box_object(oid, box):
             f'<triangles>{tris}</triangles></mesh></object>\n ')
 
 
+def read_project(path):
+    with zipfile.ZipFile(path) as z:
+        infos = z.infolist()
+        return infos, {i.filename: z.read(i.filename) for i in infos}
+
+
+def write_project(path, infos, files):
+    """Write a project without its sliced gcode, so the slicer slices it again."""
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for info in infos:
+            if re.fullmatch(r"Metadata/plate_\d+\.gcode(\.md5)?", info.filename):
+                continue
+            z.writestr(info, files[info.filename])
+
+
 def add_enforcers(src, dst, boxes):
     """Copy project ``src`` to ``dst`` with support-enforcer volumes on every
     object named in ``boxes`` ({object name: [box, ...]}, enforcer_boxes'
-    frame), and without its sliced gcode, so the slicer slices it again."""
-    with zipfile.ZipFile(src) as z:
-        infos = z.infolist()
-        files = {i.filename: z.read(i.filename) for i in infos}
+    frame), and without its sliced gcode."""
+    infos, files = read_project(src)
+    put_enforcers(files, boxes)
+    write_project(dst, infos, files)
+
+
+# Square to the bed. The CLI's arrange turns copies to arbitrary angles
+# (the yaw carrier came out at -25.7 deg, with --allow-rotations off), and a
+# straight wall prints best along X or Y. Every copy gets a quarter turn --
+# its part's "spin", 0 by default -- and the copies go in rows, LAYOUT_GAP
+# apart, centred on the bed.
+BED = (-110.0, 110.0)          # printable area, centre origin (docs/slicing.md, Bed geometry)
+LAYOUT_GAP = 10.0
+LAYOUT_MARGIN = 5.0
+QUARTER = {0: (1, 0), 90: (0, 1), 180: (-1, 0), 270: (0, -1)}
+
+
+def _floats(s):
+    return [float(v) for v in s.split()]
+
+
+def _object_bbox(files, model, oid):
+    """An object's xy extent in its own frame: its first part's mesh through
+    the component transform."""
+    obj = re.search(rf'<object id="{oid}"[^>]*>\s*<components>(.*?)</components>', model, re.S)
+    comp = re.search(r"<component [^>]*/>", obj.group(1)).group(0)
+    path = re.search(r'p:path="([^"]+)"', comp).group(1).lstrip("/")
+    sub = re.search(r'objectid="(\d+)"', comp).group(1)
+    t = re.search(r'transform="([^"]+)"', comp)
+    m = _floats(t.group(1)) if t else [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+    mesh = re.search(rf'<object id="{sub}"[^>]*>(.*?)</object>', files[path].decode(), re.S).group(1)
+    v = [tuple(map(float, xyz)) for xyz in re.findall(r'x="([^"]+)" y="([^"]+)" z="([^"]+)"', mesh)]
+    lo = [min(p[i] for p in v) for i in range(3)]
+    hi = [max(p[i] for p in v) for i in range(3)]
+    corners = [(x, y, z) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+    xs = [x * m[0] + y * m[3] + z * m[6] + m[9] for x, y, z in corners]
+    ys = [x * m[1] + y * m[4] + z * m[7] + m[10] for x, y, z in corners]
+    return min(xs), max(xs), min(ys), max(ys)
+
+
+def square_up(files, spins):
+    """Re-place every build item square to the bed (``spins``: {object name:
+    quarter turn in degrees}). Returns True if anything moved, None if the
+    copies do not fit the bed that way (the project is then left alone)."""
+    model = files["3D/3dmodel.model"].decode()
+    settings = files["Metadata/model_settings.config"].decode()
+    names = {oid: re.search(r'<metadata key="name" value="([^"]*)"', body).group(1)
+             for oid, body in re.findall(r'<object id="(\d+)">(.*?)</object>', settings, re.S)}
+    items, boxes = [], {}
+    for tag in re.findall(r"<item [^>]*/>", model):
+        oid = re.search(r'objectid="(\d+)"', tag).group(1)
+        if oid not in boxes:
+            boxes[oid] = _object_bbox(files, model, oid)
+        spin = spins.get(names.get(oid), 0)
+        x0, x1, y0, y1 = boxes[oid]
+        w, h = (x1 - x0, y1 - y0) if spin in (0, 180) else (y1 - y0, x1 - x0)
+        items.append(dict(tag=tag, spin=spin, w=w, h=h, centre=((x0 + x1) / 2, (y0 + y1) / 2),
+                          old=_floats(re.search(r'transform="([^"]+)"', tag).group(1))))
+    usable = BED[1] - BED[0] - 2 * LAYOUT_MARGIN
+    rows, row, width = [], [], 0.0
+    for it in items:
+        if row and width + LAYOUT_GAP + it["w"] > usable:
+            rows.append(row)
+            row, width = [], 0.0
+        width += (LAYOUT_GAP if row else 0.0) + it["w"]
+        row.append(it)
+    rows.append(row)
+    heights = [max(it["h"] for it in r) for r in rows]
+    if (sum(heights) + LAYOUT_GAP * (len(rows) - 1) > usable
+            or any(it["w"] > usable for it in items)):
+        return None
+    moved = False
+    top = (sum(heights) + LAYOUT_GAP * (len(rows) - 1)) / 2
+    for r, h in zip(rows, heights):
+        x = -(sum(it["w"] for it in r) + LAYOUT_GAP * (len(r) - 1)) / 2
+        for it in r:
+            c, s = QUARTER[it["spin"]]
+            ox, oy = it["centre"]
+            tx = x + it["w"] / 2 - (ox * c - oy * s)
+            ty = top - h / 2 - (ox * s + oy * c)
+            new = [c, s, 0, -s, c, 0, 0, 0, 1, tx, ty, it["old"][11]]
+            if any(abs(a - b) > 1e-3 for a, b in zip(new, it["old"])):
+                moved = True
+            tf = " ".join(f"{v:.6g}" for v in new)
+            model = model.replace(it["tag"], re.sub(r'transform="[^"]+"', f'transform="{tf}"', it["tag"]), 1)
+            x += it["w"] + LAYOUT_GAP
+        top -= h + LAYOUT_GAP
+    files["3D/3dmodel.model"] = model.encode()
+    return moved
+
+
+def put_enforcers(files, boxes):
     model = files["3D/3dmodel.model"].decode()
     settings = files["Metadata/model_settings.config"].decode()
     added = {}                                  # (mesh file, box) -> its object id there
@@ -444,14 +553,9 @@ def add_enforcers(src, dst, boxes):
         end = m.end() - len("</object>")
         settings = settings[:end] + new_parts + settings[end:]
     if not added:
-        raise SystemExit(f"{os.path.basename(src)}: no object named {', '.join(boxes)}")
+        raise SystemExit(f"project has no object named {', '.join(boxes)}")
     files["3D/3dmodel.model"] = model.encode()
     files["Metadata/model_settings.config"] = settings.encode()
-    with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as z:
-        for info in infos:
-            if re.fullmatch(r"Metadata/plate_\d+\.gcode(\.md5)?", info.filename):
-                continue
-            z.writestr(info, files[info.filename])
 
 
 def finalize_3mf(path, cfg_patch):
@@ -570,6 +674,26 @@ def harvest(name, spec, lib, outdir, printer):
             spec["parts"][gen["part"]]["orient"] = new
             label = "orient" if len(objects) == 1 else f"{gen['part']} orient"
             changes.append(f"{label}: {gen['orient']} -> {new}")
+            continue
+        # Not tipped: a spin on the bed. A quarter turn is the part's "spin";
+        # any other angle cannot be kept square to the bed.
+        angle = math.degrees(math.atan2(r_saved[1][0], r_saved[0][0]))
+        if abs(angle_diff(angle, math.degrees(math.atan2(gen["rotation"][1][0],
+                                                         gen["rotation"][0][0])))) < 1.0:
+            continue
+        part = spec["parts"][gen["part"]]
+        label = "spin" if len(objects) == 1 else f"{gen['part']} spin"
+        quarter = round(angle / 90) % 4 * 90
+        if abs(angle_diff(angle, quarter)) < 1.0:
+            if quarter != part.get("spin", 0):
+                changes.append(f"{label}: {part.get('spin', 0)} -> {quarter}")
+                if quarter:
+                    part["spin"] = quarter
+                else:
+                    part.pop("spin", None)
+        else:
+            changes.append(f"{label}: turned {angle:.1f} deg on the bed, not a quarter turn; "
+                           "not carried (copies are laid square to the bed)")
     copies = set(counts.values())
     if len(copies) == 1 and copies != {state["copies"]}:
         n = copies.pop()
@@ -652,14 +776,23 @@ def slice_part(name, spec, lib, outdir, printer, copies=None):
 
     orca(["--load-settings", f"{paths['machine']};{paths['process']}",
           "--load-filaments", paths["filament"], "--arrange", "1"] + inputs)
+    # The CLI can neither keep copies square nor take enforcer volumes with
+    # STL inputs: rework its own project and slice that again, on the same
+    # settings.
+    infos, files = read_project(project)
+    moved = square_up(files, {f"{p}.stl": part_entry(spec, p).get("spin", 0)
+                              for p in plate_parts(spec, name)})
+    if moved is None:
+        print(f"  {name}: the copies do not fit the bed square to it; "
+              "kept the slicer's arrangement", file=sys.stderr)
     if enforcers:
-        # The CLI takes no enforcer volumes with STL inputs: slice its own
-        # project again with them added, on the same settings and placement.
-        enforced = os.path.join(work, f"{name}.enforced.3mf")
-        add_enforcers(project, enforced, enforcers)
+        put_enforcers(files, enforcers)
+    if moved or enforcers:
+        reworked = os.path.join(work, f"{name}.reworked.3mf")
+        write_project(reworked, infos, files)
         os.remove(project)
         os.remove(gcode)
-        orca([enforced])
+        orca([reworked])
 
     system_process = lib.resolve("process", spec["process"]["preset"])
     system_filament = lib.resolve("filament", spec["filament"]["preset"])

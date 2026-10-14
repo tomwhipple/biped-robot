@@ -283,6 +283,9 @@ python3 cad/slice.py --harvest               # only read saved projects back
   - any process or filament setting, including per-object settings (on a
     plate, for every part on it);
   - a part tipped onto another face (on a plate, that part only);
+  - a part turned a quarter turn on the bed (its `spin`). The slicer lays
+    every copy square to the bed, walls along X and Y; a turn of any other
+    angle is reported, not carried;
   - the number of copies.
 
   It prints what it changed, and keeps the saved project under

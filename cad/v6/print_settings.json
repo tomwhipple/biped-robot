@@ -1,5 +1,5 @@
 {
-  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. 'plates' are parts printed together, sliced into one project; one process slices a plate, so its parts share supports and settings, and the plate holds its own 'copies'. cad/slice.py writes 'orient', 'copies' and 'settings' back here when a project was saved from the GUI. A part's 'support_enforcers' are boxes [x0, x1, y0, y1, z0, z1] in its model frame (mm), added to the project as support-enforcer volumes; with support_type normal(manual) the part is supported inside them and nowhere else. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job. 'variants' are parts of a non-default build (e.g. HIP_YOKE_VARIANT=glued) that the default table leaves out; cad/slice.py --variant <name> slices them.",
+  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. 'plates' are parts printed together, sliced into one project; one process slices a plate, so its parts share supports and settings, and the plate holds its own 'copies'. cad/slice.py writes 'orient', 'copies' and 'settings' back here when a project was saved from the GUI. A part's 'support_enforcers' are boxes [x0, x1, y0, y1, z0, z1] in its model frame (mm), added to the project as support-enforcer volumes; with support_type normal(manual) the part is supported inside them and nowhere else. Every copy is laid square to the bed, its walls along X and Y; a part's 'spin' (0, 90, 180 or 270 degrees, default 0) is its quarter turn there, and a quarter turn saved from the GUI is read back into it. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job. 'variants' are parts of a non-default build (e.g. HIP_YOKE_VARIANT=glued) that the default table leaves out; cad/slice.py --variant <name> slices them.",
   "printer": "Flashforge Adventurer 5M Pro 0.4 Nozzle",
   "process": {
     "preset": "0.20mm Standard @Flashforge AD5M Pro 0.4 Nozzle",
@@ -191,7 +191,8 @@
           "note": "the servo-plug (connector) window through the rear wall: its ceiling in print, a 1 mm bar spanning 22.8 mm, stands on the window sill. The box keeps 0.25 inside the wall's outer face (x -19.95) and short of the idler seat's detent channel (x -16.95, y +-11.10), which has no sill: support there would run down to the bay floor"
         }
       ],
-      "copies": 2
+      "copies": 2,
+      "spin": 90
     }
   }
 }

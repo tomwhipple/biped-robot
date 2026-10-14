@@ -44,12 +44,21 @@ Projects slice in parallel (`--jobs`, default half the cores).
    dropped from what the CLI sees.
 3. **Slice and export.** The CLI slices and writes the project
    (`--export-3mf`) and the plate's gcode.
+   - **Square to the bed.** The CLI's arrange turns copies to arbitrary
+     angles. The yaw carrier came out at −25.7°, with `--allow-rotations`
+     off, `--orient 0` and `printer_structure` set to `corexy` alike, and a
+     straight wall prints best along X or Y. So every build item gets a
+     quarter turn, its part's `spin` (0 by default). The copies go in rows
+     along X, `LAYOUT_GAP` (10 mm) apart, and the plate is centred on the bed.
+     A plate that does not fit that way keeps the slicer's arrangement, with a
+     warning. When anything moved, the project is sliced again from there,
+     without `--arrange`.
    - **Support enforcers.** A part with `support_enforcers` (boxes in its
-     model frame) needs a second pass, because the CLI takes no enforcer
-     volume with STL inputs. `slice.py` adds each box to every copy of the
-     part in the exported project as a `support_enforcer` volume, named
+     model frame) needs that second pass too, because the CLI takes no
+     enforcer volume with STL inputs. `slice.py` adds each box to every copy of
+     the part in the exported project as a `support_enforcer` volume, named
      `slice.py support enforcer N`, and drops the project's gcode. It then
-     slices that project again on its own settings and placement. With
+     slices that project again on its own settings. With
      `support_type` `normal(manual)` the part is supported inside the boxes
      only; `snug` keeps the support to the overhang's outline, where the
      default style's margin would spill past the part's faces.
@@ -115,8 +124,11 @@ Before slicing that part or plate again, `slice.py` copies the project to
   that rotation times the old one. On a plate, each build item is matched to
   its part by object name (`model_settings.config`), and the first copy of
   each part decides.
-  - Only a change in the rotation's bottom row, the up direction, counts. A
-    spin on the bed does not.
+  - A change in the rotation's bottom row, the up direction, is a new
+    orientation.
+  - Otherwise the part was spun on the bed. A quarter turn becomes the part's
+    `spin`. Any other angle is reported and not carried, since copies are
+    always laid square to the bed.
   - 3MF transforms are row-vector matrices, `m00 m01 m02 m10 … m32`, so the
     rotation as `print = R · model` is the transpose.
 - **Copies.** The number of build items per part, written to the part, or to

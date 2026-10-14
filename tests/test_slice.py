@@ -1,8 +1,8 @@
 """cad/slice.py: the v6 print table, and the GUI-save round trip.
 
-Everything but the last test runs without OrcaSlicer: presets come from a
-stub library and the projects are built here. The last test drives the real
-slicer and skips where it is not installed.
+Everything but the last tests runs without OrcaSlicer: presets come from a
+stub library and the projects are built here. The last tests drive the real
+slicer and skip where it is not installed.
 """
 import json
 import os
@@ -226,6 +226,76 @@ def test_enforcers_go_on_every_copy_and_harvest_keeps_them(tmp_path):
     enforcer_project(src, ["widget.stl"], '<part id="5" subtype="support_enforcer">'
                      '<metadata key="name" value="Support enforcer"/></part>')
     assert S.read_3mf(str(src))["extras"] == ["a support_enforcer volume"]
+
+
+def layout_files(objects):
+    """Project files with one box mesh per object ((name, (sx, sy), [(deg, x, y)]))
+    and its items turned and placed as an arrange might leave them."""
+    resources, build, settings, files = "", "", "", {}
+    for i, (name, (sx, sy), items) in enumerate(objects):
+        oid = 2 * i + 2
+        verts = "".join(f'<vertex x="{x}" y="{y}" z="{z}"/>'
+                        for z in (0, 5) for y in (0, sy) for x in (0, sx))
+        files[f"3D/Objects/{i}.model"] = (f'<model><resources>\n <object id="1" type="model"><mesh>'
+                                         f'<vertices>{verts}</vertices></mesh></object>\n '
+                                         '</resources></model>').encode()
+        resources += (f'<object id="{oid}" type="model">\n   <components>\n    '
+                      f'<component p:path="/3D/Objects/{i}.model" objectid="1" '
+                      'transform="1 0 0 0 1 0 0 0 1 0 0 0"/>\n   </components>\n  </object>')
+        for deg, x, y in items:
+            c, s = np.cos(np.radians(deg)), np.sin(np.radians(deg))
+            build += f'<item objectid="{oid}" transform="{c} {s} 0 {-s} {c} 0 0 0 1 {x} {y} 0" printable="1"/>'
+        settings += f'<object id="{oid}"><metadata key="name" value="{name}"/></object>'
+    files["3D/3dmodel.model"] = (f'<model><resources>{resources}</resources><build>{build}</build></model>').encode()
+    files["Metadata/model_settings.config"] = f"<config>{settings}</config>".encode()
+    return files
+
+
+def bed_boxes(files):
+    """Each item's footprint on the bed, and its turn in degrees."""
+    model = files["3D/3dmodel.model"].decode()
+    out = []
+    for tag in re.findall(r"<item [^>]*/>", model):
+        m = [float(v) for v in re.search(r'transform="([^"]+)"', tag).group(1).split()]
+        oid = re.search(r'objectid="(\d+)"', tag).group(1)
+        x0, x1, y0, y1 = S._object_bbox(files, model, oid)
+        pts = [(x * m[0] + y * m[3] + m[9], x * m[1] + y * m[4] + m[10]) for x in (x0, x1) for y in (y0, y1)]
+        out.append((min(p[0] for p in pts), max(p[0] for p in pts), min(p[1] for p in pts),
+                    max(p[1] for p in pts), np.degrees(np.arctan2(m[1], m[0]))))
+    return out
+
+
+def test_copies_are_laid_square_to_the_bed_apart_and_centred():
+    files = layout_files([("a.stl", (60, 20), [(-25.7, 3, 4), (140.0, -50, 9)]),
+                          ("b.stl", (130, 80), [(12.0, 0, 0)])])
+    assert S.square_up(files, {"a.stl": 90}) is True
+    boxes = bed_boxes(files)
+    assert [round(b[4]) % 360 for b in boxes] == [90, 90, 0]          # quarter turns: a spun, b as cut
+    assert boxes[0][1] - boxes[0][0] == pytest.approx(20) and boxes[2][1] - boxes[2][0] == pytest.approx(130)
+    for i, p in enumerate(boxes):
+        assert S.BED[0] + S.LAYOUT_MARGIN - 1e-6 <= min(p[0], p[2]) and max(p[1], p[3]) <= S.BED[1] - S.LAYOUT_MARGIN + 1e-6
+        for q in boxes[i + 1:]:
+            gap = max(q[0] - p[1], p[0] - q[1], q[2] - p[3], p[2] - q[3])
+            assert gap >= S.LAYOUT_GAP - 1e-6
+    xs = [v for b in boxes for v in b[:2]]
+    ys = [v for b in boxes for v in b[2:4]]
+    assert (min(xs) + max(xs)) / 2 == pytest.approx(0) and (min(ys) + max(ys)) / 2 == pytest.approx(0)
+    assert S.square_up(files, {"a.stl": 90}) is False                  # already square: no second pass
+    too_big = layout_files([("c.stl", (150, 150), [(0, 0, 0), (0, 0, 0)])])
+    assert S.square_up(too_big, {}) is None                            # left to the slicer's arrangement
+
+
+@pytest.mark.parametrize("deg, spin, change", [(90.0, 90, "spin: 0 -> 90"),
+                                               (-90.0, 270, "spin: 0 -> 270"),
+                                               (31.0, None, "not a quarter turn")])
+def test_a_spin_on_the_bed_is_kept_as_a_quarter_turn(generated, deg, spin, change):
+    tmp_path, spec, cfg = generated
+    c, s = np.cos(np.radians(deg)), np.sin(np.radians(deg))
+    write_project(tmp_path / "widget.3mf", cfg, [f"{c} {s} 0 {-s} {c} 0 0 0 1"])
+    changes, problem = harvest(tmp_path, spec)
+    assert problem is None and any(change in ch for ch in changes)
+    assert spec["parts"]["widget"].get("spin") == spin
+    assert spec["parts"]["widget"]["orient"] == STUB_SPEC["parts"]["widget"]["orient"]
 
 
 def test_yaw_carrier_window_enforcer_matches_the_cad():
@@ -512,7 +582,11 @@ def test_real_slice_supports_the_yaw_carrier_window_only(tmp_path):
     lib = S.orca_profile.Library()
     printer = S.choose_printer(lib, SPEC)
     path, stats = S.slice_part("yaw_carrier_v6", SPEC, lib, str(tmp_path), printer, copies=1)
-    assert S.read_3mf(path)["extras"] == []
+    project = S.read_3mf(path)
+    assert project["extras"] == []
+    (_, r), = project["items"]                       # square to the bed, at the part's spin
+    assert np.degrees(np.arctan2(r[1][0], r[0][0])) % 360 == pytest.approx(SPEC["parts"]["yaw_carrier_v6"]["spin"])
+    assert stats["in_bounds"]
     z, typ, heights = 0.0, "", set()
     for line in open(tmp_path / "yaw_carrier_v6.gcode"):
         if line.startswith(";Z:"):
