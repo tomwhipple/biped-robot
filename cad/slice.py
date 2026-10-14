@@ -10,8 +10,9 @@ For each part, build/v6/gcode/ (gitignored; `make slice` runs this) gets:
 
 The settings are cad/v6/print_settings.json: the print spec on top of
 Flashforge's own presets, one entry per part (orientation, supports,
-copies, overrides), and plates: parts printed together, sliced into one
-<plate>.3mf + .gcode. If a project is changed in the GUI and saved (Cmd+S),
+copies, overrides, support-enforcer boxes), and plates: parts printed
+together, sliced into one <plate>.3mf + .gcode. If a project is changed in
+the GUI and saved (Cmd+S),
 the next run reads the change back -- settings, orientation, copies -- into
 print_settings.json before it slices that part or plate again, so it carries
 forward.
@@ -147,6 +148,11 @@ def read_stl(path):
     if not verts or len(verts) % 3:
         raise SystemExit(f"cannot read STL {path}")
     return [tuple(verts[i:i + 3]) for i in range(0, len(verts), 3)]
+
+
+def rotated_min(tris, rot):
+    """The lowest corner of ``tris`` rotated by ``rot``: what write_rotated_stl subtracts."""
+    return [min(sum(r[k] * v[k] for k in range(3)) for t in tris for v in t) for r in rot]
 
 
 def write_rotated_stl(tris, rot, path):
@@ -346,6 +352,10 @@ def read_3mf(path):
                 elif k not in OBJECT_META:
                     overrides[k] = v
             for part in obj.iterfind("part"):
+                pname = next((md.get("value") for md in part.iterfind("metadata")
+                              if md.get("key") == "name"), "")
+                if part.get("subtype") == "support_enforcer" and pname.startswith(ENFORCER_NAME):
+                    continue        # slice_part's own, from print_settings.json
                 if part.get("subtype", "normal_part") != "normal_part":
                     extras.append(f"a {part.get('subtype')} volume")
                 for md in part.iterfind("metadata"):
@@ -365,6 +375,83 @@ def read_3mf(path):
                       transpose(matmul(comp_rot, item_rot))))
     return {"config": cfg, "items": items, "rotations": [r for _, r in items],
             "overrides": overrides, "object_names": object_names, "extras": extras}
+
+
+# Support enforcers: boxes in a part's model frame (print_settings.json
+# "support_enforcers": [{"box": [x0, x1, y0, y1, z0, z1]}]). slice_part adds
+# them to the project as support-enforcer volumes and slices it again; with
+# manual supports (support_type normal(manual)) the slicer then supports the
+# overhangs inside them and nothing else.
+ENFORCER_NAME = "slice.py support enforcer"
+BOX_TRIANGLES = ((0, 2, 1), (1, 2, 3), (4, 5, 6), (5, 7, 6), (0, 1, 4), (1, 5, 4),
+                 (2, 6, 3), (3, 6, 7), (0, 4, 2), (2, 4, 6), (1, 3, 5), (3, 7, 5))
+
+
+def enforcer_boxes(entry, rot, lo):
+    """``entry``'s enforcer boxes in its rotated STL's frame (rotated by ``rot``,
+    less ``lo``), which is the frame of its object in the project."""
+    out = []
+    for e in entry.get("support_enforcers", []):
+        x0, x1, y0, y1, z0, z1 = e["box"]
+        pts = [[sum(r[k] * c[k] for k in range(3)) - lo[i] for i, r in enumerate(rot)]
+               for c in [(x, y, z) for x in (x0, x1) for y in (y0, y1) for z in (z0, z1)]]
+        out.append(tuple((min(p[i] for p in pts), max(p[i] for p in pts)) for i in range(3)))
+    return out
+
+
+def _box_object(oid, box):
+    (x0, x1), (y0, y1), (z0, z1) = box
+    verts = "".join(f'<vertex x="{x:.4f}" y="{y:.4f}" z="{z:.4f}"/>'
+                    for z in (z0, z1) for y in (y0, y1) for x in (x0, x1))
+    tris = "".join(f'<triangle v1="{a}" v2="{b}" v3="{c}"/>' for a, b, c in BOX_TRIANGLES)
+    return (f'<object id="{oid}" type="model"><mesh><vertices>{verts}</vertices>'
+            f'<triangles>{tris}</triangles></mesh></object>\n ')
+
+
+def add_enforcers(src, dst, boxes):
+    """Copy project ``src`` to ``dst`` with support-enforcer volumes on every
+    object named in ``boxes`` ({object name: [box, ...]}, enforcer_boxes'
+    frame), and without its sliced gcode, so the slicer slices it again."""
+    with zipfile.ZipFile(src) as z:
+        infos = z.infolist()
+        files = {i.filename: z.read(i.filename) for i in infos}
+    model = files["3D/3dmodel.model"].decode()
+    settings = files["Metadata/model_settings.config"].decode()
+    added = {}                                  # (mesh file, box) -> its object id there
+    for m in reversed(list(re.finditer(r'<object id="(\d+)">(.*?)</object>', settings, re.S))):
+        name = re.search(r'<metadata key="name" value="([^"]*)"', m.group(2)).group(1)
+        if name not in boxes:
+            continue
+        comps = re.search(rf'<object id="{m.group(1)}"[^>]*>\s*<components>(.*?)</components>',
+                          model, re.S)
+        path = re.search(r'p:path="([^"]+)"', comps.group(1)).group(1)
+        new_comps, new_parts = "", ""
+        for i, box in enumerate(boxes[name]):
+            if (path, box) not in added:
+                mesh = files[path.lstrip("/")].decode()
+                eid = max(int(x) for x in re.findall(r'<object id="(\d+)"', mesh)) + 1
+                files[path.lstrip("/")] = mesh.replace(
+                    "</resources>", _box_object(eid, box) + "</resources>", 1).encode()
+                added[(path, box)] = eid
+            eid = added[(path, box)]
+            new_comps += (f'\n    <component p:path="{path}" objectid="{eid}" '
+                          'transform="1 0 0 0 1 0 0 0 1 0 0 0"/>')
+            new_parts += (f'    <part id="{eid}" subtype="support_enforcer">\n'
+                          f'      <metadata key="name" value="{ENFORCER_NAME} {i + 1}"/>\n'
+                          '      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n'
+                          '    </part>\n')
+        model = model[:comps.end(1)] + new_comps + model[comps.end(1):]
+        end = m.end() - len("</object>")
+        settings = settings[:end] + new_parts + settings[end:]
+    if not added:
+        raise SystemExit(f"{os.path.basename(src)}: no object named {', '.join(boxes)}")
+    files["3D/3dmodel.model"] = model.encode()
+    files["Metadata/model_settings.config"] = settings.encode()
+    with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as z:
+        for info in infos:
+            if re.fullmatch(r"Metadata/plate_\d+\.gcode(\.md5)?", info.filename):
+                continue
+            z.writestr(info, files[info.filename])
 
 
 def finalize_3mf(path, cfg_patch):
@@ -518,16 +605,20 @@ def slice_part(name, spec, lib, outdir, printer, copies=None):
     os.makedirs(os.path.join(work, "out"), exist_ok=True)
     n = copies or entry.get("copies", 1)
 
-    inputs, objects, heights = [], {}, []
+    inputs, objects, heights, enforcers = [], {}, [], {}
     for part in plate_parts(spec, name):
         stl = os.path.join(STL_DIR, f"{part}.stl")
         if not os.path.exists(stl):
             raise SystemExit(f"{part}: no {os.path.relpath(stl, REPO)} (run cad/v6/parts_v6.py)")
         rot = orient_matrix(part_entry(spec, part).get("orient", "IDENT"))
         work_stl = os.path.join(work, f"{part}.stl")
-        heights.append(write_rotated_stl(read_stl(stl), rot, work_stl)[2])
+        tris = read_stl(stl)
+        heights.append(write_rotated_stl(tris, rot, work_stl)[2])
         inputs += [work_stl] * n
         objects[f"{part}.stl"] = {"part": part, "orient": orient_name(rot)}
+        boxes = enforcer_boxes(part_entry(spec, part), rot, rotated_min(tris, rot))
+        if boxes:
+            enforcers[f"{part}.stl"] = boxes
 
     machine, process, filament = build_presets(lib, spec, entry, printer)
     paths = {}
@@ -538,26 +629,37 @@ def slice_part(name, spec, lib, outdir, printer, copies=None):
 
     datadir = os.path.join(outdir, ".work", "datadir", name)
     os.makedirs(datadir, exist_ok=True)     # the CLI only creates the last level
-    cmd, env = orca_command()
-    cmd = cmd + [
-        "--datadir", datadir,
-        "--load-settings", f"{paths['machine']};{paths['process']}",
-        "--load-filaments", paths["filament"],
-        # The GUI slices this printer without G92 E0 in layer_change_gcode;
-        # only the CLI's normative check insists on it.
-        "--normative-check=0",
-        "--slice", "0", "--arrange", "1",
-        "--export-3mf", f"{name}.3mf",
-        "--outputdir", os.path.join(work, "out"),
-        "--logfile", os.path.join(work, "orca.log"), "--debug", "3",
-    ] + inputs
-    proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
     gcode = os.path.join(work, "out", "plate_1.gcode")
     project = os.path.join(work, "out", f"{name}.3mf")
-    if proc.returncode != 0 or not (os.path.exists(gcode) and os.path.exists(project)):
-        detail = (proc.stdout + proc.stderr).strip().splitlines()[-3:]
-        raise SystemExit(f"{name}: OrcaSlicer exit {proc.returncode}: {' | '.join(detail)} "
-                         f"(log: {os.path.relpath(os.path.join(work, 'orca.log'), REPO)})")
+
+    def orca(args):
+        cmd, env = orca_command()
+        cmd = cmd + [
+            "--datadir", datadir,
+            # The GUI slices this printer without G92 E0 in layer_change_gcode;
+            # only the CLI's normative check insists on it.
+            "--normative-check=0",
+            "--slice", "0",
+            "--export-3mf", f"{name}.3mf",
+            "--outputdir", os.path.join(work, "out"),
+            "--logfile", os.path.join(work, "orca.log"), "--debug", "3",
+        ] + args
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        if proc.returncode != 0 or not (os.path.exists(gcode) and os.path.exists(project)):
+            detail = (proc.stdout + proc.stderr).strip().splitlines()[-3:]
+            raise SystemExit(f"{name}: OrcaSlicer exit {proc.returncode}: {' | '.join(detail)} "
+                             f"(log: {os.path.relpath(os.path.join(work, 'orca.log'), REPO)})")
+
+    orca(["--load-settings", f"{paths['machine']};{paths['process']}",
+          "--load-filaments", paths["filament"], "--arrange", "1"] + inputs)
+    if enforcers:
+        # The CLI takes no enforcer volumes with STL inputs: slice its own
+        # project again with them added, on the same settings and placement.
+        enforced = os.path.join(work, f"{name}.enforced.3mf")
+        add_enforcers(project, enforced, enforcers)
+        os.remove(project)
+        os.remove(gcode)
+        orca([enforced])
 
     system_process = lib.resolve("process", spec["process"]["preset"])
     system_filament = lib.resolve("filament", spec["filament"]["preset"])

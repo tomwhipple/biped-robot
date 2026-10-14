@@ -179,6 +179,74 @@ def test_rotated_stl(tmp_path):
     assert min(v[2] for v in (v0, v1, v2)) == pytest.approx(0.0)
 
 
+def test_enforcer_boxes_follow_the_print_orientation():
+    entry = {"support_enforcers": [{"box": [1, 2, 3, 5, -10, -4]}]}
+    lo = [-6, -8, 0]             # the rotated part's lowest corner
+    (bx, by, bz), = S.enforcer_boxes(entry, S.ROTATIONS["RX180"], lo)
+    assert bx == (7, 8) and by == (3, 5) and bz == (4, 10)   # print (x, -y, -z) less lo
+
+
+def enforcer_project(path, names, extra_part=""):
+    """Objects named ``names`` sharing one mesh file, as the CLI exports copies."""
+    resources = "".join(
+        f'<object id="{2 * i + 2}" type="model">\n   <components>\n    '
+        '<component p:path="/3D/Objects/w.model" objectid="1" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>'
+        '\n   </components>\n  </object>' for i in range(len(names)))
+    settings = "".join(
+        f'<object id="{2 * i + 2}"><metadata key="name" value="{n}"/>'
+        f'<part id="1" subtype="normal_part"><metadata key="name" value="{n}"/></part>{extra_part}'
+        '</object>' for i, n in enumerate(names))
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("Metadata/project_settings.config", "{}")
+        z.writestr("3D/3dmodel.model",
+                   '<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" '
+                   'xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">'
+                   f'<resources>{resources}</resources><build/></model>')
+        z.writestr("3D/Objects/w.model", '<model><resources>\n  <object id="1" type="model"><mesh>'
+                   '</mesh></object>\n </resources></model>')
+        z.writestr("Metadata/model_settings.config", f"<config>{settings}</config>")
+        z.writestr("Metadata/plate_1.gcode", "G1 X0")
+
+
+def test_enforcers_go_on_every_copy_and_harvest_keeps_them(tmp_path):
+    src, dst = tmp_path / "a.3mf", tmp_path / "b.3mf"
+    enforcer_project(src, ["widget.stl", "widget.stl", "other.stl"])
+    box = ((1.0, 2.0), (3.0, 4.0), (5.0, 6.0))
+    S.add_enforcers(str(src), str(dst), {"widget.stl": [box]})
+    z = zipfile.ZipFile(dst)
+    assert "Metadata/plate_1.gcode" not in z.namelist()        # sliced again from here
+    mesh = z.read("3D/Objects/w.model").decode()
+    assert mesh.count('<object id="2" type="model">') == 1 and 'x="2.0000" y="4.0000" z="6.0000"' in mesh
+    model = z.read("3D/3dmodel.model").decode()
+    assert model.count('objectid="2"') == 2                    # both copies, one shared mesh
+    settings = z.read("Metadata/model_settings.config").decode()
+    assert settings.count('subtype="support_enforcer"') == 2
+    assert S.read_3mf(str(dst))["extras"] == []
+    # an enforcer drawn in the GUI is still one harvest cannot carry
+    enforcer_project(src, ["widget.stl"], '<part id="5" subtype="support_enforcer">'
+                     '<metadata key="name" value="Support enforcer"/></part>')
+    assert S.read_3mf(str(src))["extras"] == ["a support_enforcer volume"]
+
+
+def test_yaw_carrier_window_enforcer_matches_the_cad():
+    """The enforcer box sits over the servo-plug window's sill: inside the rear
+    wall's outer face and short of the idler seat's detent channel (no sill),
+    across the window's height up into its ceiling bar."""
+    import dimensions_v6 as V
+    D = V.D
+    (box,) = [e["box"] for e in SPEC["parts"]["yaw_carrier_v6"]["support_enforcers"]]
+    x0, x1, y0, y1, z0, z1 = box
+    za = V.CARRIER_ROLL_AXIS
+    window_lo, window_hi = za + D.SV_CONN_L[0] - 0.45, za + D.SV_CONN_L[1] + 1.0
+    channel_x = D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR
+    channel_hw = D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR
+    assert -19.95 < x0 < x1 < channel_x
+    assert -channel_hw <= y0 < y1 <= channel_hw
+    assert z0 < window_lo < z1 <= window_hi and z0 > za + D.BAY_BORE / 2   # into the bar, not past it
+    entry = SPEC["parts"]["yaw_carrier_v6"]
+    assert entry["supports"] and entry["settings"]["support_type"] == "normal(manual)"
+
+
 def test_orient_name_round_trip():
     for name, m in S.ROTATIONS.items():
         assert S.orient_name(m) == name
@@ -434,6 +502,26 @@ def test_real_slice_keeps_the_spec_in_the_project(tmp_path):
     assert {"wall_loops", "sparse_infill_density", "curr_bed_type"} <= set(listed)
     assert "printhost_apikey" not in json.dumps(cfg) or cfg.get("printhost_apikey") in (None, "")
     assert stats["in_bounds"] and os.path.exists(os.path.join(tmp_path, "neck_floor.gcode"))
+
+
+@pytest.mark.skipif(sys.platform != "darwin" or not os.path.exists(ORCA),
+                    reason="OrcaSlicer.app not installed")
+def test_real_slice_supports_the_yaw_carrier_window_only(tmp_path):
+    """The enforcer reaches the slicer: support at the window's print heights
+    (its sill to its ceiling bar), none under the lip or in the screw holes."""
+    lib = S.orca_profile.Library()
+    printer = S.choose_printer(lib, SPEC)
+    path, stats = S.slice_part("yaw_carrier_v6", SPEC, lib, str(tmp_path), printer, copies=1)
+    assert S.read_3mf(path)["extras"] == []
+    z, typ, heights = 0.0, "", set()
+    for line in open(tmp_path / "yaw_carrier_v6.gcode"):
+        if line.startswith(";Z:"):
+            z = float(line[3:])
+        elif line.startswith(";TYPE:"):
+            typ = line[6:].strip()
+        elif "upport" in typ and line.startswith("G1") and " E" in line and "E-" not in line:
+            heights.add(z)
+    assert heights and 27.5 < min(heights) and max(heights) < 34.0
 
 
 @pytest.mark.skipif(sys.platform != "darwin" or not os.path.exists(ORCA),

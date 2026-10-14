@@ -44,6 +44,20 @@ Projects slice in parallel (`--jobs`, default half the cores).
    dropped from what the CLI sees.
 3. **Slice and export.** The CLI slices and writes the project
    (`--export-3mf`) and the plate's gcode.
+   - **Support enforcers.** A part with `support_enforcers` (boxes in its
+     model frame) needs a second pass, because the CLI takes no enforcer
+     volume with STL inputs. `slice.py` adds each box to every copy of the
+     part in the exported project as a `support_enforcer` volume, named
+     `slice.py support enforcer N`, and drops the project's gcode. It then
+     slices that project again on its own settings and placement. With
+     `support_type` `normal(manual)` the part is supported inside the boxes
+     only; `snug` keeps the support to the overhang's outline, where the
+     default style's margin would spill past the part's faces.
+   - **The box's frame.** The enforcer's vertices are written in the object's
+     frame, which is the rotated STL's: the box is rotated like the part and
+     less the same lowest corner. A copy's normal part carries a `matrix` in
+     `model_settings.config`. The enforcer does not need one: the CLI takes
+     its vertices as they are.
 4. **Fill in `different_settings_to_system`** in the project's
    `Metadata/project_settings.config` (below).
 5. **Record the project's state**: its sha256, each object's part,
@@ -109,9 +123,12 @@ Before slicing that part or plate again, `slice.py` copies the project to
   the plate. A plate saved with different counts per part is reported, not
   carried.
 
-Painted supports, seams or colour, modifier and support-blocker volumes,
-height-range modifiers, and objects other than the project's parts cannot be
-written back.
+Painted supports, seams or colour, modifier, support-blocker and
+support-enforcer volumes drawn in the GUI, height-range modifiers, and
+objects other than the project's parts cannot be written back. The
+enforcers `slice.py` adds itself are recognised by name and skipped. They come
+from `print_settings.json`, so a change to one in the GUI is not carried back
+either: change the box in the JSON.
 For those, `slice.py` leaves the project in place, says why, and does not
 re-slice that part. A project it cannot read is treated the same way.
 
