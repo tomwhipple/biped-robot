@@ -18,22 +18,21 @@
 # tip it does not have, no merge base with origin/main).
 #
 # Per Tom (2026-09-16): "disable all CI on this project and make it run as a
-# pre-push hook instead." ALL gates the old CI ran execute here:
-#   [1/9] host check      make -C firmware/host check  (hard; C/C++ pushes, else make sil
+# pre-push hook instead." ALL gates the old CI ran execute here, each as a
+# make target, so `make <target>` runs a gate the same way by hand:
+#   [1/9] host check      make host       (hard; C/C++ pushes, else make sil-lib
 #                         when [3/9] runs)
-#   [2/9] link-tests      python3 -m pytest tests/ -q  (hard; non-inert pushes)
-#   [3/9] sil-suite       python3 -m pytest sim/sil -q (hard; non-inert pushes; the tests
+#   [2/9] link-tests      make pytest     (hard; non-inert pushes)
+#   [3/9] sil-suite       make sil-suite  (hard; non-inert pushes; the tests
 #                         that need the deployed run's gitignored artifacts
 #                         SKIP with a reason on a machine without them)
-#   [4/9] cmake-ctest     cmake configure/build/ctest  (C/C++ pushes; hard when cmake installed, skip with note otherwise)
-#   [5/9] clang-tidy      run-clang-tidy -p build -quiet  (toolchain-guarded)
-#   [6/9] clang-tidy-gui  firmware/host/clang-tidy-gui.sh (toolchain-guarded; runs make deps)
-#   [7/9] cppcheck        firmware/host/cppcheck.sh    (toolchain-guarded)
-#   [8-9/9] esp32-build   idf.py build (the project in firmware/; firmware/main is
-#                         a component) — detection: idf.py on
-#                         PATH, else source $IDF_PATH/export.sh, else hardcoded
-#                         $HOME/.espressif/frameworks/esp-idf-v5.4; SKIP_ESP32=1
-#                         overrides a missing toolchain.
+#   [4/9] cmake-ctest     make cmake-check (C/C++ pushes; SKIP without cmake)
+#   [5/9] clang-tidy      make tidy        (SKIP without clang-tidy)
+#   [6/9] clang-tidy-gui  make tidy-gui    (SKIP without clang-tidy; runs make deps)
+#   [7/9] cppcheck        make cppcheck    (SKIP without cppcheck)
+#   [8-9/9] esp32-build   make firmware    (idf.py on PATH, else $IDF_PATH/export.sh,
+#                         else ~/esp/esp-idf or ~/.espressif/frameworks/esp-idf-v5.4;
+#                         no ESP-IDF fails the push unless SKIP_ESP32=1)
 # Static-analysis gates fail on findings (same pass/fail semantics as the old
 # CI jobs: run-clang-tidy honours WarningsAsErrors from .clang-tidy;
 # cppcheck.sh fails on ANY finding).
@@ -63,10 +62,6 @@ else
 fi
 
 rc=0
-
-# macOS + Linux portable helpers.
-ncpu() { nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1; }
-mkbuild() { mktemp -d 2>/dev/null || mktemp -d '/tmp/biped-robot-ci-build.XXXXXX'; }
 
 # --- which gates this push needs ----------------------------------------------
 # git feeds "<local ref> <local sha> <remote ref> <remote sha>" per pushed ref.
@@ -159,176 +154,49 @@ else
   echo "Python gates: SKIP -- this push changes only docs/, *.md, images, PDFs, HTML, .github/ or .claude/ (PREPUSH_ALL=1 forces them)"
 fi
 
-echo "== pre-push: making sure everything compiles, linked, and tested =="
-echo "(same set CI used to check — now local instead of GitHub Actions)"
+echo "== pre-push: making sure everything compiles, links and passes =="
 
-# --- [1/9] host gate (the mjpeg.cpp lesson) + tui (console client) ----------
-echo "" >&2
+# Each gate is a make target (`make help`, Tests and Firmware), so a gate runs
+# the same here as by hand. A target whose tool is missing prints SKIP and passes.
+gate() {
+  echo "" >&2
+  echo "== [$1] make $2 =="
+  if ! make -C "$ROOT" PY="$PY" "$2"; then
+    echo "FAIL: $1 (make $2)" >&2
+    rc=1
+  fi
+}
+
+# [1/9] the host checks (the mjpeg.cpp lesson) and the consoles; without C/C++
+# changes only the SIL library that [3/9] loads.
 if [ -n "$cpp" ]; then
-  echo "== [host-tests + console/tui] make -C firmware/host check =="
-  if ! make -C "$ROOT/firmware/host" check; then
-    echo "FAIL: host/tests/gui compile or test failed" >&2
-    rc=1
-  fi
+  gate "1/9 host" host
 elif [ -n "$py" ]; then
-  # [3/9] still needs libctrl_sil, which the host check would have built.
-  echo "== [sil-lib] make -C firmware/host sil (C/C++ gates skipped) =="
-  if ! make -C "$ROOT/firmware/host" sil; then
-    echo "FAIL: libctrl_sil build failed" >&2
-    rc=1
-  fi
+  gate "1/9 sil-lib" sil-lib
 fi
 
-if [ -z "$py" ]; then
-  echo "SKIP: host-check, sil-lib, link-tests, sil-suite (only docs, images and the like changed)" >&2
+if [ -n "$py" ]; then
+  gate "2/9 link-tests" pytest
+  # Tests that need the deployed run's gitignored artifacts (sim/runs/<run>/,
+  # the .silw) skip with a reason where they are absent (issue #89).
+  gate "3/9 sil-suite" sil-suite
 else
-
-  # --- [2/9] link-test suite (protocol, sources, e2e simulation tests) -------
-  echo "" >&2
-  echo "== [link-tests] pytest over link/test suite =="
-  if ! "$PY" -m pytest "$ROOT/tests/" -q; then
-    echo "FAIL: link-test suite failed" >&2
-    rc=1
-  fi
-
-  # --- [3/9] SIL suite (the firmware's control code against the CPU plant) ---
-  # Runs after [1/9], which built firmware/host/build/libctrl_sil. Tests that
-  # need the deployed run's gitignored artifacts (sim/runs/<run>/, the .silw)
-  # skip with a reason where they are absent; the rest always run (issue #89).
-  echo "" >&2
-  echo "== [sil-suite] pytest sim/sil =="
-  if ! "$PY" -m pytest "$ROOT/sim/sil" -q; then
-    echo "FAIL: SIL suite failed" >&2
-    rc=1
-  fi
+  echo "SKIP: host-check, sil-lib, link-tests, sil-suite (only docs, images and the like changed)" >&2
 fi
 
-# --- [4/9]..[8-9/9]: the C/C++ toolchain gates, on C/C++ pushes only -----------
-if [ -z "$cpp" ]; then
+if [ -n "$cpp" ]; then
+  gate "4/9 cmake-ctest" cmake-check
+  gate "5/9 clang-tidy" tidy
+  gate "6/9 clang-tidy-gui" tidy-gui
+  gate "7/9 cppcheck" cppcheck
+  if [ "${SKIP_ESP32:-0}" != "0" ]; then
+    echo "SKIP: esp32-build (SKIP_ESP32=$SKIP_ESP32 in env)" >&2
+  else
+    gate "8-9/9 esp32-build" firmware
+  fi
+else
   echo "" >&2
   echo "SKIP: cmake-ctest, clang-tidy, clang-tidy-gui, cppcheck, esp32-build (no C/C++ changes)" >&2
-else
-
-  # --- [4/9] cmake + ctest (both build files must agree) -----------------------
-  echo "" >&2
-  echo "== [cmake-ctest] verifying cmake builds and tests pass =="
-  build_dir=""
-
-  if ! command -v cmake >/dev/null 2>&1; then
-    echo "SKIP: cmake not installed — run 'brew install cmake' (macOS) or 'apt-get install cmake'" >&2
-  else
-    build_dir="$(mkbuild)"
-    if ! cmake -S "$ROOT/firmware/host" -B "$build_dir" \
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON; then
-      echo "FAIL: CMake configure failed (see above)" >&2
-      rc=1
-    elif ! cmake --build "$build_dir" -j"$(ncpu)"; then
-      echo "FAIL: cmake build phase failed (see above)" >&2
-      rc=1
-    elif ! ctest --test-dir "$build_dir" --output-on-failure; then
-      echo "FAIL: ctest failed (see output above)" >&2
-      rc=1
-    fi
-  fi
-
-  # --- [5/9] clang-tidy over host firmware (bugprone/readability classes) ------
-  echo "" >&2
-  echo "== [clang-tidy] static analysis over host firmware =="
-  if ! command -v run-clang-tidy >/dev/null 2>&1; then
-    echo "SKIP: clang-tidy not installed — 'apt-get install clang-tidy' / 'brew install llvm'" >&2
-  elif [ -z "$build_dir" ] || [ ! -f "$build_dir/compile_commands.json" ]; then
-    # No configured build from [4/9] (cmake absent or configure failed — already
-    # counted there if it failed).
-    echo "SKIP: no compile_commands.json (cmake gate skipped/failed above)" >&2
-  elif ! run-clang-tidy -p "$build_dir" -quiet; then
-    echo "FAIL: clang-tidy findings (WarningsAsErrors per .clang-tidy)" >&2
-    rc=1
-  fi
-
-  # --- [6/9] clang-tidy over GUI sources ----------------------------------------
-  echo "" >&2
-  echo "== [clang-tidy-gui] static analysis over GUI/console sources =="
-  if ! command -v clang-tidy >/dev/null 2>&1; then
-    echo "SKIP: clang-tidy not installed" >&2
-  else
-    # clang-tidy-gui.sh needs deps fetched and a compile_commands.json under
-    # firmware/host/build (separate from the [4/9] scratch dir, as in old CI).
-    gui_build="$ROOT/firmware/host/build"
-    gui_created=""
-    if [ ! -f "$gui_build/compile_commands.json" ]; then
-      if command -v cmake >/dev/null 2>&1; then
-        if cmake -S "$ROOT/firmware/host" -B "$gui_build" \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null 2>&1; then
-          gui_created=1
-        else
-          echo "SKIP: gui compile_commands.json configure failed" >&2
-        fi
-      else
-        echo "SKIP: cmake not installed (needed for gui compile_commands.json)" >&2
-      fi
-    fi
-    if [ -f "$gui_build/compile_commands.json" ]; then
-      if ! make -C "$ROOT/firmware/host" deps; then
-        echo "FAIL: make deps (pinned imgui/stb fetch) failed" >&2
-        rc=1
-      elif ! "$ROOT/firmware/host/clang-tidy-gui.sh"; then
-        echo "FAIL: clang-tidy-gui findings" >&2
-        rc=1
-      fi
-    fi
-    if [ -n "$gui_created" ]; then
-      rm -rf "$gui_build"
-    fi
-  fi
-
-  # --- [7/9] cppcheck (whole-program, fails on ANY finding) ----------------------
-  echo "" >&2
-  echo "== [cppcheck] static analysis over firmware + link =="
-  if ! command -v cppcheck >/dev/null 2>&1; then
-    echo "SKIP: cppcheck not installed — 'apt-get install cppcheck' / 'brew install cppcheck'" >&2
-  elif ! "$ROOT/firmware/host/cppcheck.sh"; then
-    echo "FAIL: cppcheck findings (wrapper fails on any finding)" >&2
-    rc=1
-  fi
-
-  # Scratch cmake build cleanup (kept across the tidy gates on purpose: [5/9]
-  # reuses its compile_commands.json).
-  if [ -n "$build_dir" ] && [ -d "$build_dir" ]; then
-    rm -rf "$build_dir"
-  fi
-
-  # --- [8-9/9] esp32 firmware build (idf.py link step) ---------------------------
-  echo "" >&2
-  echo "== [esp32-build] verifying ESP-IDF builds the firmware project (firmware/) =="
-
-  esp_build() {
-    ( cd "$ROOT/firmware" && idf.py fullclean >/dev/null 2>&1 && idf.py build )
-  }
-
-  if [ "${SKIP_ESP32:-0}" != "0" ]; then
-    echo "SKIP: SKIP_ESP32=$SKIP_ESP32 in env" >&2
-  elif command -v idf.py >/dev/null 2>&1; then
-    # Toolchain already on PATH (real ESP-IDF installs put idf.py's DIR on PATH;
-    # export.sh does this).
-    if ! esp_build; then
-      echo "FAIL: esp32 firmware build failed (see above)" >&2
-      rc=1
-    fi
-  else
-    IDF_HOME="${IDF_PATH:-$HOME/.espressif/frameworks/esp-idf-v5.4}"
-    if [ -f "$IDF_HOME/export.sh" ]; then
-      if ! ( . "$IDF_HOME/export.sh" >/dev/null 2>&1 && esp_build ); then
-        echo "FAIL: esp32 firmware build failed (see above)" >&2
-        rc=1
-      fi
-    else
-      echo "WARN: no ESP-IDF detected (no idf.py on PATH, no export.sh at ${IDF_HOME})." >&2
-      echo "      Install ESP-IDF v5.4, or set IDF_PATH to its location, or SKIP_ESP32=1." >&2
-      if [ "${SKIP_ESP32:-0}" = "0" ]; then
-        rc=1
-      fi
-    fi
-  fi
 fi
 
 if [ "$rc" -eq 0 ]; then

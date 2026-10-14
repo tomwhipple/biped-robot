@@ -43,8 +43,9 @@ sweeps/
 # tools/obs_capture.py writes one CSV per hardware capture
 captures/
 
-# cad/slice.py output: projects + gcode are build artifacts, regenerate them
+# the slicer's old output folders (make clean deletes them; it writes build/v6/gcode)
 cad/gcode/
+cad/v6/gcode/
 hw_sessions/
 
 # Fetched C++ deps for bimo_gui (make -C firmware/host deps) -- pinned, never
