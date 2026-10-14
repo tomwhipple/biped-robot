@@ -25,6 +25,8 @@ Variants (env vars; the defaults are the robot to print):
     HIP_YOKE_VARIANT=single|glued|split  the one-print hip yoke (default), the
                                 glued U-channel pair, or the legacy bolted
                                 yoke_roll + yoke_pitch pair.
+    ANKLE_LINK_VARIANT=box|glued  the one-print ankle link (default) or the
+                                glued cradle + fork, carried as their union.
 
     .venv/bin/python cad/v6/assembly_v6.py                 # build/v6/{step,renders}/assembly_v6_arms.{step,png}
     ARMS=0 .venv/bin/python cad/v6/assembly_v6.py          # build/v6/{step,renders}/assembly_v6.{step,png} (armless)
@@ -160,7 +162,17 @@ def part_leg_link():
     return Pos(0, 1.0, -V.LL_DROP / 2) * Box(30, 44, V.LL_DROP + 20)
 
 
+def ankle_link_variant():
+    """"box" (default, cad/v6/ankle_link.py) or "glued" (cad/v6/
+    ankle_link_glued.py: a conformal cradle and a fork, printed without
+    supports and glued; the assembly carries their union as one piece)."""
+    return os.environ.get("ANKLE_LINK_VARIANT", "box")
+
+
 def part_ankle_link():
+    if ankle_link_variant() == "glued":
+        import ankle_link_glued
+        return ankle_link_glued.ankle_link_glued()
     s, ok = _try("ankle_link", "ankle_link")
     if ok:
         return s

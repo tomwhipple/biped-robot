@@ -118,21 +118,29 @@ def test_orientation_matches_the_module(part):
     assert np.allclose(table, module_orient(part)), part
 
 
-def test_variant_parts_are_sliceable_and_kept_out_of_the_default_table():
-    import hip_yoke_glued
-    var = SPEC["variants"]["hip_yoke_glued"]
-    assert set(var["parts"]) == set(hip_yoke_glued.PIECES)
+@pytest.mark.parametrize("variant", sorted(SPEC["variants"]))
+def test_variant_parts_are_sliceable_and_kept_out_of_the_default_table(variant):
+    """Each variant is named for its module, which builds its PIECES; its
+    one plate (named for it too) holds them, in the module's PRINT_ORIENT."""
+    import importlib
+    mod = importlib.import_module(variant)
+    var = SPEC["variants"][variant]
+    assert set(var["parts"]) == set(mod.PIECES)
     assert not set(var["parts"]) & set(SPEC["parts"])
     for part, entry in var["parts"].items():
         assert os.path.exists(os.path.join(S.STL_DIR, f"{part}.stl")), part
         assert entry["supports"] is False, part
         assert np.allclose(np.array(S.orient_matrix(entry["orient"]), float),
-                           np.array(hip_yoke_glued.PRINT_ORIENT[part], float)), part
-    spec = S.with_variants(SPEC, ["hip_yoke_glued"])
-    assert S.plate_parts(spec, "hip_yoke_glued") == list(hip_yoke_glued.PIECES)
-    S.job_entry(spec, "hip_yoke_glued")
+                           np.array(mod.PRINT_ORIENT[part], float)), part
+    spec = S.with_variants(SPEC, [variant])
+    assert S.plate_parts(spec, variant) == list(mod.PIECES)
+    S.job_entry(spec, variant)
     # entries are shared, so a harvested GUI save lands in 'variants'
-    assert spec["parts"]["hip_yoke_glued_roll"] is var["parts"]["hip_yoke_glued_roll"]
+    first = mod.PIECES[0]
+    assert spec["parts"][first] is var["parts"][first]
+
+
+def test_an_unknown_variant_is_refused():
     with pytest.raises(SystemExit, match="not in"):
         S.with_variants(SPEC, ["no_such_variant"])
 

@@ -112,6 +112,8 @@ brims.
 before it is used on other parts. It is not in the default build yet, so
 `hip_yoke_v6` stays in the table above.
 
+![The glued hip yoke: each piece as it lies on the bed, exploded, glued](../docs/img/hip_yoke_glued.png)
+
 | part | qty | g each | orientation on the bed | supports |
 |---|---|---|---|---|
 | `hip_yoke_glued_roll` | 2 | 9.4 | on edge, model −Y on the bed (the face tangent to the pads and the idler boss) | **no**, no brim |
@@ -130,6 +132,42 @@ before it is used on other parts. It is not in the default build yet, so
   cylinder printed on its side. It is the journal that turns in the yaw
   carrier's bay bore with 0.3 mm of clearance, so check it for a ridge or a
   flat spot before fitting it into the carrier.
+
+### Test print: the glued ankle link
+
+`ANKLE_LINK_VARIANT=glued` builds the ankle link the same way, in two pieces
+([`ankle_link_glued.py`](v6/ankle_link_glued.py)):
+
+- a **cradle** that fits the ankle-pitch servo's base: four walls 0–0.4 mm off
+  the case, where `ankle_link`'s front wall stood 8.1 mm in front of it. The
+  rib detent runs out through its bottom, and its web has no lead window:
+  the servo's ports are on its idler face, above the cradle;
+- a **fork**: the floor 0.39 mm under the case, both tines, a closed box in
+  front of the cradle that carries the roll torque, and a solid block behind
+  it (the rear tine carried up to the box's height).
+
+`ankle_link` stays in the table above.
+
+![The glued ankle link: cradle and fork as they lie on the bed, exploded, glued with the pitch servo](../docs/img/ankle_link_glued.png)
+
+| part | qty | g each | orientation on the bed | supports |
+|---|---|---|---|---|
+| `ankle_link_glued_cradle` | 2 | 4.7 | bottom down: the four walls' flat bottom | **no**, no brim |
+| `ankle_link_glued_fork` | 2 | 10.3 | on edge, model −Y on the bed (the face tangent to the tine pads) | **no**, no brim |
+
+- **Slice:** `python3 cad/slice.py --variant ankle_link_glued ankle_link_glued`
+  puts all four pieces on one plate: 1 h 12 min and 31.6 g, with no
+  supports and no brim; `--copies 1` gives one set, 37 min and 15.8 g. One
+  `ankle_link` takes 50 min and 16.0 g, supports included.
+- **Assemble:** lower the cradle into the fork: its front wall against the
+  fork's inner wall, with the inner wall's tongue in the groove up the front
+  wall, and its web against the rear block. Press it down onto the two seats
+  on the floor: the middle of the web bows in as it passes the barb on the
+  rear block, and clicks into place. To lift the cradle out again, press the
+  web in. Glue both laps (the front wall to the inner wall, the web to the
+  rear block) and the two seats (CA or epoxy, faces lightly sanded). Then fit
+  the servo from the top, as before. With the servo in, the web cannot bow,
+  so the snap stays locked.
 
 ## Regenerating
 

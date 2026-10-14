@@ -33,6 +33,8 @@ GENERATORS = [
     "cad/v6/assembly_v6.py",
     "cad/v6/animate_v6.py",
     "cad/v6/render_steps_v6.py",
+    "cad/v6/hip_yoke_glued.py",
+    "cad/v6/ankle_link_glued.py",
     "cad/parts.py",
     "cad/fasteners.py",
     "cad/servos.py",
@@ -54,6 +56,7 @@ GENERATORS = [
 VARIANTS = [
     {"ARMS": "1", "HIP_YOKE_VARIANT": "single", "SERVO_PLAN": "hips"},   # the robot to print
     {"HIP_YOKE_VARIANT": "glued"},
+    {"ANKLE_LINK_VARIANT": "glued"},
     {"HIP_YOKE_VARIANT": "split"},
     {"ARMS": "0"},
 ]

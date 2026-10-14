@@ -53,6 +53,7 @@ the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes `cad/stl`.
 | `hip_yoke_glued.py` | the hip yoke as two U-channels, roll and pitch, that print without supports, snap together and are glued (`HIP_YOKE_VARIANT=glued`); the test of that method |
 | `leg_link_v6.py` | thigh and shin (one part): a 110 mm open-front U with an end wall at each end of the open span |
 | `ankle_link.py` | grips the ankle-pitch servo and forks onto the ankle-roll servo |
+| `ankle_link_glued.py` | the ankle link as a cradle that fits the pitch servo's base and a fork onto the roll servo, printed without supports, snapped and glued (`ANKLE_LINK_VARIANT=glued`) |
 | `foot_v6.py` | `foot_L`/`foot_R` and the soles' outline `sole_tpu_L`/`_R` (cut from 2 mm silicone sheet) |
 | `head.py` | `head_shell`, `head_face`, and `head` (the two fused, for checks) |
 | `neck_floor.py` | the neck servo's seat: a plate screwed up into the neck tube's bosses, in the deck's battery aperture (#90); its checks and `tube_bosses()` |
@@ -144,6 +145,7 @@ make check-cad                                           # the gate (below)
 |---|---|---|---|
 | `ARMS` | `1` | `parts_v6.py`, `assembly_v6.py` (and so `check_assembly_v6.py`, `animate_v6.py`, `render_steps_v6.py`) | the girdle, the four arm links, and the pelvis with the ten girdle pilots. `0` is the armless variant: `neck_collar`, no pilots, no arms |
 | `HIP_YOKE_VARIANT` | `single` | `parts_v6.py`, `assembly_v6.py` | `glued` builds the glued U-channel pair (`hip_yoke_glued_roll` + `hip_yoke_glued_pitch`), and `split` builds the bolted `yoke_roll` + `yoke_pitch_v6` pair, instead of `hip_yoke_v6` |
+| `ANKLE_LINK_VARIANT` | `box` | `parts_v6.py`, `assembly_v6.py` | `glued` builds the glued cradle + fork (`ankle_link_glued_cradle` + `ankle_link_glued_fork`) instead of `ankle_link`; the assembly carries their union |
 | `SERVO_PLAN` | `hips` | `parts_v6.py` (`sim/build_v6_inertia.py --servo-plan`) | `hips`: STS3250s at the two hip rolls, STS3215s elsewhere; `B`: 17 × STS3215; `3250`: STS3250s at the six roll and knee joints (masses only; same case) |
 | `MUJOCO_GL` | `cgl` on macOS, `egl` elsewhere | every render | the offscreen GL backend |
 

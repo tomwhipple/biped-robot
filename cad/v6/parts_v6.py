@@ -13,6 +13,8 @@ The defaults build THE ROBOT TO PRINT (issue #76):
     HIP_YOKE_VARIANT=single|glued|split the one-print hip yoke (default), the
                                   glued U-channel pair, or the legacy bolted
                                   yoke_roll + yoke_pitch_v6 pair.
+    ANKLE_LINK_VARIANT=box|glued  the one-print ankle link (default) or the
+                                  glued cradle + fork (cad/v6/ankle_link_glued.py).
     SERVO_PLAN=hips (default) | B | 3250
                                   hips: an STS3250 (same case, 74.5 g) at each
                                   hip roll, STS3215s everywhere else (DESIGN.md
@@ -53,6 +55,7 @@ def _on(name, default):
 
 ARMS = _on("ARMS", "1")
 HIP_YOKE = os.environ.get("HIP_YOKE_VARIANT", "single")
+ANKLE_LINK = os.environ.get("ANKLE_LINK_VARIANT", "box")
 SERVO_PLAN = os.environ.get("SERVO_PLAN", "hips")
 SERVO_PLANS = {"hips": V.SERVO_3250_JOINTS, "B": (), "3250": V.SERVO_3250_JOINTS_SIX}
 if SERVO_PLAN not in SERVO_PLANS:
@@ -94,7 +97,14 @@ else:
               ("yoke_pitch_v6", _lazy("yoke_pitch_v6", "yoke_pitch_v6"), 2, "legacy split yoke (slicer supports)")]
 PARTS += [
     ("leg_link_v6", _lazy("leg_link_v6", "leg_link_v6"), 4, "thigh + shin, 110 mm, open U, end walls"),
+] + ([
+    ("ankle_link_glued_cradle", _lazy("ankle_link_glued", "cradle"), 2,
+     "glued ankle link, conformal cradle round the pitch servo's base: bottom down, no supports"),
+    ("ankle_link_glued_fork", _lazy("ankle_link_glued", "fork"), 2,
+     "glued ankle link, floor + tines + front box: on edge, no supports"),
+] if ANKLE_LINK == "glued" else [
     ("ankle_link", _lazy("ankle_link", "ankle_link"), 2, "pitch grip + X fork onto the roll servo"),
+]) + [
     ("foot_L", _lazy("foot_v6", "foot", "L"), 1, "asymmetric sole, mirrored pair"),
     ("foot_R", _lazy("foot_v6", "foot", "R"), 1, "asymmetric sole, mirrored pair"),
     ("sole_tpu_L", _lazy("foot_v6", "sole_tpu", "L"), 1, "silicone sole, cut (outline)"),
@@ -169,7 +179,8 @@ def main(argv=None):
         tag = ("BED-OK" if bed_ok else "** TOO BIG **") if qty else "reference, not printed"
         rows.append((name, qty, m, dims, tag + "  " + note))
     out = []
-    out.append(f"build: ARMS={int(ARMS)}  HIP_YOKE_VARIANT={HIP_YOKE}  SERVO_PLAN={SERVO_PLAN}")
+    out.append(f"build: ARMS={int(ARMS)}  HIP_YOKE_VARIANT={HIP_YOKE}  SERVO_PLAN={SERVO_PLAN}"
+               + (f"  ANKLE_LINK_VARIANT={ANKLE_LINK}" if ANKLE_LINK != "box" else ""))
     out.append(f"{'part':20s} {'qty':>3s} {'g each':>7s} {'bbox (mm)':>22s}  note")
     for name, qty, m, dims, note in rows:
         if m is None:

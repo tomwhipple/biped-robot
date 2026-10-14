@@ -111,9 +111,10 @@ def _frame():
     return p
 
 
-def _grip_features(p):
+def _grip_features(p, roll=ROLL_UP):
     """leg_link_v6's grip-channel cuts, unchanged: horn boss relief, rib and
-    platform detents (with their print ramps), case-grip screw holes."""
+    platform detents (with their print ramps), case-grip screw holes. `roll`
+    points the screw holes' teardrop roofs at the print's up (teardrop_y)."""
     t = D.GRIP_PLATE_T
     p -= parts.cyl_y(D.GRIP_HORN_RELIEF, D.SV_TOPFACE - 1, D.SV_TOPFACE + t + 1, 0, 0)
     # DETENT for the servo's horn-side RIB
@@ -142,11 +143,11 @@ def _grip_features(p):
     for zrow in D.CASE_HOLES_TOP:
         for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
             p -= parts.teardrop_y(D.CASE_SCREW_CLEAR / 2, D.SV_TOPFACE - 1,
-                                  D.SV_TOPFACE + t + 1, lx, -zrow, roll=ROLL_UP)
+                                  D.SV_TOPFACE + t + 1, lx, -zrow, roll=roll)
             p -= parts.csk_y(lx, -zrow, D.SV_TOPFACE + t, +1)
     for lx in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
         p -= parts.teardrop_y(D.CASE_SCREW_CLEAR / 2, IDLER_Y[0] - 1,
-                              IDLER_SEAT + 1, lx, -D.CASE_HOLES_BOT[1], roll=ROLL_UP)
+                              IDLER_SEAT + 1, lx, -D.CASE_HOLES_BOT[1], roll=roll)
         p -= parts.csk_y(lx, -D.CASE_HOLES_BOT[1], IDLER_Y[0], -1)
     return p
 

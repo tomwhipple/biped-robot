@@ -411,46 +411,57 @@ def in_print_orient(solid, name):
     return Pos(-bb.center().X, -bb.center().Y, -bb.min.Z) * s
 
 
-def render(pieces, png_path, px=560):
-    """One strip, MuJoCo offscreen like hip_yoke_v6.render: each piece as it
-    lies on the bed, the pair exploded along the snap's axis, and glued."""
+def render_shots(shots, png_path, px=560):
+    """A strip of MuJoCo offscreen renders (hip_yoke_v6.render's setup), one
+    per shot = (items, azimuth, elevation); items is a solid or a list of
+    (solid, rgba) drawn together. Camera on the items' bounding box."""
     os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
     import tempfile
     import imageio.v2 as imageio
     import mujoco
     import numpy as np
-    roll, pitch = pieces["hip_yoke_glued_roll"], pieces["hip_yoke_glued_pitch"]
-    shots = [(in_print_orient(roll, "hip_yoke_glued_roll"), 135, -35),
-             (in_print_orient(pitch, "hip_yoke_glued_pitch"), 135, -35),
-             (Pos(0, 0, 14) * roll + pitch, 140, -20),
-             (roll + pitch, 140, -20)]
     frames = []
     with tempfile.TemporaryDirectory() as tmp:
-        for i, (s, az, el) in enumerate(shots):
-            stl = os.path.join(tmp, f"{i}.stl")
-            export_stl(s, stl)
+        for i, (items, az, el) in enumerate(shots):
+            if not isinstance(items, list):
+                items = [(items, (0.45, 0.62, 0.90, 1))]
+            assets, geoms, lo, hi = [], [], np.full(3, np.inf), np.full(3, -np.inf)
+            for j, (s, rgba) in enumerate(items):
+                stl = os.path.join(tmp, f"{i}_{j}.stl")
+                export_stl(s, stl)
+                assets.append(f'<mesh name="m{j}" file="{stl}" scale="0.001 0.001 0.001"/>')
+                geoms.append(f'<geom type="mesh" mesh="m{j}" rgba="{" ".join(map(str, rgba))}"/>')
+                bb = s.bounding_box()
+                lo = np.minimum(lo, [bb.min.X, bb.min.Y, bb.min.Z])
+                hi = np.maximum(hi, [bb.max.X, bb.max.Y, bb.max.Z])
             model = mujoco.MjModel.from_xml_string(f"""
             <mujoco>
-              <asset><mesh name="part" file="{stl}" scale="0.001 0.001 0.001"/></asset>
+              <asset>{''.join(assets)}</asset>
               <visual><headlight ambient="0.4 0.4 0.4" diffuse="0.7 0.7 0.7"/>
                 <global offwidth="{px}" offheight="{px}"/></visual>
-              <worldbody><geom type="mesh" mesh="part" rgba="0.45 0.62 0.90 1"/></worldbody>
+              <worldbody>{''.join(geoms)}</worldbody>
             </mujoco>""")
             data = mujoco.MjData(model)
             mujoco.mj_forward(model, data)
-            m = model.mesh(0)
-            v = model.mesh_vert[m.vertadr[0]:m.vertadr[0] + m.vertnum[0]]
-            center = np.zeros(3)
-            mujoco.mju_rotVecQuat(center, v.mean(0), model.mesh_quat[0])
-            center += model.mesh_pos[0]
             ren = mujoco.Renderer(model, px, px)
             cam = mujoco.MjvCamera()
-            cam.lookat, cam.distance = center, 2.4 * np.linalg.norm(v - v.mean(0), axis=1).max()
+            cam.lookat = (lo + hi) / 2 * 0.001
+            cam.distance = 1.2 * np.linalg.norm(hi - lo) * 0.001
             cam.azimuth, cam.elevation = az, el
             ren.update_scene(data, cam)
             frames.append(ren.render())
     imageio.imwrite(png_path, np.concatenate(frames, axis=1))
     return png_path
+
+
+def render(pieces, png_path, px=560):
+    """One strip: each piece as it lies on the bed, the pair exploded along
+    the snap's axis, and glued."""
+    roll, pitch = pieces["hip_yoke_glued_roll"], pieces["hip_yoke_glued_pitch"]
+    return render_shots([(in_print_orient(roll, "hip_yoke_glued_roll"), 135, -35),
+                         (in_print_orient(pitch, "hip_yoke_glued_pitch"), 135, -35),
+                         (Pos(0, 0, 14) * roll + pitch, 140, -20),
+                         (roll + pitch, 140, -20)], png_path, px)
 
 
 def SCREWS():

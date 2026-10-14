@@ -493,6 +493,8 @@ def main(argv=None):
         print("HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch")
     elif A.hip_yoke_variant() == "glued":
         print("HIP_YOKE_VARIANT=glued: the glued U-channel pair (hip_yoke_glued) in place of yoke_roll + yoke_pitch")
+    if A.ankle_link_variant() == "glued":
+        print("ANKLE_LINK_VARIANT=glued: the glued cradle + fork (ankle_link_glued) in place of ankle_link")
     if A.arms_on():
         print(f"arms on (the default build): two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM "
               f"shoulder {V.ARM_ROM['shoulder']}, elbow {V.ARM_ROM['elbow']}; "
@@ -502,12 +504,18 @@ def main(argv=None):
     for joint, la, lb, note, extra in pairs:
         if a.joint and joint != a.joint:
             continue
-        ex = {k.format(s=a.side): v for k, v in extra.items()} if extra else None
-        vol, dist, ang = check_pair(joint, la, lb, a.samples, a.side, extra=ex)
-        touching = (la, lb) in touching_set or (lb, la) in touching_set
-        ok = vol < 0.5 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
-        fails += 0 if ok else 1
-        print(f"{joint:12s} {la.format(s=a.side):22s} {lb.format(s=a.side):22s} {vol:11.2f} {dist:9.2f} {ang if ang is None else round(ang,1)!s:>7s}  {'ok' if ok else 'FAIL'}   {note}")
+        # the glued ankle link's fork is not left-right symmetric (its bed
+        # face), and the feet are mirrored: its ankle rows run on both legs
+        sides = [a.side]
+        if A.ankle_link_variant() == "glued" and joint.startswith("ankle_") and a.side == "L":
+            sides = ["L", "R"]
+        for side in sides:
+            ex = {k.format(s=side): v for k, v in extra.items()} if extra else None
+            vol, dist, ang = check_pair(joint, la, lb, a.samples, side, extra=ex)
+            touching = (la, lb) in touching_set or (lb, la) in touching_set
+            ok = vol < 0.5 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
+            fails += 0 if ok else 1
+            print(f"{joint:12s} {la.format(s=side):22s} {lb.format(s=side):22s} {vol:11.2f} {dist:9.2f} {ang if ang is None else round(ang,1)!s:>7s}  {'ok' if ok else 'FAIL'}   {note}")
     # disc-screw thread engagement (no pose involved)
     if not a.joint or a.joint == "screws":
         fails += check_disc_screws()

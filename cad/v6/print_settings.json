@@ -69,6 +69,31 @@
           "note": "both pieces for both hips"
         }
       }
+    },
+    "ankle_link_glued": {
+      "note": "ANKLE_LINK_VARIANT=glued: the ankle link as a conformal cradle and a fork, printed without supports, snapped and glued (cad/v6/ankle_link_glued.py)",
+      "parts": {
+        "ankle_link_glued_cradle": {
+          "orient": "IDENT",
+          "supports": false,
+          "note": "bottom down (the four walls' flat bottom); no supports, no brim"
+        },
+        "ankle_link_glued_fork": {
+          "orient": "RY_ROLL_WALL",
+          "supports": false,
+          "note": "on edge, model -Y (the y -14.5 face) down; no supports, no brim"
+        }
+      },
+      "plates": {
+        "ankle_link_glued": {
+          "parts": [
+            "ankle_link_glued_cradle",
+            "ankle_link_glued_fork"
+          ],
+          "copies": 2,
+          "note": "both pieces for both legs"
+        }
+      }
     }
   },
   "parts": {

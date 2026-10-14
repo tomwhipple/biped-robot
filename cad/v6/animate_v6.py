@@ -175,6 +175,8 @@ def main():
     suffix = ""
     if A.hip_yoke_variant() != "single":      # the one-print yoke is the default now
         suffix += "_" + A.hip_yoke_variant()
+    if A.ankle_link_variant() != "box":
+        suffix += "_ankle_" + A.ankle_link_variant()
     if A.arms_on():
         suffix += "_arms"
     out = os.path.join(build_dir("v6", "movies"), f"assembly_v6_flyin{suffix}.mp4")
