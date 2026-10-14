@@ -22,8 +22,9 @@ Variants (env vars; the defaults are the robot to print):
                                 built with the girdle's deck pilots. ARMS=0 is
                                 the armless variant: neck_collar instead of the
                                 girdle, a pelvis without the pilots.
-    HIP_YOKE_VARIANT=single|split  the one-print hip yoke (default) or the
-                                legacy bolted yoke_roll + yoke_pitch pair.
+    HIP_YOKE_VARIANT=single|glued|split  the one-print hip yoke (default), the
+                                glued U-channel pair, or the legacy bolted
+                                yoke_roll + yoke_pitch pair.
 
     .venv/bin/python cad/v6/assembly_v6.py                 # step/assembly_v6_arms.step + renders
     ARMS=0 .venv/bin/python cad/v6/assembly_v6.py          # step/assembly_v6.step (armless)
@@ -82,8 +83,17 @@ def hip_yoke_variant():
     v5 yoke_roll + yoke_pitch_v6 bolted flange to flange) via the
     HIP_YOKE_VARIANT env var. Promoted once both clearance findings its sweep
     exposed were resolved (hip-yoke-single-print.md section 6): the roll-
-    corner relief, and hip flexion -120 with the leg link's LL_HIP_RELIEF_X0 trim."""
+    corner relief, and hip flexion -120 with the leg link's LL_HIP_RELIEF_X0 trim.
+    "glued" (cad/v6/hip_yoke_glued.py) is the same two clevises as two
+    support-free U-channels snapped and glued at the old bolted plane; the
+    assembly carries their glued union as one piece."""
     return os.environ.get("HIP_YOKE_VARIANT", "single")
+
+
+def one_piece_yoke():
+    """True when link 2 is ONE solid in the assembly -- the one print, or the
+    glued pair -- and so is checked as hip_yoke_{s} with its seat zones."""
+    return hip_yoke_variant() in ("single", "glued")
 
 
 def arms_on():
@@ -94,8 +104,12 @@ def arms_on():
 
 
 def part_hip_yoke():
-    """The one-print hip yoke. No envelope fallback: a caller that opted in
-    asked for this part, and two bolted pieces are not a stand-in for one."""
+    """The one-print hip yoke, or the glued pair's union (HIP_YOKE_VARIANT=
+    glued). No envelope fallback: a caller that opted in asked for this part,
+    and two bolted pieces are not a stand-in for one."""
+    if hip_yoke_variant() == "glued":
+        import hip_yoke_glued
+        return hip_yoke_glued.hip_yoke_glued()
     import hip_yoke_v6
     return hip_yoke_v6.hip_yoke_v6()
 
@@ -297,7 +311,7 @@ def hip_yoke_pieces(side, at):
     axis at their origins), so the split parts are placed at HIP_ROLL_Z and
     HIP_PITCH_Z; the single part carries the pitch clevis at -ROLL_TO_PITCH
     in its own frame and is placed at HIP_ROLL_Z alone."""
-    if hip_yoke_variant() == "single":
+    if one_piece_yoke():
         return [(2, f"hip_yoke_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * part_hip_yoke())]
     return [(2, f"yoke_roll_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * v5parts.yoke_roll()),
             (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch())]

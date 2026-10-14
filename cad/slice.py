@@ -21,6 +21,7 @@ forward.
     python3 cad/slice.py feet            # a plate: both feet, one project
     python3 cad/slice.py --all           # every plate, and every part on no plate
     python3 cad/slice.py --harvest       # only read saved projects back
+    python3 cad/slice.py --variant hip_yoke_glued hip_yoke_glued   # a build variant's plate
 
 On the Mac it drives /Applications/OrcaSlicer.app; elsewhere the Flathub
 flatpak under xvfb (docs/slicing.md). Standard library only.
@@ -183,6 +184,24 @@ def save_settings(spec, path=SETTINGS):
     with open(path, "w") as fh:
         json.dump(spec, fh, indent=2, ensure_ascii=False)
         fh.write("\n")
+
+
+def with_variants(spec, names):
+    """``spec`` with each named entry of its 'variants' added to 'parts' and
+    'plates', for this run: parts of a build variant (assembly_v6's
+    HIP_YOKE_VARIANT and the like) that the default print table leaves out.
+    The entries are the variant's own dicts, so a GUI save that harvest()
+    reads back lands in 'variants' when the base spec is saved."""
+    if not names:
+        return spec
+    out = dict(spec, parts=dict(spec["parts"]), plates=dict(spec.get("plates", {})))
+    for name in names:
+        var = spec.get("variants", {}).get(name)
+        if var is None:
+            raise SystemExit(f"{name}: not in {os.path.relpath(SETTINGS, REPO)} 'variants'")
+        out["parts"].update(var.get("parts", {}))
+        out["plates"].update(var.get("plates", {}))
+    return out
 
 
 def part_entry(spec, part):
@@ -631,9 +650,13 @@ def main():
                                       "inherits the spec's printer and has a print host)")
     ap.add_argument("--outdir", default=OUT_DIR)
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    ap.add_argument("--variant", action="append", default=[], metavar="NAME",
+                    help="also slice the parts and plates of this print_settings.json "
+                         "'variants' entry (repeatable)")
     args = ap.parse_args()
 
-    spec = load_settings()
+    base = load_settings()
+    spec = with_variants(base, args.variant)
     if args.all:
         names = jobs(spec)
     elif args.names:
@@ -661,7 +684,7 @@ def main():
             for c in changes:
                 print(f"    {c}")
     if harvested:
-        save_settings(spec)
+        save_settings(base)
         print(f"-> {os.path.relpath(SETTINGS, REPO)} updated; commit it\n")
     if args.harvest:
         return 1 if blocked else 0

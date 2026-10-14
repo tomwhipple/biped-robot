@@ -46,6 +46,7 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 | `yaw_carrier_v6.py` | the prototype's carrier with a 5 mm spacer under its horn plate (`YAW_CARRIER_DROP`: the roll servo and its screws sit below the bearing band) and a round hub for the 6810-2RS's inner race (trimmed below to pass the bearing), and its `SCREWS()` |
 | `hip_yoke_v6.py` | the hip roll and pitch clevises fused into one print |
 | `yoke_pitch_v6.py` | the pitch clevis alone. `hip_yoke_v6` is built from it; it is printed only under `HIP_YOKE_VARIANT=split` |
+| `hip_yoke_glued.py` | the hip yoke as two U-channels, roll and pitch, that print without supports, snap together and are glued (`HIP_YOKE_VARIANT=glued`); the test of that method |
 | `leg_link_v6.py` | thigh and shin (one part): a 110 mm open-front U with an end wall at each end of the open span |
 | `ankle_link.py` | grips the ankle-pitch servo and forks onto the ankle-roll servo |
 | `foot_v6.py` | `foot_L`/`foot_R` and the soles' outline `sole_tpu_L`/`_R` (cut from 2 mm silicone sheet) |
@@ -123,7 +124,7 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 | flag | default | read by | effect |
 |---|---|---|---|
 | `ARMS` | `1` | `parts_v6.py`, `assembly_v6.py` (and so `check_assembly_v6.py`, `animate_v6.py`, `render_steps_v6.py`) | the girdle, the four arm links, and the pelvis with the ten girdle pilots. `0` is the armless variant: `neck_collar`, no pilots, no arms |
-| `HIP_YOKE_VARIANT` | `single` | `parts_v6.py`, `assembly_v6.py` | `split` builds the bolted `yoke_roll` + `yoke_pitch_v6` pair instead of `hip_yoke_v6` |
+| `HIP_YOKE_VARIANT` | `single` | `parts_v6.py`, `assembly_v6.py` | `glued` builds the glued U-channel pair (`hip_yoke_glued_roll` + `hip_yoke_glued_pitch`), and `split` builds the bolted `yoke_roll` + `yoke_pitch_v6` pair, instead of `hip_yoke_v6` |
 | `SERVO_PLAN` | `hips` | `parts_v6.py` (`sim/build_v6_inertia.py --servo-plan`) | `hips`: STS3250s at the two hip rolls, STS3215s elsewhere; `B`: 17 × STS3215; `3250`: STS3250s at the six roll and knee joints (masses only; same case) |
 | `MUJOCO_GL` | `egl` (set by default) | every render | set `cgl` on macOS |
 

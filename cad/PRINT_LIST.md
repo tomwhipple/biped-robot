@@ -97,6 +97,33 @@ brims.
 - `neck_collar.stl` and anything built with `ARMS=0` (see the top of this
   page).
 
+### Test print: the glued hip yoke
+
+`HIP_YOKE_VARIANT=glued` builds the hip yoke as two U-channels that print
+**without supports**, snap together, and are glued
+([`hip_yoke_glued.py`](v6/hip_yoke_glued.py)). It is the test of that method
+before it is used on other parts. It is not in the default build yet, so
+`hip_yoke_v6` stays in the table above.
+
+| part | qty | g each | orientation on the bed | supports |
+|---|---|---|---|---|
+| `hip_yoke_glued_roll` | 2 | 9.4 | on edge, model −Y on the bed (the face tangent to the pads and the idler boss) | **no**, no brim |
+| `hip_yoke_glued_pitch` | 2 | 10.8 | on its back, model −X on the bed (the rear face, tangent to the idler hub) | **no**, no brim |
+
+- **Slice:** `python3 cad/slice.py --variant hip_yoke_glued hip_yoke_glued`
+  puts all four pieces on one plate: 1 h 34 min and 40.7 g, with no
+  supports and no brim; `--copies 1` gives one set, 47 min and 20.3 g. One
+  `hip_yoke_v6` takes 1 h 1 min and 25.2 g, supports and brim included. If a
+  piece lifts off the bed, add `hip_yoke_v6`'s 5 mm outer brim to the variant.
+- **Assemble:** press the roll piece's flange onto the pitch piece's flange
+  until both split prongs click under it. The prongs locate the two pieces.
+  Pull them apart again, glue the 27 × 30 mm flange faces (CA or epoxy, faces
+  lightly sanded), and press the pieces back together.
+- The bottom of the roll idler boss rests on the bed as a line, like a
+  cylinder printed on its side. It is the journal that turns in the yaw
+  carrier's bay bore with 0.3 mm of clearance, so check it for a ridge or a
+  flat spot before fitting it into the carrier.
+
 ## Regenerating
 
 ```bash
