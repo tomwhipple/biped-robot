@@ -45,8 +45,9 @@ new state. History lives in git. Dated records — decision records, studies,
 bench-session write-ups, lessons learned — are welcome, but they go in
 `docs/design-v6/` (records and evidence for the current design) or
 `docs/archive/` (everything older), never inside a design document. An
-experiment keeps everything specific to it (its tool, rig CAD and parts,
-figures and dated session records) together in `experiments/<name>/`.
+experiment keeps everything specific to it (its tool, rig CAD, figures and
+dated session records) together in `experiments/<name>/`; its generated parts
+build into `build/<rig>-v<n>/`.
 
 ## The gates
 
@@ -58,19 +59,19 @@ clone:
 git config core.hooksPath .githooks
 ```
 
-`make test`, `make lint`, `make firmware` and `make check-cad` run them by
-hand; `make prepush` runs every gate the hook can.
+The hook runs each gate as its make target, so the target runs it the same
+way by hand; `make prepush` runs every gate the hook can.
 
-| gate                                                | covers                                                                                                                                                  | in the hook                                                     |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `python -m pytest tests/`                           | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B)                                                      | hard, unless the push is docs only                              |
-| `make -C firmware/host check`                       | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles                                                                        | hard, on C/C++ pushes (otherwise only the SIL library is built) |
-| `python -m pytest sim/sil`                          | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason | hard, unless the push is docs only                              |
-| cmake configure / build / ctest of `firmware/host`  | CMakeLists.txt and the Makefile agree                                                                                                                   | C/C++ pushes, when cmake is installed                           |
-| `run-clang-tidy`, `firmware/host/clang-tidy-gui.sh` | `.clang-tidy`, WarningsAsErrors                                                                                                                         | C/C++ pushes, when clang-tidy is installed                      |
-| `firmware/host/cppcheck.sh`                         | whole-program, fails on any finding                                                                                                                     | C/C++ pushes, when cppcheck is installed                        |
-| `idf.py -C firmware build`                          | the ESP32 target links                                                                                                                                  | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip)    |
-| `make check-cad` (`cad/run_checks.sh`)             | swept-ROM interference on the armless and `ARMS=1` builds; printability reports                                                                         | not in the hook: run it for any CAD change                      |
+| gate                                                                   | covers                                                                                                                                                  | in the hook                                                     |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `make pytest` (`pytest tests/`)                                        | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B)                                                      | hard, unless the push is docs only                              |
+| `make host` (`make -C firmware/host check`)                            | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles                                                                        | hard, on C/C++ pushes (otherwise only the SIL library is built) |
+| `make sil-suite` (`pytest sim/sil`)                                    | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason | hard, unless the push is docs only                              |
+| `make cmake-check`: cmake configure / build / ctest of `firmware/host` | CMakeLists.txt and the Makefile agree                                                                                                                   | C/C++ pushes, when cmake is installed                           |
+| `make tidy`, `make tidy-gui`                                           | `.clang-tidy`, WarningsAsErrors                                                                                                                         | C/C++ pushes, when clang-tidy is installed                      |
+| `make cppcheck`                                                        | whole-program, fails on any finding                                                                                                                     | C/C++ pushes, when cppcheck is installed                        |
+| `make firmware` (`idf.py build`, into `build/firmware`)                | the ESP32 target links                                                                                                                                  | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip)    |
+| `make check-cad` (`cad/run_checks.sh`)                                 | swept-ROM interference on the armless and `ARMS=1` builds; printability reports                                                                         | not in the hook: run it for any CAD change                      |
 
 A **docs-only push** changes nothing but files no gate reads: anything under
 `docs/`, `*.md`, images, PDFs, HTML reports, `.github/` and `.claude/`. It runs
@@ -84,32 +85,34 @@ everything; know why.
 
 ## Generated files are generated
 
-These are exported from the sim or the CAD and **must not be hand-edited** —
-the headers carry a "GENERATED by ... do not edit" line, and host tests pin
-them:
+Everything generated is built into `build/<version>/<target>/`, which git
+ignores: `build/v6/step`, `build/v6/renders`, `build/bench-v3/stl` and so on
+(`paths.py`). Git still tracks the generated files below, because the training
+box loads them from git and runs no generator, and the firmware headers come
+from a run that is not in git. They **must not be hand-edited** — the headers
+carry a "GENERATED by ... do not edit" line, and host tests pin them:
 
-| file                                                                  | generator                                                                                                                 |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `firmware/components/obs/include/obs/obs_spec.h`                      | `tools/gen_obs_spec.py`                                                                                                   |
-| `firmware/components/policy/include/policy/weights.h`                 | `tools/gen_policy_weights.py`                                                                                             |
-| `firmware/host/vectors/protocol_vectors.h`                            | `tools/gen_protocol_vectors.py` (`make -C firmware/host vectors`)                                                         |
-| `firmware/host/vectors/obs_vectors.h`, `policy_vectors.h`             | `gen_obs_spec.py` / `gen_policy_weights.py`, both `--run <deployed run>` (`make -C firmware/host deploy-headers RUN=...`) |
-| `cad/v6/stl/*`, `cad/v6/step/*`, `docs/design-v6/parts_v6_rollup.txt` | `python cad/v6/parts_v6.py` (`ARMS=1` for the arm set)                                                                    |
-| `cad/stl/*`, `cad/step/*`                                             | `python cad/parts.py` (the prototype's parts; the training plant meshes them)                                             |
-| `experiments/plan-b-bench/stl/*`, `experiments/plan-b-bench/figs/*`   | `python experiments/plan-b-bench/plan_b_rig.py` (the Plan B bench rig; `plan_b_rig_v3.py` for `stl/plan_b_v3_*`)          |
-| `sim/bimo_biped_v6ar.xml`                                             | `sim/build_v6_inertia.py --write` (or `sim/gen_plant_v6.py`)                                                              |
+| file                                                      | generator                                                                                        |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `firmware/components/obs/include/obs/obs_spec.h`          | `tools/gen_obs_spec.py`                                                                          |
+| `firmware/components/policy/include/policy/weights.h`     | `tools/gen_policy_weights.py`                                                                    |
+| `firmware/host/vectors/protocol_vectors.h`                | `make vectors` (`tools/gen_protocol_vectors.py`)                                                 |
+| `firmware/host/vectors/obs_vectors.h`, `policy_vectors.h` | `gen_obs_spec.py` / `gen_policy_weights.py`, both `--run <deployed run>` (`make deploy RUN=...`) |
+| `cad/v6/stl/*`                                            | `make cad` (`cad/v6/parts_v6.py`)                                                                |
+| `cad/stl/*`                                               | `make cad V=v5` (`cad/parts.py`; the training plant meshes them)                                 |
+| `sim/bimo_biped_v6ar.xml`, `sim/meshes/v6/*`              | `make plant`: `sim/build_v6_inertia.py --write` (or `sim/gen_plant_v6.py`)                       |
 
-**`make` regenerates them** (`make help` lists the targets): `make cad`,
-`make plant`, `make vectors`, `make figures`, and `make deploy RUN=...` for the
-deployed policy. As for compiled code, make rebuilds what its sources made
-stale, from file times; a Python generator's prerequisites are the repo modules
-it imports (`tools/mkdeps.py`). Make's own outputs (slicer projects, dependency
-lists) go to `build/`, which is gitignored; `make clean` empties it and never
-touches results (`sim/runs/`, `hw_sessions/`, bench data).
+**`make` builds all of it** (`make help` lists the targets). As for compiled
+code, make rebuilds what its sources made stale, from file times; a Python
+generator's prerequisites are the repo modules it imports (`tools/mkdeps.py`).
+`make clean` empties `build/` and never touches results (`sim/runs/`,
+`hw_sessions/`, bench data). The images the docs show are committed beside the
+doc (`docs/img/`, `docs/assembly/`, `docs/design-v6/figs/`); `make figures`
+renders the ones it knows into `build/` and copies them over.
 
-Regenerated binary artifacts (STLs, STEPs) are rebuilt from source rather than
-merged. Rendered movies (`.mov`/`.mp4`/`.gif`) are **never committed** — they
-are gitignored and regenerated from the render scripts. Trained policies live in
+Regenerated STLs are rebuilt from source rather than merged. Rendered movies
+(`.mov`/`.mp4`/`.gif`) are **never committed** — they go to
+`build/<version>/movies` and are regenerated from the render scripts. Trained policies live in
 `sim/runs/` and are gitignored; only `night_summary.html` is committed.
 
 ## Training
