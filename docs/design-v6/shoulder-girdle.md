@@ -274,11 +274,11 @@ Unchanged in kind, shorter in practice:
 
 | what | where |
 |---|---|
-| the part | `cad/v6/shoulder_girdle_v6.py` → `stl/`, `step/` |
-| whole robot with arms, STEP for FreeCAD | `cad/v6/step/assembly_v6_arms.step` |
-| whole robot, three views | `cad/v6/renders/assembly_v6_arms.png` |
-| the girdle alone | `cad/v6/renders/shoulder_girdle_v6.png` |
-| fly-in filmstrip | `cad/v6/renders/assembly_v6_flyin_arms_strip.png` |
+| the part | `cad/v6/shoulder_girdle_v6.py` → `cad/v6/stl/`, `build/v6/step/` |
+| whole robot with arms, STEP for FreeCAD | `build/v6/step/assembly_v6_arms.step` (`make assembly`) |
+| whole robot, three views | [`docs/img/assembly_v6_arms.png`](../img/assembly_v6_arms.png) |
+| the girdle alone | [`docs/design-v6/figs/shoulder_girdle_v6.png`](figs/shoulder_girdle_v6.png) |
+| fly-in filmstrip | [`docs/assembly/assembly_v6_flyin_arms_strip.png`](../assembly/assembly_v6_flyin_arms_strip.png) |
 | full ROM + interference sweep | `docs/design-v6/girdle_check_assembly.txt` |
 | walk gate, x=0 vs aft | `docs/design-v6/getup_search_hipplane_*.txt` |
 | as-drawn servo boxes | `docs/design-v6/getup_search_hipplane_cadservos.txt` |

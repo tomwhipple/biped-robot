@@ -130,7 +130,7 @@ Final configuration (STS3250 at rolls + knees), worst of 3 seeds per case (`docs
 
 Filmstrip (2 × 4 frames across steps two and three; the video is `sim/renders/v6_static_walk.mp4`, gitignored, regenerate with `static_gait.py --render`):
 
-![v6 static walk](../../sim/renders/v6_static_walk_strip.png)
+![v6 static walk](figs/v6_static_walk_strip.png)
 
 ### 4.4 What the dynamic plant taught that the kinematics could not
 
@@ -176,7 +176,7 @@ Tom's follow-up: verify the body can change its bearing by walking in an arc. Th
 
 The body turns at up to 20° per step (a 134° bearing change in eight steps, radius ≈ 0.17 m) with the same margins as the straight walk; the hip yaws never exceed ±10°. The 10–15 % shortfall in achieved heading is the yaw chain's compliance and lash plus sole pivot under the yaw torque, i.e. the sim's version of the hardware's yaw play; a heading-conditioned controller closes it, and it is the quantity to compare against the bench (Gate D) rather than a design limit. One implementation detail worth keeping: the mid-swing outward bump must be applied in the swing foot's own yawed frame — applied in world y it turned into a fore-aft error past 60° of heading and the 15°/20° arcs fell at steps 7 and 5 (`gateD_turning.txt` history in git).
 
-![v6 arc walk](../../sim/renders/v6_arc_walk_strip.png)
+![v6 arc walk](figs/v6_arc_walk_strip.png)
 
 ## 5. Assumptions to retire on the bench before ordering
 
@@ -282,7 +282,7 @@ Built in build123d under `cad/v6/` against `cad/v6/dimensions_v6.py`, which impo
 | `neck_collar` | 1 | 20 | the neck servo's mount (2026-09-14, after the assembly showed the servo standing loose in its deck well): a tube round the servo case rising to 2.1 mm under the head's horn disc, on a 3 mm flange with 4 × M2.5 into deck pilots. A separate print, flange down, support-free — fused into the pelvis it made the pelvis's deck an island above the collar mouth |
 | `head_shell` + `head_face` | 1 + 1 | 27 + 7 | base plate on the neck horn (4 × M3 on the Ø14 circle, centre relief, ribbon slot), a domed shell (≥ 45° to a 7 mm crown, support-free) and a face plate carrying the Camera Module 3 on M2 bosses; ±90° yaw clears the neck servo and the deck; the horn screws are driven from inside before the face goes on |
 
-**Assembly and gates.** `cad/v6/assembly_v6.py` places every part, servo mock and electronics mock as a kinematic chain and poses it (`cad/v6/step/assembly_v6.step`, `renders/assembly_v6.png`). `cad/v6/check_assembly_v6.py` sweeps every relatively-moving pair over its ROM (results: `docs/design-v6/cad_rom_check.txt`) — it is what caught the knee regression, the servo-to-servo ankle clash and the foot tab/tine touch. Per-part printability audits use v5's `check_printability` rules; `cad/v6/animate_v6.py` flies the parts in along their insertion paths (`renders/assembly_v6_flyin_strip.png`).
+**Assembly and gates.** `cad/v6/assembly_v6.py` places every part, servo mock and electronics mock as a kinematic chain and poses it (`cad/v6/step/assembly_v6.step`, `renders/assembly_v6.png`). `cad/v6/check_assembly_v6.py` sweeps every relatively-moving pair over its ROM (results: `docs/design-v6/cad_rom_check.txt`) — it is what caught the knee regression, the servo-to-servo ankle clash and the foot tab/tine touch. Per-part printability audits use v5's `check_printability` rules; `cad/v6/animate_v6.py` flies the parts in along their insertion paths (`docs/assembly/assembly_v6_flyin_strip.png`).
 
 **Back into the sim.** `sim/build_v6_inertia.py --write` regenerates `sim/bimo_biped_v6ar.xml` with per-body `<inertial>` blocks from the v6 STLs plus the servo, pack and board boxes at their CAD places: **1.75 kg**, torso CoM 47 mm above the yaw axis. The open-loop walk on that plant (`docs/design-v6/gateD_cad_inertials.txt`, 8 steps, STS3250 rolls + knees, 3° play): straight 8/8 with 10.6 mm of CoM margin and 18 mm of swing clearance; ±15°/step arcs 8/8 (86–87° of bearing change) at 10–11 mm; μ 0.3 with 5° of play 8/8 at 7 mm. Margins are thinner than the 1.55 kg model's (the real torso is 115 g heavier than modelled) and the combined-adversity case sits at the gates doc's 1 cm floor; the levers if the bench wants more are the deck thickness (5 → 3.5 mm ribbed, ~10 g), the Pi heatsink, and a 5 cm commanded lift.
 
@@ -705,4 +705,4 @@ feasibility), `getup_v6_noappendage.py`, `getup_v6_bear.py`, `getup_v6_crow.py`,
 - `sim/getup_v6_legs.py` — round 3: legs-only study (IK keyframe probe, bridge/pike/seiza paths, continuous keyframe search); negative, geometry measured in §12.2
 - `sim/getup_v6_noappendage.py`, `getup_v6_bear.py`, `getup_v6_crow.py`, `getup_v6_bridge.py`, `getup_v6_kipfromsit.py`, `getup_v6_kiprock.py`, `getup_v6_skid_rise.py`, `getup_v6_rockrise.py` — the no-appendage search families (§15)
 - `sim/getup_v6_seated_feas.py`, `sim/getup_v6_rise_feas.py`, `sim/getup_v6_bumper.py` — static CoM-over-feet feasibility of the get-up crouch and rise keyframes, and the bumper chair-rise sweep (§15)
-- `sim/renders/v6_static_walk_strip.png`, `sim/renders/v6_arc_walk_strip.png` (+ the gitignored `.mp4`s)
+- `docs/design-v6/figs/v6_static_walk_strip.png`, `docs/design-v6/figs/v6_arc_walk_strip.png` (+ the gitignored `.mp4`s)

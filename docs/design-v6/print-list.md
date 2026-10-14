@@ -1,6 +1,6 @@
 # v6 print list (2026-09-14)
 
-Generated from `cad/v6/parts_v6.py` (`docs/design-v6/parts_v6_rollup.txt`). PETG 0.4 mm nozzle, 3 perimeters, 30–40 % infill unless noted; every part fits the 220 mm bed. Regenerate STL/STEP with `.venv/bin/python cad/v6/parts_v6.py`; each part module's `__main__` runs its own audits.
+Generated from `cad/v6/parts_v6.py` (its rollup, `build/v6/reports/parts_v6_rollup.txt`). PETG 0.4 mm nozzle, 3 perimeters, 30–40 % infill unless noted; every part fits the 220 mm bed. Regenerate STL/STEP with `make cad` (`.venv/bin/python cad/v6/parts_v6.py`: STLs to `cad/v6/stl`, STEPs to `build/v6/step`); each part module's `__main__` runs its own audits.
 
 | part | qty | g each | orientation | supports | notes |
 |---|---|---|---|---|---|
@@ -27,4 +27,4 @@ Totals (default build, `parts_v6.py` rollup 2026-09-24): 15 PETG + 2 TPU prints,
 
 Fasteners (from each module's `SCREWS()`; the one-print hip yoke needs no M3×10 flange bolts or heat-set inserts): 24 + 12 M2.5×8 flat-head grip screws (leg links, ankle links), 12 M2.5×8 flat-head in the feet (8 tabs, 4 near-row bosses), 8 M2.5 yaw stators + 4 neck stators + 4 M2.5 neck-collar flange, 8 M2.5 board standoffs + 4 pilot, 2 M2.5 power bosses, 4 M2.5 head face, 52 M3×6 horn + 28 M3×8 idler with washers, 4 M2 camera. Driver access was checked with a 7 mm cylinder on every screw; the exceptions (v5-inherited idler grip counterbores, a few standoff screws close to walls) are listed in the module reports and need a slim driver, not a redesign.
 
-Gates on this set: `cad/v6/check_assembly_v6.py` (ROM interference, every relatively-moving pair, results in `docs/design-v6/cad_rom_check.txt`), the per-part printability audits (`audit_*.py`), and `cad/v6/animate_v6.py` (fly-in along the insertion paths, `cad/v6/renders/assembly_v6_flyin_strip.png`).
+Gates on this set: `cad/v6/check_assembly_v6.py` (ROM interference, every relatively-moving pair, results in `docs/design-v6/cad_rom_check.txt`), the per-part printability audits (`audit_*.py`), and `cad/v6/animate_v6.py` (fly-in along the insertion paths, [`docs/assembly/assembly_v6_flyin_strip.png`](../assembly/assembly_v6_flyin_strip.png)).

@@ -13,8 +13,7 @@ The robot's parametric CAD, written in Python with
 ```
 cad/
 ├── v6/                     the robot: part modules, assembly, gates (map below)
-│   ├── stl/  step/         exported parts and assemblies (generated)
-│   └── renders/            part renders, assembly views, fly-in filmstrips
+│   └── stl/                the exported parts (generated; committed: the plant meshes them)
 ├── dimensions.py           servo ground truth and shared constants
 ├── parts.py                shared solid helpers; the prototype's part builders
 ├── check_assembly.py       servo mocks (used by cad/v6); the prototype's interference check
@@ -24,23 +23,28 @@ cad/
 ├── slice.py, orca_profile.py        OrcaSlicer CLI wrapper (PRINT_LIST.md, Slicing)
 ├── render_part.py, render_assembly.py, animate_assembly.py   renders (below)
 ├── vendor/ST3215.step      the servo's vendor STEP
-└── stl/  step/  renders/   the prototype's parts and renders
+└── stl/                    the prototype's parts (generated; committed: its plant meshes them)
 ```
 
-The prototype's part builders in `parts.py`, and its `cad/stl` and `cad/step`,
-exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
-`cad/stl`.
+Everything else the CAD scripts write goes to `build/` (gitignored), by version
+and target: `build/v6/{step,renders,movies,reports,gcode}` for the robot,
+`build/v5/{step,renders,movies}` for the prototype. `make help` lists the
+targets; [Regenerate](#regenerate) says which images the docs show are copied
+out of it.
+
+The prototype's part builders in `parts.py`, and its `cad/stl`, exist because
+the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes `cad/stl`.
 
 ## `cad/v6` module map
 
 | module | what it is |
 |---|---|
 | `dimensions_v6.py` | every dimension the robot adds or changes: kinematics, feet, torso, pack, Pi, neck and head, the hip-yaw bearing (`YAW_BRG_*`, a 6810-2RS), arms and girdle. It re-exports `cad/dimensions.py` as `D`, and `SIM_EXPECT` is the set of numbers the plant must share (pinned by `tests/test_v6_design_gates.py`) |
-| `parts_v6.py` | exports every printed part to `stl/` and `step/`, with a bed check and the mass rollup `docs/design-v6/parts_v6_rollup.txt` (`--only <names>`, `--no-export` for the rollup alone) |
-| `assembly_v6.py` | the articulated robot: one kinematic chain of parts, servo mocks and electronics mocks, posable (`--pose knee=-60,...`). Writes `step/assembly_v6_arms.step` (`assembly_v6.step` with `ARMS=0`) and `renders/assembly_v6_arms.png`. The checker, the fly-in and the step figures read this chain |
+| `parts_v6.py` | exports every printed part to `cad/v6/stl` and `build/v6/step`, with a bed check and the mass rollup `build/v6/reports/parts_v6_rollup.txt` (`--only <names>`, `--no-export` for the rollup alone) |
+| `assembly_v6.py` | the articulated robot: one kinematic chain of parts, servo mocks and electronics mocks, posable (`--pose knee=-60,...`). Writes `build/v6/step/assembly_v6_arms.step` (`assembly_v6.step` with `ARMS=0`) and `build/v6/renders/assembly_v6_arms.png`. The checker, the fly-in and the step figures read this chain |
 | `check_assembly_v6.py` | the CAD gate: every pair of pieces that move relative to each other, at the ROM extremes plus interior samples; the relatively fixed pairs that must keep their distance (`--joint static`); every disc screw's thread engagement (`--joint screws`). Options: `--joint`, `--samples`, `--side` |
-| `animate_v6.py` | fly-in along each part's insertion path. Writes `renders/assembly_v6_flyin*.mp4` (gitignored) and a committed `_strip.png` |
-| `render_steps_v6.py` | the assembly guide's step figures, `docs/assembly/v6_*.png`: bench order, the incoming part orange along its insertion path |
+| `animate_v6.py` | fly-in along each part's insertion path. Writes `build/v6/movies/assembly_v6_flyin*.mp4` and a `_strip.png` beside each; `make figures` copies the strips into `docs/assembly/` |
+| `render_steps_v6.py` | the assembly guide's step figures, rendered into `build/v6/renders/v6_*.png` (`make figures` copies them to `docs/assembly/`): bench order, the incoming part orange along its insertion path |
 | `pelvis_v7.py` | the torso, one print: `pelvis_v7(arm_mounts)` with the yaw servos' seats and the bearing housing's five pilot bosses, its `SCREWS()`, a driver-access check and the board slide checks |
 | `yaw_bearing_housing.py` | the hip-yaw bearings' outer-race seats for both hips, one print screwed up under the pelvis, and its `SCREWS()` |
 | `yaw_carrier_v6.py` | the prototype's carrier with a 5 mm spacer under its horn plate (`YAW_CARRIER_DROP`: the roll servo and its screws sit below the bearing band) and a round hub for the 6810-2RS's inner race (trimmed below to pass the bearing), and its `SCREWS()` |
@@ -77,7 +81,7 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
   - the prototype parts the robot reuses: `yaw_carrier` (inside `yaw_carrier_v6`), `yoke_roll` and `yoke_pitch` (inside `hip_yoke_v6`), and
     `leg_link` (the basis of `leg_link_v6`).
 
-  Its `main()` exports the prototype's parts to `cad/stl` and `cad/step`.
+  Its `main()` exports the prototype's parts to `cad/stl` and `build/v5/step`.
 - **`check_assembly.py`** provides `servo_mock()`: the STS3215 in one canonical
   frame, built from the vendor STEP. `servo_mock_x/_y/_z` are rotations of it,
   so the three orientations cannot drift apart. It also has the board mocks.
@@ -102,21 +106,25 @@ exist because the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes
 `make` rebuilds what changed (`make help`); the scripts behind it, by hand, follow.
 
 ```bash
-make cad                                                 # every part whose source changed -> cad/v6/stl + cad/v6/step, and the rollup
+make cad                                                 # every part whose source changed -> cad/v6/stl + build/v6/step, and the rollup
 make cad PART=ankle_link                                 # one part
-make cad V=v5                                            # the prototype's parts, screws and servo mocks -> cad/stl, cad/step
-make assembly figures movies                             # the assembly STEPs + renders, the guide's step figures, the fly-ins
+make cad V=v5                                            # the prototype's parts, screws and servo mocks -> cad/stl + build/v5/step
+make freecad                                             # the prototype's articulated model -> build/v5/step/bimo_v3yaw_articulated.FCStd
+make assembly                                            # the assembly STEPs + renders, armless and with arms -> build/v6/step, build/v6/renders
+make movies                                              # the fly-in movies and filmstrips -> build/v6/movies
+make figures                                             # re-render the images the docs show and copy them into docs/img, docs/assembly
 make plant                                               # sim/bimo_biped_v6ar.xml from the exported STLs
-.venv/bin/python cad/v6/parts_v6.py                      # the robot: every printed part -> cad/v6/stl + cad/v6/step, bed check, rollup
-.venv/bin/python cad/v6/parts_v6.py --no-export          # the rollup alone
+make check-cad                                           # the gate (below)
+.venv/bin/python cad/v6/parts_v6.py                      # the robot: every printed part -> cad/v6/stl + build/v6/step, bed check, rollup
+.venv/bin/python cad/v6/parts_v6.py --no-export          # the rollup alone -> build/v6/reports/parts_v6_rollup.txt
 .venv/bin/python cad/v6/head.py                          # head_shell, head_face (+ the fused head), audits, render
-.venv/bin/python cad/v6/assembly_v6.py                   # step/assembly_v6_arms.step + renders/assembly_v6_arms.png
+.venv/bin/python cad/v6/assembly_v6.py                   # build/v6/step/assembly_v6_arms.step + build/v6/renders/assembly_v6_arms.png
 .venv/bin/python cad/v6/assembly_v6.py --pose hip_pitch=-60,knee=90 --step /tmp/posed.step --png /tmp/posed.png
-.venv/bin/python cad/v6/animate_v6.py                    # fly-in mp4 (gitignored) + filmstrip
-.venv/bin/python cad/v6/render_steps_v6.py               # docs/assembly/v6_*.png
-.venv/bin/python cad/v6/<module>.py                      # one part: STL + STEP + its own audits + render
+.venv/bin/python cad/v6/animate_v6.py                    # build/v6/movies: the fly-in mp4 + its filmstrip
+.venv/bin/python cad/v6/render_steps_v6.py               # build/v6/renders/v6_*.png
+.venv/bin/python cad/v6/<module>.py                      # one part: STL + STEP + its own audits + build/v6/renders/<part>.png
 .venv/bin/python sim/build_v6_inertia.py --write         # the plant from the exported STLs (sim/bimo_biped_v6ar.xml)
-.venv/bin/python cad/parts.py                            # the prototype's parts -> cad/stl, cad/step (the training plant meshes them)
+.venv/bin/python cad/parts.py                            # the prototype's parts -> cad/stl + build/v5/step (the training plant meshes cad/stl)
 ```
 
 - **Each part module's `__main__`** exports that part and runs its own audits.
@@ -125,6 +133,10 @@ make plant                                               # sim/bimo_biped_v6ar.x
 - **The exports are generated files:** regenerate them, never edit them. See
   [AGENTS.md](../AGENTS.md). The `ARMS=0` pelvis exports as
   `pelvis_v7_armless`, so it never overwrites the robot's `pelvis_v7`.
+- **The images the docs show are copies:** `make figures` refreshes
+  `docs/img/assembly_v6_arms.png` and the fly-in strips and step figures in
+  `docs/assembly/` from `build/`; the part renders in `docs/design-v6/figs`
+  are copied by hand from `build/v6/renders`.
 
 **Environment flags** (the defaults are the robot to print):
 
@@ -139,6 +151,7 @@ make plant                                               # sim/bimo_biped_v6ar.x
 
 ```bash
 sh cad/run_checks.sh          # exit 0 = clear; "CHECKS FAILED -- do not print" otherwise
+make check-cad                # the same, after re-exporting changed parts; output saved to build/v6/reports/cad_rom_check.txt
 ```
 
 It runs four things with `.venv/bin/python`:
@@ -167,7 +180,7 @@ It runs four things with `.venv/bin/python`:
    - Every disc screw's thread engagement is checked against its flange.
    - The pair list is printed with the result, because a pair that is not listed
      was never checked.
-   - Results are recorded in `docs/design-v6/cad_rom_check.txt`.
+   - The committed gate log is `docs/design-v6/cad_rom_check.txt`.
 2. **The same check with `ARMS=0`** (the armless variant).
 3. **`audit_torso.py`**, a printability report on `cad/v6/stl`.
 4. **`audit_ankle_foot.py`**, likewise.
@@ -189,11 +202,11 @@ their `**` lines against the slice preview.
 
 ## Viewing in FreeCAD
 
-Open the STEP exports:
+Open the STEP exports, in `build/v6/step`:
 
-- **the robot:** `cad/v6/step/assembly_v6_arms.step` (`assembly_v6.step` is the
-  armless variant);
-- **each part:** `cad/v6/step/<part>.step`.
+- **the robot:** `build/v6/step/assembly_v6_arms.step` (`assembly_v6.step` is
+  the armless variant), from `make assembly`;
+- **each part:** `build/v6/step/<part>.step`, from `make cad`.
 
 A posed robot is `assembly_v6.py --pose ... --step <file>`. Use the CAD, not
 the PNGs, to judge a design: the renders are for documentation.
@@ -230,11 +243,12 @@ cable-end face.
 ## Renders of the prototype plant
 
 These three scripts render the prototype's parts in `cad/stl`. The training
-report (`sim/build_report.py`) reads `cad/renders/assembly_mujoco.png` and
+report (`sim/build_report.py`, `make report`) reads
+`build/v5/renders/assembly_mujoco.png`, which `make report` renders first, and
 `assembly_flyin.gif`.
 
 | script | output |
 |---|---|
-| `render_part.py <name or path.stl>` | one STL as a strip of views: `cad/renders/<name>.png`. It takes any STL path, so it works on `cad/v6/stl` parts too |
-| `render_assembly.py` | `cad/renders/assembly_mujoco.png` |
-| `animate_assembly.py` | `cad/renders/assembly_flyin.gif` and `.mov`, both gitignored |
+| `render_part.py <name or path.stl>` | one STL as a strip of views: `build/v5/renders/<name>.png`. It takes any STL path, so it works on `cad/v6/stl` parts too |
+| `render_assembly.py` | `build/v5/renders/assembly_mujoco.png` |
+| `animate_assembly.py` | `build/v5/movies/assembly_flyin.gif` and `.mov` |

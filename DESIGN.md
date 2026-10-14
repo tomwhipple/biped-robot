@@ -10,7 +10,7 @@ the project's earlier history is in [docs/archive/](docs/archive/README.md).
 servo plan below. Nothing has been printed or bought. The first step is a bench
 measurement on one servo (issue #73), which gates the servo purchase.
 
-![The robot as drawn (front 3/4, side, front)](cad/v6/renders/assembly_v6_arms.png)
+![The robot as drawn (front 3/4, side, front)](docs/img/assembly_v6_arms.png)
 
 ## 1. Goal and requirements
 
@@ -362,7 +362,7 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
 
 The robot as drawn, from the CAD-inertial plant
 (`sim/bimo_biped_v6ar.xml`) and the rollup
-(`docs/design-v6/parts_v6_rollup.txt`):
+(`build/v6/reports/parts_v6_rollup.txt`, written by `make cad`):
 
 | | |
 |---|---|
@@ -467,7 +467,8 @@ gates, in order:
 `tests/test_v6_design_gates.py` pins the plant, the IK and Gates A/B in the
 pre-push suite.
 
-**CAD gates** (`sh cad/run_checks.sh`): `cad/v6/check_assembly_v6.py` poses the
+**CAD gates** (`make check-cad`: `sh cad/run_checks.sh`, its output saved to
+`build/v6/reports/cad_rom_check.txt`): `cad/v6/check_assembly_v6.py` poses the
 articulated assembly through every joint's range for every pair of pieces that
 move relative to each other, checks the relatively fixed pairs that must keep
 their distance (the neck floor over the pack) and every disc screw's thread
@@ -583,7 +584,7 @@ Everything open is a GitHub issue.
 | what | file |
 |---|---|
 | every CAD dimension | `cad/v6/dimensions_v6.py` (servo interface from `cad/dimensions.py`) |
-| the parts | `cad/v6/*.py`, exported to `cad/v6/stl`, `cad/v6/step` by `cad/v6/parts_v6.py` |
+| the parts | `cad/v6/*.py`, exported by `cad/v6/parts_v6.py` (`make cad`): STLs to `cad/v6/stl`, STEPs to `build/v6/step` |
 | the assembly and ROM gate | `cad/v6/assembly_v6.py`, `cad/v6/check_assembly_v6.py` |
 | the plant | `sim/gen_plant_v6.py`, `sim/build_v6_inertia.py` → `sim/bimo_biped_v6ar.xml` |
 | gait, IK, gates | `sim/static_gait.py`, `sim/v6_kin.py`, `sim/design_gates.py`, `sim/gate_no3250.py` |

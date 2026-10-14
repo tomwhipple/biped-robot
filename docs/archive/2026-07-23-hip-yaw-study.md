@@ -130,9 +130,9 @@ were going to need for any future DOF change anyway.
 The change is cut in `cad/dimensions.py` + `cad/parts.py`: `pelvis` redesigned,
 `yaw_carrier` ×2 new; roll servo, yokes, `leg_link`, shin, foot **untouched**.
 `check_assembly.py` ALL CLEAR, `check_printability.py` clean, both parts print
-support-free on the AD5M Pro. Render: `cad/renders/hip_yaw_beforeafter.png`
+support-free on the AD5M Pro. Render: `figs/hip_yaw_beforeafter.png`
 (dark = servos; the yaw pair seats under the deck, the hip line drops onto the
-new carriers). Part renders: `renders/yaw_carrier.png`, `renders/pelvis_yaw.png`.
+new carriers). Part renders: `figs/yaw_carrier.png`, `figs/pelvis_yaw.png`.
 
 **Geometry chosen.** Each yaw servo lies flat under the deck, **length fore-aft
 (X)**, width across (Y), vertical output axis at the leg centre, **horn DOWN**,
@@ -193,7 +193,7 @@ flat yaw cases sit on the deck underside *exactly where the old per-bay deck
 cutouts were*, and those cutouts were deleted with the bays — so the
 board→first-servo lead and the roll-servo cable had no passage. Fixed with two
 new openings (constants `WIRE_*` in `dimensions.py`; render
-`renders/hip_yaw_wiring.png`, semi-transparent, leads in red). The v3yaw
+`figs/hip_yaw_wiring.png`, semi-transparent, leads in red). The v3yaw
 daisy-chain is board → **hip-yaw → hip-roll** → pitch → knee → ankle:
 
 | Segment | Route | Opening (size, passes) |
@@ -224,7 +224,7 @@ chase"). Did a definitive audit against the FULL assembly (pelvis + tower +
 board + both yaw servos + carriers), not the pelvis alone. Method: section the
 solids at the chase coordinates (point-in-solid), and route candidate harness
 tubes for every hop and measure where they pierce material. Renders:
-`renders/hip_yaw_wiring.png` (rear ¾) and `hip_yaw_wiring_front.png` (front ¾),
+`figs/hip_yaw_wiring.png` (rear ¾) and `hip_yaw_wiring_front.png` (front ¾),
 semi-transparent, red tubes board→thigh.
 
 **Existing chases — verified PRESENT.** Point-in-solid confirms material is
@@ -285,7 +285,7 @@ confirmed on a real servo before final prints**). Consequences:
   the leg_link web-window sizing — both designed before servos arrived, never
   validated. Re-audit against a physical servo on arrival before any reprint.
 - Checks after the correction: `check_printability.py` ALL PARTS PRINT CLEAN,
-  `check_assembly.py` ALL CLEAR; renders `renders/hip_yaw_wiring.png` /
+  `check_assembly.py` ALL CLEAR; renders `figs/hip_yaw_wiring.png` /
   `_front.png` re-drawn with leads at the true ports.
 
 **Rev 3b — measured from the vendor STEP + user photo (2026-07-24 PM).** The
