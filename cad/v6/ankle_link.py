@@ -50,15 +50,17 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import *  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 D = V.D
 import parts  # noqa: E402  (v5 helpers: box/cyl_*/teardrop_*/csk_*/wedge_*)
 import check_assembly as CA  # noqa: E402  (real servo mocks)
+import paths  # noqa: E402
 
 OUT_STL = os.path.join(HERE, "stl")
-OUT_STEP = os.path.join(HERE, "step")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 
 AL_DROP = V.AL_DROP
 
@@ -281,4 +283,4 @@ if __name__ == "__main__":
           f"vol {p.volume/1000:.1f} cm3  mass {mass:.1f} g  ({time.time()-t0:.1f}s build)")
     export_stl(p, os.path.join(OUT_STL, "ankle_link.stl"))
     export_step(p, os.path.join(OUT_STEP, "ankle_link.step"))
-    print("wrote stl/ankle_link.stl, step/ankle_link.step")
+    print("wrote cad/v6/stl/ankle_link.stl, build/v6/step/ankle_link.step")

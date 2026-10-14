@@ -38,6 +38,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Cone, Pos, export_step, export_stl  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
@@ -92,11 +93,11 @@ def SCREWS():
 
 
 if __name__ == "__main__":
+    from paths import build_dir
     os.makedirs(os.path.join(HERE, "stl"), exist_ok=True)
-    os.makedirs(os.path.join(HERE, "step"), exist_ok=True)
     p = yaw_bearing_housing()
     export_stl(p, os.path.join(HERE, "stl", "yaw_bearing_housing.stl"))
-    export_step(p, os.path.join(HERE, "step", "yaw_bearing_housing.step"))
+    export_step(p, os.path.join(build_dir("v6", "step"), "yaw_bearing_housing.step"))
     bb = p.bounding_box()
     m = p.volume * D.FILAMENT_RHO * D.PRINT_MASS_FACTOR
     print(f"yaw_bearing_housing: {m:.1f} g, bbox {bb.size.X:.1f} x {bb.size.Y:.1f} x {bb.size.Z:.1f} mm, "

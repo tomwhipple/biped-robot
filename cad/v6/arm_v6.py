@@ -95,6 +95,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
@@ -104,10 +105,11 @@ import dimensions_v6 as V  # noqa: E402
 D = V.D
 import parts  # noqa: E402  (v5 helpers: box/cyl_*/teardrop_*/wedge_*/csk_*/bcd_*)
 import check_assembly as CA  # noqa: E402  (the canonical servo mock)
+import paths  # noqa: E402
 
 OUT_STL = os.path.join(HERE, "stl")
-OUT_STEP = os.path.join(HERE, "step")
-OUT_REN = os.path.join(HERE, "renders")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
+OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
 # print orientations, in check_printability's convention (rows = print axes in
 # model coords). RY_XUP == v5 leg_link's "on its back: web face on bed".

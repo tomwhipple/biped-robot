@@ -9,10 +9,10 @@ down into the foot cradle, the yaw servos up into their cells, boards down
 through the deck slots, the pack down through the aperture, the head down onto
 the neck horn) -- and flies in from 60 mm out along that vector over its own
 time slot, ground up, one group at a time. Frames are rendered with MuJoCo
-from the pieces' STLs; the .mp4 is gitignored, a 2 x 4 filmstrip png is
-committed next to it.
+from the pieces' STLs into build/v6/movies: the .mp4 and a 2 x 4 filmstrip
+png beside it.
 
-    .venv/bin/python cad/v6/animate_v6.py            # renders/assembly_v6_flyin_arms.mp4 + _strip.png (the robot)
+    .venv/bin/python cad/v6/animate_v6.py            # build/v6/movies/assembly_v6_flyin_arms.mp4 + _strip.png (the robot)
     ARMS=0 .venv/bin/python cad/v6/animate_v6.py     # ..._flyin.mp4 + _strip.png (armless)
 
 The filmstrip is two rows: the whole build at even intervals, then the parts
@@ -31,11 +31,13 @@ os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 import numpy as np  # noqa: E402
 from build123d import export_stl  # noqa: E402
 import assembly_v6 as A  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
+from paths import build_dir  # noqa: E402
 
 # label prefix -> (insertion direction in the world, the group order)
 # direction = where the part COMES FROM (unit vector), applied as an offset
@@ -170,13 +172,12 @@ def main():
         cam.azimuth = 140 + 40 * f / (total + 20)
         r.update_scene(d, cam)
         frames.append(r.render().copy())
-    os.makedirs(os.path.join(HERE, "renders"), exist_ok=True)
     suffix = ""
     if A.hip_yoke_variant() != "single":      # the one-print yoke is the default now
         suffix += "_" + A.hip_yoke_variant()
     if A.arms_on():
         suffix += "_arms"
-    out = os.path.join(HERE, "renders", f"assembly_v6_flyin{suffix}.mp4")
+    out = os.path.join(build_dir("v6", "movies"), f"assembly_v6_flyin{suffix}.mp4")
     with imageio.get_writer(out, fps=20, codec="libx264", quality=8, macro_block_size=None) as w:
         for fr in frames:
             w.append_data(fr)

@@ -43,6 +43,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
@@ -51,13 +52,14 @@ import dimensions as D  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 import parts as P  # noqa: E402
 import check_assembly as CA  # noqa: E402
+import paths  # noqa: E402
 
 box, cyl_x, cyl_y, cyl_z = P.box, P.cyl_x, P.cyl_y, P.cyl_z
 teardrop_x, teardrop_y = P.teardrop_x, P.teardrop_y
 
 OUT_STL = os.path.join(HERE, "stl")
-OUT_STEP = os.path.join(HERE, "step")
-OUT_REN = os.path.join(HERE, "renders")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
+OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
 # print orientation: base (the horn plate) down on the bed, shell rising --
 # no rotation needed, the local frame already has z=0 at the base.

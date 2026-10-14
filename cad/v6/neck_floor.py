@@ -63,17 +63,19 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Pos, Rot, export_step, export_stl  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 import parts as P  # noqa: E402
 import check_assembly as CA  # noqa: E402
+import paths  # noqa: E402
 
 D = V.D
 box, cyl_z, wedge_y = P.box, P.cyl_z, P.wedge_y
 
 OUT_STL = os.path.join(HERE, "stl")
-OUT_STEP = os.path.join(HERE, "step")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 
 IDENT = np.eye(3)
 PRINT_ORIENT = {"neck_floor": (IDENT, "flat, bottom face down, pads and lugs up")}
