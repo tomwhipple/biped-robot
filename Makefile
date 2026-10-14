@@ -9,6 +9,8 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 .DELETE_ON_ERROR:
 .SUFFIXES:
+# keep what a rule chain builds on the way (renders that figures copies, ...)
+.SECONDARY:
 
 ##@ Variables
 ## V=v6        the design: v6 (the robot), v5 (the 10-joint prototype), bench-v2, bench-v3
