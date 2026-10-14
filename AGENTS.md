@@ -58,6 +58,9 @@ clone:
 git config core.hooksPath .githooks
 ```
 
+`make test`, `make lint`, `make firmware` and `make check-cad` run them by
+hand; `make prepush` runs every gate the hook can.
+
 | gate                                                | covers                                                                                                                                                  | in the hook                                                     |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `python -m pytest tests/`                           | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B)                                                      | hard, unless the push is docs only                              |
@@ -67,7 +70,7 @@ git config core.hooksPath .githooks
 | `run-clang-tidy`, `firmware/host/clang-tidy-gui.sh` | `.clang-tidy`, WarningsAsErrors                                                                                                                         | C/C++ pushes, when clang-tidy is installed                      |
 | `firmware/host/cppcheck.sh`                         | whole-program, fails on any finding                                                                                                                     | C/C++ pushes, when cppcheck is installed                        |
 | `idf.py -C firmware build`                          | the ESP32 target links                                                                                                                                  | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip)    |
-| `sh cad/run_checks.sh`                              | swept-ROM interference on the armless and `ARMS=1` builds; printability reports                                                                         | not in the hook: run it for any CAD change                      |
+| `make check-cad` (`cad/run_checks.sh`)             | swept-ROM interference on the armless and `ARMS=1` builds; printability reports                                                                         | not in the hook: run it for any CAD change                      |
 
 A **docs-only push** changes nothing but files no gate reads: anything under
 `docs/`, `*.md`, images, PDFs, HTML reports, `.github/` and `.claude/`. It runs
@@ -95,6 +98,14 @@ them:
 | `cad/stl/*`, `cad/step/*`                                             | `python cad/parts.py` (the prototype's parts; the training plant meshes them)                                             |
 | `experiments/plan-b-bench/stl/*`, `experiments/plan-b-bench/figs/*`   | `python experiments/plan-b-bench/plan_b_rig.py` (the Plan B bench rig; `plan_b_rig_v3.py` for `stl/plan_b_v3_*`)          |
 | `sim/bimo_biped_v6ar.xml`                                             | `sim/build_v6_inertia.py --write` (or `sim/gen_plant_v6.py`)                                                              |
+
+**`make` regenerates them** (`make help` lists the targets): `make cad`,
+`make plant`, `make vectors`, `make figures`, and `make deploy RUN=...` for the
+deployed policy. As for compiled code, make rebuilds what its sources made
+stale, from file times; a Python generator's prerequisites are the repo modules
+it imports (`tools/mkdeps.py`). Make's own outputs (slicer projects, dependency
+lists) go to `build/`, which is gitignored; `make clean` empties it and never
+touches results (`sim/runs/`, `hw_sessions/`, bench data).
 
 Regenerated binary artifacts (STLs, STEPs) are rebuilt from source rather than
 merged. Rendered movies (`.mov`/`.mp4`/`.gif`) are **never committed** — they
