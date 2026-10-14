@@ -5,9 +5,13 @@
 V6_ENV := ARMS=1 HIP_YOKE_VARIANT=single SERVO_PLAN=hips
 V6_ALL_PARTS := $(V6_PARTS) $(V6_VARIANT_PARTS)
 
+# tools/mkdeps.py could not list the v6 parts (no build123d here?)
+v6_parts_listed = $(if $(V6_DEPS_ERROR),$(error $(V6_DEPS_ERROR)))
+
 cad: cad-$(V) ## export the parts, STL + STEP (PART= for one v6 part)
 
 cad-v6: $(if $(PART),cad/v6/stl/$(PART).stl,$(V6_ALL_PARTS:%=cad/v6/stl/%.stl) docs/design-v6/parts_v6_rollup.txt)
+	$(v6_parts_listed)
 
 # parts_v6 prints a table row per part and still exits 0 for a part it could
 # not build: pass this part's row through, and fail when it is missing or NOT BUILT.
@@ -52,6 +56,7 @@ $(BENCH_V3:%=experiments/\%/%): $(PYDEPS_$(BENCH)/plan_b_rig_v3.py)
 # The slicer is multithreaded itself; the Makefile runs half as many jobs for it.
 SLICE_OUT := build/v6/gcode
 slice: $(if $(PART),$(SLICE_OUT)/$(PART).gcode,$(V6_SLICE_JOBS:%=$(SLICE_OUT)/%.gcode)) ## OrcaSlicer projects + gcode for the v6 parts, in build/v6/gcode (PART=)
+	$(v6_parts_listed)
 
 define slice_job
 build/%/gcode/$(1).gcode build/%/gcode/$(1).3mf: $$(JOBDEPS_$(1))

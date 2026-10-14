@@ -1,5 +1,5 @@
 ##@ Firmware
-.PHONY: host vectors deploy firmware lint
+.PHONY: host vectors deploy firmware lint cmake-check tidy tidy-gui cppcheck
 
 PROTOCOL_VECTORS := firmware/host/vectors/protocol_vectors.h
 
@@ -16,25 +16,47 @@ deploy: ## put RUN=name's policy into the firmware: weights, obs spec, vectors, 
 	$(PY) tools/export_policy_weights.py --run $(RUN)
 	$(MAKE) -C firmware/host -j1 deploy-headers RUN=$(RUN)
 
-IDF_PATH ?= $(HOME)/esp/esp-idf
+IDF_PATH ?= $(firstword $(wildcard $(HOME)/esp/esp-idf $(HOME)/.espressif/frameworks/esp-idf-v5.4))
 firmware: ## the ESP32 image (ESP-IDF), in build/firmware
-	command -v idf.py > /dev/null || . $(IDF_PATH)/export.sh > /dev/null; \
-	  idf.py -C firmware -B build/firmware build
+	@if ! command -v idf.py > /dev/null; then \
+	  test -f "$(IDF_PATH)/export.sh" || { echo "no ESP-IDF: put idf.py on PATH or set IDF_PATH" >&2; exit 1; }; \
+	  . "$(IDF_PATH)/export.sh" > /dev/null; \
+	fi; \
+	idf.py -C firmware -B build/firmware build
 
-# The pre-push hook's static-analysis gates; a missing tool is a visible SKIP.
-lint: ## cmake + ctest (CMakeLists agrees with the Makefile), clang-tidy, clang-tidy-gui, cppcheck
-	@if command -v cmake > /dev/null; then \
-	  cmake -S firmware/host -B build/host-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > /dev/null && \
-	  cmake --build build/host-cmake -j$(JOBS) && \
-	  ctest --test-dir build/host-cmake --output-on-failure; \
-	else echo "SKIP: cmake not installed" >&2; fi
-	@if command -v run-clang-tidy > /dev/null && test -f build/host-cmake/compile_commands.json; then \
-	  run-clang-tidy -p build/host-cmake -quiet; \
-	else echo "SKIP: run-clang-tidy not installed, or no cmake build" >&2; fi
-	@if command -v clang-tidy > /dev/null; then \
-	  $(MAKE) -C firmware/host -j1 deps && \
-	  cmake -S firmware/host -B firmware/host/build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > /dev/null && \
-	  firmware/host/clang-tidy-gui.sh; \
-	else echo "SKIP: clang-tidy not installed" >&2; fi
-	@if command -v cppcheck > /dev/null; then firmware/host/cppcheck.sh; \
-	else echo "SKIP: cppcheck not installed" >&2; fi
+# Static analysis. A missing tool is a visible SKIP, never a silent pass.
+lint: ## cmake-check, tidy, tidy-gui and cppcheck
+	$(MAKE) cmake-check
+	$(MAKE) tidy
+	$(MAKE) tidy-gui
+	$(MAKE) cppcheck
+
+cmake-check: ## firmware/host's CMakeLists.txt builds and tests the same as its Makefile
+	@if ! command -v cmake > /dev/null; then echo "SKIP: cmake not installed" >&2; exit 0; fi; \
+	cmake -S firmware/host -B build/host-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && \
+	cmake --build build/host-cmake -j$(JOBS) && \
+	ctest --test-dir build/host-cmake --output-on-failure
+
+tidy: ## clang-tidy over the host firmware (.clang-tidy, WarningsAsErrors)
+	@if ! command -v run-clang-tidy > /dev/null; then echo "SKIP: clang-tidy not installed" >&2; exit 0; fi; \
+	if ! command -v cmake > /dev/null; then echo "SKIP: cmake not installed (needed for compile_commands.json)" >&2; exit 0; fi; \
+	cmake -S firmware/host -B build/host-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > /dev/null && \
+	run-clang-tidy -p build/host-cmake -quiet
+
+# clang-tidy-gui.sh reads firmware/host/build/compile_commands.json; a build
+# folder configured here only for it is removed again.
+tidy-gui: ## clang-tidy over the GUI and console sources
+	@if ! command -v clang-tidy > /dev/null; then echo "SKIP: clang-tidy not installed" >&2; exit 0; fi; \
+	created=; \
+	if [ ! -f firmware/host/build/compile_commands.json ]; then \
+	  if ! command -v cmake > /dev/null; then echo "SKIP: cmake not installed (needed for compile_commands.json)" >&2; exit 0; fi; \
+	  cmake -S firmware/host -B firmware/host/build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > /dev/null || exit 1; \
+	  created=1; \
+	fi; \
+	$(MAKE) -C firmware/host -j1 deps && firmware/host/clang-tidy-gui.sh; rc=$$?; \
+	if [ -n "$$created" ]; then rm -rf firmware/host/build; fi; \
+	exit $$rc
+
+cppcheck: ## whole-program cppcheck over the firmware and link/, failing on any finding
+	@if ! command -v cppcheck > /dev/null; then echo "SKIP: cppcheck not installed" >&2; exit 0; fi; \
+	firmware/host/cppcheck.sh
