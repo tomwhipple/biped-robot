@@ -19,14 +19,18 @@ These are MOCKS for visual/fit context, not collision evidence: the disc faces
 touch the servo cases by design, so `freecad_pose.py` skips them when it
 intersects bodies (see SERVO_PREFIX there).
 
-Run:  .venv/bin/python cad/servos.py     (-> cad/step/servo_*.step)
+Run:  .venv/bin/python cad/servos.py     (-> build/v5/step/servo_*.step)
 """
 import os
+import sys
 
 from build123d import Pos, Rot, export_step
 
 import check_assembly as CA
 import dimensions as D
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from paths import build_dir  # noqa: E402
 
 # ------------------------------------------------------------- STEP exports
 # Each lambda returns the mock in its JOINT-LOCAL frame: origin on the joint
@@ -43,13 +47,13 @@ GROUPS = {
 
 
 def main():
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "step")
-    os.makedirs(out, exist_ok=True)
+    out = build_dir("v5", "step")
     for name, fn in GROUPS.items():
         solid = fn()
-        export_step(solid, os.path.join(out, f"{name}.step"))
+        path = os.path.join(out, f"{name}.step")
+        export_step(solid, path)
         print(f"{name:14s} {solid.volume / 1000.0:6.2f} cm3 "
-              f"-> step/{name}.step")
+              f"-> {os.path.relpath(path)}")
 
 
 if __name__ == "__main__":

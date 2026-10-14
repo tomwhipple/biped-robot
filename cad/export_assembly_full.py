@@ -2,9 +2,9 @@
 pigtail — see dress.py) as one labeled STEP, plus PNG stills.
 
 Run:  .venv/bin/python cad/export_assembly_full.py
-      -> cad/step/assembly_full.step
-      -> cad/renders/assembly_full.png          (front-iso + back, neutral)
-      -> cad/renders/assembly_full_pike.png     (get-up pike, dress follows)
+      -> build/v5/step/assembly_full.step
+      -> build/v5/renders/assembly_full.png         (front-iso + back, neutral)
+      -> build/v5/renders/assembly_full_pike.png    (get-up pike, dress follows)
 
 The neutral STEP is the "approximate complete" model: printed parts and
 servo mocks exactly as assembly.step, plus plausible-spline wiring and
@@ -12,6 +12,7 @@ mock electronics. The pike still proves the cable dress follows the
 deepest working pose (hip -110, knee -95, ankle +40).
 """
 import os
+import sys
 import numpy as np
 import mujoco
 import imageio.v2 as imageio
@@ -20,9 +21,12 @@ from build123d import Compound, export_step, export_stl
 import dress
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-STEP_OUT = os.path.join(HERE, "step")
-REN_OUT = os.path.join(HERE, "renders")
-TMP = os.path.join(REN_OUT, "_full")
+sys.path.insert(0, os.path.dirname(HERE))
+import paths  # noqa: E402
+
+STEP_OUT = os.path.join(paths.BUILD, "v5", "step")
+REN_OUT = os.path.join(paths.BUILD, "v5", "renders")
+TMP = os.path.join(paths.BUILD, "v5", "tmp", "full")
 
 
 def leaves(c):
@@ -90,6 +94,7 @@ def render(robot, path, views, px=640):
 def main():
 
     os.makedirs(STEP_OUT, exist_ok=True)
+    os.makedirs(REN_OUT, exist_ok=True)
     robot = dress.dressed_robot()
     path = os.path.join(STEP_OUT, "assembly_full.step")
     export_step(robot, path)

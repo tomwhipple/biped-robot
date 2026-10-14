@@ -1,12 +1,13 @@
 """Render the assembled robot to PNG via MuJoCo (visual meshes, no physics).
 
 Run:  .venv/bin/python cad/render_assembly.py
-      -> cad/renders/assembly_mujoco.png  (used by sim/build_report.py)
+      -> build/v5/renders/assembly_mujoco.png  (used by sim/build_report.py)
 
 Exports the printed parts and the servo mocks as two temporary STLs so they can
 be colored separately, then renders one frame with a MuJoCo offscreen camera.
 """
 import os
+import sys
 import mujoco
 import imageio.v2 as imageio
 from build123d import Compound, export_stl
@@ -14,8 +15,11 @@ from build123d import Compound, export_stl
 import export_assembly as A          # builds `robot` (labeled compound tree)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "renders")
-os.makedirs(OUT, exist_ok=True)
+sys.path.insert(0, os.path.dirname(HERE))
+from paths import build_dir  # noqa: E402
+
+OUT = build_dir("v5", "renders")
+TMP = build_dir("v5", "tmp")
 
 printed, servos, camera = [], [], []
 
@@ -33,9 +37,9 @@ def collect(c):
 
 
 collect(A.robot)
-mesh_printed = os.path.join(OUT, "_printed.stl")
-mesh_servos = os.path.join(OUT, "_servos.stl")
-mesh_camera = os.path.join(OUT, "_camera.stl")
+mesh_printed = os.path.join(TMP, "_printed.stl")
+mesh_servos = os.path.join(TMP, "_servos.stl")
+mesh_camera = os.path.join(TMP, "_camera.stl")
 export_stl(Compound(children=printed), mesh_printed)
 export_stl(Compound(children=servos), mesh_servos)
 export_stl(Compound(children=camera), mesh_camera)

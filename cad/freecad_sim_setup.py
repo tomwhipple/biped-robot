@@ -1,6 +1,6 @@
 """Build FreeCAD's OWN Assembly -> Simulation objects so the ROM plays natively.
 
-In the GUI, with cad/step/bimo_v3yaw_articulated.FCStd open:
+In the GUI, with build/v5/step/bimo_v3yaw_articulated.FCStd open:
 
     1. Run cad/freecad_gui_ready.py FIRST if the FCStd has been rebuilt
        headlessly since you last did -- see that file. Without it, opening a
@@ -71,7 +71,7 @@ try:
     HERE = os.path.dirname(os.path.abspath(__file__))
 except NameError:                       # exec'd from the console
     HERE = os.path.abspath(".")
-    if not os.path.isdir(os.path.join(HERE, "step")):
+    if not os.path.isfile(os.path.join(HERE, "dimensions.py")):
         HERE = os.path.join(HERE, "cad")
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
@@ -248,8 +248,7 @@ def _verify(doc, asm, built, tol=0.15):
 def main():
     doc = App.ActiveDocument
     if doc is None:
-        doc = App.openDocument(os.path.join(HERE, "step",
-                                            "bimo_v3yaw_articulated.FCStd"))
+        doc = App.openDocument(FP.FCSTD)
     print("== building ROM simulations ==")
     asm, built = build(doc)
     print("== verifying against freecad_pose kinematics ==")
