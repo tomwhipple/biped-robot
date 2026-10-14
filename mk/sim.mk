@@ -43,8 +43,8 @@ eval: ## the CPU referee's scorecard for RUN=name, written into sim/runs/RUN
 train: plant ## start a training run now: ARGS="<train_mjx.py arguments>"
 	cd sim/mjx && $(PY) train_mjx.py $(ARGS)
 
-report: build/v5/renders/assembly_mujoco.png ## refresh the results page, sim/runs/night_summary.html
+# The page shows build/v5/renders/assembly_mujoco.png when it exists. Not a
+# prerequisite: cad/render_assembly.py fails (its printed-parts mesh has
+# 289,600 faces, over MuJoCo's 200,000).
+report: ## refresh the results page, sim/runs/night_summary.html
 	$(PY) sim/build_report.py
-
-build/%/renders/assembly_mujoco.png: $(PYDEPS_cad/render_assembly.py) $(wildcard cad/stl/*.stl)
-	$(PY) cad/render_assembly.py
