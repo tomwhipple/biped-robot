@@ -47,10 +47,19 @@ def schematic():
 
 @pytest.fixture()
 def ngspice():
-    """A fresh NgSpiceSession per test. Skips when the .so is missing."""
+    """A fresh NgSpiceSession per test. Skips, with the reason, when this
+    host has no loadable libngspice (the vendored one is linux-x86_64
+    only) or a vendored artifact fails its hash pin."""
     from pbsim import ngsim
     from pbsim.fetmodel import check_hashes
+    lib = ngsim.find_lib()
+    if lib is None:
+        pytest.skip("no libngspice for this host: the vendored one is "
+                    "linux-x86_64 only (macOS: brew install libngspice, "
+                    "or set PBSIM_NGSPICE)")
     hashes = check_hashes()
+    if lib != str(ngsim.LIB_SO):
+        hashes.pop("libngspice.so.0.0.9", None)
     bad = {k: v for k, v in hashes.items() if v != "ok"}
     if bad:
         pytest.skip(f"vendored ngspice artifact hash mismatch: {bad}")

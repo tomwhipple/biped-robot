@@ -15,10 +15,19 @@ from pbsim.fetmodel import REWRITE_LIB, check_hashes
 
 def test_vendored_hashes_are_pinned():
     # A swapped binary or a modified rewrite must fail loudly. If these
-    # change, the change is reviewed, and the pins here are updated.
+    # change, the change is reviewed, and the pins in fetmodel.py are
+    # updated.
     statuses = check_hashes()
     for k, v in statuses.items():
         assert v == "ok", f"{k}: {v}"
+
+
+def test_rewrite_differs_from_ti_only_in_level_and_version():
+    """TI's .PARAM expressions evaluated and substituted, the rewrite and
+    TI's release agree token for token except LEVEL 7 -> 8 and VERSION
+    3.2 -> 3.3 (vendor/README.md)."""
+    from pbsim.rewrite_ti_model import INTENDED, rewrite_deltas
+    assert rewrite_deltas() == INTENDED
 
 
 @pytest.mark.spice
@@ -51,14 +60,11 @@ X1 1 2 0 CSD17556Q5B
             break
     assert id_vec is not None, f"could not identify Id vector: {names}"
 
-    # Below threshold (Vgs=1.5V) the part must conduct microamps at most;
-    # by Vgs=3V with Vds=10V a healthy CSD17556Q5B is well into conduction.
-    # ngspice reports current flowing INTO the positive terminal of Vds,
-    # so on a sourcing supply this is negative; assert by magnitude.
     # Below threshold (Vgs=1.5V) the part conducts weak subthreshold current
-    # (tens of mA at most at Vds=10V; the model's NFACTOR=1.7 means real
-    # subthreshold current, not a hard cutoff). By Vgs=3V with Vds=10V a
-    # healthy CSD17556Q5B is fully on with ~A of drain current. ngspice
+    # (about 10 mA at Vds=10V; the model's NFACTOR=1.7 means real
+    # subthreshold current, not a hard cutoff). By Vgs=3V with Vds=10V the
+    # channel carries hundreds of amps (332 A; TI's Figure 3 is past 200 A
+    # at 2.94 V — see test_ti_fet_model_tracks_ti_figure_3). ngspice
     # reports current flowing INTO the positive terminal of Vds, so on a
     # sourcing supply it is negative; assert by magnitude.
     assert abs(id_vec[0]) < 0.05, (
@@ -71,3 +77,37 @@ X1 1 2 0 CSD17556Q5B
     mag = np.abs(id_vec)
     diffs = np.diff(mag)
     assert np.all(diffs >= -1e-9), f"Id not monotone over sweep: {mag}"
+
+
+# TI CSD17556Q5B datasheet (SLPS392D) Figure 3, Transfer Characteristics,
+# VDS = 5 V, TC = 25 °C: the gate voltage at which the typical curve
+# crosses each drain current, read off the plot (±0.03 V reading error).
+TI_FIG3_VGS_AT_ID = {20.0: 2.37, 100.0: 2.71, 200.0: 2.94}
+
+
+@pytest.mark.spice
+def test_ti_fet_model_tracks_ti_figure_3(ngspice):
+    """The rewritten model reproduces TI's own transfer curve, so its
+    absolute currents (hundreds of amps at Vgs = 3 V) are the device's,
+    not an artefact of the LEVEL 7 -> 8 rewrite."""
+    vgs = np.round(np.arange(2.0, 3.2001, 0.01), 2)
+    out = ngspice.run_netlist(f"""\
+* TI CSD17556Q5B transfer curve, Vds=5V (datasheet Figure 3)
+.include {REWRITE_LIB}
+Vds 1 0 5
+Vgs 2 0 0
+X1 1 2 0 CSD17556Q5B
+.dc Vgs 2.0 3.2 0.01
+.end
+""")
+    names = [n for n in out if "vds" in n.lower() and n != "vds"]
+    assert names, f"could not identify Id vector: {set(out)}"
+    id_mag = np.abs(out[names[0]])
+    assert len(id_mag) == len(vgs)
+    assert np.all(np.diff(id_mag) > 0)
+    for i_d, vgs_ti in TI_FIG3_VGS_AT_ID.items():
+        vgs_model = float(np.interp(i_d, id_mag, vgs))
+        assert abs(vgs_model - vgs_ti) < 0.10, (
+            f"model reaches {i_d:.0f} A at Vgs={vgs_model:.3f} V; "
+            f"TI Figure 3 at {vgs_ti} V"
+        )
