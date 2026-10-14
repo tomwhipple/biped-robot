@@ -314,11 +314,11 @@ Do 7a–7c for **both hips** before the bearing housing: it carries both bearing
 
 ### 7d. The hip-yaw bearings into the housing (bench)
 
-Each hip turns on a **6810-2RS** (50 × 65 × 7 mm, sealed; generic, so measure it
-first: [bom.md §5](bom.md#5-hip-yaw-bearing)). Its outer race sits
+Each hip turns on a **6810-2RS** (nominal 50 × 65 × 7 mm, sealed, generic; the
+ones in hand measure 49.9 × 65.0 × 7.0: [bom.md §5](bom.md#5-hip-yaw-bearing)). Its outer race sits
 in a recess of the **bearing housing** (`yaw_bearing_housing`, one print for
 both hips, Ø64.96, −0.04 mm) against a shoulder, which takes the leg's thrust.
-Its inner race goes on the carrier's round hub (Ø50.08, +0.08 mm). The housing
+Its inner race goes on the carrier's round hub (Ø49.98, +0.08 mm). The housing
 is a separate print screwed under the pelvis because the yaw servo goes up into
 its cell, and the driver reaches the roll servo's upper screws, through the
 space the housing occupies. Background:
@@ -355,8 +355,8 @@ space the housing occupies. Background:
 
 - **Never heat-set a bearing into PETG.** PETG must reach about 230 °C to flow,
   and a 2RS bearing's seals and grease are good to roughly 100 °C.
-- **Until the generic bearings are measured, the ring dimensions in the CAD
-  are SKF's** (61810-2RS1: inner ring
+- **The bore, OD and width in the CAD are measured; the ring shoulders are
+  still SKF's** (61810-2RS1: inner ring
   shoulder d1 ≈ 54.67, outer ring shoulder D2 ≈ 61.8 mm). The housing's
   shoulder (Ø62.6) bears on the outer ring face, outside D2 and inside SKF's Da
   max of 63. Measure the bearings you have against those numbers before

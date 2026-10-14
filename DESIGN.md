@@ -222,12 +222,13 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   its horn plate and the bay (roll axis 45.1 mm below the horn face), so the
   roll servo and all eight of its wall screws sit below the bearing band:
   every screw has a clear driver path with the hip fully assembled.
-- **Hip-yaw bearing: a 6810-2RS** (50 × 65 × 7 mm, sealed deep-groove,
-  about 53 g) per hip. Without it the yaw servo's horn and four M3 screws would
-  be the only connection between a 0.34 m leg and the pelvis (single-support
-  thrust ~15 N, roll moment ~0.65 N·m). The bearing moves thrust and moment
+- **Hip-yaw bearing: a 6810-2RS** (nominal 50 × 65 × 7 mm; the ones in hand
+  measure 49.9 × 65.0 × 7.0; sealed deep-groove, about 53 g) per hip. Without
+  it the yaw servo's horn and four M3 screws would be the only connection
+  between a 0.34 m leg and the pelvis (single-support thrust ~15 N, roll
+  moment ~0.65 N·m). The bearing moves thrust and moment
   into the pelvis and leaves the servo shaft carrying torque only.
-  - The inner race sits on a round hub on the carrier (Ø50.08, +0.08 mm). The
+  - The inner race sits on a round hub on the carrier (Ø49.98, +0.08 mm). The
     outer race sits in a recess (Ø64.96, −0.04 mm) in the **bearing housing**
     (`yaw_bearing_housing`), against a shoulder that takes the thrust. Both
     seats get retaining compound: the fits are inside the printer's error band.
@@ -242,9 +243,11 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   - The bearing band is the top 7 mm of the carrier. The hub wraps the bay
     walls' footprint, and the bore is the smallest class that leaves a 1.5 mm
     wall around the bay's open interior (the horn screws are driven up through
-    it). Below the hub the carrier is trimmed to r 24.8, under the 25 mm bore.
-  - The bearings are generic 6810-2RS, measured on arrival; the CAD carries
-    SKF's published 61810-2RS1 ring dimensions until then. The housing's
+    it). Below the hub the carrier is trimmed to r 24.8, under the 24.95 mm bore.
+  - The bearings are generic 6810-2RS. The CAD's bore, OD and width are the
+    calipered values of the ones in hand; their ring shoulders, play and
+    weight are not measured yet, so it carries SKF's published 61810-2RS1
+    values for those (d1, D2, Da, mass). The housing's
     shoulder bears on the outer ring face between D2 (61.8, the seal) and
     Da max (63).
   - Load margin > 100×. Selection, alternatives (a 6811-2RS wrapping the
@@ -544,7 +547,7 @@ Everything open is a GitHub issue.
    foot; pass ≤ 0.3° short at load 120 (≤ 0.4° on the 3× route).
 2. **Buy** the STS3215s (15 needed, 12 on hand, plus spares), the two
    STS3250s for the hip rolls (ordered 2026-10-02, #74), the two generic
-   6810-2RS bearings (ordered 2026-10-06; measure them on arrival), and the
+   6810-2RS bearings (in hand; bore, OD and width measured 2026-10-13), and the
    non-servo parts ([docs/bom.md](docs/bom.md)).
 3. **Configure** P and D per ID; record them in `docs/servo-map.md`.
 4. **Print and assemble** ([cad/PRINT_LIST.md](cad/PRINT_LIST.md),

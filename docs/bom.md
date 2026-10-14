@@ -240,16 +240,17 @@ screwed under the pelvis ([DESIGN.md §5.2](../DESIGN.md); background:
 
 | bearing | qty | spec | have |
 |---|---|---|---|
-| **6810-2RS**, 50 × 65 × 7 mm, rubber-sealed deep-groove | 2 | inner race on the carrier hub (+0.08 mm), outer race in the bearing housing's recess (−0.04 mm) | **2 ordered** 2026-10-06: generic, no brand, USA Bearings & Belts, $16.04 each ([listing](https://usbearingsandbelts.com/products/6810-2rs)) |
+| **6810-2RS**, 50 × 65 × 7 mm, rubber-sealed deep-groove | 2 | inner race on the carrier hub (+0.08 mm), outer race in the bearing housing's recess (−0.04 mm) | **2 in hand** (arrived 2026-10-13; ordered 2026-10-06): generic, no brand, USA Bearings & Belts, $16.04 each ([listing](https://usbearingsandbelts.com/products/6810-2rs)) |
 
-- **Generic, so measure on arrival:** OD, bore and width (65 / 50 / 7); the
-  outer ring's inside diameter at the seal (D2), which must be under 62.6 so
-  the housing's shoulder bears on the outer ring face and not the seal; the
-  inner ring's outside diameter at the seal (d1); the radial and tilting play
-  by hand (the bearing is there to remove yaw play); the weight. Put the
-  measured values into `cad/v6/dimensions_v6.py` (`YAW_BRG_*`) and re-run the
+- **Measured on arrival** (2026-10-13, calipers): OD 65.0, bore 49.9, width
+  7.0 mm (nominal 65 / 50 / 7). They are in `cad/v6/dimensions_v6.py`
+  (`YAW_BRG_*`). **Still to measure:** the outer ring's inside diameter at the
+  seal (D2), which must be under 62.6 so the housing's shoulder bears on the
+  outer ring face and not the seal; the inner ring's outside diameter at the
+  seal (d1); the radial and tilting play by hand (the bearing is there to
+  remove yaw play); the weight. Put those into `YAW_BRG_*` too and re-run the
   CAD gate before printing the housing. Until then the CAD carries SKF's
-  published 61810-2RS1 values: d1 ≈ 54.67, D2 ≈ 61.8, Da max 63, r1,2 min
+  published 61810-2RS1 values for them: d1 ≈ 54.67, D2 ≈ 61.8, Da max 63, r1,2 min
   0.3, C 6.76 / C0 6.8 kN, 0.053 kg
   ([SKF sheet](https://docs.rs-online.com/f06f/A700000007138802.pdf)).
 

@@ -371,7 +371,8 @@ DECK_BOT_Z = HIP_YAW_Z - YAW_HORN_FACE_Z - DECK_T                     # world z 
 DECK_TOP_Z = DECK_BOT_Z + DECK_T
 
 # ----------------------------------------------------------------------------
-# hip-yaw bearing: a 6810-2RS (50 x 65 x 7) between the yaw carrier's round
+# hip-yaw bearing: a 6810-2RS (nominal 50 x 65 x 7; as delivered 49.9 x 65 x
+# 7, below) between the yaw carrier's round
 # hub and a recess in the bearing housing screwed under the pelvis
 # (yaw_bearing_housing.py; docs/design-v6/study-yaw-bearing.md, option A; #75). Without it the yaw servo's horn and its 4 horn screws are
 # the only connection between the carrier (the whole leg, a 0.335 m lever)
@@ -382,18 +383,21 @@ DECK_TOP_Z = DECK_BOT_Z + DECK_T
 # 0) down the bearing's own width. In it the carrier holds its horn plate
 # (z 0..-3) and the top of the bay walls (the spacer, YAW_CARRIER_DROP); the
 # roll servo starts below it (YAW_ROLL_CASE_TOP_Z). The hub wraps the walls'
-# rectangular footprint (corners 25.12 from the yaw axis, trimmed 0.08 to the
+# rectangular footprint (corners 25.12 from the yaw axis, trimmed 0.13 to the
 # hub) and keeps the bay's open interior, which the horn screws are driven
 # through; the bore is the smallest class (45: 6709/6809, 50: 6710/6810, 55:
 # 6711/6811) whose hub leaves a 1.5 mm wall around that interior's corners:
 YAW_BAY_VOID_CORNER_R = math.hypot(D.SV_TOPFACE, D.SV_WID / 2 + D.BAY_CHEEK_GAP)   # 21.48
-YAW_BRG_ID = 50.0             # 6810-2RS bore
-YAW_BRG_OD = 65.0             # 6810-2RS OD (6710-2RS is 62 mm, but its C0 varies
+# The bearings in hand (generic 6810-2RS, USA Bearings & Belts), caliper
+# measurements on arrival 2026-10-13 (Tom); nominal 50 / 65 / 7:
+YAW_BRG_ID = 49.9             # bore
+YAW_BRG_OD = 65.0             # OD (6710-2RS is 62 mm, but its C0 varies
                               # 2.6-3.1 kN across sources; either is overkill here)
-YAW_BRG_W = 7.0               # 6810-2RS width
-# SKF 61810-2RS1 product data (SKF-generated sheet, https://docs.rs-online.com/
-# f06f/A700000007138802.pdf): the ring shoulder diameters on the seal side,
-# d1 (inner ring) and D2 (outer ring), the abutment limits da/Da, r1,2 min.
+YAW_BRG_W = 7.0               # width, along the axis
+# Not measured yet -- SKF 61810-2RS1 product data (SKF-generated sheet,
+# https://docs.rs-online.com/f06f/A700000007138802.pdf): the ring shoulder
+# diameters on the seal side, d1 (inner ring) and D2 (outer ring), the
+# abutment limits da/Da, r1,2 min.
 YAW_BRG_D1 = 54.67            # inner ring shoulder (approx.)
 YAW_BRG_D2 = 61.8             # outer ring shoulder (approx.)
 YAW_BRG_DA_MAX = 63.0         # largest abutment diameter on the outer ring face
@@ -401,8 +405,8 @@ YAW_BRG_R_MIN = 0.3           # ring chamfer
 YAW_BRG_C_KN = 6.76
 YAW_BRG_C0_KN = 6.8
 YAW_BRG_MASS_G = 53.0
-YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.08           # 50.08, +0.08 interference on the inner race
-YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2          # 25.04
+YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.08           # 49.98, +0.08 interference on the inner race
+YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2          # 24.99
 YAW_BRG_BOSS_H = YAW_BRG_W                    # 7.0, full bore engagement: the band IS carrier z [-7, 0]
 assert YAW_BRG_BOSS_R - YAW_BAY_VOID_CORNER_R >= 1.5, \
     "hub must keep a 1.5 mm wall around the bay interior's corners (within the band)"

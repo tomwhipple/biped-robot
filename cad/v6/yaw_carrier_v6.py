@@ -14,8 +14,8 @@ on.
 The HUB, entirely within the band V.YAW_BRG_BAND_Z = (-7, 0) (the horn plate,
 z 0..-3, and the top of the spacer):
   1. trim the plate corners and the spacer back to a cylinder of radius
-     V.YAW_BRG_BOSS_R (25.04). That clips the 25.12 mm corners of the walls'
-     rectangle by 0.08 mm, under print tolerance and not a load path, and adds
+     V.YAW_BRG_BOSS_R (24.99). That clips the 25.12 mm corners of the walls'
+     rectangle by 0.13 mm, under print tolerance and not a load path, and adds
      material along the flat sides (19.95 and 15.26 mm half-widths): the top
      of the carrier becomes a true cylinder.
   2. re-open the bay's interior below the plate (z -7..-3): the horn screws are
@@ -23,7 +23,7 @@ z 0..-3, and the top of the spacer):
   3. re-cut the 4 horn screw bores and the centre relief, which step 1's disk
      refills.
 Below the band everything is trimmed to YAW_CARRIER_CORNER_R (24.8), under the
-25.0 bore, and the hub's bottom edge gets a lead-in: the bearings go on last,
+24.95 bore, and the hub's bottom edge gets a lead-in: the bearings go on last,
 pressed into the housing (yaw_bearing_housing.py) and slid up over the carrier
 and the screwed-in roll servo (docs/assembly.md section 7).
 
