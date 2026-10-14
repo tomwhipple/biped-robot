@@ -4,8 +4,8 @@ round_folded.txt, BEST): is it quasi-static, is it robust, and does its second
 half stand the body up from PRONE too.
 
     .venv/bin/python sim/getup_v6_bird3_verify.py           > docs/design-v6/getup_search_bird3_verify.txt
-    .venv/bin/python sim/getup_v6_bird3_verify.py render sim/renders/getup_options/side/bird3_prone_stand.mp4
-    .venv/bin/python sim/getup_v6_bird3_verify.py render-slow sim/renders/getup_options/side/bird3_supine_slow.mp4
+    .venv/bin/python sim/getup_v6_bird3_verify.py render build/v6/movies/getup_options/side/bird3_prone_stand.mp4
+    .venv/bin/python sim/getup_v6_bird3_verify.py render-slow build/v6/movies/getup_options/side/bird3_supine_slow.mp4
 
 The path (6 symmetric keyframes: hip_yaw, hip_roll(L; R mirrored), knee,
 ankle in deg) is copied verbatim from the search log so this file is the

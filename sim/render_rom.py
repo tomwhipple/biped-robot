@@ -5,12 +5,13 @@ driven through its full modeled servo range (the same limits check_assembly
 sweeps against), one DOF at a time, then a combined envelope move. Frames
 come from the v2 model so the video shows the real CAD meshes.
 
-Usage: python render_rom.py [--out renders/rom_sweep]
+Usage: python render_rom.py [--out build/v5/movies/rom_sweep]
 Writes <out>.mov (H.264, QuickTime-friendly).
 """
 import argparse
 import os
 import subprocess
+import sys
 
 import mujoco
 import numpy as np
@@ -19,6 +20,9 @@ from PIL import Image, ImageDraw
 from video_annot import load_font  # cross-platform (mira renders too)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+import paths  # noqa: E402
+
 FPS = 50
 BASE_Z = 0.36            # hold the torso here: full leg extension still clears the floor
 W, H = 900, 1100
@@ -50,7 +54,7 @@ def sweep_profile(lo, hi, n):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=os.path.join(HERE, "renders", "rom_sweep"))
+    ap.add_argument("--out", default=os.path.join(paths.BUILD, "v5", "movies", "rom_sweep"))
     ap.add_argument("--seconds-per-joint", type=float, default=3.2)
     args = ap.parse_args()
     os.makedirs(os.path.dirname(args.out), exist_ok=True)

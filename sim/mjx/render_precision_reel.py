@@ -8,7 +8,8 @@ if none succeeds it falls back to the first non-falling seed, else seed 0 --
 and the caption says PASS or FAIL honestly either way (per the video-review
 rule: label takes, don't cherry-pick silently).
 
-Output: sim/renders/precision_reel_<run>.mov (gitignored; regenerate here).
+Output: sim/runs/<run>/precision_reel_<run>.mov, beside the run it shows
+(gitignored; regenerate here).
 
 Run:  JAX_PLATFORMS=cpu .venv/bin/python sim/mjx/render_precision_reel.py \
           --run-name precision_v2 [--seeds 6] [--scenarios a,b] [--nominal]
@@ -26,8 +27,6 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 
 import eval_precision as ep
 from video_annot import caption, title_card, trim_trailing_still
-
-RENDERS = os.path.join(HERE, "..", "renders")
 
 # human titles for the caption bar, keyed by scenario name
 TITLES = {
@@ -101,9 +100,8 @@ def main():
     N = float(get_env(12.0)._nominal_h)
     act = ep.load_policy(run_dir, obs_size, act_size)
 
-    os.makedirs(RENDERS, exist_ok=True)
     out = args.out or os.path.join(
-        RENDERS, f"precision_reel_{args.run_name}.mov")
+        run_dir, f"precision_reel_{args.run_name}.mov")
     import imageio
     wr = imageio.get_writer(out, format="FFMPEG", fps=args.fps,
                             codec="libx264", pixelformat="yuv420p",
