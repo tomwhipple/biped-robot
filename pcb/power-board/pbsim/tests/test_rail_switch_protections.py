@@ -1,57 +1,58 @@
-"""P1-3: dynamic coverage of the TPS48111's own protections (CB, SC) plus
-the EN-pulse latch release.
+"""P1-3: dynamic coverage of the TPS48111's own protections (CB, SC, UVLO)
+plus the latch releases, and the model constants derived from the parsed
+schematic (P3-1).
 
 C5's core scenario — a servo-lead short clears on the TPS48111's SC while
-the BQ76922's 150 A SCD stays out of it — is asserted here live. Static
-arithmetic against 19.8/39.3 lives in test_servo_branches; this file is
-the dynamic side that was dark until round 2.
+the BQ76922's 150 A SCD stays out of it — is asserted here at the
+sequence level. Static arithmetic against 19.8/39.3 lives in
+test_servo_branches; this file is the dynamic side.
 
 What "green" means:
 
 - A direct over-current well above CB (e.g. 25 A standing) trips the
   rail's CB latch in ~10.5 ms; the rail falls to OFF-and-latched, the
   BQ76922 is UNAFFECTED, and PACK+ stays up.
-- A direct short-circuit (45 A) trips SC within microseconds; rail
-  falls, BQ76922's OCD does NOT latch (CB + SC together clear it before
-  the 50 ms OCD delay would land).
-- Once the over-current clears, an EN pulse (E-STOP toggled) releases
-  the TPS latch and the rail can come back. The BQ76922's latches — if
-  any were set — stay latched (asymmetric: BQ latches need VCC recycle
-  or `kill()`).
+- A short at C5's peak current trips SC on the next tick; the rail
+  latches, the BQ76922's OCD and SCD do NOT latch, and PACK+ stays up
+  (C5: "a servo-lead short leaves the robot powered").
+- Once the over-current clears, toggling INP (SERVO_EN) or EN/UVLO below
+  ENF (E-stop) releases the TPS latch and the rail can come back
+  (datasheet §8.3.3.2).
+- EN/UVLO turns the rail off when PACK+ sags below 7.33 V and back on
+  above 7.79 V (C3's divider).
 """
 from __future__ import annotations
 
+import math
+
 import pytest
 
-from pbsim.bq76922 import BqState, Protection
-from pbsim.pack import Pack3S
-from pbsim.sequencer_sim import Buttons, Esp32Stub, PowerBoard
-from pbsim.tps48111 import (
-    CB_DELAY_S,
-    CB_TRIP_A,
-    SC_TRIP_A,
-    RailState,
-)
+from pbsim.bq76922 import OTP_SCD_A, RSENSE_PACK_MOHM
+from pbsim.scenarios import BootAndHoldOn, press_power_until
+from pbsim.sequencer_sim import (R9_OHM, R11_OHM, R12_OHM, R30_OHM,
+                                 R31_OHM, R32_OHM, R33_OHM, R38_OHM,
+                                 R39_OHM, PowerBoard)
+from pbsim.tps48111 import (CB_DELAY_S, CB_TRIP_A, SC_TRIP_A,
+                            VU_VLO_FALLING, VU_VLO_RISING, RailState)
 
-
-class _FirmwareOn(Esp32Stub):
-    """Steady-state firmware: SERVO_EN on, no KILL."""
-    def tick(self, t_s, board):
-        return {"servo_en_v": 3.3, "kill_v": 0.0, "i2c_start_v": 3.3}
+# C5 (verification record): servo-lead short of 10 mΩ + 100 nH with 2 mF
+# on the rail. Peak Q3 current 58-69 A, pack current 56-66 A, Q3 off in
+# 5.9-8.3 µs.
+C5_PEAK_Q3_A = 69.0
+C5_PEAK_PACK_A = 66.0
+# BQ76922 V(SCD_ACC): ±35 % of the nominal threshold (the wider of its
+# two bands), so the 150 A SCD can trip as low as 97.5 A.
+BQ_SCD_ACC = 0.35
 
 
 def _boot_buttons(t_s):
-    return Buttons(power_pressed=t_s < 0.3)
+    return press_power_until(0.3)(t_s)
 
 
-def _run(board, buttons_at, esp, rail_load, n_ticks):
-    out, last = [], None
-    for _ in range(n_ticks):
-        st = board.tick(buttons_at(board.t_s), esp,
-                        rail_load_a=rail_load, board=last)
-        out.append(st)
-        last = st
-    return out
+def _settle_on(rail, pack_v=12.0):
+    for k in range(200):
+        rail.update(k * 1e-3, 1e-3, 2.0, 3.3, pack_v, 0.0)
+    assert rail.state == RailState.ON
 
 
 # ----------------- direct Tps48111 model drive (no board stack) -----------
@@ -61,23 +62,15 @@ def test_rail_latches_cb_on_sustained_overcurrent():
     """Direct drive: 25 A standing (well above the 19.8 A CB trip). The
     latch must land ~10.5 ms after the over-current starts, not earlier
     (a transient shorter than the timer must NOT trip it)."""
-    board = PowerBoard()
-    rail = board.rail_sw
-    # drive the rail into ON: EN + INP high
-    en_v = 2.0   # anything over VU_VLO_RISING=1.0
-    inp_v = 3.3
-    pack_v = 12.0
-    # 200 ms of ON-state behaviour with rail_i = 0 — settle to ON.
-    for k in range(200):
-        rail.update(k * 1e-3, 1e-3, en_v, inp_v, pack_v, 0.0)
-    assert rail.state == RailState.ON
+    rail = PowerBoard().rail_sw
+    en_v, inp_v, pack_v = 2.0, 3.3, 12.0
+    _settle_on(rail, pack_v)
 
-    # step to 25 A — latch must NOT fire before CB_DELAY_S.
     trip_at = None
     t = 0.200
-    for step_ms in range(60):     # 60 ms at 1 ms ticks
+    for _ in range(60):     # 60 ms at 1 ms ticks
         rail.update(t, 1e-3, en_v, inp_v, pack_v, 25.0)
-        if rail.state == RailState.LATCHED_CB and trip_at is None:
+        if rail.state == RailState.LATCHED_CB:
             trip_at = t
             break
         t += 1e-3
@@ -89,116 +82,112 @@ def test_rail_latches_cb_on_sustained_overcurrent():
         f"(expected ~10.5 ms)"
     )
     assert rail.rail_v == 0.0
-    # Trip log recorded the event
     assert any(kind == "CB" for kind, _t, _i in rail.trip_log), (
         f"CB trip missing from the log: {rail.trip_log}"
     )
 
 
 def test_rail_latches_sc_on_hard_short():
-    """Direct drive: 45 A (over the 39.3 A SC trip) latches the rail on
-    the SC fast-trip — sub-microsecond on the real part, modeled as
-    next-tick at our 1 ms timescale."""
-    board = PowerBoard()
-    rail = board.rail_sw
-    en_v = 2.0
-    inp_v = 3.3
-    pack_v = 12.0
-    for k in range(200):
-        rail.update(k * 1e-3, 1e-3, en_v, inp_v, pack_v, 0.0)
-    assert rail.state == RailState.ON
-
-    # 45 A — well over SC.
-    rail.update(0.300, 1e-3, en_v, inp_v, pack_v, 45.0)
-    rail.update(0.301, 1e-3, en_v, inp_v, pack_v, 45.0)
+    """Direct drive: C5's 69 A peak (over the 39.3 A SC trip) latches the
+    rail on the SC fast-trip — about a microsecond on the real part,
+    modelled as next-tick at our 1 ms timescale."""
+    rail = PowerBoard().rail_sw
+    _settle_on(rail)
+    rail.update(0.300, 1e-3, 2.0, 3.3, 12.0, C5_PEAK_Q3_A)
+    rail.update(0.301, 1e-3, 2.0, 3.3, 12.0, C5_PEAK_Q3_A)
     assert rail.state == RailState.LATCHED_SC, (
-        f"SC never latched at 45 A; state={rail.state}"
+        f"SC never latched at {C5_PEAK_Q3_A} A; state={rail.state}"
     )
     assert rail.rail_v == 0.0
     assert any(kind == "SC" for kind, _t, _i in rail.trip_log)
 
 
-def test_rail_cb_latch_releases_on_en_pulse():
-    """Real TPS48111: the CB latch resets on an EN low pulse or a VCC
-    recycle. We model the EN-pulse form. Assert: trip, release EN, then
-    re-drive EN + INP and the rail returns to ON."""
-    board = PowerBoard()
-    rail = board.rail_sw
+@pytest.mark.parametrize("latch, amps", [(RailState.LATCHED_CB, 25.0),
+                                         (RailState.LATCHED_SC, 45.0)])
+@pytest.mark.parametrize("release", ["en_below_enf", "inp_low"])
+def test_rail_latch_releases_on_en_or_inp_toggle(latch, amps, release):
+    """Datasheet §8.3.3.2: "Toggle INP or EN/UVLO (below ENF) or power
+    cycle VS ... to reset the latch." A latch with both held high stays
+    latched; dropping either releases it into OFF, and with both high
+    again the rail returns through STARTING to ON."""
+    rail = PowerBoard().rail_sw
     en_hi, inp_hi, pack_v = 2.0, 3.3, 12.0
-    for k in range(200):
-        rail.update(k * 1e-3, 1e-3, en_hi, inp_hi, pack_v, 0.0)
-    assert rail.state == RailState.ON
-    # trip the CB
+    _settle_on(rail, pack_v)
     for k in range(30):
-        rail.update((0.200 + k * 1e-3), 1e-3, en_hi, inp_hi, pack_v, 25.0)
-    assert rail.state == RailState.LATCHED_CB
+        rail.update(0.200 + k * 1e-3, 1e-3, en_hi, inp_hi, pack_v, amps)
+    assert rail.state == latch
+    for k in range(50):     # fault gone, EN and INP still high: latched
+        rail.update(0.300 + k * 1e-3, 1e-3, en_hi, inp_hi, pack_v, 0.0)
+    assert rail.state == latch
 
-    # EN low pulse: latch releases into OFF.
-    rail.update(0.500, 1e-3, 0.0, inp_hi, pack_v, 0.0)
+    en, inp = (0.0, inp_hi) if release == "en_below_enf" else (en_hi, 0.0)
+    rail.update(0.500, 1e-3, en, inp, pack_v, 0.0)
     assert rail.state == RailState.OFF, (
-        f"EN low pulse did not release the CB latch: state={rail.state}"
+        f"{release} did not release {latch}: state={rail.state}"
     )
-    # EN + INP high again: rail returns through STARTING to ON.
     for k in range(200):
-        rail.update((0.501 + k * 1e-3), 1e-3, en_hi, inp_hi, pack_v, 0.0)
+        rail.update(0.501 + k * 1e-3, 1e-3, en_hi, inp_hi, pack_v, 0.0)
     assert rail.state == RailState.ON, (
-        f"rail never re-closed after the EN-pulse release: {rail.state}"
+        f"rail never re-closed after the {release} release: {rail.state}"
     )
 
 
-def test_rail_sc_latch_releases_on_en_pulse():
-    """Same as above for SC."""
-    board = PowerBoard()
-    rail = board.rail_sw
-    en_hi, inp_hi, pack_v = 2.0, 3.3, 12.0
-    for k in range(200):
-        rail.update(k * 1e-3, 1e-3, en_hi, inp_hi, pack_v, 0.0)
+def test_rail_follows_uvlo_with_hysteresis():
+    """EN/UVLO is PACK+ through R30/R31: the rail opens when PACK+ sags
+    below V(UVLOF) × (R30+R31)/R31 = 7.33 V and closes again only above
+    V(UVLOR) × 6.6 = 7.79 V (C3: 7.39 V falling, 7.79 V rising)."""
+    rail = PowerBoard().rail_sw
+    k_div = R31_OHM / (R30_OHM + R31_OHM)
+    t = [0.0]
+
+    def hold(pack_v, ms):
+        for _ in range(ms):
+            rail.update(t[0], 1e-3, pack_v * k_div, 3.3, pack_v, 0.0)
+            t[0] += 1e-3
+
+    hold(12.0, 200)
     assert rail.state == RailState.ON
-    rail.update(0.300, 1e-3, en_hi, inp_hi, pack_v, 45.0)
-    rail.update(0.301, 1e-3, en_hi, inp_hi, pack_v, 45.0)
-    assert rail.state == RailState.LATCHED_SC
-    rail.update(0.500, 1e-3, 0.0, inp_hi, pack_v, 0.0)
-    assert rail.state == RailState.OFF
+    hold(7.45, 20)
+    assert rail.state == RailState.ON, "rail opened above the falling threshold"
+    hold(7.20, 2)
+    assert rail.state == RailState.OFF, "rail stayed on below 7.33 V of PACK+"
+    hold(7.60, 100)
+    assert rail.state == RailState.OFF, "rail re-closed inside the hysteresis band"
+    hold(8.00, 100)
+    assert rail.state == RailState.ON, "rail did not re-close above 7.79 V"
 
 
 # ----------------- full stack: servo-lead short (C5's scenario) ------------
 
 
 def test_servo_lead_short_clears_on_rail_sc_while_bq_scd_stays_out():
-    """C5's headline case end-to-end. A J4–J7 servo-branch short pulls
-    the rail toward 39 A (SC) but cannot pull the full pack toward 150 A
-    (BQ SCD) — pack-side wiring L/R absorbs the difference. The TPS48111's
-    SC latch must clear the fault; the BQ76922's SCD must NOT latch.
+    """C5's headline case at the sequence level. A J4–J7 servo-lead short
+    draws C5's 69 A peak through Q3; the TPS48111's SC latches the rail;
+    the BQ76922's OCD (20 A, 50 ms) and SCD (150 A) do not latch, and
+    PACK+ stays up, so the ESP32 and the Pi ride through it.
 
-    The model's `rail_load_a` reaches the TPS48111 directly; the
-    BQ76922 sees the pack-side current, which is the same current here
-    through the FETs — but at 45 A < 150 A the SCD is below threshold
-    anyway.
-    """
-    pack = Pack3S.fresh()
-    board = PowerBoard(pack=pack)
-    esp = _FirmwareOn()
-    # Boot, settle 600 ms, then short to 45 A forever (no human releases it).
-    out, last = [], None
-    for k in range(1500):
+    The microsecond race itself — Q3 off in 5.9–8.3 µs, before the pack
+    current passes 66 A — is C5's ngspice result; this model's 1 ms tick
+    cannot resolve it. What this asserts is the consequence, plus the
+    margin C5 leans on: 66 A sits under the lowest SCD trip the BQ76922's
+    ±35 % accuracy allows."""
+    assert C5_PEAK_PACK_A < OTP_SCD_A * (1 - BQ_SCD_ACC)
+
+    board = PowerBoard()
+    out = []
+    last = None
+    for _ in range(1500):
         t = board.t_s
-        rail_load = 45.0 if t >= 0.6 else 3.05
-        st = board.tick(_boot_buttons(t), esp, rail_load_a=rail_load,
-                        board=last)
-        out.append(st)
-        last = st
+        rail_load = C5_PEAK_Q3_A if t >= 0.6 else 3.05
+        last = board.tick(_boot_buttons(t), BootAndHoldOn(),
+                          rail_load_a=rail_load, board=last)
+        out.append(last)
 
-    # rail must have come up first
     assert any(s.rail_state == "ON" for s in out if s.t_s < 0.6)
-    # SC latches the rail off
-    assert any(s.rail_state == "LATCHED_SC" for s in out if s.t_s >= 0.6), (
-        "rail never latched SC on a hard servo-lead short"
-    )
-    # the latch pins rail_v to 0
-    after_short = [s for s in out if s.t_s > 0.605]
-    assert all(s.rail_v < 0.5 for s in after_short if s.rail_state == "LATCHED_SC")
-    # BQ76922 stays in NORMAL and SCD does NOT latch — the rail switch
-    # cleared the fault before pack-level protections needed to act.
+    latched = [s for s in out if s.t_s >= 0.6 and s.rail_state == "LATCHED_SC"]
+    assert latched, "rail never latched SC on a hard servo-lead short"
+    assert latched[0].t_s <= 0.603
+    assert all(s.rail_v < 0.5 for s in latched)
     bq_faults = [f for s in out for f in s.latched_faults]
     assert "SCD" not in bq_faults, (
         f"pack-side SCD latched during a rail-side short: {bq_faults}"
@@ -206,9 +195,9 @@ def test_servo_lead_short_clears_on_rail_sc_while_bq_scd_stays_out():
     assert "OCD" not in bq_faults, (
         f"pack-side OCD latched during a rail-side short: {bq_faults}"
     )
-    assert all(s.bq_state == "NORMAL" for s in out[-100:]), (
-        "BQ76922 left NORMAL on a rail-side short (SCD or KILL should "
-        "not have fired)"
+    after = [s for s in out if s.t_s >= 0.6]
+    assert all(s.bq_state == "NORMAL" and s.packplus_v > 9.0 for s in after), (
+        "a rail-side short took PACK+ down"
     )
 
 
@@ -218,15 +207,13 @@ def test_servo_branch_overcurrent_clears_on_rail_cb():
     before the fuse's 200% time-current fast curve (~0.15-5 s) opens
     anything."""
     board = PowerBoard()
-    esp = _FirmwareOn()
     out, last = [], None
-    for k in range(1200):
+    for _ in range(1200):
         t = board.t_s
         rail_load = 25.0 if t >= 0.6 else 3.05
-        st = board.tick(_boot_buttons(t), esp, rail_load_a=rail_load,
-                        board=last)
-        out.append(st)
-        last = st
+        last = board.tick(_boot_buttons(t), BootAndHoldOn(),
+                          rail_load_a=rail_load, board=last)
+        out.append(last)
     assert any(s.rail_state == "ON" for s in out if s.t_s < 0.6)
     assert any(s.rail_state == "LATCHED_CB" for s in out
                if s.t_s >= 0.6), (
@@ -239,53 +226,59 @@ def test_sub_cb_overcurrent_does_not_latch():
     of a heavy get-up's sustained over-draw. CB must NOT latch. The fuse
     doesn't melt either (static arithmetic, see test_servo_branches).
 
-    (The previous draft used 19.5 A; that + 0.5 A logic hits the BQ76922's
-    20.0 A OCD and pulls PACK+ down — a pack-level trip, not the rail-CB
-    behaviour under test. Kept under both limits here.)"""
+    (19.5 A + 0.5 A logic would reach the BQ76922's 20.0 A OCD and pull
+    PACK+ down — a pack-level trip, not the rail-CB behaviour under test.
+    Kept under both limits here.)"""
     board = PowerBoard()
-    esp = _FirmwareOn()
     out, last = [], None
-    for k in range(1200):
+    for _ in range(1200):
         t = board.t_s
         rail_load = 19.0 if t >= 0.6 else 3.05
-        st = board.tick(_boot_buttons(t), esp, rail_load_a=rail_load,
-                        board=last)
-        out.append(st)
-        last = st
-    # never latches anything
+        last = board.tick(_boot_buttons(t), BootAndHoldOn(),
+                          rail_load_a=rail_load, board=last)
+        out.append(last)
     assert all(s.rail_state == "ON" for s in out if s.t_s > 0.7), (
         f"rail tripped at 19.0 A (under the {CB_TRIP_A} A CB trip): "
         f"{[s.rail_state for s in out if s.t_s > 0.7][:10]}"
     )
 
 
-# ----------------- schematic-to-model constant cross-check (P3-1) ---------
+# ----------------- model constants from the schematic (P3-1) ---------------
 
 
-def test_tps48111_constants_match_schematic_values(schematic):
-    """The model's CB/SC trip points and timer delays are pinned to what
-    the schematic actually carries (C3 derived them; we cross-check). If
-    a rev B tunes R24/R26/R34/R35/C19, this test fails until the model
-    constants move too."""
+def _val(schematic, ref):
     from pbsim.schematicsnapshot import parse_si_value
-    comps = schematic.components
+    return parse_si_value(schematic.components[ref].value)
 
-    # CB: schematic carries R24 (2 mΩ) + R34 (30.1 kΩ); C3 gave 19.8 A.
-    # The trip is set by the divider — we pin the model constant against
-    # the schematic's *parsed value* of the relevant resistor.
-    r24 = parse_si_value(comps["R24"].value)
-    assert r24 == pytest.approx(2e-3, rel=1e-6)
-    # SC: R26 sets 39.3 A; schematic R26 must parse to 4.64 kΩ.
-    r26 = parse_si_value(comps["R26"].value)
-    assert r26 == pytest.approx(4.64e3, rel=1e-6)
-    # CB timer R35 × C19 = 100 kΩ × 680 nF. Schematic must carry them.
-    r35 = parse_si_value(comps["R35"].value)
-    c19 = parse_si_value(comps["C19"].value)
-    assert r35 == pytest.approx(100e3, rel=1e-6)
-    assert c19 == pytest.approx(680e-9, rel=1e-6)
 
-    # The model constants themselves (these are what the simulator runs
-    # against) must sit with the schematic-driven figures.
-    assert CB_TRIP_A == pytest.approx(19.8, rel=1e-9)
-    assert SC_TRIP_A == pytest.approx(39.3, rel=1e-9)
-    assert CB_DELAY_S == pytest.approx(10.5e-3, rel=1e-9)
+def test_tps48111_constants_follow_from_the_schematic(schematic):
+    """Each TPS48111 model constant, recomputed from the parsed schematic
+    with the datasheet's (SLUSEE5E) equations. TI's calculator, which C3
+    and the model use, rounds its constants differently, so the trips
+    agree within 2 % and the timer within 3 %. A rev-B change to any of
+    these parts fails here until the model moves too."""
+    r24, r25, r26 = (_val(schematic, r) for r in ("R24", "R25", "R26"))
+    r34, r35, c19 = (_val(schematic, r) for r in ("R34", "R35", "C19"))
+    r30, r31 = _val(schematic, "R30"), _val(schematic, "R31")
+
+    i_oc = 11.9 * r25 / (r24 * r34)                         # Eq. 6
+    i_sc = (r26 + 464.0) * 15.6e-6 / r24                    # Eq. 11
+    t_oc = c19 * r35 * math.log(1 / (1 - 1.2 / (r35 * 82e-6)))  # Eq. 10
+    assert CB_TRIP_A == pytest.approx(i_oc, rel=0.02)
+    assert SC_TRIP_A == pytest.approx(i_sc, rel=0.02)
+    assert CB_DELAY_S == pytest.approx(t_oc, rel=0.03)
+
+    k = (r30 + r31) / r31
+    assert VU_VLO_RISING * k == pytest.approx(7.79, rel=0.01)   # C3
+    assert VU_VLO_FALLING * k == pytest.approx(7.39, rel=0.01)  # C3
+
+
+def test_board_model_resistors_match_the_schematic(schematic):
+    """The dividers sequencer_sim computes with, and the pack shunt the
+    BQ76922's 150 A SCD is set against, are the schematic's parts."""
+    for ref, model in (("R30", R30_OHM), ("R31", R31_OHM),
+                       ("R32", R32_OHM), ("R33", R33_OHM),
+                       ("R38", R38_OHM), ("R39", R39_OHM),
+                       ("R11", R11_OHM), ("R12", R12_OHM),
+                       ("R9", R9_OHM), ("R1", RSENSE_PACK_MOHM * 1e-3)):
+        assert _val(schematic, ref) == pytest.approx(model, rel=1e-6), ref

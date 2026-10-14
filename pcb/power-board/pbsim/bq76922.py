@@ -243,8 +243,11 @@ class Bq76922:
             self._cov_since = None
 
         # -- over-current with delay
+        # `is None`, not `or`: an onset at t=0.0 must not restart the timer
+        # every tick (the falsy-zero P3-5 found in tps48111.py).
         if pack_i_a >= self.ocd_a:
-            self._ocd_since = self._ocd_since or t_s
+            if self._ocd_since is None:
+                self._ocd_since = t_s
             if t_s - self._ocd_since >= self.ocd_delay_s:
                 if all(f.kind != Protection.OCD for f in self.latched_faults):
                     self.latched_faults.append(
@@ -253,7 +256,8 @@ class Bq76922:
             self._ocd_since = None
 
         if pack_i_a >= self.scd_a:
-            self._scd_since = self._scd_since or t_s
+            if self._scd_since is None:
+                self._scd_since = t_s
             if t_s - self._scd_since >= self.scd_delay_s:
                 if all(f.kind != Protection.SCD for f in self.latched_faults):
                     self.latched_faults.append(

@@ -7,7 +7,6 @@ one definition of "boot and walk at 3.05 A", "boot, walk, then E-stop at
 """
 from __future__ import annotations
 
-from pbsim.pack import Pack3S
 from pbsim.sequencer_sim import BoardState, Buttons, Esp32Stub, PowerBoard
 
 
@@ -36,15 +35,14 @@ def press_power_then_estop_latched(power_until: float, estop_from: float):
     return at
 
 
-def run(board: PowerBoard, buttons_at, esp: Esp32Stub, rail_load_a: float,
+def run(board: PowerBoard, buttons_at, esp: Esp32Stub, rail_load: float,
         n_ticks: int) -> list[BoardState]:
-    """Advance the board under `buttons_at` for `n_ticks`, returning the
-    per-tick BoardState list. Identical to test_buttons._run — extracted so
-    tests share it."""
+    """Advance the board under `buttons_at` for `n_ticks` at a constant
+    servo load, returning the per-tick BoardState list."""
     out, last = [], None
     for _ in range(n_ticks):
         st = board.tick(buttons_at(board.t_s), esp,
-                        rail_load_a=rail_load_a, board=last)
+                        rail_load_a=rail_load, board=last)
         out.append(st)
         last = st
     return out

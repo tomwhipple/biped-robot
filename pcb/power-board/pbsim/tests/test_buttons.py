@@ -14,14 +14,16 @@ What "green" looks like (design §7 + harness.md):
   to 0 within one tick (EN/UVLO below 0.3 V), ESP32 sees ESTOP_N high
   (contact B opened), pack+logic still up (the stop must NOT kill the
   logic).
-- Stuck-closed contact A (the EN-feed contact) — the *welded* fault: with
-  ESP32 commanding SERVO_EN off, the rail still must NOT close. That's
-  INP doing its job.
-- Stuck-closed contact B (ESTOP_N sense) — the *welded* fault: the ESP32
-  cannot *sense* the E-stop, but the rail still opens in hardware. The
-  firmware's job here is to *detect the disagreement* between commanded
-  rail state and GPIO 34's RAIL_V reading; we assert that disagreement
-  signal exists.
+- Contact A (the EN feed) welded: the ESP32 still sees the press through
+  contact B and drops SERVO_EN, and INP opens the rail.
+- Contact B (ESTOP_N) welded: the ESP32 is blind to the press, and contact
+  A still opens the rail in hardware.
+- Q3 welded: the press leaves the rail up; the firmware sees ESTOP_N high
+  with RAIL_V up and raises KILL, and the BQ76922 opens PACK+ (§5.3).
+- Both contacts welded: the press does nothing and nothing can see it —
+  outside the one-failure claim, pinned as a limit.
+- POWER jammed: the board re-wakes 280 ms after every shutdown; only
+  unplugging the pack turns it off (design §7, step 6).
 
 A note on debounce: design §7 and harness.md do not specify an RC on either
 button beyond what the wake path already provides (R9 + D2 + TS2-input RC).
@@ -33,14 +35,9 @@ from __future__ import annotations
 
 import pytest
 
-from pbsim.pack import Pack3S
+from pbsim.scenarios import BootAndHoldOn as _FirmwareOn
+from pbsim.scenarios import run as _run
 from pbsim.sequencer_sim import (BoardState, Buttons, Esp32Stub, PowerBoard)
-
-
-class _FirmwareOn(Esp32Stub):
-    """Steady-state firmware: SERVO_EN on, no KILL."""
-    def tick(self, t_s, board):
-        return {"servo_en_v": 3.3, "kill_v": 0.0, "i2c_start_v": 3.3}
 
 
 class _ShutdownOnPwrInt(Esp32Stub):
@@ -75,17 +72,6 @@ class _ShutdownOnPwrInt(Esp32Stub):
             self.kill_at = t_s
             return {"servo_en_v": 0.0, "kill_v": 3.3, "i2c_start_v": 3.3}
         return {"servo_en_v": 3.3, "kill_v": 0.0, "i2c_start_v": 3.3}
-
-
-def _run(board, buttons_at, esp, rail_load, n_ticks):
-    out = []
-    last = None
-    for _ in range(n_ticks):
-        b = buttons_at(board.t_s)
-        st = board.tick(b, esp, rail_load_a=rail_load, board=last)
-        out.append(st)
-        last = st
-    return out
 
 
 # ----------------- POWER: wake and orderly shutdown ---------------------------
@@ -328,28 +314,22 @@ def test_estop_stuck_a_contact_means_only_software_can_open_rail():
     )
 
 
-def test_estop_both_contacts_stuck_means_kill_must_open_main_switch():
+def test_estop_with_welded_q3_kill_opens_main_switch():
     """Design §5.3: 'A rail stuck on is caught. With the E-stop pressed and
     the rail still up, the firmware reports the fault and opens the main
     switch (the BQ76922's discharge FET). That is a second switch in
     series, so one failed FET does not defeat the stop.'
 
-    Fault injection: *both* contacts welded, plus Q3 (the rail FET)
-    welded — the *rail* stays up even with INP low; the F4 sequencer
-    notices (RAIL_V high while SERVO_EN is commanded low), and raises
-    KILL.
-
-    This test asserts ONLY the chain the design claims: rail-up while
-    commanded-off → firmware decides → KILL high → PACK+ drops. (The F4
-    module proper is firmware-side and out of scope here.)"""
+    Fault injection: Q3 (the rail FET) welded — the rail stays up whatever
+    EN and INP say. Both E-stop contacts work. The press opens contact B,
+    so the F4 stub sees ESTOP_N high; it drops SERVO_EN, sees RAIL_V still
+    up 50 ms later, and raises KILL; the BQ76922 opens PACK+ 1 s after
+    that. (Round 2's version dropped SERVO_EN at 0.8 s for no reason and
+    issued KILL at 0.85 s, before its E-stop press at 1.5 s, so the press
+    took no part — `test_stuck_on_rail_is_detectable_by_firmware` already
+    covers a firmware-initiated stop.)"""
     board = PowerBoard()
 
-    # Weld Q3: replace the rail switch with one that never opens on INP or
-    # on EN. The previous version's docstring promised this monkeypatch but
-    # never installed it (P2-1) — without a welded Q3 the rail falls via
-    # SERVO_EN low alone and the test exercises nothing the simpler
-    # `test_stuck_on_rail_is_detectable_by_firmware` does not already
-    # cover.
     from pbsim.tps48111 import RailState
     def welded_q3_update(t_s, dt_s, en_pin_v, inp_pin_v, pack_v, rail_i_a):
         sw = board.rail_sw
@@ -362,13 +342,11 @@ def test_estop_both_contacts_stuck_means_kill_must_open_main_switch():
     board.rail_sw.update = welded_q3_update  # type: ignore[method-assign]
 
     class F4Logic(Esp32Stub):
-        """F4 from design §9: sees rail-up while SERVO_EN is commanded
-        low (the disagreement), raises KILL (with the 1 s RST_SHUT window
-        the datasheet sets)."""
+        """F4 (design §9): on the E-stop, SERVO_EN low; if RAIL_V is still
+        up 50 ms later, KILL (held, as the 1 s RST_SHUT window needs)."""
         def __init__(self):
-            self.disagree_since: float | None = None
+            self.estop_seen_at: float | None = None
             self.kill_issued_at: float | None = None
-            self.servo_en_v = 3.3
 
         def tick(self, t_s, board):
             if board is None:
@@ -377,48 +355,75 @@ def test_estop_both_contacts_stuck_means_kill_must_open_main_switch():
             if self.kill_issued_at is not None:
                 return {"servo_en_v": 0.0, "kill_v": 3.3,
                         "i2c_start_v": 3.3}
-            # command SERVO_EN off once the boot has had a chance to
-            # settle — this is what makes "rail is up" a *disagreement*.
-            if t_s > 0.8:
-                self.servo_en_v = 0.0
-            disagree = (board.rail_v_at_gpio34 > 0.05
-                        and self.servo_en_v < 0.05)
-            if disagree and self.disagree_since is None:
-                self.disagree_since = t_s
-            if disagree and t_s - self.disagree_since > 0.05:
-                self.kill_issued_at = t_s
-                return {"servo_en_v": 0.0, "kill_v": 3.3,
+            if board.estop_n_v > 2.0:
+                if self.estop_seen_at is None:
+                    self.estop_seen_at = t_s
+                if (board.rail_v_at_gpio34 > 0.5
+                        and t_s - self.estop_seen_at >= 0.05):
+                    self.kill_issued_at = t_s
+                    return {"servo_en_v": 0.0, "kill_v": 3.3,
+                            "i2c_start_v": 3.3}
+                return {"servo_en_v": 0.0, "kill_v": 0.0,
                         "i2c_start_v": 3.3}
-            if not disagree:
-                self.disagree_since = None
-            return {"servo_en_v": self.servo_en_v, "kill_v": 0.0,
-                    "i2c_start_v": 3.3}
+            return {"servo_en_v": 3.3, "kill_v": 0.0, "i2c_start_v": 3.3}
 
     def btns(t):
         if t < 0.4:
             return Buttons(power_pressed=True)
         if t >= 1.5:
-            # both contacts welded: A stays feeding EN, B stays pulling
-            # ESTOP_N low — firmware cannot see the press at all.
+            return Buttons(estop_latched=True)
+        return Buttons()
+    esp = F4Logic()
+    out = _run(board, btns, esp, rail_load=3.05, n_ticks=4000)
+    assert esp.kill_issued_at is not None, (
+        "F4 never saw the stuck rail and never issued KILL"
+    )
+    assert 1.5 < esp.kill_issued_at < 1.6, (
+        f"KILL at {esp.kill_issued_at:.3f} s is not a response to the "
+        f"press at 1.5 s"
+    )
+    # the weld is real: EN at 0 V and SERVO_EN low leave the rail up
+    # until the main switch opens
+    held = [s for s in out if 1.51 < s.t_s < esp.kill_issued_at + 0.9]
+    assert all(s.rail_v > 9.0 and s.estop_n_v > 3.0 for s in held)
+    after_kill = [s for s in out if s.t_s >= esp.kill_issued_at + 1.05]
+    assert after_kill
+    assert all(s.bq_state == "SHUTDOWN" for s in after_kill), (
+        "KILL didn't put the BQ76922 into SHUTDOWN 1.05 s after F4 raised it"
+    )
+    assert all(s.packplus_v < 1.0 and s.rail_v < 1.0 for s in after_kill), (
+        "PACK+ or the rail stayed live after KILL"
+    )
+
+
+def test_estop_both_contacts_welded_defeats_the_button():
+    """Fault injection: BOTH contacts welded shut, Q3 healthy. Contact A
+    keeps EN fed and contact B keeps ESTOP_N low, so the press reaches
+    neither the TPS48111 nor the ESP32: the rail stays up and the board
+    cannot tell the button was pressed. Two welded contacts are outside
+    the design's one-failure claim (§5.3); this pins that limit, with a
+    firmware that would drop SERVO_EN if it ever saw ESTOP_N."""
+    board = PowerBoard()
+
+    class ObeysEstop(Esp32Stub):
+        def tick(self, t_s, board):
+            if board is not None and board.estop_n_v > 2.0:
+                return {"servo_en_v": 0.0, "kill_v": 0.0,
+                        "i2c_start_v": 3.3}
+            return {"servo_en_v": 3.3, "kill_v": 0.0, "i2c_start_v": 3.3}
+
+    def btns(t):
+        if t < 0.4:
+            return Buttons(power_pressed=True)
+        if t >= 1.5:
             return Buttons(estop_latched=True,
                            estop_a_stuck_closed=True,
                            estop_b_stuck_closed=True)
         return Buttons()
-    esp = F4Logic()
-    out = _run(board, btns, esp, rail_load=3.05, n_ticks=5000)
-    # The fault: after t=0.8 the ESP32 has commanded SERVO_EN off, but the
-    # welded Q3 keeps the rail live. F4 sees RAIL_V high while SERVO_EN is
-    # low for ≥ 50 ms and raises KILL.
-    assert esp.kill_issued_at is not None, (
-        "F4 never saw the stuck rail and never issued KILL"
-    )
-    after_kill = [s for s in out if s.t_s >= esp.kill_issued_at + 1.2]
-    assert all(s.bq_state == "SHUTDOWN" for s in after_kill), (
-        "KILL didn't put BQ76922 into SHUTDOWN within 1.2 s of the F4 trigger"
-    )
-    assert all(s.packplus_v < 1.0 for s in after_kill), (
-        "PACK+ stayed live after KILL"
-    )
+    out = _run(board, btns, ObeysEstop(), rail_load=3.05, n_ticks=2500)
+    after = [s for s in out if s.t_s > 1.51]
+    assert all(s.rail_state == "ON" and s.rail_v > 9.0 for s in after)
+    assert all(s.estop_n_v < 0.5 for s in after)
 
 
 def test_estop_contact_b_welded_alone_rail_still_dies_via_contact_a():
@@ -489,3 +494,44 @@ def test_power_button_does_not_wake_when_kill_latched():
     assert any(s.bq_state == "NORMAL" for s in hold_window), (
         "500 ms press failed to re-wake after KILL"
     )
+
+
+def test_jammed_power_button_rewakes_after_every_shutdown():
+    """POWER jammed down holds TS2 low, so 280 ms after each shutdown the
+    BQ76922 wakes again: the board cannot stay off, and unplugging the
+    pack is the only off (design §7, step 6: no hardware hold-off). The
+    firmware here asks for shutdown 0.5 s after each boot (as an auto-off
+    would) and is unpowered while PACK+ is down."""
+
+    class KillAfterBoot(Esp32Stub):
+        def __init__(self):
+            self.booted_at: float | None = None
+
+        def tick(self, t_s, board):
+            if board is None or board.packplus_v < 5.0:
+                self.booted_at = None
+                return {"servo_en_v": 0.0, "kill_v": 0.0, "i2c_start_v": 0.0}
+            if self.booted_at is None:
+                self.booted_at = t_s
+            kill = 3.3 if t_s - self.booted_at >= 0.5 else 0.0
+            return {"servo_en_v": 0.0, "kill_v": kill, "i2c_start_v": 3.3}
+
+    out = _run(PowerBoard(), lambda t: Buttons(power_pressed=True),
+               KillAfterBoot(), rail_load=0.0, n_ticks=8000)
+    states = [s.bq_state for s in out]
+    downs = [out[i].t_s for i in range(1, len(out))
+             if states[i - 1] == "NORMAL" and states[i] == "SHUTDOWN"]
+    ups = [out[i].t_s for i in range(1, len(out))
+           if states[i - 1] == "SHUTDOWN" and states[i] == "NORMAL"]
+    assert len(downs) >= 3, f"shutdowns: {downs}"
+    for d in downs[:-1]:
+        rewake = next(u for u in ups if u > d)
+        assert 0.27 <= rewake - d <= 0.30, (
+            f"shutdown at {d:.3f} s re-woke at {rewake:.3f} s"
+        )
+
+    # released, the same firmware's shutdown sticks
+    out = _run(PowerBoard(), lambda t: Buttons(power_pressed=t < 0.4),
+               KillAfterBoot(), rail_load=0.0, n_ticks=4000)
+    shut = next(s.t_s for s in out if s.t_s > 0.5 and s.bq_state == "SHUTDOWN")
+    assert all(s.bq_state == "SHUTDOWN" for s in out if s.t_s >= shut)

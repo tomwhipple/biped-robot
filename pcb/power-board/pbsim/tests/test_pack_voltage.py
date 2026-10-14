@@ -216,20 +216,18 @@ def test_otp_thresholds_match_schematic_intent(schematic):
 
 
 def test_wake_consumption_is_microwatt_scale():
-    """SHUTDOWN current is 1 µA typ (datasheet) — a 4200 mAh pack can
-    sit with the board off for ~480 years before drain matters. We surface
-    the design claim as an assertion so a regression of the model is loud.
+    """I_SHUTDOWN is 1 µA typ, 3.1 µA max (datasheet 6.5). A year off
+    costs the 4200 mAh pack 0.21 % at the model's figure and 0.65 % at the
+    maximum; a model regression to 100 µA would cost 21 % and fail here.
     """
     bq = Bq76922()
     assert bq.state == BqState.SHUTDOWN
     assert bq.shutdown_current_ma == pytest.approx(0.001, rel=1e-9)
-    pack = Pack3S.fresh()
-    pack_i_before = 0.0 + 0.0  # nothing on
-    # step 60 s with only the BQ76922 drawing
-    pack.step(0.0 + bq.shutdown_current_ma * 1e-3, 60.0)
-    # SOC drop after 60 s of 1 µA: 6e-3 mA·min / 60 = 1e-4 mAh min⁻¹
-    # → essentially nothing. Assert numerically.
-    assert pack.soc_min() > 0.9999
+    year_s = 365 * 86400
+    for i_a in (bq.shutdown_current_ma * 1e-3, 3.1e-6):
+        pack = Pack3S.fresh()
+        pack.step(i_a, year_s)
+        assert pack.soc_min() > 0.99, f"{i_a * 1e6:.1f} µA for a year"
 
 
 def test_fresh_full_pack_at_zero_load_powers_on_and_discharges_normally():
@@ -237,13 +235,15 @@ def test_fresh_full_pack_at_zero_load_powers_on_and_discharges_normally():
     at COV. With zero load and no charger, the real BQ76922 must NOT open
     the discharge FET; the bench test "plug it in, press POWER" must work.
 
-    COV may latch (the cells genuinely are at the ceiling) but it must
-    block the CHARGE side only; the discharge side stays live, and the
-    hysteresis release clears the latch once the cells droop.
+    With no load at all — the board alone on the bench (V1), no ESP32 or
+    Pi drawing — the cells stay at 4.20 V and COV latches; it must block
+    the CHARGE side only. (With the usual 0.5 A logic load the cells sag
+    under COV and the latch never fires, so this case needs logic_load_a=0
+    to test anything.)
     """
     pack = Pack3S.fresh()
     assert pack.pack_v_open == pytest.approx(12.6, rel=1e-3)
-    board = PowerBoard(pack=pack)
+    board = PowerBoard(pack=pack, logic_load_a=0.0)
     esp = _QuietEsp()
     out, last = [], None
     for _ in range(800):
@@ -257,6 +257,9 @@ def test_fresh_full_pack_at_zero_load_powers_on_and_discharges_normally():
     # PACK+ must come up and STAY up: the discharge FET never opens even
     # though a full pack at rest rides exactly on COV.
     normal = [s for s in out if s.bq_state == "NORMAL"]
+    assert any("COV" in s.latched_faults for s in normal), (
+        "COV never latched: the scenario is not at the ceiling"
+    )
     assert all(s.bq_fets_closed for s in normal), (
         "discharge FET opened on a full pack at rest — COV must not "
         "block discharge (P2-2)"

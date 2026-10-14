@@ -111,10 +111,13 @@ class PowerBoard:
 
     def __init__(self, pack: Pack3S | None = None,
                  bq: Bq76922 | None = None,
-                 rail_sw: Tps48111 | None = None):
+                 rail_sw: Tps48111 | None = None,
+                 logic_load_a: float = 0.5):
         self.pack = pack if pack is not None else Pack3S.fresh()
         self.bq = bq if bq is not None else Bq76922()
         self.rail_sw = rail_sw if rail_sw is not None else Tps48111()
+        # ESP32 + Pi on PACK+; 0 is the board alone on the bench (V1)
+        self.logic_load_a = logic_load_a
         self.t_s = 0.0
 
     def _ts2_pin_v(self, buttons: Buttons, esp: Esp32Stub) -> float:
@@ -228,7 +231,7 @@ class PowerBoard:
 
         # Pack integration: total pack current = servo current + logic
         # (~0.5 A when the ESP32 + Pi are up).
-        logic_a = 0.5 if packplus_v > 0 else 0.0
+        logic_a = self.logic_load_a if packplus_v > 0 else 0.0
         pack_i = rail_i + logic_a
         self._last_pack_i_a = pack_i
         self.pack.step(pack_i, dt)

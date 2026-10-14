@@ -9,7 +9,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pbsim import ngsim
 from pbsim.fetmodel import REWRITE_LIB, check_hashes
 
 
@@ -43,8 +42,6 @@ X1 1 2 0 CSD17556Q5B
 .end
 """
     out = ng.run_netlist(net)
-    # The scale vector is Vgs's sweep itself.
-    sweep = out["v-sweep"] if "v-sweep" in out else out.get("vgs")
     # Find by name rather than guess spelling.
     names = set(out.keys())
     assert any(n.startswith("v") for n in names), f"no sweep vector: {names}"

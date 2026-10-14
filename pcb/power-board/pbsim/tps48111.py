@@ -8,22 +8,23 @@ path (Q5's diode), I²C — this IC has none.
 Datasheet numbers (TPS4811-Q1 SLUSEE5E, confirmed against schematic values
 in test_schematic_intact and TI's calculator in C3):
 
-    V(EN/UVLO) rising   1 V     — EN/UVLO > 1 V turns the controller on
-    V(EN/UVLO) falling  0.3 V   — below 0.3 V it pulls the FET off regardless
-                                  of INP (and pulls itself low if floated)
+    V(UVLOR)            1.18 V  — EN/UVLO above it (with INP high) drives
+                                  the gate; × (R30+R31)/R31 = 7.79 V of PACK+
+    V(UVLOF)            1.11 V  — below it the FET is pulled off regardless
+                                  of INP; × 6.6 = 7.33 V of PACK+ (C3: 7.39)
+    V(ENF)              0.3 V min — below it the part shuts down; a latched
+                                  fault resets ("Toggle INP or EN/UVLO
+                                  (below ENF) ... to reset the latch", §8.3.3.2)
     V(INP) high         2 V max — 3.3 V logic through R32/R33 (≈3.27 V) passes
-    V(CS+ − CS−) CB threshold  20 mV / R34-set:
-                    C3 reads R24·(30 mV across R25+R34 ratio) = 19.8 A.
-                    We use the C3 number directly.
-    t_CB                R35 × C19 = 100 kΩ × 680 nF = 68 ms (datasheet
-                    "latch-off by R35 100 kΩ"). C3 reads "10.5 ms"; TI's
-                    calculator gives the FLT line at 9.7 ms with latch at
-                    10.5 ms — those are the *effective* times the calculator
-                    reports for the chosen R×C; we latch off at 10.5 ms to
-                    match the record rather than re-derive.
-    V(CS+ − CS−) SC  threshold  78 mV on R24: R26 4.64 kΩ sets SC = 39 A
-                    (C3's number: 39.3 A)
-    t_SC                ≤ 1.6 µs trip + PD-at-1.34 Ω pull-down
+    I_OC  (circuit breaker)   Eq. 6: 11.9 × R25 / (R24 × R34) = 19.8 A
+    t_OC  (latch-off timer)   Eq. 10: C19 × R35 × ln(1 / (1 − 1.2 V /
+                              (R35 × 82 µA))) = 10.8 ms; TI's calculator
+                              (C3) gives 10.5 ms, which the model uses
+    I_SC  (short circuit)     Eq. 11: (R26 + 464 Ω) × 15.6 µA / R24 =
+                              39.8 A; the calculator (C3) gives 39.3 A,
+                              which the model uses
+    t_SC                      ≤ 1.6 µs trip + PD-at-1.34 Ω pull-down
+    test_rail_switch_protections derives each from the parsed schematic.
 
 Soft start: at enable the gate driver charges C16 (330 nF) at ~10 µA,
 taking ≈ 40 ms to reach V(GS) ≥ Vth — C4 of the verification record gives
@@ -57,8 +58,9 @@ class RailState(Enum):
 # Datasheet + C3 + schematic-verified values. R/C numbers here are PINNED to
 # what the verification record computed *from the schematic*; the test
 # schematic_intact_test asserts the schematic itself carries them.
-VU_VLO_RISING = 1.0
-VU_VLO_FALLING = 0.3
+VU_VLO_RISING = 1.18     # V(UVLOR) typ
+VU_VLO_FALLING = 1.11    # V(UVLOF) typ
+V_ENF_MIN = 0.3          # V(ENF) min: EN below it is a shutdown for sure
 VINP_H = 2.0
 
 CB_TRIP_A = 19.8         # at R24=2mΩ, R25=100, R34=30.1k (C3)
@@ -114,27 +116,22 @@ class Tps48111:
                en_pin_v: float, inp_pin_v: float,
                pack_v: float, rail_i_a: float):
         # -- EN/UVLO pin: the button state in series with R30/R31. When both
-        # contacts of J11 are closed, the EN divider sees pack_v-derived
-        # UVLO = pack_v × R31 / (R30 + R31) ≈ pack_v × 0.1516 — rising above
-        # 1 V at pack_v ≈ 6.6 V, which the rev-A's R30/R31 give as 7.79 V
-        # (C3: 560 kΩ over 100 kΩ ⇒ rising threshold pack_v = 7.79 V, falling
-        # 7.39 V). We use the pin voltage at EN directly: the EN pin sees
-        # the divider output.
+        # contacts of J11 are closed, the pin sees PACK+ × R31 / (R30 + R31)
+        # ≈ PACK+ × 0.1515: on above 7.79 V of PACK+, off below 7.33 V (C3).
+        # A pressed E-stop or a broken wire takes it to 0 V.
         en_hi = en_pin_v >= VU_VLO_RISING
-        en_lo = en_pin_v <= VU_VLO_FALLING
+        en_lo = en_pin_v < VU_VLO_FALLING
 
         # -- INP pin: SERVO_EN driven by the ESP32 through R32/R33. ESP32
         # high is 3.3 V → 3.27 V at INP (matches C3's V(INP_H) ≤ 2 V).
         inp_hi = inp_pin_v >= VINP_H
 
-        # -- Latched states: the real part's latch clears on an EN low
-        #    pulse (the OFF transition of the E-STOP feed) or a VCC
-        #    recycle. Modelling the EN-pulse release lets the suite power
-        #    through the "trip, release E-STOP, re-SERVO_EN" recovery
-        #    sequence without reconstructing the board. A latch with EN
-        #    held high stays latched.
+        # -- Latched states: the latch clears when INP goes low (SERVO_EN
+        #    dropped), when EN/UVLO goes below ENF (E-stop pressed), or on
+        #    a VCC recycle (§8.3.3.2). A latch with EN and INP held high
+        #    stays latched.
         if self.state in (RailState.LATCHED_CB, RailState.LATCHED_SC):
-            if en_lo:
+            if en_pin_v < V_ENF_MIN or not inp_hi:
                 self.state = RailState.OFF
                 self.cb_since = self.sc_since = None
                 self._rising_started_at = None
@@ -155,11 +152,10 @@ class Tps48111:
             return
 
         # -- Gate drive up: rail voltage rises exponentially to pack level.
-        #    EN/UVLO below 0.3 V or INP below threshold at ANY point in the
-        #    ramp pulls the FET off (datasheet: "off below 0.3 V... no
-        #    firmware involved") — the STARTING state has to honour EN/INP
-        #    just like ON does, otherwise a latched E-STOP during soft
-        #    start lets the rail reach ON anyway (P1-2).
+        #    EN/UVLO below V(UVLOF) or INP low at ANY point in the ramp
+        #    pulls the FET off, no firmware involved — the STARTING state
+        #    has to honour EN/INP just like ON does, otherwise a latched
+        #    E-STOP during soft start lets the rail reach ON anyway (P1-2).
         if self.state == RailState.STARTING:
             if en_lo or not inp_hi:
                 self.state = RailState.OFF
