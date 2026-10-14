@@ -27,7 +27,7 @@ The output is this lumped-mass plant, never the committed
 sim/bimo_biped_v6ar.xml unless -o names it: that one is the dressed plant
 sim/build_v6_inertia.py --write generates, and a test compares it byte for byte.
 
-    .venv/bin/python sim/gen_plant_v6.py                 # -> build/v6/sim/bimo_biped_v6ar.xml
+    .venv/bin/python sim/gen_plant_v6.py                 # -> build/v6/sim/bimo_biped_v6ar_lumped.xml
     .venv/bin/python sim/gen_plant_v6.py --knee bwd -o /tmp/bwd.xml
     .venv/bin/python sim/gen_plant_v6.py --set hip_sep=0.070 thigh=0.11 -o /tmp/x.xml
 """
@@ -40,7 +40,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_NAME = "bimo_biped_v6ar.xml"
+OUT_NAME = "bimo_biped_v6ar_lumped.xml"   # not the dressed plant's name: build/v6/sim will hold that one too
 
 # STS3215 / STS3250 case (cad/dimensions.py, STEP-measured): 45.22 long x
 # 24.72 wide x 34.70 across the output axis; output axis 10.11 from the
