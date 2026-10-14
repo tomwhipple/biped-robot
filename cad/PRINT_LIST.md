@@ -17,7 +17,7 @@ lead slot, and there is no deck under the rest of the flange).
 
 | can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v7`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`yaw_bearing_housing`**: its shoulder is sized to SKF's published ring dimensions; measure the generic bearings first ([docs/bom.md §5](../docs/bom.md)). |
+| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v7`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -41,7 +41,7 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 |---|---|---|---|---|---|---|
 | `pelvis_v7` | 1 | 173.8 | 99 × 124 × 72 | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots and the bearing housing's five pilot bosses; each yaw cell's ceiling has a hole for the servo's free-hub post and a relief for its back-cover platform |
 | `yaw_bearing_housing` | 1 | 24.5 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into the pelvis |
-| `yaw_carrier_v6` | 2 | 25.8 | 50 × 50 × 49 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø50.08, +0.08 mm) takes the bearing's inner race |
+| `yaw_carrier_v6` | 2 | 25.7 | 50 × 50 × 49 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø49.98, +0.08 mm on the measured 49.9 bore) takes the bearing's inner race |
 | `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
 | `leg_link_v6` | 4 | 28.6 | 117 × 44 × 28 | on its back: web face on the bed | **yes**, build plate only: under the two round pad ends | thigh and shin are the same part |
 | `ankle_link` | 2 | 13.6 | 65 × 43 × 38 | on its back (model +X up): the rear tine on the bed | **yes**: under the web (4.6 mm, from the plate) and under the front tine below the floor, standing on the rear tine's inner face, which seats the idler disc: clean it flat. The front wall bridges between the side walls | grips the ankle-pitch servo in a box around its base, forks onto the ankle-roll servo |
@@ -83,7 +83,7 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - Supports go under the trapezius-web window tops (34 mm spans), the
     grip-plate rib-relief roofs, and the bay disc-relief tops.
 
-**Totals:** 22 prints, all PETG, from 16 STLs: ≈ 797 g before supports and
+**Totals:** 22 prints, all PETG, from 16 STLs: ≈ 805 g before supports and
 brims.
 
 **Not printed:**
@@ -96,6 +96,8 @@ brims.
   the sim plant.
 - `neck_collar.stl` and anything built with `ARMS=0` (see the top of this
   page).
+- `yoke_roll.stl` and `yoke_pitch_v6.stl`: the `HIP_YOKE_VARIANT=split` build
+  (the bolted two-piece yoke), which `hip_yoke_v6` replaces.
 
 ### Test print: the glued hip yoke
 
