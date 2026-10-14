@@ -10,11 +10,11 @@ help: ## list the targets and variables
 all: cad plant host ## the v6 parts, the sim plant and the host build
 
 # Never results: sim/runs, hw_sessions, captures, experiments' dated data.
-# cad/gcode and cad/v6/gcode are the slicer's old output folders.
+# The second line is the old output folders, which nothing writes now.
 clean: ## delete everything generated that git does not track
-	rm -rf build firmware/build firmware/host/build cad/gcode cad/v6/gcode
-	rm -rf cad/renders/_anim cad/renders/_dressed cad/renders/_jointrom cad/renders/_full
-	rm -rf cad/step/poses experiments/plan-b-bench/_v3_step
+	rm -rf build firmware/build firmware/host/build
+	rm -rf cad/gcode cad/v6/gcode cad/step cad/v6/step cad/renders cad/v6/renders sim/renders \
+	  experiments/plan-b-bench/stl experiments/plan-b-bench/_v3_step
 	find . -name __pycache__ -type d -not -path './.venv/*' -not -path './.claude/*' -prune -exec rm -rf {} +
 
 distclean: clean ## clean, plus the fetched C++ dependencies and the venv

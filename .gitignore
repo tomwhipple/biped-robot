@@ -6,46 +6,39 @@ __pycache__/
 # Local env / secrets
 .env
 
-# Training artifacts (keep the published report page)
-sim/runs/*
-!sim/runs/night_summary.html
+# make: everything generated that git does not track (`make help`, paths.py)
+build/
 
-# macOS
-.DS_Store
-
-# OpenSCAD/MuJoCo scratch renders written next to scripts
+# The old output folders; nothing writes there now and make clean deletes them.
+cad/gcode/
+cad/v6/gcode/
+cad/step/
+cad/v6/step/
+cad/renders/
+cad/v6/renders/
+sim/renders/
+experiments/plan-b-bench/stl/
+experiments/plan-b-bench/_v3_step/
 sim/*.gif
 sim/*.png
 
-# Rendered movie/animation artifacts (large binaries; regenerate from the
-# render scripts instead of committing them)
+# Rendered movies are never committed (large binaries; regenerate them)
 *.mov
 *.mp4
 *.webm
-**/renders/*.gif
+
+# Training artifacts (keep the published report page)
+sim/runs/*
+!sim/runs/night_summary.html
 infra/.last_train
 infra/runpod/.last_pod
-cad/step/*.FCBak
-cad/step/poses/
-
-# animate_assembly.py writes and deletes these per run
-cad/renders/_anim/
-
-# animate_dressed_rom.py writes and rewrites these per run
-cad/renders/_dressed/
-# animate_joint_rom.py, same deal
-cad/renders/_jointrom/
 
 # SIL: the weight blob is regenerable (tools/export_policy_weights.py)
 sim/sil/weights/*.silw
 sweeps/
 
-# tools/obs_capture.py writes one CSV per hardware capture
+# Hardware sessions: tools/obs_capture.py's CSVs, the session logs
 captures/
-
-# the slicer's old output folders (make clean deletes them; it writes build/v6/gcode)
-cad/gcode/
-cad/v6/gcode/
 hw_sessions/
 
 # Fetched C++ deps for bimo_gui (make -C firmware/host deps) -- pinned, never
@@ -55,5 +48,5 @@ third_party/
 # joint-puppet session logs (hand-posing sessions; export what matters)
 sim/puppet_sessions/
 
-# make: every generated file git does not track (see `make help`)
-build/
+# macOS
+.DS_Store
