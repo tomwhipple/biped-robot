@@ -2,7 +2,7 @@
 
     MUJOCO_GL=cgl .venv/bin/python cad/v6/render_steps_v6.py      # Mac
     MUJOCO_GL=egl .venv/bin/python cad/v6/render_steps_v6.py      # Linux
-        -> docs/assembly/v6_NN_<step>.png
+        -> build/v6/renders/v6_NN_<step>.png (`make figures` copies them into docs/assembly)
 
 One still per bench step, in docs/assembly.md's order. Parts already installed
 render in their natural colours (assembly_v6's); the part going in renders
@@ -25,13 +25,15 @@ os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 import numpy as np  # noqa: E402
 from build123d import export_stl  # noqa: E402
 import assembly_v6 as A  # noqa: E402
 import animate_v6 as AN  # noqa: E402
+import paths  # noqa: E402
 
-OUT = os.path.join(HERE, "..", "..", "docs", "assembly")
+OUT = os.path.join(paths.BUILD, "v6", "renders")
 ORANGE = (0.93, 0.46, 0.10, 1)
 GHOST = (0.93, 0.46, 0.10, 0.20)
 DASH = (0.80, 0.36, 0.06, 1)

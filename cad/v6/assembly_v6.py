@@ -26,8 +26,8 @@ Variants (env vars; the defaults are the robot to print):
                                 glued U-channel pair, or the legacy bolted
                                 yoke_roll + yoke_pitch pair.
 
-    .venv/bin/python cad/v6/assembly_v6.py                 # step/assembly_v6_arms.step + renders
-    ARMS=0 .venv/bin/python cad/v6/assembly_v6.py          # step/assembly_v6.step (armless)
+    .venv/bin/python cad/v6/assembly_v6.py                 # build/v6/{step,renders}/assembly_v6_arms.{step,png}
+    ARMS=0 .venv/bin/python cad/v6/assembly_v6.py          # build/v6/{step,renders}/assembly_v6.{step,png} (armless)
     .venv/bin/python cad/v6/assembly_v6.py --pose knee=-60,hip_pitch=-30
 """
 from __future__ import annotations
@@ -43,6 +43,7 @@ os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import (Box, Color, Compound, Cylinder, Location, Pos, Rot,  # noqa: E402
                        export_step, export_stl)
@@ -50,10 +51,10 @@ import dimensions_v6 as V  # noqa: E402
 D = V.D
 import check_assembly as CA  # noqa: E402  (v5 servo mocks)
 import parts as v5parts  # noqa: E402
+import paths  # noqa: E402
 
-OUT_STEP = os.path.join(HERE, "step")
-OUT_STL = os.path.join(HERE, "stl")
-OUT_REN = os.path.join(HERE, "renders")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
+OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
 COL_PRINT = Color(0.82, 0.84, 0.87)
 COL_SERVO = Color(0.22, 0.23, 0.27)
@@ -512,7 +513,7 @@ def main(argv=None):
     bb = comp.bounding_box()
     print(f"assembly bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}  z {bb.min.Z:.1f}..{bb.max.Z:.1f} mm, {len(comp.children)} pieces")
     if not a.no_step:
-        os.makedirs(OUT_STEP, exist_ok=True)
+        os.makedirs(os.path.dirname(os.path.abspath(a.step)), exist_ok=True)
         export_step(comp, a.step)
         print("wrote", a.step)
     print("wrote", render(comp, a.png))

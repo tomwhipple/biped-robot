@@ -39,6 +39,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Cone, Plane, Pos, export_step, export_stl, extrude, section  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
@@ -119,9 +120,9 @@ def SCREWS():
 
 
 if __name__ == "__main__":
+    from paths import build_dir
     os.makedirs(os.path.join(HERE, "stl"), exist_ok=True)
-    os.makedirs(os.path.join(HERE, "step"), exist_ok=True)
     p = yaw_carrier_v6()
     export_stl(p, os.path.join(HERE, "stl", "yaw_carrier_v6.stl"))
-    export_step(p, os.path.join(HERE, "step", "yaw_carrier_v6.step"))
+    export_step(p, os.path.join(build_dir("v6", "step"), "yaw_carrier_v6.step"))
     print(f"yaw_carrier_v6: volume {p.volume/1000:.2f} cm3, bbox {p.bounding_box().size}")

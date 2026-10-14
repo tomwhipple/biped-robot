@@ -63,17 +63,19 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Pos, chamfer, export_step, export_stl, fillet  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 import parts as v5  # noqa: E402
 import yoke_pitch_v6  # noqa: E402
 import hip_yoke_v6 as HY  # noqa: E402
+import paths  # noqa: E402
 D = V.D
 
 OUT_STL = os.path.join(HERE, "stl")
-OUT_STEP = os.path.join(HERE, "step")
-OUT_REN = os.path.join(HERE, "renders")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
+OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
 PIECES = ("hip_yoke_glued_roll", "hip_yoke_glued_pitch")
 # rows = print axes in model coords (check_printability's convention)

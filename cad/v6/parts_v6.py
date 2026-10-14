@@ -1,7 +1,7 @@
 """v6 part set: export every printed part (STL + STEP), the bed check, the mass
 rollup and the per-segment masses the sim plant needs.
 
-    .venv/bin/python cad/v6/parts_v6.py              # the robot: every part + docs/design-v6/parts_v6_rollup.txt
+    .venv/bin/python cad/v6/parts_v6.py              # the robot: every part + build/v6/reports/parts_v6_rollup.txt
     .venv/bin/python cad/v6/parts_v6.py --no-export  # the rollup only (builds, measures, writes nothing else)
     .venv/bin/python cad/v6/parts_v6.py --only foot_L head_shell
 
@@ -20,7 +20,7 @@ The defaults build THE ROBOT TO PRINT (issue #76):
                                   the six roll + knee joints.
 
 PARTS lists (name, builder, qty, print note). Every entry writes
-cad/v6/stl/<name>.stl and cad/v6/step/<name>.step from the same solid in the
+cad/v6/stl/<name>.stl and build/v6/step/<name>.step from the same solid in the
 same run (v5 rule: the STEPs went stale once). REFERENCE solids (not printed,
 used by the assembly, the checks and the sim plant) are exported the same way
 but are not in the print total.
@@ -34,13 +34,17 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import export_step, export_stl  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 import parts as v5  # noqa: E402
+import paths  # noqa: E402
 D = V.D
 
-ROLLUP = os.path.join(HERE, "..", "..", "docs", "design-v6", "parts_v6_rollup.txt")
+OUT_STL = os.path.join(HERE, "stl")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
+ROLLUP = os.path.join(paths.BUILD, "v6", "reports", "parts_v6_rollup.txt")
 
 
 def _on(name, default):
@@ -138,12 +142,12 @@ def main(argv=None):
     ap.add_argument("--only", nargs="*", default=None)
     ap.add_argument("--no-export", action="store_true", help="build and measure; write the rollup only")
     ap.add_argument("--rollup", default=None,
-                    help="where to write the rollup (default: docs/design-v6/parts_v6_rollup.txt, "
+                    help="where to write the rollup (default: build/v6/reports/parts_v6_rollup.txt, "
                          "written only for the default build)")
     a = ap.parse_args(argv)
     export = not a.no_export
-    os.makedirs(os.path.join(HERE, "stl"), exist_ok=True)
-    os.makedirs(os.path.join(HERE, "step"), exist_ok=True)
+    os.makedirs(OUT_STL, exist_ok=True)
+    os.makedirs(OUT_STEP, exist_ok=True)
     total_print = 0.0
     rows = []
     for name, fn, qty, note in PARTS + [(n, f, 0, note) for n, f, note in REFERENCE]:
@@ -160,8 +164,8 @@ def main(argv=None):
         m = mass_g(s, tpu=name.startswith("sole_tpu"))
         total_print += m * qty
         if export:
-            export_stl(s, os.path.join(HERE, "stl", f"{name}.stl"))
-            export_step(s, os.path.join(HERE, "step", f"{name}.step"))
+            export_stl(s, os.path.join(OUT_STL, f"{name}.stl"))
+            export_step(s, os.path.join(OUT_STEP, f"{name}.step"))
         tag = ("BED-OK" if bed_ok else "** TOO BIG **") if qty else "reference, not printed"
         rows.append((name, qty, m, dims, tag + "  " + note))
     out = []
@@ -187,6 +191,7 @@ def main(argv=None):
     default_build = ARMS and HIP_YOKE == "single" and SERVO_PLAN == "hips"
     path = a.rollup or (ROLLUP if default_build else None)
     if path and not a.only:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with open(path, "w") as f:
             f.write(text + "\n")
         print("wrote", os.path.relpath(path))

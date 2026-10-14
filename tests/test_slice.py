@@ -15,19 +15,23 @@ import numpy as np
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, os.path.join(HERE, "..", "cad"))
 sys.path.insert(0, os.path.join(HERE, "..", "cad", "v6"))
 
+import paths  # noqa: E402
 import slice as S  # noqa: E402
 
 SPEC = S.load_settings()
-ROLLUP = os.path.join(HERE, "..", "docs", "design-v6", "parts_v6_rollup.txt")
+ROLLUP = os.path.join(paths.BUILD, "v6", "reports", "parts_v6_rollup.txt")
 
 
 # ---------------------------------------------------------------- the table
 
 def printed_parts():
     """Parts with qty > 0 in the generated rollup; the soles are cut, not printed."""
+    if not os.path.exists(ROLLUP):
+        pytest.fail(f"no {os.path.relpath(ROLLUP, paths.ROOT)}: run `make cad`, which writes it")
     out = set()
     for line in open(ROLLUP):
         m = re.match(r"(\S+)\s+(\d+)\s+[\d.]+\s", line)

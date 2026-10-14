@@ -26,15 +26,17 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import *  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 D = V.D
 import parts  # noqa: E402
 import check_assembly as CA  # noqa: E402
+import paths  # noqa: E402
 
 OUT_STL = os.path.join(HERE, "stl")
-OUT_STEP = os.path.join(HERE, "step")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 
 # ---------------------------------------------------------------------------
 # case footprint in the foot's own (pre-mirror, "L") frame
