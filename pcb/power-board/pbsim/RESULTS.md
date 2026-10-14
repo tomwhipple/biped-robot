@@ -1,97 +1,82 @@
-# Power board simulation: results (t_41bcad96 + t_8d683ea3 round-2 fixes)
+# Power board simulation: results
 
-Run from 2026-10-12 against rev A of `pcb/power-board/` (the merged PR #122
-branch). The suite's code lives in `pcb/power-board/pbsim/` (renamed from
-`sim` → `pbsim` in round 2 to stop a name collision with the robot's
-`sim/` package — P2-5); this record sits next to it so a reviewer sees
-everything the suite ran *and* what each test actually proves at the same
-time.
+The suite in `pcb/power-board/pbsim/` (the package is `pbsim`, not `sim`,
+so it cannot shadow the robot's repo-root `sim/` — P2-5) against rev A of
+`pcb/power-board/`. This record sits next to the code so a reviewer sees
+what each test runs *and* what it proves. PR #132, base
+`design/power-circuit` (P2-6). Round 1 and round 2 (2026-10-12) answered
+Percy's review
+(https://github.com/tomwhipple/biped-robot/pull/132#issuecomment-6136458208);
+round 3 (2026-10-14) re-checked every round-2 claim against the code and
+fixed the ones that did not hold.
 
-**Summary: 59 passed in 1.78 s.**
+**Summary: 67 passed** (macOS, Homebrew ngspice 47, 0.9 s).
 
 ```
-$ python -m pytest pcb/power-board/pbsim/tests/ -q
-...........................................................              [100%]
-59 passed in 1.78s
+$ python -m pytest pcb/power-board/pbsim -q
+...................................................................      [100%]
+67 passed in 0.88s
 ```
 
-The suite is wired into `.githooks/pre-push` as gate `[3b/9]` (added in
-round 2 — P2-4: previously no automated surface ran these tests, and the
-schematic-integrity guard among them was the only check tying the
-schematic to the design record).
+## Where the suite runs as a gate (P2-4)
 
-Round-2 review context: round 1 shipped at 48 passed. Percy's round-2
-review (`t_3cabffca`,
-https://github.com/tomwhipple/biped-robot/pull/132#issuecomment-6136458208)
-returned REQUEST CHANGES with 4 P1 + 6 P2; all ten are addressed at this
-head. The PR's base is `design/power-circuit` (the hub corrected this
-post-review; round 1's record said main — P2-6).
+This line's `.githooks/pre-push` runs the suite as gate `[3b/9]`. That
+gate runs only where a push executes this line's hook, i.e. a clone whose
+`core.hooksPath` is its own `.githooks`. Tom's laptop points
+`core.hooksPath` at the main checkout, so pushes from there run main's
+hook, which runs every gate as a make target in the pushed tree — and
+this line forked from main before main's Makefile existed. On this line
+main's hook fails at `make sil-lib` ("No rule to make target"), so no
+laptop push of the design line can pass a gate. Round 3 was pushed after
+running this line's hook by hand (venv on `PATH`): `tests/` 300 passed /
+16 skipped, `sim/sil` 16 passed / 19 skipped, pbsim 67 passed.
 
-## Tooling tradeoff
+When the design line takes main (PR #112 needs that anyway: it conflicts
+with main in AGENTS.md's generated-files table and in
+`docs/design-v6/README.md`), `[3b/9]` must become a make target in the hook
+and in AGENTS.md's gate table, or it is lost in the hook merge.
 
-Option A (apt-install ngspice + PySpice in the venv) was the card's first
-candidate. Two things made it unattractive on this host:
+## Tooling
 
-1. `sudo apt install` is unavailable in this session (the card verified
-   `ngspice` and `PySpice` are not installed today; the agent shell does
-   not have a sudo password). `apt-get download` + manual `dpkg-deb -x`
-   into a user-controlled location works, and so does a raw-binary
-   ngspice run — verified against a smoke netlist before any simulation
-   code was written.
-2. PySpice 1.5's public constructor signature doesn't match the current
-   docs (its `NgSpiceShared` no longer takes `ngspice_path`; probing that
-   surface is a one-way ticket into wrapper archaeology, not circuit
-   work). Rather than carry a wrapper that might drift further, the
-   suite drives the vendored `libngspice.so` directly through `ctypes` —
-   about 200 lines of `ngsim.py` covering the four functions we need
-   (Init, Command, CurPlot, Get_Vec_Info).
+The suite drives libngspice directly through `ctypes` (`ngsim.py`, the
+four entry points it needs); PySpice 1.5's constructor no longer matches
+its documentation. Everything else is pure-Python behavioural models of
+the BQ76922, the TPS48111 and the pack, wired by `sequencer_sim.py`; the
+suite asserts sequences, thresholds and what the ICs and firmware decide,
+not waveform shapes. The C4–C6 ngspice runs in the verification record
+stand on their own and are not redone here. Dependencies: `pytest`,
+`numpy` (in `requirements.txt`).
 
-   `PySpice` was then removed from the venv. The only additions to the
-   venv for this task are now: none. The suite runs on the repo's
-   existing `requirements.txt` (pytest, numpy).
+libngspice (`ngsim.find_lib()`): `$PBSIM_NGSPICE` if set; the vendored
+ngspice 42 on linux-x86_64 (an ELF, Ubuntu noble `libngspice0`
+42+ds-3build1, byte-identical to the archive's — `vendor/README.md`);
+otherwise a native one (macOS: `brew install libngspice`, ngspice 47, the
+version C4–C6 used). With none, the spice tests skip and say why. Both
+builds give the same numbers (I_d = 10.2 mA at Vgs 1.5 V, 332 A at 3.0 V,
+Vds 10 V). One engine per process: a second `ngSpice_Init` after `quit`
+is undefined in ngspice's shared mode and SIGTRAPped ngspice 47 once two
+spice tests ran in one process.
 
-**Choice taken: option B (pure-Python behavioural models where netlist
-fidelity is overkill), with a thin option-A layer for what does need the
-netlist — validating the rewritten TI CSD17556Q5B FET model against a
-known ngspice build so device physics isn't a hand-wave.** The C4–C6
-SPICE work in the verification record stands; reproducing it in this
-suite would add a second expensive pass over ground already covered. The
-suite's Part-2 assertions check sequences, thresholds, sequencing rules
-and *what the firmware and the ICs would actually decide*, not waveform
-shapes. Where the existing C-record's ngspice work matters (the C4
-soft-start peak of 1.40–1.99 A), our behavioural soft-start model is
-calibrated to land in that range and asserted against it.
-
-ngspice 42 is vendored as a binary blob in
-`pcb/power-board/pbsim/vendor/ngspice/libngspice.so.0.0.9` (8 MB) with its
-matching `CSD17556Q5B_TI_ORIGINAL.lib` and a parser-compatible rewrite
-`csd17556q5b_ngspice.lib`. **All three artifacts are SHA-pinned** in
-`test_ngsmoke.py` so a silent file swap fails the suite. Why the rewrite
-is needed at all is documented in `vendor/README.md`: TI's `.PARAM`
-syntax + LEVEL=7 BSIM3 model don't parse on Debian's ngspice-42. The audit
-script `rewrite_ti_model.py` (round-2 addition, P3-6) reports the
-rewrite's parameter and keyword deltas from TI's release.
+The TI CSD17556Q5B model is vendored as TI shipped it and as a hand
+rewrite ngspice 42 parses (`vendor/README.md`). `rewrite_ti_model.py`
+evaluates TI's `.PARAM` expressions and compares the files token by
+token; the only differences are LEVEL 7→8 and VERSION 3.2→3.3. Round 3's
+audit found the rewrite carried PS = PD = 19.53 on M1 and M2 where TI's
+`{2.1*pwidthP}` is 19.635 (junction sidewall capacitance, about 0.5 %);
+corrected and re-pinned.
 
 ## How green is defined
 
 Every test asserts one of:
 
-- a schematic-extraction match (the named components C3 verified parse
-  to exactly what the verification record states),
-- a *stated* design number against the live simulation (e.g. "the rail
-  falls within one tick of E-stop", "KILL holds for at least 1 s", "rail
-  rises through 90 % in 30–80 ms", "rail latches CB at 19.8 A in
-  ~10.5 ms"),
-- a *computed* margin against a datasheet or fuse curve (e.g. "4.3 A
-  per-branch peak is at 28 % of F1's rating and 22 % of TPS48111's
-  CB trip").
-
-Where the design itself sets the number (the 280 ms wake, the 1 s KILL,
-the 19.8 A CB trip, the 3.0 V CUV), the test name and assert state the
-number explicitly. Where the number comes from a datasheet (the 0.7 V
-TS2 wake minimum, the 2 V INP threshold, the 4.2 V LiPo ceiling, the
-BQ76922's COV-opens-CHG-only semantics), the test docstring cites the
-datasheet section.
+- a schematic-extraction match (the components C3 verified, and every
+  part a model computes with, parse to the values the record and the
+  model use),
+- a stated design number against the live simulation ("the rail falls
+  within one tick of E-stop", "KILL holds for at least 1 s", "rail rises
+  through 90 % in 30–80 ms", "CB latches at 19.8 A in ~10.5 ms"),
+- a computed margin against a datasheet or fuse curve ("4.3 A per-branch
+  peak is 28 % of F1's rating and 22 % of the CB trip").
 
 ## Results per test
 
@@ -99,255 +84,196 @@ datasheet section.
 
 | test | passes iff | value |
 |---|---|---|
-| schematic_parses_to_expected_parts | 102 components parse; every J/U/F/R key ref exists; J4–J8 are the right roles; named nets include KILL/SERVO_EN/ESTOP_N/ESTOP_RET/RAIL_V/PWR_INT_N/IMON/FLT_N/SDA/SCL; power symbols include BAT+, BAT-, PACK+, SERVO+, GND, +3V3_HOST | 102 components, 14 signal labels, 7 power nets |
-| component_values_match_c3 | parsed values equal C3's verified table for R24/R25/R26/R30/R31/R34/R35/R36/R38/R39/R12/R11/R32/R33/R18/R21/R22/R20/R23/R17/C16/C17/C19/C21/C22 + fuses F1 15 A/F2 3 A + gate-clamp zeners D3/D5/D6 = 16 V | all match, within 1e-6 relative |
-| j11_is_a_two_contact_latching_button | J11 is a 4-pin header with pins 1–4 | yes |
+| schematic_parses_to_expected_parts | 102 components parse; the key J/U/F/R refs exist; J4–J8 are the right roles; labels include KILL/SERVO_EN/ESTOP_N/ESTOP_RET/RAIL_V/PWR_INT_N/IMON/FLT_N/SDA/SCL; power symbols include BAT+, BAT-, PACK+, SERVO+, GND, +3V3_HOST | 102 components, 14 signal labels, 7 power nets |
+| component_values_match_c3 | R24/R25/R26/R30/R31/R34/R35/R36/R38/R39/R12/R11/R32/R33/R18/R21/R22/R20/R23/R17, C16/C17/C19/C21/C22 and D3/D5/D6 16 V parse to C3's table | all match within 1e-6 |
+| j11_is_a_two_contact_latching_button | J11 is a 4-pin header | yes |
 | j10_is_a_two_pin_momentary_button | J10 is a 2-pin header | yes |
-| j12_pin_count_for_control | J12 is an 8-pin header with pins 1–8 | yes |
-| servo_branch_headers_carry_three_pins | J4–J8 each carry pins 1–3 (data, V+, GND) | yes |
+| j12_pin_count_for_control | J12 is an 8-pin header | yes |
+| servo_branch_headers_carry_three_pins | J4–J8 carry pins 1–3 | yes |
 
-Schematic-integrity coverage is deliberately partial: the rows above pin
-the components C3 verified and the connectors the harness document
-defines; other R/C refs (R1 1 mΩ, R9 10 kΩ, R37 10 kΩ pull-up, R3-R6 20 Ω
-balance-lead series, the C1–C15 BQ76922 input filters, etc.) parse but
-are NOT asserted because the verification record did not commit specific
-values for them. A rev-B re-tune of a C3-listed R/C trips this suite; a
-rev-B re-tune of an unlisted R/C will not (P3-2).
+What is pinned (P3-2): the parts C3 verified, plus every part a model
+computes with (`test_rail_switch_protections`: R1, R9, R11, R12, R24–R26,
+R30–R35, R38, R39, C19). The other R/C refs (R3–R6 balance filters, R37,
+C1–C15 and so on) parse but are asserted nowhere: neither the record nor
+any model states a value for them, so a rev-B change there does not fail
+this suite.
 
-### ngspice vendored binary + TI model (`test_ngsmoke.py`)
+### ngspice and the TI model (`test_ngsmoke.py`)
 
 | test | passes iff | value |
 |---|---|---|
-| vendored_hashes_are_pinned | SHA-256 of the three vendored artifacts equal the pinned values | all 3 match (pins in `fetmodel.py`) |
-| ngspice_loads_the_ti_fet_model | `X1 ... CSD17556Q5B` instantiates on BSIM3v3 LEVEL=8 VERSION=3.3 and sweeps I_d vs V_gs at V_ds=10 V: I_d(1.5 V) ≤ 50 mA, I_d(3.0 V) ≥ 0.5 A, monotone increase between | I_d(1.5 V) = −10.19 mA, I_d(3.0 V) = −332.2 A — see Deficiencies #7 |
+| vendored_hashes_are_pinned | SHA-256 of the three vendored files equal the pins in `fetmodel.py` | all 3 match |
+| rewrite_differs_from_ti_only_in_level_and_version | TI's expressions evaluated, the rewrite and TI's file differ only in LEVEL and VERSION | exactly those two |
+| ngspice_loads_the_ti_fet_model | the subckt runs a Vgs sweep at Vds 10 V: I_d(1.5 V) < 50 mA, I_d(3.0 V) > 0.5 A, monotone | 10.2 mA, 332 A |
+| ti_fet_model_tracks_ti_figure_3 | at Vds 5 V the model reaches 20/100/200 A within 0.1 V of Vgs of TI's 25 °C transfer curve (datasheet Figure 3: 2.37/2.71/2.94 V) | 2.35/2.65/2.87 V |
 
-Round 1's row here read "subthreshold plateau rising toward 1 A at Vgs=3".
-That was wrong (P1-4 round 2): the actual ngspice output runs from
-−10.19 mA at Vgs=1.5 V to −332.2 A at Vgs=3.0 V under the rewritten
-LEVEL=8 model. The asserted bounds (≤50 mA at 1.5 V, ≥0.5 A at 3 V, and
-monotonicity in between) still pass and are the properties the test was
-designed to guard; the absolute value at Vgs=3 V is non-physical because
-the rewritten BSIM3v3 model is being asked to extrapolate outside the
-operating band TI validates against. Deficiency #7 owns the note.
+332 A at Vgs 3 V, Vds 10 V is the device, not an extrapolation of the
+rewrite: TI's own Figure 3 passes 200 A at 2.94 V and is still climbing
+(round 2, after Percy's review, called it "non-physical, ~330× a sane
+plateau"; the figure says otherwise). The part only survives that as a
+pulse (I_DM 400 A); the sweep is a DC operating point.
 
-### Part-2.1 — servo branches (`test_servo_branches.py`)
+### Servo branches (`test_servo_branches.py`)
 
 | test | passes iff | margin (worst reading) |
 |---|---|---|
-| every_servo_branch_peak_is_documented | schematic's J4–J8 components carry the harness.md's branch names | matched |
-| branch_peak_currents_fit_under_tps48111_cb_trip | J4+J5+J6+J7 simultaneously at get-up max < 19.8 A CB trip | 4.3+4.3+3.0+3.0 = 14.6 A vs 19.8 A trip — 26 % margin |
-| full_bus_getup_peak_clears_cb_trip_and_f1_slow_band | §2's worst 11.8 A sits under both F1 15 A (never opens at ≤ 100 %) and CB 19.8 A | 11.8 A < 15 A by 21 %; 11.8 A < 19.8 A by 40 % |
-| two_second_getup_vs_fuse_time_current | 2 s 5–7.6 A (and the parametric 3.0/4.3 A branches) sit inside the fuse's no-melt band | 11.8 A is 78 % of rating; 7.6 A is 51 %; fuse melts at 200 %+ |
-| upper_branch_getup_peaks_against_5264_contact | max(J5, J7) get-up peak ≤ 5264 contact upper band 3.0 A | 3.0 A exactly meets; 0 % margin — flagged as a watched item (see Deficiencies #1) |
-| leg_branch_rms_under_contact_rating | J4/J6 walking RMS 1.6 A < contact rating 2.5 A | 36 % margin (1.6/2.5) |
-| walking_bus_is_below_fuse_rating_with_margin | §2's 3.05 A walking mean is < 25 % of 15 A fuse | 3.05/15.0 = 20.3 % |
-| full_board_power_up_under_load | rail soft-start closes under 3.05 A walking load + 0.5 A logic; rail stays ≥ 11.5 V after STARTING; pack current matches rail+logic | rail_v = 12.58 V at 12.59 V pack; pack_i = 3.55 A ✓ |
-| rail_soft_start_keeps_inrush_under_design_margin | rail voltage rise 5→90 % takes 30–80 ms (C4 design target 40 ms); peak inrush = C_total × dV/dt ≤ 4 A and ≤ 30 % of the CB trip | 5→90 % in ~39 ms; **I_inrush = 1.20 A** (max dV/dt 1189 V/s × 1.010 mF) — well under 4 A and the 19.8 A CB trip |
-| per_branch_getup_fuse_charge [3.0, 4.3] | per-branch get-up I²t charge stays under 50 % of the fuse's 135 A²s melt-once band | 18 A²s and 36.98 A²s; both under 67.5 A²s |
+| every_servo_branch_peak_is_documented | J4–J8 carry harness.md's branch names | matched |
+| branch_peak_currents_fit_under_tps48111_cb_trip | J4+J5+J6+J7 at get-up max < 19.8 A | 14.6 A, 26 % margin |
+| full_bus_getup_peak_clears_cb_trip_and_f1_slow_band | §2's worst 11.8 A under F1 15 A and CB 19.8 A | 21 % / 40 % |
+| two_second_getup_vs_fuse_time_current | 2 s 5–7.6 A and the 3.0/4.3 A branches inside the fuse's no-melt band | 11.8 A is 78 % of rating |
+| upper_branch_getup_peaks_against_5264_contact | max(J5, J7) get-up peak ≤ the 5264 contact's 3.0 A | 0 % margin (carried item 1) |
+| leg_branch_rms_under_contact_rating | J4/J6 walking RMS 1.6 A < 2.5 A | 36 % |
+| walking_bus_is_below_fuse_rating_with_margin | 3.05 A walking mean < 25 % of 15 A | 20.3 % |
+| full_board_power_up_under_load | soft start closes under 3.05 A + 0.5 A logic; rail ≥ 11.5 V after | 12.58 V at 12.59 V pack |
+| rail_soft_start_keeps_inrush_under_design_margin | 5→90 % in 30–80 ms; peak C × dV/dt ≤ 4 A and ≤ 30 % of CB | ~39 ms; 1.20 A |
+| per_branch_getup_fuse_charge [3.0, 4.3] | get-up I²t < 50 % of the 135 A²s melt band | 18 / 37 A²s |
 
-The inrush number **1.20 A** is what re-running the committed test now
-produces from head (P1-4 round-2 fix — the round-1 record printed 0.97 A
-against a different computational path). Note that 1.20 A is derived from
-the behavioural model's own chosen τ (40 ms/ln 10); the physical evidence
-for the inrush band is C4's ngspice runs (1.40 A into 2 mF, 1.99 A into
-4 mF), which the suite intentionally does not redo — the test guards that
-the model's peak stays under the 4 A CSD17556Q5B SOA bound and that C4's
-measurement is consistent with that band, not that the model re-derives
-C4.
+The 1.20 A inrush comes from the model's own τ (40 ms / ln 10); the
+physical evidence is C4's ngspice runs (1.40 A into 2 mF, 1.99 A into
+4 mF), which this suite does not redo.
 
-### Part-2.2 — buttons (`test_buttons.py`)
+### Buttons (`test_buttons.py`)
 
 | test | passes iff | reading |
 |---|---|---|
-| power_button_held_less_than_280_ms_does_not_wake | a 200 ms tap never transitions BQ76922 past SHUTDOWN | stays SHUTDOWN for all 500 ms of the run |
-| power_button_held_280_ms_wakes | first NORMAL appears between 270 ms and 400 ms; rail stays off until SERVO_EN | first NORMAL at 281 ms; rail OFF until 50 ms tick boundary |
-| power_on_sequence_order | PACK+ arrives before rail ON; STARTING→ON span over 30–80 ms | 280 ms / 40 ms respectively |
-| power_pressed_while_on_runs_orderly_shutdown | PWR_INT_N low → ESP32 raises KILL → after 1.0 s of KILL the part is SHUTDOWN with PACK+ at 0 V | kill_at ≈ 1.6 s; SHUTDOWN at ~2.7 s; rail already OFF |
-| kill_before_1s_does_not_shut_down | a 500 ms KILL pulse leaves BQ76922 in NORMAL | never leaves NORMAL |
-| estop_pressed_opens_servo_rail | rail falls at the next 1 ms tick; PACK+ stays up; ESTOP_N reads high | rail 12.59→0 in 1 tick; estop_n 0→3.3 V |
-| estop_while_rail_starting_recovers_off | press mid-STARTING (t=0.295, between wake at 0.281 and ON at 0.323) aborts the ramp; the rail backs out of STARTING to OFF and never reaches ON while pressed | rail transitions STARTING → OFF during the press (P1-1 round-2 fix) |
-| estop_broken_wire_makes_rail_off | J11 unplugged drops EN feed to 0 (pull-down through R31) | rail falls in 1 tick with broken_wire=True |
-| estop_stuck_a_contact_means_only_software_can_open_rail | with A welded, ESP32's SERVO_EN drop opens the rail | rail falls on next tick after ESP32 drops SERVO_EN |
-| estop_both_contacts_stuck_means_kill_must_open_main_switch | with both contacts welded **and Q3 welded (monkeypatched)**, F4's rail-up-while-commanded-off detector raises KILL, and the main switch drops the pack even though Q3 doesn't | kill_at set at SERVO_EN-low disagreement; PACK+ at 0 V after (P2-1 round-2 fix: Q3 weld now actually installed) |
-| estop_contact_b_welded_alone_rail_still_dies_via_contact_a | with B welded alone the ESP32 is blind (ESTOP_N reads LOW throughout the press), yet the rail still dies via contact A | (P2-3 round-2 new test) |
-| power_button_does_not_wake_when_kill_latched | after KILL-latch, a 200 ms tap does nothing; a 500 ms press re-wakes | both hold |
+| power_button_held_less_than_280_ms_does_not_wake | a 200 ms tap leaves the BQ76922 in SHUTDOWN | 500 ms, never wakes |
+| power_button_held_280_ms_wakes | first NORMAL between 270 and 400 ms | 281 ms |
+| power_on_sequence_order | PACK+ before rail ON; STARTING→ON in 30–80 ms | 280 ms / 42 ms |
+| power_pressed_while_on_runs_orderly_shutdown | PWR_INT_N low → KILL → SHUTDOWN after 1 s, PACK+ 0 | holds |
+| kill_before_1s_does_not_shut_down | a 500 ms KILL pulse leaves NORMAL | holds |
+| estop_pressed_opens_servo_rail | rail falls next tick; PACK+ up; ESTOP_N high | 1 tick |
+| estop_while_rail_starting_recovers_off | press at 0.295 s, inside STARTING (0.281–0.323 s): the ramp aborts and never reaches ON while pressed | STARTING 0.281 s → OFF 0.296 s |
+| estop_broken_wire_makes_rail_off | J11 unplugged takes EN to 0 | rail falls in 1 tick |
+| estop_stuck_a_contact_means_only_software_can_open_rail | contact A welded: the ESP32 sees ESTOP_N and drops SERVO_EN; INP opens the rail | falls next tick |
+| estop_with_welded_q3_kill_opens_main_switch | Q3 welded, contacts working (§5.3): F4 sees ESTOP_N high with RAIL_V up, raises KILL, the BQ76922 opens PACK+ | KILL 1.553 s, SHUTDOWN 2.555 s; rail at 12.55 V until then |
+| estop_both_contacts_welded_defeats_the_button | both contacts welded: the press reaches neither EN nor ESTOP_N; the rail stays up | the limit of the one-failure claim |
+| estop_contact_b_welded_alone_rail_still_dies_via_contact_a | contact B welded: the ESP32 is blind (ESTOP_N low), contact A still opens the rail | holds |
+| power_button_does_not_wake_when_kill_latched | after KILL a 200 ms tap does nothing, a 500 ms press re-wakes | holds |
+| jammed_power_button_rewakes_after_every_shutdown | POWER held: 280 ms after each shutdown the board wakes again; released, a shutdown sticks | re-wake 282 ms after each of 4 shutdowns in 8 s |
 
-### Part-2.3 — ESP32 control (`test_esp32_control.py`)
+Round 2's "both contacts welded + Q3 welded" test dropped SERVO_EN at
+0.8 s for no reason and raised KILL at 0.85 s, 650 ms before its E-stop
+press, so the press took no part. Its two replacements test the design's
+claim and its limit.
 
-| test | passes iff | reading |
-|---|---|---|
-| esp32_unpowered_board_is_inert | ESP32 never drives anything → SERVO_EN at 0 V via R33; board wakes only on POWER, rail stays OFF | rail 0 V throughout, 1500 ticks |
-| servo_en_low_holds_rail_open | board wakes with ESP32 driving SERVO_EN=0 but rail stays OFF | 1200 ticks of OFF |
-| servo_en_high_with_estop_pressed_cannot_close_rail | with E-stop latched, SERVO_EN=3.3 V does not close the rail | rail 0 V at every pressed tick |
-| servo_en_pin_voltage_within_inp_spec | 3.3 V × R33/(R32+R33) ≥ 2 V (TPS48111's V(INP_H)) | 3.267 V |
-| rail_v_divider_keeps_gpio34_in_adc_range | R38/R39 at 12.6 V rail → GPIO 34 within ADC11 150–2450 mV band; C7's 2.21 V | 2.21 V at 12.6 V; 1.58 V at 9 V |
-| kill_pin_voltage_within_rst_shut_spec | 3.3 V × R11/(R11+R12) ≥ 1.2 V (BQ76922's V(IH)) | 3.0 V |
-| stuck_on_rail_is_detectable_by_firmware | rail-up while SERVO_EN=0 for > 50 ms triggers F4's KILL-at-1s; PACK+ drops | kill_at at detection; SHUTDOWN at +1.2 s |
-| esp32_unpowered_imu_still_boots | J9's pin map + SDA/SCL label membership in the schematic | pin 1 3V3, pins 3/4 SDA/SCL; both labels present (round-1's "exactly once" multiplicity claim was wrong; assertion is on set membership — P3-4 round-2 fix) |
-| control_signals_on_j12_match_design_pin_map | J12 is 8-pin; harness.md's 7 named signals are present as labels | KILL, SERVO_EN, PWR_INT_N, RAIL_V, ESTOP_N, SERVO_IMON, SERVO_FLT_N all present |
-
-### Part-2.4 — pack voltage + BQ76922 (`test_pack_voltage.py`)
+### ESP32 control (`test_esp32_control.py`)
 
 | test | passes iff | reading |
 |---|---|---|
-| cuv_at_3_0v_per_cell | 3.1 V/cell never trips; 3.0 V/cell trips CUV and opens FETs; COV does NOT fire as a side effect | both behaviours hold |
-| cov_at_4_2v_per_cell | 4.25 V single cell trips COV after its 50 ms delay; **COV blocks the charge FET only — discharge continues** | latched COV; charge_fet_closed=False; discharge_fet_closed=True (P2-2 round-2 fix) |
-| fresh_full_pack_at_zero_load_powers_on_and_discharges_normally | full pack on the bench (v_oc = 4.20 V/cell, no load, no charger) wakes on POWER and PACK+ stays up — no false COV failure from the discharge side | (P2-2 round-2 new test) |
-| cov_hysteresis_releases_latch_once_cells_droop | after a COV latch, cells sagging under the 50 mV hysteresis release clears the latch and re-closes the charge FET | (P2-2 round-2 new test) |
-| ocd_at_20a_with_delay | 4.74 A walking transient × 200 ticks and 11.8 A get-up × 2000 ticks don't trip OCD; 25 A trips within 50 ms | none / latched OCD |
-| scd_at_150a_fastest | 100 A × 5 µs is clean (it's a hard transient through the shunt); 160 A × 50 µs trips | none / latched SCD |
-| sucd_dies_below_the_stack_floor | 9.6 V stack is clean; 8.85 V stack latches SUCD AND moves the part to SHUTDOWN | both hold |
-| cell_imbalance_fires_cuv_while_stack_voltage_looks_fine | cell 2 sagged to 2.8 V with cells 1/3 at 4.15 V (stack still reads 11.10 V) trips CUV | latched CUV |
-| otp_thresholds_match_schematic_intent | model's OTP defaults equal what design §5.5 commits to: COV=4.20, CUV=3.00, OCD=20, SCD=150, SUCD=9.0 V; and CUV < battguard's 3.3 V line | all match |
-| wake_consumption_is_microwatt_scale | SHUTDOWN current ≈ 1 µA; SOC after 60 s of nothing-but-BQ76922 stays > 99.99 % | soc_min > 0.9999 |
-| esp32_is_never_required_for_cell_protection | with ESP32 never booted (SERVO_EN=0), a pack with cell 2 at SOC=1 % wakes on POWER and latches CUV on the first NORMAL tick | latched CUV; FETs open |
+| esp32_unpowered_board_is_inert | SERVO_EN at 0 V via R33; rail stays OFF | 1500 ticks |
+| servo_en_low_holds_rail_open | board wakes, rail stays OFF | 1200 ticks |
+| servo_en_high_with_estop_pressed_cannot_close_rail | E-stop latched, SERVO_EN 3.3 V: rail stays at 0 V | every pressed tick |
+| servo_en_pin_voltage_within_inp_spec | 3.3 V × R33/(R32+R33) ≥ 2 V | 3.267 V |
+| rail_v_divider_keeps_gpio34_in_adc_range | R38/R39 keeps GPIO 34 in ADC11's band | 2.21 V at 12.6 V |
+| kill_pin_voltage_within_rst_shut_spec | 3.3 V × R11/(R11+R12) ≥ 1.2 V | 3.0 V |
+| stuck_on_rail_is_detectable_by_firmware | rail up with SERVO_EN low for 50 ms → KILL → PACK+ drops | holds |
+| esp32_unpowered_imu_still_boots | J9's pin map; SDA/SCL labels present (membership, not count — P3-4) | holds |
+| control_signals_on_j12_match_design_pin_map | J12 8-pin; harness.md's 7 signals are labels | all present |
 
-The COV rows show round 2's model change. Real BQ76922: COV opens the
-CHARGE FET only — discharge continues — and has a programmable delay
-plus hysteresis. Round 1's suite modelled "any latch → fets_closed =
-False", which on a fresh pack at rest (v_oc = 4.20 V == COV exactly)
-left the bench unable to ever turn the board on (P2-2). The fix is
-structural in `bq76922.py` (split `charge_fet_closed` /
-`discharge_fet_closed`, COV delay 50 ms, hysteresis release 50 mV).
-
-### Part-2.5 — servo-rail switch protections (`test_rail_switch_protections.py`, round-2 new; P1-3)
-
-These tests answer P1-3: round 1 never drove the rail current near the
-CB or SC trip, so the switch's two protection paths were dark.
+### Pack voltage and BQ76922 (`test_pack_voltage.py`)
 
 | test | passes iff | reading |
 |---|---|---|
-| rail_latches_cb_on_sustained_overcurrent | direct drive at 25 A (over the 19.8 A CB trip) latches CB at ≈ 10.5 ms, rail falls to 0, trip logged | latched at 11 ms post-step, inside the design's 9.7–12 ms band |
-| rail_latches_sc_on_hard_short | direct drive at 45 A (over the 39.3 A SC trip) latches SC within the modelled next-tick | latched; rail at 0 V |
-| rail_cb_latch_releases_on_en_pulse | an EN low pulse clears a latched CB; the rail re-enters STARTING and lands ON | latch released, rail returns through STARTING → ON |
-| rail_sc_latch_releases_on_en_pulse | EN pulse also releases SC | latch released to OFF |
-| servo_lead_short_clears_on_rail_sc_while_bq_scd_stays_out | C5's headline scenario end-to-end: 45 A J4-J7 hard short latches the rail's SC; the BQ76922's SCD/OCD do NOT latch | rail LATCHED_SC; latched_faults list has no SCD/OCD entries |
-| servo_branch_overcurrent_clears_on_rail_cb | sustained 25 A branch current trips the rail's CB (long before the F1 fuse's 200 % fast curve opens anything) | rail LATCHED_CB |
-| sub_cb_overcurrent_does_not_latch | 19.0 A (just under the 19.8 A trip) holds the rail ON indefinitely | never latches; the BQ76922's 20 A OCD is also untouched at 19.5 A pack-side |
-| tps48111_constants_match_schematic_values | model constants (CB 19.8 A, SC 39.3 A, CB delay 10.5 ms) cross-checked against the schematic's parsed R24/R26/R35/C19 | (P3-1 round-2 hardening — closes the loop `schematicsnapshot.py`'s docstring already promised) |
+| cuv_at_3_0v_per_cell | 3.1 V/cell clean; 3.0 V/cell trips CUV | holds |
+| cov_at_4_2v_per_cell | a 4.25 V cell trips COV after 50 ms; COV blocks the charge FET only | CHG open, DSG closed |
+| fresh_full_pack_at_zero_load_powers_on_and_discharges_normally | the board alone on the bench (no logic load): cells at 4.20 V latch COV, PACK+ stays up | COV latched; PACK+ > 9 V throughout |
+| cov_hysteresis_releases_latch_once_cells_droop | COV releases 50 mV under the trip | holds |
+| ocd_at_20a_with_delay | 4.74 A and 11.8 A × 2 s clean; 25 A trips | holds |
+| scd_at_150a_fastest | 100 A × 5 µs clean; 160 A × 50 µs trips | holds |
+| sucd_dies_below_the_stack_floor | 9.6 V clean; 8.85 V latches SUCD and shuts down | holds |
+| cell_imbalance_fires_cuv_while_stack_voltage_looks_fine | cell 2 at 2.8 V, stack 11.10 V: CUV | holds |
+| otp_thresholds_match_schematic_intent | COV 4.20, CUV 3.00, OCD 20, SCD 150, SUCD 9.0; CUV < battguard's 3.3 V | all match |
+| wake_consumption_is_microwatt_scale | a year in SHUTDOWN at the model's 1 µA and at the datasheet's 3.1 µA maximum costs < 1 % of the pack | 0.21 % / 0.65 % |
+| esp32_is_never_required_for_cell_protection | ESP32 never booted, cell 2 at 1 % SOC: CUV on the first NORMAL tick | holds |
 
-The EN-pulse release rows pin a behaviour new in round 2: the real
-TPS48111's latch clears on an EN low pulse or a VCC recycle; the model
-now mirrors that (P1-3 tail).
+Round 2's zero-load test ran with the board's fixed 0.5 A logic load,
+which sags a full pack under COV, so COV never latched and the test also
+passed on the round-1 model. `PowerBoard(logic_load_a=0.0)` is the real
+bench case; under round 1's "any latch opens discharge" it fails.
 
-## Deficiencies — resolved / deferred / watch (round-2 relabel)
+### Servo-rail switch (`test_rail_switch_protections.py`)
 
-Resolved in this round (P1 + P2):
+| test | passes iff | reading |
+|---|---|---|
+| rail_latches_cb_on_sustained_overcurrent | 25 A latches CB 9–12 ms after the step | 11.0 ms |
+| rail_latches_sc_on_hard_short | C5's 69 A peak latches SC next tick | holds |
+| rail_latch_releases_on_en_or_inp_toggle [CB, SC] × [EN below ENF, INP low] | a latch held with EN and INP high stays; dropping either releases it and the rail returns to ON (datasheet §8.3.3.2) | 4 cases hold |
+| rail_follows_uvlo_with_hysteresis | rail opens below 7.33 V of PACK+, stays open at 7.6 V, closes above 7.79 V | holds |
+| servo_lead_short_clears_on_rail_sc_while_bq_scd_stays_out | C5 at its 69 A peak: SC latches; OCD and SCD do not; PACK+ stays up; C5's 66 A pack peak < the lowest SCD trip (150 A − 35 % = 97.5 A) | latched at 0.602 s; pack current ≤ 69.5 A; PACK+ ≥ 11.87 V |
+| servo_branch_overcurrent_clears_on_rail_cb | 25 A sustained latches CB | holds |
+| sub_cb_overcurrent_does_not_latch | 19.0 A stays ON | holds |
+| tps48111_constants_follow_from_the_schematic | from the parsed parts with the datasheet's equations: I_OC (Eq. 6), I_SC (Eq. 11), t_OC (Eq. 10) match the model within 2/2/3 %; UVLO × (R30+R31)/R31 matches C3 within 1 % | 19.77 A, 39.81 A, 10.76 ms; 7.79 / 7.33 V |
+| board_model_resistors_match_the_schematic | R30–R33, R38, R39, R11, R12, R9 and R1 equal the model's constants | all match |
 
-- **(P1-1) `test_estop_while_rail_starting_recovers_off` hollow timing:**
-  press moved to 0.295 s (genuine mid-ramp); asserts strengthened to
-  require the rail actually back out of STARTING.
-- **(P1-2) TPS48111 ignores EN/INP during STARTING:** model now aborts
-  STARTING on `en_lo` or `not inp_hi`; the partial ramp collapses
-  instead of one-tick-of-ON behind an E-stop latched mid-ramp.
-- **(P1-3) CB/SC protections dark:** see Part-2.5 — four direct-drive
-  tests + two full-stack scenarios.
-- **(P1-4) Numeric drift in round-1 record:** both numbers corrected
-  here and pinned to the committed computation path.
-- **(P2-1) `test_estop_both_contacts_stuck_...` Q3 weld missing:**
-  `welded_q3_update` now actually monkeypatches the rail switch.
-- **(P2-2) COV opens DSG too:** COV now opens CHG only, with a 50 ms
-  delay and a 50 mV release hysteresis; two new tests pin the
-  semantics including the "fresh pack at rest" bench scenario.
-- **(P2-3) B-only weld missing:** new test asserts ESP32 is blind
-  (ESTOP_N LOW throughout) and contact A still opens the rail.
-- **(P2-4) Suite wired into no gate:** `.githooks/pre-push` gate
-  `[3b/9]` runs the pbsim suite on every push.
-- **(P2-5) Package collision:** directory renamed `sim` → `pbsim`;
-  imports and docs updated.
-- **(P2-6) Base branch misreported:** PR's actual base is
-  `design/power-circuit`; this record states it.
-- **(P3-4) SDA/SCL "exactly once" docstring lie:** assertion is now
-  membership-based with a docstring that says so.
-- **(P3-5) `_rising_started_at or t_s` falsy-zero:** switched to
-  `is not None`; comment explains why.
-- **(P3-6) `scenarios.py` and `rewrite_ti_model.py` promised but
-  missing:** both added; the latter is an audit script that reports
-  the rewrite's parameter + keyword deltas against TI's release.
-- **(P3-3) `pack.py` IR-sweep docstring lie:** the suite does NOT
-  sweep 5/8/15/35 mΩ cases; docstring corrected to say the parameter
-  is exposed and unused today.
+The 1 ms tick cannot resolve C5's microsecond race (Q3 off in 5.9–8.3 µs);
+that is C5's ngspice result. The test asserts its consequence at the
+sequence level.
 
-Carried deficiencies (still open; deferred P3s and standing watch items):
+Round 3 corrected the TPS48111 model against its datasheet (SLUSEE5E):
+EN/UVLO turns the gate on above V(UVLOR) 1.18 V and off below V(UVLOF)
+1.11 V (the model had 1.0 / 0.3 V, so the rail stayed on with PACK+ down
+to 2 V); a latch resets on INP low as well as EN below ENF.
 
-1. **`test_upper_branch_getup_peaks_against_5264_contact` passes at zero
-   margin** to the upper band. The J5/J7 get-up peak of 3.0 A sits *at*
-   the 5264 contact's 3.0 A upper figure. Harness.md explicitly defers
-   this to a bench measurement ("§10 V8 — lead temperature"); our test
-   enshrines the state as "passes, by 0 A", and any upward revision of
-   the get-up upper model or of the connector's rating turns this red.
-2. **`test_wake_consumption_is_microwatt_scale` uses the datasheet's 1 µA
-   typical, not the 3.1 µA maximum.** If the maximum is the right
-   number, the 60-s SOC assertion changes from 99.99 % to 99.93 %; this
-   test still passes. It's here because a regression that put shutdown
-   current at 100 µA would start failing — that's the point.
-3. **The model's `OCD` delay is 50 ms.** Design §5.5 says "OCD with a
-   delay" without a number; 50 ms is inside the BQ76922's 17/33/66 ms
-   OCD family. The test asserts the *intent* — get-up peaks must not
-   trip — and doesn't discriminate between the legal delay choices.
-4. **No test here covers the BQ76922's I²C protocol level** (frame
-   timing, NACK behaviour on a stuck bus). Driver-territory, out of
-   scope.
-5. **No test here exercises the TS2 thermistor path** (design §5.5:
-   TS2 is both the wake pin and a thermistor input; on rev A the
-   thermistor is on TS1). Wake path covered; TS2-as-thermistor asserted
-   as "not present on this rev".
-6. **The TPS48111's remote temperature diode (Q5 against Q3) is not
-   modelled** — design C3 did not commit a temperature threshold, and
-   the schematic connects it without an ESP32-visible alarm. If a rev B
-   routes Q5's output, the test surface grows.
-7. **The ngspice rewrite's Vds=10 V absolute current is non-physical**
-   (I_d(Vgs=3.0) ≈ 332 A, ~330× a sane plateau): the LEVEL=8 BSIM3v3
-   model, asked outside TI's validated band, extrapolates. The asserted
-   bounds are lenient and the properties they guard (off at Vgs=1.5 V,
-   on at Vgs=3.0 V, monotone between) are the load-bearing ones.
-8. **A jammed POWER button defeats "off"** (P3-8 round-2 watch note):
-   the BQ76922's 280 ms wake re-arms every time the button is held;
-   post-KILL the board would re-wake. Design §7.6/D4 names the escape
-   ("unplug the pack"); a pinned loop-in-test is a round-3 item.
-9. **Vendored .so provenance pin is reviewer-independent only via the
-   published Pop!_OS archive** (P3-7 deferral): the in-repo README names
-   the apt package (`libngspice0`) but doesn't carry the distro
-   archive's published sha256. Round-3 item.
-10. **Schematic-integrity coverage extends ONLY to the named C3
-    components** (P3-2 deferral). Other R/C refs parse but are not
-    asserted; a rev-B tune of an uncovered ref will not trip this suite.
+## Deficiencies
 
-Per the task card: any *suspected schematic/design error* goes here
-with a card comment and is NOT edited unilaterally. None found.
+Resolved:
+
+- **P1-1** mid-STARTING press at 0.295 s; **P1-2** STARTING honours EN and
+  INP; **P1-3** CB/SC/UVLO and the latch releases driven live; **P1-4**
+  RESULTS numbers reproduce (inrush 1.20 A; the 332 A is TI's device).
+- **P2-1** the §5.3 welded-Q3 chain driven from the E-stop press;
+  **P2-2** COV blocks charge only, tested at true zero load; **P2-3**
+  contact B alone; **P2-5** `pbsim`; **P2-6** base branch.
+- **P3-1** model constants derived from the schematic; **P3-2** the
+  pinned set stated above; **P3-3** `pack.py` claims no IR sweep;
+  **P3-4** SDA/SCL by membership; **P3-5** falsy-zero timers in
+  `tps48111.py` and `bq76922.py`; **P3-6** `scenarios.py` (used by the
+  button and rail tests) and `rewrite_ti_model.py` (an audit, asserted
+  by a test); **P3-7** `.so` provenance; **P3-8** jammed POWER pinned.
+
+Open:
+
+1. **P2-4, partly:** the gate runs only where this line's own hook runs
+   (above).
+2. **`upper_branch_getup_peaks_against_5264_contact` passes at zero
+   margin**: J5/J7's 3.0 A get-up peak sits at the 5264 contact's 3.0 A.
+   Harness.md defers this to a bench measurement (§10 V8, lead
+   temperature).
+3. **The OCD delay is 50 ms.** Design §5.5 says "OCD with a delay"
+   without a number; the test asserts the intent (get-up peaks do not
+   trip), not the choice among the legal delays.
+4. **No BQ76922 I²C protocol coverage** (framing, NACK on a stuck bus):
+   driver territory.
+5. **The TS2 thermistor path is not exercised**: TS2 is the wake pin on
+   rev A, the thermistor is on TS1.
+6. **The TPS48111's remote temperature diode (Q5 on Q3) is not
+   modelled**: C3 set no threshold and no ESP32 input sees it.
+7. **Two welded E-stop contacts defeat the stop** and nothing on the
+   board can tell (pinned). A jammed POWER button keeps the board from
+   staying off; the design's answer is unplugging the pack (§7 step 6).
+
+Any suspected schematic or design error goes here, not into the board
+files. None found: every round-3 change is to the models and tests.
 
 ## How to reproduce
 
 ```bash
-# in a clean clone of tomwhipple/biped-robot on sim/power-circuit-tests
+# a clone of tomwhipple/biped-robot on sim/power-circuit-tests
 python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt                # pytest, numpy already here
-python -m pytest pcb/power-board/pbsim/tests/ -q
+pip install -r requirements.txt
+brew install libngspice      # macOS only; Linux x86-64 uses the vendored one
+python -m pytest pcb/power-board/pbsim -q
 ```
 
-Expected: `59 passed in ~2 s`.
-
-The vendored ngspice binary is **linux-x86_64 only**. On any other
-platform the spice smoke test SKIPs with a pointer to `vendor/README.md`.
-The behaviour-level tests are platform-independent.
-
-## venv additions for this task
-
-None final. `PySpice 1.5` was installed into `/home/claw/code/robot/.venv`
-during the PySpice evaluation and then removed when the ctypes path was
-taken. The shared venv's final `pip freeze` shows no new packages beyond
-the repo's `requirements.txt` lockfile.
+Expected: `67 passed`. Without a loadable libngspice the two tests that
+run ngspice skip with the reason.
 
 ## What this does not assert
 
-- Waveform shape agreement with the C4–C6 ngspice runs (that record
-  stands on its own; this suite pins *thresholds and sequences*, not
-  wave-forms).
-- The physical button parts (still "to be chosen" per harness.md; the
-  button's debounce is treated as the 280 ms wake latency only).
-- I²C framing, ALERT masking, coulomb counter integration (all live in
-  the BQ76922's register plane; we model only the protection state
-  machine).
-- Whether the Pi actually halts on `gpio-poweroff` (#87). The POWER-off
-  sequence test asserts KILL; the real Pi-halted path is a separate
-  card's concern.
+- Waveform agreement with the C4–C6 ngspice runs (thresholds and
+  sequences only).
+- The physical button parts (still to be chosen per harness.md); the
+  POWER button's debounce is the 280 ms wake latency.
+- I²C framing, ALERT masking, coulomb counting (the BQ76922's register
+  plane; only its protection state machine is modelled).
+- Whether the Pi halts on `gpio-poweroff` (#87).
