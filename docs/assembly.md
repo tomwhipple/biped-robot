@@ -355,12 +355,12 @@ space the housing occupies. Background:
 
 - **Never heat-set a bearing into PETG.** PETG must reach about 230 °C to flow,
   and a 2RS bearing's seals and grease are good to roughly 100 °C.
-- **The bore, OD and width in the CAD are measured; the ring shoulders are
-  still SKF's** (61810-2RS1: inner ring
-  shoulder d1 ≈ 54.67, outer ring shoulder D2 ≈ 61.8 mm). The housing's
-  shoulder (Ø62.6) bears on the outer ring face, outside D2 and inside SKF's Da
-  max of 63. Measure the bearings you have against those numbers before
-  fitting; a different value goes into `cad/v6/dimensions_v6.py`.
+- **The ring dimensions in the CAD are the bearings' measured ones** (bore
+  49.9, OD 65.0, width 7.0, inner ring shoulder d1 54.6, outer ring shoulder
+  D2 62.0 mm). The housing's shoulder (Ø62.6) bears on the outer ring face,
+  0.3 mm outside the seal's edge (D2) and inside SKF's Da max of 63. A
+  replacement bearing gets measured the same way, and its values go into
+  `cad/v6/dimensions_v6.py`.
 
 ## 8. Legs onto the roll servos
 

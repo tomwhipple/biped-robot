@@ -76,7 +76,7 @@
     <!-- torso origin = hip yaw axis height, on the centreline -->
       <body name="torso" pos="0 0 0.39147">
       <freejoint/>
-        <inertial pos="-0.0126 -0.0000 0.0492" quat="0.5142 0.4856 0.4854 0.5140" mass="0.9534" diaginertia="1.4053e-03 2.4268e-03 2.8134e-03"/>
+        <inertial pos="-0.0127 -0.0000 0.0494" quat="0.5132 0.4867 0.4865 0.5130" mass="0.9504" diaginertia="1.3950e-03 2.4184e-03 2.7981e-03"/>
         <geom name="torso_cad_pelvis_v7" class="cad" mesh="cad_pelvis_v7" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_yaw_bearing_housing" class="cad" mesh="cad_yaw_bearing_housing" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_neck_floor" class="cad" mesh="cad_neck_floor" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
@@ -110,7 +110,7 @@
 
       <body name="L_hip_yaw" pos="0 0.042 0">
         <joint name="L_hip_yaw" axis="0 0 1" range="-45 45"/>
-        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.4786 -0.4786 -0.5205 -0.5205" mass="0.1267" diaginertia="3.9530e-05 5.4727e-05 5.8791e-05"/>
+        <inertial pos="0.0007 -0.0000 -0.0235" quat="0.4789 -0.4789 -0.5203 -0.5203" mass="0.1252" diaginertia="3.8446e-05 5.3580e-05 5.7647e-05"/>
         <geom name="L_hip_yaw_cad_yaw_carrier_v6" class="cad" mesh="cad_yaw_carrier_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_hip_yaw_servo_roll" class="cad" mesh="servo_roll" rgba="0.12 0.12 0.14 1"/>
         <!-- yaw carrier print + the hip ROLL servo riding in it (axis X) -->
@@ -185,7 +185,7 @@
 
       <body name="R_hip_yaw" pos="0 -0.042 0">
         <joint name="R_hip_yaw" axis="0 0 1" range="-45 45"/>
-        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.4786 -0.4786 -0.5205 -0.5205" mass="0.1267" diaginertia="3.9530e-05 5.4727e-05 5.8791e-05"/>
+        <inertial pos="0.0007 -0.0000 -0.0235" quat="0.4789 -0.4789 -0.5203 -0.5203" mass="0.1252" diaginertia="3.8446e-05 5.3580e-05 5.7647e-05"/>
         <geom name="R_hip_yaw_cad_yaw_carrier_v6" class="cad" mesh="cad_yaw_carrier_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_hip_yaw_servo_roll" class="cad" mesh="servo_roll" rgba="0.12 0.12 0.14 1"/>
         <!-- yaw carrier print + the hip ROLL servo riding in it (axis X) -->

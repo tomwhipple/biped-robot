@@ -184,7 +184,7 @@ ARM_TOUCHING = {("arm_upper_{s}", "servo_shoulder_{s}"), ("arm_fore_{s}", "servo
 
 
 # The hip-yaw bearing (assembly_v6.yaw_bearing_pieces), two races split at
-# SKF's ring shoulders: the inner race turns with the carrier (link 1), the
+# the ring shoulders (d1, D2): the inner race turns with the carrier (link 1), the
 # outer race sits in the bearing housing's recess (link 0, the housing is
 # screwed under the pelvis). Through the yaw sweep the turning side must clear
 # the fixed race and the housing -- this keeps the housing's shoulder off the
@@ -193,7 +193,7 @@ ARM_TOUCHING = {("arm_upper_{s}", "servo_shoulder_{s}"), ("arm_fore_{s}", "servo
 BEARING_PAIRS = [
     ("hip_yaw", "yaw_carrier_{s}", "bearing_outer_{s}", "turning carrier vs the fixed outer race through +-45"),
     ("hip_yaw", "servo_hip_roll_{s}", "bearing_outer_{s}", "roll servo (inside the hub) vs the fixed outer race"),
-    ("hip_yaw", "bearing_inner_{s}", "yaw_bearing_housing", "turning inner race vs the housing's shoulder (SKF d1)"),
+    ("hip_yaw", "bearing_inner_{s}", "yaw_bearing_housing", "turning inner race vs the housing's shoulder (d1)"),
     ("hip_yaw", "bearing_inner_{s}", "pelvis_v7", "turning inner race vs the cell block's rim"),
     ("hip_yaw", "yaw_carrier_{s}", "yaw_bearing_housing", "turning carrier vs the housing through +-45"),
     ("hip_yaw", "servo_hip_roll_{s}", "yaw_bearing_housing", "roll servo vs the housing through +-45"),

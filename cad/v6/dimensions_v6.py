@@ -389,22 +389,21 @@ DECK_TOP_Z = DECK_BOT_Z + DECK_T
 # 6711/6811) whose hub leaves a 1.5 mm wall around that interior's corners:
 YAW_BAY_VOID_CORNER_R = math.hypot(D.SV_TOPFACE, D.SV_WID / 2 + D.BAY_CHEEK_GAP)   # 21.48
 # The bearings in hand (generic 6810-2RS, USA Bearings & Belts), caliper
-# measurements on arrival 2026-10-13 (Tom); nominal 50 / 65 / 7:
+# measurements on arrival 2026-10-13/14 (Tom); nominal 50 / 65 / 7:
 YAW_BRG_ID = 49.9             # bore
 YAW_BRG_OD = 65.0             # OD (6710-2RS is 62 mm, but its C0 varies
                               # 2.6-3.1 kN across sources; either is overkill here)
 YAW_BRG_W = 7.0               # width, along the axis
-# Not measured yet -- SKF 61810-2RS1 product data (SKF-generated sheet,
-# https://docs.rs-online.com/f06f/A700000007138802.pdf): the ring shoulder
-# diameters on the seal side, d1 (inner ring) and D2 (outer ring), the
-# abutment limits da/Da, r1,2 min.
-YAW_BRG_D1 = 54.67            # inner ring shoulder (approx.)
-YAW_BRG_D2 = 61.8             # outer ring shoulder (approx.)
+YAW_BRG_D1 = 54.6             # inner ring's OD at the seal, its shoulder (SKF: 54.67)
+YAW_BRG_D2 = 62.0             # outer ring's ID at the seal, its shoulder (SKF: 61.8)
+YAW_BRG_MASS_G = 50.0         # weighed (SKF: 53)
+# Not measured -- SKF 61810-2RS1 product data (SKF-generated sheet,
+# https://docs.rs-online.com/f06f/A700000007138802.pdf): the abutment limit
+# Da max, r1,2 min and the ratings.
 YAW_BRG_DA_MAX = 63.0         # largest abutment diameter on the outer ring face
 YAW_BRG_R_MIN = 0.3           # ring chamfer
 YAW_BRG_C_KN = 6.76
 YAW_BRG_C0_KN = 6.8
-YAW_BRG_MASS_G = 53.0
 YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.08           # 49.98, +0.08 interference on the inner race
 YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2          # 24.99
 YAW_BRG_BOSS_H = YAW_BRG_W                    # 7.0, full bore engagement: the band IS carrier z [-7, 0]
@@ -419,10 +418,10 @@ YAW_BRG_RECESS_R = YAW_BRG_RECESS_ID / 2      # 32.48
 # the outer race (fixed) in from D2/2. The housing shoulder must bear on the
 # outer ring face only -- outside D2 (the seal), inside Da max -- and keep off
 # the inner race; the carrier must keep off the outer race.
-YAW_BRG_INNER_RING_R = YAW_BRG_D1 / 2         # 27.335
-YAW_BRG_OUTER_RING_R = YAW_BRG_D2 / 2         # 30.9
+YAW_BRG_INNER_RING_R = YAW_BRG_D1 / 2         # 27.3
+YAW_BRG_OUTER_RING_R = YAW_BRG_D2 / 2         # 31.0
 YAW_BRG_SHOULDER_LAND = 1.2                   # the ledge that stops the outer race's top face
-YAW_BRG_SHOULDER_ID = YAW_BRG_OD - 2 * YAW_BRG_SHOULDER_LAND   # 62.6 (r 31.3)
+YAW_BRG_SHOULDER_ID = YAW_BRG_OD - 2 * YAW_BRG_SHOULDER_LAND   # 62.6 (r 31.3): 0.3 outside the seal edge
 assert YAW_BRG_D2 < YAW_BRG_SHOULDER_ID <= YAW_BRG_DA_MAX, \
     "the housing shoulder must bear on the outer ring face: outside D2 (the seal), inside Da max"
 YAW_BRG_SKIRT_OD = YAW_BRG_OD + 6.0           # 71.0, ~3 mm wall around the recess (yaw_bearing_housing.py)

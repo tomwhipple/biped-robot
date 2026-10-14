@@ -20,5 +20,5 @@ arm_fore_v6_L          1    41.5  182.0x  43.9x  27.2  BED-OK  elbow fork -> han
 arm_fore_v6_R          1    41.5  182.0x  43.9x  27.2  BED-OK  mirror of _L
 head                   0    34.7   62.0x  60.0x  53.0  reference, not printed  head_shell + head_face fused (mass, assembly, plant)
 
-printed total 857 g; servos 974 g (15 x STS3215, 2 x STS3250); hip-yaw bearings 106 g (2 x 6810-2RS); pack + boards + wiring 350 g; robot ~2287 g
+printed total 857 g; servos 974 g (15 x STS3215, 2 x STS3250); hip-yaw bearings 100 g (2 x 6810-2RS); pack + boards + wiring 350 g; robot ~2281 g
 masses: build123d volume x PETG 1.27 g/cm3 x 0.90 print factor (silicone soles: 1.21 g/cm3, solid), before supports and brims; bought parts at catalogue mass

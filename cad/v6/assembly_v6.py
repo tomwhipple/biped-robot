@@ -319,7 +319,7 @@ def hip_yoke_pieces(side, at):
 
 def yaw_bearing_pieces(side, y):
     """The hip-yaw bearing (6810-2RS, bought), drawn as its two races split at
-    SKF's ring shoulders (V.YAW_BRG_INNER_RING_R / _OUTER_RING_R): the inner
+    the ring shoulders (V.YAW_BRG_INNER_RING_R / _OUTER_RING_R): the inner
     race on the carrier's hub turns with the leg (link 1), the outer race in
     the bearing housing's recess stays put (link 0)."""
     z0, z1 = V.HIP_YAW_Z + V.YAW_BRG_BAND_Z[0], V.HIP_YAW_Z + V.YAW_BRG_BAND_Z[1]
