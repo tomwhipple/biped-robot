@@ -1,8 +1,9 @@
 """Rebuild the training-log report page (sim/runs/night_summary.html).
 
 Run:  .venv/bin/python sim/build_report.py
-Needs: gifs under sim/runs/<run>/ and cad/renders/ (regenerate the CAD images
-with cad/render_assembly.py and cad/animate_assembly.py).
+Needs: gifs under sim/runs/<run>/, and the prototype's CAD images in
+build/v5/renders/ and build/v5/movies/ (cad/render_assembly.py and
+cad/animate_assembly.py; the page builds without them).
 Images are inlined (base64); the referee REELS are not -- a 70 MB .mov does
 not belong in a data: URI, so build_report cuts small web-playable .mp4 clips
 into runs/_clips/ and the page points at them with relative paths. Keep the
@@ -10,7 +11,7 @@ page and that folder together (both live under sim/runs/, which is how Tom
 opens it over the SMB mount).
 """
 import json
-import os, base64, io, subprocess, tempfile
+import os, sys, base64, io, subprocess, tempfile
 import numpy as np
 import imageio.v2 as imageio
 
@@ -20,7 +21,10 @@ FFMPEG_TIMEOUT = 600
 GIT_TIMEOUT = 60
 
 os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__))))
-CAD_RENDERS = os.path.join(os.path.dirname(os.getcwd()), 'cad', 'renders')
+sys.path.insert(0, os.path.dirname(os.getcwd()))
+import paths
+CAD_STILLS = os.path.join(paths.BUILD, 'v5', 'renders')
+CAD_MOVIES = os.path.join(paths.BUILD, 'v5', 'movies')
 
 def strip_from_gif(path, n=8, factor=4):
     # legacy-era gifs (dash_*, terrain_v4, ...) live only on machines that
@@ -296,7 +300,7 @@ stride  = to_data_uri(strip_from_gif('runs/terrain_v4/walk.gif'))
 shuffle = to_data_uri(strip_from_gif('runs/shaped_v6/walk.gif', n=6, factor=6))
 lunge   = to_data_uri(strip_from_gif('runs/ppo_baseline/walk.gif', n=6, factor=6))
 flyin   = to_data_uri(strip_from_gif(
-    os.path.join(CAD_RENDERS, 'assembly_flyin.gif'), n=7, factor=3))
+    os.path.join(CAD_MOVIES, 'assembly_flyin.gif'), n=7, factor=3))
 # CPU-referee takes of the MJX-trained policy (mp4; mimread handles them)
 mjxwalk  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_walk.mp4', factor=5))
 mjxturn  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_turn.mp4', factor=5))
@@ -305,8 +309,18 @@ mjxpivot = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_pivot_l.mp4', factor=
 getup    = to_data_uri(strip_from_gif('runs/mjx_getup_v1/ref_getup.mp4', n=6, factor=6))
 getup2   = to_data_uri(strip_from_gif('runs/mjx_getup_v2/ref_getup.mp4', n=6, factor=6))
 
-cad = imageio.imread(os.path.join(CAD_RENDERS, 'assembly_mujoco.png'))[..., :3]
-cad_uri = to_data_uri(cad[30:680, 230:670])       # tight crop around the robot
+cad_png = os.path.join(CAD_STILLS, 'assembly_mujoco.png')
+if os.path.exists(cad_png):
+    cad = imageio.imread(cad_png)[..., :3]
+    cad_uri = to_data_uri(cad[30:680, 230:670])   # tight crop around the robot
+    cad_img = (f'<img src="{cad_uri}" alt="CAD assembly render with the GoPro '
+               f'MAX mounted on top of the torso">')
+else:
+    print(f"build_report: missing {cad_png} (cad/render_assembly.py makes it), "
+          f"the CAD render is left out")
+    cad_uri = ''
+    cad_img = ('<p class="muted">CAD render not built on this machine '
+               '(cad/render_assembly.py).</p>')
 
 # marathon-era reels (v5body plant, pelvis v6). The reel is scenario takes in
 # scorecard order; the early minute is the walking block (line/backward/
@@ -2572,7 +2586,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <h2><span class="n">05</span> The camera rides on top</h2>
   <div class="card">
     <div class="cadgrid">
-      <img src="{cad_uri}" alt="CAD assembly render with the GoPro MAX mounted on top of the torso">
+      {cad_img}
       <div>
         <p style="margin-bottom:10px">A GoPro MAX (154 g) now mounts on a printable
         three-prong base atop the tower — a bolt-on <b>crash fuse</b> that shears
@@ -2587,7 +2601,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     </div>
     <figure style="margin-top:18px">
       <img class="film" src="{flyin}" alt="Frames from the fly-in assembly animation">
-      <figcaption>assembly fly-in — every part approaches along its real insertion path (full animation: cad/renders/assembly_flyin.mov)</figcaption>
+      <figcaption>assembly fly-in — every part approaches along its real insertion path (full animation: build/v5/movies/assembly_flyin.mov)</figcaption>
     </figure>
   </div>
 

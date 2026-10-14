@@ -10,7 +10,7 @@ side is named. Success = standing with the torso up-vector z > 0.9 and the
 pelvis at >= 80 % of the standing height at the end.
 
     .venv/bin/python sim/getup_v6.py --list
-    .venv/bin/python sim/getup_v6.py --seq supine_situp --render sim/renders/v6_getup_supine.mp4
+    .venv/bin/python sim/getup_v6.py --seq supine_situp --render build/v6/movies/v6_getup_supine.mp4
     .venv/bin/python sim/getup_v6.py --seq prone_roll --play 3
 """
 from __future__ import annotations
