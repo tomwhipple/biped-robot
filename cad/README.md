@@ -249,6 +249,6 @@ report (`sim/build_report.py`, `make report`) reads
 
 | script | output |
 |---|---|
-| `render_part.py <name or path.stl>` | one STL as a strip of views: `build/v5/renders/<name>.png`. It takes any STL path, so it works on `cad/v6/stl` parts too |
+| `render_part.py <name or path.stl>` | one STL as a strip of views: `build/v5/renders/<name>.png`, or `build/v6/renders/<name>.png` for a part in `cad/v6/stl` |
 | `render_assembly.py` | `build/v5/renders/assembly_mujoco.png` |
 | `animate_assembly.py` | `build/v5/movies/assembly_flyin.gif` and `.mov` |
