@@ -4,22 +4,23 @@ How the robot goes together, written from the CAD in `cad/v6/`. **Nothing has
 been built yet**: the first build (#79) will correct this guide.
 
 **The figures** in each section are rendered from the CAD
-(`cad/v6/render_steps_v6.py`, into `docs/assembly/v6_*.png`): installed parts
-in their own colours, the part going in orange, backed off along its insertion
-path, with a ghost at its seat. They show the left leg and arm; the right side
-is built the same way.
+(`cad/v6/render_steps_v6.py`; `make figures` renders them and copies them into
+`docs/assembly/v6_*.png`): installed parts in their own colours, the part
+going in orange, backed off along its insertion path, with a ghost at its
+seat. They show the left leg and arm; the right side is built the same way.
 
 **Other visual references:**
 
 - **Fly-in filmstrips.** Every part flies in along its insertion path in
   `cad/v6/animate_v6.py`; the second row of each strip closes in on the parts
   that build is about:
-  - [the robot](../cad/v6/renders/assembly_v6_flyin_arms_strip.png)
-    (and the armless variant's [strip](../cad/v6/renders/assembly_v6_flyin_strip.png))
+  - [the robot](assembly/assembly_v6_flyin_arms_strip.png)
+    (and the armless variant's [strip](assembly/assembly_v6_flyin_strip.png))
 
-  The `.mp4`s are gitignored; regenerate them with the script.
-- **STEP models to open in FreeCAD:** `cad/v6/step/assembly_v6_arms.step` (the
-  robot) and the per-part STEPs ([cad/README.md](../cad/README.md)).
+  `make movies` writes the movies, with their strips, to `build/v6/movies/`.
+- **STEP models to open in FreeCAD:** `build/v6/step/assembly_v6_arms.step`
+  (the robot, from `make assembly`) and the per-part STEPs beside it (from
+  `make cad`; [cad/README.md](../cad/README.md)).
 
 The fly-in is a feasibility check that builds the robot in place, bottom-up.
 It is not the bench order; the figures and this text are. The differences:

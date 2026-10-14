@@ -8,10 +8,9 @@ experiment is in this folder.
 | file | what it is |
 |---|---|
 | `gain_bench.py` | the bench tool: `scan`, `read`, `park`, `stiffness`, `hold`, `stance`, `report`, and `--rehearse` against a simulated servo. It drives the firmware's bench CLI over the tether. The procedure is in [docs/servo-map.md](../../docs/servo-map.md) §4 |
-| `plan_b_rig.py` | the rig's CAD: bracket, stiffness lever, hold lever with its lid, and stop pin. Running it writes `stl/`, redraws `figs/` and runs the fit checks |
-| `plan_b_rig_v3.py` | rig v3, held on both faces: a bracket that is leg_link's two-face case grip in a closed box, and a fork lever on the horn and the idler disc. M10 bolt weights go through the fork's floor at r 40 / 70 / 100, head under the floor. Running it writes `stl/plan_b_v3_*.stl` and runs the fit checks, including the fork and weights swept from level to hanging |
-| `stl/` | the rig's printable parts, written by `plan_b_rig.py` and `plan_b_rig_v3.py`; don't edit them by hand |
-| `figs/` | the rig's side view and render, drawn by `plan_b_rig.py` |
+| `plan_b_rig.py` | the rig's CAD: bracket, stiffness lever, hold lever with its lid, and stop pin. Running it (`make cad V=bench-v2`) writes the STLs to `build/bench-v2/stl/` and the side view and render to `build/bench-v2/renders/`, and runs the fit checks |
+| `plan_b_rig_v3.py` | rig v3, held on both faces: a bracket that is leg_link's two-face case grip in a closed box, and a fork lever on the horn and the idler disc. M10 bolt weights go through the fork's floor at r 40 / 70 / 100, head under the floor. Running it (`make cad V=bench-v3`) writes `build/bench-v3/stl/plan_b_v3_*.stl` and STEPs for FreeCAD in `build/bench-v3/step/`, and runs the fit checks, including the fork and weights swept from level to hanging |
+| `figs/` | the rig's side view and render as the rig record shows them (`plan_b_rig.py` draws them), and the accelerometer's wiring diagram |
 | [2026-09-30-plan-b-rig.md](2026-09-30-plan-b-rig.md) | the rig: loads, parts, seating, fit checks, procedure |
 | [2026-09-30-plan-b-bench.md](2026-09-30-plan-b-bench.md) | session 1: the bench servo's registers and the unloaded P ladder |
 | [2026-10-01-plan-b-bench.md](2026-10-01-plan-b-bench.md) | session 2: loaded stiffness (bottles) and hold with a rigid inertia (C-clamp); friction-free k ×3.5 at P 128, ×4.8 at P 160, but P 160 limit-cycles with the clamp; P ≤ 128 / D 32 quiet at hold, sweeps shake from P 96 up; incidents |

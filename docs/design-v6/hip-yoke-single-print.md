@@ -128,9 +128,9 @@ accounted for to the mm³ in §7.4.
 
 ## 5. Exports and figures
 
-- `cad/v6/stl/hip_yoke_v6.stl`, `cad/v6/step/hip_yoke_v6.step` (from the
+- `cad/v6/stl/hip_yoke_v6.stl`, `build/v6/step/hip_yoke_v6.step` (from the
   module's `__main__`, which also runs the audit and the mass comparison)
-- `cad/v6/renders/hip_yoke_v6.png` — iso / bottom / back; the bottom view
+- [`docs/design-v6/figs/hip_yoke_v6.png`](figs/hip_yoke_v6.png) — iso / bottom / back; the bottom view
   shows the solid cross where the bolt land was
 - `cad/v6/renders/assembly_v6_flyin_hipyoke_strip.png` — fly-in with the
   switch on (`HIP_YOKE_VARIANT=single MUJOCO_GL=cgl cad/v6/animate_v6.py`;

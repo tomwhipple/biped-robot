@@ -189,13 +189,13 @@ C's does -- no pelvis growth either.
   the kinematics gate is untouched by this option (unlike round 1's
   rejected axial-growth version, which would have needed one).
 
-**Renders:** `cad/v6/renders/yaw_bearing_optA_after.png` (before is the SAME
-pre-study state as option C's -- `yaw_bearing_before.png`, not
-re-rendered), `cad/v6/renders/yaw_bearing_optA_section.png` (axis section,
+**Renders:** [`figs/yaw_bearing_optA_after.png`](figs/yaw_bearing_optA_after.png) (before is the SAME
+pre-study state as option C's -- [`figs/yaw_bearing_before.png`](figs/yaw_bearing_before.png), not
+re-rendered), [`figs/yaw_bearing_optA_section.png`](figs/yaw_bearing_optA_section.png) (axis section,
 same cut convention as option C's -- the round shoulder/collar is visible
 sitting on the carrier's hub). Fly-in filmstrip for the whole robot with
 this option: `cad/v6/renders/assembly_v6_flyin_optA_strip.png` (the
-committed baseline strip, `assembly_v6_flyin_strip.png`, is unchanged --
+committed baseline strip, [`assembly_v6_flyin_strip.png`](../assembly/assembly_v6_flyin_strip.png), is unchanged --
 option A does not change anything else in the body, and the difference at
 whole-robot scale is subtle since the OD only shrinks ~10%; the section
 render is the one that actually shows it).

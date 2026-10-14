@@ -31,8 +31,8 @@ lead slot, and there is no deck under the rest of the flange).
 **How the masses are computed:** build123d volume × PETG 1.27 g/cm³ × 0.90
 print factor (`parts_v6.mass_g`); the cut silicone soles are solid sheet,
 estimated at 1.21 g/cm³ (no print factor) until weighed. They
-are the rollup's, `docs/design-v6/parts_v6_rollup.txt`
-(`cad/v6/parts_v6.py --no-export`).
+are the rollup's, `build/v6/reports/parts_v6_rollup.txt`
+(`make cad`, or `cad/v6/parts_v6.py --no-export`).
 
 **Bounding boxes** are in the model frame (mm). **Supports** are what to tell
 the slicer; see [Supports](#supports-are-the-slicers-job).
@@ -129,7 +129,8 @@ before it is used on other parts. It is not in the default build yet, so
 ## Regenerating
 
 ```bash
-.venv/bin/python cad/v6/parts_v6.py                    # every part -> cad/v6/stl + cad/v6/step, bed check, mass rollup
+make cad                                               # every part whose source changed, and the mass rollup
+.venv/bin/python cad/v6/parts_v6.py                    # every part -> cad/v6/stl + build/v6/step, bed check, mass rollup
 .venv/bin/python cad/v6/parts_v6.py --only foot_L foot_R
 .venv/bin/python cad/v6/parts_v6.py --no-export        # the rollup alone
 .venv/bin/python cad/v6/head.py                        # head_shell + head_face (+ the fused head), audits
@@ -138,8 +139,8 @@ before it is used on other parts. It is not in the default build yet, so
 - Each part module's `__main__` exports that part and runs its own audits.
   `leg_link_v6`, `hip_yoke_v6`, `shoulder_girdle_v6`, `neck_floor` and `arm_v6`
   rewrite their STL as they go.
-- Run `sh cad/run_checks.sh` after any CAD change and before printing (see
-  [README.md](README.md#the-gate)).
+- Run `make check-cad` (`sh cad/run_checks.sh`) after any CAD change and
+  before printing (see [README.md](README.md#the-gate)).
 
 ## Global print settings
 

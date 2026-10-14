@@ -44,13 +44,13 @@ Artifacts, all local:
 
 | what | where |
 |---|---|
-| whole robot with arms, STEP for FreeCAD | `cad/v6/step/assembly_v6_arms.step` |
-| whole robot, three views | `cad/v6/renders/assembly_v6_arms.png` |
-| the seat-push pose (shoulder 90, elbow −90) | `cad/v6/renders/assembly_v6_arms_seatpush.png` |
-| the fold-up pose (shoulder 180, elbow −90) | `cad/v6/renders/assembly_v6_arms_foldup.png` |
-| fly-in filmstrip (bottom row = the arms) | `cad/v6/renders/assembly_v6_flyin_arms_strip.png` |
-| per-part renders | `cad/v6/renders/{shoulder_mount_v6_L,arm_upper_v6_L,arm_fore_v6_L}.png` |
-| STL + STEP per part | `cad/v6/stl/`, `cad/v6/step/` |
+| whole robot with arms, STEP for FreeCAD | `build/v6/step/assembly_v6_arms.step` (`make assembly`) |
+| whole robot, three views | [`docs/img/assembly_v6_arms.png`](../img/assembly_v6_arms.png) |
+| the seat-push pose (shoulder 90, elbow −90) | [`docs/design-v6/figs/assembly_v6_arms_seatpush.png`](figs/assembly_v6_arms_seatpush.png) |
+| the fold-up pose (shoulder 180, elbow −90) | [`docs/design-v6/figs/assembly_v6_arms_foldup.png`](figs/assembly_v6_arms_foldup.png) |
+| fly-in filmstrip (bottom row = the arms) | [`docs/assembly/assembly_v6_flyin_arms_strip.png`](../assembly/assembly_v6_flyin_arms_strip.png) |
+| per-part renders | `cad/v6/renders/shoulder_mount_v6_L.png`, [`docs/design-v6/figs/arm_upper_v6_L.png`](figs/arm_upper_v6_L.png), [`docs/design-v6/figs/arm_fore_v6_L.png`](figs/arm_fore_v6_L.png) |
+| STL + STEP per part | `cad/v6/stl/`, `build/v6/step/` |
 | full ROM sweep log | `docs/design-v6/arm_check_assembly.txt` |
 
 Everything is behind `ARMS=1`. The default build of `assembly_v6.py`,
@@ -299,7 +299,7 @@ The rows that matter, min distance over the sweep (buffer is
 The two `head` rows close **the study's own open item 1** (*"fold-up swept
 volume: the arm folds UP along the torso during the sit-up; only end poses
 were checked"*). Swept, not spot-checked, and not close: 53.5 mm clear at the
-worst point. `assembly_v6_arms_foldup.png` shows the pose.
+worst point. [`assembly_v6_arms_foldup.png`](figs/assembly_v6_arms_foldup.png) shows the pose.
 
 **The sweep caught a real interference.** The first cut ran the fork's web
 down to 2 mm above the elbow axis, and `servo_elbow vs arm_upper` reported
@@ -321,8 +321,8 @@ does not exist in this geometry.
 ## 6. Fly-in
 
 `ARMS=1 .venv/bin/python cad/v6/animate_v6.py` →
-`renders/assembly_v6_flyin_arms.mp4` (gitignored) and
-`renders/assembly_v6_flyin_arms_strip.png` (committed). 400 frames, 43 pieces,
+`build/v6/movies/assembly_v6_flyin_arms.mp4` and its strip, committed as
+[`docs/assembly/assembly_v6_flyin_arms_strip.png`](../assembly/assembly_v6_flyin_arms_strip.png). 400 frames, 43 pieces,
 19 groups. The strip's **bottom row samples only the arm groups** — with 19
 groups, 8 uniform samples put 5 frames before anything above the knee exists
 and exactly one inside the arms, which is a filmstrip that does not show the
