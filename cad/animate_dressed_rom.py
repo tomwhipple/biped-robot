@@ -4,10 +4,10 @@ segments are RE-SWEPT each frame from the posed attachment points, so the
 wiring visibly follows the legs instead of tearing off.
 
 Run:  .venv/bin/python cad/animate_dressed_rom.py
-      -> cad/renders/dressed_rom.mov        (orbiting 3/4 view, h264, no gif)
+      -> build/v5/movies/dressed_rom.mov        (orbiting 3/4 view, h264, no gif)
 
       .venv/bin/python cad/animate_dressed_rom.py --back
-      -> cad/renders/dressed_rom_back.mov   (camera locked on the rear the
+      -> build/v5/movies/dressed_rom_back.mov   (camera locked on the rear the
          whole time so the cable raceways stay in frame -- you watch exactly
          where each red servo lead moves as the joints sweep)
 
@@ -33,9 +33,11 @@ import dimensions as D
 import dress
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "renders")
-TMP = os.path.join(OUT, "_dressed")
-os.makedirs(TMP, exist_ok=True)
+sys.path.insert(0, os.path.dirname(HERE))
+import paths  # noqa: E402
+
+OUT = os.path.join(paths.BUILD, "v5", "movies")
+TMP = os.path.join(paths.BUILD, "v5", "tmp", "dressed")
 
 FPS, W, H = 14, 640, 520
 
@@ -265,6 +267,8 @@ def _render_frame(job):
 def main(back_view=False, jobs=None):
     if jobs is None:
         jobs = max(1, (os.cpu_count() or 4) - 2)
+    os.makedirs(TMP, exist_ok=True)
+    os.makedirs(OUT, exist_ok=True)
     leaves = collect_leaves()
     frames_spec = timeline()
     total = len(frames_spec)

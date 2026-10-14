@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Pose the articulated biped in FreeCAD -- sliders + collision highlight.
 
-Open `cad/step/bimo_v3yaw_articulated.FCStd` (built by freecad_articulate.py),
+Open `build/v5/step/bimo_v3yaw_articulated.FCStd` (built by freecad_articulate.py),
 then run this from Macro -> Macros... -> Execute. A small panel appears:
 
     hip yaw   -45 ....|.... +45          [ Check collisions ]
@@ -45,10 +45,15 @@ try:
     HERE = os.path.dirname(os.path.abspath(__file__))
 except NameError:                       # exec'd from the console
     HERE = os.path.abspath(".")
-    if not os.path.isdir(os.path.join(HERE, "step")):
+    if not os.path.isfile(os.path.join(HERE, "dimensions.py")):
         HERE = os.path.join(HERE, "cad")
+sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 import dimensions as D
+import paths
+
+# the articulated document freecad_articulate.py builds
+FCSTD = os.path.join(paths.BUILD, "v5", "step", "bimo_v3yaw_articulated.FCStd")
 
 JOINTS = [                              # (key, label, ROM lo, ROM hi)
     ("yaw",   "hip yaw",   D.ROM["hip_yaw"]),
@@ -319,16 +324,14 @@ def _gui_up():
 
 
 def _doc():
-    """The articulated document: the open one, else open it from step/."""
+    """The articulated document: the open one, else open it from FCSTD."""
     for d in App.listDocuments().values():
         if d.getObject("Assembly") is not None and d.getObject("thigh_L"):
             return d
-    name = "bimo_v3yaw_articulated"
-    path = os.path.join(HERE, "step", name + ".FCStd")
-    if not os.path.isfile(path):
+    if not os.path.isfile(FCSTD):
         raise RuntimeError("%s not found -- run freecad_articulate.py first"
-                           % path)
-    return App.openDocument(path)
+                           % FCSTD)
+    return App.openDocument(FCSTD)
 
 
 def main():

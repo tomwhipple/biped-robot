@@ -5,7 +5,7 @@ beside every STL, from the same solid in the same run. Keeping a second export
 path is exactly how the STEPs went three days stale while the STLs were current
 -- so this script just delegates rather than re-implementing the loop.
 
-Run:  .venv/bin/python cad/parts.py     (exports cad/stl/*.stl AND cad/step/*.step)
+Run:  .venv/bin/python cad/parts.py     (exports cad/stl/*.stl AND build/v5/step/*.step)
 """
 import parts
 

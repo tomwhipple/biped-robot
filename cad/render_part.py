@@ -1,18 +1,23 @@
 """Render one part STL to a PNG strip of named views (MuJoCo offscreen).
 
-Run:  .venv/bin/python cad/render_part.py foot            # -> renders/foot.png
+Run:  .venv/bin/python cad/render_part.py foot   # -> build/v5/renders/foot.png
       .venv/bin/python cad/render_part.py leg_link_print --out leg_link_fins
+      .venv/bin/python cad/render_part.py cad/v6/stl/leg_link_v6.stl
+                                                 # -> build/v6/renders/leg_link_v6.png
 Views: iso / bottom / back by default (bottom shows sole-side sag fixes,
 back shows heel/tab details); pick others with --views.
 """
 import argparse
 import os
+import sys
 
 import imageio.v2 as imageio
 import mujoco
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+import paths  # noqa: E402
 
 VIEWS = {                # azimuth, elevation
     "iso": (135, -30),
@@ -28,7 +33,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("stl", help="name under cad/stl/ (without .stl) or a path")
     ap.add_argument("--views", default="iso,bottom,back")
-    ap.add_argument("--out", default=None)
+    ap.add_argument("--out", default=None,
+                    help="PNG name (without .png); the folder is build/v6/renders "
+                         "for an STL under cad/v6/stl, else build/v5/renders")
     ap.add_argument("--px", type=int, default=640)
     ap.add_argument("--zoom", type=float, default=2.6,
                     help="camera distance in bounding-sphere radii; drop it "
@@ -43,7 +50,7 @@ def main():
     args = ap.parse_args()
 
     path = args.stl if args.stl.endswith(".stl") else \
-        os.path.join(HERE, "stl", args.stl + ".stl")
+        os.path.join(paths.V5_STL, args.stl + ".stl")
     name = args.out or os.path.splitext(os.path.basename(path))[0]
 
     xml = f"""
@@ -96,7 +103,8 @@ def main():
         cam.azimuth, cam.elevation = az, el
         ren.update_scene(data, cam)
         frames.append(ren.render())
-    out = os.path.join(HERE, "renders", name + ".png")
+    v6 = os.path.abspath(path).startswith(paths.V6_STL + os.sep)
+    out = os.path.join(paths.build_dir("v6" if v6 else "v5", "renders"), name + ".png")
     imageio.imwrite(out, np.concatenate(frames, axis=1))
     print(f"saved -> {out}  ({args.views})")
 
