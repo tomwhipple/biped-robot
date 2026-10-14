@@ -23,7 +23,11 @@ human flexion (axis 0 -1 0), 8 pad spheres per sole as the only ground
 contact, non-colliding L_sole/R_sole reference boxes, enumerated inter-leg
 contact pairs, IMU site + torso_up/torso_pos sensors.
 
-    .venv/bin/python sim/gen_plant_v6.py                 # -> sim/bimo_biped_v6ar.xml
+The output is this lumped-mass plant, never the committed
+sim/bimo_biped_v6ar.xml unless -o names it: that one is the dressed plant
+sim/build_v6_inertia.py --write generates, and a test compares it byte for byte.
+
+    .venv/bin/python sim/gen_plant_v6.py                 # -> build/v6/sim/bimo_biped_v6ar.xml
     .venv/bin/python sim/gen_plant_v6.py --knee bwd -o /tmp/bwd.xml
     .venv/bin/python sim/gen_plant_v6.py --set hip_sep=0.070 thigh=0.11 -o /tmp/x.xml
 """
@@ -36,7 +40,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_OUT = os.path.join(HERE, "bimo_biped_v6ar.xml")
+OUT_NAME = "bimo_biped_v6ar.xml"
 
 # STS3215 / STS3250 case (cad/dimensions.py, STEP-measured): 45.22 long x
 # 24.72 wide x 34.70 across the output axis; output axis 10.11 from the
@@ -875,7 +879,8 @@ def build_xml(p: DesignParams) -> str:
 
 def params_from_args(argv=None) -> tuple[DesignParams, argparse.Namespace]:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("-o", "--out", default=DEFAULT_OUT)
+    ap.add_argument("-o", "--out", default=None,
+                    help=f"default: build/v6/sim/{OUT_NAME}")
     ap.add_argument("--knee", choices=("fwd", "bwd"), default=None)
     ap.add_argument("--torso-v7", action="store_true", help="Pi 4B torso + neck servo + head")
     ap.add_argument("--servo", choices=("sts3215", "sts3250"), default=None,
@@ -906,6 +911,11 @@ def params_from_args(argv=None) -> tuple[DesignParams, argparse.Namespace]:
 
 def main(argv=None):
     p, a = params_from_args(argv)
+    if a.out is None:
+        # imported here, not at the top: dozens of sim scripts import this module
+        sys.path.insert(0, os.path.dirname(HERE))
+        from paths import build_dir
+        a.out = os.path.join(build_dir("v6", "sim"), OUT_NAME)
     xml = build_xml(p)
     with open(a.out, "w") as f:
         f.write(xml)
