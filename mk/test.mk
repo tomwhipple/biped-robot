@@ -14,7 +14,7 @@ test-py: ## the Python suites, with the SIL library they load
 sil-lib: ## firmware/host's libctrl_sil, which the SIL suite loads
 	$(MAKE) -C firmware/host -j1 sil
 
-pytest: ## tests/: sim physics parity, the link protocol, ROM, the referee, the design gates
+pytest: $(V6_ROLLUP) ## tests/: sim physics parity, the link protocol, ROM, the referee, the design gates
 	$(PY) -m pytest tests/ -q
 
 sil-suite: ## sim/sil: the firmware's control code against the CPU plant (after sil-lib)

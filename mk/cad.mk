@@ -1,57 +1,72 @@
 ##@ CAD: the printed parts (V=v6 | v5 | bench-v2 | bench-v3)
-.PHONY: cad cad-v6 cad-v5 cad-bench-v2 cad-bench-v3 slice assembly figures movies check-cad
+.PHONY: cad cad-v6 cad-v5 cad-bench-v2 cad-bench-v3 freecad slice check-cad
 
 # The robot to print; a variant's own parts are built with the variant's setting.
 V6_ENV := ARMS=1 HIP_YOKE_VARIANT=single SERVO_PLAN=hips
 V6_ALL_PARTS := $(V6_PARTS) $(V6_VARIANT_PARTS)
+V6_ROLLUP := build/v6/reports/parts_v6_rollup.txt
 
 # tools/mkdeps.py could not list the v6 parts (no build123d here?)
 v6_parts_listed = $(if $(V6_DEPS_ERROR),$(error $(V6_DEPS_ERROR)))
 
-cad: cad-$(V) ## export the parts, STL + STEP (PART= for one v6 part)
+cad: cad-$(V) ## export the parts: STLs (committed for now) and STEPs in build/<V>/step (PART= for one v6 part)
 
-cad-v6: $(if $(PART),cad/v6/stl/$(PART).stl,$(V6_ALL_PARTS:%=cad/v6/stl/%.stl) docs/design-v6/parts_v6_rollup.txt)
+cad-v6: $(if $(PART),cad/v6/stl/$(PART).stl build/v6/step/$(PART).step,\
+	$(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(V6_ALL_PARTS:%=build/v6/step/%.step) $(V6_ROLLUP))
 	$(v6_parts_listed)
 
 # parts_v6 prints a table row per part and still exits 0 for a part it could
 # not build: pass this part's row through, and fail when it is missing or NOT BUILT.
 part_row = awk -v p=$(1) '$$1 == p {found = 1; if (/NOT BUILT/) bad = 1; print} END {exit !(found && !bad)}'
+build_part = set -o pipefail; $(V6_ENV) $(PART_ENV_$(1)) $(PY) cad/v6/parts_v6.py --only $(1) | $(call part_row,$(1))
 
-# One rule per part, with its folder as the stem: a pattern rule is how make
-# 3.81 knows one run writes both files, and naming the part keeps the rule off
-# the assembly's STEP.
+# One run writes a part's STL and STEP: the STL's rule rebuilds both when a
+# source changes, and the STEP's own rule only runs when the STEP is missing.
 define v6_part
-cad/%/stl/$(1).stl cad/%/step/$(1).step: $$(PARTDEPS_$(1))
-	@set -o pipefail; $$(V6_ENV) $$(PART_ENV_$(1)) $$(PY) cad/v6/parts_v6.py --only $(1) | $$(call part_row,$(1))
+cad/v6/stl/$(1).stl: $$(PARTDEPS_$(1))
+	@$$(call build_part,$(1))
+build/v6/step/$(1).step: | cad/v6/stl/$(1).stl
+	@$$(call build_part,$(1))
 endef
 $(foreach p,$(V6_ALL_PARTS),$(eval $(call v6_part,$(p))))
 
-docs/design-v6/parts_v6_rollup.txt: $(V6_ROLLUP_DEPS)
+$(V6_ROLLUP): $(V6_ROLLUP_DEPS)
 	$(V6_ENV) $(PY) cad/v6/parts_v6.py --no-export > /dev/null
 
-# The prototype and the bench rigs: one run of each script writes all its files.
-V5_PARTS := pelvis yaw_carrier yoke_roll yoke_pitch leg_link foot gopro_base leg_link_print yaw_carrier_print
+# The prototype and the bench rigs: one run of each script writes all its
+# files, so each is a pattern rule with the version as its stem (how make 3.81
+# knows that). The prototype's STLs (cad/stl, committed for now) come with its STEPs.
+V5_PARTS := pelvis yaw_carrier yoke_roll yoke_pitch leg_link foot gopro_base leg_link_print \
+	yaw_carrier_print tower imu_carrier
 V5_SCREWS := grip disc_y roll yaw_carrier deck gopro board tower head_stack foot
 V5_SERVOS := yaw roll pitch ankle
 BENCH := experiments/plan-b-bench
 BENCH_V2 := stl/plan_b_bracket.stl stl/plan_b_lever_stiff.stl stl/plan_b_lever_hold.stl \
-	stl/plan_b_lid.stl stl/plan_b_stop_pin.stl figs/plan_b_rig_render.png figs/plan_b_rig_side.svg
-BENCH_V3 := stl/plan_b_v3_bracket.stl stl/plan_b_v3_fork.stl
+	stl/plan_b_lid.stl stl/plan_b_stop_pin.stl renders/plan_b_rig_render.png renders/plan_b_rig_side.svg
+BENCH_V3 := stl/plan_b_v3_bracket.stl stl/plan_b_v3_fork.stl step/Bracket_v3.step \
+	step/Fork_level.step step/Fork_hanging.step step/Weights_envelope_level.step
 
-cad-v5: $(V5_PARTS:%=cad/stl/%.stl) $(V5_SCREWS:%=cad/step/screws_%.step) $(V5_SERVOS:%=cad/step/servo_%.step)
-cad-bench-v2: $(BENCH_V2:%=$(BENCH)/%)
-cad-bench-v3: $(BENCH_V3:%=$(BENCH)/%)
+V5_STEPS := $(V5_PARTS:%=build/v5/step/%.step) $(V5_SCREWS:%=build/v5/step/screws_%.step) $(V5_SERVOS:%=build/v5/step/servo_%.step)
 
-$(foreach p,$(V5_PARTS),%/stl/$(p).stl %/step/$(p).step): $(PYDEPS_cad/parts.py)
+cad-v5: $(V5_STEPS)
+cad-bench-v2: $(BENCH_V2:%=build/bench-v2/%)
+cad-bench-v3: $(BENCH_V3:%=build/bench-v3/%)
+
+$(V5_PARTS:%=build/\%/step/%.step): $(PYDEPS_cad/parts.py)
 	$(PY) cad/parts.py > /dev/null
-$(V5_SCREWS:%=\%/step/screws_%.step): $(PYDEPS_cad/fasteners.py)
+$(V5_SCREWS:%=build/\%/step/screws_%.step): $(PYDEPS_cad/fasteners.py)
 	$(PY) cad/fasteners.py > /dev/null
-$(V5_SERVOS:%=\%/step/servo_%.step): $(PYDEPS_cad/servos.py)
+$(V5_SERVOS:%=build/\%/step/servo_%.step): $(PYDEPS_cad/servos.py)
 	$(PY) cad/servos.py > /dev/null
-$(BENCH_V2:%=experiments/\%/%): $(PYDEPS_$(BENCH)/plan_b_rig.py)
+$(BENCH_V2:%=build/\%/%): $(PYDEPS_$(BENCH)/plan_b_rig.py)
 	$(PY) $(BENCH)/plan_b_rig.py > /dev/null
-$(BENCH_V3:%=experiments/\%/%): $(PYDEPS_$(BENCH)/plan_b_rig_v3.py)
+$(BENCH_V3:%=build/\%/%): $(PYDEPS_$(BENCH)/plan_b_rig_v3.py)
 	$(PY) $(BENCH)/plan_b_rig_v3.py > /dev/null
+
+FREECADCMD ?= /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd
+freecad: build/v5/step/bimo_v3yaw_articulated.FCStd ## the prototype's articulated FreeCAD model (needs FreeCAD)
+build/v5/step/bimo_v3yaw_articulated.FCStd: $(PYDEPS_cad/freecad_articulate.py) $(V5_STEPS)
+	$(FREECADCMD) cad/freecad_articulate.py
 
 # The slicer is multithreaded itself; the Makefile runs half as many jobs for it.
 SLICE_OUT := build/v6/gcode
@@ -65,26 +80,38 @@ endef
 $(foreach j,$(V6_SLICE_JOBS),$(eval $(call slice_job,$(j))))
 
 check-cad: cad-v6 ## the CAD gate: swept-ROM interference, armless and with arms, and the printability reports
-	PY=$(PY) sh cad/run_checks.sh
+	@mkdir -p build/v6/reports
+	set -o pipefail; PY=$(PY) sh cad/run_checks.sh | tee build/v6/reports/cad_rom_check.txt
 
-##@ Renders: the current design's doc images (committed) and movies (gitignored)
+##@ Renders: build/<V>/renders and movies; `make figures` copies the ones docs show
+.PHONY: assembly figures movies
+
 V6_STEP_FIGS := $(wildcard docs/assembly/v6_*.png)
-V6_DOC_RENDERS := cad/v6/renders/assembly_v6_arms.png \
-	cad/v6/renders/assembly_v6_flyin_arms_strip.png cad/v6/renders/assembly_v6_flyin_strip.png
+V6_DOC_FIGS := docs/img/assembly_v6_arms.png \
+	docs/assembly/assembly_v6_flyin_arms_strip.png docs/assembly/assembly_v6_flyin_strip.png $(V6_STEP_FIGS)
 
-assembly: cad/v6/step/assembly_v6_arms.step cad/v6/step/assembly_v6.step ## the articulated v6 assembly, STEP + render, with and without arms
-figures: $(V6_STEP_FIGS) $(V6_DOC_RENDERS) ## re-render the assembly guide's figures and the v6 renders the docs show, in place
-movies: cad/v6/renders/assembly_v6_flyin_arms.mp4 cad/v6/renders/assembly_v6_flyin.mp4 ## the fly-in assembly movies
+assembly: build/v6/step/assembly_v6_arms.step build/v6/step/assembly_v6.step ## the articulated v6 assembly, STEP + render, with and without arms
+figures: $(V6_DOC_FIGS) ## re-render the v6 images the docs show and copy them into the docs (committed)
+movies: build/v6/movies/assembly_v6_flyin_arms.mp4 build/v6/movies/assembly_v6_flyin.mp4 ## the fly-in assembly movies
 
-cad/%/step/assembly_v6_arms.step cad/%/renders/assembly_v6_arms.png: $(PYDEPS_cad/v6/assembly_v6.py)
+build/%/step/assembly_v6_arms.step build/%/renders/assembly_v6_arms.png: $(PYDEPS_cad/v6/assembly_v6.py)
 	$(V6_ENV) $(PY) cad/v6/assembly_v6.py
-cad/%/step/assembly_v6.step cad/%/renders/assembly_v6.png: $(PYDEPS_cad/v6/assembly_v6.py)
+build/%/step/assembly_v6.step build/%/renders/assembly_v6.png: $(PYDEPS_cad/v6/assembly_v6.py)
 	$(V6_ENV) ARMS=0 $(PY) cad/v6/assembly_v6.py
-cad/%/renders/assembly_v6_flyin_arms.mp4 cad/%/renders/assembly_v6_flyin_arms_strip.png: $(PYDEPS_cad/v6/animate_v6.py)
+build/%/movies/assembly_v6_flyin_arms.mp4 build/%/movies/assembly_v6_flyin_arms_strip.png: $(PYDEPS_cad/v6/animate_v6.py)
 	$(V6_ENV) $(PY) cad/v6/animate_v6.py
-cad/%/renders/assembly_v6_flyin.mp4 cad/%/renders/assembly_v6_flyin_strip.png: $(PYDEPS_cad/v6/animate_v6.py)
+build/%/movies/assembly_v6_flyin.mp4 build/%/movies/assembly_v6_flyin_strip.png: $(PYDEPS_cad/v6/animate_v6.py)
 	$(V6_ENV) ARMS=0 $(PY) cad/v6/animate_v6.py
 ifneq ($(V6_STEP_FIGS),)
-$(subst docs/assembly/,docs/%/,$(V6_STEP_FIGS)): $(PYDEPS_cad/v6/render_steps_v6.py)
+$(patsubst docs/assembly/%,build/\%/renders/%,$(V6_STEP_FIGS)): $(PYDEPS_cad/v6/render_steps_v6.py)
 	$(PY) cad/v6/render_steps_v6.py
 endif
+
+docs/img/assembly_v6_arms.png: build/v6/renders/assembly_v6_arms.png
+	cp $< $@
+docs/assembly/assembly_v6_flyin_arms_strip.png: build/v6/movies/assembly_v6_flyin_arms_strip.png
+	cp $< $@
+docs/assembly/assembly_v6_flyin_strip.png: build/v6/movies/assembly_v6_flyin_strip.png
+	cp $< $@
+docs/assembly/v6_%.png: build/v6/renders/v6_%.png
+	cp $< $@

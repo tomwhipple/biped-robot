@@ -37,6 +37,8 @@ GENERATORS = [
     "cad/fasteners.py",
     "cad/servos.py",
     "cad/slice.py",
+    "cad/render_assembly.py",
+    "cad/freecad_articulate.py",
     "experiments/plan-b-bench/plan_b_rig.py",
     "experiments/plan-b-bench/plan_b_rig_v3.py",
     "sim/build_v6_inertia.py",
