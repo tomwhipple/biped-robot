@@ -42,6 +42,21 @@ sync_repo() {   # $1 = branch; leaves the tree at that branch's origin tip
          "@ $(git -C "$BASE" rev-parse --short HEAD)"
   fi
 }
+# The plant is generated: `make plant` builds it (and the CAD meshes it
+# needs) into the clone; build/ survives the reset above. While git still
+# tracks the plant, the committed copy is what trains: a make here would
+# re-tessellate the committed STLs on this box's CAD toolchain and dirty
+# every run (dry run 2026-10-14: 19 STLs rewritten, XML byte-identical).
+build_plant() {
+  git -C "$BASE" ls-files --error-unmatch sim/bimo_biped_v6ar.xml \
+    >/dev/null 2>&1 && return 0
+  if (cd "$BASE" && make plant PY="$PY") >> "$N/make.log" 2>&1; then
+    echo "$(date +%H:%M) make plant ok"
+  else
+    echo "$(date +%H:%M) !!! make plant failed (night/make.log)"
+    return 1
+  fi
+}
 sync_repo main
 mkdir -p "$N/queue" "$N/queue/done" "$BASE/sim/runs"
 # Tom 2026-10-07: pause the camera classifier (the vision queue) while training
@@ -131,6 +146,10 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   fi
   BR=$(sed -n 's/^BRANCH=//p' "$JF" | head -1)
   sync_repo "${BR:-main}"
+  if ! build_plant; then
+    echo "no plant to train on; $JOB stays queued"
+    break
+  fi
   # CMD= jobs: run an arbitrary command from $BASE instead of train_mjx.py
   # (first need: nightly distill_student.py -- 2026-08-30, after two ad-hoc
   # launches lost GPU races to ollama's vision reload; ALL gpu work goes
