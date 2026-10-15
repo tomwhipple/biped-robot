@@ -62,16 +62,16 @@ git config core.hooksPath .githooks
 The hook runs each gate as its make target, so the target runs it the same
 way by hand; `make prepush` runs every gate the hook can.
 
-| gate                                                                   | covers                                                                                                                                                  | in the hook                                                     |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `make pytest` (`pytest tests/`)                                        | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B)                                                      | hard, unless the push is docs only                              |
-| `make host` (`make -C firmware/host check`)                            | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles                                                                        | hard, on C/C++ pushes (otherwise only the SIL library is built) |
-| `make sil-suite` (`pytest sim/sil`)                                    | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason | hard, unless the push is docs only                              |
-| `make cmake-check`: cmake configure / build / ctest of `firmware/host` | CMakeLists.txt and the Makefile agree                                                                                                                   | C/C++ pushes, when cmake is installed                           |
-| `make tidy`, `make tidy-gui`                                           | `.clang-tidy`, WarningsAsErrors                                                                                                                         | C/C++ pushes, when clang-tidy is installed                      |
-| `make cppcheck`                                                        | whole-program, fails on any finding                                                                                                                     | C/C++ pushes, when cppcheck is installed                        |
-| `make firmware` (`idf.py build`, into `build/firmware`)                | the ESP32 target links                                                                                                                                  | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip)    |
-| `make check-cad` (`cad/run_checks.sh`)                                 | swept-ROM interference on the armless and `ARMS=1` builds; printability reports                                                                         | not in the hook: run it for any CAD change                      |
+| gate                                                                   | covers                                                                                                                                                                                                                                       | in the hook                                                     |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `make pytest` (`pytest tests/`, then `make pbsim`)                     | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B); the power board's protection ICs, sequencing and schematic values (`pcb/power-board/pbsim`; its ngspice tests skip without a libngspice) | hard, unless the push is docs only                              |
+| `make host` (`make -C firmware/host check`)                            | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles                                                                                                                                                             | hard, on C/C++ pushes (otherwise only the SIL library is built) |
+| `make sil-suite` (`pytest sim/sil`)                                    | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason                                                                                      | hard, unless the push is docs only                              |
+| `make cmake-check`: cmake configure / build / ctest of `firmware/host` | CMakeLists.txt and the Makefile agree                                                                                                                                                                                                        | C/C++ pushes, when cmake is installed                           |
+| `make tidy`, `make tidy-gui`                                           | `.clang-tidy`, WarningsAsErrors                                                                                                                                                                                                              | C/C++ pushes, when clang-tidy is installed                      |
+| `make cppcheck`                                                        | whole-program, fails on any finding                                                                                                                                                                                                          | C/C++ pushes, when cppcheck is installed                        |
+| `make firmware` (`idf.py build`, into `build/firmware`)                | the ESP32 target links                                                                                                                                                                                                                       | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip)    |
+| `make check-cad` (`cad/run_checks.sh`)                                 | swept-ROM interference on the armless and `ARMS=1` builds; printability reports                                                                                                                                                              | not in the hook: run it for any CAD change                      |
 
 A **docs-only push** changes nothing but files no gate reads: anything under
 `docs/`, `*.md`, images, PDFs, HTML reports, `.github/` and `.claude/`. It runs
@@ -88,21 +88,24 @@ everything; know why.
 Everything generated is built into `build/<version>/<target>/`, which git
 ignores: `build/v6/step`, `build/v6/renders`, `build/bench-v3/stl` and so on
 (`paths.py`). Git still tracks the generated files below, because the training
-box loads them from git and runs no generator, and the firmware headers come
-from a run that is not in git. They **must not be hand-edited** — the headers
+box loads them from git and runs no generator, the firmware headers come
+from a run that is not in git, and the power board's fab outputs are the
+files a board house is sent. They **must not be hand-edited** — the headers
 carry a "GENERATED by ... do not edit" line, and host tests pin them:
 
-| file                                                      | generator                                                                                        |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `firmware/components/obs/include/obs/obs_spec.h`          | `tools/gen_obs_spec.py`                                                                          |
-| `firmware/components/policy/include/policy/weights.h`     | `tools/gen_policy_weights.py`                                                                    |
-| `firmware/host/vectors/protocol_vectors.h`                | `make vectors` (`tools/gen_protocol_vectors.py`)                                                 |
-| `firmware/host/vectors/obs_vectors.h`, `policy_vectors.h` | `gen_obs_spec.py` / `gen_policy_weights.py`, both `--run <deployed run>` (`make deploy RUN=...`) |
-| `cad/v6/stl/*`                                            | `make cad` (`cad/v6/parts_v6.py`)                                                                |
-| `cad/stl/*`                                               | `make cad V=v5` (`cad/parts.py`; the training plant meshes them)                                 |
-| `sim/bimo_biped_v6ar.xml`, `sim/meshes/v6/*`              | `make plant`: `sim/build_v6_inertia.py --write` (or `sim/gen_plant_v6.py`)                       |
+| file                                                       | generator                                                                                                              |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `firmware/components/obs/include/obs/obs_spec.h`           | `tools/gen_obs_spec.py`                                                                                                |
+| `firmware/components/policy/include/policy/weights.h`      | `tools/gen_policy_weights.py`                                                                                          |
+| `firmware/host/vectors/protocol_vectors.h`                 | `make vectors` (`tools/gen_protocol_vectors.py`)                                                                       |
+| `firmware/host/vectors/obs_vectors.h`, `policy_vectors.h`  | `gen_obs_spec.py` / `gen_policy_weights.py`, both `--run <deployed run>` (`make deploy RUN=...`)                       |
+| `cad/v6/stl/*`                                             | `make cad` (`cad/v6/parts_v6.py`)                                                                                      |
+| `cad/stl/*`                                                | `make cad V=v5` (`cad/parts.py`; the training plant meshes them)                                                       |
+| `pcb/power-board/fab/*`, `pcb/power-board/power-board.pdf` | `sh pcb/power-board/fab.sh` (Gerbers, drill, placement, BOM, after ERC and DRC); the PDF by `kicad-cli sch export pdf` |
+| `sim/bimo_biped_v6ar.xml`, `sim/meshes/v6/*`               | `make plant`: `sim/build_v6_inertia.py --write` (or `sim/gen_plant_v6.py`)                                             |
 
-**`make` builds all of it** (`make help` lists the targets). As for compiled
+**`make` builds all of it** (`make help` lists the targets), except the power
+board's fab outputs, which need KiCad (`fab.sh`). As for compiled
 code, make rebuilds what its sources made stale, from file times; a Python
 generator's prerequisites are the repo modules it imports (`tools/mkdeps.py`).
 `make clean` empties `build/` and never touches results (`sim/runs/`,

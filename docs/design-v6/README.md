@@ -22,6 +22,9 @@ not a version among others.
 | [failure_sweep_2026-10-07.md](failure_sweep_2026-10-07.md) | failure modes of the kinematic walk on the robot plant: 434k random walks; roll play, lift height, actuation lag and swing time decide falls and lift |
 | [foot_outline_2026-10-07.md](foot_outline_2026-10-07.md) | the printed foot sat 12 mm outboard of the spec; at the spec the feet touch at 2.1° of mutual hip-roll adduction. Gate D margin vs adduction clearance at three sole placements (open, for Tom) |
 | [study-yaw-bearing.md](study-yaw-bearing.md) | hip-yaw bearing options A / C / E and their checks; A selected 2026-10-06 (#75) |
+| [2026-10-06-power-circuit.md](2026-10-06-power-circuit.md) | the Power circuit milestone (#106–#109): a custom power board (BQ76922 protection and monitor, TPS48111 servo-rail E-stop switch, servo distribution), the Pi on the General Driver's 5 V, the auto-off sequence, telemetry and the bench checks; proposed, with Tom's 2026-10-06 decisions |
+| [2026-10-07-power-board-verification.md](2026-10-07-power-board-verification.md) | power board rev A checked before ordering: TI calculator, ngspice soft-start and short-circuit simulations, logic levels, footprints against makers' drawings (XT60 polarity reversed and fixed), stock, copper resistance; seven design changes |
+| [2026-10-07-power-board-quote.md](2026-10-07-power-board-quote.md) | PCBWay and JLCPCB prices for power board rev A at 88 × 56.5 mm, bare and assembled, 2–10 boards; 2 oz versus 1 oz outer copper; quote-only vendors; the through-hole alternative; Digi-Key parts estimate and stock problems |
 
 Records here describe what was true on their date; where one disagrees with
 DESIGN.md, DESIGN.md is current. Evidence logs for options not taken (legs-only
