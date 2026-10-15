@@ -132,6 +132,11 @@
       "supports": false,
       "note": "sole down"
     },
+    "front_cover_v8": {
+      "orient": "RY_XDOWN",
+      "supports": false,
+      "note": "outer face down, corner blocks rising; no supports"
+    },
     "head_face": {
       "orient": "RY_XDOWN",
       "supports": true,
@@ -161,15 +166,297 @@
       "supports": false,
       "note": "flat, bottom face down"
     },
-    "pelvis_v7": {
+    "pelvis_v8": {
       "orient": "RX180",
-      "supports": true,
-      "note": "deck top down"
+      "supports": false,
+      "note": "ceiling down, cell walls rising; no supports"
+    },
+    "power_cover_v8": {
+      "orient": "RY_XUP",
+      "supports": false,
+      "note": "outer face down, corner blocks rising; no supports"
+    },
+    "battery_door_v8": {
+      "orient": "RY_YDOWN",
+      "supports": false,
+      "note": "outer face down, the ribs and the tongue rising; no supports"
     },
     "shoulder_girdle_v6": {
       "orient": "IDENT",
       "supports": true,
       "note": "base down"
+    },
+    "torso_v8": {
+      "orient": "RX180",
+      "supports": true,
+      "note": "deck top down. Supports in its wide windows and the battery door's opening only: manual supports, snug, from the part, inside the enforcer boxes (torso_v8.support_enforcers(): every window whose flat top spans more than an 8 mm bridge, each box 0.25 inside the window's faces and 0.3 into its top). Everything else prints unsupported.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      },
+      "support_enforcers": [
+        {
+          "box": [
+            13.46,
+            15.56,
+            38.25,
+            50.25,
+            -30.7,
+            -6.5
+          ]
+        },
+        {
+          "box": [
+            -40.56,
+            -38.46,
+            38.25,
+            53.81,
+            -30.7,
+            -6.5
+          ]
+        },
+        {
+          "box": [
+            -40.56,
+            -38.46,
+            26.75,
+            35.75,
+            -30.3,
+            -12.5
+          ]
+        },
+        {
+          "box": [
+            13.46,
+            15.56,
+            -53.81,
+            -38.25,
+            -30.7,
+            -6.5
+          ]
+        },
+        {
+          "box": [
+            -40.56,
+            -38.46,
+            -53.81,
+            -38.25,
+            -30.7,
+            -6.5
+          ]
+        },
+        {
+          "box": [
+            -40.56,
+            -38.46,
+            -35.75,
+            -26.75,
+            -30.3,
+            -12.5
+          ]
+        },
+        {
+          "box": [
+            13.46,
+            15.56,
+            -7.75,
+            7.75,
+            -52.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            13.46,
+            15.56,
+            20.25,
+            31.75,
+            -52.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            13.46,
+            15.56,
+            -31.75,
+            -20.25,
+            -52.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            13.46,
+            15.56,
+            38.75,
+            50.75,
+            -52.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            13.46,
+            15.56,
+            -50.75,
+            -38.75,
+            -52.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            -40.56,
+            -38.46,
+            -7.75,
+            7.75,
+            -52.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            -40.56,
+            -38.46,
+            20.25,
+            31.75,
+            -52.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            -40.56,
+            -38.46,
+            -31.75,
+            -20.25,
+            -52.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            21.06,
+            37.56,
+            57.71,
+            59.86,
+            -68.8,
+            -16.5
+          ]
+        },
+        {
+          "box": [
+            39.19,
+            48.69,
+            57.71,
+            59.96,
+            -63.3,
+            -22.0
+          ]
+        },
+        {
+          "box": [
+            -34.96,
+            -15.25,
+            57.71,
+            59.91,
+            -66.3,
+            -42.0
+          ]
+        },
+        {
+          "box": [
+            -9.75,
+            9.96,
+            57.71,
+            59.91,
+            -66.3,
+            -42.0
+          ]
+        },
+        {
+          "box": [
+            -63.16,
+            -42.06,
+            57.71,
+            60.09,
+            -56.3,
+            -42.0
+          ]
+        },
+        {
+          "box": [
+            -34.96,
+            -15.25,
+            -59.91,
+            -57.71,
+            -66.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            -9.75,
+            9.96,
+            -59.91,
+            -57.71,
+            -66.3,
+            -38.0
+          ]
+        },
+        {
+          "box": [
+            -63.16,
+            -42.06,
+            -60.09,
+            -57.71,
+            -56.3,
+            -16.0
+          ]
+        },
+        {
+          "box": [
+            -34.96,
+            -15.25,
+            -60.55,
+            -57.71,
+            -30.7,
+            -19.0
+          ]
+        },
+        {
+          "box": [
+            -9.75,
+            9.96,
+            -60.55,
+            -57.71,
+            -30.7,
+            -19.0
+          ]
+        },
+        {
+          "box": [
+            18.06,
+            41.49,
+            -59.98,
+            -57.71,
+            -62.3,
+            -18.0
+          ]
+        },
+        {
+          "box": [
+            -58.75,
+            16.75,
+            57.71,
+            60.41,
+            -38.3,
+            -8.0
+          ]
+        }
+      ]
     },
     "yaw_bearing_housing": {
       "orient": "RX180",
@@ -187,7 +474,14 @@
       },
       "support_enforcers": [
         {
-          "box": [-19.7, -17.2, -11.1, 11.1, -34.3, -27.76],
+          "box": [
+            -19.7,
+            -17.2,
+            -11.1,
+            11.1,
+            -34.3,
+            -27.76
+          ],
           "note": "the servo-plug (connector) window through the rear wall: its ceiling in print, a 1 mm bar spanning 22.8 mm, stands on the window sill. The box keeps 0.25 inside the wall's outer face (x -19.95) and short of the idler seat's detent channel (x -16.95, y +-11.10), which has no sill: support there would run down to the bay floor"
         }
       ],

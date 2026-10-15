@@ -88,7 +88,11 @@ ORIENT_SOURCES = {
     "arm_fore_v6_R": ("arm_v6", "PRINT_ORIENT", "arm_fore_v6"),
     "neck_floor": ("neck_floor", "PRINT_ORIENT", "neck_floor"),
     "shoulder_girdle_v6": ("shoulder_girdle_v6", "PRINT_ORIENT", "shoulder_girdle_v6"),
-    "pelvis_v7": ("pelvis_v7", "PRINT_ORIENT", None),
+    "pelvis_v8": ("torso_v8", "PRINT_ORIENT", "pelvis_v8"),
+    "torso_v8": ("torso_v8", "PRINT_ORIENT", "torso_v8"),
+    "front_cover_v8": ("torso_v8", "PRINT_ORIENT", "front_cover_v8"),
+    "power_cover_v8": ("torso_v8", "PRINT_ORIENT", "power_cover_v8"),
+    "battery_door_v8": ("torso_v8", "PRINT_ORIENT", "battery_door_v8"),
     "yaw_bearing_housing": ("yaw_bearing_housing", "PRINT_ORIENT", None),
     "head_shell": ("head", "PRINT_ORIENT", None),
     "head_face": ("head", "PRINT_ORIENT_FACE", None),
@@ -104,7 +108,9 @@ def module_orient(part):
     mod, attr, key = ORIENT_SOURCES[part]
     value = getattr(importlib.import_module(mod), attr)
     if key is not None:
-        value = value[key][0]
+        value = value[key]
+        if len(value) == 2:          # (matrix, note), not the matrix's three rows
+            value = value[0]
     if isinstance(value, str):
         value = S.ROTATIONS[value]
     return np.array(value, float)
@@ -315,6 +321,23 @@ def test_yaw_carrier_window_enforcer_matches_the_cad():
     assert z0 < window_lo < z1 <= window_hi and z0 > za + D.BAY_BORE / 2   # into the bar, not past it
     entry = SPEC["parts"]["yaw_carrier_v6"]
     assert entry["supports"] and entry["settings"]["support_type"] == "normal(manual)"
+
+
+def test_torso_window_enforcers_match_the_cad():
+    """The torso's enforcer boxes are torso_v8's: one per window whose flat top
+    spans more than a bridge, and the battery door's opening, each inside its
+    window's faces. A window moved in the CAD without its box fails here."""
+    import torso_v8 as T
+    entry = SPEC["parts"]["torso_v8"]
+    assert entry["supports"] and entry["settings"]["support_type"] == "normal(manual)"
+    assert [e["box"] for e in entry["support_enforcers"]] == T.support_enforcers()
+    for cut, enf in T._windows():
+        bb = cut.bounding_box()
+        assert (enf is not None) == (max(bb.size.X, bb.size.Y) > T.BRIDGE_OK + 1e-9)
+        if enf is not None:
+            x0, x1, y0, y1, z0, z1 = enf
+            assert bb.min.X < x0 < x1 < bb.max.X and bb.min.Y < y0 < y1 < bb.max.Y
+            assert z0 == pytest.approx(bb.min.Z - T.ENF_INTO) and z1 == pytest.approx(bb.max.Z)
 
 
 def test_orient_name_round_trip():

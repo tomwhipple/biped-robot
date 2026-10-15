@@ -43,7 +43,8 @@ def test_arm_hop_is_the_measured_span():
 def test_spans_stable():
     # pin a few spans to their current derived values (mm, +-1):
     want = {("hip pitch", "knee"): 110.0, ("knee", "ankle"): 110.0,
-            ("port", "deck slot"): 102.0, ("deck slot", "battery layer"): 48.1,
+            ("port", "wall window"): 56.9, ("wall window", "battery floor"): 34.3,
+            ("battery floor", "hip yaw"): 25.6, ("port", "deck slot"): 49.8,
             ("hip yaw", "hip roll"): 61.3, ("hip roll", "hip pitch"): 55.3}
     for r in LL.rows():
         if (r["a"], r["b"]) in want:

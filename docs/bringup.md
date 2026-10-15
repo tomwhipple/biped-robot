@@ -168,7 +168,7 @@ Never infer a sign from a compound motion.
 ### IMU, in the standing pose
 
 The QMI8658C is on the board, so the mount is a property of how the board is
-screwed into the pelvis. Measure it on the robot; do not reuse another mounting.
+screwed into the torso. Measure it on the robot; do not reuse another mounting.
 
 1. `imu`: `who_am_i 0x05` and `levelled yes`.
 2. **Mount.**

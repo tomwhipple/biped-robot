@@ -40,7 +40,6 @@ settled yet.
 inline fuse ─────────────────── ATM mini-blade, 15 A (10 A once the peak is measured)
   │
 switch ──────────────────────── the E-stop that does not need the radio
-  ├── Pololu D24V50F5, 5 V / 5 A ── USB-C ── Raspberry Pi 4B        (tap point: open)
   ├── bulk capacitor, 1000 µF ≥ 25 V low-ESR, across V+/GND
   │
 H1  JST XH 2-pin inlet ──────── 3 A per contact; everything below is on the board
@@ -50,7 +49,8 @@ AO4407 P-FET (reverse polarity) ── SW1 slide switch
 DC_IN ─┬── H5, H6 servo ports: all of the servo current
        │
        └── R11 0.01 Ω (INA219) ── VIN ── MP8759 5 V buck ── 5 V rail ── AMS1117 ── 3V3
-                                          (ESP32, on-board sensors, 40-pin header 5 V)
+                                          (ESP32, on-board sensors, 40-pin header 5 V
+                                           -> the Raspberry Pi 4B the board sits on)
 ```
 
 The board side of this diagram is read off the vendor schematic. The parts above
@@ -58,13 +58,11 @@ H1 are the robot's harness.
 
 ### Pack
 
-The pack is a 3S LiPo, bought to a spec filter:
+The pack is a 3S LiPo, the OVONIC 3S 4200 mAh 130C XT60 (#107, ordered 2026-10-07):
 
 - 11.1 V nominal. Not 11.4 V "HV": a HV pack charges to 13.05 V, which is above the board's 12.6 V silkscreen.
-- 2200–2600 mAh.
-- ≤ 105 × 36 × 26 mm. That is the pelvis battery layer, `BATT` in `cad/v6/dimensions_v6.py`.
-- 150–190 g.
-- XT30 or XT60 connector, 25C or better.
+- Weighed 205 g; its size is the listing's 96 × 44.5 × 25.5 mm, not measured yet. The torso's battery layer is sized to it (`BATT`, `BATT_MASS` in `cad/v6/dimensions_v6.py`).
+- XT60 connector.
 
 An RC LiPo has no protection circuit inside it. If a pack will sit for more than a
 few days, storage-charge it to 3.8 V/cell.
@@ -74,8 +72,7 @@ few days, storage-charge it to 3.8 V/cell.
 - 3S, ≥ 15 A continuous on the pack lead, over-discharge cut-off about 3.0 V/cell, on the balance leads.
 - It is the backstop that does not depend on the firmware, below battguard's 3.3 V/cell landing line ([Battery protection](#battery-protection)).
 - A UART "smart" BMS (JBD/Daly 3S class) in its place would report per-cell voltages. Whether that is wanted is **open**.
-- The protection board and the buck share a 60 × 8.4 × 25 mm pocket beside the pack (`PWR_BOARD`).
-- The pelvis bosses in that pocket are placeholders until both boards are in hand (`cad/v6/pelvis_v7.py`).
+- The torso has no pocket for a separate protection board and buck. It holds the custom power board (#112) in the bay right behind the pelvis, beside the pack, on four standoffs off the aft inner wall (`cad/v6/torso_v8.py`).
 
 ### Fuse
 
@@ -105,20 +102,19 @@ few days, storage-charge it to 3.8 V/cell.
 
 ### Pi supply
 
-- A Pololu D24V50F5 (5 V, 5 A, 17.8 × 25.4 mm) drives a USB-C lead to the Pi 4B.
-- The Pi wants 3 A peaks. That is about 1.4 A from an 11.1 V pack (15 W before converter loss).
-- Where the buck taps the pack line is **open**. Tapping upstream of H1 keeps this current off the 3 A inlet contact.
-- The board has its own 5 V buck: an MP8759 labelled "5V-5A … 5V Power for RPi/Jetson nano", feeding the 40-pin header's 5 V pins. The robot powers the Pi from the D24V50F5 instead.
+- **The General Driver sits on the Pi as a HAT** (`cad/v6/torso_v8.py`), so the board's 40-pin 5 V and the Pi's 5 V rail are one net. The Pi takes its power through the header from the board's own buck, an MP8759 labelled "5V-5A … 5V Power for RPi/Jetson nano" (the power-circuit design's plan, PR #112).
+- Nothing else feeds the Pi: a second supply on its USB-C would put two 5 V sources in parallel.
+- The Pi wants 3 A peaks. That is about 1.4 A from an 11.1 V pack (15 W before converter loss), and it now comes through the board's XH inlet H1 (3 A per contact) and its INA219 shunt.
 
 ### What the INA219 measures
 
 This was checked against the schematic and the firmware.
 
 - **Wiring.** The INA219 (U2, address 0x42) has IN+ on `DC_IN` and IN− on `VIN`, across R11 (0.01 Ω).
-- **What `VIN` feeds.** Only the board's MP8759 buck, and through it the 5 V rail and the 3V3 regulator.
+- **What `VIN` feeds.** Only the board's MP8759 buck, and through it the 5 V rail (and the Pi on its header) and the 3V3 regulator.
 - **Where the servos tap in.** H5 and H6 tap `DC_IN` upstream of R11.
-- **What it measures.** Pack voltage at `VIN`, behind the reverse-polarity FET, SW1 and the shunt. That reading does not depend on the servo bus and is valid with torque released. It also measures the current into the board's own logic supply.
-- **What it does not see.** None of the servo current. None of the Pi's current, which comes from its own buck.
+- **What it measures.** Pack voltage at `VIN`, behind the reverse-polarity FET, SW1 and the shunt. That reading does not depend on the servo bus and is valid with torque released. It also measures the current into the board's own logic supply, the Pi's included.
+- **What it does not see.** None of the servo current.
 - **The firmware does not read it.** `board::kPowerAddr` is marked unused, `imu scan` labels 0x42 "(unused)", and battguard reads the servos' register 62 instead.
 - **Open:** reading the INA219 in firmware, and getting pack voltage to the Pi for a low-battery shutdown.
 
@@ -227,16 +223,17 @@ selected.
 
 | hop (chain order, both legs symmetric except where shown) | span | loop | need | buy ~ | 150 ok? |
 |---|---|---|---|---|---|
-| port (H5/H6) → leg-bus deck slot (via splitter) | 102 | — | 102 | 150 | ✓ |
-| deck slot → battery layer (yaw riser mouth) | 48 | — | 48 | 90 | ✓ |
-| battery layer → hip yaw | 1 | — | 1 | stock | ✓ |
+| port (H5/H6) → front inner wall's top window (via splitter) | 57 | — | 57 | 100 | ✓ |
+| wall window → battery floor (under the pack) | 34 | — | 34 | 80 | ✓ |
+| battery floor → hip yaw (through the ceiling slit) | 26 | — | 26 | 70 | ✓ |
 | hip yaw → hip roll | 61 | 7 | 68 | 110 | ✓ |
 | hip roll → hip pitch | 55 | 9 | 64 | 110 | ✓ |
 | hip pitch → knee | 110 | 17 | 127 | 170 | ✓ |
 | knee → ankle | 110 | 18 | 128 | 170 | ✓ |
 | ankle → ankle roll (R / L) | 81 / 87 | 6 | 87 / 93 | 130 / 140 | ✓ |
-| port (H5) → neck (upper branch, port A, via deck slot) | 103 + 53 | — | 156 | 190 | ✓ with a short stretch; the 150 mm stock reaches if routed taut over the battery layer |
-| shoulder lead leaving the pod (both sides: → R/L shoulder) | 49–101 | — | under 130 | 90–150 | ✓ |
+| port (H5/H6) → deck opening between the boards (upper branches, via splitter) | 50 | — | 50 | 90 | ✓ |
+| deck opening → neck (port A) | 47 | — | 47 | 90 | ✓ |
+| shoulder lead leaving the pod (A: neck → R shoulder; B: deck opening → L shoulder) | 71 / 68 | — | 71 / 68 | 120 / 110 | ✓ |
 | **shoulder → elbow (both arms)** | **130** | **23** | **152** | **~200** | **NO — does not fit stock** |
 
 What the CAD says about the two named geometry problems:

@@ -22,10 +22,11 @@ Model
   servo's PLACEMENT exactly as the assembly mocks place them
   (assembly_v6's chain tables; check_assembly.servo_mock_*):
     hip yaw        servo_mock_z: case fore-aft in the v7 cell, hanging off
-                   the cell ceiling, cable end AFT, idler faces UP; the plug
-                   exits into the pelvis's yaw-connector riser
-                   (pelvis_v7.py:207 "leads then run free through that open
-                   volume to the deck's leg-bus slot").
+                   the cell ceiling, cable end AFT, idler faces UP; the lead
+                   goes up through the slit in the pelvis's ceiling over the
+                   trench and runs flat under the pack to the gap in front of
+                   it (torso_v8.py), then up to the General Driver wall's top
+                   windows.
     hip roll       servo_mock_x: the yaw carrier's bay, output end DOWN,
                    cable end UP, idler faces FORWARD (-x).
     hip pitch / knee / ankle pitch   servo_mock_y: the grip channel of the
@@ -63,8 +64,9 @@ Model
                    SHOULDER fold (the arm below sweeps -90..+200 about the
                    shoulder): the elbow servo turns with the upper arm. NO
                    strain relief is drawn at the shoulder.
-* Board end: the GD's servo bus edge is UP under the deck (dims.py:750),
-  the leads drop through the board's deck slot; PORT is modelled at the
+* Board end: the GD's servo bus edge is UP under the deck (dims.py:750);
+  the leg leads go aft over it through its wall's top windows, the upper
+  leads up through the board's deck slot; PORT is modelled at the
   PCB's aft face, the two 3-pin bus pads 20 mm either side of centre, at
   the board's top edge. The splitter of servo-map.md §2.1 is NOT SELECTED,
   so board->splitter is SPLITTER_LEAD of allowance, not a CAD number.
@@ -101,11 +103,21 @@ _Z_BAND = D.SV_AXIS_FROM_REAR - CONN_MID     # 21.06: plug z, cable end up
 # fixed points, assembly frame (x forward, y LEFT, z up)
 PORT = {"A": (V.GD_PCB_X1 + 1.0, -20.0, DECK_TOP_Z + V.GD_TOP_Z),
         "B": (V.GD_PCB_X1 + 1.0, +20.0, DECK_TOP_Z + V.GD_TOP_Z)}
-LB_SLOT = {"A": (V.CELL_X[0] - 8.0, -HIP, DECK_TOP_Z),
-           "B": (V.CELL_X[0] - 8.0, +HIP, DECK_TOP_Z)}
-# mouth of the yaw riser: cell-ceiling top = battery-layer floor:
-RISER_TOP = {"A": (-CONN_MID, -HIP, DECK_TOP_Z + V.CELL_TOP_Z),
-             "B": (-CONN_MID, +HIP, DECK_TOP_Z + V.CELL_TOP_Z)}
+# leg branch (torso_v8): over the board's top edge and aft through the
+# General Driver wall's top windows (y +-18, z -16..-6) into the battery
+# layer, down the gap in front of the pack to the battery floor, then flat
+# under the pack (between its foam pads) to the yaw servo's slit
+_GD_WIN_Z = DECK_TOP_Z - 11.0
+WALL_WIN = {"A": (sum(V.FWD_WALL_X) / 2, -18.0, _GD_WIN_Z),
+            "B": (sum(V.FWD_WALL_X) / 2, +18.0, _GD_WIN_Z)}
+_FRONT_GAP_X = (V.BATT_X[1] + V.FWD_WALL_X[0]) / 2
+BATT_FLOOR = {"A": (_FRONT_GAP_X, -HIP, DECK_TOP_Z + V.CELL_TOP_Z + V.BATT_PAD_T / 2),
+              "B": (_FRONT_GAP_X, +HIP, DECK_TOP_Z + V.CELL_TOP_Z + V.BATT_PAD_T / 2)}
+# upper branch: up through the deck opening between the Pi and the General
+# Driver (torso_v8 STACK_OPEN_X)
+_STACK_OPEN_X = (V.PI_PCB_X1 + V.GD_PCB_X0 - V.GD_UNDER) / 2
+GD_SLOT = {"A": (_STACK_OPEN_X, -20.0, DECK_TOP_Z),
+           "B": (_STACK_OPEN_X, +20.0, DECK_TOP_Z)}
 # yaw plug: over the trench, facing UP into the riser (ceiling underside +2):
 _YAW_PLUG_Z = DECK_TOP_Z + (V.CELL_TOP_Z - D.WALL) + 2.0
 YAW_PLUG = {"A": (-CONN_MID, -HIP, _YAW_PLUG_Z),
@@ -150,7 +162,7 @@ NOTE_ANKLE_ROLL = ("the ankle link's raceway mentioned at dimensions_v6.py"
 NOTE_NECK = ("climbs the battery layer into the girdle's neck tube, out the "
              "aft window, up to the well")
 NOTE_SH_IN = ("exits UP through the girdle's open notch (shoulder_girdle_v6"
-              ".py:216), along the housing skin to the leg-bus slot")
+              ".py:216), along the deck to the General Driver's slot")
 NOTE_ARM = ("span is MEASURED off the assembly mocks (this file, "
             "--assembly): shoulder plug to the elbow plug on the upper arm; "
             "crosses the shoulder fold (290 deg) only -- the elbow servo "
@@ -167,8 +179,8 @@ def _leg(side):
     y_leg = s * HIP
     return [
         ("port", PORT[side]),
-        ("deck slot", LB_SLOT[side]),
-        ("battery layer", RISER_TOP[side]),
+        ("wall window", WALL_WIN[side]),
+        ("battery floor", BATT_FLOOR[side]),
         ("hip yaw", YAW_PLUG[side]),
         ("hip roll", (-PLUG_R, y_leg, V.HIP_ROLL_Z + _Z_BAND)),
         ("hip pitch", (0.0, y_leg - PLUG_R, V.HIP_PITCH_Z + _Z_BAND)),
@@ -190,7 +202,7 @@ def _leg(side):
 def _upper(side):
     """Chain-order plug anchors, board to elbow. The neck rides port A's
     branch (servo-map.md §2.1)."""
-    pts = [("port", PORT[side]), ("deck slot", LB_SLOT[side])]
+    pts = [("port", PORT[side]), ("deck slot", GD_SLOT[side])]
     if side == "A":
         pts.append(("neck", NECK_PLUG))
     side_lbl = "R" if side == "A" else "L"

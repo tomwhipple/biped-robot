@@ -67,6 +67,7 @@ ROTATIONS = {
     "RY_XUP": ((0, 0, -1), (0, 1, 0), (1, 0, 0)),         # model +X -> print +Z
     "RY_XDOWN": ((0, 0, 1), (0, 1, 0), (-1, 0, 0)),
     "RY_ROLL_WALL": ((1, 0, 0), (0, 0, -1), (0, 1, 0)),   # model +Y -> print +Z
+    "RY_YDOWN": ((1, 0, 0), (0, 0, 1), (0, -1, 0)),       # model +Y -> print -Z
 }
 
 # Keys that name presets or describe the file, not the print.

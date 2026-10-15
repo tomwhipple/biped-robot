@@ -33,7 +33,7 @@ Physical layout:
 
 - The service edge is a 56.01 mm edge. It carries the XH inlet and both USB-Cs.
 - SW1 sits on the adjacent bus edge, near that corner (`BOARD_GD_U_*` in `cad/dimensions.py`).
-- In the robot the board stands vertical on the pelvis front wall. Its service edge faces +y through a side window (`cad/v6/dimensions_v6.py`).
+- In the robot the board stands vertical in the torso's forward column. Its service edge faces +y through a side window (`cad/v6/dimensions_v6.py`).
 
 The on-board I²C bus (GPIO 32/33, 400 kHz) already carries these parts:
 
@@ -86,11 +86,10 @@ The tick has room, though the robot's figure is unmeasured:
   - It is on the ESP32's servo bus like every other joint, so the Pi can only turn the head through the ESP32.
   - How head yaw is commanded is part of the open firmware port.
 - **Pi.**
-  - A Raspberry Pi 4B stands vertical on the pelvis aft wall.
-  - It has a low-profile heatsink and no fan, because there is 16 mm of component depth.
+  - A Raspberry Pi 4B stands vertical in the torso's front bay, with the General Driver on its 40-pin header as a HAT.
+  - It has a low-profile heatsink and no fan: its parts under the HAT have 10 mm.
   - USB and Ethernet come out through a side window.
-  - It is powered from its own D24V50F5 buck ([wiring.md](wiring.md#pi-supply)).
-  - It is not on the board's 40-pin header.
+  - It is powered through the 40-pin header from the General Driver's MP8759 ([wiring.md](wiring.md#pi-supply)), and talks to the ESP32 over the header's UART.
 - **Division of labour.**
   - The ESP32 runs the 50 Hz loop, the servo bus, the IMU and the guards.
   - The Pi runs vision and navigation. It sends intent (`cmd`: velocity, crouch, and so on), never joint targets.
@@ -131,6 +130,6 @@ not read.
 
 1. **The observation contract.** Tier 1 sensors invalidate trained policies and need a sim model that includes their noise. Tier 3 sensors that feed `cmd` cost nothing on that side.
 2. **Input current.** The whole servo bus crosses the 3 A XH contact and a path that Waveshare rates at 5 A continuous ([wiring.md](wiring.md#current-the-open-constraint)). A 5 V sensor load rides the board's buck and the INA219 shunt instead, so small sensors are not the problem.
-3. **Volume and mass.** The pelvis has the Pi bay and the head, and no reserved sensor volume beyond them. Mass above the deck moves the CoM, and the plant and the policy are downstream of that.
+3. **Volume and mass.** The torso has the Pi bay and the head, and no reserved sensor volume beyond them. Mass above the deck moves the CoM, and the plant and the policy are downstream of that.
 4. **Tick time and the I²C bus.** Anything read inside the tick, or on the IMU's bus, spends the loop's slack.
 5. **Pins and connectors.** The most abundant resource on the board.

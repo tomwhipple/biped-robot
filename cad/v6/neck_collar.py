@@ -13,7 +13,7 @@ corners land in the Pi slide slot (aft) and the General Driver lead slot
 aperture), so the collar has no way to fasten to the pelvis. The armless build
 exists for the CAD checks and the mass comparison only (cad/PRINT_LIST.md).
 
-Local frame: z = 0 is the flange's bottom face == pelvis_v7's deck top, x/y
+Local frame: z = 0 is the flange's bottom face == the torso's deck top, x/y
 the pelvis's. Prints flat, flange down.
 
 Run:
@@ -109,7 +109,7 @@ def neck_collar():
 # mocks
 # ----------------------------------------------------------------------------
 def mock_neck_servo():
-    """Same mock/placement as pelvis_v7.mock_neck_servo() -- standing on
+    """Same mock/placement as torso_v8.mock_neck_servo() -- standing on
     the deck (z=0 here too), horn up, idler face down."""
     return Pos(V.NECK_X, 0, V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z()
 
