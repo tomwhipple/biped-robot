@@ -1,0 +1,9 @@
+# sim/foot_outline_study.py interleg
+# outline 23.5 in / 60.5 out (FOOT_Y_OFF 18.5), branch cad/foot-23p5, 2026-10-07 11:25, this laptop (MUJOCO_GL=cgl).
+== foot_L vs foot_R, CAD feet as committed, both hip rolls adducted by the angle, ankles flat
+   mutual adduction  0.0 deg: overlap      0.0 mm3, gap  37.00 mm
+   mutual adduction  1.0 deg: overlap      0.0 mm3, gap  25.55 mm
+   mutual adduction  1.5 deg: overlap      0.0 mm3, gap  19.83 mm
+   mutual adduction  2.0 deg: overlap      0.0 mm3, gap  14.11 mm
+   mutual adduction  2.5 deg: overlap      0.0 mm3, gap   8.39 mm
+   mutual adduction  3.0 deg: overlap      0.0 mm3, gap   2.67 mm

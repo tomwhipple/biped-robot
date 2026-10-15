@@ -43,14 +43,16 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
-os.environ.setdefault("MUJOCO_GL", "egl")
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
 from build123d import *  # noqa: E402,F403
 import dimensions as D  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 import parts as P  # noqa: E402
 import check_assembly as CA  # noqa: E402
+import paths  # noqa: E402
 
 box, cyl_x, cyl_y, cyl_z = P.box, P.cyl_x, P.cyl_y, P.cyl_z
 teardrop_x, teardrop_y = P.teardrop_x, P.teardrop_y
@@ -58,8 +60,8 @@ wedge_x, wedge_y, wedge_z = P.wedge_x, P.wedge_y, P.wedge_z
 csk_x, csk_y, csk_z = P.csk_x, P.csk_y, P.csk_z
 
 OUT_STL = os.path.join(HERE, "stl")
-OUT_STEP = os.path.join(HERE, "step")
-OUT_REN = os.path.join(HERE, "renders")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
+OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
 # print orientation for check_printability: deck-top-down, same as v5's
 # pelvis (RX180: model flips onto its deck top, walls rise from the bed).
@@ -86,6 +88,7 @@ cx1 = D.YAW_CASE_X_FRONT + D.YAW_SEAT_GAP      # +10.41 cell inner (front)
 cyw = D.YAW_BOX_HW_IN                          # 12.66 case half width + fit
 wt = D.YAW_SEAT_WALL                           # 2.6
 lead = D.YAW_BOX_LEADIN                        # 1.2 mouth chamfer
+YAW_SEAT_CLR = 0.3                             # yaw servo's proud idler-side features vs the ceiling
 chan_hw = V.HOUSING_CHAN_HW                    # 26.74 centre channel half width
 
 # GD (front) / Pi (aft) slide channels -- the guide grooves ARE the channel
@@ -97,14 +100,9 @@ GD_SLOT = (2 * GD_CHAN_HY, 14.0)                # deck slot (y width, x depth) -
 PI_SLOT = (2 * PI_CHAN_HY, 14.0)                # slide channel exactly, no sliver at the edge
 
 
-def pelvis_v7(bearing_variant="C", arm_mounts=False):
-    """THE WHOLE V7 TORSO. bearing_variant selects the hip-yaw bearing seat
-    (docs/design-v6/study-yaw-bearing.md; the choice is open, issue #75): "C"
-    (the code's placeholder default) is a 6811-2RS wrapping the carrier's
-    whole rectangular plate+wall footprint; "A" is the round hub (6810-2RS
-    around the roll servo's own case corner, same axial envelope). Option E
-    is A plus screwed race retention: yaw_retention_optE.pelvis_optE() builds
-    it on top of this function's "A". arm_mounts adds the shoulder girdle's
+def pelvis_v7(arm_mounts=False):
+    """THE WHOLE V7 TORSO, with the pilots for the hip-yaw bearing housing
+    (yaw_bearing_housing.py) under the cell block. arm_mounts adds the shoulder girdle's
     ten deck pilots (the robot's build: parts_v6 and assembly_v6 pass it
     whenever the arms are on, which is the default).
     See module docstring for the layout; z bands,
@@ -195,16 +193,23 @@ def pelvis_v7(bearing_variant="C", arm_mounts=False):
                 p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zc_bot - 1, zc + 1,
                            -xrow, by + s * D.CASE_HOLE_LAT)
                 p -= csk_z(-xrow, by + s * D.CASE_HOLE_LAT, zc, +1)
-        # idler disc + hub clearance pocket, in the ceiling's UNDERSIDE
-        p -= cyl_z(21.5 / 2, zc_bot, zc_bot + 1.3, 0, by)
-        # stator screw pads: the boss under-reaches into the cell so a bare
-        # screw does not bow the case (SEAT_PAD_H rule, verbatim from v5)
-        for xrow in D.YAW_CASE_HOLES_IDLER:
-            for s in (1, -1):
-                p += cyl_z(3.5, zc_bot - D.SEAT_PAD_H, zc_bot,
-                           -xrow, by + s * D.CASE_HOLE_LAT)
-                p -= cyl_z(D.CASE_SCREW_CLEAR / 2, zc_bot - D.SEAT_PAD_H - 0.1,
-                           zc + 1, -xrow, by + s * D.CASE_HOLE_LAT)
+        # The servo seats with its idler-side case face (D.SV_IDLER_CASE_FACE)
+        # flat on the ceiling's underside: the four stator bosses are FLUSH with
+        # that face (cad/vendor/ST3215.step, probed 2026-10-06), so the ceiling
+        # clamps them directly and carries no pads. The hip-yaw servos are built
+        # WITHOUT the idler disc (nothing rides their idler side; docs/assembly.md
+        # section 2), and under the disc the face is recessed 1.3 mm. What still
+        # stands proud gets >= YAW_SEAT_CLR:
+        # - the free-hub post (r D.SV_IDLER_HUB_HW, 2.60 proud = the ceiling's
+        #   whole thickness; it may turn with the shaft): a small hole through
+        #   the ceiling, the post's top flush with the ceiling top, the pack
+        #   0.5 mm above it;
+        # - the moulded back-cover platform (1.90 proud, D.SV_IDLER_BOSS_*,
+        #   static): a relief leaving a 0.4 mm skin under the pack.
+        p -= cyl_z(D.SV_IDLER_HUB_HW + YAW_SEAT_CLR, zc_bot - 1, zc + 1, 0, by)
+        p -= box(D.SV_IDLER_BOSS_Z[0] - YAW_SEAT_CLR, D.SV_IDLER_BOSS_Z[1] + YAW_SEAT_CLR,      # cable end is -x
+                 by - D.SV_IDLER_BOSS_HW - YAW_SEAT_CLR, by + D.SV_IDLER_BOSS_HW + YAW_SEAT_CLR,
+                 zc_bot - 1, zc_bot + (D.SV_IDLER_CASE_FACE - D.SV_IDLER_BOSS_Y) + YAW_SEAT_CLR)
         # yaw connector riser: over the trench, straight up through the
         # ceiling into the open battery layer (leads then run free through
         # that open volume to the deck's leg-bus slot -- there is nothing
@@ -218,15 +223,11 @@ def pelvis_v7(bearing_variant="C", arm_mounts=False):
     # ceiling (open air for the pack -- there is no floor besides the
     # ceiling itself and the two rails below), leaving the outer walls.
     p -= box(cx0, cx1, -(hw - D.WALL), hw - D.WALL, zc, zd + 1)
-    # "two low rails": BATT_Z[0] is already 0.5 mm above the ceiling
-    # (dimensions_v6's seat allowance) -- that IS the rail height. A
-    # SEPARATE 0.5 mm rib sitting proud of the ceiling was tried and is a
-    # textbook unsupported print island in this orientation (it sits on the
-    # print-DOWN side of its own supporting slab -- extruded before the
-    # ceiling under it exists). The two per-cell ceiling slabs already
-    # provide the two load paths the rails were for (one over each yaw
-    # cell's own walls, not the open channel between them); the 0.5 mm gap
-    # is carried as tolerance rather than modelled as separate geometry.
+    # The pack rides on two adhesive foam pads (V.BATT_PAD_T, a BOM item),
+    # one on each cell's ceiling slab, clear of the yaw servos' post holes:
+    # the posts come up flush with the ceiling's top face and turn with the
+    # hip. Printed rails there would be unsupported islands in this
+    # orientation (the pack face of the ceiling prints facing the bed).
     # side walls of the battery bay (the housing's own outer perimeter,
     # already at y=+/-hw from the outer box -- nothing extra needed there,
     # EXCEPT the side windows: the pack's ends may protrude +/-3 mm past the
@@ -529,68 +530,18 @@ def pelvis_v7(bearing_variant="C", arm_mounts=False):
             p += box(rx, rx + rib_w, s * (hw - 0.5), s * (hw_skin + 0.5),
                      zb + 2.0, zd - 2.0)
 
-    # ---- HIP-YAW BEARING SKIRT + RECESS (2026-09-17, docs/design-v6/
-    # study-yaw-bearing.md; REVISED after coordinator review -- 6811-2RS,
-    # located races, no clearance fit -- see the write-up's history
-    # section). The OUTER-race seat for a 6811-2RS deep-groove ball bearing
-    # around the carrier's ENTIRE horn-plate + upper bay-wall footprint
-    # (cad/v6/yaw_carrier_v6.py has the matching boss). Hangs from the
-    # EXISTING cell-tube rim (zb = V.YAW_BOX_BOT_Z -- NOT moved, nothing
-    # above this line changes) down to V.YAW_BRG_RECESS_Z[0], entirely in
-    # the air that was already open below both the servo case (case-bottom
-    # sits above zb) and the GD/Pi board columns (both end at zb too). A
-    # shoulder (ID V.YAW_BRG_SHOULDER_ID, land V.YAW_BRG_SHOULDER_LAND)
-    # stops the outer race's top face, reacting the leg's upward thrust
-    # (single-support weight) into the pelvis print; the recess proper
-    # below it (ID V.YAW_BRG_RECESS_ID) is a LOCATED, -0.04 mm interference
-    # fit on the race OD -- not a clearance fit, per the coordinator's
-    # note that a movable outer race defeats the point of the bearing.
-    # OPTION A (2026-09-18 round 2): a round hub at the SAME axial envelope
-    # (see dimensions_v6.py's YAWA_* constants and yaw_carrier_v6_optA.py)
-    # instead of option C's 6811 wrap. The recess/shoulder hang from the
-    # SAME unmoved rim (V.YAW_BOX_BOT_Z) the same way -- just a smaller
-    # bearing (6810-2RS, 50x65x7) sized to the ROLL SERVO's own case corner
-    # inside the band, not the carrier's whole rectangular footprint.
-    if bearing_variant == "A":
-        skirt_r = V.YAWA_SKIRT_OD / 2
-        sho_z0, sho_z1 = V.YAWA_SHOULDER_Z
-        rec_z0, rec_z1 = V.YAWA_RECESS_Z
-        shoulder_id = V.YAWA_SHOULDER_ID
-        recess_id = V.YAWA_BRG_RECESS_ID
-        recess_r = V.YAWA_BRG_RECESS_R
-    else:
-        skirt_r = V.YAW_BRG_SKIRT_OD / 2
-        sho_z0, sho_z1 = V.YAW_BRG_SHOULDER_Z
-        rec_z0, rec_z1 = V.YAW_BRG_RECESS_Z
-        shoulder_id = V.YAW_BRG_SHOULDER_ID
-        recess_id = V.YAW_BRG_RECESS_ID
-        recess_r = V.YAW_BRG_RECESS_R
-    for by in (V.HIP_SEP / 2, -V.HIP_SEP / 2):
-        p += cyl_z(skirt_r, rec_z0 - 0.5, sho_z1, 0, by)
-        p -= cyl_z(shoulder_id / 2, sho_z0, sho_z1 + 0.5, 0, by)
-        p -= cyl_z(recess_id / 2, rec_z0 - 0.6, rec_z1 + 0.01, 0, by)
-
-    # BRIDGE the two skirts: option C's 78 mm OD at 84 mm hip separation
-    # leaves only 6 mm edge-to-edge -- too little for two independent
-    # free-hanging rings to stand on their own without flexing under yaw
-    # torque or a bench knock, so they are fused into one structure by a
-    # short web at the bottom (the most compliant point, farthest from the
-    # rigid cell block above). Option A's 71 mm OD leaves 13 mm -- more than
-    # double -- but a bridge is kept anyway (NOT FEA-verified either way,
-    # this is a conservative judgement call, not a measured requirement at
-    # that gap). MUST stay outside each skirt's own recess bore (r <
-    # recess_r from that hip's own centre) -- a first version of this
-    # reached 5 mm into each skirt without checking that boundary and ate
-    # 80 mm3 into the bearing's own reserved outer-race space
-    # (check_yaw_bearing_combo.py caught it: pelvis vs OUTER_RING, FAIL).
-    # The skirt's SOLID wall at x=0 only exists between y = hip_y -
-    # skirt_r (the outer surface) and y = hip_y - recess_r (where
-    # the hollow bore begins) -- so the bridge reaches to just inside that
-    # inner limit, never into the bore itself.
-    bridge_hy = V.HIP_SEP / 2 - recess_r - 0.3   # inside the skirt wall, clear of the recess bore
-    bridge_x = (-15.0, 15.0)
-    bridge_z = (rec_z0, rec_z0 + 4.0)
-    p += box(bridge_x[0], bridge_x[1], -bridge_hy, bridge_hy, bridge_z[0], bridge_z[1])
+    # ---- the hip-yaw BEARING HOUSING's five pilots (yaw_bearing_housing.py,
+    # the outer-race seats, screwed up under this cell block once the hips are
+    # built): M2.5 self-tap, driven up from below through the housing. Each
+    # boss grows off a wall already standing full height here (the rear cell
+    # wall and the Pi channel wall, the inner cheek's rear end, the cell
+    # block's front web) and is topped by a 45 deg cone, the face that prints
+    # over air in this deck-top-down orientation.
+    hr, hh = V.YAW_HOUSING_BOSS_R, V.YAW_HOUSING_BOSS_H
+    for hx, hy in V.YAW_HOUSING_SCREWS:
+        p += cyl_z(hr, zb, zb + hh, hx, hy)
+        p += Pos(hx, hy, zb + hh + hr / 2) * Cone(hr, 0, hr)
+        p -= cyl_z(D.M25_TAP / 2, zb - 0.1, zb + V.YAW_HOUSING_PILOT_DEPTH, hx, hy)
 
     return p
 
@@ -640,9 +591,11 @@ def SCREWS():
     for by, side in ((V.HIP_SEP / 2, "L"), (-V.HIP_SEP / 2, "R")):
         for xrow in D.YAW_CASE_HOLES_IDLER:
             for sgn in (1, -1):
+                # 5 mm: 2.6 through the ceiling, 2.4 into the idler-face hole,
+                # which the vendor STEP shows 3.0 deep (an x 8 would bottom out)
                 s.append(dict(name=f"yaw_stator_{side}_{xrow:.0f}_{sgn:+d}",
-                              kind="M2.5x8 self-tap, flat head", axis=(0, 0, -1),
-                              pos=(-xrow, by + sgn * D.CASE_HOLE_LAT, zc), length=8.0))
+                              kind="M2.5x5 self-tap, flat head", axis=(0, 0, -1),
+                              pos=(-xrow, by + sgn * D.CASE_HOLE_LAT, zc), length=5.0))
     gd_lo_z, pi_lo_z = min(V.GD_SCREW_ROWS_Z), min(V.PI_SCREW_Z)
     for sy in (D.BOARD_GD_HOLES[0] / 2, -D.BOARD_GD_HOLES[0] / 2):
         for sz in V.GD_SCREW_ROWS_Z:
@@ -746,8 +699,8 @@ if __name__ == "__main__":
     os.makedirs(OUT_STL, exist_ok=True)
     os.makedirs(OUT_STEP, exist_ok=True)
     os.makedirs(OUT_REN, exist_ok=True)
-    print("building pelvis_v7()...")
-    solid = pelvis_v7()
+    print("building pelvis_v7(arm_mounts=True), the robot's pelvis (parts_v6 exports the same)...")
+    solid = pelvis_v7(arm_mounts=True)
     bb = solid.bounding_box()
     dims = (bb.size.X, bb.size.Y, bb.size.Z)
     bed_ok = max(dims) <= 250 and sorted(dims)[1] <= D.BED and sorted(dims)[0] <= D.BED

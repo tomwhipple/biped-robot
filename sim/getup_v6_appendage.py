@@ -16,7 +16,7 @@ or one tail on the centreline. Shoulder-height arms were already negative
 """
 import sys, os, itertools, dataclasses
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "egl")
+sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 from gen_plant_v6 import DesignParams, build_xml
 import getup_v6 as G
 

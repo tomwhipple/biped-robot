@@ -1,10 +1,11 @@
 """Figures for the no-appendage get-up study (PR #64 / design doc §15 /
 docs/design-v6/getup-noappendage-2026-09-14.md).
 
-Generates three figures Tom asked for on PR #64, wired into:
-  - docs/design-v6/figs/getup_noappendage_seated_compare.png   (F1)
-  - docs/design-v6/figs/getup_noappendage_rise_corridor.png    (F2)
-  - docs/design-v6/figs/getup_noappendage_bumper_sweep.png     (F3)
+Generates three figures Tom asked for on PR #64, into build/v6/renders/
+(the record's copies are docs/design-v6/figs/, which a re-run leaves alone):
+  - getup_noappendage_seated_compare.png   (F1)
+  - getup_noappendage_rise_corridor.png    (F2)
+  - getup_noappendage_bumper_sweep.png     (F3)
 
 F1 is plant-accurate: it places the real v6+skid MJCF at the seated pose and
 renders it headless (EGL). The CoM marker and heel->toe support span are
@@ -19,8 +20,7 @@ live on 2026-09-29 (`sim/getup_v6_seated_feas.py`,
 
 Run from the repo root:
 
-    MUJOCO_GL=egl .venv/bin/python sim/fig_getup_noappendage.py \\
-        --out docs/design-v6/figs
+    MUJOCO_GL=egl .venv/bin/python sim/fig_getup_noappendage.py [--out DIR]
 
 Skips the 3-D render if EGL isn't available (writes overlay-only composites
 on blank floors); the data figures always run.
@@ -37,8 +37,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-os.environ.setdefault("MUJOCO_GL", "egl")
+sys.path.insert(0, os.path.dirname(HERE))
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
+import paths  # noqa: E402
 from gen_plant_v6 import DesignParams, build_xml  # noqa: E402
 import getup_v6 as G  # noqa: E402
 from skid_alias import replace_skid_h  # noqa: E402
@@ -456,8 +458,7 @@ def fig_bumper_sweep(out_path, width=1100, height=520):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=os.path.join(HERE, "..", "docs",
-                                                  "design-v6", "figs"))
+    ap.add_argument("--out", default=os.path.join(paths.BUILD, "v6", "renders"))
     ap.add_argument("--skip-3d", action="store_true",
                     help="skip F1's live EGL render (data figures still made)")
     a = ap.parse_args()

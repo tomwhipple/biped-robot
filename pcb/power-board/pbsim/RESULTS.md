@@ -20,21 +20,18 @@ $ python -m pytest pcb/power-board/pbsim -q
 
 ## Where the suite runs as a gate (P2-4)
 
-This line's `.githooks/pre-push` runs the suite as gate `[3b/9]`. That
-gate runs only where a push executes this line's hook, i.e. a clone whose
-`core.hooksPath` is its own `.githooks`. Tom's laptop points
-`core.hooksPath` at the main checkout, so pushes from there run main's
-hook, which runs every gate as a make target in the pushed tree — and
-this line forked from main before main's Makefile existed. On this line
-main's hook fails at `make sil-lib` ("No rule to make target"), so no
-laptop push of the design line can pass a gate. Round 3 was pushed after
-running this line's hook by hand (venv on `PATH`): `tests/` 300 passed /
-16 skipped, `sim/sil` 16 passed / 19 skipped, pbsim 67 passed.
+`make pbsim` runs the suite, and `make pytest` runs it after `tests/`. The
+pre-push hook runs `make pytest` as gate 2/9 on every push that is not
+docs-only (AGENTS.md, "The gates"). The hook runs each gate as a make target
+in the pushed tree, so the gate holds for every clone, including one whose
+`core.hooksPath` points at another checkout's hook.
 
-When the design line takes main (PR #112 needs that anyway: it conflicts
-with main in AGENTS.md's generated-files table and in
-`docs/design-v6/README.md`), `[3b/9]` must become a make target in the hook
-and in AGENTS.md's gate table, or it is lost in the hook merge.
+Round 2 added a `[3b/9]` block to this line's hook instead. That was inert.
+Tom's laptop points `core.hooksPath` at the main checkout, whose hook runs
+make targets, and this line forked before main had a Makefile, so every gate
+failed with "No rule to make target". Round 3 merged main into
+`design/power-circuit` and from there into this branch, and replaced the
+block with the make target.
 
 ## Tooling
 
@@ -121,7 +118,7 @@ pulse (I_DM 400 A); the sweep is a DC operating point.
 | branch_peak_currents_fit_under_tps48111_cb_trip | J4+J5+J6+J7 at get-up max < 19.8 A | 14.6 A, 26 % margin |
 | full_bus_getup_peak_clears_cb_trip_and_f1_slow_band | §2's worst 11.8 A under F1 15 A and CB 19.8 A | 21 % / 40 % |
 | two_second_getup_vs_fuse_time_current | 2 s 5–7.6 A and the 3.0/4.3 A branches inside the fuse's no-melt band | 11.8 A is 78 % of rating |
-| upper_branch_getup_peaks_against_5264_contact | max(J5, J7) get-up peak ≤ the 5264 contact's 3.0 A | 0 % margin (carried item 1) |
+| upper_branch_getup_peaks_against_5264_contact | max(J5, J7) get-up peak ≤ the 5264 contact's 3.0 A | 0 % margin (open item 1) |
 | leg_branch_rms_under_contact_rating | J4/J6 walking RMS 1.6 A < 2.5 A | 36 % |
 | walking_bus_is_below_fuse_rating_with_margin | 3.05 A walking mean < 25 % of 15 A | 20.3 % |
 | full_board_power_up_under_load | soft start closes under 3.05 A + 0.5 A logic; rail ≥ 11.5 V after | 12.58 V at 12.59 V pack |
@@ -223,7 +220,8 @@ Resolved:
   RESULTS numbers reproduce (inrush 1.20 A; the 332 A is TI's device).
 - **P2-1** the §5.3 welded-Q3 chain driven from the E-stop press;
   **P2-2** COV blocks charge only, tested at true zero load; **P2-3**
-  contact B alone; **P2-5** `pbsim`; **P2-6** base branch.
+  contact B alone; **P2-4** `make pbsim`, run by gate 2/9; **P2-5**
+  `pbsim`; **P2-6** base branch.
 - **P3-1** model constants derived from the schematic; **P3-2** the
   pinned set stated above; **P3-3** `pack.py` claims no IR sweep;
   **P3-4** SDA/SCL by membership; **P3-5** falsy-zero timers in
@@ -233,22 +231,20 @@ Resolved:
 
 Open:
 
-1. **P2-4, partly:** the gate runs only where this line's own hook runs
-   (above).
-2. **`upper_branch_getup_peaks_against_5264_contact` passes at zero
+1. **`upper_branch_getup_peaks_against_5264_contact` passes at zero
    margin**: J5/J7's 3.0 A get-up peak sits at the 5264 contact's 3.0 A.
    Harness.md defers this to a bench measurement (§10 V8, lead
    temperature).
-3. **The OCD delay is 50 ms.** Design §5.5 says "OCD with a delay"
+2. **The OCD delay is 50 ms.** Design §5.5 says "OCD with a delay"
    without a number; the test asserts the intent (get-up peaks do not
    trip), not the choice among the legal delays.
-4. **No BQ76922 I²C protocol coverage** (framing, NACK on a stuck bus):
+3. **No BQ76922 I²C protocol coverage** (framing, NACK on a stuck bus):
    driver territory.
-5. **The TS2 thermistor path is not exercised**: TS2 is the wake pin on
+4. **The TS2 thermistor path is not exercised**: TS2 is the wake pin on
    rev A, the thermistor is on TS1.
-6. **The TPS48111's remote temperature diode (Q5 on Q3) is not
+5. **The TPS48111's remote temperature diode (Q5 on Q3) is not
    modelled**: C3 set no threshold and no ESP32 input sees it.
-7. **Two welded E-stop contacts defeat the stop** and nothing on the
+6. **Two welded E-stop contacts defeat the stop** and nothing on the
    board can tell (pinned). A jammed POWER button keeps the board from
    staying off; the design's answer is unplugging the pack (§7 step 6).
 

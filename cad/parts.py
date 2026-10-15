@@ -1,8 +1,9 @@
 """Printable parts for the biped (build123d, algebra mode).
 
-Run:  .venv/bin/python cad/parts.py        -> exports STLs to cad/stl/, prints
-                                              per-part bbox / bed check / mass and
-                                              the assembly mass rollup.
+Run:  .venv/bin/python cad/parts.py        -> exports STLs to cad/stl/ and STEPs
+                                              to build/v5/step/, prints per-part
+                                              bbox / bed check / mass and the
+                                              assembly mass rollup.
 
 Part set (7 unique, 13 prints) -- pelvis v6, 2026-08-04:
   pelvis        x1  THE WHOLE TORSO: deck + yaw housing + battery bay + board
@@ -37,17 +38,21 @@ left and right legs (legs are translations, not mirrors).
 """
 import math
 import os
+import sys
 from build123d import *
 import dimensions as D
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stl")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import paths  # noqa: E402
+
+OUT = paths.V5_STL          # committed: the training box meshes these
 # STEP is exported alongside every STL, from the SAME solid in the same run.
 # They used to be separate commands (cad/export_step.py) and the STEPs drifted:
 # on 2026-07-27 every per-part STEP was three days stale, predating the
 # imu_carrier redesign, the yaw-carrier clearance and that day's pad changes --
 # so anyone opening one in FreeCAD was measuring superseded geometry. Coupling
 # them here makes that impossible.
-STEP_OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "step")
+STEP_OUT = os.path.join(paths.BUILD, "v5", "step")
 
 
 # ---------------------------------------------------------------- helpers
@@ -1585,8 +1590,14 @@ def main():
               f"{bb.size.Z:6.1f} mm  vol {vol:6.1f} cm3  ~{mass:5.1f} g  "
               f"{'BED-OK' if fits else '** TOO BIG **'}  [{orient}]")
 
+    # STEP only, never printed: freecad_articulate.py still stands the legacy
+    # tower stack on the deck of the poseable assembly.
+    for name, fn in (("tower", tower), ("imu_carrier", imu_carrier)):
+        export_step(fn(), os.path.join(STEP_OUT, f"{name}.step"))
+
     print(f"\nexported {len(PARTS)} parts + 2 print variants -> "
-          f"{os.path.relpath(OUT)}/*.stl AND {os.path.relpath(STEP_OUT)}/*.step")
+          f"{os.path.relpath(OUT)}/*.stl AND {os.path.relpath(STEP_OUT)}/*.step "
+          f"(+ legacy tower, imu_carrier: STEP only)")
 
     # battery = worst case of the 3S 850 XT30 field the bay now fits (~80 g,
     # see dimensions.BATT); the flat Zeee is 74 g. Its pigtail

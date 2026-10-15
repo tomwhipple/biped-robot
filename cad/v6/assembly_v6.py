@@ -22,14 +22,14 @@ Variants (env vars; the defaults are the robot to print):
                                 built with the girdle's deck pilots. ARMS=0 is
                                 the armless variant: neck_collar instead of the
                                 girdle, a pelvis without the pilots.
-    YAW_BEARING_VARIANT=C|A|E   hip-yaw bearing option (docs/design-v6/
-                                study-yaw-bearing.md). C is a PLACEHOLDER
-                                default; the choice is open (issue #75).
-    HIP_YOKE_VARIANT=single|split  the one-print hip yoke (default) or the
-                                legacy bolted yoke_roll + yoke_pitch pair.
+    HIP_YOKE_VARIANT=single|glued|split  the one-print hip yoke (default), the
+                                glued U-channel pair, or the legacy bolted
+                                yoke_roll + yoke_pitch pair.
+    ANKLE_LINK_VARIANT=box|glued  the one-print ankle link (default) or the
+                                glued cradle + fork, carried as their union.
 
-    .venv/bin/python cad/v6/assembly_v6.py                 # step/assembly_v6_arms.step + renders
-    ARMS=0 .venv/bin/python cad/v6/assembly_v6.py          # step/assembly_v6.step (armless)
+    .venv/bin/python cad/v6/assembly_v6.py                 # build/v6/{step,renders}/assembly_v6_arms.{step,png}
+    ARMS=0 .venv/bin/python cad/v6/assembly_v6.py          # build/v6/{step,renders}/assembly_v6.{step,png} (armless)
     .venv/bin/python cad/v6/assembly_v6.py --pose knee=-60,hip_pitch=-30
 """
 from __future__ import annotations
@@ -40,11 +40,12 @@ import os
 import sys
 import tempfile
 
-os.environ.setdefault("MUJOCO_GL", "egl")   # before anything imports mujoco
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")   # before anything imports mujoco
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import (Box, Color, Compound, Cylinder, Location, Pos, Rot,  # noqa: E402
                        export_step, export_stl)
@@ -52,14 +53,15 @@ import dimensions_v6 as V  # noqa: E402
 D = V.D
 import check_assembly as CA  # noqa: E402  (v5 servo mocks)
 import parts as v5parts  # noqa: E402
+import paths  # noqa: E402
 
-OUT_STEP = os.path.join(HERE, "step")
-OUT_STL = os.path.join(HERE, "stl")
-OUT_REN = os.path.join(HERE, "renders")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
+OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
 COL_PRINT = Color(0.82, 0.84, 0.87)
 COL_SERVO = Color(0.22, 0.23, 0.27)
 COL_FOOT = Color(0.30, 0.31, 0.34)
+COL_SOLE = Color(0.93, 0.93, 0.91)       # white silicone rubber sheet
 COL_MOCK = Color(0.15, 0.45, 0.75)
 COL_HEAD = Color(0.90, 0.88, 0.80)
 
@@ -77,15 +79,6 @@ def _try(modname, fn, *a, **k):
         return None, False
 
 
-def yaw_bearing_variant():
-    """Which hip-yaw bearing option the assembly builds (docs/design-v6/
-    study-yaw-bearing.md): "C" (the placeholder default -- the selection is
-    open, issue #75), "A", or "E" (A + positive retention: lip, screwed cap,
-    screwed retainer), via the YAW_BEARING_VARIANT env var. parts_v6 reads
-    the same switch, so the exported pelvis and carriers match the assembly."""
-    return os.environ.get("YAW_BEARING_VARIANT", "C")
-
-
 def hip_yoke_variant():
     """Which hip yoke (link 2, the roll/pitch universal joint) the assembly
     builds: "single" (DEFAULT since 2026-09-24: cad/v6/hip_yoke_v6.py, the roll
@@ -93,8 +86,17 @@ def hip_yoke_variant():
     v5 yoke_roll + yoke_pitch_v6 bolted flange to flange) via the
     HIP_YOKE_VARIANT env var. Promoted once both clearance findings its sweep
     exposed were resolved (hip-yoke-single-print.md section 6): the roll-
-    corner relief, and hip flexion -120 with the leg link's LL_HIP_RELIEF."""
+    corner relief, and hip flexion -120 with the leg link's LL_HIP_RELIEF_X0 trim.
+    "glued" (cad/v6/hip_yoke_glued.py) is the same two clevises as two
+    support-free U-channels snapped and glued at the old bolted plane; the
+    assembly carries their glued union as one piece."""
     return os.environ.get("HIP_YOKE_VARIANT", "single")
+
+
+def one_piece_yoke():
+    """True when link 2 is ONE solid in the assembly -- the one print, or the
+    glued pair -- and so is checked as hip_yoke_{s} with its seat zones."""
+    return hip_yoke_variant() in ("single", "glued")
 
 
 def arms_on():
@@ -105,8 +107,12 @@ def arms_on():
 
 
 def part_hip_yoke():
-    """The one-print hip yoke. No envelope fallback: a caller that opted in
-    asked for this part, and two bolted pieces are not a stand-in for one."""
+    """The one-print hip yoke, or the glued pair's union (HIP_YOKE_VARIANT=
+    glued). No envelope fallback: a caller that opted in asked for this part,
+    and two bolted pieces are not a stand-in for one."""
+    if hip_yoke_variant() == "glued":
+        import hip_yoke_glued
+        return hip_yoke_glued.hip_yoke_glued()
     import hip_yoke_v6
     return hip_yoke_v6.hip_yoke_v6()
 
@@ -129,19 +135,12 @@ def posed_hip_yoke_seats(side, pose):
 
 
 def part_yaw_carrier():
-    """v6 carrier (v5's + the hip-yaw bearing boss); falls back to v5's."""
-    variant = yaw_bearing_variant()
+    """v6 carrier (v5's + the hip-yaw bearing hub); falls back to v5's."""
     try:
-        if variant == "E":
-            import yaw_retention_optE
-            return yaw_retention_optE.carrier_optE()
-        if variant == "A":
-            import yaw_carrier_v6_optA
-            return yaw_carrier_v6_optA.yaw_carrier_v6_optA()
         import yaw_carrier_v6
         return yaw_carrier_v6.yaw_carrier_v6()
     except Exception as e:  # noqa: BLE001
-        print(f"  [assembly_v6] yaw_carrier_v6 (variant {variant}) unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
+        print(f"  [assembly_v6] yaw_carrier_v6 unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
         return v5parts.yaw_carrier()
 
 
@@ -163,11 +162,31 @@ def part_leg_link():
     return Pos(0, 1.0, -V.LL_DROP / 2) * Box(30, 44, V.LL_DROP + 20)
 
 
+def ankle_link_variant():
+    """"box" (default, cad/v6/ankle_link.py) or "glued" (cad/v6/
+    ankle_link_glued.py: a conformal cradle and a fork, printed without
+    supports and glued; the assembly carries their union as one piece)."""
+    return os.environ.get("ANKLE_LINK_VARIANT", "box")
+
+
 def part_ankle_link():
+    if ankle_link_variant() == "glued":
+        import ankle_link_glued
+        return ankle_link_glued.ankle_link_glued()
     s, ok = _try("ankle_link", "ankle_link")
     if ok:
         return s
     return Pos(0, 1.0, -V.AL_DROP / 2) * Box(44, 44, V.AL_DROP + 20)
+
+
+def part_sole(side):
+    """The 2 mm silicone sole stuck under the foot plate (foot_v6.sole_tpu, the
+    cutting outline): z -TPU_SOLE_T..0 in the foot frame."""
+    s, ok = _try("foot_v6", "sole_tpu", side)
+    if ok:
+        return s
+    sgn = 1 if side == "L" else -1
+    return Pos(V.FOOT_TOE - V.FOOT_L_LEN / 2, sgn * V.FOOT_Y_OFF, -V.TPU_SOLE_T / 2) * Box(V.FOOT_L_LEN, V.FOOT_W, V.TPU_SOLE_T)
 
 
 def part_foot(side):
@@ -179,14 +198,18 @@ def part_foot(side):
 
 
 def part_pelvis():
-    if yaw_bearing_variant() == "E":
-        s, ok = _try("yaw_retention_optE", "pelvis_optE", arms_on())
-    else:
-        s, ok = _try("pelvis_v7", "pelvis_v7", yaw_bearing_variant(), arms_on())
+    s, ok = _try("pelvis_v7", "pelvis_v7", arms_on())
     if ok:
         return s
     x0, x1 = V.HOUSING_X
     return Pos((x0 + x1) / 2, 0, V.YAW_BOX_BOT_Z / 2) * Box(x1 - x0, 2 * V.HOUSING_HW, -V.YAW_BOX_BOT_Z)
+
+
+def part_bearing_housing():
+    """The hip-yaw bearings' outer-race seats, screwed under the pelvis
+    (yaw_bearing_housing.py); pelvis-local like the pelvis."""
+    import yaw_bearing_housing
+    return yaw_bearing_housing.yaw_bearing_housing()
 
 
 def part_collar():
@@ -276,9 +299,9 @@ def _leg_chain(side):
               ("ankle_pitch", (0, 1, 0), (0, y, V.ANKLE_PITCH_Z)),
               ("ankle_roll", (1, 0, 0), (0, y, V.ANKLE_ROLL_Z))]
     pieces = [
-        (0, f"servo_hip_yaw_{side}", COL_SERVO, Pos(0, y, V.HIP_YAW_Z + D.SV_HORN_FACE) * CA.servo_mock_z()),
+        (0, f"servo_hip_yaw_{side}", COL_SERVO, Pos(0, y, V.HIP_YAW_Z + D.SV_HORN_FACE) * CA.servo_mock_z(idler_disc=False)),
         (1, f"yaw_carrier_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * part_yaw_carrier()),
-        *yaw_retention_pieces(side, y),
+        *yaw_bearing_pieces(side, y),
         (1, f"servo_hip_roll_{side}", COL_SERVO, at(V.HIP_ROLL_Z) * CA.servo_mock_x()),
         *hip_yoke_pieces(side, at),
         (3, f"servo_hip_pitch_{side}", COL_SERVO, at(V.HIP_PITCH_Z) * CA.servo_mock_y()),
@@ -289,6 +312,7 @@ def _leg_chain(side):
         (5, f"ankle_link_{side}", COL_PRINT, at(V.ANKLE_PITCH_Z) * part_ankle_link()),
         (6, f"servo_ankle_roll_{side}", COL_SERVO, at(V.ANKLE_ROLL_Z) * mock_roll_servo_in_foot(side)),
         (6, f"foot_{side}", COL_FOOT, at(V.TPU_SOLE_T) * part_foot(side)),
+        (6, f"sole_{side}", COL_SOLE, at(V.TPU_SOLE_T) * part_sole(side)),
     ]
     return pieces, joints
 
@@ -300,25 +324,24 @@ def hip_yoke_pieces(side, at):
     axis at their origins), so the split parts are placed at HIP_ROLL_Z and
     HIP_PITCH_Z; the single part carries the pitch clevis at -ROLL_TO_PITCH
     in its own frame and is placed at HIP_ROLL_Z alone."""
-    if hip_yoke_variant() == "single":
+    if one_piece_yoke():
         return [(2, f"hip_yoke_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * part_hip_yoke())]
     return [(2, f"yoke_roll_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * v5parts.yoke_roll()),
             (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch())]
 
 
-def yaw_retention_pieces(side, y):
-    """Option E only: the bearing (one ring, bought part), the cap (turns
-    with the carrier, link 1) and the retainer (pelvis-fixed, link 0)."""
-    if yaw_bearing_variant() != "E":
-        return []
-    import yaw_retention_optE as E
-    from build123d import Cylinder
-    z0, z1 = V.HIP_YAW_Z + E.E_RACE_Z[0], V.HIP_YAW_Z + E.E_RACE_Z[1]
-    bearing = Pos(0, y, (z0 + z1) / 2) * (Cylinder(V.YAWA_BRG_OD / 2, z1 - z0) - Cylinder(V.YAWA_BRG_ID / 2, z1 - z0 + 2))
+def yaw_bearing_pieces(side, y):
+    """The hip-yaw bearing (6810-2RS, bought), drawn as its two races split at
+    the ring shoulders (V.YAW_BRG_INNER_RING_R / _OUTER_RING_R): the inner
+    race on the carrier's hub turns with the leg (link 1), the outer race in
+    the bearing housing's recess stays put (link 0)."""
+    z0, z1 = V.HIP_YAW_Z + V.YAW_BRG_BAND_Z[0], V.HIP_YAW_Z + V.YAW_BRG_BAND_Z[1]
+
+    def ring(r0, r1):
+        return Pos(0, y, (z0 + z1) / 2) * (Cylinder(r1, z1 - z0) - Cylinder(r0, z1 - z0 + 2))
     return [
-        (1, f"bearing_6810_{side}", COL_MOCK, bearing),
-        (1, f"yaw_cap_{side}", COL_PRINT, Pos(0, y, V.HIP_YAW_Z) * E.cap()),
-        (0, f"yaw_retainer_{side}", COL_PRINT, Pos(0, 0, V.DECK_TOP_Z) * E.retainer(y)),
+        (1, f"bearing_inner_{side}", COL_MOCK, ring(V.YAW_BRG_ID / 2, V.YAW_BRG_INNER_RING_R)),
+        (0, f"bearing_outer_{side}", COL_MOCK, ring(V.YAW_BRG_OUTER_RING_R, V.YAW_BRG_OD / 2)),
     ]
 
 
@@ -330,6 +353,7 @@ def _torso_pieces():
     z = V.DECK_TOP_Z
     return [
         (0, "pelvis_v7", COL_PRINT, Pos(0, 0, z) * part_pelvis()),
+        (0, "yaw_bearing_housing", COL_PRINT, Pos(0, 0, z) * part_bearing_housing()),
         (0, "pack_mock", COL_MOCK, Pos(0, 0, z) * mock_pack()),
         (0, "pi4_mock", COL_MOCK, Pos(0, 0, z) * mock_pi()),
         (0, "gd_mock", COL_MOCK, Pos(0, 0, z) * mock_gd()),
@@ -367,7 +391,8 @@ def _arm_chain(side):
         # servo itself rides link 0 here.
         (0, f"servo_shoulder_{side}", COL_SERVO, deck * SG.shoulder_servo_mock(side)),
         (1, f"arm_upper_{side}", COL_PRINT, at_sh * arm_v6.arm_upper_v6(side)),
-        (2, f"servo_elbow_{side}", COL_SERVO, at_el * arm_v6.elbow_servo_mock(side)),
+        # the elbow servo's case rides the UPPER arm (arm_v6.elbow_servo_mock)
+        (1, f"servo_elbow_{side}", COL_SERVO, at_el * arm_v6.elbow_servo_mock(side)),
         (2, f"arm_fore_{side}", COL_PRINT, at_el * arm_v6.arm_fore_v6(side)),
     ]
     return pieces, joints
@@ -441,7 +466,7 @@ def render(comp: Compound, png_path, views=((150, -12), (90, -8), (0, -12)), siz
     import mujoco
     import numpy as np
     import imageio
-    os.environ.setdefault("MUJOCO_GL", "egl")
+    os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
     tmp = tempfile.mkdtemp(prefix="v6asm_")
     geoms = []
     for i, ch in enumerate(comp.children):
@@ -500,7 +525,7 @@ def main(argv=None):
     bb = comp.bounding_box()
     print(f"assembly bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}  z {bb.min.Z:.1f}..{bb.max.Z:.1f} mm, {len(comp.children)} pieces")
     if not a.no_step:
-        os.makedirs(OUT_STEP, exist_ok=True)
+        os.makedirs(os.path.dirname(os.path.abspath(a.step)), exist_ok=True)
         export_step(comp, a.step)
         print("wrote", a.step)
     print("wrote", render(comp, a.png))

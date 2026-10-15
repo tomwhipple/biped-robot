@@ -12,7 +12,7 @@ import parts
 import fasteners as F
 
 
-def servo_mock():
+def servo_mock(idler_disc=True):
     """The ST3215 in ONE canonical frame -- the single source of servo truth.
 
     Output axis +Y at the origin, horn +Y, body length along Z: output end
@@ -63,8 +63,11 @@ def servo_mock():
     # WHEEL ENDS. Both discs stand PROUD of their case face with a clear annular
     # moat, and each carries a free hub proud again. All of it ROTATES with the
     # joint, so a mount that clamps it binds the joint.
-    s += parts.cyl_y(D.SV_DISC_R, D.SV_IDLER_FACE, D.SV_IDLER_CASE_FACE, 0, 0)
-    s += parts.cyl_y(D.SV_IDLER_HUB_HW, D.SV_BOTFACE, D.SV_IDLER_FACE, 0, 0)
+    # idler_disc=False: a servo built without its idler disc (v6's hip-yaw
+    # servos); the free-hub post stays, it is part of the servo.
+    if idler_disc:
+        s += parts.cyl_y(D.SV_DISC_R, D.SV_IDLER_FACE, D.SV_IDLER_CASE_FACE, 0, 0)
+    s += parts.cyl_y(D.SV_IDLER_HUB_HW, D.SV_BOTFACE, D.SV_IDLER_CASE_FACE, 0, 0)
     s += parts.cyl_y(D.SV_BOSS_D / 2, D.SV_TOPFACE, D.SV_HORN_FACE, 0, 0)
     return s
 
@@ -81,10 +84,10 @@ def servo_mock_x():
     return Rot(0, 180, 0) * Rot(0, 0, 90) * servo_mock()
 
 
-def servo_mock_z():
+def servo_mock_z(idler_disc=True):
     """Yaw servo (v3yaw): output axis VERTICAL with the horn DOWN. Case length
     along X (YAW_CASE_X_REAR..FRONT), width along Y, idler face UP."""
-    return Rot(0, 90, 0) * Rot(0, 0, -90) * servo_mock()
+    return Rot(0, 90, 0) * Rot(0, 0, -90) * servo_mock(idler_disc)
 
 
 # ------------------------------------------------------------- torso mocks

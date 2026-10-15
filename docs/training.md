@@ -97,7 +97,8 @@ Around the PD loop:
 
 | effect | model | knob |
 |---|---|---|
-| per-servo stiffness | kp and kd × a factor per servo — the position-loop P raised on chosen IDs, modelled as N × the fitted stiffness on the same envelope, as the design gates model it. `planb` = × 4 on the hip-roll, ankle-roll and knee servos (DESIGN.md §4); config.json records the resolved `{actuator: factor}` | `servo_kp_scale`, `--servo-kp-scale`; `servo_kp` / `servo_kd` also take one value per actuator |
+| per-servo stiffness | kp and kd × a factor per servo — the position-loop P raised on chosen IDs, modelled as N × the fitted stiffness on the same envelope, as the design gates model it. `robot` = × 4 on the hip rolls (the STS3250s, the model's credit) and × 2.8 on the ankle rolls and knees (the bench's P 96 / D 0); `planb` = × 4 on all six (DESIGN.md §4); config.json records the resolved `{actuator: factor}` | `servo_kp_scale`, `--servo-kp-scale`; `servo_kp` / `servo_kd` also take one value per actuator |
+| floor contacts | `all`: the plant as drawn. `feet` (training only): only the sole pads touch the floor; the servo boxes, the fall colliders and the arms stop colliding with it, and the explicit self-collision pairs stay. Those contacts only matter in a fall, which ends the episode, but MJX reserves and solves their slots every step: on the robot plant `feet` cuts 182 contact slots to 56 and the physics step about 3.5× (laptop CPU). The referee always grades with `all` | `floor_contacts`, `--floor-contacts feet` |
 | bus latency | the first sub-steps of each tick still serve the previous target; 0–8 ms per episode, ±1 ms jitter per tick | `latency_ms`, `latency_ms_max`, `latency_jitter_ms` |
 | gear backlash | a deadzone of ±lash/2 on the PD error; 0.5–1.0° per episode | `--backlash-deg lo,hi` |
 | actuation lag | three cascaded first-order stages on the commanded target (the firmware command shaper's structure), pole drawn per episode | `--act-lag lo,hi` (Hz) |
@@ -287,7 +288,21 @@ pitch is solved from the joint axes and the sole stays level through the whole
 swing; without it — every prototype run — the ankle cancels the hip but not
 the knee bend (the knee axis is −y), so the swing sole tilts toe-down by twice
 the bend. Where the plant has an ankle roll, it cancels the hip roll. At zero
-command the reference is the home pose. It pays
+command the reference is the home pose.
+
+On the robot plant the home pose is a straight leg, and a knee bend out of a
+straight leg mostly swings the foot back: the 0.55 rad bend raises the sole
+only 0–2.2 cm, and policies trained on it shuffle. `--mimic-lift H` (metres)
+replaces the knee bend with an IK lift: the swing sole rises straight up by
+`H·sw²` (sw = the swing half of the clock's sine), so it leaves and lands with
+no vertical speed. `mimic_lift_coefs` (`sim/walker_env.py`) solves the hip-pitch
+and knee offsets per leg on the plant's own kinematics (torso fixed, flexion
+branch, the ankle keeping the sole level), and fits them as cubics in √h;
+both environments call it on their own model. The stride's hip swing only adds
+height at the ends of the swing (up to 1 cm at 0.35 m/s). The stance leg and
+the standing reference are unchanged. `tests/test_mimic_lift.py` pins the
+lift, the levelled sole, and the CPU/MJX agreement; parity block R4 runs the
+full step with it. It pays
 `exp(−Σ w_j (q − q_ref)² / 0.72)` over every policy joint, with the knee
 weighted by `--mimic-knee-w`.
 It supplies backward and sideways walking, which shaping alone did not
@@ -426,6 +441,78 @@ Training runs **at night only**; days belong to the box's owner.
 - **Morning.** `infra/night_collect_local.sh` (cron 07:15 on mira) copies each
   finished run into the working checkout and referees it: the python column
   with `--render`, and the SIL column. The lag column is run by hand (§8).
+
+### Training on the Mac (CPU physics + MPS)
+
+`sim/mac_train.py` trains on the laptop (Apple M5 Max: 18 CPU cores, 40-core
+GPU). It splits the work:
+
+- **Physics:** `walker_env.BimoWalkerEnv`, the referee's own env, runs in N
+  worker processes (default: cores − 2). Each worker steps its slice of the
+  envs and runs the policy on its own CPU.
+- **Training:** the policy and value networks train on the GPU through
+  PyTorch's Metal backend (`--device mps`, falling back to CPU).
+
+MJX itself has no supported path onto the Mac GPU: JAX here is CPU-only and
+MuJoCo Warp needs CUDA.
+
+**Same command line and run layout as `train_mjx.py`.** It uses train_mjx's
+own `make_parser()` / `build_env_kw()`, so one set of flags means one env
+config. Its additions are `--workers`, `--device`, `--hours` and `--resume`.
+
+- `config.json` gains `"trainer": "mac_ppo"`.
+- `params.pkl` is brax's `(normalizer, policy, value)` tuple, so the referee,
+  the distiller and `tools/export_policy_weights.py` read a Mac run
+  unchanged. A saved checkpoint acts identically in the referee's brax loader
+  and in PyTorch (max |Δaction| 2e-7).
+- `--init-from` reads a brax run, so a run can move from MJX to the Mac and
+  back.
+
+**The PPO is brax 0.14's, term for term:**
+
+- a tanh-normal policy;
+- (512, 256, 128) swish MLPs with lecun-uniform kernels;
+- brax's own `running_statistics` normalizer, updated on each batch before the
+  SGD;
+- GAE (λ 0.95) recomputed per minibatch;
+- clip 0.3, normalized advantages, value coefficient 0.5;
+- entropy with the tanh log-det term;
+- Adam with no gradient clipping;
+- one set of parameters per iteration, then trajectory-shuffled minibatches.
+
+With 16 workers the batch layout is brax's exactly: 2048 envs, 32,768
+trajectories of 20 steps. Other worker counts round the trajectory count up
+to whole rounds.
+
+**Rate on the robot's plant (2026-10-07):** 16,200–17,100 env steps/s with 16
+workers, measured while another CPU sweep shared the machine. That is about
+12× mira's MJX rate on the same plant (1,310 steps/s). Physics is ~95 % of an
+iteration (≈ 38 s of rollout against ≈ 2 s of update per 655,360 steps).
+
+**What differs from an MJX run:**
+
+| item | Mac trainer | consequence |
+|---|---|---|
+| contact physics | CPU MuJoCo, the referee's engine | none against the referee; the MJX-vs-CPU contact-manifold difference (§8) is gone, not modelled |
+| mass / friction DR | drawn per episode | MJX draws per env batch; the per-episode distribution is the same |
+| action-chain lag DR | per episode, uniform(`act_lag_hz`, `act_lag_hz_max`), via the CPU env's `act_lag_dr_max` | named apart from the config key so a referee rebuilding from `config.json` keeps its one pinned pole |
+| feet-crossing reward (`w_foot_cross`) | applied (`foot_cross_term=True`) | the referee's env leaves it off; its scores do not use reward |
+| eval curve | `eval/*` in `progress.jsonl` are the training episodes that ended in that iteration (stochastic policy) | MJX runs a separate eval env; the two curves are close but not identical |
+| non-`--precision` value net | (128, 128), the policy's size | MJX uses (256, 256) without `--precision` |
+
+With the per-episode draws pinned, the robot preset's training config
+(k1's flags) matches MJX step for step on synced airborne states while the
+legs are splayed apart (200 steps: |Δqpos| 6e-9, |Δreward| 3e-7). The match
+ends when the legs touch each other. With the hip rolls driven inward, the
+legs touch on 194 of 200 steps, and qpos differs by up to 1e-3 and reward by
+up to 0.06 from step 6. That is the same engine-level contact difference as
+on the floor. The Mac trainer has the referee's version of it.
+
+```bash
+.venv/bin/python sim/mac_train.py --out <run> --robot --precision --family loco \
+    --walk-submix 0,0 --cmd-v-range 0.05,0.35 --w-mimic 1.5 --servo-kp-scale robot \
+    --act-lag 2,12 --steps 400000000 --hours 6        # --workers 16 by default here
+```
 
 ### Burst compute on RunPod
 
@@ -681,8 +768,8 @@ the obs-spec generator rebuild the same robot:
 |---|---|
 | plant | `sim/bimo_biped_v6ar.xml`, generated by `sim/gen_plant_v6.py` with CAD inertials from `sim/build_v6_inertia.py`. The committed file carries the 12 leg joints and the neck yaw; the arms (shoulder pitch + elbow per side) come with the CAD track's regeneration and need nothing here — every layout is read from the model, and `tests/test_robot_plant.py` runs a generated 17-servo plant today. No payload: the camera is in the head, which the plant models |
 | policy joints | the 12 leg joints, 6 per leg with the ankle roll: frame 55, network input 165, action 12 |
-| neck and arms | **held, not driven.** `held_joints` gives each a fixed servo target: neck 0°, shoulders 15° back, elbows straight — the walking hold (DESIGN.md §5.4; hanging straight, the forearms touch the swinging legs). A held servo runs the same actuator model as the legs (PD, envelope, lag, dead time, backlash, ticks, zero offset), starts the episode at its target (it is the plant's `qpos0`), and is in neither the action nor the observation; torque and power metrics include it. Why not actions: the walking hold is a fixed pose by design, four arm actions would only have to learn to stay still, and the neck belongs to the Pi's camera later |
-| servo stiffness | per servo (`servo_kp_scale`, §2): Plan B's nominal × 4 on kp and kd of the six hip-roll, ankle-roll and knee servos |
+| neck and arms | **held, not driven.** `held_joints` gives each a fixed servo target: neck 0°, the arms at their folded rest pose (`dimensions_v6.ARM_REST`: shoulders 15° forward, elbows folded 95°; DESIGN.md §5.4), the pose that clears every leg joint's full range. A held servo runs the same actuator model as the legs (PD, envelope, lag, dead time, backlash, ticks, zero offset), starts the episode at its target (it is the plant's `qpos0`), and is in neither the action nor the observation; torque and power metrics include it. Why not actions: the walking hold is a fixed pose by design, four arm actions would only have to learn to stay still, and the neck belongs to the Pi's camera later |
+| servo stiffness | per servo (`servo_kp_scale`, §2): the `robot` preset, × 4 on kp and kd of the hip rolls (STS3250) and × 2.8 on the ankle rolls and knees (STS3215 at P 96). The STS3250's larger stall and speed are not modelled: one STS3215 envelope for every servo |
 | hip pitch | policy range to −120° flexion (`hip_flex_deg`), the leg link's relief; the plant's stop stays at −125° |
 | reward roles | every policy joint must resolve to a role (`joint_role` in both envs: the six per-leg roles, neck, shoulder, elbow) or the env refuses to build — a joint a plant adds is held or named, never trained unregularized by accident. The posture, dof-limit and imitation terms sum over every policy joint, so the ankle roll is in them; the imitation reference keeps the sole level in pitch and roll (`mimic_sole_level`, §5) |
 | mirror | `mirror.py` maps over the policy joints (`joints=env._act_names`, as `--w-mirror-loss` passes them) and maps an unprefixed joint onto itself |

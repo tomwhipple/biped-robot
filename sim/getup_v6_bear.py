@@ -25,7 +25,7 @@ L_/R_-prefixed. Success = standing (up_z > 0.9, pelvis >= 80% standing).
 """
 import sys, os, itertools, argparse
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "egl")
+sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 from gen_plant_v6 import DesignParams, params_from_args, build_xml
 import getup_v6 as G
 

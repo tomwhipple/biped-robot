@@ -1,7 +1,7 @@
 """Fly-in assembly animation: every part travels its real insertion path.
 
 Run:  .venv/bin/python cad/animate_assembly.py
-      -> cad/renders/assembly_flyin.gif
+      -> build/v5/movies/assembly_flyin.gif (+ .mov)
 
 Purpose is assembly *feasibility*, not eye candy: parts approach their seats
 along the direction they must actually be inserted (roll servos slide UP into
@@ -16,6 +16,7 @@ changes as long as labels keep their prefixes.
 """
 import os
 import shutil
+import sys
 import numpy as np
 import mujoco
 import imageio.v2 as imageio
@@ -24,9 +25,10 @@ from build123d import export_stl
 import export_assembly as A
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "renders")
-TMP = os.path.join(OUT, "_anim")
-os.makedirs(TMP, exist_ok=True)
+sys.path.insert(0, os.path.dirname(HERE))
+import paths  # noqa: E402
+
+TMP = os.path.join(paths.BUILD, "v5", "tmp", "anim")
 
 # label prefix -> (insertion vector in mm world frame, extra delay in frames
 # before this stage starts -- the battery waits for the guard to finish so the
@@ -128,6 +130,7 @@ def collect(c, tag=""):
             stl = os.path.join(TMP, f"{name}.stl")
             export_stl(ch, stl)
             parts.append((name, stage, vec, stl, color_of(ch.label)))
+os.makedirs(TMP, exist_ok=True)
 collect(A.robot)
 print(f"{len(parts)} parts across {len(PLAN)} assembly stages")
 
@@ -214,6 +217,7 @@ for f in range(total):
     r.update_scene(d, cam)
     frames.append(r.render().copy())
 
+OUT = paths.build_dir("v5", "movies")
 gif = os.path.join(OUT, "assembly_flyin.gif")
 imageio.mimwrite(gif, frames, fps=FPS, loop=0)     # for embedding in the report
 mov = os.path.join(OUT, "assembly_flyin.mov")      # for local viewing (Preview

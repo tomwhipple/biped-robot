@@ -9,7 +9,7 @@ and the first walk is an open-loop gait validated in simulation against the
 measured actuation chain; a reinforcement-learning policy comes after the
 body has proven its margins on the floor.
 
-![The robot as drawn: front 3/4, side, front](cad/v6/renders/assembly_v6_arms.png)
+![The robot as drawn: front 3/4, side, front](docs/img/assembly_v6_arms.png)
 
 **Status:** designed, not yet built. The CAD is complete and passes its
 swept-ROM interference gate; the design passes simulation Gates A–D. The next
@@ -31,22 +31,24 @@ Everything below runs on a laptop with no robot and no GPU.
 ```bash
 python -m venv .venv && source .venv/bin/activate    # direnv does this via .envrc
 pip install -r requirements.txt
+make help                                  # every build, run and test target
 
 # look at the robot: drag its joints under gravity, push it over (native Qt window)
-python sim/joint_puppet.py                 # standing; --pose supine | prone
-python -m mujoco.viewer --mjcf=sim/bimo_biped_v6ar.xml
+make puppet                                # standing; ARGS="--pose supine" or "--pose prone"
+make sim                                   # the plant in MuJoCo's viewer
 
 # the design gates, on the robot's plant
-MUJOCO_GL=cgl python sim/static_gait.py --render sim/renders/walk.mp4   # the open-loop walk
+python sim/static_gait.py --render build/v6/movies/walk.mp4   # the open-loop walk
 python sim/gate_no3250.py walk             # the walk across the gate cases
 
 # regenerate the printable parts from the parametric source, then gate them
-ARMS=1 python cad/v6/parts_v6.py           # STLs + STEPs + rollup, with the arms
-sh cad/run_checks.sh                       # swept-ROM interference, must PASS
+make cad                                   # every part whose source changed: STL (cad/v6/stl), STEP and mass rollup (build/v6)
+make check-cad                             # swept-ROM interference, must PASS
+make slice                                 # OrcaSlicer projects + gcode, in build/v6/gcode
 
 # the test gates (also run by the pre-push hook)
-python -m pytest tests/ -q                 # ~4 min: physics parity, protocol, ROM, referee, design gates
-make -C firmware/host check                # the firmware's pure modules under ASan/UBSan + the consoles
+make test                                  # the firmware's pure modules under ASan/UBSan + the consoles, then
+                                           # pytest tests/ (~4 min) and the SIL suite
 ```
 
 The console drives a simulated robot over the real command protocol, and
@@ -95,4 +97,4 @@ docs/       build, electrical, software and design records
 
 17 × Feetech STS3215 (12 V) · Waveshare General Driver for Robots (ESP32,
 onboard IMU) · Raspberry Pi 4B + Camera Module 3 Wide · 3S 2200–2600 mAh LiPo ·
-PETG prints + TPU 95A soles. Full list: [docs/bom.md](docs/bom.md).
+PETG prints + silicone rubber soles. Full list: [docs/bom.md](docs/bom.md).

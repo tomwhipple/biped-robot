@@ -5,7 +5,7 @@ cad/stl/. check_printability.py is written around ONE STL directory
 monkey-patches both at runtime rather than forking the file, so the v6 parts
 are audited by the exact same code path as every v5 part.
 
-    .venv/bin/python cad/v6/audit_torso.py                # pelvis_v7, head, head_shell, head_face
+    .venv/bin/python cad/v6/audit_torso.py                # pelvis_v7, yaw_bearing_housing, head, head_shell, head_face
     .venv/bin/python cad/v6/audit_torso.py pelvis_v7
 """
 import os
@@ -25,6 +25,7 @@ IDENT = np.eye(3)                                              # base-down
 
 CP.ORIENT.update({
     "pelvis_v7": (RX180, "upside down: deck top on bed (v7 torso)"),
+    "yaw_bearing_housing": (RX180, "upside down: the face against the pelvis on bed"),
     "head": (IDENT, "base down: neck-horn plate on bed"),
     "head_shell": (IDENT, "base down: neck-horn plate on bed"),
     "head_face": (IDENT, "face plate flat on bed, camera bosses up"),
@@ -47,7 +48,7 @@ CP.ORIENT.update({
 
 
 def run(names=None):
-    names = names or ["pelvis_v7", "head", "head_shell", "head_face"]
+    names = names or ["pelvis_v7", "yaw_bearing_housing", "head", "head_shell", "head_face"]
     bad = {}
     for name in names:
         path = os.path.join(CP.STL, CP.PRINT_STL.get(name, f"{name}.stl"))

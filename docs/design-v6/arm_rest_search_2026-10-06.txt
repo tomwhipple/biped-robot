@@ -1,0 +1,73 @@
+# Arm rest-pose search, 2026-10-06 (cad/yaw-bearing-a working tree, on main 972537f's leg link).
+# Tom: "the resting position for the arms should be folded." For each (shoulder s, elbow e), the LEFT arm's
+# upper arm, elbow servo and forearm against: every left-leg piece through each leg joint's FULL ROM, one joint
+# at a time (13 samples, as check_assembly_v6 sweeps); a walking grid (hip roll -15/0/15 x hip pitch
+# -45/-20/0/15/30 x knee 0/35/70); every torso piece; the head through the neck sweep (7 samples).
+# overlap = worst intersection volume (mm3); min = smallest distance among non-intersecting pairs (mm).
+# A pair whose bounding boxes are more than 6 mm apart is not measured exactly: its box gap is recorded,
+# a LOWER BOUND on the true distance. So any min above 6 mm is a floor, not the distance; the CAD gate
+# (cad_rom_check.txt) measures the chosen pose exactly: >= 8.55 mm across its rest-pose leg rows.
+# The torso min (1.50 mm) is the upper arm beside its own girdle pod at every pose.
+# arm CoM dx/dz: the arm's mass centre (upper arm + forearm by PETG volume, the 55 g elbow servo)
+# against hanging straight; the robot's CoM moves by 2 x 121.7 g x dx / 2264 g.
+# Driver: a one-off sweep script around assembly_v6.leg_chain/arm_chain (not committed).
+
+     s      e | leg ROM ov    min | walk ov    min | torso min head min | arm CoM dx     dz
+ -45.0 -100.0 |       16.3   7.57 |     0.0   8.45 |      1.50    42.85 |      119.3   99.9
+ -45.0  -95.0 |     1037.6   7.57 |     0.0   8.45 |      1.50    42.85 |      121.5   98.0
+ -45.0  -90.0 |     1316.3   7.57 |     0.0   8.45 |      1.50    42.85 |      123.6   96.0
+ -35.0 -100.0 |        0.0   7.43 |     0.0   8.45 |      1.50    42.81 |      105.0   80.6
+ -35.0  -95.0 |        0.0   7.43 |     0.0   8.45 |      1.50    42.81 |      106.9   78.4
+ -35.0  -90.0 |        0.0   7.43 |     0.0   8.45 |      1.50    42.81 |      108.6   76.0
+ -30.0 -100.0 |        0.0   6.74 |     0.0   8.45 |      1.50    42.81 |       96.7   72.0
+ -30.0  -95.0 |        0.0   6.74 |     0.0   8.45 |      1.50    42.81 |       98.4   69.6
+ -30.0  -90.0 |        0.0   6.74 |     0.0   8.45 |      1.50    42.81 |       99.9   67.1
+ -25.0 -100.0 |        0.0   6.48 |     0.0   8.45 |      1.50    42.82 |       87.7   64.1
+ -25.0  -95.0 |        0.0   6.48 |     0.0   8.45 |      1.50    42.82 |       89.1   61.6
+ -25.0  -90.0 |        0.0   6.48 |     0.0   8.45 |      1.50    42.82 |       90.4   59.0
+ -20.0 -100.0 |        0.0   6.65 |     0.0   6.30 |      1.50    42.84 |       78.0   57.1
+ -20.0  -95.0 |        0.0   6.65 |     0.0   6.30 |      1.50    42.84 |       79.2   54.4
+ -20.0  -90.0 |        0.0   6.65 |     0.0   6.06 |      1.50    42.84 |       80.2   51.7
+ -17.5 -100.0 |        0.0   7.43 |     0.0   6.35 |      1.50    42.86 |       72.9   53.9
+ -17.5  -95.0 |        0.0   6.03 |     0.0   6.04 |      1.50    42.86 |       74.0   51.2
+ -17.5  -90.0 |        0.0   7.43 |     0.0   6.35 |      1.50    42.86 |       74.9   48.4
+ -15.0 -100.0 |        0.0   7.43 |     0.0   6.36 |      1.50    42.88 |       67.7   50.9
+ -15.0  -95.0 |        0.0   7.43 |     0.0   6.66 |      1.50    42.88 |       68.7   48.2
+ -15.0  -90.0 |        0.0   7.43 |     0.0   6.41 |      1.50    42.88 |       69.5   45.3
+ -12.5 -100.0 |        0.0   2.65 |     0.0   6.63 |      1.50    42.90 |       62.4   48.1
+ -12.5  -95.0 |        0.0   2.65 |     0.0   7.05 |      1.50    42.90 |       63.3   45.4
+ -12.5  -90.0 |        0.0   2.65 |     0.0   6.35 |      1.50    42.90 |       63.9   42.5
+ -10.0 -100.0 |       99.3   0.30 |     0.0   6.03 |      1.50    42.93 |       56.9   45.6
+ -10.0  -95.0 |       99.3   0.30 |     0.0   6.05 |      1.50    42.93 |       57.7   42.8
+ -10.0  -90.0 |       99.3   0.30 |     0.0   6.06 |      1.50    42.93 |       58.2   40.0
+   0.0 -100.0 |    11581.8   1.73 |     0.0   6.82 |      1.50    43.09 |       34.2   38.0
+   0.0  -95.0 |    11748.9   2.82 |     0.0   6.51 |      1.50    43.09 |       34.5   35.1
+   0.0  -90.0 |    11948.2   4.00 |     0.0   6.19 |      1.50    43.09 |       34.5   32.2
+  10.0 -100.0 |     9209.4   0.82 |     0.0   6.07 |      1.50    42.92 |       10.5   34.5
+  10.0  -95.0 |    10240.1   0.82 |     0.0   6.07 |      1.50    42.92 |       10.3   31.6
+  10.0  -90.0 |    11017.6   0.82 |     0.0   6.07 |      1.50    42.92 |        9.8   28.7
+  20.0 -100.0 |     3085.0   3.70 |     0.0   6.30 |      1.50    42.82 |      -13.4   35.1
+  20.0  -95.0 |     3456.0   2.88 |     0.0   6.09 |      1.50    42.82 |      -14.2   32.3
+  20.0  -90.0 |     3773.6   2.34 |     0.0   6.30 |      1.50    42.82 |      -15.1   29.5
+  30.0 -100.0 |     3859.6   6.74 |     0.0   8.45 |      1.50    42.78 |      -36.9   39.9
+  30.0  -95.0 |     3548.1   6.74 |     0.0   5.81 |      1.50    42.78 |      -38.1   37.2
+  30.0  -90.0 |     2443.5   1.04 |     0.0   2.69 |      1.50    42.78 |      -39.5   34.7
+  40.0 -100.0 |     2512.6   0.50 |     0.0   6.83 |      1.50    42.75 |      -59.2   48.6
+  40.0  -95.0 |     1243.6   2.44 |     0.0   3.91 |      1.50    42.75 |      -60.8   46.2
+  40.0  -90.0 |     1778.4   2.44 |     0.0   1.19 |      1.50    42.75 |      -62.7   44.0
+  60.0 -100.0 |       63.3   8.34 |     0.0   7.52 |      1.50    42.62 |      -97.6   77.0
+  60.0  -95.0 |      125.8   8.34 |     0.0   5.37 |      1.50    42.62 |      -99.9   75.3
+  60.0  -90.0 |      223.6   8.34 |     0.0   4.74 |      1.50    42.62 |     -102.5   73.8
+  90.0 -100.0 |      941.2   8.34 |     0.0  30.76 |      1.50    42.70 |     -131.5  139.5
+  90.0  -95.0 |        0.0   2.87 |     0.0  29.86 |      1.50    42.70 |     -134.4  139.2
+  90.0  -90.0 |        0.0   7.04 |     0.0  29.42 |      1.50    42.70 |     -137.3  139.2
+
+# Chosen: s -15, e -95 (dimensions_v6.ARM_REST). The binding rows there:
+#   torso            arm_upper_L    vs shoulder_girdle_v6   overlap   0.00  min   1.50  at {}
+#   walk             servo_elbow_L  vs hip_yoke_L           overlap   0.00  min   6.66  at {'hip_roll': 15, 'hip_pitch': -45, 'knee': 0}
+#   walk             arm_upper_L    vs thigh_L              overlap   0.00  min   6.94  at {'hip_roll': 15, 'hip_pitch': -45, 'knee': 0}
+#   walk             servo_elbow_L  vs thigh_L              overlap   0.00  min   7.20  at {'hip_roll': 15, 'hip_pitch': -20, 'knee': 0}
+#   rom:hip_yaw      arm_upper_L    vs hip_yoke_L           overlap   0.00  min   7.43  at {'hip_yaw': -45.0}
+#   walk             arm_fore_L     vs servo_hip_pitch_L    overlap   0.00  min   7.94  at {'hip_roll': 15, 'hip_pitch': -45, 'knee': 0}
+#   rom:hip_roll     arm_upper_L    vs hip_yoke_L           overlap   0.00  min   8.24  at {'hip_roll': 9.166666666666671}
+#   rom:hip_yaw      arm_upper_L    vs bearing_outer_L      overlap   0.00  min   8.45  at {'hip_yaw': -45.0}

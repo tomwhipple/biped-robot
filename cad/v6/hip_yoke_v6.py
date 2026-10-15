@@ -90,16 +90,18 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Pos, chamfer, export_step, export_stl, fillet  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 import parts as v5  # noqa: E402
 import yoke_pitch_v6  # noqa: E402
+import paths  # noqa: E402
 D = V.D
 
 OUT_STL = os.path.join(HERE, "stl")
-OUT_STEP = os.path.join(HERE, "step")
-OUT_REN = os.path.join(HERE, "renders")
+OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
+OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
 # check_printability's RY_ROLL_WALL, spelled out (rows = print axes in model
 # coords): model +Y -> print +Z, i.e. the part lies on its -Y face.

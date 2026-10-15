@@ -23,7 +23,8 @@ past them, as on the robot (the walls and base stop there too); the checks
 sweep the fork from level to hanging.
 
 Run: MUJOCO_GL=cgl .venv/bin/python experiments/plan-b-bench/plan_b_rig_v3.py
-     (fit checks; STEP files for FreeCAD into $CLAUDE_JOB_DIR/tmp or ./_v3_step)
+     (fit checks; STLs into build/bench-v3/stl, STEP files for FreeCAD into
+     build/bench-v3/step)
 """
 import os
 import sys
@@ -32,8 +33,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, "cad"))
+sys.path.insert(0, ROOT)
 
 from build123d import Cylinder, Pos, Rot, export_step  # noqa: E402
+
+from paths import build_dir  # noqa: E402
 
 import dimensions as D  # noqa: E402
 import parts as PT  # noqa: E402
@@ -240,21 +244,19 @@ def main():
     print(f"bracket {br.volume / 1000:.1f} cm3, fork {fk.volume / 1000:.1f} cm3 (solid); "
           f"load point {MID_Y:+.2f} from the servo's mid-plane datum, "
           f"bearing span {D.SV_HORN_FACE - D.SV_IDLER_FACE:.2f}")
-    out = os.path.join(os.environ.get("CLAUDE_JOB_DIR", HERE), "tmp", "plan_b_rig")
-    if "CLAUDE_JOB_DIR" not in os.environ:
-        out = os.path.join(HERE, "_v3_step")
-    os.makedirs(out, exist_ok=True)
+    out = build_dir("bench-v3", "step")
     for name, solid in (("Bracket_v3", br), ("Fork_level", fork_in_world(0)),
                         ("Fork_hanging", fork_in_world(90)),
                         ("Weights_envelope_level", R.servo_frame() * stacks)):
         export_step(solid, os.path.join(out, name + ".step"))
-    print(f"STEP: {out}")
+    print(f"STEP: {os.path.relpath(out, ROOT)}")
     # print orientation: the bracket on its base, the fork on its floor (the
     # -x face of its frame down; its arms and pads rise 20 mm, bores teardropped up)
     from build123d import export_stl
+    stl = build_dir("bench-v3", "stl")
     for name, part in (("bracket", R.to_bed(br, Rot(0, 0, 0))),
                        ("fork", R.to_bed(fork(), Rot(0, -90, 0)))):
-        path = os.path.join(HERE, "stl", f"plan_b_v3_{name}.stl")
+        path = os.path.join(stl, f"plan_b_v3_{name}.stl")
         export_stl(part, path)
         bb = part.bounding_box()
         print(f"  wrote {os.path.relpath(path, ROOT)} ({bb.size.X:.0f} x {bb.size.Y:.0f} x "

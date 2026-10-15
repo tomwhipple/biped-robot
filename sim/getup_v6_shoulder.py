@@ -33,7 +33,7 @@ would be geometry passing through geometry, not a result.
 import sys, os, math, itertools, dataclasses
 import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "egl")
+sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 from gen_plant_v6 import DesignParams, build_xml
 import getup_v6 as G
 
@@ -137,6 +137,19 @@ CONFIGS = {
     "r5_asdrawn_rom120": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
                               arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
                               arm_girdle=True, arm_mass=0.0331, arm_fore_mass=0.0337, m_girdle=0.084,
+                              hip_pitch_range=(-120.0, 90.0)),
+    # ROUND 6 (2026-10-07): the elbow servo's CASE rides the upper arm
+    # (arm_elbow_servo_upper; cad/v6/arm_v6.py) and the forearm carries the
+    # fork, so the printed links are arm_upper_v6 27.8 g / arm_fore_v6 41.5 g.
+    # Everything else is r5_asdrawn[_rom120].
+    "r6_asdrawn": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
+                       arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
+                       arm_elbow_servo_upper=True,
+                       arm_girdle=True, arm_mass=0.0278, arm_fore_mass=0.0415, m_girdle=0.084),
+    "r6_asdrawn_rom120": dict(arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
+                              arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
+                              arm_elbow_servo_upper=True,
+                              arm_girdle=True, arm_mass=0.0278, arm_fore_mass=0.0415, m_girdle=0.084,
                               hip_pitch_range=(-120.0, 90.0)),
 }
 hits = []
@@ -608,3 +621,25 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def prone_roll(yaw=45, abd=45, hp0=-120, k0=-60, hp1=0, k1=-60, lroll=-55, lhp=-60, lk=-90,
+               rup=60, rroll=-30, lpress=30):
+    """prone -> supine with the LEGS (arms folded UP, shoulder 180: hanging arms
+    block the roll): the right leg yaws/abducts out and pushes while the left
+    swings -> on the side; the left presses while the right swings up and back
+    -> on the back. On the corrected joint stops (d65542c) 120/1152 variants roll
+    onto the back in the study env and 116 of those stand with STS3250 knees, but
+    the roll is fragile across envs: replayed open loop in the referee
+    (eval_precision recover_prone) only 2 of the 40 most robust stand; these
+    defaults are one of them (nominal 2/2, hardware claim 1/2). The residual
+    policy is expected to make it robust.
+    Chain with seat_push(...)[1:] for the full prone get-up."""
+    f = dict(shoulder=180, elbow=0)
+    return [("lie prone", dict(**f), 0.5, 0.8),
+            ("R leg out", dict(R_hip_yaw=yaw, R_hip_roll=-abd, R_hip_pitch=hp0, R_knee=k0, R_ankle=0, **f), 1.5, 0.8),
+            ("R push + L swing -> side", dict(R_hip_yaw=yaw, R_hip_roll=-abd, R_hip_pitch=hp1, R_knee=k1,
+                                              L_hip_roll=lroll, L_hip_pitch=lhp, L_knee=lk, **f), 1.5, 1.2),
+            ("legs neutral", dict(**f), 1.5, 1.0),
+            ("L presses, R up+back -> back", dict(R_hip_pitch=rup, R_hip_roll=rroll, L_hip_roll=lpress, **f), 1.0, 2.0),
+            ("legs neutral (supine)", dict(**f), 1.5, 1.5)]

@@ -181,7 +181,8 @@ _SPLAY = np.array([0.5, 0.0, 0.0, 0.0, -0.5, 0.0, 0.0, 0.0])
 # tick quantization. R1 airborne arithmetic under a moving command (the mimic
 # reference's hip-roll oscillation drives the ankle-roll term), R2 grounded
 # stance on the 16 sole pads, R3 the same airborne gate on a generated
-# 17-servo plant with both arms held at the walking pose. `--robot-only` runs
+# 17-servo plant with both arms held at the walking pose, R4 R1's gate with
+# the IK swing-lift reference (mimic_lift). `--robot-only` runs
 # just these (tests/test_robot_plant.py does, in a subprocess).
 def robot_blocks():
     import tempfile
@@ -227,18 +228,17 @@ def robot_blocks():
 
     def layout_ok(c, g, n_servo, n_held):
         """The preset is really on, identically in both engines: policy vs
-        servo counts, the x4 profile on exactly the six roll/knee servos,
-        the held joints at their hold in qpos0."""
+        servo counts, the stiffness profile the robot preset resolves to
+        (robot_plant.KP_SCALE), the held joints at their hold in qpos0."""
+        from walker_env import servo_kp_scale_vector
         prof = np.asarray(c._kp_prof)
-        four = {n for n, p in zip(c._servo_names, prof) if p == 4.0}
-        want = {f"{s}_{r}" for s in "LR"
-                for r in ("hip_roll", "ankle_roll", "knee")}
+        want = servo_kp_scale_vector(list(c._servo_names), robot_plant.KP_SCALE)
         held_q = [float(c.model.qpos0[c._jq0 + c._sname2i[k]])
                   for k in c.held_joints]
         want_q = [np.deg2rad(v) for v in c.held_joints.values()]
         return (c._n_servo == n_servo and c._nq_act == 12
                 and g.action_size == 12 and len(c.held_joints) == n_held
-                and four == want
+                and np.allclose(prof, want)
                 and np.array_equal(prof, np.asarray(g._kp_prof))
                 and np.array_equal(np.asarray(c._kd_prof),
                                    np.asarray(g._kd_prof))
@@ -246,7 +246,7 @@ def robot_blocks():
                 and c.observation_space.shape[0] == g.obs_size == 3 * 55)
 
     c1, g1, s1 = envs_for(rob_kw())
-    lay1 = layout_ok(c1, g1, 13, 1)
+    lay1 = layout_ok(c1, g1, 17, 5)
     okr1 = run_block(
         "R1. ROBOT plant airborne arithmetic (12 policy + neck held, Plan B "
         "kp/kd, sole-level mimic, quantized)", 100, air_acts(c1), hoist,
@@ -256,6 +256,15 @@ def robot_blocks():
           f"{c1.held_joints}, x4 on "
           f"{[n for n, p in zip(c1._servo_names, c1._kp_prof) if p != 1]}"
           f" -> {'OK' if lay1 else 'WRONG'}")
+
+    # R4. the IK swing-lift imitation reference (--mimic-lift) under the same
+    # moving command: the mimic term of the reward carries it
+    c4, g4, s4 = envs_for(rob_kw(mimic_lift=0.05))
+    okr4 = run_block(
+        "R4. ROBOT plant airborne arithmetic, IK swing-lift reference "
+        "(mimic_lift 5 cm)", 100, air_acts(c4), hoist,
+        dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
+        envs=(c4, g4, s4))
 
     c2, g2, s2 = envs_for(rob_kw(cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
                                             0.0)))
@@ -273,20 +282,25 @@ def robot_blocks():
         c3, g3, s3 = envs_for(rob_kw(xml17))
         lay3 = layout_ok(c3, g3, 17, 5)
         okr3 = run_block(
-            "R3. 17-servo plant (arms held 15 deg back, elbows straight) "
+            "R3. 17-servo plant (arms held at the folded rest pose) "
             "airborne arithmetic", 100, air_acts(c3), hoist,
             dict(qpos=1e-8, qvel=1e-6, reward=1e-5, obs=1e-5),
             envs=(c3, g3, s3)) and lay3
-        # the held arms actually HOLD: after the block the shoulders sit at
-        # their 15 deg target (within the backlash band + sag), not hanging
+        # the held arms actually HOLD: after the block the shoulders and
+        # elbows sit at their rest targets (within the backlash band + sag)
         mj_forward(c3.model, c3.data)
+        hold = robot_plant.HOLD_DEG
         sh = [float(np.degrees(c3.data.qpos[c3._jq0 + c3._sname2i[k]]))
               for k in ("L_shoulder", "R_shoulder")]
-        held_live = all(abs(v - 15.0) < 3.0 for v in sh)
+        el = [float(np.degrees(c3.data.qpos[c3._jq0 + c3._sname2i[k]]))
+              for k in ("L_elbow", "R_elbow")]
+        held_live = (all(abs(v - hold["shoulder"]) < 3.0 for v in sh)
+                     and all(abs(v - hold["elbow"]) < 3.0 for v in el))
         okr3 = okr3 and held_live
         print(f"   layout {'OK' if lay3 else 'WRONG'}; shoulders at "
-              f"{sh[0]:.1f} / {sh[1]:.1f} deg (hold 15)")
-    return okr1 and okr2 and okr3
+              f"{sh[0]:.1f} / {sh[1]:.1f} deg, elbows at {el[0]:.1f} / {el[1]:.1f} deg "
+              f"(rest {hold['shoulder']:g} / {hold['elbow']:g})")
+    return okr1 and okr2 and okr3 and okr4
 
 
 if "--robot-only" in sys.argv:

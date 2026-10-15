@@ -47,9 +47,9 @@ PROTO_XML = os.path.join(SIM, "bimo_biped_v5body.xml")
 ROLLS_KNEES = {f"{s}_{r}" for s in "LR"
                for r in ("hip_roll", "ankle_roll", "knee")}
 # the committed plant is the robot as drawn: 17 servos, the neck and both
-# arms held at the walking pose
-HELD17 = {"neck_yaw": 0.0, "L_shoulder": 15.0, "L_elbow": 0.0,
-          "R_shoulder": 15.0, "R_elbow": 0.0}
+# arms held at their folded rest pose (dimensions_v6.ARM_REST)
+HELD17 = {"neck_yaw": 0.0, "L_shoulder": -15.0, "L_elbow": -95.0,
+          "R_shoulder": -15.0, "R_elbow": -95.0}
 
 # a precision-style policy env (the --precision preset's observation and
 # reward structure), on top of the robot preset
@@ -87,9 +87,7 @@ def test_robot_preset_resolves_against_the_plant(arms_xml):
     assert set(kw["servo_kp_scale"].values()) == {4.0}
     assert kw["hip_flex_deg"] == 120.0 and kw["payload_mass"] == 0.0
     kw17 = robot_plant.robot_env_kwargs(arms_xml)
-    assert kw17["held_joints"] == {"neck_yaw": 0.0, "L_shoulder": 15.0,
-                                   "L_elbow": 0.0, "R_shoulder": 15.0,
-                                   "R_elbow": 0.0}
+    assert kw17["held_joints"] == HELD17
     m = mujoco.MjModel.from_xml_path
     assert robot_plant.is_robot_model(m(ROBOT_XML))
     assert robot_plant.is_robot_model(m(arms_xml))
@@ -153,8 +151,8 @@ def test_smoke_17_servo_plant(arms_xml):
     for side in "LR":
         sh = cpu.data.qpos[cpu._jq0 + cpu._sname2i[f"{side}_shoulder"]]
         el = cpu.data.qpos[cpu._jq0 + cpu._sname2i[f"{side}_elbow"]]
-        assert np.degrees(sh) == pytest.approx(15.0, abs=2.0)
-        assert np.degrees(el) == pytest.approx(0.0, abs=2.0)
+        assert np.degrees(sh) == pytest.approx(HELD17["L_shoulder"], abs=2.0)
+        assert np.degrees(el) == pytest.approx(HELD17["L_elbow"], abs=2.0)
     g = BimoMJXEnv(**kw)
     assert g.action_size == 12 and g.obs_size == 165
 
@@ -165,7 +163,7 @@ def test_smoke_17_servo_plant(arms_xml):
     st, h = jax.jit(lambda s: jax.lax.scan(roll, s, None, length=100))(st)
     assert bool(jp.isfinite(h).all()) and float(h[-1]) > 0.85 * g._nominal_h
     sh = np.degrees(np.asarray(st.data.qpos)[g._jq0 + g._sname2i["L_shoulder"]])
-    assert sh == pytest.approx(15.0, abs=2.0)
+    assert sh == pytest.approx(HELD17["L_shoulder"], abs=2.0)
 
 
 # ----------------------------------------------------------- servo stiffness
@@ -353,3 +351,25 @@ def test_referee_runs_on_the_robot_plant():
     # the quick referee builds the same world from the same config
     renv = R.make_env(cfg)
     assert renv.action_space.shape == (12,) and renv.held_joints == HELD17
+
+
+# ------------------------------------------------------- floor contacts
+def test_floor_contacts_feet_only_in_both_envs():
+    """--floor-contacts feet (training-only): the floor accepts only the
+    sole pads in both engines, the self-collision pairs stay, and the
+    default leaves the plant as drawn."""
+    import mujoco
+    from mujoco import mjx
+    c_all = _cpu(xml_path=ROBOT_XML)
+    c_feet = _cpu(xml_path=ROBOT_XML, floor_contacts="feet")
+    f = mujoco.mj_name2id(c_feet.model, mujoco.mjtObj.mjOBJ_GEOM, "floor")
+    assert c_all.model.geom_conaffinity[f] == 3 and c_feet.model.geom_conaffinity[f] == 1
+    assert c_feet.model.npair == c_all.model.npair            # self-collision untouched
+    d_all = mjx.make_data(mjx.put_model(c_all.model))
+    d_feet = mjx.make_data(mjx.put_model(c_feet.model))
+    assert d_feet.contact.dist.shape[-1] < d_all.contact.dist.shape[-1]
+    import env_mjx as E
+    g = E.BimoMJXEnv(xml_path=ROBOT_XML, floor_contacts="feet")
+    assert int(g.mj_model.geom_conaffinity[f]) == 1
+    with pytest.raises(ValueError):
+        _cpu(xml_path=ROBOT_XML, floor_contacts="hands")

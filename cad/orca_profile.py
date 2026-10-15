@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Flatten OrcaSlicer vendor presets into self-contained JSON.
+"""Flatten OrcaSlicer presets into self-contained JSON.
 
 OrcaSlicer's GUI resolves a preset's ``inherits`` chain against its bundled
 profile tree. The CLI does *not* do this when you hand it a file path -- it
 loads exactly the keys in that one file and fills the rest from built-in
-defaults. For the Adventurer 5M Pro that silently yields an inconsistent
-machine (relative E addressing with no ``G92 E0`` in layer_gcode), and slicing
-aborts with return code -51.
+defaults. A thin preset therefore slices with silently wrong settings (a thin
+filament preset falls back to PLA), so every preset handed to the CLI is
+flattened first.
 
-This walks the chain and writes a flattened preset the CLI can consume.
+Presets are looked up by name, first in the user's preset directory (the GUI's
+own presets, e.g. the printer preset that holds the print host), then in the
+bundled vendor profiles.
+
+    python3 cad/orca_profile.py process "0.20mm Standard @Flashforge AD5M Pro 0.4 Nozzle" -o p.json
 """
 
 import argparse
@@ -20,82 +24,100 @@ FLATPAK_PROFILES = os.path.expanduser(
     "~/.local/share/flatpak/app/com.orcaslicer.OrcaSlicer/"
     "current/active/files/share/OrcaSlicer/profiles"
 )
+MAC_APP = os.environ.get("ORCA_APP", "/Applications/OrcaSlicer.app")
+MAC_PROFILES = os.path.join(MAC_APP, "Contents", "Resources", "profiles")
+MAC_USER = os.path.expanduser("~/Library/Application Support/OrcaSlicer/user/default")
+FLATPAK_USER = os.path.expanduser(
+    "~/.var/app/com.orcaslicer.OrcaSlicer/config/OrcaSlicer/user/default")
 
-# A preset's parent may live in any of the vendor's category dirs, not just the
-# one the child came from -- machine presets in particular reach into shared
-# "fdm_*_common" files that sit alongside them.
-CATEGORIES = ("machine", "process", "filament")
-
-
-def _candidates(root, vendor, name):
-    """Every path a preset called ``name`` might live at."""
-    leaf = name if name.endswith(".json") else name + ".json"
-    yield os.path.join(root, vendor, leaf)
-    for category in CATEGORIES:
-        yield os.path.join(root, vendor, category, leaf)
-    yield os.path.join(root, leaf)
+VENDOR = "Flashforge"
+KINDS = ("machine", "process", "filament")
 
 
-def _find(root, vendor, name):
-    for path in _candidates(root, vendor, name):
-        if os.path.exists(path):
-            return path
-    return None
+def default_roots():
+    """(vendor profile dir, user preset dir) for the installed OrcaSlicer."""
+    if sys.platform == "darwin":
+        return os.path.join(MAC_PROFILES, VENDOR), MAC_USER
+    return os.path.join(FLATPAK_PROFILES, VENDOR), FLATPAK_USER
 
 
-def resolve(path, root=FLATPAK_PROFILES, _seen=None):
-    """Return the fully merged preset dict for the preset at ``path``."""
-    path = os.path.abspath(path)
-    _seen = _seen or []
-    if path in _seen:
-        raise SystemExit(f"inherits cycle: {' -> '.join(_seen + [path])}")
+class Library:
+    """Every preset under the vendor and user dirs, indexed by name."""
 
-    with open(path) as fh:
-        child = json.load(fh)
+    def __init__(self, vendor_dir=None, user_dir=None):
+        vd, ud = default_roots()
+        self.vendor_dir = vendor_dir or vd
+        self.user_dir = user_dir if user_dir is not None else ud
+        if not os.path.isdir(self.vendor_dir):
+            raise SystemExit(f"no OrcaSlicer vendor profiles at {self.vendor_dir}")
+        self.presets = {k: {} for k in KINDS}   # kind -> name -> (path, dict)
+        # Vendor first, user second: a user preset may shadow a vendor name.
+        for root in (self.vendor_dir, self.user_dir):
+            for kind in KINDS:
+                d = os.path.join(root, kind)
+                if not os.path.isdir(d):
+                    continue
+                for fn in sorted(os.listdir(d)):
+                    if not fn.endswith(".json"):
+                        continue
+                    path = os.path.join(d, fn)
+                    try:
+                        with open(path) as fh:
+                            data = json.load(fh)
+                    except (OSError, ValueError):
+                        continue
+                    if not isinstance(data, dict):
+                        continue
+                    # The GUI shows a user preset under its file stem.
+                    for name in {data.get("name"), fn[:-5]} - {None}:
+                        self.presets[kind][name] = (path, data)
 
-    parent_name = child.get("inherits")
-    if not parent_name:
-        return child
+    def get(self, kind, name):
+        # A parent can sit in another category's dir (the shared fdm_* bases).
+        for k in (kind,) + tuple(x for x in KINDS if x != kind):
+            if name in self.presets[k]:
+                return self.presets[k][name][1]
+        raise SystemExit(f"no {kind} preset named {name!r}")
 
-    # Vendor dir is the one holding the category dirs, e.g. profiles/Flashforge.
-    vendor_dir = os.path.dirname(os.path.dirname(path))
-    vendor = os.path.basename(vendor_dir)
-    parent_path = _find(root, vendor, parent_name)
-    if parent_path is None:
-        raise SystemExit(
-            f"cannot resolve inherits={parent_name!r} referenced by {path}"
-        )
+    def resolve(self, kind, name, _seen=()):
+        """The fully merged preset: parents first, then each child's keys.
 
-    merged = resolve(parent_path, root, _seen + [path])
-    merged.update(child)
-    # The chain is baked in now, so the pointer to the parent has to go -- but
-    # "from" must survive: the loader rejects a preset without it ("from
-    # unsupported"), and an intermediate in the chain is marked
-    # instantiation=false, which the child overrides back to true.
-    merged.pop("inherits", None)
-    return merged
+        ``inherits`` is dropped -- the chain is baked in. ``from`` survives (the
+        loader rejects a preset without it).
+        """
+        if name in _seen:
+            raise SystemExit(f"inherits cycle: {' -> '.join(_seen + (name,))}")
+        data = self.get(kind, name)
+        parent = data.get("inherits")
+        merged = self.resolve(kind, parent, _seen + (name,)) if parent else {}
+        merged.update(data)
+        merged.pop("inherits", None)
+        return merged
+
+    def user_printers(self, system_name):
+        """User printer presets that inherit ``system_name`` and have a print host."""
+        out = []
+        for name, (path, data) in self.presets["machine"].items():
+            if not path.startswith(self.user_dir) or name != data.get("name"):
+                continue
+            if data.get("inherits") == system_name and data.get("host_type"):
+                out.append(name)
+        return sorted(set(out))
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("preset", help="path to a vendor preset json")
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("kind", choices=KINDS)
+    ap.add_argument("name", help="preset name, as shown in the GUI")
     ap.add_argument("-o", "--out", required=True, help="flattened output path")
-    ap.add_argument("--root", default=FLATPAK_PROFILES)
-    ap.add_argument("--show", action="store_true",
-                    help="print a few resolved keys for sanity")
     args = ap.parse_args()
 
-    merged = resolve(args.preset, args.root)
+    merged = Library().resolve(args.kind, args.name)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w") as fh:
         json.dump(merged, fh, indent=2)
-
-    print(f"{os.path.basename(args.preset)} -> {args.out}  ({len(merged)} keys)")
-    if args.show:
-        for key in ("name", "layer_gcode", "use_relative_e_distances",
-                    "printable_area", "nozzle_diameter"):
-            if key in merged:
-                print(f"  {key} = {json.dumps(merged[key])[:110]}")
+    print(f"{args.name} -> {args.out}  ({len(merged)} keys)")
 
 
 if __name__ == "__main__":

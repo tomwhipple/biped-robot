@@ -46,7 +46,7 @@ because it was a contact 20 cm from the pelvis on the CoM side -- a lever
 arm this body does not have between its feet and its head.
 
     .venv/bin/python sim/getup_v6_legs.py probe <bridge|pike>
-    .venv/bin/python sim/getup_v6_legs.py seiza    (renders the seiza attempt)
+    .venv/bin/python sim/getup_v6_legs.py seiza    (renders build/v6/movies/getup_legs/seiza.mp4)
     .venv/bin/python sim/getup_v6_legs.py search x supine
 """
 from __future__ import annotations
@@ -55,8 +55,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-os.environ.setdefault("MUJOCO_GL", "egl")
+sys.path.insert(0, os.path.dirname(HERE))
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 import mujoco  # noqa: E402
+import paths  # noqa: E402
 
 from gen_plant_v6 import DesignParams, build_xml  # noqa: E402
 import v6_kin as VK  # noqa: E402
@@ -192,7 +194,7 @@ def main():
         ]
         p, xml = plant()
         r_ = G.run_sequence(p, xml, seq, start="supine", play_deg=3.0, per_joint=G.PJ_DEFAULT,
-                            verbose=True, render="sim/renders/getup_legs/seiza.mp4", cam=(1.4, -14, 90))
+                            verbose=True, render=os.path.join(paths.BUILD, "v6", "movies", "getup_legs", "seiza.mp4"), cam=(1.4, -14, 90))
         print("STANDING" if r_["ok"] else "not standing")
     elif mode == "search":
         # continuous-space keyframe search (symmetric hip/knee/ankle, 6 nodes,

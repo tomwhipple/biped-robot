@@ -96,7 +96,7 @@ _TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
 _TICK_DIR = 1.0
 
 
-def policy_range(m):
+def policy_range(m, physical=False):
     """Per-actuator (lo, hi) the POLICY trains in, radians. MIRRORED in
     sim/mjx/env_mjx.py -- keep the two identical.
 
@@ -128,6 +128,11 @@ def policy_range(m):
     jnt = m.actuator_trnid[:, 0]
     lo = np.array(m.jnt_range[jnt, 0], dtype=float)
     hi = np.array(m.jnt_range[jnt, 1], dtype=float)
+    if physical:
+        # ctrl_physical (2026-10-11): the policy may command the whole
+        # mechanical stop (the CAD envelope) -- for the get-up, which needs
+        # hip roll / knee travel the walking range never used
+        return lo, hi
     lim = np.asarray(m.actuator_ctrllimited).astype(bool)
     lo[lim] = np.asarray(m.actuator_ctrlrange)[lim, 0]
     hi[lim] = np.asarray(m.actuator_ctrlrange)[lim, 1]
@@ -151,10 +156,133 @@ def joint_role(name):
     return None
 
 
+
+def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
+    """Calibration for the imitation reference's swing lift (mimic_lift):
+    per leg (L, R), the hip-pitch and knee offsets from the home pose
+    (qpos0) that raise the sole straight up by h with no fore-aft move,
+    solved by Newton on MuJoCo kinematics (torso fixed) on the flexion
+    branch, and fitted through the origin in u = sqrt(h):
+        d(h) = u * (c0 + c1 u + c2 u^2)
+    (the joint angles grow like sqrt(h) out of a straight leg). sg_pitch:
+    the env's (hip, knee, ankle) pitch-axis signs; when given, the ankle
+    keeps the sole level during the solve exactly as the reference does
+    (mimic_sole_level), so the lift is the levelled sole's. Returns
+    (ch, ck), each (2, 3), radians. Jax-free; both envs call it on their own
+    model so the reference is identical in both."""
+    import mujoco
+    d = mujoco.MjData(model)
+    q0 = model.qpos0.copy()
+    torso = model.body("torso").id
+    ch, ck = [], []
+    for li, side in enumerate("LR"):
+        jh, jk = model.joint(f"{side}_hip_pitch"), model.joint(f"{side}_knee")
+        ah, ak = model.jnt_qposadr[jh.id], model.jnt_qposadr[jk.id]
+        aa = model.jnt_qposadr[model.joint(f"{side}_ankle").id]
+        sole = model.geom(f"{side}_sole").id
+
+        def fk(x):
+            d.qpos[:] = q0
+            d.qpos[ah] += x[0]
+            d.qpos[ak] += x[1]
+            if sg_pitch is not None:
+                s_h, s_k, s_a = (float(np.ravel(np.asarray(v))[li]) for v in sg_pitch)
+                d.qpos[aa] -= (s_h * x[0] + s_k * x[1]) / s_a
+            mujoco.mj_kinematics(model, d)
+            R = d.xmat[torso].reshape(3, 3)
+            p = R.T @ (d.geom_xpos[sole] - d.xpos[torso])
+            return np.array([p[0], p[2]])
+        base = fk(np.zeros(2))
+        hs = np.linspace(0.0, hmax, n)
+        sol, x = [np.zeros(2)], np.zeros(2)
+        for h in hs[1:]:
+            if not x.any():
+                x = np.array([-0.08, -0.13])   # leave the straight leg on the flexion branch
+            for _ in range(50):
+                f0 = fk(x) - base - np.array([0.0, h])
+                if np.abs(f0).max() < 1e-9:
+                    break
+                J = np.empty((2, 2))
+                for j in range(2):
+                    e = np.zeros(2)
+                    e[j] = 1e-6
+                    J[:, j] = (fk(x + e) - fk(x - e)) / 2e-6
+                x = x - np.linalg.solve(J, f0)
+            for jnt, v in ((jh, x[0]), (jk, x[1])):
+                lo, hi = model.jnt_range[jnt.id]
+                if model.jnt_limited[jnt.id] and not lo <= q0[model.jnt_qposadr[jnt.id]] + v <= hi:
+                    raise ValueError(f"mimic_lift: {jnt.name} leaves its range at {h * 100:.1f} cm "
+                                     f"({np.degrees(v):.1f} deg): wrong IK branch or lift too high")
+            sol.append(x.copy())
+        sol = np.array(sol)
+        u = np.sqrt(hs)
+        V = np.stack([u, u ** 2, u ** 3], axis=1)
+        ch.append(np.linalg.lstsq(V, sol[:, 0], rcond=None)[0])
+        ck.append(np.linalg.lstsq(V, sol[:, 1], rcond=None)[0])
+    return np.array(ch), np.array(ck)
+
+
+def apply_floor_contacts(model, floor_contacts):
+    """Training-only collision set. "all" (default): the plant as drawn.
+    "feet": only the sole pads (contype 1) touch the floor -- the servo
+    boxes, the torso / leg fall colliders and the arms (contype 2) stop
+    colliding with it; the explicit self-collision pairs are untouched. The
+    non-foot floor contacts only matter in a fall, which ends the episode,
+    but MJX reserves and solves their slots every step: on the robot plant
+    "feet" cuts the contact slots 182 -> 56 and the physics step ~3.5x
+    (laptop CPU, 2026-10-07). The referee always grades with "all"."""
+    if floor_contacts == "all":
+        return model
+    if floor_contacts != "feet":
+        raise ValueError(f"floor_contacts={floor_contacts!r}: expected 'all' or 'feet'")
+    import mujoco
+    f = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "floor")
+    if f < 0:
+        raise ValueError("floor_contacts='feet' needs a geom named 'floor'")
+    model.geom_conaffinity[f] &= 1
+    return model
+
 SERVO_KP_PRESETS = {
     "stock": {},
     "planb": {"hip_roll": 4.0, "ankle_roll": 4.0, "knee": 4.0},
+    # the robot's servo set (DESIGN.md section 4): an STS3250 at each hip roll
+    # (the model's 4x credit) and the ankle-roll and knee STS3215s at the
+    # bench's P 96 / D 0, ~2.8x (experiments/plan-b-bench, issue #73)
+    "robot": {"hip_roll": 4.0, "ankle_roll": 2.8, "knee": 2.8},
 }
+
+
+# Servo torque/speed envelopes relative to the STS3215 the env models
+# (stall 2.94 N*m, no-load 4.04 rad/s at 12 V): (stall ratio, no-load ratio).
+# STS3250: 4.90 N*m stall, 7.87 rad/s no-load derated 0.86 like the 3215
+# (sim/design_gates.py SERVOS). Before 2026-10-10 the env had ONE envelope for
+# every servo (robot_plant: "the STS3250's larger stall and speed are not
+# modelled") -- the get-up study found the elbow-arm seat push stands the
+# plant up only with STS3250 knees, which the single envelope cannot show.
+SERVO_TYPES = {"sts3215": (1.0, 1.0),
+               "sts3250": (4.90 / 2.94, 7.87 * 0.86 / 4.04)}
+
+
+def servo_envelope_vectors(names, spec):
+    """(stall_prof, w0_prof) per actuator from {actuator or role: type name}
+    (mirror of env_mjx). None -> all ones (one STS3215 envelope)."""
+    n = len(names)
+    stall, w0 = np.ones(n), np.ones(n)
+    if not spec:
+        return stall, w0
+    roles = [joint_role(nm) for nm in names]
+    known = set(names) | {r for r in roles if r is not None}
+    bad = [k for k in spec if k not in known]
+    if bad:
+        raise ValueError(f"servo_types keys {bad} match no actuator of this plant")
+    for k, t in spec.items():
+        if t not in SERVO_TYPES:
+            raise ValueError(f"unknown servo type {t!r} (have {sorted(SERVO_TYPES)})")
+    for i, (nm, r) in enumerate(zip(names, roles)):
+        t = spec.get(nm, spec.get(r))
+        if t is not None:
+            stall[i], w0[i] = SERVO_TYPES[t]
+    return stall, w0
 
 
 def servo_kp_scale_vector(names, spec):
@@ -214,6 +342,33 @@ def _gauss_smooth(field: np.ndarray, sigma: float) -> np.ndarray:
     return np.apply_along_axis(conv, 0, np.apply_along_axis(conv, 1, field))
 
 
+
+RISE_ROOT_SIG_Z = 0.05    # m: pelvis-height scale of the root-tracking kernel
+RISE_ROOT_SIG_UP = 0.4    # scale on |world-up in the torso frame - reference's|
+
+
+def _root_up_body(w, x, y, z):
+    """World-up expressed in the torso frame (the third row of R(quat)): yaw
+    invariant, but it tells face-down, side and face-up apart (torso up-z
+    alone is ~0 for all three, which gave the prone roll no root signal)."""
+    return (2.0 * (x * z - w * y), 2.0 * (y * z + w * x), 1.0 - 2.0 * (x * x + y * y))
+
+
+def rise_root_ref(qpos):
+    """(T, 4) [pelvis z, world-up in the torso frame (3)] of a recorded
+    reference's root pose (qpos[:, 3:7] = w, x, y, z)."""
+    qpos = np.asarray(qpos)
+    ux, uy, uz = _root_up_body(qpos[:, 3], qpos[:, 4], qpos[:, 5], qpos[:, 6])
+    return np.stack([qpos[:, 2], ux, uy, uz], axis=1)
+
+
+def rise_root_kernel(z, quat, ref, xp):
+    """exp(-[(dz/0.05)^2 + |du|^2/0.4^2]) of the root against ref = [z, u(3)];
+    xp = jax.numpy or numpy, so both envs share the exact formula."""
+    ux, uy, uz = _root_up_body(quat[0], quat[1], quat[2], quat[3])
+    du2 = (ux - ref[1]) ** 2 + (uy - ref[2]) ** 2 + (uz - ref[3]) ** 2
+    return xp.exp(-(((z - ref[0]) / RISE_ROOT_SIG_Z) ** 2 + du2 / RISE_ROOT_SIG_UP ** 2))
+
 class BimoWalkerEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"], "render_fps": 50}
 
@@ -247,6 +402,8 @@ class BimoWalkerEnv(gym.Env):
         servo_kp: float | tuple = 12.0,  # sts3215 PD gain, N*m/rad (see fit
         # note); a sequence gives one per actuator
         servo_kd: float | tuple = 0.25,  # sts3215 PD damping, N*m*s/rad
+        servo_types=None,              # {actuator or role: "sts3250"}: per-servo stall/speed envelope
+        ctrl_physical=False,           # policy range = the joints' mechanical stops (not the ctrlrange)
         servo_kp_scale=None,           # per-servo P multiplier on kp AND kd:
         # None, a number, a per-actuator sequence, {actuator | role: factor},
         # or a preset name (SERVO_KP_PRESETS; mirror of env_mjx)
@@ -254,6 +411,8 @@ class BimoWalkerEnv(gym.Env):
         # held at a fixed target, out of the action and the observation
         # (the robot's neck and arms while walking; mirror of env_mjx)
         mimic_sole_level: bool = False,  # imitation ankle pitch solved level
+        floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
+        mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -381,6 +540,11 @@ class BimoWalkerEnv(gym.Env):
         walk_submix: tuple = (0.15, 0.15),  # of walks: (backward, sidestep)
         turn_emph: bool = False,       # mirrors sim/mjx turn_emph (loco_v5t)
         w_foot_cross: float = 0.0,     # feet-crossing guard (mirrors sim/mjx)
+        # The guard's reward term, as env_mjx applies it. Off by default: the
+        # referee rebuilds from config.json (which carries w_foot_cross) and
+        # its scores do not involve reward; the Mac trainer turns it on.
+        foot_cross_term: bool = False,
+        foot_cross_sep: float = 0.051,   # env_mjx default: sole width + 5 mm
         sway_vy: float = 0.12,         # sway-command vy amplitude (m/s)
         # -- knee-high marching (2026-08-01; mirrors sim/mjx) -----------------
         march_mix: float = 0.0,        # fraction of ext_cmd command draws that
@@ -445,6 +609,9 @@ class BimoWalkerEnv(gym.Env):
                                        # down (mirrors sim/mjx _rise_ref)
         rise_secs: float = 4.0,
         rise_ref_s2: float = 2.0,
+        rise_ref_npz: str | None = None,   # recorded get-up reference (mirror of env_mjx; sim/record_getup_ref.py)
+        rise_ref_residual: float = 0.0,    # rad: residual get-up (mirror of env_mjx)
+        w_rise_root: float = 0.0,          # root tracking while down (mirror of env_mjx)
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         w_foot_under: float = 0.0,     # mirrors sim/mjx w_foot_under
@@ -530,6 +697,12 @@ class BimoWalkerEnv(gym.Env):
         # 0.0 = pass-through (bit-exact legacy behavior). Same law as
         # env_mjx: 3 cascaded first-order stages before tick quantization.
         act_lag_hz: float = 0.0,
+        # Per-episode pole DR, as env_mjx --act-lag lo,hi (its act_lag_hz_max;
+        # named apart so a referee rebuilding from config.json never inherits
+        # it and keeps its one pinned pole): when set, each
+        # episode draws its pole uniform(act_lag_hz, act_lag_dr_max). None
+        # (the referee) keeps the one fixed pole and the RNG stream unchanged.
+        act_lag_dr_max: float | None = None,
         # -- servo dead time (referee-side, 2026-09-06) ------------------------
         # The 2026-09-05 clamped-foot step test measured ~85 ms of PURE delay
         # before the STS3215 follows a target (amplitude/load independent) --
@@ -649,6 +822,8 @@ class BimoWalkerEnv(gym.Env):
         _cs = os.path.join(os.path.dirname(xml_path), "getup_catch_states.npz")
         self._catch_states = np.load(_cs) if os.path.exists(_cs) else None
         self.w_foot_cross = w_foot_cross
+        self.foot_cross_term = bool(foot_cross_term)
+        self.foot_cross_sep = float(foot_cross_sep)
         self.sway_vy = sway_vy
         self.march_mix = float(march_mix)
         self.w_knee_high = w_knee_high
@@ -703,6 +878,8 @@ class BimoWalkerEnv(gym.Env):
             self._cmd[3] = 1.0            # crouch channel: 1 = full height
         self.quantize_ticks = bool(quantize_ticks)
         self.act_lag_hz = float(act_lag_hz)
+        self.act_lag_dr_max = None if act_lag_dr_max is None else float(act_lag_dr_max)
+        self._act_lag_ep = self.act_lag_hz   # this episode's pole (DR draws it in reset)
         self._lag_y = None       # (3, n_act) cascade state; seeded on 1st step
         self.act_delay_ticks = int(act_delay_ticks)
         self.crouch_pose_ref = bool(crouch_pose_ref)
@@ -767,6 +944,8 @@ class BimoWalkerEnv(gym.Env):
             self.model = mujoco.MjModel.from_xml_string(xml_src)
         else:
             self.model = mujoco.MjModel.from_xml_path(xml_path)
+        apply_floor_contacts(self.model, floor_contacts)
+        self.floor_contacts = floor_contacts
         self.data = mujoco.MjData(self.model)
         self._payload_bid = (self.model.body("payload").id
                              if (payload_mass > 0 or payload_max) else None)
@@ -899,6 +1078,9 @@ class BimoWalkerEnv(gym.Env):
         self.servo_kp_scale = servo_kp_scale_vector(self._servo_names,
                                                     servo_kp_scale)
         self._kp_prof = kp_prof * self.servo_kp_scale
+        self.servo_types = dict(servo_types) if servo_types else None
+        self._stall_prof, self._w0_prof = servo_envelope_vectors(
+            self._servo_names, self.servo_types)
         self._kd_prof = kd_prof * self.servo_kp_scale
         if actuator_model == "sts3215":
             v = supply_voltage / 12.0
@@ -999,12 +1181,34 @@ class BimoWalkerEnv(gym.Env):
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
-        self._lo, self._hi = policy_range(self.model)
+        self._lo, self._hi = policy_range(self.model, physical=ctrl_physical)
+        self.ctrl_physical = bool(ctrl_physical)
+        # recorded get-up reference (mirror of env_mjx rise_ref_npz)
+        self._rr = None
+        if rise_ref_npz:
+            z = np.load(rise_ref_npz if os.path.isabs(rise_ref_npz)
+                        else os.path.join(os.path.dirname(os.path.abspath(__file__)), rise_ref_npz))
+            names = [str(n) for n in z["joint_names"]]
+            col = np.array([names.index(n) for n in self._servo_names])
+            self._rr = dict(q=np.asarray(z["q"])[:, col][:, self._pi],
+                            root=rise_root_ref(z["qpos"]),
+                            dt=float(z["control_dt"]), T=int(len(z["t"])))
+            self.rise_secs = self._rr["T"] * self._rr["dt"]
+        self.rise_ref_residual = float(rise_ref_residual)
+        if self.rise_ref_residual > 0.0 and self._rr is None:
+            raise ValueError("rise_ref_residual needs rise_ref_npz")
+        self.w_rise_root = float(w_rise_root)
+        if self.w_rise_root > 0.0 and self._rr is None:
+            raise ValueError("w_rise_root needs rise_ref_npz")
         self._lo, self._hi = self._lo[self._pi], self._hi[self._pi]  # policy
         # home pose per servo (held joints at their hold) and per policy joint
         self._sdefault = self.model.qpos0[self._sqpos].copy()
         self._default = self.model.qpos0[self._jqpos].copy()        # standing pose
         self._scale = 0.5 * (self._hi - self._lo)              # per-joint residual
+        self.mimic_lift = float(mimic_lift)
+        if self.mimic_lift > 0.0:
+            self._lift_ch, self._lift_ck = mimic_lift_coefs(
+                self.model, self._sg_pitch if self.mimic_sole_level else None)
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -1098,6 +1302,12 @@ class BimoWalkerEnv(gym.Env):
 
     def _action_to_ctrl(self, action: np.ndarray) -> np.ndarray:
         action = np.clip(action, -1.0, 1.0)
+        if (self.rise_ref_residual > 0.0 and self.ext_cmd
+                and self._recover_ep and not self._recovered):
+            # residual get-up (mirror of env_mjx step): reference + correction
+            t_rr = self._rise_t0 + self._step_i * self.control_dt
+            return np.clip(self._rise_ref(t_rr) + self.rise_ref_residual * action,
+                           self._lo, self._hi)
         if self.action_map == "full":
             # piecewise-linear: full range on both sides, action 0 = stand
             span = np.where(action >= 0.0, self._hi - self._default,
@@ -1330,6 +1540,9 @@ class BimoWalkerEnv(gym.Env):
 
     def _rise_ref(self, t_s):
         """Numpy mirror of sim/mjx BimoMJXEnv._rise_ref (parity-gated)."""
+        if self._rr is not None:
+            k = int(np.clip(np.round(t_s / self._rr["dt"]), 0, self._rr["T"] - 1))
+            return np.clip(self._rr["q"][k], self._lo, self._hi)
         d = self._default
         stages = np.array([
             [-1.92, -1.62, -0.55],
@@ -1403,7 +1616,18 @@ class BimoWalkerEnv(gym.Env):
         # knee swing-bend scales with commanded activity: zero command ->
         # the reference IS the standing pose (no knee pumping)
         mag = min(1.0, (float(np.max(np.abs(A))) + abs(B)) / 0.35)
-        knee = kn0 - 0.55 * mag * sw
+        if self.mimic_lift > 0.0:
+            # swing lift by IK (mimic_lift_coefs): the sole rises straight up
+            # by mimic_lift * sw**2 at any walking speed (zero vertical speed
+            # at liftoff and touchdown, and u = sqrt(h) stays smooth); the
+            # stance leg and the standing reference are unchanged
+            g = 1.0 if self._cmd_is_moving(cmd) else 0.0
+            u = np.sqrt(self.mimic_lift) * sw * g
+            ch, ck = self._lift_ch, self._lift_ck
+            hipP = hipP + u * (ch[:, 0] + u * (ch[:, 1] + u * ch[:, 2]))
+            knee = kn0 + u * (ck[:, 0] + u * (ck[:, 1] + u * ck[:, 2]))
+        else:
+            knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain
@@ -1798,6 +2022,11 @@ class BimoWalkerEnv(gym.Env):
             self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
         self._lag_y = None                    # re-seed the act-lag cascade
+        if self.act_lag_dr_max is not None:
+            self._act_lag_ep = float(self.np_random.uniform(self.act_lag_hz,
+                                                            self.act_lag_dr_max))
+        else:
+            self._act_lag_ep = self.act_lag_hz
         self._act_hist = None                 # re-seed the dead-time ring
         if self.obs_hist_len > 1:
             self._obs_hist = []
@@ -1819,7 +2048,7 @@ class BimoWalkerEnv(gym.Env):
                                   ] * self.act_delay_ticks
             self._act_hist.append(target.astype(np.float64))
             target = self._act_hist.pop(0)
-        if self.act_lag_hz > 0.0:
+        if self._act_lag_ep > 0.0:
             # action-chain lag (3 cascaded first-order stages, the firmware C2
             # shaper's structure) BEFORE quantization, matching env_mjx and
             # the deploy path's shaper -> angleToSteps order
@@ -1827,7 +2056,7 @@ class BimoWalkerEnv(gym.Env):
                 # seeded with the default pose, matching env_mjx reset
                 self._lag_y = np.stack(
                     [np.asarray(self._sdefault, dtype=np.float64)] * 3)
-            k = 1.0 - np.exp(-2.0 * np.pi * self.act_lag_hz * self.control_dt)
+            k = 1.0 - np.exp(-2.0 * np.pi * self._act_lag_ep * self.control_dt)
             self._lag_y[0] += k * (target - self._lag_y[0])
             self._lag_y[1] += k * (self._lag_y[0] - self._lag_y[1])
             self._lag_y[2] += k * (self._lag_y[1] - self._lag_y[2])
@@ -1881,6 +2110,8 @@ class BimoWalkerEnv(gym.Env):
                 # parity; the profile is all ones unless configured)
                 kp = kp * self._kp_prof
                 kd = kd * self._kd_prof
+                stall = stall * self._stall_prof
+                w0 = w0 * self._w0_prof
                 q = self.data.qpos[self._sqpos]
                 qd = self.data.qvel[self._sqvel]
                 cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
@@ -2175,6 +2406,15 @@ class BimoWalkerEnv(gym.Env):
             # command block, mirrors sim/mjx)
             reward += self.w_lift * lift_ok
             reward += self.w_track_foot * foot_kernel
+            if self.foot_cross_term and self.w_foot_cross:
+                # feet-crossing guard (env_mjx): the torso-frame lateral
+                # separation of the two sole centres must stay >= sole
+                # width + 5 mm
+                pL = d.geom_xpos[self._sole_gids[0]] - d.xpos[self._torso_bid]
+                pR = d.geom_xpos[self._sole_gids[1]] - d.xpos[self._torso_bid]
+                y_sep = abs((-sth * pL[0] + cth * pL[1]) - (-sth * pR[0] + cth * pR[1]))
+                reward -= self.w_foot_cross * float(np.clip(
+                    (self.foot_cross_sep - y_sep) / self.foot_cross_sep, 0.0, 1.0))
             # clearance-gated (mirrors sim/mjx -- skills_v2 leaning loophole)
             reward += (self.w_com_stance * float(lifted) * com_kernel
                        * float(np.clip(foot_clear / self.lift_clear,
@@ -2306,6 +2546,13 @@ class BimoWalkerEnv(gym.Env):
                 dq_rr = np.asarray(d.qpos[self._jqpos]) - q_rr
                 reward += self.w_rise_ref * float(np.exp(
                     -np.sum(dq_rr ** 2) / self.rise_ref_s2))
+        if self.w_rise_root and self.ext_cmd and self.recover_mix > 0:
+            if not self._recovered:
+                # root tracking while down (mirrors sim/mjx exactly)
+                k_rt = int(np.clip(np.round((self._rise_t0 + self._step_i * self.control_dt)
+                                            / self._rr["dt"]), 0, self._rr["T"] - 1))
+                reward += self.w_rise_root * float(rise_root_kernel(
+                    float(d.qpos[2]), np.asarray(d.qpos[3:7]), self._rr["root"][k_rt], np))
         if self.w_up_vel and self.ext_cmd and self.recover_mix > 0:
             # getup_v5 momentum incentive (mirrors sim/mjx)
             if not self._recovered:

@@ -1,0 +1,198 @@
+{
+  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. 'plates' are parts printed together, sliced into one project; one process slices a plate, so its parts share supports and settings, and the plate holds its own 'copies'. cad/slice.py writes 'orient', 'copies' and 'settings' back here when a project was saved from the GUI. A part's 'support_enforcers' are boxes [x0, x1, y0, y1, z0, z1] in its model frame (mm), added to the project as support-enforcer volumes; with support_type normal(manual) the part is supported inside them and nowhere else. Every copy is laid square to the bed, its walls along X and Y; a part's 'spin' (0, 90, 180 or 270 degrees, default 0) is its quarter turn there, and a quarter turn saved from the GUI is read back into it. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job. 'variants' are parts of a non-default build (e.g. HIP_YOKE_VARIANT=glued) that the default table leaves out; cad/slice.py --variant <name> slices them.",
+  "printer": "Flashforge Adventurer 5M Pro 0.4 Nozzle",
+  "process": {
+    "preset": "0.20mm Standard @Flashforge AD5M Pro 0.4 Nozzle",
+    "settings": {
+      "curr_bed_type": "Textured PEI Plate",
+      "layer_height": "0.2",
+      "sparse_infill_density": "35%",
+      "wall_loops": "3"
+    }
+  },
+  "filament": {
+    "preset": "Flashforge Generic PETG",
+    "settings": {
+      "nozzle_temperature": [
+        "255"
+      ],
+      "nozzle_temperature_initial_layer": [
+        "255"
+      ],
+      "textured_plate_temp": [
+        "85"
+      ],
+      "textured_plate_temp_initial_layer": [
+        "85"
+      ]
+    }
+  },
+  "supports": {
+    "enable_support": "1",
+    "support_object_xy_distance": "0.35",
+    "support_on_build_plate_only": "1",
+    "support_threshold_angle": "30",
+    "support_top_z_distance": "0.2",
+    "support_type": "normal(auto)"
+  },
+  "plates": {
+    "feet": {
+      "parts": [
+        "foot_L",
+        "foot_R"
+      ],
+      "note": "both feet on one plate, sole down"
+    }
+  },
+  "variants": {
+    "hip_yoke_glued": {
+      "note": "HIP_YOKE_VARIANT=glued: the hip yoke as two support-free U-channels, snapped and glued (cad/v6/hip_yoke_glued.py)",
+      "parts": {
+        "hip_yoke_glued_roll": {
+          "orient": "RY_ROLL_WALL",
+          "supports": false,
+          "note": "on edge, model -Y (the y -10 bed face) down; no supports, no brim"
+        },
+        "hip_yoke_glued_pitch": {
+          "orient": "RY_XUP",
+          "supports": false,
+          "note": "on its back, model -X (the x -14 bed face) down; no supports, no brim"
+        }
+      },
+      "plates": {
+        "hip_yoke_glued": {
+          "parts": [
+            "hip_yoke_glued_roll",
+            "hip_yoke_glued_pitch"
+          ],
+          "copies": 2,
+          "note": "both pieces for both hips"
+        }
+      }
+    },
+    "ankle_link_glued": {
+      "note": "ANKLE_LINK_VARIANT=glued: the ankle link as a conformal cradle and a fork, printed without supports, snapped and glued (cad/v6/ankle_link_glued.py)",
+      "parts": {
+        "ankle_link_glued_cradle": {
+          "orient": "IDENT",
+          "supports": false,
+          "note": "bottom down (the four walls' flat bottom); no supports, no brim"
+        },
+        "ankle_link_glued_fork": {
+          "orient": "RY_ROLL_WALL",
+          "supports": false,
+          "note": "on edge, model -Y (the y -14.5 face) down; no supports, no brim"
+        }
+      },
+      "plates": {
+        "ankle_link_glued": {
+          "parts": [
+            "ankle_link_glued_cradle",
+            "ankle_link_glued_fork"
+          ],
+          "copies": 2,
+          "note": "both pieces for both legs"
+        }
+      }
+    }
+  },
+  "parts": {
+    "ankle_link": {
+      "orient": "RY_XUP",
+      "supports": true,
+      "note": "on its back (model +X up), the rear tine on the bed: the grip screws' teardrop roofs assume print-up = model +X (ankle_link.py). Supports under the web and the front tine"
+    },
+    "arm_fore_v6_L": {
+      "orient": "RY_XUP",
+      "supports": true,
+      "note": "on its back, web face down"
+    },
+    "arm_fore_v6_R": {
+      "orient": "RY_XUP",
+      "supports": true,
+      "note": "on its back, web face down"
+    },
+    "arm_upper_v6_L": {
+      "orient": "RY_XUP",
+      "supports": false,
+      "note": "on its back, web face down"
+    },
+    "arm_upper_v6_R": {
+      "orient": "RY_XUP",
+      "supports": false,
+      "note": "on its back, web face down"
+    },
+    "foot_L": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "sole down"
+    },
+    "foot_R": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "sole down"
+    },
+    "head_face": {
+      "orient": "RY_XDOWN",
+      "supports": true,
+      "note": "flat, outer (+X) face down, camera bosses up; the outer-face pocket is then a ~50 x 44 mm ceiling 1.8 mm up, so supports (PRINT_LIST says none: open question). head.py PRINT_ORIENT_FACE = eye(3) stands it on edge; the STL is in the assembly frame"
+    },
+    "head_shell": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "base (horn plate) down"
+    },
+    "hip_yoke_v6": {
+      "orient": "RY_ROLL_WALL",
+      "supports": true,
+      "settings": {
+        "brim_type": "outer_only",
+        "brim_width": "5"
+      },
+      "note": "on edge, model -Y on the bed; 5 mm outer brim"
+    },
+    "leg_link_v6": {
+      "orient": "RY_XUP",
+      "supports": true,
+      "note": "on its back, web face on the bed"
+    },
+    "neck_floor": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "flat, bottom face down"
+    },
+    "pelvis_v7": {
+      "orient": "RX180",
+      "supports": true,
+      "note": "deck top down"
+    },
+    "shoulder_girdle_v6": {
+      "orient": "IDENT",
+      "supports": true,
+      "note": "base down"
+    },
+    "yaw_bearing_housing": {
+      "orient": "RX180",
+      "supports": false,
+      "note": "the face against the pelvis down"
+    },
+    "yaw_carrier_v6": {
+      "orient": "RX180",
+      "supports": true,
+      "note": "horn-plate face down, bay walls rising. Supports in the servo-plug window only: manual supports, snug, from the part, inside the one enforcer box. The lip (a 1.1 mm ledge) and the screw holes print unsupported.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      },
+      "support_enforcers": [
+        {
+          "box": [-19.7, -17.2, -11.1, 11.1, -34.3, -27.76],
+          "note": "the servo-plug (connector) window through the rear wall: its ceiling in print, a 1 mm bar spanning 22.8 mm, stands on the window sill. The box keeps 0.25 inside the wall's outer face (x -19.95) and short of the idler seat's detent channel (x -16.95, y +-11.10), which has no sill: support there would run down to the bay floor"
+        }
+      ],
+      "copies": 2,
+      "spin": 90
+    }
+  }
+}

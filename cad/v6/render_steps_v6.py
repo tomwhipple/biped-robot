@@ -2,7 +2,7 @@
 
     MUJOCO_GL=cgl .venv/bin/python cad/v6/render_steps_v6.py      # Mac
     MUJOCO_GL=egl .venv/bin/python cad/v6/render_steps_v6.py      # Linux
-        -> docs/assembly/v6_NN_<step>.png
+        -> build/v6/renders/v6_NN_<step>.png (`make figures` copies them into docs/assembly)
 
 One still per bench step, in docs/assembly.md's order. Parts already installed
 render in their natural colours (assembly_v6's); the part going in renders
@@ -11,8 +11,7 @@ seat and a dashed leader between the two. The paths are animate_v6.INSERT's
 (the fly-in's), except where the bench goes in a different direction than the
 bottom-up fly-in, each named in BENCH below with the part module that says so.
 
-Everything is the robot to print: the default build (ARMS=1, bearing C -- a
-placeholder until #75, so the bearing itself is not drawn), both legs built
+Everything is the robot to print: the default build (ARMS=1), both legs built
 the same way (the left one is shown).
 """
 from __future__ import annotations
@@ -26,13 +25,15 @@ os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 import numpy as np  # noqa: E402
 from build123d import export_stl  # noqa: E402
 import assembly_v6 as A  # noqa: E402
 import animate_v6 as AN  # noqa: E402
+import paths  # noqa: E402
 
-OUT = os.path.join(HERE, "..", "..", "docs", "assembly")
+OUT = os.path.join(paths.BUILD, "v6", "renders")
 ORANGE = (0.93, 0.46, 0.10, 1)
 GHOST = (0.93, 0.46, 0.10, 0.20)
 DASH = (0.80, 0.36, 0.06, 1)
@@ -47,17 +48,27 @@ BENCH = {
     "servo_ankle_pitch_L": (0, 0, -1),   # grip channels take the case from below (leg_link_v6.SERVO_INSERT)
     "servo_knee_L": (0, 0, -1),
     "servo_hip_pitch_L": (0, 0, -1),
-    "yaw_carrier_L": (0, 0, -1),         # offered UP onto the yaw horn, pelvis upright on a stand
+    "yaw_bearing_housing": (0, 0, -1),   # up under the yaw cells, bearings in it (the fly-in lowers it onto the hubs)
+    "bearing_inner_L": (0, 0, -1),       # pressed into the recess from its mouth, and up with the housing
+    "bearing_outer_L": (0, 0, -1),
+    "bearing_inner_R": (0, 0, -1),
+    "bearing_outer_R": (0, 0, -1),
+    "yaw_carrier_L": (0, 0, -1),         # up through the bearing onto the yaw horn, pelvis upright on a stand
     "servo_hip_roll_L": (0, 0, -1),      # up into the downward-open bay (cad/check_assembly SERVO_INSERT yaw_carrier)
     "neck_floor": (0, 0, -1),            # up into the tube from below, on the bench (neck_floor.INSERT)
 }
 
 LEG = ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L", "servo_knee_L", "shin_L",
-       "servo_ankle_pitch_L", "ankle_link_L", "servo_ankle_roll_L", "foot_L"]
+       "servo_ankle_pitch_L", "ankle_link_L", "servo_ankle_roll_L", "foot_L", "sole_L"]
 LEG_R = [n[:-1] + "R" for n in LEG]
-HIP = ["servo_hip_yaw_L", "yaw_carrier_L", "servo_hip_roll_L"]
+BEARING = ["bearing_inner_L", "bearing_outer_L"]
+BEARING_R = [n[:-1] + "R" for n in BEARING]
+YAW = ["servo_hip_yaw_L", "servo_hip_yaw_R"]
+HIP = ["servo_hip_yaw_L", "yaw_carrier_L", "servo_hip_roll_L"] + BEARING
 HIP_R = [n[:-1] + "R" for n in HIP]
+HOUSING = ["yaw_bearing_housing"]
 TORSO = ["pelvis_v7"]
+TORSO_DONE = TORSO + HOUSING                                            # once the hips are built
 BOARDS = ["pi4_mock", "gd_mock"]
 NECK = ["shoulder_girdle_v6", "neck_floor", "servo_neck"]
 ARM = ["servo_shoulder_L", "arm_upper_L", "servo_elbow_L", "arm_fore_L"]
@@ -66,60 +77,66 @@ ARM_R = [n[:-1] + "R" for n in ARM]
 # (file stem, caption, installed, incoming, offset mm, (azimuth, elevation), frame-on or None)
 STEPS = [
     ("01_foot_servo", "3. Ankle-roll servo down into the foot cradle",
-     ["foot_L"], ["servo_ankle_roll_L"], 45, (135, -25), None),
+     ["foot_L", "sole_L"], ["servo_ankle_roll_L"], 45, (135, -25), None),
     ("02_ankle_link_grip", "4. Ankle-pitch servo up into the ankle link's grip channel",
      ["ankle_link_L"], ["servo_ankle_pitch_L"], 45, (140, -5), None),
     ("03_ankle_roll_fork", "5. Ankle link lowered onto the roll servo's two discs",
-     ["foot_L", "servo_ankle_roll_L"], ["ankle_link_L", "servo_ankle_pitch_L"], 45, (135, -15), None),
+     ["foot_L", "sole_L", "servo_ankle_roll_L"], ["ankle_link_L", "servo_ankle_pitch_L"], 45, (135, -15), None),
     ("04_shin_on_ankle", "5. Shin (knee servo in its grip) lowered onto the ankle-pitch servo",
-     ["foot_L", "servo_ankle_roll_L", "ankle_link_L", "servo_ankle_pitch_L"],
+     ["foot_L", "sole_L", "servo_ankle_roll_L", "ankle_link_L", "servo_ankle_pitch_L"],
      ["shin_L", "servo_knee_L"], 50, (135, -10), ["shin_L", "servo_knee_L", "ankle_link_L"]),
     ("05_thigh_on_knee", "5. Thigh (hip-pitch servo in its grip) lowered onto the knee servo",
-     ["foot_L", "servo_ankle_roll_L", "ankle_link_L", "servo_ankle_pitch_L", "shin_L", "servo_knee_L"],
+     ["foot_L", "sole_L", "servo_ankle_roll_L", "ankle_link_L", "servo_ankle_pitch_L", "shin_L", "servo_knee_L"],
      ["thigh_L", "servo_hip_pitch_L"], 50, (135, -10), ["thigh_L", "servo_hip_pitch_L", "shin_L"]),
     ("06_hip_yoke", "6. Hip yoke's pitch clevis lowered onto the hip-pitch servo",
      LEG[1:], ["hip_yoke_L"], 40, (135, -10), ["hip_yoke_L", "servo_hip_pitch_L", "thigh_L"]),
     ("07_yaw_servo", "7a. Yaw servo up into its cell, horn down",
      TORSO, ["servo_hip_yaw_L"], 45, (150, 20), ["servo_hip_yaw_L", "yaw_carrier_L"]),
-    ("08_yaw_carrier", "7b. Yaw carrier up onto the yaw horn (bearing not drawn: option open, #75)",
-     TORSO + ["servo_hip_yaw_L"], ["yaw_carrier_L"], 40, (150, 15), ["servo_hip_yaw_L", "yaw_carrier_L"]),
-    ("09_hip_roll_servo", "7c. Hip-roll servo up into the carrier's bay",
-     TORSO + ["servo_hip_yaw_L", "yaw_carrier_L"], ["servo_hip_roll_L"], 50, (150, 10),
+    ("08_bearings_into_housing", "7b (bench). Both bearings pressed into the housing, against the shoulders",
+     HOUSING, BEARING + BEARING_R, 30, (150, 25), None),
+    ("09_housing", "7c. Housing and bearings up under both yaw cells, five screws from below",
+     TORSO + YAW, HOUSING + BEARING + BEARING_R, 45, (150, -15), HOUSING + YAW),
+    ("09a_yaw_carrier", "7d. Yaw carrier up through the bearing onto the yaw horn, its lip on the inner race",
+     TORSO + YAW + HOUSING + BEARING + BEARING_R, ["yaw_carrier_L"], 40, (150, -10),
+     ["servo_hip_yaw_L", "yaw_carrier_L"]),
+    ("09b_hip_roll_servo", "7e. Hip-roll servo up into the carrier's bay, all 8 screws",
+     TORSO + YAW + HOUSING + BEARING + BEARING_R + ["yaw_carrier_L"], ["servo_hip_roll_L"], 50, (150, 10),
      ["yaw_carrier_L", "servo_hip_roll_L"]),
     ("10_leg_to_hip", "8. The leg offered up: the yoke's roll clevis onto the roll servo",
-     TORSO + HIP + HIP_R + LEG_R, LEG, 45, (145, -8), ["servo_hip_roll_L", "yaw_carrier_L", "hip_yoke_L"]),
+     TORSO_DONE + HIP + HIP_R + LEG_R, LEG, 45, (145, -8), ["servo_hip_roll_L", "yaw_carrier_L", "hip_yoke_L"]),
     ("11_boards", "9. Pi 4B (aft) and General Driver (front) down their channels",
-     TORSO + HIP + HIP_R + LEG + LEG_R, BOARDS, 45, (150, -20), ["pelvis_v7"]),
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R, BOARDS, 45, (150, -20), ["pelvis_v7"]),
     ("12_pack", "10. The pack down through the deck aperture, before the girdle",
-     TORSO + HIP + HIP_R + LEG + LEG_R + BOARDS, ["pack_mock"], 45, (150, -30), ["pelvis_v7"]),
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS, ["pack_mock"], 45, (150, -30), ["pelvis_v7"]),
     ("13_neck_floor", "11 (bench). Neck floor up into the girdle's tube, four screws into the bosses",
      ["shoulder_girdle_v6"], ["neck_floor"], 30, (150, 25), ["neck_floor"]),
     ("14_neck_servo", "11 (bench). Neck servo down into the tube onto the floor's pads",
      ["shoulder_girdle_v6", "neck_floor"], ["servo_neck"], 45, (150, -25), ["shoulder_girdle_v6"]),
     ("15_girdle", "11a. The girdle, neck built in, lowered onto the deck",
-     TORSO + HIP + HIP_R + LEG + LEG_R + BOARDS + ["pack_mock"], NECK, 45, (150, -25), ["pelvis_v7", "shoulder_girdle_v6"]),
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS + ["pack_mock"], NECK, 45, (150, -25), ["pelvis_v7", "shoulder_girdle_v6"]),
     ("16_shoulder_servos", "11b. Shoulder servos down into their pods, screwed from outboard",
-     TORSO + BOARDS + ["pack_mock"] + NECK, ["servo_shoulder_L", "servo_shoulder_R"], 45, (150, -30),
+     TORSO_DONE + BOARDS + ["pack_mock"] + NECK, ["servo_shoulder_L", "servo_shoulder_R"], 45, (150, -30),
      ["shoulder_girdle_v6"]),
     ("17_upper_arm", "11c. Upper arm straight in onto the shoulder horn",
-     TORSO + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["arm_upper_L"], 45, (110, -10),
+     TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["arm_upper_L"], 45, (110, -10),
      ["servo_shoulder_L", "arm_upper_L"]),
-    ("18_elbow_servo", "11c. Elbow servo into the forearm's grip channel, from the front",
-     ["arm_fore_L"], ["servo_elbow_L"], 45, (150, -10), None),
-    ("19_forearm", "11c. Forearm lifted up between the upper arm's fork tines",
-     ["arm_upper_L", "servo_shoulder_L"], ["arm_fore_L", "servo_elbow_L"], 45, (120, -5),
+    ("18_elbow_servo", "11c. Elbow servo into the upper arm's grip channel, from the front",
+     ["arm_upper_L", "servo_shoulder_L"], ["servo_elbow_L"], 45, (150, -10), ["arm_upper_L", "servo_elbow_L"]),
+    ("19_forearm", "11c. Forearm lifted up, its fork onto the elbow servo's discs",
+     ["arm_upper_L", "servo_shoulder_L", "servo_elbow_L"], ["arm_fore_L"], 45, (120, -5),
      ["arm_fore_L", "servo_elbow_L", "arm_upper_L"]),
     ("20_head", "11e. Head down onto the neck horn",
-     TORSO + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["head"], 45, (150, -15),
+     TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["head"], 45, (150, -15),
      ["head", "shoulder_girdle_v6"]),
     ("21_complete", "The robot as drawn",
-     TORSO + HIP + HIP_R + LEG + LEG_R + BOARDS + ["pack_mock", "head"] + NECK
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS + ["pack_mock", "head"] + NECK
      + ["servo_shoulder_L", "servo_shoulder_R"] + ARM[1:] + ARM_R[1:], [], 0, (150, -10), None),
 ]
 
 
 # per-step camera distance, in units of "the framed box's diagonal just fits"
-ZOOM = {"07_yaw_servo": 2.2, "08_yaw_carrier": 2.0, "09_hip_roll_servo": 2.0, "10_leg_to_hip": 1.6,
+ZOOM = {"07_yaw_servo": 2.2, "08_bearings_into_housing": 1.3, "09_housing": 1.3, "09a_yaw_carrier": 2.0,
+        "09b_hip_roll_servo": 2.0, "10_leg_to_hip": 1.6,
         "13_neck_floor": 2.4, "14_neck_servo": 1.4, "17_upper_arm": 1.5}
 
 

@@ -2,6 +2,23 @@
 
 > Dated record: accurate as of its date; the current design is [DESIGN.md](../../DESIGN.md). Evidence cited here for options not taken was removed from the tree on 2026-09-29 and is in git history (`git log --all -- docs/design-v6/<file>`).
 
+**Decision, 2026-10-06 (Tom, #75): option A**, the 6810-2RS round hub. It is
+now the only build: `yaw_carrier_v6` is the round-hub carrier, `pelvis_v7` has
+A's seats, and the `YAW_BRG_*` constants in `cad/v6/dimensions_v6.py` are A's
+(this record's `YAWA_*`; its `YAW_BRG_*` were option C's). Option C's and E's
+code, exports and review STEPs, and the scripts named below
+(`yaw_carrier_v6_optA.py`, `yaw_retention_optE.py`, `check_yaw_bearing_*.py`,
+`export_yaw_bearing_joint.py`, `render_yaw_bearing*.py`), are in git history
+before that date. The two-ring check now runs in `check_assembly_v6.py`.
+Later on 2026-10-06 the outer-race seat moved out of the pelvis into a
+separate screwed housing (`yaw_bearing_housing`), because the yaw servo cannot
+pass a one-print skirt on its way up into its cell. The hub covered the roll
+servo's two upper idler-side screws; instead of notching it, the carrier got
+a 5 mm spacer between its horn plate and the roll bay (the hip stack grew
+5 mm), which puts all eight roll-servo screws below the bearing with the hip
+assembled. The hip-yaw servos go in without their idler discs and seat flat on
+the cell ceiling.
+
 Tom, 2026-09-17: *"What about the hip yaw? The servo axle is the only
 connection between the leg and the rest of the robot ... it seems to me
 we're fighting a lot of mechanical leverage there."* Confirmed in the CAD
@@ -172,13 +189,13 @@ C's does -- no pelvis growth either.
   the kinematics gate is untouched by this option (unlike round 1's
   rejected axial-growth version, which would have needed one).
 
-**Renders:** `cad/v6/renders/yaw_bearing_optA_after.png` (before is the SAME
-pre-study state as option C's -- `yaw_bearing_before.png`, not
-re-rendered), `cad/v6/renders/yaw_bearing_optA_section.png` (axis section,
+**Renders:** [`figs/yaw_bearing_optA_after.png`](figs/yaw_bearing_optA_after.png) (before is the SAME
+pre-study state as option C's -- [`figs/yaw_bearing_before.png`](figs/yaw_bearing_before.png), not
+re-rendered), [`figs/yaw_bearing_optA_section.png`](figs/yaw_bearing_optA_section.png) (axis section,
 same cut convention as option C's -- the round shoulder/collar is visible
 sitting on the carrier's hub). Fly-in filmstrip for the whole robot with
 this option: `cad/v6/renders/assembly_v6_flyin_optA_strip.png` (the
-committed baseline strip, `assembly_v6_flyin_strip.png`, is unchanged --
+committed baseline strip, [`assembly_v6_flyin_strip.png`](../assembly/assembly_v6_flyin_strip.png), is unchanged --
 option A does not change anything else in the body, and the difference at
 whole-robot scale is subtle since the OD only shrinks ~10%; the section
 render is the one that actually shows it).

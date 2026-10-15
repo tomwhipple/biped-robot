@@ -50,7 +50,7 @@ def _doc():
         if other.getObject("Assembly") is not None and other.getObject("thigh_L"):
             return other
     raise RuntimeError(
-        "open an articulated .FCStd first (cad/step/bimo_v3yaw_*.FCStd)")
+        "open an articulated .FCStd first (build/v5/step/bimo_v3yaw_*.FCStd)")
 
 
 def attach_joint_view_providers(doc):

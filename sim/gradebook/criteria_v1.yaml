@@ -1,0 +1,96 @@
+# Gradebook criteria spec v1 — referee suite, seeded from the 2026-10-07 night cards
+# (robot_walk_k1 / k2: first walking policies on the robot plant) and from
+# locomotion-reward literature anchors (IsaacLab velocity task suite, CHRL
+# 2024, humanoid-velocity RL 2407.05148, probabilistic-gait 2011.01387).
+# Windows are calibrated starting points — retune in shadow week.
+#
+# Deltas from the scratch prototype (2026-10-07, adjudicated):
+#  * cot, power, symmetry gain `condition: completed` — economy on
+#    early-terminated (fell) episodes misleads: a policy that falls in 3 s
+#    racks up a *better* CoT than one that walks the full 14 s (the
+#    CoT-on-falls pathology, design §6). Fell episodes inherit norm 0.0 (the
+#    window's worst end) for completion-only criteria.
+#  * fall_rate's `applies_to: locomotion` was removed — falls on non-loco
+#    scenarios are real failures and grade normally.
+version: 1
+suite: referee_v2
+
+criteria:
+  # ---- task (frozen verdict, kept as a criterion) ------------------------
+  task_success:
+    type: metric
+    source: scenario.successes / n
+    weight: 3.0
+    score: {direction: higher_better, normalize: [0.0, 1.0]}
+
+  # ---- safety / termination ---------------------------------------------
+  fall_rate:
+    type: metric
+    source: scenario.fall_count / n
+    weight: 2.0
+    score: {direction: lower_better, normalize: [0.0, 1.0]}
+    # 1.0 raw = a fall per seed (the 2026-10-07 night worst scenarios hit
+    # exactly this)
+
+  # ---- stability proxy (scorecard column; up_z-series moves in with
+  #      trace-level criteria, slice 2+) ----------------------------------
+  stability_wobble:
+    type: metric
+    source: shared.wobble_rms
+    weight: 2.0
+    score: {direction: lower_better, normalize: [0.3, 2.0]}
+    # 2026-10-07 night: 1.05 run-mean; settled standing reads ~0.3-0.4
+    # (window floor = "healthy", ceiling = "collapse-adjacent")
+
+  # ---- economy (loco scenarios; completion-conditioned, see header) ------
+  cot:
+    type: metric
+    source: shared.cot
+    weight: 1.5
+    condition: completed
+    score: {direction: lower_better, normalize: [2.0, 45.0]}
+    # 2026-10-07 night: 42.2 run-mean (near window ceiling). Literature
+    # anchor: efficient bipedal CoT O(1-5); tiny-servo walkers sit far
+    # higher — ceiling set by the night's worst.
+
+  power:
+    type: metric
+    source: shared.mean_watts
+    weight: 0.5
+    condition: completed
+    score: {direction: lower_better, normalize: [20.0, 200.0]}
+
+  # ---- gait quality -------------------------------------------------------
+  foot_slip:
+    type: metric
+    source: shared.foot_slip
+    weight: 1.0
+    score: {direction: lower_better, normalize: [0.01, 0.08]}
+
+  symmetry:
+    type: metric
+    source: shared.symmetry
+    weight: 1.0
+    condition: completed
+    score: {direction: lower_better, normalize: [0.05, 0.5]}
+    # 0 = perfectly mirrored L/R stride error; the night saw 0.24 loco-mean
+
+  # ---- foot clearance telemetry (optional columns — cards from before the
+  #      referee-clearance build simply lack them; when_present: skip) -----
+  swing_clearance:
+    type: metric
+    source: shared.swing_clear_frac
+    weight: 1.0
+    score: {direction: higher_better, normalize: [0.0, 0.4]}
+    when_present: true
+
+  lift_quality:
+    type: metric
+    source: shared.lift_frac
+    weight: 1.0
+    score: {direction: higher_better, normalize: [0.0, 0.5]}
+    when_present: true
+
+defaults:
+  weight: 1.0
+  min_confidence_in_reward: 0.5   # judge criteria only when they exist

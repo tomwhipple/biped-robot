@@ -5,8 +5,10 @@ the joint's ROM extremes (and a few interior samples) and require either zero
 boolean intersection AND a minimum distance >= D.SWEEP_BUFFER, or -- for the
 pairs that are DESIGNED to touch (seats, pads on discs) -- zero intersection
 only. Also: the relatively FIXED pairs that must keep a stated distance (the
-neck floor over the pack, STATIC_PAIRS) and every disc screw's thread
-engagement (check_disc_screws).
+neck floor over the pack, STATIC_PAIRS), every disc screw's thread
+engagement (check_disc_screws), the hip's bench-order INSERTION paths
+(check_insertion) and a driver's ACCESS to every carrier and bearing-housing
+screw in the state it is driven in (check_driver_access).
 
 The pairs are enumerated, not filtered by contype, exactly as v5 does: a pair
 that is not listed is a pair that was never checked, and the list is printed
@@ -15,7 +17,7 @@ with the result so the omission is visible.
     .venv/bin/python cad/v6/check_assembly_v6.py            # all pairs, the robot (arms)
     ARMS=0 .venv/bin/python cad/v6/check_assembly_v6.py     # the armless variant
     .venv/bin/python cad/v6/check_assembly_v6.py --joint ankle_roll --samples 9
-    .venv/bin/python cad/v6/check_assembly_v6.py --joint static     # (or screws)
+    .venv/bin/python cad/v6/check_assembly_v6.py --joint static     # (or screws, insert, access)
 """
 from __future__ import annotations
 
@@ -52,10 +54,10 @@ PAIRS = [
     ("hip_pitch", "thigh_{s}", "yaw_carrier_{s}", "thigh top vs the carrier at deep flexion"),
     ("hip_pitch", "thigh_{s}", "pelvis_v7", "thigh vs the housing at deep flexion"),
     ("hip_pitch", "thigh_{s}", "servo_hip_roll_{s}", "thigh grip top vs the roll servo case at -125 (hits at -135)"),
-    ("knee", "shin_{s}", "thigh_{s}", "shin grip plates vs the thigh fork; shin case vs the thigh box"),
-    ("knee", "servo_knee_{s}", "thigh_{s}", "knee servo case sweeping under the thigh's box (r 16 rule)"),
+    ("knee", "shin_{s}", "thigh_{s}", "shin grip plates vs the thigh fork; shin vs the thigh's end walls and pocket"),
+    ("knee", "servo_knee_{s}", "thigh_{s}", "knee servo case sweeping under the thigh's bottom end wall (r 16 rule)"),
     ("ankle_pitch", "ankle_link_{s}", "shin_{s}", "ankle link grip plates vs the shin fork (0.7 mm)"),
-    ("ankle_pitch", "servo_ankle_pitch_{s}", "shin_{s}", "ankle pitch servo case vs the shin box"),
+    ("ankle_pitch", "servo_ankle_pitch_{s}", "shin_{s}", "ankle pitch servo case vs the shin's fork and bottom end wall"),
     ("ankle_pitch", "foot_{s}", "shin_{s}", "foot tabs / cradle vs the shin tines at +-40"),
     ("ankle_roll", "foot_{s}", "ankle_link_{s}", "foot tabs vs the ankle link tines (0.7 mm), sole vs the web"),
     ("ankle_roll", "servo_ankle_roll_{s}", "ankle_link_{s}", "THE 54 mm pair: roll servo case sweep under the link"),
@@ -84,6 +86,13 @@ STATIC_PAIRS = [
      "floor lugs screwed up to the tube bosses: must not intersect", None),
     ("servo_neck", "shoulder_girdle_v6" if A.arms_on() else "neck_collar",
      "neck servo in its tube: must not intersect", None),
+    ("bearing_inner_L", "yaw_carrier_L", "inner race pressed on the hub", None),
+    ("bearing_outer_L", "yaw_bearing_housing", "outer race pressed into the housing's recess, under the shoulder", None),
+    ("yaw_bearing_housing", "pelvis_v7", "housing screwed up against the cell block: must not intersect", None),
+    ("servo_hip_yaw_L", "pelvis_v7", "yaw servo seated, idler case face on the cell ceiling (no idler disc): must not intersect", None),
+    ("servo_hip_yaw_L", "pack_mock", "the yaw servo's free-hub post under the pack (on its 1 mm foam pads)", 0.8),
+    ("yaw_bearing_housing", "pi4_mock", "housing under the Pi 4B's bottom edge", 0.5),
+    ("yaw_bearing_housing", "gd_mock", "the General Driver's bottom edge on the housing's top face: must not intersect", None),
 ]
 # pairs designed to touch at the standing pose (seat/disc contacts): checked
 # for intersection VOLUME only (must be ~0), the distance rule is waived
@@ -122,6 +131,7 @@ SINGLE_SEATED = {("hip_yoke_{s}", "yaw_carrier_{s}"): "one-print yoke vs the bay
 #     measured 31 residual arm-vs-leg contacts over an 8-step walk with a 12 mm
 #     capsule for an arm; the CAD arm is a 44 mm fork, so this is the row that
 #     decides whether the aft mount is really enough.
+REST = {"{s}_shoulder": V.ARM_REST_SHOULDER, "{s}_elbow": V.ARM_REST_ELBOW}
 ARM_PAIRS = [
     ("shoulder", "arm_upper_{s}", "pelvis_v7", "upper arm vs the torso through the whole sweep, hanging", None),
     ("shoulder", "arm_upper_{s}", "head", "upper arm vs the head at the fold-up (shoulder 180)", None),
@@ -133,15 +143,39 @@ ARM_PAIRS = [
     ("shoulder", "arm_fore_{s}", "pelvis_v7", "forearm vs the torso, FOLDED (elbow -90, the sit-up pose)", {"{s}_elbow": -90.0}),
     ("shoulder", "arm_fore_{s}", "shoulder_girdle_v6", "forearm vs the girdle, FOLDED", {"{s}_elbow": -90.0}),
     ("shoulder", "servo_elbow_{s}", "pelvis_v7", "the elbow servo case vs the torso through the sweep", None),
-    ("elbow", "arm_fore_{s}", "arm_upper_{s}", "THE ELBOW LIMIT: forearm grip vs the fork (sets V.ARM_ROM)", None),
-    ("elbow", "arm_fore_{s}", "servo_elbow_{s}", "forearm grip channel on its own servo: seated, must not intersect", None),
-    ("elbow", "servo_elbow_{s}", "arm_upper_{s}", "elbow servo discs on the fork tines: seated, must not intersect", None),
+    ("elbow", "arm_fore_{s}", "arm_upper_{s}", "THE ELBOW LIMIT: forearm fork vs the upper arm's grip channel (sets V.ARM_ROM)", None),
+    ("elbow", "arm_fore_{s}", "servo_elbow_{s}", "forearm fork tines on the elbow servo's discs: seated, must not intersect", None),
+    ("elbow", "servo_elbow_{s}", "arm_upper_{s}", "upper arm's grip channel on the elbow servo: seated, must not intersect", None),
     ("hip_pitch", "thigh_{s}", "arm_fore_{s}", "THE WALK ROW: thigh swept against the hanging forearm", None),
-    ("hip_pitch", "thigh_{s}", "arm_upper_{s}", "thigh swept against the hanging upper arm / elbow fork", None),
+    ("hip_pitch", "thigh_{s}", "arm_upper_{s}", "thigh swept against the hanging upper arm / elbow grip", None),
+    ("hip_pitch", "thigh_{s}", "servo_elbow_{s}", "thigh swept against the hanging elbow servo case", None),
     ("hip_pitch", "servo_hip_pitch_{s}", "arm_fore_{s}", "hip pitch servo case vs the hanging forearm", None),
     ("knee", "shin_{s}", "arm_fore_{s}", "shin swept against the hanging forearm (the plant's own contact pair)", None),
     ("knee", "servo_knee_{s}", "arm_fore_{s}", "knee servo case vs the hanging forearm", None),
-    ("hip_roll", "yoke_pitch_{s}", "arm_fore_{s}", "hip abduction swings the yoke out toward the arm plane", None),
+    # The arms' REST pose (V.ARM_REST, folded: shoulder 15 deg forward, elbow
+    # folded 95) is what they hold whenever the legs move, so every leg joint
+    # is swept through its full range against the folded arm (DESIGN.md 5.4).
+    # Hanging straight (the rows above) is only the torque-off pose.
+    ("hip_yaw", "yoke_pitch_{s}", "arm_upper_{s}", "hip yaw: yoke vs the upper arm, arms at rest (folded)", REST),
+    ("hip_yaw", "yoke_pitch_{s}", "servo_elbow_{s}", "hip yaw: yoke vs the elbow servo, arms at rest (folded)", REST),
+    ("hip_yaw", "yoke_pitch_{s}", "arm_fore_{s}", "hip yaw: yoke vs the forearm, arms at rest (folded)", REST),
+    ("hip_roll", "yoke_pitch_{s}", "arm_upper_{s}", "hip roll: yoke vs the upper arm, arms at rest (folded)", REST),
+    ("hip_roll", "yoke_pitch_{s}", "servo_elbow_{s}", "hip roll: yoke vs the elbow servo, arms at rest (folded)", REST),
+    ("hip_roll", "yoke_pitch_{s}", "arm_fore_{s}", "hip roll: yoke vs the forearm, arms at rest (folded)", REST),
+    ("hip_roll", "servo_hip_pitch_{s}", "arm_upper_{s}", "hip roll: pitch servo vs the upper arm, arms at rest (folded)", REST),
+    ("hip_roll", "servo_hip_pitch_{s}", "servo_elbow_{s}", "hip roll: pitch servo vs the elbow servo, arms at rest (folded)", REST),
+    ("hip_roll", "servo_hip_pitch_{s}", "arm_fore_{s}", "hip roll: pitch servo vs the forearm, arms at rest (folded)", REST),
+    ("hip_roll", "thigh_{s}", "arm_upper_{s}", "hip roll: thigh vs the upper arm, arms at rest (folded)", REST),
+    ("hip_roll", "thigh_{s}", "servo_elbow_{s}", "hip roll: thigh vs the elbow servo, arms at rest (folded)", REST),
+    ("hip_roll", "thigh_{s}", "arm_fore_{s}", "hip roll: thigh vs the forearm, arms at rest (folded)", REST),
+    ("hip_pitch", "thigh_{s}", "arm_upper_{s}", "hip pitch: thigh vs the upper arm, arms at rest (folded)", REST),
+    ("hip_pitch", "thigh_{s}", "servo_elbow_{s}", "hip pitch: thigh vs the elbow servo, arms at rest (folded)", REST),
+    ("hip_pitch", "thigh_{s}", "arm_fore_{s}", "hip pitch: thigh vs the forearm, arms at rest (folded)", REST),
+    ("hip_pitch", "servo_hip_pitch_{s}", "arm_fore_{s}", "hip pitch: pitch servo vs the forearm, arms at rest (folded)", REST),
+    ("knee", "shin_{s}", "servo_elbow_{s}", "knee: shin vs the elbow servo, arms at rest (folded)", REST),
+    ("knee", "shin_{s}", "arm_fore_{s}", "knee: shin vs the forearm, arms at rest (folded)", REST),
+    ("knee", "servo_knee_{s}", "arm_fore_{s}", "knee: knee servo vs the forearm, arms at rest (folded)", REST),
+    ("ankle_pitch", "ankle_link_{s}", "arm_fore_{s}", "ankle pitch: ankle link vs the forearm, arms at rest (folded)", REST),
     ("hip_yaw", "yaw_carrier_{s}", "arm_fore_{s}", "hip yaw swings the carrier toward the arm plane", None),
     ("ankle_pitch", "ankle_link_{s}", "arm_fore_{s}", "ankle link vs the hanging forearm (the arm reaches to z 154)", None),
 ]
@@ -149,30 +183,66 @@ ARM_TOUCHING = {("arm_upper_{s}", "servo_shoulder_{s}"), ("arm_fore_{s}", "servo
                 ("servo_elbow_{s}", "arm_upper_{s}")}
 
 
-# YAW_BEARING_VARIANT=E (assembly_v6.yaw_retention_pieces): the bearing (one
-# ring for both races, riding link 1), the screwed cap on the carrier (link 1)
-# and the retainer under the skirt (link 0, pelvis-fixed). The retainer hangs
-# 1.5 mm lower than the skirt it closes, which is the new thing the leg can
-# reach, so the leg rows below sweep toward it. The bearing is DESIGNED to sit
-# in the recess on the retainer's land: volume only.
-E_PAIRS = [
-    ("hip_yaw", "yaw_cap_{s}", "pelvis_v7", "E cap turns under the cell rim through +-45"),
-    ("hip_yaw", "yaw_cap_{s}", "yaw_retainer_{s}", "E cap vs the retainer through +-45"),
-    ("hip_yaw", "bearing_6810_{s}", "pelvis_v7", "E bearing in its recess: seated, must not intersect"),
-    ("hip_yaw", "bearing_6810_{s}", "yaw_retainer_{s}", "E bearing on the retainer's land: seated, must not intersect"),
-    ("hip_yaw", "yaw_carrier_{s}", "yaw_retainer_{s}", "carrier vs the E retainer through +-45"),
-    ("hip_yaw", "servo_hip_roll_{s}", "yaw_retainer_{s}", "roll servo vs the E retainer through +-45"),
-    ("hip_roll", "hip_yoke_{s}", "yaw_retainer_{s}", "yoke at full roll vs the E retainer"),
-    ("hip_roll", "servo_hip_pitch_{s}", "yaw_retainer_{s}", "pitch servo at full roll vs the E retainer"),
-    ("hip_roll", "thigh_{s}", "yaw_retainer_{s}", "thigh at full roll vs the E retainer"),
-    ("hip_pitch", "thigh_{s}", "yaw_retainer_{s}", "thigh at deep flexion vs the E retainer"),
+# The hip-yaw bearing (assembly_v6.yaw_bearing_pieces), two races split at
+# the ring shoulders (d1, D2): the inner race turns with the carrier (link 1), the
+# outer race sits in the bearing housing's recess (link 0, the housing is
+# screwed under the pelvis). Through the yaw sweep the turning side must clear
+# the fixed race and the housing -- this keeps the housing's shoulder off the
+# inner race -- and the leg must clear the races' exposed bottom faces and the
+# housing at full roll and flexion.
+BEARING_PAIRS = [
+    ("hip_yaw", "yaw_carrier_{s}", "bearing_outer_{s}", "turning carrier vs the fixed outer race through +-45"),
+    ("hip_yaw", "servo_hip_roll_{s}", "bearing_outer_{s}", "roll servo (inside the hub) vs the fixed outer race"),
+    ("hip_yaw", "bearing_inner_{s}", "yaw_bearing_housing", "turning inner race vs the housing's shoulder (d1)"),
+    ("hip_yaw", "bearing_inner_{s}", "pelvis_v7", "turning inner race vs the cell block's rim"),
+    ("hip_yaw", "yaw_carrier_{s}", "yaw_bearing_housing", "turning carrier vs the housing through +-45"),
+    ("hip_yaw", "servo_hip_roll_{s}", "yaw_bearing_housing", "roll servo vs the housing through +-45"),
+    ("hip_roll", "hip_yoke_{s}", "bearing_inner_{s}", "yoke at full roll vs the inner race"),
+    ("hip_roll", "hip_yoke_{s}", "bearing_outer_{s}", "yoke at full roll vs the outer race"),
+    ("hip_roll", "hip_yoke_{s}", "yaw_bearing_housing", "yoke at full roll vs the housing"),
+    ("hip_roll", "servo_hip_pitch_{s}", "bearing_outer_{s}", "pitch servo at full roll vs the outer race"),
+    ("hip_roll", "servo_hip_pitch_{s}", "yaw_bearing_housing", "pitch servo at full roll vs the housing"),
+    ("hip_roll", "thigh_{s}", "bearing_inner_{s}", "thigh at full roll vs the inner race"),
+    ("hip_roll", "thigh_{s}", "bearing_outer_{s}", "thigh at full roll vs the outer race"),
+    ("hip_roll", "thigh_{s}", "yaw_bearing_housing", "thigh at full roll vs the housing"),
+    ("hip_pitch", "thigh_{s}", "bearing_inner_{s}", "thigh at deep flexion vs the inner race"),
+    ("hip_pitch", "thigh_{s}", "bearing_outer_{s}", "thigh at deep flexion vs the outer race"),
+    ("hip_pitch", "thigh_{s}", "yaw_bearing_housing", "thigh at deep flexion vs the housing"),
 ]
-E_TOUCHING = {("bearing_6810_{s}", "pelvis_v7"), ("bearing_6810_{s}", "yaw_retainer_{s}")}
-# ...and the outer race is a PRESS FIT in the pelvis recess (Ø64.96 on a Ø65
-# race): its overlap is the designed 0.02 mm radial interference ring, and
-# anything more than that ring is a real interference.
-PRESS_FIT = {("bearing_6810_{s}", "pelvis_v7"):
-             math.pi * ((V.YAWA_BRG_OD / 2) ** 2 - V.YAWA_BRG_RECESS_R ** 2) * V.YAWA_BRG_W}
+# the arms against the housing (the forearm folded is the sit-up pose)
+ARM_HOUSING_PAIRS = [
+    ("shoulder", "arm_upper_{s}", "yaw_bearing_housing", "upper arm vs the bearing housing, whole sweep", None),
+    ("shoulder", "arm_fore_{s}", "yaw_bearing_housing", "forearm vs the bearing housing, hanging", None),
+    ("shoulder", "arm_fore_{s}", "yaw_bearing_housing", "forearm vs the bearing housing, FOLDED", {"{s}_elbow": -90.0}),
+]
+
+
+def _designed_press_fits():
+    """{(race label, seat label): designed overlap mm3} for the two press fits,
+    the inner race on the carrier's hub and the outer race in the housing's
+    recess, built here from the dimensions (not read off the parts, which is
+    what the static rows measure): the interference ring over the race's
+    width, less what the hub's and the recess's lead-ins take out of it."""
+    import yaw_bearing_housing as H
+    import yaw_carrier_v6 as YC
+    import parts as Pv5
+    from build123d import Cone, Pos
+    y, zh = V.HIP_SEP / 2, V.HIP_YAW_Z
+    z0, z1 = zh - V.YAW_BRG_W, zh
+    race_in = Pv5.cyl_z(V.YAW_BRG_INNER_RING_R, z0, z1, 0, y) - Pv5.cyl_z(V.YAW_BRG_ID / 2, z0 - 1, z1 + 1, 0, y)
+    # the hub as modelled: its print allowance overlaps the race too
+    rh = V.YAW_BRG_BOSS_MODEL_R
+    hub = Pv5.cyl_z(rh, z0, z1, 0, y)
+    hub -= Pos(0, y, z1 - YC.HUB_LEAD_IN / 2 + 0.05) * Cone(rh - YC.HUB_LEAD_IN, rh + 0.05, YC.HUB_LEAD_IN + 0.1)
+    zd = V.DECK_TOP_Z
+    r0, r1 = V.YAW_BRG_RECESS_Z
+    race_out = Pv5.cyl_z(V.YAW_BRG_OD / 2, r0 + zd, r1 + zd, 0, y) - Pv5.cyl_z(V.YAW_BRG_OUTER_RING_R, r0 + zd - 1, r1 + zd + 1, 0, y)
+    seat_wall = Pv5.cyl_z(V.YAW_BRG_OD / 2 + 1, r0 + zd, r1 + zd, 0, y) - Pv5.cyl_z(V.YAW_BRG_RECESS_R, r0 + zd - 1, r1 + zd + 1, 0, y)
+    hz0 = V.YAW_HOUSING_Z[0] + zd
+    seat_wall -= Pos(0, y, hz0 + H.LEAD_IN / 2 - 0.05) * Cone(V.YAW_BRG_RECESS_R + H.LEAD_IN + 0.05, V.YAW_BRG_RECESS_R,
+                                                           H.LEAD_IN + 0.1)
+    return {("bearing_inner_L", "yaw_carrier_L"): (race_in & hub).volume,
+            ("bearing_outer_L", "yaw_bearing_housing"): (race_out & seat_wall).volume}
 
 
 def active_pairs():
@@ -180,27 +250,25 @@ def active_pairs():
     one-print hip yoke or the arms are switched on. Rows come back as
     5-tuples (joint, A, B, note, extra pose)."""
     pairs, touching = _yoke_pairs()
-    if A.yaw_bearing_variant() == "E":
-        e_pairs = E_PAIRS
-        if A.hip_yoke_variant() != "single":
-            e_pairs = [(j, "yoke_pitch_{s}" if a == "hip_yoke_{s}" else a, b, n) for j, a, b, n in E_PAIRS]
-        pairs = list(pairs) + e_pairs
-        touching = set(touching) | E_TOUCHING
+    b_pairs = BEARING_PAIRS
+    if not A.one_piece_yoke():
+        b_pairs = [(j, "yoke_pitch_{s}" if a == "hip_yoke_{s}" else a, b, n) for j, a, b, n in BEARING_PAIRS]
+    pairs = list(pairs) + b_pairs
     if A.arms_on():
-        arm_pairs = ARM_PAIRS
-        if A.hip_yoke_variant() == "single":
+        arm_pairs = ARM_PAIRS + ARM_HOUSING_PAIRS
+        if A.one_piece_yoke():
             # the arm rows name the split yoke too (the abduction row sweeps
             # yoke_pitch toward the arm plane); with the one-print yoke that
             # part does not exist and the row crashed with a KeyError.
             arm_pairs = [(j, SINGLE_RENAME.get(a, a), SINGLE_RENAME.get(b, b), *rest)
-                         for j, a, b, *rest in ARM_PAIRS]
+                         for j, a, b, *rest in arm_pairs]
         pairs = list(pairs) + arm_pairs
         touching = set(touching) | ARM_TOUCHING
     return [r if len(r) == 5 else (*r, None) for r in pairs], touching
 
 
 def _yoke_pairs():
-    if A.hip_yoke_variant() != "single":
+    if not A.one_piece_yoke():
         return PAIRS, TOUCHING
     pairs, seen = [], set()
     for joint, la, lb, note in PAIRS:
@@ -290,6 +358,129 @@ def check_pair(joint, la, lb, samples, side="L", extra=None):
     return worst_vol, worst_dist, worst_ang
 
 
+# ---------------------------------------------------------------- the hip's bench order
+# docs/assembly.md section 7: each part goes UP from below into the state the
+# steps before it left. (step, moving pieces, pieces already in place). The
+# housing spans both hips, so it goes up with both bearings already pressed
+# into it, under both yaw servos; then each carrier goes up through its
+# bearing until its lip seats on the inner race (the lip is wider than the
+# bore, so the bearing cannot come up over a carrier), then its roll servo.
+_BEARINGS = ["bearing_inner_L", "bearing_outer_L", "bearing_inner_R", "bearing_outer_R"]
+_HOUSED = ["pelvis_v7", "servo_hip_yaw_L", "servo_hip_yaw_R", "yaw_bearing_housing"] + _BEARINGS
+INSERT_STEPS = [
+    ("7a yaw servo up into its cell", ["servo_hip_yaw_L"], ["pelvis_v7"]),
+    ("7b bearing into the housing (bench)", ["bearing_inner_L", "bearing_outer_L"], ["yaw_bearing_housing"]),
+    ("7c housing + bearings up under the cells", ["yaw_bearing_housing"] + _BEARINGS,
+     ["pelvis_v7", "servo_hip_yaw_L", "servo_hip_yaw_R"]),
+    ("7d carrier up through the bearing", ["yaw_carrier_L"], _HOUSED),
+    ("7e roll servo up into the bay", ["servo_hip_roll_L"], _HOUSED + ["yaw_carrier_L"]),
+]
+INSERT_D = (0.0, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0, 30.0, 45.0, 60.0)   # mm below the seat
+INSERT_CLEARANCE_D = (1.0, 5.0, 8.0, 20.0)     # where the approach clearance is measured
+# The only overlaps allowed along a path are the two press fits, up to their
+# designed volume (they engage as the part goes home).
+
+
+def check_insertion(verbose=True):
+    """Sweep each bench step's moving part(s) up its path into place and
+    require no overlap with what is already there, except the press fits."""
+    from build123d import Pos
+    fits = _designed_press_fits()
+    fit_in, fit_out = fits[("bearing_inner_L", "yaw_carrier_L")], fits[("bearing_outer_L", "yaw_bearing_housing")]
+    allowed = {("bearing_inner_L", "yaw_carrier_L"): fit_in, ("bearing_inner_R", "yaw_carrier_R"): fit_in,
+               ("bearing_outer_L", "yaw_bearing_housing"): fit_out}
+    allowed.update({(b, a): v for (a, b), v in list(allowed.items())})   # whichever side moves
+    P0 = pieces_by_label(A.robot({}))
+    fails = 0
+    for step, moving, static in INSERT_STEPS:
+        bad, bad_at, clr = 0.0, None, (1e9, None, None)
+        for d in INSERT_D:
+            for m in moving:
+                ms = Pos(0, 0, -d) * P0[m]
+                mbb = ms.bounding_box()
+                for st in static:
+                    sbb = P0[st].bounding_box()
+                    if (mbb.max.X < sbb.min.X - 25 or mbb.min.X > sbb.max.X + 25 or mbb.max.Y < sbb.min.Y - 25
+                            or mbb.min.Y > sbb.max.Y + 25 or mbb.max.Z < sbb.min.Z - 25 or mbb.min.Z > sbb.max.Z + 25):
+                        continue
+                    try:
+                        vol = (ms & P0[st]).volume
+                    except Exception:  # noqa: BLE001
+                        vol = 0.0
+                    if (m, st) in allowed:
+                        excess = vol - (allowed[(m, st)] * 1.02 + 0.5)
+                    else:
+                        excess = vol - 0.5
+                    if excess > 0 and vol > bad:
+                        bad, bad_at = vol, (st, d)
+                    if d in INSERT_CLEARANCE_D and (m, st) not in allowed:
+                        dist = ms.distance_to(P0[st])
+                        if dist < clr[0]:
+                            clr = (dist, st, d)
+        ok = bad_at is None
+        fails += 0 if ok else 1
+        if verbose:
+            where = f"FAIL: {bad:.1f} mm3 vs {bad_at[0]} at {bad_at[1]:g} mm" if not ok else "no overlap"
+            print(f"{'insert':12s} {step:36s} {where:34s} approach clearance {clr[0]:5.2f} mm "
+                  f"(vs {clr[1]}, {clr[2]:g} mm out)  {'ok' if ok else 'FAIL'}")
+    if verbose:
+        print(f"{'insert':12s} press fits allowed along the paths: inner race on the hub {fit_in:.1f} mm3, "
+              f"outer race in the housing {fit_out:.1f} mm3 (designed)")
+    return fails
+
+
+# Driver access: a D.ACCESS_D cylinder from each screw head straight back out
+# along its axis, in the state the screw is driven in (the bench order above).
+ACCESS_STATES = [
+    ("bearing-housing screws, before the carriers", "yaw_bearing_housing", "housing", "pelvis", _HOUSED),
+    ("carrier horn screws, from inside the empty bay", "yaw_carrier_v6", "yaw_horn", "carrier",
+     _HOUSED + ["yaw_carrier_L"]),
+    # the hip as built is also the service state: the roll servo comes out
+    # without taking the hip apart
+    ("roll-servo wall screws, hip fully assembled", "yaw_carrier_v6", "roll_wall", "carrier",
+     _HOUSED + ["yaw_carrier_L", "servo_hip_roll_L"]),
+]
+ACCESS_REACH = 50.0
+
+
+def check_driver_access(verbose=True):
+    import importlib
+    import parts as Pv5
+    P0 = pieces_by_label(A.robot({}))
+    fails = 0
+    for group, mod, prefix, frame, present in ACCESS_STATES:
+        worst = (0.0, None, None)
+        n = 0
+        for sc in importlib.import_module(mod).SCREWS():
+            if not sc["name"].startswith(prefix):
+                continue
+            n += 1
+            x, y, z = sc["pos"]
+            if frame == "carrier":
+                y, z = y + V.HIP_SEP / 2, z + V.HIP_YAW_Z
+            else:
+                z = z + V.DECK_TOP_Z
+            ax = sc["axis"]
+            r = D.ACCESS_D / 2
+            if abs(ax[2]) > 0.5:
+                drv = Pv5.cyl_z(r, z - ax[2] * 0.05, z - ax[2] * ACCESS_REACH, x, y)
+            else:
+                drv = Pv5.cyl_x(r, x - ax[0] * 0.05, x - ax[0] * ACCESS_REACH, y, z)
+            for lab in present:
+                try:
+                    vol = (drv & P0[lab]).volume
+                except Exception:  # noqa: BLE001
+                    vol = 0.0
+                if vol > worst[0]:
+                    worst = (vol, sc["name"], lab)
+        ok = worst[0] < 0.5
+        fails += 0 if ok else 1
+        if verbose:
+            hit = f"worst {worst[0]:.1f} mm3 ({worst[1]} vs {worst[2]})" if worst[1] else "no part in the way"
+            print(f"{'access':12s} {group:52s} {n:2d} screws, {D.ACCESS_D:g} mm driver: {hit}  {'ok' if ok else 'FAIL'}")
+    return fails
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--joint", default=None)
@@ -301,28 +492,37 @@ def main(argv=None):
     pairs, touching_set = active_pairs()
     if A.hip_yoke_variant() == "single":
         print("HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch")
+    elif A.hip_yoke_variant() == "glued":
+        print("HIP_YOKE_VARIANT=glued: the glued U-channel pair (hip_yoke_glued) in place of yoke_roll + yoke_pitch")
+    if A.ankle_link_variant() == "glued":
+        print("ANKLE_LINK_VARIANT=glued: the glued cradle + fork (ankle_link_glued) in place of ankle_link")
     if A.arms_on():
         print(f"arms on (the default build): two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM "
               f"shoulder {V.ARM_ROM['shoulder']}, elbow {V.ARM_ROM['elbow']}; "
-              f"every leg row sweeps the leg with the arms in the HANGING idle pose.")
+              f"leg rows sweep the leg against the arms HANGING (torque off) and at REST "
+              f"(folded: shoulder {V.ARM_REST_SHOULDER:g}, elbow {V.ARM_REST_ELBOW:g}).")
     print(f"{'joint':12s} {'A':22s} {'B':22s} {'overlap mm3':>11s} {'min dist':>9s} {'at deg':>7s}  verdict")
     for joint, la, lb, note, extra in pairs:
         if a.joint and joint != a.joint:
             continue
-        ex = {k.format(s=a.side): v for k, v in extra.items()} if extra else None
-        vol, dist, ang = check_pair(joint, la, lb, a.samples, a.side, extra=ex)
-        touching = (la, lb) in touching_set or (lb, la) in touching_set
-        allowed = PRESS_FIT.get((la, lb), 0.0) if A.yaw_bearing_variant() == "E" else 0.0
-        ok = vol < 0.5 + allowed * 1.02 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
-        if allowed:
-            note = f"{note} (press fit: {allowed:.1f} mm3 of designed interference)"
-        fails += 0 if ok else 1
-        print(f"{joint:12s} {la.format(s=a.side):22s} {lb.format(s=a.side):22s} {vol:11.2f} {dist:9.2f} {ang if ang is None else round(ang,1)!s:>7s}  {'ok' if ok else 'FAIL'}   {note}")
+        # the glued ankle link's fork is not left-right symmetric (its bed
+        # face), and the feet are mirrored: its ankle rows run on both legs
+        sides = [a.side]
+        if A.ankle_link_variant() == "glued" and joint.startswith("ankle_") and a.side == "L":
+            sides = ["L", "R"]
+        for side in sides:
+            ex = {k.format(s=side): v for k, v in extra.items()} if extra else None
+            vol, dist, ang = check_pair(joint, la, lb, a.samples, side, extra=ex)
+            touching = (la, lb) in touching_set or (lb, la) in touching_set
+            ok = vol < 0.5 and (touching or dist >= D.SWEEP_BUFFER - 1e-6)
+            fails += 0 if ok else 1
+            print(f"{joint:12s} {la.format(s=side):22s} {lb.format(s=side):22s} {vol:11.2f} {dist:9.2f} {ang if ang is None else round(ang,1)!s:>7s}  {'ok' if ok else 'FAIL'}   {note}")
     # disc-screw thread engagement (no pose involved)
     if not a.joint or a.joint == "screws":
         fails += check_disc_screws()
     # relatively fixed pairs, at the standing pose
     if not a.joint or a.joint == "static":
+        press_fit = _designed_press_fits()
         P0 = pieces_by_label(A.robot({}))
         for la, lb, note, need in STATIC_PAIRS:
             pa, pb = P0[la], P0[lb]
@@ -331,10 +531,19 @@ def main(argv=None):
             except Exception:  # noqa: BLE001
                 vol = 0.0
             dist = pa.distance_to(pb)
-            ok = vol < 0.5 and (need is None or dist >= need - 1e-6)
+            fit = press_fit.get((la, lb))
+            if fit is not None:
+                ok = 0.98 * fit <= vol <= 1.02 * fit + 0.5
+                note = f"{note} (designed {fit:.1f} mm3)"
+            else:
+                ok = vol < 0.5 and (need is None or dist >= need - 1e-6)
             fails += 0 if ok else 1
             print(f"{'static':12s} {la:22s} {lb:22s} {vol:11.2f} {dist:9.2f} {'':>7s}  {'ok' if ok else 'FAIL'}   {note}"
                   + ("" if need is None else f" (>= {need} mm)"))
+    if not a.joint or a.joint == "insert":
+        fails += check_insertion()
+    if not a.joint or a.joint == "access":
+        fails += check_driver_access()
     # inter-leg: standing, adducted (roll toward each other), and crossed at the swing
     for la, lb in LEG_PAIRS:
         if a.joint and a.joint != "interleg":

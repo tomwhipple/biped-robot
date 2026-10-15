@@ -16,7 +16,7 @@ backlash, 3 deg free play on the four roll joints (bench 2026-09-02).
 
     .venv/bin/python sim/static_gait.py                      # nominal, 6 steps, table
     .venv/bin/python sim/static_gait.py --sweep              # Gate C/D matrix
-    .venv/bin/python sim/static_gait.py --render sim/renders/v6_walk.mp4
+    .venv/bin/python sim/static_gait.py --render build/v6/movies/v6_walk.mp4
     .venv/bin/python sim/static_gait.py --knee bwd --set ankle_range=55
     .venv/bin/python sim/static_gait.py --knees3250          # STS3250 at the knees
 """
@@ -32,7 +32,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-os.environ.setdefault("MUJOCO_GL", "egl")
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 import mujoco  # noqa: E402
 
 from gen_plant_v6 import DesignParams, params_from_args, build_xml  # noqa: E402
@@ -339,7 +339,7 @@ def _write_video(frames, path, fps=25):
     with imageio.get_writer(path, fps=fps, codec="libx264", quality=8, macro_block_size=None) as w:
         for f in frames:
             w.append_data(f)
-    # filmstrip next to it (png, committed; the mp4 is gitignored): 2 x 4
+    # filmstrip png next to it: 2 x 4
     # frames spanning the second and third steps, so a full swing is visible
     n = 8
     idx = np.linspace(int(0.22 * len(frames)), int(0.50 * len(frames)), n).astype(int)
