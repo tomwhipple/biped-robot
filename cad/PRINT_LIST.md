@@ -60,7 +60,10 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 
 - **`pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `battery_door_v8`**
   - The torso is five prints (the pelvis, the torso, two covers and the
-    battery door). The pelvis, the covers and the door print without
+    battery door) on two plates (`print_settings.json` `plates`, `make slice`):
+    `torso_frame` (the torso, the pelvis and the door: 6 h 26 m, 192 g) and
+    `torso_covers` (both covers: 1 h 12 m, 35 g). The covers do not fit beside
+    the torso. The pelvis, the covers and the door print without
     supports: the pelvis's ceiling is on the bed, the covers' vent slots are
     cut through flat plates, and the door's tab is bevelled 40° off vertical.
   - The torso's windows have flat tops. Printed deck down, a window's bottom

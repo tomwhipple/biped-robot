@@ -42,6 +42,21 @@
         "foot_R"
       ],
       "note": "both feet on one plate, sole down"
+    },
+    "torso_frame": {
+      "parts": [
+        "torso_v8",
+        "pelvis_v8",
+        "battery_door_v8"
+      ],
+      "note": "the torso's first print: the torso (support in its windows only), the pelvis and the battery door; the covers do not fit beside the torso, so they are torso_covers"
+    },
+    "torso_covers": {
+      "parts": [
+        "front_cover_v8",
+        "power_cover_v8"
+      ],
+      "note": "the torso's second print: both covers, outer face down, no supports"
     }
   },
   "variants": {
@@ -168,8 +183,13 @@
     },
     "pelvis_v8": {
       "orient": "RX180",
-      "supports": false,
-      "note": "ceiling down, cell walls rising; no supports"
+      "supports": true,
+      "note": "ceiling down, cell walls rising. It prints on the torso_frame plate, whose manual supports go only inside enforcer boxes: it has none, so it prints unsupported.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      }
     },
     "power_cover_v8": {
       "orient": "RY_XUP",
@@ -178,8 +198,13 @@
     },
     "battery_door_v8": {
       "orient": "RY_YDOWN",
-      "supports": false,
-      "note": "outer face down, the ribs and the tongue rising; no supports"
+      "supports": true,
+      "note": "outer face down, the ribs and the tongue rising. It prints on the torso_frame plate, whose manual supports go only inside enforcer boxes: it has none, so it prints unsupported.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      }
     },
     "shoulder_girdle_v6": {
       "orient": "IDENT",
