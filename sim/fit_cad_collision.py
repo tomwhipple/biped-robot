@@ -9,7 +9,7 @@ every geom's name, class and contact bits, so walker_env / env_mjx, the
 foot-only contact mode and the referee's sole tracking see the same geoms:
 
   floor/fall (contype 2)  servo cases -> the servo mock; torso_housing -> the
-                          pelvis; torso_deck -> the bearing housing (the wide
+                          torso (its box holds the pelvis); torso_deck -> the bearing housing (the wide
                           bottom plate); girdle; head_shell -> head; the link
                           bars -> leg_link_v6 / ankle_link; the arm rods ->
                           boxes around arm_upper / arm_fore
@@ -116,7 +116,7 @@ def fit(src: str, arms=True) -> str:
                 k, v = min(sv, key=lambda kv: np.linalg.norm(np.array(kv[1][0]) - _centre(line)))
                 line = _set_box(line, *v)
             elif name == "torso_housing":
-                line = _set_box(line, *boxes["pelvis_v7" if arms else "pelvis_v7_armless"])
+                line = _set_box(line, *boxes["torso_v8" if arms else "torso_v8_armless"])
             elif name == "torso_deck":
                 line = _set_box(line, *boxes["yaw_bearing_housing"])
             elif name == "girdle":

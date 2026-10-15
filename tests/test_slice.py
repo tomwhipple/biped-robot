@@ -88,7 +88,11 @@ ORIENT_SOURCES = {
     "arm_fore_v6_R": ("arm_v6", "PRINT_ORIENT", "arm_fore_v6"),
     "neck_floor": ("neck_floor", "PRINT_ORIENT", "neck_floor"),
     "shoulder_girdle_v6": ("shoulder_girdle_v6", "PRINT_ORIENT", "shoulder_girdle_v6"),
-    "pelvis_v7": ("pelvis_v7", "PRINT_ORIENT", None),
+    "pelvis_v8": ("torso_v8", "PRINT_ORIENT", "pelvis_v8"),
+    "torso_v8": ("torso_v8", "PRINT_ORIENT", "torso_v8"),
+    "front_cover_v8": ("torso_v8", "PRINT_ORIENT", "front_cover_v8"),
+    "power_cover_v8": ("torso_v8", "PRINT_ORIENT", "power_cover_v8"),
+    "battery_door_v8": ("torso_v8", "PRINT_ORIENT", "battery_door_v8"),
     "yaw_bearing_housing": ("yaw_bearing_housing", "PRINT_ORIENT", None),
     "head_shell": ("head", "PRINT_ORIENT", None),
     "head_face": ("head", "PRINT_ORIENT_FACE", None),
@@ -104,7 +108,9 @@ def module_orient(part):
     mod, attr, key = ORIENT_SOURCES[part]
     value = getattr(importlib.import_module(mod), attr)
     if key is not None:
-        value = value[key][0]
+        value = value[key]
+        if len(value) == 2:          # (matrix, note), not the matrix's three rows
+            value = value[0]
     if isinstance(value, str):
         value = S.ROTATIONS[value]
     return np.array(value, float)
@@ -216,9 +222,10 @@ def test_enforcers_go_on_every_copy_and_harvest_keeps_them(tmp_path):
     z = zipfile.ZipFile(dst)
     assert "Metadata/plate_1.gcode" not in z.namelist()        # sliced again from here
     mesh = z.read("3D/Objects/w.model").decode()
-    assert mesh.count('<object id="2" type="model">') == 1 and 'x="2.0000" y="4.0000" z="6.0000"' in mesh
+    # the next id after every object in the project (mesh 1, the copies 2, 4, 6)
+    assert mesh.count('<object id="7" type="model">') == 1 and 'x="2.0000" y="4.0000" z="6.0000"' in mesh
     model = z.read("3D/3dmodel.model").decode()
-    assert model.count('objectid="2"') == 2                    # both copies, one shared mesh
+    assert model.count('objectid="7"') == 2                    # both copies, one shared mesh
     settings = z.read("Metadata/model_settings.config").decode()
     assert settings.count('subtype="support_enforcer"') == 2
     assert S.read_3mf(str(dst))["extras"] == []
@@ -226,6 +233,37 @@ def test_enforcers_go_on_every_copy_and_harvest_keeps_them(tmp_path):
     enforcer_project(src, ["widget.stl"], '<part id="5" subtype="support_enforcer">'
                      '<metadata key="name" value="Support enforcer"/></part>')
     assert S.read_3mf(str(src))["extras"] == ["a support_enforcer volume"]
+
+
+def test_enforcer_ids_are_new_across_a_plate_of_different_parts(tmp_path):
+    """The CLI numbers a plate's objects in one namespace over all its .model
+    files (torso_frame: torso 1/2, pelvis 3/4, door 5/6). An enforcer id taken
+    per mesh file collided with them and OrcaSlicer refused to slice."""
+    src, dst = tmp_path / "a.3mf", tmp_path / "b.3mf"
+    with zipfile.ZipFile(src, "w") as z:
+        z.writestr("Metadata/project_settings.config", "{}")
+        comps = "".join(
+            f'<object id="{2 * i + 2}" type="model">\n   <components>\n    '
+            f'<component p:path="/3D/Objects/{n}.model" objectid="{2 * i + 1}" '
+            'transform="1 0 0 0 1 0 0 0 1 0 0 0"/>\n   </components>\n  </object>'
+            for i, n in enumerate(("big", "small")))
+        z.writestr("3D/3dmodel.model",
+                   '<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" '
+                   'xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">'
+                   f'<resources>{comps}</resources><build/></model>')
+        for i, n in enumerate(("big", "small")):
+            z.writestr(f"3D/Objects/{n}.model", f'<model><resources>\n  <object id="{2 * i + 1}" type="model">'
+                       '<mesh></mesh></object>\n </resources></model>')
+        z.writestr("Metadata/model_settings.config", "<config>" + "".join(
+            f'<object id="{2 * i + 2}"><metadata key="name" value="{n}.stl"/>'
+            f'<part id="{2 * i + 1}" subtype="normal_part"><metadata key="name" value="{n}.stl"/></part></object>'
+            for i, n in enumerate(("big", "small"))) + "</config>")
+    boxes = [((0.0, 1.0), (0.0, 1.0), (0.0, float(k + 1))) for k in range(3)]
+    S.add_enforcers(str(src), str(dst), {"big.stl": boxes})
+    z = zipfile.ZipFile(dst)
+    ids = [int(x) for n in z.namelist() if n.endswith(".model")
+           for x in re.findall(r'<object id="(\d+)"', z.read(n).decode())]
+    assert sorted(ids) == [1, 2, 3, 4, 5, 6, 7]                # 5, 6, 7: the three enforcers, all new
 
 
 def layout_files(objects):
@@ -315,6 +353,23 @@ def test_yaw_carrier_window_enforcer_matches_the_cad():
     assert z0 < window_lo < z1 <= window_hi and z0 > za + D.BAY_BORE / 2   # into the bar, not past it
     entry = SPEC["parts"]["yaw_carrier_v6"]
     assert entry["supports"] and entry["settings"]["support_type"] == "normal(manual)"
+
+
+def test_torso_window_enforcers_match_the_cad():
+    """The torso's enforcer boxes are torso_v8's: one per window whose flat top
+    spans more than a bridge, and the battery door's opening, each inside its
+    window's faces. A window moved in the CAD without its box fails here."""
+    import torso_v8 as T
+    entry = SPEC["parts"]["torso_v8"]
+    assert entry["supports"] and entry["settings"]["support_type"] == "normal(manual)"
+    assert [e["box"] for e in entry["support_enforcers"]] == T.support_enforcers()
+    for cut, enf in T._windows():
+        bb = cut.bounding_box()
+        assert (enf is not None) == (max(bb.size.X, bb.size.Y) > T.BRIDGE_OK + 1e-9)
+        if enf is not None:
+            x0, x1, y0, y1, z0, z1 = enf
+            assert bb.min.X < x0 < x1 < bb.max.X and bb.min.Y < y0 < y1 < bb.max.Y
+            assert z0 == pytest.approx(bb.min.Z - T.ENF_INTO) and z1 == pytest.approx(bb.max.Z)
 
 
 def test_orient_name_round_trip():

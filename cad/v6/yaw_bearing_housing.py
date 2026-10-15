@@ -51,7 +51,7 @@ box, cyl_z, csk_z = P.box, P.cyl_z, P.csk_z
 PRINT_ORIENT = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]], float)
 
 HIPS = (V.HIP_SEP / 2, -V.HIP_SEP / 2)
-REAR_BAR = (-44.5, -32.5, 50.8)          # x0, x1, half length in y
+REAR_BAR = (-44.5, -32.0, 49.5)          # x0, x1, half length in y
 BRIDGE = (-15.0, 17.0, 9.0)              # x0, x1 (short of the General Driver's PCB at 18.01), half width in y
 LEAD_IN = 0.5                            # 45 deg chamfer at the recess mouth: starts the race's press
 

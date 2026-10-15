@@ -124,7 +124,7 @@ Feetech's TTL catalogue lists exactly three 12 V servos in this case (checked
     wrong.
   - The input rating is 7–13 V on the wiki but "DC 9–12.6V" on the rev 1.2
     silkscreen. A 3S pack is inside both.
-- **Pi 4B.** It slides vertically into the pelvis's aft column.
+- **Pi 4B.** It stands in the torso's front bay with the General Driver on it as a HAT, on a 2 × 20 riser (the riser part is open: `HAT_GAP`).
 - **Camera cable.** The camera ships with a 200 mm cable, too short. The route
   runs from the Pi's CSI edge under the deck up to the head, plus a slack loop
   for ±90° of neck yaw. 300 mm is the design estimate; the routed length has
@@ -155,9 +155,8 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 
 | item | qty | spec / filter | have |
 |---|---|---|---|
-| **3S LiPo pack** | 1–2 | **11.1 V, not 11.4 V HV**; 2200–2600 mAh; **≤ 105 × 36 × 26 mm**; 150–190 g; XT60 or XT30; ≥ 25C | |
-| **3S protection board** | 1 | ≥ 15 A continuous; over-discharge cut-off ≈ 3.0 V/cell; balance leads; must fit the pelvis power pocket together with the buck | |
-| **5 V / 5 A buck** for the Pi | 1 | Pololu D24V50F5 (item #2851): 6–38 V in, 5 V, 5 A; 17.8 × 20.3 × 8.8 mm; two 2.18 mm holes for #2/M2 screws on 13.5 × 16.0 mm | |
+| **3S LiPo pack** | 1–2 | OVONIC 3S 4200 mAh 130C, XT60 (#107): 205 g weighed, listed 96 × 44.5 × 25.5 mm; **11.1 V, not 11.4 V HV** | ordered 2026-10-07 |
+| **3S protection board** | 1 | ≥ 15 A continuous; over-discharge cut-off ≈ 3.0 V/cell; balance leads. The torso has no pocket for it: its power bay holds the custom power board (#112) | |
 | inline fuse holder | 1 | mini blade (ATM), 16–18 AWG leads | |
 | mini blade fuses | 1 pack | 10 A and 15 A | |
 | bulk capacitor | 1–2 | 470–1000 µF, ≥ 25 V, low-ESR, 105 °C electrolytic | |
@@ -168,28 +167,22 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 | LiPo charging bag | 1 | fits the pack | |
 
 - **Pack**
-  - The pelvis battery layer is sized to this envelope (`BATT` in
-    `cad/v6/dimensions_v6.py`, with 170 g modelled).
+  - The torso's battery layer is sized to its listed envelope (`BATT` and
+    `BATT_MASS` in `cad/v6/dimensions_v6.py`). It is not measured yet: measure
+    and weigh it on arrival and put the values there.
+  - It lies on two 1.5 mm adhesive foam pads and is held down by the neck
+    floor; it has no belt ([DESIGN.md §5.3](../DESIGN.md)).
   - An HV pack charges to 13.05 V, above the 12.6 V the servo listing and the
     board's silkscreen allow.
-  - 2600 mAh packs usually run over 105 mm long, so 2200 mAh is the class that
-    fits.
-  - Two candidates from the sourcing pass:
-    - The Admiral EPR22003X6 (105 × 34 × 22 mm, XT60) fits.
-    - The Yowoo 3S 2200 (105 × 36 × 26 mm, XT60) fits the box but is listed at
-      208 g, over the mass filter.
-  - Cross-check dimensions and mass at two independent stockists.
 - **Protection board**
-  - The pocket takes both boards standing on edge: one 60 × 25 mm face,
-    8.4 mm deep (`PWR_BOARD`).
   - No board is selected yet.
-  - The UART "smart" boards that give per-cell telemetry do not fit the pocket:
-    JBD SP04S010 (80 × 60 × 12 mm) and Daly R05J (100 × 65 × 13 mm).
-- **Buck**
-  - Pololu lists it 8.8 mm thick, against the pocket's 8.4 mm depth. Check the
-    fit.
-  - Its holes take #2/M2 screws, but the pocket's two bosses are M2.5 pilots.
-    How the power boards are fixed is open.
+  - The torso has no pocket for a separate protection board and buck: its power
+    bay holds the custom power board (#112; [DESIGN.md §5.3](../DESIGN.md)).
+  - The UART "smart" boards that give per-cell telemetry are the JBD SP04S010
+    (80 × 60 × 12 mm) and the Daly R05J (100 × 65 × 13 mm).
+- **The Pi's 5 V** comes from the General Driver's own buck, through the
+  40-pin header the board plugs onto as a HAT ([wiring.md](wiring.md#pi-supply)):
+  there is no separate buck.
 - **Fuse:** start at 15 A, and drop to 10 A only once the peak current has been
   measured. It is for a dead short, not the operating current. **Never use a
   polyfuse/PPTC**: it takes seconds to trip, and its series resistance sags the
@@ -221,7 +214,6 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 | pack pigtail | 1 | XT60 or XT30 to match the pack; ≥ 20 AWG silicone lead | runs to the protection board, fuse and switch |
 | board power pigtail | 1 + 1 spare | JST XH 2.54 mm 2-pin female (housing XHP-2, SXH contacts), pre-crimped, 22 AWG, ≥ 100 mm | for the General Driver inlet (connector diagram no. 10, silkscreen "− +") |
 | servo extension leads | ~4 | 3-pin 5264 bus-servo cable, 200–300 mm | each servo ships with a 150 mm lead |
-| Pi power lead | 1 | USB-C pigtail from the buck (or the Pi's 5 V GPIO pins) | |
 | silicone wire, heat-shrink | — | 20 AWG for the power path | |
 | USB-C data cable | 1 | for flashing the General Driver | likely on hand |
 
@@ -275,11 +267,12 @@ M2.5, not M3.
 
 | fastener | qty | where | have |
 |---|---|---|---|
-| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **111** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **120** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, front and power covers to the torso 8, battery door 1, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
 | M2.5 × 5 flat-head self-tapping | 8 | yaw-servo stators: 2.6 mm through the cell ceiling, 2.4 mm into the idler-face holes (3.0 deep in the vendor STEP; an × 8 would bottom out) | |
-| M2.5 × 10 pan self-tap | 4 | Pi and General Driver, lower row, into standoff bosses | |
-| M2.5 × 6 pan self-tap | 4 | Pi and General Driver, upper row, into wall pilots | |
-| M2.5 × 8 pan self-tap | 2 | the power-pocket bosses | |
+| M2.5 × 17 male-female standoff, 6 mm male | 4 | the Pi onto its four bosses; the General Driver screws onto them | |
+| M2.5 × 6 pan, machine | 4 | the General Driver onto the Pi's standoffs | |
+| 2 × 20 GPIO riser | 1 | the General Driver on the Pi, 17 mm board to board (`HAT_GAP`): part **open** | |
+| M2.5 × 6 pan self-tap | 4 | the power board onto its standoff bosses | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
 | **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
 
@@ -297,7 +290,7 @@ M2.5, not M3.
     leg-link idler pads 16, hip-yoke roll horns 8 and pitch idlers 8, shoulder
     horns 8, elbow idlers 8, head 4; **M3 × 8** at the hip-yoke roll idlers 8.
   - Buy a pack of each length.
-- **The armless variant** (`ARMS=0`, not a print target) would need 84 M2.5 × 8
+- **The armless variant** (`ARMS=0`, not a print target) would need 88 M2.5 × 8
   flat-heads and 92 M3 disc screws (48 × M3×5, 36 × M3×6, 8 × M3×8).
 - **Spares:** add about 20 % to every line, and buy the M2.5 × 8 flat-heads as a
   200-pack.
@@ -306,11 +299,12 @@ M2.5, not M3.
 
 | item | qty | notes | have |
 |---|---|---|---|
-| PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.80 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
+| PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.86 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
 | silicone rubber sheet, **2 mm** thick: BENECREAT white silicone, 300 × 300 mm, 2 sheets ([bom-sourced](bom-sourced.md) item 16, [Amazon B08P7P69WQ](https://www.amazon.com/dp/B08P7P69WQ)) | 1 sheet cuts both soles | the soles, cut to the foot plate's outline (130 × 84 mm, R14 corners) and bonded to its flat underside; 2 mm is the design's sole (`TPU_SOLE_T`) | |
 | adhesive for the soles | — | needed unless the sheet is self-adhesive (the listing shows no backing): a silicone-rubber adhesive. Plain CA and epoxy don't hold silicone; CA does over a polyolefin primer | |
-| hook-and-loop strap, **15 mm** wide | 1 | the battery belt, through the pelvis belt slots (`BATT_BELT_W`) | |
-| adhesive foam pads, **1 mm** thick | 2 (about 30 × 20 mm) | under the pack, one per cell ceiling, clear of the yaw servos' post holes (`BATT_PAD_T`) | |
+| CA or epoxy | — | the pelvis glued into the torso: the web faces, the ledge and the skins ([assembly §7a](assembly.md)) | |
+| adhesive foam pads, **1.5 mm** thick | 2 (about 30 × 20 mm) | under the pack, one over each yaw cell on the pelvis's ceiling, clear of the yaw servos' post holes (`BATT_PAD_T`) | |
+| foam pad | 1 | in the 4.0 mm between the pack and the neck floor, which holds the pack down through it | |
 | thread-locker, medium strength (removable) | 1 | on the M3 disc screws (the design calls for thread-locked horn screws); keep it off the printed parts | |
 | retaining compound | — | §5 | |
 | zip ties, 2.5 mm | 1 pack | cable dressing | |

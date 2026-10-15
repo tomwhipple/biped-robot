@@ -67,6 +67,11 @@ Projects slice in parallel (`--jobs`, default half the cores).
      less the same lowest corner. A copy's normal part carries a `matrix` in
      `model_settings.config`. The enforcer does not need one: the CLI takes
      its vertices as they are.
+   - **The box's id.** The CLI numbers a project's objects in one namespace
+     across every `.model` file (a plate of three parts: 1 … 6 over their
+     three mesh files and the main model). Each enforcer object takes the next
+     id after all of them; an id taken per mesh file collides with another
+     part's, and the CLI refuses to slice the project.
 4. **Fill in `different_settings_to_system`** in the project's
    `Metadata/project_settings.config` (below).
 5. **Record the project's state**: its sha256, each object's part,

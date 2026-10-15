@@ -49,9 +49,10 @@ It is not the bench order; the figures and this text are. The differences:
 
 1. Prepare the servos (§2).
 2. Build each leg from the foot up (§3–§6).
-3. Build the hip stack into the pelvis (§7), then hang the legs on it (§8).
-4. Fit the boards and power parts (§9).
-5. Put the pack in (§10).
+3. Seat the yaw servos in the bare pelvis, glue the pelvis into the torso,
+   build the rest of the hip stack (§7), then hang the legs on it (§8).
+4. Fit the boards and the power board (§9).
+5. Put the pack in and close the battery door (§10).
 6. Build the neck into the girdle on the bench, then fit the girdle,
    shoulders, arms and head (§11).
 7. Cable it (§12), power it up and calibrate (§13), then test the play (§14).
@@ -143,12 +144,16 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §5 ankle pitch, knee (leg-link forks) | M3 × 5 horn / M3 × 6 idler | 16 / 16 |
 | §6 hip pitch (hip-yoke pitch clevis) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
 | §7a yaw-servo stators | M2.5 × 5 flat | 8 |
+| §7a pelvis into the torso | snap fingers + CA or epoxy, no screws | — |
 | §7c bearing housing up into the pelvis | M2.5 × 8 flat | 5 |
 | §7d carrier to the yaw horn | M3 × 5 | 8 |
 | §7e hip-roll servo into the carrier bay | M2.5 × 8 flat | 16 |
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
-| §9a–b Pi and General Driver | M2.5 × 10 pan (lower row) / M2.5 × 6 pan (upper row) | 4 / 4 |
-| §9c power-pocket bosses | M2.5 × 8 pan | 2 |
+| §9a Pi | M2.5 × 17 male-female standoff (6 mm male) | 4 |
+| §9b General Driver onto the standoffs / front cover | M2.5 × 6 / M2.5 × 8 flat | 4 / 4 |
+| §9c power board | M2.5 × 6 pan | 4 |
+| §9c power cover | M2.5 × 8 flat | 4 |
+| §10 battery door | M2.5 × 8 flat | 1 |
 | §11a neck floor to the tube / neck-servo stators | M2.5 × 8 flat | 4 / 4 |
 | §11b girdle to deck | M2.5 × 8 flat | 10 |
 | §11c shoulder servos | M2.5 × 8 flat | 8 |
@@ -262,33 +267,52 @@ The leg is now a subassembly from the hip yoke down to the foot.
 
 ## 7. Hip stack in the pelvis (×2)
 
-Work with the pelvis upright on a stand, so that the leg hangs below it later.
-Everything in the battery layer is done **before the pack goes in** (§10).
+The yaw servos go into the bare pelvis on the bench, where every stator screw
+has open access; then the pelvis, both servos in, goes up into the torso for
+good (§7a). From §7c on, work with the torso upright on a stand, so that the
+leg hangs below it later. Everything in the battery layer is done **before
+the pack goes in** (§10).
 
-### 7a. Yaw servo into its cell
+### 7a. Yaw servos into the pelvis, then the pelvis into the torso
+
+**Each yaw servo, into the bare pelvis on the bench:**
 
 1. **Offer the servo up into its cell from below** (the mouth has a 1.2 mm
    lead-in).
    - Output axis vertical, **horn down**, case length fore-aft, **no idler
      disc** (§2).
-   - The idler-side case face goes up flat against the cell ceiling. Its four
+   - The idler-side case face goes up flat against the ceiling. Its four
      mounting holes are flush with the face, so the ceiling clamps them
      directly. The free-hub post (2.6 mm proud) passes into a hole in the
      ceiling, and the moulded back-cover platform (1.9 mm proud) into a
-     relief: the face should sit flat with no rocking.
+     window: the face should sit flat with no rocking.
 2. **Plug its leads first.** The bus ports sit in the connector trench on the
-   idler face. A riser through the ceiling opens over the trench into the
-   battery layer, so plug the leads in from above. From there they run through
-   the battery layer to the deck's leg-bus slot.
-3. **Drive 4 × M2.5 × 5 flat-heads down through the cell ceiling** into the
-   idler-face rows (8.30 and 32.75). Reach them from above, through the deck's
-   battery aperture, with the pack out. A 5 mm screw takes 2.4 mm of the hole,
-   which the vendor STEP shows 3.0 deep; **check the hole depth on the first
-   servo**, and use an × 6 only if it is at least 3.6 mm deep.
+   idler face, under a slit in the ceiling: plug the leads in from above,
+   through the slit. They run on through the battery layer later (§10, §12).
+3. **Drive 4 × M2.5 × 5 flat-heads down through the ceiling** into the
+   idler-face rows (8.30 and 32.75), with the pelvis on the bench and nothing
+   in the way. A 5 mm screw takes 2.4 mm of the hole, which the vendor STEP
+   shows 3.0 deep; **check the hole depth on the first servo**, and use an × 6
+   only if it is at least 3.6 mm deep.
 
 ![Yaw servo up into its cell](assembly/v6_07_yaw_servo.png)
 
-Do 7a for **both hips** before the bearing housing: it carries both bearings.
+**Then the pelvis, both yaw servos in, into the torso:**
+
+4. **Glue on the joint faces:** CA or epoxy on the pelvis's web faces, and
+   where it meets the torso's ledge and skins.
+5. **Push the pelvis up into the torso from below**, square, until its ceiling
+   stops on the pack ribs and the −y ledge. The four snap fingers (strips of the
+   torso's inner walls) click into the windows in the pelvis's webs and hold it
+   while the glue cures. Lead the yaw servos' leads up into the battery layer
+   as it goes.
+6. **The joint is permanent.** Nothing needs the pelvis out again: the boards
+   come out of their bays with the covers off, and the yaw
+   stator screws are reached from above through the deck's battery aperture
+   with the pack out. The four outboard ones (y ±52.25 mm) need a driver with a
+   shank of 5 mm or less.
+
+![The pelvis, both yaw servos in, up into the torso](assembly/v6_07b_pelvis_into_torso.png)
 
 ### 7b. The hip-yaw bearings into the housing (bench)
 
@@ -317,10 +341,11 @@ its cell through the space the housing occupies. Background:
 ### 7c. Housing and bearings up under the yaw cells
 
 1. **Offer the housing up from below**, square, recess mouths down, the yaw
-   horns passing inside the shoulders, until its top face meets the cell block.
+   horns passing inside the shoulders, until its top face meets the pelvis.
 2. **Drive 5 × M2.5 × 8 flat-heads up** into the pelvis's pilot bosses: four
-   through the housing's rear bar and one through the bridge between the hips,
-   on the centre line, into the cell block's front web.
+   through the housing's rear bar (two into the rear web at y ±22 mm, two into
+   the lugs aft of it at y ±46 mm) and one through the bridge between the hips,
+   on the centre line, into the front web's boss.
 
 ![Housing and bearings up under both yaw cells](assembly/v6_09_housing.png)
 
@@ -391,63 +416,99 @@ Offer each leg up so that the hip yoke's roll clevis straddles its roll servo:
 
 ## 9. Torso electronics
 
-The Pi and the General Driver stand vertically in their own columns, fore and
-aft of the yaw cells. Each slides straight down its guide channel through its
-own slot in the deck.
+The Pi and the General Driver go in as one stack, in the bay in front of the
+pelvis, with the front cover off: the Pi on four standoffs off the front inner
+wall, the General Driver plugged onto it as a HAT. The power board goes into
+the bay right behind the pelvis, with the aft cover off.
 
-- **Screws, each board:** the lower row takes **M2.5 × 10 pan** screws into
-  standoff bosses; the upper row takes **M2.5 × 6 pan** screws into wall pilots.
-  A boss in the upper row would block the slide.
-- **Driver:** a few of these screws sit close to walls and need a slim driver.
+![The stack in from the front, the power board from aft](assembly/v6_11_boards.png)
 
-![The two boards down their channels](assembly/v6_11_boards.png)
+### 9a. Raspberry Pi 4B
 
-### 9a. Raspberry Pi 4B (aft wall)
+- Fit the low-profile heatsink first: the Pi's parts under the HAT have 10 mm.
+- **Four M2.5 × 17 male-female standoffs**: their 6 mm male thread through the
+  Pi's holes into the four bosses on the front inner wall, the Pi's solder side
+  4 mm off the wall, its parts facing forward.
+- Its 40-pin header is down; its USB-C, HDMI and camera edge is up under the
+  deck; its USB/Ethernet end faces +y, through the side window.
+- Connect the camera ribbon at the top edge first, and lead it up through the
+  deck opening between the boards toward the neck.
 
-- Fit the low-profile heatsink first. The column has 16 mm of depth behind the
-  board.
-- The USB/Ethernet stack faces +Y, through the side window. The USB-C, HDMI and
-  camera edge faces up under the deck.
-- Connect the camera cable at the top edge and route it toward the neck.
+### 9b. General Driver, on the Pi as a HAT, and its IMU
 
-### 9b. General Driver (front wall), and its IMU
-
-- The board's bus edge faces up under its deck slot, so the servo leads drop
-  straight onto its two bus ports, H5 and H6. Both ports carry the same nets.
+- **Plug it onto the Pi's 40-pin header** through a 2 × 20 riser, its sockets
+  (on its underside) down onto the header, its parts facing forward, its bus
+  edge up and its service edge (XH inlet, USB-C) at +y, and drive **4 × M2.5 ×
+  6** through its holes into the standoffs.
+- **The riser:** the General Driver's side plugs face +y, the same side as the
+  Pi's USB/Ethernet jacks, so the board has to sit 17 mm off the Pi's parts
+  face for them to pass over the 16 mm jacks. **The riser part and the stack's
+  real height are open** (`HAT_GAP` in `cad/v6/dimensions_v6.py`): measure them
+  before printing.
+- The leg leads come to its two bus ports, H5 and H6, through the top windows
+  of the front inner wall; the upper branch (neck, shoulders) leaves up through
+  the deck opening between the boards (§12). Both ports carry the same nets.
 - **The IMU is the board's onboard QMI8658C.** The board's mounting fixes the
   IMU's axes. The firmware applies a mounting rotation (`imu::Mount`), which has
   to be set for this orientation as part of the 17-joint port (#81).
+- **The front cover:** set it between the skins' front ends and drive **4 ×
+  M2.5 × 8 flat-heads** in through the skins into its corner blocks.
 
-### 9c. Power pocket
+### 9c. Power board and cover
 
-- **Protection board and 5 V buck.** Both stand on edge in the pocket just
-  forward of the pack (one 60 × 25 mm face, 8.4 mm deep), reachable through the
-  deck aperture. There are two M2.5 bosses; **how the boards are fixed is open**
-  (the buck's holes take M2).
-- **Power path:** pack lead → protection board → fuse → switch → XH pigtail to
-  the board's inlet. Check polarity against the silkscreen "− +".
-- **Bulk capacitor:** solder it across the servo bus at the board, observing
-  polarity.
-- **Buck output:** it feeds the Pi's USB-C.
-- The current budget and the inlet are open (#77; [bom.md §3](bom.md#3-power)).
+- **The power board** is the custom board of PR #112. It goes into the bay
+  behind the pelvis from aft, with the cover off: vertical, parts facing aft,
+  onto the four 6 mm standoff bosses on the aft inner wall, with **4 × M2.5 ×
+  6 pan** screws through its corner holes.
+- J1, the XT60 for the pack, is on the board's +y edge. The pack's lead comes
+  through the aft wall's +y end window and loops into it in the 17.4 mm beside
+  the board's edge. Whether the plug and its 12 AWG lead fit there is **not
+  checked**: check it at the first fit. The servo headers J4–J8 are on the −y
+  edge and the control connectors along the bottom edge.
+- The fuses F1/F2 and every connector are reached with the cover off.
+- Its wiring is the power-circuit design's (PR #112, [wiring.md](wiring.md)).
+  The current budget and the inlet are open (#77; [bom.md §3](bom.md#3-power)).
+- **The cover:** set it between the skins' aft ends and drive **4 × M2.5 × 8
+  flat-heads** in through the skins into its corner blocks.
 
-## 10. The pack (before the girdle)
+## 10. The pack and the battery door
 
-1. **Finish everything in the battery layer first:** the yaw stators (§7a),
-   the yaw leads, the power pocket (§9c).
-2. **Stick two 1 mm adhesive foam pads on the cell ceilings**, one per cell,
-   clear of the post holes. The yaw servos' free-hub posts come up flush with
-   the ceiling and turn with the hip; the pads hold the pack 1 mm off them.
-3. **Lower the pack through the deck aperture.** It lies transverse on the
-   pads.
-4. **Belt it** with the 15 mm hook-and-loop strap through the belt slots.
+The pack goes in and out sideways, through the **battery door** in the +y skin
+(`battery_door_v8`): one screw and one tab.
 
-![The pack down through the deck aperture](assembly/v6_12_pack.png)
+1. **Finish everything in the battery layer first:** the yaw leads (§12).
+2. **Stick two 1.5 mm adhesive foam pads on the pelvis's ceiling**, one over
+   each cell, clear of the post holes. The yaw servos' free-hub posts come up
+   flush with the ceiling and turn with the hip; the pads hold the pack 1.5 mm
+   off them. Lay each yaw servo's leads flat between the pads (§12).
+3. **Slide the pack in through the door's opening**, lead end last (toward
+   +y). It lies transverse on the pads, between the ribs on the inner walls,
+   which locate it fore and aft with 0.5 mm, until its −y end meets the two
+   blocks under the deck rail.
+4. **Plug it in:** its lead runs aft from its +y end, through the aft wall's
+   +y end window into the power bay, and loops into J1 on the power board's +y
+   edge (§9c), all inside the door's opening.
+5. **Close the door:** hook its tab (the bevelled aft edge) behind the power
+   bay's skin, swing the front edge in, and drive **1 × M2.5 × 8 flat-head**
+   through it into the post on the front inner wall. The door's two inner ribs
+   stop the pack's +y end; its lead leaves the pack between them.
+6. **There is no belt.** The neck floor holds the pack down from 4.0 mm above
+   it, with a foam pad between them, once the girdle is on (§11b).
 
-The girdle's neck tube, the neck floor under it and the aft tie span the
-aperture, so **the pack cannot come out while the girdle is on**. Swapping it
-means lifting the girdle, which is held by ten deck screws; the neck stays in
-the girdle.
+![The pack in through the battery door's opening, then the door](assembly/v6_12_pack.png)
+
+**Swapping the pack** leaves the girdle on:
+
+1. **Switch off with the arms hanging**, then swing the +y arm up out of the
+   way by hand (horizontal, forward). It hangs across the door, the door's
+   path off and the pack's path out; `check_assembly_v6.py --joint swap`
+   checks all three clear with the arm horizontal forward. Whether the
+   unpowered shoulder holds it there is not measured: hold it.
+2. **The door:** the screw out, the front edge swung out about the tab to
+   about 40° (so the tab's tip clears the jamb), then the door lifted away.
+3. **Pull the XT60 off J1** and back through the aft wall's window.
+4. **Slide the pack out** sideways from under the neck floor's pad.
+5. Fit the new one as steps 3–5 above.
 
 ## 11. Girdle, neck, shoulders, arms, head
 
@@ -478,7 +539,8 @@ the neck is built into the girdle before the girdle goes onto the robot.
 ### 11b. Girdle onto the deck
 
 - **Lower the girdle onto the deck**, the neck floor passing down into the
-  battery aperture over the pack. Lead the neck's bus leads up beside the tube.
+  battery aperture over the pack, with the foam pad (§10) between them. Lead
+  the neck's bus leads up beside the tube.
 - **Screw it down with 10 × M2.5 × 8 flat-heads** from above into the deck
   pilots on the two edge rails (x −27, −18, −9, 0, +6 mm at y ±57 mm). The
   rail pilots are clear of the pods, so the shoulder servos can go in before
@@ -491,7 +553,7 @@ the neck is built into the girdle before the girdle goes onto the robot.
 - **Drop each servo straight into its open pod** from above: case length
   fore-aft, width vertical, horn outboard.
 - **Screw it with 4 × M2.5 × 8 flat-heads into the horn-side case face, from
-  outboard.** The inboard face sits 1.24 mm off the housing skin, where no
+  outboard.** The inboard face sits 1.24 mm off the torso's skin, where no
   driver fits.
 
 ![Shoulder servos into their pods](assembly/v6_16_shoulder_servos.png)
@@ -543,12 +605,18 @@ lengths, and no current budget.
 
 **What the CAD provides for it:**
 
-- **Yaw servos:** a lead riser through each cell ceiling into the battery layer.
-- **Deck:** two 12 × 6 mm leg-bus slots at y = ±42 mm.
+- **Yaw servos:** a slit in the pelvis's ceiling over each connector trench.
+  The leads plug in from above through it, run flat under the pack between its
+  pads to the gap in front of it, then up over the front ribs and through the
+  top windows in the front inner wall into the board-stack bay, to the General
+  Driver's bus edge. The deck has no leg-bus slots.
+- **Power bay:** windows at the battery layer's ends in the aft inner wall
+  carry leads to the power board, the pack's lead through the +y one.
 - **Roll servos:** their ports face rearward through the carrier's rear-wall
   window.
-- **Boards:** the General Driver's bus edge faces up under its deck slot, and
-  the Pi's camera edge faces up under the deck.
+- **Boards:** the General Driver's bus edge faces up, and the upper branch
+  (neck, shoulders) and the camera's ribbon (from the Pi's top edge) leave up
+  through the deck opening between the boards.
 - **Neck:** the leads leave the plugs through the neck floor's window, toward
   +Y, and rise through the deck aperture beside the tube; the tube also has a
   window at the servo's cable end.
@@ -616,5 +684,6 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 
 | item | where |
 |---|---|
-| ID map, harness, lead lengths, current budget, fixing of the power boards | #77 |
+| ID map, harness, lead lengths, current budget | #77 |
+| room for the pack's plug and 12 AWG lead at the power board's J1 (17.4 mm to the skin) | §9c; the power board, PR #112 |
 | 17-joint firmware: calibration, IMU mounting rotation, register-21 check | #81 |

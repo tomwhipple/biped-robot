@@ -45,7 +45,7 @@ the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes `cad/stl`.
 | `check_assembly_v6.py` | the CAD gate: every pair of pieces that move relative to each other, at the ROM extremes plus interior samples; the relatively fixed pairs that must keep their distance (`--joint static`); every disc screw's thread engagement (`--joint screws`). Options: `--joint`, `--samples`, `--side` |
 | `animate_v6.py` | fly-in along each part's insertion path. Writes `build/v6/movies/assembly_v6_flyin*.mp4` and a `_strip.png` beside each; `make figures` copies the strips into `docs/assembly/` |
 | `render_steps_v6.py` | the assembly guide's step figures, rendered into `build/v6/renders/v6_*.png` (`make figures` copies them to `docs/assembly/`): bench order, the incoming part orange along its insertion path |
-| `pelvis_v7.py` | the torso, one print: `pelvis_v7(arm_mounts)` with the yaw servos' seats and the bearing housing's five pilot bosses, its `SCREWS()`, a driver-access check and the board slide checks |
+| `torso_v8.py` | the torso, five prints: `pelvis_v8` (both yaw cells under one ceiling, the bearing housing's five pilot bosses), `torso_v8` (deck, skins, battery layer, the bay for the Pi with the General Driver on it forward, the power-board bay aft, the battery door's opening, and the snap fingers that hold the pelvis while the glue cures; slicer support in its wide windows only, `support_enforcers()`), `front_cover_v8`, `power_cover_v8` and `battery_door_v8` (one screw, one tab). Its `__main__` writes the five STLs to `cad/v6/stl` and STEPs to `build/v6/step`, runs the board stack in from the front and the power board in from aft, the pelvis going up into the torso, the battery swap (the door off, J1's plug out, the pack out), the seated fits, driver access, the screws' thread bite and the printability audits, and renders `build/v6/renders/torso_v8.png` and `torso_v8_assembly.png` |
 | `yaw_bearing_housing.py` | the hip-yaw bearings' outer-race seats for both hips, one print screwed up under the pelvis, and its `SCREWS()` |
 | `yaw_carrier_v6.py` | the prototype's carrier with a 5 mm spacer under its horn plate (`YAW_CARRIER_DROP`: the roll servo and its screws sit below the bearing band) and a round hub for the 6810-2RS's inner race (trimmed below to pass the bearing), and its `SCREWS()` |
 | `hip_yoke_v6.py` | the hip roll and pitch clevises fused into one print |
@@ -60,7 +60,7 @@ the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes `cad/stl`.
 | `neck_collar.py` | the `ARMS=0` variant's neck tube (not a print target: its flange pilots miss the deck) |
 | `shoulder_girdle_v6.py` | the girdle: both shoulder pods and the neck tube in one print |
 | `arm_v6.py` | upper arm and forearm (mirror pairs), the elbow-servo mock, and the elbow ROM check |
-| `audit_torso.py` | printability report for `pelvis_v7`, the head parts and `neck_collar` |
+| `audit_torso.py` | printability report for `pelvis_v8`, `torso_v8`, both covers, `yaw_bearing_housing` and the head parts |
 | `audit_ankle_foot.py` | printability report for `ankle_link` and `foot_L/R` |
 | `audit_leg_link.py` | printability and interface audit for `leg_link_v6` |
 | `check_hip_yoke_clearance.py` | clearance A/B between the hip yoke's raw union and the styled part |
@@ -132,8 +132,8 @@ make check-cad                                           # the gate (below)
 - **Renders pick their GL backend from `MUJOCO_GL`**: the scripts default it to
   `cgl` on macOS and `egl` elsewhere.
 - **The exports are generated files:** regenerate them, never edit them. See
-  [AGENTS.md](../AGENTS.md). The `ARMS=0` pelvis exports as
-  `pelvis_v7_armless`, so it never overwrites the robot's `pelvis_v7`.
+  [AGENTS.md](../AGENTS.md). The `ARMS=0` torso exports as
+  `torso_v8_armless`, so it never overwrites the robot's `torso_v8`.
 - **The images the docs show are copies:** `make figures` refreshes
   `docs/img/assembly_v6_arms.png` and the fly-in strips and step figures in
   `docs/assembly/` from `build/`; the part renders in `docs/design-v6/figs`
@@ -143,7 +143,7 @@ make check-cad                                           # the gate (below)
 
 | flag | default | read by | effect |
 |---|---|---|---|
-| `ARMS` | `1` | `parts_v6.py`, `assembly_v6.py` (and so `check_assembly_v6.py`, `animate_v6.py`, `render_steps_v6.py`) | the girdle, the four arm links, and the pelvis with the ten girdle pilots. `0` is the armless variant: `neck_collar`, no pilots, no arms |
+| `ARMS` | `1` | `parts_v6.py`, `assembly_v6.py` (and so `check_assembly_v6.py`, `animate_v6.py`, `render_steps_v6.py`) | the girdle, the four arm links, and the torso with the ten girdle pilots. `0` is the armless variant: `neck_collar`, no pilots, no arms |
 | `HIP_YOKE_VARIANT` | `single` | `parts_v6.py`, `assembly_v6.py` | `glued` builds the glued U-channel pair (`hip_yoke_glued_roll` + `hip_yoke_glued_pitch`), and `split` builds the bolted `yoke_roll` + `yoke_pitch_v6` pair, instead of `hip_yoke_v6` |
 | `ANKLE_LINK_VARIANT` | `box` | `parts_v6.py`, `assembly_v6.py` | `glued` builds the glued cradle + fork (`ankle_link_glued_cradle` + `ankle_link_glued_fork`) instead of `ankle_link`; the assembly carries their union |
 | `SERVO_PLAN` | `hips` | `parts_v6.py` (`sim/build_v6_inertia.py --servo-plan`) | `hips`: STS3250s at the two hip rolls, STS3215s elsewhere; `B`: 17 × STS3215; `3250`: STS3250s at the six roll and knee joints (masses only; same case) |
@@ -167,16 +167,15 @@ It runs four things with `.venv/bin/python`:
    - Each pair must show zero intersection and at least `SWEEP_BUFFER` of
      clearance. Designed contacts (pads on discs, seats) are checked for
      volume only, by name.
-   - The relatively fixed pairs (the neck floor over the pack, off the pelvis
+   - The relatively fixed pairs (the neck floor over the pack, off the torso
      and the boards) are checked at the standing pose, each against its own
      minimum distance. The bearing's two press fits must overlap by exactly
      their designed interference volume.
    - The hip's bench order (`--joint insert`): each part swept up its
      insertion path into the state the earlier steps left -- yaw servo,
      bearings into the housing, housing and bearings under the yaw cells,
-     carrier up through the bearing, roll servo. Only the press fits may overlap; one KNOWN pre-existing
-     defect (the seated yaw servo against the cell ceiling) is reported, not
-     failed.
+     carrier up through the bearing, roll servo, all with the torso on the
+     pelvis. Only the press fits may overlap.
    - A 7 mm driver's straight path to every carrier and bearing-housing screw
      in the state that screw is driven in (`--joint access`).
    - Every disc screw's thread engagement is checked against its flange.
@@ -187,9 +186,9 @@ It runs four things with `.venv/bin/python`:
 3. **`audit_torso.py`**, a printability report on `cad/v6/stl`.
 4. **`audit_ankle_foot.py`**, likewise.
 
-The two printability reports do not fail the run: `pelvis_v7` and `ankle_link`
-carry ceilings and islands by design, and supports are the slicer's job. Read
-their `**` lines against the slice preview.
+The two printability reports do not fail the run: `ankle_link` carries
+ceilings by design, and supports are the slicer's job. Read their `**` lines
+against the slice preview.
 
 **What the gate does not cover:**
 

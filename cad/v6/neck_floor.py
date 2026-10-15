@@ -120,10 +120,9 @@ def neck_floor():
     # --- the lead window under the connector trench, through the plate and
     # out past the tube wall on +y, so the leads can leave sideways
     p -= box(LX0, LX1, -(D.SV_CONN_HW + 0.5), HY + 10, Z0 - 1, CASE_Z + 1)
-    # --- the aft end sits over the pelvis's rear web (top at z -5, front edge
-    # x -35.41): a chamfer on the plate's aft-bottom edge keeps the plate
-    # 0.5 mm off it. 55 deg, not 45: steeper than the printability rule's
-    # overhang limit, so it is a wall in print, not a ledge.
+    # --- a chamfer on the plate's aft-bottom edge, 55 deg: steeper than the
+    # printability rule's overhang limit, so it is a wall in print, not a
+    # ledge.
     p -= wedge_y([(X0 - 0.01, Z0 - 0.01), (X0 - 0.01, Z1), (X0 + 1.4, Z0 - 0.01)], -HY - 10, HY + 10)
     # --- stator screws: clearance up through plate + pad, countersunk from
     # below at the top of a 1 mm counterbore
@@ -222,11 +221,11 @@ def check_seat(verbose=True):
 
 def check_pack_clearance(verbose=True):
     """Floor vs the pack mock and the rest of what is under the aperture."""
-    import pelvis_v7 as PV
+    import torso_v8 as TV
     f = neck_floor()
     ok = True
-    for name, solid, need in (("pack", PV.mock_pack(), 4.0), ("buck", PV.mock_buck(), 4.0),
-                              ("Pi 4B", PV.mock_pi4(), 1.0), ("General Driver", PV.mock_gd(), 1.0)):
+    for name, solid, need in (("pack", TV.mock_pack(), 4.0), ("power board", TV.mock_pwrb(), 4.0),
+                              ("Pi 4B", TV.mock_pi4(), 1.0), ("General Driver", TV.mock_gd(), 1.0)):
         d = f.distance_to(solid)
         good = d >= need
         ok &= good
@@ -235,16 +234,16 @@ def check_pack_clearance(verbose=True):
     return ok
 
 
-def check_pelvis_clearance(verbose=True):
-    """The plate drops into the aperture: it must not touch the pelvis."""
-    import pelvis_v7 as PV
+def check_torso_clearance(verbose=True):
+    """The plate drops into the aperture: it must not touch the torso."""
+    import torso_v8 as TV
     f = neck_floor()
-    pel = PV.pelvis_v7(arm_mounts=True)
-    vol = (f & pel).volume
-    d = f.distance_to(pel)
+    tor = TV.torso_v8(arm_mounts=True)
+    vol = (f & tor).volume
+    d = f.distance_to(tor)
     good = vol < 0.01 and d >= 0.25
     if verbose:
-        print(f"  {'PASS' if good else 'FAIL'}  floor vs pelvis: overlap {vol:.3f} mm3, gap {d:.2f} mm (need >= 0.25)")
+        print(f"  {'PASS' if good else 'FAIL'}  floor vs torso: overlap {vol:.3f} mm3, gap {d:.2f} mm (need >= 0.25)")
     return good
 
 
@@ -274,7 +273,7 @@ def run_checks():
     ok = check_seat()
     print("\n== clearance under the aperture ==")
     ok &= check_pack_clearance()
-    ok &= check_pelvis_clearance()
+    ok &= check_torso_clearance()
     print("\n== screw bite ==")
     ok &= check_screw_bite()
     print("\n== printability (flat, bottom down) ==")
