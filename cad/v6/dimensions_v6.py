@@ -659,6 +659,9 @@ YAW_HOUSING_BOSS_R = 3.0
 # - rear-outboard: a lug standing 5 mm aft of the rear web, behind the cell's
 #   cable end, inboard of the power board's lower standoffs; the torso's aft
 #   wall is notched round it.
+# A housing printed to the earlier positions was re-drilled to these from a 1:1
+# template (2026-10-15), and its rear bar trimmed to yaw_bearing_housing
+# REAR_BAR's 49.5: moving any of them (or the front screw) strands that part.
 YAW_HOUSING_SCREWS_L = (
     (-40.0, 46.0),    # rear-outboard lug (L; R mirrors in y)
     (-35.0, 22.0),    # rear-inboard
