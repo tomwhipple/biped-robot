@@ -304,9 +304,10 @@ its cell through the space the housing occupies. Background:
 
 1. **Measure the bearings and the printed seats first.** Both fits are inside
    the printer's error band and are fitted with **retaining compound** (Loctite
-   641) on both seats. The carrier's hub is modelled 0.5 mm over
-   (`YAW_BRG_BOSS_PRINT_ALLOW`), the shortfall the first print measured. It
-   should come out at Ø50.08; if not, correct that allowance and reprint.
+   641) on both seats. The carrier's hub is modelled 0.4 mm over
+   (`YAW_BRG_BOSS_PRINT_ALLOW`), a value set by test prints. Modelled 0.5 mm
+   over, it went in only with great difficulty. If the hub will not go in by
+   hand, or will not stay, correct that allowance and reprint.
 2. **Press each bearing into its recess, pushing on the outer race only**,
    until it bottoms on the shoulder. The housing lies face down (the face that
    goes against the pelvis), recess mouth up.

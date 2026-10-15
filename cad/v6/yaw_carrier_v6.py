@@ -14,8 +14,8 @@ on.
 The HUB, entirely within the band V.YAW_BRG_BAND_Z = (-7, 0) (the horn plate,
 z 0..-3, and the top of the spacer):
   1. trim the plate corners and the spacer back to a cylinder of radius
-     V.YAW_BRG_BOSS_MODEL_R (25.29): the hub to print at V.YAW_BRG_BOSS_OD
-     (50.08, +0.08 on the bore) plus the printer's measured shortfall
+     V.YAW_BRG_BOSS_MODEL_R (25.24): the hub to print at V.YAW_BRG_BOSS_OD
+     (50.08, +0.08 on the bore) plus the print allowance found by test prints
      (V.YAW_BRG_BOSS_PRINT_ALLOW). It wraps the walls' rectangle (corners
      25.12) and adds material along the flat sides (19.95 and 15.26 mm
      half-widths): the top of the carrier becomes a true cylinder.

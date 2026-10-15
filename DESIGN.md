@@ -229,9 +229,9 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   moment ~0.65 N·m). The bearing moves thrust and moment
   into the pelvis and leaves the servo shaft carrying torque only.
   - The inner race sits on a round hub on the carrier, Ø50.08 as printed
-    (+0.08 mm). The hub is modelled 0.5 mm over (Ø50.58): the first print came
-    out that much under its CAD diameter, though its STL and its sliced
-    toolpath were on size. The outer race sits in a recess (Ø64.96, −0.04 mm)
+    (+0.08 mm). The printer prints this hub undersize though its STL and
+    sliced toolpath are on size, so it is modelled 0.4 mm over (Ø50.48), a
+    value set by test prints. The outer race sits in a recess (Ø64.96, −0.04 mm)
     in the **bearing housing** (`yaw_bearing_housing`), against a shoulder that
     takes the thrust. Both seats get retaining compound.
   - **The housing** is one print for both hips: two skirts joined by a bridge,

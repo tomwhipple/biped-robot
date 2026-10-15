@@ -110,7 +110,7 @@
 
       <body name="L_hip_yaw" pos="0 0.042 0">
         <joint name="L_hip_yaw" axis="0 0 1" range="-45 45"/>
-        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.4786 -0.4786 -0.5205 -0.5205" mass="0.1269" diaginertia="3.9399e-05 5.4577e-05 5.8553e-05"/>
+        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.4786 -0.4786 -0.5205 -0.5205" mass="0.1268" diaginertia="3.9359e-05 5.4532e-05 5.8507e-05"/>
         <geom name="L_hip_yaw_cad_yaw_carrier_v6" class="cad" mesh="cad_yaw_carrier_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_hip_yaw_servo_roll" class="cad" mesh="servo_roll" rgba="0.12 0.12 0.14 1"/>
         <!-- yaw carrier print + the hip ROLL servo riding in it (axis X) -->
@@ -185,7 +185,7 @@
 
       <body name="R_hip_yaw" pos="0 -0.042 0">
         <joint name="R_hip_yaw" axis="0 0 1" range="-45 45"/>
-        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.4786 -0.4786 -0.5205 -0.5205" mass="0.1269" diaginertia="3.9399e-05 5.4577e-05 5.8553e-05"/>
+        <inertial pos="0.0007 -0.0000 -0.0233" quat="0.4786 -0.4786 -0.5205 -0.5205" mass="0.1268" diaginertia="3.9359e-05 5.4532e-05 5.8507e-05"/>
         <geom name="R_hip_yaw_cad_yaw_carrier_v6" class="cad" mesh="cad_yaw_carrier_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_hip_yaw_servo_roll" class="cad" mesh="servo_roll" rgba="0.12 0.12 0.14 1"/>
         <!-- yaw carrier print + the hip ROLL servo riding in it (axis X) -->

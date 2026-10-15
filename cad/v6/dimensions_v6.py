@@ -406,14 +406,17 @@ YAW_BRG_C_KN = 6.76
 YAW_BRG_C0_KN = 6.8
 YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.08           # 50.08 as printed, +0.08 interference on the inner race
 YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2          # 25.04
-# The hub prints undersize. The first carrier's (2026-10-14, Tom, calipers)
-# came out about 0.5 mm under its modelled diameter (49.98) and would not stay
-# in the bearing, though its STL (a 126-gon, 49.96 across the flats) and its
-# sliced outer wall (path r 24.78 + half the 0.42 line: 49.98) were on size:
-# the printer loses it (PETG on the AD5M). So the hub is modelled that much
-# over, to print at YAW_BRG_BOSS_OD.
-YAW_BRG_BOSS_PRINT_ALLOW = 0.5                # on diameter
-YAW_BRG_BOSS_MODEL_R = (YAW_BRG_BOSS_OD + YAW_BRG_BOSS_PRINT_ALLOW) / 2   # 25.29, the hub as modelled
+# The hub prints undersize, and the allowance is set by test prints (Tom,
+# calipers and the bearing in hand). Modelled at 49.98, the hub came out
+# about 0.5 mm under and would not stay in the bearing, though its STL (a
+# 126-gon, 49.96 across the flats) and its sliced outer wall (path r 24.78 +
+# half the 0.42 line: 49.98) were on size: the printer loses it (PETG on the
+# AD5M). Modelled 0.5 over (50.58), it went into the bearing, but only with
+# great difficulty (2026-10-15). 0.4 is 0.1 under that: a step a caliper can
+# see. The slicer resolves 0.012 mm (resolution), and the print scatters more
+# than that.
+YAW_BRG_BOSS_PRINT_ALLOW = 0.4                # on diameter
+YAW_BRG_BOSS_MODEL_R = (YAW_BRG_BOSS_OD + YAW_BRG_BOSS_PRINT_ALLOW) / 2   # 25.24, the hub as modelled
 YAW_BRG_BOSS_H = YAW_BRG_W                    # 7.0, full bore engagement: the band IS carrier z [-7, 0]
 assert YAW_BRG_BOSS_R - YAW_BAY_VOID_CORNER_R >= 1.5, \
     "hub must keep a 1.5 mm wall around the bay interior's corners (within the band)"
@@ -447,7 +450,7 @@ assert max(YAW_ROLL_SCREW_ROWS_Z) + D.ACCESS_D / 2 <= YAW_BRG_BAND_Z[0] - 0.5 - 
 # race's bottom face, so the carrier goes up into the bearing until it seats,
 # and the leg's upward thrust reaches the inner race on a face (the housing
 # shoulder takes it off the outer race's top face). Its reach off the hub as
-# modelled (0.85) stays under what a ledge prints with no support, horn plate
+# modelled (0.90) stays under what a ledge prints with no support, horn plate
 # on the bed (cad/check_printability.py LEDGE_OK, 1.2); it stays inside d1
 # (the seal), and is thin enough for the upper idler-side roll-screw driver to
 # pass under. It carries no print allowance: printed as small as the hub
