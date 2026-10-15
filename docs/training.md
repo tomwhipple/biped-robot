@@ -415,20 +415,27 @@ approximation. `progress.jsonl` logs the eval curve.
 
 ### Nightly on mira
 
-mira is a Linux box with an RTX 4070 Ti (12 GB), reached as `ssh mira`.
+mira is a Linux box with an RTX 4070 Ti (12 GB), reached as `ssh mira`. The
+harness runs as the user `claw`, out of `/home/claw/code/robot-mjx`.
 Training runs **at night only**; days belong to the box's owner.
 
-- **Window.** cron starts `infra/night/night_run.sh` at 22:00. No new job starts
-  after 05:00; `infra/night/night_stop.sh` stops a running job at 07:00, and
-  the last eval checkpoint stands.
-- **Committed code only.** `~/code/robot-mjx` on mira is a git clone. Before
-  every job the runner fetches and hard-resets it to `origin/main`, or to the
-  branch a job names with `BRANCH=`. Anything not pushed does not train. The
-  runner scripts sit in the clone's untracked `night/` directory, so a reset
-  cannot rewrite them mid-run.
+- **Window.** claw's cron starts `infra/night/night_run.sh` at 22:00. No new job
+  starts after 05:00; `infra/night/night_stop.sh` stops a running job at 07:00,
+  and the last eval checkpoint stands. A `night/MARATHON_UNTIL` file (an epoch)
+  holds the 07:00 stop off for a sanctioned multi-day window.
+- **Committed code only.** `robot-mjx` is a git clone. Before every job the
+  runner fetches and hard-resets it to `origin/main`, or to the branch a job
+  names with `BRANCH=`. Anything not pushed does not train. The runner scripts
+  sit in the clone's untracked `night/` directory, so a reset cannot rewrite
+  them mid-run.
+- **The plant.** Once the plant is no longer tracked in git, the runner runs
+  `make plant` after each reset (`build/` survives it); a failed build leaves
+  the job queued. While git tracks the plant, the committed copy trains.
 - **Arming.** From the laptop, `infra/night_arm.sh [--branch <name>]
-  <train_mjx.py args>` checks that the branch is pushed, installs the runner and
-  its cron on mira, and queues a job file `night/queue/<MMDDhhmmss>-<out>`.
+  <train_mjx.py args>` checks that the branch is pushed, installs the runner,
+  the stop, `vision_pause.sh` and their cron as claw, and queues a job file
+  `night/queue/<MMDDhhmmss>-<out>`. A job file holds a `BRANCH=` line and one
+  line of arguments, nothing else: a comment line reaches `train_mjx.py`.
 - **Queue.** Jobs run in sorted order; the queue is rescanned after every job.
   A job file moves to `queue/done/` at launch, so an interrupted job does not
   re-run the next night. `CMD=` jobs run an arbitrary command (a distillation,
@@ -437,7 +444,9 @@ Training runs **at night only**; days belong to the box's owner.
 - **Sharing the GPU.** A job starts only when the GPU is under 20 % busy with
   ≥ 11.5 GB free. Idle ollama models are unloaded (they reload on demand),
   active inference is never touched, and after each job any model that fell
-  back to CPU is moved back onto the GPU.
+  back to CPU is moved back onto the GPU. While jobs are queued, the camera
+  classifier (the daytime GPU owner) is paused (`infra/night/vision_pause.sh`);
+  it resumes when the queue is done, and at 07:00 whatever happened.
 - **Morning.** `infra/night_collect_local.sh` (cron 07:15 on mira) copies each
   finished run into the working checkout and referees it: the python column
   with `--render`, and the SIL column. The lag column is run by hand (§8).
