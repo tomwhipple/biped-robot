@@ -44,6 +44,11 @@ sync_repo() {   # $1 = branch; leaves the tree at that branch's origin tip
 }
 sync_repo main
 mkdir -p "$N/queue" "$N/queue/done" "$BASE/sim/runs"
+# Tom 2026-10-07: pause the camera classifier (the vision queue) while training
+# runs; resumed when the queue is done (below) and by night_stop.sh at 07:00.
+if ls "$N/queue" 2>/dev/null | grep -qE '^[0-9]'; then
+  "$N/vision_pause.sh" pause
+fi
 # legacy single-args file becomes the first queue item
 [[ -f "$N/args" ]] && mv "$N/args" "$N/queue/00-legacy"
 
@@ -177,7 +182,11 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   fi
   mv -f "$JF" "$N/queue/done/$JOB"      # one-shot: consumed at launch
   cd "$BASE/sim/mjx"
-  XLA_PYTHON_CLIENT_MEM_FRACTION=0.90 nohup "$PY" train_mjx.py $ARGS \
+  # MuJoCo Warp (--mjx-impl warp) allocates GPU memory outside XLA's pool:
+  # no 90 % preallocation for it (2026-10-07), on-demand allocation instead
+  MEMENV="XLA_PYTHON_CLIENT_MEM_FRACTION=0.90"
+  [[ "$ARGS" == *"--mjx-impl warp"* ]] && MEMENV="XLA_PYTHON_CLIENT_PREALLOCATE=false"
+  env $MEMENV nohup "$PY" train_mjx.py $ARGS \
     > "$BASE/sim/runs/train.log" 2>&1 < /dev/null &
   PID=$!
   { echo "PID=$PID"; echo "OUT=$OUT"; echo "STARTED=$(date +%s)"
@@ -198,6 +207,7 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   mv -f "$N/state" "$N/state.done.$OUT"
   restore_ollama
 done
+"$N/vision_pause.sh" resume
 # leave the tree on main so a branch job never strands the clone
 [[ -n "${BR:-}" && "${BR:-main}" != main ]] && sync_repo main
 echo "$(date) night_run loop done"

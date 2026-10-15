@@ -6,6 +6,16 @@
 set -uo pipefail
 N="$HOME/code/robot-mjx/night"
 exec >> "$N/night.log" 2>&1
+# MARATHON GUARD (2026-08-06): during a sanctioned multi-day window the 07:00
+# hard stop must not fire -- it would SIGTERM the marathon job every morning.
+# The sentinel carries the window's end as an epoch; once it passes, or the
+# file is removed, the normal nightly policy resumes automatically.
+if [[ -f "$N/MARATHON_UNTIL" ]] && (( $(date +%s) < $(cat "$N/MARATHON_UNTIL") )); then
+  echo "$(date) 07:00 stop SKIPPED: marathon window open until $(date -d @"$(cat "$N/MARATHON_UNTIL")")"
+  exit 0
+fi
+# the vision queue comes back at the hard stop whatever happened overnight
+"$N/vision_pause.sh" resume
 [[ -f "$N/state" ]] || exit 0
 PID=$(sed -n 's/^PID=\([0-9]*\)$/\1/p' "$N/state")
 OUT=$(sed -n 's/^OUT=//p' "$N/state")
