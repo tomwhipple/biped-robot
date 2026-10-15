@@ -231,7 +231,8 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   - The inner race sits on a round hub on the carrier, Ø50.08 as printed
     (+0.08 mm). The printer prints this hub undersize though its STL and
     sliced toolpath are on size, so it is modelled 0.4 mm over (Ø50.48), a
-    value set by test prints. The outer race sits in a recess (Ø64.96, −0.04 mm)
+    value set by test prints; it presses into the bearing with a clamp. The
+    outer race sits in a recess (Ø64.96, −0.04 mm)
     in the **bearing housing** (`yaw_bearing_housing`), against a shoulder that
     takes the thrust. Both seats get retaining compound.
   - **The housing** is one print for both hips: two skirts joined by a bridge,

@@ -73,8 +73,9 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - The hub is modelled 0.4 mm over (Ø50.48) to print at Ø50.08, +0.08 mm
     on the bearing's 50.0 bore. The printer prints it undersize though its
     STL and its sliced outer wall are on size. Test prints set the allowance:
-    modelled on size, the hub was loose, and modelled 0.5 mm over, it went in
-    only with great difficulty. Measure the hub; the allowance is
+    modelled on size, the hub was loose; modelled 0.5 mm over, it went in
+    only with great difficulty; modelled 0.4 mm over, it presses in with a
+    clamp. Measure the hub; the allowance is
     `YAW_BRG_BOSS_PRINT_ALLOW` in `cad/v6/dimensions_v6.py`.
   - The lip under the hub prints unsupported. It is a 0.9 mm ledge, inside
     what prints without support (`check_printability.py` `LEDGE_OK`). Its

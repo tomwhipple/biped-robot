@@ -305,9 +305,9 @@ its cell through the space the housing occupies. Background:
 1. **Measure the bearings and the printed seats first.** Both fits are inside
    the printer's error band and are fitted with **retaining compound** (Loctite
    641) on both seats. The carrier's hub is modelled 0.4 mm over
-   (`YAW_BRG_BOSS_PRINT_ALLOW`), a value set by test prints. Modelled 0.5 mm
-   over, it went in only with great difficulty. If the hub will not go in by
-   hand, or will not stay, correct that allowance and reprint.
+   (`YAW_BRG_BOSS_PRINT_ALLOW`), a value set by test prints. It then takes a
+   clamp to press into the bearing (7d). If a clamp will not seat it, or it
+   will not stay, correct that allowance and reprint.
 2. **Press each bearing into its recess, pushing on the outer race only**,
    until it bottoms on the shoulder. The housing lies face down (the face that
    goes against the pelvis), recess mouth up.
@@ -332,8 +332,9 @@ from below and the bearing can never go on over it.
 1. **Compound on the hub**, then **push the carrier up through the bearing**,
    horn plate first, roll bay opening downward, with the yaw servo at
    mechanical zero, until the **lip seats on the inner race**. The hub's top
-   edge has a lead-in. The fit is light; if the hub binds, ease the hub rather
-   than force it, since that force goes through the balls.
+   edge has a lead-in. The fit is tight: the printed hub takes a clamp. In
+   this order the pressing force goes through the balls, so press slowly and
+   squarely. Then turn the bearing: it should run smooth, not notchy.
 2. **Check the horn plate against the horn disc** with the lip seated. If the
    plate stands off the horn, shim that gap rather than close it with the horn
    screws: they would pull the inner race up against the balls and the yaw

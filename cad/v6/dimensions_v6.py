@@ -414,7 +414,8 @@ YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2          # 25.04
 # AD5M). Modelled 0.5 over (50.58), it went into the bearing, but only with
 # great difficulty (2026-10-15). 0.4 is 0.1 under that: a step a caliper can
 # see. The slicer resolves 0.012 mm (resolution), and the print scatters more
-# than that.
+# than that. Modelled 0.4 over (50.48), it went in slightly more easily, with a
+# clamp (2026-10-15): the fit in use.
 YAW_BRG_BOSS_PRINT_ALLOW = 0.4                # on diameter
 YAW_BRG_BOSS_MODEL_R = (YAW_BRG_BOSS_OD + YAW_BRG_BOSS_PRINT_ALLOW) / 2   # 25.24, the hub as modelled
 YAW_BRG_BOSS_H = YAW_BRG_W                    # 7.0, full bore engagement: the band IS carrier z [-7, 0]
