@@ -230,9 +230,10 @@ def _designed_press_fits():
     y, zh = V.HIP_SEP / 2, V.HIP_YAW_Z
     z0, z1 = zh - V.YAW_BRG_W, zh
     race_in = Pv5.cyl_z(V.YAW_BRG_INNER_RING_R, z0, z1, 0, y) - Pv5.cyl_z(V.YAW_BRG_ID / 2, z0 - 1, z1 + 1, 0, y)
-    hub = Pv5.cyl_z(V.YAW_BRG_BOSS_R, z0, z1, 0, y)
-    hub -= Pos(0, y, z1 - YC.HUB_LEAD_IN / 2 + 0.05) * Cone(V.YAW_BRG_BOSS_R - YC.HUB_LEAD_IN, V.YAW_BRG_BOSS_R + 0.05,
-                                                         YC.HUB_LEAD_IN + 0.1)
+    # the hub as modelled: its print allowance overlaps the race too
+    rh = V.YAW_BRG_BOSS_MODEL_R
+    hub = Pv5.cyl_z(rh, z0, z1, 0, y)
+    hub -= Pos(0, y, z1 - YC.HUB_LEAD_IN / 2 + 0.05) * Cone(rh - YC.HUB_LEAD_IN, rh + 0.05, YC.HUB_LEAD_IN + 0.1)
     zd = V.DECK_TOP_Z
     r0, r1 = V.YAW_BRG_RECESS_Z
     race_out = Pv5.cyl_z(V.YAW_BRG_OD / 2, r0 + zd, r1 + zd, 0, y) - Pv5.cyl_z(V.YAW_BRG_OUTER_RING_R, r0 + zd - 1, r1 + zd + 1, 0, y)

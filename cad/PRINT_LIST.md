@@ -41,7 +41,7 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 |---|---|---|---|---|---|---|
 | `pelvis_v7` | 1 | 173.8 | 99 × 124 × 72 | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots and the bearing housing's five pilot bosses; each yaw cell's ceiling has a hole for the servo's free-hub post and a relief for its back-cover platform |
 | `yaw_bearing_housing` | 1 | 24.5 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into the pelvis |
-| `yaw_carrier_v6` | 2 | 27.0 | 52 × 52 × 49 | horn-plate face down, bay walls rising | **the servo-plug window only**, from its sill (an enforcer box in `print_settings.json`) | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø49.98, +0.08 mm on the measured 49.9 bore) takes the bearing's inner race, which stops on the lip under the hub (Ø52.2) |
+| `yaw_carrier_v6` | 2 | 27.4 | 52 × 52 × 49 | horn-plate face down, bay walls rising | **the servo-plug window only**, from its sill (an enforcer box in `print_settings.json`) | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø50.08 as printed, +0.08 mm on the measured 50.0 bore; modelled Ø50.58, see below) takes the bearing's inner race, which stops on the lip under the hub (Ø52.3) |
 | `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
 | `leg_link_v6` | 4 | 28.6 | 117 × 44 × 28 | on its back: web face on the bed | **yes**, build plate only: under the two round pad ends | thigh and shin are the same part |
 | `ankle_link` | 2 | 13.6 | 65 × 43 × 38 | on its back (model +X up): the rear tine on the bed | **yes**: under the web (4.6 mm, from the plate) and under the front tine below the floor, standing on the rear tine's inner face, which seats the idler disc: clean it flat. The front wall bridges between the side walls | grips the ankle-pitch servo in a box around its base, forks onto the ankle-roll servo |
@@ -70,7 +70,12 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
     the sill, which `slice.py` adds to the project. The box stops short of
     the idler seat's detent channel, which has no sill under it. Support
     there would run down to the bay floor and fill the channel.
-  - The lip under the hub prints unsupported. It is a 1.1 mm ledge, inside
+  - The hub is modelled 0.5 mm over (Ø50.58) to print at Ø50.08, +0.08 mm
+    on the bearing's 50.0 bore. The first print came out 0.5 mm under its
+    CAD diameter, though its STL and its sliced outer wall were on size, and
+    would not stay in the bearing. Measure the hub; the allowance is
+    `YAW_BRG_BOSS_PRINT_ALLOW` in `cad/v6/dimensions_v6.py`.
+  - The lip under the hub prints unsupported. It is a 0.85 mm ledge, inside
     what prints without support (`check_printability.py` `LEDGE_OK`). Its
     downward face is the one the bearing's inner race stops on, so a support
     interface there would spoil the stop. OrcaSlicer prints its outer

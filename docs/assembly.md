@@ -293,18 +293,20 @@ Do 7a for **both hips** before the bearing housing: it carries both bearings.
 ### 7b. The hip-yaw bearings into the housing (bench)
 
 Each hip turns on a **6810-2RS** (nominal 50 × 65 × 7 mm, sealed, generic; the
-ones in hand measure 49.9 × 65.0 × 7.0: [bom.md §5](bom.md#5-hip-yaw-bearing)). Its outer race sits
+ones in hand measure 50.0 × 65.0 × 7.0: [bom.md §5](bom.md#5-hip-yaw-bearing)). Its outer race sits
 in a recess of the **bearing housing** (`yaw_bearing_housing`, one print for
 both hips, Ø64.96, −0.04 mm) against a shoulder, which takes the leg's thrust.
-Its inner race goes on the carrier's round hub (Ø49.98, +0.08 mm) and sits on
-the **lip** under the hub (Ø52.2), which passes that thrust to it. The housing
+Its inner race goes on the carrier's round hub (Ø50.08 as printed, +0.08 mm)
+and sits on the **lip** under the hub (Ø52.3), which passes that thrust to it. The housing
 is a separate print screwed under the pelvis because the yaw servo goes up into
 its cell through the space the housing occupies. Background:
 [study-yaw-bearing.md](design-v6/study-yaw-bearing.md) (option A).
 
 1. **Measure the bearings and the printed seats first.** Both fits are inside
-   the printer's error band, so the housing and carriers print at nominal and
-   are fitted with **retaining compound** (Loctite 641) on both seats.
+   the printer's error band and are fitted with **retaining compound** (Loctite
+   641) on both seats. The carrier's hub is modelled 0.5 mm over
+   (`YAW_BRG_BOSS_PRINT_ALLOW`), the shortfall the first print measured. It
+   should come out at Ø50.08; if not, correct that allowance and reprint.
 2. **Press each bearing into its recess, pushing on the outer race only**,
    until it bottoms on the shoulder. The housing lies face down (the face that
    goes against the pelvis), recess mouth up.
@@ -365,7 +367,7 @@ from below and the bearing can never go on over it.
 - **Never heat-set a bearing into PETG.** PETG must reach about 230 °C to flow,
   and a 2RS bearing's seals and grease are good to roughly 100 °C.
 - **The ring dimensions in the CAD are the bearings' measured ones** (bore
-  49.9, OD 65.0, width 7.0, inner ring shoulder d1 54.6, outer ring shoulder
+  50.0, OD 65.0, width 7.0, inner ring shoulder d1 54.6, outer ring shoulder
   D2 62.0 mm). The housing's shoulder (Ø62.6) bears on the outer ring face,
   0.3 mm outside the seal's edge (D2) and inside SKF's Da max of 63. A
   replacement bearing gets measured the same way, and its values go into

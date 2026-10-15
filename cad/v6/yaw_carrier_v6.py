@@ -14,15 +14,16 @@ on.
 The HUB, entirely within the band V.YAW_BRG_BAND_Z = (-7, 0) (the horn plate,
 z 0..-3, and the top of the spacer):
   1. trim the plate corners and the spacer back to a cylinder of radius
-     V.YAW_BRG_BOSS_R (24.99). That clips the 25.12 mm corners of the walls'
-     rectangle by 0.13 mm, under print tolerance and not a load path, and adds
-     material along the flat sides (19.95 and 15.26 mm half-widths): the top
-     of the carrier becomes a true cylinder.
+     V.YAW_BRG_BOSS_MODEL_R (25.29): the hub to print at V.YAW_BRG_BOSS_OD
+     (50.08, +0.08 on the bore) plus the printer's measured shortfall
+     (V.YAW_BRG_BOSS_PRINT_ALLOW). It wraps the walls' rectangle (corners
+     25.12) and adds material along the flat sides (19.95 and 15.26 mm
+     half-widths): the top of the carrier becomes a true cylinder.
   2. re-open the bay's interior below the plate (z -7..-3): the horn screws are
      driven up through it.
   3. re-cut the 4 horn screw bores and the centre relief, which step 1's disk
      refills.
-Under the band, a LIP (V.YAW_CARRIER_LIP_*, r 26.09, 1.2 thick) stops the
+Under the band, a LIP (V.YAW_CARRIER_LIP_*, r 26.14, 1.2 thick) stops the
 inner race's bottom face: the carrier goes up through the bearing, already in
 its housing under the pelvis, until the lip seats (docs/assembly.md section
 7), and the leg's upward thrust reaches the race on that face. The hub's top
@@ -70,7 +71,7 @@ def yaw_carrier_v6(print_fins=False):
     base = carrier_spaced(print_fins=print_fins)
     p = base
 
-    r_hub = V.YAW_BRG_BOSS_R
+    r_hub = V.YAW_BRG_BOSS_MODEL_R          # with the print allowance: prints at V.YAW_BRG_BOSS_OD
     z0, z1 = V.YAW_BRG_BAND_Z          # (-7.0, 0.0), carrier-local
 
     # 1. trim everything OUTSIDE the round hub, within the band only

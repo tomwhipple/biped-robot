@@ -371,7 +371,7 @@ DECK_BOT_Z = HIP_YAW_Z - YAW_HORN_FACE_Z - DECK_T                     # world z 
 DECK_TOP_Z = DECK_BOT_Z + DECK_T
 
 # ----------------------------------------------------------------------------
-# hip-yaw bearing: a 6810-2RS (nominal 50 x 65 x 7; as delivered 49.9 x 65 x
+# hip-yaw bearing: a 6810-2RS (nominal 50 x 65 x 7; as delivered 50.0 x 65 x
 # 7, below) between the yaw carrier's round
 # hub and a recess in the bearing housing screwed under the pelvis
 # (yaw_bearing_housing.py; docs/design-v6/study-yaw-bearing.md, option A; #75). Without it the yaw servo's horn and its 4 horn screws are
@@ -390,7 +390,7 @@ DECK_TOP_Z = DECK_BOT_Z + DECK_T
 YAW_BAY_VOID_CORNER_R = math.hypot(D.SV_TOPFACE, D.SV_WID / 2 + D.BAY_CHEEK_GAP)   # 21.48
 # The bearings in hand (generic 6810-2RS, USA Bearings & Belts), caliper
 # measurements on arrival 2026-10-13/14 (Tom); nominal 50 / 65 / 7:
-YAW_BRG_ID = 49.9             # bore
+YAW_BRG_ID = 50.0             # bore (re-measured 2026-10-14; the first reading was 49.9)
 YAW_BRG_OD = 65.0             # OD (6710-2RS is 62 mm, but its C0 varies
                               # 2.6-3.1 kN across sources; either is overkill here)
 YAW_BRG_W = 7.0               # width, along the axis
@@ -404,8 +404,16 @@ YAW_BRG_DA_MAX = 63.0         # largest abutment diameter on the outer ring face
 YAW_BRG_R_MIN = 0.3           # ring chamfer
 YAW_BRG_C_KN = 6.76
 YAW_BRG_C0_KN = 6.8
-YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.08           # 49.98, +0.08 interference on the inner race
-YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2          # 24.99
+YAW_BRG_BOSS_OD = YAW_BRG_ID + 0.08           # 50.08 as printed, +0.08 interference on the inner race
+YAW_BRG_BOSS_R = YAW_BRG_BOSS_OD / 2          # 25.04
+# The hub prints undersize. The first carrier's (2026-10-14, Tom, calipers)
+# came out about 0.5 mm under its modelled diameter (49.98) and would not stay
+# in the bearing, though its STL (a 126-gon, 49.96 across the flats) and its
+# sliced outer wall (path r 24.78 + half the 0.42 line: 49.98) were on size:
+# the printer loses it (PETG on the AD5M). So the hub is modelled that much
+# over, to print at YAW_BRG_BOSS_OD.
+YAW_BRG_BOSS_PRINT_ALLOW = 0.5                # on diameter
+YAW_BRG_BOSS_MODEL_R = (YAW_BRG_BOSS_OD + YAW_BRG_BOSS_PRINT_ALLOW) / 2   # 25.29, the hub as modelled
 YAW_BRG_BOSS_H = YAW_BRG_W                    # 7.0, full bore engagement: the band IS carrier z [-7, 0]
 assert YAW_BRG_BOSS_R - YAW_BAY_VOID_CORNER_R >= 1.5, \
     "hub must keep a 1.5 mm wall around the bay interior's corners (within the band)"
@@ -438,11 +446,13 @@ assert max(YAW_ROLL_SCREW_ROWS_Z) + D.ACCESS_D / 2 <= YAW_BRG_BAND_Z[0] - 0.5 - 
 # the carrier's LIP, a ring under the band: its top face stops the inner
 # race's bottom face, so the carrier goes up into the bearing until it seats,
 # and the leg's upward thrust reaches the inner race on a face (the housing
-# shoulder takes it off the outer race's top face). Its reach off the hub
-# stays under what a ledge prints with no support, horn plate on the bed
-# (cad/check_printability.py LEDGE_OK, 1.2); it stays inside d1 (the seal),
-# and is thin enough for the upper idler-side roll-screw driver to pass under.
-YAW_CARRIER_LIP_R = YAW_BRG_BOSS_R + 1.1                                       # 26.09
+# shoulder takes it off the outer race's top face). Its reach off the hub as
+# modelled (0.85) stays under what a ledge prints with no support, horn plate
+# on the bed (cad/check_printability.py LEDGE_OK, 1.2); it stays inside d1
+# (the seal), and is thin enough for the upper idler-side roll-screw driver to
+# pass under. It carries no print allowance: printed as small as the hub
+# would, it still reaches 0.6 past the bore chamfer.
+YAW_CARRIER_LIP_R = YAW_BRG_BOSS_R + 1.1                                       # 26.14
 YAW_CARRIER_LIP_T = 1.2
 YAW_CARRIER_LIP_Z = (YAW_BRG_BAND_Z[0] - YAW_CARRIER_LIP_T, YAW_BRG_BAND_Z[0])  # -8.2..-7.0, carrier-local
 assert YAW_BRG_ID / 2 + YAW_BRG_R_MIN < YAW_CARRIER_LIP_R <= YAW_BRG_INNER_RING_R - 1.0, \

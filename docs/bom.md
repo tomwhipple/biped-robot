@@ -242,13 +242,14 @@ screwed under the pelvis ([DESIGN.md §5.2](../DESIGN.md); background:
 |---|---|---|---|
 | **6810-2RS**, 50 × 65 × 7 mm, rubber-sealed deep-groove | 2 | inner race on the carrier hub (+0.08 mm), outer race in the bearing housing's recess (−0.04 mm) | **2 in hand** (arrived 2026-10-13; ordered 2026-10-06): generic, no brand, USA Bearings & Belts, $16.04 each ([listing](https://usbearingsandbelts.com/products/6810-2rs)) |
 
-- **Measured on arrival** (2026-10-13/14, calipers): OD 65.0, bore 49.9,
+- **Measured on arrival** (2026-10-13/14, calipers): OD 65.0, bore 50.0
+  (re-measured 2026-10-14; the first reading was 49.9),
   width 7.0 mm (nominal 65 / 50 / 7); the outer ring's inside diameter at the
   seal, D2 62.0, under the 62.6 that keeps the housing's shoulder on the
   outer ring face and off the seal; the inner ring's outside diameter at the
   seal, d1 54.6; 50 g each. The exposed steel face widths, harder to measure, were 1.45
   on the outer ring (65.0 − 2 × 1.45 = 62.1, agrees with D2) and 1.5 on the
-  inner ring (49.9 + 2 × 1.5 = 52.9, does not agree with d1; the direct d1 is
+  inner ring (50.0 + 2 × 1.5 = 53.0, does not agree with d1; the direct d1 is
   used). All are in `cad/v6/dimensions_v6.py` (`YAW_BRG_*`).
 - **Still to check:** the radial and tilting play by hand (the bearing is
   there to remove yaw play). For what is not measured the CAD carries SKF's

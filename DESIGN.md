@@ -223,15 +223,17 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   roll servo and all eight of its wall screws sit below the bearing band:
   every screw has a clear driver path with the hip fully assembled.
 - **Hip-yaw bearing: a 6810-2RS** (nominal 50 × 65 × 7 mm; the ones in hand
-  measure 49.9 × 65.0 × 7.0; sealed deep-groove, 50 g) per hip. Without
+  measure 50.0 × 65.0 × 7.0; sealed deep-groove, 50 g) per hip. Without
   it the yaw servo's horn and four M3 screws would be the only connection
   between a 0.34 m leg and the pelvis (single-support thrust ~15 N, roll
   moment ~0.65 N·m). The bearing moves thrust and moment
   into the pelvis and leaves the servo shaft carrying torque only.
-  - The inner race sits on a round hub on the carrier (Ø49.98, +0.08 mm). The
-    outer race sits in a recess (Ø64.96, −0.04 mm) in the **bearing housing**
-    (`yaw_bearing_housing`), against a shoulder that takes the thrust. Both
-    seats get retaining compound: the fits are inside the printer's error band.
+  - The inner race sits on a round hub on the carrier, Ø50.08 as printed
+    (+0.08 mm). The hub is modelled 0.5 mm over (Ø50.58): the first print came
+    out that much under its CAD diameter, though its STL and its sliced
+    toolpath were on size. The outer race sits in a recess (Ø64.96, −0.04 mm)
+    in the **bearing housing** (`yaw_bearing_housing`), against a shoulder that
+    takes the thrust. Both seats get retaining compound.
   - **The housing** is one print for both hips: two skirts joined by a bridge,
     and a rear bar, screwed up under the pelvis's cell block with five
     M2.5 × 8 (four through the rear bar, one through the bridge into the cell
@@ -243,7 +245,7 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   - The bearing band is the top 7 mm of the carrier. The hub wraps the bay
     walls' footprint, and the bore is the smallest class that leaves a 1.5 mm
     wall around the bay's open interior (the horn screws are driven up through
-    it). Under the band a lip (Ø52.2 × 1.2 mm, inside the seal's Ø54.6) stops
+    it). Under the band a lip (Ø52.3 × 1.2 mm, inside the seal's Ø54.6) stops
     the inner race's bottom face: it seats the carrier in the bearing, and the
     leg's thrust goes lip → inner race → balls → outer race → shoulder.
   - The bearings are generic 6810-2RS. The CAD's bore, OD, width and ring
@@ -368,7 +370,7 @@ The robot as drawn, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.28 kg (the plant: 2.283 kg) |
+| robot | ≈ 2.28 kg (the plant: 2.284 kg) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
 | printed PETG + silicone soles | ≈ 0.80 + 0.05 kg: pelvis 174 g, bearing housing 25 g, girdle 77 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
 | hip-yaw bearings | 100 g (2 × 6810-2RS) |
