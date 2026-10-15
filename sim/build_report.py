@@ -1,8 +1,9 @@
 """Rebuild the training-log report page (sim/runs/night_summary.html).
 
 Run:  .venv/bin/python sim/build_report.py
-Needs: gifs under sim/runs/<run>/ and cad/renders/ (regenerate the CAD images
-with cad/render_assembly.py and cad/animate_assembly.py).
+Needs: gifs under sim/runs/<run>/, and the prototype's CAD images in
+build/v5/renders/ and build/v5/movies/ (cad/render_assembly.py and
+cad/animate_assembly.py; the page builds without them).
 Images are inlined (base64); the referee REELS are not -- a 70 MB .mov does
 not belong in a data: URI, so build_report cuts small web-playable .mp4 clips
 into runs/_clips/ and the page points at them with relative paths. Keep the
@@ -10,7 +11,7 @@ page and that folder together (both live under sim/runs/, which is how Tom
 opens it over the SMB mount).
 """
 import json
-import os, base64, io, subprocess, tempfile
+import os, sys, base64, io, subprocess, tempfile
 import numpy as np
 import imageio.v2 as imageio
 
@@ -20,7 +21,10 @@ FFMPEG_TIMEOUT = 600
 GIT_TIMEOUT = 60
 
 os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__))))
-CAD_RENDERS = os.path.join(os.path.dirname(os.getcwd()), 'cad', 'renders')
+sys.path.insert(0, os.path.dirname(os.getcwd()))
+import paths
+CAD_STILLS = os.path.join(paths.BUILD, 'v5', 'renders')
+CAD_MOVIES = os.path.join(paths.BUILD, 'v5', 'movies')
 
 def strip_from_gif(path, n=8, factor=4):
     # legacy-era gifs (dash_*, terrain_v4, ...) live only on machines that
@@ -262,6 +266,21 @@ def scored(run, scenarios):
     return ' · '.join(bits)
 
 
+def file_figure(name, title, blurb):
+    """<figure> for a clip already in runs/_clips/<name>.mp4 (+ .jpg poster),
+    e.g. a multi-policy chain rendered outside the referee; '' when absent."""
+    src = os.path.join(CLIP_DIR, f'{name}.mp4')
+    if not os.path.exists(src):
+        return ''
+    rel = os.path.relpath(src, 'runs')
+    poster = rel[:-4] + '.jpg'
+    return f"""<figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="{poster}" src="{rel}"></video>
+      <figcaption><b>{title}</b> · {blurb}</figcaption>
+    </figure>"""
+
+
 def video_figure(run, scenarios, name, blurb):
     """<figure> with a playable clip, or '' when the reel isn't here."""
     src, poster, secs = clip_from_reel(run, scenarios, name)
@@ -281,7 +300,7 @@ stride  = to_data_uri(strip_from_gif('runs/terrain_v4/walk.gif'))
 shuffle = to_data_uri(strip_from_gif('runs/shaped_v6/walk.gif', n=6, factor=6))
 lunge   = to_data_uri(strip_from_gif('runs/ppo_baseline/walk.gif', n=6, factor=6))
 flyin   = to_data_uri(strip_from_gif(
-    os.path.join(CAD_RENDERS, 'assembly_flyin.gif'), n=7, factor=3))
+    os.path.join(CAD_MOVIES, 'assembly_flyin.gif'), n=7, factor=3))
 # CPU-referee takes of the MJX-trained policy (mp4; mimread handles them)
 mjxwalk  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_walk.mp4', factor=5))
 mjxturn  = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_turn.mp4', factor=5))
@@ -290,8 +309,18 @@ mjxpivot = to_data_uri(strip_from_gif('runs/mjx_cmd_v1/ref_pivot_l.mp4', factor=
 getup    = to_data_uri(strip_from_gif('runs/mjx_getup_v1/ref_getup.mp4', n=6, factor=6))
 getup2   = to_data_uri(strip_from_gif('runs/mjx_getup_v2/ref_getup.mp4', n=6, factor=6))
 
-cad = imageio.imread(os.path.join(CAD_RENDERS, 'assembly_mujoco.png'))[..., :3]
-cad_uri = to_data_uri(cad[30:680, 230:670])       # tight crop around the robot
+cad_png = os.path.join(CAD_STILLS, 'assembly_mujoco.png')
+if os.path.exists(cad_png):
+    cad = imageio.imread(cad_png)[..., :3]
+    cad_uri = to_data_uri(cad[30:680, 230:670])   # tight crop around the robot
+    cad_img = (f'<img src="{cad_uri}" alt="CAD assembly render with the GoPro '
+               f'MAX mounted on top of the torso">')
+else:
+    print(f"build_report: missing {cad_png} (cad/render_assembly.py makes it), "
+          f"the CAD render is left out")
+    cad_uri = ''
+    cad_img = ('<p class="muted">CAD render not built on this machine '
+               '(cad/render_assembly.py).</p>')
 
 # marathon-era reels (v5body plant, pelvis v6). The reel is scenario takes in
 # scorecard order; the early minute is the walking block (line/backward/
@@ -378,6 +407,102 @@ fig_0913hw = "\n    ".join(f for f in [
                '<b>v41rsi_b student on the SIL twin</b> · knees −63/−66°, pinch 2.4° · '
                'what the firmware loop predicted before the flash',
                name='hw0913_v41_twin_crouch1'),
+] if f)
+# 2026-10-07 card: the first night on the robot plant (v6ar, 17 servos, arms
+# folded), kinematic start. Seed-1 referee takes; k1 shown for the
+# comparison, not just k2's passes.
+fig_1007 = "\n    ".join(f for f in [
+    video_figure('robot_walk_k2', ['line_1m', 'push_gauntlet'],
+                 'robot_walk_k2_line_push',
+                 'from k1 at the normal imitation weight · the straight line '
+                 'and the push course, both passes'),
+    video_figure('robot_walk_k2', ['turn_180', 'stand_10s'],
+                 'robot_walk_k2_turn_stand',
+                 'the turn it cannot do yet (80° short) and the 10 s stand '
+                 'it can (6 cm drift)'),
+    video_figure('robot_walk_k1', ['line_1m', 'line_rough'],
+                 'robot_walk_k1_line_rough',
+                 'the kinematic prior alone (w-mimic 4.0) · falls within 1.6 s '
+                 'on the flat line, passes the rough one'),
+] if f)
+# 2026-10-07 afternoon card: the from-scratch control and the lift reference,
+# both trained on the Mac (mac_train.py) with the same flags; seed-1 takes.
+fig_1007b = "\n    ".join(f for f in [
+    video_figure('robot_walk_l0_mac', ['line_1m', 'pursuit'],
+                 'robot_walk_l0_mac_line_pursuit',
+                 'with the 5 cm swing-lift reference · the straight line '
+                 'and pursuit'),
+    video_figure('robot_walk_c0_mac', ['line_1m', 'pursuit'],
+                 'robot_walk_c0_mac_line_pursuit',
+                 'the control: the same flags, no lift reference'),
+] if f)
+# 2026-10-12 card: marathon day 4 -- fall recovery as a funnel (roll to the
+# back -> the supine get-up -> hand over to the walker), plus the best walker.
+fig_1012 = "\n    ".join(f for f in [
+    file_figure('funnel_q1k_r5k_c8', 'face-down funnel',
+                'roll skill q1k → get-up r5k → walker c8 (arms ramped to rest), '
+                'hardware claim, seed 1 · 15/16 seeds standing at 52 s'),
+    video_figure('robot_getup_p1k', ['recover_prone'],
+                 'robot_getup_p1k_prone',
+                 'one long face-down policy: 6/8, but the same recipe with other seeds is 0/8'),
+    video_figure('robot_getup_p10k', ['recover_prone'],
+                 'robot_getup_p10k_prone',
+                 'with root tracking: rolls every seed, then fails the rise out of the crouch'),
+    video_figure('robot_walk_c8', ['line_1m', 'push_gauntlet'],
+                 'robot_walk_c8_line_push',
+                 'best walker (69/144): the line and the push course'),
+] if f)
+# 2026-10-11 card: marathon day 3 -- the residual get-up (scripted seat push +
+# learned correction) stands up from supine 8/8; contrasts with the runs that fail.
+fig_1011 = "\n    ".join(f for f in [
+    video_figure('robot_getup_r5k', ['recover_supine'],
+                 'robot_getup_r5k_supine',
+                 'residual get-up, trained without pushes: up in 20 s, 8/8 under the hardware claim'),
+    video_figure('robot_getup_r4k', ['recover_supine'],
+                 'robot_getup_r4k_supine',
+                 'the same line with full training pushes switched back on: up, but does not hold (0/8)'),
+    video_figure('robot_getup_r1k', ['recover_supine'],
+                 'robot_getup_r1k_supine',
+                 'the first residual run, trained with pushes: rises at 21 s, falls back (0/8)'),
+    video_figure('robot_getup_r1', ['recover_supine'],
+                 'robot_getup_r1_supine',
+                 'the robot AS BUILT (no STS3250 knees): reaches standing at 19.6 s, falls back (0/8)'),
+] if f)
+# 2026-10-10 card: marathon days 1-2 (2026-10-09/10) -- walking c-line on
+# Warp, and the first get-up policies tracking the recorded elbow-arm seat push.
+fig_1010 = "\n    ".join(f for f in [
+    video_figure('robot_walk_c5', ['line_1m', 'push_gauntlet'],
+                 'robot_walk_c5_line_push',
+                 'the best walker (62/144): the line and the push course'),
+    video_figure('robot_walk_c5', ['sidestep_L', 'goal_home'],
+                 'robot_walk_c5_side_home',
+                 'sidestep and goal-home, trained since c1/c2'),
+    video_figure('robot_getup_g4k', ['recover_supine'],
+                 'robot_getup_g4k_supine',
+                 'get-up from supine: sits up, braces, nearly upright, topples back'),
+    video_figure('robot_getup_g7k', ['recover_supine'],
+                 'robot_getup_g7k_supine',
+                 'stricter tracking: pelvis up on the arms, then sits back down'),
+] if f)
+# 2026-10-08 card: the first night on MuJoCo Warp -- five swing-lift runs on
+# the final plant. Foot-height overlay renders (render_walk_feet.py) of the two
+# fine-tuned runs, then referee takes incl. the from-scratch control.
+fig_1008 = "\n    ".join(f for f in [
+    video_file('runs/_clips/robot_walk_l2_line1m_feet.mp4',
+               '<b>robot_walk_l2</b> (lift 0.05 prior → w-mimic 1.5) · line_1m '
+               'seed 1 with live sole heights and the 3 cm line: 12 swings, 33 % '
+               'clear 3 cm, median peak 2.4 cm, no fall -- it stops stepping '
+               'short of the line', name='robot_walk_l2_line1m_feet'),
+    video_file('runs/_clips/robot_walk_l4_line1m_feet.mp4',
+               '<b>robot_walk_l4</b> (lift 0.07 prior → w-mimic 1.5) · the same '
+               'take: 17 swings, 6 % clear 3 cm, median 1.9 cm',
+               name='robot_walk_l4_line1m_feet'),
+    video_figure('robot_walk_l2', ['line_1m', 'stand_10s'],
+                 'robot_walk_l2_line_stand',
+                 'the referee takes: the line and the 10 s stand (8/8)'),
+    video_figure('robot_walk_c1', ['line_1m', 'stand_10s'],
+                 'robot_walk_c1_line_stand',
+                 'the control: the same lift, trained from scratch'),
 ] if f)
 watch_figs = [video_figure(*w) for w in WATCH]
 watch_grid = "\n    ".join(f for f in watch_figs if f)
@@ -507,6 +632,152 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·12 · marathon day 4</span></p>
+    <p><b>Fall recovery as a funnel: 15/16 from face-down in sim.</b>
+    One long face-down policy was not reliable (p1k 6/8, the same recipe
+    with other seeds 0/8; continuations parked in a hunched half-stand,
+    pelvis 0.27 m, torso pitched ~50°). Root tracking (pelvis height +
+    world-up in the torso frame) fixed the roll but not the rise. What
+    works is chaining short skills: a <b>roll skill</b> (q1k, roll-only
+    reference: face-down → settled on the back) → the <b>supine get-up</b>
+    (r5k, 8/8) → the <b>walker</b> c8 takes over the stand at "recovered",
+    with the held arms ramped to rest over 2 s. 16 seeds, hardware claim:
+    face-down <b>15/16</b> standing at 52 s (16/16 roll, 16/16 stand),
+    the same with both roll-skill training seeds (q1k, q2k);
+    from the back 15/16 (r5k alone, held to 40 s: 11/16 -- the walker
+    hand-over removes the post-stand falls).</p>
+    <p>All of it needs <b>STS3250 knees</b> (4 × STS3250 in total, hip
+    rolls + knees): the robot as built stalls in a crouch at 0.27 m.
+    Walking: <b>c8 69/144</b>, falls 35 %, three quarters of swings clear
+    3 cm. Next: side and random-fall starts, the funnel as a referee
+    scenario, firmware reference playback. Details: #86.</p>
+    <div class="vidgrid">
+    {fig_1012}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·11 · marathon day 3</span></p>
+    <p><b>The robot gets up from its back: 8/8 in sim.</b> Every learned
+    get-up so far (g3 … g15k) was 0/8. The new policies are <b>residual</b>
+    (<code>--rise-ref-residual</code>): the joint target is the recorded
+    elbow-arm seat push at the current phase plus a small learned correction,
+    so the policy starts from a script that already works. The other
+    finding: the training pushes (5 N, ~16 per 32 s episode) stalled even
+    the bare script mid-rise (1/16 recovered with them, 12/16 without), so
+    training never saw a successful stand. Trained without pushes,
+    <b>r2k passed 5/8 and its continuation r5k 8/8</b> under the referee's
+    hardware claim, which keeps its pushes: up in 20.2 s, full height held
+    to the end. Switching full pushes back on in training (r4k) undid it.</p>
+    <p>All of this is with <b>STS3250 knees</b>. The robot as built (r1)
+    now reaches standing too, but falls back; the same continuation recipe
+    runs on it next (r2, r3). Joint stops now match the CAD envelope
+    (hip roll ±55°, knee back 95°, hip pitch −120°, ankle ±40°, elbow
+    −100/+10°). Walking unchanged (c5/c6 ≈ 62/144). Details: #86.</p>
+    <div class="vidgrid">
+    {fig_1011}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·10 · marathon days 1–2</span></p>
+    <p><b>Walking gets good; the get-up is learned up to the last step.</b>
+    Tom opened mira Friday 11:00 → Tuesday 07:00. On MuJoCo Warp (~115k env
+    steps/s) the walking line went: a sharper swing-height kernel (a1) →
+    1.2B steps (b1: two thirds of swings clear 3 cm) → backward/sidestep,
+    0.5 m/s and turn emphasis (c2, 54/144) → continuations to <b>c5:
+    62/144, falls 43 %, three quarters of swings clear 3 cm (median 3.9
+    cm)</b>. Most remaining falls are scenarios it never trains (the
+    skills, reversal, speeds above 0.5 m/s).</p>
+    <p><b>Fall recovery</b> follows the decision record (two elbow arms).
+    The open-loop seat push stands the committed plant up only with
+    <b>STS3250 knees</b> (0/24 with the robot's set, 4/4 with them) -- a
+    hardware question for Tom -- and even then only 4/8 under the referee's
+    hardware-claim conditions. Policies now drive the arms
+    (<code>--robot-arms</code>, full action map) and track the recorded
+    seat push phase-indexed with DeepMimic RSI and early termination. They
+    learned the sit-up, the arm brace and the push; the crouch → stand
+    transition is the step still missing (the new referee scenario
+    <code>recover_supine</code>: 0/8 so far). The env now models each
+    servo's own stall/speed envelope (STS3250 vs STS3215). Details: #86.</p>
+    <div class="vidgrid">
+    {fig_1010}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·08 · training thread</span></p>
+    <p><b>The first night on MuJoCo Warp: the feet start to lift.</b> Mira
+    moved to MuJoCo 3.15 and its CUDA backend (<code>--mjx-impl warp</code>):
+    the robot plant trains at about <b>131k env steps/s</b>, 35× the night
+    before, so five 290M-step runs fit between 22:18 and 01:38 (the camera
+    classifier paused meanwhile). All on the final plant (feet 23.5/60.5,
+    silicone soles, CAD collision) with the 5 or 7 cm swing-lift reference.
+    The share of swings that clear 3 cm went from 9 % (k2) to 20–31 %, the
+    median swing peak from 1.4 to 2.2 cm -- better, still under 3. The
+    kinematic start pays: the fine-tuned runs <b>l2</b> (16/144, stand 8/8)
+    and <b>l4</b> (18/144, stand 8/8) beat the from-scratch control
+    <b>c1</b> (10/144, stand 1/8). Lift 5 vs 7 cm is a wash: l2 lifts more
+    and stays symmetric, l4 passes two more seeds and limps (asymmetry 35 %).
+    Falls are still 74–92 %, and turns, sidesteps and the skills stay at 0.
+    Scorecards and the full table: issue #86.</p>
+    <div class="vidgrid">
+    {fig_1008}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·07 afternoon · training thread</span></p>
+    <p><b>A swing-lift reference, against its control.</b> Two runs on the
+    Mac (<code>sim/mac_train.py</code>), 400.4M steps each, on the robot
+    plant before the 23.5/60.5 mm foot outline landed. Same flags (w-mimic
+    1.5, the <code>robot</code> stiffness preset, act-lag 2–12); the only
+    difference is <code>--mimic-lift 0.05</code>, which makes the imitation
+    reference lift the swing sole up to 5 cm, level.
+    <b>robot_walk_c0_mac</b>, the control: <b>12/144</b>, falls 78%.
+    <b>robot_walk_l0_mac</b>, with the lift: <b>21/144</b>, falls 78%. The
+    gains are the 1 m line 3/8 → 5/8, pursuit 0/8 → 5/8, the 10 s stand
+    4/8 → 7/8 (drift 26 → 14 cm), the rough line 2/8 → 3/8 and one square
+    return; the push course goes 3/8 → 0/8. The feet still barely lift:
+    swings that reach 3 cm go 15% → 20%, and the median swing peak 1.5 →
+    1.9 cm, against the 5 cm reference. One training seed per arm, so a
+    few passes either way are within what a second seed could change. Both
+    are old-feet results, like k1 and k2 below.</p>
+    <div class="vidgrid">
+    {fig_1007b}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·07 · training thread</span></p>
+    <p><b>The first walking policies on the robot plant.</b> One night on
+    mira, after the v6 changes landed (6810 hip-yaw bearing, roll bay 5 mm
+    lower, arms resting folded, STS3250 at the hip rolls, the
+    <code>robot</code> stiffness preset). Tom's ask: start from a kinematic
+    solution, optimize from there, and make sure a foot actually lifts.
+    <b>robot_walk_k1</b> imitates the sole-level kinematic gait hard
+    (w-mimic 4.0, 24.9M steps): 11/144, falls 76%, line 2/8.
+    <b>robot_walk_k2</b> starts from it at the normal weight (w-mimic 1.5,
+    21.0M steps, stopped at 07:00): <b>20/144</b>, falls 71%, the 1 m line
+    6/8 with no falls, the push course 7/8, the 10 s stand 4/8. Turns,
+    sidesteps, backward, returns and the skills are 0/8 for both. The
+    from-scratch control (c0) waits for another night, so "does the
+    kinematic start help" is still open. Foot clearance is not on the
+    scorecard yet (the referee measures slip, not swing height); the clips
+    are the evidence for now.</p>
+    <p><b>The failure sweep</b> ran alongside on the CPU: 253,888 walks of
+    the kinematic gait under random conditions, 10% clean. Falls follow
+    joint play (46 → 92% across its range) and backlash (58 → 84%), and a
+    small forward lean helps (84 → 64%). A swing foot that never leaves
+    the floor is set by the commanded lift height (75 → 16%). The servo
+    stiffness parameters barely move either rate.
+    <code>sim/runs/failure_sweep/20261006_mira/summary.md</code>.</p>
+    <div class="vidgrid">
+    {fig_1007}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·09·13 · hardware thread</span></p>
@@ -2315,7 +2586,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
   <h2><span class="n">05</span> The camera rides on top</h2>
   <div class="card">
     <div class="cadgrid">
-      <img src="{cad_uri}" alt="CAD assembly render with the GoPro MAX mounted on top of the torso">
+      {cad_img}
       <div>
         <p style="margin-bottom:10px">A GoPro MAX (154 g) now mounts on a printable
         three-prong base atop the tower — a bolt-on <b>crash fuse</b> that shears
@@ -2330,7 +2601,7 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
     </div>
     <figure style="margin-top:18px">
       <img class="film" src="{flyin}" alt="Frames from the fly-in assembly animation">
-      <figcaption>assembly fly-in — every part approaches along its real insertion path (full animation: cad/renders/assembly_flyin.mov)</figcaption>
+      <figcaption>assembly fly-in — every part approaches along its real insertion path (full animation: build/v5/movies/assembly_flyin.mov)</figcaption>
     </figure>
   </div>
 

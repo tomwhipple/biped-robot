@@ -1,7 +1,7 @@
 """Per-joint range-of-motion video: ONE LEG AT A TIME, ONE JOINT AT A TIME.
 
 Run:  .venv/bin/python cad/animate_joint_rom.py [--jobs=N]
-      -> cad/renders/joint_rom.mov
+      -> build/v5/movies/joint_rom.mov
 
 Why this exists alongside animate_dressed_rom.py
 ------------------------------------------------
@@ -48,9 +48,11 @@ import export_assembly as A
 from animate_dressed_rom import build_xml, label_frame, mat2quat, stl_ok
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "renders")
-TMP = os.path.join(OUT, "_jointrom")
-os.makedirs(TMP, exist_ok=True)
+sys.path.insert(0, os.path.dirname(HERE))
+import paths  # noqa: E402
+
+OUT = os.path.join(paths.BUILD, "v5", "movies")
+TMP = os.path.join(paths.BUILD, "v5", "tmp", "jointrom")
 
 FPS, W, H = 14, 640, 520
 
@@ -227,6 +229,8 @@ def _render_frame(job):
 def main(jobs=None):
     if jobs is None:
         jobs = max(1, (os.cpu_count() or 4) - 2)
+    os.makedirs(TMP, exist_ok=True)
+    os.makedirs(OUT, exist_ok=True)
 
     # rigid parts are pose-invariant: export their STLs ONCE, then move them
     # per frame via mocap body pos/quat.

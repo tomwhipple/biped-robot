@@ -97,6 +97,10 @@ def joint_role(name):
 SERVO_KP_PRESETS = {
     "stock": {},
     "planb": {"hip_roll": 4.0, "ankle_roll": 4.0, "knee": 4.0},
+    # the robot's servo set (DESIGN.md section 4): an STS3250 at each hip roll
+    # (the model's 4x credit) and the ankle-roll and knee STS3215s at the
+    # bench's P 96 / D 0, ~2.8x (experiments/plan-b-bench, issue #73)
+    "robot": {"hip_roll": 4.0, "ankle_roll": 2.8, "knee": 2.8},
 }
 
 
@@ -150,7 +154,7 @@ def _per_servo(value, n, what):
     return 1.0, arr.copy()
 
 
-def policy_range(m):
+def policy_range(m, physical=False):
     """Per-actuator (lo, hi) the POLICY trains in, radians. EXACT MIRROR of
     sim/walker_env.py's policy_range() -- read the docstring there for why the
     policy range and the joint's mechanical stop are separate numbers, and why
@@ -160,6 +164,11 @@ def policy_range(m):
     jnt = m.actuator_trnid[:, 0]
     lo = np.array(m.jnt_range[jnt, 0], dtype=float)
     hi = np.array(m.jnt_range[jnt, 1], dtype=float)
+    if physical:
+        # ctrl_physical (2026-10-11): the policy may command the whole
+        # mechanical stop (the CAD envelope) -- for the get-up, which needs
+        # hip roll / knee travel the walking range never used
+        return lo, hi
     lim = np.asarray(m.actuator_ctrllimited).astype(bool)
     lo[lim] = np.asarray(m.actuator_ctrlrange)[lim, 0]
     hi[lim] = np.asarray(m.actuator_ctrlrange)[lim, 1]
@@ -555,6 +564,8 @@ class BimoMJXEnv:
         supply_voltage: float = 11.1,
         servo_kp: float | tuple = 12.0,   # N*m/rad; or one per actuator
         servo_kd: float | tuple = 0.25,   # N*m*s/rad; or one per actuator
+        servo_types=None,      # {actuator or role: "sts3250"}: per-servo stall/speed envelope (walker_env.SERVO_TYPES)
+        ctrl_physical=False,           # policy range = the joints' mechanical stops (not the ctrlrange)
         servo_kp_scale=None,   # per-servo P multiplier: None, a number, a
         # per-actuator sequence, {actuator | role: factor}, or a preset name
         # (SERVO_KP_PRESETS). Scales kp AND kd -- see SERVO_KP_PRESETS.
@@ -574,6 +585,15 @@ class BimoMJXEnv:
         # sole toe-down by twice the knee bend (the knee axis is -y). The
         # ankle ROLL, where a plant has one, is always solved level.
         mimic_sole_level: bool = False,
+        floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
+        mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
+        # -- physics backend ---------------------------------------------------
+        # "jax": MJX's JAX pipeline. "warp": MuJoCo Warp (CUDA kernels through
+        # mjx impl="warp"; MuJoCo >= 3.15). Warp pools contacts across all envs:
+        # warp_envs x warp_nacon_per_env slots, and njmax constraint rows per env.
+        mjx_impl: str = "jax",
+        warp_envs: int = 2048,
+        warp_nacon_per_env: int = 96,
         # -- payload (present iff payload_mass > 0 or payload_dr) -------------
         payload_mass: float = 0.0,
         payload_dr: bool = False,   # batch-level mass draw handled in
@@ -750,6 +770,27 @@ class BimoMJXEnv:
         # squat -> stand, piecewise-linear over rise_secs. Time-based phase,
         # like the gait clock.)
         rise_secs: float = 4.0,     # scripted rise duration
+        # recorded get-up reference (2026-10-09): an .npz from
+        # sim/record_getup_ref.py -- per control step the servo targets of an
+        # open-loop get-up that stands the plant up (t, q[T, n_servo] with
+        # joint_names, qpos, qvel). When set it REPLACES the legs-only staged
+        # rise: _rise_ref tracks it over every policy joint (arms included
+        # with --robot-arms), rise_secs becomes its length, and the recovery
+        # starts are reference states (RSI) along it.
+        rise_ref_npz: str | None = None,
+        rise_ref_rsi: float = 0.7,  # P(start at a random reference phase); else its t=0 (lying)
+        rise_ref_rsi_window: tuple = (0.0, 0.85),   # RSI phase window, fractions of the reference
+        rise_ref_residual: float = 0.0,  # rad; >0: RESIDUAL get-up -- while a recovery episode is not yet
+                                         # recovered, the target is the recorded reference at the current
+                                         # phase + rise_ref_residual * action (the policy learns corrections
+                                         # to a script that already works), clipped to the policy range
+        gravity_scale: float = 1.0,  # training curriculum (2026-10-11): scales gravity (get-up under
+                                     # reduced gravity, then annealed back to 1.0); the referee is unaffected
+        w_rise_root: float = 0.0,   # DeepMimic ROOT tracking while down (2026-10-12): kernel on the pelvis
+                                    # height and the torso up-z vs the recorded reference at the current
+                                    # phase -- joint-only tracking let a hunched half-stand (up_z ~0.6) pay
+        rise_ref_et: float = 0.0,   # m; >0: DeepMimic early termination -- a recovery episode not yet
+                                    # recovered ends when the pelvis strays this far from the reference's
         rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
@@ -927,7 +968,24 @@ class BimoMJXEnv:
             self.mj_model.dof_armature[self._jv0:self._jv1] = joint_armature
         if payload_mass > 0:
             self.mj_model.body_mass[self.mj_model.body("payload").id] = payload_mass
-        self.model = mjx.put_model(self.mj_model)
+        import sys
+        if os.path.dirname(_HERE) not in sys.path:
+            sys.path.insert(0, os.path.dirname(_HERE))
+        from walker_env import apply_floor_contacts   # jax-free, shared with the CPU env
+        apply_floor_contacts(self.mj_model, floor_contacts)
+        self.floor_contacts = floor_contacts
+        if gravity_scale != 1.0:
+            self.mj_model.opt.gravity[:] = self.mj_model.opt.gravity * float(gravity_scale)
+        self.gravity_scale = float(gravity_scale)
+        if mjx_impl not in ("jax", "warp"):
+            raise ValueError(f"unknown mjx_impl {mjx_impl!r}")
+        if mjx_impl == "warp" and getattr(self, "_terrain_spec", None) is not None:
+            raise ValueError("mjx_impl='warp' needs a flat floor: its foot-contact "
+                             "test is the pads' height (Warp pools contacts across envs)")
+        self.mjx_impl = mjx_impl
+        self._warp_naconmax = int(warp_envs * warp_nacon_per_env)
+        self._warp_njmax = int(6 * warp_nacon_per_env + 64)
+        self.model = self._put_model(self.mj_model)
         m = self.mj_model
 
         self.sim_dt = float(m.opt.timestep)
@@ -1013,12 +1071,13 @@ class BimoMJXEnv:
                     m.actuator_ctrlrange[i, 0] = -np.deg2rad(hip_flex_deg)
                 else:
                     m.jnt_range[jnt[i], 0] = -np.deg2rad(hip_flex_deg)
-            self.model = mjx.put_model(m)      # re-upload patched ranges
+            self.model = self._put_model(m)      # re-upload patched ranges
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
         self.hip_flex_deg = hip_flex_deg
-        _plo, _phi = policy_range(m)
+        _plo, _phi = policy_range(m, physical=ctrl_physical)
+        self.ctrl_physical = bool(ctrl_physical)
         _plo, _phi = _plo[self._pi], _phi[self._pi]
         self._lo = jp.asarray(_plo)
         self._hi = jp.asarray(_phi)
@@ -1026,6 +1085,11 @@ class BimoMJXEnv:
         self._sdefault = jp.asarray(m.qpos0[self._jq0:self._jq1])
         self._default = jp.asarray(m.qpos0[self._jq0:self._jq1][self._pi])
         self._scale = 0.5 * (self._hi - self._lo)
+        self.mimic_lift = float(mimic_lift)
+        if self.mimic_lift > 0.0:
+            from walker_env import mimic_lift_coefs      # jax-free, shared with the CPU env
+            ch, ck = mimic_lift_coefs(m, self._sg_pitch if self.mimic_sole_level else None)
+            self._lift_ch, self._lift_ck = jp.asarray(ch), jp.asarray(ck)
         self._qpos0 = jp.asarray(m.qpos0)
 
         self._torso_bid = m.body("torso").id
@@ -1041,6 +1105,7 @@ class BimoMJXEnv:
                       or "").startswith(f"{side}_pad")) or (sole,)
             for side, sole in (("L", self._sole_gids[0]),
                                ("R", self._sole_gids[1])))
+        self._pad_radius = float(m.geom_size[self._pad_gids[0][0], 0])
         self._up_adr = m.sensor("torso_up").adr[0]
         self._nominal_h = float(m.body("torso").pos[2])
 
@@ -1054,6 +1119,11 @@ class BimoMJXEnv:
                                                     servo_kp_scale)
         self._kp_prof = jp.asarray(kp_prof * self.servo_kp_scale)
         self._kd_prof = jp.asarray(kd_prof * self.servo_kp_scale)
+        from walker_env import servo_envelope_vectors
+        self.servo_types = dict(servo_types) if servo_types else None
+        _sp, _wp = servo_envelope_vectors(self._servo_names, self.servo_types)
+        self._stall_prof = jp.asarray(_sp)
+        self._w0_prof = jp.asarray(_wp)
         self._nom_servo = jp.array([kp_ref, kd_ref,
                                     _STS_STALL_12V * v, _STS_NOLOAD_12V * v])
 
@@ -1194,6 +1264,39 @@ class BimoMJXEnv:
         self.w_rise_dofvel = w_rise_dofvel
         self.w_rise_ref = w_rise_ref
         self.rise_secs = rise_secs
+        self._rr = None
+        if rise_ref_npz:
+            z = np.load(rise_ref_npz if os.path.isabs(rise_ref_npz)
+                        else os.path.join(_HERE, "..", rise_ref_npz), allow_pickle=False)
+            names = [str(n) for n in z["joint_names"]]
+            miss = [n for n in self._servo_names if n not in names]
+            if miss:
+                raise ValueError(f"rise_ref_npz lacks servos {miss}")
+            col = np.array([names.index(n) for n in self._servo_names])
+            q_srv = np.asarray(z["q"])[:, col]                       # (T, n_servo)
+            qpos = np.asarray(z["qpos"]); qvel = np.asarray(z["qvel"])
+            if qpos.shape[1] != self.mj_model.nq or qvel.shape[1] != self.mj_model.nv:
+                raise ValueError("rise_ref_npz was recorded on a different plant "
+                                 f"(nq {qpos.shape[1]} vs {self.mj_model.nq})")
+            from walker_env import rise_root_ref as _wenv_rise_root_ref   # jax-free, shared with the CPU env
+            self._rr = dict(q=jp.asarray(q_srv[:, self._pi], dtype=jp.float32),
+                            root=jp.asarray(_wenv_rise_root_ref(qpos), dtype=jp.float32),
+                            qpos=jp.asarray(qpos, dtype=jp.float32),
+                            qvel=jp.asarray(qvel, dtype=jp.float32),
+                            dt=float(z["control_dt"]), T=int(q_srv.shape[0]))
+            self.rise_secs = self._rr["T"] * self._rr["dt"]
+            self.rise_ref_rsi = float(rise_ref_rsi)
+            lo, hi = (float(x) for x in rise_ref_rsi_window)
+            if not 0.0 <= lo < hi <= 1.0:
+                raise ValueError(f"rise_ref_rsi_window {rise_ref_rsi_window} not in [0, 1]")
+            self._rr_k = (int(lo * self._rr["T"]), max(int(lo * self._rr["T"]) + 1, int(hi * self._rr["T"])))
+        self.rise_ref_et = float(rise_ref_et)
+        self.w_rise_root = float(w_rise_root)
+        if self.w_rise_root > 0.0 and self._rr is None:
+            raise ValueError("w_rise_root needs rise_ref_npz")
+        self.rise_ref_residual = float(rise_ref_residual)
+        if self.rise_ref_residual > 0.0 and self._rr is None:
+            raise ValueError("rise_ref_residual needs rise_ref_npz")
         # getup_v9: a stand only counts as "recovered" after this many
         # CONSECUTIVE standing steps (0.5 s) -- an instantaneous crossing
         # was farmable by ballistic bank starts
@@ -1471,6 +1574,12 @@ class BimoMJXEnv:
         Time-based phase from episode start (recovery episodes begin DOWN at
         t=0 with the command pinned to stand). Symmetric L/R, roll/yaw at
         default. Mirrored EXACTLY in walker_env.py."""
+        if self._rr is not None:
+            # the recorded get-up (rise_ref_npz): nearest control step, held at
+            # its last (standing) frame
+            k = jp.clip(jp.round(t_s / self._rr["dt"]).astype(jp.int32),
+                        0, self._rr["T"] - 1)
+            return jp.clip(self._rr["q"][k], self._lo, self._hi)
         d = self._default
         # stage targets (hip_pitch, knee, ankle) inside the joint limits
         # (-1.92..1.05 / -1.66..0.087 / +-0.70)
@@ -1566,7 +1675,15 @@ class BimoMJXEnv:
         # knee swing-bend scales with commanded activity: zero command ->
         # the reference IS the standing pose (no knee pumping)
         mag = jp.minimum(1.0, (jp.max(jp.abs(A)) + jp.abs(B)) / 0.35)
-        knee = kn0 - 0.55 * mag * sw
+        if self.mimic_lift > 0.0:
+            # swing lift by IK (walker_env.mimic_lift_coefs), mirror of the CPU env
+            g = jp.where(self._cmd_is_moving(cmd), 1.0, 0.0)
+            u = float(np.sqrt(self.mimic_lift)) * sw * g
+            ch, ck = self._lift_ch, self._lift_ck
+            hipP = hipP + u * (ch[:, 0] + u * (ch[:, 1] + u * ch[:, 2]))
+            knee = kn0 + u * (ck[:, 0] + u * (ck[:, 1] + u * ck[:, 2]))
+        else:
+            knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain;
@@ -1609,8 +1726,50 @@ class BimoMJXEnv:
         phase0 = jax.random.uniform(r4, maxval=2 * jp.pi)
         return jp.stack([rad, omega, phase0])
 
+    def _tree_sel(self, fn, *trees):
+        """jax.tree_util.tree_map(fn, *trees) for per-env Data selections
+        (jp.where over alternative start states inside the vmapped reset).
+        Under Warp some Data leaves are POOLED across envs (the contact buffer,
+        naconmax long, and the size scalars): a per-env where over them turns
+        the pool into a batched array and leaks a tracer out of the FFI (the
+        2026-10-09 getup probe). They are rebuilt by the next physics step, so
+        those leaves pass through from the first tree untouched."""
+        if self.mjx_impl != "warp":
+            return jax.tree_util.tree_map(fn, *trees)
+        from mujoco.mjx._src.types import tree_path_to_attr_str
+        from mujoco.mjx.warp import types as _wt
+        batch = _wt._BATCH_DIM["Data"]
+
+        def leaf(path, *xs):
+            name = tree_path_to_attr_str(path)
+            if batch.get(name, True) is False or batch.get(name, True) == 0:
+                return xs[0]
+            return fn(*xs)
+
+        return jax.tree_util.tree_map_with_path(leaf, *trees)
+
+    def _put_model(self, m):
+        if self.mjx_impl == "warp":
+            return mjx.put_model(m, impl="warp")
+        return mjx.put_model(m)
+
+    def _make_data(self, model):
+        """mjx.make_data for the env's backend. Warp sizes its buffers from the
+        host model (shapes only, so a batched/traced `model` needs nothing)."""
+        if self.mjx_impl == "warp":
+            return mjx.make_data(self.mj_model, impl="warp",
+                                 naconmax=self._warp_naconmax, njmax=self._warp_njmax)
+        return mjx.make_data(model)
+
     def _foot_contacts(self, data) -> jax.Array:
-        """(2,) bool: sole-in-contact flags from the MJX contact set."""
+        """(2,) bool: sole-in-contact flags from the MJX contact set. Under
+        Warp (contacts pooled across envs, no per-env view) a foot is down when
+        any of its pad spheres is within 1 mm of the flat floor (z = 0) --
+        the referee's contact test on the plants both engines use."""
+        if self.mjx_impl == "warp":
+            r = self._pad_radius
+            out = [jp.any(data.geom_xpos[jp.array(g), 2] - r < 1e-3) for g in self._pad_gids]
+            return jp.stack(out)
         c = data.contact
         hit = c.dist < 0.0
         out = []
@@ -1817,7 +1976,7 @@ class BimoMJXEnv:
         # started recovered=1 and trained nothing. Staged starts must settle
         # holding their OWN pose.
         model = self.model if model is None else model
-        data = mjx.make_data(model)
+        data = self._make_data(model)
         data = data.replace(qpos=qpos,
                             ctrl=jp.zeros(self.mj_model.nu)
                             + (self._sdefault if ctrl is None else ctrl))
@@ -1834,6 +1993,24 @@ class BimoMJXEnv:
         feet-loaded deep squat -- the latter two are the reverse-curriculum
         seeds (learn the rise backward from near the goal)."""
         model = self.model if model is None else model
+        if self._rr is not None:
+            # reference-state initialisation along the recorded get-up
+            # (DeepMimic RSI): a random phase in rise_ref_rsi_window (default
+            # its first 85 %) with
+            # P(rise_ref_rsi), else its start (lying supine); small joint noise
+            r_i, r_s, r_n = jax.random.split(r_q, 3)
+            k = jp.where(jax.random.uniform(r_s) < self.rise_ref_rsi,
+                         jax.random.randint(r_i, (), self._rr_k[0], self._rr_k[1]), 0)
+            qpos = self._rr["qpos"][k]
+            qpos = qpos.at[self._jq0:self._jq1].add(
+                jax.random.uniform(r_n, (self._jq1 - self._jq0,), minval=-0.02, maxval=0.02))
+            d = self._make_data(model)
+            d = d.replace(qpos=qpos.astype(d.qpos.dtype),
+                          qvel=self._rr["qvel"][k].astype(d.qvel.dtype),
+                          ctrl=(jp.zeros(self.mj_model.nu)
+                                + self._to_servo(self._rr["q"][k])).astype(d.ctrl.dtype))
+            d = mjx.forward(model, d)
+            return d, k.astype(jp.float32) * self._rr["dt"]
         r_m, r_o, r_j = jax.random.split(r_q, 3)
         u1, u2, u3 = jax.random.uniform(r_o, (3,))
         quat = jp.array([jp.sqrt(u1) * jp.cos(2 * jp.pi * u3),
@@ -1907,7 +2084,7 @@ class BimoMJXEnv:
             row = jax.random.randint(r_c, (), 0, self._catch_qpos.shape[0])
             if self._catch_t0 is not None:
                 t0_bank = self._catch_t0[row]
-            d_cat = mjx.make_data(model)
+            d_cat = self._make_data(model)
             d_cat = d_cat.replace(qpos=self._catch_qpos[row].astype(jp.float64)
                                   if d_cat.qpos.dtype == jp.float64
                                   else self._catch_qpos[row],
@@ -1934,11 +2111,11 @@ class BimoMJXEnv:
         t0 = jp.where(pick_catch, t0_bank,
                       jp.where(pick_kneel, self.rise_secs / 3.0, 0.0))
         if d_cat is not None:
-            data = jax.tree_util.tree_map(
+            data = self._tree_sel(
                 lambda a, b, c, s, t: sel(a, b, c, s, t),
                 d_rag, d_kneel, d_squat, d_sit, d_cat)
         else:
-            data = jax.tree_util.tree_map(sel4, d_rag, d_kneel, d_squat, d_sit)
+            data = self._tree_sel(sel4, d_rag, d_kneel, d_squat, d_sit)
         return data, t0
 
     def _terrain_spawn(self, qpos, rng):
@@ -1977,7 +2154,7 @@ class BimoMJXEnv:
             qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
-            d_up = mjx.make_data(model)
+            d_up = self._make_data(model)
             d_up = d_up.replace(qpos=qpos, qvel=qvel,
                                 ctrl=jp.zeros(self.mj_model.nu) + self._sdefault)
             d_up = mjx.forward(model, d_up)
@@ -1987,7 +2164,7 @@ class BimoMJXEnv:
             def pick(a, b):
                 return jp.where(recover_slot > 0, a, b)
 
-            data = jax.tree_util.tree_map(pick, d_dn, d_up)
+            data = self._tree_sel(pick, d_dn, d_up)
             rise_t0 = jp.where(recover_slot > 0, t0_dn, 0.0)
         else:
             qpos = self._qpos0.at[self._jq0:self._jq1].add(
@@ -1997,7 +2174,7 @@ class BimoMJXEnv:
             qpos = self._terrain_spawn(qpos, rng)
             qvel = jax.random.uniform(r_v, (self.mj_model.nv,),
                                       minval=-0.02, maxval=0.02)
-            data = mjx.make_data(model)
+            data = self._make_data(model)
             data = data.replace(qpos=qpos, qvel=qvel,
                                 ctrl=jp.zeros(self.mj_model.nu) + self._sdefault)
             data = mjx.forward(model, data)
@@ -2041,12 +2218,12 @@ class BimoMJXEnv:
             qpos_r = (data.qpos.at[self._jq0:self._jq1].set(
                           self._to_servo(q_rsi))
                       .at[2].add(-drop))
-            d_rsi = mjx.make_data(model)
+            d_rsi = self._make_data(model)
             d_rsi = d_rsi.replace(qpos=qpos_r, qvel=jp.zeros_like(data.qvel),
                                   ctrl=jp.zeros(self.mj_model.nu)
                                   + self._to_servo(q_rsi))
             d_rsi = mjx.forward(model, d_rsi)
-            data = jax.tree_util.tree_map(
+            data = self._tree_sel(
                 lambda a, b: jp.where(crouch_slot > 0, a, b), d_rsi, data)
             cmd = jp.where(crouch_slot > 0, cmd_rsi, cmd)
             traj_on = jp.where(crouch_slot > 0, 0.0, traj_on)
@@ -2192,6 +2369,14 @@ class BimoMJXEnv:
         else:
             target = jp.clip(self._default + self._scale * action,
                              self._lo, self._hi)
+        if (self.rise_ref_residual > 0.0 and self.ext_cmd
+                and self.recover_mix > 0):
+            # residual get-up (2026-10-11): reference + correction while down
+            t_rr = state.rise_t0 + state.step_i.astype(jp.float32) * self.control_dt
+            res = jp.clip(self._rise_ref(t_rr) + self.rise_ref_residual * action,
+                          self._lo, self._hi)
+            down = (state.recover_slot > 0.5) & (state.recovered < 0.5)
+            target = jp.where(down, res, target)
         # the policy's targets onto the servo vector: held joints get their
         # fixed hold target, and from here on everything is per servo
         target = self._to_servo(target)
@@ -2260,7 +2445,8 @@ class BimoMJXEnv:
         # per-actuator servo_kp says otherwise)
         kp, kd, stall, w0 = (state.servo[0] * self._kp_prof,
                              state.servo[1] * self._kd_prof,
-                             state.servo[2], state.servo[3])
+                             state.servo[2] * self._stall_prof,
+                             state.servo[3] * self._w0_prof)
         lash = state.lash
         last_target = state.last_target
 
@@ -2630,6 +2816,15 @@ class BimoMJXEnv:
             reward += (self.w_rise_ref
                        * jp.where(state.recovered < 0.5, 1.0, 0.0)
                        * jp.exp(-jp.sum(dq_rr ** 2) / self.rise_ref_s2))
+        if self.w_rise_root and self.ext_cmd and self.recover_mix > 0:
+            # root tracking while DOWN (mirrored in walker_env; one shared kernel)
+            from walker_env import rise_root_kernel as _wenv_rise_root_kernel
+            k_rt = jp.clip(jp.round((state.rise_t0 + state.step_i.astype(jp.float32)
+                                     * self.control_dt) / self._rr["dt"]
+                                    ).astype(jp.int32), 0, self._rr["T"] - 1)
+            reward += (self.w_rise_root
+                       * jp.where(state.recovered < 0.5, 1.0, 0.0)
+                       * _wenv_rise_root_kernel(data.qpos[2], data.qpos[3:7], self._rr["root"][k_rt], jp))
         if self.w_up_vel and self.ext_cmd and self.recover_mix > 0:
             # getup_v5: momentum-friendly rise incentive -- positive root
             # vertical velocity pays while down (capped; the height ratchet
@@ -2807,6 +3002,17 @@ class BimoMJXEnv:
         else:
             reward = reward - self.fall_cost * fell.astype(jp.float32)
             done_flag = fell.astype(jp.float32)
+        if (self._rr is not None and self.rise_ref_et > 0.0
+                and self.ext_cmd and self.recover_mix > 0):
+            # DeepMimic early termination (2026-10-10): RSI alone let lying
+            # starts idle for the whole episode on partial tracking reward
+            # (robot_getup_g3/g3k: up from late phases, never from supine)
+            k_rr = jp.clip(jp.round((state.rise_t0 + step_i.astype(jp.float32)
+                                     * self.control_dt) / self._rr["dt"]
+                                    ).astype(jp.int32), 0, self._rr["T"] - 1)
+            stray = jp.abs(data.qpos[2] - self._rr["qpos"][k_rr, 2]) > self.rise_ref_et
+            et = stray & (state.recover_slot > 0.5) & (recovered < 0.5)
+            done_flag = jp.maximum(done_flag, et.astype(jp.float32))
 
         # resample AFTER the reward graded the command the policy saw
         new_cmd, new_next, new_traj_on = self._sample_cmd(r_cmd, step_i,
@@ -2922,6 +3128,7 @@ class BimoMJXEnv:
                      imu_bias=state.imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
                      gyro_gain=state.gyro_gain, metrics=metrics)
+
 
 
 def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,

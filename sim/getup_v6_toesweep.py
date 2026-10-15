@@ -8,7 +8,7 @@ Run: .venv/bin/python sim/getup_v6_toesweep.py [--skid-h ..]
 """
 import sys, os, math, argparse
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "egl")
+sys.path.insert(0, HERE); os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 import dataclasses as dc
 import numpy as np
 from gen_plant_v6 import DesignParams, build_xml

@@ -87,8 +87,10 @@ def silw():
 
 
 @pytest.fixture(scope="session")
-def cal_files():
-    return H.write_cal_files()
+def cal_files(tmp_path_factory):
+    """(nominal, perturbed) written to a temp dir: sim/sil/cal is tracked and
+    is what the --sil referee loads, so a test run must not rewrite it."""
+    return H.write_cal_files(str(tmp_path_factory.mktemp("cal")))
 
 
 @pytest.fixture
@@ -99,7 +101,7 @@ def lib(cal_files):
     if H.find_lib() is None:
         pytest.skip("libctrl_sil not built (make -C firmware/host sil)")
     try:
-        return H.open_lib(RUN)
+        return H.open_lib(RUN, cal=cal_files[0])
     except H.LibMissing as e:
         pytest.skip(str(e))
 
@@ -694,7 +696,7 @@ def test_lib_survives_perturbed_calibration(cal_files, nominal_env):
     if H.find_lib() is None:
         pytest.skip("libctrl_sil not built")
     try:
-        lib = H.open_lib(RUN, cal="perturbed")
+        lib = H.open_lib(RUN, cal=cal_files[1])
     except H.LibMissing as e:
         pytest.skip(str(e))
     assert not np.all(lib.cal.zero_steps == H.CENTER_STEPS)

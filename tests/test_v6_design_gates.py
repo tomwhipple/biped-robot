@@ -46,7 +46,8 @@ ACT_ORDER = ([f"{s}_{j}" for s in "LR" for j in ("hip_yaw", "hip_roll", "hip_pit
 
 def test_committed_plant_is_the_robot():
     """sim/bimo_biped_v6ar.xml: 17 actuators in joint order, the shoulders'
-    rest pose at the walking hold, Plan B masses in the as-drawn band."""
+    rest pose folded (ARM_REST, the same as the training preset's held
+    targets), the robot's masses in the as-drawn band."""
     import mujoco
     sys.path.insert(0, os.path.join(HERE, "..", "cad", "v6"))
     import dimensions_v6 as V
@@ -55,7 +56,12 @@ def test_committed_plant_is_the_robot():
     assert [m.actuator(i).name for i in range(m.nu)] == ACT_ORDER
     for side in "LR":
         q0 = m.qpos0[m.joint(f"{side}_shoulder").qposadr[0]]
-        assert abs(np.degrees(q0) - V.ARM_WALK_HOLD) < 1e-6
+        assert abs(np.degrees(q0) - V.ARM_REST_SHOULDER) < 1e-6
+        e0 = m.qpos0[m.joint(f"{side}_elbow").qposadr[0]]
+        assert abs(np.degrees(e0) - V.ARM_REST_ELBOW) < 1e-6
+    sys.path.insert(0, os.path.join(HERE, "..", "sim", "mjx"))
+    import robot_plant
+    assert (robot_plant.HOLD_DEG["shoulder"], robot_plant.HOLD_DEG["elbow"]) == V.ARM_REST
     assert 2.0 < m.body_subtreemass[0] < 2.4
 
 
@@ -63,7 +69,7 @@ def test_committed_plant_is_generated():
     """the committed plant is build_v6_inertia's output for the current CAD
     (AGENTS.md: generated files are generated): regenerate it and compare."""
     import build_v6_inertia as BI
-    src, _ = BI.plant_xml(DesignParams(), None, bearing="C")
+    src = BI.committed_xml(COMMITTED)
     with open(COMMITTED) as f:
         assert f.read() == src, "sim/bimo_biped_v6ar.xml is stale: run sim/build_v6_inertia.py --write"
 
@@ -99,7 +105,7 @@ def test_ik_roundtrip(knee):
 def test_gate_a_passes(p):
     A = G.gate_a(p, verbose=False)
     assert A["A_pass"]
-    assert A["A2"]["poses"]["mid_swing"]["margin"] >= 0.0249   # = the inboard sole half-width
+    assert A["A2"]["poses"]["mid_swing"]["margin"] >= (p.foot_w / 2 - p.foot_y_off) - 1e-4   # = the inboard sole half-width
     assert A["A2"]["poses"]["mid_swing"]["jok"]
     assert A["A2"]["poses"]["mid_swing"]["ncon"] == 0
     assert A["A5"]["crouch_depth"] >= 0.05

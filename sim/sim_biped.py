@@ -1,13 +1,16 @@
 """Stage-1 sim: drop the biped on a floor and run a coordinated squat cycle.
 Exercises every pitch joint under gravity and checks it stays balanced.
-Run: MUJOCO_GL=osmesa python3 sim_biped.py   (osmesa = headless software GL)"""
-import os
+Run: MUJOCO_GL=osmesa python3 sim_biped.py   (osmesa = headless software GL)
+Writes build/v5/renders/mj_deep.png, mj_stand.png and build/v5/movies/mj_squat.gif."""
+import os, sys
 os.environ.setdefault("MUJOCO_GL", "osmesa")
 import numpy as np, mujoco, imageio.v2 as imageio
 
-m = mujoco.MjModel.from_xml_path(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 "bimo_biped.xml"))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+from paths import build_dir
+
+m = mujoco.MjModel.from_xml_path(os.path.join(HERE, "bimo_biped.xml"))
 d = mujoco.MjData(m)
 dt = m.opt.timestep
 
@@ -53,9 +56,11 @@ stable = ups.min() > 0.9 and heights[-1] > 0.24
 print(f"VERDICT      : {'BALANCED through squat' if stable else 'LOST BALANCE'}")
 
 if frames:
-    imageio.imsave("mj_deep.png",  frames[int(i_low/15)])
-    imageio.imsave("mj_stand.png", frames[-1])
-    imageio.mimsave("mj_squat.gif", frames, fps=20)
-    print(f"rendered {len(frames)} frames -> mj_deep.png, mj_stand.png, mj_squat.gif")
+    stills, movies = build_dir("v5", "renders"), build_dir("v5", "movies")
+    imageio.imsave(os.path.join(stills, "mj_deep.png"),  frames[int(i_low/15)])
+    imageio.imsave(os.path.join(stills, "mj_stand.png"), frames[-1])
+    imageio.mimsave(os.path.join(movies, "mj_squat.gif"), frames, fps=20)
+    print(f"rendered {len(frames)} frames -> {stills}/mj_deep.png, mj_stand.png, "
+          f"{movies}/mj_squat.gif")
 else:
     print("no frames (headless GL failed) - numeric diagnostics only")

@@ -10,7 +10,7 @@ Run:
   .venv/bin/python cad/export_pose.py --hip -60                 # design intent
   .venv/bin/python cad/export_pose.py --hip -110 --knee -95 --ankle 40  # pike
 
-  -> cad/step/poses/pose_<spec>.step   (gitignored -- regenerate at will)
+  -> build/v5/step/poses/pose_<spec>.step   (gitignored -- regenerate at will)
 
 Every servo-case screw is an M2.5 FLAT head sitting flush in a countersink.
 The pan-head variant was retired 2026-07-28: proud O5.0 x 2.0 heads wedged the
@@ -19,6 +19,7 @@ of hip travel, which is what sent the build to flat heads in the first place.
 """
 import argparse
 import os
+import sys
 from build123d import Pos, Rot, Compound, Color, export_step
 
 import dimensions as D
@@ -27,7 +28,10 @@ import fasteners as F
 import check_assembly as CA
 import export_assembly as A
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "step", "poses")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import paths  # noqa: E402
+
+OUT = os.path.join(paths.BUILD, "v5", "step", "poses")
 COL_RED = Color(0.95, 0.12, 0.12)
 
 

@@ -11,12 +11,16 @@ value explicitly (the kp map as {actuator: factor}, the holds as
                      replace them once the parts exist, issue #82)
     policy joints    the 12 leg joints -- 6 per leg, ankle roll included
     held joints      neck yaw at 0 (the camera looks ahead), and -- where
-                     the plant has them -- both shoulders 15 deg back with
-                     the elbows straight: the walking hold (DESIGN.md 5.4:
-                     hanging straight, the forearms touch the swinging legs)
-    stiffness        Plan B: position-loop P x4 on the hip-roll, ankle-roll
-                     and knee servos (DESIGN.md section 4), NOMINAL until the
-                     bench (issue #73) measures the factor
+                     the plant has them -- both arms at their folded rest
+                     pose, shoulder 15 deg forward and elbow folded 95 deg
+                     (cad/v6/dimensions_v6.ARM_REST, DESIGN.md 5.4: there the
+                     arms clear every leg joint's full range)
+    stiffness        the robot's servo set (DESIGN.md section 4): the hip
+                     rolls are STS3250s (the model's 4x), the ankle-roll and
+                     knee STS3215s run the bench's P 96 / D 0 (~2.8x). The
+                     STS3250s' larger stall and speed ARE modelled since
+                     2026-10-10 (SERVO_TYPES_ROBOT -> servo_types; before,
+                     the env had one STS3215 envelope)
     hip pitch        policy range -120 deg flexion (the leg link's relief
                      gives 120; DESIGN.md section 3)
     payload          none: the camera is in the head, which the plant models
@@ -33,24 +37,29 @@ import mujoco
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROBOT_XML = "bimo_biped_v6ar.xml"
 
-# walking hold per held joint role (deg); a joint the plant does not have is
-# simply not held
-HOLD_DEG = {"neck_yaw": 0.0, "shoulder": 15.0, "elbow": 0.0}
-KP_SCALE = "planb"              # env_mjx.SERVO_KP_PRESETS
+# rest pose per held joint role (deg); a joint the plant does not have is
+# simply not held. The arms' values are cad/v6/dimensions_v6.ARM_REST
+# (tests/test_v6_design_gates.py pins them to it and to the plant's qpos0).
+HOLD_DEG = {"neck_yaw": 0.0, "shoulder": -15.0, "elbow": -95.0}
+SERVO_TYPES_ROBOT = {"hip_roll": "sts3250"}   # walker_env.SERVO_TYPES; the rest are STS3215
+KP_SCALE = "planb"              # env_mjx.SERVO_KP_PRESETS; "robot" (STS3250 hip rolls) is passed explicitly until the SIL obs-spec test follows it
 HIP_FLEX_DEG = 120.0
 
 
 # A 17-servo stand-in for tests, until the committed plant carries the arms:
 # sim/gen_plant_v6.py with the as-drawn arm geometry (upper arm and forearm
 # 160 mm with an elbow servo, the shoulder girdle and its servos on the
-# torso, CAD link masses -- the get-up study's r5_asdrawn_rom120 arms).
+# torso, CAD link masses, the elbow servo on the upper arm -- the get-up
+# study's r6_asdrawn_rom120 arms).
 # Generator defaults otherwise (geometry-derived inertials, not the CAD ones
 # the committed plant carries): it exercises the 17-servo layout, it is not
 # the robot's mass model.
 ARMS_TEST_PARAMS = dict(
     arms=True, arm_z=0.09016, arm_len=0.16, arm_elbow=True, arm_fore_len=0.16,
     arm_shoulder_x=0.0, arm_shoulder_y_extra=0.023, arm_cad_servos=True,
-    arm_girdle=True, arm_mass=0.0331, arm_fore_mass=0.0337, m_girdle=0.084,
+    arm_elbow_servo_upper=True,
+    arm_girdle=True, arm_mass=0.0278, arm_fore_mass=0.0415, m_girdle=0.084,
+    arm_hold=HOLD_DEG["shoulder"], arm_elbow_hold=HOLD_DEG["elbow"],
     hip_pitch_range=(-120.0, 90.0))
 
 
@@ -103,6 +112,9 @@ def robot_env_kwargs(xml=None):
     held = {n: HOLD_DEG[_role(n)] for n in names if _role(n) in HOLD_DEG}
     scale = servo_kp_scale_vector(names, KP_SCALE)
     kp_map = {n: float(s) for n, s in zip(names, scale) if s != 1.0}
-    return dict(xml_path=path, held_joints=held, servo_kp_scale=kp_map,
+    # the robot as built (DESIGN.md section 4): STS3250 at the hip rolls --
+    # their stall/speed envelope, not just the stiffness credit (2026-10-10)
+    types = {n: SERVO_TYPES_ROBOT[_role(n)] for n in names if _role(n) in SERVO_TYPES_ROBOT}
+    return dict(xml_path=path, held_joints=held, servo_kp_scale=kp_map, servo_types=types,
                 hip_flex_deg=HIP_FLEX_DEG, payload_mass=0.0,
                 mimic_sole_level=True)

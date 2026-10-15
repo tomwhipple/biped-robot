@@ -1,10 +1,10 @@
 """PLAY the range of motion inside the FreeCAD 3D view -- one leg at a time.
 
-Run:  open cad/step/bimo_v3yaw_articulated.FCStd in the GUI, then
+Run:  open build/v5/step/bimo_v3yaw_articulated.FCStd in the GUI, then
       Macro -> Macros... -> freecad_rom_play.py -> Execute
       (or paste into the Python console: exec(open(...).read()))
 
-User, 2026-07-30: "I want to see it move *within* CAD." cad/renders/joint_rom.mov
+User, 2026-07-30: "I want to see it move *within* CAD." build/v5/movies/joint_rom.mov
 is a rendered video; this drives the real assembly in the real viewport, so you
 can orbit, zoom and stop it mid-sweep.
 
@@ -73,7 +73,7 @@ def _smoothstep(a, b, t):
 def play(doc=None, steps=STEPS, hold=HOLD, frame_s=FRAME_S, loops=1):
     doc = doc or FP._doc()
     if doc is None:
-        raise RuntimeError("open cad/step/bimo_v3yaw_articulated.FCStd first")
+        raise RuntimeError("open %s first" % FP.FCSTD)
     App.setActiveDocument(doc.Name)
 
     for _ in range(loops):

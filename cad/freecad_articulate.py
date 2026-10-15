@@ -20,11 +20,11 @@ rotation limits baked in (EnableAngleMin/Max):
     knee     -95..+5   ankle    +/-40
 
 The torso is grounded; both legs are built from the same part STEPs
-(`cad/step/*.step`, re-exported by `parts.py`) placed at the world positions in
-`cad/dimensions.py`.  Since 2026-07-28 every body also carries its MODELED
-FASTENERS (`step/screws_*.step`, from `fasteners.py`) -- without them the file
+(`build/v5/step/*.step`, exported by `parts.py`) placed at the world positions
+in `cad/dimensions.py`.  Since 2026-07-28 every body also carries its MODELED
+FASTENERS (`screws_*.step`, from `fasteners.py`) -- without them the file
 poses a skeleton that can't collide the way the hardware does -- and its SERVO
-MOCKS (`step/servo_*.step`, from `servos.py`), so the file shows the machine
+MOCKS (`servo_*.step`, from `servos.py`), so the file shows the machine
 rather than a printed-parts skeleton.
 
 The servos ride the same bodies `dress.py` hangs them on, so they pose with the
@@ -32,7 +32,7 @@ chain.  They are context, NOT collision evidence: the disc faces touch the
 cases by design, so `freecad_pose.py` skips any child named `*__servo_*` when
 it intersects bodies.  Add a servo to a body here and it stays exempt.
 
-    -> cad/step/bimo_v3yaw_articulated.FCStd
+    -> build/v5/step/bimo_v3yaw_articulated.FCStd
 
 How to POSE it
 --------------
@@ -80,8 +80,9 @@ so it cannot be folded into this console-mode build.
 
 Robustness notes
 ----------------
-* STEP files are found by name (case-insensitive) under ``step/`` next to this
-  macro -- no absolute paths, so it travels with the repo.
+* STEP files are found by name (case-insensitive) under the repo's
+  ``build/v5/step/``, located from this macro's own path -- no absolute paths,
+  so it travels with the repo.
 * Each joint's coordinate system is an ``App::LocalCoordinateSystem`` placed
   exactly on the real axis (from ``dimensions.py``), so nothing depends on
   fragile auto-generated ``EdgeNN`` names.
@@ -106,11 +107,15 @@ try:
     HERE = os.path.dirname(os.path.abspath(__file__))
 except NameError:                       # exec'd in the console: fall back to cwd
     HERE = os.path.abspath(".")
-    if not os.path.isdir(os.path.join(HERE, "step")):
-        HERE = os.path.dirname(App.ActiveDocument.FileName) if App.ActiveDocument else HERE
-STEP = os.path.join(HERE, "step")
+    if not os.path.isfile(os.path.join(HERE, "dimensions.py")):
+        HERE = os.path.join(HERE, "cad")
+sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 import dimensions as D                  # pure-python constants, safe under FreeCAD
+import paths                            # stdlib only, likewise
+
+# parts.py, fasteners.py and servos.py export here; the FCStd is written here too
+STEP = os.path.join(paths.BUILD, "v5", "step")
 
 REVOLUTE = JointObject.JointTypes.index("Revolute")   # == 1
 
@@ -132,13 +137,14 @@ TOWER_TOP_Z = DECK_TOP_Z + D.TOWER_H
 
 # --------------------------------------------------------------------------- helpers
 def step_path(name):
-    """Case-insensitive '<name>.step' lookup under step/."""
+    """Case-insensitive '<name>.step' lookup under STEP."""
     want = name.lower() + ".step"
-    for f in os.listdir(STEP):
+    for f in (os.listdir(STEP) if os.path.isdir(STEP) else []):
         if f.lower() == want:
             return os.path.join(STEP, f)
     raise FileNotFoundError(
-        "%s.step not found in %s -- run export_step.py first" % (name, STEP))
+        "%s.step not found in %s -- run parts.py, fasteners.py and servos.py "
+        "first" % (name, STEP))
 
 
 def read_shape(name):

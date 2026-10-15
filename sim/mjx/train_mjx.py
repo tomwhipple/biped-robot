@@ -165,6 +165,11 @@ class BatchedEnv(brax_base.Env):
             reseeded = jax.vmap(self._env.reseed)(first, st.rng)
 
         def pick(a, b):
+            # Warp (mjx impl="warp") pools some Data leaves across envs (the
+            # contact buffers: leading dim naconmax, or empty) -- no per-env
+            # row to select; they are rebuilt every physics step, keep b's.
+            if a.ndim == 0 or a.shape[0] != done.shape[0]:
+                return b
             d = done.reshape(done.shape + (1,) * (a.ndim - 1))
             return jp.where(d > 0, a, b)
 
@@ -177,7 +182,9 @@ class BatchedEnv(brax_base.Env):
                                metrics=dict(st.metrics), info=info)
 
 
-def main():
+def make_parser():
+    """The CLI, shared with sim/mac_train.py (the CPU-physics + MPS trainer):
+    one set of flags means one env config, whichever trainer runs it."""
     p = argparse.ArgumentParser()
     p.add_argument("--out", default="mjx_cmd_v1")
     p.add_argument("--steps", type=int, default=150_000_000)
@@ -231,6 +238,17 @@ def main():
                         "and kd: a preset (planb, stock) or role/actuator="
                         "factor pairs, e.g. 'hip_roll=4,ankle_roll=4,knee=4'. "
                         "config.json records the resolved {actuator: factor}")
+    p.add_argument("--mimic-lift", type=float, default=0.0,
+                   help="imitation reference: the swing sole rises this high (m, IK "
+                        "from the home pose) at any walking speed; 0 = the knee-bend "
+                        "reference, which lifts the robot's foot only 0-2 cm")
+    p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
+                   help="training-only collision set: 'feet' lets only the sole "
+                        "pads touch the floor (MJX contact slots 182 -> 56 on the "
+                        "robot plant); the referee always grades with 'all'")
+    p.add_argument("--mjx-impl", choices=["jax", "warp"], default="jax",
+                   help="physics backend: MJX's JAX pipeline, or MuJoCo Warp "
+                        "(CUDA kernels; flat floor only)")
     p.add_argument("--mimic-sole-level", action="store_true",
                    help="imitation reference: ankle pitch solved level from "
                         "the joint axes (the robot preset sets it)")
@@ -270,6 +288,44 @@ def main():
                    help="raised-foot-under-hip kernel (knee-flexion lifts)")
     p.add_argument("--w-up-vel", type=float, default=None,
                    help="momentum-friendly rise incentive while down")
+    p.add_argument("--joint-frictionloss", type=float, default=None,
+                   help="Coulomb friction per actuated DOF (N*m; default keeps "
+                        "the loco default 0.05). The powered STS3215/3250 "
+                        "gearbox backdrive stiction measures ~0.35 N*m "
+                        "(off_frictionloss) -- pass that for a plant whose "
+                        "static pose-hold matches hardware")
+    p.add_argument("--servo-3250", default=None,
+                   help="comma roles/actuators given the STS3250 stall/speed "
+                        "envelope on top of the robot's (e.g. knee): a servo-set study")
+    p.add_argument("--robot-arms", action="store_true",
+                   help="with --robot: the policy drives the shoulders and "
+                        "elbows (the neck stays held); for the get-up")
+    p.add_argument("--rise-ref", default=None,
+                   help="recorded get-up reference .npz (sim/record_getup_ref.py): "
+                        "replaces the staged rise; recovery starts are RSI along it")
+    p.add_argument("--rise-ref-et", type=float, default=None,
+                   help="m: end a not-yet-recovered recovery episode when the pelvis strays "
+                        "this far from the reference's (DeepMimic early termination)")
+    p.add_argument("--rise-ref-residual", type=float, default=None,
+                   help="rad: residual get-up -- while down, target = the recorded reference + "
+                        "this x action (needs --rise-ref)")
+    p.add_argument("--w-rise-root", type=float, default=None,
+                   help="DeepMimic root tracking while down: kernel on pelvis height + torso up-z vs "
+                        "the recorded reference (needs --rise-ref)")
+    p.add_argument("--ctrl-physical", action="store_true",
+                   help="the policy commands the joints' whole mechanical stops (the CAD "
+                        "envelope) instead of the plant's ctrlrange training range (get-up)")
+    p.add_argument("--gravity-scale", type=float, default=None,
+                   help="scale gravity in the TRAINING env (curriculum: learn a get-up under "
+                        "reduced gravity, then anneal to 1.0); the referee always grades at 1.0")
+    p.add_argument("--rise-ref-rsi-window", default=None,
+                   help="lo,hi fractions of the reference where RSI starts are drawn "
+                        "(default 0,0.85); e.g. 0.5,0.85 practises the crouch -> stand")
+    p.add_argument("--rise-ref-s2", type=float, default=None,
+                   help="rise-reference tracking kernel denominator (rad^2 summed over the "
+                        "policy joints; default 2.0 -- smaller = stricter tracking)")
+    p.add_argument("--rise-ref-rsi", type=float, default=None,
+                   help="P(recovery start at a random reference phase) (default 0.7)")
     p.add_argument("--w-rise-ref", type=float, default=None,
                    help="override the staged-rise reference weight")
     p.add_argument("--turn-emph", action="store_true",
@@ -460,7 +516,12 @@ def main():
                         "response: the 2026-08-31 bench walk measured joint "
                         "motion at ~0.5x sim, reproduced only by ~2 Hz of "
                         "3-stage filtering. e.g. '2,12'")
-    args = p.parse_args()
+    return p
+
+
+def build_env_kw(args):
+    """The env kwargs a run trains with (both trainers; config.json records
+    them). Mutates args.entropy for the --precision preset, as before."""
     if args.precision and args.entropy == 1e-2:
         args.entropy = 0.005          # Playground's biped setting (plan v2)
 
@@ -545,6 +606,12 @@ def main():
             joint_frictionloss=0.05, joint_armature=0.028,
             w_feet_air=5.0, w_pitch_rate=0.1,
         )
+    if args.joint_frictionloss is not None:
+        # Tom 2026-10-12: the powered gearbox's static friction holds the
+        # pose on hardware; 0.05 (BAM base) under-reports it ~7x and the
+        # sim wobbles where the robot does not. Applied AFTER the family
+        # block so any family recipe can be run with the measured level.
+        env_kw["joint_frictionloss"] = args.joint_frictionloss
     if args.xml:
         # accept a bare basename (resolved against sim/, where the plants
         # live) or an explicit path -- night-queue args use basenames
@@ -555,6 +622,12 @@ def main():
         # and the stiffness map land in config.json explicitly per actuator
         import robot_plant
         env_kw.update(robot_plant.robot_env_kwargs(args.xml))
+        if args.servo_3250:
+            env_kw["servo_types"] = dict(env_kw.get("servo_types") or {},
+                                         **{r.strip(): "sts3250" for r in args.servo_3250.split(",") if r.strip()})
+        if args.robot_arms:
+            env_kw["held_joints"] = {k: v for k, v in env_kw["held_joints"].items()
+                                     if robot_plant._role(k) not in ("shoulder", "elbow")}
         # the legs cannot get the robot up (DESIGN.md, "Get-up"): its get-up
         # is the scripted arm sequence, so no recovery slots by default
         env_kw["recover_mix"] = 0.0
@@ -568,6 +641,13 @@ def main():
         env_kw["servo_kp_scale"] = spec
     if args.mimic_sole_level:
         env_kw["mimic_sole_level"] = True
+    if args.floor_contacts != "all":
+        env_kw["floor_contacts"] = args.floor_contacts
+    if getattr(args, "mjx_impl", "jax") != "jax":
+        env_kw["mjx_impl"] = args.mjx_impl
+        env_kw["warp_envs"] = int(args.envs)
+    if args.mimic_lift > 0.0:
+        env_kw["mimic_lift"] = args.mimic_lift
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":
@@ -659,6 +739,24 @@ def main():
         env_kw["w_up_vel"] = args.w_up_vel
     if args.w_rise_ref is not None:
         env_kw["w_rise_ref"] = args.w_rise_ref
+    if args.rise_ref:
+        env_kw["rise_ref_npz"] = args.rise_ref
+    if args.rise_ref_rsi is not None:
+        env_kw["rise_ref_rsi"] = args.rise_ref_rsi
+    if args.rise_ref_et is not None:
+        env_kw["rise_ref_et"] = args.rise_ref_et
+    if args.rise_ref_s2 is not None:
+        env_kw["rise_ref_s2"] = args.rise_ref_s2
+    if args.rise_ref_residual is not None:
+        env_kw["rise_ref_residual"] = args.rise_ref_residual
+    if args.w_rise_root is not None:
+        env_kw["w_rise_root"] = args.w_rise_root
+    if args.ctrl_physical:
+        env_kw["ctrl_physical"] = True
+    if args.gravity_scale is not None:
+        env_kw["gravity_scale"] = args.gravity_scale
+    if args.rise_ref_rsi_window is not None:
+        env_kw["rise_ref_rsi_window"] = tuple(float(x) for x in args.rise_ref_rsi_window.split(","))
     if args.w_com_stance is not None:
         env_kw["w_com_stance"] = args.w_com_stance
     # knee-high marching (2026-08-01). Applied AFTER the family blocks so a
@@ -739,6 +837,12 @@ def main():
             w_recover_h=1.0, w_recover_up=0.8, stand_bonus=1.0,
             getup_start_mix=tuple(float(x) for x in args.getup_mix.split(",")),
         )
+    return env_kw
+
+
+def main():
+    args = make_parser().parse_args()
+    env_kw = build_env_kw(args)
     env = BimoMJXEnv(**env_kw)
     if env_kw.get("servo_kp_scale") is not None:
         # pin the stiffness the env RESOLVED, per actuator: a preset name in

@@ -23,7 +23,11 @@ human flexion (axis 0 -1 0), 8 pad spheres per sole as the only ground
 contact, non-colliding L_sole/R_sole reference boxes, enumerated inter-leg
 contact pairs, IMU site + torso_up/torso_pos sensors.
 
-    .venv/bin/python sim/gen_plant_v6.py                 # -> sim/bimo_biped_v6ar.xml
+The output is this lumped-mass plant, never the committed
+sim/bimo_biped_v6ar.xml unless -o names it: that one is the dressed plant
+sim/build_v6_inertia.py --write generates, and a test compares it byte for byte.
+
+    .venv/bin/python sim/gen_plant_v6.py                 # -> build/v6/sim/bimo_biped_v6ar_lumped.xml
     .venv/bin/python sim/gen_plant_v6.py --knee bwd -o /tmp/bwd.xml
     .venv/bin/python sim/gen_plant_v6.py --set hip_sep=0.070 thigh=0.11 -o /tmp/x.xml
 """
@@ -36,7 +40,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_OUT = os.path.join(HERE, "bimo_biped_v6ar.xml")
+OUT_NAME = "bimo_biped_v6ar_lumped.xml"   # not the dressed plant's name: build/v6/sim will hold that one too
 
 # STS3215 / STS3250 case (cad/dimensions.py, STEP-measured): 45.22 long x
 # 24.72 wide x 34.70 across the output axis; output axis 10.11 from the
@@ -53,7 +57,8 @@ class DesignParams:
                                  # (sweep), but the swing foot drifts ~13 mm inward under roll
                                  # sag/play and landed ON the stance foot at a 12 mm gap; 84 gives
                                  # a 24 mm gap and a 32 mm battery channel between the yaw servos
-    d_yaw_roll: float = 0.041    # hip yaw axis -> hip roll axis (v5 stack)
+    d_yaw_roll: float = 0.04511  # hip yaw horn face -> hip roll axis: the v6 carrier
+                                 # (dimensions_v6.CARRIER_ROLL_AXIS: v5's 40.11 + a 5 mm spacer)
     d_roll_pitch: float = 0.050  # hip roll axis -> hip pitch axis (yoke pair)
     thigh: float = 0.110         # hip pitch -> knee (v5: 0.090; longer = lower joint rates for the same step)
     shank: float = 0.110         # knee -> ankle pitch (v5: 0.090)
@@ -61,22 +66,32 @@ class DesignParams:
                                  # below its axis like every other joint; 50 = the hip's
                                  # ROLL_TO_PITCH, so the ankle link is a short leg_link)
     roll_h: float = 0.01836      # ankle roll axis above the sole bottom: 4 mm plate + 12.36
-                                 # (axis centred in the 24.72 case width) + 2 mm TPU sole
+                                 # (axis centred in the 24.72 case width) + 2 mm silicone sole
     foot_len: float = 0.130
-    foot_w: float = 0.084        # sole width; with foot_y_off the inboard half is 30 mm
-                                 # (inner gap 24 mm), the outboard half 54 mm (2026-09-14)
+    foot_w: float = 0.084        # sole width; with foot_y_off the inboard half is 23.5 mm
+                                 # (inner gap 37 mm), the outboard half 60.5 mm
     foot_toe: float = 0.075      # ankle axis -> toe edge (heel = len - toe)
     foot_r: float = 0.014        # corner radius (pad octagon like v5)
-    foot_y_off: float = 0.012    # sole centreline OUTBOARD of the ankle roll axis (m):
+    foot_y_off: float = 0.0185   # sole centreline OUTBOARD of the ankle roll axis (m):
                                  # an asymmetric sole with more width outside the ankle,
                                  # because the open-loop walk's failure direction is outward
     knee: str = "fwd"            # "fwd" = human knee, "bwd" = bird knee, "both" =
                                  # double-jointed: the CAD ROM in both directions
     # ---- joint ranges (deg) ----------------------------------------------
     yaw_range: float = 45.0
-    hip_roll_add: float = 30.0   # adduction (toward the other leg)
-    hip_roll_abd: float = 45.0   # abduction
-    hip_pitch_range: tuple = (-125.0, 90.0)   # -110 -> -125: yoke_pitch_v6 flange chamfer (cad/v6, 2026-09-14)
+    # JOINT STOPS vs POLICY RANGES (2026-10-11, Tom: "make sure the servo limits are correct for the
+    # physical design and not set too conservatively"): every joint's MJCF range is the CAD envelope
+    # (cad/v6/dimensions_v6.ROM / ARM_ROM -- the mechanical stop); the actuator ctrlrange stays the
+    # TRAINING range (walker_env.policy_range: moving it rescales every trained policy's actions), so
+    # existing policies command what they always did and the physics stops where the metal does.
+    hip_roll_add: float = 30.0   # adduction (toward the other leg) -- policy range
+    hip_roll_abd: float = 45.0   # abduction -- policy range
+    hip_roll_phys: float = 55.0  # the stop both ways (dimensions_v6.ROM["hip_roll"]; the legs meet
+                                 # before it in adduction, which the collision pairs model)
+    ankle_phys: float = 40.0     # ankle pitch stop (dimensions_v6.ROM["ankle_pitch"])
+    elbow_phys: tuple = (-100.0, 10.0)   # dimensions_v6.ARM_ROM["elbow"] (the fork meets the grip channel)
+    hip_pitch_range: tuple = (-120.0, 90.0)   # stop AND policy range: -125 was never reachable (the thigh's
+                                              # front wall meets the roll flange from -118.4; dimensions_v6.ROM)
     knee_flex: float = 130.0     # flexion travel (either direction); 95 -> 130 with the leg-link relief cuts (cad/v6, 2026-09-14)
     knee_hyper: float = 5.0      # hyperextension cap (modelling cap, v5)
     knee_back: float = 95.0      # CAD ROM the OTHER way (cad/v6/dimensions_v6.ROM["knee"]
@@ -90,7 +105,7 @@ class DesignParams:
     m_hip_yokes: float = 0.030   # yoke_roll + yoke_pitch (v5 L_hip 29.6 g)
     m_leg_link: float = 0.027    # leg_link_v6 (CAD 2026-09-14: 26.7 g)
     m_ankle_link: float = 0.009  # ankle_link (CAD 2026-09-14: 8.9 g)
-    m_foot: float = 0.071        # foot_v6 47 g + TPU sole 23 g (CAD 2026-09-14)
+    m_foot: float = 0.071        # foot_v6 47 g + sole 23 g (CAD 2026-09-14; generator estimate -- build_v6_inertia weighs the CAD)
     m_battery: float = 0.170     # 3S 2200-2600 mAh class LiPo (150-190 g)
     m_board: float = 0.030       # General Driver 65x65
     m_wiring: float = 0.030      # leads, ties, switch
@@ -132,9 +147,13 @@ class DesignParams:
                                   # at the same angle, so the joint angle keeps its
                                   # meaning (0 = hanging) while a reset or an env's
                                   # default pose (walker_env reads qpos0) holds the
-                                  # arm here. The robot holds 15 deg while walking
-                                  # (cad/v6/dimensions_v6.ARM_WALK_HOLD); 0 = the
+                                  # arm here. The robot rests folded, shoulder
+                                  # -15 (cad/v6/dimensions_v6.ARM_REST); 0 = the
                                   # plants every study so far was run on.
+    arm_elbow_hold: float = 0.0   # deg: the elbows' REST pose (qpos0), authored the
+                                  # same way as arm_hold (the forearm body rotated,
+                                  # the joint's ref at the same angle; 0 = straight,
+                                  # - = folded forward). dimensions_v6.ARM_REST: -95.
     arm_cad_servos: bool = False  # round 5 (2026-09-19): place the arm's servo
                                   # BOXES where cad/v6/arm_v6.py actually draws
                                   # them, instead of the round-2 placeholder.
@@ -151,6 +170,14 @@ class DesignParams:
                                   # the forearm collide with the leg far more
                                   # than the drawn one does. Default False so
                                   # every round 1-4 number stays reproducible.
+    arm_elbow_servo_upper: bool = False  # 2026-10-07 (cad/v6/arm_v6.py): the elbow
+                                  # servo's CASE rides the UPPER arm, running up
+                                  # it from the elbow axis (centre 12.5 mm ABOVE
+                                  # the axis, on the arm plane), and the forearm
+                                  # forks round its discs. Its 55 g box moves
+                                  # from the forearm body to the arm body. Needs
+                                  # arm_cad_servos. Default False so every round
+                                  # 5 number stays reproducible.
     tail: bool = False           # kangaroo tail: one STS3215 (pitch) at the housing rear, a rod
     tail_len: float = 0.20       # with a rubber tip; 0 deg = straight back, + = tip up
     tail_x: float = -0.062       # root x (behind the deck's aft edge -0.058)
@@ -304,7 +331,7 @@ class DesignParams:
                 f"shank {1e3*self.shank:.0f}  d_ankle {1e3*self.d_ankle:.0f}  "
                 f"foot {1e3*self.foot_len:.0f}x{1e3*self.foot_w:.0f}  knee {self.knee}  "
                 f"{'torso v7 (Pi 4B + head)  ' if self.torso_v7 else ''}"
-                f"{f'arms {1e3*self.arm_len:.0f}+{1e3*self.arm_fore_len:.0f} mm (shoulder + elbow), held {self.arm_hold:g} deg back  ' if self.arms and self.arm_elbow else ''}"
+                f"{f'arms {1e3*self.arm_len:.0f}+{1e3*self.arm_fore_len:.0f} mm (shoulder + elbow), at rest shoulder {self.arm_hold:g} / elbow {self.arm_elbow_hold:g} deg  ' if self.arms and self.arm_elbow else ''}"
                 f"yaw axis {1e3*self.z_yaw_above_sole:.0f} mm, deck top "
                 f"{1e3*(self.z_yaw_above_sole+self.deck_bot+self.deck_t):.0f} mm")
 
@@ -372,6 +399,9 @@ def _leg(p: DesignParams, side: str) -> str:
         roll_rng = (-p.hip_roll_abd, p.hip_roll_add)
     ar = p.ankle_roll_range
     kr = p.knee_range
+    # the knee's STOP: a human ("fwd") knee also bends backward to knee_back in the CAD
+    # (dimensions_v6.ROM["knee"] = (-95, +130), + = flexion); the policy range keeps kr
+    kj = (-p.knee_flex, p.knee_back) if p.knee == "fwd" else kr
     hp = p.hip_pitch_range
     sv = p.servo_mass
     servo_rgba = "0.22 0.23 0.27 1"
@@ -397,7 +427,7 @@ def _leg(p: DesignParams, side: str) -> str:
         <geom type="box" pos="0 0 {_f(-p.d_yaw_roll/2)}" size="0.014 0.020 {_f(p.d_yaw_roll/2)}" mass="{p.m_carrier}" rgba="{link_rgba}" group="1"/>
         <geom class="servo" type="box" pos="0 0 {_f(-p.d_yaw_roll + z_servo_case_up)}" size="{_f(sx_v[0])} {_f(sx_v[1])} {_f(sx_v[2])}" mass="{sv}"/>
         <body name="{side}_hip" pos="0 0 {_f(-p.d_yaw_roll)}">
-          <joint name="{side}_hip_roll" axis="1 0 0" range="{roll_rng[0]:.0f} {roll_rng[1]:.0f}"/>
+          <joint name="{side}_hip_roll" axis="1 0 0" range="{-p.hip_roll_phys:.0f} {p.hip_roll_phys:.0f}"/>
           <!-- yoke_roll + yoke_pitch (the hip universal, 50 mm axis offset) -->
           <geom type="box" pos="0 0 {_f(-p.d_roll_pitch/2)}" size="0.0175 0.0125 {_f(p.d_roll_pitch/2)}" mass="{p.m_hip_yokes}" rgba="{link_rgba}" group="1"/>
           <body name="{side}_thigh" pos="0 0 {_f(-p.d_roll_pitch)}">
@@ -407,13 +437,13 @@ def _leg(p: DesignParams, side: str) -> str:
             <geom {_fc(p)}type="box" pos="0 0 {_f(-p.thigh/2)}" size="0.012 0.019 {_f(p.thigh/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
             <geom name="{side}_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
             <body name="{side}_shin" pos="0 0 {_f(-p.thigh)}">
-              <joint name="{side}_knee" axis="0 -1 0" range="{kr[0]:.0f} {kr[1]:.0f}"/>
+              <joint name="{side}_knee" axis="0 -1 0" range="{kj[0]:.0f} {kj[1]:.0f}"/>
               <geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>
               <geom name="{side}_shin_link" {_fc(p)}type="box" pos="0 0 {_f(-p.shank/2)}" size="0.012 0.019 {_f(p.shank/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
               <geom name="{side}_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
 {_shank_ankle_servos(p, side)}
               <body name="{side}_ankle_blk" pos="0 0 {_f(-p.shank)}">
-                <joint name="{side}_ankle" axis="0 1 0" range="{-p.ankle_range:.0f} {p.ankle_range:.0f}"/>
+                <joint name="{side}_ankle" axis="0 1 0" range="{-min(p.ankle_range, p.ankle_phys):.0f} {min(p.ankle_range, p.ankle_phys):.0f}"/>
                 <!-- ankle-pitch servo case hangs below the axis inside the
                      ankle link (the hip's roll->pitch stack, upside down) -->
                 {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>'}
@@ -613,11 +643,21 @@ def _arms(p: DesignParams) -> str:
         # below the elbow axis; the round-2 placeholder put it inboard+centred.
         _el_y = 0.0 if p.arm_cad_servos else -sgn * SV_T / 2
         _el_z = -(SV_LEN / 2 - SV_AXIS_OUT) if p.arm_cad_servos else 0.0
+        _el_box = f'size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"'
+        assert not p.arm_elbow_servo_upper or p.arm_cad_servos, "arm_elbow_servo_upper needs arm_cad_servos"
+        # the elbow servo's box: on the forearm, or (arm_elbow_servo_upper) on
+        # the upper arm, case running up from the elbow axis
+        _fore_servo = "" if p.arm_elbow_servo_upper else \
+            f'<geom class="servo" type="box" pos="0 {_f(_el_y)} {_f(_el_z)}" {_el_box}/>'
+        _upper_servo = "" if not (p.arm_elbow and p.arm_elbow_servo_upper) else \
+            f'<geom class="servo" type="box" pos="0 0 {_f(-p.arm_len + (SV_LEN / 2 - SV_AXIS_OUT))}" {_el_box}/>'
         hand = f'<geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>'
         if p.arm_elbow:
-            hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}">
-          <joint name="{side}_elbow" axis="0 1 0" range="-150 150"/>
-          <geom class="servo" type="box" pos="0 {_f(_el_y)} {_f(_el_z)}" size="{_f(SV_WID/2)} {_f(SV_T/2)} {_f(SV_LEN/2)}" mass="{p.m_neck_servo}"/>
+            _el_eul = f' euler="0 {p.arm_elbow_hold:g} 0"' if p.arm_elbow_hold else ""
+            _el_ref = f' ref="{p.arm_elbow_hold:g}"' if p.arm_elbow_hold else ""
+            hand = f"""<body name="{side}_forearm" pos="0 0 {_f(-p.arm_len)}"{_el_eul}>
+          <joint name="{side}_elbow" axis="0 1 0" range="{p.elbow_phys[0]:.0f} {p.elbow_phys[1]:.0f}"{_el_ref}/>
+          {_fore_servo}
           <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_fore_len)}" size="0.006" mass="{p.arm_mass*0.6 if p.arm_fore_mass is None else p.arm_fore_mass}" rgba="0.82 0.84 0.87 1"/>
           <geom {_fc(p)}type="sphere" pos="0 0 {_f(-p.arm_fore_len)}" size="0.012" mass="0.005" friction="1.0 0.02 0.001" rgba="0.2 0.2 0.2 1"/>
         </body>"""
@@ -631,7 +671,7 @@ def _arms(p: DesignParams) -> str:
             out.append(f'\n      <geom class="servo" type="box" pos="{_f(_cx)} {_f(_cy)} {_f(zs)}" size="{_f(SV_LEN/2)} {_f(SV_T/2)} {_f(SV_WID/2)}" mass="{p.m_neck_servo}"/>')
         _ref = f' ref="{p.arm_hold:g}"' if p.arm_hold else ""
         arm_inner = f"""<joint name="{side}_shoulder" axis="0 1 0" range="-90 200"{_ref}/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
-        {_sh_servo}
+        {_sh_servo}{_upper_servo}
         <geom {_fc(p)}type="capsule" fromto="0 0 0 0 0 {_f(-p.arm_len)}" size="0.006" mass="{p.arm_mass}" rgba="0.82 0.84 0.87 1"/>
         {hand}"""
         if p.arm_abd:
@@ -748,7 +788,7 @@ def build_xml(p: DesignParams) -> str:
                 acts.append(f'    <position name="{side}_abd" joint="{side}_abd" ctrlrange="{r(abd_lo):.10f} {r(abd_hi):.10f}"/>')
             acts.append(f'    <position name="{side}_shoulder" joint="{side}_shoulder" ctrlrange="{r(-90):.10f} {r(200):.10f}"/>')
             if p.arm_elbow:
-                acts.append(f'    <position name="{side}_elbow" joint="{side}_elbow" ctrlrange="{r(-150):.10f} {r(150):.10f}"/>')
+                acts.append(f'    <position name="{side}_elbow" joint="{side}_elbow" ctrlrange="{r(p.elbow_phys[0]):.10f} {r(p.elbow_phys[1]):.10f}"/>')
     if p.tail:
         acts.append(f'    <position name="tail_pitch" joint="tail_pitch" ctrlrange="{r(-150):.10f} {r(120):.10f}"/>')
     acts_s = "\n".join(acts)
@@ -839,7 +879,8 @@ def build_xml(p: DesignParams) -> str:
 
 def params_from_args(argv=None) -> tuple[DesignParams, argparse.Namespace]:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("-o", "--out", default=DEFAULT_OUT)
+    ap.add_argument("-o", "--out", default=None,
+                    help=f"default: build/v6/sim/{OUT_NAME}")
     ap.add_argument("--knee", choices=("fwd", "bwd"), default=None)
     ap.add_argument("--torso-v7", action="store_true", help="Pi 4B torso + neck servo + head")
     ap.add_argument("--servo", choices=("sts3215", "sts3250"), default=None,
@@ -870,6 +911,11 @@ def params_from_args(argv=None) -> tuple[DesignParams, argparse.Namespace]:
 
 def main(argv=None):
     p, a = params_from_args(argv)
+    if a.out is None:
+        # imported here, not at the top: dozens of sim scripts import this module
+        sys.path.insert(0, os.path.dirname(HERE))
+        from paths import build_dir
+        a.out = os.path.join(build_dir("v6", "sim"), OUT_NAME)
     xml = build_xml(p)
     with open(a.out, "w") as f:
         f.write(xml)

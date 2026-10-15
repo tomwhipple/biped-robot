@@ -1,0 +1,9 @@
+# sim/foot_outline_study.py interleg
+# branch cad/foot-outline on a390caa + working tree (foot outline -30..54), 2026-10-07 10:37, this laptop (MUJOCO_GL=cgl).
+== foot_L vs foot_R, CAD feet as committed, both hip rolls adducted by the angle, ankles flat
+   mutual adduction  0.0 deg: overlap      0.0 mm3, gap  24.00 mm
+   mutual adduction  1.0 deg: overlap      0.0 mm3, gap  12.55 mm
+   mutual adduction  1.5 deg: overlap      0.0 mm3, gap   6.83 mm
+   mutual adduction  2.0 deg: overlap      0.0 mm3, gap   1.11 mm
+   mutual adduction  2.5 deg: overlap   2075.5 mm3, gap   0.00 mm
+   mutual adduction  3.0 deg: overlap   4840.4 mm3, gap   0.00 mm

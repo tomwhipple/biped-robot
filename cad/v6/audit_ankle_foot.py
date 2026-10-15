@@ -20,22 +20,22 @@ import foot_v6 as F  # noqa: E402
 CP.STL = os.path.join(HERE, "stl")
 
 CP.ORIENT.update({
-    "ankle_link": (CP.RY_XUP, "on its back like leg_link (RY_XUP): the "
-                  "copied grip-channel bores keep their teardrop roofs"),
+    "ankle_link": (CP.RY_XUP, "on its back like leg_link (RY_XUP): the rear "
+                  "tine on the bed, the grip screws' teardrop roofs up"),
     "foot_L": (CP.IDENT, "sole down (v5 convention)"),
     "foot_R": (CP.IDENT, "sole down (v5 convention)"),
 })
 
-# ankle_link needs slicer supports for the same reason the hip yokes do
-# (2026-07-30 precedent): the top-plate/tine block below the grip channel is
-# a compact, feature-dense structure with no orientation that avoids every
-# bridge/floating start at once. Verified (2026-09-14) that the flagged
-# CEILING/ISLAND regions are NOT starved of material -- they are internal
-# transitions the ray-cast heuristic reads as unsupported, not thin webs
-# (see the THIN class below, checked separately by direct density probing).
+# ankle_link, on its back: the rear tine is on the bed and the box around the
+# pitch servo's base starts at the web, 4.6 mm up (the ISLAND, supported from
+# the plate). The front tine below the floor is a ledge over the roll servo's
+# space and the front wall spans the box (the CEILING); those supports stand
+# on the rear tine's inner face. The two THIN flags are the leg link's grip
+# channel: the 0.97 mm horn plate behind the rib detent, and the sill under
+# the detent's lower end, which the roll sweep slopes.
 CP.SUPPORTED["ankle_link"] = (
-    "supports on (top-plate/tine transition has no support-free orientation "
-    "once the ankle-roll clearance cut is applied)")
+    "supports on (the web starts 4.6 mm over the bed; the front wall and "
+    "tine overhang the box and the roll servo's space)")
 
 
 def main():

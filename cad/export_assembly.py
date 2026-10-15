@@ -1,6 +1,6 @@
 """Export the full robot as one assembled STEP (neutral standing pose).
 
-Run:  .venv/bin/python cad/export_assembly.py   -> cad/step/assembly.step
+Run:  .venv/bin/python cad/export_assembly.py   -> build/v5/step/assembly.step
 
 Printed parts + mock STS3215 servo bodies (from check_assembly) placed with the
 same transforms the interference checks use, in world frame: ground z=0,
@@ -18,13 +18,17 @@ does.
 """
 import math
 import os
+import sys
 from build123d import Pos, Rot, Compound, Color, export_step
 import dimensions as D
 import parts
 import fasteners as F
 import check_assembly as CA
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "step")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from paths import BUILD  # noqa: E402  (not `import paths`: fasteners() has a paths= flag)
+
+OUT = os.path.join(BUILD, "v5", "step")
 
 # v3yaw stack: the yaw servo + carrier are inserted BETWEEN the hip-roll axis
 # and the deck, so everything from the deck up rises by YAW_STACK_DROP. The deck
@@ -190,7 +194,7 @@ robot = Compound(label="bimo_biped", children=[
 ])
 
 def main():
-    """Write cad/step/assembly.step.
+    """Write build/v5/step/assembly.step.
 
     Behind a main() since 2026-07-27: this used to run at IMPORT time, so every
     render script that only wanted `piece` (render_electronics_steps,

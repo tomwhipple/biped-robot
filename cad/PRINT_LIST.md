@@ -6,7 +6,8 @@ needs, and how to slice and send it. The CAD is `cad/v6/`; its code map is
 goes together is [docs/assembly.md](../docs/assembly.md).
 
 **The code's default build is the robot to print**: arms on, the pelvis with
-the girdle's deck pilots, 17 × STS3215 in the mass line. The `ARMS=0` variant
+the girdle's deck pilots, 15 × STS3215 + 2 × STS3250 (the hip rolls) in the
+mass line. The `ARMS=0` variant
 (`neck_collar` for the neck, no girdle, no arm links, no pilots) exists for
 the CAD checks and is **not a print target**: the collar's flange screws have
 nothing to bite (their holes land in the Pi slide slot and the General Driver
@@ -14,9 +15,9 @@ lead slot, and there is no deck under the rest of the flange).
 
 ## Status
 
-| can print now | provisional |
+| can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `sole_tpu_L`, `sole_tpu_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | **`pelvis_v7` and the two yaw carriers are provisional, waiting on #75** (the hip-yaw bearing option). The code exports option C as a placeholder; option E adds a cap and a retainer per hip. |
+| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v7`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -28,29 +29,29 @@ lead slot, and there is no deck under the rest of the flange).
 ## The parts
 
 **How the masses are computed:** build123d volume × PETG 1.27 g/cm³ × 0.90
-print factor (`parts_v6.mass_g`); TPU is 1.21 g/cm³ with the same factor. They
-are the rollup's, `docs/design-v6/parts_v6_rollup.txt`
-(`cad/v6/parts_v6.py --no-export`).
+print factor (`parts_v6.mass_g`); the cut silicone soles are solid sheet,
+estimated at 1.21 g/cm³ (no print factor) until weighed. They
+are the rollup's, `build/v6/reports/parts_v6_rollup.txt`
+(`make cad`, or `cad/v6/parts_v6.py --no-export`).
 
 **Bounding boxes** are in the model frame (mm). **Supports** are what to tell
 the slicer; see [Supports](#supports-are-the-slicers-job).
 
 | part | qty | g each | bbox | orientation on the bed | supports | notes |
 |---|---|---|---|---|---|---|
-| `pelvis_v7` | 1 | 194 (C) · 190 (A) · 193 (E) | 162 × 105 × 83 (C) | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots. **Provisional, waits on #75.** The A / E versions export as `pelvis_v7_optA` / `pelvis_v7_optE` |
-| yaw carrier (`yaw_carrier_v6` for C, `yaw_carrier_v6_optA` for A, `yaw_carrier_v6_optE` for E) | 2 | 29.9 (C) · 23.8 (A) · 24.5 (E) | 55 × 55 × 44 | horn-plate face down, bay walls rising | **yes:** the rear-wall connector window's ceiling, a 1 mm bar spanning 22.8 mm | carries the hip-roll servo in its bay. **Provisional, waits on #75** |
-| *option E:* `yaw_cap_optE`, `yaw_retainer_optE` | 2 + 2 | 1.8, 2.7 | Ø57 × 1.0; 78 × 75 × 2.4 | flat | no | screwed rings that retain the bearing races; one retainer part serves both hips (turned 180°). **Provisional, waits on #75** |
+| `pelvis_v7` | 1 | 173.8 | 99 × 124 × 72 | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots and the bearing housing's five pilot bosses; each yaw cell's ceiling has a hole for the servo's free-hub post and a relief for its back-cover platform |
+| `yaw_bearing_housing` | 1 | 24.5 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into the pelvis |
+| `yaw_carrier_v6` | 2 | 27.3 | 52 × 52 × 49 | horn-plate face down, bay walls rising | **the servo-plug window only**, from its sill (an enforcer box in `print_settings.json`) | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø50.08 as printed, +0.08 mm on the measured 50.0 bore; modelled Ø50.48, see below) takes the bearing's inner race, which stops on the lip under the hub (Ø52.3) |
 | `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
-| `leg_link_v6` | 4 | 26.0 | 117 × 44 × 31 | standing on the lower fork end | no; brim recommended | thigh and shin are the same part |
-| `ankle_link` | 2 | 12.1 | 65 × 44 × 44 | on its back (model +X up) | **yes** (ceiling/island class) | grips the ankle-pitch servo, forks onto the ankle-roll servo |
-| `foot_L`, `foot_R` | 1 + 1 | 52.0 | 130 × 84 × 30 | sole down | no | a mirrored pair |
-| `sole_tpu_L`, `sole_tpu_R` | 1 + 1 | 23.2 | 130 × 84 × 2 | flat | no | **TPU 95A**; glued to the foot plate's underside |
+| `leg_link_v6` | 4 | 28.6 | 117 × 44 × 28 | on its back: web face on the bed | **yes**, build plate only: under the two round pad ends | thigh and shin are the same part |
+| `ankle_link` | 2 | 13.6 | 65 × 43 × 38 | on its back (model +X up): the rear tine on the bed | **yes**: under the web (4.6 mm, from the plate) and under the front tine below the floor, standing on the rear tine's inner face, which seats the idler disc: clean it flat. The front wall bridges between the side walls | grips the ankle-pitch servo in a box around its base, forks onto the ankle-roll servo |
+| `foot_L`, `foot_R` | 1 + 1 | 54.4 | 130 × 84 × 30 | sole down | no | a mirrored pair; each retention tab is braced by two fins on its outer face, sloped tops, support-free; a short near-row screw boss beside each disc |
 | `head_shell` | 1 | 26.1 | 62 × 60 × 50 | base (horn plate) down; the dome is ≥ 45° | none expected | from `head.py` |
 | `head_face` | 1 | 8.6 | 62 × 56 × 6 | flat, camera bosses up | no | |
 | `neck_floor` | 1 | 4.0 | 46 × 45 × 5 | flat, bottom face down, pads and lugs up | no | the neck servo's seat (#90): screwed up into the neck tube's four bosses; the stator screws go up through it |
 | `shoulder_girdle_v6` | 1 | 77.1 | 200 × 58 × 33 | base down | **yes**, build plate only | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`) |
-| `arm_upper_v6_L`, `_R` | 1 + 1 | 33.1 | 182 × 44 × 29 | on its back, web face down | **yes**, build plate only: the two elbow-pad undersides start 5 mm off the bed | a mirror pair; the front wall prints as a 6.4 mm bridge |
-| `arm_fore_v6_L`, `_R` | 1 + 1 | 33.7 | 169 × 38 × 28 | on its back | no | a mirror pair; grips the elbow servo; 12 mm hand knuckle |
+| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no | a mirror pair; open-front U with two end walls; grips the elbow servo |
+| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **yes**, build plate only: the two elbow-pad undersides start 5 mm off the bed | a mirror pair; the elbow fork, an end wall, 12 mm hand knuckle |
 
 **Part notes:**
 
@@ -62,15 +63,33 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
     whole servo. The seat is `neck_floor`.
 - **Yaw carrier**
   - The carrier is not covered by the robot's printability audits.
-  - The CAD models no break-away support under the connector window's ceiling
-    bar, so the slicer has to support it.
+  - Supports go in the servo-plug (connector) window and nowhere else. The
+    window's ceiling in print, a 1 mm bar spanning 22.8 mm, stands on
+    support built up from the window's sill. `print_settings.json` gives the
+    part manual supports (`normal(manual)`, snug) and one enforcer box over
+    the sill, which `slice.py` adds to the project. The box stops short of
+    the idler seat's detent channel, which has no sill under it. Support
+    there would run down to the bay floor and fill the channel.
+  - The hub is modelled 0.4 mm over (Ø50.48) to print at Ø50.08, +0.08 mm
+    on the bearing's 50.0 bore. The printer prints it undersize though its
+    STL and its sliced outer wall are on size. Test prints set the allowance:
+    modelled on size, the hub was loose, and modelled 0.5 mm over, it went in
+    only with great difficulty. Measure the hub; the allowance is
+    `YAW_BRG_BOSS_PRINT_ALLOW` in `cad/v6/dimensions_v6.py`.
+  - The lip under the hub prints unsupported. It is a 0.9 mm ledge, inside
+    what prints without support (`check_printability.py` `LEDGE_OK`). Its
+    downward face is the one the bearing's inner race stops on, so a support
+    interface there would spoil the stop. OrcaSlicer prints its outer
+    perimeters as overhang walls.
+  - The horizontal screw holes are teardrops and print unsupported.
 - **`hip_yoke_v6`**
   - The pitch horn arm is a slab over the servo void, and the roll pad rims and
     arm plates start in mid-air.
   - The underside of the pitch horn arm is a support-interface face that clamps
     onto the horn disc. Check that it seats flat.
-- **`leg_link_v6`:** the brim is there because the round pads meet the bed on a
-  line.
+- **`leg_link_v6`:** the back web and both side walls sit on the bed. Only the
+  lower-rear quarter of each round pad end overhangs, 5 mm up; support it from
+  the plate. The knee pocket in the idler side wall prints with a 6.6 mm roof.
 - **`head_shell`:** the printability audit flags a ceiling at the dome seam. It
   is believed to be a boolean artifact; confirm in the slice preview.
 - **`neck_floor`:** a separate print because it hangs 5 mm below the girdle's
@@ -81,39 +100,106 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - Supports go under the trapezius-web window tops (34 mm spans), the
     grip-plate rib-relief roofs, and the bay disc-relief tops.
 
-**Totals:** 23 prints (21 PETG, 2 TPU) from 17 STLs with bearing C, before
-supports and brims (option E adds 4 prints from 2 STLs):
-
-- PETG: ≈ 787 g with bearing option C, ≈ 771 g with A, ≈ 784 g with E;
-- TPU: 46 g.
+**Totals:** 22 prints, all PETG, from 16 STLs: ≈ 805 g before supports and
+brims.
 
 **Not printed:**
 
+- `sole_tpu_L/R`: the soles are cut from 2 mm silicone rubber sheet
+  ([docs/bom.md §7](../docs/bom.md)), not printed. Each is the foot plate's
+  outline: 130 × 84 mm with 14 mm corner radii, the same for left and right.
+  The STLs are that outline.
 - `head.stl`: the shell and face fused, used for mass, the assembly checks and
   the sim plant.
 - `neck_collar.stl` and anything built with `ARMS=0` (see the top of this
   page).
-- Whichever yaw carrier and pelvis the chosen bearing option does not name.
+- `yoke_roll.stl` and `yoke_pitch_v6.stl`: the `HIP_YOKE_VARIANT=split` build
+  (the bolted two-piece yoke), which `hip_yoke_v6` replaces.
+
+### Test print: the glued hip yoke
+
+`HIP_YOKE_VARIANT=glued` builds the hip yoke as two U-channels that print
+**without supports**, snap together, and are glued
+([`hip_yoke_glued.py`](v6/hip_yoke_glued.py)). It is the test of that method
+before it is used on other parts. It is not in the default build yet, so
+`hip_yoke_v6` stays in the table above.
+
+![The glued hip yoke: each piece as it lies on the bed, exploded, glued](../docs/img/hip_yoke_glued.png)
+
+| part | qty | g each | orientation on the bed | supports |
+|---|---|---|---|---|
+| `hip_yoke_glued_roll` | 2 | 9.4 | on edge, model −Y on the bed (the face tangent to the pads and the idler boss) | **no**, no brim |
+| `hip_yoke_glued_pitch` | 2 | 10.8 | on its back, model −X on the bed (the rear face, tangent to the idler hub) | **no**, no brim |
+
+- **Slice:** `python3 cad/slice.py --variant hip_yoke_glued hip_yoke_glued`
+  puts all four pieces on one plate: 1 h 34 min and 40.7 g, with no
+  supports and no brim; `--copies 1` gives one set, 47 min and 20.3 g. One
+  `hip_yoke_v6` takes 1 h 1 min and 25.2 g, supports and brim included. If a
+  piece lifts off the bed, add `hip_yoke_v6`'s 5 mm outer brim to the variant.
+- **Assemble:** press the roll piece's flange onto the pitch piece's flange
+  until both split prongs click under it. The prongs locate the two pieces.
+  Pull them apart again, glue the 27 × 30 mm flange faces (CA or epoxy, faces
+  lightly sanded), and press the pieces back together.
+- The bottom of the roll idler boss rests on the bed as a line, like a
+  cylinder printed on its side. It is the journal that turns in the yaw
+  carrier's bay bore with 0.3 mm of clearance, so check it for a ridge or a
+  flat spot before fitting it into the carrier.
+
+### Test print: the glued ankle link
+
+`ANKLE_LINK_VARIANT=glued` builds the ankle link the same way, in two pieces
+([`ankle_link_glued.py`](v6/ankle_link_glued.py)):
+
+- a **cradle** that fits the ankle-pitch servo's base: four walls 0–0.4 mm off
+  the case, where `ankle_link`'s front wall stood 8.1 mm in front of it. The
+  rib detent runs out through its bottom, and its web has no lead window:
+  the servo's ports are on its idler face, above the cradle;
+- a **fork**: the floor 0.39 mm under the case, both tines, a closed box in
+  front of the cradle that carries the roll torque, and a solid block behind
+  it (the rear tine carried up to the box's height).
+
+`ankle_link` stays in the table above.
+
+![The glued ankle link: cradle and fork as they lie on the bed, exploded, glued with the pitch servo](../docs/img/ankle_link_glued.png)
+
+| part | qty | g each | orientation on the bed | supports |
+|---|---|---|---|---|
+| `ankle_link_glued_cradle` | 2 | 4.7 | bottom down: the four walls' flat bottom | **no**, no brim |
+| `ankle_link_glued_fork` | 2 | 10.3 | on edge, model −Y on the bed (the face tangent to the tine pads) | **no**, no brim |
+
+- **Slice:** `python3 cad/slice.py --variant ankle_link_glued ankle_link_glued`
+  puts all four pieces on one plate: 1 h 12 min and 31.6 g, with no
+  supports and no brim; `--copies 1` gives one set, 37 min and 15.8 g. One
+  `ankle_link` takes 50 min and 16.0 g, supports included.
+- **Assemble:** lower the cradle into the fork: its front wall against the
+  fork's inner wall, with the inner wall's tongue in the groove up the front
+  wall, and its web against the rear block. Press it down onto the two seats
+  on the floor: the middle of the web bows in as it passes the barb on the
+  rear block, and clicks into place. To lift the cradle out again, press the
+  web in. Glue both laps (the front wall to the inner wall, the web to the
+  rear block) and the two seats (CA or epoxy, faces lightly sanded). Then fit
+  the servo from the top, as before. With the servo in, the web cannot bow,
+  so the snap stays locked.
 
 ## Regenerating
 
 ```bash
-.venv/bin/python cad/v6/parts_v6.py                    # every part -> cad/v6/stl + cad/v6/step, bed check, mass rollup
+make cad                                               # every part whose source changed, and the mass rollup
+.venv/bin/python cad/v6/parts_v6.py                    # every part -> cad/v6/stl + build/v6/step, bed check, mass rollup
 .venv/bin/python cad/v6/parts_v6.py --only foot_L foot_R
 .venv/bin/python cad/v6/parts_v6.py --no-export        # the rollup alone
-YAW_BEARING_VARIANT=E .venv/bin/python cad/v6/parts_v6.py --only pelvis_v7_optE yaw_carrier_v6_optE yaw_cap_optE yaw_retainer_optE
 .venv/bin/python cad/v6/head.py                        # head_shell + head_face (+ the fused head), audits
 ```
 
 - Each part module's `__main__` exports that part and runs its own audits.
   `leg_link_v6`, `hip_yoke_v6`, `shoulder_girdle_v6`, `neck_floor` and `arm_v6`
   rewrite their STL as they go.
-- Run `sh cad/run_checks.sh` after any CAD change and before printing (see
-  [README.md](README.md#the-gate)).
+- Run `make check-cad` (`sh cad/run_checks.sh`) after any CAD change and
+  before printing (see [README.md](README.md#the-gate)).
 
 ## Global print settings
 
-**PETG for every structural part; TPU 95A for the soles.**
+**PETG for every part.**
 
 - **Base settings:** 0.4 mm nozzle, 0.2 mm layers, 3 perimeters (every wall
   ≥ 2.4 mm is then perimeter-only), 30–40 % infill.
@@ -125,9 +211,7 @@ YAW_BEARING_VARIANT=E .venv/bin/python cad/v6/parts_v6.py --only pelvis_v7_optE 
   hotter and strings more than PLA. On the first parts, check the snug
   interfaces: the grip channels on a servo case, the foot cradle, the pads on
   the discs. If anything binds, tune the flow or print a size test.
-- **Filament:** keep PETG and TPU dry.
-- **TPU 95A soles:** they print flat, 2 mm thick. No tuned profile is recorded
-  yet, so use the slicer's TPU preset and print slowly.
+- **Filament:** keep PETG dry.
 - **Bores:** small horizontal bores are teardropped toward each part's print-up
   direction, so their tops print without support. That is designed in;
   supports are not.
@@ -149,7 +233,7 @@ OrcaSlicer settings that work:
 | Threshold angle | 30° |
 | Top Z distance | **0.2 mm** (PETG welds to support at 0.1) |
 | Support/object XY distance | 0.35 mm |
-| Brim | outer only, **5 mm**, for tall narrow parts: `hip_yoke_v6`, and recommended for `leg_link_v6` |
+| Brim | outer only, **5 mm**, for tall narrow parts: `hip_yoke_v6` |
 
 - Put the supported parts on their own plate so the setting does not leak onto
   the others.
@@ -168,56 +252,69 @@ and thin walls. The rules:
 
 ## Slicing
 
-Parts can be sliced with the OrcaSlicer CLI on **mira** (the GPU box),
-headless, through `cad/slice.py`, or in the OrcaSlicer GUI.
+`cad/slice.py` slices a part, or a **plate** of parts printed together, into an
+**OrcaSlicer project**, each part in its print orientation with the settings
+above. Open the project in the GUI, check it, and print it from there.
 
 ```bash
-python3 cad/slice.py foot --filament PETG               # -> cad/gcode/foot.gcode (gitignored)
-python3 cad/slice.py --all --filament PETG
-python3 cad/slice.py foot --nozzle 0.6 --layer 0.28 --filament PETG
+make slice PART=leg_link_v6                  # -> build/v6/gcode/leg_link_v6.3mf + .gcode (gitignored)
+make slice                                   # every plate and part whose STL or settings changed
+python3 cad/slice.py leg_link_v6 --copies 4  # four on the plate, this run only
+python3 cad/slice.py feet                    # both feet, one plate -> build/v6/gcode/feet.3mf
+python3 cad/slice.py --all                   # every plate, and every part on no plate
+python3 cad/slice.py --harvest               # only read saved projects back
 ```
 
-- **Defaults** are a 0.4 mm nozzle, 0.20 mm layers and **PLA**, so pass
-  `--filament PETG`. For each part it prints the time, grams, layers, bed
-  footprint and centre, and flags a part that lands off the bed. The footprint
-  excludes the start gcode's purge line.
-- **It only sees `cad/stl`, the prototype's parts.**
-  - `STL_DIR` is `cad/stl`.
-  - The flatpak sandbox exposes only `cad/stl` (read-only),
-    `cad/print_profiles` (read-only) and `cad/gcode`, so passing a
-    `cad/v6/stl/...` path does not help.
-  - Slicing the robot's parts this way needs `STL_DIR` and the sandbox widened
-    to `cad/v6/stl` (open). Until then, slice them in the GUI.
-- **How it is installed.** OrcaSlicer 2.4.2 is a user-scope Flathub flatpak,
-  `com.orcaslicer.OrcaSlicer`. The upstream AppImage needs glibc 2.38; mira
-  runs Pop!_OS 22.04 with 2.35. Flathub serves signed commits, whereas the
-  GitHub release publishes no checksum.
-- **Headless.** The slicer runs under `xvfb-run`, because no X display is
-  available to the user on mira.
-- **Sandbox.** Without it the slicer would see `/dev/ttyUSB0` (the live servo
-  bus) and `~/.ssh`. So it gets no devices, no network and no home directory:
+- **Open `build/v6/gcode/<part or plate>.3mf`** with File → Open Project.
+  - The printer is the GUI's own printer preset, the one that holds the print
+    host, so the plate prints from the GUI.
+  - The process and filament are Flashforge's "0.20mm Standard" and "Generic
+    PETG", marked as modified. The modified values are this file's spec.
+  - The plate is already sliced: check the preview, then print it.
+- **The settings live in `cad/v6/print_settings.json`.** They are layered:
+  1. Flashforge's presets.
+  2. The spec on top, from Global print settings and Supports above.
+  3. One entry per part, with:
+     - the orientation: `IDENT`, `RX180`, `RY_XUP`, `RY_XDOWN`, `RY_ROLL_WALL`,
+       or a 3×3 matrix whose rows are the print axes in model coordinates;
+     - supports, and copies;
+     - overrides, in OrcaSlicer's own keys.
+  4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`. One
+     process slices a plate, so its parts must agree on supports and overrides
+     (`slice.py` refuses a plate whose parts don't). A plate's copies are its
+     own: `--copies 2` puts two of each foot on it.
+- **Changes made in the GUI carry forward.** Save the project (Cmd+S). The next
+  `slice.py` run on that part or plate reads the saved project's changes back
+  into `print_settings.json`:
+  - any process or filament setting, including per-object settings (on a
+    plate, for every part on it);
+  - a part tipped onto another face (on a plate, that part only);
+  - a part turned a quarter turn on the bed (its `spin`). The slicer lays
+    every copy square to the bed, walls along X and Y; a turn of any other
+    angle is reported, not carried;
+  - the number of copies.
 
-  ```bash
-  flatpak override --user \
-    --nodevice=all --unshare=network \
-    --nofilesystem=home --nofilesystem=/media --nofilesystem=/run/media \
-    --nofilesystem=/mnt --nofilesystem=xdg-run/gvfs \
-    --system-no-talk-name=org.freedesktop.UDisks2 \
-    --filesystem=<repo>/cad/stl:ro \
-    --filesystem=<repo>/cad/print_profiles:ro \
-    --filesystem=<repo>/cad/gcode \
-    com.orcaslicer.OrcaSlicer
-  ```
-
-  Verify with `flatpak info --show-permissions com.orcaslicer.OrcaSlicer`.
-- **Two upstream quirks the wrapper works around:**
-  - The CLI's `--load-settings` does not resolve a preset's `inherits` chain
-    from a file path. `cad/orca_profile.py` flattens the vendor chain into a
-    standalone preset (the `from` key must survive). A thin user filament preset
-    loaded by path otherwise falls back to PLA without a word.
-  - Upstream's AD5M preset sets relative extrusion but has no `G92 E0` in its
-    layer-change gcode, so upstream's own validator rejects it (return code
-    −51). `slice.py` appends `G92 E0`.
+  It prints what it changed, and keeps the saved project under
+  `build/v6/gcode/.work/saved/`. Commit the JSON.
+  - **Printer settings are not carried.** Change those in the GUI's printer
+    preset.
+  - **Painted supports or seams, modifier volumes and height-range modifiers
+    cannot be carried.** `slice.py` then leaves that project alone and says so.
+    To restrict a part's supports to one place, give it `support_enforcers`
+    boxes in `print_settings.json` (as `yaw_carrier_v6` has). `slice.py` adds
+    them to the project itself, and skips them when it reads a save back.
+- **For each part it prints** the time, grams, height, supports, bed footprint
+  and centre, and flags a part that lands off the bed. The footprint excludes the
+  start gcode's purge line.
+- **Where it runs.** On the Mac it drives `/Applications/OrcaSlicer.app`
+  (`ORCA_APP` overrides the path). Elsewhere it runs the Flathub flatpak
+  headless, as on mira. How it works and the upstream quirks it works around are
+  in [docs/slicing.md](../docs/slicing.md).
+- **One part departs from the table above** in `print_settings.json`:
+  **`head_face`** is built in the assembly frame. Printed flat, outer face down
+  and bosses up, its outer-face pocket becomes a ceiling of about 50 × 44 mm,
+  1.8 mm above the bed. It is sliced with supports. Open: whether to keep the
+  pocket and the supports.
 
 ### The printer
 

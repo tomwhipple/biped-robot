@@ -52,19 +52,17 @@ Model
                    cut OPEN TO THE TOP (shoulder_girdle_v6.py:216-236), so
                    the lead leaves upwards at the trench band, over the pod
                    top, and drops along the housing skin to the GD slot.
-    elbow          arm_v6.elbow_servo_mock: case hanging down the forearm,
-                   cable end toward the hand; idler faces -y, and with the
-                   forearm mirrored on the left arm that puts the plug face
-                   at y -(ARM_Y + 16.75) OUTBOARD on the right arm and
-                   +(ARM_Y - 16.75) INBOARD on the left. The lead exits the
-                   FOREARM's web window (elbow axis -72..-60) and climbs the
-                   UPPER arm's open C to ITS web window (axis -96..-78).
-                   This hop crosses the SHOULDER fold (the arm below sweeps
-                   -90..+200 about the shoulder) AND the ELBOW fold
-                   (-100..+10) up the side of the upper arm. NO strain
-                   relief is drawn at either (docs/design-v6/arms.md open
-                   item 8; docs/design-v6/shoulder-girdle.md kept the
-                   windows but added no relief).
+    elbow          arm_v6.elbow_servo_mock: the case rides the UPPER arm,
+                   running up it from the elbow axis, cable end toward the
+                   shoulder, so the trench band is 11.75..16.35 mm ABOVE the
+                   elbow axis; idler faces INBOARD on both arms (a mirror
+                   pair): plug face at y +/-(ARM_Y - 16.75). The lead leaves
+                   through the upper arm's web window just past the case's
+                   cable end (elbow axis +37..+48) and runs up the back of
+                   the web to the shoulder. This hop crosses only the
+                   SHOULDER fold (the arm below sweeps -90..+200 about the
+                   shoulder): the elbow servo turns with the upper arm. NO
+                   strain relief is drawn at the shoulder.
 * Board end: the GD's servo bus edge is UP under the deck (dims.py:750),
   the leads drop through the board's deck slot; PORT is modelled at the
   PCB's aft face, the two 3-pin bus pads 20 mm either side of centre, at
@@ -123,18 +121,16 @@ SHOULDER_EXIT = {"A": (V.ARM_SHOULDER_X - CONN_MID, -V.GIRDLE_WALL_Y0,
                        DECK_TOP_Z + _POD_TOP),
                  "B": (V.ARM_SHOULDER_X - CONN_MID, +V.GIRDLE_WALL_Y0,
                        DECK_TOP_Z + _POD_TOP)}
-# elbow lead anchor: the forearm's web window mid, but the CAD-measured hop
-# below is what governs. The shoulder->elbow hop is the pair the constants
-# model CANNOT answer honestly -- the assembly sweep puts the elbow's plug
-# window 158.8 mm under the shoulder's (the two links' own cable windows are
-# 30 mm apart THROUGH the joint), so a straight-line figure in any frame is a
-# lie about where the lead crosses the fold. The table carries the assembly
-# number, measured here, as the span for this hop.
-SHOULDER_ELBOW_SPAN = 157.5
-ELBOW_WIN = {"A": (V.ARM_SHOULDER_X, -(V.ARM_Y + PLUG_R),
-                   V.ARM_ELBOW_Z - 66.0),
-             "B": (V.ARM_SHOULDER_X, +V.ARM_Y - PLUG_R,
-                   V.ARM_ELBOW_Z - 66.0)}
+# elbow plug: the trench band's middle, above the elbow axis, but the
+# CAD-measured hop below is what governs. The shoulder->elbow hop leaves the
+# shoulder servo inside the girdle's pod and lands on the upper arm, across
+# the shoulder joint, so the table carries the ASSEMBLY number (plug box to
+# plug box, this file's --assembly) as the span for this hop.
+SHOULDER_ELBOW_SPAN = 129.5
+ELBOW_WIN = {"A": (V.ARM_SHOULDER_X, -(V.ARM_Y - PLUG_R),
+                   V.ARM_ELBOW_Z + CONN_MID),
+             "B": (V.ARM_SHOULDER_X, +(V.ARM_Y - PLUG_R),
+                   V.ARM_ELBOW_Z + CONN_MID)}
 
 # joint ROM (assembly degrees) each leg hop crosses:
 ROM_LEG = {("hip yaw", "hip roll"): 90.0,        # hip yaw +-45
@@ -143,7 +139,6 @@ ROM_LEG = {("hip yaw", "hip roll"): 90.0,        # hip yaw +-45
            ("knee", "ankle"): 225.0,             # knee -95..+130
            ("ankle", "ankle roll"): 80.0}        # ankle pitch +-40
 SHOULDER_FOLD = 290.0    # -90..+200 (the arm sweeps it, the lead rides it)
-ELBOW_FOLD = 110.0       # -100..+10
 
 NOTE_YAW_ROLL = ("no raceway drawn on the yaw carrier for this hop; "
                  "straight-line minimum down the cell face")
@@ -157,10 +152,9 @@ NOTE_NECK = ("climbs the battery layer into the girdle's neck tube, out the "
 NOTE_SH_IN = ("exits UP through the girdle's open notch (shoulder_girdle_v6"
               ".py:216), along the housing skin to the leg-bus slot")
 NOTE_ARM = ("span is MEASURED off the assembly mocks (this file, "
-            "--assembly): the elbow plug's window is 157.5 mm under the "
-            "shoulder's; crosses the shoulder fold (290 deg) and the elbow "
-            "fold (110 deg); NO strain relief drawn -- docs/design-v6/"
-            "arms.md open item 8")
+            "--assembly): shoulder plug to the elbow plug on the upper arm; "
+            "crosses the shoulder fold (290 deg) only -- the elbow servo "
+            "rides the upper arm; NO strain relief drawn at the shoulder")
 
 
 def _leg(side):
@@ -240,12 +234,12 @@ def rows():
         else:
             notes[("deck slot", f"{side_lbl} shoulder")] = NOTE_SH_IN
         chain(side, up, {}, notes=notes)
-        # the shoulder -> elbow hop rides the arm across both folds; its span
-        # is the assembly-measured number, not the constants straight-line
-        # (see the note by SHOULDER_ELBOW_SPAN):
+        # the shoulder -> elbow hop rides the arm across the shoulder fold;
+        # its span is the assembly-measured number, not the constants
+        # straight-line (see the note by SHOULDER_ELBOW_SPAN):
         last = out[-1]
         last["span"] = SHOULDER_ELBOW_SPAN
-        last["loop"] = _fold(SHOULDER_FOLD) + _fold(ELBOW_FOLD)
+        last["loop"] = _fold(SHOULDER_FOLD)
         last["note"] = NOTE_ARM
     return out
 
@@ -302,7 +296,8 @@ def assembly_crosscheck(verbose=True):
         if side == "R":
             sh = SG.mirror(sh, SG.Plane.XZ)
         plugs[f"servo_shoulder_{side}"] = sh
-        el = Pos(V.ARM_SHOULDER_X, V.ARM_Y, V.ARM_ELBOW_Z) * pbox()
+        # elbow_servo_mock: the canonical mock turned end for end, upper arm
+        el = Pos(V.ARM_SHOULDER_X, V.ARM_Y, V.ARM_ELBOW_Z) * Rot(0, 180, 0) * pbox()
         if side == "R":
             el = arm_v6._mirrored(el, "R")
         plugs[f"servo_elbow_{side}"] = el

@@ -37,7 +37,7 @@ if HERE not in sys.path:
 import dimensions as D
 import freecad_pose as FP
 
-DOC = os.path.join(HERE, "step", "bimo_v3yaw_articulated.FCStd")
+DOC = FP.FCSTD
 STEPS = 13          # samples across each joint's travel, endpoints included
 for _a in sys.argv[1:]:                 # freecadcmd forwards trailing args
     if _a.isdigit():

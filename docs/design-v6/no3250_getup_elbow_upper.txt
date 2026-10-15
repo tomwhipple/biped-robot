@@ -1,0 +1,106 @@
+# sim/gate_no3250.py getup (now on r6_asdrawn_rom120: the elbow servo's case on the upper arm), 2026-10-07,
+# branch cad/elbow-servo-in-upper-arm, this laptop (MUJOCO_GL=cgl). Lumped as-drawn get-up plant from DesignParams.
+# BASELINE below: the same command on main 88f1e68 (r5_asdrawn_rom120, the case on the forearm), run the same day.
+# Result: identical verdicts -- 3250, 3215_p3rk and 3215_p4rk each stand 2/12 seat-push variants, both 6/6 robust;
+# stock 3215 0/12; the prone -> supine roll verdicts are the same row for row.
+
+== GET-UP, as drawn (r6_asdrawn_rom120: arms, girdle, CAD link masses, hip ROM -120; lumped plant, 55 g servos everywhere), tuck hip -120 knee -130; stall at 11.1 V: STS3215 2.72 N*m, STS3250 4.53 N*m
+-- servo set 3250: 2/12 seat-push variants stand: [((60, -60), (0, 0), -25), ((90, -90), (0, 0), -25)]
+   robust ((60, -60), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.07 (3 % of 2.72), hip_roll 0.01 (0 % of 4.53), hip_pitch 1.41 (52 % of 2.72), knee 1.32 (29 % of 4.53), ankle 0.66 (24 % of 2.72), ankle_roll 0.08 (2 % of 4.53), shoulder 2.08 (76 % of 2.72), elbow 1.08 (40 % of 2.72)
+   robust ((90, -90), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.08 (3 % of 2.72), hip_roll 0.00 (0 % of 4.53), hip_pitch 1.32 (49 % of 2.72), knee 1.21 (27 % of 4.53), ankle 0.66 (24 % of 2.72), ankle_roll 0.17 (4 % of 4.53), shoulder 1.81 (67 % of 2.72), elbow 0.86 (32 % of 2.72)
+-- servo set 3215: 0/12 seat-push variants stand: []
+   ((60, -60), (20, -20), -40): tuck:+0.94/0.20 | push:+1.00/0.23 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((60, -60), (20, -20), -25): tuck:+0.94/0.20 | push:+1.00/0.23 | crouch hold:+0.89/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((60, -60), (0, 0), -40): tuck:+0.94/0.20 | push:+1.00/0.24 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((60, -60), (0, 0), -25): tuck:+0.94/0.20 | push:+0.97/0.24 | crouch hold:+0.98/0.24 | rise 2:-0.43/0.10 | rise 3:-0.22/0.07 | stand:-0.02/0.05 | straight:-0.02/0.05
+   ((60, -60), (30, 0), -40): tuck:+0.94/0.20 | push:+0.98/0.23 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((60, -60), (30, 0), -25): tuck:+0.94/0.20 | push:+0.99/0.23 | crouch hold:+0.89/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (20, -20), -40): tuck:+0.78/0.16 | push:+0.99/0.23 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (20, -20), -25): tuck:+0.78/0.16 | push:+1.00/0.23 | crouch hold:+0.89/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (0, 0), -40): tuck:+0.78/0.16 | push:+1.00/0.24 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (0, 0), -25): tuck:+0.78/0.16 | push:+0.97/0.24 | crouch hold:+0.98/0.24 | rise 2:-0.43/0.10 | rise 3:-0.22/0.07 | stand:-0.02/0.05 | straight:-0.02/0.05
+   ((90, -90), (30, 0), -40): tuck:+0.78/0.16 | push:+0.98/0.22 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (30, 0), -25): tuck:+0.78/0.16 | push:+0.98/0.22 | crouch hold:+0.89/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+-- servo set 3215_p3rk: 2/12 seat-push variants stand: [((60, -60), (0, 0), -25), ((90, -90), (0, 0), -25)]
+   robust ((60, -60), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.04 (1 % of 2.72), hip_roll 0.01 (0 % of 2.72), hip_pitch 1.34 (49 % of 2.72), knee 1.41 (52 % of 2.72), ankle 0.67 (25 % of 2.72), ankle_roll 0.14 (5 % of 2.72), shoulder 2.06 (76 % of 2.72), elbow 1.05 (39 % of 2.72)
+   robust ((90, -90), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.08 (3 % of 2.72), hip_roll 0.00 (0 % of 2.72), hip_pitch 1.32 (48 % of 2.72), knee 1.37 (50 % of 2.72), ankle 0.67 (25 % of 2.72), ankle_roll 0.07 (3 % of 2.72), shoulder 1.76 (65 % of 2.72), elbow 0.88 (32 % of 2.72)
+-- servo set 3215_p4rk: 2/12 seat-push variants stand: [((60, -60), (0, 0), -25), ((90, -90), (0, 0), -25)]
+   robust ((60, -60), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.04 (1 % of 2.72), hip_roll 0.01 (0 % of 2.72), hip_pitch 1.41 (52 % of 2.72), knee 1.41 (52 % of 2.72), ankle 0.66 (24 % of 2.72), ankle_roll 0.08 (3 % of 2.72), shoulder 2.04 (75 % of 2.72), elbow 1.05 (39 % of 2.72)
+   robust ((90, -90), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.09 (3 % of 2.72), hip_roll 0.00 (0 % of 2.72), hip_pitch 1.32 (49 % of 2.72), knee 1.38 (51 % of 2.72), ankle 0.66 (24 % of 2.72), ankle_roll 0.17 (6 % of 2.72), shoulder 1.74 (64 % of 2.72), elbow 0.86 (32 % of 2.72)
+
+== PRONE -> SUPINE leg roll (design doc 12.1: R leg yawed 45 out, rolled, flexed; push + L swing; L presses / R up and back), arms folded up (shoulder 180), same plant; success = on the back (front_z > 0.7)
+   3250      play 3 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.38 N*m (R_hip_pitch)  hip_roll 0.92  knee 0.87
+   3250      play 5 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.32 N*m (R_hip_pitch)  hip_roll 0.86  knee 0.85
+   3250      play 3 mu 0.3 servo 1.00  no      front -1.00  peak |tau| 1.35 N*m (R_hip_pitch)  hip_roll 0.54  knee 0.91
+   3250      play 3 mu 1.0 servo 1.00  no      front -1.00  peak |tau| 1.41 N*m (R_hip_pitch)  hip_roll 1.22  knee 0.85
+   3250      play 3 mu 0.7 servo 0.80  no      front -1.00  peak |tau| 1.20 N*m (R_hip_pitch)  hip_roll 0.92  knee 0.74
+   3250      play 3 mu 0.7 servo 0.65  no      front -1.00  peak |tau| 1.15 N*m (L_hip_roll)  hip_roll 1.15  knee 0.84
+   3215      play 3 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.37 N*m (R_hip_pitch)  hip_roll 0.89  knee 0.73
+   3215      play 5 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.33 N*m (R_hip_pitch)  hip_roll 0.91  knee 0.74
+   3215      play 3 mu 0.3 servo 1.00  no      front -1.00  peak |tau| 1.24 N*m (R_hip_pitch)  hip_roll 0.63  knee 0.83
+   3215      play 3 mu 1.0 servo 1.00  no      front -1.00  peak |tau| 1.45 N*m (R_hip_pitch)  hip_roll 1.04  knee 0.75
+   3215      play 3 mu 0.7 servo 0.80  no      front -1.00  peak |tau| 1.22 N*m (R_hip_pitch)  hip_roll 0.91  knee 0.73
+   3215      play 3 mu 0.7 servo 0.65  no      front -1.00  peak |tau| 1.04 N*m (L_hip_pitch)  hip_roll 0.92  knee 0.72
+   3215_p4rk play 3 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.41 N*m (R_hip_pitch)  hip_roll 0.94  knee 0.74
+   3215_p4rk play 5 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.41 N*m (R_hip_pitch)  hip_roll 0.83  knee 0.75
+   3215_p4rk play 3 mu 0.3 servo 1.00  no      front -1.00  peak |tau| 1.38 N*m (R_hip_pitch)  hip_roll 0.55  knee 0.79
+   3215_p4rk play 3 mu 1.0 servo 1.00  no      front -1.00  peak |tau| 1.43 N*m (R_hip_pitch)  hip_roll 1.21  knee 0.78
+   3215_p4rk play 3 mu 0.7 servo 0.80  no      front -1.00  peak |tau| 1.18 N*m (R_hip_pitch)  hip_roll 0.93  knee 0.93
+   3215_p4rk play 3 mu 0.7 servo 0.65  no      front -1.00  peak |tau| 1.10 N*m (R_hip_pitch)  hip_roll 0.94  knee 0.97
+
+== BASELINE: main 88f1e68, r5_asdrawn_rom120
+== GET-UP, as drawn (r5_asdrawn_rom120: arms, girdle, CAD link masses, hip ROM -120; lumped plant, 55 g servos everywhere), tuck hip -120 knee -130; stall at 11.1 V: STS3215 2.72 N*m, STS3250 4.53 N*m
+-- servo set 3250: 2/12 seat-push variants stand: [((60, -60), (0, 0), -25), ((90, -90), (0, 0), -25)]
+   robust ((60, -60), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.08 (3 % of 2.72), hip_roll 0.01 (0 % of 4.53), hip_pitch 1.51 (56 % of 2.72), knee 1.27 (28 % of 4.53), ankle 0.66 (24 % of 2.72), ankle_roll 0.10 (2 % of 4.53), shoulder 2.11 (78 % of 2.72), elbow 1.09 (40 % of 2.72)
+   robust ((90, -90), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.08 (3 % of 2.72), hip_roll 0.00 (0 % of 4.53), hip_pitch 1.32 (48 % of 2.72), knee 1.12 (25 % of 4.53), ankle 0.66 (24 % of 2.72), ankle_roll 0.09 (2 % of 4.53), shoulder 1.73 (63 % of 2.72), elbow 0.96 (35 % of 2.72)
+-- servo set 3215: 0/12 seat-push variants stand: []
+   ((60, -60), (20, -20), -40): tuck:+0.94/0.20 | push:+1.00/0.23 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.21 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((60, -60), (20, -20), -25): tuck:+0.94/0.20 | push:+1.00/0.23 | crouch hold:+0.89/0.19 | rise 2:+0.87/0.21 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((60, -60), (0, 0), -40): tuck:+0.94/0.20 | push:+1.00/0.24 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.21 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((60, -60), (0, 0), -25): tuck:+0.94/0.20 | push:+0.97/0.24 | crouch hold:+0.98/0.24 | rise 2:-0.43/0.10 | rise 3:-0.22/0.07 | stand:-0.02/0.05 | straight:-0.02/0.05
+   ((60, -60), (30, 0), -40): tuck:+0.94/0.20 | push:+0.98/0.23 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.21 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((60, -60), (30, 0), -25): tuck:+0.94/0.20 | push:+0.99/0.23 | crouch hold:+0.89/0.19 | rise 2:+0.87/0.21 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (20, -20), -40): tuck:+0.79/0.16 | push:+0.99/0.23 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (20, -20), -25): tuck:+0.79/0.16 | push:+1.00/0.23 | crouch hold:+0.89/0.19 | rise 2:+0.87/0.21 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (0, 0), -40): tuck:+0.79/0.16 | push:+1.00/0.24 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (0, 0), -25): tuck:+0.79/0.16 | push:+0.97/0.24 | crouch hold:+0.98/0.24 | rise 2:-0.43/0.10 | rise 3:-0.22/0.07 | stand:-0.02/0.05 | straight:-0.02/0.05
+   ((90, -90), (30, 0), -40): tuck:+0.79/0.16 | push:+0.98/0.22 | crouch hold:+0.90/0.19 | rise 2:+0.87/0.20 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+   ((90, -90), (30, 0), -25): tuck:+0.79/0.16 | push:+0.98/0.22 | crouch hold:+0.89/0.19 | rise 2:+0.87/0.21 | rise 3:+0.76/0.23 | stand:+0.63/0.26 | straight:+0.62/0.27
+-- servo set 3215_p3rk: 2/12 seat-push variants stand: [((60, -60), (0, 0), -25), ((90, -90), (0, 0), -25)]
+   robust ((60, -60), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.05 (2 % of 2.72), hip_roll 0.01 (0 % of 2.72), hip_pitch 1.42 (52 % of 2.72), knee 1.42 (52 % of 2.72), ankle 0.67 (24 % of 2.72), ankle_roll 0.09 (3 % of 2.72), shoulder 2.03 (75 % of 2.72), elbow 1.05 (39 % of 2.72)
+   robust ((90, -90), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.08 (3 % of 2.72), hip_roll 0.00 (0 % of 2.72), hip_pitch 1.32 (48 % of 2.72), knee 1.40 (51 % of 2.72), ankle 0.67 (24 % of 2.72), ankle_roll 0.14 (5 % of 2.72), shoulder 1.78 (65 % of 2.72), elbow 1.07 (39 % of 2.72)
+-- servo set 3215_p4rk: 2/12 seat-push variants stand: [((60, -60), (0, 0), -25), ((90, -90), (0, 0), -25)]
+   robust ((60, -60), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.04 (1 % of 2.72), hip_roll 0.01 (0 % of 2.72), hip_pitch 1.51 (56 % of 2.72), knee 1.45 (53 % of 2.72), ankle 0.66 (24 % of 2.72), ankle_roll 0.10 (4 % of 2.72), shoulder 2.04 (75 % of 2.72), elbow 1.06 (39 % of 2.72)
+   robust ((90, -90), (0, 0), -25): 6/6
+      peak |tau| over the 6 conditions: hip_yaw 0.08 (3 % of 2.72), hip_roll 0.00 (0 % of 2.72), hip_pitch 1.32 (48 % of 2.72), knee 1.36 (50 % of 2.72), ankle 0.66 (24 % of 2.72), ankle_roll 0.09 (3 % of 2.72), shoulder 1.75 (64 % of 2.72), elbow 0.96 (35 % of 2.72)
+
+== PRONE -> SUPINE leg roll (design doc 12.1: R leg yawed 45 out, rolled, flexed; push + L swing; L presses / R up and back), arms folded up (shoulder 180), same plant; success = on the back (front_z > 0.7)
+   3250      play 3 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.37 N*m (R_hip_pitch)  hip_roll 0.93  knee 0.86
+   3250      play 5 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.34 N*m (R_hip_pitch)  hip_roll 0.85  knee 0.85
+   3250      play 3 mu 0.3 servo 1.00  no      front -1.00  peak |tau| 1.35 N*m (R_hip_pitch)  hip_roll 0.55  knee 0.89
+   3250      play 3 mu 1.0 servo 1.00  no      front -1.00  peak |tau| 1.40 N*m (R_hip_pitch)  hip_roll 1.15  knee 0.85
+   3250      play 3 mu 0.7 servo 0.80  no      front -1.00  peak |tau| 1.20 N*m (R_hip_pitch)  hip_roll 0.92  knee 0.74
+   3250      play 3 mu 0.7 servo 0.65  no      front -1.00  peak |tau| 1.11 N*m (R_hip_pitch)  hip_roll 0.93  knee 0.87
+   3215      play 3 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.37 N*m (R_hip_pitch)  hip_roll 0.92  knee 0.76
+   3215      play 5 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.35 N*m (R_hip_pitch)  hip_roll 0.92  knee 0.79
+   3215      play 3 mu 0.3 servo 1.00  no      front -1.00  peak |tau| 1.24 N*m (R_hip_pitch)  hip_roll 0.63  knee 0.85
+   3215      play 3 mu 1.0 servo 1.00  no      front -1.00  peak |tau| 1.44 N*m (R_hip_pitch)  hip_roll 1.04  knee 0.75
+   3215      play 3 mu 0.7 servo 0.80  no      front -1.00  peak |tau| 1.18 N*m (R_hip_pitch)  hip_roll 0.91  knee 0.81
+   3215      play 3 mu 0.7 servo 0.65  no      front -1.00  peak |tau| 1.04 N*m (L_hip_pitch)  hip_roll 0.92  knee 0.73
+   3215_p4rk play 3 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.42 N*m (R_hip_pitch)  hip_roll 0.93  knee 0.76
+   3215_p4rk play 5 mu 0.7 servo 1.00  no      front -1.00  peak |tau| 1.40 N*m (R_hip_pitch)  hip_roll 0.87  knee 0.78
+   3215_p4rk play 3 mu 0.3 servo 1.00  no      front -1.00  peak |tau| 1.38 N*m (R_hip_pitch)  hip_roll 0.55  knee 0.80
+   3215_p4rk play 3 mu 1.0 servo 1.00  no      front -1.00  peak |tau| 1.44 N*m (R_hip_pitch)  hip_roll 1.15  knee 0.77
+   3215_p4rk play 3 mu 0.7 servo 0.80  no      front -1.00  peak |tau| 1.16 N*m (R_hip_pitch)  hip_roll 0.93  knee 0.92
+   3215_p4rk play 3 mu 0.7 servo 0.65  no      front -1.00  peak |tau| 1.12 N*m (R_hip_pitch)  hip_roll 1.01  knee 0.94

@@ -9,17 +9,17 @@ down into the foot cradle, the yaw servos up into their cells, boards down
 through the deck slots, the pack down through the aperture, the head down onto
 the neck horn) -- and flies in from 60 mm out along that vector over its own
 time slot, ground up, one group at a time. Frames are rendered with MuJoCo
-from the pieces' STLs; the .mp4 is gitignored, a 2 x 4 filmstrip png is
-committed next to it.
+from the pieces' STLs into build/v6/movies: the .mp4 and a 2 x 4 filmstrip
+png beside it.
 
-    .venv/bin/python cad/v6/animate_v6.py            # renders/assembly_v6_flyin_arms.mp4 + _strip.png (the robot)
+    .venv/bin/python cad/v6/animate_v6.py            # build/v6/movies/assembly_v6_flyin_arms.mp4 + _strip.png (the robot)
     ARMS=0 .venv/bin/python cad/v6/animate_v6.py     # ..._flyin.mp4 + _strip.png (armless)
-    YAW_BEARING_VARIANT=E .venv/bin/python cad/v6/animate_v6.py   # ..._flyin_optE_arms...
 
 The filmstrip is two rows: the whole build at even intervals, then the parts
 this build is ABOUT caught halfway along their insertion paths (FEATURE_GROUPS:
 the girdle and neck floor going down, the neck servo dropping into its tube,
-the arms; plus the bearing parts for option E).
+the arms, and the bearing housing coming down with the bearings onto the
+carrier hubs, to their lips).
 """
 from __future__ import annotations
 
@@ -27,20 +27,23 @@ import os
 import sys
 import tempfile
 
-os.environ.setdefault("MUJOCO_GL", "egl")
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 import numpy as np  # noqa: E402
 from build123d import export_stl  # noqa: E402
 import assembly_v6 as A  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
+from paths import build_dir  # noqa: E402
 
 # label prefix -> (insertion direction in the world, the group order)
 # direction = where the part COMES FROM (unit vector), applied as an offset
 INSERT = [
     ("foot_",              (0, 0, -1), 0),   # feet placed on the floor
+    ("sole_",              (0, 0, -1), 0),   # silicone sole stuck on from below
     ("servo_ankle_roll_",  (0, 0, 1), 1),    # roll servo dropped into the cradle
     ("ankle_link_",        (0, 0, 1), 2),    # link lowered onto the roll servo discs
     ("servo_ankle_pitch_", (0, 0, 1), 3),    # already in its grip channel (entered along +z from below on
@@ -55,14 +58,14 @@ INSERT = [
                                               # discs from above (same path the pair took; the roll servo then slides in)
     ("servo_hip_roll_",    (1, 0, 0), 7),    # roll servo slides into the carrier bay from the front
     ("yaw_carrier_",       (0, 0, 1), 7),
-    ("bearing_6810_",      (0, 0, 1), 8),    # option E: bearing slid DOWN over the hub onto the lip (horn-face side)
-    ("yaw_cap_",           (0, 0, 1), 8),    # option E: cap down onto the race, screwed, carrier still on the bench
-    ("servo_hip_yaw_",     (0, 0, -1), 8),   # yaw servo offered UP into its cell (arrives from below)
-    ("pelvis_v7",          (0, 0, 1), 9),    # pelvis lowered onto the yaw servos
-    ("yaw_retainer_",      (0, 0, -1), 10),  # option E: retainer offered UP under the skirt, screwed from below
-    ("gd_mock",            (0, 0, 1), 10),   # boards down through the deck slots
-    ("pi4_mock",           (0, 0, 1), 10),
-    ("pack_mock",          (0, 0, 1), 11),   # pack down through the aperture -- BEFORE the girdle:
+    ("yaw_bearing_housing", (0, 0, 1), 8),   # housing DOWN with both bearings pressed into it, the inner
+    ("bearing_inner_",     (0, 0, 1), 8),    # races onto the hubs until they sit on the carriers' lips (on
+    ("bearing_outer_",     (0, 0, 1), 8),    # the bench each carrier goes up through its bearing: same motion)
+    ("servo_hip_yaw_",     (0, 0, -1), 9),   # yaw servo offered UP into its cell (arrives from below)
+    ("pelvis_v7",          (0, 0, 1), 10),   # pelvis lowered onto the yaw servos and the housing
+    ("gd_mock",            (0, 0, 1), 11),   # boards down through the deck slots
+    ("pi4_mock",           (0, 0, 1), 11),
+    ("pack_mock",          (0, 0, 1), 12),   # pack down through the aperture -- BEFORE the girdle:
                                               # it cannot pass the neck tube or the neck floor afterwards
     # The neck is built into its tube ON THE BENCH (neck_floor.py): the floor
     # screwed up into the tube's bosses, the servo dropped in onto it and
@@ -71,26 +74,25 @@ INSERT = [
     # film shows the tube + floor going down together, then the servo going
     # into the tube from above -- on the bench the servo is in before the
     # tube goes on (its stator screws are under the floor, over the pack).
-    ("shoulder_girdle_v6", (0, 0, 1), 12),
-    ("neck_collar",        (0, 0, 1), 12),
-    ("neck_floor",         (0, 0, 1), 12),
-    ("servo_neck",         (0, 0, 1), 13),   # dropped into the tube from above, onto the floor's pads
-    ("head",               (0, 0, 1), 14),
+    ("shoulder_girdle_v6", (0, 0, 1), 13),
+    ("neck_collar",        (0, 0, 1), 13),
+    ("neck_floor",         (0, 0, 1), 13),
+    ("servo_neck",         (0, 0, 1), 14),   # dropped into the tube from above, onto the floor's pads
+    ("head",               (0, 0, 1), 15),
     # ARMS (cad/v6/arm_v6.py): each shoulder servo dropped straight into its
     # open pod from above (the only way in: a roof over a 32 mm span is
     # unprintable) and screwed from OUTBOARD -> upper arm offered straight IN
     # onto the horn along the joint axis, the one direction a single-sided
-    # horn plate can arrive from -> elbow servo slid into the forearm's grip
+    # horn plate can arrive from -> elbow servo slid into the upper arm's grip
     # channel from the FRONT (the same channel entry leg_link uses) -> forearm
-    # lifted UP between the fork tines onto the two discs.
-    ("servo_shoulder_",    (0, 0, 1), 15),
-    ("arm_upper_",         (0, 1, 0), 16),
-    ("servo_elbow_",       (1, 0, 0), 17),
-    ("arm_fore_",          (0, 0, -1), 18),
+    # lifted UP, its fork tines either side of the two discs.
+    ("servo_shoulder_",    (0, 0, 1), 16),
+    ("arm_upper_",         (0, 1, 0), 17),
+    ("servo_elbow_",       (1, 0, 0), 18),
+    ("arm_fore_",          (0, 0, -1), 19),
 ]
-# filmstrip row 2, by (option E?, arms?): the insertion groups the strip shows
-FEATURE_GROUPS = {False: {True: (12, 13, 16, 18), False: (11, 12, 13, 14)},
-                  True: {True: (8, 10, 12, 13, 16, 18), False: (8, 10, 12, 13)}}
+# filmstrip row 2, by arms?: the insertion groups the strip shows
+FEATURE_GROUPS = {True: (8, 13, 14, 17, 19), False: (8, 12, 13, 14, 15)}
 FLY_MM = 60.0
 FRAMES_PER_GROUP = 14
 HOLD = 6
@@ -170,14 +172,14 @@ def main():
         cam.azimuth = 140 + 40 * f / (total + 20)
         r.update_scene(d, cam)
         frames.append(r.render().copy())
-    os.makedirs(os.path.join(HERE, "renders"), exist_ok=True)
-    variant = A.yaw_bearing_variant()
-    suffix = "" if variant == "C" else f"_opt{variant}"
-    if A.hip_yoke_variant() == "split":       # the one-print yoke is the default now
-        suffix += "_split"
+    suffix = ""
+    if A.hip_yoke_variant() != "single":      # the one-print yoke is the default now
+        suffix += "_" + A.hip_yoke_variant()
+    if A.ankle_link_variant() != "box":
+        suffix += "_ankle_" + A.ankle_link_variant()
     if A.arms_on():
         suffix += "_arms"
-    out = os.path.join(HERE, "renders", f"assembly_v6_flyin{suffix}.mp4")
+    out = os.path.join(build_dir("v6", "movies"), f"assembly_v6_flyin{suffix}.mp4")
     with imageio.get_writer(out, fps=20, codec="libx264", quality=8, macro_block_size=None) as w:
         for fr in frames:
             w.append_data(fr)
@@ -186,7 +188,7 @@ def main():
     # samples of 19 groups land mostly on the legs and miss the thing the
     # film was made to prove).
     present = {g for _, _, _, g in pieces}
-    feature = [g for g in FEATURE_GROUPS[variant == "E"][A.arms_on()] if g in present]
+    feature = [g for g in FEATURE_GROUPS[A.arms_on()] if g in present]
     n = len(feature)
     per = FRAMES_PER_GROUP + HOLD
     top = np.linspace(0, len(frames) - 1, n).astype(int)

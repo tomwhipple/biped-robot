@@ -44,8 +44,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-os.environ.setdefault("MUJOCO_GL", "egl")
+sys.path.insert(0, os.path.dirname(HERE))
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 import mujoco  # noqa: E402
+import paths  # noqa: E402
 
 from gen_plant_v6 import DesignParams, build_xml  # noqa: E402
 import v6_kin as VK  # noqa: E402
@@ -452,7 +454,7 @@ def fall_census(name, headings=12, render_one=None):
             n += 1
             print(f"{name:12s} heading {math.degrees(heading):5.0f} deg  speed {speed:.2f} m/s ({mult:.1f}x)  -> {cls:10s} up {R[2,2]:+.2f} front {R[2,0]:+.2f} side {R[2,1]:+.2f}", flush=True)
             if frames is not None:
-                SG._write_video(frames, render_one[2] if len(render_one) > 2 else "sim/renders/getup_side/bird3_fall.mp4")
+                SG._write_video(frames, render_one[2] if len(render_one) > 2 else os.path.join(paths.BUILD, "v6", "movies", "getup_side", "bird3_fall.mp4"))
     print(f"{name:12s} DISTRIBUTION ({n} trials): " + ", ".join(f"{k}={v}" for k, v in sorted(dist.items())), flush=True)
     return dist
 

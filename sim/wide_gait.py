@@ -57,8 +57,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-os.environ.setdefault("MUJOCO_GL", "egl")
+sys.path.insert(0, os.path.dirname(HERE))
+os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
+import paths  # noqa: E402
 from gen_plant_v6 import DesignParams, build_xml  # noqa: E402
 import v6_kin as K  # noqa: E402
 import design_gates as G  # noqa: E402
@@ -250,7 +252,7 @@ def build(p, xml, name, n_steps=8, step=0.06, extra_kw=None, turn=0.0):
 # are natural pool.map work: each worker rebuilds its own Timeline from a
 # picklable DesignParams and loads its own MjModel from the xml FILE PATH --
 # no MjModel/MjData/env crosses the process boundary, only plain data in and
-# a plain result dict out. fork context (not spawn): cheap, and MUJOCO_GL=egl
+# a plain result dict out. fork context (not spawn): cheap, and MUJOCO_GL
 # is already in the environment every child inherits; no worker ever renders
 # (render=None in every pooled call) so no GL context is touched post-fork.
 POOL_WORKERS = 12   # coordinator cap: <= 12 for this script, box shared with the collective
@@ -546,7 +548,8 @@ def cmd_render(name, body="bird3_round", turn=0.0, out=None, step=0.06):
     pj = per_joint_3250()
     tl, windows, kw = build(p, xml, name, step=step, turn=turn)
     family = "bird3" if body.startswith("bird3") else body   # match the study's file-naming convention
-    out = out or f"sim/renders/getup_options/side/{family}_walk_{name}_{'straight' if turn == 0.0 else 'turn' + str(int(turn))}.mp4"
+    out = out or os.path.join(paths.BUILD, "v6", "movies", "getup_options", "side",
+                              f"{family}_walk_{name}_{'straight' if turn == 0.0 else 'turn' + str(int(turn))}.mp4")
     r = SG.run_walk(p, xml, tl, windows, per_joint=pj, render=out)
     print(SG.fmt_row(f"{body} {name} render", r))
 

@@ -7,8 +7,7 @@ and its protection, fasteners, filament and tools. The printed parts are in
 [assembly.md](assembly.md); power and wiring detail is [wiring.md](wiring.md).
 
 **Status.** Nothing for the robot has been bought. The servo purchase waits on
-the bench test in issue #73, then #74. The non-servo order is #78. The hip-yaw
-bearing waits on the option selection (#75).
+the bench test in issue #73, then #74. The non-servo order is #78.
 
 **Buying rules**
 
@@ -16,10 +15,13 @@ bearing waits on the option selection (#75).
   pack the prototype was designed around disappeared mid-project. Anything that
   meets the filter fits. A cached listing title is not a live listing, so check
   stock and price in a browser.
-- **Only parts with real manufacturer documentation**: a datasheet with specs
+- **Electronics need real manufacturer documentation**: a datasheet with specs
   and a connector or outline drawing. Reseller renders and self-authored
-  "manuals" do not count. When a part is bought, mirror its datasheet into
-  `docs/datasheets/`.
+  "manuals" do not count. When one is bought, mirror its datasheet into
+  `docs/datasheets/`. The rule is for electronics only: mechanical and passive
+  parts (bearings, mirrors, fasteners) can be generic. Measure any dimension
+  the CAD depends on when the part arrives, and put the measured value in the
+  design.
 - Prices are indicative and dated, and none has been re-checked.
 
 In the **have** column, *on hand* means the repo's records say it is in the
@@ -29,10 +31,12 @@ lab. A blank means buy it.
 
 | item | qty | spec | have |
 |---|---|---|---|
-| **Feetech STS3215, 12 V class: ST-3215-C018** | 17 + 2 spares | 12 V, 30 kg·cm; case 45.22 × 24.72 × 35 mm; 55 ± 1 g; 25T spline; half-duplex TTL bus; 5264 3-pin connector with a 150 mm lead | **12 on hand** (10 of them are in the prototype today): **buy 7** |
+| **Feetech STS3215, 12 V class: ST-3215-C018** | 15 + spares | 12 V, 30 kg·cm; case 45.22 × 24.72 × 35 mm; 55 ± 1 g; 25T spline; half-duplex TTL bus; 5264 3-pin connector with a 150 mm lead | **12 on hand** (10 of them are in the prototype today) |
+| **Feetech STS3250 (ST-3250-C001 / C002)** | 2 | the two hip rolls; same case, horn and connector; 12 V, 50 kg·cm, 74.5 ± 1 g | **2 ordered** 2026-10-02 (#74) |
 
-- **Why 17:** 12 in the legs, the neck, and 4 in the arms. Buy only after #73
-  passes.
+- **Why 15 + 2:** 12 in the legs, the neck, and 4 in the arms, with the two hip
+  rolls on STS3250s ([DESIGN.md §4](../DESIGN.md)). How many STS3215s to buy,
+  with spares, is #74.
 - **Datasheet, drawing and STEP model:** `docs/datasheets/st3215/` and
   `cad/vendor/ST3215.step`.
 - **Never buy the 7.4 V class** (STS3215 C001, rated 4–7.4 V). It cannot run
@@ -43,10 +47,10 @@ lab. A blank means buy it.
     12 V / 30 kg·cm version. It was $21.99 on 2026-07-11.
   - Amazon RCmall 6-pack, B0FLPQQ4FR. This listing was checked and is the
     12 V class.
-- **Plan B setup** ([DESIGN.md §4](../DESIGN.md)): on the six hip-roll,
-  ankle-roll and knee servos, raise the position-loop P (register 21, default
-  32) to the value #73 establishes (≈ 4×), and scale D (register 22) with it.
-  Record the values per ID in [servo-map.md](servo-map.md).
+- **Gain setup** ([DESIGN.md §4](../DESIGN.md)): on the four ankle-roll and
+  knee STS3215s, raise the position-loop P (register 21, default 32) and set D
+  (register 22) to the values #73 establishes (the sim assumes P 96 / D 0,
+  ≈ 2.8×). Record the values per ID in [servo-map.md](servo-map.md).
 
 **Incoming check.** Run it on every servo before it shares the bus with another:
 
@@ -73,7 +77,7 @@ I term. Both are the same case, horn and protocol, so no CAD change:
 | item | qty | spec | role |
 |---|---|---|---|
 | Feetech STS3235 (ST-3235-C001) | 1 | 12 V, 30 kg·cm, 70.5 g, aluminium case, steel gears 1:345, backlash ≤ 0.5°, 2.7 A stall (Feetech spec A/0, 2021-11-19) | shows whether the gear train, not the loop gain, is what is soft |
-| Feetech STS3250 (ST-3250-C001 / C002) | 2 for the bench, then 6 (hip roll, ankle roll, knee) | 12 V, 50 kg·cm, 74.5 ± 1 g, aluminium case, 4.2 A stall, measured loaded backlash 0.33° (third-party bench) | must show ≥ 4× the STS3215's stiffness on the same rig |
+| Feetech STS3250 (ST-3250-C001 / C002), beyond the two hip rolls | up to 4 more (ankle rolls, knees) | 12 V, 50 kg·cm, 74.5 ± 1 g, aluminium case, 4.2 A stall, measured loaded backlash 0.33° (third-party bench) | only if the bench comparison (#73) calls for them |
 
 **STS3250 sources** (checked 2026-09-26):
 
@@ -228,31 +232,37 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 - **Servo extension leads.** Which hops need them has not been measured on this
   robot (#77). On the prototype, the hip-roll → hip-pitch hop routed at 170 mm.
 
-## 5. Hip-yaw bearing (size open)
+## 5. Hip-yaw bearing
 
-The option is not selected (#75; [DESIGN.md §5.2](../DESIGN.md),
-[study-yaw-bearing.md](design-v6/study-yaw-bearing.md)). Buy 2 fitted plus 2
-spares of whichever the chosen option names:
+A thin-section bearing between each yaw carrier and the bearing housing
+screwed under the pelvis ([DESIGN.md §5.2](../DESIGN.md); background:
+[study-yaw-bearing.md](design-v6/study-yaw-bearing.md), option A):
 
-| option | bearing | notes |
-|---|---|---|
-| A or E | **6810-2RS**, 50 × 65 × 7 mm, sealed deep-groove | C0 5.8 kN (one spec sheet); SKF 61810-2RS1 catalogue mass 0.052 kg |
-| C | **6811-2RS**, 55 × 72 × 9 mm, sealed deep-groove | C0 6.2–8.4 kN; SKF 61811-2RS1 catalogue mass 0.083 kg |
+| bearing | qty | spec | have |
+|---|---|---|---|
+| **6810-2RS**, 50 × 65 × 7 mm, rubber-sealed deep-groove | 2 | inner race on the carrier hub (+0.08 mm), outer race in the bearing housing's recess (−0.04 mm) | **2 in hand** (arrived 2026-10-13; ordered 2026-10-06): generic, no brand, USA Bearings & Belts, $16.04 each ([listing](https://usbearingsandbelts.com/products/6810-2rs)) |
 
-- **Retaining compound**, for A and E, on both seats: Loctite 641 (medium
-  strength, fills a 0.15–0.25 mm gap, can be taken apart), or 648 if it never
-  needs to come apart. The CAD's 0.04 / 0.08 mm interference fits are inside
-  the printer's error band, and PETG creeps.
-- **Buy from a maker that publishes the ring dimensions.** The pelvis shoulder,
-  the E cap and the E retainer are sized against an *estimated* inner-ring OD
-  and outer-ring ID. Verify those on the real bearing before printing.
-- **6710-2RS (50 × 62 × 6 mm)** can replace the 6810 in A/E if its rating is
-  confirmed. Only `YAWA_BRG_W` and `YAWA_BRG_OD` would change.
-- **Option E** also prints a cap and a retainer per hip and adds 12 M2.5
-  flat-heads (§6).
-- The code builds option C as a placeholder until the selection; the plant
-  and the rollup carry each option's bearing mass
-  ([DESIGN.md §5.2](../DESIGN.md)).
+- **Measured on arrival** (2026-10-13/14, calipers): OD 65.0, bore 50.0
+  (re-measured 2026-10-14; the first reading was 49.9),
+  width 7.0 mm (nominal 65 / 50 / 7); the outer ring's inside diameter at the
+  seal, D2 62.0, under the 62.6 that keeps the housing's shoulder on the
+  outer ring face and off the seal; the inner ring's outside diameter at the
+  seal, d1 54.6; 50 g each. The exposed steel face widths, harder to measure, were 1.45
+  on the outer ring (65.0 − 2 × 1.45 = 62.1, agrees with D2) and 1.5 on the
+  inner ring (50.0 + 2 × 1.5 = 53.0, does not agree with d1; the direct d1 is
+  used). All are in `cad/v6/dimensions_v6.py` (`YAW_BRG_*`).
+- **Still to check:** the radial and tilting play by hand (the bearing is
+  there to remove yaw play). For what is not measured the CAD carries SKF's
+  published 61810-2RS1 values: Da max 63, r1,2 min 0.3, C 6.76 / C0 6.8 kN
+  ([SKF sheet](https://docs.rs-online.com/f06f/A700000007138802.pdf)).
+
+- **Retaining compound**, on both seats: Loctite 641 (medium strength, fills a
+  0.15–0.25 mm gap, can be taken apart), or 648 if it never needs to come
+  apart. The CAD's 0.04 / 0.08 mm interference fits are inside the printer's
+  error band, and PETG creeps.
+- **6710-2RS (50 × 62 × 6 mm)** can replace the 6810 if its rating is
+  confirmed. Only `YAW_BRG_W` and `YAW_BRG_OD` in `cad/v6/dimensions_v6.py`
+  would change.
 
 ## 6. Fasteners
 
@@ -265,13 +275,13 @@ M2.5, not M3.
 
 | fastener | qty | where | have |
 |---|---|---|---|
-| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **110** | leg links 24, ankle links 12, foot tabs 8, yaw-servo stators 8, yaw-carrier walls 16, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **111** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| M2.5 × 5 flat-head self-tapping | 8 | yaw-servo stators: 2.6 mm through the cell ceiling, 2.4 mm into the idler-face holes (3.0 deep in the vendor STEP; an × 8 would bottom out) | |
 | M2.5 × 10 pan self-tap | 4 | Pi and General Driver, lower row, into standoff bosses | |
 | M2.5 × 6 pan self-tap | 4 | Pi and General Driver, upper row, into wall pilots | |
 | M2.5 × 8 pan self-tap | 2 | the power-pocket bosses | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
 | **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
-| *option E only:* M2.5 flat-head self-tap | 6 × M2.5×6 + 6 × M2.5×8 | E cap (3 per hip, M2.5 × 6: an × 8 bottoms out in the hub) and E retainer (3 per hip) | |
 
 - **Disc screw lengths.** The horn and idler discs are tapped through a thin
   flange: 2.5 mm on the horn and 2.1 mm on the idler, measured on the bench and
@@ -296,10 +306,11 @@ M2.5, not M3.
 
 | item | qty | notes | have |
 |---|---|---|---|
-| PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.77–0.79 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
-| TPU 95A, 1.75 mm | 1 spool (500 g is enough) | the two soles, 23 g each | |
+| PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.80 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
+| silicone rubber sheet, **2 mm** thick: BENECREAT white silicone, 300 × 300 mm, 2 sheets ([bom-sourced](bom-sourced.md) item 16, [Amazon B08P7P69WQ](https://www.amazon.com/dp/B08P7P69WQ)) | 1 sheet cuts both soles | the soles, cut to the foot plate's outline (130 × 84 mm, R14 corners) and bonded to its flat underside; 2 mm is the design's sole (`TPU_SOLE_T`) | |
+| adhesive for the soles | — | needed unless the sheet is self-adhesive (the listing shows no backing): a silicone-rubber adhesive. Plain CA and epoxy don't hold silicone; CA does over a polyolefin primer | |
 | hook-and-loop strap, **15 mm** wide | 1 | the battery belt, through the pelvis belt slots (`BATT_BELT_W`) | |
-| adhesive for the soles | — | bonds TPU 95A to PETG; type not chosen | |
+| adhesive foam pads, **1 mm** thick | 2 (about 30 × 20 mm) | under the pack, one per cell ceiling, clear of the yaw servos' post holes (`BATT_PAD_T`) | |
 | thread-locker, medium strength (removable) | 1 | on the M3 disc screws (the design calls for thread-locked horn screws); keep it off the printed parts | |
 | retaining compound | — | §5 | |
 | zip ties, 2.5 mm | 1 pack | cable dressing | |

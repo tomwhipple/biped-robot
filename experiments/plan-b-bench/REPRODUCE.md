@@ -27,18 +27,19 @@ about what we did not measure.
 There are two rigs. Session 2 used **v2**; session 3 used **v3**. If you build
 only one, build v3: it fixes v2's twist and off-plane load.
 
-**v2 (session 2):** `stl/plan_b_bracket.stl` + `stl/plan_b_lever_stiff.stl`
-(+ `plan_b_stop_pin.stl`). Print orientation, screws (4 × M2.5×8 flat-head
+**v2 (session 2):** `plan_b_bracket.stl` + `plan_b_lever_stiff.stl`
+(+ `plan_b_stop_pin.stl`). `make cad V=bench-v2` (`plan_b_rig.py`) writes them
+to `build/bench-v2/stl/`. Print orientation, screws (4 × M2.5×8 flat-head
 into the idler face, 4 × M3×10 button-head lever to horn), seating and fit
 checks are in [2026-09-30-plan-b-rig.md](2026-09-30-plan-b-rig.md).
-Regenerate the STLs with `plan_b_rig.py`.
 - Known weakness, reported by Tom on 10-01 (quoted in `plan_b_rig_v3.py`): "a
   fair amount of twisting on the vertical plate". The plate holds the servo by
   one face, and the lever sits about 45 mm in front of it.
 
-**v3 (session 3):** `stl/plan_b_v3_bracket.stl` (50 × 127 × 39 mm on the bed,
-94 cm³ solid) and `stl/plan_b_v3_fork.stl` (134 × 44 × 20 mm, 33 cm³), already
-in print orientation: the bracket on its base, the fork on its floor.
+**v3 (session 3):** `plan_b_v3_bracket.stl` (50 × 127 × 39 mm on the bed,
+94 cm³ solid) and `plan_b_v3_fork.stl` (134 × 44 × 20 mm, 33 cm³), which
+`make cad V=bench-v3` writes to `build/bench-v3/stl/`, already in print
+orientation: the bracket on its base, the fork on its floor.
 - **Bracket:** the robot's leg-link case grip on both case faces, closed into a
   box. The servo goes in with 6 × M2.5×8 flat-head screws: 4 on the horn face,
   2 on the idler face.
@@ -46,8 +47,9 @@ in print orientation: the bracket on its base, the fork on its floor.
   by a floor. It is the robot's own joint.
 - **Weight holes:** M10 holes through the floor at r = 40, 70 and 100 mm, on
   the servo's mid-plane.
-- `plan_b_rig_v3.py` regenerates the STLs and runs the fit checks, including
-  the fork swept from level to hanging.
+- `plan_b_rig_v3.py` (`make cad V=bench-v3`) regenerates the STLs, writes
+  STEPs for FreeCAD to `build/bench-v3/step/`, and runs the fit checks,
+  including the fork swept from level to hanging.
 
 **Mounting:** clamp the bracket to a desk edge with C-clamps. Keep every clamp
 out of the fork's swing from level down to plumb and a little past it. On

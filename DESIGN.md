@@ -10,7 +10,7 @@ the project's earlier history is in [docs/archive/](docs/archive/README.md).
 servo plan below. Nothing has been printed or bought. The first step is a bench
 measurement on one servo (issue #73), which gates the servo purchase.
 
-![The robot as drawn (front 3/4, side, front)](cad/v6/renders/assembly_v6_arms.png)
+![The robot as drawn (front 3/4, side, front)](docs/img/assembly_v6_arms.png)
 
 ## 1. Goal and requirements
 
@@ -32,21 +32,21 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | R5 | Contact realism made adversarial | every gate runs μ 0.3–1.0, full self-collision, free play on the rolls, and the deployed actuation chain |
 | R6 | An onboard computer and camera | Raspberry Pi 4B in the torso, Camera Module 3 Wide in a head on a neck servo |
 | R7 | Keep what is proven | hip yaw (decisive for turning in place), the "servo is the axle" leg link, one-print torso, the 50 Hz ESP32 control loop, the General Driver board, a 3S pack |
-| R8 | Size may grow to ~45 cm and a bigger pack | deck top 460 mm, head top 555 mm |
+| R8 | Size may grow to ~45 cm and a bigger pack | deck top 465 mm, head top 560 mm |
 
 ## 2. The robot at a glance
 
 | | |
 |---|---|
 | joints | **17**: per leg hip yaw, hip roll, hip pitch, knee, ankle pitch, ankle roll (12); neck yaw (1); per arm shoulder pitch, elbow (4) |
-| servos | 17 × Feetech STS3215 (12 V, ST-3215-C018) with a raised position-loop gain on the six roll and knee servos — "Plan B", §4 |
-| height | deck top 460 mm, camera 530 mm, head top 555 mm |
-| mass | ≈ 2.2–2.3 kg as drawn, depending on the hip-yaw bearing option (§7) |
+| servos | 15 × Feetech STS3215 (12 V, ST-3215-C018), with a raised position-loop gain on the ankle rolls and knees, and 2 × STS3250 at the hip rolls (§4) |
+| height | deck top 465 mm, camera 534 mm, head top 560 mm |
+| mass | ≈ 2.28 kg as drawn (§7) |
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
 | power | 3S LiPo 2200–2600 mAh (≤ 105 × 36 × 26 mm, ~170 g), protection board, inline fuse, 5 V / 5 A buck for the Pi |
-| structure | PETG prints, TPU 95A soles; M2.5 flat-head self-tappers into printed pilots, M3 screws on the servo horns and idler discs |
+| structure | PETG prints, 2 mm silicone rubber soles; M2.5 flat-head self-tappers into printed pilots, M3 screws on the servo horns and idler discs |
 
 ## 3. Kinematics
 
@@ -63,12 +63,12 @@ pitch → knee → ankle pitch → ankle roll.
 | ankle roll | X | ±25° | lies across the foot, output axis fore-aft; the ankle link forks onto its horn (front) and idler (rear) |
 | neck yaw | Z | ±90° | stands on the deck, horn up; the head bolts to the horn |
 | shoulder pitch | Y | −90° … +200° (0 = hanging, 90 = straight back, 180 = up along the torso) | lies fore-aft inside the shoulder girdle, horn outboard |
-| elbow | Y | −100° … +10° | in the forearm's grip channel; the upper arm forks round it on both discs |
+| elbow | Y | −100° … +10° | in the upper arm's grip channel, case running up the arm; the forearm forks round it on both discs |
 
 **Axis stack** above the sole: ankle roll 18.4 → ankle pitch 76.4 → knee 186.4 →
-hip pitch 296.4 → hip roll 346.4 → hip yaw 386.5 → deck top 460.3 → shoulder
-476.6 mm. Thigh and shin are 110 mm each (the same printed part); ankle pitch to
-roll 58 mm.
+hip pitch 296.4 → hip roll 346.4 → hip yaw 391.5 → deck top 465.3 → shoulder
+481.6 mm. Thigh and shin are 110 mm each (the same printed part); ankle pitch to
+roll 58 mm; hip roll to hip yaw 45.1 mm (the yaw carrier, §5.2).
 
 **Why these numbers** (Gate A/D sweeps, `docs/design-v6/gateA_geometry_sweep.txt`):
 
@@ -76,36 +76,62 @@ roll 58 mm.
   whatever the hips do, so the foot is the margin budget and the hips set roll
   torque: narrower is stiffer (3.4× torque margin at 70 mm, 1.0× — stalled — at
   96 mm). At 72 mm the swing foot, which sags 12–15 mm inward while it hangs,
-  lands on the stance foot. 84 mm leaves 24 mm between the soles and room for
+  lands on the stance foot. 84 mm leaves 37 mm between the soles and room for
   the pack between the yaw servos.
 - **Legs 110 + 110 mm.** Longer levers lower the joint rates for the same step:
   the swing knee's speed margin goes 1.1× → 1.64× from 90 to 110 mm links.
-- **Feet 130 × 84 mm, sole centreline 12 mm outboard of the ankle-roll axis**
-  (30 mm inboard half, 54 mm outboard; 75 mm toe, 55 mm heel). The open-loop walk
-  fails outward — the pelvis swings inward in single support and the closed
-  chain throws it out at touchdown — so the sole extends outboard; the inboard
-  half is sized for the swing-phase inward drift. 4 mm PETG plate, 2 mm TPU 95A
-  sole glued flat; mirrored left/right.
+- **Feet 130 × 84 mm, sole centreline 18.5 mm outboard of the ankle-roll axis**
+  (23.5 mm inboard half, 60.5 mm outboard; 75 mm toe, 55 mm heel). The open-loop
+  walk fails outward — the pelvis swings inward in single support and the closed
+  chain throws it out at touchdown — so the sole extends outboard. The inboard
+  half is as wide as the two feet allow: at the walk's 3° mutual hip-roll
+  adduction they clear each other by 2.7 mm. 4 mm PETG plate, 2 mm silicone
+  rubber sole bonded flat; mirrored left/right.
 - **Forward knee.** A backward knee is the forward knee with time reversed in
   the sagittal plane; it gains nothing here and needs ±55° of ankle pitch.
 - **Hip yaw on every leg.** It is what makes turning work (the walk turns up to
   20° per step, §8).
 
-## 4. Actuation: one servo type, with a raised position gain
+## 4. Actuation: STS3215s, with an STS3250 at each hip roll
 
-Every joint is an STS3215. The walk and get-up are limited by **roll-chain
-compliance, not torque or speed**: under single-support load a soft hip or
-ankle roll sags, the pelvis drifts toward the swing side, and the closed chain
-springs it outward at touchdown. With stock STS3215s at the rolls and knees the
-design walks 0/4 gate cases and gets up 0/12 (`docs/design-v6/no3250_*.txt`).
-Nothing that leaves joint stiffness alone moves that — cadence, lift, CoM aim,
-landing offsets, a lighter torso or shorter legs.
+Fifteen joints are STS3215s. The two **hip rolls are STS3250s**: same case,
+horn and screw rows, +19.5 g, and ≈ 4× the STS3215's stiffness in the model.
+The walk and get-up are limited by **roll-chain compliance, not torque or
+speed**: under single-support load a soft hip or ankle roll sags, the pelvis
+drifts toward the swing side, and the closed chain springs it outward at
+touchdown. With stock STS3215s at the rolls and knees the design walks 0/4
+gate cases and gets up 0/12 (`docs/design-v6/no3250_*.txt`). Nothing that
+leaves joint stiffness alone moves that — cadence, lift, CoM aim, landing
+offsets, a lighter torso or shorter legs.
 
-**The plan ("Plan B"): raise the position-loop P coefficient (register 21,
-default 32) about 4× on the six hip-roll, ankle-roll and knee servos.** The walk
-loads (≤ 1.2 N·m, under 45 % of stall) sit in the servo's linear region, so P
-should raise static stiffness roughly in proportion. In simulation, P × 4 on
-rolls and knees matches the stiffer STS3250 case for case:
+**The plan: STS3250s at the hip rolls, and a raised position-loop P
+(register 21, default 32) on the ankle-roll and knee STS3215s.** The bench
+(#73, [experiments/plan-b-bench/](experiments/plan-b-bench/README.md)) found
+P 96 / D 0 the smoothest high-gain setting at walking speeds, at ≈ 2.8× the
+stock stiffness; P 128 (≈ 3.5×) shakes more, and P 160 (≈ 4.8×) limit-cycles
+under a rigid inertia. With the tuned STS3215s at 2.8×, the extra stiffness
+matters at the hip rolls, and two STS3250s there match the six-STS3250
+assignment (design record §14.4a; on the robot's plant with the arms,
+`docs/design-v6/no3250_mixsweep28_arms_bearingA.txt` and
+`no3250_mixsweep28rolls_arms_bearingA.txt`):
+
+| servo set (the other rolls and knees: STS3215 at 2.8×) | adversity matrix (18 cases × 3 seeds) |
+|---|---|
+| 6 STS3250, rolls + knees | 17/18 |
+| no STS3250 | 14/18 |
+| 2 STS3250 at the knees | 14/18 |
+| 2 STS3250 at the ankle rolls | 13/18 |
+| **2 STS3250 at the hip rolls** | **18/18** (17/18 on the 74.5 g plant) |
+| 4 STS3250 at all four rolls | 17/18 |
+
+The plant builder gives the sweep one servo mass for all six roll and knee
+places, so a mixed set runs on the 55 g plant and is bracketed by the 74.5 g
+one. The model does not represent the bench's sweep roughness at P ≥ 96.
+
+**What raising P buys, in the model.** The walk loads (≤ 1.2 N·m, under 45 %
+of stall) sit in the servo's linear region, so P raises static stiffness
+roughly in proportion. At P × 4 on rolls and knees, above what the bench could
+hold smoothly, the STS3215 matches the STS3250 case for case:
 
 | | walk, CAD plant (4 cases) | adversity matrix (18 × 3 seeds) | walk with arms (5 cases) | get-up, as drawn |
 |---|---|---|---|---|
@@ -119,17 +145,14 @@ Envelope under P × 4 at the design cadence: torque margins 2.7× (hip roll),
 under the 2× speed rule at a 1.2 s swing (1.7×), so **the gait keeps a ≥ 1.6 s
 swing**. Torque is not what binds: "servos −30 %" still passes.
 
-**This rests on one assumption that has to be measured**: that a higher P
-actually yields proportionally higher static stiffness without buzzing. A high
-P can limit-cycle through gear play (LeRobot lowers the same register on its
-STS3215 arms for that reason). The bench test is issue #73 — pass is ≥ 4× the
-P = 32 stiffness with ≤ ±1 count of hold jitter; 3× passes only if the printed
-roll chains measure ≤ 1° of play. If it fails, the fallbacks in order are the I
-term (register 23), one STS3235 (same case, metal gears) to see whether the
-gears are what is soft, a genuine STS3250 (same case, ≈ 4× stiffer, +19.5 g,
-4.2 A stall; Model_Number 2825 — see [docs/bom.md](docs/bom.md) for verified
-sources), the ST-3025 (brushless, different case: a CAD redo), and last a
-Dynamixel XC430 (new bus and board).
+**Still to measure:** the STS3250's ≈ 4× is a third-party figure that the
+model adopts. The two on order go on the #73 rig first, for a direct comparison
+with the STS3215 data, and the per-ID P/D table follows from that. If they fall
+short, the fallbacks in order are the I term (register 23), one STS3235 (same
+case, metal gears) to see whether the gears are what is soft, the ST-3025
+(brushless, different case: a CAD redo), and last a Dynamixel XC430 (new bus
+and board). Verified STS3250 sources and its Model_Number (2825) are in
+[docs/bom.md](docs/bom.md).
 
 The gain is a register, so it can silently revert: a factory reset or a
 swapped spare comes back at 32 and the robot falls at its first crossover. The
@@ -164,55 +187,93 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
 
 - **`leg_link_v6`** (×4, thigh = shin): the servo is the axle — a grip channel
   holds one servo's case, and a fork at the other end straddles the next
-  servo's horn and idler discs. Closed box section, 110 mm, relief cuts for
-  130° of knee flexion and for −120° of hip flexion.
-- **`ankle_link`** (×2): grips the ankle-pitch servo and forks fore/aft onto the
-  ankle-roll servo's discs.
+  servo's horn and idler discs. 110 mm, an open-front U (back web, two side
+  walls) with a wall between the sides at each end of the open span against
+  twist; it prints on its back. Relief cuts for 130° of knee flexion and for
+  −120° of hip flexion.
+- **`ankle_link`** (×2): grips the ankle-pitch servo with the leg link's grip
+  plates and forks fore/aft onto the ankle-roll servo's discs. The grip is a
+  box around the servo's base: the back web, both plates, and the front tine
+  carried up across the full width as the front wall, on a floor the rear
+  tine hangs from. The plates cannot reach straight down: beside the servo
+  the rolling ankle-roll servo leaves no room under them. It prints on its
+  back, with supports.
 - **`foot_L` / `foot_R`**: the roll servo lies across the foot plate in a
-  cradle with two screwed retention tabs; `sole_tpu_L/R` in TPU 95A for edge
-  compliance and grip.
+  cradle with two screwed retention tabs; the sole (`sole_tpu_L/R`, the
+  outline) is 2 mm silicone rubber, cut, for edge compliance and grip. A tab
+  is a thin plate standing 26 mm off the plate, and printed sole-down it
+  bends across its own layer lines at the root, so each one is braced by two
+  buttress fins on its outer face, one at each end, with the screws driven
+  between them (a 7 mm driver channel); the inboard fins stay inside the
+  tab's width, where the ankle link is cut clear of the tab at full roll. The
+  rear tab's inboard top corner is chamfered out of the rear tine's sweep. The
+  tabs hold the case only at its far hole rows, so a short boss on each case
+  face also takes the low hole of the row nearest the output end (one M2.5
+  each, six per foot), kept off the discs and the rear tine's pad by an arc
+  about the roll axis.
 
 ### 5.2 Hip
 
+- **Hip-yaw servos** (×2) stand in their cells horn down, **built without the
+  idler disc**: nothing rides their idler side, which seats flat on the cell
+  ceiling (§5.3). The disc stays in the bag as a spare.
 - **Yaw carrier** (×2): hangs from the yaw servo's horn and carries the hip-roll
-  servo in its bay.
-- **Hip-yaw bearing — option not yet selected.** Today the yaw servo's horn
-  spline and four M3 screws are the only connection between a 0.335 m leg and
-  the pelvis (single-support thrust ~15 N, roll moment ~0.65 N·m). A
-  thin-section deep-groove bearing between carrier and pelvis moves thrust and
-  moment into the pelvis and leaves the servo shaft carrying torque only.
-  Neither option grows the hip stack.
-  - **A** — round hub, 6810-2RS (50 × 65 × 7 mm): smallest, recommended on
-    geometry; press fits only.
-  - **E** — A plus positive retention of both races: a printed lip and a
-    screwed cap on the carrier, a shoulder and a screwed retainer on the
-    pelvis, 0.2 mm preload. Addresses the concern that a press fit in PETG
-    creeps loose.
-  - **C** — 6811-2RS wrapped round the existing carrier; larger and heavier.
-    The code builds C by default (`YAW_BEARING_VARIANT`) as a placeholder
-    until the selection, so the pelvis and carriers are provisional.
-
-  | | C | A | E |
-  |---|---|---|---|
-  | bearing (SKF catalogue mass) | 6811-2RS, 83 g | 6810-2RS, 52 g | 6810-2RS, 52 g |
-  | pelvis / carrier (print) | 194 / 29.9 g | 190 / 23.8 g | 193 / 24.5 g + cap 1.8 g, retainer 2.7 g |
-  | robot, CAD-inertial plant | 2.284 kg | 2.206 kg | 2.219 kg |
-
-  Load margin is > 100× for every option. All three pass the swept-ROM gate
-  on both builds. Details and checks:
-  [study-yaw-bearing.md](docs/design-v6/study-yaw-bearing.md),
-  [yaw_bearing_options_2026-09-29.txt](docs/design-v6/yaw_bearing_options_2026-09-29.txt).
+  servo in its bay. It is the prototype's carrier with a 5 mm spacer between
+  its horn plate and the bay (roll axis 45.1 mm below the horn face), so the
+  roll servo and all eight of its wall screws sit below the bearing band:
+  every screw has a clear driver path with the hip fully assembled.
+- **Hip-yaw bearing: a 6810-2RS** (nominal 50 × 65 × 7 mm; the ones in hand
+  measure 50.0 × 65.0 × 7.0; sealed deep-groove, 50 g) per hip. Without
+  it the yaw servo's horn and four M3 screws would be the only connection
+  between a 0.34 m leg and the pelvis (single-support thrust ~15 N, roll
+  moment ~0.65 N·m). The bearing moves thrust and moment
+  into the pelvis and leaves the servo shaft carrying torque only.
+  - The inner race sits on a round hub on the carrier, Ø50.08 as printed
+    (+0.08 mm). The printer prints this hub undersize though its STL and
+    sliced toolpath are on size, so it is modelled 0.4 mm over (Ø50.48), a
+    value set by test prints. The outer race sits in a recess (Ø64.96, −0.04 mm)
+    in the **bearing housing** (`yaw_bearing_housing`), against a shoulder that
+    takes the thrust. Both seats get retaining compound.
+  - **The housing** is one print for both hips: two skirts joined by a bridge,
+    and a rear bar, screwed up under the pelvis's cell block with five
+    M2.5 × 8 (four through the rear bar, one through the bridge into the cell
+    block's front web). It is not part of the pelvis print because the yaw
+    servo goes up into its cell through the space it occupies (the servo's
+    cable end reaches 35.1 mm from the yaw axis, past the Ø62.6 shoulder). It
+    goes up after the yaw servos, with both bearings pressed into it, and each
+    carrier then goes up through its bearing (docs/assembly.md §7).
+  - The bearing band is the top 7 mm of the carrier. The hub wraps the bay
+    walls' footprint, and the bore is the smallest class that leaves a 1.5 mm
+    wall around the bay's open interior (the horn screws are driven up through
+    it). Under the band a lip (Ø52.3 × 1.2 mm, inside the seal's Ø54.6) stops
+    the inner race's bottom face: it seats the carrier in the bearing, and the
+    leg's thrust goes lip → inner race → balls → outer race → shoulder.
+  - The bearings are generic 6810-2RS. The CAD's bore, OD, width and ring
+    shoulders (d1 54.6, D2 62.0) are calipered values of the ones in hand,
+    and the mass (50 g) is weighed; their play is not checked yet, and the
+    CAD carries SKF's published 61810-2RS1 Da max. The housing's shoulder (Ø62.6)
+    bears on the outer ring face between D2 (62.0, the seal) and Da max
+    (63).
+  - Load margin > 100×. Selection, alternatives (a 6811-2RS wrapping the
+    rectangular carrier; screwed race retention) and checks:
+    [study-yaw-bearing.md](docs/design-v6/study-yaw-bearing.md) (option A,
+    #75).
 - **`hip_yoke_v6`** (×2): the hip-roll clevis and hip-pitch clevis fused into
   one print, straddling the roll servo's discs and the pitch servo's discs. No
   flange bolts or inserts.
 
 ### 5.3 Torso
 
-**`pelvis_v7`**, one print, deck-top-down (190–194 g with the bearing seat, §5.2):
+**`pelvis_v7`**, one print, deck-top-down (174 g; the bearing housing, §5.2, screws under it):
 
-- two yaw cells at y = ±42 mm, each with a ceiling carrying the yaw servo's four
-  stator screws;
-- a 31 mm battery layer above them: the pack lies transverse, belted with a
+- two yaw cells at y = ±42 mm. Each yaw servo seats with its idler-side case face
+  flat on the cell's ceiling, held by four M2.5 × 5 flat-heads down through it
+  into the face's mounting holes (which are flush with the face: no pads). The
+  ceiling has a hole for the servo's free-hub post (2.6 mm proud, its top flush
+  with the ceiling top, 1.0 mm under the pack) and a relief for its moulded
+  back-cover platform (1.9 mm proud);
+- a 31 mm battery layer above them: the pack lies transverse on two 1 mm
+  adhesive foam pads (clear of the yaw servos' turning posts), belted with a
   15 mm hook-and-loop strap, and goes in through the deck aperture (which
   also runs under the neck servo, so the deck does not seat it: §5.5);
 - the General Driver vertical on the front wall and the Pi 4B vertical on the
@@ -238,9 +299,31 @@ them; that variant is kept for the CAD checks and is not a print target.
 - **Upper arm 160 mm, forearm 160 mm.** The 0.32 m reach is a measured
   threshold: the hand must reach the floor behind the hips at hip level; 0.30 m
   never stands.
+- **Arm links** (`arm_upper_v6`, `arm_fore_v6`, mirror pairs, 28 g and 42 g):
+  the leg links' section, an open-front U printed on its back, with an end wall
+  across each end of the open span against twist. The upper arm is
+  single-sided on the shoulder horn, its four disc screws driven through a bore
+  in the outboard flange; at the elbow it grips the **elbow servo's case**, the
+  leg link's grip channel turned end for end so the case runs up the arm. The
+  forearm forks round the elbow servo's horn and idler discs. So the elbow
+  servo turns with the upper arm, and its lead crosses only the shoulder. The
+  elbow clears −118° … +60° as drawn.
 - Hand: a 12 mm-radius knuckle, bare PETG.
-- **Idle pose while walking: shoulders held 15° back** — hanging straight, the
-  forearms touch the swinging legs.
+- **Rest pose: folded** — shoulder 15° forward, elbow folded 95°, so the
+  forearm points forward and 20° up (`ARM_REST` in `cad/v6/dimensions_v6.py`;
+  the plant's rest pose and the training preset's held targets). The arms hold
+  it whenever they are not doing something else, standing and walking
+  included. There, every leg joint clears the arm through its full range by
+  ≥ 8.8 mm (the CAD gate), and a walking grid (hip roll ±15°, hip pitch
+  −45° … +30°, knee 0 … 70°) by ≥ 17.8 mm
+  ([arm_walk_grid_2026-10-07.txt](docs/design-v6/arm_walk_grid_2026-10-07.txt)).
+  - **Why forward.** With the upper arm down or back, a folded forearm sits at
+    the hip yoke's height, and rolling a leg outward past about 30° drives the
+    yoke, the hip-pitch servo and the thigh into it. Raising the elbow forward
+    lifts it out of their reach; 15° is the smallest lean with the full margin.
+  - **Cost.** The arms' mass moves forward about 69 mm each, about 7 mm on the
+    robot's CoM.
+  - **Hanging straight** (torque off) the forearms touch the swinging legs.
 
 ### 5.5 Neck and head
 
@@ -252,7 +335,7 @@ flat-heads, dropping into the aperture with its top 3 mm below the deck top.
 Four pads rise from it to the case's idler face, trimmed clear of the turning
 idler disc and hub and of the moulded back-cover platform, and take the four
 stator screws (M2.5 × 8 up through the floor, 4 mm of bite). The plate sits
-4.5 mm over the pack, so the neck goes in on the bench: plate into the tube,
+4.0 mm over the pack, so the neck goes in on the bench: plate into the tube,
 servo down onto the pads (leads plugged first, out through a window in the
 floor under the connector trench), stator screws from below; then the girdle
 goes onto the deck. The head (`head_shell` +
@@ -281,32 +364,33 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
 
 ## 7. Mass
 
-The robot as drawn, Plan B, from the CAD-inertial plant
+The robot as drawn, from the CAD-inertial plant
 (`sim/bimo_biped_v6ar.xml`) and the rollup
-(`docs/design-v6/parts_v6_rollup.txt`):
+(`build/v6/reports/parts_v6_rollup.txt`, written by `make cad`):
 
 | | |
 |---|---|
-| robot | ≈ 2.28 kg with bearing C (2.21 kg A, 2.22 kg E) |
-| servos | 17 × 55 g = 935 g |
-| printed PETG + TPU | ≈ 0.79 + 0.05 kg: pelvis 194 g, girdle 77 g, arm links 134 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
-| hip-yaw bearings | 166 g (2 × 6811-2RS) or 104 g (2 × 6810-2RS) |
+| robot | ≈ 2.28 kg (the plant: 2.284 kg) |
+| servos | 15 × 55 g + 2 × 74.5 g = 974 g |
+| printed PETG + silicone soles | ≈ 0.80 + 0.05 kg: pelvis 174 g, bearing housing 25 g, girdle 77 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
+| hip-yaw bearings | 100 g (2 × 6810-2RS) |
 | pack / boards + wiring | 170 g / ≈ 180 g |
 
-With STS3250s at the six roll and knee joints (the fallback) it is 117 g
-heavier. The simulation gates in §4, §8 and §9 were run on earlier plants:
-the armless CAD-inertial plant (1.67 kg) for the walk, the lumped as-drawn
-get-up plant (2.10 kg, no bearings) for the arms. On this plant Plan B
-(P × 4, rolls + knees) walks the four gate cases 4/4, with 33–37 mm of CoM
-margin, most of the gain from the bearings' mass; stock STS3215s still fall
-0/4; and with the arms held at 15° and self-collision on, Plan B stays up in
-4 of 5 cases with no arm-to-leg contact (the μ 0.9 turn falls, as before)
-(`docs/design-v6/no3250_walk_plant17.txt`,
-`no3250_arms_walk_plant17.txt`).
+With STS3215s at the hip rolls too it is 39 g lighter, and with STS3250s at
+all six roll and knee joints 78 g heavier. The P × 4 table in §4 and the gates
+in §8 and §9 were run on earlier plants: the armless CAD-inertial plant (1.67 kg) for the
+walk, the lumped as-drawn get-up plant (2.10 kg, no bearings) for the arms. On
+this plant with STS3215s at the hip rolls (2.224 kg), P × 4 on the rolls and
+knees walks the four gate cases 4/4, with 32–37 mm of CoM margin, and stock
+STS3215s still fall 0/4 (`docs/design-v6/no3250_walk_bearingA.txt`). With the
+arms at their folded rest pose and self-collision on, no arm touches a leg in
+any case; the robot's servo set (STS3250s at the hip rolls, the other rolls and
+knees at 2.8×) stays up in 4 of 5 cases, and the μ 0.9 −15° turn falls
+(`no3250_arms_walk_rest_folded.txt`).
 
 The plant carries every part at its CAD inertia (`sim/build_v6_inertia.py`):
 the printed parts from their STLs, each servo on its case mock at its CAD
-place, the bearing as two rings split between the pelvis and the carrier, the
+place, the bearing as two rings split between the housing and the carrier, the
 pack and boards as boxes. It is replaced by weighed masses once the parts
 exist.
 
@@ -387,7 +471,8 @@ gates, in order:
 `tests/test_v6_design_gates.py` pins the plant, the IK and Gates A/B in the
 pre-push suite.
 
-**CAD gates** (`sh cad/run_checks.sh`): `cad/v6/check_assembly_v6.py` poses the
+**CAD gates** (`make check-cad`: `sh cad/run_checks.sh`, its output saved to
+`build/v6/reports/cad_rom_check.txt`): `cad/v6/check_assembly_v6.py` poses the
 articulated assembly through every joint's range for every pair of pieces that
 move relative to each other, checks the relatively fixed pairs that must keep
 their distance (the neck floor over the pack) and every disc screw's thread
@@ -398,8 +483,8 @@ flies the parts in along their insertion paths to prove they assemble.
 
 **Plants**: `sim/gen_plant_v6.py` builds a parametric plant (`DesignParams`) for
 design sweeps; `sim/build_v6_inertia.py` builds the CAD-inertial plant of the robot as
-drawn (17 actuators, arms at rest at the 15° walking hold, Plan B masses,
-the bearing option's parts); `sim/bimo_biped_v6ar.xml` is the committed plant,
+drawn (17 actuators, arms at their folded rest pose, the servo set's masses,
+the bearing housing, the hip-yaw bearings split between it and the carriers); `sim/bimo_biped_v6ar.xml` is the committed plant,
 pinned by the tests.
 
 ## 11. Software
@@ -435,10 +520,9 @@ Everything open is a GitHub issue.
 
 | decision | issue |
 |---|---|
-| servo route: Plan B stands or falls on the bench test | #73, then the purchase #74 |
-| hip-yaw bearing A, C or E (§5.2); the pelvis and yaw carriers wait on it | #75 |
+| servo set: the STS3250s' bench comparison and the per-ID gains | #73, then the purchase #74 |
 | head: mono camera, or the stereo periscope | PR #71, #87 |
-| make the code's defaults the robot to print: arms, 17 × STS3215, rollup and plant regenerated are done; the bearing default follows #75 | #76 |
+| make the code's defaults the robot to print: arms, the servo set, the 6810-2RS bearing, rollup and plant are done; the head follows PR #71 | #76 |
 
 | work | issue |
 |---|---|
@@ -466,8 +550,10 @@ Everything open is a GitHub issue.
    inertia and watch for buzz; confirm the protections don't trip.
 1. **Stance test**: that servo in a hip-roll mount, 8° of roll with a planted
    foot; pass ≤ 0.3° short at load 120 (≤ 0.4° on the 3× route).
-2. **Buy** 7 × STS3215 (17 needed, 12 on hand, 2 spare), the bearings once
-   selected, and the non-servo parts ([docs/bom.md](docs/bom.md)).
+2. **Buy** the STS3215s (15 needed, 12 on hand, plus spares), the two
+   STS3250s for the hip rolls (ordered 2026-10-02, #74), the two generic
+   6810-2RS bearings (in hand, measured 2026-10-13/14), and the
+   non-servo parts ([docs/bom.md](docs/bom.md)).
 3. **Configure** P and D per ID; record them in `docs/servo-map.md`.
 4. **Print and assemble** ([cad/PRINT_LIST.md](cad/PRINT_LIST.md),
    [docs/assembly.md](docs/assembly.md)); weigh every part; measure play per roll
@@ -502,7 +588,7 @@ Everything open is a GitHub issue.
 | what | file |
 |---|---|
 | every CAD dimension | `cad/v6/dimensions_v6.py` (servo interface from `cad/dimensions.py`) |
-| the parts | `cad/v6/*.py`, exported to `cad/v6/stl`, `cad/v6/step` by `cad/v6/parts_v6.py` |
+| the parts | `cad/v6/*.py`, exported by `cad/v6/parts_v6.py` (`make cad`): STLs to `cad/v6/stl`, STEPs to `build/v6/step` |
 | the assembly and ROM gate | `cad/v6/assembly_v6.py`, `cad/v6/check_assembly_v6.py` |
 | the plant | `sim/gen_plant_v6.py`, `sim/build_v6_inertia.py` → `sim/bimo_biped_v6ar.xml` |
 | gait, IK, gates | `sim/static_gait.py`, `sim/v6_kin.py`, `sim/design_gates.py`, `sim/gate_no3250.py` |

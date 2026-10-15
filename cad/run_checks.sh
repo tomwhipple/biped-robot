@@ -28,7 +28,7 @@
 set -u
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-PY="$ROOT/.venv/bin/python"
+PY="${PY:-$ROOT/.venv/bin/python}"
 
 rc=0
 
