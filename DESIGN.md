@@ -432,10 +432,16 @@ hips, tuck to hip −120° / knee −130°, and push (shoulder 90° → 0°, elb
 tuck needs ≥ 119°; the leg link's relief gives 120°). Config
 `r5_asdrawn_rom120` in `sim/getup_v6_shoulder.py`.
 
-**Forward falls (prone) are open.** The legs-only roll prone → side → supine
-works on the bare body, but with the arms folded it fails 0/6 for every servo
-choice — the arms block the roll. Candidates: an arm stow that clears the roll,
-catching a forward fall on the hands, a one-arm roll.
+**Forward falls (prone) → a roll onto the back with the arms stowed, then the
+seat push** (simulation only, #85, #137). From the arms' walking pose (+15°,
+where a forward fall leaves them) the arms swing up and stow, five leg
+keyframes roll the body onto its back, and the arms fold to 180° as it lands.
+The roll is searched (CEM, worst of seven conditions) on the current plant by
+`sim/getup_ref_analytic.py`; with the seat push and its analytic rise it stands
+216/216 open loop over joint friction 0.05–0.5, μ 0.5–1.0, play 1–4°, servos at
+85–100 %, +10 % mass and ±10° start tilt. The legs-only roll with the arms
+folded fails at 0.35 N·m joint friction, and the 2026-09-29 searched roll does
+not carry over to the current plant.
 
 **Paths that do not work**, each measured (full record in
 [getup-decision-2026-09-17.md](docs/design-v6/getup-decision-2026-09-17.md) and
