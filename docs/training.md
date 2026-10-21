@@ -433,14 +433,26 @@ Training runs **at night only**; days belong to the box's owner.
   A job file moves to `queue/done/` at launch, so an interrupted job does not
   re-run the next night. `CMD=` jobs run an arbitrary command (a distillation,
   say) through the same GPU gate. `--steps` is capped to what the remaining
-  window allows.
+  window allows (at 60 k steps/s for a MuJoCo Warp job, 17 k otherwise). Lines
+  starting `#` are notes (parent, variable, hypothesis), never arguments.
 - **Sharing the GPU.** A job starts only when the GPU is under 20 % busy with
   ≥ 11.5 GB free. Idle ollama models are unloaded (they reload on demand),
   active inference is never touched, and after each job any model that fell
   back to CPU is moved back onto the GPU.
 - **Morning.** `infra/night_collect_local.sh` (cron 07:15 on mira) copies each
   finished run into the working checkout and referees it: the python column
-  with `--render`, and the SIL column. The lag column is run by hand (§8).
+  with `--render`, and the SIL column. The lag column is run by hand (§8). It
+  fast-forwards the checkout to `origin/main` first, so the references and
+  plants a run trained against are there to referee it.
+- **Re-planning.** `infra/night/plan_morning.sh` (cron 07:30) waits for the
+  collection, then runs a headless Claude Code session on
+  `infra/night/planner_prompt.md`: it evaluates the night against the campaign
+  record (today the get-up, [getup-campaign-2026-10.md](design-v6/getup-campaign-2026-10.md)),
+  improves the references on the CPU if a phase is failing, queues the next
+  night, refreshes the results page and reports on the campaign's issue.
+  `infra/night/ensure_queue.sh` (cron 21:30) tops the queue up to five jobs
+  from `night/fallback.job` with fresh seeds if the planner left it short.
+  Installed copies of both live beside the runner in `night/`.
 
 ### Training on the Mac (CPU physics + MPS)
 
@@ -694,18 +706,24 @@ except `night_summary.html`; movies and clips are never committed.
 
 ## 11. Limits and the next layer
 
-- **Get-up is not trained.** An RL get-up is not pursued: across 12 rounds and
-  about 1.3 B steps, PPO reward shaping reached the kneel but could not bridge
-  kneel → balance-catch → held stand — including a clean-physics run with no
-  DR at all, which settled that the hardening was not the obstacle. The robot
-  gets up with a **scripted, arm-assisted sequence** instead ([DESIGN.md](../DESIGN.md),
-  "Get-up"). If an RL get-up is ever revived, the method is **phase-indexed
-  tracking** — a DeepMimic-style pose-and-velocity tracking objective at
-  dominant weight over a retimed kneel-corridor trajectory, with
-  reference-state initialization along it — not more shaping. The machinery
-  stays in the env: the `getup` family, recovery episodes (`recover_mix`,
-  `recover_start_mix`), the height ratchet and held-stand rule, `w_rise_ref`,
-  `--discovery`, and the two `recover_*` scenarios.
+- **Get-up is trained by tracking a reference, never by shaping.** Across 12
+  rounds and about 1.3 B steps, PPO reward shaping reached the kneel but could
+  not bridge kneel → balance-catch → held stand — including a clean-physics run
+  with no DR at all. The robot's get-up is the **scripted, arm-assisted
+  sequence** ([DESIGN.md](../DESIGN.md), "Get-up"); RL makes it robust by
+  **phase-indexed tracking** of that sequence's recorded open-loop rollout
+  (`--rise-ref`): a DeepMimic-style tracking term at dominant weight,
+  reference-state initialisation along it, residual actions around it and
+  early termination off it. A reference is only as good as the open-loop
+  sequence behind it — tracking one that cannot stand on the training plant
+  cannot work — so references are built and checked over a robustness grid by
+  `sim/getup_ref_analytic.py` (an analytic CoM-balanced rise, a searched prone
+  roll). The campaign and its nightly loop:
+  [getup-campaign-2026-10.md](design-v6/getup-campaign-2026-10.md), issue #137.
+  A reference is indexed by time from the episode start, so today a policy
+  gets up from the one start its reference begins at (supine, or prone).
+  The `recover_supine`, `recover_prone` and `recover_prone_fall` scenarios
+  grade it; `recover_sit` and `recover_fallen` do not apply to the robot.
 - **Goals.** The planned next layer is **goal-conditioned locomotion**: a goal
   in the observation, and a policy judged on distance covered and goal
   reached, not on instantaneous velocity. Today the goal layer is an outer
