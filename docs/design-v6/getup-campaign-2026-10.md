@@ -135,7 +135,7 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_t3k | 10-21 | s1k recipe (p13k) | prone ref → `getup_ref_v6ar_prone_ik.npz` | prone recovers at 0.35 on a feasible reference | 0/8 | 8/8 | 8/8 (36.8 s) | 8/8 (36.8 s) | **held**; s1k was 3/8. At 0.05: prone fall 6/8, supine ph 2/8; at 0.5: 7/8, 8/8 |
 | robot_getup_t2k | 10-21 | r5k recipe + 0.35 (r5k) | supine ref → `getup_ref_v6ar_ik.npz` | the centred rise tracks at least as well | 1/8 | = supine | 0/8 | 0/8 | rise **held** (8/8 reach 0.39 m upright at ~22 s), then 7/8 fall within 1 – 6 s of the handover (shared with t1k) |
 | robot_getup_t1k | 10-21 | r5k (r5k) | joint frictionloss 0.05 → 0.35 | control for t2k: r5k's supine survives retraining at 0.35 | 0/8 | = supine | 0/8 | 0/8 | **failed**: 6/8 stand at ~22 s then fall; 2/8 stall at 0.28 m. r5k itself, unretrained, scores 8/8 at 0.35 |
-| robot_getup_t3k_s1 | 10-21 | t3k | seed 1 | replicate | 0/8 | 8/8 | 6/8 (34.4 s) | 7/8 (34.4 s) | replicate holds (13/16 vs 16/16) |
+| robot_getup_t3k_s1 | 10-21 | t3k | seed 1 | replicate | 0/8 | 8/8 | 6/8 (34.4 s) | 7/8 (34.4 s) | replicate holds (13/16 vs 16/16). At 0.05: prone fall 2/8, supine ph 0/8; at 0.5: 7/8, 8/8 |
 | robot_getup_t2k_s1 | 10-21 | t2k | seed 1 | replicate | 1/8 | = supine | 0/8 | 0/8 | replicates t2k; **capped at 392M steps** by the 05:00 cutoff |
 | robot_getup_u1k | 10-22 | u0k (t3k) | + joint friction DR 0.05 – 0.5 | t3k's 0.05 weakness lifts to ≥ 7/8 (prone fall, supine ph), 0.35 stays ≥ 7/8 | | | | | |
 | robot_getup_u0k | 10-22 | t3k (t3k) | init p13k → t3k (a second 600M at 0.35) | control for u1k: 0.35 stays 8/8, 0.05 stays weak | | | | | |
@@ -173,7 +173,8 @@ landed upstream since, so they compare with the earlier get-up runs.
   has it as `recover_supine_ph`.
 - **t3k is friction-specific.** Refereed at 0.05: prone fall 6/8, supine ph
   2/8 (it stalls between the crouch hold and the rise, at 0.2 – 0.27 m,
-  tipping back); at 0.5: 7/8 and 8/8. The real gearbox friction is not
+  tipping back); at 0.5: 7/8 and 8/8. t3k_s1 more so: 2/8 and 0/8 at 0.05,
+  7/8 and 8/8 at 0.5. The real gearbox friction is not
   measured (0.05 BAM, ~0.235 powered, 0.35 assumed), so a get-up that only
   works at 0.35 is not a result.
 
@@ -198,5 +199,6 @@ nominal):
 its own 0.35: `cd ~/code/robot && .venv/bin/python sim/mjx/eval_precision.py
 --run-name <run> --scenarios recover_supine_ph,recover_prone_fall
 --joint-frictionloss 0.05` (and `0.5`) — CPU, ~10 min per run and value,
-at most 12 workers in parallel. Baselines: t3k 0.05 → 2/8, 6/8; 0.5 → 8/8,
-7/8 (supine ph, prone fall).
+at most 12 workers in parallel. Baselines (supine ph, prone fall): t3k at
+0.05 → 2/8, 6/8, at 0.5 → 8/8, 7/8; t3k_s1 at 0.05 → 0/8, 2/8, at 0.5 →
+8/8, 7/8.
