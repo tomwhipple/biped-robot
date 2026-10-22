@@ -2004,7 +2004,10 @@ def run_one(env, act, factory, seed, record, N, mass):
         events = {k: v for k, v in ev.items() if not k.startswith("_")}
         path = os.path.join(traces_dir, f"{name}_s{seed}.npz")
         gb_trace.save(path, scenario=name, seed=seed, dt=drv.dt,
-                      episode_seconds=env.episode_seconds,
+                      # BimoWalkerEnv does not retain the `episode_seconds`
+                      # ctor arg; the runtime episode length is
+                      # max_steps * control_dt (walker_env.py:1134).
+                      episode_seconds=env.max_steps * env.control_dt,
                       rows=drv.rows, cmds=drv.cmds, fell=res["fell"],
                       success=res["success"], events=events,
                       swing_summary=drv.swings.summary(), shared=shared,
