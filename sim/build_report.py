@@ -436,6 +436,22 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-22 card: get-up campaign night 1 -- the feasible prone reference
+# trains 8/8; the same policy gets up from supine at its on-the-back phase;
+# the supine retrains rise and then fall.
+fig_1022 = "\n    ".join(f for f in [
+    video_figure('robot_getup_t3k', ['recover_prone_fall'],
+                 'robot_getup_t3k_prone_fall',
+                 'face-down with the arms where a fall leaves them: searched roll → '
+                 'seat push → analytic rise, joint friction 0.35'),
+    file_figure('robot_getup_t3k_supine_ph', 'robot_getup_t3k from the back',
+                'the same policy, supine start at its reference\'s on-the-back phase '
+                '(recover_supine_ph): 8/8 at 0.35, up in 24 s'),
+    video_figure('robot_getup_t2k', ['recover_supine'],
+                 'robot_getup_t2k_supine',
+                 'the supine line retrained at 0.35 on the analytic rise: stands at 22 s, '
+                 'falls within seconds of the hand-over'),
+] if f)
 # 2026-10-12 card: marathon day 4 -- fall recovery as a funnel (roll to the
 # back -> the supine get-up -> hand over to the walker), plus the best walker.
 fig_1012 = "\n    ".join(f for f in [
@@ -632,6 +648,29 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·22 · get-up campaign night 1</span></p>
+    <p><b>One policy gets up from face-down and from the back: 8/8 each, in sim.</b>
+    The campaign (#137) builds open-loop references from kinematics and checks
+    them over a 216-rollout robustness grid, then trains residual tracking on
+    them at joint friction 0.35. On the feasible prone reference (searched
+    roll + seat push + analytic CoM-centred rise), <b>robot_getup_t3k</b>
+    gets up 8/8 from both face-down starts (the old reference: 3/8). Its
+    roll ends lying on the back and the supine seat push follows, so started
+    supine at that phase it gets up <b>8/8</b> too — the robot can pick the
+    phase from the IMU. The supine line retrained at 0.35 (t1k, t2k) rises
+    to standing and then falls within seconds (0 – 1/8); r5k, unretrained,
+    still does 8/8 there.</p>
+    <p>Not yet robust: at joint friction 0.05, t3k drops to 6/8 face-down and
+    2/8 from the back (it stalls between the crouch and the rise). The real
+    gearbox friction is unmeasured, so night 2 trains over 0.05 – 0.5
+    (joint-friction DR) against a fixed-0.35 control. Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1022}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·12 · marathon day 4</span></p>

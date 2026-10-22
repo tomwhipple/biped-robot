@@ -89,13 +89,15 @@ the two starts converge before the roll.
 ## Campaign arc
 
 1. **Specialists at 0.35 on feasible references** (supine, prone), with a
-   control and seed replicates. *(night 1)*
-2. **Harden**: the best specialist under the claim's DR, then pushes
-   (`--push-prob`), then the residual scale; one at a time.
-3. **One policy for both starts**: the env indexes one reference by time
-   from the episode start; a unified get-up needs the reference chosen per
-   start (supine / prone / side) and the phase made observable. Env work
-   (MJX `env_mjx.py` and its CPU mirror `walker_env.py`).
+   control and seed replicates. *(night 1: done — `robot_getup_t3k`)*
+2. **Harden**: joint friction first (the policies are friction-specific,
+   night 1), then pushes (`--push-prob`), then the residual scale; one at a
+   time. *(night 2: friction DR)*
+3. **One policy for both starts**: largely solved without env work (night
+   1). The prone reference's roll ends on the back and the supine seat push
+   follows, so the prone policy gets up from supine when it starts at that
+   phase (`recover_supine_ph`); the robot picks the phase from the IMU.
+   Left: a side start, and the deployment choosing the phase.
 4. **Hand over to the walker** (the reference ends arms forward: a 2 s ramp
    today), distil, SIL — the deployment path of training.md §9.
 
@@ -104,23 +106,99 @@ Throughout: when the referee shows a phase failing, fix the reference first
 
 ## Open questions
 
-- The recipe passes `--servo-3250 knee`, but the plant's `SERVO_PLAN=hips`
-  also puts STS3250s at the hip rolls (getup_v6.PJ_DEFAULT). Is the MJX
-  training plant's servo assignment the same as the referee's?
-- 0.35 vs the measured 0.235: if the references stay robust across the range,
-  is friction DR the better training condition than one value?
+- *Answered 2026-10-22:* the servo assignment is the same everywhere — every
+  run's `config.json` has `servo_types` hip rolls + knees = STS3250 (the
+  `--robot` preset adds the hip rolls to `--servo-3250 knee`), which the
+  referee inherits and the references record with (PJ_DEFAULT).
+- 0.35 vs the measured 0.235: *partly answered 2026-10-22* — a policy trained
+  at 0.35 fails at 0.05 (t3k), so tonight trains over 0.05 – 0.5
+  (`--joint-frictionloss-range`). The friction sweep of the referee
+  (`eval_precision.py --joint-frictionloss 0.05` / `0.5`) is now part of
+  every morning's evaluation.
+- Why did the supine retrains (t1k, t2k) lose the hold after standing? They
+  rise to 0.39 m upright and fall 1 – 6 s after the env hands control from
+  reference + residual to the free policy; MJX's training curve shows no
+  sign of it. Not the plant (r5k holds at 0.35), not the referee's friction
+  (they fail at 0.05 too), not servo lag (0/8 with the 2 Hz lag). Open; the
+  prone recipe (`--w-rise-root 4`, 45 s episodes) holds.
 
 ## Runs
 
 | run | night | parent (init) | the one variable | hypothesis | supine | prone (old start) | prone fall | verdict |
 |---|---|---|---|---|---|---|---|---|
-| robot_getup_t3k | 10-21 | s1k recipe (p13k) | prone ref → `getup_ref_v6ar_prone_ik.npz` | prone recovers at 0.35 on a feasible reference | | | | |
-| robot_getup_t2k | 10-21 | r5k recipe + 0.35 (r5k) | supine ref → `getup_ref_v6ar_ik.npz` | the centred rise tracks at least as well | | | | |
-| robot_getup_t1k | 10-21 | r5k (r5k) | joint frictionloss 0.05 → 0.35 | control for t2k: r5k's supine survives retraining at 0.35 | | | | |
-| robot_getup_t3k_s1 | 10-21 | t3k | seed 1 | replicate | | | | |
-| robot_getup_t2k_s1 | 10-21 | t2k | seed 1 | replicate | | | | |
+Scores are CPU-referee passes of 8 seeds at the run's own joint frictionloss
+(0.35 unless stated). "supine ph" is `recover_supine_ph` (from 10-22; for
+night 1 measured by hand with the same phase, 11.26 s).
+
+| run | night | parent (init) | the one variable | hypothesis | supine | supine ph | prone (old start) | prone fall | verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| robot_getup_t3k | 10-21 | s1k recipe (p13k) | prone ref → `getup_ref_v6ar_prone_ik.npz` | prone recovers at 0.35 on a feasible reference | 0/8 | 8/8 | 8/8 (36.8 s) | 8/8 (36.8 s) | **held**; s1k was 3/8. At 0.05: prone fall 6/8, supine ph 2/8; at 0.5: 7/8, 8/8 |
+| robot_getup_t2k | 10-21 | r5k recipe + 0.35 (r5k) | supine ref → `getup_ref_v6ar_ik.npz` | the centred rise tracks at least as well | 1/8 | = supine | 0/8 | 0/8 | rise **held** (8/8 reach 0.39 m upright at ~22 s), then 7/8 fall within 1 – 6 s of the handover (shared with t1k) |
+| robot_getup_t1k | 10-21 | r5k (r5k) | joint frictionloss 0.05 → 0.35 | control for t2k: r5k's supine survives retraining at 0.35 | 0/8 | = supine | 0/8 | 0/8 | **failed**: 6/8 stand at ~22 s then fall; 2/8 stall at 0.28 m. r5k itself, unretrained, scores 8/8 at 0.35 |
+| robot_getup_t3k_s1 | 10-21 | t3k | seed 1 | replicate | 0/8 | 8/8 | 6/8 (34.4 s) | 7/8 (34.4 s) | replicate holds (13/16 vs 16/16). At 0.05: prone fall 2/8, supine ph 0/8; at 0.5: 7/8, 8/8 |
+| robot_getup_t2k_s1 | 10-21 | t2k | seed 1 | replicate | 1/8 | = supine | 0/8 | 0/8 | replicates t2k; **capped at 392M steps** by the 05:00 cutoff |
+| robot_getup_u1k | 10-22 | u0k (t3k) | + joint friction DR 0.05 – 0.5 | t3k's 0.05 weakness lifts to ≥ 7/8 (prone fall, supine ph), 0.35 stays ≥ 7/8 | | | | | |
+| robot_getup_u0k | 10-22 | t3k (t3k) | init p13k → t3k (a second 600M at 0.35) | control for u1k: 0.35 stays 8/8, 0.05 stays weak | | | | | |
+| robot_getup_u2k | 10-22 | t3k (p13k) | + joint friction DR 0.05 – 0.5 | DR from the 0.05-trained p13k matches t3k at 0.35 and holds 0.05 | | | | | |
+| robot_getup_u1k_s1 | 10-22 | u1k | seed 1 | replicate | | | | | |
+| robot_getup_u0k_s1 | 10-22 | u0k | seed 1 | replicate (may be capped at ~390M) | | | | | |
 
 ## Nights
 
 *(the planner appends a "Night of YYYY-MM-DD" entry each morning: results,
 what they mean, the decision, tonight's queue)*
+
+### Night of 2026-10-21 (evaluated 2026-10-22)
+
+All five jobs trained (600M steps each; t2k_s1 capped at 392M by the 05:00
+cutoff) and refereed on main `b06c7c7`; no plant, servo or env change
+landed upstream since, so they compare with the earlier get-up runs.
+
+- **Prone: the feasible reference fixed it.** t3k 8/8 on both prone starts
+  at 0.35 (s1k, the same recipe on the infeasible reference: 3/8);
+  t3k_s1 6/8 and 7/8. Time to stand ~35 – 37 s.
+- **Supine: the retrains broke the hold, not the rise.** Traced on the CPU
+  referee (`--trace`): t1k, t2k and t2k_s1 rise to standing height at ~22 s
+  in almost every seed, then fall 1 – 6 s after `recovered` hands control
+  from reference + residual to the free policy. Counterfactuals: r5k,
+  unretrained, scores 8/8 at 0.35 — the plant at 0.35 is not the problem;
+  t1k and t2k score 0/8 at 0.05 too — the policies broke, not the
+  conditions; with the 2 Hz servo lag still 0/8. The analytic rise is
+  tracked fine (t2k reaches 0.39 m upright). Cause of the lost hold: open.
+- **One policy for both starts.** The prone reference from 11.26 s is the
+  supine reference from 0 s (the roll ends lying on the back, then the same
+  seat push and rise). Started supine at that phase, t3k and t3k_s1 both get
+  up 8/8 (24 s) and hold. A reference indexed from the episode start made
+  this look like a separate problem (`recover_supine` 0/8). The referee now
+  has it as `recover_supine_ph`.
+- **t3k is friction-specific.** Refereed at 0.05: prone fall 6/8, supine ph
+  2/8 (it stalls between the crouch hold and the rise, at 0.2 – 0.27 m,
+  tipping back); at 0.5: 7/8 and 8/8. t3k_s1 more so: 2/8 and 0/8 at 0.05,
+  7/8 and 8/8 at 0.5. The real gearbox friction is not
+  measured (0.05 BAM, ~0.235 powered, 0.35 assumed), so a get-up that only
+  works at 0.35 is not a result.
+
+**Decision.** Drop the supine line: r5k (0.05-trained) stays the supine
+specialist, and t3k covers supine through the phase. Arc step 1 is done;
+step 3 is largely done without env work. Step 2 starts with friction:
+`--joint-frictionloss-range` (per-env joint friction DR, training only) and
+`eval_precision.py --joint-frictionloss` (the friction sweep), PR #139.
+
+**Tonight (night 2)**, all on the t3k recipe (prone_ik reference, 0.35
+nominal):
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_getup_u1k | u0k (t3k) | + friction DR 0.05 – 0.5 | lifts 0.05 to ≥ 7/8, keeps 0.35 ≥ 7/8 |
+| 2 | robot_getup_u0k | t3k (t3k) | init p13k → t3k | control: more steps alone do not fix 0.05 |
+| 3 | robot_getup_u2k | t3k (p13k) | + friction DR 0.05 – 0.5 | DR from p13k matches t3k at 0.35 and holds 0.05 |
+| 4 | robot_getup_u1k_s1 | u1k | seed 1 | replicate |
+| 5 | robot_getup_u0k_s1 | u0k | seed 1 | replicate (likely capped) |
+
+**Tomorrow's evaluation** must referee each run at 0.05 and 0.5 as well as
+its own 0.35: `cd ~/code/robot && .venv/bin/python sim/mjx/eval_precision.py
+--run-name <run> --scenarios recover_supine_ph,recover_prone_fall
+--joint-frictionloss 0.05` (and `0.5`) — CPU, ~10 min per run and value,
+at most 12 workers in parallel. Baselines (supine ph, prone fall): t3k at
+0.05 → 2/8, 6/8, at 0.5 → 8/8, 7/8; t3k_s1 at 0.05 → 0/8, 2/8, at 0.5 →
+8/8, 7/8.

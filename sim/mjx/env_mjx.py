@@ -733,6 +733,10 @@ class BimoMJXEnv:
         # (N*m). Open Duck's BAM fit for the STS3215: friction_base ~0.05.
         # Genuinely missing from our model (the torque-speed envelope covers
         # viscous/back-EMF losses, NOT stiction). 0 = legacy exact.
+        joint_frictionloss_range: tuple | None = None,  # (lo, hi) N*m: batch-level DR of
+        # the joint friction -- each env draws ONE value U(lo, hi) for every servo DOF
+        # (the unknown is common-mode: the gearbox's true stiction, 0.05 BAM .. 0.35
+        # assumed backdrive, ~0.235 measured powered). Training only; None = off.
         joint_armature: float = 0.0,       # reflected rotor inertia per leg
         # DOF (kg*m^2). BAM fit ~0.028 -- significant against our light legs.
         # -- plan-v2 Phase B: procedural gait imitation (Open Duck pattern) ----
@@ -1184,6 +1188,8 @@ class BimoMJXEnv:
         self.servo_range = servo_range
         self.mass_range = mass_range
         self.friction_range = friction_range
+        self.joint_frictionloss_range = (None if joint_frictionloss_range is None
+                                         else tuple(float(x) for x in joint_frictionloss_range))
         self.payload_max = payload_max
         # batch-level DR nominals (mirror walker_env._nom_*): the reference
         # mass/inertia/friction the per-env draws are scaled from. Captured
@@ -1192,6 +1198,7 @@ class BimoMJXEnv:
         self._nom_mass = jp.asarray(np.array(self.mj_model.body_mass))
         self._nom_inertia = jp.asarray(np.array(self.mj_model.body_inertia))
         self._nom_friction = jp.asarray(np.array(self.mj_model.geom_friction))
+        self._nom_frictionloss = jp.asarray(np.array(self.mj_model.dof_frictionloss))
         self._floor_gid = self.mj_model.geom("floor").id
         self._payload_bid = (self.mj_model.body("payload").id
                              if (payload_mass > 0 or payload_dr
@@ -3136,7 +3143,9 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                      payload_max: float | None = None,
                      payload_bid: int | None = None,
                      floor_gid: int = 0, nom_mass=None, nom_inertia=None,
-                     nom_friction=None, tilt_max_deg: float = 0.0):
+                     nom_friction=None, tilt_max_deg: float = 0.0,
+                     joint_frictionloss_range=None, nom_frictionloss=None,
+                     jv=(0, 0)):
     """Batch-level model DR (brax randomization_fn style): per-env body
     mass/inertia scale, floor friction scale, payload mass draw, and --
     when tilt_max_deg > 0 -- a per-env GRAVITY TILT. Returns
@@ -3147,7 +3156,12 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
     gravity by theta ~ U(0, tilt_max) about a random horizontal azimuth is,
     for a flat floor, exactly a floor inclined by theta. The IMU sees what
     the real one sees: a robot standing plumb to the SUPPORT reads a tilted
-    up-vector against true gravity."""
+    up-vector against true gravity.
+
+    joint_frictionloss_range (lo, hi): per-env joint Coulomb friction, ONE
+    draw U(lo, hi) set on every servo DOF (dofs jv[0]:jv[1]); the get-up
+    references are verified over 0.05..0.5 N*m and a policy trained at one
+    value fails at another (robot_getup_t3k, 2026-10-22)."""
     nbody = model.body_mass.shape[0]
     g0 = model.opt.gravity[2]           # -9.81 nominal; stays a jax scalar
     # (float() here breaks under jit: domain_randomize is traced inside
@@ -3155,7 +3169,7 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
 
     @jax.vmap
     def rand(rng):
-        r_m, r_f, r_p, r_t, r_a = jax.random.split(rng, 5)
+        r_m, r_f, r_p, r_t, r_a, r_j = jax.random.split(rng, 6)
         mf = jax.random.uniform(r_m, (nbody,), minval=1 - mass_range,
                                 maxval=1 + mass_range)
         mass = nom_mass * mf
@@ -3174,9 +3188,15 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
         gravity = jp.array([-g0 * jp.sin(th) * jp.cos(az),
                             -g0 * jp.sin(th) * jp.sin(az),
                             g0 * jp.cos(th)])
-        return mass, inertia, friction, gravity
+        if joint_frictionloss_range is not None:
+            lo, hi = joint_frictionloss_range
+            fl = nom_frictionloss.at[jv[0]:jv[1]].set(
+                jax.random.uniform(r_j, minval=lo, maxval=hi))
+        else:
+            fl = nom_frictionloss
+        return mass, inertia, friction, gravity, fl
 
-    mass, inertia, friction, gravity = rand(rng)
+    mass, inertia, friction, gravity, frictionloss = rand(rng)
     in_axes = jax.tree_util.tree_map(lambda x: None, model)
     fields = {"body_mass": 0, "body_inertia": 0, "geom_friction": 0}
     values = {"body_mass": mass, "body_inertia": inertia,
@@ -3184,6 +3204,9 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
     if tilt_max_deg > 0.0:
         fields["opt.gravity"] = 0
         values["opt.gravity"] = gravity
+    if joint_frictionloss_range is not None:
+        fields["dof_frictionloss"] = 0
+        values["dof_frictionloss"] = frictionloss
     in_axes = in_axes.tree_replace(fields)
     model = model.tree_replace(values)
     return model, in_axes

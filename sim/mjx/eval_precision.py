@@ -193,7 +193,9 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
     # inherited 1 m/s kicks vs 0% nominal, found 2026-07-22)
     kw.update(push_kick=False, push_force=5.0 if not nominal else 0.0,
               push_prob=0.01 if not nominal else 0.0)
-    return BimoWalkerEnv(**kw)
+    env = BimoWalkerEnv(**kw)
+    env.rise_ref_npz = cfg.get("rise_ref_npz")   # recover_supine_ph picks its phase from it
+    return env
 
 
 # =====================================================================
@@ -939,7 +941,41 @@ def _supine_setup(env, drv):
     _ref_setup(env, drv, "getup_ref_v6ar.npz")
 
 
-def _ref_setup(env, drv, npz):
+SUPINE_NPZ = "getup_ref_v6ar.npz"
+
+
+def ref_back_phase(npz):
+    """Seconds into reference `npz` at which it lies on its back the way the
+    supine start does: the time of its first "sit up" keyframe minus that
+    of getup_ref_v6ar.npz (whose first frame IS the supine start). 0 for a
+    supine reference, ~11.3 s for getup_ref_v6ar_prone_ik.npz (the roll ends
+    on the back and the same seat push follows), 0 when there is no
+    reference or no "sit up" keyframe."""
+    def situp(p):
+        z = np.load(_rise_ref_path(p))
+        lab = [str(x) for x in z["label"]]
+        return float(z["t"][lab.index("sit up")]) if "sit up" in lab else None
+    if not npz:
+        return 0.0
+    t_run, t_sup = situp(npz), situp(SUPINE_NPZ)
+    if t_run is None or t_sup is None:
+        return 0.0
+    return max(0.0, t_run - t_sup)
+
+
+def _supine_phase_setup(env, drv):
+    """recover_supine_ph start: the supine start, with the policy's reference
+    phase set to where ITS reference lies on its back (ref_back_phase). A
+    reference is indexed by time from the episode start, so a policy trained
+    on the prone reference replays the roll from a supine start and fails
+    recover_supine; the robot knows which way up it lies (the IMU), so the
+    phase it starts the get-up at is a choice it can make. Get-up campaign
+    2026-10-22: robot_getup_t3k does recover_supine 0/8, this 8/8."""
+    _ref_setup(env, drv, SUPINE_NPZ,
+               t0=ref_back_phase(getattr(env, "rise_ref_npz", None)))
+
+
+def _ref_setup(env, drv, npz, t0=0.0):
     import mujoco
     z = np.load(_rise_ref_path(npz))
     d = env.data
@@ -954,7 +990,7 @@ def _ref_setup(env, drv, npz):
     env._best_h = float(d.qpos[2])
     env._recovered = False
     env._recover_ep = True
-    env._rise_t0 = 0.0
+    env._rise_t0 = float(t0)
     env._last_target = tgt.copy()
     env._ctrl_buf = [tgt.copy() for _ in range(env.action_latency + 1)]
     env._prev_action[:] = 0.0
@@ -969,12 +1005,13 @@ def _ref_setup(env, drv, npz):
     drv._prev_sole = [d.geom_xpos[g][:2].copy() for g in env._sole_gids]
 
 
-def scen_recover_supine(deadline=28.0):
+def scen_recover_supine(deadline=28.0, phase=False):
     """Get up from lying on the back (the elbow-arm seat push's start): stand
     command; success = first stand within the deadline AND still tall over the
-    last 3 s of the 32 s episode."""
+    last 3 s of the 32 s episode. phase=True: recover_supine_ph, the same
+    start at the policy's own on-the-back reference phase (_supine_phase_setup)."""
     def build():
-        ev = {"_setup": _supine_setup}
+        ev = {"_setup": _supine_phase_setup if phase else _supine_setup}
 
         def ctrl(t, gt, ev):
             return (0, 0, 0, 1, 0)
@@ -1851,6 +1888,7 @@ def _registry():
     reg["recover_sit"] = (12.0, scen_recover_fallen(deadline=5.0), False)
     reg["recover_fallen"] = (12.0, scen_recover_fallen(), False)
     reg["recover_supine"] = (32.0, scen_recover_supine(), False)
+    reg["recover_supine_ph"] = (32.0, scen_recover_supine(phase=True), False)
     reg["recover_prone"] = (45.0, scen_recover_prone(), False)
     reg["recover_prone_fall"] = (45.0, scen_recover_prone(npz="getup_ref_v6ar_prone_ik.npz"), False)
     reg["stand_10s"] = (11.0, scen_stand_10s(), False)
@@ -1882,6 +1920,8 @@ ENV_EXTRA = {
                         recover_start_mix=(0.0, 0.0, 0.0, 1.0)),
     "recover_supine": dict(recover_mix=1.0,
                            recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
+    "recover_supine_ph": dict(recover_mix=1.0,
+                              recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
     "recover_prone": dict(recover_mix=1.0,
                           recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
     "recover_prone_fall": dict(recover_mix=1.0,
@@ -1904,8 +1944,8 @@ FAMILY_SCENARIOS = {
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
                "march_in_place", "march_10s", "hip_sway", "crouch_hold",
                "stand_10s", "metronome", "squat_reps", "weight_shift"],
-    "getup": ["recover_sit", "recover_fallen", "recover_supine", "recover_prone",
-              "recover_prone_fall"],
+    "getup": ["recover_sit", "recover_fallen", "recover_supine", "recover_supine_ph",
+              "recover_prone", "recover_prone_fall"],
 }
 
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
@@ -1921,7 +1961,8 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
 # part of the default suite, so the comparable 144-card totals never move.
 # recover_supine: the get-up family scores it (FAMILY_SCENARIOS), nothing else
 # runs it -- it needs the robot plant (it starts from getup_ref_v6ar.npz)
-EXTRA_SCENARIOS = ["handover_stand", "recover_supine", "recover_prone", "recover_prone_fall"]
+EXTRA_SCENARIOS = ["handover_stand", "recover_supine", "recover_supine_ph", "recover_prone",
+                   "recover_prone_fall"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
@@ -1939,6 +1980,7 @@ HEADLINE = {
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_sit": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_supine": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
+    "recover_supine_ph": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_prone": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_prone_fall": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "line_1m": ("time_to_1m", lambda v: f"t={v:.1f}s"),
@@ -2046,10 +2088,17 @@ def main():
                         "(run-relative or absolute). ADDITIVE — the rollout "
                         "and scorecard numbers are unchanged; parity is the "
                         "gate (tests/test_gradebook.py).")
+    p.add_argument("--joint-frictionloss", type=float, default=None,
+                   help="grade on this joint Coulomb friction (N*m) instead "
+                        "of the run's own (config.json joint_frictionloss): "
+                        "the friction-robustness sweep of the get-up "
+                        "campaign. Writes scorecard_fl<value>.{md,json}")
     args = p.parse_args()
     suffix = "_sil" if args.sil else ""
     if args.act_lag_hz > 0.0 or args.act_delay_ticks > 0:
         suffix = f"{suffix}_lag"
+    if args.joint_frictionloss is not None:
+        suffix = f"{suffix}_fl{args.joint_frictionloss:g}"
     # a --scenarios subset must not clobber the run's full reel either --
     # the scorecard learned this 2026-08-03 (guard below), but the movie
     # path didn't and a stand-only render overwrote two full reels
@@ -2070,6 +2119,8 @@ def main():
     TRACE_RUN_ROOT = run_dir if args.trace else None
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
+    if args.joint_frictionloss is not None:
+        cfg["joint_frictionloss"] = args.joint_frictionloss
     xml = args.xml or cfg.get("xml_path") or DEFAULT_XML
     if not os.path.isabs(xml) and not os.path.exists(xml):
         # train_mjx.py stores the basename (the run may have trained on a
@@ -2149,6 +2200,8 @@ def main():
     if args.act_lag_hz > 0.0:
         cond += (f"; MEASURED servo lag {args.act_lag_hz:g} Hz "
                  "(3-stage act-lag cascade)")
+    if args.joint_frictionloss is not None:
+        cond += f"; joint frictionloss {args.joint_frictionloss:g} N*m (not the run's own)"
     if args.act_delay_ticks > 0:
         cond += (f"; servo dead time {20 * args.act_delay_ticks} ms "
                  f"({args.act_delay_ticks} ticks)")

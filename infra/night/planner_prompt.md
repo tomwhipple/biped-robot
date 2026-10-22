@@ -33,10 +33,13 @@ tonight** — a full night of get-up training (22:00 – 05:00 starts, ~1.6 h pe
 ## Evaluate
 
 For every run collected this morning: compare it with its parent on the
-get-up scenarios (`recover_supine`, `recover_prone`, `recover_prone_fall`;
-`recover_sit` and `recover_fallen` are not applicable to the robot), state
-whether the hypothesis held, and write that into the ledger's run table and a
-dated "Night of …" entry. If a run failed to train or to referee, find out why
+get-up scenarios (`recover_supine`, `recover_supine_ph`, `recover_prone`,
+`recover_prone_fall`; `recover_sit` and `recover_fallen` are not applicable to
+the robot), and across joint friction: referee each run also at 0.05 and 0.5
+(`eval_precision.py --run-name <run> --scenarios recover_supine_ph,recover_prone_fall
+--joint-frictionloss 0.05`, CPU, at most 12 in parallel). State whether the
+hypothesis held, and write that into the ledger's run table and a dated
+"Night of …" entry. If a run failed to train or to referee, find out why
 (night log, `sim/runs/train.log`, the collection log) and fix the cause before
 queueing anything that would hit it again.
 
