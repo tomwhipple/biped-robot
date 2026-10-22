@@ -720,10 +720,17 @@ except `night_summary.html`; movies and clips are never committed.
   `sim/getup_ref_analytic.py` (an analytic CoM-balanced rise, a searched prone
   roll). The campaign and its nightly loop:
   [getup-campaign-2026-10.md](design-v6/getup-campaign-2026-10.md), issue #137.
-  A reference is indexed by time from the episode start, so today a policy
-  gets up from the one start its reference begins at (supine, or prone).
-  The `recover_supine`, `recover_prone` and `recover_prone_fall` scenarios
-  grade it; `recover_sit` and `recover_fallen` do not apply to the robot.
+  A reference is indexed by time from the episode start. The prone
+  reference's roll ends on the back and the supine seat push follows, so a
+  policy trained on it also gets up from supine when it starts at that phase
+  (`ref_back_phase`, ~11.3 s): the robot knows which way up it lies from the
+  IMU, so the start phase is its choice. `recover_supine` (phase 0),
+  `recover_supine_ph` (supine at the policy's on-the-back phase),
+  `recover_prone` and `recover_prone_fall` grade it; `recover_sit` and
+  `recover_fallen` do not apply to the robot. The joint friction is not
+  measured (0.05 BAM … 0.35 assumed), so `--joint-frictionloss-range lo,hi`
+  draws it per env in training, and `eval_precision.py --joint-frictionloss`
+  grades a run at another value (`scorecard_fl<value>.md`).
 - **Goals.** The planned next layer is **goal-conditioned locomotion**: a goal
   in the observation, and a policy judged on distance covered and goal
   reached, not on instantaneous velocity. Today the goal layer is an outer

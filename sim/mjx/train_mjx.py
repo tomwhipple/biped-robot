@@ -98,7 +98,9 @@ class BatchedEnv(brax_base.Env):
                     payload_max=payload_max, payload_bid=payload_bid,
                     floor_gid=e._floor_gid, nom_mass=e._nom_mass,
                     nom_inertia=e._nom_inertia, nom_friction=e._nom_friction,
-                    tilt_max_deg=e.tilt_max_deg)
+                    tilt_max_deg=e.tilt_max_deg,
+                    joint_frictionloss_range=e.joint_frictionloss_range,
+                    nom_frictionloss=e._nom_frictionloss, jv=(e._jv0, e._jv1))
         return self._dr_cache[n]
 
     @property
@@ -294,6 +296,11 @@ def make_parser():
                         "gearbox backdrive stiction measures ~0.35 N*m "
                         "(off_frictionloss) -- pass that for a plant whose "
                         "static pose-hold matches hardware")
+    p.add_argument("--joint-frictionloss-range", default=None,
+                   help="lo,hi N*m: per-env joint friction DR (one draw for "
+                        "every servo DOF), e.g. 0.05,0.5; needs DR on "
+                        "(--precision). The referee grades at "
+                        "--joint-frictionloss")
     p.add_argument("--servo-3250", default=None,
                    help="comma roles/actuators given the STS3250 stall/speed "
                         "envelope on top of the robot's (e.g. knee): a servo-set study")
@@ -612,6 +619,11 @@ def build_env_kw(args):
         # sim wobbles where the robot does not. Applied AFTER the family
         # block so any family recipe can be run with the measured level.
         env_kw["joint_frictionloss"] = args.joint_frictionloss
+    if args.joint_frictionloss_range is not None:
+        # get-up campaign 2026-10-22: friction DR (training only; the referee
+        # grades at joint_frictionloss, or eval_precision --joint-frictionloss)
+        env_kw["joint_frictionloss_range"] = tuple(
+            float(x) for x in args.joint_frictionloss_range.split(","))
     if args.xml:
         # accept a bare basename (resolved against sim/, where the plants
         # live) or an explicit path -- night-queue args use basenames
