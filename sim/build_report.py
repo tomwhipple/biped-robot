@@ -436,6 +436,19 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-23 card: get-up campaign night 2 -- every retrain stood and then
+# fell (or parked) because of the handover at `recovered`; graded without it,
+# u0k gets up 46/48 over joint friction 0.05 - 0.5.
+fig_1023 = "\n    ".join(f for f in [
+    video_figure('robot_getup_u0k', ['recover_prone_fall'],
+                 'robot_getup_u0k_prone_fall',
+                 't3k + a second 600M at friction 0.35, refereed with the hand-over: '
+                 'up at ~35 s, then falls after the latch (0/8). Graded with the '
+                 'hand-over removed, the same policy: 8/8 here, 46/48 over 0.05 – 0.5'),
+    video_figure('robot_getup_u2k', ['recover_prone_fall'],
+                 'robot_getup_u2k_prone_fall',
+                 'friction DR from p13k: parks crouched at 0.29 m and never latches the stand'),
+] if f)
 # 2026-10-22 card: get-up campaign night 1 -- the feasible prone reference
 # trains 8/8; the same policy gets up from supine at its on-the-back phase;
 # the supine retrains rise and then fall.
@@ -648,6 +661,28 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·23 · get-up campaign night 2</span></p>
+    <p><b>Every retrain stood up and then fell. The cause was the hand-over, not the policies.</b>
+    Night 2 trained t3k further, with and without joint-friction DR. Every run
+    scored 0 – 1/8 (u2k 5/8 from the back only). All of them get up and then
+    fall, or park crouched at 0.29 m. The cause: at the held stand the env
+    switched the action map (a residual around the reference became the full
+    joint range around the default pose) and stopped paying the reference
+    tracking. The same output then means a different target, and staying
+    up stops paying, so longer training drifts away from it. Graded with the
+    hand-over removed and no retraining, <b>robot_getup_u0k gets up 46/48</b>
+    from face-down and from the back at joint friction 0.05, 0.35 and 0.5.
+    That is the most friction-robust get-up so far (t3k at 0.05: 2/8 and 6/8).</p>
+    <p>Friction DR shows no effect yet: seed variance (u0k 46/48, its seed
+    replicate 0/48) swamps it. Night 3 trains with <code>--rise-ref-hold</code>
+    (PR #140): the control and DR arms again, a seed replicate, and a
+    fine-tune of u0k. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1023}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·22 · get-up campaign night 1</span></p>
