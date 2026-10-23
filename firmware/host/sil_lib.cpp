@@ -163,7 +163,7 @@ void buildSpec() {
                  obs::kJointNames[j]);
         g_spec += buf;
     }
-    // The bus map: every servo the arrays carry, servo-ID order.
+    // The bus map: every servo the arrays carry, bus order.
     g_spec += "],\"num_bus_joints\":";
     g_spec += std::to_string(obs::kNumBusJoints);
     g_spec += ",\"bus_servo_id\":[";
@@ -180,7 +180,7 @@ void buildSpec() {
     }
     // The one thing a harness cannot guess. Spelled out so the python side
     // asserts it instead of assuming an identity (see sil.h).
-    g_spec += "],\"sensor_index\":\"bus_id-1\",";
+    g_spec += "],\"sensor_index\":\"bus_index\",";
 
     snprintf(buf, sizeof buf,
              "\"ready\":%s,\"gait_freq_hz\":%.9g,"

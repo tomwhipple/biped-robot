@@ -47,7 +47,7 @@ inline constexpr int kOffCmd = 42;   // 7 wide
 // from docs/wiring.md -- a real permutation on the 10-DOF plant, since
 // the yaw servos were appended as 9/10 after IDs 1-8 were assigned.
 inline constexpr const char* kJointNames[kNumJoints] = {"L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle", "R_hip_yaw", "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle"};
-inline constexpr uint8_t kServoId[kNumJoints] = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4};
+inline constexpr uint8_t kServoId[kNumJoints] = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8};
 inline constexpr float kJointLo[kNumJoints] = {-0.785398163f, -0.436332313f, -1.91986218f, -1.65806279f, -0.698131701f, -0.785398163f, -0.959931089f, -1.91986218f, -1.65806279f, -0.698131701f};
 inline constexpr float kJointHi[kNumJoints] = {0.785398163f, 0.959931089f, 1.57079633f, 1.65806279f, 0.698131701f, 0.785398163f, 0.436332313f, 1.57079633f, 1.65806279f, 0.698131701f};
 inline constexpr float kJointDefault[kNumJoints] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
@@ -65,7 +65,7 @@ inline constexpr float kHeldTarget[1] = {0.0f};   // rad, sim joint frame
 // (servo_kp_scale): 1 = the servo's factory P. main/servo_gains.h must
 // raise P exactly where this is above 1.
 inline constexpr int kNumPlantServos = 10;
-inline constexpr uint8_t kPlantServoId[kNumPlantServos] = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4};
+inline constexpr uint8_t kPlantServoId[kNumPlantServos] = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8};
 inline constexpr float kServoKpScale[kNumPlantServos] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 
 }  // namespace obs

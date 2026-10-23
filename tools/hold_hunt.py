@@ -3,7 +3,7 @@ pos/speed reads of the pitch-chain servos. Robot: one foot clamped.
 
 Calibration comes from the board's `cal show` (blob v3, 17-servo bus map);
 the asbuilt prototype table is the fallback. Pose strings are 17-wide in
-servo-ID order.
+bus order.
 """
 import serial, time, re, csv, math, sys, argparse, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

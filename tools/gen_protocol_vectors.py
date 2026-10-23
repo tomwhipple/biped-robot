@@ -67,7 +67,7 @@ CMD_EXT_CASES = [
 ]
 
 # Extended telemetry (mirror mode): the classic body plus one angle per bus
-# joint (17, servo-ID order). Frozen as BYTES like everything else here, so the
+# joint (17, bus order). Frozen as BYTES like everything else here, so the
 # C++ port is diffed against numbers rather than against whatever the Python
 # happened to do that day. A real robot clock reading:
 # 2026-09-02T22:27:55.605401Z, the instant of the first webcam frame in the

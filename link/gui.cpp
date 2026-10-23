@@ -369,7 +369,7 @@ void tick(App& a, double now_ms) {
         // Mirror: hand the robot's measured pose to the sim, once per beacon,
         // so the ghost is drawn from the same 10 Hz the robot reports at.
         if (a.mirror && t.n_joints == linkproto::kNumJoints && a.sim.running()) {
-            // "pose" + one angle per BUS joint (servo-ID order, 17) + the
+            // "pose" + one angle per BUS joint (bus order, 17) + the
             // optional up vector: ~200 characters at the widest.
             char line[384];
             int at = snprintf(line, sizeof line, "pose");

@@ -184,7 +184,7 @@ SPEC = _parse_obs_spec()
 
 
 def _parse_bus_map(path=BUS_MAP_H):
-    """obs/bus_map.h: every servo on the robot's bus, servo-ID order. The SIL
+    """obs/bus_map.h: every servo on the robot's bus, bus order. The SIL
     arrays (SilSensors.pos_ticks, SilTargets.goal_ticks ...) are this wide."""
     txt = open(path).read()
     n = int(re.search(r"kNumBusJoints\s*=\s*(\d+);", txt).group(1))
@@ -410,8 +410,11 @@ def angles_to_action(angle_rad):
 
 # --- bus-id permutation ----------------------------------------------
 def joint_to_slot_perm(spec: ObsSpec = SPEC):
-    """P[i] = index of joint i inside an ASCENDING-BUS-ID array."""
-    return np.asarray(spec.servo_id, dtype=np.int64) - 1
+    """P[i] = index of joint i inside a BUS-INDEX-ordered array (the order of
+    bus_map.h's kBusServoId; the "ascending_id" order name predates the v6
+    servo IDs, which are no longer 1..17 in bus order)."""
+    return np.asarray([BUS_IDS.index(int(s)) for s in spec.servo_id],
+                      dtype=np.int64)
 
 
 def to_bus(values, order, spec: ObsSpec = SPEC, fill=0):

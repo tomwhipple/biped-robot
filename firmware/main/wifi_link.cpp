@@ -203,7 +203,7 @@ void wifiLinkTask(void*) {
             t.up_z = g_telemetry.up_z.load();
             t.vx_est = g_telemetry.vx_est.load();
             t.wz_est = g_telemetry.wz_est.load();
-            // Bit b = bus joint b = servo ID b + 1, same as link_task.
+            // Bit b = bus joint b (servo kBusServoId[b]), same as link_task.
             t.servo_err = g_telemetry.servo_err.load();
             t.loop_late_pct = g_telemetry.loop_late_pct.load();
             // The wall-clock stamp (timesync.h): the assembly instant, or 0
@@ -226,7 +226,7 @@ void wifiLinkTask(void*) {
                 t.up_y = g_telemetry.up_y.load();
             }
             if (cmdr.pose) {
-                // Every bus joint, servo-ID order; an unfitted servo reads 0.
+                // Every bus joint, bus order; an unfitted servo reads 0.
                 float q[obs::kNumBusJoints];
                 uint32_t seq = 0;
                 int64_t read_us = 0;

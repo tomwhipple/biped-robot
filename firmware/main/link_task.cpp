@@ -160,7 +160,7 @@ void houseTask(void*) {
                 t.up_z = g_telemetry.up_z.load();
                 t.vx_est = g_telemetry.vx_est.load();
                 t.wz_est = g_telemetry.wz_est.load();
-                // Bit b = bus joint b = servo ID b + 1, all 17 of them.
+                // Bit b = bus joint b (servo kBusServoId[b]), all 17 of them.
                 t.servo_err = g_telemetry.servo_err.load();
                 t.loop_late_pct = g_telemetry.loop_late_pct.load();
                 t.t_us = timeNowUs();   // 0 until SNTP answers (timesync.h)

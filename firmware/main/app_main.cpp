@@ -172,9 +172,9 @@ extern "C" void app_main(void) {
     if (!g_cal_from_nvs && calMigrateV2(calibration())) {
         // v2 -> v3, automatically and exactly: a v2 blob proves its servo
         // map, so each servo's zero and direction land on its bus joint,
-        // IDs 1-10 fitted and 11-17 absent (cal_store.h). Re-saved as v3.
+        // the prototype's ten joints fitted, the rest absent (cal_store.h). Re-saved as v3.
         g_cal_from_nvs = true;
-        cal_how = "migrated v2 -> v3 (IDs 1-10 fitted)";
+        cal_how = "migrated v2 -> v3 (the prototype's 10 joints fitted)";
     }
     if (!g_cal_from_nvs && calMigrateV1(calibration())) {
         // v1 -> v3, automatically and safely: a v1 blob that exactly matches

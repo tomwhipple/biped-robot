@@ -73,7 +73,7 @@ only when an extra is off its default. The UART path takes 14 B frames only.
 | 10 | 2 | up_z | i16 milli; torso up-vector z, 1.0 = upright |
 | 12 | 2 | vx_est | i16 mm/s; the firmware does not estimate it and sends 0 |
 | 14 | 2 | wz_est | i16 mrad/s; likewise 0 |
-| 16 | 4 | servo_err | u32, bit *b* = servo ID *b* + 1 faulted (no reply, or a status flag); only servos fitted in the calibration set a bit |
+| 16 | 4 | servo_err | u32, bit *b* = bus joint *b* (`obs/bus_map.h` order; servo `kBusServoId[b]`) faulted (no reply, or a status flag); only servos fitted in the calibration set a bit |
 | 20 | 1 | loop_late_pct | % of control ticks over 20 ms |
 | 21 | 8 | t_us | u64 µs since the Unix epoch, UTC, robot clock; **0 = not synced** |
 | 29 | 34 | joints | 17 × i16 milli-rad, one per bus servo in servo-ID order (`JOINT_NAMES`); 0 for a servo the robot does not carry; **only when asked with `POSE`** |

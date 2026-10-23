@@ -4,8 +4,8 @@
 Run:  MUJOCO_GL=cgl .venv/bin/python tools/servo_map_figure.py   (or `make figures`)
 
 A front view of the v6 plant (sim/bimo_biped_v6ar.xml) at its zero pose, with
-a marker at each joint's anchor. The names and IDs come from
-link/protocol.py's JOINT_NAMES (servo ID = index + 1), the bus joint set of
+a marker at each joint's anchor. The names, servo IDs and ports come from
+tools/bus_cal.py's BUS (which mirrors obs/bus_map.h), the bus joint set of
 docs/servo-map.md section 2.1; the STS3250 joints (square markers) from
 cad/v6/dimensions_v6.py SERVO_3250_JOINTS. Writes
 build/v6/renders/servo_map.png; `make figures` copies it to
@@ -26,7 +26,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "cad", "v6"))
 import dimensions_v6 as V
-from link.protocol import JOINT_NAMES
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+from bus_cal import BUS
 from paths import build_dir
 
 PLANT = os.path.join(ROOT, "sim", "bimo_biped_v6ar.xml")
@@ -88,10 +89,10 @@ def main():
     top = ext[3] - (np.flatnonzero((rgb < 250).any(axis=2).any(axis=1))[0] / PX_H) * VIEW_H
 
     joints = []
-    for i, name in enumerate(JOINT_NAMES):
+    for name, sid, _port in BUS:
         j = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, name)
         _, y, z = d.xanchor[j]
-        joints.append((i + 1, name, y, z))
+        joints.append((sid, name, y, z))
 
     fig, ax = plt.subplots(figsize=(9, 9.2), dpi=150)
     ax.imshow(rgb, extent=ext, zorder=0)
@@ -131,8 +132,8 @@ def main():
     ax.text(LABEL_X + 0.1, top + 0.03, "robot's left", fontsize=10, color="0.4", va="bottom", ha="right")
     ax.set_title("Servos and joints, front view: servo ID, joint name, model", fontsize=12)
     ax.text(0.5, -0.05,
-             "IDs: the proposed 17-servo map, docs/servo-map.md §2.1 (#77); the 10-joint prototype "
-             "carries IDs 1–10.\nNames: sim/bimo_biped_v6ar.xml. Servos: STS3215, except the STS3250 "
+             "IDs: the v6 legs as assembled (2026-10-23, written on each servo), docs/servo-map.md §2.1."
+             "\nNames: sim/bimo_biped_v6ar.xml. Servos: STS3215, except the STS3250 "
              "hip rolls (DESIGN.md §4).",
              transform=ax.transAxes, ha="center", va="top", fontsize=8, color="0.35")
     ax.set_xlim(-LABEL_X - 0.12, LABEL_X + 0.12)

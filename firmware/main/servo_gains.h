@@ -27,16 +27,16 @@
 namespace robot {
 
 inline constexpr scsbus::GainExpect kExpectedGains[] = {
-    {1, scsbus::kFactoryGains},    // R_hip_roll   (Plan B: raised, #73)
-    {2, scsbus::kFactoryGains},    // R_hip_pitch
-    {3, scsbus::kFactoryGains},    // R_knee       (Plan B: raised, #73)
-    {4, scsbus::kFactoryGains},    // R_ankle
-    {5, scsbus::kFactoryGains},    // L_hip_roll   (Plan B: raised, #73)
-    {6, scsbus::kFactoryGains},    // L_hip_pitch
-    {7, scsbus::kFactoryGains},    // L_knee       (Plan B: raised, #73)
-    {8, scsbus::kFactoryGains},    // L_ankle
-    {9, scsbus::kFactoryGains},    // R_hip_yaw
-    {10, scsbus::kFactoryGains},   // L_hip_yaw
+    {52, scsbus::kFactoryGains},   // R_hip_roll   (Plan B: raised, #73)
+    {6, scsbus::kFactoryGains},    // R_hip_pitch
+    {7, scsbus::kFactoryGains},    // R_knee       (Plan B: raised, #73)
+    {8, scsbus::kFactoryGains},    // R_ankle
+    {51, scsbus::kFactoryGains},   // L_hip_roll   (Plan B: raised, #73)
+    {2, scsbus::kFactoryGains},    // L_hip_pitch
+    {3, scsbus::kFactoryGains},    // L_knee       (Plan B: raised, #73)
+    {4, scsbus::kFactoryGains},    // L_ankle
+    {10, scsbus::kFactoryGains},   // R_hip_yaw
+    {9, scsbus::kFactoryGains},    // L_hip_yaw
     {11, scsbus::kFactoryGains},   // R_ankle_roll (Plan B: raised, #73)
     {12, scsbus::kFactoryGains},   // L_ankle_roll (Plan B: raised, #73)
     {13, scsbus::kFactoryGains},   // neck_yaw

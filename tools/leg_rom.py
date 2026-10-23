@@ -11,7 +11,7 @@ camera frame. Aborts back to zero on tilt > --tilt-abort or a stalled joint.
 
 Calibration comes from the board's `cal show` (blob v3, 17-servo bus map);
 the asbuilt prototype table is the fallback. Pose strings are sent in the
-canonical 17-wide servo-ID order (the firmware skips non-fitted joints).
+canonical 17-wide bus order (the firmware skips non-fitted joints).
 """
 import serial, time, re, csv, math, sys, argparse, subprocess, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

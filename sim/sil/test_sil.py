@@ -123,10 +123,9 @@ def test_obs_spec_parsed():
     assert H.SPEC.num_joints == 10
     assert H.SPEC.act_dim == 10
     assert H.SPEC.obs_dim == H.SPEC.frame_dim * H.SPEC.hist_len
-    # Assembly errata 2026-08-02 (tools/gen_obs_spec.py ID_BY_ROLE): the two
-    # bus chains went onto the OPPOSITE legs -- port A (9,1,2,3,4) is the
-    # right leg, port B (10,5,6,7,8) the left.
-    assert tuple(H.SPEC.servo_id) == (10, 5, 6, 7, 8, 9, 1, 2, 3, 4)
+    # The v6 legs as assembled (2026-10-23, tools/gen_obs_spec.py ID_BY_ROLE):
+    # left leg 9 / 51 / 2 / 3 / 4, right leg 10 / 52 / 6 / 7 / 8.
+    assert tuple(H.SPEC.servo_id) == (9, 51, 2, 3, 4, 10, 52, 6, 7, 8)
 
 
 def _weights_h_source_sha():
@@ -180,14 +179,16 @@ def test_bus_map_is_one_map_everywhere():
     sys.path.insert(0, os.path.join(ROOT, "tools"))
     import protocol
     import gen_obs_spec
-    assert H.BUS_IDS == tuple(range(1, H.NUM_BUS + 1))
+    assert len(set(H.BUS_IDS)) == H.NUM_BUS              # unique, not b + 1
+    import bus_cal
+    assert H.BUS_IDS == bus_cal.BUS_IDS and H.BUS_NAMES == bus_cal.BUS_NAMES
     assert tuple(protocol.JOINT_NAMES) == H.BUS_NAMES
     assert protocol.NUM_JOINTS == H.NUM_BUS
     assert {n: i for n, i in zip(H.BUS_NAMES, H.BUS_IDS)} == \
         gen_obs_spec.ID_BY_ROLE
     # the policy's joints are a subset, under the same names and servos
     for name, sid in zip(H.SPEC.joint_names, H.SPEC.servo_id):
-        assert H.BUS_NAMES[sid - 1] == name
+        assert H.BUS_NAMES[H.BUS_IDS.index(sid)] == name
 
 
 def test_obs_spec_generator_on_a_robot_run(tmp_path):
@@ -221,7 +222,7 @@ def test_obs_spec_generator_on_a_robot_run(tmp_path):
     assert {"L_ankle_roll", "R_ankle_roll"} <= set(names)
     ids = dict(zip(names, spec.servo_id))
     for n, sid in ids.items():
-        assert H.BUS_NAMES[sid - 1] == n
+        assert H.BUS_NAMES[H.BUS_IDS.index(sid)] == n
     assert ids["R_ankle_roll"] == 11 and ids["L_ankle_roll"] == 12
 
     def arr(name, cast):
@@ -242,7 +243,7 @@ def test_obs_spec_generator_on_a_robot_run(tmp_path):
     kp = dict(zip(plant_ids, arr("kServoKpScale", float)))
     assert sorted(plant_ids) == sorted(list(spec.servo_id) + held_ids)
     raised = {sid for sid, f in kp.items() if f != 1.0}
-    assert raised == {1, 3, 5, 7, 11, 12}                   # rolls + knees
+    assert raised == {51, 52, 3, 7, 11, 12}                 # rolls + knees
     assert all(kp[sid] == 4.0 for sid in raised)
 
 
@@ -401,7 +402,7 @@ def test_calibration_files_written(cal_files):
         assert len(cal.zero_steps) == H.SPEC.num_joints
         assert set(np.unique(cal.dir)) <= {-1, 1}
         assert np.all(cal.zero_steps >= 0) and np.all(cal.zero_steps <= 4095)
-        assert sorted(cal.bus_id.tolist()) == list(range(1, 11))
+        assert sorted(cal.bus_id.tolist()) == sorted(H.SPEC.servo_id)
     nom = H.Calibration.read(cal_files[0])
     assert np.all(nom.zero_steps == H.CENTER_STEPS) and np.all(nom.dir == 1)
     per = H.Calibration.read(cal_files[1])
@@ -411,16 +412,16 @@ def test_calibration_files_written(cal_files):
 def test_bus_permutation_is_kservoid():
     perm = H.joint_to_slot_perm()
     assert sorted(perm.tolist()) == list(range(H.SPEC.num_joints))
-    assert perm.tolist() == [i - 1 for i in H.SPEC.servo_id]
+    assert perm.tolist() == [H.BUS_IDS.index(i) for i in H.SPEC.servo_id]
     assert perm.tolist() != list(range(H.SPEC.num_joints)), \
         "kServoId is NOT an identity -- wiring.md was wrong about this"
     v = np.arange(H.SPEC.num_joints) * 3 + 1
     for order in ("joint", "ascending_id"):
         assert np.array_equal(H.from_bus(H.to_bus(v, order), order), v)
-    # element k of an ascending-id array is bus id k+1
+    # element k of a bus-index-ordered array is servo BUS_IDS[k]
     bus = H.to_bus(v, "ascending_id")
     for i, sid in enumerate(H.SPEC.servo_id):
-        assert bus[sid - 1] == v[i]
+        assert bus[H.BUS_IDS.index(sid)] == v[i]
 
 
 def test_action_target_map_inverts():

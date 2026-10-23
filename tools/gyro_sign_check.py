@@ -11,7 +11,7 @@ robot after the yaw-strip fix (d_up (-0.100, -0.005), int y -6.55 deg).
     .venv/bin/python tools/gyro_sign_check.py --joint ankle --amp 6
 
 Calibration from the board's `cal show` (blob v3, 17-servo bus map);
-asbuilt fallback. Pose strings are 17-wide in servo-ID order.
+asbuilt fallback. Pose strings are 17-wide in bus order.
 """
 import serial, time, re, argparse, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

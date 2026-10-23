@@ -38,13 +38,18 @@ import time
 import serial
 
 K = 4096 / 360.0
-# firmware/main/mech_envelope.h kMechLo / kMechHi, degrees, by bus id
-MECH = {1: (-55, 25), 2: (-110, 90), 3: (-95, 95), 4: (-40, 40), 5: (-25, 55),
-        6: (-110, 90), 7: (-95, 95), 8: (-40, 40), 9: (-45, 45), 10: (-45, 45),
-        11: (-25, 25), 12: (-25, 25)}
+# firmware/main/mech_envelope.h kMechLo / kMechHi, degrees, by JOINT NAME. The
+# servo ID of each joint comes from the live board's `cal show` (board_joint),
+# so the tool follows whichever bus map the flashed firmware carries (the v6
+# legs' IDs changed on 2026-10-23: keying this by ID once went stale).
+MECH_BY_NAME = {
+    "R_hip_roll": (-55, 25), "R_hip_pitch": (-110, 90), "R_knee": (-95, 95),
+    "R_ankle": (-40, 40), "L_hip_roll": (-25, 55), "L_hip_pitch": (-110, 90),
+    "L_knee": (-95, 95), "L_ankle": (-40, 40), "R_hip_yaw": (-45, 45),
+    "L_hip_yaw": (-45, 45), "R_ankle_roll": (-25, 25), "L_ankle_roll": (-25, 25)}
 POS_RE = re.compile(r"id\s+(\d+)\s+pos\s+(-?\d+)\s+spd\s+(-?\d+)\s+load\s+(-?\d+)"
                     r"\s+([\d.]+)\s*V\s+(\d+)\s*C\s+err\s+0x([0-9a-fA-F]+)")
-CAL_RE = re.compile(r"id\s+(\d+)\s+zero\s+(\d+)\s+dir\s+([+-]1)\s+(fitted|NOT FITTED)")
+CAL_RE = re.compile(r"(\w+)\s+id\s+(\d+)\s+zero\s+(\d+)\s+dir\s+([+-]1)\s+(fitted|NOT FITTED)")
 ENC_LO, ENC_HI, EDGE = 30, 4065, 30
 ACTIVE = {"start": None}       # the running direction's start, for recovery
 
@@ -99,6 +104,21 @@ class Port:
         self.cmd(f"release {sid}", r"release \S+: \S+\r?\n")
 
 
+def board_joint(p, sid):
+    """The board's own `cal show` row for servo `sid`: (name, zero, dir,
+    fitted, (lo, hi) deg), or None when the flashed firmware's bus map does not
+    have that ID (then `move` is not clamped). A mapped joint without a range
+    here is refused: its clamp could not be re-centred."""
+    for m in CAL_RE.finditer(p.cmd("cal show", r"loaded from|defaults|\? \(try", 2.0)):
+        if int(m.group(2)) == sid:
+            name = m.group(1)
+            if name not in MECH_BY_NAME:
+                raise Abort(f"id {sid} is the board's {name}: no range for it in MECH_BY_NAME")
+            return (name, int(m.group(3)), int(m.group(4)), m.group(5) == "fitted",
+                    MECH_BY_NAME[name])
+    return None
+
+
 def settle(p, sid, tmax=2.0):
     t0, still, r = time.monotonic(), 0, None
     while time.monotonic() - t0 < tmax:
@@ -109,14 +129,14 @@ def settle(p, sid, tmax=2.0):
     return r
 
 
-def sweep(p, sid, sgn, a, say, budget=None):
+def sweep(p, sid, sgn, a, say, budget=None, mech=None):
     """One direction from the resting position; returns the record. budget:
     degrees left of the whole sweep's travel (both directions together)."""
     p0 = p.pos(sid)["pos"]
     step = round(a.step_deg * K)
     window = (ENC_LO, ENC_HI)
-    if sid in MECH:
-        lo, hi = MECH[sid]
+    if mech:
+        lo, hi = mech
         width = round((hi - lo) * K)
         # dir +1: window = [zero + lo*K, zero + hi*K]; start EDGE inside one end
         zero = p0 - EDGE - round(lo * K) if sgn > 0 else p0 + EDGE - round(hi * K)
@@ -220,24 +240,22 @@ def main():
         for i in [int(x) for x in a.check_ids.split(",")]:
             if p.torque_reg(i) != 0:
                 raise Abort(f"id {i}: torque is ON -- refusing to start")
-        if sid in MECH:
-            m = [m for m in CAL_RE.finditer(p.cmd("cal show", r"loaded from|defaults|\? \(try", 2.0))
-                 if int(m.group(1)) == sid]
-            if not m:
-                raise Abort(f"id {sid}: not in `cal show`")
-            orig = (int(m[0].group(2)), int(m[0].group(3)), m[0].group(4) == "fitted")
-            res["cal_orig"] = orig
+        row = board_joint(p, sid)
+        mech = row[4] if row else None
+        if row:
+            orig = row[1:4]
+            res["cal_orig"], res["joint"] = orig, row[0]
         say(f"# {utc()} rom_sweep id {sid} dirs {a.dirs} step {a.step_deg} deg @ {a.speed} steps/s, "
             f"load stop {a.load_stop}")
         # total travel over both directions <= the joint's design width + 20 deg
         # (2026-10-23: each direction alone allowed the full width, and the
         # stop-less hip yaw ran 86 + 85 deg, twice its +-45 design range)
-        budget = (MECH[sid][1] - MECH[sid][0] + 20) if sid in MECH else 2 * a.max_deg
+        budget = (mech[1] - mech[0] + 20) if mech else 2 * a.max_deg
         for sgn in [int(x) for x in a.dirs.split(",")]:
             if budget <= a.step_deg:
                 say(f"  id {sid} dir {sgn:+d}: skipped, travel budget used")
                 continue
-            rec = sweep(p, sid, sgn, a, say, budget)
+            rec = sweep(p, sid, sgn, a, say, budget, mech)
             res["dirs"].append(rec)
             budget -= abs(rec["reach_deg"])
     except (Abort, KeyboardInterrupt, Exception) as e:

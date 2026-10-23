@@ -19,7 +19,7 @@ with torque released, arms over the radio or the USB tether, and runs the
 block and the SIL arrays are all 17 wide. The **policy** is what the compiled
 network observes and commands, from the generated `obs_spec.h`: the
 prototype's 10 joints (`kNumJoints = 10`,
-`kServoId = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4}`, plant
+`kServoId = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8}` — the v6 legs' IDs as assembled, plant
 `sim/bimo_biped_v5body.xml`), policy `loco_v41rsi_b_s128r24`. The loop drives
 the policy's joints and holds every other fitted servo; the prototype's
 calibration marks IDs 11–17 not fitted

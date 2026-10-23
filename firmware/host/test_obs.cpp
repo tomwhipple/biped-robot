@@ -27,22 +27,21 @@ void testSpecMatchesVectors() {
 }
 
 void testServoIdMapIsAPermutation() {
-    // docs/wiring.md's bus IDs vs. the sim's action order. On the 10-DOF plant
-    // this is NOT the identity, and the 2026-08-02 errata widened the gap: the
-    // two bus chains went onto the opposite legs, so port A (9,1,2,3,4) is the
-    // RIGHT leg and port B (10,5,6,7,8) the LEFT. See ID_BY_ROLE in
-    // tools/gen_obs_spec.py for the observations that pinned it down.
-    bool seen[16] = {};
+    // The bus IDs vs. the sim's action order: the v6 legs as assembled
+    // (2026-10-23, ID_BY_ROLE in tools/gen_obs_spec.py and obs/bus_map.h) --
+    // the left leg carries 9 / 51 / 2 / 3 / 4, the right 10 / 52 / 6 / 7 / 8.
+    bool seen[256] = {};
     for (int i = 0; i < obs::kNumJoints; ++i) {
         const uint8_t id = obs::kServoId[i];
-        CHECK(id >= 1 && id <= 10);
+        CHECK(id >= 1 && id <= 253);
         CHECK(!seen[id]);
         seen[id] = true;
     }
-    CHECK_EQ(obs::kServoId[0], 10);     // L_hip_yaw  -- port B, the LEFT leg
-    CHECK_EQ(obs::kServoId[1], 5);      // L_hip_roll -- port B
-    CHECK_EQ(obs::kServoId[5], 9);      // R_hip_yaw  -- port A, the RIGHT leg
-    CHECK_EQ(obs::kServoId[9], 4);      // R_ankle    -- port A
+    CHECK_EQ(obs::kServoId[0], 9);      // L_hip_yaw
+    CHECK_EQ(obs::kServoId[1], 51);     // L_hip_roll (STS3250)
+    CHECK_EQ(obs::kServoId[5], 10);     // R_hip_yaw
+    CHECK_EQ(obs::kServoId[6], 52);     // R_hip_roll (STS3250)
+    CHECK_EQ(obs::kServoId[9], 8);      // R_ankle
 }
 
 void testFramesMatchTheSim() {
@@ -210,12 +209,14 @@ void testBusAngleToStepsRaw() {
 void testBusMap() {
     CHECK_EQ(obs::kNumBusJoints, 17);
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
-        CHECK_EQ(obs::kBusServoId[b], b + 1);          // index b == ID b + 1
-        CHECK_EQ(obs::busIndexOfId(b + 1), b);
+        CHECK_EQ(obs::busIndexOfId(obs::kBusServoId[b]), b);
+        CHECK_EQ(obs::busIndexOfName(obs::kBusJointNames[b]), b);
         CHECK(obs::kBusPort[b] == 'A' || obs::kBusPort[b] == 'B');
     }
     CHECK_EQ(obs::busIndexOfId(0), -1);
     CHECK_EQ(obs::busIndexOfId(18), -1);
+    CHECK_EQ(obs::busIndexOfId(1), -1);   // the old R_hip_roll ID: not on the bus
+    CHECK_EQ(obs::busIndexOfName("no_such_joint"), -1);
     // Every policy joint is a bus joint with the same name and servo, and
     // the two maps are inverse on the policy's joints.
     int driven = 0;
@@ -233,9 +234,10 @@ void testBusMap() {
         if (obs::busToPolicy(b) >= 0) ++driven;
     }
     CHECK_EQ(driven, obs::kNumJoints);
-    // The proposed map (docs/servo-map.md 2.1): IDs 1-10 the prototype's,
-    // then the ankle rolls, the neck and the arms.
-    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(9)], "R_hip_yaw") == 0);
+    // The as-assembled map (docs/servo-map.md 2.1).
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(9)], "L_hip_yaw") == 0);
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(52)], "R_hip_roll") == 0);
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(51)], "L_hip_roll") == 0);
     CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(11)], "R_ankle_roll") == 0);
     CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(13)], "neck_yaw") == 0);
     CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(17)], "L_elbow") == 0);
@@ -418,8 +420,9 @@ void testCalBlob() {
     }
 
     // v2 -> v3 (the automatic boot migration): a prototype v2 blob, joint-
-    // indexed in the legacy map, lands each servo's zero and direction on
-    // that servo's bus joint; those ten are fitted and IDs 11-17 are not.
+    // indexed in the legacy map, lands each value on its JOINT's bus index
+    // (by name: the IDs changed with the v6 assembly); those ten are fitted
+    // and the ankle rolls, neck and arms are not.
     robot::CalBlobV2 v2{};
     v2.magic = robot::kCalMagic;
     v2.version = 2;
@@ -433,7 +436,7 @@ void testCalBlob() {
     obs::Calibration m2;
     CHECK(robot::calUnpackV2(v2, m2));
     for (int i = 0; i < robot::kLegacyJoints; ++i) {
-        const int b = obs::busIndexOfId(robot::kLegacyServoId[i]);
+        const int b = obs::busIndexOfName(robot::kLegacyJointNames[i]);
         if (b < 0) {
             CHECK(false);
             continue;
@@ -486,7 +489,7 @@ void testCalBlob() {
     obs::Calibration mig;
     CHECK(robot::calUnpackV1(v1, mig));
     for (int i = 0; i < robot::kLegacyJoints; ++i) {
-        const int b = obs::busIndexOfId(robot::kLegacyServoId[i]);
+        const int b = obs::busIndexOfName(robot::kLegacyJointNames[i]);
         if (b < 0) {
             CHECK(false);
             continue;

@@ -18,8 +18,8 @@ namespace linkproto {
 constexpr uint8_t kMagicCmd[2] = {'B', 'M'};   // laptop -> robot
 constexpr uint8_t kMagicTlm[2] = {'B', 'T'};   // robot -> laptop
 // Protocol version 2 (issue #81): the telemetry frame carries the 17-servo
-// bus -- servo_err is a u32 (bit b = servo ID b + 1) and the joint block is
-// 17 angles in servo-ID order. The BASE block changed, which a length cannot
+// bus -- servo_err is a u32 (bit b = bus joint b) and the joint block is
+// 17 angles in bus order. The BASE block changed, which a length cannot
 // say, so the version is 2 in both directions and a version-1 peer's frames
 // are refused (kBadVersion) rather than half-read. protocol.py VERSION.
 constexpr uint8_t kVersion = 2;
@@ -41,14 +41,14 @@ constexpr size_t kCmdLenExt = 24;
 constexpr size_t kTlmTimeOff = 21;  // the u64 sits right after the body
 constexpr size_t kTlmLen = kTlmTimeOff + 8 + 2;   // 31
 // The JOINT block (mirror mode): one int16 milli-radian per BUS joint, in
-// servo-ID order (obs/bus_map.h; protocol.py JOINT_NAMES), then the CRC. For
+// bus order (obs/bus_map.h; protocol.py JOINT_NAMES), then the CRC. For
 // driving the real robot while a sim follows its observed pose.
 //
 // The robot is the SENDER and every client rejects an unexpected length, so
 // a robot that simply began beaconing the long frame would blind every
 // existing commander at once. Hence kFlagPose: the long frame is REQUESTED,
 // never volunteered. See docs/mirror-mode.md.
-constexpr size_t kNumJoints = 17;   // bus order: servo ID = index + 1
+constexpr size_t kNumJoints = 17;   // bus order (servo IDs: obs/bus_map.h kBusServoId)
 constexpr size_t kTlmLenExt = kTlmLen + 2 * kNumJoints;   // 65
 
 // ATTITUDE: up_x and up_y, int16 milli, appended AFTER the joint block and
@@ -266,9 +266,9 @@ struct Telemetry {
     float up_z;          // torso up-vector z; 1.0 = perfectly upright
     float vx_est;
     float wz_est;
-    uint32_t servo_err;  // bitmask, bit b = bus joint b (servo ID b+1) faulted
+    uint32_t servo_err;  // bitmask, bit b = bus joint b faulted
     uint8_t loop_late_pct;
-    // Measured joint angles, radians, bus order (servo ID = index + 1).
+    // Measured joint angles, radians, bus order.
     // n_joints is 0 on a classic frame -- which is every frame, unless a
     // commander asked with kFlagPose.
     uint8_t n_joints = 0;
