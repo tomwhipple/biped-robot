@@ -2093,12 +2093,18 @@ def main():
                         "of the run's own (config.json joint_frictionloss): "
                         "the friction-robustness sweep of the get-up "
                         "campaign. Writes scorecard_fl<value>.{md,json}")
+    p.add_argument("--rise-ref-hold", action="store_true",
+                   help="grade with rise_ref_hold on (no handover from the residual "
+                        "reference map at recovered) whatever the run trained with: "
+                        "the handover counterfactual. Writes scorecard_hold.{md,json}")
     args = p.parse_args()
     suffix = "_sil" if args.sil else ""
     if args.act_lag_hz > 0.0 or args.act_delay_ticks > 0:
         suffix = f"{suffix}_lag"
     if args.joint_frictionloss is not None:
         suffix = f"{suffix}_fl{args.joint_frictionloss:g}"
+    if args.rise_ref_hold:
+        suffix = f"{suffix}_hold"
     # a --scenarios subset must not clobber the run's full reel either --
     # the scorecard learned this 2026-08-03 (guard below), but the movie
     # path didn't and a stand-only render overwrote two full reels
@@ -2121,6 +2127,8 @@ def main():
         cfg = json.load(f)
     if args.joint_frictionloss is not None:
         cfg["joint_frictionloss"] = args.joint_frictionloss
+    if args.rise_ref_hold:
+        cfg["rise_ref_hold"] = True
     xml = args.xml or cfg.get("xml_path") or DEFAULT_XML
     if not os.path.isabs(xml) and not os.path.exists(xml):
         # train_mjx.py stores the basename (the run may have trained on a
