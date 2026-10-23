@@ -28,7 +28,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import gain_bench as GB
 
-SID = 30
+SID = int(os.environ.get("SID", 30))
 LEVEL = int(os.environ.get("LEVEL_T", 2507))
 DOWN = int(os.environ.get("DOWN_T", 3531))
 DOWN_TOL, SLOW, T_SWEEP = 60, 100, 10.24
@@ -67,11 +67,33 @@ def at(b):
     return GB.read_pos(b, SID)
 
 
+class AccelLost(GB.Abort):
+    """The fork accelerometer stopped delivering. Tom 2026-10-23: a run without it
+    is no data -- stop the test so he can fix it. A sensor fault, not a mechanical
+    one: the servo still tracks, so the abort handlers lower to plumb and release."""
+
+
+# `bno rec` starts even when the chip has stopped answering (the firmware only
+# loops on reads), so a lost sensor shows up as a short or gappy dump. It runs
+# at ~510 Hz on the bench (2026-10-23 rest check).
+BNO_MIN_HZ, BNO_MAX_GAP_S, BNO_COVER = 250, 0.1, 0.8
+
+
 def bno_start(b, ms):
     out = b.cmd(f"bno rec {int(ms)}", until=r"bno rec: started.*\n|bno: .*\n|\? \(try", timeout=3)
     if "started" not in out:
-        raise GB.Abort(f"bno rec failed: {out.strip()[-90:]!r}")
+        raise AccelLost(f"bno rec failed: {out.strip()[-90:]!r}")
+    bno_start.ms = ms
     return time.monotonic()
+
+
+def bno_check(samples, ms):
+    gap = max((b[0] - a[0] for a, b in zip(samples, samples[1:])), default=0) / 1e6
+    span = (samples[-1][0] - samples[0][0]) / 1e6 if samples else 0.0
+    if (len(samples) < BNO_MIN_HZ * ms / 1000 or gap > BNO_MAX_GAP_S
+            or span < BNO_COVER * ms / 1000):
+        raise AccelLost(f"accelerometer lost: {len(samples)} samples over {span:.2f} s of a "
+                        f"{ms / 1000:.2f} s recording, longest gap {gap * 1000:.0f} ms")
 
 
 def bno_collect(b):
@@ -87,7 +109,17 @@ def bno_collect(b):
         parts = line.split()
         if len(parts) == 4 and all(x.lstrip("-").isdigit() for x in parts):
             samples.append([int(x) for x in parts])
-    return samples
+    # the 115200 tether drops characters in a long dump now and then: a line
+    # whose timestamp lost digits (2026-10-23: 943878 between 9438716 and
+    # 9450722) reads as an 8.5 s gap. Drop samples out of order with both
+    # neighbours, so only a real dropout trips the check.
+    keep = [s for i, s in enumerate(samples)
+            if (i == 0 or samples[i - 1][0] <= s[0])
+            and (i == len(samples) - 1 or s[0] <= samples[i + 1][0])]
+    if len(keep) < len(samples):
+        say(f"    bno dump: dropped {len(samples) - len(keep)} garbled sample(s)")
+    bno_check(keep, bno_start.ms)
+    return keep
 
 
 def bno_metrics(samples):
@@ -232,7 +264,10 @@ def main():
         # Tom may leave the arm above level after working on it: accept up to ~60 deg
         # past level on the far side of plumb (2026-10-02, 1899 seen)
         g = 1 if DOWN > LEVEL else -1
-        lo, hi = sorted((LEVEL - g * 700, DOWN + g * DOWN_TOL))
+        # and up to ~18 deg past plumb on the table side (2026-10-23: 1365 after the
+        # accelerometer was rewired at the fork tip; lowering from there moves away
+        # from the table)
+        lo, hi = sorted((LEVEL - g * 700, DOWN + g * 200))
         if abs(p0 - DOWN) > DOWN_TOL:
             if not lo <= p0 <= hi:
                 raise GB.Abort(f"start refused: pos {p0} is outside level..plumb ({LEVEL}..{DOWN})")
@@ -306,6 +341,11 @@ def main():
         try:
             if state["torque"]:
                 pos = at(b)["pos"]
+                if isinstance(e, AccelLost) and abs(pos - DOWN) > DOWN_TOL:
+                    say(f"  accelerometer lost off plumb: lowering {pos} -> {DOWN} at {SLOW} steps/s")
+                    move(b, DOWN, SLOW, 2)
+                    time.sleep(abs(pos - DOWN) / SLOW + 3.0)
+                    pos = at(b)["pos"]
                 if abs(pos - DOWN) <= DOWN_TOL:
                     say(f"  released at plumb: {release_at_down(b)}")
                 else:

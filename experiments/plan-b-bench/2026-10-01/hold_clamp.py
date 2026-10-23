@@ -26,6 +26,7 @@ SID, LEVEL, DOWN = 30, 2057, 3081          # DOWN = LEVEL + 1024 (90 deg, load p
 # v3 rig (2026-10-02): plumb read off the servo with the fork aligned to a hanging
 # string by Tom = 3531, so LEVEL 2507; pass them in rather than editing defaults
 LEVEL = int(os.environ.get("LEVEL_T", LEVEL)); DOWN = int(os.environ.get("DOWN_T", DOWN))
+SID = int(os.environ.get("SID", SID))         # 2026-10-23: the STS3250 runs off the 3215's id
 LADDER = [tuple(int(v) for v in x.split(":")) for x in os.environ.get(
     "LADDER", "32:32,128:128,160:160").split(",")]
 A, SLOW, START_TOL, DOWN_TOL = 23, 100, 60, 60

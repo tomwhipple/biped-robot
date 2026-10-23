@@ -1,0 +1,73 @@
+{
+ "id": 31,
+ "down": 1254,
+ "A": 45,
+ "windows": {
+  "plumb": {
+   "n": 10,
+   "hz": 30.24193548387097,
+   "pos_mean": 1254.0,
+   "pos_min": 1254,
+   "pos_max": 1254,
+   "range": 0,
+   "moving": 0,
+   "load_mean": 0.0,
+   "load_min": 0,
+   "load_max": 0,
+   "err": 0,
+   "temp_max": 25,
+   "volt_min": 12.0
+  },
+  "minus": {
+   "n": 10,
+   "hz": 29.459901800327334,
+   "pos_mean": 1210.0,
+   "pos_min": 1210,
+   "pos_max": 1210,
+   "range": 0,
+   "moving": 0,
+   "load_mean": 8.0,
+   "load_min": 8,
+   "load_max": 8,
+   "err": 0,
+   "temp_max": 25,
+   "volt_min": 12.1
+  },
+  "plus": {
+   "n": 10,
+   "hz": 30.181086519114686,
+   "pos_mean": 1299.0,
+   "pos_min": 1299,
+   "pos_max": 1299,
+   "range": 0,
+   "moving": 0,
+   "load_mean": 0.0,
+   "load_min": 0,
+   "load_max": 0,
+   "err": 0,
+   "temp_max": 25,
+   "volt_min": 12.0
+  },
+  "back": {
+   "n": 10,
+   "hz": 28.445006321112515,
+   "pos_mean": 1255.0,
+   "pos_min": 1255,
+   "pos_max": 1255,
+   "range": 0,
+   "moving": 0,
+   "load_mean": 8.0,
+   "load_min": 8,
+   "load_max": 8,
+   "err": 0,
+   "temp_max": 25,
+   "volt_min": 12.0
+  }
+ },
+ "gains": [
+  32,
+  32,
+  0
+ ],
+ "released_at": 1256
+}

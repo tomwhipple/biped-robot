@@ -1,0 +1,115 @@
+# 2026-10-23T13:09:23 direction_check.py id 31 DOWN 1254 A 45
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> reg 31 40 1
+id 31 reg 40 = 0 (0x00)
+>>> gains 31
+id 31  P 32  D 32  I 0   expected (no row in servo_gains.h)
+
+NEXT MOTION: torque on at 1254 (plumb), -45 ticks, +45 ticks, back to plumb at 100 steps/s, release there
+  type go:
+< 'go'
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.1 V  26 C  err 0x00
+>>> torque 31
+torque 31: ok
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> move 31 1254 0 100 2
+move id 31 -> 1254 ticks, 0 ms, spd 100, acc 2: ok
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.0 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.0 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.0 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.0 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1254  spd     0  load    0  12.1 V  25 C  err 0x00
+  19:09:30Z plumb 1254: pos 1254.0, load +0 (0..0), err 0
+>>> move 31 1209 0 100 2
+move id 31 -> 1209 ticks, 0 ms, spd 100, acc 2: ok
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1210  spd     0  load    8  12.1 V  25 C  err 0x00
+  19:09:33Z minus 1209: pos 1210.0, load +8 (8..8), err 0
+>>> move 31 1299 0 100 2
+move id 31 -> 1299 ticks, 0 ms, spd 100, acc 2: ok
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.0 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.0 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1299  spd     0  load    0  12.1 V  25 C  err 0x00
+  19:09:37Z plus 1299: pos 1299.0, load +0 (0..0), err 0
+>>> move 31 1254 0 100 2
+move id 31 -> 1254 ticks, 0 ms, spd 100, acc 2: ok
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.0 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.1 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.0 V  25 C  err 0x00
+>>> pos 31
+id 31  pos  1255  spd     0  load    8  12.1 V  25 C  err 0x00
+  19:09:40Z back 1254: pos 1255.0, load +8 (8..8), err 0
+>>> release 31
+release 31: ok
+>>> pos 31
+id 31  pos  1256  spd     0  load    0  12.1 V  25 C  err 0x00
+  released at plumb: pos 1256
+# end 2026-10-23T13:09:42

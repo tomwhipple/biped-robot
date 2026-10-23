@@ -1,0 +1,40 @@
+# 2026-10-23T13:59:56 stream50.py id 31 LEVEL 230 DOWN 1254 gains [(32, 32), (64, 32), (96, 32)] cases ['robot rule, 4 s', 'matched, 4 s', 'robot rule, 2 s', 'matched, 2 s']
+  bno: BNO08x at 0x4B, drained 32 start-up packet(s), Set Feature sent, 1 packet(s) after; READY a = 140 62 -1008 mg
+
+== P 32 D 32
+  robot rule, 4 s  raise: accel y/x 99.54/86.77 mg (peak 50.3/50.3 Hz) | track rms 14.22 max 22 | backward 0/226 | end range 0 | load 8..104
+  robot rule, 4 s  lower: accel y/x 102.79/85.64 mg (peak 50.3/50.3 Hz) | track rms 11.16 max 18 | backward 0/220 | end range 0 | load -72..32
+  matched, 4 s     raise: accel y/x 55.45/43.96 mg (peak 26.0/40.0 Hz) | track rms 126.41 max 172 | backward 0/226 | end range 14 | load 8..108
+  matched, 4 s     lower: accel y/x 69.62/52.5 mg (peak 50.7/50.7 Hz) | track rms 123.16 max 168 | backward 0/221 | end range 14 | load -68..32
+  robot rule, 2 s  raise: accel y/x 142.21/145.29 mg (peak 50.5/50.5 Hz) | track rms 26.21 max 41 | backward 0/126 | end range 0 | load 0..176
+  robot rule, 2 s  lower: accel y/x 142.32/138.98 mg (peak 50.5/50.5 Hz) | track rms 23.19 max 37 | backward 0/126 | end range 0 | load -144..32
+  matched, 2 s     raise: accel y/x 65.48/83.54 mg (peak 42.7/118.2 Hz) | track rms 140.82 max 194 | backward 0/126 | end range 14 | load 8..180
+  matched, 2 s     lower: accel y/x 80.0/95.05 mg (peak 50.5/122.2 Hz) | track rms 137.73 max 190 | backward 0/126 | end range 14 | load -148..32
+  released at plumb: pos 1254
+
+== P 64 D 32
+  gains 64/32: landed, ack lost
+  robot rule, 4 s  raise: accel y/x 162.11/136.21 mg (peak 50.3/50.3 Hz) | track rms 10.04 max 17 | backward 0/226 | end range 0 | load 0..112
+  robot rule, 4 s  lower: accel y/x 195.49/145.59 mg (peak 50.2/50.2 Hz) | track rms 8.78 max 15 | backward 4/226 | end range 0 | load -80..32
+  matched, 4 s     raise: accel y/x 80.55/68.29 mg (peak 25.2/50.5 Hz) | track rms 122.48 max 166 | backward 0/226 | end range 14 | load 0..116
+  matched, 4 s     lower: accel y/x 108.06/76.88 mg (peak 24.0/36.7 Hz) | track rms 121.39 max 165 | backward 0/226 | end range 13 | load -84..32
+  robot rule, 2 s  raise: accel y/x 223.1/206.58 mg (peak 50.5/50.5 Hz) | track rms 19.15 max 31 | backward 0/126 | end range 0 | load 0..188
+  robot rule, 2 s  lower: accel y/x 226.3/202.54 mg (peak 50.5/50.5 Hz) | track rms 17.91 max 29 | backward 1/126 | end range 0 | load -156..32
+  matched, 2 s     raise: accel y/x 87.52/96.88 mg (peak 50.5/118.2 Hz) | track rms 134.42 max 183 | backward 0/126 | end range 14 | load 0..180
+  matched, 2 s     lower: accel y/x 119.45/109.89 mg (peak 24.0/50.5 Hz) | track rms 133.38 max 182 | backward 0/126 | end range 14 | load -148..32
+  released at plumb: pos 1254
+
+== P 96 D 32
+  gains 96/32: ok
+  robot rule, 4 s  raise: accel y/x 242.12/187.33 mg (peak 50.3/50.3 Hz) | track rms 8.69 max 15 | backward 0/226 | end range 0 | load -4..120
+    bno dump: dropped 2 garbled sample(s)
+  robot rule, 4 s  lower: accel y/x 1641.86/1106.73 mg (peak 18.7/37.7 Hz) | track rms 8.72 max 17 | backward 29/226 | end range 10 | load -288..144
+  matched, 4 s     raise: accel y/x 1480.48/1349.69 mg (peak 17.7/35.3 Hz) | track rms 121.32 max 169 | backward 53/226 | end range 14 | load -120..268
+  matched, 4 s     lower: accel y/x 181.47/114.56 mg (peak 23.5/36.3 Hz) | track rms 120.76 max 163 | backward 0/226 | end range 13 | load -76..24
+  robot rule, 2 s  raise: accel y/x 320.35/286.78 mg (peak 50.5/50.5 Hz) | track rms 16.89 max 27 | backward 0/126 | end range 0 | load 0..212
+  robot rule, 2 s  lower: accel y/x 2674.78/1671.56 mg (peak 18.7/116.7 Hz) | track rms 17.58 max 35 | backward 12/126 | end range 10 | load -416..124
+  matched, 2 s     raise: accel y/x 1374.54/1240.56 mg (peak 17.7/35.2 Hz) | track rms 132.46 max 185 | backward 15/126 | end range 14 | load -124..316
+  matched, 2 s     lower: accel y/x 192.92/139.69 mg (peak 23.8/50.5 Hz) | track rms 131.8 max 179 | backward 0/126 | end range 13 | load -148..24
+  released at plumb: pos 1254
+  gains back to (32, 32)
+# end 2026-10-23T14:04:56
