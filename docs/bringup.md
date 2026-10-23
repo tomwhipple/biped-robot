@@ -94,12 +94,14 @@ The robot's ID map is **proposed, awaiting sign-off** ([servo-map.md §2.1](serv
 Assign IDs only from the signed-off map. Every servo ships as ID 1, so set IDs
 **one servo on the bus at a time**.
 
+![Front view of the robot with every joint marked: servo ID, joint name, bus port, STS3250s](img/servo_map.png)
+
 For each servo:
 
 1. Board off. Connect this servo alone to a bus port. Board on.
 2. `scan`: expect exactly one servo, at ID 1, with a sane voltage and `err 0x00`.
 3. Check the part and its factory state:
-   - `reg 1 3 2` = **777** (STS3215);
+   - `reg 1 3 2` = **777** (STS3215), or **2825** for the STS3250 hip rolls (IDs 1 and 5);
    - `reg 1 9 2` = 0 and `reg 1 11 2` = 4095 (angle limits);
    - `reg 1 33` = 0 (position mode);
    - `gains 1` = P 32, D 32, I 0 (registers 21/22/23).

@@ -166,9 +166,11 @@ The robot has no heat-set inserts and no washers.
 2. **IDs, one servo at a time.** Servos ship as ID 1, and two servos with the
    same ID do not enumerate. Assign each ID alone on the bus and label the
    case.
-   - The ID map for the 17 joints is **not yet assigned** (#77).
-     [servo-map.md](servo-map.md) holds the prototype's IDs 1–10 and the
-     procedure (`tools/servo_tool.py`).
+   - The ID map for the 17 joints is **proposed, awaiting sign-off** (#77):
+     [servo-map.md §2.1](servo-map.md#21-the-robot-the-proposed-map), drawn
+     below. The procedure is [bringup.md §2](bringup.md#2-servo-ids-and-gains).
+
+   ![Front view of the robot with every joint marked: servo ID, joint name, bus port, STS3250s](img/servo_map.png)
 3. **Centre each servo at 2048, then fit its horn** with the centre screw.
    - The horn seats on discrete splines, so a mechanical zero is never exact.
      Calibration (§13) records the residual offset.
@@ -538,8 +540,11 @@ the neck is built into the girdle before the girdle goes onto the robot.
 
 ## 12. Cabling
 
-**The harness is not drawn yet** (#77): no 17-joint ID map, no per-hop lead
-lengths, and no current budget.
+**The harness is not drawn yet** (#77): the 17-joint ID map is proposed, not
+signed off ([servo-map.md §2.1](servo-map.md#21-the-robot-the-proposed-map)),
+the per-hop lead lengths are measured from the CAD
+([wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1)), and there
+is no current budget.
 
 **What the CAD provides for it:**
 

@@ -48,6 +48,8 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | power | 3S LiPo 2200–2600 mAh (≤ 105 × 36 × 26 mm, ~170 g), protection board, inline fuse, 5 V / 5 A buck for the Pi |
 | structure | PETG prints, 2 mm silicone rubber soles; M2.5 flat-head self-tappers into printed pilots, M3 screws on the servo horns and idler discs |
 
+![Front view of the robot with every joint marked: servo ID, joint name, bus port, STS3250s](docs/img/servo_map.png)
+
 ## 3. Kinematics
 
 Frames: +X forward, +Y left, +Z up. Leg chain from the pelvis down: yaw → roll →
