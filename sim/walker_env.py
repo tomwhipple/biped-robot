@@ -611,6 +611,7 @@ class BimoWalkerEnv(gym.Env):
         rise_ref_s2: float = 2.0,
         rise_ref_npz: str | None = None,   # recorded get-up reference (mirror of env_mjx; sim/record_getup_ref.py)
         rise_ref_residual: float = 0.0,    # rad: residual get-up (mirror of env_mjx)
+        rise_ref_hold: bool = False,       # no handover at recovered (mirror of env_mjx)
         w_rise_root: float = 0.0,          # root tracking while down (mirror of env_mjx)
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
@@ -1197,6 +1198,9 @@ class BimoWalkerEnv(gym.Env):
         self.rise_ref_residual = float(rise_ref_residual)
         if self.rise_ref_residual > 0.0 and self._rr is None:
             raise ValueError("rise_ref_residual needs rise_ref_npz")
+        self.rise_ref_hold = bool(rise_ref_hold)
+        if self.rise_ref_hold and self._rr is None:
+            raise ValueError("rise_ref_hold needs rise_ref_npz")
         self.w_rise_root = float(w_rise_root)
         if self.w_rise_root > 0.0 and self._rr is None:
             raise ValueError("w_rise_root needs rise_ref_npz")
@@ -1303,7 +1307,8 @@ class BimoWalkerEnv(gym.Env):
     def _action_to_ctrl(self, action: np.ndarray) -> np.ndarray:
         action = np.clip(action, -1.0, 1.0)
         if (self.rise_ref_residual > 0.0 and self.ext_cmd
-                and self._recover_ep and not self._recovered):
+                and self._recover_ep
+                and (self.rise_ref_hold or not self._recovered)):
             # residual get-up (mirror of env_mjx step): reference + correction
             t_rr = self._rise_t0 + self._step_i * self.control_dt
             return np.clip(self._rise_ref(t_rr) + self.rise_ref_residual * action,
@@ -2539,7 +2544,7 @@ class BimoWalkerEnv(gym.Env):
                 reward -= self.w_rise_dofvel * float(np.sum(
                     np.asarray(d.qvel[self._jqvel]) ** 2))
         if self.w_rise_ref and self.ext_cmd and self.recover_mix > 0:
-            if not self._recovered:
+            if not self._recovered or (self.rise_ref_hold and self._recover_ep):
                 # staged-rise reference (mirrors sim/mjx _rise_ref exactly)
                 q_rr = self._rise_ref(self._rise_t0
                                       + self._step_i * self.control_dt)
@@ -2547,7 +2552,7 @@ class BimoWalkerEnv(gym.Env):
                 reward += self.w_rise_ref * float(np.exp(
                     -np.sum(dq_rr ** 2) / self.rise_ref_s2))
         if self.w_rise_root and self.ext_cmd and self.recover_mix > 0:
-            if not self._recovered:
+            if not self._recovered or (self.rise_ref_hold and self._recover_ep):
                 # root tracking while down (mirrors sim/mjx exactly)
                 k_rt = int(np.clip(np.round((self._rise_t0 + self._step_i * self.control_dt)
                                             / self._rr["dt"]), 0, self._rr["T"] - 1))

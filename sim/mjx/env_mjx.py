@@ -788,6 +788,11 @@ class BimoMJXEnv:
                                          # recovered, the target is the recorded reference at the current
                                          # phase + rise_ref_residual * action (the policy learns corrections
                                          # to a script that already works), clipped to the policy range
+        rise_ref_hold: bool = False,  # get-up campaign 2026-10-23: no handover at recovered -- the residual
+                                      # reference map and the rise_ref/rise_root tracking keep running after
+                                      # the held stand (the reference holds its last, standing frame).
+                                      # Without it the action map jumps from ref + residual * a to
+                                      # default + span * a and the tracking income stops at the latch.
         gravity_scale: float = 1.0,  # training curriculum (2026-10-11): scales gravity (get-up under
                                      # reduced gravity, then annealed back to 1.0); the referee is unaffected
         w_rise_root: float = 0.0,   # DeepMimic ROOT tracking while down (2026-10-12): kernel on the pelvis
@@ -1304,6 +1309,9 @@ class BimoMJXEnv:
         self.rise_ref_residual = float(rise_ref_residual)
         if self.rise_ref_residual > 0.0 and self._rr is None:
             raise ValueError("rise_ref_residual needs rise_ref_npz")
+        self.rise_ref_hold = bool(rise_ref_hold)
+        if self.rise_ref_hold and self._rr is None:
+            raise ValueError("rise_ref_hold needs rise_ref_npz")
         # getup_v9: a stand only counts as "recovered" after this many
         # CONSECUTIVE standing steps (0.5 s) -- an instantaneous crossing
         # was farmable by ballistic bank starts
@@ -2382,7 +2390,8 @@ class BimoMJXEnv:
             t_rr = state.rise_t0 + state.step_i.astype(jp.float32) * self.control_dt
             res = jp.clip(self._rise_ref(t_rr) + self.rise_ref_residual * action,
                           self._lo, self._hi)
-            down = (state.recover_slot > 0.5) & (state.recovered < 0.5)
+            down = (state.recover_slot > 0.5) & (
+                (state.recovered < 0.5) | self.rise_ref_hold)
             target = jp.where(down, res, target)
         # the policy's targets onto the servo vector: held joints get their
         # fixed hold target, and from here on everything is per servo
@@ -2813,6 +2822,11 @@ class BimoMJXEnv:
             reward -= (self.w_rise_dofvel
                        * jp.where(state.recovered < 0.5, 1.0, 0.0)
                        * jp.sum(self._p(qd_j) ** 2))
+        # reference tracking pays while down; with rise_ref_hold also after
+        # the held stand of a recovery episode (no income cliff at the latch)
+        rr_gate = jp.where((state.recovered < 0.5)
+                           | (self.rise_ref_hold & (state.recover_slot > 0.5)),
+                           1.0, 0.0)
         if self.w_rise_ref and self.ext_cmd and self.recover_mix > 0:
             # staged-rise reference while DOWN (getup_v3): dense guidance
             # toward the scripted tuck->plant->squat->stand trajectory
@@ -2820,8 +2834,7 @@ class BimoMJXEnv:
                                   + state.step_i.astype(jp.float32)
                                   * self.control_dt)
             dq_rr = self._p(data.qpos[self._jq0:self._jq1]) - q_rr
-            reward += (self.w_rise_ref
-                       * jp.where(state.recovered < 0.5, 1.0, 0.0)
+            reward += (self.w_rise_ref * rr_gate
                        * jp.exp(-jp.sum(dq_rr ** 2) / self.rise_ref_s2))
         if self.w_rise_root and self.ext_cmd and self.recover_mix > 0:
             # root tracking while DOWN (mirrored in walker_env; one shared kernel)
@@ -2829,8 +2842,7 @@ class BimoMJXEnv:
             k_rt = jp.clip(jp.round((state.rise_t0 + state.step_i.astype(jp.float32)
                                      * self.control_dt) / self._rr["dt"]
                                     ).astype(jp.int32), 0, self._rr["T"] - 1)
-            reward += (self.w_rise_root
-                       * jp.where(state.recovered < 0.5, 1.0, 0.0)
+            reward += (self.w_rise_root * rr_gate
                        * _wenv_rise_root_kernel(data.qpos[2], data.qpos[3:7], self._rr["root"][k_rt], jp))
         if self.w_up_vel and self.ext_cmd and self.recover_mix > 0:
             # getup_v5: momentum-friendly rise incentive -- positive root
