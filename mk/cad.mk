@@ -88,7 +88,7 @@ check-cad: cad-v6 ## the CAD gate: swept-ROM interference, armless and with arms
 
 V6_STEP_FIGS := $(wildcard docs/assembly/v6_*.png)
 V6_GLUED := hip_yoke_glued ankle_link_glued
-V6_DOC_FIGS := docs/img/assembly_v6_arms.png $(V6_GLUED:%=docs/img/%.png) \
+V6_DOC_FIGS := docs/img/assembly_v6_arms.png docs/img/servo_map.png $(V6_GLUED:%=docs/img/%.png) \
 	docs/assembly/assembly_v6_flyin_arms_strip.png docs/assembly/assembly_v6_flyin_strip.png $(V6_STEP_FIGS)
 
 assembly: build/v6/step/assembly_v6_arms.step build/v6/step/assembly_v6.step ## the articulated v6 assembly, STEP + render, with and without arms
@@ -109,6 +109,10 @@ $(patsubst docs/assembly/%,build/\%/renders/%,$(V6_STEP_FIGS)): $(PYDEPS_cad/v6/
 endif
 
 docs/img/assembly_v6_arms.png: build/v6/renders/assembly_v6_arms.png
+	cp $< $@
+build/%/renders/servo_map.png: $(PYDEPS_tools/servo_map_figure.py) sim/bimo_biped_v6ar.xml
+	MUJOCO_GL=$${MUJOCO_GL:-cgl} $(PY) tools/servo_map_figure.py > /dev/null
+docs/img/servo_map.png: build/v6/renders/servo_map.png
 	cp $< $@
 # the glued test parts: each module writes its STLs, STEPs and its strip
 build/%/renders/hip_yoke_glued.png: $(PYDEPS_cad/v6/hip_yoke_glued.py)

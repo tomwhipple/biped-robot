@@ -50,6 +50,7 @@ GENERATORS = [
     "sim/fig_getup_noappendage.py",
     "sim/render_link_demo.py",
     "tools/gen_protocol_vectors.py",
+    "tools/servo_map_figure.py",
 ]
 
 # The environment that puts each build variant's own parts in parts_v6.PARTS.

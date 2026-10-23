@@ -60,6 +60,9 @@ prototype's 10 joints, IDs 1–10 ([§2.2](#22-what-the-policy-drives-today-the-
 > splitter topology as a proposal.
 
 The robot has 17 servos: 12 in the legs, one in the neck, four in the arms.
+
+![Front view of the robot with every joint marked: servo ID, joint name, bus port](img/servo_map.png)
+
 The rules behind the proposal:
 
 - **IDs 1–10 keep the prototype's joints.** The prototype's servos, their case
