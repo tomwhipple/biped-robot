@@ -74,6 +74,16 @@ referee shows a phase failing is in scope every day.
   (check `~/code/robot/sim/runs/`, `~/code/robot-mjx/sim/runs/` and
   `queue/done/`). Copy the recipe of the parent's job file from
   `queue/done/` and change only the variable.
+- **Test the queue before the night spends it** (Tom, 2026-10-23: "Make sure
+  to always test these jobs before spending all night on them" — night 2 was
+  burned by an untested `--rise-ref-hold` recipe). After writing the job
+  files, run `NO_NOTIFY=1 python3 ~/code/robot-mjx/night/preflight.sh.py` and
+  make it PASS (exit 0) before you report `PLAN_STATUS: QUEUED ...`. It
+  parses every job like the runner does, checks `--out` uniqueness and
+  checkpoints, and constructs the recipe's env on CPU (plant/servo/hold
+  contract bugs surface here in seconds, not at 22:00). If it fails, fix the
+  job files and re-run — `night_run.sh` also re-runs it at 22:00 and refuses
+  to launch on a failure.
 - Rewrite `~/code/robot-mjx/night/fallback.job` (same format) with the job
   that is most worth repeating if a future planner fails: `ensure_queue.sh`
   (21:30) tops the queue up from it with fresh seeds.
