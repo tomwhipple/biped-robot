@@ -92,7 +92,8 @@ the two starts converge before the roll.
    control and seed replicates. *(night 1: done — `robot_getup_t3k`)*
 2. **Harden**: joint friction first (the policies are friction-specific,
    night 1), then pushes (`--push-prob`), then the residual scale; one at a
-   time. *(night 2: friction DR)*
+   time. *(night 2: friction DR — confounded by the handover, see 10-23;
+   night 3: `--rise-ref-hold`, with and without friction DR)*
 3. **One policy for both starts**: largely solved without env work (night
    1). The prone reference's roll ends on the back and the supine seat push
    follows, so the prone policy gets up from supine when it starts at that
@@ -115,12 +116,17 @@ Throughout: when the referee shows a phase failing, fix the reference first
   (`--joint-frictionloss-range`). The friction sweep of the referee
   (`eval_precision.py --joint-frictionloss 0.05` / `0.5`) is now part of
   every morning's evaluation.
-- Why did the supine retrains (t1k, t2k) lose the hold after standing? They
-  rise to 0.39 m upright and fall 1 – 6 s after the env hands control from
-  reference + residual to the free policy; MJX's training curve shows no
-  sign of it. Not the plant (r5k holds at 0.35), not the referee's friction
-  (they fail at 0.05 too), not servo lag (0/8 with the 2 Hz lag). Open; the
-  prone recipe (`--w-rise-root 4`, 45 s episodes) holds.
+- Why did the supine retrains (t1k, t2k) lose the hold after standing?
+  *Answered 2026-10-23: the handover itself.* At `recovered` (0.5 s held
+  stand) the env switched the action map from `ref + 0.3·a` to
+  `default + span·a` and stopped paying the reference tracking (w 8 + 4 per
+  step). The same output then means a different target, and the reward
+  falls off a cliff at the latch, so longer training drifts toward falling
+  after it or never latching (parking at ~0.29 m). MJX's curve does show it:
+  `eval/episode_recovered` halves (t3k ~800 → u0k ~340) while
+  `eval/episode_reward` stays flat at ~18.5k. Graded with the handover
+  removed (`eval_precision.py --rise-ref-hold`, no retraining) u0k goes from
+  0/16 to 16/16. `--rise-ref-hold` (PR #140) trains that way.
 
 ## Runs
 
@@ -137,11 +143,16 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_t1k | 10-21 | r5k (r5k) | joint frictionloss 0.05 → 0.35 | control for t2k: r5k's supine survives retraining at 0.35 | 0/8 | = supine | 0/8 | 0/8 | **failed**: 6/8 stand at ~22 s then fall; 2/8 stall at 0.28 m. r5k itself, unretrained, scores 8/8 at 0.35 |
 | robot_getup_t3k_s1 | 10-21 | t3k | seed 1 | replicate | 0/8 | 8/8 | 6/8 (34.4 s) | 7/8 (34.4 s) | replicate holds (13/16 vs 16/16). At 0.05: prone fall 2/8, supine ph 0/8; at 0.5: 7/8, 8/8 |
 | robot_getup_t2k_s1 | 10-21 | t2k | seed 1 | replicate | 1/8 | = supine | 0/8 | 0/8 | replicates t2k; **capped at 392M steps** by the 05:00 cutoff |
-| robot_getup_u1k | 10-22 | u0k (t3k) | + joint friction DR 0.05 – 0.5 | t3k's 0.05 weakness lifts to ≥ 7/8 (prone fall, supine ph), 0.35 stays ≥ 7/8 | | | | | |
-| robot_getup_u0k | 10-22 | t3k (t3k) | init p13k → t3k (a second 600M at 0.35) | control for u1k: 0.35 stays 8/8, 0.05 stays weak | | | | | |
-| robot_getup_u2k | 10-22 | t3k (p13k) | + joint friction DR 0.05 – 0.5 | DR from the 0.05-trained p13k matches t3k at 0.35 and holds 0.05 | | | | | |
-| robot_getup_u1k_s1 | 10-22 | u1k | seed 1 | replicate | | | | | |
-| robot_getup_u0k_s1 | 10-22 | u0k | seed 1 | replicate (may be capped at ~390M) | | | | | |
+| robot_getup_u1k | 10-22 | u0k (t3k) | + joint friction DR 0.05 – 0.5 | t3k's 0.05 weakness lifts to ≥ 7/8 (prone fall, supine ph), 0.35 stays ≥ 7/8 | 0/8 | 0/8 | 0/8 | 0/8 | **failed** (stands, falls after the latch). 0.05: 0/8, 1/8; 0.5: 0/8, 0/8. *With hold* (sph, pf) 0.05: 3/8, 5/8; 0.35: 1/8, 4/8; 0.5: 2/8, 5/8 = 20/48 |
+| robot_getup_u0k | 10-22 | t3k (t3k) | init p13k → t3k (a second 600M at 0.35) | control for u1k: 0.35 stays 8/8, 0.05 stays weak | 0/8 | 0/8 | 0/8 | 0/8 | **failed** as refereed (stands, falls after the latch; 0.05: 0/8, 0/8; 0.5: 2/8, 0/8). *With hold*: 0.05: 7/8, 8/8; 0.35: 8/8, 8/8; 0.5: 8/8, 7/8 = **46/48**, the most friction-robust get-up so far |
+| robot_getup_u2k | 10-22 | t3k (p13k) | + joint friction DR 0.05 – 0.5 | DR from the 0.05-trained p13k matches t3k at 0.35 and holds 0.05 | 0/8 | 5/8 | 0/8 | 0/8 | **failed** from prone: parks at 0.29 m in every seed. Supine ph flat over friction: 0.05 5/8, 0.5 3/8; with hold 5/8 |
+| robot_getup_u1k_s1 | 10-22 | u1k | seed 1 | replicate | 0/8 | 1/8 | 1/8 | 1/8 | as u1k. 0.05: 0/8, 0/8; 0.5: 0/8, 2/8. *With hold* 0.05: 5/8, 6/8; 0.35: 2/8, 7/8; 0.5: 4/8, 7/8 = 31/48 |
+| robot_getup_u0k_s1 | 10-22 | u0k | seed 1 | replicate (may be capped at ~390M) | 0/8 | 0/8 | 0/8 | 0/8 | trained the full 600M (night started 20:24). Parks at 0.28 m from prone; 0/8 everywhere, with hold too |
+| robot_getup_v0k | 10-23 | u0k (t3k) | + `--rise-ref-hold` | no drift: the second 600M keeps ≥ 7/8 on both starts and the latch is kept (MJX `episode_recovered` stays ~800) | | | | | |
+| robot_getup_v1k | 10-23 | u1k (t3k) | + `--rise-ref-hold` | friction DR without the handover: ≥ 7/8 on both starts at 0.05, 0.35 and 0.5 | | | | | |
+| robot_getup_v0k_s1 | 10-23 | v0k | seed 1 | replicate (u0k_s1 parked; does hold training stop that?) | | | | | |
+| robot_getup_v3k | 10-23 | v0k (u0k) | init t3k → u0k | fine-tuning the 46/48 policy with hold keeps it (≥ 44/48 over the sweep) | | | | | |
+| robot_getup_v1k_s1 | 10-23 | v1k | seed 1 | replicate (5th: likely starts tomorrow night) | | | | | |
 
 ## Nights
 
@@ -202,3 +213,59 @@ its own 0.35: `cd ~/code/robot && .venv/bin/python sim/mjx/eval_precision.py
 at most 12 workers in parallel. Baselines (supine ph, prone fall): t3k at
 0.05 → 2/8, 6/8, at 0.5 → 8/8, 7/8; t3k_s1 at 0.05 → 0/8, 2/8, at 0.5 →
 8/8, 7/8.
+
+### Night of 2026-10-22 (evaluated 2026-10-23)
+
+All five jobs trained the full 600M (the night started at 20:24 on Tom's
+request, so u0k_s1 was not capped) and were refereed on main `02c2886` (#139:
+no plant, servo or env change; the referee re-grades t3k 16/16 on supine ph +
+prone fall today, so the comparison stands). The leftover fallback job
+`t3k_fb1022s1` did not start (05:00 cutoff).
+
+- **Every retrain collapsed, the control too.** u0k (t3k + a second 600M at
+  the same 0.35) 0/8 on every start; u1k 0/8, u1k_s1 1/8, u0k_s1 0/8; u2k
+  supine ph 5/8, prone 0/8. They get up (time to stand 23 – 39 s) and then
+  fall, or park at ~0.29 m and never latch. The friction-DR hypothesis
+  cannot be read from these scorecards: something shared broke them all.
+- **Cause: the handover at `recovered`.** See Open questions. The env
+  switches the action map (residual around the reference → full range
+  around the default pose) and stops the tracking income exactly at the
+  latch. The MJX eval shows the drift: `episode_recovered` falls from ~820
+  to 340 – 470 over the 600M while `episode_reward` stays at ~18.5k.
+  Counterfactual (CPU referee, the same policies, handover removed with
+  `--rise-ref-hold`, sph / pf at 0.35): u0k 0/8, 0/8 → **8/8, 8/8**; u1k_s1
+  1/8, 1/8 → 2/8, 7/8; u1k 0/8, 0/8 → 1/8, 4/8. t3k, which was trained
+  with the handover and copes with it, gets slightly worse under hold (6/8,
+  7/8 at 0.35; 0/8, 2/8 at 0.05), so hold is a training change, not a free
+  referee win.
+- **u0k under hold is friction-robust: 46/48** over 0.05 / 0.35 / 0.5 on
+  both starts (0.05: 7/8, 8/8). t3k at 0.05 was 2/8, 6/8. More training at
+  a single friction made the get-up itself robust; the handover hid it.
+- **Friction DR: no measurable effect yet.** Graded with hold over the
+  sweep: control pair u0k 46/48, u0k_s1 0/48; DR pair u1k 20/48, u1k_s1
+  31/48. Seed variance swamps it. u2k (DR from p13k) is the flattest on the
+  supine phase (5/8 at 0.05 and 0.35) but never stands from prone.
+
+**Decision.** Fix the handover in training before anything else:
+`--rise-ref-hold` (PR #140) keeps the residual reference map and the
+tracking reward running after the held stand (the reference holds its
+standing frame). The get-up policy holds the stand until a walker takes
+over (arc step 4), which is how the deployment would run it anyway. Tonight
+re-runs night 2's control and DR arms with hold (one variable each against
+u0k and u1k), a seed replicate, and a fine-tune of u0k with hold.
+
+**Tonight (night 3)**, all on the t3k recipe + `--rise-ref-hold`:
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_getup_v0k | u0k (t3k) | + hold | no drift: ≥ 7/8 both starts, `episode_recovered` stays ~800 |
+| 2 | robot_getup_v1k | u1k (t3k) | + hold | DR without the handover: ≥ 7/8 both starts at 0.05/0.35/0.5 |
+| 3 | robot_getup_v0k_s1 | v0k | seed 1 | replicate (u0k_s1 parked at 0.28 m) |
+| 4 | robot_getup_v3k | v0k (u0k) | init t3k → u0k | fine-tuning the 46/48 policy with hold keeps ≥ 44/48 |
+| 5 | robot_getup_v1k_s1 | v1k | seed 1 | replicate; at ~1 h 46 min per job it likely misses the 05:00 cutoff |
+
+**Tomorrow's evaluation:** the referee picks hold up from each run's
+config.json. Sweep every run at 0.05 and 0.5 as before; for comparison
+with night 2 use the `scorecard_hold_partial` / `scorecard_fl*_hold_partial`
+files in the u-runs (graded with `--rise-ref-hold`). Check the MJX
+`eval/episode_recovered` curve: it should not fall.
