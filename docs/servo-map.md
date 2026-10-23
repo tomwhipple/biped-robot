@@ -1,7 +1,8 @@
 # Servo reference
 
-Every joint on the robot is a Feetech **STS3215**: the 12 V class, part number
-ST-3215-C018. All of them sit on one half-duplex TTL bus at 1 Mbaud off the General
+Every joint on the robot is a Feetech **STS3215** (the 12 V class, part number
+ST-3215-C018) except the two hip rolls, IDs 1 and 5, which are **STS3250s**:
+same case, horn and connector ([DESIGN.md §4](../DESIGN.md)). All of them sit on one half-duplex TTL bus at 1 Mbaud off the General
 Driver board ([wiring.md](wiring.md#servo-bus)).
 
 This page covers:
