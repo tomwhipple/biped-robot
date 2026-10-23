@@ -52,6 +52,10 @@ reg 55 read 0 until the first gains write relocked it, the #101 quirk).
 After the session Tom had it renamed **31 → 51** (`id 31 51`: `ok, verified after
 commit`, reg 5 = 51, lock reg 55 = 1; `hw_sessions/2026-10-23/setid51/`). The runs
 below ran as id 31.
+The second STS3250 (the other hip roll; factory id 1, Model_Number 2825, P / D
+32 / 32, never benched) was renamed **1 → 52** (`id` replied `timeout` but landed,
+reg 5 = 52; lock reg 55 = 0 until `gains 52 32 32` relocked it to 1;
+`raw/setid52/`).
 
 ## The rig, calibration and direction
 
