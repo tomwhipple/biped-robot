@@ -47,6 +47,7 @@ at frictionloss 0.35, μ 0.7, play 3° (the `--joint-frictionloss 0.35` plant).
 | `getup_ref_v6ar_ik.npz` | supine, arms 180° | seat push to the crouch hold, then the analytic rise | 216/216 | ~25 s |
 | `getup_ref_v6ar_prone.npz` (existing) | prone, arms 180° | `prone_roll()` + seat push | fails at 0.35 | — |
 | `getup_ref_v6ar_prone_ik.npz` | prone, arms idle (+15°) | searched roll + the analytic seat push | 216/216 | ~33 s |
+| `getup_ref_v6ar_prone_ikc.npz` | prone, arms idle (+15°) | as prone_ik, centred crouch hold (below) | 216/216 | ~33 s |
 
 **The analytic rise.** Grid every symmetric sagittal pose (hip pitch, knee,
 ankle at 3°) with both soles levelled on the floor; keep the 2474 whose
@@ -76,6 +77,25 @@ conditions. The winner stows both arms overhead (L 190°, R 188°) and lands on
 the back at ~11 s; its parameters are `sim/getup_ref_analytic_roll.json`. With
 the seat push and the analytic rise it stands 216/216.
 
+**The centred crouch hold (2026-10-24).** The seat push lifts the hands off
+the floor at its crouch hold (push pose → REST, shoulder 0 → 60, ankle −25):
+in that crouch the REST arms put the CoM 48 mm behind the sole centre (sole
+half-length 65 mm), the worst arm pose there. `prone_ikc` / `supine_ikc`
+(`seat_push_ik(centred=True)`) keep the hands down and the ankle at −35
+through the hold (CoM −12 mm) and move the arms to REST during the first rise
+waypoint; same keys and timing, so the referee's starts and phases are
+unchanged.
+
+**Grading a reference with no RL.** `eval_precision.py --ref-replay <npz>`
+replays a reference through the CPU referee (the run's plant and obs, every
+action 0, hold on). The open-loop grid above has no per-body mass, gain or
+latency DR; the referee does. Supine ph + prone fall at joint frictionloss
+0.05 / 0.35 / 0.5: `prone_ik` 11/16, 14/16, 16/16 = **41/48** (its crouch tips
+back under seeds 7/607/707); `prone_ikc` 11/16, 16/16, 16/16 = **43/48** (no
+crouch failure left; the 0.05 misses stand and then fall backwards after
+straightening, which needs feedback). A fine-tune has to beat its reference's
+replay to have added anything.
+
 The referee's `recover_prone` starts from the OLD prone reference (arms
 folded at 180° before the fall, which a real fall never does). The new
 reference starts arms-idle, so it gets its own scenario,
@@ -93,7 +113,8 @@ the two starts converge before the roll.
 2. **Harden**: joint friction first (the policies are friction-specific,
    night 1), then pushes (`--push-prob`), then the residual scale; one at a
    time. *(night 2: friction DR — confounded by the handover, see 10-23;
-   night 3: `--rise-ref-hold`, with and without friction DR)*
+   night 3: `--rise-ref-hold`, with and without friction DR; night 4: the
+   centred crouch hold, and the residual scale)*
 3. **One policy for both starts**: largely solved without env work (night
    1). The prone reference's roll ends on the back and the supine seat push
    follows, so the prone policy gets up from supine when it starts at that
@@ -130,8 +151,6 @@ Throughout: when the referee shows a phase failing, fix the reference first
 
 ## Runs
 
-| run | night | parent (init) | the one variable | hypothesis | supine | prone (old start) | prone fall | verdict |
-|---|---|---|---|---|---|---|---|---|
 Scores are CPU-referee passes of 8 seeds at the run's own joint frictionloss
 (0.35 unless stated). "supine ph" is `recover_supine_ph` (from 10-22; for
 night 1 measured by hand with the same phase, 11.26 s).
@@ -148,11 +167,16 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_u2k | 10-22 | t3k (p13k) | + joint friction DR 0.05 – 0.5 | DR from the 0.05-trained p13k matches t3k at 0.35 and holds 0.05 | 0/8 | 5/8 | 0/8 | 0/8 | **failed** from prone: parks at 0.29 m in every seed. Supine ph flat over friction: 0.05 5/8, 0.5 3/8; with hold 5/8 |
 | robot_getup_u1k_s1 | 10-22 | u1k | seed 1 | replicate | 0/8 | 1/8 | 1/8 | 1/8 | as u1k. 0.05: 0/8, 0/8; 0.5: 0/8, 2/8. *With hold* 0.05: 5/8, 6/8; 0.35: 2/8, 7/8; 0.5: 4/8, 7/8 = 31/48 |
 | robot_getup_u0k_s1 | 10-22 | u0k | seed 1 | replicate (may be capped at ~390M) | 0/8 | 0/8 | 0/8 | 0/8 | trained the full 600M (night started 20:24). Parks at 0.28 m from prone; 0/8 everywhere, with hold too |
-| robot_getup_v0k | 10-23 | u0k (t3k) | + `--rise-ref-hold` | no drift: the second 600M keeps ≥ 7/8 on both starts and the latch is kept (MJX `episode_recovered` stays ~800) | | | | | |
-| robot_getup_v1k | 10-23 | u1k (t3k) | + `--rise-ref-hold` | friction DR without the handover: ≥ 7/8 on both starts at 0.05, 0.35 and 0.5 | | | | | |
-| robot_getup_v0k_s1 | 10-23 | v0k | seed 1 | replicate (u0k_s1 parked; does hold training stop that?) | | | | | |
-| robot_getup_v3k | 10-23 | v0k (u0k) | init t3k → u0k | fine-tuning the 46/48 policy with hold keeps it (≥ 44/48 over the sweep) | | | | | |
-| robot_getup_v1k_s1 | 10-23 | v1k | seed 1 | replicate (5th: likely starts tomorrow night) | | | | | |
+| robot_getup_v0k | 10-23 | u0k (t3k) | + `--rise-ref-hold` | no drift: the second 600M keeps ≥ 7/8 on both starts and the latch is kept (MJX `episode_recovered` stays ~800) | 0/8 | 5/8 | 5/8 (34.6 s) | 5/8 (34.6 s) | **not held**: the latch is kept (MJX `episode_recovered` ~950 to the end) but 3/8 tip back onto the seat at the crouch hold. 0.05: 3/8, 0/8; 0.5: 5/8, 5/8 = 23/48 (u0k graded with hold: 46/48) |
+| robot_getup_v1k | 10-23 | u1k (t3k) | + `--rise-ref-hold` | friction DR without the handover: ≥ 7/8 on both starts at 0.05, 0.35 and 0.5 | 0/8 | 7/8 | 4/8 (35.4 s) | 4/8 (35.4 s) | **not held**. 0.05: 1/8, 1/8; 0.5: 7/8, 5/8 = 25/48 (u1k with hold 20/48) |
+| robot_getup_v0k_s1 | 10-23 | v0k | seed 1 | replicate (u0k_s1 parked; does hold training stop that?) | 0/8 | 6/8 | 5/8 (35.5 s) | 6/8 (35.5 s) | replicates v0k (u0k_s1 parked in every seed; this does not). 0.05: 1/8, 0/8; 0.5: 6/8, 6/8 = 25/48 |
+| robot_getup_v3k | 10-23 | v0k (u0k) | init t3k → u0k | fine-tuning the 46/48 policy with hold keeps it (≥ 44/48 over the sweep) | 0/8 | 2/8 | 2/8 (34.5 s) | 5/8 (34.5 s) | **failed**: fine-tuning u0k with hold lost its robustness. 0.05: 0/8, 0/8; 0.5: 7/8, 5/8 = 19/48 |
+| robot_getup_v1k_s1 | 10-23 | v1k | seed 1 | replicate (5th: likely starts tomorrow night) | 0/8 | 8/8 | 5/8 (35.6 s) | 5/8 (35.6 s) | capped at 442M steps. 0.05: 3/8, 3/8; 0.5: 7/8, 5/8 = 31/48, the best of the night |
+| robot_getup_w0k | 10-24 | v0k (t3k) | ref prone_ik → prone_ikc | the crouch tip-back goes: ≥ 7/8 both starts at 0.35, ≥ 43/48 over the sweep (its replay) | | | | | |
+| robot_getup_w1k | 10-24 | v1k (t3k) | ref prone_ik → prone_ikc | as w0k, with friction DR lifting 0.05 | | | | | |
+| robot_getup_w0k_s1 | 10-24 | w0k | seed 1 | replicate | | | | | |
+| robot_getup_w2k | 10-24 | w0k (t3k) | `--rise-ref-residual` 0.3 → 0.15 | less authority keeps the policy near its reference: ≥ 43/48 | | | | | |
+| robot_getup_w1k_s1 | 10-24 | w1k | seed 1 | replicate (5th: capped at ~440M) | | | | | |
 
 ## Nights
 
@@ -269,3 +293,71 @@ config.json. Sweep every run at 0.05 and 0.5 as before; for comparison
 with night 2 use the `scorecard_hold_partial` / `scorecard_fl*_hold_partial`
 files in the u-runs (graded with `--rise-ref-hold`). Check the MJX
 `eval/episode_recovered` curve: it should not fall.
+
+### Night of 2026-10-23 (evaluated 2026-10-24)
+
+All five jobs trained (v1k_s1 capped at 442M by the 05:00 cutoff) and were
+refereed on main `f2da72e`. Upstream since the last plan: the as-built servo
+IDs and calibration (#141, firmware/tools/docs and `current_budget.py`'s ID
+map); no plant, servo-model or env change, so the runs compare with night 2.
+The referee re-grades u0k with hold 16/16 at 0.35 today.
+
+Supine ph / prone fall at joint frictionloss 0.05 · 0.35 · 0.5:
+
+| run | 0.05 | 0.35 | 0.5 | sweep | parent (with hold) |
+|---|---|---|---|---|---|
+| v0k | 3/8 0/8 | 5/8 5/8 | 5/8 5/8 | 23/48 | u0k 46/48 |
+| v1k | 1/8 1/8 | 7/8 4/8 | 7/8 5/8 | 25/48 | u1k 20/48 |
+| v0k_s1 | 1/8 0/8 | 6/8 6/8 | 6/8 6/8 | 25/48 | — |
+| v3k | 0/8 0/8 | 2/8 5/8 | 7/8 5/8 | 19/48 | u0k 46/48 |
+| v1k_s1 (442M) | 3/8 3/8 | 8/8 5/8 | 7/8 5/8 | 31/48 | — |
+| *prone_ik replayed, no RL* | 5/8 6/8 | 7/8 7/8 | 8/8 8/8 | **41/48** | |
+
+- **Hold fixed the drift, not the score.** MJX `eval/episode_recovered`
+  stays at ~950 – 1000 to the end in every run (u0k fell from ~820 to 340),
+  and the referee counts no falls. But no run passes 7/8 on both
+  starts: the hypotheses of v0k, v1k and v3k did not hold. Fine-tuning u0k
+  with hold (v3k) lost its robustness (46/48 → 19/48). No hold run parks in
+  every seed as u0k_s1 did, and the seed spread is narrower (19 – 31/48 vs
+  0 – 46/48).
+- **Where they fail: the crouch hold.** Traced (`--trace`, v0k at 0.35 and
+  0.05, v1k_s1 at 0.05): every failing seed sits at the crouch hold (0.24 m,
+  upright) and then, at 13 – 15 s into the seat push, drops to 0.20 m and
+  tips back onto the seat, ending parked at 0.29 m tilted ~65°. The passing
+  seeds go on to stand by the same timeline. At 0.05 a second mode appears:
+  stand, then fall backwards after straightening.
+- **The reference is the problem, and the RL made it worse.** The prone_ik
+  reference replayed through the referee with zero action scores 41/48,
+  better than every night-3 policy; its own failures are the same crouch
+  tip-back (seeds 7/607/707) and, at 0.05, the fall after straightening. The
+  crouch hold lifts the hands off the floor with the CoM 48 mm behind the
+  sole centre (see "The centred crouch hold"). Keeping the hands down with
+  the ankle at −35 (prone_ikc) removes every crouch failure of the replay
+  (43/48). Ankle −35 alone, ankle −38, or ankle −35 with the arms overhead do
+  not: seed 707 still tips back at 0.35 and stands 216/216 on the open-loop grid.
+- **Friction DR**: with hold, the DR pair (25, 31/48) is slightly ahead of
+  the control pair (23, 25/48), within seed variance.
+
+**Decision.** Retrain on `getup_ref_v6ar_prone_ikc.npz` (arc step 2's
+"fix the reference first"): v0k's and v1k's recipes with only the reference
+changed, a seed replicate of each, and the residual scale (0.3 → 0.15) as
+the next hardening variable, because every policy scored below its
+reference's replay. From now on the morning evaluation also grades the
+run's reference with `--ref-replay`: a policy must beat it.
+
+**Tonight (night 4)**, all on the v0k recipe (t3k init, hold) with
+`--rise-ref getup_ref_v6ar_prone_ikc.npz`:
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_getup_w0k | v0k (t3k) | ref → prone_ikc | crouch tip-back goes: ≥ 7/8 both starts at 0.35, ≥ 43/48 over the sweep |
+| 2 | robot_getup_w1k | v1k (t3k) | ref → prone_ikc | as w0k; DR lifts 0.05 |
+| 3 | robot_getup_w0k_s1 | w0k | seed 1 | replicate |
+| 4 | robot_getup_w2k | w0k (t3k) | residual 0.3 → 0.15 | stays near its reference: ≥ 43/48 |
+| 5 | robot_getup_w1k_s1 | w1k | seed 1 | replicate (capped at ~440M) |
+
+**Tomorrow's evaluation:** the usual sweep (0.05 / 0.5 next to the 0.35
+scorecard), plus `--trace` on any run under 7/8 to see whether the failures
+moved off the crouch. Compare against the prone_ikc replay (43/48:
+`sim/runs/diag_refreplay_prone_ik/scorecard_fl*_replay-getup_ref_v6ar_prone_ikc_partial.md`
+in `~/code/robot`, local) and against the v-runs above.
