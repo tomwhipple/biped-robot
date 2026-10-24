@@ -37,8 +37,10 @@ THE MOUNT
     plate    PLATE_T thick on the bosses' faces: a rail through each pair of
              spacers and two rungs, open at the top behind the sockets. It
              holds the spacers in register while the screws go in.
-    screws   4 x M2.5 x 16 pan head, from the parts face through the board and
-             the spacer (clearance bore) into the boss's pilot (2.2 x 5.0).
+    screws   4 x M2.5 x 16 pan-head self-tappers, from the parts face through
+             the board and the spacer (clearance bore) into the boss's pilot
+             (2.2 x 5.0); an x 18 bottoms out. Heads <= O6.9: a USB-C shell
+             is 3.5 from a hole's centre.
              The screws hold everything: board, plate, torso. Glue (epoxy or
              CA on the four spacer feet) holds the plate on the bosses while
              the board is off, if wanted; the screws go in the same either way.
@@ -267,7 +269,7 @@ def gd_plate():
 def SCREWS():
     """T.SCREWS()'s convention: head at the parts face, axis head -> tip."""
     return [dict(name=f"gd_{sy:+.0f}_{sz:+.0f}", part="gd_plate",
-                 kind=f"M2.5x{SCREW_L:.0f} pan head: board + spacer into the boss's 2.2 pilot",
+                 kind=f"M2.5x{SCREW_L:.0f} self-tap, pan head: board + spacer into the boss's 2.2 pilot",
                  axis=(-1, 0, 0), pos=(GD_X1, sy, sz), length=SCREW_L,
                  clamp=GD_PCB_T + SPACER_L, pilot=T.PI_PILOT) for sy, sz in BOSS_YZ]
 

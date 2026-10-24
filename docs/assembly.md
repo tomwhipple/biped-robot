@@ -149,7 +149,7 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §7d carrier to the yaw horn | M3 × 5 | 8 |
 | §7e hip-roll servo into the carrier bay | M2.5 × 8 flat | 16 |
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
-| §9a General Driver and its plate into the bosses / front cover | M2.5 × 16 pan / M2.5 × 8 flat | 4 / 4 |
+| §9a General Driver and its plate into the bosses / front cover | M2.5 × 16 pan self-tap / M2.5 × 8 flat | 4 / 4 |
 | §9c power board | M2.5 × 6 pan | 4 |
 | §9c power cover | M2.5 × 8 flat | 4 |
 | §10 battery door | M2.5 × 8 flat | 1 |
@@ -433,8 +433,8 @@ pelvis, with the aft cover off. Where the Pi goes is open (#87).
   the screws hold it either way.
 - Set the board on the spacers: parts forward, bus edge (the ON/OFF switch, H5,
   H6) down, the header tab up, the service edge (XH inlet, USB-C) at +y.
-- Drive **4 × M2.5 × 16 pan heads** through its holes and the spacers into the
-  bosses (4.4 mm of thread).
+- Drive **4 × M2.5 × 16 pan-head self-tappers** through its holes and the
+  spacers into the bosses (4.4 mm of thread; an × 18 bottoms out). No washers.
 - The servo leads plug into H5 and H6 square to the board (19.3 mm to the front
   cover). The XH inlet and USB-C plug in from +y, their cables out through the
   +y skin's window. Both bus ports carry the same nets.

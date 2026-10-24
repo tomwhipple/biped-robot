@@ -268,7 +268,7 @@ M2.5, not M3.
 |---|---|---|---|
 | **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **120** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, front and power covers to the torso 8, battery door 1, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
 | M2.5 × 5 flat-head self-tapping | 8 | yaw-servo stators: 2.6 mm through the cell ceiling, 2.4 mm into the idler-face holes (3.0 deep in the vendor STEP; an × 8 would bottom out) | |
-| M2.5 × 16 pan head | 4 | the General Driver and `gd_plate`'s spacers into the front inner wall's four bosses (4.4 mm into their 2.2 mm pilots) | |
+| M2.5 × 16 pan head self-tapping | 4 | the General Driver and `gd_plate`'s spacers into the front inner wall's four bosses (4.4 mm into their 2.2 × 5 mm pilots; × 18 bottoms out). Head ≤ Ø6.9 (a USB-C shell is 3.5 from a hole's centre) | |
 | M2.5 × 6 pan self-tap | 4 | the power board onto its standoff bosses | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
 | **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
