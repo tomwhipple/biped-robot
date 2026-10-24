@@ -75,8 +75,12 @@ def main():
             time.sleep(step / a.speed)
             r = settle(p, sid)
             moved = (r["pos"] - prev) * sgn
+            # the first step is not judged for following: a joint that starts
+            # pressed against something (or already strained) moves less than
+            # a step out of it (2026-10-23: a hip pitch backing off a contact)
             if r["err"] or abs(r["load"]) > a.load_stop or (
-                    moved < 0.4 * min(step, abs(nxt - prev) or step) and abs(r["pos"] - nxt) > 0.6 * step):
+                    n > 1 and moved < 0.4 * min(step, abs(nxt - prev) or step)
+                    and abs(r["pos"] - nxt) > 0.6 * step):
                 raise Abort(f"stopped at {r['pos']} (target {nxt}): load {r['load']}, err {r['err']}, moved {moved}")
             prev = r["pos"]
             if nxt == tgt:

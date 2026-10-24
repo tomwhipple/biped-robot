@@ -322,6 +322,18 @@ isolation:
 
 - On the prototype, roll and knee have `dir` −1 on both legs; yaw, pitch and ankle have +1. The servos are mounted the same way on each side, not mirrored.
 - The robot adds ankle roll, the neck, the shoulders and the elbows, and remounts the legs. **Every sign is re-derived on the robot.**
+- **The v6 legs, derived 2026-10-23** (each joint moved alone, ±8° to ±35° from the standing pose, filmed from the front; `hw_sessions/2026-10-23/calibration/`). Same pattern as the prototype, and the ankle rolls are +1; every pair agrees across the legs:
+
+  | joint | left (ID, `dir`) | right (ID, `dir`) | how it was read |
+  |---|---|---|---|
+  | hip yaw | 9, +1 | 10, +1 | which side face of the leg comes into view at 35° |
+  | hip roll | 51, −1 | 52, −1 | outward-only 8° moves, and the ROM sweep's inward crossing |
+  | hip pitch | 2, +1 | 6, +1 | ±25°: the foot comes toward the camera (bigger, lower) in flexion |
+  | knee | 3, −1 | 7, −1 | ±30°: flexion lifts the foot away; hyperextension kicks the sole toward the camera |
+  | ankle | 4, +1 | 8, +1 | ±20°: toes up turns the sole to the camera |
+  | ankle roll | 12, +1 | 11, +1 | ±15–22°: which end of the sole plate rises |
+
+  Zeros: `middle` on every leg servo in the owner's standing pose, then `cal zero` (all 2047–2048), `cal save`; restored from NVS on reboot. The neck and arms are not fitted.
 
 ### 3.3 Mechanical envelope
 
@@ -341,10 +353,15 @@ sim joint frame.
 | elbow (15, 17) | ±150° | plant range; never probed |
 
 The leg rows (the ten prototype joints) are the **prototype's** legs, measured on it. The
-robot's legs are different mechanisms: its knee hyperextends only 5° (the
+robot's legs are different mechanisms: its knee was expected to hyperextend only 5° (measured 2026-10-23: at least 30° from the standing pose, both knees, no stop) (the
 prototype's +95° row would let the bench drive it past its stop) and its hip
 pitch flexes to −125°. They need their own rows, probed on the robot, before
 the bench drives the robot's legs toward either limit.
+
+**Open, seen 2026-10-23 on the stand:** the right hip pitch (ID 6) was blocked at
+about **+23° of extension** (backward) from the standing pose, load −168 — something
+behind the right leg (not identified; the stand, a cable, or the frame). The left
+hip pitch went +25° freely. Check it before any backward hip motion on the stand.
 
 Pose-dependent leg-on-leg contact is not in this table, because a per-joint clamp
 cannot express it. The plant handles it with inter-leg collision geoms.
