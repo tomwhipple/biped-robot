@@ -356,6 +356,30 @@ run's reference with `--ref-replay`: a policy must beat it.
 | 4 | robot_getup_w2k | w0k (t3k) | residual 0.3 → 0.15 | stays near its reference: ≥ 43/48 |
 | 5 | robot_getup_w1k_s1 | w1k | seed 1 | replicate (capped at ~440M) |
 
+**Night 4 re-ordered (2026-10-24, Tom): one-leg stands and short walks go
+first.** Today's bench measured the body as built (the legs only, no pack, Pi,
+head, neck or arms: [roll-compliance-2026-10-24.md](roll-compliance-2026-10-24.md)),
+and Tom asked that tonight train single-leg stands on either foot and short
+walks with a hard "every foot lifts ≥ 3 cm on every step" check on the
+as-built plant. The queue for the night is therefore:
+
+| order | run | what | steps |
+|---|---|---|---|
+| 1 | robot_legs_bal1 | `skills` family on `bimo_biped_v6legs.xml`: balance L/R 45 %, alternating-foot march 25 %, weight shift (sway) 15 % | 600M |
+| 2 | robot_legs_walk1 | the c13 walking recipe on the as-built plant, init `robot_walk_c13`, graded by `walk_steps_L/R` | 400M |
+| 3 | robot_legs_walk2 | walk1 with the swing-height targets raised (`--mimic-lift` 0.05 → 0.07, `--swing-height` 0.06 → 0.08) | 400M |
+| 4 | robot_getup_w0k | **unchanged** (the get-up lead job of the table above; the plant and the DR of the first three jobs do not touch it) | 600M |
+
+Moved to `night/queue/held/` with a `WHY-` note, **not deleted**, for the 07:30
+planner to re-queue: w1k, w0k_s1, w2k, w1k_s1. The planner evaluates **both**
+tracks tomorrow: the three new runs' scorecards (balance L/R, march, the
+`walk_steps` rows with their per-step clearance) and w0k against the prone_ikc
+replay as above; it re-queues the held get-up jobs behind the one-leg and
+walk work it judges worth repeating, never over it (planner_prompt.md,
+"Two tracks"). The new runs are on a different plant (1.475 kg, no arms): their
+scorecards are not comparable with the ar-plant runs above, and the get-up
+jobs still train on the ar plant, where get-up needs the arms.
+
 **Tomorrow's evaluation:** the usual sweep (0.05 / 0.5 next to the 0.35
 scorecard), plus `--trace` on any run under 7/8 to see whether the failures
 moved off the crouch. Compare against the prone_ikc replay (43/48:

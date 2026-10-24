@@ -132,6 +132,15 @@ def is_robot_plant(xml):
     return robot_plant.is_robot_model(mujoco.MjModel.from_xml_path(xml))
 
 
+@functools.lru_cache(maxsize=None)
+def plant_has_arms(xml):
+    """True when the plant has shoulder joints (the legs-only as-built plant has
+    none, so a run on it has no get-up scenarios whatever held_joints says)."""
+    import mujoco
+    m = mujoco.MjModel.from_xml_path(xml)
+    return any("shoulder" in m.joint(j).name for j in range(m.njnt))
+
+
 def referee_payload(xml):
     """The payload the referee pins: the prototype's 154 g GoPro, which its
     plant does not model; none on the robot, whose plant models the camera
@@ -541,6 +550,16 @@ def scen_balance(side):
         # now (the training kernel targets it; threshold once we see the
         # achievable range).
         com_off = _mean(judge_win, "com_stance")
+        # time on ONE foot with the lifted sole >= 3 cm (informational: the
+        # pass rule above is unchanged): total, and the longest unbroken run
+        one_foot = [bool(r["foot_clear"] >= 0.03 and not r[_swing_key(side)]
+                         and r[_swing_key("R" if side == "L" else "L")]) for r in lift_win]
+        run = best = 0
+        for ok in one_foot:
+            run = run + 1 if ok else 0
+            best = max(best, run)
+        dt_row = rows[1]["t"] - rows[0]["t"] if len(rows) > 1 else 0.02
+        one_foot_s, one_foot_run_s = sum(one_foot) * dt_row, best * dt_row
         # sensible minimums (user 2026-07-19): balancing also means STAYING
         # put -- a hop-around that keeps the foot up is not a balance
         success = ((not fell) and contact < 0.05
@@ -549,7 +568,8 @@ def scen_balance(side):
         return dict(success=success,
                     metrics=dict(lifted_contact=contact, clear_frac=clear,
                                  drift_rms=drift, wobble=wob, watts=watts,
-                                 com_off=com_off),
+                                 com_off=com_off, one_foot_s=one_foot_s,
+                                 one_foot_run_s=one_foot_run_s),
                     headline=f"clear {clear*100:.0f}%")
     return build, evaluate
 
@@ -1862,6 +1882,103 @@ def scen_weight_shift():
     return build, evaluate
 
 
+# Short walk, every step graded (Tom 2026-10-24: single-leg stands and short
+# walks, "EVERY foot lifts off the ground by a few cm (>= 3 cm) on every
+# step"). The sole heights are read per tick from the env (they are not in the
+# shared rows), so this is the one place a swing is attributed to a FOOT and
+# checked against the clearance rule individually.
+WALK_STEPS_V = 0.30       # commanded vx, m/s
+WALK_STEPS_S = 1.8        # seconds of walk command: ~4-6 steps at 1.25-1.75 Hz strides
+WALK_STEPS_T0 = 1.0       # stand first, then the walk command starts
+WALK_STEPS_TAIL = 0.4     # a step that BEGINS within this long after the stop command is part of the walk
+WALK_MIN_STEPS = 4        # total, and at least 2 per foot
+WALK_MIN_PROGRESS = 0.25  # m forward by the end
+
+
+def walk_steps_swings(samples, t_lo, t_hi, min_ticks=SWING_MIN_TICKS):
+    """Per-foot swings from the per-tick samples (t, con_l, con_r, z_l, z_r),
+    sole heights above the standing sole height. A swing is a run of >= min_ticks
+    ticks with that foot out of contact; its peak is the highest sole point in the
+    run. Only swings that BEGIN in [t_lo, t_hi] count. Returns [(foot, t_on, peak)]
+    in onset order; a swing still open at the end of the data is closed there."""
+    out = []
+    for foot, (ic, iz) in (("L", (1, 3)), ("R", (2, 4))):
+        run = None
+        for smp in samples + [(float("inf"), True, True, 0.0, 0.0)]:
+            if not smp[ic]:
+                run = (smp[0], smp[iz], 1) if run is None else (run[0], max(run[1], smp[iz]), run[2] + 1)
+            elif run is not None:
+                if run[2] >= min_ticks and t_lo <= run[0] <= t_hi:
+                    out.append((foot, run[0], run[1]))
+                run = None
+    out.sort(key=lambda r: r[1])
+    return out
+
+
+def scen_walk_steps(lead):
+    """Walk a few steps from standing, starting with the `lead` foot, then
+    stop. The gait clock is set at the start of the command so the lead foot
+    is the one the clock swings first (sin(phase) > 0 swings L; the policy is
+    free to ignore it -- `lead_ok` reports whether it did).
+
+    Pass: no fall; at least WALK_MIN_STEPS steps and at least two per foot,
+    where a step is a swing (>= 3 control ticks off the ground) that begins
+    between the walk command and WALK_STEPS_TAIL after the stop command; EVERY
+    such step lifts ITS foot's sole at least SWING_CLEAR (3 cm) above the
+    standing sole height (the per-step, per-foot minimum, not a fraction);
+    forward progress >= WALK_MIN_PROGRESS; standing upright (>= 85 % height,
+    up_z >= 0.9) at the end; lateral drift < 0.25 m."""
+    t_stop = WALK_STEPS_T0 + WALK_STEPS_S
+
+    def build():
+        ev = {"_h": []}
+
+        def ctrl(t, gt, ev):
+            env = ev["_env"]
+            d = env.data
+            z0 = getattr(env, "_sole_z0", 0.0)
+            ev["_h"].append((t, bool(gt["con_l"]), bool(gt["con_r"]),
+                             float(d.geom_xpos[env._sole_gids[0]][2]) - z0,
+                             float(d.geom_xpos[env._sole_gids[1]][2]) - z0))
+            if "x0" not in ev and t >= WALK_STEPS_T0:
+                ev["x0"], ev["y0"] = gt["x"], gt["y"]
+                if getattr(env, "gait_clock", False):
+                    env._gait_phase = 0.0 if lead == "L" else -math.pi
+            if t < WALK_STEPS_T0:
+                return (0, 0, 0, 1, 0)
+            if t < t_stop:
+                return (WALK_STEPS_V, 0, 0, 1, 0)
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        swings = walk_steps_swings(ev["_h"], WALK_STEPS_T0, t_stop + WALK_STEPS_TAIL)
+        per = {f: [p for ft, _, p in swings if ft == f] for f in ("L", "R")}
+        peaks = [p for _, _, p in swings]
+        min_peak = min(peaks) if peaks else 0.0
+        short = [max(SWING_CLEAR - p, 0.0) for p in peaks]
+        end = rows[-1] if rows else None
+        x0 = ev.get("x0")
+        progress = (end["x"] - x0) if (end and x0 is not None) else float("nan")
+        lateral = abs(end["y"] - ev["y0"]) if (end and "y0" in ev) else float("nan")
+        upright = bool(end and end["height"] >= 0.85 * N and end["up_z"] >= 0.9)
+        steps_ok = (len(peaks) >= WALK_MIN_STEPS and len(per["L"]) >= 2
+                    and len(per["R"]) >= 2)
+        clear_ok = bool(peaks) and all(p >= SWING_CLEAR for p in peaks)
+        success = ((not fell) and steps_ok and clear_ok and upright
+                   and not math.isnan(progress) and progress >= WALK_MIN_PROGRESS
+                   and not math.isnan(lateral) and lateral < 0.25)
+        return dict(success=success,
+                    metrics=dict(steps=len(peaks), steps_l=len(per["L"]), steps_r=len(per["R"]),
+                                 min_peak_clear=min_peak,
+                                 max_shortfall=max(short) if short else SWING_CLEAR,
+                                 steps_short=sum(1 for p in peaks if p < SWING_CLEAR),
+                                 lead_ok=float(bool(swings) and swings[0][0] == lead),
+                                 progress=progress, lateral=lateral),
+                    headline=f"{len(peaks)} steps, min {min_peak*100:.1f}cm")
+    return build, evaluate
+
+
 # name -> (episode_seconds, factory, is_locomotion)
 def _registry():
     # (single-leg crouch scenarios removed 2026-07-18, user call;
@@ -1909,6 +2026,10 @@ def _registry():
     # every existing scorecard must stay comparable, and a subset run writes
     # a _partial card anyway.
     reg["handover_stand"] = (10.0, scen_handover_stand(), False)
+    # short walk, every step's clearance graded per foot (2026-10-24): behind
+    # --scenarios / the run's `eval_scenarios`, so the family totals stay put
+    for s in ("L", "R"):
+        reg[f"walk_steps_{s}"] = (WALK_STEPS_T0 + WALK_STEPS_S + 3.2, scen_walk_steps(s), True)
     return reg
 
 
@@ -1962,7 +2083,7 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
 # recover_supine: the get-up family scores it (FAMILY_SCENARIOS), nothing else
 # runs it -- it needs the robot plant (it starts from getup_ref_v6ar.npz)
 EXTRA_SCENARIOS = ["handover_stand", "recover_supine", "recover_supine_ph", "recover_prone",
-                   "recover_prone_fall"]
+                   "recover_prone_fall", "walk_steps_L", "walk_steps_R"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
@@ -1976,6 +2097,7 @@ HEADLINE = {
     "squat_reps": ("reps_ok", lambda v: f"{v:.0f}/3 reps"),
     "weight_shift": ("holds_ok", lambda v: f"{v:.0f}/4 holds"),
     "balance": ("clear_frac", lambda v: f"clear {v*100:.0f}%"),
+    "walk_steps": ("min_peak_clear", lambda v: f"min peak {v*100:.1f}cm"),
     "circle_air": ("traced_radius", lambda v: f"r={v*100:.1f}cm"),
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_sit": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
@@ -2155,6 +2277,17 @@ def main():
     if not args.scenarios and fam in FAMILY_SCENARIOS:
         names = [n for n in ORDER + EXTRA_SCENARIOS if n in FAMILY_SCENARIOS[fam]]
         print(f"[family={fam}] scoring {len(names)} scenarios")
+    extra_eval = [w.strip() for w in ((cfg.get("train", {}) or {}).get("eval_scenarios") or "").split(",")
+                  if w.strip()]
+    if extra_eval and not args.scenarios:
+        # the run asked for scenarios beyond its family's list (train_mjx
+        # --eval-scenarios): graded on the same card, after the family's
+        unknown = [w for w in extra_eval if w not in reg]
+        if unknown:
+            print(f"warning: unknown eval_scenarios ignored: {unknown}", file=sys.stderr)
+        names = names + [n for n in ORDER + EXTRA_SCENARIOS
+                         if n in extra_eval and n not in names]
+        print(f"[eval_scenarios] + {[n for n in names if n in extra_eval]}")
     if args.scenarios:
         want = [s.strip() for s in args.scenarios.split(",") if s.strip()]
         names = [n for n in ORDER + EXTRA_SCENARIOS if n in want]
@@ -2164,7 +2297,7 @@ def main():
     robot = is_robot_plant(xml)
     # a --robot-arms run (shoulders/elbows NOT in held_joints) drives the arms:
     # the get-up scenarios apply to it
-    arms_policy = robot and not any(
+    arms_policy = robot and plant_has_arms(xml) and not any(
         robot_role in k for k in (cfg.get("held_joints") or {})
         for robot_role in ("shoulder", "elbow"))
     not_applicable = {n: ROBOT_NOT_APPLICABLE[n] for n in names

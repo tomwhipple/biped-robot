@@ -482,6 +482,17 @@ class BimoWalkerEnv(gym.Env):
         # uniform(backlash_deg, max) -- backlash DR
         zero_offset_deg: float = 0.0,  # per-episode per-joint zero offset,
         # uniform(-z, +z) deg: calibration-error DR (mirror of env_mjx)
+        roll_lash_deg: float = 0.0,    # EXTRA deadzone width (peak-to-peak, deg)
+        # on the four roll joints (hip_roll, ankle_roll) only, on top of
+        # backlash_deg: the play downstream of the encoders (hw 2026-10-24,
+        # legs-only body: a 30 mm one-foot lift tilts the torso ~5 deg while
+        # the stance encoders move ~1 deg). Mirror of env_mjx roll_lash_deg.
+        roll_lash_deg_max: float | None = None,  # per-episode draw
+        # uniform(roll_lash_deg, max)
+        torso_mass_range: float | None = None,   # per-episode torso mass/inertia
+        # scale U(1-r, 1+r) INSTEAD of the generic mass_range for the torso body
+        torso_com_y: float = 0.0,      # per-episode lateral torso CoM offset
+        # U(-c, +c) m (body_ipos y of the torso) -- lateral-asymmetry DR
         play_deg: float = 0.0,         # FREE TRAVEL between servo shaft and
         # link, peak-to-peak (hw 2026-09-02: L hip roll ~3 deg). Unlike
         # backlash_deg (a deadzone on the servo's error) this is mechanical
@@ -676,6 +687,7 @@ class BimoWalkerEnv(gym.Env):
         # mounting misalignment + gyro bias, per-step noise (BNO085-class
         # magnitudes) -- applied only when domain_rand is on.
         imu_noise: float = 1.0,        # scale on IMU misalignment/bias/noise DR
+        imu_mount_deg: float = 2.0,    # 1-sigma IMU mounting misalignment (deg), before the imu_noise scale
         # -- servo tick quantization (SIL boundary realism, 2026-07-31) --------
         # The policy trains on float joint states, but the real robot reads
         # STS3215 ENCODERS: position as a uint16 tick word (4096/rev, zero
@@ -770,6 +782,11 @@ class BimoWalkerEnv(gym.Env):
         self.backlash_deg = backlash_deg
         self.backlash_deg_max = backlash_deg_max
         self._lash_rad = np.deg2rad(backlash_deg)
+        self.roll_lash_deg = float(roll_lash_deg)
+        self.roll_lash_deg_max = roll_lash_deg_max
+        self._roll_lash_rad = float(np.deg2rad(roll_lash_deg))
+        self.torso_mass_range = torso_mass_range
+        self.torso_com_y = float(torso_com_y)
         self.zero_offset_deg = float(zero_offset_deg)
         self._zero_off = None            # (n_servo,) rad, drawn at reset
         self.play_deg = float(play_deg)
@@ -906,6 +923,7 @@ class BimoWalkerEnv(gym.Env):
         self._traj_on = 0.0            # trajectory mode (0/1/2/3)
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
+        self.imu_mount_deg = float(imu_mount_deg)
         self._imu_R = np.eye(3)          # per-episode mounting misalignment
         self._imu_gyro_bias = np.zeros(3)
         xml_src = None
@@ -979,6 +997,8 @@ class BimoWalkerEnv(gym.Env):
         self._sqvel = slice(self._jv0, self._jv1)
         self._servo_names = [self.model.joint(int(j)).name for j in _jnt]
         self._sname2i = {n: i for i, n in enumerate(self._servo_names)}
+        self._roll_mask = np.array([n[2:] in ("hip_roll", "ankle_roll")
+                                    for n in self._servo_names], dtype=np.float64)
         self.held_joints = ({} if not held_joints else
                             {str(k): float(v) for k, v in held_joints.items()})
         _bad = [k for k in self.held_joints if k not in self._sname2i]
@@ -1114,6 +1134,7 @@ class BimoWalkerEnv(gym.Env):
 
         # Nominal dynamics parameters, snapshotted so each reset re-randomizes
         # from the originals rather than compounding noise across episodes.
+        self._nom_ipos = self.model.body_ipos.copy()
         self._nom_mass = self.model.body_mass.copy()
         self._nom_inertia = self.model.body_inertia.copy()
         self._nom_friction = self.model.geom_friction.copy()
@@ -1462,8 +1483,15 @@ class BimoWalkerEnv(gym.Env):
         stored nominals, never compounded."""
         rng, m = self.np_random, self.model
         mf = rng.uniform(1 - self.mass_range, 1 + self.mass_range, size=m.nbody)
+        if self.torso_mass_range is not None:
+            mf[self._torso_bid] = rng.uniform(1 - self.torso_mass_range,
+                                              1 + self.torso_mass_range)
         m.body_mass[:] = self._nom_mass * mf
         m.body_inertia[:] = self._nom_inertia * mf[:, None]
+        if self.torso_com_y > 0.0:
+            m.body_ipos[:] = self._nom_ipos
+            m.body_ipos[self._torso_bid, 1] += rng.uniform(-self.torso_com_y,
+                                                           self.torso_com_y)
         ff = rng.uniform(1 - self.friction_range, 1 + self.friction_range)
         m.geom_friction[self._floor_gid, 0] = self._nom_friction[self._floor_gid, 0] * ff
         gf = rng.uniform(1 - self.gain_range, 1 + self.gain_range)
@@ -1973,6 +2001,9 @@ class BimoWalkerEnv(gym.Env):
         if self.backlash_deg_max is not None:
             self._lash_rad = np.deg2rad(float(self.np_random.uniform(
                 self.backlash_deg, self.backlash_deg_max)))
+        if self.roll_lash_deg_max is not None:
+            self._roll_lash_rad = float(np.deg2rad(self.np_random.uniform(
+                self.roll_lash_deg, self.roll_lash_deg_max)))
         if self.zero_offset_deg > 0.0 and self.domain_rand:
             # a DR term: off with domain_rand, so the golden obs vectors
             # (gen_obs_spec, DR off) stay a pure function of scripted inputs
@@ -2013,7 +2044,7 @@ class BimoWalkerEnv(gym.Env):
         # gyro bias, BNO085-class magnitudes scaled by imu_noise. Only draws
         # RNG when enabled, so other runs keep their exact random streams.
         if self.imu_obs and self.domain_rand and self.imu_noise > 0.0:
-            ang = self.np_random.normal(0.0, np.deg2rad(2.0)) * self.imu_noise
+            ang = self.np_random.normal(0.0, np.deg2rad(self.imu_mount_deg)) * self.imu_noise
             ax = self.np_random.normal(size=3)
             ax /= np.linalg.norm(ax) + 1e-9
             k = np.array([[0, -ax[2], ax[1]], [ax[2], 0, -ax[0]],
@@ -2135,11 +2166,13 @@ class BimoWalkerEnv(gym.Env):
                     free = (err == 0.0) & (self._play_h > 0.0)
                 else:
                     err = cur - q
-                if self._lash_rad > 0.0:
+                if self._lash_rad > 0.0 or self._roll_lash_rad > 0.0:
                     # gear backlash: +/-lash/2 deadzone on the position error
-                    # (inside the lash the output gear floats -- no P torque)
+                    # (inside the lash the output gear floats -- no P torque);
+                    # the roll joints add their own downstream play
                     err = np.sign(err) * np.maximum(
-                        np.abs(err) - 0.5 * self._lash_rad, 0.0)
+                        np.abs(err) - 0.5 * (self._lash_rad
+                                             + self._roll_lash_rad * self._roll_mask), 0.0)
                 self._servo_tau = np.clip(kp * err - kd * qd, -cap, cap)
                 if free is not None:
                     self._servo_tau = np.where(free, 0.0, self._servo_tau)

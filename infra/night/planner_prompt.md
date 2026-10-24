@@ -15,6 +15,24 @@ Your job this morning: **evaluate last night, record what it taught, and queue
 tonight** — a full night of get-up training (22:00 – 05:00 starts, ~1.6 h per
 600M-step Warp job: queue 5 jobs).
 
+## Two tracks (Tom, 2026-10-24): one-leg stands and short walks, and get-up
+
+Tom's priority since 2026-10-24 is the as-built body (the legs only, no pack,
+Pi, head, neck or arms) standing on either foot and taking short walks, with a
+hard check that every foot lifts at least 3 cm on every step. Tonight's
+queue-setter put those jobs FIRST (`robot_legs_*`, plant
+`sim/bimo_biped_v6legs.xml`, record
+`docs/design-v6/roll-compliance-2026-10-24.md`) and kept the get-up lead job
+after them. You evaluate and plan **both tracks every morning**, and you do not
+re-queue get-up over the one-leg / walk jobs: the night's queue order is the
+one-leg and walk jobs first (the `robot_legs_*` names sort by `MMDDHHMMSS`, so
+give them the earliest stamps), then get-up. For the `robot_legs_*` runs read
+`scorecard.md` (the family card plus the `walk_steps_L/R` rows, whose pass rule
+is that every step of every foot peaks at least 3 cm) and compare siblings by
+their one variable; a held get-up job in `queue/held/` is yours to re-queue.
+Ledger entries for the new track go in the same "Night of" entry as get-up,
+under their own heading.
+
 ## Read first (the latest knowledge — do not plan from memory)
 
 1. The campaign ledger, `docs/design-v6/getup-campaign-2026-10.md`: the plan,

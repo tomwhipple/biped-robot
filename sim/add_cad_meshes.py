@@ -37,7 +37,7 @@ SERVOS = {"torso": ["yaw_L", "yaw_R", "neck", "shoulder_L", "shoulder_R"],
           "L_arm": ["elbow_L"], "R_arm": ["elbow_R"]}
 
 
-def parts(arms=True):
+def parts(arms=True, head=True):
     """body -> [(stl name, offset mm, rgba)]: the printed parts, as placed in
     build_v6_inertia.bodies()."""
     zdeck = V.DECK_TOP_Z - V.HIP_YAW_Z
@@ -45,12 +45,13 @@ def parts(arms=True):
     out = {"torso": [("pelvis_v8", (0, 0, zdeck), PLA),
                      ("torso_v8" + ("" if arms else "_armless"), (0, 0, zdeck), PLA),
                      ("front_cover_v8", (0, 0, zdeck), PLA),
-                     ("power_cover_v8", (0, 0, zdeck), PLA),
-                     ("battery_door_v8", (0, 0, zdeck), PLA),
-                     ("yaw_bearing_housing", (0, 0, zdeck), PLA),
-                     ("neck_floor", (0, 0, zdeck), PLA)]
-           + ([("shoulder_girdle_v6", (0, 0, zdeck), PLA)] if arms else [("neck_collar", (0, 0, zdeck), PLA)]),
-           "head": [("head", (0, 0, 0), PLA)]}
+                     ("yaw_bearing_housing", (0, 0, zdeck), PLA)]
+           + ([("power_cover_v8", (0, 0, zdeck), PLA), ("battery_door_v8", (0, 0, zdeck), PLA),
+               ("neck_floor", (0, 0, zdeck), PLA)] if head else [])
+           + ([("shoulder_girdle_v6", (0, 0, zdeck), PLA)] if arms else
+              [("neck_collar", (0, 0, zdeck), PLA)] if head else [])}
+    if head:
+        out["head"] = [("head", (0, 0, 0), PLA)]
     for s in ("L", "R"):
         out[f"{s}_hip_yaw"] = [("yaw_carrier_v6", (0, 0, 0), PLA)]
         out[f"{s}_hip"] = [("hip_yoke_v6", (0, 0, 0), PLA)]
@@ -72,7 +73,7 @@ def export_servos():
         print(f"servo_{k}.stl")
 
 
-def dress(src: str, xml_dir: str, arms=True) -> str:
+def dress(src: str, xml_dir: str, arms=True, head=True) -> str:
     # one meshdir (the repo root): walker_env and env_mjx load the plant from a
     # string and absolutize meshdir against the XML's directory, not file=
     root = os.path.normpath(os.path.join(HERE, ".."))
@@ -86,7 +87,7 @@ def dress(src: str, xml_dir: str, arms=True) -> str:
             assets.append(f'    <mesh name="{name}" file="{path}" scale="0.001 0.001 0.001"/>')
         return name
 
-    P = parts(arms)
+    P = parts(arms, head)
     for body in sorted(set(P) | set(SERVOS)):
         geoms = []
         for stl, off, rgba in P.get(body, []):
@@ -97,6 +98,8 @@ def dress(src: str, xml_dir: str, arms=True) -> str:
             geoms.append(f'<geom name="{body}_cad_{stl}" class="cad" mesh="{n}" pos="{pos}" rgba="{rgba}"/>')
         for k in SERVOS.get(body, []):
             if k.startswith(("shoulder", "elbow")) and not arms:
+                continue
+            if k == "neck" and not head:
                 continue
             f = os.path.join(SERVO_DIR, f"servo_{k}.stl")
             if not os.path.exists(f):
