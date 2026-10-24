@@ -31,15 +31,17 @@ THE MOUNT
              board's four holes (49 x 58) land on the Pi's four bosses
              (dimensions_v6 PI_SCREW_Y / PI_SCREW_Z) exactly.
     spacers  four tubes, SPACER_L long, from the bosses' faces to the board's
-             underside. The upper sockets' ends come within 0.1 of the bosses
+             underside: O5.8 at the upper holes (beside the sockets' ends),
+             the bosses' O7 at the lower. The upper sockets' ends come within 0.1 of the bosses
              sideways, so the sockets must stay in front of the bosses' faces:
              SPACER_L leaves them 1.0 clear.
     plate    PLATE_T thick on the bosses' faces: a rail through each pair of
              spacers and two rungs, open at the top behind the sockets. It
              holds the spacers in register while the screws go in.
     screws   4 x M2.5 x 16 pan-head self-tappers, from the parts face through
-             the board and the spacer (clearance bore) into the boss's pilot
-             (2.2 x 5.0); an x 18 bottoms out. Heads <= O6.9: a USB-C shell
+             the board and the spacer into the boss's pilot (2.2 x 5.0); an
+             x 18 bottoms out. The spacers' bores (O3.5) let an M3 slide
+             through, so the plate has 0.5 of play on the M2.5s. Heads <= O6.9: a USB-C shell
              is 3.5 from a hole's centre.
              The screws hold everything: board, plate, torso. Glue (epoxy or
              CA on the four spacer feet) holds the plate on the bosses while
@@ -140,8 +142,14 @@ assert GD_Z0 >= V.TORSO_BOT_Z - 0.01, "the board must not hang below the torso"
 assert GD_X0 - SOCKET[2] >= BOSS_FACE_X + 0.5, "the sockets must stay in front of the bosses"
 
 PLATE_T = 2.5
-TUBE_R = 2.9                                   # P2's ends are 3.54 off the upper holes' centres
-TUBE_BORE = D.CASE_SCREW_CLEAR                 # 2.9: the screw threads only into the boss
+# spacers: the upper pair at the socket's ends (P2's are 3.54 off those holes'
+# centres), the lower pair the bosses' own O7
+TUBE_R = {V.PI_SCREW_Z[1]: 2.9, V.PI_SCREW_Z[0]: 3.5}
+RAIL_HW = min(TUBE_R.values())                 # half width of the rails and rungs
+# an M3 slides freely: D.M3_CLEAR (3.4) + 0.1 for a 10 mm printed bore. The
+# screw threads only into the boss; an M2.5 in it leaves the plate this play
+TUBE_BORE = D.M3_CLEAR + 0.1
+PLATE_PLAY = (TUBE_BORE - 2.5) / 2             # 0.5 each way
 RUNG_Z = (V.PI_SCREW_Z[0], (V.PI_SCREW_Z[0] + V.PI_SCREW_Z[1]) / 2)
 SCREW_L = 16.0
 MIN_AIR = 0.3                                  # plate vs anything on the board's underside
@@ -255,12 +263,12 @@ def gd_plate():
     (ylo, yhi), (za, zb) = V.PI_SCREW_Y, V.PI_SCREW_Z
     p = None
     for sy in (ylo, yhi):
-        r = box(x0, x1, sy - TUBE_R, sy + TUBE_R, za, zb)
+        r = box(x0, x1, sy - RAIL_HW, sy + RAIL_HW, za, zb)
         p = r if p is None else p + r
     for zr in RUNG_Z:
-        p += box(x0, x1, ylo, yhi, zr - TUBE_R, zr + TUBE_R)
+        p += box(x0, x1, ylo, yhi, zr - RAIL_HW, zr + RAIL_HW)
     for sy, sz in BOSS_YZ:
-        p += cyl_x(TUBE_R, x0, GD_X0, sy, sz)
+        p += cyl_x(TUBE_R[sz], x0, GD_X0, sy, sz)
     for sy, sz in BOSS_YZ:
         p -= cyl_x(TUBE_BORE / 2, x0 - 1, GD_X0 + 1, sy, sz)
     return p
@@ -318,8 +326,13 @@ def check_fits(plate, torso, cover):
     ok &= _line(not hits, f"plate vs the board's under-side parts (+{MIN_AIR} air)",
                 "clear" if not hits else ", ".join(f"{n} {h:.2f} mm3" for n, h in hits))
     sock = [e for n, e, _ in env if n == "P2 socket"][0]
-    gap_y = min(abs(sy) for sy in V.PI_SCREW_Y) - TUBE_R - max(abs(sock[2]), abs(sock[3]))
+    gap_y = min(abs(sy) for sy in V.PI_SCREW_Y) - TUBE_R[V.PI_SCREW_Z[1]] - max(abs(sock[2]), abs(sock[3]))
     ok &= _line(gap_y >= MIN_AIR, "upper spacers vs the P2 socket's ends", f"{gap_y:.2f} mm")
+    ok &= _line(gap_y - PLATE_PLAY >= 0.0, "... with the plate shifted its full play on the M2.5s",
+                f"{gap_y - PLATE_PLAY:.2f} mm (play {PLATE_PLAY:.2f})")
+    walls = {sz: r - TUBE_BORE / 2 for sz, r in TUBE_R.items()}
+    ok &= _line(min(walls.values()) >= 1.0, f"spacer walls round the O{TUBE_BORE:.1f} bore (an M3 slides through)",
+                ", ".join(f"z {sz:+.0f}: {w:.2f} mm" for sz, w in sorted(walls.items())))
     gap_x = sock[0] - BOSS_FACE_X
     ok &= _line(gap_x >= 0.5, "sockets in front of the bosses' faces", f"{gap_x:.2f} mm")
     fixed = torso + cover + YBH.yaw_bearing_housing()

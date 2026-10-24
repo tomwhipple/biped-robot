@@ -356,8 +356,8 @@ are top-entry, so their leads need room square to the board.
   its service edge (XH inlet, both USB-C) is at +y, the plugs' cables straight
   out through the +y skin's window. 19.3 mm stay between its parts face and
   the front cover for the servo plugs and their bends.
-- **`gd_plate`** (4.1 g, printed back face down): four 10 mm spacers on the
-  bosses, joined by a rail through each pair and two rungs, and open at the
+- **`gd_plate`** (4.2 g, printed back face down): four 10 mm spacers on the
+  bosses (Ø3.5 bores, so an M3 slides through), joined by a rail through each pair and two rungs, and open at the
   top behind the sockets, which stay 1.0 mm in front of the bosses. Four
   M2.5 × 16 pan heads go through the board and the spacers into the bosses'
   pilots (4.4 mm of thread). Epoxy on the spacers' feet holds the plate while
