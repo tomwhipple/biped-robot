@@ -28,6 +28,7 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "sim"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("MUJOCO_GL", "egl")
 
 import static_gait as SG  # noqa: E402
@@ -45,6 +46,11 @@ CAL = {"R_hip_roll": (2059, -1), "R_hip_pitch": (1997, 1), "R_knee": (2125, -1),
        "L_hip_roll": (2025, -1), "L_hip_pitch": (2058, 1), "L_knee": (1977, -1), "L_ankle": (2091, 1),
        "R_hip_yaw": (2184, 1), "L_hip_yaw": (2153, 1), "R_ankle_roll": (2085, 1), "L_ankle_roll": (2031, 1)}
 ROLLS = ("L_hip_roll", "R_hip_roll", "L_ankle_roll", "R_ankle_roll")
+# The robot as it is on the bench (2026-10-24): v6 legs, tethered power, the torso is the print (m_pelvis)
+# plus the General Driver board (m_board) and its leads. No pack, Pi, head, neck servo, power board, arms.
+# Geometry untouched (torso_v7 stays on: the deck height and board position are the printed torso's).
+# m_wiring 0.010 is a guess (board leads + servo bus cable); the true torso mass is unmeasured.
+AS_BUILT = ["m_battery=0", "m_pi4=0", "m_power=0", "m_neck_servo=0", "m_head=0", "m_wiring=0.01"]
 
 
 class JointTimeline:
@@ -79,23 +85,32 @@ class JointTimeline:
         return self.q[-1]
 
 
-def keyframes(p, drop=0.02, lift=0.03, bias_y=-0.005, frac=1.0):
+def keyframes(p, drop=0.02, lift=0.03, bias_y=-0.005, frac=1.0, stance="L"):
     """IK keyframes (12 joint angles, JN order, rad). frac scales the lateral
-    shift (0.5 = the half-amplitude bench stage)."""
+    shift (0.5 = the half-amplitude bench stage). stance: the foot that stays
+    down ("L"/"R"); the other lifts. The shift is solved from the model's CoM for
+    whichever stance, and bias_y is inboard (toward the lifted foot) for both:
+    one code path, no per-side constants."""
+    swing = "R" if stance == "L" else "L"
+    sgn = 1.0 if stance == "L" else -1.0
     m, d = K.load(p)
     k0 = standing_key(p, 0.0)
     k1 = standing_key(p, drop)
     feet = {"L": k1.footL.copy(), "R": k1.footR.copy()}
-    mid = feet["R"] + np.array([0.0, 0.0, lift])
-    pel = SG.solve_pelvis(m, d, p, k1.pelvis, feet, "L", mid, bias=(0.0, bias_y))
+    mid = feet[swing] + np.array([0.0, 0.0, lift])
+    pel = SG.solve_pelvis(m, d, p, k1.pelvis, feet, stance, mid, bias=(0.0, sgn * bias_y))
     pel[2] = k1.pelvis[2]
     pel = k1.pelvis + (pel - k1.pelvis) * frac
     k2 = Key(pel, k1.footL, k1.footR)
-    k3 = k2.copy(); k3.footR = k3.footR + np.array([0.0, 0.0, lift])
+    k3 = k2.copy()
+    if swing == "R":
+        k3.footR = k3.footR + np.array([0.0, 0.0, lift])
+    else:
+        k3.footL = k3.footL + np.array([0.0, 0.0, lift])
     q = {n: q_of(p, k) for n, k in (("straight", k0), ("crouch", k1), ("shift", k2), ("lift", k3))}
     # static CoM margin on the left sole at the lifted pose, from the kinematics
     K.set_pose(m, d, q["lift"], torso_pos=k3.pelvis + np.array([0, 0, 1.0]))
-    marg, _ = K.com_margin(m, d, p, "L")
+    marg, _ = K.com_margin(m, d, p, stance)
     contacts = {}
     for n, qq in q.items():                    # self-contact at each keyframe (shift is a parallelogram,
         K.set_pose(m, d, qq)                   # so the gap between the legs is constant between them)
@@ -121,13 +136,13 @@ def lift_only(p, side="R", heights=(0.015, 0.03), drop=0.0):
     return q
 
 
-def timeline(q, t_crouch=2.0, t_shift=3.0, t_lift=2.0, t_hold=10.0):
+def timeline(q, t_crouch=2.0, t_shift=3.0, t_lift=2.0, t_hold=10.0, swing="R"):
     tl = (JointTimeline(q["straight"]).hold(0.5, "settle0").to(q["crouch"], t_crouch, "crouch")
           .hold(0.5, "h1").to(q["shift"], t_shift, "shift").hold(1.0, "h2")
           .to(q["lift"], t_lift, "lift").hold(t_hold, "hold").to(q["shift"], t_lift, "lower")
           .hold(0.5, "h3").to(q["crouch"], t_shift, "centre").hold(0.5, "h4")
           .to(q["straight"], t_crouch, "straighten").hold(1.0, "end"))
-    win = [(tl.t_of("lift"), tl.t_of("lower") + t_lift, "R")]
+    win = [(tl.t_of("lift"), tl.t_of("lower") + t_lift, swing)]
     return tl, win
 
 
@@ -149,8 +164,20 @@ def run(p, xml, tl, win, **kw):
         SG.q_of = orig
 
 
+def bal_hook(tl, stance, kp, ki, ka, kh, clamp_deg, **kw):
+    """The stance-leg roll PI (balance.py) engaged at the start of the lift --
+    reference captured at the shifted pose -- through the hold, faded out over the lowering."""
+    from balance import Balance
+    seg = lambda n: tl.durs[tl.names.index(n) - 1]      # t_of(name) is the END of that segment
+    t_lift0, t_lift1 = tl.t_of("lift") - seg("lift"), tl.t_of("lift")
+    t_hold1 = tl.t_of("hold")
+    return Balance(stance, kp, ki, ka, kh, math.radians(clamp_deg), t_on=t_lift0, t_off=t_hold1,
+                   t_fade=seg("lower"), t_hold0=t_lift1, t_hold1=t_hold1, **kw)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
+    ap.add_argument("--stance", choices=("L", "R"), default="L", help="the foot that stays down; the other lifts")
     ap.add_argument("--lift", type=float, default=0.03)
     ap.add_argument("--drop", type=float, default=0.02)
     ap.add_argument("--hold", type=float, default=10.0)
@@ -163,13 +190,25 @@ def main(argv=None):
     ap.add_argument("--plant-set", nargs="*", default=[], metavar="KEY=VAL",
                     help="simulate on a plant changed from the one the keyframes are solved on "
                          "(e.g. m_battery=0 m_pi4=0 torso_v7=0: the tethered robot without pack, Pi, head)")
+    ap.add_argument("--solve-set", nargs="*", default=[], metavar="KEY=VAL",
+                    help="solve the keyframes on a plant changed from the design (default: the design plant)")
+    ap.add_argument("--as-built", action="store_true",
+                    help="solve the keyframes AND simulate on the as-built plant (AS_BUILT; --plant-set/--solve-set add to it)")
+    ap.add_argument("--bal-kp", type=float, default=0.0, help="stance-leg roll PI: P gain (rad/rad)")
+    ap.add_argument("--bal-ki", type=float, default=0.0, help="stance-leg roll PI: I gain (1/s)")
+    ap.add_argument("--bal-ka", type=float, default=1.0, help="PI output -> stance ankle roll (signed mix)")
+    ap.add_argument("--bal-kh", type=float, default=0.0, help="PI output -> stance hip roll (signed mix)")
+    ap.add_argument("--bal-clamp", type=float, default=6.0, help="PI output clamp, deg")
     ap.add_argument("--fb-ankle", type=float, default=0.0, help="IMU torso roll -> ankle roll P gain (rad/rad)")
     ap.add_argument("--fb-hip", type=float, default=0.0, help="IMU torso roll -> hip roll P gain (rad/rad)")
     ap.add_argument("--fb-i", type=float, default=0.0, help="integral gain on the same roll error (1/s), ankle rolls")
     ap.add_argument("--lift-only", choices=("L", "R"), default=None,
                     help="print clamped-foot lift poses for this foot (no shift) and exit")
     a = ap.parse_args(argv)
-    p, _ = params_from_args(["-o", "/dev/null"])
+    if a.as_built:
+        a.solve_set = AS_BUILT + a.solve_set
+        a.plant_set = AS_BUILT + a.plant_set
+    p, _ = params_from_args(["-o", "/dev/null", "--set", *a.solve_set])
     if a.lift_only:
         q = lift_only(p, a.lift_only, heights=(0.015, 0.03), drop=a.drop if a.drop != 0.02 else 0.0)
         for n, v in q.items():
@@ -192,23 +231,33 @@ def main(argv=None):
         pj = {"L_hip_roll": "sts3250", "R_hip_roll": "sts3250"}
     out = dict(design=p.summary(), servos=pj or "sts3215 everywhere", lift=a.lift, drop=a.drop, stages={})
     for frac in (0.5, 1.0):
-        q, info = keyframes(p, a.drop, a.lift, a.bias_y, frac)
+        q, info = keyframes(p, a.drop, a.lift, a.bias_y, frac, a.stance)
         out["stages"][f"shift{int(frac * 100)}"] = dict(
             info=info, rad={n: [round(float(x), 4) for x in v] for n, v in q.items()},
             deg={n: {j: round(math.degrees(float(v[JN.index(j)])), 1) for j in JN} for n, v in q.items()},
             ticks={n: ticks(v) for n, v in q.items()})
-    q, info = keyframes(p, a.drop, a.lift, a.bias_y, 1.0)
-    tl, win = timeline(q, t_hold=a.hold)
+    q, info = keyframes(p, a.drop, a.lift, a.bias_y, 1.0, a.stance)
+    tl, win = timeline(q, t_hold=a.hold, swing="R" if a.stance == "L" else "L")
     print(f"design {p.summary()}\nservos {out['servos']}  lift {1e3*a.lift:.0f} mm  drop {1e3*a.drop:.0f} mm  "
           f"hold {a.hold:.0f} s  total {tl.T:.1f} s\nkinematics: pelvis shift {info['pelvis_shift_mm']} mm, "
-          f"static CoM margin on the L sole {info['static_margin_mm']} mm, "
+          f"static CoM margin on the {a.stance} sole {info['static_margin_mm']} mm, "
           f"self-contacts per keyframe {info['self_contacts']}")
     for n in ("crouch", "shift", "lift"):
         print(f"  {n:8s}", "  ".join(f"{j.replace('_hip', '').replace('ankle_roll', 'aroll')} "
                                      f"{math.degrees(float(q[n][JN.index(j)])):+5.1f}" for j in JN))
+    print(f"bench sequence ({a.stance} stance; CAL ticks as of its comment -- refresh from `cal show` first):")
+    for n, ms in (("crouch", 2000), ("shift", 3000), ("lift", 2000)):
+        print(f"  pose {' '.join(map(str, ticks(q[n])))} s{ms}" + (f" B{a.stance}" if n == "lift" and True else ""))
     if a.plant_set or any(fb.values()):
         print(f"simulated plant: {p_sim.summary()}  set {a.plant_set}  feedback {fb}")
-    r = run(p_sim, xml, tl, win, per_joint=pj, track_torque=True, **fb)
+    bal = None
+    if a.bal_kp or a.bal_ki:
+        bal = bal_hook(tl, a.stance, a.bal_kp, a.bal_ki, a.bal_ka, a.bal_kh, a.bal_clamp)
+        print(f"stance-leg roll PI on L: kp {a.bal_kp} ki {a.bal_ki} ankle x{a.bal_ka} hip x{a.bal_kh} clamp {a.bal_clamp} deg")
+    r = run(p_sim, xml, tl, win, per_joint=pj, track_torque=True, hook=bal, **fb)
+    if bal is not None:
+        out["balance"] = bal.metrics()
+        print("  balance:", {k: round(float(v), 2) for k, v in out["balance"].items()})
     print(SG.fmt_row("nominal (mu 0.7, play 3, lash 1, lag 2 Hz + 80 ms)", r))
     tau = {j: (round(r["peak_tau"][i], 2), round(r["stall"][i], 2)) for i, j in enumerate(JN)}
     print("  peak |tau| / stall N*m:", "  ".join(f"{j} {t}/{s}" for j, (t, s) in tau.items() if t > 0.3 * s))
@@ -222,8 +271,11 @@ def main(argv=None):
                  ("floor tilt +2 deg", dict(floor_tilt_deg=2.0)), ("floor tilt -2 deg", dict(floor_tilt_deg=-2.0)),
                  ("mu 0.4 + play 5 + servos -15 %", dict(mu=0.4, play_deg=5.0, servo_scale=0.85))]
         out["sweep"] = {}
+        bal = None if bal is None else True
         for label, kw in cases:
-            rs = [run(p_sim, xml, tl, win, seed=s, per_joint=pj, **fb, **kw) for s in range(3)]
+            rs = [run(p_sim, xml, tl, win, seed=s, per_joint=pj, **fb, **kw,
+                      hook=(bal_hook(tl, a.stance, a.bal_kp, a.bal_ki, a.bal_ka, a.bal_kh, a.bal_clamp) if bal else None))
+                  for s in range(3)]
             worst = min(rs, key=lambda x: (x["ok"], x["min_margin"] if x["min_margin"] == x["min_margin"] else -1))
             print(SG.fmt_row(label, worst) + f"   ({sum(x['ok'] for x in rs)}/3 seeds ok)")
             out["sweep"][label] = worst
