@@ -493,7 +493,13 @@ HOUSING_BOT_HW = TORSO_IN_HW + D.WALL         # 60.06 outer half width at the bo
 FWD_WALL_X = (PELVIS_X[1] + TORSO_FIT, PELVIS_X[1] + TORSO_FIT + D.WALL)   # +13.21..+15.81
 AFT_WALL_X = (PELVIS_X[0] - TORSO_FIT - D.WALL, PELVIS_X[0] - TORSO_FIT)   # -40.81..-38.21
 COVER_T = D.WALL
-# --- FRONT BAY: the Pi 4B with the General Driver plugged onto it as a HAT
+# --- FRONT BAY. The General Driver's mount is cad/v6/gd_plate.py: alone, on
+# four spacers on the Pi's bosses, bus edge down (Tom, 2026-10-24); the HAT
+# stack below does not fit (gd_plate's docstring says why). The stack's
+# constants still size the bay (its windows, the deck opening, the front
+# cover's GD_FRONT_X) and place the boards in torso_v8's mocks and the sim
+# plant until the Pi has its place (#87).
+# The stack: the Pi 4B with the General Driver plugged onto it as a HAT
 # (Tom, 2026-10-14: the controller next to the Pi, the Pi near the camera's
 # ribbon). Both boards vertical, across the robot, installed from the front
 # behind a screwed cover (front_cover_v8).

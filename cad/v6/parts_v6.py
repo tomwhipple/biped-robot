@@ -82,6 +82,8 @@ PARTS = [
      f"battery door opening{', girdle pilots' if ARMS else ''}"),
     ("front_cover_v8", _lazy("torso_v8", "front_cover_v8"), 1,
      "outer face down, no supports; the board-stack bay's front wall, 4 screws through the skins"),
+    ("gd_plate", _lazy("gd_plate", "gd_plate"), 1,
+     "back face down, no supports; the General Driver's four spacers on the Pi's bosses, 4 x M2.5 x 16 through"),
     ("power_cover_v8", _lazy("torso_v8", "power_cover_v8"), 1,
      "outer face down, no supports; the power bay's aft wall, 4 screws through the skins"),
     ("battery_door_v8", _lazy("torso_v8", "battery_door_v8"), 1,

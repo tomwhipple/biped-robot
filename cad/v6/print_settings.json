@@ -152,6 +152,11 @@
       "supports": false,
       "note": "outer face down, corner blocks rising; no supports"
     },
+    "gd_plate": {
+      "orient": "RY_XUP",
+      "supports": false,
+      "note": "back face down, the four spacers rising; no supports"
+    },
     "head_face": {
       "orient": "RY_XDOWN",
       "supports": true,

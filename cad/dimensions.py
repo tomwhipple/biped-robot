@@ -726,7 +726,11 @@ BOARD_STANDOFF = 6.0           # under-plate standoff height (clears the GoPro
 # The drawing wins over the wiki wherever they disagree; it is dimensioned,
 # signed and internally consistent (52.51 + 6.26 + 6.24 = 65.01 across the
 # header side, 49 + 2 x 3.505 = 56.01 across the top).
-BOARD_GD_OUTLINE = (65.01, 56.01)   # (long edge, short edge). Was (65, 65).
+# The 56.01 is the edge across the holes; an 8.99 x 52.51 TAB past it carries
+# both 2 x 20 headers, so the board is 65.0 x 65.01 overall (the drawing, and
+# Waveshare's STEP in the same folder). BOARD_GD_OUTLINE is the rectangle
+# without the tab; cad/v6/gd_plate.py takes the full outline from the STEP.
+BOARD_GD_OUTLINE = (65.01, 56.01)   # (long edge, short edge), the tab left out
 BOARD_GD_HOLES = (58.0, 49.0)       # (span along the long edge, along the short)
 BOARD_GD_HOLE_INSET = (BOARD_GD_OUTLINE[0] - BOARD_GD_HOLES[0]) / 2   # 3.505,
                                  # and it comes out the same on the other axis
@@ -751,7 +755,7 @@ BOARD_GD_HOLE_D = 3.0            # the board's own holes (M2.5 clears with slack
 #   65.01 edge, "BUS EDGE"      [13][14][15] the ST3215 bus + MA/MB connectors,
 #                               and [12] the ON/OFF switch 0.4 mm inboard of it.
 #   65.01 edge, opposite        [23][24] the 40-pin GPIO stack, and the
-#                               8.99 x 52.51 notch the drawing dimensions.
+#                               8.99 x 52.51 tab the drawing dimensions.
 #
 # The mount that follows: 65.01 ACROSS the robot (y, keeping the +/-29 screw
 # span) with the BUS EDGE UP, so the eight servo leads plug DOWN into the board

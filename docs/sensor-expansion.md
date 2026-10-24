@@ -86,10 +86,8 @@ The tick has room, though the robot's figure is unmeasured:
   - It is on the ESP32's servo bus like every other joint, so the Pi can only turn the head through the ESP32.
   - How head yaw is commanded is part of the open firmware port.
 - **Pi.**
-  - A Raspberry Pi 4B stands vertical in the torso's front bay, with the General Driver on its 40-pin header as a HAT.
-  - It has a low-profile heatsink and no fan: its parts under the HAT have 10 mm.
-  - USB and Ethernet come out through a side window.
-  - It is powered through the 40-pin header from the General Driver's MP8759 ([wiring.md](wiring.md#pi-supply)), and talks to the ESP32 over the header's UART.
+  - A Raspberry Pi 4B, with a low-profile heatsink and no fan. Its place in the torso is open (#87): the General Driver stands alone in the front bay.
+  - Its supply and its link to the ESP32 are open with its place ([wiring.md](wiring.md#pi-supply)).
 - **Division of labour.**
   - The ESP32 runs the 50 Hz loop, the servo bus, the IMU and the guards.
   - The Pi runs vision and navigation. It sends intent (`cmd`: velocity, crouch, and so on), never joint targets.
