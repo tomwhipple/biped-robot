@@ -182,10 +182,11 @@ The robot has no heat-set inserts and no washers.
    - Centring first keeps each joint's travel clear of the encoder's 0/4095
      wrap. On the prototype, a zero at 3273 capped a hip's backward pitch at
      +72°.
-   - **The two hip-yaw servos go in without their idler disc.** Nothing rides
-     their idler side, which seats flat on the cell ceiling (§7a). Leave the
-     disc off and keep it in the bag as a spare; the other 15 servos keep
-     theirs.
+   - **The two hip-yaw servos and the two shoulder servos go in without their
+     idler disc.** Nothing rides their idler side: the hip yaws' seats flat
+     on the cell ceiling (§7a), the shoulders' against the girdle's inboard
+     wall (§11c). Leave the disc off and keep it in the bag as a spare; the
+     other 13 servos keep theirs.
 4. **Gains.** On the four ankle-roll and knee STS3215s, write the
    position-loop P (register 21) and D (register 22) that the bench test (#73)
    settled. The hip rolls are STS3250s; their row in the table comes from the
@@ -526,9 +527,10 @@ the neck is built into the girdle before the girdle goes onto the robot.
    ![Neck floor up into the girdle's tube](assembly/v6_13_neck_floor.png)
 
 2. **Plug the neck servo's leads first.** The bus ports face down, in the
-   connector trench on the idler face. The floor has a window under the trench,
-   open toward the robot's left (+Y), so the plugs pass it and the leads leave
-   sideways at floor level.
+   connector trench on the idler face. The floor has a window under the trench
+   that runs out toward the robot's left (+Y) as a tunnel under the floor's
+   edge rail: the plugs sit in the window, and the leads are laid into the
+   tunnel from below and leave sideways at floor level.
 3. **Drop the neck servo into the tube from above**, horn up, case length
    fore-aft with the cable end aft. Its idler face lands on the floor's four
    pads; the turning idler disc and hub clear the floor by 0.6 mm.
@@ -552,8 +554,12 @@ the neck is built into the girdle before the girdle goes onto the robot.
 
 ### 11c. Shoulder servos
 
-- **Drop each servo straight into its open pod** from above: case length
-  fore-aft, width vertical, horn outboard.
+- **Plug its leads first**; they leave up through the notch in the pod's
+  inboard wall.
+- **Push each servo straight down into its open pod** from above, **no idler
+  disc** (§2): case length fore-aft, width vertical, horn outboard. Two crush
+  ribs on the inboard wall take up the play, so it is a press fit: push until
+  it sits on the pod's floor.
 - **Screw it with 4 × M2.5 × 8 flat-heads into the horn-side case face, from
   outboard.** The inboard face sits 1.24 mm off the torso's skin, where no
   driver fits.

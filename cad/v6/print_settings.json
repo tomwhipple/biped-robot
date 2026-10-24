@@ -57,6 +57,13 @@
         "power_cover_v8"
       ],
       "note": "the torso's second print: both covers, outer face down, no supports"
+    },
+    "girdle_neck": {
+      "parts": [
+        "shoulder_girdle_v6",
+        "neck_floor"
+      ],
+      "note": "the shoulder girdle (support in its windows only) and the neck floor (no supports) on one plate"
     }
   },
   "variants": {
@@ -178,8 +185,13 @@
     },
     "neck_floor": {
       "orient": "IDENT",
-      "supports": false,
-      "note": "flat, bottom face down"
+      "supports": true,
+      "note": "flat, bottom face down. It prints on the girdle_neck plate, whose manual supports go only inside enforcer boxes: it has none, so it prints unsupported.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      }
     },
     "pelvis_v8": {
       "orient": "RX180",
@@ -209,7 +221,64 @@
     "shoulder_girdle_v6": {
       "orient": "IDENT",
       "supports": true,
-      "note": "base down"
+      "note": "base down. Supports in its wide windows only: manual supports, snug, from the part, inside the enforcer boxes (shoulder_girdle_v6.support_enforcers(): the four trapezius-web windows and the neck tube's aft window, each box 0.25 inside the window's faces and 0.3 into its top). Everything else prints unsupported.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      },
+      "support_enforcers": [
+        {
+          "box": [
+            10.86,
+            15.75,
+            22.25,
+            55.75,
+            7.0,
+            25.8
+          ]
+        },
+        {
+          "box": [
+            10.86,
+            15.75,
+            -55.75,
+            -22.25,
+            7.0,
+            25.8
+          ]
+        },
+        {
+          "box": [
+            -35.75,
+            -31.25,
+            22.25,
+            55.75,
+            7.0,
+            25.8
+          ]
+        },
+        {
+          "box": [
+            -35.75,
+            -31.25,
+            -55.75,
+            -22.25,
+            7.0,
+            25.8
+          ]
+        },
+        {
+          "box": [
+            -37.76,
+            -35.66,
+            -5.75,
+            5.75,
+            0.0,
+            10.3
+          ]
+        }
+      ]
     },
     "torso_v8": {
       "orient": "RX180",
