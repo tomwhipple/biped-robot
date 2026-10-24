@@ -198,6 +198,10 @@ void testValidate() {
     c = Config{}; c.kh = -9.0f;       CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.clamp_rad = 0.0f; CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.clamp_rad = 0.5f; CHECK(balance::validate(c) != nullptr);
+    // what the CLI produces for `balance set ... 10` and `... 15` (deg / 57.29578f)
+    c = Config{}; c.clamp_rad = 10.0f / 57.29578f; CHECK(balance::validate(c) == nullptr);
+    c = Config{}; c.clamp_rad = 15.0f / 57.29578f; CHECK(balance::validate(c) == nullptr);
+    c = Config{}; c.clamp_rad = 15.5f / 57.29578f; CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.abort_rad = 0.01f; CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.kp = NAN;         CHECK(balance::validate(c) != nullptr);
 }

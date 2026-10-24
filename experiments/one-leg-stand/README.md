@@ -85,7 +85,7 @@ sim's roll joints mirror and the output is odd in the error.
 | kp | 0.25 rad/rad | stable 0.125 to 0.5, falls from about 0.6 |
 | ki | 0.5 /s | |
 | ankle / hip mix | +1 / -1 | |
-| output clamp | 6 deg | |
+| output clamp | 10 deg | the robot needed 9.2-9.7 deg (see the hardware section); the sweep is the same at 6 and 10 |
 | abort | 12 deg roll error freezes the correction | |
 
 `balance_sweep.py` runs 34 cases per stance (torso mass 0.6-1.4x, play 3-5 deg,

@@ -1596,8 +1596,8 @@ void cmdBalance(Sink out, int argc, char** argv) {
         static_cast<double>(s_bal_cfg.clamp_rad) * r2d, static_cast<double>(s_bal_cfg.abort_rad) * r2d);
     float roll = 0.0f;
     if (balReadRoll(&roll)) {
-        say(out, "roll now %+.2f deg  (+ = leaning to the robot's RIGHT; tilt it by hand and check the sign\r\n"
-                 "         before trusting B -- the mount was measured on the old body)\r\n",
+        // g_line is 128 bytes: keep each say() to one short line
+        say(out, "roll now %+.2f deg  (+ = leaning to the robot's RIGHT)\r\n",
             static_cast<double>(roll) * r2d);
     } else {
         out("roll now unavailable: no fresh IMU attitude (`imu`)\r\n");

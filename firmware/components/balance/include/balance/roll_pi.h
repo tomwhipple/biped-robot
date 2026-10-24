@@ -29,7 +29,11 @@ struct Config {
     float ki = 0.5f;          // 1/s
     float ka = 1.0f;          // PI output -> stance ankle roll (signed mix)
     float kh = -1.0f;         // PI output -> stance hip roll (signed mix)
-    float clamp_rad = 0.10472f;   // |u| limit, 6 deg
+    // |u| limit, 10 deg. The roll play beyond the encoders absorbs most of the
+    // command: on the robot (2026-10-24, one foot clamped) the loop settled at
+    // u 9.2 deg (L stance) / 9.7 deg (R), and a 6 deg clamp saturated with
+    // ~2 deg of error left. The sim sweep is unchanged between 6 and 10 deg.
+    float clamp_rad = 0.17453f;
     float abort_rad = 0.20944f;   // |err| beyond this freezes the correction, 12 deg
 };
 

@@ -9,7 +9,7 @@ const char* validate(const Config& c) {
     if (!(c.ki >= 0.0f && c.ki <= 10.0f)) return "ki must be 0..10";
     if (!(fabsf(c.ka) <= 3.0f)) return "ankle mix must be within +-3";
     if (!(fabsf(c.kh) <= 3.0f)) return "hip mix must be within +-3";
-    if (!(c.clamp_rad > 0.0f && c.clamp_rad <= 0.17453f)) return "clamp must be 0..10 deg";
+    if (!(c.clamp_rad > 0.0f && c.clamp_rad <= 0.26180f + 1e-5f)) return "clamp must be 0..15 deg";
     if (!(c.abort_rad >= 0.05236f && c.abort_rad <= 0.34907f)) return "abort must be 3..20 deg";
     return nullptr;
 }
