@@ -27,7 +27,7 @@ the committed plant, which is THE ROBOT AS DRAWN:
 Body frames (torso origin = the hip yaw axis on the centreline, at the yaw horn
 face; leg and arm bodies at their joint axes; see gen_plant_v6): each mass
 lands in the body whose joint moves it.
-    torso      pelvis, bearing housing, yaw servos, pack, boards, wiring, neck
+    torso      pelvis, torso shell + power cover, bearing housing, yaw servos, pack, boards, wiring, neck
                servo, neck floor, girdle + both shoulder servos (or
                neck_collar, armless), the bearings' outer halves
     head       head (shell + face fused) + camera
@@ -201,23 +201,28 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     g15 = V.SERVO_MASS_3215
     g_roll, g_knee, g_aroll = (servo_grams(j, plan, m3250_g) for j in ("hip_roll", "knee", "ankle_roll"))
     zdeck = V.DECK_TOP_Z - V.HIP_YAW_Z          # pelvis-local z = 0 is the deck top
-    pelvis, carrier = "pelvis_v7" + ("" if p.arms else "_armless"), "yaw_carrier_v6"
+    torso, carrier = "torso_v8" + ("" if p.arms else "_armless"), "yaw_carrier_v6"
     brg_kg = V.YAW_BRG_MASS_G * 1e-3
     ri, ro = V.YAW_BRG_ID / 2, V.YAW_BRG_OD / 2
     bz0, bz1 = V.YAW_BRG_BAND_Z
-    for n in (pelvis, carrier, "yaw_bearing_housing"):
+    for n in ("pelvis_v8", torso, "front_cover_v8", "power_cover_v8", "battery_door_v8", carrier,
+              "yaw_bearing_housing"):
         if not have(n):
             raise FileNotFoundError(f"{stl(n)} missing -- export it: "
                                     f"{'' if p.arms else 'ARMS=0 '}python cad/v6/parts_v6.py --only {n}")
     out = {}
     # ---- torso
-    t = [mesh_props(stl(pelvis), [0, 0, zdeck]), mesh_props(stl("yaw_bearing_housing"), [0, 0, zdeck]),
+    t = [mesh_props(stl("pelvis_v8"), [0, 0, zdeck]), mesh_props(stl(torso), [0, 0, zdeck]),
+         mesh_props(stl("front_cover_v8"), [0, 0, zdeck]), mesh_props(stl("power_cover_v8"), [0, 0, zdeck]),
+         mesh_props(stl("battery_door_v8"), [0, 0, zdeck]),
+         mesh_props(stl("yaw_bearing_housing"), [0, 0, zdeck]),
          servo("yaw_L", g15), servo("yaw_R", g15), servo("neck", g15),
          mesh_props(stl("neck_floor"), [0, 0, zdeck])]
     t.append(box_props(V.BATT_MASS * 1e-3, [(V.BATT_X[0] + V.BATT_X[1]) / 2, 0, zdeck + (V.BATT_Z[0] + V.BATT_Z[1]) / 2], [V.BATT[1], V.BATT[0], V.BATT[2]]))
-    t.append(box_props(V.PI4_MASS * 1e-3, [(V.PI_PCB_X0 + V.PI_COMP_X) / 2, 0, zdeck + V.PI_CZ], [V.PI_COMP_TOP + V.PI_PCB_T, V.PI_OUTLINE[0], V.PI_OUTLINE[1]]))
+    t.append(box_props(V.PI4_MASS * 1e-3, [(V.PI_PCB_X0 + V.PI_COMP_X) / 2, (V.PI_Y[0] + V.PI_Y[1]) / 2, zdeck + V.PI_CZ], [V.PI_COMP_TOP + V.PI_PCB_T, V.PI_OUTLINE[0], V.PI_OUTLINE[1]]))
     t.append(box_props(V.GD_MASS * 1e-3, [(V.GD_PCB_X0 + V.GD_COMP_X) / 2, 0, zdeck + (V.GD_BOT_Z + V.GD_TOP_Z) / 2], [V.D.BOARD_GD_COMP + V.D.BR_PCB_T, V.D.BOARD_GD_OUTLINE[0], V.D.BOARD_GD_OUTLINE[1]]))
-    t.append(box_props(V.PWR_MASS * 1e-3, [(V.PWR_X[0] + V.PWR_X[1]) / 2, 0, zdeck + (V.PWR_Z[0] + V.PWR_Z[1]) / 2], [V.PWR_BOARD[1], V.PWR_BOARD[0], V.PWR_BOARD[2]]))
+    t.append(box_props(V.PWR_MASS * 1e-3, [(V.PWR_X[0] + V.PWR_X[1]) / 2, (V.PWR_Y[0] + V.PWR_Y[1]) / 2,
+                                            zdeck + (V.PWR_Z[0] + V.PWR_Z[1]) / 2], [V.PWR_BOARD[1], V.PWR_BOARD[0], V.PWR_BOARD[2]]))
     t.append(box_props(V.WIRING_MASS * 1e-3, [-10, 0, zdeck - 20], [60, 80, 20]))
     if p.arms:
         t += [mesh_props(stl("shoulder_girdle_v6"), [0, 0, zdeck]),

@@ -30,6 +30,12 @@ change, not a gate waiting on an approval that is not coming — open it, and do
 not sit blocked on it. The real gates are the ones below, and the physical
 ones: a part that prints and fits, a bench measurement.
 
+The one exception is a **significant change to a printed part** — a new or
+reshaped part, a new joint, a layout change: show it to the owner in CAD (and
+its print layout, when asked) before it merges to `main`. Commit, push the
+branch and open its PR meanwhile. Small CAD fixes (a clearance, a corrected
+number) need no look.
+
 Keep local `main` in sync with `origin/main`: fetch and rebase before working,
 push after. `origin/main` moves often — expect to rebase mid-task, and re-check
 any claim your change depends on when it does.

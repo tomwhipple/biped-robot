@@ -9,7 +9,7 @@ and the fly-in animation (animate_v6.py) -- so a figure cannot show a
 placement the checker never tried.
 
 Parts come from the v6 part modules when they exist (leg_link_v6, ankle_link,
-foot_v6, pelvis_v7, head) and from v5 for the unchanged hip stack
+foot_v6, torso_v8, head) and from v5 for the unchanged hip stack
 (yaw_carrier, yoke_roll, yoke_pitch); a missing v6 module falls back to a
 labelled envelope box so the chain, the export and the checks run while the
 parts are still being drawn.
@@ -18,10 +18,10 @@ Variants (env vars; the defaults are the robot to print):
     ARMS=1 (default) | 0        the two get-up arms: the shoulder girdle (both
                                 shoulder servos + the neck tube), upper arm,
                                 elbow servo, forearm per side (cad/v6/arm_v6.py,
-                                cad/v6/shoulder_girdle_v6.py), and the pelvis
+                                cad/v6/shoulder_girdle_v6.py), and the torso
                                 built with the girdle's deck pilots. ARMS=0 is
                                 the armless variant: neck_collar instead of the
-                                girdle, a pelvis without the pilots.
+                                girdle, a torso without the pilots.
     HIP_YOKE_VARIANT=single|glued|split  the one-print hip yoke (default), the
                                 glued U-channel pair, or the legacy bolted
                                 yoke_roll + yoke_pitch pair.
@@ -198,11 +198,47 @@ def part_foot(side):
 
 
 def part_pelvis():
-    s, ok = _try("pelvis_v7", "pelvis_v7", arms_on())
+    """The legs' block: both yaw cells under one ceiling (torso_v8.py)."""
+    s, ok = _try("torso_v8", "pelvis_v8")
+    if ok:
+        return s
+    x0, x1 = V.PELVIS_X
+    return Pos((x0 + x1) / 2, 0, (V.YAW_BOX_BOT_Z + V.CELL_TOP_Z) / 2) * Box(
+        x1 - x0, 2 * V.PELVIS_HW, V.CELL_TOP_Z - V.YAW_BOX_BOT_Z)
+
+
+def part_torso():
+    """The electronics shell round the pelvis, with the girdle's deck pilots
+    when the arms are on (torso_v8.py)."""
+    s, ok = _try("torso_v8", "torso_v8", arms_on())
     if ok:
         return s
     x0, x1 = V.HOUSING_X
-    return Pos((x0 + x1) / 2, 0, V.YAW_BOX_BOT_Z / 2) * Box(x1 - x0, 2 * V.HOUSING_HW, -V.YAW_BOX_BOT_Z)
+    return Pos((x0 + x1) / 2, 0, V.TORSO_BOT_Z / 2) * Box(x1 - x0, 2 * V.HOUSING_HW, -V.TORSO_BOT_Z)
+
+
+def part_front_cover():
+    s, ok = _try("torso_v8", "front_cover_v8")
+    if ok:
+        return s
+    return Pos((V.GD_FRONT_X + V.HOUSING_X[1]) / 2, 0, (V.TORSO_BOT_Z - D.DECK_T) / 2) * Box(
+        V.HOUSING_X[1] - V.GD_FRONT_X, 2 * V.TORSO_IN_HW, -D.DECK_T - V.TORSO_BOT_Z)
+
+
+def part_power_cover():
+    s, ok = _try("torso_v8", "power_cover_v8")
+    if ok:
+        return s
+    return Pos((V.HOUSING_X[0] + V.PWRB_AFT_X) / 2, 0, (V.TORSO_BOT_Z - D.DECK_T) / 2) * Box(
+        V.PWRB_AFT_X - V.HOUSING_X[0], 2 * V.TORSO_IN_HW, -D.DECK_T - V.TORSO_BOT_Z)
+
+
+def part_battery_door():
+    s, ok = _try("torso_v8", "battery_door_v8")
+    if ok:
+        return s
+    return Pos((V.DOOR_X[0] + V.DOOR_X[1]) / 2, V.DOOR_IN_Y + 1.6, sum(V.DOOR_Z) / 2) * Box(
+        V.DOOR_X[1] - V.DOOR_X[0], 3.2, V.DOOR_Z[1] - V.DOOR_Z[0])
 
 
 def part_bearing_housing():
@@ -247,11 +283,21 @@ def mock_pack():
 
 
 def mock_pi():
-    return Pos((V.PI_PCB_X0 + V.PI_PCB_X1) / 2, 0, V.PI_CZ) * Box(V.PI_PCB_T, V.PI_OUTLINE[0], V.PI_OUTLINE[1])
+    """The Pi 4B's PCB in the front bay (torso_v8.mock_pi4)."""
+    import torso_v8
+    return torso_v8.mock_pi4()
 
 
 def mock_gd():
-    return Pos((V.GD_PCB_X0 + V.GD_PCB_X1) / 2, 0, (V.GD_BOT_Z + V.GD_TOP_Z) / 2) * Box(D.BR_PCB_T, D.BOARD_GD_OUTLINE[0], D.BOARD_GD_OUTLINE[1])
+    """The General Driver's PCB, on the Pi as a HAT (torso_v8.mock_gd)."""
+    import torso_v8
+    return torso_v8.mock_gd()
+
+
+def mock_power_board():
+    """The power board's PCB and tall parts (torso_v8.mock_pwrb)."""
+    import torso_v8
+    return torso_v8.mock_pwrb()
 
 
 def mock_roll_servo_in_foot(side):
@@ -352,11 +398,16 @@ def torso_pieces():
 def _torso_pieces():
     z = V.DECK_TOP_Z
     return [
-        (0, "pelvis_v7", COL_PRINT, Pos(0, 0, z) * part_pelvis()),
+        (0, "pelvis_v8", COL_PRINT, Pos(0, 0, z) * part_pelvis()),
+        (0, "torso_v8", COL_PRINT, Pos(0, 0, z) * part_torso()),
+        (0, "front_cover_v8", COL_PRINT, Pos(0, 0, z) * part_front_cover()),
+        (0, "power_cover_v8", COL_PRINT, Pos(0, 0, z) * part_power_cover()),
+        (0, "battery_door_v8", COL_PRINT, Pos(0, 0, z) * part_battery_door()),
         (0, "yaw_bearing_housing", COL_PRINT, Pos(0, 0, z) * part_bearing_housing()),
         (0, "pack_mock", COL_MOCK, Pos(0, 0, z) * mock_pack()),
         (0, "pi4_mock", COL_MOCK, Pos(0, 0, z) * mock_pi()),
         (0, "gd_mock", COL_MOCK, Pos(0, 0, z) * mock_gd()),
+        (0, "power_board_mock", COL_MOCK, Pos(0, 0, z) * mock_power_board()),
         (0, "servo_neck", COL_SERVO, Pos(V.NECK_X, 0, z + V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z()),
         (0, "neck_floor", COL_PRINT, Pos(0, 0, z) * part_neck_floor()),
         (0, "shoulder_girdle_v6" if arms_on() else "neck_collar", COL_PRINT,
@@ -376,7 +427,7 @@ def _arm_chain(side):
     idle pose the walk gate was measured in (study-shoulder-arms.md section 5).
 
     The bracket and the shoulder servo are drawn in the PELVIS frame, so they
-    are lifted by DECK_TOP_Z here exactly as pelvis_v7 itself is."""
+    are lifted by DECK_TOP_Z here exactly as the torso itself is."""
     import arm_v6
     import shoulder_girdle_v6 as SG
     y = V.ARM_Y * (1 if side == "L" else -1)

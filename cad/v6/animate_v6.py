@@ -62,11 +62,15 @@ INSERT = [
     ("bearing_inner_",     (0, 0, 1), 8),    # races onto the hubs until they sit on the carriers' lips (on
     ("bearing_outer_",     (0, 0, 1), 8),    # the bench each carrier goes up through its bearing: same motion)
     ("servo_hip_yaw_",     (0, 0, -1), 9),   # yaw servo offered UP into its cell (arrives from below)
-    ("pelvis_v7",          (0, 0, 1), 10),   # pelvis lowered onto the yaw servos and the housing
-    ("gd_mock",            (0, 0, 1), 11),   # boards down through the deck slots
-    ("pi4_mock",           (0, 0, 1), 11),
-    ("pack_mock",          (0, 0, 1), 12),   # pack down through the aperture -- BEFORE the girdle:
-                                              # it cannot pass the neck tube or the neck floor afterwards
+    ("pelvis_v8",          (0, 0, 1), 10),   # pelvis lowered onto the yaw servos and the housing,
+    ("torso_v8",           (0, 0, 1), 10),   # with the torso it is glued into
+    ("gd_mock",            (1, 0, 0), 11),   # the Pi + General Driver stack in from the front
+    ("pi4_mock",           (1, 0, 0), 11),
+    ("front_cover_v8",     (1, 0, 0), 12),   # then the front cover
+    ("power_board_mock",   (-1, 0, 0), 11),  # power board onto its standoffs from aft
+    ("power_cover_v8",     (-1, 0, 0), 12),  # then its cover
+    ("pack_mock",          (0, 1, 0), 12),   # pack in sideways through the battery door's opening,
+    ("battery_door_v8",    (0, 1, 0), 12),   # then the door over it (one screw)
     # The neck is built into its tube ON THE BENCH (neck_floor.py): the floor
     # screwed up into the tube's bosses, the servo dropped in onto it and
     # screwed from below. Then the girdle (or, armless, the collar) goes onto

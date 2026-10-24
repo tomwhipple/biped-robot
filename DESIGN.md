@@ -31,7 +31,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | R4 | **Speed and torque margin** under load: ≥ 2× speed, ≥ 1.5× torque at 11.1 V | met at the design cadence (§8) |
 | R5 | Contact realism made adversarial | every gate runs μ 0.3–1.0, full self-collision, free play on the rolls, and the deployed actuation chain |
 | R6 | An onboard computer and camera | Raspberry Pi 4B in the torso, Camera Module 3 Wide in a head on a neck servo |
-| R7 | Keep what is proven | hip yaw (decisive for turning in place), the "servo is the axle" leg link, one-print torso, the 50 Hz ESP32 control loop, the General Driver board, a 3S pack |
+| R7 | Keep what is proven | hip yaw (decisive for turning in place), the "servo is the axle" leg link, the 50 Hz ESP32 control loop, the General Driver board, a 3S pack |
 | R8 | Size may grow to ~45 cm and a bigger pack | deck top 465 mm, head top 560 mm |
 
 ## 2. The robot at a glance
@@ -41,11 +41,11 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | joints | **17**: per leg hip yaw, hip roll, hip pitch, knee, ankle pitch, ankle roll (12); neck yaw (1); per arm shoulder pitch, elbow (4) |
 | servos | 15 × Feetech STS3215 (12 V, ST-3215-C018), with a raised position-loop gain on the ankle rolls and knees, and 2 × STS3250 at the hip rolls (§4) |
 | height | deck top 465 mm, camera 534 mm, head top 560 mm |
-| mass | ≈ 2.28 kg as drawn (§7) |
+| mass | ≈ 2.37 kg as drawn (§7) |
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
-| power | 3S LiPo 2200–2600 mAh (≤ 105 × 36 × 26 mm, ~170 g), protection board, inline fuse, 5 V / 5 A buck for the Pi |
+| power | OVONIC 3S LiPo, 4200 mAh, 130C, XT60 (#107; 205 g weighed, listed 96 × 44.5 × 25.5 mm), protection board, inline fuse; #112 replaces these two with a custom power board, which the torso holds (§5.3); the Pi takes 5 V from the General Driver it carries as a HAT |
 | structure | PETG prints, 2 mm silicone rubber soles; M2.5 flat-head self-tappers into printed pilots, M3 screws on the servo horns and idler discs |
 
 ![Front view of the robot with every joint marked: servo ID, joint name, bus port, STS3250s](docs/img/servo_map.png)
@@ -57,7 +57,7 @@ pitch → knee → ankle pitch → ankle roll.
 
 | joint | axis | range as drawn | servo placement |
 |---|---|---|---|
-| hip yaw | Z | ±45° | in a cell under the pelvis's battery layer, horn down; the yaw carrier (the whole leg) bolts to the horn |
+| hip yaw | Z | ±45° | in a cell of the pelvis, under the battery layer, horn down; the yaw carrier (the whole leg) bolts to the horn |
 | hip roll | X | ±55° swept (sim: 30° adduction, 45° abduction) | in the yaw carrier's bay, output forward |
 | hip pitch | Y | −120° … +90° | at the thigh top, 50 mm below the roll axis, gripped by the leg link |
 | knee | Y | 0 … 130° flexion | at the shin top; relief cuts on the leg link allow the deep flexion the get-up needs |
@@ -238,13 +238,14 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
     in the **bearing housing** (`yaw_bearing_housing`), against a shoulder that
     takes the thrust. Both seats get retaining compound.
   - **The housing** is one print for both hips: two skirts joined by a bridge,
-    and a rear bar, screwed up under the pelvis's cell block with five
-    M2.5 × 8 (four through the rear bar, one through the bridge into the cell
-    block's front web). It is not part of the pelvis print because the yaw
-    servo goes up into its cell through the space it occupies (the servo's
-    cable end reaches 35.1 mm from the yaw axis, past the Ø62.6 shoulder). It
-    goes up after the yaw servos, with both bearings pressed into it, and each
-    carrier then goes up through its bearing (docs/assembly.md §7).
+    and a rear bar reaching y ±49.5, screwed up under the pelvis with five
+    M2.5 × 8 into its pilot bosses (§5.3): four through the rear bar, one
+    through the bridge, on the centre line, into the front web's boss. It is
+    not part of the pelvis print because the yaw servo goes up into its cell
+    through the space it occupies (the servo's cable end reaches 35.1 mm from
+    the yaw axis, past the Ø62.6 shoulder). It goes up after the yaw servos,
+    with both bearings pressed into it, and each carrier then goes up through
+    its bearing (docs/assembly.md §7).
   - The bearing band is the top 7 mm of the carrier. The hub wraps the bay
     walls' footprint, and the bore is the smallest class that leaves a 1.5 mm
     wall around the bay's open interior (the horn screws are driven up through
@@ -267,27 +268,190 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
 
 ### 5.3 Torso
 
-**`pelvis_v7`**, one print, deck-top-down (174 g; the bearing housing, §5.2, screws under it):
+Two prints, two covers and a door (`cad/v6/torso_v8.py`): the **pelvis**
+holds the legs, and the **torso** around it holds the pack, the board stack
+(the Pi with the General Driver on it) and the power board. The pack sits in
+the middle over the hips, the board stack in a bay in front of the pelvis and
+the power board in a bay right behind it. The pelvis is glued into the torso
+for good; the pack comes out sideways through the **battery door**, one
+screw. The pelvis, the covers and the door print without supports; the torso
+prints with slicer support in its wide windows and nowhere else. Frame: deck
+top at z = 0, +x forward, the legs at y = ±42 mm.
 
-- two yaw cells at y = ±42 mm. Each yaw servo seats with its idler-side case face
-  flat on the cell's ceiling, held by four M2.5 × 5 flat-heads down through it
-  into the face's mounting holes (which are flush with the face: no pads). The
-  ceiling has a hole for the servo's free-hub post (2.6 mm proud, its top flush
-  with the ceiling top, 1.0 mm under the pack) and a relief for its moulded
-  back-cover platform (1.9 mm proud);
-- a 31 mm battery layer above them: the pack lies transverse on two 1 mm
-  adhesive foam pads (clear of the yaw servos' turning posts), belted with a
-  15 mm hook-and-loop strap, and goes in through the deck aperture (which
-  also runs under the neck servo, so the deck does not seat it: §5.5);
-- the General Driver vertical on the front wall and the Pi 4B vertical on the
-  aft wall, both sliding down guide channels through deck slots (16 mm of
-  component depth behind the Pi: low-profile heatsink, no fan);
-- a 60 × 8.4 × 25 mm pocket for the protection board and 5 V buck;
-- side windows for the Pi's USB/Ethernet and the driver's service edge.
+![The pelvis, the torso, the two covers and the battery door as they lie on the bed](docs/img/torso_v8.png)
 
-The pelvis carries ten deck pilots for the girdle. The code's `ARMS=0`
-variant (no girdle, no arms, `neck_collar` for the neck) builds it without
-them; that variant is kept for the CAD checks and is not a print target.
+![Exploded with the boards and the pack; assembled, from below; the door off with the pack half out; a section at y = +14 mm through the snap fingers](docs/img/torso_v8_assembly.png)
+
+**`pelvis_v8`** (56 g, 114.5 × 56.0 × 36.0 mm), printed ceiling down, the cell
+walls rising; the bearing housing (§5.2) screws under it:
+
+- two yaw cells at y = ±42 mm under one 2.6 mm ceiling, which also spans the
+  centre channel between them. Each yaw servo goes up into its cell from below
+  (1.2 mm lead-in at the mouth) and seats with its idler-side case face flat on
+  the ceiling. Four M2.5 × 5 flat-heads go down through the ceiling,
+  countersunk in its top face, into the face's mounting holes (rows 8.30 /
+  32.75, flush with the face: no pads).
+- over each cell, the ceiling has a hole for the servo's free-hub post (2.6 mm
+  proud, its top flush with the ceiling's top, turning with the hip), a window
+  for the moulded back-cover platform (1.9 mm proud; a 2.2 mm relief is left
+  as a skin round the aft stator countersinks), and a slit over the connector
+  trench for the leads.
+- windows in its front and rear webs, in the centre channel, for the torso's
+  snap fingers.
+- the bearing housing's five pilot bosses: front at (10, 0) on the front web's
+  inner face; rear-inboard at (−35, ±22) on the rear web; rear-outboard at
+  (−40, ±46) on lugs standing 5 mm aft of the rear web, each with a 45° gusset
+  (the torso's aft wall is notched round them).
+
+**`torso_v8`** (125 g, 128.4 × 122.5 × 71.5 mm), printed deck top down: one
+solid, x −75.01 … +53.34, its bottom at z −71.5 (0.5 mm over the bearing
+housing), open at both ends for the covers:
+
+- a 5 mm deck, and skins tapered from y ±61.26 at the deck (the edge the girdle
+  is built against) to ±60.06 at the bottom. Their inner faces (±57.46) are
+  0.2 mm off the pelvis's cell walls.
+- two inner walls, either side of the pelvis and 0.2 mm off its webs: front
+  x 13.21 … 15.81 (the board stack stands off it), aft x −40.81 … −38.21 (the
+  power board stands off it).
+- the **battery layer** over the pelvis's ceiling: pack ribs on both inner
+  walls (front pair at y ±29, aft pair at y ±22), stopping 14 mm under the
+  deck top with a 45° top so leads pass over them, and a ledge with a 45° gusset
+  along the −y skin over the pelvis's outer cell wall (the +y skin there is the
+  battery door's opening). The ribs and the ledge are the stops the pelvis's
+  ceiling bears against, and they carry the torso straight down the cell
+  walls.
+- the deck: the battery aperture (x −36.51 … +10.50, y ±54.66), which also
+  runs under the neck servo, so the deck does not seat it (§5.5); an opening
+  over the gap between the Pi and the General Driver (x 21.81 … 35.31,
+  y ±30, 1.5 mm 45° lead-in) for the camera's ribbon and the boards' top-edge
+  leads; and the girdle's ten pilots, 4.5 mm deep, on edge rails under the
+  deck at y ±57 (the rails keep them from ending over air). The deck is
+  pocketed 2.4 mm from below over both bays.
+- flat-topped windows: cable passes in the inner walls (over the Pi's top
+  edge from the battery layer, and from the battery layer's ends into both
+  bays), the Pi's USB/Ethernet end and the General Driver's service edge (both
+  through the +y skin), and lightening windows in the walls and skins (23 g).
+  Only the covers' vent slots are there for cooling. Printed deck down, a
+  window's bottom edge is the top of its opening; where that spans more than
+  an 8 mm bridge (26 windows, the door's opening among them) the slicer puts
+  support inside the window and nowhere else: a support-enforcer box per
+  window in `cad/v6/print_settings.json`, from
+  `torso_v8.support_enforcers()` (the yaw carrier's method, `docs/slicing.md`).
+  The printability audit reads those windows as filled.
+
+**The board stack**, in the front bay, installed from the front with the front
+cover off:
+
+- **Raspberry Pi 4B**: its solder side on four 4 mm standoff bosses off the
+  front inner wall, its parts facing forward. Its 40-pin header is down, so its
+  camera (CSI), USB-C and HDMI edge is up under the deck, about 20 mm in front
+  of the neck tube; its USB/Ethernet end is at +y. The Pi's hole grid is the
+  General Driver's (58 × 49 mm), its non-USB end in line with the GD's −y edge
+  (PCB x 19.81 … 21.31, y −32.5 … +52.5).
+- **General Driver**, plugged onto the Pi as a HAT: it is HAT-format (65.01 ×
+  56.01 mm on the same hole grid) with its 2 × 20 sockets on its underside
+  (`docs/datasheets/general-driver/`, the connector diagram's [23]/[24]), and
+  Waveshare's inner 40-pin header takes the host directly. Its parts face
+  forward, its bus edge up and its service edge (XH inlet, USB-C) at +y — the
+  same side as the Pi's USB/Ethernet end. At the stock stacking height its
+  side plugs would hit the Pi's 16 mm jacks, so a 2 × 20 riser lifts it to
+  **17 mm** between the Pi's parts face and its own underside (PCB x 38.31 …
+  39.94); the plugs then pass over the jacks. **The riser part and the stack's
+  real height are open**: measure them before printing.
+- Four M2.5 × 17 male-female standoffs hold the Pi (their 6 mm male thread into
+  the bosses); the General Driver goes on top with four M2.5 × 6.
+
+**The power board** is the custom board of PR #112 (`pcb/power-board/` on
+branch `design/power-circuit`, not merged): 97 × 64.5 × 1.6 mm, every part on
+the top side, four M2.5 holes 3.2 mm in from the corners, which the torso uses
+as they are.
+
+- It stands vertical in the aft bay, right behind the pelvis and so beside the
+  pack, parts facing aft, on four 6 mm standoff bosses off the aft inner wall
+  (4 × M2.5 × 6 pan). The 6 mm keeps its leads clear of the bearing housing's
+  rear lugs.
+- The bay is 24 mm deep from the board's parts face to the cover, for its
+  tallest part, C21 (a Ø10 × 20 mm can, +2 mm tolerance).
+- The board sits hard to −y (y −56.96 … +40.04). The pack's lead comes through
+  the aft wall's +y end window and loops into J1 (the XT60, mating sideways out
+  of the board's +y edge) in the 17.4 mm beside that edge, behind the battery
+  door; whether that room is enough for the plug and its 12 AWG lead is **not
+  checked**.
+- Its servo headers J4–J8 are on its −y edge and the control connectors along
+  its bottom edge. The fuses F1/F2 and every connector are reached with the
+  cover off.
+- The torso is sized for this board (#108): there is no separate pocket for a
+  protection board and buck.
+
+**The covers** (`front_cover_v8`, `power_cover_v8`, 18 g each, 114.5 × 66.3 ×
+10.6 mm), printed outer face down: a flat plate between the skins' ends, under
+the deck, with vent slots and a corner block in each corner. 4 × M2.5 × 8
+flat-heads per cover go in through the skins, countersunk in their outer
+faces, into the blocks.
+
+**The battery door** (`battery_door_v8`, 11 g, 79.8 × 29.6 × 12.4 mm),
+printed outer face down, is the +y skin from the power board's J1 to the front
+inner wall (opening x −59.0 … +17.0, z −38 … −8). One screw, one tab:
+
+- the tab is its aft edge, a tongue bevelled 40° off the plate's normal that
+  tucks 1.6 mm behind the power bay's skin, whose jamb carries the matching
+  bevel: the edge cannot lift outward.
+- one M2.5 × 8 flat-head goes through its front edge, countersunk, into a post
+  on the front inner wall's aft face, beside the pack (x 10.35 … 15.81).
+- two ribs on its inner face, along the pack's top and bottom edges, stop the
+  pack's +y end 0.5 mm off it; the pack's lead leaves the end between them.
+- to take it off: the screw out, the front end swung out about the tongue
+  (to about 40°, so the tongue's tip clears the jamb), then the door lifted
+  away. `torso_v8.py` sweeps that path, J1's plug pulled out through the
+  opening, and the pack slid out.
+
+**The joint is tab and glue**, the hip yoke's glued method
+(`cad/v6/hip_yoke_glued.py`). The pelvis, its yaw servos in, goes up into the
+torso from below until its ceiling stops on the ribs and the ledge. Four snap
+fingers click into the windows in its webs: strips of the torso's inner walls
+at y ±14, cut free by slots up to z −54, with 0.5 mm barbs (about 1.35 %
+strain). They hold it while the glue cures: CA or epoxy on the web faces, the
+ledge and the skins. The joint is permanent, and nothing needs the pelvis out:
+
+- the board stack comes out of the front bay and the power board out of the
+  aft bay with their covers off;
+- the yaw stator screws are reached from above through the deck aperture, with
+  the pack out. The four outboard ones (y ±52.25) need a driver shank of 5 mm
+  or less: the aperture's edge (y ±54.66) is beside the girdle's rail pilot at
+  (−9, ±57), so it cannot be notched.
+
+**The pack**, an OVONIC 3S 4200 mAh 130C XT60 (#107), weighed at 205 g; its
+size is still the listing's 96 × 44.5 × 25.5 mm (measure it: `BATT` in
+`cad/v6/dimensions_v6.py`):
+
+- lies transverse on the pelvis's ceiling, centred on the cells (x −34.75 …
+  +9.75), on two 1.5 mm adhesive foam pads clear of the free-hub post holes.
+  The posts are flush with the ceiling's top and turn with the hip.
+- is located fore and aft by the ribs, with 0.5 mm, end to end by the door's
+  ribs (+y) and two blocks under the deck rail (−y, between the outboard stator
+  screws' driver paths), each 0.5 mm off it, and held down by the neck floor
+  4.0 mm above it, with a foam pad between them. There is no belt: under the
+  ceiling there is nowhere for a strap to pass but the servos.
+- **comes out with one screw**: the battery door off, the XT60 pulled off J1
+  and back through the aft wall's window, the pack slid out sideways (+y) from
+  under the neck floor. The girdle stays on. The +y arm hangs across all of
+  that, so with the robot switched off (arms hanging) it is swung up out of
+  the way by hand first: `check_assembly_v6.py --joint swap` checks the
+  screw's driver, the door's path off and the pack's path out against
+  everything outside the torso with it horizontal forward (shoulder −90°).
+  Whether the unpowered shoulder holds the arm there is not measured.
+
+**Leads.** Each yaw servo's leads plug in from above through the slit over its
+connector trench, run flat under the pack between its pads to the gap in front
+of it, over the front ribs and through the top windows in the front inner wall
+into the board-stack bay. The camera's ribbon leaves the Pi's top edge up
+through the deck opening between the boards. Windows from the battery layer's
+ends carry leads into both bays.
+
+The torso carries the girdle's ten deck pilots. The code's `ARMS=0` variant (no
+girdle, no arms, `neck_collar` for the neck) builds it without them, as
+`torso_v8_armless`; that variant is kept for the CAD checks and is not a print
+target.
 
 ### 5.4 Arms and shoulder girdle
 
@@ -360,7 +524,8 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
   required before the first powered floor run.
 - **Power path**: pack → protection board (≥ 15 A, over-discharge cut-off) →
   10–15 A fuse → switch → board inlet; bulk capacitor (1000 µF, ≥ 25 V) at the
-  board; Pololu D24V50F5-class 5 V / 5 A buck for the Pi.
+  board; the Pi powered from the General Driver's 5 V buck through the 40-pin
+  header, the board plugged onto it as a HAT (§5.3).
 - **The ESP32 runs the 50 Hz control loop** and the servo bus; the Pi does
   vision and navigation and talks to the ESP32. How the Pi gets bus voltage and
   current for a low-battery shutdown is open.
@@ -373,17 +538,21 @@ The robot as drawn, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.28 kg (the plant: 2.284 kg) |
+| robot | ≈ 2.37 kg (the plant: 2.375 kg) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
-| printed PETG + silicone soles | ≈ 0.80 + 0.05 kg: pelvis 174 g, bearing housing 25 g, girdle 77 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
+| printed PETG + silicone soles | ≈ 0.86 + 0.05 kg: pelvis 56 g, torso 125 g, two covers 18 g each, battery door 11 g, bearing housing 25 g, girdle 77 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4 g |
 | hip-yaw bearings | 100 g (2 × 6810-2RS) |
-| pack / boards + wiring | 170 g / ≈ 180 g |
+| pack / boards + wiring | 205 g (weighed) / ≈ 180 g |
 
 With STS3215s at the hip rolls too it is 39 g lighter, and with STS3250s at
 all six roll and knee joints 78 g heavier. The P × 4 table in §4 and the gates
 in §8 and §9 were run on earlier plants: the armless CAD-inertial plant (1.67 kg) for the
-walk, the lumped as-drawn get-up plant (2.10 kg, no bearings) for the arms. On
-this plant with STS3215s at the hip rolls (2.224 kg), P × 4 on the rolls and
+walk, the lumped as-drawn get-up plant (2.10 kg, no bearings) for the arms, and
+the as-drawn CAD-inertial plant before the OVONIC pack and the power bay
+(2.281 kg) for the rest. The current plant (2.375 kg) passes Gates A and B
+(`tests/test_v6_design_gates.py`); the walk and get-up studies below are not
+re-run on it yet (#108). On the 2.281 kg plant with STS3215s at the hip rolls
+(2.224 kg), P × 4 on the rolls and
 knees walks the four gate cases 4/4, with 32–37 mm of CoM margin, and stock
 STS3215s still fall 0/4 (`docs/design-v6/no3250_walk_bearingA.txt`). With the
 arms at their folded rest pose and self-collision on, no arm touches a leg in

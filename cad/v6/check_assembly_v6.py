@@ -40,8 +40,9 @@ D = V.D
 # labels are the assembly's; {s} = leg side. Pieces on the SAME link never
 # move relative to each other and are not listed.
 PAIRS = [
-    ("hip_yaw", "yaw_carrier_{s}", "pelvis_v7", "carrier under the cell through +-45"),
-    ("hip_yaw", "servo_hip_roll_{s}", "pelvis_v7", "roll servo in the carrier bay vs the housing floor"),
+    ("hip_yaw", "yaw_carrier_{s}", "pelvis_v8", "carrier under the cell through +-45"),
+    ("hip_yaw", "yaw_carrier_{s}", "torso_v8", "carrier vs the torso's bottom edge through +-45"),
+    ("hip_yaw", "servo_hip_roll_{s}", "pelvis_v8", "roll servo in the carrier bay vs the housing floor"),
     ("hip_roll", "yoke_roll_{s}", "yaw_carrier_{s}", "roll clevis vs the bay walls (v5 pair)"),
     ("hip_roll", "yoke_pitch_{s}", "yaw_carrier_{s}", "pitch yoke flange vs the bay at abduction"),
     ("hip_roll", "yoke_pitch_{s}", "servo_hip_roll_{s}", "yoke vs the roll servo case"),
@@ -52,7 +53,9 @@ PAIRS = [
     ("hip_pitch", "thigh_{s}", "yoke_roll_{s}", "thigh front wall vs the ROLL flange (sets ROM hip_pitch)"),
     ("hip_pitch", "thigh_{s}", "servo_hip_pitch_{s}", "grip channel vs its own servo: seated, must not intersect"),
     ("hip_pitch", "thigh_{s}", "yaw_carrier_{s}", "thigh top vs the carrier at deep flexion"),
-    ("hip_pitch", "thigh_{s}", "pelvis_v7", "thigh vs the housing at deep flexion"),
+    ("hip_pitch", "thigh_{s}", "pelvis_v8", "thigh vs the pelvis at deep flexion"),
+    ("hip_pitch", "thigh_{s}", "torso_v8", "thigh vs the torso at deep flexion"),
+    ("hip_pitch", "thigh_{s}", "battery_door_v8", "thigh vs the battery door at deep flexion"),
     ("hip_pitch", "thigh_{s}", "servo_hip_roll_{s}", "thigh grip top vs the roll servo case at -125 (hits at -135)"),
     ("knee", "shin_{s}", "thigh_{s}", "shin grip plates vs the thigh fork; shin vs the thigh's end walls and pocket"),
     ("knee", "servo_knee_{s}", "thigh_{s}", "knee servo case sweeping under the thigh's bottom end wall (r 16 rule)"),
@@ -62,7 +65,7 @@ PAIRS = [
     ("ankle_roll", "foot_{s}", "ankle_link_{s}", "foot tabs vs the ankle link tines (0.7 mm), sole vs the web"),
     ("ankle_roll", "servo_ankle_roll_{s}", "ankle_link_{s}", "THE 54 mm pair: roll servo case sweep under the link"),
     ("ankle_roll", "servo_ankle_roll_{s}", "servo_ankle_pitch_{s}", "roll case vs the pitch servo hanging above it"),
-    ("neck", "head", "pelvis_v7", "head shell vs the deck through +-90"),
+    ("neck", "head", "torso_v8", "head shell vs the deck through +-90"),
     ("neck", "head", "servo_neck", "head base vs the neck servo case (rides on its horn)"),
     # the neck's mount is the standalone collar in the armless build and the
     # shoulder girdle (which absorbs it) with the arms -- same clearance, one
@@ -78,9 +81,9 @@ PAIRS = [
 # None for a DESIGNED contact, where only the overlap volume must be ~0).
 STATIC_PAIRS = [
     ("neck_floor", "pack_mock", "floor over the pack (the pack goes in first)", 4.0),
-    ("neck_floor", "pelvis_v7", "floor in the deck aperture, off the rear web", 0.25),
-    ("neck_floor", "pi4_mock", "floor vs the Pi 4B (aft column)", 1.0),
-    ("neck_floor", "gd_mock", "floor vs the General Driver (front column)", 1.0),
+    ("neck_floor", "torso_v8", "floor in the deck aperture", 0.25),
+    ("neck_floor", "pi4_mock", "floor vs the Pi 4B (front bay)", 1.0),
+    ("neck_floor", "gd_mock", "floor vs the General Driver (front bay)", 1.0),
     ("neck_floor", "servo_neck", "neck servo seated on the four pads: must not intersect", None),
     ("neck_floor", "shoulder_girdle_v6" if A.arms_on() else "neck_collar",
      "floor lugs screwed up to the tube bosses: must not intersect", None),
@@ -88,18 +91,31 @@ STATIC_PAIRS = [
      "neck servo in its tube: must not intersect", None),
     ("bearing_inner_L", "yaw_carrier_L", "inner race pressed on the hub", None),
     ("bearing_outer_L", "yaw_bearing_housing", "outer race pressed into the housing's recess, under the shoulder", None),
-    ("yaw_bearing_housing", "pelvis_v7", "housing screwed up against the cell block: must not intersect", None),
-    ("servo_hip_yaw_L", "pelvis_v7", "yaw servo seated, idler case face on the cell ceiling (no idler disc): must not intersect", None),
-    ("servo_hip_yaw_L", "pack_mock", "the yaw servo's free-hub post under the pack (on its 1 mm foam pads)", 0.8),
+    ("yaw_bearing_housing", "pelvis_v8", "housing screwed up against the cell block: must not intersect", None),
+    ("yaw_bearing_housing", "torso_v8", "housing under the torso's bottom edge", 0.4),
+    ("pelvis_v8", "torso_v8", "pelvis snapped and glued into the torso: must not intersect", None),
+    ("front_cover_v8", "torso_v8", "front cover screwed between the skins: must not intersect", None),
+    ("power_cover_v8", "torso_v8", "aft cover screwed between the skins: must not intersect", None),
+    ("battery_door_v8", "torso_v8", "battery door in its opening, tab behind the power bay's skin: must not intersect", None),
+    ("battery_door_v8", "pack_mock", "the door's ribs 0.5 off the pack's +y end", 0.4),
+    ("battery_door_v8", "power_board_mock", "battery door vs the power board and J1's plug", 0.5),
+    ("gd_mock", "front_cover_v8", "the General Driver's PCB vs the front cover", 9.0),
+    ("power_board_mock", "torso_v8", "power board on its standoffs: must not intersect", None),
+    ("power_board_mock", "power_cover_v8", "power board's tallest part (C21) vs the cover", 1.5),
+    ("pack_mock", "torso_v8", "pack between the torso's ribs", 0.4),
+    ("pi4_mock", "torso_v8", "Pi 4B on its standoffs: must not intersect", None),
+    ("gd_mock", "torso_v8", "General Driver on the Pi as a HAT: must not intersect", None),
+    ("servo_hip_yaw_L", "pelvis_v8", "yaw servo seated, idler case face on the cell ceiling (no idler disc): must not intersect", None),
+    ("servo_hip_yaw_L", "pack_mock", "the yaw servo's free-hub post under the pack (on its 1.5 mm foam pads)", 0.8),
     ("yaw_bearing_housing", "pi4_mock", "housing under the Pi 4B's bottom edge", 0.5),
-    ("yaw_bearing_housing", "gd_mock", "the General Driver's bottom edge on the housing's top face: must not intersect", None),
+    ("yaw_bearing_housing", "gd_mock", "the General Driver's bottom edge over the housing: must not intersect", None),
 ]
 # pairs designed to touch at the standing pose (seat/disc contacts): checked
 # for intersection VOLUME only (must be ~0), the distance rule is waived
 TOUCHING = {("thigh_{s}", "servo_hip_pitch_{s}"), ("shin_{s}", "thigh_{s}"),
             ("ankle_link_{s}", "shin_{s}"), ("foot_{s}", "ankle_link_{s}"),
             ("head", "servo_neck"), ("yoke_roll_{s}", "yaw_carrier_{s}"),
-            ("servo_hip_roll_{s}", "pelvis_v7"), ("servo_ankle_roll_{s}", "ankle_link_{s}"),
+            ("servo_hip_roll_{s}", "pelvis_v8"), ("servo_ankle_roll_{s}", "ankle_link_{s}"),
             ("servo_knee_{s}", "thigh_{s}"), ("servo_ankle_pitch_{s}", "shin_{s}")}
 # HIP_YOKE_VARIANT=single (assembly_v6.hip_yoke_variant): yoke_roll and
 # yoke_pitch are ONE piece, hip_yoke_{s}. Every PAIRS row naming either yoke is
@@ -133,16 +149,19 @@ SINGLE_SEATED = {("hip_yoke_{s}", "yaw_carrier_{s}"): "one-print yoke vs the bay
 #     decides whether the aft mount is really enough.
 REST = {"{s}_shoulder": V.ARM_REST_SHOULDER, "{s}_elbow": V.ARM_REST_ELBOW}
 ARM_PAIRS = [
-    ("shoulder", "arm_upper_{s}", "pelvis_v7", "upper arm vs the torso through the whole sweep, hanging", None),
+    ("shoulder", "arm_upper_{s}", "torso_v8", "upper arm vs the torso through the whole sweep, hanging", None),
+    ("shoulder", "arm_upper_{s}", "battery_door_v8", "upper arm vs the battery door, whole sweep, hanging", None),
     ("shoulder", "arm_upper_{s}", "head", "upper arm vs the head at the fold-up (shoulder 180)", None),
     ("shoulder", "arm_upper_{s}", "shoulder_girdle_v6", "upper arm vs the neck tube at the fold-up (shoulder 180)", None),
     ("shoulder", "arm_upper_{s}", "shoulder_girdle_v6", "upper arm vs the girdle it hangs off, whole sweep", None),
     ("shoulder", "arm_upper_{s}", "servo_shoulder_{s}", "horn plate seated on the shoulder disc: must not intersect", None),
-    ("shoulder", "arm_fore_{s}", "pelvis_v7", "forearm vs the torso through the whole sweep, hanging", None),
+    ("shoulder", "arm_fore_{s}", "torso_v8", "forearm vs the torso through the whole sweep, hanging", None),
+    ("shoulder", "arm_fore_{s}", "battery_door_v8", "forearm vs the battery door, whole sweep, hanging", None),
     ("shoulder", "arm_fore_{s}", "head", "forearm vs the head, FOLDED (elbow -90, the sit-up pose)", {"{s}_elbow": -90.0}),
-    ("shoulder", "arm_fore_{s}", "pelvis_v7", "forearm vs the torso, FOLDED (elbow -90, the sit-up pose)", {"{s}_elbow": -90.0}),
+    ("shoulder", "arm_fore_{s}", "torso_v8", "forearm vs the torso, FOLDED (elbow -90, the sit-up pose)", {"{s}_elbow": -90.0}),
     ("shoulder", "arm_fore_{s}", "shoulder_girdle_v6", "forearm vs the girdle, FOLDED", {"{s}_elbow": -90.0}),
-    ("shoulder", "servo_elbow_{s}", "pelvis_v7", "the elbow servo case vs the torso through the sweep", None),
+    ("shoulder", "servo_elbow_{s}", "torso_v8", "the elbow servo case vs the torso through the sweep", None),
+    ("shoulder", "servo_elbow_{s}", "battery_door_v8", "the elbow servo case vs the battery door, whole sweep", None),
     ("elbow", "arm_fore_{s}", "arm_upper_{s}", "THE ELBOW LIMIT: forearm fork vs the upper arm's grip channel (sets V.ARM_ROM)", None),
     ("elbow", "arm_fore_{s}", "servo_elbow_{s}", "forearm fork tines on the elbow servo's discs: seated, must not intersect", None),
     ("elbow", "servo_elbow_{s}", "arm_upper_{s}", "upper arm's grip channel on the elbow servo: seated, must not intersect", None),
@@ -194,7 +213,7 @@ BEARING_PAIRS = [
     ("hip_yaw", "yaw_carrier_{s}", "bearing_outer_{s}", "turning carrier vs the fixed outer race through +-45"),
     ("hip_yaw", "servo_hip_roll_{s}", "bearing_outer_{s}", "roll servo (inside the hub) vs the fixed outer race"),
     ("hip_yaw", "bearing_inner_{s}", "yaw_bearing_housing", "turning inner race vs the housing's shoulder (d1)"),
-    ("hip_yaw", "bearing_inner_{s}", "pelvis_v7", "turning inner race vs the cell block's rim"),
+    ("hip_yaw", "bearing_inner_{s}", "pelvis_v8", "turning inner race vs the cell block's rim"),
     ("hip_yaw", "yaw_carrier_{s}", "yaw_bearing_housing", "turning carrier vs the housing through +-45"),
     ("hip_yaw", "servo_hip_roll_{s}", "yaw_bearing_housing", "roll servo vs the housing through +-45"),
     ("hip_roll", "hip_yoke_{s}", "bearing_inner_{s}", "yoke at full roll vs the inner race"),
@@ -366,12 +385,12 @@ def check_pair(joint, la, lb, samples, side="L", extra=None):
 # bearing until its lip seats on the inner race (the lip is wider than the
 # bore, so the bearing cannot come up over a carrier), then its roll servo.
 _BEARINGS = ["bearing_inner_L", "bearing_outer_L", "bearing_inner_R", "bearing_outer_R"]
-_HOUSED = ["pelvis_v7", "servo_hip_yaw_L", "servo_hip_yaw_R", "yaw_bearing_housing"] + _BEARINGS
+_HOUSED = ["pelvis_v8", "torso_v8", "servo_hip_yaw_L", "servo_hip_yaw_R", "yaw_bearing_housing"] + _BEARINGS
 INSERT_STEPS = [
-    ("7a yaw servo up into its cell", ["servo_hip_yaw_L"], ["pelvis_v7"]),
+    ("7a yaw servo up into its cell", ["servo_hip_yaw_L"], ["pelvis_v8", "torso_v8"]),
     ("7b bearing into the housing (bench)", ["bearing_inner_L", "bearing_outer_L"], ["yaw_bearing_housing"]),
     ("7c housing + bearings up under the cells", ["yaw_bearing_housing"] + _BEARINGS,
-     ["pelvis_v7", "servo_hip_yaw_L", "servo_hip_yaw_R"]),
+     ["pelvis_v8", "torso_v8", "servo_hip_yaw_L", "servo_hip_yaw_R"]),
     ("7d carrier up through the bearing", ["yaw_carrier_L"], _HOUSED),
     ("7e roll servo up into the bay", ["servo_hip_roll_L"], _HOUSED + ["yaw_carrier_L"]),
 ]
@@ -426,6 +445,55 @@ def check_insertion(verbose=True):
     if verbose:
         print(f"{'insert':12s} press fits allowed along the paths: inner race on the hub {fit_in:.1f} mm3, "
               f"outer race in the housing {fit_out:.1f} mm3 (designed)")
+    return fails
+
+
+# ---------------------------------------------------------------- the battery swap
+# The pack comes out sideways through the battery door (torso_v8, one screw):
+# the door's screw driven from +y, the door swung off about its tab, the pack
+# slid out +y. torso_v8 checks those paths against the torso; here they are
+# checked against everything else. The +y (L) arm hangs in all three, so the
+# swap is done with it swung up out of the way by hand (SWAP_POSE).
+SWAP_POSE = {"L_shoulder": -90.0, "L_elbow": 0.0}
+
+
+def check_battery_swap(verbose=True):
+    from build123d import Pos
+    import torso_v8 as T
+    pose = SWAP_POSE if A.arms_on() else {}
+    comp = A.robot(pose)
+    torso = {label for _, label, _, _ in A.torso_pieces()}
+    others = [Pos(0, 0, -V.DECK_TOP_Z) * c for c in comp.children if c.label not in torso]
+
+    def worst(solids):
+        w = 0.0
+        for s in solids:
+            bb = s.bounding_box()
+            for o in others:
+                ob = o.bounding_box()
+                if (ob.max.X < bb.min.X or ob.min.X > bb.max.X or ob.max.Y < bb.min.Y or ob.min.Y > bb.max.Y
+                        or ob.max.Z < bb.min.Z or ob.min.Z > bb.max.Z):
+                    continue
+                try:
+                    w = max(w, (s & o).volume)
+                except Exception:  # noqa: BLE001
+                    pass
+        return w
+
+    door = T.battery_door_v8()
+    rows = [("the door screw's 7 mm driver, out +y", [T.door_driver()]),
+            ("the door swung off about its tab, lifted away", [m for *_, m in T.door_swing_steps(door)]),
+            ("the pack slid out +y through the opening", [m for _, m in T.pack_slide_steps()])]
+    where = (f"the +y arm swung up (shoulder {SWAP_POSE['L_shoulder']:g}, elbow {SWAP_POSE['L_elbow']:g})"
+             if A.arms_on() else "no arms")
+    fails = 0
+    for name, solids in rows:
+        v = worst(solids)
+        ok = v < 0.5
+        fails += 0 if ok else 1
+        if verbose:
+            print(f"{'swap':12s} {name:48s} vs everything outside the torso, {where}: "
+                  f"{v:7.2f} mm3  {'ok' if ok else 'FAIL'}")
     return fails
 
 
@@ -544,6 +612,8 @@ def main(argv=None):
         fails += check_insertion()
     if not a.joint or a.joint == "access":
         fails += check_driver_access()
+    if not a.joint or a.joint == "swap":
+        fails += check_battery_swap()
     # inter-leg: standing, adducted (roll toward each other), and crossed at the swing
     for la, lb in LEG_PAIRS:
         if a.joint and a.joint != "interleg":

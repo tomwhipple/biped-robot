@@ -471,79 +471,171 @@ YAW_BRG_SHOULDER_Z = (YAW_BRG_RECESS_Z[1], YAW_BOX_BOT_Z)           # -73.80..-7
 assert YAW_BRG_SHOULDER_Z[1] == YAW_BOX_BOT_Z, \
     "the housing must hang from the cell-tube rim it screws to"
 
-# housing plan
-# +4: an outer skin outboard of the yaw cell walls, so the housing can taper
-# 3 deg toward the bottom for the look without thinning the cell walls
-# (torso pass 2, 2026-09-14)
-HOUSING_SKIN = 4.0
-HOUSING_HW = HIP_SEP / 2 + D.YAW_BOX_HW_OUT + HOUSING_SKIN   # 61.26 outer half width
+# housing plan: TWO prints and two covers (cad/v6/torso_v8.py, Tom 2026-10-14).
+# The PELVIS is the yaw cell block alone (both cells, their ceiling, the bearing
+# housing's pilots), printed ceiling-down; the TORSO wraps it -- deck, outer
+# skins, the battery layer above the cells, the board stack forward and the
+# power board aft -- printed deck-down. Each prints off its own flat face, so
+# neither has a ceiling over a void. The pelvis goes up into the torso from
+# below, stops on ledges under the battery floor, snaps in and is glued.
+PELVIS_X = (D.YAW_BOX_X_REAR, D.YAW_BOX_X_FRONT)                      # -38.01..+13.01 (v5's cell block)
+CELL_X = PELVIS_X
+PELVIS_HW = HIP_SEP / 2 + D.YAW_BOX_HW_OUT                            # 57.26 the cell walls' outer faces
 HOUSING_CHAN_HW = HIP_SEP / 2 - D.YAW_BOX_HW_OUT                      # 26.74 centre channel half width
-CELL_X = (D.YAW_BOX_X_REAR, D.YAW_BOX_X_FRONT)                        # -38.01..+13.01 (v5)
-# General Driver on the front wall (v5's BR_* recess rules, mirrored to +x)
-GD_STANDOFF = D.BR_STANDOFF                   # 5
-GD_PCB_X0 = CELL_X[1] + GD_STANDOFF           # +18.01 PCB aft face
-GD_PCB_X1 = GD_PCB_X0 + D.BR_PCB_T            # +19.64
-GD_COMP_X = GD_PCB_X1 + D.BOARD_GD_COMP       # +28.64 tallest component
-GD_FRONT_X = GD_COMP_X + D.BR_RIM_PROUD       # +30.44 housing front (inner rim)
-GD_BOT_Z = TORSO_FLOOR_Z + 0.8                # -72.0
-GD_TOP_Z = GD_BOT_Z + D.BOARD_GD_OUTLINE[1]   # -15.99 -- BELOW the deck now (v5: +15):
-GD_SCREW_ROWS_Z = (GD_BOT_Z + D.BOARD_GD_HOLE_INSET,
-                   GD_BOT_Z + D.BOARD_GD_HOLE_INSET + D.BOARD_GD_HOLES[1])
-assert GD_TOP_Z < -DECK_T, "General Driver must be fully under the deck in the v7 housing"
-# ...so all four screws land on standoffs and v5's rail grooves are gone.
-# Its bus/service edges: bus edge UP (leads drop from the deck underside),
-# service edge (XH inlet, USB-C) to +y through a side window (v5 BR_SVC_*).
-# Pi 4B on the aft wall
+TORSO_FIT = 0.2                               # pelvis in the torso: air per face
+TORSO_BOT_Z = YAW_BOX_BOT_Z + 0.5             # -71.5: the torso stops 0.5 over the bearing housing
+TORSO_IN_HW = PELVIS_HW + TORSO_FIT           # 57.46 skins' inner face
+# the skins taper ~1 deg toward the bottom: full WALL thick there, HOUSING_HW
+# (the deck's edge, which the girdle is built against) at the deck
+HOUSING_HW = PELVIS_HW + 4.0                  # 61.26 outer half width at the deck
+HOUSING_BOT_HW = TORSO_IN_HW + D.WALL         # 60.06 outer half width at the bottom
+# the torso's two inner walls, either side of the pelvis: the boards stand off them
+FWD_WALL_X = (PELVIS_X[1] + TORSO_FIT, PELVIS_X[1] + TORSO_FIT + D.WALL)   # +13.21..+15.81
+AFT_WALL_X = (PELVIS_X[0] - TORSO_FIT - D.WALL, PELVIS_X[0] - TORSO_FIT)   # -40.81..-38.21
+COVER_T = D.WALL
+# --- FRONT BAY: the Pi 4B with the General Driver plugged onto it as a HAT
+# (Tom, 2026-10-14: the controller next to the Pi, the Pi near the camera's
+# ribbon). Both boards vertical, across the robot, installed from the front
+# behind a screwed cover (front_cover_v8).
+# The Pi: solder side on four standoff bosses off the front inner wall, parts
+# forward; its 40-pin header DOWN, so its camera (CSI), USB-C and HDMI edge is
+# up under the deck; its USB/Ethernet end at +y.
 PI_OUTLINE = (85.0, 56.0)                     # across (y), tall (z)
 PI_HOLES = (58.0, 49.0)                       # across, tall
-PI_HOLE_INSET = 3.5                           # from the edges (both axes)
+PI_HOLE_INSET = 3.5                           # from the non-USB end and from both long edges
 PI_HOLE_D = 2.7                               # M2.5 clearance
 PI_PCB_T = 1.5
-PI_COMP_TOP = 16.0                            # USB/Ethernet stack above the PCB top (no heatsink)
+PI_COMP_TOP = 16.0                            # the USB/Ethernet stack, off the PCB's parts face
 PI_COMP_BOT = 2.5                             # solder side
-PI_STANDOFF = 6.0                             # wall face .. PCB (solder side toward the wall)
-PI_PCB_X1 = CELL_X[0] - PI_STANDOFF           # -44.01 PCB (wall-side) face
-PI_PCB_X0 = PI_PCB_X1 - PI_PCB_T              # -45.51
-PI_COMP_X = PI_PCB_X0 - PI_COMP_TOP           # -61.51 deepest component (USB stack)
-PI_AFT_X = PI_COMP_X - D.BR_RIM_PROUD         # -63.31 housing aft (inner rim)
-PI_BOT_Z = TORSO_FLOOR_Z + 1.5                # -71.3 board bottom edge
-PI_TOP_Z = PI_BOT_Z + PI_OUTLINE[1]           # -15.3 board top edge (USB-C / HDMI / CSI edge)
+PI_USB_PROUD = 2.0                            # the jacks overhang the board's USB end
+PI_UNDER_HAT = 10.0                           # parts under the HAT (low-profile heatsink, no fan)
+PI_STANDOFF = 4.0                             # wall face .. solder side
+PI_PCB_X0 = FWD_WALL_X[1] + PI_STANDOFF       # +19.81 solder (wall-side) face
+PI_PCB_X1 = PI_PCB_X0 + PI_PCB_T              # +21.31 parts face
+PI_COMP_X = PI_PCB_X1 + PI_COMP_TOP           # +37.31 the USB/Ethernet stack's reach
+# The General Driver is HAT-format: 65.01 x 56.01 on the Pi's own 58 x 49 hole
+# grid, its 2 x 20 sockets on its underside (docs/datasheets/general-driver/,
+# the connector diagram's [23]/[24]); its "inner 40PIN header" takes the host
+# directly (Waveshare). Over the Pi it covers the Pi's non-USB end. Its
+# side-entry connectors -- the XH power inlet and both USB-C (D.BOARD_GD_U_*,
+# its service edge) -- face +y, the same way as the Pi's USB/Ethernet end, so
+# at the stock stacking height (about 11 mm, NOT measured) their plugs would
+# hit the Pi's 16 mm jacks. A 2 x 20 riser lifts it to HAT_GAP: the riser's
+# part and height are OPEN -- measure the stack before printing.
+HAT_GAP = 17.0                                # Pi parts face .. GD underside
+GD_PCB_X0 = PI_PCB_X1 + HAT_GAP               # +38.31 GD underside (sockets)
+GD_PCB_X1 = GD_PCB_X0 + D.BR_PCB_T            # +39.94 GD parts face
+GD_UNDER = 2.5                                # parts on the GD's underside (the microSD slot, ICs)
+GD_COMP_X = GD_PCB_X1 + D.BOARD_GD_COMP       # +48.94 tallest component
+GD_FRONT_X = GD_COMP_X + D.BR_RIM_PROUD       # +50.74 the front cover's inner face
+USBC_SHELL_H = 3.2                            # receptacle shell height off the GD's parts face
+assert GD_PCB_X1 + USBC_SHELL_H / 2 - D.USBC_PLUG[1] / 2 >= PI_COMP_X + 0.5, \
+    "the General Driver's USB-C plugs must pass over the Pi's USB/Ethernet jacks"
+assert GD_PCB_X1 >= PI_COMP_X + 0.5, "the XH inlet plug must pass over the Pi's jacks"
+assert GD_PCB_X0 - GD_UNDER >= PI_PCB_X1 + PI_UNDER_HAT, "the Pi's parts must fit under the HAT"
+GD_Y = (-D.BOARD_GD_OUTLINE[0] / 2, D.BOARD_GD_OUTLINE[0] / 2)       # -32.5..+32.5
+GD_BOT_Z = TORSO_BOT_Z                        # -71.5
+GD_TOP_Z = GD_BOT_Z + D.BOARD_GD_OUTLINE[1]   # -15.49 -- below the deck
+GD_SCREW_ROWS_Z = (GD_BOT_Z + D.BOARD_GD_HOLE_INSET,
+                   GD_BOT_Z + D.BOARD_GD_HOLE_INSET + D.BOARD_GD_HOLES[1])
+assert GD_TOP_Z < -DECK_T, "General Driver must be fully under the deck"
+# the Pi's holes ARE the GD's: its non-USB end lines up with the GD's -y edge
+PI_SCREW_Y = (-D.BOARD_GD_HOLES[0] / 2, D.BOARD_GD_HOLES[0] / 2)     # +-29
+PI_SCREW_Z = GD_SCREW_ROWS_Z
+PI_Y = (PI_SCREW_Y[0] - PI_HOLE_INSET, PI_SCREW_Y[0] - PI_HOLE_INSET + PI_OUTLINE[0])   # -32.5..+52.5
+PI_BOT_Z = PI_SCREW_Z[0] - PI_HOLE_INSET      # -71.5 board bottom edge (40-pin header edge)
+PI_TOP_Z = PI_BOT_Z + PI_OUTLINE[1]           # -15.5 board top edge (USB-C / HDMI / CSI edge)
 PI_CZ = PI_BOT_Z + PI_OUTLINE[1] / 2
-PI_SCREW_Z = (PI_BOT_Z + PI_HOLE_INSET, PI_BOT_Z + PI_HOLE_INSET + PI_HOLES[1])
-PI_SCREW_Y = (-PI_HOLES[0] / 2, PI_HOLES[0] / 2)
 PI_PORT_EDGE_SIGN = +1                        # USB/Ethernet stack faces +y (side window)
 assert PI_TOP_Z < -DECK_T, "Pi 4B must be fully under the deck"
-assert PI_OUTLINE[0] / 2 + 2.0 < HOUSING_HW - D.WALL, "Pi 4B does not fit across the housing"
-HOUSING_X = (PI_AFT_X - D.WALL, GD_FRONT_X + D.WALL)                  # -65.91..+33.04 outer
-HOUSING_LEN = HOUSING_X[1] - HOUSING_X[0]                             # 98.95
-# battery: 3S 2200-2600 mAh LiPo CLASS, bought to a spec filter (11.1 V, XT60
-# or XT30, <= 26 mm tall, <= 36 wide, <= 105 long, 150-190 g). Transverse,
-# centred, on a floor above the cells (the cell tops ARE the floor), belted.
-BATT = (105.0, 36.0, 26.0)                    # length (y), width (x), height (z)
-BATT_MASS = 170.0
-BATT_X = (CELL_X[0] + 2.0, CELL_X[0] + 2.0 + BATT[1])                # -36.01..-0.01 (over the cells)
-# The pack lies on two 1.0 mm adhesive foam pads on the cell ceiling (BOM),
-# not on the ceiling itself: the yaw servos' free-hub posts come up flush with
-# the ceiling's top face (pelvis_v7: the post hole), and they turn with the
-# hip. Printed rails there would be islands (the ceiling's pack face prints
-# facing the bed), so the clearance is the pads'.
-BATT_PAD_T = 1.0
-BATT_Z = (CELL_TOP_Z + BATT_PAD_T, CELL_TOP_Z + BATT_PAD_T + BATT[2])  # -35.0..-9.0
-BATT_HY = BATT[0] / 2                         # 52.5 half length
+assert PI_Y[1] + PI_USB_PROUD < TORSO_IN_HW, "Pi 4B does not fit across the torso"
+assert PI_BOT_Z >= TORSO_BOT_Z - 0.01, "Pi 4B hangs below the torso"
+HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
+# --- AFT BAY: the power board (pcb/power-board on design/power-circuit, PR
+# #112): 97 x 64.5 x 1.6, every part on the top side, four M2.5 holes 3.2 in
+# from the corners. Vertical, right behind the pelvis and so beside the pack
+# (Tom, 2026-10-14), parts facing aft behind a screwed cover (power_cover_v8).
+# Its tallest part is C21, a Panasonic EEU-FR1E102 can, 10 x 20 (+-2) mm; its
+# THT leads stand <= 2.5 mm below it, and its 6 mm standoffs keep them clear of
+# the bearing housing's rear lugs (x >= -43.3). Seen from the parts side its
+# left edge (J1, the XT60, mating along the board) is at +y, so the board sits
+# hard to -y: the pack's lead comes through the aft wall's +y window and loops
+# into the plug in the room beside that edge. The servo headers J4-J8 are on
+# its -y edge, the control connectors along its bottom edge, the fuses along
+# its top edge.
+PWRB_OUTLINE = (97.0, 64.5)                   # across (y), tall (z)
+PWRB_HOLE_INSET = 3.2
+PWRB_HOLE_D = 2.7
+PWRB_T = 1.6
+PWRB_COMP = 22.0                              # C21's can at its +2 tolerance
+PWRB_COMP_AIR = 2.0
+PWRB_UNDER = 2.5                              # THT leads below the board
+PWRB_STANDOFF = 6.0                           # wall face .. solder side
+PWRB_WALL_X = AFT_WALL_X                      # its standoffs grow off the aft inner wall
+PWRB_PCB_X1 = PWRB_WALL_X[0] - PWRB_STANDOFF  # -46.81 solder face
+PWRB_PCB_X0 = PWRB_PCB_X1 - PWRB_T            # -48.41 parts face
+PWRB_COMP_X = PWRB_PCB_X0 - PWRB_COMP         # -70.41
+PWRB_AFT_X = PWRB_COMP_X - PWRB_COMP_AIR      # -72.41 the cover's inner face
+PWRB_Y = (-(TORSO_IN_HW - 0.5), -(TORSO_IN_HW - 0.5) + PWRB_OUTLINE[0])   # -56.96..+40.04
+PWRB_TOP_Z = -DECK_T - 0.5                    # -5.5
+PWRB_BOT_Z = PWRB_TOP_Z - PWRB_OUTLINE[1]     # -70.0
+assert PWRB_BOT_Z >= TORSO_BOT_Z, "power board hangs below the torso"
+PWRB_HOLES_YZ = [(y, z) for y in (PWRB_Y[0] + PWRB_HOLE_INSET, PWRB_Y[1] - PWRB_HOLE_INSET)
+                 for z in (PWRB_BOT_Z + PWRB_HOLE_INSET, PWRB_TOP_Z - PWRB_HOLE_INSET)]
+# room beside the board's +y edge for the pack's XT60 plug and the loop of its lead
+PWRB_XT60_ROOM = TORSO_IN_HW - PWRB_Y[1]      # 17.42
+HOUSING_X = (PWRB_AFT_X - COVER_T, HOUSING_FRONT_X)                   # -75.01..+53.34 outer
+HOUSING_LEN = HOUSING_X[1] - HOUSING_X[0]                             # 128.35
+assert HOUSING_LEN <= D.BED, "torso does not fit the bed"
+# battery: OVONIC 3S 4200 mAh 130C XT60 (#107, ordered 2026-10-07), WEIGHED
+# 205 g (Tom, 2026-10-14); its size is still the listing's 96 x 44.5 x 25.5 mm
+# -- measure it. Transverse, centred on the cells, on the pelvis's ceiling (the
+# battery floor), between the torso's inner walls.
+BATT = (96.0, 44.5, 25.5)                     # length (y), width (x), height (z)
+BATT_MASS = 205.0
+_bcx = (D.YAW_CASE_X_REAR + D.YAW_CASE_X_FRONT) / 2                    # -12.5, the cells' centre
+BATT_X = (_bcx - BATT[1] / 2, _bcx + BATT[1] / 2)                     # -34.75..+9.75
+# The pack lies on two 1.5 mm adhesive foam pads on the pelvis's ceiling (BOM):
+# the yaw servos' free-hub posts come up flush with its top face and turn
+# with the hip, and each yaw servo's lead comes up through the ceiling under
+# the pack and runs flat between the pads to the gap behind it. Ribs on the
+# torso's walls locate it fore and aft; the neck floor (with a foam pad) holds
+# it down. No belt: there is nowhere under the ceiling for one to pass but
+# the servos.
+BATT_PAD_T = 1.5
+BATT_Z = (CELL_TOP_Z + BATT_PAD_T, CELL_TOP_Z + BATT_PAD_T + BATT[2])  # -34.5..-9.0
+BATT_HY = BATT[0] / 2                         # 48.0 half length
+BATT_RIB_CLR = 0.5                            # rib face .. pack, each end
 assert BATT_Z[1] <= -DECK_T - 1.0, "pack does not fit under the deck"
-assert BATT_HY + 1.0 <= HOUSING_HW - D.WALL, "pack is longer than the housing is wide"
-BATT_BELT_W = D.BT_BELT_W                     # 15
-
-# power electronics beside the pack, forward of it, in the same layer:
-# 3S protection board + 5 V / 5 A buck (Pololu D24V50F5, 17.8 x 25.4 x ~8)
-# The pocket's forward limit is the yaw cell block's own front web (inner face
-# x = CELL_X[1] - YAW_SEAT_WALL = +10.41), which must stay solid; the boards
-# stand ON EDGE in an 8.4 mm deep slot (the buck is 8 mm tall with its parts)
-PWR_BOARD = (60.0, 8.4, 25.0)                 # y, x, z envelope for both boards
-PWR_X = (BATT_X[1] + 1.5, BATT_X[1] + 1.5 + PWR_BOARD[1])            # +1.5..+9.9
-PWR_Z = BATT_Z
-assert PWR_X[1] <= CELL_X[1] - D.YAW_SEAT_WALL - 0.5, "power pocket runs into the cell block's front web"
-assert PWR_X[1] < GD_PCB_X0 - 2.0, "power boards collide with the General Driver standoffs"
+assert BATT_HY + 1.0 <= TORSO_IN_HW, "pack is longer than the torso is wide"
+assert AFT_WALL_X[1] <= BATT_X[0] - BATT_RIB_CLR and BATT_X[1] + BATT_RIB_CLR <= FWD_WALL_X[0], \
+    "pack does not fit between the torso's walls"
+# battery DOOR (Tom, 2026-10-14: the pack swaps with at most one screw): one
+# door in the +y skin over the battery layer and the power board's J1, so the
+# pack's XT60 unplugs from J1 and the pack slides out sideways (+y). The tab
+# is its aft edge, a bevelled tongue that tucks behind the power bay's skin;
+# the screw is one M2.5 x 8 flat head through its front edge into a post on
+# the front inner wall's aft face, beside the pack.
+DOOR_Z = (CELL_TOP_Z - 2.0, -DECK_T - 3.0)    # -38.0..-8.0 opening: under the deck rail; J1's plug clears the sill
+DOOR_X = (-59.0, FWD_WALL_X[1] + 1.19)        # -59.0..+17.0 opening in the skin
+DOOR_CLR = 0.2                                # door .. opening, and its inner face .. the skin's inner plane
+DOOR_IN_Y = TORSO_IN_HW + DOOR_CLR            # 57.66 door's inner face
+DOOR_TONGUE_T = 1.6                           # tongue's reach inboard of the skin's inner face
+DOOR_BEVEL = 0.84                             # aft edge: dx per dy (40 deg off the plate's normal)
+DOOR_POST_X = (BATT_X[1] + BATT_RIB_CLR + 0.1, FWD_WALL_X[1])       # +10.35..+15.81
+DOOR_POST_Y0 = 51.0
+DOOR_POST_BOT_Z = -28.0
+DOOR_SCREW = ((DOOR_POST_X[0] + DOOR_POST_X[1]) / 2, (DOOR_Z[0] + DOOR_Z[1]) / 2)   # (x, z): (13.08, -23.0)
+DOOR_SCREW_L = 8.0
+DOOR_STOP_Y = BATT_HY + 0.5                   # the pack's end stops (door ribs, -y block): 0.5 off the pack
+assert DOOR_Z[0] < BATT_Z[0] and BATT_Z[1] < DOOR_Z[1], "the pack does not pass through the door"
+assert DOOR_X[0] < BATT_X[0] and BATT_X[1] < DOOR_POST_X[0] < DOOR_X[1], "the pack does not pass the door's post"
+assert DOOR_SCREW[1] - 2.5 >= DOOR_POST_BOT_Z + 2.0, "the door screw runs out of its post"
+# power board envelope (the rollup's box, sim/build_v6_inertia.py)
+PWR_BOARD = (PWRB_OUTLINE[0], PWRB_T + PWRB_COMP, PWRB_OUTLINE[1])  # y, x, z
+PWR_X = (PWRB_COMP_X, PWRB_PCB_X1)
+PWR_Y = PWRB_Y
+PWR_Z = (PWRB_BOT_Z, PWRB_TOP_Z)
 # hip-yaw bearing HOUSING (yaw_bearing_housing.py): the bearings' outer-race
 # seats (skirt, recess, shoulder) for both hips in one print, screwed UP to
 # the underside of the cell block after the yaw servos, with the bearings in
@@ -557,29 +649,44 @@ YAW_HOUSING_SCREW_L = 8.0                # M2.5 x 8 flat head: 4.0 through the b
 YAW_HOUSING_PILOT_DEPTH = 5.0            # pelvis pilot, above YAW_BOX_BOT_Z
 YAW_HOUSING_BOSS_H = 7.0                 # pelvis pilot boss, above YAW_BOX_BOT_Z (then a 45 deg cone)
 YAW_HOUSING_BOSS_R = 3.0
-# screw positions, pelvis-local (x, y). Where there is pelvis material
-# outside the skirts, far enough from both hip axes that a 7 mm driver
-# (D.ACCESS_D) clears each skirt, and off the Pi board (y edge 42.5, solder
-# side x -41.51), the General Driver (PCB from x 18.01) and the servo cells:
-# - rear-outboard: the rear cell wall where it meets the Pi channel wall;
-# - rear-inboard: the inner cheek's rear end beside the centre channel;
-# - front, on the centre line: the cell block's front web (x 10.41..13.01,
-#   |y| < 14). The front end cap is only 2.6 mm thick, so a boss there would
-#   stand proud of the pelvis's front face.
+# screw positions, pelvis-local (x, y), all in the PELVIS (the torso is not
+# in the leg's load path): far enough from both hip axes that a 7 mm driver
+# (D.ACCESS_D) clears each skirt, and off the servo cells.
+# - front, on the centre line: a boss on the front web's inner face, in the
+#   centre channel, flush with the pelvis's front face (the torso's wall is
+#   0.2 in front of it);
+# - rear-inboard: the same on the rear web, beside the inner cheeks;
+# - rear-outboard: a lug standing 5 mm aft of the rear web, behind the cell's
+#   cable end, inboard of the power board's lower standoffs; the torso's aft
+#   wall is notched round it.
+# A housing printed to the earlier positions was re-drilled to these from a 1:1
+# template (2026-10-15), and its rear bar trimmed to yaw_bearing_housing
+# REAR_BAR's 49.5: moving any of them (or the front screw) strands that part.
 YAW_HOUSING_SCREWS_L = (
-    (-40.0, 46.8),    # rear-outboard (L; R mirrors in y)
-    (-36.5, 25.5),    # rear-inboard
+    (-40.0, 46.0),    # rear-outboard lug (L; R mirrors in y)
+    (-35.0, 22.0),    # rear-inboard
 )
-YAW_HOUSING_SCREW_FRONT = (11.7, 0.0)
+YAW_HOUSING_SCREW_FRONT = (10.0, 0.0)
 YAW_HOUSING_SCREWS = tuple((x, s * y) for s in (1, -1) for x, y in YAW_HOUSING_SCREWS_L) + (YAW_HOUSING_SCREW_FRONT,)
 for _hx, _hy in YAW_HOUSING_SCREWS:
     for _by in (HIP_SEP / 2, -HIP_SEP / 2):
         assert math.hypot(_hx, _hy - _by) >= YAW_BRG_SKIRT_OD / 2 + D.ACCESS_D / 2 + 0.5, \
             "a housing screw is too close to a skirt for the driver"
-assert D.YAW_CASE_X_FRONT + D.YAW_SEAT_GAP <= YAW_HOUSING_SCREW_FRONT[0] <= CELL_X[1], \
-    "the front housing screw must land on the cell block's front web"
+assert YAW_HOUSING_SCREW_FRONT[0] + YAW_HOUSING_BOSS_R <= PELVIS_X[1] + 1e-9, \
+    "the front housing boss must stay inside the pelvis's front face"
+assert YAW_HOUSING_SCREWS_L[1][0] - YAW_HOUSING_BOSS_R >= PELVIS_X[0] - 1e-9, \
+    "the rear-inboard housing boss must stay inside the pelvis's rear face"
+assert YAW_HOUSING_SCREWS_L[1][1] + YAW_HOUSING_BOSS_R <= HOUSING_CHAN_HW, \
+    "the rear-inboard housing boss must stay in the centre channel"
+assert YAW_HOUSING_SCREWS_L[0][0] + YAW_HOUSING_BOSS_R <= D.YAW_CASE_X_REAR - D.YAW_SEAT_GAP \
+    and YAW_HOUSING_SCREWS_L[0][1] + YAW_HOUSING_BOSS_R <= PELVIS_HW, \
+    "the rear-outboard lug must stay off the cell and inside the pelvis's width"
+assert min(abs(y) for y, _ in PWRB_HOLES_YZ if y < 0) - 3.5 >= YAW_HOUSING_SCREWS_L[0][1] + YAW_HOUSING_BOSS_R + 0.3 + 0.5, \
+    "the power board's -y lower standoff must clear the rear-outboard lug's notch"
+assert PWRB_PCB_X1 + PWRB_UNDER <= YAW_HOUSING_SCREWS_L[0][0] - YAW_HOUSING_BOSS_R - 0.3 - 0.5, \
+    "the power board's leads must clear the rear-outboard lug"
 # deck
-DECK_X = HOUSING_X                            # the deck is the housing's lid, full footprint
+DECK_X = HOUSING_X                            # the deck is the torso's lid, full footprint
 DECK_HW = HOUSING_HW
 # neck: STS3215 standing ON the deck, output axis vertical, horn UP; the case
 # is retained the way the yaw cells hold theirs, inverted: a shallow well in
@@ -597,11 +704,13 @@ NECK_HORN_FACE_Z = NECK_AXIS_Z + D.SV_HORN_FACE                      # 35.20 abo
 NECK_WELL_D = 3.0                             # seat depth below the deck top (the floor's top face)
 NECK_WELL_HW = (D.SV_WID / 2 + D.YAW_SEAT_GAP, )                     # +-12.66 across
 NECK_WELL_X = (-D.SV_AXIS_FROM_REAR - D.YAW_SEAT_GAP, D.SV_AXIS_FROM_OUT_END + D.YAW_SEAT_GAP)   # -35.41..+10.41
-# The deck's battery + power-board aperture (pelvis_v7 cuts it; the pack lifts
+# The deck's battery aperture (torso_v8 cuts it; the pack lifts
 # out through it). The neck servo's footprint lies ENTIRELY inside it, so the
 # deck cannot seat the neck: the seat is a separate FLOOR PLATE (neck_floor.py)
 # screwed to the neck tube's walls, which drops into this aperture.
-DECK_APER_X = (BATT_X[0] - 0.5, min(PWR_X[1] + 0.5, D.YAW_CASE_X_FRONT + D.YAW_SEAT_GAP))   # -36.51..+10.40
+# aft edge as it was (the neck floor's aft pads need it); forward edge just
+# clear of the pack, short of the girdle's clavicle web (x >= 10.61)
+DECK_APER_X = (PELVIS_X[0] + 1.5, BATT_X[1] + 0.75)                   # -36.51..+10.50
 DECK_APER_HY = HIP_SEP / 2 + D.YAW_BOX_HW_OUT - D.WALL                                  # 54.66
 # --- neck floor (issue #90) --------------------------------------------------
 # A 2 mm plate under the neck servo at the old well depth, so the neck's height

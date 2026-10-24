@@ -168,7 +168,7 @@ PILOT_DEPTH = V.ARM_PILOT_DEPTH   # 4.5
 
 def pilot_xy():
     """Every deck pilot the girdle needs, pelvis frame, both sides. Lives in
-    dimensions_v6 so pelvis_v7 drills exactly what this part clears."""
+    dimensions_v6 so torso_v8 drills exactly what this part clears."""
     return list(V.GIRDLE_PILOT_XY)
 
 
@@ -252,7 +252,7 @@ def _pod(sgn):
 
 def shoulder_girdle_v6():
     """The whole girdle, in the PELVIS frame (deck top z = 0, robot forward
-    +x, left +y) so it reads directly against pelvis_v7's own geometry.
+    +x, left +y) so it reads directly against torso_v8's own geometry.
     Qty 1 -- it is symmetric, so it is NOT a mirror pair.
     """
     p = _pod(+1) + _pod(-1)
@@ -460,8 +460,8 @@ def check_deck_pilots(verbose=True):
     the reason the rail sits at y 57: it is the only continuous strip of deck
     that survives the Pi slot, the battery aperture and the GD lead slot.
     """
-    import pelvis_v7 as PV
-    solid = PV.pelvis_v7()
+    import torso_v8 as TV
+    solid = TV.torso_v8()
     ok = True
     for hx, hy in pilot_xy():
         pilot = parts.cyl_z(PILOT_D / 2, -PILOT_DEPTH, 0.0, hx, hy)
