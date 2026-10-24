@@ -46,7 +46,7 @@ def _hot(t_c, corner, fix=False):
 
 for _c in ("typ", "max"):
     # 70 °C is left out: ngspice's operating point does not converge there
-    for _t in (25, 40, 50, 60, 65, 75, 80, 85, 95, 105):
+    for _t in (-20, 0, 10, 25, 40, 50, 60, 65, 75, 80, 85, 95, 105):
         _reg(f"hot_off_{_t}C_{_c}", _hot(_t, _c))
         _reg(f"hot_off_{_t}C_{_c}_fix", _hot(_t, _c, fix=True))
 
@@ -205,6 +205,17 @@ def _packplus_bulk(b):
             f"c_fix_pk2 {p} fixpk2 5u", "r_fix_pk2 fixpk2 0 3m"]
 
 
+def _packplus_bulk_series(b):
+    """The same four parts as two series pairs (TI's EVM pattern, C30/C32:
+    one cracked capacitor cannot short PACK+): 2 × (10 µF + 10 µF in series),
+    each 10 µF derated to 5 µF, so 2 × 2.5 µF."""
+    p = b.net("PACK+")
+    return [f"c_fix_ps1a {p} fixps1 5u", "c_fix_ps1b fixps1 fixps1r 5u",
+            "r_fix_ps1 fixps1r 0 6m", "r_fix_ps1m fixps1 0 1e9",
+            f"c_fix_ps2a {p} fixps2 5u", "c_fix_ps2b fixps2 fixps2r 5u",
+            "r_fix_ps2 fixps2r 0 6m", "r_fix_ps2m fixps2 0 1e9"]
+
+
 def _vc0_tie(b):
     """1 kΩ from J2.1 (balance B−) to BAT− on the board (TI DS §8.3 note)."""
     return [f"r_fix_vc0 {b.node('J2', 1)} {b.net('BAT-')} 1k"]
@@ -225,6 +236,9 @@ WHATIF = {
                                      "fix_q3zener_ocd_cut_17A", extra=[_q3_zener]),
     "fix_packbulk_short_J4": _wrap("short_servo_lead_J4", "fix_packbulk_short_J4",
                                    extra=[_packplus_bulk]),
+    "fix_packbulk_series_short_J4": _wrap("short_servo_lead_J4",
+                                          "fix_packbulk_series_short_J4",
+                                          extra=[_packplus_bulk_series]),
     "fix_bleed_shutdown_rail_dropped": _wrap(
         "shutdown_rail_dropped_first", "fix_bleed_shutdown_rail_dropped",
         patch={"R38": "4.7k", "R39": "1k"}),

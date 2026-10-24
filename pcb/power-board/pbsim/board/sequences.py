@@ -15,8 +15,10 @@ import numpy as np
 from .board import Board, Esp32, Scenario, steps
 from .campaign import OUT
 from .ics import BqLimits, BqOtp
+from .stress import describe, floating
 
 T_WAKE = 0.05                  # POWER tap at 50 ms in every "switched on" run
+_trapz = getattr(np, "trapezoid", None) or np.trapz    # numpy < 2 has only trapz
 RAIL_UP = 0.80                 # rail settled by then (BST + soft start)
 TRACE_KEYS = ("t", "pack", "servo", "logic", "railv", "pwr_int_n", "estop_n",
               "flt_n", "imon", "v3v3", "ts2", "ld", "rst", "en", "inp", "bst",
@@ -522,8 +524,8 @@ def _short(name, place, t_sc, *, t_stop, r_cell=5e-3, otp=None, dt=10e-9,
                  "pack_end_V": float(r.w["pack"][-1]),
                  "scd_trips_total": len(t_scd),
                  "mode_end": mode_at(r, t_stop)}
-            e_q2 = np.trapezoid(np.clip(w("i_q2"), 0, None) * np.clip(w("q2_vds"), 0, None), tt)
-            e_q3 = np.trapezoid(np.clip(w("i_q3"), 0, None) * np.clip(w("q3_vds"), 0, None), tt)
+            e_q2 = _trapz(np.clip(w("i_q2"), 0, None) * np.clip(w("q2_vds"), 0, None), tt)
+            e_q3 = _trapz(np.clip(w("i_q3"), 0, None) * np.clip(w("q3_vds"), 0, None), tt)
             m["q2_energy_mJ"] = float(e_q2 * 1e3)
             m["q3_energy_mJ"] = float(e_q3 * 1e3)
             fail = []
@@ -810,12 +812,13 @@ def run_named(name: str) -> dict:
     b = Board(sc)
     r = b.run()
     fail, m = check(r, b)
-    sustained = b.mon.violations(min_s=20e-6)
+    xt60_out = any(v < 0.5 for _, v in sc.xt60)
+    sustained = [v for v in b.mon.violations(min_s=20e-6)
+                 if not floating(v, xt60_out)]
     # shorts are the overstress being studied; their pins are reported, not failed
     if not name.startswith("short_"):
         for v in sustained:
-            fail.append(f"abs max: {v['check']} {v['lo']:.2f}/{v['hi']:.2f} V "
-                        f"for {v['outside_s']*1e3:.2f} ms")
+            fail.append(describe(v))
     save_trace(name, r)
     return {"name": name, "fail": fail, "metrics": m,
             "transients": b.mon.violations(),

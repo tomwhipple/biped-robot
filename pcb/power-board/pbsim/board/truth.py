@@ -36,6 +36,7 @@ import itertools
 from dataclasses import dataclass
 
 from .board import Board, Esp32, Scenario, steps
+from .stress import describe, floating
 
 T_STOP = 2.4
 OBS = (2.30, 2.40)
@@ -152,10 +153,14 @@ def judge(c: Case, m: dict, b: Board) -> list[str]:
             bad.append(f"{name} should read high, is {m[key]:.2f} V")
         if not want and m[key] > vil:
             bad.append(f"{name} should read low, is {m[key]:.2f} V")
-    for v in b.mon.violations(min_s=20e-6):
-        bad.append(f"abs max: {v['check']} reached "
-                   f"{v['lo']:.2f}/{v['hi']:.2f} V for {v['outside_s']*1e6:.0f} µs")
+    for v in judged_violations(b, xt60_out=c.pack not in ("both", "xt60_only")):
+        bad.append(describe(v))
     return bad
+
+
+def judged_violations(b: Board, xt60_out: bool) -> list[dict]:
+    return [v for v in b.mon.violations(min_s=20e-6)
+            if not floating(v, xt60_out)]
 
 
 def run_case(c: Case) -> dict:
@@ -163,8 +168,10 @@ def run_case(c: Case) -> dict:
     r = b.run()
     m = measure(r, b)
     bad = judge(c, m, b)
+    out = c.pack not in ("both", "xt60_only")
     return {"case": c.__dict__, "name": c.name, "expected": expected(c),
             "measured": m, "fail": bad,
+            "floating": [v for v in b.mon.violations() if floating(v, out)],
             "transients": [v for v in b.mon.violations()
-                           if v["outside_s"] < 20e-6],
+                           if v["outside_s"] < 20e-6 and not floating(v, out)],
             "events": [(t, e) for t, e in r.events][:60]}

@@ -105,9 +105,9 @@ def hot_wake():
     r = results("sweep")
     fig, ax = plt.subplots(figsize=(7.2, 3.6))
     for (fix, corner), c, lab in (((False, "typ"), S[0], "as drawn, typical leakage"),
-                                  ((False, "max"), S[1], "as drawn, maximum leakage"),
+                                  ((False, "max"), S[1], "as drawn, datasheet maximum"),
                                   ((True, "typ"), S[2], "silicon pair + R10 100k, typical"),
-                                  ((True, "max"), S[3], "silicon pair + R10 100k, maximum")):
+                                  ((True, "max"), S[3], "silicon pair + R10 100k, datasheet maximum")):
         pts = sorted((x["metrics"]["temp_C"], x["metrics"]["ts2_V"]) for x in r.values()
                      if x["name"].startswith("hot_off_") and x["metrics"].get("fix") == fix
                      and x["metrics"].get("corner") == corner)
@@ -117,7 +117,7 @@ def hot_wake():
     ax.text(50, 0.82, "wake threshold 0.7–1.1 V", color=INK2, fontsize=8)
     ax.set_xlabel("board temperature (°C), board off, General Driver unpowered")
     ax.set_ylabel("TS2 (V)")
-    ax.set_title("TS2 with the board off: D2's leakage pulls it down when hot")
+    ax.set_title("TS2 with the board off: D2's leakage pulls it under the wake threshold")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=2)
     _save(fig, "hot_wake")
 

@@ -62,7 +62,8 @@ def checks(nl: Netlist) -> list[Check]:
                           (2, -0.3, 60, "VC5"), (8, -0.3, 60, "VC1"),
                           (7, -0.3, 60, "VC2")):
         C.append(Check(f"U1 {nm}", diff(u1[p], vss), lo, hi, bq))
-    for a, b, nm in ((8, 9, "VC1−VC0"), (7, 8, "VC2−VC1"), (2, 7, "VC5−VC4A")):
+    # 3S: VC3 and VC4 are tied to VC2 (pin 7), so the top cell is VC5−VC2
+    for a, b, nm in ((8, 9, "VC1−VC0"), (7, 8, "VC2−VC1"), (2, 7, "VC5−VC2")):
         C.append(Check(f"U1 {nm}", diff(u1[a], u1[b]), -0.3, 60, bq))
     C.append(Check("U1 CP1−BAT", diff(u1[32], u1[1]), -0.3, 15, bq))
     tp = "TPS4811-Q1 TPS 6.1"
@@ -129,6 +130,24 @@ def checks(nl: Netlist) -> list[Check]:
         C.append(Check(f"{ref} below VRWM", diff(n[pins["1"]], n[pins["2"]]),
                        -1.5, 15.0, "SMBJ15A VRWM 15 V"))
     return C
+
+
+def floating(v: dict, xt60_out: bool) -> bool:
+    """With the XT60 out, U1's VSS has no DC path to the cells, and its cell
+    inputs settle wherever the solver puts the floating island: VC0 − VSS is
+    −0.13 V on ngspice 47 and −1.45 V on ngspice 42, at nanoamps. No model of
+    the IC's internals exists to say where silicon would sit, so these checks
+    are reported as floating, not judged; TI's answer is the PCB tie of
+    simulation record F-9."""
+    return xt60_out and v["check"].startswith("U1 VC")
+
+
+def describe(v: dict) -> str:
+    """A violation in words: the measured range against the limits."""
+    lo, hi = v["limit"]
+    return (f"abs max: {v['check']} ranged {v['lo']:.2f} to {v['hi']:.2f} "
+            f"against limits {lo:g} to {hi:g}, outside for "
+            f"{v['outside_s'] * 1e3:.3f} ms")
 
 
 class Monitor:

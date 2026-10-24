@@ -12,9 +12,11 @@ possible input".*
 
 **The board does what the design says in every normal combination of inputs.** All 1152
 combinations of the discrete inputs (below) give the outputs the design asks for, on the
-circuit as drawn. The timed sequences agree with the design too: power-on, the E-stop,
-the servo-rail breaker and short-circuit trip, KILL pulses, the rail UVLO, the logic
-levels and a full pack.
+circuit as drawn, on two ngspice versions (47 and 42) with the same verdict in every
+case. One state is left to F-9 rather than judged: with the balance lead in and the XT60
+out, U1's cell inputs have no DC path to its VSS (§1.4). The timed sequences agree with
+the design too: power-on, the E-stop, the servo-rail breaker and short-circuit trip,
+KILL pulses, the rail UVLO, the logic levels and a full pack.
 
 **It found ten problems that the earlier checks could not see.** Each one needs an input
 combination, a timing or a temperature that those checks did not try. Five are board
@@ -25,12 +27,12 @@ Four are settings in the BQ76922's one-time configuration (OTP), to write at bri
 | | what goes wrong | how likely | what it costs to fix |
 |---|---|---|---|
 | **F-1** | After KILL, POWER is ignored until the board has bled down, which takes tens of seconds to minutes. The BQ76922 cannot reach SHUTDOWN while PACK+ is held up, here by the servo rail's capacitance (through Q3's body diode) and the General Driver's input capacitance | **every shutdown** | 2 resistor values + 1 resistor: SHUTDOWN 3.4–6.2 s after KILL (simulated) |
-| **F-2** | A switched-off board with the pack plugged in **wakes itself**: D2's leakage pulls TS2 under the wake threshold at about 80 °C with a typical BAT54C, and from about 35 °C with one at the datasheet's maximum leakage | a warm room with an unlucky part; a hot car with any part | swap D2 for a silicon pair and R10 to 100 kΩ: no wake to 105 °C typical, 85 °C worst case (simulated) |
+| **F-2** | A switched-off board with the pack plugged in **wakes itself**: D2's leakage pulls TS2 under the wake threshold at about 80 °C with a typical BAT54C, and from about 5 °C with one at the datasheet's maximum leakage | a hot car with a typical part; any room with a part near the datasheet's limit | swap D2 for a silicon pair and R10 to 100 kΩ: no wake to 105 °C typical, 85 °C worst case (simulated) |
 | **F-3** | After a discharge over-current trip (OCD), **POWER cannot turn the board back on**: only unplugging the pack does | needs > 20 A for 53 ms | OTP setting (two options, each with a catch) |
 | **F-4** | A servo overload of 16–19 A **turns the whole robot off** (the BQ76922 trips first) instead of only the servo rail | needs a cluster of stalled servos; worst at the OCD threshold's low tolerance | OTP: OCD1 at 30 mV (simulated: selectivity restored) |
 | **F-5** | When PACK+ collapses with the rail on (a BQ76922 trip, a PACK+ short), Q3's gate rides **17.3–18.2 V above its source**, past U2's 16 V rating, for up to 0.3 ms | every protection cut with the rail on | add a 15 V zener on Q3, gate to source (simulated: removes it) |
 | **F-6** | After a cell-undervoltage cut (CUV) the board **switches itself back on 3 s later** once the weak cell recovers | a weak cell under a get-up load | OTP: a shutdown cell voltage at or above CUV |
-| **F-7** | A short on the servo side makes PACK+ **spike to 28–34 V at 160–180 V/µs**, about 3× U2's 60 V/µs slew rating; Q3 then sees up to 28.6 V of its 30 V | only during a servo short | add 2 × 10 µF on PACK+ at Q3 (simulated: 15.9 V, 5.6 V/µs) |
+| **F-7** | A short on the servo side makes PACK+ **spike to 28–34 V at 160–180 V/µs**, about 3× U2's 60 V/µs slew rating; Q3 then sees up to 28.6 V of its 30 V | only during a servo short | add 4 × 10 µF on PACK+ at Q3, as two series pairs (simulated: 18.3 V, 10.9 V/µs) |
 | **F-8** | A short on PACK+ that stays (a dropped tool) is **hit again every 5 s**: the BQ76922 re-closes Q2 into it on its own | rare | OTP: SCDL latch limit 1 (simulated: one hit) |
 | **F-9** | VC0 has no path to VSS on the board, so the BQ76922 **does not support the balance lead going in before the XT60** (TI DS §8.3); VC0 also dips 0.68 V below VSS for 8 µs every time Q2 closes | every hot-plug in that order | 1 resistor, J2.1 to BAT− |
 | **F-10** | The firmware's "E-stop pressed but the rail still up" rule (design §5.3) **fires falsely on a bench with no servos**: SERVO+ bleeds through 57 kΩ only, and it parks near 4–5 V even with servos | bench sessions | firmware rule (numbers below) |
@@ -47,7 +49,7 @@ values; R1's TCR; and C22's label. It also lists the BQ76922 defaults that must 
 
 **Recommendation.** Make the five board changes (F-1, F-2, F-5, F-7, F-9) and the
 audit's R29 and Q5 items in rev B, re-run ERC/DRC and this campaign, then order. The parts
-are resistors, two 10 µF capacitors, a zener and a diode pair, all a few cents each. The
+are resistors, four 10 µF capacitors, a zener and a diode pair, all a few cents each. The
 cost is a re-placement and re-route near Q3 and U1. The OTP
 items go in the configuration image written at bring-up, and the firmware items into
 F4 of the design record. Everything below is from simulation and the datasheets; none of
@@ -57,17 +59,23 @@ it has been on a bench.
 
 ### 1.1 The board, as drawn
 
-- **Netlist.** `kicad-cli` exports the schematic's connectivity
-  (`pbsim/board/netlist.py`). Every part becomes a SPICE element from its value and MPN,
-  so nothing about the board is typed by hand: 102 parts, 70 nets.
-- **Simulator.** ngspice 47 (Homebrew libngspice), driven through its shared-library API
-  (`pbsim/board/engine.py`).
+- **Netlist.** `kicad-cli` from KiCad 10 exports the schematic's connectivity
+  (`pbsim/board/netlist.py`); KiCad 9 cannot read this schematic. Every part becomes a
+  SPICE element from its value and MPN, so nothing about the board is typed by hand:
+  102 parts, 70 nets.
+- **Simulator.** ngspice, driven through its shared-library API
+  (`pbsim/board/engine.py`). Every suite was run on two engines: ngspice 47 (Homebrew
+  libngspice, macOS) and ngspice 42 (the libngspice vendored in `pbsim/vendor/` for
+  Linux, which `make pbfull` uses there). Every case's verdict on each is in
+  [2026-10-24-power-board-full-simulation-cases.txt](2026-10-24-power-board-full-simulation-cases.txt).
 - **Q1–Q3.** TI's CSD17556Q5B transient model, vendored (`pbsim/vendor/`), plus the
   datasheet's IDSS.
 - **Diodes, zeners and TVS.** Each has a forward model and a reverse leakage taken from
   its datasheet, by temperature, typical or maximum (`pbsim/board/devices.py`). Example:
   the BAT54C's typical leakage at about 5 V, read off Diotec's curve, is 25 nA at 25 °C,
-  0.7 µA at 75 °C and 45 µA at 125 °C.
+  0.7 µA at 75 °C and 45 µA at 125 °C. A part's maximum is its datasheet's figure,
+  held at the lower biases this board applies, because leakage rises with reverse
+  voltage: for the BAT54C that is 2 µA at 25 V and 25 °C, 80 × the 5 V typical.
 - **Other parts.** The NTC follows Murata's B constant; Q5 is the 2N3904 Gummel-Poon
   model; Q4 is a level-1 fit to Vishay's 2N7002K.
 - **Fuses.** Each is a resistor plus a melt model: heating above 110 % of its rating,
@@ -138,14 +146,19 @@ Everything attaches at the connector pins (`board.py`):
   - the ESP32's pins, and its clamp current from RAIL_V.
 
   It records each limit's extremes and how long it spent outside. An excursion longer
-  than 20 µs fails a test, except in the short-circuit tests, where overstress is what
-  is being measured and is reported instead.
+  than 20 µs fails a test, except in two cases, where it is reported instead:
+  - the short-circuit tests, where overstress is what is being measured;
+  - U1's cell inputs (VC0–VC5) while the XT60 is out. U1's VSS then has no DC path to
+    the cells, so the cell inputs float with the stack, at nanoamps, to wherever the
+    solver puts the island. The two engines disagree (VC0 − VSS −0.13 V on
+    ngspice 47, down to −1.45 V on ngspice 42), and the model has no IC internals to say
+    where silicon would sit. TI's answer to that state is a board change, F-9.
 
 ### 1.5 The campaign
 
 `make pbfull` runs the three suites on a process pool and writes
 `build/power-board/fullsim/{truth,seq,sweep}.json`, plus waveforms for the figures. The
-pre-push gate (`make pbsim`) runs a sample of 22 runs (`tests/test_whole_board.py`). The
+pre-push gate (`make pbsim`) runs a sample of 23 runs (`tests/test_whole_board.py`). The
 findings are pinned there as strict expected failures, so a board change that fixes one
 fails the gate until this record is updated.
 
@@ -176,7 +189,13 @@ contact B (2) × SERVO_EN low / high / high-impedance (3) × POWER held from 1.2
 only / balance only / neither (4) = **1152 cases**, each a 2.4 s whole-board transient,
 judged on its last 0.1 s and on the monitor (`pbsim/board/truth.py`).
 
-**Result: 1152 of 1152 pass.**
+**Result: 1152 of 1152 pass, on ngspice 47 and on ngspice 42.** In the 288 cases with the
+balance lead in and the XT60 out, U1's cell inputs are reported, not judged (§1.4): VC0 −
+VSS sits at −0.13 V on ngspice 47 and falls to −1.45 V on ngspice 42 for the whole run.
+Every case's verdict on both engines is in
+[the cases file](2026-10-24-power-board-full-simulation-cases.txt). The numbers below are
+ngspice 47's; the largest difference between the engines in any measured output is
+0.12 V, in PACK+'s off-state residue.
 
 | expected output | cases expecting it up | cases expecting it off |
 |---|---|---|
@@ -326,17 +345,20 @@ See F-1 below.
 
 ### 5.1 A switched-off board at temperature: TS2 and LD (V)
 
-Board in SHUTDOWN, General Driver unpowered, the wake comparators disabled so the run shows where TS2 and LD settle. "Fix" is D2 as a silicon pair (1N4148W data) with R10 at 100 kΩ. 70 °C is missing: ngspice's operating point did not converge there.
+Board in SHUTDOWN, General Driver unpowered, the wake comparators disabled so the run shows where TS2 and LD settle. "Fix" is D2 as a silicon pair (1N4148W data) with R10 at 100 kΩ. "max" is each part at its datasheet's maximum leakage (§1.1). 70 °C is missing: ngspice's operating point did not converge there.
 
 | °C | as drawn, typ | as drawn, max | fix, typ | fix, max | LD typ / max |
 |---|---|---|---|---|---|
-| 25 | 4.87 | 2.50 | 4.99 | 4.87 | 0.03 / 0.09 |
-| 40 | 4.66 | 0.17 | 4.97 | 4.71 | 0.06 / 0.10 |
-| 50 | 4.34 | 0.11 | 4.95 | 4.48 | 0.07 / 0.11 |
-| 60 | 3.71 | 0.07 | 4.91 | 4.09 | 0.09 / 0.11 |
-| 65 | 3.20 | 0.06 | 4.88 | 3.79 | 0.09 / 0.12 |
+| -20 | 4.98 | 3.52 | 5.00 | 4.99 | 0.00 / 0.02 |
+| 0 | 4.96 | 1.54 | 5.00 | 4.97 | 0.01 / 0.05 |
+| 10 | 4.93 | 0.29 | 4.99 | 4.95 | 0.02 / 0.06 |
+| 25 | 4.87 | 0.17 | 4.99 | 4.87 | 0.03 / 0.09 |
+| 40 | 4.66 | 0.11 | 4.97 | 4.71 | 0.06 / 0.10 |
+| 50 | 4.34 | 0.08 | 4.95 | 4.48 | 0.07 / 0.11 |
+| 60 | 3.71 | 0.06 | 4.91 | 4.09 | 0.09 / 0.11 |
+| 65 | 3.20 | 0.05 | 4.88 | 3.79 | 0.09 / 0.12 |
 | 75 | 1.50 | 0.04 | 4.79 | 2.87 | 0.10 / 0.12 |
-| 80 | 0.07 | 0.04 | 4.72 | 2.17 | 0.11 / 0.12 |
+| 80 | 0.07 | 0.03 | 4.72 | 2.17 | 0.11 / 0.12 |
 | 85 | 0.05 | 0.03 | 4.62 | 1.24 | 0.11 / 0.12 |
 | 95 | 0.03 | 0.03 | 4.34 | 0.27 | 0.12 / 0.12 |
 | 105 | 0.03 | 0.02 | 3.83 | 0.20 | 0.12 / 0.12 |
@@ -419,9 +441,10 @@ OCD1 20 mV at its −4 / 0 / +4 mV accuracy (DS 6.25), each against U2's over-cu
 |---|---|---|
 | 15 V zener, Q3 gate to source (F-5) | the 17 A OCD cut | Q3's VGS clamps at 15 V; no PD−SRC excursion |
 | 2 × 10 µF on PACK+ at Q3 (F-7) | the J4 short | PACK+ 15.9 V peak, 5.6 V/µs; Q3 VDS 7.9 V; U2 still trips (15.8 µs) |
+| the same four parts as two series pairs (F-7) | the J4 short | PACK+ 18.3 V peak, 10.9 V/µs; Q3 VDS 10.4 V; U2 still trips (15.8 µs); one cracked capacitor cannot short PACK+ |
 | R38/R39 4.7k/1k + 4.7 kΩ PACK+ bleed (F-1) | shutdowns, flat pack | SHUTDOWN 3.4–6.2 s after KILL; POWER works again |
 | R38/R39 only | the rail-dropped shutdown | still held at 2.7 V by the General Driver: not enough alone |
-| 1 kΩ J2.1 to BAT− (F-9) | XT60 after the balance lead | no change visible in the model (as expected: the model lacks TI's internals) |
+| 1 kΩ J2.1 to BAT− (F-9) | XT60 after the balance lead | ngspice 42's floating VC0 (−1.45 V for the whole balance-only phase) is gone; nothing changes on ngspice 47, where VC0 sat at −0.13 V. The internals TI warns about are not in the model |
 | silicon pair for D2, R10 100 kΩ (F-2) | §5.1, §5.2 | no wake to 105 °C typical / about 85 °C worst case; pressed levels still clear |
 | OTP: OCD1 30 mV (F-4) | 17 A and 25 A overloads | selectivity restored |
 | OTP: SCDL limit 1 (F-8) | persistent PACK+ short | one hit |
@@ -477,9 +500,11 @@ the board on.*
 - **Simulated.**
   - Typical BAT54C: TS2 sits at 4.87 V at 25 °C and 1.50 V at 75 °C, and has collapsed
     by 80 °C.
-  - A part at the datasheet's maximum leakage (Diotec allows 20× the typical curve):
-    TS2 is already 2.5 V at 25 °C and 0.17 V at 40 °C, so it wakes from about 35 °C
-    (§5.1).
+  - A part at the datasheet's maximum leakage: Diotec's only limit is 2 µA at 25 V and
+    25 °C, which bounds the part at the 5 V it sees here too, 80 × the typical curve.
+    TS2 is 1.54 V at 0 °C and 0.29 V at 10 °C, so such a part wakes the board from
+    about 5 °C (§5.1). Diotec gives no typical-to-maximum spread at 5 V, so where real
+    parts fall between the two curves is not known without measuring them.
 - **Consequence.** The BQ76922 wakes and closes Q2, the General Driver and the Pi boot,
   and the ESP32's normal boot raises SERVO_EN. The servos are powered with torque off, and
   the pack drains until the low-voltage shutdown. Unplugging the pack after use (design
@@ -560,8 +585,11 @@ the board on.*
 ![F-7](figs/pbfull_short_j4.png)
 
 - **The mechanism.** When Q3 opens on a short, the pack leads' inductance (200 nH in
-  total here) drives PACK+. Only about 0.25 µF of local capacitance (C12–C14) is there
-  to absorb it before D8 clamps.
+  total here) drives PACK+. Only about 0.15 µF of local capacitance is there to absorb
+  it before D8 clamps: C14 (100 nF) and C12–C13, a series pair (50 nF). The pair is TI's
+  EVM pattern across the pack terminals (SLVU957A, C30/C32), so one cracked capacitor
+  cannot short PACK+. The runs are built from the netlist, so these numbers are the
+  board as drawn.
 - **Simulated.**
   - Short at the far end of J4: PACK+ 28 V at 158 V/µs.
   - Short on SERVO+ at the board: 34 V at 181 V/µs, D8 carrying about 58 A, and Q3's VDS
@@ -573,6 +601,12 @@ the board on.*
   50 % for DC bias. For the J4 short, PACK+ then peaks at 15.9 V and 5.6 V/µs, and Q3
   sees 7.9 V. The extra capacitance raises Q2's turn-on inrush (§4.1) about 45 %, still
   inside its SOA; it should be re-checked in rev B's run.
+
+  Each of those is a single capacitor from PACK+ to GND, so one that cracks short is a
+  PACK+ short (§4.4). The same four parts as two series pairs, in C12–C13's pattern
+  (2 × 2.5 µF after derating), keep that protection: PACK+ peaks at 18.3 V and
+  10.9 V/µs, and Q3 sees 10.4 V. That is still well inside U2's 60 V/µs, and it is the
+  version to fit.
 
 ### F-8. A persistent PACK+ short is hit again every 5 seconds
 
@@ -594,6 +628,14 @@ the board on.*
   wake and no PACK+ glitch above 0.31 V. Q2's VGS is coupled up to 1.36 V for
   nanoseconds when the XT60 goes in. But the model does not contain the IC's internal
   structures, which are the thing TI warns about.
+- **The floating island.** With the balance lead in and the XT60 out, the cells and U1's
+  cell inputs float as one island against VSS, held by nothing but nanoamps. Where it
+  sits is the solver's choice: VC0 − VSS is −0.13 V on ngspice 47, inside the −0.3 V
+  rating, and −1.45 V on ngspice 42, past it, for as long as the state lasts. Neither number
+  says what silicon would do; that is why these pins are reported, not judged, in that
+  state (§1.4). With the fix below, ngspice 42's island is gone: VC0 stays within its
+  rating through the balance-only phase, and the only excursion left is the run's
+  first 0.13 ms, as the simulation starts.
 - **Normal operation.** VC0 swings past −0.3 V by up to 0.68 V for 8 µs at every
   switch-on (§4.1), and by about 1 V for 0.1–0.5 ms in shorts. R3 limits the current to
   tens of mA.
@@ -640,6 +682,12 @@ the board on.*
 - **The FET leakage.** TI's transient model leaks only nanoamps at VGS = 0 (checked: 1 nA
   at 9 V and 25 °C, 27 nA at 85 °C). The datasheet's IDSS is added explicitly, as a tenth
   of the 1 µA maximum, doubling every 10 °C. That is an assumption: TI gives no curve.
+- **Two engines.** Every suite ran on ngspice 47 and on ngspice 42 with the same
+  verdict in every case. The one engine-dependent result is the floating island of
+  F-9, which is reported, not judged. Elsewhere the engines differ only in the peaks of
+  the fastest transients: Q2's turn-on pulse is 45 A on ngspice 47 and 50 A on
+  ngspice 42, and PACK+'s slew in a SERVO+ short is 181 and 177 V/µs. The numbers in
+  this record are ngspice 47's.
 - **Not covered:**
   - noise and EMI (F4 of the audit is a noise question);
   - heating, other than temperature as an input;
@@ -660,14 +708,21 @@ the board on.*
 
 ## 8. Reproduce
 
+Needs `kicad-cli` from KiCad 10 or later (KiCad 9 cannot read the schematic; set
+`KICAD_CLI` if it is not found) and a libngspice: Homebrew's on macOS (ngspice 47), the
+vendored one on Linux x86-64 (ngspice 42).
+
 ```bash
-make pbfull                                    # ~30 min on 12 workers; needs KiCad (kicad-cli)
+make pbfull                                    # ~30 min on 14 workers
 cd pcb/power-board && python -m pbsim.board.summarize   # the tables in this record
 cd pcb/power-board && python -m pbsim.board.figures     # docs/design-v6/figs/pbfull_*.png
 make pbsim                                     # the gate's sample, ~1 min
+# two engines' results side by side, case by case
+cd pcb/power-board && python -m pbsim.board.crosscheck \
+    ../../build/power-board/fullsim:ngspice-47 ../../build/power-board/fullsim-ng42:ngspice-42
 ```
 
 Code: `pcb/power-board/pbsim/board/` (`engine.py`, `netlist.py`, `devices.py`, `ics.py`,
 `board.py`, `stress.py`, `truth.py`, `sequences.py`, `sweeps.py`, `campaign.py`,
-`summarize.py`, `figures.py`) and `pcb/power-board/pbsim/tests/test_whole_board.py`. Run on
+`summarize.py`, `crosscheck.py`, `figures.py`) and `pcb/power-board/pbsim/tests/test_whole_board.py`. Run on
 the schematic with SHA-256 `891919aa…5b68d` (`power-board.kicad_sch` at this branch).

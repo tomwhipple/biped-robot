@@ -48,9 +48,11 @@ def _doubling(i25: float, per_c: float = 10.0) -> tuple[tuple[float, float], ...
 
 LEAK = {
     # Diotec BAT54C, "Reverse characteristics (typical values)", read at
-    # VR ≈ 5 V; max 2 µA at 25 V / 25 °C against 0.1 µA typical there.
+    # VR ≈ 5 V. The only maximum is 2 µA at 25 V / 25 °C, and leakage rises
+    # with VR, so 2 µA also bounds a part at 5 V: max = 80 × the 5 V typical
+    # (2 µA / 25 nA), the same treatment as the other diodes' maxima.
     "BAT54C": Leak(((-25, 3e-9), (25, 2.5e-8), (75, 7e-7), (125, 4.5e-5),
-                    (150, 1.8e-4)), 20.0, "Diotec BAT54C p.2 chart"),
+                    (150, 1.8e-4)), 80.0, "Diotec BAT54C p.2 table and chart"),
     # Nexperia PMEG4002EJ: 0.2 µA typ / 0.3 µA max at 10 V, 25 °C (Table 7);
     # silicon-Schottky doubling every 10 °C assumed above that.
     "PMEG4002EJ": Leak(_doubling(2e-7), 1.5, "Nexperia PMEG4002EJ Table 7"),

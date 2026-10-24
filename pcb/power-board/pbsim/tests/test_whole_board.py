@@ -46,11 +46,13 @@ TRUTH = ["on-Ac-Bc-en_high-pwrR-usb0-gd_on-pack_both",
          "off-Ac-Bc-en_high-pwrH-usb1-gd_absent-pack_both",
          "on-Ac-Bc-en_hiz-pwrR-usb0-gd_on-pack_both",
          "on-Ac-Bc-en_high-pwrR-usb0-gd_on-pack_xt60_only",
-         "on-Ac-Bc-en_high-pwrR-usb1-gd_sw1_off-pack_none"]
+         "on-Ac-Bc-en_high-pwrR-usb1-gd_sw1_off-pack_none",
+         "on-Ac-Bc-en_high-pwrR-usb0-gd_on-pack_balance_only"]
 
 needs = pytest.mark.skipif(
     ngsim.find_lib() is None or find_kicad_cli() is None,
-    reason="the whole-board simulation needs a libngspice and kicad-cli")
+    reason="the whole-board simulation needs a libngspice and a kicad-cli "
+           "from KiCad 10 or later")
 
 
 def _seq(name):

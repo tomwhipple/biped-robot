@@ -9,6 +9,7 @@ schematic's hash.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import os
 import re
@@ -29,14 +30,26 @@ KICAD_CLI_CANDIDATES = (
 )
 
 
+KICAD_MAJOR = 10      # the schematic's format; KiCad 9 cannot read it
+
+
+@functools.cache
 def find_kicad_cli() -> str | None:
+    """A kicad-cli from KiCad 10 or later, or None."""
     env = os.environ.get("KICAD_CLI")
-    if env:
-        return env
-    for c in KICAD_CLI_CANDIDATES:
-        if Path(c).exists():
+    cands = [env] if env else [c for c in KICAD_CLI_CANDIDATES if Path(c).exists()]
+    if not cands and shutil.which("kicad-cli"):
+        cands = [shutil.which("kicad-cli")]
+    for c in cands:
+        try:
+            v = subprocess.run([c, "version"], capture_output=True, text=True,
+                               timeout=30).stdout.strip()
+        except OSError:
+            continue
+        m = re.match(r"(\d+)\.", v)
+        if m and int(m.group(1)) >= KICAD_MAJOR:
             return c
-    return shutil.which("kicad-cli")
+    return None
 
 
 @dataclass
@@ -66,8 +79,8 @@ def _export(sch: Path, out: Path) -> None:
     cli = find_kicad_cli()
     if cli is None:
         raise FileNotFoundError(
-            "kicad-cli not found (install KiCad, or set KICAD_CLI); the "
-            "whole-board simulation reads the schematic through it")
+            f"no kicad-cli from KiCad {KICAD_MAJOR} or later (install it, or set "
+            "KICAD_CLI); the whole-board simulation reads the schematic through it")
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(".tmp")
     subprocess.run([cli, "sch", "export", "netlist", "--format", "kicadxml",

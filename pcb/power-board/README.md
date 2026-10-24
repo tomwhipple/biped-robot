@@ -131,12 +131,15 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
   **and the pin audit** ([record](../../docs/design-v6/2026-10-24-power-board-pin-audit.md)):
   - R38/R39 → 4.7 kΩ / 1 kΩ and 4.7 kΩ from PACK+ to GND, so SHUTDOWN completes after
     KILL (F-1);
-  - D2 → a low-leakage silicon common-cathode pair and R10 → 100 kΩ, so a hot, switched-off
-    board does not wake itself (F-2);
+  - D2 → a low-leakage silicon common-cathode pair and R10 → 100 kΩ, so a switched-off board
+    does not wake itself (F-2);
   - a 15 V zener from Q3's gate to its source (F-5);
-  - 2 × 10 µF on PACK+ at R24/Q3 (F-7);
+  - 4 × 10 µF on PACK+ at R24/Q3, as two series pairs like C12–C13, so one cracked
+    capacitor cannot short PACK+ (F-7);
   - 1 kΩ from J2.1 to BAT− (F-9);
-  - R29 → 10 kΩ with R30 → 549 kΩ (audit F3), and 1 nF across Q5 (audit F4).
+  - R29 → 10 kΩ with R30 → 549 kΩ (audit F3), and 1 nF across Q5 (audit F4);
+  - value labels that match the MPNs: C5–C8 "100n 50V", C22 "10u 35V", and the rated
+    voltage on C9–C11, C15, C18, C20 and C23 (no part changes).
 - **The BQ76922 configuration** must also set SCDL latch limit 1 (F-8), OCD1 at 30 mV
   (F-4), a decision on OCD recovery (F-3) and on CUV versus shutdown cell voltage (F-6),
   and the audit's C1–C9.
