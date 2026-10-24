@@ -333,16 +333,16 @@ isolation:
   | ankle | 4, +1 | 8, +1 | ±20°: toes up turns the sole to the camera |
   | ankle roll | 12, +1 | 11, +1 | ±15–22°: which end of the sole plate rises |
 
-  Zeros: `middle` on every leg servo in the owner's standing pose, then `cal zero` and `cal save`; restored from NVS on reboot. The neck and arms are not fitted. The zeros in NVS, re-latched with `cal zero` in the owner's standing pose with the left foot clamped to the desk (2026-10-24):
+  Zeros: `middle` on every leg servo in the owner's standing pose, then `cal zero` and `cal save`; restored from NVS on reboot. The neck and arms are not fitted. The zeros in NVS, re-latched with `cal zero` in the owner's standing pose with the left foot clamped to the desk (2026-10-24); the four roll zeros then set with `cal set` so the legs stand parallel under load at zero (measured on camera: leg axes against each other and the torso edges, 5.2° of convergence corrected to 0.3°):
 
   | joint | left (ID, zero) | right (ID, zero) |
   |---|---|---|
   | hip yaw | 9, 2153 | 10, 2184 |
-  | hip roll | 51, 2025 | 52, 2059 |
+  | hip roll | 51, 1991 | 52, 2082 |
   | hip pitch | 2, 2058 | 6, 1997 |
   | knee | 3, 1977 | 7, 2125 |
   | ankle | 4, 2091 | 8, 2045 |
-  | ankle roll | 12, 2031 | 11, 2085 |
+  | ankle roll | 12, 1997 | 11, 2108 |
 
 ### 3.3 Mechanical envelope
 
