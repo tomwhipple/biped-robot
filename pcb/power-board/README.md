@@ -128,6 +128,10 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
 
 ## Open before ordering
 
+- **A firm quote.** The instant quotes of 2026-10-24
+  ([record](../../docs/design-v6/2026-10-24-power-board-quote.md)) put 2 assembled boards at
+  about $203 at PCBWay with 1 oz copper. A firm price needs `fab/` uploaded to an account for
+  review, after rev B. The XT60PW-M is out of stock at LCSC and TME until about 2026-11-25.
 - **Rev B changes from the whole-board simulation**
   ([record](../../docs/design-v6/2026-10-24-power-board-full-simulation.md), F-numbers)
   **and the pin audit** ([record](../../docs/design-v6/2026-10-24-power-board-pin-audit.md)):
