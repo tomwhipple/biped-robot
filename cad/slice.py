@@ -254,6 +254,16 @@ def job_entry(spec, name):
             "copies": plate.get("copies", 1)}
 
 
+def plate_counts(spec, name, copies=None):
+    """{part: build items} for job ``name``: a part alone takes its copies;
+    on a plate each part takes the plate's copies times its own (default 1),
+    so a plate of a part and its two keys holds one and two."""
+    n = copies or job_entry(spec, name).get("copies", 1)
+    if name not in spec.get("plates", {}):
+        return {name: n}
+    return {p: n * part_entry(spec, p).get("copies", 1) for p in plate_parts(spec, name)}
+
+
 def jobs(spec):
     """Every project --all makes: each plate, and each part on no plate."""
     plates = spec.get("plates", {})
@@ -700,7 +710,14 @@ def harvest(name, spec, lib, outdir, printer):
         else:
             changes.append(f"{label}: turned {angle:.1f} deg on the bed, not a quarter turn; "
                            "not carried (copies are laid square to the bed)")
-    copies = set(counts.values())
+    # a plate's count per part is its copies times the part's own
+    own = {o: (spec["parts"][objects[o]["part"]].get("copies", 1) if name in spec.get("plates", {}) else 1)
+           for o in counts}
+    copies = {c / own[o] for o, c in counts.items()}
+    if len(copies) == 1 and next(iter(copies)).is_integer():
+        copies = {int(copies.pop())}
+    elif len(copies) == 1:
+        copies = {0, -1}                    # not a whole multiple: report, do not carry
     if len(copies) == 1 and copies != {state["copies"]}:
         n = copies.pop()
         owner = spec["plates"][name] if name in spec.get("plates", {}) else spec["parts"][name]
@@ -734,6 +751,7 @@ def slice_part(name, spec, lib, outdir, printer, copies=None):
     shutil.rmtree(os.path.join(work, "out"), ignore_errors=True)
     os.makedirs(os.path.join(work, "out"), exist_ok=True)
     n = copies or entry.get("copies", 1)
+    per_part = plate_counts(spec, name, copies)
 
     inputs, objects, heights, enforcers = [], {}, [], {}
     for part in plate_parts(spec, name):
@@ -744,7 +762,7 @@ def slice_part(name, spec, lib, outdir, printer, copies=None):
         work_stl = os.path.join(work, f"{part}.stl")
         tris = read_stl(stl)
         heights.append(write_rotated_stl(tris, rot, work_stl)[2])
-        inputs += [work_stl] * n
+        inputs += [work_stl] * per_part[part]
         objects[f"{part}.stl"] = {"part": part, "orient": orient_name(rot)}
         boxes = enforcer_boxes(part_entry(spec, part), rot, rotated_min(tris, rot))
         if boxes:

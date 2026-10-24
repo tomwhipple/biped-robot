@@ -304,7 +304,9 @@ python3 cad/slice.py --harvest               # only read saved projects back
   4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`. One
      process slices a plate, so its parts must agree on supports and overrides
      (`slice.py` refuses a plate whose parts don't). A plate's copies are its
-     own: `--copies 2` puts two of each foot on it.
+     own: `--copies 2` puts two of each foot on it. A part's own copies
+     multiply them on a plate: **`gd_mount`** is one `gd_plate` and its two
+     `gd_key`s.
 - **Changes made in the GUI carry forward.** Save the project (Cmd+S). The next
   `slice.py` run on that part or plate reads the saved project's changes back
   into `print_settings.json`:

@@ -65,6 +65,14 @@ def test_both_feet_are_one_print():
     assert "feet" in jobs and "foot_L" not in jobs and "foot_R" not in jobs
 
 
+def test_a_parts_own_copies_multiply_the_plates():
+    """On a plate each part takes the plate's copies times its own; alone, its own."""
+    assert S.plate_counts(SPEC, "gd_mount") == {"gd_plate": 1, "gd_key": 2}
+    assert S.plate_counts(SPEC, "gd_mount", copies=2) == {"gd_plate": 2, "gd_key": 4}
+    assert S.plate_counts(SPEC, "feet") == {"foot_L": 1, "foot_R": 1}
+    assert S.plate_counts(SPEC, "yaw_carrier_v6") == {"yaw_carrier_v6": 2}
+
+
 def test_a_plate_whose_parts_disagree_is_refused():
     spec = {"parts": {"a": {"orient": "IDENT", "supports": True},
                       "b": {"orient": "IDENT", "supports": False}},
