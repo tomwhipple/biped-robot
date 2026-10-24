@@ -2097,6 +2097,12 @@ def main():
                    help="grade with rise_ref_hold on (no handover from the residual "
                         "reference map at recovered) whatever the run trained with: "
                         "the handover counterfactual. Writes scorecard_hold.{md,json}")
+    p.add_argument("--ref-replay", metavar="NPZ", default=None,
+                   help="grade a get-up REFERENCE, not the policy: the run's plant and "
+                        "obs, rise_ref_npz -> NPZ, rise_ref_hold on, every action 0 "
+                        "(the reference replayed through the residual map, no RL). "
+                        "The baseline a fine-tune must beat. Writes "
+                        "scorecard_replay-<npz stem>.{md,json}")
     args = p.parse_args()
     suffix = "_sil" if args.sil else ""
     if args.act_lag_hz > 0.0 or args.act_delay_ticks > 0:
@@ -2105,13 +2111,16 @@ def main():
         suffix = f"{suffix}_fl{args.joint_frictionloss:g}"
     if args.rise_ref_hold:
         suffix = f"{suffix}_hold"
+    if args.ref_replay:
+        suffix = f"{suffix}_replay-{os.path.splitext(os.path.basename(args.ref_replay))[0]}"
     # a --scenarios subset must not clobber the run's full reel either --
     # the scorecard learned this 2026-08-03 (guard below), but the movie
     # path didn't and a stand-only render overwrote two full reels
     # (2026-08-12). One suffix, decided before ANY artifact path is built.
     if args.scenarios:
         suffix = f"{suffix}_partial"
-    stack = "SIL (firmware stack)" if args.sil else "python policy"
+    stack = ("SIL (firmware stack)" if args.sil else
+             "reference replay" if args.ref_replay else "python policy")
 
     run_dir = os.path.join(RUNS, args.run_name)
     if args.trace:
@@ -2128,6 +2137,11 @@ def main():
     if args.joint_frictionloss is not None:
         cfg["joint_frictionloss"] = args.joint_frictionloss
     if args.rise_ref_hold:
+        cfg["rise_ref_hold"] = True
+    if args.ref_replay:
+        if args.sil:
+            raise SystemExit("--ref-replay grades a reference, not a firmware stack")
+        cfg["rise_ref_npz"] = args.ref_replay
         cfg["rise_ref_hold"] = True
     xml = args.xml or cfg.get("xml_path") or DEFAULT_XML
     if not os.path.isabs(xml) and not os.path.exists(xml):
@@ -2195,6 +2209,12 @@ def main():
             # one adapter per episode: it owns the library's history ring and
             # gait clock, and resets both in begin_episode()
             return H.SilActAdapter(sil_lib, env, log=False)
+    elif args.ref_replay:
+        def act(obs):
+            return np.zeros(act_size, dtype=np.float32)
+
+        def act_for(env):
+            return act
     else:
         act = load_policy(run_dir, obs_size, act_size)
 
@@ -2210,6 +2230,8 @@ def main():
                  "(3-stage act-lag cascade)")
     if args.joint_frictionloss is not None:
         cond += f"; joint frictionloss {args.joint_frictionloss:g} N*m (not the run's own)"
+    if args.ref_replay:
+        cond += f"; REFERENCE REPLAY {os.path.basename(args.ref_replay)} (zero action, hold)"
     if args.act_delay_ticks > 0:
         cond += (f"; servo dead time {20 * args.act_delay_ticks} ms "
                  f"({args.act_delay_ticks} ticks)")

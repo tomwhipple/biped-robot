@@ -34,6 +34,11 @@ So it builds references from kinematics and scores them by their WORST case:
     .venv/bin/python sim/getup_ref_analytic.py search-roll --restarts 4 --workers 12
     .venv/bin/python sim/getup_ref_analytic.py verify --seq supine_ik
     .venv/bin/python sim/getup_ref_analytic.py record --seq prone_ik --out sim/getup_ref_v6ar_prone_ik.npz
+    .venv/bin/python sim/getup_ref_analytic.py record --seq prone_ikc --out sim/getup_ref_v6ar_prone_ikc.npz
+
+prone_ikc / supine_ikc are prone_ik / supine_ik with the centred crouch hold
+(seat_push_ik centred=True). Grade a recorded reference through the CPU
+referee with no RL: eval_precision.py --ref-replay <npz>.
 """
 from __future__ import annotations
 
@@ -287,11 +292,25 @@ def seat_push():
     return S.seat_push(False, 60, 0, 2.0, -25.0, elbow=(-60, 0))
 
 
-def seat_push_ik(path=None):
-    """the seat push up to its crouch hold, then the analytic rise"""
+CROUCH_C = dict(ankle=-35.0, shoulder=0.0, elbow=0.0)   # the centred crouch hold (seat_push_ik centred=True)
+
+
+def seat_push_ik(path=None, centred=False):
+    """the seat push up to its crouch hold, then the analytic rise.
+
+    centred: the crouch hold keeps the hands on the floor (the push pose,
+    shoulder 0) and dorsiflexes the ankle to -35 deg, so the CoM sits 12 mm
+    behind the sole centre instead of 48 mm (arms at REST, ankle -25); the
+    arms go to REST during the first rise waypoint, once the pelvis is off the
+    floor. Lifting the hands at the crouch hold is where the replayed reference
+    and every hold-trained policy tipped back onto the seat under the
+    referee's DR (2026-10-24: seeds 7/607/707). Same keys, same timing."""
     sp = seat_push()
     i = [k[0] for k in sp].index("crouch hold")
-    return sp[:i + 1] + rise_keys(path if path is not None else rise_path()) + [("straight", dict(**REST), 1.0, 0.8)]
+    hold = sp[i]
+    if centred:
+        hold = (hold[0], dict(hold[1], **CROUCH_C), hold[2], hold[3])
+    return sp[:i] + [hold] + rise_keys(path if path is not None else rise_path()) + [("straight", dict(**REST), 1.0, 0.8)]
 
 
 NK = 5
@@ -376,11 +395,15 @@ def search_roll(restarts=4, iters=25, pop=64, n_elite=10, workers=12, seed=0):
 
 
 def sequences():
-    seqs = {"supine": ("supine", seat_push()), "supine_ik": ("supine", seat_push_ik())}
+    path = rise_path()
+    ikc = seat_push_ik(path, centred=True)
+    seqs = {"supine": ("supine", seat_push()), "supine_ik": ("supine", seat_push_ik(path)),
+            "supine_ikc": ("supine", ikc)}
     if os.path.exists(ROLL_JSON):
         roll = roll_keys(json.load(open(ROLL_JSON))["x"])
         seqs["prone"] = ("prone", roll + seat_push()[1:])
-        seqs["prone_ik"] = ("prone", roll + seat_push_ik()[1:])
+        seqs["prone_ik"] = ("prone", roll + seat_push_ik(path)[1:])
+        seqs["prone_ikc"] = ("prone", roll + ikc[1:])
     return seqs
 
 
