@@ -41,8 +41,11 @@ design calculator (SLURB09) confirms the servo-rail switch values.
 
 **97 × 64.5 mm, four layers, 1.6 mm, ENIG.** The stackup is in the board file, so the
 Gerber job file carries it.
-- **Copper:** 2 oz (70 µm) on the outer layers, 1 oz inside. 1 oz outer is enough by the
-  copper analysis in the verification record; that choice is Tom's (cost).
+- **Copper:** 1 oz (35 µm) on every layer, with a 1.04 mm core so the board stays 1.6 mm.
+  The verification record's copper analysis (C11) finds 1 oz enough: 0.66 mΩ on the main
+  path, 0.26 W at 20 A, and the copper is not the thermal limit. 2 oz outer at the 6/6 mil
+  this board needs was most of the bare-board price (record 2026-10-07 and
+  [2026-10-24-power-board-quote.md](../../docs/design-v6/2026-10-24-power-board-quote.md)).
 - **Parts:** every part is on the top side. The through-hole parts are J1–J12, F1 and C21.
 
 | layer | use |
@@ -89,8 +92,7 @@ on a 3 mm grid tie the planes and the bottom pour together.
 - Signal tracks: 0.2 mm by default; the logic feed is 1.2 mm.
 - Vias: 0.6 mm with 0.3 mm drill.
 
-These are within a standard 4-layer process at PCBWay or JLCPCB. JLCPCB lists 0.15/0.15 mm
-as its minimum for 2 oz outer copper.
+These are within a standard 4-layer, 1 oz process at PCBWay or JLCPCB.
 
 ## Files
 
@@ -126,6 +128,10 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
 
 ## Open before ordering
 
+- **A firm quote.** The instant quotes of 2026-10-24
+  ([record](../../docs/design-v6/2026-10-24-power-board-quote.md)) put 2 assembled boards at
+  about $203 at PCBWay with 1 oz copper. A firm price needs `fab/` uploaded to an account for
+  review, after rev B. The XT60PW-M is out of stock at LCSC and TME until about 2026-11-25.
 - **Rev B changes from the whole-board simulation**
   ([record](../../docs/design-v6/2026-10-24-power-board-full-simulation.md), F-numbers)
   **and the pin audit** ([record](../../docs/design-v6/2026-10-24-power-board-pin-audit.md)):
