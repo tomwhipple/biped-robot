@@ -145,7 +145,12 @@ This record corrects two earlier statements:
 **M8. All return current passes through ten 0.4 mm vias at R1.**
 - **Where.** GND vias 0.8/0.4 mm at (111.4–115.4, 100.0 and 101.2). The only other F.Cu GND path is the SRN Kelvin trace, so everything from the planes goes through these ten.
 - **Evidence.** That is 1.5 A per via at 15 A and 2 A per via at 20 A. Barrel I²R is negligible (about 0.15 mΩ from F.Cu to In1 per via). This is near commonly quoted single-via ratings, but not over them. *Estimate.*
-- **Fix.** Extend the R1 GND pour and double the via count. There is room to the left.
+- **R1's own pad.** The F.Cu GND pour reaches only the south 0.375 mm of R1's GND pad
+  (y 98.70–99.075 of 97.85–99.075; 30 % of the pad's area, measured with pcbnew from the
+  zone fill). That costs nothing electrically (about 54 µΩ at 1 oz), but it is joint
+  area. Percy's circuit review part 2, P3-6.
+- **Fix.** Extend the R1 GND pour about 1 mm north over the pad, and double the via
+  count. There is room to the left.
 
 **M9. Unfused BAT+ copper is close to GND and BAT−.**
 - **Where.**
@@ -181,6 +186,7 @@ This record corrects two earlier statements:
 - It matches a fresh export byte for byte, and its 94 references match the BOM, value for value and footprint for footprint.
 - The through-hole origins (J1–J12, C21, F1, F2) are at pin 1, not the body centre.
 - Rotations run from −180 to 180 under KiCad's header names. Rename the headers for JLCPCB's CPL importer.
+- Y is KiCad's absolute coordinate negated (y = −y for all 94 rows; Percy's part 2, P3-7). State the convention when the file is uploaded to either assembler.
 - Confirm every polarized part in the assembler's preview. The pin-1 positions the file implies:
 
   | part | pin-1 corner |

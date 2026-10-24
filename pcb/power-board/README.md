@@ -161,9 +161,10 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
     wrong datasheet links (C1);
   - raise silk text to at least 1.0 mm / 0.15 mm (C3).
 
-  Optional improvements are M4–M9 there. On the order form: 1 oz inner copper, a
-  0.10–0.12 mm stencil, J1's 0.25 mm overhang, and a check of every polarized part in the
-  assembler's preview (M10, C2).
+  Optional improvements are M4–M9 there; do M8's via doubling and its pour extension over
+  R1's GND pad together. On the order form: 1 oz inner copper, a 0.10–0.12 mm stencil,
+  J1's 0.25 mm overhang, the placement file's negated Y, and a check of every polarized
+  part in the assembler's preview (M10, C2).
 - **The BQ76922 configuration** must also set SCDL latch limit 1 (F-8), OCD1 at 30 mV
   (F-4), and the audit's C1–C9. Two choices are open, with the options simulated in the
   record: OCD recovery (F-3; recommended: TI's default, latched) and the low-cell
