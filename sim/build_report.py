@@ -436,6 +436,20 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-24 card: get-up campaign night 3 -- training with hold keeps the
+# latch but every policy tips back at the seat push's crouch hold; the
+# reference replayed with no RL scores better than all of them (41/48), and the
+# centred crouch hold (prone_ikc) fixes the replay's crouch (43/48).
+fig_1024 = "\n    ".join(f for f in [
+    video_figure('robot_getup_v0k', ['recover_prone_fall'],
+                 'robot_getup_v0k_prone_fall',
+                 't3k + 600M with --rise-ref-hold: 5/8 from face-down at 0.35; the misses '
+                 'tip back onto the seat at the crouch hold (~25 s) and park at 0.29 m'),
+    video_figure('robot_getup_v1k_s1', ['recover_supine_ph'],
+                 'robot_getup_v1k_s1_supine_ph',
+                 'friction DR + hold, the best of the night (31/48 over friction 0.05 – 0.5): '
+                 '8/8 from the back at 0.35'),
+] if f)
 # 2026-10-23 card: get-up campaign night 2 -- every retrain stood and then
 # fell (or parked) because of the handover at `recovered`; graded without it,
 # u0k gets up 46/48 over joint friction 0.05 - 0.5.
@@ -661,6 +675,31 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·24 · get-up campaign night 3</span></p>
+    <p><b>The policies fail where the reference is weakest: the crouch hold. The fixed reference trains tonight.</b>
+    Night 3 trained with the hand-over removed (<code>--rise-ref-hold</code>).
+    That fixed the drift (MJX keeps the latch to the end), but no run passes
+    7/8 on both starts. Over joint friction 0.05 / 0.35 / 0.5 they score
+    19 – 31/48 (v1k_s1 best), and fine-tuning u0k with hold lost its 46/48.
+    Every failing seed does the same thing: it sits in the crouch after the
+    seat push, then tips back onto the seat as the hands leave the floor. At
+    that moment the centre of mass is 48 mm behind the middle of the soles.
+    The reference alone, replayed through the referee with no policy, scores
+    <b>41/48, better than every policy trained on it</b>.</p>
+    <p>The new reference <code>getup_ref_v6ar_prone_ikc.npz</code> keeps the
+    hands down and the ankle at −35° through the crouch, with the same timing.
+    Replayed, it scores 43/48 with no crouch failures left (the 0.05 misses
+    fall after straightening, which a policy must catch). It also stands 216/216
+    on the open-loop robustness grid. Night 4 retrains v0k's and v1k's recipes on it,
+    with seed replicates and a smaller residual (0.15). From now on a policy
+    is compared against its reference's replay (<code>eval_precision.py
+    --ref-replay</code>, PR #142). Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1024}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·23 · get-up campaign night 2</span></p>
