@@ -228,6 +228,7 @@ graph LR
 | `components/policy/` | static MLP forward pass. `weights.h` is generated | numpy golden vectors |
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
 | `components/battguard/` | pack under-voltage guard | yes |
+| `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>` (§5.6) | yes, pinned to the sim twin |
 | `main/` | everything that touches ESP-IDF: tasks, UART/WiFi/NVS/SNTP, the CLI (file list in [firmware/README.md](../firmware/README.md)) | the plain-data halves of `cal_store` and `obs_dump` |
 
 ### 5.1 Observation
@@ -421,6 +422,29 @@ refuses a goal write to a servo whose torque is off (`torqueGate`), because
 an STS goal write enables torque and moves the joint; `home` is the one
 command that enables torque itself, by name. The bench rules are in
 [AGENTS.md](../AGENTS.md).
+
+**Bench balance** (`pose ... B<L|R>`, `balance`). The bench `pose` streamer
+(`poseTick`, housekeeping, 50 Hz) is open loop; `B<L|R>` adds a closed roll
+loop for a one-leg stand. `B` names the **stance** leg (the foot that stays
+down) and works identically for either side: no side-specific gain or offset.
+Each tick the fused torso roll (`imu::Sample::up`, read with `robot::peekImu`,
+which does not consume the gyro window `ctrl` averages) is compared with the
+roll captured when the pose was issued. The reference is whatever the robot
+reads at the shifted pose, so the IMU's absolute roll zero never enters. A PI
+(`components/balance/roll_pi.h`: output clamp, anti-windup that freezes the
+integral while saturated) turns that error into a correction added to the
+stance leg's ankle-roll and hip-roll targets, in joint radians through the
+calibrated `dir`, then through the same envelope clamp (`clampTicks`) as every
+bench write. The swing leg is untouched. The correction persists through the
+hold after the min-jerk move ends, and ends at the next `pose`, `move`, `home`,
+`release`/`torque`, or when the loop is armed (the next move then starts from
+where the servos are). Safety: if the roll error passes the abort limit, or
+the attitude read fails or is older than 100 ms, the correction **freezes** at
+its last value, a message prints, and torque stays on. `balance` prints the
+gains, the live roll, and the active correction in degrees and ticks;
+`balance log` dumps the last 24 s at 25 Hz; `balance set` changes the gains
+(refused while engaged). The sim twin and the gain sweep are in
+[experiments/one-leg-stand](../experiments/one-leg-stand/README.md).
 
 ### 5.7 Position-loop gains (Plan B)
 

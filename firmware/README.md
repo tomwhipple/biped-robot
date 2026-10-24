@@ -85,6 +85,7 @@ hardware-touching files are excluded by construction.
 | `obs` | the assembler against real `walker_env._obs()` frames, history order, gait clock, action/angle/tick maps, command shaper, the bus map against the policy spec, calibration blob pack/unpack and the v2 → v3 and v1 migrations |
 | `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder |
 | `battguard` | the pack guard's thresholds, debounce and landing ramp |
+| `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
 | `fusion` | the attitude filter, cross-checked against MuJoCo's `framezaxis` |
 | `obsdump` | the observation dump's double buffer and CSV writer; the mirror-mode pose buffer |
 | `sil` | `libctrl_sil`'s C ABI end to end: tick round trips, the bus permutation, the held bus slots, `.silw` and calibration parsing on adversarial input |
@@ -145,6 +146,7 @@ firmware/
     policy/             static MLP forward pass; weights.h (generated)
     imu/                Imu interface, frame maths, Fusion, QMI8658C driver, StubImu
     battguard/          pack under-voltage guard
+    balance/            stance-leg roll PI for the bench one-leg stand (pose B<L|R>)
   host/                 host build: Makefile + CMakeLists, 10 test suites, the SIL
                         library (sil.h, sil_lib.cpp, sil_net.cpp), vectors/
 tools/

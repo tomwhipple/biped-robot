@@ -14,6 +14,7 @@ float s_gsum[3] = {0.0f, 0.0f, 0.0f};
 uint32_t s_gcount = 0;
 uint32_t s_total = 0;
 uint32_t s_fail = 0;
+TickType_t s_last_ok = 0;
 bool s_have = false;
 bool s_average = true;
 constexpr int kRingN = 1024;                    // 4.1 s at 4 ms
@@ -38,6 +39,7 @@ void imuTask(void*) {
             ++s_gcount;
             ++s_total;
             s_have = true;
+            s_last_ok = xTaskGetTickCount();
             portEXIT_CRITICAL(&s_mux);
         } else {
             ++s_fail;
@@ -68,6 +70,19 @@ bool takeImu(imu::Sample& out) {
     for (int i = 0; i < 3; ++i) s_gsum[i] = 0.0f;
     s_gcount = 0;
     portEXIT_CRITICAL(&s_mux);
+    return true;
+}
+
+bool peekImu(imu::Sample& out, uint32_t* age_ms) {
+    portENTER_CRITICAL(&s_mux);
+    if (!s_have) {
+        portEXIT_CRITICAL(&s_mux);
+        return false;
+    }
+    out = s_latest;
+    const TickType_t ok = s_last_ok;
+    portEXIT_CRITICAL(&s_mux);
+    if (age_ms) *age_ms = static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount() - ok));
     return true;
 }
 

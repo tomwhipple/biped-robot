@@ -17,6 +17,12 @@ void imuSamplerSetSource(imu::Imu& imu);   // after a runtime re-init
 // Latest attitude + tick-averaged gyro since the previous take. False until
 // the first sample has landed (caller keeps its held sample).
 bool takeImu(imu::Sample& out);
+// The latest fused sample WITHOUT consuming the tick-averaged gyro that takeImu
+// hands the control loop (2026-10-24, bench balance: the CLI's streamer reads
+// the attitude every 20 ms and must not steal ctrl's window). age_ms = time since
+// the sampler last read the part OK. False until the first sample has landed.
+// Same critical section as takeImu, so the copy is never torn.
+bool peekImu(imu::Sample& out, uint32_t* age_ms);
 uint32_t imuSampleTotal();
 // Defined in app_main.cpp: recover + re-init the live QMI (bench `imu reinit`).
 bool imuReinitLive();

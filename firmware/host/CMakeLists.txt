@@ -27,7 +27,8 @@ include_directories(
     ${COMPONENTS}/obs/include
     ${COMPONENTS}/policy/include
     ${COMPONENTS}/imu/include
-    ${COMPONENTS}/battguard/include)
+    ${COMPONENTS}/battguard/include
+    ${COMPONENTS}/balance/include)
 
 enable_testing()
 
@@ -76,6 +77,8 @@ bimo_test(test_obs test_obs.cpp
 bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp)
 
 bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
+
+bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
 
 # The observation dump: main/, but ESP-IDF-free on purpose (see obs_dump.h).
 bimo_test(test_obsdump test_obsdump.cpp
