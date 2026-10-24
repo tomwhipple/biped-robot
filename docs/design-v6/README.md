@@ -22,6 +22,7 @@ not a version among others.
 | [failure_sweep_2026-10-07.md](failure_sweep_2026-10-07.md) | failure modes of the kinematic walk on the robot plant: 434k random walks; roll play, lift height, actuation lag and swing time decide falls and lift |
 | [foot_outline_2026-10-07.md](foot_outline_2026-10-07.md) | the printed foot sat 12 mm outboard of the spec; at the spec the feet touch at 2.1° of mutual hip-roll adduction. Gate D margin vs adduction clearance at three sole placements (open, for Tom) |
 | [study-yaw-bearing.md](study-yaw-bearing.md) | hip-yaw bearing options A / C / E and their checks; A selected 2026-10-06 (#75) |
+| [2026-10-24-compute-board-survey.md](2026-10-24-compute-board-survey.md) | Pi-form-factor boards against the Pi 4B: the Pi 5 is the only drop-in; the ROCK 5C V2.1 adds an NPU but not the IMX708 camera; keep the Pi 4B until the vision workload exists |
 
 Records here describe what was true on their date; where one disagrees with
 DESIGN.md, DESIGN.md is current. Evidence logs for options not taken (legs-only
