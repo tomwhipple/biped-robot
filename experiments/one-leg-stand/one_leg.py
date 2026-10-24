@@ -104,6 +104,23 @@ def keyframes(p, drop=0.02, lift=0.03, bias_y=-0.005, frac=1.0):
                    self_contacts=contacts)
 
 
+def lift_only(p, side="R", heights=(0.015, 0.03), drop=0.0):
+    """Keyframes for the clamped-foot bench: from standing `drop` below straight,
+    raise one foot straight up by each height with the sole parallel to the
+    desk -- hip pitch, knee and ankle only; no roll, no pelvis shift. The other
+    foot (clamped) and the pelvis stay where they are."""
+    k = standing_key(p, drop)
+    q = {"stand": q_of(p, k)}
+    for h in heights:
+        kk = k.copy()
+        if side == "R":
+            kk.footR = kk.footR + np.array([0.0, 0.0, h])
+        else:
+            kk.footL = kk.footL + np.array([0.0, 0.0, h])
+        q[f"lift{int(round(1e3 * h))}"] = q_of(p, kk)
+    return q
+
+
 def timeline(q, t_crouch=2.0, t_shift=3.0, t_lift=2.0, t_hold=10.0):
     tl = (JointTimeline(q["straight"]).hold(0.5, "settle0").to(q["crouch"], t_crouch, "crouch")
           .hold(0.5, "h1").to(q["shift"], t_shift, "shift").hold(1.0, "h2")
@@ -143,11 +160,30 @@ def main(argv=None):
     ap.add_argument("--all3215", action="store_true", help="STS3215 everywhere (worst case)")
     ap.add_argument("--no-sweep", action="store_true")
     ap.add_argument("--json", default=None)
+    ap.add_argument("--plant-set", nargs="*", default=[], metavar="KEY=VAL",
+                    help="simulate on a plant changed from the one the keyframes are solved on "
+                         "(e.g. m_battery=0 m_pi4=0 torso_v7=0: the tethered robot without pack, Pi, head)")
+    ap.add_argument("--fb-ankle", type=float, default=0.0, help="IMU torso roll -> ankle roll P gain (rad/rad)")
+    ap.add_argument("--fb-hip", type=float, default=0.0, help="IMU torso roll -> hip roll P gain (rad/rad)")
+    ap.add_argument("--fb-i", type=float, default=0.0, help="integral gain on the same roll error (1/s), ankle rolls")
+    ap.add_argument("--lift-only", choices=("L", "R"), default=None,
+                    help="print clamped-foot lift poses for this foot (no shift) and exit")
     a = ap.parse_args(argv)
     p, _ = params_from_args(["-o", "/dev/null"])
+    if a.lift_only:
+        q = lift_only(p, a.lift_only, heights=(0.015, 0.03), drop=a.drop if a.drop != 0.02 else 0.0)
+        for n, v in q.items():
+            print(f"{n:7s}", "  ".join(f"{j.replace('_hip', '').replace('ankle_roll', 'aroll')} "
+                                       f"{math.degrees(float(v[JN.index(j)])):+5.1f}" for j in JN if j[0] == a.lift_only))
+            print(f"P_{n}=\"pose {' '.join(map(str, ticks(v)))}\"")
+        return
     xml = os.path.join(os.environ.get("TMPDIR", "/tmp"), f"one_leg_{os.getpid()}.xml")
+    p_sim = p
+    if a.plant_set:
+        p_sim, _ = params_from_args(["-o", "/dev/null", "--set", *a.plant_set])
     with open(xml, "w") as f:
-        f.write(build_xml(p))
+        f.write(build_xml(p_sim))
+    fb = dict(fb_ankle=a.fb_ankle, fb_hip=a.fb_hip, fb_i=a.fb_i)
     if a.all3215:
         pj = None
     elif a.rolls3250:
@@ -170,7 +206,9 @@ def main(argv=None):
     for n in ("crouch", "shift", "lift"):
         print(f"  {n:8s}", "  ".join(f"{j.replace('_hip', '').replace('ankle_roll', 'aroll')} "
                                      f"{math.degrees(float(q[n][JN.index(j)])):+5.1f}" for j in JN))
-    r = run(p, xml, tl, win, per_joint=pj, track_torque=True)
+    if a.plant_set or any(fb.values()):
+        print(f"simulated plant: {p_sim.summary()}  set {a.plant_set}  feedback {fb}")
+    r = run(p_sim, xml, tl, win, per_joint=pj, track_torque=True, **fb)
     print(SG.fmt_row("nominal (mu 0.7, play 3, lash 1, lag 2 Hz + 80 ms)", r))
     tau = {j: (round(r["peak_tau"][i], 2), round(r["stall"][i], 2)) for i, j in enumerate(JN)}
     print("  peak |tau| / stall N*m:", "  ".join(f"{j} {t}/{s}" for j, (t, s) in tau.items() if t > 0.3 * s))
@@ -185,7 +223,7 @@ def main(argv=None):
                  ("mu 0.4 + play 5 + servos -15 %", dict(mu=0.4, play_deg=5.0, servo_scale=0.85))]
         out["sweep"] = {}
         for label, kw in cases:
-            rs = [run(p, xml, tl, win, seed=s, per_joint=pj, **kw) for s in range(3)]
+            rs = [run(p_sim, xml, tl, win, seed=s, per_joint=pj, **fb, **kw) for s in range(3)]
             worst = min(rs, key=lambda x: (x["ok"], x["min_margin"] if x["min_margin"] == x["min_margin"] else -1))
             print(SG.fmt_row(label, worst) + f"   ({sum(x['ok'] for x in rs)}/3 seeds ok)")
             out["sweep"][label] = worst
