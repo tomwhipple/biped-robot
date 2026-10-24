@@ -32,7 +32,7 @@ this is not modelled.
 
 `sim/bimo_biped_v6legs.xml`, built by `make plant`
 (`sim/build_v6_inertia.py --asbuilt-legs --write`), the same CAD-true
-inertials as the committed 17-servo plant. `build_v6_inertia.asbuilt_legs()`
+inertials as the committed 17-servo plant (pelvis_v8 + torso_v8 + front cover; the power cover and battery door are left off with the pack, an assumption). `build_v6_inertia.asbuilt_legs()`
 is the `DesignParams` that differ from `gen_plant_v6.DesignParams()`:
 
 | `DesignParams` field | default | as built |
@@ -55,9 +55,9 @@ leads), 12 leg servos at their places.
 
 | | total | torso |
 |---|---|---|
-| `bimo_biped_v6ar.xml` (as drawn: legs, neck, head, arms) | 2.284 kg | 0.950 kg |
-| armless variant (`--armless`) | 1.869 kg | 0.784 kg |
-| **`bimo_biped_v6legs.xml` (as built)** | **1.475 kg** | **0.4285 kg** |
+| `bimo_biped_v6ar.xml` (as drawn: legs, neck, head, arms) | 2.375 kg | 1.041 kg |
+| armless variant (`--armless`) | 1.960 kg | 0.875 kg |
+| **`bimo_biped_v6legs.xml` (as built)** | **1.501 kg** | **0.4545 kg** |
 
 All three are CAD / catalogue masses, **not weighed**. The legs-only torso is
 the pelvis print, housing, bearings, two yaw servos (110 g), the board (30 g)
@@ -78,27 +78,26 @@ friction 0.35 N·m, no latency, no DR, one run per lifted side.
 | model | L lifted: tilt (ankle / hip encoder) | R lifted: tilt (ankle / hip encoder) | foot rise achieved |
 |---|---|---|---|
 | bench | 5.0° (1.0–1.5° / 0.7–0.9°) | 5.2° (1.0–1.5° / 0.7–0.9°) | 30 mm commanded |
-| **before**: rigid rolls, no backlash | 2.35° (1.24° / 0.73°) | 2.29° (1.21° / 0.73°) | 26.5 mm |
-| **before**: the referee's pinned 0.7° backlash on every joint | 3.10° (1.28° / 0.73°) | 3.04° (1.25° / 0.72°) | 25.3 mm |
-| 3° free play on the roll joints (`play_deg`, the old assumption) | 5.60° | 5.54° | |
-| **after**: 0.7° backlash + 1.9° extra roll deadzone | **5.15°** (1.39° / 0.71°) | **5.10°** (1.36° / 0.70°) | 22.6 mm |
-| the same with the 17-servo as-drawn plant (2.28 kg) | 7.15° (2.61° / 1.20°) | 7.09° (2.58° / 1.19°) | |
+| **before**: rigid rolls, no backlash | 2.37° (1.26° / 0.74°) | 2.35° (1.25° / 0.74°) | 26.4 mm |
+| **before**: the referee's pinned 0.7° backlash on every joint | 3.13° (1.30° / 0.74°) | 3.11° (1.29° / 0.74°) | 25.2 mm |
+| 3° free play on the roll joints (`play_deg`, the old assumption) | 5.63° | 5.62° | 22.2 mm |
+| **after**: 0.7° backlash + 1.9° extra roll deadzone | **5.19°** (1.41° / 0.72°) | **5.18°** (1.40° / 0.72°) | 22.5 mm |
+| the same with the 17-servo as-drawn plant (2.38 kg) | 7.43° (2.78° / 1.26°) | 7.36° (2.74° / 1.24°) | |
 
 - **The encoders already match without any play.** The rigid-roll plant puts
-  the stance ankle-roll encoder at 1.2–1.4° and the hip roll at 0.7° at the
+  the stance ankle-roll encoder at 1.25–1.3° and the hip roll at 0.74° at the
   bench's load; the servo model (P × 2.8 / × 4, joint friction 0.35) is about
   right at the encoder. The 17-servo plant, 55 % heavier, would put the ankle
-  encoder at 2.6°: another sign that the legs-only plant is the body that was
+  encoder at 2.8°: another sign that the legs-only plant is the body that was
   on the desk. What the rigid plant lacks is the tilt: 3.1° against 5.0–5.2°.
 - **Play adds one degree of tilt per degree of deadzone**, and does not move the
-  encoders (1.36–1.44° for 0–6° of extra deadzone), the bench's signature. The
+  encoders (1.4–1.5° for 0–2.6° of extra deadzone), the bench's signature. The
   walker_env shaft/link play model (`play_deg`) and the PD-error deadzone
-  (`roll_lash_deg`) give the same steady tilt for the same width (5.60° vs
-  5.59° at 3°).
+  (`roll_lash_deg`) give the same steady tilt for the same width (5.63° with 3° of play vs ≈ 5.6° with 3° of deadzone).
 - **Calibrated value: a total roll-joint deadzone of ≈ 2.6°** (peak to peak)
   per episode. The rolls already carry the global backlash (0.5–1.0° in
   training, 0.7° in the referee), so the extra is **U(1.0, 2.6)°** per episode
-  (mean 1.8°): the total spans 1.5–3.6° in training (tilt 3.9–6.2°) and
+  (mean 1.8°): the total spans 1.5–3.6° in training (tilt 4.0–6.3°) and
   1.7–3.3° in the referee (4.2–5.9°), centred on the measurement.
 - The calibration has one lumped width for the four roll joints (hip and ankle
   rolls, both sides); the bench cannot split it between the two joints in

@@ -47,7 +47,9 @@
     <mesh name="cad_foot_R" file="cad/v6/stl/foot_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_sole_tpu_R" file="cad/v6/stl/sole_tpu_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_foot_R" file="sim/meshes/v6/servo_foot_R.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="cad_pelvis_v7_armless" file="cad/v6/stl/pelvis_v7_armless.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_pelvis_v8" file="cad/v6/stl/pelvis_v8.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_torso_v8_armless" file="cad/v6/stl/torso_v8_armless.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_front_cover_v8" file="cad/v6/stl/front_cover_v8.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_yaw_bearing_housing" file="cad/v6/stl/yaw_bearing_housing.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_yaw_L" file="sim/meshes/v6/servo_yaw_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_yaw_R" file="sim/meshes/v6/servo_yaw_R.stl" scale="0.001 0.001 0.001"/>
@@ -64,14 +66,16 @@
     <!-- torso origin = hip yaw axis height, on the centreline -->
       <body name="torso" pos="0 0 0.39147">
       <freejoint/>
-        <inertial pos="-0.0092 -0.0000 0.0276" quat="0.6970 -0.1148 0.1143 -0.6985" mass="0.4285" diaginertia="5.6480e-04 8.9784e-04 9.9706e-04"/>
-        <geom name="torso_cad_pelvis_v7_armless" class="cad" mesh="cad_pelvis_v7_armless" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
+        <inertial pos="-0.0042 -0.0010 0.0293" quat="0.7046 -0.0274 0.0097 -0.7090" mass="0.4545" diaginertia="7.0471e-04 1.0033e-03 1.1422e-03"/>
+        <geom name="torso_cad_pelvis_v8" class="cad" mesh="cad_pelvis_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
+        <geom name="torso_cad_torso_v8_armless" class="cad" mesh="cad_torso_v8_armless" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
+        <geom name="torso_cad_front_cover_v8" class="cad" mesh="cad_front_cover_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_yaw_bearing_housing" class="cad" mesh="cad_yaw_bearing_housing" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_servo_yaw_L" class="cad" mesh="servo_yaw_L" rgba="0.12 0.12 0.14 1"/>
         <geom name="torso_servo_yaw_R" class="cad" mesh="servo_yaw_R" rgba="0.12 0.12 0.14 1"/>
       <!-- one-print pelvis: deck + housing walls -->
       <geom type="box" pos="-0.0045 0 -0.00285" size="0.04 0.07749 0.00465" name="torso_deck" class="fallcol" mass="0.087" rgba="0.82 0.84 0.87 1" group="3"/>
-      <geom type="box" pos="-0.01644 0 0.0378" size="0.04948 0.06176 0.036" name="torso_housing" class="fallcol" mass="0.087" rgba="0.82 0.84 0.87 0.25" group="3"/>
+      <geom type="box" pos="-0.01084 0 0.03805" size="0.06418 0.06126 0.03575" name="torso_housing" class="fallcol" mass="0.087" rgba="0.82 0.84 0.87 0.25" group="3"/>
       <!-- hip YAW servos hang under the housing floor, horn down on the yaw axis -->
       <geom type="box" pos="-0.0125 0.042 0.0189" size="0.02261 0.01236 0.0189" class="servo" mass="0.055"/>
       <geom type="box" pos="-0.0125 -0.042 0.0189" size="0.02261 0.01236 0.0189" class="servo" mass="0.055"/>

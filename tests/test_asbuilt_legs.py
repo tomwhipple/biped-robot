@@ -61,8 +61,8 @@ def test_legs_plant_masses(m):
     power module, neck servo or head)."""
     total = float(m.body_mass.sum())
     torso = float(m.body_mass[m.body("torso").id])
-    assert 1.45 < total < 1.50, total
-    assert 0.40 < torso < 0.45, torso
+    assert 1.47 < total < 1.53, total
+    assert 0.43 < torso < 0.48, torso
     ar = mujoco.MjModel.from_xml_path(os.path.join(SIM, "bimo_biped_v6ar.xml"))
     assert total < 0.7 * float(ar.body_mass.sum())
 

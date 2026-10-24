@@ -224,11 +224,10 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     out = {}
     # ---- torso
     t = [mesh_props(stl("pelvis_v8"), [0, 0, zdeck]), mesh_props(stl(torso), [0, 0, zdeck]),
-         mesh_props(stl("front_cover_v8"), [0, 0, zdeck]),
-         mesh_props(stl("yaw_bearing_housing"), [0, 0, zdeck]),
-         servo("yaw_L", g15), servo("yaw_R", g15)]
+         mesh_props(stl("front_cover_v8"), [0, 0, zdeck])]
     if p.m_battery > 0 or p.m_power > 0:   # the pack bay's door and the power cover
         t += [mesh_props(stl("power_cover_v8"), [0, 0, zdeck]), mesh_props(stl("battery_door_v8"), [0, 0, zdeck])]
+    t += [mesh_props(stl("yaw_bearing_housing"), [0, 0, zdeck]), servo("yaw_L", g15), servo("yaw_R", g15)]
     if p.head:   # the neck servo and its floor ride the deck
         t += [servo("neck", g15), mesh_props(stl("neck_floor"), [0, 0, zdeck])]
     if p.m_battery > 0:
