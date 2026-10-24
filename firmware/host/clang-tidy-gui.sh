@@ -42,6 +42,7 @@ GUI_INC=(
     -I"$ROOT/firmware/components/policy/include"
     -I"$ROOT/firmware/components/imu/include"
     -I"$ROOT/firmware/components/battguard/include"
+    -I"$ROOT/firmware/components/balance/include"
     -I"$ROOT/firmware/components/scsbus/include"
     -I"$ROOT/link"
     -I"$ROOT/third_party"

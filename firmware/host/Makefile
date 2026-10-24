@@ -22,7 +22,8 @@ CXXFLAGS  = -std=c++17 -O1 -g \
             -I$(COMPONENTS)/obs/include \
             -I$(COMPONENTS)/policy/include \
             -I$(COMPONENTS)/imu/include \
-            -I$(COMPONENTS)/battguard/include
+            -I$(COMPONENTS)/battguard/include \
+            -I$(COMPONENTS)/balance/include
 
 # Kept before the sanitizers are folded in: the SIL shared library cannot use
 # them (see the `sil` target below).
@@ -52,10 +53,11 @@ SRC_OBS   = $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/imu/imu.cpp
 SRC_POL   = $(COMPONENTS)/policy/mlp.cpp
 SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
+SRC_BAL   = $(COMPONENTS)/balance/roll_pi.cpp
 
 SRC_FUSION= $(COMPONENTS)/imu/imu.cpp $(COMPONENTS)/imu/fusion.cpp
 
-TESTS = test_protocol test_scsbus test_obs test_policy test_battguard \
+TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi \
         test_fusion test_obsdump test_sil test_sil_golden test_client
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
 
@@ -235,6 +237,9 @@ $(BUILD)/test_policy: test_policy.cpp $(SRC_POL) $(SPEC_H) $(WEIGHTS_H) \
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_battguard: test_battguard.cpp $(SRC_BATT) test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+$(BUILD)/test_roll_pi: test_roll_pi.cpp $(SRC_BAL) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # The fusion filter is the half of the IMU driver that has no hardware in it,
