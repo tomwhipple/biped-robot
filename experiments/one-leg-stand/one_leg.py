@@ -39,10 +39,11 @@ import v6_kin as K  # noqa: E402
 BUS = ["R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle", "L_hip_roll", "L_hip_pitch", "L_knee",
        "L_ankle", "R_hip_yaw", "L_hip_yaw", "R_ankle_roll", "L_ankle_roll"]
 N_BUS = 17                                     # 5 more (neck, arms): not fitted, ignored by `pose`
-# as-built calibration, `cal show` 2026-10-24 (NVS): joint -> (zero ticks, dir)
-CAL = {"R_hip_roll": (2048, -1), "R_hip_pitch": (2048, 1), "R_knee": (2048, -1), "R_ankle": (2048, 1),
-       "L_hip_roll": (2047, -1), "L_hip_pitch": (2048, 1), "L_knee": (2047, -1), "L_ankle": (2048, 1),
-       "R_hip_yaw": (2047, 1), "L_hip_yaw": (2047, 1), "R_ankle_roll": (2048, 1), "L_ankle_roll": (2047, 1)}
+# as-built calibration, `cal show` after the 2026-10-24 16:33Z re-zero (NVS): joint -> (zero ticks, dir).
+# The 2026-10-24 stand rehearsal ran on the previous zeros (all 2047-2048).
+CAL = {"R_hip_roll": (2059, -1), "R_hip_pitch": (1997, 1), "R_knee": (2125, -1), "R_ankle": (2045, 1),
+       "L_hip_roll": (2025, -1), "L_hip_pitch": (2058, 1), "L_knee": (1977, -1), "L_ankle": (2091, 1),
+       "R_hip_yaw": (2184, 1), "L_hip_yaw": (2153, 1), "R_ankle_roll": (2085, 1), "L_ankle_roll": (2031, 1)}
 ROLLS = ("L_hip_roll", "R_hip_roll", "L_ankle_roll", "R_ankle_roll")
 
 
