@@ -299,6 +299,9 @@ class DesignParams:
     m_neck_servo: float = 0.055  # STS3215
     m_head: float = 0.039        # head 34.7 g + Camera Module 3 (CAD 2026-09-14)
     head_h: float = 0.050        # neck horn face -> head CoM
+    head: bool = True            # False = no neck servo, neck joint/actuator, head or camera
+                                 # (the legs-only as-built body, 2026-10-24); a battery /
+                                 # Pi / power module of mass 0 is left out of the plant too
 
     @property
     def z_hip_pitch_above_sole(self) -> float:
@@ -330,7 +333,7 @@ class DesignParams:
         return (f"hip_sep {1e3*self.hip_sep:.0f}  thigh {1e3*self.thigh:.0f}  "
                 f"shank {1e3*self.shank:.0f}  d_ankle {1e3*self.d_ankle:.0f}  "
                 f"foot {1e3*self.foot_len:.0f}x{1e3*self.foot_w:.0f}  knee {self.knee}  "
-                f"{'torso v7 (Pi 4B + head)  ' if self.torso_v7 else ''}"
+                f"{('torso v7 (Pi 4B + head)  ' if self.head else 'torso v7 (control board only: no pack, Pi, head)  ') if self.torso_v7 else ''}"
                 f"{f'arms {1e3*self.arm_len:.0f}+{1e3*self.arm_fore_len:.0f} mm (shoulder + elbow), at rest shoulder {self.arm_hold:g} / elbow {self.arm_elbow_hold:g} deg  ' if self.arms and self.arm_elbow else ''}"
                 f"yaw axis {1e3*self.z_yaw_above_sole:.0f} mm, deck top "
                 f"{1e3*(self.z_yaw_above_sole+self.deck_bot+self.deck_t):.0f} mm")
@@ -558,21 +561,25 @@ def _torso(p: DesignParams) -> str:
         s.append(f'      <!-- hip YAW servos hang under the housing floor, horn down on the yaw axis -->')
         for sgn in (1, -1):
             s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} {_f(sgn*p.hip_sep/2)} {_f(yaw_z)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.servo_mass}"/>')
-        s.append(f'      <!-- 3S 2200 mAh class pack, transverse, 105 x 36 x 26 -->')
-        s.append(f'      <geom type="box" pos="-0.012 0 {_f(zb)}" size="0.018 0.0525 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
-        s.append(f'      <!-- Pi 4B on the aft wall: 85 across (y), 56 tall (z), 20 deep with heatsink -->')
-        s.append(f'      <geom type="box" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.010 0.0425 0.028" mass="{p.m_pi4}" rgba="0.1 0.5 0.2 1" group="1"/>')
+        if p.m_battery > 0:
+            s.append(f'      <!-- 3S 2200 mAh class pack, transverse, 105 x 36 x 26 -->')
+            s.append(f'      <geom type="box" pos="-0.012 0 {_f(zb)}" size="0.018 0.0525 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
+        if p.m_pi4 > 0:
+            s.append(f'      <!-- Pi 4B on the aft wall: 85 across (y), 56 tall (z), 20 deep with heatsink -->')
+            s.append(f'      <geom type="box" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.010 0.0425 0.028" mass="{p.m_pi4}" rgba="0.1 0.5 0.2 1" group="1"/>')
         s.append(f'      <!-- General Driver on the front wall: 65 x 65, 12 deep -->')
         s.append(f'      <geom type="box" pos="{_f(d[1]-0.009)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.007 0.0325 0.0325" mass="{p.m_board}" rgba="0.1 0.5 0.2 1" group="1"/>')
-        s.append(f'      <!-- power: 3S protection / UPS module + 5 V buck, beside the pack -->')
-        s.append(f'      <geom type="box" pos="0.024 0 {_f(zb)}" size="0.014 0.030 0.010" mass="{p.m_power}" rgba="0.6 0.3 0.1 1" group="1"/>')
+        if p.m_power > 0:
+            s.append(f'      <!-- power: 3S protection / UPS module + 5 V buck, beside the pack -->')
+            s.append(f'      <geom type="box" pos="0.024 0 {_f(zb)}" size="0.014 0.030 0.010" mass="{p.m_power}" rgba="0.6 0.3 0.1 1" group="1"/>')
         s.append(f'      <geom type="box" pos="0.0 0 {_f(p.deck_bot - 0.010)}" size="0.02 0.03 0.006" mass="{p.m_wiring}" rgba="0.3 0.3 0.3 0.4" group="1"/>')
         s.append(f'      <site name="imu" pos="{_f(d[1]-0.016)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.004" rgba="1 0 0 0.6"/>')
         # neck servo: axis Z, case above the deck, horn up (the head body itself is
         # emitted by _head() AFTER the legs, so the neck joint is LAST in qpos)
         zn = p.deck_bot + p.deck_t
-        s.append(f'      <!-- neck STS3215, axis Z, horn UP; the head yaws on it -->')
-        s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} 0 {_f(zn + SV_T/2)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.m_neck_servo}"/>')
+        if p.head:
+            s.append(f'      <!-- neck STS3215, axis Z, horn UP; the head yaws on it -->')
+            s.append(f'      <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} 0 {_f(zn + SV_T/2)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.m_neck_servo}"/>')
         s.append(f'      <body name="pi_bay" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}">')
         s.append(f'        <geom type="box" size="0.002 0.002 0.002" mass="{p.payload_ref}" rgba="0.8 0.2 0.6 0.0" group="3"/>')
         s.append(f'      </body>')
@@ -607,13 +614,17 @@ def _torso(p: DesignParams) -> str:
     else:
         b.append(f'        <geom name="torso_deck" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(zdeck)}" size="{_f(deck_hx)} {_f(p.deck_w/2)} {_f(p.deck_t/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 1" group="1"/>')
         b.append(f'        <geom name="torso_housing" {_fc(p)}type="box" pos="{_f(deck_cx)} 0 {_f(p.deck_bot/2)}" size="{_f(deck_hx*0.9)} {_f(p.deck_w/2 - 0.004)} {_f(p.deck_bot/2)}" mass="{p.m_pelvis*0.5}" rgba="0.82 0.84 0.87 0.25" group="1"/>')
-    b.append(f'        <geom type="box" pos="-0.012 0 {_f(zb)}" size="0.018 0.0525 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
-    b.append(f'        <geom type="box" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.010 0.0425 0.028" mass="{p.m_pi4}" rgba="0.1 0.5 0.2 1" group="1"/>')
+    if p.m_battery > 0:
+        b.append(f'        <geom type="box" pos="-0.012 0 {_f(zb)}" size="0.018 0.0525 0.013" mass="{p.m_battery}" rgba="0.15 0.35 0.75 1" group="1"/>')
+    if p.m_pi4 > 0:
+        b.append(f'        <geom type="box" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.010 0.0425 0.028" mass="{p.m_pi4}" rgba="0.1 0.5 0.2 1" group="1"/>')
     b.append(f'        <geom type="box" pos="{_f(d[1]-0.009)} 0 {_f(p.deck_bot/2 + 0.004)}" size="0.007 0.0325 0.0325" mass="{p.m_board}" rgba="0.1 0.5 0.2 1" group="1"/>')
-    b.append(f'        <geom type="box" pos="0.024 0 {_f(zb)}" size="0.014 0.030 0.010" mass="{p.m_power}" rgba="0.6 0.3 0.1 1" group="1"/>')
+    if p.m_power > 0:
+        b.append(f'        <geom type="box" pos="0.024 0 {_f(zb)}" size="0.014 0.030 0.010" mass="{p.m_power}" rgba="0.6 0.3 0.1 1" group="1"/>')
     b.append(f'        <geom type="box" pos="0.0 0 {_f(p.deck_bot - 0.010)}" size="0.02 0.03 0.006" mass="{p.m_wiring}" rgba="0.3 0.3 0.3 0.4" group="1"/>')
     zn = p.deck_bot + p.deck_t
-    b.append(f'        <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} 0 {_f(zn + SV_T/2)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.m_neck_servo}"/>')
+    if p.head:
+        b.append(f'        <geom class="servo" pos="{_f(-(SV_LEN/2 - SV_AX_OUT))} 0 {_f(zn + SV_T/2)}" size="{_f(yaw_case[0])} {_f(yaw_case[1])} {_f(yaw_case[2])}" mass="{p.m_neck_servo}"/>')
     b.append(f'        <body name="pi_bay" pos="{_f(d[0]+0.011)} 0 {_f(p.deck_bot/2 + 0.004)}">')
     b.append(f'          <geom type="box" size="0.002 0.002 0.002" mass="{p.payload_ref}" rgba="0.8 0.2 0.6 0.0" group="3"/>')
     b.append(f'        </body>')
@@ -732,7 +743,7 @@ def _skid(p: DesignParams) -> str:
 
 
 def _head(p: DesignParams) -> str:
-    if not p.torso_v7 or p.bird_body:   # bird_body: the slab IS the head, no neck servo/joint
+    if not p.torso_v7 or p.bird_body or not p.head:   # bird_body: the slab IS the head, no neck servo/joint
         return ""
     zn = p.deck_bot + p.deck_t
     head_body = f"""
@@ -778,7 +789,7 @@ def build_xml(p: DesignParams) -> str:
         ):
             acts.append(f'    <position name="{side}_{jn}" joint="{side}_{jn}" '
                         f'ctrlrange="{r(lo):.10f} {r(hi):.10f}"/>  <!-- {lo:.0f} .. {hi:.0f} -->')
-    if p.torso_v7 and not p.bird_body:
+    if p.torso_v7 and not p.bird_body and p.head:
         acts.append(f'    <position name="neck_yaw" joint="neck_yaw" ctrlrange="{r(-90):.10f} {r(90):.10f}"/>  <!-- head yaw -->')
     if p.arms:   # actuator order == joint (qpos) order: per arm [abd,] shoulder[, elbow], then the tail
         for side in ("L", "R"):

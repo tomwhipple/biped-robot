@@ -54,15 +54,17 @@ def _union(boxes):
     return tuple((lo + hi) / 2), tuple((hi - lo) / 2)
 
 
-def part_boxes(arms=True):
+def part_boxes(arms=True, head=True):
     """body -> {label: (centre, half)}: every CAD part's box in its body frame."""
     out = {}
-    for body, items in M.parts(arms).items():
+    for body, items in M.parts(arms, head).items():
         for stl, off, _ in items:
             out.setdefault(body, {})[stl] = _aabb(B.stl(stl), tuple(off))
     for body, keys in M.SERVOS.items():
         for k in keys:
             if k.startswith(("shoulder", "elbow")) and not arms:
+                continue
+            if k == "neck" and not head:
                 continue
             out.setdefault(body, {})[f"servo_{k}"] = _aabb(os.path.join(M.SERVO_DIR, f"servo_{k}.stl"), (0, 0, 0))
     return out
@@ -99,8 +101,8 @@ def _centre(line):
     return np.array([float(v) for v in m.group(1).split()]) if m else np.zeros(3)
 
 
-def fit(src: str, arms=True) -> str:
-    P = part_boxes(arms)
+def fit(src: str, arms=True, head=True) -> str:
+    P = part_boxes(arms, head)
     out, stack = [], []
     for line in src.split("\n"):
         mb = re.search(r'<body name="([^"]+)"', line)

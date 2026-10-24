@@ -251,7 +251,7 @@ class State(NamedTuple):
                               # kp/kd are references, times the static
                               # per-servo profile (_kp_prof/_kd_prof)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
-    lash: jax.Array           # ()  per-episode backlash (rad)
+    lash: jax.Array           # () or (n_servo,)  per-episode backlash (rad); per servo when roll_lash is on
     zero_off: jax.Array       # (n_servo,) per-episode joint ZERO OFFSET (rad):
                               # the servo's tick zero vs the policy's frame.
                               # The hardware zero is set by eye and moved by
@@ -610,6 +610,14 @@ class BimoMJXEnv:
         latency_jitter_ms: float = 0.0,
         backlash_deg: float = 0.0,
         backlash_deg_max: float | None = None,
+        roll_lash_deg: float = 0.0,   # EXTRA deadzone width (peak-to-peak, deg) on
+        # the four roll joints (hip_roll, ankle_roll) on top of backlash_deg: the
+        # play downstream of the encoders (hw 2026-10-24; walker_env mirror)
+        roll_lash_deg_max: float | None = None,  # per-episode draw uniform(lo, max)
+        torso_mass_range: float | None = None,   # batch-level torso mass/inertia
+        # scale U(1-r, 1+r) INSTEAD of mass_range for the torso body
+        torso_com_y: float = 0.0,     # batch-level lateral torso CoM offset
+        # U(-c, +c) m (body_ipos y) -- lateral asymmetry DR
         zero_offset_deg: float = 0.0,   # per-episode per-joint zero offset
         # drawn uniform(-z, +z) deg (calibration-error DR, 2026-09-03)
         act_lag_hz: float = 0.0,
@@ -851,6 +859,7 @@ class BimoMJXEnv:
         # -- observations ---------------------------------------------------------
         imu_obs: bool = True,
         imu_noise: float = 1.0,
+        imu_mount_deg: float = 2.0,   # 1-sigma IMU mounting misalignment (deg), before imu_noise
         gyro_gain_range: tuple | None = None,   # per-episode gyro obs gain DR
         gyro_delay_max: int = 0,                # per-episode gyro obs delay, ticks
         act_delay_max: int = 0,                 # per-episode servo dead time, ticks
@@ -1211,6 +1220,16 @@ class BimoMJXEnv:
         self.latency_ms = latency_ms
         self.latency_ms_max = latency_ms_max
         self.latency_jitter_ms = latency_jitter_ms
+        self.roll_lash_rad = float(np.deg2rad(roll_lash_deg))
+        self.roll_lash_rad_max = (None if roll_lash_deg_max is None
+                                  else float(np.deg2rad(roll_lash_deg_max)))
+        self._roll_mask = jp.asarray(np.array(
+            [n[2:] in ("hip_roll", "ankle_roll") for n in self._servo_names],
+            dtype=np.float32))
+        self.torso_mass_range = torso_mass_range
+        self.torso_com_y = float(torso_com_y)
+        self._nom_ipos = jp.asarray(np.array(self.mj_model.body_ipos))
+        self._torso_bid = int(self.mj_model.body("torso").id)
         self.backlash_rad = float(np.deg2rad(backlash_deg))
         self.backlash_rad_max = (None if backlash_deg_max is None
                                  else float(np.deg2rad(backlash_deg_max)))
@@ -1332,6 +1351,7 @@ class BimoMJXEnv:
             self.getup_start_mix = recover_start_mix
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
+        self.imu_mount_deg = float(imu_mount_deg)
         self.gyro_gain_range = (tuple(float(x) for x in gyro_gain_range)
                                 if gyro_gain_range is not None else None)
         self.gyro_delay_max = int(gyro_delay_max)
@@ -1895,6 +1915,16 @@ class BimoMJXEnv:
                                       maxval=self.backlash_rad_max)
         else:
             lash = jp.asarray(self.backlash_rad, dtype=jp.float32)
+        if self.roll_lash_rad_max is not None or self.roll_lash_rad > 0.0:
+            # per-servo deadzone: the roll joints add their own downstream play
+            # (fold_in: every existing draw keeps its stream when the feature is off)
+            if self.roll_lash_rad_max is not None:
+                extra = jax.random.uniform(jax.random.fold_in(rng, 5151),
+                                           minval=self.roll_lash_rad,
+                                           maxval=self.roll_lash_rad_max)
+            else:
+                extra = jp.asarray(self.roll_lash_rad, dtype=jp.float32)
+            lash = lash + extra * self._roll_mask
         if self.zero_offset_rad > 0.0:
             # per SERVO: a held servo's zero is set by eye like any other
             zero_off = jax.random.uniform(jax.random.fold_in(r_lash, 7),
@@ -1914,7 +1944,7 @@ class BimoMJXEnv:
         else:
             servo = self._nom_servo
         if self.imu_obs and self.domain_rand and self.imu_noise > 0.0:
-            ang = jax.random.normal(r_ang) * np.deg2rad(2.0) * self.imu_noise
+            ang = jax.random.normal(r_ang) * np.deg2rad(self.imu_mount_deg) * self.imu_noise
             ax = jax.random.normal(r_ax, (3,))
             ax = ax / (jp.linalg.norm(ax) + 1e-9)
             k = jp.array([[0.0, -ax[2], ax[1]],
@@ -3157,7 +3187,8 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                      floor_gid: int = 0, nom_mass=None, nom_inertia=None,
                      nom_friction=None, tilt_max_deg: float = 0.0,
                      joint_frictionloss_range=None, nom_frictionloss=None,
-                     jv=(0, 0)):
+                     jv=(0, 0), torso_bid=None, torso_mass_range=None,
+                     torso_com_y=0.0, nom_ipos=None):
     """Batch-level model DR (brax randomization_fn style): per-env body
     mass/inertia scale, floor friction scale, payload mass draw, and --
     when tilt_max_deg > 0 -- a per-env GRAVITY TILT. Returns
@@ -3184,6 +3215,15 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
         r_m, r_f, r_p, r_t, r_a, r_j = jax.random.split(rng, 6)
         mf = jax.random.uniform(r_m, (nbody,), minval=1 - mass_range,
                                 maxval=1 + mass_range)
+        if torso_mass_range is not None:
+            mf = mf.at[torso_bid].set(jax.random.uniform(
+                jax.random.fold_in(r_m, 11), minval=1 - torso_mass_range,
+                maxval=1 + torso_mass_range))
+        ipos = nom_ipos
+        if torso_com_y > 0.0:
+            ipos = nom_ipos.at[torso_bid, 1].add(jax.random.uniform(
+                jax.random.fold_in(r_m, 12), minval=-torso_com_y,
+                maxval=torso_com_y))
         mass = nom_mass * mf
         inertia = nom_inertia * mf[:, None]
         ff = jax.random.uniform(r_f, minval=1 - friction_range,
@@ -3206,9 +3246,9 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                 jax.random.uniform(r_j, minval=lo, maxval=hi))
         else:
             fl = nom_frictionloss
-        return mass, inertia, friction, gravity, fl
+        return mass, inertia, friction, gravity, fl, ipos
 
-    mass, inertia, friction, gravity, frictionloss = rand(rng)
+    mass, inertia, friction, gravity, frictionloss, ipos = rand(rng)
     in_axes = jax.tree_util.tree_map(lambda x: None, model)
     fields = {"body_mass": 0, "body_inertia": 0, "geom_friction": 0}
     values = {"body_mass": mass, "body_inertia": inertia,
@@ -3219,6 +3259,9 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
     if joint_frictionloss_range is not None:
         fields["dof_frictionloss"] = 0
         values["dof_frictionloss"] = frictionloss
+    if torso_com_y > 0.0:
+        fields["body_ipos"] = 0
+        values["body_ipos"] = ipos
     in_axes = in_axes.tree_replace(fields)
     model = model.tree_replace(values)
     return model, in_axes

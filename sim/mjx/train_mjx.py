@@ -100,7 +100,9 @@ class BatchedEnv(brax_base.Env):
                     nom_inertia=e._nom_inertia, nom_friction=e._nom_friction,
                     tilt_max_deg=e.tilt_max_deg,
                     joint_frictionloss_range=e.joint_frictionloss_range,
-                    nom_frictionloss=e._nom_frictionloss, jv=(e._jv0, e._jv1))
+                    nom_frictionloss=e._nom_frictionloss, jv=(e._jv0, e._jv1),
+                    torso_bid=e._torso_bid, torso_mass_range=e.torso_mass_range,
+                    torso_com_y=e.torso_com_y, nom_ipos=e._nom_ipos)
         return self._dr_cache[n]
 
     @property
@@ -504,6 +506,24 @@ def make_parser():
     p.add_argument("--backlash-deg", default=None,
                    help="per-episode gear backlash draw 'lo,hi' deg, applied "
                         "AFTER the --precision block (which zeroes it)")
+    p.add_argument("--eval-scenarios", default="",
+                   help="comma list of referee scenarios graded on this run's "
+                        "default scorecard IN ADDITION to its family's "
+                        "(recorded in config.json['train']; eval_precision "
+                        "reads it), e.g. walk_steps_L,walk_steps_R")
+    p.add_argument("--roll-lash-deg", default=None,
+                   help="per-episode EXTRA deadzone draw 'lo,hi' deg on the four "
+                        "roll joints (hip_roll, ankle_roll) only: the play "
+                        "downstream of the encoders (hw 2026-10-24; "
+                        "docs/design-v6/roll-compliance-2026-10-24.md)")
+    p.add_argument("--torso-mass-range", type=float, default=None,
+                   help="torso mass/inertia DR +-fraction (replaces the generic "
+                        "--mass-range draw for the torso body)")
+    p.add_argument("--torso-com-y", type=float, default=None,
+                   help="lateral torso CoM offset DR +-m (the same weight shift "
+                        "balanced ~3 deg better on one stance, hw 2026-10-24)")
+    p.add_argument("--imu-mount-deg", type=float, default=None,
+                   help="1-sigma IMU mounting misalignment DR, deg (default 2)")
     p.add_argument("--zero-offset-deg", type=float, default=None,
                    help="per-episode per-joint zero-offset DR, +-deg (the "
                         "hardware zero is set by eye; moved 1-4.7 deg 2026-09-03)")
@@ -710,6 +730,15 @@ def build_env_kw(args):
     if args.act_lag is not None:
         lo, hi = (float(x) for x in args.act_lag.split(","))
         env_kw.update(act_lag_hz=lo, act_lag_hz_max=hi)
+    if args.roll_lash_deg is not None:
+        lo, hi = (float(x) for x in args.roll_lash_deg.split(","))
+        env_kw.update(roll_lash_deg=lo, roll_lash_deg_max=hi)
+    if args.torso_mass_range is not None:
+        env_kw["torso_mass_range"] = args.torso_mass_range
+    if args.torso_com_y is not None:
+        env_kw["torso_com_y"] = args.torso_com_y
+    if args.imu_mount_deg is not None:
+        env_kw["imu_mount_deg"] = args.imu_mount_deg
     if args.backlash_deg is not None:
         lo, hi = (float(x) for x in args.backlash_deg.split(","))
         env_kw.update(backlash_deg=lo, backlash_deg_max=hi)

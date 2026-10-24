@@ -101,10 +101,11 @@ Around the PD loop:
 | floor contacts | `all`: the plant as drawn. `feet` (training only): only the sole pads touch the floor; the servo boxes, the fall colliders and the arms stop colliding with it, and the explicit self-collision pairs stay. Those contacts only matter in a fall, which ends the episode, but MJX reserves and solves their slots every step: on the robot plant `feet` cuts 182 contact slots to 56 and the physics step about 3.5× (laptop CPU). The referee always grades with `all` | `floor_contacts`, `--floor-contacts feet` |
 | bus latency | the first sub-steps of each tick still serve the previous target; 0–8 ms per episode, ±1 ms jitter per tick | `latency_ms`, `latency_ms_max`, `latency_jitter_ms` |
 | gear backlash | a deadzone of ±lash/2 on the PD error; 0.5–1.0° per episode | `--backlash-deg lo,hi` |
+| roll play | an EXTRA deadzone on the four roll joints (hip roll, ankle roll) only, on top of the backlash: the play downstream of the encoders. Calibrated on the legs-only body so a 30 mm one-foot lift tilts the torso ~5° with the stance encoders moving ~1° (`sim/roll_compliance.py`, [roll-compliance-2026-10-24](design-v6/roll-compliance-2026-10-24.md)); total roll deadzone ≈ 2.6°. 1.0–2.6° extra per episode in the legs-only runs, MJX and CPU | `--roll-lash-deg lo,hi` (`roll_lash_deg`, `roll_lash_deg_max`) |
 | actuation lag | three cascaded first-order stages on the commanded target (the firmware command shaper's structure), pole drawn per episode | `--act-lag lo,hi` (Hz) |
 | dead time | the servo serves the target from 0–N control ticks ago | `--act-delay-max N` |
 | quantization | observed q and q̇, and the commanded targets, on the 4096-tick grid and integer steps/s | `--quantize` |
-| free play | the link floats inside ±play/2 of the shaft and is driven only at the band edges — hysteresis, where backlash is a deadzone. **CPU plant only** (`walker_env.py`): the SIL twin and the design gates use it, MJX training does not | `play_deg`, `play_joints` |
+| free play | the link floats inside ±play/2 of the shaft and is driven only at the band edges — hysteresis, where backlash is a deadzone. **CPU plant only** (`walker_env.py`): the SIL twin and the design gates use it, MJX training does not (it gets the same steady-state effect from the roll-play deadzone above) | `play_deg`, `play_joints` |
 | rough floor | `sim/terrain_mosaic.npz` (from `sim/mjx/gen_terrain_mosaic.py`): 12 × 6 m of 1 m tiles, 2–6 mm carpet-like texture, a random spawn point per episode | `--terrain` |
 
 The bench numbers behind these knobs: the servo's dead time measures ≈ 85 ms
@@ -347,7 +348,8 @@ robust to something the robot does not do and fragile to what it does.
 **Batch level** — one randomized model per parallel env, drawn once per batch
 size (`domain_randomize`, the standard MJX pattern):
 
-- body mass and inertia × U(0.85, 1.15), per body;
+- body mass and inertia × U(0.85, 1.15), per body; `--torso-mass-range r` draws the torso's scale from U(1−r, 1+r) instead (the legs-only runs use 0.4: the as-built torso is an unweighed estimate);
+- `--torso-com-y c`: the torso's CoM shifted laterally by U(−c, +c) m (±15 mm in the legs-only runs: the same model weight shift balanced ~3° better on one stance foot than the other);
 - floor friction × U(0.6, 1.4);
 - gravity tilted by U(0, `--tilt-max`)° about a random azimuth — an un-level
   floor, as the IMU sees it (off by default);
@@ -359,7 +361,7 @@ freeze them.
 
 - servo kp and kd × U(0.8, 1.2); stall torque and no-load speed × U(0.85, 1.15);
 - latency 0–8 ms (±1 ms per tick) and backlash 0.5–1.0° (§2);
-- IMU mounting misalignment (a rotation of N(0, 2°) about a random axis), gyro
+- IMU mounting misalignment (a rotation of N(0, `--imu-mount-deg`) about a random axis, 2° by default, 3° in the legs-only runs: the stored mount is from the old body), gyro
   bias U(±0.03 rad/s), and per-step noise (σ 0.01 on `up`, 0.03 rad/s on the
   gyro);
 - velocity kicks U(0.1, 1.0) m/s at 1 % per tick (`--kick-range`,
@@ -376,6 +378,7 @@ freeze them.
 | `--zero-offset-deg z` | per-joint zero offset U(±z): the served target is target + offset, the observation subtracts it | hardware zeros are set by eye and move by degrees after a mechanical disturbance |
 | `--gyro-gain-range lo,hi`, `--gyro-delay-max N` | gyro observation gain; delay ≤ 2 ticks | IMU scale and timing error |
 | `--cmd-crouch-range lo,hi` | crouch-channel draw | the firmware battery guard lowers c3 on a sagging pack; a frozen channel also collapses its normalizer |
+| `--roll-lash-deg lo,hi` | extra roll-joint deadzone, degrees | the play downstream of the roll encoders (§2) |
 | `--terrain`, `--quantize` | rough floor; tick quantization | §2 |
 
 `--discovery` strips DR, payload, latency, backlash and pushes: a clean-physics
@@ -596,6 +599,7 @@ Pass criteria, in addition to not falling:
 | `squat_reps` | loco, skills | 3 × (crouch 0.70 for 1.5 s, stand 1.5 s) | every rep within 3.5 cm of the crouch target and back to ≥ 92 % height; drift RMS < 0.10 m |
 | `weight_shift` | loco, skills | 1.5 s single-leg holds L, R, twice, at crouch 0.85 | ≥ 3 of 4 clean holds; drift RMS < 0.10 m |
 | `balance_L/R` | skills | lift one foot for 10 s | lifted-foot contact < 5 %; ≥ 3 cm clearance for ≥ 90 % of the window; drift RMS < 0.10 m |
+| `walk_steps_L/R` | on request (`--scenarios`, or `--eval-scenarios` at train time) | stand 1 s, vx 0.30 for 1.8 s starting with the L / R foot (the gait clock is set so that foot swings first), then stand | no fall; ≥ 4 steps and ≥ 2 per foot, a step being a swing of ≥ 3 ticks that begins between the command and 0.4 s after the stop; **every step lifts its own foot's sole ≥ 3 cm** above the standing sole height (the per-step minimum, not a fraction); ≥ 0.25 m forward; upright at the end; lateral drift < 0.25 m. Reports `lead_ok` (the requested foot went first), informational |
 | `circle_air_L/R` | skills | lift, then 2 circles of 4 cm with the foot | touchdown < 10 %; clearance ≥ 3 cm for ≥ 80 %; traced radius ≥ 3 cm and ≥ one full sweep |
 | `crouch_hold` | skills | crouch 0.7 for 3 s, then stand | height within 3.5 cm of target; recovers to ≥ 90 % |
 | `march_in_place` | skills | alternating lifts every 0.7 s | ≥ 3 clean lifts per leg (≥ 0.3 s at ≥ 3 cm); drift < 0.15 m |
@@ -605,7 +609,12 @@ Pass criteria, in addition to not falling:
 | `recover_fallen` | getup | start from a settled ragdoll | held stand within 6 s; ≥ 85 % height at the end |
 
 (Heights are fractions of the plant's nominal torso height.) `handover_stand`
-exists behind `--scenarios` only, so it never moves the comparable totals.
+and `walk_steps_L/R` exist behind `--scenarios` only, so they never move the comparable totals.
+A run can ask for extra scenarios on its own default card with `train_mjx.py
+--eval-scenarios walk_steps_L,walk_steps_R` (recorded in `config.json`); the card
+then has more rows than its family's, and its total is not comparable with the
+family's. `balance_L/R` also report `one_foot_s` and `one_foot_run_s` (time on one
+foot with the lifted sole ≥ 3 cm, total and longest unbroken); the pass rule is unchanged.
 
 **Metrics.** Pass/fail is a threshold view; every seed also records continuous
 metrics — endpoint and tracking errors, clearance fraction, drift RMS,
@@ -791,14 +800,14 @@ the obs-spec generator rebuild the same robot:
 
 | piece | on the robot's plant |
 |---|---|
-| plant | `sim/bimo_biped_v6ar.xml`, generated by `sim/gen_plant_v6.py` with CAD inertials from `sim/build_v6_inertia.py`. The committed file carries the 12 leg joints and the neck yaw; the arms (shoulder pitch + elbow per side) come with the CAD track's regeneration and need nothing here — every layout is read from the model, and `tests/test_robot_plant.py` runs a generated 17-servo plant today. No payload: the camera is in the head, which the plant models |
+| plant | `sim/bimo_biped_v6ar.xml` (the body as drawn: legs, neck, arms) and `sim/bimo_biped_v6legs.xml` (the body as built on the bench: the 12 leg servos and the control board, no pack, Pi, head, neck or arms; `--xml bimo_biped_v6legs.xml`, `build_v6_inertia.asbuilt_legs`). The ar plant is generated by `sim/gen_plant_v6.py` with CAD inertials from `sim/build_v6_inertia.py`. The committed file carries the 12 leg joints and the neck yaw; the arms (shoulder pitch + elbow per side) come with the CAD track's regeneration and need nothing here — every layout is read from the model, and `tests/test_robot_plant.py` runs a generated 17-servo plant today. No payload: the camera is in the head, which the plant models |
 | policy joints | the 12 leg joints, 6 per leg with the ankle roll: frame 55, network input 165, action 12 |
 | neck and arms | **held, not driven.** `held_joints` gives each a fixed servo target: neck 0°, the arms at their folded rest pose (`dimensions_v6.ARM_REST`: shoulders 15° forward, elbows folded 95°; DESIGN.md §5.4), the pose that clears every leg joint's full range. A held servo runs the same actuator model as the legs (PD, envelope, lag, dead time, backlash, ticks, zero offset), starts the episode at its target (it is the plant's `qpos0`), and is in neither the action nor the observation; torque and power metrics include it. Why not actions: the walking hold is a fixed pose by design, four arm actions would only have to learn to stay still, and the neck belongs to the Pi's camera later |
 | servo stiffness | per servo (`servo_kp_scale`, §2): the `robot` preset, × 4 on kp and kd of the hip rolls (STS3250) and × 2.8 on the ankle rolls and knees (STS3215 at P 96). The STS3250's larger stall and speed are not modelled: one STS3215 envelope for every servo |
 | hip pitch | policy range to −120° flexion (`hip_flex_deg`), the leg link's relief; the plant's stop stays at −125° |
 | reward roles | every policy joint must resolve to a role (`joint_role` in both envs: the six per-leg roles, neck, shoulder, elbow) or the env refuses to build — a joint a plant adds is held or named, never trained unregularized by accident. The posture, dof-limit and imitation terms sum over every policy joint, so the ankle roll is in them; the imitation reference keeps the sole level in pitch and roll (`mimic_sole_level`, §5) |
 | mirror | `mirror.py` maps over the policy joints (`joints=env._act_names`, as `--w-mirror-loss` passes them) and maps an unprefixed joint onto itself |
-| referee | `eval_precision.py` recognises the robot's plant by its ankle rolls and head camera: no pinned payload; `recover_sit` and `recover_fallen` are n/a (the robot gets up with the scripted arm sequence; legs alone cannot get this body up), `handover_stand` is n/a; every other scenario runs. n/a scenarios are listed in the scorecard and left out of the totals. `eval_ref.py` rebuilds the same world from `config.json` |
+| referee | `eval_precision.py` recognises the robot's plant by its ankle rolls and IMU (and the head camera where the plant has a head): no pinned payload; `recover_sit` and `recover_fallen` are n/a (the robot gets up with the scripted arm sequence; legs alone cannot get this body up), `handover_stand` is n/a; every other scenario runs. n/a scenarios are listed in the scorecard and left out of the totals. `eval_ref.py` rebuilds the same world from `config.json` |
 | parity | `sim/mjx/parity_test.py` blocks R1–R3 gate the CPU/MJX arithmetic on the robot's plant — Plan B, the held neck, a 17-servo plant with the arms held, the sole-level reference, quantization, airborne and in stance; `--robot-only` runs just those. `tests/test_robot_plant.py` is the smoke test |
 
 **Open before Gate E:**
@@ -806,7 +815,7 @@ the obs-spec generator rebuild the same robot:
 | piece | what remains |
 |---|---|
 | measured plant | the masses weighed (#82) replacing the CAD inertials; the stiffness factor from the bench (#73) replacing the nominal × 4 |
-| free play | modelled in the CPU plant only (`play_deg`, `play_joints`); the measured play per roll joint has to reach the training env and the referee's pinned conditions, since the walk's margins depend on it (DESIGN.md, "Walking") |
+| free play | the roll play is in the legs-only runs as an extra roll-joint deadzone (`--roll-lash-deg`, calibrated on the 2026-10-24 bench lift); the referee inherits the band from `config.json`. Still open: the play per joint (one lumped value for the four roll joints), and the shaft/link split in the observation (the sim's encoders read the link) |
 | referee thresholds | the absolute thresholds (distances, drifts, the torque-off stand's unmeasured passive friction) are the prototype's; re-derive them for the taller, heavier robot. The plant-measured targets (nominal height, knee height, crouch depth) already follow the plant; the crouch-depth limit (`crouch_theta_max_deg` 39°) and the rise and fallen-start poses are the prototype's numbers |
 | firmware headers | `tools/gen_obs_spec.py` builds the env and the golden frames from a robot run as it stands, but has no servo IDs for the robot (`ID_BY_ROLE`; none is assigned yet, [servo-map.md](servo-map.md), #77) and emits neither the held servos' IDs and targets nor the per-servo P the firmware must check at boot (#81); `weights.h` and the golden vectors regenerate with it |
 | SIL twin | `libctrl_sil`, its ABI and calibration files, and `sim/sil_twin.py` for the 17-servo layout; `eval_precision.py --sil` refuses the robot's plant until then |
