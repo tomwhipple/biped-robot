@@ -72,14 +72,16 @@ void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw 
 ```
 
 - **The arrays are the robot's bus**: 17 slots, one per servo
-  (`obs/bus_map.h`), `slot = servo ID − 1`. Policy joint *j* sits in slot
-  `kServoId[j] − 1`: with the generated `kServoId = {10, 5, 6, 7, 8, 9, 1, 2,
-  3, 4}`, slot 0 is servo 1, which is policy joint 6 (`R_hip_roll`). Putting
+  (`obs/bus_map.h`), in bus index order: slot *b* is servo `kBusServoId[b]`
+  (not ID *b* + 1 since the v6 assembly). Policy joint *j* sits in slot
+  `policyToBus(j)` (`busIndexOfId(kServoId[j])`): with the generated
+  `kServoId = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8}`, slot 0 is `R_hip_roll`
+  (servo 52), which is policy joint 6. Putting
   the permutation on the boundary is what makes it testable end to end.
   `sil_spec()` reports the convention, the permutation and the bus map, and
   the Python side **probes** the built library rather than assuming either
   (see the README).
-- **Slots the policy does not drive** (IDs 11–17 under the 10-joint policy)
+- **Slots the policy does not drive** (the ankle rolls, neck and arms under the 10-joint policy)
   are sensed but not observed, and their goals **hold**: the deployed run's
   trained target for a servo it holds (`obs_spec.h` `kHeld*`), otherwise the
   position sensed on the first tick after `sil_reset()` -- the firmware's

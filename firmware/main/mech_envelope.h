@@ -7,7 +7,7 @@
 // (cli.cpp clampToJointRange: `move`, `pose`, `home`) reads it. The act path
 // is untouched.
 //
-// Indexed by BUS joint (obs/bus_map.h: row b is servo ID b + 1), so every
+// Indexed by BUS joint (obs/bus_map.h, bus index order), so every
 // servo the robot carries has a row, including the ones no policy drives.
 //
 // Paired with docs/servo-map.md ("Mechanical envelope" section) the same way

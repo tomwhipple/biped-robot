@@ -461,7 +461,7 @@ joint sets and never confuses them:
 
 | | bus joints | policy joints |
 |---|---|---|
-| defined by | `obs/bus_map.h`, hand-written: 17, index *b* = servo ID *b* + 1 | `obs/obs_spec.h`, generated from the deployed run: `kNumJoints`, sim actuator order |
+| defined by | `obs/bus_map.h`, hand-written: 17, bus index *b* = joint `kBusJointNames[b]`, servo `kBusServoId[b]` (not *b* + 1) | `obs/obs_spec.h`, generated from the deployed run: `kNumJoints`, sim actuator order |
 | sized by it | the calibration blob, the envelope, `pose`/`home`/`ping`/`volt`, the gain check, the SYNC READ and WRITE, the telemetry joint block and `servo_err`, the SIL arrays | the observation, the action, the shaper, the takeover ramp, `obsdump` |
 | mapping | `obs::policyToBus(j)` / `obs::busToPolicy(b)`, checked at compile time: every policy joint is a bus joint with the same name and servo | |
 

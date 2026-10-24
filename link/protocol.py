@@ -26,8 +26,8 @@ from typing import NamedTuple
 MAGIC_CMD = b"BM"          # laptop -> robot ("BiMo")
 MAGIC_TLM = b"BT"          # robot -> laptop
 # Protocol version 2 (issue #81): the telemetry frame carries the robot's
-# 17-servo bus -- servo_err widens from one byte to a u32 (bit b = servo ID
-# b + 1) and the joint block is 17 angles in servo-ID order. The BASE block
+# 17-servo bus -- servo_err widens from one byte to a u32 (bit b = bus joint
+# b, obs/bus_map.h order) and the joint block is 17 angles in bus order. The BASE block
 # changed, which a length cannot say, so the version byte is 2 in BOTH
 # directions: a version-1 console and a version-2 robot refuse each other's
 # frames outright instead of one of them driving blind. Consoles and firmware
@@ -54,7 +54,7 @@ _TLM_BODY = "<2sBBIHhhhIB"
 _TLM_TIME_OFF = struct.calcsize(_TLM_BODY)          # 21: the u64 t_us
 TLM_LEN = _TLM_TIME_OFF + 8 + 2                     # 31
 # The JOINT block (mirror mode): one int16 milli-radian per bus joint, in
-# servo-ID order (JOINT_NAMES), for driving the real robot while a sim
+# bus order (JOINT_NAMES), for driving the real robot while a sim
 # follows its observed pose. The robot is the SENDER here and every client is
 # a decoder that rejects a length it does not know, so the long frame is
 # REQUESTED (FLAG_POSE), never volunteered: a client that asks is by
@@ -70,7 +70,7 @@ JOINT_NAMES = (
     "R_hip_yaw", "L_hip_yaw", "R_ankle_roll", "L_ankle_roll",
     "neck_yaw", "R_shoulder", "R_elbow", "L_shoulder", "L_elbow",
 )
-NUM_JOINTS = len(JOINT_NAMES)                       # 17; servo ID = index + 1
+NUM_JOINTS = len(JOINT_NAMES)                       # 17, bus order (servo IDs: bus_map.h kBusServoId)
 TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS              # 65
 
 # ATTITUDE: up_x and up_y appended after the joint block. up_z is in the base
@@ -340,7 +340,7 @@ class Telemetry(NamedTuple):
     vx_est: float          # m/s, body-frame forward
     wz_est: float          # rad/s
     servo_err: int         # u32 bitmask, bit b = BUS joint b faulted, i.e.
-                           # servo ID b + 1 (JOINT_NAMES order); only fitted
+                           # bus joint b (JOINT_NAMES order); only fitted
                            # servos ever set a bit
     loop_late_pct: int     # % of control ticks that overran 20 ms
     # Measured joint angles, radians, bus order (JOINT_NAMES: servo ID =

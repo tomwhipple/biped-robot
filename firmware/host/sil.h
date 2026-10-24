@@ -25,7 +25,7 @@ extern "C" {
 // pos_ticks, vel_ticks, goal_ticks and goal_speed cover EVERY servo on the
 // robot's bus (obs/bus_map.h, 17 of them), indexed by servo ID:
 //
-//     slot = servo_id - 1            (servo IDs are 1..17)
+//     slot = busIndexOfId(servo_id)  (bus index, NOT id - 1)
 //     policy joint j  <->  slot obs::kServoId[j] - 1
 //
 // kServoId is {10,5,6,7,8,9,1,2,3,4}, so slot 0 is servo ID 1 == R_hip_roll
@@ -36,13 +36,13 @@ extern "C" {
 // observed, and their goals HOLD: the deployed run's trained target for a
 // servo it holds (obs_spec.h kHeld*), else the position sensed on the first
 // tick after sil_reset -- ctrl_task's hold, without its takeover ramp.
-// sil_spec() reports "sensor_index":"bus_id-1", the kServoId array and the
+// sil_spec() reports "sensor_index":"bus_index", the kServoId array and the
 // bus map, so the python side asserts the convention rather than assume it.
 // ---------------------------------------------------------------------------
 
 typedef struct {              // what the bus + IMU actually deliver
     uint16_t pos_ticks[17];   // present position, reg 56 semantics (sign in
-                              //   BIT15, sign-magnitude), servo-ID order
+                              //   BIT15, sign-magnitude), bus order
     int16_t vel_ticks[17];    // present speed, reg 58 semantics: the BIT15
                               //   sign-magnitude word, carried in an int16_t
     float up[3];              // IMU up-vector, body frame
@@ -51,14 +51,14 @@ typedef struct {              // what the bus + IMU actually deliver
 } SilSensors;
 
 typedef struct {
-    uint16_t goal_ticks[17];  // SYNC WRITE view, servo-ID order. With shaping
+    uint16_t goal_ticks[17];  // SYNC WRITE view, bus order. With shaping
                               //   on (the default, as deployed) the policy's
                               //   slots are the C2-shaped targets, NOT the raw
                               //   action map; see sil_set_shaper.
     float action[10];         // the raw [-1,1] policy action (diagnostics)
     float obs[147];           // the assembled obs (diagnostics/golden)
     uint16_t goal_speed[17];  // per-servo goal speed (reg 46, steps/s) the
-                              //   SYNC WRITE carries, servo-ID order; 0 when
+                              //   SYNC WRITE carries, bus order; 0 when
                               //   shaping is off
 } SilTargets;
 

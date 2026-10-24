@@ -5,19 +5,23 @@
 //   bus joints     every servo the robot carries (this file, hand-written):
 //                  calibration, the mechanical envelope, `pose`/`home`, the
 //                  readback, the telemetry joint block and the SIL arrays are
-//                  all bus-joint wide. Index b is servo ID b + 1.
+//                  all bus-joint wide, in bus-index order. Bus index b is
+//                  joint kBusJointNames[b], whose servo is kBusServoId[b] --
+//                  NOT servo ID b + 1 (look an ID up with busIndexOfId).
 //   policy joints  the joints the compiled policy observes and commands
 //                  (obs_spec.h, generated from the deployed run): kNumJoints
 //                  of them, in the sim's actuator order, with kServoId naming
 //                  each one's servo. Always a subset of the bus joints.
 //
-// The map below is docs/servo-map.md section 2.1: IDs 1-10 are the prototype's
-// joints, unchanged, and 11-17 are the robot's ankle rolls, neck and arms.
-// It is PROPOSED, awaiting the owner's sign-off (issue #77); on the 10-joint
-// prototype, IDs 11-17 are simply not fitted (Calibration::fitted, set by
-// `cal`). Change it, tools/gen_obs_spec.py ID_BY_ROLE and servo-map.md in one
-// commit -- the static_asserts below and the SIL suite check that the three
-// agree with the generated policy spec.
+// The map below is docs/servo-map.md section 2.1: the v6 legs AS ASSEMBLED
+// (2026-10-23, read off the robot on the stand and written on each case by the
+// owner -- servos are not renumbered to fit a table). The legs' yaw / pitch /
+// knee / ankle IDs sit on the opposite side from the old prototype map, and the
+// STS3250 hip rolls are 52 (right) and 51 (left); the ankle rolls 11 / 12 and
+// the neck and arms 13-17 are unchanged. Change it, tools/gen_obs_spec.py
+// ID_BY_ROLE, tools/bus_cal.py BUS, servo_gains.h and servo-map.md in one
+// commit -- the static_asserts below and the SIL suite check that they agree
+// with the generated policy spec.
 #pragma once
 #include <stdint.h>
 
@@ -27,19 +31,21 @@ namespace obs {
 
 inline constexpr int kNumBusJoints = 17;
 
-// Index b <-> servo ID b + 1 (static_asserted below). Names are the plant's
-// joint names (sim/bimo_biped_v6ar.xml, arms from sim/gen_plant_v6.py).
+// Bus index order (kept from the prototype, so every bus-indexed table and
+// wire layout is unchanged). Names are the plant's joint names
+// (sim/bimo_biped_v6ar.xml, arms from sim/gen_plant_v6.py); the comment is the
+// servo ID, as kBusServoId.
 inline constexpr const char* kBusJointNames[kNumBusJoints] = {
-    "R_hip_roll",    // 1
-    "R_hip_pitch",   // 2
-    "R_knee",        // 3
-    "R_ankle",       // 4   pitch
-    "L_hip_roll",    // 5
-    "L_hip_pitch",   // 6
-    "L_knee",        // 7
-    "L_ankle",       // 8   pitch
-    "R_hip_yaw",     // 9
-    "L_hip_yaw",     // 10
+    "R_hip_roll",    // 52  STS3250
+    "R_hip_pitch",   // 6
+    "R_knee",        // 7
+    "R_ankle",       // 8   pitch
+    "L_hip_roll",    // 51  STS3250
+    "L_hip_pitch",   // 2
+    "L_knee",        // 3
+    "L_ankle",       // 4   pitch
+    "R_hip_yaw",     // 10
+    "L_hip_yaw",     // 9
     "R_ankle_roll",  // 11
     "L_ankle_roll",  // 12
     "neck_yaw",      // 13
@@ -49,9 +55,11 @@ inline constexpr const char* kBusJointNames[kNumBusJoints] = {
     "L_elbow",       // 17
 };
 inline constexpr uint8_t kBusServoId[kNumBusJoints] = {
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
+    52, 6, 7, 8, 51, 2, 3, 4, 10, 9, 11, 12, 13, 14, 15, 16, 17};
 // The board port each servo's chain hangs off: 'A' = H5 (the robot's right
-// side), 'B' = H6 (its left). The neck rides port A's upper branch.
+// side), 'B' = H6 (its left). The neck rides port A's upper branch. Both ports
+// carry the same bus, so which port each leg is actually plugged into is not
+// visible from software (unverified on the 2026-10-23 assembly).
 inline constexpr char kBusPort[kNumBusJoints] = {
     'A', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'A', 'B',
     'A', 'B', 'A', 'A', 'A', 'B', 'B'};
@@ -72,6 +80,17 @@ constexpr bool sameName(const char* a, const char* b) {
     }
     return *a == *b;
 }
+}  // namespace detail
+
+// Bus index of the joint called `name`, or -1.
+constexpr int busIndexOfName(const char* name) {
+    for (int b = 0; b < kNumBusJoints; ++b) {
+        if (detail::sameName(kBusJointNames[b], name)) return b;
+    }
+    return -1;
+}
+
+namespace detail {
 struct PolicyBusMap {
     int bus[kNumJoints];
 };
@@ -80,9 +99,12 @@ constexpr PolicyBusMap makePolicyBusMap() {
     for (int j = 0; j < kNumJoints; ++j) m.bus[j] = busIndexOfId(kServoId[j]);
     return m;
 }
-constexpr bool busIdsAreIndexPlusOne() {
-    for (int b = 0; b < kNumBusJoints; ++b) {
-        if (kBusServoId[b] != b + 1) return false;
+constexpr bool busIdsAreUniqueAndValid() {
+    for (int a = 0; a < kNumBusJoints; ++a) {
+        if (kBusServoId[a] < 1 || kBusServoId[a] > 253) return false;
+        for (int b = a + 1; b < kNumBusJoints; ++b) {
+            if (kBusServoId[a] == kBusServoId[b]) return false;
+        }
     }
     return true;
 }
@@ -161,9 +183,8 @@ static_assert(detail::plantServosAreBusJoints(),
 
 static_assert(kNumBusJoints >= kNumJoints,
               "the policy drives more joints than the bus carries");
-static_assert(detail::busIdsAreIndexPlusOne(),
-              "bus joint b must be servo ID b + 1 (the SIL arrays and the "
-              "telemetry joint block rely on it)");
+static_assert(detail::busIdsAreUniqueAndValid(),
+              "bus servo IDs must be unique and 1..253");
 static_assert(detail::policyIsASubsetOfTheBus(),
               "every policy joint's servo must be on the bus, under the same "
               "joint name, once");

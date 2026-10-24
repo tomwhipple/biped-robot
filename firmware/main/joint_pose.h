@@ -41,7 +41,7 @@ namespace robot {
 class JointPose {
   public:
     // -- control task (the writer) ----------------------------------------
-    // q: obs::kNumBusJoints radians, bus order (servo ID = index + 1);
+    // q: obs::kNumBusJoints radians, bus order;
     // an unfitted servo is 0. t_us: when the bus was
     // read, on esp_timer's clock (boot-relative microseconds) -- the beacon
     // turns it into wall time (timesync.h) so the stamp on a pose frame is

@@ -33,8 +33,8 @@ namespace robot {
 // rejected -- the robot boots uncalibrated and `run` refuses, instead of
 // twisting.
 //
-// v3 (issue #81) is indexed by BUS joint (obs/bus_map.h: index b is servo ID
-// b + 1), covers all 17 servos, and records which of them are fitted. v2 was
+// v3 (issue #81) is indexed by BUS joint (obs/bus_map.h bus index order, with
+// each joint's servo ID recorded), covers all 17 servos, and records which of them are fitted. v2 was
 // indexed by the prototype's 10 policy joints; a v2 blob migrates to v3
 // exactly and automatically at boot (calMigrateV2), so the robot keeps its
 // calibration across the change.
@@ -70,10 +70,16 @@ uint32_t calCrc32(const void* data, size_t len);
 inline constexpr int kLegacyJoints = 10;
 inline constexpr uint8_t kLegacyServoId[kLegacyJoints] = {10, 5, 6, 7, 8,
                                                           9,  1, 2, 3, 4};
+// The joint each of those servos was on the prototype. A legacy blob lands on
+// its bus joints BY NAME: the bus map's IDs changed with the v6 assembly
+// (2026-10-23), so the old IDs no longer name the same joints.
+inline constexpr const char* kLegacyJointNames[kLegacyJoints] = {
+    "L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle",
+    "R_hip_yaw", "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle"};
 
 // v2: joint-indexed, with its servo map. Proves its map, so it migrates to v3
 // automatically: each servo's zero and direction land on that servo's bus
-// joint, the ten are marked fitted, and IDs 11-17 are marked absent.
+// joint (by name), the ten are marked fitted, and the rest are marked absent.
 struct CalBlobV2 {
     uint32_t magic;
     uint16_t version;        // 2

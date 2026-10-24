@@ -158,7 +158,7 @@ void cmdPing(Sink out, int argc, char** argv) {
             bus->ping(static_cast<uint8_t>(id)) ? "present" : "no reply");
         return;
     }
-    // No argument: every bus joint, servo-ID order, against the fitted set.
+    // No argument: every bus joint, bus order, against the fitted set.
     const obs::Calibration& cal = robot::calibration();
     int missing = 0, fitted = 0;
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
@@ -416,7 +416,7 @@ void cmdPose(Sink out, int argc, char** argv) {
     // control loop uses, so the servos latch their targets together instead
     // of rippling through separate `move`s. Two forms, told apart by how many
     // numbers lead the line:
-    //   17 targets  every BUS joint, servo-ID order 1..17 (obs/bus_map.h);
+    //   17 targets  every BUS joint, bus order (obs/bus_map.h kBusJointNames) (obs/bus_map.h);
     //   10 targets  the policy's joints, obs_spec order (L yaw, roll, pitch,
     //               knee, ankle, then R) -- the prototype's bench tools speak
     //               this one; the other servos are left alone.
@@ -435,7 +435,7 @@ void cmdPose(Sink out, int argc, char** argv) {
                (nnum == obs::kNumJoints || nnum == obs::kNumJoints + 1)) {
         ntgt = obs::kNumJoints;
     } else {
-        say(out, "usage: pose <%d ticks, servo-ID order 1..%d> [s<ms>|t<ms>|"
+        say(out, "usage: pose <%d ticks, bus order, kBusJointNames 1..%d> [s<ms>|t<ms>|"
             "steps/s] [tokens]\r\n", obs::kNumBusJoints, obs::kNumBusJoints);
         say(out, "       pose <%d ticks, policy order: L yaw,roll,pitch,knee,"
             "ankle then R> [...]\r\n", obs::kNumJoints);
@@ -656,8 +656,9 @@ static int s_home_stage = 0;
 constexpr float kHomeWiggleDeg = 5.0f;     // abduction per hip; 5 deg measured 2026-09-13 (loads <= 88, pelvis level)
 constexpr long kHomeWiggleMs = 600L;       // per move (smooth), + settle before the next
 constexpr long kHomeWiggleSettleMs = 250L;
-// The hip rolls, by servo (obs/bus_map.h): 5 is L_hip_roll, 1 is R_hip_roll.
-constexpr int kBusLRoll = obs::busIndexOfId(5), kBusRRoll = obs::busIndexOfId(1);
+// The hip rolls, by joint name (obs/bus_map.h), not by servo ID.
+constexpr int kBusLRoll = obs::busIndexOfName("L_hip_roll"),
+              kBusRRoll = obs::busIndexOfName("R_hip_roll");
 static_assert(kBusLRoll >= 0 && kBusRRoll >= 0, "hip rolls must be on the bus");
 
 linkproto::ArmResult homeAll(Sink out, long spd) {
@@ -1110,7 +1111,7 @@ void cmdMode(Sink out, bool run) {
 // so a purely mechanical zero is never exact.
 void cmdCal(Sink out, int argc, char** argv) {
     // Joints are named by joint name (`L_knee`) or servo ID (`7`); rows are
-    // bus joints, servo-ID order (obs/bus_map.h).
+    // bus joints, bus order (obs/bus_map.h).
     obs::Calibration& cal = robot::calibration();
     if (argc < 2 || !strcmp(argv[1], "show")) {
         for (int b = 0; b < obs::kNumBusJoints; ++b) {
@@ -1131,7 +1132,7 @@ void cmdCal(Sink out, int argc, char** argv) {
         // when the robot is physically held at the CAD-neutral pose. With no
         // joint named, every bus joint is tried, and the answer also sets
         // the fitted set: a servo that replies is fitted, one that does not
-        // is marked NOT FITTED (a 10-servo prototype comes out as IDs 1-10).
+        // is marked NOT FITTED (a 10-servo prototype comes out as its ten leg joints).
         int only = -1;
         if (argc >= 3) {
             only = parseBusJoint(argv[2]);

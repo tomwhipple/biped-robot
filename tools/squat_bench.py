@@ -80,7 +80,7 @@ def release():
     say("!! RELEASED (torque off)")
 
 # --- calibration from the robot itself -------------------------------------
-# The board's `cal show` (v3 blob: 17 rows, servo-ID order, `fitted` flag)
+# The board's `cal show` (v3 blob: 17 rows, bus order, `fitted` flag)
 # is the only calibration this script trusts. On a parse failure the
 # fallback is the compiled-in prototype table (bus_cal.asbuilt_prototype_cal);
 # the script aborts unless the fitted set is exactly the ten leg+hip servos

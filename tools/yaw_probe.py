@@ -11,7 +11,7 @@ before each 1 deg step and integrated over a burst covering the slow move.
     .venv/bin/python tools/yaw_probe.py hw_sessions/<day>/yaw1.csv [--modes both,left,right]
 
 Calibration from the board's `cal show` (blob v3); asbuilt fallback.
-Pose strings are 17-wide in servo-ID order.
+Pose strings are 17-wide in bus order.
 """
 import serial, time, re, csv, math, sys, argparse, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

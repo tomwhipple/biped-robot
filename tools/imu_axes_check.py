@@ -1,7 +1,7 @@
 """Raw sensor-frame IMU check: accel rotation axis vs gyro integral through slow hip-pitch moves (2026-09-03).
 
 Calibration from the board's `cal show` (blob v3, 17-servo bus map);
-asbuilt fallback. Pose strings are 17-wide in servo-ID order.
+asbuilt fallback. Pose strings are 17-wide in bus order.
 """
 import serial, time, re, math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

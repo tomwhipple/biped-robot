@@ -121,7 +121,7 @@ struct TelemetrySnapshot {
     std::atomic<float> up_z{0.0f};
     std::atomic<float> vx_est{0.0f};
     std::atomic<float> wz_est{0.0f};
-    std::atomic<uint32_t> servo_err{0};      // bit b = bus joint b (servo ID b+1)
+    std::atomic<uint32_t> servo_err{0};      // bit b = bus joint b
     std::atomic<uint8_t> loop_late_pct{0};
     std::atomic<uint32_t> ticks{0};
     std::atomic<uint32_t> overruns{0};
@@ -160,7 +160,7 @@ extern ObsDump g_obs_dump;
 // (joint_pose.h). Same double-buffer-plus-counter shape as ObsDump, same
 // reason: ten loose atomics would tear across ticks.
 extern JointPose g_joint_pose;
-// The wire frame carries every BUS joint, in servo-ID order (obs/bus_map.h),
+// The wire frame carries every BUS joint, in bus order (obs/bus_map.h),
 // whatever the policy drives. Changing the bus changes protocol.py first.
 static_assert(linkproto::kNumJoints ==
                   static_cast<size_t>(obs::kNumBusJoints),

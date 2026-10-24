@@ -197,7 +197,8 @@ void testTickRoundTrip() {
 
 // -- 2. the kServoId permutation, end to end -------------------------------
 
-int slotOf(int joint) { return static_cast<int>(obs::kServoId[joint]) - 1; }
+// SIL slots are bus indices (sil_lib.cpp), found by servo ID -- not ID - 1.
+int slotOf(int joint) { return obs::policyToBus(joint); }
 
 void testServoPermutationEndToEnd() {
     const std::string nom = g_tmp_prefix + "cal_nominal.json";
@@ -242,9 +243,9 @@ void testServoPermutationEndToEnd() {
         }
     }
     CHECK(differs_from_identity);   // the permutation is exercised, not vacuous
-    CHECK_EQ(slotOf(0), 9);         // L_hip_yaw is bus ID 10 (assembly errata)
-    CHECK_EQ(slotOf(5), 8);         // R_hip_yaw is bus ID 9  (assembly errata)
-    CHECK_EQ(slotOf(1), 4);         // L_hip_roll is bus ID 5 (legs swapped)
+    CHECK_EQ(slotOf(0), 9);         // L_hip_yaw: bus index 9, servo ID 9
+    CHECK_EQ(slotOf(5), 8);         // R_hip_yaw: bus index 8, servo ID 10
+    CHECK_EQ(slotOf(1), 4);         // L_hip_roll: bus index 4, servo ID 51
 
     // Targets: the SYNC WRITE view must be indexed the same way.
     float angle[obs::kNumJoints];
@@ -252,9 +253,8 @@ void testServoPermutationEndToEnd() {
     for (int j = 0; j < obs::kNumJoints; ++j) {
         CHECK_EQ(out.goal_ticks[slotOf(j)], obs::angleToSteps(j, angle[j], cal));
     }
-    // Velocity is sign-magnitude, not two's complement. Joint 2 sits on bus
-    // ID 6 == slot 5 (it was bus ID 2 before the legs-swapped errata), which
-    // was given a NEGATIVE speed: its word is 0x8004, which read as two's
+    // Velocity is sign-magnitude, not two's complement. Joint 2 (L_hip_pitch,
+    // servo ID 2) sits in slot 5, which was given a NEGATIVE speed: its word is 0x8004, which read as two's
     // complement would be -32764 steps/s (-50 rad/s) rather than -4 steps/s.
     // That is the vendor-UI byte-order bug, so it gets its own assertion
     // rather than riding on the loop above.
@@ -649,7 +649,7 @@ void testSpec() {
         CHECK_EQ(ids[static_cast<size_t>(j)], obs::kServoId[j]);
     }
     d = v.get("sensor_index");
-    CHECK(d && d->isStr() && d->str == "bus_id-1");
+    CHECK(d && d->isStr() && d->str == "bus_index");
 
     d = v.get("spec_hash");
     CHECK(d && d->isStr() && d->str.size() == 18);   // 0x + 16 hex digits
@@ -693,7 +693,7 @@ void testSpec() {
 }
 
 // -- 6b. the bus slots the policy does not drive (sil_abi 3) --------------
-// The arrays are 17 wide, servo-ID order. Slots no policy joint maps to are
+// The arrays are 17 wide, bus order. Slots no policy joint maps to are
 // sensed but never observed, and their goals HOLD the position sensed on the
 // first tick after a reset -- ctrl_task's hold for a fitted servo the policy
 // does not drive. And a calibration file may carry those servos too.

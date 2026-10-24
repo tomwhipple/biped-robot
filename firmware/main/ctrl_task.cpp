@@ -320,7 +320,7 @@ void ctrlTask(void*) {
         // beacon. One 40-byte copy and a release store; lands in us_other.
         // Stamped with the middle of the bus read: the servos are polled one
         // after another, so the mean sample instant is the honest one. Every
-        // bus joint, servo-ID order; an unfitted servo stays 0.
+        // bus joint, bus order; an unfitted servo stays 0.
         g_joint_pose.publish(g_qbus, g_ticks, (t_read0 + t_read1) / 2);
         // read() == false means "no new report this tick"; the contract
         // (imu/imu.h) is that the caller REUSES the previous sample. Holding

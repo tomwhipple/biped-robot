@@ -21,7 +21,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import sources                                                   # noqa: E402
-from protocol import (CMD_PORT, SEND_HZ, TLM_PORT, LinkState,  # noqa: E402
+from protocol import (CMD_PORT, JOINT_NAMES, SEND_HZ, TLM_PORT, LinkState,  # noqa: E402
                       ProtocolError, decode_telemetry, encode_command)
 
 
@@ -106,8 +106,11 @@ def _status(t, vx, wz, flags, tlm):
         link = (f"{tlm.state.value:5s} {tlm.vbat_v:4.1f}V "
                 f"up{tlm.up_z:4.2f} vx{tlm.vx_est:+5.2f}")
         if tlm.servo_err:
-            ids = [str(b + 1) for b in range(32) if tlm.servo_err >> b & 1]
-            link += f" ERR id {','.join(ids)}"
+            # bit b = bus joint b (protocol.JOINT_NAMES); servo IDs are not
+            # b + 1 since the v6 assembly, so name the joint
+            bad = [JOINT_NAMES[b] if b < len(JOINT_NAMES) else f"bit{b}"
+                   for b in range(32) if tlm.servo_err >> b & 1]
+            link += f" ERR {','.join(bad)}"
         if tlm.state is LinkState.BENCH:
             # A benched robot ignores every command in this stream. Say why
             # here instead of leaving the operator to watch a status line

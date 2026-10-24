@@ -69,10 +69,13 @@ VEC_OUT = os.path.join(ROOT, "firmware", "host", "vectors", "obs_vectors.h")
 # looked up, so the 10-DOF prototype's spec is unchanged by them. This table
 # and the firmware's bus map (firmware/components/obs/include/obs/bus_map.h)
 # are the same map; the SIL suite checks that they agree.
+# The v6 legs as assembled (2026-10-23, written on each servo; obs/bus_map.h
+# kBusServoId): the legs' yaw / pitch / knee / ankle IDs sit opposite the old
+# prototype map, and the STS3250 hip rolls are 52 (R) / 51 (L).
 ID_BY_ROLE = {
-    "L_hip_roll": 5, "L_hip_pitch": 6, "L_knee": 7, "L_ankle": 8,
-    "R_hip_roll": 1, "R_hip_pitch": 2, "R_knee": 3, "R_ankle": 4,
-    "L_hip_yaw": 10, "R_hip_yaw": 9,
+    "L_hip_roll": 51, "L_hip_pitch": 2, "L_knee": 3, "L_ankle": 4,
+    "R_hip_roll": 52, "R_hip_pitch": 6, "R_knee": 7, "R_ankle": 8,
+    "L_hip_yaw": 9, "R_hip_yaw": 10,
     "R_ankle_roll": 11, "L_ankle_roll": 12, "neck_yaw": 13,
     "R_shoulder": 14, "R_elbow": 15, "L_shoulder": 16, "L_elbow": 17,
 }
