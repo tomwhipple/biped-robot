@@ -347,25 +347,32 @@ overall, an 8.99 × 52.51 mm tab carrying both 2 × 20 headers past its
 56.01 mm edge; its sockets hang 9.0 mm under it; and its servo ports H5 and H6
 are top-entry, so their leads need room square to the board.
 
-![gd_plate as it prints; on the bosses, cover off; the General Driver on it with the plugs mated (light grey); a section at y = +29 through two screws](docs/img/gd_plate.png)
+![gd_plate and a key as they print; the plate glued on the wall with its keys (red) in the windows, the bosses through its cut-outs; the General Driver on it with the plugs mated (light grey); a section at y = +26 through a key](docs/img/gd_plate.png)
 
-- **General Driver**: its parts face forward (PCB x 29.81 … 31.44), its bus
+- **General Driver**: its parts face forward (PCB x 30.31 … 31.94), its bus
   edge (switch, H5, H6) down on the torso's bottom plane and its header tab up,
-  1.5 mm under the deck: the bay is 66.5 mm tall. There its four holes land on
-  the four 4 mm bosses off the front inner wall (y ±29, z −68.0 / −19.0), and
-  its service edge (XH inlet, both USB-C) is at +y, the plugs' cables straight
-  out through the +y skin's window. 19.3 mm stay between its parts face and
-  the front cover for the servo plugs and their bends.
-- **`gd_plate`** (4.2 g, printed back face down): four 10 mm spacers on the
-  bosses (Ø3.5 bores, so an M3 slides through), joined by a rail through each pair and two rungs, and open at the
-  top behind the sockets, which stay 1.0 mm in front of the bosses. Four
-  M2.5 × 16 pan heads go through the board and the spacers into the bosses'
-  pilots (4.4 mm of thread). Epoxy on the spacers' feet holds the plate while
-  the board is off, if wanted.
+  1.5 mm under the deck: the bay is 66.5 mm tall. It sits 9 mm toward +y off
+  the Pi's boss grid (y −23.5 … +41.5), so its holes (y +38 / −20, z −68 /
+  −19) clear the bosses. Its service edge (XH inlet, both USB-C) is at +y, the
+  USB-C plugs through the +y skin's window. Its sockets pass the +y upper boss
+  in front of it. 18.8 mm stay between its parts face and the front cover for
+  the servo plugs and their bends.
+- **`gd_plate`** (8.7 g, printed glue face down) is **glued** flat to the
+  front inner wall's face (2200 mm² on solid wall) and touches none of the
+  Pi's four bosses, which printed deformed. Each boss is kept out as its CAD
+  teardrop grown 1.5 mm sideways and 1.0 mm at its face: the plate is cut out
+  round the two it spans and ends short of the other two. Two **`gd_key`s**
+  (0.8 g each) go through square holes in it into the wall's two lower windows
+  (y −8 … 8 and 20 … 32, z −52 … −38) and locate it while the glue cures:
+  0.3 mm off the windows' sides and tops, 0.8 mm off their lower edges, which
+  printed over support. The wall's top windows (lead passes) stay open above
+  it. Four spacers rise from it to the board, Ø2.6 × 10 mm blind pilots in
+  them for **4 × M3 × 8 pan-head self-tappers** (6.4 mm of thread).
 - Not measured, and each sets a clearance: the board's thickness (1.63 mm
   modelled; the STEP's PCB is 0.41), its sockets' depth (9.0 mm, the STEP's
-  pins), a mated servo plug (13.9 mm, an upper bound) and the XH inlet's
-  place (photo-scaled; the STEP leaves it out).
+  pins), a mated servo plug (13.9 mm, an upper bound), the XH inlet's place
+  (photo-scaled; the STEP leaves it out) and how far the printed bosses stray
+  from their CAD.
 
 **The power board** is the custom board of PR #112 (`pcb/power-board/` on
 branch `design/power-circuit`, not merged): 97 × 64.5 × 1.6 mm, every part on

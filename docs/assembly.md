@@ -149,7 +149,8 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §7d carrier to the yaw horn | M3 × 5 | 8 |
 | §7e hip-roll servo into the carrier bay | M2.5 × 8 flat | 16 |
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
-| §9a General Driver and its plate into the bosses / front cover | M2.5 × 16 pan self-tap / M2.5 × 8 flat | 4 / 4 |
+| §9a plate and keys to the front inner wall | epoxy or CA, no screws | — |
+| §9a General Driver onto the plate / front cover | M3 × 8 pan self-tap / M2.5 × 8 flat | 4 / 4 |
 | §9c power board | M2.5 × 6 pan | 4 |
 | §9c power cover | M2.5 × 8 flat | 4 |
 | §10 battery door | M2.5 × 8 flat | 1 |
@@ -421,22 +422,30 @@ The General Driver goes into the bay in front of the pelvis on its plate, with
 the front cover off. The power board goes into the bay right behind the
 pelvis, with the aft cover off. Where the Pi goes is open (#87).
 
-![The torso, gd_plate, the General Driver and the front cover, apart along x](img/gd_plate_exploded.png)
+![The torso, the two keys, gd_plate, the General Driver and the front cover, apart along x](img/gd_plate_exploded.png)
 
 ### 9a. General Driver on its plate, and its IMU
 
 - **Measure first**: the board's thickness and how far its 2 × 20 sockets hang
-  under it (`GD_PCB_T`, `SOCKET` in `cad/v6/gd_plate.py`). The 10 mm spacers
-  are cut for a 1.63 mm board and 9.0 mm sockets.
-- Hold **`gd_plate`** against the four bosses on the front inner wall, its
-  spacers forward. Epoxy on the spacers' feet holds it while the board is off;
-  the screws hold it either way.
-- Set the board on the spacers: parts forward, bus edge (the ON/OFF switch, H5,
-  H6) down, the header tab up, the service edge (XH inlet, USB-C) at +y.
-- Drive **4 × M2.5 × 16 pan-head self-tappers** through its holes and the
-  spacers into the bosses (4.4 mm of thread; an × 18 bottoms out). No washers.
-- The servo leads plug into H5 and H6 square to the board (19.3 mm to the front
-  cover). The XH inlet and USB-C plug in from +y, their cables out through the
+  under it (`GD_PCB_T`, `SOCKET` in `cad/v6/gd_plate.py`). The spacers are cut
+  for a 1.63 mm board and 9.0 mm sockets.
+- **The keys into the plate:** push both `gd_key`s through the plate's square
+  holes from its front, flush with its front face, so they stand 2 mm proud of
+  its glue face, and glue them there (CA).
+- **Dry fit:** put the keys into the front inner wall's two lower windows and
+  the plate flat on the wall, its spacers forward. The Pi's four bosses pass
+  through or beside it untouched; if one does not, trim the boss, not the
+  plate. Push the plate up until the keys meet the windows' top edges: that is
+  its place.
+- **Glue it:** epoxy (or gap-filling CA) on the plate's glue face and the keys,
+  press it on in the same place and hold it until the glue has set.
+- **The board**, once the glue has cured: parts forward, bus edge (the ON/OFF
+  switch, H5, H6) down, the header tab up, the service edge (XH inlet, USB-C)
+  at +y. Drive **4 × M3 × 8 pan-head self-tappers** through its holes into the
+  spacers (6.4 mm of thread). The board's holes are Ø3.0, so an M3 passes them
+  snugly. No washers.
+- The servo leads plug into H5 and H6 square to the board (18.8 mm to the front
+  cover). The XH inlet and USB-C plug in from +y, the USB-C plugs through the
   +y skin's window. Both bus ports carry the same nets.
 - Set the ON/OFF switch on its bottom edge before the cover goes on.
 - **The IMU is the board's onboard QMI8658C**, and the mount turns it against
