@@ -12,8 +12,14 @@ cable and connector to the rest of the robot.
   [the verification record](../../docs/design-v6/2026-10-07-power-board-verification.md).
 - **In stock:** every part has a manufacturer datasheet and was in stock at Digi-Key on
   2026-10-07, except the XT60 (LCSC/TME).
-- **Open:** physical checks P1–P7 ([harness.md](harness.md)) come before ordering. The
-  outline and mounting holes wait on the torso redesign (#108).
+- **Simulated whole:** the drawn netlist in ngspice with pin models of U1 and U2, every
+  combination of the board's inputs, timed sequences, faults and sweeps
+  ([the simulation record](../../docs/design-v6/2026-10-24-power-board-full-simulation.md),
+  code in `pbsim/board/`, `make pbfull`), with a pin-by-pin datasheet
+  [audit](../../docs/design-v6/2026-10-24-power-board-pin-audit.md).
+- **Open:** the rev B changes those found (below), and the physical checks P1–P7
+  ([harness.md](harness.md)), come before ordering. The outline and mounting holes wait
+  on the torso redesign (#108).
 
 ## What is on it
 
@@ -120,6 +126,20 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
 
 ## Open before ordering
 
+- **Rev B changes from the whole-board simulation**
+  ([record](../../docs/design-v6/2026-10-24-power-board-full-simulation.md), F-numbers)
+  **and the pin audit** ([record](../../docs/design-v6/2026-10-24-power-board-pin-audit.md)):
+  - R38/R39 → 4.7 kΩ / 1 kΩ and 4.7 kΩ from PACK+ to GND, so SHUTDOWN completes after
+    KILL (F-1);
+  - D2 → a low-leakage silicon common-cathode pair and R10 → 100 kΩ, so a hot, switched-off
+    board does not wake itself (F-2);
+  - a 15 V zener from Q3's gate to its source (F-5);
+  - 2 × 10 µF on PACK+ at R24/Q3 (F-7);
+  - 1 kΩ from J2.1 to BAT− (F-9);
+  - R29 → 10 kΩ with R30 → 549 kΩ (audit F3), and 1 nF across Q5 (audit F4).
+- **The BQ76922 configuration** must also set SCDL latch limit 1 (F-8), OCD1 at 30 mV
+  (F-4), a decision on OCD recovery (F-3) and on CUV versus shutdown cell voltage (F-6),
+  and the audit's C1–C9.
 - **The physical checks P1–P7** in [harness.md](harness.md):
   - the pack's XT60 polarity;
   - the balance-lead order;
