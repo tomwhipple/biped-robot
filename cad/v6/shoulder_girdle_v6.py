@@ -51,8 +51,11 @@ with the case lying against the torso there is 1.24 mm between the girdle's
 inboard wall and the housing skin, and no driver reaches into a 1.24 mm slot.
 The horn-side face is open air, so the four case screws are driven from
 OUTBOARD, through a plate with D.GRIP_HORN_RELIEF around the O19.6 case boss
--- exactly leg_link's own horn-side grip plate. The inboard wall keeps its
-job (locating the case, tying floor to top) but carries no screws.
+-- exactly leg_link's own horn-side grip plate. The inboard wall carries no
+screws, so it holds the case by fit alone: the shoulder servos go in WITHOUT
+their idler disc (the hip-yaw rule), the wall bears on the bare case face
+with a hole for the free-hub post, and crush ribs on its seat face press the
+case outboard onto the grip plate (dimensions_v6 GIRDLE_RIB_*).
 
 PRINT: BASE DOWN, AND NOTHING HANGS BELOW z = 0
 -----------------------------------------------
@@ -84,7 +87,7 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
-from build123d import Plane, Pos, Rot, export_step, export_stl, fillet, mirror  # noqa: E402
+from build123d import Plane, Pos, Rot, export_step, export_stl, mirror  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 D = V.D
 import parts  # noqa: E402
@@ -102,8 +105,11 @@ PRINT_ORIENT = {"shoulder_girdle_v6": (IDENT, "base down on the deck face, walls
 # wherever it can do it). What needs them, base down: the four trapezius-web
 # window tops (34 mm spans), the servo bays' relief/pocket roofs and the neck
 # tube's aft window top. All are open to the plate, so supports come out.
-SUPPORT_NOTE = ("supports on (build plate only): trapezius-web window tops, the "
-                "grip plates' rib-relief roofs, the bays' disc-relief tops")
+SUPPORT_NOTE = ("manual supports inside the enforcer boxes only (support_enforcers()): "
+                "the trapezius-web windows and the neck tube's aft window")
+BRIDGE_OK = 8.0        # check_printability: a ceiling this wide bridges with no support
+ENF_INSET = 0.25       # an enforcer box keeps this far inside a window's faces (torso_v8's)
+ENF_INTO = 0.3         # ... and reaches this far into its ceiling
 
 # ---------------------------------------------------------------------------
 # derived, local to this module (everything dimensional lives in dimensions_v6)
@@ -125,13 +131,13 @@ RAIL_Y0 = 53.8          # rail inboard edge. Set by the deck-pilot countersink:
                         # at 54.8 (the first cut, which stopped at the battery
                         # aperture's 54.66) left a sub-mm sliver the audit
                         # flagged THIN. It now overhangs the aperture edge by
-                        # 0.86 mm, which costs nothing: the pack goes in BEFORE
-                        # the girdle (it cannot pass the neck tube either way).
+                        # 0.86 mm, which costs nothing: the pack swaps through
+                        # the torso's side door (torso_v8), not the aperture.
 assert RAIL_Y0 + 0.5 <= V.GIRDLE_RAIL_PILOT_Y - D.CASE_CS_D / 2, \
     "the rail pilots' countersinks would break out of the rail's inboard edge"
 RAIL_X = (-42.0, 16.0)  # aft of the pod (extra bolting land) to the clavicle
 CLAV_X = (POD_X[1] - END_T, 16.0)     # +10.61 .. +16.0 forward clavicle beam
-CLAV_HY = 58.0                        # inside the deck's R3 top fillet (61.26 - 3)
+CLAV_HY = 58.0                        # 3 mm inside the deck edge (61.26)
 CLAV_H = 12.0
 TIE_X = (-36.0, -31.0)                # aft tie: a bridge, no bolts (see below)
 TIE_H = 10.0
@@ -146,9 +152,6 @@ GIRDLE_FLARE = 3.0
 assert GIRDLE_FLARE <= _CSK_BOT_Z, \
     "the pod flare would eat the lowest case screw's countersink"
 
-GIRDLE_CORNER_R = 6.0                 # pod outer vertical corners (2x ARM_EDGE_R:
-                                      # this is the robot's outline at the shoulder)
-
 # neck tube -- the same footprint neck_collar.py builds, fused in here
 NCX0, NCX1 = V.NECK_WELL_X                    # -35.41, +10.41
 NC_HY = V.NECK_WELL_HW[0]                     # 12.66
@@ -156,12 +159,11 @@ NC_WALL = D.WALL
 COLLAR_TOP = V.NECK_AXIS_Z + D.SV_TOPFACE + 1.0       # 33.10, 2.1 short of the horn disc
 AFT_WIN = (12.0, 10.0)
 
-# deck pilots -- EVERY one of these is verified against the real pelvis solid
-# by check_deck_pilots() below, because the deck here is cut by the Pi slide
-# slot (x -51.76..-37.76, |y| <= 45), the battery aperture (x -36.51..+10.41,
-# |y| < 54.66), the General Driver lead slot and the R3 top fillet. The rail
-# pilots sit on the one continuous strip of solid deck that survives all of
-# that: y 55..59, the edge beam over the housing side wall.
+# deck pilots -- EVERY one of these is verified against the real torso solid
+# by check_deck_pilots() below. Under the girdle the deck is cut by the battery
+# aperture (x -36.51..+10.50, |y| < 54.66), so the rail pilots sit on the strip
+# between it and the deck edge (61.26), at y 57, where torso_v8 hangs a deck
+# edge rail under the deck so the pilot does not end over the battery layer.
 PILOT_D = V.ARM_PILOT_D           # 2.05
 PILOT_DEPTH = V.ARM_PILOT_DEPTH   # 4.5
 
@@ -216,25 +218,19 @@ def _pod(sgn):
                    _AZ - _rz, _AZ + _rz)
 
     # --- inboard wall openings. ONE keyhole, for the same reason round 4's
-    # cradle used one: cut separately, the disc relief and the connector
-    # window leave a sliver of wall between them that prints as a strand.
-    #   * the idler DISC turns with the joint and stands 2.05 proud -> a hole
-    #     on the axis, clipped at the floor so the wall/floor joint stays solid
+    # cradle used one: cut separately, the hub hole and the connector window
+    # leave a sliver of wall between them that prints as a strand.
+    #   * no idler disc on this servo, but its free-hub post (2.6 proud of the
+    #     case face) still turns with the shaft -> a teardrop hole on the axis
     #   * the connector TRENCH is where the servo's own lead plugs in. Lying
-    #     down, that trench faces INBOARD into a 1.24 mm slot, so the window is
-    #     cut OPEN TO THE TOP of the wall: the lead leaves the plug and goes
-    #     straight UP out of the notch, and never has to fit the slot.
-    rel = D.SV_IDLER_MOAT_R - 0.4                                   # 10.6
-    opening = parts.cyl_y(rel, y(WY0 - 1), y(WY1 + 1), _AX, _AZ)
-    # the notch runs INTO the relief, to its centre line: stopping at the
-    # trench's own edge left a 0.55 mm post between them, and stopping just
-    # inside the circle left thin cusps where the circle curves away -- both
-    # THIN audit findings. Ending on the axis, the notch's edge meets the
-    # circle square at its top and bottom, so no cusp exists to be thin.
+    #     down, that trench faces INBOARD, so the window is cut OPEN TO THE TOP
+    #     of the wall: the leads leave the plugs and go straight UP out of the
+    #     notch.
+    opening = parts.teardrop_y(D.SV_IDLER_HUB_HW + V.GIRDLE_HUB_CLR, y(WY0 - 1), y(WY1 + 1), _AX, _AZ)
+    # the notch runs to the axis, so its edge meets the hub hole square at its
+    # top and bottom and leaves no cusp; it also gives both bus leads room.
     opening += parts.box(_AX - D.SV_CONN_L[1] - 0.6, _AX,
                          y(WY0 - 1), y(WY1 + 1), _AZ - D.SV_CONN_HW, POD_TOP + 1)
-    opening -= parts.box(POD_X[0] - 1, POD_X[1] + 1, y(WY0 - 2), y(WY1 + 2),
-                         -1, BASE_T + 0.4)
     p -= opening
     # --- detent for the moulded back-cover platform (leg_link's, rotated: the
     # band runs along the case LENGTH, which is -x here, and its half width is
@@ -247,7 +243,36 @@ def _pod(sgn):
     _bz = D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR
     _by = V.ARM_SERVO_MID_Y + D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR
     p -= parts.box(_bx[0], _bx[1], y(_by), y(WY1 + 0.01), _AZ - _bz, _AZ + _bz)
-    return p
+    return p + crush_ribs(sgn)
+
+
+# crush ribs on the inboard wall's seat face, one on each band of bare case
+# face the wall can reach: the strip between the cable end and the platform
+# detent, and the strip between the hub hole and the output end.
+_PLAT_AFT_X = _AX + D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR               # -29.91
+_HUB_R = D.SV_IDLER_HUB_HW + V.GIRDLE_HUB_CLR                             # 3.54
+RIB_X = ((CASE_X0 + _PLAT_AFT_X) / 2, (_AX + _HUB_R + CASE_X1) / 2)       # -32.51, +6.83
+RIB_Z = (BASE_T, CASE_Z[1] - 2.0, POD_TOP - 2.0)   # foot, top of the full section, tip of the lead-in
+
+
+def crush_ribs(sgn):
+    """The pod's crush ribs, +y side (sgn +1) or -y: vertical, along the drop-in
+    direction, a trapezoid GIRDLE_RIB_W at the wall and 0.3 at the crest, which
+    stands GIRDLE_RIB_H off the seat face. The top ramps back into the wall so
+    the case's lower edge rides onto them; the tip stops 2 mm under the pod top."""
+    w, h, crest = V.GIRDLE_RIB_W, V.GIRDLE_RIB_H, 0.3
+    y0, y1 = sgn * (WY1 - 0.3), sgn * (WY1 + h)
+    out = None
+    for rx in RIB_X:
+        r = parts.wedge_z([(rx - w / 2, y0), (rx + w / 2, y0),
+                           (rx + crest / 2, y1), (rx - crest / 2, y1)], RIB_Z[0], RIB_Z[2])
+        ramp = (RIB_Z[2] - RIB_Z[1]) / h
+        r -= parts.wedge_x([(sgn * WY1, RIB_Z[2]),
+                            (sgn * (WY1 + h + 0.5), RIB_Z[2] - ramp * (h + 0.5)),
+                            (sgn * (WY1 + h + 0.5), RIB_Z[2] + 1.0)],
+                           rx - w, rx + w)
+        out = r if out is None else out + r
+    return out
 
 
 def shoulder_girdle_v6():
@@ -267,8 +292,8 @@ def shoulder_girdle_v6():
     # (everything aft of it is the battery aperture).
     # --- aft tie: a BRIDGE over the battery aperture, landing on both rails.
     # No pilots -- there is no deck under it. It is free stiffness: the pack
-    # already cannot pass the neck tube, so the aperture is not an access path
-    # once the girdle is on either way (see the assembly-order note below).
+    # swaps through the torso's side door, and the yaw stator screws under the
+    # aperture are driven with the girdle off.
     #
     # Both bands also carry the TRAPEZIUS WEB: a full-height panel from the
     # neck tube out to each pod. Structurally it is the top chord -- it ties
@@ -318,61 +343,23 @@ def shoulder_girdle_v6():
                             (sgn * GRIP_Y1, GIRDLE_FLARE),
                             (sgn * (GRIP_Y1 - GIRDLE_FLARE), 0.0)],
                            POD_X[0] - 1, POD_X[1] + 1)
-
-    p = _style(p)
+    # edges stay square: rounding them buys nothing (Tom, 2026-10-24)
     return p
 
 
-def _style(p):
-    """The blends. Functionality first -- these are all cosmetic or
-    stress-relief, so every one is attempted in its own try/except and the
-    build never fails on a refused fillet (hip_yoke_v6's _blend_one rule).
-
-    Design language, and where it comes from (docs/design-v6/shoulder-girdle.md
-    section 5): ONE form repeated per joint type, soft curved surfaces with
-    eased edges rather than arrises, and a silhouette that flares continuously
-    from the torso out to the shoulder rather than stepping.
-    """
-    # 1. the outer vertical corners of each pod -- the corners a hand reaches
-    # past, and the ones that read as the shoulder's outline from the front.
-    try:
-        edges = [e for e in p.edges()
-                 if abs(e.tangent_at(0.5).Z) > 0.999
-                 and abs(abs(e.center().Y) - (GRIP_Y0 + GRIP_Y1) / 2) < 25
-                 and abs(e.center().Y) > WY1
-                 and (abs(e.center().X - (POD_X[0] + 0.0)) < 3.0
-                      or abs(e.center().X - POD_X[1]) < 3.0)]
-        for r in (GIRDLE_CORNER_R, 4.5, 3.0, 2.0):
-            try:
-                p = fillet(edges, r)
-                print(f"  [girdle] pod corners rounded R{r}")
-                break
-            except Exception:  # noqa: BLE001 -- OCC refuses radii it cannot fit
-                continue
-    except Exception as e:  # noqa: BLE001
-        print(f"  [girdle] pod corner fillet skipped ({type(e).__name__}: {str(e)[:70]})")
-    # 2. ease every top edge: this is the surface a finger runs along, and on
-    # a base-down print a top edge is free (no overhang either way). Blended
-    # ONE EDGE AT A TIME -- OCC refuses a whole group if any single member is
-    # impossible, and hip_yoke_v6._blend_one exists for exactly this reason.
-    tops = []
-    for e in p.edges():
-        z = e.center().Z
-        if any(abs(z - t) < 1e-6 for t in (POD_TOP, CLAV_H, TIE_H, COLLAR_TOP)) and e.length > 4.0:
-            tops.append(e)
-    done = 0
-    for e in tops:
-        for r in (1.6, 0.8):
-            try:
-                p = fillet(p.edges().filter_by_position(
-                    __import__("build123d").Axis.Z, e.center().Z - 1e-4, e.center().Z + 1e-4
-                ).sort_by_distance(e.center())[0:1], r)
-                done += 1
-                break
-            except Exception:  # noqa: BLE001
-                continue
-    print(f"  [girdle] top edges eased: {done}/{len(tops)}")
-    return p
+def support_enforcers():
+    """The girdle's support-enforcer boxes, model frame (the print frame: it
+    prints base down), rounded as cad/v6/print_settings.json carries them:
+    every flat-topped window whose top spans more than a bridge -- the four
+    trapezius-web windows and the neck tube's aft window -- each box ENF_INSET
+    inside the window's faces and ENF_INTO into its top (torso_v8's method).
+    With manual supports nothing else on the girdle is supported."""
+    wins = [(x0, x1, *sorted((s * WEB_WIN_Y[0], s * WEB_WIN_Y[1])), *WEB_WIN_Z)
+            for x0, x1 in (CLAV_X, TIE_X) for s in (1, -1)]
+    wins.append((NCX0 - NC_WALL, NCX0, -AFT_WIN[0] / 2, AFT_WIN[0] / 2, 0.0, AFT_WIN[1]))
+    return [[round(v, 2) for v in (x0 + ENF_INSET, x1 - ENF_INSET, y0 + ENF_INSET, y1 - ENF_INSET,
+                                   z0, z1 + ENF_INTO)]
+            for x0, x1, y0, y1, z0, z1 in wins if y1 - y0 > BRIDGE_OK]
 
 
 # ===========================================================================
@@ -383,8 +370,9 @@ def shoulder_servo_mock(side="L"):
     axis +Y, horn +Y, case length along Z with the output end at +10.11; here
     it is turned +90 about Y, which maps the case's +Z (output end) onto +X: the
     case LENGTH lies fore-aft with the output end FORWARD and the cable end
-    AFT, and the case WIDTH (24.72) stands up."""
-    m = Pos(_AX, V.ARM_SERVO_MID_Y, _AZ) * Rot(0, 90, 0) * CA.servo_mock()
+    AFT, and the case WIDTH (24.72) stands up. No idler disc: the inboard
+    wall seats on the bare case face."""
+    m = Pos(_AX, V.ARM_SERVO_MID_Y, _AZ) * Rot(0, 90, 0) * CA.servo_mock(idler_disc=False)
     return m if side == "L" else mirror(m, Plane.XZ)
 
 
@@ -420,7 +408,7 @@ def SCREWS():
 # up into the tube's bosses, and the neck servo drops into the tube onto it
 # (neck_floor.INSERT) and is screwed from below -- the plate sits over the
 # pack, so none of that is reachable once the girdle is on the deck. Then the
-# girdle is lowered onto the deck (the pack is already in) and screwed down
+# girdle is lowered onto the deck and screwed down
 # through its two rails; the rail pilots are clear of the bays, so the
 # shoulder servos can go in before or after.
 INSERT = {
@@ -454,11 +442,11 @@ def check_pilot_access(verbose=True):
 
 
 def check_deck_pilots(verbose=True):
-    """Every deck pilot must be fully BURIED in the pelvis deck: 4.5 mm into a
-    5 mm plate leaves 0.5 mm of floor. Checked against the REAL pelvis solid,
-    both sides -- not against a drawing of where the cuts are. This check is
-    the reason the rail sits at y 57: it is the only continuous strip of deck
-    that survives the Pi slot, the battery aperture and the GD lead slot.
+    """Every deck pilot must be fully BURIED in the torso's deck: 4.5 mm into
+    a 5 mm plate leaves 0.5 mm of floor (torso_v8's deck edge rails add more).
+    Checked against the REAL torso solid, both sides -- not against a drawing
+    of where the cuts are: the rail sits at y 57, between the battery aperture
+    and the deck edge, and this is what proves the strip is there.
     """
     import torso_v8 as TV
     solid = TV.torso_v8()
@@ -477,23 +465,33 @@ def check_deck_pilots(verbose=True):
     return ok
 
 
+def rib_crush_mm3(side="L"):
+    """The designed overlap of a shoulder servo with its pod's crush ribs:
+    the volume the ribs give up as the case is pushed past them."""
+    return (shoulder_servo_mock(side) & crush_ribs(1 if side == "L" else -1)).volume
+
+
 def check_servo_fit(verbose=True):
-    """The two shoulder servo mocks must sit INSIDE their bays without
-    touching the girdle, and the girdle must not reach into the plane the
-    rotating arm plate occupies."""
+    """The two shoulder servo mocks must sit INSIDE their bays touching the
+    girdle only through the inboard wall's crush ribs, by their designed
+    interference (and they must touch: a rib that misses the case leaves the
+    idler side loose); the girdle must not reach into the plane the rotating
+    arm plate occupies."""
     p = shoulder_girdle_v6()
     ok = True
     for side in ("L", "R"):
         m = shoulder_servo_mock(side)
         try:
             overlap = (m & p).volume
+            ribs = rib_crush_mm3(side)
         except Exception:  # noqa: BLE001
-            overlap = float("nan")
-        good = overlap < 1.0
+            overlap = ribs = float("nan")
+        good = 0.0 < ribs and overlap <= ribs + 0.5
         ok &= good
         if verbose:
             print(f"  {'PASS' if good else 'FAIL'}  shoulder servo {side} vs girdle: "
-                  f"{overlap:7.2f} mm3 of overlap")
+                  f"{overlap:7.2f} mm3 of overlap, all of it the crush ribs ({ribs:.2f} mm3, "
+                  f"{V.GIRDLE_RIB_CRUSH:.2f} mm deep)")
     bb = p.bounding_box()
     wide = bb.size.Y
     good = wide <= D.BED
@@ -549,7 +547,7 @@ def run_checks():
     ok = check_print()
     print("\n== driver access to every deck pilot ==")
     ok &= check_pilot_access()
-    print("\n== deck pilots (against the real pelvis solid) ==")
+    print("\n== deck pilots (against the real torso solid) ==")
     ok &= check_deck_pilots()
     print("\n== servo fit / print envelope ==")
     ok &= check_servo_fit()
