@@ -141,8 +141,9 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
   - value labels that match the MPNs: C5–C8 "100n 50V", C22 "10u 35V", and the rated
     voltage on C9–C11, C15, C18, C20 and C23 (no part changes).
 - **The BQ76922 configuration** must also set SCDL latch limit 1 (F-8), OCD1 at 30 mV
-  (F-4), a decision on OCD recovery (F-3) and on CUV versus shutdown cell voltage (F-6),
-  and the audit's C1–C9.
+  (F-4), and the audit's C1–C9. Two choices are open, with the options simulated in the
+  record: OCD recovery (F-3; recommended: TI's default, latched) and the low-cell
+  shutdown (F-6; recommended: Shutdown Cell Voltage = CUV with Low V Shutdown Delay 0).
 - **The physical checks P1–P7** in [harness.md](harness.md):
   - the pack's XT60 polarity;
   - the balance-lead order;

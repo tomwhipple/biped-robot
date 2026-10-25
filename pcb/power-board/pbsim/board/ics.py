@@ -227,8 +227,6 @@ class Bq76922:
             cands.append(t0 + self._delay(k))
         for k, t0 in self.recover.items():
             cands.append(t0 + self._rec_time(k))
-        if self.lowv_since is not None:
-            cands.append(self.lowv_since + self.otp.low_v_shutdown_delay_s)
         if self.ts2_low_since is not None:
             cands.append(self.ts2_low_since + self.lim.ts2_wake_min_s)
         return min([te] + [c for c in cands if c > t + 1e-12])
@@ -394,8 +392,9 @@ class Bq76922:
             return
 
         # NORMAL: protections
-        self._protect(t, srn_srp * 1e3, tos)
-        if t >= self.next_fet_eval - 1e-9:
+        tick = t >= self.next_fet_eval - 1e-9
+        self._protect(t, srn_srp * 1e3, tos, tick)
+        if tick:
             self._eval_fets(t)
             self.next_fet_eval = t + 0.25
         self._drive(t)
@@ -438,7 +437,7 @@ class Bq76922:
             self.chg_on = False
             self._log(t, "U1 CHG off")
 
-    def _protect(self, t, scd_mv_meas, tos):
+    def _protect(self, t, scd_mv_meas, tos, tick):
         o, lim = self.otp, self.lim
         cmin, cmax = min(self.cells), max(self.cells)
         ocd_mv = o.ocd1_mv + lim.ocd_tol_mv
@@ -485,7 +484,11 @@ class Bq76922:
               and self.i_pack < o.body_diode_a * 0.5):
             self.chg_on = False
             self._log(t, "U1 CHG off (COV, discharge stopped)")
-        # low-voltage shutdown (TRM §7.5)
+        # low-voltage shutdown (TRM §7.5), judged on the measurement loop's
+        # samples, every 250 ms in NORMAL (TRM Table 6-9), unlike the CUV
+        # comparator: a 10 µs dip between samples is not seen
+        if not tick:
+            return
         low = (o.shutdown_stack_v > 0 and tos < o.shutdown_stack_v) or \
               (o.shutdown_cell_v > 0 and cmin < o.shutdown_cell_v)
         if low:
@@ -493,7 +496,8 @@ class Bq76922:
                 self.lowv_since = t
             if t - self.lowv_since >= o.low_v_shutdown_delay_s - 1e-9:
                 self.lowv_since = None
-                self._begin_shutdown(t, f"low voltage (TOS {tos:.2f} V)")
+                self._begin_shutdown(t, f"low voltage (TOS {tos:.2f} V, "
+                                        f"lowest cell {cmin:.3f} V)")
         else:
             self.lowv_since = None
 

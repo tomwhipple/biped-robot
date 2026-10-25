@@ -650,6 +650,103 @@ def ocd_trip_otp_time_recovery():
     return sc, check2
 
 
+# ---- OTP options for F-3 and F-6, each on rev B's F-1 fix (so SHUTDOWN can
+# complete; F-3's also with F-5's zener), POWER pressed again at 6 s ---------
+
+_POWER_AGAIN = steps((0, 0), (T_WAKE, 1), (T_WAKE + 0.05, 0), (6.0, 1), (6.1, 0))
+
+
+def _restart_check(r, b, fault=False):
+    """The design asks for no restart without an input. After a CUV cut, POWER
+    should bring the board back; with a persistent PACK+ fault it should not
+    close Q2 into it again by itself."""
+    t_cut = t_cross(r, "pack", 5.0, 1.0, rising=False)
+    auto = t_cross(r, "pack", 9.0, t_cut + 0.05) if t_cut is not None else None
+    if auto is not None and auto >= 5.9:
+        auto = None
+    after = r.window("pack", 6.3, r.w["t"][-1])
+    m = {"cut_s": t_cut, "back_without_input_s": auto,
+         "mode_before_power": mode_at(r, 5.9),
+         "up_after_power": bool(len(after) and after.max() > 9.0),
+         "mode_end": mode_at(r, r.w["t"][-1]),
+         "events": [e for t, e in r.events if "U1" in e and "POR" not in e][-8:]}
+    fail = []
+    if auto is not None:
+        fail.append(f"switched itself back on at {auto:.2f} s, with no input")
+    if not fault and not m["up_after_power"]:
+        fail.append("POWER at 6 s did not switch the board back on")
+    return fail, m
+
+
+def _weak_cell_otp(name, otp):
+    def build():
+        sc, _ = cuv_weak_cell_under_load()
+        return replace(sc, name=name, t_stop=9.0, otp=otp, power_btn=_POWER_AGAIN,
+                       patch=dict(BLEED), extra=[_pk_bleed]), _restart_check
+    return build
+
+
+_CUV = BqOtp().cuv_v
+SEQ["otp_f6_shutcell_cuv_1s"] = _weak_cell_otp(
+    "otp_f6_shutcell_cuv_1s", BqOtp(shutdown_cell_v=_CUV, low_v_shutdown_delay_s=1.0))
+SEQ["otp_f6_shutcell_cuv_0s"] = _weak_cell_otp(
+    "otp_f6_shutcell_cuv_0s", BqOtp(shutdown_cell_v=_CUV, low_v_shutdown_delay_s=0.0))
+SEQ["otp_f6_shutcell_3v2_1s"] = _weak_cell_otp(
+    "otp_f6_shutcell_3v2_1s", BqOtp(shutdown_cell_v=3.20, low_v_shutdown_delay_s=1.0))
+SEQ["otp_f6_cuv_hys_300mV"] = _weak_cell_otp(
+    "otp_f6_cuv_hys_300mV", BqOtp(cuv_hys_v=0.30))
+
+
+@seq
+def otp_f6_getup_shutcell_cuv_0s():
+    """The F-6 option on a healthy, half-charged pack: a 12 A get-up must not
+    shut the board down."""
+    sc, check = getup_peak_brownout()
+    sc = replace(sc, name="otp_f6_getup_shutcell_cuv_0s",
+                 otp=BqOtp(shutdown_cell_v=_CUV, low_v_shutdown_delay_s=0.0))
+
+    def check2(r, b):
+        fail, m = check(r, b)
+        if r.event_times("shutdown sequence"):
+            fail.append("the low-voltage shutdown fired during a get-up")
+        return fail, m
+    return sc, check2
+
+
+def _q3_zener(b):
+    """15 V zener gate→source on Q3 (MMSZ5245B, the same family as D3/D5)."""
+    g, s = b.node("Q3", 4), b.node("Q3", 1)
+    return [".model d_mmsz5245b d (is=1e-14 n=1 rs=1 bv=15 ibv=8.5m nbv=1.2 cjo=60p)",
+            f"d_fix_q3z {s} {g} d_mmsz5245b"]
+
+
+def _pack_fault(t_on, ohms):
+    """A persistent resistive fault from PACK+ to GND from t_on: above OCD1,
+    below SCD's 150 A."""
+    def lines(b):
+        p = b.net("PACK+")
+        return [f"vfault_ctl fctl 0 pwl(0 0 {t_on} 0 {t_on + 1e-5} 1)",
+                f"sfault {p} nfault fctl 0 sw_fault",
+                f"rfault nfault 0 {ohms}",
+                ".model sw_fault sw(vt=0.5 vh=0.1 ron=1m roff=1e9)"]
+    return lines
+
+
+def _pack_fault_otp(name, otp):
+    def build():
+        sc = on(name, 9.0, otp=otp, power_btn=_POWER_AGAIN, patch=dict(BLEED),
+                extra=[_pk_bleed, _q3_zener, _pack_fault(1.0, 0.3)], record_every=4,
+                fine=[(0.99, 1.1, 20e-6)])
+        return sc, lambda r, b: _restart_check(r, b, fault=True)
+    return build
+
+
+SEQ["otp_f3_pack_fault_latched"] = _pack_fault_otp(
+    "otp_f3_pack_fault_latched", BqOtp(ocd1_mv=30.0))
+SEQ["otp_f3_pack_fault_time_recovery"] = _pack_fault_otp(
+    "otp_f3_pack_fault_time_recovery", BqOtp(ocd1_mv=30.0, ocd_recovery_a=-0.1))
+
+
 @seq
 def rail_load_17A_otp_ocd30():
     """What-if (OTP): OCD1 at 30 mV (30 A on R1), at its −4 mV corner: the

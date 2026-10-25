@@ -13,13 +13,13 @@ Largest |ngspice-47 − ngspice-42| per measured number (case):
   pack: 0.1193 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   ld: 0.1193 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   en: 0.00434 (on-Ac-Bo-en_high-pwrH-usb1-gd_on-pack_xt60_only)
-  bst: 0.0008765 (on-Ac-Bc-en_high-pwrR-usb0-gd_absent-pack_both)
+  bst: 0.0008765 (on-Ac-Bc-en_hiz-pwrR-usb0-gd_absent-pack_both)
   servo: 0.0006956 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   q3_vgs: 0.0006649 (on-Ac-Bc-en_high-pwrR-usb1-gd_on-pack_both)
   railv: 0.000122 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   q2_vgs: 6.743e-05 (off-Ao-Bo-en_hiz-pwrH-usb1-gd_on-pack_xt60_only)
-  rst: 9.286e-10 (on-Ao-Bo-en_hiz-pwrR-usb1-gd_on-pack_xt60_only)
-  ts2: 7.594e-11 (on-Ac-Bo-en_high-pwrR-usb1-gd_sw1_off-pack_xt60_only)
+  rst: 9.894e-10 (on-Ao-Bo-en_high-pwrR-usb1-gd_on-pack_xt60_only)
+  ts2: 7.589e-11 (off-Ao-Bc-en_low-pwrR-usb0-gd_sw1_off-pack_both)
   imon: 3.039e-11 (on-Ac-Bc-en_high-pwrR-usb1-gd_on-pack_both)
 
 case                                                             ngspice-47 ngspice-42
@@ -1176,7 +1176,7 @@ on-Ao-Bo-en_low-pwrR-usb1-gd_sw1_off-pack_both                       pass     pa
 on-Ao-Bo-en_low-pwrR-usb1-gd_sw1_off-pack_none                       pass     pass
 on-Ao-Bo-en_low-pwrR-usb1-gd_sw1_off-pack_xt60_only                  pass     pass
 
-## seq: 53 cases; not passing: 14 on ngspice-47, 14 on ngspice-42; verdicts differ in 0
+## seq: 60 cases; not passing: 17 on ngspice-47, 17 on ngspice-42; verdicts differ in 0
 
 Largest |ngspice-47 − ngspice-42| per measured number (case):
   q2_turnon_peak_A: 4.803 (power_on_full_sequence)
@@ -1223,6 +1223,19 @@ ocd_trip_otp_time_recovery                                           FAIL     FA
 ocd_trip_then_power_press                                            FAIL     FAIL
     ngspice-47: after an OCD cut, POWER cannot switch the board back on (BQ76922 stays in NORMAL with Q2 open; OCD recovery needs charge current; the ESP32 is unpowered); abs max: U2 PD−SRC ranged -0.00 to 17.74 against limits -0.3 to 16, outside for 0.299 ms
     ngspice-42: after an OCD cut, POWER cannot switch the board back on (BQ76922 stays in NORMAL with Q2 open; OCD recovery needs charge current; the ESP32 is unpowered); abs max: U2 PD−SRC ranged -0.00 to 17.68 against limits -0.3 to 16, outside for 0.303 ms
+otp_f3_pack_fault_latched                                            pass     pass
+otp_f3_pack_fault_time_recovery                                      FAIL     FAIL
+    ngspice-47: switched itself back on at 4.08 s, with no input; abs max: U1 VC0 ranged -0.97 to 0.56 against limits -0.3 to 6, outside for 0.028 ms
+    ngspice-42: switched itself back on at 4.08 s, with no input; abs max: U1 VC0 ranged -0.97 to 0.54 against limits -0.3 to 6, outside for 0.028 ms
+otp_f6_cuv_hys_300mV                                                 FAIL     FAIL
+    ngspice-47: POWER at 6 s did not switch the board back on
+    ngspice-42: POWER at 6 s did not switch the board back on
+otp_f6_getup_shutcell_cuv_0s                                         pass     pass
+otp_f6_shutcell_3v2_1s                                               pass     pass
+otp_f6_shutcell_cuv_0s                                               pass     pass
+otp_f6_shutcell_cuv_1s                                               FAIL     FAIL
+    ngspice-47: switched itself back on at 4.33 s, with no input
+    ngspice-42: switched itself back on at 4.33 s, with no input
 power_on_full_sequence                                               pass     pass
 power_tap_1000ms                                                     pass     pass
 power_tap_200ms                                                      pass     pass

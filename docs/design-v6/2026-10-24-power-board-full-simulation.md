@@ -28,10 +28,10 @@ Four are settings in the BQ76922's one-time configuration (OTP), to write at bri
 |---|---|---|---|
 | **F-1** | After KILL, POWER is ignored until the board has bled down, which takes tens of seconds to minutes. The BQ76922 cannot reach SHUTDOWN while PACK+ is held up, here by the servo rail's capacitance (through Q3's body diode) and the General Driver's input capacitance | **every shutdown** | 2 resistor values + 1 resistor: SHUTDOWN 3.4–6.2 s after KILL (simulated) |
 | **F-2** | A switched-off board with the pack plugged in **wakes itself**: D2's leakage pulls TS2 under the wake threshold at about 80 °C with a typical BAT54C, and from about 5 °C with one at the datasheet's maximum leakage | a hot car with a typical part; any room with a part near the datasheet's limit | swap D2 for a silicon pair and R10 to 100 kΩ: no wake to 105 °C typical, 85 °C worst case (simulated) |
-| **F-3** | After a discharge over-current trip (OCD), **POWER cannot turn the board back on**: only unplugging the pack does | needs > 20 A for 53 ms | OTP setting (two options, each with a catch) |
+| **F-3** | After a discharge over-current trip (OCD), **POWER cannot turn the board back on**: only unplugging the pack does | needs > 20 A for 53 ms | OTP: keep TI's default latch, with F-4's OCD1 at 30 mV, so that only a fault on PACK+ can trip it (simulated) |
 | **F-4** | A servo overload of 16–19 A **turns the whole robot off** (the BQ76922 trips first) instead of only the servo rail | needs a cluster of stalled servos; worst at the OCD threshold's low tolerance | OTP: OCD1 at 30 mV (simulated: selectivity restored) |
 | **F-5** | When PACK+ collapses with the rail on (a BQ76922 trip, a PACK+ short), Q3's gate rides **17.3–18.2 V above its source**, past U2's 16 V rating, for up to 0.3 ms | every protection cut with the rail on | add a 15 V zener on Q3, gate to source (simulated: removes it) |
-| **F-6** | After a cell-undervoltage cut (CUV) the board **switches itself back on 3 s later** once the weak cell recovers | a weak cell under a get-up load | OTP: a shutdown cell voltage at or above CUV |
+| **F-6** | After a cell-undervoltage cut (CUV) the board **switches itself back on 3 s later** once the weak cell recovers | a weak cell under a get-up load | OTP: Shutdown Cell Voltage = CUV with Low V Shutdown Delay 0 (simulated: the board ends in SHUTDOWN, and POWER restarts it) |
 | **F-7** | A short on the servo side makes PACK+ **spike to 28–34 V at 160–180 V/µs**, about 3× U2's 60 V/µs slew rating; Q3 then sees up to 28.6 V of its 30 V | only during a servo short | add 4 × 10 µF on PACK+ at Q3, as two series pairs (simulated: 18.3 V, 10.9 V/µs) |
 | **F-8** | A short on PACK+ that stays (a dropped tool) is **hit again every 5 s**: the BQ76922 re-closes Q2 into it on its own | rare | OTP: SCDL latch limit 1 (simulated: one hit) |
 | **F-9** | VC0 has no path to VSS on the board, so the BQ76922 **does not support the balance lead going in before the XT60** (TI DS §8.3); VC0 also dips 0.68 V below VSS for 8 µs every time Q2 closes | every hot-plug in that order | 1 resistor, J2.1 to BAT− |
@@ -96,7 +96,8 @@ the way the silicon is built (`pbsim/board/ics.py`):
   every accepted ngspice time step and switches those elements. This covers:
   - U1: power-on reset, SHUTDOWN, TS2/LD wake, the 278 ms boot, RST_SHUT, the shutdown
     sequence, soft shutdown, CUV/COV/OCD1/SCD with their delays and recoveries,
-    body-diode protection, and low-voltage shutdown;
+    body-diode protection, and low-voltage shutdown, which is judged on the 250 ms
+    measurement loop's samples (TRM Table 6-9), not continuously like CUV;
   - U2: POR, EN/ENF/UVLO, BST UVLO, INP, the circuit breaker with its retry counter and
     latch-off, short circuit, the DIODE-measured over-temperature latch, and the latch
     resets.
@@ -214,7 +215,7 @@ ngspice 47's; the largest difference between the engines in any measured output 
 What it shows, beyond the table:
 
 - **Balance lead missing, XT60 in.** The BQ76922 wakes, sees impossible cells, keeps Q2
-  open (CUV at boot), and shuts itself down 1 s later (TOS below 9 V). The board refuses
+  open (CUV at boot), and shuts itself down 1.25 s later (TOS below 9 V). The board refuses
   to power the robot, which is the safe answer. Real VC inputs' bias currents may read
   differently while they float; the BQ76922's open-wire check is off by default.
 - **ESP32 unpowered.** No board signal back-powers it: +3V3_HOST stays below 0.3 V in
@@ -228,7 +229,7 @@ What it shows, beyond the table:
 
 ## 4. Sequences
 
-53 timed sequences, each a whole-board transient of 0.9–16 s (`pbsim/board/sequences.py`).
+60 timed sequences, each a whole-board transient of 0.9–16 s (`pbsim/board/sequences.py`).
 "Fail" means the board did not do what the design asks; each failure is a finding (§6), and
 the what-ifs re-run a sequence with a proposed fix.
 
@@ -243,7 +244,7 @@ the what-ifs re-run a sequence with a proposed fix.
 | orderly shutdown: rail dropped first / rail on at KILL / no servos / servos drawing below 5 V / General Driver drawing 100 µA below UVLO | `shutdown_*` | **fail, F-1**: still in soft shutdown 6.5–10.5 s after KILL, PACK+ at 2.3–3.2 V; POWER ignored |
 | the same with the F-1 fix | `shutdown_*_fix_both` | pass: SHUTDOWN 3.4 s (no servos), 5.2 s (rail dropped first), 6.2 s (rail on at KILL) after KILL; POWER works again |
 | the same with only R38/R39 changed | `shutdown_no_servos_fix_bleed` | fail: the General Driver's capacitance still holds PACK+ at 2.6 V; both bleeds are needed |
-| flat pack, 3.4 → 2.9 V a cell | `low_battery_ramp` | **fail, F-1**: CUV at 6.25 s, the shutdown sequence at 6.75 s, then held |
+| flat pack, 3.4 → 2.9 V a cell | `low_battery_ramp` | **fail, F-1**: CUV at 6.25 s, the shutdown sequence at 6.83 s, then held |
 | the same with the F-1 fix | `low_battery_ramp_fix_both` | pass: SHUTDOWN at 11.4 s |
 | E-stop pressed 0.5 s and 5 s | `estop_press_release_*` | pass (§4.2) |
 | stuck-rail rule, no servos (drawn, and with the bleed) | `estop_stuck_rail_bench_*` | **fail, F-10** |
@@ -259,6 +260,8 @@ the what-ifs re-run a sequence with a proposed fix.
 | persistent PACK+ short, default OTP | `short_packplus_persistent_default_otp` | **fail, F-8**: hit 3 times in 12 s |
 | ... with SCDL limit 1 | `short_packplus_persistent_scdl1` | pass: hit once |
 | weak cell under a get-up | `cuv_weak_cell_under_load` | **fail, F-6**: CUV at 1.25 s, back on by itself at 4.33 s |
+| the same, with each F-6 option and the F-1 fix, POWER at 6 s | `otp_f6_*` | see F-6: only Shutdown Cell Voltage = CUV with a 0 s delay both stays off and comes back on POWER; a healthy get-up does not trip it |
+| a 0.3 Ω fault on PACK+ with OCD1 at 30 mV, latched or time recovery | `otp_f3_*` | see F-3: latched stays off; time recovery closes Q2 into the fault every 3.3 s |
 | 12 A get-up from a half-charged pack | `getup_peak_brownout` | pass: PACK+ ≥ 10.20 V, the General Driver's input ≥ 10.13 V, EN/UVLO ≥ 1.54 V, no trip |
 | full pack, 4.21 V a cell | `full_pack_cov` | pass: COV opens CHG; body-diode protection closes it again under load; PACK+ stays up |
 | hot-plug: XT60 after the balance lead (with and without USB), the reverse, both at once; XT60 pulled while on | `hotplug_*`, `unplug_xt60_while_on` | pass: no wake; PACK+ ≤ 0.31 V; Q2's VGS coupled to ≤ 1.36 V for nanoseconds (F-9 for what the model cannot show) |
@@ -480,7 +483,7 @@ the board on.*
   - Servos drawing current below 5 V (2 kΩ each): SERVO+ reaches 0 V, but the General
     Driver's capacitance still holds PACK+ at 2.7 V.
   - The same hold stops the low-battery ramp (`low_battery_ramp`) from completing its
-    SHUTDOWN: it reaches the shutdown sequence at 6.75 s and then waits.
+    SHUTDOWN: it reaches the shutdown sequence at 6.83 s and then waits.
 - **Fix, simulated.** R38/R39 → 4.7 kΩ / 1 kΩ (same 2.21 V at 12.6 V; 28 mW) plus 4.7 kΩ
   from PACK+ to GND (34 mW while on; nothing in SHUTDOWN, where PACK+ is at 0 V):
   - no servos: SHUTDOWN 3.4 s after KILL, and POWER works at 8 s;
@@ -527,13 +530,25 @@ the board on.*
 - **Simulated.** A 17 A rail load at the OCD threshold's −4 mV corner trips OCD at 53 ms.
   A POWER press at 2.5 s does nothing, and U1 is still in NORMAL with Q2 open at the
   end. Only unplugging the pack restarts the board.
-- **Options (OTP), each with a catch.**
-  - *Time recovery:* OCD Recovery Threshold −100 mA. Simulated: the board comes back by
-    itself 3.03 s after the cut, an uncommanded restart like F-6. Pair it with OCDL so a
-    persistent fault latches.
-  - *Keep it latched:* accept unplug-to-reset, and write it into the bench rules.
-
-  This is Tom's call.
+- **With F-4's fix, only a fault reaches OCD.** With OCD1 at 30 mV, U2's breaker clears
+  every servo overload first (`rail_*_otp_ocd30`: 17 A held, 25 A cleared by the breaker
+  alone), and F2 (3 A) limits the logic branch. What is left to trip OCD is a fault on
+  the PACK+ side, above OCD1 and below SCD's 150 A.
+- **The options (OTP), simulated** against that fault: 0.3 Ω from PACK+ to GND (about
+  36 A), with rev B's F-1 and F-5 fixes and POWER pressed at 6 s:
+  - *TI's default, latched* (`otp_f3_pack_fault_latched`): the board stays off, POWER
+    does nothing, and unplugging the pack resets it.
+  - *Time recovery* (OCD Recovery Threshold −100 mA, `otp_f3_pack_fault_time_recovery`):
+    the board closes Q2 into the fault again by itself every 3.3 s (4.08 s, 7.33 s, …),
+    36 A for 53 ms each time. Without the fault it would simply come back 3 s after the
+    cut (`ocd_trip_otp_time_recovery`), an uncommanded restart like F-6.
+  - *Time recovery with OCDL:* OCDL latches after a set number of trips (TRM 5.2.8), but
+    it recovers only by time, charge current, load detect or I²C. Load detect needs the
+    pack's load above about 20 kΩ (TRM 5.2.18), which F-1's 4.7 kΩ bleed rules out, so a
+    latched OCDL is again unplug-to-reset. It is not modelled.
+- **Recommended:** keep the default, latched, with OCD1 at 30 mV. A board that stays off
+  until someone unplugs the pack and looks is the right answer to a fault on PACK+. The
+  bench rule: after a shutdown that POWER does not undo, unplug the pack.
 
 ### F-4. A servo overload can turn the whole robot off instead of the servo rail
 
@@ -575,10 +590,36 @@ the board on.*
   - with no load it recovers past CUV + 101 mV, and after Recovery:Time (3 s, TRM) the
     BQ76922 closes Q2 at 4.33 s;
   - the robot reboots with nobody asking. Under the next load it would cut again.
-- **Options (OTP).** Set Shutdown Cell Voltage at or just above CUV, so a cell that low
-  ends in SHUTDOWN, which POWER must undo. Or make the firmware, on a boot, check the
-  cells and KILL if one is below its landing line. Choosing between them is Tom's call;
-  the first has no firmware dependence.
+- **The options (OTP), simulated** on the same weak cell with rev B's F-1 fix, POWER
+  pressed at 6 s (`otp_f6_*`). The low-voltage shutdown is judged on the 250 ms
+  measurement loop (TRM Table 6-9), while CUV is a comparator with its own 250 ms delay
+  (TRM 5.2.5):
+  - *Shutdown Cell Voltage = CUV, Low V Shutdown Delay 1 s* (`otp_f6_shutcell_cuv_1s`):
+    no change. Once CUV opens Q2 the cell recovers within milliseconds, so it is never
+    below the threshold for a second, and the board is back on by itself at 4.33 s.
+  - *Shutdown Cell Voltage = CUV, Low V Shutdown Delay 0* (`otp_f6_shutcell_cuv_0s`):
+    the first sample inside the sag (1.08 s, lowest cell 2.68 V) starts the shutdown
+    sequence, and the board is in SHUTDOWN at 1.26 s, before CUV would have tripped.
+    Nothing restarts it; POWER at 6 s brings it back, and it stays up with the cell at
+    rest. A 12 A get-up on a healthy half-charged pack does not trip it
+    (`otp_f6_getup_shutcell_cuv_0s`). A sag that lasts as long as CUV's delay contains at
+    least one sample, because the loop period and CUV's delay are both 250 ms. The catch:
+    a dip that a sample happens to catch turns the board off even when it is shorter
+    than CUV's delay.
+  - *Shutdown Cell Voltage 3.2 V, delay 1 s* (`otp_f6_shutcell_3v2_1s`): this cell rests
+    at 3.15 V, under the threshold, so the board shuts down about 1.25 s after every boot:
+    SHUTDOWN at 1.58 s here, and again 1.25 s after POWER at 6 s. That is an empty-cell
+    lockout. It gives up the capacity between 3.2 V and CUV, and it does not stop a
+    healthier cell's restart after a sag.
+  - *CUV Recovery Hysteresis 300 mV* (`otp_f6_cuv_hys_300mV`): no restart, but the board
+    is stuck as in F-3. U1 stays in NORMAL with Q2 open, POWER does nothing, and only
+    unplugging the pack resets it.
+  - *Firmware:* on every boot, read the cells over I²C and KILL if one is below its
+    landing line. The restart still happens, briefly, and the result depends on the
+    firmware.
+- **Recommended:** Shutdown Cell Voltage = CUV with Low V Shutdown Delay 0. It ends a
+  CUV event in SHUTDOWN, POWER undoes it, it needs no firmware, and the firmware's
+  landing line stays the first line of defence.
 
 ### F-7. Servo-side shorts slew PACK+ faster than U2 is rated for
 

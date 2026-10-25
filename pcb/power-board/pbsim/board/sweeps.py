@@ -10,7 +10,7 @@ from dataclasses import replace
 
 from .board import Board, Esp32, Scenario, steps
 from .ics import BqLimits, BqOtp, TpsLimits
-from .sequences import (SEQ, on, save_trace)
+from .sequences import (SEQ, _q3_zener, on, save_trace)
 
 SWEEPS = {}
 
@@ -190,13 +190,6 @@ for _a in (16.0, 17.0, 18.0, 19.0, 21.0, 25.0):
 
 
 # ---- what-ifs: each proposed fix, re-simulated -------------------------------
-
-def _q3_zener(b):
-    """15 V zener gate→source on Q3 (MMSZ5245B, the same family as D3/D5)."""
-    g, s = b.node("Q3", 4), b.node("Q3", 1)
-    return [".model d_mmsz5245b d (is=1e-14 n=1 rs=1 bv=15 ibv=8.5m nbv=1.2 cjo=60p)",
-            f"d_fix_q3z {s} {g} d_mmsz5245b"]
-
 
 def _packplus_bulk(b):
     """2 × 10 µF 25 V X7R on PACK+ at Q3 (C22's part), 50 % DC-bias derated."""
