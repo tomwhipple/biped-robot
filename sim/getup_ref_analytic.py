@@ -66,6 +66,16 @@ REC_FRIC = 0.35                         # references record at the training plan
 IDLE = dict(shoulder=15, elbow=0)       # the walk's arm pose: where a real fall leaves the arms
 FOLD = dict(shoulder=180, elbow=0)      # the seat push's start
 REST = dict(shoulder=60, elbow=0)       # the seat push's arms from the crouch on
+# Arms for the rise, by sequence suffix (2026-10-24, Tom: "why does it always put
+# its arms straight back coming out of the crouch? ... moving the CG aft"). REST
+# arms hold the crouch's CoM 25-34 mm further back than forward arms; the rise is
+# re-planned for each arm pose so its CoM stays centred.
+RISE_ARMS = {"": REST, "h": dict(shoulder=0, elbow=0), "f": dict(shoulder=-45, elbow=0)}
+# ... and the CoM band each rise is planned in, (target, half-width) in m. With
+# the default (0, 12 mm) the torque-minimising DP parks the new arms' rises at
+# the band's BACK edge (-2 .. -12 mm), giving back what the arms bought; the REST
+# rise sits at -11 .. +4. The new rises aim slightly forward: -4 .. +12 mm.
+RISE_DX = {"": (0.0, 0.012), "h": (0.004, 0.008), "f": (0.004, 0.008)}
 NOMINAL = dict(fric=REC_FRIC, mu=0.7, play=3.0, stall_k=1.0, mass_k=1.0, tilt=0.0)
 # verify: every combination (3*3*2*2*2*3 = 216 rollouts)
 GRID = dict(fric=[0.05, 0.35, 0.5], mu=[0.5, 0.7, 1.0], play=[1.0, 4.0], stall_k=[0.85, 1.0],
@@ -235,21 +245,22 @@ def _is_desc(m, b, root):
     return False
 
 
-def rise_path(n_bands=8, step=3.0, margin=0.012, lam=0.02, verbose=False):
+def rise_path(n_bands=8, step=3.0, margin=0.012, lam=0.02, verbose=False, arms=REST, dx_target=0.0):
     """the crouch -> stand rise: grid the sagittal poses, keep the balanced
     ones (|CoM x - sole centre| < margin, every body centre clear of the floor),
     band them by pelvis height and DP through the bands from the seat push's
-    crouch hold to standing. Returns [(hip, knee, ankle)] in degrees."""
+    crouch hold to standing. `arms`: the arm pose held through the rise (the
+    balance is computed with it). Returns [(hip, knee, ankle)] in degrees."""
     m = mujoco.MjModel.from_xml_path(XML)
     d = mujoco.MjData(m)
     crouch = (H_STOP, K_STOP, -25.0)
-    p0, p1 = _levelled_pose(m, d, *crouch), _levelled_pose(m, d, 0.0, 0.0, 0.0)
+    p0, p1 = _levelled_pose(m, d, *crouch, arms=arms), _levelled_pose(m, d, 0.0, 0.0, 0.0, arms=arms)
     cands = []
     for hip in np.arange(-120.0, 0.1, step):
         for knee in np.arange(-130.0, 0.1, step):
             for ankle in np.arange(-40.0, 40.1, step):
-                r = _levelled_pose(m, d, hip, knee, ankle)
-                if r and abs(r["dx"]) < margin and r["floor"] > 0.01:
+                r = _levelled_pose(m, d, hip, knee, ankle, arms=arms)
+                if r and abs(r["dx"] - dx_target) < margin and r["floor"] > 0.01:
                     cands.append(((hip, knee, ankle), r))
     edges = np.linspace(p0["h"], p1["h"], n_bands + 2)[1:-1]
     bands = [[c for c in cands if abs(c[1]["h"] - e) < 0.5 * (edges[1] - edges[0])] for e in edges]
@@ -272,7 +283,7 @@ def rise_path(n_bands=8, step=3.0, margin=0.012, lam=0.02, verbose=False):
     return [q for q, _ in path]
 
 
-def rise_keys(path, deg_per_s=20.0, hold_s=0.4):
+def rise_keys(path, deg_per_s=20.0, hold_s=0.4, arms=REST):
     """waypoints -> (label, offsets, move_s, hold_s): quasi-static pace. 40 deg/s
     tipped it over backwards on reaching straight at joint frictionloss 0.05
     (0/72 of the grid), and 25 deg/s still did at 0.05 with mu 1.0 and +10 % mass
@@ -280,7 +291,7 @@ def rise_keys(path, deg_per_s=20.0, hold_s=0.4):
     keys, last = [], (H_STOP, K_STOP, -25.0)
     for i, q in enumerate(list(path) + [(0.0, 0.0, 0.0)]):
         move = max(0.6, np.abs(np.subtract(q, last)).max() / deg_per_s)
-        keys.append((f"ik rise {i}", dict(hip_pitch=q[0], knee=q[1], ankle=q[2], **REST), move, hold_s))
+        keys.append((f"ik rise {i}", dict(hip_pitch=q[0], knee=q[1], ankle=q[2], **arms), move, hold_s))
         last = q
     return keys
 
@@ -295,7 +306,7 @@ def seat_push():
 CROUCH_C = dict(ankle=-35.0, shoulder=0.0, elbow=0.0)   # the centred crouch hold (seat_push_ik centred=True)
 
 
-def seat_push_ik(path=None, centred=False):
+def seat_push_ik(path=None, centred=False, arms=REST):
     """the seat push up to its crouch hold, then the analytic rise.
 
     centred: the crouch hold keeps the hands on the floor (the push pose,
@@ -310,7 +321,8 @@ def seat_push_ik(path=None, centred=False):
     hold = sp[i]
     if centred:
         hold = (hold[0], dict(hold[1], **CROUCH_C), hold[2], hold[3])
-    return sp[:i] + [hold] + rise_keys(path if path is not None else rise_path()) + [("straight", dict(**REST), 1.0, 0.8)]
+    path = path if path is not None else rise_path(arms=arms)
+    return sp[:i] + [hold] + rise_keys(path, arms=arms) + [("straight", dict(**arms), 1.0, 0.8)]
 
 
 NK = 5
@@ -399,11 +411,21 @@ def sequences():
     ikc = seat_push_ik(path, centred=True)
     seqs = {"supine": ("supine", seat_push()), "supine_ik": ("supine", seat_push_ik(path)),
             "supine_ikc": ("supine", ikc)}
-    if os.path.exists(ROLL_JSON):
-        roll = roll_keys(json.load(open(ROLL_JSON))["x"])
+    roll = roll_keys(json.load(open(ROLL_JSON))["x"]) if os.path.exists(ROLL_JSON) else None
+    if roll:
         seqs["prone"] = ("prone", roll + seat_push()[1:])
         seqs["prone_ik"] = ("prone", roll + seat_push_ik(path)[1:])
         seqs["prone_ikc"] = ("prone", roll + ikc[1:])
+    # centred crouch + a rise re-planned for other arms: ikh = hanging (0),
+    # ikf = 45 deg forward (RISE_ARMS)
+    for sfx, arms in RISE_ARMS.items():
+        if not sfx:
+            continue
+        dx_t, band = RISE_DX[sfx]
+        seq = seat_push_ik(rise_path(arms=arms, dx_target=dx_t, margin=band), centred=True, arms=arms)
+        seqs[f"supine_ik{sfx}"] = ("supine", seq)
+        if roll:
+            seqs[f"prone_ik{sfx}"] = ("prone", roll + seq[1:])
     return seqs
 
 
@@ -452,7 +474,9 @@ if __name__ == "__main__":
     ap.add_argument("--iters", type=int, default=25)
     a = ap.parse_args()
     if a.cmd == "rise":
-        rise_path(verbose=True)
+        sfx = a.seq.rsplit("_ik", 1)[-1] if "_ik" in a.seq else ""
+        dx_t, band = RISE_DX.get(sfx, RISE_DX[""])
+        rise_path(verbose=True, arms=RISE_ARMS.get(sfx, REST), dx_target=dx_t, margin=band)
     elif a.cmd == "search-roll":
         print(search_roll(restarts=a.restarts, iters=a.iters, workers=a.workers))
     elif a.cmd == "verify":
