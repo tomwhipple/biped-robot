@@ -390,6 +390,7 @@ static char s_bal_side = 0;             // 'L' / 'R' while engaged
 static int s_bal_ba = -1, s_bal_bh = -1;    // bus index of the stance ankle roll / hip roll
 static TickType_t s_bal_last = 0;
 static float s_bal_roll = 0.0f;
+static float s_bal_rate = 0.0f;         // last body roll rate, rad/s
 static int32_t s_bal_dta = 0, s_bal_dth = 0;    // current correction, ticks (dir applied)
 static balance::State s_bal_shown = balance::State::kOff;
 static uint32_t s_bal_clamps = 0;       // writes the envelope clamp cut short
@@ -397,15 +398,22 @@ constexpr uint32_t kBalStaleMs = 100;   // an attitude older than this is a fail
 constexpr int kBalLogMax = 600;         // 25 Hz -> 24 s
 static uint16_t s_bal_log_ms[kBalLogMax];
 static int16_t s_bal_log_roll[kBalLogMax], s_bal_log_err[kBalLogMax], s_bal_log_u[kBalLogMax];  // 0.01 deg
+static int16_t s_bal_log_rate[kBalLogMax];      // 0.1 deg/s (saturating)
 static int s_bal_log_n = 0;
 static TickType_t s_bal_t0 = 0;
 static bool s_bal_log_odd = false;
 static bool s_bal_hold_said = false;
 
-static bool balReadRoll(float* roll) {
+// Roll (rad) from the fused attitude and, when asked, the body roll rate: the
+// latest 4 ms gyro sample about the BODY x axis (imu::Sample::gyro is already
+// through the mount rotation and bias-calibrated; + about x tips the torso to the
+// robot's right, the same sign as the roll). A non-finite rate comes back as is:
+// RollBalance::update turns it into an IMU fault.
+static bool balReadRoll(float* roll, float* rate = nullptr) {
     imu::Sample smp{};
     uint32_t age = 0;
     if (!robot::peekImu(smp, &age) || !smp.valid || age > kBalStaleMs) return false;
+    if (rate != nullptr) *rate = smp.gyro[0];
     return balance::rollFromUp(smp.up, roll);
 }
 
@@ -429,12 +437,14 @@ static void balTick(TickType_t now, Sink out) {
     if (!s_bal.engaged()) return;
     if (s_bal.state() == balance::State::kActive) {
         float roll = 0.0f;
-        if (balReadRoll(&roll)) {
+        float rate = 0.0f;
+        if (balReadRoll(&roll, &rate)) {
             long dt_ms = static_cast<long>(pdTICKS_TO_MS(now - s_bal_last));
             if (dt_ms < 10) dt_ms = 10;
             if (dt_ms > 100) dt_ms = 100;
             s_bal_roll = roll;
-            s_bal.update(roll, static_cast<float>(dt_ms) / 1000.0f);
+            s_bal_rate = rate;
+            s_bal.update(roll, static_cast<float>(dt_ms) / 1000.0f, rate);
         } else {
             s_bal.imuFault();
         }
@@ -459,6 +469,10 @@ static void balTick(TickType_t now, Sink out) {
         s_bal_log_roll[i] = static_cast<int16_t>(s_bal_roll * static_cast<float>(kBalDegX100));
         s_bal_log_err[i] = static_cast<int16_t>(s_bal.err() * static_cast<float>(kBalDegX100));
         s_bal_log_u[i] = static_cast<int16_t>(s_bal.u() * static_cast<float>(kBalDegX100));
+        float r10 = s_bal_rate * 572.9578f;      // 0.1 deg/s
+        if (r10 > 32000.0f) r10 = 32000.0f;
+        if (r10 < -32000.0f) r10 = -32000.0f;
+        s_bal_log_rate[i] = static_cast<int16_t>(r10);
     }
 }
 
@@ -682,6 +696,7 @@ void cmdPose(Sink out, int argc, char** argv) {
             s_bal_t0 = s_bal_last;
             s_bal_shown = balance::State::kActive;
             s_bal_roll = bal_ref;
+            s_bal_rate = 0.0f;
             s_bal_dta = s_bal_dth = 0;
             s_bal_clamps = 0;
             s_bal_log_n = 0;
@@ -734,11 +749,11 @@ void cmdPose(Sink out, int argc, char** argv) {
             static_cast<unsigned>(s_traj_acc), static_cast<long>(s_traj_bigstep),
             s_traj_minint_ms, s_traj_zv_ms);
         if (bal_idx >= 0) {
-            say(out, "balance ON, %c stance: ref roll %+.2f deg, kp %.2f ki %.2f ankle x%+.2f hip x%+.2f, "
+            say(out, "balance ON, %c stance: ref roll %+.2f deg, kp %.2f ki %.2f kd %.3f ankle x%+.2f hip x%+.2f, "
                 "clamp %.1f deg, abort %.1f deg -- holds after the move; any other command ends it\r\n",
                 bal_side, static_cast<double>(bal_ref * 57.29578f),
                 static_cast<double>(s_bal_cfg.kp), static_cast<double>(s_bal_cfg.ki),
-                static_cast<double>(s_bal_cfg.ka), static_cast<double>(s_bal_cfg.kh),
+                static_cast<double>(s_bal_cfg.kd), static_cast<double>(s_bal_cfg.ka), static_cast<double>(s_bal_cfg.kh),
                 static_cast<double>(s_bal_cfg.clamp_rad * 57.29578f),
                 static_cast<double>(s_bal_cfg.abort_rad * 57.29578f));
         }
@@ -1562,7 +1577,7 @@ void cmdBalance(Sink out, int argc, char** argv) {
             return;
         }
         if (argc < 6) {
-            out("usage: balance set <kp> <ki> <ankle_mix> <hip_mix> [clamp_deg] [abort_deg] | default\r\n");
+            out("usage: balance set <kp> <ki> <ankle_mix> <hip_mix> [clamp_deg] [abort_deg] [kd] | default\r\n");
             return;
         }
         c.kp = strtof(argv[2], nullptr);
@@ -1571,6 +1586,7 @@ void cmdBalance(Sink out, int argc, char** argv) {
         c.kh = strtof(argv[5], nullptr);
         if (argc >= 7) c.clamp_rad = strtof(argv[6], nullptr) / 57.29578f;
         if (argc >= 8) c.abort_rad = strtof(argv[7], nullptr) / 57.29578f;
+        if (argc >= 9) c.kd = strtof(argv[8], nullptr);
         const char* bad = balance::validate(c);
         if (bad) {
             say(out, "balance set: refused (%s)\r\n", bad);
@@ -1580,19 +1596,19 @@ void cmdBalance(Sink out, int argc, char** argv) {
         out("balance: gains set\r\n");
     }
     if (argc >= 2 && !strcmp(argv[1], "log")) {
-        say(out, "balance log: %d samples at 25 Hz (ms roll err u, 0.01 deg)\r\n", s_bal_log_n);
+        say(out, "balance log: %d samples at 25 Hz (ms roll err u in 0.01 deg, rate in 0.1 deg/s)\r\n", s_bal_log_n);
         for (int k = 0; k < s_bal_log_n; ++k) {
-            say(out, "BAL %u %d %d %d\r\n", static_cast<unsigned>(s_bal_log_ms[k]),
+            say(out, "BAL %u %d %d %d %d\r\n", static_cast<unsigned>(s_bal_log_ms[k]),
                 static_cast<int>(s_bal_log_roll[k]), static_cast<int>(s_bal_log_err[k]),
-                static_cast<int>(s_bal_log_u[k]));
+                static_cast<int>(s_bal_log_u[k]), static_cast<int>(s_bal_log_rate[k]));
         }
         out("balance log end\r\n");
         return;
     }
     const double r2d = 57.29578;
-    say(out, "gains    kp %.3f  ki %.3f /s  ankle x%+.2f  hip x%+.2f  clamp %.1f deg  abort %.1f deg\r\n",
+    say(out, "gains    kp %.3f  ki %.3f /s  kd %.3f s  ankle x%+.2f  hip x%+.2f  clamp %.1f deg  abort %.1f deg\r\n",
         static_cast<double>(s_bal_cfg.kp), static_cast<double>(s_bal_cfg.ki),
-        static_cast<double>(s_bal_cfg.ka), static_cast<double>(s_bal_cfg.kh),
+        static_cast<double>(s_bal_cfg.kd), static_cast<double>(s_bal_cfg.ka), static_cast<double>(s_bal_cfg.kh),
         static_cast<double>(s_bal_cfg.clamp_rad) * r2d, static_cast<double>(s_bal_cfg.abort_rad) * r2d);
     float roll = 0.0f;
     if (balReadRoll(&roll)) {
@@ -1608,9 +1624,10 @@ void cmdBalance(Sink out, int argc, char** argv) {
     }
     say(out, "state    %s, %c stance, %.1f s since engage\r\n", balance::stateName(s_bal.state()),
         s_bal_side, static_cast<double>(pdTICKS_TO_MS(xTaskGetTickCount() - s_bal_t0)) / 1000.0);
-    say(out, "         ref %+.2f deg  err %+.2f deg  I %+.4f  u %+.2f deg\r\n",
+    say(out, "         ref %+.2f deg  err %+.2f deg  rate %+.2f deg/s  I %+.4f  u %+.2f deg\r\n",
         static_cast<double>(s_bal.ref()) * r2d, static_cast<double>(s_bal.err()) * r2d,
-        static_cast<double>(s_bal.integral()), static_cast<double>(s_bal.u()) * r2d);
+        static_cast<double>(s_bal.rate()) * r2d, static_cast<double>(s_bal.integral()),
+        static_cast<double>(s_bal.u()) * r2d);
     say(out, "correction  %c ankle roll %+.2f deg = %+ld ticks   %c hip roll %+.2f deg = %+ld ticks   "
              "(envelope clamped %lu writes)\r\n",
         s_bal_side, static_cast<double>(s_bal.ankle()) * r2d, static_cast<long>(s_bal_dta),

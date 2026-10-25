@@ -73,8 +73,9 @@ lift command does not lift the foot at all; use 30 mm.
 
 `balance.py` (sim) and `firmware/components/balance/roll_pi.h` (bench, `pose ...
 B<L|R>`) are the same controller: the torso roll relative to the roll captured
-when feedback engages (the shifted pose, before the lift) goes through a PI with
-output clamp and anti-windup, and the output is added to the **stance** leg's
+when feedback engages (the shifted pose, before the lift) goes through a PI plus a
+gyro roll-rate damping term (`kd * rate`, derivative on the measurement; rate is the
+body-x gyro, + = roll increasing) with output clamp and anti-windup, and the output is added to the **stance** leg's
 ankle roll (x +1) and hip roll (x -1) only. Ankle +u with hip -u is a lateral
 pelvis translation with no net torso tilt: it moves the CoM, which is what the
 under-compensated shift lacked. The same gains serve either stance because the
@@ -82,8 +83,9 @@ sim's roll joints mirror and the output is odd in the error.
 
 | gain | value | |
 |---|---|---|
-| kp | 0.25 rad/rad | stable 0.125 to 0.5, falls from about 0.6 |
-| ki | 0.5 /s | |
+| kp | 0.3 rad/rad | all three gains together: held from 0.5x to 1.5x, falls appear at 2x |
+| ki | 1.0 /s | the settling time: 0.5 /s leaves 12 of 20 left-stance lifts above 1 deg after 3 s |
+| kd | 0.03 rad per rad/s | gyro roll-rate damping; good to about 2x alone, a cliff between 0.05 and 0.07 (dead time) |
 | ankle / hip mix | +1 / -1 | |
 | output clamp | 10 deg | the robot needed 9.2-9.7 deg (see the hardware section); the sweep is the same at 6 and 10 |
 | abort | 12 deg roll error freezes the correction | |
@@ -94,7 +96,11 @@ solved on the design plant, solved 10 mm outboard or 20 mm inboard, torso CoM
 +-12/15 mm off-centre, combinations of these) x 3 seeds, 0.1 deg IMU noise and
 one tick of IMU delay. Success: never falls, foot off >= 90 % of the 10 s hold,
 CoM margin >= 10 mm, no abort. Results are in
-[2026-10-24-imu-balance-sim.md](2026-10-24-imu-balance-sim.md).
+[2026-10-24-imu-balance-sim.md](2026-10-24-imu-balance-sim.md) (PI) and
+[2026-10-25-gyro-damping-sim.md](2026-10-25-gyro-damping-sim.md) (the gyro term, the
+transient spec and the retuned gains). `balance_sweep.py gyro` runs the transient
+sweep: 20 cases x 2 stances x lift over 2 s and 4 s straight to 30 mm, gyro noise
+0.0075 rad/s, one tick of gyro delay, bias residual +-0.01 rad/s.
 
 ## Hardware
 
