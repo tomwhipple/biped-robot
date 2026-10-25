@@ -148,6 +148,9 @@ What drives that estimate:
     not used, because Jameco names Amass as the maker and links Amass's datasheet.
   - The fuses themselves (Littelfuse MINI blades) plug in by hand anyway (C1 of the
     layout review).
+  - The assembler's through-hole joints drop from 53 to 41 a board: J1 has 4 plated pads
+    (2 contacts and 2 mechanical) and each holder 4, counted from the board file. That is
+    82 for two boards.
 
 ## Before ordering
 

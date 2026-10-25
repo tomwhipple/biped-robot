@@ -23,8 +23,9 @@ mkdir -p fab/gerbers
     -o fab/gerbers/ power-board.kicad_pcb
 "$KICAD_CLI" pcb export drill --excellon-separate-th --generate-map --map-format pdf \
     -o fab/gerbers/ power-board.kicad_pcb
-"$KICAD_CLI" pcb export pos --format csv --units mm --side front -o fab/power-board-pos.csv power-board.kicad_pcb
-"$KICAD_CLI" sch export bom --fields 'Reference,Value,Footprint,MPN,Datasheet,${QUANTITY}' \
+"$KICAD_CLI" pcb export pos --format csv --units mm --side front --exclude-dnp \
+    -o fab/power-board-pos.csv power-board.kicad_pcb
+"$KICAD_CLI" sch export bom --exclude-dnp --fields 'Reference,Value,Footprint,MPN,Datasheet,${QUANTITY}' \
     --labels 'Refs,Value,Footprint,MPN,Datasheet,Qty' --group-by 'Value,Footprint,MPN' \
     -o fab/power-board-bom.csv power-board.kicad_sch
 (cd fab/gerbers && zip -q -X -r ../power-board-gerbers.zip .)
