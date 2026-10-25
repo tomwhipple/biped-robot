@@ -104,6 +104,58 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·25 · night 4: get-up + the as-built legs</span></p>
+    <p><b>The fixed crouch works: w0k gets up 46/48 over joint friction, better than its reference alone.</b>
+    Trained on the centred crouch hold (<code>prone_ikc</code>), w0k has no
+    crouch tip-back left. From face-down and from the back it scores 7/8 at
+    friction 0.05, 8/8 at 0.35 and 8/8 at 0.5: 46/48, above the reference
+    replayed with no policy (43/48) and v0k's 23/48. It is the first policy
+    trained with hold that adds something over its reference. Its seed
+    replicate (seed 101) stands upright too, then tips back to 0.29 m 1 – 3 s
+    later in every back-start seed (14/48), so seed variance on this recipe
+    is still large. Tonight: friction DR (w1k), a smaller residual (w2k) and a
+    third seed (w0k_s1).</p>
+    <p><b>The as-built legs: one-sided balance, and two low steps per walk.</b>
+    The first skills run on the legs-only plant holds the left foot up for
+    10 s (7/8) but cannot stand on the left foot (balance_R 0/8). The plant is
+    symmetric (CoM 0.25 mm off the centreline), so the policy is what is
+    one-sided. Tonight adds the mirror-symmetry loss (bal2). The walkers walk
+    (line 8/8, square 8/8) but fail the "every step ≥ 3 cm" check 0/8. Logged
+    per step, every steady step clears 3 cm (5 – 8 cm with the raised swing
+    targets), and every short step is the first one after "walk" (0.4 – 2.5 cm)
+    or the stop step (0.1 – 2 cm). The new <code>--w-low-swing</code> (PR
+    #153) charges each step its shortfall below 3 cm under any command; walk3
+    and walk4 bracket its weight (5, 15). Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_getup_w0k_prone_fall.jpg" src="_clips/robot_getup_w0k_prone_fall.mp4"></video>
+      <figcaption><b>robot_getup_w0k</b> · v0k recipe on the centred crouch hold (prone_ikc): 8/8 from face-down at 0.35, 46/48 over friction 0.05 – 0.5, above its reference replayed with no RL (43/48)<br>recover_prone_fall 8/8
+        · seed 1/8 takes, verdict burned in · 38s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_getup_w0k_fb1024s1_supine_ph.jpg" src="_clips/robot_getup_w0k_fb1024s1_supine_ph.mp4"></video>
+      <figcaption><b>robot_getup_w0k_fb1024s1</b> · the same recipe, seed 101: stands upright at ~23 s, then tips to 0.29 m 1 – 3 s later in every seed (14/48)<br>recover_supine_ph 0/8
+        · seed 1/8 takes, verdict burned in · 27s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_bal1_balance.jpg" src="_clips/robot_legs_bal1_balance.mp4"></video>
+      <figcaption><b>robot_legs_bal1</b> · as-built legs-only plant, from scratch: holds the left foot up (7/8) but cannot stand on the left foot (balance_R 0/8)<br>balance_L 7/8 · balance_R 0/8
+        · seed 1/8 takes, verdict burned in · 14s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_walk2_walk_steps.jpg" src="_clips/robot_legs_walk2_walk_steps.mp4"></video>
+      <figcaption><b>robot_legs_walk2</b> · raised swing targets: steady steps peak 5 – 8 cm, the first and the stop step stay under 3 cm, so walk_steps fails 0/8<br>walk_steps_L 0/8 · walk_steps_R 0/8
+        · seed 1/8 takes, verdict burned in · 10s</figcaption>
+    </figure>
+    </div>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·24 · get-up campaign night 3</span></p>
     <p><b>The policies fail where the reference is weakest: the crouch hold. The fixed reference trains tonight.</b>
     Night 3 trained with the hand-over removed (<code>--rise-ref-hold</code>).

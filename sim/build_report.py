@@ -436,6 +436,28 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-25 card: night 4 -- the centred crouch hold works (w0k 46/48 over
+# friction, above its reference's replay) but its seed replicate stands and
+# then tips; the first legs-only runs balance one way round only and walk with
+# every steady step >= 3 cm but a low first and last step.
+fig_1025 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w0k', ['recover_prone_fall'],
+                 'robot_getup_w0k_prone_fall',
+                 'v0k recipe on the centred crouch hold (prone_ikc): 8/8 from face-down at 0.35, '
+                 '46/48 over friction 0.05 – 0.5, above its reference replayed with no RL (43/48)'),
+    video_figure('robot_getup_w0k_fb1024s1', ['recover_supine_ph'],
+                 'robot_getup_w0k_fb1024s1_supine_ph',
+                 'the same recipe, seed 101: stands upright at ~23 s, then tips to 0.29 m '
+                 '1 – 3 s later in every seed (14/48)'),
+    video_figure('robot_legs_bal1', ['balance_L', 'balance_R'],
+                 'robot_legs_bal1_balance',
+                 'as-built legs-only plant, from scratch: holds the left foot up (7/8) but '
+                 'cannot stand on the left foot (balance_R 0/8)'),
+    video_figure('robot_legs_walk2', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk2_walk_steps',
+                 'raised swing targets: steady steps peak 5 – 8 cm, the first and the stop '
+                 'step stay under 3 cm, so walk_steps fails 0/8'),
+] if f)
 # 2026-10-24 card: get-up campaign night 3 -- training with hold keeps the
 # latch but every policy tips back at the seat push's crouch hold; the
 # reference replayed with no RL scores better than all of them (41/48), and the
@@ -675,6 +697,35 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·25 · night 4: get-up + the as-built legs</span></p>
+    <p><b>The fixed crouch works: w0k gets up 46/48 over joint friction, better than its reference alone.</b>
+    Trained on the centred crouch hold (<code>prone_ikc</code>), w0k has no
+    crouch tip-back left. From face-down and from the back it scores 7/8 at
+    friction 0.05, 8/8 at 0.35 and 8/8 at 0.5: 46/48, above the reference
+    replayed with no policy (43/48) and v0k's 23/48. It is the first policy
+    trained with hold that adds something over its reference. Its seed
+    replicate (seed 101) stands upright too, then tips back to 0.29 m 1 – 3 s
+    later in every back-start seed (14/48), so seed variance on this recipe
+    is still large. Tonight: friction DR (w1k), a smaller residual (w2k) and a
+    third seed (w0k_s1).</p>
+    <p><b>The as-built legs: one-sided balance, and two low steps per walk.</b>
+    The first skills run on the legs-only plant holds the left foot up for
+    10 s (7/8) but cannot stand on the left foot (balance_R 0/8). The plant is
+    symmetric (CoM 0.25 mm off the centreline), so the policy is what is
+    one-sided. Tonight adds the mirror-symmetry loss (bal2). The walkers walk
+    (line 8/8, square 8/8) but fail the "every step ≥ 3 cm" check 0/8. Logged
+    per step, every steady step clears 3 cm (5 – 8 cm with the raised swing
+    targets), and every short step is the first one after "walk" (0.4 – 2.5 cm)
+    or the stop step (0.1 – 2 cm). The new <code>--w-low-swing</code> (PR
+    #153) charges each step its shortfall below 3 cm under any command; walk3
+    and walk4 bracket its weight (5, 15). Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1025}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·24 · get-up campaign night 3</span></p>
