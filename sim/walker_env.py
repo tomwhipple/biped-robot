@@ -369,6 +369,17 @@ def rise_root_kernel(z, quat, ref, xp):
     du2 = (ux - ref[1]) ** 2 + (uy - ref[2]) ** 2 + (uz - ref[3]) ** 2
     return xp.exp(-(((z - ref[0]) / RISE_ROOT_SIG_Z) ** 2 + du2 / RISE_ROOT_SIG_UP ** 2))
 
+
+LOW_SWING_CLEAR = 0.03    # m: every step's sole peak (the referee's SWING_CLEAR, walk_steps_L/R)
+LOW_SWING_MIN_TICKS = 3   # a shorter swing is contact chatter, not a step (the referee's SWING_MIN_TICKS)
+
+
+def low_swing_shortfall(peak, xp):
+    """Fraction of LOW_SWING_CLEAR a completed swing's sole peak fell short by:
+    0 at or above 3 cm, 1 for a foot that left the floor without rising.
+    xp = jax.numpy or numpy, so both envs share the exact formula."""
+    return xp.clip((LOW_SWING_CLEAR - peak) / LOW_SWING_CLEAR, 0.0, 1.0)
+
 class BimoWalkerEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"], "render_fps": 50}
 
@@ -626,6 +637,8 @@ class BimoWalkerEnv(gym.Env):
         w_rise_root: float = 0.0,          # root tracking while down (mirror of env_mjx)
         w_symmetry: float = 0.0,       # gait-symmetry penalty on touchdown:
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
+        w_low_swing: float = 0.0,      # per-step clearance penalty on touchdown
+        # (mirrors sim/mjx; low_swing_shortfall above)
         w_foot_under: float = 0.0,     # mirrors sim/mjx w_foot_under
         w_up_vel: float = 0.0,         # mirrors sim/mjx w_up_vel (getup_v5)
         w_com_stance: float = 0.0,     # while lifted: CoM-over-stance-foot
@@ -874,6 +887,8 @@ class BimoWalkerEnv(gym.Env):
         self._gait_phase = 0.0
         self._obs_hist = []
         self.w_symmetry = w_symmetry
+        self.w_low_swing = w_low_swing
+        self._swing_peak = np.zeros(2)   # per-foot sole peak (m) of the swing in progress
         self.w_com_stance = w_com_stance
         self.w_foot_under = w_foot_under
         self.w_up_vel = w_up_vel
@@ -2022,6 +2037,7 @@ class BimoWalkerEnv(gym.Env):
         self._shaft = None
         self._air_time[:] = 0.0
         self._last_air[:] = 0.0
+        self._swing_peak[:] = 0.0
         self._servo_tau[:] = 0.0
         self._cross_t = None    # dash: time the torso first crossed dash_distance
         self._stand_t = None    # dash_stop: start of the current standstill
@@ -2433,10 +2449,24 @@ class BimoWalkerEnv(gym.Env):
                         if self.w_symmetry and self._last_air[1 - f] > 0.0:
                             reward -= self.w_symmetry * abs(
                                 self._air_time[f] - self._last_air[1 - f])
+                    # per-step clearance (Tom 2026-10-24: every foot lifts
+                    # >= 3 cm on every step): a completed swing of >= 3 ticks
+                    # pays its shortfall, under ANY command -- the start and
+                    # stop steps the gait shaping above never sees included
+                    if (self.w_low_swing and self._recovered
+                            and self._air_time[f]
+                            >= (LOW_SWING_MIN_TICKS - 0.5) * self.control_dt):
+                        reward -= self.w_low_swing * float(
+                            low_swing_shortfall(self._swing_peak[f], np))
                     self._last_air[f] = self._air_time[f]
                 self._air_time[f] = 0.0
+                self._swing_peak[f] = 0.0
             else:
                 self._air_time[f] += self.control_dt
+                self._swing_peak[f] = max(
+                    self._swing_peak[f],
+                    float(self.data.geom_xpos[self._sole_gids[f]][2])
+                    - getattr(self, "_sole_z0", 0.0))
         single_support = con_l != con_r
         double_support = con_l and con_r
         if self.ext_cmd:

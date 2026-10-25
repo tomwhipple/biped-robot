@@ -217,6 +217,8 @@ class State(NamedTuple):
     traj_on: jax.Array        # ()  1.0 while the current command evolves c5/c6
     last_air: jax.Array       # (2,) last completed swing duration per foot
                               # (gait-symmetry penalty compares L vs R)
+    swing_peak: jax.Array     # (2,) per-foot sole peak (m above standing) of
+                              # the swing in progress (w_low_swing)
     gait_freq: jax.Array      # ()  per-episode gait-clock frequency (Hz)
     gait_phase: jax.Array     # ()  running clock phase in [-pi, pi)
     obs_hist: jax.Array       # (hist-1, frame) previous obs frames (newest
@@ -809,6 +811,11 @@ class BimoMJXEnv:
         rise_ref_et: float = 0.0,   # m; >0: DeepMimic early termination -- a recovery episode not yet
                                     # recovered ends when the pelvis strays this far from the reference's
         rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
+        w_low_swing: float = 0.0,   # per-step clearance penalty: on touchdown
+                                    # of a >= 3-tick swing, w x its shortfall
+                                    # below 3 cm (walker_env.low_swing_shortfall),
+                                    # under any command (Tom 2026-10-24: every
+                                    # foot >= 3 cm on every step)
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
         # 2026-07-19: "work on the symmetry of motion in walking gaits";
@@ -1339,6 +1346,7 @@ class BimoMJXEnv:
         if w_mimic > 0 and not gait_clock:
             raise ValueError("w_mimic requires gait_clock")
         self.w_symmetry = w_symmetry
+        self.w_low_swing = w_low_swing
         self.lift_clear = lift_clear
         self.w_com_stance = w_com_stance
         self.w_foot_under = w_foot_under
@@ -2307,7 +2315,7 @@ class BimoMJXEnv:
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
                      last_target=self._sdefault.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2),
-                     last_air=jp.zeros(2),
+                     last_air=jp.zeros(2), swing_peak=jp.zeros(2),
                      gait_freq=gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist, cmd=cmd,
                      cmd_next=cmd_next, traj=traj, traj_on=traj_on,
@@ -2384,7 +2392,7 @@ class BimoMJXEnv:
             obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
             prev_action=prev_action,
             last_target=self._sdefault.astype(jp.float32), step_i=step_i,
-            air_time=jp.zeros(2), last_air=jp.zeros(2),
+            air_time=jp.zeros(2), last_air=jp.zeros(2), swing_peak=jp.zeros(2),
             gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
@@ -2895,6 +2903,19 @@ class BimoMJXEnv:
             reward -= jp.where(cmd_moving, self.w_symmetry * jp.sum(
                 jp.where(sym_valid,
                          jp.abs(state.air_time - other_last), 0.0)), 0.0)
+        # per-step clearance: a completed swing of >= 3 ticks pays its
+        # shortfall below 3 cm under ANY command, so the start and stop steps
+        # the gait shaping never sees are graded too (mirrors walker_env)
+        z_soles = jp.stack([data.geom_xpos[self._sole_gids[0]][2],
+                            data.geom_xpos[self._sole_gids[1]][2]]) - self._sole_z0
+        if self.w_low_swing:
+            from walker_env import (low_swing_shortfall as _wenv_low_swing,  # jax-free, shared with the CPU env
+                                    LOW_SWING_MIN_TICKS)
+            step_done = landed & (state.air_time
+                                  >= (LOW_SWING_MIN_TICKS - 0.5) * self.control_dt)
+            reward -= jp.where(state.recovered > 0.5, self.w_low_swing * jp.sum(
+                jp.where(step_done, _wenv_low_swing(state.swing_peak, jp), 0.0)), 0.0)
+        swing_peak = jp.where(con, 0.0, jp.maximum(state.swing_peak, z_soles))
         last_air = jp.where(landed, state.air_time, state.last_air)
         air_time = jp.where(con, 0.0, state.air_time + self.control_dt)
         single = con[0] != con[1]
@@ -3160,7 +3181,7 @@ class BimoMJXEnv:
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
                      last_target=target, step_i=step_i, air_time=air_time,
-                     last_air=last_air,
+                     last_air=last_air, swing_peak=swing_peak,
                      gait_freq=state.gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,

@@ -82,6 +82,7 @@ def sync(state, cpu, gpu_env=None):
         step_i=jp.asarray(cpu._step_i, dtype=jp.int32),
         air_time=jp.asarray(np.array(cpu._air_time)),
         last_air=jp.asarray(np.array(cpu._last_air)),
+        swing_peak=jp.asarray(np.array(cpu._swing_peak)),
         cmd=jp.asarray(np.array(cpu._cmd)),
         traj=jp.asarray(np.array(cpu._traj)),
         traj_on=jp.asarray(float(cpu._traj_on)),

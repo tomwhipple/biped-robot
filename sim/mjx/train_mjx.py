@@ -462,6 +462,11 @@ def make_parser():
     p.add_argument("--foot-cross-sep", type=float, default=None,
                    help="lateral sole separation (m) below which the "
                         "feet-crossing penalty pays (default 0.051)")
+    p.add_argument("--w-low-swing", type=float, default=0.0,
+                   help="per-step clearance penalty (Tom 2026-10-24: every foot "
+                        ">= 3 cm on every step): on touchdown of a >= 3-tick "
+                        "swing, w x (3 cm - sole peak) / 3 cm, under ANY command "
+                        "(the start and stop steps included); 0 = off")
     p.add_argument("--swing-height", type=float, default=None,
                    help="swing-foot peak height target for w_feet_phase (m; preset 0.06)")
     p.add_argument("--w-feet-phase", type=float, default=None,
@@ -771,6 +776,8 @@ def build_env_kw(args):
         env_kw["w_action_rate"] = args.w_action_rate
     if args.w_symmetry is not None:
         env_kw["w_symmetry"] = args.w_symmetry
+    if args.w_low_swing:
+        env_kw["w_low_swing"] = args.w_low_swing
     if args.w_power is not None:
         env_kw["w_power"] = args.w_power
     if args.w_heading is not None:

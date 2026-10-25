@@ -275,6 +275,7 @@ flag:
 | costs | `w_energy` 0.002, `w_action_rate` 0.15, `w_power` 0.008, `w_pitch_rate` 0.1 (torso roll + pitch rate), `w_lateral` 0.5 (vy error) |
 | skills | `w_lift` 1 (correct one-foot contact with clearance), `w_track_foot` 1 (swing-foot target, σ 6 cm), `w_foot_cross` 0.5 (soles closer than sole width + 5 mm); optional `w_knee_high`, `w_com_stance`, `w_foot_under` |
 | gait shaping (moving commands; slip always) | `w_feet_air` 5 (air time toward 0.3 s), `w_single_support` 0.3 (single support while moving, double while standing), `w_feet_phase` 1 (swing height follows the clock, 6 cm peak), `w_feet_slip` 0.25, `w_symmetry` 1 (swing-duration mismatch at touchdown); optional `w_contact_sched` (stance/swing timing) |
+| per-step clearance (any command) | optional `w_low_swing` (`--w-low-swing`): on the touchdown of a swing of ≥ 3 ticks, w × its sole peak's shortfall below 3 cm, the `walk_steps` rule; it also grades the start and stop steps the moving-gated gait shaping never sees |
 | regularization | `w_orientation` 1 (up_x² + up_y²), `w_ang_vel_xy` 0.15, `w_pose` 0.3 (every policy joint toward home, plain stand/walk only), `w_dof_limits` 1 (past 90 % of the policy range) |
 | imitation | `w_mimic` 1.5 in the `loco` family |
 | stand, crouch | optional: `w_still`, `w_stand_home`, `w_stand_com`, `w_stand_knee`; `w_crouch_pull`, `w_crouch_track`, `--crouch-pose-ref`, `--crouch-deep-ref`, `--crouch-rsi-mix` |
