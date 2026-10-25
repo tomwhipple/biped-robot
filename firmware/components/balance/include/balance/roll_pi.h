@@ -6,8 +6,11 @@
 //   err = roll - roll_ref            roll_ref is captured when feedback engages
 //                                    (the shifted pose, before the lift), so the
 //                                    absolute IMU roll zero never matters
-//   u   = clamp(kp*err + ki*I)       I += err*dt, frozen while the output is
+//   u   = clamp(kp*err + ki*I + kd*w) I += err*dt, frozen while the output is
 //                                    saturated and err pushes further (anti-windup)
+//                                    w = body roll rate from the gyro (rad/s, + =
+//                                    roll increasing = d err/dt): derivative on the
+//                                    measurement, never a differenced angle
 //   stance ankle roll += ka * u      the caller adds these (radians, SIM joint
 //   stance hip roll   += kh * u      frame) to the STANCE leg's two roll targets
 //
@@ -23,10 +26,12 @@ namespace balance {
 
 struct Config {
     // The defaults are the sim-chosen gains (experiments/one-leg-stand/README.md):
-    // stable at half and at double, unstable by about 2.4x on kp. Ankle +1 / hip -1
-    // is a lateral pelvis translation with no net torso tilt, i.e. it moves the CoM.
-    float kp = 0.25f;         // rad per rad
-    float ki = 0.5f;          // 1/s
+    // held from half to 1.5x all three together, falls appear at 2x; kd alone is
+    // good to about 2x. Ankle +1 / hip -1 is a lateral pelvis translation with no
+    // net torso tilt, i.e. it moves the CoM.
+    float kp = 0.3f;          // rad per rad
+    float ki = 1.0f;          // 1/s
+    float kd = 0.03f;         // rad per rad/s: damping on the gyro roll rate, same sign as kp
     float ka = 1.0f;          // PI output -> stance ankle roll (signed mix)
     float kh = -1.0f;         // PI output -> stance hip roll (signed mix)
     // |u| limit, 10 deg. The roll play beyond the encoders absorbs most of the
@@ -63,9 +68,11 @@ class RollBalance {
     // Stop; the correction goes to zero (the next move starts from where the
     // servos are, so it does not jump).
     void disengage();
-    // One tick with a valid roll sample. Returns the state after the tick.
-    // While frozen nothing changes.
-    State update(float roll_rad, float dt_s);
+    // One tick with a valid roll sample and the body roll rate (gyro about the
+    // torso x axis, rad/s, + = roll increasing). A non-finite rate is an IMU
+    // fault (frozen, like a failed read). Returns the state after the tick.
+    // While frozen nothing changes. rate 0 = the PI alone.
+    State update(float roll_rad, float dt_s, float roll_rate_rad_s = 0.0f);
     // The attitude could not be read: freeze at the last correction.
     void imuFault();
 
@@ -75,13 +82,14 @@ class RollBalance {
     float err() const { return err_; }
     float integral() const { return i_; }
     float u() const { return u_; }
+    float rate() const { return rate_; }
     float ankle() const { return cfg_.ka * u_; }    // rad, add to the stance ankle roll
     float hip() const { return cfg_.kh * u_; }      // rad, add to the stance hip roll
 
   private:
     Config cfg_;
     State state_ = State::kOff;
-    float ref_ = 0.0f, err_ = 0.0f, i_ = 0.0f, u_ = 0.0f;
+    float ref_ = 0.0f, err_ = 0.0f, i_ = 0.0f, u_ = 0.0f, rate_ = 0.0f;
 };
 
 const char* stateName(State s);

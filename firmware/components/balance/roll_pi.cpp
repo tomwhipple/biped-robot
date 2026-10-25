@@ -7,6 +7,7 @@ namespace balance {
 const char* validate(const Config& c) {
     if (!(c.kp >= 0.0f && c.kp <= 10.0f)) return "kp must be 0..10";
     if (!(c.ki >= 0.0f && c.ki <= 10.0f)) return "ki must be 0..10";
+    if (!(c.kd >= 0.0f && c.kd <= 1.0f)) return "kd must be 0..1";
     if (!(fabsf(c.ka) <= 3.0f)) return "ankle mix must be within +-3";
     if (!(fabsf(c.kh) <= 3.0f)) return "hip mix must be within +-3";
     if (!(c.clamp_rad > 0.0f && c.clamp_rad <= 0.26180f + 1e-5f)) return "clamp must be 0..15 deg";
@@ -26,6 +27,7 @@ void RollBalance::engage(float roll_ref_rad) {
     err_ = 0.0f;
     i_ = 0.0f;
     u_ = 0.0f;
+    rate_ = 0.0f;
     state_ = State::kActive;
 }
 
@@ -34,10 +36,16 @@ void RollBalance::disengage() {
     err_ = 0.0f;
     i_ = 0.0f;
     u_ = 0.0f;
+    rate_ = 0.0f;
 }
 
-State RollBalance::update(float roll_rad, float dt_s) {
+State RollBalance::update(float roll_rad, float dt_s, float roll_rate_rad_s) {
     if (state_ != State::kActive) return state_;
+    if (!isfinite(roll_rate_rad_s)) {
+        state_ = State::kFrozenImu;
+        return state_;
+    }
+    rate_ = roll_rate_rad_s;
     const float err = roll_rad - ref_;
     if (!isfinite(err) || fabsf(err) > cfg_.abort_rad) {
         state_ = State::kFrozenAbort;
@@ -45,7 +53,7 @@ State RollBalance::update(float roll_rad, float dt_s) {
         return state_;
     }
     err_ = err;
-    const float unsat = cfg_.kp * err + cfg_.ki * i_;
+    const float unsat = cfg_.kp * err + cfg_.ki * i_ + cfg_.kd * roll_rate_rad_s;
     float u = unsat;
     if (u > cfg_.clamp_rad) u = cfg_.clamp_rad;
     if (u < -cfg_.clamp_rad) u = -cfg_.clamp_rad;

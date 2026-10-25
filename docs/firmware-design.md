@@ -431,8 +431,10 @@ Each tick the fused torso roll (`imu::Sample::up`, read with `robot::peekImu`,
 which does not consume the gyro window `ctrl` averages) is compared with the
 roll captured when the pose was issued. The reference is whatever the robot
 reads at the shifted pose, so the IMU's absolute roll zero never enters. A PI
-(`components/balance/roll_pi.h`: output clamp, anti-windup that freezes the
-integral while saturated) turns that error into a correction added to the
+plus gyro damping (`components/balance/roll_pi.h`: `u = kp*err + ki*I + kd*w`,
+`w` the body roll rate, the latest 4 ms gyro sample about the body x axis, +
+= roll increasing, the same sign as the roll; output clamp, anti-windup that
+freezes the integral while saturated) turns that error into a correction added to the
 stance leg's ankle-roll and hip-roll targets, in joint radians through the
 calibrated `dir`, then through the same envelope clamp (`clampTicks`) as every
 bench write. The swing leg is untouched. The correction persists through the
@@ -442,8 +444,11 @@ where the servos are). Safety: if the roll error passes the abort limit, or
 the attitude read fails or is older than 100 ms, the correction **freezes** at
 its last value, a message prints, and torque stays on. `balance` prints the
 gains, the live roll, and the active correction in degrees and ticks;
-`balance log` dumps the last 24 s at 25 Hz; `balance set` changes the gains
-(refused while engaged). The sim twin and the gain sweep are in
+`balance log` dumps the last 24 s at 25 Hz (`BAL ms roll err u` in 0.01 deg,
+then the roll rate in 0.1 deg/s); `balance set <kp> <ki> <ankle> <hip>
+[clamp_deg] [abort_deg] [kd]` changes the gains (refused while engaged; the
+defaults are kp 0.3, ki 1.0, kd 0.03, mixes +1/-1, clamp 10 deg, abort 12 deg).
+A non-finite gyro rate freezes the correction like a failed attitude read. The sim twin and the gain sweep are in
 [experiments/one-leg-stand](../experiments/one-leg-stand/README.md).
 
 ### 5.7 Position-loop gains (Plan B)
