@@ -124,9 +124,9 @@ if ARMS:
         ("shoulder_girdle_v6", _lazy("shoulder_girdle_v6", "shoulder_girdle_v6"), 1,
          "ONE PRINT: both shoulder pods + the neck tube + the trapezius webs (base down)"),
         ("arm_upper_v6_L", _lazy("arm_v6", "arm_upper_v6", "L"), 1, "shoulder horn -> elbow servo grip, 160 mm (on its back)"),
-        ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L"),
+        ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L, its own letter R"),
         ("arm_fore_v6_L", _lazy("arm_v6", "arm_fore_v6", "L"), 1, "elbow fork -> hand knuckle, 160 mm (on its back)"),
-        ("arm_fore_v6_R", _lazy("arm_v6", "arm_fore_v6", "R"), 1, "mirror of _L"),
+        ("arm_fore_v6_R", _lazy("arm_v6", "arm_fore_v6", "R"), 1, "mirror of _L, its own letter R"),
     ]
 else:
     PARTS.append(("neck_collar", _lazy("neck_collar", "neck_collar"), 1,

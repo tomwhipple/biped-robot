@@ -474,7 +474,8 @@ target.
   leg link's grip channel turned end for end so the case runs up the arm. The
   forearm forks round the elbow servo's horn and idler discs. So the elbow
   servo turns with the upper arm, and its lead crosses only the shoulder. The
-  elbow clears −118° … +60° as drawn.
+  elbow clears −118° … +60° as drawn. Each link's side, L or R, is debossed
+  0.6 mm into its outboard rail, 8 mm tall and upright as the arm hangs.
 - Hand: a 12 mm-radius knuckle, bare PETG.
 - **Rest pose: folded** — shoulder 15° forward, elbow folded 95°, so the
   forearm points forward and 20° up (`ARM_REST` in `cad/v6/dimensions_v6.py`;
