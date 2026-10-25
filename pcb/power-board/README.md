@@ -41,8 +41,11 @@ design calculator (SLURB09) confirms the servo-rail switch values.
 
 **97 × 64.5 mm, four layers, 1.6 mm, ENIG.** The stackup is in the board file, so the
 Gerber job file carries it.
-- **Copper:** 2 oz (70 µm) on the outer layers, 1 oz inside. 1 oz outer is enough by the
-  copper analysis in the verification record; that choice is Tom's (cost).
+- **Copper:** 1 oz (35 µm) on every layer, with a 1.04 mm core so the board stays 1.6 mm.
+  The verification record's copper analysis (C11) finds 1 oz enough: 0.66 mΩ on the main
+  path, 0.26 W at 20 A, and the copper is not the thermal limit. 2 oz outer at the 6/6 mil
+  this board needs was most of the bare-board price (record 2026-10-07 and
+  [2026-10-24-power-board-quote.md](../../docs/design-v6/2026-10-24-power-board-quote.md)).
 - **Parts:** every part is on the top side. The through-hole parts are J1–J12, F1 and C21.
 
 | layer | use |
@@ -69,8 +72,9 @@ Gerber job file carries it.
 - **Pours:** every pad on the 15–20 A path sits in one solid pour per net, on top, with a
   copy on the bottom where the parts allow it. A script check confirms each pour fills as one
   piece covering all its pads.
-- **Gate exits:** Q2's and Q3's gates leave through vias inside their pours' notches, so no
-  gate trace crosses a pour.
+- **Gate exits:** Q2's and Q3's gates leave through vias inside their pours' notches. Q2's
+  trace crosses no pour. Q3's gate route is 37.5 mm long and slots through both SERVO+
+  copies; rev B shortens it (below).
 - **Solid joints:** Q1–Q3, R1 and R24 join their pours solid. So do the ground pins of the
   through-hole connectors and C21: the servo returns carry amps, and thin thermal spokes would
   starve. That makes those pins harder to hand-solder.
@@ -90,8 +94,7 @@ on a 3 mm grid tie the planes and the bottom pour together.
 - Signal tracks: 0.2 mm by default; the logic feed is 1.2 mm.
 - Vias: 0.6 mm with 0.3 mm drill.
 
-These are within a standard 4-layer process at PCBWay or JLCPCB. JLCPCB lists 0.15/0.15 mm
-as its minimum for 2 oz outer copper.
+These are within a standard 4-layer, 1 oz process at PCBWay or JLCPCB.
 
 ## Files
 
@@ -127,6 +130,14 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
 
 ## Open before ordering
 
+- **A firm quote.** The instant quotes of 2026-10-24
+  ([record](../../docs/design-v6/2026-10-24-power-board-quote.md)) put 2 assembled boards at
+  about $203 at PCBWay with 1 oz copper. A firm price needs `fab/` uploaded to an account for
+  review, after rev B. J1 (XT60PW-M) and F1/F2's holders (Keystone 3568) are out of stock
+  at LCSC: they are left off the assembly order and soldered by hand, from Jameco and
+  Digi-Key stock (quote record). At rev B, mark J1, F1 and F2 do-not-populate in the
+  schematic; `fab.sh` exports the BOM and placement files with `--exclude-dnp`, so they
+  leave them out.
 - **Rev B changes from the whole-board simulation**
   ([record](../../docs/design-v6/2026-10-24-power-board-full-simulation.md), F-numbers)
   **and the pin audit** ([record](../../docs/design-v6/2026-10-24-power-board-pin-audit.md)):
@@ -141,6 +152,24 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
   - R29 → 10 kΩ with R30 → 549 kΩ (audit F3), and 1 nF across Q5 (audit F4);
   - value labels that match the MPNs: C5–C8 "100n 50V", C22 "10u 35V", and the rated
     voltage on C9–C11, C15, C18, C20 and C23 (no part changes).
+- **Rev B changes from the layout review**
+  ([record](../../docs/design-v6/2026-10-24-power-board-layout-review.md)):
+  - J9 (I²C) and J11 (E-STOP) are the same JST PH 4-pin header side by side, and a stray
+    "J10" silk text sits at J9. The E-STOP lead in J9 would short the General Driver's
+    3V3 to GND. Give J11 a different family or pin count, and delete the stray text (W1);
+  - route Q3's gate under 12 mm on B.Cu, with a 0 Ω series placeholder and the F-5 zener at
+    Q3 (M1);
+  - rebuild the CSD17556Q5B drain paste apertures from TI's §7.3 stencil (M2);
+  - put C4 (REG18) at U1 pin 15 (M3);
+  - clean the BOM: exclude TP1–TP8, split each fuse holder from its fuse, and correct the
+    wrong datasheet links (C1);
+  - raise silk text to at least 1.0 mm / 0.15 mm (C3).
+
+  Optional improvements are M4–M9 there; do M8's via doubling and its pour extension over
+  R1's GND pad together. On the order form: 1 oz inner copper, a 0.10–0.12 mm stencil,
+  J1, F1 and F2 not populated, J1's 0.25 mm overhang (for panels and rails, whoever
+  solders it), the placement file's negated Y, and a check of every polarized part in the
+  assembler's preview (M10, C2).
 - **The BQ76922 configuration** must also set SCDL latch limit 1 (F-8), OCD1 at 30 mV
   (F-4), and the audit's C1–C9. Two choices are open, with the options simulated in the
   record: OCD recovery (F-3; recommended: TI's default, latched) and the low-cell
