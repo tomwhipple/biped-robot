@@ -562,6 +562,11 @@ the neck is built into the girdle before the girdle goes onto the robot.
 
 ### 11d. Arms (a mirror pair)
 
+Each arm link carries its side, **L** or **R**, on its outboard rail: the
+letter faces out and reads upright with the arm hanging.
+
+![The four arm links from outboard as they hang, left pair then right pair, over a close-up of each letter](img/arm_side_labels.png)
+
 1. **Upper arm onto the shoulder horn.** Offer it straight in along the joint
    axis, with the shoulder at zero (arm hanging). It is a single-sided horn
    joint.

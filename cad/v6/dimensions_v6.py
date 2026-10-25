@@ -1026,6 +1026,14 @@ ARM_HAND_R = 12.0                # hand knuckle radius == the plant's hand spher
                                  # (12 mm, friction 1.0 0.02 0.001). BARE PETG here;
                                  # the robustness sweep covered mu 0.3-1.0, 6/6.
 ARM_EDGE_R = 3.0                 # outer vertical edge fillet ("no sharp corners")
+# each arm link's side, L or R, debossed in its outboard rail's outer face:
+# a vertical wall in print, upright when the arm hangs. Toward the distal end,
+# where the rail's bending moment is lower; the 2.6 rail keeps 2.0 behind it.
+ARM_LABEL_H = 8.0
+ARM_LABEL_DEPTH = 0.6
+ARM_LABEL_X = -4.0               # centre: mid-rail (bed face -15.16, front >= 6.6 there)
+ARM_LABEL_Z_UPPER = -92.0        # upper arm: on the shaft, above the jog (-108)
+ARM_LABEL_Z_FORE = -125.0        # forearm: on the shaft, above the hand (r 12 at -160)
 ARM_R16_BUFFER = 1.0             # how far the forearm's fork web stands off the
                                  # elbow servo's output-end corners (r = hypot(
                                  # SV_WID/2, SV_AXIS_FROM_OUT_END) = 15.97 -- the
