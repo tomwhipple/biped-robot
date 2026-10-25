@@ -36,7 +36,7 @@ def _numbers(r: dict, key: str) -> dict[str, float]:
 
 def _largest_diffs(A: dict, B: dict, key: str) -> list[tuple[str, float, str]]:
     worst: dict[str, tuple[float, str]] = {}
-    for name in A.keys() & B.keys():
+    for name in sorted(A.keys() & B.keys()):
         a, b = _numbers(A[name], key), _numbers(B[name], key)
         for k in a.keys() & b.keys():
             d = abs(a[k] - b[k])

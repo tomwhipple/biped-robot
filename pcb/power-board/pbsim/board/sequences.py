@@ -747,10 +747,10 @@ SEQ["otp_f3_pack_fault_time_recovery"] = _pack_fault_otp(
     "otp_f3_pack_fault_time_recovery", BqOtp(ocd1_mv=30.0, ocd_recovery_a=-0.1))
 
 
-# ---- the tether: a bench supply on the XT60 instead of the pack ------------
+# ---- the supply tether: a bench supply on the XT60 instead of the pack -----
 # The supply is three equal sources (V/3 each, 1 mΩ) behind 2.5 m of 14 AWG per
 # conductor (21 mΩ; 1 µH each as two loose wires, 0.5 µH twisted: estimates
-# from the wire geometry). The balance lead is out; the tether adapter drives J2
+# from the wire geometry). The balance lead is out; the tether's adapter drives J2
 # from the supply leads at the XT60 plug: B− and B+ direct, C1+ and C2+ from a
 # 3 × 1 kΩ divider.
 

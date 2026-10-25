@@ -262,7 +262,7 @@ the what-ifs re-run a sequence with a proposed fix.
 | weak cell under a get-up | `cuv_weak_cell_under_load` | **fail, F-6**: CUV at 1.25 s, back on by itself at 4.33 s |
 | the same, with each F-6 option and the F-1 fix, POWER at 6 s | `otp_f6_*` | see F-6: only Shutdown Cell Voltage = CUV with a 0 s delay both stays off and comes back on POWER; a healthy get-up does not trip it |
 | a 0.3 Ω fault on PACK+ with OCD1 at 30 mV, latched or time recovery | `otp_f3_*` | see F-3: latched stays off; time recovery closes Q2 into the fault every 3.3 s |
-| a bench supply on the XT60 through the tether adapter, and without it | `tether_*` | see §4.6: the adapter works from 9.5 to 12.6 V; without it the board refuses; a loose tether takes Q2 past 30 V in a PACK+ short |
+| a bench supply on the XT60 through the supply tether, and without it | `tether_*` | see §4.6: the adapter works from 9.5 to 12.6 V; without it the board refuses; a loose tether takes Q2 past 30 V in a PACK+ short |
 | 12 A get-up from a half-charged pack | `getup_peak_brownout` | pass: PACK+ ≥ 10.20 V, the General Driver's input ≥ 10.13 V, EN/UVLO ≥ 1.54 V, no trip |
 | full pack, 4.21 V a cell | `full_pack_cov` | pass: COV opens CHG; body-diode protection closes it again under load; PACK+ stays up |
 | hot-plug: XT60 after the balance lead (with and without USB), the reverse, both at once; XT60 pulled while on | `hotplug_*`, `unplug_xt60_while_on` | pass: no wake; PACK+ ≤ 0.31 V; Q2's VGS coupled to ≤ 1.36 V for nanoseconds (F-9 for what the model cannot show) |
@@ -345,7 +345,7 @@ the what-ifs re-run a sequence with a proposed fix.
 
 See F-1 below.
 
-### 4.6 The tether: a bench supply instead of the pack (2026-10-25)
+### 4.6 The supply tether: a bench supply instead of the pack (2026-10-25)
 
 Tom's requirement: run the robot from a lab supply plugged into the XT60. The supply is
 modelled as three equal sources (V/3 each, 1 mΩ) behind 2.5 m of 14 AWG per conductor
@@ -361,7 +361,7 @@ drives J2 from the supply leads at the XT60 plug: B− and B+ direct, C1+ and C2
 | adapter, 9.5 V (`tether_power_on_9V5`) | pass: PACK+ 9.41 V |
 | adapter, 12.6 V (`tether_power_on_12V6`) | pass, but COV trips (4.2 V a cell): CHG switches on and off under body-diode protection while PACK+ stays at 12.52 V |
 | adapter, 12 A get-up for 2 s (`tether_getup_12V`) | pass: PACK+ ≥ 11.26 V, the General Driver's input ≥ 11.19 V |
-| short at the far end of J4 (`tether_short_J4_12V`) | U2 trips after 33 µs (15.9 µs on the pack: the tether limits di/dt). PACK+ peaks at 27.5 V at 162 V/µs, as in F-7, and F-7's series pairs bring it to 18.8 V and 9.1 V/µs (a what-if, not in the campaign) |
+| short at the far end of J4 (`tether_short_J4_12V`) | U2 trips after 33 µs (15.9 µs on the pack: the tether's inductance limits di/dt). PACK+ peaks at 27.5 V at 162 V/µs, as in F-7, and F-7's series pairs bring it to 18.8 V and 9.1 V/µs (a what-if, not in the campaign) |
 | hard short on PACK+, twisted tether (`tether_short_packplus_12V_twisted`) | SCD after 88 µs, Q2 173 A peak, 24.6 mJ, VDS 24.7 V |
 | the same with a loose tether (`tether_short_packplus_12V_loose`) | **fail**: SCD after 114 µs, then the tether's stored energy takes Q2's VDS to 31.3 V against its 30 V rating; 41.7 mJ. An SMBJ15A across the XT60 only brings it to 29.7 V (a what-if, not in the campaign) |
 

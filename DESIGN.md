@@ -562,7 +562,9 @@ Everything open is a GitHub issue.
    (`gate_no3250.py walk | sweep | arms | getup`).
 6. **Floor sequence, over the tether, one motion per go**: stand → crouch →
    shift → one-foot → step in place → six steps; each step a margin, clearance
-   and slip number against the sim's. Then the scripted get-up.
+   and slip number against the sim's. Then the scripted get-up. Powered from a
+   bench supply instead of the pack, the supply tether's check T1
+   ([pcb/power-board/harness.md](pcb/power-board/harness.md)) comes first.
 7. **Gate E**: train a policy on the measured plant.
 
 ## 14. Design principles

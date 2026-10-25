@@ -14,7 +14,7 @@ done before the board is ordered (see the end of this page).
 |---|---|---|---|---|
 | J1 | the pack's discharge lead | Amass XT60PW-M (right-angle, male, 45 A) | the pack's XT60 female | ≤ 15 A fused, 20 A trip |
 | J2 | the pack's balance lead | JST B4B-XH-A | the pack's XHP-4 | µA |
-| J1 + J2 | a bench supply instead of the pack | as above | the tether adapter (below) | as the pack |
+| J1 + J2 | a bench supply instead of the pack | as above | the supply tether (below) | as the pack |
 | J3 | General Driver H1 (logic power), through F2 | JST B2B-XH-A | XHP-2 ↔ XHP-2 lead, 22 AWG | ≤ 1.1 A with a Pi 4B, ≤ 1.3 A with a Pi 5 (verification record C14) |
 | J4–J7 | first servo of each branch | Molex 22-03-5035 (5267 header) | stock servo lead (5264-03 both ends) | branch peak 3.7–4.3 A |
 | J8 | General Driver H5 (servo data) | Molex 22-03-5035 | stock servo lead | mA |
@@ -54,9 +54,11 @@ done before the board is ordered (see the end of this page).
 - **P2:** measure the pack's balance plug before first connection. Taking the contact that
   mates pin 1 as 0 V, the others must read about 3.7, 7.4 and 11.1 V in order.
 
-## J1 and J2 from a bench supply: the tether
+## J1 and J2 from a bench supply: the supply tether
 
-The robot can run from a bench supply instead of the pack, through one adapter cable.
+The robot can run from a bench supply instead of the pack, through one adapter cable, the
+supply tether. (It is not the USB-C tether of [docs/control-channel.md](../../docs/control-channel.md),
+which carries the console; the two are used side by side on the bench.)
 The BQ76922 still guards the board, so it has to see three cells. On the XT60 alone it
 sees none: it keeps Q2 open and shuts itself down 1.25 s later (simulated,
 `tether_no_adapter_refuses`). The runs are in the simulation record, §4.6.
@@ -74,7 +76,7 @@ sees none: it keeps Q2 open and shuts itself down 1.25 s later (simulated,
     the charge FET switches on and off.
   - Under about 9 V the BQ76922's stack limit (9.0 V) or CUV (8.96 V) cuts the board.
 - **The supply current.** 15 A or more. A get-up draws 12 A for 2 s; at 12 V through the
-  tether, PACK+ held at 11.26 V (simulated). A smaller supply drops into constant
+  supply tether, PACK+ held at 11.26 V (simulated). A smaller supply drops into constant
   current, PACK+ sags, and the BQ76922 cuts the board as above.
 - **The lead.** Twist it. As two loose wires (about 1 µH each, estimated from the
   geometry), a hard short on the board's PACK+ copper takes Q2 to 31.3 V when SCD opens
@@ -89,7 +91,7 @@ sees none: it keeps Q2 open and shuts itself down 1.25 s later (simulated,
   - The ST3215 stops driving above 14 V (its datasheet, §7-11: protection above 14 V or
     below 4 V, cleared when the voltage returns). C21 alone holds only about 26 mJ
     between 12 and 14 V. D9 clamps SERVO+ only from 16.7 V.
-  - **T1, before the first tethered motion:** scope SERVO+ while back-driving a joint by
+  - **T1, before the first motion on the supply tether:** scope SERVO+ while back-driving a joint by
     hand with torque on, and during a sit-down. If it passes about 13.5 V, run on the
     pack, or add a supply that can sink (or a load across its output).
 

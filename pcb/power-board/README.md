@@ -56,7 +56,7 @@ Gerber job file carries it.
 - **Power path:** J1 is a right-angle XT60 whose mating face is flush with the left edge.
   From it the power path runs along the top edge, left to right: F1, Q1 and Q2 drain to
   drain, R24, Q3, then SERVO+ around C21. J1 and J2 also take a bench supply instead of
-  the pack, through the tether adapter ([harness.md](harness.md)).
+  the pack, through the supply tether ([harness.md](harness.md)).
 - **Servo headers:** a 2.6 mm SERVO+ strip runs down between the data and GND columns of the
   servo headers J4–J8 on the right edge.
 - **Blocks:** the BQ76922 block sits under the left half, with the balance lead J2 above it.

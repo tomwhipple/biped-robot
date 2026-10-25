@@ -13,13 +13,13 @@ Largest |ngspice-47 − ngspice-42| per measured number (case):
   pack: 0.1193 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   ld: 0.1193 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   en: 0.00434 (on-Ac-Bo-en_high-pwrH-usb1-gd_on-pack_xt60_only)
-  bst: 0.0008765 (on-Ac-Bc-en_low-pwrR-usb0-gd_absent-pack_both)
+  bst: 0.0008765 (on-Ac-Bc-en_high-pwrR-usb0-gd_absent-pack_both)
   servo: 0.0006956 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   q3_vgs: 0.0006649 (on-Ac-Bc-en_high-pwrR-usb1-gd_on-pack_both)
   railv: 0.000122 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   q2_vgs: 6.743e-05 (off-Ao-Bo-en_hiz-pwrH-usb1-gd_on-pack_xt60_only)
   rst: 9.894e-10 (on-Ao-Bo-en_high-pwrR-usb1-gd_on-pack_xt60_only)
-  ts2: 7.589e-11 (off-Ao-Bc-en_low-pwrR-usb0-gd_sw1_off-pack_both)
+  ts2: 7.589e-11 (off-Ao-Bc-en_high-pwrR-usb0-gd_sw1_off-pack_both)
   imon: 3.039e-11 (on-Ac-Bc-en_high-pwrR-usb1-gd_on-pack_both)
 
 case                                                             ngspice-47 ngspice-42
