@@ -747,6 +747,69 @@ SEQ["otp_f3_pack_fault_time_recovery"] = _pack_fault_otp(
     "otp_f3_pack_fault_time_recovery", BqOtp(ocd1_mv=30.0, ocd_recovery_a=-0.1))
 
 
+# ---- the tether: a bench supply on the XT60 instead of the pack ------------
+# The supply is three equal sources (V/3 each, 1 mΩ) behind 2.5 m of 14 AWG per
+# conductor (21 mΩ; 1 µH each as two loose wires, 0.5 µH twisted: estimates
+# from the wire geometry). The balance lead is out; the tether adapter drives J2
+# from the supply leads at the XT60 plug: B− and B+ direct, C1+ and C2+ from a
+# 3 × 1 kΩ divider.
+
+TETHER_R = 21e-3
+TETHER_L = {"loose": 1e-6, "twisted": 0.5e-6}
+
+
+def _tether_adapter(b):
+    bp, bn = b.node("J1", 2), b.node("J1", 1)
+    j = [b.node("J2", k) for k in (1, 2, 3, 4)]
+    return [f"r_tad_b1 {bn} {j[0]} 0.05", f"r_tad_b4 {bp} {j[3]} 0.05",
+            f"r_tad_d1 {bn} {j[1]} 1k", f"r_tad_d2 {j[1]} {j[2]} 1k",
+            f"r_tad_d3 {j[2]} {bp} 1k"]
+
+
+def tethered(sc, volts, adapter=True, lead="twisted"):
+    c = steps((0, volts / 3))
+    extra = list(sc.extra) + ([_tether_adapter] if adapter else [])
+    return replace(sc, cells=(c, c, c), r_cell=1e-3, r_cells=None, r_lead=TETHER_R,
+                   l_lead=TETHER_L[lead], balance=steps((0, 0)), extra=extra)
+
+
+def _tethered_seq(name, base, volts, **kw):
+    def build():
+        sc, check = SEQ[base]()
+        return tethered(replace(sc, name=name), volts, **kw), check
+    return build
+
+
+SEQ["tether_power_on_12V"] = _tethered_seq("tether_power_on_12V",
+                                           "power_on_full_sequence", 12.0)
+SEQ["tether_power_on_12V6"] = _tethered_seq("tether_power_on_12V6",
+                                            "power_on_full_sequence", 12.6)
+SEQ["tether_power_on_9V5"] = _tethered_seq("tether_power_on_9V5",
+                                           "power_on_full_sequence", 9.5)
+SEQ["tether_getup_12V"] = _tethered_seq("tether_getup_12V", "getup_peak_brownout", 12.0)
+SEQ["tether_short_J4_12V"] = _tethered_seq("tether_short_J4_12V",
+                                           "short_servo_lead_J4", 12.0)
+SEQ["tether_short_packplus_12V_twisted"] = _tethered_seq(
+    "tether_short_packplus_12V_twisted", "short_packplus_board", 12.0)
+SEQ["tether_short_packplus_12V_loose"] = _tethered_seq(
+    "tether_short_packplus_12V_loose", "short_packplus_board", 12.0, lead="loose")
+
+
+@seq
+def tether_no_adapter_refuses():
+    """A bench supply on the XT60 alone: the BQ76922 sees no cells and must not
+    power the robot."""
+    sc, _ = power_on_full_sequence()
+    sc = tethered(replace(sc, name="tether_no_adapter_refuses"), 12.0, adapter=False)
+
+    def check(r, b):
+        pk = float(r.window("pack", 0.0, sc.t_stop).max())
+        fail = [] if pk < 1.0 else [f"PACK+ rose to {pk:.2f} V without the adapter"]
+        return fail, {"pack_max_V": pk,
+                      "events": [e for t, e in r.events if "U1" in e][-4:]}
+    return sc, check
+
+
 @seq
 def rail_load_17A_otp_ocd30():
     """What-if (OTP): OCD1 at 30 mV (30 A on R1), at its −4 mV corner: the
@@ -912,8 +975,9 @@ def run_named(name: str) -> dict:
     xt60_out = any(v < 0.5 for _, v in sc.xt60)
     sustained = [v for v in b.mon.violations(min_s=20e-6)
                  if not floating(v, xt60_out)]
-    # shorts are the overstress being studied; their pins are reported, not failed
-    if not name.startswith("short_"):
+    # shorts (with the pack or tethered) are the overstress being studied; their
+    # pins are reported, not failed
+    if "short_" not in name:
         for v in sustained:
             fail.append(describe(v))
     save_trace(name, r)

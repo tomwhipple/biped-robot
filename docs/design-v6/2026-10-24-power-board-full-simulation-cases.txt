@@ -13,7 +13,7 @@ Largest |ngspice-47 − ngspice-42| per measured number (case):
   pack: 0.1193 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   ld: 0.1193 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   en: 0.00434 (on-Ac-Bo-en_high-pwrH-usb1-gd_on-pack_xt60_only)
-  bst: 0.0008765 (on-Ac-Bc-en_hiz-pwrR-usb0-gd_absent-pack_both)
+  bst: 0.0008765 (on-Ac-Bc-en_low-pwrR-usb0-gd_absent-pack_both)
   servo: 0.0006956 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
   q3_vgs: 0.0006649 (on-Ac-Bc-en_high-pwrR-usb1-gd_on-pack_both)
   railv: 0.000122 (on-Ao-Bc-en_high-pwrH-usb1-gd_on-pack_xt60_only)
@@ -1176,19 +1176,19 @@ on-Ao-Bo-en_low-pwrR-usb1-gd_sw1_off-pack_both                       pass     pa
 on-Ao-Bo-en_low-pwrR-usb1-gd_sw1_off-pack_none                       pass     pass
 on-Ao-Bo-en_low-pwrR-usb1-gd_sw1_off-pack_xt60_only                  pass     pass
 
-## seq: 60 cases; not passing: 17 on ngspice-47, 17 on ngspice-42; verdicts differ in 0
+## seq: 68 cases; not passing: 18 on ngspice-47, 18 on ngspice-42; verdicts differ in 0
 
 Largest |ngspice-47 − ngspice-42| per measured number (case):
   q2_turnon_peak_A: 4.803 (power_on_full_sequence)
   pack_dvdt_max_V_per_us: 3.843 (short_servo_rail_board)
   q2_vgs_max_V: 1.138 (hotplug_balance_after_xt60)
   q3_gate_off_after_press_us: 1.033 (estop_press_release_long)
-  pack_max_V: 0.1549 (hotplug_balance_after_xt60)
+  pack_max_V: 0.1841 (tether_no_adapter_refuses)
   servo_V_at_fets_off: 0.1409 (shutdown_no_servos_bench)
   q2_energy_mJ: 0.1345 (short_packplus_board_stiff_pack)
   pack_peak_A_R1: 0.1291 (short_packplus_board_stiff_pack)
+  q2_vds_peak_V: 0.06463 (tether_short_packplus_12V_twisted)
   rail_90pct_after_release_ms: 0.05024 (estop_press_release_long)
-  q2_vds_peak_V: 0.02744 (short_packplus_board_stiff_pack)
   q2_peak_A: 0.02152 (short_packplus_board_stiff_pack)
   rail_back_after_toggle_ms: 0.01108 (rail_cb_latch_reset_by_servo_en)
 
@@ -1285,6 +1285,16 @@ shutdown_rail_on_at_kill_fix_both                                    pass     pa
 shutdown_servos_resistive_lowv                                       FAIL     FAIL
     ngspice-47: BQ76922 still not in SHUTDOWN 6.5 s after KILL (mode SOFTSHUT, PACK+ held at 2.66 V by SERVO+ 0.00 V)
     ngspice-42: BQ76922 still not in SHUTDOWN 6.5 s after KILL (mode SOFTSHUT, PACK+ held at 2.66 V by SERVO+ 0.00 V)
+tether_getup_12V                                                     pass     pass
+tether_no_adapter_refuses                                            pass     pass
+tether_power_on_12V                                                  pass     pass
+tether_power_on_12V6                                                 pass     pass
+tether_power_on_9V5                                                  pass     pass
+tether_short_J4_12V                                                  pass     pass
+tether_short_packplus_12V_loose                                      FAIL     FAIL
+    ngspice-47: Q2 VDS 31.3 V > 30 V
+    ngspice-42: Q2 VDS 31.3 V > 30 V
+tether_short_packplus_12V_twisted                                    pass     pass
 unplug_xt60_while_on                                                 pass     pass
 usb_only_pack_unplugged_outputs_driven                               pass     pass
 
