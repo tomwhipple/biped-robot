@@ -40,7 +40,7 @@ namespace bimo {
 struct Recorder {
     FILE* f = nullptr;
     char path[512] = "";
-    uint32_t n_cmd = 0, n_tlm = 0;
+    uint32_t n_cmd = 0, n_tlm = 0, n_bench = 0;
     double t0_ms = 0.0;
     double last_flush_ms = 0.0;
 
@@ -55,6 +55,15 @@ struct Recorder {
     void command(double now_ms, uint32_t seq, float vx, float vy, float wz,
                  const Ext& ext, uint8_t flags, size_t len);
     void telemetry(double now_ms, const Telemetry& t);
+    // One accepted bench-bridge datagram (link/bench.h), embedded VERBATIM as
+    // the `d` object: {"t":..,"utc":..,"dir":"bench","d":{...}}. The caller
+    // passes only datagrams BenchModel accepted, which are flat JSON objects,
+    // so the line stays valid JSON. tools/replay_session.py reads `dir`=="cmd"
+    // rows only and skips these.
+    void bench(double now_ms, const char* datagram, size_t n);
+    // Which camera a pane was pointed at, when: the join between this file
+    // and the relay's <stamp>_<source>.mp4/.pts (tools/cam_relay.py --record).
+    void cam(double now_ms, int pane, const char* src, const char* url);
 
     // Host wall clock, epoch seconds (CLOCK_REALTIME). Public so a test can
     // bracket a record with it.

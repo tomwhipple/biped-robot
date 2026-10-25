@@ -52,6 +52,7 @@ bimo_test(test_client test_client.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/client.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/keymap.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/mjpeg.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/../../link/bench.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/recorder.cpp
           ${COMPONENTS}/linkproto/protocol.cpp
           ${COMPONENTS}/linkproto/watchdog.cpp
@@ -155,7 +156,7 @@ if(glfw3_FOUND AND EXISTS ${THIRD_PARTY}/imgui/imgui.cpp
 
     add_executable(bimo_gui ${LINK_DIR}/gui.cpp ${LINK_DIR}/client.cpp
                    ${LINK_DIR}/keymap.cpp ${LINK_DIR}/recorder.cpp
-                   ${LINK_DIR}/mjpeg.cpp ${LINK_DIR}/simproc.cpp
+                   ${LINK_DIR}/mjpeg.cpp ${LINK_DIR}/simproc.cpp ${LINK_DIR}/bench.cpp
                    ${LINKPROTO_SRC})
     target_include_directories(bimo_gui PRIVATE ${LINK_DIR})
     target_link_libraries(bimo_gui PRIVATE bimo_imgui

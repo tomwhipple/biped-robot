@@ -9,14 +9,20 @@
 //
 // The stream parser gets the adversarial half of the attention: it is the one
 // piece of the console that eats bytes from the network.
+#include "bench.h"
 #include "client.h"
 #include "keymap.h"
 #include "mjpeg.h"
 #include "recorder.h"
 #include "test_util.h"
 
+#include <arpa/inet.h>
+#include <math.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 using namespace bimo;
@@ -780,6 +786,247 @@ void test_fault_ids_name_the_servos() {
     CHECK(strncmp(tiny, "52", 2) == 0);
 }
 
+
+// -- bench telemetry (link/bench.cpp) ----------------------------------------
+bool J(JsonObj& j, const char* s) { return j.parse(s, strlen(s)); }
+
+void test_json_flat_objects() {
+    JsonObj j;
+    CHECK(J(j, "{\"v\":1,\"k\":\"joint\",\"id\":52,\"volt\":12.0,\"x\":-1.5e0,"
+               "\"ok\":true,\"no\":false,\"n\":null}"));
+    double v = 0;
+    CHECK(j.num("id", &v) && v == 52.0);
+    CHECK_NEAR(j.numOr("x", 0), -1.5, 1e-9);
+    CHECK(strcmp(j.str("k"), "joint") == 0);
+    CHECK(j.flag("ok", false) && !j.flag("no", true));
+    CHECK(j.has("n") && !j.num("n", &v));          // null is not a number
+    CHECK(j.str("id") == nullptr);                  // a number is not a string
+    CHECK(J(j, " { } "));
+    CHECK(J(j, "{\"s\":\"a\\\"b\\\\c\\u0041\"}"));
+    CHECK(strcmp(j.str("s"), "a\"b\\cA") == 0);
+}
+
+// The parser eats datagrams from a network. Hostile and broken ones must be
+// refused, never half-read.
+void test_json_rejects_garbage() {
+    JsonObj j;
+    const char* bad[] = {
+        "", "{", "}", "[]", "{\"a\":1", "{\"a\":1,}", "{\"a\"1}", "{a:1}",
+        "{\"a\":{\"b\":1}}", "{\"a\":[1]}", "{\"a\":nan}", "{\"a\":1e999}",
+        "{\"a\":\"unterminated}", "{\"a\":1} trailing", "{\"a\":tru}",
+        "{\"a\":\"\\q\"}", "{\"a\":\"\\u12\"}", "{\"a\":--1}", "\xff\xfe",
+        "{\"a\":1,\"a\":2,\"b\":", "{\"a\":\"\x01\"}",
+    };
+    for (const char* b : bad) CHECK(!J(j, b));
+    // too many keys
+    char big[1024] = "{";
+    for (int i = 0; i < 30; ++i) {
+        char kv[24];
+        snprintf(kv, sizeof kv, "%s\"k%d\":1", i ? "," : "", i);
+        strcat(big, kv);
+    }
+    strcat(big, "}");
+    CHECK(!J(j, big));
+    // a very long string and key are truncated, not overflowed
+    char longs[1000];
+    snprintf(longs, sizeof longs, "{\"%0300d\":1,\"s\":\"%0400d\"}", 7, 7);
+    CHECK(J(j, longs));
+    CHECK(strlen(j.str("s")) < 80);
+    // the data is not NUL-terminated: parse must honour n
+    const char exact[] = "{\"a\":12}garbage";
+    CHECK(j.parse(exact, 8) && j.numOr("a", 0) == 12.0);
+    CHECK(!j.parse(exact, 7));
+}
+
+void test_bench_model_applies_samples() {
+    BenchModel m;
+    auto A = [&](const char* s, double t) { return m.apply(s, strlen(s), t); };
+    CHECK(!m.live(0.0));
+    CHECK(A("{\"v\":1,\"k\":\"joint\",\"id\":52,\"name\":\"R_hip_roll\",\"pos\":2082,"
+            "\"spd\":0,\"load\":-16,\"volt\":12.0,\"temp\":24,\"err\":0}", 1000));
+    CHECK(A("{\"v\":1,\"k\":\"cal\",\"id\":52,\"name\":\"R_hip_roll\",\"zero\":2048,"
+            "\"dir\":-1,\"fitted\":true}", 1010));
+    const BenchJoint& b = m.joints[52];
+    CHECK(b.have && b.have_cal && b.pos == 2082 && b.load == -16 && b.zero == 2048);
+    CHECK(b.dir == -1 && strcmp(b.name, "R_hip_roll") == 0);
+    CHECK(m.jointsSeen() == 1);
+    CHECK(A("{\"v\":1,\"k\":\"bal_roll\",\"roll\":0.37}", 1020));
+    CHECK(m.have_roll && m.roll_na == false);
+    CHECK(A("{\"v\":1,\"k\":\"bal_state\",\"state\":\"ACTIVE\",\"stance\":\"R\",\"since\":2.5}", 1030));
+    CHECK(strcmp(m.state, "ACTIVE") == 0 && m.stance == 'R');
+    CHECK(A("{\"v\":1,\"k\":\"bal_ref\",\"ref\":-0.48,\"err\":-0.11,\"I\":-0.0011,\"u\":-0.06}", 1040));
+    CHECK_NEAR(m.err, -0.11, 1e-6);
+    CHECK(m.s_err.count() == 1 && m.s_u.count() == 1 && m.s_roll.count() == 1);
+    // "roll now unavailable" must not leave the old roll looking current
+    CHECK(A("{\"v\":1,\"k\":\"bal_roll\",\"roll\":null}", 1050));
+    CHECK(m.roll_na && m.s_roll.count() == 1);
+    CHECK(A("{\"v\":1,\"k\":\"bal_state\",\"state\":\"off\",\"stance\":null,\"since\":null}", 1060));
+    CHECK(strcmp(m.state, "off") == 0 && m.stance == 0);
+    CHECK(A("{\"v\":1,\"k\":\"imu_up\",\"x\":-0.08,\"y\":0.02,\"z\":0.99}", 1070));
+    CHECK(A("{\"v\":1,\"k\":\"imu_raw\",\"ax\":0.7,\"ay\":9.3,\"az\":0.6,\"amag\":9.4,"
+            "\"gx\":0,\"gy\":0.04,\"gz\":0}", 1080));
+    CHECK(m.have_up && m.have_raw && m.have_gyro == false);
+    CHECK(A("{\"v\":1,\"k\":\"hb\",\"polling\":true,\"rx_age\":0.4,\"polls\":7}", 1090));
+    CHECK(m.hb_polling && m.hb_polls == 7 && m.live(1100) && !m.live(1090 + kBenchStaleMs + 1));
+    // forward compatible: an unknown kind keeps the bridge "heard from"
+    CHECK(A("{\"v\":1,\"k\":\"future\",\"q\":1}", 2000));
+    CHECK(m.last_rx_ms == 2000);
+    // refused: wrong version, no kind, joint id out of range, not JSON
+    const uint32_t before = m.datagrams;
+    CHECK(!A("{\"v\":2,\"k\":\"hb\"}", 3000));
+    CHECK(!A("{\"v\":1}", 3000));
+    CHECK(!A("{\"v\":1,\"k\":\"joint\",\"id\":9999,\"pos\":1}", 3000));
+    CHECK(!A("{\"v\":1,\"k\":\"joint\",\"id\":-1,\"pos\":1}", 3000));
+    CHECK(!A("not json", 3000));
+    CHECK(m.datagrams == before && m.last_rx_ms == 2000 && m.rejected >= 5);
+}
+
+void test_timeseries_resample() {
+    TimeSeries s;
+    float out[30];
+    CHECK_EQ(s.resample(60000, 30000, out, 30), 30);          // empty: nothing valid
+    // one sample per second from t=10 s to t=40 s, value = seconds
+    for (int t = 10; t <= 40; ++t) s.push(t * 1000.0, static_cast<float>(t));
+    const int first = s.resample(40000, 30000, out, 30);       // window 10..40 s
+    CHECK_EQ(first, 0);
+    CHECK_NEAR(out[29], 40.0, 1e-6);
+    CHECK_NEAR(out[0], 11.0, 1e-6);                            // bin 0 ends at 11 s
+    for (int i = 1; i < 30; ++i) CHECK(out[i] >= out[i - 1]);
+    // later: the data has aged out of the right edge, held, not blanked
+    CHECK_EQ(s.resample(50000, 30000, out, 30), 0);
+    CHECK_NEAR(out[29], 40.0, 1e-6);
+    // a window that starts before the first sample has leading invalid bins
+    TimeSeries r;
+    r.push(25000, 5.0f);
+    const int f2 = r.resample(30000, 30000, out, 30);
+    CHECK(f2 > 20 && f2 < 30);
+    CHECK_NEAR(out[29], 5.0, 1e-6);
+    // wrap-around: more samples than the ring holds stay in order
+    TimeSeries w;
+    for (int i = 0; i < TimeSeries::kCap * 2 + 7; ++i) w.push(i * 10.0, static_cast<float>(i));
+    CHECK_EQ(w.count(), TimeSeries::kCap);
+    const double now = (TimeSeries::kCap * 2 + 6) * 10.0;
+    CHECK_EQ(w.resample(now, 3000, out, 30), 0);
+    CHECK_NEAR(out[29], TimeSeries::kCap * 2 + 6, 1e-6);
+    CHECK(out[0] < out[29]);
+    CHECK_EQ(w.resample(now, 3000, out, 0), 0);
+}
+
+// The real socket path against a UDP stand-in for the bridge: subscribes, is
+// fed, and stops being "live" when the bridge goes quiet.
+void test_bench_link_subscribes_and_receives() {
+    int srv = socket(AF_INET, SOCK_DGRAM, 0);
+    CHECK(srv >= 0);
+    sockaddr_in sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sin_family = AF_INET;
+    sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    CHECK(bind(srv, reinterpret_cast<sockaddr*>(&sa), sizeof sa) == 0);
+    socklen_t sl = sizeof sa;
+    getsockname(srv, reinterpret_cast<sockaddr*>(&sa), &sl);
+    char spec[64];
+    snprintf(spec, sizeof spec, "127.0.0.1:%d", ntohs(sa.sin_port));
+
+    BenchLink l;
+    CHECK(!l.open("", 1));
+    CHECK(!l.open("host:99999", 1));
+    CHECK(!l.open("host:abc", 1));
+    CHECK(!l.active());
+    CHECK(l.open(spec, 1));
+    l.poll(0.0);
+    char buf[64];
+    sockaddr_in from;
+    socklen_t fl = sizeof from;
+    timeval tv = {1, 0};
+    setsockopt(srv, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    ssize_t n = recvfrom(srv, buf, sizeof buf, 0, reinterpret_cast<sockaddr*>(&from), &fl);
+    CHECK(n > 0 && strncmp(buf, "{\"sub\":1}", static_cast<size_t>(n)) == 0);
+    // not again until the next lease refresh
+    l.poll(500.0);
+    tv = {0, 100000};
+    setsockopt(srv, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    CHECK(recvfrom(srv, buf, sizeof buf, 0, nullptr, nullptr) < 0);
+    l.poll(2100.0);
+    CHECK(recvfrom(srv, buf, sizeof buf, 0, nullptr, nullptr) > 0);
+
+    const char* d1 = "{\"v\":1,\"k\":\"bal_roll\",\"roll\":-7.6}";
+    sendto(srv, d1, strlen(d1), 0, reinterpret_cast<sockaddr*>(&from), fl);
+    const char* d2 = "garbage";
+    sendto(srv, d2, strlen(d2), 0, reinterpret_cast<sockaddr*>(&from), fl);
+    usleep(50 * 1000);
+    l.poll(2200.0);
+    CHECK(l.model.have_roll && l.model.rejected == 1 && l.model.datagrams == 1);
+    CHECK(l.model.live(2300.0));
+    CHECK(!l.model.live(2200.0 + kBenchStaleMs + 10));
+    l.close();
+    n = recvfrom(srv, buf, sizeof buf, 0, nullptr, nullptr);
+    CHECK(n > 0 && strncmp(buf, "{\"unsub\":1}", static_cast<size_t>(n)) == 0);
+    close(srv);
+}
+
+void sinkCount(void* ctx, const char*, size_t, double) { ++*static_cast<int*>(ctx); }
+
+// Everything the bench panel shows goes in the session file: accepted
+// datagrams verbatim as valid JSON rows, rejected ones not at all.
+void test_recorder_keeps_bench_rows_and_sink() {
+    char dir[] = "/tmp/bimo_benchrec_XXXXXX";
+    CHECK(mkdtemp(dir) != nullptr);
+    Recorder r;
+    char err[128];
+    CHECK(r.start(dir, "h", 1000.0, err, sizeof err));
+    const char* d = "{\"v\":1,\"k\":\"bal_roll\",\"roll\":0.37}";
+    r.bench(1500.0, d, strlen(d));
+    r.cam(1600.0, 0, "emeet", "http://mira:8647/emeet");
+    r.stop();
+    FILE* f = fopen(r.path, "r");
+    CHECK(f != nullptr);
+    char line[512];
+    int bench_rows = 0, cam_rows = 0;
+    while (f && fgets(line, sizeof line, f)) {
+        if (strstr(line, "\"dir\":\"bench\",\"d\":{\"v\":1,\"k\":\"bal_roll\",\"roll\":0.37}}")) ++bench_rows;
+        if (strstr(line, "\"dir\":\"cam\"")) ++cam_rows;
+    }
+    if (f) fclose(f);
+    CHECK_EQ(bench_rows, 1);
+    CHECK_EQ(cam_rows, 1);
+    CHECK_EQ(r.n_bench, 1u);
+    remove(r.path);
+    rmdir(dir);
+
+    // The sink sees exactly what the model accepted.
+    int seen = 0;
+    int srv = socket(AF_INET, SOCK_DGRAM, 0);
+    sockaddr_in sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sin_family = AF_INET;
+    sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    CHECK(bind(srv, reinterpret_cast<sockaddr*>(&sa), sizeof sa) == 0);
+    socklen_t sl = sizeof sa;
+    getsockname(srv, reinterpret_cast<sockaddr*>(&sa), &sl);
+    char spec[64];
+    snprintf(spec, sizeof spec, "127.0.0.1:%d", ntohs(sa.sin_port));
+    BenchLink l;
+    CHECK(l.open(spec, 1));
+    l.setSink(sinkCount, &seen);
+    l.poll(0.0);
+    char buf[64];
+    sockaddr_in from;
+    socklen_t fl = sizeof from;
+    timeval tv = {1, 0};
+    setsockopt(srv, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    CHECK(recvfrom(srv, buf, sizeof buf, 0, reinterpret_cast<sockaddr*>(&from), &fl) > 0);
+    sendto(srv, d, strlen(d), 0, reinterpret_cast<sockaddr*>(&from), fl);
+    sendto(srv, "junk", 4, 0, reinterpret_cast<sockaddr*>(&from), fl);
+    usleep(50 * 1000);
+    l.poll(10.0);
+    CHECK_EQ(seen, 1);
+    // the beacon's attitude lands in the same model without faking a bridge
+    l.model.applyBeaconUp(0.1f, 0.0f, 0.99f, 20.0);
+    CHECK(l.model.have_up && l.model.datagrams == 1);
+    l.close();
+    close(srv);
+}
+
 int main() {
     test_fault_ids_name_the_servos();
     test_frame_length_rule();
@@ -811,5 +1058,11 @@ int main() {
     test_parser_holds_a_truncated_frame();
     test_parser_refuses_endless_headers();
     test_recorder_writes_both_clocks();
+    test_recorder_keeps_bench_rows_and_sink();
+    test_json_flat_objects();
+    test_json_rejects_garbage();
+    test_bench_model_applies_samples();
+    test_timeseries_resample();
+    test_bench_link_subscribes_and_receives();
     return testutil::report("client");
 }
