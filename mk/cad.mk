@@ -88,7 +88,8 @@ check-cad: cad-v6 ## the CAD gate: swept-ROM interference, armless and with arms
 
 V6_STEP_FIGS := $(wildcard docs/assembly/v6_*.png)
 V6_GLUED := hip_yoke_glued ankle_link_glued
-V6_DOC_FIGS := docs/img/assembly_v6_arms.png docs/img/servo_map.png $(V6_GLUED:%=docs/img/%.png) \
+V6_GD_FIGS := gd_plate gd_plate_exploded
+V6_DOC_FIGS := docs/img/assembly_v6_arms.png docs/img/servo_map.png $(V6_GLUED:%=docs/img/%.png) $(V6_GD_FIGS:%=docs/img/%.png) \
 	docs/assembly/assembly_v6_flyin_arms_strip.png docs/assembly/assembly_v6_flyin_strip.png $(V6_STEP_FIGS)
 
 assembly: build/v6/step/assembly_v6_arms.step build/v6/step/assembly_v6.step ## the articulated v6 assembly, STEP + render, with and without arms
@@ -120,6 +121,12 @@ build/%/renders/hip_yoke_glued.png: $(PYDEPS_cad/v6/hip_yoke_glued.py)
 build/%/renders/ankle_link_glued.png: $(PYDEPS_cad/v6/ankle_link_glued.py)
 	$(PY) cad/v6/ankle_link_glued.py > /dev/null
 $(V6_GLUED:%=docs/img/%.png): docs/img/%.png: build/v6/renders/%.png
+	cp $< $@
+# the General Driver's plate: its checks, then both strips (the board from Waveshare's STEP)
+build/%/renders/gd_plate.png build/%/renders/gd_plate_exploded.png: $(PYDEPS_cad/v6/gd_plate.py) \
+		docs/datasheets/general-driver/General_Driver_for_Robots_STEP.zip
+	MUJOCO_GL=$${MUJOCO_GL:-cgl} $(PY) cad/v6/gd_plate.py > /dev/null
+$(V6_GD_FIGS:%=docs/img/%.png): docs/img/%.png: build/v6/renders/%.png
 	cp $< $@
 docs/assembly/assembly_v6_flyin_arms_strip.png: build/v6/movies/assembly_v6_flyin_arms_strip.png
 	cp $< $@

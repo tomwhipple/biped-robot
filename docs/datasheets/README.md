@@ -53,10 +53,17 @@ The files are in [`general-driver/`](general-driver/), which has its own
 [index](general-driver/README.md). The set is:
 
 - the schematic;
-- the dimension drawing;
+- the dimension drawing, as PDF and DXF;
+- the 3D model (STEP);
 - the annotated connector photo;
 - the JST XH datasheet;
 - the QMI8658C IMU datasheet.
+
+## Raspberry Pi 4 Model B
+
+The mechanical drawing, as PDF and DXF, is in
+[`raspberry-pi-4b/`](raspberry-pi-4b/), with its own
+[index](raspberry-pi-4b/README.md). Raspberry Pi publishes no 3D model of it.
 
 ## Not mirrored yet
 
@@ -72,7 +79,7 @@ repo yet:
 
 | part | manufacturer documents |
 |---|---|
-| Raspberry Pi 4 Model B | [product brief](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-product-brief.pdf), [datasheet](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-datasheet.pdf), [mechanical drawing](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf) |
+| Raspberry Pi 4 Model B | [product brief](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-product-brief.pdf), [datasheet](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-datasheet.pdf) (the mechanical drawing is mirrored above) |
 | Raspberry Pi Camera Module 3 (Wide) | [product brief](https://datasheets.raspberrypi.com/camera/camera-module-3-product-brief.pdf) |
 | Pololu D24V50F5, 5 V / 5 A buck | [product page](https://www.pololu.com/product/2851), with its dimension diagram. The torso has no mount for it: its power bay holds the custom power board (#112) |
 | 3S LiPo pack | the chosen pack's manufacturer spec sheet: dimensions, capacity, C rating, connector |

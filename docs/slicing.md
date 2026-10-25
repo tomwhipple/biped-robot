@@ -137,7 +137,9 @@ Before slicing that part or plate again, `slice.py` copies the project to
   - 3MF transforms are row-vector matrices, `m00 m01 m02 m10 … m32`, so the
     rotation as `print = R · model` is the transpose.
 - **Copies.** The number of build items per part, written to the part, or to
-  the plate. A plate saved with different counts per part is reported, not
+  the plate. On a plate each part takes the plate's copies times its own
+  `copies` (default 1): `gd_mount` holds one `gd_plate` and two `gd_key`s. A
+  plate saved with counts that are not one multiple of those is reported, not
   carried.
 
 Painted supports, seams or colour, modifier, support-blocker and

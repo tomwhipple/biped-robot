@@ -102,9 +102,10 @@ few days, storage-charge it to 3.8 V/cell.
 
 ### Pi supply
 
-- **The General Driver sits on the Pi as a HAT** (`cad/v6/torso_v8.py`), so the board's 40-pin 5 V and the Pi's 5 V rail are one net. The Pi takes its power through the header from the board's own buck, an MP8759 labelled "5V-5A … 5V Power for RPi/Jetson nano" (the power-circuit design's plan, PR #112).
-- Nothing else feeds the Pi: a second supply on its USB-C would put two 5 V sources in parallel.
-- The Pi wants 3 A peaks. That is about 1.4 A from an 11.1 V pack (15 W before converter loss), and it now comes through the board's XH inlet H1 (3 A per contact) and its INA219 shunt.
+- **Open, with the Pi's place (#87).** The General Driver stands alone on `gd_plate` (`cad/v6/gd_plate.py`), not on the Pi's header, so the Pi does not take the board's 5 V through it.
+- The board's own buck, an MP8759 labelled "5V-5A … 5V Power for RPi/Jetson nano", is still on its 40-pin header. Feeding the Pi from it through a cable would bring the Pi's current through the board's XH inlet H1 (3 A per contact) and its INA219 shunt.
+- Whatever the source, only one may feed the Pi: a second supply on its USB-C would put two 5 V sources in parallel.
+- The Pi wants 3 A peaks, about 1.4 A from an 11.1 V pack (15 W before converter loss).
 
 ### What the INA219 measures
 

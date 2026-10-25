@@ -124,7 +124,7 @@ Feetech's TTL catalogue lists exactly three 12 V servos in this case (checked
     wrong.
   - The input rating is 7–13 V on the wiki but "DC 9–12.6V" on the rev 1.2
     silkscreen. A 3S pack is inside both.
-- **Pi 4B.** It stands in the torso's front bay with the General Driver on it as a HAT, on a 2 × 20 riser (the riser part is open: `HAT_GAP`).
+- **Pi 4B.** Its place in the torso is open (#87); the General Driver stands alone in the front bay on `gd_plate` ([DESIGN.md §5.3](../DESIGN.md)).
 - **Camera cable.** The camera ships with a 200 mm cable, too short. The route
   runs from the Pi's CSI edge under the deck up to the head, plus a slack loop
   for ±90° of neck yaw. 300 mm is the design estimate; the routed length has
@@ -180,9 +180,8 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
     bay holds the custom power board (#112; [DESIGN.md §5.3](../DESIGN.md)).
   - The UART "smart" boards that give per-cell telemetry are the JBD SP04S010
     (80 × 60 × 12 mm) and the Daly R05J (100 × 65 × 13 mm).
-- **The Pi's 5 V** comes from the General Driver's own buck, through the
-  40-pin header the board plugs onto as a HAT ([wiring.md](wiring.md#pi-supply)):
-  there is no separate buck.
+- **The Pi's 5 V** is open with its place: the General Driver is not on its
+  header ([wiring.md](wiring.md#pi-supply)).
 - **Fuse:** start at 15 A, and drop to 10 A only once the peak current has been
   measured. It is for a dead short, not the operating current. **Never use a
   polyfuse/PPTC**: it takes seconds to trip, and its series resistance sags the
@@ -269,9 +268,7 @@ M2.5, not M3.
 |---|---|---|---|
 | **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **120** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, front and power covers to the torso 8, battery door 1, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder servos 8, elbow grips 12 | **24 on hand** |
 | M2.5 × 5 flat-head self-tapping | 8 | yaw-servo stators: 2.6 mm through the cell ceiling, 2.4 mm into the idler-face holes (3.0 deep in the vendor STEP; an × 8 would bottom out) | |
-| M2.5 × 17 male-female standoff, 6 mm male | 4 | the Pi onto its four bosses; the General Driver screws onto them | |
-| M2.5 × 6 pan, machine | 4 | the General Driver onto the Pi's standoffs | |
-| 2 × 20 GPIO riser | 1 | the General Driver on the Pi, 17 mm board to board (`HAT_GAP`): part **open** | |
+| M3 × 8 pan head self-tapping | 4 | the General Driver onto `gd_plate`'s spacers (6.4 mm into their Ø2.6 pilots). Head ≤ Ø6.9 (a USB-C shell is 3.5 from a hole's centre) | |
 | M2.5 × 6 pan self-tap | 4 | the power board onto its standoff bosses | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
 | **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |

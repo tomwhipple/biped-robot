@@ -149,8 +149,8 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §7d carrier to the yaw horn | M3 × 5 | 8 |
 | §7e hip-roll servo into the carrier bay | M2.5 × 8 flat | 16 |
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
-| §9a Pi | M2.5 × 17 male-female standoff (6 mm male) | 4 |
-| §9b General Driver onto the standoffs / front cover | M2.5 × 6 / M2.5 × 8 flat | 4 / 4 |
+| §9a plate and keys to the front inner wall | epoxy or CA, no screws | — |
+| §9a General Driver onto the plate / front cover | M3 × 8 pan self-tap / M2.5 × 8 flat | 4 / 4 |
 | §9c power board | M2.5 × 6 pan | 4 |
 | §9c power cover | M2.5 × 8 flat | 4 |
 | §10 battery door | M2.5 × 8 flat | 1 |
@@ -418,43 +418,48 @@ Offer each leg up so that the hip yoke's roll clevis straddles its roll servo:
 
 ## 9. Torso electronics
 
-The Pi and the General Driver go in as one stack, in the bay in front of the
-pelvis, with the front cover off: the Pi on four standoffs off the front inner
-wall, the General Driver plugged onto it as a HAT. The power board goes into
-the bay right behind the pelvis, with the aft cover off.
+The General Driver goes into the bay in front of the pelvis on its plate, with
+the front cover off. The power board goes into the bay right behind the
+pelvis, with the aft cover off. Where the Pi goes is open (#87).
 
-![The stack in from the front, the power board from aft](assembly/v6_11_boards.png)
+![The torso, the two keys, gd_plate, the General Driver and the front cover, apart along x](img/gd_plate_exploded.png)
 
-### 9a. Raspberry Pi 4B
+### 9a. General Driver on its plate, and its IMU
 
-- Fit the low-profile heatsink first: the Pi's parts under the HAT have 10 mm.
-- **Four M2.5 × 17 male-female standoffs**: their 6 mm male thread through the
-  Pi's holes into the four bosses on the front inner wall, the Pi's solder side
-  4 mm off the wall, its parts facing forward.
-- Its 40-pin header is down; its USB-C, HDMI and camera edge is up under the
-  deck; its USB/Ethernet end faces +y, through the side window.
-- Connect the camera ribbon at the top edge first, and lead it up through the
-  deck opening between the boards toward the neck.
-
-### 9b. General Driver, on the Pi as a HAT, and its IMU
-
-- **Plug it onto the Pi's 40-pin header** through a 2 × 20 riser, its sockets
-  (on its underside) down onto the header, its parts facing forward, its bus
-  edge up and its service edge (XH inlet, USB-C) at +y, and drive **4 × M2.5 ×
-  6** through its holes into the standoffs.
-- **The riser:** the General Driver's side plugs face +y, the same side as the
-  Pi's USB/Ethernet jacks, so the board has to sit 17 mm off the Pi's parts
-  face for them to pass over the 16 mm jacks. **The riser part and the stack's
-  real height are open** (`HAT_GAP` in `cad/v6/dimensions_v6.py`): measure them
-  before printing.
-- The leg leads come to its two bus ports, H5 and H6, through the top windows
-  of the front inner wall; the upper branch (neck, shoulders) leaves up through
-  the deck opening between the boards (§12). Both ports carry the same nets.
-- **The IMU is the board's onboard QMI8658C.** The board's mounting fixes the
-  IMU's axes. The firmware applies a mounting rotation (`imu::Mount`), which has
-  to be set for this orientation as part of the 17-joint port (#81).
+- **Measure first**: the board's thickness and how far its 2 × 20 sockets hang
+  under it (`GD_PCB_T`, `SOCKET` in `cad/v6/gd_plate.py`). The spacers are cut
+  for a 1.63 mm board and 9.0 mm sockets.
+- **The keys into the plate:** push both `gd_key`s through the plate's square
+  holes from its front, flush with its front face, so they stand 2 mm proud of
+  its glue face, and glue them there (CA).
+- **Dry fit:** put the keys into the front inner wall's two lower windows and
+  the plate flat on the wall, its spacers forward. The Pi's four bosses pass
+  through or beside it untouched; if one does not, trim the boss, not the
+  plate. Push the plate up until the keys meet the windows' top edges: that is
+  its place.
+- **Glue it:** epoxy (or gap-filling CA) on the plate's glue face and the keys,
+  press it on in the same place and hold it until the glue has set.
+- **The board**, once the glue has cured: parts forward, bus edge (the ON/OFF
+  switch, H5, H6) down, the header tab up, the service edge (XH inlet, USB-C)
+  at +y. Drive **4 × M3 × 8 pan-head self-tappers** through its holes into the
+  spacers (6.4 mm of thread). The board's holes are Ø3.0, so an M3 passes them
+  snugly. No washers.
+- The servo leads plug into H5 and H6 square to the board (18.8 mm to the front
+  cover). The XH inlet and USB-C plug in from +y, the USB-C plugs through the
+  +y skin's window. Both bus ports carry the same nets.
+- Set the ON/OFF switch on its bottom edge before the cover goes on.
+- **The IMU is the board's onboard QMI8658C**, and the mount turns it against
+  the prototype's. Set `imu mount 0.5 -0.5 -0.5 0.5` (sensor → body: chip +X
+  to +y, +Y down, +Z aft; derived from the prototype's measured mount,
+  [firmware-design.md](firmware-design.md)), confirm it with the tilt check
+  there, then run `imu bias` in the standing pose.
 - **The front cover:** set it between the skins' front ends and drive **4 ×
   M2.5 × 8 flat-heads** in through the skins into its corner blocks.
+
+### 9b. Raspberry Pi 4B
+
+Its place is open (#87). Raspberry Pi's mechanical drawing is in
+`docs/datasheets/raspberry-pi-4b/`.
 
 ### 9c. Power board and cover
 

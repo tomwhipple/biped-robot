@@ -45,7 +45,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
-| power | OVONIC 3S LiPo, 4200 mAh, 130C, XT60 (#107; 205 g weighed, listed 96 × 44.5 × 25.5 mm), protection board, inline fuse; #112 replaces these two with a custom power board, which the torso holds (§5.3); the Pi takes 5 V from the General Driver it carries as a HAT |
+| power | OVONIC 3S LiPo, 4200 mAh, 130C, XT60 (#107; 205 g weighed, listed 96 × 44.5 × 25.5 mm), protection board, inline fuse; #112 replaces these two with a custom power board, which the torso holds (§5.3); the Pi's 5 V supply is open with its place (§5.3) |
 | structure | PETG prints, 2 mm silicone rubber soles; M2.5 flat-head self-tappers into printed pilots, M3 screws on the servo horns and idler discs |
 
 ![Front view of the robot with every joint marked: servo ID, joint name, bus port, STS3250s](docs/img/servo_map.png)
@@ -269,10 +269,10 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
 ### 5.3 Torso
 
 Two prints, two covers and a door (`cad/v6/torso_v8.py`): the **pelvis**
-holds the legs, and the **torso** around it holds the pack, the board stack
-(the Pi with the General Driver on it) and the power board. The pack sits in
-the middle over the hips, the board stack in a bay in front of the pelvis and
-the power board in a bay right behind it. The pelvis is glued into the torso
+holds the legs, and the **torso** around it holds the pack, the General
+Driver and the power board. The pack sits in the middle over the hips, the
+General Driver in a bay in front of the pelvis and the power board in a bay
+right behind it. The pelvis is glued into the torso
 for good; the pack comes out sideways through the **battery door**, one
 screw. The pelvis, the covers and the door print without supports; the torso
 prints with slicer support in its wide windows and nowhere else. Frame: deck
@@ -311,7 +311,7 @@ housing), open at both ends for the covers:
   is built against) to ±60.06 at the bottom. Their inner faces (±57.46) are
   0.2 mm off the pelvis's cell walls.
 - two inner walls, either side of the pelvis and 0.2 mm off its webs: front
-  x 13.21 … 15.81 (the board stack stands off it), aft x −40.81 … −38.21 (the
+  x 13.21 … 15.81 (the General Driver stands off it), aft x −40.81 … −38.21 (the
   power board stands off it).
 - the **battery layer** over the pelvis's ceiling: pack ribs on both inner
   walls (front pair at y ±29, aft pair at y ±22), stopping 14 mm under the
@@ -322,15 +322,14 @@ housing), open at both ends for the covers:
   walls.
 - the deck: the battery aperture (x −36.51 … +10.50, y ±54.66), which also
   runs under the neck servo, so the deck does not seat it (§5.5); an opening
-  over the gap between the Pi and the General Driver (x 21.81 … 35.31,
-  y ±30, 1.5 mm 45° lead-in) for the camera's ribbon and the boards' top-edge
-  leads; and the girdle's ten pilots, 4.5 mm deep, on edge rails under the
-  deck at y ±57 (the rails keep them from ending over air). The deck is
+  over the front bay (x 21.81 … 35.31, y ±30, 1.5 mm 45° lead-in), astride the
+  General Driver's top edge, for the camera's ribbon and leads; and the
+  girdle's ten pilots, 4.5 mm deep, on edge rails under the deck at y ±57 (the rails keep them from ending over air). The deck is
   pocketed 2.4 mm from below over both bays.
-- flat-topped windows: cable passes in the inner walls (over the Pi's top
-  edge from the battery layer, and from the battery layer's ends into both
-  bays), the Pi's USB/Ethernet end and the General Driver's service edge (both
-  through the +y skin), and lightening windows in the walls and skins (23 g).
+- flat-topped windows: cable passes in the inner walls (under the deck from
+  the battery layer into the front bay, and from the battery layer's ends into
+  both bays), two in the +y skin over the front bay, which the General
+  Driver's service plugs face, and lightening windows in the walls and skins (23 g).
   Only the covers' vent slots are there for cooling. Printed deck down, a
   window's bottom edge is the top of its opening; where that spans more than
   an 8 mm bridge (26 windows, the door's opening among them) the slicer puts
@@ -339,27 +338,41 @@ housing), open at both ends for the covers:
   `torso_v8.support_enforcers()` (the yaw carrier's method, `docs/slicing.md`).
   The printability audit reads those windows as filled.
 
-**The board stack**, in the front bay, installed from the front with the front
-cover off:
+**The front bay** holds the General Driver alone, on its plate
+(`cad/v6/gd_plate.py`), installed from the front with the front cover off.
+Where the Pi goes is open (#87): the Pi with the General Driver on it as a HAT
+does not fit. Waveshare's STEP of the board
+(`docs/datasheets/general-driver/`) shows why: the board is 65.0 × 65.01 mm
+overall, an 8.99 × 52.51 mm tab carrying both 2 × 20 headers past its
+56.01 mm edge; its sockets hang 9.0 mm under it; and its servo ports H5 and H6
+are top-entry, so their leads need room square to the board.
 
-- **Raspberry Pi 4B**: its solder side on four 4 mm standoff bosses off the
-  front inner wall, its parts facing forward. Its 40-pin header is down, so its
-  camera (CSI), USB-C and HDMI edge is up under the deck, about 20 mm in front
-  of the neck tube; its USB/Ethernet end is at +y. The Pi's hole grid is the
-  General Driver's (58 × 49 mm), its non-USB end in line with the GD's −y edge
-  (PCB x 19.81 … 21.31, y −32.5 … +52.5).
-- **General Driver**, plugged onto the Pi as a HAT: it is HAT-format (65.01 ×
-  56.01 mm on the same hole grid) with its 2 × 20 sockets on its underside
-  (`docs/datasheets/general-driver/`, the connector diagram's [23]/[24]), and
-  Waveshare's inner 40-pin header takes the host directly. Its parts face
-  forward, its bus edge up and its service edge (XH inlet, USB-C) at +y — the
-  same side as the Pi's USB/Ethernet end. At the stock stacking height its
-  side plugs would hit the Pi's 16 mm jacks, so a 2 × 20 riser lifts it to
-  **17 mm** between the Pi's parts face and its own underside (PCB x 38.31 …
-  39.94); the plugs then pass over the jacks. **The riser part and the stack's
-  real height are open**: measure them before printing.
-- Four M2.5 × 17 male-female standoffs hold the Pi (their 6 mm male thread into
-  the bosses); the General Driver goes on top with four M2.5 × 6.
+![gd_plate and a key as they print; the plate glued on the wall with its keys (red) in the windows, the bosses through its cut-outs; the General Driver on it with the plugs mated (light grey); a section at y = +26 through a key](docs/img/gd_plate.png)
+
+- **General Driver**: its parts face forward (PCB x 30.31 … 31.94), its bus
+  edge (switch, H5, H6) down on the torso's bottom plane and its header tab up,
+  1.5 mm under the deck: the bay is 66.5 mm tall. It sits 9 mm toward +y off
+  the Pi's boss grid (y −23.5 … +41.5), so its holes (y +38 / −20, z −68 /
+  −19) clear the bosses. Its service edge (XH inlet, both USB-C) is at +y, the
+  USB-C plugs through the +y skin's window. Its sockets pass the +y upper boss
+  in front of it. 18.8 mm stay between its parts face and the front cover for
+  the servo plugs and their bends.
+- **`gd_plate`** (8.7 g, printed glue face down) is **glued** flat to the
+  front inner wall's face (2200 mm² on solid wall) and touches none of the
+  Pi's four bosses, which printed deformed. Each boss is kept out as its CAD
+  teardrop grown 1.5 mm sideways and 1.0 mm at its face: the plate is cut out
+  round the two it spans and ends short of the other two. Two **`gd_key`s**
+  (0.8 g each) go through square holes in it into the wall's two lower windows
+  (y −8 … 8 and 20 … 32, z −52 … −38) and locate it while the glue cures:
+  0.3 mm off the windows' sides and tops, 0.8 mm off their lower edges, which
+  printed over support. The wall's top windows (lead passes) stay open above
+  it. Four spacers rise from it to the board, Ø2.6 × 10 mm blind pilots in
+  them for **4 × M3 × 8 pan-head self-tappers** (6.4 mm of thread).
+- Not measured, and each sets a clearance: the board's thickness (1.63 mm
+  modelled; the STEP's PCB is 0.41), its sockets' depth (9.0 mm, the STEP's
+  pins), a mated servo plug (13.9 mm, an upper bound), the XH inlet's place
+  (photo-scaled; the STEP leaves it out) and how far the printed bosses stray
+  from their CAD.
 
 **The power board** is the custom board of PR #112 (`pcb/power-board/` on
 branch `design/power-circuit`, not merged): 97 × 64.5 × 1.6 mm, every part on
@@ -524,8 +537,8 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
   required before the first powered floor run.
 - **Power path**: pack → protection board (≥ 15 A, over-discharge cut-off) →
   10–15 A fuse → switch → board inlet; bulk capacitor (1000 µF, ≥ 25 V) at the
-  board; the Pi powered from the General Driver's 5 V buck through the 40-pin
-  header, the board plugged onto it as a HAT (§5.3).
+  board; the Pi's 5 V supply is open with its place: the General Driver is
+  not on its header (§5.3).
 - **The ESP32 runs the 50 Hz control loop** and the servo bus; the Pi does
   vision and navigation and talks to the ESP32. How the Pi gets bus voltage and
   current for a low-battery shutdown is open.
