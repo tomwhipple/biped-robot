@@ -125,8 +125,11 @@ PRINT_ORIENT = {
 # slicer cannot clean up (small horizontal bores: teardropped) is designed in.
 SUPPORT_NOTE = {
     "arm_fore_v6": "supports on: the two elbow pads' undersides start 5 mm off the bed "
-                   "(the fork prints on its back); support touching the build plate only",
+                   "(the fork prints on its back); support touching the build plate only, "
+                   "inside one enforcer box per pad (support_enforcers())",
 }
+SUPPORT_ANGLE = 30.0   # print_settings.json supports.support_threshold_angle
+ENF_INTO = 0.3         # an enforcer box reaches this far into the solid (torso_v8's)
 # print-up for this orientation is model +X, so every horizontal bore's
 # teardrop peak points that way (teardrop_*'s roll=90). Named, not a bare 90,
 # for the same reason leg_link_v6 names its ROLL_UP=0.
@@ -453,6 +456,24 @@ def arm_fore_v6(side="L"):
     p += parts.wedge_y([(wx0, drop + q - _ramp), (-q, drop + q),
                         (-q, drop - q), (wx0, drop - q + _ramp)], -hy, hy)
     return _mirrored(p, side)
+
+
+def support_enforcers(side="L"):
+    """arm_fore_v6's support-enforcer boxes, model frame, rounded as
+    cad/v6/print_settings.json carries them. Printed on its back, each elbow
+    pad's round end (past the axis, z > 0) hangs 5.16 mm over the bed, and its
+    underside is flatter than SUPPORT_ANGLE up to r cos(SUPPORT_ANGLE): one box
+    per pad, from the bed to there, across the tine and from ENF_INTO inside
+    it. The idler pad's box takes the idler boss's 0.6 mm taper beside it."""
+    r = D.PAD_D / 2
+    x0, x1 = V.ARM_WEB_X[0], -r * math.cos(math.radians(SUPPORT_ANGLE)) + ENF_INTO
+    s = 1 if side == "L" else -1
+    boxes = []
+    for a0, a1 in ((D.IDLER_ARM_INNER - D.PLATE, D.SV_IDLER_FACE),
+                   (D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE)):
+        y0, y1 = sorted((s * a0, s * a1))
+        boxes.append([x0, x1, y0, y1, -ENF_INTO, r])
+    return [[round(v, 2) for v in b] for b in boxes]
 
 
 def elbow_servo_mock(side="L"):

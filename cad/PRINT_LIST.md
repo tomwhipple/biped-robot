@@ -53,8 +53,8 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `head_face` | 1 | 8.6 | 62 × 56 × 6 | flat, camera bosses up | no | |
 | `neck_floor` | 1 | 4.0 | 46 × 45 × 5 | flat, bottom face down, pads and lugs up | no | the neck servo's seat (#90): screwed up into the neck tube's four bosses; the stator screws go up through it |
 | `shoulder_girdle_v6` | 1 | 77.1 | 200 × 58 × 33 | base down | **yes**, build plate only | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`) |
-| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no | a mirror pair; open-front U with two end walls; grips the elbow servo |
-| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **yes**, build plate only: the two elbow-pad undersides start 5 mm off the bed | a mirror pair; the elbow fork, an end wall, 12 mm hand knuckle |
+| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no (manual supports with no enforcer box, to share the `arms` plate) | a mirror pair; open-front U with two end walls; grips the elbow servo |
+| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **under the two elbow pads only**, build plate only: an enforcer box per pad in `print_settings.json` (manual supports, snug) | a mirror pair; the elbow fork, an end wall, 12 mm hand knuckle |
 
 **Part notes:**
 
@@ -115,6 +115,14 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 - **`neck_floor`:** a separate print because it hangs 5 mm below the girdle's
   print plane. Its counterbores and countersinks open onto the bed; the audit
   finds nothing to support.
+- **`arm_upper_v6_L/_R`, `arm_fore_v6_L/_R`:** all four print together on the
+  `arms` plate (3 h 54 m, 137 g). The girdle does not fit beside them.
+  - Each forearm pad's round end, past the elbow axis, hangs 5.16 mm over the
+    bed. It is supported from the plate up its underside to where the arc is
+    steeper than the 30° support threshold, and nowhere else: an enforcer box
+    per pad (`arm_v6.support_enforcers()`, pinned by `tests/test_slice.py`).
+  - The upper arms need no support. The plate's manual supports leave them
+    unsupported; auto supports would put a column under the shoulder head.
 - **`shoulder_girdle_v6`**
   - It is 200 mm long, so **centre it on the bed**.
   - Supports go under the trapezius-web window tops (34 mm spans), the
@@ -299,7 +307,8 @@ python3 cad/slice.py --harvest               # only read saved projects back
        or a 3×3 matrix whose rows are the print axes in model coordinates;
      - supports, and copies;
      - overrides, in OrcaSlicer's own keys.
-  4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`. One
+  4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`;
+     **`arms`** is the four arm links. One
      process slices a plate, so its parts must agree on supports and overrides
      (`slice.py` refuses a plate whose parts don't). A plate's copies are its
      own: `--copies 2` puts two of each foot on it.

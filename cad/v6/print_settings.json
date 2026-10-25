@@ -57,6 +57,15 @@
         "power_cover_v8"
       ],
       "note": "the torso's second print: both covers, outer face down, no supports"
+    },
+    "arms": {
+      "parts": [
+        "arm_upper_v6_L",
+        "arm_upper_v6_R",
+        "arm_fore_v6_L",
+        "arm_fore_v6_R"
+      ],
+      "note": "the four arm links (ARMS=1), each on its back, web face down. Manual supports: the forearms' elbow pads inside their enforcer boxes, nothing on the upper arms. The shoulder girdle (200 x 58) does not fit beside them"
     }
   },
   "variants": {
@@ -120,22 +129,86 @@
     "arm_fore_v6_L": {
       "orient": "RY_XUP",
       "supports": true,
-      "note": "on its back, web face down"
+      "note": "on its back, web face down. Supports under the two elbow pads only, from the build plate: manual supports, snug, inside the enforcer boxes (arm_v6.support_enforcers())",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug"
+      },
+      "support_enforcers": [
+        {
+          "box": [
+            -15.16,
+            -8.36,
+            -20.4,
+            -16.8,
+            -0.3,
+            10.0
+          ],
+          "note": "the idler pad's round end, past the elbow axis: from the bed up its underside to where the arc is steeper than the 30 deg support threshold"
+        },
+        {
+          "box": [
+            -15.16,
+            -8.36,
+            20.45,
+            23.45,
+            -0.3,
+            10.0
+          ],
+          "note": "the horn pad's round end, past the elbow axis: from the bed up its underside to where the arc is steeper than the 30 deg support threshold"
+        }
+      ]
     },
     "arm_fore_v6_R": {
       "orient": "RY_XUP",
       "supports": true,
-      "note": "on its back, web face down"
+      "note": "on its back, web face down. Supports under the two elbow pads only, from the build plate: manual supports, snug, inside the enforcer boxes (arm_v6.support_enforcers())",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug"
+      },
+      "support_enforcers": [
+        {
+          "box": [
+            -15.16,
+            -8.36,
+            16.8,
+            20.4,
+            -0.3,
+            10.0
+          ],
+          "note": "the idler pad's round end, past the elbow axis: from the bed up its underside to where the arc is steeper than the 30 deg support threshold"
+        },
+        {
+          "box": [
+            -15.16,
+            -8.36,
+            -23.45,
+            -20.45,
+            -0.3,
+            10.0
+          ],
+          "note": "the horn pad's round end, past the elbow axis: from the bed up its underside to where the arc is steeper than the 30 deg support threshold"
+        }
+      ]
     },
     "arm_upper_v6_L": {
       "orient": "RY_XUP",
-      "supports": false,
-      "note": "on its back, web face down"
+      "supports": true,
+      "note": "on its back, web face down. Needs no support: manual supports with no enforcer box print it unsupported, and agree with the forearms on the arms plate (auto supports would add a column near its shoulder end)",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug"
+      }
     },
     "arm_upper_v6_R": {
       "orient": "RY_XUP",
-      "supports": false,
-      "note": "on its back, web face down"
+      "supports": true,
+      "note": "on its back, web face down. Needs no support: manual supports with no enforcer box print it unsupported, and agree with the forearms on the arms plate (auto supports would add a column near its shoulder end)",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug"
+      }
     },
     "foot_L": {
       "orient": "IDENT",
