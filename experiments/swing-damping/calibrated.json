@@ -1,0 +1,24 @@
+{
+ "delay": 1,
+ "roll_lash": 1.0,
+ "play": 2.0,
+ "lash": 0.7,
+ "kp_ankle": 2.8,
+ "kp_knee": 2.8,
+ "kp_hip": 0.5,
+ "kd_mult": 0.3,
+ "jdamp": 0.1,
+ "mu": 1.0,
+ "pad_solref": [
+  0.04,
+  0.15
+ ],
+ "jfric": 0.0,
+ "lag": 3.0,
+ "kick": 0.5108125390975191,
+ "kick_dir": [
+  0,
+  -1.0,
+  0
+ ]
+}
