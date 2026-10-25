@@ -88,7 +88,7 @@ sim's roll joints mirror and the output is odd in the error.
 | kd | 0.03 rad per rad/s | gyro roll-rate damping; good to about 2x alone, a cliff between 0.05 and 0.07 (dead time) |
 | ankle / hip mix | +1 / -1 | |
 | output clamp | 10 deg | the robot needed 9.2-9.7 deg (see the hardware section); the sweep is the same at 6 and 10 |
-| abort | 12 deg roll error freezes the correction | |
+| abort | 12 deg roll error, or a dead IMU: u fades over 0.3 s, then the pose returns to the pre-lift pose over 1.0 s | [2026-10-25-abort-policy-sim.md](2026-10-25-abort-policy-sim.md); `balance_abort.py` |
 
 `balance_sweep.py` runs 34 cases per stance (torso mass 0.6-1.4x, play 3-5 deg,
 backlash 1-2 deg, lag 0 or 2 Hz, 0-4 ticks dead time, mu 0.4-1.0, keyframes
