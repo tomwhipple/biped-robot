@@ -132,6 +132,22 @@ What drives that estimate:
   CSD17556Q5B, Keystone 3568, the 1 mΩ shunt, SMBJ15A and PMEG4002EJ-QX. PCBWay buys
   turnkey parts itself, so its parts review will show whether any of these delays the
   order. The XT60 is the one to watch.
+- **The through-hole parts among them are soldered by hand** (Tom, 2026-10-25). J1 and
+  F1/F2's holders go on the assembly order as do-not-populate, and are bought from stock
+  found elsewhere. Pages read on 2026-10-25:
+
+  | part | source | stock | price |
+  |---|---|---|---|
+  | J1: Amass XT60PW-M | Jameco 2844439 (maker: Amass) | 301, and 1,500 more shipping 2026-11-05 | $0.79 (1+), $0.69 (10+), plus Jameco's 20 % tariff charge |
+  | F1, F2: Keystone 3568 holder | Digi-Key 36-3568-ND | 98,603 | $1.31 (1), $0.989 (10+) |
+
+  - For 2–3 boards: 4 XT60PW-M (one spare) and 10 holders, about $13 before shipping
+    and the tariff charge.
+  - Elsewhere on 2026-10-25: LCSC's stock API showed 0 XT60PW-M, TME 0, and Digi-Key
+    does not list the part. Win Source, an independent distributor, lists 20,000; it was
+    not used, because Jameco names Amass as the maker and links Amass's datasheet.
+  - The fuses themselves (Littelfuse MINI blades) plug in by hand anyway (C1 of the
+    layout review).
 
 ## Before ordering
 

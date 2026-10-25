@@ -133,7 +133,10 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
 - **A firm quote.** The instant quotes of 2026-10-24
   ([record](../../docs/design-v6/2026-10-24-power-board-quote.md)) put 2 assembled boards at
   about $203 at PCBWay with 1 oz copper. A firm price needs `fab/` uploaded to an account for
-  review, after rev B. The XT60PW-M is out of stock at LCSC and TME until about 2026-11-25.
+  review, after rev B. J1 (XT60PW-M) and F1/F2's holders (Keystone 3568) are out of stock
+  at LCSC: they are left off the assembly order and soldered by hand, from Jameco and
+  Digi-Key stock (quote record). At rev B, mark J1, F1 and F2 do-not-populate in the
+  schematic, so the BOM and placement files leave them out.
 - **Rev B changes from the whole-board simulation**
   ([record](../../docs/design-v6/2026-10-24-power-board-full-simulation.md), F-numbers)
   **and the pin audit** ([record](../../docs/design-v6/2026-10-24-power-board-pin-audit.md)):
@@ -163,8 +166,8 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
 
   Optional improvements are M4–M9 there; do M8's via doubling and its pour extension over
   R1's GND pad together. On the order form: 1 oz inner copper, a 0.10–0.12 mm stencil,
-  J1's 0.25 mm overhang, the placement file's negated Y, and a check of every polarized
-  part in the assembler's preview (M10, C2).
+  J1, F1 and F2 not populated, the placement file's negated Y, and a check of every
+  polarized part in the assembler's preview (M10, C2).
 - **The BQ76922 configuration** must also set SCDL latch limit 1 (F-8), OCD1 at 30 mV
   (F-4), and the audit's C1–C9. Two choices are open, with the options simulated in the
   record: OCD recovery (F-3; recommended: TI's default, latched) and the low-cell
