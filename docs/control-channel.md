@@ -367,7 +367,10 @@ new commander is a class in `link/sources.py` or a front end on
   - **RESET SERVOS** (`h`), amber and apart from the controls that stop
     things, because it is the way out of an emergency, not one;
   - **a SETTINGS panel** with every command-line flag editable live;
-    socket-binding fields are applied on a button, not per keystroke.
+    socket-binding fields are applied on a button, not per keystroke;
+  - **a BENCH view** (cameras + serial-bridge telemetry) when started with
+    `--bench-telemetry` / `--cam-relay`; the `bench view` / `drive view`
+    button switches.
 
   Default keys: arrows translate (`vx`, `vy`), PgUp/PgDn rotate, `a` arm,
   `space` stand, `e` E-stop, `h` reset servos, `r` record, `0` reset the
@@ -389,6 +392,11 @@ new commander is a class in `link/sources.py` or a front end on
     hand the robot between consoles) makes it the commander; **WATCH ONLY**
     closes the socket again. Taking control needs `--host`: the beacons come
     from the relaying console, so the robot's address cannot be guessed.
+- **`bimo_gui --bench-telemetry` / `--cam-relay`**: the bench view, for a
+  robot driven over its serial tether (no WiFi beacon). Live camera panels
+  and the serial CLI's readings in the same window, watch-only: with no
+  `--host` the console starts as an observer. See
+  [bench-console.md](bench-console.md).
 - **A watcher needs the driver's help.** The robot beacons only to its last
   commander, and the only way to become that is to send a command, which
   steals the beacon and drives the robot. So the driving console relays:

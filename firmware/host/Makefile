@@ -78,7 +78,7 @@ all: $(BINS) $(SIL_LIB)
 SRC_CLIENT = ../../link/client.cpp
 CLIENT_HDRS= ../../link/client.h
 GUI_HDRS   = $(CLIENT_HDRS) ../../link/keymap.h ../../link/recorder.h \
-             ../../link/mjpeg.h ../../link/simproc.h
+             ../../link/mjpeg.h ../../link/simproc.h ../../link/bench.h
 
 # The operator's console (link/tui.cpp): the firmware's own linkproto
 # sources plus ncurses, no sanitizers (it is a tool, not a test), exceptions
@@ -187,6 +187,7 @@ GUI = $(BUILD)/bimo_gui
 gui: $(GUI)
 $(GUI): ../../link/gui.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
         ../../link/recorder.cpp ../../link/mjpeg.cpp ../../link/simproc.cpp \
+        ../../link/bench.cpp \
         $(SRC_LINK) $(GUI_HDRS) ../../link/jpeg.h $(COMP_HDRS) \
         $(IMGUI_OBJ) | $(BUILD)
 	$(CXX) $(CXXFLAGS_NOSAN) $(GUI_INC) $(GUI_DEFS) \
@@ -216,7 +217,7 @@ $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
 # the tools that link the same sources.
 $(BUILD)/test_client: test_client.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
                       ../../link/mjpeg.cpp ../../link/recorder.cpp \
-                      $(SRC_LINK) $(GUI_HDRS) \
+                      ../../link/bench.cpp $(SRC_LINK) $(GUI_HDRS) \
                       test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) -I../../link $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 

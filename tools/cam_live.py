@@ -3,6 +3,10 @@
     .venv/bin/python tools/cam_live.py            # http://mira:8646/
     .venv/bin/python tools/cam_live.py --devices /dev/video0 /dev/video2
 
+The side-by-side composite of the two bench webcams. The bench console's own
+camera panels use tools/cam_relay.py instead (one stream per camera, on
+demand, Tailscale-only); the two cannot run at once on the same device.
+
 Same LAN-only MJPEG pattern as sim/sil_twin.py's live view. Left pane =
 first device (side, video0), right pane = second (rear, video2).
 
@@ -23,7 +27,7 @@ BOUNDARY = b"--camliveframe"
 
 
 class Stream:
-    def __init__(self, port):
+    def __init__(self, bind, port):
         self.jpeg = None
         self.lock = threading.Lock()
         outer = self
@@ -52,7 +56,7 @@ class Stream:
                 except (BrokenPipeError, ConnectionResetError):
                     return
 
-        self.httpd = http.server.ThreadingHTTPServer(("0.0.0.0", port), H)
+        self.httpd = http.server.ThreadingHTTPServer((bind, port), H)
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
     def push(self, rgb):
@@ -67,15 +71,23 @@ def main():
     p.add_argument("--devices", nargs="+",
                    default=["/dev/video0", "/dev/video2"])
     p.add_argument("--port", type=int, default=8646)
+    p.add_argument("--bind", default="0.0.0.0",
+                   help="address to serve on (100.105.166.4 for Tailscale only)")
+    p.add_argument("--fps", type=int, default=15,
+                   help="frame rate asked of each camera")
     args = p.parse_args()
 
     # Pin the capture mode: v4l2 devices remember the last format another
     # tool set (a 1080p still capture left one camera wide, and the naive
     # height crop then showed only the top strip of that pane).
-    readers = [imageio.get_reader(f"<video{d[-1]}>", size=(640, 480))
-               for d in args.devices]
-    stream = Stream(args.port)
-    print(f"cam_live: {' + '.join(args.devices)} -> http://0.0.0.0:{args.port}/",
+    # Ask each camera for its own MJPEG, never raw YUYV: two raw streams on the
+    # shared USB2 controller have wedged the hub.
+    readers = [imageio.get_reader(
+        f"<video{d[-1]}>", size=(640, 480),
+        input_params=["-input_format", "mjpeg", "-framerate", str(args.fps)])
+        for d in args.devices]
+    stream = Stream(args.bind, args.port)
+    print(f"cam_live: {' + '.join(args.devices)} -> http://{args.bind}:{args.port}/",
           flush=True)
 
     # One drain thread per camera, keeping only the newest frame: the compose
